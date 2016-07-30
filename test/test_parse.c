@@ -254,18 +254,18 @@ START_TEST(test_process)
    p = tree_stmt(a, 2);
    fail_unless(tree_kind(p) == T_PROCESS);
    fail_unless(tree_triggers(p) == 1);
-   fail_if(tree_attr_int(p, ident_new("postponed"), 0));
+   fail_if(tree_flags(p) & TREE_F_POSTPONED);
    d = tree_trigger(p, 0);
    fail_unless(tree_kind(d) == T_REF);
    fail_unless(tree_ident(d) == ident_new("X"));
 
    p = tree_stmt(a, 3);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_attr_int(p, ident_new("postponed"), 0));
+   fail_unless(tree_flags(p) & TREE_F_POSTPONED);
 
    p = tree_stmt(a, 4);
    fail_unless(tree_kind(p) == T_CASSERT);
-   fail_unless(tree_attr_int(p, ident_new("postponed"), 0));
+   fail_unless(tree_flags(p) & TREE_F_POSTPONED);
 
    a = parse();
    fail_unless(a == NULL);

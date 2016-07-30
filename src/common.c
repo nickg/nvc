@@ -759,7 +759,6 @@ void intern_strings(void)
    formal_i         = ident_new("formal");
    elab_copy_i      = ident_new("elab_copy");
    all_i            = ident_new("all");
-   shared_i         = ident_new("shared");
    protected_i      = ident_new("protected");
    inst_name_i      = ident_new("INSTANCE_NAME");
    fst_dir_i        = ident_new("fst_dir");
@@ -789,9 +788,7 @@ void intern_strings(void)
    stmt_tag_i       = ident_new("stmt_tag");
    cond_tag_i       = ident_new("cond_tag");
    sub_cond_i       = ident_new("sub_cond");
-   impure_i         = ident_new("impure");
    range_var_i      = ident_new("range_var");
-   postponed_i      = ident_new("postponed");
    work_i           = ident_new("WORK");
    llvm_i           = ident_new("llvm");
    wait_level_i     = ident_new("wait_level");

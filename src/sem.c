@@ -2137,7 +2137,7 @@ static bool sem_check_decl(tree_t t)
    scope_apply_prefix(t);
 
    // From VHDL-2000 onwards shared variables must be protected types
-   if ((standard() >= STD_00) && tree_attr_int(t, shared_i, 0)) {
+   if (standard() >= STD_00 && (tree_flags(t) & TREE_F_SHARED)) {
       if (type_kind(type) != T_PROTECTED)
          sem_error(t, "shared variable %s must have protected type",
                    istr(tree_ident(t)));
@@ -3928,8 +3928,8 @@ static bool sem_check_fcall(tree_t t)
    // Pure function may not call an impure function
    tree_t sub = top_scope->subprog;
    if ((sub != NULL) && (tree_kind(sub) == T_FUNC_BODY)) {
-      if ((tree_attr_int(sub, impure_i, 0) == 0)
-          && (tree_attr_int(decl, impure_i, 0) == 1))
+      if (!(tree_flags(sub) & TREE_F_IMPURE)
+          && (tree_flags(decl) & TREE_F_IMPURE))
          sem_error(t, "pure function %s cannot call impure function %s",
                    istr(tree_ident(sub)), istr(tree_ident(decl)));
    }
@@ -5045,7 +5045,7 @@ static bool sem_check_pure_ref(tree_t ref, tree_t decl)
    const bool is_pure_func =
       top_scope->subprog != NULL
       && tree_kind(top_scope->subprog) == T_FUNC_BODY
-      && tree_attr_int(top_scope->subprog, impure_i, 0) == 0;
+      && !(tree_flags(top_scope->subprog) & TREE_F_IMPURE);
 
    if (is_pure_func) {
       scope_t *owner = scope_containing(top_scope, decl);
@@ -5154,7 +5154,7 @@ static bool sem_check_ref(tree_t t)
    if (top_scope->subprog != NULL) {
       if (kind == T_FILE_DECL)
          top_scope->impure_io |= IMPURE_FILE;
-      else if (kind == T_VAR_DECL && tree_attr_int(decl, shared_i, 0))
+      else if (kind == T_VAR_DECL && (tree_flags(decl) & TREE_F_SHARED))
          top_scope->impure_io |= IMPURE_SHARED;
    }
 
@@ -6362,7 +6362,7 @@ static bool sem_globally_static(tree_t t)
    if ((kind == T_FCALL) || (kind == T_CONCAT)) {
       if (kind == T_FCALL) {
          tree_t decl = tree_ref(t);
-         if (tree_attr_int(decl, impure_i, 0))
+         if (tree_flags(decl) & TREE_F_IMPURE)
             return false;
       }
 
@@ -6865,7 +6865,7 @@ static bool sem_check_file_decl(tree_t t)
    const bool is_pure_func_body =
       top_scope->subprog != NULL
       && tree_kind(top_scope->subprog) == T_FUNC_BODY
-      && !tree_attr_int(top_scope->subprog, impure_i, 0);
+      && !(tree_flags(top_scope->subprog) & TREE_F_IMPURE);
 
    if (is_pure_func_body & !(relax & RELAX_PURE_FILES))
       sem_error(t, "cannot declare a file object in a pure function");

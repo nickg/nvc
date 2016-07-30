@@ -43,13 +43,13 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_CHARS | I_FLAGS),
 
    // T_SIGNAL_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_NETS | I_ATTRS),
+   (I_IDENT | I_VALUE | I_TYPE | I_NETS | I_ATTRS | I_FLAGS),
 
    // T_VAR_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS),
 
    // T_PROCESS
-   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_ATTRS | I_CODE),
+   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_ATTRS | I_CODE | I_FLAGS),
 
    // T_REF
    (I_IDENT | I_TYPE | I_REF | I_ATTRS | I_FLAGS),
@@ -76,10 +76,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_TYPE | I_POS | I_ATTRS),
 
    // T_CONST_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS),
 
    // T_FUNC_DECL
-   (I_IDENT | I_VALUE | I_PORTS | I_TYPE | I_ATTRS),
+   (I_IDENT | I_VALUE | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS),
 
    // T_ELAB
    (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_ATTRS | I_CODE),
@@ -113,7 +113,8 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS | I_CODE),
 
    // T_FUNC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_CODE),
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_CODE
+    | I_FLAGS),
 
    // T_RETURN
    (I_IDENT | I_VALUE | I_ATTRS),
@@ -197,7 +198,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_TYPE),
 
    // T_CASSERT
-   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE | I_ATTRS),
+   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE | I_FLAGS),
 
    // T_CPCALL
    (I_IDENT | I_IDENT2 | I_PARAMS | I_REF),

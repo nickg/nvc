@@ -1400,7 +1400,7 @@ static void rt_setup(tree_t top)
       procs[i].source     = p;
       procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)), true);
       procs[i].wakeup_gen = 0;
-      procs[i].postponed  = tree_attr_int(p, postponed_i, 0);
+      procs[i].postponed  = !!(tree_flags(p) & TREE_F_POSTPONED);
       procs[i].tmp_stack  = NULL;
       procs[i].tmp_alloc  = 0;
       procs[i].pending    = false;

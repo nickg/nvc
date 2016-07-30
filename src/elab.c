@@ -775,7 +775,7 @@ static bool elab_should_copy(tree_t t)
    case T_AGGREGATE:
        return false;
    case T_VAR_DECL:
-      if (tree_attr_int(t, shared_i, 0))
+      if (tree_flags(t) & TREE_F_SHARED)
          return true;
       // Fall-through
    default:
