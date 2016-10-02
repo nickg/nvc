@@ -185,6 +185,15 @@ PKG_CHECK_EXISTS([check],
   [PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])],
   [AC_MSG_WARN(libcheck not found - unit tests will not run)])
 
+case $host_os in
+  linux*)
+    PKG_CHECK_EXISTS([libdw],
+      [PKG_CHECK_MODULES([libdw], [libdw >= 0.159], [], [])
+       AC_DEFINE_UNQUOTED([HAVE_LIBDW], [1], [Have libdw for stack traces])]
+      [AC_MSG_NOTICE(libdw not found - using basic stack traces)])
+    ;;
+esac
+
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 AX_DEFINE_DIR([LIBDIR], [libdir], [Installation library directory])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])

@@ -56,7 +56,8 @@ bin_nvc_LDADD = \
 	lib/liblxt.a \
 	lib/libfst.a \
 	lib/libfastlz.a \
-	$(LLVM_LIBS)
+	$(LLVM_LIBS) \
+	$(libdw_LIBS)
 
 if ENABLE_VHPI
 bin_nvc_LDADD += lib/libvhpi.a

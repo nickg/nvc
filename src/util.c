@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -58,9 +58,17 @@
 #include <sys/ucontext.h>
 #endif
 
+#ifdef HAVE_LIBDW
+#include <elfutils/libdw.h>
+#include <elfutils/libdwfl.h>
+#include <dwarf.h>
+#include <unwind.h>
+#endif
+
 #define N_TRACE_DEPTH   16
 #define ERROR_SZ        1024
 #define PAGINATE_RIGHT  72
+#define TRACE_MAX_LINE  256
 
 #define ANSI_RESET      0
 #define ANSI_BOLD       1
@@ -347,6 +355,34 @@ static void msg_at(print_fn_t fn, const loc_t *loc, const char *fmt, va_list ap)
    free(strp);
 }
 
+static int color_vfprintf(FILE *f, const char *fmt, va_list ap)
+{
+   char *strp LOCAL = prepare_msg(fmt, ap, false);
+
+   bool escape = false;
+   int len = 0;
+   for (const char *p = strp; *p != '\0'; p++) {
+      if (*p == '\033')
+         escape = true;
+      if (escape)
+         escape = (*p != 'm');
+      else
+         len += 1;
+   }
+
+   fputs(strp, f);
+   return len;
+}
+
+static int color_fprintf(FILE *f, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   const int len = color_vfprintf(f, fmt, ap);
+   va_end(ap);
+   return len;
+}
+
 int color_printf(const char *fmt, ...)
 {
    va_list ap;
@@ -521,34 +557,172 @@ void fmt_loc(FILE *f, const struct loc *loc)
 
 #ifndef NO_STACK_TRACE
 
-#ifdef HAVE_EXECINFO_H
+#if defined HAVE_LIBDW
+static bool die_has_pc(Dwarf_Die* die, Dwarf_Addr pc)
+{
+   Dwarf_Addr low, high;
+
+   if (dwarf_hasattr(die, DW_AT_low_pc) && dwarf_hasattr(die, DW_AT_high_pc)) {
+      if (dwarf_lowpc(die, &low) != 0)
+         return false;
+      if (dwarf_highpc(die, &high) != 0) {
+         Dwarf_Attribute attr_mem;
+         Dwarf_Attribute* attr = dwarf_attr(die, DW_AT_high_pc, &attr_mem);
+         Dwarf_Word value;
+         if (dwarf_formudata(attr, &value) != 0)
+            return false;
+         high = low + value;
+      }
+      return pc >= low && pc < high;
+   }
+
+   Dwarf_Addr base;
+   ptrdiff_t offset = 0;
+   while ((offset = dwarf_ranges(die, offset, &base, &low, &high)) > 0) {
+      if (pc >= low && pc < high)
+         return true;
+   }
+
+   return false;
+}
+
+static _Unwind_Reason_Code libdw_trace_iter(struct _Unwind_Context* ctx,
+                                            void *param)
+{
+   static Dwfl *handle = NULL;
+   static Dwfl_Module *home = NULL;
+
+   if (handle == NULL) {
+      static Dwfl_Callbacks callbacks = {
+         .find_elf = dwfl_linux_proc_find_elf,
+         .find_debuginfo = dwfl_standard_find_debuginfo,
+         .debuginfo_path = NULL
+      };
+
+      if ((handle = dwfl_begin(&callbacks)) == NULL) {
+         warnf("failed to initialise dwfl");
+         return _URC_NORMAL_STOP;
+      }
+
+      dwfl_report_begin(handle);
+      if (dwfl_linux_proc_report(handle, getpid()) < 0) {
+         warnf("dwfl_linux_proc_report failed");
+         return _URC_NORMAL_STOP;
+      }
+      dwfl_report_end(handle, NULL, NULL);
+
+      home = dwfl_addrmodule(handle, (uintptr_t)libdw_trace_iter);
+   }
+
+   int *skip = param;
+   if (skip != NULL && *skip > 0) {
+      (*skip)--;
+      return _URC_NO_REASON;
+   }
+
+   int ip_before_instruction = 0;
+   uintptr_t ip = _Unwind_GetIPInfo(ctx, &ip_before_instruction);
+
+   if (ip == 0)
+      return _URC_NO_REASON;
+   else if (!ip_before_instruction)
+      ip -= 1;
+
+   Dwfl_Module *mod = dwfl_addrmodule(handle, ip);
+
+   const char *module_name = dwfl_module_info(mod, 0, 0, 0, 0, 0, 0, 0);
+   const char *sym_name = dwfl_module_addrname(mod, ip);
+
+   Dwarf_Addr mod_bias = 0;
+   Dwarf_Die *die = dwfl_module_addrdie(mod, ip, &mod_bias);
+
+   if (die == NULL) {
+      // Hack to support Clang taken from backward-cpp
+      while ((die = dwfl_module_nextcu(mod, die, &mod_bias))) {
+         Dwarf_Die child;
+         if (dwarf_child(die, &child) != 0)
+            continue;
+
+         Dwarf_Die* iter = &child;
+         do {
+            switch (dwarf_tag(iter)) {
+            case DW_TAG_subprogram:
+            case DW_TAG_inlined_subroutine:
+               if (die_has_pc(iter, ip))
+                  goto found_die_with_ip;
+            }
+         } while (dwarf_siblingof(iter, iter) == 0);
+      }
+   found_die_with_ip:
+      ;
+   }
+
+   Dwarf_Line* srcloc = dwarf_getsrc_die(die, ip - mod_bias);
+   const char* srcfile = dwarf_linesrc(srcloc, 0, 0);
+
+   int line = 0, col = 0;
+   dwarf_lineno(srcloc, &line);
+   dwarf_linecol(srcloc, &col);
+
+   color_printf("[$green$%p$$] ", (void *)ip);
+   if (mod != home)
+      color_printf("($red$%s$$) ", module_name);
+   if (srcfile != NULL)
+      color_printf("%s:%d ", srcfile, line);
+   if (sym_name != NULL)
+      color_printf("$yellow$%s$$", sym_name);
+   printf("\n");
+
+   FILE *f = fopen(srcfile, "r");
+   if (f != NULL) {
+      char buf[TRACE_MAX_LINE];
+      for (int i = 0; i < line + 1 && fgets(buf, sizeof(buf), f); i++) {
+         if (i < line - 2)
+            continue;
+
+         const size_t len = strlen(buf);
+         if (len <= 1)
+            continue;
+         else if (buf[len - 1] == '\n')
+            buf[len - 1] = '\0';
+
+         if (i == line - 1)
+            color_printf("$cyan$$bold$-->$$ $cyan$%s$$\n", buf);
+         else
+            color_printf("    $cyan$%s$$\n", buf);
+      }
+      fclose(f);
+   }
+
+   if (sym_name != NULL && strcmp(sym_name, "main") == 0)
+      return _URC_NORMAL_STOP;
+   else
+      return _URC_NO_REASON;
+}
+#elif defined HAVE_EXECINFO_H
+
 static void print_trace(char **messages, int trace_size)
 {
    fputs("\n-------- STACK TRACE --------\n", stderr);
 
-   FILE *out = stderr;
-
-   bool decode = getenv("NVC_DECODE");
-   if (decode) {
-      if ((out = popen("[ -x decode ] && ./decode || cat 1>&2", "w")) == NULL) {
-         out = stderr;
-         decode = false;
-      }
-   }
-
    for (int i = 0; i < trace_size; i++)
-      fprintf(out, "%s\n", messages[i]);
-
-   if (decode)
-      pclose(out);
+      fprintf(stderr, "%s\n", messages[i]);
 
    fputs("-----------------------------\n", stderr);
+
+#ifdef __linux
+   color_fprintf(stderr, "\n$cyan$Hint: you can get better stack traces by "
+                 "installing the libdw-dev package and reconfiguring$$\n");
+#endif  // __linux
 }
-#endif
+#endif  // HAVE_EXECINFO_H
 
 void show_stacktrace(void)
 {
-#ifdef HAVE_EXECINFO_H
+#if defined HAVE_LIBDW
+   int skip = 1;
+   _Unwind_Backtrace(libdw_trace_iter, &skip);
+#elif defined HAVE_EXECINFO_H
    void *trace[N_TRACE_DEPTH];
    char **messages = NULL;
    int trace_size = 0;
@@ -595,7 +769,8 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
    if (sig == SIGSEGV)
       check_guard_page((uintptr_t)info->si_addr);
 
-   fprintf(stderr, "\n*** Caught signal %d (%s)", sig, signame(sig));
+   color_fprintf(stderr, "\n$red$$bold$*** Caught signal %d (%s)",
+                 sig, signame(sig));
 
    switch (sig) {
    case SIGSEGV:
@@ -606,9 +781,13 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
       break;
    }
 
-   fputs(" ***\n", stderr);
+   color_fprintf(stderr, " ***$$\n");
 
-#ifdef HAVE_EXECINFO_H
+#if defined HAVE_LIBDW
+   fprintf(stderr, "\n");
+   int skip = 2;
+   _Unwind_Backtrace(libdw_trace_iter, &skip);
+#elif defined HAVE_EXECINFO_H
    void *trace[N_TRACE_DEPTH];
    int trace_size = 0;
    char **messages = NULL;
