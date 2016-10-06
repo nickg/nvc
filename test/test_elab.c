@@ -72,7 +72,6 @@ START_TEST(test_open)
    expect_errors(expect);
 
    top = run_elab();
-   opt(top);
 
    // We used to delete all statements here but the behaviour
    // has changed

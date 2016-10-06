@@ -54,9 +54,6 @@ void dump(tree_t top);
 // Print out the interconnect nets in an elaborated design
 void dump_nets(tree_t top);
 
-// Optimise elaborated design
-void opt(tree_t top);
-
 // Link together bitcode packages with elaborated design
 void link_bc(tree_t top);
 

@@ -172,9 +172,7 @@ static int analyse(int argc, char **argv)
       const bool need_cgen =
          (kind == T_PACK_BODY)
          || ((kind == T_PACKAGE) && pack_needs_cgen(units[i]));
-      if (need_cgen)
-         opt(units[i]);
-      else
+      if (!need_cgen)
          units[i] = NULL;
    }
 
@@ -303,9 +301,6 @@ static int elaborate(int argc, char **argv)
       return EXIT_FAILURE;
 
    elab_verbose(verbose, "elaborating design");
-
-   opt(e);
-   elab_verbose(verbose, "optimising design");
 
    group_nets(e);
    elab_verbose(verbose, "grouping nets");

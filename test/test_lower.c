@@ -152,6 +152,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_NETS:
       case VCODE_OP_RESOLVED_ADDRESS:
+      case VCODE_OP_NEEDS_LAST_VALUE:
          {
             ident_t name = vcode_signal_name(vcode_get_signal(i));
             if (name != ident_new(e->name)) {
@@ -1313,7 +1314,6 @@ START_TEST(test_proc1)
    expect_errors(expect);
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    {
@@ -1782,7 +1782,6 @@ START_TEST(test_record6)
    expect_errors(expect);
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_decl(e, 1));
@@ -1819,7 +1818,6 @@ START_TEST(test_proc7)
    expect_errors(expect);
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_decl(e, 1));
@@ -1872,7 +1870,6 @@ START_TEST(test_issue116)
    expect_errors(expect);
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
@@ -1901,7 +1898,6 @@ START_TEST(test_mulphys)
    expect_errors(expect);
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_decl(e, 1));
@@ -1930,7 +1926,6 @@ START_TEST(test_cover)
    opt_set_int("cover", 1);
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
@@ -1977,7 +1972,6 @@ START_TEST(test_issue122)
    expect_errors(expect);
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_decl(e, 1));
@@ -2007,7 +2001,6 @@ START_TEST(test_issue124)
    expect_errors(expect);
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_decl(e, 1));
@@ -2034,7 +2027,6 @@ START_TEST(test_issue135)
    input_from_file(TESTDIR "/lower/issue135.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_decl(e, 1));
@@ -2084,7 +2076,6 @@ START_TEST(test_issue134)
    expect_errors(expect);
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_decl(e, 1));
@@ -2110,7 +2101,6 @@ START_TEST(test_issue136)
    input_from_file(TESTDIR "/lower/issue136.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_decl(tree_decl(e, 1), 1));
@@ -2130,7 +2120,6 @@ START_TEST(test_issue125)
    input_from_file(TESTDIR "/lower/issue125.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 }
 END_TEST
@@ -2140,7 +2129,6 @@ START_TEST(test_access_bug)
    input_from_file(TESTDIR "/lower/access_bug.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 }
 END_TEST
@@ -2150,7 +2138,6 @@ START_TEST(test_rectype)
    input_from_file(TESTDIR "/lower/rectype.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(e);
@@ -2172,7 +2159,6 @@ START_TEST(test_issue149)
    input_from_file(TESTDIR "/lower/issue149.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_decl(e, 1));
@@ -2212,7 +2198,6 @@ START_TEST(test_issue167)
    input_from_file(TESTDIR "/lower/issue167.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(e);
@@ -2257,7 +2242,6 @@ START_TEST(test_sigvar)
    input_from_file(TESTDIR "/lower/sigvar.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    {
@@ -2324,7 +2308,6 @@ START_TEST(test_issue181)
    input_from_file(TESTDIR "/lower/issue181.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_decl(e, 1));
@@ -2345,7 +2328,6 @@ START_TEST(test_issue203)
    input_from_file(TESTDIR "/lower/issue203.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(e);
@@ -2362,7 +2344,6 @@ START_TEST(test_issue215)
    input_from_file(TESTDIR "/lower/issue215.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(e);
@@ -2376,7 +2357,6 @@ START_TEST(test_choice1)
    input_from_file(TESTDIR "/lower/choice1.vhd");
 
    tree_t e = run_elab();
-   opt(e);
    lower_unit(e);
 
    vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
@@ -2418,6 +2398,37 @@ START_TEST(test_choice1)
    };
 
    CHECK_BB(5);
+}
+END_TEST
+
+START_TEST(test_tag)
+{
+   input_from_file(TESTDIR "/lower/tag.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(e);
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_SET_INITIAL },
+      { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:p" },
+      { VCODE_OP_SET_INITIAL },
+      { VCODE_OP_NEEDS_LAST_VALUE, .name = ":tag:x" },
+      { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:x" },
+      { VCODE_OP_SET_INITIAL },
+      { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:y" },
+      { VCODE_OP_NEEDS_LAST_VALUE, .name = ":tag:sub_i:i" },
+      { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:sub_i:i" },
+      { VCODE_OP_SET_INITIAL },
+      { VCODE_OP_NEEDS_LAST_VALUE, .name = ":work:p:s" },
+      { VCODE_OP_RESOLVED_ADDRESS, .name = ":work:p:s" },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
 }
 END_TEST
 
@@ -2476,6 +2487,7 @@ int main(void)
    tcase_add_test(tc, test_issue203);
    tcase_add_test(tc, test_issue215);
    tcase_add_test(tc, test_choice1);
+   tcase_add_test(tc, test_tag);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

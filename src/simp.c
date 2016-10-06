@@ -507,6 +507,10 @@ static tree_t simp_process(tree_t t)
    // Replace sensitivity list with a "wait on" statement
    const int ntriggers = tree_triggers(t);
    if (ntriggers > 0) {
+      const int nstmts = tree_stmts(t);
+      if (nstmts == 0)
+         return NULL;   // Body was optimised away
+
       tree_t p = tree_new(T_PROCESS);
       tree_set_ident(p, tree_ident(t));
       tree_set_loc(p, tree_loc(t));
@@ -515,7 +519,6 @@ static tree_t simp_process(tree_t t)
       for (int i = 0; i < ndecls; i++)
          tree_add_decl(p, tree_decl(t, i));
 
-      const int nstmts = tree_stmts(t);
       for (int i = 0; i < nstmts; i++)
          tree_add_stmt(p, tree_stmt(t, i));
 
@@ -528,6 +531,10 @@ static tree_t simp_process(tree_t t)
 
       return p;
    }
+
+   // Delete processes that contain just a single wait statement
+   if (tree_stmts(t) == 1 && tree_kind(tree_stmt(t, 0)) == T_WAIT)
+      return NULL;
    else
       return t;
 }

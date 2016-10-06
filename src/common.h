@@ -173,7 +173,6 @@ GLOBAL ident_t drives_all_i;
 GLOBAL ident_t driver_init_i;
 GLOBAL ident_t GLOBAL_i;
 GLOBAL ident_t mangled_i;
-GLOBAL ident_t last_value_i;
 GLOBAL ident_t null_range_i;
 GLOBAL ident_t deferred_i;
 GLOBAL ident_t prot_field_i;

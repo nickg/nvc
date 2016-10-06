@@ -2143,6 +2143,10 @@ static bool sem_check_decl(tree_t t)
                    istr(tree_ident(t)));
    }
 
+   // Cannot optimise out LAST_VALUE for package signals
+   if (kind == T_SIGNAL_DECL && (top_scope->flags & SCOPE_PACKAGE))
+      tree_set_flag(t, TREE_F_LAST_VALUE);
+
    // Check if we are giving a value to a deferred constant
    tree_t deferred;
    if ((kind == T_CONST_DECL)
@@ -3690,15 +3694,6 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
       tree_t value = tree_value(found);
       if (tree_has_type(value) && type_is_universal(tree_type(value)))
          tree_set_type(value, tree_type(port));
-
-      // Check IN and INOUT parameters can be read
-      if (tree_kind(call) != T_ATTR_REF) {
-         port_mode_t mode = tree_subkind(port);
-         if ((mode == PORT_IN) || (mode == PORT_INOUT)) {
-            if (!sem_readable(value))
-               return false;
-         }
-      }
    }
 
    return true;
@@ -3736,6 +3731,96 @@ static bool sem_check_params(tree_t t)
             have_named = true;
          }
          break;
+      }
+   }
+
+   return true;
+}
+
+static bool sem_check_call_args(tree_t t, tree_t decl)
+{
+   const int nparams = tree_params(t);
+   const int nports  = tree_ports(decl);
+   for (int i = 0; i < nparams; i++) {
+      tree_t param = tree_param(t, i);
+
+      int index = -1;
+      if (tree_subkind(param) == P_POS)
+         index = i;
+      else {
+         assert(tree_subkind(param) == P_NAMED);
+
+         tree_t ref = tree_name(param);
+         assert(tree_kind(ref) == T_REF);
+
+         ident_t name = tree_ident(ref);
+         for (int j = 0; (j < nports) && (index == -1); j++) {
+            if (tree_ident(tree_port(decl, j)) == name)
+               index = j;
+         }
+         assert(index != -1);
+
+         tree_set_ref(ref, tree_port(decl, index));
+      }
+
+      tree_t  port     = tree_port(decl, index);
+      class_t class    = tree_class(port);
+      port_mode_t mode = tree_subkind(port);
+
+      tree_t value = tree_value(param);
+      tree_kind_t kind = tree_kind(value);
+      while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)
+             || (kind == T_ALL) || (kind == T_RECORD_REF)) {
+         value = tree_value(value);
+         kind  = tree_kind(value);
+      }
+
+      if (class == C_SIGNAL) {
+         if (tree_kind(value) == T_OPEN)
+            sem_error(value, "actual for formal %s must not be OPEN",
+                      istr(tree_ident(port)));
+
+         // The 'LAST_VALUE attribute may be accessed in the body so cannot
+         // optimise this out
+         tree_set_flag(tree_ref(value), TREE_F_LAST_VALUE);
+      }
+
+      if (class == C_VARIABLE) {
+         if (kind != T_REF)
+            sem_error(value, "cannot associate this expression with "
+                      "parameter class VARIABLE");
+
+         tree_t decl = tree_ref(value);
+         tree_kind_t decl_kind = tree_kind(decl);
+
+         if (decl_kind == T_SIGNAL_DECL)
+            sem_error(value, "cannot associate signal %s with parameter "
+                      "class VARIABLE", istr(tree_ident(decl)));
+         else if (decl_kind == T_FILE_DECL)
+            sem_error(value, "cannot associate file %s with parameter "
+                      "class VARIABLE", istr(tree_ident(decl)));
+         else if (decl_kind == T_PORT_DECL) {
+            const class_t class = tree_class(decl);
+            if (mode == PORT_OUT && tree_subkind(decl) == PORT_IN)
+               sem_error(value, "cannot read parameter %s with mode IN",
+                         istr(tree_ident(decl)));
+            else if ((mode == PORT_OUT || mode == PORT_INOUT)
+                     && (class == C_CONSTANT || class == C_DEFAULT))
+               sem_error(value, "object %s has class CONSTANT and "
+                         "cannot be associated with OUT or INOUT parameters",
+                         istr(tree_ident(decl)));
+         }
+         else if ((decl_kind != T_VAR_DECL) && (decl_kind != T_ALIAS))
+            sem_error(value, "invalid use of name %s", istr(tree_ident(decl)));
+      }
+
+      // Check IN and INOUT parameters can be read
+      if (tree_kind(t) != T_ATTR_REF) {
+         port_mode_t mode = tree_subkind(port);
+         if (mode == PORT_IN || mode == PORT_INOUT) {
+            if (!sem_readable(value))
+               return false;
+         }
       }
    }
 
@@ -3934,6 +4019,9 @@ static bool sem_check_fcall(tree_t t)
                    istr(tree_ident(sub)), istr(tree_ident(decl)));
    }
 
+   if (!sem_check_call_args(t, decl))
+      return false;
+
    if (!sem_copy_default_args(t, decl))
       return false;
 
@@ -4030,75 +4118,8 @@ static bool sem_check_pcall(tree_t t)
                 tb_get(tb));
    }
 
-   const int nparams = tree_params(t);
-   const int nports  = tree_ports(decl);
-   for (int i = 0; i < nparams; i++) {
-      tree_t param = tree_param(t, i);
-
-      int index = -1;
-      if (tree_subkind(param) == P_POS)
-         index = i;
-      else {
-         assert(tree_subkind(param) == P_NAMED);
-
-         tree_t ref = tree_name(param);
-         assert(tree_kind(ref) == T_REF);
-
-         ident_t name = tree_ident(ref);
-         for (int j = 0; (j < nports) && (index == -1); j++) {
-            if (tree_ident(tree_port(decl, j)) == name)
-               index = j;
-         }
-         assert(index != -1);
-
-         tree_set_ref(ref, tree_port(decl, index));
-      }
-
-      tree_t  port     = tree_port(decl, index);
-      class_t class    = tree_class(port);
-      port_mode_t mode = tree_subkind(port);
-
-      tree_t value = tree_value(param);
-      tree_kind_t kind = tree_kind(value);
-      while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)
-             || (kind == T_ALL) || (kind == T_RECORD_REF)) {
-         value = tree_value(value);
-         kind  = tree_kind(value);
-      }
-
-      if (class == C_SIGNAL && (tree_kind(value) == T_OPEN))
-         sem_error(value, "actual for formal %s must not be OPEN",
-                   istr(tree_ident(port)));
-
-      if (class == C_VARIABLE) {
-         if (kind != T_REF)
-            sem_error(value, "cannot associate this expression with "
-                      "parameter class VARIABLE");
-
-         tree_t decl = tree_ref(value);
-         tree_kind_t decl_kind = tree_kind(decl);
-
-         if (decl_kind == T_SIGNAL_DECL)
-            sem_error(value, "cannot associate signal %s with parameter "
-                      "class VARIABLE", istr(tree_ident(decl)));
-         else if (decl_kind == T_FILE_DECL)
-            sem_error(value, "cannot associate file %s with parameter "
-                      "class VARIABLE", istr(tree_ident(decl)));
-         else if (decl_kind == T_PORT_DECL) {
-            const class_t class = tree_class(decl);
-            if (mode == PORT_OUT && tree_subkind(decl) == PORT_IN)
-               sem_error(value, "cannot read parameter %s with mode IN",
-                         istr(tree_ident(decl)));
-            else if ((mode == PORT_OUT || mode == PORT_INOUT)
-                     && (class == C_CONSTANT || class == C_DEFAULT))
-               sem_error(value, "object %s has class CONSTANT and "
-                         "cannot be associated with OUT or INOUT parameters",
-                         istr(tree_ident(decl)));
-         }
-         else if ((decl_kind != T_VAR_DECL) && (decl_kind != T_ALIAS))
-            sem_error(value, "invalid use of name %s", istr(tree_ident(decl)));
-      }
-   }
+   if (!sem_check_call_args(t, decl))
+      return false;
 
    if (!sem_copy_default_args(t, decl))
       return false;
@@ -5579,6 +5600,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       if (!sem_check_signal_attr(t))
          return false;
 
+      tree_set_flag(tree_ref(name), TREE_F_LAST_VALUE);
       tree_set_type(t, tree_type(name));
       return true;
 

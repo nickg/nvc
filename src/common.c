@@ -781,7 +781,6 @@ void intern_strings(void)
    driver_init_i    = ident_new("driver_init");
    static_i         = ident_new("static");
    mangled_i        = ident_new("mangled");
-   last_value_i     = ident_new("LAST_VALUE");
    null_range_i     = ident_new("null_range");
    deferred_i       = ident_new("deferred");
    prot_field_i     = ident_new("prot_field");

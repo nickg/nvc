@@ -4025,7 +4025,7 @@ static void lower_signal_decl(tree_t decl)
    }
 
    // Identify signals which potentially need 'LAST_VALUE
-   if (tree_attr_int(decl, last_value_i, 0))
+   if (tree_flags(decl) & TREE_F_LAST_VALUE)
       emit_needs_last_value(sig);
 
    if (shadow != VCODE_INVALID_VAR)

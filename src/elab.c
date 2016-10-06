@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -272,6 +272,7 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
    tree_set_type(s, type);
    tree_add_attr_int(s, fst_dir_i, mode);
    tree_set_loc(s, tree_loc(port));
+   tree_set_flag(s, tree_flags(port) & TREE_F_LAST_VALUE);
 
    if ((mode == PORT_OUT) || (mode == PORT_INOUT) || (mode == PORT_BUFFER)) {
       if (tree_has_value(port))
