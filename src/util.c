@@ -129,6 +129,7 @@ struct text_buf {
 static error_fn_t      error_fn = def_error_fn;
 static fatal_fn_t      fatal_fn = NULL;
 static bool            want_color = false;
+static bool            error_force_plain = false;
 static struct option  *options = NULL;
 static guard_t        *guards;
 static message_style_t message_style = MESSAGE_FULL;
@@ -146,7 +147,7 @@ static const struct color_escape escapes[] = {
    { "white",   ANSI_FG_WHITE },
 };
 
-static char *filter_color(const char *str, bool force)
+static char *filter_color(const char *str, bool force_plain)
 {
    // Replace color strings like "$red$foo$$bar" with ANSI escaped
    // strings like "\033[31mfoo\033[0mbar"
@@ -166,7 +167,7 @@ static char *filter_color(const char *str, bool force)
             const char *e = escape_start + 1;
             const size_t len = str - e;
 
-            if (want_color || force) {
+            if (want_color && !force_plain) {
                bool found = false;
                for (int i = 0; i < ARRAY_LEN(escapes); i++) {
                   if (strncmp(e, escapes[i].name, len) == 0) {
@@ -338,10 +339,10 @@ static void def_error_fn(const char *msg, const loc_t *loc)
       fmt_loc(stderr, loc);
 }
 
-static char *prepare_msg(const char *fmt, va_list ap, bool force_color)
+static char *prepare_msg(const char *fmt, va_list ap, bool force_plain)
 {
    char *strp LOCAL = xvasprintf(fmt, ap);
-   return filter_color(strp, force_color);
+   return filter_color(strp, force_plain);
 }
 
 static void msg_at(print_fn_t fn, const loc_t *loc, const char *fmt, va_list ap)
@@ -410,7 +411,7 @@ void error_at(const loc_t *loc, const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   char *strp LOCAL = prepare_msg(fmt, ap, false);
+   char *strp LOCAL = prepare_msg(fmt, ap, error_force_plain);
    error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
 
    va_end(ap);
@@ -423,7 +424,7 @@ void warn_at(const loc_t *loc, const char *fmt, ...)
 
    // Convert warnings to errors for unit tests
    if (opt_get_int("unit-test")) {
-      char *strp LOCAL = prepare_msg(fmt, ap, false);
+      char *strp LOCAL = prepare_msg(fmt, ap, error_force_plain);
       error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
    }
    else
@@ -454,10 +455,11 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
    exit(EXIT_FAILURE);
 }
 
-error_fn_t set_error_fn(error_fn_t fn)
+error_fn_t set_error_fn(error_fn_t fn, bool want_color)
 {
    error_fn_t old = error_fn;
    error_fn = fn;
+   error_force_plain = !want_color;
    return old;
 }
 

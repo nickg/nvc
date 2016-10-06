@@ -2423,8 +2423,6 @@ END_TEST
 
 int main(void)
 {
-   term_init();
-
    Suite *s = suite_create("lower");
 
    TCase *tc = nvc_unit_test();

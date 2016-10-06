@@ -56,12 +56,13 @@ static void teardown(void)
 void expect_errors(const error_t *lines)
 {
    fail_unless(orig_error_fn == NULL);
-   orig_error_fn = set_error_fn(test_error_fn);
+   orig_error_fn = set_error_fn(test_error_fn, false);
    error_lines = lines;
 }
 
 TCase *nvc_unit_test(void)
 {
+   term_init();
    register_trace_signal_handlers();
 
    setenv("NVC_LIBPATH", "../lib/std", 1);

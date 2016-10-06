@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -64,7 +64,7 @@ void fatal_errno(const char *fmt, ...)
 
 // Error callback for use in unit tests.
 typedef void (*error_fn_t)(const char *msg, const loc_t *loc);
-error_fn_t set_error_fn(error_fn_t fn);
+error_fn_t set_error_fn(error_fn_t fn, bool want_color);
 
 typedef void (*fatal_fn_t)(void);
 void set_fatal_fn(fatal_fn_t fn);
