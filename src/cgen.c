@@ -990,12 +990,6 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef in = LLVMBuildAnd(builder, above, below, "in");
 
-   if (!LLVMIsConstant(in)) {
-      LLVMValueRef expect_args[] = { in, llvm_int1(true) };
-      in = LLVMBuildCall(builder, llvm_fn("llvm.expect.i1"),
-                         expect_args, ARRAY_LEN(expect_args), "");
-   }
-
    LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
    LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
 
@@ -1056,12 +1050,6 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
       LLVMBuildICmp(builder, LLVMIntSLE, value, max, "below");
 
    LLVMValueRef in = LLVMBuildAnd(builder, above, below, "in");
-
-   if (!LLVMIsConstant(in)) {
-      LLVMValueRef expect_args[] = { in, llvm_int1(true) };
-      in = LLVMBuildCall(builder, llvm_fn("llvm.expect.i1"),
-                         expect_args, ARRAY_LEN(expect_args), "");
-   }
 
    LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
    LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
@@ -2156,12 +2144,6 @@ static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef ok = LLVMBuildICmp(builder, LLVMIntEQ, llen, rlen, "ok");
 
-   if (!LLVMIsConstant(ok)) {
-      LLVMValueRef expect_args[] = { ok, llvm_int1(true) };
-      ok = LLVMBuildCall(builder, llvm_fn("llvm.expect.i1"),
-                         expect_args, ARRAY_LEN(expect_args), "");
-   }
-
    LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
    LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
 
@@ -2224,12 +2206,6 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
       LLVMValueRef in =
          LLVMBuildOr(builder, LLVMBuildAnd(builder, above, below, ""),
                      null, "in");
-
-      if (!LLVMIsConstant(in)) {
-         LLVMValueRef expect_args[] = { in, llvm_int1(true) };
-         in = LLVMBuildCall(builder, llvm_fn("llvm.expect.i1"),
-                            expect_args, ARRAY_LEN(expect_args), "");
-      }
 
       LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
       LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
@@ -3315,15 +3291,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       };
       fn = LLVMAddFunction(module, "llvm.memset.p0i8.i32",
                            LLVMFunctionType(LLVMVoidType(),
-                                            args, ARRAY_LEN(args), false));
-   }
-   else if (strcmp(name, "llvm.expect.i1") == 0) {
-      LLVMTypeRef args[] = {
-         LLVMInt1Type(),
-         LLVMInt1Type()
-      };
-      fn = LLVMAddFunction(module, "llvm.expect.i1",
-                           LLVMFunctionType(LLVMInt1Type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strncmp(name, "llvm.memcpy", 11) == 0) {
