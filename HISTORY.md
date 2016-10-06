@@ -1,6 +1,5 @@
 ## master
 - Improved stack traces on Linux when `libdw-dev` installed
-- `make check` no longer depends on Ruby
 - Fixed elaboration of subprograms in entity declarations
 - Improved elaboration performance when design contains many signals
 - Fixed various bugs involving record signals
