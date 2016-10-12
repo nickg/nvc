@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-ieee_url="http://standards.ieee.org/downloads/1076/1076.2-1996"
+ieee_url="https://standards.ieee.org/downloads/1076/1076.2-1996"
 vital_url="http://svn.gna.org/svn/ghdl/trunk/libraries/vital2000"
 
 cat <<EOF
