@@ -12,18 +12,6 @@ and modify them by uncommenting the definition of operator XNOR.
 
 EOF
 
-echo $prompt
-
-while true; do
-    printf "Continue? (yes/no) "
-    read yn
-    case $yn in
-        [Yy]* ) break ;;
-        [Nn]* ) exit ;;
-        * ) echo "Please answer yes or no.";;
-    esac
-done
-
 download_file() {
   url="$1"
   sha="$2"
