@@ -1,14 +1,18 @@
-package p is
+PACKAGE p IS
 
-    constant a : integer := 2#1101#;
-    constant b : integer := 3#20#;
-    constant c : integer := 8#7#;
-    constant d : integer := 10#1234#;
-    constant e : integer := 16#beef01#;
-    constant f : integer := 2#1_0#;
-    constant g : integer := 2:1_0:;
-    constant h : integer := 16#abababab#;
-    constant i : integer := 16#1A#;
-    constant j : integer := 36#Z#;
+  CONSTANT a : INTEGER := 2#1101#;
+  CONSTANT b : INTEGER := 3#20#;
+  CONSTANT c : INTEGER := 8#7#;
+  CONSTANT d : INTEGER := 10#1234#;
+  CONSTANT e : INTEGER := 16#beef01#;
+  CONSTANT f : INTEGER := 2#1_0#;
+  CONSTANT g : INTEGER := 2:1_0:;
+  CONSTANT h : INTEGER := 16#abababab#;
+  CONSTANT i : INTEGER := 16#1A#;
+  CONSTANT j : INTEGER := 2#1111_1111#;
+  CONSTANT k : INTEGER := 16#FF#;
+  CONSTANT l : INTEGER := 016#0FF#;
+  CONSTANT m : INTEGER := 16#E#E1;
+  CONSTANT n : INTEGER := 2#1110_0000#;
 
-end package;
+END PACKAGE;

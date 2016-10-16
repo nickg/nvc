@@ -56,9 +56,8 @@
 
 static int parse_id(const char *str);
 static int parse_ex_id(const char *str);
-static int parse_based_int(const char *str);
-static int parse_real(const char *str);
-static int parse_int(const char *str);
+static int parse_decimal_literal(const char *str);
+static int parse_based_literal(const char *str);
 static int resolve_ir1045(void);
 
 static int last_token = -1;
@@ -71,19 +70,19 @@ void begin_token(char *tok);
 int get_next_char(char *b, int max_buffer);
 %}
 
-ID         ?i:[a-z][a-z_0-9]*
-EXID       \\([^\\]|\\\\)*\\
-STRING     \"([^\"]|\"\")*\"
-BIT_STRING ?i:[box]\"[0-9a-f_]+\"
-CHAR       '.'
-COMMENT    --.*
-DIGITS     [0-9][0-9_]*
-INT        {DIGITS}{EXPONENT}?
-REAL       {INT}\.{INT}
-EXPONENT   [Ee][+-]?{DIGITS}
-BASED_INT  {INT}[#:][0-9a-zA-Z][0-9a-zA-Z_]*[#:]
-SPACE      [ \t\r\n]+
-TICK       \'
+ID              ?i:[a-z][a-z_0-9]*
+EXID            \\([^\\]|\\\\)*\\
+STRING          \"([^\"]|\"\")*\"
+BIT_STRING      ?i:[box]\"[0-9a-f_]+\"
+CHAR            '.'
+COMMENT         --.*
+INTEGER         [0-9][0-9_]*
+EXPONENT        [Ee][+-]?{INTEGER}
+DECIMAL_LITERAL {INTEGER}(\.{INTEGER})?{EXPONENT}?
+BASED_INTEGER   [0-9a-fA-F][0-9a-fA-F_]*
+BASED_LITERAL   {INTEGER}[#:]{BASED_INTEGER}(\.{BASED_INTEGER})?[#:]{EXPONENT}?
+SPACE           [ \t\r\n]+
+TICK            \'
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -287,48 +286,47 @@ CONTEXT       ?i:context
 {PROTECTED}     { TOKEN_00(tPROTECTED); }
 {CONTEXT}       { TOKEN_08(tCONTEXT); }
 
-"("          { TOKEN(tLPAREN); }
-")"          { TOKEN(tRPAREN); }
-";"          { TOKEN(tSEMI); }
-":="         { TOKEN(tASSIGN); }
-":"          { TOKEN(tCOLON); }
-"**"         { TOKEN(tPOWER); }
-","          { TOKEN(tCOMMA); }
-"<>"         { TOKEN(tBOX); }
-"<"          { TOKEN(tLT); }
-"<="         { TOKEN(tLE); }
-">"          { TOKEN(tGT); }
-">="         { TOKEN(tGE); }
-"=>"         { TOKEN(tASSOC); }
-"+"          { TOKEN(tPLUS); }
-"-"          { TOKEN(tMINUS); }
-"*"          { TOKEN(tTIMES); }
-"/="         { TOKEN(tNEQ); }
-"="          { TOKEN(tEQ); }
-"/"          { TOKEN(tOVER); }
-"."          { TOKEN(tDOT); }
-"&"          { TOKEN(tAMP); }
-"|"          { TOKEN(tBAR); }
-"!"          { TOKEN(tBAR); }
-"["          { TOKEN(tLSQUARE); }
-"]"          { TOKEN(tRSQUARE); }
-{INT}        { return parse_int(yytext); }
-{BASED_INT}  { return parse_based_int(yytext); }
-{REAL}       { return parse_real(yytext); }
-{BIT_STRING} { yylval.s = strdup(yytext); TOKEN(tBITSTRING); }
-{STRING}     { yylval.s = strdup(yytext); TOKEN(tSTRING); }
-{TICK}       { TOKEN(tTICK); }
-{CHAR}       { if (resolve_ir1045()) {
-                  yylval.s = strdup(yytext);
-                  TOKEN(tID);
-               }
-               REJECT;
-             }
-{ID}         { return parse_id(yytext); }
-{EXID}       { return parse_ex_id(yytext); }
-{SPACE}      { }
-<<EOF>>      { return 0; }
-.            { TOKEN(tERROR); }
+"("               { TOKEN(tLPAREN); }
+")"               { TOKEN(tRPAREN); }
+";"               { TOKEN(tSEMI); }
+":="              { TOKEN(tASSIGN); }
+":"               { TOKEN(tCOLON); }
+"**"              { TOKEN(tPOWER); }
+","               { TOKEN(tCOMMA); }
+"<>"              { TOKEN(tBOX); }
+"<"               { TOKEN(tLT); }
+"<="              { TOKEN(tLE); }
+">"               { TOKEN(tGT); }
+">="              { TOKEN(tGE); }
+"=>"              { TOKEN(tASSOC); }
+"+"               { TOKEN(tPLUS); }
+"-"               { TOKEN(tMINUS); }
+"*"               { TOKEN(tTIMES); }
+"/="              { TOKEN(tNEQ); }
+"="               { TOKEN(tEQ); }
+"/"               { TOKEN(tOVER); }
+"."               { TOKEN(tDOT); }
+"&"               { TOKEN(tAMP); }
+"|"               { TOKEN(tBAR); }
+"!"               { TOKEN(tBAR); }
+"["               { TOKEN(tLSQUARE); }
+"]"               { TOKEN(tRSQUARE); }
+{DECIMAL_LITERAL} { return parse_decimal_literal(yytext); }
+{BASED_LITERAL}   { return parse_based_literal(yytext); }
+{BIT_STRING}      { yylval.s = strdup(yytext); TOKEN(tBITSTRING); }
+{STRING}          { yylval.s = strdup(yytext); TOKEN(tSTRING); }
+{TICK}            { TOKEN(tTICK); }
+{CHAR}            { if (resolve_ir1045()) {
+                       yylval.s = strdup(yytext);
+                       TOKEN(tID);
+                    }
+                    REJECT;
+                  }
+{ID}              { return parse_id(yytext); }
+{EXID}            { return parse_ex_id(yytext); }
+{SPACE}           { }
+<<EOF>>           { return 0; }
+.                 { TOKEN(tERROR); }
 %%
 
 static int resolve_ir1045(void)
@@ -390,65 +388,125 @@ static void strip_underscores(char *s)
    *p = '\0';
 }
 
-static int parse_int(const char *str)
+/**
+ * \fn static int parse_decimal_literal (const char *str)
+ * \brief Transform a string into a literal as specified
+ * in LRM 13.4.1 (decimal_literal ::= integer [.integer] [exponent]).
+ *
+ * \param str Formatted string as specified in
+ * LRM 13.4.1 (decimal_literal ::= integer [.integer] [exponent]).
+ * \return TOKEN(tINT) if no '.' found and no '-' found,
+ * TOKEN(tERROR) if no '.' found and '-' found,
+ * else TOKEN(tREAL).
+ */
+static int parse_decimal_literal (const char *str)
 {
-   char *tmp = strdup(str);
-   strip_underscores(tmp);
+  int tok = tERROR;
+  /* Copy of input text */
+  char *tmp = strdup(str);
+  /* Stripping '_' character */
+  strip_underscores(tmp);
 
-   char *base = strtok(tmp, "eE");
-   char *exp  = strtok(NULL, "eE");
+  /* Find first occurences of '.' */
+  char *dot  = strpbrk(tmp, ".");
+  char *sign = strpbrk(tmp, "-");
+  /* Find first occurences of 'e' or 'E' */
+  char *val  = strtok(tmp, "eE");
+  char *exp  = strtok(NULL, "eE");
 
-   yylval.n = atoll(base);
+  /* Integer literals */
+  if (dot == NULL) {
+    /* String to long long */
+    yylval.n = atoll(val);
 
-   int e = (exp ? atoi(exp) : 0);
+    /* String to long long (atoll function manages the sign) */
+    long long int e = (exp ? atoll(exp) : 0);
 
-   free(tmp);
+    /* Minus sign forbidden for an integer literal */
+    if (e >= 0) {
+      /* Updating val */
+      for (; e > 0; e--) yylval.n *= 10;
 
-   if (e < 0)
-      TOKEN(tERROR);
-   else {
-      for (; e > 0; e--)
-         yylval.n *= 10;
-   }
+      tok = (sign == NULL) ? tINT : tERROR;
+    }
+  }
+  else {
+    /* String to double */
+    yylval.d = strtod(val, NULL);
 
-   TOKEN(tINT);
-}
+    /* String to long long (atoll function manages the sign) */
+    long long int e = (exp ? atoll(exp) : 0);
 
-static int parse_based_int(const char *str)
-{
-   char *tmp = strdup(str);
-   strip_underscores(tmp);
-
-   char *base  = strtok(tmp, "#:");
-   char *value = strtok(NULL, "#:");
-
-   char btok = str[value - tmp - 1];
-   char etok = str[strlen(str) - 1];
-
-   char *eptr = NULL;
-   yylval.n = strtoll(value, &eptr, atoi(base));
-   int t = ((*eptr == '\0') && (btok == etok)) ? tINT : tERROR;
-
-   free(tmp);
-
-   TOKEN(t);
-}
-
-static int parse_real(const char *str)
-{
-   char *tmp = strdup(str);
-   strip_underscores(tmp);
-
-   char *base = strtok(tmp, "eE");
-   char *exp  = strtok(NULL, "eE");
-
-   yylval.d = strtod(base, NULL);
-
-   int e = (exp ? atoi(exp) : 0);
-   if (e != 0)
+    if (e != 0)
       yylval.d *= pow(10.0, (double)e);
 
-   free(tmp);
+    tok = tREAL;
+  }
 
-   TOKEN(tREAL);
+  /* Deleting local allocation */
+  free(tmp);
+  
+  TOKEN(tok);
+}
+
+/**
+ * \fn static int parse_based_literal (const char *str)
+ * \brief Transform a string into a literal as specified in LRM 13.4.2
+ * (based_literal ::= base [#:] based_integer [.based_integer] [#:] [exponent]).
+ *
+ * \param str Formatted string as specified in LRM 13.4.2
+ * (based_literal ::= base [#:] based_integer [.based_integer] [#:] [exponent]).
+ * \return TOKEN(tINT) if no '.' found and no '-' found,
+ * TOKEN(tERROR) if no '.' found and '-' found,
+ * TOKEN(tERROR) if the base is not at least 2 or at most 16,
+ * else TOKEN(tREAL).
+ */
+static int parse_based_literal (const char *str)
+{
+  int tok = tERROR;
+  /* Copy of input text */
+  char *tmp = strdup(str);
+  /* Stripping '_' character */
+  strip_underscores(tmp);
+
+  /* Find first occurences of '.' */
+  char *dot  = strpbrk(tmp, ".");
+  char *sign = strpbrk(tmp, "-");
+  /* Find first occurences of '#', ':', 'e' or 'E' */
+  char *base = strtok(tmp, "#:");
+  char *val  = strtok(NULL, "#:");
+  char *exp  = strtok(NULL, "eE");
+
+  /* base must be at least 2 and at most 16 */
+  if ((2 <= atoi(base)) && (atoi(base) <= 16)) {
+    /* Integer literals */
+    if (dot == NULL) {
+      char *eptr;
+      /* String to long long */
+      yylval.n = strtoll(val, &eptr, atoi(base));
+
+      /* String to long long (atoll function manages the sign) */
+      long long int e = (exp ? atoll(exp) : 0);
+
+      /* Minus sign forbidden for an integer literal */
+      if (e >= 0) {
+	/* Updating val */
+	for (; e > 0; e--) yylval.n *= atoi(base);
+
+	tok = ((*eptr == '\0') && (sign == NULL)) ? tINT : tERROR;
+      }
+    }
+    else {
+      /**
+       * \todo {The real value is specified in base 'base'.
+       *        There are no C functions that can handle that naturally.
+       *        Here needs to be developed a special handling of this case.
+       *        Until then, in case of real value, it will return an error.}
+       */
+    }
+  }
+  /* Deleting local allocation */
+  free(tmp);
+  
+  TOKEN(tok);
 }
