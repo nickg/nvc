@@ -1681,6 +1681,27 @@ START_TEST(test_based)
    d = tree_decl(p, 8);
    fail_unless(tree_ival(tree_value(d)) == 0x1a);
 
+   d = tree_decl(p, 9);
+   fail_unless(tree_ival(tree_value(d)) == 255);
+
+   d = tree_decl(p, 10);
+   fail_unless(tree_ival(tree_value(d)) == 255);
+
+   d = tree_decl(p, 11);
+   fail_unless(tree_ival(tree_value(d)) == 255);
+
+   d = tree_decl(p, 12);
+   fail_unless(tree_ival(tree_value(d)) == 224);
+
+   d = tree_decl(p, 13);
+   fail_unless(tree_ival(tree_value(d)) == 224);
+
+   d = tree_decl(p, 14);
+   fail_unless(tree_dval(tree_value(d)) == 4095.0);
+
+   d = tree_decl(p, 15);
+   fail_unless(tree_dval(tree_value(d)) == 4095.0);
+
    p = parse();
    fail_unless(p == NULL);
 
