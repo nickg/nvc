@@ -497,12 +497,24 @@ static int parse_based_literal (const char *str)
       }
     }
     else {
-      /**
-       * \todo {The real value is specified in base 'base'.
-       *        There are no C functions that can handle that naturally.
-       *        Here needs to be developed a special handling of this case.
-       *        Until then, in case of real value, it will return an error.}
-       */
+      char *eptr_integer, *eptr_rational;
+      char *integer  = strtok(val, ".");
+      char *rational = strtok(NULL, ".");
+
+      yylval.d = (double) strtoll(integer, &eptr_integer, atoi(base));
+
+      double tmp = (double) strtoll(rational, &eptr_rational, atoi(base));
+      tmp *= pow((double) atoi(base), (double) ((long int) (0-strlen(rational))));
+
+      yylval.d += tmp;
+
+      /* String to long long (atoll function manages the sign) */
+      long long int e = (exp ? atoll(exp) : 0);
+
+      if (e != 0)
+	yylval.d *= pow((double) atoi(base), (double) e);
+    
+      tok = ((*eptr_integer == '\0') && (*eptr_rational == '\0')) ? tREAL : tERROR;
     }
   }
   /* Deleting local allocation */

@@ -1696,6 +1696,12 @@ START_TEST(test_based)
    d = tree_decl(p, 13);
    fail_unless(tree_ival(tree_value(d)) == 224);
 
+   d = tree_decl(p, 14);
+   fail_unless(tree_dval(tree_value(d)) == 4095.0);
+
+   d = tree_decl(p, 15);
+   fail_unless(tree_dval(tree_value(d)) == 4095.0);
+
    p = parse();
    fail_unless(p == NULL);
 
