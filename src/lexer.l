@@ -73,7 +73,7 @@ int get_next_char(char *b, int max_buffer);
 ID              ?i:[a-z][a-z_0-9]*
 EXID            \\([^\\]|\\\\)*\\
 STRING          \"([^\"]|\"\")*\"
-BIT_STRING      ?i:[box]\"[0-9a-f_]+\"
+BIT_STRING      ?i:[box]\"([0-9a-f][0-9a-f_]*)?\"
 CHAR            '.'
 COMMENT         --.*
 INTEGER         [0-9][0-9_]*
