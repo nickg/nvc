@@ -127,6 +127,7 @@ typedef enum {
    VCODE_OP_UARRAY_LEN,
    VCODE_OP_HEAP_SAVE,
    VCODE_OP_HEAP_RESTORE,
+   VCODE_OP_NESTED_RESUME,
 } vcode_op_t;
 
 typedef enum {
@@ -369,7 +370,8 @@ vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags);
-void emit_resume(ident_t func, bool nested, int hops);
+void emit_resume(ident_t func);
+void emit_nested_resume(ident_t func, int hops);
 vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length,
