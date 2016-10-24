@@ -402,52 +402,52 @@ static void strip_underscores(char *s)
  */
 static int parse_decimal_literal (const char *str)
 {
-  int tok = tERROR;
-  /* Copy of input text */
-  char *tmp = strdup(str);
-  /* Stripping '_' character */
-  strip_underscores(tmp);
+   int tok = tERROR;
+   /* Copy of input text */
+   char *tmp = strdup(str);
+   /* Stripping '_' character */
+   strip_underscores(tmp);
 
-  /* Find first occurences of '.' */
-  char *dot  = strpbrk(tmp, ".");
-  char *sign = strpbrk(tmp, "-");
-  /* Find first occurences of 'e' or 'E' */
-  char *val  = strtok(tmp, "eE");
-  char *exp  = strtok(NULL, "eE");
+   /* Find first occurences of '.' */
+   char *dot  = strpbrk(tmp, ".");
+   char *sign = strpbrk(tmp, "-");
+   /* Find first occurences of 'e' or 'E' */
+   char *val  = strtok(tmp, "eE");
+   char *exp  = strtok(NULL, "eE");
 
-  /* Integer literals */
-  if (dot == NULL) {
-    /* String to long long */
-    yylval.n = atoll(val);
+   /* Integer literals */
+   if (dot == NULL) {
+      /* String to long long */
+      yylval.n = atoll(val);
 
-    /* String to long long (atoll function manages the sign) */
-    long long int e = (exp ? atoll(exp) : 0);
+      /* String to long long (atoll function manages the sign) */
+      long long int e = (exp ? atoll(exp) : 0);
 
-    /* Minus sign forbidden for an integer literal */
-    if (e >= 0) {
-      /* Updating val */
-      for (; e > 0; e--) yylval.n *= 10;
+      /* Minus sign forbidden for an integer literal */
+      if (e >= 0) {
+         /* Updating val */
+         for (; e > 0; e--) yylval.n *= 10;
 
-      tok = (sign == NULL) ? tINT : tERROR;
-    }
-  }
-  else {
-    /* String to double */
-    yylval.d = strtod(val, NULL);
+         tok = (sign == NULL) ? tINT : tERROR;
+      }
+   }
+   else {
+      /* String to double */
+      yylval.d = strtod(val, NULL);
 
-    /* String to long long (atoll function manages the sign) */
-    long long int e = (exp ? atoll(exp) : 0);
+      /* String to long long (atoll function manages the sign) */
+      long long int e = (exp ? atoll(exp) : 0);
 
-    if (e != 0)
-      yylval.d *= pow(10.0, (double)e);
+      if (e != 0)
+         yylval.d *= pow(10.0, (double)e);
 
-    tok = tREAL;
-  }
+      tok = tREAL;
+   }
 
-  /* Deleting local allocation */
-  free(tmp);
-  
-  TOKEN(tok);
+   /* Deleting local allocation */
+   free(tmp);
+
+   TOKEN(tok);
 }
 
 /**
@@ -464,64 +464,64 @@ static int parse_decimal_literal (const char *str)
  */
 static int parse_based_literal (const char *str)
 {
-  int tok = tERROR;
-  /* Copy of input text */
-  char *tmp = strdup(str);
-  /* Stripping '_' character */
-  strip_underscores(tmp);
+   int tok = tERROR;
+   /* Copy of input text */
+   char *tmp = strdup(str);
+   /* Stripping '_' character */
+   strip_underscores(tmp);
 
-  /* Find first occurences of '.' */
-  char *dot  = strpbrk(tmp, ".");
-  char *sign = strpbrk(tmp, "-");
-  /* Find first occurences of '#', ':', 'e' or 'E' */
-  char *base = strtok(tmp, "#:");
-  char *val  = strtok(NULL, "#:");
-  char *exp  = strtok(NULL, "eE");
+   /* Find first occurences of '.' */
+   char *dot  = strpbrk(tmp, ".");
+   char *sign = strpbrk(tmp, "-");
+   /* Find first occurences of '#', ':', 'e' or 'E' */
+   char *base = strtok(tmp, "#:");
+   char *val  = strtok(NULL, "#:");
+   char *exp  = strtok(NULL, "eE");
 
-  /* base must be at least 2 and at most 16 */
-  if ((2 <= atoi(base)) && (atoi(base) <= 16)) {
-    /* Integer literals */
-    if (dot == NULL) {
-      char *eptr;
-      /* String to long long */
-      yylval.n = strtoll(val, &eptr, atoi(base));
+   /* base must be at least 2 and at most 16 */
+   if ((2 <= atoi(base)) && (atoi(base) <= 16)) {
+      /* Integer literals */
+      if (dot == NULL) {
+         char *eptr;
+         /* String to long long */
+         yylval.n = strtoll(val, &eptr, atoi(base));
 
-      /* String to long long (atoll function manages the sign) */
-      long long int e = (exp ? atoll(exp) : 0);
+         /* String to long long (atoll function manages the sign) */
+         long long int e = (exp ? atoll(exp) : 0);
 
-      /* Minus sign forbidden for an integer literal */
-      if (e >= 0) {
-	/* Updating val */
-	for (; e > 0; e--) yylval.n *= atoi(base);
+         /* Minus sign forbidden for an integer literal */
+         if (e >= 0) {
+            /* Updating val */
+            for (; e > 0; e--) yylval.n *= atoi(base);
 
-	tok = ((*eptr == '\0') && (sign == NULL)) ? tINT : tERROR;
+            tok = ((*eptr == '\0') && (sign == NULL)) ? tINT : tERROR;
+         }
       }
-    }
-    else {
-      char *eptr_integer, *eptr_rational;
-      char *integer  = strtok(val, ".");
-      char *rational = strtok(NULL, ".");
+      else {
+         char *eptr_integer, *eptr_rational;
+         char *integer  = strtok(val, ".");
+         char *rational = strtok(NULL, ".");
 
-      yylval.d = (double) strtoll(integer, &eptr_integer, atoi(base));
+         yylval.d = (double) strtoll(integer, &eptr_integer, atoi(base));
 
-      double tmp = (double) strtoll(rational, &eptr_rational, atoi(base));
-      tmp *= pow((double) atoi(base), (double) ((long int) (0-strlen(rational))));
+         double tmp = (double) strtoll(rational, &eptr_rational, atoi(base));
+         tmp *= pow((double) atoi(base), (double) ((long int) (0-strlen(rational))));
 
-      yylval.d += tmp;
+         yylval.d += tmp;
 
-      /* String to long long (atoll function manages the sign) */
-      long long int e = (exp ? atoll(exp) : 0);
+         /* String to long long (atoll function manages the sign) */
+         long long int e = (exp ? atoll(exp) : 0);
 
-      if (e != 0)
-	yylval.d *= pow((double) atoi(base), (double) e);
+         if (e != 0)
+            yylval.d *= pow((double) atoi(base), (double) e);
     
-      tok = ((*eptr_integer == '\0') && (*eptr_rational == '\0')) ? tREAL : tERROR;
-    }
-  }
-  /* Deleting local allocation */
-  free(tmp);
-  
-  TOKEN(tok);
+         tok = ((*eptr_integer == '\0') && (*eptr_rational == '\0')) ? tREAL : tERROR;
+      }
+   }
+   /* Deleting local allocation */
+   free(tmp);
+
+   TOKEN(tok);
 }
 
 /**
