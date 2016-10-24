@@ -1728,7 +1728,7 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
    cgen_pcall_suspend(suspend, ctx->blocks[vcode_get_target(op, 0)], ctx);
 }
 
-static void cgen_op_resume(int op, cgen_ctx_t *ctx)
+static void cgen_op_resume(int op, bool nested, cgen_ctx_t *ctx)
 {
    LLVMBasicBlockRef after_bb = LLVMAppendBasicBlock(ctx->fn, "resume_after");
    LLVMBasicBlockRef call_bb  = LLVMAppendBasicBlock(ctx->fn, "resume_call");
@@ -1753,8 +1753,6 @@ static void cgen_op_resume(int op, cgen_ctx_t *ctx)
 
    LLVMTypeRef param_types[nparams];
    LLVMGetParamTypes(fn_type, param_types);
-
-   const bool nested = vcode_get_subkind(op) == 1;
 
    LLVMValueRef args[nparams];
    for (int i = 0; i < nparams - 1 - (nested ? 1 : 0); i++)
@@ -2502,7 +2500,10 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       cgen_op_pcall(i, true, ctx);
       break;
    case VCODE_OP_RESUME:
-      cgen_op_resume(i, ctx);
+      cgen_op_resume(i, false, ctx);
+      break;
+   case VCODE_OP_NESTED_RESUME:
+      cgen_op_resume(i, true, ctx);
       break;
    case VCODE_OP_MEMCMP:
       cgen_op_memcmp(i, ctx);

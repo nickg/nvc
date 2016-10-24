@@ -3250,12 +3250,16 @@ static void lower_pcall(tree_t pcall)
    else {
       const int hops = nest_depth > 0 ? vcode_unit_depth() - nest_depth : 0;
       vcode_block_t resume_bb = emit_block();
-      if (nest_depth > 0)
+      if (nest_depth > 0) {
          emit_nested_pcall(name, args, nargs, resume_bb, hops);
-      else
+         vcode_select_block(resume_bb);
+         emit_nested_resume(name, hops);
+      }
+      else {
          emit_pcall(name, args, nargs, resume_bb);
-      vcode_select_block(resume_bb);
-      emit_resume(name, nest_depth, hops);
+         vcode_select_block(resume_bb);
+         emit_resume(name);
+      }
    }
 }
 

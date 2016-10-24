@@ -689,6 +689,7 @@ ident_t vcode_get_func(int op)
    assert(o->kind == VCODE_OP_FCALL || o->kind == VCODE_OP_NESTED_FCALL
           || o->kind == VCODE_OP_PCALL || o->kind == VCODE_OP_RESUME
           || o->kind == VCODE_OP_SET_INITIAL
+          || o->kind == VCODE_OP_NESTED_RESUME
           || o->kind == VCODE_OP_NESTED_PCALL);
    return o->func;
 }
@@ -699,8 +700,7 @@ unsigned vcode_get_subkind(int op)
    assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
           || o->kind == VCODE_OP_VEC_LOAD || o->kind == VCODE_OP_BIT_VEC_OP
           || o->kind == VCODE_OP_INDEX_CHECK || o->kind == VCODE_OP_BIT_SHIFT
-          || o->kind == VCODE_OP_ALLOCA || o->kind == VCODE_OP_RESUME
-          || o->kind == VCODE_OP_COVER_COND);
+          || o->kind == VCODE_OP_ALLOCA || o->kind == VCODE_OP_COVER_COND);
    return o->subkind;
 }
 
@@ -747,7 +747,8 @@ int vcode_get_hops(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_PARAM_UPREF || o->kind == VCODE_OP_NESTED_FCALL
-          || o->kind == VCODE_OP_NESTED_PCALL || o->kind == VCODE_OP_RESUME);
+          || o->kind == VCODE_OP_NESTED_PCALL || o->kind == VCODE_OP_RESUME
+          || o->kind == VCODE_OP_NESTED_RESUME);
    return o->hops;
 }
 
@@ -1626,6 +1627,14 @@ void vcode_dump(void)
             {
                color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
                             istr(op->func));
+            }
+            break;
+
+         case VCODE_OP_NESTED_RESUME:
+            {
+               color_printf("%s $magenta$%s$$ hops %d",
+                            vcode_op_string(op->kind), istr(op->func),
+                            op->hops);
             }
             break;
 
@@ -3792,12 +3801,20 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags)
                 "nets argument to sched event must be signal");
 }
 
-void emit_resume(ident_t func, bool nested, int hops)
+void emit_resume(ident_t func)
 {
    op_t *op = vcode_add_op(VCODE_OP_RESUME);
-   op->func    = func;
-   op->subkind = nested;
-   op->hops    = hops;
+   op->func = func;
+
+   block_t *b = &(active_unit->blocks.items[active_block]);
+   VCODE_ASSERT(b->ops.count == 1, "resume must be first op in a block");
+}
+
+void emit_nested_resume(ident_t func, int hops)
+{
+   op_t *op = vcode_add_op(VCODE_OP_NESTED_RESUME);
+   op->func = func;
+   op->hops = hops;
 
    block_t *b = &(active_unit->blocks.items[active_block]);
    VCODE_ASSERT(b->ops.count == 1, "resume must be first op in a block");
