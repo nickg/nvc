@@ -1,4 +1,4 @@
-/* -*- mode: c -*- */
+/* -*- mode: c; c-basic-offset: 3 -*- */
 
 /*
  *  Copyright (C) 2011-2015  Nick Gasson
@@ -352,42 +352,41 @@ static int resolve_ir1045(void)
 
 static int parse_id(const char *str)
 {
-  char *p = (yylval.s = xmalloc(strlen(str) + 1));
-  
-  while (*str) {
-    *p++ = toupper((int)*str);
-    str++;
-  }
-  *p = '\0';
+   char *p = (yylval.s = xmalloc(strlen(str) + 1));
+   while (*str) {
+      *p++ = toupper((int)*str);
+      str++;
+   }
+   *p = '\0';
 
-  TOKEN(tID);
+   TOKEN(tID);
 }
 
 static int parse_ex_id(const char *str)
 {
-  /* Copy of input */
-  char *s = (yylval.s = xmalloc(strlen(str) + 1));
-  
-  /* Replacing double '\\' character by single '\\' */
-  /* Begins after first character */
-  *s++ = *str++;
-  while (*str) {
-    if ((*str == '\\') && (*(str+1) == '\\')) str++;
-    *s++ = *str++;
-  }
-  /* Copy last character which is null character */
-  *s = '\0';
+   /* Copy of input */
+   char *s = (yylval.s = xmalloc(strlen(str) + 1));
 
-  TOKEN(tID);
+   /* Replacing double '\\' character by single '\\' */
+   /* Begins after first character */
+   *s++ = *str++;
+   while (*str) {
+      if ((*str == '\\') && (*(str+1) == '\\')) str++;
+      *s++ = *str++;
+   }
+   /* Copy last character which is null character */
+   *s = '\0';
+
+   TOKEN(tID);
 }
 
 static void strip_underscores(char *s)
 {
-  char *p;
-  for (p = s; *s != '\0'; s++)
-    if (*s != '_')
-      *p++ = *s;
-  *p = '\0';
+   char *p;
+   for (p = s; *s != '\0'; s++)
+      if (*s != '_')
+         *p++ = *s;
+   *p = '\0';
 }
 
 /**
