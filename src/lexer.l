@@ -365,17 +365,17 @@ static int parse_id(const char *str)
 static int parse_ex_id(const char *str)
 {
    /* Copy of input */
-   char *s = (yylval.s = xmalloc(strlen(str) + 1));
+   char *p = (yylval.s = xmalloc(strlen(str) + 1));
 
    /* Replacing double '\\' character by single '\\' */
    /* Begins after first character */
-   *s++ = *str++;
+   *p++ = *str++;
    while (*str) {
       if ((*str == '\\') && (*(str+1) == '\\')) str++;
-      *s++ = *str++;
+      *p++ = *str++;
    }
    /* Copy last character which is null character */
-   *s = '\0';
+   *p = '\0';
 
    TOKEN(tID);
 }
