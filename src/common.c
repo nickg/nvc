@@ -720,17 +720,7 @@ tree_t str_to_literal(const char *start, const char *end, type_t type)
       elem = type_elem(type);
    }
 
-   char last = '\0';
    for (const char *p = start; *p != '\0' && p != end; p++) {
-      if (*p == -127)
-         continue;
-      else if (*p == '"' && last == '"') {
-         last = '\0';
-         continue;
-      }
-      else
-         last = *p;
-
       const char ch[] = { '\'', *p, '\'', '\0' };
       ident_t id = ident_new(ch);
       tree_t ref = tree_new(T_REF);

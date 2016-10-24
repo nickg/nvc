@@ -56,6 +56,8 @@
 
 static int parse_id(const char *str);
 static int parse_ex_id(const char *str);
+static int parse_bit_string(const char *str);
+static int parse_string(const char *str);
 static int parse_decimal_literal(const char *str);
 static int parse_based_literal(const char *str);
 static int resolve_ir1045(void);
@@ -72,8 +74,8 @@ int get_next_char(char *b, int max_buffer);
 
 ID              ?i:[a-z][a-z_0-9]*
 EXID            \\([^\\]|\\\\)*\\
-STRING          \"([^\"]|\"\")*\"
-BIT_STRING      ?i:[box]\"([0-9a-f][0-9a-f_]*)?\"
+STRING          (\"([^\"]|\"\")*\")|(\%([^\"\%]|\%\%)*\%)
+BIT_STRING      (?i:[box]\"([0-9a-f][0-9a-f_]*)?\")|(?i:[box]\%([0-9a-f][0-9a-f_]*)?\%)
 CHAR            '.'
 COMMENT         --.*
 INTEGER         [0-9][0-9_]*
@@ -313,8 +315,8 @@ CONTEXT       ?i:context
 "]"               { TOKEN(tRSQUARE); }
 {DECIMAL_LITERAL} { return parse_decimal_literal(yytext); }
 {BASED_LITERAL}   { return parse_based_literal(yytext); }
-{BIT_STRING}      { yylval.s = strdup(yytext); TOKEN(tBITSTRING); }
-{STRING}          { yylval.s = strdup(yytext); TOKEN(tSTRING); }
+{BIT_STRING}      { return parse_bit_string(yytext); }
+{STRING}          { return parse_string(yytext); }
 {TICK}            { TOKEN(tTICK); }
 {CHAR}            { if (resolve_ir1045()) {
                        yylval.s = strdup(yytext);
@@ -350,42 +352,42 @@ static int resolve_ir1045(void)
 
 static int parse_id(const char *str)
 {
-   char *p = (yylval.s = xmalloc(strlen(str) + 1));
-   while (*str) {
-      *p++ = toupper((int)*str);
-      str++;
-   }
-   *p = '\0';
+  char *p = (yylval.s = xmalloc(strlen(str) + 1));
+  
+  while (*str) {
+    *p++ = toupper((int)*str);
+    str++;
+  }
+  *p = '\0';
 
-   TOKEN(tID);
+  TOKEN(tID);
 }
 
 static int parse_ex_id(const char *str)
 {
-   char *p = (yylval.s = xmalloc(strlen(str) + 1));
-   while (*str) {
-      switch (*str) {
-      case '\\':
-         if (*(str + 1) == '\\') {
-            str++;
-            break;
-         }
-      default:
-         *p++ = *str++;
-      }
-   }
-   *p = '\0';
+  /* Copy of input */
+  char *s = (yylval.s = xmalloc(strlen(str) + 1));
+  
+  /* Replacing double '\\' character by single '\\' */
+  /* Begins after first character */
+  *s++ = *str++;
+  while (*str) {
+    if ((*str == '\\') && (*(str+1) == '\\')) str++;
+    *s++ = *str++;
+  }
+  /* Copy last character which is null character */
+  *s = '\0';
 
-   TOKEN(tID);
+  TOKEN(tID);
 }
 
 static void strip_underscores(char *s)
 {
-   char *p;
-   for (p = s; *s != '\0'; s++)
-      if (*s != '_')
-         *p++ = *s;
-   *p = '\0';
+  char *p;
+  for (p = s; *s != '\0'; s++)
+    if (*s != '_')
+      *p++ = *s;
+  *p = '\0';
 }
 
 /**
@@ -521,4 +523,66 @@ static int parse_based_literal (const char *str)
   free(tmp);
   
   TOKEN(tok);
+}
+
+/**
+ * \fn static int parse_string (const char *str)
+ * \brief Copy input replaces all double '\"' by single '\"'
+ *        or all double '%' by single '%'.
+ *        In the case when '\%' is used as string brackets,
+ *        the enclosed senquence of characters should not
+ *        contain quotation marks!
+ *
+ * \param str Formatted string as specified in LRM 13.6
+ * (string_literal ::= " { graphic_character } ").
+ * \return TOKEN(tSTRING).
+ */
+static int parse_string(const char *str)
+{
+  /* Copy of input */
+  char *s = (yylval.s = strdup(str));
+  
+  /* Replacing double '\"' character by single '\"' */
+  /* or double '%' character by single '%' */
+  /* Begins after first character */
+  s++;
+  char *p = s;
+  while (*p) {
+    if ((*p == *(yylval.s)) && (*(p+1) == *(yylval.s))) p++;
+    *s++ = *p++;
+  }
+  /* Copy last character which is null character */
+  *s = *p;
+
+  TOKEN(tSTRING);
+}
+
+/**
+ * \fn static int parse_bit_string (const char *str)
+ * \brief Copy input, remove all '_' characters and
+ *        replace all '\%' characters by '\"'.
+ *
+ * \param str Formatted string as specified in LRM 13.7
+ * (bit_string_literal ::= base_specifier " [ bit_value ] ").
+ * \return TOKEN(tBITSTRING).
+ */
+static int parse_bit_string(const char *str)
+{
+  /* Copy of input */
+  char *p = (yylval.s = strdup(str));
+  
+  /* Stripping '_' character */
+  strip_underscores(p);
+
+  /* Replacing '\%' character by '\"' */
+  while (*p) {
+    switch (*p) {
+    case '%':
+      *p = '\"';
+    default:
+      p++;
+    }
+  }
+
+  TOKEN(tBITSTRING);
 }
