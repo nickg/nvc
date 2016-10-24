@@ -538,22 +538,22 @@ static int parse_based_literal (const char *str)
  */
 static int parse_string(const char *str)
 {
-  /* Copy of input */
-  char *s = (yylval.s = strdup(str));
-  
-  /* Replacing double '\"' character by single '\"' */
-  /* or double '%' character by single '%' */
-  /* Begins after first character */
-  s++;
-  char *p = s;
-  while (*p) {
-    if ((*p == *(yylval.s)) && (*(p+1) == *(yylval.s))) p++;
-    *s++ = *p++;
-  }
-  /* Copy last character which is null character */
-  *s = *p;
+   /* Copy of input */
+   char *s = (yylval.s = strdup(str));
 
-  TOKEN(tSTRING);
+   /* Replacing double '\"' character by single '\"' */
+   /* or double '%' character by single '%' */
+   /* Begins after first character */
+   s++;
+   char *p = s;
+   while (*p) {
+      if ((*p == *(yylval.s)) && (*(p+1) == *(yylval.s))) p++;
+      *s++ = *p++;
+   }
+   /* Copy last character which is null character */
+   *s = *p;
+
+   TOKEN(tSTRING);
 }
 
 /**
@@ -567,21 +567,21 @@ static int parse_string(const char *str)
  */
 static int parse_bit_string(const char *str)
 {
-  /* Copy of input */
-  char *p = (yylval.s = strdup(str));
-  
-  /* Stripping '_' character */
-  strip_underscores(p);
+   /* Copy of input */
+   char *p = (yylval.s = strdup(str));
 
-  /* Replacing '\%' character by '\"' */
-  while (*p) {
-    switch (*p) {
-    case '%':
-      *p = '\"';
-    default:
-      p++;
-    }
-  }
+   /* Stripping '_' character */
+   strip_underscores(p);
 
-  TOKEN(tBITSTRING);
+   /* Replacing '\%' character by '\"' */
+   while (*p) {
+      switch (*p) {
+      case '%':
+         *p = '\"';
+      default:
+         p++;
+      }
+   }
+
+   TOKEN(tBITSTRING);
 }
