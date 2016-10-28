@@ -13,6 +13,7 @@
 #include <libgen.h>
 #include <fcntl.h>
 #include <assert.h>
+#include <signal.h>
 
 #include "config.h"
 
@@ -471,8 +472,9 @@ int main(int argc, char **argv)
 {
    realpath(TESTDIR, test_dir);
 
-   realpath(argv[0], bin_dir);
-   dirname(bin_dir);
+   char argv0_path[PATH_MAX];
+   realpath(argv[0], argv0_path);
+   strncpy(bin_dir, dirname(argv0_path), sizeof(bin_dir));
 
    is_tty = isatty(STDOUT_FILENO);
 
