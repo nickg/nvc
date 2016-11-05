@@ -1,4 +1,7 @@
 ## master
+
+## 1.1 - 2016-11-05
+- Improvements to based literal parsing
 - Improved stack traces on Linux when `libdw-dev` installed
 - Fixed elaboration of subprograms in entity declarations
 - Improved elaboration performance when design contains many signals
@@ -11,5 +14,5 @@
 - The `--relax=generic-static` option is now renamed to `--relax=locally-static` and
   applies in wider range of contexts
 
-## 1.0 - 2015-05-01
+## 1.0 - 2016-05-01
 - First stable release
