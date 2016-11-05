@@ -776,7 +776,7 @@ START_TEST(test_literal)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 23);
+   fail_unless(tree_decls(a) == 24);
 
    d = tree_decl(a, 0);
    fail_unless(tree_ident(d) == ident_new("POS"));
@@ -1017,6 +1017,15 @@ START_TEST(test_literal)
    fail_unless(tree_subkind(v) == L_STRING);
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'%'"));
+
+   d = tree_decl(a, 23);
+   fail_unless(tree_kind(d) == T_CONST_DECL);
+   fail_unless(tree_ident(d) == ident_new("V"));
+   v = tree_value(d);
+   fail_unless(tree_kind(v) == T_LITERAL);
+   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_chars(v) == 1);
+   fail_unless(ident_char(tree_ident(tree_char(v, 0)), 1) == (char)0xa9);
 
    a = parse();
    fail_unless(a == NULL);

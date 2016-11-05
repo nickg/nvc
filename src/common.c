@@ -721,6 +721,9 @@ tree_t str_to_literal(const char *start, const char *end, type_t type)
    }
 
    for (const char *p = start; *p != '\0' && p != end; p++) {
+      if (*(const unsigned char *)p == 0x81)
+         continue;   // Allow UTF-8 encoded ASCII characters
+
       const char ch[] = { '\'', *p, '\'', '\0' };
       ident_t id = ident_new(ch);
       tree_t ref = tree_new(T_REF);

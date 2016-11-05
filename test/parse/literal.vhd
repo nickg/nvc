@@ -1,3 +1,4 @@
+-- -*- coding: latin-1 -*-
 ARCHITECTURE a OF e IS
   SIGNAL pos : INTEGER := 64;
   SIGNAL neg : INTEGER := -265;
@@ -22,6 +23,7 @@ ARCHITECTURE a OF e IS
   CONSTANT s : STRING  := % %;
   CONSTANT t : STRING  := %A%;
   CONSTANT u : STRING  := %%%%;
+  constant v : string  := "©";
 BEGIN
 
 END ARCHITECTURE;
