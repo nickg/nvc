@@ -1,4 +1,5 @@
 ## master
+- Compile time evaluation now uses vcode
 
 ## 1.1 - 2016-11-05
 - Improvements to based literal parsing
