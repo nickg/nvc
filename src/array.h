@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2012-2013  Nick Gasson
+//  Copyright (C) 2012-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -48,14 +48,15 @@
    }                                                           \
                                                                \
    void what##_array_resize(what##_array_t *a,                 \
-                                   size_t n, what##_t fill)    \
+                            size_t n, uint8_t fill)            \
    {                                                           \
       if (n > 0) {                                             \
          const int sz = (n <= ARRAY_BASE_SZ)                   \
             ? ARRAY_BASE_SZ : next_power_of_2(n);              \
          a->items = xrealloc(a->items, sz * sizeof(what##_t)); \
-         for (unsigned i = a->count; i < n; i++)               \
-            a->items[i] = fill;                                \
+         if (n > a->count)                                     \
+            memset(a->items + a->count, fill,                  \
+                   (n - a->count) * sizeof(what##_t));         \
       }                                                        \
       a->count = n;                                            \
    }                                                           \
@@ -86,7 +87,7 @@
    }                                                           \
                                                                \
    void what##_array_resize(what##_array_t *a,                 \
-                            size_t n, what##_t fill);
+                            size_t n, uint8_t fill);
 
 #define DECLARE_AND_DEFINE_ARRAY(what) \
    DECLARE_ARRAY(what)                 \

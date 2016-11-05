@@ -122,6 +122,7 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
       ident_until(name, '.') == name
       || ident_runtil(name, '.') == ctx->prefix;
 
+   // XXX: is this still required?
    if (tree_kind(decl) == T_FUNC_DECL && !builtin && local) {
       // Try searching the current unit for the function body
       type_t type = tree_type(decl);
@@ -135,7 +136,8 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
       }
    }
 
-   return eval(simp_call_args(t));
+   tree_t new = simp_call_args(t);
+   return builtin ? eval(new, 0) : new;
 }
 
 static tree_t simp_pcall(tree_t t)
@@ -334,7 +336,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
             case ATTR_HIGH:
                return make_ref(type_enum_literal(type, nlits - 1));
             case ATTR_ASCENDING:
-               return get_bool_lit(t, true);
+               return get_enum_lit(t, true);
             default:
                fatal_trace("invalid enumeration attribute %d", predef);
             }
@@ -377,7 +379,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
          else if (predef == ATTR_RIGHT)
             return r.right;
          else if (predef == ATTR_ASCENDING && known_dir)
-            return get_bool_lit(t, (r.kind == RANGE_TO));
+            return get_enum_lit(t, (r.kind == RANGE_TO));
          else
             return t;
       }
@@ -491,6 +493,9 @@ static tree_t simp_array_ref(tree_t t)
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
       {
+         if (!tree_has_value(decl))
+            return t;
+
          tree_t v = tree_value(decl);
          if (tree_kind(v) != T_AGGREGATE)
             return t;
@@ -856,6 +861,19 @@ static tree_t simp_context_ref(tree_t t, simp_ctx_t *ctx)
    return NULL;
 }
 
+static tree_t simp_assert(tree_t t)
+{
+   bool value_b;
+   if (!tree_has_value(t))
+      return t;
+   else if (folded_bool(tree_value(t), &value_b) && value_b) {
+      // Assertion always passes
+      return NULL;
+   }
+   else
+      return t;
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -899,6 +917,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_record_ref(t);
    case T_CTXREF:
       return simp_context_ref(t, ctx);
+   case T_ASSERT:
+      return simp_assert(t);
    default:
       return t;
    }

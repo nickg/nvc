@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -287,10 +287,11 @@ ident_t ident_read(ident_rd_ctx_t ctx)
          return p;
       }
    }
-   else {
-      assert(index < ctx->cache_sz);
+   else if (likely(index < ctx->cache_sz))
       return ctx->cache[index];
-   }
+   else
+      fatal("ident index in %s is corrupt: index=%d cache_sz=%d",
+            fbuf_file_name(ctx->file), index, (int)ctx->cache_sz);
 }
 
 ident_t ident_uniq(const char *prefix)
@@ -386,10 +387,9 @@ ident_t ident_runtil(ident_t i, char c)
 {
    assert(i != NULL);
 
-   while (i->value != '\0') {
-      if (i->value == c)
-         return i->up;
-      i = i->up;
+   for (ident_t r = i; r->value != '\0'; r = r->up) {
+      if (r->value == c)
+         return r->up;
    }
 
    return i;
@@ -467,6 +467,20 @@ bool ident_glob(ident_t i, const char *glob, int length)
       length = strlen(glob);
 
    return ident_glob_walk(i, glob + length - 1, glob);
+}
+
+bool ident_contains(ident_t i, const char *search)
+{
+   assert(i != NULL);
+
+   for (ident_t r = i; r->value != '\0'; r = r->up) {
+      for (const char *p = search; *p != '\0'; p++) {
+         if (r->value == *p)
+            return true;
+      }
+   }
+
+   return false;
 }
 
 void ident_list_add(ident_list_t **list, ident_t i)

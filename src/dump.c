@@ -985,6 +985,7 @@ void dump(tree_t t)
       break;
    case T_FOR_GENERATE:
    case T_BLOCK:
+   case T_PROCESS:
       dump_stmt(t, 0);
       break;
    default:

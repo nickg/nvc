@@ -18,6 +18,7 @@
 #include "util.h"
 #include "phase.h"
 #include "common.h"
+#include "vcode.h"
 #include "rt/rt.h"
 
 #include <unistd.h>
@@ -167,22 +168,23 @@ static int analyse(int argc, char **argv)
    if (parse_errors() + sem_errors() + bounds_errors() > 0)
       return EXIT_FAILURE;
 
-   for (int i = 0; i < n_units; i++) {
-      tree_kind_t kind = tree_kind(units[i]);
-      const bool need_cgen =
-         (kind == T_PACK_BODY)
-         || ((kind == T_PACKAGE) && pack_needs_cgen(units[i]));
-      if (!need_cgen)
-         units[i] = NULL;
-   }
-
    lib_save(lib_work());
 
    for (int i = 0; i < n_units; i++) {
-      if (units[i] != NULL) {
-         lower_unit(units[i]);
-         cgen(units[i]);
+      vcode_unit_t vu = lower_unit(units[i]);
+
+      if (tree_kind(units[i]) != T_ENTITY) {    // TODO: entity should have code
+         char *name LOCAL = xasprintf("_%s.vcode", istr(tree_ident(units[i])));
+         fbuf_t *fbuf = lib_fbuf_open(lib_work(), name, FBUF_OUT);
+         vcode_write(vu, fbuf);
+         fbuf_close(fbuf);
       }
+
+      const tree_kind_t kind = tree_kind(units[i]);
+      const bool need_cgen = kind == T_PACK_BODY
+         || (kind == T_PACKAGE && pack_needs_cgen(units[i]));
+      if (need_cgen)
+         cgen(units[i], vu);
    }
 
    argc -= next_cmd - 1;
@@ -310,10 +312,10 @@ static int elaborate(int argc, char **argv)
    lib_save(lib_work());
    elab_verbose(verbose, "saving library");
 
-   lower_unit(e);
+   vcode_unit_t vu = lower_unit(e);
    elab_verbose(verbose, "generating intermediate code");
 
-   cgen(e);
+   cgen(e, vu);
    elab_verbose(verbose, "generating LLVM");
 
    link_bc(e);

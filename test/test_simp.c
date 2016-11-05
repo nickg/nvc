@@ -139,6 +139,7 @@ START_TEST(test_cfold)
    fail_unless(folded_r(tree_value(tree_stmt(p, 0)), 3.0));
    fail_unless(folded_r(tree_value(tree_stmt(p, 1)), 0.6));
    fail_unless(folded_r(tree_value(tree_stmt(p, 2)), 2.5));
+   fail_unless(folded_r(tree_value(tree_stmt(p, 3)), 16.0));
 
    p = tree_stmt(a, 7);
    fail_unless(folded_b(tree_value(tree_stmt(p, 0)), true));
@@ -280,18 +281,39 @@ START_TEST(test_ffold)
 {
    input_from_file(TESTDIR "/simp/ffold.vhd");
 
-   tree_t a = parse_and_check(T_PACKAGE, T_PACK_BODY, T_ENTITY, T_ARCH);
+   tree_t a = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY,
+                                       T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   lower_unit(a);
+   fold(a);
 
-   fail_unless(folded_i(tree_value(tree_decl(a, 6)), 6));
-   fail_unless(folded_i(tree_value(tree_decl(a, 8)), 4));
-   fail_unless(folded_i(tree_value(tree_decl(a, 9)), 3));
-   fail_unless(folded_i(tree_value(tree_decl(a, 10)), 2));
-   fail_unless(folded_i(tree_value(tree_decl(a, 11)), 5));
-   fail_unless(folded_i(tree_value(tree_decl(a, 12)), 10));
-   fail_unless(folded_b(tree_value(tree_decl(a, 13)), true));
+   tree_t b = tree_stmt(a, 0);
+   fail_unless(tree_kind(b) == T_BLOCK);
+
+   fail_unless(folded_i(tree_value(tree_decl(b, 0)), 6));
+   fail_unless(folded_i(tree_value(tree_decl(b, 2)), 4));
+   fail_unless(folded_i(tree_value(tree_decl(b, 3)), 3));
+   fail_unless(folded_i(tree_value(tree_decl(b, 4)), 2));
+   fail_unless(folded_i(tree_value(tree_decl(b, 5)), 5));
+   fail_unless(folded_i(tree_value(tree_decl(b, 6)), 10));
+   fail_unless(folded_b(tree_value(tree_decl(b, 7)), true));
+   fail_unless(folded_b(tree_value(tree_decl(b, 8)), true));
+   fail_unless(folded_b(tree_value(tree_decl(b, 9)), false));
+   fail_unless(folded_r(tree_value(tree_decl(b, 10)), 0.62));
+   fail_unless(folded_r(tree_value(tree_decl(b, 11)), 71.7));
+   fail_unless(folded_b(tree_value(tree_decl(b, 12)), true));
+   fail_unless(folded_b(tree_value(tree_decl(b, 13)), true));
+   fail_unless(folded_b(tree_value(tree_decl(b, 14)), false));
+   fail_unless(folded_b(tree_value(tree_decl(b, 15)), true));
+   fail_unless(folded_b(tree_value(tree_decl(b, 16)), true));
+   fail_unless(folded_b(tree_value(tree_decl(b, 17)), true));
+   fail_unless(folded_b(tree_value(tree_decl(b, 18)), true));
+   fail_unless(folded_i(tree_value(tree_decl(b, 19)), 80));
+   fail_unless(folded_i(tree_value(tree_decl(b, 20)), 5));
+   fail_unless(folded_i(tree_value(tree_decl(b, 21)), 2));
+   fail_unless(folded_b(tree_value(tree_decl(b, 22)), true));
+   fail_unless(folded_b(tree_value(tree_decl(b, 23)), true));
 }
 END_TEST
 
@@ -368,6 +390,15 @@ START_TEST(test_issue212)
 }
 END_TEST
 
+START_TEST(test_shift2)
+{
+   input_from_file(TESTDIR "/simp/shift2.vhd");
+
+   tree_t top = run_elab();
+   fail_unless(tree_stmts(top) == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("simplify");
@@ -381,6 +412,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue155);
    tcase_add_test(tc_core, test_context);
    tcase_add_test(tc_core, test_issue212);
+   tcase_add_test(tc_core, test_shift2);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

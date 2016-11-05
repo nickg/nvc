@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -350,11 +350,16 @@ static LLVMValueRef cgen_uarray_dim(LLVMValueRef meta, int dim)
 
 static LLVMTypeRef cgen_display_type(vcode_unit_t unit)
 {
+   vcode_state_t state;
+   vcode_state_save(&state);
+
    vcode_select_unit(unit);
 
    const vunit_kind_t kind = vcode_unit_kind();
-   if (kind == VCODE_UNIT_CONTEXT)
+   if (kind == VCODE_UNIT_CONTEXT) {
+      vcode_state_restore(&state);
       return NULL;
+   }
 
    LLVMTypeRef parent = cgen_display_type(vcode_unit_context());
    vcode_select_unit(unit);
@@ -380,6 +385,8 @@ static LLVMTypeRef cgen_display_type(vcode_unit_t unit)
 
    if (parent != NULL)
       *outptr++ = parent;
+
+   vcode_state_restore(&state);
 
    assert(outptr == fields + nfields);
    return LLVMStructType(fields, nfields, false);
@@ -1308,15 +1315,15 @@ static void cgen_op_param_upref(int op, cgen_ctx_t *ctx)
 {
    const int hops = vcode_get_hops(op);
 
-   vcode_unit_t orig_unit = vcode_active_unit();
-   vcode_block_t orig_bb  = vcode_active_block();
+   vcode_state_t state;
+   vcode_state_save(&state);
+
    for (int i = 0; i < hops; i++)
       vcode_select_unit(vcode_unit_context());
 
    const int nvars = vcode_count_vars();
 
-   vcode_select_unit(orig_unit);
-   vcode_select_block(orig_bb);
+   vcode_state_restore(&state);
 
    LLVMValueRef display = cgen_display_upref(hops, ctx);
 
@@ -2259,7 +2266,7 @@ static void cgen_op_debug_out(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
 {
-   const int cover_tag = vcode_get_index(op);
+   const uint32_t cover_tag = vcode_get_tag(op);
 
    LLVMValueRef cover_counts = LLVMGetNamedGlobal(module, "cover_stmts");
 
@@ -2275,7 +2282,7 @@ static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_cover_cond(int op, cgen_ctx_t *ctx)
 {
-   const int cover_tag = vcode_get_index(op);
+   const uint32_t cover_tag = vcode_get_tag(op);
    const int sub_cond  = vcode_get_subkind(op);
 
    LLVMValueRef cover_conds = LLVMGetNamedGlobal(module, "cover_conds");
@@ -3027,31 +3034,35 @@ static void cgen_coverage_state(tree_t t)
    }
 }
 
-static void cgen_subprograms(tree_t t)
+static void cgen_subprograms(vcode_unit_t vcode)
 {
-   LLVMTypeRef display = NULL;
-   const tree_kind_t scope_kind = tree_kind(t);
-   const bool needs_display =
-      scope_kind != T_ELAB && scope_kind != T_PACK_BODY
-      && scope_kind != T_PROT_BODY;
+   vcode_select_unit(vcode);
 
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(t, i);
-      switch (tree_kind(d)) {
-      case T_FUNC_BODY:
-      case T_PROC_BODY:
-         cgen_subprograms(d);
+   LLVMTypeRef display = NULL;
+   const vunit_kind_t scope_kind = vcode_unit_kind();
+   const bool needs_display = scope_kind != VCODE_UNIT_CONTEXT;
+
+   for (vcode_unit_t it = vcode_unit_child(vcode);
+        it != NULL;
+        it = vcode_unit_next(it)) {
+
+      vcode_select_unit(it);
+
+      switch (vcode_unit_kind()) {
+      case VCODE_UNIT_PROCEDURE:
+      case VCODE_UNIT_FUNCTION:
+         cgen_subprograms(it);
          if (display == NULL && needs_display)
-            display = cgen_display_type(tree_code(t));
-         vcode_select_unit(tree_code(d));
+            display = cgen_display_type(vcode);
+         vcode_select_unit(it);
          if (vcode_unit_kind() == VCODE_UNIT_FUNCTION)
             cgen_function(display);
          else
             cgen_procedure(display);
          break;
-      case T_PROT_BODY:
-         cgen_subprograms(d);
+      case VCODE_UNIT_PROCESS:
+         cgen_subprograms(it);
+         cgen_process(it);
          break;
       default:
          break;
@@ -3110,25 +3121,15 @@ static void cgen_signals(void)
    }
 }
 
-static void cgen_top(tree_t t)
+static void cgen_top(tree_t t, vcode_unit_t vcode)
 {
-   vcode_unit_t vcode = tree_code(t);
    vcode_select_unit(vcode);
 
    cgen_coverage_state(t);
    cgen_shared_variables();
    cgen_signals();
    cgen_reset_function(t);
-   cgen_subprograms(t);
-
-   if (tree_kind(t) == T_ELAB) {
-      const int nstmts = tree_stmts(t);
-      for (int i = 0; i < nstmts; i++) {
-         tree_t p = tree_stmt(t, i);
-         cgen_subprograms(p);
-         cgen_process(tree_code(p));
-      }
-   }
+   cgen_subprograms(vcode);
 }
 
 static void cgen_optimise(void)
@@ -3490,7 +3491,7 @@ static void cgen_tmp_stack(void)
    LLVMSetLinkage(_tmp_alloc, LLVMExternalLinkage);
 }
 
-void cgen(tree_t top)
+void cgen(tree_t top, vcode_unit_t vcode)
 {
    tree_kind_t kind = tree_kind(top);
    if (kind != T_ELAB && kind != T_PACK_BODY && kind != T_PACKAGE)
@@ -3502,7 +3503,7 @@ void cgen(tree_t top)
    cgen_module_name(top);
    cgen_tmp_stack();
 
-   cgen_top(top);
+   cgen_top(top, vcode);
 
    if (opt_get_int("dump-llvm"))
       LLVMDumpModule(module);

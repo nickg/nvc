@@ -31,20 +31,21 @@ begin
 
     process is
         variable r : rec;
+        variable one : integer := 1;    -- Prevent constant folding
     begin
         r.x := "101";
         r.y := 1;
         assert get_bit(r) = '1';
         r.y := 2;
         assert get_bit(r) = '0';
-        assert get_bit(make_rec("011", 2)) = '1';
-        r.x := make_rec("010", 1).x;
+        assert get_bit(make_rec("011", one + 1)) = '1';
+        r.x := make_rec("010", one).x;
         assert r.x = "010";
-        r.y := make_rec("010", 1).y;
+        r.y := make_rec("010", one).y;
         assert r.y = 1;
-        r := make_rec("010", 1);
+        r := make_rec("010", one);
         assert make_rec_array(r, 1, 2) = ( ("010", 1), ("010", 1) );
-        assert make_rec_array(("111", 5), 1, 2) = ( ("111", 5), ("111", 5) );
+        assert make_rec_array(("111", 5), one, 2) = ( ("111", 5), ("111", 5) );
         wait;
     end process;
 

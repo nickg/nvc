@@ -83,14 +83,15 @@ begin
 
     process
         type int2_vec is array (66 to 67) of integer;
+        variable b : boolean;
     begin
-        assert a1'length = 5;
-        assert a1'low(1) = 1;
-        assert a1'high(1) = 5;
-        assert a1'left = 1;
-        assert a1'right = 5;
-        assert int2_vec'length = 2;
-        assert int2_vec'low = 66;
+        b := a1'length = 5;
+        b := a1'low(1) = 1;
+        b := a1'high(1) = 5;
+        b := a1'left = 1;
+        b := a1'right = 5;
+        b := int2_vec'length = 2;
+        b := int2_vec'low = 66;
     end process;
 
     process is
@@ -107,6 +108,7 @@ begin
         r := 1.5 * 2;
         r := 3 * 0.2;
         r := 5.0 / 2;
+        r := 2.0 ** 4;
     end process;
 
     process is

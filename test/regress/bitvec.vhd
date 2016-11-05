@@ -13,8 +13,11 @@ begin
 
     process is
         variable b : bit_vector(3 downto 0);
+        variable n : integer;
     begin
         b := "1101";
+        n := 2;
+        wait for 1 ns;
         assert not b = "0010";
         assert (b and "1010") = "1000";
         assert (b or "0110") = "1111";
@@ -22,7 +25,7 @@ begin
         assert (b xnor "0111") = "0101";
         assert (b nand "1010") = "0111";
         assert (b nor "0110") = "0000";
-        assert get_bitvec(1, 2) = "00";
+        assert get_bitvec(1, n) = "00";
         wait;
     end process;
 

@@ -22,9 +22,12 @@ begin
         assert integer(r) = 6;
         r := real(5);
         report real'image(r);
-        report real'image(-5.262e2);
-        report real'image(1.23456);
-        report real'image(2.0 ** (-1));
+        r := real(-5.262e2);
+        report real'image(r);
+        r := real(1.23456);
+        report real'image(r);
+        r := real(2.0);
+        report real'image(r ** (-1));
         report real'image(real'low);
         report real'image(real'high);
         wait;

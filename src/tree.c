@@ -49,7 +49,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS),
 
    // T_PROCESS
-   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_ATTRS | I_CODE | I_FLAGS),
+   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_ATTRS | I_FLAGS),
 
    // T_REF
    (I_IDENT | I_TYPE | I_REF | I_ATTRS | I_FLAGS),
@@ -64,7 +64,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TARGET | I_ATTRS),
 
    // T_PACKAGE
-   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS | I_CODE),
+   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS),
 
    // T_SIGNAL_ASSIGN
    (I_IDENT | I_TARGET | I_WAVES | I_REJECT | I_ATTRS),
@@ -82,7 +82,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS),
 
    // T_ELAB
-   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_ATTRS | I_CODE),
+   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_ATTRS),
 
    // T_AGGREGATE
    (I_TYPE | I_ASSOCS | I_FLAGS),
@@ -110,11 +110,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_PACK_BODY
-   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS | I_CODE),
+   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS),
 
    // T_FUNC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_CODE
-    | I_FLAGS),
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS),
 
    // T_RETURN
    (I_IDENT | I_VALUE | I_ATTRS),
@@ -144,7 +143,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PORTS | I_TYPE | I_ATTRS),
 
    // T_PROC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_CODE),
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS),
 
    // T_EXIT
    (I_IDENT | I_VALUE | I_IDENT2 | I_ATTRS),
@@ -786,23 +785,6 @@ void tree_set_ref(tree_t t, tree_t decl)
    lookup_item(&tree_object, t, I_REF)->tree = decl;
 }
 
-vcode_unit_t tree_code(tree_t t)
-{
-   item_t *item = lookup_item(&tree_object, t, I_CODE);
-   assert(item->code != NULL);
-   return item->code;
-}
-
-bool tree_has_code(tree_t t)
-{
-   return lookup_item(&tree_object, t, I_CODE)->code != NULL;
-}
-
-void tree_set_code(tree_t t, vcode_unit_t code)
-{
-   lookup_item(&tree_object, t, I_CODE)->code = code;
-}
-
 tree_t tree_spec(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_SPEC);
@@ -884,7 +866,7 @@ void tree_change_net(tree_t t, unsigned n, netid_t i)
    item_t *item = lookup_item(&tree_object, t, I_NETS);
 
    if (n >= item->netid_array.count)
-      netid_array_resize(&(item->netid_array), n + 1, NETID_INVALID);
+      netid_array_resize(&(item->netid_array), n + 1, 0xff);
 
    item->netid_array.items[n] = i;
 }
@@ -997,6 +979,11 @@ void tree_set_file_mode(tree_t t, tree_t m)
 uint32_t tree_index(tree_t t)
 {
    return object_index(&(t->object));
+}
+
+bool tree_has_index(tree_t t)
+{
+   return object_has_index(&(t->object));
 }
 
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)

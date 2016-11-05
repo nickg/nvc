@@ -15,9 +15,14 @@ architecture test of func8 is
 begin
 
     process is
+        variable x : integer;
     begin
-        assert lookup(0) = 0.62;
-        assert lookup(2) = 71.7;
+        x := 0;
+        wait for 0 ns;
+        assert lookup(x) = 0.62;        -- Avoid constant folding
+        x := 2;
+        wait for 0 ns;
+        assert lookup(x) = 71.7;
         wait;
     end process;
 

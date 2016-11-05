@@ -429,6 +429,21 @@ START_TEST(test_jcore1)
 }
 END_TEST
 
+START_TEST(test_eval1)
+{
+   input_from_file(TESTDIR "/elab/eval1.vhd");
+
+   const error_t expect[] = {
+      { 12, "array index -1 outside bounds 7 downto 0" },
+      { 16, "while evaluating call to FUNC" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   fail_unless(run_elab() == NULL);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -461,6 +476,7 @@ int main(void)
    tcase_add_test(tc, test_libbind3);
    tcase_add_test(tc, test_issue251);
    tcase_add_test(tc, test_jcore1);
+   tcase_add_test(tc, test_eval1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

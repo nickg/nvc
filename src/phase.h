@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,15 @@
 
 #include "tree.h"
 
+typedef enum {
+   EVAL_BOUNDS  = (1 << 0),
+   EVAL_FCALL   = (1 << 1),
+   EVAL_WARN    = (1 << 2),
+   EVAL_VERBOSE = (1 << 4),
+   EVAL_REPORT  = (1 << 5),
+   EVAL_FOLDING = (1 << 6)
+} eval_flags_t;
+
 // Annotate types and perform other semantics checks on a tree.
 // Returns false on error.
 bool sem_check(tree_t t);
@@ -28,6 +37,12 @@ bool sem_check(tree_t t);
 int sem_errors(void);
 
 // Fold all constant expressions
+void fold(tree_t top);
+
+// The number of errors found while constant folding
+int eval_errors(void);
+
+// Rewrite to simpler forms
 void simplify(tree_t top);
 
 // Perform static bounds checking
@@ -37,7 +52,7 @@ void bounds_check(tree_t top);
 int bounds_errors(void);
 
 // Evaluate a function call at compile time
-tree_t eval(tree_t fcall);
+tree_t eval(tree_t fcall, eval_flags_t flags);
 
 // Elaborate a top level entity
 tree_t elab(tree_t top);
@@ -45,8 +60,8 @@ tree_t elab(tree_t top);
 // Set the value of a top-level generic
 void elab_set_generic(const char *name, const char *value);
 
-// Generate LLVM bitcode for an elaborated design
-void cgen(tree_t top);
+// Generate LLVM bitcode for a design unit
+void cgen(tree_t top, vcode_unit_t vu);
 
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);
@@ -80,6 +95,9 @@ tree_t parse(void);
 int parse_errors(void);
 
 // Generate vcode for a design unit
-void lower_unit(tree_t unit);
+vcode_unit_t lower_unit(tree_t unit);
+
+// Generate vcode for an isolated function call
+vcode_unit_t lower_thunk(tree_t fcall);
 
 #endif  // _PHASE_H

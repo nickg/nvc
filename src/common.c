@@ -19,6 +19,7 @@
 
 #include "util.h"
 #include "common.h"
+#include "phase.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -42,6 +43,17 @@ int64_t assume_int(tree_t t)
          return tree_pos(ref);
       }
 
+   case T_FCALL:
+      {
+         const eval_flags_t flags =
+            EVAL_FCALL | EVAL_BOUNDS | EVAL_WARN | EVAL_REPORT;
+         tree_t new = eval(t, flags);
+         const tree_kind_t new_kind = tree_kind(new);
+         if (new_kind == T_LITERAL || new_kind == T_REF)
+            return assume_int(new);
+      }
+      // Fall-through
+
    default:
       fatal_at(tree_loc(t), "expression cannot be folded to "
                "an integer constant");
@@ -50,8 +62,11 @@ int64_t assume_int(tree_t t)
 
 void range_bounds(range_t r, int64_t *low, int64_t *high)
 {
-   const bool folded = folded_bounds(r, low, high);
-   assert(folded);
+   const int64_t left = assume_int(r.left);
+   const int64_t right = assume_int(r.right);
+
+   *low  = r.kind == RANGE_TO ? left : right;
+   *high = r.kind == RANGE_TO ? right : left;
 }
 
 tree_t call_builtin(const char *builtin, type_t type, ...)
@@ -222,15 +237,15 @@ bool folded_bool(tree_t t, bool *b)
    return false;
 }
 
-tree_t get_bool_lit(tree_t t, bool v)
+tree_t get_enum_lit(tree_t t, int pos)
 {
-   type_t bool_type = tree_type(t);
-   tree_t lit = type_enum_literal(bool_type, v ? 1 : 0);
+   type_t enum_type = type_base_recur(tree_type(t));
+   tree_t lit = type_enum_literal(enum_type, pos);
 
    tree_t b = tree_new(T_REF);
    tree_set_loc(b, tree_loc(t));
    tree_set_ref(b, lit);
-   tree_set_type(b, bool_type);
+   tree_set_type(b, enum_type);
    tree_set_ident(b, tree_ident(lit));
 
    return b;
@@ -768,7 +783,6 @@ void intern_strings(void)
    signed_i         = ident_new("IEEE.NUMERIC_STD.SIGNED");
    unsigned_i       = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
    foreign_i        = ident_new("FOREIGN");
-   vcode_obj_i      = ident_new("vcode_obj");
    nested_i         = ident_new("nested");
    drives_all_i     = ident_new("drives_all");
    driver_init_i    = ident_new("driver_init");

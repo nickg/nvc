@@ -167,3 +167,8 @@ bool hash_iter(hash_t *h, hash_iter_t *now, const void **key, void **value)
    *now = HASH_END;
    return false;
 }
+
+unsigned hash_members(hash_t *h)
+{
+   return h->members;
+}

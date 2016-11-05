@@ -417,19 +417,22 @@ void error_at(const loc_t *loc, const char *fmt, ...)
    va_end(ap);
 }
 
-void warn_at(const loc_t *loc, const char *fmt, ...)
+static void catch_in_unit_test(print_fn_t fn, const loc_t *loc,
+                               const char *fmt, va_list ap)
 {
-   va_list ap;
-   va_start(ap, fmt);
-
-   // Convert warnings to errors for unit tests
    if (opt_get_int("unit-test")) {
       char *strp LOCAL = prepare_msg(fmt, ap, error_force_plain);
       error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
    }
    else
-      msg_at(warnf, loc, fmt, ap);
+      msg_at(fn, loc, fmt, ap);
+}
 
+void warn_at(const loc_t *loc, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   catch_in_unit_test(warnf, loc, fmt, ap);
    va_end(ap);
 }
 
@@ -437,7 +440,7 @@ void note_at(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   msg_at(notef, loc, fmt, ap);
+   catch_in_unit_test(notef, loc, fmt, ap);
    va_end(ap);
 }
 

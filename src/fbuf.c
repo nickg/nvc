@@ -121,12 +121,17 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
    return (open_list = f);
 }
 
+const char *fbuf_file_name(fbuf_t *f)
+{
+   return f->fname;
+}
+
 static void fbuf_maybe_flush(fbuf_t *f, size_t more, bool finish)
 {
    assert(more <= BLOCK_SIZE);
    if (f->wpend + more > BLOCK_SIZE) {
       if (f->wpend < 16) {
-         // Write dummy bytes at and to meet fastlz block size requirement
+         // Write dummy bytes at end to meet fastlz block size requirement
          assert(finish);
          f->wpend = 16;
       }
@@ -172,6 +177,9 @@ static void fbuf_maybe_read(fbuf_t *f, size_t more)
          fatal("file %s has invalid compression format", f->fname);
 
       f->roff += sizeof(uint32_t);
+
+      if (f->roff + blksz > f->maplen)
+         fatal_trace("read past end of compressed file %s", f->fname);
 
       const int ret = fastlz_decompress(f->rmap + f->roff,
                                         blksz,
@@ -260,6 +268,13 @@ void write_raw(const void *buf, size_t len, fbuf_t *f)
    f->wpend += len;
 }
 
+void write_double(double d, fbuf_t *f)
+{
+   union { double d; uint64_t i; } u;
+   u.d = d;
+   write_u64(u.i, f);
+}
+
 uint32_t read_u32(fbuf_t *f)
 {
    fbuf_maybe_read(f, 4);
@@ -309,4 +324,11 @@ void read_raw(void *buf, size_t len, fbuf_t *f)
    fbuf_maybe_read(f, len);
    memcpy(buf, f->rbuf + f->rptr, len);
    f->rptr += len;
+}
+
+double read_double(fbuf_t *f)
+{
+   union { uint64_t i; double d; } u;
+   u.i = read_u64(f);
+   return u.d;
 }

@@ -92,6 +92,7 @@ tree_t run_elab(void)
       fail_if(sem_errors() > 0);
 
       simplify(t);
+      lower_unit(t);
 
       if (tree_kind(t) == T_ENTITY)
          last_ent = t;

@@ -24,8 +24,10 @@ architecture test of const6 is
 begin
 
     process is
+        variable x : bit_vector(3 downto 0) := "1010";
     begin
-        assert get_left("1010") = '1';
+        wait for 0 ns;                  -- Prevent constant folding
+        assert get_left(x) = '1';
         wait;
     end process;
 

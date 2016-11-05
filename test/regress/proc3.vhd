@@ -75,8 +75,8 @@ begin
         p4(5, x);
         assert x = 10;
         assert now = 105 ns;
-        x := func(9);
-        assert x = 10;
+        x := func(x);
+        assert x = 11;
         wait;
     end process;
 

@@ -292,10 +292,6 @@ tree_t tree_spec(tree_t t);
 bool tree_has_spec(tree_t t);
 void tree_set_spec(tree_t t, tree_t s);
 
-vcode_unit_t tree_code(tree_t t);
-bool tree_has_code(tree_t t);
-void tree_set_code(tree_t t, vcode_unit_t code);
-
 unsigned tree_ops(tree_t t);
 tree_t tree_op(tree_t t, unsigned n);
 void tree_add_op(tree_t t, tree_t s);
@@ -313,6 +309,7 @@ tree_flags_t tree_flags(tree_t t);
 void tree_set_flag(tree_t t, tree_flags_t mask);
 
 uint32_t tree_index(tree_t t);
+bool tree_has_index(tree_t t);
 
 void tree_add_attr_str(tree_t t, ident_t name, ident_t str);
 ident_t tree_attr_str(tree_t t, ident_t name);

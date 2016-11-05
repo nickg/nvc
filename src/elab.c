@@ -78,7 +78,6 @@ static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
-static void elab_funcs(tree_t arch, tree_t ent, const elab_ctx_t *ctx);
 static void elab_copy_context(tree_t src, const elab_ctx_t *ctx);
 
 static int errors = 0;
@@ -959,6 +958,15 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
    return arch;
 }
 
+static void elab_free_maps(map_list_t *maps)
+{
+   while (maps != NULL) {
+      map_list_t *tmp = maps->next;
+      free(maps);
+      maps = tmp;
+   }
+}
+
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
    lib_t new_lib = NULL;
@@ -1006,16 +1014,14 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_copy_context(entity, &new_ctx);
    elab_decls(entity, &new_ctx);
 
-   elab_funcs(arch, entity, ctx);
-   simplify(arch);
-
    elab_map_nets(maps);
+   elab_free_maps(maps);
 
-   while (maps != NULL) {
-      map_list_t *tmp = maps->next;
-      free(maps);
-      maps = tmp;
-   }
+   fold(arch);
+   bounds_check(arch);
+
+   if (eval_errors() > 0 || bounds_errors() > 0)
+      return;
 
    elab_arch(arch, &new_ctx);
 }
@@ -1034,6 +1040,12 @@ static void elab_signal_nets(tree_t decl, const elab_ctx_t *ctx)
    }
 }
 
+static void elab_set_subprogram_name(tree_t decl, ident_t new)
+{
+   tree_set_ident(decl, new);
+   tree_remove_attr(decl, mangled_i);
+}
+
 static void elab_prot_body_decls(tree_t body)
 {
    type_t type = tree_type(body);
@@ -1043,7 +1055,7 @@ static void elab_prot_body_decls(tree_t body)
       tree_t d = type_decl(type, i);
 
       ident_t base = ident_rfrom(tree_ident(d), '.');
-      tree_set_ident(d, ident_prefix(tree_ident(body), base, '.'));
+      elab_set_subprogram_name(d, ident_prefix(tree_ident(body), base, '.'));
    }
 
    const int ndecls = tree_decls(body);
@@ -1055,8 +1067,8 @@ static void elab_prot_body_decls(tree_t body)
           && (kind != T_PROC_DECL) && (kind != T_PROC_BODY))
          continue;
 
-      tree_set_ident(d, ident_prefix(tree_ident(body),
-                                     ident_rfrom(tree_ident(d), '.'), '.'));
+      ident_t base = ident_rfrom(tree_ident(d), '.');
+      elab_set_subprogram_name(d, ident_prefix(tree_ident(body), base, '.'));
    }
 }
 
@@ -1095,7 +1107,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
          break;
       case T_FUNC_DECL:
       case T_PROC_DECL:
-         tree_set_ident(d, npath);
+         elab_set_subprogram_name(d, npath);
          break;
       case T_CONST_DECL:
          tree_set_ident(d, npath);
@@ -1180,7 +1192,10 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .count   = 1
       };
       tree_rewrite(copy, rewrite_refs, &params);
-      simplify(copy);
+      fold(copy);
+
+      if (eval_errors() > 0)
+         break;
 
       ident_t npath = hpathf(ctx->path, '\0', "[%"PRIi64"]", i);
       ident_t ninst = hpathf(ctx->inst, '\0', "[%"PRIi64"]", i);
@@ -1435,9 +1450,11 @@ static void elab_entity_arch(tree_t t, tree_t arch, const elab_ctx_t *ctx)
 
    tree_add_attr_str(ctx->out, simple_name_i, npath);
 
-   elab_funcs(arch, t, ctx);
-   simplify(arch);
+   fold(arch);
    bounds_check(arch);
+
+   if (bounds_errors() > 0 || eval_errors() > 0)
+      return;
 
    elab_ctx_t new_ctx = {
       .out      = ctx->out,
@@ -1448,76 +1465,6 @@ static void elab_entity_arch(tree_t t, tree_t arch, const elab_ctx_t *ctx)
       .arch     = arch
    };
    elab_arch(arch, &new_ctx);
-}
-
-static tree_t rewrite_funcs(tree_t t, void *context)
-{
-   if (tree_kind(t) != T_FCALL)
-      return t;
-
-   tree_t decl = tree_ref(t);
-
-   ident_t name = tree_ident(decl);
-   for (tree_t *rlist = context; *rlist != NULL; ++rlist) {
-      const bool match =
-         (tree_ident(*rlist) == name)
-         && (type_eq(tree_type(*rlist), tree_type(decl)));
-
-      if (match) {
-         tree_set_ref(t, *rlist);
-         break;
-      }
-   }
-
-   return t;
-}
-
-static void elab_funcs(tree_t arch, tree_t ent, const elab_ctx_t *ctx)
-{
-   // Look through all the package bodies required by the context and
-   // rewrite references to function declarations with references to
-   // the function body.  This allows these functions to be folded by
-   // the simplify phase
-
-   int nreplace = 0;
-   tree_t rlist[FUNC_REPLACE_MAX];
-
-   const int ncontext_arch = tree_contexts(arch);
-   const int ncontext_ent  = tree_contexts(ent);
-   for (int i = 0; i < ncontext_arch + ncontext_ent; i++) {
-      tree_t c = (i < ncontext_arch)
-         ? tree_context(arch, i)
-         : tree_context(ent, i - ncontext_arch);
-
-      if (tree_kind(c) != T_USE)
-         continue;
-
-      ident_t name = tree_ident(c);
-      lib_t lib = elab_find_lib(name, ctx);
-
-      ident_t body_i = ident_prefix(name, ident_new("body"), '-');
-      tree_t body = lib_get_check_stale(lib, body_i);
-      if (body == NULL)
-         continue;
-
-      const int ndecls = tree_decls(body);
-      for (int j = 0; j < ndecls; j++) {
-         tree_t decl = tree_decl(body, j);
-         if (tree_kind(decl) != T_FUNC_BODY)
-            continue;
-
-         if (nreplace + 1 == FUNC_REPLACE_MAX) {
-            tree_rewrite(arch, rewrite_funcs, rlist);
-            nreplace = 0;
-         }
-
-         rlist[nreplace++] = decl;
-         rlist[nreplace] = NULL;
-      }
-   }
-
-   if (nreplace > 0)
-      tree_rewrite(arch, rewrite_funcs, rlist);
 }
 
 static tree_t rewrite_package_signals(tree_t t, void *ctx)
@@ -1645,7 +1592,7 @@ tree_t elab(tree_t top)
 
    elab_context_signals(&ctx);
 
-   if (errors > 0)
+   if (errors > 0 || eval_errors() > 0)
       return NULL;
 
    tree_add_attr_int(e, nnets_i, next_net);
@@ -1653,6 +1600,7 @@ tree_t elab(tree_t top)
    if (opt_get_int("cover"))
       cover_tag(e);
 
+   simplify(e);
    bounds_check(e);
 
    for (generic_list_t *it = generic_override; it != NULL; it = it->next) {

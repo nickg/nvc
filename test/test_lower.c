@@ -22,7 +22,8 @@ typedef struct {
    int           hops;
    int           field;
    int           subkind;
-   uint32_t      index;
+   uint32_t      tag;
+   double        real;
 } check_bb_t;
 
 #define CAT(x, y) x##y
@@ -79,6 +80,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             vcode_dump();
             fail("expected op %d in block %d to have constant %d but has %d",
                  i, bb, e->value, vcode_get_value(i));
+         }
+         break;
+
+      case VCODE_OP_CONST_REAL:
+         if (e->real != vcode_get_real(i)) {
+            vcode_dump();
+            fail("expected op %d in block %d to have constant %lf but has %lf",
+                 i, bb, e->real, vcode_get_real(i));
          }
          break;
 
@@ -266,10 +275,10 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          // Fall-through
 
       case VCODE_OP_COVER_STMT:
-         if (e->index != vcode_get_index(i)) {
+         if (e->tag != vcode_get_tag(i)) {
             vcode_dump();
             fail("expected op %d in block %d to have cover tag %d but has %d",
-                 i, bb, e->index, vcode_get_index(i));
+                 i, bb, e->tag, vcode_get_tag(i));
          }
          break;
 
@@ -284,6 +293,17 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
    }
 }
 
+static vcode_unit_t find_unit(tree_t t)
+{
+   ident_t name = tree_attr_str(t, mangled_i);
+   if (name == NULL)
+      name = tree_ident(t);
+   vcode_unit_t vu = vcode_find_unit(name);
+   if (vu == NULL)
+      fail("missing vcode unit for %s", istr(name));
+   return vu;
+}
+
 START_TEST(test_wait1)
 {
    input_from_file(TESTDIR "/lower/wait1.vhd");
@@ -296,7 +316,7 @@ START_TEST(test_wait1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    const check_bb_t bb0[] = {
@@ -360,7 +380,7 @@ START_TEST(test_assign1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    fail_unless(vcode_count_vars() == 2);
@@ -441,7 +461,7 @@ START_TEST(test_assign2)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -507,7 +527,7 @@ START_TEST(test_signal1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t vc = tree_code(e);
+   vcode_unit_t vc = find_unit(e);
    vcode_select_unit(vc);
 
    {
@@ -526,7 +546,7 @@ START_TEST(test_signal1)
    fail_unless(vcode_signal_count_nets(0) == 1);
    fail_unless(vcode_signal_nets(0)[0] == 0);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    {
@@ -571,7 +591,7 @@ START_TEST(test_cond1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -654,7 +674,7 @@ START_TEST(test_arith1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -775,7 +795,7 @@ START_TEST(test_pack1)
    tree_t add1 = tree_decl(body, 0);
    fail_unless(tree_kind(add1) == T_FUNC_BODY);
 
-   vcode_unit_t v0 = tree_code(add1);
+   vcode_unit_t v0 = find_unit(add1);
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -801,7 +821,7 @@ START_TEST(test_func1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -815,9 +835,9 @@ START_TEST(test_func1)
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
 #if LLVM_MANGLES_NAMES
-      { VCODE_OP_FCALL, .func = ":func1:add1__II", .args = 1 },
+      { VCODE_OP_FCALL, .func = "WORK.FUNC1-TEST.ADD1__II", .args = 1 },
 #else
-      { VCODE_OP_FCALL, .func = ":func1:add1$II", .args = 1 },
+      { VCODE_OP_FCALL, .func = "WORK.FUNC1-TEST.ADD1$II", .args = 1 },
 #endif
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_WAIT, .target = 2 }
@@ -853,7 +873,7 @@ START_TEST(test_arrayop1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -933,7 +953,7 @@ START_TEST(test_array1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -971,7 +991,7 @@ START_TEST(test_nest1)
    tree_t p = tree_stmt(e, 0);
 
    {
-      vcode_unit_t v0 = tree_code(p);
+      vcode_unit_t v0 = find_unit(p);
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
@@ -997,7 +1017,7 @@ START_TEST(test_nest1)
    fail_unless(tree_kind(f1) == T_FUNC_BODY);
 
    {
-      vcode_unit_t v0 = tree_code(f1);
+      vcode_unit_t v0 = find_unit(f1);
       vcode_select_unit(v0);
 
 #if LLVM_MANGLES_NAMES
@@ -1026,7 +1046,7 @@ START_TEST(test_nest1)
    fail_unless(tree_kind(f2) == T_FUNC_BODY);
 
    {
-      vcode_unit_t v0 = tree_code(f2);
+      vcode_unit_t v0 = find_unit(f2);
       vcode_select_unit(v0);
 
 #if LLVM_MANGLES_NAMES
@@ -1063,7 +1083,7 @@ START_TEST(test_signal2)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1099,7 +1119,7 @@ START_TEST(test_attr1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -1152,7 +1172,7 @@ START_TEST(test_assign3)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -1183,7 +1203,7 @@ START_TEST(test_record1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1244,7 +1264,7 @@ START_TEST(test_signal4)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -1278,7 +1298,7 @@ START_TEST(test_staticwait)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1317,16 +1337,16 @@ START_TEST(test_proc1)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+      vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = ":proc1:add1__vII", .args = 2 },
+         { VCODE_OP_FCALL, .func = "WORK.PROC1-TEST.ADD1__vII", .args = 2 },
 #else
-         { VCODE_OP_FCALL, .func = ":proc1:add1$vII", .args = 2 },
+         { VCODE_OP_FCALL, .func = "WORK.PROC1-TEST.ADD1$vII", .args = 2 },
 #endif
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD, .name = "B" },
@@ -1335,9 +1355,9 @@ START_TEST(test_proc1)
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONST, .value = 5 },
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = ":proc1:add1__vII", .args = 2 },
+         { VCODE_OP_FCALL, .func = "WORK.PROC1-TEST.ADD1__vII", .args = 2 },
 #else
-         { VCODE_OP_FCALL, .func = ":proc1:add1$vII", .args = 2 },
+         { VCODE_OP_FCALL, .func = "WORK.PROC1-TEST.ADD1$vII", .args = 2 },
 #endif
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 6 },
@@ -1350,7 +1370,7 @@ START_TEST(test_proc1)
    }
 
    {
-      vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1378,7 +1398,7 @@ START_TEST(test_while1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(2) = {
@@ -1415,7 +1435,7 @@ START_TEST(test_loop1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(3) = {
@@ -1457,7 +1477,7 @@ START_TEST(test_proc3)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1478,15 +1498,16 @@ START_TEST(test_proc3)
    }
 
    {
-      vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+      vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
          { VCODE_OP_INDEX, .name = "X" },
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_PCALL, .func = ":proc3:p1__vI", .target = 2, .args = 1 },
+         { VCODE_OP_PCALL, .func = "WORK.PROC3-TEST.P1__vI",
+           .target = 2, .args = 1 },
 #else
-         { VCODE_OP_PCALL, .func = ":proc3:p1$vI", .target = 2, .args = 1 }
+         { VCODE_OP_PCALL, .func = "WORK.PROC3-TEST.P1$vI", .target = 2, .args = 1 }
 #endif
       };
 
@@ -1494,9 +1515,9 @@ START_TEST(test_proc3)
 
       EXPECT_BB(2) = {
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_RESUME, .func = ":proc3:p1__vI" },
+         { VCODE_OP_RESUME, .func = "WORK.PROC3-TEST.P1__vI" },
 #else
-         { VCODE_OP_RESUME, .func = ":proc3:p1$vI" },
+         { VCODE_OP_RESUME, .func = "WORK.PROC3-TEST.P1$vI" },
 #endif
          { VCODE_OP_WAIT, .target = 3 }
       };
@@ -1518,7 +1539,7 @@ START_TEST(test_loop2)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(2) = {
@@ -1549,7 +1570,7 @@ START_TEST(test_slice1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -1593,7 +1614,7 @@ START_TEST(test_funcif)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    fail_unless(vcode_count_blocks() == 3);
@@ -1613,7 +1634,7 @@ START_TEST(test_memset)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1636,7 +1657,7 @@ START_TEST(test_memset)
    }
 
    {
-      vcode_unit_t v0 = tree_code(tree_decl(e, 2));
+      vcode_unit_t v0 = find_unit(tree_decl(e, 2));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1676,7 +1697,7 @@ START_TEST(test_func5)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1692,7 +1713,7 @@ START_TEST(test_func5)
    }
 
    {
-      vcode_unit_t v0 = tree_code(tree_decl(e, 2));
+      vcode_unit_t v0 = find_unit(tree_decl(e, 2));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1705,24 +1726,24 @@ START_TEST(test_func5)
    }
 
    {
-      vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+      vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_NETS, .name = ":func5:x" },
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = ":func5:add_one_s__IsI", .args = 1 },
+         { VCODE_OP_FCALL, .func = "WORK.FUNC5-TEST.ADD_ONE_S__IsI", .args = 1 },
 #else
-         { VCODE_OP_FCALL, .func = ":func5:add_one_s$IsI", .args = 1 },
+         { VCODE_OP_FCALL, .func = "WORK.FUNC5-TEST.ADD_ONE_S$IsI", .args = 1 },
 #endif
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = ":func5:event__BsI", .args = 1 },
+         { VCODE_OP_FCALL, .func = "WORK.FUNC5-TEST.EVENT__BsI", .args = 1 },
 #else
-         { VCODE_OP_FCALL, .func = ":func5:event$BsI", .args = 1 },
+         { VCODE_OP_FCALL, .func = "WORK.FUNC5-TEST.EVENT$BsI", .args = 1 },
 #endif
          { VCODE_OP_ASSERT },
          { VCODE_OP_WAIT, .target = 2 }
@@ -1745,7 +1766,7 @@ START_TEST(test_bounds1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -1784,7 +1805,7 @@ START_TEST(test_record6)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    fail_unless(vcode_var_use_heap(vcode_var_handle(0)));
@@ -1820,7 +1841,7 @@ START_TEST(test_proc7)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1872,7 +1893,7 @@ START_TEST(test_issue116)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1900,7 +1921,7 @@ START_TEST(test_mulphys)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1928,31 +1949,31 @@ START_TEST(test_cover)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_COVER_STMT, .index = 0 },
+      { VCODE_OP_COVER_STMT, .tag = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_STORE, .name = "V" },
-      { VCODE_OP_COVER_STMT, .index = 2 },
+      { VCODE_OP_COVER_STMT, .tag = 2 },
       { VCODE_OP_LOAD, .name = "resolved_:cover:s" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_COVER_COND, .index = 0, .subkind = 1 },
+      { VCODE_OP_COVER_COND, .tag = 0, .subkind = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 10 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
-      { VCODE_OP_COVER_COND, .index = 0, .subkind = 2 },
+      { VCODE_OP_COVER_COND, .tag = 0, .subkind = 2 },
       { VCODE_OP_OR },
-      { VCODE_OP_COVER_COND, .index = 0, .subkind = 0 },
+      { VCODE_OP_COVER_COND, .tag = 0, .subkind = 0 },
       { VCODE_OP_COND, .target = 2, .target_else = 3 }
    };
 
    CHECK_BB(1);
 
    EXPECT_BB(2) = {
-      { VCODE_OP_COVER_STMT, .index = 1 },
+      { VCODE_OP_COVER_STMT, .tag = 1 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_JUMP, .target = 3 }
@@ -1974,14 +1995,16 @@ START_TEST(test_issue122)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
 #if LLVM_MANGLES_NAMES
-      { VCODE_OP_NESTED_FCALL, .func = ":issue122:func__II__NESTED__I" },
+      { VCODE_OP_NESTED_FCALL,
+        .func = "WORK.ISSUE122-TEST.FUNC__NESTED__II__NESTED__I" },
 #else
-      { VCODE_OP_NESTED_FCALL, .func = ":issue122:func$II__NESTED$I" },
+      { VCODE_OP_NESTED_FCALL,
+        .func = "WORK.ISSUE122-TEST.FUNC$II__NESTED$I" },
 #endif
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_RETURN }
@@ -2003,7 +2026,7 @@ START_TEST(test_issue124)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2029,7 +2052,7 @@ START_TEST(test_issue135)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2071,6 +2094,7 @@ START_TEST(test_issue134)
 
    const error_t expect[] = {
       {  8, "statement is unreachable" },
+      {  8, "statement is unreachable" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2078,7 +2102,7 @@ START_TEST(test_issue134)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2103,7 +2127,7 @@ START_TEST(test_issue136)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(tree_decl(e, 1), 1));
+   vcode_unit_t v0 = find_unit(tree_decl(tree_decl(e, 1), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2140,7 +2164,7 @@ START_TEST(test_rectype)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(e);
+   vcode_unit_t v0 = find_unit(e);
    vcode_select_unit(v0);
 
    fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
@@ -2161,7 +2185,7 @@ START_TEST(test_issue149)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2200,7 +2224,7 @@ START_TEST(test_issue167)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(e);
+   vcode_unit_t v0 = find_unit(e);
    vcode_select_unit(v0);
 
    fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
@@ -2221,14 +2245,14 @@ START_TEST(test_issue164)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    lower_unit(p);
 
-   vcode_select_unit(tree_code(tree_decl(p, 0)));
+   vcode_select_unit(find_unit(tree_decl(p, 0)));
 #if LLVM_MANGLES_NAMES
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME__vI"));
 #else
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME$vI"));
 #endif
 
-   vcode_select_unit(tree_code(tree_decl(p, 1)));
+   vcode_select_unit(find_unit(tree_decl(p, 1)));
 #if LLVM_MANGLES_NAMES
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME__I"));
 #else
@@ -2245,7 +2269,7 @@ START_TEST(test_sigvar)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -2283,7 +2307,7 @@ START_TEST(test_sigvar)
    }
 
    {
-      vcode_unit_t v0 = tree_code(tree_decl(e, 2));
+      vcode_unit_t v0 = find_unit(tree_decl(e, 2));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -2310,7 +2334,7 @@ START_TEST(test_issue181)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
    fail_unless(vcode_count_vars() == 2);
@@ -2330,7 +2354,7 @@ START_TEST(test_issue203)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(e);
+   vcode_unit_t v0 = find_unit(e);
    vcode_select_unit(v0);
 
    fail_unless(vcode_count_vars() == 1);
@@ -2346,7 +2370,7 @@ START_TEST(test_issue215)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(e);
+   vcode_unit_t v0 = find_unit(e);
    vcode_select_unit(v0);
 
 }
@@ -2359,7 +2383,7 @@ START_TEST(test_choice1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -2408,7 +2432,7 @@ START_TEST(test_tag)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = tree_code(e);
+   vcode_unit_t v0 = find_unit(e);
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2429,6 +2453,100 @@ START_TEST(test_tag)
    };
 
    CHECK_BB(0);
+}
+END_TEST
+
+START_TEST(test_iffold)
+{
+   input_from_file(TESTDIR "/lower/iffold.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_NETS, .name = ":iffold:sub_i:x" },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_JUMP, .target = 1 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
+START_TEST(test_real1)
+{
+   input_from_file(TESTDIR "/lower/real1.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   {
+      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_NEG },
+         { VCODE_OP_STORE, .name = "R" },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t v0 = find_unit(tree_decl(e, 2));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_STORE, .name = "Z" },
+         { VCODE_OP_CAST },
+         { VCODE_OP_CONST_REAL, .real = 0.5 },
+         { VCODE_OP_MUL },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+}
+END_TEST
+
+START_TEST(test_assert1)
+{
+   input_from_file(TESTDIR "/lower/assert1.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_STORE, .name = "B" },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
+START_TEST(test_thunk)
+{
+   input_from_file(TESTDIR "/lower/thunk.vhd");
+
+   tree_t arch = parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH);
+
+   vcode_unit_t t0 = lower_thunk(tree_value(tree_decl(arch, 0)));
+   fail_unless(t0 == NULL);
+
+   vcode_unit_t t1 = lower_thunk(tree_value(tree_decl(arch, 1)));
+   fail_unless(t1 == NULL);
 }
 END_TEST
 
@@ -2488,6 +2606,10 @@ int main(void)
    tcase_add_test(tc, test_issue215);
    tcase_add_test(tc, test_choice1);
    tcase_add_test(tc, test_tag);
+   tcase_add_test(tc, test_iffold);
+   tcase_add_test(tc, test_real1);
+   tcase_add_test(tc, test_assert1);
+   tcase_add_test(tc, test_thunk);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

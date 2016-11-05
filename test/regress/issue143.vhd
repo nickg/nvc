@@ -38,8 +38,9 @@ package body access_field_through_function_pkg is
   end function;
 
   function access_field_fun2 return integer is
+      variable x : integer := 10;
   begin
-    return fun(10).field; -- <-- works
+    return fun(x).field; -- <-- works
   end function;
 
   function access_field_fun3 return integer is
@@ -60,9 +61,10 @@ architecture test of issue143 is
 begin
 
     process is
+        variable x : integer := 4;
     begin
         assert fun.field = 0;
-        assert fun(4).field = 4;
+        assert fun(x).field = 4;
         assert access_field_fun1 = 0;
         assert access_field_fun2 = 10;
         assert access_field_fun3 = 0;

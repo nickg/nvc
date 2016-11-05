@@ -81,7 +81,7 @@ typedef uint64_t imask_t;
 #define I_ATTRS      ONE_HOT(45)
 #define I_PTYPES     ONE_HOT(46)
 #define I_CHARS      ONE_HOT(47)
-#define I_CODE       ONE_HOT(48)
+// Unused            ONE_HOT(48)
 #define I_FLAGS      ONE_HOT(49)
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -103,7 +103,6 @@ typedef uint64_t imask_t;
 #define ITEM_RANGE_ARRAY (I_DIMS)
 #define ITEM_TEXT_BUF    (I_TEXT_BUF)
 #define ITEM_ATTRS       (I_ATTRS)
-#define ITEM_CODE        (I_CODE)
 
 #define OBJECT_TAG_TREE  0
 #define OBJECT_TAG_TYPE  1
@@ -172,7 +171,6 @@ typedef union {
    type_array_t   type_array;
    attr_tab_t     attrs;
    ident_array_t  ident_array;
-   vcode_unit_t   code;
 } item_t;
 
 typedef struct {
@@ -252,6 +250,7 @@ void object_lookup_failed(const char *name, const char **kind_text_map,
 void item_without_type(imask_t mask);
 
 uint32_t object_index(const object_t *object);
+bool object_has_index(const object_t *object);
 void object_change_kind(const object_class_t *class,
                         object_t *object, int kind);
 object_t *object_new(const object_class_t *class, int kind);

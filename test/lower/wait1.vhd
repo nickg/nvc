@@ -5,7 +5,7 @@ end entity;
 architecture test of wait1 is
 begin
 
-    process is
+    p1: process is
     begin
         assert now = 0 ns;
         wait_1: wait for 1 ns;

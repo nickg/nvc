@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2015  Nick Gasson
+//  Copyright (C) 2014-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -128,6 +128,7 @@ typedef enum {
    VCODE_OP_HEAP_SAVE,
    VCODE_OP_HEAP_RESTORE,
    VCODE_OP_NESTED_RESUME,
+   VCODE_OP_UNDEFINED,
 } vcode_op_t;
 
 typedef enum {
@@ -147,7 +148,8 @@ typedef enum {
    VCODE_UNIT_PROCESS,
    VCODE_UNIT_CONTEXT,
    VCODE_UNIT_FUNCTION,
-   VCODE_UNIT_PROCEDURE
+   VCODE_UNIT_PROCEDURE,
+   VCODE_UNIT_THUNK
 } vunit_kind_t;
 
 typedef enum {
@@ -166,6 +168,11 @@ typedef struct {
    vcode_block_t block;
 } vcode_state_t;
 
+typedef union {
+   tree_t tree;
+   type_t type;
+} vcode_bookmark_t;
+
 #define VCODE_INVALID_REG    -1
 #define VCODE_INVALID_BLOCK  -1
 #define VCODE_INVALID_VAR    -1
@@ -183,7 +190,8 @@ vcode_type_t vtype_signal(vcode_type_t base);
 vcode_type_t vtype_offset(void);
 vcode_type_t vtype_time(void);
 vcode_type_t vtype_char(void);
-vcode_type_t vtype_named_record(ident_t name, uint32_t index, bool create);
+vcode_type_t vtype_named_record(ident_t name, vcode_bookmark_t uniq,
+                                bool create);
 void vtype_set_record_fields(vcode_type_t type,
                              const vcode_type_t *field_types, int nfields);
 vcode_type_t vtype_file(vcode_type_t base);
@@ -202,6 +210,10 @@ vcode_type_t vtype_field(vcode_type_t type, int field);
 vcode_type_t vtype_base(vcode_type_t type);
 char *vtype_record_name(vcode_type_t type);
 vcode_type_t vtype_real(void);
+vcode_unit_t vcode_find_unit(ident_t name);
+vcode_unit_t vcode_unit_next(vcode_unit_t unit);
+vcode_unit_t vcode_unit_child(vcode_unit_t unit);
+void vcode_unit_unref(vcode_unit_t unit);
 
 void vcode_opt(void);
 void vcode_close(void);
@@ -215,11 +227,16 @@ bool vcode_block_empty(void);
 ident_t vcode_unit_name(void);
 int vcode_unit_depth(void);
 bool vcode_unit_pure(void);
+bool vcode_unit_has_undefined(void);
 vunit_kind_t vcode_unit_kind(void);
 vcode_type_t vcode_unit_result(void);
 vcode_block_t vcode_active_block(void);
 vcode_unit_t vcode_active_unit(void);
 vcode_unit_t vcode_unit_context(void);
+void vcode_rewind(void);
+
+void vcode_write(vcode_unit_t unit, fbuf_t *fbuf);
+void vcode_read(fbuf_t *fbuf, tree_rd_ctx_t tree_ctx);
 
 void vcode_state_save(vcode_state_t *state);
 void vcode_state_restore(const vcode_state_t *state);
@@ -251,6 +268,7 @@ int64_t vcode_get_value(int op);
 double vcode_get_real(int op);
 vcode_cmp_t vcode_get_cmp(int op);
 uint32_t vcode_get_index(int op);
+vcode_bookmark_t vcode_get_bookmark(int op);
 uint32_t vcode_get_hint(int op);
 vcode_block_t vcode_get_target(int op, int nth);
 vcode_var_t vcode_get_address(int op);
@@ -263,6 +281,7 @@ unsigned vcode_get_dim(int op);
 int vcode_get_hops(int op);
 int vcode_get_field(int op);
 unsigned vcode_get_subkind(int op);
+uint32_t vcode_get_tag(int op);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);
@@ -279,6 +298,7 @@ vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
 vcode_unit_t emit_procedure(ident_t name, vcode_unit_t context);
 vcode_unit_t emit_process(ident_t name, vcode_unit_t context);
 vcode_unit_t emit_context(ident_t name);
+vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context, vcode_type_t type);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
                      bool is_const);
@@ -300,14 +320,14 @@ vcode_reg_t emit_const_real(double value);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
-vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, uint32_t index);
+vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, vcode_bookmark_t where);
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
-                 vcode_reg_t severity, uint32_t index);
+                 vcode_reg_t severity, vcode_bookmark_t where);
 void emit_report(vcode_reg_t message, vcode_reg_t length,
-                 vcode_reg_t severity, uint32_t index);
+                 vcode_reg_t severity, vcode_bookmark_t where);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs);
@@ -321,15 +341,16 @@ vcode_reg_t emit_load(vcode_var_t var);
 vcode_reg_t emit_load_indirect(vcode_reg_t reg);
 void emit_store(vcode_reg_t reg, vcode_var_t var);
 void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr);
-void emit_bounds(vcode_reg_t reg, vcode_type_t bounds,
-                 bounds_kind_t kind, uint32_t index, uint32_t hint);
+void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
+                 vcode_bookmark_t where, vcode_bookmark_t hint);
 void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
-                         vcode_reg_t kind, uint32_t index, uint32_t hint);
+                         vcode_reg_t kind, vcode_bookmark_t where,
+                         vcode_bookmark_t hint);
 void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
-                      bounds_kind_t kind, uint32_t index);
+                      bounds_kind_t kind, vcode_bookmark_t where);
 void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
                               vcode_reg_t blow, vcode_reg_t bhigh,
-                              bounds_kind_t kind, uint32_t index);
+                              bounds_kind_t kind, vcode_bookmark_t where);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t bounds, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);
@@ -340,7 +361,7 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse);
 vcode_reg_t emit_neg(vcode_reg_t lhs);
 vcode_reg_t emit_abs(vcode_reg_t lhs);
-vcode_reg_t emit_image(vcode_reg_t value, uint32_t index);
+vcode_reg_t emit_image(vcode_reg_t value, vcode_bookmark_t index);
 void emit_comment(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
                         vcode_reg_t rfalse);
@@ -360,8 +381,9 @@ vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg);
 void emit_resolved_address(vcode_var_t var, vcode_signal_t signal);
-void emit_set_initial(vcode_signal_t signal, vcode_reg_t value, uint32_t index,
-                      ident_t resolution, vcode_type_t type);
+void emit_set_initial(vcode_signal_t signal, vcode_reg_t value,
+                      vcode_bookmark_t index, ident_t resolution,
+                      vcode_type_t type);
 void emit_alloc_driver(vcode_reg_t all_nets, vcode_reg_t all_length,
                        vcode_reg_t driven_nets, vcode_reg_t driven_length,
                        vcode_reg_t init);
@@ -387,17 +409,19 @@ void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
                     vcode_reg_t inlen, vcode_reg_t outlen);
 vcode_reg_t emit_null(vcode_type_t type);
 vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length);
-void emit_null_check(vcode_reg_t ptr, uint32_t index);
+void emit_null_check(vcode_reg_t ptr, vcode_bookmark_t index);
 void emit_deallocate(vcode_reg_t ptr);
 vcode_reg_t emit_all(vcode_reg_t reg);
 vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
                             vcode_reg_t lhs_len, vcode_reg_t lhs_dir,
                             vcode_reg_t rhs_data, vcode_reg_t rhs_len,
                             vcode_reg_t rhs_dir, vcode_type_t result);
-vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, uint32_t index);
+vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len,
+                       vcode_bookmark_t index);
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);
 void emit_needs_last_value(vcode_signal_t sig);
-void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, uint32_t index);
+void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen,
+                     vcode_bookmark_t index);
 vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
                            vcode_reg_t len, vcode_reg_t dir, vcode_reg_t shift,
                            vcode_type_t result);
@@ -409,5 +433,6 @@ void emit_cover_stmt(uint32_t tag);
 void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub);
 vcode_reg_t emit_heap_save(void);
 void emit_heap_restore(vcode_reg_t reg);
+vcode_reg_t emit_undefined(vcode_type_t type);
 
 #endif  // _VCODE_H

@@ -68,6 +68,9 @@ bool icmp(ident_t i, const char *s);
 // if set to the length of glob
 bool ident_glob(ident_t i, const char *glob, int length);
 
+// True if identifier contains any characters from search
+bool ident_contains(ident_t i, const char *search);
+
 // Convert an identifier reference to a NULL-terminated string.
 // This function is quite slow so its use should be avoided except
 // for printing.

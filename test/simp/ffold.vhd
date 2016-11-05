@@ -79,14 +79,141 @@ architecture a of ffold is
         return r;
     end function;
 
-    signal s1 : integer := add1(5);
-    signal s2 : integer := add4(1);
-    signal s3 : integer := log2(11);
-    signal s4 : integer := log2(integer(real'(5.5)));
-    signal s5 : integer := case1(1);
-    signal s6 : integer := case1(7);
-    signal s7 : integer := adddef;
-    signal s8 : boolean := chain2("foo", "hello");
+    function flip(x : bit_vector(3 downto 0)) return bit_vector is
+        variable r : bit_vector(3 downto 0);
+    begin
+        r(0) := x(3);
+        r(1) := x(2);
+        r(2) := x(1);
+        r(3) := x(0);
+        return r;
+    end function;
+
+    type real_vector is array (natural range <>) of real;
+
+    function lookup(index : integer) return real is
+        constant table : real_vector := (
+            0.62, 61.62, 71.7, 17.25, 26.15, 651.6, 0.45, 5.761 );
+    begin
+        return table(index);
+    end function;
+
+    function get_bitvec(x, y : integer) return bit_vector is
+        variable r : bit_vector(x to y) := "00";
+    begin
+        return r;
+    end function;
+
+    function approx(x, y : real; t : real := 0.001) return boolean is
+    begin
+        return abs(x - y) < t;
+    end function;
+
+    function get_string(x : integer) return string is
+    begin
+        return integer'image(x);
+    end function;
+
+    function get_string(x : real) return string is
+    begin
+        return real'image(x);
+    end function;
+
+    function get_string(x : character) return string is
+    begin
+        return character'image(x);
+    end function;
+
+    function get_string(x : time) return string is
+    begin
+        return time'image(x);
+    end function;
+
+    function needs_heap(x : integer) return integer is
+    begin
+        if integer'image(x)'length = 2 then
+            return x * 2;
+        else
+            return x / 2;
+        end if;
+    end function;
+
+    function sum_left_right(x : bit_vector) return integer is
+    begin
+        return x'left + x'right;
+    end function;
+
+    procedure p5(x : in integer; y : out integer) is
+        variable k : integer := x + 1;
+    begin
+        y := k;
+    end procedure;
+
+    function call_proc(x : in integer) return integer is
+        variable y : integer;
+    begin
+        p5(x, y);
+        return y;
+    end function;
+
+    type rec is record
+        x : bit_vector(1 to 3);
+        y : integer;
+    end record;
+
+    function make_rec(x : bit_vector(1 to 3); y : integer) return rec is
+        variable r : rec;
+    begin
+        r.x := x;
+        r.y := y;
+        return r;
+    end function;
+
+    function min(x, y : integer) return integer is
+    begin
+        if x > y then
+            return y;
+        else
+            return x;
+        end if;
+    end function;
+
+    function get_left(x : bit_vector) return bit is
+        constant l : integer := x'left;
+        variable v : bit_vector(1 to x'right);
+        constant m : integer := min(x'length, v'length) + 1;
+    begin
+        return x(l);
+    end function;
+
 begin
+
+    b1: block is
+        signal s0  : integer := add1(5);
+        signal s1  : integer := add4(1);
+        signal s2  : integer := log2(11);
+        signal s3  : integer := log2(integer(real'(5.5)));
+        signal s4  : integer := case1(1);
+        signal s5  : integer := case1(7);
+        signal s6  : integer := adddef;
+        signal s7  : boolean := chain2("foo", "hello");
+        signal s8  : boolean := flip("1010") = "0101";
+        signal s9  : boolean := flip("1010") = "0111";
+        signal s10 : real := lookup(0);  -- 0.62;
+        signal s11 : real := lookup(2);  -- 71.7;
+        signal s12 : boolean := get_bitvec(1, 2) = "00";
+        signal s13 : boolean := approx(1.0000, 1.0001);
+        signal s14 : boolean := approx(1.0000, 1.01);
+        signal s15 : boolean := get_string(5) = "5";
+        signal s16 : boolean := get_string(2.5) = "2.5";
+        signal s17 : boolean := get_string('F') = "'F'";
+        signal s18 : boolean := get_string(1 fs) = "1 FS";
+        signal s19 : integer := needs_heap(40);
+        signal s20 : integer := sum_left_right("101010");
+        signal s21 : integer := call_proc(1);
+        signal s22 : boolean := make_rec("010", 1).y = 1;
+        signal s23 : boolean := get_left("1010") = '1';
+    begin
+    end block;
 
 end architecture;
