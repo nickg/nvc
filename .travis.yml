@@ -1,0 +1,26 @@
+sudo: false
+language: c
+compiler:
+  - gcc
+addons:
+  apt:
+    packages:
+      - automake
+      - flex
+      - libreadline-dev
+      - tcl-dev
+      - llvm-3.4-dev
+      - check
+      - lcov
+      - libedit-dev
+install:
+  - llvm-config --version
+  - llvm-config --components
+  - ./tools/fetch-ieee.sh
+script:
+  - ./autogen.sh
+  - mkdir build && cd build
+  - ../configure --enable-werror --enable-vhpi
+  - make check
+notifications:
+  email: false

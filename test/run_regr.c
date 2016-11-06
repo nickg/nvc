@@ -217,7 +217,8 @@ static void push_arg(arglist_t **args, const char *fmt, ...)
    char *cmd = NULL;
    va_list ap;
    va_start(ap, fmt);
-   vasprintf(&cmd, fmt, ap);
+   if (vasprintf(&cmd, fmt, ap) == -1)
+      abort();
    va_end(ap);
 
    arglist_t *n = calloc(1, sizeof(arglist_t));
@@ -464,16 +465,30 @@ static bool run_test(test_t *test)
    fclose(outf);
 
  out_chdir:
-   chdir("..");
+   if (chdir("..") != 0) {
+      fprintf(stderr, "Failed to switch to logs directory: %s\n",
+              strerror(errno));
+      return false;
+   }
+
    return result;
+}
+
+static void checked_realpath(const char *path, char *output)
+{
+   if (realpath(path, output) == NULL) {
+      fprintf(stderr, "Error: failed to get real path for %s: %s\n",
+              path, strerror(errno));
+      exit(EXIT_FAILURE);
+   }
 }
 
 int main(int argc, char **argv)
 {
-   realpath(TESTDIR, test_dir);
+   checked_realpath(TESTDIR, test_dir);
 
    char argv0_path[PATH_MAX];
-   realpath(argv[0], argv0_path);
+   checked_realpath(argv[0], argv0_path);
    strncpy(bin_dir, dirname(argv0_path), sizeof(bin_dir));
 
    is_tty = isatty(STDOUT_FILENO);
