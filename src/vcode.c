@@ -2974,7 +2974,8 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
                    || defn->kind == VCODE_OP_CONST_REAL
                    || defn->kind == VCODE_OP_CONST_RECORD
                    || defn->kind == VCODE_OP_CONST_ARRAY
-                   || defn->kind == VCODE_OP_NULL,
+                   || defn->kind == VCODE_OP_NULL
+                   || defn->kind == VCODE_OP_UNDEFINED,
                    "constant record field r%d is not constant", values[i]);
    }
 
@@ -3995,7 +3996,8 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
 
    vcode_type_t result_type = VCODE_INVALID_TYPE;
 
-   if (vtype_kind(field_type) == VCODE_TYPE_CARRAY) {
+   const vtype_kind_t fkind = vtype_kind(field_type);
+   if (fkind == VCODE_TYPE_CARRAY || fkind == VCODE_TYPE_UARRAY) {
       bounds_type = vtype_elem(field_type);
       result_type = vtype_pointer(bounds_type);
    }

@@ -2262,6 +2262,8 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
       if (type_is_array(value_type) && is_const) {
          if (tree_kind(value) == T_LITERAL)
             v = lower_string_literal(value, false);
+         else if (mode == LOWER_THUNK && !lower_const_bounds(value_type))
+            v = emit_undefined(lower_type(value_type));
          else {
             int nvals;
             vcode_reg_t *values LOCAL =

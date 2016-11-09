@@ -2550,6 +2550,23 @@ START_TEST(test_thunk)
 }
 END_TEST
 
+START_TEST(test_arch1)
+{
+   input_from_file(TESTDIR "/lower/arch1.vhd");
+
+   tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   vcode_unit_t t0 = lower_unit(arch);
+   fail_if(t0 == NULL);
+
+   vcode_unit_t f = vcode_find_unit(ident_new("WORK.ARCH1-TEST.F$uSCANSARRAY"));
+   fail_unless(f == NULL);
+
+   vcode_unit_t g = vcode_find_unit(ident_new("WORK.ARCH1-TEST.G$I"));
+   fail_if(g == NULL);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -2610,6 +2627,7 @@ int main(void)
    tcase_add_test(tc, test_real1);
    tcase_add_test(tc, test_assert1);
    tcase_add_test(tc, test_thunk);
+   tcase_add_test(tc, test_arch1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
