@@ -1452,6 +1452,9 @@ static vcode_var_t lower_get_var(tree_t decl)
 
 static vcode_signal_t lower_get_signal(tree_t decl)
 {
+   if (mode == LOWER_THUNK)
+      return emit_undefined(vtype_signal(lower_type(tree_type(decl))));
+
    vcode_signal_t sig = lower_get_vcode_obj(decl);
    if (sig == VCODE_INVALID_SIGNAL) {
       vcode_state_t state;
@@ -1459,6 +1462,7 @@ static vcode_signal_t lower_get_signal(tree_t decl)
       vcode_select_unit(vcode_unit_context());
 
       type_t type = tree_type(decl);
+
       sig = emit_extern_signal(vtype_signal(lower_type(type)),
                                lower_bounds(type), tree_ident(decl));
 
@@ -1513,6 +1517,9 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
 static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
 {
    type_t type = tree_type(decl);
+
+   if (mode == LOWER_THUNK)
+      return emit_undefined(vtype_signal(lower_type(type)));
 
    vcode_signal_t sig = lower_get_signal(decl);
    if (ctx == EXPR_LVALUE)
