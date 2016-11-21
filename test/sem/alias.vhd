@@ -50,5 +50,11 @@ architecture test of e is
     begin
     end procedure;
 
+    procedure maybe_use_last_value(signal x : my_int);
+
+    procedure proc is
+    begin
+        maybe_use_last_value(ax);
+    end procedure;
 begin
 end architecture;

@@ -1018,9 +1018,14 @@ START_TEST(test_alias)
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_ARCH);
+   tree_t arch = parse_and_check(T_ENTITY, T_ARCH);
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+
+   tree_t x_decl = tree_decl(arch, 1);
+   fail_unless(tree_kind(x_decl) == T_SIGNAL_DECL);
+   fail_unless(icmp(tree_ident(x_decl), "X"));
+   fail_unless(tree_flags(x_decl) & TREE_F_LAST_VALUE);
 }
 END_TEST
 

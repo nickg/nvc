@@ -37,7 +37,7 @@ static const char *item_text_map[] = {
    "I_DVAL",     "I_SPEC",      "I_OPS",      "I_CONSTR",     "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_TEXT_BUF",
-   "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_FLAGS"
+   "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "????",         "I_FLAGS"
 };
 
 static object_class_t *classes[4];

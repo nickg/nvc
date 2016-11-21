@@ -3775,6 +3775,11 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
          kind  = tree_kind(value);
       }
 
+      if (kind == T_REF && tree_kind(tree_ref(value)) == T_ALIAS) {
+          value = tree_value(tree_ref(value));
+          kind  = tree_kind(value);
+      }
+
       if (class == C_SIGNAL) {
          if (tree_kind(value) == T_OPEN)
             sem_error(value, "actual for formal %s must not be OPEN",
