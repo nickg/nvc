@@ -35,14 +35,14 @@
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
-void *xmalloc(size_t size);
-void *xcalloc(size_t size);
-void *xrealloc(void *ptr, size_t size);
-char *xstrdup(const char *str);
+void *xmalloc(size_t size) __attribute__((returns_nonnull));
+void *xcalloc(size_t size) __attribute__((returns_nonnull));
+void *xrealloc(void *ptr, size_t size) __attribute__((returns_nonnull));
+char *xstrdup(const char *str) __attribute__((returns_nonnull));
 
-char *xvasprintf(const char *fmt, va_list ap);
+char *xvasprintf(const char *fmt, va_list ap) __attribute__((returns_nonnull));
 char *xasprintf(const char *fmt, ...)
-   __attribute__((format(printf, 1, 2)));
+   __attribute__((format(printf, 1, 2), returns_nonnull));
 
 int color_printf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
