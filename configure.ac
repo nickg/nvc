@@ -77,6 +77,8 @@ AX_CHECK_COMPILE_FLAG([-fPIC],
   [-Werror])
 AC_SUBST(PIC_FLAG)
 
+AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
+
 AX_PROG_FLEX([], [AC_MSG_ERROR(GNU Flex not found)])
 
 case $host_os in

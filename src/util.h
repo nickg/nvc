@@ -30,19 +30,25 @@
 
 #include "prim.h"
 
+#ifdef HAVE_FUNC_ATTRIBUTE_RETURNS_NONNULL
+#define RETURNS_NONNULL __attribute__((returns_nonnull))
+#else
+#define RETURNS_NONNULL
+#endif
+
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
-void *xmalloc(size_t size) __attribute__((returns_nonnull));
-void *xcalloc(size_t size) __attribute__((returns_nonnull));
-void *xrealloc(void *ptr, size_t size) __attribute__((returns_nonnull));
-char *xstrdup(const char *str) __attribute__((returns_nonnull));
+void *xmalloc(size_t size) RETURNS_NONNULL;
+void *xcalloc(size_t size) RETURNS_NONNULL;
+void *xrealloc(void *ptr, size_t size) RETURNS_NONNULL;
+char *xstrdup(const char *str) RETURNS_NONNULL;
 
-char *xvasprintf(const char *fmt, va_list ap) __attribute__((returns_nonnull));
+char *xvasprintf(const char *fmt, va_list ap) RETURNS_NONNULL;
 char *xasprintf(const char *fmt, ...)
-   __attribute__((format(printf, 1, 2), returns_nonnull));
+   __attribute__((format(printf, 1, 2))) RETURNS_NONNULL;
 
 int color_printf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
