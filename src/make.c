@@ -184,7 +184,7 @@ static char *make_elab_name(tree_t t)
    const char *suffix = strchr(istr(tree_ident(t)), '.');
    assert(suffix != NULL);
 
-   char *name = strdup(suffix + 1);
+   char *name = xstrdup(suffix + 1);
    for (char *p = name; *p != '\0'; p++) {
       if (*p == '.')
          *p = '\0';

@@ -47,7 +47,7 @@ static int process_command(int argc, char **argv);
 
 static ident_t to_unit_name(const char *str)
 {
-   char *name = strdup(str);
+   char *name = xstrdup(str);
    for (char *p = name; *p; p++)
       *p = toupper((int)*p);
 
@@ -59,7 +59,7 @@ static ident_t to_unit_name(const char *str)
 
 static unsigned parse_relax(const char *str)
 {
-   char *copy = strdup(str);
+   char *copy = xstrdup(str);
    assert(copy);
 
    unsigned mask = 0;
@@ -213,7 +213,7 @@ static void elab_verbose(bool verbose, const char *fmt, ...)
 
 static void parse_generic(const char *str)
 {
-   char *copy LOCAL = strdup(str);
+   char *copy LOCAL = xstrdup(str);
 
    char *split = strchr(copy, '=');
    if (split == NULL || *(split + 1) == '\0' || *copy == '\0')

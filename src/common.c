@@ -319,7 +319,7 @@ bool parse_value(type_t type, const char *str, int64_t *value)
    case T_ENUM:
       {
          bool upcase = true;
-         char *copy = strdup(str), *p;
+         char *copy = xstrdup(str), *p;
          for (p = copy; (*p != '\0') && !isspace((int)*p); p++, str++) {
             if (*p == '\'')
                upcase = false;

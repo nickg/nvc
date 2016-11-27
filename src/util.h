@@ -38,6 +38,7 @@
 void *xmalloc(size_t size);
 void *xcalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
+char *xstrdup(const char *str);
 
 char *xvasprintf(const char *fmt, va_list ap);
 char *xasprintf(const char *fmt, ...)

@@ -192,7 +192,7 @@ static void cover_append_line(cover_file_t *f, const char *buf)
    }
 
    cover_line_t *l = &(f->lines[(f->n_lines)++]);
-   l->text = strdup(buf);
+   l->text = xstrdup(buf);
    l->len  = strlen(buf);
    l->hits = -1;
    l->hl   = NULL;

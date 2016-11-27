@@ -319,7 +319,7 @@ CONTEXT       ?i:context
 {STRING}          { return parse_string(yytext); }
 {TICK}            { TOKEN(tTICK); }
 {CHAR}            { if (resolve_ir1045()) {
-                       yylval.s = strdup(yytext);
+                       yylval.s = xstrdup(yytext);
                        TOKEN(tID);
                     }
                     REJECT;
@@ -404,7 +404,7 @@ static int parse_decimal_literal (const char *str)
 {
    int tok = tERROR;
    /* Copy of input text */
-   char *tmp = strdup(str);
+   char *tmp = xstrdup(str);
    /* Stripping '_' character */
    strip_underscores(tmp);
 
@@ -466,7 +466,7 @@ static int parse_based_literal (const char *str)
 {
    int tok = tERROR;
    /* Copy of input text */
-   char *tmp = strdup(str);
+   char *tmp = xstrdup(str);
    /* Stripping '_' character */
    strip_underscores(tmp);
 
@@ -514,7 +514,7 @@ static int parse_based_literal (const char *str)
 
          if (e != 0)
             yylval.d *= pow((double) atoi(base), (double) e);
-    
+
          tok = ((*eptr_integer == '\0') && (*eptr_rational == '\0')) ? tREAL : tERROR;
       }
    }
@@ -539,7 +539,7 @@ static int parse_based_literal (const char *str)
 static int parse_string(const char *str)
 {
    /* Copy of input */
-   char *s = (yylval.s = strdup(str));
+   char *s = (yylval.s = xstrdup(str));
 
    /* Replacing double '\"' character by single '\"' */
    /* or double '%' character by single '%' */
@@ -568,7 +568,7 @@ static int parse_string(const char *str)
 static int parse_bit_string(const char *str)
 {
    /* Copy of input */
-   char *p = (yylval.s = strdup(str));
+   char *p = (yylval.s = xstrdup(str));
 
    /* Stripping '_' character */
    strip_underscores(p);

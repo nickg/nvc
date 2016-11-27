@@ -256,7 +256,7 @@ void *xmalloc(size_t size)
 {
    void *p = malloc(size);
    if (p == NULL)
-      abort();
+      fatal("memory exhausted");
    return p;
 }
 
@@ -264,7 +264,7 @@ void *xcalloc(size_t size)
 {
    void *p = calloc(1, size);
    if (p == NULL)
-      abort();
+      fatal("memory exhausted");
    return p;
 }
 
@@ -272,8 +272,16 @@ void *xrealloc(void *ptr, size_t size)
 {
    ptr = realloc(ptr, size);
    if (ptr == NULL)
-      abort();
+      fatal("memory exhausted");
    return ptr;
+}
+
+char *xstrdup(const char *str)
+{
+   char *copy = strdup(str);
+   if (copy == NULL)
+      fatal("memory exhausted");
+   return copy;
 }
 
 char *xvasprintf(const char *fmt, va_list ap)

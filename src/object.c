@@ -881,7 +881,7 @@ object_rd_ctx_t *object_read_recover(object_t *object, const char *fname)
    ctx->store_sz  = 256;
    ctx->store     = xcalloc(ctx->store_sz * sizeof(object_t *));
    ctx->n_objects = 0;
-   ctx->db_fname  = strdup(fname);
+   ctx->db_fname  = xstrdup(fname);
 
    object_visit_ctx_t visit_ctx = {
       .count      = 0,
@@ -920,7 +920,7 @@ object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname)
    ctx->store_sz  = 256;
    ctx->store     = xmalloc(ctx->store_sz * sizeof(object_t *));
    ctx->n_objects = 0;
-   ctx->db_fname  = strdup(fname);
+   ctx->db_fname  = xstrdup(fname);
 
    return ctx;
 }

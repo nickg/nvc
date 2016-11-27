@@ -95,7 +95,7 @@ static const char *standard_suffix(vhdl_standard_t std)
 
 static ident_t upcase_name(const char * name)
 {
-   char *name_copy = strdup(name);
+   char *name_copy LOCAL = xstrdup(name);
 
    char *last_slash = strrchr(name_copy, '/');
    while ((last_slash != NULL) && (*(last_slash + 1) == '\0')) {
@@ -112,7 +112,6 @@ static ident_t upcase_name(const char * name)
       *last_dot = '\0';
 
    ident_t i = ident_new(name_up);
-   free(name_copy);
    return i;
 }
 
@@ -306,7 +305,7 @@ lib_t lib_new(const char *name, const char *path)
    if (lib != NULL)
       return lib;
 
-   char *name_copy LOCAL = strdup(name);
+   char *name_copy LOCAL = xstrdup(name);
    char *sep = strrchr(name_copy, '/');
 
    // Ignore trailing slashes
