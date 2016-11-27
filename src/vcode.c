@@ -31,6 +31,14 @@ DECLARE_AND_DEFINE_ARRAY(vcode_reg);
 DECLARE_AND_DEFINE_ARRAY(vcode_block);
 DECLARE_AND_DEFINE_ARRAY(vcode_type);
 
+typedef struct {
+   ident_t      name;
+   image_kind_t kind;
+   ident_t     *elems;
+   int64_t     *values;
+   size_t       nelems;
+} image_map_t;
+
 #define OP_HAS_TYPE(x)                                                  \
    (x == VCODE_OP_BOUNDS || x == VCODE_OP_ALLOCA  || x == VCODE_OP_COPY \
     || x == VCODE_OP_SET_INITIAL || x == VCODE_OP_INDEX_CHECK           \
@@ -72,7 +80,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_BOOKMARK(x)                                              \
    (x == VCODE_OP_ASSERT || x == VCODE_OP_REPORT                        \
-    || x == VCODE_OP_IMAGE || x == VCODE_OP_SET_INITIAL                 \
+    || x == VCODE_OP_SET_INITIAL                                        \
     || x == VCODE_OP_DIV || x == VCODE_OP_NULL_CHECK                    \
     || x == VCODE_OP_VALUE || x == VCODE_OP_BOUNDS                      \
     || x == VCODE_OP_DYNAMIC_BOUNDS || x == VCODE_OP_ARRAY_SIZE         \
@@ -83,6 +91,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_WAIT || x == VCODE_OP_JUMP || x == VCODE_OP_COND      \
     || x == VCODE_OP_PCALL || x == VCODE_OP_CASE                        \
     || x == VCODE_OP_NESTED_PCALL)
+#define OP_HAS_IMAGE_MAP(x)                                             \
+   (x == VCODE_OP_IMAGE_MAP)
 
 typedef struct {
    vcode_op_t          kind;
@@ -109,6 +119,7 @@ typedef struct {
       unsigned         field;        // OP_HAS_FIELD
       vcode_bookmark_t hint;         // OP_HAS_HINT
       uint32_t         tag;          // OP_HAS_TAG
+      image_map_t     *image_map;    // OP_HAS_IMAGE_MAP
    };
 } op_t;
 
@@ -234,7 +245,7 @@ struct vcode_unit {
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
 #define VCODE_MAGIC        0x76636f64
-#define VCODE_VERSION      2
+#define VCODE_VERSION      3
 #define VCODE_CHECK_UNIONS 0
 
 static vcode_unit_t  active_unit = NULL;
@@ -568,6 +579,11 @@ void vcode_unit_unref(vcode_unit_t unit)
          op_t *o = &(b->ops.items[j]);
          if (OP_HAS_COMMENT(o->kind))
             free(o->comment);
+         if (OP_HAS_IMAGE_MAP(o->kind)) {
+            free(o->image_map->elems);
+            free(o->image_map->values);
+            free(o->image_map);
+         }
          free(o->args.items);
       }
       free(b->ops.items);
@@ -849,6 +865,18 @@ ident_t vcode_get_func(int op)
    return o->func;
 }
 
+void vcode_get_image_map(int op, ident_t *name, size_t *nelems,
+                         const ident_t **elems, const int64_t **values)
+{
+   op_t *o = vcode_op_data(op);
+   assert(OP_HAS_IMAGE_MAP(o->kind));
+
+   *name   = o->image_map->name;
+   *nelems = o->image_map->nelems;
+   *elems  = o->image_map->elems;
+   *values = o->image_map->values;
+}
+
 unsigned vcode_get_subkind(int op)
 {
    op_t *o = vcode_op_data(op);
@@ -1012,7 +1040,8 @@ const char *vcode_op_string(vcode_op_t op)
       "bit vec op", "const real", "value", "last event", "needs last value",
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
-      "uarray len", "heap save", "heap restore", "nested resume", "undefined"
+      "uarray len", "heap save", "heap restore", "nested resume", "undefined",
+      "image map"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1120,6 +1149,10 @@ static void vcode_dump_one_type(vcode_type_t type)
       printf("F<");
       vcode_dump_one_type(vt->base);
       printf(">");
+      break;
+
+   case VCODE_TYPE_IMAGE_MAP:
+      printf("I<>");
       break;
    }
 }
@@ -1614,6 +1647,8 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" map ");
+               col += vcode_dump_reg(op->args.items[1]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2077,6 +2112,24 @@ void vcode_dump(void)
                vcode_dump_result_type(col, op);
             }
             break;
+
+         case VCODE_OP_IMAGE_MAP:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s", vcode_op_string(op->kind));
+               col += color_printf(" $magenta$%s$$ [",
+                                   istr(op->image_map->name));
+               for (size_t j = 0; j < op->image_map->nelems; j++) {
+                  col += printf(" %s", istr(op->image_map->elems[j]));
+                  if (op->image_map->kind == IMAGE_PHYSICAL)
+                     col += printf("=>%"PRIi64, op->image_map->values[j]);
+                  if (col >= 80)
+                     col = printf("\n   ") - 1;
+               }
+               col += printf(" ] ");
+               vcode_dump_result_type(col, op);
+            }
+            break;
          }
 
          printf("\n");
@@ -2121,6 +2174,8 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
          return vtype_eq(at->base, bt->base);
       case VCODE_TYPE_RECORD:
          return at->name == bt->name && at->uniq.type == bt->uniq.type;
+      case VCODE_TYPE_IMAGE_MAP:
+         return false;
       }
 
       return false;
@@ -2150,6 +2205,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_OFFSET:
    case VCODE_TYPE_FILE:
+   case VCODE_TYPE_IMAGE_MAP:
       return false;
 
    case VCODE_TYPE_REAL:
@@ -2320,6 +2376,16 @@ vcode_type_t vtype_time(void)
 vcode_type_t vtype_char(void)
 {
    return vtype_int(0, 183);
+}
+
+vcode_type_t vtype_image_map(void)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind  = VCODE_TYPE_IMAGE_MAP;
+
+   return vtype_new(n);
 }
 
 vcode_type_t vtype_real(void)
@@ -3604,11 +3670,11 @@ vcode_reg_t emit_abs(vcode_reg_t lhs)
    return op->result;
 }
 
-vcode_reg_t emit_image(vcode_reg_t value, vcode_bookmark_t where)
+vcode_reg_t emit_image(vcode_reg_t value, vcode_reg_t map)
 {
    op_t *op = vcode_add_op(VCODE_OP_IMAGE);
    vcode_add_arg(op, value);
-   op->bookmark = where;
+   vcode_add_arg(op, map);
 
    op->result = vcode_add_reg(
       vtype_uarray(1, vtype_char(), vtype_int(0, 127)));
@@ -4573,6 +4639,51 @@ vcode_reg_t emit_undefined(vcode_type_t type)
    return (op->result = vcode_add_reg(type));
 }
 
+vcode_reg_t emit_enum_map(ident_t name, size_t nelems, const ident_t *elems)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_IMAGE_MAP) {
+      if (other->image_map->name == name)
+         return other->result;
+   }
+
+   image_map_t *img = xmalloc(sizeof(image_map_t));
+   img->name   = name;
+   img->kind   = IMAGE_ENUM;
+   img->nelems = nelems;
+   img->values = NULL;
+   img->elems  = xmalloc(nelems * sizeof(ident_t));
+   for (size_t i = 0; i < nelems; i++)
+      img->elems[i] = elems[i];
+
+   op_t *op = vcode_add_op(VCODE_OP_IMAGE_MAP);
+   op->image_map = img;
+   return (op->result = vcode_add_reg(vtype_image_map()));
+}
+
+vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
+                                const ident_t *elems, const int64_t *values)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_IMAGE_MAP) {
+      if (other->image_map->name == name)
+         return other->result;
+   }
+
+   image_map_t *img = xmalloc(sizeof(image_map_t));
+   img->name   = name;
+   img->kind   = IMAGE_ENUM;
+   img->nelems = nelems;
+   img->values = NULL;
+   img->elems  = xmalloc(nelems * sizeof(ident_t));
+   for (size_t i = 0; i < nelems; i++) {
+      img->elems[i] = elems[i];
+      img->values[i] = values[i];
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_IMAGE_MAP);
+   op->image_map = img;
+   return (op->result = vcode_add_reg(vtype_image_map()));
+}
+
 static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
                              ident_wr_ctx_t ident_wr_ctx)
 {
@@ -4682,6 +4793,9 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
       case VCODE_TYPE_FILE:
       case VCODE_TYPE_SIGNAL:
          write_u32(t->base, f);
+         break;
+
+      case VCODE_TYPE_IMAGE_MAP:
          break;
 
       case VCODE_TYPE_RECORD:
@@ -4865,6 +4979,9 @@ static bool vcode_read_unit(fbuf_t *f, tree_rd_ctx_t tree_ctx,
       case VCODE_TYPE_FILE:
       case VCODE_TYPE_SIGNAL:
          t->base = read_u32(f);
+         break;
+
+      case VCODE_TYPE_IMAGE_MAP:
          break;
 
       case VCODE_TYPE_RECORD:

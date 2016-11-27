@@ -90,6 +90,13 @@ typedef enum {
    SEVERITY_FAILURE
 } rt_severity_t;
 
+typedef enum {
+   IMAGE_INTEGER,
+   IMAGE_REAL,
+   IMAGE_ENUM,
+   IMAGE_PHYSICAL
+} image_kind_t;
+
 void rt_start_of_tool(tree_t top, tree_rd_ctx_t ctx);
 void rt_end_of_tool(tree_t top);
 void rt_run_sim(uint64_t stop_time);

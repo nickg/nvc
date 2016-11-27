@@ -2580,6 +2580,47 @@ static const int lower_get_attr_dimension(tree_t expr)
       return 0;
 }
 
+static vcode_reg_t lower_image_map(type_t type)
+{
+   type_t base = type_base_recur(type);
+
+   vcode_reg_t result = VCODE_INVALID_REG;
+   switch (type_kind(base)) {
+   case T_INTEGER:
+   case T_REAL:
+      break;
+
+   case T_ENUM:
+      {
+         const int nlits = type_enum_literals(type);
+         ident_t *map LOCAL = xmalloc(sizeof(ident_t) * nlits);
+         for (int i = 0; i < nlits; i++)
+            map[i] = tree_ident(type_enum_literal(base, i));
+         result = emit_enum_map(type_ident(base), nlits, map);
+      }
+      break;
+
+   case T_PHYSICAL:
+      {
+         const int nunits = type_units(base);
+         ident_t *map LOCAL = xmalloc(sizeof(ident_t) * nunits);
+         int64_t *values LOCAL = xmalloc(sizeof(int64_t) * nunits);
+         for (int i = 0; i < nunits; i++) {
+            tree_t unit = type_unit(base, i);
+            map[i] = tree_ident(unit);
+            values[i] = assume_int(tree_value(unit));
+         }
+         result = emit_physical_map(type_ident(base), nunits, map, values);
+      }
+      break;
+
+   default:
+      fatal_trace("cannot generate image map for %s", type_pp(type));
+   }
+
+   return result;
+}
+
 static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 {
    tree_t name = tree_name(expr);
@@ -2695,9 +2736,9 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
    case ATTR_IMAGE:
       {
          tree_t value = tree_value(tree_param(expr, 0));
+         vcode_reg_t map = lower_image_map(tree_type(value));
          tmp_alloc_used = true;
-         return emit_image(lower_param(value, NULL, PORT_IN),
-                           lower_bookmark(name));
+         return emit_image(lower_param(value, NULL, PORT_IN), map);
       }
 
    case ATTR_VALUE:

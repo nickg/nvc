@@ -129,6 +129,7 @@ typedef enum {
    VCODE_OP_HEAP_RESTORE,
    VCODE_OP_NESTED_RESUME,
    VCODE_OP_UNDEFINED,
+   VCODE_OP_IMAGE_MAP,
 } vcode_op_t;
 
 typedef enum {
@@ -142,6 +143,7 @@ typedef enum {
    VCODE_TYPE_FILE,
    VCODE_TYPE_ACCESS,
    VCODE_TYPE_REAL,
+   VCODE_TYPE_IMAGE_MAP
 } vtype_kind_t;
 
 typedef enum {
@@ -178,6 +180,7 @@ typedef union {
 #define VCODE_INVALID_VAR    -1
 #define VCODE_INVALID_SIGNAL -1
 #define VCODE_INVALID_TYPE   -1
+#define VCODE_INVALID_IMAGE  -1
 
 vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
@@ -190,6 +193,7 @@ vcode_type_t vtype_signal(vcode_type_t base);
 vcode_type_t vtype_offset(void);
 vcode_type_t vtype_time(void);
 vcode_type_t vtype_char(void);
+vcode_type_t vtype_image_map(void);
 vcode_type_t vtype_named_record(ident_t name, vcode_bookmark_t uniq,
                                 bool create);
 void vtype_set_record_fields(vcode_type_t type,
@@ -233,7 +237,6 @@ vcode_type_t vcode_unit_result(void);
 vcode_block_t vcode_active_block(void);
 vcode_unit_t vcode_active_unit(void);
 vcode_unit_t vcode_unit_context(void);
-void vcode_rewind(void);
 
 void vcode_write(vcode_unit_t unit, fbuf_t *fbuf);
 void vcode_read(fbuf_t *fbuf, tree_rd_ctx_t tree_ctx);
@@ -282,6 +285,8 @@ int vcode_get_hops(int op);
 int vcode_get_field(int op);
 unsigned vcode_get_subkind(int op);
 uint32_t vcode_get_tag(int op);
+void vcode_get_image_map(int op, ident_t *name, size_t *nelems,
+                         const ident_t **elems, const int64_t **values);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);
@@ -361,7 +366,7 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse);
 vcode_reg_t emit_neg(vcode_reg_t lhs);
 vcode_reg_t emit_abs(vcode_reg_t lhs);
-vcode_reg_t emit_image(vcode_reg_t value, vcode_bookmark_t index);
+vcode_reg_t emit_image(vcode_reg_t value, vcode_reg_t map);
 void emit_comment(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
                         vcode_reg_t rfalse);
@@ -434,5 +439,8 @@ void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub);
 vcode_reg_t emit_heap_save(void);
 void emit_heap_restore(vcode_reg_t reg);
 vcode_reg_t emit_undefined(vcode_type_t type);
+vcode_reg_t emit_enum_map(ident_t name, size_t nelems, const ident_t *elems);
+vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
+                              const ident_t *elems, const int64_t *values);
 
 #endif  // _VCODE_H
