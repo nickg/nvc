@@ -446,6 +446,19 @@ static vcode_type_t lower_bounds(type_t type)
    return lower_type(type);
 }
 
+static vcode_type_t lower_signal_type(type_t type)
+{
+   if (type_is_array(type)) {
+      vcode_type_t base = vtype_signal(lower_type(type_elem(type)));
+      if (lower_const_bounds(type))
+         return base;
+      else
+         return vtype_uarray(array_dimension(type), base, base);
+   }
+   else
+      return vtype_signal(lower_type(type));
+}
+
 static vcode_reg_t lower_reify(vcode_reg_t reg)
 {
    if (reg == VCODE_INVALID_REG)
@@ -1519,7 +1532,7 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
    type_t type = tree_type(decl);
 
    if (mode == LOWER_THUNK)
-      return emit_undefined(vtype_signal(lower_type(type)));
+      return emit_undefined(lower_signal_type(type));
 
    vcode_signal_t sig = lower_get_signal(decl);
    if (ctx == EXPR_LVALUE)
@@ -1541,20 +1554,22 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
 {
    vcode_reg_t reg = lower_get_vcode_obj(decl);
-   if (reg == VCODE_INVALID_REG) {
-      if (mode == LOWER_THUNK) {
-         emit_comment("Cannot resolve reference to %s", istr(tree_ident(decl)));
+
+   const bool undefined_in_thunk =
+      mode == LOWER_THUNK && (reg == VCODE_INVALID_REG
+                              || tree_class(decl) == C_SIGNAL
+                              || type_is_protected(tree_type(decl)));
+   if (undefined_in_thunk) {
+      emit_comment("Cannot resolve reference to %s", istr(tree_ident(decl)));
+      if (tree_class(decl) == C_SIGNAL)
+         return emit_undefined(lower_signal_type(tree_type(decl)));
+      else
          return emit_undefined(lower_type(tree_type(decl)));
-      }
-      else if (tree_class(decl) != C_SIGNAL) {
-         vcode_dump();
-         fatal_trace("missing register for parameter %s",
-                     istr(tree_ident(decl)));
-      }
    }
-   else if (mode == LOWER_THUNK) {
-      if (tree_class(decl) == C_SIGNAL || type_is_protected(tree_type(decl)))
-         return emit_undefined(vcode_reg_type(reg));
+   else if (reg == VCODE_INVALID_REG && tree_class(decl) != C_SIGNAL) {
+      vcode_dump();
+      fatal_trace("missing register for parameter %s",
+                  istr(tree_ident(decl)));
    }
 
    const int depth = tree_attr_int(decl, nested_i, 0);
@@ -4323,15 +4338,7 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
       vcode_type_t vtype, vbounds;
       switch (tree_class(p)) {
       case C_SIGNAL:
-         if (type_is_array(type)) {
-            vcode_type_t base = vtype_signal(lower_type(type_elem(type)));
-            if (lower_const_bounds(type))
-               vtype = base;
-            else
-               vtype = vtype_uarray(array_dimension(type), base, base);
-         }
-         else
-            vtype = vtype_signal(lower_type(type));
+         vtype = lower_signal_type(type);
          vbounds = vtype;
          break;
 
