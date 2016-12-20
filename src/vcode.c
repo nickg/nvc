@@ -865,8 +865,9 @@ ident_t vcode_get_func(int op)
    return o->func;
 }
 
-void vcode_get_image_map(int op, ident_t *name, size_t *nelems,
-                         const ident_t **elems, const int64_t **values)
+void vcode_get_image_map(int op, ident_t *name, image_kind_t *kind,
+                         size_t *nelems, const ident_t **elems,
+                         const int64_t **values)
 {
    op_t *o = vcode_op_data(op);
    assert(OP_HAS_IMAGE_MAP(o->kind));
@@ -875,6 +876,7 @@ void vcode_get_image_map(int op, ident_t *name, size_t *nelems,
    *nelems = o->image_map->nelems;
    *elems  = o->image_map->elems;
    *values = o->image_map->values;
+   *kind   = o->image_map->kind;
 }
 
 unsigned vcode_get_subkind(int op)
@@ -1647,8 +1649,10 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               col += printf(" map ");
-               col += vcode_dump_reg(op->args.items[1]);
+               if (op->args.count == 2) {
+                  col += printf(" map ");
+                  col += vcode_dump_reg(op->args.items[1]);
+               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -3672,9 +3676,14 @@ vcode_reg_t emit_abs(vcode_reg_t lhs)
 
 vcode_reg_t emit_image(vcode_reg_t value, vcode_reg_t map)
 {
+   VCODE_ASSERT(map == VCODE_INVALID_REG
+                || vcode_reg_kind(map) == VCODE_TYPE_IMAGE_MAP,
+                "map argument to image is not an image map");
+
    op_t *op = vcode_add_op(VCODE_OP_IMAGE);
    vcode_add_arg(op, value);
-   vcode_add_arg(op, map);
+   if (map != VCODE_INVALID_REG)
+      vcode_add_arg(op, map);
 
    op->result = vcode_add_reg(
       vtype_uarray(1, vtype_char(), vtype_int(0, 127)));
@@ -4661,7 +4670,7 @@ vcode_reg_t emit_enum_map(ident_t name, size_t nelems, const ident_t *elems)
 }
 
 vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
-                                const ident_t *elems, const int64_t *values)
+                              const ident_t *elems, const int64_t *values)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_IMAGE_MAP) {
       if (other->image_map->name == name)
@@ -4670,13 +4679,19 @@ vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
 
    image_map_t *img = xmalloc(sizeof(image_map_t));
    img->name   = name;
-   img->kind   = IMAGE_ENUM;
+   img->kind   = IMAGE_PHYSICAL;
    img->nelems = nelems;
    img->values = NULL;
    img->elems  = xmalloc(nelems * sizeof(ident_t));
+   if (values != NULL)
+      img->values = xmalloc(nelems * sizeof(int64_t));
+   else
+      img->values = NULL;
+
    for (size_t i = 0; i < nelems; i++) {
       img->elems[i] = elems[i];
-      img->values[i] = values[i];
+      if (values != NULL)
+         img->values[i] = values[i];
    }
 
    op_t *op = vcode_add_op(VCODE_OP_IMAGE_MAP);

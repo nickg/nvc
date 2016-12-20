@@ -255,6 +255,13 @@ START_TEST(test_contains)
 }
 END_TEST
 
+START_TEST(test_len)
+{
+   fail_unless(ident_len(ident_new("a")) == 1);
+   fail_unless(ident_len(ident_new("abc")) == 3);
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -278,6 +285,7 @@ int main(void)
    tcase_add_test(tc_core, test_from);
    tcase_add_test(tc_core, test_interned);
    tcase_add_test(tc_core, test_contains);
+   tcase_add_test(tc_core, test_len);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

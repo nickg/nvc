@@ -364,6 +364,14 @@ char ident_char(ident_t i, unsigned n)
       return ident_char(i->up, n - 1);
 }
 
+size_t ident_len(ident_t i)
+{
+   if (i == NULL || i->value == '\0')
+      return 0;
+   else
+      return ident_len(i->up) + 1;
+}
+
 ident_t ident_suffix_until(ident_t i, char c, ident_t shared)
 {
    assert(i != NULL);

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -44,6 +44,9 @@ ident_t ident_strip(ident_t a, ident_t b);
 
 // Return the Nth character of an identifier counting from the end.
 char ident_char(ident_t i, unsigned n);
+
+// Number of characters in the identifier
+size_t ident_len(ident_t i);
 
 // Return the prefix of i that does not include c
 ident_t ident_until(ident_t i, char c);

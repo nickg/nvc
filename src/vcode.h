@@ -285,8 +285,9 @@ int vcode_get_hops(int op);
 int vcode_get_field(int op);
 unsigned vcode_get_subkind(int op);
 uint32_t vcode_get_tag(int op);
-void vcode_get_image_map(int op, ident_t *name, size_t *nelems,
-                         const ident_t **elems, const int64_t **values);
+void vcode_get_image_map(int op, ident_t *name, image_kind_t *kind,
+                         size_t *nelems, const ident_t **elems,
+                         const int64_t **values);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);

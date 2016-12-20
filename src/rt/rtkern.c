@@ -60,6 +60,7 @@ typedef struct value      value_t;
 typedef struct watch_list watch_list_t;
 typedef struct res_memo   res_memo_t;
 typedef struct callback   callback_t;
+typedef struct image_map  image_map_t;
 
 struct rt_proc {
    tree_t    source;
@@ -193,6 +194,13 @@ struct callback {
    rt_event_fn_t  fn;
    void          *user;
    callback_t    *next;
+};
+
+struct image_map {
+   int32_t        kind;
+   int32_t        stride;
+   const char    *elems;
+   const int64_t *values;
 };
 
 static struct rt_proc   *procs = NULL;
@@ -791,45 +799,41 @@ void *_vec_load(const int32_t *nids, void *where,
    return where;
 }
 
-void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
+void _image(int64_t val, image_map_t *map, const char *module, struct uarray *u)
 {
-   tree_t t = rt_recall_tree(module, where);
-
-   type_t type = type_base_recur(tree_type(t));
-
-   const size_t max = 32;
-   char *buf = rt_tmp_alloc(max);
+   char *buf = NULL;
    size_t len = 0;
 
-   switch (type_kind(type)) {
-   case T_INTEGER:
-      len = snprintf(buf, max, "%"PRIi64, val);
+   printf("%d %d %p\n", map->kind, map->stride, map->elems);
+
+   switch (map->kind) {
+   case IMAGE_INTEGER:
+      buf = rt_tmp_alloc(16);
+      len = checked_sprintf(buf, 16, "%"PRIi64, val);
       break;
 
-   case T_ENUM:
-      len = snprintf(buf, max, "%s",
-                     istr(tree_ident(type_enum_literal(type, val))));
+   case IMAGE_ENUM:
+      buf = rt_tmp_alloc(map->stride);
+      strncpy(buf, map->elems + (val * map->stride), map->stride);
+      len = strlen(buf);
       break;
 
-   case T_REAL:
+   case IMAGE_REAL:
       {
          union {
             double  d;
             int64_t i;
          } u = { .i = val };
-         len = snprintf(buf, max, "%.*g", DBL_DIG + 3, u.d);
+         buf = rt_tmp_alloc(32);
+         len = checked_sprintf(buf, 32, "%.*g", DBL_DIG + 3, u.d);
       }
       break;
 
-   case T_PHYSICAL:
-      {
-         tree_t unit = type_unit(type, 0);
-         len = snprintf(buf, max, "%"PRIi64" %s", val, istr(tree_ident(unit)));
-      }
+   case IMAGE_PHYSICAL:
+      buf = rt_tmp_alloc(16 + map->stride);
+      len = checked_sprintf(buf, 16 + map->stride, "%"PRIi64" %s",
+                            val, map->elems + (0 * map->stride));
       break;
-
-   default:
-      fatal_at(tree_loc(t), "cannot use 'IMAGE with this type");
    }
 
    u->ptr = buf;
