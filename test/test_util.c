@@ -114,8 +114,11 @@ tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
                   "expected %s have %s", tree_kind_str(array[i]),
                   tree_kind_str(tree_kind(last)));
 
-      if (sem_check(last) && simp)
+      const bool sem_ok = sem_check(last);
+      if (simp) {
+         fail_unless(sem_ok, "semantic check failed");
          simplify(last);
+      }
    }
 
    fail_unless(parse() == NULL);

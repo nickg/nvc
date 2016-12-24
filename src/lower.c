@@ -1563,8 +1563,13 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
       emit_comment("Cannot resolve reference to %s", istr(tree_ident(decl)));
       if (tree_class(decl) == C_SIGNAL)
          return emit_undefined(lower_signal_type(tree_type(decl)));
-      else
-         return emit_undefined(lower_type(tree_type(decl)));
+      else {
+         vcode_type_t vtype = lower_type(tree_type(decl));
+         if (vtype_kind(vtype) == VCODE_TYPE_RECORD)
+            return emit_undefined(vtype_pointer(vtype));
+         else
+            return emit_undefined(vtype);
+      }
    }
    else if (reg == VCODE_INVALID_REG && tree_class(decl) != C_SIGNAL) {
       vcode_dump();

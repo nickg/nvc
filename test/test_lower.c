@@ -2585,6 +2585,19 @@ START_TEST(test_issue303)
 }
 END_TEST
 
+START_TEST(test_issue304)
+{
+   input_from_file(TESTDIR "/lower/issue304.vhd");
+
+   tree_t arch = parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH);
+
+   vcode_unit_t t0 = lower_unit(arch);
+   fail_if(t0 == NULL);
+
+   fail_if(vcode_find_unit(ident_new("WORK.TEST_NG-MODEL.OUTPUT_DATAv")));
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -2647,6 +2660,7 @@ int main(void)
    tcase_add_test(tc, test_thunk);
    tcase_add_test(tc, test_arch1);
    tcase_add_test(tc, test_issue303);
+   tcase_add_test(tc, test_issue304);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
