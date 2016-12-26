@@ -1171,8 +1171,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "div")) {
       if (!type_eq(r0_type, r1_type))
          r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
-      return lower_narrow(tree_type(fcall),
-                          emit_div(r0, r1, lower_bookmark(fcall)));
+      return lower_narrow(tree_type(fcall), emit_div(r0, r1));
    }
    else if (icmp(builtin, "exp")) {
       if (!type_eq(r0_type, r1_type))
@@ -1305,15 +1304,13 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       vcode_type_t vreal  = vtype_real();
       vcode_type_t rtype  = lower_type(tree_type(fcall));
       return emit_cast(rtype, rtype,
-                       emit_div(emit_cast(vreal, vreal, r0),
-                                r1, lower_bookmark(fcall)));
+                       emit_div(emit_cast(vreal, vreal, r0), r1));
    }
    else if (icmp(builtin, "divri")) {
       vcode_type_t vreal  = vtype_real();
       vcode_type_t rtype  = lower_type(tree_type(fcall));
       return emit_cast(rtype, rtype,
-                       emit_div(r0, emit_cast(vreal, vreal, r1),
-                                lower_bookmark(fcall)));
+                       emit_div(r0, emit_cast(vreal, vreal, r1)));
    }
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
@@ -2531,7 +2528,7 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
 static vcode_reg_t lower_all(tree_t all, expr_ctx_t ctx)
 {
    vcode_reg_t access_reg = lower_reify_expr(tree_value(all));
-   emit_null_check(access_reg, lower_bookmark(all));
+   emit_null_check(access_reg);
    vcode_reg_t all_reg = emit_all(access_reg);
 
    type_t type = tree_type(all);

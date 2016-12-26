@@ -73,7 +73,6 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_BOOKMARK(x)                                              \
    (x == VCODE_OP_SET_INITIAL                                        \
-    || x == VCODE_OP_DIV || x == VCODE_OP_NULL_CHECK                    \
     || x == VCODE_OP_BOUNDS                                             \
     || x == VCODE_OP_DYNAMIC_BOUNDS || x == VCODE_OP_ARRAY_SIZE         \
     || x == VCODE_OP_INDEX_CHECK)
@@ -3332,19 +3331,13 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
    return reg;
 }
 
-vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, vcode_bookmark_t where)
+vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
 {
    int64_t lconst, rconst;
    if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
       return emit_const(vcode_reg_type(lhs), lconst / rconst);
 
-   vcode_reg_t result = emit_arith(VCODE_OP_DIV, lhs, rhs);
-
-   block_t *block = vcode_block_data();
-   op_t *op = op_array_nth_ptr(&(block->ops), block->ops.count - 1);
-   op->bookmark = where;
-
-   return result;
+   return emit_arith(VCODE_OP_DIV, lhs, rhs);
 }
 
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -4349,7 +4342,7 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
    return (op->result = vcode_add_reg(vtype_access(type)));
 }
 
-void emit_null_check(vcode_reg_t ptr, vcode_bookmark_t where)
+void emit_null_check(vcode_reg_t ptr)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_NULL_CHECK) {
       if (other->args.items[0] == ptr)
@@ -4358,7 +4351,6 @@ void emit_null_check(vcode_reg_t ptr, vcode_bookmark_t where)
 
    op_t *op = vcode_add_op(VCODE_OP_NULL_CHECK);
    vcode_add_arg(op, ptr);
-   op->bookmark = where;
 
    VCODE_ASSERT(vtype_kind(vcode_reg_type(ptr)) == VCODE_TYPE_ACCESS,
                 "null check argument must be an access");

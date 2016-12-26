@@ -792,16 +792,18 @@ int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
    return value;
 }
 
-void _div_zero(int32_t where, const char *module)
+void _div_zero(const rt_loc_t *where)
 {
-   tree_t t = rt_recall_tree(module, where);
-   fatal_at(tree_loc(t), "division by zero");
+   loc_t loc;
+   from_rt_loc(where, &loc);
+   fatal_at(&loc, "division by zero");
 }
 
-void _null_deref(int32_t where, const char *module)
+void _null_deref(const rt_loc_t *where)
 {
-   tree_t t = rt_recall_tree(module, where);
-   fatal_at(tree_loc(t), "null access dereference");
+   loc_t loc;
+   from_rt_loc(where, &loc);
+   fatal_at(&loc, "null access dereference");
 }
 
 int64_t _std_standard_now(void)

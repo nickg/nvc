@@ -949,9 +949,7 @@ static void cgen_op_div(int op, cgen_ctx_t *ctx)
       LLVMPositionBuilderAtEnd(builder, zero_bb);
 
       LLVMValueRef args[] = {
-         llvm_int32(vcode_get_index(op)),
-         LLVMBuildPointerCast(builder, mod_name,
-                              LLVMPointerType(LLVMInt8Type(), 0), "")
+         cgen_location(ctx)
       };
       LLVMBuildCall(builder, llvm_fn("_div_zero"), args, ARRAY_LEN(args), "");
       LLVMBuildUnreachable(builder);
@@ -2179,9 +2177,7 @@ static void cgen_op_null_check(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, null_bb);
 
    LLVMValueRef args[] = {
-      llvm_int32(vcode_get_index(op)),
-      LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), "")
+      cgen_location(ctx)
    };
    LLVMBuildCall(builder, llvm_fn("_null_deref"), args, ARRAY_LEN(args), "");
    LLVMBuildUnreachable(builder);
@@ -3563,8 +3559,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
    }
    else if (strcmp(name, "_div_zero") == 0) {
       LLVMTypeRef args[] = {
-         LLVMInt32Type(),
-         LLVMPointerType(LLVMInt8Type(), 0)
+         LLVMPointerType(llvm_rt_loc(), 0)
       };
       fn = LLVMAddFunction(module, "_div_zero",
                            LLVMFunctionType(LLVMVoidType(),
@@ -3573,8 +3568,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
    }
    else if (strcmp(name, "_null_deref") == 0) {
       LLVMTypeRef args[] = {
-         LLVMInt32Type(),
-         LLVMPointerType(LLVMInt8Type(), 0)
+         LLVMPointerType(llvm_rt_loc(), 0)
       };
       fn = LLVMAddFunction(module, "_null_deref",
                            LLVMFunctionType(LLVMVoidType(),

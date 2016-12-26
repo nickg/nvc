@@ -485,7 +485,7 @@ static void eval_op_div(int op, eval_state_t *state)
    switch (lhs->kind) {
    case VALUE_INTEGER:
       if (rhs->integer == 0) {
-         error_at(tree_loc(state->fcall), "division by zero");
+         error_at(&(state->last_loc), "division by zero");
          state->failed = true;
       }
       else {
