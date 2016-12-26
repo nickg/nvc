@@ -524,7 +524,7 @@ void fatal_errno(const char *fmt, ...)
 
 void fmt_loc(FILE *f, const struct loc *loc)
 {
-   if ((loc == NULL) || (loc->first_line == LINE_INVALID))
+   if (loc == NULL || loc->first_line == LINE_INVALID || loc->file == NULL)
       return;
 
    if (message_style == MESSAGE_COMPACT) {

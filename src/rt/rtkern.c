@@ -39,6 +39,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <float.h>
+#include <ctype.h>
 
 #ifdef HAVE_ALLOCA_H
 #include <alloca.h>
@@ -61,6 +62,7 @@ typedef struct watch_list watch_list_t;
 typedef struct res_memo   res_memo_t;
 typedef struct callback   callback_t;
 typedef struct image_map  image_map_t;
+typedef struct rt_loc     rt_loc_t;
 
 struct rt_proc {
    tree_t    source;
@@ -201,6 +203,15 @@ struct image_map {
    int32_t        stride;
    const char    *elems;
    const int64_t *values;
+   int32_t        count;
+};
+
+struct rt_loc {
+   int32_t     first_line;
+   int32_t     last_line;
+   int16_t     first_column;
+   int16_t     last_column;
+   const char *file;
 };
 
 static struct rt_proc   *procs = NULL;
@@ -352,6 +363,17 @@ static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
    // Use the bottom bit of the key to indicate the kind
    // The highest priority should have the lowest enumeration value
    return (when << 2) | (kind & 3);
+}
+
+static void from_rt_loc(const rt_loc_t *rt, loc_t *loc)
+{
+   // This function can be expensive: only call it when loc_t is required
+   loc->file = ident_new(rt->file);
+   loc->first_line = rt->first_line;
+   loc->last_line = rt->last_line;
+   loc->first_column = rt->first_column;
+   loc->last_column = rt->last_column;
+   loc->linebuf = NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -710,21 +732,75 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
 }
 
 int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
-                    int32_t where, const char *module)
+                    image_map_t *map, const rt_loc_t *where)
 {
-   tree_t t = rt_recall_tree(module, where);
+   const char *p = (const char *)raw_str;
+   const char *endp = p + str_len;
 
-   char *str = xmalloc(str_len + 1);
-   memcpy(str, raw_str, str_len);
-   str[str_len] = '\0';
+   while (p < endp && isspace((int)*p))
+      ++p;
 
-   int64_t result;
-   if (!parse_value(tree_type(t), str, &result))
-      fatal_at(tree_loc(t), "string \"%s\" is not a valid "
-               "representation of type %s", str, type_pp(tree_type(t)));
+   loc_t loc = LOC_INVALID;
+   int64_t value = INT64_MIN;
 
-   free(str);
-   return result;
+   switch (map->kind) {
+   case IMAGE_INTEGER:
+      while (p < endp && (isdigit((int)*p) || *p == '_')) {
+         if (*p != '_') {
+            value *= 10;
+            value += (*p - '0');
+         }
+         ++p;
+      }
+      break;
+
+   case IMAGE_REAL:
+      from_rt_loc(where, &loc);
+      fatal_at(&loc, "real values not yet supported in 'VALUE");
+      break;
+
+   case IMAGE_PHYSICAL:
+      from_rt_loc(where, &loc);
+      fatal_at(&loc, "physical values not yet supported in 'VALUE");
+      break;
+
+   case IMAGE_ENUM:
+      for (int i = 0; value < 0 && i < map->count; i++) {
+         const char *elem = map->elems + (i * map->stride);
+         bool match_case = false;
+         for (int j = 0; j < map->stride && p + j < endp; j++) {
+            if (elem[j] != p[j]
+                && (match_case || tolower((int)elem[j]) != tolower((int)p[j])))
+               break;
+            else if (elem[j + 1] == '\0') {
+               value = i;
+               p += j + 1;
+               break;
+            }
+            else if (elem[j] == '\'')
+               match_case = !match_case;
+         }
+      }
+
+      if (value < 0) {
+         from_rt_loc(where, &loc);
+         fatal_at(&loc, "\"%.*s\" is not a valid enumeration value",
+                  str_len, (const char *)raw_str);
+      }
+      break;
+   }
+
+   while (p < endp && *p != '\0') {
+      if (!isspace((int)*p)) {
+         from_rt_loc(where, &loc);
+         fatal_at(&loc, "found invalid characters \"%.*s\" after value "
+                  "\"%.*s\"", (int)(endp - p), p, str_len,
+                  (const char *)raw_str);
+      }
+      p++;
+   }
+
+   return value;
 }
 
 void _div_zero(int32_t where, const char *module)

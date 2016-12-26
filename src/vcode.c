@@ -75,7 +75,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_ASSERT || x == VCODE_OP_REPORT                        \
     || x == VCODE_OP_SET_INITIAL                                        \
     || x == VCODE_OP_DIV || x == VCODE_OP_NULL_CHECK                    \
-    || x == VCODE_OP_VALUE || x == VCODE_OP_BOUNDS                      \
+    || x == VCODE_OP_BOUNDS                                             \
     || x == VCODE_OP_DYNAMIC_BOUNDS || x == VCODE_OP_ARRAY_SIZE         \
     || x == VCODE_OP_INDEX_CHECK)
 #define OP_HAS_HINT(x)                                                  \
@@ -2001,6 +2001,10 @@ void vcode_dump(void)
                if (op->args.count > 1) {
                   col += printf(" length ");
                   col += vcode_dump_reg(op->args.items[1]);
+               }
+               if (op->args.count > 2) {
+                  col += printf(" map ");
+                  col += vcode_dump_reg(op->args.items[2]);
                }
                vcode_dump_result_type(col, op);
             }
@@ -4431,13 +4435,13 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
    return (op->result = vcode_add_reg(result));
 }
 
-vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len,
-                       vcode_bookmark_t where)
+vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, vcode_reg_t map)
 {
    op_t *op = vcode_add_op(VCODE_OP_VALUE);
    vcode_add_arg(op, string);
    vcode_add_arg(op, len);
-   op->bookmark = where;
+   if (map != VCODE_INVALID_REG)
+      vcode_add_arg(op, map);
 
    VCODE_ASSERT(vcode_reg_kind(string) == VCODE_TYPE_POINTER,
                 "string argument to value must be a pointer");

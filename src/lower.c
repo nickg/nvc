@@ -2746,9 +2746,9 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          type_t name_type = tree_type(name);
          tree_t value = tree_value(tree_param(expr, 0));
          vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
-         vcode_reg_t reg = emit_value(lower_array_data(arg),
-                                      lower_array_len(tree_type(value), 0, arg),
-                                      lower_bookmark(expr));
+         vcode_reg_t map = lower_image_map(name_type);
+         vcode_reg_t len = lower_array_len(tree_type(value), 0, arg);
+         vcode_reg_t reg = emit_value(lower_array_data(arg), len, map);
          lower_check_scalar_bounds(reg, name_type, expr, NULL);
          return emit_cast(lower_type(name_type), lower_bounds(name_type), reg);
       }

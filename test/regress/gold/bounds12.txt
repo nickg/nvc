@@ -1,1 +1,1 @@
-string "hello" is not a valid representation of type STD.STANDARD.INTEGER
+found invalid characters "hello" after value "hello"
