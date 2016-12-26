@@ -1111,8 +1111,7 @@ static void eval_op_report(int op, eval_state_t *state)
    value_t *severity = eval_get_reg(vcode_get_arg(op, 0), state);
 
    if (state->flags & EVAL_REPORT)
-      eval_message(text, length, severity,
-                   tree_loc(vcode_get_bookmark(op).tree), "Report");
+      eval_message(text, length, severity, &(state->last_loc), "Report");
    else
       state->failed = true;  // Cannot fold as would change runtime behaviour
 }
@@ -1126,8 +1125,7 @@ static void eval_op_assert(int op, eval_state_t *state)
 
    if (test->integer == 0) {
       if (state->flags & EVAL_REPORT)
-         eval_message(text, length, severity,
-                      tree_loc(vcode_get_bookmark(op).tree), "Assertion");
+         eval_message(text, length, severity, &(state->last_loc), "Assertion");
       state->failed = severity->integer >= SEVERITY_ERROR;
    }
 }

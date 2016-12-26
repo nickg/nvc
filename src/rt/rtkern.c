@@ -618,7 +618,7 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
 }
 
 void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
-                  int32_t where, const char *module)
+                  int8_t is_report, const rt_loc_t *where)
 {
    // LRM 93 section 8.2
    // The error message consists of at least
@@ -638,16 +638,8 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       return;
    }
 
-   tree_t t = rt_recall_tree(module, where);
-   const loc_t *loc = tree_loc(t);
-   bool is_report = tree_attr_int(t, ident_new("is_report"), 0);
-
-   char *copy = NULL;
-   if (msg_len >= 0) {
-      copy = xmalloc(msg_len + 1);
-      memcpy(copy, msg, msg_len);
-      copy[msg_len] = '\0';
-   }
+   loc_t loc;
+   from_rt_loc(where, &loc);
 
    void (*fn)(const loc_t *loc, const char *fmt, ...) = fatal_at;
 
@@ -661,16 +653,13 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    if (severity >= exit_severity)
       fn = fatal_at;
 
-   (*fn)(loc, "%s+%d: %s %s: %s\r\tProcess %s",
+   (*fn)(&loc, "%s+%d: %s %s: %.*s\r\tProcess %s",
          fmt_time(now), iteration,
          (is_report ? "Report" : "Assertion"),
          levels[severity],
-         (copy != NULL ? copy : (const char *)msg),
+         msg_len, msg,
          ((active_proc == NULL) ? "(init)"
           : istr(tree_ident(active_proc->source))));
-
-   if (copy != NULL)
-      free(copy);
 }
 
 void _bounds_fail(int32_t where, const char *module, int32_t value,

@@ -72,8 +72,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_BOOKMARK(x)                                              \
-   (x == VCODE_OP_ASSERT || x == VCODE_OP_REPORT                        \
-    || x == VCODE_OP_SET_INITIAL                                        \
+   (x == VCODE_OP_SET_INITIAL                                        \
     || x == VCODE_OP_DIV || x == VCODE_OP_NULL_CHECK                    \
     || x == VCODE_OP_BOUNDS                                             \
     || x == VCODE_OP_DYNAMIC_BOUNDS || x == VCODE_OP_ARRAY_SIZE         \
@@ -2769,7 +2768,7 @@ vcode_unit_t emit_context(ident_t name)
 }
 
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
-                 vcode_reg_t severity, vcode_bookmark_t where)
+                 vcode_reg_t severity)
 {
    int64_t value_const;
    if (vcode_reg_const(value, &value_const)) {
@@ -2786,20 +2785,17 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
    vcode_add_arg(op, severity);
    vcode_add_arg(op, message);
    vcode_add_arg(op, length);
-   op->bookmark = where;
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(value), vtype_bool()),
                 "value parameter to assert is not bool");
 }
 
-void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity,
-                 vcode_bookmark_t where)
+void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity)
 {
    op_t *op = vcode_add_op(VCODE_OP_REPORT);
    vcode_add_arg(op, severity);
    vcode_add_arg(op, message);
    vcode_add_arg(op, length);
-   op->bookmark = where;
 
    active_unit->flags &= ~UNIT_PURE;
 }

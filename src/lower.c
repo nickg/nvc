@@ -2902,9 +2902,9 @@ static void lower_assert(tree_t stmt)
    }
 
    if (is_report)
-      emit_report(message, length, severity, lower_bookmark(stmt));
+      emit_report(message, length, severity);
    else
-      emit_assert(value, message, length, severity, lower_bookmark(stmt));
+      emit_assert(value, message, length, severity);
 
    if (saved_heap != VCODE_INVALID_REG)
       lower_cleanup_temp_objects(saved_heap);

@@ -697,12 +697,10 @@ static void cgen_op_report(int op, cgen_ctx_t *ctx)
       message,
       length,
       severity,
-      llvm_int32(vcode_get_index(op)),
-      LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), "")
+      llvm_int8(1),
+      cgen_location(ctx)
    };
-   LLVMBuildCall(builder, llvm_fn("_assert_fail"),
-                 args, ARRAY_LEN(args), "");
+   LLVMBuildCall(builder, llvm_fn("_assert_fail"), args, ARRAY_LEN(args), "");
 }
 
 static void cgen_op_assert(int op, cgen_ctx_t *ctx)
@@ -749,12 +747,10 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
       message,
       length,
       severity,
-      llvm_int32(vcode_get_index(op)),
-      LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), "")
+      llvm_int8(0),
+      cgen_location(ctx)
    };
-   LLVMBuildCall(builder, llvm_fn("_assert_fail"),
-                 args, ARRAY_LEN(args), "");
+   LLVMBuildCall(builder, llvm_fn("_assert_fail"), args, ARRAY_LEN(args), "");
 
    LLVMBuildBr(builder, elsebb);
    LLVMPositionBuilderAtEnd(builder, elsebb);
@@ -3416,8 +3412,8 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMInt8Type(), 0),
          LLVMInt32Type(),
          LLVMInt8Type(),
-         LLVMInt32Type(),
-         LLVMPointerType(LLVMInt8Type(), 0)
+         LLVMInt8Type(),
+         LLVMPointerType(llvm_rt_loc(), 0)
       };
       fn = LLVMAddFunction(module, "_assert_fail",
                            LLVMFunctionType(LLVMVoidType(),

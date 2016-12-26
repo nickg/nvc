@@ -339,9 +339,8 @@ vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
-                 vcode_reg_t severity, vcode_bookmark_t where);
-void emit_report(vcode_reg_t message, vcode_reg_t length,
-                 vcode_reg_t severity, vcode_bookmark_t where);
+                 vcode_reg_t severity);
+void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs);
