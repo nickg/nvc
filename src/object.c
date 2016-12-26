@@ -192,7 +192,7 @@ void object_one_time_init(void)
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the tree and type items table
-      const uint32_t format_fudge = 8;
+      const uint32_t format_fudge = 9;
 
       format_digest += format_fudge * UINT32_C(2654435761);
 
@@ -519,43 +519,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    return ctx->cache[object->index];
 }
 
-static void write_loc(loc_t *l, object_wr_ctx_t *ctx)
-{
-   if (l->file == NULL) {
-      write_u16(UINT16_C(0xfffe), ctx->file);  // Invalid location marker
-      return;
-   }
-
-   uint16_t findex;
-   for (findex = 0;
-        (findex < MAX_FILES)
-           && (ctx->file_names[findex] != NULL)
-           && (strcmp(ctx->file_names[findex], l->file) != 0);
-        findex++)
-      ;
-   assert(findex != MAX_FILES);
-
-   if (ctx->file_names[findex] == NULL) {
-      const size_t len = strlen(l->file) + 1;
-
-      ctx->file_names[findex] = l->file;
-
-      write_u16(findex | UINT16_C(0x8000), ctx->file);
-      write_u16(len, ctx->file);
-      write_raw(l->file, len, ctx->file);
-   }
-   else
-      write_u16(findex, ctx->file);
-
-   const uint64_t merged =
-      ((uint64_t)l->first_line << 44)
-      | ((uint64_t)l->first_column << 32)
-      | ((uint64_t)l->last_line << 12)
-      | (uint64_t)l->last_column;
-
-   write_u64(merged, ctx->file);
-}
-
 void object_write(object_t *object, object_wr_ctx_t *ctx)
 {
    if (object == NULL) {
@@ -576,7 +539,7 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
    write_u16(object->kind, ctx->file);
 
    if (object->tag == OBJECT_TAG_TREE)
-      write_loc(&object->loc, ctx);
+      loc_write(&object->loc, ctx->file, ctx->ident_ctx);
 
    const object_class_t *class = classes[object->tag];
 
@@ -677,7 +640,6 @@ object_wr_ctx_t *object_write_begin(fbuf_t *f)
    ctx->generation = next_generation++;
    ctx->n_objects  = 0;
    ctx->ident_ctx  = ident_write_begin(f);
-   memset(ctx->file_names, '\0', sizeof(ctx->file_names));
 
    return ctx;
 }
@@ -691,40 +653,6 @@ void object_write_end(object_wr_ctx_t *ctx)
 fbuf_t *object_write_file(object_wr_ctx_t *ctx)
 {
    return ctx->file;
-}
-
-static loc_t read_loc(object_rd_ctx_t *ctx)
-{
-   const char *fname;
-   uint16_t fmarker = read_u16(ctx->file);
-   if (fmarker == UINT16_C(0xfffe))
-      return LOC_INVALID;
-   else if (fmarker & UINT16_C(0x8000)) {
-      uint16_t index = fmarker & UINT16_C(0x7fff);
-      assert(index < MAX_FILES);
-      uint16_t len = read_u16(ctx->file);
-      char *buf = xmalloc(len);
-      read_raw(buf, len, ctx->file);
-
-      ctx->file_names[index] = buf;
-      fname = buf;
-   }
-   else {
-      assert(fmarker < MAX_FILES);
-      fname = ctx->file_names[fmarker];
-      assert(fname != NULL);
-   }
-
-   loc_t l = { .file = fname, .linebuf = NULL };
-
-   const uint64_t merged = read_u64(ctx->file);
-
-   l.first_line   = (merged >> 44) & 0xfffff;
-   l.first_column = (merged >> 32) & 0xfff;
-   l.last_line    = (merged >> 12) & 0xfffff;
-   l.last_column  = merged & 0xfff;
-
-   return l;
 }
 
 object_t *object_read(object_rd_ctx_t *ctx, int tag)
@@ -746,7 +674,7 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
    object_t *object = object_new(class, marker);
 
    if (tag == OBJECT_TAG_TREE)
-      object->loc = read_loc(ctx);
+      loc_read(&(object->loc), ctx->file, ctx->ident_ctx);
 
    // Stash pointer for later back references
    // This must be done early as a child node of this type may

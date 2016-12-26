@@ -107,8 +107,6 @@ typedef uint64_t imask_t;
 #define OBJECT_TAG_TREE  0
 #define OBJECT_TAG_TYPE  1
 
-#define MAX_FILES 512
-
 DECLARE_ARRAY(netid);
 DECLARE_ARRAY(range);
 DECLARE_ARRAY(tree);
@@ -230,7 +228,6 @@ typedef struct {
    ident_wr_ctx_t  ident_ctx;
    unsigned        generation;
    unsigned        n_objects;
-   const char     *file_names[MAX_FILES];
 } object_wr_ctx_t;
 
 typedef struct {
@@ -240,7 +237,6 @@ typedef struct {
    object_t      **store;
    unsigned        store_sz;
    char           *db_fname;
-   const char     *file_names[MAX_FILES];
 } object_rd_ctx_t;
 
 __attribute__((noreturn))

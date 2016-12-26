@@ -82,6 +82,7 @@ typedef struct {
    bool         failed;
    void        *heap;
    size_t       halloc;
+   loc_t        last_loc;
 } eval_state_t;
 
 #define EVAL_WARN(t, ...) do {                                          \
@@ -1416,6 +1417,11 @@ static void eval_op_array_size(int op, eval_state_t *state)
    }
 }
 
+static void eval_op_debug_info(int op, eval_state_t *state)
+{
+   state->last_loc = *vcode_get_loc(op);
+}
+
 static void eval_vcode(eval_state_t *state)
 {
    const int nops = vcode_count_ops();
@@ -1633,6 +1639,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_IMAGE_MAP:
          eval_op_image_map(i, state);
+         break;
+
+      case VCODE_OP_DEBUG_INFO:
+         eval_op_debug_info(i, state);
          break;
 
       default:

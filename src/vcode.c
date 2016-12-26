@@ -20,6 +20,7 @@
 #include "array.h"
 #include "hash.h"
 #include "tree.h"
+#include "common.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -85,6 +86,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_NESTED_PCALL)
 #define OP_HAS_IMAGE_MAP(x)                                             \
    (x == VCODE_OP_IMAGE_MAP)
+#define OP_HAS_LOC(x)                                                   \
+   (x == VCODE_OP_DEBUG_INFO)
 
 typedef struct {
    vcode_op_t          kind;
@@ -98,6 +101,7 @@ typedef struct {
    };
    union {
       vcode_bookmark_t    bookmark;  // OP_HAS_BOOKMARK
+      loc_t               loc;       // OP_HAS_LOC
       vcode_block_array_t targets;   // OP_HAS_TARGET
    };
    union {
@@ -237,7 +241,7 @@ struct vcode_unit {
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
 #define VCODE_MAGIC        0x76636f64
-#define VCODE_VERSION      3
+#define VCODE_VERSION      4
 #define VCODE_CHECK_UNIONS 0
 
 static vcode_unit_t  active_unit = NULL;
@@ -966,6 +970,13 @@ vcode_bookmark_t vcode_get_bookmark(int op)
    return o->bookmark;
 }
 
+const loc_t *vcode_get_loc(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(OP_HAS_LOC(o->kind));
+   return &(o->loc);
+}
+
 uint32_t vcode_get_index(int op)
 {
    // TODO: remove this?
@@ -1029,7 +1040,7 @@ const char *vcode_op_string(vcode_op_t op)
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
       "uarray len", "heap save", "heap restore", "nested resume", "undefined",
-      "image map"
+      "image map", "debug info"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2118,6 +2129,13 @@ void vcode_dump(void)
                }
                col += printf(" ] ");
                vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_DEBUG_INFO:
+            {
+               color_printf("$cyan$@ %s:%d:%d$$", op->loc.file,
+                            op->loc.first_line, op->loc.first_column);
             }
             break;
          }
@@ -4685,6 +4703,27 @@ vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
    return (op->result = vcode_add_reg(vtype_image_map()));
 }
 
+void emit_debug_info(const loc_t *loc)
+{
+   block_t *b = vcode_block_data();
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      op_t *other = &(b->ops.items[i]);
+      if (other->kind == VCODE_OP_DEBUG_INFO) {
+         if (loc_eq(&(other->loc), loc))
+            return;   // Matches last debug info
+         else if (i == b->ops.count - 1) {
+            other->loc = *loc;
+            return;   // Unused debug info
+         }
+         else
+            break;
+      }
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_DEBUG_INFO);
+   op->loc = *loc;
+}
+
 static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
                              ident_wr_ctx_t ident_wr_ctx)
 {
@@ -4752,6 +4791,8 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
             write_u32(tree_index(op->hint.tree), f);
          if (OP_HAS_TAG(op->kind))
             write_u32(op->tag, f);
+         if (OP_HAS_LOC(op->kind))
+            loc_write(&(op->loc), f, ident_wr_ctx);
       }
    }
 
@@ -4939,6 +4980,8 @@ static bool vcode_read_unit(fbuf_t *f, tree_rd_ctx_t tree_ctx,
             op->hint.tree = tree_read_recall(tree_ctx, read_u32(f));
          if (OP_HAS_TAG(op->kind))
             op->tag = read_u32(f);
+         if (OP_HAS_LOC(op->kind))
+            loc_read(&(op->loc), f, ident_rd_ctx);
       }
    }
 

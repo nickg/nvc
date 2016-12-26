@@ -3939,6 +3939,8 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
    if (cover_tag != -1)
       emit_cover_stmt(cover_tag);
 
+   emit_debug_info(tree_loc(stmt));
+
    switch (tree_kind(stmt)) {
    case T_ASSERT:
       lower_assert(stmt);

@@ -130,6 +130,7 @@ typedef enum {
    VCODE_OP_NESTED_RESUME,
    VCODE_OP_UNDEFINED,
    VCODE_OP_IMAGE_MAP,
+   VCODE_OP_DEBUG_INFO,
 } vcode_op_t;
 
 typedef enum {
@@ -280,6 +281,7 @@ double vcode_get_real(int op);
 vcode_cmp_t vcode_get_cmp(int op);
 uint32_t vcode_get_index(int op);
 vcode_bookmark_t vcode_get_bookmark(int op);
+const loc_t *vcode_get_loc(int op);
 uint32_t vcode_get_hint(int op);
 vcode_block_t vcode_get_target(int op, int nth);
 vcode_var_t vcode_get_address(int op);
@@ -449,5 +451,6 @@ vcode_reg_t emit_undefined(vcode_type_t type);
 vcode_reg_t emit_enum_map(ident_t name, size_t nelems, const ident_t *elems);
 vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
                               const ident_t *elems, const int64_t *values);
+void emit_debug_info(const loc_t *loc);
 
 #endif  // _VCODE_H

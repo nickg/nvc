@@ -2426,6 +2426,11 @@ static void cgen_op_heap_restore(int op, cgen_ctx_t *ctx)
    LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cur_ptr);
 }
 
+static void cgen_op_debug_info(int op, cgen_ctx_t *ctx)
+{
+   // TODO: emit LLVM debug info here
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -2695,6 +2700,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_IMAGE_MAP:
       cgen_op_image_map(i, ctx);
+      break;
+   case VCODE_OP_DEBUG_INFO:
+      cgen_op_debug_info(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

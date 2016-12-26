@@ -53,6 +53,9 @@ unsigned array_dimension(type_t a);
 type_t index_type_of(type_t type, int dim);
 tree_t str_to_literal(const char *start, const char *end, type_t type);
 int64_t rebase_index(type_t array_type, int dim, int64_t value);
+bool loc_eq(const loc_t *a, const loc_t *b);
+void loc_write(const loc_t *loc, fbuf_t *f, ident_wr_ctx_t ctx);
+void loc_read(loc_t *loc, fbuf_t *f, ident_rd_ctx_t ctx);
 
 const char *fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

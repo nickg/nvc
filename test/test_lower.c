@@ -40,7 +40,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
    int eptr = 0, actual = nops;
    for (int i = 0; i < nops && eptr < len; i++) {
       const vcode_op_t vop = vcode_get_op(i);
-      if (vop == VCODE_OP_COMMENT) {
+      if (vop == VCODE_OP_COMMENT || vop == VCODE_OP_DEBUG_INFO) {
          actual--;
          continue;
       }
