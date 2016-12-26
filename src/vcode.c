@@ -2134,7 +2134,7 @@ void vcode_dump(void)
 
          case VCODE_OP_DEBUG_INFO:
             {
-               color_printf("$cyan$@ %s:%d:%d$$", op->loc.file,
+               color_printf("$cyan$@ %s:%d:%d$$", istr(op->loc.file),
                             op->loc.first_line, op->loc.first_column);
             }
             break;

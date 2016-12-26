@@ -703,10 +703,10 @@ tree_t lib_get_check_stale(lib_t lib, ident_t ident)
          const loc_t *loc = tree_loc(lu->top);
 
          struct stat st;
-         if ((stat(loc->file, &st) == 0) && (lu->mtime < lib_stat_mtime(&st)))
+         if (stat(istr(loc->file), &st) == 0 && lu->mtime < lib_stat_mtime(&st))
             fatal("design unit %s is older than its source file %s and must "
                   "be reanalysed\n(You can use the --ignore-time option to "
-                  "skip this check)", istr(ident), loc->file);
+                  "skip this check)", istr(ident), istr(loc->file));
       }
 
       return lu->top;

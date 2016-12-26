@@ -1847,7 +1847,7 @@ static void rt_iteration_limit(void)
       tree_t p = it->proc->source;
       const loc_t *l = tree_loc(p);
       tb_printf(buf, "  %-30s %s line %d\n", istr(tree_ident(p)),
-                l->file, l->first_line);
+                istr(l->file), l->first_line);
    }
 
    tb_printf(buf, "You can increase this limit with --stop-delta");

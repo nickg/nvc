@@ -215,9 +215,9 @@ static void make_rule(tree_t t, rule_t **rules)
       free(name);
    }
    else {
-      const loc_t *loc = tree_loc(t);
-      r = make_rule_for_source(rules, RULE_ANALYSE, loc->file);
-      make_rule_add_input(r, loc->file);
+      const char *file = istr(tree_loc(t)->file);
+      r = make_rule_for_source(rules, RULE_ANALYSE, file);
+      make_rule_add_input(r, file);
 
       if (kind == T_PACK_BODY) {
          ident_t pack_name = ident_until(tree_ident(t), '-');

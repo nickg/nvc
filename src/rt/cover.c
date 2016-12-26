@@ -56,7 +56,7 @@ typedef struct {
 } cover_line_t;
 
 struct cover_file {
-   const char   *name;
+   ident_t       name;
    cover_line_t *lines;
    unsigned      n_lines;
    unsigned      alloc_lines;
@@ -218,17 +218,17 @@ static cover_file_t *cover_file(const loc_t *loc)
    f->lines       = xmalloc(sizeof(cover_line_t) * f->alloc_lines);
    f->next        = files;
 
-   FILE *fp = fopen(loc->file, "r");
+   FILE *fp = fopen(istr(loc->file), "r");
 
    if (fp == NULL) {
       // Guess the path is relative to the work library
-      char path[PATH_MAX];
-      snprintf(path, PATH_MAX, "%s/../%s", lib_path(lib_work()), loc->file);
+      char *path LOCAL =
+         xasprintf("%s/../%s", lib_path(lib_work()), istr(loc->file));
       fp = fopen(path, "r");
    }
 
    if (fp == NULL) {
-      warnf("failed to open %s for coverage report", loc->file);
+      warnf("failed to open %s for coverage report", istr(loc->file));
       f->valid = false;
    }
    else {
@@ -239,7 +239,7 @@ static cover_file_t *cover_file(const loc_t *loc)
          if (fgets(buf, sizeof(buf), fp) != NULL)
             cover_append_line(f, buf);
          else if (ferror(fp))
-            fatal("error reading %s", loc->file);
+            fatal("error reading %s", istr(loc->file));
       }
 
       fclose(fp);
@@ -406,7 +406,7 @@ static void cover_report_line(FILE *fp, cover_line_t *l)
 static const char *cover_file_url(cover_file_t *f)
 {
    static char buf[256];
-   checked_sprintf(buf, sizeof(buf) - 6, "report_%s.html", f->name);
+   checked_sprintf(buf, sizeof(buf) - 6, "report_%s.html", istr(f->name));
    for (char *p = buf; *(p + 5) != '\0'; p++) {
       if (*p == '/' || *p == '.')
          *p = '_';
@@ -444,7 +444,7 @@ static void cover_html_header(FILE *fp, const char *title, ...)
     fprintf(fp, "<ul class=\"nav\">\n");
     for (cover_file_t *f = files; f != NULL; f = f->next)
       fprintf(fp, "  <li><a href=\"%s\">%s</a></li>\n",
-              cover_file_url(f), f->name);
+              cover_file_url(f), istr(f->name));
     fprintf(fp, "</ul>\n");
     fprintf(fp, "</div>\n");
 

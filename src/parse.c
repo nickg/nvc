@@ -49,7 +49,7 @@ typedef struct {
 } look_params_t;
 
 static const char *perm_linebuf = NULL;
-static const char *perm_file_name = NULL;
+static ident_t     perm_file_name = NULL;
 static int         n_token_next_start = 0;
 static int         n_row = 0;
 static bool        last_was_newline = true;
@@ -5560,7 +5560,7 @@ void input_from_file(const char *file)
 
    read_ptr           = file_start;
    last_was_newline   = true;
-   perm_file_name     = strdup(file);
+   perm_file_name     = ident_new(file);
    n_row              = 0;
    n_token_next_start = 0;
 

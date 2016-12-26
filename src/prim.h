@@ -21,12 +21,14 @@
 #include <stdint.h>
 #include <stddef.h>
 
+typedef struct trie *ident_t;
+
 typedef struct loc {
    unsigned    first_line : 20;
    unsigned    first_column : 12;
    unsigned    last_line : 20;
    unsigned    last_column : 12;
-   const char *file;
+   ident_t     file;
    const char *linebuf;
 } loc_t;
 
@@ -61,8 +63,6 @@ typedef struct range {
 
 typedef struct tree_wr_ctx *tree_wr_ctx_t;
 typedef struct tree_rd_ctx *tree_rd_ctx_t;
-
-typedef struct trie *ident_t;
 
 typedef struct vcode_unit *vcode_unit_t;
 

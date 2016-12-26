@@ -528,12 +528,12 @@ void fmt_loc(FILE *f, const struct loc *loc)
       return;
 
    if (message_style == MESSAGE_COMPACT) {
-      fprintf(f, "%s:%d:%d: ", loc->file, loc->first_line,
+      fprintf(f, "%s:%d:%d: ", istr(loc->file), loc->first_line,
               loc->first_column + 1);
       return;
    }
 
-   fprintf(f, "\tFile %s, Line %u\n", loc->file, loc->first_line);
+   fprintf(f, "\tFile %s, Line %u\n", istr(loc->file), loc->first_line);
 
    if (loc->linebuf == NULL)
       return;

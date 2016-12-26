@@ -27,18 +27,6 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
-#define MAX_FILES 512
-
-struct loc_wr_ctx {
-   fbuf_t     *fbuf;
-   const char *file_names[MAX_FILES];
-};
-
-struct loc_rd_ctx {
-   fbuf_t     *fbuf;
-   const char *file_names[MAX_FILES];
-};
-
 static vhdl_standard_t current_std = STD_93;
 
 int64_t assume_int(tree_t t)
@@ -778,12 +766,12 @@ bool loc_eq(const loc_t *a, const loc_t *b)
       && a->first_column == b->first_column
       && a->last_line == b->last_line
       && a->last_column == b->last_column
-      && strcmp(a->file, b->file) == 0;
+      && a->file == b->file;
 }
 
 void loc_write(const loc_t *loc, fbuf_t *f, ident_wr_ctx_t ctx)
 {
-   ident_write(loc->file ? ident_new(loc->file) : NULL, ctx);
+   ident_write(loc->file, ctx);
 
    const uint64_t merged =
       ((uint64_t)loc->first_line << 44)
@@ -796,8 +784,7 @@ void loc_write(const loc_t *loc, fbuf_t *f, ident_wr_ctx_t ctx)
 
 void loc_read(loc_t *loc, fbuf_t *f, ident_rd_ctx_t ctx)
 {
-   ident_t ident = ident_read(ctx);
-   loc->file = ident ? xstrdup(istr(ident)) : NULL;
+   loc->file = ident_read(ctx);
    loc->linebuf = NULL;
 
    const uint64_t merged = read_u64(f);
