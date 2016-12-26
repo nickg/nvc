@@ -2592,7 +2592,7 @@ static vcode_reg_t lower_image_map(type_t type)
 
    case T_ENUM:
       {
-         const int nlits = type_enum_literals(type);
+         const int nlits = type_enum_literals(base);
          ident_t *map LOCAL = xmalloc(sizeof(ident_t) * nlits);
          for (int i = 0; i < nlits; i++)
             map[i] = tree_ident(type_enum_literal(base, i));

@@ -31,14 +31,6 @@ DECLARE_AND_DEFINE_ARRAY(vcode_reg);
 DECLARE_AND_DEFINE_ARRAY(vcode_block);
 DECLARE_AND_DEFINE_ARRAY(vcode_type);
 
-typedef struct {
-   ident_t      name;
-   image_kind_t kind;
-   ident_t     *elems;
-   int64_t     *values;
-   size_t       nelems;
-} image_map_t;
-
 #define OP_HAS_TYPE(x)                                                  \
    (x == VCODE_OP_BOUNDS || x == VCODE_OP_ALLOCA  || x == VCODE_OP_COPY \
     || x == VCODE_OP_SET_INITIAL || x == VCODE_OP_INDEX_CHECK           \
@@ -865,18 +857,12 @@ ident_t vcode_get_func(int op)
    return o->func;
 }
 
-void vcode_get_image_map(int op, ident_t *name, image_kind_t *kind,
-                         size_t *nelems, const ident_t **elems,
-                         const int64_t **values)
+void vcode_get_image_map(int op, image_map_t *map)
 {
    op_t *o = vcode_op_data(op);
    assert(OP_HAS_IMAGE_MAP(o->kind));
 
-   *name   = o->image_map->name;
-   *nelems = o->image_map->nelems;
-   *elems  = o->image_map->elems;
-   *values = o->image_map->values;
-   *kind   = o->image_map->kind;
+   *map = *(o->image_map);
 }
 
 unsigned vcode_get_subkind(int op)

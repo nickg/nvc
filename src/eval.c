@@ -39,7 +39,8 @@ typedef enum {
    VALUE_UARRAY,
    VALUE_CARRAY,
    VALUE_RECORD,
-   VALUE_HEAP_PROXY
+   VALUE_HEAP_PROXY,
+   VALUE_IMAGE_MAP
 } value_kind_t;
 
 typedef struct value value_t;
@@ -58,11 +59,12 @@ typedef struct {
 struct value {
    value_kind_t kind;
    union {
-      double    real;
-      int64_t   integer;
-      value_t  *pointer;
-      uarray_t *uarray;
-      value_t  *fields;
+      double       real;
+      int64_t      integer;
+      value_t     *pointer;
+      uarray_t    *uarray;
+      value_t     *fields;
+      image_map_t *image_map;
    };
 };
 
@@ -1194,45 +1196,58 @@ static void eval_op_index_check(int op, eval_state_t *state)
       state->failed = true;
 }
 
+static void eval_op_image_map(int op, eval_state_t *state)
+{
+   image_map_t *map = eval_alloc(sizeof(image_map_t), state);
+   vcode_get_image_map(op, map);
+
+   value_t *result = eval_get_reg(vcode_get_result(op), state);
+   result->kind = VALUE_IMAGE_MAP;
+   result->image_map = map;
+}
+
 static void eval_op_image(int op, eval_state_t *state)
 {
    value_t *object = eval_get_reg(vcode_get_arg(op, 0), state);
-   tree_t where = vcode_get_bookmark(op).tree;
-   type_t type = type_base_recur(tree_type(where));
+   char *buf LOCAL = NULL;
 
-   char buf[32];
-   size_t len = 0;
+   if (vcode_count_args(op) == 1) {
+      // No image map
+      switch (object->kind) {
+      case VALUE_INTEGER:
+         buf = xasprintf("%"PRIi64, object->integer);
+         break;
 
-   switch (type_kind(type)) {
-   case T_INTEGER:
-      len = snprintf(buf, sizeof(buf), "%"PRIi64, object->integer);
-      break;
+      case VALUE_REAL:
+         buf = xasprintf("%.*g", DBL_DIG + 3, object->real);
+         break;
 
-   case T_ENUM:
-      {
-         tree_t lit = type_enum_literal(type, object->integer);
-         len = snprintf(buf, sizeof(buf), "%s", istr(tree_ident(lit)));
+      default:
+         fatal_trace("bad value type for image operation");
       }
-      break;
+   }
+   else {
+      value_t *map = eval_get_reg(vcode_get_arg(op, 1), state);
+      assert(map->kind = VALUE_IMAGE_MAP);
 
-   case T_REAL:
-      len = snprintf(buf, sizeof(buf), "%.*g", DBL_DIG + 3, object->real);
-      break;
+      switch (map->image_map->kind) {
+      case IMAGE_ENUM:
+         if (object->integer < 0 || object->integer >= map->image_map->nelems)
+            fatal_trace("invalid enum value %"PRIi64, object->integer);
+         buf = xasprintf("%s", istr(map->image_map->elems[object->integer]));
+         break;
 
-   case T_PHYSICAL:
-      {
-         tree_t unit = type_unit(type, 0);
-         len = snprintf(buf, sizeof(buf), "%"PRIi64" %s", object->integer,
-                        istr(tree_ident(unit)));
+      case IMAGE_PHYSICAL:
+         buf = xasprintf("%"PRIi64" %s", object->integer,
+                         istr(map->image_map->elems[0]));
+         break;
+
+      default:
+         fatal_trace("unexpected image map kind %d", map->image_map->kind);
       }
-      break;
-
-   default:
-      error_at(tree_loc(where), "cannot use 'IMAGE with this type");
-      state->failed = true;
-      return;
    }
 
+   size_t len = strlen(buf);
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
    dst->kind = VALUE_UARRAY;
    if ((dst->uarray = eval_alloc(sizeof(uarray_t), state)) == NULL)
@@ -1614,6 +1629,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_ARRAY_SIZE:
          eval_op_array_size(i, state);
+         break;
+
+      case VCODE_OP_IMAGE_MAP:
+         eval_op_image_map(i, state);
          break;
 
       default:

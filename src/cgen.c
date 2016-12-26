@@ -1104,23 +1104,19 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
 {
-   ident_t name;
-   size_t nelems;
-   const ident_t *elems;
-   const int64_t *values;
-   image_kind_t kind;
-   vcode_get_image_map(op, &name, &kind, &nelems, &elems, &values);
+   image_map_t map;
+   vcode_get_image_map(op, &map);
 
    size_t max_len = 0;
-   for (size_t i = 0; i < nelems; i++) {
-      const size_t len = ident_len(elems[i]);
+   for (size_t i = 0; i < map.nelems; i++) {
+      const size_t len = ident_len(map.elems[i]);
       max_len = MAX(max_len, len);
    }
 
-   ident_t elems_name = ident_prefix(name, ident_new("elems"), '.');
+   ident_t elems_name = ident_prefix(map.name, ident_new("elems"), '.');
    LLVMValueRef elems_glob = LLVMGetNamedGlobal(module, istr(elems_name));
    if (elems_glob == NULL) {
-      const size_t total_chars = nelems * (max_len + 1);
+      const size_t total_chars = map.nelems * (max_len + 1);
       LLVMTypeRef array_type = LLVMArrayType(LLVMInt8Type(), total_chars);
 
       elems_glob = LLVMAddGlobal(module, array_type, istr(elems_name));
@@ -1128,12 +1124,12 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
       LLVMSetLinkage(elems_glob, LLVMLinkOnceAnyLinkage);
 
       LLVMValueRef *strings = xmalloc(sizeof(LLVMValueRef) * total_chars);
-      for (size_t i = 0; i < nelems; i++) {
-         const size_t tlen = ident_len(elems[i]);
+      for (size_t i = 0; i < map.nelems; i++) {
+         const size_t tlen = ident_len(map.elems[i]);
          for (size_t j = 0; j < max_len + 1; j++) {
             const size_t off = (i * (max_len + 1)) + j;
             if (j < tlen)
-               strings[off] = llvm_int8(ident_char(elems[i], tlen - j - 1));
+               strings[off] = llvm_int8(ident_char(map.elems[i], tlen - j - 1));
             else
                strings[off] = llvm_int8(0);
          }
@@ -1146,20 +1142,20 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
    }
 
    LLVMValueRef values_glob = NULL;
-   if (values != NULL) {
-      ident_t values_name = ident_prefix(name, ident_new("values"), '.');
+   if (map.values != NULL) {
+      ident_t values_name = ident_prefix(map.name, ident_new("values"), '.');
       values_glob = LLVMGetNamedGlobal(module, istr(values_name));
       if (values_glob == NULL) {
-         LLVMTypeRef array_type = LLVMArrayType(LLVMInt64Type(), nelems);
+         LLVMTypeRef array_type = LLVMArrayType(LLVMInt64Type(), map.nelems);
          values_glob = LLVMAddGlobal(module, array_type, istr(values_name));
          LLVMSetGlobalConstant(values_glob, true);
          LLVMSetLinkage(values_glob, LLVMLinkOnceAnyLinkage);
 
-         LLVMValueRef *lvalues = xmalloc(sizeof(LLVMValueRef) * nelems);
-         for (size_t i = 0; i < nelems; i++)
-            lvalues[i] = llvm_int64(values[i]);
+         LLVMValueRef *lvalues = xmalloc(sizeof(LLVMValueRef) * map.nelems);
+         for (size_t i = 0; i < map.nelems; i++)
+            lvalues[i] = llvm_int64(map.values[i]);
 
-         LLVMValueRef init = LLVMConstArray(array_type, lvalues, nelems);
+         LLVMValueRef init = LLVMConstArray(array_type, lvalues, map.nelems);
          LLVMSetInitializer(values_glob, init);
 
          free(lvalues);
@@ -1173,16 +1169,16 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
       LLVMBuildGEP(builder, elems_glob, zero_index, ARRAY_LEN(zero_index), "");
    // XXX: check with asserts build???? Not needed?
 
-   LLVMValueRef map = LLVMGetUndef(llvm_image_map());
-   map = LLVMBuildInsertValue(builder, map, llvm_int32(kind), 0, "");
-   map = LLVMBuildInsertValue(builder, map, llvm_int32(max_len + 1), 1, "");
-   map = LLVMBuildInsertValue(builder, map, elems_ptr, 2, "");
-   map = LLVMBuildInsertValue(builder, map, values_glob, 3, "");
+   LLVMValueRef lmap = LLVMGetUndef(llvm_image_map());
+   lmap = LLVMBuildInsertValue(builder, lmap, llvm_int32(map.kind), 0, "");
+   lmap = LLVMBuildInsertValue(builder, lmap, llvm_int32(max_len + 1), 1, "");
+   lmap = LLVMBuildInsertValue(builder, lmap, elems_ptr, 2, "");
+   lmap = LLVMBuildInsertValue(builder, lmap, values_glob, 3, "");
 
    vcode_reg_t result = vcode_get_result(op);
    LLVMValueRef tmp =
       LLVMBuildAlloca(builder, llvm_image_map(), cgen_reg_name(result));
-   LLVMBuildStore(builder, map, tmp);
+   LLVMBuildStore(builder, lmap, tmp);
    ctx->regs[result] = tmp;
 }
 

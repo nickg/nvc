@@ -175,6 +175,14 @@ typedef union {
    type_t type;
 } vcode_bookmark_t;
 
+typedef struct {
+   ident_t      name;
+   image_kind_t kind;
+   ident_t     *elems;
+   int64_t     *values;
+   size_t       nelems;
+} image_map_t;
+
 #define VCODE_INVALID_REG    -1
 #define VCODE_INVALID_BLOCK  -1
 #define VCODE_INVALID_VAR    -1
@@ -285,9 +293,7 @@ int vcode_get_hops(int op);
 int vcode_get_field(int op);
 unsigned vcode_get_subkind(int op);
 uint32_t vcode_get_tag(int op);
-void vcode_get_image_map(int op, ident_t *name, image_kind_t *kind,
-                         size_t *nelems, const ident_t **elems,
-                         const int64_t **values);
+void vcode_get_image_map(int op, image_map_t *map);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);

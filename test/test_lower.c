@@ -282,6 +282,18 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          break;
 
+      case VCODE_OP_IMAGE_MAP:
+         {
+            image_map_t map;
+            vcode_get_image_map(i, &map);
+            if (!icmp(map.name, e->name)) {
+               vcode_dump();
+               fail("expected op %d in block %d to have image map name %s but "
+                    "has %s", i, bb, e->name, istr(map.name));
+            }
+         }
+         break;
+
       default:
          fail("cannot check op %s", vcode_op_string(e->op));
       }
@@ -2057,6 +2069,7 @@ START_TEST(test_issue135)
 
    EXPECT_BB(0) = {
       { VCODE_OP_IMAGE },
+      { VCODE_OP_IMAGE_MAP, .name = "STD.STANDARD.TIME" },
       { VCODE_OP_IMAGE },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_UARRAY_LEN },
