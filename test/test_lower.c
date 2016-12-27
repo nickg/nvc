@@ -2543,7 +2543,20 @@ START_TEST(test_thunk)
    tree_t arch = parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH);
 
    vcode_unit_t t0 = lower_thunk(tree_value(tree_decl(arch, 0)));
-   fail_unless(t0 == NULL);
+   fail_if(t0 == NULL);
+   vcode_select_unit(t0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST_ARRAY, .length = 4 },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_NOT },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
 
    vcode_unit_t t1 = lower_thunk(tree_value(tree_decl(arch, 1)));
    fail_unless(t1 == NULL);

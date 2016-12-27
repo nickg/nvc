@@ -444,6 +444,20 @@ START_TEST(test_eval1)
 }
 END_TEST
 
+START_TEST(test_issue305)
+{
+   input_from_file(TESTDIR "/elab/issue305.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   tree_t s = tree_decl(top, 2);
+   fail_unless(tree_kind(s) == T_SIGNAL_DECL);
+   fail_unless(icmp(tree_ident(s), ":test_ng:data_i"));
+   fail_unless(tree_nets(s) == 8);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -477,6 +491,7 @@ int main(void)
    tcase_add_test(tc, test_issue251);
    tcase_add_test(tc, test_jcore1);
    tcase_add_test(tc, test_eval1);
+   tcase_add_test(tc, test_issue305);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

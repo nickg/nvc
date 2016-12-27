@@ -147,6 +147,17 @@ static bool eval_possible(tree_t t, eval_flags_t flags)
    case T_RECORD_REF:
       return eval_possible(tree_value(t), flags);
 
+   case T_AGGREGATE:
+      {
+         const int nassocs = tree_assocs(t);
+         for (int i = 0; i < nassocs; i++) {
+            if (!eval_possible(tree_value(tree_assoc(t, i)), flags))
+                return false;
+         }
+
+         return true;
+      }
+
    default:
       if (flags & EVAL_WARN)
          warn_at(tree_loc(t), "expression prevents constant folding");
@@ -1374,6 +1385,22 @@ static void eval_op_bit_shift(int op, eval_state_t *state)
    dst->uarray->dim[0].dir = dir->integer;
 }
 
+static void eval_op_array_size(int op, eval_state_t *state)
+{
+   value_t *llen = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *rlen = eval_get_reg(vcode_get_arg(op, 1), state);
+
+   if (rlen->integer != llen->integer) {
+      if (state->flags & EVAL_BOUNDS) {
+         vcode_bookmark_t where = vcode_get_bookmark(op);
+         error_at(tree_loc(where.tree), "length of target %"PRIi64" does not "
+                  "match length of value %"PRIi64,
+                  llen->integer, rlen->integer);
+      }
+      state->failed = true;
+   }
+}
+
 static void eval_vcode(eval_state_t *state)
 {
    const int nops = vcode_count_ops();
@@ -1583,6 +1610,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_BIT_SHIFT:
          eval_op_bit_shift(i, state);
+         break;
+
+      case VCODE_OP_ARRAY_SIZE:
+         eval_op_array_size(i, state);
          break;
 
       default:

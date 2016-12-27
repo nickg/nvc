@@ -1,5 +1,6 @@
 ## master
 - Compile time evaluation now uses vcode
+- Record aggregates can now be constant folded (#305)
 
 ## 1.1 - 2016-11-05
 - Improvements to based literal parsing

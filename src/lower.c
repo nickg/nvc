@@ -1503,15 +1503,19 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
    vcode_var_t var = lower_get_var(decl);
    if (var == VCODE_INVALID_VAR) {
       if (mode == LOWER_THUNK) {
-         emit_comment("Cannot resolve variable %s", istr(tree_ident(decl)));
-         vcode_type_t vtype = lower_type(type);
-         const vtype_kind_t vtkind = vtype_kind(vtype);
-         if (vtkind == VCODE_TYPE_CARRAY)
-            return emit_undefined(vtype_pointer(vtype_elem(vtype)));
-         else if (ctx == EXPR_LVALUE || vtkind == VCODE_TYPE_RECORD)
-            return emit_undefined(vtype_pointer(vtype));
-         else
-            return emit_undefined(vtype);
+         if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl))
+            return lower_expr(tree_value(decl), ctx);
+         else {
+            emit_comment("Cannot resolve variable %s", istr(tree_ident(decl)));
+            vcode_type_t vtype = lower_type(type);
+            const vtype_kind_t vtkind = vtype_kind(vtype);
+            if (vtkind == VCODE_TYPE_CARRAY)
+               return emit_undefined(vtype_pointer(vtype_elem(vtype)));
+            else if (ctx == EXPR_LVALUE || vtkind == VCODE_TYPE_RECORD)
+               return emit_undefined(vtype_pointer(vtype));
+            else
+               return emit_undefined(vtype);
+         }
       }
       else
          return lower_protected_var(decl);
