@@ -35,7 +35,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/time.h>
-#include <sys/file.h>
 
 typedef struct search_path search_path_t;
 typedef struct lib_unit    lib_unit_t;
