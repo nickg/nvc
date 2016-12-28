@@ -506,6 +506,7 @@ static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
       file_name = LLVMAddGlobal(module,
                                 LLVMArrayType(LLVMInt8Type(), len + 1),
                                 "file_name");
+      LLVMSetGlobalConstant(file_name, true);
       LLVMSetInitializer(file_name,
                          LLVMConstArray(LLVMInt8Type(), chars, len + 1));
       LLVMSetLinkage(file_name, LLVMPrivateLinkage);
@@ -1691,18 +1692,32 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
    else
       resolution = LLVMConstNull(llvm_void_ptr());
 
+   const char *sig_name = istr(vcode_signal_name(sig));
+   const char *global_name LOCAL = xasprintf("%s.name", sig_name);
+   LLVMValueRef name_ll = LLVMGetNamedGlobal(module, global_name);
+   if (name_ll == NULL) {
+      const size_t len = strlen(sig_name);
+      LLVMValueRef name_chars[len + 1];
+      llvm_str(name_chars, len + 1, sig_name);
+
+      name_ll = LLVMAddGlobal(module,
+                              LLVMArrayType(LLVMInt8Type(), len + 1),
+                              global_name);
+      LLVMSetGlobalConstant(name_ll, true);
+      LLVMSetInitializer(name_ll,
+                         LLVMConstArray(LLVMInt8Type(), name_chars, len + 1));
+      LLVMSetLinkage(name_ll, LLVMPrivateLinkage);
+   }
+
    LLVMValueRef args[] = {
       llvm_int32(nid),
       llvm_void_cast(valptr),
       list_mem,
       llvm_int32(size_list.count),
       resolution,
-      llvm_int32(vcode_get_index(op)),
-      LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), "")
+      llvm_void_cast(name_ll)
    };
-   LLVMBuildCall(builder, llvm_fn("_set_initial"),
-                 args, ARRAY_LEN(args), "");
+   LLVMBuildCall(builder, llvm_fn("_set_initial"), args, ARRAY_LEN(args), "");
 
    free(size_list.items);
 }
@@ -3367,7 +3382,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMInt32Type(), 0),
          LLVMInt32Type(),
          llvm_void_ptr(),
-         LLVMInt32Type(),
          LLVMPointerType(LLVMInt8Type(), 0)
       };
       fn = LLVMAddFunction(module, "_set_initial",

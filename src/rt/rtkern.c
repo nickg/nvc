@@ -143,10 +143,12 @@ struct uarray {
    } dims[1];
 };
 
+// XXX: remove this
 struct loaded {
    const char    *name;
-   tree_rd_ctx_t read_ctx;
+   tree_rd_ctx_t  read_ctx;
    struct loaded *next;
+   tree_t         unit;
 };
 
 struct run_queue {
@@ -246,6 +248,7 @@ static bool          force_stop;
 static bool          can_create_delta;
 static callback_t   *global_cbs[RT_LAST_EVENT];
 static rt_severity_t exit_severity = SEVERITY_ERROR;
+static hash_t       *decl_hash = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -266,7 +269,8 @@ static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
                            rt_proc_t *proc, bool is_static);
 static void *rt_tmp_alloc(size_t sz);
 static value_t *rt_alloc_value(netgroup_t *g);
-static tree_t rt_recall_tree(const char *unit, int32_t where);
+static tree_t rt_recall_tree(const char *unit, int32_t where);   // XXX
+static tree_t rt_recall_decl(const char *name);
 static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn);
 static void _tracef(const char *fmt, ...);
 
@@ -558,14 +562,13 @@ void _needs_last_value(const int32_t *nids, int32_t n)
 }
 
 void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
-                  int32_t nparts, void *resolution, int32_t index,
-                  const char *module)
+                  int32_t nparts, void *resolution, const char *name)
 {
-   tree_t decl = rt_recall_tree(module, index);
+   tree_t decl = rt_recall_decl(name);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
 
-   TRACE("_set_initial %s values=%s nparts=%d index=%d", istr(tree_ident(decl)),
-         fmt_values(values, size_list[0] * size_list[1]), nparts, index);
+   TRACE("_set_initial %s values=%s nparts=%d", name,
+         fmt_values(values, size_list[0] * size_list[1]), nparts);
 
    res_memo_t *memo = NULL;
    if (resolution != NULL)
@@ -1459,6 +1462,13 @@ static void rt_setup(tree_t top)
       procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
    }
 
+   const int ndecls = tree_decls(top);
+   decl_hash = hash_new(next_power_of_2(ndecls * 2), true);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(top, i);
+      hash_put(decl_hash, tree_ident(d), d);
+   }
+
    res_memo_hash = hash_new(128, true);
 
    netdb_walk(netdb, rt_reset_group);
@@ -2085,13 +2095,15 @@ static void rt_load_unit(const char *name)
    lib_t lib = lib_find(ident_until(name_i, '.'), true);
 
    tree_rd_ctx_t ctx = NULL;
-   if (lib_get_ctx(lib, name_i, &ctx) == NULL)
+   tree_t unit = lib_get_ctx(lib, name_i, &ctx);
+   if (unit == NULL)
       fatal("cannot find unit %s", name);
 
    struct loaded *l = xmalloc(sizeof(struct loaded));
    l->next     = NULL;
    l->name     = name;
    l->read_ctx = ctx;
+   l->unit     = unit;
 
    if (loaded == NULL)
       loaded = l;
@@ -2105,6 +2117,7 @@ static void rt_load_unit(const char *name)
 
 static tree_t rt_recall_tree(const char *unit, int32_t where)
 {
+   // TODO: remove this?
    struct loaded *it;
    for (it = loaded; it != NULL; it = it->next) {
       if (it->name == unit)
@@ -2113,6 +2126,15 @@ static tree_t rt_recall_tree(const char *unit, int32_t where)
 
    rt_load_unit(unit);
    return rt_recall_tree(unit, where);
+}
+
+static tree_t rt_recall_decl(const char *name)
+{
+   tree_t decl = hash_get(decl_hash, ident_new(name));
+   if (decl != NULL)
+      return decl;
+   else
+      fatal("cannot find name %s in elaborated design", name);
 }
 
 static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
@@ -2171,6 +2193,9 @@ static void rt_cleanup(tree_t top)
 
    netdb_walk(netdb, rt_cleanup_group);
    netdb_close(netdb);
+
+   hash_free(decl_hash);
+   decl_hash = NULL;
 
    while (watches != NULL) {
       watch_t *next = watches->chain_all;

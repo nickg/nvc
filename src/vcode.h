@@ -395,8 +395,7 @@ vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg);
 void emit_resolved_address(vcode_var_t var, vcode_signal_t signal);
 void emit_set_initial(vcode_signal_t signal, vcode_reg_t value,
-                      vcode_bookmark_t index, ident_t resolution,
-                      vcode_type_t type);
+                      ident_t resolution, vcode_type_t type);
 void emit_alloc_driver(vcode_reg_t all_nets, vcode_reg_t all_length,
                        vcode_reg_t driven_nets, vcode_reg_t driven_length,
                        vcode_reg_t init);

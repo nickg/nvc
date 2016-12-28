@@ -4207,7 +4207,7 @@ static void lower_signal_decl(tree_t decl)
          rtype = lower_type(rbase);
       }
 
-      emit_set_initial(sig, init_reg, lower_bookmark(decl), rfunc, rtype);
+      emit_set_initial(sig, init_reg, rfunc, rtype);
    }
 
    // Identify signals which potentially need 'LAST_VALUE

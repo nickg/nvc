@@ -72,8 +72,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_BOOKMARK(x)                                              \
-   (x == VCODE_OP_SET_INITIAL                                        \
-    || x == VCODE_OP_BOUNDS                                             \
+   (x == VCODE_OP_BOUNDS                                             \
     || x == VCODE_OP_DYNAMIC_BOUNDS || x == VCODE_OP_ARRAY_SIZE         \
     || x == VCODE_OP_INDEX_CHECK)
 #define OP_HAS_HINT(x)                                                  \
@@ -3991,12 +3990,10 @@ void emit_resolved_address(vcode_var_t var, vcode_signal_t signal)
 }
 
 void emit_set_initial(vcode_signal_t signal, vcode_reg_t value,
-                      vcode_bookmark_t index, ident_t resolution,
-                      vcode_type_t type)
+                      ident_t resolution, vcode_type_t type)
 {
    op_t *op = vcode_add_op(VCODE_OP_SET_INITIAL);
    op->signal   = signal;
-   op->bookmark = index;
    op->func     = resolution;
    op->type     = type;
    vcode_add_arg(op, value);
