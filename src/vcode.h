@@ -171,11 +171,6 @@ typedef struct {
    vcode_block_t block;
 } vcode_state_t;
 
-typedef union {
-   tree_t tree;
-   type_t type;
-} vcode_bookmark_t;
-
 typedef struct {
    ident_t      name;
    image_kind_t kind;
@@ -279,8 +274,6 @@ ident_t vcode_get_func(int op);
 int64_t vcode_get_value(int op);
 double vcode_get_real(int op);
 vcode_cmp_t vcode_get_cmp(int op);
-uint32_t vcode_get_index(int op);
-vcode_bookmark_t vcode_get_bookmark(int op);
 const loc_t *vcode_get_loc(int op);
 const char *vcode_get_hint(int op);
 vcode_block_t vcode_get_target(int op, int nth);
@@ -355,15 +348,14 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg);
 void emit_store(vcode_reg_t reg, vcode_var_t var);
 void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr);
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
-                 vcode_bookmark_t where, const char *hint);
+                 const char *hint);
 void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
-                         vcode_reg_t kind, vcode_bookmark_t where,
-                         const char *hint);
+                         vcode_reg_t kind, const char *hint);
 void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
-                      bounds_kind_t kind, vcode_bookmark_t where);
+                      bounds_kind_t kind);
 void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
                               vcode_reg_t blow, vcode_reg_t bhigh,
-                              bounds_kind_t kind, vcode_bookmark_t where);
+                              bounds_kind_t kind);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t bounds, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);
@@ -431,8 +423,7 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
 vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, vcode_reg_t map);
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);
 void emit_needs_last_value(vcode_signal_t sig);
-void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen,
-                     vcode_bookmark_t index);
+void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen);
 vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
                            vcode_reg_t len, vcode_reg_t dir, vcode_reg_t shift,
                            vcode_type_t result);

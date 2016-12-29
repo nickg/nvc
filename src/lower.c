@@ -507,15 +507,6 @@ static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
    return lower_wrap_with_new_bounds(type, data, data);
 }
 
-static vcode_bookmark_t lower_bookmark(tree_t where)
-{
-   vcode_bookmark_t b = {
-      .tree = where
-   };
-
-   return b;
-}
-
 static bounds_kind_t lower_type_bounds_kind(type_t type)
 {
    if (type_is_enum(type))
@@ -592,18 +583,16 @@ static void lower_check_scalar_bounds(vcode_reg_t value, type_t type,
    else
       emit_debug_info(tree_loc(where));
 
-   const vcode_bookmark_t index1 = lower_bookmark(where);
-
    const bounds_kind_t kind = lower_type_bounds_kind(type);
    const char *prefix = kind == BOUNDS_ENUM ? type_pp(type) : NULL;
    char *hint_str LOCAL = lower_get_hint_string(where, prefix);
 
    vcode_reg_t low_reg, high_reg;
    if (lower_scalar_has_static_bounds(type, &low_reg, &high_reg))
-      emit_bounds(value, lower_bounds(type), kind, index1, hint_str);
+      emit_bounds(value, lower_bounds(type), kind, hint_str);
    else {
       vcode_reg_t kind_reg = emit_const(vtype_offset(), kind);
-      emit_dynamic_bounds(value, low_reg, high_reg, kind_reg, index1, hint_str);
+      emit_dynamic_bounds(value, low_reg, high_reg, kind_reg, hint_str);
    }
 }
 
@@ -1782,8 +1771,7 @@ static void lower_check_array_bounds(type_t type, int dim, vcode_reg_t array,
 
    char *hint_str LOCAL = lower_get_hint_string(where, NULL);
 
-   const vcode_bookmark_t index = lower_bookmark(where);
-   emit_dynamic_bounds(value, min_reg, max_reg, kind_reg, index, hint_str);
+   emit_dynamic_bounds(value, min_reg, max_reg, kind_reg, hint_str);
 }
 
 static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
@@ -3147,7 +3135,7 @@ static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
    vcode_reg_t llen_reg = lower_array_len(ltype, 0, lval);
    vcode_reg_t rlen_reg = lower_array_len(rtype, 0, rval);
 
-   emit_array_size(llen_reg, rlen_reg, lower_bookmark(t));
+   emit_array_size(llen_reg, rlen_reg);
 }
 
 static void lower_find_matching_refs(tree_t ref, void *context)
@@ -4033,8 +4021,7 @@ static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
       vcode_reg_t right_reg = lower_array_right(type, i, array);
 
       if (type_is_enum(index))
-         emit_index_check(left_reg, right_reg, vbounds,
-                          BOUNDS_INDEX_TO, lower_bookmark(hint));
+         emit_index_check(left_reg, right_reg, vbounds, BOUNDS_INDEX_TO);
       else {
          range_t rindex = type_dim(index, 0);
          bounds_kind_t bkind  = rindex.kind == RANGE_TO
@@ -4053,8 +4040,7 @@ static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
          }
 
          if (lower_is_const(rindex.left) && lower_is_const(rindex.right)) {
-            emit_index_check(rlow_reg, rhigh_reg, vbounds,
-                             bkind, lower_bookmark(hint));
+            emit_index_check(rlow_reg, rhigh_reg, vbounds, bkind);
          }
          else {
             vcode_reg_t bleft  = lower_reify_expr(rindex.left);
@@ -4063,8 +4049,7 @@ static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
             vcode_reg_t bmin = bkind == BOUNDS_INDEX_TO ? bleft : bright;
             vcode_reg_t bmax = bkind == BOUNDS_INDEX_TO ? bright : bleft;
 
-            emit_dynamic_index_check(rlow_reg, rhigh_reg, bmin, bmax,
-                                     bkind, lower_bookmark(hint));
+            emit_dynamic_index_check(rlow_reg, rhigh_reg, bmin, bmax, bkind);
          }
       }
    }

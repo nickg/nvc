@@ -799,17 +799,17 @@ static void eval_op_bounds(int op, eval_state_t *state)
             break;
          else if (reg->integer < low || reg->integer > high) {
             if (state->flags & EVAL_BOUNDS) {
-               const loc_t *loc = tree_loc(vcode_get_bookmark(op).tree);
-
                switch ((bounds_kind_t)vcode_get_subkind(op)) {
                case BOUNDS_ARRAY_TO:
-                  error_at(loc, "array index %"PRIi64" outside bounds %"PRIi64
-                           " to %"PRIi64, reg->integer, low, high);
+                  error_at(&(state->last_loc), "array index %"PRIi64" outside "
+                           "bounds %"PRIi64" to %"PRIi64,
+                           reg->integer, low, high);
                   break;
 
                case BOUNDS_ARRAY_DOWNTO:
-                  error_at(loc, "array index %"PRIi64" outside bounds %"PRIi64
-                           " downto %"PRIi64, reg->integer, high, low);
+                  error_at(&(state->last_loc), "array index %"PRIi64" outside "
+                           "bounds %"PRIi64" downto %"PRIi64,
+                           reg->integer, high, low);
                   break;
 
                default:
@@ -1406,8 +1406,7 @@ static void eval_op_array_size(int op, eval_state_t *state)
 
    if (rlen->integer != llen->integer) {
       if (state->flags & EVAL_BOUNDS) {
-         vcode_bookmark_t where = vcode_get_bookmark(op);
-         error_at(tree_loc(where.tree), "length of target %"PRIi64" does not "
+         error_at(&(state->last_loc), "length of target %"PRIi64" does not "
                   "match length of value %"PRIi64,
                   llen->integer, rlen->integer);
       }

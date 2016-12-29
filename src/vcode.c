@@ -71,10 +71,6 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_COVER_STMT || x == VCODE_OP_COVER_COND)
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
-#define OP_HAS_BOOKMARK(x)                                              \
-   (x == VCODE_OP_BOUNDS                                             \
-    || x == VCODE_OP_DYNAMIC_BOUNDS || x == VCODE_OP_ARRAY_SIZE         \
-    || x == VCODE_OP_INDEX_CHECK)
 #define OP_HAS_HINT(x)                                                  \
    (x == VCODE_OP_BOUNDS || x == VCODE_OP_DYNAMIC_BOUNDS)
 #define OP_HAS_TARGET(x)                                                \
@@ -97,7 +93,6 @@ typedef struct {
       unsigned         subkind;      // OP_HAS_SUBKIND
    };
    union {
-      vcode_bookmark_t    bookmark;  // OP_HAS_BOOKMARK
       loc_t               loc;       // OP_HAS_LOC
       vcode_block_array_t targets;   // OP_HAS_TARGET
    };
@@ -962,24 +957,11 @@ uint32_t vcode_get_tag(int op)
    return o->tag;
 }
 
-vcode_bookmark_t vcode_get_bookmark(int op)
-{
-   op_t *o = vcode_op_data(op);
-   assert(OP_HAS_BOOKMARK(o->kind));
-   return o->bookmark;
-}
-
 const loc_t *vcode_get_loc(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(OP_HAS_LOC(o->kind));
    return &(o->loc);
-}
-
-uint32_t vcode_get_index(int op)
-{
-   // TODO: remove this?
-   return tree_index(vcode_get_bookmark(op).tree);
 }
 
 const char *vcode_get_hint(int op)
@@ -2077,15 +2059,14 @@ void vcode_dump(void)
 
          case VCODE_OP_COVER_STMT:
             {
-               printf("%s %u", vcode_op_string(op->kind),
-                      tree_index(op->bookmark.tree));
+               printf("%s %u", vcode_op_string(op->kind), op->tag);
             }
             break;
 
          case VCODE_OP_COVER_COND:
             {
                printf("%s %u sub %u ", vcode_op_string(op->kind),
-                      tree_index(op->bookmark.tree), op->subkind);
+                      op->tag, op->subkind);
                vcode_dump_reg(op->args.items[0]);
             }
             break;
@@ -3436,7 +3417,7 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
 }
 
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
-                 vcode_bookmark_t where, const char *hint)
+                 const char *hint)
 {
    if (reg == VCODE_INVALID_REG)
       return;
@@ -3449,7 +3430,6 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
    vcode_add_arg(op, reg);
    op->type     = bounds;
    op->subkind  = kind;
-   op->bookmark = where;
    op->hint     = hint ? xstrdup(hint) : NULL;
 
    const vtype_kind_t tkind = vtype_kind(bounds);
@@ -4468,8 +4448,7 @@ void emit_needs_last_value(vcode_signal_t sig)
 }
 
 void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
-                         vcode_reg_t kind, vcode_bookmark_t where,
-                         const char *hint)
+                         vcode_reg_t kind, const char *hint)
 {
    int64_t lconst, hconst;
    if (vcode_reg_const(low, &lconst) && vcode_reg_const(high, &hconst)) {
@@ -4481,7 +4460,7 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
 
       int64_t kconst;
       if (vcode_reg_const(kind, &kconst)) {
-         emit_bounds(reg, vtype_int(lconst, hconst), kconst, where, hint);
+         emit_bounds(reg, vtype_int(lconst, hconst), kconst, hint);
          return;
       }
    }
@@ -4495,7 +4474,6 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
    vcode_add_arg(op, low);
    vcode_add_arg(op, high);
    vcode_add_arg(op, kind);
-   op->bookmark = where;
    op->hint = hint ? xstrdup(hint) : NULL;
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(low), vcode_reg_type(high)),
@@ -4506,7 +4484,7 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
                 "bounds check needs debug info");
 }
 
-void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, vcode_bookmark_t where)
+void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen)
 {
    if (rlen == llen)
       return;
@@ -4514,11 +4492,10 @@ void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, vcode_bookmark_t where)
    op_t *op = vcode_add_op(VCODE_OP_ARRAY_SIZE);
    vcode_add_arg(op, llen);
    vcode_add_arg(op, rlen);
-   op->bookmark = where;
 }
 
 static op_t *emit_index_check_null(vcode_reg_t rlow, vcode_reg_t rhigh,
-                                   bounds_kind_t kind, vcode_bookmark_t where)
+                                   bounds_kind_t kind)
 {
    int64_t rlow_const, rhigh_const;
    const bool null =
@@ -4535,14 +4512,13 @@ static op_t *emit_index_check_null(vcode_reg_t rlow, vcode_reg_t rhigh,
    vcode_add_arg(op, rlow);
    vcode_add_arg(op, rhigh);
    op->subkind  = kind;
-   op->bookmark = where;
    op->type     = VCODE_INVALID_TYPE;
 
    return op;
 }
 
 void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
-                      bounds_kind_t kind, vcode_bookmark_t where)
+                      bounds_kind_t kind)
 {
    if (vtype_includes(bounds, vcode_reg_data(rlow)->bounds)
        && vtype_includes(bounds, vcode_reg_data(rhigh)->bounds)) {
@@ -4550,7 +4526,7 @@ void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
       return;
    }
 
-   op_t *op = emit_index_check_null(rlow, rhigh, kind, where);
+   op_t *op = emit_index_check_null(rlow, rhigh, kind);
    if (op != NULL)
       op->type = bounds;
 
@@ -4560,9 +4536,9 @@ void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
 
 void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
                               vcode_reg_t blow, vcode_reg_t bhigh,
-                              bounds_kind_t kind, vcode_bookmark_t where)
+                              bounds_kind_t kind)
 {
-   op_t *op = emit_index_check_null(rlow, rhigh, kind, where);
+   op_t *op = emit_index_check_null(rlow, rhigh, kind);
    if (op != NULL) {
       vcode_add_arg(op, blow);
       vcode_add_arg(op, bhigh);
@@ -4780,8 +4756,6 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
             write_u32(op->type, f);
          if (OP_HAS_ADDRESS(op->kind))
             write_u32(op->address, f);
-         if (OP_HAS_BOOKMARK(op->kind))
-            write_u32(tree_index(op->bookmark.tree), f);
          if (OP_HAS_FUNC(op->kind))
             ident_write(op->func, ident_wr_ctx);
          if (OP_HAS_SUBKIND(op->kind))
@@ -4972,8 +4946,6 @@ static bool vcode_read_unit(fbuf_t *f, tree_rd_ctx_t tree_ctx,
             op->type = read_u32(f);
          if (OP_HAS_ADDRESS(op->kind))
             op->address = read_u32(f);
-         if (OP_HAS_BOOKMARK(op->kind))
-            op->bookmark.tree = tree_read_recall(tree_ctx, read_u32(f));
          if (OP_HAS_FUNC(op->kind))
             op->func = ident_read(ident_rd_ctx);
          if (OP_HAS_SUBKIND(op->kind))
