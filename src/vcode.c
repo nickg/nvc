@@ -110,7 +110,7 @@ typedef struct {
       unsigned         dim;          // OP_HAS_DIM
       unsigned         hops;         // OP_HAS_HOPS
       unsigned         field;        // OP_HAS_FIELD
-      vcode_bookmark_t hint;         // OP_HAS_HINT
+      char            *hint;         // OP_HAS_HINT
       uint32_t         tag;          // OP_HAS_TAG
       image_map_t     *image_map;    // OP_HAS_IMAGE_MAP
    };
@@ -120,6 +120,7 @@ DECLARE_AND_DEFINE_ARRAY(op);
 
 typedef struct {
    op_array_t ops;
+   loc_t      last_loc;
 } block_t;
 
 typedef struct {
@@ -572,6 +573,8 @@ void vcode_unit_unref(vcode_unit_t unit)
          op_t *o = &(b->ops.items[j]);
          if (OP_HAS_COMMENT(o->kind))
             free(o->comment);
+         if (OP_HAS_HINT(o->kind))
+            free(o->hint);
          if (OP_HAS_IMAGE_MAP(o->kind)) {
             free(o->image_map->elems);
             free(o->image_map->values);
@@ -980,12 +983,11 @@ uint32_t vcode_get_index(int op)
    return tree_index(vcode_get_bookmark(op).tree);
 }
 
-uint32_t vcode_get_hint(int op)
+const char *vcode_get_hint(int op)
 {
-   // TODO: replace this with function returning bookmark?
    op_t *o = vcode_op_data(op);
    assert(OP_HAS_HINT(o->kind));
-   return tree_index(o->hint.tree);
+   return o->hint;
 }
 
 vcode_block_t vcode_get_target(int op, int nth)
@@ -1547,6 +1549,8 @@ void vcode_dump(void)
                   printf(" match ");
                   vcode_dump_one_type(op->type);
                }
+               if (op->hint != NULL)
+                  color_printf(" $cyan$// %s$$", op->hint);
             }
             break;
 
@@ -1560,6 +1564,8 @@ void vcode_dump(void)
                vcode_dump_reg(op->args.items[2]);
                printf(" kind ");
                vcode_dump_reg(op->args.items[3]);
+               if (op->hint != NULL)
+                  color_printf("$cyan$// %s$$", op->hint);
             }
             break;
 
@@ -2550,6 +2556,7 @@ vcode_block_t emit_block(void)
 
    block_t *bptr = block_array_alloc(&(active_unit->blocks));
    memset(bptr, '\0', sizeof(block_t));
+   bptr->last_loc = LOC_INVALID;
 
    return bnum;
 }
@@ -2571,6 +2578,11 @@ vcode_block_t vcode_active_block(void)
    assert(active_unit != NULL);
    assert(active_block != -1);
    return active_block;
+}
+
+const loc_t *vcode_last_loc(void)
+{
+   return &(vcode_block_data()->last_loc);
 }
 
 vcode_unit_t vcode_active_unit(void)
@@ -3430,7 +3442,7 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
 }
 
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
-                 vcode_bookmark_t where, vcode_bookmark_t hint)
+                 vcode_bookmark_t where, const char *hint)
 {
    if (reg == VCODE_INVALID_REG)
       return;
@@ -3444,7 +3456,7 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
    op->type     = bounds;
    op->subkind  = kind;
    op->bookmark = where;
-   op->hint     = hint;
+   op->hint     = hint ? xstrdup(hint) : NULL;
 
    const vtype_kind_t tkind = vtype_kind(bounds);
    VCODE_ASSERT(tkind == VCODE_TYPE_INT || tkind == VCODE_TYPE_REAL,
@@ -3453,6 +3465,9 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
    const vtype_kind_t rkind = vcode_reg_kind(reg);
    VCODE_ASSERT(rkind == VCODE_TYPE_INT || tkind == VCODE_TYPE_REAL,
                 "reg argument to bounds must be integer or real");
+
+   VCODE_ASSERT(!loc_eq(vcode_last_loc(), &LOC_INVALID),
+                "bounds check needs debug info");
 }
 
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
@@ -4460,7 +4475,7 @@ void emit_needs_last_value(vcode_signal_t sig)
 
 void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
                          vcode_reg_t kind, vcode_bookmark_t where,
-                         vcode_bookmark_t hint)
+                         const char *hint)
 {
    int64_t lconst, hconst;
    if (vcode_reg_const(low, &lconst) && vcode_reg_const(high, &hconst)) {
@@ -4487,12 +4502,14 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
    vcode_add_arg(op, high);
    vcode_add_arg(op, kind);
    op->bookmark = where;
-   op->hint = hint;
+   op->hint = hint ? xstrdup(hint) : NULL;
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(low), vcode_reg_type(high)),
                 "type mismatch in dynamic bounds range");
    VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
                 "dynamic bounds kind argument must be offset");
+   VCODE_ASSERT(!loc_eq(vcode_last_loc(), &LOC_INVALID),
+                "bounds check needs debug info");
 }
 
 void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, vcode_bookmark_t where)
@@ -4542,6 +4559,9 @@ void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
    op_t *op = emit_index_check_null(rlow, rhigh, kind, where);
    if (op != NULL)
       op->type = bounds;
+
+   VCODE_ASSERT(!loc_eq(vcode_last_loc(), &LOC_INVALID),
+                "index check needs debug info");
 }
 
 void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
@@ -4553,6 +4573,9 @@ void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
       vcode_add_arg(op, blow);
       vcode_add_arg(op, bhigh);
    }
+
+   VCODE_ASSERT(!loc_eq(vcode_last_loc(), &LOC_INVALID),
+                "dynamic index check needs debug info");
 }
 
 vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
@@ -4694,23 +4717,32 @@ vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
 
 void emit_debug_info(const loc_t *loc)
 {
+   if (loc->file == NULL || loc_eq(loc, &LOC_INVALID))
+      return;
+
+   bool seen_real_op = false;
    block_t *b = vcode_block_data();
    for (int i = b->ops.count - 1; i >= 0; i--) {
       op_t *other = &(b->ops.items[i]);
       if (other->kind == VCODE_OP_DEBUG_INFO) {
          if (loc_eq(&(other->loc), loc))
             return;   // Matches last debug info
-         else if (i == b->ops.count - 1) {
+         else if (!seen_real_op) {
             other->loc = *loc;
+            b->last_loc = *loc;
             return;   // Unused debug info
          }
          else
             break;
       }
+      else if (other->kind != VCODE_OP_COMMENT)
+         seen_real_op = true;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_DEBUG_INFO);
    op->loc = *loc;
+
+   b->last_loc = *loc;
 }
 
 static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
@@ -4776,8 +4808,15 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
             write_u32(op->hops, f);
          if (OP_HAS_FIELD(op->kind))
             write_u32(op->field, f);
-         if (OP_HAS_HINT(op->kind))
-            write_u32(tree_index(op->hint.tree), f);
+         if (OP_HAS_HINT(op->kind)) {
+            if (op->hint == NULL)
+               write_u16(0, f);
+            else {
+               const size_t len = strlen(op->hint);
+               write_u16(len, f);
+               write_raw(op->hint, len, f);
+            }
+         }
          if (OP_HAS_TAG(op->kind))
             write_u32(op->tag, f);
          if (OP_HAS_LOC(op->kind))
@@ -4965,8 +5004,16 @@ static bool vcode_read_unit(fbuf_t *f, tree_rd_ctx_t tree_ctx,
             op->hops = read_u32(f);
          if (OP_HAS_FIELD(op->kind))
             op->field = read_u32(f);
-         if (OP_HAS_HINT(op->kind))
-            op->hint.tree = tree_read_recall(tree_ctx, read_u32(f));
+         if (OP_HAS_HINT(op->kind)) {
+            const size_t len = read_u16(f);
+            if (len == 0)
+               op->hint = NULL;
+            else {
+               op->hint = xmalloc(len + 1);
+               read_raw(op->hint, len, f);
+               op->hint[len] = '\0';
+            }
+         }
          if (OP_HAS_TAG(op->kind))
             op->tag = read_u32(f);
          if (OP_HAS_LOC(op->kind))

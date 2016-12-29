@@ -234,6 +234,7 @@ void vcode_dump(void);
 void vcode_select_unit(vcode_unit_t vu);
 void vcode_select_block(vcode_block_t block);
 int vcode_count_blocks(void);
+const loc_t *vcode_last_loc(void);
 const char *vcode_op_string(vcode_op_t op);
 bool vcode_block_finished(void);
 bool vcode_block_empty(void);
@@ -282,7 +283,7 @@ vcode_cmp_t vcode_get_cmp(int op);
 uint32_t vcode_get_index(int op);
 vcode_bookmark_t vcode_get_bookmark(int op);
 const loc_t *vcode_get_loc(int op);
-uint32_t vcode_get_hint(int op);
+const char *vcode_get_hint(int op);
 vcode_block_t vcode_get_target(int op, int nth);
 vcode_var_t vcode_get_address(int op);
 int vcode_count_args(int op);
@@ -355,10 +356,10 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg);
 void emit_store(vcode_reg_t reg, vcode_var_t var);
 void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr);
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
-                 vcode_bookmark_t where, vcode_bookmark_t hint);
+                 vcode_bookmark_t where, const char *hint);
 void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
                          vcode_reg_t kind, vcode_bookmark_t where,
-                         vcode_bookmark_t hint);
+                         const char *hint);
 void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
                       bounds_kind_t kind, vcode_bookmark_t where);
 void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,

@@ -218,7 +218,6 @@ struct rt_loc {
 
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
-static struct loaded    *loaded = NULL;
 static struct run_queue  run_queue;
 
 static heap_t        eventq_heap = NULL;
@@ -269,7 +268,6 @@ static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
                            rt_proc_t *proc, bool is_static);
 static void *rt_tmp_alloc(size_t sz);
 static value_t *rt_alloc_value(netgroup_t *g);
-static tree_t rt_recall_tree(const char *unit, int32_t where);   // XXX
 static tree_t rt_recall_decl(const char *name);
 static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn);
 static void _tracef(const char *fmt, ...);
@@ -665,59 +663,59 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
           : istr(tree_ident(active_proc->source))));
 }
 
-void _bounds_fail(int32_t where, const char *module, int32_t value,
-                  int32_t min, int32_t max, int32_t kind, int32_t hint)
+void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
+                  rt_loc_t *where, const char *hint)
 {
-   tree_t t = rt_recall_tree(module, where);
-   const loc_t *loc = tree_loc(t);
+   loc_t loc;
+   from_rt_loc(where, &loc);
 
-   const char *suffix = "";
-   tree_kind_t tkind = tree_kind(t);
-   if (tkind == T_PORT_DECL) {
-      tree_t call_site = rt_recall_tree(module, hint);
-      loc = tree_loc(call_site);
-      suffix = xasprintf(" for parameter %s", istr(tree_ident(t)));
+   char *copy LOCAL = xstrdup(hint ?: "");
+   const char *prefix = copy, *suffix = copy;
+   char *sep = strchr(copy, '|');
+   if (sep != NULL) {
+      suffix = sep + 1;
+      *sep = '\0';
    }
-   else if (tkind == T_VAR_DECL)
-      suffix = xasprintf(" for variable %s", istr(tree_ident(t)));
+
+   const char *spacer = hint ? " " : "";
 
    switch ((bounds_kind_t)kind) {
    case BOUNDS_ARRAY_TO:
-      fatal_at(loc, "array index %d outside bounds %d to %d%s",
-               value, min, max, suffix);
+      fatal_at(&loc, "array index %d outside bounds %d to %d%s%s",
+               value, min, max, spacer, suffix);
       break;
    case BOUNDS_ARRAY_DOWNTO:
-      fatal_at(loc, "array index %d outside bounds %d downto %d%s",
-               value, max, min, suffix);
+      fatal_at(&loc, "array index %d outside bounds %d downto %d%s%s",
+               value, max, min, spacer, suffix);
       break;
 
    case BOUNDS_ENUM:
-      fatal_at(loc, "value %d outside %s bounds %d to %d%s",
-               value, type_pp(tree_type(t)), min, max, suffix);
+      fatal_at(&loc, "value %d outside %s bounds %d to %d%s%s",
+               value, prefix, min, max, spacer, suffix);
       break;
 
    case BOUNDS_TYPE_TO:
-      fatal_at(loc, "value %d outside bounds %d to %d%s",
-               value, min, max, suffix);
+      fatal_at(&loc, "value %d outside bounds %d to %d%s%s",
+               value, min, max, spacer, suffix);
       break;
 
    case BOUNDS_TYPE_DOWNTO:
-      fatal_at(loc, "value %d outside bounds %d downto %d%s",
-               value, max, min, suffix);
+      fatal_at(&loc, "value %d outside bounds %d downto %d%s%s",
+               value, max, min, spacer, suffix);
       break;
 
    case BOUNDS_ARRAY_SIZE:
-      fatal_at(loc, "length of target %d does not match length of value %d%s",
-               min, max, suffix);
+      fatal_at(&loc, "length of target %d does not match length of value "
+               "%d%s%s", min, max, spacer, suffix);
       break;
 
    case BOUNDS_INDEX_TO:
-      fatal_at(loc, "index %d violates constraint bounds %d to %d",
+      fatal_at(&loc, "index %d violates constraint bounds %d to %d",
                value, min, max);
       break;
 
    case BOUNDS_INDEX_DOWNTO:
-      fatal_at(loc, "index %d violates constraint bounds %d downto %d",
+      fatal_at(&loc, "index %d violates constraint bounds %d downto %d",
                value, max, min);
       break;
    }
@@ -869,12 +867,10 @@ void *_vec_load(const int32_t *nids, void *where,
    return where;
 }
 
-void _image(int64_t val, image_map_t *map, const char *module, struct uarray *u)
+void _image(int64_t val, image_map_t *map, struct uarray *u)
 {
    char *buf = NULL;
    size_t len = 0;
-
-   printf("%d %d %p\n", map->kind, map->stride, map->elems);
 
    switch (map->kind) {
    case IMAGE_INTEGER:
@@ -2087,45 +2083,6 @@ static void rt_cycle(int stop_delta)
 
       can_create_delta = true;
    }
-}
-
-static void rt_load_unit(const char *name)
-{
-   ident_t name_i = ident_new(name);
-   lib_t lib = lib_find(ident_until(name_i, '.'), true);
-
-   tree_rd_ctx_t ctx = NULL;
-   tree_t unit = lib_get_ctx(lib, name_i, &ctx);
-   if (unit == NULL)
-      fatal("cannot find unit %s", name);
-
-   struct loaded *l = xmalloc(sizeof(struct loaded));
-   l->next     = NULL;
-   l->name     = name;
-   l->read_ctx = ctx;
-   l->unit     = unit;
-
-   if (loaded == NULL)
-      loaded = l;
-   else {
-      struct loaded *it;
-      for (it = loaded; it->next != NULL; it = it->next)
-         ;
-      it->next = l;
-   }
-}
-
-static tree_t rt_recall_tree(const char *unit, int32_t where)
-{
-   // TODO: remove this?
-   struct loaded *it;
-   for (it = loaded; it != NULL; it = it->next) {
-      if (it->name == unit)
-         return tree_read_recall(it->read_ctx, where);
-   }
-
-   rt_load_unit(unit);
-   return rt_recall_tree(unit, where);
 }
 
 static tree_t rt_recall_decl(const char *name)

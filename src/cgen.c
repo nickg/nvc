@@ -60,7 +60,6 @@ DECLARE_AND_DEFINE_ARRAY(size_list)
 
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
-static LLVMValueRef   mod_name = NULL;   // XXX: Redundant??
 
 static LLVMValueRef cgen_support_fn(const char *name);
 
@@ -101,6 +100,11 @@ static LLVMTypeRef llvm_void_ptr(void)
    return LLVMPointerType(LLVMInt8Type(), 0);
 }
 
+static LLVMTypeRef llvm_char_ptr(void)
+{
+   return LLVMPointerType(LLVMInt8Type(), 0);
+}
+
 static LLVMTypeRef llvm_rt_loc(void)
 {
    LLVMTypeRef fields[] = {
@@ -108,7 +112,7 @@ static LLVMTypeRef llvm_rt_loc(void)
       LLVMInt32Type(),
       LLVMInt16Type(),
       LLVMInt16Type(),
-      LLVMPointerType(LLVMInt8Type(), 0)
+      llvm_char_ptr()
    };
    return LLVMStructType(fields, ARRAY_LEN(fields), false);
 }
@@ -528,6 +532,28 @@ static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
    LLVMValueRef tmp = LLVMBuildAlloca(builder, rt_loc, "loc");
    LLVMBuildStore(builder, init, tmp);
    return tmp;
+}
+
+static LLVMValueRef cgen_hint_str(int op)
+{
+   const char *hint = vcode_get_hint(op);
+   if (hint == NULL)
+      return LLVMConstNull(llvm_char_ptr());
+
+   const size_t len = strlen(hint);
+   LLVMTypeRef type = LLVMArrayType(LLVMInt8Type(), len + 1);
+
+   LLVMValueRef glob = LLVMAddGlobal(module, type, "");
+   LLVMSetGlobalConstant(glob, true);
+   LLVMSetLinkage(glob, LLVMPrivateLinkage);
+   LLVMSetUnnamedAddr(glob, true);
+   LLVMSetInitializer(glob, LLVMConstString(hint, len, false));
+
+   LLVMValueRef indexes[] = {
+      llvm_int32(0),
+      llvm_int32(0)
+   };
+   return LLVMBuildGEP(builder, glob, indexes, ARRAY_LEN(indexes), "");
 }
 
 static void cgen_op_return(int op, cgen_ctx_t *ctx)
@@ -1077,14 +1103,12 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
    }
 
    LLVMValueRef args[] = {
-      llvm_int32(vcode_get_index(op)),
-      LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), ""),
       value,
       min,
       max,
       llvm_int32(vcode_get_subkind(op)),
-      llvm_int32(vcode_get_hint(op)),
+      cgen_location(ctx),
+      cgen_hint_str(op),
    };
 
    LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
@@ -1138,14 +1162,12 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
    }
 
    LLVMValueRef args[] = {
-      llvm_int32(vcode_get_index(op)),
-      LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), ""),
       value,
       min,
       max,
       kind,
-      llvm_int32(vcode_get_hint(op)),
+      cgen_location(ctx),
+      cgen_hint_str(op),
    };
 
    LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
@@ -1266,8 +1288,6 @@ static void cgen_op_image(int op, cgen_ctx_t *ctx)
    LLVMValueRef iargs[] = {
       LLVMBuildCast(builder, cop, ctx->regs[arg], LLVMInt64Type(), ""),
       image_map,
-      LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), ""),
       res
    };
    LLVMBuildCall(builder, llvm_fn("_image"), iargs, ARRAY_LEN(iargs), "");
@@ -2083,7 +2103,7 @@ static void cgen_op_file_open(int op, cgen_ctx_t *ctx)
    if (vcode_count_args(op) == 5)
       status = cgen_get_arg(op, 4, ctx);
    else
-      status = LLVMConstNull(LLVMPointerType(LLVMInt8Type(), 0));
+      status = LLVMConstNull(llvm_char_ptr());
 
    LLVMValueRef args[] = { status, file, name, length, kind };
    LLVMBuildCall(builder, llvm_fn("_file_open"), args, ARRAY_LEN(args), "");
@@ -2344,17 +2364,13 @@ static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, fail_bb);
 
-   LLVMValueRef index = llvm_int32(vcode_get_index(op));
-
    LLVMValueRef args[] = {
-      index,
-      LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), ""),
       llvm_int32(0),
       llen,
       rlen,
       llvm_int32(BOUNDS_ARRAY_SIZE),
-      index
+      cgen_location(ctx),
+      LLVMConstNull(llvm_char_ptr())
    };
 
    LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
@@ -2384,9 +2400,6 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntSLT, high, low, "null");
 
-   LLVMValueRef ll_mod_name =
-      LLVMBuildPointerCast(builder, mod_name, llvm_void_ptr(), "");
-
    for (int i = 0; i < 2; i++) {
       LLVMValueRef value =
          LLVMBuildZExt(builder, cgen_get_arg(op, i, ctx), int32, "");
@@ -2407,16 +2420,13 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
 
       LLVMPositionBuilderAtEnd(builder, fail_bb);
 
-      LLVMValueRef index = llvm_int32(vcode_get_index(op));
-
       LLVMValueRef args[] = {
-         index,
-         ll_mod_name,
          value,
          min,
          max,
          llvm_int32(vcode_get_subkind(op)),
-         index
+         cgen_location(ctx),
+         LLVMConstNull(llvm_char_ptr())
       };
 
       LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args,
@@ -3445,7 +3455,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       LLVMTypeRef args[] = {
          LLVMInt64Type(),
          LLVMPointerType(llvm_image_map(), 0),
-         LLVMPointerType(LLVMInt8Type(), 0),
          LLVMPointerType(llvm_uarray_type(LLVMInt8Type(), 1), 0)
       };
       fn = LLVMAddFunction(module, "_image",
@@ -3559,12 +3568,11 @@ static LLVMValueRef cgen_support_fn(const char *name)
    else if (strcmp(name, "_bounds_fail") == 0) {
       LLVMTypeRef args[] = {
          LLVMInt32Type(),
-         LLVMPointerType(LLVMInt8Type(), 0),
          LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMInt32Type(),
-         LLVMInt32Type(),
-         LLVMInt32Type()
+         LLVMPointerType(llvm_rt_loc(), 0),
+         llvm_char_ptr()
       };
       fn = LLVMAddFunction(module, "_bounds_fail",
                            LLVMFunctionType(LLVMVoidType(),
@@ -3659,22 +3667,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
    return fn;
 }
 
-static void cgen_module_name(tree_t top)
-{
-   const char *name_str = istr(tree_ident(top));
-
-   size_t len = strlen(name_str);
-   LLVMValueRef chars[len + 1];
-   llvm_str(chars, len + 1, name_str);
-
-   mod_name = LLVMAddGlobal(module,
-                            LLVMArrayType(LLVMInt8Type(), len + 1),
-                            "module_name");
-   LLVMSetInitializer(mod_name,
-                      LLVMConstArray(LLVMInt8Type(), chars, len + 1));
-   LLVMSetLinkage(mod_name, LLVMPrivateLinkage);
-}
-
 static void cgen_tmp_stack(void)
 {
    LLVMValueRef _tmp_stack =
@@ -3695,7 +3687,6 @@ void cgen(tree_t top, vcode_unit_t vcode)
    module = LLVMModuleCreateWithName(istr(tree_ident(top)));
    builder = LLVMCreateBuilder();
 
-   cgen_module_name(top);
    cgen_tmp_stack();
 
    cgen_top(top, vcode);
