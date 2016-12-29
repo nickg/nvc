@@ -43,8 +43,8 @@ nvc.1: nvc.1.md
 endif
 
 gtags:
-	find $(abs_srcdir) -name '*.[chl]' -print > .gtags.files
-	cd $(top_srcdir) && gtags -f $(abs_builddir)/.gtags.files
+	find $(abs_srcdir) -name '*.[chl]' -print \
+	  | (cd $(top_srcdir) && gtags -f -)
 
 clean-local: clean-libs clean-test
 
