@@ -91,6 +91,11 @@ AC_DEFUN([AX_LLVM_C],
                         [LLVM mangles symbol names])
                 fi
 
+                if test "$llvm_ver_num" -ge "35"; then
+                    AC_DEFINE_UNQUOTED(LLVM_HAS_SET_UNNAMED, [1],
+                        [LLVM has the LLVMSetUnnamedAddr function])
+                fi
+
                 if test "$llvm_ver_num" -ge "36"; then
                     AC_DEFINE_UNQUOTED(LLVM_HAS_MCJIT, [1],
                         [LLVM uses MCJIT instead of old JIT])

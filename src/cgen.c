@@ -508,7 +508,9 @@ static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
       LLVMSetGlobalConstant(file_name, true);
       LLVMSetInitializer(file_name, LLVMConstString(name_str, len, false));
       LLVMSetLinkage(file_name, LLVMPrivateLinkage);
+#ifdef LLVM_HAS_SET_UNNAMED
       LLVMSetUnnamedAddr(file_name, true);
+#endif
    }
 
    LLVMTypeRef rt_loc = llvm_rt_loc();
@@ -542,8 +544,10 @@ static LLVMValueRef cgen_hint_str(int op)
    LLVMValueRef glob = LLVMAddGlobal(module, type, "");
    LLVMSetGlobalConstant(glob, true);
    LLVMSetLinkage(glob, LLVMPrivateLinkage);
-   LLVMSetUnnamedAddr(glob, true);
    LLVMSetInitializer(glob, LLVMConstString(hint, len, false));
+#ifdef LLVM_HAS_SET_UNNAMED
+   LLVMSetUnnamedAddr(glob, true);
+#endif
 
    return cgen_array_pointer(glob);
 }
@@ -651,7 +655,9 @@ static void cgen_op_const_array(int op, cgen_ctx_t *ctx)
       LLVMValueRef global = LLVMAddGlobal(module, array_type, name);
       LLVMSetLinkage(global, LLVMInternalLinkage);
       LLVMSetGlobalConstant(global, true);
+#ifdef LLVM_HAS_SET_UNNAMED
       LLVMSetUnnamedAddr(global, true);
+#endif
 
       LLVMValueRef init = LLVMConstArray(elem_type, tmp, length);
       LLVMSetInitializer(global, init);
@@ -748,7 +754,9 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
          LLVMSetInitializer(global, init);
          LLVMSetLinkage(global, LLVMInternalLinkage);
          LLVMSetGlobalConstant(global, true);
+#if LLVM_HAS_SET_UNNAMED
          LLVMSetUnnamedAddr(global, true);
+#endif
       }
 
       length = llvm_int32(def_len);
@@ -1712,7 +1720,9 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
       LLVMSetGlobalConstant(name_ll, true);
       LLVMSetInitializer(name_ll, LLVMConstString(sig_name, len, false));
       LLVMSetLinkage(name_ll, LLVMPrivateLinkage);
+#ifdef LLVM_HAS_SET_UNNAMED
       LLVMSetUnnamedAddr(name_ll, true);
+#endif
    }
 
    LLVMValueRef args[] = {
@@ -3288,7 +3298,9 @@ static void cgen_signals(void)
          if (nnets <= MAX_STATIC_NETS) {
             // Generate a constant mapping table from sub-element to net ID
             LLVMSetGlobalConstant(map_var, true);
+#ifdef LLVM_HAS_SET_UNNAMED
             LLVMSetUnnamedAddr(map_var, true);
+#endif
 
             LLVMValueRef *init = xmalloc(sizeof(LLVMValueRef) * nnets);
             for (int i = 0; i < nnets; i++)
