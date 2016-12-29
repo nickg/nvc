@@ -148,12 +148,6 @@ static LLVMValueRef llvm_fn(const char *name)
    return fn;
 }
 
-static void llvm_str(LLVMValueRef *chars, size_t n, const char *str)
-{
-   for (size_t i = 0; i < n; i++)
-      chars[i] = llvm_int8(*str ? *(str++) : '\0');
-}
-
 static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
 {
    // Unconstrained arrays are represented by a structure
@@ -507,18 +501,14 @@ static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
          fatal_trace("missing location information");
 
       const char *name_str = istr(ctx->last_loc.file);
-
-      size_t len = strlen(name_str);
-      LLVMValueRef chars[len + 1];
-      llvm_str(chars, len + 1, name_str);
-
+      const size_t len = strlen(name_str);
       file_name = LLVMAddGlobal(module,
                                 LLVMArrayType(LLVMInt8Type(), len + 1),
                                 "file_name");
       LLVMSetGlobalConstant(file_name, true);
-      LLVMSetInitializer(file_name,
-                         LLVMConstArray(LLVMInt8Type(), chars, len + 1));
+      LLVMSetInitializer(file_name, LLVMConstString(name_str, len, false));
       LLVMSetLinkage(file_name, LLVMPrivateLinkage);
+      LLVMSetUnnamedAddr(file_name, true);
    }
 
    LLVMTypeRef rt_loc = llvm_rt_loc();
@@ -532,7 +522,8 @@ static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
                                llvm_int16(ctx->last_loc.first_column), 2, "");
    init = LLVMBuildInsertValue(builder, init,
                                llvm_int16(ctx->last_loc.last_column), 3, "");
-   init = LLVMBuildInsertValue(builder, init, file_name, 4, "");
+   init = LLVMBuildInsertValue(builder, init,
+                               cgen_array_pointer(file_name), 4, "");
 
    LLVMValueRef tmp = LLVMBuildAlloca(builder, rt_loc, "loc");
    LLVMBuildStore(builder, init, tmp);
@@ -660,6 +651,7 @@ static void cgen_op_const_array(int op, cgen_ctx_t *ctx)
       LLVMValueRef global = LLVMAddGlobal(module, array_type, name);
       LLVMSetLinkage(global, LLVMInternalLinkage);
       LLVMSetGlobalConstant(global, true);
+      LLVMSetUnnamedAddr(global, true);
 
       LLVMValueRef init = LLVMConstArray(elem_type, tmp, length);
       LLVMSetInitializer(global, init);
@@ -1198,22 +1190,20 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
       LLVMSetGlobalConstant(elems_glob, true);
       LLVMSetLinkage(elems_glob, LLVMLinkOnceAnyLinkage);
 
-      LLVMValueRef *strings = xmalloc(sizeof(LLVMValueRef) * total_chars);
+      char *strings LOCAL = xmalloc(total_chars);
       for (size_t i = 0; i < map.nelems; i++) {
          const size_t tlen = ident_len(map.elems[i]);
          for (size_t j = 0; j < max_len + 1; j++) {
             const size_t off = (i * (max_len + 1)) + j;
             if (j < tlen)
-               strings[off] = llvm_int8(ident_char(map.elems[i], tlen - j - 1));
+               strings[off] = ident_char(map.elems[i], tlen - j - 1);
             else
-               strings[off] = llvm_int8(0);
+               strings[off] = '\0';
          }
       }
 
-      LLVMValueRef init = LLVMConstArray(array_type, strings, total_chars);
+      LLVMValueRef init = LLVMConstString(strings, total_chars, true);
       LLVMSetInitializer(elems_glob, init);
-
-      free(strings);
    }
 
    LLVMValueRef elems_ptr = cgen_array_pointer(elems_glob);
@@ -1716,16 +1706,13 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
    LLVMValueRef name_ll = LLVMGetNamedGlobal(module, global_name);
    if (name_ll == NULL) {
       const size_t len = strlen(sig_name);
-      LLVMValueRef name_chars[len + 1];
-      llvm_str(name_chars, len + 1, sig_name);
-
       name_ll = LLVMAddGlobal(module,
                               LLVMArrayType(LLVMInt8Type(), len + 1),
                               global_name);
       LLVMSetGlobalConstant(name_ll, true);
-      LLVMSetInitializer(name_ll,
-                         LLVMConstArray(LLVMInt8Type(), name_chars, len + 1));
+      LLVMSetInitializer(name_ll, LLVMConstString(sig_name, len, false));
       LLVMSetLinkage(name_ll, LLVMPrivateLinkage);
+      LLVMSetUnnamedAddr(name_ll, true);
    }
 
    LLVMValueRef args[] = {
@@ -3301,6 +3288,7 @@ static void cgen_signals(void)
          if (nnets <= MAX_STATIC_NETS) {
             // Generate a constant mapping table from sub-element to net ID
             LLVMSetGlobalConstant(map_var, true);
+            LLVMSetUnnamedAddr(map_var, true);
 
             LLVMValueRef *init = xmalloc(sizeof(LLVMValueRef) * nnets);
             for (int i = 0; i < nnets; i++)
