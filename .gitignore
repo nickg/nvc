@@ -45,6 +45,7 @@ GTAGS
 .bootstrapped
 .dirstamp
 bin/
+.gtags.files
 
 # IEEE sources cannot be freely redistributed
 lib/ieee/*.vhdl

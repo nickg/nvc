@@ -42,6 +42,10 @@ nvc.1: nvc.1.md
 	$(AM_V_GEN)ronn --roff $(top_srcdir)/nvc.1.md --manual="NVC Manual"
 endif
 
+gtags:
+	find $(abs_srcdir) -name '*.[chl]' -print > .gtags.files
+	cd $(top_srcdir) && gtags -f $(abs_builddir)/.gtags.files
+
 clean-local: clean-libs clean-test
 
-.PHONY: bootstrap cov-reset cov-report clean-libs clean-test
+.PHONY: bootstrap cov-reset cov-report clean-libs clean-test gtags
