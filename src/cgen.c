@@ -465,6 +465,15 @@ static LLVMValueRef cgen_display_struct(cgen_ctx_t *ctx, int hops)
    return result;
 }
 
+static LLVMValueRef cgen_array_pointer(LLVMValueRef array)
+{
+   LLVMValueRef indexes[] = {
+      llvm_int32(0),
+      llvm_int32(0)
+   };
+   return LLVMBuildGEP(builder, array, indexes, ARRAY_LEN(indexes), "");
+}
+
 static void cgen_sched_process(LLVMValueRef after)
 {
    LLVMValueRef args[] = { after };
@@ -487,11 +496,7 @@ static LLVMValueRef cgen_signal_nets(vcode_signal_t sig)
    LLVMValueRef nets = LLVMGetNamedGlobal(module, buf);
    assert(nets);
 
-   LLVMValueRef indexes[] = {
-      llvm_int32(0),
-      llvm_int32(0)
-   };
-   return LLVMBuildGEP(builder, nets, indexes, ARRAY_LEN(indexes), "");
+   return cgen_array_pointer(nets);
 }
 
 static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
@@ -549,11 +554,7 @@ static LLVMValueRef cgen_hint_str(int op)
    LLVMSetUnnamedAddr(glob, true);
    LLVMSetInitializer(glob, LLVMConstString(hint, len, false));
 
-   LLVMValueRef indexes[] = {
-      llvm_int32(0),
-      llvm_int32(0)
-   };
-   return LLVMBuildGEP(builder, glob, indexes, ARRAY_LEN(indexes), "");
+   return cgen_array_pointer(glob);
 }
 
 static void cgen_op_return(int op, cgen_ctx_t *ctx)
@@ -663,9 +664,8 @@ static void cgen_op_const_array(int op, cgen_ctx_t *ctx)
       LLVMValueRef init = LLVMConstArray(elem_type, tmp, length);
       LLVMSetInitializer(global, init);
 
-      LLVMValueRef index[] = { llvm_int32(0), llvm_int32(0) };
-      ctx->regs[result] = LLVMBuildGEP(builder, global, index, ARRAY_LEN(index),
-                                       cgen_reg_name(result));
+      ctx->regs[result] = cgen_array_pointer(global);
+      LLVMSetValueName(ctx->regs[result], cgen_reg_name(result));
    }
    else
       ctx->regs[result] = LLVMConstArray(cgen_type(vtype_elem(type)),
@@ -756,12 +756,12 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
          LLVMSetInitializer(global, init);
          LLVMSetLinkage(global, LLVMInternalLinkage);
          LLVMSetGlobalConstant(global, true);
+         LLVMSetUnnamedAddr(global, true);
       }
 
       length = llvm_int32(def_len);
 
-      LLVMValueRef index[] = { llvm_int32(0), llvm_int32(0) };
-      message = LLVMBuildGEP(builder, global, index, ARRAY_LEN(index), "");
+      message = cgen_array_pointer(global);
    }
    else {
       message = cgen_get_arg(op, 2, ctx);
@@ -1216,10 +1216,12 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
       free(strings);
    }
 
-   LLVMValueRef values_glob = NULL;
+   LLVMValueRef elems_ptr = cgen_array_pointer(elems_glob);
+
+   LLVMValueRef values_ptr = NULL;
    if (map.values != NULL) {
       ident_t values_name = ident_prefix(map.name, ident_new("values"), '.');
-      values_glob = LLVMGetNamedGlobal(module, istr(values_name));
+      LLVMValueRef values_glob = LLVMGetNamedGlobal(module, istr(values_name));
       if (values_glob == NULL) {
          LLVMTypeRef array_type = LLVMArrayType(LLVMInt64Type(), map.nelems);
          values_glob = LLVMAddGlobal(module, array_type, istr(values_name));
@@ -1235,20 +1237,17 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
 
          free(lvalues);
       }
+
+      values_ptr = cgen_array_pointer(values_glob);
    }
    else
-      values_glob = LLVMConstNull(LLVMPointerType(LLVMInt64Type(), 0));
-
-   LLVMValueRef zero_index[] = { llvm_int32(0)/*, llvm_int32(0)*/ };
-   LLVMValueRef elems_ptr =
-      LLVMBuildGEP(builder, elems_glob, zero_index, ARRAY_LEN(zero_index), "");
-   // XXX: check with asserts build???? Not needed?
+      values_ptr = LLVMConstNull(LLVMPointerType(LLVMInt64Type(), 0));
 
    LLVMValueRef lmap = LLVMGetUndef(llvm_image_map());
    lmap = LLVMBuildInsertValue(builder, lmap, llvm_int32(map.kind), 0, "");
    lmap = LLVMBuildInsertValue(builder, lmap, llvm_int32(max_len + 1), 1, "");
    lmap = LLVMBuildInsertValue(builder, lmap, elems_ptr, 2, "");
-   lmap = LLVMBuildInsertValue(builder, lmap, values_glob, 3, "");
+   lmap = LLVMBuildInsertValue(builder, lmap, values_ptr, 3, "");
    lmap = LLVMBuildInsertValue(builder, lmap, llvm_int32(map.nelems), 4, "");
 
    vcode_reg_t result = vcode_get_result(op);
@@ -1834,14 +1833,8 @@ static void cgen_op_record_ref(int op, cgen_ctx_t *ctx)
                                           cgen_reg_name(result));
 
    LLVMTypeRef field_type = LLVMGetElementType(LLVMTypeOf(ctx->regs[result]));
-   if (LLVMGetTypeKind(field_type) == LLVMArrayTypeKind) {
-      LLVMValueRef indexes[] = {
-         llvm_int32(0),
-         llvm_int32(0)
-      };
-      ctx->regs[result] = LLVMBuildGEP(builder, ctx->regs[result], indexes,
-                                       ARRAY_LEN(indexes), "");
-   }
+   if (LLVMGetTypeKind(field_type) == LLVMArrayTypeKind)
+      ctx->regs[result] = cgen_array_pointer(ctx->regs[result]);
 }
 
 static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
@@ -2272,12 +2265,7 @@ static void cgen_op_needs_last_value(int op, cgen_ctx_t *ctx)
    LLVMValueRef nets_array = LLVMGetNamedGlobal(module, buf);
    assert(nets_array);
 
-   LLVMValueRef indexes[] = {
-      llvm_int32(0),
-      llvm_int32(0)
-   };
-   LLVMValueRef nets = LLVMBuildGEP(builder, nets_array, indexes,
-                                    ARRAY_LEN(indexes), "");
+   LLVMValueRef nets = cgen_array_pointer(nets_array);
 
    LLVMValueRef args[] = {
       nets,

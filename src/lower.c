@@ -4270,15 +4270,6 @@ static void lower_file_decl(tree_t decl)
    }
 }
 
-static void lower_type_decl(tree_t decl)
-{
-   return;
-   type_t type = tree_type(decl);
-   if (type_is_record(type)) {
-      assert(false);
-   }
-}
-
 static void lower_decl(tree_t decl)
 {
    switch (tree_kind(decl)) {
@@ -4299,11 +4290,8 @@ static void lower_decl(tree_t decl)
       lower_file_decl(decl);
       break;
 
-   case T_TYPE_DECL:
-      lower_type_decl(decl);
-      break;
-
    case T_HIER:
+   case T_TYPE_DECL:
    case T_ALIAS:
    case T_FUNC_DECL:
    case T_PROC_DECL:
