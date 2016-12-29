@@ -4896,8 +4896,7 @@ void vcode_write(vcode_unit_t unit, fbuf_t *f)
    ident_write_end(ident_wr_ctx);
 }
 
-static bool vcode_read_unit(fbuf_t *f, tree_rd_ctx_t tree_ctx,
-                            ident_rd_ctx_t ident_rd_ctx)
+static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx)
 {
    const uint8_t marker = read_u8(f);
    if (marker == 0xff)
@@ -5074,7 +5073,7 @@ static bool vcode_read_unit(fbuf_t *f, tree_rd_ctx_t tree_ctx,
    return true;
 }
 
-void vcode_read(fbuf_t *f, tree_rd_ctx_t tree_ctx)
+void vcode_read(fbuf_t *f)
 {
    if (read_u32(f) != VCODE_MAGIC)
       fatal("%s has invalid vcode header", fbuf_file_name(f));
@@ -5086,7 +5085,7 @@ void vcode_read(fbuf_t *f, tree_rd_ctx_t tree_ctx)
 
    ident_rd_ctx_t ident_rd_ctx = ident_read_begin(f);
 
-   while (vcode_read_unit(f, tree_ctx, ident_rd_ctx))
+   while (vcode_read_unit(f, ident_rd_ctx))
       ;
 
    ident_read_end(ident_rd_ctx);

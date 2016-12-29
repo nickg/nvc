@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -52,7 +52,6 @@ void lib_set_work(lib_t lib);
 
 void lib_put(lib_t lib, tree_t unit);
 tree_t lib_get(lib_t lib, ident_t ident);
-tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx);
 tree_t lib_get_check_stale(lib_t lib, ident_t ident);
 lib_mtime_t lib_mtime(lib_t lib, ident_t ident);
 unsigned lib_index_size(lib_t lib);

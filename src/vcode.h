@@ -243,7 +243,7 @@ vcode_unit_t vcode_active_unit(void);
 vcode_unit_t vcode_unit_context(void);
 
 void vcode_write(vcode_unit_t unit, fbuf_t *fbuf);
-void vcode_read(fbuf_t *fbuf, tree_rd_ctx_t tree_ctx);
+void vcode_read(fbuf_t *fbuf);
 
 void vcode_state_save(vcode_state_t *state);
 void vcode_state_restore(const vcode_state_t *state);

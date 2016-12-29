@@ -667,8 +667,7 @@ static void eval_op_abs(int op, eval_state_t *state)
    }
 }
 
-static void eval_load_vcode(lib_t lib, tree_t unit, tree_rd_ctx_t tree_ctx,
-                            eval_state_t *state)
+static void eval_load_vcode(lib_t lib, tree_t unit, eval_state_t *state)
 {
    ident_t unit_name = tree_ident(unit);
 
@@ -682,7 +681,7 @@ static void eval_load_vcode(lib_t lib, tree_t unit, tree_rd_ctx_t tree_ctx,
       return;
    }
 
-   vcode_read(f, tree_ctx);
+   vcode_read(f);
    fbuf_close(f);
 }
 
@@ -705,17 +704,16 @@ static void eval_op_fcall(int op, eval_state_t *state)
 
       lib_t lib;
       if (lib_name != unit_name && (lib = lib_find(lib_name, false)) != NULL) {
-         tree_rd_ctx_t tree_ctx;
-         tree_t unit = lib_get_ctx(lib, unit_name, &tree_ctx);
+         tree_t unit = lib_get(lib, unit_name);
          if (unit != NULL) {
-            eval_load_vcode(lib, unit, tree_ctx, state);
+            eval_load_vcode(lib, unit, state);
 
             if (tree_kind(unit) == T_PACKAGE) {
                ident_t body_name =
                   ident_prefix(unit_name, ident_new("body"), '-');
-               tree_t body = lib_get_ctx(lib, body_name, &tree_ctx);
+               tree_t body = lib_get(lib, body_name);
                if (body != NULL)
-                  eval_load_vcode(lib, body, tree_ctx, state);
+                  eval_load_vcode(lib, body, state);
             }
 
             vcode = vcode_find_unit(func_name);

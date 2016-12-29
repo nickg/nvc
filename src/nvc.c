@@ -518,8 +518,7 @@ static int run(int argc, char **argv)
    set_top_level(argv, next_cmd);
 
    ident_t ename = ident_prefix(top_level, ident_new("elab"), '.');
-   tree_rd_ctx_t ctx;
-   tree_t e = lib_get_ctx(lib_work(), ename, &ctx);
+   tree_t e = lib_get(lib_work(), ename);
    if (e == NULL)
       fatal("%s not elaborated", istr(top_level));
    else if (tree_kind(e) != T_ELAB)
@@ -551,7 +550,7 @@ static int run(int argc, char **argv)
       }
    }
 
-   rt_start_of_tool(e, ctx);
+   rt_start_of_tool(e);
 
    if (vhpi_plugins != NULL)
       vhpi_load_plugins(e, vhpi_plugins);
@@ -559,12 +558,11 @@ static int run(int argc, char **argv)
    rt_restart(e);
 
    if (mode == COMMAND)
-      shell_run(e, ctx);
+      shell_run(e);
    else
       rt_run_sim(stop_time);
 
    rt_end_of_tool(e);
-   tree_read_end(ctx);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

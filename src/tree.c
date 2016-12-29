@@ -1035,11 +1035,6 @@ void tree_write_end(tree_wr_ctx_t ctx)
    object_write_end((object_wr_ctx_t *)ctx);
 }
 
-fbuf_t *tree_write_file(tree_wr_ctx_t ctx)
-{
-   return object_write_file((object_wr_ctx_t *)ctx);
-}
-
 void tree_write(tree_t t, tree_wr_ctx_t ctx)
 {
    object_write(&(t->object), (object_wr_ctx_t *)ctx);
@@ -1055,24 +1050,9 @@ tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname)
    return (tree_rd_ctx_t)object_read_begin(f, fname);
 }
 
-tree_rd_ctx_t tree_read_recover(tree_t t, const char *name)
-{
-   return (tree_rd_ctx_t)object_read_recover(&(t->object), name);
-}
-
 void tree_read_end(tree_rd_ctx_t ctx)
 {
    object_read_end((object_rd_ctx_t *)ctx);
-}
-
-fbuf_t *tree_read_file(tree_rd_ctx_t ctx)
-{
-   return object_read_file((object_rd_ctx_t *)ctx);
-}
-
-tree_t tree_read_recall(tree_rd_ctx_t ctx, uint32_t index)
-{
-   return (tree_t)object_read_recall((object_rd_ctx_t *)ctx, index);
 }
 
 static attr_t *tree_find_attr(tree_t t, ident_t name, attr_kind_t kind)

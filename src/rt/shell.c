@@ -497,7 +497,7 @@ static int compare_shell_cmd(const void *a, const void *b)
    return strcmp(((shell_cmd_t *)a)->name, ((shell_cmd_t *)b)->name);
 }
 
-void shell_run(tree_t e, struct tree_rd_ctx *ctx)
+void shell_run(tree_t e)
 {
    const int ndecls = tree_decls(e);
    hash_t *decl_hash = hash_new(ndecls * 2, true);

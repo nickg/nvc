@@ -308,9 +308,6 @@ void tree_change_net(tree_t t, unsigned n, netid_t i);
 tree_flags_t tree_flags(tree_t t);
 void tree_set_flag(tree_t t, tree_flags_t mask);
 
-uint32_t tree_index(tree_t t);
-bool tree_has_index(tree_t t);
-
 void tree_add_attr_str(tree_t t, ident_t name, ident_t str);
 ident_t tree_attr_str(tree_t t, ident_t name);
 void tree_add_attr_int(tree_t t, ident_t name, int n);
@@ -337,13 +334,9 @@ void tree_gc(void);
 tree_wr_ctx_t tree_write_begin(fbuf_t *f);
 void tree_write(tree_t t, tree_wr_ctx_t ctx);
 void tree_write_end(tree_wr_ctx_t ctx);
-fbuf_t *tree_write_file(tree_wr_ctx_t ctx);
 
 tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *name);
-tree_rd_ctx_t tree_read_recover(tree_t t, const char *name);
 tree_t tree_read(tree_rd_ctx_t ctx);
 void tree_read_end(tree_rd_ctx_t ctx);
-fbuf_t *tree_read_file(tree_rd_ctx_t ctx);
-tree_t tree_read_recall(tree_rd_ctx_t ctx, uint32_t index);
 
 #endif  // _TREE_H

@@ -129,16 +129,6 @@ type_kind_t type_kind(type_t t)
    return t->object.kind;
 }
 
-uint32_t type_index(type_t t)
-{
-   return object_index(&(t->object));
-}
-
-bool type_has_index(type_t t)
-{
-   return object_has_index(&(t->object));
-}
-
 bool type_eq(type_t a, type_t b)
 {
    assert(a != NULL);
@@ -765,9 +755,4 @@ unsigned type_width(type_t type)
    }
    else
       return 1;
-}
-
-type_t type_read_recall(tree_rd_ctx_t ctx, uint32_t index)
-{
-   return (type_t)object_read_recall((object_rd_ctx_t *)ctx, index);
 }

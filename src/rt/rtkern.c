@@ -143,14 +143,6 @@ struct uarray {
    } dims[1];
 };
 
-// XXX: remove this
-struct loaded {
-   const char    *name;
-   tree_rd_ctx_t  read_ctx;
-   struct loaded *next;
-   tree_t         unit;
-};
-
 struct run_queue {
    event_t **queue;
    size_t    wr, rd;
@@ -225,7 +217,6 @@ static size_t        n_procs = 0;
 static uint64_t      now = 0;
 static int           iteration = -1;
 static bool          trace_on = false;
-static tree_rd_ctx_t tree_rd_ctx = NULL;
 static nvc_rusage_t  ready_rusage;
 static jmp_buf       fatal_jmp;
 static bool          aborted = false;
@@ -2241,10 +2232,8 @@ static void rt_interrupt(void)
       fatal("interrupted");
 }
 
-void rt_start_of_tool(tree_t top, tree_rd_ctx_t ctx)
+void rt_start_of_tool(tree_t top)
 {
-   tree_rd_ctx = ctx;
-
    jit_init(top);
 
    struct sigaction sa;

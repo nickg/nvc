@@ -97,7 +97,7 @@ typedef enum {
    SEVERITY_FAILURE
 } rt_severity_t;
 
-void rt_start_of_tool(tree_t top, tree_rd_ctx_t ctx);
+void rt_start_of_tool(tree_t top);
 void rt_end_of_tool(tree_t top);
 void rt_run_sim(uint64_t stop_time);
 void rt_run_interactive(uint64_t stop_time);
@@ -123,7 +123,7 @@ void *jit_fun_ptr(const char *name, bool required);
 void *jit_var_ptr(const char *name, bool required);
 void jit_bind_fn(const char *name, void *ptr);
 
-void shell_run(tree_t top, tree_rd_ctx_t ctx);
+void shell_run(tree_t top);
 
 text_buf_t *pprint(struct tree *t, const uint64_t *values, size_t len);
 
