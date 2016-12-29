@@ -230,7 +230,7 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
 
    case VCODE_TYPE_RECORD:
       {
-         char *name LOCAL = vtype_record_name(type);
+         const char *name = istr(vtype_record_name(type));
          LLVMTypeRef lltype = LLVMGetTypeByName(module, name);
          if (lltype != NULL)
             return lltype;

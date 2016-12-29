@@ -149,7 +149,6 @@ typedef struct {
       vcode_type_t base;
       struct {
          ident_t            name;
-         vcode_bookmark_t   uniq;
          vcode_type_array_t fields;
       };
    };
@@ -239,7 +238,7 @@ struct vcode_unit {
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
 #define VCODE_MAGIC        0x76636f64
-#define VCODE_VERSION      4
+#define VCODE_VERSION      5
 #define VCODE_CHECK_UNIONS 0
 
 static vcode_unit_t  active_unit = NULL;
@@ -1137,10 +1136,7 @@ static void vcode_dump_one_type(vcode_type_t type)
       break;
 
    case VCODE_TYPE_RECORD:
-      {
-         char *name LOCAL = vtype_record_name(type);
-         printf("%s{}", name);
-      }
+      printf("%s{}", istr(vt->name));
       break;
 
    case VCODE_TYPE_FILE:
@@ -1226,11 +1222,7 @@ void vcode_dump(void)
       const vtype_t *t = &(vu->types.items[i]);
       if (t->kind == VCODE_TYPE_RECORD) {
          int col = 0;
-         if (t->uniq.type != NULL && type_has_index(t->uniq.type))
-            col += color_printf("  $magenta$%s.%u$$", istr(t->name),
-                                type_index(t->uniq.type));
-         else
-            col += color_printf("  $magenta$%s$$", istr(t->name));
+         col += color_printf("  $magenta$%s$$", istr(t->name));
          vcode_dump_tab(col, 40);
          color_printf("$cyan${");
          for (unsigned i = 0; i < t->fields.count; i++) {
@@ -2188,7 +2180,7 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       case VCODE_TYPE_FILE:
          return vtype_eq(at->base, bt->base);
       case VCODE_TYPE_RECORD:
-         return at->name == bt->name && at->uniq.type == bt->uniq.type;
+         return at->name == bt->name;
       case VCODE_TYPE_IMAGE_MAP:
          return false;
       }
@@ -2284,28 +2276,45 @@ vcode_type_t vtype_carray(int size, vcode_type_t elem, vcode_type_t bounds)
    return vtype_new(n);
 }
 
-vcode_type_t vtype_named_record(ident_t name, vcode_bookmark_t uniq, bool create)
+vcode_type_t vtype_find_named_record(ident_t name)
 {
    assert(active_unit != NULL);
 
    for (int i = 0; i < active_unit->types.count; i++) {
       vtype_t *other = &(active_unit->types.items[i]);
-      if (other->kind == VCODE_TYPE_RECORD && other->name == name
-          && other->uniq.type == uniq.type)
+      if (other->kind == VCODE_TYPE_RECORD && other->name == name)
          return MAKE_HANDLE(active_unit->depth, i);
    }
 
-   if (create) {
-      vtype_t *n = vtype_array_alloc(&(active_unit->types));
-      memset(n, '\0', sizeof(vtype_t));
-      n->kind = VCODE_TYPE_RECORD;
-      n->name = name;
-      n->uniq = uniq;
+   return VCODE_INVALID_TYPE;
+}
 
-      return vtype_new(n);
+vcode_type_t vtype_named_record(ident_t name, const vcode_type_t *field_types,
+                                int nfields)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *data = NULL;
+   vcode_type_t handle = vtype_find_named_record(name);
+   if (handle == VCODE_INVALID_TYPE) {
+      data = vtype_array_alloc(&(active_unit->types));
+      memset(data, '\0', sizeof(vtype_t));
+      data->kind = VCODE_TYPE_RECORD;
+      data->name = name;
+
+      handle = vtype_new(data);
    }
-   else
-      return VCODE_INVALID_TYPE;
+   else {
+      data = vcode_type_data(handle);
+      VCODE_ASSERT(data->fields.count == 0,
+                    "record type %s already defined", istr(name));
+   }
+
+   vcode_type_array_resize(&(data->fields), 0, VCODE_INVALID_TYPE);
+   for (int i = 0; i < nfields; i++)
+      vcode_type_array_add(&(data->fields), field_types[i]);
+
+   return handle;
 }
 
 vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
@@ -2470,26 +2479,11 @@ vcode_type_t vtype_field(vcode_type_t type, int field)
    return vcode_type_array_nth(&(vt->fields), field);
 }
 
-void vtype_set_record_fields(vcode_type_t type, const vcode_type_t *field_types,
-                             int nfields)
-{
-   vtype_t *n = vcode_type_data(type);
-
-   if (n->fields.count > 0)
-      vcode_type_array_resize(&(n->fields), 0, VCODE_INVALID_TYPE);
-
-   for (int i = 0; i < nfields; i++)
-      vcode_type_array_add(&(n->fields), field_types[i]);
-}
-
-char *vtype_record_name(vcode_type_t type)
+ident_t vtype_record_name(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
    assert(vt->kind == VCODE_TYPE_RECORD);
-   if (vt->uniq.type != NULL && type_has_index(vt->uniq.type))
-      return xasprintf("%s.%u", istr(vt->name), type_index(vt->uniq.type));
-   else
-      return xasprintf("%s", istr(vt->name));
+   return vt->name;
 }
 
 vcode_type_t vtype_pointed(vcode_type_t type)
@@ -4870,10 +4864,6 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
 
       case VCODE_TYPE_RECORD:
          ident_write(t->name, ident_wr_ctx);
-         if (t->uniq.type)
-            write_u32(type_index(t->uniq.type), f);
-         else
-            write_u32(0, f);
          write_u32(t->fields.count, f);
          for (unsigned j = 0; j < t->fields.count; j++)
             write_u32(t->fields.items[j], f);
@@ -5067,11 +5057,6 @@ static bool vcode_read_unit(fbuf_t *f, tree_rd_ctx_t tree_ctx,
       case VCODE_TYPE_RECORD:
          {
             t->name = ident_read(ident_rd_ctx);
-            const uint32_t index = read_u32(f);
-            if (index != 0)
-               t->uniq.type = type_read_recall(tree_ctx, index);
-            else
-               t->uniq.type = NULL;
             vcode_type_array_resize(&(t->fields), read_u32(f), 0);
             for (unsigned j = 0; j < t->fields.count; j++)
                t->fields.items[j] = read_u32(f);

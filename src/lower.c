@@ -332,15 +332,18 @@ static vcode_type_t lower_array_type(type_t type)
       return vtype_uarray(array_dimension(type), elem_type, elem_bounds);
 }
 
-static vcode_bookmark_t lower_record_bookmark(type_t type)
+static ident_t lower_record_unique_name(type_t type)
 {
    // If a record type is not qualified with a package name then add a unique
-   // index to its type name to avoid collisions
-   vcode_bookmark_t uniq = { .type = NULL };
+   // suffix to its type name to avoid collisions
    ident_t name = type_ident(type);
-   if (ident_until(name, '.') == name && type_has_index(type))
-      uniq.type = type;
-   return uniq;
+   if (ident_until(name, '.') == name) {
+      char buf[32];
+      checked_sprintf(buf, sizeof(buf), "%"PRIxPTR, (uintptr_t)type);
+      return ident_prefix(name, ident_new(buf), '@');
+   }
+   else
+      return name;
 }
 
 static vcode_type_t lower_type(type_t type)
@@ -373,18 +376,17 @@ static vcode_type_t lower_type(type_t type)
 
    case T_RECORD:
       {
-         ident_t name = type_ident(type);
-         vcode_bookmark_t uniq = lower_record_bookmark(type);
-         vcode_type_t record = vtype_named_record(name, uniq, false);
+         ident_t name = lower_record_unique_name(type);
+         vcode_type_t record = vtype_find_named_record(name);
          if (record == VCODE_INVALID_TYPE) {
-            record = vtype_named_record(name, uniq, true);
+            vtype_named_record(name, NULL, 0);  // Forward-declare the name
 
             const int nfields = type_fields(type);
             vcode_type_t fields[nfields];
             for (int i = 0; i < nfields; i++)
                fields[i] = lower_type(tree_type(type_field(type, i)));
 
-            vtype_set_record_fields(record, fields, nfields);
+            record = vtype_named_record(name, fields, nfields);
          }
 
          return record;
@@ -392,12 +394,9 @@ static vcode_type_t lower_type(type_t type)
 
    case T_PROTECTED:
       {
-         ident_t name = type_ident(type);
-         vcode_bookmark_t uniq = lower_record_bookmark(type);
-         vcode_type_t record = vtype_named_record(name, uniq, false);
+         ident_t name = lower_record_unique_name(type);
+         vcode_type_t record = vtype_find_named_record(name);
          if (record == VCODE_INVALID_TYPE) {
-            record = vtype_named_record(name, uniq, true);
-
             tree_t body = type_body(type);
 
             const int ndecls = tree_decls(body);
@@ -411,7 +410,7 @@ static vcode_type_t lower_type(type_t type)
                fields[nfields++] = lower_type(tree_type(decl));
             }
 
-            vtype_set_record_fields(record, fields, nfields);
+            record = vtype_named_record(name, fields, nfields);
          }
 
          return record;
@@ -4286,6 +4285,15 @@ static void lower_file_decl(tree_t decl)
    }
 }
 
+static void lower_type_decl(tree_t decl)
+{
+   return;
+   type_t type = tree_type(decl);
+   if (type_is_record(type)) {
+      assert(false);
+   }
+}
+
 static void lower_decl(tree_t decl)
 {
    switch (tree_kind(decl)) {
@@ -4307,6 +4315,9 @@ static void lower_decl(tree_t decl)
       break;
 
    case T_TYPE_DECL:
+      lower_type_decl(decl);
+      break;
+
    case T_HIER:
    case T_ALIAS:
    case T_FUNC_DECL:

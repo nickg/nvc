@@ -203,10 +203,9 @@ vcode_type_t vtype_offset(void);
 vcode_type_t vtype_time(void);
 vcode_type_t vtype_char(void);
 vcode_type_t vtype_image_map(void);
-vcode_type_t vtype_named_record(ident_t name, vcode_bookmark_t uniq,
-                                bool create);
-void vtype_set_record_fields(vcode_type_t type,
-                             const vcode_type_t *field_types, int nfields);
+vcode_type_t vtype_find_named_record(ident_t name);
+vcode_type_t vtype_named_record(ident_t name, const vcode_type_t *field_types,
+                                int nfields);
 vcode_type_t vtype_file(vcode_type_t base);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
@@ -221,7 +220,7 @@ unsigned vtype_size(vcode_type_t type);
 int vtype_fields(vcode_type_t type);
 vcode_type_t vtype_field(vcode_type_t type, int field);
 vcode_type_t vtype_base(vcode_type_t type);
-char *vtype_record_name(vcode_type_t type);
+ident_t vtype_record_name(vcode_type_t type);
 vcode_type_t vtype_real(void);
 vcode_unit_t vcode_find_unit(ident_t name);
 vcode_unit_t vcode_unit_next(vcode_unit_t unit);

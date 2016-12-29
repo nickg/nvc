@@ -2184,11 +2184,11 @@ START_TEST(test_rectype)
    fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
    fail_unless(vtype_kind(1) == VCODE_TYPE_RECORD);
 
-   char *r2_name LOCAL = vtype_record_name(0);
-   fail_unless(strncmp(r2_name, "R2.", 3) == 0);
+   ident_t r2_name = vtype_record_name(0);
+   fail_unless(strncmp(istr(r2_name), "R2@", 3) == 0);
 
-   char *r1_name LOCAL = vtype_record_name(1);
-   fail_unless(strcmp(r1_name, "WORK.RECTYPE.R1") == 0);
+   ident_t r1_name = vtype_record_name(1);
+   fail_unless(icmp(r1_name, "WORK.RECTYPE.R1"));
 }
 END_TEST
 
@@ -2244,11 +2244,11 @@ START_TEST(test_issue167)
    fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
    fail_unless(vtype_kind(2) == VCODE_TYPE_RECORD);
 
-   char *p1_name LOCAL = vtype_record_name(0);
-   fail_unless(strcmp(p1_name, "WORK.PKG.P1") == 0);
+   ident_t p1_name = vtype_record_name(0);
+   fail_unless(icmp(p1_name, "WORK.PKG.P1"));
 
-   char *p2_name LOCAL = vtype_record_name(2);
-   fail_unless(strncmp(p2_name, "P2.", 3) == 0);
+   ident_t p2_name = vtype_record_name(2);
+   fail_unless(strncmp(istr(p2_name), "P2@", 3) == 0);
 }
 END_TEST
 
