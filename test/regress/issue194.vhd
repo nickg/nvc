@@ -1,22 +1,23 @@
+-- -*- mode: vhdl; vhdl-basic-offset: 2 -*-
 package pkg is
-  function other_fun return integer;
+  function other_fun(x : integer) return integer;
 
-  function fun return integer;
+  function fun(x : integer) return integer;
 end package;
 
 package body pkg is
-  function other_fun return integer is
+  function other_fun(x : integer) return integer is
   begin
-    return 0;
+    return x;
   end function;
 
-  function fun return integer is
-    function nested return integer is
+  function fun(x : integer) return integer is
+    function nested(x : integer) return integer is
     begin
-      return other_fun;
+      return other_fun(x);
     end;
   begin
-    return nested;
+    return nested(x);
   end function;
 end package body;
 
@@ -28,8 +29,11 @@ end entity;
 architecture a of issue194 is
 begin
   main : process
+    variable x : integer;
   begin
-    assert fun = 0;
+    x := 0;
+    wait for 1 ns;
+    assert fun(x) = 0;
     wait;
   end process;
 end architecture;

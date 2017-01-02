@@ -675,6 +675,14 @@ static void eval_load_vcode(lib_t lib, tree_t unit, eval_state_t *state)
       notef("loading vcode for %s", istr(unit_name));
 
    char *name LOCAL = xasprintf("_%s.vcode", istr(unit_name));
+   lib_mtime_t mtime;
+   if (lib_stat(lib, name, &mtime)
+       && mtime < lib_mtime(lib, tree_ident(unit))) {
+      EVAL_WARN(state->fcall, "vcode module for %s is out of date",
+                istr(unit_name));
+      return;
+   }
+
    fbuf_t *f = lib_fbuf_open(lib, name, FBUF_IN);
    if (f == NULL) {
       EVAL_WARN(state->fcall, "cannot load vcode for %s", istr(unit_name));
@@ -1725,41 +1733,4 @@ tree_t eval(tree_t fcall, eval_flags_t flags)
 int eval_errors(void)
 {
    return errors;
-}
-
-static tree_t fold_tree_fn(tree_t t, void *context)
-{
-   switch (tree_kind(t)) {
-   case T_FCALL:
-      return eval(t, EVAL_FCALL | EVAL_FOLDING);
-
-   case T_REF:
-      {
-         tree_t decl = tree_ref(t);
-         switch (tree_kind(decl)) {
-         case T_CONST_DECL:
-            {
-               tree_t value = tree_value(decl);
-               if (tree_kind(value) == T_LITERAL)
-                  return value;
-               else
-                  return t;
-            }
-
-         case T_UNIT_DECL:
-            return tree_value(decl);
-
-         default:
-            return t;
-         }
-      }
-
-   default:
-      return t;
-   }
-}
-
-void fold(tree_t top)
-{
-   tree_rewrite(top, fold_tree_fn, NULL);
 }

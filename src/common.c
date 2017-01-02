@@ -837,4 +837,5 @@ void intern_strings(void)
    simple_name_i    = ident_new("simple_name");
    std_i            = ident_new("STD");
    nnets_i          = ident_new("nnets");
+   thunk_i          = ident_new("thunk");
 }

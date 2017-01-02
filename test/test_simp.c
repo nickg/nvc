@@ -286,7 +286,7 @@ START_TEST(test_ffold)
    fail_unless(sem_errors() == 0);
 
    lower_unit(a);
-   fold(a);
+   simplify(a);
 
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
@@ -399,6 +399,20 @@ START_TEST(test_shift2)
 }
 END_TEST
 
+START_TEST(test_issue194)
+{
+   input_from_file(TESTDIR "/simp/issue194.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, -1);
+   fail_if(p == NULL);
+   bounds_check(p);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_if(a == NULL);
+   bounds_check(a);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("simplify");
@@ -413,6 +427,7 @@ int main(void)
    tcase_add_test(tc_core, test_context);
    tcase_add_test(tc_core, test_issue212);
    tcase_add_test(tc_core, test_shift2);
+   tcase_add_test(tc_core, test_issue194);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

@@ -935,8 +935,9 @@ static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
    LOCAL_TEXT_BUF buf = tb_new();
    ident_t name_i = tree_ident(decl);
 
-   const int nest_depth = tree_attr_int(decl, nested_i, 0);
+   bool context_is_thunk = false;
 
+   const int nest_depth = tree_attr_int(decl, nested_i, 0);
    if (nest_depth > 0 || !ident_contains(name_i, ".:")) {
       vcode_state_t state;
       vcode_state_save(&state);
@@ -949,6 +950,8 @@ static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
          tb_printf(buf, "%s__", istr(vcode_unit_name()));
       else
          tb_printf(buf, "%s.", istr(vcode_unit_name()));
+
+      context_is_thunk = (vcode_unit_name() == thunk_i);
 
       vcode_state_restore(&state);
    }
@@ -1000,7 +1003,8 @@ static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
    }
 
    ident_t new = ident_new(tb_get(buf));
-   tree_add_attr_str(decl, mangled_i, new);
+   if (!context_is_thunk)
+      tree_add_attr_str(decl, mangled_i, new);
    return new;
 }
 
@@ -4869,7 +4873,7 @@ vcode_unit_t lower_thunk(tree_t fcall)
 {
    lower_set_verbose();
 
-   vcode_unit_t context = emit_context(ident_new("thunk"));
+   vcode_unit_t context = emit_context(thunk_i);
 
    vcode_select_unit(context);
    mode = LOWER_THUNK;

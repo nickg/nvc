@@ -136,8 +136,7 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
       }
    }
 
-   tree_t new = simp_call_args(t);
-   return builtin ? eval(new, 0) : new;
+   return eval(simp_call_args(t), EVAL_FCALL | EVAL_FOLDING);
 }
 
 static tree_t simp_pcall(tree_t t)
@@ -874,6 +873,31 @@ static tree_t simp_assert(tree_t t)
       return t;
 }
 
+static tree_t simp_if_generate(tree_t t)
+{
+   bool value_b;
+   if (!folded_bool(tree_value(t), &value_b))
+      return t;
+
+   if (value_b) {
+      tree_t block = tree_new(T_BLOCK);
+      tree_set_ident(block, tree_ident(t));
+      tree_set_loc(block, tree_loc(t));
+
+      const int ndecls = tree_decls(t);
+      for (int i = 0; i < ndecls; i++)
+         tree_add_decl(block, tree_decl(t, i));
+
+      const int nstmts = tree_stmts(t);
+      for (int i = 0; i < nstmts; i++)
+         tree_add_stmt(block, tree_stmt(t, i));
+
+      return block;
+   }
+   else
+      return NULL;
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -919,6 +943,10 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_context_ref(t, ctx);
    case T_ASSERT:
       return simp_assert(t);
+   case T_IF_GENERATE:
+      return simp_if_generate(t);
+   case T_RETURN:
+      return t;
    default:
       return t;
    }

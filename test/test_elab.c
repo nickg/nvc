@@ -458,6 +458,15 @@ START_TEST(test_issue305)
 }
 END_TEST
 
+START_TEST(test_gbounds)
+{
+   input_from_file(TESTDIR "/elab/gbounds.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -492,6 +501,7 @@ int main(void)
    tcase_add_test(tc, test_jcore1);
    tcase_add_test(tc, test_eval1);
    tcase_add_test(tc, test_issue305);
+   tcase_add_test(tc, test_gbounds);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

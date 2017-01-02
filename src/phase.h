@@ -36,9 +36,6 @@ bool sem_check(tree_t t);
 // The number of errors found during the semantic check phase.
 int sem_errors(void);
 
-// Fold all constant expressions
-void fold(tree_t top);
-
 // The number of errors found while constant folding
 int eval_errors(void);
 

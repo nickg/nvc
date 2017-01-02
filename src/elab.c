@@ -1017,7 +1017,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_map_nets(maps);
    elab_free_maps(maps);
 
-   fold(arch);
+   simplify(arch);
    bounds_check(arch);
 
    if (eval_errors() > 0 || bounds_errors() > 0)
@@ -1192,7 +1192,8 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .count   = 1
       };
       tree_rewrite(copy, rewrite_refs, &params);
-      fold(copy);
+      simplify(copy);
+      bounds_check(copy);
 
       if (eval_errors() > 0)
          break;
@@ -1450,7 +1451,7 @@ static void elab_entity_arch(tree_t t, tree_t arch, const elab_ctx_t *ctx)
 
    tree_add_attr_str(ctx->out, simple_name_i, npath);
 
-   fold(arch);
+   simplify(arch);
    bounds_check(arch);
 
    if (bounds_errors() > 0 || eval_errors() > 0)
@@ -1554,7 +1555,7 @@ void elab_set_generic(const char *name, const char *value)
 
    generic_list_t *new = xmalloc(sizeof(generic_list_t));
    new->name  = id;
-   new->value = strdup(value);
+   new->value = xstrdup(value);
    new->used  = false;
    new->next  = generic_override;
 
@@ -1599,9 +1600,6 @@ tree_t elab(tree_t top)
 
    if (opt_get_int("cover"))
       cover_tag(e);
-
-   simplify(e);
-   bounds_check(e);
 
    for (generic_list_t *it = generic_override; it != NULL; it = it->next) {
       if (!it->used)

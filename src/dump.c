@@ -452,33 +452,15 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_FUNC_DECL:
-      printf("function %s ", istr(tree_ident(t)));
-      {
-         const int nports = tree_ports(t);
-         if (nports > 0) {
-            printf("(\n");
-            for (int i = 0; i < nports; i++) {
-               if (i > 0)
-                  printf(";\n");
-               dump_port(tree_port(t, i), indent + 4);
-            }
-            printf(" )\n");
-            tab(indent + 2);
-         }
-      }
-      printf("return %s;\n", type_pp(type_result(tree_type(t))));
+      printf("function %s", istr(tree_ident(t)));
+      dump_ports(t, indent);
+      printf(" return %s;\n", type_pp(type_result(tree_type(t))));
       return;
 
    case T_FUNC_BODY:
-      printf("function %s (\n", istr(tree_ident(t)));
-      for (unsigned i = 0; i < tree_ports(t); i++) {
-         if (i > 0)
-            printf(";\n");
-         dump_port(tree_port(t, i), indent + 4);
-      }
-      printf(" )\n");
-      tab(indent + 2);
-      printf("return %s is\n", type_pp(type_result(tree_type(t))));
+      printf("function %s", istr(tree_ident(t)));
+      dump_ports(t, indent);
+      printf(" return %s is\n", type_pp(type_result(tree_type(t))));
       dump_block(t, indent);
       tab(indent);
       printf("end function;\n\n");

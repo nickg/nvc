@@ -740,6 +740,7 @@ static tree_t sem_add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
    char *argname LOCAL = xasprintf("_arg%d", type_params(ftype));
    tree_t port = tree_new(T_PORT_DECL);
    tree_set_ident(port, ident_new(argname));
+   tree_set_loc(port, tree_loc(d));
    tree_set_type(port, type);
    tree_set_subkind(port, mode);
    if (def != NULL)
