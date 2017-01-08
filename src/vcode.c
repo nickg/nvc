@@ -3650,7 +3650,7 @@ vcode_reg_t emit_abs(vcode_reg_t lhs)
 {
    int64_t lconst;
    if (vcode_reg_const(lhs, &lconst))
-      return emit_const(vcode_reg_type(lhs), -lconst);
+      return emit_const(vcode_reg_type(lhs), llabs(lconst));
 
    op_t *op = vcode_add_op(VCODE_OP_ABS);
    vcode_add_arg(op, lhs);
