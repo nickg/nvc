@@ -157,9 +157,14 @@ static void link_context_bc_fn(lib_t lib, tree_t unit, FILE *deps)
       else
          tree_remove_attr(unit, llvm_i);
 
+#ifdef LLVM_HAS_LINK_MODULES2
+      if (LLVMLinkModules2(module, src))
+         fatal("LLVM link failed");
+#else
       char *outmsg;
       if (LLVMLinkModules(module, src, LLVMLinkerDestroySource, &outmsg))
          fatal("LLVM link failed: %s", outmsg);
+#endif
    }
 }
 
