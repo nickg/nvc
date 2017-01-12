@@ -17,6 +17,9 @@
 
 #define _GNU_SOURCE
 
+#if defined(__MINGW32__)
+#include <windows.h>
+#endif
 #include "util.h"
 #include "ident.h"
 
@@ -1139,26 +1142,46 @@ int64_t ipow(int64_t x, int64_t y)
 
 void *mmap_guarded(size_t sz, const char *tag)
 {
+#ifndef __MINGW32__
    const long pagesz = sysconf(_SC_PAGESIZE);
-
+#else
+   const long pagesz = 4096;
+#endif
    const size_t pagemsk = pagesz - 1;
    if (sz & pagemsk)
       sz = (sz & ~pagemsk) + pagesz;
 
 #if (defined __APPLE__ || defined __OpenBSD__)
    const int flags = MAP_SHARED | MAP_ANON;
-#else
+#elif !(defined __MINGW32__)
    const int flags = MAP_SHARED | MAP_ANONYMOUS;
 #endif
 
+#ifndef __MINGW32__
    void *ptr = mmap(NULL, sz + pagesz, PROT_READ | PROT_WRITE, flags, -1, 0);
    if (ptr == MAP_FAILED)
       fatal_errno("mmap");
+#else
+   HANDLE handle = CreateFileMapping(NULL, NULL, PAGE_READWRITE,
+                                     0, sz + pagesz, NULL);
+   if (!handle)
+      fatal_errno("CreateFileMapping");
 
+   void *ptr = MapViewOfFileEx(handle, FILE_MAP_ALL_ACCESS, 0,
+                               0, (SIZE_T) (sz + pagesz), (LPVOID) NULL);
+   CloseHandle(handle);
+   if (ptr == NULL)
+      fatal_errno("MapViewOfFileEx");
+#endif
    uint8_t *guard_ptr = (uint8_t *)ptr + sz;
+#ifndef __MINGW32__
    if (mprotect(guard_ptr, pagesz, PROT_NONE) < 0)
       fatal_errno("mprotect");
-
+#else
+   DWORD old_prot;
+   if (!VirtualProtect(guard_ptr, pagesz, PAGE_NOACCESS, &old_prot))
+      fatal_errno("VirtualProtect");
+#endif
    guard_t *guard = xmalloc(sizeof(guard_t));
    guard->next  = guards;
    guard->tag   = tag;
@@ -1273,13 +1296,16 @@ void set_message_style(message_style_t style)
       want_color = false;
 }
 
+#ifndef __MINGW32__
 static unsigned tv2ms(struct timeval *tv)
 {
    return (tv->tv_sec * 1000) + (tv->tv_usec / 1000);
 }
+#endif
 
 void nvc_rusage(nvc_rusage_t *ru)
 {
+#ifndef __MINGW32__
    static struct rusage last;
 
    struct rusage sys;
@@ -1300,6 +1326,21 @@ void nvc_rusage(nvc_rusage_t *ru)
    ru->rss = sys.ru_maxrss / rss_units;
 
    last = sys;
+#else
+   static long long last;
+   ULARGE_INTEGER lv_Tkernel, lv_Tuser;
+   HANDLE hProcess = GetCurrentProcess();
+
+   FILETIME ftCreation, ftExit, ftKernel, ftUser;
+   GetProcessTimes(hProcess, &ftCreation, &ftExit, &ftKernel, &ftUser);
+   lv_Tkernel.LowPart = ftKernel.dwLowDateTime;
+   lv_Tkernel.HighPart = ftKernel.dwHighDateTime;
+   lv_Tuser.LowPart = ftUser.dwLowDateTime;
+   lv_Tuser.HighPart = ftUser.dwHighDateTime;
+
+   ru->ms = lv_Tkernel.QuadPart + lv_Tuser.QuadPart - last;
+   last = ru->ms;
+#endif
 }
 
 void run_program(const char *const *args, size_t n_args)
@@ -1367,8 +1408,16 @@ void file_unlock(int fd)
 void *map_file(int fd, size_t size)
 {
 #ifdef __MINGW32__
-   // TODO
-   fatal("TODO: Windows map_file");
+   HANDLE handle = CreateFileMapping((HANDLE) _get_osfhandle(fd), NULL,
+                                     PAGE_READONLY, 0, size, NULL);
+   if (!handle)
+      fatal_errno("CreateFileMapping");
+
+   void *ptr = MapViewOfFileEx(handle, FILE_MAP_COPY, 0,
+                               0, (SIZE_T) size, (LPVOID) NULL);
+   CloseHandle(handle);
+   if (ptr == NULL)
+      fatal_errno("MapViewOfFileEx");
 #else
    void *ptr = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
    if (ptr == MAP_FAILED)
@@ -1380,8 +1429,8 @@ void *map_file(int fd, size_t size)
 void unmap_file(void *ptr, size_t size)
 {
 #ifdef __MINGW32__
-   // TODO
-   fatal("TODO: Windows unmap_file");
+   if (!UnmapViewOfFile((LPCVOID) ptr))
+      fatal_errno("UnmapViewOfFile");
 #else
    munmap(ptr, size);
 #endif
@@ -1390,8 +1439,8 @@ void unmap_file(void *ptr, size_t size)
 void make_dir(const char *path)
 {
 #ifdef __MINGW32__
-   // TODO
-   fatal("TODO: Windows make_dir");
+   if (!CreateDirectory(path, NULL) && (GetLastError() != ERROR_ALREADY_EXISTS))
+      fatal_errno("mkdir: %s", path);
 #else
    if (mkdir(path, 0777) != 0 && errno != EEXIST)
       fatal_errno("mkdir: %s", path);

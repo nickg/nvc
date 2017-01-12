@@ -48,6 +48,9 @@
 #define STATIC_ASSERT(x) _Static_assert((x), "Static assertion failed");
 #else
 #define STATIC_ASSERT(x)
+
+#ifdef __MINGW32__
+#define realpath(N, R) _fullpath((R), (N), _MAX_PATH)
 #endif
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))

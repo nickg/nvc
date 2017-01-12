@@ -2270,12 +2270,16 @@ void rt_start_of_tool(tree_t top)
 {
    jit_init(top);
 
+#ifndef __MINGW32__
    struct sigaction sa;
    sa.sa_sigaction = (void*)rt_interrupt;
    sigemptyset(&sa.sa_mask);
    sa.sa_flags = SA_RESTART | SA_SIGINFO;
 
    sigaction(SIGINT, &sa, NULL);
+#else
+   /* TODO */
+#endif
 
    jit_bind_fn("_std_standard_now", _std_standard_now);
    jit_bind_fn("_sched_process", _sched_process);
