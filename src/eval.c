@@ -1106,8 +1106,19 @@ static void eval_op_copy(int op, eval_state_t *state)
    assert(src->kind = VALUE_POINTER);
    assert(count->kind = VALUE_INTEGER);
 
-   for (int i = 0; i < count->integer; i++)
-      dst->pointer[i] = src->pointer[i];
+   const uintptr_t dstp = (uintptr_t)dst->pointer;
+   const uintptr_t srcp = (uintptr_t)src->pointer;
+
+   if (dstp - srcp >= (uintptr_t)(count->integer * sizeof(value_t))) {
+      // Copy forwards
+      for (int i = 0; i < count->integer; i++)
+         dst->pointer[i] = src->pointer[i];
+   }
+   else {
+      // Copy backwards for overlapping case
+      for (int i = count->integer - 1; i >= 0; i--)
+         dst->pointer[i] = src->pointer[i];
+   }
 }
 
 static void eval_op_report(int op, eval_state_t *state)

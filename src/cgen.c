@@ -261,11 +261,11 @@ static const char *cgen_reg_name(vcode_reg_t r)
    return buf;
 }
 
-static const char *cgen_memcpy_name(int width)
+static const char *cgen_memcpy_name(const char *kind, int width)
 {
    static char name[64];
    checked_sprintf(name, sizeof(name),
-                   "llvm.memcpy.p0i%d.p0i%d.i32", width, width);
+                   "llvm.%s.p0i%d.p0i%d.i32", kind, width, width);
    return name;
 }
 
@@ -1818,7 +1818,7 @@ static void cgen_op_copy(int op, cgen_ctx_t *ctx)
       llvm_int32(4),
       llvm_int1(0)
    };
-   LLVMBuildCall(builder, llvm_fn(cgen_memcpy_name(8)),
+   LLVMBuildCall(builder, llvm_fn(cgen_memcpy_name("memmove", 8)),
                  memcpy_args, ARRAY_LEN(memcpy_args), "");
 }
 
@@ -3488,9 +3488,10 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
    }
-   else if (strncmp(name, "llvm.memcpy", 11) == 0) {
+   else if (strncmp(name, "llvm.mem", 8) == 0) {
       int width;
-      if (sscanf(name, "llvm.memcpy.p0i%d", &width) != 1)
+      char kind[16];
+      if (sscanf(name, "llvm.%16[^.].p0i%d", kind, &width) != 2)
          fatal("invalid memcpy intrinsic %s", name);
 
       LLVMTypeRef args[] = {
@@ -3500,7 +3501,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMInt1Type()
       };
-      fn = LLVMAddFunction(module, cgen_memcpy_name(width),
+      fn = LLVMAddFunction(module, cgen_memcpy_name(kind, width),
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
    }

@@ -321,3 +321,4 @@ jcore6          normal
 issue106        normal,2008
 case7           normal,2008
 ieee5           normal
+issue309        normal
