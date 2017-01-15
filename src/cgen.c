@@ -3817,7 +3817,7 @@ void cgen(tree_t top, vcode_unit_t vcode)
    else {
       char *fname = xasprintf("_%s.bc", istr(tree_ident(top)));
 
-      FILE *f = lib_fopen(lib_work(), fname, "w");
+      FILE *f = lib_fopen(lib_work(), fname, "wb");
       if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
          fatal("error writing LLVM bitcode");
       fclose(f);

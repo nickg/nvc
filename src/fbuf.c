@@ -65,7 +65,7 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
    switch (mode) {
    case FBUF_OUT:
       {
-         FILE *h = fopen(file, "w");
+         FILE *h = fopen(file, "wb");
          if (h == NULL)
             return NULL;
 
