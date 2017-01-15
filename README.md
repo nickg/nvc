@@ -87,15 +87,16 @@ To build from source follow the generic instructions above.
 
 #### Windows
 
-Windows support is via [Cygwin](http://www.cygwin.com/) or MSYS2.
+Windows support is via [Cygwin](http://www.cygwin.com/) or MinGW.
 
-MSYS2 is easier to set up if you do not already have Cygwin. Install the following
-dependencies using `pacman`. For 64-bit MSYS2 replace `i686` below with `x86_64`.
+If you do not already have Cygwin it is easiest to build for MinGW using
+[MSYS2](https://msys2.github.io/). Install the following dependencies using
+`pacman`. For 64-bit MSYS2 replace `i686` below with `x86_64`.
 
-    pacman -S base-devel mingw-w64-i686-{tcl,llvm,ncurses,libffi}
-    export PATH=$PATH:/mingw32/bin/     # Or mingw64 for 64-bit
+    pacman -S base-devel mingw-w64-i686-{tcl,llvm,ncurses,libffi,dlfcn}
+    export PATH=/mingw32/bin:$PATH     # Or mingw64 for 64-bit
     mkdir build && cd build
-    ../configure --with-llvm=/mingw32/bin/llvm-config.exe
+    ../configure
     make install
 
 For Cygwin use `setup.exe` to install either `gcc` or `clang` and the following

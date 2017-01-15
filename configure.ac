@@ -77,15 +77,9 @@ esac
 
 AC_DEFINE_UNQUOTED([EXEEXT], ["$EXEEXT"], [Executable file extension])
 
-case $host_os in
-     msys*|mingw32*)
-        ;;
-     *)
-        AC_SEARCH_LIBS([dlopen], [dl dld], [], [
-          AC_MSG_ERROR([unable to find the dlopen() function])
-        ])
-        ;;
-esac
+AC_SEARCH_LIBS([dlopen], [dl dld], [], [
+  AC_MSG_ERROR([unable to find the dlopen() function])
+])
 
 AC_SEARCH_LIBS([pow], [m], [], [
   AC_MSG_ERROR([unable to find the pow() function])
