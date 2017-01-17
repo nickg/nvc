@@ -64,7 +64,7 @@ AC_DEFUN([AX_LLVM_C], [
           LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags)"
           LLVM_SYSLIBS="$($ac_llvm_config_path --system-libs)"
           LLVM_LIBS="$($ac_llvm_config_path --libs $1) $LLVM_SYSLIBS"
-          LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir)"
+          LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir | sed  's|\\|\\\\|g')"
           LLVM_LIBDIR="$($ac_llvm_config_path --libdir)"
 
           if test "$llvm_ver_num" -lt "38"; then
@@ -85,7 +85,7 @@ AC_DEFUN([AX_LLVM_C], [
 
           LLVM_OBJ_EXT="o"
           case $host_os in
-              *cygwin*)
+              *cygwin*|msys*|mingw32*)
                   LLVM_OBJ_EXT="obj"
                   ;;
           esac
