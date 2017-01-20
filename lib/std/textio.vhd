@@ -458,17 +458,35 @@ package body textio is
                      field     : in width := 0;
                      unit      : in time := ns )
     is
-        -- TODO: this overflows for large unit or value
-        constant value_fs : integer := value / fs;
-        constant unit_fs  : integer := unit / fs;
+        variable value_time: time := abs(value);
+        variable digit_time: time := unit;
+        variable str       : string (1 to 22);
+        variable pos       : natural := str'left;
+        variable digit     : integer;
     begin
-        if (value_fs rem unit_fs) = 0 then
-            write(l, integer'image(value_fs / unit_fs) & unit_string(unit),
-                  justified, field);
-        else
-            write(l, real'image(real(value_fs) / real(unit_fs)) &
-                  unit_string(unit), justified, field);
+        if value < 0 ns then
+            str(pos) := '-';
+            pos := pos + 1;
         end if;
+
+        while value_time / 10 >= digit_time loop
+            digit_time := digit_time * 10;
+        end loop;
+
+        while (pos <= str'right) loop
+            digit      := value_time / digit_time;
+            value_time := value_time - digit * digit_time;
+            str(pos)   := character'val(digit + character'pos ('0'));
+            pos        := pos + 1;
+            exit when value_time = 0 fs and digit_time <= unit;
+            if digit_time = unit and pos <= str'right then
+                str(pos) := '.';
+                pos := pos + 1;
+            end if;
+            exit when (digit_time / 10) * 10 /= digit_time;
+            digit_time := digit_time / 10;
+        end loop;
+        write(l, str(1 to pos-1) & unit_string(unit), justified, field);
     end procedure;
 
     procedure write (l         : inout line;

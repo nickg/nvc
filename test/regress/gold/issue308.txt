@@ -1,0 +1,6 @@
+         0 ns Simulation Start.
+       100 ns Simulation Phase 1.
+       200 ns Simulation Phase 2.
+      2147 ns Simulation Phase 3.
+      2148 ns Simulation Phase 4.
+      2149 ns Simulation Done.
