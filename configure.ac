@@ -159,7 +159,13 @@ AX_DEFINE_DIR([LIBDIR], [libdir], [Installation library directory])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 
 # CC may constain unwanted -std=... option.
-AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$(which ${CC%% *})"], [System compiler])
+cc_bare="$(which ${CC%% *})"
+case $host_os in
+  *cygwin*|msys*)
+    cc_bare="$(cygpath -w $cc_bare | sed  's|\\|\\\\|g')"
+    ;;
+esac
+AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$cc_bare"], [System compiler])
 
 AC_ARG_ENABLE([native],
   [AS_HELP_STRING([--enable-native],
@@ -170,7 +176,7 @@ AC_ARG_ENABLE([native],
 if test x$enable_native = xyes ; then
   AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])
   case $host_os in
-    *cygwin*) implib_required=yes ;;
+    *cygwin*|msys*|mingw32*) implib_required=yes ;;
   esac
   if test x$implib_required = xyes ; then
     AC_DEFINE_UNQUOTED([IMPLIB_REQUIRED], [1], [Import library required])

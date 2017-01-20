@@ -498,7 +498,7 @@ int main(int argc, char **argv)
    char lib_dir[PATH_MAX];
    snprintf(lib_dir, PATH_MAX, "%s/../lib", bin_dir);
 
-   setenv("NVC_CYG_LIB", lib_dir, 1);
+   setenv("NVC_IMP_LIB", lib_dir, 1);
    setenv("NVC_LIBPATH", lib_dir, 1);
 
    if (getenv("QUICK"))
