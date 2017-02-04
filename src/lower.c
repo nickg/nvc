@@ -4303,6 +4303,7 @@ static void lower_decl(tree_t decl)
    case T_ATTR_DECL:
    case T_COMPONENT:
    case T_USE:
+   case T_SPEC:
       break;
 
    default:
