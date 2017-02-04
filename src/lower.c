@@ -4852,6 +4852,7 @@ vcode_unit_t lower_unit(tree_t unit)
       context = lower_package(unit);
       break;
    case T_ENTITY:
+   case T_CONFIG:
       break;
    case T_ARCH:
       mode = LOWER_THUNK;
