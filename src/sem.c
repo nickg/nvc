@@ -552,8 +552,41 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
             return false;
 
          ident_t pqual = ident_from(dname, '.');
-         if (pqual != NULL)
+         if (pqual != NULL) {
             scope_insert_alias(decl, pqual);
+
+            // Make enumeration literals and physical constants visible
+            ident_t unit_name = ident_until(pqual, '.');
+             if (kind == T_TYPE_DECL && unit_name != NULL) {
+                type_t type = tree_type(decl);
+                switch (type_kind(type)) {
+                case T_ENUM:
+                   {
+                      const int nlits = type_enum_literals(type);
+                      for (int i = 0; i < nlits; i++) {
+                         tree_t  literal = type_enum_literal(type, i);
+                         ident_t alias   =
+                            ident_prefix(unit_name, tree_ident(literal), '.');
+                         scope_insert_alias(literal, alias);
+                      }
+                      break;
+                   }
+                case T_PHYSICAL:
+                   {
+                      const int nunits = type_units(type);
+                      for (int i = 0; i < nunits; i++) {
+                         tree_t  unit  = type_unit(type, i);
+                         ident_t alias =
+                            ident_prefix(unit_name, tree_ident(unit), '.');
+                         scope_insert_alias(unit, alias);
+                      }
+                      break;
+                   }
+                default:
+                   break;
+                }
+             }
+         }
       }
 
       if (all) {
