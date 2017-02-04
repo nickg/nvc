@@ -23,4 +23,4 @@ script:
   - ../configure --enable-werror --enable-vhpi
   - make check
 notifications:
-  email: false
+  email: true

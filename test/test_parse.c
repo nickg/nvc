@@ -2634,6 +2634,28 @@ START_TEST(test_issue222)
 }
 END_TEST
 
+START_TEST(test_guarded)
+{
+   input_from_file(TESTDIR "/parse/guarded.vhd");
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 2);
+
+   tree_t s0 = tree_stmt(a, 0);
+   fail_unless(tree_kind(s0) == T_CASSIGN);
+   fail_unless(tree_flags(s0) & TREE_F_GUARDED);
+
+   tree_t s1 = tree_stmt(a, 1);
+   fail_unless(tree_kind(s1) == T_SELECT);
+   fail_unless(tree_flags(s1) & TREE_F_GUARDED);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -2674,6 +2696,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue205);
    tcase_add_test(tc_core, test_context);
    tcase_add_test(tc_core, test_issue222);
+   tcase_add_test(tc_core, test_guarded);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
