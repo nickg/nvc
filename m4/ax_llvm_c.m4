@@ -106,6 +106,11 @@ AC_DEFUN([AX_LLVM_C],
                         [LLVM has LLVMLinkModules2])
                 fi
 
+                if test "$llvm_ver_num" -ge "40"; then
+                    AC_DEFINE_UNQUOTED(LLVM_NEW_ATTRIBUTE_API, [1],
+                        [LLVM has new attribute API])
+                fi
+
                 LLVM_OBJ_EXT="o"
                 case $host_os in
                     *cygwin*)

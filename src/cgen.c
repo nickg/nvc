@@ -58,6 +58,12 @@ typedef struct {
 
 DECLARE_AND_DEFINE_ARRAY(size_list)
 
+typedef enum {
+   FUNC_ATTR_NOUNWIND,
+   FUNC_ATTR_NORETURN,
+   FUNC_ATTR_READONLY
+} func_attr_t;
+
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
 
@@ -188,6 +194,35 @@ static void debug_dump(LLVMValueRef ptr, LLVMValueRef len)
                  args, ARRAY_LEN(args), "");
 }
 #endif
+
+static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr)
+{
+#if LLVM_NEW_ATTRIBUTE_API
+   const char *names[] = {
+      "nounwind", "noreturn", "readonly"
+   };
+   assert(attr < ARRAY_LEN(names));
+
+   const unsigned kind =
+      LLVMGetEnumAttributeKindForName(names[attr], strlen(names[attr]));
+   if (kind == 0)
+      fatal_trace("Cannot get LLVM attribute for %s", names[attr]);
+
+   LLVMAttributeRef ref =
+      LLVMCreateEnumAttribute(LLVMGetGlobalContext(), kind, 0);
+
+   LLVMAddAttributeAtIndex(fn, LLVMAttributeFunctionIndex, ref);
+#else
+   LLVMAttribute llvm_attrs[] = {
+      LLVMNoUnwindAttribute,
+      LLVMNoReturnAttribute,
+      LLVMReadOnlyAttribute
+   };
+   assert(attr < ARRAY_LEN(llvm_attrs));
+
+   LLVMAddFunctionAttr(fn, llvm_attrs[attr]);
+#endif
+}
 
 static LLVMTypeRef cgen_net_id_type(void)
 {
@@ -607,7 +642,7 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
          istr(func),
          LLVMFunctionType(rtype, atypes, total_args, false));
 
-      LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+      cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
    }
 
    LLVMValueRef args[total_args];
@@ -1881,7 +1916,7 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
          istr(func),
          LLVMFunctionType(llvm_void_ptr(), atypes, nargs + 1, false));
 
-      LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+      cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
    }
 
    const int total_args = nargs + (nested ? 1 : 0) + 1;
@@ -2897,7 +2932,7 @@ static void cgen_function(LLVMTypeRef display_type)
       fn = LLVMAddFunction(module, istr(vcode_unit_name()),
                            cgen_subprogram_type(display_type, false));
 
-   LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+   cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
 
    const bool pure =
       display_type == NULL
@@ -2905,7 +2940,7 @@ static void cgen_function(LLVMTypeRef display_type)
       && vcode_unit_pure();
 
    if (pure)
-      LLVMAddFunctionAttr(fn, LLVMReadOnlyAttribute);
+      cgen_add_func_attr(fn, FUNC_ATTR_READONLY);
 
    cgen_ctx_t ctx = {
       .fn = fn
@@ -3002,7 +3037,7 @@ static void cgen_procedure(LLVMTypeRef display_type)
       fn = LLVMAddFunction(module, istr(vcode_unit_name()),
                            cgen_subprogram_type(display_type, true));
 
-   LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+   cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
 
    cgen_ctx_t ctx = {
       .fn = fn
@@ -3076,7 +3111,7 @@ static void cgen_process(vcode_unit_t code)
    LLVMTypeRef pargs[] = { LLVMInt32Type() };
    LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), pargs, 1, false);
    LLVMValueRef fn = LLVMAddFunction(module, istr(vcode_unit_name()), ftype);
-   LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+   cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMBasicBlockRef reset_bb = LLVMAppendBasicBlock(fn, "reset");
@@ -3566,7 +3601,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_bounds_fail",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
-      LLVMAddFunctionAttr(fn, LLVMNoReturnAttribute);
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN);
    }
    else if (strcmp(name, "_div_zero") == 0) {
       LLVMTypeRef args[] = {
@@ -3575,7 +3610,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_div_zero",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
-      LLVMAddFunctionAttr(fn, LLVMNoReturnAttribute);
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN);
    }
    else if (strcmp(name, "_null_deref") == 0) {
       LLVMTypeRef args[] = {
@@ -3584,7 +3619,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_null_deref",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
-      LLVMAddFunctionAttr(fn, LLVMNoReturnAttribute);
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN);
    }
    else if (strcmp(name, "_bit_shift") == 0) {
       LLVMTypeRef args[] = {
@@ -3651,7 +3686,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
    }
 
    if (fn != NULL)
-      LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+      cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
 
    return fn;
 }
