@@ -176,10 +176,17 @@ begin
         begin
             return "11010011";
         end function;
+
+        function fie2(x : integer := 4) return string is
+        begin
+            -- report fie2'instance_name;   ???
+            return "101";
+        end function;
     begin
         process
         begin
             assert fie'RIGHT = 1;  -- OK
+            assert fie2'RIGHT = 1;  -- OK
         end process;
     end block;
 end architecture;

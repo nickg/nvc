@@ -5491,6 +5491,18 @@ static bool sem_check_dimension_attr(tree_t t)
    return true;
 }
 
+static bool sem_only_default_ports(tree_t decl)
+{
+   // True if all ports have default values
+   const int nports = tree_ports(decl);
+   for (int i = 0; i < nports; i++) {
+      if (!tree_has_value(tree_port(decl, i)))
+         return false;
+   }
+
+   return true;
+}
+
 static bool sem_check_attr_ref(tree_t t, bool allow_range)
 {
    // Attribute names are in LRM 93 section 6.6
@@ -5504,7 +5516,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       if (dkind == T_FIELD_DECL)
          sem_convert_to_record_ref(name, decl);
       else if ((dkind == T_FUNC_DECL || dkind == T_FUNC_BODY)
-               && tree_ports(decl) == 0) {
+               && sem_only_default_ports(decl)) {
          tree_change_kind(name, T_FCALL);
          tree_set_ref(name, decl);
          tree_set_type(name, type_result(tree_type(decl)));
