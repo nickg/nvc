@@ -171,4 +171,15 @@ begin
         end loop;
     end process;
 
+    b1: block is
+        function fie  return string is
+        begin
+            return "11010011";
+        end function;
+    begin
+        process
+        begin
+            assert fie'RIGHT = 1;  -- OK
+        end process;
+    end block;
 end architecture;

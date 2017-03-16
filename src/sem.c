@@ -5500,8 +5500,16 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       if (!sem_check_selected_name(tree_ident(name), name, &decl))
          return false;
 
-      if (tree_kind(decl) == T_FIELD_DECL)
+      const tree_kind_t dkind = tree_kind(decl);
+      if (dkind == T_FIELD_DECL)
          sem_convert_to_record_ref(name, decl);
+      else if ((dkind == T_FUNC_DECL || dkind == T_FUNC_BODY)
+               && tree_ports(decl) == 0) {
+         tree_change_kind(name, T_FCALL);
+         tree_set_ref(name, decl);
+         tree_set_type(name, type_result(tree_type(decl)));
+         sem_copy_default_args(name, decl);
+      }
       else {
          tree_set_ref(name, decl);
 
