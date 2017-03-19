@@ -171,20 +171,17 @@ static int analyse(int argc, char **argv)
    lib_save(lib_work());
 
    for (int i = 0; i < n_units; i++) {
-      vcode_unit_t vu = lower_unit(units[i]);
-
-      if (tree_kind(units[i]) != T_ENTITY) {    // TODO: entity should have code
+      const tree_kind_t kind = tree_kind(units[i]);
+      const bool need_cgen = kind == T_PACK_BODY
+         || (kind == T_PACKAGE && pack_needs_cgen(units[i]));
+      if (need_cgen) {
+         vcode_unit_t vu = lower_unit(units[i]);
          char *name LOCAL = xasprintf("_%s.vcode", istr(tree_ident(units[i])));
          fbuf_t *fbuf = lib_fbuf_open(lib_work(), name, FBUF_OUT);
          vcode_write(vu, fbuf);
          fbuf_close(fbuf);
-      }
-
-      const tree_kind_t kind = tree_kind(units[i]);
-      const bool need_cgen = kind == T_PACK_BODY
-         || (kind == T_PACKAGE && pack_needs_cgen(units[i]));
-      if (need_cgen)
          cgen(units[i], vu);
+      }
    }
 
    argc -= next_cmd - 1;
