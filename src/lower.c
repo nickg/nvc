@@ -4808,18 +4808,6 @@ static vcode_unit_t lower_package(tree_t unit)
    return context;
 }
 
-static vcode_unit_t lower_arch(tree_t unit)
-{
-   vcode_unit_t context = emit_context(tree_ident(unit));
-
-   lower_decls(unit, context);
-
-   emit_return(VCODE_INVALID_REG);
-
-   lower_finished();
-   return context;
-}
-
 static void lower_set_verbose(void)
 {
    static bool set = false;
@@ -4850,13 +4838,6 @@ vcode_unit_t lower_unit(tree_t unit)
       break;
    case T_PACKAGE:
       context = lower_package(unit);
-      break;
-   case T_ENTITY:
-   case T_CONFIG:
-      break;
-   case T_ARCH:
-      mode = LOWER_THUNK;
-      context = lower_arch(unit);
       break;
    default:
       fatal("cannot lower unit kind %s to vcode",

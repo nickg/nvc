@@ -281,12 +281,9 @@ START_TEST(test_ffold)
 {
    input_from_file(TESTDIR "/simp/ffold.vhd");
 
-   tree_t a = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY,
-                                       T_ENTITY, T_ARCH);
+   tree_t a = parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
+                                             T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
-
-   lower_unit(a);
-   simplify(a);
 
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);

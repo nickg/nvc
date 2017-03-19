@@ -92,7 +92,8 @@ tree_t run_elab(void)
       fail_if(sem_errors() > 0);
 
       simplify(t);
-      lower_unit(t);
+      if (tree_kind(t) == T_PACKAGE || tree_kind(t) == T_PACK_BODY)
+         lower_unit(t);
 
       if (tree_kind(t) == T_ENTITY)
          last_ent = t;
@@ -101,7 +102,8 @@ tree_t run_elab(void)
    return elab(last_ent);
 }
 
-tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
+tree_t _parse_and_check(const tree_kind_t *array, int num,
+                        bool simp, bool lower)
 {
    tree_t last = NULL;
    for (int i = 0; i < num; i++) {
@@ -110,15 +112,19 @@ tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
 
       last = parse();
       fail_if(last == NULL);
+      const tree_kind_t kind = tree_kind(last);
       fail_unless(tree_kind(last) == array[i],
                   "expected %s have %s", tree_kind_str(array[i]),
-                  tree_kind_str(tree_kind(last)));
+                  tree_kind_str(kind));
 
       const bool sem_ok = sem_check(last);
       if (simp) {
          fail_unless(sem_ok, "semantic check failed");
          simplify(last);
       }
+
+      if (lower && (kind == T_PACKAGE || kind == T_PACK_BODY))
+         lower_unit(last);
    }
 
    fail_unless(parse() == NULL);

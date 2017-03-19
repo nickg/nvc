@@ -2,6 +2,55 @@ package pack is
 
     function add4(x : in integer) return integer;
 
+    function add1(x : in integer) return integer;
+
+    function log2(x : in integer) return integer;
+
+    function case1(x : in integer) return integer;
+
+    function adddef(x, y : in integer := 5) return integer;
+
+    function chain1(x : string) return boolean;
+
+    function chain2(x, y : string) return boolean;
+
+    function flip(x : bit_vector(3 downto 0)) return bit_vector;
+
+    type real_vector is array (natural range <>) of real;
+
+    function lookup(index : integer) return real;
+
+    function get_bitvec(x, y : integer) return bit_vector;
+
+    function approx(x, y : real; t : real := 0.001) return boolean;
+
+    function get_string(x : integer) return string;
+
+    function get_string(x : real) return string;
+
+    function get_string(x : character) return string;
+
+    function get_string(x : time) return string;
+
+    function needs_heap(x : integer) return integer;
+
+    function sum_left_right(x : bit_vector) return integer;
+
+    procedure p5(x : in integer; y : out integer);
+
+    function call_proc(x : in integer) return integer;
+
+    type rec is record
+        x : bit_vector(1 to 3);
+        y : integer;
+    end record;
+
+    function make_rec(x : bit_vector(1 to 3); y : integer) return rec;
+
+    function min(x, y : integer) return integer;
+
+    function get_left(x : bit_vector) return bit;
+
 end package;
 
 package body pack is
@@ -10,17 +59,6 @@ package body pack is
     begin
         return x + 4;
     end function;
-
-end package body;
-
--------------------------------------------------------------------------------
-
-entity ffold is
-end entity;
-
-use work.pack.all;
-
-architecture a of ffold is
 
     function add1(x : in integer) return integer is
     begin
@@ -89,8 +127,6 @@ architecture a of ffold is
         return r;
     end function;
 
-    type real_vector is array (natural range <>) of real;
-
     function lookup(index : integer) return real is
         constant table : real_vector := (
             0.62, 61.62, 71.7, 17.25, 26.15, 651.6, 0.45, 5.761 );
@@ -156,11 +192,6 @@ architecture a of ffold is
         return y;
     end function;
 
-    type rec is record
-        x : bit_vector(1 to 3);
-        y : integer;
-    end record;
-
     function make_rec(x : bit_vector(1 to 3); y : integer) return rec is
         variable r : rec;
     begin
@@ -185,6 +216,17 @@ architecture a of ffold is
     begin
         return x(l);
     end function;
+
+end package body;
+
+-------------------------------------------------------------------------------
+
+entity ffold is
+end entity;
+
+use work.pack.all;
+
+architecture a of ffold is
 
 begin
 
