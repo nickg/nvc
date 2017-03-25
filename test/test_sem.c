@@ -1705,6 +1705,20 @@ START_TEST(test_issue311)
 }
 END_TEST
 
+START_TEST(test_foreign1)
+{
+   input_from_file(TESTDIR "/sem/foreign1.vhd");
+
+   tree_t body = parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   fail_unless(sem_errors() == 0);
+
+   tree_t decl = tree_decl(body, 0);
+   fail_unless(icmp(tree_ident(decl), "WORK.P.PROC"));
+   fail_unless(tree_attr_int(decl, wait_level_i, WAITS_MAYBE) == WAITS_NO);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1790,6 +1804,7 @@ int main(void)
    tcase_add_test(tc_core, test_jcore1);
    tcase_add_test(tc_core, test_issue293);
    tcase_add_test(tc_core, test_issue311);
+   tcase_add_test(tc_core, test_foreign1);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

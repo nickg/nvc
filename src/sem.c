@@ -6830,6 +6830,9 @@ static bool sem_check_attr_spec(tree_t t)
 
    tree_add_attr_tree(obj_decl, tree_ident(t), value);
 
+   if (class == C_PROCEDURE && tree_ident(t) == foreign_i)
+      tree_add_attr_int(obj_decl, wait_level_i, WAITS_NO);
+
    return true;
 }
 
