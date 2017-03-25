@@ -490,6 +490,11 @@ static void show_banner(void)
    extern const char *version_string;
    printf("%s\n", version_string);
    printf("Type \"help\" or \"copyright\" for more information.\n");
+
+   warnf("This interactive shell is not maintained, deprecated, and will be "
+         "removed in the next release. "
+         "Please comment on https://github.com/nickg/nvc/issues/271 if you "
+         "actively use this feature.");
 }
 
 static int compare_shell_cmd(const void *a, const void *b)

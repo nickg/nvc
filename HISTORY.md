@@ -1,6 +1,8 @@
 ## master
 - Compile time evaluation now uses vcode
 - Record aggregates can now be constant folded (#305)
+- The TCL shell is deprecated and will be removed in the next release
+- Compatible with LLVM 4.0
 
 ## 1.1 - 2016-11-05
 - Improvements to based literal parsing
