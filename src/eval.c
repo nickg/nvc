@@ -93,24 +93,7 @@ typedef struct {
 static int errors = 0;
 
 static void eval_vcode(eval_state_t *state);
-static bool eval_possible(tree_t t, eval_flags_t flags);
-
-static bool eval_params_possible(tree_t fcall, eval_flags_t flags)
-{
-   const int nparams = tree_params(fcall);
-   for (int i = 0; i < nparams; i++) {
-      tree_t p = tree_value(tree_param(fcall, i));
-      const bool is_fcall = tree_kind(p) == T_FCALL;
-      if ((flags & EVAL_FOLDING) && is_fcall && type_is_scalar(tree_type(p)))
-         return false;   // Would have been folded already if possible
-      else if (is_fcall && !(flags & EVAL_FCALL))
-         return false;
-      else if (!eval_possible(p, flags))
-         return false;
-   }
-
-   return true;
-}
+static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level);
 
 static bool eval_have_lowered(tree_t body, eval_flags_t flags)
 {
@@ -128,7 +111,7 @@ static bool eval_have_lowered(tree_t body, eval_flags_t flags)
       return true;
 }
 
-static bool eval_possible(tree_t t, eval_flags_t flags)
+static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level)
 {
    switch (tree_kind(t)) {
    case T_FCALL:
@@ -144,14 +127,27 @@ static bool eval_possible(tree_t t, eval_flags_t flags)
          else if (!eval_have_lowered(tree_ref(t), flags))
             return false;
 
-         return eval_params_possible(t, flags);
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            tree_t p = tree_value(tree_param(t, i));
+            const bool is_fcall = tree_kind(p) == T_FCALL;
+            if (top_level && (flags & EVAL_FOLDING) && is_fcall
+                && type_is_scalar(tree_type(p)))
+               return false;   // Would have been folded already if possible
+            else if (is_fcall && !(flags & EVAL_FCALL))
+               return false;
+            else if (!eval_possible(p, flags, false))
+               return false;
+         }
+
+         return true;
       }
 
    case T_LITERAL:
       return true;
 
    case T_TYPE_CONV:
-      return eval_possible(tree_value(tree_param(t, 0)), flags);
+      return eval_possible(tree_value(tree_param(t, 0)), flags, false);
 
    case T_REF:
       {
@@ -162,7 +158,7 @@ static bool eval_possible(tree_t t, eval_flags_t flags)
             return true;
 
          case T_CONST_DECL:
-            return eval_possible(tree_value(decl), flags);
+            return eval_possible(tree_value(decl), flags, false);
 
          default:
             if (flags & EVAL_WARN)
@@ -173,13 +169,13 @@ static bool eval_possible(tree_t t, eval_flags_t flags)
       }
 
    case T_RECORD_REF:
-      return eval_possible(tree_value(t), flags);
+      return eval_possible(tree_value(t), flags, false);
 
    case T_AGGREGATE:
       {
          const int nassocs = tree_assocs(t);
          for (int i = 0; i < nassocs; i++) {
-            if (!eval_possible(tree_value(tree_assoc(t, i)), flags))
+            if (!eval_possible(tree_value(tree_assoc(t, i)), flags, false))
                 return false;
          }
 
@@ -1700,7 +1696,7 @@ tree_t eval(tree_t fcall, eval_flags_t flags)
       return fcall;
    else if (tree_flags(tree_ref(fcall)) & TREE_F_IMPURE)
       return fcall;
-   else if (!eval_params_possible(fcall, flags))
+   else if (!eval_possible(fcall, flags, true))
       return fcall;
 
    if (getenv("NVC_EVAL_VERBOSE"))
