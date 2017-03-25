@@ -188,7 +188,8 @@ bool ident_interned(const char *str)
 
 const char *istr(ident_t ident)
 {
-   assert(ident != NULL);
+   if (ident == NULL)
+      return NULL;
 
    char *p = get_fmt_buf(ident->depth) + ident->depth - 1;
    *p = '\0';

@@ -420,7 +420,9 @@ static void group_target(tree_t t, group_nets_ctx_t *ctx)
       break;
 
    default:
-      assert(false);
+      fmt_loc(stdout, tree_loc(t));
+      fatal_trace("Cannot handle tree kind %s in group_target",
+                  tree_kind_str(tree_kind(t)));
    }
 }
 

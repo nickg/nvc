@@ -41,7 +41,7 @@ int sem_errors(void);
 int eval_errors(void);
 
 // Rewrite to simpler forms
-void simplify(tree_t top);
+void simplify(tree_t top, eval_flags_t flags);
 
 // Perform static bounds checking
 void bounds_check(tree_t top);
@@ -100,5 +100,8 @@ vcode_unit_t lower_thunk(tree_t fcall);
 
 // Lower an isolated function body
 vcode_unit_t lower_func(tree_t body);
+
+// Compute the mangled name of a subprogram
+ident_t lower_mangle_package_name(tree_t decl);
 
 #endif  // _PHASE_H

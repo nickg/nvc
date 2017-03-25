@@ -65,7 +65,7 @@ START_TEST(test_cfold)
    fail_unless(parse_errors() == 0);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
 
    fail_unless(folded_i(tree_value(tree_decl(a, 0)), -10));
 
@@ -167,7 +167,7 @@ START_TEST(test_proc)
    fail_unless(parse_errors() == 0);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
 
    ////////
 
@@ -248,7 +248,7 @@ START_TEST(test_args)
    fail_unless(parse_errors() == 0);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
 
    ////////
 
@@ -321,7 +321,7 @@ START_TEST(test_issue49)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
 }
 END_TEST
 
@@ -332,7 +332,7 @@ START_TEST(test_issue155)
    tree_t p = parse_and_check(T_PACKAGE);
    fail_unless(sem_errors() == 0);
 
-   simplify(p);
+   simplify(p, 0);
 
    range_t ar = type_dim(tree_type(tree_decl(p, 2)), 0);
    fail_unless(folded_i(ar.left, 7));
@@ -370,7 +370,7 @@ START_TEST(test_context)
 
    fail_unless(tree_contexts(e) == 3);
 
-   simplify(e);
+   simplify(e, 0);
 
    fail_unless(tree_contexts(e) == 4);
    fail_unless(tree_kind(tree_context(e, 2)) == T_LIBRARY);

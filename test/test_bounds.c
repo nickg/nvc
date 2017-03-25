@@ -61,7 +61,7 @@ START_TEST(test_bounds)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
    bounds_check(a);
 
    fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
@@ -102,7 +102,7 @@ START_TEST(test_bounds2)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
    bounds_check(a);
 
    fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
@@ -137,7 +137,7 @@ START_TEST(test_case)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
    bounds_check(a);
 
    fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
@@ -151,7 +151,7 @@ START_TEST(test_issue36)
    tree_t e = parse_and_check(T_ENTITY);
    fail_unless(sem_errors() == 0);
 
-   simplify(e);
+   simplify(e, 0);
    bounds_check(e);
 
    fail_unless(bounds_errors() == 0);
@@ -172,7 +172,7 @@ START_TEST(test_issue54)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
    bounds_check(a);
 
    fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
@@ -193,7 +193,7 @@ START_TEST(test_issue99)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
    bounds_check(a);
 
    fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
@@ -213,7 +213,7 @@ START_TEST(test_issue150)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
    bounds_check(a);
 
    fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
@@ -227,7 +227,7 @@ START_TEST(test_issue200)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
    bounds_check(a);
 
    fail_unless(bounds_errors() == 0);
@@ -247,7 +247,7 @@ START_TEST(test_issue208)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
    bounds_check(a);
 
    fail_unless(bounds_errors() == ARRAY_LEN(expect) - 1);
@@ -266,7 +266,7 @@ START_TEST(test_issue247)
    tree_t a = parse_and_check(T_PACKAGE);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
    bounds_check(a);
 
    fail_unless(bounds_errors() == ARRAY_LEN(expect) - 1);
@@ -285,7 +285,7 @@ START_TEST(test_issue269)
    tree_t a = parse_and_check(T_PACKAGE);
    fail_unless(sem_errors() == 0);
 
-   simplify(a);
+   simplify(a, 0);
    bounds_check(a);
 
    fail_unless(bounds_errors() == ARRAY_LEN(expect) - 1);

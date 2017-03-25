@@ -95,17 +95,69 @@ static int errors = 0;
 static void eval_vcode(eval_state_t *state);
 static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level);
 
-static bool eval_have_lowered(tree_t body, eval_flags_t flags)
+static void eval_load_vcode(lib_t lib, tree_t unit, eval_flags_t flags)
 {
-   if (tree_attr_str(body, builtin_i))
+   ident_t unit_name = tree_ident(unit);
+
+   if (flags & EVAL_VERBOSE)
+      notef("loading vcode for %s", istr(unit_name));
+
+   char *name LOCAL = xasprintf("_%s.vcode", istr(unit_name));
+   fbuf_t *f = lib_fbuf_open(lib, name, FBUF_IN);
+   if (f == NULL) {
+      if (flags & EVAL_WARN)
+         warnf("cannot load vcode for %s", istr(unit_name));
+      return;
+   }
+
+   vcode_read(f);
+   fbuf_close(f);
+}
+
+static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
+{
+   vcode_unit_t vcode = vcode_find_unit(func_name);
+   if (vcode == NULL) {
+      ident_t unit_name = ident_runtil(func_name, '.');
+      ident_t lib_name = ident_until(unit_name, '.');
+
+      lib_t lib;
+      if (lib_name != unit_name && (lib = lib_find(lib_name, false)) != NULL) {
+         tree_t unit = lib_get(lib, unit_name);
+         if (unit != NULL) {
+            eval_load_vcode(lib, unit, flags);
+
+            if (tree_kind(unit) == T_PACKAGE) {
+               ident_t body_name =
+                  ident_prefix(unit_name, ident_new("body"), '-');
+               tree_t body = lib_get(lib, body_name);
+               if (body != NULL)
+                  eval_load_vcode(lib, body, flags);
+            }
+
+            vcode = vcode_find_unit(func_name);
+         }
+      }
+   }
+
+   return vcode;
+}
+
+static bool eval_have_lowered(tree_t func, eval_flags_t flags)
+{
+   if (tree_attr_str(func, builtin_i))
       return true;
 
-   ident_t mangled = tree_attr_str(body, mangled_i);
-   if (mangled == NULL || vcode_find_unit(mangled) == NULL) {
+   ident_t mangled = lower_mangle_package_name(func);
+   if (mangled == NULL)
+      return false;
+   else if (eval_find_unit(mangled, flags) == NULL) {
       if (!(flags & EVAL_LOWER))
          return false;
+      else if (tree_kind(func) != T_FUNC_BODY)
+         return false;
 
-      return lower_func(body) != NULL;
+      return lower_func(func) != NULL;
    }
    else
       return true;
@@ -688,68 +740,18 @@ static void eval_op_abs(int op, eval_state_t *state)
    }
 }
 
-static void eval_load_vcode(lib_t lib, tree_t unit, eval_state_t *state)
-{
-   ident_t unit_name = tree_ident(unit);
-
-   if (state->flags & EVAL_VERBOSE)
-      notef("loading vcode for %s", istr(unit_name));
-
-   char *name LOCAL = xasprintf("_%s.vcode", istr(unit_name));
-   lib_mtime_t mtime;
-   if (lib_stat(lib, name, &mtime)
-       && mtime < lib_mtime(lib, tree_ident(unit))) {
-      EVAL_WARN(state->fcall, "vcode module for %s is out of date",
-                istr(unit_name));
-      return;
-   }
-
-   fbuf_t *f = lib_fbuf_open(lib, name, FBUF_IN);
-   if (f == NULL) {
-      EVAL_WARN(state->fcall, "cannot load vcode for %s", istr(unit_name));
-      return;
-   }
-
-   vcode_read(f);
-   fbuf_close(f);
-}
-
 static void eval_op_fcall(int op, eval_state_t *state)
 {
    vcode_state_t vcode_state;
    vcode_state_save(&vcode_state);
-
-   ident_t func_name = vcode_get_func(op);
-   vcode_unit_t vcode = vcode_find_unit(func_name);
 
    const int nparams = vcode_count_args(op);
    value_t *params[nparams];
    for (int i = 0; i < nparams; i++)
       params[i] = eval_get_reg(vcode_get_arg(op, i), state);
 
-   if (vcode == NULL) {
-      ident_t unit_name = ident_runtil(vcode_get_func(op), '.');
-      ident_t lib_name = ident_until(unit_name, '.');
-
-      lib_t lib;
-      if (lib_name != unit_name && (lib = lib_find(lib_name, false)) != NULL) {
-         tree_t unit = lib_get(lib, unit_name);
-         if (unit != NULL) {
-            eval_load_vcode(lib, unit, state);
-
-            if (tree_kind(unit) == T_PACKAGE) {
-               ident_t body_name =
-                  ident_prefix(unit_name, ident_new("body"), '-');
-               tree_t body = lib_get(lib, body_name);
-               if (body != NULL)
-                  eval_load_vcode(lib, body, state);
-            }
-
-            vcode = vcode_find_unit(func_name);
-         }
-      }
-   }
-
+   ident_t func_name = vcode_get_func(op);
+   vcode_unit_t vcode = eval_find_unit(func_name, state->flags);
    if (vcode == NULL) {
       EVAL_WARN(state->fcall, "function call to %s prevents "
                 "constant folding", istr(func_name));

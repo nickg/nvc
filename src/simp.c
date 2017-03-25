@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@ typedef struct {
    imp_signal_t *imp_signals;
    tree_t        top;
    ident_t       prefix;
+   eval_flags_t  eval_flags;
 } simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
@@ -136,7 +137,7 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
       }
    }
 
-   return eval(simp_call_args(t), EVAL_FCALL | EVAL_FOLDING);
+   return eval(simp_call_args(t), EVAL_FCALL | EVAL_FOLDING | ctx->eval_flags);
 }
 
 static tree_t simp_pcall(tree_t t)
@@ -952,12 +953,13 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    }
 }
 
-void simplify(tree_t top)
+void simplify(tree_t top, eval_flags_t flags)
 {
    simp_ctx_t ctx = {
       .imp_signals = NULL,
       .top         = top,
-      .prefix      = ident_runtil(tree_ident(top), '-')
+      .prefix      = ident_runtil(tree_ident(top), '-'),
+      .eval_flags  = flags
    };
 
    tree_rewrite(top, simp_tree, &ctx);

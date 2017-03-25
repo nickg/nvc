@@ -4,7 +4,9 @@ end entity;
 
 architecture test of should_fold is
 begin
-    assert X;
+    g: if not X generate                -- Error if not constant folded
+        assert X;
+    end generate;
 end architecture;
 
 -------------------------------------------------------------------------------

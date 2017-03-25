@@ -91,7 +91,7 @@ tree_t run_elab(void)
       sem_check(t);
       fail_if(sem_errors() > 0);
 
-      simplify(t);
+      simplify(t, 0);
       if (tree_kind(t) == T_PACKAGE || tree_kind(t) == T_PACK_BODY)
          lower_unit(t);
 
@@ -120,7 +120,7 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
       const bool sem_ok = sem_check(last);
       if (simp) {
          fail_unless(sem_ok, "semantic check failed");
-         simplify(last);
+         simplify(last, 0);
       }
 
       if (lower && (kind == T_PACKAGE || kind == T_PACK_BODY))

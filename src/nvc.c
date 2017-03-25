@@ -161,7 +161,7 @@ static int analyse(int argc, char **argv)
    }
 
    for (int i = 0; i < n_units; i++) {
-      simplify(units[i]);
+      simplify(units[i], 0);
       bounds_check(units[i]);
    }
 

@@ -1017,7 +1017,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_map_nets(maps);
    elab_free_maps(maps);
 
-   simplify(arch);
+   simplify(arch, EVAL_LOWER);
    bounds_check(arch);
 
    if (eval_errors() > 0 || bounds_errors() > 0)
@@ -1192,7 +1192,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .count   = 1
       };
       tree_rewrite(copy, rewrite_refs, &params);
-      simplify(copy);
+      simplify(copy, EVAL_LOWER);
       bounds_check(copy);
 
       if (eval_errors() > 0)
@@ -1451,7 +1451,7 @@ static void elab_entity_arch(tree_t t, tree_t arch, const elab_ctx_t *ctx)
 
    tree_add_attr_str(ctx->out, simple_name_i, npath);
 
-   simplify(arch);
+   simplify(arch, EVAL_LOWER);
    bounds_check(arch);
 
    if (bounds_errors() > 0 || eval_errors() > 0)
