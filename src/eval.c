@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2016  Nick Gasson
+//  Copyright (C) 2013-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -100,16 +100,32 @@ static bool eval_params_possible(tree_t fcall, eval_flags_t flags)
    const int nparams = tree_params(fcall);
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_value(tree_param(fcall, i));
-      const bool fcall = tree_kind(p) == T_FCALL;
-      if ((flags & EVAL_FOLDING) && fcall && type_is_scalar(tree_type(p)))
+      const bool is_fcall = tree_kind(p) == T_FCALL;
+      if ((flags & EVAL_FOLDING) && is_fcall && type_is_scalar(tree_type(p)))
          return false;   // Would have been folded already if possible
-      else if (fcall && !(flags & EVAL_FCALL))
+      else if (is_fcall && !(flags & EVAL_FCALL))
          return false;
       else if (!eval_possible(p, flags))
          return false;
    }
 
    return true;
+}
+
+static bool eval_have_lowered(tree_t body, eval_flags_t flags)
+{
+   if (tree_attr_str(body, builtin_i))
+      return true;
+
+   ident_t mangled = tree_attr_str(body, mangled_i);
+   if (mangled == NULL || vcode_find_unit(mangled) == NULL) {
+      if (!(flags & EVAL_LOWER))
+         return false;
+
+      return lower_func(body) != NULL;
+   }
+   else
+      return true;
 }
 
 static bool eval_possible(tree_t t, eval_flags_t flags)
@@ -119,7 +135,13 @@ static bool eval_possible(tree_t t, eval_flags_t flags)
       {
          if (!(flags & EVAL_FCALL))
             return false;
-         else if (tree_flags(tree_ref(t)) & TREE_F_IMPURE)
+         else if (tree_flags(tree_ref(t)) & TREE_F_IMPURE) {
+            if (flags & EVAL_WARN)
+               warn_at(tree_loc(t),
+                       "impure function call prevents constant folding");
+            return false;
+         }
+         else if (!eval_have_lowered(tree_ref(t), flags))
             return false;
 
          return eval_params_possible(t, flags);
@@ -143,6 +165,9 @@ static bool eval_possible(tree_t t, eval_flags_t flags)
             return eval_possible(tree_value(decl), flags);
 
          default:
+            if (flags & EVAL_WARN)
+               warn_at(tree_loc(t), "reference to %s prevents constant folding",
+                       istr(tree_ident(t)));
             return false;
          }
       }

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2016  Nick Gasson
+//  Copyright (C) 2014-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -79,7 +79,7 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_reify_expr(tree_t expr);
 static vcode_type_t lower_bounds(type_t type);
 static void lower_stmt(tree_t stmt, loop_stack_t *loops);
-static void lower_func_body(tree_t body, vcode_unit_t context);
+static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context);
 static void lower_proc_body(tree_t body, vcode_unit_t context);
 static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
@@ -4362,13 +4362,14 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
       if (mode == LOWER_THUNK
           && (kind == T_SIGNAL_DECL || kind == T_PROT_BODY))
          continue;
-      else if (kind == T_FUNC_BODY || kind == T_PROC_BODY
-               || kind == T_PROT_BODY) {
-         if (nested) {
+      else if (kind == T_FUNC_BODY || kind == T_PROC_BODY || kind == T_FUNC_DECL
+               || kind == T_PROC_DECL) {
+         if (nested)
             tree_add_attr_int(d, nested_i, nest_depth + 1);
-            lower_mangle_func(d, context);
-         }
+         lower_mangle_func(d, context);
       }
+      else if (kind == T_PROT_BODY)
+         ;
       else if (scope_kind != T_PROT_BODY)
          lower_decl(d);
    }
@@ -4463,7 +4464,7 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
    }
 }
 
-static bool lower_have_subprogram(ident_t name, vcode_unit_t context)
+static vcode_unit_t lower_find_subprogram(ident_t name, vcode_unit_t context)
 {
    vcode_unit_t vu = vcode_find_unit(name);
    if (vu == NULL)
@@ -4473,10 +4474,11 @@ static bool lower_have_subprogram(ident_t name, vcode_unit_t context)
    vcode_state_save(&state);
    vcode_select_unit(vu);
 
-   const bool same_context = vcode_unit_context() == context;
+   const bool same_context = vcode_unit_context() == context
+      || (mode == LOWER_THUNK && vcode_unit_kind() == VCODE_UNIT_THUNK);
 
    vcode_state_restore(&state);
-   return same_context;
+   return same_context ? vu : NULL;
 }
 
 static void lower_proc_body(tree_t body, vcode_unit_t context)
@@ -4487,12 +4489,12 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
    vcode_select_unit(context);
 
    ident_t name = lower_mangle_func(body, context);
-   if (lower_have_subprogram(name, context))
+   vcode_unit_t vu = lower_find_subprogram(name, context);
+   if (vu != NULL)
       return;
 
    tree_add_attr_str(body, mangled_i, name);
 
-   vcode_unit_t vu;
    if (never_waits)
       vu = emit_function(name, context, VCODE_INVALID_TYPE);
    else
@@ -4518,18 +4520,19 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
       vcode_unit_unref(vu);
 }
 
-static void lower_func_body(tree_t body, vcode_unit_t context)
+static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
 {
    vcode_select_unit(context);
 
    vcode_type_t vtype = lower_func_result_type(body);
 
    ident_t name = lower_mangle_func(body, context);
-   if (lower_have_subprogram(name, context))
-      return;
+   vcode_unit_t vu = lower_find_subprogram(name, context);
+   if (vu != NULL)
+      return vu;
 
    tree_add_attr_str(body, mangled_i, name);
-   vcode_unit_t vu = emit_function(name, context, vtype);
+   vu = emit_function(name, context, vtype);
    emit_debug_info(tree_loc(body));
 
    const bool has_subprograms = lower_has_subprograms(body);
@@ -4543,8 +4546,12 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
 
    lower_finished();
 
-   if (vcode_unit_has_undefined())
+   if (vcode_unit_has_undefined()) {
       vcode_unit_unref(vu);
+      return NULL;
+   }
+   else
+      return vu;
 }
 
 static bool lower_driver_nets(tree_t t, tree_t *decl,
@@ -4878,4 +4885,24 @@ vcode_unit_t lower_thunk(tree_t fcall)
 
    vcode_close();
    return thunk;
+}
+
+vcode_unit_t lower_func(tree_t body)
+{
+   lower_set_verbose();
+
+   vcode_unit_t context = emit_context(thunk_i);
+
+   vcode_select_unit(context);
+   vcode_objs = hash_new(128, true);
+   mode = LOWER_THUNK;
+   tmp_alloc_used = false;
+
+   vcode_unit_t vu = lower_func_body(body, context);
+   vcode_close();
+
+   hash_free(vcode_objs);
+   vcode_objs = NULL;
+
+   return vu;
 }

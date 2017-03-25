@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2016  Nick Gasson
+//  Copyright (C) 2013-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -39,14 +39,18 @@ int64_t assume_int(tree_t t)
    case T_REF:
       {
          tree_t ref = tree_ref(t);
-         assert(tree_kind(ref) == T_ENUM_LIT);
-         return tree_pos(ref);
+         if (tree_kind(ref) == T_CONST_DECL)
+            return assume_int(tree_value(ref));
+         else {
+            assert(tree_kind(ref) == T_ENUM_LIT);
+            return tree_pos(ref);
+         }
       }
 
    case T_FCALL:
       {
          const eval_flags_t flags =
-            EVAL_FCALL | EVAL_BOUNDS | EVAL_WARN | EVAL_REPORT;
+            EVAL_FCALL | EVAL_BOUNDS | EVAL_WARN | EVAL_REPORT | EVAL_LOWER;
          tree_t new = eval(t, flags);
          const tree_kind_t new_kind = tree_kind(new);
          if (new_kind == T_LITERAL || new_kind == T_REF)

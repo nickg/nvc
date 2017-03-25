@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@
 #endif
 
 const char *copy_string =
-   "Copyright (C) 2011-2016  Nick Gasson\n"
+   "Copyright (C) 2011-2017  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";

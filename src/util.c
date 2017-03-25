@@ -338,6 +338,14 @@ void notef(const char *fmt, ...)
    va_end(ap);
 }
 
+static void fatalf(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
+   va_end(ap);
+}
+
 static void def_error_fn(const char *msg, const loc_t *loc)
 {
    if (message_style == MESSAGE_COMPACT)
@@ -456,8 +464,7 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
-   fmt_loc(stderr, loc);
+   catch_in_unit_test(fatalf, loc, fmt, ap);
    va_end(ap);
 
    if (fatal_fn != NULL)

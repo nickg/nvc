@@ -32,7 +32,12 @@ architecture MODEL of issue309 is
 
 begin
 
-    assert c;
-    assert d;
+    g1: if not (c or true) generate           -- XXXX
+        assert false;
+    end generate;
+
+    g2: if not (d or true) generate           -- XXXX
+        assert false;
+    end generate;
 
 end MODEL;

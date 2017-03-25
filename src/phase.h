@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -26,7 +26,8 @@ typedef enum {
    EVAL_WARN    = (1 << 2),
    EVAL_VERBOSE = (1 << 4),
    EVAL_REPORT  = (1 << 5),
-   EVAL_FOLDING = (1 << 6)
+   EVAL_FOLDING = (1 << 6),
+   EVAL_LOWER   = (1 << 7)
 } eval_flags_t;
 
 // Annotate types and perform other semantics checks on a tree.
@@ -96,5 +97,8 @@ vcode_unit_t lower_unit(tree_t unit);
 
 // Generate vcode for an isolated function call
 vcode_unit_t lower_thunk(tree_t fcall);
+
+// Lower an isolated function body
+vcode_unit_t lower_func(tree_t body);
 
 #endif  // _PHASE_H

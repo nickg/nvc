@@ -53,6 +53,15 @@ signal tmp3 : integer := cnum3;
 
 begin
     y <= x;
+
+    g1: if cnum /= 32 generate
+        assert false;
+    end generate;
+
+    g2: if cnum3 /= 32 generate
+        assert false;
+    end generate;
+
 end architecture;
 
 -------------------------------------------------------------------------------

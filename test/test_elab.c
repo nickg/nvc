@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 START_TEST(test_elab1)
 {
@@ -130,32 +131,7 @@ START_TEST(test_issue19)
    expect_errors(expect);
 
    tree_t e = run_elab();
-
-   tree_t tmp = NULL;
-   const int ndecls = tree_decls(e);
-   for (int i = 0; (i < ndecls) && (tmp == NULL); i++) {
-      tree_t t = tree_decl(e, i);
-      if (icmp(tree_ident(t), ":comp6:c1:tmp"))
-         tmp = t;
-   }
-
-   fail_if(tmp == NULL);
-
-   tree_t value = tree_value(tmp);
-   fail_unless(tree_kind(value) == T_LITERAL);
-   fail_unless(tree_ival(value) == 32);
-
-   for (int i = 0; (i < ndecls) && (tmp == NULL); i++) {
-      tree_t t = tree_decl(e, i);
-      if (icmp(tree_ident(t), ":comp6:c1:tmp3"))
-         tmp = t;
-   }
-
-   fail_if(tmp == NULL);
-
-   value = tree_value(tmp);
-   fail_unless(tree_kind(value) == T_LITERAL);
-   fail_unless(tree_ival(value) == 32);
+   fail_unless(tree_stmts(e) == 1);
 }
 END_TEST
 
@@ -249,10 +225,7 @@ START_TEST(test_issue93)
    expect_errors(expect);
 
    tree_t top = run_elab();
-   tree_t c_order = tree_value(tree_decl(top, 2));
-   fail_unless(tree_kind(c_order) == T_LITERAL);
-   fail_unless(tree_subkind(c_order) == L_INT);
-   fail_unless(tree_ival(c_order) == 4);
+   fail_unless(tree_stmts(top) == 4);
 }
 END_TEST
 
@@ -268,11 +241,9 @@ START_TEST(test_const1)
    tree_t top = run_elab();
 
    tree_t ctr_r = tree_decl(top, tree_decls(top) - 1);
+   fail_unless(tree_kind(ctr_r) == T_SIGNAL_DECL);
    fail_unless(tree_ident(ctr_r) == ident_new(":top:pwm_1:ctr_r"));
-
-   range_t r = type_dim(tree_type(ctr_r), 0);
-   fail_unless(tree_kind(r.left) == T_LITERAL);
-   fail_unless(tree_ival(r.left) == 14);
+   fail_unless(tree_nets(ctr_r) == 15);
 }
 END_TEST
 
@@ -435,7 +406,8 @@ START_TEST(test_eval1)
 
    const error_t expect[] = {
       { 12, "array index -1 outside bounds 7 downto 0" },
-      { 16, "while evaluating call to FUNC" },
+      { 16, "while evaluating call to \"=\"" },
+      { 16, "expression cannot be folded to an integer constant" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -513,7 +485,7 @@ int main(void)
    tcase_add_test(tc, test_libbind3);
    tcase_add_test(tc, test_issue251);
    tcase_add_test(tc, test_jcore1);
-   tcase_add_test(tc, test_eval1);
+   tcase_add_exit_test(tc, test_eval1, EXIT_FAILURE);
    tcase_add_test(tc, test_issue305);
    tcase_add_test(tc, test_gbounds);
    tcase_add_test(tc, test_issue307);
