@@ -232,6 +232,7 @@ static tree_t rewrite_refs(tree_t t, void *context)
       case T_ARRAY_REF:
       case T_FCALL:
       case T_CONCAT:
+      case T_RECORD_REF:
          return params->actuals[i];
       case T_TYPE_CONV:
          // XXX: this only works in trivial cases

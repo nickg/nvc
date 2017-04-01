@@ -323,3 +323,4 @@ case7           normal,2008
 ieee5           normal
 issue309        normal
 issue308        normal,gold
+issue315        normal
