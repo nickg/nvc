@@ -2,7 +2,7 @@
 set -e
 
 ieee_url="https://standards.ieee.org/downloads/1076/1076.2-1996"
-vital_url="http://svn.gna.org/svn/ghdl/trunk/libraries/vital2000"
+vital_url="https://raw.githubusercontent.com/tgingold/ghdl/master/libraries/vital2000"
 
 cat <<EOF
 This program will download IEEE library sources from
@@ -48,7 +48,7 @@ download_file "$vital_url/timing_b.vhdl"            "e0981c345ff83423f1328d9739d
 download_file "$vital_url/prmtvs_p.vhdl"            "69f5f97a439a172b7b516314d28582aa28b8156fc9d826d096ed1e5b6aceb400"
 download_file "$vital_url/prmtvs_b.vhdl"            "d06dd5f5d5c4f8b19770db8e06b6302f87cb8e30e027feef201cc780152e3b8b"
 download_file "$vital_url/memory_p.vhdl"            "97c652ecc94a9f7eab13be8913776e2a98764f471e5a10dd6b9624eef8c24c11"
-download_file "$vital_url/memory_b.vhdl"            "03878edc834050f67ec5d3e0b49bef883065dc429700a174e93850274c63e458"
+download_file "$vital_url/memory_b.vhdl"            "507163c4530ffe894929caf604437c9a24dd8f4b347f0c01949d230fdfcd2825"
 
 # Uncomment operator XNOR
 
