@@ -74,4 +74,12 @@ begin
     uut: entity work.test_ng
         port map (i, o );
 
+    process is
+    begin
+        i <= X"12345678";
+        wait for 1 ns;
+        assert o = X"12345678";
+        wait;
+    end process;
+
 end architecture;

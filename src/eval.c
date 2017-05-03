@@ -58,6 +58,7 @@ typedef struct {
 
 struct value {
    value_kind_t kind;
+   uint32_t     length;
    union {
       double       real;
       int64_t      integer;
@@ -67,6 +68,8 @@ struct value {
       image_map_t *image_map;
    };
 };
+
+STATIC_ASSERT(sizeof(value_t) == sizeof(void *) + 8);
 
 struct context {
    context_t *parent;
@@ -238,6 +241,48 @@ static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level)
       if (flags & EVAL_WARN)
          warn_at(tree_loc(t), "expression prevents constant folding");
       return false;
+   }
+}
+
+static void eval_dump(text_buf_t *tb, value_t *value, type_t type)
+{
+   switch (value->kind) {
+   case VALUE_INTEGER:
+      tb_printf(tb, "%"PRIi64, value->integer);
+      break;
+   case VALUE_REAL:
+      tb_printf(tb, "%lf", value->real);
+      break;
+   case VALUE_POINTER:
+      tb_printf(tb, "*");
+      if (type != NULL && type_kind(type) == T_ACCESS)
+         eval_dump(tb, value->pointer, type_base(type));
+      else
+         eval_dump(tb, value->pointer, type);
+      break;
+   case VALUE_CARRAY:
+      tb_printf(tb, "[");
+      for (unsigned i = 0; i < value->length; i++) {
+         if (i > 0)
+            tb_printf(tb, ",");
+         eval_dump(tb, &(value->pointer[i]), type ? type_elem(type) : NULL);
+      }
+      tb_printf(tb, "]");
+      break;
+   case VALUE_RECORD:
+      tb_printf(tb, "{");
+      for (int i = 0; i < value->length; i++) {
+         tree_t field = type_field(type, i);
+         if (i > 0)
+            tb_printf(tb, ", ");
+         tb_printf(tb, "%s=>", istr(tree_ident(field)));
+         eval_dump(tb, &(value->fields[i]), tree_type(field));
+      }
+      tb_printf(tb, "}");
+      break;
+   default:
+      tb_printf(tb, "<%d>", value->kind);
+      break;
    }
 }
 
@@ -795,19 +840,9 @@ static void eval_op_fcall(int op, eval_state_t *state)
       if (state->flags & EVAL_VERBOSE) {
          const char *name = istr(vcode_get_func(op));
          const char *nest = istr(tree_ident(state->fcall));
-         switch (context->regs[new.result].kind) {
-         case VALUE_INTEGER:
-            notef("%s (in %s) returned %"PRIi64, name, nest,
-                  context->regs[new.result].integer);
-            break;
-         case VALUE_REAL:
-            notef("%s (in %s) returned %lf", name, nest,
-                  context->regs[new.result].real);
-            break;
-         default:
-            notef("%s (in %s) returned value kind %d", name, nest,
-                  context->regs[new.result].kind);
-         }
+         LOCAL_TEXT_BUF tb = tb_new();
+         eval_dump(tb, &(context->regs[new.result]), NULL);
+         notef("%s (in %s) returned %s", name, nest, tb_get(tb));
       }
    }
 
@@ -894,6 +929,7 @@ static void eval_op_const_array(int op, eval_state_t *state)
    const int nargs = vcode_count_args(op);
 
    dst->kind = VALUE_POINTER;
+   dst->length = nargs;
    if ((dst->pointer = eval_alloc(sizeof(value_t) * nargs, state))) {
       for (int i = 0; i < nargs; i++)
          dst->pointer[i] = *eval_get_reg(vcode_get_arg(op, i), state);
@@ -1334,11 +1370,16 @@ static void eval_op_const_record(int op, eval_state_t *state)
 
    const int nfields = vcode_count_args(op);
    dst->kind = VALUE_RECORD;
+   dst->length = nfields;
    if ((dst->fields = eval_alloc(nfields * sizeof(value_t), state)) == NULL)
       return;
 
-   for (int i = 0; i < nfields; i++)
+   vcode_type_t vtype = vcode_reg_type(vcode_get_result(op));
+   for (int i = 0; i < nfields; i++) {
       dst->fields[i] = *eval_get_reg(vcode_get_arg(op, i), state);
+      if (vtype_kind(vtype_field(vtype, i)) == VCODE_TYPE_CARRAY)
+         dst->fields[i].kind = VALUE_CARRAY;
+   }
 }
 
 static void eval_op_record_ref(int op, eval_state_t *state)
@@ -1349,8 +1390,10 @@ static void eval_op_record_ref(int op, eval_state_t *state)
    assert(ptr->kind == VALUE_POINTER);
    assert(ptr->pointer->kind == VALUE_RECORD);
 
+   value_t *field = &(ptr->pointer->fields[vcode_get_field(op)]);
+
    dst->kind = VALUE_POINTER;
-   dst->pointer = &(ptr->pointer->fields[vcode_get_field(op)]);
+   dst->pointer = (field->kind == VALUE_CARRAY) ? field->pointer : field;
 }
 
 static void eval_op_memset(int op, eval_state_t *state)
@@ -1689,12 +1732,81 @@ static void eval_vcode(eval_state_t *state)
    }
 }
 
+static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
+{
+   tree_t tree = NULL;
+
+   switch (value->kind) {
+   case VALUE_INTEGER:
+      if (type_is_enum(type)) {
+         type_t enum_type = type_base_recur(type);
+         tree_t lit = type_enum_literal(enum_type, value->integer);
+
+         tree = tree_new(T_REF);
+         tree_set_ref(tree, lit);
+         tree_set_ident(tree, tree_ident(lit));
+      }
+      else {
+         tree = tree_new(T_LITERAL);
+         tree_set_subkind(tree, L_INT);
+         tree_set_ival(tree, value->integer);
+      }
+      break;
+   case VALUE_REAL:
+      tree = tree_new(T_LITERAL);
+      tree_set_subkind(tree, L_REAL);
+      tree_set_dval(tree, value->real);
+      break;
+   case VALUE_POINTER:
+      if (type_is_record(type))
+         return eval_value_to_tree(value->pointer, type, loc);
+      else
+         fatal_trace("pointer cannot be converted to tree");
+   case VALUE_RECORD:
+      {
+         const int nfields = type_fields(type);
+         assert(nfields == value->length);
+         tree = tree_new(T_AGGREGATE);
+         for (int i = 0; i < nfields; i++) {
+            tree_t field = type_field(type, i);
+            tree_t assoc = tree_new(T_ASSOC);
+            tree_set_subkind(assoc, A_POS);
+            tree_set_pos(assoc, i);
+            tree_set_value(assoc, eval_value_to_tree(&(value->fields[i]),
+                                                     tree_type(field), loc));
+            tree_add_assoc(tree, assoc);
+         }
+      }
+      break;
+   case VALUE_CARRAY:
+      {
+         type_t elem = type_elem(type);
+         tree = tree_new(T_AGGREGATE);
+         for (int i = 0; i < value->length; i++) {
+            tree_t assoc = tree_new(T_ASSOC);
+            tree_set_subkind(assoc, A_POS);
+            tree_set_pos(assoc, i);
+            tree_set_value(assoc,
+                           eval_value_to_tree(&(value->pointer[i]), elem, loc));
+            tree_add_assoc(tree, assoc);
+         }
+      }
+      break;
+   default:
+      fatal_trace("cannot convert value %d to tree", value->kind);
+   }
+
+   tree_set_type(tree, type);
+   tree_set_loc(tree, loc);
+   return tree;
+}
+
 tree_t eval(tree_t fcall, eval_flags_t flags)
 {
    assert(tree_kind(fcall) == T_FCALL);
 
    type_t type = tree_type(fcall);
-   if (!type_is_scalar(type))
+   if (!type_is_scalar(type) && !type_is_record(type))
       return fcall;
    else if (tree_flags(tree_ref(fcall)) & TREE_F_IMPURE)
       return fcall;
@@ -1729,39 +1841,30 @@ tree_t eval(tree_t fcall, eval_flags_t flags)
    };
 
    eval_vcode(&state);
-   free(state.heap);
 
    vcode_unit_unref(thunk);
    thunk = NULL;
 
    if (state.failed) {
       eval_free_context(state.context);
+      free(state.heap);
       return fcall;
    }
 
    assert(state.result != -1);
    value_t result = context->regs[state.result];
-   eval_free_context(state.context);
 
    if (flags & EVAL_VERBOSE) {
       const char *name = istr(tree_ident(fcall));
-      if (result.kind == VALUE_INTEGER)
-         note_at(tree_loc(fcall), "%s returned %"PRIi64, name, result.integer);
-      else
-         note_at(tree_loc(fcall), "%s returned %lf", name, result.real);
+      LOCAL_TEXT_BUF tb = tb_new();
+      eval_dump(tb, &result, type);
+      note_at(tree_loc(fcall), "%s returned %s", name, tb_get(tb));
    }
 
-   switch (result.kind) {
-   case VALUE_INTEGER:
-      if (type_is_enum(type))
-         return get_enum_lit(fcall, result.integer);
-      else
-         return get_int_lit(fcall, result.integer);
-   case VALUE_REAL:
-      return get_real_lit(fcall, result.real);
-   default:
-      fatal_trace("eval result is not scalar");
-   }
+   tree_t tree = eval_value_to_tree(&result, type, tree_loc(fcall));
+   eval_free_context(state.context);
+   free(state.heap);
+   return tree;
 }
 
 int eval_errors(void)

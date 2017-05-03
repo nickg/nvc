@@ -253,8 +253,9 @@ begin
         signal s19 : integer := needs_heap(40);
         signal s20 : integer := sum_left_right("101010");
         signal s21 : integer := call_proc(1);
-        signal s22 : boolean := make_rec("010", 1).y = 1;
+        signal s22 : boolean := make_rec("010", 20).y = 20;
         signal s23 : boolean := get_left("1010") = '1';
+        signal s24 : boolean := make_rec("010", 4).x = "010";
     begin
     end block;
 

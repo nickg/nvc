@@ -36,6 +36,20 @@
 #define RETURNS_NONNULL
 #endif
 
+#ifdef __GNUC__
+#define GCC_VERSION (__GNUC__ * 10000       \
+                     + __GNUC_MINOR__ * 100 \
+                     + __GNUC_PATCHLEVEL__)
+#else
+#define GCC_VERSION 0
+#endif
+
+#if GCC_VERSION > 40600
+#define STATIC_ASSERT(x) _Static_assert((x), "Static assertion failed");
+#else
+#define STATIC_ASSERT(x)
+#endif
+
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))

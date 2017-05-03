@@ -939,24 +939,25 @@ static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
 
    const int nest_depth = tree_attr_int(decl, nested_i, 0);
    if (nest_depth > 0 || !ident_contains(name_i, ".:")) {
-      if (context == NULL)
-         return NULL;   // Need a context to get mangled name
+      if (context == NULL || mode == LOWER_THUNK) {
+         save_mangled_name = false;
+         tb_printf(buf, "%"PRIxPTR"__", (uintptr_t)decl);
+      }
+      else {
+         vcode_state_t state;
+         vcode_state_save(&state);
+         vcode_select_unit(context);
 
-      vcode_state_t state;
-      vcode_state_save(&state);
-      vcode_select_unit(context);
+         const vunit_kind_t ckind = vcode_unit_kind();
+         if (ckind == VCODE_UNIT_PROCESS)
+            ;
+         else if (ckind != VCODE_UNIT_CONTEXT)
+            tb_printf(buf, "%s__", istr(vcode_unit_name()));
+         else
+            tb_printf(buf, "%s.", istr(vcode_unit_name()));
 
-      const vunit_kind_t ckind = vcode_unit_kind();
-      if (ckind == VCODE_UNIT_PROCESS)
-         ;
-      else if (ckind != VCODE_UNIT_CONTEXT)
-         tb_printf(buf, "%s__", istr(vcode_unit_name()));
-      else
-         tb_printf(buf, "%s.", istr(vcode_unit_name()));
-
-      save_mangled_name = (vcode_unit_name() != thunk_i);
-
-      vcode_state_restore(&state);
+         vcode_state_restore(&state);
+      }
    }
 
 #if LLVM_MANGLES_NAMES
@@ -4872,11 +4873,20 @@ vcode_unit_t lower_thunk(tree_t fcall)
    mode = LOWER_THUNK;
    tmp_alloc_used = false;
 
-   vcode_type_t vtype = lower_type(tree_type(fcall));
+   vcode_type_t vtype = VCODE_INVALID_TYPE;
+   tree_t decl = tree_ref(fcall);
+   if (tree_has_type(decl))
+      vtype = lower_func_result_type(decl);
+   else
+      vtype = lower_type(tree_type(fcall));
+
    vcode_unit_t thunk = emit_thunk(tree_ident(fcall), context, vtype);
 
    vcode_reg_t result_reg = lower_expr(fcall, EXPR_RVALUE);
-   emit_return(emit_cast(vtype, vtype, result_reg));
+   if (type_is_scalar(tree_type(fcall)))
+      emit_return(emit_cast(vtype, vtype, result_reg));
+   else
+      emit_return(result_reg);
 
    lower_finished();
    vcode_unit_unref(context);

@@ -63,10 +63,18 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          // Fall-through
       case VCODE_OP_FCALL:
       case VCODE_OP_NESTED_FCALL:
-         if ((e->func != NULL) && !icmp(vcode_get_func(i), e->func)) {
-            vcode_dump();
-            fail("expected op %d in block %d to call %s but calls %s",
-                 i, bb, e->func, istr(vcode_get_func(i)));
+         if (e->func != NULL) {
+            bool bad;
+            if (e->func[0] == '*')
+               bad = strstr(istr(vcode_get_func(i)), e->func + 1) == NULL;
+            else
+               bad = !icmp(vcode_get_func(i), e->func);
+
+            if (bad) {
+               vcode_dump();
+               fail("expected op %d in block %d to call %s but calls %s",
+                    i, bb, e->func, istr(vcode_get_func(i)));
+            }
          }
          else if (e->args != vcode_count_args(i)) {
             vcode_dump();
@@ -848,9 +856,9 @@ START_TEST(test_func1)
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
 #if LLVM_MANGLES_NAMES
-      { VCODE_OP_FCALL, .func = ":func1:add1__II", .args = 1 },
+      { VCODE_OP_FCALL, .func = "*__ADD1__II", .args = 1 },
 #else
-      { VCODE_OP_FCALL, .func = ":func1:add1$II", .args = 1 },
+      { VCODE_OP_FCALL, .func = "*__ADD1$II", .args = 1 },
 #endif
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_WAIT, .target = 2 }
@@ -1746,17 +1754,17 @@ START_TEST(test_func5)
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_NETS, .name = ":func5:x" },
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = ":func5:add_one_s__IsI", .args = 1 },
+         { VCODE_OP_FCALL, .func = "*ADD_ONE_S__IsI", .args = 1 },
 #else
-         { VCODE_OP_FCALL, .func = ":func5:add_one_s$IsI", .args = 1 },
+         { VCODE_OP_FCALL, .func = "*ADD_ONE_S$IsI", .args = 1 },
 #endif
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = ":func5:event__BsI", .args = 1 },
+         { VCODE_OP_FCALL, .func = "*EVENT__BsI", .args = 1 },
 #else
-         { VCODE_OP_FCALL, .func = ":func5:event$BsI", .args = 1 },
+         { VCODE_OP_FCALL, .func = "*EVENT$BsI", .args = 1 },
 #endif
          { VCODE_OP_ASSERT },
          { VCODE_OP_WAIT, .target = 2 }
