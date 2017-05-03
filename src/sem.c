@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -3816,8 +3816,12 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
 
       if (class == C_SIGNAL) {
          if (tree_kind(value) == T_OPEN)
-            sem_error(value, "actual for formal %s must not be OPEN",
-                      istr(tree_ident(port)));
+            sem_error(value, "actual for formal %s with class SIGNAL must "
+                      "not be OPEN", istr(tree_ident(port)));
+
+         if (kind != T_REF)
+            sem_error(value, "actual for formal %s with class SIGNAL must be a "
+                      "name denoting a signal", istr(tree_ident(port)));
 
          // The 'LAST_VALUE attribute may be accessed in the body so cannot
          // optimise this out
@@ -3826,8 +3830,8 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
 
       if (class == C_VARIABLE) {
          if (kind != T_REF)
-            sem_error(value, "cannot associate this expression with "
-                      "parameter class VARIABLE");
+            sem_error(value, "actual for formal %s with class VARIABLE must be "
+                      "a name denoting a variable", istr(tree_ident(port)));
 
          tree_t decl = tree_ref(value);
          tree_kind_t decl_kind = tree_kind(decl);

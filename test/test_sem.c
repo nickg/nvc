@@ -493,7 +493,7 @@ START_TEST(test_seq)
       { 150, "case choice range must have type INTEGER" },
       { 154, "right index of case choice range is not locally static" },
       { 164, "type of exit condition must be BOOLEAN" },
-      { 179, "cannot associate this expression with parameter" },
+      { 179, "actual for formal Y with class VARIABLE must be" },
       { 187, "type of next condition must be BOOLEAN" },
       { 190, "cannot use next outside loop" },
       { 192, "no nested loop with label FOO" },
@@ -1463,7 +1463,7 @@ START_TEST(test_issue224)
 
    const error_t expect[] = {
       {  6, "parameter of class SIGNAL can not have a default value" },
-      { 18, "actual for formal A must not be OPEN" },
+      { 18, "actual for formal A with class SIGNAL must not be OPEN" },
       { 24, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value" },
       { 34, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value" },
       { 43, "port with mode LINKAGE can not have a default value" },
@@ -1719,6 +1719,22 @@ START_TEST(test_foreign1)
 }
 END_TEST
 
+START_TEST(test_issue316)
+{
+   input_from_file(TESTDIR "/sem/issue316.vhd");
+
+   const error_t expect[] = {
+      { 30, "actual for formal REG_IN with class SIGNAL must be a name" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1805,6 +1821,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue293);
    tcase_add_test(tc_core, test_issue311);
    tcase_add_test(tc_core, test_foreign1);
+   tcase_add_test(tc_core, test_issue316);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
