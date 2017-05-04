@@ -1,4 +1,7 @@
 ## master
+- Nothing yet
+
+## 1.2 - 2017-05-04
 - Compile time evaluation now uses vcode
 - Record aggregates can now be constant folded (#305)
 - The TCL shell is deprecated and will be removed in the next release
