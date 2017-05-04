@@ -420,6 +420,22 @@ START_TEST(test_issue309)
 }
 END_TEST
 
+START_TEST(test_issue320)
+{
+   input_from_file(TESTDIR "/simp/issue320.vhd");
+
+   tree_t a = parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
+   simplify(a, EVAL_LOWER);
+
+   fail_unless(tree_decls(a) == 2);
+   tree_t d = tree_decl(a, 1);
+   fail_unless(tree_kind(d) == T_CONST_DECL);
+   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
+   fail_unless(tree_subkind(tree_value(d)) == L_INT);
+   fail_unless(tree_ival(tree_value(d)) == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("simplify");
@@ -436,6 +452,7 @@ int main(void)
    tcase_add_test(tc_core, test_shift2);
    tcase_add_test(tc_core, test_issue194);
    tcase_add_test(tc_core, test_issue309);
+   tcase_add_test(tc_core, test_issue320);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
