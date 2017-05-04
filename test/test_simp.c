@@ -436,6 +436,22 @@ START_TEST(test_issue320)
 }
 END_TEST
 
+START_TEST(test_issue321)
+{
+   input_from_file(TESTDIR "/simp/issue321.vhd");
+
+   tree_t top = run_elab();
+
+   fail_unless(tree_decls(top) == 7);
+   tree_t d5 = tree_decl(top, 5);
+   fail_unless(tree_kind(tree_value(d5)) == T_LITERAL);
+   fail_unless(tree_ival(tree_value(d5)) == 23);
+   tree_t d6 = tree_decl(top, 6);
+   fail_unless(tree_kind(tree_value(d6)) == T_LITERAL);
+   fail_unless(tree_ival(tree_value(d6)) == 5);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("simplify");
@@ -453,6 +469,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue194);
    tcase_add_test(tc_core, test_issue309);
    tcase_add_test(tc_core, test_issue320);
+   tcase_add_test(tc_core, test_issue321);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

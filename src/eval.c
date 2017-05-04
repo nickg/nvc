@@ -676,8 +676,21 @@ static void eval_op_exp(int op, eval_state_t *state)
    value_t *lhs = eval_get_reg(vcode_get_arg(op, 0), state);
    value_t *rhs = eval_get_reg(vcode_get_arg(op, 1), state);
 
-   dst->kind = VALUE_REAL;
-   dst->real = pow(lhs->real, rhs->real);
+   switch (lhs->kind) {
+   case VALUE_INTEGER:
+      assert(rhs->kind == VALUE_INTEGER);
+      dst->kind = VALUE_INTEGER;
+      dst->integer = ipow(lhs->integer, rhs->integer);
+      break;
+   case VALUE_REAL:
+      assert(rhs->kind == VALUE_REAL);
+      dst->kind = VALUE_REAL;
+      dst->real = pow(lhs->real, rhs->real);
+      break;
+   default:
+      fatal_trace("invalid value type in %s", __func__);
+      break;
+   }
 }
 
 static void eval_op_cmp(int op, eval_state_t *state)
