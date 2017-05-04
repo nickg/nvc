@@ -900,13 +900,8 @@ static void lower_mangle_one_type(text_buf_t *buf, type_t type)
       tb_printf(buf, "U");
    else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR"))
       tb_printf(buf, "V");
-   else {
-#if LLVM_MANGLES_NAMES
-      tb_printf(buf, "u%s__", istr(ident));
-#else
+   else
       tb_printf(buf, "u%s;", istr(ident));
-#endif
-   }
 }
 
 static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
@@ -960,39 +955,13 @@ static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
       }
    }
 
-#if LLVM_MANGLES_NAMES
-   const char *name = istr(name_i);
-   char tmp[strlen(name) + 1], *p;
-   for (p = tmp; *name != '\0'; ++name) {
-      switch (*name) {
-      case '"': break;
-      case '+': *p++ = 'p'; break;
-      case '-': *p++ = 's'; break;
-      case '*': *p++ = 'm'; break;
-      case '/': *p++ = 'd'; break;
-      case '=': *p++ = 'e'; break;
-      case '>': *p++ = 'g'; break;
-      case '<': *p++ = 'l'; break;
-      default: *p++ = *name;
-      }
-   }
-   *p = '\0';
-
-   tb_printf(buf, "%s", tmp);
-#else
    tb_printf(buf, "%s", istr(name_i));
-#endif
 
    const tree_kind_t kind = tree_kind(decl);
    const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
    const int nports = tree_ports(decl);
-   if (nports > 0 || is_func) {
-#if LLVM_MANGLES_NAMES
-      tb_printf(buf, "__");
-#else
+   if (nports > 0 || is_func)
       tb_printf(buf, "$");
-#endif
-   }
 
    if (is_func)
       lower_mangle_one_type(buf, type_result(tree_type(decl)));

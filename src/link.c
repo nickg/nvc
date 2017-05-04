@@ -323,9 +323,7 @@ static void link_assembly(tree_t top)
    if (extra != NULL)
       link_arg_f("%s", extra);
    link_output(top, "bc");
-#ifdef LLVM_LLC_HAS_OBJ
    link_arg_f("-filetype=obj");
-#endif
 
    link_exec();
 
@@ -354,14 +352,8 @@ static void link_shared(tree_t top)
 #endif
 
    link_arg_f("-o");
-
    link_output(top, "so");
-
-#ifdef LLVM_LLC_HAS_OBJ
    link_output(top, LLVM_OBJ_EXT);
-#else
-   link_output(top, "s");
-#endif
 
    const char *obj = getenv("NVC_FOREIGN_OBJ");
    if (obj != NULL)

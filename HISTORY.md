@@ -4,6 +4,7 @@
 - The TCL shell is deprecated and will be removed in the next release
 - Compatible with LLVM 4.0
 - Functions returning records can now be constant folded (#315)
+- LLVM 3.4 or later is now required
 
 ## 1.1 - 2016-11-05
 - Improvements to based literal parsing

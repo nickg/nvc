@@ -855,11 +855,7 @@ START_TEST(test_func1)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
-#if LLVM_MANGLES_NAMES
-      { VCODE_OP_FCALL, .func = "*__ADD1__II", .args = 1 },
-#else
       { VCODE_OP_FCALL, .func = "*__ADD1$II", .args = 1 },
-#endif
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_WAIT, .target = 2 }
    };
@@ -1018,13 +1014,8 @@ START_TEST(test_nest1)
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 5 },
-#if LLVM_MANGLES_NAMES
-         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X__II",
-           .args = 1 },
-#else
          { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X$II",
            .args = 1 },
-#endif
          { VCODE_OP_CONST, .value = 7 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
@@ -1041,22 +1032,12 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit(f1);
       vcode_select_unit(v0);
 
-#if LLVM_MANGLES_NAMES
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X__II"));
-#else
       fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X$II"));
-#endif
 
       EXPECT_BB(0) = {
-#if LLVM_MANGLES_NAMES
-         { VCODE_OP_NESTED_FCALL,
-           .func = ":nest1:line_7_ADD_TO_X__II__"
-           ":nest1:line_7_ADD_TO_X_DO_IT__I" },
-#else
          { VCODE_OP_NESTED_FCALL,
            .func = ":nest1:line_7_ADD_TO_X$II__"
            ":nest1:line_7_ADD_TO_X_DO_IT$I" },
-#endif
          { VCODE_OP_RETURN }
       };
 
@@ -1070,13 +1051,8 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit(f2);
       vcode_select_unit(v0);
 
-#if LLVM_MANGLES_NAMES
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X__II__"
-                       ":nest1:line_7_ADD_TO_X_DO_IT__I"));
-#else
       fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X$II__"
                        ":nest1:line_7_ADD_TO_X_DO_IT$I"));
-#endif
 
       EXPECT_BB(0) = {
          { VCODE_OP_LOAD, .name = "X" },
@@ -1364,22 +1340,14 @@ START_TEST(test_proc1)
       EXPECT_BB(1) = {
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
-#if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = ":proc1:add1__vII", .args = 2 },
-#else
          { VCODE_OP_FCALL, .func = ":proc1:add1$vII", .args = 2 },
-#endif
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONST, .value = 5 },
-#if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = ":proc1:add1__vII", .args = 2 },
-#else
          { VCODE_OP_FCALL, .func = ":proc1:add1$vII", .args = 2 },
-#endif
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -1524,22 +1492,13 @@ START_TEST(test_proc3)
 
       EXPECT_BB(1) = {
          { VCODE_OP_INDEX, .name = "X" },
-#if LLVM_MANGLES_NAMES
-         { VCODE_OP_PCALL, .func = ":proc3:p1__vI",
-           .target = 2, .args = 1 },
-#else
          { VCODE_OP_PCALL, .func = ":proc3:p1$vI", .target = 2, .args = 1 }
-#endif
       };
 
       CHECK_BB(1);
 
       EXPECT_BB(2) = {
-#if LLVM_MANGLES_NAMES
-         { VCODE_OP_RESUME, .func = ":proc3:p1__vI" },
-#else
          { VCODE_OP_RESUME, .func = ":proc3:p1$vI" },
-#endif
          { VCODE_OP_WAIT, .target = 3 }
       };
 
@@ -1753,19 +1712,11 @@ START_TEST(test_func5)
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_NETS, .name = ":func5:x" },
-#if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = "*ADD_ONE_S__IsI", .args = 1 },
-#else
          { VCODE_OP_FCALL, .func = "*ADD_ONE_S$IsI", .args = 1 },
-#endif
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
-#if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = "*EVENT__BsI", .args = 1 },
-#else
          { VCODE_OP_FCALL, .func = "*EVENT$BsI", .args = 1 },
-#endif
          { VCODE_OP_ASSERT },
          { VCODE_OP_WAIT, .target = 2 }
       };
@@ -2020,13 +1971,7 @@ START_TEST(test_issue122)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-#if LLVM_MANGLES_NAMES
-      { VCODE_OP_NESTED_FCALL,
-        .func = ":issue122:func__II__NESTED__I" },
-#else
-      { VCODE_OP_NESTED_FCALL,
-        .func = ":issue122:func$II__NESTED$I" },
-#endif
+      { VCODE_OP_NESTED_FCALL, .func = ":issue122:func$II__NESTED$I" },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_RETURN }
    };
@@ -2051,13 +1996,8 @@ START_TEST(test_issue124)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-#if LLVM_MANGLES_NAMES
-      { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER__IuWORK.PACK.UNSIGNED__",
-        .args = 1},
-#else
       { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER$IuWORK.PACK.UNSIGNED;",
         .args = 1},
-#endif
       { VCODE_OP_IMAGE },
       { VCODE_OP_RETURN }
    };
@@ -2268,18 +2208,10 @@ START_TEST(test_issue164)
    lower_unit(p);
 
    vcode_select_unit(find_unit(tree_decl(p, 0)));
-#if LLVM_MANGLES_NAMES
-   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME__vI"));
-#else
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME$vI"));
-#endif
 
    vcode_select_unit(find_unit(tree_decl(p, 1)));
-#if LLVM_MANGLES_NAMES
-   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME__I"));
-#else
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME$I"));
-#endif
 }
 END_TEST
 

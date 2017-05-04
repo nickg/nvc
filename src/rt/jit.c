@@ -41,71 +41,14 @@ static LLVMExecutionEngineRef exec_engine = NULL;
 static bool using_jit = true;
 static void *dl_handle = NULL;
 
-#ifdef LLVM_MANGLES_NAMES
-static char *jit_str_add(char *p, const char *s)
-{
-   while (*s != '\0')
-      *p++ = *s++;
-   return p;
-}
-
-static void jit_native_name(const char *name, char *buf, size_t len)
-{
-   char *p = buf;
-   char ch;
-   while ((ch = *(name++)) && (p < buf + len - 4)) {
-      switch (ch) {
-#if !defined __APPLE__
-      case ':':
-         p = jit_str_add(p, "_3A_");
-         break;
-#endif
-      case ';':
-         p = jit_str_add(p, "_3B_");
-         break;
-      case '(':
-         p = jit_str_add(p, "_28_");
-         break;
-      case ')':
-         p = jit_str_add(p, "_29_");
-         break;
-      case '@':
-         p = jit_str_add(p, "_40_");
-         break;
-      case '[':
-         p = jit_str_add(p, "_5B_");
-         break;
-      case ']':
-         p = jit_str_add(p, "_5D_");
-         break;
-#if !defined __APPLE__
-      case '-':
-         p = jit_str_add(p, "_2D_");
-         break;
-#endif
-      default:
-         *p++ = ch;
-      }
-   }
-   *p = '\0';
-}
-#endif  // LLVM_MANGLES_NAMES
-
 static void *jit_search_loaded_syms(const char *name, bool required)
 {
    dlerror();   // Clear any previous error
 
-#ifdef LLVM_MANGLES_NAMES
-   char dlname[1024];
-   jit_native_name(name, dlname, sizeof(dlname));
-#else
-   const char *dlname = name;
-#endif
-
-   void *sym = dlsym(dl_handle, dlname);
+   void *sym = dlsym(dl_handle, name);
    const char *error = dlerror();
    if (error != NULL) {
-      sym = dlsym(RTLD_DEFAULT, dlname);
+      sym = dlsym(RTLD_DEFAULT, name);
       error = dlerror();
       if ((error != NULL) && required)
          fatal("%s", error);
