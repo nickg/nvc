@@ -55,7 +55,7 @@ To build from a released tarball:
     sudo make install
 
 To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
-to the configure command. LLVM 3.0 or later is required.
+to the configure command. LLVM 3.4 or later is required.
 
 NVC also depends GNU Flex to generate the lexical analyser.
 
