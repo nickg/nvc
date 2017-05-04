@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,8 +35,16 @@
 #include <llvm-c/BitReader.h>
 #include <llvm-c/ExecutionEngine.h>
 
+#if LLVM_HAS_ORC
+#include <llvm-c/OrcBindings.h>
+#endif
+
 static LLVMModuleRef          module = NULL;
 static LLVMExecutionEngineRef exec_engine = NULL;
+
+#if LLVM_HAS_ORC
+static LLVMOrcJITStackRef orc_ref = NULL;
+#endif
 
 static bool using_jit = true;
 static void *dl_handle = NULL;
@@ -124,7 +132,23 @@ static void jit_init_llvm(const char *path)
    }
 
    LLVMInitializeNativeTarget();
-#ifdef LLVM_HAS_MCJIT
+#if LLVM_HAS_ORC
+   char *def_triple = LLVMGetDefaultTargetTriple();
+   char *error;
+   LLVMTargetRef target_ref;
+   if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
+      fatal("failed to get LLVM target for %s: %s", def_triple, error);
+
+   LLVMDisposeMessage(def_triple);
+
+   if (!LLVMTargetHasJIT(target_ref))
+      fatal("LLVM target %s has no JIT", LLVMGetTargetName(target_ref));
+
+   exit(1);
+
+   orc_ref = LLVMOrcCreateInstance(NULL);
+
+#elif LLVM_HAS_MCJIT
    LLVMInitializeNativeAsmPrinter();
    LLVMLinkInMCJIT();
 

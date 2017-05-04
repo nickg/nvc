@@ -3,3 +3,4 @@
 -I./src/vhpi/
 -std=c99
 -DHAVE_CONFIG_H
+-D_GNU_SOURCE
