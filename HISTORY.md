@@ -1,4 +1,4 @@
-## master
+## 1.2.1 - 2017-05-05
 - Fix crash when build IEEE library from non-clean tree
 
 ## 1.2 - 2017-05-04

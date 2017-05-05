@@ -1,4 +1,4 @@
-AC_INIT([nvc], [1.2],
+AC_INIT([nvc], [1.2.1],
         [Nick Gasson <nick@nick.me.uk>],
         [nvc])
 AC_PREREQ([2.63])
