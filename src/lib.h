@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -46,6 +46,7 @@ const char *lib_enum_search_paths(void **token);
 void lib_add_search_path(const char *path);
 bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt);
 void lib_add_map(const char *name, const char *path);
+void lib_delete(lib_t lib, const char *name);
 
 lib_t lib_work(void);
 void lib_set_work(lib_t lib);

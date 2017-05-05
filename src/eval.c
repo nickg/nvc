@@ -105,7 +105,7 @@ static void eval_load_vcode(lib_t lib, tree_t unit, eval_flags_t flags)
    if (flags & EVAL_VERBOSE)
       notef("loading vcode for %s", istr(unit_name));
 
-   char *name LOCAL = xasprintf("_%s.vcode", istr(unit_name));
+   char *name LOCAL = vcode_file_name(unit_name);
    fbuf_t *f = lib_fbuf_open(lib, name, FBUF_IN);
    if (f == NULL) {
       if (flags & EVAL_WARN)

@@ -161,6 +161,10 @@ static int analyse(int argc, char **argv)
    }
 
    for (int i = 0; i < n_units; i++) {
+      // Delete any stale vcode to prevent problems in constant folding
+      char *vcode LOCAL = vcode_file_name(tree_ident(units[i]));
+      lib_delete(lib_work(), vcode);
+
       simplify(units[i], 0);
       bounds_check(units[i]);
    }
@@ -176,7 +180,7 @@ static int analyse(int argc, char **argv)
          || (kind == T_PACKAGE && pack_needs_cgen(units[i]));
       if (need_cgen) {
          vcode_unit_t vu = lower_unit(units[i]);
-         char *name LOCAL = xasprintf("_%s.vcode", istr(tree_ident(units[i])));
+         char *name LOCAL = vcode_file_name(tree_ident(units[i]));
          fbuf_t *fbuf = lib_fbuf_open(lib_work(), name, FBUF_OUT);
          vcode_write(vu, fbuf);
          fbuf_close(fbuf);

@@ -799,6 +799,11 @@ void loc_read(loc_t *loc, fbuf_t *f, ident_rd_ctx_t ctx)
    loc->last_column  = merged & 0xfff;
 }
 
+char *vcode_file_name(ident_t unit_name)
+{
+   return xasprintf("_%s.vcode", istr(unit_name));
+}
+
 void intern_strings(void)
 {
    builtin_i        = ident_new("builtin");

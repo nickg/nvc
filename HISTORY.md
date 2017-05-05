@@ -1,5 +1,5 @@
 ## master
-- Nothing yet
+- Fix crash when build IEEE library from non-clean tree
 
 ## 1.2 - 2017-05-04
 - Compile time evaluation now uses vcode

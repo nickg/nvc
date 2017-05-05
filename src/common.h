@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2016  Nick Gasson
+//  Copyright (C) 2013-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -56,6 +56,7 @@ int64_t rebase_index(type_t array_type, int dim, int64_t value);
 bool loc_eq(const loc_t *a, const loc_t *b);
 void loc_write(const loc_t *loc, fbuf_t *f, ident_wr_ctx_t ctx);
 void loc_read(loc_t *loc, fbuf_t *f, ident_rd_ctx_t ctx);
+char *vcode_file_name(ident_t unit_name);
 
 const char *fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

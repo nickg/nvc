@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -786,4 +786,11 @@ void lib_mkdir(lib_t lib, const char *name)
    if ((mkdir(lib_file_path(lib, name), 0777) != 0)
        && (errno != EEXIST))
       fatal_errno("mkdir: %s", name);
+}
+
+void lib_delete(lib_t lib, const char *name)
+{
+   assert(lib != NULL);
+   if (remove(lib_file_path(lib, name)) != 0 && errno != ENOENT)
+      fatal_errno("remove: %s", name);
 }
