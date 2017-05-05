@@ -71,8 +71,6 @@ struct value {
    };
 };
 
-STATIC_ASSERT(sizeof(value_t) == sizeof(void *) + 8);
-
 struct context {
    context_t *parent;
    value_t   *regs;

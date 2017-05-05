@@ -48,10 +48,10 @@ START_TEST(test_rand)
 {
    for (int i = 0; i < 10000; i++) {
       char buf[16];
-      size_t len = (random() % (sizeof(buf) - 3)) + 2;
+      size_t len = (rand() % (sizeof(buf) - 3)) + 2;
 
       for (size_t j = 0; j < len; j++)
-         buf[j] = '0' + (random() % 80);
+         buf[j] = '0' + (rand() % 80);
       buf[len - 1] = '\0';
 
       ident_t i1 = ident_new(buf);
@@ -271,7 +271,7 @@ END_TEST
 
 int main(void)
 {
-   srandom((unsigned)time(NULL));
+   srand((unsigned)time(NULL));
 
    Suite *s = suite_create("ident");
 

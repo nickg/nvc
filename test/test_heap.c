@@ -71,7 +71,7 @@ START_TEST(test_rand)
    uintptr_t keys[N];
 
    for (int i = 0; i < N; i++) {
-      keys[i] = random();
+      keys[i] = rand();
       heap_insert(h, keys[i], (void*)keys[i]);
    }
 
@@ -84,7 +84,7 @@ END_TEST
 
 int main(void)
 {
-   srandom((unsigned)time(NULL));
+   srand((unsigned)time(NULL));
 
    Suite *s = suite_create("heap");
 

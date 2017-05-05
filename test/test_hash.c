@@ -34,8 +34,8 @@ START_TEST(test_rand)
   void *values[N];
 
   for (int i = 0; i < N; i++) {
-     keys[i] = VOIDP(random());
-     values[i] = VOIDP(random());
+     keys[i] = VOIDP(rand());
+     values[i] = VOIDP(rand());
   }
 
   for (int i = 0; i < N; i++)
@@ -69,7 +69,7 @@ END_TEST;
 
 int main(void)
 {
-   srandom((unsigned)time(NULL));
+   srand((unsigned)time(NULL));
 
    Suite *s = suite_create("hash");
 

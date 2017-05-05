@@ -58,7 +58,12 @@ static void *jit_search_loaded_syms(const char *name, bool required)
 {
    dlerror();   // Clear any previous error
 
-   void *sym = dlsym(NULL, name);
+#ifdef __MINGW32__
+   if (*name == '_')
+      name++;   // Remove leading underscore on Windows
+#endif
+
+   void *sym = dlsym(dl_handle, name);
    const char *error = dlerror();
    if (error != NULL) {
       sym = dlsym(RTLD_DEFAULT, name);
@@ -91,14 +96,9 @@ void *jit_var_ptr(const char *name, bool required)
    void *ptr = NULL;
 
 #if LLVM_HAS_ORC
-
-   if (orc_ref != NULL) {
-      char *mangled;
-      LLVMOrcGetMangledSymbol(orc_ref, &mangled, name);
-      ptr = (void *)LLVMOrcGetSymbolAddress(orc_ref, mangled);
-      LLVMOrcDisposeMangledSymbol(mangled);
-   }
-
+      void *ptr = (void *)(uintptr_t)LLVMOrcGetSymbolAddress(orc_ref, name);
+#elif LLVM_HAS_MCJIT
+      void *ptr = (void *)(uintptr_t)LLVMGetGlobalValueAddress(exec_engine, name);
 #else
 
    if (exec_engine != NULL)

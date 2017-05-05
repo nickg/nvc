@@ -52,6 +52,7 @@
 
 #ifdef __MINGW32__
 #define realpath(N, R) _fullpath((R), (N), _MAX_PATH)
+#define setenv(x, y, z) _putenv_s((x), (y))
 #endif
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
