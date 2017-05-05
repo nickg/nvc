@@ -1,5 +1,6 @@
 ## master
 - Fix crash when build IEEE library from non-clean tree
+- ORC is used for JIT if LLVM version is 3.9 or later
 
 ## 1.2 - 2017-05-04
 - Compile time evaluation now uses vcode

@@ -39,11 +39,12 @@
 #include <llvm-c/OrcBindings.h>
 #endif
 
-static LLVMModuleRef          module = NULL;
-static LLVMExecutionEngineRef exec_engine = NULL;
+static LLVMModuleRef module = NULL;
 
 #if LLVM_HAS_ORC
 static LLVMOrcJITStackRef orc_ref = NULL;
+#else
+static LLVMExecutionEngineRef exec_engine = NULL;
 #endif
 
 static bool using_jit = true;
@@ -67,6 +68,9 @@ static void *jit_search_loaded_syms(const char *name, bool required)
 void *jit_fun_ptr(const char *name, bool required)
 {
    if (using_jit) {
+#if LLVM_HAS_ORC
+      return jit_var_ptr(name, required);
+#else
       LLVMValueRef fn;
       if (LLVMFindFunction(exec_engine, name, &fn)) {
          if (required)
@@ -76,6 +80,7 @@ void *jit_fun_ptr(const char *name, bool required)
       }
 
       return LLVMGetPointerToGlobal(exec_engine, fn);
+#endif
    }
    else
       return jit_var_ptr(name, required);
@@ -84,7 +89,12 @@ void *jit_fun_ptr(const char *name, bool required)
 void *jit_var_ptr(const char *name, bool required)
 {
    if (using_jit) {
-#ifdef LLVM_HAS_MCJIT
+#if LLVM_HAS_ORC
+      char *mangled;
+      LLVMOrcGetMangledSymbol(orc_ref, &mangled, name);
+      void *ptr = (void *)LLVMOrcGetSymbolAddress(orc_ref, mangled);
+      LLVMOrcDisposeMangledSymbol(mangled);
+#elif LLVM_HAS_MCJIT
       void *ptr = (void *)(uintptr_t)LLVMGetGlobalValueAddress(exec_engine, name);
 #else
       void *ptr = NULL;
@@ -109,13 +119,22 @@ void *jit_var_ptr(const char *name, bool required)
 void jit_bind_fn(const char *name, void *ptr)
 {
    if (using_jit) {
+#if !LLVM_HAS_ORC
       LLVMValueRef fn;
       if (LLVMFindFunction(exec_engine, name, &fn))
          return;
 
       LLVMAddGlobalMapping(exec_engine, fn, ptr);
+#endif
    }
 }
+
+#if LLVM_HAS_ORC
+static uint64_t jit_orc_sym_resolver(const char *name, void *ctx)
+{
+   return (uintptr_t)jit_search_loaded_syms(name, true);
+}
+#endif  // LLVM_HAS_ORC
 
 static void jit_init_llvm(const char *path)
 {
@@ -133,21 +152,28 @@ static void jit_init_llvm(const char *path)
 
    LLVMInitializeNativeTarget();
 #if LLVM_HAS_ORC
+   LLVMInitializeNativeAsmPrinter();
+   LLVMLinkInMCJIT();
+
    char *def_triple = LLVMGetDefaultTargetTriple();
    char *error;
    LLVMTargetRef target_ref;
    if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
       fatal("failed to get LLVM target for %s: %s", def_triple, error);
 
-   LLVMDisposeMessage(def_triple);
-
    if (!LLVMTargetHasJIT(target_ref))
       fatal("LLVM target %s has no JIT", LLVMGetTargetName(target_ref));
 
-   exit(1);
+   LLVMTargetMachineRef tm_ref =
+      LLVMCreateTargetMachine(target_ref, def_triple, "", "",
+                              LLVMCodeGenLevelDefault,
+                              LLVMRelocDefault,
+                              LLVMCodeModelJITDefault);
+   assert(tm_ref);
+   LLVMDisposeMessage(def_triple);
 
-   orc_ref = LLVMOrcCreateInstance(NULL);
-
+   orc_ref = LLVMOrcCreateInstance(tm_ref);
+   LLVMOrcAddLazilyCompiledIR(orc_ref, module, jit_orc_sym_resolver, NULL);
 #elif LLVM_HAS_MCJIT
    LLVMInitializeNativeAsmPrinter();
    LLVMLinkInMCJIT();
@@ -240,8 +266,13 @@ void jit_init(tree_t top)
 
 void jit_shutdown(void)
 {
-   if (using_jit)
+   if (using_jit) {
+#if LLVM_HAS_ORC
+      LLVMOrcDisposeInstance(orc_ref);
+#else
       LLVMDisposeExecutionEngine(exec_engine);
+#endif
+   }
    else
       dlclose(dl_handle);
 }
