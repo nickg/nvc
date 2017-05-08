@@ -144,6 +144,9 @@ package body textio is
     procedure consume (l : inout line; nchars : in natural) is
         variable tmp : line;
     begin
+        if nchars = 0 then
+            return;
+        end if;
         assert l /= null;
         if nchars = l'length then
             tmp := new string'("");
@@ -154,6 +157,20 @@ package body textio is
         end if;
         deallocate(l);
         l := tmp;
+    end procedure;
+
+    function is_whitespace (x : character) return boolean is
+    begin
+        return x = ' ' or x = CR or x = LF or x = HT;
+    end function;
+
+    procedure skip_whitespace (l : inout line) is
+        variable skip : natural := 0;
+    begin
+        while skip < l'length and is_whitespace(l.all(1 + skip)) loop
+            skip := skip + 1;
+        end loop;
+        consume(l, skip);
     end procedure;
 
     function max (a, b : integer) return integer is
@@ -203,8 +220,33 @@ package body textio is
                     value : out boolean;
                     good  : out boolean ) is
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        good := false;
+        skip_whitespace(l);
+        if l.all'length = 0 then
+            return;
+        end if;
+        if l(1) = 'T' or l(1) = 't' then
+            if l.all'length >= 4
+                and (l(2) = 'R' or l(2) = 'r')
+                and (l(3) = 'U' or l(3) = 'u')
+                and (l(4) = 'E' or l(4) = 'e')
+            then
+                consume(l, 4);
+                good := true;
+                value := true;
+            end if;
+        elsif l(1) = 'F' or l(1) = 'f' then
+            if l.all'length >= 5
+                and (l(2) = 'A' or l(2) = 'a')
+                and (l(3) = 'L' or l(3) = 'l')
+                and (l(4) = 'S' or l(4) = 's')
+                and (l(5) = 'E' or l(5) = 'e')
+            then
+                consume(l, 5);
+                good := true;
+                value := false;
+            end if;
+        end if;
     end procedure;
 
     procedure read (l     : inout line;
@@ -241,9 +283,20 @@ package body textio is
     procedure read (l     : inout line;
                     value : out integer;
                     good  : out boolean ) is
+        variable pos : integer := 1;
+        variable digit : integer;
+        variable result : integer := 0;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        skip_whitespace(l);
+        while pos <= l.all'right loop
+            exit when l.all(pos) < '0' or l.all(pos) > '9';
+            digit := character'pos(l.all(pos)) - character'pos('0');
+            result := (result * 10) + digit;
+            pos := pos + 1;
+        end loop;
+        good := pos > 1;
+        value := result;
+        consume(l, pos - 1);
     end procedure;
 
     procedure read (l     : inout line;
@@ -258,9 +311,32 @@ package body textio is
     procedure read (l     : inout line;
                     value : out real;
                     good  : out boolean ) is
+        variable prefix : integer;
+        variable result : real;
+        variable pgood : boolean;
+        variable digit : integer;
+        variable shift : real := 0.1;
+        variable pos : integer := 2;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        read(l, prefix, pgood);
+        if not pgood then
+            good := false;
+            return;
+        end if;
+        result := real(prefix);
+        good := true;
+        if l.all'length > 0 and l.all(1) = '.' then
+            while pos <= l.all'right loop
+                exit when l.all(pos) < '0' or l.all(pos) > '9';
+                digit := character'pos(l.all(pos)) - character'pos('0');
+                result := result + (real(digit) * shift);
+                shift := shift / 10.0;
+                pos := pos + 1;
+            end loop;
+            good := pos > 2;
+            consume(l, pos - 1);
+        end if;
+        value := result;
     end procedure;
 
     procedure read (l     : inout line;

@@ -326,3 +326,4 @@ issue308        normal,gold
 issue315        normal
 issue323        normal,2000
 protected4      normal,2000
+textio4         normal
