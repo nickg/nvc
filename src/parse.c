@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2016  Nick Gasson
+//  Copyright (C) 2014-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -3212,9 +3212,13 @@ static void p_protected_type_body_declarative_item(tree_t body)
       p_use_clause(body, tree_add_decl);
       break;
 
+   case tFILE:
+      p_file_declaration(body);
+      break;
+
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tALIAS, tVARIABLE, tUSE);
+             tIMPURE, tPURE, tALIAS, tVARIABLE, tUSE, tFILE);
    }
 }
 

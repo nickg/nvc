@@ -404,10 +404,9 @@ static vcode_type_t lower_type(type_t type)
             vcode_type_t fields[ndecls];
             for (int i = 0; i < ndecls; i++) {
                tree_t decl = tree_decl(body, i);
-               if (tree_kind(decl) != T_VAR_DECL)
-                  continue;
-
-               fields[nfields++] = lower_type(tree_type(decl));
+               const tree_kind_t kind = tree_kind(decl);
+               if (kind == T_VAR_DECL || kind == T_FILE_DECL)
+                  fields[nfields++] = lower_type(tree_type(decl));
             }
 
             record = vtype_named_record(name, fields, nfields);
@@ -4249,6 +4248,22 @@ static void lower_file_decl(tree_t decl)
    }
 }
 
+static void lower_protected_constants(tree_t body)
+{
+   const int ndecls = tree_decls(body);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t decl = tree_decl(body, i);
+      if (tree_kind(decl) != T_CONST_DECL)
+         continue;
+      else if (type_is_scalar(tree_type(decl)))
+         continue;
+      else if (tree_attr_int(decl, deferred_i, 0))
+         continue;
+      else
+         lower_var_decl(decl);
+   }
+}
+
 static void lower_decl(tree_t decl)
 {
    switch (tree_kind(decl)) {
@@ -4303,10 +4318,9 @@ static void lower_protected_body(tree_t body)
    const int ndecls = tree_decls(body);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(body, i);
-      if (tree_kind(d) != T_VAR_DECL)
-         continue;
-
-      tree_add_attr_int(d, prot_field_i, nvars++);
+      const tree_kind_t kind = tree_kind(d);
+      if (kind == T_VAR_DECL || kind == T_FILE_DECL)
+         tree_add_attr_int(d, prot_field_i, nvars++);
    }
 
    lower_decls(body, vcode_active_unit());
@@ -4344,7 +4358,7 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
          lower_mangle_func(d, context);
       }
       else if (kind == T_PROT_BODY)
-         ;
+         lower_protected_constants(d);
       else if (scope_kind != T_PROT_BODY)
          lower_decl(d);
    }

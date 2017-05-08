@@ -324,3 +324,4 @@ ieee5           normal
 issue309        normal
 issue308        normal,gold
 issue315        normal
+issue323        normal,2000
