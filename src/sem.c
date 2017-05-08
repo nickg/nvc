@@ -794,6 +794,7 @@ static tree_t sem_builtin_proc(ident_t name, const char *builtin, ...)
    tree_set_ident(d, name);
    tree_set_type(d, f);
    tree_add_attr_str(d, builtin_i, ident_new(builtin));
+   tree_add_attr_int(d, wait_level_i, WAITS_NO);
 
    return d;
 }

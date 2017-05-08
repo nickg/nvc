@@ -51,6 +51,8 @@ package pack is
 
     function get_left(x : bit_vector) return bit;
 
+    function test_alloc_proc(a, b, c : string) return boolean;
+
 end package;
 
 package body pack is
@@ -217,6 +219,36 @@ package body pack is
         return x(l);
     end function;
 
+    type line is access string;
+
+    procedure cat_str(x : inout line; s : in string) is
+        variable tmp : line := x;
+        variable len : integer := 0;
+    begin
+        if x /= null then
+            len := x.all'length;
+        end if;
+        x := new string(1 to s'length + len);
+        if tmp /= null then
+            x.all(1 to len) := tmp.all;
+        end if;
+        x.all(1 + len to s'length + len) := s;
+        if tmp /= null then
+            deallocate(tmp);
+        end if;
+    end procedure;
+
+    function test_alloc_proc(a, b, c : string) return boolean is
+        variable l : line;
+        variable r : boolean;
+    begin
+        cat_str(l, a);
+        cat_str(l, b);
+        r := l.all = c;
+        deallocate(l);
+        return r;
+    end function;
+
 end package body;
 
 -------------------------------------------------------------------------------
@@ -256,6 +288,8 @@ begin
         signal s22 : boolean := make_rec("010", 20).y = 20;
         signal s23 : boolean := get_left("1010") = '1';
         signal s24 : boolean := make_rec("010", 4).x = "010";
+        signal s25 : boolean := test_alloc_proc("hello", "world", "helloworld");
+        signal s26 : boolean := test_alloc_proc("hello", "moo", "hellomoowee");
     begin
     end block;
 

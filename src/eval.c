@@ -40,7 +40,8 @@ typedef enum {
    VALUE_CARRAY,
    VALUE_RECORD,
    VALUE_HEAP_PROXY,
-   VALUE_IMAGE_MAP
+   VALUE_IMAGE_MAP,
+   VALUE_ACCESS
 } value_kind_t;
 
 typedef struct value value_t;
@@ -357,6 +358,11 @@ static context_t *eval_new_context(eval_state_t *state)
          value->fields = NULL;
          break;
 
+      case VCODE_TYPE_ACCESS:
+         value->kind = VALUE_ACCESS;
+         value->pointer = NULL;
+         break;
+
       default:
          fatal_at(tree_loc(state->fcall), "cannot evaluate variables with "
                   "type %d", vtype_kind(type));
@@ -457,6 +463,7 @@ static int eval_value_cmp(value_t *lhs, value_t *rhs)
       }
 
    case VALUE_POINTER:
+   case VALUE_ACCESS:
       return lhs->pointer - rhs->pointer;
 
    default:
@@ -1516,6 +1523,63 @@ static void eval_op_debug_info(int op, eval_state_t *state)
    state->last_loc = *vcode_get_loc(op);
 }
 
+static void eval_op_null(int op, eval_state_t *state)
+{
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+   dst->kind    = VALUE_ACCESS;
+   dst->pointer = NULL;
+}
+
+static void eval_op_pcall(int op, eval_state_t *state)
+{
+   EVAL_WARN(state->fcall, "procedure call to %s prevents "
+             "constant folding", istr(vcode_get_func(op)));
+   state->failed = true;
+}
+
+static void eval_op_new(int op, eval_state_t *state)
+{
+   int length = 1;
+   if (vcode_count_args(op) > 0)
+      length = eval_get_reg(vcode_get_arg(op, 0), state)->integer;
+
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+   dst->kind    = VALUE_ACCESS;
+   dst->pointer = eval_alloc(sizeof(value_t) * length, state);
+}
+
+static void eval_op_deallocate(int op, eval_state_t *state)
+{
+   value_t *ptr = eval_get_reg(vcode_get_arg(op, 0), state);
+   assert(ptr->kind == VALUE_POINTER);
+   assert(ptr->pointer->kind == VALUE_ACCESS);
+
+   ptr->pointer->pointer = NULL;
+   // Memory will be freed when evaluation context cleaned up
+}
+
+static void eval_op_all(int op, eval_state_t *state)
+{
+   value_t *access = eval_get_reg(vcode_get_arg(op, 0), state);
+   assert(access->kind == VALUE_ACCESS);
+
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+   dst->kind    = VALUE_POINTER;
+   dst->pointer = access->pointer;
+}
+
+static void eval_op_null_check(int op, eval_state_t *state)
+{
+   value_t *access = eval_get_reg(vcode_get_arg(op, 0), state);
+   assert(access->kind == VALUE_ACCESS);
+
+   if (access->pointer == NULL) {
+      if (state->flags & EVAL_BOUNDS)
+         error_at(&(state->last_loc), "null access dereference");
+      state->failed = true;
+   }
+}
+
 static void eval_vcode(eval_state_t *state)
 {
    const int nops = vcode_count_ops();
@@ -1739,6 +1803,30 @@ static void eval_vcode(eval_state_t *state)
          eval_op_debug_info(i, state);
          break;
 
+      case VCODE_OP_NULL:
+         eval_op_null(i, state);
+         break;
+
+      case VCODE_OP_PCALL:
+         eval_op_pcall(i, state);
+         break;
+
+      case VCODE_OP_NEW:
+         eval_op_new(i, state);
+         break;
+
+      case VCODE_OP_ALL:
+         eval_op_all(i, state);
+         break;
+
+      case VCODE_OP_NULL_CHECK:
+         eval_op_null_check(i, state);
+         break;
+
+      case VCODE_OP_DEALLOCATE:
+         eval_op_deallocate(i, state);
+         break;
+
       default:
          vcode_dump();
          fatal("cannot evaluate vcode op %s", vcode_op_string(vcode_get_op(i)));
@@ -1815,12 +1903,32 @@ static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
    return tree;
 }
 
+static bool eval_can_represent_type(type_t type)
+{
+   if (type_is_scalar(type))
+      return true;
+   else if (type_is_array(type))
+      return eval_can_represent_type(type_elem(type));
+   else if (type_is_record(type)) {
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         if (!eval_can_represent_type(tree_type(type_field(type, i))))
+            return false;
+      }
+      return true;
+   }
+   else
+      return false;
+}
+
 tree_t eval(tree_t fcall, eval_flags_t flags)
 {
    assert(tree_kind(fcall) == T_FCALL);
 
    type_t type = tree_type(fcall);
-   if (!type_is_scalar(type) && !type_is_record(type))
+   if (type_is_array(type))
+      return fcall;   // TODO: eval for array results
+   else if (!eval_can_represent_type(type))
       return fcall;
    else if (tree_flags(tree_ref(fcall)) & TREE_F_IMPURE)
       return fcall;

@@ -2526,6 +2526,25 @@ START_TEST(test_issue303)
 }
 END_TEST
 
+START_TEST(test_dealloc)
+{
+   input_from_file(TESTDIR "/lower/dealloc.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   lower_unit(p);
+
+   vcode_unit_t v1 = find_unit(tree_decl(p, 1));
+   vcode_select_unit(v1);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_FCALL, .func = "WORK.PACK.ANOTHER_PROC$vuWORK.PACK.PTR;" },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -2587,6 +2606,7 @@ int main(void)
    tcase_add_test(tc, test_assert1);
    tcase_add_test(tc, test_thunk);
    tcase_add_test(tc, test_issue303);
+   tcase_add_test(tc, test_dealloc);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

@@ -312,6 +312,8 @@ START_TEST(test_ffold)
    fail_unless(folded_b(tree_value(tree_decl(b, 22)), true));
    fail_unless(folded_b(tree_value(tree_decl(b, 23)), true));
    fail_unless(folded_b(tree_value(tree_decl(b, 24)), true));
+   fail_unless(folded_b(tree_value(tree_decl(b, 25)), true));
+   fail_unless(folded_b(tree_value(tree_decl(b, 26)), false));
 }
 END_TEST
 
@@ -441,6 +443,7 @@ START_TEST(test_issue321)
    input_from_file(TESTDIR "/simp/issue321.vhd");
 
    tree_t top = run_elab();
+   fail_if(top == NULL);
 
    fail_unless(tree_decls(top) == 7);
    tree_t d5 = tree_decl(top, 5);
@@ -449,6 +452,22 @@ START_TEST(test_issue321)
    tree_t d6 = tree_decl(top, 6);
    fail_unless(tree_kind(tree_value(d6)) == T_LITERAL);
    fail_unless(tree_ival(tree_value(d6)) == 5);
+}
+END_TEST
+
+START_TEST(test_issue322)
+{
+   input_from_file(TESTDIR "/simp/issue322.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   tree_t p0 = tree_stmt(top, 0);
+   fail_unless(tree_kind(p0) == T_PROCESS);
+
+   tree_t d0 = tree_decl(p0, 0);
+   fail_unless(tree_kind(d0) == T_VAR_DECL);
+   fail_unless(tree_kind(tree_value(d0)) == T_FCALL);
 }
 END_TEST
 
@@ -470,6 +489,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue309);
    tcase_add_test(tc_core, test_issue320);
    tcase_add_test(tc_core, test_issue321);
+   tcase_add_test(tc_core, test_issue322);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

@@ -4139,6 +4139,8 @@ static void lower_var_decl(tree_t decl)
       lower_check_scalar_bounds(value, type, decl, NULL);
       emit_store(value, var);
    }
+   else if (type_is_access(type))
+      emit_store(lower_reify(value), var);
    else
       emit_store(value, var);
 }
