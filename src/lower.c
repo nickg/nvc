@@ -4039,7 +4039,8 @@ static void lower_protected_init(tree_t decl, vcode_reg_t pstruct)
    const int ndecls = tree_decls(body);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(body, i);
-      if (tree_kind(d) != T_VAR_DECL)
+      const tree_kind_t kind = tree_kind(d);
+      if (kind != T_VAR_DECL && kind != T_FILE_DECL)
          continue;
 
       type_t type = tree_type(d);
@@ -4048,6 +4049,8 @@ static void lower_protected_init(tree_t decl, vcode_reg_t pstruct)
       if (type_is_protected(type)) {
          lower_protected_init(d, field);
       }
+      else if (type_is_file(type))
+         emit_store_indirect(emit_null(lower_type(type)), field);
       else {
          vcode_reg_t value = lower_expr(tree_value(d), EXPR_RVALUE);
 
