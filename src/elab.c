@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -117,11 +117,11 @@ static const char *simple_name(const char *full)
 
 static lib_t elab_find_lib(ident_t name, const elab_ctx_t *ctx)
 {
-   lib_t tmp = lib_work();
-   lib_set_work(ctx->library);
-   lib_t lib = lib_find(ident_until(name, '.'), true);
-   lib_set_work(tmp);
-   return lib;
+   ident_t lib_name = ident_until(name, '.');
+   if (lib_name == work_i)
+      return ctx->library;
+   else
+      return lib_find(lib_name, true);
 }
 
 static void find_arch(ident_t name, int kind, void *context)
@@ -165,15 +165,17 @@ static tree_t pick_arch(const loc_t *loc, ident_t name, lib_t *new_lib,
    // recently analysed architecture of this entity
 
    lib_t lib = elab_find_lib(name, ctx);
+   ident_t search_name =
+      ident_prefix(lib_name(lib), ident_rfrom(name, '.'), '.');
 
-   tree_t arch = lib_get_check_stale(lib, name);
+   tree_t arch = lib_get_check_stale(lib, search_name);
    if ((arch == NULL) || (tree_kind(arch) != T_ARCH)) {
       arch = NULL;
-      lib_search_params_t params = { lib, name, &arch };
+      lib_search_params_t params = { lib, search_name, &arch };
       lib_walk_index(lib, find_arch, &params);
 
       if (arch == NULL)
-         fatal_at(loc, "no suitable architecture for %s", istr(name));
+         fatal_at(loc, "no suitable architecture for %s", istr(search_name));
    }
 
    if (new_lib != NULL)

@@ -466,6 +466,16 @@ START_TEST(test_issue315)
 }
 END_TEST
 
+START_TEST(test_issue325)
+{
+   input_from_file(TESTDIR "/elab/issue325.vhd");
+
+   lib_set_work(lib_tmp("foo"));
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -503,6 +513,7 @@ int main(void)
    tcase_add_test(tc, test_gbounds);
    tcase_add_test(tc, test_issue307);
    tcase_add_test(tc, test_issue315);
+   tcase_add_test(tc, test_issue325);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
