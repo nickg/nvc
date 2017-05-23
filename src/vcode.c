@@ -2306,6 +2306,8 @@ vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
    VCODE_ASSERT(ekind != VCODE_TYPE_CARRAY && ekind != VCODE_TYPE_UARRAY,
                 "array types may not be nested");
 
+   VCODE_ASSERT(ndim > 0, "uarray must have at least one dimension");
+
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    memset(n, '\0', sizeof(vtype_t));
    n->kind   = VCODE_TYPE_UARRAY;

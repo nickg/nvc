@@ -1009,7 +1009,7 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
          }
          else if (ITEM_TYPE_ARRAY & mask) {
             const type_array_t *from = &(object->items[n].type_array);
-            type_array_t *to = &(object->items[n].type_array);
+            type_array_t *to = &(copy->items[n].type_array);
 
             type_array_resize(to, from->count, 0);
 

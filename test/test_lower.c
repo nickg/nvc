@@ -2545,6 +2545,15 @@ START_TEST(test_dealloc)
 }
 END_TEST
 
+START_TEST(test_issue324)
+{
+   input_from_file(TESTDIR "/lower/issue324.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -2607,6 +2616,7 @@ int main(void)
    tcase_add_test(tc, test_thunk);
    tcase_add_test(tc, test_issue303);
    tcase_add_test(tc, test_dealloc);
+   tcase_add_test(tc, test_issue324);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
