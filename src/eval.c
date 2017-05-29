@@ -29,7 +29,7 @@
 #include <float.h>
 
 #define MAX_DIMS  4
-#define EVAL_HEAP (4 * 1024)
+#define EVAL_HEAP (16 * 1024)
 
 typedef enum {
    VALUE_INVALID,
@@ -334,8 +334,9 @@ static context_t *eval_new_context(eval_state_t *state)
       switch (vtype_kind(type)) {
       case VCODE_TYPE_CARRAY:
          value->kind = VALUE_CARRAY;
-         value->pointer =
-            eval_alloc(sizeof(value_t) * vtype_size(type), state);
+         if ((value->pointer =
+              eval_alloc(sizeof(value_t) * vtype_size(type), state)) == NULL)
+            goto fail;
          break;
 
       case VCODE_TYPE_INT:
@@ -830,6 +831,8 @@ static void eval_op_fcall(int op, eval_state_t *state)
    vcode_select_block(0);
 
    context_t *context = eval_new_context(state);
+   if (context == NULL)
+      return;
 
    for (int i = 0; i < nparams; i++)
       context->regs[i] = *params[i];
