@@ -96,13 +96,13 @@ typedef struct {
    } while (0)
 
 #define EVAL_ASSERT_VALUE(op, value, expect) do {                       \
-      if (unlikely(value->kind != expect))                              \
+      if (unlikely((value)->kind != expect))                            \
          eval_assert_fail(op, value, #value, #expect,                   \
                           __FILE__, __LINE__);                          \
    } while (0)
 
 #define EVAL_ASSERT_VALID(op, value) do {                               \
-      if (unlikely(value->kind == VALUE_INVALID))                       \
+      if (unlikely((value)->kind == VALUE_INVALID))                     \
          eval_assert_fail(op, value, #value, NULL, __FILE__, __LINE__); \
    } while (0)
 
@@ -907,7 +907,7 @@ static void eval_op_fcall(int op, eval_state_t *state)
    else if (vcode_get_result(op) != VCODE_INVALID_REG) {
       assert(new.result != -1);
       value_t *dst = eval_get_reg(vcode_get_result(op), state);
-      assert(context->regs[new.result].kind != VALUE_INVALID);
+      EVAL_ASSERT_VALID(op, &(context->regs[new.result]));
       *dst = context->regs[new.result];
 
       if (state->flags & EVAL_VERBOSE) {
