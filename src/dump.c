@@ -970,6 +970,11 @@ void dump(tree_t t)
    case T_PROCESS:
       dump_stmt(t, 0);
       break;
+   case T_CONST_DECL:
+   case T_VAR_DECL:
+   case T_SIGNAL_DECL:
+      dump_decl(t, 0);
+      break;
    default:
       cannot_dump(t, "tree");
    }

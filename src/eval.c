@@ -76,6 +76,7 @@ struct context {
    context_t *parent;
    value_t   *regs;
    value_t   *vars;
+   int        refcount;
 };
 
 typedef struct {
@@ -92,6 +93,17 @@ typedef struct {
 #define EVAL_WARN(t, ...) do {                                          \
       if (state->flags & EVAL_WARN)                                     \
          warn_at(tree_loc(t), __VA_ARGS__);                             \
+   } while (0)
+
+#define EVAL_ASSERT_VALUE(op, value, expect) do {                       \
+      if (unlikely(value->kind != expect))                              \
+         eval_assert_fail(op, value, #value, #expect,                   \
+                          __FILE__, __LINE__);                          \
+   } while (0)
+
+#define EVAL_ASSERT_VALID(op, value) do {                               \
+      if (unlikely(value->kind == VALUE_INVALID))                       \
+         eval_assert_fail(op, value, #value, NULL, __FILE__, __LINE__); \
    } while (0)
 
 static int errors = 0;
@@ -273,18 +285,38 @@ static void eval_dump(text_buf_t *tb, value_t *value, type_t type)
       break;
    case VALUE_RECORD:
       tb_printf(tb, "{");
-      for (int i = 0; i < value->length; i++) {
-         tree_t field = type_field(type, i);
-         if (i > 0)
-            tb_printf(tb, ", ");
-         tb_printf(tb, "%s=>", istr(tree_ident(field)));
-         eval_dump(tb, &(value->fields[i]), tree_type(field));
+      if (type == NULL)
+         tb_printf(tb, "???");
+      else {
+         for (int i = 0; i < value->length; i++) {
+            tree_t field = type_field(type, i);
+            if (i > 0)
+               tb_printf(tb, ", ");
+            tb_printf(tb, "%s=>", istr(tree_ident(field)));
+            eval_dump(tb, &(value->fields[i]), tree_type(field));
+         }
       }
       tb_printf(tb, "}");
       break;
    default:
       tb_printf(tb, "<%d>", value->kind);
       break;
+   }
+}
+
+__attribute__((noreturn))
+static void eval_assert_fail(int op, value_t *value, const char *value_str,
+                             const char *expect, const char *file, int line)
+{
+   vcode_dump_with_mark(op);
+   if (expect == NULL)
+      fatal_trace("Expected %s to have valid value (at %s:%d)",
+                  value_str, file, line);
+   else {
+      LOCAL_TEXT_BUF tb = tb_new();
+      eval_dump(tb, value, NULL);
+      fatal_trace("Expected %s to have kind %s but is %s (at %s:%d)",
+                  value_str, expect, tb_get(tb), file, line);
    }
 }
 
@@ -317,6 +349,8 @@ static context_t *eval_new_context(eval_state_t *state)
    context->regs = (value_t *)((uint8_t *)mem + sizeof(context_t));
    context->vars = (value_t *)
       ((uint8_t *)mem + sizeof(context_t) + (nregs * sizeof(value_t)));
+
+   context->refcount = 1;
 
    for (int i = 0; i < nvars; i++) {
       vcode_var_t var = vcode_var_handle(i);
@@ -377,14 +411,24 @@ static context_t *eval_new_context(eval_state_t *state)
    return NULL;
 }
 
+static context_t *eval_ref_context(context_t *context)
+{
+   assert(context->refcount > 0);
+   (context->refcount)++;
+   return context;
+}
+
 static void eval_free_context(context_t *context)
 {
-   if (context->parent)
-      eval_free_context(context->parent);
+   assert(context->refcount > 0);
+   if (--(context->refcount) == 0) {
+      if (context->parent)
+         eval_free_context(context->parent);
 
-   context->regs = NULL;
-   context->vars = NULL;
-   free(context);
+      context->regs = NULL;
+      context->vars = NULL;
+      free(context);
+   }
 }
 
 static value_t *eval_get_reg(vcode_reg_t reg, eval_state_t *state)
@@ -438,7 +482,7 @@ static value_t *eval_get_var(vcode_var_t var, eval_state_t *state)
 
    if (vcode_var_use_heap(var)) {
       value_t *proxy = &(context->vars[vcode_var_index(var)]);
-      assert(proxy->kind == VALUE_HEAP_PROXY);
+      EVAL_ASSERT_VALUE(-1, proxy, VALUE_HEAP_PROXY);
       return proxy->pointer;
    }
    else
@@ -479,7 +523,7 @@ static void eval_message(value_t *text, value_t *length, value_t *severity,
       "Note", "Warning", "Error", "Failure"
    };
 
-   assert(text->kind == VALUE_POINTER);
+   EVAL_ASSERT_VALUE(-1, text, VALUE_POINTER);
 
    char *copy = NULL ;
    if (length->integer > 0) {
@@ -549,7 +593,7 @@ static void eval_op_add(int op, eval_state_t *state)
       break;
 
    case VALUE_POINTER:
-      assert(rhs->kind == VALUE_INTEGER);
+      EVAL_ASSERT_VALUE(op, rhs, VALUE_INTEGER);
       dst->kind = VALUE_POINTER;
       dst->pointer = lhs->pointer + rhs->integer;
       break;
@@ -686,12 +730,12 @@ static void eval_op_exp(int op, eval_state_t *state)
 
    switch (lhs->kind) {
    case VALUE_INTEGER:
-      assert(rhs->kind == VALUE_INTEGER);
+      EVAL_ASSERT_VALUE(op, rhs, VALUE_INTEGER);
       dst->kind = VALUE_INTEGER;
       dst->integer = ipow(lhs->integer, rhs->integer);
       break;
    case VALUE_REAL:
-      assert(rhs->kind == VALUE_REAL);
+      EVAL_ASSERT_VALUE(op, rhs, VALUE_REAL);
       dst->kind = VALUE_REAL;
       dst->real = pow(lhs->real, rhs->real);
       break;
@@ -827,12 +871,17 @@ static void eval_op_fcall(int op, eval_state_t *state)
       return;
    }
 
+   const bool nested = vcode_get_op(op) == VCODE_OP_NESTED_FCALL;
+
    vcode_select_unit(vcode);
    vcode_select_block(0);
 
    context_t *context = eval_new_context(state);
    if (context == NULL)
       return;
+
+   if (nested)
+      context->parent = eval_ref_context(state->context);
 
    for (int i = 0; i < nparams; i++)
       context->regs[i] = *params[i];
@@ -965,7 +1014,7 @@ static void eval_op_wrap(int op, eval_state_t *state)
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
    value_t *src = eval_get_reg(vcode_get_arg(op, 0), state);
 
-   assert(src->kind == VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, src, VALUE_POINTER);
 
    dst->kind = VALUE_UARRAY;
    if ((dst->uarray = eval_alloc(sizeof(uarray_t), state)) == NULL)
@@ -1005,8 +1054,10 @@ static void eval_op_load(int op, eval_state_t *state)
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
    value_t *var = eval_get_var(vcode_get_address(op), state);
 
-   if (var != NULL)
+   if (var != NULL) {
+      EVAL_ASSERT_VALID(op, var);
       *dst = *var;
+   }
 }
 
 static void eval_op_unwrap(int op, eval_state_t *state)
@@ -1014,7 +1065,7 @@ static void eval_op_unwrap(int op, eval_state_t *state)
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
    value_t *src = eval_get_reg(vcode_get_arg(op, 0), state);
 
-   assert(src->kind == VALUE_UARRAY);
+   EVAL_ASSERT_VALUE(op, src, VALUE_UARRAY);
 
    dst->kind    = VALUE_POINTER;
    dst->pointer = src->uarray->data;
@@ -1058,8 +1109,8 @@ static void eval_op_memcmp(int op, eval_state_t *state)
    dst->kind    = VALUE_INTEGER;
    dst->integer = 1;
 
-   assert(lhs->kind == VALUE_POINTER);
-   assert(rhs->kind == VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, lhs, VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, rhs, VALUE_POINTER);
 
    for (int i = 0; i < len->integer; i++) {
       if (eval_value_cmp(&(lhs->pointer[i]), &(rhs->pointer[i]))) {
@@ -1126,12 +1177,6 @@ static void eval_op_undefined(int op, eval_state_t *state)
    state->failed = true;
 }
 
-static void eval_op_nested_fcall(int op, eval_state_t *state)
-{
-   // TODO
-   state->failed = true;
-}
-
 static void eval_op_index(int op, eval_state_t *state)
 {
    value_t *value = eval_get_var(vcode_get_address(op), state);
@@ -1148,7 +1193,9 @@ static void eval_op_load_indirect(int op, eval_state_t *state)
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
    value_t *src = eval_get_reg(vcode_get_arg(op, 0), state);
 
-   assert(src->kind == VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, src, VALUE_POINTER);
+   EVAL_ASSERT_VALID(op, src->pointer);
+
    *dst = *(src->pointer);
 }
 
@@ -1157,7 +1204,7 @@ static void eval_op_store_indirect(int op, eval_state_t *state)
    value_t *dst = eval_get_reg(vcode_get_arg(op, 1), state);
    value_t *src = eval_get_reg(vcode_get_arg(op, 0), state);
 
-   assert(dst->kind == VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, dst, VALUE_POINTER);
    *(dst->pointer) = *src;
 }
 
@@ -1185,9 +1232,9 @@ static void eval_op_copy(int op, eval_state_t *state)
    value_t *src = eval_get_reg(vcode_get_arg(op, 1), state);
    value_t *count = eval_get_reg(vcode_get_arg(op, 2), state);
 
-   assert(dst->kind = VALUE_POINTER);
-   assert(src->kind = VALUE_POINTER);
-   assert(count->kind = VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, dst, VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, src, VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, count, VALUE_INTEGER);
 
    const uintptr_t dstp = (uintptr_t)dst->pointer;
    const uintptr_t srcp = (uintptr_t)src->pointer;
@@ -1237,7 +1284,7 @@ static void eval_op_select(int op, eval_state_t *state)
    value_t *right = eval_get_reg(vcode_get_arg(op, 2), state);
    value_t *result = eval_get_reg(vcode_get_result(op), state);
 
-   assert(test->kind == VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, test, VALUE_INTEGER);
 
    *result = test->integer ? *left : *right;
 }
@@ -1327,7 +1374,7 @@ static void eval_op_image(int op, eval_state_t *state)
    }
    else {
       value_t *map = eval_get_reg(vcode_get_arg(op, 1), state);
-      assert(map->kind = VALUE_IMAGE_MAP);
+      EVAL_ASSERT_VALUE(op, map, VALUE_IMAGE_MAP);
 
       switch (map->image_map->kind) {
       case IMAGE_ENUM:
@@ -1371,7 +1418,7 @@ static void eval_op_uarray_left(int op, eval_state_t *state)
    value_t *array = eval_get_reg(vcode_get_arg(op, 0), state);
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
 
-   assert(array->kind == VALUE_UARRAY);
+   EVAL_ASSERT_VALUE(op, array, VALUE_UARRAY);
 
    dst->kind = VALUE_INTEGER;
    dst->integer = array->uarray->dim[vcode_get_dim(op)].left;
@@ -1382,7 +1429,7 @@ static void eval_op_uarray_right(int op, eval_state_t *state)
    value_t *array = eval_get_reg(vcode_get_arg(op, 0), state);
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
 
-   assert(array->kind == VALUE_UARRAY);
+   EVAL_ASSERT_VALUE(op, array, VALUE_UARRAY);
 
    dst->kind = VALUE_INTEGER;
    dst->integer = array->uarray->dim[vcode_get_dim(op)].right;
@@ -1411,8 +1458,8 @@ static void eval_op_record_ref(int op, eval_state_t *state)
    value_t *ptr = eval_get_reg(vcode_get_arg(op, 0), state);
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
 
-   assert(ptr->kind == VALUE_POINTER);
-   assert(ptr->pointer->kind == VALUE_RECORD);
+   EVAL_ASSERT_VALUE(op, ptr, VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, ptr->pointer, VALUE_RECORD);
 
    value_t *field = &(ptr->pointer->fields[vcode_get_field(op)]);
 
@@ -1426,9 +1473,9 @@ static void eval_op_memset(int op, eval_state_t *state)
    value_t *fill = eval_get_reg(vcode_get_arg(op, 1), state);
    value_t *length = eval_get_reg(vcode_get_arg(op, 2), state);
 
-   assert(dst->kind == VALUE_POINTER);
-   assert(length->kind == VALUE_INTEGER);
-   assert(fill->kind == VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, dst, VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, length, VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, fill, VALUE_INTEGER);
 
    for (int i = 0; i < length->integer; i++)
       dst->pointer[i] = *fill;
@@ -1444,10 +1491,10 @@ static void eval_op_bit_shift(int op, eval_state_t *state)
 
    bit_shift_kind_t kind = vcode_get_subkind(op);
 
-   assert(data->kind == VALUE_POINTER);
-   assert(length->kind == VALUE_INTEGER);
-   assert(dir->kind == VALUE_INTEGER);
-   assert(shift->kind == VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, data, VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, length, VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, dir, VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, shift, VALUE_INTEGER);
 
    int shift_i = shift->integer;
    if (shift_i < 0) {
@@ -1554,8 +1601,8 @@ static void eval_op_new(int op, eval_state_t *state)
 static void eval_op_deallocate(int op, eval_state_t *state)
 {
    value_t *ptr = eval_get_reg(vcode_get_arg(op, 0), state);
-   assert(ptr->kind == VALUE_POINTER);
-   assert(ptr->pointer->kind == VALUE_ACCESS);
+   EVAL_ASSERT_VALUE(op, ptr, VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, ptr->pointer, VALUE_ACCESS);
 
    ptr->pointer->pointer = NULL;
    // Memory will be freed when evaluation context cleaned up
@@ -1564,7 +1611,7 @@ static void eval_op_deallocate(int op, eval_state_t *state)
 static void eval_op_all(int op, eval_state_t *state)
 {
    value_t *access = eval_get_reg(vcode_get_arg(op, 0), state);
-   assert(access->kind == VALUE_ACCESS);
+   EVAL_ASSERT_VALUE(op, access, VALUE_ACCESS);
 
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
    dst->kind    = VALUE_POINTER;
@@ -1574,7 +1621,7 @@ static void eval_op_all(int op, eval_state_t *state)
 static void eval_op_null_check(int op, eval_state_t *state)
 {
    value_t *access = eval_get_reg(vcode_get_arg(op, 0), state);
-   assert(access->kind == VALUE_ACCESS);
+   EVAL_ASSERT_VALUE(op, access, VALUE_ACCESS);
 
    if (access->pointer == NULL) {
       if (state->flags & EVAL_BOUNDS)
@@ -1636,6 +1683,7 @@ static void eval_vcode(eval_state_t *state)
          break;
 
       case VCODE_OP_FCALL:
+      case VCODE_OP_NESTED_FCALL:
          if (state->flags & EVAL_FCALL)
             eval_op_fcall(i, state);
          else
@@ -1692,10 +1740,6 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_UNDEFINED:
          eval_op_undefined(i, state);
-         break;
-
-      case VCODE_OP_NESTED_FCALL:
-         eval_op_nested_fcall(i, state);
          break;
 
       case VCODE_OP_CASE:

@@ -317,6 +317,20 @@ START_TEST(test_ffold)
 }
 END_TEST
 
+START_TEST(test_ffold2)
+{
+   input_from_file(TESTDIR "/simp/ffold2.vhd");
+
+   tree_t a = parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
+                                             T_ENTITY, T_ARCH);
+
+   tree_t b = tree_stmt(a, 0);
+   fail_unless(tree_kind(b) == T_BLOCK);
+
+   fail_unless(folded_i(tree_value(tree_decl(b, 0)), 3));
+}
+END_TEST
+
 START_TEST(test_issue49)
 {
    input_from_file(TESTDIR "/simp/issue49.vhd");
@@ -490,6 +504,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue320);
    tcase_add_test(tc_core, test_issue321);
    tcase_add_test(tc_core, test_issue322);
+   tcase_add_test(tc_core, test_ffold2);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

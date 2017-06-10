@@ -1177,7 +1177,7 @@ static int vcode_dump_var(vcode_var_t var)
       return color_printf("$magenta$%s$$", istr(vcode_var_name(var)));
 }
 
-void vcode_dump(void)
+void vcode_dump_with_mark(int mark_op)
 {
    assert(active_unit != NULL);
 
@@ -2120,6 +2120,9 @@ void vcode_dump(void)
             break;
          }
 
+         if (j == mark_op)
+            color_printf("\t $red$<----$$");
+
          printf("\n");
       }
 
@@ -2204,6 +2207,11 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    }
 
    return false;
+}
+
+void vcode_dump(void)
+{
+   vcode_dump_with_mark(-1);
 }
 
 static vcode_type_t vtype_new(vtype_t *new)
@@ -3167,6 +3175,10 @@ vcode_reg_t emit_load(vcode_var_t var)
 
       if (other->kind == VCODE_OP_INDEX && other->address == var)
          aliased = true;
+      else if (other->kind == VCODE_OP_NESTED_FCALL
+               || other->kind == VCODE_OP_NESTED_PCALL
+               || other->kind == VCODE_OP_NESTED_RESUME)
+         break;   // Nested call captures variables
    }
 
    var_t *v = vcode_var_data(var);

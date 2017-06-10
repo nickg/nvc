@@ -48,7 +48,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       const check_bb_t *e = &(expect[eptr++]);
 
       if (vop != e->op) {
-         vcode_dump();
+         vcode_dump_with_mark(i);
          fail("expected op %d in block %d to be %s but was %s",
               i, bb, vcode_op_string(e->op), vcode_op_string(vop));
       }
@@ -56,7 +56,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       switch (e->op) {
       case VCODE_OP_PCALL:
          if (e->target != vcode_get_target(i, 0)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have resume target %d but "
                  "has %d", i, bb, e->target, vcode_get_target(i, 0));
          }
@@ -71,13 +71,13 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
                bad = !icmp(vcode_get_func(i), e->func);
 
             if (bad) {
-               vcode_dump();
+               vcode_dump_with_mark(i);
                fail("expected op %d in block %d to call %s but calls %s",
                     i, bb, e->func, istr(vcode_get_func(i)));
             }
          }
          else if (e->args != vcode_count_args(i)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have %d arguments but has %d",
                  i, bb, e->args, vcode_count_args(i));
          }
@@ -85,7 +85,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_CONST:
          if (e->value != vcode_get_value(i)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have constant %d but has %d",
                  i, bb, e->value, vcode_get_value(i));
          }
@@ -93,7 +94,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_CONST_REAL:
          if (e->real != vcode_get_real(i)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have constant %lf but has %lf",
                  i, bb, e->real, vcode_get_real(i));
          }
@@ -101,7 +102,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_CMP:
          if (e->cmp != vcode_get_cmp(i)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have comparison %d but has %d",
                  i, bb, e->value, vcode_get_cmp(i));
          }
@@ -120,7 +121,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_UARRAY_DIR:
       case VCODE_OP_UARRAY_LEN:
          if (e->dim != vcode_get_dim(i)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have dimension %d but has %d",
                  i, bb, e->dim, vcode_get_dim(i));
          }
@@ -128,19 +129,19 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_WAIT:
          if (e->target != vcode_get_target(i, 0)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have wait target %d but has %d",
                  i, bb, e->target, vcode_get_target(i, 0));
          }
          else if (e->delay && vcode_get_arg(i, 0) == VCODE_INVALID_REG) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have wait delay", i, bb);
          }
          break;
 
       case VCODE_OP_COND:
          if (e->target_else != vcode_get_target(i, 1)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have else target %d but has %d",
                  i, bb, e->target, vcode_get_target(i, 1));
          }
@@ -148,7 +149,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_JUMP:
          if (e->target != vcode_get_target(i, 0)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have jump target %d but has %d",
                  i, bb, e->target, vcode_get_target(i, 0));
          }
@@ -160,7 +161,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          {
             ident_t name = vcode_var_name(vcode_get_address(i));
             if (name != ident_new(e->name)) {
-               vcode_dump();
+               vcode_dump_with_mark(i);
                fail("expected op %d in block %d to have address name %s but "
                     "has %s", i, bb, e->name, istr(name));
             }
@@ -173,7 +174,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          {
             ident_t name = vcode_signal_name(vcode_get_signal(i));
             if (name != ident_new(e->name)) {
-               vcode_dump();
+               vcode_dump_with_mark(i);
                fail("expected op %d in block %d to have signal name %s but "
                     "has %s", i, bb, e->name, istr(name));
             }
@@ -216,7 +217,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_CONST_ARRAY:
          if (vcode_count_args(i) != e->length) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have %d array elements but "
                  "has %d", i, bb, e->length, vcode_count_args(i));
          }
@@ -227,12 +228,12 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             vcode_type_t bounds = vcode_get_type(i);
             if (vtype_kind(bounds) == VCODE_TYPE_INT) {
                if (e->low != vtype_low(bounds)) {
-                  vcode_dump();
+                  vcode_dump_with_mark(i);
                   fail("expect op %d in block %d to have low bound %"PRIi64
                        " but has %"PRIi64, i, bb, e->low, vtype_low(bounds));
                }
                else if (e->high != vtype_high(bounds)) {
-                  vcode_dump();
+                  vcode_dump_with_mark(i);
                   fail("expect op %d in block %d to have high bound %"PRIi64
                        " but has %"PRIi64, i, bb, e->high, vtype_high(bounds));
                }
@@ -242,7 +243,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_PARAM_UPREF:
          if (vcode_get_hops(i) != e->hops) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expect op %d in block %d to have hop count %d"
                  " but has %d", i, bb, e->hops, vcode_get_hops(i));
          }
@@ -250,7 +251,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_RECORD_REF:
          if (vcode_get_field(i) != e->field) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expect op %d in block %d to have field %d"
                  " but has %d", i, bb, e->field, vcode_get_field(i));
          }
@@ -260,7 +261,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ALLOCA:
       case VCODE_OP_INDEX_CHECK:
          if (vcode_get_subkind(i) != e->subkind) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have subkind %x but "
                  "has %x", i, bb, e->subkind, vcode_get_subkind(i));
          }
@@ -268,7 +269,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_RESUME:
          if ((e->func != NULL) && !icmp(vcode_get_func(i), e->func)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to call %s but calls %s",
                  i, bb, e->func, istr(vcode_get_func(i)));
          }
@@ -276,7 +277,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_COVER_COND:
          if (vcode_get_subkind(i) != e->subkind) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have sub cond %x but "
                  "has %x", i, bb, e->subkind, vcode_get_subkind(i));
          }
@@ -284,7 +285,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_COVER_STMT:
          if (e->tag != vcode_get_tag(i)) {
-            vcode_dump();
+            vcode_dump_with_mark(i);
             fail("expected op %d in block %d to have cover tag %d but has %d",
                  i, bb, e->tag, vcode_get_tag(i));
          }
@@ -295,7 +296,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             image_map_t map;
             vcode_get_image_map(i, &map);
             if (!icmp(map.name, e->name)) {
-               vcode_dump();
+               vcode_dump_with_mark(i);
                fail("expected op %d in block %d to have image map name %s but "
                     "has %s", i, bb, e->name, istr(map.name));
             }

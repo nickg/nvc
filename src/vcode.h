@@ -225,6 +225,7 @@ void vcode_unit_unref(vcode_unit_t unit);
 void vcode_opt(void);
 void vcode_close(void);
 void vcode_dump(void);
+void vcode_dump_with_mark(int mark_op);
 void vcode_select_unit(vcode_unit_t vu);
 void vcode_select_block(vcode_block_t block);
 int vcode_count_blocks(void);

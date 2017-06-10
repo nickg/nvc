@@ -476,6 +476,32 @@ START_TEST(test_issue325)
 }
 END_TEST
 
+START_TEST(test_issue328)
+{
+   input_from_file(TESTDIR "/elab/issue328.vhd");
+
+   lib_set_work(lib_tmp("foo"));
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   tree_t d2 = tree_decl(top, 2);
+   fail_unless(tree_kind(d2) == T_CONST_DECL);
+   fail_unless(icmp(tree_ident(d2), ":test_ng:vec_range"));
+
+   tree_t v = tree_value(d2);
+   fail_unless(tree_kind(v) == T_AGGREGATE);
+   fail_unless(tree_assocs(v) == 4);
+
+   int64_t ival;
+   tree_t f0 = tree_value(tree_assoc(v, 0));
+   fail_unless(folded_int(f0, &ival));
+   fail_unless(ival == 0);
+   tree_t f1 = tree_value(tree_assoc(v, 1));
+   fail_unless(folded_int(f1, &ival));
+   fail_unless(ival == 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -514,6 +540,7 @@ int main(void)
    tcase_add_test(tc, test_issue307);
    tcase_add_test(tc, test_issue315);
    tcase_add_test(tc, test_issue325);
+   tcase_add_test(tc, test_issue328);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
