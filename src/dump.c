@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -962,6 +962,7 @@ void dump(tree_t t)
    case T_ARRAY_SLICE:
    case T_TYPE_CONV:
    case T_CONCAT:
+   case T_RECORD_REF:
       dump_expr(t);
       printf("\n");
       break;

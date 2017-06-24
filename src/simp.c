@@ -126,20 +126,30 @@ static tree_t simp_pcall(tree_t t)
 
 static tree_t simp_record_ref(tree_t t)
 {
-   tree_t value = tree_value(t);
-   if (tree_kind(value) != T_REF)
-      return t;
+   tree_t value = tree_value(t), agg = NULL;
+   switch (tree_kind(value)) {
+   case T_AGGREGATE:
+      agg = value;
+      break;
 
-   tree_t decl = tree_ref(value);
-   if (tree_kind(decl) != T_CONST_DECL)
-      return t;
+   case T_REF:
+      {
+         tree_t decl = tree_ref(value);
+         if (tree_kind(decl) != T_CONST_DECL)
+            return t;
 
-   tree_t agg = tree_value(decl);
-   if (tree_kind(agg) != T_AGGREGATE)
+         agg = tree_value(decl);
+         if (tree_kind(agg) != T_AGGREGATE)
+            return t;
+      }
+      break;
+
+   default:
       return t;
+   }
 
    ident_t field = tree_ident(t);
-   type_t type = tree_type(decl);
+   type_t type = tree_type(agg);
 
    const int nassocs = tree_assocs(agg);
    for (int i = 0; i < nassocs; i++) {
