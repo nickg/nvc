@@ -469,6 +469,37 @@ START_TEST(test_issue321)
 }
 END_TEST
 
+START_TEST(test_issue331)
+{
+   input_from_file(TESTDIR "/simp/issue331.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   fail_unless(tree_decls(top) == 8);
+   tree_t d2 = tree_decl(top, 2);
+   fail_unless(tree_ident(d2) == ident_new(":test_ng:vec_range"));
+   tree_t agg = tree_value(d2);
+   fail_unless(tree_kind(agg) == T_AGGREGATE);
+   tree_t info_0 = tree_value(tree_assoc(agg, 2));
+   fail_unless(tree_kind(info_0) == T_AGGREGATE);
+   tree_t info_1 = tree_value(tree_assoc(agg, 3));
+   fail_unless(tree_kind(info_1) == T_AGGREGATE);
+   tree_t info_0_data_lo = tree_value(tree_assoc(info_0, 0));
+   fail_unless(tree_kind(info_0_data_lo) == T_LITERAL);
+   fail_unless(tree_ival(info_0_data_lo) == 0);
+   tree_t info_0_data_hi = tree_value(tree_assoc(info_0, 1));
+   fail_unless(tree_kind(info_0_data_hi) == T_LITERAL);
+   fail_unless(tree_ival(info_0_data_hi) == 0);
+   tree_t info_1_data_lo = tree_value(tree_assoc(info_1, 0));
+   fail_unless(tree_kind(info_1_data_lo) == T_LITERAL);
+   fail_unless(tree_ival(info_1_data_lo) == 1);
+   tree_t info_1_data_hi = tree_value(tree_assoc(info_1, 1));
+   fail_unless(tree_kind(info_1_data_hi) == T_LITERAL);
+   fail_unless(tree_ival(info_1_data_hi) == 1);
+}
+END_TEST
+
 START_TEST(test_issue322)
 {
    input_from_file(TESTDIR "/simp/issue322.vhd");
@@ -505,6 +536,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue321);
    tcase_add_test(tc_core, test_issue322);
    tcase_add_test(tc_core, test_ffold2);
+   tcase_add_test(tc_core, test_issue331);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

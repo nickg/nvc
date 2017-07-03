@@ -338,6 +338,61 @@ static void *eval_alloc(size_t nbytes, eval_state_t *state)
    return ptr;
 }
 
+static bool eval_new_var(value_t *value, vcode_type_t type, eval_state_t *state)
+{
+   switch (vtype_kind(type)) {
+   case VCODE_TYPE_CARRAY:
+      value->kind = VALUE_CARRAY;
+      if ((value->pointer =
+           eval_alloc(sizeof(value_t) * vtype_size(type), state)) == NULL)
+         return false;
+      break;
+
+   case VCODE_TYPE_INT:
+      value->kind = VALUE_INTEGER;
+      value->integer = 0;
+      break;
+
+   case VCODE_TYPE_REAL:
+      value->kind = VALUE_REAL;
+      value->real = 0;
+      break;
+
+   case VCODE_TYPE_UARRAY:
+      value->kind = VALUE_UARRAY;
+      value->uarray = NULL;
+      break;
+
+   case VCODE_TYPE_RECORD:
+      {
+         const int nfields = vtype_fields(type);
+         value->kind = VALUE_RECORD;
+         value->length = nfields;
+         value->fields = eval_alloc(nfields * sizeof(value_t), state);
+
+         if (value->fields == NULL)
+            return false;
+
+         for (int i = 0; i < nfields; i++) {
+            if (!eval_new_var(&(value->fields[i]), vtype_field(type, i), state))
+               return false;
+         }
+      }
+      break;
+
+   case VCODE_TYPE_ACCESS:
+      value->kind = VALUE_ACCESS;
+      value->pointer = NULL;
+      break;
+
+   default:
+      fatal_at(tree_loc(state->fcall), "cannot evaluate variables with "
+               "type %d", vtype_kind(type));
+   }
+
+   return true;
+}
+
 static context_t *eval_new_context(eval_state_t *state)
 {
    const int nregs = vcode_count_regs();
@@ -365,43 +420,8 @@ static context_t *eval_new_context(eval_state_t *state)
          value = value->pointer;
       }
 
-      switch (vtype_kind(type)) {
-      case VCODE_TYPE_CARRAY:
-         value->kind = VALUE_CARRAY;
-         if ((value->pointer =
-              eval_alloc(sizeof(value_t) * vtype_size(type), state)) == NULL)
-            goto fail;
-         break;
-
-      case VCODE_TYPE_INT:
-         value->kind = VALUE_INTEGER;
-         value->integer = 0;
-         break;
-
-      case VCODE_TYPE_REAL:
-         value->kind = VALUE_REAL;
-         value->real = 0;
-         break;
-
-      case VCODE_TYPE_UARRAY:
-         value->kind = VALUE_UARRAY;
-         value->uarray = NULL;
-         break;
-
-      case VCODE_TYPE_RECORD:
-         value->kind = VALUE_RECORD;
-         value->fields = NULL;
-         break;
-
-      case VCODE_TYPE_ACCESS:
-         value->kind = VALUE_ACCESS;
-         value->pointer = NULL;
-         break;
-
-      default:
-         fatal_at(tree_loc(state->fcall), "cannot evaluate variables with "
-                  "type %d", vtype_kind(type));
-      }
+      if (!eval_new_var(value, type, state))
+         goto fail;
    }
 
    return context;
@@ -1199,13 +1219,32 @@ static void eval_op_load_indirect(int op, eval_state_t *state)
    *dst = *(src->pointer);
 }
 
+static void eval_deep_copy(int op, value_t *dst, value_t *src)
+{
+   EVAL_ASSERT_VALUE(op, dst, VALUE_RECORD);
+   assert(dst->length == src->length);
+
+   for (int i = 0; i < src->length; i++) {
+      if (src->fields[i].kind == VALUE_RECORD)
+         eval_deep_copy(op, dst->fields + i, src->fields + i);
+      else
+         dst->fields[i] = src->fields[i];
+   }
+}
+
 static void eval_op_store_indirect(int op, eval_state_t *state)
 {
-   value_t *dst = eval_get_reg(vcode_get_arg(op, 1), state);
+   vcode_reg_t dst_reg = vcode_get_arg(op, 1);
+
+   value_t *dst = eval_get_reg(dst_reg, state);
    value_t *src = eval_get_reg(vcode_get_arg(op, 0), state);
 
    EVAL_ASSERT_VALUE(op, dst, VALUE_POINTER);
-   *(dst->pointer) = *src;
+
+   if (src->kind == VALUE_RECORD)
+      eval_deep_copy(op, dst->pointer, src);
+   else
+      *(dst->pointer) = *src;
 }
 
 static void eval_op_case(int op, eval_state_t *state)
@@ -1306,9 +1345,10 @@ static void eval_op_alloca(int op, eval_state_t *state)
    switch (vtype_kind(vtype)) {
    case VCODE_TYPE_RECORD:
       if ((result->pointer = eval_alloc(sizeof(value_t), state))) {
+         const int nfields = vtype_fields(vtype);
          result->pointer->kind = VALUE_RECORD;
-         result->pointer->fields =
-            eval_alloc(sizeof(value_t) * vtype_fields(vtype), state);
+         result->pointer->length = nfields;
+         result->pointer->fields = eval_alloc(sizeof(value_t) * nfields, state);
       }
       break;
 
@@ -1914,6 +1954,7 @@ static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
    case VALUE_RECORD:
       {
          const int nfields = type_fields(type);
+         printf("nfields=%d value->length=%d\n", nfields, value->length);
          assert(nfields == value->length);
          tree = tree_new(T_AGGREGATE);
          for (int i = 0; i < nfields; i++) {
