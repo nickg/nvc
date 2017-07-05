@@ -1954,7 +1954,6 @@ static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
    case VALUE_RECORD:
       {
          const int nfields = type_fields(type);
-         printf("nfields=%d value->length=%d\n", nfields, value->length);
          assert(nfields == value->length);
          tree = tree_new(T_AGGREGATE);
          for (int i = 0; i < nfields; i++) {
