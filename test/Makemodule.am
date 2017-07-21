@@ -89,8 +89,7 @@ cov-reset:
 
 cov-report:
 	mkdir -p $(covdir)
-	lcov --directory $(build) --capture --output-file $(covdir)/nvc.info \
-		--branch-coverage --function-coverage
+	lcov --directory $(build) --capture --output-file $(covdir)/nvc.info
 	genhtml -o $(covdir) $(covdir)/nvc.info
 	-x-www-browser $(covdir)/index.html
 
