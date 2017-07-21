@@ -309,7 +309,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
    }
 
    if (actual != eptr) {
-      vcode_dump();
+      vcode_dump_with_mark(len + nops - actual);
       fail("expected %d ops in block %d but have %d", len, bb, actual);
    }
 }
@@ -2555,6 +2555,51 @@ START_TEST(test_issue324)
 }
 END_TEST
 
+START_TEST(test_issue333)
+{
+   input_from_file(TESTDIR "/lower/issue333.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 49 },
+      { VCODE_OP_CONST_ARRAY, .length = 1 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_COPY },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_STORE, .name = "L" },
+      { VCODE_OP_INDEX, .name = "L" },
+      { VCODE_OP_FCALL, .name = ":issue333:proc$vuLINE;", .args = 1 },
+      { VCODE_OP_CONST, .value = 50 },
+      { VCODE_OP_CONST_ARRAY, .length = 2 },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_COPY },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_STORE, .name = "L" },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -2618,6 +2663,7 @@ int main(void)
    tcase_add_test(tc, test_issue303);
    tcase_add_test(tc, test_dealloc);
    tcase_add_test(tc, test_issue324);
+   tcase_add_test(tc, test_issue333);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

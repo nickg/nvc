@@ -2120,7 +2120,7 @@ void vcode_dump_with_mark(int mark_op)
             break;
          }
 
-         if (j == mark_op)
+         if (j == mark_op && i == active_block)
             color_printf("\t $red$<----$$");
 
          printf("\n");
@@ -3244,6 +3244,8 @@ void emit_store(vcode_reg_t reg, vcode_var_t var)
       else if (other->kind == VCODE_OP_NESTED_FCALL
                || other->kind == VCODE_OP_NESTED_PCALL)
          break;   // Needs to get variable for display
+      else if (other->kind == VCODE_OP_INDEX && other->address == var)
+         break;   // Previous value may be used
    }
 
    var_t *v = vcode_var_data(var);
