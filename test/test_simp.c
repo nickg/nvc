@@ -516,6 +516,31 @@ START_TEST(test_issue322)
 }
 END_TEST
 
+START_TEST(test_issue343)
+{
+   input_from_file(TESTDIR "/simp/issue343.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_if(a == NULL);
+
+   tree_t p0 = tree_stmt(a, 0);
+   fail_unless(tree_kind(p0) == T_PROCESS);
+
+   tree_t p0s1 = tree_stmt(p0, 1);
+   fail_unless(tree_kind(p0s1) == T_WAIT);
+   fail_unless(tree_triggers(p0s1) == 1);
+   fail_unless(icmp(tree_ident(tree_trigger(p0s1, 0)), "CURR_VALUE"));
+
+   tree_t p1 = tree_stmt(a, 1);
+   fail_unless(tree_kind(p1) == T_PROCESS);
+
+   tree_t p1s1 = tree_stmt(p1, 1);
+   fail_unless(tree_kind(p1s1) == T_WAIT);
+   fail_unless(tree_triggers(p1s1) == 1);
+   fail_unless(icmp(tree_ident(tree_trigger(p1s1, 0)), "REGS_RDATA"));
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("simplify");
@@ -537,6 +562,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue322);
    tcase_add_test(tc_core, test_ffold2);
    tcase_add_test(tc_core, test_issue331);
+   tcase_add_test(tc_core, test_issue343);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
