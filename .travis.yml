@@ -1,5 +1,6 @@
 sudo: false
 language: c
+dist: trusty
 compiler:
   - gcc
 addons:
@@ -7,7 +8,7 @@ addons:
     packages:
       - automake
       - flex
-      - llvm-3.4-dev
+      - llvm-3.5-dev
       - check
       - lcov
 install:
@@ -17,7 +18,18 @@ install:
 script:
   - ./autogen.sh
   - mkdir build && cd build
-  - ../configure --enable-werror --enable-vhpi
+  - ../configure --enable-werror --enable-vhpi --enable-gcov --with-llvm=/usr/bin/llvm-config-3.5
+  - make cov-reset
   - make check
+after_success:
+  - make cov-report
+  - git config user.name "Travis CI"
+  - git config user.email "$COMMIT_AUTHOR_EMAIL"
+  - git clone https://$GITHUB_TOKEN:x-oauth-basic@github.com/nickg/nickg.github.io.git
+  - cp -ra coverage nickg.github.io
+  - cd nickg.github.io
+  - git add --all
+  - git commit -a -m "Travis CI coverage report"
+  - git push origin master
 notifications:
   email: true

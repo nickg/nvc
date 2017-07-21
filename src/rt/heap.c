@@ -73,7 +73,7 @@ static void min_heapify(heap_t h, size_t i)
 static inline void heap_decrease_key(heap_t h, size_t i, uint64_t key)
 {
    if (unlikely(key > KEY(h, i)))
-      fatal("new key is larger than current key");
+      fatal("new key is larger than current key") LCOV_EXCL_LINE;
 
    KEY(h, i) = key;
    while (i > 1 && KEY(h, PARENT(i)) > KEY(h, i)) {
@@ -100,7 +100,7 @@ void heap_free(heap_t h)
 void *heap_extract_min(heap_t h)
 {
    if (unlikely(h->size < 1))
-      fatal_trace("heap underflow");
+      fatal_trace("heap underflow") LCOV_EXCL_LINE;
 
    void *min = USER(h, 1);
    NODE(h, 1) = NODE(h, h->size);
@@ -112,7 +112,7 @@ void *heap_extract_min(heap_t h)
 void *heap_min(heap_t h)
 {
    if (unlikely(h->size < 1))
-      fatal_trace("heap underflow");
+      fatal_trace("heap underflow") LCOV_EXCL_LINE;
 
    return USER(h, 1);
 }

@@ -26,6 +26,8 @@
 #include <ctype.h>
 #include <inttypes.h>
 
+LCOV_EXCL_START
+
 static void dump_expr(tree_t t);
 static void dump_stmt(tree_t t, int indent);
 static void dump_port(tree_t t, int indent);
@@ -1032,3 +1034,5 @@ void dump_nets(tree_t top)
 
    hash_free(net_hash);
 }
+
+LCOV_EXCL_STOP

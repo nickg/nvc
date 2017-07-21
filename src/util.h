@@ -55,6 +55,13 @@
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
+#define LCOV_EXCL_LINE
+#define LCOV_EXCL_START
+#define LCOV_EXCL_STOP
+#define LCOV_EXCL_BR_LINE
+#define LCOV_EXCL_BR_START
+#define LCOV_EXCL_BR_STOP
+
 void *xmalloc(size_t size) RETURNS_NONNULL;
 void *xcalloc(size_t size) RETURNS_NONNULL;
 void *xrealloc(void *ptr, size_t size) RETURNS_NONNULL;

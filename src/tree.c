@@ -349,9 +349,11 @@ static bool tree_kind_in(tree_t t, const tree_kind_t *list, size_t len)
 static void tree_assert_kind(tree_t t, const tree_kind_t *list, size_t len,
                              const char *what)
 {
-   if (!tree_kind_in(t, list, len))
+   LCOV_EXCL_START
+   if (unlikely(!tree_kind_in(t, list, len)))
       fatal_trace("tree kind %s is not %s",
                   tree_kind_str(t->object.kind), what);
+   LCOV_EXCL_STOP
 }
 
 static void tree_assert_stmt(tree_t t)
