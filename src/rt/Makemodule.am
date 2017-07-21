@@ -2,7 +2,6 @@ noinst_LIBRARIES += lib/librt.a lib/libjit.a
 
 lib_librt_a_SOURCES = \
 	src/rt/rtkern.c \
-	src/rt/shell.c \
 	src/rt/alloc.c \
 	src/rt/vcd.c \
 	src/rt/heap.c \

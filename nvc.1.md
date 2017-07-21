@@ -134,12 +134,6 @@ elaborate command.
 
 ### Runtime options
 
- * `-b`, `--batch`:
-   Run in batch mode. This is the default.
-
- * `-c`, `--command`:
-   Run in interactive TCL command line mode. See [TCL SHELL][] section below.
-
  * `--exit-severity=`_level_:
    Terminate the simulation after an assertion failures of severity greater than
    or equal to _level_. Valid levels are `note`, `warning`, `error`, and `failure`.
@@ -232,8 +226,7 @@ disable certain semantic rule checks.
 ## SELECTING SIGNALS
 
 Every signal object in the design has a unique hierarchical path name. This is
-identical to the value of the `PATH_NAME` attribute. You can get a list of the
-path names in your design using the command `show [signals]` from the TCL shell.
+identical to the value of the `PATH_NAME` attribute.
 
 A signal can be referred to using its full path name, for example
 `:top:sub:x`, and `:top:other:x` are two different signals. The character `:` is a
@@ -289,10 +282,6 @@ Description of library search path, contents, etc.
 ## CODE COVERAGE
 
 Description of coverage generation
-
-## TCL SHELL
-
-Describe interactive TCL shell
 
 ## AUTHOR
 

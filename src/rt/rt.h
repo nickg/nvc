@@ -123,8 +123,6 @@ void *jit_fun_ptr(const char *name, bool required);
 void *jit_var_ptr(const char *name, bool required);
 void jit_bind_fn(const char *name, void *ptr);
 
-void shell_run(tree_t top);
-
 text_buf_t *pprint(struct tree *t, const uint64_t *values, size_t len);
 
 void vcd_init(const char *file, struct tree *top);

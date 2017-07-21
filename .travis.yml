@@ -7,12 +7,9 @@ addons:
     packages:
       - automake
       - flex
-      - libreadline-dev
-      - tcl-dev
       - llvm-3.4-dev
       - check
       - lcov
-      - libedit-dev
 install:
   - llvm-config --version
   - llvm-config --components

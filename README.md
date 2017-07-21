@@ -71,7 +71,7 @@ On a Debian derivative the following should be sufficient to install all require
 dependencies:
 
     sudo apt-get install build-essential automake autoconf autoconf-archive flex \
-        libreadline-dev tcl-dev check llvm-dev pkg-config zlib1g-dev curl
+        check llvm-dev pkg-config zlib1g-dev curl
 
 #### Mac OS X
 
@@ -89,9 +89,8 @@ To build from source follow the generic instructions above.
 
 Windows support is via [Cygwin](http://www.cygwin.com/). Use `setup.exe` to install
 either `gcc` or `clang` and the following dependencies: `automake`, `autoconf`,
-`pkg-config`, `llvm`, `libllvm-devel`, `flex`, `tcl`, `libreadline-devel`,
-`libffi-devel`, `libcurses-devel`, `curl`, and `make`. Then follow the standard installation
-instructions above.
+`pkg-config`, `llvm`, `libllvm-devel`, `flex`, `libffi-devel`, `libcurses-devel`, `curl`, 
+and `make`. Then follow the standard installation instructions above.
 
 #### OpenBSD
 

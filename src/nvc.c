@@ -27,11 +27,6 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
-#if defined HAVE_TCL_TCL_H
-#include <tcl/tcl.h>
-#elif defined HAVE_TCL_H
-#include <tcl.h>
-#endif
 
 const char *copy_string =
    "Copyright (C) 2011-2017  Nick Gasson\n"
@@ -39,7 +34,7 @@ const char *copy_string =
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
 const char *version_string =
-   PACKAGE_STRING " (llvm " LLVM_VERSION "; tcl " TCL_VERSION ")";
+   PACKAGE_STRING " (Using LLVM " LLVM_VERSION ")";
 
 static ident_t top_level = NULL;
 
@@ -421,8 +416,6 @@ static int run(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "trace",         no_argument,       0, 't' },
-      { "batch",         no_argument,       0, 'b' },
-      { "command",       no_argument,       0, 'c' },
       { "stop-time",     required_argument, 0, 's' },
       { "stats",         no_argument,       0, 'S' },
       { "wave",          optional_argument, 0, 'w' },
@@ -438,7 +431,6 @@ static int run(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
-   enum { BATCH, COMMAND } mode = BATCH;
    enum { LXT, FST, VCD} wave_fmt = FST;
 
    uint64_t stop_time = UINT64_MAX;
@@ -454,7 +446,7 @@ static int run(int argc, char **argv)
    const int next_cmd = scan_cmd(2, argc, argv);
 
    int c, index = 0;
-   const char *spec = "bcw::l:";
+   const char *spec = "w::l:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -467,12 +459,6 @@ static int run(int argc, char **argv)
          break;
       case 'T':
          opt_set_int("vhpi_trace_en", 1);
-         break;
-      case 'b':
-         mode = BATCH;
-         break;
-      case 'c':
-         mode = COMMAND;
          break;
       case 's':
          stop_time = parse_time(optarg);
@@ -557,12 +543,7 @@ static int run(int argc, char **argv)
       vhpi_load_plugins(e, vhpi_plugins);
 
    rt_restart(e);
-
-   if (mode == COMMAND)
-      shell_run(e);
-   else
-      rt_run_sim(stop_time);
-
+   rt_run_sim(stop_time);
    rt_end_of_tool(e);
 
    argc -= next_cmd - 1;
@@ -823,8 +804,6 @@ static void usage(void)
           " -V, --verbose\t\tPrint resource usage at each step\n"
           "\n"
           "Run options:\n"
-          " -b, --batch\t\tRun in batch mode (default)\n"
-          " -c, --command\t\tRun in TCL command line mode\n"
           "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
           "     --exit-severity=S\tExit after assertion failure of severity S\n"
           "     --format=FMT\tWaveform format is one of lxt, fst, or vcd\n"

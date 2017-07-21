@@ -1,4 +1,6 @@
 ## master
+- The TCL shell has been removed
+- Various code generation and constant folding fixes
 - Fix crash when build IEEE library from non-clean tree
 - ORC is used for JIT if LLVM version is 3.9 or later
 

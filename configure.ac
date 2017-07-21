@@ -58,12 +58,6 @@ AX_PROG_FLEX([], [AC_MSG_ERROR(GNU Flex not found)])
 
 case $host_os in
   openbsd*)
-    # Need -pthread for TCL on OpenBSD
-    AX_PTHREAD
-    LIBS="$PTHREAD_LIBS $LIBS"
-    CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
-    LDFLAGS="$LDFLAGS $PTHREAD_LDFLAGS"
-
     # Need to link libexecinfo explicitly
     AC_SEARCH_LIBS([backtrace_symbols], [execinfo], [],
       [AC_MSG_ERROR(libexecinfo not found)], [])
@@ -92,19 +86,6 @@ AC_SEARCH_LIBS([dlopen], [dl dld], [], [
 AC_SEARCH_LIBS([pow], [m], [], [
   AC_MSG_ERROR([unable to find the pow() function])
 ])
-
-AC_CHECK_HEADERS([tcl.h tcl/tcl.h], [have_tcl=yes; break], [])
-AC_SEARCH_LIBS([Tcl_CreateInterp], [tcl tcl86], [],
-  [AC_MSG_ERROR(TCL library not found)], [])
-
-if test ! x$have_tcl = xyes ; then
-  AC_MSG_ERROR(TCL header file not found)
-fi
-
-AX_LIB_READLINE
-if test "x$ax_cv_lib_readline" = xno ; then
-  AC_MSG_WARN(terminal line editing will not be supported)
-fi
 
 AC_CHECK_LIB([z], [deflate], [], [AC_MSG_ERROR(zlib not found)])
 
