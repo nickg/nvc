@@ -86,5 +86,25 @@ begin
         wait;
     end process;
 
+    check_bit_vector: process is
+        variable l : line;
+        variable x : bit_vector(1 to 4);
+        variable good : boolean;
+        variable c : character;
+    begin
+        l := new string'("  1010 110 11111");
+        read(l, x, good);
+        assert good;
+        assert x = "1010";
+        assert l.all(1) = ' ';
+        read(l, x, good);
+        assert not good;
+        assert l.all(1) = ' ';
+        read(l, x, good);
+        assert good;
+        assert x = "1111";
+        assert l.all(1) = '1';
+        wait;
+    end process;
 
 end architecture;

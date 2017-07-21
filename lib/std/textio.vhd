@@ -202,9 +202,30 @@ package body textio is
     procedure read (l     : inout line;
                     value : out bit_vector;
                     good  : out boolean ) is
+        variable consumed : natural := 0;
+        variable char     : character;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        good := true;
+        skip_whitespace(l);
+
+        for i in value'range loop
+            if l.all'length < consumed then
+                good := false;
+                exit;
+            end if;
+            char := l.all(consumed + 1);
+            if char = '0' then
+                value(i) := '0';
+            elsif char = '1' then
+                value(i) := '1';
+            else
+                good := false;
+                exit;
+            end if;
+            consumed := consumed + 1;
+        end loop;
+
+        consume(l, consumed);
     end procedure;
 
     procedure read (l     : inout line;
