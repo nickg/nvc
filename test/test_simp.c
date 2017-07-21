@@ -516,9 +516,9 @@ START_TEST(test_issue322)
 }
 END_TEST
 
-START_TEST(test_issue343)
+START_TEST(test_issue332)
 {
-   input_from_file(TESTDIR "/simp/issue343.vhd");
+   input_from_file(TESTDIR "/simp/issue332.vhd");
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
    fail_if(a == NULL);
@@ -562,7 +562,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue322);
    tcase_add_test(tc_core, test_ffold2);
    tcase_add_test(tc_core, test_issue331);
-   tcase_add_test(tc_core, test_issue343);
+   tcase_add_test(tc_core, test_issue332);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
