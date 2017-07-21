@@ -245,8 +245,6 @@ void object_lookup_failed(const char *name, const char **kind_text_map,
 
 void item_without_type(imask_t mask);
 
-uint32_t object_index(const object_t *object);
-bool object_has_index(const object_t *object);
 void object_change_kind(const object_class_t *class,
                         object_t *object, int kind);
 object_t *object_new(const object_class_t *class, int kind);

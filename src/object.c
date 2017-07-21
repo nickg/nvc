@@ -69,20 +69,6 @@ void item_without_type(imask_t mask)
    fatal_trace("item %s does not have a type", item_text_map[item]);
 }
 
-uint32_t object_index(const object_t *object)
-{
-   assert(object != NULL);
-   assert(object->index != UINT32_MAX);
-
-   return object->index;
-}
-
-bool object_has_index(const object_t *object)
-{
-  assert(object != NULL);
-  return object->index != UINT32_MAX;
-}
-
 void object_change_kind(const object_class_t *class, object_t *object, int kind)
 {
    if (kind == object->kind)
