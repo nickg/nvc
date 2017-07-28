@@ -3244,7 +3244,8 @@ void emit_store(vcode_reg_t reg, vcode_var_t var)
       else if (other->kind == VCODE_OP_NESTED_FCALL
                || other->kind == VCODE_OP_NESTED_PCALL)
          break;   // Needs to get variable for display
-      else if (other->kind == VCODE_OP_INDEX && other->address == var)
+      else if ((other->kind == VCODE_OP_INDEX || other->kind == VCODE_OP_LOAD)
+               && other->address == var)
          break;   // Previous value may be used
    }
 
