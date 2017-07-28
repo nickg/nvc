@@ -61,28 +61,14 @@ AC_DEFUN([AX_LLVM_C], [
 
           LLVM_CFLAGS=`$ac_llvm_config_path --cflags`
           LLVM_CXXFLAGS=`$ac_llvm_config_path --cxxflags`
-
-          # The `sed' command here filters out system libraries for
-          # LLVM < 3.4
-          LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags | sed -e 's/\-l[a-z]\+//g')"
-
-          if test "$llvm_ver_num" -ge "34"; then
-              LLVM_SYSLIBS="$($ac_llvm_config_path --system-libs)"
-          else
-              LLVM_SYSLIBS="$($ac_llvm_config_path --ldflags)"
-          fi
-
+          LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags)"
+          LLVM_SYSLIBS="$($ac_llvm_config_path --system-libs)"
           LLVM_LIBS="$($ac_llvm_config_path --libs $1) $LLVM_SYSLIBS"
           LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir)"
           LLVM_LIBDIR="$($ac_llvm_config_path --libdir)"
 
-          if test "$llvm_ver_num" -lt "34"; then
-              AC_MSG_ERROR([LLVM version 3.4 or later required])
-          fi
-
-          if test "$llvm_ver_num" -ge "35"; then
-              AC_DEFINE_UNQUOTED(LLVM_HAS_SET_UNNAMED, [1],
-                                 [LLVM has the LLVMSetUnnamedAddr function])
+          if test "$llvm_ver_num" -lt "35"; then
+              AC_MSG_ERROR([LLVM version 3.5 or later required])
           fi
 
           if test "$llvm_ver_num" -ge "36"; then
@@ -105,9 +91,7 @@ AC_DEFUN([AX_LLVM_C], [
           LLVM_OBJ_EXT="o"
           case $host_os in
               *cygwin*)
-                  if test "$llvm_ver_num" -ge "35"; then
-                      LLVM_OBJ_EXT="obj"
-                  fi
+                  LLVM_OBJ_EXT="obj"
                   ;;
           esac
           AC_DEFINE_UNQUOTED(LLVM_OBJ_EXT, ["$LLVM_OBJ_EXT"],
