@@ -330,8 +330,13 @@ static void link_assembly(tree_t top)
                               LLVMRelocPIC,
                               LLVMCodeModelJITDefault);
 
-   char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT,
-                                    istr(link_elab_final(top)));
+   ident_t product;
+   if (tree_kind(top) == T_ELAB)
+      product = link_elab_final(top);
+   else
+      product = tree_ident(top);
+
+   char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT, istr(product));
 
    char path[PATH_MAX];
    lib_realpath(lib_work(), obj_name, path, sizeof(path));
