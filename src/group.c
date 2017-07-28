@@ -408,6 +408,7 @@ static void group_target(tree_t t, group_nets_ctx_t *ctx)
       break;
 
    case T_LITERAL:
+   case T_OPEN:
       // Constant folding can cause this to appear
       break;
 

@@ -2844,6 +2844,8 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
       return lower_attr_ref(expr, ctx);
    case T_QUALIFIED:
       return lower_qualified(expr, ctx);
+   case T_OPEN:
+      return VCODE_INVALID_REG;
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));
@@ -4657,6 +4659,7 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
       break;
 
    case T_LITERAL:
+   case T_OPEN:
       return false;
 
    default:

@@ -144,6 +144,9 @@ static tree_t simp_record_ref(tree_t t)
       }
       break;
 
+   case T_OPEN:
+      return value;
+
    default:
       return t;
    }
@@ -444,9 +447,22 @@ static tree_t simp_extract_aggregate(tree_t agg, int64_t index, tree_t def)
    return def;
 }
 
+static tree_t simp_array_slice(tree_t t)
+{
+   tree_t value = tree_value(t);
+
+   if (tree_kind(value) == T_OPEN)
+      return value;
+
+   return t;
+}
+
 static tree_t simp_array_ref(tree_t t)
 {
    tree_t value = tree_value(t);
+
+   if (tree_kind(value) == T_OPEN)
+      return value;
 
    const int nparams = tree_params(t);
 
@@ -946,6 +962,16 @@ static tree_t simp_if_generate(tree_t t)
       return NULL;
 }
 
+static tree_t simp_signal_assign(tree_t t)
+{
+   tree_t target = tree_target(t);
+
+   if (tree_kind(target) == T_OPEN)
+      return NULL;    // Delete it
+
+   return t;
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -955,6 +981,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_process(t);
    case T_ARRAY_REF:
       return simp_array_ref(t);
+   case T_ARRAY_SLICE:
+      return simp_array_slice(t);
    case T_ATTR_REF:
       return simp_attr_ref(t, ctx);
    case T_FCALL:
@@ -993,8 +1021,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_assert(t);
    case T_IF_GENERATE:
       return simp_if_generate(t);
-   case T_RETURN:
-      return t;
+   case T_SIGNAL_ASSIGN:
+      return simp_signal_assign(t);
    default:
       return t;
    }

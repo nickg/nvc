@@ -76,7 +76,7 @@ START_TEST(test_open)
 
    // We used to delete all statements here but the behaviour
    // has changed
-   fail_unless(tree_stmts(top) == 2);
+   fail_unless(tree_stmts(top) == 1);
 }
 END_TEST
 
@@ -527,6 +527,15 @@ START_TEST(test_issue330)
 }
 END_TEST
 
+START_TEST(test_issue336)
+{
+   input_from_file(TESTDIR "/elab/issue336.vhd");
+
+   tree_t e = run_elab();
+   fail_unless(tree_stmts(e) == 3);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -567,6 +576,7 @@ int main(void)
    tcase_add_test(tc, test_issue325);
    tcase_add_test(tc, test_issue328);
    tcase_add_test(tc, test_issue330);
+   tcase_add_test(tc, test_issue336);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

@@ -217,10 +217,6 @@ static tree_t rewrite_refs(tree_t t, void *context)
       if (tree_attr_int(t, formal_i, 0))
          continue;
 
-      // Skip assignments to OPEN ports
-      if (params->actuals[i] == NULL)
-         continue;
-
       switch (tree_kind(params->actuals[i])) {
       case T_SIGNAL_DECL:
       case T_ENUM_LIT:
@@ -235,6 +231,7 @@ static tree_t rewrite_refs(tree_t t, void *context)
       case T_FCALL:
       case T_CONCAT:
       case T_RECORD_REF:
+      case T_OPEN:
          return params->actuals[i];
       case T_TYPE_CONV:
          // XXX: this only works in trivial cases
@@ -444,8 +441,6 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
 
             return s;
          }
-         else if (decl_kind == T_PORT_DECL)
-            return NULL;    // Port was OPEN at a higher level
          else
             return actual;
       }
@@ -460,7 +455,7 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
       }
 
    case T_OPEN:
-      return NULL;
+      return actual;
 
    case T_TYPE_CONV:
       // Only allow simple array type conversions for now
