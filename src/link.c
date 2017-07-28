@@ -38,9 +38,7 @@
 #include <llvm-c/BitReader.h>
 #include <llvm-c/BitWriter.h>
 #include <llvm-c/TargetMachine.h>
-#include <llvm-c/Transforms/Scalar.h>
-#include <llvm-c/Transforms/IPO.h>
-#include <llvm-c/Transforms/Vectorize.h>
+#include <llvm-c/Transforms/PassManagerBuilder.h>
 
 #undef NDEBUG
 #include <assert.h>
@@ -422,62 +420,14 @@ static void link_write_module(tree_t top)
 
 static void link_opt(tree_t top)
 {
+   LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
    LLVMPassManagerRef pm = LLVMCreatePassManager();
 
-   // Basic cleanup optimisations
-   LLVMAddPromoteMemoryToRegisterPass(pm);
-   LLVMAddGVNPass(pm);
-   LLVMAddConstantPropagationPass(pm);
+   LLVMPassManagerBuilderSetOptLevel(builder, opt_get_int("optimise"));
 
-   // Optimisations from LLVM opt -O2
-   LLVMAddBasicAliasAnalysisPass(pm);
-   LLVMAddTypeBasedAliasAnalysisPass(pm);
-   LLVMAddSCCPPass(pm);
-   LLVMAddGlobalOptimizerPass(pm);
-   LLVMAddDeadArgEliminationPass(pm);
-   LLVMAddInstructionCombiningPass(pm);
-   LLVMAddCFGSimplificationPass(pm);
-   LLVMAddPruneEHPass(pm);
-   LLVMAddFunctionInliningPass(pm);
-   LLVMAddFunctionAttrsPass(pm);
-   LLVMAddArgumentPromotionPass(pm);
-   LLVMAddEarlyCSEPass(pm);
-   LLVMAddJumpThreadingPass(pm);
-   LLVMAddCorrelatedValuePropagationPass(pm);
-   LLVMAddCFGSimplificationPass(pm);
-   LLVMAddInstructionCombiningPass(pm);
-   LLVMAddTailCallEliminationPass(pm);
-   LLVMAddCFGSimplificationPass(pm);
-   LLVMAddInstructionCombiningPass(pm);
-   LLVMAddReassociatePass(pm);
-   LLVMAddLoopRotatePass(pm);
-   LLVMAddLoopUnswitchPass(pm);
-   LLVMAddInstructionCombiningPass(pm);
-   LLVMAddIndVarSimplifyPass(pm);
-   LLVMAddLoopIdiomPass(pm);
-   LLVMAddLoopDeletionPass(pm);
-   LLVMAddLoopUnrollPass(pm);
-   LLVMAddGVNPass(pm);
-   LLVMAddMemCpyOptPass(pm);
-   LLVMAddSCCPPass(pm);
-   LLVMAddInstructionCombiningPass(pm);
-   LLVMAddJumpThreadingPass(pm);
-   LLVMAddCorrelatedValuePropagationPass(pm);
-   LLVMAddSLPVectorizePass(pm);
-   LLVMAddAggressiveDCEPass(pm);
-   LLVMAddCFGSimplificationPass(pm);
-   LLVMAddInstructionCombiningPass(pm);
-   LLVMAddLoopVectorizePass(pm);
-   LLVMAddInstructionCombiningPass(pm);
-   LLVMAddCFGSimplificationPass(pm);
-   LLVMAddLoopUnrollPass(pm);
-   LLVMAddStripDeadPrototypesPass(pm);
-   LLVMAddGlobalDCEPass(pm);
-   LLVMAddConstantMergePass(pm);
-
-   LLVMAddVerifierPass(pm);
-
+   LLVMPassManagerBuilderPopulateModulePassManager(builder, pm);
    LLVMRunPassManager(pm, module);
+   LLVMPassManagerBuilderDispose(builder);
    LLVMDisposePassManager(pm);
 }
 
@@ -494,26 +444,16 @@ void link_bc(tree_t top)
    module = tree_attr_ptr(top, llvm_i);
    assert(module != NULL);
 
-   const bool opt_en = opt_get_int("optimise");
-
    FILE *deps = link_deps_file(top);
    link_all_context(top, deps, link_context_bc_fn);
    fclose(deps);
 
-   if (opt_en)
-      link_opt(top);
-
+   link_opt(top);
    link_write_module(top);
 
-   bool native = false;
+   bool native = opt_get_int("native");
 
-   if (opt_get_int("native")) {
-      if (!opt_en)
-         fatal("optimisation must be enabled for native code generation");
-      else
-         native = true;
-   }
-   else if (opt_en) {
+   if (!native && opt_get_int("optimise") > 0) {
       // Use a heuristic to decide if the generated bitcode file is large
       // enough to benefit from native complilation
 #ifdef ENABLE_NATIVE

@@ -109,10 +109,6 @@ elaborate command.
 * `--cover`:
   Enable code coverage reporting (see the [CODE COVERAGE][] section below).
 
-* `--disable-opt`:
-  Disable LLVM optimisations. Not generally useful unless debugging the
-  generated LLVM IR.
-
 * `--dump-llvm`:
   Print generated LLVM IR prior to optimisation.
 
@@ -128,6 +124,9 @@ elaborate command.
   Generate native code shared library. By default NVC will use LLVM JIT
   compilation to generate machine code at runtime. For large designs
   compiling to native code at elaboration time may improve performance.
+
+* `-O0`, `-01`, `-02`, `-03`:
+  Set LLVM optimisation level. Default is `-O2`.
 
 * `-V`, `--verbose`:
   Prints resource usage information after each elaboration step.

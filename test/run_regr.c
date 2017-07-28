@@ -370,7 +370,7 @@ static bool run_test(test_t *test)
    push_arg(&args, "%s", test->name);
 
    if (!(test->flags & F_OPT))
-      push_arg(&args, "--disable-opt");
+      push_arg(&args, "-O0");
 
    if (test->flags & F_COVER)
       push_arg(&args, "--cover");

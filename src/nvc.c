@@ -236,7 +236,7 @@ static void set_top_level(char **argv, int next_cmd)
 static int elaborate(int argc, char **argv)
 {
    static struct option long_options[] = {
-      { "disable-opt", no_argument,       0, 'o' },
+      { "disable-opt", no_argument,       0, 'o' },    // DEPRECATED
       { "dump-llvm",   no_argument,       0, 'd' },
       { "dump-vcode",  optional_argument, 0, 'v' },
       { "native",      no_argument,       0, 'n' },
@@ -248,11 +248,21 @@ static int elaborate(int argc, char **argv)
    const int next_cmd = scan_cmd(2, argc, argv);
    bool verbose = false;
    int c, index = 0;
-   const char *spec = "Vg:";
+   const char *spec = "Vg:O:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 'o':
+         warnf("The '--disable-opt' option is deprecated: use '-O0' instead");
          opt_set_int("optimise", 0);
+         break;
+      case 'O':
+         {
+            char *eptr;
+            const int level = strtoul(optarg, &eptr, 10);
+            if (level > 3)
+               fatal("Invalid optimisation level %s", optarg);
+            opt_set_int("optimise", level);
+         }
          break;
       case 'd':
          opt_set_int("dump-llvm", 1);
@@ -749,7 +759,7 @@ static void set_default_opts(void)
    opt_set_int("rt_trace_en", 0);
    opt_set_int("vhpi_trace_en", 0);
    opt_set_int("dump-llvm", 0);
-   opt_set_int("optimise", 1);
+   opt_set_int("optimise", 2);
    opt_set_int("native", 0);
    opt_set_int("bootstrap", 0);
    opt_set_int("cover", 0);
@@ -796,11 +806,11 @@ static void usage(void)
           "\n"
           "Elaborate options:\n"
           "     --cover\t\tEnable code coverage reporting\n"
-          "     --disable-opt\tDisable LLVM optimisations\n"
           "     --dump-llvm\tPrint generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
           "     --native\t\tGenerate native code shared library\n"
+          " -O0, -O1, -O2, -O3\tSet optimisation level (default is -O2)\n"
           " -V, --verbose\t\tPrint resource usage at each step\n"
           "\n"
           "Run options:\n"

@@ -128,10 +128,6 @@ Disable certain pedantic rule checks specified in the comma\-separate list \fIru
 Enable code coverage reporting (see the \fICODE COVERAGE\fR section below)\.
 .
 .TP
-\fB\-\-disable\-opt\fR
-Disable LLVM optimisations\. Not generally useful unless debugging the generated LLVM IR\.
-.
-.TP
 \fB\-\-dump\-llvm\fR
 Print generated LLVM IR prior to optimisation\.
 .
@@ -146,6 +142,10 @@ Override top\-level generic \fIname\fR name with \fIvalue\fR\. Integers, enumera
 .TP
 \fB\-\-native\fR
 Generate native code shared library\. By default NVC will use LLVM JIT compilation to generate machine code at runtime\. For large designs compiling to native code at elaboration time may improve performance\.
+.
+.TP
+\fB\-O0\fR, \fB\-01\fR, \fB\-02\fR, \fB\-03\fR
+Set LLVM optimisation level\. Default is \fB\-O2\fR\.
 .
 .TP
 \fB\-V\fR, \fB\-\-verbose\fR

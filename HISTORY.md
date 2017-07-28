@@ -4,6 +4,8 @@
 - Fix crash when build IEEE library from non-clean tree
 - ORC is used for JIT if LLVM version is 3.9 or later
 - LLVM 3.5 or later is now required
+- Added `-O0` to `-O3` options to control LLVM optimisation level
+- The `--disable-opt` option is deprecated, use `-O0` instead
 
 ## 1.2 - 2017-05-04
 - Compile time evaluation now uses vcode
