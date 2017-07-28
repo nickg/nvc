@@ -37,6 +37,7 @@
 #include <llvm-c/Linker.h>
 #include <llvm-c/BitReader.h>
 #include <llvm-c/BitWriter.h>
+#include <llvm-c/TargetMachine.h>
 #include <llvm-c/Transforms/Scalar.h>
 #include <llvm-c/Transforms/IPO.h>
 #include <llvm-c/Transforms/Vectorize.h>
@@ -314,20 +315,30 @@ static void link_exec(void)
 #ifdef ENABLE_NATIVE
 static void link_assembly(tree_t top)
 {
-   link_args_begin();
+   LLVMInitializeNativeTarget();
+   LLVMInitializeNativeAsmPrinter();
 
-   const char *extra = getenv("NVC_LLC_ARG");
+   char *def_triple = LLVMGetDefaultTargetTriple();
+   char *error;
+   LLVMTargetRef target_ref;
+   if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
+      fatal("failed to get LLVM target for %s: %s", def_triple, error);
 
-   link_arg_f("%s/llc", LLVM_CONFIG_BINDIR);
-   link_arg_f("-relocation-model=pic");
-   if (extra != NULL)
-      link_arg_f("%s", extra);
-   link_output(top, "bc");
-   link_arg_f("-filetype=obj");
+   LLVMTargetMachineRef tm_ref =
+      LLVMCreateTargetMachine(target_ref, def_triple, "", "",
+                              LLVMCodeGenLevelDefault,
+                              LLVMRelocPIC,
+                              LLVMCodeModelJITDefault);
 
-   link_exec();
+   char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT,
+                                    istr(link_elab_final(top)));
 
-   link_args_end();
+   char path[PATH_MAX];
+   lib_realpath(lib_work(), obj_name, path, sizeof(path));
+
+   if (LLVMTargetMachineEmitToFile(tm_ref, module, path,
+                                   LLVMObjectFile, &error))
+      fatal("Failed to write object file: %s", error);
 }
 #endif
 
