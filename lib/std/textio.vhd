@@ -307,14 +307,30 @@ package body textio is
         variable pos : integer := 1;
         variable digit : integer;
         variable result : integer := 0;
+        variable is_negative : boolean := false;
     begin
         skip_whitespace(l);
+
+        if pos <= l.all'right and l.all(pos) = '-' then
+          pos := pos + 1;
+          is_negative := true;
+        end if;
+
         while pos <= l.all'right loop
             exit when l.all(pos) < '0' or l.all(pos) > '9';
             digit := character'pos(l.all(pos)) - character'pos('0');
+            if is_negative then
+              digit := -digit;
+            end if;
             result := (result * 10) + digit;
             pos := pos + 1;
         end loop;
+
+        if is_negative and pos = 2 then
+          -- Single dash without trailing digit is not good
+          pos := 1;
+        end if;
+
         good := pos > 1;
         value := result;
         consume(l, pos - 1);
