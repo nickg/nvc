@@ -2390,7 +2390,7 @@ vcode_type_t vtype_time(void)
 
 vcode_type_t vtype_char(void)
 {
-   return vtype_int(0, 183);
+   return vtype_int(0, 255);
 }
 
 vcode_type_t vtype_image_map(void)

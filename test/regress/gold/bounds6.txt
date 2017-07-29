@@ -1,1 +1,1 @@
-value 1517262 outside STD.STANDARD.CHARACTER bounds 0 to 183
+value 1517262 outside STD.STANDARD.CHARACTER bounds 0 to 255
