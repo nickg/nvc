@@ -28,6 +28,70 @@ begin
         assert good;
         assert x = 5;
         assert l.all'length = 0;
+
+        report "Negative integers";
+        l := new string'("  -123,-5");
+        read(l, x, good);
+        assert good;
+        assert x = -123;
+        assert l.all(1) = ',';
+
+        read(l, x, good);
+        assert not good;
+        assert l.all(1) = ',';
+        read(l, c, good);
+        assert good;
+        assert c = ',';
+        assert l.all(1) = '-';
+
+        read(l, x, good);
+        assert good;
+        assert x = -5;
+        assert l.all'length = 0;
+
+        report "Integers min and max";
+        l := new string'(integer'image(integer'low) & "," & integer'image(integer'high));
+        read(l, x, good);
+        assert good;
+        assert x = integer'low;
+
+        read(l, c, good);
+        assert good;
+
+        read(l, x, good);
+        assert good;
+        assert x = integer'high;
+        assert l.all'length = 0;
+
+        report "Negative integer not good with single minus";
+        l := new string'("-,100");
+        read(l, x, good);
+        assert not good;
+        assert l.all(1) = '-';
+
+        read(l, c, good);
+        assert good;
+        assert c = '-';
+
+        read(l, c, good);
+        assert good;
+        assert c = ',';
+
+        read(l, x, good);
+        assert good;
+        assert x = 100;
+        assert l.all'length = 0;
+
+        report "Negative integer with minus in the middle";
+        l := new string'("10-10");
+        read(l, x, good);
+        assert good;
+        assert x = 10;
+        read(l, x, good);
+        assert good;
+        assert x = -10;
+        assert l.all'length = 0;
+
         wait;
     end process;
 
