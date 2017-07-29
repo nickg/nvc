@@ -726,12 +726,30 @@ int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
 
    switch (map->kind) {
    case IMAGE_INTEGER:
-      while (p < endp && (isdigit((int)*p) || *p == '_')) {
-         if (*p != '_') {
-            value *= 10;
-            value += (*p - '0');
+      {
+         bool is_negative = p < endp && *p == '-';
+         int num_digits = 0;
+
+         if (is_negative) {
+            ++p;
          }
-         ++p;
+         while (p < endp && (isdigit((int)*p) || *p == '_')) {
+            if (*p != '_') {
+               value *= 10;
+               value += (*p - '0');
+               num_digits++;
+            }
+            ++p;
+         }
+         if (is_negative) {
+            value = -value;
+         }
+
+         if (num_digits == 0) {
+            from_rt_loc(where, &loc);
+            fatal_at(&loc, "invalid integer value "
+                     "\"%.*s\"", str_len, (const char *)raw_str);
+         }
       }
       break;
 
