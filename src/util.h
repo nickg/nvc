@@ -157,6 +157,12 @@ void tb_rewind(text_buf_t *tb);
 
 void _local_free(void *ptr);
 
+#ifdef __MINGW32__
+#define DLLEXPORT __declspec(dllexport)
+#else
+#define DLLEXPORT
+#endif
+
 #define ARRAY_APPEND(array, item, count, max) do {      \
       if (unlikely(count == max)) {                     \
          max *= 2;                                      \

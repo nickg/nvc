@@ -167,11 +167,18 @@ case $host_os in
 esac
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$cc_bare"], [System compiler])
 
-AC_ARG_ENABLE([native],
-  [AS_HELP_STRING([--enable-native],
-    [Enable native code generation])],
-  [enable_native=$enableval],
-  [enable_native=yes])
+case $host_os in
+  msys*)
+    # Only ORC JIT is supported on MSYS
+    ;;
+  *)
+    AC_ARG_ENABLE([native],
+      [AS_HELP_STRING([--enable-native],
+        [Enable native code generation])],
+      [enable_native=$enableval],
+      [enable_native=yes])
+    ;;
+esac
 
 if test x$enable_native = xyes ; then
   AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])

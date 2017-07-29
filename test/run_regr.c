@@ -8,13 +8,18 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <limits.h>
 #include <libgen.h>
 #include <fcntl.h>
 #include <assert.h>
 #include <signal.h>
 
+#ifdef __MINGW32__
+#define setenv(x, y, z) _putenv_s((x), (y))
+#define realpath(N, R) _fullpath((R), (N), _MAX_PATH)
+#else
+#include <sys/wait.h>
+#endif
 #include "config.h"
 
 #define WHITESPACE " \t\r\n"
@@ -71,6 +76,18 @@ static test_t *test_list = NULL;
 static char test_dir[PATH_MAX];
 static char bin_dir[PATH_MAX];
 static bool is_tty = false;
+
+#ifdef __MINGW32__
+static char *strndup(const char *s, size_t n)
+{
+   size_t len = strlen(s);
+   if (n < len)
+      len = n;
+   char *result = malloc(len + 1);
+   result[len] = '\0';
+   return memcpy(result, s, len);
+}
+#endif
 
 static void set_attr(int escape)
 {
@@ -246,6 +263,16 @@ static bool run_cmd(FILE *log, arglist_t **args)
    fflush(stdout);
    fflush(stderr);
 
+#if defined __CYGWIN__ || defined __MINGW32__
+   char **argv = calloc((*args)->count + 1, sizeof(char *));
+   arglist_t *it = *args;
+   for (int i = 0; i < (*args)->count; i++, it = it->next)
+      argv[i] = it->data;
+
+   int status = spawnv(_P_WAIT, argv[0], (char * const *)argv);
+   free(argv);
+   return status == 0;
+#else  // __CYGWIN__ || __MINGW32__
    pid_t pid = fork();
    if (pid < 0) {
       fprintf(stderr, "Fork failed: %s", strerror(errno));
@@ -305,6 +332,7 @@ static bool run_cmd(FILE *log, arglist_t **args)
       else
          return WEXITSTATUS(status) == 0;
    }
+#endif  // __CYGWIN__ || __MINGW32__
 }
 
 static void push_std(test_t *test, arglist_t **args)
@@ -322,11 +350,20 @@ static void chomp(char *str)
       str[len - 1] = '\0';
 }
 
+static int make_dir(const char *name)
+{
+#ifdef __MINGW32__
+   return mkdir(name);
+#else
+   return mkdir(name, 0777);
+#endif
+}
+
 static bool run_test(test_t *test)
 {
    bool result = false;
 
-   if (mkdir(test->name, 0777) != 0 && errno != EEXIST) {
+   if (make_dir(test->name) != 0 && errno != EEXIST) {
       fprintf(stderr, "Failed to make logs/%s directory: %s\n",
               strerror(errno), test->name);
       return false;
@@ -507,7 +544,7 @@ int main(int argc, char **argv)
    if (!parse_test_list(argc - 1, argv + 1))
       return EXIT_FAILURE;
 
-   if (mkdir("logs", 0777) != 0 && errno != EEXIST) {
+   if (make_dir("logs") != 0 && errno != EEXIST) {
       fprintf(stderr, "Failed to make logs directory: %s\n", strerror(errno));
       return EXIT_FAILURE;
    }
