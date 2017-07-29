@@ -1,1 +1,1 @@
-found invalid characters "hello" after value "hello"
+invalid integer value "hello"

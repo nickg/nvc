@@ -307,16 +307,32 @@ bool parse_value(type_t type, const char *str, int64_t *value)
    switch (type_kind(type_base_recur(type))) {
    case T_INTEGER:
       {
+         bool is_negative = *str == '-';
+         int num_digits = 0;
+
+         if (is_negative) {
+            ++str;
+         }
          int64_t sum = 0;
          while (isdigit((int)*str) || (*str == '_')) {
             if (*str != '_') {
                sum *= 10;
                sum += (*str - '0');
+               num_digits++;
             }
             ++str;
          }
 
-         *value = sum;
+         if (is_negative) {
+            *value = -sum;
+         }
+         else {
+            *value = sum;
+         }
+
+         if (num_digits == 0) {
+            return false;
+         }
       }
       break;
 

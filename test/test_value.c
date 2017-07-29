@@ -17,6 +17,15 @@ START_TEST(test_integer)
    fail_unless(parse_value(t, "1", &v));
    fail_unless(v == 1);
 
+   fail_unless(parse_value(t, "-1", &v));
+   fail_unless(v == -1);
+
+   fail_unless(parse_value(t, "2147483648", &v));
+   fail_unless(v == 2147483648);
+
+   fail_unless(parse_value(t, "-2147483648", &v));
+   fail_unless(v == -2147483648);
+
    fail_unless(parse_value(t, "  14124  ", &v));
    fail_unless(v == 14124);
 
@@ -25,8 +34,6 @@ START_TEST(test_integer)
 
    fail_unless(parse_value(t, "1_2_3", &v));
    fail_unless(v == 123);
-
-   fail_if(parse_value(t, "-5", &v));
 }
 END_TEST
 
