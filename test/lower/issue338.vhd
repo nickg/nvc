@@ -41,6 +41,11 @@ architecture test of e is
     begin
         return x or f;
     end function;
+
+    function f7(x : boolean) return boolean is
+    begin
+        return x nor f;
+    end function;
 begin
 
 end architecture;

@@ -192,6 +192,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ABS:
       case VCODE_OP_CAST:
       case VCODE_OP_OR:
+      case VCODE_OP_NOR:
       case VCODE_OP_AND:
       case VCODE_OP_NOT:
       case VCODE_OP_LOAD_INDIRECT:
@@ -2710,6 +2711,37 @@ START_TEST(test_issue338)
       EXPECT_BB(1) = {
          { VCODE_OP_FCALL, .func = "WORK.P.F$B" },
          { VCODE_OP_OR },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_JUMP, .target = 2 },
+      };
+
+      CHECK_BB(1);
+
+      EXPECT_BB(2) = {
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(2);
+   }
+
+   // Function f7
+   {
+      vcode_unit_t vu = find_unit(tree_decl(e, 7));
+      vcode_select_unit(vu);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_ALLOCA },
+         { VCODE_OP_NOT },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_COND, .target = 2, .target_else = 1 },
+      };
+
+      CHECK_BB(0);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_FCALL, .func = "WORK.P.F$B" },
+         { VCODE_OP_NOR },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_JUMP, .target = 2 },
       };

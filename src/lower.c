@@ -1198,7 +1198,10 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
 
    vcode_type_t vbool = vtype_bool();
    vcode_reg_t result_reg = emit_alloca(vbool, vbool, VCODE_INVALID_REG);
-   emit_store_indirect(r0, result_reg);
+   if (op == SHORT_CIRCUIT_NOR)
+      emit_store_indirect(emit_not(r0), result_reg);
+   else
+      emit_store_indirect(r0, result_reg);
 
    if (op == SHORT_CIRCUIT_AND)
       emit_cond(r0, arg1_bb, after_bb);
