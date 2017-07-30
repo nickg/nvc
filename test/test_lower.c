@@ -985,13 +985,28 @@ START_TEST(test_array1)
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_MEMCMP },
-      { VCODE_OP_AND },
-      { VCODE_OP_ASSERT },
-      { VCODE_OP_WAIT, .target = 2 }
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_COND, .target = 2, .target_else = 3 }
    };
 
    CHECK_BB(1);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_MEMCMP },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_JUMP, .target = 3 }
+   };
+
+   CHECK_BB(2);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 4 }
+   };
+
+   CHECK_BB(3);
 }
 END_TEST
 
@@ -2758,6 +2773,46 @@ START_TEST(test_issue338)
 }
 END_TEST
 
+START_TEST(test_issue338b)
+{
+   input_from_file(TESTDIR "/lower/issue338b.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST_ARRAY, .length = 0 },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_COND, .target = 1, .target_else = 2 }
+   };
+
+   CHECK_BB(0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_MEMCMP },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_JUMP, .target = 2 }
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(2);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -2823,6 +2878,7 @@ int main(void)
    tcase_add_test(tc, test_issue324);
    tcase_add_test(tc, test_issue333);
    tcase_add_test(tc, test_issue338);
+   tcase_add_test(tc, test_issue338b);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

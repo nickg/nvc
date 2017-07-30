@@ -816,7 +816,22 @@ static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
          return emit_memcmp(r0_data, r1_data, r0_len);
       else {
          vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, r0_len, r1_len);
-         return emit_and(eq_reg, emit_memcmp(r0_data, r1_data, r0_len));
+
+         vcode_type_t vbool = vtype_bool();
+         vcode_reg_t result_reg = emit_alloca(vbool, vbool, VCODE_INVALID_REG);
+         emit_store_indirect(eq_reg, result_reg);
+
+         vcode_block_t cmp_bb = emit_block();
+         vcode_block_t skip_bb = emit_block();
+
+         emit_cond(eq_reg, cmp_bb, skip_bb);
+
+         vcode_select_block(cmp_bb);
+         emit_store_indirect(emit_memcmp(r0_data, r1_data, r0_len), result_reg);
+         emit_jump(skip_bb);
+
+         vcode_select_block(skip_bb);
+         return emit_load_indirect(result_reg);
       }
    }
    else

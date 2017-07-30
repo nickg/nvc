@@ -330,3 +330,4 @@ textio4         normal
 issue327        normal
 issue335        normal
 issue338        normal
+issue338b       normal
