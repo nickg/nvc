@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2016  Nick Gasson
+//  Copyright (C) 2014-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -233,7 +233,7 @@ struct vcode_unit {
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
 #define VCODE_MAGIC        0x76636f64
-#define VCODE_VERSION      5
+#define VCODE_VERSION      6
 #define VCODE_CHECK_UNIONS 0
 
 static vcode_unit_t  active_unit = NULL;
@@ -4806,6 +4806,22 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
             write_u32(op->tag, f);
          if (OP_HAS_LOC(op->kind))
             loc_write(&(op->loc), f, ident_wr_ctx);
+         if (OP_HAS_IMAGE_MAP(op->kind)) {
+            ident_write(op->image_map->name, ident_wr_ctx);
+            write_u16(op->image_map->kind, f);
+
+            write_u16(op->image_map->nelems, f);
+            for (size_t i = 0; i < op->image_map->nelems; i++)
+               ident_write(op->image_map->elems[i], ident_wr_ctx);
+
+            if (op->image_map->values != NULL) {
+               write_u8(1, f);
+               for (size_t i = 0; i < op->image_map->nelems; i++)
+                  write_u64(op->image_map->values[i], f);
+            }
+            else
+               write_u8(0, f);
+         }
       }
    }
 
@@ -4996,6 +5012,27 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx)
             op->tag = read_u32(f);
          if (OP_HAS_LOC(op->kind))
             loc_read(&(op->loc), f, ident_rd_ctx);
+         if (OP_HAS_IMAGE_MAP(op->kind)) {
+            op->image_map = xmalloc(sizeof(image_map_t));
+            op->image_map->name = ident_read(ident_rd_ctx);
+            op->image_map->kind = read_u16(f);
+
+            op->image_map->nelems = read_u16(f);
+            op->image_map->elems =
+               xmalloc(sizeof(uint64_t) * op->image_map->nelems);
+            for (size_t i = 0; i < op->image_map->nelems; i++)
+               op->image_map->elems[i] = ident_read(ident_rd_ctx);
+
+            const bool has_values = read_u8(f);
+            if (has_values) {
+               op->image_map->values =
+                  xmalloc(sizeof(uint64_t) * op->image_map->nelems);
+               for (size_t i = 0; i < op->image_map->nelems; i++)
+                  op->image_map->values[i] = read_u64(f);
+            }
+            else
+               op->image_map->values = NULL;
+         }
       }
    }
 
