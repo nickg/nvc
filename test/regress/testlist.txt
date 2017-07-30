@@ -329,5 +329,6 @@ protected4      normal,2000
 textio4         normal
 issue327        normal
 issue335        normal
+binary_files    normal
 issue338        normal
 issue338b       normal
