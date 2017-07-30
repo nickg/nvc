@@ -2706,8 +2706,15 @@ static vcode_reg_t lower_image_map(type_t type)
       {
          const int nlits = type_enum_literals(base);
          ident_t *map LOCAL = xmalloc(sizeof(ident_t) * nlits);
-         for (int i = 0; i < nlits; i++)
-            map[i] = tree_ident(type_enum_literal(base, i));
+         for (int i = 0; i < nlits; i++) {
+            // LRM specifies result is lowercase for enumerated types when
+            // the value is a basic identifier
+            const ident_t id = tree_ident(type_enum_literal(base, i));
+            if (ident_char(id, 0) == '\'')
+               map[i] = id;
+            else
+               map[i] = ident_downcase(id);
+         }
          result = emit_enum_map(type_ident(base), nlits, map);
       }
       break;

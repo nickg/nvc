@@ -74,6 +74,9 @@ bool ident_glob(ident_t i, const char *glob, int length);
 // True if identifier contains any characters from search
 bool ident_contains(ident_t i, const char *search);
 
+// Convert an indentifier to lower case
+ident_t ident_downcase(ident_t i);
+
 // Convert an identifier reference to a NULL-terminated string.
 // This function is quite slow so its use should be avoided except
 // for printing.

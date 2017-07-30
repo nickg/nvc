@@ -541,6 +541,17 @@ START_TEST(test_issue332)
 }
 END_TEST
 
+START_TEST(test_issue344)
+{
+   input_from_file(TESTDIR "/simp/issue344.vhd");
+
+   tree_t top = run_elab();
+
+   tree_t p0 = tree_stmt(top, 0);
+   fail_unless(tree_stmts(p0) == 2);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("simplify");
@@ -563,6 +574,7 @@ int main(void)
    tcase_add_test(tc_core, test_ffold2);
    tcase_add_test(tc_core, test_issue331);
    tcase_add_test(tc_core, test_issue332);
+   tcase_add_test(tc_core, test_issue344);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

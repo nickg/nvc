@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <ctype.h>
 
 #define MAP_DEPTH 3
 
@@ -490,6 +491,23 @@ bool ident_contains(ident_t i, const char *search)
    }
 
    return false;
+}
+
+ident_t ident_downcase(ident_t i)
+{
+   // TODO: this could be implemented more efficiently
+
+   if (i == NULL)
+      return NULL;
+
+   char *p = get_fmt_buf(i->depth) + i->depth - 1;
+   *p = '\0';
+
+   trie_t *it;
+   for (it = i; it->value != '\0'; it = it->up)
+      *(--p) = tolower((int)it->value);
+
+   return ident_new(p);
 }
 
 void ident_list_add(ident_list_t **list, ident_t i)

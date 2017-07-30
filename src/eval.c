@@ -285,6 +285,22 @@ static void eval_dump(text_buf_t *tb, value_t *value, type_t type)
       }
       tb_printf(tb, "]");
       break;
+   case VALUE_UARRAY:
+      tb_printf(tb, "#[");
+      if (value->uarray->ndims == 1) {
+         const int left  = value->uarray->dim[0].left;
+         const int right = value->uarray->dim[0].right;
+         for (int i = 0; i <= MAX(left, right) - MIN(left, right); i++) {
+            if (i > 0)
+               tb_printf(tb, ",");
+            eval_dump(tb, &(value->uarray->data[i]),
+                      type ? type_elem(type) : NULL);
+         }
+      }
+      else
+         tb_printf(tb, "...");
+      tb_printf(tb, "]");
+      break;
    case VALUE_RECORD:
       tb_printf(tb, "{");
       if (type == NULL)

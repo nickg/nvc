@@ -262,6 +262,13 @@ START_TEST(test_len)
 }
 END_TEST
 
+START_TEST(test_downcase)
+{
+   fail_unless(ident_downcase(ident_new("ABC")) == ident_new("abc"));
+   fail_unless(ident_downcase(ident_new("123xY")) == ident_new("123xy"));
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -286,6 +293,7 @@ int main(void)
    tcase_add_test(tc_core, test_interned);
    tcase_add_test(tc_core, test_contains);
    tcase_add_test(tc_core, test_len);
+   tcase_add_test(tc_core, test_downcase);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
