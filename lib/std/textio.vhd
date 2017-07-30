@@ -66,6 +66,7 @@ package textio is
                     value : out time );
 
     procedure writeline (file f : text; l : inout line);
+    procedure tee (file f : text; l : inout line);
 
     procedure write (l         : inout line;
                      value     : in bit;
@@ -469,6 +470,18 @@ package body textio is
             deallocate(l);
         end if;
         write(f, (1 => LF));   -- Prepend CR on Windows?
+        l := new string'("");
+    end procedure;
+
+    procedure tee (file f : text; l : inout line) is
+    begin
+        if l /= null then
+            write(f, l.all);
+            write(output, l.all);
+            deallocate(l);
+        end if;
+        write(f, (1 => LF));   -- Prepend CR on Windows?
+        write(output, (1 => LF));
         l := new string'("");
     end procedure;
 
