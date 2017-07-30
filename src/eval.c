@@ -28,8 +28,9 @@
 #include <math.h>
 #include <float.h>
 
-#define MAX_DIMS  4
-#define EVAL_HEAP (16 * 1024)
+#define MAX_DIMS   4
+#define EVAL_HEAP  (16 * 1024)
+#define ITER_LIMIT 1000
 
 typedef enum {
    VALUE_INVALID,
@@ -88,6 +89,7 @@ typedef struct {
    void        *heap;
    size_t       halloc;
    loc_t        last_loc;
+   int          iterations;
 } eval_state_t;
 
 #define EVAL_WARN(t, ...) do {                                          \
@@ -1672,6 +1674,13 @@ static void eval_op_null_check(int op, eval_state_t *state)
 
 static void eval_vcode(eval_state_t *state)
 {
+   if (++(state->iterations) >= ITER_LIMIT) {
+      EVAL_WARN(state->fcall, "iteration limit reached while evaluating %s",
+                istr(tree_ident(state->fcall)));
+      state->failed = true;
+      return;
+   }
+
    const int nops = vcode_count_ops();
    for (int i = 0; i < nops && !(state->failed); i++) {
       switch (vcode_get_op(i)) {

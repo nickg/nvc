@@ -70,6 +70,12 @@ typedef enum {
    LOWER_THUNK
 } lower_mode_t;
 
+typedef enum {
+   SHORT_CIRCUIT_AND,
+   SHORT_CIRCUIT_OR,
+   SHORT_CIRCUIT_NOR
+} short_circuit_op_t;
+
 static const char  *verbose = NULL;
 static bool         tmp_alloc_used = false;
 static lower_mode_t mode = LOWER_NORMAL;
@@ -1130,12 +1136,109 @@ static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result)
    return result;
 }
 
+static bool lower_trivial_expression(tree_t expr)
+{
+   // True if expression is side-effect free with no function calls
+   switch (tree_kind(expr)) {
+   case T_REF:
+   case T_LITERAL:
+      return true;
+   case T_FCALL:
+      {
+         if (tree_attr_str(tree_ref(expr), builtin_i) == NULL)
+            return false;
+
+         const int nparams = tree_params(expr);
+         for (int i = 0; i < nparams; i++) {
+            if (!lower_trivial_expression(tree_value(tree_param(expr, i))))
+               return false;
+         }
+
+         return true;
+      }
+      break;
+   default:
+      return false;
+   }
+}
+
+static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
+{
+   vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
+
+   int64_t value;
+   if (vcode_reg_const(r0, &value)) {
+      vcode_reg_t result = VCODE_INVALID_REG;
+      switch (op) {
+      case SHORT_CIRCUIT_AND:
+         result = value ? lower_subprogram_arg(fcall, 1) : r0;
+         break;
+      case SHORT_CIRCUIT_OR:
+         result = value ? r0 : lower_subprogram_arg(fcall, 1);
+         break;
+      case SHORT_CIRCUIT_NOR:
+         result = emit_not(value ? r0 : lower_subprogram_arg(fcall, 1));
+         break;
+      }
+
+      return lower_logical(fcall, result);
+   }
+
+   if (lower_trivial_expression(tree_value(tree_param(fcall, 1)))) {
+      vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
+      switch (op) {
+      case SHORT_CIRCUIT_AND: return lower_logical(fcall, emit_and(r0, r1));
+      case SHORT_CIRCUIT_OR: return lower_logical(fcall, emit_or(r0, r1));
+      case SHORT_CIRCUIT_NOR: return lower_logical(fcall, emit_nor(r0, r1));
+      }
+   }
+
+   vcode_block_t arg1_bb = emit_block();
+   vcode_block_t after_bb = emit_block();
+
+   vcode_type_t vbool = vtype_bool();
+   vcode_reg_t result_reg = emit_alloca(vbool, vbool, VCODE_INVALID_REG);
+   emit_store_indirect(r0, result_reg);
+
+   if (op == SHORT_CIRCUIT_AND)
+      emit_cond(r0, arg1_bb, after_bb);
+   else
+      emit_cond(r0, after_bb, arg1_bb);
+
+   vcode_select_block(arg1_bb);
+   vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
+
+   switch (op) {
+   case SHORT_CIRCUIT_AND:
+      emit_store_indirect(emit_and(r0, r1), result_reg);
+      break;
+   case SHORT_CIRCUIT_OR:
+      emit_store_indirect(emit_or(r0, r1), result_reg);
+      break;
+   case SHORT_CIRCUIT_NOR:
+      emit_store_indirect(emit_nor(r0, r1), result_reg);
+      break;
+   }
+
+   emit_jump(after_bb);
+
+   vcode_select_block(after_bb);
+   vcode_reg_t result = emit_load_indirect(result_reg);
+   return lower_logical(fcall, result);
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    if (icmp(builtin, "max"))
       return lower_min_max(VCODE_CMP_GT, fcall);
    else if (icmp(builtin, "min"))
       return lower_min_max(VCODE_CMP_LT, fcall);
+   else if (icmp(builtin, "and"))
+      return lower_short_circuit(fcall, SHORT_CIRCUIT_AND);
+   else if (icmp(builtin, "or"))
+      return lower_short_circuit(fcall, SHORT_CIRCUIT_OR);
+   else if (icmp(builtin, "nor"))
+      return lower_short_circuit(fcall, SHORT_CIRCUIT_NOR);
 
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
@@ -1183,18 +1286,12 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return r0;
    else if (icmp(builtin, "not"))
       return lower_logical(fcall, emit_not(r0));
-   else if (icmp(builtin, "and"))
-      return lower_logical(fcall, emit_and(r0, r1));
-   else if (icmp(builtin, "or"))
-      return lower_logical(fcall, emit_or(r0, r1));
    else if (icmp(builtin, "xor"))
       return lower_logical(fcall, emit_xor(r0, r1));
    else if (icmp(builtin, "xnor"))
       return lower_logical(fcall, emit_xnor(r0, r1));
    else if (icmp(builtin, "nand"))
       return lower_logical(fcall, emit_nand(r0, r1));
-   else if (icmp(builtin, "nor"))
-      return lower_logical(fcall, emit_nor(r0, r1));
    else if (icmp(builtin, "aeq"))
       return lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_EQ);
    else if (icmp(builtin, "aneq"))
