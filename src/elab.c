@@ -455,7 +455,12 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
       }
 
    case T_OPEN:
-      return actual;
+      {
+         tree_t open = tree_new(T_OPEN);
+         tree_set_type(open, tree_type(formal));
+         tree_set_loc(open, tree_loc(formal));
+         return open;
+      }
 
    case T_TYPE_CONV:
       // Only allow simple array type conversions for now
