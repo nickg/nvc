@@ -186,6 +186,8 @@ typedef struct {
 #define VCODE_INVALID_TYPE   -1
 #define VCODE_INVALID_IMAGE  -1
 
+#define VCODE_INVALID_HINT 0xffffffff
+
 vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
 vcode_type_t vtype_bool(void);
@@ -290,6 +292,7 @@ int vcode_get_field(int op);
 unsigned vcode_get_subkind(int op);
 uint32_t vcode_get_tag(int op);
 void vcode_get_image_map(int op, image_map_t *map);
+void vcode_clear_storage_hint(uint32_t tag);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);
@@ -428,7 +431,7 @@ void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen);
 vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
                            vcode_reg_t len, vcode_reg_t dir, vcode_reg_t shift,
                            vcode_type_t result);
-void emit_storage_hint(vcode_reg_t mem, vcode_reg_t length);
+uint32_t emit_storage_hint(vcode_reg_t mem, vcode_reg_t length);
 void emit_debug_out(vcode_reg_t reg);
 void emit_nested_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                        vcode_block_t resume_bb, int hops);

@@ -214,6 +214,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ALL:
       case VCODE_OP_DEALLOCATE:
       case VCODE_OP_CASE:
+      case VCODE_OP_HEAP_SAVE:
+      case VCODE_OP_HEAP_RESTORE:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -2822,6 +2824,43 @@ START_TEST(test_issue347)
 }
 END_TEST
 
+START_TEST(test_hintbug)
+{
+   input_from_file(TESTDIR "/lower/hintbug.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_HEAP_SAVE },
+      { VCODE_OP_INDEX, .name = "V" },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_LOAD, .name = "X" },
+      { VCODE_OP_FCALL, .func = ":hintbug:func$QJ" },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_ARRAY_SIZE },
+      { VCODE_OP_COPY },
+      { VCODE_OP_HEAP_RESTORE },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_MEMCMP },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -2889,6 +2928,7 @@ int main(void)
    tcase_add_test(tc, test_issue338);
    tcase_add_test(tc, test_issue338b);
    tcase_add_test(tc, test_issue347);
+   tcase_add_test(tc, test_hintbug);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

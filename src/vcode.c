@@ -381,6 +381,27 @@ static var_t *vcode_var_data(vcode_var_t var)
    return var_array_nth_ptr(&(unit->vars), MASK_INDEX(var));
 }
 
+void vcode_clear_storage_hint(uint32_t tag)
+{
+   VCODE_ASSERT(tag != VCODE_INVALID_HINT, "passed invalid hint");
+
+   const int op = tag & 0xfffff;
+   const int block = tag >> 20;
+
+   block_t *b = &(active_unit->blocks.items[block]);
+   op_t *o = op_array_nth_ptr(&(b->ops), op);
+
+   if (o->kind == VCODE_OP_COMMENT)
+      return;
+
+   VCODE_ASSERT(o->kind == VCODE_OP_STORAGE_HINT,
+                "operation %d is not a storage hint", op);
+
+   o->comment = xasprintf("Unused storage hint for r%d", o->args.items[0]);
+   o->kind = VCODE_OP_COMMENT;
+   vcode_reg_array_resize(&(o->args), 0, VCODE_INVALID_REG);
+}
+
 void vcode_heap_allocate(vcode_reg_t reg)
 {
    op_t *defn = vcode_find_definition(reg);
@@ -691,7 +712,7 @@ void vcode_opt(void)
             case VCODE_OP_UARRAY_RIGHT:
             case VCODE_OP_UNWRAP:
                if (uses[o->result] == -1) {
-                  vcode_dump();
+                  vcode_dump_with_mark(j);
                   fatal("defintion of r%d does not dominate all uses",
                         o->result);
                }
@@ -706,11 +727,9 @@ void vcode_opt(void)
                break;
 
             case VCODE_OP_STORAGE_HINT:
-               o->comment = xasprintf("Unused storage hint for r%d",
-                                      o->args.items[0]);
-               o->kind = VCODE_OP_COMMENT;
-               vcode_reg_array_resize(&(o->args), 0, VCODE_INVALID_REG);
-               pruned++;
+               vcode_dump_with_mark(j);
+               fatal("Unused storage hint for r%d was not removed",
+                     o->args.items[0]);
                break;
 
             default:
@@ -4590,7 +4609,7 @@ vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
    return (op->result = vcode_add_reg(result));
 }
 
-void emit_storage_hint(vcode_reg_t mem, vcode_reg_t length)
+uint32_t emit_storage_hint(vcode_reg_t mem, vcode_reg_t length)
 {
    op_t *op = vcode_add_op(VCODE_OP_STORAGE_HINT);
    vcode_add_arg(op, mem);
@@ -4604,6 +4623,7 @@ void emit_storage_hint(vcode_reg_t mem, vcode_reg_t length)
                 "storage hint length must be offset");
 
    op->type = vtype_pointed(vcode_reg_type(mem));
+   return (active_block << 20) | (vcode_block_data()->ops.count - 1);
 }
 
 void emit_debug_out(vcode_reg_t reg)

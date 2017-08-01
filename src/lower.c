@@ -3281,6 +3281,7 @@ static void lower_var_assign(tree_t stmt)
    const bool is_scalar = type_is_scalar(type);
 
    const int saved_heap = emit_heap_save();
+   uint32_t hint = VCODE_INVALID_HINT;
 
    if (is_scalar || type_is_access(type)) {
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
@@ -3300,7 +3301,7 @@ static void lower_var_assign(tree_t stmt)
       vcode_reg_t target_data = lower_array_data(target_reg);
 
       if (lower_assign_can_use_storage_hint(stmt))
-         emit_storage_hint(target_data, count_reg);
+         hint = emit_storage_hint(target_data, count_reg);
 
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
       vcode_reg_t src_data = lower_array_data(value_reg);
@@ -3317,10 +3318,13 @@ static void lower_var_assign(tree_t stmt)
       vcode_reg_t target_reg = lower_expr(target, EXPR_LVALUE);
 
       if (lower_assign_can_use_storage_hint(stmt))
-         emit_storage_hint(target_reg, VCODE_INVALID_REG);
+         hint = emit_storage_hint(target_reg, VCODE_INVALID_REG);
 
       emit_copy(target_reg, value_reg, VCODE_INVALID_REG);
    }
+
+   if (hint != VCODE_INVALID_HINT)
+      vcode_clear_storage_hint(hint);
 
    lower_cleanup_temp_objects(saved_heap);
 }
@@ -4218,10 +4222,11 @@ static void lower_var_decl(tree_t decl)
 
    vcode_reg_t dest_reg  = VCODE_INVALID_REG;
    vcode_reg_t count_reg = VCODE_INVALID_REG;
+   uint32_t hint = VCODE_INVALID_HINT;
 
    if (type_is_record(type)) {
       dest_reg = emit_index(var, VCODE_INVALID_REG);
-      emit_storage_hint(dest_reg, VCODE_INVALID_REG);
+      hint = emit_storage_hint(dest_reg, VCODE_INVALID_REG);
    }
    else if (type_is_array(type) && !type_is_unconstrained(type)) {
       count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
@@ -4239,10 +4244,13 @@ static void lower_var_decl(tree_t decl)
       else
          dest_reg = emit_index(var, VCODE_INVALID_REG);
 
-      emit_storage_hint(dest_reg, count_reg);
+      hint = emit_storage_hint(dest_reg, count_reg);
    }
 
    vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
+
+   if (hint != VCODE_INVALID_HINT)
+      vcode_clear_storage_hint(hint);
 
    if (type_is_array(type)) {
       lower_check_indexes(type, value, decl);
