@@ -57,13 +57,27 @@ static LLVMOrcJITStackRef orc_ref = NULL;
 static LLVMExecutionEngineRef exec_engine = NULL;
 #endif
 
+#if defined __MINGW32__ && defined _WIN64
+extern void ___chkstk_ms();
+#endif
+
 static void *jit_search_loaded_syms(const char *name, bool required)
 {
 #ifdef __MINGW32__
-   if (*name == '_')
-      name++;   // Remove leading underscore on Windows
-
    const char *search_modules[] = { NULL, "MSVCRT.DLL" };
+
+#ifndef _WIN64
+   if (*name == '_')
+      name++;   // Remove leading underscore on 32-bit Windows
+#endif
+
+#ifdef _WIN64
+   if (strcmp(name, "___chkstk_ms") == 0)
+      return (void *)(uintptr_t)___chkstk_ms;
+#endif
+
+   if (strcmp(name, "exp2") == 0)
+      return (void *)(uintptr_t)exp2;
 
    for (size_t i = 0; i < ARRAY_LEN(search_modules); i++) {
       HMODULE hmodule = GetModuleHandle(search_modules[i]);
