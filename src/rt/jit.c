@@ -57,8 +57,13 @@ static LLVMOrcJITStackRef orc_ref = NULL;
 static LLVMExecutionEngineRef exec_engine = NULL;
 #endif
 
-#if defined __MINGW32__ && defined _WIN64
-extern void ___chkstk_ms();
+#ifdef __MINGW32__
+#ifdef _WIN64
+extern void ___chkstk_ms(void);
+#else
+#undef _alloca
+extern void _alloca(void);
+#endif
 #endif
 
 static void *jit_search_loaded_syms(const char *name, bool required)
@@ -74,6 +79,9 @@ static void *jit_search_loaded_syms(const char *name, bool required)
 #ifdef _WIN64
    if (strcmp(name, "___chkstk_ms") == 0)
       return (void *)(uintptr_t)___chkstk_ms;
+#else
+   if (strcmp(name, "_alloca") == 0)
+      return (void *)(uintptr_t)_alloca;
 #endif
 
    if (strcmp(name, "exp2") == 0)
