@@ -6173,6 +6173,18 @@ static bool sem_subtype_locally_static(type_t type)
    }
 }
 
+static bool sem_unconstrained_value(tree_t expr)
+{
+   switch (tree_kind(expr)) {
+   case T_AGGREGATE:
+   case T_LITERAL:
+      return !!(tree_flags(expr) & TREE_F_UNCONSTRAINED);
+
+   default:
+      return false;
+   }
+}
+
 static bool sem_locally_static(tree_t t)
 {
    // Rules for locally static expressions are in LRM 93 7.4.1
@@ -6199,10 +6211,11 @@ static bool sem_locally_static(tree_t t)
       if (dkind == T_CONST_DECL) {
          if (!tree_has_value(decl))
             return false;
+
          tree_t value = tree_value(decl);
          return sem_subtype_locally_static(tree_type(decl))
             && sem_locally_static(value)
-            && !(tree_flags(value) & TREE_F_UNCONSTRAINED);
+            && !sem_unconstrained_value(value);
       }
       else if ((standard() >= STD_08 || relax & RELAX_LOCALLY_STATIC)
                && dkind == T_PORT_DECL) {
@@ -6269,7 +6282,7 @@ static bool sem_locally_static(tree_t t)
    // Aggregates must have locally static range and all elements
    // must have locally static values
    if (kind == T_AGGREGATE) {
-      if (tree_flags(t) & TREE_F_UNCONSTRAINED)
+      if (sem_unconstrained_value(t))
          return false;
 
       if (type_is_array(type)) {

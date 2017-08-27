@@ -37,15 +37,9 @@ FileUtils.mkdir_p $libdir
 
 def run_nvc(lib, file)
   file = "#{$src}/#{file}" unless file =~ /^\//
-  cmd = "nvc --work=#{$libdir}/#{lib} -a --relax=prefer-explicit,pure-files #{file}"
+  cmd = "nvc --native --work=#{$libdir}/#{lib} -a --relax=prefer-explicit,pure-files #{file}"
   puts cmd
   exit 1 unless system cmd
-end
-
-def run_codegen(lib, unit)
-  cmd = "nvc --work=#{$libdir}/#{lib} --codegen #{unit}"
-  puts cmd
-  exit 1 unless system "#{cmd} > /dev/null"
 end
 
 def put_title(what)
@@ -56,8 +50,6 @@ end
 put_title "UNISIM package"
 run_nvc "unisim", "unisims/unisim_VPKG.vhd"
 run_nvc "unisim", "unisims/unisim_VCOMP.vhd"
-run_codegen "unisim", "vpkg"
-run_codegen "unisim", "vcomponents"
 
 put_title "UNIMACRO library"
 run_nvc "unimacro", "unimacro/unimacro_VCOMP.vhd"

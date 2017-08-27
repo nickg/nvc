@@ -1735,6 +1735,16 @@ START_TEST(test_issue316)
 }
 END_TEST
 
+START_TEST(test_issue350)
+{
+   input_from_file(TESTDIR "/sem/issue350.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1822,6 +1832,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue311);
    tcase_add_test(tc_core, test_foreign1);
    tcase_add_test(tc_core, test_issue316);
+   tcase_add_test(tc_core, test_issue350);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
