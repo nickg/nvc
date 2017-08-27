@@ -292,21 +292,27 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
    tree_t unit = lib_get(lib, cname);
    if (unit == NULL)
       fatal_at(tree_loc(t), "cannot find unit %s", istr(cname));
-   else if (tree_kind(unit) == T_PACKAGE) {
+
+   // Always use real library name rather than WORK alias
+   tree_set_ident(t, tree_ident(unit));
+
+   tree_add_context(ctx->out, t);
+
+   if (tree_kind(unit) == T_PACKAGE) {
       elab_copy_context(unit, ctx);
 
       ident_t name = tree_ident(unit);
 
       ident_t body_i = ident_prefix(name, ident_new("body"), '-');
       tree_t body = lib_get(lib, body_i);
-      if (body != NULL)
+      if (body != NULL) {
          elab_copy_context(unit, ctx);
+
+         tree_t u = tree_new(T_USE);
+         tree_set_ident(u, tree_ident(body));
+         tree_add_context(ctx->out, u);
+      }
    }
-
-   // Always use real library name rather than WORK alias
-   tree_set_ident(t, tree_ident(unit));
-
-   tree_add_context(ctx->out, t);
 }
 
 static bool elab_have_context(tree_t unit, ident_t name)

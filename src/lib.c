@@ -751,6 +751,19 @@ void lib_save(lib_t lib)
    lib_unlock(lib);
 }
 
+int lib_index_kind(lib_t lib, ident_t ident)
+{
+   assert(lib != NULL);
+
+   lib_index_t *it;
+   for (it = lib->index; it != NULL; it = it->next) {
+      if (it->name == ident)
+         return it->kind;
+   }
+
+   return T_LAST_TREE_KIND;
+}
+
 void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context)
 {
    assert(lib != NULL);
