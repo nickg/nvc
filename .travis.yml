@@ -18,7 +18,7 @@ install:
 script:
   - ./autogen.sh
   - mkdir build && cd build
-  - ../configure --enable-werror --enable-vhpi --enable-gcov --with-llvm=/usr/bin/llvm-config-3.5
+  - ../configure --enable-werror --enable-vhpi --enable-gcov --with-llvm=/usr/bin/llvm-config-3.8
   - make cov-reset
   - make check
 after_success:
