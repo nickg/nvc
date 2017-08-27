@@ -57,6 +57,7 @@ bool loc_eq(const loc_t *a, const loc_t *b);
 void loc_write(const loc_t *loc, fbuf_t *f, ident_wr_ctx_t ctx);
 void loc_read(loc_t *loc, fbuf_t *f, ident_rd_ctx_t ctx);
 char *vcode_file_name(ident_t unit_name);
+bool pack_needs_cgen(tree_t t);
 
 const char *fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

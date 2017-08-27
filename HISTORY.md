@@ -6,6 +6,10 @@
 - LLVM 3.5 or later is now required
 - Added `-O0` to `-O3` options to control LLVM optimisation level
 - The `--disable-opt` option is deprecated, use `-O0` instead
+- The elaborate `--native` option is now a global option and should
+  be placed before the `-e` command
+- The `--codegen` command is deprecated, use `--native` when analysing
+  to generate native shared libraries for packages
 
 ## 1.2 - 2017-05-04
 - Compile time evaluation now uses vcode

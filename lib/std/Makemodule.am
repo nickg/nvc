@@ -4,9 +4,7 @@ std_DATA = \
 	lib/std/_index \
 	lib/std/STD.STANDARD \
 	lib/std/STD.TEXTIO \
-	lib/std/_STD.TEXTIO.bc \
-	lib/std/STD.TEXTIO-body \
-	lib/std/_STD.TEXTIO-body.bc
+	lib/std/STD.TEXTIO-body
 
 std_08dir = $(pkgdatadir)/std.08
 std_08_DATA = \
@@ -14,12 +12,9 @@ std_08_DATA = \
 	lib/std.08/_index \
 	lib/std.08/STD.STANDARD \
 	lib/std.08/STD.TEXTIO \
-	lib/std.08/_STD.TEXTIO.bc \
 	lib/std.08/STD.TEXTIO-body \
-	lib/std.08/_STD.TEXTIO-body.bc \
 	lib/std.08/STD.ENV \
-	lib/std.08/STD.ENV-body \
-	lib/std.08/_STD.ENV-body.bc
+	lib/std.08/STD.ENV-body
 
 if ENABLE_NATIVE
 
@@ -53,9 +48,20 @@ else
 std_DATA += $(std_so)
 std_08_DATA += $(std_08_so)
 
-endif
+endif  # IMPLIB_REQUIRED
 
-endif
+else   # ENABLE_NATIVE
+
+std_DATA += \
+	lib/std/_STD.TEXTIO.bc \
+	lib/std/_STD.TEXTIO-body.bc
+
+std_08_DATA += \
+	lib/std.08/_STD.TEXTIO.bc \
+	lib/std.08/_STD.TEXTIO-body.bc \
+	lib/std.08/_STD.ENV-body.bc
+
+endif  # ENABLE_NATIVE
 
 EXTRA_DIST += lib/std/standard.vhd lib/std/textio.vhd lib/std/env.vhd
 
@@ -78,20 +84,17 @@ lib/std.08/STD.STANDARD: $(bootstrap) $(srcdir)/lib/std/standard.vhd
 
 lib/std/STD.TEXTIO: $(bootstrap) lib/std/STD.STANDARD $(srcdir)/lib/std/textio.vhd
 	$(nvc) --work=lib/std -a $(srcdir)/lib/std/textio.vhd
-	$(codegen) --work=lib/std --codegen textio
 
 lib/std.08/STD.TEXTIO: $(bootstrap) lib/std.08/STD.STANDARD $(srcdir)/lib/std/textio.vhd
 	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/textio.vhd
-	$(codegen) --std=2008 --work=lib/std.08 --codegen textio
 
 lib/std.08/STD.ENV: $(bootstrap) lib/std.08/STD.STANDARD $(srcdir)/lib/std/env.vhd
 	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/env.vhd
-	$(codegen) --std=2008 --work=lib/std.08 --codegen env
 
 gen-deps-std:
-	$(nvc) --work=lib/std --make --posix --deps-only --native | \
+	$(nvc) --work=lib/std --native --make --posix --deps-only | \
 		$(deps_pp) > $(srcdir)/lib/std/deps.mk
-	$(nvc) --std=2008 --work=lib/std.08 --make --posix --deps-only --native | \
+	$(nvc) --std=2008 --work=lib/std.08 --native --make --posix --deps-only | \
 		$(deps_pp) >> $(srcdir)/lib/std/deps.mk
 
 clean-std:

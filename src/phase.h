@@ -67,16 +67,6 @@ void dump(tree_t top);
 // Print out the interconnect nets in an elaborated design
 void dump_nets(tree_t top);
 
-// Link together bitcode packages with elaborated design
-void link_bc(tree_t top);
-
-// Precompile native code for a package
-void link_package(tree_t pack);
-
-// True if the package contains shared variables or signals which
-// must be run through code generation
-bool pack_needs_cgen(tree_t t);
-
 // Groups nets which never have sub-elements assigned.
 void group_nets(tree_t top);
 

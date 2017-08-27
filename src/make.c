@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2014  Nick Gasson
+//  Copyright (C) 2013-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -357,15 +357,18 @@ static void make_print_rules(rule_t *rules, FILE *out)
          fprintf(out, ":");
          make_print_inputs(r, out);
 
+         fprintf(out, "\n\tnvc ");
+
+         if (opt_get_int("native"))
+            fprintf(out, "--native ");
+
          switch (r->kind) {
          case RULE_ANALYSE:
-            fprintf(out, "\n\tnvc -a %s\n\n", istr(r->source));
+            fprintf(out, "-a %s\n\n", istr(r->source));
             break;
 
          case RULE_ELABORATE:
-            fprintf(out, "\n\tnvc -e %s%s\n\n",
-                    opt_get_int("native") ? "--native " : "",
-                    istr(r->source));
+            fprintf(out, "-e %s\n\n", istr(r->source));
             break;
          }
       }

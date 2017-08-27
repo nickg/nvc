@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1295,4 +1295,36 @@ void nvc_rusage(nvc_rusage_t *ru)
    ru->rss = sys.ru_maxrss / rss_units;
 
    last = sys;
+}
+
+void run_program(const char *const *args, size_t n_args)
+{
+   const bool quiet = (getenv("NVC_LINK_QUIET") != NULL);
+
+   if (!quiet) {
+      for (size_t i = 0; i < n_args; i++)
+         printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
+   }
+
+#ifdef __CYGWIN__
+   int status = spawnv(_P_WAIT, args[0], args);
+   if (status != 0)
+      fatal("%s failed with status %d", args[0], status);
+#else  // __CYGWIN__
+   pid_t pid = fork();
+   if (pid == 0) {
+      execv(args[0], (char *const *)args);
+      fatal_errno("execv");
+   }
+   else if (pid > 0) {
+      int status;
+      if (waitpid(pid, &status, 0) != pid)
+         fatal_errno("waitpid");
+
+      if (WEXITSTATUS(status) != 0)
+         fatal("%s failed with status %d", args[0], WEXITSTATUS(status));
+   }
+   else
+      fatal_errno("fork");
+#endif  // __CYGWIN__
 }

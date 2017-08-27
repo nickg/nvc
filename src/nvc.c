@@ -239,7 +239,7 @@ static int elaborate(int argc, char **argv)
       { "disable-opt", no_argument,       0, 'o' },    // DEPRECATED
       { "dump-llvm",   no_argument,       0, 'd' },
       { "dump-vcode",  optional_argument, 0, 'v' },
-      { "native",      no_argument,       0, 'n' },
+      { "native",      no_argument,       0, 'n' },    // DEPRECATED
       { "cover",       no_argument,       0, 'c' },
       { "verbose",     no_argument,       0, 'V' },
       { 0, 0, 0, 0 }
@@ -271,6 +271,7 @@ static int elaborate(int argc, char **argv)
          opt_set_str("dump-vcode", optarg ?: "");
          break;
       case 'n':
+         warnf("--native is now a global option: place before the -e command");
          opt_set_int("native", 1);
          break;
       case 'c':
@@ -324,17 +325,18 @@ static int elaborate(int argc, char **argv)
    cgen(e, vu);
    elab_verbose(verbose, "generating LLVM");
 
-   link_bc(e);
-   elab_verbose(verbose, "linking");
-
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
+// DEPRECATED
 static int codegen(int argc, char **argv)
 {
+   warnf("The --codegen option is deprecated, pass global option --native "
+         "when analysing instead");
+
    static struct option long_options[] = {
       { 0, 0, 0, 0 }
    };
@@ -365,12 +367,12 @@ static int codegen(int argc, char **argv)
       fatal("this command can only be used with packages");
 
    if (pack_needs_cgen(pack))
-      link_package(pack);
+      /* NOP */;
 
    ident_t body_i = ident_prefix(top_level, ident_new("body"), '-');
    tree_t body = lib_get(lib_work(), body_i);
    if (body != NULL)
-      link_package(body);
+      /* NOP */;
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -566,7 +568,6 @@ static int make_cmd(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "deps-only", no_argument, 0, 'd' },
-      { "native",    no_argument, 0, 'n' },
       { "posix",     no_argument, 0, 'p' },
       { 0, 0, 0, 0 }
    };
@@ -583,9 +584,6 @@ static int make_cmd(int argc, char **argv)
          fatal("unrecognised make option %s", argv[optind - 1]);
       case 'd':
          opt_set_int("make-deps-only", 1);
-         break;
-      case 'n':
-         opt_set_int("native", 1);
          break;
       case 'p':
          opt_set_int("make-posix", 1);
@@ -783,7 +781,6 @@ static void usage(void)
           " -a [OPTION]... FILE...\t\tAnalyse FILEs into work library\n"
           " -e [OPTION]... UNIT\t\tElaborate and generate code for UNIT\n"
           " -r [OPTION]... UNIT\t\tExecute previously elaborated UNIT\n"
-          " --codegen UNIT\t\t\tGenerate native shared library for UNIT\n"
           " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
           " --list\t\t\t\tPrint all units in the library\n"
           " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
@@ -796,6 +793,7 @@ static void usage(void)
           " -L PATH\t\tAdd PATH to library search paths\n"
           "     --map=LIB:PATH\tMap library LIB to PATH\n"
           "     --messages=STYLE\tSelect full or compact message format\n"
+          "     --native\t\tGenerate native code shared library\n"
           "     --std=REV\t\tVHDL standard revision to use\n"
           " -v, --version\t\tDisplay version and copyright information\n"
           "     --work=NAME\tUse NAME as the work library\n"
@@ -809,7 +807,6 @@ static void usage(void)
           "     --dump-llvm\tPrint generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
-          "     --native\t\tGenerate native code shared library\n"
           " -O0, -O1, -O2, -O3\tSet optimisation level (default is -O2)\n"
           " -V, --verbose\t\tPrint resource usage at each step\n"
           "\n"
@@ -837,7 +834,6 @@ static void usage(void)
           "\n"
           "Make options:\n"
           "     --deps-only\tOutput dependencies without actions\n"
-          "     --native\t\tGenerate actions for native code generation\n"
           "     --posix\t\tStrictly POSIX compliant makefile\n"
           "\n",
           PACKAGE,
@@ -919,7 +915,7 @@ static int process_command(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "dump",    no_argument, 0, 'd' },
-      { "codegen", no_argument, 0, 'c' },
+      { "codegen", no_argument, 0, 'c' },   // DEPRECATED
       { "make",    no_argument, 0, 'm' },
       { "syntax",  no_argument, 0, 's' },
       { "list",    no_argument, 0, 'l' },
@@ -976,6 +972,7 @@ int main(int argc, char **argv)
       { "work",        required_argument, 0, 'w' },
       { "std",         required_argument, 0, 's' },
       { "messages",    required_argument, 0, 'M' },
+      { "native",      no_argument,       0, 'n' },
       { "map",         required_argument, 0, 'p' },
       { "ignore-time", no_argument,       0, 'i' },
       { "force-init",  no_argument,       0, 'f' },
@@ -1022,6 +1019,9 @@ int main(int argc, char **argv)
          break;
       case 'f':
          opt_set_int("force-init", 1);
+         break;
+      case 'n':
+         opt_set_int("native", 1);
          break;
       case '?':
          fatal("unrecognised global option %s", argv[optind - 1]);

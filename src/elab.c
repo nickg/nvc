@@ -306,7 +306,7 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
       ident_t body_i = ident_prefix(name, ident_new("body"), '-');
       tree_t body = lib_get(lib, body_i);
       if (body != NULL) {
-         elab_copy_context(unit, ctx);
+         elab_copy_context(body, ctx);
 
          tree_t u = tree_new(T_USE);
          tree_set_ident(u, tree_ident(body));

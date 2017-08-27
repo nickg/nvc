@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -131,6 +131,8 @@ int ilog2(int64_t n) __attribute__((pure));
 int64_t ipow(int64_t x, int64_t y)  __attribute__((pure));
 
 void *mmap_guarded(size_t sz, const char *tag);
+
+void run_program(const char *const *args, size_t n_args);
 
 typedef struct text_buf text_buf_t;
 

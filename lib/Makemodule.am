@@ -1,23 +1,14 @@
-nvc = $(nvc_verbose)$(top_builddir)/bin/nvc --force-init
-
 if ENABLE_NATIVE
-codegen = $(codegen_verbose) NVC_CYG_LIB=$(top_builddir)/lib $(top_builddir)/bin/nvc
+native_opt = --native
 else
-codegen = @true
+native_opt =
 endif
+
+nvc = $(nvc_verbose) $(top_builddir)/bin/nvc --force-init $(native_opt)
 
 nvc_verbose = $(nvc_verbose_@AM_V@)
 nvc_verbose_ = $(nvc_verbose_@AM_DEFAULT_V@)
-nvc_verbose_0 = @echo "  NVC     " $@;
-
-codegen_verbose = $(codegen_verbose_@AM_V@)
-codegen_verbose_ = $(codegen_verbose_@AM_DEFAULT_V@)
-
-if ENABLE_NATIVE
-codegen_verbose_0 = @echo "  NATIVE  " $@; NVC_LINK_QUIET=1
-else
-codegen_verbose_0 =
-endif
+nvc_verbose_0 = @echo "  NVC     " $@; NVC_LINK_QUIET=1
 
 deps_pp = sed \
 	-e 's|'`echo $(top_srcdir) | sed 's/\./\\\./g'`'|$$(top_srcdir)|g' \

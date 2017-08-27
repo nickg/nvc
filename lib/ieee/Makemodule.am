@@ -5,29 +5,17 @@ ieee_DATA = \
 	lib/ieee/IEEE.STD_LOGIC_1164 \
 	lib/ieee/IEEE.NUMERIC_BIT \
 	lib/ieee/IEEE.NUMERIC_STD \
-	lib/ieee/_IEEE.NUMERIC_STD.bc \
 	lib/ieee/IEEE.STD_LOGIC_1164-body \
-	lib/ieee/_IEEE.STD_LOGIC_1164-body.bc \
 	lib/ieee/IEEE.NUMERIC_STD-body \
-	lib/ieee/_IEEE.NUMERIC_STD-body.bc \
 	lib/ieee/IEEE.NUMERIC_BIT-body \
-	lib/ieee/_IEEE.NUMERIC_BIT-body.bc \
 	lib/ieee/IEEE.MATH_REAL \
-	lib/ieee/_IEEE.MATH_REAL.bc \
 	lib/ieee/IEEE.MATH_REAL-body \
-	lib/ieee/_IEEE.MATH_REAL-body.bc \
 	lib/ieee/IEEE.MATH_COMPLEX \
-	lib/ieee/_IEEE.MATH_COMPLEX.bc \
 	lib/ieee/IEEE.MATH_COMPLEX-body \
-	lib/ieee/_IEEE.MATH_COMPLEX-body.bc \
 	lib/ieee/IEEE.VITAL_TIMING \
-	lib/ieee/_IEEE.VITAL_TIMING.bc \
 	lib/ieee/IEEE.VITAL_TIMING-body \
-	lib/ieee/_IEEE.VITAL_TIMING-body.bc \
 	lib/ieee/IEEE.VITAL_PRIMITIVES \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.bc \
 	lib/ieee/IEEE.VITAL_PRIMITIVES-body \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.bc \
 	lib/ieee/IEEE.VITAL_MEMORY
 
 if ENABLE_NATIVE
@@ -69,9 +57,25 @@ else
 
 ieee_DATA += $(ieee_so)
 
-endif
+endif  # IMPLIB_REQUIRED
 
-endif
+else   # ENABLE_NATIVE
+
+ieee_DATA +=
+	lib/ieee/_IEEE.NUMERIC_STD.bc \
+	lib/ieee/_IEEE.STD_LOGIC_1164-body.bc \
+	lib/ieee/_IEEE.NUMERIC_STD-body.bc \
+	lib/ieee/_IEEE.NUMERIC_BIT-body.bc \
+	lib/ieee/_IEEE.MATH_REAL.bc \
+	lib/ieee/_IEEE.MATH_REAL-body.bc \
+	lib/ieee/_IEEE.MATH_COMPLEX.bc \
+	lib/ieee/_IEEE.MATH_COMPLEX-body.bc \
+	lib/ieee/_IEEE.VITAL_TIMING.bc \
+	lib/ieee/_IEEE.VITAL_TIMING-body.bc \
+	lib/ieee/_IEEE.VITAL_PRIMITIVES.bc \
+	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.bc
+
+endif  # ENABLE_NATIVE
 
 lib/ieee/_NVC_LIB:
 
@@ -84,7 +88,6 @@ lib/ieee/IEEE.STD_LOGIC_1164: $(bootstrap) $(srcdir)/lib/ieee/std_logic_1164.vhd
 
 lib/ieee/IEEE.STD_LOGIC_1164-body: $(bootstrap) $(srcdir)/lib/ieee/std_logic_1164-body.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/std_logic_1164-body.vhdl
-	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_1164
 
 lib/ieee/IEEE.NUMERIC_BIT: $(bootstrap) $(srcdir)/lib/ieee/numeric_bit.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/numeric_bit.vhdl
@@ -94,46 +97,39 @@ lib/ieee/IEEE.NUMERIC_STD: $(bootstrap) $(srcdir)/lib/ieee/numeric_std.vhdl
 
 lib/ieee/IEEE.NUMERIC_STD-body: $(bootstrap) $(srcdir)/lib/ieee/numeric_std-body.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/numeric_std-body.vhdl
-	$(codegen) -L lib/ --work=lib/ieee --codegen numeric_std
 
 lib/ieee/IEEE.NUMERIC_BIT-body: $(bootstrap) $(srcdir)/lib/ieee/numeric_bit-body.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/numeric_bit-body.vhdl
-	$(codegen) -L lib/ --work=lib/ieee --codegen numeric_bit
 
 lib/ieee/IEEE.MATH_REAL: $(bootstrap) $(srcdir)/lib/ieee/math_real.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/math_real.vhdl
 
 lib/ieee/IEEE.MATH_REAL-body: $(bootstrap) $(srcdir)/lib/ieee/math_real-body.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/math_real-body.vhdl
-	$(codegen) -L lib/ --work=lib/ieee --codegen math_real
 
 lib/ieee/IEEE.MATH_COMPLEX: $(bootstrap) $(srcdir)/lib/ieee/math_complex.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/math_complex.vhdl
 
 lib/ieee/IEEE.MATH_COMPLEX-body: $(bootstrap) $(srcdir)/lib/ieee/math_complex-body.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/math_complex-body.vhdl
-	$(codegen) -L lib/ --work=lib/ieee --codegen math_complex
 
 lib/ieee/IEEE.VITAL_TIMING: $(bootstrap) $(srcdir)/lib/ieee/timing_p.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/timing_p.vhdl
 
 lib/ieee/IEEE.VITAL_TIMING-body: $(bootstrap) $(srcdir)/lib/ieee/timing_b.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/timing_b.vhdl
-	$(codegen) -L lib/ --work=lib/ieee --codegen vital_timing
 
 lib/ieee/IEEE.VITAL_PRIMITIVES: $(bootstrap) $(srcdir)/lib/ieee/prmtvs_p.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/prmtvs_p.vhdl
 
 lib/ieee/IEEE.VITAL_PRIMITIVES-body: $(bootstrap) $(srcdir)/lib/ieee/prmtvs_b.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/prmtvs_b.vhdl
-	$(codegen) -L lib/ --work=lib/ieee --codegen vital_primitives
 
 lib/ieee/IEEE.VITAL_MEMORY: $(bootstrap) $(srcdir)/lib/ieee/memory_p.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/memory_p.vhdl
 
 lib/ieee/IEEE.VITAL_MEMORY-body: $(bootstrap) $(srcdir)/lib/ieee/memory_b.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/memory_b.vhdl
-	$(codegen) -L lib/ --work=lib/ieee --codegen vital_memory
 
 $(srcdir)/lib/ieee/std_logic_1164.vhdl:
 	@$(MAKE) missing-ieee LIB=$@
@@ -195,8 +191,8 @@ missing-ieee:
 	@false
 
 gen-deps-ieee:
-	$(nvc) -L lib/ --work=lib/ieee --make --posix --deps-only \
-		--native | $(deps_pp) > $(srcdir)/lib/ieee/deps.mk
+	$(nvc) -L lib/ --work=lib/ieee --native --make --posix --deps-only \
+		 | $(deps_pp) > $(srcdir)/lib/ieee/deps.mk
 
 clean-ieee:
 	$(RM) $(ieee_DATA)

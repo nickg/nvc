@@ -38,7 +38,7 @@ lib_libnvc_a_SOURCES = \
 	src/util.h \
 	src/vcode.h
 
-lib_libcgen_a_SOURCES = src/cgen.c src/link.c
+lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
 
 bin_nvc_SOURCES = src/nvc.c

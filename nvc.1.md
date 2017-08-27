@@ -82,6 +82,12 @@ elaborate command.
    format is designed for readability whereas the compact messages can be easily
    parsed by tools.
 
+* `--native`:
+  Generate a native code shared library. By default NVC will use LLVM JIT
+  compilation to generate machine code at runtime. For large designs
+  compiling to native code at elaboration time may improve performance.
+  This will also produce native shared libraries for packages.
+
  * `--std=`_rev_:
    Select the VHDL standard revision to use. Specify either the full year such as
    _1993_ or the decade such as _93_. The allowed revisions are 1993, 2000, 2002,
@@ -119,11 +125,6 @@ elaborate command.
   Override top-level generic _name_ name with _value_. Integers, enumeration
   literals, and string literals are supported. For example `-gI=5`, `-gINIT='1'`,
   and `-gSTR=hello`.
-
-* `--native`:
-  Generate native code shared library. By default NVC will use LLVM JIT
-  compilation to generate machine code at runtime. For large designs
-  compiling to native code at elaboration time may improve performance.
 
 * `-O0`, `-01`, `-02`, `-03`:
   Set LLVM optimisation level. Default is `-O2`.

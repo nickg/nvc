@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "NVC" "1" "July 2017" "" "NVC Manual"
+.TH "NVC" "1" "August 2017" "" "NVC Manual"
 .
 .SH "NAME"
 \fBnvc\fR \- VHDL Compiler and Simulator
@@ -100,6 +100,10 @@ Specify exactly the location of logical library \fIname\fR\. Libraries mapped in
 Select either the \fIfull\fR or \fIcompact\fR message format\. The default full message format is designed for readability whereas the compact messages can be easily parsed by tools\.
 .
 .TP
+\fB\-\-native\fR
+Generate a native code shared library\. By default NVC will use LLVM JIT compilation to generate machine code at runtime\. For large designs compiling to native code at elaboration time may improve performance\. This will also produce native shared libraries for packages\.
+.
+.TP
 \fB\-\-std=\fR\fIrev\fR
 Select the VHDL standard revision to use\. Specify either the full year such as \fI1993\fR or the decade such as \fI93\fR\. The allowed revisions are 1993, 2000, 2002, and 2008\. Note there is very limited supported for any features beyond those in VHDL\-93\. VHDL\-87 is not supported\.
 .
@@ -138,10 +142,6 @@ Print generated intermediate code\.
 .TP
 \fB\-g\fR \fIname\fR\fB=\fR\fIvalue\fR
 Override top\-level generic \fIname\fR name with \fIvalue\fR\. Integers, enumeration literals, and string literals are supported\. For example \fB\-gI=5\fR, \fB\-gINIT=\'1\'\fR, and \fB\-gSTR=hello\fR\.
-.
-.TP
-\fB\-\-native\fR
-Generate native code shared library\. By default NVC will use LLVM JIT compilation to generate machine code at runtime\. For large designs compiling to native code at elaboration time may improve performance\.
 .
 .TP
 \fB\-O0\fR, \fB\-01\fR, \fB\-02\fR, \fB\-03\fR

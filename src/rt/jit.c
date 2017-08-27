@@ -262,12 +262,12 @@ static void jit_load_module(ident_t name, LLVMModuleRef module)
 
 void jit_init(tree_t top)
 {
-   jit_load_module(tree_ident(top), tree_attr_ptr(top, llvm_i));
-   tree_remove_attr(top, llvm_i);
-
    const int ncontext = tree_contexts(top);
    for (int i = 0; i < ncontext; i++)
       jit_load_module(tree_ident(tree_context(top, i)), NULL);
+
+   jit_load_module(tree_ident(top), tree_attr_ptr(top, llvm_i));
+   tree_remove_attr(top, llvm_i);
 }
 
 void jit_shutdown(void)

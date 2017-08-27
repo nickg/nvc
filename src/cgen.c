@@ -26,6 +26,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 #include <llvm-c/Core.h>
 #include <llvm-c/BitWriter.h>
@@ -33,11 +34,13 @@
 #include <llvm-c/Analysis.h>
 #include <llvm-c/Transforms/Scalar.h>
 #include <llvm-c/Transforms/IPO.h>
+#include <llvm-c/Transforms/PassManagerBuilder.h>
 
 #undef NDEBUG
 #include <assert.h>
 
 #define MAX_STATIC_NETS 256
+#define MAX_ARGS        64
 
 typedef struct {
    LLVMValueRef      *regs;
@@ -3361,8 +3364,14 @@ static void cgen_optimise(void)
    LLVMAddGVNPass(pass_mgr);
    LLVMAddCFGSimplificationPass(pass_mgr);
 
+   LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
+   LLVMPassManagerBuilderSetOptLevel(builder, opt_get_int("optimise"));
+   LLVMPassManagerBuilderPopulateModulePassManager(builder, pass_mgr);
+
    LLVMRunPassManager(pass_mgr, module);
+
    LLVMDisposePassManager(pass_mgr);
+   LLVMPassManagerBuilderDispose(builder);
 }
 
 static LLVMValueRef cgen_support_fn(const char *name)
@@ -3690,6 +3699,91 @@ static void cgen_tmp_stack(void)
    LLVMSetLinkage(_tmp_alloc, LLVMExternalLinkage);
 }
 
+static bool cgen_should_emit_native(tree_t top)
+{
+   // Use a heuristic to decide if the unit is large enough to benefit
+   // from native complilation
+
+   if (tree_kind(top) == T_ELAB)
+      return tree_stmts(top) > 1000;
+   else if (tree_kind(top) == T_PACK_BODY)
+      return tree_decls(top) > 100;
+   else
+      return false;
+}
+
+#ifdef ENABLE_NATIVE
+static void cgen_native(tree_t top)
+{
+   LLVMInitializeNativeTarget();
+   LLVMInitializeNativeAsmPrinter();
+
+   char *def_triple = LLVMGetDefaultTargetTriple();
+   char *error;
+   LLVMTargetRef target_ref;
+   if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
+      fatal("failed to get LLVM target for %s: %s", def_triple, error);
+
+   LLVMTargetMachineRef tm_ref =
+      LLVMCreateTargetMachine(target_ref, def_triple, "", "",
+                              LLVMCodeGenLevelDefault,
+                              LLVMRelocPIC,
+                              LLVMCodeModelJITDefault);
+
+   char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT, istr(tree_ident(top)));
+
+   char obj_path[PATH_MAX];
+   lib_realpath(lib_work(), obj_name, obj_path, sizeof(obj_path));
+
+   if (LLVMTargetMachineEmitToFile(tm_ref, module, obj_path,
+                                   LLVMObjectFile, &error))
+      fatal("Failed to write object file: %s", error);
+
+   const char *args[MAX_ARGS];
+   size_t nargs = 0;
+
+   args[nargs++] = SYSTEM_CC;
+#if defined __APPLE__
+   args[nargs++] = "-bundle";
+   args[nargs++] = "-flat_namespace";
+   args[nargs++] = "-undefined";
+   args[nargs++] = "dynamic_lookup";
+#else
+   args[nargs++] = "-shared";
+#endif
+
+#if defined __CYGWIN__
+   args[nargs++] = "-Wl,--export-all-symbols";
+   char *implib LOCAL = xasprintf("-Wl,--out-implib=%s.a", tree_ident(top));  // TODO
+   args[nargs++] = implib;
+#endif
+
+   char *fname LOCAL = xasprintf("_%s.so", istr(tree_ident(top)));
+   char so_path[PATH_MAX];
+   lib_realpath(lib_work(), fname, so_path, PATH_MAX);
+
+   args[nargs++] = "-o";
+   args[nargs++] = so_path;
+   args[nargs++] = obj_path;
+
+   const char *obj = getenv("NVC_FOREIGN_OBJ");
+   if (obj != NULL)
+      args[nargs++] = obj;
+
+#ifdef IMPLIB_REQUIRED
+   const char *cyglib = getenv("NVC_CYG_LIB");
+   char *cygarg LOCAL = xasprintf("-L%s", (cyglib != NULL) ? cyglib : DATADIR);
+   args[nargs++] = cygarg;
+   args[nargs++] = "-lnvcimp";
+#endif
+
+   assert(nargs < MAX_ARGS - 1);
+   args[nargs] = NULL;
+
+   run_program(args, nargs);
+}
+#endif  // ENABLE_NATIVE
+
 void cgen(tree_t top, vcode_unit_t vcode)
 {
    tree_kind_t kind = tree_kind(top);
@@ -3711,13 +3805,24 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
    cgen_optimise();
 
-   char *fname = xasprintf("_%s.bc", istr(tree_ident(top)));
+#ifdef ENABLE_NATIVE
+   const bool emit_native =
+      opt_get_int("native") || cgen_should_emit_native(top);
+#else
+   const bool emit_native = false;
+#endif
 
-   FILE *f = lib_fopen(lib_work(), fname, "w");
-   if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
-      fatal("error writing LLVM bitcode");
-   fclose(f);
-   free(fname);
+   if (emit_native)
+      cgen_native(top);
+   else {
+      char *fname = xasprintf("_%s.bc", istr(tree_ident(top)));
+
+      FILE *f = lib_fopen(lib_work(), fname, "w");
+      if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
+         fatal("error writing LLVM bitcode");
+      fclose(f);
+      free(fname);
+   }
 
    LLVMDisposeBuilder(builder);
 

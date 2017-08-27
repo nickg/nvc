@@ -864,3 +864,32 @@ void intern_strings(void)
    nnets_i          = ident_new("nnets");
    thunk_i          = ident_new("thunk");
 }
+
+bool pack_needs_cgen(tree_t t)
+{
+   // True if the package contains shared variables or signals which
+   // must be run through code generation
+
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t decl = tree_decl(t, i);
+      switch (tree_kind(decl)) {
+      case T_VAR_DECL:
+      case T_SIGNAL_DECL:
+      case T_FILE_DECL:
+         return true;
+      case T_CONST_DECL:
+         if (type_is_array(tree_type(decl)))
+            return true;
+         else if (tree_has_value(decl)) {
+            if (tree_kind(tree_value(decl)) != T_LITERAL)
+               return true;
+         }
+         break;
+      default:
+         break;
+      }
+   }
+
+   return false;
+}
