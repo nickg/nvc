@@ -848,7 +848,8 @@ static tree_t elab_copy(tree_t t)
 }
 
 static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
-                                tree_formals_t tree_Fs, tree_formal_t tree_F)
+                                const loc_t *where, tree_formals_t tree_Fs,
+                                tree_formal_t tree_F)
 {
    // TODO: for now they must exactly match up
 
@@ -884,6 +885,9 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
       if (!found) {
          error_at(tree_loc(comp_f), "%s %s not found in entity %s",
                   what, istr(tree_ident(comp_f)), istr(tree_ident(entity)));
+         note_at(where, "while elaborating instance here");
+         note_at(tree_loc(entity), "entity %s declared here",
+                 istr(tree_ident(entity)));
          ++errors;
          return false;
       }
@@ -961,11 +965,13 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
 
    // Check entity is compatible with component declaration
 
-   if (!elab_compatible_map(comp, entity, "generic",
+   const loc_t *loc = tree_loc(inst);
+
+   if (!elab_compatible_map(comp, entity, "generic", loc,
                             tree_generics, tree_generic))
       return NULL;
 
-   if (!elab_compatible_map(comp, entity, "port", tree_ports, tree_port))
+   if (!elab_compatible_map(comp, entity, "port", loc, tree_ports, tree_port))
       return NULL;
 
    return arch;

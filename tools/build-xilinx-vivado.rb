@@ -10,7 +10,7 @@ xilinx = ENV['XILINX_VIVADO']
 
 unless xilinx
   # Try searching some common installation directories
-  search = (2014..2015).collect do |major|
+  search = (2014..2017).collect do |major|
     (1..4).collect { |minor| [
         "/opt/Xilinx/Vivado/#{major}.#{minor}",
         "/cygdrive/C/Xilinx/Vivado/#{major}.#{minor}" ] }
