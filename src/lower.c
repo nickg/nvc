@@ -298,8 +298,6 @@ static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg)
    type_t elem = type_elem(type);
    if (type_is_array(elem))
       return emit_mul(total, lower_array_total_len(elem, VCODE_INVALID_REG));
-   else if (type_is_record(elem))
-      return emit_mul(total, emit_const(vtype_offset(), type_width(elem)));
    else
       return total;
 }
@@ -3109,8 +3107,13 @@ static void lower_sched_event(tree_t on, bool is_static)
          assert(false);
       }
 
-      if (array)
+      if (array) {
+         type_t elem = type_elem(type);
          n_elems = lower_array_total_len(type, nets);
+         if (type_is_record(elem))
+            n_elems = emit_mul(n_elems,
+                               emit_const(vtype_offset(), type_width(elem)));
+      }
       else
          n_elems = emit_const(vtype_offset(), type_width(type));
 
@@ -3380,8 +3383,15 @@ static void lower_signal_assign(tree_t stmt)
          after = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
 
       vcode_reg_t count_reg = VCODE_INVALID_REG;
-      if (type_is_array(part_type))
-         count_reg = lower_array_total_len(tree_type(wvalue), rhs);
+      if (type_is_array(part_type)) {
+         type_t wtype = tree_type(wvalue);
+         count_reg = lower_array_total_len(wtype, rhs);
+
+         type_t elem = type_elem(wtype);
+         if (type_is_record(elem))
+            count_reg = emit_mul(count_reg,
+                                 emit_const(vtype_offset(), type_width(elem)));
+      }
 
       if (lower_have_signal(rhs))
          rhs = emit_vec_load(lower_array_data(rhs), count_reg, false);
