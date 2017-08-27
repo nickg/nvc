@@ -298,6 +298,8 @@ static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg)
    type_t elem = type_elem(type);
    if (type_is_array(elem))
       return emit_mul(total, lower_array_total_len(elem, VCODE_INVALID_REG));
+   else if (type_is_record(elem))
+      return emit_mul(total, emit_const(vtype_offset(), type_width(elem)));
    else
       return total;
 }
@@ -3107,13 +3109,8 @@ static void lower_sched_event(tree_t on, bool is_static)
          assert(false);
       }
 
-      if (array) {
-         type_t elem = type_elem(type);
+      if (array)
          n_elems = lower_array_total_len(type, nets);
-         if (type_is_record(elem))
-            n_elems = emit_mul(n_elems,
-                               emit_const(vtype_offset(), type_width(elem)));
-      }
       else
          n_elems = emit_const(vtype_offset(), type_width(type));
 

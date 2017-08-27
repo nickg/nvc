@@ -333,3 +333,4 @@ binary_files    normal
 issue338        normal
 issue338b       normal
 textio2008      normal,2008,gold
+issue349        normal
