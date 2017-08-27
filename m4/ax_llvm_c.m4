@@ -67,13 +67,8 @@ AC_DEFUN([AX_LLVM_C], [
           LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir)"
           LLVM_LIBDIR="$($ac_llvm_config_path --libdir)"
 
-          if test "$llvm_ver_num" -lt "35"; then
-              AC_MSG_ERROR([LLVM version 3.5 or later required])
-          fi
-
-          if test "$llvm_ver_num" -ge "36"; then
-              AC_DEFINE_UNQUOTED(LLVM_HAS_MCJIT, [1],
-                                 [LLVM uses MCJIT instead of old JIT])
+          if test "$llvm_ver_num" -lt "38"; then
+              AC_MSG_ERROR([LLVM version 3.8 or later required])
           fi
 
           if test "$llvm_ver_num" -ge "39"; then

@@ -45,9 +45,6 @@ typedef struct module module_t;
 static LLVMOrcJITStackRef orc_ref = NULL;
 #else
 static LLVMExecutionEngineRef exec_engine = NULL;
-#if !LLVM_HAS_MCJIT
-static LLVMModuleRef top_module = NULL;
-#endif
 #endif
 
 
@@ -96,18 +93,10 @@ void *jit_var_ptr(const char *name, bool required)
       LLVMOrcDisposeMangledSymbol(mangled);
    }
 
-#elif LLVM_HAS_MCJIT
+#else
 
    if (exec_engine != NULL)
       ptr = (void *)(uintptr_t)LLVMGetGlobalValueAddress(exec_engine, name);
-
-#else
-
-   if (exec_engine != NULL) {
-      LLVMValueRef var = LLVMGetNamedGlobal(top_module, name);
-      if (var != NULL)
-         ptr = LLVMGetPointerToGlobal(exec_engine, var);
-   }
 
 #endif
 
@@ -174,9 +163,11 @@ static void jit_load_module(ident_t name, LLVMModuleRef module)
 
    const bool use_jit = (jit_mod_time(bc_path) > jit_mod_time(so_path));
 
-   if (use_jit) {
-      notef("Load %s using JIT from %s", istr(name), bc_path);
+   if (opt_get_int("rt_trace_en"))
+      fprintf(stderr, "TRACE (init): load %s using %s from %s\n", istr(name),
+              use_jit ? "JIT" : "native code", use_jit ? bc_path : so_path);
 
+   if (use_jit) {
       if (module == NULL) {
          char *error;
          LLVMMemoryBufferRef buf;
@@ -223,8 +214,6 @@ static void jit_load_module(ident_t name, LLVMModuleRef module)
       if (exec_engine == NULL) {
          LLVMInitializeNativeTarget();
          LLVMInitializeNativeAsmPrinter();
-
-#if LLVM_HAS_MCJIT
          LLVMLinkInMCJIT();
 
          struct LLVMMCJITCompilerOptions options;
@@ -234,15 +223,6 @@ static void jit_load_module(ident_t name, LLVMModuleRef module)
          if (LLVMCreateMCJITCompilerForModule(&exec_engine, module, &options,
                                               sizeof(options), &error))
             fatal("error creating MCJIT compiler: %s", error);
-#else
-         LLVMLinkInJIT();
-
-         char *error;
-         if (LLVMCreateExecutionEngineForModule(&exec_engine, module, &error))
-            fatal("error creating execution engine: %s", error);
-
-         top_module = module;
-#endif
       }
       else
          LLVMAddModule(exec_engine, module);
@@ -250,8 +230,6 @@ static void jit_load_module(ident_t name, LLVMModuleRef module)
 #endif
    }
    else {
-      notef("Load %s using native code from %s", istr(name), so_path);
-
       if (dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL) == NULL)
          fatal("%s: %s", so_path, dlerror());
 

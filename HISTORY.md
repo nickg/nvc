@@ -3,7 +3,7 @@
 - Various code generation and constant folding fixes
 - Fix crash when build IEEE library from non-clean tree
 - ORC is used for JIT if LLVM version is 3.9 or later
-- LLVM 3.5 or later is now required
+- LLVM 3.8 or later is now required
 - Added `-O0` to `-O3` options to control LLVM optimisation level
 - The `--disable-opt` option is deprecated, use `-O0` instead
 - The elaborate `--native` option is now a global option and should

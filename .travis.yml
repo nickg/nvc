@@ -8,7 +8,7 @@ addons:
     packages:
       - automake
       - flex
-      - llvm-3.5-dev
+      - llvm-3.8-dev
       - check
       - lcov
 install:
