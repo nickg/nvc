@@ -366,8 +366,16 @@ static void elab_copy_context(tree_t src, const elab_ctx_t *ctx)
    const int nsrc = tree_contexts(src);
    for (int i = 0; i < nsrc; i++) {
       tree_t c = tree_context(src, i);
-      if (tree_kind(c) == T_USE)
+      switch (tree_kind(c)) {
+      case T_USE:
          elab_use_clause(c, ctx);
+         break;
+      case T_LIBRARY:
+         tree_add_context(ctx->out, c);
+         break;
+      default:
+         break;
+      }
    }
 }
 
@@ -923,14 +931,10 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
    lib_walk_index(params.lib, find_entity, &params);
 
    if (entity == NULL) {
-      if (search_others && ctx->arch != NULL) {
-         tree_t elab_ent = tree_ref(ctx->arch);
-         const int nctxe = tree_contexts(elab_ent);
-         const int nctxa = tree_contexts(ctx->arch);
-         for (int i = 0; entity == NULL && i < nctxe + nctxa; i++) {
-            tree_t c = i < nctxe
-               ? tree_context(elab_ent, i)
-               : tree_context(ctx->arch, i - nctxe);
+      if (search_others) {
+         const int ncontext = tree_contexts(ctx->out);
+         for (int i = 0; entity == NULL && i < ncontext; i++) {
+            tree_t c = tree_context(ctx->out, i);
 
             if (tree_kind(c) != T_LIBRARY)
                continue;
