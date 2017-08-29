@@ -132,14 +132,11 @@ void *jit_var_ptr(const char *name, bool required)
    void *ptr = NULL;
 
 #if LLVM_HAS_ORC
-      void *ptr = (void *)(uintptr_t)LLVMOrcGetSymbolAddress(orc_ref, name);
-#elif LLVM_HAS_MCJIT
-      void *ptr = (void *)(uintptr_t)LLVMGetGlobalValueAddress(exec_engine, name);
+   if (orc_ref != NULL)
+      ptr = (void *)(uintptr_t)LLVMOrcGetSymbolAddress(orc_ref, name);
 #else
-
    if (exec_engine != NULL)
       ptr = (void *)(uintptr_t)LLVMGetGlobalValueAddress(exec_engine, name);
-
 #endif
 
    if (ptr == NULL)
