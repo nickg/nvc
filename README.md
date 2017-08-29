@@ -96,7 +96,7 @@ and `make`. Then follow the standard installation instructions above.
 
 Install the dependencies with `pkg_add`:
 
-    pkg_add -r llvm libexecinfo autoconf automake
+    pkg_add -r automake-1.15p0 autoconf-2.69p2 libexecinfo llvm check libexecinfo
 
 Use a modern compiler such as Clang to build, as the system GCC does not support many modern
 language features.
