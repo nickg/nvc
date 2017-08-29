@@ -21,7 +21,14 @@ download_file() {
   # download
   curl -sSL -o "$bn" "$url"
   # shasum
-  check=$(shasum -a 256 "$bn" | awk '{ print $1 }')
+case `uname` in
+      OpenBSD)
+          check=$(sha256 -q "$bn")
+          ;;
+      *)
+          check=$(shasum -a 256 "$bn" | awk '{ print $1 }')
+          ;;
+  esac
 
   echo "$bn"
 

@@ -3728,7 +3728,7 @@ static void cgen_native(tree_t top)
       LLVMCreateTargetMachine(target_ref, def_triple, "", "",
                               LLVMCodeGenLevelDefault,
                               LLVMRelocPIC,
-                              LLVMCodeModelJITDefault);
+                              LLVMCodeModelDefault);
 
    char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT, istr(tree_ident(top)));
 

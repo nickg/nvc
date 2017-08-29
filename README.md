@@ -89,12 +89,21 @@ To build from source follow the generic instructions above.
 
 Windows support is via [Cygwin](http://www.cygwin.com/). Use `setup.exe` to install
 either `gcc` or `clang` and the following dependencies: `automake`, `autoconf`,
-`pkg-config`, `llvm`, `libllvm-devel`, `flex`, `libffi-devel`, `libcurses-devel`, `curl`, 
+`pkg-config`, `llvm`, `libllvm-devel`, `flex`, `libffi-devel`, `libcurses-devel`, `curl`,
 and `make`. Then follow the standard installation instructions above.
 
 #### OpenBSD
 
-TODO
+Install the dependencies with `pkg_add`:
+
+    pkg_add -r llvm libexecinfo autoconf automake
+
+Use a modern compiler such as Clang to build, as the system GCC does not support many modern
+language features.
+
+    ./configure --with-llvm=/usr/local/bin/llvm-config CC=clang CXX=clang++
+
+Then follow the generic instructions above.
 
 #### IEEE Libraries
 
