@@ -3752,13 +3752,17 @@ static void cgen_native(tree_t top)
    args[nargs++] = "-shared";
 #endif
 
-#if defined __CYGWIN__
+#if defined __CYGWIN__ || defined __MINGW32__
    args[nargs++] = "-Wl,--export-all-symbols";
-   char *implib LOCAL = xasprintf("-Wl,--out-implib=%s.a", tree_ident(top));  // TODO
-   args[nargs++] = implib;
+   char *impname LOCAL = xasprintf("_%s.lib", istr(tree_ident(top)));
+   char imp_path[PATH_MAX];
+   lib_realpath(lib_work(), impname, imp_path, PATH_MAX);
+
+   char *imparg LOCAL = xasprintf("-Wl,--out-implib=%s", imp_path);
+   args[nargs++] = imparg;
 #endif
 
-   char *fname LOCAL = xasprintf("_%s.so", istr(tree_ident(top)));
+   char *fname LOCAL = xasprintf("_%s." DLL_EXT, istr(tree_ident(top)));
    char so_path[PATH_MAX];
    lib_realpath(lib_work(), fname, so_path, PATH_MAX);
 
@@ -3771,7 +3775,7 @@ static void cgen_native(tree_t top)
       args[nargs++] = obj;
 
 #ifdef IMPLIB_REQUIRED
-   const char *cyglib = getenv("NVC_CYG_LIB");
+   const char *cyglib = getenv("NVC_IMP_LIB");
    char *cygarg LOCAL = xasprintf("-L%s", (cyglib != NULL) ? cyglib : DATADIR);
    args[nargs++] = cygarg;
    args[nargs++] = "-lnvcimp";

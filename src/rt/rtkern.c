@@ -1232,6 +1232,7 @@ static void _tracef(const char *fmt, ...)
               fmt_time_r(buf, sizeof(buf), now), iteration);
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
+   fflush(stderr);
 
    va_end(ap);
 }
