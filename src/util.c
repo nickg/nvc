@@ -60,6 +60,10 @@
 #include <sys/prctl.h>
 #endif
 
+#ifdef __CYGWIN__
+#include <procesS.h>
+#endif
+
 #if defined(HAVE_UCONTEXT_H)
 #include <ucontext.h>
 #elif defined(HAVE_SYS_UCONTEXT_H)

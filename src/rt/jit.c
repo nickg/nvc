@@ -68,13 +68,13 @@ extern void _alloca(void);
 
 static void *jit_search_loaded_syms(const char *name, bool required)
 {
-#ifdef __MINGW32__
-   const char *search_modules[] = { NULL, "MSVCRT.DLL" };
-
-#ifndef _WIN64
+#if (defined __MINGW32__ || defined __CYGWIN__) && !defined _WIN64
    if (*name == '_')
       name++;   // Remove leading underscore on 32-bit Windows
 #endif
+
+#ifdef __MINGW32__
+   const char *search_modules[] = { NULL, "MSVCRT.DLL" };
 
 #ifdef _WIN64
    if (strcmp(name, "___chkstk_ms") == 0)
@@ -104,7 +104,7 @@ static void *jit_search_loaded_syms(const char *name, bool required)
       sym = dlsym(RTLD_DEFAULT, name);
       error = dlerror();
       if ((error != NULL) && required)
-         fatal("%s", error);
+         fatal("%s: %s", name, error);
    }
    return sym;
 #endif
@@ -191,7 +191,7 @@ static void jit_load_module(ident_t name, LLVMModuleRef module)
    const bool optional = (kind == T_PACKAGE || kind == T_PACK_BODY);
 
    char *bc_fname LOCAL = xasprintf("_%s.bc", istr(name));
-   char *so_fname LOCAL = xasprintf("_%s.so", istr(name));
+   char *so_fname LOCAL = xasprintf("_%s." DLL_EXT, istr(name));
 
    char bc_path[PATH_MAX], so_path[PATH_MAX];
    lib_realpath(lib, bc_fname, bc_path, sizeof(bc_path));
