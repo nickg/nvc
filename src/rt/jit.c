@@ -98,7 +98,7 @@ static void *jit_search_loaded_syms(const char *name, bool required)
 #else
    dlerror();   // Clear any previous error
 
-   void *sym = dlsym(dl_handle, name);
+   void *sym = dlsym(NULL, name);
    const char *error = dlerror();
    if (error != NULL) {
       sym = dlsym(RTLD_DEFAULT, name);
