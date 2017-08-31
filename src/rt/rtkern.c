@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -42,6 +42,12 @@
 
 #ifdef HAVE_ALLOCA_H
 #include <alloca.h>
+#endif
+
+#ifdef __MINGW32__
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#undef SEVERITY_ERROR
 #endif
 
 #define TRACE_DELTAQ  1
@@ -2295,6 +2301,20 @@ static void rt_interrupt(void)
       fatal("interrupted");
 }
 
+#ifdef __MINGW32__
+static BOOL rt_win_ctrl_handler(DWORD fdwCtrlType)
+{
+   switch (fdwCtrlType) {
+   case CTRL_C_EVENT:
+      rt_interrupt();
+      return TRUE;
+
+   default:
+      return FALSE;
+   }
+}
+#endif
+
 void rt_start_of_tool(tree_t top)
 {
    jit_init(top);
@@ -2307,7 +2327,8 @@ void rt_start_of_tool(tree_t top)
 
    sigaction(SIGINT, &sa, NULL);
 #else
-   /* TODO */
+   if (!SetConsoleCtrlHandler(rt_win_ctrl_handler, TRUE))
+      fatal_trace("SetConsoleCtrlHandler");
 #endif
 
    jit_bind_fn("_std_standard_now", _std_standard_now);

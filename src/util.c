@@ -254,6 +254,10 @@ static void paginate_msg(const char *fmt, va_list ap,
    }
    fputc('\n', stderr);
 
+#ifdef __MINGW32__
+   fflush(stderr);
+#endif
+
    free(filtered);
    free(strp);
 }
