@@ -3699,6 +3699,7 @@ static void cgen_tmp_stack(void)
    LLVMSetLinkage(_tmp_alloc, LLVMExternalLinkage);
 }
 
+#ifdef ENABLE_NATIVE
 static bool cgen_should_emit_native(tree_t top)
 {
    // Use a heuristic to decide if the unit is large enough to benefit
@@ -3712,7 +3713,6 @@ static bool cgen_should_emit_native(tree_t top)
       return false;
 }
 
-#ifdef ENABLE_NATIVE
 static void cgen_native(tree_t top)
 {
    LLVMInitializeNativeTarget();
@@ -3812,13 +3812,14 @@ void cgen(tree_t top, vcode_unit_t vcode)
 #ifdef ENABLE_NATIVE
    const bool emit_native =
       opt_get_int("native") || cgen_should_emit_native(top);
+
+   if (emit_native)
+      cgen_native(top);
 #else
    const bool emit_native = false;
 #endif
 
-   if (emit_native)
-      cgen_native(top);
-   else {
+   if (!emit_native) {
       char *fname = xasprintf("_%s.bc", istr(tree_ident(top)));
 
       FILE *f = lib_fopen(lib_work(), fname, "wb");
