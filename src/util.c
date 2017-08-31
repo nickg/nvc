@@ -1020,6 +1020,16 @@ void term_init(void)
          }
       }
    }
+
+#ifdef __MINGW32__
+   HANDLE hConsole = GetStdHandle(STD_ERROR_HANDLE);
+   DWORD mode;
+   if (GetConsoleMode(hConsole, &mode)) {
+      mode |= 0x04; // ENABLE_VIRTUAL_TERMINAL_PROCESSING
+      if (!SetConsoleMode(hConsole, mode))
+         want_color = false;
+   }
+#endif
 }
 
 static void opt_set_generic(const char *name, option_kind_t kind,
