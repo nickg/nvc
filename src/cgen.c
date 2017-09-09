@@ -2922,9 +2922,11 @@ static void cgen_function(LLVMTypeRef display_type)
    assert(vcode_unit_kind() == VCODE_UNIT_FUNCTION);
 
    LLVMValueRef fn = LLVMGetNamedFunction(module, istr(vcode_unit_name()));
-   if (fn == NULL)
+   if (fn == NULL) {
       fn = LLVMAddFunction(module, istr(vcode_unit_name()),
                            cgen_subprogram_type(display_type, false));
+      LLVMSetDLLStorageClass(fn, LLVMDLLExportStorageClass);
+   }
 
    cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
 
@@ -3106,6 +3108,7 @@ static void cgen_process(vcode_unit_t code)
    LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), pargs, 1, false);
    LLVMValueRef fn = LLVMAddFunction(module, istr(vcode_unit_name()), ftype);
    cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
+   LLVMSetDLLStorageClass(fn, LLVMDLLExportStorageClass);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMBasicBlockRef reset_bb = LLVMAppendBasicBlock(fn, "reset");
@@ -3196,6 +3199,7 @@ static void cgen_reset_function(tree_t top)
    LLVMValueRef fn =
       LLVMAddFunction(module, name,
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
+   LLVMSetDLLStorageClass(fn, LLVMDLLExportStorageClass);
 
    LLVMBasicBlockRef init_bb = NULL;
 
@@ -3775,6 +3779,8 @@ static void cgen_native(tree_t top)
    char *imparg LOCAL = xasprintf("-Wl,--out-implib=%s", imp_path);
    APPEND_ARG(imparg);
 
+   APPEND_ARG(xasprintf("-L%s", lib_path(lib_work())));
+
    const int ncontext = tree_contexts(top);
    for (int i = 0; i < ncontext; i++) {
       tree_t c = tree_context(top, i);
@@ -3789,9 +3795,16 @@ static void cgen_native(tree_t top)
       lib_realpath(lib, imp_name, import_imp, PATH_MAX);
 
       if (access(import_imp, F_OK) == 0) {
-         APPEND_ARG(xasprintf("-L%s", lib_path(lib)));
+         if (lib != lib_work())
+            APPEND_ARG(xasprintf("-L%s", lib_path(lib)));
          APPEND_ARG(xasprintf("-l_%s", istr(unit_name)));
       }
+   }
+
+   if (tree_kind(top) == T_PACK_BODY) {
+      tree_t pack = lib_get(lib_work(), ident_until(tree_ident(top), '-'));
+      if (pack_needs_cgen(pack))
+         APPEND_ARG(xasprintf("-l_%s", istr(tree_ident(pack))));
    }
 #endif
 

@@ -64,6 +64,10 @@ extern void ___chkstk_ms(void);
 #undef _alloca
 extern void _alloca(void);
 #endif
+
+static HMODULE *search_modules;
+static size_t nmodules = 0, max_modules = 0;
+
 #endif
 
 static void *jit_search_loaded_syms(const char *name, bool required)
@@ -74,7 +78,6 @@ static void *jit_search_loaded_syms(const char *name, bool required)
 #endif
 
 #ifdef __MINGW32__
-   const char *search_modules[] = { NULL, "MSVCRT.DLL" };
 
 #ifdef _WIN64
    if (strcmp(name, "___chkstk_ms") == 0)
@@ -87,15 +90,17 @@ static void *jit_search_loaded_syms(const char *name, bool required)
    if (strcmp(name, "exp2") == 0)
       return (void *)(uintptr_t)exp2;
 
-   for (size_t i = 0; i < ARRAY_LEN(search_modules); i++) {
-      HMODULE hmodule = GetModuleHandle(search_modules[i]);
-      void *ptr = (void *)(uintptr_t)GetProcAddress(hmodule, name);
+   for (size_t i = 0; i < nmodules; i++) {
+      void *ptr = (void *)(uintptr_t)GetProcAddress(search_modules[i], name);
       if (ptr != NULL)
          return ptr;
    }
 
+   if (required)
+      fatal("cannot find symbol %s", name);
+
    return NULL;
-#else
+
    dlerror();   // Clear any previous error
 
    void *sym = dlsym(NULL, name);
@@ -269,8 +274,16 @@ static void jit_load_module(ident_t name, LLVMModuleRef module)
 #endif
    }
    else {
+#ifdef __MINGW32__
+      HMODULE hModule = LoadLibrary(so_path);
+      if (hModule == NULL)
+         fatal("failed to load %s", so_path);
+
+      ARRAY_APPEND(search_modules, hModule, nmodules, max_modules);
+#else
       if (dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL) == NULL)
          fatal("%s: %s", so_path, dlerror());
+#endif
 
       // Free LLVM module as we no longer need it
       LLVMDisposeModule(module);
@@ -279,6 +292,15 @@ static void jit_load_module(ident_t name, LLVMModuleRef module)
 
 void jit_init(tree_t top)
 {
+#ifdef __MINGW32__
+   max_modules = 16;
+   nmodules = 0;
+   search_modules = xmalloc(sizeof(HMODULE) * max_modules);
+   ARRAY_APPEND(search_modules, GetModuleHandle(NULL), nmodules, max_modules);
+   ARRAY_APPEND(search_modules, GetModuleHandle("MSVCRT.DLL"),
+                nmodules, max_modules);
+#endif
+
    const int ncontext = tree_contexts(top);
    for (int i = 0; i < ncontext; i++) {
       tree_t c = tree_context(top, i);
