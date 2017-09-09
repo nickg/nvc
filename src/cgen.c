@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <sys/stat.h>
 
 #include <llvm-c/Core.h>
 #include <llvm-c/BitWriter.h>
@@ -3300,10 +3301,14 @@ static void cgen_shared_variables(void)
       LLVMTypeRef type = cgen_type(vcode_var_type(var));
       LLVMValueRef global = LLVMAddGlobal(module, type,
                                           istr(vcode_var_name(var)));
-      if (vcode_var_extern(var))
+      if (vcode_var_extern(var)) {
+         LLVMSetDLLStorageClass(global, LLVMDLLImportStorageClass);
          LLVMSetLinkage(global, LLVMExternalLinkage);
-      else
+      }
+      else {
+         LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
          LLVMSetInitializer(global, LLVMConstNull(type));
+      }
    }
 }
 
@@ -3739,52 +3744,71 @@ static void cgen_native(tree_t top)
                                    LLVMObjectFile, &error))
       fatal("Failed to write object file: %s", error);
 
-   const char *args[MAX_ARGS];
-   size_t nargs = 0;
+   const char **args LOCAL = xmalloc(sizeof(char *) * MAX_ARGS);
+   size_t nargs = 0, arg_max = MAX_ARGS;
 
-   args[nargs++] = SYSTEM_CC;
+#define APPEND_ARG(a) ARRAY_APPEND(args, a, nargs, arg_max);
+
+   APPEND_ARG(SYSTEM_CC);
 #if defined __APPLE__
-   args[nargs++] = "-bundle";
-   args[nargs++] = "-flat_namespace";
-   args[nargs++] = "-undefined";
-   args[nargs++] = "dynamic_lookup";
+   APPEND_ARG("-bundle");
+   APPEND_ARG("-flat_namespace");
+   APPEND_ARG("-undefined");
+   APPEND_ARG("dynamic_lookup");
 #else
-   args[nargs++] = "-shared";
-#endif
-
-#if defined __CYGWIN__ || defined __MINGW32__
-   args[nargs++] = "-Wl,--export-all-symbols";
-   char *impname LOCAL = xasprintf("_%s.lib", istr(tree_ident(top)));
-   char imp_path[PATH_MAX];
-   lib_realpath(lib_work(), impname, imp_path, PATH_MAX);
-
-   char *imparg LOCAL = xasprintf("-Wl,--out-implib=%s", imp_path);
-   args[nargs++] = imparg;
+   APPEND_ARG("-shared");
 #endif
 
    char *fname LOCAL = xasprintf("_%s." DLL_EXT, istr(tree_ident(top)));
    char so_path[PATH_MAX];
    lib_realpath(lib_work(), fname, so_path, PATH_MAX);
 
-   args[nargs++] = "-o";
-   args[nargs++] = so_path;
-   args[nargs++] = obj_path;
+   APPEND_ARG("-o");
+   APPEND_ARG(so_path);
+   APPEND_ARG(obj_path);
+
+#if IMPLIB_REQUIRED
+   char *impname LOCAL = xasprintf("_%s.lib", istr(tree_ident(top)));
+   char imp_path[PATH_MAX];
+   lib_realpath(lib_work(), impname, imp_path, PATH_MAX);
+
+   char *imparg LOCAL = xasprintf("-Wl,--out-implib=%s", imp_path);
+   APPEND_ARG(imparg);
+
+   const int ncontext = tree_contexts(top);
+   for (int i = 0; i < ncontext; i++) {
+      tree_t c = tree_context(top, i);
+      if (tree_kind(c) != T_USE)
+         continue;
+
+      ident_t unit_name = tree_ident(c);
+      lib_t lib = lib_find(ident_until(unit_name, '.'), true);
+
+      char *imp_name LOCAL = xasprintf("_%s.lib", istr(unit_name));
+      char import_imp[PATH_MAX];
+      lib_realpath(lib, imp_name, import_imp, PATH_MAX);
+
+      if (access(import_imp, F_OK) == 0) {
+         APPEND_ARG(xasprintf("-L%s", lib_path(lib)));
+         APPEND_ARG(xasprintf("-l_%s", istr(unit_name)));
+      }
+   }
+#endif
 
    const char *obj = getenv("NVC_FOREIGN_OBJ");
    if (obj != NULL)
-      args[nargs++] = obj;
+      APPEND_ARG(obj);
 
 #ifdef IMPLIB_REQUIRED
    const char *cyglib = getenv("NVC_IMP_LIB");
    char *cygarg LOCAL = xasprintf("-L%s", (cyglib != NULL) ? cyglib : DATADIR);
-   args[nargs++] = cygarg;
-   args[nargs++] = "-lnvcimp";
+   APPEND_ARG(cygarg);
+   APPEND_ARG("-lnvcimp");
 #endif
 
-   assert(nargs < MAX_ARGS - 1);
-   args[nargs] = NULL;
+   APPEND_ARG(NULL);
 
-   run_program(args, nargs);
+   run_program(args, nargs - 1);
 }
 #endif  // ENABLE_NATIVE
 
@@ -3809,6 +3833,14 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
    cgen_optimise();
 
+   char *fname = xasprintf("_%s.bc", istr(tree_ident(top)));
+
+   FILE *f = lib_fopen(lib_work(), fname, "wb");
+   if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
+      fatal("error writing LLVM bitcode");
+   fclose(f);
+   free(fname);
+
 #ifdef ENABLE_NATIVE
    const bool emit_native =
       opt_get_int("native") || cgen_should_emit_native(top);
@@ -3818,16 +3850,6 @@ void cgen(tree_t top, vcode_unit_t vcode)
 #else
    const bool emit_native = false;
 #endif
-
-   if (!emit_native) {
-      char *fname = xasprintf("_%s.bc", istr(tree_ident(top)));
-
-      FILE *f = lib_fopen(lib_work(), fname, "wb");
-      if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
-         fatal("error writing LLVM bitcode");
-      fclose(f);
-      free(fname);
-   }
 
    LLVMDisposeBuilder(builder);
 

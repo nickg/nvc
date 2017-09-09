@@ -1,6 +1,7 @@
 #!/bin/sh
 std=${STD:-93}
 export NVC_LIBPATH=./lib/
+export NVC_IMP_LIB=./lib/
 if [ -e lib/$1.so ]; then
     vhpi="--load lib/$1.so --vhpi-trace"
 fi

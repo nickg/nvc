@@ -182,20 +182,21 @@ esac
 
 if test x$enable_native = xyes ; then
   AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])
-  case $host_os in
-    *cygwin*|msys*|mingw32*)
-        implib_required=yes
-        dll_ext=dll
-        ;;
-    *)
-        dll_ext=so
-        ;;
-  esac
-  if test x$implib_required = xyes ; then
-    AC_DEFINE_UNQUOTED([IMPLIB_REQUIRED], [1], [Import library required])
-  fi
-  AC_DEFINE_UNQUOTED([DLL_EXT], ["$dll_ext"], [Dynamic library extension])
 fi
+
+case $host_os in
+  *cygwin*|msys*|mingw32*)
+      implib_required=yes
+      dll_ext=dll
+      ;;
+  *)
+      dll_ext=so
+      ;;
+esac
+if test x$implib_required = xyes ; then
+  AC_DEFINE_UNQUOTED([IMPLIB_REQUIRED], [1], [Import library required])
+fi
+AC_DEFINE_UNQUOTED([DLL_EXT], ["$dll_ext"], [Dynamic library extension])
 
 AM_CONDITIONAL([ENABLE_NATIVE], [test x$enable_native = xyes])
 AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])

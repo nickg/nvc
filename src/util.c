@@ -1368,6 +1368,7 @@ void run_program(const char *const *args, size_t n_args)
    if (!quiet) {
       for (size_t i = 0; i < n_args; i++)
          printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
+      fflush(stdout);
    }
 
 #if defined __CYGWIN__ || defined __MINGW32__
