@@ -168,17 +168,19 @@ esac
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$cc_bare"], [System compiler])
 
 case $host_os in
-  msys*)
-    # Only ORC JIT is supported on MSYS
+  msys*|mingw32*)
+    native_default=no
     ;;
   *)
-    AC_ARG_ENABLE([native],
-      [AS_HELP_STRING([--enable-native],
-        [Enable native code generation])],
-      [enable_native=$enableval],
-      [enable_native=yes])
+    native_default=yes
     ;;
 esac
+
+AC_ARG_ENABLE([native],
+  [AS_HELP_STRING([--enable-native],
+    [Enable native code generation])],
+  [enable_native=$enableval],
+  [enable_native=$native_default])
 
 if test x$enable_native = xyes ; then
   AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])
@@ -229,11 +231,19 @@ if test x$enable_werror = xyes ; then
 fi
 AC_SUBST(WERROR_CFLAGS)
 
-# AC_PC_FROM_UCONTEXT doesn't accept []-quoted argument.
-AC_PC_FROM_UCONTEXT(AC_MSG_WARN(no way to access program counter - stack trace is disabled))
-if test x$pc_field_found = xfalse ; then
-  AC_DEFINE_UNQUOTED([NO_STACK_TRACE], [1], [Disable stack trace support])
-fi
+case $host_os in
+  msys*|mingw32*)
+    LIBS="$LIBS -lDbgHelp"    # For StackTrace64
+    ;;
+  *)
+    # AC_PC_FROM_UCONTEXT doesn't accept []-quoted argument.
+    AC_PC_FROM_UCONTEXT(
+      AC_MSG_WARN(no way to access program counter - stack trace is disabled))
+    if test x$pc_field_found = xfalse ; then
+      AC_DEFINE_UNQUOTED([NO_STACK_TRACE], [1], [Disable stack trace support])
+    fi
+    ;;
+esac
 
 # Turn on silent make when using the GNU version
 AX_CHECK_GNU_MAKE

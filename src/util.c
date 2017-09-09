@@ -19,6 +19,7 @@
 
 #if defined(__MINGW32__)
 #include <windows.h>
+#include <DbgHelp.h>
 #endif
 #include "util.h"
 #include "ident.h"
@@ -593,6 +594,18 @@ void fmt_loc(FILE *f, const struct loc *loc)
 
 #ifndef NO_STACK_TRACE
 
+static bool check_guard_page(uintptr_t addr)
+{
+   for (guard_t *it = guards; it != NULL; it = it->next) {
+      if ((addr >= it->base) && (addr < it->limit)) {
+         fatal_trace("accessed %d bytes beyond $cyan$%s$$ region",
+                     (int)(addr - it->base), it->tag);
+      }
+   }
+
+   return false;
+}
+
 #if defined HAVE_LIBDW
 static bool die_has_pc(Dwarf_Die* die, Dwarf_Addr pc)
 {
@@ -753,6 +766,128 @@ static void print_trace(char **messages, int trace_size)
 }
 #endif  // HAVE_EXECINFO_H
 
+#ifdef __WIN64
+static void win64_stacktrace(PCONTEXT context)
+{
+   STACKFRAME64 stk;
+   memset(&stk, 0, sizeof(stk));
+
+   stk.AddrPC.Offset    = context->Rip;
+   stk.AddrPC.Mode      = AddrModeFlat;
+   stk.AddrStack.Offset = context->Rsp;
+   stk.AddrStack.Mode   = AddrModeFlat;
+   stk.AddrFrame.Offset = context->Rbp;
+   stk.AddrFrame.Mode   = AddrModeFlat;
+
+   fputs("\n-------- STACK TRACE --------\n", stderr);
+
+   HANDLE hProcess = GetCurrentProcess();
+
+   SymInitialize(hProcess, NULL, TRUE);
+
+   for (ULONG frame = 0; frame < 25; frame++) {
+      if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64,
+                       hProcess,
+                       GetCurrentThread(),
+                       &stk,
+                       context,
+                       NULL,
+                       SymFunctionTableAccess,
+                       SymGetModuleBase,
+                       NULL))
+         break;
+
+      char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+      PSYMBOL_INFO psym = (PSYMBOL_INFO)buffer;
+      psym->SizeOfStruct = sizeof(SYMBOL_INFO);
+      psym->MaxNameLen = MAX_SYM_NAME;
+
+      DWORD64 disp;
+      if (SymFromAddr(hProcess, stk.AddrPC.Offset, &disp, psym)) {
+         fprintf(stderr, "%p %s+0x%x\n", (void *)(uintptr_t)stk.AddrPC.Offset,
+                 psym->Name, (int)disp);
+      }
+      else
+         fprintf(stderr, "%p ???\n", (void *)(uintptr_t)stk.AddrPC.Offset);
+   }
+
+   fputs("-----------------------------\n", stderr);
+   fflush(stderr);
+
+   SymCleanup(hProcess);
+}
+
+static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
+{
+   DWORD code = ExceptionInfo->ExceptionRecord->ExceptionCode;
+   PVOID addr = ExceptionInfo->ExceptionRecord->ExceptionAddress;
+
+#ifdef __WIN64
+   DWORD64 ip = ExceptionInfo->ContextRecord->Rip;
+#else
+   DWORD ip = ExceptionInfo->ContextRecord->Eip;
+#endif
+
+   const char *what = "???";
+   switch (code) {
+   case EXCEPTION_ACCESS_VIOLATION:
+      what = "EXCEPTION_ACCESS_VIOLATION";
+      addr = (PVOID)ExceptionInfo->ExceptionRecord->ExceptionInformation[1];
+      break;
+   case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+      what = "EXCEPTION_ARRAY_BOUNDS_EXCEEDED";
+      break;
+   case EXCEPTION_BREAKPOINT:
+      what = "EXCEPTION_BREAKPOINT";
+      break;
+   case EXCEPTION_DATATYPE_MISALIGNMENT:
+      what = "EXCEPTION_DATATYPE_MISALIGNMENT";
+      break;
+   case EXCEPTION_ILLEGAL_INSTRUCTION:
+      what = "EXCEPTION_ILLEGAL_INSTRUCTION";
+      break;
+   case EXCEPTION_IN_PAGE_ERROR:
+      what = "EXCEPTION_IN_PAGE_ERROR";
+      break;
+   case EXCEPTION_INT_DIVIDE_BY_ZERO:
+      what = "EXCEPTION_INT_DIVIDE_BY_ZERO";
+      break;
+   case EXCEPTION_INT_OVERFLOW:
+      what = "EXCEPTION_INT_OVERFLOW";
+      break;
+   case EXCEPTION_PRIV_INSTRUCTION:
+      what = "EXCEPTION_PRIV_INSTRUCTION";
+      break;
+   case EXCEPTION_STACK_OVERFLOW:
+      what = "EXCEPTION_STACK_OVERFLOW";
+      break;
+   }
+
+   if (code == EXCEPTION_ACCESS_VIOLATION)
+      check_guard_page((uintptr_t)addr);
+
+   color_fprintf(stderr, "\n$red$$bold$*** Caught exception %x (%s)",
+                 code, what);
+
+   switch (code) {
+   case EXCEPTION_ACCESS_VIOLATION:
+   case EXCEPTION_ILLEGAL_INSTRUCTION:
+      fprintf(stderr, " [address=%p, ip=%p]", (void *)addr, (void*)ip);
+      break;
+   }
+
+   color_fprintf(stderr, " ***$$\n");
+   fflush(stderr);
+
+#ifdef __WIN64
+   if (code != EXCEPTION_STACK_OVERFLOW )
+      win64_stacktrace(ExceptionInfo->ContextRecord);
+#endif
+
+  return EXCEPTION_EXECUTE_HANDLER;
+}
+#endif
+
 void show_stacktrace(void)
 {
 #if defined HAVE_LIBDW
@@ -769,9 +904,15 @@ void show_stacktrace(void)
    print_trace(messages, trace_size);
 
    free(messages);
+#elif defined __WIN64
+   CONTEXT context;
+   RtlCaptureContext(&context);
+
+   win64_stacktrace(&context);
 #endif
 }
 
+#ifndef __MINGW32__
 static const char *signame(int sig)
 {
    switch (sig) {
@@ -779,22 +920,12 @@ static const char *signame(int sig)
    case SIGABRT: return "SIGABRT";
    case SIGILL: return "SIGILL";
    case SIGFPE: return "SIGFPE";
+#ifndef __MINGW32__
    case SIGUSR1: return "SIGUSR1";
    case SIGBUS: return "SIGBUS";
+#endif
    default: return "???";
    }
-}
-
-static bool check_guard_page(uintptr_t addr)
-{
-   for (guard_t *it = guards; it != NULL; it = it->next) {
-      if ((addr >= it->base) && (addr < it->limit)) {
-         fatal_trace("accessed %d bytes beyond $cyan$%s$$ region",
-                     (int)(addr - it->base), it->tag);
-      }
-   }
-
-   return false;
 }
 
 static void bt_sighandler(int sig, siginfo_t *info, void *secret)
@@ -844,6 +975,7 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
    if (sig != SIGUSR1)
       exit(2);
 }
+#endif  // !__MINGW32__
 
 #endif  // NO_STACK_TRACE
 
@@ -960,7 +1092,11 @@ static void gdb_sighandler(int sig, siginfo_t *info)
 
 void register_trace_signal_handlers(void)
 {
-#ifndef NO_STACK_TRACE
+#if defined __MINGW32__
+
+   SetUnhandledExceptionFilter(win32_exception_handler);
+
+#elif !defined NO_STACK_TRACE
    if (is_debugger_running())
       return;
 
