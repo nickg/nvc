@@ -730,20 +730,18 @@ static int dump_cmd(int argc, char **argv)
       }
    }
 
-   if (optind == next_cmd)
-      fatal("missing unit name");
+   set_top_level(argv, next_cmd);
 
-   for (int i = optind; i < next_cmd; i++) {
-      ident_t name = to_unit_name(argv[i]);
-      if (add_elab)
-         name = ident_prefix(name, ident_new("elab"), '.');
-      else if (add_body)
-         name = ident_prefix(name, ident_new("body"), '-');
-      tree_t top = lib_get(lib_work(), name);
-      if (top == NULL)
-         fatal("%s not analysed", istr(name));
-      (nets ? dump_nets : dump)(top);
-   }
+   ident_t name = top_level;
+   if (add_elab)
+      name = ident_prefix(name, ident_new("elab"), '.');
+   else if (add_body)
+      name = ident_prefix(name, ident_new("body"), '-');
+
+   tree_t top = lib_get(lib_work(), name);
+   if (top == NULL)
+      fatal("%s not analysed", istr(name));
+   (nets ? dump_nets : dump)(top);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
