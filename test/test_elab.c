@@ -99,6 +99,8 @@ START_TEST(test_comp)
 
    const error_t expect[] = {
       { 55, "port Y not found in entity WORK.E2" },
+      { 77, "while elaborating instance E2_1 here"},
+      { 14, "entity WORK.E2 declared here" },
       { 62, "type of port X in component declaration E3 is STD.STANDARD.BIT" },
       { -1, NULL }
    };
