@@ -1520,7 +1520,8 @@ static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
 
    elab_push_scope(unit, ctx);
 
-   rewrite_item_t *rwitems LOCAL = xmalloc(sizeof(rewrite_params_t));
+   rewrite_item_t *rwitems LOCAL = xmalloc(sizeof(rewrite_item_t) * nsignals);
+   int count = 0;
 
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(unit, i);
@@ -1537,14 +1538,15 @@ static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
       tree_set_ident(d, new_name);
       tree_add_attr_str(d, inst_name_i, new_name);
 
-      rwitems[i].kind   = RW_IDENT;
-      rwitems[i].name   = orig_name;
-      rwitems[i].actual = d;
+      rwitems[count].kind   = RW_IDENT;
+      rwitems[count].name   = orig_name;
+      rwitems[count].actual = d;
+      count++;
    }
 
    rewrite_params_t params = {
       .items = rwitems,
-      .count = nsignals
+      .count = count
    };
    tree_rewrite(ctx->out, rewrite_refs, &params);
 
