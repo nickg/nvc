@@ -139,8 +139,15 @@ void *jit_var_ptr(const char *name, bool required)
    void *ptr = NULL;
 
 #if LLVM_HAS_ORC
-   if (orc_ref != NULL)
+   if (orc_ref != NULL) {
+#if LLVM_NEW_ORC_API
+      LLVMOrcTargetAddress ret;
+      if (LLVMOrcGetSymbolAddress(orc_ref, &ret, name) == LLVMOrcErrSuccess)
+         ptr = (void *)ret;
+#else
       ptr = (void *)(uintptr_t)LLVMOrcGetSymbolAddress(orc_ref, name);
+#endif
+   }
 #else
    if (exec_engine != NULL)
       ptr = (void *)(uintptr_t)LLVMGetGlobalValueAddress(exec_engine, name);
@@ -253,7 +260,18 @@ static void jit_load_module(ident_t name, LLVMModuleRef module)
          orc_ref = LLVMOrcCreateInstance(tm_ref);
       }
 
+#if LLVM_NEW_ORC_API
+      LLVMSharedModuleRef shared_module = LLVMOrcMakeSharedModule(module);
+
+      LLVMOrcModuleHandle ret_handle;
+      LLVMOrcErrorCode error =
+         LLVMOrcAddLazilyCompiledIR(orc_ref, &ret_handle, shared_module,
+                                    jit_orc_sym_resolver, NULL);
+      if (error != LLVMOrcErrSuccess)
+         fatal_trace("LLVMOrcAddLazilyCompiledIR");
+#else
       LLVMOrcAddLazilyCompiledIR(orc_ref, module, jit_orc_sym_resolver, NULL);
+#endif
 
 #else
 

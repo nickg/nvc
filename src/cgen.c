@@ -1236,7 +1236,8 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
 
       elems_glob = LLVMAddGlobal(module, array_type, istr(elems_name));
       LLVMSetGlobalConstant(elems_glob, true);
-      LLVMSetLinkage(elems_glob, LLVMLinkOnceAnyLinkage);
+      LLVMSetLinkage(elems_glob, LLVMPrivateLinkage);
+      LLVMSetUnnamedAddr(elems_glob, true);
 
       char *strings LOCAL = xmalloc(total_chars);
       for (size_t i = 0; i < map.nelems; i++) {
