@@ -30,6 +30,7 @@
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include <llvm-c/Core.h>
 #include <llvm-c/BitReader.h>
@@ -39,6 +40,12 @@
 #include <llvm-c/OrcBindings.h>
 #endif
 
+#ifdef HAVE_EXECINFO_H
+#include <execinfo.h>
+#endif
+
+#define TRACE_MAX 10
+
 typedef struct module module_t;
 
 #if LLVM_HAS_ORC
@@ -46,7 +53,6 @@ static LLVMOrcJITStackRef orc_ref = NULL;
 #else
 static LLVMExecutionEngineRef exec_engine = NULL;
 #endif
-
 
 static void *jit_search_loaded_syms(const char *name, bool required)
 {
@@ -259,5 +265,93 @@ void jit_shutdown(void)
 #else
    if (exec_engine != NULL)
       LLVMDisposeExecutionEngine(exec_engine);
+#endif
+}
+
+void jit_trace(jit_trace_t **trace, size_t *count)
+{
+#ifdef HAVE_EXECINFO_H
+
+   void *frames[TRACE_MAX];
+   char **messages = NULL;
+   int trace_size = 0;
+
+   trace_size = backtrace(frames, TRACE_MAX);
+   messages = backtrace_symbols(frames, trace_size);
+
+   *count = 0;
+   *trace = xcalloc(sizeof(jit_trace_t) * trace_size);
+
+   for (int i = 0; i < trace_size; i++) {
+      // This hack only works for native compiled code
+      char *begin = strchr(messages[i], '(');
+      char *end = strchr(messages[i], '+');
+
+      if (begin == NULL || end == NULL)
+         continue;
+
+      *end = '\0';
+
+      bool maybe_vhdl = false;
+      for (const char *p = begin + 1; maybe_vhdl && *p != '\0'; p++) {
+         if (isupper((int)*p) || isdigit((int)*p) || *p == '_') {
+            maybe_vhdl = true;
+            continue;
+         }
+         else if (*p == '.') {
+            maybe_vhdl = p > begin + 1;
+            break;
+         }
+         else
+            maybe_vhdl = false;
+      }
+
+      if (!maybe_vhdl)
+         continue;
+
+      printf("%s\n", begin+1);
+      ident_t mangled = ident_new(begin + 1);
+      ident_t lib_name = ident_until(mangled, '.');
+
+      lib_t lib = lib_find(lib_name, false);
+      if (lib == NULL)
+         continue;
+
+      ident_t decl_name = ident_until(mangled, '$');
+
+      ident_t unit_name = ident_runtil(decl_name, '.');
+      tree_t unit = lib_get(lib, unit_name);
+      if (unit == NULL)
+         continue;
+
+      if (tree_kind(unit) == T_PACKAGE) {
+         unit = lib_get(lib, ident_prefix(unit_name, ident_new("body"), '-'));
+         if (unit == NULL)
+            continue;
+      }
+
+      tree_t best = NULL;
+      const int ndecls = tree_decls(unit);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = tree_decl(unit, i);
+         if (tree_attr_str(d, mangled_i) == mangled)
+            best = d;
+         else if (tree_ident(d) == decl_name && best == NULL)
+            best = d;
+      }
+
+      if (best == NULL)
+         continue;
+
+      (*trace)[*count].loc = *tree_loc(best);
+      (*trace)[*count].tree = best;
+      (*count)++;
+   }
+
+   free(messages);
+
+#else
+   *count = 0;
+   *trace = NULL;
 #endif
 }

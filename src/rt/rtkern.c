@@ -369,6 +369,19 @@ static void from_rt_loc(const rt_loc_t *rt, loc_t *loc)
    loc->linebuf = NULL;
 }
 
+static void rt_show_trace(void)
+{
+   jit_trace_t *trace;
+   size_t count;
+   jit_trace(&trace, &count);
+
+   for (size_t i = 0; i < count; i++)
+      note_at(&(trace[i].loc), "in subprogram %s",
+              istr(tree_ident(trace[i].tree)));
+
+   free(trace);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -630,6 +643,8 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       return;
    }
 
+   rt_show_trace();
+
    loc_t loc;
    from_rt_loc(where, &loc);
 
@@ -657,6 +672,8 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
 void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
                   rt_loc_t *where, const char *hint)
 {
+   rt_show_trace();
+
    loc_t loc;
    from_rt_loc(where, &loc);
 
