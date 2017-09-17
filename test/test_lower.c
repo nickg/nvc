@@ -2411,6 +2411,9 @@ START_TEST(test_tag)
    EXPECT_BB(0) = {
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_SET_INITIAL },
+      { VCODE_OP_NEEDS_LAST_VALUE, .name = ":work:p:s" },
+      { VCODE_OP_RESOLVED_ADDRESS, .name = ":work:p:s" },
+      { VCODE_OP_SET_INITIAL },
       { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:p" },
       { VCODE_OP_SET_INITIAL },
       { VCODE_OP_NEEDS_LAST_VALUE, .name = ":tag:x" },
@@ -2419,9 +2422,6 @@ START_TEST(test_tag)
       { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:y" },
       { VCODE_OP_NEEDS_LAST_VALUE, .name = ":tag:sub_i:i" },
       { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:sub_i:i" },
-      { VCODE_OP_SET_INITIAL },
-      { VCODE_OP_NEEDS_LAST_VALUE, .name = ":work:p:s" },
-      { VCODE_OP_RESOLVED_ADDRESS, .name = ":work:p:s" },
       { VCODE_OP_RETURN },
    };
 

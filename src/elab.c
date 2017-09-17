@@ -39,9 +39,17 @@ typedef struct {
 } elab_ctx_t;
 
 typedef struct {
-   const tree_t *formals;
-   const tree_t *actuals;
-   int           count;
+   enum { RW_TREE, RW_IDENT } kind;
+   union {
+      tree_t  formal;
+      ident_t name;
+   };
+   tree_t actual;
+} rewrite_item_t;
+
+typedef struct {
+   rewrite_item_t *items;
+   int count;
 } rewrite_params_t;
 
 typedef struct map_list {
@@ -79,6 +87,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_copy_context(tree_t src, const elab_ctx_t *ctx);
+static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx);
 
 static int errors = 0;
 
@@ -210,18 +219,23 @@ static tree_t rewrite_refs(tree_t t, void *context)
    tree_t decl = tree_ref(t);
 
    for (int i = 0; i < params->count; i++) {
-      if (decl != params->formals[i])
+      if (params->items[i].kind == RW_TREE) {
+         if (decl != params->items[i].formal)
+            continue;
+
+         // Do not rewrite references if they appear as formal names
+         if (tree_attr_int(t, formal_i, 0))
+            continue;
+      }
+      else if (params->items[i].kind == RW_IDENT
+               && tree_ident(decl) != params->items[i].name)
          continue;
 
-      // Do not rewrite references if they appear as formal names
-      if (tree_attr_int(t, formal_i, 0))
-         continue;
-
-      switch (tree_kind(params->actuals[i])) {
+      switch (tree_kind(params->items[i].actual)) {
       case T_SIGNAL_DECL:
       case T_ENUM_LIT:
-         tree_set_ref(t, params->actuals[i]);
-         tree_set_type(t, tree_type(params->actuals[i]));
+         tree_set_ref(t, params->items[i].actual);
+         tree_set_type(t, tree_type(params->items[i].actual));
          return t;
       case T_LITERAL:
       case T_AGGREGATE:
@@ -232,14 +246,14 @@ static tree_t rewrite_refs(tree_t t, void *context)
       case T_CONCAT:
       case T_RECORD_REF:
       case T_OPEN:
-         return params->actuals[i];
+         return params->items[i].actual;
       case T_TYPE_CONV:
          // XXX: this only works in trivial cases
-         return tree_value(tree_param(params->actuals[i], 0));
+         return tree_value(tree_param(params->items[i].actual, 0));
       default:
-         fatal_at(tree_loc(params->actuals[i]), "cannot handle tree kind %s "
-                  "in rewrite_refs",
-                  tree_kind_str(tree_kind(params->actuals[i])));
+         fatal_at(tree_loc(params->items[i].actual), "cannot handle tree kind "
+                  "%s in rewrite_refs",
+                  tree_kind_str(tree_kind(params->items[i].actual)));
       }
    }
 
@@ -300,6 +314,7 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
 
    if (tree_kind(unit) == T_PACKAGE) {
       elab_copy_context(unit, ctx);
+      elab_package_signals(unit, ctx);
 
       ident_t name = tree_ident(unit);
 
@@ -307,6 +322,7 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
       tree_t body = lib_get(lib, body_i);
       if (body != NULL) {
          elab_copy_context(body, ctx);
+         elab_package_signals(unit, ctx);
 
          tree_t u = tree_new(T_USE);
          tree_set_ident(u, tree_ident(body));
@@ -524,15 +540,14 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
    const int nformals = tree_Fs(unit);
    const int nactuals = (tree_As != NULL) ? tree_As(t) : 0;
 
-   bool *have_formals = xmalloc(sizeof(bool) * nformals);
+   bool *have_formals LOCAL = xmalloc(sizeof(bool) * nformals);
 
    for (int i = 0; i < nformals; i++)
       have_formals[i] = false;
 
    const int maxr = nformals + nactuals;
 
-   tree_t *rformals = xmalloc(sizeof(tree_t) * maxr);
-   tree_t *ractuals = xmalloc(sizeof(tree_t) * maxr);
+   rewrite_item_t *rwitems LOCAL = xcalloc(sizeof(rewrite_item_t) * maxr);
    int count = 0;
 
    map_list_t *maps = NULL;
@@ -569,18 +584,19 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
 
       switch (tree_class(formal)) {
       case C_SIGNAL:
-         ractuals[count] = elab_signal_port(arch, formal, p, &maps);
+         rwitems[count].actual = elab_signal_port(arch, formal, p, &maps);
          break;
 
       case C_CONSTANT:
-         ractuals[count] = tree_value(p);
+         rwitems[count].actual = tree_value(p);
          break;
 
       default:
          assert(false);
       }
 
-      rformals[count] = formal;
+      rwitems[count].kind = RW_TREE;
+      rwitems[count].formal = formal;
       count++;
    }
 
@@ -589,8 +605,9 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
       if (!have_formals[i]) {
          tree_t f = tree_F(unit, i);
          if (tree_has_value(f)) {
-            rformals[count] = f;
-            ractuals[count] = tree_value(f);
+            rwitems[count].kind = RW_TREE;
+            rwitems[count].formal = f;
+            rwitems[count].actual = tree_value(f);
             count++;
          }
       }
@@ -600,9 +617,8 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
 
    if (count > 0) {
       rewrite_params_t params = {
-         .formals = rformals,
-         .actuals = ractuals,
-         .count   = count
+         .items = rwitems,
+         .count = count
       };
       tree_rewrite(arch, rewrite_refs, &params);
 
@@ -610,10 +626,6 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
       if (tree_stmts(ent) > 0 || tree_decls(ent) > 0)
          tree_rewrite(ent, rewrite_refs, &params);
    }
-
-   free(have_formals);
-   free(rformals);
-   free(ractuals);
 
    return maps;
 }
@@ -1201,13 +1213,16 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
 
       tree_t genvar = tree_ref(copy);
 
-      tree_t formals[1] = { genvar };
-      tree_t actuals[1] = { get_int_lit(genvar, i) };
+      rewrite_item_t rwitems[1] = {
+         { .kind = RW_TREE,
+           .formal = genvar,
+           .actual = get_int_lit(genvar, i)
+         }
+      };
 
       rewrite_params_t params = {
-         .formals = formals,
-         .actuals = actuals,
-         .count   = 1
+         .items = rwitems,
+         .count = 1
       };
       tree_rewrite(copy, rewrite_refs, &params);
       simplify(copy, EVAL_LOWER);
@@ -1353,7 +1368,7 @@ static void elab_top_level_ports(tree_t arch, const elab_ctx_t *ctx)
 
    // Replace top-level ports with signals that can be driven from VHPI
 
-   tree_t rformals[nports], ractuals[nports];
+   rewrite_item_t rwitems[nports];
 
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(ent, i);
@@ -1376,14 +1391,14 @@ static void elab_top_level_ports(tree_t arch, const elab_ctx_t *ctx)
 
       tree_add_decl(arch, s);
 
-      rformals[i] = p;
-      ractuals[i] = s;
+      rwitems[i].kind = RW_TREE;
+      rwitems[i].formal = p;
+      rwitems[i].actual = s;
    }
 
    rewrite_params_t params = {
-      .formals = rformals,
-      .actuals = ractuals,
-      .count   = nports
+      .items = rwitems,
+      .count = nports
    };
 
    tree_rewrite(arch, rewrite_refs, &params);
@@ -1486,28 +1501,9 @@ static void elab_entity_arch(tree_t t, tree_t arch, const elab_ctx_t *ctx)
    elab_arch(arch, &new_ctx);
 }
 
-static tree_t rewrite_package_signals(tree_t t, void *ctx)
-{
-   tree_t decl = ctx;
-
-   if (tree_kind(t) != T_REF)
-      return t;
-
-   tree_t ref = tree_ref(t);
-
-   if (tree_kind(ref) != T_SIGNAL_DECL)
-      return t;
-
-   if (tree_ident(ref) != tree_ident(decl))
-      return t;
-
-   tree_set_ref(t, decl);
-   return t;
-}
-
 static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
 {
-   bool have_signals = false;
+   int nsignals = 0;
    const int ndecls = tree_decls(unit);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(unit, i);
@@ -1515,51 +1511,44 @@ static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
          continue;
       else if (tree_nets(d) > 0)
          continue;
+      else
+         nsignals++;
+   }
 
-      if (!have_signals) {
-         elab_push_scope(unit, ctx);
-         have_signals = true;
-      }
+   if (nsignals == 0)
+      return;
+
+   elab_push_scope(unit, ctx);
+
+   rewrite_item_t *rwitems LOCAL = xmalloc(sizeof(rewrite_params_t));
+
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(unit, i);
+      if (tree_kind(d) != T_SIGNAL_DECL)
+         continue;
+      else if (tree_nets(d) > 0)
+         continue;
 
       elab_signal_nets(d, ctx);
-
-      tree_rewrite(ctx->out, rewrite_package_signals, d);
-
       tree_add_decl(ctx->out, d);
 
-      ident_t i = ident_new(package_signal_path_name(tree_ident(d)));
-      tree_set_ident(d, i);
-      tree_add_attr_str(d, inst_name_i, i);
+      ident_t orig_name = tree_ident(d);
+      ident_t new_name = ident_new(package_signal_path_name(orig_name));
+      tree_set_ident(d, new_name);
+      tree_add_attr_str(d, inst_name_i, new_name);
+
+      rwitems[i].kind   = RW_IDENT;
+      rwitems[i].name   = orig_name;
+      rwitems[i].actual = d;
    }
 
-   if (have_signals)
-      elab_pop_scope(ctx);
-}
+   rewrite_params_t params = {
+      .items = rwitems,
+      .count = nsignals
+   };
+   tree_rewrite(ctx->out, rewrite_refs, &params);
 
-static void elab_context_signals(const elab_ctx_t *ctx)
-{
-   const int nctx = tree_contexts(ctx->out);
-   for (int i = 0; i < nctx; i++) {
-      tree_t c = tree_context(ctx->out, i);
-      if (tree_kind(c) != T_USE)
-         continue;
-
-      ident_t name = tree_ident(c);
-      lib_t lib = elab_find_lib(name, ctx);
-
-      tree_t pack = lib_get_check_stale(lib, name);
-      if ((pack == NULL) || (tree_kind(pack) != T_PACKAGE))
-         continue;
-
-      elab_package_signals(pack, ctx);
-
-      ident_t body_i = ident_prefix(name, ident_new("body"), '-');
-      tree_t body = lib_get_check_stale(lib, body_i);
-      if (body == NULL)
-         continue;
-
-      elab_package_signals(body, ctx);
-   }
+   elab_pop_scope(ctx);
 }
 
 void elab_set_generic(const char *name, const char *value)
@@ -1608,8 +1597,6 @@ tree_t elab(tree_t top)
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
-
-   elab_context_signals(&ctx);
 
    if (errors > 0 || eval_errors() > 0)
       return NULL;
