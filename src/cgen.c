@@ -65,7 +65,8 @@ DECLARE_AND_DEFINE_ARRAY(size_list)
 typedef enum {
    FUNC_ATTR_NOUNWIND,
    FUNC_ATTR_NORETURN,
-   FUNC_ATTR_READONLY
+   FUNC_ATTR_READONLY,
+   FUNC_ATTR_DLLEXPORT
 } func_attr_t;
 
 static LLVMModuleRef  module = NULL;
@@ -201,6 +202,13 @@ static void debug_dump(LLVMValueRef ptr, LLVMValueRef len)
 
 static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr)
 {
+   if (attr == FUNC_ATTR_DLLEXPORT) {
+#ifdef IMPLIB_REQUIRED
+      LLVMSetDLLStorageClass(fn, LLVMDLLExportStorageClass);
+#endif
+      return;
+   }
+
 #if LLVM_NEW_ATTRIBUTE_API
    const char *names[] = {
       "nounwind", "noreturn", "readonly"
@@ -2922,12 +2930,11 @@ static void cgen_function(LLVMTypeRef display_type)
    assert(vcode_unit_kind() == VCODE_UNIT_FUNCTION);
 
    LLVMValueRef fn = LLVMGetNamedFunction(module, istr(vcode_unit_name()));
-   if (fn == NULL) {
+   if (fn == NULL)
       fn = LLVMAddFunction(module, istr(vcode_unit_name()),
                            cgen_subprogram_type(display_type, false));
-      LLVMSetDLLStorageClass(fn, LLVMDLLExportStorageClass);
-   }
 
+   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
    cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
 
    const bool pure =
@@ -3108,7 +3115,7 @@ static void cgen_process(vcode_unit_t code)
    LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), pargs, 1, false);
    LLVMValueRef fn = LLVMAddFunction(module, istr(vcode_unit_name()), ftype);
    cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
-   LLVMSetDLLStorageClass(fn, LLVMDLLExportStorageClass);
+   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMBasicBlockRef reset_bb = LLVMAppendBasicBlock(fn, "reset");
@@ -3199,7 +3206,7 @@ static void cgen_reset_function(tree_t top)
    LLVMValueRef fn =
       LLVMAddFunction(module, name,
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
-   LLVMSetDLLStorageClass(fn, LLVMDLLExportStorageClass);
+   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
 
    LLVMBasicBlockRef init_bb = NULL;
 
@@ -3306,11 +3313,15 @@ static void cgen_shared_variables(void)
       LLVMValueRef global = LLVMAddGlobal(module, type,
                                           istr(vcode_var_name(var)));
       if (vcode_var_extern(var)) {
+#ifdef IMPLIB_REQUIRED
          LLVMSetDLLStorageClass(global, LLVMDLLImportStorageClass);
+#endif
          LLVMSetLinkage(global, LLVMExternalLinkage);
       }
       else {
+#ifdef IMPLIB_REQUIRED
          LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
+#endif
          LLVMSetInitializer(global, LLVMConstNull(type));
       }
    }
