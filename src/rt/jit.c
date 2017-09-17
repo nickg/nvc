@@ -293,7 +293,7 @@ void jit_trace(jit_trace_t **trace, size_t *count)
       *end = '\0';
 
       bool maybe_vhdl = false;
-      for (const char *p = begin + 1; maybe_vhdl && *p != '\0'; p++) {
+      for (const char *p = begin + 1; *p != '\0'; p++) {
          if (isupper((int)*p) || isdigit((int)*p) || *p == '_') {
             maybe_vhdl = true;
             continue;
@@ -302,14 +302,15 @@ void jit_trace(jit_trace_t **trace, size_t *count)
             maybe_vhdl = p > begin + 1;
             break;
          }
-         else
+         else {
             maybe_vhdl = false;
+            break;
+         }
       }
 
       if (!maybe_vhdl)
          continue;
 
-      printf("%s\n", begin+1);
       ident_t mangled = ident_new(begin + 1);
       ident_t lib_name = ident_until(mangled, '.');
 

@@ -2776,8 +2776,15 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          const int dim = lower_get_attr_dimension(expr);
 
          type_t type = tree_type(name);
+
+         if (tree_kind(name) == T_REF) {
+            tree_t decl = tree_ref(name);
+            if (tree_kind(decl) == T_TYPE_DECL && type_is_unconstrained(type))
+               type = type_index_constr(type, dim);
+         }
+
          vcode_reg_t reg = VCODE_INVALID_REG;
-         if (lower_const_bounds(type)) {
+         if (!type_is_array(type) || lower_const_bounds(type)) {
             range_t r = type_dim(type, dim);
             if (low)
                reg = lower_reify_expr(r.kind == RANGE_TO ? r.left : r.right);

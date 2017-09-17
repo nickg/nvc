@@ -490,7 +490,7 @@ START_TEST(test_seq)
       { 136, "case choice must be locally static" },
       { 139, "invalid use of BIT" },
       { 146, "type mismatch in range" },
-      { 150, "case choice range must have type INTEGER" },
+      { 150, "expected type of range bound to be STD.STANDARD.INTEGER but is" },
       { 154, "right index of case choice range is not locally static" },
       { 164, "type of exit condition must be BOOLEAN" },
       { 179, "actual for formal Y with class VARIABLE must be" },
@@ -813,6 +813,7 @@ START_TEST(test_subtype)
    input_from_file(TESTDIR "/sem/subtype.vhd");
 
    const error_t expect[] = {
+      {  9, "expected type of range bound to be STD.STANDARD.INTEGER but is" },
       { 16, "undefined resolution function NOT_HERE" },
       { -1, NULL }
    };

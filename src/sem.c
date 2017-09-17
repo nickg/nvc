@@ -1425,6 +1425,14 @@ static bool sem_check_range(range_t *r, type_t context)
          tree_set_type(r->right, std_int);
       }
    }
+   else {
+      if (!type_eq(left_type, context))
+         sem_error(r->left, "expected type of range bound to be %s but is %s",
+                   type_pp(context), type_pp(left_type));
+
+      tree_set_type(r->left, context);
+      tree_set_type(r->right, context);
+   }
 
    return true;
 }

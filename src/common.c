@@ -732,7 +732,7 @@ type_t index_type_of(type_t type, int dim)
 
       // If the left bound has not been assigned a type then there is some
       // error with it so just return a dummy type here
-      return tree_has_type(left) ? tree_type(left) : type;
+      return tree_has_type(left) ? tree_type(left) : type_new(T_NONE);
    }
 }
 
