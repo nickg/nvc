@@ -766,6 +766,8 @@ static void print_trace(char **messages, int trace_size)
 }
 #endif  // HAVE_EXECINFO_H
 
+#ifdef __MINGW32__
+
 #ifdef __WIN64
 static void win64_stacktrace(PCONTEXT context)
 {
@@ -816,6 +818,7 @@ static void win64_stacktrace(PCONTEXT context)
 
    SymCleanup(hProcess);
 }
+#endif  // __WIN64
 
 static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
 {
@@ -886,7 +889,8 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
 
   return EXCEPTION_EXECUTE_HANDLER;
 }
-#endif
+
+#endif  // __MINGW32__
 
 void show_stacktrace(void)
 {
@@ -920,10 +924,8 @@ static const char *signame(int sig)
    case SIGABRT: return "SIGABRT";
    case SIGILL: return "SIGILL";
    case SIGFPE: return "SIGFPE";
-#ifndef __MINGW32__
    case SIGUSR1: return "SIGUSR1";
    case SIGBUS: return "SIGBUS";
-#endif
    default: return "???";
    }
 }

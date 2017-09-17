@@ -174,7 +174,7 @@ esac
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$cc_bare"], [System compiler])
 
 case $host_os in
-  msys*|mingw32*)
+  msys*|mingw32*|*cygwin*)
     native_default=no
     ;;
   *)
