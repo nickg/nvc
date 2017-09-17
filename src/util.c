@@ -62,7 +62,7 @@
 #endif
 
 #ifdef __CYGWIN__
-#include <procesS.h>
+#include <process.h>
 #endif
 
 #if defined(HAVE_UCONTEXT_H)
@@ -1533,14 +1533,16 @@ void run_program(const char *const *args, size_t n_args)
 void file_read_lock(int fd)
 {
 #ifdef __MINGW32__
-   HANDLE hf;
+   HANDLE hf = (HANDLE)_get_osfhandle(fd);
+
    LARGE_INTEGER li;
+   li.QuadPart = _filelengthi64(fd);
+
    OVERLAPPED ovlp;
-   hf = (HANDLE) _get_osfhandle (fd);
-   li.QuadPart = _filelengthi64 (fd);
    memset(&ovlp, 0, sizeof ovlp);
-   if (!LockFileEx (hf, 0, 0, li.LowPart, li.HighPart, &ovlp))
-         fatal_errno("LockFileEx");
+
+   if (!LockFileEx(hf, 0, 0, li.LowPart, li.HighPart, &ovlp))
+      fatal_errno("LockFileEx");
 #else
    if (flock(fd, LOCK_SH) < 0)
       fatal_errno("flock");
@@ -1550,14 +1552,17 @@ void file_read_lock(int fd)
 void file_write_lock(int fd)
 {
 #ifdef __MINGW32__
-   HANDLE hf;
+   HANDLE hf = (HANDLE)_get_osfhandle(fd);
+
    LARGE_INTEGER li;
+   li.QuadPart = _filelengthi64(fd);
+
    OVERLAPPED ovlp;
-   hf = (HANDLE) _get_osfhandle (fd);
-   li.QuadPart = _filelengthi64 (fd);
    memset(&ovlp, 0, sizeof ovlp);
-   if (!LockFileEx (hf, LOCKFILE_EXCLUSIVE_LOCK, 0, li.LowPart, li.HighPart, &ovlp))
-         fatal_errno("LockFileEx");
+
+   if (!LockFileEx(hf, LOCKFILE_EXCLUSIVE_LOCK, 0,
+                   li.LowPart, li.HighPart, &ovlp))
+      fatal_errno("LockFileEx");
 #else
    if (flock(fd, LOCK_EX) < 0)
       fatal_errno("flock");
@@ -1567,11 +1572,12 @@ void file_write_lock(int fd)
 void file_unlock(int fd)
 {
 #ifdef __MINGW32__
-   HANDLE hf;
+   HANDLE hf = (HANDLE)_get_osfhandle(fd);
+
    LARGE_INTEGER li;
-   hf = (HANDLE) _get_osfhandle (fd);
    li.QuadPart = _filelengthi64 (fd);
-   UnlockFile (hf, 0, 0, li.LowPart, li.HighPart);
+
+   UnlockFile(hf, 0, 0, li.LowPart, li.HighPart);
 #else
    if (flock(fd, LOCK_UN) < 0)
       fatal_errno("flock");

@@ -101,6 +101,8 @@ static void *jit_search_loaded_syms(const char *name, bool required)
 
    return NULL;
 
+#else  // __MINGW32__
+
    dlerror();   // Clear any previous error
 
    void *sym = dlsym(NULL, name);

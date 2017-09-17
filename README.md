@@ -93,7 +93,7 @@ If you do not already have Cygwin it is easiest to build for MinGW using
 [MSYS2](https://msys2.github.io/). Install the following dependencies using
 `pacman`. For 64-bit MSYS2 replace `i686` below with `x86_64`.
 
-    pacman -S base-devel mingw-w64-i686-{llvm,ncurses,libffi,dlfcn,check,pkg-config}
+    pacman -S base-devel mingw-w64-i686-{llvm,ncurses,libffi,check,pkg-config}
     export PATH=/mingw32/bin:$PATH     # Or mingw64 for 64-bit
     mkdir build && cd build
     ../configure
