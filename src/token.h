@@ -155,6 +155,12 @@ typedef enum {
    tREVRANGE,
    tPROTECTED,
    tCONTEXT,
+   tCONDIF,
+   tCONDELSE,
+   tCONDELSIF,
+   tCONDEND,
+   tCONDERROR,
+   tCONDWARN
 } token_t;
 
 #endif

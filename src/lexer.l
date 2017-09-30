@@ -1,7 +1,7 @@
 /* -*- mode: c; c-basic-offset: 3 -*- */
 
 /*
- *  Copyright (C) 2011-2015  Nick Gasson
+ *  Copyright (C) 2011-2017  Nick Gasson
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -184,6 +184,8 @@ GUARDED       ?i:guarded
 REVRANGE      ?i:reverse_range
 PROTECTED     ?i:protected
 CONTEXT       ?i:context
+ERROR         ?i:error
+WARNING       ?i:warning
 
 %%
 
@@ -287,6 +289,12 @@ CONTEXT       ?i:context
 {REVRANGE}      { TOKEN(tREVRANGE); }
 {PROTECTED}     { TOKEN_00(tPROTECTED); }
 {CONTEXT}       { TOKEN_08(tCONTEXT); }
+`{IF}           { TOKEN(tCONDIF); }
+`{ELSE}         { TOKEN(tCONDELSE); }
+`{ELSIF}        { TOKEN(tCONDELSIF); }
+`{END}          { TOKEN(tCONDEND); }
+`{ERROR}        { TOKEN(tCONDERROR); }
+`{WARNING}      { TOKEN(tCONDWARN); }
 
 "("               { TOKEN(tLPAREN); }
 ")"               { TOKEN(tRPAREN); }

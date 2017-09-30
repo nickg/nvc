@@ -2656,6 +2656,35 @@ START_TEST(test_guarded)
 }
 END_TEST
 
+START_TEST(test_cond1)
+{
+   input_from_file(TESTDIR "/parse/cond1.vhd");
+
+   const error_t expect[] = {
+      { 10, "\"this is a warning\"" },
+      { 13, "\"Using nvc\"" },
+      { 21, "\"correct\"" },
+      { 25, "\"VHDL version is correct\"" },
+      { 32, "undefined conditional analysis identifier FOO" },
+      { 35, "unterminated conditional analysis block" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(tree_decls(p) == 1);
+   fail_unless(tree_ident(tree_decl(p, 0)) == ident_new("C"));
+
+   fail_if(parse() != NULL);
+   fail_unless(parse_errors() == 2);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -2697,6 +2726,7 @@ int main(void)
    tcase_add_test(tc_core, test_context);
    tcase_add_test(tc_core, test_issue222);
    tcase_add_test(tc_core, test_guarded);
+   tcase_add_test(tc_core, test_cond1);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
