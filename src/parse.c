@@ -5820,3 +5820,8 @@ int parse_errors(void)
 {
    return n_errors;
 }
+
+void reset_parse_errors(void)
+{
+   n_errors = 0;
+}

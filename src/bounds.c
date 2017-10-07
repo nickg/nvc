@@ -984,3 +984,8 @@ int bounds_errors(void)
 {
    return errors;
 }
+
+void reset_bounds_errors(void)
+{
+   errors = 0;
+}

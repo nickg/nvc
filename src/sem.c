@@ -7474,3 +7474,8 @@ int sem_errors(void)
 {
    return errors;
 }
+
+void reset_sem_errors(void)
+{
+   errors = 0;
+}

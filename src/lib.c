@@ -365,6 +365,11 @@ lib_t lib_tmp(const char *name)
 
 static void push_path(const char *path)
 {
+   for (search_path_t *it = search_paths; it != NULL; it = it->next) {
+      if (strcmp(it->path, path) == 0)
+         return;
+   }
+
    search_path_t *s = xmalloc(sizeof(search_path_t));
    s->next = search_paths;
    s->path = path;

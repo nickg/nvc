@@ -36,6 +36,7 @@ bool sem_check(tree_t t);
 
 // The number of errors found during the semantic check phase.
 int sem_errors(void);
+void reset_sem_errors(void);
 
 // The number of errors found while constant folding
 int eval_errors(void);
@@ -48,6 +49,7 @@ void bounds_check(tree_t top);
 
 // Number of errors found during bounds checking
 int bounds_errors(void);
+void reset_bounds_errors(void);
 
 // Evaluate a function call at compile time
 tree_t eval(tree_t fcall, eval_flags_t flags);
@@ -81,6 +83,7 @@ tree_t parse(void);
 
 // Number of errors found while parsing last unit
 int parse_errors(void);
+void reset_parse_errors(void);
 
 // Generate vcode for a design unit
 vcode_unit_t lower_unit(tree_t unit);

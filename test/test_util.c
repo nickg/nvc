@@ -48,6 +48,13 @@ static void setup(void)
    intern_strings();
 }
 
+static void setup_per_test(void)
+{
+   reset_bounds_errors();
+   reset_sem_errors();
+   reset_parse_errors();
+}
+
 static void teardown(void)
 {
    lib_free(lib_work());
@@ -55,8 +62,13 @@ static void teardown(void)
 
 void expect_errors(const error_t *lines)
 {
+#ifdef __MINGW32__
+   if (orig_error_fn == NULL)
+      orig_error_fn = set_error_fn(test_error_fn, false);
+#else
    fail_unless(orig_error_fn == NULL);
    orig_error_fn = set_error_fn(test_error_fn, false);
+#endif
    error_lines = lines;
 }
 
@@ -69,6 +81,7 @@ TCase *nvc_unit_test(void)
 
    TCase *tc_core = tcase_create("Core");
    tcase_add_unchecked_fixture(tc_core, setup, teardown);
+   tcase_add_checked_fixture(tc_core, setup_per_test, NULL);
    return tc_core;
 }
 
