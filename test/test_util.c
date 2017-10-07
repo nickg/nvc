@@ -53,6 +53,8 @@ static void setup_per_test(void)
    reset_bounds_errors();
    reset_sem_errors();
    reset_parse_errors();
+
+   set_standard(STD_93);
 }
 
 static void teardown(void)

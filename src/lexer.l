@@ -412,19 +412,20 @@ static int parse_decimal_literal (const char *str)
 {
    int tok = tERROR;
    /* Copy of input text */
-   char *tmp = xstrdup(str);
+   char *tmp LOCAL = xstrdup(str);
    /* Stripping '_' character */
    strip_underscores(tmp);
 
    /* Find first occurences of '.' */
-   char *dot  = strpbrk(tmp, ".");
-   char *sign = strpbrk(tmp, "-");
-   /* Find first occurences of 'e' or 'E' */
-   char *val  = strtok(tmp, "eE");
-   char *exp  = strtok(NULL, "eE");
+   char *dot = strpbrk(tmp, ".");
 
    /* Integer literals */
    if (dot == NULL) {
+      /* Find first occurences of 'e' or 'E' */
+      char *sign = strpbrk(tmp, "-");
+      char *val  = strtok(tmp, "eE");
+      char *exp  = strtok(NULL, "eE");
+
       /* String to long long */
       yylval.n = atoll(val);
 
@@ -441,19 +442,9 @@ static int parse_decimal_literal (const char *str)
    }
    else {
       /* String to double */
-      yylval.d = strtod(val, NULL);
-
-      /* String to long long (atoll function manages the sign) */
-      long long int e = (exp ? atoll(exp) : 0);
-
-      if (e != 0)
-         yylval.d *= pow(10.0, (double)e);
-
+      yylval.d = strtod(tmp, NULL);
       tok = tREAL;
    }
-
-   /* Deleting local allocation */
-   free(tmp);
 
    TOKEN(tok);
 }
