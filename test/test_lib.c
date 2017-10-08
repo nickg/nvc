@@ -9,10 +9,19 @@
 #include <string.h>
 
 static lib_t work;
+static const char *tmp;
 
 static void setup(void)
 {
-   work = lib_new("test_lib", "/tmp/test_lib");
+   tmp = getenv("ORIGINAL_TEMP");
+   if (tmp == NULL) {
+      tmp = getenv("TEMP");
+      if (tmp == NULL)
+         tmp = "/tmp";
+   }
+
+   char *path LOCAL = xasprintf("%s" PATH_SEP "test_lib", tmp);
+   work = lib_new("test_lib", path);
    fail_if(work == NULL);
 }
 
@@ -79,7 +88,7 @@ START_TEST(test_lib_fopen)
 
    lib_free(work);
 
-   lib_add_search_path("/tmp");
+   lib_add_search_path(tmp);
    work = lib_find(ident_new("test_lib"), false);
    fail_if(work == NULL);
 
@@ -180,7 +189,7 @@ START_TEST(test_lib_save)
    lib_save(work);
    lib_free(work);
 
-   lib_add_search_path("/tmp");
+   lib_add_search_path(tmp);
    work = lib_find(ident_new("test_lib"), false);
    fail_if(work == NULL);
 
@@ -266,7 +275,7 @@ int main(void)
    Suite *s = suite_create("lib");
 
    TCase *tc_core = tcase_create("Core");
-   tcase_add_unchecked_fixture(tc_core, setup, teardown);
+   tcase_add_checked_fixture(tc_core, setup, teardown);
    tcase_add_test(tc_core, test_lib_new);
    tcase_add_test(tc_core, test_lib_fopen);
    tcase_add_test(tc_core, test_lib_save);

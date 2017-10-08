@@ -539,7 +539,24 @@ void fatal_errno(const char *fmt, ...)
    fprintf(stderr, "** Fatal: ");
    set_attr(ANSI_RESET);
    vfprintf(stderr, fmt, ap);
+
+#ifdef __MINGW32__
+   LPSTR mbuf = NULL;
+   FormatMessage(
+      FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM
+      | FORMAT_MESSAGE_IGNORE_INSERTS,
+      NULL,
+      GetLastError(),
+      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+      (LPSTR)&mbuf, 0, NULL);
+
+   fprintf(stderr, ": %s", mbuf);
+   fflush(stderr);
+
+   LocalFree(mbuf);
+#else
    fprintf(stderr, ": %s\n", strerror(errno));
+#endif
 
    va_end(ap);
 

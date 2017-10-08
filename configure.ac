@@ -75,6 +75,16 @@ case $host_os in
     ;;
 esac
 
+case $host_os in
+  msys*|mingw32*)
+    PATH_SEP=\\\\
+    ;;
+  *)
+    PATH_SEP=/
+    ;;
+esac
+
+AC_DEFINE_UNQUOTED([PATH_SEP], ["$PATH_SEP"], [Path separator])
 AC_DEFINE_UNQUOTED([EXEEXT], ["$EXEEXT"], [Executable file extension])
 
 case $host_os in

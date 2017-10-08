@@ -123,7 +123,9 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    l->index   = NULL;
    l->lock_fd = lock_fd;
 
-   if (realpath(rpath, l->path) == NULL)
+   if (rpath == NULL)
+      l->path[0] = '\0';
+   else if (realpath(rpath, l->path) == NULL)
       strncpy(l->path, rpath, PATH_MAX);
 
    lib_list_t *el = xmalloc(sizeof(lib_list_t));
@@ -131,7 +133,7 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    el->next = loaded;
    loaded = el;
 
-   if (l->lock_fd == -1) {
+   if (l->lock_fd == -1 && rpath != NULL) {
       const char *lock_path = lib_file_path(l, "_NVC_LIB");
       if ((l->lock_fd = open(lock_path, O_RDONLY)) < 0)
          fatal_errno("lib_init: %s", lock_path);
@@ -161,7 +163,9 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
       fbuf_close(f);
    }
 
-   file_unlock(l->lock_fd);
+   if (l->lock_fd != -1)
+      file_unlock(l->lock_fd);
+
    return l;
 }
 
@@ -251,7 +255,7 @@ static lib_t lib_find_at(const char *name, const char *path, bool exact)
    }
 
    char marker[PATH_MAX];
-   snprintf(marker, sizeof(marker), "%s/_NVC_LIB", dir);
+   snprintf(marker, sizeof(marker), "%s" PATH_SEP "_NVC_LIB", dir);
    if (access(marker, F_OK) < 0)
       return NULL;
 
@@ -261,7 +265,7 @@ static lib_t lib_find_at(const char *name, const char *path, bool exact)
 static const char *lib_file_path(lib_t lib, const char *name)
 {
    static char buf[PATH_MAX];
-   snprintf(buf, sizeof(buf), "%s/%s", lib->path, name);
+   snprintf(buf, sizeof(buf), "%s" PATH_SEP "%s", lib->path, name);
    return buf;
 }
 
@@ -325,7 +329,7 @@ lib_t lib_new(const char *name, const char *path)
          fatal("invalid character '%c' in library name", *p);
    }
 
-   char *lockf LOCAL = xasprintf("%s/%s", path, "_NVC_LIB");
+   char *lockf LOCAL = xasprintf("%s" PATH_SEP "%s", path, "_NVC_LIB");
 
    struct stat buf;
    if (stat(path, &buf) == 0) {
@@ -360,7 +364,7 @@ lib_t lib_new(const char *name, const char *path)
 lib_t lib_tmp(const char *name)
 {
    // For unit tests, avoids creating files
-   return lib_init(name, "", 0);
+   return lib_init(name, NULL, -1);
 }
 
 static void push_path(const char *path)
@@ -470,12 +474,18 @@ FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
 fbuf_t *lib_fbuf_open(lib_t lib, const char *name, fbuf_mode_t mode)
 {
    assert(lib != NULL);
-   return fbuf_open(lib_file_path(lib, name), mode);
+   if (lib->path[0] == '\0')
+      return NULL;
+   else
+      return fbuf_open(lib_file_path(lib, name), mode);
 }
 
 void lib_free(lib_t lib)
 {
    assert(lib != NULL);
+
+   if (lib->lock_fd != -1)
+      close(lib->lock_fd);
 
    for (lib_list_t *it = loaded, *prev = NULL;
         it != NULL; loaded = it, it = it->next) {
@@ -501,6 +511,9 @@ void lib_destroy(lib_t lib)
    // files associated with a library
 
    assert(lib != NULL);
+
+   close(lib->lock_fd);
+   lib->lock_fd = -1;
 
    DIR *d = opendir(lib->path);
    if (d == NULL) {
@@ -588,6 +601,7 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    if (*(lib->path) == '\0')   // Temporary library
       return NULL;
 
+   assert(lib->lock_fd != -1);   // Should not be called in unit tests
    file_read_lock(lib->lock_fd);
 
    // Otherwise search in the filesystem
@@ -694,6 +708,7 @@ void lib_save(lib_t lib)
 {
    assert(lib != NULL);
 
+   assert(lib->lock_fd != -1);   // Should not be called in unit tests
    file_write_lock(lib->lock_fd);
 
    for (unsigned n = 0; n < lib->n_units; n++) {
