@@ -939,7 +939,7 @@ void _image(int64_t val, image_map_t *map, struct uarray *u)
             int64_t i;
          } u = { .i = val };
          buf = rt_tmp_alloc(32);
-         len = checked_sprintf(buf, 32, "%.*g", DBL_DIG + 3, u.d);
+         len = checked_sprintf(buf, 32, "%.*g", 15 + 3, u.d);
       }
       break;
 
