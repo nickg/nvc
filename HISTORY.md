@@ -1,4 +1,5 @@
 ## master
+- Initial support for VHDL-2017 conditional compilation blocks
 - The TCL shell has been removed
 - Various code generation and constant folding fixes
 - Fix crash when build IEEE library from non-clean tree
