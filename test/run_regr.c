@@ -1,4 +1,12 @@
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
+#ifdef __MINGW32__
+#define WINVER 0x0A00
+#define _WIN32_WINNT 0x0A00
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -15,6 +23,8 @@
 #include <signal.h>
 
 #ifdef __MINGW32__
+#include <windows.h>
+#include <fileapi.h>
 #define setenv(x, y, z) _putenv_s((x), (y))
 #define realpath(N, R) _fullpath((R), (N), _MAX_PATH)
 #else
@@ -86,6 +96,92 @@ static char *strndup(const char *s, size_t n)
    char *result = malloc(len + 1);
    result[len] = '\0';
    return memcpy(result, s, len);
+}
+
+static void win32_error(const char *msg)
+{
+   LPSTR mbuf = NULL;
+   FormatMessage(
+      FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM
+      | FORMAT_MESSAGE_IGNORE_INSERTS,
+      NULL,
+      GetLastError(),
+      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+      (LPSTR)&mbuf, 0, NULL);
+
+   fprintf(stderr, "%s: %s", msg, mbuf);
+   fflush(stderr);
+
+   LocalFree(mbuf);
+   exit(EXIT_FAILURE);
+}
+
+static int win32_run_cmd(FILE *log, arglist_t **args)
+{
+   SECURITY_ATTRIBUTES saAttr;
+   saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+   saAttr.bInheritHandle = TRUE;
+   saAttr.lpSecurityDescriptor = NULL;
+
+   HANDLE hChildStdOutRd, hChildStdOutWr;
+   if (!CreatePipe(&hChildStdOutRd, &hChildStdOutWr, &saAttr, 0))
+      win32_error("StdoutRd CreatePipe");
+
+   if (!SetHandleInformation(hChildStdOutRd, HANDLE_FLAG_INHERIT, 0))
+      win32_error("Stdout SetHandleInformation");
+
+   char cmdline[8192], *p = cmdline;
+   for (arglist_t *it = *args; it != NULL; it = it->next)
+      p += snprintf(p, cmdline + sizeof(cmdline) - p, "%s%s",
+                    it != *args ? " " : "", it->data);
+
+   fprintf(log, "%s\n", cmdline);
+   fflush(log);
+
+   PROCESS_INFORMATION piProcInfo;
+   STARTUPINFO siStartInfo;
+
+   ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
+
+   ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
+   siStartInfo.cb = sizeof(STARTUPINFO);
+   siStartInfo.hStdError = hChildStdOutWr;
+   siStartInfo.hStdOutput = hChildStdOutWr;
+   siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
+
+   if (!CreateProcess(NULL, cmdline, NULL, NULL, TRUE, 0,
+                      NULL, NULL, &siStartInfo, &piProcInfo))
+      win32_error("CreateProcess");
+
+   CloseHandle(hChildStdOutWr);
+
+   for (;;) {
+      DWORD dwRead;
+      CHAR chBuf[1024];
+      if (!ReadFile(hChildStdOutRd, chBuf, sizeof(chBuf), &dwRead, NULL))
+         break;
+      else if (dwRead == 0)
+         break;
+
+      fwrite(chBuf, dwRead, 1, log);
+      fflush(log);
+   }
+
+   DWORD status;
+   if (!GetExitCodeProcess(piProcInfo.hProcess, &status))
+      win32_error("GetExitCodeProcess");
+
+   CloseHandle(piProcInfo.hProcess);
+   CloseHandle(piProcInfo.hThread);
+
+   while (*args) {
+      arglist_t *tmp = (*args)->next;
+      free((*args)->data);
+      free(*args);
+      *args = tmp;
+   }
+
+   return status;
 }
 #endif
 
@@ -264,6 +360,7 @@ static bool run_cmd(FILE *log, arglist_t **args)
    fflush(stderr);
 
 #if defined __MINGW32__
+#if 0
    char **argv = calloc((*args)->count + 1, sizeof(char *));
    arglist_t *it = *args;
    for (int i = 0; i < (*args)->count; i++, it = it->next)
@@ -272,6 +369,9 @@ static bool run_cmd(FILE *log, arglist_t **args)
    int status = spawnv(_P_WAIT, argv[0], (char * const *)argv);
    free(argv);
    return status == 0;
+#else
+   return win32_run_cmd(log, args) == 0;
+#endif
 #else  // __MINGW32__
    pid_t pid = fork();
    if (pid < 0) {
@@ -394,11 +494,12 @@ static bool run_test(test_t *test)
    }
 
    arglist_t *args = NULL;
-   push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
+   push_arg(&args, "%s" PATH_SEP "nvc%s", bin_dir, EXEEXT);
    push_std(test, &args);
 
    push_arg(&args, "-a");
-   push_arg(&args, "%s/regress/%s.vhd", test_dir, test->name);
+   push_arg(&args, "%s" PATH_SEP "regress" PATH_SEP "%s.vhd",
+            test_dir, test->name);
 
    if (test->flags & F_RELAX)
       push_arg(&args, "--relax=%s", test->relax);
@@ -529,6 +630,24 @@ int main(int argc, char **argv)
    strncpy(bin_dir, dirname(argv0_path), sizeof(bin_dir));
 
    is_tty = isatty(STDOUT_FILENO);
+
+#ifdef __MINGW32__
+   if (!is_tty) {
+      // Handle running under MinTty
+      HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+      const size_t size = sizeof(FILE_NAME_INFO) + sizeof(WCHAR) * MAX_PATH;
+      FILE_NAME_INFO *nameinfo = malloc(size);
+      if (!GetFileInformationByHandleEx(hStdOut, FileNameInfo, nameinfo, size))
+         win32_error("GetFileInformationByHandle");
+
+      if ((wcsncmp(nameinfo->FileName, L"\\msys-", 6) == 0
+           || wcsncmp(nameinfo->FileName, L"\\cygwin-", 8) == 0)
+          && wcsstr(nameinfo->FileName, L"pty") != NULL)
+         is_tty = true;
+
+      free(nameinfo);
+   }
+#endif
 
    setenv("NVC_LIBPATH", "", 1);
 

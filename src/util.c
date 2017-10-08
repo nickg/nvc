@@ -15,12 +15,14 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#define _GNU_SOURCE
-
 #if defined(__MINGW32__)
+#define WINVER 0x0A00
+#define _WIN32_WINNT 0x0A00
 #include <windows.h>
 #include <DbgHelp.h>
+#include <fileapi.h>
 #endif
+
 #include "util.h"
 #include "ident.h"
 
@@ -1164,8 +1166,27 @@ void term_init(void)
       "dumb"
    };
 
-   want_color = isatty(STDERR_FILENO) && isatty(STDOUT_FILENO)
-      && (nvc_no_color == NULL);
+   bool is_tty = isatty(STDERR_FILENO) && isatty(STDOUT_FILENO);
+
+#ifdef __MINGW32__
+   if (!is_tty) {
+      // Handle running under MinTty
+      HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+      const size_t size = sizeof(FILE_NAME_INFO) + sizeof(WCHAR) * MAX_PATH;
+      FILE_NAME_INFO *nameinfo = malloc(size);
+      if (!GetFileInformationByHandleEx(hStdOut, FileNameInfo, nameinfo, size))
+         fatal_errno("GetFileInformationByHandle");
+
+      if ((wcsncmp(nameinfo->FileName, L"\\msys-", 6) == 0
+           || wcsncmp(nameinfo->FileName, L"\\cygwin-", 8) == 0)
+          && wcsstr(nameinfo->FileName, L"pty") != NULL)
+         is_tty = true;
+
+      free(nameinfo);
+   }
+#endif
+
+   want_color = is_tty && (nvc_no_color == NULL);
 
    if (want_color && (term != NULL)) {
       for (size_t i = 0; i < ARRAY_LEN(term_blacklist); i++) {
