@@ -116,6 +116,18 @@ static void win32_error(const char *msg)
    exit(EXIT_FAILURE);
 }
 
+static DWORD win32_timeout_thread(LPVOID lpParam)
+{
+   HANDLE hProcess = (HANDLE)lpParam;
+
+   if (WaitForSingleObject(hProcess, TIMEOUT * 1000) == WAIT_TIMEOUT) {
+      if (!TerminateProcess(hProcess, 0x500))
+         win32_error("TerminateProcess");
+   }
+
+   return 0;
+}
+
 static int win32_run_cmd(FILE *log, arglist_t **args)
 {
    SECURITY_ATTRIBUTES saAttr;
@@ -139,10 +151,9 @@ static int win32_run_cmd(FILE *log, arglist_t **args)
    fflush(log);
 
    PROCESS_INFORMATION piProcInfo;
-   STARTUPINFO siStartInfo;
-
    ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
 
+   STARTUPINFO siStartInfo;
    ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
    siStartInfo.cb = sizeof(STARTUPINFO);
    siStartInfo.hStdError = hChildStdOutWr;
@@ -154,6 +165,12 @@ static int win32_run_cmd(FILE *log, arglist_t **args)
       win32_error("CreateProcess");
 
    CloseHandle(hChildStdOutWr);
+
+   HANDLE hTimeoutThread =
+      CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)win32_timeout_thread,
+                   piProcInfo.hProcess, 0, NULL);
+   if (hTimeoutThread == NULL)
+      win32_error("CreateThread");
 
    for (;;) {
       DWORD dwRead;
@@ -171,6 +188,13 @@ static int win32_run_cmd(FILE *log, arglist_t **args)
    if (!GetExitCodeProcess(piProcInfo.hProcess, &status))
       win32_error("GetExitCodeProcess");
 
+   if (status == 0x500)
+      fprintf(log, "Timeout!\n");
+
+   if (WaitForSingleObject(hTimeoutThread, 1000) != WAIT_OBJECT_0)
+      win32_error("WaitForSingleObject");
+
+   CloseHandle(hTimeoutThread);
    CloseHandle(piProcInfo.hProcess);
    CloseHandle(piProcInfo.hThread);
 
