@@ -34,7 +34,9 @@ START_TEST(test_rand)
   void *values[N];
 
   for (int i = 0; i < N; i++) {
-     keys[i] = VOIDP(rand());
+     do {
+        keys[i] = VOIDP(((i << 16) | (rand() & 0xffff)));
+     } while (keys[i] == NULL);
      values[i] = VOIDP(rand());
   }
 

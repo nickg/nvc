@@ -238,9 +238,9 @@ END_TEST;
 
 START_TEST(test_interned)
 {
-   ident_new("foo");
-   fail_unless(ident_interned("foo"));
-   fail_if(ident_interned("foobar"));
+   ident_new("foo14141");
+   fail_unless(ident_interned("foo14141"));
+   fail_if(ident_interned("foobar11111"));
 }
 END_TEST
 

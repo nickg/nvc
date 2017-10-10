@@ -58,11 +58,9 @@ hash_t *hash_new(int size, bool replace)
    h->members = 0;
    h->replace = replace;
 
-   h->values = xmalloc(h->size * sizeof(void *));
-   h->keys   = xmalloc(h->size * sizeof(void *));
-
-   memset(h->keys, '\0', (h->size * sizeof(void *)));
-   memset(h->values, '\0', (h->size * sizeof(void *)));
+   char *mem = xcalloc(h->size * 2 * sizeof(void *));
+   h->values = (void **)mem;
+   h->keys   = (const void **)(mem + (h->size * sizeof(void *)));
 
    return h;
 }
@@ -70,7 +68,6 @@ hash_t *hash_new(int size, bool replace)
 void hash_free(hash_t *h)
 {
    free(h->values);
-   free(h->keys);
    free(h);
 }
 
@@ -86,11 +83,9 @@ bool hash_put(hash_t *h, const void *key, void *value)
       const void **old_keys = h->keys;
       void **old_values = h->values;
 
-      h->keys   = xmalloc(h->size * sizeof(void *));
-      h->values = xmalloc(h->size * sizeof(void *));
-
-      memset(h->keys, '\0', h->size * sizeof(void *));
-      memset(h->values, '\0', h->size * sizeof(void *));
+      char *mem = xcalloc(h->size * 2 * sizeof(void *));
+      h->values = (void **)mem;
+      h->keys   = (const void **)(mem + (h->size * sizeof(void *)));
 
       h->members = 0;
 
@@ -99,7 +94,6 @@ bool hash_put(hash_t *h, const void *key, void *value)
             hash_put(h, old_keys[i], old_values[i]);
       }
 
-      free(old_keys);
       free(old_values);
    }
 
