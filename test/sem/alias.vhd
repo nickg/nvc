@@ -56,5 +56,13 @@ architecture test of e is
     begin
         maybe_use_last_value(ax);
     end procedure;
+
+    type int_array is array (integer range <>) of integer;
+    alias int_vector is int_array;
+    type int_array_2 is array (integer range <>) of integer;
+
+    constant c1 : int_array_2(1 to 3) := (1, 2, 3);
+    constant c2 : int_vector(1 to 3) := int_vector(c1);  -- OK
+
 begin
 end architecture;

@@ -3916,6 +3916,15 @@ static bool sem_check_fcall(tree_t t)
                found_func++;
                break;
             }
+            else {
+               tree_t value = tree_value(decl);
+               if (tree_kind(value) == T_REF && tree_has_ref(value)
+                   && tree_kind(tree_ref(value)) == T_TYPE_DECL) {
+                  tree_change_kind(t, T_TYPE_CONV);
+                  tree_set_ref(t, tree_ref(value));
+                  return sem_check_conversion(t);
+               }
+            }
             // Fall-through
          default:
             if (!class_has_type(class_of(decl)))
