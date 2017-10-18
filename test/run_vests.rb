@@ -50,6 +50,7 @@ Dir.foreach('.') do |item|
     passes += 1
     print '+'.green
   else
+    puts cmd.magenta
     fails += 1
   end
 end

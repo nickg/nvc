@@ -2031,7 +2031,7 @@ static bool sem_check_type_decl(tree_t t)
             sem_error(t, "type %s has a subelement with an access type", sem_type_str(f));
 
          type_t base_f = type_base_recur(f);
-         if (type_is_array(base_f) && type_index_constrs(base_f) > 1)
+         if (type_is_array(base_f) && array_dimension(base_f) > 1)
             sem_error(t, "array type for file type must be one-dimensional");
 
          sem_declare_predefined_ops(t);

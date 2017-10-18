@@ -380,4 +380,11 @@ begin
     begin
     end block;
 
+    billowitch_tc586: block is
+        type real_cons_vector  is array (15 downto 0) of real;
+        type real_cons_vector_file is file of real_cons_vector;
+        constant C19 : real_cons_vector := (others => 3.0);  -- OK
+    begin
+    end block;
+
 end architecture;
