@@ -24,6 +24,11 @@ architecture a of top is
     component comp is
     end component;
 
+    component not_used is
+    end component;
+
+    for others : not_used use entity work.sub2(a);  -- Crash from Billowitch tc3114
+
 begin
 
     c1: component comp;

@@ -7231,8 +7231,11 @@ static bool sem_check_configuration(tree_t t)
    scope_push(NULL);
 
    const int nadecls = tree_decls(copy);
-   for (int i = 0; i < nadecls; i++)
-      scope_insert(tree_decl(copy, i));
+   for (int i = 0; i < nadecls; i++) {
+      tree_t d = tree_decl(copy, i);
+      if (tree_has_ident(d))
+         scope_insert(d);
+   }
 
    const int nastmts = tree_stmts(copy);
    for (int i = 0; i < nastmts; i++)
