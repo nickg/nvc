@@ -4,7 +4,7 @@ end entity;
 architecture test of nest1 is
 begin
 
-    process is
+    line_7: process is
         variable x : integer := 2;
         variable y : bit_vector(7 downto 0);
 
