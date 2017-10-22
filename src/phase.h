@@ -40,6 +40,7 @@ void reset_sem_errors(void);
 
 // The number of errors found while constant folding
 int eval_errors(void);
+void reset_eval_errors(void);
 
 // Rewrite to simpler forms
 void simplify(tree_t top, eval_flags_t flags);

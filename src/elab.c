@@ -1577,6 +1577,8 @@ tree_t elab(tree_t top)
    tree_set_ident(e, ident_prefix(tree_ident(top),
                                   ident_new("elab"), '.'));
 
+   errors = 0;
+
    netid_t next_net = 0;
    elab_ctx_t ctx = {
       .out      = e,

@@ -481,6 +481,7 @@ fbuf_t *lib_fbuf_open(lib_t lib, const char *name, fbuf_mode_t mode)
 void lib_free(lib_t lib)
 {
    assert(lib != NULL);
+   assert(lib != work);
 
    if (lib->lock_fd != -1)
       close(lib->lock_fd);

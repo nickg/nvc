@@ -73,6 +73,7 @@ START_TEST(test_open)
    expect_errors(expect);
 
    top = run_elab();
+   fail_if(top == NULL);
 
    // We used to delete all statements here but the behaviour
    // has changed
@@ -133,6 +134,7 @@ START_TEST(test_issue19)
    expect_errors(expect);
 
    tree_t e = run_elab();
+   fail_if(e == NULL);
    fail_unless(tree_stmts(e) == 1);
 }
 END_TEST
@@ -161,6 +163,7 @@ START_TEST(test_copy1)
    expect_errors(expect);
 
    tree_t e = run_elab();
+   fail_if(e == NULL);
 
    int nfuncs = 0, nshared = 0;
 
@@ -187,7 +190,7 @@ START_TEST(test_record)
    };
    expect_errors(expect);
 
-   (void)run_elab();
+   fail_if(run_elab() == NULL);
 }
 END_TEST
 
@@ -200,7 +203,7 @@ START_TEST(test_ifgen)
    };
    expect_errors(expect);
 
-   (void)run_elab();
+   fail_if(run_elab() == NULL);
 }
 END_TEST
 
@@ -213,7 +216,7 @@ START_TEST(test_open2)
    };
    expect_errors(expect);
 
-   (void)run_elab();
+   fail_if(run_elab() == NULL);
 }
 END_TEST
 
@@ -227,6 +230,7 @@ START_TEST(test_issue93)
    expect_errors(expect);
 
    tree_t top = run_elab();
+   fail_if(top == NULL);
    fail_unless(tree_stmts(top) == 4);
 }
 END_TEST
@@ -241,6 +245,7 @@ START_TEST(test_const1)
    expect_errors(expect);
 
    tree_t top = run_elab();
+   fail_if(top == NULL);
 
    tree_t ctr_r = tree_decl(top, tree_decls(top) - 1);
    fail_unless(tree_kind(ctr_r) == T_SIGNAL_DECL);
@@ -324,6 +329,7 @@ START_TEST(test_issue184)
    input_from_file(TESTDIR "/elab/issue184.vhd");
 
    tree_t top = run_elab();
+   fail_if(top == NULL);
 
    fail_unless(tree_stmts(top) == 1);
    fail_unless(icmp(tree_ident(tree_stmt(top, 0)), ":ent:gen_cfg2:good"));
@@ -356,6 +362,7 @@ START_TEST(test_toplevel2)
    elab_set_generic("V", "101");
 
    tree_t top = run_elab();
+   fail_if(top == NULL);
    fail_unless(tree_stmts(top) == 3);
 }
 END_TEST
@@ -534,6 +541,7 @@ START_TEST(test_issue336)
    input_from_file(TESTDIR "/elab/issue336.vhd");
 
    tree_t e = run_elab();
+   fail_if(e == NULL);
    fail_unless(tree_stmts(e) == 3);
 }
 END_TEST

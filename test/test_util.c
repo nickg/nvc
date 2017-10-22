@@ -9,6 +9,7 @@
 
 static const error_t *error_lines = NULL;
 static error_fn_t     orig_error_fn = NULL;
+static lib_t          test_lib = NULL;
 
 static void test_error_fn(const char *msg, const loc_t *loc)
 {
@@ -36,7 +37,6 @@ static void setup(void)
    if (lib_dir)
       lib_add_search_path(lib_dir);
 
-   lib_set_work(lib_tmp("work"));
    opt_set_int("bootstrap", 0);
    opt_set_int("cover", 0);
    opt_set_int("unit-test", 1);
@@ -50,16 +50,24 @@ static void setup(void)
 
 static void setup_per_test(void)
 {
+   test_lib = lib_tmp("work");
+   lib_set_work(test_lib);
+
+   opt_set_int("cover", 0);
+
    reset_bounds_errors();
    reset_sem_errors();
    reset_parse_errors();
+   reset_eval_errors();
 
    set_standard(STD_93);
 }
 
-static void teardown(void)
+static void teardown_per_test(void)
 {
-   lib_free(lib_work());
+   lib_set_work(NULL);
+   lib_free(test_lib);
+   test_lib = NULL;
 }
 
 void expect_errors(const error_t *lines)
@@ -82,8 +90,8 @@ TCase *nvc_unit_test(void)
    setenv("NVC_LIBPATH", "../lib/std", 1);
 
    TCase *tc_core = tcase_create("Core");
-   tcase_add_unchecked_fixture(tc_core, setup, teardown);
-   tcase_add_checked_fixture(tc_core, setup_per_test, NULL);
+   tcase_add_unchecked_fixture(tc_core, setup, NULL);
+   tcase_add_checked_fixture(tc_core, setup_per_test, teardown_per_test);
    return tc_core;
 }
 

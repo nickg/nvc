@@ -2103,3 +2103,8 @@ int eval_errors(void)
 {
    return errors;
 }
+
+void reset_eval_errors(void)
+{
+   errors = 0;
+}
