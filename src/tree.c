@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -97,7 +97,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_PARAMS | I_TYPE | I_FLAGS | I_ATTRS),
 
    // T_ARRAY_SLICE
-   (I_VALUE | I_TYPE | I_RANGE),
+   (I_VALUE | I_TYPE | I_RANGES),
 
    // T_INSTANCE
    (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF | I_CLASS | I_SPEC
@@ -131,7 +131,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
 
    // T_FOR
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_RANGE | I_ATTRS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_RANGES | I_ATTRS),
 
    // T_ATTR_DECL
    (I_IDENT | I_TYPE | I_ATTRS),
@@ -176,7 +176,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_DECLS | I_STMTS | I_ATTRS),
 
    // T_FOR_GENERATE
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_REF | I_RANGE | I_ATTRS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_REF | I_RANGES | I_ATTRS),
 
    // T_FILE_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE | I_ATTRS),
@@ -215,7 +215,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_POS | I_SUBKIND | I_NAME),
 
    // T_ASSOC
-   (I_VALUE | I_POS | I_NAME | I_RANGE | I_SUBKIND),
+   (I_VALUE | I_POS | I_NAME | I_RANGES | I_SUBKIND),
 
    // T_USE
    (I_IDENT | I_IDENT2),
@@ -245,7 +245,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_CONTEXT | I_IDENT),
 
    // T_CTXREF
-   (I_IDENT | I_REF)
+   (I_IDENT | I_REF),
+
+   // T_CONSTRAINT
+   (I_SUBKIND | I_RANGES)
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -267,7 +270,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_USE",
    "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY",
    "T_DESIGN_UNIT",  "T_CONFIG",        "T_PROT_BODY",  "T_CONTEXT",
-   "T_CTXREF"
+   "T_CTXREF",       "T_CONSTRAINT"
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -904,17 +907,27 @@ void tree_set_message(tree_t t, tree_t m)
    lookup_item(&tree_object, t, I_MESSAGE)->tree = m;
 }
 
-range_t tree_range(tree_t t)
+void tree_add_range(tree_t t, range_t r)
 {
-   return *(lookup_item(&tree_object, t, I_RANGE)->range);
+   range_array_add(&(lookup_item(&tree_object, t, I_RANGES)->range_array), r);
 }
 
-void tree_set_range(tree_t t, range_t r)
+range_t tree_range(tree_t t, unsigned n)
 {
-   item_t *item = lookup_item(&tree_object, t, I_RANGE);
-   if (item->range == NULL)
-      item->range = xmalloc(sizeof(range_t));
-   *(item->range) = r;
+   item_t *item = lookup_item(&tree_object, t, I_RANGES);
+   return range_array_nth(&(item->range_array), n);
+}
+
+unsigned tree_ranges(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_RANGES)->range_array.count;
+}
+
+void tree_change_range(tree_t t, unsigned n, range_t r)
+{
+   item_t *item = lookup_item(&tree_object, t, I_RANGES);
+   assert(n < item->range_array.count);
+   item->range_array.items[n] = r;
 }
 
 unsigned tree_pos(tree_t t)

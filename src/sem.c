@@ -1171,59 +1171,30 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
 
       const type_kind_t base_kind = type_kind(base);
 
-      // If the subtype is not constrained then give it the same
-      // range as its base type
-      const int ndims = type_dims(type);
-      if (ndims == 0) {
-         switch (base_kind) {
-         case T_ENUM:
-         case T_CARRAY:
-         case T_SUBTYPE:
-         case T_INTEGER:
-         case T_REAL:
-         case T_PHYSICAL:
-            {
-               const int ndims = type_dims(base);
-               for (int i = 0; i < ndims; i++)
-                  type_add_dim(type, type_dim(base, i));
-            }
-            break;
+      if (base_kind == T_PROTECTED)
+         sem_error(t, "subtypes may not have protected base types");
 
-         case T_UARRAY:
-         case T_RECORD:
-            break;
-
-         case T_PROTECTED:
-            sem_error(t, "subtypes may not have protected base types");
-            break;
-
-         default:
-            sem_error(t, "sorry, this form of subtype is not supported");
-         }
-      }
-      else {
-         // Check constraints
-
+      if (type_has_constraint(type)) {
          if (type_kind(base) == T_CARRAY)
             sem_error(t, "may not change constraints of a constrained array");
 
          if (type_is_record(base))
             sem_error(t, "record subtype may not have constraints");
 
-         const int ndims_base =
-            type_is_array(base)
-            ? array_dimension(base)
-            : ((base_kind == T_SUBTYPE) ? type_dims(base) : 1);
+         tree_t constraint = type_constraint(type);
+
+         const int ndims_base = type_is_array(base) ? array_dimension(base) : 1;
+         const int ndims = tree_ranges(constraint);
 
          if (ndims != ndims_base)
             sem_error(t, "expected %d constraints for type %s but found %d",
                       ndims_base, sem_type_str(base), ndims);
 
          for (int i = 0; i < ndims; i++) {
-            range_t r = type_dim(type, i);
+            range_t r = tree_range(constraint, i);
             if (!sem_check_range(&r, index_type_of(base, i)))
                return false;
-            type_change_dim(type, i, r);
+            tree_change_range(constraint, i, r);
          }
       }
 
@@ -1378,8 +1349,7 @@ static bool sem_check_range(range_t *r, type_t context)
          r->right = b;
       }
       else {
-         range_kind_t dir =
-            type_is_enum(type) ? RANGE_TO : type_dim(type, 0).kind;
+         range_kind_t dir = direction_of(type, 0);
          if (reverse)
             dir = (dir == RANGE_TO) ? RANGE_DOWNTO : RANGE_TO;
 
@@ -1554,9 +1524,10 @@ static bool sem_readable(tree_t t)
 
 static bool sem_check_array_dims(type_t type, type_t constraint)
 {
-   const int ndims = type_dims(type);
+   const int ndims = array_dimension(type);
+   const type_kind_t kind = type_kind(type);
    for (int i = 0; i < ndims; i++) {
-      range_t r = type_dim(type, i);
+      range_t r = range_of(type, i);
 
       type_t index_type = NULL;
       if (constraint != NULL)
@@ -1588,7 +1559,10 @@ static bool sem_check_array_dims(type_t type, type_t constraint)
          tree_set_type(r.right, index_type);
       }
 
-      type_change_dim(type, i, r);
+      if (kind == T_SUBTYPE)
+         tree_change_range(type_constraint(type), i, r);
+      else
+         type_change_dim(type, i, r);
    }
 
    return true;
@@ -1903,6 +1877,16 @@ static bool sem_check_type_decl(tree_t t)
          if (!sem_check_constrained(r.right, type))
             return false;
 
+         if (!type_eq(tree_type(r.left), tree_type(r.right)))
+            sem_error(t, "type of left bound %s does not match type of right "
+                      "bound %s", sem_type_str(tree_type(r.left)),
+                      sem_type_str(tree_type(r.right)));
+
+         if (kind == T_REAL && type_is_integer(tree_type(r.left)))
+            type_change_kind(type, T_INTEGER);
+         else if (kind == T_INTEGER && type_is_real(tree_type(r.left)))
+            type_change_kind(type, T_REAL);
+
          // Standard specifies type of 'LEFT and 'RIGHT are same
          // as the declared type
          tree_set_type(r.left, type);
@@ -1913,47 +1897,59 @@ static bool sem_check_type_decl(tree_t t)
 
    case T_SUBTYPE:
       {
-         bool ok = true;
-         const int ndims = type_dims(type);
-         for (int i = 0; i < ndims; i++) {
-            range_t r = type_dim(type, i);
+         if (type_has_constraint(type)) {
+            tree_t constraint = type_constraint(type);
 
-            type_t index = NULL, alt = NULL;
-            switch (type_kind(base)) {
-            case T_CARRAY:
-               index = tree_type(type_dim(base, i).left);
-               break;
-            case T_UARRAY:
-               index = type_index_constr(base, i);
-               break;
-            case T_PHYSICAL:
-               alt = sem_std_type("INTEGER");
-               // Fall-through
-            default:
-               index = base;
-               break;
+            const constraint_kind_t consk = tree_subkind(constraint);
+            if (consk == C_RANGE && !type_is_scalar(base))
+               sem_error(constraint, "range constraint cannot be used with "
+                         "non-scalar type %s", sem_type_str(base));
+            else if (consk == C_INDEX && !type_is_array(base))
+               sem_error(constraint, "index constraint cannot be used with "
+                         "non-array type %s", sem_type_str(base));
+
+            bool ok = true;
+            const int ndims = tree_ranges(constraint);
+            for (int i = 0; i < ndims; i++) {
+               range_t r = tree_range(constraint, i);
+
+               type_t index = NULL, alt = NULL;
+               switch (type_kind(base)) {
+               case T_CARRAY:
+                  index = tree_type(type_dim(base, i).left);
+                  break;
+               case T_UARRAY:
+                  index = type_index_constr(base, i);
+                  break;
+               case T_PHYSICAL:
+                  alt = sem_std_type("INTEGER");
+                  // Fall-through
+               default:
+                  index = base;
+                  break;
+               }
+
+               if (type_kind(index) == T_UNRESOLVED)
+                  return false;
+
+               type_set_push();
+               type_set_add(index);
+               if (alt != NULL)
+                  type_set_add(alt);
+
+               ok = sem_check(r.left) && sem_check(r.right) && ok;
+               type_set_pop();
+
+               if (ok) {
+                  type_t rtype = type_is_scalar(base) ? type : index;
+                  tree_set_type(r.left, rtype);
+                  tree_set_type(r.right, rtype);
+               }
             }
 
-            if (type_kind(index) == T_UNRESOLVED)
+            if (!ok)
                return false;
-
-            type_set_push();
-            type_set_add(index);
-            if (alt != NULL)
-               type_set_add(alt);
-
-            ok = sem_check(r.left) && sem_check(r.right);
-            type_set_pop();
-
-            if (ok) {
-               type_t rtype = type_is_scalar(base) ? type : index;
-               tree_set_type(r.left, rtype);
-               tree_set_type(r.right, rtype);
-            }
          }
-
-         if (!ok)
-            return false;
 
          if (type_has_resolution(type)) {
             if (!sem_check_resolution(type))
@@ -2686,10 +2682,11 @@ static void sem_check_static_elab(tree_t t)
    case T_SIGNAL_DECL:
       {
          type_t type = tree_type(t);
-         if (type_kind(type) == T_SUBTYPE || type_kind(type) == T_CARRAY) {
-            const int ndims = type_dims(type);
+         const type_kind_t kind = type_kind(type);
+         if (kind == T_SUBTYPE || kind == T_CARRAY) {
+            const int ndims = type_is_array(type) ? array_dimension(type) : 1;
             for (int i = 0; i < ndims; i++) {
-               range_t r = type_dim(type, 0);
+               range_t r = range_of(type, 0);
                sem_check_static_elab(r.left);
                sem_check_static_elab(r.right);
             }
@@ -4303,7 +4300,7 @@ static bool sem_check_assert(tree_t t)
 
 static tree_t sem_array_len(type_t type)
 {
-   range_t r = type_dim(type, 0);
+   range_t r = range_of(type, 0);
    type_t index_type = tree_type(r.left);
 
    tree_t one = sem_int_lit(index_type, 1);
@@ -4415,7 +4412,7 @@ static bool sem_check_concat(tree_t t)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
 
       type_t index_type = index_type_of(ltype, 0);
-      range_t index_r = type_dim(index_type, 0);
+      range_t index_r = range_of(index_type, 0);
 
       if (type_is_unconstrained(ltype))
          tree_set_type(t, ltype);
@@ -4438,13 +4435,17 @@ static bool sem_check_concat(tree_t t)
          tree_t result_right = call_builtin(
             "sub", index_type, tmp, one, NULL);
 
+         tree_t c = tree_new(T_CONSTRAINT);
+         tree_set_subkind(c, C_INDEX);
+
          range_t result_r = {
             .kind  = index_r.kind,
             .left  = index_r.left,
             .right = result_right
          };
-         type_add_dim(result, result_r);
+         tree_add_range(c, result_r);
 
+         type_set_constraint(result, c);
          tree_set_type(t, result);
       }
    }
@@ -4462,7 +4463,7 @@ static bool sem_check_concat(tree_t t)
          sem_error(t, "type of scalar does not match element type of array");
 
       type_t index_type = index_type_of(atype, 0);
-      range_t index_r = type_dim(index_type, 0);
+      range_t index_r = range_of(index_type, 0);
 
       if (type_is_unconstrained(atype))
          tree_set_type(t, atype);
@@ -4475,13 +4476,17 @@ static bool sem_check_concat(tree_t t)
          type_set_ident(result, type_ident(atype));
          type_set_base(result, atype);
 
+         tree_t c = tree_new(T_CONSTRAINT);
+         tree_set_subkind(c, C_INDEX);
+
          range_t result_r = {
             .kind  = index_r.kind,
             .left  = index_r.left,
             .right = result_right
          };
-         type_add_dim(result, result_r);
+         tree_add_range(c, result_r);
 
+         type_set_constraint(result, c);
          tree_set_type(t, result);
       }
    }
@@ -4537,7 +4542,7 @@ static bool sem_check_concat(tree_t t)
       }
 
       type_t index_type = index_type_of(composite, 0);
-      range_t index_r = type_dim(index_type, 0);
+      range_t index_r = range_of(index_type, 0);
 
       tree_t result_right = call_builtin(
          "add", index_type, index_r.left, sem_int_lit(index_type, 1), NULL);
@@ -4546,13 +4551,17 @@ static bool sem_check_concat(tree_t t)
       type_set_ident(result, type_ident(composite));
       type_set_base(result, composite);
 
+      tree_t c = tree_new(T_CONSTRAINT);
+      tree_set_subkind(c, C_INDEX);
+
       range_t result_r = {
          .kind  = index_r.kind,
          .left  = index_r.left,
          .right = result_right
       };
-      type_add_dim(result, result_r);
+      tree_add_range(c, result_r);
 
+      type_set_constraint(result, c);
       tree_set_type(t, result);
    }
 
@@ -4635,13 +4644,10 @@ static bool sem_check_string_literal(tree_t t)
       type_set_base(tmp, type);
 
       type_t index_type = index_type_of(type, 0);
+      const type_kind_t indexk = type_kind(index_type);
 
       // The direction is determined by the index type
-      range_kind_t dir;
-      if (type_kind(index_type) == T_ENUM)
-         dir = RANGE_TO;
-      else
-         dir = type_dim(index_type, 0).kind;
+      range_kind_t dir = direction_of(index_type, 0);
 
       // The left bound is the left of the index type and the right bound
       // is determined by the number of elements
@@ -4649,10 +4655,10 @@ static bool sem_check_string_literal(tree_t t)
       tree_t left = NULL, right = NULL;
       type_t std_int = sem_std_type("INTEGER");
 
-      if (type_kind(index_type) == T_ENUM)
+      if (indexk == T_ENUM)
          left = make_ref(type_enum_literal(index_type, 0));
       else
-         left = type_dim(index_type, 0).left;
+         left = range_of(index_type, 0).left;
 
       right = call_builtin("add", index_type,
                            sem_int_lit(std_int, nchars - 1),
@@ -4663,7 +4669,12 @@ static bool sem_check_string_literal(tree_t t)
          .left  = left,
          .right = right
       };
-      type_add_dim(tmp, r);
+      tree_t c = tree_new(T_CONSTRAINT);
+      tree_set_subkind(c, C_COMPUTED);
+      tree_add_range(c, r);
+      tree_set_loc(c, tree_loc(t));
+
+      type_set_constraint(tmp, c);
 
       tree_set_type(t, tmp);
       tree_set_flag(t, TREE_F_UNCONSTRAINED);
@@ -4803,10 +4814,10 @@ static bool sem_check_aggregate(tree_t t)
          switch (tree_subkind(a)) {
          case A_RANGE:
             {
-               range_t r = tree_range(a);
+               range_t r = tree_range(a, 0);
                if (!sem_check_range(&r, index_type))
                   return false;
-               tree_set_range(a, r);
+               tree_change_range(a, 0, r);
             }
             break;
 
@@ -4957,14 +4968,11 @@ static bool sem_check_aggregate(tree_t t)
       range_kind_t dir;
       if (unconstrained) {
          // The direction is determined by the index type
-         if (type_kind(index_type) == T_ENUM)
-            dir = RANGE_TO;
-         else
-            dir = type_dim(index_type, 0).kind;
+         dir = direction_of(index_type, 0);
       }
       else {
          // The direction is determined by the context
-         dir = type_dim(composite_type, 0).kind;
+         dir = direction_of(composite_type, 0);
       }
 
       tree_t left = NULL, right = NULL;
@@ -4986,9 +4994,7 @@ static bool sem_check_aggregate(tree_t t)
          }
          else {
             type_t std_int = sem_std_type("INTEGER");
-
-            left = type_dim(index_type, 0).left;
-
+            left = range_of(index_type, 0).left;
             right = call_builtin("add", index_type,
                                  sem_int_lit(std_int, nassocs - 1),
                                  left, NULL);
@@ -5017,7 +5023,7 @@ static bool sem_check_aggregate(tree_t t)
 
             case A_RANGE:
                {
-                  range_t r = tree_range(a);
+                  range_t r = tree_range(a, 0);
                   if (r.kind == RANGE_TO) {
                      add_param(low, r.left, P_POS, NULL);
                      add_param(high, r.right, P_POS, NULL);
@@ -5041,22 +5047,26 @@ static bool sem_check_aggregate(tree_t t)
          right = (dir == RANGE_TO ? high : low);
       }
 
+      tree_t constraint = tree_new(T_CONSTRAINT);
+      tree_set_subkind(constraint, C_INDEX);
+
       range_t r = {
          .kind  = dir,
          .left  = left,
          .right = right
       };
-      type_add_dim(tmp, r);
+      tree_add_range(constraint, r);
 
       for (int i = 1; i < ndims; i++) {
          range_t dim;
          if (unconstrained)
-            dim = type_dim(tree_type(tree_value(tree_assoc(t, 0))), i - 1);
+            dim = range_of(tree_type(tree_value(tree_assoc(t, 0))), i - 1);
          else
-            dim = type_dim(composite_type, i);
-         type_add_dim(tmp, dim);
+            dim = range_of(composite_type, i);
+         tree_add_range(constraint, dim);
       }
 
+      type_set_constraint(tmp, constraint);
       tree_set_type(t, tmp);
    }
    else
@@ -5328,7 +5338,7 @@ static bool sem_check_array_ref(tree_t t)
          tree_t decl = scope_find(tree_ident(value));
          if ((decl != NULL) && (tree_kind(decl) == T_TYPE_DECL)) {
             tree_change_kind(t, T_ARRAY_SLICE);
-            tree_set_range(t, type_dim(tree_type(decl), 0));
+            tree_add_range(t, range_of(tree_type(decl), 0));
 
             return sem_check(t);
          }
@@ -5360,15 +5370,15 @@ static bool sem_check_array_slice(tree_t t)
    if (!type_is_array(array_type))
       sem_error(t, "type of slice prefix is not an array");
 
-   range_t r = tree_range(t);
+   range_t r = tree_range(t, 0);
    if (!sem_check_range(&r, index_type_of(array_type, 0)))
       return false;
 
-   tree_set_range(t, r);
+   tree_change_range(t, 0, r);
 
    const bool unconstrained = type_is_unconstrained(array_type);
    const range_kind_t prefix_dir =
-      unconstrained ? RANGE_EXPR : type_dim(array_type, 0).kind;
+      unconstrained ? RANGE_EXPR : direction_of(array_type, 0);
 
    const bool wrong_dir =
       !unconstrained
@@ -5382,10 +5392,14 @@ static bool sem_check_array_slice(tree_t t)
                 text[r.kind], text[prefix_dir]);
    }
 
+   tree_t constraint = tree_new(T_CONSTRAINT);
+   tree_set_subkind(constraint, C_INDEX);
+   tree_add_range(constraint, r);
+
    type_t slice_type = type_new(T_SUBTYPE);
    type_set_ident(slice_type, type_ident(array_type));
    type_set_base(slice_type, array_type);
-   type_add_dim(slice_type, tree_range(t));
+   type_set_constraint(slice_type, constraint);
 
    tree_set_type(t, slice_type);
    return true;
@@ -6172,13 +6186,16 @@ static bool sem_subtype_locally_static(type_t type)
    if (type_is_unconstrained(type))
       return false;
 
+   if (type_is_scalar(type))
+      return true;
+
    switch (type_kind(type)) {
    case T_CARRAY:
    case T_SUBTYPE:
       {
-         const int ndims = type_dims(type);
+         const int ndims = array_dimension(type);
          for (int i = 0; i < ndims; i++) {
-            range_t r = type_dim(type, i);
+            range_t r = range_of(type, i);
             if (!sem_locally_static(r.left) || !sem_locally_static(r.right))
                return false;
          }
@@ -6303,7 +6320,7 @@ static bool sem_locally_static(tree_t t)
          return false;
 
       if (type_is_array(type)) {
-         range_t r = type_dim(type, 0);
+         range_t r = range_of(type, 0);
          if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
             return false;
 
@@ -6331,7 +6348,7 @@ static bool sem_locally_static(tree_t t)
    // [2008] A slice name whose prefix and range is locally static
    if (kind == T_ARRAY_SLICE &&
        (standard() >= STD_08 || relax & RELAX_LOCALLY_STATIC)) {
-      range_t r = tree_range(t);
+      range_t r = tree_range(t, 0);
       if (!sem_locally_static(r.left) || !sem_locally_static(r.right))
          return false;
 
@@ -6396,7 +6413,7 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          if (!sem_static_name(tree_value(t), check_fn))
             return false;
 
-         range_t r = tree_range(t);
+         range_t r = tree_range(t, 0);
 
          return (r.kind == RANGE_TO || r.kind == RANGE_DOWNTO)
             && (*check_fn)(r.left)
@@ -6451,7 +6468,7 @@ static bool sem_globally_static(tree_t t)
    // must have globally static values
    if (kind == T_AGGREGATE) {
       if (type_is_array(type)) {
-         range_t r = type_dim(type, 0);
+         range_t r = range_of(type, 0);
          if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
             return false;
 
@@ -6558,7 +6575,7 @@ static bool sem_globally_static(tree_t t)
       if (!sem_globally_static(tree_value(t)))
          return false;
 
-      range_t r = tree_range(t);
+      range_t r = tree_range(t, 0);
       if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
          return false;
 
@@ -6619,7 +6636,7 @@ static bool sem_check_case(tree_t t)
 
       case A_RANGE:
          {
-            range_t r = tree_range(a);
+            range_t r = tree_range(a, 0);
             if ((ok = sem_check_range(&r, type) && ok)) {
                if (!type_eq(tree_type(r.left), type))
                   sem_error(r.left, "case choice range must have type %s",
@@ -6692,18 +6709,22 @@ static bool sem_check_while(tree_t t)
 
 static bool sem_check_for(tree_t t)
 {
-   range_t r = tree_range(t);
+   range_t r = tree_range(t, 0);
    const bool is_range_expr = (r.kind == RANGE_EXPR);
    if (!sem_check_range(&r, NULL))
       return false;
-   tree_set_range(t, r);
+   tree_change_range(t, 0, r);
 
    type_t base = tree_type(r.left);
+
+   tree_t constraint = tree_new(T_CONSTRAINT);
+   tree_set_subkind(constraint, C_RANGE);
+   tree_add_range(constraint, r);
 
    type_t sub = type_new(T_SUBTYPE);
    type_set_ident(sub, type_ident(base));
    type_set_base(sub, base);
-   type_add_dim(sub, r);
+   type_set_constraint(sub, constraint);
 
    tree_t idecl = tree_new(T_VAR_DECL);
    tree_set_ident(idecl, tree_ident2(t));
@@ -6903,10 +6924,10 @@ static bool sem_check_if_generate(tree_t t)
 
 static bool sem_check_for_generate(tree_t t)
 {
-   range_t r = tree_range(t);
+   range_t r = tree_range(t, 0);
    if (!sem_check_range(&r, NULL))
       return false;
-   tree_set_range(t, r);
+   tree_change_range(t, 0, r);
 
    if (!sem_globally_static(r.left))
       sem_error(r.left, "range of generate statement must be static");
@@ -7016,10 +7037,10 @@ static bool sem_check_new(tree_t t)
    switch (tree_kind(value)) {
    case T_ARRAY_SLICE:
       {
-         range_t r = tree_range(value);
+         range_t r = tree_range(value, 0);
          if (!sem_check_range(&r, sem_std_type("INTEGER")))
             return false;
-         tree_set_range(value, r);
+         tree_change_range(value, 0, r);
 
          tree_t ref = tree_value(value);
          if (tree_kind(ref) != T_REF)
@@ -7030,9 +7051,13 @@ static bool sem_check_new(tree_t t)
          if (!sem_check_type(value, &base))
             return false;
 
+         tree_t c = tree_new(T_CONSTRAINT);
+         tree_set_subkind(c, C_INDEX);
+         tree_add_range(c, r);
+
          type = type_new(T_SUBTYPE);
          type_set_base(type, base);
-         type_add_dim(type, r);
+         type_set_constraint(type, c);
 
          tree_set_value(t, make_default_value(type, tree_loc(value)));
       }

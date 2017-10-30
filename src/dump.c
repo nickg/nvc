@@ -156,7 +156,7 @@ static void dump_expr(tree_t t)
             dump_expr(value);
             break;
          case A_RANGE:
-            dump_range(tree_range(a));
+            dump_range(tree_range(a, 0));
             printf(" => ");
             dump_expr(value);
             break;
@@ -184,7 +184,7 @@ static void dump_expr(tree_t t)
    case T_ARRAY_SLICE:
       dump_expr(tree_value(t));
       printf("(");
-      dump_range(tree_range(t));
+      dump_range(tree_range(t, 0));
       printf(")");
       break;
 
@@ -728,7 +728,7 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_FOR:
       printf("for %s in ", istr(tree_ident2(t)));
-      dump_range(tree_range(t));
+      dump_range(tree_range(t, 0));
       printf(" loop\n");
       for (unsigned i = 0; i < tree_stmts(t); i++)
          dump_stmt(tree_stmt(t, i), indent + 2);
@@ -743,7 +743,7 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_FOR_GENERATE:
       printf("for %s in ", istr(tree_ident2(t)));
-      dump_range(tree_range(t));
+      dump_range(tree_range(t, 0));
       printf(" generate\n");
       for (unsigned i = 0; i < tree_decls(t); i++)
          dump_decl(tree_decl(t, i), indent + 2);

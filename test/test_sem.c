@@ -737,6 +737,7 @@ START_TEST(test_real)
    const error_t expect[] = {
       { 16, "type of value MY_REAL does not match type of target" },
       { 25, "conversion only allowed between closely related types" },
+      { 38, "type of left bound INTEGER does not match type of right" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1746,6 +1747,23 @@ START_TEST(test_issue350)
 }
 END_TEST
 
+START_TEST(test_issue246)
+{
+   input_from_file(TESTDIR "/sem/issue246.vhd");
+
+   const error_t expect[] = {
+      {  2, "index constraint cannot be used with non-array type INTEGER" },
+      {  3, "range constraint cannot be used with non-scalar type STRING" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1834,6 +1852,7 @@ int main(void)
    tcase_add_test(tc_core, test_foreign1);
    tcase_add_test(tc_core, test_issue316);
    tcase_add_test(tc_core, test_issue350);
+   tcase_add_test(tc_core, test_issue246);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

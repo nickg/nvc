@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2016  Nick Gasson
+//  Copyright (C) 2013-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -60,13 +60,13 @@ typedef uint64_t imask_t;
 #define I_TRIGGERS   ONE_HOT(24)
 #define I_ELSES      ONE_HOT(25)
 #define I_CLASS      ONE_HOT(26)
-#define I_RANGE      ONE_HOT(27)
+#define I_RANGES     ONE_HOT(27)
 #define I_NAME       ONE_HOT(28)
 #define I_NETS       ONE_HOT(29)
 #define I_DVAL       ONE_HOT(30)
 #define I_SPEC       ONE_HOT(31)
 #define I_OPS        ONE_HOT(32)
-#define I_CONSTR     ONE_HOT(33)
+#define I_INDEXCON   ONE_HOT(33)
 #define I_BASE       ONE_HOT(34)
 #define I_ELEM       ONE_HOT(35)
 #define I_FILE       ONE_HOT(36)
@@ -81,13 +81,13 @@ typedef uint64_t imask_t;
 #define I_ATTRS      ONE_HOT(45)
 #define I_PTYPES     ONE_HOT(46)
 #define I_CHARS      ONE_HOT(47)
-// Unused            ONE_HOT(48)
+#define I_CONSTR     ONE_HOT(48)
 #define I_FLAGS      ONE_HOT(49)
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE  \
-                          | I_NAME | I_SPEC | I_RESOLUTION)
+                          | I_NAME | I_SPEC | I_RESOLUTION | I_CONSTR)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS  \
                           | I_GENMAPS | I_ASSOCS | I_CONTEXT | I_OPS \
@@ -96,11 +96,10 @@ typedef uint64_t imask_t;
                           | I_FILE)
 #define ITEM_INT64       (I_POS | I_IVAL)
 #define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
-#define ITEM_RANGE       (I_RANGE)
 #define ITEM_NETID_ARRAY (I_NETS)
 #define ITEM_DOUBLE      (I_DVAL)
-#define ITEM_TYPE_ARRAY  (I_PTYPES | I_CONSTR)
-#define ITEM_RANGE_ARRAY (I_DIMS)
+#define ITEM_TYPE_ARRAY  (I_PTYPES | I_INDEXCON)
+#define ITEM_RANGE_ARRAY (I_RANGES | I_DIMS)
 #define ITEM_TEXT_BUF    (I_TEXT_BUF)
 #define ITEM_ATTRS       (I_ATTRS)
 

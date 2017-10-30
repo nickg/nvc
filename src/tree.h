@@ -75,6 +75,12 @@ typedef enum literal_kind {
    L_STRING
 } literal_kind_t;
 
+typedef enum constraint_kind {
+   C_RANGE,
+   C_INDEX,
+   C_COMPUTED
+} constraint_kind_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_ARCH,
@@ -149,6 +155,7 @@ typedef enum tree_kind {
    T_PROT_BODY,
    T_CONTEXT,
    T_CTXREF,
+   T_CONSTRAINT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -275,8 +282,10 @@ void tree_set_pos(tree_t t, unsigned pos);
 unsigned tree_subkind(tree_t t);
 void tree_set_subkind(tree_t t, unsigned sub);
 
-range_t tree_range(tree_t t);
-void tree_set_range(tree_t t, range_t r);
+void tree_add_range(tree_t t, range_t r);
+range_t tree_range(tree_t t, unsigned n);
+unsigned tree_ranges(tree_t t);
+void tree_change_range(tree_t t, unsigned n, range_t r);
 
 class_t tree_class(tree_t t);
 void tree_set_class(tree_t t, class_t c);

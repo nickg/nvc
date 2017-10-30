@@ -518,16 +518,16 @@ START_TEST(test_seq)
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_FOR);
    fail_unless(tree_stmts(s) == 1);
-   fail_unless(tree_range(s).kind == RANGE_TO);
-   fail_unless(tree_kind(tree_range(s).left) == T_LITERAL);
-   fail_unless(tree_kind(tree_range(s).right) == T_LITERAL);
+   fail_unless(tree_range(s, 0).kind == RANGE_TO);
+   fail_unless(tree_kind(tree_range(s, 0).left) == T_LITERAL);
+   fail_unless(tree_kind(tree_range(s, 0).right) == T_LITERAL);
 
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_FOR);
    fail_unless(tree_stmts(s) == 1);
-   fail_unless(tree_range(s).kind == RANGE_EXPR);
-   fail_unless(tree_kind(tree_range(s).left) == T_ATTR_REF);
-   fail_unless(tree_range(s).right == NULL);
+   fail_unless(tree_range(s, 0).kind == RANGE_EXPR);
+   fail_unless(tree_kind(tree_range(s, 0).left) == T_ATTR_REF);
+   fail_unless(tree_range(s, 0).right == NULL);
 
    // Exit
 
@@ -675,7 +675,7 @@ START_TEST(test_types)
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_UNRESOLVED);
    fail_unless(type_ident(type_base(t)) == ident_new("MY_INT"));
-   r = type_dim(t, 0);
+   r = tree_range(type_constraint(t), 0);
    fail_unless(tree_kind(r.left) == T_LITERAL);
    fail_unless(tree_kind(r.right) == T_ATTR_REF);
    fail_unless(tree_ident(tree_name(r.right)) == ident_new("MY_INT"));
@@ -1340,9 +1340,10 @@ START_TEST(test_array)
    fail_unless(tree_ident(d) == ident_new("X"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_dims(t) == 1);
-   fail_unless(tree_ival(type_dim(t, 0).left) == 1);
-   fail_unless(tree_ival(type_dim(t, 0).right) == 5);
+   fail_unless(type_has_constraint(t));
+   r = tree_range(type_constraint(t), 0);
+   fail_unless(tree_ival(r.left) == 1);
+   fail_unless(tree_ival(r.right) == 5);
 
    d = tree_decl(a, 1);
    fail_unless(tree_ident(d) == ident_new("Y"));
@@ -1354,9 +1355,10 @@ START_TEST(test_array)
    fail_unless(tree_ident(d) == ident_new("Z"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_dims(t) == 1);
-   fail_unless(tree_ival(type_dim(t, 0).left) == 1);
-   fail_unless(tree_ival(type_dim(t, 0).right) == 3);
+   fail_unless(type_has_constraint(t));
+   r = tree_range(type_constraint(t), 0);
+   fail_unless(tree_ival(r.left) == 1);
+   fail_unless(tree_ival(r.right) == 3);
    fail_unless(tree_has_value(d));
    g = tree_value(d);
    fail_unless(tree_kind(g) == T_AGGREGATE);
@@ -1372,9 +1374,10 @@ START_TEST(test_array)
    fail_unless(tree_ident(d) == ident_new("N"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_dims(t) == 1);
-   fail_unless(tree_ival(type_dim(t, 0).left) == 1);
-   fail_unless(tree_ival(type_dim(t, 0).right) == 3);
+   fail_unless(type_has_constraint(t));
+   r = tree_range(type_constraint(t), 0);
+   fail_unless(tree_ival(r.left) == 1);
+   fail_unless(tree_ival(r.right) == 3);
    fail_unless(tree_has_value(d));
    g = tree_value(d);
    fail_unless(tree_kind(g) == T_AGGREGATE);
@@ -1396,16 +1399,17 @@ START_TEST(test_array)
    fail_unless(tree_ident(d) == ident_new("M"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_dims(t) == 1);
-   fail_unless(tree_ival(type_dim(t, 0).left) == 1);
-   fail_unless(tree_ival(type_dim(t, 0).right) == 3);
+   fail_unless(type_has_constraint(t));
+   r = tree_range(type_constraint(t), 0);
+   fail_unless(tree_ival(r.left) == 1);
+   fail_unless(tree_ival(r.right) == 3);
    fail_unless(tree_has_value(d));
    g = tree_value(d);
    fail_unless(tree_kind(g) == T_AGGREGATE);
    fail_unless(tree_assocs(g) == 1);
    x = tree_assoc(g, 0);
    fail_unless(tree_subkind(x) == A_RANGE);
-   r = tree_range(x);
+   r = tree_range(x, 0);
    fail_unless(tree_ival(r.left) == 1);
    fail_unless(tree_ival(r.right) == 3);
    fail_unless(tree_ival(tree_value(x)) == 0);

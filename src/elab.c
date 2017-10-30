@@ -677,8 +677,8 @@ static netid_t elab_get_net(tree_t expr, int n)
          tree_t value = tree_value(expr);
          type_t array_type = tree_type(value);
 
-         range_t type_r  = type_dim(array_type, 0);
-         range_t slice_r = tree_range(expr);
+         range_t type_r  = range_of(array_type, 0);
+         range_t slice_r = tree_range(expr, 0);
 
          assert(type_r.kind == slice_r.kind);
 
@@ -752,7 +752,7 @@ static void elab_map_nets(map_list_t *maps)
             {
                type_t array_type = tree_type(maps->formal);
 
-               range_t slice = tree_range(maps->name);
+               range_t slice = tree_range(maps->name, 0);
 
                int64_t low, high;
                range_bounds(slice, &low, &high);
@@ -802,6 +802,7 @@ static bool elab_should_copy(tree_t t)
    case T_BINDING:
    case T_SPEC:
    case T_AGGREGATE:
+   case T_CONSTRAINT:
        return false;
    case T_VAR_DECL:
       if (tree_flags(t) & TREE_F_SHARED)
@@ -1206,7 +1207,7 @@ static void elab_pop_scope(const elab_ctx_t *ctx)
 static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
 {
    int64_t low, high;
-   range_bounds(tree_range(t), &low, &high);
+   range_bounds(tree_range(t, 0), &low, &high);
 
    for (int64_t i = low; i <= high; i++) {
       tree_t copy = elab_copy(t);

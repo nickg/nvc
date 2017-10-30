@@ -1034,7 +1034,7 @@ static range_t p_range(tree_t left)
    return r;
 }
 
-static range_t p_range_constraint(void)
+static tree_t p_range_constraint(void)
 {
    // range range
 
@@ -1042,7 +1042,12 @@ static range_t p_range_constraint(void)
 
    consume(tRANGE);
 
-   return p_range(p_expression());
+   tree_t t = tree_new(T_CONSTRAINT);
+   tree_set_subkind(t, C_RANGE);
+   tree_add_range(t, p_range(p_expression()));
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
 }
 
 static range_t p_discrete_range(void)
@@ -1067,7 +1072,8 @@ static range_t p_discrete_range(void)
          type_t type = type_new(T_UNRESOLVED);
          type_set_ident(type, tree_ident(expr1));
 
-         range_t r = p_range_constraint();
+         consume(tRANGE);
+         range_t r = p_range(p_expression());
          if (r.left != NULL)
              tree_set_type(r.left, type);
          if (r.right != NULL)
@@ -1098,7 +1104,7 @@ static tree_t p_slice_name(tree_t prefix)
    tree_set_value(t, prefix);
 
    consume(tLPAREN);
-   tree_set_range(t, p_discrete_range());
+   tree_add_range(t, p_discrete_range());
    consume(tRPAREN);
 
    tree_set_loc(t, CURRENT_LOC);
@@ -1395,17 +1401,24 @@ static type_t p_type_mark(void)
    return t;
 }
 
-static void p_index_constraint(type_t type)
+static tree_t p_index_constraint(type_t type)
 {
    // ( discrete_range { , discrete_range } )
 
+   BEGIN("index constraint");
+
    consume(tLPAREN);
 
+   tree_t t = tree_new(T_CONSTRAINT);
+   tree_set_subkind(t, C_INDEX);
    do {
-      type_add_dim(type, p_discrete_range());
+      tree_add_range(t, p_discrete_range());
    } while (optional(tCOMMA));
 
    consume(tRPAREN);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
 }
 
 static void p_constraint(type_t type)
@@ -1414,11 +1427,11 @@ static void p_constraint(type_t type)
 
    switch (peek()) {
    case tRANGE:
-      type_add_dim(type, p_range_constraint());
+      type_set_constraint(type, p_range_constraint());
       break;
 
    case tLPAREN:
-      p_index_constraint(type);
+      type_set_constraint(type, p_index_constraint(type));
       break;
 
    default:
@@ -1598,7 +1611,7 @@ static void p_choice(tree_t parent)
 
       if (look_for(&lookp)) {
          tree_set_subkind(t, A_RANGE);
-         tree_set_range(t, p_discrete_range());
+         tree_add_range(t, p_discrete_range());
       }
       else {
          tree_set_subkind(t, A_NAMED);
@@ -2598,7 +2611,7 @@ static type_t p_scalar_type_definition(void)
    switch (peek()) {
    case tRANGE:
       {
-         range_t r = p_range_constraint();
+         range_t r = tree_range(p_range_constraint(), 0);
 
          if (peek() == tUNITS)
             return p_physical_type_definition(r);
@@ -2750,7 +2763,9 @@ static type_t p_constrained_array_definition(void)
    consume(tARRAY);
 
    type_t t = type_new(T_CARRAY);
-   p_index_constraint(t);
+   tree_t tmp = p_index_constraint(t);  // XXXX
+   for (int i = 0; i < tree_ranges(tmp); i++)
+      type_add_dim(t, tree_range(tmp, i));
 
    consume(tOF);
 
@@ -4799,7 +4814,7 @@ static void p_parameter_specification(tree_t loop)
 
    consume(tIN);
 
-   tree_set_range(loop, p_discrete_range());
+   tree_add_range(loop, p_discrete_range());
 }
 
 static tree_t p_iteration_scheme(void)

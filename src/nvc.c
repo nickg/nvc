@@ -37,6 +37,7 @@ const char *version_string =
    PACKAGE_STRING " (Using LLVM " LLVM_VERSION ")";
 
 static ident_t top_level = NULL;
+static char *top_level_orig = NULL;
 
 static int process_command(int argc, char **argv);
 
@@ -229,8 +230,11 @@ static void set_top_level(char **argv, int next_cmd)
       if (top_level == NULL)
          fatal("missing top-level unit name");
    }
-   else
-      top_level = to_unit_name(argv[optind]);
+   else {
+      free(top_level_orig);
+      top_level_orig = xstrdup(argv[optind]);
+      top_level = to_unit_name(top_level_orig);
+   }
 }
 
 static int elaborate(int argc, char **argv)
@@ -529,7 +533,7 @@ static int run(int argc, char **argv)
       char *tmp LOCAL = NULL;
 
       if (*wave_fname == '\0') {
-         tmp = xasprintf("%s.%s", argv[optind], ext_map[wave_fmt]);
+         tmp = xasprintf("%s.%s", top_level_orig, ext_map[wave_fmt]);
          wave_fname = tmp;
          notef("writing %s waveform data to %s", name_map[wave_fmt], tmp);
       }

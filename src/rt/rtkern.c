@@ -1342,7 +1342,7 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
    case T_SUBTYPE:
       {
          int64_t low, high;
-         range_bounds(type_dim(type, 0), &low, &high);
+         range_bounds(range_of(type, 0), &low, &high);
          nlits = high - low + 1;
       }
       break;
@@ -2470,7 +2470,7 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
 
       type_t type = tree_type(s);
       if (type_is_array(type))
-         w->dir = type_dim(type, 0).kind;
+         w->dir = direction_of(type, 0);
       else
          w->dir = RANGE_TO;
 

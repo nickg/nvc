@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -96,6 +96,10 @@ void type_add_index_constr(type_t t, type_t c);
 void type_change_index_constr(type_t t, unsigned n, type_t c);
 type_t type_index_constr(type_t t, unsigned n);
 
+void type_set_constraint(type_t t, tree_t c);
+tree_t type_constraint(type_t t);
+bool type_has_constraint(type_t t);
+
 unsigned type_fields(type_t t);
 tree_t type_field(type_t t, unsigned n);
 void type_add_field(type_t t, tree_t e);
@@ -109,6 +113,7 @@ void type_set_body(type_t t, tree_t b);
 bool type_has_body(type_t t);
 
 void type_replace(type_t t, type_t a);
+void type_change_kind(type_t t, type_kind_t kind);
 
 void type_set_resolution(type_t t, tree_t r);
 bool type_has_resolution(type_t t);

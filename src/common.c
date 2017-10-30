@@ -559,7 +559,7 @@ type_t array_aggregate_type(type_t array, int from_dim)
       return type;
    }
    else {
-      const int ndims = type_dims(array);
+      const int ndims = array_dimension(array);
       assert(from_dim < ndims);
 
       type_t type = type_new(T_CARRAY);
@@ -567,7 +567,7 @@ type_t array_aggregate_type(type_t array, int from_dim)
       type_set_elem(type, type_elem(array));
 
       for (int i = from_dim; i < ndims; i++)
-         type_add_dim(type, type_dim(array, i));
+         type_add_dim(type, range_of(array, i));
 
       return type;
    }
@@ -585,7 +585,7 @@ tree_t make_default_value(type_t type, const loc_t *loc)
    case T_CARRAY:
       {
          tree_t def = NULL;
-         const int ndims = type_dims(type);
+         const int ndims = array_dimension(type);
          for (int i = ndims - 1; i >= 0; i--) {
             tree_t val = (def ? def : make_default_value(type_elem(base), loc));
             def = tree_new(T_AGGREGATE);
@@ -605,16 +605,17 @@ tree_t make_default_value(type_t type, const loc_t *loc)
    case T_INTEGER:
    case T_PHYSICAL:
    case T_REAL:
-      return type_dim(type, 0).left;
+      return range_of(type, 0).left;
 
    case T_ENUM:
       {
          int64_t val = 0;
-         const bool folded = folded_int(type_dim(type, 0).left, &val);
+         range_t r = range_of(type, 0);
+         const bool folded = folded_int(r.left, &val);
          if (folded)
             return make_ref(type_enum_literal(base, (unsigned) val));
          else
-            return type_dim(type, 0).left;
+            return r.left;
       }
 
    case T_RECORD:
@@ -716,9 +717,57 @@ unsigned bits_for_range(int64_t low, int64_t high)
 
 unsigned array_dimension(type_t a)
 {
-   return (type_is_unconstrained(a)
-           ? type_index_constrs(type_base_recur(a))
-           : type_dims(a));
+   switch (type_kind(a)) {
+   case T_SUBTYPE:
+      if (type_has_constraint(a))
+         return tree_ranges(type_constraint(a));
+      else
+         return array_dimension(type_base(a));
+   case T_CARRAY:
+      return type_dims(a);
+   case T_UARRAY:
+      return type_index_constrs(a);
+   default:
+      fatal_trace("non-array type %s in array_dimension",
+                  type_kind_str(type_kind(a)));
+   }
+}
+
+range_t range_of(type_t type, unsigned dim)
+{
+   switch (type_kind(type)) {
+   case T_SUBTYPE:
+      if (type_has_constraint(type))
+         return tree_range(type_constraint(type), dim);
+      else
+         return range_of(type_base(type), dim);
+   case T_INTEGER:
+   case T_REAL:
+   case T_PHYSICAL:
+   case T_CARRAY:
+   case T_ENUM:
+      return type_dim(type, dim);
+   default:
+      fatal_trace("invalid type kind %s in range_of",
+                  type_kind_str(type_kind(type)));
+   }
+}
+
+range_kind_t direction_of(type_t type, unsigned dim)
+{
+   switch (type_kind(type)) {
+   case T_ENUM:
+      return RANGE_TO;
+   case T_INTEGER:
+   case T_REAL:
+   case T_PHYSICAL:
+   case T_CARRAY:
+   case T_SUBTYPE:
+      return range_of(type, dim).kind;
+   default:
+      fatal_trace("invalid type kind %s in direction_of",
+                  type_kind_str(type_kind(type)));
+   }
 }
 
 type_t index_type_of(type_t type, int dim)
@@ -728,7 +777,7 @@ type_t index_type_of(type_t type, int dim)
    else if (type_kind(type) == T_ENUM)
       return type;
    else {
-      tree_t left = type_dim(type, dim).left;
+      tree_t left = range_of(type, dim).left;
 
       // If the left bound has not been assigned a type then there is some
       // error with it so just return a dummy type here
@@ -739,7 +788,7 @@ type_t index_type_of(type_t type, int dim)
 int64_t rebase_index(type_t array_type, int dim, int64_t value)
 {
    // Convert value which is in the range of array_type to a zero-based index
-   range_t r = type_dim(array_type, dim);
+   range_t r = range_of(array_type, dim);
    const int64_t left = assume_int(r.left);
    return (r.kind == RANGE_TO) ? value - left : left - value;
 }

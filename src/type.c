@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT | I_RESOLUTION),
 
    // T_SUBTYPE
-   (I_IDENT | I_BASE | I_RESOLUTION | I_DIMS),
+   (I_IDENT | I_BASE | I_RESOLUTION | I_CONSTR),
 
    // T_INTEGER
    (I_IDENT | I_DIMS),
@@ -52,7 +52,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT | I_ELEM | I_DIMS),
 
    // T_UARRAY
-   (I_IDENT | I_CONSTR | I_ELEM),
+   (I_IDENT | I_INDEXCON | I_ELEM),
 
    // T_RECORD
    (I_IDENT | I_FIELDS),
@@ -93,6 +93,8 @@ static const change_allowed_t change_allowed[] = {
    { T_INCOMPLETE, T_UARRAY   },
    { T_INCOMPLETE, T_RECORD   },
    { T_INCOMPLETE, T_ACCESS   },
+   { T_INTEGER,    T_REAL     },
+   { T_REAL,       T_INTEGER  },
    { -1,           -1         }
 };
 
@@ -482,27 +484,49 @@ void type_replace(type_t t, type_t a)
    object_replace(&(t->object), &(a->object));
 }
 
+void type_change_kind(type_t t, type_kind_t kind)
+{
+   object_change_kind(&type_object, &(t->object), kind);
+}
+
 unsigned type_index_constrs(type_t t)
 {
-   return lookup_item(&type_object, t, I_CONSTR)->type_array.count;
+   return lookup_item(&type_object, t, I_INDEXCON)->type_array.count;
 }
 
 void type_add_index_constr(type_t t, type_t c)
 {
-   type_array_add(&(lookup_item(&type_object, t, I_CONSTR)->type_array), c);
+   type_array_add(&(lookup_item(&type_object, t, I_INDEXCON)->type_array), c);
 }
 
 void type_change_index_constr(type_t t, unsigned n, type_t c)
 {
-   type_array_t *a = &(lookup_item(&type_object, t, I_CONSTR)->type_array);
+   type_array_t *a = &(lookup_item(&type_object, t, I_INDEXCON)->type_array);
    assert(n < a->count);
    a->items[n] = c;
 }
 
 type_t type_index_constr(type_t t, unsigned n)
 {
-   item_t *item = lookup_item(&type_object, t, I_CONSTR);
+   item_t *item = lookup_item(&type_object, t, I_INDEXCON);
    return type_array_nth(&(item->type_array), n);
+}
+
+void type_set_constraint(type_t t, tree_t c)
+{
+   lookup_item(&type_object, t, I_CONSTR)->tree = c;
+}
+
+bool type_has_constraint(type_t t)
+{
+   return lookup_item(&type_object, t, I_CONSTR)->tree != NULL;
+}
+
+tree_t type_constraint(type_t t)
+{
+   item_t *item = lookup_item(&type_object, t, I_CONSTR);
+   assert(item->tree != NULL);
+   return item->tree;
 }
 
 void type_set_resolution(type_t t, tree_t r)
@@ -651,7 +675,7 @@ bool type_is_unconstrained(type_t t)
 {
    assert(t != NULL);
    if (t->object.kind == T_SUBTYPE) {
-      if (type_dims(t) == 0)
+      if (!type_has_constraint(t))
          return type_is_unconstrained(type_base(t));
       else
          return false;
@@ -722,10 +746,10 @@ bool type_known_width(type_t type)
    if (!type_known_width(type_elem(type)))
       return false;
 
-   const int ndims = type_dims(type);
+   const int ndims = array_dimension(type);
    for (int i = 0; i < ndims; i++) {
       int64_t low, high;
-      if (!folded_bounds(type_dim(type, i), &low, &high))
+      if (!folded_bounds(range_of(type, i), &low, &high))
          return false;
    }
 
@@ -737,10 +761,10 @@ unsigned type_width(type_t type)
    if (type_is_array(type)) {
       const unsigned elem_w = type_width(type_elem(type));
       unsigned w = 1;
-      const int ndims = type_dims(type);
+      const int ndims = array_dimension(type);
       for (int i = 0; i < ndims; i++) {
          int64_t low, high;
-         range_bounds(type_dim(type, i), &low, &high);
+         range_bounds(range_of(type, i), &low, &high);
          w *= MAX(high - low + 1, 0);
       }
       return w * elem_w;

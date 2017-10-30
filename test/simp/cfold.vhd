@@ -119,4 +119,13 @@ begin
         b := '0' /= one;
     end process;
 
+    -- Billowitch tc3170
+    tc3170: process is
+        constant L : REAL := -10.0;
+        constant R : REAL := 10.0;
+        type RT1 is range L to R;
+    begin
+        assert (  RT1'right = RT1(R)   );  -- Should be removed
+    end process;
+
 end architecture;

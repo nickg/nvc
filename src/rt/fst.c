@@ -179,22 +179,21 @@ static void fst_process_signal(tree_t d)
    type_t type = tree_type(d);
    type_t base = type_base_recur(type);
 
-   fst_data_t *data = xmalloc(sizeof(fst_data_t));
-   memset(data, '\0', sizeof(fst_data_t));
+   fst_data_t *data = xcalloc(sizeof(fst_data_t));
 
    int msb = 0, lsb = 0;
 
    enum fstVarType vt;
    enum fstSupplementalDataType sdt;
    if (type_is_array(type)) {
-      if (type_dims(type) > 1) {
+      if (array_dimension(type) > 1) {
          warn_at(tree_loc(d), "cannot represent multidimensional arrays "
                  "in FST format");
          free(data);
          return;
       }
 
-      range_t r = type_dim(type, 0);
+      range_t r = range_of(type, 0);
 
       int64_t low, high;
       range_bounds(r, &low, &high);
@@ -233,7 +232,7 @@ static void fst_process_signal(tree_t d)
                sdt = FST_SDT_VHDL_INTEGER;
 
             int64_t low, high;
-            range_bounds(type_dim(type, 0), &low, &high);
+            range_bounds(range_of(type, 0), &low, &high);
 
             vt = FST_VT_VCD_INTEGER;
             data->size = ilog2(high - low + 1);

@@ -47,7 +47,7 @@ static void bounds_check_string_literal(tree_t t)
       return;
 
    int64_t expect;
-   if (folded_length(type_dim(type, 0), &expect) && expect != tree_chars(t))
+   if (folded_length(range_of(type, 0), &expect) && expect != tree_chars(t))
       bounds_error(t, "expected %"PRIi64" elements in string literal but "
                    "have %d", expect, tree_chars(t));
 }
@@ -196,11 +196,11 @@ static tree_t bounds_check_call_args(tree_t t)
          if ((type_is_unconstrained(atype)) || (type_is_unconstrained(ftype)))
             continue;
 
-         const int ndims = type_dims(ftype);
+         const int ndims = array_dimension(ftype);
 
          for (int j = 0; j < ndims; j++) {
-            range_t formal_r = type_dim(ftype, j);
-            range_t actual_r = type_dim(atype, j);
+            range_t formal_r = range_of(ftype, j);
+            range_t actual_r = range_of(atype, j);
 
             int64_t f_len, a_len;
 
@@ -223,7 +223,7 @@ static tree_t bounds_check_call_args(tree_t t)
          }
       }
       else if (type_is_scalar(ftype)) {
-         range_t r = type_dim(ftype, 0);
+         range_t r = range_of(ftype, 0);
          bool checked;
 
          if (is_out_of_range(value, r, &checked))
@@ -255,7 +255,7 @@ static void bounds_check_array_ref(tree_t t)
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
       tree_t pvalue = tree_value(p);
-      range_t r = type_dim(value_type, i);
+      range_t r = range_of(value_type, i);
       bool checked;
       if (is_out_of_range(pvalue, r, &checked)) {
          const char *name = (tree_kind(value) == T_REF)
@@ -287,8 +287,8 @@ static void bounds_check_array_slice(tree_t t)
    if (type_is_unconstrained(value_type))
       return;
 
-   range_t b = type_dim(value_type, 0);
-   range_t r = tree_range(t);
+   range_t b = range_of(value_type, 0);
+   range_t r = tree_range(t, 0);
 
    if ((b.kind != RANGE_TO) && (b.kind != RANGE_DOWNTO))
       return;
@@ -361,7 +361,7 @@ static void bounds_check_aggregate(tree_t t)
    int64_t low, high;
    bool have_bounds = false;
 
-   range_t type_r = type_dim(type, 0);
+   range_t type_r = range_of(type, 0);
 
    const bool unconstrained = tree_flags(t) & TREE_F_UNCONSTRAINED;
 
@@ -372,7 +372,7 @@ static void bounds_check_aggregate(tree_t t)
 
       type_t index = type_index_constr(base, 0);
 
-      range_t base_r = type_dim(index, 0);
+      range_t base_r = range_of(index, 0);
 
       have_bounds = folded_bounds(base_r, &low, &high);
    }
@@ -398,7 +398,7 @@ static void bounds_check_aggregate(tree_t t)
 
       case A_RANGE:
          {
-            range_t r = tree_range(a);
+            range_t r = tree_range(a, 0);
             bounds_within(r.left, r.kind, "aggregate", low, high);
             bounds_within(r.right, r.kind, "aggregate", low, high);
 
@@ -422,11 +422,11 @@ static void bounds_check_aggregate(tree_t t)
 
    // Check the actual against the expected element count
 
-   const int ndims = type_dims(type);
+   const int ndims = array_dimension(type);
 
    if (known_elem_count) {
       int64_t expect;
-      if (folded_length(type_dim(type, 0), &expect) && expect != nelems)
+      if (folded_length(range_of(type, 0), &expect) && expect != nelems)
          bounds_error(t, "expected %"PRIi64" elements in aggregate but have %d",
                       expect, nelems);
    }
@@ -441,7 +441,7 @@ static void bounds_check_aggregate(tree_t t)
          type_t value_type = tree_type(tree_value(a));
 
          int64_t this_length;
-         if (!folded_length(type_dim(value_type, 0), &this_length))
+         if (!folded_length(range_of(value_type, 0), &this_length))
              break;
 
          if (length == -1)
@@ -473,14 +473,14 @@ static void bounds_check_decl(tree_t t)
 
       const int ndims = array_dimension(base);
       for (int i = 0; i < ndims; i++) {
-         range_t dim = type_dim(type, i);
+         range_t dim = range_of(type, i);
 
          type_t cons = index_type_of(base, i);
          type_t cons_base  = type_base_recur(cons);
 
          const bool is_enum = (type_kind(cons_base) == T_ENUM);
 
-         range_t bounds = type_dim(cons, 0);
+         range_t bounds = range_of(cons, 0);
 
          // Only check here if range can be determined to be non-null
 
@@ -545,11 +545,11 @@ static void bounds_check_assignment(tree_t target, tree_t value)
       && !type_is_unconstrained(value_type);
 
    if (check_array_length) {
-      const int ndims = type_dims(target_type);
+      const int ndims = array_dimension(target_type);
       for (int i = 0; i < ndims; i++) {
          int64_t target_w, value_w;
-         if (folded_length(type_dim(target_type, i), &target_w)
-             && folded_length(type_dim(value_type, i), &value_w)) {
+         if (folded_length(range_of(target_type, i), &target_w)
+             && folded_length(range_of(value_type, i), &value_w)) {
             if (target_w != value_w) {
                if (i > 0)
                   bounds_error(value, "length of dimension %d of value %"PRIi64
@@ -565,7 +565,7 @@ static void bounds_check_assignment(tree_t target, tree_t value)
    }
 
    if (type_is_scalar(target_type)) {
-      range_t r = type_dim(target_type, 0);
+      range_t r = range_of(target_type, 0);
       bool checked;
 
       if (is_out_of_range(value, r, &checked)) {
@@ -683,9 +683,7 @@ static void bounds_check_case(tree_t t)
 
       unsigned nlits, low, high;
       if (type_kind(type) == T_SUBTYPE) {
-         assert(type_dims(type) == 1);
-
-         range_t r = type_dim(type, 0);
+         range_t r = range_of(type, 0);
          assert(r.kind == RANGE_TO);
 
          if ((tree_kind(r.left) != T_REF)
@@ -749,7 +747,7 @@ static void bounds_check_case(tree_t t)
       // Check that the full range of the type is covered
 
       int64_t tlow, thigh;
-      if (!folded_bounds(type_dim(type, 0), &tlow, &thigh))
+      if (!folded_bounds(range_of(type, 0), &tlow, &thigh))
          return;
 
       bool have_others = false;
@@ -773,7 +771,7 @@ static void bounds_check_case(tree_t t)
 
          case A_RANGE:
             {
-               range_t r = tree_range(a);
+               range_t r = tree_range(a, 0);
                assert(r.kind == RANGE_TO);
                low  = assume_int(r.left);
                high = assume_int(r.right);
@@ -824,11 +822,11 @@ static void bounds_check_case(tree_t t)
       assert(type_is_enum(elem));
 
       int64_t elemsz;
-      if (!folded_length(type_dim(elem, 0), &elemsz))
+      if (!folded_length(range_of(elem, 0), &elemsz))
          return;
 
       int64_t length;
-      if (!folded_length(type_dim(type, 0), &length))
+      if (!folded_length(range_of(type, 0), &length))
           return;
 
       const int64_t expect = ipow(elemsz, length);
@@ -876,8 +874,8 @@ static void bounds_check_type_conv(tree_t t)
 
       if (folded) {
          int64_t b_low, b_high;
-         folded_bounds(type_dim(to, 0), &b_low, &b_high);
-         if (folded_bounds(type_dim(to, 0), &b_low, &b_high)
+         folded_bounds(range_of(to, 0), &b_low, &b_high);
+         if (folded_bounds(range_of(to, 0), &b_low, &b_high)
              && (ival < b_low || ival > b_high)) {
             char *argstr LOCAL = type_is_real(from)
                ? xasprintf("%lg", rval) : xasprintf("%"PRIi64, ival);
@@ -907,7 +905,7 @@ static void bounds_check_attr_ref(tree_t t)
             const bool f = folded_int(dim_tree, &dim);
             assert(f);
 
-            if (dim < 1 || dim > type_dims(type))
+            if (dim < 1 || dim > array_dimension(type))
                bounds_error(dim_tree, "invalid dimension %"PRIi64" for type %s",
                             dim, type_pp(type));
          }

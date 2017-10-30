@@ -32,4 +32,11 @@ begin
         x := real'right;                -- OK
     end process;
 
+    process is
+        constant i : integer := 5;
+        constant r : real := 252.4;
+        type t is range i to r;         -- Error
+    begin
+    end process;
+
 end architecture;

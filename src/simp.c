@@ -343,11 +343,11 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
             if (type_is_unconstrained(type))
                return t;
 
-            if (dim_i < 1 || dim_i > type_dims(type))
+            if (dim_i < 1 || dim_i > array_dimension(type))
                return t;
          }
 
-         range_t r = type_dim(type, dim_i - 1);
+         range_t r = range_of(type, dim_i - 1);
 
          const bool known_dir =
             (r.kind == RANGE_TO) || (r.kind == RANGE_DOWNTO);
@@ -388,7 +388,7 @@ static tree_t simp_extract_string_literal(tree_t literal, int64_t index,
 {
    type_t type = tree_type(literal);
 
-   range_t bounds = type_dim(type, 0);
+   range_t bounds = range_of(type, 0);
    int64_t low, high;
    range_bounds(bounds, &low, &high);
 
@@ -403,7 +403,7 @@ static tree_t simp_extract_string_literal(tree_t literal, int64_t index,
 
 static tree_t simp_extract_aggregate(tree_t agg, int64_t index, tree_t def)
 {
-   range_t bounds = type_dim(tree_type(agg), 0);
+   range_t bounds = range_of(tree_type(agg), 0);
    int64_t low, high;
    range_bounds(bounds, &low, &high);
 
@@ -427,7 +427,7 @@ static tree_t simp_extract_aggregate(tree_t agg, int64_t index, tree_t def)
 
       case A_RANGE:
          {
-            range_t r = tree_range(a);
+            range_t r = tree_range(a, 0);
             const int64_t left  = assume_int(r.left);
             const int64_t right = assume_int(r.right);
 
@@ -665,7 +665,7 @@ static void simp_build_wait(tree_t wait, tree_t expr)
 
    case T_ARRAY_SLICE:
       {
-         range_t r = tree_range(expr);
+         range_t r = tree_range(expr, 0);
          if (r.left != NULL)
             simp_build_wait(wait, r.left);
          if (r.right != NULL)

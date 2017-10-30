@@ -37,7 +37,7 @@ static const char *item_text_map[] = {
    "I_DVAL",     "I_SPEC",      "I_OPS",      "I_CONSTR",     "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_TEXT_BUF",
-   "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "????",         "I_FLAGS"
+   "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CONSTR2",    "I_FLAGS"
 };
 
 static object_class_t *classes[4];
@@ -218,10 +218,10 @@ static void object_sweep(object_t *object)
       if (has & mask) {
          if (ITEM_TREE_ARRAY & mask)
             free(object->items[n].tree_array.items);
+         else if (ITEM_TYPE_ARRAY & mask)
+            free(object->items[n].type_array.items);
          else if (ITEM_NETID_ARRAY & mask)
             free(object->items[n].netid_array.items);
-         else if (ITEM_RANGE & mask)
-            free(object->items[n].range);
          else if (ITEM_ATTRS & mask)
             free(object->items[n].attrs.table);
          else if (ITEM_RANGE_ARRAY & mask)
@@ -340,12 +340,6 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
             ;
          else if (ITEM_DOUBLE & mask)
             ;
-         else if (ITEM_RANGE & mask) {
-            if (object->items[i].range != NULL) {
-               object_visit((object_t *)object->items[i].range->left, ctx);
-               object_visit((object_t *)object->items[i].range->right, ctx);
-            }
-         }
          else if (ITEM_RANGE_ARRAY & mask) {
             range_array_t *a = &(object->items[i].range_array);
             for (unsigned j = 0; j < a->count; j++) {
@@ -433,13 +427,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
             ;
          else if (ITEM_DOUBLE & mask)
             ;
-         else if (ITEM_RANGE & mask) {
-            range_t *r = object->items[n].range;
-            if (r != NULL) {
-               r->left  = (tree_t)object_rewrite((object_t *)r->left, ctx);
-               r->right = (tree_t)object_rewrite((object_t *)r->right, ctx);
-            }
-         }
          else if (ITEM_TYPE_ARRAY & mask) {
             type_array_t *a = &(object->items[n].type_array);
             for (unsigned i = 0; i < a->count; i++)
@@ -556,15 +543,6 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
             write_u64(object->items[n].ival, ctx->file);
          else if (ITEM_INT32 & mask)
             write_u32(object->items[n].ival, ctx->file);
-         else if (ITEM_RANGE & mask) {
-            if (object->items[n].range != NULL) {
-               write_u8(object->items[n].range->kind, ctx->file);
-               object_write((object_t *)object->items[n].range->left, ctx);
-               object_write((object_t *)object->items[n].range->right, ctx);
-            }
-            else
-               write_u8(UINT8_C(0xff), ctx->file);
-         }
          else if (ITEM_NETID_ARRAY & mask) {
             const netid_array_t *a = &(object->items[n].netid_array);
             write_u32(a->count, ctx->file);
@@ -694,17 +672,6 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
             object->items[n].ival = read_u64(ctx->file);
          else if (ITEM_INT32 & mask)
             object->items[n].ival = read_u32(ctx->file);
-         else if (ITEM_RANGE & mask) {
-            const uint8_t rmarker = read_u8(ctx->file);
-            if (rmarker != UINT8_C(0xff)) {
-               object->items[n].range = xmalloc(sizeof(range_t));
-               object->items[n].range->kind = rmarker;
-               object->items[n].range->left =
-                  (tree_t)object_read(ctx, OBJECT_TAG_TREE);
-               object->items[n].range->right =
-                  (tree_t)object_read(ctx, OBJECT_TAG_TREE);
-            }
-         }
          else if (ITEM_RANGE_ARRAY & mask) {
             range_array_t *a = &(object->items[n].range_array);
             range_array_resize(a, read_u16(ctx->file), 0);
@@ -860,13 +827,6 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
             ;
          else if (ITEM_INT32 & mask)
             ;
-         else if (ITEM_RANGE & mask) {
-            range_t *r = object->items[n].range;
-            if (r != NULL) {
-               marked = object_copy_mark((object_t *)r->left, ctx) || marked;
-               marked = object_copy_mark((object_t *)r->right, ctx) || marked;
-            }
-         }
          else if (ITEM_RANGE_ARRAY & mask) {
             range_array_t *a = &(object->items[n].range_array);
             for (unsigned i = 0; i < a->count; i++) {
@@ -950,17 +910,6 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
                object_copy_sweep((object_t *)object->items[n].type, ctx);
          else if ((ITEM_INT64 & mask) || (ITEM_INT32 & mask))
             copy->items[n].ival = object->items[n].ival;
-         else if (ITEM_RANGE & mask) {
-            const range_t *from = object->items[n].range;
-            if (from != NULL) {
-               range_t *to = copy->items[n].range = xmalloc(sizeof(range_t));
-               to->kind  = from->kind;
-               to->left  =
-                  (tree_t)object_copy_sweep((object_t *)from->left, ctx);
-               to->right =
-                  (tree_t)object_copy_sweep((object_t *)from->right, ctx);
-            }
-         }
          else if (ITEM_NETID_ARRAY & mask) {
             const netid_array_t *from = &(object->items[n].netid_array);
             netid_array_t *to = &(copy->items[n].netid_array);

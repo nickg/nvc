@@ -51,6 +51,8 @@ tree_t make_default_value(type_t type, const loc_t *loc);
 unsigned bits_for_range(int64_t low, int64_t high);
 unsigned array_dimension(type_t a);
 type_t index_type_of(type_t type, int dim);
+range_kind_t direction_of(type_t type, unsigned dim);
+range_t range_of(type_t type, unsigned dim);
 tree_t str_to_literal(const char *start, const char *end, type_t type);
 int64_t rebase_index(type_t array_type, int dim, int64_t value);
 bool loc_eq(const loc_t *a, const loc_t *b);

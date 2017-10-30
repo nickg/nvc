@@ -144,6 +144,9 @@ START_TEST(test_cfold)
    p = tree_stmt(a, 7);
    fail_unless(folded_b(tree_value(tree_stmt(p, 0)), true));
    fail_unless(folded_b(tree_value(tree_stmt(p, 1)), true));
+
+   p = tree_stmt(a, 8);
+   fail_unless(tree_stmts(p) == 0);
 }
 END_TEST
 
@@ -351,19 +354,19 @@ START_TEST(test_issue155)
 
    simplify(p, 0);
 
-   range_t ar = type_dim(tree_type(tree_decl(p, 2)), 0);
+   range_t ar = range_of(tree_type(tree_decl(p, 2)), 0);
    fail_unless(folded_i(ar.left, 7));
    fail_unless(folded_i(ar.right, 0));
 
-   range_t br = type_dim(tree_type(tree_decl(p, 3)), 0);
+   range_t br = range_of(tree_type(tree_decl(p, 3)), 0);
    fail_unless(folded_i(br.left, 3));
    fail_unless(folded_i(br.right, 0));
 
-   range_t cr = type_dim(tree_type(tree_decl(p, 4)), 0);
+   range_t cr = range_of(tree_type(tree_decl(p, 4)), 0);
    fail_unless(folded_i(cr.left, 1));
    fail_unless(folded_i(cr.right, 0));
 
-   range_t dr = type_dim(tree_type(tree_decl(p, 6)), 0);
+   range_t dr = range_of(tree_type(tree_decl(p, 6)), 0);
    fail_unless(folded_i(dr.left, 2));
    fail_unless(folded_i(dr.right, 1));
 }
