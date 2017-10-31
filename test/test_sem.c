@@ -720,6 +720,7 @@ START_TEST(test_access)
       { 55, "type of allocator expresion INTEGER does not match" },
       { 56, "name S does not refer to a type" },
       { 76, "unconstrained array type INT_PTR_ARRAY not allowed" },
+      { 84, "non-array type INTEGER may not have index constraint" },
       { -1, NULL }
    };
    expect_errors(expect);

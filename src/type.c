@@ -548,7 +548,10 @@ tree_t type_resolution(type_t t)
 
 type_t type_access(type_t t)
 {
-   return lookup_item(&type_object, t, I_ACCESS)->type;
+   if (t->object.kind == T_SUBTYPE)
+      return type_access(type_base(t));
+   else
+      return lookup_item(&type_object, t, I_ACCESS)->type;
 }
 
 void type_set_access(type_t t, type_t a)

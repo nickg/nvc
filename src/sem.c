@@ -1175,6 +1175,14 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          sem_error(t, "subtypes may not have protected base types");
 
       if (type_has_constraint(type)) {
+         if (type_is_access(base)) {
+            base = type_access(base);
+
+            if (!type_is_array(base))
+               sem_error(t, "non-array type %s may not have index constraint",
+                         sem_type_str(base));
+         }
+
          if (type_kind(base) == T_CARRAY)
             sem_error(t, "may not change constraints of a constrained array");
 
@@ -2687,7 +2695,7 @@ static void sem_check_static_elab(tree_t t)
             sem_check_static_elab(r.left);
             sem_check_static_elab(r.right);
          }
-         else if (type_is_array(type)) {
+         else if (type_is_array(type) && !type_is_unconstrained(type)) {
             const int ndims = array_dimension(type);
             for (int i = 0; i < ndims; i++) {
                range_t r = range_of(type, i);

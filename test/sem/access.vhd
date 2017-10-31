@@ -78,5 +78,11 @@ package body p is
         x.all := (null, null, null);     -- OK
     end procedure;
 
+    procedure tets4 is
+        type bvp is access bit_vector;
+        variable x : bvp(1 to 4) := new bit_vector'("1010");  -- OK
+        variable y : int_ptr(1 to 3) := int_ptr'(null);  -- Error
+    begin
+    end procedure;
 
 end package body;
