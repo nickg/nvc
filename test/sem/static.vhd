@@ -84,4 +84,14 @@ begin
         port map (
             x(N downto 0) => x );  -- Error
 
+    process is
+        type rec is record
+            f1, f2 : integer;
+        end record;
+
+        subtype rs is rec;                  -- OK
+        constant rc : rs := (0, 0);         -- OK
+    begin
+    end process;
+
 end architecture;

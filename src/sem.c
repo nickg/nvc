@@ -2682,11 +2682,15 @@ static void sem_check_static_elab(tree_t t)
    case T_SIGNAL_DECL:
       {
          type_t type = tree_type(t);
-         const type_kind_t kind = type_kind(type);
-         if (kind == T_SUBTYPE || kind == T_CARRAY) {
-            const int ndims = type_is_array(type) ? array_dimension(type) : 1;
+         if (type_is_scalar(type)) {
+            range_t r = range_of(type, 0);
+            sem_check_static_elab(r.left);
+            sem_check_static_elab(r.right);
+         }
+         else if (type_is_array(type)) {
+            const int ndims = array_dimension(type);
             for (int i = 0; i < ndims; i++) {
-               range_t r = range_of(type, 0);
+               range_t r = range_of(type, i);
                sem_check_static_elab(r.left);
                sem_check_static_elab(r.right);
             }
