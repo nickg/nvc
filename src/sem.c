@@ -6201,6 +6201,16 @@ static bool sem_subtype_locally_static(type_t type)
    if (type_is_scalar(type))
       return true;
 
+   if (type_is_record(type)) {
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         if (!sem_subtype_locally_static(tree_type(type_field(type, i))))
+            return false;
+      }
+
+      return true;
+   }
+
    switch (type_kind(type)) {
    case T_CARRAY:
    case T_SUBTYPE:

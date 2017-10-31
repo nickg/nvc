@@ -91,6 +91,7 @@ begin
 
         subtype rs is rec;                  -- OK
         constant rc : rs := (0, 0);         -- OK
+        constant i : integer := rc.f1;      -- OK
     begin
     end process;
 
