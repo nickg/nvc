@@ -1686,6 +1686,84 @@ static void eval_op_null_check(int op, eval_state_t *state)
    }
 }
 
+static void eval_op_bitvec_op(int op, eval_state_t *state)
+{
+   value_t *lhs_data = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *lhs_len = eval_get_reg(vcode_get_arg(op, 1), state);
+   value_t *lhs_dir = eval_get_reg(vcode_get_arg(op, 2), state);
+
+   value_t *rhs_data = NULL;
+   value_t *rhs_len = NULL;
+   value_t *rhs_dir = NULL;
+   if (vcode_count_args(op) > 3) {
+      rhs_data = eval_get_reg(vcode_get_arg(op, 3), state);
+      rhs_len = eval_get_reg(vcode_get_arg(op, 4), state);
+      rhs_dir = eval_get_reg(vcode_get_arg(op, 5), state);
+   }
+
+   (void)rhs_dir;
+
+   EVAL_ASSERT_VALUE(op, lhs_data, VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, lhs_len, VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, lhs_dir, VALUE_INTEGER);
+
+   const int result_len = rhs_len == NULL
+      ? lhs_len->integer
+      : MIN(rhs_len->integer, lhs_len->integer);
+
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+
+   value_t *buf = eval_alloc(sizeof(value_t) * result_len, state);
+   if (buf == NULL)
+      return;
+
+   dst->kind = VALUE_UARRAY;
+   if ((dst->uarray = eval_alloc(sizeof(uarray_t), state)) == NULL)
+      return;
+   dst->uarray->data = buf;
+   dst->uarray->ndims = 1;
+   dst->uarray->dim[0].left =
+      (lhs_dir->integer == RANGE_TO) ? 0 : result_len - 1;
+   dst->uarray->dim[0].right =
+      (lhs_dir->integer == RANGE_TO) ? result_len - 1 : 0;
+   dst->uarray->dim[0].dir = lhs_dir->integer;
+
+   const bit_vec_op_kind_t kind = vcode_get_subkind(op);
+
+   for (int i = 0; i < result_len; i++) {
+      buf[i].kind = VALUE_INTEGER;
+      switch (kind) {
+      case BIT_VEC_AND:
+         buf[i].integer =
+            lhs_data->pointer[i].integer & rhs_data->pointer[i].integer;
+         break;
+      case BIT_VEC_OR:
+         buf[i].integer =
+            lhs_data->pointer[i].integer | rhs_data->pointer[i].integer;
+         break;
+      case BIT_VEC_NOT:
+         buf[i].integer = !lhs_data->pointer[i].integer;
+         break;
+      case BIT_VEC_XOR:
+         buf[i].integer =
+            lhs_data->pointer[i].integer ^ rhs_data->pointer[i].integer;
+         break;
+      case BIT_VEC_XNOR:
+         buf[i].integer =
+            !(lhs_data->pointer[i].integer ^ rhs_data->pointer[i].integer);
+         break;
+      case BIT_VEC_NAND:
+         buf[i].integer =
+            !(lhs_data->pointer[i].integer & rhs_data->pointer[i].integer);
+         break;
+      case BIT_VEC_NOR:
+         buf[i].integer =
+            !(lhs_data->pointer[i].integer | rhs_data->pointer[i].integer);
+         break;
+      }
+   }
+}
+
 static void eval_vcode(eval_state_t *state)
 {
    if (++(state->iterations) >= ITER_LIMIT) {
@@ -1935,6 +2013,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_DEALLOCATE:
          eval_op_deallocate(i, state);
+         break;
+
+      case VCODE_OP_BIT_VEC_OP:
+         eval_op_bitvec_op(i, state);
          break;
 
       default:

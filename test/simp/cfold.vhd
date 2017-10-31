@@ -128,4 +128,20 @@ begin
         assert (  RT1'right = RT1(R)   );  -- Should be removed
     end process;
 
+    bitvec: process is
+        constant x : bit_vector(1 to 3) := "101";
+        constant y : bit_vector(1 to 3) := "110";
+        constant z : bit_vector(3 downto 1) := "011";
+        variable b : boolean;
+    begin
+        b := (x and y) = "100";
+        b := (y and z) = "010";
+        b := (x or y) = "111";
+        b := not x = "010";
+        b := (x xor y) = "011";
+        b := (x xnor y) = "100";
+        b := (x nand y) = "011";
+        b := (x nor y) = "000";
+    end process;
+
 end architecture;

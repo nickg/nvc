@@ -231,10 +231,11 @@ static void dump_type(type_t type)
 {
    if (type_is_array(type) && !type_is_unconstrained(type)) {
       printf("%s(", istr(type_ident(type)));
-      for (unsigned i = 0; i < type_dims(type); i++) {
+      const int ndims = array_dimension(type);
+      for (int i = 0; i < ndims; i++) {
          if (i > 0)
             printf(", ");
-         range_t r = type_dim(type, i);
+         range_t r = range_of(type, i);
          dump_expr(r.left);
          switch (r.kind) {
          case RANGE_TO:
