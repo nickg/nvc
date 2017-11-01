@@ -2871,6 +2871,155 @@ START_TEST(test_issue351)
 }
 END_TEST
 
+START_TEST(test_tounsigned)
+{
+   input_from_file(TESTDIR "/lower/tounsigned.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   lower_unit(p);
+
+   vcode_unit_t v1 = find_unit(tree_decl(p, 1));
+   vcode_select_unit(v1);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADDI, .value = -1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_ADDI, .value = 1 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "RESULT" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
+      { VCODE_OP_STORE, .name = "I_VAL" },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
+      { VCODE_OP_COND, .target = 1, .target_else = 2 },
+   };
+
+   CHECK_BB(0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_INDEX, .name = "WORK.P.NAU" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_ADDI, .value = -1 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
+      { VCODE_OP_COND, .target = 4, .target_else = 3 },
+   };
+
+   CHECK_BB(2);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_STORE, .name = "I.line_16" },
+      { VCODE_OP_JUMP, .target = 5 }
+   };
+
+   CHECK_BB(3);
+
+   EXPECT_BB(4) = {
+      { VCODE_OP_LOAD, .name = "RESULT" },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(4);
+
+   EXPECT_BB(5) = {
+      { VCODE_OP_LOAD, .name = "I_VAL" },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_MOD },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 7, .target_else = 8 }
+   };
+
+   CHECK_BB(5);
+
+   EXPECT_BB(6) = {
+      { VCODE_OP_LOAD, .name = "I.line_16" },
+      { VCODE_OP_ADDI, .value = 1 },
+      { VCODE_OP_ADDI, .value = -1 },   // Unused?
+      { VCODE_OP_STORE, .name = "I.line_16" },
+      { VCODE_OP_ADDI, .value = -1 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 4, .target_else = 5 }
+   };
+
+   CHECK_BB(6);
+
+   EXPECT_BB(7) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_LOAD, .name = "RESULT" },
+      { VCODE_OP_LOAD, .name = "I.line_16" },
+      { VCODE_OP_ADDI, .value = -1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DYNAMIC_BOUNDS },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SUB },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_JUMP, .target = 9 },
+   };
+
+   CHECK_BB(7);
+
+   // This block is identical to #7!!
+   EXPECT_BB(8) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_LOAD, .name = "RESULT" },
+      { VCODE_OP_LOAD, .name = "I.line_16" },
+      { VCODE_OP_ADDI, .value = -1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DYNAMIC_BOUNDS },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SUB },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_JUMP, .target = 9 },
+   };
+
+   CHECK_BB(8);
+
+   EXPECT_BB(9) = {
+      { VCODE_OP_LOAD, .name = "I_VAL" },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_DIV },
+      { VCODE_OP_BOUNDS, .low = 0, .high = INT32_MAX },   // Redundant
+      { VCODE_OP_STORE, .name = "I_VAL" },
+      { VCODE_OP_JUMP, .target = 6 },
+   };
+
+   CHECK_BB(9);
+
+   vcode_dump();
+
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -2940,6 +3089,7 @@ int main(void)
    tcase_add_test(tc, test_issue347);
    tcase_add_test(tc, test_hintbug);
    tcase_add_test(tc, test_issue351);
+   tcase_add_test(tc, test_tounsigned);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

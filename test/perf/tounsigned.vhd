@@ -8,7 +8,7 @@ use ieee.numeric_std.all;
 architecture test of tounsigned is
 
     constant WIDTH : integer := 20;
-    constant ITERS : integer := 10;
+    constant ITERS : integer := 100;
 
     signal s : unsigned(WIDTH - 1 downto 0);
 begin
