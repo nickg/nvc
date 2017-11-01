@@ -337,3 +337,4 @@ issue349        normal
 signal14        normal
 issue352        normal
 issue354        normal
+issue351        normal,gold

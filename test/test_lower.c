@@ -1285,9 +1285,9 @@ START_TEST(test_signal4)
 
    EXPECT_BB(1) = {
       { VCODE_OP_LOAD, .name = "resolved_:signal4:s" },
+      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_LOAD_INDIRECT},
       { VCODE_OP_INDEX, .name = "V" },
-      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },
@@ -2861,6 +2861,28 @@ START_TEST(test_hintbug)
 }
 END_TEST
 
+START_TEST(test_issue351)
+{
+   input_from_file(TESTDIR "/lower/issue351.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(7) = {
+      { VCODE_OP_CAST },
+      { VCODE_OP_ADD },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_FCALL, .func = ":issue351:dump_words$vuWORD_VECTOR;" },
+      { VCODE_OP_JUMP, .target = 5 }
+   };
+
+   CHECK_BB(7);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -2929,6 +2951,7 @@ int main(void)
    tcase_add_test(tc, test_issue338b);
    tcase_add_test(tc, test_issue347);
    tcase_add_test(tc, test_hintbug);
+   tcase_add_test(tc, test_issue351);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

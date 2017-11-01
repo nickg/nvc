@@ -1862,6 +1862,20 @@ static void lower_check_array_bounds(type_t type, int dim, vcode_reg_t array,
    emit_dynamic_bounds(value, min_reg, max_reg, kind_reg, hint_str);
 }
 
+static vcode_reg_t lower_array_stride(vcode_reg_t array, type_t type)
+{
+   type_t elem = type_elem(type);
+   if (type_is_array(elem)) {
+      vcode_reg_t stride = lower_array_total_len(elem, VCODE_INVALID_REG);
+      emit_comment("Array of array stride is r%d", stride);
+      return stride;
+   }
+   else if (type_is_record(elem) && lower_have_signal(array))
+      return emit_const(vtype_offset(), type_width(elem));
+   else
+      return emit_const(vtype_offset(), 1);
+}
+
 static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
 {
    tree_t value = tree_value(ref);
@@ -1902,14 +1916,7 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
       idx = emit_add(idx, lower_array_off(offset, array, value_type, i));
    }
 
-   type_t elem = type_elem(value_type);
-   if (type_is_array(elem)) {
-      vcode_reg_t stride = lower_array_total_len(elem, VCODE_INVALID_REG);
-      emit_comment("Array of array stride is r%d", stride);
-      idx = emit_mul(idx, stride);
-   }
-   else if (type_is_record(elem) && lower_have_signal(array))
-      idx = emit_mul(idx, emit_const(vtype_offset(), type_width(elem)));
+   idx = emit_mul(idx, lower_array_stride(array, value_type));
 
    return idx;
 }
@@ -2001,8 +2008,7 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
       kind_reg  = lower_array_dir(type, 0, array_reg);
    }
 
-   vcode_reg_t stride_reg = emit_const(vtype_offset(),
-                                       type_width(type_elem(type)));
+   vcode_reg_t stride_reg = lower_array_stride(array_reg, type);
 
    vcode_reg_t data_reg = lower_array_data(array_reg);
    vcode_reg_t off_reg  = lower_array_off(left_reg, array_reg, type, 0);

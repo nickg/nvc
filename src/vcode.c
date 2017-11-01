@@ -3328,8 +3328,14 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
 {
    int64_t lconst, rconst;
-   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
+   const bool l_is_const = vcode_reg_const(lhs, &lconst);
+   const bool r_is_const = vcode_reg_const(rhs, &rconst);
+   if (l_is_const && r_is_const)
       return emit_const(vcode_reg_type(lhs), lconst * rconst);
+   else if (r_is_const && rconst == 1)
+      return lhs;
+   else if (l_is_const && lconst == 1)
+      return rhs;
 
    vcode_reg_t reg = emit_arith(VCODE_OP_MUL, lhs, rhs);
 
