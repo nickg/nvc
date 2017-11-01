@@ -2281,8 +2281,12 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
 
       assoc_kind_t kind = tree_subkind(a);
       vcode_reg_t value_reg = VCODE_INVALID_REG;
-      if (kind != A_OTHERS)
-         value_reg = lower_expr(tree_value(a), EXPR_RVALUE);
+      if (kind != A_OTHERS) {
+         tree_t value = tree_value(a);
+         value_reg = lower_expr(value, EXPR_RVALUE);
+         if (type_is_scalar(tree_type(value)))
+            value_reg = lower_reify(value_reg);
+      }
 
       if (what == VCODE_INVALID_REG) {
          what = value_reg;

@@ -336,3 +336,4 @@ textio2008      normal,2008,gold
 issue349        normal
 signal14        normal
 issue352        normal
+issue354        normal
