@@ -697,6 +697,7 @@ void vcode_opt(void)
             case VCODE_OP_LOAD:
             case VCODE_OP_LOAD_INDIRECT:
             case VCODE_OP_ADD:
+            case VCODE_OP_ADDI:
             case VCODE_OP_SUB:
             case VCODE_OP_MUL:
             case VCODE_OP_CMP:

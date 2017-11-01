@@ -2952,7 +2952,6 @@ START_TEST(test_tounsigned)
    EXPECT_BB(6) = {
       { VCODE_OP_LOAD, .name = "I.line_16" },
       { VCODE_OP_ADDI, .value = 1 },
-      { VCODE_OP_ADDI, .value = -1 },   // Unused?
       { VCODE_OP_STORE, .name = "I.line_16" },
       { VCODE_OP_ADDI, .value = -1 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
