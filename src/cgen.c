@@ -2546,6 +2546,34 @@ static void cgen_op_debug_info(int op, cgen_ctx_t *ctx)
    ctx->last_loc = *vcode_get_loc(op);
 }
 
+static void cgen_op_addi(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   vtype_kind_t kind = vtype_kind(vcode_reg_type(result));
+
+   LLVMValueRef lhs = cgen_get_arg(op, 0, ctx);
+   int64_t rhs = vcode_get_value(op);
+
+   if (kind == VCODE_TYPE_POINTER || kind == VCODE_TYPE_SIGNAL) {
+      LLVMValueRef index[] = { llvm_int32(rhs) };
+      ctx->regs[result] = LLVMBuildGEP(builder, lhs,
+                                       index, ARRAY_LEN(index),
+                                       cgen_reg_name(result));
+   }
+   else if (vcode_reg_kind(result) == VCODE_TYPE_REAL)
+      ctx->regs[result] =
+         LLVMBuildFAdd(builder, lhs,
+                       LLVMConstReal(cgen_type(vcode_reg_type(result)),
+                                     vcode_get_real(op)),
+                       cgen_reg_name(result));
+   else
+      ctx->regs[result] =
+         LLVMBuildAdd(builder, lhs,
+                      LLVMConstInt(cgen_type(vcode_reg_type(result)),
+                                   vcode_get_value(op), false),
+                      cgen_reg_name(result));
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -2818,6 +2846,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_DEBUG_INFO:
       cgen_op_debug_info(i, ctx);
+      break;
+   case VCODE_OP_ADDI:
+      cgen_op_addi(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

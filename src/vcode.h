@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2016  Nick Gasson
+//  Copyright (C) 2014-2017  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -131,6 +131,7 @@ typedef enum {
    VCODE_OP_UNDEFINED,
    VCODE_OP_IMAGE_MAP,
    VCODE_OP_DEBUG_INFO,
+   VCODE_OP_ADDI,
 } vcode_op_t;
 
 typedef enum {
@@ -335,6 +336,7 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_addi(vcode_reg_t lhs, int64_t rhs);
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                  vcode_reg_t severity);
 void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity);

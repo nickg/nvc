@@ -269,9 +269,7 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
                      r.kind);
       }
 
-      vcode_reg_t len_reg =
-         emit_add(diff, emit_const(vcode_reg_type(left_reg), 1));
-
+      vcode_reg_t len_reg = emit_addi(diff, 1);
       vcode_type_t offset_type = vtype_offset();
       vcode_reg_t cast_reg =
          emit_cast(offset_type, VCODE_INVALID_TYPE, len_reg);
@@ -778,7 +776,7 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
       }
    }
 
-   vcode_reg_t inc = emit_add(i_loaded, emit_const(vtype_offset(), 1));
+   vcode_reg_t inc = emit_addi(i_loaded, 1);
    emit_store_indirect(inc, i_reg);
 
    emit_store_indirect(cmp, result_reg);
@@ -2370,7 +2368,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    else
       emit_store_indirect(lower_reify(what), ptr_reg);
 
-   emit_store_indirect(emit_add(i_loaded, emit_const(offset_type, 1)), ivar);
+   emit_store_indirect(emit_addi(i_loaded, 1), ivar);
    emit_jump(test_bb);
 
    // Epilogue
@@ -2523,7 +2521,7 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
       }
       else {
          const netid_t offset = record_field_to_net(type, tree_ident(expr));
-         return emit_add(record, emit_const(vtype_offset(), offset));
+         return emit_addi(record, offset);
       }
    }
    else
@@ -2599,7 +2597,7 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
       else {
          emit_store_indirect(lower_reify(args[i].reg), ptr);
          if (i + 1 < nparams)
-            ptr = emit_add(ptr, emit_const(vtype_offset(), 1));
+            ptr = emit_addi(ptr, 1);
       }
    }
 
@@ -2890,14 +2888,14 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
       {
          tree_t value = tree_value(tree_param(expr, 0));
          vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
-         return emit_add(arg, emit_const(vcode_reg_type(arg), 1));
+         return emit_addi(arg, 1);
       }
 
    case ATTR_PRED:
       {
          tree_t value = tree_value(tree_param(expr, 0));
          vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
-         return emit_sub(arg, emit_const(vcode_reg_type(arg), 1));
+         return emit_addi(arg, -1);
       }
 
    case ATTR_LEFTOF:
@@ -2908,7 +2906,7 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          type_t type = tree_type(expr);
          const int dir =
             (type_is_enum(type) || direction_of(type, 0) == RANGE_TO) ? -1 : 1;
-         return emit_add(arg, emit_const(vcode_reg_type(arg), dir));
+         return emit_addi(arg, dir);
       }
 
    case ATTR_RIGHTOF:
@@ -2919,7 +2917,7 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          type_t type = tree_type(expr);
          const int dir =
             (type_is_enum(type) || direction_of(type, 0) == RANGE_TO) ? 1 : -1;
-         return emit_add(arg, emit_const(vcode_reg_type(arg), dir));
+         return emit_addi(arg, dir);
       }
 
    case ATTR_POS:
@@ -3430,7 +3428,7 @@ static void lower_signal_assign(tree_t stmt)
                                 rhs, reject, after);
 
             if (i + 1 < nparts)
-               rhs = emit_add(rhs, emit_const(vtype_offset(), 1));
+               rhs = emit_addi(rhs, 1);
          }
       }
 
@@ -3661,9 +3659,8 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
    vcode_select_block(test_bb);
 
    vcode_reg_t ireg     = emit_load(ivar);
-   vcode_reg_t one_reg  = emit_const(vtype, 1);
-   vcode_reg_t add1_reg = emit_add(ireg, one_reg);
-   vcode_reg_t sub1_reg = emit_sub(ireg, one_reg);
+   vcode_reg_t add1_reg = emit_addi(ireg, 1);
+   vcode_reg_t sub1_reg = emit_addi(ireg, -1);
    vcode_reg_t dirn_reg = lower_range_dir(r, 0);
    vcode_reg_t next_reg = emit_select(dirn_reg, sub1_reg, add1_reg);
    emit_store(next_reg, ivar);
@@ -3975,7 +3972,7 @@ static void lower_case_emit_state_code(case_state_t *state,
          emit_jump(exit_bb);
    }
    else {
-      vcode_reg_t ptr_reg = emit_add(value, emit_const(vtype_offset(), depth));
+      vcode_reg_t ptr_reg = emit_addi(value, depth);
       vcode_reg_t loaded  = lower_reify(ptr_reg);
 
       vcode_block_t blocks[state->narcs];
@@ -4801,8 +4798,7 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
          type_t rtype = tree_type(value);
          const netid_t offset = record_field_to_net(rtype, tree_ident(t));
 
-         vcode_reg_t field_nets = emit_add(*driven_nets,
-                                           emit_const(vtype_offset(), offset));
+         vcode_reg_t field_nets = emit_addi(*driven_nets, offset);
 
          *driven_nets   = field_nets;
          *driven_length = type_width(tree_type(t));
