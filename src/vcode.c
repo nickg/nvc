@@ -3400,10 +3400,23 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
 vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
 {
    int64_t lconst, rconst;
-   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
+   const bool l_is_const = vcode_reg_const(lhs, &lconst);
+   const bool r_is_const = vcode_reg_const(rhs, &rconst);
+   if (l_is_const && r_is_const && rconst != 0)
       return emit_const(vcode_reg_type(lhs), lconst / rconst);
+   else if (r_is_const && rconst == 1)
+      return lhs;
 
-   return emit_arith(VCODE_OP_DIV, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_DIV, lhs, rhs);
+
+   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
+
+   if (bl->kind == VCODE_TYPE_INT && r_is_const) {
+      reg_t *rr = vcode_reg_data(reg);
+      rr->bounds = vtype_int(bl->low / rconst, bl->high / rconst);
+   }
+
+   return reg;
 }
 
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)

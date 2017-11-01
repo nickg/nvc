@@ -2981,7 +2981,6 @@ START_TEST(test_tounsigned)
 
    CHECK_BB(7);
 
-   // This block is identical to #7!!
    EXPECT_BB(8) = {
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_LOAD, .name = "RESULT" },
@@ -3007,7 +3006,6 @@ START_TEST(test_tounsigned)
       { VCODE_OP_LOAD, .name = "I_VAL" },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DIV },
-      { VCODE_OP_BOUNDS, .low = 0, .high = INT32_MAX },   // Redundant
       { VCODE_OP_STORE, .name = "I_VAL" },
       { VCODE_OP_JUMP, .target = 6 },
    };
