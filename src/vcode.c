@@ -718,9 +718,14 @@ void vcode_opt(void)
                         o->result);
                }
                else if (uses[o->result] == 0) {
-                  o->comment = xasprintf("Dead %s definition of r%d",
-                                         vcode_op_string(o->kind), o->result);
-                  o->kind = VCODE_OP_COMMENT;
+                  if (o->kind == VCODE_OP_CONST)
+                     o->kind = (vcode_op_t)-1;
+                  else {
+                     o->comment = xasprintf("Dead %s definition of r%d",
+                                            vcode_op_string(o->kind),
+                                            o->result);
+                     o->kind = VCODE_OP_COMMENT;
+                  }
                   vcode_reg_array_resize(&(o->args), 0, VCODE_INVALID_REG);
                   pruned++;
                }
@@ -742,9 +747,28 @@ void vcode_opt(void)
                   uses[o->args.items[k]]++;
             }
          }
-
       }
    } while (pruned > 0);
+
+   for (int i = active_unit->blocks.count - 1; i >= 0; i--) {
+      block_t *b = &(active_unit->blocks.items[i]);
+      op_t *dst = &(b->ops.items[0]);
+      size_t copied = 0;
+      for (int j = 0; j < b->ops.count; j++) {
+         const op_t *src = &(b->ops.items[j]);
+         if (src->kind != (vcode_op_t)-1) {
+            if (src != dst) {
+               assert(dst < src);
+               *dst = *src;
+            }
+            dst++;
+            copied++;
+         }
+      }
+
+      assert(copied <= b->ops.count);
+      b->ops.count = copied;
+   }
 }
 
 void vcode_close(void)
@@ -3347,6 +3371,8 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
       return lhs;
    else if (l_is_const && lconst == 1)
       return rhs;
+   else if ((r_is_const && rconst == 0) || (l_is_const && lconst == 0))
+      return emit_const(vcode_reg_type(lhs), 0);
 
    vcode_reg_t reg = emit_arith(VCODE_OP_MUL, lhs, rhs);
 
