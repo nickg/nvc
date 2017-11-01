@@ -1928,12 +1928,6 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
       return array;
 
    const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(array));
-   if (!(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY
-         || vtkind == VCODE_TYPE_SIGNAL)) {
-      vcode_dump();
-      fmt_loc(stdout, tree_loc(ref));
-      printf("vtkind =%d\n", vtkind);
-   }
    assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY
           || vtkind == VCODE_TYPE_SIGNAL);
 
@@ -3618,10 +3612,19 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
    vcode_type_t vtype  = vcode_reg_type(left_reg);
    vcode_type_t bounds = vtype;
 
-   int64_t lconst, rconst;
-   if (vcode_reg_const(left_reg, &lconst)
-       && vcode_reg_const(right_reg, &rconst))
+   int64_t lconst, rconst, dconst;
+   const bool l_is_const = vcode_reg_const(left_reg, &lconst);
+   const bool r_is_const = vcode_reg_const(right_reg, &rconst);
+   if (l_is_const && r_is_const)
       bounds = vtype_int(MIN(lconst, rconst), MAX(lconst, rconst));
+   else if ((l_is_const || r_is_const) && vcode_reg_const(dir_reg, &dconst)) {
+      if (dconst == RANGE_TO)
+         bounds = vtype_int(l_is_const ? lconst : vtype_low(vtype),
+                            r_is_const ? rconst : vtype_high(vtype));
+      else
+         bounds = vtype_int(r_is_const ? rconst : vtype_low(vtype),
+                            l_is_const ? lconst : vtype_high(vtype));
+   }
 
    tree_t idecl = tree_decl(stmt, 0);
    ident_t ident = ident_prefix(tree_ident2(stmt), tree_ident(stmt), '.');
