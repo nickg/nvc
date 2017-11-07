@@ -2881,9 +2881,6 @@ START_TEST(test_tounsigned)
    vcode_unit_t v0 = find_unit(tree_decl(p, 0));
    vcode_select_unit(v0);
 
-
-   vcode_dump();
-
    EXPECT_BB(0) = {
       { VCODE_OP_ADDI, .value = -1 },
       { VCODE_OP_CONST, .value = 0 },

@@ -6620,15 +6620,18 @@ static bool sem_check_case(tree_t t)
    // LRM 93 8.8 if the type of the expression is an array then it must be
    // a one dimensional character array type
 
-   const bool valid =
-      (type_is_array(type)
-       && sem_is_character_array(type)
-       && array_dimension(type) == 1)
-      || type_is_discrete(type);
+   const bool is_1d_character_array =
+      type_is_array(type)
+      && sem_is_character_array(type)
+      && array_dimension(type) == 1;
+   const bool valid = is_1d_character_array || type_is_discrete(type);
 
    if (!valid)
       sem_error(test, "case expression must have a discrete type or one "
                 "dimensional character array type");
+
+   if (is_1d_character_array && !sem_subtype_locally_static(type))
+      sem_error(test, "case expression must have locally static subtype");
 
    tree_t last = NULL;
    bool ok = true;
