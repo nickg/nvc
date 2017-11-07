@@ -803,6 +803,7 @@ static bool elab_should_copy(tree_t t)
    case T_SPEC:
    case T_AGGREGATE:
    case T_CONSTRAINT:
+   case T_QUALIFIED:
        return false;
    case T_VAR_DECL:
       if (tree_flags(t) & TREE_F_SHARED)
