@@ -52,6 +52,7 @@
 
 #define TRACE_DELTAQ  1
 #define TRACE_PENDING 0
+#define RT_DEBUG      0
 
 typedef void (*proc_fn_t)(int32_t reset);
 typedef uint64_t (*resolution_fn_t)(void *vals, int32_t n);
@@ -271,6 +272,12 @@ static void _tracef(const char *fmt, ...);
 #define GLOBAL_TMP_STACK_SZ (1024 * 1024)
 #define PROC_TMP_STACK_SZ   (64 * 1024)
 
+#if RT_DEBUG
+#define RT_ASSERT(x) assert((x))
+#else
+#define RT_ASSERT(x)
+#endif
+
 #define TRACE(...) do {                                 \
       if (unlikely(trace_on)) _tracef(__VA_ARGS__);     \
    } while (0)
@@ -435,7 +442,7 @@ void _sched_waveform(void *_nids, void *values, int32_t n,
          offset++;
    }
 
-   assert(offset == n);
+   RT_ASSERT(offset == n);
 }
 
 DLLEXPORT
@@ -580,7 +587,7 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
                   int32_t nparts, void *resolution, const char *name)
 {
    tree_t decl = rt_recall_decl(name);
-   assert(tree_kind(decl) == T_SIGNAL_DECL);
+   RT_ASSERT(tree_kind(decl) == T_SIGNAL_DECL);
 
    TRACE("_set_initial %s values=%s nparts=%d", name,
          fmt_values(values, size_list[0] * size_list[1]), nparts);
@@ -604,8 +611,8 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
 
       const int size = size_list[part * 2];
 
-      assert(g->sig_decl == NULL);
-      assert(remain >= g->length);
+      RT_ASSERT(g->sig_decl == NULL);
+      RT_ASSERT(remain >= g->length);
 
       g->sig_decl   = decl;
       g->resolution = memo;
@@ -646,7 +653,7 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    // c) The value of the message string
    // d) The name of the design unit containing the assertion
 
-   assert(severity <= SEVERITY_FAILURE);
+   RT_ASSERT(severity <= SEVERITY_FAILURE);
 
    const char *levels[] = {
       "Note", "Warning", "Error", "Failure"
@@ -881,7 +888,7 @@ void *_vec_load(const int32_t *nids, void *where,
    netgroup_t *g = &(groups[gid]);
    int skip = nids[offset] - g->first;
 
-   assert((g->flags & NET_F_LAST_VALUE) || !last);
+   RT_ASSERT((g->flags & NET_F_LAST_VALUE) || !last);
 
    if (offset + g->length - skip > high) {
       // If the signal data is already contiguous return a pointer to
@@ -1131,7 +1138,7 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
    const char *mode_str[] = {
       "r", "w", "w+"
    };
-   assert(mode < ARRAY_LEN(mode_str));
+   RT_ASSERT(mode < ARRAY_LEN(mode_str));
 
    if (status != NULL)
       *status = 0;   // OPEN_OK
@@ -1415,7 +1422,7 @@ static value_t *rt_alloc_value(netgroup_t *g)
 
 static void rt_free_value(netgroup_t *g, value_t *v)
 {
-   assert(v->next == NULL);
+   RT_ASSERT(v->next == NULL);
    v->next = g->free_values;
    g->free_values = v;
 }
@@ -1455,7 +1462,7 @@ static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
    }
    else {
       // Reuse the stale entry
-      assert(!is_static);
+      RT_ASSERT(!is_static);
       it->wakeup_gen = proc->wakeup_gen;
       it->first      = first;
       it->last       = last;
@@ -1499,7 +1506,7 @@ static void rt_setup(tree_t top)
    force_stop = false;
    can_create_delta = true;
 
-   assert(resume == NULL);
+   RT_ASSERT(resume == NULL);
 
    rt_free_delta_events(delta_proc);
    rt_free_delta_events(delta_driver);
@@ -1532,7 +1539,7 @@ static void rt_setup(tree_t top)
    const int nstmts = tree_stmts(top);
    for (int i = 0; i < nstmts; i++) {
       tree_t p = tree_stmt(top, i);
-      assert(tree_kind(p) == T_PROCESS);
+      RT_ASSERT(tree_kind(p) == T_PROCESS);
 
       procs[i].source     = p;
       procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)), true);
@@ -1787,7 +1794,7 @@ static bool rt_sched_driver(netgroup_t *group, uint64_t after,
             break;
       }
 
-      assert(driver != group->n_drivers);
+      RT_ASSERT(driver != group->n_drivers);
    }
 
    driver_t *d = &(group->drivers[driver]);
@@ -1912,7 +1919,7 @@ static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
          if (likely(group->drivers[driver].proc == proc))
             break;
       }
-      assert(driver != group->n_drivers);
+      RT_ASSERT(driver != group->n_drivers);
 
       waveform_t *w_now  = group->drivers[driver].waveforms;
       waveform_t *w_next = w_now->next;
@@ -1924,7 +1931,7 @@ static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
          rt_free(waveform_stack, w_now);
       }
       else
-         assert(w_now != NULL);
+         RT_ASSERT(w_now != NULL);
    }
    else if (group->flags & NET_F_FORCED)
       rt_update_group(group, -1, group->forcing->data);
@@ -2158,8 +2165,8 @@ static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
 {
    netgroup_t *g = &(groups[gid]);
 
-   assert(g->first == first);
-   assert(g->length == length);
+   RT_ASSERT(g->first == first);
+   RT_ASSERT(g->length == length);
 
    if (g->flags & NET_F_OWNS_MEM)
       free(g->resolved);
@@ -2197,7 +2204,7 @@ static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
 
 static void rt_cleanup(tree_t top)
 {
-   assert(resume == NULL);
+   RT_ASSERT(resume == NULL);
 
    while (heap_size(eventq_heap) > 0)
       rt_free(event_stack, heap_extract_min(eventq_heap));
@@ -2318,6 +2325,10 @@ static BOOL rt_win_ctrl_handler(DWORD fdwCtrlType)
 void rt_start_of_tool(tree_t top)
 {
    jit_init(top);
+
+#if RT_DEBUG
+   warnf("runtime debug assertions enabled");
+#endif
 
 #ifndef __MINGW32__
    struct sigaction sa;
@@ -2441,7 +2452,7 @@ void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user)
 watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
                          bool postponed)
 {
-   assert(tree_kind(s) == T_SIGNAL_DECL);
+   RT_ASSERT(tree_kind(s) == T_SIGNAL_DECL);
 
    if (fn == NULL) {
       // Find the first entry in the watch list and disable it
@@ -2456,7 +2467,7 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
    }
    else {
       watch_t *w = rt_alloc(watch_stack);
-      assert(w != NULL);
+      RT_ASSERT(w != NULL);
       w->signal        = s;
       w->fn            = fn;
       w->chain_all     = watches;
@@ -2483,7 +2494,7 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
 
 void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user)
 {
-   assert(event < RT_LAST_EVENT);
+   RT_ASSERT(event < RT_LAST_EVENT);
 
    callback_t *cb = rt_alloc(callback_stack);
    cb->next = global_cbs[event];
@@ -2594,7 +2605,7 @@ bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
    TRACE("force signal %s to %s propagate=%d", istr(tree_ident(s)),
          fmt_values(buf, count * sizeof(uint64_t)), propagate);
 
-   assert(!propagate || can_create_delta);
+   RT_ASSERT(!propagate || can_create_delta);
 
    const int nnets = tree_nets(s);
    int offset = 0;
