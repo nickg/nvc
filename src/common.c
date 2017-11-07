@@ -137,22 +137,36 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
 
 bool folded_int(tree_t t, int64_t *l)
 {
-   if ((tree_kind(t) == T_LITERAL) && (tree_subkind(t) == L_INT)) {
-      *l = tree_ival(t);
-      return true;
-   }
-   else
+   switch (tree_kind(t)) {
+   case T_LITERAL:
+      if (tree_subkind(t) == L_INT) {
+         *l = tree_ival(t);
+         return true;
+      }
+      else
+         return false;
+   case T_QUALIFIED:
+      return folded_int(tree_value(t), l);
+   default:
       return false;
+   }
 }
 
 bool folded_real(tree_t t, double *l)
 {
-   if ((tree_kind(t) == T_LITERAL) && (tree_subkind(t) == L_REAL)) {
-      *l = tree_dval(t);
-      return true;
-   }
-   else
+   switch (tree_kind(t)) {
+   case T_LITERAL:
+      if (tree_subkind(t) == L_REAL) {
+         *l = tree_dval(t);
+         return true;
+      }
+      else
+         return false;
+   case T_QUALIFIED:
+      return folded_real(tree_value(t), l);
+   default:
       return false;
+   }
 }
 
 bool folded_length(range_t r, int64_t *l)

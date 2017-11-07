@@ -218,6 +218,9 @@ static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level)
    case T_TYPE_CONV:
       return eval_possible(tree_value(tree_param(t, 0)), flags, false);
 
+   case T_QUALIFIED:
+      return eval_possible(tree_value(t), flags, false);
+
    case T_REF:
       {
          tree_t decl = tree_ref(t);

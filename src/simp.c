@@ -677,6 +677,7 @@ static void simp_build_wait(tree_t wait, tree_t expr)
 
    case T_WAVEFORM:
    case T_RECORD_REF:
+   case T_QUALIFIED:
       simp_build_wait(wait, tree_value(expr));
       break;
 
@@ -884,12 +885,6 @@ static tree_t simp_cassert(tree_t t)
    return process;
 }
 
-static tree_t simp_qualified(tree_t t)
-{
-   // Not needed by the code generator
-   return tree_value(t);
-}
-
 static tree_t simp_concat(tree_t t)
 {
    // Flatten nested concatenations to make efficient code generation easier
@@ -1009,8 +1004,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_cpcall(t);
    case T_CASSERT:
       return simp_cassert(t);
-   case T_QUALIFIED:
-      return simp_qualified(t);
    case T_CONCAT:
       return simp_concat(t);
    case T_RECORD_REF:

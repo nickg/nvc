@@ -4026,9 +4026,25 @@ vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim)
 
 vcode_reg_t emit_uarray_len(vcode_reg_t array, unsigned dim)
 {
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_UARRAY_LEN) {
-      if (other->args.items[0] == array && other->dim == dim)
-         return other->result;
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == VCODE_OP_UARRAY_LEN) {
+         if (other->args.items[0] == array && other->dim == dim)
+            return other->result;
+      }
+      else if (other->kind == VCODE_OP_WRAP && other->result == array) {
+         VCODE_ASSERT(dim < (other->args.count - 1) / 3,
+                      "array dimension %d out of bounds", dim);
+
+         int64_t left, right, dir;
+         if (vcode_reg_const(other->args.items[dim * 3 + 1], &left)
+             && vcode_reg_const(other->args.items[dim * 3 + 2], &right)
+             && vcode_reg_const(other->args.items[dim * 3 + 3], &dir)) {
+            if (dir == RANGE_TO)
+               return emit_const(vtype_offset(), right - left + 1);
+            else
+               return emit_const(vtype_offset(), left - right + 1);
+         }
+      }
    }
 
    op_t *op = vcode_add_op(VCODE_OP_UARRAY_LEN);

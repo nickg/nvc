@@ -2940,7 +2940,25 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 
 static vcode_reg_t lower_qualified(tree_t expr, expr_ctx_t ctx)
 {
-   return lower_expr(tree_value(expr), ctx);
+   tree_t value = tree_value(expr);
+
+   type_t from_type = tree_type(value);
+   type_t to_type = tree_type(expr);
+
+   vcode_reg_t value_reg = lower_expr(value, ctx);
+
+   if (type_is_array(to_type)) {
+      const bool from_const = lower_const_bounds(from_type);
+      const bool to_const = lower_const_bounds(to_type);
+
+      if (to_const && !from_const)
+         return lower_array_data(value_reg);
+      else if (!to_const && from_const)
+         return lower_wrap(from_type, value_reg);
+
+   }
+
+   return value_reg;
 }
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
