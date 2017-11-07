@@ -3419,6 +3419,8 @@ static void lower_signal_assign(tree_t stmt)
 
       if (lower_have_signal(rhs))
          rhs = emit_vec_load(lower_array_data(rhs), count_reg, false);
+      else if (type_is_array(target_type))
+         rhs = lower_array_data(rhs);
 
       for (int i = 0; i < nparts; i++) {
          if (nets[i] == VCODE_INVALID_REG)
