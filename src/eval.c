@@ -961,6 +961,18 @@ static void eval_op_fcall(int op, eval_state_t *state)
    eval_free_context(context);
 }
 
+static void eval_op_param_upref(int op, eval_state_t *state)
+{
+   context_t *where = state->context;
+   const int hops = vcode_get_hops(op);
+   for (int i = 0; i < hops; i++)
+      where = where->parent;
+
+   value_t *src = &(where->regs[vcode_get_arg(op, 0)]);
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+   *dst = *src;
+}
+
 static void eval_op_bounds(int op, eval_state_t *state)
 {
    value_t *reg = eval_get_reg(vcode_get_arg(op, 0), state);
@@ -2051,6 +2063,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_ADDI:
          eval_op_addi(i, state);
+         break;
+
+      case VCODE_OP_PARAM_UPREF:
+         eval_op_param_upref(i, state);
          break;
 
       default:
