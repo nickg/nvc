@@ -2000,6 +2000,9 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
       kind_reg  = lower_array_dir(type, 0, array_reg);
    }
 
+   if (array_reg == VCODE_INVALID_REG)
+      return VCODE_INVALID_REG;
+
    vcode_reg_t stride_reg = lower_array_stride(array_reg, type);
 
    vcode_reg_t data_reg = lower_array_data(array_reg);

@@ -2994,6 +2994,15 @@ START_TEST(test_tounsigned)
 }
 END_TEST
 
+START_TEST(test_issue357)
+{
+   input_from_file(TESTDIR "/lower/issue357.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -3064,6 +3073,7 @@ int main(void)
    tcase_add_test(tc, test_hintbug);
    tcase_add_test(tc, test_issue351);
    tcase_add_test(tc, test_tounsigned);
+   tcase_add_test(tc, test_issue357);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
