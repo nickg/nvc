@@ -6704,7 +6704,9 @@ static bool sem_check_return(tree_t t)
          return false;
 
       if (!type_eq(tree_type(tree_value(t)), expect))
-         sem_error(t, "expected return type %s", sem_type_str(expect));
+         sem_error(t, "expected return type %s but have %s",
+                   sem_type_str(expect),
+                   sem_type_str(tree_type(tree_value(t))));
    }
 
    return true;
