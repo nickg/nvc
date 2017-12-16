@@ -160,6 +160,10 @@ elaborate command.
    Loads a VHPI plugin from the shared library _plugin_. See
    section [VHPI][] for details on the VHPI implementation.
 
+ * `--profile`:
+   Collect profiling data and print this at the end of the run. Note
+   this will slow down the simulation slightly.
+
  * `--stats`:
    Print time and memory statistics at the end of the run.
 

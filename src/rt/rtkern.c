@@ -39,6 +39,7 @@
 #include <sys/time.h>
 #include <float.h>
 #include <ctype.h>
+#include <time.h>
 
 #ifdef HAVE_ALLOCA_H
 #include <alloca.h>
@@ -78,6 +79,7 @@ struct rt_proc {
    uint32_t  tmp_alloc;
    bool      postponed;
    bool      pending;
+   uint64_t  usage;
 };
 
 typedef enum {
@@ -214,6 +216,12 @@ struct rt_loc {
    const char *file;
 };
 
+typedef enum {
+   PERF_SCHED_WAVEFORM,
+   PERF_UPDATE_DRIVER,
+   PERF_COUNTER_LAST
+} perf_counter_t;
+
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct run_queue  run_queue;
@@ -245,6 +253,8 @@ static bool          can_create_delta;
 static callback_t   *global_cbs[RT_LAST_EVENT];
 static rt_severity_t exit_severity = SEVERITY_ERROR;
 static hash_t       *decl_hash = NULL;
+static bool          profiling = false;
+static uint64_t      perf_counters[PERF_COUNTER_LAST];
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -394,6 +404,18 @@ static void rt_show_trace(void)
    free(trace);
 }
 
+static uint64_t rt_timestamp_us(void)
+{
+#ifndef _WIN32
+   struct timespec ts;
+   if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+      fatal_errno("clock_gettime");
+   return (ts.tv_nsec / 1000) + (ts.tv_sec * 1000 * 1000);
+#else
+   return 0;
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -417,6 +439,10 @@ void _sched_waveform(void *_nids, void *values, int32_t n,
          fmt_net(nids[0]),
          fmt_values(values, n * groups[netdb_lookup(netdb, nids[0])].size),
          n, fmt_time(after), fmt_time(reject));
+
+   uint64_t start_time = 0;
+   if (profiling)
+      start_time = rt_timestamp_us();
 
    if (unlikely(active_proc->postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
@@ -443,6 +469,9 @@ void _sched_waveform(void *_nids, void *values, int32_t n,
    }
 
    RT_ASSERT(offset == n);
+
+   if (profiling)
+      perf_counters[PERF_SCHED_WAVEFORM] += rt_timestamp_us() - start_time;
 }
 
 DLLEXPORT
@@ -1548,6 +1577,7 @@ static void rt_setup(tree_t top)
       procs[i].tmp_stack  = NULL;
       procs[i].tmp_alloc  = 0;
       procs[i].pending    = false;
+      procs[i].usage      = 0;
    }
 }
 
@@ -1555,6 +1585,10 @@ static void rt_run(struct rt_proc *proc, bool reset)
 {
    TRACE("%s process %s", reset ? "reset" : "run",
          istr(tree_ident(proc->source)));
+
+   uint64_t start_clock = 0;
+   if (profiling)
+      start_clock = rt_timestamp_us();
 
    if (reset) {
       _tmp_stack = global_tmp_stack;
@@ -1579,6 +1613,9 @@ static void rt_run(struct rt_proc *proc, bool reset)
 
    if (reset)
       global_tmp_alloc = _tmp_alloc;
+
+   if (start_clock != 0)
+      proc->usage += rt_timestamp_us() - start_clock;
 }
 
 static void rt_call_module_reset(ident_t name)
@@ -1912,6 +1949,10 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
 
 static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
 {
+   uint64_t start_time = 0;
+   if (profiling)
+      start_time = rt_timestamp_us();
+
    if (likely(proc != NULL)) {
       // Find the driver owned by proc
       int driver;
@@ -1935,6 +1976,9 @@ static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
    }
    else if (group->flags & NET_F_FORCED)
       rt_update_group(group, -1, group->forcing->data);
+
+   if (profiling)
+      perf_counters[PERF_UPDATE_DRIVER] += rt_timestamp_us() - start_time;
 }
 
 static bool rt_stale_event(event_t *e)
@@ -2267,10 +2311,39 @@ static bool rt_stop_now(uint64_t stop_time)
    }
 }
 
+static int rt_proc_usage_cmp(const void *lhs, const void *rhs)
+{
+   return ((const rt_proc_t *)rhs)->usage - ((const rt_proc_t *)lhs)->usage;
+}
+
 static void rt_stats_print(void)
 {
    nvc_rusage_t ru;
    nvc_rusage(&ru);
+
+   if (profiling) {
+      notef("top processes by CPU usage");
+
+      qsort(procs, n_procs, sizeof(rt_proc_t), rt_proc_usage_cmp);
+
+      const uint64_t ru_us = ru.ms * 1000;
+
+      color_printf("$white$%10s %5s %s$$\n", "us", "%", "process");
+      for (size_t i = 0; i < MIN(n_procs, 10); i++) {
+         const double pc = ((double)procs[i].usage / ru_us) * 100.0;
+         printf("%10"PRIu64" %5.1f %s\n", procs[i].usage, pc,
+                istr(tree_ident(procs[i].source)));
+      }
+
+      notef("simulation overhead");
+
+      const char *names[] = { "sched waveform", "update driver" };
+      color_printf("$white$%10s %5s %s$$\n", "us", "%", "task");
+      for (int i = 0; i < PERF_COUNTER_LAST; i++) {
+         const double pc = ((double)perf_counters[i] / ru_us) * 100.0;
+         printf("%10"PRIu64" %5.1f %s\n", perf_counters[i], pc, names[i]);
+      }
+   }
 
    notef("setup:%ums run:%ums maxrss:%ukB", ready_rusage.ms, ru.ms, ru.rss);
 }
@@ -2365,6 +2438,7 @@ void rt_start_of_tool(tree_t top)
    jit_bind_fn("_null_deref", _null_deref);
 
    trace_on = opt_get_int("rt_trace_en");
+   profiling = opt_get_int("rt_profile");
 
    event_stack     = rt_alloc_stack_new(sizeof(event_t), "event");
    waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t), "waveform");
@@ -2380,6 +2454,9 @@ void rt_start_of_tool(tree_t top)
 
    global_tmp_alloc = 0;
 
+   for (int i = 0; i < PERF_COUNTER_LAST; i++)
+      perf_counters[i] = 0;
+
    rt_reset_coverage(top);
 
    nvc_rusage(&ready_rusage);
@@ -2392,7 +2469,7 @@ void rt_end_of_tool(tree_t top)
 
    jit_shutdown();
 
-   if (opt_get_int("rt-stats"))
+   if (opt_get_int("rt-stats") || profiling)
       rt_stats_print();
 }
 

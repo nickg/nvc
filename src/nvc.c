@@ -432,6 +432,7 @@ static int run(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "trace",         no_argument,       0, 't' },
+      { "profile",       no_argument,       0, 'p' },
       { "stop-time",     required_argument, 0, 's' },
       { "stats",         no_argument,       0, 'S' },
       { "wave",          optional_argument, 0, 'w' },
@@ -472,6 +473,9 @@ static int run(int argc, char **argv)
          fatal("unrecognised run option %s", argv[optind - 1]);
       case 't':
          opt_set_int("rt_trace_en", 1);
+         break;
+      case 'p':
+         opt_set_int("rt_profile", 1);
          break;
       case 'T':
          opt_set_int("vhpi_trace_en", 1);
@@ -773,6 +777,7 @@ static void set_default_opts(void)
    opt_set_int("ignore-time", 0);
    opt_set_int("force-init", 0);
    opt_set_int("verbose", 0);
+   opt_set_int("rt_profile", 0);
 }
 
 static void usage(void)
@@ -820,6 +825,7 @@ static void usage(void)
 #ifdef ENABLE_VHPI
           "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
 #endif
+          "     --profile\t\tColect profiling data during run\n"
           "     --stats\t\tPrint statistics at end of run\n"
           "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"

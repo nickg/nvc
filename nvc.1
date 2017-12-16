@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "NVC" "1" "August 2017" "" "NVC Manual"
+.TH "NVC" "1" "December 2017" "" "NVC Manual"
 .
 .SH "NAME"
 \fBnvc\fR \- VHDL Compiler and Simulator
@@ -168,6 +168,10 @@ Signals that match \fIglob\fR are included in or excluded from the waveform dump
 .TP
 \fB\-\-load=\fR\fIplugin\fR
 Loads a VHPI plugin from the shared library \fIplugin\fR\. See section \fIVHPI\fR for details on the VHPI implementation\.
+.
+.TP
+\fB\-\-profile\fR
+Collect profiling data and print this at the end of the run\. Note this will slow down the simulation slightly\.
 .
 .TP
 \fB\-\-stats\fR
