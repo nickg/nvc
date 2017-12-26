@@ -4206,16 +4206,18 @@ static bool sem_check_pcall(tree_t t)
    const bool in_func = top_scope->subprog != NULL
       && tree_kind(top_scope->subprog) == T_FUNC_BODY;
 
+   const bool in_pure_func = in_func && !(tree_flags(top_scope->subprog) & TREE_F_IMPURE);
+
    if (waits == WAITS_YES && in_func)
       sem_error(t, "function %s cannot call procedure %s which contains "
                 "a wait statement", istr(tree_ident(top_scope->subprog)),
                 istr(tree_ident(decl)));
-   else if ((impure_io & IMPURE_FILE) && in_func)
-      sem_error(t, "function %s cannot call procedure %s which references "
+   else if ((impure_io & IMPURE_FILE) && in_pure_func)
+      sem_error(t, "pure function %s cannot call procedure %s which references "
                 "a file object", istr(tree_ident(top_scope->subprog)),
                 istr(tree_ident(decl)));
-   else if ((impure_io & IMPURE_SHARED) && in_func)
-      sem_error(t, "function %s cannot call procedure %s which references "
+   else if ((impure_io & IMPURE_SHARED) && in_pure_func)
+      sem_error(t, "pure function %s cannot call procedure %s which references "
                 "a shared variable", istr(tree_ident(top_scope->subprog)),
                 istr(tree_ident(decl)));
 

@@ -1429,7 +1429,7 @@ START_TEST(test_issue188)
       {  9, "cannot declare a file object in a pure function" },
       { 29, "invalid reference to F inside pure function FILE_FUNC2" },
       { 46, "call procedure CALL_READ_B which references a file object" },
-      { 59, "call procedure UPDATE_X which references a shared variable" },
+      { 66, "call procedure UPDATE_X which references a shared variable" },
       { -1, NULL }
    };
    expect_errors(expect);
