@@ -2689,6 +2689,26 @@ START_TEST(test_cond1)
 }
 END_TEST
 
+START_TEST(test_issue360)
+{
+   input_from_file(TESTDIR "/parse/issue360.vhd");
+
+   const error_t expect[] = {
+      {  8, "unexpected ; while parsing process statement, expecting process" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   fail_if(parse() != NULL);
+
+   fail_unless(parse_errors() == 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -2731,6 +2751,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue222);
    tcase_add_test(tc_core, test_guarded);
    tcase_add_test(tc_core, test_cond1);
+   tcase_add_test(tc_core, test_issue360);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
