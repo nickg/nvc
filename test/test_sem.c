@@ -130,7 +130,9 @@ START_TEST(test_scope)
          " of target WORK.PACK2.MY_INT1" },
       {  44, "WORK.PACK1.MY_INT1 does not match type of target MY_INT1" },
       {  63, "G already declared in this region" },
+      {  54, "previous declaration of G was here" },
       {  71, "P already declared in this region" },
+      {  55, "previous declaration of P was here" },
       { 114, "no visible declaration for MY_INT1" },
       { 137, "no visible declaration for E1" },
       { 160, "no visible declaration for FUNC2" },
@@ -498,6 +500,7 @@ START_TEST(test_seq)
       { 190, "cannot use next outside loop" },
       { 192, "no nested loop with label FOO" },
       { 205, "DUP already declared in this region" },
+      { 204, "previous declaration of DUP was here" },
       { 214, "type REAL does not have a range" },
       { -1, NULL }
    };
@@ -1781,6 +1784,23 @@ START_TEST(test_issue356)
 }
 END_TEST
 
+START_TEST(test_issue359)
+{
+   input_from_file(TESTDIR "/sem/issue359.vhd");
+
+   const error_t expect[] = {
+      {  8, "FOO already declared in this region" },
+      {  6, "previous declaration of FOO was here" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1871,6 +1891,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue350);
    tcase_add_test(tc_core, test_issue246);
    tcase_add_test(tc_core, test_issue356);
+   tcase_add_test(tc_core, test_issue359);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

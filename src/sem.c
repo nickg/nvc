@@ -335,9 +335,11 @@ static void scope_insert_fields(type_t type, ident_t prefix)
    }
 }
 
-static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
+static bool scope_insert_aux(tree_t t, ident_t name, bool alias)
 {
    assert(top_scope != NULL);
+
+   const bool overload = !alias && scope_can_overload(t);
 
    tree_t existing;
    int n = 0;
@@ -345,12 +347,23 @@ static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
       if ((existing = scope_find_in(name, top_scope, false, n++))) {
          if (existing == t)
             return true;
-         else if (!overload)
-            sem_error(t, "%s already declared in this region", istr(name));
 
          const tree_kind_t ekind = tree_kind(existing);
          if (ekind == T_UNIT_DECL || ekind == T_LIBRARY)
             continue;
+         else if (ekind == T_TYPE_DECL
+                  && type_is_protected(tree_type(existing))
+                  && tree_kind(t) == T_PROT_BODY)
+            continue;
+
+         if (!alias && (!overload || !scope_can_overload(existing))) {
+            error_at(tree_loc(t), "%s already declared in this region",
+                     istr(name));
+            note_at(tree_loc(existing), "previous declaration of %s was here",
+                    istr(name));
+            errors += 2;
+            return false;
+         }
 
          const bool builtin = (tree_attr_str(existing, builtin_i) != NULL);
          if (builtin && type_eq(tree_type(t), tree_type(existing))) {
@@ -374,8 +387,7 @@ static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
    hash_put(top_scope->decls, name, t);
 
    const tree_kind_t kind = tree_kind(t);
-   const bool may_have_fields =
-      kind == T_VAR_DECL
+   const bool may_have_fields = kind == T_VAR_DECL
       || kind == T_CONST_DECL
       || kind == T_SIGNAL_DECL
       || kind == T_PORT_DECL
@@ -390,12 +402,12 @@ static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
 
 static bool scope_insert(tree_t t)
 {
-   return scope_insert_hiding(t, tree_ident(t), scope_can_overload(t));
+   return scope_insert_aux(t, tree_ident(t), false);
 }
 
 static void scope_insert_alias(tree_t t, ident_t name)
 {
-   (void)scope_insert_hiding(t, name, true);
+   (void)scope_insert_aux(t, name, true);
 }
 
 static void scope_replace(tree_t t, tree_t with)
