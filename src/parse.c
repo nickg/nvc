@@ -386,7 +386,7 @@ static void drop_tokens_until(token_t tok)
    do {
       next = peek();
       drop_token();
-   } while ((tok != next) && (tok != tEOF));
+   } while ((tok != next) && (next != tEOF));
 
 #if TRACE_RECOVERY
    if (peek() != tEOF)
