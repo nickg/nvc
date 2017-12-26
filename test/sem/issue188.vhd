@@ -45,7 +45,14 @@ architecture test of issue188 is
     begin
         call_read_b(b);                 -- Error
         return b;
-    end procedure;
+    end function;
+
+    impure function impure_call_call_read_b return boolean is
+        variable b : boolean;
+    begin
+        call_read_b(b);                 -- Error
+        return b;
+    end function;
 
     shared variable x : integer;
 
@@ -58,7 +65,13 @@ architecture test of issue188 is
     begin
         update_x;
         return true;
-    end procedure;
+    end function;
+
+    impure function impure_call_update_x return boolean is
+    begin
+        update_x;
+        return true;
+    end function;
 
 begin
 
