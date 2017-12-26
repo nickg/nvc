@@ -25,7 +25,6 @@ DEFINE_ARRAY(tree);
 DEFINE_ARRAY(netid);
 DEFINE_ARRAY(type);
 DEFINE_ARRAY(range);
-DEFINE_ARRAY(ident);
 
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE",    "I_TARGET",
