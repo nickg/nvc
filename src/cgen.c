@@ -3753,17 +3753,12 @@ static void cgen_tmp_stack(void)
 }
 
 #ifdef ENABLE_NATIVE
-static bool cgen_should_emit_native(tree_t top)
+static bool cgen_should_emit_native(tree_t top, long bc_bytes)
 {
    // Use a heuristic to decide if the unit is large enough to benefit
    // from native complilation
 
-   if (tree_kind(top) == T_ELAB)
-      return tree_stmts(top) > 1000;
-   else if (tree_kind(top) == T_PACK_BODY)
-      return tree_decls(top) > 100;
-   else
-      return false;
+   return bc_bytes > 100 * 1024;
 }
 
 static void cgen_native(tree_t top)
@@ -3895,12 +3890,13 @@ void cgen(tree_t top, vcode_unit_t vcode)
    FILE *f = lib_fopen(lib_work(), fname, "wb");
    if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
       fatal("error writing LLVM bitcode");
+   const long bc_bytes = ftell(f);
    fclose(f);
    free(fname);
 
 #ifdef ENABLE_NATIVE
    const bool emit_native =
-      opt_get_int("native") || cgen_should_emit_native(top);
+      opt_get_int("native") || cgen_should_emit_native(top, bc_bytes);
 
    if (emit_native)
       cgen_native(top);
