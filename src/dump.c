@@ -291,11 +291,18 @@ static void dump_ports(tree_t t, int indent)
 {
    const int nports = tree_ports(t);
    if (nports > 0) {
-      printf(" (\n");
+      if (nports > 1) {
+         printf(" (\n");
+         indent += 4;
+      }
+      else {
+         printf(" (");
+         indent = 0;
+      }
       for (int i = 0; i < nports; i++) {
          if (i > 0)
             printf(";\n");
-         dump_port(tree_port(t, i), indent + 4);
+         dump_port(tree_port(t, i), indent);
       }
       printf(" )");
    }
@@ -357,12 +364,11 @@ static void dump_decl(tree_t t, int indent)
             printf("%s ", istr(type_ident(type_base(type))));
          }
 
-         if (type_is_integer(type) || type_is_real(type)
-             || (is_subtype && (type_is_physical(type) || type_is_enum(type)))) {
+         if (type_is_integer(type) || type_is_real(type)) {
             printf("range ");
             dump_range(type_dim(type, 0));
          }
-         else if (kind == T_PHYSICAL) {
+         else if (type_is_physical(type)) {
             printf("range ");
             dump_range(type_dim(type, 0));
             printf("\n");
@@ -413,7 +419,7 @@ static void dump_decl(tree_t t, int indent)
             tab(indent);
             printf("end protected");
          }
-         else if (type_is_enum(type)) {
+         else if (kind == T_ENUM) {
             printf("(");
             for (unsigned i = 0; i < type_enum_literals(type); i++) {
                if (i > 0) printf(", ");
@@ -843,7 +849,8 @@ static void dump_context(tree_t t)
       tree_t c = tree_context(t, i);
       switch (tree_kind(c)) {
       case T_LIBRARY:
-         printf("library %s;\n", istr(tree_ident(c)));
+         if (tree_ident(c) != std_i && tree_ident(c) != work_i)
+            printf("library %s;\n", istr(tree_ident(c)));
          break;
 
       case T_USE:
