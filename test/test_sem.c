@@ -301,7 +301,7 @@ START_TEST(test_wait)
    const error_t expect[] = {
       { 17, "type of delay must be TIME" },
       { 26, "name V in sensitivity list is not a signal" },
-      { 35, "invalid use of A" },
+      { 35, "invalid use of entity A" },
       { 40, "wait statement not allowed in process" },
       { 51, "type of condition must be BOOLEAN" },
       { 53, "type of delay must be TIME" },
@@ -490,7 +490,7 @@ START_TEST(test_seq)
       { 113, "case choice must be locally static" },
       { 126, "case choice must be locally static" },
       { 136, "case choice must be locally static" },
-      { 139, "invalid use of BIT" },
+      { 139, "invalid use of type BIT" },
       { 146, "type mismatch in range" },
       { 150, "expected type of range bound to be STD.STANDARD.INTEGER but is" },
       { 154, "right index of case choice range is not locally static" },
@@ -1801,6 +1801,22 @@ START_TEST(test_issue359)
 }
 END_TEST
 
+START_TEST(test_issue359a)
+{
+   input_from_file(TESTDIR "/sem/issue359a.vhd");
+
+   const error_t expect[] = {
+      { 15, "invalid use of procedure HOST_WRITE" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1892,6 +1908,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue246);
    tcase_add_test(tc_core, test_issue356);
    tcase_add_test(tc_core, test_issue359);
+   tcase_add_test(tc_core, test_issue359a);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

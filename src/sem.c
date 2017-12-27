@@ -5200,8 +5200,9 @@ static bool sem_check_ref(tree_t t)
 
          if (type_set_member(type) || zero_arg_fn) {
             if (decl != NULL) {
-               assert(zero_arg_fn || (tree_kind(next) == T_ENUM_LIT));
-               if (!zero_arg_fn || !type_eq(type, tree_type(decl)))
+               if (!zero_arg_fn && tree_kind(next) != T_ENUM_LIT)
+                  break;
+               else if (!zero_arg_fn || !type_eq(type, tree_type(decl)))
                   sem_error(t, "ambiguous %s %s",
                             (tree_kind(next) != tree_kind(decl))
                             ? "use of name"
@@ -5266,7 +5267,8 @@ static bool sem_check_ref(tree_t t)
       return sem_check(t);
 
    default:
-      sem_error(t, "invalid use of %s", istr(tree_ident(t)));
+      sem_error(t, "invalid use of %s %s", class_str(class_of(decl)),
+                istr(tree_ident(t)));
    }
 
    if (top_scope->subprog != NULL) {
