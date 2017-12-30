@@ -1737,9 +1737,6 @@ static void rt_initial(tree_t top)
       tree_t c = tree_context(top, i);
       ident_t unit_name = tree_ident(c);
       rt_call_module_reset(unit_name);
-
-      ident_t body = ident_prefix(unit_name, ident_new("body"), '-');
-      rt_call_module_reset(body);
    }
 
    rt_call_module_reset(tree_ident(top));

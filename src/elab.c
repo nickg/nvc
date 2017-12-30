@@ -336,9 +336,6 @@ static bool elab_have_context(tree_t unit, ident_t name)
    const int ndest = tree_contexts(unit);
    for (int i = 0; i < ndest; i++) {
       tree_t c2 = tree_context(unit, i);
-      if (tree_kind(c2) != T_USE)
-         continue;
-
       if (tree_ident(c2) == name)
          return true;
    }
@@ -387,7 +384,8 @@ static void elab_copy_context(tree_t src, const elab_ctx_t *ctx)
          elab_use_clause(c, ctx);
          break;
       case T_LIBRARY:
-         tree_add_context(ctx->out, c);
+         if (!elab_have_context(ctx->out, tree_ident(c)))
+             tree_add_context(ctx->out, c);
          break;
       default:
          break;
