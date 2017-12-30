@@ -3003,6 +3003,26 @@ START_TEST(test_issue357)
 }
 END_TEST
 
+START_TEST(test_signal11)
+{
+   input_from_file(TESTDIR "/lower/signal11.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t vpack = vcode_find_unit(ident_new("WORK.PACK"));
+   fail_if(vpack == NULL);
+
+   vcode_unit_t vbody = vcode_find_unit(ident_new("WORK.PACK-body"));
+   fail_if(vpack == NULL);
+
+   vcode_select_unit(vbody);
+   fail_unless(vcode_count_signals() == 1);
+   fail_unless(vcode_signal_name(0) == ident_new("WORK.PACK.X"));
+   fail_unless(vcode_signal_extern(0));
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -3074,6 +3094,7 @@ int main(void)
    tcase_add_test(tc, test_issue351);
    tcase_add_test(tc, test_tounsigned);
    tcase_add_test(tc, test_issue357);
+   tcase_add_test(tc, test_signal11);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

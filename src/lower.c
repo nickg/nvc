@@ -1578,6 +1578,7 @@ static vcode_signal_t lower_get_signal(tree_t decl)
 
       sig = emit_extern_signal(vtype_signal(lower_type(type)),
                                lower_bounds(type), tree_ident(decl));
+      lower_put_vcode_obj(decl, sig);
 
       vcode_state_restore(&state);
    }
