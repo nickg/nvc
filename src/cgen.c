@@ -3753,14 +3753,6 @@ static void cgen_tmp_stack(void)
 }
 
 #ifdef ENABLE_NATIVE
-static bool cgen_should_emit_native(tree_t top, long bc_bytes)
-{
-   // Use a heuristic to decide if the unit is large enough to benefit
-   // from native complilation
-
-   return bc_bytes > 100 * 1024;
-}
-
 static void cgen_native(tree_t top)
 {
    LLVMInitializeNativeTarget();
@@ -3772,9 +3764,17 @@ static void cgen_native(tree_t top)
    if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
       fatal("failed to get LLVM target for %s: %s", def_triple, error);
 
+   LLVMCodeGenOptLevel code_gen_level;
+   switch (opt_get_int("optimise")) {
+   case 0: code_gen_level = LLVMCodeGenLevelNone; break;
+   case 1: code_gen_level = LLVMCodeGenLevelLess; break;
+   case 3: code_gen_level = LLVMCodeGenLevelAggressive; break;
+   default: code_gen_level = LLVMCodeGenLevelDefault;
+   }
+
    LLVMTargetMachineRef tm_ref =
       LLVMCreateTargetMachine(target_ref, def_triple, "", "",
-                              LLVMCodeGenLevelDefault,
+                              code_gen_level,
                               LLVMRelocPIC,
                               LLVMCodeModelDefault);
 
