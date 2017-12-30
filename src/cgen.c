@@ -3887,6 +3887,8 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
 #ifdef ENABLE_NATIVE
    cgen_native(top);
+
+   LLVMDisposeModule(module);
 #else
    char *fname = xasprintf("_%s.bc", istr(tree_ident(top)));
 
@@ -3896,9 +3898,9 @@ void cgen(tree_t top, vcode_unit_t vcode)
    const long bc_bytes = ftell(f);
    fclose(f);
    free(fname);
+
+   tree_add_attr_ptr(top, llvm_i, module);
 #endif
 
    LLVMDisposeBuilder(builder);
-
-   tree_add_attr_ptr(top, llvm_i, module);
 }
