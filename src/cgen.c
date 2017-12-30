@@ -3885,6 +3885,9 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
    cgen_optimise();
 
+#ifdef ENABLE_NATIVE
+   cgen_native(top);
+#else
    char *fname = xasprintf("_%s.bc", istr(tree_ident(top)));
 
    FILE *f = lib_fopen(lib_work(), fname, "wb");
@@ -3893,15 +3896,6 @@ void cgen(tree_t top, vcode_unit_t vcode)
    const long bc_bytes = ftell(f);
    fclose(f);
    free(fname);
-
-#ifdef ENABLE_NATIVE
-   const bool emit_native =
-      opt_get_int("native") || cgen_should_emit_native(top, bc_bytes);
-
-   if (emit_native)
-      cgen_native(top);
-#else
-   const bool emit_native = false;
 #endif
 
    LLVMDisposeBuilder(builder);
