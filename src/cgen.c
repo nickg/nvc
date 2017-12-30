@@ -3792,7 +3792,12 @@ static void cgen_native(tree_t top)
 
 #define APPEND_ARG(a) ARRAY_APPEND(args, a, nargs, arg_max);
 
+#ifdef LINKER_PATH
+   APPEND_ARG(LINKER_PATH);
+#else
    APPEND_ARG(SYSTEM_CC);
+#endif
+
 #if defined __APPLE__
    APPEND_ARG("-bundle");
    APPEND_ARG("-flat_namespace");

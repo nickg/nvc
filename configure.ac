@@ -174,6 +174,18 @@ AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 AX_DEFINE_DIR([LIBDIR], [libdir], [Installation library directory])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 
+# Prefer calling the linker directy to using CC
+linker_path=
+case $host_os in
+  linux*)
+    AC_PATH_PROG([linker_path], [ld])
+    ;;
+esac
+
+if test -n "$linker_path"; then
+   AC_DEFINE_UNQUOTED([LINKER_PATH], ["$linker_path"], [System linker])
+fi
+
 # CC may constain unwanted -std=... option.
 cc_bare="$(which ${CC%% *})"
 case $host_os in
