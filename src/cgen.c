@@ -525,11 +525,7 @@ static void cgen_sched_process(LLVMValueRef after)
 static char *cgen_signal_nets_name(vcode_signal_t sig)
 {
    ident_t name = vcode_signal_name(sig);
-   const char *path = vcode_signal_extern(sig)
-      ? package_signal_path_name(name)
-      : istr(name);
-
-   return xasprintf("%s_nets", path);
+   return xasprintf("%s_nets", istr(name));
 }
 
 static LLVMValueRef cgen_signal_nets(vcode_signal_t sig)
@@ -3246,7 +3242,7 @@ static void cgen_reset_function(tree_t top)
    const int nsignals = vcode_count_signals();
    for (int i = 0 ; i < nsignals; i++) {
       const int nnets = vcode_signal_count_nets(i);
-      if (nnets <= MAX_STATIC_NETS)
+      if (nnets <= MAX_STATIC_NETS && (!vcode_signal_extern(i) || nnets == 0))
          continue;
 
       // Need to generate runtime code to fill in net mapping table
@@ -3376,7 +3372,8 @@ static void cgen_signals(void)
       if (vcode_signal_extern(i))
          LLVMSetLinkage(map_var, LLVMExternalLinkage);
       else {
-         if (nnets <= MAX_STATIC_NETS) {
+         if (nnets <= MAX_STATIC_NETS && nnets > 0
+             && nets[0] != NETID_INVALID) {
             // Generate a constant mapping table from sub-element to net ID
             LLVMSetGlobalConstant(map_var, true);
             LLVMSetUnnamedAddr(map_var, true);

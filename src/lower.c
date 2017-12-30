@@ -1575,9 +1575,10 @@ static vcode_signal_t lower_get_signal(tree_t decl)
       vcode_select_unit(vcode_unit_context());
 
       type_t type = tree_type(decl);
+      const char *name = package_signal_path_name(tree_ident(decl));
 
-      sig = emit_extern_signal(vtype_signal(lower_type(type)),
-                               lower_bounds(type), tree_ident(decl));
+      sig = emit_signal(vtype_signal(lower_type(type)), lower_bounds(type),
+                        ident_new(name), VCODE_INVALID_VAR, NULL, 0, true);
       lower_put_vcode_obj(decl, sig);
 
       vcode_state_restore(&state);
@@ -4326,17 +4327,24 @@ static void lower_var_decl(tree_t decl)
 
 static void lower_signal_decl(tree_t decl)
 {
-   const int nnets = tree_nets(decl);
-   if (nnets == 0 && !tree_attr_int(decl, null_range_i, 0))
-      return;
+   int nnets = tree_nets(decl);
+   bool is_package_signal = false;
+   ident_t name = tree_ident(decl);
+
+   if (nnets == 0 && !tree_attr_int(decl, null_range_i, 0)) {
+      // Signal declared in a package
+      nnets = type_width(tree_type(decl));
+      is_package_signal = true;
+      name = ident_new(package_signal_path_name(name));
+   }
 
    type_t type = tree_type(decl);
    vcode_type_t ltype = lower_type(type);
    vcode_type_t bounds = lower_bounds(type);
-   ident_t name = tree_ident(decl);
 
    const bool can_use_shadow =
-      lower_signal_sequential_nets(decl)
+      !is_package_signal
+      && lower_signal_sequential_nets(decl)
       && !tree_attr_int(decl, partial_map_i, 0);
 
    vcode_var_t shadow = VCODE_INVALID_VAR;
@@ -4355,14 +4363,17 @@ static void lower_signal_decl(tree_t decl)
 
    netid_t *nets = xmalloc(sizeof(netid_t) * nnets);
    for (int i = 0; i < nnets; i++)
-      nets[i] = tree_net(decl, i);
+      nets[i] = is_package_signal ? NETID_INVALID : tree_net(decl, i);
+
+   const bool from_package = tree_flags(decl) & TREE_F_PACKAGE_SIGNAL;
+   assert(!(is_package_signal && from_package));
 
    vcode_type_t stype = vtype_signal(ltype);
    vcode_signal_t sig = emit_signal(stype, bounds, name, shadow,
-                                    nets, nnets);
+                                    nets, nnets, from_package);
    lower_put_vcode_obj(decl, sig);
 
-   if (nnets == 0)
+   if (nnets == 0 || is_package_signal)
       return;
 
    // Internal signals that were generated from ports will not have

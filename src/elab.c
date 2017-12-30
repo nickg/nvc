@@ -1537,6 +1537,7 @@ static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
       ident_t new_name = ident_new(package_signal_path_name(orig_name));
       tree_set_ident(d, new_name);
       tree_add_attr_str(d, inst_name_i, new_name);
+      tree_set_flag(d, TREE_F_PACKAGE_SIGNAL);
 
       rwitems[count].kind   = RW_IDENT;
       rwitems[count].name   = orig_name;

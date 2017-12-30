@@ -318,9 +318,7 @@ vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
                             ident_t name);
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
                            ident_t name, vcode_var_t shadow,
-                           netid_t *nets, size_t nnets);
-vcode_signal_t emit_extern_signal(vcode_type_t type, vcode_type_t bounds,
-                                  ident_t name);
+                           netid_t *nets, size_t nnets, bool is_extern);
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
                         vcode_reg_t count);
 vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name);

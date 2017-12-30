@@ -3176,7 +3176,7 @@ vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name)
 
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
                            ident_t name, vcode_var_t shadow,
-                           netid_t *nets, size_t nnets)
+                           netid_t *nets, size_t nnets, bool is_extern)
 {
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_CONTEXT);
@@ -3192,26 +3192,10 @@ vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
    s->nets   = nets;
    s->nnets  = nnets;
 
+   if (is_extern)
+      s->flags |= SIGNAL_EXTERN;
+
    return snum;
-}
-
-vcode_signal_t emit_extern_signal(vcode_type_t type, vcode_type_t bounds,
-                                  ident_t name)
-{
-   assert(active_unit != NULL);
-   assert(active_unit->kind == VCODE_UNIT_CONTEXT);
-
-   // Try to find an existing extern with this name
-   for (unsigned i = 0; i < active_unit->vars.count; i++) {
-      signal_t *s = &(active_unit->signals.items[i]);
-      if ((s->flags & SIGNAL_EXTERN) && s->name == name)
-         return i;
-   }
-
-   vcode_signal_t sig = emit_signal(type, bounds, name, VCODE_INVALID_VAR,
-                                    NULL, 0);
-   vcode_signal_data(sig)->flags |= SIGNAL_EXTERN;
-   return sig;
 }
 
 vcode_reg_t emit_load(vcode_var_t var)

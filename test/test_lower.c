@@ -3013,12 +3013,19 @@ START_TEST(test_signal11)
    vcode_unit_t vpack = vcode_find_unit(ident_new("WORK.PACK"));
    fail_if(vpack == NULL);
 
+   vcode_select_unit(vpack);
+   fail_unless(vcode_count_signals() == 1);
+   fail_unless(vcode_signal_name(0) == ident_new(":work:pack:x"));
+   fail_if(vcode_signal_extern(0));
+   fail_unless(vcode_signal_count_nets(0) == 1);
+   fail_unless(vcode_signal_nets(0)[0] == NETID_INVALID);
+
    vcode_unit_t vbody = vcode_find_unit(ident_new("WORK.PACK-body"));
    fail_if(vpack == NULL);
 
    vcode_select_unit(vbody);
    fail_unless(vcode_count_signals() == 1);
-   fail_unless(vcode_signal_name(0) == ident_new("WORK.PACK.X"));
+   fail_unless(vcode_signal_name(0) == ident_new(":work:pack:x"));
    fail_unless(vcode_signal_extern(0));
 }
 END_TEST

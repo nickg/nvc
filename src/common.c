@@ -294,6 +294,9 @@ tree_t get_real_lit(tree_t t, double r)
 const char *package_signal_path_name(ident_t i)
 {
    const char *str = istr(i);
+   if (str[0] == ':')
+      return str;
+
    char *buf = get_fmt_buf(strlen(str) + 3);
    char *p = buf;
 
