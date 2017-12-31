@@ -1,4 +1,7 @@
 ## master
+- Nothing yet
+
+## 1.3 - 2017-12-31
 - Native code is always generated on platforms that support it
 - Initial support for VHDL-2017 conditional compilation blocks
 - The TCL shell has been removed
