@@ -1,4 +1,4 @@
-AC_INIT([nvc], [1.3.1],
+AC_INIT([nvc], [1.4-devel],
         [Nick Gasson <nick@nick.me.uk>],
         [nvc])
 AC_PREREQ([2.63])
