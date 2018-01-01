@@ -404,18 +404,6 @@ static void rt_show_trace(void)
    free(trace);
 }
 
-static uint64_t rt_timestamp_us(void)
-{
-#ifndef _WIN32
-   struct timespec ts;
-   if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
-      fatal_errno("clock_gettime");
-   return (ts.tv_nsec / 1000) + (ts.tv_sec * 1000 * 1000);
-#else
-   return 0;
-#endif
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -442,7 +430,7 @@ void _sched_waveform(void *_nids, void *values, int32_t n,
 
    uint64_t start_time = 0;
    if (profiling)
-      start_time = rt_timestamp_us();
+      start_time = get_timestamp_us();
 
    if (unlikely(active_proc->postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
@@ -471,7 +459,7 @@ void _sched_waveform(void *_nids, void *values, int32_t n,
    RT_ASSERT(offset == n);
 
    if (profiling)
-      perf_counters[PERF_SCHED_WAVEFORM] += rt_timestamp_us() - start_time;
+      perf_counters[PERF_SCHED_WAVEFORM] += get_timestamp_us() - start_time;
 }
 
 DLLEXPORT
@@ -1588,7 +1576,7 @@ static void rt_run(struct rt_proc *proc, bool reset)
 
    uint64_t start_clock = 0;
    if (profiling)
-      start_clock = rt_timestamp_us();
+      start_clock = get_timestamp_us();
 
    if (reset) {
       _tmp_stack = global_tmp_stack;
@@ -1615,7 +1603,7 @@ static void rt_run(struct rt_proc *proc, bool reset)
       global_tmp_alloc = _tmp_alloc;
 
    if (start_clock != 0)
-      proc->usage += rt_timestamp_us() - start_clock;
+      proc->usage += get_timestamp_us() - start_clock;
 }
 
 static void rt_call_module_reset(ident_t name)
@@ -1948,7 +1936,7 @@ static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
 {
    uint64_t start_time = 0;
    if (profiling)
-      start_time = rt_timestamp_us();
+      start_time = get_timestamp_us();
 
    if (likely(proc != NULL)) {
       // Find the driver owned by proc
@@ -1975,7 +1963,7 @@ static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
       rt_update_group(group, -1, group->forcing->data);
 
    if (profiling)
-      perf_counters[PERF_UPDATE_DRIVER] += rt_timestamp_us() - start_time;
+      perf_counters[PERF_UPDATE_DRIVER] += get_timestamp_us() - start_time;
 }
 
 static bool rt_stale_event(event_t *e)

@@ -189,6 +189,8 @@ typedef struct {
 
 void nvc_rusage(nvc_rusage_t *ru);
 
+uint64_t get_timestamp_us();
+
 void file_read_lock(int fd);
 void file_write_lock(int fd);
 void file_unlock(int fd);
