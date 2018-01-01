@@ -193,7 +193,12 @@ case $host_os in
     cc_bare="$(cygpath -w $cc_bare | sed  's|\\|\\\\|g')"
     ;;
 esac
-AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$cc_bare"], [System compiler])
+AC_ARG_WITH([system-cc],
+            [AC_HELP_STRING([--with-system-cc=PATH],
+                            [Path to system compiler to be used for linking])],
+            [system_cc="$withval"],
+            [system_cc="$cc_bare"])
+AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$system_cc"], [System compiler])
 
 case $host_os in
   msys*|mingw32*|*cygwin*)
