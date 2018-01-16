@@ -231,7 +231,8 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
 static lib_t lib_find_at(const char *name, const char *path, bool exact)
 {
    char dir[PATH_MAX];
-   char *p = dir + snprintf(dir, sizeof(dir) - 4 - strlen(name), "%s/", path);
+   char *p = dir + snprintf(dir, sizeof(dir) - 4 - strlen(name),
+                            "%s" PATH_SEP, path);
    bool found = false;
 
    if (!exact) {
@@ -524,7 +525,7 @@ void lib_destroy(lib_t lib)
    struct dirent *e;
    while ((e = readdir(d))) {
       if (e->d_name[0] != '.') {
-         snprintf(buf, sizeof(buf), "%s/%s", lib->path, e->d_name);
+         snprintf(buf, sizeof(buf), "%s" PATH_SEP "%s", lib->path, e->d_name);
          if (unlink(buf) < 0)
             perror("unlink");
       }
@@ -785,7 +786,7 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
    assert(lib != NULL);
 
    if (name)
-      snprintf(buf, buflen, "%s/%s", lib->path, name);
+      snprintf(buf, buflen, "%s" PATH_SEP "%s", lib->path, name);
    else
       strncpy(buf, lib->path, buflen);
 }

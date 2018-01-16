@@ -281,7 +281,7 @@ void *xmalloc(size_t size)
 {
    void *p = malloc(size);
    if (p == NULL)
-      fatal("memory exhausted");
+      fatal("memory exhausted (malloc %lu)", (long unsigned)size);
    return p;
 }
 
@@ -289,7 +289,7 @@ void *xcalloc(size_t size)
 {
    void *p = calloc(1, size);
    if (p == NULL)
-      fatal("memory exhausted");
+      fatal("memory exhausted (calloc %lu)", (long unsigned)size);
    return p;
 }
 
@@ -297,7 +297,7 @@ void *xrealloc(void *ptr, size_t size)
 {
    ptr = realloc(ptr, size);
    if (ptr == NULL)
-      fatal("memory exhausted");
+      fatal("memory exhausted (realloc %lu)", (long unsigned)size);
    return ptr;
 }
 
@@ -305,7 +305,7 @@ char *xstrdup(const char *str)
 {
    char *copy = strdup(str);
    if (copy == NULL)
-      fatal("memory exhausted");
+      fatal("memory exhausted (strdup %p)", str);
    return copy;
 }
 
@@ -845,6 +845,7 @@ static void win64_stacktrace(PCONTEXT context)
 }
 #endif  // __WIN64
 
+WINAPI
 static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
 {
    DWORD code = ExceptionInfo->ExceptionRecord->ExceptionCode;
@@ -1456,7 +1457,7 @@ void tb_printf(text_buf_t *tb, const char *fmt, ...)
 
 void tb_append(text_buf_t *tb, char ch)
 {
-   if (tb->len + 1 <= tb->alloc) {
+   if (tb->len + 1 >= tb->alloc) {
       tb->alloc *= 2;
       tb->buf = xrealloc(tb->buf, tb->alloc);
    }
