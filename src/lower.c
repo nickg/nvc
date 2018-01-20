@@ -1933,7 +1933,9 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
    assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY
           || vtkind == VCODE_TYPE_SIGNAL);
 
-   return emit_add(lower_array_data(array), lower_array_ref_offset(ref, array));
+   vcode_reg_t offset_reg = lower_array_ref_offset(ref, array);
+   vcode_reg_t data_reg   = lower_array_data(array);
+   return emit_add(data_reg, offset_reg);
 }
 
 static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
