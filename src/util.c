@@ -1696,8 +1696,21 @@ const char *safe_symbol(const char *text)
 {
    // Return a string that is safe to use as a symbol name on this platform
 #if defined _WIN32
-   // TODO
-   return text;
+   text_buf_t *tb = tb_new();
+
+   for (const char *p = text; *p != '\0'; p++) {
+      switch (*p) {
+      case '(': tb_printf(tb, "_lp_"); break;
+      case ')': tb_printf(tb, "_rp_"); break;
+      case '"': tb_printf(tb, "_q_"); break;
+      case '[': tb_printf(tb, "_ls_"); break;
+      case ']': tb_printf(tb, "_rs_"); break;
+      default:
+         tb_append(tb, *p);
+      }
+   }
+
+   return tb_get(tb);
 #else
    return text;
 #endif

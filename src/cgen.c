@@ -1648,7 +1648,7 @@ static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type)
 
    char *buf LOCAL = xasprintf("%s_resolution", istr(name));
 
-   LLVMValueRef fn = LLVMGetNamedFunction(module, buf);
+   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_symbol(buf));
    if (fn != NULL)
       return llvm_void_cast(fn);    // Already generated wrapper
 
@@ -1668,12 +1668,13 @@ static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type)
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
-   LLVMValueRef rfn = LLVMGetNamedFunction(module, istr(name));
+   const char *safe_name = safe_symbol(istr(name));
+   LLVMValueRef rfn = LLVMGetNamedFunction(module, safe_name);
    if (rfn == NULL) {
       // The resolution function is not visible yet e.g. because it
       // is declared in another package
       LLVMTypeRef args[] = { uarray_type };
-      rfn = LLVMAddFunction(module, istr(name),
+      rfn = LLVMAddFunction(module, safe_name,
                             LLVMFunctionType(elem_type, args,
                                              ARRAY_LEN(args), false));
    }
@@ -1957,7 +1958,8 @@ static void cgen_op_resume(int op, bool nested, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, call_bb);
 
-   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(vcode_get_func(op)));
+   const char *safe_name = safe_symbol(istr(vcode_get_func(op)));
+   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
    assert(fn != NULL);
 
    LLVMTypeRef fn_type = LLVMGetElementType(LLVMTypeOf(fn));
