@@ -84,27 +84,10 @@ void expect_errors(const error_t *lines)
 
 TCase *nvc_unit_test(void)
 {
-   term_init();
-   register_trace_signal_handlers();
-
-   setenv("NVC_LIBPATH", "../lib/std", 1);
-
    TCase *tc_core = tcase_create("Core");
    tcase_add_unchecked_fixture(tc_core, setup, NULL);
    tcase_add_checked_fixture(tc_core, setup_per_test, teardown_per_test);
    return tc_core;
-}
-
-int nvc_run_test(Suite *s)
-{
-   SRunner *sr = srunner_create(s);
-   srunner_run_all(sr, CK_NORMAL);
-
-   const int nfail = srunner_ntests_failed(sr);
-
-   srunner_free(sr);
-
-   return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 tree_t run_elab(void)

@@ -3030,7 +3030,7 @@ START_TEST(test_signal11)
 }
 END_TEST
 
-int main(void)
+Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
 
@@ -3104,5 +3104,5 @@ int main(void)
    tcase_add_test(tc, test_signal11);
    suite_add_tcase(s, tc);
 
-   return nvc_run_test(s);
+   return s;
 }

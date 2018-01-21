@@ -2745,7 +2745,7 @@ START_TEST(test_issue367)
 }
 END_TEST
 
-int main(void)
+Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
 
@@ -2791,5 +2791,5 @@ int main(void)
    tcase_add_test(tc_core, test_issue367);
    suite_add_tcase(s, tc_core);
 
-   return nvc_run_test(s);
+   return s;
 }

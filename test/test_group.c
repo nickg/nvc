@@ -456,7 +456,7 @@ START_TEST(test_jcore4)
 }
 END_TEST
 
-int main(void)
+Suite *get_group_tests(void)
 {
    Suite *s = suite_create("group");
 
@@ -482,5 +482,5 @@ int main(void)
    tcase_add_test(tc_core, test_jcore4);
    suite_add_tcase(s, tc_core);
 
-   return nvc_run_test(s);
+   return s;
 }

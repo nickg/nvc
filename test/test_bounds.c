@@ -316,7 +316,7 @@ START_TEST(test_issue356)
 }
 END_TEST
 
-int main(void)
+Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
 
@@ -336,5 +336,5 @@ int main(void)
    tcase_add_test(tc_core, test_issue356);
    suite_add_tcase(s, tc_core);
 
-   return nvc_run_test(s);
+   return s;
 }

@@ -1817,7 +1817,7 @@ START_TEST(test_issue359a)
 }
 END_TEST
 
-int main(void)
+Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
 
@@ -1911,5 +1911,5 @@ int main(void)
    tcase_add_test(tc_core, test_issue359a);
    suite_add_tcase(s, tc_core);
 
-   return nvc_run_test(s);
+   return s;
 }

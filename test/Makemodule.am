@@ -1,62 +1,28 @@
-UNIT_TESTS = \
-	bin/test_lib \
-	bin/test_ident \
-	bin/test_parse \
-	bin/test_sem \
-	bin/test_simp \
-	bin/test_elab \
-	bin/test_heap \
-	bin/test_hash \
-	bin/test_group \
-	bin/test_bounds \
-	bin/test_value \
-	bin/test_lower \
+TESTS := \
+	bin/unit_test \
 	bin/run_regr    # Must always be last
 
-check_PROGRAMS += $(UNIT_TESTS)
+check_PROGRAMS += $(TESTS)
 
-check_LIBRARIES += test/libtest_util.a
+bin_unit_test_SOURCES = \
+	test/test_util.c \
+	test/test_util.h \
+	test/unit_test.c \
+	test/test_ident.c \
+	test/test_lower.c \
+	test/test_parse.c \
+	test/test_lib.c \
+	test/test_sem.c \
+	test/test_simp.c \
+	test/test_hash.c \
+	test/test_elab.c \
+	test/test_heap.c \
+	test/test_group.c \
+	test/test_bounds.c \
+	test/test_value.c
 
-test_libs = test/libtest_util.a lib/libnvc.a lib/librt.a lib/libfastlz.a \
+bin_unit_test_LDADD = lib/libnvc.a lib/librt.a lib/libfastlz.a \
 	$(CHECK_LIBS) $(POW_LIB) $(libdw_LIBS)
-
-test_libtest_util_a_SOURCES = test/test_util.c test/test_util.h
-
-bin_test_lib_SOURCES = test/test_lib.c
-bin_test_lib_LDADD = $(test_libs)
-
-bin_test_ident_SOURCES = test/test_ident.c
-bin_test_ident_LDADD = $(test_libs)
-
-bin_test_parse_SOURCES = test/test_parse.c
-bin_test_parse_LDADD = $(test_libs)
-
-bin_test_sem_SOURCES = test/test_sem.c
-bin_test_sem_LDADD = $(test_libs)
-
-bin_test_simp_SOURCES = test/test_simp.c
-bin_test_simp_LDADD = $(test_libs)
-
-bin_test_elab_SOURCES = test/test_elab.c
-bin_test_elab_LDADD = $(test_libs)
-
-bin_test_heap_SOURCES = test/test_heap.c
-bin_test_heap_LDADD =  lib/librt.a $(test_libs)
-
-bin_test_hash_SOURCES = test/test_hash.c
-bin_test_hash_LDADD = $(test_libs)
-
-bin_test_group_SOURCES = test/test_group.c
-bin_test_group_LDADD = $(test_libs)
-
-bin_test_bounds_SOURCES = test/test_bounds.c
-bin_test_bounds_LDADD = $(test_libs)
-
-bin_test_value_SOURCES = test/test_value.c
-bin_test_value_LDADD = $(test_libs)
-
-bin_test_lower_SOURCES = test/test_lower.c
-bin_test_lower_LDADD = $(test_libs)
 
 bin_run_regr_SOURCES = test/run_regr.c
 
@@ -64,7 +30,6 @@ TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \
 	LIB_DIR=$(abs_top_builddir)/lib \
 	EXEEXT=$(EXEEXT)
-TESTS = $(UNIT_TESTS)
 
 if ENABLE_VHPI
 test/run_regr: $(VHPI_PLUGINS)

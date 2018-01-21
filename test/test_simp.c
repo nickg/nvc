@@ -586,7 +586,7 @@ START_TEST(test_issue362)
 }
 END_TEST
 
-int main(void)
+Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
 
@@ -613,5 +613,5 @@ int main(void)
    tcase_add_test(tc_core, test_issue362);
    suite_add_tcase(s, tc_core);
 
-   return nvc_run_test(s);
+   return s;
 }

@@ -546,7 +546,7 @@ START_TEST(test_issue336)
 }
 END_TEST
 
-int main(void)
+Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
 
@@ -589,5 +589,5 @@ int main(void)
    tcase_add_test(tc, test_issue336);
    suite_add_tcase(s, tc);
 
-   return nvc_run_test(s);
+   return s;
 }
