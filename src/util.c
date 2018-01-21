@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1689,5 +1689,16 @@ uint64_t get_timestamp_us()
    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
       fatal_errno("clock_gettime");
    return (ts.tv_nsec / 1000) + (ts.tv_sec * 1000 * 1000);
+#endif
+}
+
+const char *safe_symbol(const char *text)
+{
+   // Return a string that is safe to use as a symbol name on this platform
+#if defined _WIN32
+   // TODO
+   return text;
+#else
+   return text;
 #endif
 }

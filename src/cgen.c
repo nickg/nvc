@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -625,7 +625,7 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
    const int nargs = vcode_count_args(op);
    const int total_args = nargs + (nested ? 1 : 0) + (proc ? 1 : 0);
 
-   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(func));
+   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_symbol(istr(func)));
    if (fn == NULL) {
       LLVMTypeRef atypes[total_args];
       LLVMTypeRef *pa = atypes;
@@ -644,7 +644,7 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
 
       fn = LLVMAddFunction(
          module,
-         istr(func),
+         safe_symbol(istr(func)),
          LLVMFunctionType(rtype, atypes, total_args, false));
 
       cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
@@ -1904,7 +1904,7 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
    ident_t func = vcode_get_func(op);
    const int nargs = vcode_count_args(op);
 
-   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(func));
+   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_symbol(istr(func)));
    if (fn == NULL) {
       LLVMTypeRef atypes[nargs + 1];
       for (int i = 0; i < nargs; i++)
@@ -1913,7 +1913,7 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
 
       fn = LLVMAddFunction(
          module,
-         istr(func),
+         safe_symbol(istr(func)),
          LLVMFunctionType(llvm_void_ptr(), atypes, nargs + 1, false));
 
       cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
@@ -2958,9 +2958,10 @@ static void cgen_function(LLVMTypeRef display_type)
 {
    assert(vcode_unit_kind() == VCODE_UNIT_FUNCTION);
 
-   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(vcode_unit_name()));
+   const char *safe_name = safe_symbol(istr(vcode_unit_name()));
+   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
    if (fn == NULL)
-      fn = LLVMAddFunction(module, istr(vcode_unit_name()),
+      fn = LLVMAddFunction(module, safe_name,
                            cgen_subprogram_type(display_type, false));
 
    cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
@@ -3064,9 +3065,10 @@ static void cgen_procedure(LLVMTypeRef display_type)
 {
    assert(vcode_unit_kind() == VCODE_UNIT_PROCEDURE);
 
-   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(vcode_unit_name()));
+   const char *safe_name = safe_symbol(istr(vcode_unit_name()));
+   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
    if (fn == NULL)
-      fn = LLVMAddFunction(module, istr(vcode_unit_name()),
+      fn = LLVMAddFunction(module, safe_name,
                            cgen_subprogram_type(display_type, true));
 
    cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);

@@ -134,7 +134,7 @@ static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
 {
    vcode_unit_t vcode = vcode_find_unit(func_name);
    if (vcode == NULL) {
-      ident_t strip_type_suffix = ident_until(func_name, '$');
+      ident_t strip_type_suffix = ident_until(func_name, "("[0]);
       ident_t unit_name = ident_runtil(strip_type_suffix, '.');
       ident_t lib_name = ident_until(strip_type_suffix, '.');
 

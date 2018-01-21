@@ -861,7 +861,7 @@ START_TEST(test_func1)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_FCALL, .func = "*__ADD1$II", .args = 1 },
+      { VCODE_OP_FCALL, .func = "*__ADD1(I)I", .args = 1 },
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_WAIT, .target = 2 }
    };
@@ -1034,7 +1034,7 @@ START_TEST(test_nest1)
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X$II",
+         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X(I)I",
            .args = 1 },
          { VCODE_OP_CONST, .value = 7 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -1052,12 +1052,12 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit(f1);
       vcode_select_unit(v0);
 
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X$II"));
+      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X(I)I"));
 
       EXPECT_BB(0) = {
          { VCODE_OP_NESTED_FCALL,
-           .func = ":nest1:line_7_ADD_TO_X$II__"
-           ":nest1:line_7_ADD_TO_X_DO_IT$I" },
+           .func = ":nest1:line_7_ADD_TO_X(I)I__"
+           ":nest1:line_7_ADD_TO_X_DO_IT()I" },
          { VCODE_OP_RETURN }
       };
 
@@ -1071,8 +1071,8 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit(f2);
       vcode_select_unit(v0);
 
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X$II__"
-                       ":nest1:line_7_ADD_TO_X_DO_IT$I"));
+      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X(I)I__"
+                       ":nest1:line_7_ADD_TO_X_DO_IT()I"));
 
       EXPECT_BB(0) = {
          { VCODE_OP_LOAD, .name = "X" },
@@ -1357,14 +1357,14 @@ START_TEST(test_proc1)
       EXPECT_BB(1) = {
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
-         { VCODE_OP_FCALL, .func = ":proc1:add1$vII", .args = 2 },
+         { VCODE_OP_FCALL, .func = ":proc1:add1(II)", .args = 2 },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_FCALL, .func = ":proc1:add1$vII", .args = 2 },
+         { VCODE_OP_FCALL, .func = ":proc1:add1(II)", .args = 2 },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -1506,13 +1506,13 @@ START_TEST(test_proc3)
 
       EXPECT_BB(1) = {
          { VCODE_OP_INDEX, .name = "X" },
-         { VCODE_OP_PCALL, .func = ":proc3:p1$vI", .target = 2, .args = 1 }
+         { VCODE_OP_PCALL, .func = ":proc3:p1(I)", .target = 2, .args = 1 }
       };
 
       CHECK_BB(1);
 
       EXPECT_BB(2) = {
-         { VCODE_OP_RESUME, .func = ":proc3:p1$vI" },
+         { VCODE_OP_RESUME, .func = ":proc3:p1(I)" },
          { VCODE_OP_WAIT, .target = 3 }
       };
 
@@ -1724,11 +1724,11 @@ START_TEST(test_func5)
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_NETS, .name = ":func5:x" },
-         { VCODE_OP_FCALL, .func = "*ADD_ONE_S$IsI", .args = 1 },
+         { VCODE_OP_FCALL, .func = "*ADD_ONE_S(sI)I", .args = 1 },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
-         { VCODE_OP_FCALL, .func = "*EVENT$BsI", .args = 1 },
+         { VCODE_OP_FCALL, .func = "*EVENT(sI)B", .args = 1 },
          { VCODE_OP_ASSERT },
          { VCODE_OP_WAIT, .target = 2 }
       };
@@ -1982,7 +1982,7 @@ START_TEST(test_issue122)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_NESTED_FCALL, .func = ":issue122:func$II__NESTED$I" },
+      { VCODE_OP_NESTED_FCALL, .func = ":issue122:func(I)I__NESTED()I" },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_RETURN }
    };
@@ -2007,7 +2007,7 @@ START_TEST(test_issue124)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER$IuWORK.PACK.UNSIGNED;",
+      { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER(18WORK.PACK.UNSIGNED)I",
         .args = 1},
       { VCODE_OP_IMAGE },
       { VCODE_OP_RETURN }
@@ -2218,10 +2218,10 @@ START_TEST(test_issue164)
    lower_unit(p);
 
    vcode_select_unit(find_unit(tree_decl(p, 0)));
-   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME$vI"));
+   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME(I)"));
 
    vcode_select_unit(find_unit(tree_decl(p, 1)));
-   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME$I"));
+   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME()I"));
 }
 END_TEST
 
@@ -2545,7 +2545,7 @@ START_TEST(test_dealloc)
    vcode_select_unit(v1);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_FCALL, .func = "WORK.PACK.ANOTHER_PROC$vuWORK.PACK.PTR;" },
+      { VCODE_OP_FCALL, .func = "WORK.PACK.ANOTHER_PROC(13WORK.PACK.PTR)" },
       { VCODE_OP_RETURN }
    };
 
@@ -2587,7 +2587,7 @@ START_TEST(test_issue333)
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_STORE, .name = "L" },
       { VCODE_OP_INDEX, .name = "L" },
-      { VCODE_OP_FCALL, .name = ":issue333:proc$vuLINE;", .args = 1 },
+      { VCODE_OP_FCALL, .name = ":issue333:proc(vuLINE;", .args = 1 },
       { VCODE_OP_CONST, .value = 50 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
       { VCODE_OP_CONST, .value = 2 },
@@ -2628,7 +2628,7 @@ START_TEST(test_issue338)
       CHECK_BB(0);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_FCALL, .func = "WORK.P.F$B" },
+         { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
          { VCODE_OP_AND },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_JUMP, .target = 2 },
@@ -2693,7 +2693,7 @@ START_TEST(test_issue338)
       EXPECT_BB(0) = {
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_STORE, .name = "Y" },
-         { VCODE_OP_FCALL, .func = "WORK.P.F$B" },
+         { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
          { VCODE_OP_NOT },
          { VCODE_OP_RETURN }
       };
@@ -2715,7 +2715,7 @@ START_TEST(test_issue338)
       CHECK_BB(0);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_FCALL, .func = "WORK.P.F$B" },
+         { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
          { VCODE_OP_OR },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_JUMP, .target = 2 },
@@ -2746,7 +2746,7 @@ START_TEST(test_issue338)
       CHECK_BB(0);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_FCALL, .func = "WORK.P.F$B" },
+         { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
          { VCODE_OP_NOR },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_JUMP, .target = 2 },
@@ -2828,7 +2828,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LOAD, .name = "X" },
-      { VCODE_OP_FCALL, .func = ":hintbug:func$QJ" },
+      { VCODE_OP_FCALL, .func = ":hintbug:func(J)Q" },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_ARRAY_SIZE },
@@ -2863,7 +2863,7 @@ START_TEST(test_issue351)
       { VCODE_OP_CAST },
       { VCODE_OP_ADD },
       { VCODE_OP_WRAP },
-      { VCODE_OP_FCALL, .func = ":issue351:dump_words$vuWORD_VECTOR;" },
+      { VCODE_OP_FCALL, .func = ":issue351:dump_words(11WORD_VECTOR)" },
       { VCODE_OP_JUMP, .target = 5 }
    };
 

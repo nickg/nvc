@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2017  Nick Gasson
+//  Copyright (C) 2014-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -915,8 +915,10 @@ static void lower_mangle_one_type(text_buf_t *buf, type_t type)
       tb_printf(buf, "U");
    else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR"))
       tb_printf(buf, "V");
-   else
-      tb_printf(buf, "u%s;", istr(ident));
+   else {
+      const char *ident_str = istr(ident);
+      tb_printf(buf, "%d%s", (int)strlen(ident_str), ident_str);
+   }
 }
 
 static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
@@ -976,12 +978,7 @@ static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
    const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
    const int nports = tree_ports(decl);
    if (nports > 0 || is_func)
-      tb_printf(buf, "$");
-
-   if (is_func)
-      lower_mangle_one_type(buf, type_result(tree_type(decl)));
-   else
-      tb_printf(buf, "v");
+      tb_printf(buf, "(");
 
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(decl, i);
@@ -989,6 +986,12 @@ static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
          tb_printf(buf, "s");
       lower_mangle_one_type(buf, tree_type(p));
    }
+
+   if (nports > 0 || is_func)
+      tb_printf(buf, ")");
+
+   if (is_func)
+      lower_mangle_one_type(buf, type_result(tree_type(decl)));
 
    ident_t new = ident_new(tb_get(buf));
    if (save_mangled_name)
