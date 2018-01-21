@@ -506,7 +506,8 @@ static bool run_test(test_t *test)
       set_attr(ANSI_FG_CYAN);
       printf("skipped\n");
       set_attr(ANSI_RESET);
-      return true;
+      result = true;
+      goto out_chdir;
    }
 #endif
 
