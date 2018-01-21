@@ -2709,6 +2709,42 @@ START_TEST(test_issue360)
 }
 END_TEST
 
+START_TEST(test_issue367)
+{
+   input_from_file(TESTDIR "/parse/issue367.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+
+   tree_t f = tree_decl(b, 0);
+   fail_unless(tree_kind(f) == T_FUNC_BODY);
+
+   tree_t d = tree_decl(f, 1);
+   fail_unless(tree_kind(d) == T_VAR_DECL);
+   fail_unless(tree_ident(d) == ident_new("I"));
+
+   type_t type = tree_type(d);
+   fail_unless(type_kind(type) == T_SUBTYPE);
+
+   tree_t c = type_constraint(type);
+   fail_unless(tree_ranges(c) == 1);
+
+   range_t r = tree_range(c, 0);
+   fail_unless(r.kind == RANGE_EXPR);
+   fail_unless(tree_kind(r.left) == T_ATTR_REF);
+   fail_unless(r.right == NULL);
+
+   fail_if(parse() != NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -2752,6 +2788,7 @@ int main(void)
    tcase_add_test(tc_core, test_guarded);
    tcase_add_test(tc_core, test_cond1);
    tcase_add_test(tc_core, test_issue360);
+   tcase_add_test(tc_core, test_issue367);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

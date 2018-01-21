@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2017  Nick Gasson
+//  Copyright (C) 2014-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1044,7 +1044,23 @@ static tree_t p_range_constraint(void)
 
    tree_t t = tree_new(T_CONSTRAINT);
    tree_set_subkind(t, C_RANGE);
-   tree_add_range(t, p_range(p_expression()));
+
+   tree_t expr1 = p_expression();
+   switch (peek()) {
+   case tTO:
+   case tDOWNTO:
+      tree_add_range(t, p_range(expr1));
+      break;
+   default:
+      {
+         range_t r = {
+            .kind  = RANGE_EXPR,
+            .left  = expr1,
+            .right = NULL
+         };
+         tree_add_range(t, r);
+      }
+   }
 
    tree_set_loc(t, CURRENT_LOC);
    return t;
