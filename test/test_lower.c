@@ -2990,7 +2990,6 @@ START_TEST(test_tounsigned)
    };
 
    CHECK_BB(7);
-
 }
 END_TEST
 

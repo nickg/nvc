@@ -546,6 +546,36 @@ START_TEST(test_issue336)
 }
 END_TEST
 
+START_TEST(test_openinout)
+{
+   input_from_file(TESTDIR "/elab/openinout.vhd");
+
+   tree_t e = run_elab();
+   dump(e);
+
+   tree_t p0 = tree_stmt(e, 0);
+   tree_t p0s0 = tree_stmt(p0, 0);
+   fail_unless(tree_kind(p0s0) == T_SIGNAL_ASSIGN);
+   tree_t p0s0w0 = tree_value(tree_waveform(p0s0, 0));
+   fail_unless(tree_kind(p0s0w0) == T_LITERAL);
+   fail_unless(tree_ival(p0s0w0) == 1);
+
+   tree_t p1 = tree_stmt(e, 1);
+   tree_t p1s0 = tree_stmt(p1, 0);
+   fail_unless(tree_kind(p1s0) == T_SIGNAL_ASSIGN);
+   tree_t p1s0w0 = tree_value(tree_waveform(p1s0, 0));
+   fail_unless(tree_kind(p1s0w0) == T_LITERAL);
+   fail_unless(tree_ival(p1s0w0) == 6);
+
+   tree_t p2 = tree_stmt(e, 2);
+   tree_t p2s0 = tree_stmt(p2, 0);
+   fail_unless(tree_kind(p2s0) == T_SIGNAL_ASSIGN);
+   tree_t p2s0w0 = tree_value(tree_waveform(p2s0, 0));
+   fail_unless(tree_kind(p2s0w0) == T_LITERAL);
+   fail_unless(tree_ival(p2s0w0) == 1);
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -587,6 +617,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue328);
    tcase_add_test(tc, test_issue330);
    tcase_add_test(tc, test_issue336);
+   tcase_add_test(tc, test_openinout);
    suite_add_tcase(s, tc);
 
    return s;

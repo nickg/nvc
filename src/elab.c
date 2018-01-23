@@ -415,6 +415,19 @@ static void elab_pseudo_context(tree_t out, tree_t src)
    tree_add_context(out, c);
 }
 
+static tree_t elab_open_value(tree_t formal)
+{
+   const port_mode_t mode = tree_subkind(formal);
+   if (mode == PORT_INOUT || (standard() >= STD_08 && mode == PORT_OUT))
+      return make_default_value(tree_type(formal), tree_loc(formal));
+   else {
+      tree_t open = tree_new(T_OPEN);
+      tree_set_type(open, tree_type(formal));
+      tree_set_loc(open, tree_loc(formal));
+      return open;
+   }
+}
+
 static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
                                map_list_t **maps)
 {
@@ -483,12 +496,7 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
       }
 
    case T_OPEN:
-      {
-         tree_t open = tree_new(T_OPEN);
-         tree_set_type(open, tree_type(formal));
-         tree_set_loc(open, tree_loc(formal));
-         return open;
-      }
+      return elab_open_value(formal);
 
    case T_TYPE_CONV:
       // Only allow simple array type conversions for now
@@ -602,12 +610,15 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
    for (unsigned i = 0; i < nformals; i++) {
       if (!have_formals[i]) {
          tree_t f = tree_F(unit, i);
-         if (tree_has_value(f)) {
-            rwitems[count].kind = RW_TREE;
-            rwitems[count].formal = f;
+
+         rwitems[count].kind = RW_TREE;
+         rwitems[count].formal = f;
+         if (tree_has_value(f))
             rwitems[count].actual = tree_value(f);
-            count++;
-         }
+         else
+            rwitems[count].actual = elab_open_value(f);
+
+         count++;
       }
    }
 

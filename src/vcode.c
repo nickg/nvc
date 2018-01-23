@@ -2912,6 +2912,9 @@ static vcode_reg_t emit_fcall_op(vcode_op_t op, ident_t func, vcode_type_t type,
    if (resume_bb != VCODE_INVALID_BLOCK)
       vcode_block_array_add(&(o->targets), resume_bb);
 
+   for (int i = 0; i < nargs; i++)
+      VCODE_ASSERT(args[i] != VCODE_INVALID_REG, "invalid argument to function");
+
    if (type == VCODE_INVALID_TYPE)
       return (o->result = VCODE_INVALID_REG);
    else
