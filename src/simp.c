@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -563,17 +563,24 @@ static tree_t simp_wait(tree_t t)
 
 static tree_t simp_case(tree_t t)
 {
+   const int nassocs = tree_assocs(t);
+   if (nassocs == 0)
+      return NULL;    // All choices are unreachable
+
    int64_t ival;
    if (folded_int(tree_value(t), &ival)) {
-      const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(t, i);
-         switch (tree_subkind(a)) {
+         switch ((assoc_kind_t)tree_subkind(a)) {
          case A_NAMED:
             {
                int64_t aval;
-               if (folded_int(tree_name(a), &aval) && (ival == aval))
-                  return tree_value(a);
+               if (folded_int(tree_name(a), &aval) && (ival == aval)) {
+                  if (tree_has_value(a))
+                     return tree_value(a);
+                  else
+                     return NULL;
+               }
             }
             break;
 
@@ -581,10 +588,13 @@ static tree_t simp_case(tree_t t)
             continue;   // TODO
 
          case A_OTHERS:
-            return tree_value(a);
+            if (tree_has_value(a))
+               return tree_value(a);
+            else
+               return NULL;
 
-         default:
-            assert(false);
+         case A_POS:
+            break;
          }
       }
    }
@@ -967,6 +977,14 @@ static tree_t simp_signal_assign(tree_t t)
    return t;
 }
 
+static tree_t simp_assoc(tree_t t)
+{
+   if (!tree_has_value(t))
+      return NULL;   // Delete it
+
+   return t;
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -1016,6 +1034,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_if_generate(t);
    case T_SIGNAL_ASSIGN:
       return simp_signal_assign(t);
+   case T_ASSOC:
+      return simp_assoc(t);
    default:
       return t;
    }

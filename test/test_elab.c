@@ -551,7 +551,6 @@ START_TEST(test_openinout)
    input_from_file(TESTDIR "/elab/openinout.vhd");
 
    tree_t e = run_elab();
-   dump(e);
 
    tree_t p0 = tree_stmt(e, 0);
    tree_t p0s0 = tree_stmt(p0, 0);
@@ -573,6 +572,15 @@ START_TEST(test_openinout)
    tree_t p2s0w0 = tree_value(tree_waveform(p2s0, 0));
    fail_unless(tree_kind(p2s0w0) == T_LITERAL);
    fail_unless(tree_ival(p2s0w0) == 1);
+}
+END_TEST
+
+START_TEST(test_opencase)
+{
+   input_from_file(TESTDIR "/elab/opencase.vhd");
+
+   tree_t e = run_elab();
+   fail_unless(tree_stmts(e) == 0);
 }
 END_TEST
 
@@ -618,6 +626,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue330);
    tcase_add_test(tc, test_issue336);
    tcase_add_test(tc, test_openinout);
+   tcase_add_test(tc, test_opencase);
    suite_add_tcase(s, tc);
 
    return s;
