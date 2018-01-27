@@ -472,6 +472,8 @@ class_t class_of(tree_t t)
    case T_PORT_DECL:
       return tree_class(t);
    case T_ENUM_LIT:
+   case T_LITERAL:
+      return C_LITERAL;
    case T_GENVAR:
    case T_ALIAS:
    case T_FIELD_DECL:

@@ -2745,6 +2745,40 @@ START_TEST(test_issue367)
 }
 END_TEST
 
+START_TEST(test_issue369)
+{
+   input_from_file(TESTDIR "/parse/issue369.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   tree_t p = tree_stmt(a, 0);
+
+   tree_t aspec = tree_decl(p, 3);
+   fail_unless(tree_kind(aspec) == T_ATTR_SPEC);
+   fail_unless(tree_class(aspec) == C_LITERAL);
+
+   tree_t cmp = tree_value(tree_stmt(p, 0));
+   fail_unless(tree_kind(cmp) == T_FCALL);
+
+   tree_t aref = tree_value(tree_param(cmp, 0));
+   fail_unless(tree_kind(aref) == T_ATTR_REF);
+   fail_unless(tree_ident(aref) == ident_new("A"));
+
+   tree_t ref = tree_name(aref);
+   fail_unless(tree_ident(ref) == ident_new("THIS_PROCESS.'1'"));
+
+   fail_if(parse() != NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST;
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -2789,6 +2823,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_cond1);
    tcase_add_test(tc_core, test_issue360);
    tcase_add_test(tc_core, test_issue367);
+   tcase_add_test(tc_core, test_issue369);
    suite_add_tcase(s, tc_core);
 
    return s;

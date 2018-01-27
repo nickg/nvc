@@ -2407,31 +2407,44 @@ static class_t p_entity_class(void)
 
    BEGIN("entity class");
 
-   switch (one_of(tENTITY, tPROCEDURE, tSIGNAL, tLABEL, tFUNCTION,
-                  tCOMPONENT, tVARIABLE, tARCHITECTURE, tTYPE, tPACKAGE,
-                  tCONSTANT)) {
+   switch (one_of(tENTITY, tPROCEDURE, tTYPE, tSIGNAL, tLABEL, tGROUP,
+                  tARCHITECTURE, tFUNCTION, tSUBTYPE, tVARIABLE, tLITERAL,
+                  tFILE, tCONFIGURATION, tPACKAGE, tCONSTANT, tCOMPONENT,
+                  tUNITS)) {
    case tENTITY:
       return C_ENTITY;
    case tPROCEDURE:
       return C_PROCEDURE;
+   case tTYPE:
+      return C_TYPE;
    case tSIGNAL:
       return C_SIGNAL;
    case tLABEL:
       return C_LABEL;
-   case tFUNCTION:
-      return C_FUNCTION;
-   case tCOMPONENT:
-      return C_COMPONENT;
-   case tVARIABLE:
-      return C_VARIABLE;
+   case tGROUP:
+      return C_DEFAULT;
    case tARCHITECTURE:
       return C_ARCHITECTURE;
-   case tTYPE:
-      return C_TYPE;
+   case tFUNCTION:
+      return C_FUNCTION;
+   case tSUBTYPE:
+      return C_SUBTYPE;
+   case tVARIABLE:
+      return C_VARIABLE;
+   case tLITERAL:
+      return C_LITERAL;
+   case tFILE:
+      return C_FILE;
+   case tCONFIGURATION:
+      return C_CONFIGURATION;
    case tPACKAGE:
       return C_PACKAGE;
    case tCONSTANT:
       return C_CONSTANT;
+   case tCOMPONENT:
+      return C_COMPONENT;
+   case tUNITS:
+      return C_UNITS;
    default:
       return C_DEFAULT;
    }
