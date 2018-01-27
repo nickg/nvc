@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2017  Nick Gasson
+//  Copyright (C) 2013-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -36,7 +36,8 @@ typedef enum {
    MAKE_LIB,
    MAKE_SO,
    MAKE_FINAL_SO,
-   MAKE_IMPLIB
+   MAKE_IMPLIB,
+   MAKE_VCODE,
 } make_product_t;
 
 typedef struct rule rule_t;
@@ -77,6 +78,10 @@ static const char *make_product(tree_t t, make_product_t product)
 
    case MAKE_BC:
       checked_sprintf(buf, PATH_MAX, "%s/_%s.bc", path, istr(name));
+      break;
+
+   case MAKE_VCODE:
+      checked_sprintf(buf, PATH_MAX, "%s/_%s.vcode", path, istr(name));
       break;
 
    case MAKE_SO:
@@ -242,6 +247,7 @@ static void make_rule(tree_t t, rule_t **rules)
       if (pack_needs_cgen(t)) {
       case T_PACK_BODY:
          make_rule_add_output(r, make_product(t, MAKE_BC));
+         make_rule_add_output(r, make_product(t, MAKE_VCODE));
          if (opt_get_int("native")) {
             make_rule_add_output(r, make_product(t, MAKE_SO));
             make_rule_add_output(r, make_product(t, MAKE_IMPLIB));
@@ -387,12 +393,12 @@ static void make_run(tree_t *targets, int count, FILE *out)
             return;
          }
          else {
-            char *name = make_elab_name(targets[i]);
+            char *name LOCAL = make_elab_name(targets[i]);
             fprintf(out, "\nrun: all\n");
             fprintf(out, "\tnvc -r %s\n", name);
             fprintf(out, "\nwave: all\n");
             fprintf(out, "\tnvc -r -w %s\n", name);
-            free(name);
+            fprintf(out, "\n.PHONY: all run wave clean\n");
             selected = i;
          }
       }
