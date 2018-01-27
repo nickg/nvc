@@ -885,75 +885,20 @@ static type_t lower_arg_type(tree_t fcall, int nth)
       return tree_type(tree_value(tree_param(fcall, nth)));
 }
 
-static void lower_mangle_one_type(text_buf_t *buf, type_t type)
-{
-   ident_t ident = type_ident(type);
-
-   if (icmp(ident, "STD.STANDARD.INTEGER"))
-      tb_printf(buf, "I");
-   else if (icmp(ident, "STD.STANDARD.STRING"))
-      tb_printf(buf, "S");
-   else if (icmp(ident, "STD.STANDARD.REAL"))
-      tb_printf(buf, "R");
-   else if (icmp(ident, "STD.STANDARD.BOOLEAN"))
-      tb_printf(buf, "B");
-   else if (icmp(ident, "STD.STANDARD.CHARACTER"))
-      tb_printf(buf, "C");
-   else if (icmp(ident, "STD.STANDARD.TIME"))
-      tb_printf(buf, "T");
-   else if (icmp(ident, "STD.STANDARD.NATURAL"))
-      tb_printf(buf, "N");
-   else if (icmp(ident, "STD.STANDARD.POSITIVE"))
-      tb_printf(buf, "P");
-   else if (icmp(ident, "STD.STANDARD.BIT"))
-      tb_printf(buf, "J");
-   else if (icmp(ident, "STD.STANDARD.BIT_VECTOR"))
-      tb_printf(buf, "Q");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC"))
-      tb_printf(buf, "L");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_ULOGIC"))
-      tb_printf(buf, "U");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR"))
-      tb_printf(buf, "V");
-   else {
-      const char *ident_str = istr(ident);
-      tb_printf(buf, "%d%s", (int)strlen(ident_str), ident_str);
-   }
-}
-
 static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
 {
    ident_t prev = tree_attr_str(decl, mangled_i);
    if (prev != NULL)
       return prev;
 
-   tree_t foreign = tree_attr_tree(decl, foreign_i);
-   if (foreign != NULL) {
-      if (tree_kind(foreign) != T_LITERAL)
-         fatal_at(tree_loc(decl), "foreign attribute must have string "
-                  "literal value");
-
-      const int nchars = tree_chars(foreign);
-      char buf[nchars + 1];
-      for (int i = 0; i < nchars; i++)
-         buf[i] = tree_pos(tree_ref(tree_char(foreign, i)));
-      buf[nchars] = '\0';
-
-      ident_t name = ident_new(buf);
-      tree_add_attr_str(decl, mangled_i, name);
-      return name;
-   }
-
-   LOCAL_TEXT_BUF buf = tb_new();
-   ident_t name_i = tree_ident(decl);
-
    bool save_mangled_name = true;
+   char *prefix LOCAL = NULL;
 
    const int nest_depth = tree_attr_int(decl, nested_i, 0);
-   if (nest_depth > 0 || !ident_contains(name_i, ".:")) {
+   if (nest_depth > 0 || !ident_contains(tree_ident(decl), ".:")) {
       if (context == NULL || mode == LOWER_THUNK) {
          save_mangled_name = false;
-         tb_printf(buf, "%"PRIxPTR"__", (uintptr_t)decl);
+         prefix = xasprintf("%"PRIxPTR"__", (uintptr_t)decl);
       }
       else {
          vcode_state_t state;
@@ -964,36 +909,15 @@ static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
          if (ckind == VCODE_UNIT_PROCESS)
             ;
          else if (ckind != VCODE_UNIT_CONTEXT)
-            tb_printf(buf, "%s__", istr(vcode_unit_name()));
+            prefix = xasprintf("%s__", istr(vcode_unit_name()));
          else
-            tb_printf(buf, "%s.", istr(vcode_unit_name()));
+            prefix = xasprintf("%s.", istr(vcode_unit_name()));
 
          vcode_state_restore(&state);
       }
    }
 
-   tb_printf(buf, "%s", istr(name_i));
-
-   const tree_kind_t kind = tree_kind(decl);
-   const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
-   const int nports = tree_ports(decl);
-   if (nports > 0 || is_func)
-      tb_printf(buf, "(");
-
-   for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(decl, i);
-      if (tree_class(p) == C_SIGNAL)
-         tb_printf(buf, "s");
-      lower_mangle_one_type(buf, tree_type(p));
-   }
-
-   if (nports > 0 || is_func)
-      tb_printf(buf, ")");
-
-   if (is_func)
-      lower_mangle_one_type(buf, type_result(tree_type(decl)));
-
-   ident_t new = ident_new(tb_get(buf));
+   ident_t new = mangle_func(decl, prefix);
    if (save_mangled_name)
       tree_add_attr_str(decl, mangled_i, new);
    return new;
@@ -2674,8 +2598,12 @@ static vcode_reg_t lower_type_conv(tree_t expr, expr_ctx_t ctx)
 
    vcode_reg_t value_reg = lower_expr(value, ctx);
 
-   if (from_k == T_REAL && to_k == T_INTEGER)
-      return emit_cast(lower_type(to), lower_bounds(to), value_reg);
+   if (from_k == T_REAL && to_k == T_INTEGER) {
+      vcode_type_t to_vtype = lower_type(to);
+      vcode_reg_t cast = emit_cast(to_vtype, to_vtype, value_reg);
+      lower_check_scalar_bounds(cast, to, expr, NULL);
+      return cast;
+   }
    else if (from_k == T_INTEGER && to_k == T_REAL)
       return emit_cast(lower_type(to), lower_bounds(to), value_reg);
    else if (type_is_array(to) && !lower_const_bounds(to)) {
@@ -5044,7 +4972,7 @@ vcode_unit_t lower_unit(tree_t unit)
    return context;
 }
 
-vcode_unit_t lower_thunk(tree_t fcall)
+vcode_unit_t lower_thunk(tree_t expr)
 {
    lower_set_verbose();
 
@@ -5055,16 +4983,23 @@ vcode_unit_t lower_thunk(tree_t fcall)
    tmp_alloc_used = false;
 
    vcode_type_t vtype = VCODE_INVALID_TYPE;
-   tree_t decl = tree_ref(fcall);
-   if (tree_has_type(decl))
-      vtype = lower_func_result_type(decl);
+   ident_t name_i;
+   if (tree_kind(expr) == T_FCALL) {
+      tree_t decl = tree_ref(expr);
+      if (tree_has_type(decl))
+         vtype = lower_func_result_type(decl);
+      name_i = tree_ident(expr);
+   }
    else
-      vtype = lower_type(tree_type(fcall));
+      name_i = thunk_i;
 
-   vcode_unit_t thunk = emit_thunk(tree_ident(fcall), context, vtype);
+   if (vtype == VCODE_INVALID_TYPE)
+      vtype = lower_type(tree_type(expr));
 
-   vcode_reg_t result_reg = lower_expr(fcall, EXPR_RVALUE);
-   if (type_is_scalar(tree_type(fcall)))
+   vcode_unit_t thunk = emit_thunk(name_i, context, vtype);
+
+   vcode_reg_t result_reg = lower_expr(expr, EXPR_RVALUE);
+   if (type_is_scalar(tree_type(expr)))
       emit_return(emit_cast(vtype, vtype, result_reg));
    else
       emit_return(result_reg);
@@ -5099,9 +5034,4 @@ vcode_unit_t lower_func(tree_t body)
    vcode_objs = NULL;
 
    return vu;
-}
-
-ident_t lower_mangle_package_name(tree_t decl)
-{
-   return lower_mangle_func(decl, NULL);
 }

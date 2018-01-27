@@ -16,7 +16,21 @@ ieee_DATA = \
 	lib/ieee/IEEE.VITAL_TIMING-body \
 	lib/ieee/IEEE.VITAL_PRIMITIVES \
 	lib/ieee/IEEE.VITAL_PRIMITIVES-body \
-	lib/ieee/IEEE.VITAL_MEMORY
+	lib/ieee/IEEE.VITAL_MEMORY \
+	lib/ieee/_IEEE.NUMERIC_BIT.vcode \
+	lib/ieee/_IEEE.NUMERIC_STD.vcode \
+	lib/ieee/_IEEE.STD_LOGIC_1164-body.vcode \
+	lib/ieee/_IEEE.NUMERIC_STD-body.vcode \
+	lib/ieee/_IEEE.NUMERIC_BIT-body.vcode \
+	lib/ieee/_IEEE.MATH_REAL.vcode \
+	lib/ieee/_IEEE.MATH_REAL-body.vcode \
+	lib/ieee/_IEEE.MATH_COMPLEX.vcode \
+	lib/ieee/_IEEE.MATH_COMPLEX-body.vcode \
+	lib/ieee/_IEEE.VITAL_TIMING.vcode \
+	lib/ieee/_IEEE.VITAL_TIMING-body.vcode \
+	lib/ieee/_IEEE.VITAL_PRIMITIVES.vcode \
+	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.vcode \
+	lib/ieee/_IEEE.VITAL_MEMORY.vcode
 
 if ENABLE_NATIVE
 ieee_so = \

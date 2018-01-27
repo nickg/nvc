@@ -2411,6 +2411,9 @@ vcode_type_t vtype_signal(vcode_type_t base)
    n->kind = VCODE_TYPE_SIGNAL;
    n->base = base;
 
+   VCODE_ASSERT(vtype_kind(base) != VCODE_TYPE_UARRAY,
+                "signal cannot have unconstrained array type");
+
    return vtype_new(n);
 }
 
@@ -2685,7 +2688,7 @@ static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
 static void vcode_registry_add(vcode_unit_t vu)
 {
    if (registry == NULL)
-      registry = hash_new(256, true);
+      registry = hash_new(512, true);
 
    assert(vu->refcount > 0);
    hash_put(registry, vu->name, vu);

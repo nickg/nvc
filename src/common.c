@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2017  Nick Gasson
+//  Copyright (C) 2013-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -47,14 +47,23 @@ int64_t assume_int(tree_t t)
          }
       }
 
+   case T_TYPE_CONV:
+   case T_QUALIFIED:
    case T_FCALL:
       {
          const eval_flags_t flags =
             EVAL_FCALL | EVAL_BOUNDS | EVAL_WARN | EVAL_REPORT | EVAL_LOWER;
          tree_t new = eval(t, flags);
          const tree_kind_t new_kind = tree_kind(new);
-         if (new_kind == T_LITERAL || new_kind == T_REF)
+         switch (new_kind) {
+         case T_LITERAL:
+         case T_REF:
+         case T_TYPE_CONV:
+         case T_QUALIFIED:
             return assume_int(new);
+         default:
+            break;
+         }
       }
       // Fall-through
 
@@ -960,4 +969,92 @@ bool pack_needs_cgen(tree_t t)
    }
 
    return false;
+}
+
+static void mangle_one_type(text_buf_t *buf, type_t type)
+{
+   ident_t ident = type_ident(type);
+
+   if (icmp(ident, "STD.STANDARD.INTEGER"))
+      tb_printf(buf, "I");
+   else if (icmp(ident, "STD.STANDARD.STRING"))
+      tb_printf(buf, "S");
+   else if (icmp(ident, "STD.STANDARD.REAL"))
+      tb_printf(buf, "R");
+   else if (icmp(ident, "STD.STANDARD.BOOLEAN"))
+      tb_printf(buf, "B");
+   else if (icmp(ident, "STD.STANDARD.CHARACTER"))
+      tb_printf(buf, "C");
+   else if (icmp(ident, "STD.STANDARD.TIME"))
+      tb_printf(buf, "T");
+   else if (icmp(ident, "STD.STANDARD.NATURAL"))
+      tb_printf(buf, "N");
+   else if (icmp(ident, "STD.STANDARD.POSITIVE"))
+      tb_printf(buf, "P");
+   else if (icmp(ident, "STD.STANDARD.BIT"))
+      tb_printf(buf, "J");
+   else if (icmp(ident, "STD.STANDARD.BIT_VECTOR"))
+      tb_printf(buf, "Q");
+   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC"))
+      tb_printf(buf, "L");
+   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_ULOGIC"))
+      tb_printf(buf, "U");
+   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR"))
+      tb_printf(buf, "V");
+   else {
+      const char *ident_str = istr(ident);
+      tb_printf(buf, "%d%s", (int)strlen(ident_str), ident_str);
+   }
+}
+
+ident_t mangle_func(tree_t decl, const char *prefix)
+{
+   ident_t prev = tree_attr_str(decl, mangled_i);
+   if (prev != NULL)
+      return prev;
+
+   tree_t foreign = tree_attr_tree(decl, foreign_i);
+   if (foreign != NULL) {
+      if (tree_kind(foreign) != T_LITERAL)
+         fatal_at(tree_loc(decl), "foreign attribute must have string "
+                  "literal value");
+
+      const int nchars = tree_chars(foreign);
+      char buf[nchars + 1];
+      for (int i = 0; i < nchars; i++)
+         buf[i] = tree_pos(tree_ref(tree_char(foreign, i)));
+      buf[nchars] = '\0';
+
+      ident_t name = ident_new(buf);
+      tree_add_attr_str(decl, mangled_i, name);
+      return name;
+   }
+
+   LOCAL_TEXT_BUF buf = tb_new();
+
+   if (prefix != NULL)
+      tb_printf(buf, "%s", prefix);
+
+   tb_printf(buf, "%s", istr(tree_ident(decl)));
+
+   const tree_kind_t kind = tree_kind(decl);
+   const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
+   const int nports = tree_ports(decl);
+   if (nports > 0 || is_func)
+      tb_printf(buf, "(");
+
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(decl, i);
+      if (tree_class(p) == C_SIGNAL)
+         tb_printf(buf, "s");
+      mangle_one_type(buf, tree_type(p));
+   }
+
+   if (nports > 0 || is_func)
+      tb_printf(buf, ")");
+
+   if (is_func)
+      mangle_one_type(buf, type_result(tree_type(decl)));
+
+   return ident_new(tb_get(buf));
 }

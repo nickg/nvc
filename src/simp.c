@@ -119,6 +119,11 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
    return eval(simp_call_args(t), EVAL_FCALL | EVAL_FOLDING | ctx->eval_flags);
 }
 
+static tree_t simp_type_conv(tree_t t, simp_ctx_t *ctx)
+{
+   return eval(t, EVAL_FOLDING | ctx->eval_flags);
+}
+
 static tree_t simp_pcall(tree_t t)
 {
    return simp_call_args(t);
@@ -1036,6 +1041,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_signal_assign(t);
    case T_ASSOC:
       return simp_assoc(t);
+   case T_TYPE_CONV:
+      return simp_type_conv(t, ctx);
    default:
       return t;
    }

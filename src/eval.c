@@ -157,6 +157,9 @@ static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
       }
    }
 
+   if (vcode == NULL && (flags & EVAL_VERBOSE))
+      warnf("could not find vcode for unit %s", istr(func_name));
+
    return vcode;
 }
 
@@ -165,7 +168,7 @@ static bool eval_have_lowered(tree_t func, eval_flags_t flags)
    if (tree_attr_str(func, builtin_i))
       return true;
 
-   ident_t mangled = lower_mangle_package_name(func);
+   ident_t mangled = mangle_func(func, NULL);
    if (mangled == NULL)
       return false;
    else if (eval_find_unit(mangled, flags) == NULL) {
@@ -2163,33 +2166,36 @@ static bool eval_can_represent_type(type_t type)
       return false;
 }
 
-tree_t eval(tree_t fcall, eval_flags_t flags)
+tree_t eval(tree_t expr, eval_flags_t flags)
 {
-   assert(tree_kind(fcall) == T_FCALL);
-
-   type_t type = tree_type(fcall);
-   if (type_is_array(type))
-      return fcall;   // TODO: eval for array results
-   else if (!eval_can_represent_type(type))
-      return fcall;
-   else if (tree_flags(tree_ref(fcall)) & TREE_F_IMPURE)
-      return fcall;
-   else if (!eval_possible(fcall, flags, true))
-      return fcall;
-
-   if (getenv("NVC_EVAL_VERBOSE"))
+   static int verbose_env = -1;
+   if (verbose_env == -1)
+      verbose_env = getenv("NVC_EVAL_VERBOSE") != NULL;
+   if (verbose_env)
       flags |= EVAL_VERBOSE;
 
    if (flags & EVAL_VERBOSE)
       flags |= EVAL_WARN | EVAL_BOUNDS;
 
-   vcode_unit_t thunk = lower_thunk(fcall);
+   const tree_kind_t kind = tree_kind(expr);
+
+   type_t type = tree_type(expr);
+   if (type_is_array(type))
+      return expr;   // TODO: eval for array results
+   else if (!eval_can_represent_type(type))
+      return expr;
+   else if (kind == T_FCALL && (tree_flags(tree_ref(expr)) & TREE_F_IMPURE))
+      return expr;
+   else if (!eval_possible(expr, flags, true))
+      return expr;
+
+   vcode_unit_t thunk = lower_thunk(expr);
    if (thunk == NULL)
-      return fcall;
+      return expr;
 
    if (flags & EVAL_VERBOSE)
-      note_at(tree_loc(fcall), "evaluate thunk for %s",
-              istr(tree_ident(fcall)));
+      note_at(tree_loc(expr), "evaluate thunk for %s",
+              kind == T_FCALL ? istr(tree_ident(expr)) : tree_kind_str(kind));
 
    vcode_select_unit(thunk);
    vcode_select_block(0);
@@ -2199,7 +2205,7 @@ tree_t eval(tree_t fcall, eval_flags_t flags)
    eval_state_t state = {
       .context = context,
       .result  = -1,
-      .fcall   = fcall,
+      .fcall   = expr,
       .failed  = false,
       .flags   = flags,
    };
@@ -2212,20 +2218,21 @@ tree_t eval(tree_t fcall, eval_flags_t flags)
    if (state.failed) {
       eval_free_context(state.context);
       free(state.heap);
-      return fcall;
+      return expr;
    }
 
    assert(state.result != -1);
    value_t result = context->regs[state.result];
 
    if (flags & EVAL_VERBOSE) {
-      const char *name = istr(tree_ident(fcall));
+      const char *name = kind == T_FCALL
+         ? istr(tree_ident(expr)) : tree_kind_str(kind);
       LOCAL_TEXT_BUF tb = tb_new();
       eval_dump(tb, &result, type);
-      note_at(tree_loc(fcall), "%s returned %s", name, tb_get(tb));
+      note_at(tree_loc(expr), "%s returned %s", name, tb_get(tb));
    }
 
-   tree_t tree = eval_value_to_tree(&result, type, tree_loc(fcall));
+   tree_t tree = eval_value_to_tree(&result, type, tree_loc(expr));
    eval_free_context(state.context);
    free(state.heap);
    return tree;
