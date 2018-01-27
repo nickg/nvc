@@ -2498,7 +2498,7 @@ START_TEST(test_config)
    fail_unless(tree_kind(c) == T_CONFIG);
    fail_unless(tree_ident(c) == ident_new("CONF"));
    fail_unless(tree_ident2(c) == ident_new("ENT-ARCH"));
-   fail_unless(tree_decls(c) == 3);
+   fail_unless(tree_decls(c) == 4);
    fail_unless(tree_kind(tree_decl(c, 0)) == T_USE);
    fail_unless(tree_kind(tree_decl(c, 1)) == T_ATTR_SPEC);
 

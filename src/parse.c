@@ -4196,7 +4196,7 @@ static tree_t p_entity_aspect(void)
       {
          tree_t bind = tree_new(T_BINDING);
          tree_set_class(bind, C_CONFIGURATION);
-         tree_set_ident(bind, p_identifier());
+         tree_set_ident(bind, p_selected_identifier());
 
          return bind;
       }

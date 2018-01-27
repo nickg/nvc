@@ -5,5 +5,6 @@ configuration conf of ent is
         for all : comp
             use entity work.foo(x);
         end for;
+        for blah : moo use configuration work.blafsfd; end for;
     end for;
 end configuration;
