@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -229,7 +229,9 @@ static void dump_expr(tree_t t)
 
 static void dump_type(type_t type)
 {
-   if (type_is_array(type) && !type_is_unconstrained(type)) {
+   if (type_kind(type) == T_SUBTYPE && type_has_ident(type))
+      printf("%s", type_pp(type));
+   else if (type_is_array(type) && !type_is_unconstrained(type)) {
       printf("%s(", istr(type_ident(type)));
       const int ndims = array_dimension(type);
       for (int i = 0; i < ndims; i++) {
@@ -399,6 +401,14 @@ static void dump_decl(tree_t t, int indent)
                   printf(" range <>");
                }
             }
+            else if (kind == T_SUBTYPE) {
+               tree_t constraint = type_constraint(type);
+               const int nranges = tree_ranges(constraint);
+               for (int i = 0; i < nranges; i++) {
+                  if (i > 0) printf(", ");
+                  dump_range(tree_range(constraint, i));
+               }
+            }
             else {
                const int ndims = type_dims(type);
                for (int i = 0; i < ndims; i++) {
@@ -447,11 +457,16 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_ATTR_SPEC:
-      printf("TODO: T_ATTR_SPEC\n");
+      printf("attribute %s of %s : %s is ", istr(tree_ident(t)),
+             istr(tree_ident2(t)), class_str(tree_class(t)));
+      dump_expr(tree_value(t));
+      printf(";\n");
       return;
 
    case T_ATTR_DECL:
-      printf("TODO: T_ATTR_DECL\n");
+      printf("attribute %s : ", istr(tree_ident(t)));
+      dump_type(tree_type(t));
+      printf(";\n");
       return;
 
    case T_GENVAR:
