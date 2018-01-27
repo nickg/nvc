@@ -566,6 +566,7 @@ static void set_label_and_loc(tree_t t, ident_t label, const loc_t *loc)
 
    if (label == NULL)
       label = loc_to_ident(loc);
+
    tree_set_ident(t, label);
 }
 
@@ -3882,8 +3883,10 @@ static tree_t p_process_statement(ident_t label)
    const loc_t *loc = CURRENT_LOC;
    tree_set_loc(t, loc);
 
-   if (label == NULL)
+   if (label == NULL) {
       label = loc_to_ident(loc);
+      tree_set_flag(t, TREE_F_SYNTHETIC_NAME);
+   }
    tree_set_ident(t, label);
 
    if (postponed)

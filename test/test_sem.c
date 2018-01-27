@@ -149,7 +149,7 @@ START_TEST(test_scope)
                    T_PACKAGE, T_PACKAGE, T_ARCH, T_PACKAGE, T_ARCH,
                    T_ARCH, T_ENTITY, T_ARCH, T_ARCH, T_PACKAGE, T_ARCH,
                    T_ARCH, T_PACKAGE, T_ARCH, T_ARCH, T_PACKAGE, T_ARCH,
-                   T_ARCH);
+                   T_ARCH, T_ARCH);
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
@@ -424,7 +424,7 @@ START_TEST(test_array)
       { 365, "may not change constraints of a constrained array" },
       { 366, "may not change constraints of a constrained array" },
       { 373, "too many elements in array" },
-      { 379, "array T_FILE_ARRAY cannot have element of file type" },
+      { 379, "array NO_FILE_TYPES.T_FILE_ARRAY cannot have element of file" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1366,8 +1366,8 @@ START_TEST(test_issue176)
    input_from_file(TESTDIR "/sem/issue176.vhd");
 
    const error_t expect[] = {
-      { 36, "function FUN cannot call procedure PROC_WAIT_INDIRECT which" },
-      { 37, "function FUN cannot call procedure PROC_WAIT which contains" },
+      { 36, "function MAIN.FUN cannot call procedure MAIN.PROC_WAIT" },
+      { 37, "function MAIN.FUN cannot call procedure MAIN.PROC_WAIT which" },
       { 51, "function FUN2 cannot call procedure WORK.PACK.PROC" },
       { -1, NULL }
    };

@@ -2824,15 +2824,21 @@ static void sem_check_static_elab(tree_t t)
 
 static bool sem_check_process(tree_t t)
 {
-   scope_push(NULL);
+   const bool synthetic_name = !!(tree_flags(t) & TREE_F_SYNTHETIC_NAME);
+   scope_push(synthetic_name ? NULL : tree_ident(t));
 
    bool ok = sem_check_sensitivity(t);
 
    const int ndecls = tree_decls(t);
    for (int n = 0; n < ndecls; n++) {
       tree_t d = tree_decl(t, n);
+      ident_t unqual = tree_ident(d);
+
       if ((ok = sem_check(d) && ok))
          sem_check_static_elab(d);
+
+      if (!synthetic_name)
+         scope_insert_alias(d, unqual);
    }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
@@ -6866,15 +6872,19 @@ static bool sem_check_for(tree_t t)
 
 static bool sem_check_block(tree_t t)
 {
-   scope_push(NULL);
+   scope_push(tree_ident(t));
 
    bool ok = true;
 
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
+      ident_t unqual = tree_ident(d);
+
       if ((ok = sem_check(d) && ok))
          sem_check_static_elab(d);
+
+      scope_insert_alias(d, unqual);
    }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));

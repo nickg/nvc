@@ -1034,7 +1034,7 @@ START_TEST(test_nest1)
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X(I)I",
+         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_LINE_7.ADD_TO_X(I)I",
            .args = 1 },
          { VCODE_OP_CONST, .value = 7 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -1052,12 +1052,12 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit(f1);
       vcode_select_unit(v0);
 
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X(I)I"));
+      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_LINE_7.ADD_TO_X(I)I"));
 
       EXPECT_BB(0) = {
          { VCODE_OP_NESTED_FCALL,
-           .func = ":nest1:line_7_ADD_TO_X(I)I__"
-           ":nest1:line_7_ADD_TO_X_DO_IT()I" },
+           .func = ":nest1:line_7_LINE_7.ADD_TO_X(I)I__"
+           ":nest1:line_7_LINE_7.ADD_TO_X_DO_IT()I" },
          { VCODE_OP_RETURN }
       };
 
@@ -1071,11 +1071,11 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit(f2);
       vcode_select_unit(v0);
 
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X(I)I__"
-                       ":nest1:line_7_ADD_TO_X_DO_IT()I"));
+      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_LINE_7.ADD_TO_X(I)I__"
+                       ":nest1:line_7_LINE_7.ADD_TO_X_DO_IT()I"));
 
       EXPECT_BB(0) = {
-         { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_LOAD, .name = "LINE_7.X" },
          { VCODE_OP_PARAM_UPREF, .hops = 1 },
          { VCODE_OP_ADD },
          { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
@@ -2585,8 +2585,8 @@ START_TEST(test_issue333)
       { VCODE_OP_NEW },
       { VCODE_OP_ALL },
       { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_STORE, .name = "L" },
-      { VCODE_OP_INDEX, .name = "L" },
+      { VCODE_OP_STORE, .name = "MAIN.L" },
+      { VCODE_OP_INDEX, .name = "MAIN.L" },
       { VCODE_OP_FCALL, .name = ":issue333:proc(vuLINE;", .args = 1 },
       { VCODE_OP_CONST, .value = 50 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
@@ -2599,7 +2599,7 @@ START_TEST(test_issue333)
       { VCODE_OP_NEW },
       { VCODE_OP_ALL },
       { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_STORE, .name = "L" },
+      { VCODE_OP_STORE, .name = "MAIN.L" },
       { VCODE_OP_WAIT, .target = 2 }
    };
 

@@ -309,3 +309,29 @@ L1:
         wait;
     end process;
 end architecture;
+
+-------------------------------------------------------------------------------
+
+architecture more_labels of bar is
+begin
+    p1: process is
+        variable x : boolean;
+    begin
+        p1.x := true;                   -- OK
+        for x in 1 to 10 loop
+            p1.x := false;              -- OK
+        end loop;
+    end process;
+
+    b1: block is
+        constant x : integer := 2;
+    begin
+        process is
+            variable x : boolean;
+        begin
+            x := true;                  -- OK
+            assert b1.x = 2;            -- OK
+        end process;
+    end block;
+
+end architecture;
