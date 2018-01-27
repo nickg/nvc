@@ -2509,6 +2509,65 @@ static bool sem_check_func_decl(tree_t t)
    return scope_insert(t);
 }
 
+static void sem_check_subprogram_matches_spec(tree_t subprog, tree_t proto)
+{
+   const int nports = tree_ports(proto);
+   for (int i = 0; i < nports; i++) {
+      tree_t proto_port = tree_port(proto, i);
+      ident_t proto_name = tree_ident(proto_port);
+      type_t proto_type = tree_type(proto_port);
+
+      tree_t matching_port = NULL;
+      for (int j = 0; j < nports && matching_port == NULL; j++) {
+         tree_t body_port = tree_port(subprog, j);
+         if (tree_ident(body_port) == proto_name
+             && type_eq(tree_type(body_port), proto_type))
+            matching_port = body_port;
+      }
+
+      if (matching_port == NULL) {
+         error_at(tree_loc(subprog), "subprogram body %s missing parameter %s "
+                  "with type %s", istr(tree_ident(subprog)), istr(proto_name),
+                  sem_type_str(proto_type));
+         note_at(tree_loc(proto_port), "parameter %s was originally "
+                 "declared here", istr(proto_name));
+         errors += 2;
+         continue;
+      }
+
+      const port_mode_t proto_mode = tree_subkind(proto_port);
+      const port_mode_t body_mode = tree_subkind(matching_port);
+
+      if (proto_mode != body_mode) {
+         const char *mode_str[] = {
+            "INVALID", "IN", "OUT", "INOUT", "BUFFER", "LINKAGE"
+         };
+         error_at(tree_loc(matching_port), "parameter %s of subprogram body "
+                  "%s with mode %s does not match mode %s in specification",
+                  istr(proto_name), istr(tree_ident(subprog)),
+                  mode_str[body_mode], mode_str[proto_mode]);
+         note_at(tree_loc(proto_port), "parameter %s was originally "
+                 "declared here", istr(proto_name));
+         errors += 2;
+         continue;
+      }
+
+      const class_t proto_class = tree_class(proto_port);
+      const class_t body_class = tree_class(matching_port);
+
+      if (proto_class != body_class) {
+         error_at(tree_loc(matching_port), "class %s of subprogram body %s "
+                  "parameter %s does not match class %s in specification",
+                  class_str(body_class), istr(tree_ident(subprog)),
+                  istr(proto_name), class_str(proto_class));
+         note_at(tree_loc(proto_port), "parameter %s was originally "
+                 "declared here", istr(proto_name));
+         errors += 2;
+         continue;
+      }
+   }
+}
+
 static bool sem_check_func_body(tree_t t)
 {
    if (!sem_check_func_ports(t))
@@ -2543,6 +2602,10 @@ static bool sem_check_func_body(tree_t t)
    unsigned nret = tree_visit_only(t, NULL, NULL, T_RETURN);
    if (nret == 0)
       sem_error(t, "function must contain a return statement");
+
+   tree_t proto = sem_check_duplicate(t, T_FUNC_DECL);
+   if (proto != NULL)
+      sem_check_subprogram_matches_spec(t, proto);
 
    return ok;
 }
@@ -2645,6 +2708,8 @@ static bool sem_check_proc_body(tree_t t)
       tree_add_attr_int(proto, wait_level_i, top_scope->wait_level);
       if (top_scope->impure_io)
          tree_add_attr_int(t, impure_io_i, top_scope->impure_io);
+
+      sem_check_subprogram_matches_spec(t, proto);
    }
 
    scope_pop();
@@ -2812,22 +2877,6 @@ static bool sem_check_package(tree_t t)
    return ok;
 }
 
-static bool sem_check_parameter_class_match(tree_t decl, tree_t body)
-{
-   const int nports = tree_ports(body);
-   for (int k = 0; k < nports; k++) {
-      tree_t pd = tree_port(decl, k);
-      tree_t pb = tree_port(body, k);
-      if (tree_class(pd) != tree_class(pb))
-         sem_error(pb, "class %s of subprogram body %s parameter %s does not "
-                   "match class %s in declaration", class_str(tree_class(pb)),
-                   istr(tree_ident(body)), istr(tree_ident(pb)),
-                   class_str(tree_class(pd)));
-   }
-
-   return true;
-}
-
 static bool sem_check_missing_subprogram_body(tree_t body, tree_t spec)
 {
    // Check for any subprogram declarations or protected types without bodies
@@ -2847,10 +2896,8 @@ static bool sem_check_missing_subprogram_body(tree_t body, tree_t spec)
             tree_t b = tree_decl(body, j);
             tree_kind_t bkind = tree_kind(b);
             if (bkind == T_FUNC_BODY || bkind == T_PROC_BODY) {
-               if (type_eq(dtype, tree_type(b))) {
+               if (type_eq(dtype, tree_type(b)))
                   found = true;
-                  ok = sem_check_parameter_class_match(d, b) && ok;
-               }
             }
          }
 

@@ -371,7 +371,9 @@ START_TEST(test_func)
       { 181, "missing actual for formal Y without default value" },
       { 182, "no suitable overload for function TEST20" },
       { 239, "class variable of subprogram body WORK.FUNC2.TEST25 parameter" },
+      { 234, "parameter X was originally declared here" },
       { 245, "class default of subprogram body WORK.FUNC2.TEST26 parameter" },
+      { 243, "parameter X was originally declared here" },
       { 271, "invalid reference to X inside pure function NESTED" },
       { -1, NULL }
    };
@@ -1817,6 +1819,31 @@ START_TEST(test_issue359a)
 }
 END_TEST
 
+START_TEST(test_issue368)
+{
+   input_from_file(TESTDIR "/sem/issue368.vhd");
+
+   const error_t expect[] = {
+      { 17, "with mode IN does not match mode OUT in specification" },
+      {  6, "parameter SIG_IN was originally declared here" },
+      { 18, "parameter SIG_OUT of subprogram body WORK.NVC_PACKAGE_BUG" },
+      {  7, "parameter SIG_OUT was originally declared here" },
+      { 23, "subprogram body WORK.NVC_PACKAGE_BUG.FOO missing parameter X" },
+      { 10, "parameter X was originally declared here" },
+      { 27, "class default of subprogram body WORK.NVC_PACKAGE_BUG.BAR" },
+      { 11, "parameter X was originally declared here" },
+      { 31, "subprogram body WORK.NVC_PACKAGE_BUG.BAZ missing parameter X" },
+      { 12, "parameter X was originally declared here" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -1909,6 +1936,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue356);
    tcase_add_test(tc_core, test_issue359);
    tcase_add_test(tc_core, test_issue359a);
+   tcase_add_test(tc_core, test_issue368);
    suite_add_tcase(s, tc_core);
 
    return s;
