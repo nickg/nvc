@@ -339,3 +339,4 @@ issue352        normal
 issue354        normal
 issue351        normal,gold
 issue367        normal
+issue369        normal
