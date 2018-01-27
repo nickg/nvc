@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -355,6 +355,8 @@ static bool scope_insert_aux(tree_t t, ident_t name, bool alias)
                   && type_is_protected(tree_type(existing))
                   && tree_kind(t) == T_PROT_BODY)
             continue;
+         else if (ekind == T_TYPE_DECL && tree_type(t) == tree_type(existing))
+            return true;   // Incomplete type declaration
 
          if (!alias && (!overload || !scope_can_overload(existing))) {
             error_at(tree_loc(t), "%s already declared in this region",
@@ -539,7 +541,7 @@ static bool sem_has_work_alias(ident_t name)
       && work_name != work_i;
 }
 
-static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
+static bool scope_import_decls(tree_t unit, bool all)
 {
    const bool work_alias = sem_has_work_alias(tree_ident(unit));
 
@@ -556,48 +558,74 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
          continue;
       }
 
+      assert(kind != T_TYPE_DECL || type_kind(tree_type(decl)) != T_INCOMPLETE);
+
+      if (!scope_insert(decl))
+         return false;
+
       ident_t dname = tree_ident(decl);
+      ident_t dname_base = ident_runtil(dname, '.');
 
       // Make unqualified and package qualified names visible
-      if (!unqual_only) {
-         if (!sem_declare(decl, true))
-            return false;
+      ident_t pqual = ident_from(dname, '.');
+      ident_t pqual_base = NULL;
+      if (pqual != NULL) {
+         scope_insert_alias(decl, pqual);
+         pqual_base = ident_runtil(pqual, '.');
+      }
 
-         ident_t pqual = ident_from(dname, '.');
-         if (pqual != NULL) {
-            scope_insert_alias(decl, pqual);
+      if (kind == T_TYPE_DECL) {
+         const int nops = tree_ops(decl);
+         for (int i = 0; i < nops; i++)
+            scope_insert(tree_op(decl, i));
 
-            // Make enumeration literals and physical constants visible
-            ident_t unit_name = ident_until(pqual, '.');
-             if (kind == T_TYPE_DECL && unit_name != NULL) {
-                type_t type = tree_type(decl);
-                switch (type_kind(type)) {
-                case T_ENUM:
-                   {
-                      const int nlits = type_enum_literals(type);
-                      for (int i = 0; i < nlits; i++) {
-                         tree_t  literal = type_enum_literal(type, i);
-                         ident_t alias   =
-                            ident_prefix(unit_name, tree_ident(literal), '.');
-                         scope_insert_alias(literal, alias);
-                      }
-                      break;
-                   }
-                case T_PHYSICAL:
-                   {
-                      const int nunits = type_units(type);
-                      for (int i = 0; i < nunits; i++) {
-                         tree_t  unit  = type_unit(type, i);
-                         ident_t alias =
-                            ident_prefix(unit_name, tree_ident(unit), '.');
-                         scope_insert_alias(unit, alias);
-                      }
-                      break;
-                   }
-                default:
-                   break;
-                }
-             }
+         // Make enumeration literals and physical constants visible
+         type_t type = tree_type(decl);
+         switch (type_kind(type)) {
+         case T_ENUM:
+            {
+               const int nlits = type_enum_literals(type);
+               for (int i = 0; i < nlits; i++) {
+                  tree_t literal = type_enum_literal(type, i);
+                  ident_t lit_name = tree_ident(literal);
+
+                  if (all)
+                     scope_insert_alias(literal, tree_ident(literal));
+
+                  if (pqual != NULL) {
+                     ident_t pqual_alias =
+                        ident_prefix(pqual_base, lit_name, '.');
+                     scope_insert_alias(literal, pqual_alias);
+                  }
+
+                  ident_t alias = ident_prefix(dname_base, lit_name, '.');
+                  scope_insert_alias(literal, alias);
+               }
+               break;
+            }
+         case T_PHYSICAL:
+            {
+               const int nunits = type_units(type);
+               for (int i = 0; i < nunits; i++) {
+                  tree_t unit = type_unit(type, i);
+                  ident_t unit_name = tree_ident(unit);
+
+                  if (all)
+                     scope_insert_alias(unit, unit_name);
+
+                  if (pqual != NULL) {
+                     ident_t pqual_alias =
+                        ident_prefix(pqual_base, unit_name, '.');
+                     scope_insert_alias(unit, pqual_alias);
+                  }
+
+                  ident_t alias = ident_prefix(dname_base, unit_name, '.');
+                  scope_insert_alias(unit, alias);
+               }
+               break;
+            }
+         default:
+               break;
          }
       }
 
@@ -621,17 +649,14 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
                               bool all, bool pqual, const loc_t *loc)
 {
    // Check we haven't already imported this
-   bool unqual_only = false;
    for (scope_t *s = top_scope; s != NULL; s = s->down) {
       import_list_t *it;
       for (it = s->imported; it != NULL; it = it->next) {
          if (it->name == unit_name) {
             if (it->all || !all)
                return true;
-            else {
-               unqual_only = true;
+            else
                break;
-            }
          }
       }
    }
@@ -644,7 +669,7 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
       return false;
    }
 
-   if (!scope_import_decls(unit, unqual_only, all))
+   if (!scope_import_decls(unit, all))
       return false;
 
    if (unit_name != tree_ident(unit))
@@ -1255,12 +1280,7 @@ static bool sem_declare(tree_t decl, bool add_predefined)
          type_replace(incomplete, tree_type(decl));
          tree_set_type(decl, incomplete);
 
-         // Create a new incomplete type and attach that to the
-         // forward declaration: this is useful when we serialise
-         // the tree to avoid circular references
-         type_t ni = type_new(T_INCOMPLETE);
-         type_set_ident(ni, type_ident(incomplete));
-         tree_set_type(forward, ni);
+         tree_set_type(forward, tree_type(decl));
 
          scope_replace(forward, decl);
          was_incomplete = true;
@@ -2942,7 +2962,7 @@ static bool sem_check_pack_body(tree_t t)
    scope_push(qual);
 
    // Look up package declaration
-   ok = ok && scope_import_decls(pack, false, true);
+   ok = ok && scope_import_decls(pack, true);
 
    if (ok) {
       const int ndecls = tree_decls(t);
@@ -3143,7 +3163,7 @@ static bool sem_check_arch(tree_t t)
    sem_make_visible(e, tree_port, tree_ports(e));
    sem_make_visible(e, tree_generic, tree_generics(e));
 
-   ok = ok && scope_import_decls(e, false, true);
+   ok = ok && scope_import_decls(e, true);
 
    // Now check the architecture itself
 
