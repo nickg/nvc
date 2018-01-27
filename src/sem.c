@@ -340,6 +340,7 @@ static bool scope_insert_aux(tree_t t, ident_t name, bool alias)
    assert(top_scope != NULL);
 
    const bool overload = !alias && scope_can_overload(t);
+   const tree_kind_t tkind = tree_kind(t);
 
    tree_t existing;
    int n = 0;
@@ -353,9 +354,10 @@ static bool scope_insert_aux(tree_t t, ident_t name, bool alias)
             continue;
          else if (ekind == T_TYPE_DECL
                   && type_is_protected(tree_type(existing))
-                  && tree_kind(t) == T_PROT_BODY)
+                  && tkind == T_PROT_BODY)
             continue;
-         else if (ekind == T_TYPE_DECL && tree_type(t) == tree_type(existing))
+         else if (ekind == T_TYPE_DECL && tkind == T_TYPE_DECL
+                  && tree_type(t) == tree_type(existing))
             return true;   // Incomplete type declaration
 
          if (!alias && (!overload || !scope_can_overload(existing))) {
