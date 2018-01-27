@@ -374,14 +374,17 @@ size_t ident_len(ident_t i)
       return ident_len(i->up) + 1;
 }
 
-ident_t ident_suffix_until(ident_t i, char c, ident_t shared)
+ident_t ident_suffix_until(ident_t i, char c, ident_t shared, char escape)
 {
    assert(i != NULL);
 
+   bool escaping = false;
    ident_t r = i;
    while (i->value != '\0' && i->up != shared) {
-      if (i->value == c)
+      if (!escaping && i->value == c)
          r = i->up;
+      else if (i->value == escape)
+         escaping = !escaping;
       i = i->up;
    }
 
@@ -390,7 +393,7 @@ ident_t ident_suffix_until(ident_t i, char c, ident_t shared)
 
 ident_t ident_until(ident_t i, char c)
 {
-   return ident_suffix_until(i, c, NULL);
+   return ident_suffix_until(i, c, NULL, '\0');
 }
 
 ident_t ident_runtil(ident_t i, char c)

@@ -270,6 +270,20 @@ START_TEST(test_downcase)
 }
 END_TEST
 
+START_TEST(test_suffix_until)
+{
+   ident_t i1 = ident_new("foobar.bar.baz");
+   ident_t i2 = ident_new("foobar.'.'.baz");
+   ident_t i3 = ident_new("foobar.'.'");
+   ident_t i4 = ident_new("foobar");
+   ident_t i5 = ident_new("foobar.bar");
+
+   fail_unless(ident_suffix_until(i1, '.', NULL, '\0') == i4);
+   fail_unless(ident_suffix_until(i1, '.', i4, '\0') == i5);
+   fail_unless(ident_suffix_until(i2, '.', i4, '\'') == i3);
+}
+END_TEST
+
 Suite *get_ident_tests(void)
 {
    Suite *s = suite_create("ident");
@@ -293,6 +307,7 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_contains);
    tcase_add_test(tc_core, test_len);
    tcase_add_test(tc_core, test_downcase);
+   tcase_add_test(tc_core, test_suffix_until);
    suite_add_tcase(s, tc_core);
 
    return s;

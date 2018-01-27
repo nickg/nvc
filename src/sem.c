@@ -1320,8 +1320,14 @@ static bool sem_declare(tree_t decl, bool add_predefined)
       // Need to add each literal to the scope
       {
          const int nlits = type_enum_literals(type);
-         for (int i = 0; i < nlits; i++)
-            ok = ok && scope_insert(type_enum_literal(type, i));
+         for (int i = 0; i < nlits; i++) {
+            tree_t lit = type_enum_literal(type, i);
+            ok = ok && scope_insert(lit);
+
+            if (top_scope->prefix != NULL)
+               scope_insert_alias(lit, ident_prefix(top_scope->prefix,
+                                                    tree_ident(lit), '.'));
+         }
       }
       break;
 
@@ -1613,7 +1619,7 @@ static bool sem_check_array_dims(type_t type, type_t constraint)
 static bool sem_check_field_name(ident_t name, ident_t prefix, tree_t where,
                                  type_t record, tree_t *pdecl)
 {
-   ident_t next = ident_suffix_until(name, '.', prefix);
+   ident_t next = ident_suffix_until(name, '.', prefix, '\'');
 
    bool valid = false;
    if (type_kind(record) == T_FUNC) {
@@ -1653,9 +1659,7 @@ static bool sem_check_selected_name(ident_t name, tree_t where, tree_t *pdecl)
    lib_t lib = NULL;
    ident_t prefix = NULL;
    do {
-      prefix = ident_suffix_until(name, '.', prefix);
-      if (ident_char(prefix, 0) == '\'')
-         continue;
+      prefix = ident_suffix_until(name, '.', prefix, '\'');
 
       if (prefix == work_i) {
          lib = lib_work();   // Work library is always visible
@@ -5908,8 +5912,12 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       fatal_at(tree_loc(t), "sorry, attribute %s not implemented", istr(attr));
    }
 
-   if (!sem_static_name(name, sem_globally_static))
-      sem_error(name, "invalid attribute reference");
+   if (!sem_static_name(name, sem_globally_static)) {
+      if (tree_kind(name) == T_REF)
+         sem_error(name, "%s is not a static name", istr(tree_ident(name)));
+      else
+         sem_error(name, "invalid attribute reference");
+   }
 
    bool allow_user = true;
    tree_t search = name;
@@ -6494,6 +6502,7 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          case T_PROC_DECL:
          case T_PROCESS:
          case T_BLOCK:
+         case T_ENUM_LIT:
             return true;
          case T_ALIAS:
             return sem_static_name(tree_value(decl), check_fn);
