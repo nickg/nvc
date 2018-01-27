@@ -2610,10 +2610,12 @@ static bool sem_check_func_body(tree_t t)
       return false;
 
    scope_push(NULL);
-   top_scope->subprog = t;
 
    if (unqual != NULL)
       scope_insert_alias(t, unqual);
+
+   scope_push(NULL);
+   top_scope->subprog = t;
 
    bool ok = sem_make_visible(t, tree_port, tree_ports(t));
 
@@ -2623,6 +2625,7 @@ static bool sem_check_func_body(tree_t t)
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
+   scope_pop();
    scope_pop();
 
    unsigned nret = tree_visit_only(t, NULL, NULL, T_RETURN);
@@ -2712,10 +2715,12 @@ static bool sem_check_proc_body(tree_t t)
       return false;
 
    scope_push(NULL);
-   top_scope->subprog = t;
 
    if (unqual != NULL)
       scope_insert_alias(t, unqual);
+
+   scope_push(NULL);
+   top_scope->subprog = t;
 
    bool ok = sem_make_visible(t, tree_port, tree_ports(t));
 
@@ -2738,6 +2743,7 @@ static bool sem_check_proc_body(tree_t t)
       sem_check_subprogram_matches_spec(t, proto);
    }
 
+   scope_pop();
    scope_pop();
    return ok;
 }
