@@ -77,6 +77,8 @@ static void *jit_search_loaded_syms(const char *name, bool required)
       name++;   // Remove leading underscore on 32-bit Windows
 #endif
 
+   name = safe_symbol(name);
+
 #ifdef __MINGW32__
 
 #ifdef _WIN64
@@ -89,8 +91,6 @@ static void *jit_search_loaded_syms(const char *name, bool required)
 
    if (strcmp(name, "exp2") == 0)
       return (void *)(uintptr_t)exp2;
-
-   name = safe_symbol(name);
 
    for (size_t i = 0; i < nmodules; i++) {
       void *ptr = (void *)(uintptr_t)GetProcAddress(search_modules[i], name);
