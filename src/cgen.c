@@ -3398,6 +3398,10 @@ static void cgen_signals(void)
             // Values will be filled in by reset function
             LLVMSetInitializer(map_var, LLVMGetUndef(map_type));
          }
+
+#ifdef IMPLIB_REQUIRED
+         LLVMSetDLLStorageClass(map_var, LLVMDLLExportStorageClass);
+#endif
       }
    }
 }
