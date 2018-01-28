@@ -22,6 +22,10 @@
 #include <assert.h>
 #include <signal.h>
 
+#ifdef __CYGWIN__
+#include <process.h>
+#endif
+
 #ifdef __MINGW32__
 #include <windows.h>
 #include <fileapi.h>
@@ -384,19 +388,8 @@ static bool run_cmd(FILE *log, arglist_t **args)
    fflush(stderr);
 
 #if defined __MINGW32__
-#if 0
-   char **argv = calloc((*args)->count + 1, sizeof(char *));
-   arglist_t *it = *args;
-   for (int i = 0; i < (*args)->count; i++, it = it->next)
-      argv[i] = it->data;
-
-   int status = spawnv(_P_WAIT, argv[0], (char * const *)argv);
-   free(argv);
-   return status == 0;
-#else
    return win32_run_cmd(log, args) == 0;
-#endif
-#else  // __MINGW32__
+#else
    pid_t pid = fork();
    if (pid < 0) {
       fprintf(stderr, "Fork failed: %s", strerror(errno));

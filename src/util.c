@@ -1555,7 +1555,7 @@ void run_program(const char *const *args, size_t n_args)
    }
 
 #if defined __CYGWIN__ || defined __MINGW32__
-   int status = spawnv(_P_WAIT, args[0], (char *const *)args);
+   int status = spawnv(_P_WAIT, args[0], (const char *const *)args);
    if (status != 0)
       fatal("%s failed with status %d", args[0], status);
 #else  // __CYGWIN__
@@ -1695,7 +1695,7 @@ uint64_t get_timestamp_us()
 const char *safe_symbol(const char *text)
 {
    // Return a string that is safe to use as a symbol name on this platform
-#if defined _WIN32
+#if defined _WIN32 || defined __CYGWIN__
    text_buf_t *tb = tb_new();
 
    for (const char *p = text; *p != '\0'; p++) {
