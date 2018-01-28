@@ -552,3 +552,13 @@ void _ident_list_cleanup(ident_list_t **list)
 {
    free(*list);
 }
+
+bool ident_list_find(const ident_list_t *list, ident_t i)
+{
+   for (; list != NULL; list = list->next) {
+      if (list->ident == i)
+         return true;
+   }
+
+   return false;
+}

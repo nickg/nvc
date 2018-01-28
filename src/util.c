@@ -1705,6 +1705,9 @@ const char *safe_symbol(const char *text)
       case '"': tb_printf(tb, "_q_"); break;
       case '[': tb_printf(tb, "_ls_"); break;
       case ']': tb_printf(tb, "_rs_"); break;
+      case '*': tb_printf(tb, "_mult_"); break;
+      case '+': tb_printf(tb, "_plus_"); break;
+      case '=': tb_printf(tb, "_eq_"); break;
       default:
          tb_append(tb, *p);
       }

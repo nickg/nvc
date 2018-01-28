@@ -200,20 +200,11 @@ AC_ARG_WITH([system-cc],
             [system_cc="$cc_bare"])
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$system_cc"], [System compiler])
 
-case $host_os in
-  msys*|mingw32*|*cygwin*)
-    native_default=no
-    ;;
-  *)
-    native_default=yes
-    ;;
-esac
-
 AC_ARG_ENABLE([native],
   [AS_HELP_STRING([--enable-native],
     [Enable native code generation])],
   [enable_native=$enableval],
-  [enable_native=$native_default])
+  [enable_native=yes])
 
 if test x$enable_native = xyes ; then
   AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])

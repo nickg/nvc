@@ -90,6 +90,8 @@ static void *jit_search_loaded_syms(const char *name, bool required)
    if (strcmp(name, "exp2") == 0)
       return (void *)(uintptr_t)exp2;
 
+   name = safe_symbol(name);
+
    for (size_t i = 0; i < nmodules; i++) {
       void *ptr = (void *)(uintptr_t)GetProcAddress(search_modules[i], name);
       if (ptr != NULL)

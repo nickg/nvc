@@ -42,7 +42,6 @@
 #include <assert.h>
 
 #define MAX_STATIC_NETS 256
-#define MAX_ARGS        64
 
 typedef struct {
    LLVMValueRef      *regs;
@@ -72,6 +71,10 @@ typedef enum {
 
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
+
+static char **link_args = NULL;
+static size_t n_link_args = 0;
+static size_t max_link_args = 0;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 
@@ -349,7 +352,8 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
 
    if (var_depth == 0) {
       // Shared global variable
-      value = LLVMGetNamedGlobal(module, istr(vcode_var_name(var)));
+      const char *name = safe_symbol(istr(vcode_var_name(var)));
+      value = LLVMGetNamedGlobal(module, name);
       if (value == NULL)
          fatal_trace("missing LLVM global for %s", istr(vcode_var_name(var)));
    }
@@ -525,7 +529,7 @@ static void cgen_sched_process(LLVMValueRef after)
 static char *cgen_signal_nets_name(vcode_signal_t sig)
 {
    ident_t name = vcode_signal_name(sig);
-   return xasprintf("%s_nets", istr(name));
+   return xasprintf("%s_nets", safe_symbol(istr(name)));
 }
 
 static LLVMValueRef cgen_signal_nets(vcode_signal_t sig)
@@ -3024,7 +3028,7 @@ static void cgen_state_struct(cgen_ctx_t *ctx)
 {
    char *name LOCAL = xasprintf("%s__state", istr(vcode_unit_name()));
    LLVMTypeRef state_ty = cgen_state_type(ctx);
-   ctx->state = LLVMAddGlobal(module, state_ty, name);
+   ctx->state = LLVMAddGlobal(module, state_ty, safe_symbol(name));
    LLVMSetLinkage(ctx->state, LLVMInternalLinkage);
    LLVMSetInitializer(ctx->state, LLVMGetUndef(state_ty));
 }
@@ -3146,7 +3150,8 @@ static void cgen_process(vcode_unit_t code)
 
    LLVMTypeRef pargs[] = { LLVMInt32Type() };
    LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), pargs, 1, false);
-   LLVMValueRef fn = LLVMAddFunction(module, istr(vcode_unit_name()), ftype);
+   const char *name = safe_symbol(istr(vcode_unit_name()));
+   LLVMValueRef fn = LLVMAddFunction(module, name, ftype);
    cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
    cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
 
@@ -3343,8 +3348,8 @@ static void cgen_shared_variables(void)
       vcode_var_t var = vcode_var_handle(i);
 
       LLVMTypeRef type = cgen_type(vcode_var_type(var));
-      LLVMValueRef global = LLVMAddGlobal(module, type,
-                                          istr(vcode_var_name(var)));
+      const char *name = safe_symbol(istr(vcode_var_name(var)));
+      LLVMValueRef global = LLVMAddGlobal(module, type, name);
       if (vcode_var_extern(var)) {
 #ifdef IMPLIB_REQUIRED
          LLVMSetDLLStorageClass(global, LLVMDLLImportStorageClass);
@@ -3754,6 +3759,62 @@ static void cgen_tmp_stack(void)
 }
 
 #ifdef ENABLE_NATIVE
+static void cgen_link_arg(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   char *buf = xvasprintf(fmt, ap);
+   va_end(ap);
+
+   ARRAY_APPEND(link_args, buf, n_link_args, max_link_args);
+}
+
+#ifdef IMPLIB_REQUIRED
+static void cgen_find_implib_deps(ident_t unit_name, ident_list_t **deps)
+{
+   lib_t lib = lib_find(ident_until(unit_name, '.'), true);
+   tree_t unit = lib_get(lib, unit_name);
+
+   if (unit == NULL)
+      return;
+
+   unit_name = tree_ident(unit);
+
+   if (ident_list_find(*deps, unit_name))
+      return;
+
+   ident_list_push(deps, unit_name);
+
+   switch (tree_kind(unit)) {
+   case T_PACKAGE:
+      {
+         ident_t body_name = ident_prefix(unit_name, ident_new("body"), '-');
+         cgen_find_implib_deps(body_name, deps);
+      }
+      break;
+
+   case T_PACK_BODY:
+      {
+         ident_t pack_name = ident_until(unit_name, '-');
+         cgen_find_implib_deps(pack_name, deps);
+      }
+      break;
+
+   default:
+      break;
+   }
+
+   const int ncontext = tree_contexts(unit);
+   for (int i = 0; i < ncontext; i++) {
+      tree_t c = tree_context(unit, i);
+      if (tree_kind(c) != T_USE)
+         continue;
+
+      cgen_find_implib_deps(tree_ident(c), deps);
+   }
+}
+#endif  // IMPLIB_REQUIRED
+
 static void cgen_native(tree_t top)
 {
    LLVMInitializeNativeTarget();
@@ -3779,7 +3840,8 @@ static void cgen_native(tree_t top)
                               LLVMRelocPIC,
                               LLVMCodeModelDefault);
 
-   char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT, istr(tree_ident(top)));
+   ident_t unit_name = tree_ident(top);
+   char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT, istr(unit_name));
 
    char obj_path[PATH_MAX];
    lib_realpath(lib_work(), obj_name, obj_path, sizeof(obj_path));
@@ -3788,85 +3850,79 @@ static void cgen_native(tree_t top)
                                    LLVMObjectFile, &error))
       fatal("Failed to write object file: %s", error);
 
-   const char **args LOCAL = xmalloc(sizeof(char *) * MAX_ARGS);
-   size_t nargs = 0, arg_max = MAX_ARGS;
-
-#define APPEND_ARG(a) ARRAY_APPEND(args, a, nargs, arg_max);
+   max_link_args = 64;
+   link_args = xmalloc(sizeof(char *) * max_link_args);
+   n_link_args = 0;
 
 #ifdef LINKER_PATH
-   APPEND_ARG(LINKER_PATH);
+   cgen_link_arg("%s", LINKER_PATH);
 #else
-   APPEND_ARG(SYSTEM_CC);
+   cgen_link_arg("%s", SYSTEM_CC);
 #endif
 
 #if defined __APPLE__
-   APPEND_ARG("-bundle");
-   APPEND_ARG("-flat_namespace");
-   APPEND_ARG("-undefined");
-   APPEND_ARG("dynamic_lookup");
+   cgen_link_arg("-bundle");
+   cgen_link_arg("-flat_namespace");
+   cgen_link_arg("-undefined");
+   cgen_link_arg("dynamic_lookup");
 #else
-   APPEND_ARG("-shared");
+   cgen_link_arg("-shared");
 #endif
 
-   char *fname LOCAL = xasprintf("_%s." DLL_EXT, istr(tree_ident(top)));
+   char *fname LOCAL = xasprintf("_%s." DLL_EXT, istr(unit_name));
    char so_path[PATH_MAX];
    lib_realpath(lib_work(), fname, so_path, PATH_MAX);
 
-   APPEND_ARG("-o");
-   APPEND_ARG(so_path);
-   APPEND_ARG(obj_path);
+   cgen_link_arg("-o");
+   cgen_link_arg("%s", so_path);
+   cgen_link_arg("%s", obj_path);
 
 #if IMPLIB_REQUIRED
-   char *impname LOCAL = xasprintf("_%s.lib", istr(tree_ident(top)));
+   char *impname LOCAL = xasprintf("_%s.lib", istr(unit_name));
    char imp_path[PATH_MAX];
    lib_realpath(lib_work(), impname, imp_path, PATH_MAX);
 
-   char *imparg LOCAL = xasprintf("-Wl,--out-implib=%s", imp_path);
-   APPEND_ARG(imparg);
+   cgen_link_arg("-Wl,--out-implib=%s", imp_path);
+   cgen_link_arg("-L%s", lib_path(lib_work()));
 
-   APPEND_ARG(xasprintf("-L%s", lib_path(lib_work())));
+   LOCAL_IDENT_LIST deps = NULL;
+   cgen_find_implib_deps(unit_name, &deps);
 
-   const int ncontext = tree_contexts(top);
-   for (int i = 0; i < ncontext; i++) {
-      tree_t c = tree_context(top, i);
-      if (tree_kind(c) != T_USE)
+   for (const ident_list_t *it = deps; it != NULL; it = it->next) {
+      if (it->ident == unit_name)
          continue;
 
-      ident_t unit_name = tree_ident(c);
-      lib_t lib = lib_find(ident_until(unit_name, '.'), true);
+      lib_t lib = lib_find(ident_until(it->ident, '.'), true);
 
-      char *imp_name LOCAL = xasprintf("_%s.lib", istr(unit_name));
+      char *imp_name LOCAL = xasprintf("_%s.lib", istr(it->ident));
       char import_imp[PATH_MAX];
       lib_realpath(lib, imp_name, import_imp, PATH_MAX);
 
       if (access(import_imp, F_OK) == 0) {
          if (lib != lib_work())
-            APPEND_ARG(xasprintf("-L%s", lib_path(lib)));
-         APPEND_ARG(xasprintf("-l_%s", istr(unit_name)));
+            cgen_link_arg("-L%s", lib_path(lib));
+         cgen_link_arg("-l_%s", istr(it->ident));
       }
-   }
-
-   if (tree_kind(top) == T_PACK_BODY) {
-      tree_t pack = lib_get(lib_work(), ident_until(tree_ident(top), '-'));
-      if (pack_needs_cgen(pack))
-         APPEND_ARG(xasprintf("-l_%s", istr(tree_ident(pack))));
    }
 #endif
 
    const char *obj = getenv("NVC_FOREIGN_OBJ");
    if (obj != NULL)
-      APPEND_ARG(obj);
+      cgen_link_arg(obj);
 
 #ifdef IMPLIB_REQUIRED
    const char *cyglib = getenv("NVC_IMP_LIB");
    char *cygarg LOCAL = xasprintf("-L%s", (cyglib != NULL) ? cyglib : DATADIR);
-   APPEND_ARG(cygarg);
-   APPEND_ARG("-lnvcimp");
+   cgen_link_arg(cygarg);
+   cgen_link_arg("-lnvcimp");
 #endif
 
-   APPEND_ARG(NULL);
+   ARRAY_APPEND(link_args, NULL, n_link_args, max_link_args);
 
-   run_program(args, nargs - 1);
+   run_program((const char * const *)link_args, n_link_args - 1);
+
+   free(link_args);
+   link_args = NULL;
 }
 #endif  // ENABLE_NATIVE
 

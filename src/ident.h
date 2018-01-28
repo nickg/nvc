@@ -104,5 +104,6 @@ void ident_list_add(ident_list_t **list, ident_t i);
 void ident_list_push(ident_list_t **list, ident_t i);
 void ident_list_free(ident_list_t *list);
 void _ident_list_cleanup(ident_list_t **list);
+bool ident_list_find(const ident_list_t *list, ident_t i);
 
 #endif // _IDENT_H
