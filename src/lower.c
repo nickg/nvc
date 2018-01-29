@@ -2539,9 +2539,8 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
    tree_t value = tree_value(expr);
    type_t value_type = tree_type(value);
 
-   vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
-
    if (type_is_array(type)) {
+      vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
       vcode_reg_t length_reg = lower_array_total_len(value_type, init_reg);
 
       vcode_reg_t mem_reg = emit_new(lower_type(type_elem(type)), length_reg);
@@ -2560,14 +2559,24 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       else
          return mem_reg;
    }
+   else if (type_is_record(type)) {
+      vcode_reg_t result_reg = emit_new(lower_type(type), VCODE_INVALID_REG);
+      vcode_reg_t all_reg = emit_all(result_reg);
+
+      uint32_t hint = emit_storage_hint(all_reg, VCODE_INVALID_REG);
+      vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
+      vcode_clear_storage_hint(hint);
+
+      emit_copy(all_reg, init_reg, VCODE_INVALID_REG);
+
+      return result_reg;
+   }
    else {
       vcode_reg_t result_reg = emit_new(lower_type(type), VCODE_INVALID_REG);
       vcode_reg_t all_reg = emit_all(result_reg);
 
-      if (type_is_record(type))
-         emit_copy(all_reg, init_reg, VCODE_INVALID_REG);
-      else
-         emit_store_indirect(lower_reify(init_reg), all_reg);
+      vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
+      emit_store_indirect(lower_reify(init_reg), all_reg);
 
       return result_reg;
    }

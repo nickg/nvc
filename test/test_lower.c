@@ -122,6 +122,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_IMAGE:
       case VCODE_OP_UNWRAP:
       case VCODE_OP_ARRAY_SIZE:
+      case VCODE_OP_NULL:
          break;
 
       case VCODE_OP_UARRAY_LEFT:
@@ -3029,6 +3030,37 @@ START_TEST(test_signal11)
 }
 END_TEST
 
+START_TEST(test_access1)
+{
+   input_from_file(TESTDIR "/lower/access1.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_NULL },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_CONST, .value = INT32_MIN },
+      { VCODE_OP_CONST_RECORD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_STORE, .name = "N" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RECORD_REF, .field = 1 },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3101,6 +3133,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_tounsigned);
    tcase_add_test(tc, test_issue357);
    tcase_add_test(tc, test_signal11);
+   tcase_add_test(tc, test_access1);
    suite_add_tcase(s, tc);
 
    return s;

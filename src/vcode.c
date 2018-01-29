@@ -4464,8 +4464,10 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
 
 void emit_null_check(vcode_reg_t ptr)
 {
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_NULL_CHECK) {
-      if (other->args.items[0] == ptr)
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == VCODE_OP_NULL_CHECK && other->args.items[0] == ptr)
+         return;
+      else if (other->kind == VCODE_OP_NEW && other->result == ptr)
          return;
    }
 
