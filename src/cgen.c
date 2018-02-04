@@ -37,6 +37,7 @@
 #include <llvm-c/Transforms/Scalar.h>
 #include <llvm-c/Transforms/IPO.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
+#include <llvm-c/TargetMachine.h>
 
 #undef NDEBUG
 #include <assert.h>
@@ -3821,37 +3822,15 @@ static void cgen_find_implib_deps(ident_t unit_name, ident_list_t **deps)
 }
 #endif  // IMPLIB_REQUIRED
 
-static void cgen_native(tree_t top)
+static void cgen_native(tree_t top, LLVMTargetMachineRef tm_ref)
 {
-   LLVMInitializeNativeTarget();
-   LLVMInitializeNativeAsmPrinter();
-
-   char *def_triple = LLVMGetDefaultTargetTriple();
-   char *error;
-   LLVMTargetRef target_ref;
-   if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
-      fatal("failed to get LLVM target for %s: %s", def_triple, error);
-
-   LLVMCodeGenOptLevel code_gen_level;
-   switch (opt_get_int("optimise")) {
-   case 0: code_gen_level = LLVMCodeGenLevelNone; break;
-   case 1: code_gen_level = LLVMCodeGenLevelLess; break;
-   case 3: code_gen_level = LLVMCodeGenLevelAggressive; break;
-   default: code_gen_level = LLVMCodeGenLevelDefault;
-   }
-
-   LLVMTargetMachineRef tm_ref =
-      LLVMCreateTargetMachine(target_ref, def_triple, "", "",
-                              code_gen_level,
-                              LLVMRelocPIC,
-                              LLVMCodeModelDefault);
-
    ident_t unit_name = tree_ident(top);
    char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT, istr(unit_name));
 
    char obj_path[PATH_MAX];
    lib_realpath(lib_work(), obj_name, obj_path, sizeof(obj_path));
 
+   char *error;
    if (LLVMTargetMachineEmitToFile(tm_ref, module, obj_path,
                                    LLVMObjectFile, &error))
       fatal("Failed to write object file: %s", error);
@@ -3940,6 +3919,35 @@ void cgen(tree_t top, vcode_unit_t vcode)
    module = LLVMModuleCreateWithName(istr(tree_ident(top)));
    builder = LLVMCreateBuilder();
 
+   LLVMInitializeNativeTarget();
+   LLVMInitializeNativeAsmPrinter();
+
+   char *def_triple = LLVMGetDefaultTargetTriple();
+   char *error;
+   LLVMTargetRef target_ref;
+   if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
+      fatal("failed to get LLVM target for %s: %s", def_triple, error);
+
+   LLVMCodeGenOptLevel code_gen_level;
+   switch (opt_get_int("optimise")) {
+   case 0: code_gen_level = LLVMCodeGenLevelNone; break;
+   case 1: code_gen_level = LLVMCodeGenLevelLess; break;
+   case 3: code_gen_level = LLVMCodeGenLevelAggressive; break;
+   default: code_gen_level = LLVMCodeGenLevelDefault;
+   }
+
+   LLVMTargetMachineRef tm_ref =
+      LLVMCreateTargetMachine(target_ref, def_triple, "", "",
+                              code_gen_level,
+                              LLVMRelocPIC,
+                              LLVMCodeModelDefault);
+
+   LLVMSetTarget(module, def_triple);
+
+   LLVMTargetDataRef data_ref = LLVMGetTargetMachineData(tm_ref);
+   char *layout LOCAL = LLVMCopyStringRepOfTargetData(data_ref);
+   LLVMSetDataLayout(module, layout);
+
    cgen_tmp_stack();
 
    cgen_top(top, vcode);
@@ -3951,8 +3959,9 @@ void cgen(tree_t top, vcode_unit_t vcode)
       fatal("LLVM verification failed");
 
    cgen_optimise();
-   cgen_native(top);
+   cgen_native(top, tm_ref);
 
    LLVMDisposeModule(module);
    LLVMDisposeBuilder(builder);
+   LLVMDisposeTargetMachine(tm_ref);
 }
