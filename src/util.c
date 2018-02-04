@@ -1555,7 +1555,7 @@ void run_program(const char *const *args, size_t n_args)
    }
 
 #if defined __CYGWIN__ || defined __MINGW32__
-   int status = spawnv(_P_WAIT, args[0], (const char *const *)args);
+   int status = spawnv(_P_WAIT, args[0], (char *const *)args);
    if (status != 0)
       fatal("%s failed with status %d", args[0], status);
 #else  // __CYGWIN__
@@ -1696,9 +1696,12 @@ const char *safe_symbol(const char *text)
 {
    // Return a string that is safe to use as a symbol name on this platform
 #if defined _WIN32 || defined __CYGWIN__
+   if (strpbrk(text, "()\"[]*+=") == NULL)
+      return text;
+
    text_buf_t *tb = tb_new();
 
-   for (const char *p = text; *p != '\0'; p++) {
+   for (const char *p = text; *p != '\0' && p - text < 240; p++) {
       switch (*p) {
       case '(': tb_printf(tb, "_lp_"); break;
       case ')': tb_printf(tb, "_rp_"); break;
