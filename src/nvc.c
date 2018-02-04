@@ -1030,7 +1030,7 @@ int main(int argc, char **argv)
          warnf("the --native option is deprecated and has no effect");
          break;
       case '?':
-         fatal("unrecognised global option %s", argv[optind - 1]);
+         fatal("unrecognised global option %s", argv[optind]);
       default:
          abort();
       }
