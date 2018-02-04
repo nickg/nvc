@@ -276,7 +276,6 @@ static int elaborate(int argc, char **argv)
          break;
       case 'n':
          warnf("--native is now a global option: place before the -e command");
-         opt_set_int("native", 1);
          break;
       case 'c':
          opt_set_int("cover", 1);
@@ -764,7 +763,6 @@ static void set_default_opts(void)
    opt_set_int("vhpi_trace_en", 0);
    opt_set_int("dump-llvm", 0);
    opt_set_int("optimise", 2);
-   opt_set_int("native", 0);
    opt_set_int("bootstrap", 0);
    opt_set_int("cover", 0);
    opt_set_int("stop-delta", 1000);
@@ -980,7 +978,7 @@ int main(int argc, char **argv)
       { "work",        required_argument, 0, 'w' },
       { "std",         required_argument, 0, 's' },
       { "messages",    required_argument, 0, 'M' },
-      { "native",      no_argument,       0, 'n' },
+      { "native",      no_argument,       0, 'n' },   // DEPRECATED
       { "map",         required_argument, 0, 'p' },
       { "ignore-time", no_argument,       0, 'i' },
       { "force-init",  no_argument,       0, 'f' },
@@ -1029,7 +1027,7 @@ int main(int argc, char **argv)
          opt_set_int("force-init", 1);
          break;
       case 'n':
-         opt_set_int("native", 1);
+         warnf("the --native option is deprecated and has no effect");
          break;
       case '?':
          fatal("unrecognised global option %s", argv[optind - 1]);

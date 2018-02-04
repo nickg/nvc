@@ -17,7 +17,6 @@ synopsys_DATA = \
 	lib/synopsys/_NVC_LIB \
 	lib/synopsys/SYNOPSYS.ATTRIBUTES
 
-if ENABLE_NATIVE
 synopsys_ieee_so = \
 	lib/ieee/_IEEE.STD_LOGIC_ARITH-body.so \
 	lib/ieee/_IEEE.STD_LOGIC_SIGNED-body.so \
@@ -42,17 +41,6 @@ else
 synopsys_ieee_DATA += $(synopsys_ieee_so)
 
 endif  # IMPLIB_REQUIRED
-
-else   # ENABLE_NATIVE
-
-synopsys_ieee_DATA += \
-	lib/ieee/_IEEE.STD_LOGIC_ARITH-body.bc \
-	lib/ieee/_IEEE.STD_LOGIC_SIGNED-body.bc \
-	lib/ieee/_IEEE.STD_LOGIC_UNSIGNED-body.bc \
-	lib/ieee/_IEEE.STD_LOGIC_TEXTIO-body.bc \
-	lib/ieee/_IEEE.STD_LOGIC_MISC-body.bc
-
-endif  # ENABLE_NATIVE
 
 EXTRA_DIST += lib/synopsys/std_logic_arith.vhd lib/synopsys/std_logic_misc.vhd \
 	lib/synopsys/std_logic_misc.vhd lib/synopsys/std_logic_signed.vhd \
@@ -85,7 +73,7 @@ clean-synopsys:
 	$(RM) $(synopsys_DATA)
 
 gen-deps-synopsys:
-	$(nvc) -L lib/ --work=lib/synopsys --native --make --posix --deps-only | \
+	$(nvc) -L lib/ --work=lib/synopsys --make --posix --deps-only | \
 		$(deps_pp) > $(srcdir)/lib/synopsys/deps.mk
 
 include lib/synopsys/deps.mk

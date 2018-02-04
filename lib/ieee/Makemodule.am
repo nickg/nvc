@@ -32,7 +32,6 @@ ieee_DATA = \
 	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.vcode \
 	lib/ieee/_IEEE.VITAL_MEMORY.vcode
 
-if ENABLE_NATIVE
 ieee_so = \
 	lib/ieee/_IEEE.NUMERIC_STD.so \
 	lib/ieee/_IEEE.NUMERIC_BIT.so \
@@ -72,24 +71,6 @@ else
 ieee_DATA += $(ieee_so)
 
 endif  # IMPLIB_REQUIRED
-
-else   # ENABLE_NATIVE
-
-ieee_DATA +=
-	lib/ieee/_IEEE.NUMERIC_STD.bc \
-	lib/ieee/_IEEE.STD_LOGIC_1164-body.bc \
-	lib/ieee/_IEEE.NUMERIC_STD-body.bc \
-	lib/ieee/_IEEE.NUMERIC_BIT-body.bc \
-	lib/ieee/_IEEE.MATH_REAL.bc \
-	lib/ieee/_IEEE.MATH_REAL-body.bc \
-	lib/ieee/_IEEE.MATH_COMPLEX.bc \
-	lib/ieee/_IEEE.MATH_COMPLEX-body.bc \
-	lib/ieee/_IEEE.VITAL_TIMING.bc \
-	lib/ieee/_IEEE.VITAL_TIMING-body.bc \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.bc \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.bc
-
-endif  # ENABLE_NATIVE
 
 lib/ieee/_NVC_LIB:
 
@@ -205,7 +186,7 @@ missing-ieee:
 	@false
 
 gen-deps-ieee:
-	$(nvc) -L lib/ --work=lib/ieee --native --make --posix --deps-only \
+	$(nvc) -L lib/ --work=lib/ieee --make --posix --deps-only \
 		 | $(deps_pp) > $(srcdir)/lib/ieee/deps.mk
 
 clean-ieee:

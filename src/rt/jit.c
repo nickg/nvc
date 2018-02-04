@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "rt.h"
 #include "util.h"
+#include "rt.h"
 #include "lib.h"
 #include "tree.h"
 #include "common.h"
@@ -31,14 +31,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#include <llvm-c/Core.h>
-#include <llvm-c/BitReader.h>
-#include <llvm-c/ExecutionEngine.h>
-
-#if LLVM_HAS_ORC
-#include <llvm-c/OrcBindings.h>
-#endif
-
 #ifdef HAVE_EXECINFO_H
 #include <execinfo.h>
 #endif
@@ -51,12 +43,6 @@
 #endif
 
 #define TRACE_MAX 10
-
-#if LLVM_HAS_ORC
-static LLVMOrcJITStackRef orc_ref = NULL;
-#else
-static LLVMExecutionEngineRef exec_engine = NULL;
-#endif
 
 #ifdef __MINGW32__
 #ifdef _WIN64
@@ -71,7 +57,7 @@ static size_t nmodules = 0, max_modules = 0;
 
 #endif
 
-static void *jit_search_loaded_syms(const char *name, bool required)
+void *jit_find_symbol(const char *name, bool required)
 {
 #if (defined __MINGW32__ || defined __CYGWIN__) && !defined _WIN64
    if (*name == '_')
@@ -120,81 +106,7 @@ static void *jit_search_loaded_syms(const char *name, bool required)
 #endif
 }
 
-void *jit_fun_ptr(const char *name, bool required)
-{
-#if LLVM_HAS_ORC
-      return jit_var_ptr(name, required);
-#else
-      if (exec_engine != NULL) {
-         LLVMValueRef fn;
-         if (LLVMFindFunction(exec_engine, name, &fn))
-            return jit_search_loaded_syms(name, required);
-
-         return LLVMGetPointerToGlobal(exec_engine, fn);
-      }
-      else
-         return jit_var_ptr(name, required);
-#endif
-}
-
-void *jit_var_ptr(const char *name, bool required)
-{
-   void *ptr = NULL;
-
-#if LLVM_HAS_ORC
-   if (orc_ref != NULL) {
-#if LLVM_NEW_ORC_API
-      LLVMOrcTargetAddress ret;
-      if (LLVMOrcGetSymbolAddress(orc_ref, &ret, name) == LLVMOrcErrSuccess)
-         ptr = (void *)ret;
-#else
-      ptr = (void *)(uintptr_t)LLVMOrcGetSymbolAddress(orc_ref, name);
-#endif
-   }
-#else
-   if (exec_engine != NULL)
-      ptr = (void *)(uintptr_t)LLVMGetGlobalValueAddress(exec_engine, name);
-#endif
-
-   if (ptr == NULL)
-      return jit_search_loaded_syms(name, required);
-   else
-      return ptr;
-}
-
-void jit_bind_fn(const char *name, void *ptr)
-{
-#if !LLVM_HAS_ORC
-   if (exec_engine != NULL) {
-      LLVMValueRef fn;
-      if (LLVMFindFunction(exec_engine, name, &fn))
-         return;
-
-      LLVMAddGlobalMapping(exec_engine, fn, ptr);
-   }
-#endif
-}
-
-#if LLVM_HAS_ORC
-static uint64_t jit_orc_sym_resolver(const char *name, void *ctx)
-{
-   return (uintptr_t)jit_search_loaded_syms(name, true);
-}
-#endif  // LLVM_HAS_ORC
-
-static time_t jit_mod_time(const char *path)
-{
-   struct stat st;
-   if (stat(path, &st) == -1) {
-      if (errno == ENOENT)
-         return 0;
-      else
-         fatal_errno("%s", path);
-   }
-   return st.st_mtime;
-}
-
-static void jit_load_module(ident_t name, LLVMModuleRef module)
+static void jit_load_module(ident_t name)
 {
    lib_t lib = lib_find(ident_until(name, '.'), true);
 
@@ -207,110 +119,27 @@ static void jit_load_module(ident_t name, LLVMModuleRef module)
 
    const bool optional = (kind == T_PACKAGE || kind == T_PACK_BODY);
 
-   char *bc_fname LOCAL = xasprintf("_%s.bc", istr(name));
    char *so_fname LOCAL = xasprintf("_%s." DLL_EXT, istr(name));
 
-   char bc_path[PATH_MAX], so_path[PATH_MAX];
-   lib_realpath(lib, bc_fname, bc_path, sizeof(bc_path));
+   char so_path[PATH_MAX];
    lib_realpath(lib, so_fname, so_path, sizeof(so_path));
 
-   if (access(bc_path, F_OK) != 0 && access(so_path, F_OK) != 0 && optional)
+   if (access(so_path, F_OK) != 0 && optional)
       return;
 
-   const bool use_jit = (jit_mod_time(bc_path) > jit_mod_time(so_path));
-
    if (opt_get_int("rt_trace_en"))
-      fprintf(stderr, "TRACE (init): load %s using %s from %s\n", istr(name),
-              use_jit ? "JIT" : "native code", use_jit ? bc_path : so_path);
+      fprintf(stderr, "TRACE (init): load %s from %s\n", istr(name), so_path);
 
-   if (use_jit) {
-      if (module == NULL) {
-         char *error;
-         LLVMMemoryBufferRef buf;
-         if (LLVMCreateMemoryBufferWithContentsOfFile(bc_path, &buf, &error))
-            fatal("error reading bitcode from %s: %s", bc_path, error);
-
-         if (LLVMParseBitcode(buf, &module, &error))
-            fatal("error parsing bitcode: %s", error);
-
-         LLVMDisposeMemoryBuffer(buf);
-      }
-
-#if LLVM_HAS_ORC
-
-      if (orc_ref == NULL) {
-         LLVMInitializeNativeTarget();
-         LLVMInitializeNativeAsmPrinter();
-         LLVMLinkInMCJIT();
-
-         char *def_triple = LLVMGetDefaultTargetTriple();
-         char *error;
-         LLVMTargetRef target_ref;
-         if (LLVMGetTargetFromTriple(def_triple, &target_ref, &error))
-            fatal("failed to get LLVM target for %s: %s", def_triple, error);
-
-         if (!LLVMTargetHasJIT(target_ref))
-            fatal("LLVM target %s has no JIT", LLVMGetTargetName(target_ref));
-
-         LLVMTargetMachineRef tm_ref =
-            LLVMCreateTargetMachine(target_ref, def_triple, "", "",
-                                    LLVMCodeGenLevelDefault,
-                                    LLVMRelocDefault,
-                                    LLVMCodeModelJITDefault);
-         assert(tm_ref);
-         LLVMDisposeMessage(def_triple);
-
-         orc_ref = LLVMOrcCreateInstance(tm_ref);
-      }
-
-#if LLVM_NEW_ORC_API
-      LLVMSharedModuleRef shared_module = LLVMOrcMakeSharedModule(module);
-
-      LLVMOrcModuleHandle ret_handle;
-      LLVMOrcErrorCode error =
-         LLVMOrcAddLazilyCompiledIR(orc_ref, &ret_handle, shared_module,
-                                    jit_orc_sym_resolver, NULL);
-      if (error != LLVMOrcErrSuccess)
-         fatal_trace("LLVMOrcAddLazilyCompiledIR");
-#else
-      LLVMOrcAddLazilyCompiledIR(orc_ref, module, jit_orc_sym_resolver, NULL);
-#endif
-
-#else
-
-      if (exec_engine == NULL) {
-         LLVMInitializeNativeTarget();
-         LLVMInitializeNativeAsmPrinter();
-         LLVMLinkInMCJIT();
-
-         struct LLVMMCJITCompilerOptions options;
-         LLVMInitializeMCJITCompilerOptions(&options, sizeof(options));
-
-         char *error;
-         if (LLVMCreateMCJITCompilerForModule(&exec_engine, module, &options,
-                                              sizeof(options), &error))
-            fatal("error creating MCJIT compiler: %s", error);
-      }
-      else
-         LLVMAddModule(exec_engine, module);
-
-#endif
-   }
-   else {
 #ifdef __MINGW32__
-      HMODULE hModule = LoadLibrary(so_path);
-      if (hModule == NULL)
-         fatal("failed to load %s", so_path);
+   HMODULE hModule = LoadLibrary(so_path);
+   if (hModule == NULL)
+      fatal("failed to load %s", so_path);
 
-      ARRAY_APPEND(search_modules, hModule, nmodules, max_modules);
+   ARRAY_APPEND(search_modules, hModule, nmodules, max_modules);
 #else
-      if (dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL) == NULL)
-         fatal("%s: %s", so_path, dlerror());
+   if (dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL) == NULL)
+      fatal("%s: %s", so_path, dlerror());
 #endif
-
-      // Free LLVM module as we no longer need it
-      LLVMDisposeModule(module);
-   }
 }
 
 void jit_init(tree_t top)
@@ -328,22 +157,15 @@ void jit_init(tree_t top)
    for (int i = 0; i < ncontext; i++) {
       tree_t c = tree_context(top, i);
       if (tree_kind(c) == T_USE)
-         jit_load_module(tree_ident(c), NULL);
+         jit_load_module(tree_ident(c));
    }
 
-   jit_load_module(tree_ident(top), tree_attr_ptr(top, llvm_i));
-   tree_remove_attr(top, llvm_i);
+   jit_load_module(tree_ident(top));
 }
 
 void jit_shutdown(void)
 {
-#if LLVM_HAS_ORC
-   if (orc_ref != NULL)
-      LLVMOrcDisposeInstance(orc_ref);
-#else
-   if (exec_engine != NULL)
-      LLVMDisposeExecutionEngine(exec_engine);
-#endif
+
 }
 
 void jit_trace(jit_trace_t **trace, size_t *count)

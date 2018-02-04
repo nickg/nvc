@@ -3765,7 +3765,6 @@ static void cgen_tmp_stack(void)
    LLVMSetLinkage(_tmp_alloc, LLVMExternalLinkage);
 }
 
-#ifdef ENABLE_NATIVE
 static void cgen_link_arg(const char *fmt, ...)
 {
    va_list ap;
@@ -3931,7 +3930,6 @@ static void cgen_native(tree_t top)
    free(link_args);
    link_args = NULL;
 }
-#endif  // ENABLE_NATIVE
 
 void cgen(tree_t top, vcode_unit_t vcode)
 {
@@ -3953,23 +3951,8 @@ void cgen(tree_t top, vcode_unit_t vcode)
       fatal("LLVM verification failed");
 
    cgen_optimise();
-
-#ifdef ENABLE_NATIVE
    cgen_native(top);
 
    LLVMDisposeModule(module);
-#else
-   char *fname = xasprintf("_%s.bc", istr(tree_ident(top)));
-
-   FILE *f = lib_fopen(lib_work(), fname, "wb");
-   if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
-      fatal("error writing LLVM bitcode");
-   const long bc_bytes = ftell(f);
-   fclose(f);
-   free(fname);
-
-   tree_add_attr_ptr(top, llvm_i, module);
-#endif
-
    LLVMDisposeBuilder(builder);
 }

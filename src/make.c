@@ -31,8 +31,6 @@
 
 typedef enum {
    MAKE_TREE,
-   MAKE_BC,
-   MAKE_FINAL_BC,
    MAKE_LIB,
    MAKE_SO,
    MAKE_FINAL_SO,
@@ -76,10 +74,6 @@ static const char *make_product(tree_t t, make_product_t product)
       checked_sprintf(buf, PATH_MAX, "%s/%s", path, istr(name));
       break;
 
-   case MAKE_BC:
-      checked_sprintf(buf, PATH_MAX, "%s/_%s.bc", path, istr(name));
-      break;
-
    case MAKE_VCODE:
       checked_sprintf(buf, PATH_MAX, "%s/_%s.vcode", path, istr(name));
       break;
@@ -90,13 +84,6 @@ static const char *make_product(tree_t t, make_product_t product)
 
    case MAKE_IMPLIB:
       checked_sprintf(buf, PATH_MAX, "%s/_%s.a", path, istr(name));
-      break;
-
-   case MAKE_FINAL_BC:
-      {
-         ident_t base = ident_runtil(name, '.');
-         checked_sprintf(buf, PATH_MAX, "%s/_%s.final.bc", path, istr(base));
-      }
       break;
 
    case MAKE_FINAL_SO:
@@ -237,21 +224,15 @@ static void make_rule(tree_t t, rule_t **rules)
    switch (kind) {
    case T_ELAB:
       make_rule_add_output(r, make_product(t, MAKE_TREE));
-      make_rule_add_output(r, make_product(t, MAKE_BC));
-      make_rule_add_output(r, make_product(t, MAKE_FINAL_BC));
-      if (opt_get_int("native"))
-         make_rule_add_output(r, make_product(t, MAKE_FINAL_SO));
+      make_rule_add_output(r, make_product(t, MAKE_FINAL_SO));
       break;
 
    case T_PACKAGE:
       if (pack_needs_cgen(t)) {
       case T_PACK_BODY:
-         make_rule_add_output(r, make_product(t, MAKE_BC));
          make_rule_add_output(r, make_product(t, MAKE_VCODE));
-         if (opt_get_int("native")) {
-            make_rule_add_output(r, make_product(t, MAKE_SO));
-            make_rule_add_output(r, make_product(t, MAKE_IMPLIB));
-         }
+         make_rule_add_output(r, make_product(t, MAKE_SO));
+         make_rule_add_output(r, make_product(t, MAKE_IMPLIB));
       }
       // Fall-through
 
@@ -364,9 +345,6 @@ static void make_print_rules(rule_t *rules, FILE *out)
          make_print_inputs(r, out);
 
          fprintf(out, "\n\tnvc ");
-
-         if (opt_get_int("native"))
-            fprintf(out, "--native ");
 
          switch (r->kind) {
          case RULE_ANALYSE:

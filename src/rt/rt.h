@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -124,9 +124,7 @@ void rt_set_exit_severity(rt_severity_t severity);
 
 void jit_init(tree_t top);
 void jit_shutdown(void);
-void *jit_fun_ptr(const char *name, bool required);
-void *jit_var_ptr(const char *name, bool required);
-void jit_bind_fn(const char *name, void *ptr);
+void *jit_find_symbol(const char *name, bool required);
 void jit_trace(jit_trace_t **trace, size_t *count);
 
 text_buf_t *pprint(struct tree *t, const uint64_t *values, size_t len);

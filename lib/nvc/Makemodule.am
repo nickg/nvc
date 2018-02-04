@@ -5,7 +5,6 @@ nvc_DATA = \
 	lib/nvc/NVC.ENV \
 	lib/nvc/NVC.ENV-body
 
-if ENABLE_NATIVE
 nvc_so = lib/nvc/_NVC.ENV-body.so
 
 if IMPLIB_REQUIRED
@@ -21,13 +20,6 @@ nvc_DATA += $(nvc_so)
 
 endif  # IMPLIB_REQUIRED
 
-else   # ENABLE_NATIVE
-
-nvc_DATA += \
-	lib/nvc/_NVC.ENV-body.bc
-
-endif  # ENABLE_NATIVE
-
 libs-nvc: $(nvc_DATA) $(nvc_SCRIPTS)
 
 lib/nvc/_NVC_LIB: lib/nvc/NVC.ENV
@@ -39,7 +31,7 @@ clean-nvc:
 	-$(RM) $(nvc_DATA)
 
 gen-deps-nvc:
-	$(nvc) -L lib/ --work=lib/nvc --native --make --posix --deps-only | \
+	$(nvc) -L lib/ --work=lib/nvc --make --posix --deps-only | \
 		$(deps_pp) > $(srcdir)/lib/nvc/deps.mk
 
 include lib/nvc/deps.mk

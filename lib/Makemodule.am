@@ -1,9 +1,3 @@
-if ENABLE_NATIVE
-native_opt = --native
-else
-native_opt =
-endif
-
 nvc = $(nvc_verbose) NVC_IMP_LIB=$(top_builddir)/lib \
 	$(top_builddir)/bin/nvc --force-init $(native_opt)
 

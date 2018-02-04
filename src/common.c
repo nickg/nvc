@@ -933,7 +933,6 @@ void intern_strings(void)
    sub_cond_i       = ident_new("sub_cond");
    range_var_i      = ident_new("range_var");
    work_i           = ident_new("WORK");
-   llvm_i           = ident_new("llvm");
    wait_level_i     = ident_new("wait_level");
    impure_io_i      = ident_new("impure_io");
    simple_name_i    = ident_new("simple_name");

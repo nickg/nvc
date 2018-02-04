@@ -39,11 +39,6 @@ elaborate command.
  * `-r` _unit_:
    Execute a previously elaborated top level design unit.
 
- * `--codegen` _unit_:
-   Generate a native shared library for a previously analysed package. This
-   can improve runtime performance if the package contains a large number of
-   frequently used subprograms.
-
  * `--dump` _unit_:
    Print out a pseudo-VHDL representation of an analysed unit. This is
    usually only useful for debugging the compiler.
@@ -81,12 +76,6 @@ elaborate command.
    Select either the _full_ or _compact_ message format. The default full message
    format is designed for readability whereas the compact messages can be easily
    parsed by tools.
-
-* `--native`:
-  Generate a native code shared library. By default NVC will use LLVM JIT
-  compilation to generate machine code at runtime. For large designs
-  compiling to native code at elaboration time may improve performance.
-  This will also produce native shared libraries for packages.
 
  * `--std=`_rev_:
    Select the VHDL standard revision to use. Specify either the full year such as
@@ -196,9 +185,6 @@ elaborate command.
  * `--deps-only`:
    Generate rules that only contain dependencies without actions. These can be
    useful for inclusion in a hand written makefile.
-
- * `--native`:
-   Output actions to generate native code.
 
  * `--posix`:
    The generated makefile will work with any POSIX compliant make. Otherwise the

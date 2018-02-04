@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1559,7 +1559,7 @@ static void rt_setup(tree_t top)
       RT_ASSERT(tree_kind(p) == T_PROCESS);
 
       procs[i].source     = p;
-      procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)), true);
+      procs[i].proc_fn    = jit_find_symbol(istr(tree_ident(p)), true);
       procs[i].wakeup_gen = 0;
       procs[i].postponed  = !!(tree_flags(p) & TREE_F_POSTPONED);
       procs[i].tmp_stack  = NULL;
@@ -1613,7 +1613,7 @@ static void rt_call_module_reset(ident_t name)
    _tmp_stack = global_tmp_stack;
    _tmp_alloc = global_tmp_alloc;
 
-   void (*reset_fn)(void) = jit_fun_ptr(buf, false);
+   void (*reset_fn)(void) = jit_find_symbol(buf, false);
    if (reset_fn != NULL) {
       TRACE("reset module %s", istr(name));
       (*reset_fn)();
@@ -2335,13 +2335,13 @@ static void rt_stats_print(void)
 
 static void rt_reset_coverage(tree_t top)
 {
-   int32_t *cover_stmts = jit_var_ptr("cover_stmts", false);
+   int32_t *cover_stmts = jit_find_symbol("cover_stmts", false);
    if (cover_stmts != NULL) {
       const int ntags = tree_attr_int(top, ident_new("stmt_tags"), 0);
       memset(cover_stmts, '\0', sizeof(int32_t) * ntags);
    }
 
-   int32_t *cover_conds = jit_var_ptr("cover_conds", false);
+   int32_t *cover_conds = jit_find_symbol("cover_conds", false);
    if (cover_conds != NULL) {
       const int ntags = tree_attr_int(top, ident_new("cond_tags"), 0);
       memset(cover_conds, '\0', sizeof(int32_t) * ntags);
@@ -2350,8 +2350,8 @@ static void rt_reset_coverage(tree_t top)
 
 static void rt_emit_coverage(tree_t top)
 {
-   const int32_t *cover_stmts = jit_var_ptr("cover_stmts", false);
-   const int32_t *cover_conds = jit_var_ptr("cover_conds", false);
+   const int32_t *cover_stmts = jit_find_symbol("cover_stmts", false);
+   const int32_t *cover_conds = jit_find_symbol("cover_conds", false);
    if (cover_stmts != NULL)
       cover_report(top, cover_stmts, cover_conds);
 }
@@ -2399,28 +2399,6 @@ void rt_start_of_tool(tree_t top)
    if (!SetConsoleCtrlHandler(rt_win_ctrl_handler, TRUE))
       fatal_trace("SetConsoleCtrlHandler");
 #endif
-
-   jit_bind_fn("_std_standard_now", _std_standard_now);
-   jit_bind_fn("_sched_process", _sched_process);
-   jit_bind_fn("_sched_waveform", _sched_waveform);
-   jit_bind_fn("_sched_event", _sched_event);
-   jit_bind_fn("_assert_fail", _assert_fail);
-   jit_bind_fn("_vec_load", _vec_load);
-   jit_bind_fn("_image", _image);
-   jit_bind_fn("_debug_out", _debug_out);
-   jit_bind_fn("_set_initial", _set_initial);
-   jit_bind_fn("_file_open", _file_open);
-   jit_bind_fn("_file_close", _file_close);
-   jit_bind_fn("_file_write", _file_write);
-   jit_bind_fn("_file_read", _file_read);
-   jit_bind_fn("_endfile", _endfile);
-   jit_bind_fn("_bounds_fail", _bounds_fail);
-   jit_bind_fn("_bit_shift", _bit_shift);
-   jit_bind_fn("_bit_vec_op", _bit_vec_op);
-   jit_bind_fn("_test_net_flag", _test_net_flag);
-   jit_bind_fn("_last_event", _last_event);
-   jit_bind_fn("_div_zero", _div_zero);
-   jit_bind_fn("_null_deref", _null_deref);
 
    trace_on = opt_get_int("rt_trace_en");
    profiling = opt_get_int("rt_profile");

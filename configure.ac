@@ -154,7 +154,7 @@ if test x$enable_fst_judy = xyes ; then
   AC_DEFINE_UNQUOTED([_WAVE_HAVE_JUDY], [1], [Internal definition of GTKWave for Judy])
 fi
 
-AX_LLVM_C([engine bitreader bitwriter ipo linker orcjit])
+AX_LLVM_C([engine bitreader bitwriter ipo linker])
 AM_CONDITIONAL([FORCE_CXX_LINK], [test ! x$ax_cv_llvm_shared = xyes])
 
 PKG_CHECK_EXISTS([check],
@@ -200,16 +200,6 @@ AC_ARG_WITH([system-cc],
             [system_cc="$cc_bare"])
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$system_cc"], [System compiler])
 
-AC_ARG_ENABLE([native],
-  [AS_HELP_STRING([--enable-native],
-    [Enable native code generation])],
-  [enable_native=$enableval],
-  [enable_native=yes])
-
-if test x$enable_native = xyes ; then
-  AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])
-fi
-
 case $host_os in
   *cygwin*|msys*|mingw32*)
       implib_required=yes
@@ -224,7 +214,6 @@ if test x$implib_required = xyes ; then
 fi
 AC_DEFINE_UNQUOTED([DLL_EXT], ["$dll_ext"], [Dynamic library extension])
 
-AM_CONDITIONAL([ENABLE_NATIVE], [test x$enable_native = xyes])
 AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
 
 AC_ARG_ENABLE([vhpi],

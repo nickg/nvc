@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "NVC" "1" "December 2017" "" "NVC Manual"
+.TH "NVC" "1" "February 2018" "" "NVC Manual"
 .
 .SH "NAME"
 \fBnvc\fR \- VHDL Compiler and Simulator
@@ -54,10 +54,6 @@ Elaborate a previously analysed top level design unit\.
 Execute a previously elaborated top level design unit\.
 .
 .TP
-\fB\-\-codegen\fR \fIunit\fR
-Generate a native shared library for a previously analysed package\. This can improve runtime performance if the package contains a large number of frequently used subprograms\.
-.
-.TP
 \fB\-\-dump\fR \fIunit\fR
 Print out a pseudo\-VHDL representation of an analysed unit\. This is usually only useful for debugging the compiler\.
 .
@@ -98,10 +94,6 @@ Specify exactly the location of logical library \fIname\fR\. Libraries mapped in
 .TP
 \fB\-\-messages=\fR\fIstyle\fR
 Select either the \fIfull\fR or \fIcompact\fR message format\. The default full message format is designed for readability whereas the compact messages can be easily parsed by tools\.
-.
-.TP
-\fB\-\-native\fR
-Generate a native code shared library\. By default NVC will use LLVM JIT compilation to generate machine code at runtime\. For large designs compiling to native code at elaboration time may improve performance\. This will also produce native shared libraries for packages\.
 .
 .TP
 \fB\-\-std=\fR\fIrev\fR
@@ -202,10 +194,6 @@ Write waveform data to \fIfile\fR\. The file name is optional and if not specifi
 .TP
 \fB\-\-deps\-only\fR
 Generate rules that only contain dependencies without actions\. These can be useful for inclusion in a hand written makefile\.
-.
-.TP
-\fB\-\-native\fR
-Output actions to generate native code\.
 .
 .TP
 \fB\-\-posix\fR

@@ -1,4 +1,4 @@
-noinst_LIBRARIES += lib/librt.a lib/libjit.a
+noinst_LIBRARIES += lib/librt.a
 
 lib_librt_a_SOURCES = \
 	src/rt/rtkern.c \
@@ -15,7 +15,5 @@ lib_librt_a_SOURCES = \
 	src/rt/cover.h \
 	src/rt/netdb.h \
 	src/rt/alloc.h \
-	src/rt/heap.h
-
-lib_libjit_a_SOURCES = src/rt/jit.c
-lib_libjit_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
+	src/rt/heap.h \
+	src/rt/jit.c

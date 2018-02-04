@@ -16,8 +16,6 @@ std_08_DATA = \
 	lib/std.08/STD.ENV \
 	lib/std.08/STD.ENV-body
 
-if ENABLE_NATIVE
-
 std_so = \
 	lib/std/_STD.TEXTIO.so \
 	lib/std/_STD.TEXTIO-body.so
@@ -50,19 +48,6 @@ std_08_DATA += $(std_08_so)
 
 endif  # IMPLIB_REQUIRED
 
-else   # ENABLE_NATIVE
-
-std_DATA += \
-	lib/std/_STD.TEXTIO.bc \
-	lib/std/_STD.TEXTIO-body.bc
-
-std_08_DATA += \
-	lib/std.08/_STD.TEXTIO.bc \
-	lib/std.08/_STD.TEXTIO-body.bc \
-	lib/std.08/_STD.ENV-body.bc
-
-endif  # ENABLE_NATIVE
-
 EXTRA_DIST += lib/std/standard.vhd lib/std/textio.vhd lib/std/env.vhd
 
 libs-std: $(std_DATA) $(std_08_DATA)
@@ -92,9 +77,9 @@ lib/std.08/STD.ENV: $(bootstrap) lib/std.08/STD.STANDARD $(srcdir)/lib/std/env.v
 	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/env.vhd
 
 gen-deps-std:
-	$(nvc) --work=lib/std --native --make --posix --deps-only | \
+	$(nvc) --work=lib/std --make --posix --deps-only | \
 		$(deps_pp) > $(srcdir)/lib/std/deps.mk
-	$(nvc) --std=2008 --work=lib/std.08 --native --make --posix --deps-only | \
+	$(nvc) --std=2008 --work=lib/std.08 --make --posix --deps-only | \
 		$(deps_pp) >> $(srcdir)/lib/std/deps.mk
 
 clean-std:

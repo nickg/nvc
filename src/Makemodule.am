@@ -51,7 +51,6 @@ bin_nvc_LDADD = \
 	lib/libnvc.a \
 	lib/libcgen.a \
 	lib/librt.a \
-	lib/libjit.a \
 	lib/liblxt.a \
 	lib/libfst.a \
 	lib/libfastlz.a \
