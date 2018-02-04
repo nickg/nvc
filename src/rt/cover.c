@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2015  Nick Gasson
+//  Copyright (C) 2013-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -408,7 +408,7 @@ static const char *cover_file_url(cover_file_t *f)
    static char buf[256];
    checked_sprintf(buf, sizeof(buf) - 6, "report_%s.html", istr(f->name));
    for (char *p = buf; *(p + 5) != '\0'; p++) {
-      if (*p == '/' || *p == '.')
+      if (*p == PATH_SEP[0] || *p == '.')
          *p = '_';
    }
    return buf;
@@ -459,11 +459,10 @@ static void cover_html_footer(FILE *fp)
 
 static void cover_report_file(cover_file_t *f, const char *dir)
 {
-   char *buf = xasprintf("%s/%s", dir, cover_file_url(f));
+   char *buf LOCAL = xasprintf("%s" PATH_SEP "%s", dir, cover_file_url(f));
    FILE *fp = lib_fopen(lib_work(), buf, "w");
    if (fp == NULL)
       fatal("failed to create %s", buf);
-   free(buf);
 
    cover_html_header(fp, "Coverage report for %s", f->name);
 
@@ -552,7 +551,7 @@ void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
 
    ident_t name = ident_strip(tree_ident(top), ident_new(".elab"));
 
-   char *dir = xasprintf("%s.cover", istr(name));
+   char *dir LOCAL = xasprintf("%s.cover", istr(name));
 
    lib_t work = lib_work();
    lib_mkdir(work, dir);
@@ -564,9 +563,8 @@ void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
 
    char output[PATH_MAX];
    lib_realpath(work, dir, output, sizeof(output));
-   free(dir);
 
-   char *buf = xasprintf(
+   char *buf LOCAL = xasprintf(
             "coverage report generated in %s/\n"
             "  %u/%u statements covered\n"
             "  %u/%u branches covered\n"
@@ -576,5 +574,4 @@ void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
             stats.hit_branches, stats.total_branches,
             stats.hit_conds, stats.total_conds);
    notef("%s", buf);
-   free(buf);
 }

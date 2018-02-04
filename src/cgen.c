@@ -3296,6 +3296,7 @@ static void cgen_coverage_state(tree_t t)
       LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
       LLVMValueRef var = LLVMAddGlobal(module, type, "cover_stmts");
       LLVMSetInitializer(var, LLVMGetUndef(type));
+      cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT);
    }
 
    const int cond_tags = tree_attr_int(t, ident_new("cond_tags"), 0);
@@ -3303,6 +3304,7 @@ static void cgen_coverage_state(tree_t t)
       LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
       LLVMValueRef var = LLVMAddGlobal(module, type, "cover_conds");
       LLVMSetInitializer(var, LLVMGetUndef(type));
+      cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT);
    }
 }
 
