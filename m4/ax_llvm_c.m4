@@ -81,6 +81,8 @@ AC_DEFUN([AX_LLVM_C], [
                                  [LLVM has LLVMLinkModules2])
               AC_DEFINE_UNQUOTED(LLVM_HAS_ORC, [1],
                                  [LLVM has ORC JIT engine])
+              AC_DEFINE_UNQUOTED(LLVM_HAS_CREATE_TARGET_DATA_LAYOUT, [1],
+                                 [LLVM has LLVMCreateTargetDataLayout])
           fi
 
           if test "$llvm_ver_num" -ge "40"; then

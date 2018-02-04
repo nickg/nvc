@@ -3944,7 +3944,12 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
    LLVMSetTarget(module, def_triple);
 
+#if LLVM_HAS_CREATE_TARGET_DATA_LAYOUT
+   LLVMTargetDataRef data_ref = LLVMCreateTargetDataLayout(tm_ref);
+#else
    LLVMTargetDataRef data_ref = LLVMGetTargetMachineData(tm_ref);
+#endif
+
    char *layout LOCAL = LLVMCopyStringRepOfTargetData(data_ref);
    LLVMSetDataLayout(module, layout);
 
@@ -3964,4 +3969,7 @@ void cgen(tree_t top, vcode_unit_t vcode)
    LLVMDisposeModule(module);
    LLVMDisposeBuilder(builder);
    LLVMDisposeTargetMachine(tm_ref);
+#if LLVM_HAS_CREATE_TARGET_DATA_LAYOUT
+   LLVMDisposeTargetData(data_ref);
+#endif
 }
