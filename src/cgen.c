@@ -3078,6 +3078,7 @@ static void cgen_procedure(LLVMTypeRef display_type)
                            cgen_subprogram_type(display_type, true));
 
    cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
+   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
 
    cgen_ctx_t ctx = {
       .fn = fn
