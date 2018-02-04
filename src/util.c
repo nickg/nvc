@@ -21,6 +21,7 @@
 #include <windows.h>
 #include <DbgHelp.h>
 #include <fileapi.h>
+#include <psapi.h>
 #endif
 
 #include "util.h"
@@ -1539,14 +1540,22 @@ void nvc_rusage(nvc_rusage_t *ru)
    HANDLE hProcess = GetCurrentProcess();
 
    FILETIME ftCreation, ftExit, ftKernel, ftUser;
-   GetProcessTimes(hProcess, &ftCreation, &ftExit, &ftKernel, &ftUser);
+   if (!GetProcessTimes(hProcess, &ftCreation, &ftExit, &ftKernel, &ftUser))
+      fatal_errno("GetProcessTimes");
+
    lv_Tkernel.LowPart = ftKernel.dwLowDateTime;
    lv_Tkernel.HighPart = ftKernel.dwHighDateTime;
    lv_Tuser.LowPart = ftUser.dwLowDateTime;
    lv_Tuser.HighPart = ftUser.dwHighDateTime;
 
-   ru->ms = lv_Tkernel.QuadPart + lv_Tuser.QuadPart - last;
+   ru->ms = (lv_Tkernel.QuadPart + lv_Tuser.QuadPart) / 10000 - last;
    last = ru->ms;
+
+   PROCESS_MEMORY_COUNTERS counters;
+   if (!GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters)))
+      fatal_errno("GetProcessMemoryInfo");
+
+   ru->rss = counters.PeakWorkingSetSize / 1024;
 #endif
 }
 
