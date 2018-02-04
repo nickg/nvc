@@ -501,7 +501,7 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
 error_fn_t set_error_fn(error_fn_t fn, bool want_color)
 {
    error_fn_t old = error_fn;
-   error_fn = fn;
+   error_fn = fn ?: def_error_fn;
    error_force_plain = !want_color;
    return old;
 }
@@ -1482,6 +1482,12 @@ void tb_rewind(text_buf_t *tb)
 {
    tb->len = 0;
    tb->buf[0] = '\0';
+}
+
+void tb_backup(text_buf_t *tb, unsigned n)
+{
+   tb->len = n > tb->len ? 0 : tb->len - n;
+   tb->buf[tb->len] = '\0';
 }
 
 void _local_free(void *ptr)

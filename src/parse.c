@@ -541,23 +541,22 @@ static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
 
 static ident_t loc_to_ident(const loc_t *loc)
 {
-   int bufsz = 128;
-   char *buf = xmalloc(bufsz);
-   checked_sprintf(buf, bufsz, "line_%d", loc->first_line);
-   const int nprint = strlen(buf);
+   char sbuf[64];
+   checked_sprintf(sbuf, sizeof(sbuf), "line_%d", loc->first_line);
 
-   for (int i = 0; ident_interned(buf); i++) {
-      if (nprint + 1 > bufsz) {
-         bufsz *= 2;
-         buf = xrealloc(buf, bufsz);
-      }
-      buf[nprint] = 'a' + i;
-      buf[nprint + 1] = '\0';
+   if (!ident_interned(sbuf))
+      return ident_new(sbuf);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "%sa", sbuf);
+
+   for (int i = 1; ident_interned(tb_get(tb)); i++) {
+      if (i % 26 != 0)
+         tb_backup(tb, 1);
+      tb_append(tb, 'a' + i % 26);
    }
 
-   ident_t ident = ident_new(buf);
-   free(buf);
-   return ident;
+   return ident_new(tb_get(tb));
 }
 
 static void set_label_and_loc(tree_t t, ident_t label, const loc_t *loc)
@@ -5857,6 +5856,13 @@ tree_t parse(void)
       return NULL;
 
    tree_t unit = p_design_unit();
+
+   while (cond_state != NULL) {
+      cond_state_t *tmp = cond_state->next;
+      free(cond_state);
+      cond_state = tmp;
+   }
+
    if (n_errors > old_errors)
       return NULL;
    else

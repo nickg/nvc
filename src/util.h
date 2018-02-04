@@ -158,6 +158,7 @@ void tb_append(text_buf_t *tb, char ch);
 const char *tb_get(text_buf_t *tb);
 char *tb_claim(text_buf_t *tb);
 void tb_rewind(text_buf_t *tb);
+void tb_backup(text_buf_t *tb, unsigned n);
 
 #define LOCAL __attribute__((cleanup(_local_free)))
 

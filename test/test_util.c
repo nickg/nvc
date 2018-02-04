@@ -61,6 +61,9 @@ static void setup_per_test(void)
    reset_eval_errors();
 
    set_standard(STD_93);
+
+   error_lines = NULL;
+   set_error_fn(NULL, 1);
 }
 
 static void teardown_per_test(void)
@@ -73,8 +76,9 @@ static void teardown_per_test(void)
 void expect_errors(const error_t *lines)
 {
 #ifdef __MINGW32__
+   error_fn_t old_fn = set_error_fn(test_error_fn, false);
    if (orig_error_fn == NULL)
-      orig_error_fn = set_error_fn(test_error_fn, false);
+      orig_error_fn = old_fn;
 #else
    fail_unless(orig_error_fn == NULL);
    orig_error_fn = set_error_fn(test_error_fn, false);

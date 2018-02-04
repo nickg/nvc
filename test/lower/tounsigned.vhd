@@ -9,7 +9,7 @@ package body p is
     variable RESULT: UNSIGNED(SIZE-1 downto 0);
     variable I_VAL: NATURAL := ARG;
   begin
-    for I in 0 to RESULT'LEFT loop
+    mainloop: for I in 0 to RESULT'LEFT loop
       if (I_VAL mod 2) = 0 then
         RESULT(I) := '0';
       else RESULT(I) := '1';

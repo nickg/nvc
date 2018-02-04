@@ -2905,7 +2905,7 @@ START_TEST(test_tounsigned)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_STORE, .name = "I.line_12" },
+      { VCODE_OP_STORE, .name = "I.MAINLOOP" },
       { VCODE_OP_JUMP, .target = 3 }
    };
 
@@ -2930,9 +2930,9 @@ START_TEST(test_tounsigned)
    CHECK_BB(3);
 
    EXPECT_BB(4) = {
-      { VCODE_OP_LOAD, .name = "I.line_12" },
+      { VCODE_OP_LOAD, .name = "I.MAINLOOP" },
       { VCODE_OP_ADDI, .value = 1 },
-      { VCODE_OP_STORE, .name = "I.line_12" },
+      { VCODE_OP_STORE, .name = "I.MAINLOOP" },
       { VCODE_OP_ADDI, .value = -1 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COND, .target = 2, .target_else = 3 }
@@ -2943,7 +2943,7 @@ START_TEST(test_tounsigned)
    EXPECT_BB(5) = {
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_LOAD, .name = "RESULT" },
-      { VCODE_OP_LOAD, .name = "I.line_12" },
+      { VCODE_OP_LOAD, .name = "I.MAINLOOP" },
       { VCODE_OP_ADDI, .value = -1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
@@ -2964,7 +2964,7 @@ START_TEST(test_tounsigned)
    EXPECT_BB(6) = {
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_LOAD, .name = "RESULT" },
-      { VCODE_OP_LOAD, .name = "I.line_12" },
+      { VCODE_OP_LOAD, .name = "I.MAINLOOP" },
       { VCODE_OP_ADDI, .value = -1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
