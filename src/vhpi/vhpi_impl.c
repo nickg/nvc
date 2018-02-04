@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2016  Nick Gasson
+//  Copyright (C) 2014-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -37,6 +37,11 @@
 #include <dlfcn.h>
 #include <stdarg.h>
 #include <stdlib.h>
+
+#ifdef __MINGW32__
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 typedef struct vhpi_cb  vhpi_cb_t;
 typedef struct vhpi_obj vhpi_obj_t;
@@ -1479,18 +1484,34 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
    do {
       notef("loading VHPI plugin %s", tok);
 
+#ifdef __MINGW32__
+      HMODULE hModule = LoadLibrary(tok);
+      if (hModule == NULL)
+         fatal_errno("failed to load %s", tok);
+
+      void (**startup_funcs)() =
+         (void (**)())GetProcAddress(hModule, "vhpi_startup_routines");
+
+      if (startup_funcs == NULL) {
+         warnf("could not find vhpi_startup_routines in %s", tok);
+         CloseHandle(hModule);
+         continue;
+      }
+#else
       void *handle = dlopen(tok, RTLD_LAZY);
       if (handle == NULL)
          fatal("%s", dlerror());
 
       (void)dlerror();
       void (**startup_funcs)() = dlsym(handle, "vhpi_startup_routines");
+
       const char *error = dlerror();
       if (error != NULL) {
          warnf("%s", error);
          dlclose(handle);
          continue;
       }
+#endif
 
       while (*startup_funcs)
          (*startup_funcs++)();
