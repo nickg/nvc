@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 
 #ifdef HAVE_EXECINFO_H
 #include <execinfo.h>
