@@ -34,13 +34,14 @@
 
 #include <string.h>
 #include <assert.h>
-#include <dlfcn.h>
 #include <stdarg.h>
 #include <stdlib.h>
 
 #ifdef __MINGW32__
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#else
+#include <dlfcn.h>
 #endif
 
 typedef struct vhpi_cb  vhpi_cb_t;

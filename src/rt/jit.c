@@ -27,7 +27,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
-#include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -47,6 +46,8 @@
 #ifdef __MINGW32__
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#else
+#include <dlfcn.h>
 #endif
 
 #define TRACE_MAX 10

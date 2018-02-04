@@ -1,0 +1,33 @@
+environment:
+  matrix:
+    - SYSTEM: MSYS
+      BITS: 64
+    #- SYSTEM: MSYS
+    #  BITS: 32
+    #- SYSTEM: CYGWIN
+
+install: 
+  - IF "%BITS%" == "32" SET ARCH=i686
+  - IF "%BITS%" == "64" SET ARCH=x86_64
+  - IF "%SYSTEM%" == "MSYS" SET PATH=C:\msys64\mingw%BITS%\bin;C:\msys64\usr\bin;%PATH%
+  - IF "%SYSTEM%" == "MSYS" pacman --noconfirm -S mingw-w64-%ARCH%-{llvm,check}
+  - IF "%SYSTEM%" == "CYGWIN" SET PATH=C:\cygwin\bin;%PATH%
+  - >-
+    IF "%SYSTEM%" == "CYGWIN" C:\cygwin\setup-x86.exe -qnNdO
+    -R C:/cygwin -s http://cygwin.mirror.constant.com
+    -l C:/cygwin/var/cache/setup -P flex -P libllvm-devel -P check
+    -P libncurses-devel -P libffi-devel
+
+build_script:
+  - pwd
+  - bash autoconf --version
+  - bash autogen.sh
+  - bash tools\fetch-ieee.sh
+  - dir
+  - mkdir build
+  - cd build
+  - bash ..\configure --enable-vhpi
+  - make
+  - make check
+
+test: false

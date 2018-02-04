@@ -21,9 +21,12 @@ download_file() {
   # download
   curl -sSL -o "$bn" "$url"
   # shasum
-case `uname` in
+  case `uname` in
       OpenBSD)
           check=$(sha256 -q "$bn")
+          ;;
+      MSYS*)
+          check=$(sha256sum "$bn" | cut -d' ' -f1)
           ;;
       *)
           check=$(shasum -a 256 "$bn" | awk '{ print $1 }')
@@ -34,7 +37,7 @@ case `uname` in
 
   if [ ! "$check" = "$sha" ]; then
     echo "Check failed!"
-    exit
+    exit 1
   fi
 }
 

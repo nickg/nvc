@@ -1,6 +1,7 @@
 ### Synopsis
 
 [![Build Status](https://travis-ci.org/nickg/nvc.svg?branch=master)](https://travis-ci.org/nickg/nvc)
+[![Windows status](https://ci.appveyor.com/api/projects/status/7eo8mjn98misbhva?svg=true)](https://ci.appveyor.com/project/nickg72247/nvc)
 [![Join the chat at https://gitter.im/nvc-vhdl/Lobby](https://badges.gitter.im/nvc-vhdl/Lobby.svg)](https://gitter.im/nvc-vhdl/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 NVC is a GPLv3 VHDL compiler and simulator aiming for IEEE 1076-1993 compliance. See
