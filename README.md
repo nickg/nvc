@@ -26,8 +26,8 @@ Report bugs using the [GitHub issue tracker](https://github.com/nickg/nvc/issues
 
 ### Installing
 
-NVC is developed on Debian Linux and has been reported to work on OS X
-and Windows under Cygwin. Ports to other Unix-like systems are welcome.
+NVC is developed on Debian Linux and has been reported to work on OS X and Windows
+under MSYS2 and Cygwin. Ports to other Unix-like systems are welcome.
 
 NVC has both a release branch and a development master branch. The master branch
 should be stable enough for day-to-day use and has comprehensive regression tests,

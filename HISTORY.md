@@ -1,5 +1,5 @@
 ## master
-- Nothing yet
+- Windows with MSYS2 is now fully supported
 
 ## 1.3 - 2017-12-31
 - Native code is always generated on platforms that support it
