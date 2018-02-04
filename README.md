@@ -1,14 +1,12 @@
 ### Synopsis
 
 [![Build Status](https://travis-ci.org/nickg/nvc.svg?branch=master)](https://travis-ci.org/nickg/nvc)
-[![Windows status](https://ci.appveyor.com/api/projects/status/7eo8mjn98misbhva?svg=true)](https://ci.appveyor.com/project/nickg72247/nvc)
+[![Windows status](https://ci.appveyor.com/api/projects/status/7eo8mjn98misbhva/branch/master?svg=true)](https://ci.appveyor.com/project/nickg72247/nvc/branch/master)
 [![Join the chat at https://gitter.im/nvc-vhdl/Lobby](https://badges.gitter.im/nvc-vhdl/Lobby.svg)](https://gitter.im/nvc-vhdl/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-NVC is a GPLv3 VHDL compiler and simulator aiming for IEEE 1076-1993 compliance. See
+NVC is a GPLv3 VHDL compiler and simulator aiming for IEEE 1076-2002 compliance. See
 these [blog posts](http://www.doof.me.uk/category/vhdl/) for background
-information. NVC should not be considered a production quality tool and language
-support is lacking in many areas. However it has been successfully used to simulate
-several real-world designs.
+information. NVC has been successfully used to simulate several real-world designs.
 
 Brief usage example:
 
@@ -27,15 +25,15 @@ Report bugs using the [GitHub issue tracker](https://github.com/nickg/nvc/issues
 
 ### Installing
 
-NVC is developed on Debian Linux and has been reported to work on OS X and Windows
-under MSYS2 and Cygwin. Ports to other Unix-like systems are welcome.
+NVC is developed on Debian Linux and is regularly tested on OS X and Windows under
+MSYS2 and Cygwin. Ports to other systems are welcome.
 
 NVC has both a release branch and a development master branch. The master branch
 should be stable enough for day-to-day use and has comprehensive regression tests,
 but the release branch is more suitable for third party packaging. The latest
 released version is
-[1.3.1](https://github.com/nickg/nvc/releases/download/r1.3.1/nvc-1.3.1.tar.gz). Significant
-changes since the last release are detailed in [HISTORY.md](HISTORY.md).
+[1.3.1](https://github.com/nickg/nvc/releases/download/r1.3.1/nvc-1.3.1.tar.gz).
+Significant changes since the last release are detailed in [HISTORY.md](HISTORY.md).
 
 To build from a Git clone:
 

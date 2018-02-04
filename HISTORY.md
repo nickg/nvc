@@ -1,5 +1,6 @@
 ## master
 - Windows with MSYS2 is now fully supported
+- Continuous integration for OS X and Windows using Travis and AppVeyor
 
 ## 1.3 - 2017-12-31
 - Native code is always generated on platforms that support it

@@ -1,8 +1,15 @@
-sudo: false
 language: c
-dist: trusty
-compiler:
-  - gcc
+
+matrix:
+  include:
+    - os: linux
+      dist: trusty
+      sudo: false
+      env:
+        - COVERAGE=true
+        - CONFARGS="--enable-gcov --with-llvm=/usr/bin/llvm-config-3.8"
+    - os: osx
+
 addons:
   apt:
     packages:
@@ -11,25 +18,39 @@ addons:
       - llvm-3.8-dev
       - check
       - lcov
+
+before_install:
+  - >-
+    if [ "$TRAVIS_OS_NAME" = "osx" ]; then
+      HOMEBREW_NO_AUTO_UPDATE=1 brew install llvm check
+      export PATH=$PATH:$(brew --prefix llvm)/bin
+    fi
+      
 install:
   - llvm-config --version
   - llvm-config --components
   - ./tools/fetch-ieee.sh
+
 script:
   - ./autogen.sh
   - mkdir build && cd build
-  - ../configure --enable-werror --enable-vhpi --enable-gcov --with-llvm=/usr/bin/llvm-config-3.8
-  - make cov-reset
+  - ../configure --enable-vhpi $CONFARGS
+  - if [ -n "$COVERAGE" ]; then make cov-reset; fi
   - make check
+
 after_success:
-  - make cov-report
   - git config user.name "Travis CI"
   - git config user.email "$COMMIT_AUTHOR_EMAIL"
-  - git clone https://$GITHUB_TOKEN:x-oauth-basic@github.com/nickg/nickg.github.io.git
-  - cp -ra coverage nickg.github.io
-  - cd nickg.github.io
-  - git add --all
-  - git commit -a -m "Travis CI coverage report"
-  - git push origin master
+  - >-
+    if [ -n "$COVERAGE" -a "$TRAVIS_BRANCH" = "master" ]; then
+      make cov-report
+      git clone https://$GITHUB_TOKEN:x-oauth-basic@github.com/nickg/nickg.github.io.git
+      cp -ra coverage nickg.github.io
+      cd nickg.github.io
+      git add --all
+      git commit -a -m "Travis CI coverage report"
+      git push origin master
+    fi
+
 notifications:
   email: true
