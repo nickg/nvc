@@ -5277,8 +5277,12 @@ static bool sem_check_ref(tree_t t)
 
          type_t type = tree_type(next);
 
+         const bool is_func = type_kind(type) == T_FUNC;
+         while (is_func && tree_kind(next) == T_ALIAS)
+            next = tree_ref(tree_value(next));
+
          const bool zero_arg_fn =
-            (type_kind(type) == T_FUNC)
+            is_func
             && (sem_required_args(next) == 0)
             && type_set_member(type_result(type));
 
