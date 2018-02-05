@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -496,6 +496,15 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
       }
 
    case T_OPEN:
+      if (tree_subkind(formal) == PORT_IN) {
+         if (tree_has_value(formal))
+            return tree_value(formal);
+         else
+            fatal_at(tree_loc(param), "formal %s with mode IN and no default "
+                     "value cannot be associated with OPEN",
+                     istr(tree_ident(formal)));
+      }
+
       return elab_open_value(formal);
 
    case T_TYPE_CONV:

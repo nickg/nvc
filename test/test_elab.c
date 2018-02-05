@@ -584,6 +584,25 @@ START_TEST(test_opencase)
 }
 END_TEST
 
+START_TEST(test_issue232)
+{
+   input_from_file(TESTDIR "/elab/issue232.vhd");
+
+   tree_t e = run_elab();
+
+   tree_t p0 = tree_stmt(e, 0);
+   fail_unless(tree_kind(p0) == T_PROCESS);
+   tree_t s0 = tree_stmt(p0, 0);
+   fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
+   tree_t v = tree_value(tree_waveform(s0, 0));
+   fail_unless(tree_kind(v) == T_LITERAL);
+   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_chars(v) == 2);
+   fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'A'"));
+   fail_unless(tree_ident(tree_char(v, 1)) == ident_new("'B'"));
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -627,6 +646,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue336);
    tcase_add_test(tc, test_openinout);
    tcase_add_test(tc, test_opencase);
+   tcase_add_test(tc, test_issue232);
    suite_add_tcase(s, tc);
 
    return s;
