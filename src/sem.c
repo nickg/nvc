@@ -3917,15 +3917,15 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
 
       tree_t value = tree_value(param);
       tree_kind_t kind = tree_kind(value);
-      while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)
-             || (kind == T_ALL) || (kind == T_RECORD_REF)) {
-         value = tree_value(value);
-         kind  = tree_kind(value);
-      }
 
-      if (kind == T_REF && tree_kind(tree_ref(value)) == T_ALIAS) {
-          value = tree_value(tree_ref(value));
-          kind  = tree_kind(value);
+      while (kind == T_ARRAY_REF || kind == T_ARRAY_SLICE
+             || kind == T_ALL || kind == T_RECORD_REF
+             || (kind == T_REF && tree_kind(tree_ref(value)) == T_ALIAS)) {
+         if (kind == T_REF)
+            value = tree_value(tree_ref(value));
+         else
+            value = tree_value(value);
+         kind = tree_kind(value);
       }
 
       if (class == C_SIGNAL) {

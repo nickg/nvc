@@ -1916,6 +1916,16 @@ START_TEST(test_issue341)
 }
 END_TEST
 
+START_TEST(test_issue340)
+{
+   input_from_file(TESTDIR "/sem/issue340.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == 0);
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2015,6 +2025,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue326);
    tcase_add_test(tc_core, test_issue232);
    tcase_add_test(tc_core, test_issue341);
+   tcase_add_test(tc_core, test_issue340);
    suite_add_tcase(s, tc_core);
 
    return s;
