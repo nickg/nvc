@@ -1884,6 +1884,22 @@ START_TEST(test_issue326)
 }
 END_TEST
 
+START_TEST(test_issue232)
+{
+   input_from_file(TESTDIR "/sem/issue232.vhd");
+
+   const error_t expect[] = {
+      { 20, "sub-elements of composite port cannot be associated with OPEN" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -1981,6 +1997,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_vests1);
    tcase_add_test(tc_core, test_issue369);
    tcase_add_test(tc_core, test_issue326);
+   tcase_add_test(tc_core, test_issue232);
    suite_add_tcase(s, tc_core);
 
    return s;

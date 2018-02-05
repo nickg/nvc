@@ -6177,7 +6177,15 @@ static bool sem_check_map(tree_t t, tree_t unit,
          has_named = true;
       }
 
-      ok = sem_check(tree_name(p)) && ok;
+      tree_t name = tree_name(p);
+
+      ok = sem_check(name) && ok;
+
+      const tree_kind_t name_kind = tree_kind(name);
+      if ((name_kind == T_ARRAY_REF || name_kind == T_ARRAY_SLICE)
+          && tree_kind(tree_value(p)) == T_OPEN)
+         sem_error(p, "sub-elements of composite port cannot be associated "
+                   "with OPEN");
    }
 
    if (has_named)
