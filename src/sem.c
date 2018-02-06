@@ -65,6 +65,7 @@ struct scope {
    tree_t         subprog;
    wait_level_t   wait_level;
    impure_io_t    impure_io;
+   tree_t         unit;
 
    // For design unit scopes
    ident_t        prefix;
@@ -137,6 +138,7 @@ static void scope_push(ident_t prefix)
    s->down       = top_scope;
    s->subprog    = (top_scope ? top_scope->subprog : NULL) ;
    s->flags      = (top_scope ? top_scope->flags : 0);
+   s->unit       = (top_scope ? top_scope->unit : NULL);
    s->deferred   = NULL;
    s->wait_level = WAITS_NO;
    s->impure_io  = 0;
@@ -1670,6 +1672,11 @@ static bool sem_check_selected_name(ident_t name, tree_t where, tree_t *pdecl)
       if (decl == NULL && lib != NULL) {
          if (!scope_import_unit(prefix, lib, false, false, tree_loc(where)))
             return false;
+
+         tree_t use = tree_new(T_USE);
+         tree_set_ident(use, prefix);
+         tree_add_context(top_scope->unit, use);
+
          lib = NULL;
          decl = scope_find(prefix);
       }
@@ -2871,6 +2878,7 @@ static bool sem_check_package(tree_t t)
 
    assert(top_scope == NULL);
    scope_push(NULL);
+   top_scope->unit = t;
 
    scope_insert(t);
    scope_insert_alias(t, qual);
@@ -2971,6 +2979,7 @@ static bool sem_check_pack_body(tree_t t)
 
    assert(top_scope == NULL);
    scope_push(NULL);
+   top_scope->unit = t;
 
    bool ok = sem_check_context_clause(pack) && sem_check_context_clause(t);
 
@@ -3112,6 +3121,7 @@ static bool sem_check_entity(tree_t t)
 {
    assert(top_scope == NULL);
    scope_push(NULL);
+   top_scope->unit = t;
 
    bool ok = sem_check_context_clause(t);
 
@@ -3164,6 +3174,7 @@ static bool sem_check_arch(tree_t t)
 
    assert(top_scope == NULL);
    scope_push(NULL);
+   top_scope->unit = t;
 
    // Make all port and generic declarations available in this scope
 
