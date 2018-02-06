@@ -4344,7 +4344,16 @@ static void lower_signal_decl(tree_t decl)
          rtype = lower_type(rbase);
       }
 
-      emit_set_initial(sig, init_reg, rfunc, rtype);
+      vcode_res_fn_t *resolution = NULL;
+      if (rfunc != NULL) {
+         resolution =
+            xmalloc(sizeof(vcode_res_fn_t) + sizeof(vcode_res_elem_t));
+         resolution->count = 1;
+         resolution->element[0].name = rfunc;
+         resolution->element[0].type = rtype;
+      }
+
+      emit_set_initial(sig, init_reg, resolution);
    }
 
    // Identify signals which potentially need 'LAST_VALUE

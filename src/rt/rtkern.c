@@ -1666,7 +1666,7 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
          const int8_t r = group->resolution->tab2[driving[0]][driving[1]];
          ((int8_t *)resolved)[j] = r;
       }
-  }
+   }
    else {
       // Must actually call resolution function in general case
 

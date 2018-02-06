@@ -180,6 +180,16 @@ typedef struct {
    size_t       nelems;
 } image_map_t;
 
+typedef struct {
+   ident_t      name;
+   vcode_type_t type;
+} vcode_res_elem_t;
+
+typedef struct {
+   size_t count;
+   vcode_res_elem_t element[];
+} vcode_res_fn_t;
+
 #define VCODE_INVALID_REG    -1
 #define VCODE_INVALID_BLOCK  -1
 #define VCODE_INVALID_VAR    -1
@@ -294,6 +304,7 @@ unsigned vcode_get_subkind(int op);
 uint32_t vcode_get_tag(int op);
 void vcode_get_image_map(int op, image_map_t *map);
 void vcode_clear_storage_hint(uint32_t tag);
+const vcode_res_fn_t *vcode_get_resolution(int op);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);
@@ -391,7 +402,7 @@ vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg);
 void emit_resolved_address(vcode_var_t var, vcode_signal_t signal);
 void emit_set_initial(vcode_signal_t signal, vcode_reg_t value,
-                      ident_t resolution, vcode_type_t type);
+                      vcode_res_fn_t *resolution);
 void emit_alloc_driver(vcode_reg_t all_nets, vcode_reg_t all_length,
                        vcode_reg_t driven_nets, vcode_reg_t driven_length,
                        vcode_reg_t init);

@@ -1746,9 +1746,9 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
    netid_t nid = vcode_signal_nets(sig)[0];
 
    LLVMValueRef resolution = NULL;
-   ident_t rfunc = vcode_get_func(op);
-   if (rfunc != NULL)
-      resolution = cgen_resolution_wrapper(rfunc, vcode_get_type(op));
+   const vcode_res_fn_t *rdata = vcode_get_resolution(op);
+   if (rdata != NULL)
+      resolution = cgen_resolution_wrapper(rdata->element[0].name, rdata->element[0].type);
    else
       resolution = LLVMConstNull(llvm_void_ptr());
 

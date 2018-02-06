@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2017  Nick Gasson
+//  Copyright (C) 2014-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -34,9 +34,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 
 #define OP_HAS_TYPE(x)                                                  \
    (x == VCODE_OP_BOUNDS || x == VCODE_OP_ALLOCA  || x == VCODE_OP_COPY \
-    || x == VCODE_OP_SET_INITIAL || x == VCODE_OP_INDEX_CHECK           \
-    || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
-    || VCODE_OP_CONST_RECORD)
+    || x == VCODE_OP_INDEX_CHECK || x == VCODE_OP_CONST                 \
+    || x == VCODE_OP_CAST || VCODE_OP_CONST_RECORD)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_RESOLVED_ADDRESS)
@@ -48,8 +47,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_NESTED_FCALL                   \
     || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME                      \
-    || x == VCODE_OP_SET_INITIAL || x == VCODE_OP_NESTED_PCALL          \
-    || x == VCODE_OP_NESTED_RESUME)
+    || x == VCODE_OP_NESTED_PCALL || x == VCODE_OP_NESTED_RESUME)
 #define OP_HAS_REAL(x)                                                  \
    (x == VCODE_OP_CONST_REAL)
 #define OP_HAS_VALUE(x)                                                 \
@@ -81,33 +79,36 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_IMAGE_MAP)
 #define OP_HAS_LOC(x)                                                   \
    (x == VCODE_OP_DEBUG_INFO)
+#define OP_HAS_RESOLUTION(x)                                            \
+   (x == VCODE_OP_SET_INITIAL)
 
 typedef struct {
    vcode_op_t          kind;
    vcode_reg_array_t   args;
    vcode_reg_t         result;
-   vcode_type_t        type;         // OP_HAS_TYPE
+   vcode_type_t        type;          // OP_HAS_TYPE
    union {
-      ident_t          func;         // OP_HAS_FUNC
-      vcode_var_t      address;      // OP_HAS_ADDRESS
-      unsigned         subkind;      // OP_HAS_SUBKIND
+      ident_t          func;          // OP_HAS_FUNC
+      vcode_var_t      address;       // OP_HAS_ADDRESS
+      unsigned         subkind;       // OP_HAS_SUBKIND
    };
    union {
-      loc_t               loc;       // OP_HAS_LOC
-      vcode_block_array_t targets;   // OP_HAS_TARGET
+      loc_t               loc;        // OP_HAS_LOC
+      vcode_block_array_t targets;    // OP_HAS_TARGET
+      vcode_res_fn_t     *resolution; // OP_HAS_RESOLUTION
    };
    union {
-      vcode_cmp_t      cmp;          // OP_HAS_CMP
-      int64_t          value;        // OP_HAS_VALUE
-      double           real;         // OP_HAS_REAL
-      char            *comment;      // OP_HAS_COMMENT
-      vcode_signal_t   signal;       // OP_HAS_SIGNAL
-      unsigned         dim;          // OP_HAS_DIM
-      unsigned         hops;         // OP_HAS_HOPS
-      unsigned         field;        // OP_HAS_FIELD
-      char            *hint;         // OP_HAS_HINT
-      uint32_t         tag;          // OP_HAS_TAG
-      image_map_t     *image_map;    // OP_HAS_IMAGE_MAP
+      vcode_cmp_t      cmp;           // OP_HAS_CMP
+      int64_t          value;         // OP_HAS_VALUE
+      double           real;          // OP_HAS_REAL
+      char            *comment;       // OP_HAS_COMMENT
+      vcode_signal_t   signal;        // OP_HAS_SIGNAL
+      unsigned         dim;           // OP_HAS_DIM
+      unsigned         hops;          // OP_HAS_HOPS
+      unsigned         field;         // OP_HAS_FIELD
+      char            *hint;          // OP_HAS_HINT
+      uint32_t         tag;           // OP_HAS_TAG
+      image_map_t     *image_map;     // OP_HAS_IMAGE_MAP
    };
 } op_t;
 
@@ -898,6 +899,13 @@ ident_t vcode_get_func(int op)
    op_t *o = vcode_op_data(op);
    assert(OP_HAS_FUNC(o->kind));
    return o->func;
+}
+
+const vcode_res_fn_t *vcode_get_resolution(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(OP_HAS_RESOLUTION(o->kind));
+   return o->resolution;
 }
 
 void vcode_get_image_map(int op, image_map_t *map)
@@ -4113,12 +4121,11 @@ void emit_resolved_address(vcode_var_t var, vcode_signal_t signal)
 }
 
 void emit_set_initial(vcode_signal_t signal, vcode_reg_t value,
-                      ident_t resolution, vcode_type_t type)
+                      vcode_res_fn_t *resolution)
 {
    op_t *op = vcode_add_op(VCODE_OP_SET_INITIAL);
-   op->signal   = signal;
-   op->func     = resolution;
-   op->type     = type;
+   op->signal     = signal;
+   op->resolution = resolution;
    vcode_add_arg(op, value);
 }
 
@@ -4942,6 +4949,15 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
             else
                write_u8(0, f);
          }
+         if (OP_HAS_RESOLUTION(op->kind)) {
+            write_u32(op->resolution->count, f);
+            if (op->resolution->count > 0) {
+               for (size_t i = 0; i < op->resolution->count; i++) {
+                  ident_write(op->resolution->element[i].name, ident_wr_ctx);
+                  write_u32(op->resolution->element[i].type, f);
+               }
+            }
+         }
       }
    }
 
@@ -5152,6 +5168,20 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx)
             }
             else
                op->image_map->values = NULL;
+         }
+         if (OP_HAS_RESOLUTION(op->kind)) {
+            size_t count = read_u32(f);
+            if (count == 0)
+               op->resolution = NULL;
+            else {
+               op->resolution = xmalloc(sizeof(vcode_res_fn_t)
+                                        + count * sizeof(vcode_res_elem_t));
+               op->resolution->count = count;
+               for (size_t i = 0; i < count; i++) {
+                  op->resolution->element[i].name = ident_read(ident_rd_ctx);
+                  op->resolution->element[i].type = read_u32(f);
+               }
+            }
          }
       }
    }
