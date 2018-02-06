@@ -192,6 +192,7 @@ static LLVMTypeRef llvm_size_list_type(void)
    LLVMTypeRef struct_elems[] = {
       LLVMInt32Type(),
       LLVMInt32Type(),
+      llvm_void_ptr()
    };
    return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
 }
@@ -1741,6 +1742,13 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
                                                 llvm_int32(size_list.count),
                                                 "size_list");
 
+   LLVMValueRef resolution = NULL;
+   const vcode_res_fn_t *rdata = vcode_get_resolution(op);
+   if (rdata != NULL)
+      resolution = cgen_resolution_wrapper(rdata->element[0].name, rdata->element[0].type);
+   else
+      resolution = LLVMConstNull(llvm_void_ptr());
+
    for (unsigned i = 0; i < size_list.count; i++) {
       LLVMValueRef offset[] = { llvm_int32(i) };
       LLVMValueRef elemptr = LLVMBuildGEP(builder, list_mem, offset, 1, "");
@@ -1749,17 +1757,12 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
                      LLVMBuildStructGEP(builder, elemptr, 0, ""));
       LLVMBuildStore(builder, llvm_int32(size_list.items[i].count),
                      LLVMBuildStructGEP(builder, elemptr, 1, ""));
+      LLVMBuildStore(builder, resolution,
+                     LLVMBuildStructGEP(builder, elemptr, 2, ""));
    }
 
    // Assuming array nets are sequential
    netid_t nid = vcode_signal_nets(sig)[0];
-
-   LLVMValueRef resolution = NULL;
-   const vcode_res_fn_t *rdata = vcode_get_resolution(op);
-   if (rdata != NULL)
-      resolution = cgen_resolution_wrapper(rdata->element[0].name, rdata->element[0].type);
-   else
-      resolution = LLVMConstNull(llvm_void_ptr());
 
    const char *sig_name = istr(vcode_signal_name(sig));
    const char *global_name LOCAL = xasprintf("%s.name", sig_name);
@@ -1780,7 +1783,6 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
       llvm_void_cast(valptr),
       list_mem,
       llvm_int32(size_list.count),
-      resolution,
       llvm_void_cast(name_ll)
    };
    LLVMBuildCall(builder, llvm_fn("_set_initial"), args, ARRAY_LEN(args), "");
@@ -3487,7 +3489,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_void_ptr(),
          LLVMPointerType(llvm_size_list_type(), 0),
          LLVMInt32Type(),
-         llvm_void_ptr(),
          LLVMPointerType(LLVMInt8Type(), 0)
       };
       fn = LLVMAddFunction(module, "_set_initial",

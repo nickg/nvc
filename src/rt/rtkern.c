@@ -220,6 +220,7 @@ struct rt_loc {
 struct size_list {
    uint32_t size;
    uint32_t count;
+   void    *resolution;
 };
 
 typedef enum {
@@ -608,7 +609,7 @@ void _needs_last_value(const int32_t *nids, int32_t n)
 DLLEXPORT
 void _set_initial(int32_t nid, const uint8_t *values,
                   const size_list_t *size_list, int32_t nparts,
-                  void *resolution, const char *name)
+                  const char *name)
 {
    tree_t decl = rt_recall_decl(name);
    RT_ASSERT(tree_kind(decl) == T_SIGNAL_DECL);
@@ -616,16 +617,14 @@ void _set_initial(int32_t nid, const uint8_t *values,
    TRACE("_set_initial %s values=%s nparts=%d", name,
          fmt_values(values, size_list[0].count * size_list[1].size), nparts);
 
-   res_memo_t *memo = NULL;
-   if (resolution != NULL)
-      memo = rt_memo_resolution_fn(tree_type(decl), resolution);
-
    int total_size = 0;
    for (int i = 0; i < nparts; i++)
       total_size += size_list[i].size * size_list[i].count;
 
    uint8_t *res_mem  = xmalloc(total_size * 2);
    uint8_t *last_mem = res_mem + total_size;
+
+   type_t type = tree_type(decl);
 
    const uint8_t *src = values;
    int offset = 0, part = 0, remain = size_list[0].count;
@@ -637,6 +636,10 @@ void _set_initial(int32_t nid, const uint8_t *values,
 
       RT_ASSERT(g->sig_decl == NULL);
       RT_ASSERT(remain >= g->length);
+
+      res_memo_t *memo = NULL;
+      if (size_list[part].resolution != NULL)
+         memo = rt_memo_resolution_fn(type, size_list[part].resolution);
 
       g->sig_decl   = decl;
       g->resolution = memo;
