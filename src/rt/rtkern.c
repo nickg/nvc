@@ -615,7 +615,7 @@ void _set_initial(int32_t nid, const uint8_t *values,
    RT_ASSERT(tree_kind(decl) == T_SIGNAL_DECL);
 
    TRACE("_set_initial %s values=%s nparts=%d", name,
-         fmt_values(values, size_list[0].count * size_list[1].size), nparts);
+         fmt_values(values, size_list[0].count * size_list[0].size), nparts);
 
    int total_size = 0;
    for (int i = 0; i < nparts; i++)

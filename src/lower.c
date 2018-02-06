@@ -4267,6 +4267,48 @@ static void lower_var_decl(tree_t decl)
       emit_store(value, var);
 }
 
+static bool lower_resolution_func(type_t type, vcode_res_fn_t **data,
+                                  size_t *max_elems)
+{
+   if (type_is_array(type))
+      return lower_resolution_func(type_elem(type), data, max_elems);
+   else if (type_kind(type) == T_SUBTYPE && type_has_resolution(type)) {
+      ident_t rfunc = lower_mangle_func(tree_ref(type_resolution(type)),
+                                        vcode_unit_context());
+      vcode_type_t rtype = lower_type(type);
+
+      if (*data == NULL) {
+         *data = xmalloc(sizeof(vcode_res_fn_t) + sizeof(vcode_res_elem_t));
+         (*data)->count = 1;
+         *max_elems = 1;
+      }
+      else if ((*data)->count == *max_elems) {
+         *max_elems *= 4;
+         const size_t newsz =
+            sizeof(vcode_res_fn_t) + *max_elems * sizeof(vcode_res_elem_t);
+         *data = xrealloc(*data, newsz);
+         (*data)->count++;
+      }
+
+      (*data)->element[(*data)->count - 1].name = rfunc;
+      (*data)->element[(*data)->count - 1].type = rtype;
+
+      return true;
+   }
+   else if (type_is_record(type)) {
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         type_t ftype = tree_type(type_field(type, i));
+         if (!lower_resolution_func(ftype, data, max_elems))
+            return false;
+      }
+
+      return true;
+   }
+   else
+      return false;
+}
+
 static void lower_signal_decl(tree_t decl)
 {
    int nnets = tree_nets(decl);
@@ -4329,28 +4371,11 @@ static void lower_signal_decl(tree_t decl)
          init_reg = lower_array_data(init_reg);
       }
 
-      ident_t rfunc = NULL;
-      vcode_type_t rtype = VCODE_INVALID_TYPE;
-
-      type_t rbase = type;
-      while (type_is_array(rbase)
-             && (type_kind(rbase) != T_SUBTYPE
-                 || !type_has_resolution(rbase)))
-         rbase = type_elem(rbase);
-
-      if (type_kind(rbase) == T_SUBTYPE && type_has_resolution(rbase)) {
-         rfunc = lower_mangle_func(tree_ref(type_resolution(rbase)),
-                                   vcode_unit_context());
-         rtype = lower_type(rbase);
-      }
-
       vcode_res_fn_t *resolution = NULL;
-      if (rfunc != NULL) {
-         resolution =
-            xmalloc(sizeof(vcode_res_fn_t) + sizeof(vcode_res_elem_t));
-         resolution->count = 1;
-         resolution->element[0].name = rfunc;
-         resolution->element[0].type = rtype;
+      size_t max_elems = 0;
+      if (!lower_resolution_func(type, &resolution, &max_elems)) {
+         free(resolution);
+         resolution = NULL;
       }
 
       emit_set_initial(sig, init_reg, resolution);

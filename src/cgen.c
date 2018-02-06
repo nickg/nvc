@@ -59,6 +59,7 @@ typedef struct {
 typedef struct {
    unsigned     count;
    LLVMValueRef size;
+   LLVMValueRef resolution;
 } size_list_t;
 
 DECLARE_AND_DEFINE_ARRAY(size_list)
@@ -78,6 +79,7 @@ static size_t n_link_args = 0;
 static size_t max_link_args = 0;
 
 static LLVMValueRef cgen_support_fn(const char *name);
+static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -1619,19 +1621,34 @@ static void cgen_op_sched_waveform(int op, cgen_ctx_t *ctx)
 }
 
 static void cgen_append_size_list(size_list_array_t *list,
-                                  vcode_type_t elem, unsigned count)
+                                  vcode_type_t elem, unsigned count,
+                                  const vcode_res_fn_t *resolution,
+                                  size_t *res_elem)
 {
    size_list_t *result = size_list_array_alloc(list);
    result->size  = llvm_sizeof(cgen_type(elem));
    result->count = count;
+
+   if (resolution != NULL) {
+      assert(*res_elem < resolution->count);
+
+      result->resolution =
+         cgen_resolution_wrapper(resolution->element[*res_elem].name,
+                                 resolution->element[*res_elem].type);
+
+      ++(*res_elem);
+   }
+   else
+      result->resolution = LLVMConstNull(llvm_void_ptr());
 }
 
-static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
+static void cgen_size_list(size_list_array_t *list, vcode_type_t type,
+                           const vcode_res_fn_t *resolution, size_t *res_elem)
 {
    switch (vtype_kind(type)) {
    case VCODE_TYPE_INT:
    case VCODE_TYPE_REAL:
-      cgen_append_size_list(list, type, 1);
+      cgen_append_size_list(list, type, 1, resolution, res_elem);
       break;
    case VCODE_TYPE_CARRAY:
       {
@@ -1639,17 +1656,18 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
          if (vtype_kind(elem) == VCODE_TYPE_RECORD) {
             const int nelems = vtype_size(type);
             for (int i = 0; i < nelems; i++)
-               cgen_size_list(list, elem);
+               cgen_size_list(list, elem, resolution, res_elem);
          }
          else
-            cgen_append_size_list(list, elem, vtype_size(type));
+            cgen_append_size_list(list, elem, vtype_size(type),
+                                  resolution, res_elem);
       }
       break;
    case VCODE_TYPE_RECORD:
       {
          const int nfields = vtype_fields(type);
          for (int i = 0; i < nfields; i++)
-            cgen_size_list(list, vtype_field(type, i));
+            cgen_size_list(list, vtype_field(type, i), resolution, res_elem);
       }
       break;
    default:
@@ -1735,19 +1753,15 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef valptr = cgen_pointer_to_arg_data(op, 0, ctx);
 
+   const vcode_res_fn_t *rdata = vcode_get_resolution(op);
+
+   size_t res_elem = 0;
    size_list_array_t size_list = { 0, NULL };
-   cgen_size_list(&size_list, type);
+   cgen_size_list(&size_list, type, rdata, &res_elem);
 
    LLVMValueRef list_mem = LLVMBuildArrayAlloca(builder, llvm_size_list_type(),
                                                 llvm_int32(size_list.count),
                                                 "size_list");
-
-   LLVMValueRef resolution = NULL;
-   const vcode_res_fn_t *rdata = vcode_get_resolution(op);
-   if (rdata != NULL)
-      resolution = cgen_resolution_wrapper(rdata->element[0].name, rdata->element[0].type);
-   else
-      resolution = LLVMConstNull(llvm_void_ptr());
 
    for (unsigned i = 0; i < size_list.count; i++) {
       LLVMValueRef offset[] = { llvm_int32(i) };
@@ -1757,7 +1771,7 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
                      LLVMBuildStructGEP(builder, elemptr, 0, ""));
       LLVMBuildStore(builder, llvm_int32(size_list.items[i].count),
                      LLVMBuildStructGEP(builder, elemptr, 1, ""));
-      LLVMBuildStore(builder, resolution,
+      LLVMBuildStore(builder, size_list.items[i].resolution,
                      LLVMBuildStructGEP(builder, elemptr, 2, ""));
    }
 
