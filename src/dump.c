@@ -874,6 +874,7 @@ static void dump_context(tree_t t)
             printf(".%s", istr(tree_ident2(c)));
          }
          printf(";\n");
+         break;
 
       default:
          break;

@@ -2627,8 +2627,13 @@ static bool sem_check_func_body(tree_t t)
    bool ok = sem_make_visible(t, tree_port, tree_ports(t));
 
    const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      ok = sem_check(tree_decl(t, i)) && ok;
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      ok = sem_check(d) && ok;
+
+      if (tree_kind(d) == T_USE)
+         tree_add_context(top_scope->unit, d);
+   }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
@@ -2732,8 +2737,13 @@ static bool sem_check_proc_body(tree_t t)
    bool ok = sem_make_visible(t, tree_port, tree_ports(t));
 
    const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      ok = sem_check(tree_decl(t, i)) && ok;
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      ok = sem_check(d) && ok;
+
+      if (tree_kind(d) == T_USE)
+         tree_add_context(top_scope->unit, d);
+   }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
@@ -2856,6 +2866,9 @@ static bool sem_check_process(tree_t t)
 
       if (!synthetic_name)
          scope_insert_alias(d, unqual);
+
+      if (tree_kind(d) == T_USE)
+         tree_add_context(top_scope->unit, d);
    }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
@@ -3139,8 +3152,13 @@ static bool sem_check_entity(tree_t t)
       if (ndecls > 0 || nstmts > 0)
          ok = sem_make_visible(t, tree_port, tree_ports(t)) && ok;
 
-      for (int n = 0; n < ndecls; n++)
-         ok = sem_check(tree_decl(t, n)) && ok;
+      for (int n = 0; n < ndecls; n++) {
+         tree_t d = tree_decl(t, n);
+         ok = sem_check(d) && ok;
+
+         if (tree_kind(d) == T_USE)
+            tree_add_context(top_scope->unit, d);
+      }
 
       ok = ok && sem_check_stmts(t, tree_stmt, nstmts);
    }
@@ -3202,6 +3220,9 @@ static bool sem_check_arch(tree_t t)
          tree_t d = tree_decl(t, n);
          if ((ok = sem_check(d) && ok))
             sem_check_static_elab(d);
+
+         if (tree_kind(d) == T_USE)
+            tree_add_context(t, d);
       }
    }
 
@@ -6925,6 +6946,9 @@ static bool sem_check_block(tree_t t)
          sem_check_static_elab(d);
 
       scope_insert_alias(d, unqual);
+
+      if (tree_kind(d) == T_USE)
+         tree_add_context(top_scope->unit, d);
    }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
@@ -7072,8 +7096,13 @@ static bool sem_check_if_generate(tree_t t)
    bool ok = true;
 
    const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      ok = sem_check(tree_decl(t, i)) && ok;
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      ok = sem_check(d) && ok;
+
+      if (tree_kind(d) == T_USE)
+         tree_add_context(top_scope->unit, d);
+   }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
@@ -7108,8 +7137,13 @@ static bool sem_check_for_generate(tree_t t)
    bool ok = true;
 
    const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      ok = sem_check(tree_decl(t, i)) && ok;
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      ok = sem_check(d) && ok;
+
+      if (tree_kind(d) == T_USE)
+         tree_add_context(top_scope->unit, d);
+   }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 

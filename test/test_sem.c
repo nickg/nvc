@@ -1926,6 +1926,28 @@ START_TEST(test_issue340)
 }
 END_TEST
 
+START_TEST(test_issue225)
+{
+   input_from_file(TESTDIR "/sem/issue225.vhd");
+
+   tree_t a = parse_and_check(T_PACKAGE, T_PACKAGE, T_PACKAGE, T_PACKAGE,
+                              T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == 0);
+
+   fail_unless(tree_contexts(a) == 7);
+   fail_unless(tree_ident(tree_context(a, 2)) == ident_new("WORK.P2"));
+   fail_unless(tree_ident(tree_context(a, 3)) == ident_new("WORK.P3"));
+   fail_unless(tree_ident(tree_context(a, 4)) == ident_new("WORK.P4"));
+   fail_unless(tree_ident(tree_context(a, 5)) == ident_new("WORK.P5"));
+   fail_unless(tree_ident(tree_context(a, 6)) == ident_new("WORK.P6"));
+
+   tree_t e = tree_ref(a);
+   fail_unless(tree_contexts(e) == 3);
+   fail_unless(tree_ident(tree_context(e, 2)) == ident_new("WORK.P1"));
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2026,6 +2048,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue232);
    tcase_add_test(tc_core, test_issue341);
    tcase_add_test(tc_core, test_issue340);
+   tcase_add_test(tc_core, test_issue225);
    suite_add_tcase(s, tc_core);
 
    return s;
