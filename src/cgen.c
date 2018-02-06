@@ -187,6 +187,15 @@ static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
    return LLVMStructType(fields, ARRAY_LEN(fields), false);
 }
 
+static LLVMTypeRef llvm_size_list_type(void)
+{
+   LLVMTypeRef struct_elems[] = {
+      LLVMInt32Type(),
+      LLVMInt32Type(),
+   };
+   return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
+}
+
 #if 0
 static void debug_out(LLVMValueRef val)
 {
@@ -1728,18 +1737,18 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
    size_list_array_t size_list = { 0, NULL };
    cgen_size_list(&size_list, type);
 
-   LLVMValueRef list_mem = LLVMBuildArrayAlloca(builder, LLVMInt32Type(),
-                                                llvm_int32(size_list.count * 2),
+   LLVMValueRef list_mem = LLVMBuildArrayAlloca(builder, llvm_size_list_type(),
+                                                llvm_int32(size_list.count),
                                                 "size_list");
 
    for (unsigned i = 0; i < size_list.count; i++) {
-      LLVMValueRef zero[] = { llvm_int32((i * 2) + 0) };
-      LLVMBuildStore(builder, size_list.items[i].size,
-                     LLVMBuildGEP(builder, list_mem, zero, 1, ""));
+      LLVMValueRef offset[] = { llvm_int32(i) };
+      LLVMValueRef elemptr = LLVMBuildGEP(builder, list_mem, offset, 1, "");
 
-      LLVMValueRef one[] = { llvm_int32((i * 2) + 1) };
+      LLVMBuildStore(builder, size_list.items[i].size,
+                     LLVMBuildStructGEP(builder, elemptr, 0, ""));
       LLVMBuildStore(builder, llvm_int32(size_list.items[i].count),
-                     LLVMBuildGEP(builder, list_mem, one, 1, ""));
+                     LLVMBuildStructGEP(builder, elemptr, 1, ""));
    }
 
    // Assuming array nets are sequential
@@ -3476,7 +3485,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       LLVMTypeRef args[] = {
          LLVMInt32Type(),
          llvm_void_ptr(),
-         LLVMPointerType(LLVMInt32Type(), 0),
+         LLVMPointerType(llvm_size_list_type(), 0),
          LLVMInt32Type(),
          llvm_void_ptr(),
          LLVMPointerType(LLVMInt8Type(), 0)

@@ -70,6 +70,7 @@ typedef struct res_memo   res_memo_t;
 typedef struct callback   callback_t;
 typedef struct image_map  image_map_t;
 typedef struct rt_loc     rt_loc_t;
+typedef struct size_list  size_list_t;
 
 struct rt_proc {
    tree_t    source;
@@ -214,6 +215,11 @@ struct rt_loc {
    int16_t     first_column;
    int16_t     last_column;
    const char *file;
+};
+
+struct size_list {
+   uint32_t size;
+   uint32_t count;
 };
 
 typedef enum {
@@ -600,14 +606,15 @@ void _needs_last_value(const int32_t *nids, int32_t n)
 }
 
 DLLEXPORT
-void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
-                  int32_t nparts, void *resolution, const char *name)
+void _set_initial(int32_t nid, const uint8_t *values,
+                  const size_list_t *size_list, int32_t nparts,
+                  void *resolution, const char *name)
 {
    tree_t decl = rt_recall_decl(name);
    RT_ASSERT(tree_kind(decl) == T_SIGNAL_DECL);
 
    TRACE("_set_initial %s values=%s nparts=%d", name,
-         fmt_values(values, size_list[0] * size_list[1]), nparts);
+         fmt_values(values, size_list[0].count * size_list[1].size), nparts);
 
    res_memo_t *memo = NULL;
    if (resolution != NULL)
@@ -615,18 +622,18 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
 
    int total_size = 0;
    for (int i = 0; i < nparts; i++)
-      total_size += size_list[i * 2] * size_list[(i * 2) + 1];
+      total_size += size_list[i].size * size_list[i].count;
 
    uint8_t *res_mem  = xmalloc(total_size * 2);
    uint8_t *last_mem = res_mem + total_size;
 
    const uint8_t *src = values;
-   int offset = 0, part = 0, remain = size_list[1];
+   int offset = 0, part = 0, remain = size_list[0].count;
    while (part < nparts) {
       groupid_t gid = netdb_lookup(netdb, nid + offset);
       netgroup_t *g = &(groups[gid]);
 
-      const int size = size_list[part * 2];
+      const int size = size_list[part].size;
 
       RT_ASSERT(g->sig_decl == NULL);
       RT_ASSERT(remain >= g->length);
@@ -654,7 +661,7 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
 
       if (remain == 0) {
          part++;
-         remain = size_list[(part * 2) + 1];
+         remain = size_list[part].count;
       }
    }
 }
