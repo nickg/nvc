@@ -4278,8 +4278,7 @@ static bool lower_resolution_func(type_t type, vcode_res_fn_t **data,
       vcode_type_t rtype = lower_type(type);
 
       if (*data == NULL) {
-         *data = xmalloc(sizeof(vcode_res_fn_t) + sizeof(vcode_res_elem_t));
-         (*data)->count = 1;
+         *data = xcalloc(sizeof(vcode_res_fn_t) + sizeof(vcode_res_elem_t));
          *max_elems = 1;
       }
       else if ((*data)->count == *max_elems) {
@@ -4287,11 +4286,12 @@ static bool lower_resolution_func(type_t type, vcode_res_fn_t **data,
          const size_t newsz =
             sizeof(vcode_res_fn_t) + *max_elems * sizeof(vcode_res_elem_t);
          *data = xrealloc(*data, newsz);
-         (*data)->count++;
       }
 
-      (*data)->element[(*data)->count - 1].name = rfunc;
-      (*data)->element[(*data)->count - 1].type = rtype;
+      const int elem = (*data)->count++;
+
+      (*data)->element[elem].name = rfunc;
+      (*data)->element[elem].type = rtype;
 
       return true;
    }
