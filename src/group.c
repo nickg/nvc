@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2016  Nick Gasson
+//  Copyright (C) 2013-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -436,22 +436,19 @@ static void ungroup_proc_params(tree_t t, group_nets_ctx_t *ctx)
    for (int i = 0; i < nparams; i++) {
       tree_t value = tree_value(tree_param(t, i));
 
-      while (tree_kind(value) != T_REF) {
-         switch (tree_kind(value)) {
-         case T_ARRAY_REF:
-         case T_ARRAY_SLICE:
-            value = tree_value(value);
-            break;
-
-         default:
-            return;
-         }
+      tree_kind_t kind = tree_kind(value);
+      while (kind == T_ARRAY_REF || kind == T_ARRAY_SLICE) {
+         value = tree_value(value);
+         kind = tree_kind(value);
       }
+
+      if (kind != T_REF)
+         continue;
 
       tree_t decl = tree_ref(value);
 
       if (tree_kind(decl) != T_SIGNAL_DECL)
-         return;
+         continue;
 
       const int nnets = tree_nets(decl);
       for (int i = 0; i < nnets; i++)
