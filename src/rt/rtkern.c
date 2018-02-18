@@ -671,6 +671,20 @@ void _set_initial(int32_t nid, const uint8_t *values,
 }
 
 DLLEXPORT
+void _set_initial_1(int32_t nid, const uint8_t *values, uint32_t size,
+                    uint32_t count, void *resolution, const char *name)
+{
+   const size_list_t size_list = {
+      .size       = size,
+      .count      = count,
+      .resolution = resolution,
+      .flags      = 0
+   };
+
+   _set_initial(nid, values, &size_list, 1, name);
+}
+
+DLLEXPORT
 void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
                   int8_t is_report, const rt_loc_t *where)
 {

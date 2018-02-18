@@ -1776,24 +1776,6 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
    size_list_array_t size_list = { 0, NULL };
    cgen_size_list(&size_list, type, rdata, &res_elem);
 
-   LLVMValueRef list_mem = LLVMBuildArrayAlloca(builder, llvm_size_list_type(),
-                                                llvm_int32(size_list.count),
-                                                "size_list");
-
-   for (unsigned i = 0; i < size_list.count; i++) {
-      LLVMValueRef offset[] = { llvm_int32(i) };
-      LLVMValueRef elemptr = LLVMBuildGEP(builder, list_mem, offset, 1, "");
-
-      LLVMBuildStore(builder, size_list.items[i].size,
-                     LLVMBuildStructGEP(builder, elemptr, 0, ""));
-      LLVMBuildStore(builder, llvm_int32(size_list.items[i].count),
-                     LLVMBuildStructGEP(builder, elemptr, 1, ""));
-      LLVMBuildStore(builder, size_list.items[i].resolution,
-                     LLVMBuildStructGEP(builder, elemptr, 2, ""));
-      LLVMBuildStore(builder, llvm_int32(size_list.items[i].flags),
-                     LLVMBuildStructGEP(builder, elemptr, 3, ""));
-   }
-
    // Assuming array nets are sequential
    netid_t nid = vcode_signal_nets(sig)[0];
 
@@ -1811,14 +1793,48 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
       LLVMSetUnnamedAddr(name_ll, true);
    }
 
-   LLVMValueRef args[] = {
-      llvm_int32(nid),
-      llvm_void_cast(valptr),
-      list_mem,
-      llvm_int32(size_list.count),
-      llvm_void_cast(name_ll)
-   };
-   LLVMBuildCall(builder, llvm_fn("_set_initial"), args, ARRAY_LEN(args), "");
+   if (size_list.count == 1 && size_list.items[0].flags == 0) {
+      LLVMValueRef args[] = {
+         llvm_int32(nid),
+         llvm_void_cast(valptr),
+         size_list.items[0].size,
+         llvm_int32(size_list.items[0].count),
+         llvm_void_cast(size_list.items[0].resolution),
+         llvm_void_cast(name_ll)
+      };
+      LLVMBuildCall(builder, llvm_fn("_set_initial_1"), args,
+                    ARRAY_LEN(args), "");
+   }
+   else {
+      LLVMValueRef list_mem =
+         LLVMBuildArrayAlloca(builder, llvm_size_list_type(),
+                              llvm_int32(size_list.count),
+                              "size_list");
+
+      for (unsigned i = 0; i < size_list.count; i++) {
+         LLVMValueRef offset[] = { llvm_int32(i) };
+         LLVMValueRef elemptr = LLVMBuildGEP(builder, list_mem, offset, 1, "");
+
+         LLVMBuildStore(builder, size_list.items[i].size,
+                        LLVMBuildStructGEP(builder, elemptr, 0, ""));
+         LLVMBuildStore(builder, llvm_int32(size_list.items[i].count),
+                        LLVMBuildStructGEP(builder, elemptr, 1, ""));
+         LLVMBuildStore(builder, size_list.items[i].resolution,
+                        LLVMBuildStructGEP(builder, elemptr, 2, ""));
+         LLVMBuildStore(builder, llvm_int32(size_list.items[i].flags),
+                        LLVMBuildStructGEP(builder, elemptr, 3, ""));
+      }
+
+      LLVMValueRef args[] = {
+         llvm_int32(nid),
+         llvm_void_cast(valptr),
+         list_mem,
+         llvm_int32(size_list.count),
+         llvm_void_cast(name_ll)
+      };
+      LLVMBuildCall(builder, llvm_fn("_set_initial"), args,
+                    ARRAY_LEN(args), "");
+   }
 
    free(size_list.items);
 }
@@ -3525,6 +3541,19 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMInt8Type(), 0)
       };
       fn = LLVMAddFunction(module, "_set_initial",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_set_initial_1") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt32Type(),
+         llvm_void_ptr(),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         llvm_void_ptr(),
+         LLVMPointerType(LLVMInt8Type(), 0)
+      };
+      fn = LLVMAddFunction(module, "_set_initial_1",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
    }
