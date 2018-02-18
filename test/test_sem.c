@@ -942,7 +942,7 @@ START_TEST(test_config)
    input_from_file(TESTDIR "/sem/config.vhd");
 
    parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ENTITY,
-                   T_ARCH, T_CONFIG);
+                   T_ARCH, T_CONFIGURATION);
 
    fail_unless(sem_errors() == 0);
 }

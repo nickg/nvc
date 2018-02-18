@@ -130,11 +130,10 @@ static tree_t p_subprogram_declaration(tree_t spec);
 static tree_t p_subprogram_body(tree_t spec);
 static tree_t p_subprogram_specification(void);
 static tree_t p_name(void);
-static void p_block_configuration(tree_t unit);
+static tree_t p_block_configuration(void);
 static tree_t p_protected_type_body(void);
 static bool p_cond_analysis_expr(void);
 
-static const char *token_str(token_t tok);
 static bool consume(token_t tok);
 static bool optional(token_t tok);
 
@@ -4347,10 +4346,28 @@ static void p_configuration_item(tree_t unit)
    const token_t third = peek_nth(3);
    if ((third == tCOLON) || (third == tCOMMA))
       p_component_configuration(unit);
+   else
+      tree_add_decl(unit, p_block_configuration());
+}
+
+static void p_index_specification(void)
+{
+   // discrete_range | expression
+
+   const look_params_t lookp = {
+      .look     = { tDOWNTO, tTO, tRANGE, tREVRANGE },
+      .stop     = { tRPAREN, tCOMMA, tASSOC, tBAR },
+      .abort    = tSEMI,
+      .nest_in  = tLPAREN,
+      .nest_out = tRPAREN,
+      .depth    = 0
+   };
+
+   if (look_for(&lookp)) {
+      p_discrete_range();
+   }
    else {
-      consume(tFOR);
-      parse_error(&last_loc, "nested block configuration not supported");
-      //p_block_configuration(unit);
+      p_expression();
    }
 }
 
@@ -4360,12 +4377,15 @@ static void p_block_specification(tree_t unit)
 
    BEGIN("block specification");
 
-   tree_set_ident2(unit, ident_prefix(tree_ident2(unit), p_identifier(), '-'));
+   tree_set_ident(unit, p_identifier());
 
-   // TODO: [ ( index_specification ) ]
+   if (optional(tLPAREN)) {
+      p_index_specification();
+      consume(tRPAREN);
+   }
 }
 
-static void p_block_configuration(tree_t unit)
+static tree_t p_block_configuration(void)
 {
    // for block_specification { use_clause } { configuration_item } end for ;
 
@@ -4373,14 +4393,18 @@ static void p_block_configuration(tree_t unit)
 
    consume(tFOR);
 
-   p_block_specification(unit);
+   tree_t b = tree_new(T_BLOCK_CONFIG);
+
+   p_block_specification(b);
 
    while (not_at_token(tEND))
-      p_configuration_item(unit);
+      p_configuration_item(b);
 
    consume(tEND);
    consume(tFOR);
    consume(tSEMI);
+
+   return b;
 }
 
 static void p_configuration_declaration(tree_t unit)
@@ -4392,7 +4416,7 @@ static void p_configuration_declaration(tree_t unit)
 
    consume(tCONFIGURATION);
 
-   tree_change_kind(unit, T_CONFIG);
+   tree_change_kind(unit, T_CONFIGURATION);
    tree_set_ident(unit, p_identifier());
 
    consume(tOF);
@@ -4404,7 +4428,7 @@ static void p_configuration_declaration(tree_t unit)
    while (not_at_token(tFOR))
       p_configuration_declarative_part(unit);
 
-   p_block_configuration(unit);
+   tree_add_decl(unit, p_block_configuration());
 
    consume(tEND);
    optional(tCONFIGURATION);

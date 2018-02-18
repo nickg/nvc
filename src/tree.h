@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2016  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -151,11 +151,12 @@ typedef enum tree_kind {
    T_BINDING,
    T_LIBRARY,
    T_DESIGN_UNIT,
-   T_CONFIG,
+   T_CONFIGURATION,
    T_PROT_BODY,
    T_CONTEXT,
    T_CTXREF,
    T_CONSTRAINT,
+   T_BLOCK_CONFIG,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

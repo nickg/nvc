@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2018  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -235,7 +235,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_DESIGN_UNIT
    (I_CONTEXT),
 
-   // T_CONFIG
+   // T_CONFIGURATION
    (I_IDENT | I_IDENT2 | I_DECLS),
 
    // T_PROT_BODY
@@ -248,7 +248,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_REF),
 
    // T_CONSTRAINT
-   (I_SUBKIND | I_RANGES)
+   (I_SUBKIND | I_RANGES),
+
+   // T_BLOCK_CONFIG
+   (I_DECLS | I_IDENT | I_VALUE | I_RANGES),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -269,33 +272,33 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
    "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_USE",
    "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY",
-   "T_DESIGN_UNIT",  "T_CONFIG",        "T_PROT_BODY",  "T_CONTEXT",
-   "T_CTXREF",       "T_CONSTRAINT"
+   "T_DESIGN_UNIT",  "T_CONFIGURATION", "T_PROT_BODY",  "T_CONTEXT",
+   "T_CTXREF",       "T_CONSTRAINT",    "T_BLOCK_CONFIG",
 };
 
 static const change_allowed_t change_allowed[] = {
-   { T_REF,         T_FCALL       },
-   { T_REF,         T_PCALL       },
-   { T_ARRAY_REF,   T_FCALL       },
-   { T_FCALL,       T_ARRAY_REF   },
-   { T_FCALL,       T_PCALL       },
-   { T_FCALL,       T_TYPE_CONV   },
-   { T_REF,         T_RECORD_REF  },
-   { T_ARRAY_REF,   T_ARRAY_SLICE },
-   { T_ASSERT,      T_CASSERT     },
-   { T_DESIGN_UNIT, T_ENTITY      },
-   { T_DESIGN_UNIT, T_PACKAGE     },
-   { T_DESIGN_UNIT, T_PACK_BODY   },
-   { T_DESIGN_UNIT, T_ARCH        },
-   { T_DESIGN_UNIT, T_CONFIG      },
-   { T_DESIGN_UNIT, T_CONTEXT     },
-   { T_FUNC_DECL,   T_FUNC_BODY   },
-   { T_PROC_DECL,   T_PROC_BODY   },
-   { T_REF,         T_ARRAY_SLICE },
-   { T_FCALL,       T_CPCALL      },
-   { T_REF,         T_CPCALL      },
-   { T_ATTR_REF,    T_ARRAY_REF   },
-   { -1,            -1            }
+   { T_REF,         T_FCALL         },
+   { T_REF,         T_PCALL         },
+   { T_ARRAY_REF,   T_FCALL         },
+   { T_FCALL,       T_ARRAY_REF     },
+   { T_FCALL,       T_PCALL         },
+   { T_FCALL,       T_TYPE_CONV     },
+   { T_REF,         T_RECORD_REF    },
+   { T_ARRAY_REF,   T_ARRAY_SLICE   },
+   { T_ASSERT,      T_CASSERT       },
+   { T_DESIGN_UNIT, T_ENTITY        },
+   { T_DESIGN_UNIT, T_PACKAGE       },
+   { T_DESIGN_UNIT, T_PACK_BODY     },
+   { T_DESIGN_UNIT, T_ARCH          },
+   { T_DESIGN_UNIT, T_CONFIGURATION },
+   { T_DESIGN_UNIT, T_CONTEXT       },
+   { T_FUNC_DECL,   T_FUNC_BODY     },
+   { T_PROC_DECL,   T_PROC_BODY     },
+   { T_REF,         T_ARRAY_SLICE   },
+   { T_FCALL,       T_CPCALL        },
+   { T_REF,         T_CPCALL        },
+   { T_ATTR_REF,    T_ARRAY_REF     },
+   { -1,            -1              }
 };
 
 struct tree {
@@ -324,7 +327,7 @@ static tree_kind_t decl_kinds[] = {
    T_ATTR_DECL,  T_ATTR_SPEC,   T_PROC_DECL,  T_PROC_BODY,
    T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL, T_UNIT_DECL,
    T_GENVAR,     T_HIER,        T_SPEC,       T_BINDING,
-   T_USE,        T_PROT_BODY
+   T_USE,        T_PROT_BODY,   T_BLOCK_CONFIG
 };
 
 object_class_t tree_object = {

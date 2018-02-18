@@ -430,8 +430,14 @@ int color_printf(const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   char *strp LOCAL = prepare_msg(fmt, ap, false);
+   int rc = color_vprintf(fmt, ap);
    va_end(ap);
+   return rc;
+}
+
+int color_vprintf(const char *fmt, va_list ap)
+{
+   char *strp LOCAL = prepare_msg(fmt, ap, false);
 
    bool escape = false;
    int len = 0;

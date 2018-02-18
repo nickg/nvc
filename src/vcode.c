@@ -4955,6 +4955,9 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
                for (size_t i = 0; i < op->resolution->count; i++) {
                   ident_write(op->resolution->element[i].name, ident_wr_ctx);
                   write_u32(op->resolution->element[i].type, f);
+                  write_u32(op->resolution->element[i].ileft, f);
+                  write_u32(op->resolution->element[i].kind, f);
+                  write_u32(op->resolution->element[i].boundary, f);
                }
             }
          }
@@ -5180,6 +5183,9 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx)
                for (size_t i = 0; i < count; i++) {
                   op->resolution->element[i].name = ident_read(ident_rd_ctx);
                   op->resolution->element[i].type = read_u32(f);
+                  op->resolution->element[i].ileft = read_u32(f);
+                  op->resolution->element[i].kind = read_u32(f);
+                  op->resolution->element[i].boundary = read_u8(f);
                }
             }
          }

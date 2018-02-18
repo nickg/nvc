@@ -2489,20 +2489,25 @@ END_TEST
 
 START_TEST(test_config)
 {
-   tree_t c, s;
+   tree_t c, s, b;
 
    input_from_file(TESTDIR "/parse/config.vhd");
 
    c = parse();
    fail_if(c == NULL);
-   fail_unless(tree_kind(c) == T_CONFIG);
+   fail_unless(tree_kind(c) == T_CONFIGURATION);
    fail_unless(tree_ident(c) == ident_new("CONF"));
-   fail_unless(tree_ident2(c) == ident_new("ENT-ARCH"));
-   fail_unless(tree_decls(c) == 4);
+   fail_unless(tree_ident2(c) == ident_new("ENT"));
+   fail_unless(tree_decls(c) == 3);
    fail_unless(tree_kind(tree_decl(c, 0)) == T_USE);
    fail_unless(tree_kind(tree_decl(c, 1)) == T_ATTR_SPEC);
 
-   s = tree_decl(c, 2);
+   b = tree_decl(c, 2);
+   fail_unless(tree_kind(b) == T_BLOCK_CONFIG);
+   fail_unless(tree_ident(b) == ident_new("ARCH"));
+   fail_unless(tree_decls(b) == 2);
+
+   s = tree_decl(b, 0);
    fail_unless(tree_kind(s) == T_SPEC);
    fail_unless(tree_ident(s) == ident_new("all"));
    fail_unless(tree_ident2(s) == ident_new("COMP"));
@@ -2779,6 +2784,34 @@ START_TEST(test_issue369)
 }
 END_TEST;
 
+START_TEST(test_vests1)
+{
+   input_from_file(TESTDIR "/parse/vests1.vhd");
+
+   tree_t c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONFIGURATION);
+   fail_unless(tree_decls(c) == 1);
+
+   tree_t b = tree_decl(c, 0);
+   fail_unless(tree_kind(b) == T_BLOCK_CONFIG);
+   fail_unless(tree_decls(b) == 1);
+
+   tree_t b2 = tree_decl(b, 0);
+   fail_unless(tree_kind(b2) == T_BLOCK_CONFIG);
+   fail_unless(tree_decls(b2) == 3);
+
+   tree_t b3 = tree_decl(b2, 2);
+   fail_unless(tree_kind(b3) == T_BLOCK_CONFIG);
+   fail_unless(tree_ident(b3) == ident_new("G"));
+   fail_unless(tree_decls(b3) == 1);
+
+   fail_if(parse() != NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST;
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -2824,6 +2857,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue360);
    tcase_add_test(tc_core, test_issue367);
    tcase_add_test(tc_core, test_issue369);
+   tcase_add_test(tc_core, test_vests1);
    suite_add_tcase(s, tc_core);
 
    return s;

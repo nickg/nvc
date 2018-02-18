@@ -632,7 +632,7 @@ static void list_walk_fn(ident_t ident, int kind, void *context)
    case T_ENTITY: pretty = "Entity"; break;
    case T_PACKAGE: pretty = "Package"; break;
    case T_PACK_BODY: pretty = "Package body"; break;
-   case T_CONFIG: pretty = "Configuration"; break;
+   case T_CONFIGURATION: pretty = "Configuration"; break;
    }
 
    printf("%-30s  : %s\n", istr(ident), pretty);

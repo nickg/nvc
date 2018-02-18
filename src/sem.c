@@ -7410,7 +7410,7 @@ static bool sem_check_binding(tree_t t)
       break;
 
    case C_CONFIGURATION:
-      if (tree_kind(unit) != T_CONFIG)
+      if (tree_kind(unit) != T_CONFIGURATION)
          sem_error(t, "unit %s is not a configuration", istr(tree_ident(t)));
       break;
 
@@ -7419,6 +7419,21 @@ static bool sem_check_binding(tree_t t)
    }
 
    return true;
+}
+
+static bool sem_check_block_config(tree_t t)
+{
+   scope_push(tree_ident(t));
+
+   bool ok = true;
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++)
+      ok = sem_check(tree_decl(t, i)) && ok;
+
+   ok = scope_run_deferred_checks() && ok;
+
+   scope_pop();
+   return ok;
 }
 
 static bool sem_copy_instances(tree_t t, void *context)
@@ -7434,11 +7449,17 @@ static bool sem_copy_instances(tree_t t, void *context)
 
 static bool sem_check_configuration(tree_t t)
 {
+   const int ndecls = tree_decls(t);
+   tree_t block_config = tree_decl(t, ndecls - 1);
+   assert(tree_kind(block_config) == T_BLOCK_CONFIG);
+
    lib_t work = lib_work();
 
-   ident_t name_qual = ident_prefix(lib_name(work), tree_ident2(t), '.');
+   ident_t name_qual =
+      ident_prefix(ident_prefix(lib_name(work), tree_ident2(t), '.'),
+                   tree_ident(block_config), '-');
    tree_t arch = lib_get(work, name_qual);
-   if (arch == NULL)
+   if (arch == NULL || tree_kind(arch) != T_ARCH)
       sem_error(t, "architecture %s of entity %s not found in library %s",
                 istr(ident_rfrom(name_qual, '-')),
                 istr(ident_until(name_qual, '-')),
@@ -7449,6 +7470,7 @@ static bool sem_check_configuration(tree_t t)
    lib_put(lib_work(), copy);
 
    scope_push(NULL);
+   top_scope->unit = t;
 
    const int nadecls = tree_decls(copy);
    for (int i = 0; i < nadecls; i++) {
@@ -7464,9 +7486,8 @@ static bool sem_check_configuration(tree_t t)
    scope_push(NULL);
 
    bool ok = true;
-   const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++)
-      ok = sem_check(tree_decl(t, i));
+      ok = sem_check(tree_decl(t, i)) && ok;
 
    ok = scope_run_deferred_checks() && ok;
 
@@ -7689,7 +7710,7 @@ bool sem_check(tree_t t)
       return sem_check_binding(t);
    case T_LIBRARY:
       return sem_check_library_clause(t);
-   case T_CONFIG:
+   case T_CONFIGURATION:
       return sem_check_configuration(t);
    case T_PROT_BODY:
       return sem_check_prot_body(t);
@@ -7697,6 +7718,8 @@ bool sem_check(tree_t t)
       return sem_check_context_decl(t);
    case T_CTXREF:
       return sem_check_context_ref(t);
+   case T_BLOCK_CONFIG:
+      return sem_check_block_config(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
