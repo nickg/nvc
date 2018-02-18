@@ -4268,15 +4268,30 @@ static void lower_var_decl(tree_t decl)
 }
 
 static bool lower_resolution_func(type_t type, vcode_res_fn_t **data,
-                                  size_t *max_elems)
+                                  size_t *max_elems, vcode_res_elem_t *rparent)
 {
-   if (type_is_array(type))
-      return lower_resolution_func(type_elem(type), data, max_elems);
-   else if (type_kind(type) == T_SUBTYPE && type_has_resolution(type)) {
+   if (rparent == NULL && type_kind(type) == T_SUBTYPE
+       && type_has_resolution(type)) {
       ident_t rfunc = lower_mangle_func(tree_ref(type_resolution(type)),
                                         vcode_unit_context());
       vcode_type_t rtype = lower_type(type);
 
+      vcode_res_elem_t parent = { rfunc, rtype };
+      return lower_resolution_func(type, data, max_elems, &parent);
+   }
+   else if (type_is_array(type))
+      return lower_resolution_func(type_elem(type), data, max_elems, rparent);
+   else if (type_is_record(type)) {
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         type_t ftype = tree_type(type_field(type, i));
+         if (!lower_resolution_func(ftype, data, max_elems, rparent))
+            return false;
+      }
+
+      return true;
+   }
+   else if (rparent != NULL) {
       if (*data == NULL) {
          *data = xcalloc(sizeof(vcode_res_fn_t) + sizeof(vcode_res_elem_t));
          *max_elems = 1;
@@ -4288,21 +4303,7 @@ static bool lower_resolution_func(type_t type, vcode_res_fn_t **data,
          *data = xrealloc(*data, newsz);
       }
 
-      const int elem = (*data)->count++;
-
-      (*data)->element[elem].name = rfunc;
-      (*data)->element[elem].type = rtype;
-
-      return true;
-   }
-   else if (type_is_record(type)) {
-      const int nfields = type_fields(type);
-      for (int i = 0; i < nfields; i++) {
-         type_t ftype = tree_type(type_field(type, i));
-         if (!lower_resolution_func(ftype, data, max_elems))
-            return false;
-      }
-
+      (*data)->element[(*data)->count++] = *rparent;
       return true;
    }
    else
@@ -4373,7 +4374,7 @@ static void lower_signal_decl(tree_t decl)
 
       vcode_res_fn_t *resolution = NULL;
       size_t max_elems = 0;
-      if (!lower_resolution_func(type, &resolution, &max_elems)) {
+      if (!lower_resolution_func(type, &resolution, &max_elems, NULL)) {
          free(resolution);
          resolution = NULL;
       }
