@@ -178,8 +178,9 @@ struct watch_list {
 };
 
 typedef enum {
-   R_MEMO  = (1 << 0),
-   R_IDENT = (1 << 1),
+   R_MEMO   = (1 << 0),
+   R_IDENT  = (1 << 1),
+   R_RECORD = (1 << 2),
 } res_flags_t;
 
 struct res_memo {
@@ -1365,6 +1366,9 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
 
    hash_put(res_memo_hash, fn, memo);
 
+   if (type_is_record(type))
+      memo->flags |= R_RECORD;
+
    if (type_kind(type_base_recur(type)) != T_ENUM)
       return memo;
 
@@ -1676,6 +1680,47 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
          const int8_t r = group->resolution->tab2[driving[0]][driving[1]];
          ((int8_t *)resolved)[j] = r;
       }
+   }
+   else if (group->resolution->flags & R_RECORD) {
+      const netgroup_t *startp = group;
+      while (startp->resolution == group->resolution && startp >= groups
+             && !(startp->flags & NET_F_OWNS_MEM))
+         startp--;
+
+      const netgroup_t *endp = group + 1;
+      while (endp->resolution == group->resolution
+             && endp < groups + netdb_size(netdb)
+             && !(endp->flags & NET_F_OWNS_MEM))
+         endp++;
+
+      size_t size = 0, group_off = 0;
+      for (const netgroup_t *p = startp; p != endp; p++) {
+         size += p->size * p->length;
+         if (p < group)
+            group_off = size;
+         assert(p->n_drivers == group->n_drivers);
+      }
+
+      uint8_t *inputs = alloca(size * group->n_drivers);
+
+      size_t off = 0;
+      for (const netgroup_t *p = startp; p != endp; p++) {
+         for (int i = 0; i < p->n_drivers; i++) {
+            void *src = NULL;
+            if (i == driver && p == group)
+               src = p->drivers[i].waveforms->next->values->data;
+            else
+               src = p->drivers[i].waveforms->values->data;
+            memcpy(inputs + off + (i * size),
+                   src,
+                   p->size * p->length);
+         }
+         off += p->size * p->length;
+      }
+
+      uint8_t *result =
+         (uint8_t *)(*group->resolution->fn)(inputs, group->n_drivers);
+      resolved = result + group_off;
    }
    else {
       // Must actually call resolution function in general case

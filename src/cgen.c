@@ -1654,8 +1654,11 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type,
          vcode_type_t elem = vtype_elem(type);
          if (vtype_kind(elem) == VCODE_TYPE_RECORD) {
             const int nelems = vtype_size(type);
-            for (int i = 0; i < nelems; i++)
+            const size_t res_elem_old = *res_elem;
+            for (int i = 0; i < nelems; i++) {
                cgen_size_list(list, elem, resolution, res_elem);
+               *res_elem = res_elem_old;
+            }
          }
          else
             cgen_append_size_list(list, elem, vtype_size(type),

@@ -17,6 +17,8 @@ architecture test of record13 is
         assert x'right = x'length;
 
         for i in x'range loop
+            report "x(" & integer'image(i) & ") = (" & integer'image(x(i).x)
+                & ", " & integer'image(x(i).y) & ")";
             r.x := r.x + x(i).x;
             r.y := r.y + x(i).y;
         end loop;
@@ -31,10 +33,19 @@ begin
 
     p1: process is
     begin
-        sig.x <= 5;
-        sig.y <= 5;
+        sig <= ('a', 1, 2);
         wait for 1 ns;
-        sig.t <= 'x';
+        sig.x <= 5;
+        wait;
+    end process;
+
+    p2: process is
+    begin
+        sig <= ('b', 4, 5);
+        wait for 1 ns;
+        assert sig = ('0', 5, 7);
+        wait for 1 ns;
+        assert sig = ('0', 9, 7);
         wait;
     end process;
 
