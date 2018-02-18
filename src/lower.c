@@ -4276,12 +4276,16 @@ static bool lower_resolution_func(type_t type, vcode_res_fn_t **data,
       ident_t rfunc = lower_mangle_func(rdecl, vcode_unit_context());
       vcode_type_t rtype = lower_type(type);
 
+      const bool is_record = type_is_record(type);
+
       type_t uarray_param = type_param(tree_type(rdecl), 0);
       range_t r = range_of(type_index_constr(uarray_param, 0), 0);
       vcode_res_elem_t parent = {
-         .name   = rfunc,
-         .type   = rtype,
-         .ileft  = assume_int(r.left)
+         .name     = rfunc,
+         .type     = rtype,
+         .ileft    = assume_int(r.left),
+         .kind     = is_record ? RES_RECORD : RES_SCALAR,
+         .boundary = is_record
       };
       return lower_resolution_func(type, data, max_elems, &parent);
    }
@@ -4310,6 +4314,7 @@ static bool lower_resolution_func(type_t type, vcode_res_fn_t **data,
       }
 
       (*data)->element[(*data)->count++] = *rparent;
+      rparent->boundary = false;
       return true;
    }
    else

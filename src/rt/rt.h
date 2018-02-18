@@ -67,12 +67,20 @@ typedef enum {
 } image_kind_t;
 
 typedef enum {
+   R_MEMO     = (1 << 0),
+   R_IDENT    = (1 << 1),
+   R_RECORD   = (1 << 2),
+   R_BOUNDARY = (1 << 3),
+} res_flags_t;
+
+typedef enum {
    NET_F_ACTIVE     = (1 << 0),
    NET_F_EVENT      = (1 << 1),
    NET_F_FORCED     = (1 << 2),
    NET_F_OWNS_MEM   = (1 << 3),
    NET_F_GLOBAL     = (1 << 4),
-   NET_F_LAST_VALUE = (1 << 5)
+   NET_F_LAST_VALUE = (1 << 5),
+   NET_F_BOUNDARY   = (1 << 6),
 } net_flags_t;
 
 typedef enum {

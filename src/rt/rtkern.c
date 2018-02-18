@@ -177,12 +177,6 @@ struct watch_list {
    watch_list_t *next;
 };
 
-typedef enum {
-   R_MEMO   = (1 << 0),
-   R_IDENT  = (1 << 1),
-   R_RECORD = (1 << 2),
-} res_flags_t;
-
 struct res_memo {
    resolution_fn_t fn;
    res_flags_t     flags;
@@ -222,6 +216,7 @@ struct size_list {
    uint32_t size;
    uint32_t count;
    void    *resolution;
+   uint32_t flags;
 };
 
 typedef enum {
@@ -639,8 +634,13 @@ void _set_initial(int32_t nid, const uint8_t *values,
       RT_ASSERT(remain >= g->length);
 
       res_memo_t *memo = NULL;
-      if (size_list[part].resolution != NULL)
+      if (size_list[part].resolution != NULL) {
          memo = rt_memo_resolution_fn(type, size_list[part].resolution);
+         memo->flags |= size_list[part].flags;
+
+         if (size_list[part].flags & R_BOUNDARY)
+            g->flags |= NET_F_BOUNDARY;
+      }
 
       g->sig_decl   = decl;
       g->resolution = memo;
@@ -1366,9 +1366,6 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
 
    hash_put(res_memo_hash, fn, memo);
 
-   if (type_is_record(type))
-      memo->flags |= R_RECORD;
-
    if (type_kind(type_base_recur(type)) != T_ENUM)
       return memo;
 
@@ -1682,15 +1679,17 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
       }
    }
    else if (group->resolution->flags & R_RECORD) {
+      // Called resolution function for resolved record
+
       const netgroup_t *startp = group;
       while (startp->resolution == group->resolution && startp >= groups
-             && !(startp->flags & NET_F_OWNS_MEM))
+             && !(startp->flags & NET_F_BOUNDARY))
          startp--;
 
       const netgroup_t *endp = group + 1;
       while (endp->resolution == group->resolution
              && endp < groups + netdb_size(netdb)
-             && !(endp->flags & NET_F_OWNS_MEM))
+             && !(endp->flags & (NET_F_BOUNDARY | NET_F_OWNS_MEM)))
          endp++;
 
       size_t size = 0, group_off = 0;

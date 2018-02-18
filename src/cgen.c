@@ -57,9 +57,10 @@ typedef struct {
 } cgen_ctx_t;
 
 typedef struct {
-   unsigned     count;
    LLVMValueRef size;
    LLVMValueRef resolution;
+   uint32_t     count;
+   uint32_t     flags;
 } size_list_t;
 
 DECLARE_AND_DEFINE_ARRAY(size_list)
@@ -194,7 +195,8 @@ static LLVMTypeRef llvm_size_list_type(void)
    LLVMTypeRef struct_elems[] = {
       LLVMInt32Type(),
       LLVMInt32Type(),
-      llvm_void_ptr()
+      llvm_void_ptr(),
+      LLVMInt32Type()
    };
    return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
 }
@@ -1628,12 +1630,17 @@ static void cgen_append_size_list(size_list_array_t *list,
    size_list_t *result = size_list_array_alloc(list);
    result->size  = llvm_sizeof(cgen_type(elem));
    result->count = count;
+   result->flags = 0;
 
    if (resolution != NULL) {
       assert(*res_elem < resolution->count);
 
       result->resolution =
          cgen_resolution_wrapper(&(resolution->element[*res_elem]));
+      if (resolution->element[*res_elem].kind == RES_RECORD)
+         result->flags |= R_RECORD;
+      if (resolution->element[*res_elem].boundary)
+         result->flags |= R_BOUNDARY;
 
       ++(*res_elem);
    }
@@ -1783,6 +1790,8 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
                      LLVMBuildStructGEP(builder, elemptr, 1, ""));
       LLVMBuildStore(builder, size_list.items[i].resolution,
                      LLVMBuildStructGEP(builder, elemptr, 2, ""));
+      LLVMBuildStore(builder, llvm_int32(size_list.items[i].flags),
+                     LLVMBuildStructGEP(builder, elemptr, 3, ""));
    }
 
    // Assuming array nets are sequential

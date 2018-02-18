@@ -180,10 +180,17 @@ typedef struct {
    size_t       nelems;
 } image_map_t;
 
+typedef enum {
+   RES_SCALAR,
+   RES_RECORD,
+} res_kind_t;
+
 typedef struct {
    ident_t      name;
    vcode_type_t type;
    int32_t      ileft;
+   res_kind_t   kind;
+   bool         boundary;
 } vcode_res_elem_t;
 
 typedef struct {
