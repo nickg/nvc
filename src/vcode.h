@@ -183,6 +183,7 @@ typedef struct {
 typedef struct {
    ident_t      name;
    vcode_type_t type;
+   int32_t      ileft;
 } vcode_res_elem_t;
 
 typedef struct {

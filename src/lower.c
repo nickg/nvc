@@ -4272,11 +4272,17 @@ static bool lower_resolution_func(type_t type, vcode_res_fn_t **data,
 {
    if (rparent == NULL && type_kind(type) == T_SUBTYPE
        && type_has_resolution(type)) {
-      ident_t rfunc = lower_mangle_func(tree_ref(type_resolution(type)),
-                                        vcode_unit_context());
+      tree_t rdecl = tree_ref(type_resolution(type));
+      ident_t rfunc = lower_mangle_func(rdecl, vcode_unit_context());
       vcode_type_t rtype = lower_type(type);
 
-      vcode_res_elem_t parent = { rfunc, rtype };
+      type_t uarray_param = type_param(tree_type(rdecl), 0);
+      range_t r = range_of(type_index_constr(uarray_param, 0), 0);
+      vcode_res_elem_t parent = {
+         .name   = rfunc,
+         .type   = rtype,
+         .ileft  = assume_int(r.left)
+      };
       return lower_resolution_func(type, data, max_elems, &parent);
    }
    else if (type_is_array(type))

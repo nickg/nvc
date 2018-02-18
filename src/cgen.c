@@ -79,7 +79,7 @@ static size_t n_link_args = 0;
 static size_t max_link_args = 0;
 
 static LLVMValueRef cgen_support_fn(const char *name);
-static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type);
+static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -1633,8 +1633,7 @@ static void cgen_append_size_list(size_list_array_t *list,
       assert(*res_elem < resolution->count);
 
       result->resolution =
-         cgen_resolution_wrapper(resolution->element[*res_elem].name,
-                                 resolution->element[*res_elem].type);
+         cgen_resolution_wrapper(&(resolution->element[*res_elem]));
 
       ++(*res_elem);
    }
@@ -1675,19 +1674,19 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type,
    }
 }
 
-static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type)
+static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata)
 {
    // Resolution functions are in LRM 93 section 2.4
 
-   char *buf LOCAL = xasprintf("%s_resolution", istr(name));
+   char *buf LOCAL = xasprintf("%s_resolution", istr(rdata->name));
 
    LLVMValueRef fn = LLVMGetNamedFunction(module, safe_symbol(buf));
    if (fn != NULL)
       return llvm_void_cast(fn);    // Already generated wrapper
 
-   const bool is_record = vtype_kind(type) == VCODE_TYPE_RECORD;
+   const bool is_record = vtype_kind(rdata->type) == VCODE_TYPE_RECORD;
 
-   LLVMTypeRef elem_type = cgen_type(type);
+   LLVMTypeRef elem_type = cgen_type(rdata->type);
    LLVMTypeRef pointer_type = LLVMPointerType(elem_type, 0);
    LLVMTypeRef uarray_type = llvm_uarray_type(elem_type, 1);
    LLVMTypeRef result_type = is_record ? pointer_type : LLVMInt64Type();
@@ -1705,7 +1704,7 @@ static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type)
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
-   const char *safe_name = safe_symbol(istr(name));
+   const char *safe_name = safe_symbol(istr(rdata->name));
    LLVMValueRef rfn = LLVMGetNamedFunction(module, safe_name);
    if (rfn == NULL) {
       // The resolution function is not visible yet e.g. because it
@@ -1723,10 +1722,10 @@ static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type)
    LLVMTypeRef dim_struct = LLVMGetElementType(field_types[1]);
    LLVMValueRef dim_array = LLVMGetUndef(field_types[1]);
 
-   // TODO: check what standard says about left/right and direction
-   LLVMValueRef left  = llvm_int32(0);
-   LLVMValueRef right = LLVMBuildSub(builder, LLVMGetParam(fn, 1),
-                                     llvm_int32(1), "right");
+   LLVMValueRef left  = llvm_int32(rdata->ileft);
+   LLVMValueRef right = LLVMBuildAdd(builder, left,
+                                     LLVMBuildSub(builder, LLVMGetParam(fn, 1),
+                                                  llvm_int32(1), ""), "right");
    LLVMValueRef dir   = llvm_int1(RANGE_TO);
    LLVMValueRef vals  = LLVMGetParam(fn, 0);
 
