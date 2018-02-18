@@ -1685,15 +1685,19 @@ static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type)
    if (fn != NULL)
       return llvm_void_cast(fn);    // Already generated wrapper
 
+   const bool is_record = vtype_kind(type) == VCODE_TYPE_RECORD;
+
    LLVMTypeRef elem_type = cgen_type(type);
+   LLVMTypeRef pointer_type = LLVMPointerType(elem_type, 0);
    LLVMTypeRef uarray_type = llvm_uarray_type(elem_type, 1);
+   LLVMTypeRef result_type = is_record ? pointer_type : LLVMInt64Type();
 
    LLVMTypeRef args[] = {
-      LLVMPointerType(elem_type, 0),
+      pointer_type,
       LLVMInt32Type()
    };
    fn = LLVMAddFunction(module, buf,
-                        LLVMFunctionType(LLVMInt64Type(), args,
+                        LLVMFunctionType(result_type, args,
                                          ARRAY_LEN(args), false));
 
    LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
@@ -1706,9 +1710,10 @@ static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type)
    if (rfn == NULL) {
       // The resolution function is not visible yet e.g. because it
       // is declared in another package
+      LLVMTypeRef wrapped_result_type = is_record ? pointer_type : elem_type;
       LLVMTypeRef args[] = { uarray_type };
       rfn = LLVMAddFunction(module, safe_name,
-                            LLVMFunctionType(elem_type, args,
+                            LLVMFunctionType(wrapped_result_type, args,
                                              ARRAY_LEN(args), false));
    }
 
@@ -1738,8 +1743,11 @@ static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type)
 
    LLVMValueRef r = LLVMBuildCall(builder, rfn, &wrapped, 1, "");
 
-   LLVMBuildRet(builder,
-                LLVMBuildZExt(builder, r, LLVMInt64Type(), ""));
+   if (is_record)
+      LLVMBuildRet(builder, r);
+   else
+      LLVMBuildRet(builder,
+                   LLVMBuildZExt(builder, r, LLVMInt64Type(), ""));
 
    LLVMPositionBuilderAtEnd(builder, saved_bb);
 
