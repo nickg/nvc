@@ -550,7 +550,8 @@ void ident_list_free(ident_list_t *list)
 
 void _ident_list_cleanup(ident_list_t **list)
 {
-   free(*list);
+   ident_list_free(*list);
+   *list = NULL;
 }
 
 bool ident_list_find(const ident_list_t *list, ident_t i)

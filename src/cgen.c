@@ -3978,6 +3978,8 @@ static void cgen_native(tree_t top, LLVMTargetMachineRef tm_ref)
 
    run_program((const char * const *)link_args, n_link_args - 1);
 
+   for (size_t i = 0; i < n_link_args; i++)
+      free(link_args[i]);
    free(link_args);
    link_args = NULL;
 }
@@ -4044,4 +4046,5 @@ void cgen(tree_t top, vcode_unit_t vcode)
 #if LLVM_HAS_CREATE_TARGET_DATA_LAYOUT
    LLVMDisposeTargetData(data_ref);
 #endif
+   LLVMDisposeMessage(def_triple);
 }
