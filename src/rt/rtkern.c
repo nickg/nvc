@@ -1693,42 +1693,56 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
       }
    }
    else if (group->resolution->flags & R_RECORD) {
-      // Called resolution function for resolved record
+      // Call resolution function for resolved record
 
-      const netgroup_t *startp = group;
-      while (startp->resolution == group->resolution && startp >= groups
-             && !(startp->flags & NET_F_BOUNDARY))
-         startp--;
+      netid_t first = group->first, last = group->first + group->length - 1;
 
-      const netgroup_t *endp = group + 1;
-      while (endp->resolution == group->resolution
-             && endp < groups + netdb_size(netdb)
-             && !(endp->flags & (NET_F_BOUNDARY | NET_F_OWNS_MEM)))
-         endp++;
+      for (const netgroup_t *it = group;
+           it->resolution == group->resolution && it->first > 0
+              && !(it->flags & NET_F_BOUNDARY);
+           it = &(groups[netdb_lookup(netdb, it->first - 1)]),
+              first = it->first)
+         ;
+
+      for (const netgroup_t *it = group;
+           it->resolution == group->resolution
+              && it->first + it->length < netdb_size(netdb)
+              && (it == group
+                  || !(it->flags & (NET_F_BOUNDARY | NET_F_OWNS_MEM)));
+           it = &(groups[netdb_lookup(netdb, it->first + it->length)]),
+              last = it->first + it->length - 1)
+         ;
 
       size_t size = 0, group_off = 0;
-      for (const netgroup_t *p = startp; p != endp; p++) {
-         size += p->size * p->length;
-         if (p < group)
+      for (int offset = first; offset <= last;) {
+         netgroup_t *g = &(groups[netdb_lookup(netdb, offset)]);
+         size += g->size * g->length;
+         if (offset < group->first)
             group_off = size;
-         assert(p->n_drivers == group->n_drivers);
+         assert(g->n_drivers == group->n_drivers);
+
+         offset += g->length;
       }
 
       uint8_t *inputs = alloca(size * group->n_drivers);
 
-      size_t off = 0;
-      for (const netgroup_t *p = startp; p != endp; p++) {
+      size_t ptr = 0;
+      for (int offset = first; offset <= last;) {
+         netgroup_t *p = &(groups[netdb_lookup(netdb, offset)]);
+
          for (int i = 0; i < p->n_drivers; i++) {
             void *src = NULL;
             if (i == driver && p == group)
                src = p->drivers[i].waveforms->next->values->data;
             else
                src = p->drivers[i].waveforms->values->data;
-            memcpy(inputs + off + (i * size),
+            memcpy(inputs + ptr + (i * size),
                    src,
                    p->size * p->length);
          }
-         off += p->size * p->length;
+         ptr += p->size * p->length;
+
+         offset += p->length;
       }
 
       uint8_t *result =
