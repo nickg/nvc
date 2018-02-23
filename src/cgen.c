@@ -1690,7 +1690,8 @@ static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata)
 
    char *buf LOCAL = xasprintf("%s_resolution", istr(rdata->name));
 
-   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_symbol(buf));
+   const char *wrapper_name = safe_symbol(buf);
+   LLVMValueRef fn = LLVMGetNamedFunction(module, wrapper_name);
    if (fn != NULL)
       return llvm_void_cast(fn);    // Already generated wrapper
 
@@ -1705,7 +1706,7 @@ static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata)
       pointer_type,
       LLVMInt32Type()
    };
-   fn = LLVMAddFunction(module, buf,
+   fn = LLVMAddFunction(module, wrapper_name,
                         LLVMFunctionType(result_type, args,
                                          ARRAY_LEN(args), false));
 
