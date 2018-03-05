@@ -603,6 +603,21 @@ START_TEST(test_issue232)
 }
 END_TEST
 
+START_TEST(test_issue373)
+{
+   input_from_file(TESTDIR "/elab/issue373.vhd");
+
+   tree_t e = run_elab();
+
+   tree_t p0 = tree_stmt(e, 0);
+   fail_unless(tree_kind(p0) == T_PROCESS);
+   tree_t s0 = tree_stmt(p0, 0);
+   fail_unless(tree_kind(s0) == T_ASSERT);
+   tree_t m = tree_message(s0);
+   fail_unless(tree_kind(m) == T_QUALIFIED);
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -647,6 +662,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_openinout);
    tcase_add_test(tc, test_opencase);
    tcase_add_test(tc, test_issue232);
+   tcase_add_test(tc, test_issue373);
    suite_add_tcase(s, tc);
 
    return s;

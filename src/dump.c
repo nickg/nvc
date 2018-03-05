@@ -153,7 +153,7 @@ static void dump_expr(tree_t t)
          printf("%lf", tree_dval(t));
          break;
       case L_NULL:
-         printf("null");
+         syntax("#null");
          break;
       case L_STRING:
          {
