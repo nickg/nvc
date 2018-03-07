@@ -97,8 +97,10 @@ static void syntax(const char *fmt, ...)
 static void dump_params(tree_t t, get_fn_t get, int n, const char *prefix)
 {
    if (n > 0) {
-      if (prefix != NULL)
-         printf("%s ", prefix);
+      if (prefix != NULL) {
+         syntax(prefix, "");
+         printf(" ");
+      }
       printf("(");
       for (int i = 0; i < n; i++) {
          if (i > 0)
@@ -756,7 +758,7 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_WHILE:
       if (tree_has_value(t)) {
-         printf("while ");
+         syntax("#while ");
          dump_expr(tree_value(t));
          printf(" ");
       }
@@ -784,28 +786,28 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_EXIT:
-      printf("exit %s", istr(tree_ident2(t)));
+      syntax("#exit %s", istr(tree_ident2(t)));
       if (tree_has_value(t)) {
-         printf(" when ");
+         syntax(" #when ");
          dump_expr(tree_value(t));
       }
       break;
 
    case T_CASE:
-      printf("case ");
+      syntax("#case ");
       dump_expr(tree_value(t));
-      printf(" is\n");
+      syntax(" #is\n");
       for (unsigned i = 0; i < tree_assocs(t); i++) {
          tab(indent + 2);
          tree_t a = tree_assoc(t, i);
          switch (tree_subkind(a)) {
          case A_NAMED:
-            printf("when ");
+            syntax("#when ");
             dump_expr(tree_name(a));
             printf(" =>\n");
             break;
          case A_OTHERS:
-            printf("when others =>\n");
+            syntax("#when #others =>\n");
             break;
          default:
             assert(false);
@@ -813,11 +815,11 @@ static void dump_stmt(tree_t t, int indent)
          dump_stmt(tree_value(a), indent + 4);
       }
       tab(indent);
-      printf("end case");
+      syntax("#end #case");
       break;
 
    case T_RETURN:
-      printf("return");
+      syntax("#return");
       if (tree_has_value(t)) {
          printf(" ");
          dump_expr(tree_value(t));
@@ -825,13 +827,13 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_FOR:
-      printf("for %s in ", istr(tree_ident2(t)));
+      syntax("#for %s #in ", istr(tree_ident2(t)));
       dump_range(tree_range(t, 0));
-      printf(" loop\n");
+      syntax(" #loop\n");
       for (unsigned i = 0; i < tree_stmts(t); i++)
          dump_stmt(tree_stmt(t, i), indent + 2);
       tab(indent);
-      printf("end for");
+      syntax("#end #for");
       break;
 
    case T_PCALL:
@@ -840,64 +842,64 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_FOR_GENERATE:
-      printf("for %s in ", istr(tree_ident2(t)));
+      syntax("#for %s #in ", istr(tree_ident2(t)));
       dump_range(tree_range(t, 0));
-      printf(" generate\n");
+      syntax(" #generate\n");
       for (unsigned i = 0; i < tree_decls(t); i++)
          dump_decl(tree_decl(t, i), indent + 2);
       tab(indent);
-      printf("begin\n");
+      syntax("#begin\n");
       for (unsigned i = 0; i < tree_stmts(t); i++)
          dump_stmt(tree_stmt(t, i), indent + 2);
       tab(indent);
-      printf("end generate");
+      syntax("end generate");
       break;
 
    case T_IF_GENERATE:
-      printf("if ");
+      syntax("#if ");
       dump_expr(tree_value(t));
-      printf(" generate\n");
+      syntax(" #generate\n");
       for (unsigned i = 0; i < tree_decls(t); i++)
          dump_decl(tree_decl(t, i), indent + 2);
       tab(indent);
-      printf("begin\n");
+      syntax("#begin\n");
       for (unsigned i = 0; i < tree_stmts(t); i++)
          dump_stmt(tree_stmt(t, i), indent + 2);
       tab(indent);
-      printf("end generate");
+      syntax("#end #generate");
       break;
 
    case T_INSTANCE:
       switch (tree_class(t)) {
-      case C_ENTITY:    printf("entity "); break;
-      case C_COMPONENT: printf("component "); break;
+      case C_ENTITY:    syntax("#entity "); break;
+      case C_COMPONENT: syntax("#component "); break;
       default:
          assert(false);
       }
       printf("%s", istr(tree_ident2(t)));
       if (tree_has_spec(t)) {
          tree_t bind = tree_value(tree_spec(t));
-         printf(" -- bound to %s", istr(tree_ident(bind)));
+         syntax(" -- bound to %s", istr(tree_ident(bind)));
          if (tree_has_ident2(bind))
             printf("(%s)", istr(tree_ident2(bind)));
       }
       printf("\n");
       if (tree_genmaps(t) > 0) {
          tab(indent + 4);
-         dump_params(t, tree_genmap, tree_genmaps(t), "generic map");
+         dump_params(t, tree_genmap, tree_genmaps(t), "#generic #map");
          printf("\n");
       }
       if (tree_params(t) > 0) {
          tab(indent + 4);
-         dump_params(t, tree_param, tree_params(t), "port map");
+         dump_params(t, tree_param, tree_params(t), "#port #map");
       }
       printf(";\n\n");
       return;
 
    case T_NEXT:
-      printf("next");
+      syntax("#next");
       if (tree_has_value(t)) {
-         printf(" when ");
+         syntax(" #when ");
          dump_expr(tree_value(t));
       }
       break;

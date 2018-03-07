@@ -622,6 +622,8 @@ void fmt_loc(FILE *f, const struct loc *loc)
       set_attr(ANSI_RESET);
       fprintf(f, "\n");
    }
+
+   fflush(f);
 }
 
 #ifndef NO_STACK_TRACE
