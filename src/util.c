@@ -109,9 +109,11 @@
 typedef void (*print_fn_t)(const char *fmt, ...);
 
 static void def_error_fn(const char *msg, const loc_t *loc);
+static void show_hint(void);
 
 typedef struct guard guard_t;
 typedef struct option option_t;
+typedef struct hint hint_t;
 
 typedef enum {
    OPTION_INT,
@@ -128,6 +130,14 @@ struct option {
    option_kind_t  kind;
    ident_t        key;
    optval_t       value;
+};
+
+struct hint {
+   hint_fn_t func;
+   char     *str;
+   void     *context;
+   loc_t     loc;
+   hint_t   *next;
 };
 
 struct color_escape {
@@ -155,6 +165,7 @@ static bool            error_force_plain = false;
 static struct option  *options = NULL;
 static guard_t        *guards;
 static message_style_t message_style = MESSAGE_FULL;
+static hint_t         *hints = NULL;
 
 static const struct color_escape escapes[] = {
    { "",        ANSI_RESET },
@@ -461,6 +472,7 @@ void error_at(const loc_t *loc, const char *fmt, ...)
 
    char *strp LOCAL = prepare_msg(fmt, ap, error_force_plain);
    error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
+   show_hint();
 
    va_end(ap);
 }
@@ -476,11 +488,78 @@ static void catch_in_unit_test(print_fn_t fn, const loc_t *loc,
       msg_at(fn, loc, fmt, ap);
 }
 
+static void default_hint_fn(void *arg)
+{
+   hint_t *h = arg;
+   note_at(&(h->loc), "%s", h->str);
+}
+
+static void pop_hint(void)
+{
+   hint_t *tmp = hints->next;
+   free(hints->str);
+   free(hints);
+   hints = tmp;
+}
+
+static void show_hint(void)
+{
+   static bool inside = false;
+
+   if (inside)
+      return;
+
+   inside = true;
+
+   while (hints != NULL) {
+      (*hints->func)(hints->context);
+      pop_hint();
+   }
+
+   inside = false;
+}
+
+void set_hint_fn(hint_fn_t fn, void *context)
+{
+   hint_t *h = xmalloc(sizeof(hint_t));
+   h->func = fn;
+   h->str = NULL;
+   h->context = context;
+   h->next = hints;
+   h->loc = LOC_INVALID;
+
+   hints = h;
+}
+
+void clear_hint(void)
+{
+   while (hints != NULL)
+      pop_hint();
+}
+
+void hint_at(const loc_t *loc, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   hint_t *h = xmalloc(sizeof(hint_t));
+   h->func = default_hint_fn;
+   h->str = prepare_msg(fmt, ap, error_force_plain);
+   h->context = h;
+   h->loc = *loc;
+   h->next = hints;
+
+   va_end(ap);
+
+   hints = h;
+}
+
 void warn_at(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
    catch_in_unit_test(warnf, loc, fmt, ap);
+   show_hint();
    va_end(ap);
 }
 
@@ -489,6 +568,7 @@ void note_at(const loc_t *loc, const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
    catch_in_unit_test(notef, loc, fmt, ap);
+   show_hint();
    va_end(ap);
 }
 
@@ -497,6 +577,7 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
    catch_in_unit_test(fatalf, loc, fmt, ap);
+   show_hint();
    va_end(ap);
 
    if (fatal_fn != NULL)
@@ -523,6 +604,7 @@ void fatal(const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
    fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
+   show_hint();
    va_end(ap);
 
    if (fatal_fn != NULL)

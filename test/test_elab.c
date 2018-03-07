@@ -145,6 +145,7 @@ START_TEST(test_bounds10)
 
    const error_t expect[] = {
       { 10, "length of value 1 does not match length of target 101" },
+      { 22, "while elaborating instance UC" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -416,6 +417,7 @@ START_TEST(test_eval1)
    const error_t expect[] = {
       { 12, "array index -1 outside bounds 7 downto 0" },
       { 16, "while evaluating call to FUNC" },
+      { 30, "while elaborating instance SUB_I" },
       { 16, "expression cannot be folded to an integer constant" },
       { -1, NULL }
    };

@@ -990,6 +990,9 @@ static void eval_op_bounds(int op, eval_state_t *state)
             break;
          else if (reg->integer < low || reg->integer > high) {
             if (state->flags & EVAL_BOUNDS) {
+               hint_at(tree_loc(state->fcall), "while evaluating call to %s",
+                       istr(tree_ident(state->fcall)));
+
                switch ((bounds_kind_t)vcode_get_subkind(op)) {
                case BOUNDS_ARRAY_TO:
                   error_at(&(state->last_loc), "array index %"PRIi64" outside "
@@ -1009,8 +1012,6 @@ static void eval_op_bounds(int op, eval_state_t *state)
                }
 
                errors++;
-               note_at(tree_loc(state->fcall), "while evaluating call to %s",
-                       istr(tree_ident(state->fcall)));
             }
             state->failed = true;
          }

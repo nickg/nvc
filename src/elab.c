@@ -1018,6 +1018,46 @@ static void elab_free_maps(map_list_t *maps)
    }
 }
 
+static void elab_hint_fn(void *arg)
+{
+   tree_t t = arg;
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "while elaborating instance %s", istr(tree_ident(t)));
+
+   const int ngenerics = tree_genmaps(t);
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t p = tree_genmap(t, i);
+      ident_t name = NULL;
+      switch (tree_subkind(p)) {
+      case P_POS:
+         name = tree_ident(tree_generic(tree_ref(t), tree_pos(p)));
+         break;
+      case P_NAMED:
+         name = tree_ident(tree_name(p));
+         break;
+      default:
+         continue;
+      }
+
+      tb_printf(tb, "\n\t%s => ", istr(name));
+
+      tree_t value = tree_value(p);
+      switch (tree_kind(value)) {
+      case T_LITERAL:
+         switch (tree_subkind(value)) {
+         case L_INT: tb_printf(tb, "%"PRIi64, tree_ival(value)); break;
+         case L_REAL: tb_printf(tb, "%lf", tree_dval(value)); break;
+         }
+         break;
+      default:
+         tb_printf(tb, "...");
+      }
+   }
+
+   note_at(tree_loc(t), "%s", tb_get(tb));
+}
+
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
    lib_t new_lib = NULL;
@@ -1068,8 +1108,10 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_map_nets(maps);
    elab_free_maps(maps);
 
+   set_hint_fn(elab_hint_fn, t);
    simplify(arch, EVAL_LOWER);
    bounds_check(arch);
+   clear_hint();
 
    if (eval_errors() > 0 || bounds_errors() > 0)
       return;

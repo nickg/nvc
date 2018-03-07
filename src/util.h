@@ -107,6 +107,12 @@ error_fn_t set_error_fn(error_fn_t fn, bool want_color);
 typedef void (*fatal_fn_t)(void);
 void set_fatal_fn(fatal_fn_t fn);
 
+typedef void (*hint_fn_t)(void *);
+void clear_hint(void);
+void set_hint_fn(hint_fn_t fn, void *context);
+
+void hint_at(const loc_t *loc, const char *fmt, ...)
+   __attribute__((format(printf, 2, 3)));
 void error_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 void warn_at(const loc_t *loc, const char *fmt, ...)
