@@ -895,26 +895,31 @@ static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
    char *prefix LOCAL = NULL;
 
    const int nest_depth = tree_attr_int(decl, nested_i, 0);
-   if (nest_depth > 0 || !ident_contains(tree_ident(decl), ".:")) {
-      if (context == NULL || mode == LOWER_THUNK) {
-         save_mangled_name = false;
-         prefix = xasprintf("%"PRIxPTR"__", (uintptr_t)decl);
-      }
+   if (context == NULL || mode == LOWER_THUNK) {
+      ident_t name = tree_ident(decl);
+      if (ident_contains(name, ":"))
+         save_mangled_name = true;   // Elaborated subprogram
+      else if (lib_loaded(ident_until(name, '.')))
+         save_mangled_name = true;   // Subprogram in package
       else {
-         vcode_state_t state;
-         vcode_state_save(&state);
-         vcode_select_unit(context);
-
-         const vunit_kind_t ckind = vcode_unit_kind();
-         if (ckind == VCODE_UNIT_PROCESS)
-            ;
-         else if (ckind != VCODE_UNIT_CONTEXT)
-            prefix = xasprintf("%s__", istr(vcode_unit_name()));
-         else
-            prefix = xasprintf("%s.", istr(vcode_unit_name()));
-
-         vcode_state_restore(&state);
+         prefix = xasprintf("p%"PRIxPTR"__", (uintptr_t)decl);
+         save_mangled_name = false;
       }
+   }
+   else if (nest_depth > 0 || !ident_contains(tree_ident(decl), ".:")) {
+      vcode_state_t state;
+      vcode_state_save(&state);
+      vcode_select_unit(context);
+
+      const vunit_kind_t ckind = vcode_unit_kind();
+      if (ckind == VCODE_UNIT_PROCESS)
+         ;
+      else if (ckind != VCODE_UNIT_CONTEXT)
+         prefix = xasprintf("%s__", istr(vcode_unit_name()));
+      else
+         prefix = xasprintf("%s.", istr(vcode_unit_name()));
+
+      vcode_state_restore(&state);
    }
 
    ident_t new = mangle_func(decl, prefix);

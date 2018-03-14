@@ -1334,7 +1334,7 @@ static void elab_rename_subprograms(tree_t t, ident_t prefix)
       case T_PROC_BODY:
          {
             ident_t new = ident_prefix(prefix, tree_ident(d), '_');
-            tree_set_ident(d, new);
+            elab_set_subprogram_name(d, new);
             elab_rename_subprograms(d, new);
          }
          break;

@@ -382,7 +382,7 @@ static void dump_block(tree_t t, int indent)
    for (unsigned i = 0; i < ndecls; i++)
       dump_decl(tree_decl(t, i), indent + 2);
    tab(indent);
-   printf("begin\n");
+   syntax("#begin\n");
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)
       dump_stmt(tree_stmt(t, i), indent + 2);
@@ -549,7 +549,7 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_GENVAR:
-      printf("genvar %s : ", istr(tree_ident(t)));
+      syntax("#genvar %s : ", istr(tree_ident(t)));
       dump_type(tree_type(t));
       printf(";\n");
       return;
@@ -561,16 +561,16 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_FUNC_BODY:
-      printf("function %s", istr(tree_ident(t)));
+      syntax("#function %s", istr(tree_ident(t)));
       dump_ports(t, indent);
-      printf(" return %s is\n", type_pp(type_result(tree_type(t))));
+      syntax(" #return %s #is\n", type_pp(type_result(tree_type(t))));
       dump_block(t, indent);
       tab(indent);
-      printf("end function;\n\n");
+      syntax("#end #function;\n\n");
       return;
 
    case T_PROC_DECL:
-      printf("procedure %s", istr(tree_ident(t)));
+      syntax("#procedure %s", istr(tree_ident(t)));
       dump_ports(t, indent);
       printf(";");
       dump_wait_level(t);
@@ -578,14 +578,14 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_PROC_BODY:
-      printf("procedure %s", istr(tree_ident(t)));
+      syntax("#procedure %s", istr(tree_ident(t)));
       dump_ports(t, indent);
-      printf(" is");
+      syntax(" #is");
       dump_wait_level(t);
       printf("\n");
       dump_block(t, indent);
       tab(indent);
-      printf("end procedure;\n\n");
+      syntax("#end #procedure;\n\n");
       return;
 
    case T_HIER:
@@ -593,9 +593,9 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_COMPONENT:
-      printf("component %s is\n", istr(tree_ident(t)));
+      syntax("#component %s is\n", istr(tree_ident(t)));
       if (tree_generics(t) > 0) {
-         printf("    generic (\n");
+         syntax("    #generic (\n");
          for (unsigned i = 0; i < tree_generics(t); i++) {
             if (i > 0)
                printf(";\n");
@@ -605,7 +605,7 @@ static void dump_decl(tree_t t, int indent)
          printf(" );\n");
       }
       if (tree_ports(t) > 0) {
-         printf("    port (\n");
+         syntax("    #port (\n");
          for (unsigned i = 0; i < tree_ports(t); i++) {
             if (i > 0)
                printf(";\n");
@@ -614,7 +614,7 @@ static void dump_decl(tree_t t, int indent)
          }
          printf(" );\n");
       }
-      printf("  end component;\n");
+      syntax("  #end #component;\n");
       return;
 
    case T_PROT_BODY:
@@ -629,9 +629,9 @@ static void dump_decl(tree_t t, int indent)
       syntax("#file %s : ", istr(tree_ident(t)));
       dump_type(tree_type(t));
       if (tree_has_value(t)) {
-         printf(" open ");
+         syntax(" #open ");
          dump_expr(tree_file_mode(t));
-         printf(" is ");
+         syntax(" #is ");
          dump_expr(tree_value(t));
       }
       printf(";\n");
