@@ -16,7 +16,7 @@ install:
     IF "%SYSTEM%" == "CYGWIN" C:\cygwin\setup-x86.exe -qnNdO
     -R C:/cygwin -s http://cygwin.mirror.constant.com
     -l C:/cygwin/var/cache/setup -P flex -P libllvm-devel -P check
-    -P libncurses-devel -P libffi-devel
+    -P libncurses-devel -P libffi-devel -P zlib-devel
 
 build_script:
   - pwd
