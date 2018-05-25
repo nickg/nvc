@@ -1098,6 +1098,22 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 
 #endif  // NO_STACK_TRACE
 
+static bool scan_file_for_token(const char *file, const char *token)
+{
+   bool found = false;
+   FILE *f = fopen(file, "r");
+   if (f != NULL) {
+      char buf[1024];
+      while (!found && fgets(buf, sizeof(buf), f)) {
+         if (strstr(buf, token))
+            found = true;
+      }
+      fclose(f);
+   }
+
+   return found;
+}
+
 bool is_debugger_running(void)
 {
    static int cached = -1;
@@ -1125,18 +1141,12 @@ bool is_debugger_running(void)
 #elif defined __linux
 
    // Hack to detect if Valgrind is running
-   FILE *f = fopen("/proc/self/maps", "r");
-   if (f != NULL) {
-      char buf[1024];
-      bool valgrind = false;
-      while (!valgrind && fgets(buf, sizeof(buf), f)) {
-         if (strstr(buf, "vgpreload"))
-            valgrind = true;
-      }
-      fclose(f);
-      if (valgrind)
-         return (cached = true);
-   }
+   if (scan_file_for_token("/proc/self/maps", "vgpreload"))
+      return (cached = true);
+
+   // Ptrace technique below doesn't work on WSL
+   if (scan_file_for_token("/proc/version", "Microsoft"))
+      return (cached = false);
 
 #ifdef PR_SET_PTRACER
    // For Linux 3.4 and later allow tracing from any proccess
