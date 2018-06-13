@@ -6993,34 +6993,6 @@ static bool sem_check_loop_control(tree_t t)
    return true;
 }
 
-static bool sem_check_select(tree_t t)
-{
-   if (!sem_check(tree_value(t)))
-      return false;
-
-   type_t value_type = tree_type(tree_value(t));
-
-   const int nassocs = tree_assocs(t);
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(t, i);
-      if (tree_subkind(a) == A_NAMED) {
-         tree_t name = tree_name(a);
-         if (!sem_check_constrained(name, value_type))
-            return false;
-         else if (!type_eq(tree_type(name), value_type))
-            sem_error(name, "choice must have type %s",
-                      sem_type_str(value_type));
-         else if (!sem_locally_static(name))
-            sem_error(name, "choice must be locally static");
-      }
-
-      if (!sem_check(tree_value(a)))
-         return false;
-   }
-
-   return true;
-}
-
 static bool sem_check_attr_decl(tree_t t)
 {
    type_t type = tree_type(t);
@@ -7664,6 +7636,7 @@ bool sem_check(tree_t t)
    case T_BLOCK:
       return sem_check_block(t);
    case T_CASE:
+   case T_SELECT:
       return sem_check_case(t);
    case T_EXIT:
    case T_NEXT:
@@ -7673,8 +7646,6 @@ bool sem_check(tree_t t)
    case T_PCALL:
    case T_CPCALL:
       return sem_check_pcall(t);
-   case T_SELECT:
-      return sem_check_select(t);
    case T_ATTR_SPEC:
       return sem_check_attr_spec(t);
    case T_ATTR_DECL:

@@ -347,3 +347,4 @@ issue202        normal
 issue371        normal
 record13        normal
 issue370        normal
+issue376        normal
