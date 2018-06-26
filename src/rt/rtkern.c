@@ -123,7 +123,7 @@ struct driver {
 struct value {
    value_t *next;
    char     data[0];
-};
+} __attribute__((aligned(8)));
 
 struct netgroup {
    netid_t       first;
@@ -219,12 +219,6 @@ struct size_list {
    uint32_t flags;
 };
 
-typedef enum {
-   PERF_SCHED_WAVEFORM,
-   PERF_UPDATE_DRIVER,
-   PERF_COUNTER_LAST
-} perf_counter_t;
-
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct run_queue  run_queue;
@@ -257,7 +251,6 @@ static callback_t   *global_cbs[RT_LAST_EVENT];
 static rt_severity_t exit_severity = SEVERITY_ERROR;
 static hash_t       *decl_hash = NULL;
 static bool          profiling = false;
-static uint64_t      perf_counters[PERF_COUNTER_LAST];
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -421,6 +414,31 @@ void _sched_process(int64_t delay)
 }
 
 DLLEXPORT
+void _sched_waveform_s(void *_nids, uint64_t scalar,
+                       int64_t after, int64_t reject)
+{
+   const int32_t *nids = _nids;
+
+   TRACE("_sched_waveform_s %s value=%08x after=%s reject=%s",
+         fmt_net(nids[0]), scalar, fmt_time(after), fmt_time(reject));
+
+   if (unlikely(active_proc->postponed && (after == 0)))
+      fatal("postponed process %s cannot cause a delta cycle",
+            istr(tree_ident(active_proc->source)));
+
+   const netid_t nid = nids[0];
+   if (likely(nid != NETID_INVALID)) {
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+
+      value_t *values_copy = rt_alloc_value(g);
+      *(uint64_t *)values_copy->data = scalar;
+
+      if (!rt_sched_driver(g, after, reject, values_copy))
+         deltaq_insert_driver(after, g, active_proc);
+   }
+}
+
+DLLEXPORT
 void _sched_waveform(void *_nids, void *values, int32_t n,
                      int64_t after, int64_t reject)
 {
@@ -430,10 +448,6 @@ void _sched_waveform(void *_nids, void *values, int32_t n,
          fmt_net(nids[0]),
          fmt_values(values, n * groups[netdb_lookup(netdb, nids[0])].size),
          n, fmt_time(after), fmt_time(reject));
-
-   uint64_t start_time = 0;
-   if (profiling)
-      start_time = get_timestamp_us();
 
    if (unlikely(active_proc->postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
@@ -460,9 +474,6 @@ void _sched_waveform(void *_nids, void *values, int32_t n,
    }
 
    RT_ASSERT(offset == n);
-
-   if (profiling)
-      perf_counters[PERF_SCHED_WAVEFORM] += get_timestamp_us() - start_time;
 }
 
 DLLEXPORT
@@ -1450,7 +1461,8 @@ static void rt_global_event(rt_event_t kind)
 static value_t *rt_alloc_value(netgroup_t *g)
 {
    if (g->free_values == NULL) {
-      value_t *v = xmalloc(sizeof(struct value) + (g->size * g->length));
+      const size_t size = MAX(sizeof(uint64_t), g->size * g->length);
+      value_t *v = xmalloc(sizeof(struct value) + size);
       v->next = NULL;
       return v;
    }
@@ -2016,10 +2028,6 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
 
 static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
 {
-   uint64_t start_time = 0;
-   if (profiling)
-      start_time = get_timestamp_us();
-
    if (likely(proc != NULL)) {
       // Find the driver owned by proc
       int driver;
@@ -2043,9 +2051,6 @@ static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
    }
    else if (group->flags & NET_F_FORCED)
       rt_update_group(group, -1, group->forcing->data);
-
-   if (profiling)
-      perf_counters[PERF_UPDATE_DRIVER] += get_timestamp_us() - start_time;
 }
 
 static bool rt_stale_event(event_t *e)
@@ -2401,15 +2406,6 @@ static void rt_stats_print(void)
          printf("%10"PRIu64" %5.1f %s\n", procs[i].usage, pc,
                 istr(tree_ident(procs[i].source)));
       }
-
-      notef("simulation overhead");
-
-      const char *names[] = { "sched waveform", "update driver" };
-      color_printf("$white$%10s %5s %s$$\n", "us", "%", "task");
-      for (int i = 0; i < PERF_COUNTER_LAST; i++) {
-         const double pc = ((double)perf_counters[i] / ru_us) * 100.0;
-         printf("%10"PRIu64" %5.1f %s\n", perf_counters[i], pc, names[i]);
-      }
    }
 
    notef("setup:%ums run:%ums maxrss:%ukB", ready_rusage.ms, ru.ms, ru.rss);
@@ -2498,9 +2494,6 @@ void rt_start_of_tool(tree_t top)
    proc_tmp_stack   = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
 
    global_tmp_alloc = 0;
-
-   for (int i = 0; i < PERF_COUNTER_LAST; i++)
-      perf_counters[i] = 0;
 
    rt_reset_coverage(top);
 

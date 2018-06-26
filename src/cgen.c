@@ -1609,17 +1609,38 @@ static LLVMValueRef cgen_pointer_to_arg_data(int op, int arg, cgen_ctx_t *ctx)
 
 static void cgen_op_sched_waveform(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef valptr = cgen_pointer_to_arg_data(op, 2, ctx);
+   LLVMValueRef value = cgen_get_arg(op, 2, ctx);
 
-   LLVMValueRef args[] = {
-      llvm_void_cast(cgen_get_arg(op, 0, ctx)),
-      llvm_void_cast(valptr),
-      cgen_get_arg(op, 1, ctx),
-      cgen_get_arg(op, 4, ctx),
-      cgen_get_arg(op, 3, ctx)
-   };
-   LLVMBuildCall(builder, llvm_fn("_sched_waveform"),
-                 args, ARRAY_LEN(args), "");
+   LLVMValueRef valptr = NULL, scalar = NULL;
+   const vtype_kind_t kind = vcode_reg_kind(vcode_get_arg(op, 2));
+   if (kind == VCODE_TYPE_INT)
+      scalar = LLVMBuildZExt(builder, value, LLVMInt64Type(), "");
+   else if (kind == VCODE_TYPE_REAL)
+      scalar = LLVMBuildBitCast(builder, value, LLVMInt64Type(), "");
+   else
+      valptr = llvm_void_cast(value);
+
+   if (scalar != NULL) {
+      LLVMValueRef args[] = {
+         llvm_void_cast(cgen_get_arg(op, 0, ctx)),
+         scalar,
+         cgen_get_arg(op, 4, ctx),
+         cgen_get_arg(op, 3, ctx)
+      };
+      LLVMBuildCall(builder, llvm_fn("_sched_waveform_s"),
+                    args, ARRAY_LEN(args), "");
+   }
+   else {
+      LLVMValueRef args[] = {
+         llvm_void_cast(cgen_get_arg(op, 0, ctx)),
+         valptr,
+         cgen_get_arg(op, 1, ctx),
+         cgen_get_arg(op, 4, ctx),
+         cgen_get_arg(op, 3, ctx)
+      };
+      LLVMBuildCall(builder, llvm_fn("_sched_waveform"),
+                    args, ARRAY_LEN(args), "");
+   }
 }
 
 static void cgen_append_size_list(size_list_array_t *list,
@@ -3520,6 +3541,17 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt64Type()
       };
       fn = LLVMAddFunction(module, "_sched_waveform",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_sched_waveform_s") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr(),
+         LLVMInt64Type(),
+         LLVMInt64Type(),
+         LLVMInt64Type()
+      };
+      fn = LLVMAddFunction(module, "_sched_waveform_s",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
    }
