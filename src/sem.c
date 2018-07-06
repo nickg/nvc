@@ -4094,22 +4094,31 @@ static bool sem_check_fcall(tree_t t)
             if (!sem_check_arity(t, decl))
                continue;
 
+            const bool decl_is_builtin = tree_attr_str(decl, builtin_i) != NULL;
+            const bool prefer_explicit = relax_rules() & RELAX_PREFER_EXPLICT;
+
             // Same function may appear multiple times in the symbol
             // table under different names
             bool duplicate = false;
             for (int i = 0; i < n_overloads; i++) {
-               if (overloads[i] == decl)
+               if (overloads[i] == NULL)
+                  continue;
+               else if (overloads[i] == decl)
                   duplicate = true;
                else if (type_eq(tree_type(overloads[i]), func_type)) {
                   const bool same_name =
                      (tree_ident(overloads[i]) == tree_ident(decl));
-                  const bool hide_implicit =
-                     (relax_rules() & RELAX_PREFER_EXPLICT)
-                     && ((tree_attr_str(decl, builtin_i) != NULL)
-                         || (tree_attr_str(overloads[i], builtin_i) != NULL));
+                  const bool overload_i_is_builtin =
+                     tree_attr_str(overloads[i], builtin_i) != NULL;
 
-                  if (same_name || hide_implicit)
+                  if (same_name)
                      duplicate = true;
+                  else if (prefer_explicit) {
+                     if (decl_is_builtin && !overload_i_is_builtin)
+                        duplicate = true;
+                     else if (!decl_is_builtin && overload_i_is_builtin)
+                        overloads[i] = decl;
+                  }
                }
             }
 

@@ -1965,7 +1965,27 @@ START_TEST(test_issue377)
 
    input_from_file(TESTDIR "/sem/issue377.vhd");
 
-   parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH, T_ARCH);
+   tree_t a1 = parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH, -1);
+
+   {
+      tree_t fcall = tree_value(tree_stmt(a1, 0));
+      fail_unless(tree_kind(fcall) == T_FCALL);
+
+      tree_t decl = tree_ref(fcall);
+      fail_unless(tree_attr_str(decl, builtin_i) == NULL);
+      fail_unless(tree_ident(decl) == ident_new("WORK.P2.\"=\""));
+   }
+
+   tree_t a2 = parse_and_check(T_ARCH);
+
+   {
+      tree_t fcall = tree_value(tree_stmt(a2, 0));
+      fail_unless(tree_kind(fcall) == T_FCALL);
+
+      tree_t decl = tree_ref(fcall);
+      fail_unless(tree_attr_str(decl, builtin_i) == NULL);
+      fail_unless(tree_ident(decl) == ident_new("WORK.P2.\"=\""));
+   }
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
