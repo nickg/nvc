@@ -28,6 +28,7 @@
 #include <inttypes.h>
 
 static vhdl_standard_t current_std = STD_93;
+static int relax = 0;
 
 int64_t assume_int(tree_t t)
 {
@@ -1056,4 +1057,14 @@ ident_t mangle_func(tree_t decl, const char *prefix)
       mangle_one_type(buf, type_result(tree_type(decl)));
 
    return ident_new(tb_get(buf));
+}
+
+int relax_rules(void)
+{
+   return relax;
+}
+
+void set_relax_rules(int mask)
+{
+   relax = mask;
 }

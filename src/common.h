@@ -110,6 +110,9 @@ const char *standard_text(vhdl_standard_t s);
 #define RELAX_UNIVERSAL_BOUND (1 << 2)
 #define RELAX_PURE_FILES      (1 << 3)
 
+int relax_rules(void);
+void set_relax_rules(int mask);
+
 //
 // Pre-defined attributes
 //

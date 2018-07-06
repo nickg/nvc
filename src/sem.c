@@ -119,7 +119,6 @@ static int sem_ambiguous_rate(tree_t t);
 
 static scope_t      *top_scope = NULL;
 static int           errors = 0;
-static unsigned      relax = -1;
 static type_set_t   *top_type_set = NULL;
 static loop_stack_t *loop_stack = NULL;
 
@@ -1432,7 +1431,7 @@ static bool sem_check_range(range_t *r, type_t context)
 
          // See LRM 93 section 3.2.1.1
          // Later LRMs relax the wording here
-         if (standard() < STD_00 && !(relax & RELAX_UNIVERSAL_BOUND)) {
+         if (standard() < STD_00 && !(relax_rules() & RELAX_UNIVERSAL_BOUND)) {
             if ((lkind != T_LITERAL) && (lkind != T_ATTR_REF)
                 && (rkind != T_LITERAL) && (rkind != T_ATTR_REF))
                sem_error(r->left, "universal integer bound must be "
@@ -3695,7 +3694,9 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
    // Prune out overloads which are hidden by user subprograms with
    // identical signatures
    for (int i = 0; i < n_overloads - 1; i++) {
-      if (overloads[i] != NULL) {
+      if (overloads[i] != NULL
+          && tree_attr_str(overloads[i], builtin_i) == NULL) {
+
          type_t type = tree_type(overloads[i]);
          for (int j = i + 1; j < n_overloads; j++) {
             const bool prune =
@@ -4025,8 +4026,6 @@ static bool sem_check_fcall(tree_t t)
    int max_overloads = 128;
    tree_t *overloads LOCAL = xmalloc(max_overloads * sizeof(tree_t));
 
-   const bool prefer_explicit = relax & RELAX_PREFER_EXPLICT;
-
    ident_t name = tree_ident(t);
    if (!sem_check_selected_name(name, t, NULL))
       return false;
@@ -4104,11 +4103,10 @@ static bool sem_check_fcall(tree_t t)
                else if (type_eq(tree_type(overloads[i]), func_type)) {
                   const bool same_name =
                      (tree_ident(overloads[i]) == tree_ident(decl));
-
                   const bool hide_implicit =
-                     ((tree_attr_str(decl, builtin_i) != NULL)
-                      || (tree_attr_str(overloads[i], builtin_i) != NULL))
-                     && prefer_explicit;
+                     (relax_rules() & RELAX_PREFER_EXPLICT)
+                     && ((tree_attr_str(decl, builtin_i) != NULL)
+                         || (tree_attr_str(overloads[i], builtin_i) != NULL));
 
                   if (same_name || hide_implicit)
                      duplicate = true;
@@ -6423,7 +6421,7 @@ static bool sem_locally_static(tree_t t)
             && sem_locally_static(value)
             && !sem_unconstrained_value(value);
       }
-      else if ((standard() >= STD_08 || relax & RELAX_LOCALLY_STATIC)
+      else if ((standard() >= STD_08 || (relax_rules() & RELAX_LOCALLY_STATIC))
                && dkind == T_PORT_DECL) {
          // [2008] A generic reference with a locally static subtype
          return tree_class(decl) == C_CONSTANT
@@ -6519,7 +6517,7 @@ static bool sem_locally_static(tree_t t)
 
    // [2008] A slice name whose prefix and range is locally static
    if (kind == T_ARRAY_SLICE &&
-       (standard() >= STD_08 || relax & RELAX_LOCALLY_STATIC)) {
+       (standard() >= STD_08 || (relax_rules() & RELAX_LOCALLY_STATIC))) {
       range_t r = tree_range(t, 0);
       if (!sem_locally_static(r.left) || !sem_locally_static(r.right))
          return false;
@@ -7174,7 +7172,7 @@ static bool sem_check_file_decl(tree_t t)
       && tree_kind(top_scope->subprog) == T_FUNC_BODY
       && !(tree_flags(top_scope->subprog) & TREE_F_IMPURE);
 
-   if (is_pure_func_body & !(relax & RELAX_PURE_FILES))
+   if (is_pure_func_body & !(relax_rules() & RELAX_PURE_FILES))
       sem_error(t, "cannot declare a file object in a pure function");
 
    scope_apply_prefix(t);
@@ -7562,9 +7560,6 @@ static bool sem_check_context_ref(tree_t t)
 
 bool sem_check(tree_t t)
 {
-   if (relax == -1)
-      relax = opt_get_int("relax");
-
    switch (tree_kind(t)) {
    case T_ARCH:
       return sem_check_arch(t);

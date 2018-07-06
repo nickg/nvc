@@ -40,9 +40,7 @@ static void setup(void)
    opt_set_int("bootstrap", 0);
    opt_set_int("cover", 0);
    opt_set_int("unit-test", 1);
-   opt_set_int("prefer-explicit", 0);
    opt_set_str("dump-vcode", NULL);
-   opt_set_int("relax", 0);
    opt_set_int("ignore-time", 0);
    opt_set_int("verbose", 0);
    intern_strings();
@@ -61,6 +59,7 @@ static void setup_per_test(void)
    reset_eval_errors();
 
    set_standard(STD_93);
+   set_relax_rules(0);
 
    error_lines = NULL;
    set_error_fn(NULL, 1);

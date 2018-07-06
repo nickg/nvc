@@ -1948,6 +1948,29 @@ START_TEST(test_issue225)
 }
 END_TEST
 
+START_TEST(test_issue377)
+{
+   input_from_file(TESTDIR "/sem/issue377.vhd");
+
+   const error_t expect[] = {
+      { 20, "ambiguous use of operator \"=\"" },
+      { 29, "ambiguous use of operator \"=\"" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH, T_ARCH);
+
+   set_relax_rules(RELAX_PREFER_EXPLICT);
+
+   input_from_file(TESTDIR "/sem/issue377.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2049,6 +2072,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue341);
    tcase_add_test(tc_core, test_issue340);
    tcase_add_test(tc_core, test_issue225);
+   tcase_add_test(tc_core, test_issue377);
    suite_add_tcase(s, tc_core);
 
    return s;

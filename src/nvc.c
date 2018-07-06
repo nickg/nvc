@@ -134,10 +134,10 @@ static int analyse(int argc, char **argv)
       case 'p':
          warnf("the --prefer-explict option is deprecated: use "
                "--relax=prefer-explict instead");
-         opt_set_int("relax", RELAX_PREFER_EXPLICT);
+         set_relax_rules(RELAX_PREFER_EXPLICT);
          break;
       case 'R':
-         opt_set_int("relax", parse_relax(optarg));
+         set_relax_rules(parse_relax(optarg));
          break;
       default:
          abort();
@@ -767,7 +767,6 @@ static void set_default_opts(void)
    opt_set_int("cover", 0);
    opt_set_int("stop-delta", 1000);
    opt_set_int("unit-test", 0);
-   opt_set_int("prefer-explicit", 0);
    opt_set_int("make-deps-only", 0);
    opt_set_int("make-posix", 0);
    opt_set_str("dump-vcode", NULL);
