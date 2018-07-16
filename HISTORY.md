@@ -1,8 +1,8 @@
-## master
+## 1.4 - 2018-07-16
 - Windows with MSYS2 is now fully supported
 - Continuous integration for OS X and Windows using Travis and AppVeyor
 - Record resolution functions are now supported
-- The `--relax=prefer-explicit` now works correctly
+- The `--relax=prefer-explicit` option now works correctly
 
 ## 1.3 - 2017-12-31
 - Native code is always generated on platforms that support it
