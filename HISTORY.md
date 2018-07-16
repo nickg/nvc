@@ -1,3 +1,6 @@
+## master
+- Nothing yet
+
 ## 1.4 - 2018-07-16
 - Windows with MSYS2 is now fully supported
 - Continuous integration for OS X and Windows using Travis and AppVeyor
