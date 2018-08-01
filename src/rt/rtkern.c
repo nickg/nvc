@@ -122,7 +122,10 @@ struct driver {
 
 struct value {
    value_t *next;
-   char     data[0];
+   union {
+      char     data[0];
+      uint64_t qwords[0];
+   };
 } __attribute__((aligned(8)));
 
 struct netgroup {
@@ -431,7 +434,7 @@ void _sched_waveform_s(void *_nids, uint64_t scalar,
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
 
       value_t *values_copy = rt_alloc_value(g);
-      *(uint64_t *)values_copy->data = scalar;
+      values_copy->qwords[0] = scalar;
 
       if (!rt_sched_driver(g, after, reject, values_copy))
          deltaq_insert_driver(after, g, active_proc);
