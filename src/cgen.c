@@ -173,6 +173,29 @@ static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
    // containing the left and right indices, a flag indicating
    // direction, and a pointer to the array data
 
+   char *struct_name LOCAL = NULL;
+   switch (LLVMGetTypeKind(base)) {
+   case LLVMIntegerTypeKind:
+      struct_name = xasprintf("uarray.i%d.%d", LLVMGetIntTypeWidth(base), dims);
+      break;
+   case LLVMDoubleTypeKind:
+      struct_name = xasprintf("uarray.f.%d", dims);
+      break;
+   case LLVMStructTypeKind:
+      struct_name = xasprintf("uarray.%s.%d", LLVMGetStructName(base), dims);
+      break;
+   case LLVMPointerTypeKind:
+      struct_name = xasprintf("uarray.signal.%d", dims);
+      break;
+   default:
+      fatal_trace("cannot generate uarray type name for %s",
+                  LLVMPrintTypeToString(base));
+   }
+
+   LLVMTypeRef exist = LLVMGetTypeByName(module, struct_name);
+   if (exist != NULL)
+      return exist;
+
    LLVMTypeRef dim_fields[] = {
       LLVMInt32Type(),      // Left
       LLVMInt32Type(),      // Right
@@ -187,7 +210,9 @@ static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
       LLVMArrayType(dim_struct, dims)
    };
 
-   return LLVMStructType(fields, ARRAY_LEN(fields), false);
+   LLVMTypeRef new = LLVMStructCreateNamed(LLVMGetGlobalContext(), struct_name);
+   LLVMStructSetBody(new, fields, ARRAY_LEN(fields), false);
+   return new;
 }
 
 static LLVMTypeRef llvm_size_list_type(void)
@@ -508,7 +533,7 @@ static LLVMValueRef cgen_display_struct(cgen_ctx_t *ctx, int hops)
       *outptr++ = cgen_get_var(vcode_var_handle(i), ctx);
 
    for (int i = 0; i < nparams; i++)
-      *outptr++ = LLVMGetParam(ctx->fn, i);
+      *outptr++ = ctx->regs[i];
 
    if (ctx->display != NULL)
       *outptr++ = ctx->display;
@@ -611,6 +636,62 @@ static LLVMValueRef cgen_hint_str(int op)
    return cgen_array_pointer(glob);
 }
 
+static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
+                                   LLVMTypeRef display_type,
+                                   const vcode_type_t *vparams, size_t nparams)
+{
+   const char *safe_name = safe_symbol(istr(name));
+   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
+   if (fn != NULL)
+      return fn;
+   else if (vparams == NULL)
+      return NULL;
+
+   const bool is_procedure = result == VCODE_INVALID_TYPE;
+   const int nextra  = (display_type ? 1 : 0) + (is_procedure ? 1 : 0);
+   LLVMTypeRef params[nparams + nextra + 1];
+   LLVMTypeRef *p = params;
+   for (size_t i = 0; i < nparams; i++) {
+      if (vtype_kind(vparams[i]) == VCODE_TYPE_UARRAY)
+         *p++ = LLVMPointerType(cgen_type(vparams[i]), 0);
+      else
+         *p++ = cgen_type(vparams[i]);
+   }
+
+   if (display_type != NULL)
+      *p++ = display_type;
+
+   if (is_procedure)
+      *p++ = llvm_void_ptr();
+
+   LLVMTypeRef type = NULL;
+   if (is_procedure)
+      type = LLVMFunctionType(llvm_void_ptr(), params, nparams + nextra, false);
+   else
+      type = LLVMFunctionType(cgen_type(result), params,
+                              nparams + nextra, false);
+
+   fn = LLVMAddFunction(module, safe_name, type);
+
+   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
+   cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
+
+   return fn;
+}
+
+static LLVMValueRef cgen_subprogram_arg(int op, int arg, cgen_ctx_t *ctx)
+{
+   LLVMValueRef value = cgen_get_arg(op, arg, ctx);
+   if (vcode_reg_kind(vcode_get_arg(op, arg)) == VCODE_TYPE_UARRAY) {
+      // Pass all uarray parameters by pointer to match C calling convention
+      LLVMValueRef mem = LLVMBuildAlloca(builder, LLVMTypeOf(value), "");
+      LLVMBuildStore(builder, value, mem);
+      return mem;
+   }
+   else
+      return value;
+}
+
 static void cgen_op_return(int op, cgen_ctx_t *ctx)
 {
    if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
@@ -644,35 +725,27 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
    const int nargs = vcode_count_args(op);
    const int total_args = nargs + (nested ? 1 : 0) + (proc ? 1 : 0);
 
-   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_symbol(istr(func)));
+   LLVMValueRef fn = cgen_signature(func, VCODE_INVALID_TYPE, NULL, NULL, 0);
    if (fn == NULL) {
-      LLVMTypeRef atypes[total_args];
-      LLVMTypeRef *pa = atypes;
+      vcode_type_t atypes[nargs];
       for (int i = 0; i < nargs; i++)
-         *pa++ = cgen_type(vcode_reg_type(vcode_get_arg(op, i)));
+         atypes[i] = vcode_reg_type(vcode_get_arg(op, i));
 
+      LLVMTypeRef display_type = NULL;
       if (nested)
-         *pa++ = cgen_display_type(vcode_active_unit());
+         display_type = cgen_display_type(vcode_active_unit());
 
-      if (proc)
-         *pa++ = llvm_void_ptr();
+      vcode_type_t rtype = VCODE_INVALID_TYPE;
+      if (result != VCODE_INVALID_REG)
+         rtype = vcode_reg_type(result);
 
-      LLVMTypeRef rtype = proc
-         ? llvm_void_ptr()
-         : cgen_type(vcode_reg_type(result));
-
-      fn = LLVMAddFunction(
-         module,
-         safe_symbol(istr(func)),
-         LLVMFunctionType(rtype, atypes, total_args, false));
-
-      cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
+      fn = cgen_signature(func, rtype, display_type, atypes, nargs);
    }
 
    LLVMValueRef args[total_args];
    LLVMValueRef *pa = args;
    for (int i = 0; i < nargs; i++)
-      *pa++ = cgen_get_arg(op, i, ctx);
+      *pa++ = cgen_subprogram_arg(op, i, ctx);
 
    if (nested)
       *pa++ = cgen_display_struct(ctx, vcode_get_hops(op));
@@ -1736,16 +1809,15 @@ static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata)
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
-   const char *safe_name = safe_symbol(istr(rdata->name));
-   LLVMValueRef rfn = LLVMGetNamedFunction(module, safe_name);
+   LLVMValueRef rfn = cgen_signature(rdata->name, rdata->type, NULL, NULL, 0);
    if (rfn == NULL) {
       // The resolution function is not visible yet e.g. because it
       // is declared in another package
-      LLVMTypeRef wrapped_result_type = is_record ? pointer_type : elem_type;
-      LLVMTypeRef args[] = { uarray_type };
-      rfn = LLVMAddFunction(module, safe_name,
-                            LLVMFunctionType(wrapped_result_type, args,
-                                             ARRAY_LEN(args), false));
+      vcode_type_t rtype = is_record ? vtype_pointer(rdata->type) : rdata->type;
+      vcode_type_t args[] = {
+         vtype_uarray(1, rdata->type, vtype_int(0, INT32_MAX))
+      };
+      rfn = cgen_signature(rdata->name, rtype, NULL, args, 1);
    }
 
    LLVMTypeRef field_types[LLVMCountStructElementTypes(uarray_type)];
@@ -1768,9 +1840,10 @@ static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata)
 
    dim_array = LLVMBuildInsertValue(builder, dim_array, d, 0, "");
 
-   LLVMValueRef wrapped = LLVMGetUndef(uarray_type);
-   wrapped = LLVMBuildInsertValue(builder, wrapped, vals, 0, "");
-   wrapped = LLVMBuildInsertValue(builder, wrapped, dim_array, 1, "");
+   LLVMValueRef wrapped = LLVMBuildAlloca(builder, uarray_type, "");
+   LLVMBuildStore(builder, vals, LLVMBuildStructGEP(builder, wrapped, 0, ""));
+   LLVMBuildStore(builder, dim_array,
+                  LLVMBuildStructGEP(builder, wrapped, 1, ""));
 
    LLVMValueRef r = LLVMBuildCall(builder, rfn, &wrapped, 1, "");
 
@@ -1992,26 +2065,24 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
    ident_t func = vcode_get_func(op);
    const int nargs = vcode_count_args(op);
 
-   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_symbol(istr(func)));
+   LLVMValueRef fn = cgen_signature(func, VCODE_INVALID_TYPE, NULL, NULL, 0);
    if (fn == NULL) {
-      LLVMTypeRef atypes[nargs + 1];
+      vcode_type_t atypes[nargs];
       for (int i = 0; i < nargs; i++)
-         atypes[i] = cgen_type(vcode_reg_type(vcode_get_arg(op, i)));
-      atypes[nargs] = llvm_void_ptr();
+         atypes[i] = vcode_reg_type(vcode_get_arg(op, i));
 
-      fn = LLVMAddFunction(
-         module,
-         safe_symbol(istr(func)),
-         LLVMFunctionType(llvm_void_ptr(), atypes, nargs + 1, false));
+      LLVMTypeRef display_type = NULL;
+      if (nested)
+         display_type = cgen_display_type(vcode_active_unit());
 
-      cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
+      fn = cgen_signature(func, VCODE_INVALID_TYPE, display_type, atypes, nargs);
    }
 
    const int total_args = nargs + (nested ? 1 : 0) + 1;
    LLVMValueRef args[total_args];
    LLVMValueRef *ap = args;
    for (int i = 0; i < nargs; i++)
-      *ap++ = cgen_get_arg(op, i, ctx);
+      *ap++ = cgen_subprogram_arg(op, i, ctx);
 
    if (nested)
       *ap++ = cgen_display_struct(ctx, vcode_get_hops(op));
@@ -2993,8 +3064,15 @@ static void cgen_code(cgen_ctx_t *ctx)
 static void cgen_params(cgen_ctx_t *ctx)
 {
    const int nparams = vcode_count_params();
-   for (int i = 0; i < nparams; i++)
-      ctx->regs[vcode_param_reg(i)] = LLVMGetParam(ctx->fn, i);
+   for (int i = 0; i < nparams; i++) {
+      LLVMValueRef param = LLVMGetParam(ctx->fn, i);
+      if (vtype_kind(vcode_param_type(i)) == VCODE_TYPE_UARRAY) {
+         LLVMPositionBuilderAtEnd(builder, LLVMGetFirstBasicBlock(ctx->fn));
+         ctx->regs[vcode_param_reg(i)] = LLVMBuildLoad(builder, param, "");
+      }
+      else
+         ctx->regs[vcode_param_reg(i)] = param;
+   }
 }
 
 static void cgen_locals(cgen_ctx_t *ctx)
@@ -3014,47 +3092,17 @@ static void cgen_locals(cgen_ctx_t *ctx)
    }
 }
 
-static LLVMTypeRef cgen_subprogram_type(LLVMTypeRef display_type,
-                                        bool is_procecure)
-{
-   const int nextra  = (display_type ? 1 : 0) + (is_procecure ? 1 : 0);
-   const int nparams = vcode_count_params();
-   LLVMTypeRef params[nparams + nextra + 1];
-   LLVMTypeRef *p = params;
-   for (int i = 0; i < nparams; i++)
-      *p++ = cgen_type(vcode_param_type(i));
-
-   if (display_type != NULL)
-      *p++ = display_type;
-
-   if (is_procecure || vcode_unit_result() == VCODE_INVALID_TYPE)
-      *p++ = llvm_void_ptr();
-
-   if (is_procecure)
-      return LLVMFunctionType(llvm_void_ptr(), params, nparams + nextra, false);
-   else {
-      vcode_type_t rtype = vcode_unit_result();
-      if (rtype == VCODE_INVALID_TYPE)
-         return LLVMFunctionType(llvm_void_ptr(), params,
-                                 nparams + nextra + 1, false);
-      else
-         return LLVMFunctionType(cgen_type(rtype), params,
-                                 nparams + nextra, false);
-   }
-}
-
 static void cgen_function(LLVMTypeRef display_type)
 {
    assert(vcode_unit_kind() == VCODE_UNIT_FUNCTION);
 
-   const char *safe_name = safe_symbol(istr(vcode_unit_name()));
-   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
-   if (fn == NULL)
-      fn = LLVMAddFunction(module, safe_name,
-                           cgen_subprogram_type(display_type, false));
+   const int nparams = vcode_count_params();
+   vcode_type_t params[nparams];
+   for (int i = 0; i < nparams; i++)
+      params[i] = vcode_param_type(i);
 
-   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
-   cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
+   LLVMValueRef fn = cgen_signature(vcode_unit_name(), vcode_unit_result(),
+                                    display_type, params, nparams);
 
    const bool pure =
       display_type == NULL
@@ -3154,20 +3202,17 @@ static void cgen_procedure(LLVMTypeRef display_type)
 {
    assert(vcode_unit_kind() == VCODE_UNIT_PROCEDURE);
 
-   const char *safe_name = safe_symbol(istr(vcode_unit_name()));
-   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
-   if (fn == NULL)
-      fn = LLVMAddFunction(module, safe_name,
-                           cgen_subprogram_type(display_type, true));
+   const int nparams = vcode_count_params();
+   vcode_type_t params[nparams];
+   for (int i = 0; i < nparams; i++)
+      params[i] = vcode_param_type(i);
 
-   cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
-   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
+   LLVMValueRef fn = cgen_signature(vcode_unit_name(), VCODE_INVALID_TYPE,
+                                    display_type, params, nparams);
 
    cgen_ctx_t ctx = {
       .fn = fn
    };
-
-   const int nparams = vcode_count_params();
 
    if (display_type != NULL)
       ctx.display = LLVMGetParam(fn, nparams);
