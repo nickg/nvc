@@ -69,7 +69,10 @@ typedef enum {
    FUNC_ATTR_NOUNWIND,
    FUNC_ATTR_NORETURN,
    FUNC_ATTR_READONLY,
-   FUNC_ATTR_DLLEXPORT
+   FUNC_ATTR_NOCAPTURE,
+   FUNC_ATTR_BYVAL,
+
+   FUNC_ATTR_DLLEXPORT,   // Should be last
 } func_attr_t;
 
 static LLVMModuleRef  module = NULL;
@@ -244,7 +247,7 @@ static void debug_dump(LLVMValueRef ptr, LLVMValueRef len)
 }
 #endif
 
-static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr)
+static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
 {
    if (attr == FUNC_ATTR_DLLEXPORT) {
 #ifdef IMPLIB_REQUIRED
@@ -255,7 +258,7 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr)
 
 #if LLVM_NEW_ATTRIBUTE_API
    const char *names[] = {
-      "nounwind", "noreturn", "readonly"
+      "nounwind", "noreturn", "readonly", "nocapture", "byval"
    };
    assert(attr < ARRAY_LEN(names));
 
@@ -267,16 +270,21 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr)
    LLVMAttributeRef ref =
       LLVMCreateEnumAttribute(LLVMGetGlobalContext(), kind, 0);
 
-   LLVMAddAttributeAtIndex(fn, LLVMAttributeFunctionIndex, ref);
+   LLVMAddAttributeAtIndex(fn, param, ref);
 #else
    LLVMAttribute llvm_attrs[] = {
       LLVMNoUnwindAttribute,
       LLVMNoReturnAttribute,
-      LLVMReadOnlyAttribute
+      LLVMReadOnlyAttribute,
+      LLVMNoCaptureAttribute,
+      LLVMByValAttribute
    };
    assert(attr < ARRAY_LEN(llvm_attrs));
 
-   LLVMAddFunctionAttr(fn, llvm_attrs[attr]);
+   if (param == -1)
+      LLVMAddFunctionAttr(fn, llvm_attrs[attr]);
+   else
+      LLVMAddAttribute(LLVMGetParam(fn, param - 1), llvm_attrs[attr]);
 #endif
 }
 
@@ -673,15 +681,14 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
 
    fn = LLVMAddFunction(module, safe_name, type);
 
-   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
-   cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
+   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT, -1);
+   cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND, -1);
 
    for (size_t i = 0; i < nparams; i++) {
       if (vtype_kind(vparams[i]) == VCODE_TYPE_UARRAY) {
-         LLVMValueRef param = LLVMGetParam(fn, i);
-         LLVMAddAttribute(param, LLVMByValAttribute);
-         LLVMAddAttribute(param, LLVMNoCaptureAttribute);
-         LLVMSetParamAlignment(param, 8);
+         cgen_add_func_attr(fn, FUNC_ATTR_BYVAL, i + 1);
+         cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, i + 1);
+         LLVMSetParamAlignment(LLVMGetParam(fn, i), 8);
       }
    }
 
@@ -3119,7 +3126,7 @@ static void cgen_function(LLVMTypeRef display_type)
       && vcode_unit_pure();
 
    if (pure)
-      cgen_add_func_attr(fn, FUNC_ATTR_READONLY);
+      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, -1);
 
    cgen_ctx_t ctx = {
       .fn = fn
@@ -3290,8 +3297,8 @@ static void cgen_process(vcode_unit_t code)
    LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), pargs, 1, false);
    const char *name = safe_symbol(istr(vcode_unit_name()));
    LLVMValueRef fn = LLVMAddFunction(module, name, ftype);
-   cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
-   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
+   cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND, -1);
+   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT, -1);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMBasicBlockRef reset_bb = LLVMAppendBasicBlock(fn, "reset");
@@ -3382,7 +3389,7 @@ static void cgen_reset_function(tree_t top)
    LLVMValueRef fn =
       LLVMAddFunction(module, name,
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
-   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT);
+   cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT, -1);
 
    LLVMBasicBlockRef init_bb = NULL;
 
@@ -3433,7 +3440,7 @@ static void cgen_coverage_state(tree_t t)
       LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
       LLVMValueRef var = LLVMAddGlobal(module, type, "cover_stmts");
       LLVMSetInitializer(var, LLVMGetUndef(type));
-      cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT);
+      cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT, -1);
    }
 
    const int cond_tags = tree_attr_int(t, ident_new("cond_tags"), 0);
@@ -3441,7 +3448,7 @@ static void cgen_coverage_state(tree_t t)
       LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
       LLVMValueRef var = LLVMAddGlobal(module, type, "cover_conds");
       LLVMSetInitializer(var, LLVMGetUndef(type));
-      cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT);
+      cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT, -1);
    }
 }
 
@@ -3824,7 +3831,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_bounds_fail",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
-      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN);
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
    }
    else if (strcmp(name, "_div_zero") == 0) {
       LLVMTypeRef args[] = {
@@ -3833,7 +3840,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_div_zero",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
-      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN);
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
    }
    else if (strcmp(name, "_null_deref") == 0) {
       LLVMTypeRef args[] = {
@@ -3842,7 +3849,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_null_deref",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
-      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN);
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
    }
    else if (strcmp(name, "_bit_shift") == 0) {
       LLVMTypeRef args[] = {
@@ -3909,7 +3916,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
    }
 
    if (fn != NULL)
-      cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND);
+      cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND, -1);
 
    return fn;
 }
