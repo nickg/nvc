@@ -189,7 +189,7 @@ fi
 # CC may constain unwanted -std=... option.
 cc_bare="$(which ${CC%% *})"
 case $host_os in
-  *cygwin*|msys*)
+  *cygwin*|msys*|mingw32*)
     cc_bare="$(cygpath -w $cc_bare | sed  's|\\|\\\\|g')"
     ;;
 esac
