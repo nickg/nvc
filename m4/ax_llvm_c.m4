@@ -66,11 +66,11 @@ AC_DEFUN([AX_LLVM_C], [
 
           LLVM_CFLAGS=`$ac_llvm_config_path --cflags`
           LLVM_CXXFLAGS=`$ac_llvm_config_path --cxxflags`
-          LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags)"
+          LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags | sed 's|\\|\\\\|g')"
           LLVM_SYSLIBS="$($ac_llvm_config_path --system-libs)"
           LLVM_LIBS="$($ac_llvm_config_path --libs $LLVM_COMPS) $LLVM_SYSLIBS"
-          LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir | sed  's|\\|\\\\|g')"
-          LLVM_LIBDIR="$($ac_llvm_config_path --libdir)"
+          LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir | sed 's|\\|\\\\|g')"
+          LLVM_LIBDIR="$($ac_llvm_config_path --libdir | sed 's|\\|\\\\|g')"
 
           if test "$llvm_ver_num" -lt "38"; then
               AC_MSG_ERROR([LLVM version 3.8 or later required])
@@ -137,9 +137,14 @@ AC_DEFUN([AX_LLVM_C], [
               succeeded=yes
           fi
 
-          shlib="-Wl,-rpath $LLVM_LIBDIR -lLLVM-$LLVM_VERSION"
+          ac_llvm_shared_lib="-Wl,-rpath $LLVM_LIBDIR -lLLVM-$LLVM_VERSION"
+          case $host_os in
+              msys*|mingw32*)
+                  ac_llvm_shared_lib="-L$LLVM_CONFIG_BINDIR -Wl,-rpath $LLVM_CONFIG_BINDIR -lLLVM"
+                  ;;
+          esac
 
-          LIBS="$LIBS_SAVED $shlib"
+          LIBS="$LIBS_SAVED $ac_llvm_shared_lib"
           export LIBS
 
           AC_CACHE_CHECK([for LLVM shared library],
@@ -154,7 +159,7 @@ AC_DEFUN([AX_LLVM_C], [
                           AC_LANG_POP([C++])])
 
           if test "x$ax_cv_llvm_shared" = "xyes"; then
-              LLVM_LIBS="$shlib"
+              LLVM_LIBS="$ac_llvm_shared_lib"
               succeeded=yes
           fi
 
