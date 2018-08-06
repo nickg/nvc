@@ -686,8 +686,10 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
 
    for (size_t i = 0; i < nparams; i++) {
       if (vtype_kind(vparams[i]) == VCODE_TYPE_UARRAY) {
-         cgen_add_func_attr(fn, FUNC_ATTR_BYVAL, i + 1);
-         cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, i + 1);
+         if (!is_procedure) {   // Required for 64-bit MingW
+            cgen_add_func_attr(fn, FUNC_ATTR_BYVAL, i + 1);
+            cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, i + 1);
+         }
          LLVMSetParamAlignment(LLVMGetParam(fn, i), sizeof(void *));
       }
    }
