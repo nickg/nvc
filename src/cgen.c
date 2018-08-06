@@ -688,7 +688,7 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
       if (vtype_kind(vparams[i]) == VCODE_TYPE_UARRAY) {
          cgen_add_func_attr(fn, FUNC_ATTR_BYVAL, i + 1);
          cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, i + 1);
-         LLVMSetParamAlignment(LLVMGetParam(fn, i), 8);
+         LLVMSetParamAlignment(LLVMGetParam(fn, i), sizeof(void *));
       }
    }
 
