@@ -226,6 +226,9 @@ void lxt_init(const char *filename, tree_t top)
 {
    lxt_data_i = ident_new("lxt_data");
 
+   warnf("Use of the LXT file format is deprecated and will be removed "
+   "in the next release. Use FST instead for GtkWave.");
+
    if ((trace = lt_init(filename)) == NULL)
       fatal("lt_init failed");
 

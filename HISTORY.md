@@ -1,5 +1,6 @@
 ## master
-- Nothing yet
+- Updated FST library to match GtkWave 3.3.79
+- The LXT wave output format is deprecated, use FST instead
 
 ## 1.4 - 2018-07-16
 - Windows with MSYS2 is now fully supported

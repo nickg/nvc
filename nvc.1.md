@@ -129,16 +129,14 @@ elaborate command.
    The default is `error`.
 
  * `--format=`_fmt_:
-   Generate waveform data in format _fmt_. Currently supported formats are:
-   `fst`, `lxt`, and `vcd`. The FST and LXT formats are native to GtkWave.
-   The FST format is preferred over LXT due its smaller size and better
-   performance; however VHDL support in FST requires a recent version of
-   GtkWave so LXT is provided for compatibility. VCD is a very widely used
-   format but has limited ability to represent VHDL types and the performance
-   is poor: select this only if you must use the output with a tool that does
-   not support FST or LXT. The default format is FST if this option is not
-   provided. Note that GtkWave 3.3.53 or later is required to view the FST
-   output.
+   Generate waveform data in format _fmt_. Currently supported
+   formats are: `fst` and `vcd`. The FST format is native to GtkWave.  The FST
+   format is preferred over VCD due its smaller size and better performance.
+   VCD is a very widely used format but has limited ability to represent VHDL
+   types and the performance is poor: select this only if you must use the output
+   with a tool that does not support FST. The default format is FST if this option
+   is not provided. Note that GtkWave 3.3.79 or later is required to view the
+   FST output.
 
  * `--include=`_glob_, `--exclude=`_glob_:
    Signals that match _glob_ are included in or excluded from the waveform

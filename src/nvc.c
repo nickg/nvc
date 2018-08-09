@@ -817,7 +817,7 @@ static void usage(void)
           "Run options:\n"
           "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
           "     --exit-severity=S\tExit after assertion failure of severity S\n"
-          "     --format=FMT\tWaveform format is one of lxt, fst, or vcd\n"
+          "     --format=FMT\tWaveform format is either fst or vcd\n"
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
 #ifdef ENABLE_VHPI
           "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
