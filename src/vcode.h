@@ -132,6 +132,7 @@ typedef enum {
    VCODE_OP_IMAGE_MAP,
    VCODE_OP_DEBUG_INFO,
    VCODE_OP_ADDI,
+   VCODE_OP_RANGE_NULL,
 } vcode_op_t;
 
 typedef enum {
@@ -463,5 +464,7 @@ vcode_reg_t emit_enum_map(ident_t name, size_t nelems, const ident_t *elems);
 vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
                               const ident_t *elems, const int64_t *values);
 void emit_debug_info(const loc_t *loc);
+vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
+                            vcode_reg_t dir);
 
 #endif  // _VCODE_H

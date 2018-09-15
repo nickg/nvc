@@ -1073,7 +1073,7 @@ const char *vcode_op_string(vcode_op_t op)
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
       "uarray len", "heap save", "heap restore", "nested resume", "undefined",
-      "image map", "debug info", "addi"
+      "image map", "debug info", "addi", "range null"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2153,6 +2153,19 @@ void vcode_dump_with_mark(int mark_op)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s", vcode_op_string(op->kind));
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_RANGE_NULL:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s left ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               col += printf(" right ");
+               vcode_dump_reg(op->args.items[1]);
+               col += printf(" dir ");
+               vcode_dump_reg(op->args.items[2]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -4086,6 +4099,32 @@ vcode_reg_t emit_unwrap(vcode_reg_t array)
    rr->bounds = elem;
 
    return op->result;
+}
+
+vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
+                            vcode_reg_t dir)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_RANGE_NULL) {
+      if (other->args.items[0] == left
+          && other->args.items[1] == right
+          && other->args.items[2] == dir)
+         return other->result;
+   }
+
+   int64_t dir_const;
+   if (vcode_reg_const(dir, &dir_const)) {
+      if (dir_const == RANGE_TO)
+         return emit_cmp(VCODE_CMP_GT, left, right);
+      else
+         return emit_cmp(VCODE_CMP_GT, right, left);
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_RANGE_NULL);
+   vcode_add_arg(op, left);
+   vcode_add_arg(op, right);
+   vcode_add_arg(op, dir);
+
+   return (op->result = vcode_add_reg(vtype_bool()));
 }
 
 vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg)

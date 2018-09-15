@@ -123,6 +123,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_UNWRAP:
       case VCODE_OP_ARRAY_SIZE:
       case VCODE_OP_NULL:
+      case VCODE_OP_RANGE_NULL:
          break;
 
       case VCODE_OP_UARRAY_LEFT:
@@ -3061,6 +3062,32 @@ START_TEST(test_access1)
 }
 END_TEST
 
+START_TEST(test_sum)
+{
+   input_from_file(TESTDIR "/lower/sum.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   lower_unit(p);
+
+   vcode_unit_t v0 = find_unit(tree_decl(p, 1));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_STORE, .name = "RESULT" },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_RANGE_NULL },
+      { VCODE_OP_COND, .target = 2, .target_else = 1 }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3134,6 +3161,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue357);
    tcase_add_test(tc, test_signal11);
    tcase_add_test(tc, test_access1);
+   tcase_add_test(tc, test_sum);
    suite_add_tcase(s, tc);
 
    return s;

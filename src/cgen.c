@@ -2748,6 +2748,24 @@ static void cgen_op_addi(int op, cgen_ctx_t *ctx)
                       cgen_reg_name(result));
 }
 
+static void cgen_op_range_null(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef left = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef right = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef dir = cgen_get_arg(op, 2, ctx);
+
+   LLVMValueRef cmp_to = LLVMBuildICmp(builder, LLVMIntSGT,
+                                       left, right, "cmp_to");
+   LLVMValueRef cmp_downto = LLVMBuildICmp(builder, LLVMIntSGT,
+                                           right, left, "cmp_downto");
+
+   ctx->regs[result] =
+      LLVMBuildSelect(builder, dir, cmp_downto, cmp_to, cgen_reg_name(result));
+
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -3023,6 +3041,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_ADDI:
       cgen_op_addi(i, ctx);
+      break;
+   case VCODE_OP_RANGE_NULL:
+      cgen_op_range_null(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
