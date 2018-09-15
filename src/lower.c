@@ -3602,6 +3602,10 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
    vcode_reg_t init_reg = r.kind == RANGE_RDYN ? right_reg : left_reg;
    emit_store(init_reg, ivar);
 
+   vcode_reg_t dirn_reg = lower_range_dir(r, 0);
+   vcode_reg_t step_reg = emit_select(dirn_reg, emit_const(vtype, -1),
+                                      emit_const(vtype, 1));
+
    vcode_block_t body_bb = emit_block();
    emit_jump(body_bb);
    vcode_select_block(body_bb);
@@ -3628,10 +3632,7 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
    vcode_select_block(test_bb);
 
    vcode_reg_t ireg     = emit_load(ivar);
-   vcode_reg_t add1_reg = emit_addi(ireg, 1);
-   vcode_reg_t sub1_reg = emit_addi(ireg, -1);
-   vcode_reg_t dirn_reg = lower_range_dir(r, 0);
-   vcode_reg_t next_reg = emit_select(dirn_reg, sub1_reg, add1_reg);
+   vcode_reg_t next_reg = emit_add(ireg, step_reg);
    emit_store(next_reg, ivar);
 
    vcode_reg_t final_reg =
