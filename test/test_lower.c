@@ -3067,6 +3067,8 @@ START_TEST(test_sum)
    input_from_file(TESTDIR "/lower/sum.vhd");
 
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   bounds_check(p);
+   fail_if(bounds_errors() > 0);
    lower_unit(p);
 
    vcode_unit_t v0 = find_unit(tree_decl(p, 1));
@@ -3085,6 +3087,27 @@ START_TEST(test_sum)
    };
 
    CHECK_BB(0);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_LOAD, .name = "RESULT" },
+      { VCODE_OP_LOAD, .name = "I.line_11" },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SUB },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_ADD },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_ADD },
+      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+      { VCODE_OP_STORE, .name = "RESULT" },
+      { VCODE_OP_JUMP, .target = 4 },
+   };
+
+   CHECK_BB(3);
 }
 END_TEST
 

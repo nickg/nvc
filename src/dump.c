@@ -56,14 +56,15 @@ static void syntax(const char *fmt, ...)
 {
    LOCAL_TEXT_BUF tb = tb_new();
    bool highlighting = false;
-   bool comment = false;
+   static bool comment = false;
    for (const char *p = fmt; *p != '\0'; p++) {
       if (comment) {
          if (*p == '\n') {
             comment = false;
             tb_printf(tb, "$$");
          }
-         tb_append(tb, *p);
+         if (*p != '~' && *p != '#')
+            tb_append(tb, *p);
       }
       else if (*p == '#') {
          tb_printf(tb, "$bold$$cyan$");
@@ -125,15 +126,15 @@ static void dump_range(range_t r)
    dump_expr(r.left);
    switch (r.kind) {
    case RANGE_TO:
-      printf(" to "); break;
+      syntax(" #to "); break;
    case RANGE_DOWNTO:
-      printf(" downto "); break;
+      syntax(" #downto "); break;
    case RANGE_DYN:
-      printf(" dynamic "); break;
+      syntax(" #dynamic "); break;
    case RANGE_RDYN:
-      printf(" reverse_dynamic "); break;
-   default:
-      assert(false);
+      syntax(" #reverse_dynamic "); break;
+   case RANGE_EXPR:
+      syntax(" #expr ");
    }
    dump_expr(r.right);
 }
@@ -336,7 +337,7 @@ static void dump_op(tree_t t, int indent)
 {
    tab(indent);
 
-   printf("-- predefined %s [", istr(tree_ident(t)));
+   syntax("-- predefined %s [", istr(tree_ident(t)));
 
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
@@ -352,7 +353,7 @@ static void dump_op(tree_t t, int indent)
       dump_type(type_result(tree_type(t)));
    }
 
-   printf("\n");
+   syntax("\n");
 }
 
 static void dump_ports(tree_t t, int indent)
@@ -931,7 +932,7 @@ static void dump_port(tree_t t, int indent)
    case PORT_BUFFER:  dir = "buffer"; break;
    case PORT_INVALID: dir = "??";     break;
    }
-   printf("%s %s : %s ", class, istr(tree_ident(t)), dir);
+   syntax("#%s %s : #%s ", class, istr(tree_ident(t)), dir);
    dump_type(tree_type(t));
 }
 

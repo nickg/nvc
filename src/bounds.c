@@ -247,24 +247,37 @@ static void bounds_check_array_ref(tree_t t)
 
    type_t value_type = tree_type(value);
 
-   if (type_is_unconstrained(value_type))
-      return;
+   const bool unconstrained = type_is_unconstrained(value_type);
+   const bool value_is_ref = tree_kind(value) == T_REF;
 
    int nstatic = 0;
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
       tree_t pvalue = tree_value(p);
-      range_t r = range_of(value_type, i);
-      bool checked;
-      if (is_out_of_range(pvalue, r, &checked)) {
-         const char *name = (tree_kind(value) == T_REF)
-            ? istr(tree_ident(value)) : NULL;
-         bounds_error(t, "array %s%sindex %s out of bounds %s %s %s",
-                      name ? name : "", name ? " " : "",
-                      value_str(pvalue), value_str(r.left),
-                      (r.kind == RANGE_TO) ? "to" : "downto",
-                      value_str(r.right));
+      bool checked = false;
+
+      if (!unconstrained) {
+         range_t r = range_of(value_type, i);
+         if (is_out_of_range(pvalue, r, &checked)) {
+            const char *name = value_is_ref ? istr(tree_ident(value)) : NULL;
+            bounds_error(t, "array %s%sindex %s out of bounds %s %s %s",
+                         name ? name : "", name ? " " : "",
+                         value_str(pvalue), value_str(r.left),
+                         (r.kind == RANGE_TO) ? "to" : "downto",
+                         value_str(r.right));
+         }
+      }
+
+      if (value_is_ref && tree_kind(pvalue) == T_REF) {
+         // Automatically elide bounds check in cases like
+         //
+         //   for i in x'range loop
+         //     y := a(x);  -- Always in bounds
+
+         tree_t range_var = tree_attr_tree(tree_ref(pvalue), range_var_i);
+         if (range_var == tree_ref(value))
+            checked = true;
       }
 
       if (checked)
