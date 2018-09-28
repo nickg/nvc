@@ -3613,23 +3613,23 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
    if (exit_bb == VCODE_INVALID_BLOCK)
       exit_bb = emit_block();
 
-   vcode_block_t test_bb = emit_block();
-
    loop_stack_t this = {
       .up      = loops,
       .name    = tree_ident(stmt),
-      .test_bb = test_bb,
+      .test_bb = VCODE_INVALID_BLOCK,
       .exit_bb = exit_bb
    };
 
    const int nstmts = tree_stmts(stmt);
-    for (int i = 0; i < nstmts; i++)
+   for (int i = 0; i < nstmts; i++)
       lower_stmt(tree_stmt(stmt, i), &this);
 
-   if (!vcode_block_finished())
-      emit_jump(test_bb);
-
-   vcode_select_block(test_bb);
+   if (this.test_bb != VCODE_INVALID_BLOCK) {
+      // Loop body contained a "next" statement
+      if (!vcode_block_finished())
+         emit_jump(this.test_bb);
+      vcode_select_block(this.test_bb);
+   }
 
    vcode_reg_t ireg     = emit_load(ivar);
    vcode_reg_t next_reg = emit_add(ireg, step_reg);
@@ -3712,7 +3712,13 @@ static void lower_loop_control(tree_t stmt, loop_stack_t *loops)
       ;
    assert(it != NULL);
 
-   emit_jump(tree_kind(stmt) == T_EXIT ? it->exit_bb : it->test_bb);
+   if (tree_kind(stmt) == T_EXIT)
+      emit_jump(it->exit_bb);
+   else {
+      if (it->test_bb == VCODE_INVALID_BLOCK)
+         it->test_bb = emit_block();
+      emit_jump(it->test_bb);
+   }
 
    vcode_select_block(false_bb);
 }

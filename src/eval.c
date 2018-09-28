@@ -1810,6 +1810,25 @@ static void eval_op_addi(int op, eval_state_t *state)
    }
 }
 
+static void eval_op_range_null(int op, eval_state_t *state)
+{
+   value_t *result = eval_get_reg(vcode_get_result(op), state);
+   value_t *left = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *right = eval_get_reg(vcode_get_arg(op, 1), state);
+   value_t *dir = eval_get_reg(vcode_get_arg(op, 2), state);
+
+   assert(left->kind == VALUE_INTEGER);
+   assert(right->kind == VALUE_INTEGER);
+   assert(dir->kind == VALUE_INTEGER);
+
+   result->kind = VALUE_INTEGER;
+
+   if (dir->integer == RANGE_TO)
+      result->integer = left->integer > right->integer;
+   else
+      result->integer = right->integer > left->integer;
+}
+
 static void eval_vcode(eval_state_t *state)
 {
    if (++(state->iterations) >= ITER_LIMIT) {
@@ -2071,6 +2090,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_PARAM_UPREF:
          eval_op_param_upref(i, state);
+         break;
+
+      case VCODE_OP_RANGE_NULL:
+         eval_op_range_null(i, state);
          break;
 
       default:
