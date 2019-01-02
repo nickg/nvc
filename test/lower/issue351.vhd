@@ -15,7 +15,7 @@ begin
     process
         variable curr_queue : WORD_VECTOR(0 to 3);
     begin
-        for i in curr_queue'range loop
+        loop1: for i in curr_queue'range loop
             dump_words(curr_queue(i to curr_queue'length-1)); -- Bug?
         end loop;
         wait;
