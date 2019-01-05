@@ -46,6 +46,7 @@ GTAGS
 .dirstamp
 bin/
 .gtags.files
+compile_commands.json
 
 # IEEE sources cannot be freely redistributed
 lib/ieee/*.vhdl

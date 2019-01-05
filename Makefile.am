@@ -46,6 +46,10 @@ gtags:
 	find $(abs_srcdir) -name '*.[chl]' -print \
 	  | (cd $(top_srcdir) && gtags -f -)
 
+$(top_srcdir)/compile_commands.json:
+	intercept-build make -C $(top_builddir) clean check QUICK=1 \
+	  CC=intercept-cc CXX=intercept-c++
+
 clean-local: clean-libs clean-test
 
 .PHONY: bootstrap cov-reset cov-report clean-libs clean-test gtags
