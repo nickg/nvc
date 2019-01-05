@@ -95,6 +95,11 @@ AC_DEFUN([AX_LLVM_C], [
                                  [LLVM has new ORC API])
           fi
 
+          if test "$llvm_ver_num" -lt "70"; then
+              AC_DEFINE_UNQUOTED(LLVM_INTRINSIC_ALIGN, [1],
+                                 [LLVM intrinsics have alignment param])
+          fi
+
           LLVM_OBJ_EXT="o"
           case $host_os in
               *cygwin*|msys*|mingw32*)

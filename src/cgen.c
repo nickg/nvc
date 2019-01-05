@@ -2029,7 +2029,9 @@ static void cgen_op_copy(int op, cgen_ctx_t *ctx)
       llvm_void_cast(dest),
       llvm_void_cast(src),
       bytes,
+#if LLVM_INTRINSIC_ALIGN
       llvm_int32(4),
+#endif
       llvm_int1(0)
    };
    LLVMBuildCall(builder, llvm_fn(cgen_memcpy_name("memmove", 8)),
@@ -2229,7 +2231,9 @@ static void cgen_op_memset(int op, cgen_ctx_t *ctx)
       llvm_void_cast(ptr),
       LLVMBuildZExt(builder, value, LLVMInt8Type(), ""),
       length,
+#if LLVM_INTRINSIC_ALIGN
       llvm_int32(4),
+#endif
       llvm_int1(false)
    };
 
@@ -3769,7 +3773,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMInt8Type(), 0),
          LLVMInt8Type(),
          LLVMInt32Type(),
+#if LLVM_INTRINSIC_ALIGN
          LLVMInt32Type(),
+#endif
          LLVMInt1Type()
       };
       fn = LLVMAddFunction(module, "llvm.memset.p0i8.i32",
@@ -3786,7 +3792,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMIntType(width), 0),
          LLVMPointerType(LLVMIntType(width), 0),
          LLVMInt32Type(),
+#if LLVM_INTRINSIC_ALIGN
          LLVMInt32Type(),
+#endif
          LLVMInt1Type()
       };
       fn = LLVMAddFunction(module, cgen_memcpy_name(kind, width),
