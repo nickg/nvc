@@ -124,7 +124,7 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    if (rpath == NULL)
       l->path[0] = '\0';
    else if (realpath(rpath, l->path) == NULL)
-      strncpy(l->path, rpath, PATH_MAX);
+      checked_sprintf(l->path, PATH_MAX, "%s", rpath);
 
    lib_list_t *el = xmalloc(sizeof(lib_list_t));
    el->item = l;

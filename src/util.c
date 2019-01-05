@@ -1098,6 +1098,7 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 
 #endif  // NO_STACK_TRACE
 
+#if defined __linux__
 static bool scan_file_for_token(const char *file, const char *token)
 {
    bool found = false;
@@ -1113,6 +1114,7 @@ static bool scan_file_for_token(const char *file, const char *token)
 
    return found;
 }
+#endif
 
 bool is_debugger_running(void)
 {
