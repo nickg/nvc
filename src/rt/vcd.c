@@ -187,9 +187,10 @@ static void vcd_process_signal(tree_t d, int *next_key)
    const char *name_base = strrchr(istr(tree_ident(d)), ':') + 1;
    const size_t base_len = strlen(name_base);
    char name[base_len + 64];
-   strncpy(name, name_base, base_len + 64);
    if (type_is_array(type))
-      snprintf(name + base_len, 64, "[%d:%d]\n", msb, lsb);
+      checked_sprintf(name, sizeof(name), "%s[%d:%d]\n", name_base, msb, lsb);
+   else
+      checked_sprintf(name, sizeof(name), "%s", name_base);
 
    tree_add_attr_ptr(d, vcd_data_i, data);
 

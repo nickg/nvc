@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2019  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -231,8 +231,8 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
 static lib_t lib_find_at(const char *name, const char *path, bool exact)
 {
    char dir[PATH_MAX];
-   char *p = dir + snprintf(dir, sizeof(dir) - 4 - strlen(name),
-                            "%s" PATH_SEP, path);
+   char *p = dir + checked_sprintf(dir, sizeof(dir) - 4 - strlen(name),
+                                   "%s" PATH_SEP, path);
    bool found = false;
 
    if (!exact) {
@@ -242,7 +242,7 @@ static lib_t lib_find_at(const char *name, const char *path, bool exact)
 
       // Try suffixing standard revision extensions first
       for (vhdl_standard_t s = standard(); (s > STD_87) && !found; s--) {
-         snprintf(p, 4, ".%s", standard_suffix(s));
+         checked_sprintf(p, 4, ".%s", standard_suffix(s));
          found = (access(dir, F_OK) == 0);
       }
    }
@@ -254,7 +254,7 @@ static lib_t lib_find_at(const char *name, const char *path, bool exact)
    }
 
    char marker[PATH_MAX];
-   snprintf(marker, sizeof(marker), "%s" PATH_SEP "_NVC_LIB", dir);
+   checked_sprintf(marker, sizeof(marker), "%s" PATH_SEP "_NVC_LIB", dir);
    if (access(marker, F_OK) < 0)
       return NULL;
 
@@ -264,7 +264,7 @@ static lib_t lib_find_at(const char *name, const char *path, bool exact)
 static const char *lib_file_path(lib_t lib, const char *name)
 {
    static char buf[PATH_MAX];
-   snprintf(buf, sizeof(buf), "%s" PATH_SEP "%s", lib->path, name);
+   checked_sprintf(buf, sizeof(buf), "%s" PATH_SEP "%s", lib->path, name);
    return buf;
 }
 
@@ -525,7 +525,8 @@ void lib_destroy(lib_t lib)
    struct dirent *e;
    while ((e = readdir(d))) {
       if (e->d_name[0] != '.') {
-         snprintf(buf, sizeof(buf), "%s" PATH_SEP "%s", lib->path, e->d_name);
+         checked_sprintf(buf, sizeof(buf), "%s" PATH_SEP "%s",
+                         lib->path, e->d_name);
          if (unlink(buf) < 0)
             perror("unlink");
       }
@@ -786,7 +787,7 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
    assert(lib != NULL);
 
    if (name)
-      snprintf(buf, buflen, "%s" PATH_SEP "%s", lib->path, name);
+      checked_sprintf(buf, buflen, "%s" PATH_SEP "%s", lib->path, name);
    else
       strncpy(buf, lib->path, buflen);
 }

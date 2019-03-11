@@ -2682,7 +2682,7 @@ int vcode_unit_depth(void)
 vcode_type_t vcode_unit_result(void)
 {
    assert(active_unit != NULL);
-   assert(active_unit->kind = VCODE_UNIT_FUNCTION);
+   assert(active_unit->kind == VCODE_UNIT_FUNCTION);
    return active_unit->result;
 }
 
@@ -5096,7 +5096,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
 
 void vcode_write(vcode_unit_t unit, fbuf_t *f)
 {
-   assert(unit->kind = VCODE_UNIT_CONTEXT);
+   assert(unit->kind == VCODE_UNIT_CONTEXT);
 
    write_u32(VCODE_MAGIC, f);
    write_u8(VCODE_VERSION, f);
