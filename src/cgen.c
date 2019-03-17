@@ -3595,6 +3595,11 @@ static void cgen_optimise(void)
 {
    LLVMPassManagerRef pass_mgr = LLVMCreatePassManager();
 
+   LLVMAddInstructionCombiningPass(pass_mgr);
+   LLVMAddReassociatePass(pass_mgr);
+   LLVMAddGVNPass(pass_mgr);
+   LLVMAddCFGSimplificationPass(pass_mgr);
+
    LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
    LLVMPassManagerBuilderSetOptLevel(builder, opt_get_int("optimise"));
    LLVMPassManagerBuilderPopulateModulePassManager(builder, pass_mgr);
