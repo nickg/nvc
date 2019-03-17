@@ -12,11 +12,6 @@ ieee_DATA = \
 	lib/ieee/IEEE.MATH_REAL-body \
 	lib/ieee/IEEE.MATH_COMPLEX \
 	lib/ieee/IEEE.MATH_COMPLEX-body \
-	lib/ieee/IEEE.VITAL_TIMING \
-	lib/ieee/IEEE.VITAL_TIMING-body \
-	lib/ieee/IEEE.VITAL_PRIMITIVES \
-	lib/ieee/IEEE.VITAL_PRIMITIVES-body \
-	lib/ieee/IEEE.VITAL_MEMORY \
 	lib/ieee/_IEEE.NUMERIC_BIT.vcode \
 	lib/ieee/_IEEE.NUMERIC_STD.vcode \
 	lib/ieee/_IEEE.STD_LOGIC_1164-body.vcode \
@@ -25,12 +20,7 @@ ieee_DATA = \
 	lib/ieee/_IEEE.MATH_REAL.vcode \
 	lib/ieee/_IEEE.MATH_REAL-body.vcode \
 	lib/ieee/_IEEE.MATH_COMPLEX.vcode \
-	lib/ieee/_IEEE.MATH_COMPLEX-body.vcode \
-	lib/ieee/_IEEE.VITAL_TIMING.vcode \
-	lib/ieee/_IEEE.VITAL_TIMING-body.vcode \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.vcode \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.vcode \
-	lib/ieee/_IEEE.VITAL_MEMORY.vcode
+	lib/ieee/_IEEE.MATH_COMPLEX-body.vcode
 
 ieee_so = \
 	lib/ieee/_IEEE.NUMERIC_STD.so \
@@ -41,11 +31,7 @@ ieee_so = \
 	lib/ieee/_IEEE.MATH_REAL.so \
 	lib/ieee/_IEEE.MATH_REAL-body.so \
 	lib/ieee/_IEEE.MATH_COMPLEX.so \
-	lib/ieee/_IEEE.MATH_COMPLEX-body.so \
-	lib/ieee/_IEEE.VITAL_TIMING.so \
-	lib/ieee/_IEEE.VITAL_TIMING-body.so \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.so \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.so
+	lib/ieee/_IEEE.MATH_COMPLEX-body.so
 
 if IMPLIB_REQUIRED
 ieee_DATA += \
@@ -56,11 +42,7 @@ ieee_DATA += \
 	lib/ieee/_IEEE.MATH_REAL.a \
 	lib/ieee/_IEEE.MATH_REAL-body.a \
 	lib/ieee/_IEEE.MATH_COMPLEX.a \
-	lib/ieee/_IEEE.MATH_COMPLEX-body.a \
-	lib/ieee/_IEEE.VITAL_TIMING.a \
-	lib/ieee/_IEEE.VITAL_TIMING-body.a \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.a \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.a
+	lib/ieee/_IEEE.MATH_COMPLEX-body.a
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 ieee_SCRIPTS = $(ieee_so)
@@ -107,83 +89,6 @@ lib/ieee/IEEE.MATH_COMPLEX: $(bootstrap) $(srcdir)/lib/ieee/math_complex.vhdl
 
 lib/ieee/IEEE.MATH_COMPLEX-body: $(bootstrap) $(srcdir)/lib/ieee/math_complex-body.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/math_complex-body.vhdl
-
-lib/ieee/IEEE.VITAL_TIMING: $(bootstrap) $(srcdir)/lib/ieee/timing_p.vhdl
-	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/timing_p.vhdl
-
-lib/ieee/IEEE.VITAL_TIMING-body: $(bootstrap) $(srcdir)/lib/ieee/timing_b.vhdl
-	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/timing_b.vhdl
-
-lib/ieee/IEEE.VITAL_PRIMITIVES: $(bootstrap) $(srcdir)/lib/ieee/prmtvs_p.vhdl
-	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/prmtvs_p.vhdl
-
-lib/ieee/IEEE.VITAL_PRIMITIVES-body: $(bootstrap) $(srcdir)/lib/ieee/prmtvs_b.vhdl
-	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/prmtvs_b.vhdl
-
-lib/ieee/IEEE.VITAL_MEMORY: $(bootstrap) $(srcdir)/lib/ieee/memory_p.vhdl
-	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/memory_p.vhdl
-
-lib/ieee/IEEE.VITAL_MEMORY-body: $(bootstrap) $(srcdir)/lib/ieee/memory_b.vhdl
-	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/memory_b.vhdl
-
-$(srcdir)/lib/ieee/std_logic_1164.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/std_logic_1164-body.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/numeric_bit.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/numeric_bit-body.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/numeric_std.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/numeric_std-body.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/math_real.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/math_real-body.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/math_complex.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/math_complex-body.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/timing_p.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/timing_b.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/prmtvs_p.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/prmtvs_b.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/memory_p.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-$(srcdir)/lib/ieee/memory_b.vhdl:
-	@$(MAKE) missing-ieee LIB=$@
-
-missing-ieee:
-	@echo
-	@echo "Missing IEEE library source ${LIB}"
-	@echo
-	@echo "Due to copyright restrictions IEEE sources cannot be freely"
-	@echo "redistributed. See lib/ieee/README for details."
-	@echo
-	@echo "The script tools/fetch-ieee.sh can download these for you."
-	@echo
-	@false
 
 gen-deps-ieee:
 	$(nvc) -L lib/ --work=lib/ieee --make --posix --deps-only \

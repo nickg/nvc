@@ -38,7 +38,6 @@ Significant changes since the last release are detailed in [HISTORY.md](HISTORY.
 To build from a Git clone:
 
     ./autogen.sh
-    ./tools/fetch-ieee.sh
     mkdir build && cd build
     ../configure
     make
@@ -48,7 +47,6 @@ Generating the configure script requires autoconf 2.63 and automake 1.11 or late
 
 To build from a released tarball:
 
-    ./tools/fetch-ieee.sh
     ./configure
     make
     sudo make install
@@ -118,9 +116,11 @@ Then follow the generic instructions above.
 
 #### IEEE Libraries
 
-Due to copyright restrictions the IEEE library source files cannot be freely
-redistributed and must be downloaded from an external source prior to building. See
-[lib/ieee/README](lib/ieee/README) for details.
+The source files for the IEEE standard libraries are included in the
+repository for convenience but the license forbids distribution of
+modifications. See [lib/ieee/README.iee](lib/ieee/README.ieee) for
+details. These files can also be downloaded from the [IEEE
+SA](https://standards.ieee.org/content/dam/ieee-standards/standards/web/download/).
 
 To recompile the standard libraries:
 

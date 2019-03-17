@@ -1,0 +1,69 @@
+vitaldir = $(pkgdatadir)/ieee
+vital_DATA = \
+	lib/ieee/_NVC_LIB \
+	lib/ieee/_index \
+	lib/ieee/IEEE.VITAL_TIMING \
+	lib/ieee/IEEE.VITAL_TIMING-body \
+	lib/ieee/IEEE.VITAL_PRIMITIVES \
+	lib/ieee/IEEE.VITAL_PRIMITIVES-body \
+	lib/ieee/IEEE.VITAL_MEMORY \
+	lib/ieee/_IEEE.VITAL_TIMING.vcode \
+	lib/ieee/_IEEE.VITAL_TIMING-body.vcode \
+	lib/ieee/_IEEE.VITAL_PRIMITIVES.vcode \
+	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.vcode \
+	lib/ieee/_IEEE.VITAL_MEMORY.vcode
+
+vital_so = \
+	lib/ieee/_IEEE.VITAL_TIMING.so \
+	lib/ieee/_IEEE.VITAL_TIMING-body.so \
+	lib/ieee/_IEEE.VITAL_PRIMITIVES.so \
+	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.so
+
+if IMPLIB_REQUIRED
+vital_DATA += \
+	lib/ieee/_IEEE.VITAL_TIMING.a \
+	lib/ieee/_IEEE.VITAL_TIMING-body.a \
+	lib/ieee/_IEEE.VITAL_PRIMITIVES.a \
+	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.a
+
+# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
+vital_SCRIPTS = $(vital_so)
+
+$(vital_SCRIPTS) : $(vital_DATA)
+else
+
+vital_DATA += $(vital_so)
+
+endif  # IMPLIB_REQUIRED
+
+lib/ieee/_NVC_LIB:
+
+lib/ieee/_index:
+
+libs-vital: $(vital_DATA) $(vital_SCRIPTS)
+
+lib/ieee/IEEE.VITAL_TIMING: $(bootstrap) $(srcdir)/lib/vital/timing_p.vhdl
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/timing_p.vhdl
+
+lib/ieee/IEEE.VITAL_TIMING-body: $(bootstrap) $(srcdir)/lib/vital/timing_b.vhdl
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/timing_b.vhdl
+
+lib/ieee/IEEE.VITAL_PRIMITIVES: $(bootstrap) $(srcdir)/lib/vital/prmtvs_p.vhdl
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/prmtvs_p.vhdl
+
+lib/ieee/IEEE.VITAL_PRIMITIVES-body: $(bootstrap) $(srcdir)/lib/vital/prmtvs_b.vhdl
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/prmtvs_b.vhdl
+
+lib/ieee/IEEE.VITAL_MEMORY: $(bootstrap) $(srcdir)/lib/vital/memory_p.vhdl
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/memory_p.vhdl
+
+lib/ieee/IEEE.VITAL_MEMORY-body: $(bootstrap) $(srcdir)/lib/vital/memory_b.vhdl
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/memory_b.vhdl
+
+gen-deps-vital:
+	true
+
+clean-vital:
+	$(RM) $(vital_DATA)
+
+include lib/vital/deps.mk

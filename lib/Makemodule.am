@@ -16,12 +16,12 @@ CLEANFILES += $(bootstrap)
 lib/.bootstrapped: bin/nvc$(EXEEXT)
 	[ -f $(bootstrap) ] || touch $(bootstrap)
 
-gen-deps: gen-deps-std gen-deps-ieee gen-deps-nvc gen-deps-synopsys
+gen-deps: gen-deps-std gen-deps-ieee gen-deps-nvc gen-deps-synopsys gen-deps-vital
 
 bootstrap: clean-libs
-	$(MAKE) libs-std libs-ieee libs-nvc libs-synopsys
+	$(MAKE) libs-std libs-ieee libs-nvc libs-synopsys libs-vital
 
-clean-libs: clean-std clean-ieee clean-nvc clean-synopsys
+clean-libs: clean-std clean-ieee clean-nvc clean-synopsys clean-vital
 
 distcheck-hook:
 	yes | $(top_srcdir)/tools/fetch-ieee.sh

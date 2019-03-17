@@ -48,9 +48,6 @@ bin/
 .gtags.files
 compile_commands.json
 
-# IEEE sources cannot be freely redistributed
-lib/ieee/*.vhdl
-
 # VI test suite also cannot be distributed
 test/vi_suite*
 
