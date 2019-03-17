@@ -227,7 +227,7 @@ static bool is_comment(const char *str)
 static bool parse_test_list(int argc, char **argv)
 {
    char testlist[PATH_MAX];
-   snprintf(testlist, PATH_MAX, "%s/regress/testlist.txt", test_dir);
+   snprintf(testlist, PATH_MAX + 22, "%s/regress/testlist.txt", test_dir);
 
    FILE *f = fopen(testlist, "r");
    if (f == NULL) {
@@ -558,8 +558,8 @@ static bool run_test(test_t *test)
       result = !result;
 
    if (result && test->flags & F_GOLD) {
-      char goldname[PATH_MAX];
-      snprintf(goldname, PATH_MAX, "%s/regress/gold/%s.txt",
+      char goldname[PATH_MAX + 19];
+      snprintf(goldname, sizeof(goldname), "%s/regress/gold/%s.txt",
                test_dir, test->name);
 
       FILE *goldf = fopen(goldname, "r");
@@ -645,7 +645,7 @@ int main(int argc, char **argv)
 
    char argv0_path[PATH_MAX];
    checked_realpath(argv[0], argv0_path);
-   strncpy(bin_dir, dirname(argv0_path), sizeof(bin_dir));
+   strncpy(bin_dir, dirname(argv0_path), sizeof(bin_dir) - 1);
 
    is_tty = isatty(STDOUT_FILENO);
 
@@ -669,8 +669,8 @@ int main(int argc, char **argv)
 
    setenv("NVC_LIBPATH", "", 1);
 
-   char lib_dir[PATH_MAX];
-   snprintf(lib_dir, PATH_MAX, "%s/../lib", bin_dir);
+   char lib_dir[PATH_MAX + 7];
+   snprintf(lib_dir, sizeof(lib_dir), "%s/../lib", bin_dir);
 
    setenv("NVC_IMP_LIB", lib_dir, 1);
    setenv("NVC_LIBPATH", lib_dir, 1);
