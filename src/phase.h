@@ -67,6 +67,9 @@ void cgen(tree_t top, vcode_unit_t vu);
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);
 
+// Dump out a JSON VHDL representation of the given unit
+void dump_json(tree_t *elements, unsigned int n_elements, const char *filename);
+
 // Print out the interconnect nets in an elaborated design
 void dump_nets(tree_t top);
 

@@ -105,6 +105,7 @@ static int analyse(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "bootstrap",       no_argument,       0, 'b' },
+      { "dump-json",       required_argument, 0, 'j' },
       { "dump-llvm",       no_argument,       0, 'D' },
       { "dump-vcode",      optional_argument, 0, 'v' },
       { "prefer-explicit", no_argument,       0, 'p' },   // DEPRECATED
@@ -115,6 +116,7 @@ static int analyse(int argc, char **argv)
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = "";
+
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -130,6 +132,9 @@ static int analyse(int argc, char **argv)
          break;
       case 'v':
          opt_set_str("dump-vcode", optarg ?: "");
+         break;
+      case 'j':
+         opt_set_str("dump-json", optarg ?: "");
          break;
       case 'p':
          warnf("the --prefer-explict option is deprecated: use "
@@ -168,6 +173,10 @@ static int analyse(int argc, char **argv)
    if (parse_errors() + sem_errors() + bounds_errors() > 0)
       return EXIT_FAILURE;
 
+   if (opt_get_str("dump-json")) {
+      dump_json(units, n_units, opt_get_str("dump-json"));
+   }
+      
    lib_save(lib_work());
 
    for (int i = 0; i < n_units; i++) {
@@ -764,6 +773,7 @@ static void set_default_opts(void)
    opt_set_int("dump-llvm", 0);
    opt_set_int("optimise", 2);
    opt_set_int("bootstrap", 0);
+   opt_set_str("dump-json", NULL);
    opt_set_int("cover", 0);
    opt_set_int("stop-delta", 1000);
    opt_set_int("unit-test", 0);
