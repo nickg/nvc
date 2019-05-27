@@ -688,9 +688,8 @@ static JsonNode *dump_stmt(tree_t t)
 
    case T_VAR_ASSIGN:
       json_append_member(statement, "cls", json_mkstring("varassign"));
-      dump_expr(tree_target(t));
-      printf(" := ");
-      dump_expr(tree_value(t));
+      json_append_member(statement, "target", dump_expr(tree_target(t)));
+      json_append_member(statement, "lhs", dump_expr(tree_value(t)));
       break;
 
    case T_WAIT:
@@ -951,6 +950,7 @@ static void dump_entity(tree_t t)
 {
    JsonNode *entity_node = json_mkobject();
    dump_context(t);
+   json_append_member(entity_node, "cls", json_mkstring("entity"));
    json_append_member(entity_node, "name", json_mkstring(istr(tree_ident(t))));
    JsonNode *generic_array = json_mkarray();
    if (tree_generics(t) > 0) {
@@ -990,6 +990,7 @@ static void dump_arch(tree_t t)
 {
    JsonNode *architecture_node = json_mkobject();
    dump_context(t);
+   json_append_member(architecture_node, "cls", json_mkstring("architecture"));
    json_append_member(architecture_node, "name", json_mkstring(istr(tree_ident(t))));
    json_append_member(architecture_node, "of", json_mkstring(istr(tree_ident2(t))));
    json_append_member(architecture_node, "decls", dump_decls(t));
@@ -1034,7 +1035,7 @@ void dump_json(tree_t *elements, unsigned int n_elements, const char *filename)
 
    unsigned int i;
    char *result;
-   base_node = json_mkobject();
+   base_node = json_mkarray();
    for(i=0; i < n_elements; i++) {
       tree_t t = elements[i];
       switch (tree_kind(t)) {
@@ -1043,11 +1044,11 @@ void dump_json(tree_t *elements, unsigned int n_elements, const char *filename)
          break;
       case T_ENTITY:
          dump_entity(t);
-         json_append_member(base_node, "entity", return_node);
+         json_append_element(base_node, return_node);
          break;
       case T_ARCH:
          dump_arch(t);
-         json_append_member(base_node, "architecture", return_node);
+         json_append_element(base_node, return_node);
          break;
       case T_PACKAGE:
          dump_package(t);
