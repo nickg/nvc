@@ -180,40 +180,42 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
       break;
 
    case T_ALL:
-      dump_expr(tree_value(t));
-      printf(".all");
+      json_append_member(expr_node, "cls", json_mkstring("all"));
+      json_append_member(expr_node, "expr", dump_expr(tree_value(t)));
       break;
 
    case T_AGGREGATE:
-      printf("(");
+      json_append_member(expr_node, "cls", json_mkstring("aggregate"));
+      JsonNode *elements = json_mkarray();
       for (unsigned i = 0; i < tree_assocs(t); i++) {
-         if (i > 0)
-            printf(", ");
          tree_t a = tree_assoc(t, i);
          tree_t value = tree_value(a);
+         JsonNode *aggreg = json_mkobject();
          switch (tree_subkind(a)) {
          case A_POS:
-            dump_expr(value);
+            json_append_member(aggreg, "cls", json_mkstring("pos"));
+            json_append_member(aggreg, "expr", dump_expr(value));
             break;
          case A_NAMED:
-            dump_expr(tree_name(a));
-            printf(" => ");
-            dump_expr(value);
+            json_append_member(aggreg, "cls", json_mkstring("named"));
+            json_append_member(aggreg, "l", dump_expr(tree_name(a)));
+            json_append_member(aggreg, "expr", dump_expr(value));
             break;
          case A_OTHERS:
-            printf("others => ");
-            dump_expr(value);
+            json_append_member(aggreg, "cls", json_mkstring("others"));
+            json_append_member(aggreg, "expr", dump_expr(value));
             break;
          case A_RANGE:
-            dump_range(tree_range(a, 0));
-            printf(" => ");
-            dump_expr(value);
+            json_append_member(aggreg, "cls", json_mkstring("range"));
+            json_append_member(aggreg, "range", dump_range(tree_range(a, 0)));
+            json_append_member(aggreg, "expr", dump_expr(value));
             break;
          default:
             assert(false);
          }
+         json_append_element(elements, aggreg);
       }
-      printf(")");
+      json_append_member(expr_node, "elts", elements);
       break;
 
    case T_REF:
@@ -223,50 +225,50 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
 
    case T_ATTR_REF:
       json_append_member(expr_node, "cls", json_mkstring("attr"));
-      json_append_member(expr_node, "name", json_mkstring( istr(tree_ident(t))));
+      json_append_member(expr_node, "name", json_mkstring(istr(tree_ident(t))));
       json_append_member(expr_node, "op", dump_expr(tree_name(t)));
       break;
 
    case T_ARRAY_REF:
-      dump_expr(tree_value(t));
-      dump_params(t, tree_param, tree_params(t), NULL);
+      json_append_member(expr_node, "cls", json_mkstring("aref"));
+      json_append_member(expr_node, "of", dump_expr(tree_value(t)));
+      json_append_member(expr_node, "params", dump_params(t, tree_param, tree_params(t), NULL));
       break;
 
    case T_ARRAY_SLICE:
-      dump_expr(tree_value(t));
-      printf("(");
-      dump_range(tree_range(t, 0));
-      printf(")");
+      json_append_member(expr_node, "cls", json_mkstring("aslice"));
+      json_append_member(expr_node, "of", dump_expr(tree_value(t)));
+      json_append_member(expr_node, "range", dump_range(tree_range(t, 0)));
       break;
 
    case T_RECORD_REF:
-      dump_expr(tree_value(t));
-      printf(".%s", istr(tree_ident(t)));
+      json_append_member(expr_node, "cls", json_mkstring("record"));
+      json_append_member(expr_node, "of", dump_expr(tree_value(t)));
+      json_append_member(expr_node, "item", json_mkstring(istr(tree_ident(t))));
       break;
 
    case T_TYPE_CONV:
-      printf("%s(", istr(tree_ident(tree_ref(t))));
-      dump_expr(tree_value(tree_param(t, 0)));
-      printf(")");
+      json_append_member(expr_node, "cls", json_mkstring("typeconv"));
+      json_append_member(expr_node, "type", json_mkstring(istr(tree_ident(tree_ref(t)))));
+      json_append_member(expr_node, "expr", dump_expr(tree_value(tree_param(t, 0))));
       break;
 
    case T_CONCAT:
       {
-         printf("(");
+         json_append_member(expr_node, "cls", json_mkstring("concat"));
+         JsonNode *items = json_mkarray();
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
-            if (i > 0)
-               printf(" & ");
-            dump_expr(tree_value(tree_param(t, i)));
+            json_append_element(items, dump_expr(tree_value(tree_param(t, i))));
          }
-         printf(")");
+         json_append_member(expr_node, "items", items);
       }
       break;
 
    case T_QUALIFIED:
-      printf("%s'(", istr(type_ident(tree_type(t))));
-      dump_expr(tree_value(t));
-      printf(")");
+      json_append_member(expr_node, "cls", json_mkstring("qualified"));
+      json_append_member(expr_node, "type", json_mkstring(istr(type_ident(tree_type(t)))));
+      json_append_member(expr_node, "expr", dump_expr(tree_value(t)));
       break;
 
    case T_OPEN:
