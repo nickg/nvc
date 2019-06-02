@@ -40,7 +40,6 @@ static JsonNode *dump_decls(tree_t t);
 typedef tree_t (*get_fn_t)(tree_t, unsigned);
 
 JsonNode *base_node = NULL;
-JsonNode *return_node = NULL;
 
 static void cannot_dump(tree_t t, const char *hint)
 {
@@ -908,51 +907,50 @@ static JsonNode *dump_port(tree_t t)
    return port;
 }
 
-static void dump_context(tree_t t)
+static JsonNode *dump_context(tree_t t)
 {
+   JsonNode *ctx = json_mkarray();
    const int nctx = tree_contexts(t);
    for (int i = 0; i < nctx; i++) {
       tree_t c = tree_context(t, i);
+
       switch (tree_kind(c)) {
       case T_LIBRARY:
-         if (tree_ident(c) != std_i && tree_ident(c) != work_i)
-            syntax("#library %s;\n", istr(tree_ident(c)));
+         if (tree_ident(c) != std_i && tree_ident(c) != work_i) {
+            JsonNode *library = json_mkobject();
+            json_append_member(library, "cls", json_mkstring("library"));
+            json_append_member(library, "name", json_mkstring(istr(tree_ident(c))));
+            json_append_element(ctx, library);
+         }
          break;
 
       case T_USE:
-         syntax("#use %s", istr(tree_ident(c)));
+      {
+            JsonNode *use = json_mkobject();
+            json_append_member(use, "cls", json_mkstring("use"));
+            json_append_member(use, "name", json_mkstring(istr(tree_ident(c))));
+  
          if (tree_has_ident2(c)) {
-            printf(".%s", istr(tree_ident2(c)));
+            json_append_member(use, "elt", json_mkstring(istr(tree_ident2(c))));
+         } else {
+            json_append_member(use, "elt", json_mknull());
          }
-         printf(";\n");
+         json_append_element(ctx, use);
+      }
          break;
 
       default:
          break;
       }
    }
-
-   if (nctx > 0)
-      printf("\n");
+   return ctx;
 }
 
-static void dump_elab(tree_t t)
-{
-   dump_context(t);
-   syntax("#entity %s #is\n#end #entity;\n\n", istr(tree_ident(t)));
-   syntax("#architecture #elab #of %s #is\n", istr(tree_ident(t)));
-   dump_decls(t);
-   syntax("#begin\n");
-   for (unsigned i = 0; i < tree_stmts(t); i++)
-      dump_stmt(tree_stmt(t, i));
-   syntax("#end #architecture;\n");
-}
-
-static void dump_entity(tree_t t)
+static JsonNode *dump_entity(tree_t t)
 {
    JsonNode *entity_node = json_mkobject();
-   dump_context(t);
    json_append_member(entity_node, "cls", json_mkstring("entity"));
+   json_append_member(entity_node, "ctx", dump_context(t));
    json_append_member(entity_node, "name", json_mkstring(istr(tree_ident(t))));
    JsonNode *generic_array = json_mkarray();
    if (tree_generics(t) > 0) {
@@ -976,7 +974,7 @@ static void dump_entity(tree_t t)
       json_append_element(stmts_array, dump_stmt(tree_stmt(t, i)));
    }
    json_append_member(entity_node, "stmts", stmts_array);
-   return_node = entity_node;
+   return entity_node;
 }
 
 static JsonNode *dump_decls(tree_t t)
@@ -988,11 +986,11 @@ static JsonNode *dump_decls(tree_t t)
    return decls;
 }
 
-static void dump_arch(tree_t t)
+static JsonNode *dump_arch(tree_t t)
 {
    JsonNode *architecture_node = json_mkobject();
-   dump_context(t);
    json_append_member(architecture_node, "cls", json_mkstring("architecture"));
+   json_append_member(architecture_node, "ctx", dump_context(t));
    json_append_member(architecture_node, "name", json_mkstring(istr(tree_ident(t))));
    json_append_member(architecture_node, "of", json_mkstring(istr(tree_ident2(t))));
    json_append_member(architecture_node, "decls", dump_decls(t));
@@ -1000,31 +998,37 @@ static void dump_arch(tree_t t)
    for (unsigned i = 0; i < tree_stmts(t); i++)
       json_append_element(stmts_array, dump_stmt(tree_stmt(t, i)));
    json_append_member(architecture_node, "stmts", stmts_array);
-   return_node = architecture_node;
+   return architecture_node;
 }
 
-static void dump_package(tree_t t)
+static JsonNode *dump_package(tree_t t)
 {
-   dump_context(t);
-   syntax("#package %s #is\n", istr(tree_ident(t)));
-   dump_decls(t);
-   syntax("#end #package;\n");
+   JsonNode *pkg_node = json_mkobject();
+   json_append_member(pkg_node, "cls", json_mkstring("pkg"));
+   json_append_member(pkg_node, "ctx", dump_context(t));
+   json_append_member(pkg_node, "name", json_mkstring(istr(tree_ident(t))));
+   json_append_member(pkg_node, "decls", dump_decls(t));
+   return pkg_node;
 }
 
-static void dump_package_body(tree_t t)
+static JsonNode *dump_package_body(tree_t t)
 {
-   dump_context(t);
-   syntax("#package #body %s #is\n", istr(tree_ident(t)));
-   dump_decls(t);
-   syntax("#end #package #body;\n");
+   JsonNode *pkg_node = json_mkobject();
+   json_append_member(pkg_node, "cls", json_mkstring("pkg_body"));
+   json_append_member(pkg_node, "ctx", dump_context(t));
+   json_append_member(pkg_node, "name", json_mkstring(istr(tree_ident(t))));
+   json_append_member(pkg_node, "decls", dump_decls(t));
+   return pkg_node;
 }
 
-static void dump_configuration(tree_t t)
+static JsonNode *dump_configuration(tree_t t)
 {
-   syntax("#configuration %s #of %s #is\n",
-          istr(tree_ident(t)), istr(tree_ident2(t)));
-   dump_decls(t);
-   syntax("#end #configuration\n");
+   JsonNode *config_node = json_mkobject();
+   json_append_member(config_node, "cls", json_mkstring("config"));
+   json_append_member(config_node, "name", json_mkstring(istr(tree_ident(t))));
+   json_append_member(config_node, "of", json_mkstring(istr(tree_ident2(t))));
+   json_append_member(config_node, "decls", dump_decls(t));
+   return config_node;
 }
 
 void dump_json(tree_t *elements, unsigned int n_elements, const char *filename)
@@ -1041,25 +1045,20 @@ void dump_json(tree_t *elements, unsigned int n_elements, const char *filename)
    for(i=0; i < n_elements; i++) {
       tree_t t = elements[i];
       switch (tree_kind(t)) {
-      case T_ELAB:
-         dump_elab(t);
-         break;
       case T_ENTITY:
-         dump_entity(t);
-         json_append_element(base_node, return_node);
+         json_append_element(base_node, dump_entity(t));
          break;
       case T_ARCH:
-         dump_arch(t);
-         json_append_element(base_node, return_node);
+         json_append_element(base_node, dump_arch(t));
          break;
       case T_PACKAGE:
-         dump_package(t);
+         json_append_element(base_node, dump_package(t));
          break;
       case T_PACK_BODY:
-         dump_package_body(t);
+         json_append_element(base_node, dump_package_body(t));
          break;
       case T_CONFIGURATION:
-         dump_configuration(t);
+         json_append_element(base_node, dump_configuration(t));
          break;
       case T_FCALL:
       case T_LITERAL:
@@ -1071,7 +1070,6 @@ void dump_json(tree_t *elements, unsigned int n_elements, const char *filename)
       case T_CONCAT:
       case T_RECORD_REF:
          dump_expr(t);
-         printf("\n");
          break;
       case T_FOR_GENERATE:
       case T_BLOCK:
