@@ -1,1381 +1,1098 @@
-/*
-  Copyright (C) 2011 Joseph A. Adams (joeyadams3.14159@gmail.com)
-  All rights reserved.
+//
+//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2019       Sebastien Van Cauwenberghe
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
 
-  Permission is hereby granted, free of charge, to any person obtaining a copy
-  of this software and associated documentation files (the "Software"), to deal
-  in the Software without restriction, including without limitation the rights
-  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-
-  The above copyright notice and this permission notice shall be included in
-  all copies or substantial portions of the Software.
-
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-  THE SOFTWARE.
-*/
-
+#include "phase.h"
+#include "util.h"
+#include "hash.h"
+#include "common.h"
+#include "rt/netdb.h"
 #include "json.h"
 
 #include <assert.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <ctype.h>
+#include <inttypes.h>
 
-#define out_of_memory() do {                    \
-		fprintf(stderr, "Out of memory.\n");    \
-		exit(EXIT_FAILURE);                     \
-	} while (0)
+LCOV_EXCL_START
 
-/* Sadly, strdup is not portable. */
-static char *json_strdup(const char *str)
+static JsonNode *dump_expr(tree_t t);
+static JsonNode *dump_stmt(tree_t t);
+static JsonNode *dump_port(tree_t t);
+static JsonNode *dump_decl(tree_t t);
+static JsonNode *dump_decls(tree_t t);
+
+typedef tree_t (*get_fn_t)(tree_t, unsigned);
+
+JsonNode *base_node = NULL;
+JsonNode *return_node = NULL;
+
+static void cannot_dump(tree_t t, const char *hint)
 {
-	char *ret = (char*) malloc(strlen(str) + 1);
-	if (ret == NULL)
-		out_of_memory();
-	strcpy(ret, str);
-	return ret;
+   printf("\n");
+   fflush(stdout);
+   fatal("cannot dump %s kind %s", hint, tree_kind_str(tree_kind(t)));
 }
 
-/* String buffer */
-
-typedef struct
+__attribute__((format(printf,1,2)))
+static void syntax(const char *fmt, ...)
 {
-	char *cur;
-	char *end;
-	char *start;
-} SB;
+   LOCAL_TEXT_BUF tb = tb_new();
+   bool highlighting = false;
+   static bool comment = false;
+   for (const char *p = fmt; *p != '\0'; p++) {
+      if (comment) {
+         if (*p == '\n') {
+            comment = false;
+            tb_printf(tb, "$$");
+         }
+         if (*p != '~' && *p != '#')
+            tb_append(tb, *p);
+      }
+      else if (*p == '#') {
+         tb_printf(tb, "$bold$$cyan$");
+         highlighting = true;
+      }
+      else if (*p == '~') {
+         tb_printf(tb, "$yellow$");
+         highlighting = true;
+      }
+      else if (*p == '-' && *(p + 1) == '-') {
+         tb_printf(tb, "$red$-");
+         comment = true;
+      }
+      else if (!isalnum((int)*p) && *p != '_' && *p != '%' && highlighting) {
+         tb_printf(tb, "$$%c", *p);
+         highlighting = false;
+      }
+      else
+         tb_append(tb, *p);
+   }
 
-static void sb_init(SB *sb)
-{
-	sb->start = (char*) malloc(17);
-	if (sb->start == NULL)
-		out_of_memory();
-	sb->cur = sb->start;
-	sb->end = sb->start + 16;
+   if (highlighting)
+      tb_printf(tb, "$$");
+
+   va_list ap;
+   va_start(ap, fmt);
+   color_vprintf(tb_get(tb), ap);
+   va_end(ap);
 }
 
-/* sb and need may be evaluated multiple times. */
-#define sb_need(sb, need) do {                  \
-		if ((sb)->end - (sb)->cur < (need))     \
-			sb_grow(sb, need);                  \
-	} while (0)
-
-static void sb_grow(SB *sb, int need)
+static JsonNode *dump_params(tree_t t, get_fn_t get, int n, const char *prefix)
 {
-	size_t length = sb->cur - sb->start;
-	size_t alloc = sb->end - sb->start;
-	
-	do {
-		alloc *= 2;
-	} while (alloc < length + need);
-	
-	sb->start = (char*) realloc(sb->start, alloc + 1);
-	if (sb->start == NULL)
-		out_of_memory();
-	sb->cur = sb->start + length;
-	sb->end = sb->start + alloc;
+   JsonNode *params = json_mkarray();
+   if (n > 0) {
+      for (int i = 0; i < n; i++) {
+         JsonNode *element = json_mkobject();
+         json_append_element(params, element);
+         tree_t p = (*get)(t, i);
+         switch (tree_subkind(p)) {
+         case P_POS:
+            json_append_member(element, "name", json_mknull());
+            break;
+         case P_NAMED:
+            json_append_member(element, "name", dump_expr(tree_name(p)));
+            break;
+         }
+         json_append_member(element, "value", dump_expr(tree_value(p)));
+      }
+   }
+   return params;
 }
 
-static void sb_put(SB *sb, const char *bytes, int count)
+static JsonNode *dump_range(range_t r)
 {
-	sb_need(sb, count);
-	memcpy(sb->cur, bytes, count);
-	sb->cur += count;
+   JsonNode *range_obj = json_mkobject();
+   json_append_member(range_obj, "l", dump_expr(r.left));
+   switch (r.kind) {
+   case RANGE_TO:
+      json_append_member(range_obj, "dir", json_mkstring("to")); break;
+   case RANGE_DOWNTO:
+      json_append_member(range_obj, "dir", json_mkstring("downto")); break;
+   case RANGE_DYN:
+      json_append_member(range_obj, "dir", json_mkstring("dynamic")); break;
+   case RANGE_RDYN:
+      json_append_member(range_obj, "dir", json_mkstring("reverse_dynamic")); break;
+   case RANGE_EXPR:
+      json_append_member(range_obj, "dir", json_mkstring("expr"));
+   }
+   json_append_member(range_obj, "r", dump_expr(r.right));
+   return range_obj;
 }
 
-#define sb_putc(sb, c) do {         \
-		if ((sb)->cur >= (sb)->end) \
-			sb_grow(sb, 1);         \
-		*(sb)->cur++ = (c);         \
-	} while (0)
-
-static void sb_puts(SB *sb, const char *str)
+static JsonNode *dump_expr(tree_t t) //TODO: incomplete
 {
-	sb_put(sb, str, strlen(str));
+   JsonNode *expr_node = json_mkobject();
+   switch (tree_kind(t)) {
+   case T_FCALL:
+      json_append_member(expr_node, "cls", json_mkstring("fcall"));
+      json_append_member(expr_node, "name", json_mkstring(istr(tree_ident(tree_ref(t)))));
+      json_append_member(expr_node, "params", dump_params(t, tree_param, tree_params(t), NULL));
+      break;
+
+   case T_LITERAL:
+      switch (tree_subkind(t)) {
+      case L_INT:
+         json_append_member(expr_node, "cls", json_mkstring("int"));
+         json_append_member(expr_node, "value", json_mknumber(tree_ival(t)));
+         break;
+      case L_REAL:
+         json_append_member(expr_node, "cls", json_mkstring("real"));
+         json_append_member(expr_node, "value", json_mknumber(tree_dval(t)));
+         break;
+      case L_NULL:
+         json_append_member(expr_node, "cls", json_mkstring("null"));
+         json_append_member(expr_node, "value", json_mknull());
+         break;
+      case L_STRING:
+         json_append_member(expr_node, "cls", json_mkstring("string"));
+         {
+            printf("\"");
+            const int nchars = tree_chars(t);
+            for (int i = 0; i < nchars; i++)
+               printf("%c", ident_char(tree_ident(tree_char(t, i)), 1));
+            printf("\"");
+         }
+         break;
+      default:
+         assert(false);
+      }
+      break;
+
+   case T_NEW:
+      json_append_member(expr_node, "cls", json_mkstring("new"));
+      json_append_member(expr_node, "op", dump_expr(tree_value(t)));
+      break;
+
+   case T_ALL:
+      json_append_member(expr_node, "cls", json_mkstring("all"));
+      json_append_member(expr_node, "expr", dump_expr(tree_value(t)));
+      break;
+
+   case T_AGGREGATE:
+      json_append_member(expr_node, "cls", json_mkstring("aggregate"));
+      JsonNode *elements = json_mkarray();
+      for (unsigned i = 0; i < tree_assocs(t); i++) {
+         tree_t a = tree_assoc(t, i);
+         tree_t value = tree_value(a);
+         JsonNode *aggreg = json_mkobject();
+         switch (tree_subkind(a)) {
+         case A_POS:
+            json_append_member(aggreg, "cls", json_mkstring("pos"));
+            json_append_member(aggreg, "expr", dump_expr(value));
+            break;
+         case A_NAMED:
+            json_append_member(aggreg, "cls", json_mkstring("named"));
+            json_append_member(aggreg, "l", dump_expr(tree_name(a)));
+            json_append_member(aggreg, "expr", dump_expr(value));
+            break;
+         case A_OTHERS:
+            json_append_member(aggreg, "cls", json_mkstring("others"));
+            json_append_member(aggreg, "expr", dump_expr(value));
+            break;
+         case A_RANGE:
+            json_append_member(aggreg, "cls", json_mkstring("range"));
+            json_append_member(aggreg, "range", dump_range(tree_range(a, 0)));
+            json_append_member(aggreg, "expr", dump_expr(value));
+            break;
+         default:
+            assert(false);
+         }
+         json_append_element(elements, aggreg);
+      }
+      json_append_member(expr_node, "elts", elements);
+      break;
+
+   case T_REF:
+      json_append_member(expr_node, "cls", json_mkstring("ref"));
+      json_append_member(expr_node, "name", json_mkstring(istr(tree_ident(tree_ref(t)))));
+      break;
+
+   case T_ATTR_REF:
+      json_append_member(expr_node, "cls", json_mkstring("attr"));
+      json_append_member(expr_node, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(expr_node, "op", dump_expr(tree_name(t)));
+      break;
+
+   case T_ARRAY_REF:
+      json_append_member(expr_node, "cls", json_mkstring("aref"));
+      json_append_member(expr_node, "of", dump_expr(tree_value(t)));
+      json_append_member(expr_node, "params", dump_params(t, tree_param, tree_params(t), NULL));
+      break;
+
+   case T_ARRAY_SLICE:
+      json_append_member(expr_node, "cls", json_mkstring("aslice"));
+      json_append_member(expr_node, "of", dump_expr(tree_value(t)));
+      json_append_member(expr_node, "range", dump_range(tree_range(t, 0)));
+      break;
+
+   case T_RECORD_REF:
+      json_append_member(expr_node, "cls", json_mkstring("record"));
+      json_append_member(expr_node, "of", dump_expr(tree_value(t)));
+      json_append_member(expr_node, "item", json_mkstring(istr(tree_ident(t))));
+      break;
+
+   case T_TYPE_CONV:
+      json_append_member(expr_node, "cls", json_mkstring("typeconv"));
+      json_append_member(expr_node, "type", json_mkstring(istr(tree_ident(tree_ref(t)))));
+      json_append_member(expr_node, "expr", dump_expr(tree_value(tree_param(t, 0))));
+      break;
+
+   case T_CONCAT:
+      {
+         json_append_member(expr_node, "cls", json_mkstring("concat"));
+         JsonNode *items = json_mkarray();
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            json_append_element(items, dump_expr(tree_value(tree_param(t, i))));
+         }
+         json_append_member(expr_node, "items", items);
+      }
+      break;
+
+   case T_QUALIFIED:
+      json_append_member(expr_node, "cls", json_mkstring("qualified"));
+      json_append_member(expr_node, "type", json_mkstring(istr(type_ident(tree_type(t)))));
+      json_append_member(expr_node, "expr", dump_expr(tree_value(t)));
+      break;
+
+   case T_OPEN:
+      json_append_member(expr_node, "cls", json_mkstring("open"));
+      break;
+
+   default:
+      cannot_dump(t, "expr");
+   }
+   return expr_node;
 }
 
-static char *sb_finish(SB *sb)
+static const char *dump_minify_type(const char *name)
 {
-	*sb->cur = 0;
-	assert(sb->start <= sb->cur && strlen(sb->start) == (size_t)(sb->cur - sb->start));
-	return sb->start;
+   static const char *known[] = {
+      "STD.STANDARD.",
+      "IEEE.NUMERIC_STD.",
+      "IEEE.STD_LOGIC_1164.",
+   };
+
+   for (size_t i = 0; i < ARRAY_LEN(known); i++) {
+      const size_t len = strlen(known[i]);
+      if (strncmp(name, known[i], len) == 0) {
+         static char buf[256];
+         checked_sprintf(buf, sizeof(buf), "~%s%%s", name + len);
+         return buf;
+      }
+   }
+
+   return name;
 }
 
-static void sb_free(SB *sb)
+static JsonNode *dump_type(type_t type)
 {
-	free(sb->start);
+   JsonNode *type_node = json_mkobject();
+   
+   if (type_kind(type) == T_SUBTYPE && type_has_ident(type))
+      json_append_member(type_node, "name", json_mkstring(type_pp_minify(type, dump_minify_type)+1));
+   else if (type_is_array(type) && !type_is_unconstrained(type)) {
+      json_append_member(type_node, "name", json_mkstring(type_pp_minify(type, dump_minify_type)+1));
+      const int ndims = array_dimension(type);
+      JsonNode *range = json_mkarray();
+      json_append_member(type_node, "range", range);
+      for (int i = 0; i < ndims; i++) {
+         JsonNode *range_obj = json_mkobject();
+         range_t r = range_of(type, i);
+         json_append_member(range_obj, "l", dump_expr(r.left));
+         
+         switch (r.kind) {
+         case RANGE_TO:
+            json_append_member(range_obj, "dir", json_mkstring("to"));
+            json_append_member(range_obj, "r", dump_expr(r.right));
+            break;
+         case RANGE_DOWNTO:
+            json_append_member(range_obj, "dir", json_mkstring("downto"));
+            json_append_member(range_obj, "r", dump_expr(r.right));
+            break;
+         case RANGE_DYN:
+            json_append_member(range_obj, "dir", json_mkstring("dynamic"));
+            json_append_member(range_obj, "r", dump_expr(r.right));
+            break;
+         case RANGE_RDYN:
+            json_append_member(range_obj, "dir", json_mkstring("reverse_dynamic"));
+            json_append_member(range_obj, "r", dump_expr(r.right));
+            break;
+         case RANGE_EXPR:
+            break;
+         }
+         json_append_element(range, range_obj);
+      }
+   }
+   else
+      json_append_member(type_node, "name", json_mkstring(type_pp_minify(type, dump_minify_type)+1));
+   return type_node;
 }
 
-/*
- * Unicode helper functions
- *
- * These are taken from the ccan/charset module and customized a bit.
- * Putting them here means the compiler can (choose to) inline them,
- * and it keeps ccan/json from having a dependency.
- */
-
-/*
- * Type for Unicode codepoints.
- * We need our own because wchar_t might be 16 bits.
- */
-typedef uint32_t uchar_t;
-
-/*
- * Validate a single UTF-8 character starting at @s.
- * The string must be null-terminated.
- *
- * If it's valid, return its length (1 thru 4).
- * If it's invalid or clipped, return 0.
- *
- * This function implements the syntax given in RFC3629, which is
- * the same as that given in The Unicode Standard, Version 6.0.
- *
- * It has the following properties:
- *
- *  * All codepoints U+0000..U+10FFFF may be encoded,
- *    except for U+D800..U+DFFF, which are reserved
- *    for UTF-16 surrogate pair encoding.
- *  * UTF-8 byte sequences longer than 4 bytes are not permitted,
- *    as they exceed the range of Unicode.
- *  * The sixty-six Unicode "non-characters" are permitted
- *    (namely, U+FDD0..U+FDEF, U+xxFFFE, and U+xxFFFF).
- */
-static int utf8_validate_cz(const char *s)
+static void dump_op(tree_t t, int indent)
 {
-	unsigned char c = *s++;
-	
-	if (c <= 0x7F) {        /* 00..7F */
-		return 1;
-	} else if (c <= 0xC1) { /* 80..C1 */
-		/* Disallow overlong 2-byte sequence. */
-		return 0;
-	} else if (c <= 0xDF) { /* C2..DF */
-		/* Make sure subsequent byte is in the range 0x80..0xBF. */
-		if (((unsigned char)*s++ & 0xC0) != 0x80)
-			return 0;
-		
-		return 2;
-	} else if (c <= 0xEF) { /* E0..EF */
-		/* Disallow overlong 3-byte sequence. */
-		if (c == 0xE0 && (unsigned char)*s < 0xA0)
-			return 0;
-		
-		/* Disallow U+D800..U+DFFF. */
-		if (c == 0xED && (unsigned char)*s > 0x9F)
-			return 0;
-		
-		/* Make sure subsequent bytes are in the range 0x80..0xBF. */
-		if (((unsigned char)*s++ & 0xC0) != 0x80)
-			return 0;
-		if (((unsigned char)*s++ & 0xC0) != 0x80)
-			return 0;
-		
-		return 3;
-	} else if (c <= 0xF4) { /* F0..F4 */
-		/* Disallow overlong 4-byte sequence. */
-		if (c == 0xF0 && (unsigned char)*s < 0x90)
-			return 0;
-		
-		/* Disallow codepoints beyond U+10FFFF. */
-		if (c == 0xF4 && (unsigned char)*s > 0x8F)
-			return 0;
-		
-		/* Make sure subsequent bytes are in the range 0x80..0xBF. */
-		if (((unsigned char)*s++ & 0xC0) != 0x80)
-			return 0;
-		if (((unsigned char)*s++ & 0xC0) != 0x80)
-			return 0;
-		if (((unsigned char)*s++ & 0xC0) != 0x80)
-			return 0;
-		
-		return 4;
-	} else {                /* F5..FF */
-		return 0;
-	}
+
+   syntax("-- predefined %s [", istr(tree_ident(t)));
+
+   const int nports = tree_ports(t);
+   for (int i = 0; i < nports; i++) {
+      dump_type(tree_type(tree_port(t, i)));
+      if (i + 1 < nports)
+         printf(", ");
+   }
+
+   printf("]");
+
+   if (tree_kind(t) == T_FUNC_DECL) {
+      printf(" return ");
+      dump_type(type_result(tree_type(t)));
+   }
+
+   syntax("\n");
 }
 
-/* Validate a null-terminated UTF-8 string. */
-static bool utf8_validate(const char *s)
+static void dump_ports(tree_t t, int indent)
 {
-	int len;
-	
-	for (; *s != 0; s += len) {
-		len = utf8_validate_cz(s);
-		if (len == 0)
-			return false;
-	}
-	
-	return true;
+   const int nports = tree_ports(t);
+   if (nports > 0) {
+      if (nports > 1) {
+         printf(" (\n");
+         indent += 4;
+      }
+      else {
+         printf(" (");
+         indent = 0;
+      }
+      for (int i = 0; i < nports; i++) {
+         if (i > 0)
+            printf(";\n");
+         dump_port(tree_port(t, i));
+      }
+      printf(" )");
+   }
 }
 
-/*
- * Read a single UTF-8 character starting at @s,
- * returning the length, in bytes, of the character read.
- *
- * This function assumes input is valid UTF-8,
- * and that there are enough characters in front of @s.
- */
-static int utf8_read_char(const char *s, uchar_t *out)
+static void dump_block(tree_t t)
 {
-	const unsigned char *c = (const unsigned char*) s;
-	
-	assert(utf8_validate_cz(s));
-
-	if (c[0] <= 0x7F) {
-		/* 00..7F */
-		*out = c[0];
-		return 1;
-	} else if (c[0] <= 0xDF) {
-		/* C2..DF (unless input is invalid) */
-		*out = ((uchar_t)c[0] & 0x1F) << 6 |
-		       ((uchar_t)c[1] & 0x3F);
-		return 2;
-	} else if (c[0] <= 0xEF) {
-		/* E0..EF */
-		*out = ((uchar_t)c[0] &  0xF) << 12 |
-		       ((uchar_t)c[1] & 0x3F) << 6  |
-		       ((uchar_t)c[2] & 0x3F);
-		return 3;
-	} else {
-		/* F0..F4 (unless input is invalid) */
-		*out = ((uchar_t)c[0] &  0x7) << 18 |
-		       ((uchar_t)c[1] & 0x3F) << 12 |
-		       ((uchar_t)c[2] & 0x3F) << 6  |
-		       ((uchar_t)c[3] & 0x3F);
-		return 4;
-	}
+   const int ndecls = tree_decls(t);
+   for (unsigned i = 0; i < ndecls; i++)
+      dump_decl(tree_decl(t, i));
+   syntax("#begin\n");
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      dump_stmt(tree_stmt(t, i));
 }
 
-/*
- * Write a single UTF-8 character to @s,
- * returning the length, in bytes, of the character written.
- *
- * @unicode must be U+0000..U+10FFFF, but not U+D800..U+DFFF.
- *
- * This function will write up to 4 bytes to @out.
- */
-static int utf8_write_char(uchar_t unicode, char *out)
+static void dump_wait_level(tree_t t)
 {
-	unsigned char *o = (unsigned char*) out;
-	
-	assert(unicode <= 0x10FFFF && !(unicode >= 0xD800 && unicode <= 0xDFFF));
-
-	if (unicode <= 0x7F) {
-		/* U+0000..U+007F */
-		*o++ = unicode;
-		return 1;
-	} else if (unicode <= 0x7FF) {
-		/* U+0080..U+07FF */
-		*o++ = 0xC0 | unicode >> 6;
-		*o++ = 0x80 | (unicode & 0x3F);
-		return 2;
-	} else if (unicode <= 0xFFFF) {
-		/* U+0800..U+FFFF */
-		*o++ = 0xE0 | unicode >> 12;
-		*o++ = 0x80 | (unicode >> 6 & 0x3F);
-		*o++ = 0x80 | (unicode & 0x3F);
-		return 3;
-	} else {
-		/* U+10000..U+10FFFF */
-		*o++ = 0xF0 | unicode >> 18;
-		*o++ = 0x80 | (unicode >> 12 & 0x3F);
-		*o++ = 0x80 | (unicode >> 6 & 0x3F);
-		*o++ = 0x80 | (unicode & 0x3F);
-		return 4;
-	}
+   switch (tree_attr_int(t, wait_level_i, WAITS_MAYBE)) {
+   case WAITS_NO:
+      syntax("   -- Never waits");
+      break;
+   case WAITS_MAYBE:
+      syntax("   -- Maybe waits");
+      break;
+   case WAITS_YES:
+      syntax("   -- Waits");
+      break;
+   }
 }
 
-/*
- * Compute the Unicode codepoint of a UTF-16 surrogate pair.
- *
- * @uc should be 0xD800..0xDBFF, and @lc should be 0xDC00..0xDFFF.
- * If they aren't, this function returns false.
- */
-static bool from_surrogate_pair(uint16_t uc, uint16_t lc, uchar_t *unicode)
+static JsonNode *dump_decl(tree_t t)
 {
-	if (uc >= 0xD800 && uc <= 0xDBFF && lc >= 0xDC00 && lc <= 0xDFFF) {
-		*unicode = 0x10000 + ((((uchar_t)uc & 0x3FF) << 10) | (lc & 0x3FF));
-		return true;
-	} else {
-		return false;
-	}
+   JsonNode *decl = json_mkobject();
+
+   switch (tree_kind(t)) {
+   case T_SIGNAL_DECL:
+      json_append_member(decl, "cls", json_mkstring("sigdecl"));
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      break;
+
+   case T_VAR_DECL:
+      json_append_member(decl, "cls", json_mkstring("vardecl"));
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      break;
+
+   case T_CONST_DECL:
+      json_append_member(decl, "cls", json_mkstring("constdecl"));
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      break;
+
+   case T_TYPE_DECL:
+      {
+         type_t type = tree_type(t);
+         type_kind_t kind = type_kind(type);
+         bool is_subtype = (kind == T_SUBTYPE);
+
+         printf("%stype %s is ", is_subtype ? "sub" : "", istr(tree_ident(t)));
+
+         if (is_subtype) {
+            printf("%s ", istr(type_ident(type_base(type))));
+         }
+
+         if (type_is_integer(type) || type_is_real(type)) {
+            printf("range ");
+            dump_range(type_dim(type, 0));
+         }
+         else if (type_is_physical(type)) {
+            printf("range ");
+            dump_range(type_dim(type, 0));
+            printf("\n");
+            printf("units\n");
+            {
+               const int nunits = type_units(type);
+               for (int i = 0; i < nunits; i++) {
+                  tree_t u = type_unit(type, i);
+                  printf("%s = ", istr(tree_ident(u)));
+                  dump_expr(tree_value(u));
+                  printf(";\n");
+               }
+            }
+            printf("end units\n");
+         }
+         else if (type_is_array(type)) {
+            if (!is_subtype)
+               printf("array ");
+            printf("(");
+            if (kind == T_UARRAY) {
+               const int nindex = type_index_constrs(type);
+               for (int i = 0; i < nindex; i++) {
+                  if (i > 0) printf(", ");
+                  dump_type(type_index_constr(type, i));
+                  printf(" range <>");
+               }
+            }
+            else if (kind == T_SUBTYPE) {
+               tree_t constraint = type_constraint(type);
+               const int nranges = tree_ranges(constraint);
+               for (int i = 0; i < nranges; i++) {
+                  if (i > 0) printf(", ");
+                  dump_range(tree_range(constraint, i));
+               }
+            }
+            else {
+               const int ndims = type_dims(type);
+               for (int i = 0; i < ndims; i++) {
+                  if (i > 0) printf(", ");
+                  dump_range(type_dim(type, i));
+               }
+            }
+            printf(")");
+            if (!is_subtype) {
+               printf(" of ");
+               dump_type(type_elem(type));
+            }
+         }
+         else if (type_is_protected(type)) {
+            printf("protected\n");
+            for (unsigned i = 0; i < type_decls(type); i++)
+               dump_decl(type_decl(type, i));
+
+            printf("end protected");
+         }
+         else if (kind == T_ENUM) {
+            printf("(");
+            for (unsigned i = 0; i < type_enum_literals(type); i++) {
+               if (i > 0) printf(", ");
+               printf("%s", istr(tree_ident(type_enum_literal(type, i))));
+            }
+            printf(")");
+         }
+         else
+            dump_type(type);
+      }
+      printf(";\n");
+      {
+         const int nops = tree_ops(t);
+         for (int i = 0; i < nops; i++)
+            dump_op(tree_op(t, i), 0);
+      }
+      return decl;
+
+   case T_SPEC:
+      syntax("#for %s\n", istr(tree_ident(t)));
+      syntax("#end #for;\n");
+      return decl;
+
+   case T_BLOCK_CONFIG:
+      syntax("#for %s\n", istr(tree_ident(t)));
+      dump_decls(t);
+      syntax("#end #for;\n");
+      return decl;
+
+   case T_ALIAS:
+      printf("alias %s : ", istr(tree_ident(t)));
+      dump_type(tree_type(t));
+      printf(" is ");
+      dump_expr(tree_value(t));
+      printf(";\n");
+      return decl;
+
+   case T_ATTR_SPEC:
+      syntax("#attribute %s #of %s : #%s #is ", istr(tree_ident(t)),
+             istr(tree_ident2(t)), class_str(tree_class(t)));
+      dump_expr(tree_value(t));
+      printf(";\n");
+      return decl;
+
+   case T_ATTR_DECL:
+      syntax("#attribute %s : ", istr(tree_ident(t)));
+      dump_type(tree_type(t));
+      printf(";\n");
+      return decl;
+
+   case T_GENVAR:
+      syntax("#genvar %s : ", istr(tree_ident(t)));
+      dump_type(tree_type(t));
+      printf(";\n");
+      return decl;
+
+   case T_FUNC_DECL:
+      syntax("#function %s", istr(tree_ident(t)));
+      dump_ports(t, 0);
+      syntax(" #return %s;\n", type_pp(type_result(tree_type(t))));
+      return decl;
+
+   case T_FUNC_BODY:
+      syntax("#function %s", istr(tree_ident(t)));
+      dump_ports(t, 0);
+      syntax(" #return %s #is\n", type_pp(type_result(tree_type(t))));
+      dump_block(t);
+      syntax("#end #function;\n\n");
+      return decl;
+
+   case T_PROC_DECL:
+      syntax("#procedure %s", istr(tree_ident(t)));
+      dump_ports(t, 0);
+      printf(";");
+      dump_wait_level(t);
+      printf("\n");
+      return decl;
+
+   case T_PROC_BODY:
+      syntax("#procedure %s", istr(tree_ident(t)));
+      dump_ports(t, 0);
+      syntax(" #is");
+      dump_wait_level(t);
+      printf("\n");
+      dump_block(t);
+      syntax("#end #procedure;\n\n");
+      return decl;
+
+   case T_HIER:
+      syntax("-- Enter scope %s\n", istr(tree_ident(t)));
+      return decl;
+
+   case T_COMPONENT:
+      syntax("#component %s is\n", istr(tree_ident(t)));
+      if (tree_generics(t) > 0) {
+         syntax("    #generic (\n");
+         for (unsigned i = 0; i < tree_generics(t); i++) {
+            if (i > 0)
+               printf(";\n");
+            dump_port(tree_generic(t, i));
+         }
+         printf(" );\n");
+      }
+      if (tree_ports(t) > 0) {
+         syntax("    #port (\n");
+         for (unsigned i = 0; i < tree_ports(t); i++) {
+            if (i > 0)
+               printf(";\n");
+            dump_port(tree_port(t, i));
+         }
+         printf(" );\n");
+      }
+      syntax("  #end #component;\n");
+      return decl;
+
+   case T_PROT_BODY:
+      syntax("type %s #is #protected #body\n", istr(tree_ident(t)));
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         dump_decl(tree_decl(t, i));
+      syntax("#end #protected #body;\n");
+      return decl;
+
+   case T_FILE_DECL:
+      syntax("#file %s : ", istr(tree_ident(t)));
+      dump_type(tree_type(t));
+      if (tree_has_value(t)) {
+         syntax(" #open ");
+         dump_expr(tree_file_mode(t));
+         syntax(" #is ");
+         dump_expr(tree_value(t));
+      }
+      printf(";\n");
+      return decl;
+
+   case T_USE:
+      syntax("#use %s", istr(tree_ident(t)));
+      if (tree_has_ident2(t))
+         printf(".%s", istr(tree_ident2(t)));
+      printf(";\n");
+      return decl;
+
+   default:
+      cannot_dump(t, "decl");
+   }
+
+   json_append_member(decl, "type", dump_type(tree_type(t)));
+
+   if (tree_has_value(t))
+      json_append_member(decl, "val", dump_expr(tree_value(t)));
+   else
+      json_append_member(decl, "val", json_mknull());
+
+   if (tree_attr_int(t, ident_new("returned"), 0))
+      printf(" -- returned");
+
+   return decl;
 }
 
-/*
- * Construct a UTF-16 surrogate pair given a Unicode codepoint.
- *
- * @unicode must be U+10000..U+10FFFF.
- */
-static void to_surrogate_pair(uchar_t unicode, uint16_t *uc, uint16_t *lc)
+static JsonNode *dump_stmt(tree_t t)
 {
-	uchar_t n;
-	
-	assert(unicode >= 0x10000 && unicode <= 0x10FFFF);
-	
-	n = unicode - 0x10000;
-	*uc = ((n >> 10) & 0x3FF) | 0xD800;
-	*lc = (n & 0x3FF) | 0xDC00;
+   JsonNode *statement = json_mkobject();
+   JsonNode *stmt = json_mkarray();
+   switch (tree_kind(t)) {
+   case T_PROCESS:
+      json_append_member(statement, "cls", json_mkstring("process"));
+      json_append_member(statement, "decls", dump_decls(t));
+      json_append_member(statement, "stmts", stmt);
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         json_append_element(stmt, dump_stmt(tree_stmt(t, i)));
+      break;
+
+   case T_SIGNAL_ASSIGN:
+      json_append_member(statement, "cls", json_mkstring("sigassign"));
+      json_append_member(statement, "target", dump_expr(tree_target(t)));
+      /* Delays are not translated */
+      if (tree_waveforms(t)) {
+         tree_t w = tree_waveform(t, 0);
+         json_append_member(statement, "lhs", dump_expr(tree_value(w)));
+      }
+      break;
+
+   case T_VAR_ASSIGN:
+      json_append_member(statement, "cls", json_mkstring("varassign"));
+      json_append_member(statement, "target", dump_expr(tree_target(t)));
+      json_append_member(statement, "lhs", dump_expr(tree_value(t)));
+      break;
+
+   case T_WAIT:
+      json_append_member(statement, "cls", json_mkstring("wait"));
+      JsonNode *wait_on = json_mkarray();
+      json_append_member(statement, "on", wait_on);
+      if (tree_triggers(t) > 0) {
+         for (unsigned i = 0; i < tree_triggers(t); i++) {
+            json_append_element(wait_on, dump_expr(tree_trigger(t, i)));
+         }
+      }
+      break;
+
+   case T_BLOCK:
+      json_append_member(statement, "cls", json_mkstring("block"));
+      syntax("#block #is\n");
+      dump_block(t);
+      syntax("#end #block");
+      break;
+
+   case T_ASSERT:
+      json_append_member(statement, "cls", json_mkstring("assert"));
+      if (tree_has_value(t)) {
+         syntax("#assert ");
+         dump_expr(tree_value(t));
+      }
+      if (tree_has_message(t)) {
+         syntax(" #report ");
+         dump_expr(tree_message(t));
+      }
+      syntax(" #severity ");
+      dump_expr(tree_severity(t));
+      break;
+
+   case T_WHILE:
+      json_append_member(statement, "cls", json_mkstring("while"));
+      if (tree_has_value(t)) {
+         syntax("#while ");
+         dump_expr(tree_value(t));
+         printf(" ");
+      }
+      syntax("#loop\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i));
+      syntax("#end #loop");
+      break;
+
+   case T_IF:
+      json_append_member(statement, "cls", json_mkstring("if"));
+      json_append_member(statement, "cond", dump_expr(tree_value(t)));
+      JsonNode *then_node = json_mkarray();
+      json_append_member(statement, "then", then_node);
+      JsonNode *else_node = json_mkarray();
+      json_append_member(statement, "else", else_node);
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         json_append_element(then_node, dump_stmt(tree_stmt(t, i)));
+      if (tree_else_stmts(t) > 0) {
+         for (unsigned i = 0; i < tree_else_stmts(t); i++)
+            json_append_element(else_node, dump_stmt(tree_else_stmt(t, i)));
+      }
+      break;
+
+   case T_EXIT:
+      json_append_member(statement, "cls", json_mkstring("exit"));
+      syntax("#exit %s", istr(tree_ident2(t)));
+      if (tree_has_value(t)) {
+         syntax(" #when ");
+         dump_expr(tree_value(t));
+      }
+      break;
+
+   case T_CASE:
+      json_append_member(statement, "cls", json_mkstring("case"));
+      syntax("#case ");
+      dump_expr(tree_value(t));
+      syntax(" #is\n");
+      for (unsigned i = 0; i < tree_assocs(t); i++) {
+         tree_t a = tree_assoc(t, i);
+         switch (tree_subkind(a)) {
+         case A_NAMED:
+            syntax("#when ");
+            dump_expr(tree_name(a));
+            printf(" =>\n");
+            break;
+         case A_OTHERS:
+            syntax("#when #others =>\n");
+            break;
+         default:
+            assert(false);
+         }
+         dump_stmt(tree_value(a));
+      }
+      syntax("#end #case");
+      break;
+
+   case T_RETURN:
+      json_append_member(statement, "cls", json_mkstring("return"));
+      syntax("#return");
+      if (tree_has_value(t)) {
+         printf(" ");
+         dump_expr(tree_value(t));
+      }
+      break;
+
+   case T_FOR:
+      json_append_member(statement, "cls", json_mkstring("for"));
+      syntax("#for %s #in ", istr(tree_ident2(t)));
+      dump_range(tree_range(t, 0));
+      syntax(" #loop\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i));
+      syntax("#end #for");
+      break;
+
+   case T_PCALL:
+      json_append_member(statement, "cls", json_mkstring("pcall"));
+      printf("%s", istr(tree_ident(tree_ref(t))));
+      dump_params(t, tree_param, tree_params(t), NULL);
+      break;
+
+   case T_FOR_GENERATE:
+      json_append_member(statement, "cls", json_mkstring("for_generate"));
+      syntax("#for %s #in ", istr(tree_ident2(t)));
+      dump_range(tree_range(t, 0));
+      syntax(" #generate\n");
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         dump_decl(tree_decl(t, i));
+      syntax("#begin\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i));
+      syntax("end generate");
+      break;
+
+   case T_IF_GENERATE:
+      json_append_member(statement, "cls", json_mkstring("if_generate"));
+      syntax("#if ");
+      dump_expr(tree_value(t));
+      syntax(" #generate\n");
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         dump_decl(tree_decl(t, i));
+      syntax("#begin\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i));
+      syntax("#end #generate");
+      break;
+
+   case T_INSTANCE:
+      json_append_member(statement, "cls", json_mkstring("instance"));
+      switch (tree_class(t)) {
+      case C_ENTITY:    syntax("#entity "); break;
+      case C_COMPONENT: syntax("#component "); break;
+      default:
+         assert(false);
+      }
+      printf("%s", istr(tree_ident2(t)));
+      if (tree_has_spec(t)) {
+         tree_t bind = tree_value(tree_spec(t));
+         syntax(" -- bound to %s", istr(tree_ident(bind)));
+         if (tree_has_ident2(bind))
+            printf("(%s)", istr(tree_ident2(bind)));
+      }
+      printf("\n");
+      if (tree_genmaps(t) > 0) {
+         dump_params(t, tree_genmap, tree_genmaps(t), "#generic #map");
+         printf("\n");
+      }
+      if (tree_params(t) > 0) {
+         dump_params(t, tree_param, tree_params(t), "#port #map");
+      }
+      printf(";\n\n");
+      break;
+
+   case T_NEXT:
+      json_append_member(statement, "cls", json_mkstring("next"));
+      syntax("#next");
+      if (tree_has_value(t)) {
+         syntax(" #when ");
+         dump_expr(tree_value(t));
+      }
+      break;
+
+   default:
+      cannot_dump(t, "stmt");
+   }
+
+   return statement;
 }
 
-#define is_space(c) ((c) == '\t' || (c) == '\n' || (c) == '\r' || (c) == ' ')
-#define is_digit(c) ((c) >= '0' && (c) <= '9')
-
-static bool parse_value     (const char **sp, JsonNode        **out);
-static bool parse_string    (const char **sp, char            **out);
-static bool parse_number    (const char **sp, double           *out);
-static bool parse_array     (const char **sp, JsonNode        **out);
-static bool parse_object    (const char **sp, JsonNode        **out);
-static bool parse_hex16     (const char **sp, uint16_t         *out);
-
-static bool expect_literal  (const char **sp, const char *str);
-static void skip_space      (const char **sp);
-
-static void emit_value              (SB *out, const JsonNode *node);
-static void emit_value_indented     (SB *out, const JsonNode *node, const char *space, int indent_level);
-static void emit_string             (SB *out, const char *str);
-static void emit_number             (SB *out, double num);
-static void emit_array              (SB *out, const JsonNode *array);
-static void emit_array_indented     (SB *out, const JsonNode *array, const char *space, int indent_level);
-static void emit_object             (SB *out, const JsonNode *object);
-static void emit_object_indented    (SB *out, const JsonNode *object, const char *space, int indent_level);
-
-static int write_hex16(char *out, uint16_t val);
-
-static JsonNode *mknode(JsonTag tag);
-static void append_node(JsonNode *parent, JsonNode *child);
-static void prepend_node(JsonNode *parent, JsonNode *child);
-static void append_member(JsonNode *object, char *key, JsonNode *value);
-
-/* Assertion-friendly validity checks */
-static bool tag_is_valid(unsigned int tag);
-static bool number_is_valid(const char *num);
-
-JsonNode *json_decode(const char *json)
+static JsonNode *dump_port(tree_t t)
 {
-	const char *s = json;
-	JsonNode *ret;
-	
-	skip_space(&s);
-	if (!parse_value(&s, &ret))
-		return NULL;
-	
-	skip_space(&s);
-	if (*s != 0) {
-		json_delete(ret);
-		return NULL;
-	}
-	
-	return ret;
+   JsonNode *port = json_mkobject();
+   json_append_member(port, "name", json_mkstring(istr(tree_ident(t))));
+
+   const char *class = NULL, *dir = NULL;
+   switch (tree_class(t)) {
+   case C_SIGNAL:   class = "signal";   break;
+   case C_VARIABLE: class = "variable"; break;
+   case C_DEFAULT:  class = "";         break;
+   case C_CONSTANT: class = "constant"; break;
+   case C_FILE:     class = "file";     break;
+   default:
+      assert(false);
+   }
+   json_append_member(port, "class", json_mkstring(class));
+   switch (tree_subkind(t)) {
+   case PORT_IN:      dir = "in";     break;
+   case PORT_OUT:     dir = "out";    break;
+   case PORT_INOUT:   dir = "inout";  break;
+   case PORT_BUFFER:  dir = "buffer"; break;
+   case PORT_INVALID: dir = "??";     break;
+   }
+   json_append_member(port, "dir", json_mkstring(dir));
+   json_append_member(port, "type", dump_type(tree_type(t)));
+   return port;
 }
 
-char *json_encode(const JsonNode *node)
+static void dump_context(tree_t t)
 {
-	return json_stringify(node, NULL);
+   const int nctx = tree_contexts(t);
+   for (int i = 0; i < nctx; i++) {
+      tree_t c = tree_context(t, i);
+      switch (tree_kind(c)) {
+      case T_LIBRARY:
+         if (tree_ident(c) != std_i && tree_ident(c) != work_i)
+            syntax("#library %s;\n", istr(tree_ident(c)));
+         break;
+
+      case T_USE:
+         syntax("#use %s", istr(tree_ident(c)));
+         if (tree_has_ident2(c)) {
+            printf(".%s", istr(tree_ident2(c)));
+         }
+         printf(";\n");
+         break;
+
+      default:
+         break;
+      }
+   }
+
+   if (nctx > 0)
+      printf("\n");
 }
 
-char *json_encode_string(const char *str)
+static void dump_elab(tree_t t)
 {
-	SB sb;
-	sb_init(&sb);
-	
-	emit_string(&sb, str);
-	
-	return sb_finish(&sb);
+   dump_context(t);
+   syntax("#entity %s #is\n#end #entity;\n\n", istr(tree_ident(t)));
+   syntax("#architecture #elab #of %s #is\n", istr(tree_ident(t)));
+   dump_decls(t);
+   syntax("#begin\n");
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      dump_stmt(tree_stmt(t, i));
+   syntax("#end #architecture;\n");
 }
 
-char *json_stringify(const JsonNode *node, const char *space)
+static void dump_entity(tree_t t)
 {
-	SB sb;
-	sb_init(&sb);
-	
-	if (space != NULL)
-		emit_value_indented(&sb, node, space, 0);
-	else
-		emit_value(&sb, node);
-	
-	return sb_finish(&sb);
+   JsonNode *entity_node = json_mkobject();
+   dump_context(t);
+   json_append_member(entity_node, "cls", json_mkstring("entity"));
+   json_append_member(entity_node, "name", json_mkstring(istr(tree_ident(t))));
+   JsonNode *generic_array = json_mkarray();
+   if (tree_generics(t) > 0) {
+      for (unsigned i = 0; i < tree_generics(t); i++) {
+         json_append_element(generic_array, dump_port(tree_generic(t, i)));
+      }
+   }
+   json_append_member(entity_node, "generic", generic_array);
+
+   JsonNode *port_array = json_mkarray();
+   if (tree_ports(t) > 0) {
+      for (unsigned i = 0; i < tree_ports(t); i++) {
+         json_append_element(port_array, dump_port(tree_port(t, i)));
+      }
+   }
+   json_append_member(entity_node, "port", port_array);
+   json_append_member(entity_node, "decls", dump_decls(t));
+
+   JsonNode *stmts_array = json_mkarray();
+   for (unsigned i = 0; i < tree_stmts(t); i++) {
+      json_append_element(stmts_array, dump_stmt(tree_stmt(t, i)));
+   }
+   json_append_member(entity_node, "stmts", stmts_array);
+   return_node = entity_node;
 }
 
-void json_delete(JsonNode *node)
+static JsonNode *dump_decls(tree_t t)
 {
-	if (node != NULL) {
-		json_remove_from_parent(node);
-		
-		switch (node->tag) {
-			case JSON_STRING:
-				free(node->string_);
-				break;
-			case JSON_ARRAY:
-			case JSON_OBJECT:
-			{
-				JsonNode *child, *next;
-				for (child = node->children.head; child != NULL; child = next) {
-					next = child->next;
-					json_delete(child);
-				}
-				break;
-			}
-			default:;
-		}
-		
-		free(node);
-	}
+   JsonNode *decls = json_mkarray();
+   const int ndecls = tree_decls(t);
+   for (unsigned i = 0; i < ndecls; i++)
+      json_append_element(decls, dump_decl(tree_decl(t, i)));
+   return decls;
 }
 
-bool json_validate(const char *json)
+static void dump_arch(tree_t t)
 {
-	const char *s = json;
-	
-	skip_space(&s);
-	if (!parse_value(&s, NULL))
-		return false;
-	
-	skip_space(&s);
-	if (*s != 0)
-		return false;
-	
-	return true;
+   JsonNode *architecture_node = json_mkobject();
+   dump_context(t);
+   json_append_member(architecture_node, "cls", json_mkstring("architecture"));
+   json_append_member(architecture_node, "name", json_mkstring(istr(tree_ident(t))));
+   json_append_member(architecture_node, "of", json_mkstring(istr(tree_ident2(t))));
+   json_append_member(architecture_node, "decls", dump_decls(t));
+   JsonNode *stmts_array = json_mkarray();
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      json_append_element(stmts_array, dump_stmt(tree_stmt(t, i)));
+   json_append_member(architecture_node, "stmts", stmts_array);
+   return_node = architecture_node;
 }
 
-JsonNode *json_find_element(JsonNode *array, int index)
+static void dump_package(tree_t t)
 {
-	JsonNode *element;
-	int i = 0;
-	
-	if (array == NULL || array->tag != JSON_ARRAY)
-		return NULL;
-	
-	json_foreach(element, array) {
-		if (i == index)
-			return element;
-		i++;
-	}
-	
-	return NULL;
+   dump_context(t);
+   syntax("#package %s #is\n", istr(tree_ident(t)));
+   dump_decls(t);
+   syntax("#end #package;\n");
 }
 
-JsonNode *json_find_member(JsonNode *object, const char *name)
+static void dump_package_body(tree_t t)
 {
-	JsonNode *member;
-	
-	if (object == NULL || object->tag != JSON_OBJECT)
-		return NULL;
-	
-	json_foreach(member, object)
-		if (strcmp(member->key, name) == 0)
-			return member;
-	
-	return NULL;
+   dump_context(t);
+   syntax("#package #body %s #is\n", istr(tree_ident(t)));
+   dump_decls(t);
+   syntax("#end #package #body;\n");
 }
 
-JsonNode *json_first_child(const JsonNode *node)
+static void dump_configuration(tree_t t)
 {
-	if (node != NULL && (node->tag == JSON_ARRAY || node->tag == JSON_OBJECT))
-		return node->children.head;
-	return NULL;
+   syntax("#configuration %s #of %s #is\n",
+          istr(tree_ident(t)), istr(tree_ident2(t)));
+   dump_decls(t);
+   syntax("#end #configuration\n");
 }
 
-static JsonNode *mknode(JsonTag tag)
+void dump_json(tree_t *elements, unsigned int n_elements, const char *filename)
 {
-	JsonNode *ret = (JsonNode*) calloc(1, sizeof(JsonNode));
-	if (ret == NULL)
-		out_of_memory();
-	ret->tag = tag;
-	return ret;
+   FILE* dump_file = fopen(filename, "w");
+   if (!dump_file) {
+      fclose(dump_file);
+      return;
+   }
+
+   unsigned int i;
+   char *result;
+   base_node = json_mkarray();
+   for(i=0; i < n_elements; i++) {
+      tree_t t = elements[i];
+      switch (tree_kind(t)) {
+      case T_ELAB:
+         dump_elab(t);
+         break;
+      case T_ENTITY:
+         dump_entity(t);
+         json_append_element(base_node, return_node);
+         break;
+      case T_ARCH:
+         dump_arch(t);
+         json_append_element(base_node, return_node);
+         break;
+      case T_PACKAGE:
+         dump_package(t);
+         break;
+      case T_PACK_BODY:
+         dump_package_body(t);
+         break;
+      case T_CONFIGURATION:
+         dump_configuration(t);
+         break;
+      case T_FCALL:
+      case T_LITERAL:
+      case T_AGGREGATE:
+      case T_REF:
+      case T_ARRAY_REF:
+      case T_ARRAY_SLICE:
+      case T_TYPE_CONV:
+      case T_CONCAT:
+      case T_RECORD_REF:
+         dump_expr(t);
+         printf("\n");
+         break;
+      case T_FOR_GENERATE:
+      case T_BLOCK:
+      case T_PROCESS:
+      case T_CASE:
+      case T_FOR:
+         dump_stmt(t);
+         break;
+      case T_CONST_DECL:
+      case T_VAR_DECL:
+      case T_SIGNAL_DECL:
+         dump_decl(t);
+         break;
+      default:
+         cannot_dump(t, "tree");
+      }
+   }
+   result = json_encode(base_node);
+   fwrite(result, 1, strlen(result), dump_file);
+   fclose(dump_file);
+   json_delete(base_node);
 }
 
-JsonNode *json_mknull(void)
-{
-	return mknode(JSON_NULL);
-}
-
-JsonNode *json_mkbool(bool b)
-{
-	JsonNode *ret = mknode(JSON_BOOL);
-	ret->bool_ = b;
-	return ret;
-}
-
-static JsonNode *mkstring(char *s)
-{
-	JsonNode *ret = mknode(JSON_STRING);
-	ret->string_ = s;
-	return ret;
-}
-
-JsonNode *json_mkstring(const char *s)
-{
-	return mkstring(json_strdup(s));
-}
-
-JsonNode *json_mknumber(double n)
-{
-	JsonNode *node = mknode(JSON_NUMBER);
-	node->number_ = n;
-	return node;
-}
-
-JsonNode *json_mkarray(void)
-{
-	return mknode(JSON_ARRAY);
-}
-
-JsonNode *json_mkobject(void)
-{
-	return mknode(JSON_OBJECT);
-}
-
-static void append_node(JsonNode *parent, JsonNode *child)
-{
-	child->parent = parent;
-	child->prev = parent->children.tail;
-	child->next = NULL;
-	
-	if (parent->children.tail != NULL)
-		parent->children.tail->next = child;
-	else
-		parent->children.head = child;
-	parent->children.tail = child;
-}
-
-static void prepend_node(JsonNode *parent, JsonNode *child)
-{
-	child->parent = parent;
-	child->prev = NULL;
-	child->next = parent->children.head;
-	
-	if (parent->children.head != NULL)
-		parent->children.head->prev = child;
-	else
-		parent->children.tail = child;
-	parent->children.head = child;
-}
-
-static void append_member(JsonNode *object, char *key, JsonNode *value)
-{
-	value->key = key;
-	append_node(object, value);
-}
-
-void json_append_element(JsonNode *array, JsonNode *element)
-{
-	assert(array->tag == JSON_ARRAY);
-	assert(element->parent == NULL);
-	
-	append_node(array, element);
-}
-
-void json_prepend_element(JsonNode *array, JsonNode *element)
-{
-	assert(array->tag == JSON_ARRAY);
-	assert(element->parent == NULL);
-	
-	prepend_node(array, element);
-}
-
-void json_append_member(JsonNode *object, const char *key, JsonNode *value)
-{
-	assert(object->tag == JSON_OBJECT);
-	assert(value->parent == NULL);
-	
-	append_member(object, json_strdup(key), value);
-}
-
-void json_prepend_member(JsonNode *object, const char *key, JsonNode *value)
-{
-	assert(object->tag == JSON_OBJECT);
-	assert(value->parent == NULL);
-	
-	value->key = json_strdup(key);
-	prepend_node(object, value);
-}
-
-void json_remove_from_parent(JsonNode *node)
-{
-	JsonNode *parent = node->parent;
-	
-	if (parent != NULL) {
-		if (node->prev != NULL)
-			node->prev->next = node->next;
-		else
-			parent->children.head = node->next;
-		if (node->next != NULL)
-			node->next->prev = node->prev;
-		else
-			parent->children.tail = node->prev;
-		
-		free(node->key);
-		
-		node->parent = NULL;
-		node->prev = node->next = NULL;
-		node->key = NULL;
-	}
-}
-
-static bool parse_value(const char **sp, JsonNode **out)
-{
-	const char *s = *sp;
-	
-	switch (*s) {
-		case 'n':
-			if (expect_literal(&s, "null")) {
-				if (out)
-					*out = json_mknull();
-				*sp = s;
-				return true;
-			}
-			return false;
-		
-		case 'f':
-			if (expect_literal(&s, "false")) {
-				if (out)
-					*out = json_mkbool(false);
-				*sp = s;
-				return true;
-			}
-			return false;
-		
-		case 't':
-			if (expect_literal(&s, "true")) {
-				if (out)
-					*out = json_mkbool(true);
-				*sp = s;
-				return true;
-			}
-			return false;
-		
-		case '"': {
-			char *str;
-			if (parse_string(&s, out ? &str : NULL)) {
-				if (out)
-					*out = mkstring(str);
-				*sp = s;
-				return true;
-			}
-			return false;
-		}
-		
-		case '[':
-			if (parse_array(&s, out)) {
-				*sp = s;
-				return true;
-			}
-			return false;
-		
-		case '{':
-			if (parse_object(&s, out)) {
-				*sp = s;
-				return true;
-			}
-			return false;
-		
-		default: {
-			double num;
-			if (parse_number(&s, out ? &num : NULL)) {
-				if (out)
-					*out = json_mknumber(num);
-				*sp = s;
-				return true;
-			}
-			return false;
-		}
-	}
-}
-
-static bool parse_array(const char **sp, JsonNode **out)
-{
-	const char *s = *sp;
-	JsonNode *ret = out ? json_mkarray() : NULL;
-	JsonNode *element;
-	
-	if (*s++ != '[')
-		goto failure;
-	skip_space(&s);
-	
-	if (*s == ']') {
-		s++;
-		goto success;
-	}
-	
-	for (;;) {
-		if (!parse_value(&s, out ? &element : NULL))
-			goto failure;
-		skip_space(&s);
-		
-		if (out)
-			json_append_element(ret, element);
-		
-		if (*s == ']') {
-			s++;
-			goto success;
-		}
-		
-		if (*s++ != ',')
-			goto failure;
-		skip_space(&s);
-	}
-	
-success:
-	*sp = s;
-	if (out)
-		*out = ret;
-	return true;
-
-failure:
-	json_delete(ret);
-	return false;
-}
-
-static bool parse_object(const char **sp, JsonNode **out)
-{
-	const char *s = *sp;
-	JsonNode *ret = out ? json_mkobject() : NULL;
-	char *key;
-	JsonNode *value;
-	
-	if (*s++ != '{')
-		goto failure;
-	skip_space(&s);
-	
-	if (*s == '}') {
-		s++;
-		goto success;
-	}
-	
-	for (;;) {
-		if (!parse_string(&s, out ? &key : NULL))
-			goto failure;
-		skip_space(&s);
-		
-		if (*s++ != ':')
-			goto failure_free_key;
-		skip_space(&s);
-		
-		if (!parse_value(&s, out ? &value : NULL))
-			goto failure_free_key;
-		skip_space(&s);
-		
-		if (out)
-			append_member(ret, key, value);
-		
-		if (*s == '}') {
-			s++;
-			goto success;
-		}
-		
-		if (*s++ != ',')
-			goto failure;
-		skip_space(&s);
-	}
-	
-success:
-	*sp = s;
-	if (out)
-		*out = ret;
-	return true;
-
-failure_free_key:
-	if (out)
-		free(key);
-failure:
-	json_delete(ret);
-	return false;
-}
-
-bool parse_string(const char **sp, char **out)
-{
-	const char *s = *sp;
-	SB sb;
-	char throwaway_buffer[4];
-		/* enough space for a UTF-8 character */
-	char *b;
-	
-	if (*s++ != '"')
-		return false;
-	
-	if (out) {
-		sb_init(&sb);
-		sb_need(&sb, 4);
-		b = sb.cur;
-	} else {
-		b = throwaway_buffer;
-	}
-	
-	while (*s != '"') {
-		unsigned char c = *s++;
-		
-		/* Parse next character, and write it to b. */
-		if (c == '\\') {
-			c = *s++;
-			switch (c) {
-				case '"':
-				case '\\':
-				case '/':
-					*b++ = c;
-					break;
-				case 'b':
-					*b++ = '\b';
-					break;
-				case 'f':
-					*b++ = '\f';
-					break;
-				case 'n':
-					*b++ = '\n';
-					break;
-				case 'r':
-					*b++ = '\r';
-					break;
-				case 't':
-					*b++ = '\t';
-					break;
-				case 'u':
-				{
-					uint16_t uc, lc;
-					uchar_t unicode;
-					
-					if (!parse_hex16(&s, &uc))
-						goto failed;
-					
-					if (uc >= 0xD800 && uc <= 0xDFFF) {
-						/* Handle UTF-16 surrogate pair. */
-						if (*s++ != '\\' || *s++ != 'u' || !parse_hex16(&s, &lc))
-							goto failed; /* Incomplete surrogate pair. */
-						if (!from_surrogate_pair(uc, lc, &unicode))
-							goto failed; /* Invalid surrogate pair. */
-					} else if (uc == 0) {
-						/* Disallow "\u0000". */
-						goto failed;
-					} else {
-						unicode = uc;
-					}
-					
-					b += utf8_write_char(unicode, b);
-					break;
-				}
-				default:
-					/* Invalid escape */
-					goto failed;
-			}
-		} else if (c <= 0x1F) {
-			/* Control characters are not allowed in string literals. */
-			goto failed;
-		} else {
-			/* Validate and echo a UTF-8 character. */
-			int len;
-			
-			s--;
-			len = utf8_validate_cz(s);
-			if (len == 0)
-				goto failed; /* Invalid UTF-8 character. */
-			
-			while (len--)
-				*b++ = *s++;
-		}
-		
-		/*
-		 * Update sb to know about the new bytes,
-		 * and set up b to write another character.
-		 */
-		if (out) {
-			sb.cur = b;
-			sb_need(&sb, 4);
-			b = sb.cur;
-		} else {
-			b = throwaway_buffer;
-		}
-	}
-	s++;
-	
-	if (out)
-		*out = sb_finish(&sb);
-	*sp = s;
-	return true;
-
-failed:
-	if (out)
-		sb_free(&sb);
-	return false;
-}
-
-/*
- * The JSON spec says that a number shall follow this precise pattern
- * (spaces and quotes added for readability):
- *	 '-'? (0 | [1-9][0-9]*) ('.' [0-9]+)? ([Ee] [+-]? [0-9]+)?
- *
- * However, some JSON parsers are more liberal.  For instance, PHP accepts
- * '.5' and '1.'.  JSON.parse accepts '+3'.
- *
- * This function takes the strict approach.
- */
-bool parse_number(const char **sp, double *out)
-{
-	const char *s = *sp;
-
-	/* '-'? */
-	if (*s == '-')
-		s++;
-
-	/* (0 | [1-9][0-9]*) */
-	if (*s == '0') {
-		s++;
-	} else {
-		if (!is_digit(*s))
-			return false;
-		do {
-			s++;
-		} while (is_digit(*s));
-	}
-
-	/* ('.' [0-9]+)? */
-	if (*s == '.') {
-		s++;
-		if (!is_digit(*s))
-			return false;
-		do {
-			s++;
-		} while (is_digit(*s));
-	}
-
-	/* ([Ee] [+-]? [0-9]+)? */
-	if (*s == 'E' || *s == 'e') {
-		s++;
-		if (*s == '+' || *s == '-')
-			s++;
-		if (!is_digit(*s))
-			return false;
-		do {
-			s++;
-		} while (is_digit(*s));
-	}
-
-	if (out)
-		*out = strtod(*sp, NULL);
-
-	*sp = s;
-	return true;
-}
-
-static void skip_space(const char **sp)
-{
-	const char *s = *sp;
-	while (is_space(*s))
-		s++;
-	*sp = s;
-}
-
-static void emit_value(SB *out, const JsonNode *node)
-{
-	assert(tag_is_valid(node->tag));
-	switch (node->tag) {
-		case JSON_NULL:
-			sb_puts(out, "null");
-			break;
-		case JSON_BOOL:
-			sb_puts(out, node->bool_ ? "true" : "false");
-			break;
-		case JSON_STRING:
-			emit_string(out, node->string_);
-			break;
-		case JSON_NUMBER:
-			emit_number(out, node->number_);
-			break;
-		case JSON_ARRAY:
-			emit_array(out, node);
-			break;
-		case JSON_OBJECT:
-			emit_object(out, node);
-			break;
-		default:
-			assert(false);
-	}
-}
-
-void emit_value_indented(SB *out, const JsonNode *node, const char *space, int indent_level)
-{
-	assert(tag_is_valid(node->tag));
-	switch (node->tag) {
-		case JSON_NULL:
-			sb_puts(out, "null");
-			break;
-		case JSON_BOOL:
-			sb_puts(out, node->bool_ ? "true" : "false");
-			break;
-		case JSON_STRING:
-			emit_string(out, node->string_);
-			break;
-		case JSON_NUMBER:
-			emit_number(out, node->number_);
-			break;
-		case JSON_ARRAY:
-			emit_array_indented(out, node, space, indent_level);
-			break;
-		case JSON_OBJECT:
-			emit_object_indented(out, node, space, indent_level);
-			break;
-		default:
-			assert(false);
-	}
-}
-
-static void emit_array(SB *out, const JsonNode *array)
-{
-	const JsonNode *element;
-	
-	sb_putc(out, '[');
-	json_foreach(element, array) {
-		emit_value(out, element);
-		if (element->next != NULL)
-			sb_putc(out, ',');
-	}
-	sb_putc(out, ']');
-}
-
-static void emit_array_indented(SB *out, const JsonNode *array, const char *space, int indent_level)
-{
-	const JsonNode *element = array->children.head;
-	int i;
-	
-	if (element == NULL) {
-		sb_puts(out, "[]");
-		return;
-	}
-	
-	sb_puts(out, "[\n");
-	while (element != NULL) {
-		for (i = 0; i < indent_level + 1; i++)
-			sb_puts(out, space);
-		emit_value_indented(out, element, space, indent_level + 1);
-		
-		element = element->next;
-		sb_puts(out, element != NULL ? ",\n" : "\n");
-	}
-	for (i = 0; i < indent_level; i++)
-		sb_puts(out, space);
-	sb_putc(out, ']');
-}
-
-static void emit_object(SB *out, const JsonNode *object)
-{
-	const JsonNode *member;
-	
-	sb_putc(out, '{');
-	json_foreach(member, object) {
-		emit_string(out, member->key);
-		sb_putc(out, ':');
-		emit_value(out, member);
-		if (member->next != NULL)
-			sb_putc(out, ',');
-	}
-	sb_putc(out, '}');
-}
-
-static void emit_object_indented(SB *out, const JsonNode *object, const char *space, int indent_level)
-{
-	const JsonNode *member = object->children.head;
-	int i;
-	
-	if (member == NULL) {
-		sb_puts(out, "{}");
-		return;
-	}
-	
-	sb_puts(out, "{\n");
-	while (member != NULL) {
-		for (i = 0; i < indent_level + 1; i++)
-			sb_puts(out, space);
-		emit_string(out, member->key);
-		sb_puts(out, ": ");
-		emit_value_indented(out, member, space, indent_level + 1);
-		
-		member = member->next;
-		sb_puts(out, member != NULL ? ",\n" : "\n");
-	}
-	for (i = 0; i < indent_level; i++)
-		sb_puts(out, space);
-	sb_putc(out, '}');
-}
-
-void emit_string(SB *out, const char *str)
-{
-	bool escape_unicode = false;
-	const char *s = str;
-	char *b;
-	
-	assert(utf8_validate(str));
-	
-	/*
-	 * 14 bytes is enough space to write up to two
-	 * \uXXXX escapes and two quotation marks.
-	 */
-	sb_need(out, 14);
-	b = out->cur;
-	
-	*b++ = '"';
-	while (*s != 0) {
-		unsigned char c = *s++;
-		
-		/* Encode the next character, and write it to b. */
-		switch (c) {
-			case '"':
-				*b++ = '\\';
-				*b++ = '"';
-				break;
-			case '\\':
-				*b++ = '\\';
-				*b++ = '\\';
-				break;
-			case '\b':
-				*b++ = '\\';
-				*b++ = 'b';
-				break;
-			case '\f':
-				*b++ = '\\';
-				*b++ = 'f';
-				break;
-			case '\n':
-				*b++ = '\\';
-				*b++ = 'n';
-				break;
-			case '\r':
-				*b++ = '\\';
-				*b++ = 'r';
-				break;
-			case '\t':
-				*b++ = '\\';
-				*b++ = 't';
-				break;
-			default: {
-				int len;
-				
-				s--;
-				len = utf8_validate_cz(s);
-				
-				if (len == 0) {
-					/*
-					 * Handle invalid UTF-8 character gracefully in production
-					 * by writing a replacement character (U+FFFD)
-					 * and skipping a single byte.
-					 *
-					 * This should never happen when assertions are enabled
-					 * due to the assertion at the beginning of this function.
-					 */
-					assert(false);
-					if (escape_unicode) {
-						strcpy(b, "\\uFFFD");
-						b += 6;
-					} else {
-						*b++ = 0xEF;
-						*b++ = 0xBF;
-						*b++ = 0xBD;
-					}
-					s++;
-				} else if (c < 0x1F || (c >= 0x80 && escape_unicode)) {
-					/* Encode using \u.... */
-					uint32_t unicode;
-					
-					s += utf8_read_char(s, &unicode);
-					
-					if (unicode <= 0xFFFF) {
-						*b++ = '\\';
-						*b++ = 'u';
-						b += write_hex16(b, unicode);
-					} else {
-						/* Produce a surrogate pair. */
-						uint16_t uc, lc;
-						assert(unicode <= 0x10FFFF);
-						to_surrogate_pair(unicode, &uc, &lc);
-						*b++ = '\\';
-						*b++ = 'u';
-						b += write_hex16(b, uc);
-						*b++ = '\\';
-						*b++ = 'u';
-						b += write_hex16(b, lc);
-					}
-				} else {
-					/* Write the character directly. */
-					while (len--)
-						*b++ = *s++;
-				}
-				
-				break;
-			}
-		}
-	
-		/*
-		 * Update *out to know about the new bytes,
-		 * and set up b to write another encoded character.
-		 */
-		out->cur = b;
-		sb_need(out, 14);
-		b = out->cur;
-	}
-	*b++ = '"';
-	
-	out->cur = b;
-}
-
-static void emit_number(SB *out, double num)
-{
-	/*
-	 * This isn't exactly how JavaScript renders numbers,
-	 * but it should produce valid JSON for reasonable numbers
-	 * preserve precision well enough, and avoid some oddities
-	 * like 0.3 -> 0.299999999999999988898 .
-	 */
-	char buf[64];
-	sprintf(buf, "%.16g", num);
-	
-	if (number_is_valid(buf))
-		sb_puts(out, buf);
-	else
-		sb_puts(out, "null");
-}
-
-static bool tag_is_valid(unsigned int tag)
-{
-	return (/* tag >= JSON_NULL && */ tag <= JSON_OBJECT);
-}
-
-static bool number_is_valid(const char *num)
-{
-	return (parse_number(&num, NULL) && *num == '\0');
-}
-
-static bool expect_literal(const char **sp, const char *str)
-{
-	const char *s = *sp;
-	
-	while (*str != '\0')
-		if (*s++ != *str++)
-			return false;
-	
-	*sp = s;
-	return true;
-}
-
-/*
- * Parses exactly 4 hex characters (capital or lowercase).
- * Fails if any input chars are not [0-9A-Fa-f].
- */
-static bool parse_hex16(const char **sp, uint16_t *out)
-{
-	const char *s = *sp;
-	uint16_t ret = 0;
-	uint16_t i;
-	uint16_t tmp;
-	char c;
-
-	for (i = 0; i < 4; i++) {
-		c = *s++;
-		if (c >= '0' && c <= '9')
-			tmp = c - '0';
-		else if (c >= 'A' && c <= 'F')
-			tmp = c - 'A' + 10;
-		else if (c >= 'a' && c <= 'f')
-			tmp = c - 'a' + 10;
-		else
-			return false;
-
-		ret <<= 4;
-		ret += tmp;
-	}
-	
-	if (out)
-		*out = ret;
-	*sp = s;
-	return true;
-}
-
-/*
- * Encodes a 16-bit number into hexadecimal,
- * writing exactly 4 hex chars.
- */
-static int write_hex16(char *out, uint16_t val)
-{
-	const char *hex = "0123456789ABCDEF";
-	
-	*out++ = hex[(val >> 12) & 0xF];
-	*out++ = hex[(val >> 8)  & 0xF];
-	*out++ = hex[(val >> 4)  & 0xF];
-	*out++ = hex[ val        & 0xF];
-	
-	return 4;
-}
-
-bool json_check(const JsonNode *node, char errmsg[256])
-{
-	#define problem(...) do { \
-			if (errmsg != NULL) \
-				snprintf(errmsg, 256, __VA_ARGS__); \
-			return false; \
-		} while (0)
-	
-	if (node->key != NULL && !utf8_validate(node->key))
-		problem("key contains invalid UTF-8");
-	
-	if (!tag_is_valid(node->tag))
-		problem("tag is invalid (%u)", node->tag);
-	
-	if (node->tag == JSON_BOOL) {
-		if (node->bool_ != false && node->bool_ != true)
-			problem("bool_ is neither false (%d) nor true (%d)", (int)false, (int)true);
-	} else if (node->tag == JSON_STRING) {
-		if (node->string_ == NULL)
-			problem("string_ is NULL");
-		if (!utf8_validate(node->string_))
-			problem("string_ contains invalid UTF-8");
-	} else if (node->tag == JSON_ARRAY || node->tag == JSON_OBJECT) {
-		JsonNode *head = node->children.head;
-		JsonNode *tail = node->children.tail;
-		
-		if (head == NULL || tail == NULL) {
-			if (head != NULL)
-				problem("tail is NULL, but head is not");
-			if (tail != NULL)
-				problem("head is NULL, but tail is not");
-		} else {
-			JsonNode *child;
-			JsonNode *last = NULL;
-			
-			if (head->prev != NULL)
-				problem("First child's prev pointer is not NULL");
-			
-			for (child = head; child != NULL; last = child, child = child->next) {
-				if (child == node)
-					problem("node is its own child");
-				if (child->next == child)
-					problem("child->next == child (cycle)");
-				if (child->next == head)
-					problem("child->next == head (cycle)");
-				
-				if (child->parent != node)
-					problem("child does not point back to parent");
-				if (child->next != NULL && child->next->prev != child)
-					problem("child->next does not point back to child");
-				
-				if (node->tag == JSON_ARRAY && child->key != NULL)
-					problem("Array element's key is not NULL");
-				if (node->tag == JSON_OBJECT && child->key == NULL)
-					problem("Object member's key is NULL");
-				
-				if (!json_check(child, errmsg))
-					return false;
-			}
-			
-			if (last != tail)
-				problem("tail does not match pointer found by starting at head and following next links");
-		}
-	}
-	
-	return true;
-	
-	#undef problem
-}
+LCOV_EXCL_STOP

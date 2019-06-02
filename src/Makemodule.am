@@ -13,7 +13,7 @@ lib_libnvc_a_SOURCES = \
 	src/elab.c \
 	src/simp.c \
 	src/dump.c \
-	src/dump_json.c \
+	src/json.c \
 	src/eval.c \
 	src/common.c \
 	src/fbuf.c \
@@ -56,6 +56,7 @@ bin_nvc_LDADD = \
 	lib/liblxt.a \
 	lib/libfst.a \
 	lib/libfastlz.a \
+	lib/libjson.a \
 	$(LLVM_LIBS) \
 	$(libdw_LIBS)
 
