@@ -724,16 +724,19 @@ static JsonNode *dump_stmt(tree_t t)
 
    case T_ASSERT:
       json_append_member(statement, "cls", json_mkstring("assert"));
+
       if (tree_has_value(t)) {
-         syntax("#assert ");
-         dump_expr(tree_value(t));
+         json_append_member(statement, "cond", dump_expr(tree_value(t)));
+      } else {
+         json_append_member(statement, "cond", json_mknull());
       }
+
       if (tree_has_message(t)) {
-         syntax(" #report ");
-         dump_expr(tree_message(t));
+         json_append_member(statement, "message", dump_expr(tree_message(t)));
+      } else {
+         json_append_member(statement, "message", json_mknull());
       }
-      syntax(" #severity ");
-      dump_expr(tree_severity(t));
+      json_append_member(statement, "severity", dump_expr(tree_severity(t)));
       break;
 
    case T_WHILE:
