@@ -432,6 +432,7 @@ static JsonNode *dump_decl(tree_t t)
 
    case T_TYPE_DECL:
       {
+         json_append_member(decl, "cls", json_mkstring("typedecl"));
          type_t type = tree_type(t);
          type_kind_t kind = type_kind(type);
          bool is_subtype = (kind == T_SUBTYPE);
@@ -522,17 +523,20 @@ static JsonNode *dump_decl(tree_t t)
       return decl;
 
    case T_SPEC:
+      json_append_member(decl, "cls", json_mkstring("specdecl"));
       syntax("#for %s\n", istr(tree_ident(t)));
       syntax("#end #for;\n");
       return decl;
 
    case T_BLOCK_CONFIG:
+      json_append_member(decl, "cls", json_mkstring("blk_config"));
       syntax("#for %s\n", istr(tree_ident(t)));
       dump_decls(t);
       syntax("#end #for;\n");
       return decl;
 
    case T_ALIAS:
+      json_append_member(decl, "cls", json_mkstring("alias"));
       printf("alias %s : ", istr(tree_ident(t)));
       dump_type(tree_type(t));
       printf(" is ");
@@ -541,6 +545,7 @@ static JsonNode *dump_decl(tree_t t)
       return decl;
 
    case T_ATTR_SPEC:
+      json_append_member(decl, "cls", json_mkstring("attr_spec"));
       syntax("#attribute %s #of %s : #%s #is ", istr(tree_ident(t)),
              istr(tree_ident2(t)), class_str(tree_class(t)));
       dump_expr(tree_value(t));
@@ -548,24 +553,28 @@ static JsonNode *dump_decl(tree_t t)
       return decl;
 
    case T_ATTR_DECL:
+      json_append_member(decl, "cls", json_mkstring("attr_decl"));
       syntax("#attribute %s : ", istr(tree_ident(t)));
       dump_type(tree_type(t));
       printf(";\n");
       return decl;
 
    case T_GENVAR:
+      json_append_member(decl, "cls", json_mkstring("genvar"));
       syntax("#genvar %s : ", istr(tree_ident(t)));
       dump_type(tree_type(t));
       printf(";\n");
       return decl;
 
    case T_FUNC_DECL:
+      json_append_member(decl, "cls", json_mkstring("fdecl"));
       syntax("#function %s", istr(tree_ident(t)));
       dump_ports(t, 0);
       syntax(" #return %s;\n", type_pp(type_result(tree_type(t))));
       return decl;
 
    case T_FUNC_BODY:
+      json_append_member(decl, "cls", json_mkstring("fbody"));
       syntax("#function %s", istr(tree_ident(t)));
       dump_ports(t, 0);
       syntax(" #return %s #is\n", type_pp(type_result(tree_type(t))));
@@ -574,6 +583,7 @@ static JsonNode *dump_decl(tree_t t)
       return decl;
 
    case T_PROC_DECL:
+      json_append_member(decl, "cls", json_mkstring("pdecl"));
       syntax("#procedure %s", istr(tree_ident(t)));
       dump_ports(t, 0);
       printf(";");
@@ -582,6 +592,7 @@ static JsonNode *dump_decl(tree_t t)
       return decl;
 
    case T_PROC_BODY:
+      json_append_member(decl, "cls", json_mkstring("pbody"));
       syntax("#procedure %s", istr(tree_ident(t)));
       dump_ports(t, 0);
       syntax(" #is");
@@ -592,10 +603,12 @@ static JsonNode *dump_decl(tree_t t)
       return decl;
 
    case T_HIER:
+      json_append_member(decl, "cls", json_mkstring("hier"));
       syntax("-- Enter scope %s\n", istr(tree_ident(t)));
       return decl;
 
    case T_COMPONENT:
+      json_append_member(decl, "cls", json_mkstring("comp"));
       syntax("#component %s is\n", istr(tree_ident(t)));
       if (tree_generics(t) > 0) {
          syntax("    #generic (\n");
@@ -619,6 +632,7 @@ static JsonNode *dump_decl(tree_t t)
       return decl;
 
    case T_PROT_BODY:
+      json_append_member(decl, "cls", json_mkstring("prot_body"));
       syntax("type %s #is #protected #body\n", istr(tree_ident(t)));
       for (unsigned i = 0; i < tree_decls(t); i++)
          dump_decl(tree_decl(t, i));
@@ -626,6 +640,7 @@ static JsonNode *dump_decl(tree_t t)
       return decl;
 
    case T_FILE_DECL:
+      json_append_member(decl, "cls", json_mkstring("file_decl"));
       syntax("#file %s : ", istr(tree_ident(t)));
       dump_type(tree_type(t));
       if (tree_has_value(t)) {
@@ -638,6 +653,7 @@ static JsonNode *dump_decl(tree_t t)
       return decl;
 
    case T_USE:
+      json_append_member(decl, "cls", json_mkstring("usedecl"));
       syntax("#use %s", istr(tree_ident(t)));
       if (tree_has_ident2(t))
          printf(".%s", istr(tree_ident2(t)));
@@ -703,9 +719,7 @@ static JsonNode *dump_stmt(tree_t t)
 
    case T_BLOCK:
       json_append_member(statement, "cls", json_mkstring("block"));
-      syntax("#block #is\n");
-      dump_block(t);
-      syntax("#end #block");
+      json_append_member(statement, "block", dump_block(t));
       break;
 
    case T_ASSERT:
@@ -752,43 +766,45 @@ static JsonNode *dump_stmt(tree_t t)
 
    case T_EXIT:
       json_append_member(statement, "cls", json_mkstring("exit"));
-      syntax("#exit %s", istr(tree_ident2(t)));
+      json_append_member(statement, "name", json_mkstring(istr(tree_ident2(t))));
+
       if (tree_has_value(t)) {
-         syntax(" #when ");
-         dump_expr(tree_value(t));
+         json_append_member(statement, "when", dump_expr(tree_value(t)));
+      } else {
+         json_append_member(statement, "when", json_mknull());
       }
       break;
 
    case T_CASE:
       json_append_member(statement, "cls", json_mkstring("case"));
-      syntax("#case ");
-      dump_expr(tree_value(t));
-      syntax(" #is\n");
+      json_append_member(statement, "sel", dump_expr(tree_value(t)));
+      JsonNode *assocs = json_mkarray();
       for (unsigned i = 0; i < tree_assocs(t); i++) {
          tree_t a = tree_assoc(t, i);
+         JsonNode *assoc = json_mkobject();
          switch (tree_subkind(a)) {
          case A_NAMED:
-            syntax("#when ");
-            dump_expr(tree_name(a));
-            printf(" =>\n");
+            json_append_member(assoc, "cls", json_mkstring("expr"));
+            json_append_member(assoc, "expr", dump_expr(tree_name(a)));
             break;
          case A_OTHERS:
-            syntax("#when #others =>\n");
+            json_append_member(assoc, "cls", json_mkstring("others"));
             break;
          default:
             assert(false);
          }
-         dump_stmt(tree_value(a));
+         json_append_member(assoc, "to", dump_stmt(tree_value(a)));
+         json_append_element(assocs, assoc);
       }
-      syntax("#end #case");
+      json_append_member(statement, "assoc", assocs);
       break;
 
    case T_RETURN:
       json_append_member(statement, "cls", json_mkstring("return"));
-      syntax("#return");
       if (tree_has_value(t)) {
-         printf(" ");
-         dump_expr(tree_value(t));
+         json_append_member(statement, "expr", dump_expr(tree_value(t)));
+      } else {
+         json_append_member(statement, "expr", json_mknull());
       }
       break;
 
