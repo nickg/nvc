@@ -366,36 +366,33 @@ static void dump_op(tree_t t, int indent)
    syntax("\n");
 }
 
-static void dump_ports(tree_t t, int indent)
+static JsonNode *dump_ports(tree_t t, int indent)
 {
+   JsonNode *ports = json_mkarray();
    const int nports = tree_ports(t);
    if (nports > 0) {
-      if (nports > 1) {
-         printf(" (\n");
-         indent += 4;
-      }
-      else {
-         printf(" (");
-         indent = 0;
-      }
       for (int i = 0; i < nports; i++) {
-         if (i > 0)
-            printf(";\n");
-         dump_port(tree_port(t, i));
+         json_append_element(ports, dump_port(tree_port(t, i)));
       }
-      printf(" )");
    }
+   return ports;
 }
 
-static void dump_block(tree_t t)
+static JsonNode *dump_block(tree_t t)
 {
+   JsonNode *blkobj = json_mkobject();
+   JsonNode *decl = json_mkarray();
    const int ndecls = tree_decls(t);
    for (unsigned i = 0; i < ndecls; i++)
-      dump_decl(tree_decl(t, i));
-   syntax("#begin\n");
+      json_append_element(decl, dump_decl(tree_decl(t, i)));
+   json_append_member(blkobj, "decl", decl);
+
+   JsonNode *stmts = json_mkarray();
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)
-      dump_stmt(tree_stmt(t, i));
+      json_append_element(stmts, dump_stmt(tree_stmt(t, i)));
+   json_append_member(blkobj, "stmts", stmts);
+   return blkobj;
 }
 
 static void dump_wait_level(tree_t t)
