@@ -744,15 +744,17 @@ static JsonNode *dump_stmt(tree_t t)
 
    case T_WHILE:
       json_append_member(statement, "cls", json_mkstring("while"));
+
       if (tree_has_value(t)) {
-         syntax("#while ");
-         dump_expr(tree_value(t));
-         printf(" ");
+         json_append_member(statement, "cond", dump_expr(tree_value(t)));
+      } else {
+         json_append_member(statement, "cond", json_mknull());
       }
-      syntax("#loop\n");
+      JsonNode *stmts = json_mkarray();
       for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i));
-      syntax("#end #loop");
+         json_append_element(stmts, dump_stmt(tree_stmt(t, i)));
+
+      json_append_member(statement, "stmts", stmts);
       break;
 
    case T_IF:
@@ -815,80 +817,100 @@ static JsonNode *dump_stmt(tree_t t)
       break;
 
    case T_FOR:
+   {
       json_append_member(statement, "cls", json_mkstring("for"));
-      syntax("#for %s #in ", istr(tree_ident2(t)));
-      dump_range(tree_range(t, 0));
-      syntax(" #loop\n");
+      json_append_member(statement, "name", json_mkstring(istr(tree_ident2(t))));
+      json_append_member(statement, "range", dump_range(tree_range(t, 0)));
+      JsonNode *stmts = json_mkarray();
       for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i));
-      syntax("#end #for");
+         json_append_element(stmts, dump_stmt(tree_stmt(t, i)));
+
+      json_append_member(statement, "stmts", stmts);
+   }
       break;
 
    case T_PCALL:
       json_append_member(statement, "cls", json_mkstring("pcall"));
-      printf("%s", istr(tree_ident(tree_ref(t))));
-      dump_params(t, tree_param, tree_params(t), NULL);
+      json_append_member(statement, "name", json_mkstring(istr(tree_ident(tree_ref(t)))));
+      json_append_member(statement, "params", dump_params(t, tree_param, tree_params(t), NULL));
       break;
 
    case T_FOR_GENERATE:
-      json_append_member(statement, "cls", json_mkstring("for_generate"));
-      syntax("#for %s #in ", istr(tree_ident2(t)));
-      dump_range(tree_range(t, 0));
-      syntax(" #generate\n");
-      for (unsigned i = 0; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i));
-      syntax("#begin\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i));
-      syntax("end generate");
+      {
+         json_append_member(statement, "cls", json_mkstring("for_generate"));
+         json_append_member(statement, "name", json_mkstring(istr(tree_ident2(t))));
+         json_append_member(statement, "range", dump_range(tree_range(t, 0)));
+
+         JsonNode *decls = json_mkarray();
+         for (unsigned i = 0; i < tree_decls(t); i++)
+            json_append_element(decls, dump_decl(tree_decl(t, i)));
+
+         JsonNode *stmts = json_mkarray();
+         for (unsigned i = 0; i < tree_stmts(t); i++)
+            json_append_element(stmts, dump_stmt(tree_stmt(t, i)));
+         json_append_member(statement, "decls", decls);
+         json_append_member(statement, "stmts", stmts);
+      }
       break;
 
    case T_IF_GENERATE:
+   {
       json_append_member(statement, "cls", json_mkstring("if_generate"));
-      syntax("#if ");
-      dump_expr(tree_value(t));
-      syntax(" #generate\n");
+      json_append_member(statement, "cond", dump_expr(tree_value(t)));
+
+      JsonNode *decls = json_mkarray();
       for (unsigned i = 0; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i));
-      syntax("#begin\n");
+         json_append_element(decls, dump_decl(tree_decl(t, i)));
+
+      JsonNode *stmts = json_mkarray();
       for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i));
-      syntax("#end #generate");
-      break;
+         json_append_element(stmts, dump_stmt(tree_stmt(t, i)));
+      json_append_member(statement, "decls", decls);
+      json_append_member(statement, "stmts", stmts);
+   }
+   break;
 
    case T_INSTANCE:
       json_append_member(statement, "cls", json_mkstring("instance"));
       switch (tree_class(t)) {
-      case C_ENTITY:    syntax("#entity "); break;
-      case C_COMPONENT: syntax("#component "); break;
+      case C_ENTITY:    json_append_member(statement, "inst_type", json_mkstring("entity")); break;
+      case C_COMPONENT: json_append_member(statement, "inst_type", json_mkstring("component")); break;
       default:
          assert(false);
       }
-      printf("%s", istr(tree_ident2(t)));
+      json_append_member(statement, "name", json_mkstring(istr(tree_ident2(t))));
       if (tree_has_spec(t)) {
          tree_t bind = tree_value(tree_spec(t));
-         syntax(" -- bound to %s", istr(tree_ident(bind)));
+         json_append_member(statement, "bound_to", json_mkstring(istr(tree_ident(bind))));
          if (tree_has_ident2(bind))
-            printf("(%s)", istr(tree_ident2(bind)));
+            json_append_member(statement, "bound_from", json_mkstring(istr(tree_ident2(bind))));
+         else {
+            json_append_member(statement, "bound_from", json_mknull());
+         }
+
+      } else {
+         json_append_member(statement, "bound_to", json_mknull());
+         json_append_member(statement, "bound_from", json_mknull());
       }
-      printf("\n");
+
       if (tree_genmaps(t) > 0) {
-         dump_params(t, tree_genmap, tree_genmaps(t), "#generic #map");
-         printf("\n");
+         json_append_member(statement, "generic", dump_params(t, tree_genmap, tree_genmaps(t), ""));
       }
+
       if (tree_params(t) > 0) {
-         dump_params(t, tree_param, tree_params(t), "#port #map");
+         json_append_member(statement, "port", dump_params(t, tree_param, tree_params(t), ""));
       }
-      printf(";\n\n");
       break;
 
    case T_NEXT:
       json_append_member(statement, "cls", json_mkstring("next"));
       syntax("#next");
       if (tree_has_value(t)) {
-         syntax(" #when ");
-         dump_expr(tree_value(t));
+         json_append_member(statement, "when", dump_expr(tree_value(t)));
+      } else {
+         json_append_member(statement, "when", json_mknull());
       }
+
       break;
 
    default:
