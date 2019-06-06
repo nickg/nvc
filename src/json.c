@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <inttypes.h>
+#include <stdlib.h>
 
 LCOV_EXCL_START
 
@@ -161,11 +162,13 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
       case L_STRING:
          json_append_member(expr_node, "cls", json_mkstring("string"));
          {
-            printf("\"");
             const int nchars = tree_chars(t);
-            for (int i = 0; i < nchars; i++)
-               printf("%c", ident_char(tree_ident(tree_char(t, i)), 1));
-            printf("\"");
+            char *str = malloc(nchars+1);
+               for (int i = 0; i < nchars; i++)
+                  str[i] = ident_char(tree_ident(tree_char(t, i)), 1);
+            str[nchars] = '\0';
+            json_append_member(expr_node, "val", json_mkstring(str));
+            free(str);
          }
          break;
       default:
