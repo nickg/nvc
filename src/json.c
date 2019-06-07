@@ -49,6 +49,16 @@ static void cannot_dump(tree_t t, const char *hint)
    fatal("cannot dump %s kind %s", hint, tree_kind_str(tree_kind(t)));
 }
 
+static void add_lineno(JsonNode *obj, tree_t node) {
+   const loc_t *loc = tree_loc(node);
+   json_append_member(obj, "ln", json_mknumber(loc->first_line));
+}
+
+static void add_filename(JsonNode *obj, tree_t node) {
+   const loc_t *loc = tree_loc(node);
+   json_append_member(obj, "filename", json_mkstring(istr(loc->file)));
+}
+
 __attribute__((format(printf,1,2)))
 static void syntax(const char *fmt, ...)
 {
@@ -141,6 +151,7 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
    switch (tree_kind(t)) {
    case T_FCALL:
       json_append_member(expr_node, "cls", json_mkstring("fcall"));
+      add_lineno(expr_node, tree_ref(t));
       json_append_member(expr_node, "name", json_mkstring(istr(tree_ident(tree_ref(t)))));
       json_append_member(expr_node, "params", dump_params(t, tree_param, tree_params(t), NULL));
       break;
@@ -398,6 +409,7 @@ static JsonNode *dump_block(tree_t t)
    return blkobj;
 }
 
+/*
 static void dump_wait_level(tree_t t)
 {
    switch (tree_attr_int(t, wait_level_i, WAITS_MAYBE)) {
@@ -411,7 +423,7 @@ static void dump_wait_level(tree_t t)
       syntax("   -- Waits");
       break;
    }
-}
+}*/
 
 static JsonNode *dump_decl(tree_t t)
 {
@@ -440,10 +452,11 @@ static JsonNode *dump_decl(tree_t t)
          type_kind_t kind = type_kind(type);
          bool is_subtype = (kind == T_SUBTYPE);
 
-         printf("%stype %s is ", is_subtype ? "sub" : "", istr(tree_ident(t)));
+         json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+         json_append_member(decl, "subtype", json_mkbool(is_subtype));
 
          if (is_subtype) {
-            printf("%s ", istr(type_ident(type_base(type))));
+            json_append_member(decl, "subtype", json_mkstring(istr(type_ident(type_base(type)))));
          }
 
          if (type_is_integer(type) || type_is_real(type)) {
@@ -527,32 +540,28 @@ static JsonNode *dump_decl(tree_t t)
 
    case T_SPEC:
       json_append_member(decl, "cls", json_mkstring("specdecl"));
-      syntax("#for %s\n", istr(tree_ident(t)));
-      syntax("#end #for;\n");
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
       return decl;
 
    case T_BLOCK_CONFIG:
       json_append_member(decl, "cls", json_mkstring("blk_config"));
-      syntax("#for %s\n", istr(tree_ident(t)));
-      dump_decls(t);
-      syntax("#end #for;\n");
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(decl, "decls", dump_decls(t));
       return decl;
 
    case T_ALIAS:
       json_append_member(decl, "cls", json_mkstring("alias"));
-      printf("alias %s : ", istr(tree_ident(t)));
-      dump_type(tree_type(t));
-      printf(" is ");
-      dump_expr(tree_value(t));
-      printf(";\n");
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(decl, "type", dump_type(tree_type(t)));
+      json_append_member(decl, "value", dump_expr(tree_value(t)));
       return decl;
 
    case T_ATTR_SPEC:
       json_append_member(decl, "cls", json_mkstring("attr_spec"));
-      syntax("#attribute %s #of %s : #%s #is ", istr(tree_ident(t)),
-             istr(tree_ident2(t)), class_str(tree_class(t)));
-      dump_expr(tree_value(t));
-      printf(";\n");
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(decl, "of", json_mkstring(istr(tree_ident2(t))));
+      json_append_member(decl, "class", json_mkstring(class_str(tree_class(t))));
+      json_append_member(decl, "value", dump_expr(tree_value(t)));
       return decl;
 
    case T_ATTR_DECL:
@@ -571,96 +580,98 @@ static JsonNode *dump_decl(tree_t t)
 
    case T_FUNC_DECL:
       json_append_member(decl, "cls", json_mkstring("fdecl"));
-      syntax("#function %s", istr(tree_ident(t)));
-      dump_ports(t, 0);
-      syntax(" #return %s;\n", type_pp(type_result(tree_type(t))));
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(decl, "ports", dump_ports(t, 0));
+      json_append_member(decl, "ret_type", json_mkstring(type_pp(type_result(tree_type(t)))));
       return decl;
 
    case T_FUNC_BODY:
       json_append_member(decl, "cls", json_mkstring("fbody"));
-      syntax("#function %s", istr(tree_ident(t)));
-      dump_ports(t, 0);
-      syntax(" #return %s #is\n", type_pp(type_result(tree_type(t))));
-      dump_block(t);
-      syntax("#end #function;\n\n");
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(decl, "ports", dump_ports(t, 0));
+      json_append_member(decl, "ret_type", json_mkstring(type_pp(type_result(tree_type(t)))));
+      json_append_member(decl, "stmts", dump_block(t));
       return decl;
 
    case T_PROC_DECL:
       json_append_member(decl, "cls", json_mkstring("pdecl"));
-      syntax("#procedure %s", istr(tree_ident(t)));
-      dump_ports(t, 0);
-      printf(";");
-      dump_wait_level(t);
-      printf("\n");
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(decl, "ports", dump_ports(t, 0));
+      //dump_wait_level(t);
       return decl;
 
    case T_PROC_BODY:
       json_append_member(decl, "cls", json_mkstring("pbody"));
-      syntax("#procedure %s", istr(tree_ident(t)));
-      dump_ports(t, 0);
-      syntax(" #is");
-      dump_wait_level(t);
-      printf("\n");
-      dump_block(t);
-      syntax("#end #procedure;\n\n");
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(decl, "ports", dump_ports(t, 0));
+      //dump_wait_level(t);
+      json_append_member(decl, "stmts", dump_block(t));
       return decl;
 
    case T_HIER:
       json_append_member(decl, "cls", json_mkstring("hier"));
-      syntax("-- Enter scope %s\n", istr(tree_ident(t)));
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
       return decl;
 
    case T_COMPONENT:
-      json_append_member(decl, "cls", json_mkstring("comp"));
-      syntax("#component %s is\n", istr(tree_ident(t)));
+      json_append_member(decl, "cls", json_mkstring("component"));
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      JsonNode *generic_array = json_mkarray();
       if (tree_generics(t) > 0) {
-         syntax("    #generic (\n");
          for (unsigned i = 0; i < tree_generics(t); i++) {
-            if (i > 0)
-               printf(";\n");
-            dump_port(tree_generic(t, i));
+            json_append_element(generic_array, dump_port(tree_generic(t, i)));
          }
-         printf(" );\n");
       }
+      json_append_member(decl, "generic", generic_array);
+
+      JsonNode *port_array = json_mkarray();
       if (tree_ports(t) > 0) {
-         syntax("    #port (\n");
          for (unsigned i = 0; i < tree_ports(t); i++) {
-            if (i > 0)
-               printf(";\n");
-            dump_port(tree_port(t, i));
+            json_append_element(port_array, dump_port(tree_port(t, i)));
          }
-         printf(" );\n");
       }
-      syntax("  #end #component;\n");
+      json_append_member(decl, "port", port_array);
+      json_append_member(decl, "decls", dump_decls(t));
+
+      JsonNode *stmts_array = json_mkarray();
+      for (unsigned i = 0; i < tree_stmts(t); i++) {
+         json_append_element(stmts_array, dump_stmt(tree_stmt(t, i)));
+      }
+      json_append_member(decl, "stmts", stmts_array);
       return decl;
 
    case T_PROT_BODY:
       json_append_member(decl, "cls", json_mkstring("prot_body"));
-      syntax("type %s #is #protected #body\n", istr(tree_ident(t)));
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+
+      JsonNode *decls = json_mkarray();
       for (unsigned i = 0; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i));
-      syntax("#end #protected #body;\n");
+         json_append_element(decls, dump_decl(tree_decl(t, i)));
+      json_append_member(decl, "decls", decls);
       return decl;
 
    case T_FILE_DECL:
       json_append_member(decl, "cls", json_mkstring("file_decl"));
-      syntax("#file %s : ", istr(tree_ident(t)));
-      dump_type(tree_type(t));
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(decl, "type", dump_type(tree_type(t)));
       if (tree_has_value(t)) {
-         syntax(" #open ");
-         dump_expr(tree_file_mode(t));
-         syntax(" #is ");
-         dump_expr(tree_value(t));
+         json_append_member(decl, "open", dump_expr(tree_file_mode(t)));
+         json_append_member(decl, "is", dump_expr(tree_value(t)));
+      } else {
+         json_append_member(decl, "open", json_mknull());
+         json_append_member(decl, "is", json_mknull());
       }
-      printf(";\n");
       return decl;
 
    case T_USE:
       json_append_member(decl, "cls", json_mkstring("usedecl"));
-      syntax("#use %s", istr(tree_ident(t)));
-      if (tree_has_ident2(t))
-         printf(".%s", istr(tree_ident2(t)));
-      printf(";\n");
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+
+      if (tree_has_ident2(t)) {
+         json_append_member(decl, "elt", json_mkstring(istr(tree_ident2(t))));
+      } else {
+         json_append_member(decl, "elt", json_mknull());
+      }
       return decl;
 
    default:
@@ -992,6 +1003,7 @@ static JsonNode *dump_entity(tree_t t)
    JsonNode *entity_node = json_mkobject();
    json_append_member(entity_node, "cls", json_mkstring("entity"));
    json_append_member(entity_node, "ctx", dump_context(t));
+   add_filename(entity_node, t);
    json_append_member(entity_node, "name", json_mkstring(istr(tree_ident(t))));
    JsonNode *generic_array = json_mkarray();
    if (tree_generics(t) > 0) {
@@ -1032,6 +1044,7 @@ static JsonNode *dump_arch(tree_t t)
    JsonNode *architecture_node = json_mkobject();
    json_append_member(architecture_node, "cls", json_mkstring("architecture"));
    json_append_member(architecture_node, "ctx", dump_context(t));
+   add_filename(architecture_node, t);
    json_append_member(architecture_node, "name", json_mkstring(istr(tree_ident(t))));
    json_append_member(architecture_node, "of", json_mkstring(istr(tree_ident2(t))));
    json_append_member(architecture_node, "decls", dump_decls(t));
@@ -1047,6 +1060,7 @@ static JsonNode *dump_package(tree_t t)
    JsonNode *pkg_node = json_mkobject();
    json_append_member(pkg_node, "cls", json_mkstring("pkg"));
    json_append_member(pkg_node, "ctx", dump_context(t));
+   add_filename(pkg_node, t);
    json_append_member(pkg_node, "name", json_mkstring(istr(tree_ident(t))));
    json_append_member(pkg_node, "decls", dump_decls(t));
    return pkg_node;
@@ -1057,6 +1071,7 @@ static JsonNode *dump_package_body(tree_t t)
    JsonNode *pkg_node = json_mkobject();
    json_append_member(pkg_node, "cls", json_mkstring("pkg_body"));
    json_append_member(pkg_node, "ctx", dump_context(t));
+   add_filename(pkg_node, t);
    json_append_member(pkg_node, "name", json_mkstring(istr(tree_ident(t))));
    json_append_member(pkg_node, "decls", dump_decls(t));
    return pkg_node;
