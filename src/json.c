@@ -453,84 +453,78 @@ static JsonNode *dump_decl(tree_t t)
          bool is_subtype = (kind == T_SUBTYPE);
 
          json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
-         json_append_member(decl, "subtype", json_mkbool(is_subtype));
+         json_append_member(decl, "kind", json_mknumber(kind));
 
          if (is_subtype) {
-            json_append_member(decl, "subtype", json_mkstring(istr(type_ident(type_base(type)))));
+            json_append_member(decl, "subtype_name", json_mkstring(istr(type_ident(type_base(type)))));
          }
 
          if (type_is_integer(type) || type_is_real(type)) {
-            printf("range ");
-            dump_range(type_dim(type, 0));
+            json_append_member(decl, "range", dump_range(type_dim(type, 0)));
          }
          else if (type_is_physical(type)) {
-            printf("range ");
-            dump_range(type_dim(type, 0));
-            printf("\n");
-            printf("units\n");
+            json_append_member(decl, "range", dump_range(type_dim(type, 0)));
+            JsonNode *units = json_mkarray();
             {
                const int nunits = type_units(type);
                for (int i = 0; i < nunits; i++) {
+                  JsonNode *unit = json_mkobject();
                   tree_t u = type_unit(type, i);
-                  printf("%s = ", istr(tree_ident(u)));
-                  dump_expr(tree_value(u));
-                  printf(";\n");
+                  json_append_member(unit, "type", json_mkstring(istr(tree_ident(u))));
+                  json_append_member(unit, "val", dump_expr(tree_value(u)));
+                  json_append_element(units, unit);
                }
             }
-            printf("end units\n");
+            json_append_member(decl, "units", units);
          }
          else if (type_is_array(type)) {
-            if (!is_subtype)
-               printf("array ");
-            printf("(");
             if (kind == T_UARRAY) {
+               JsonNode *ua_types = json_mkarray();
                const int nindex = type_index_constrs(type);
                for (int i = 0; i < nindex; i++) {
-                  if (i > 0) printf(", ");
-                  dump_type(type_index_constr(type, i));
-                  printf(" range <>");
+                  json_append_element(ua_types, dump_type(type_index_constr(type, i)));
                }
+               json_append_member(decl, "ua_types", ua_types);
             }
             else if (kind == T_SUBTYPE) {
                tree_t constraint = type_constraint(type);
                const int nranges = tree_ranges(constraint);
+               JsonNode *st_constr = json_mkarray();
                for (int i = 0; i < nranges; i++) {
-                  if (i > 0) printf(", ");
-                  dump_range(tree_range(constraint, i));
+                  json_append_element(st_constr, dump_range(tree_range(constraint, i)));
                }
+               json_append_member(decl, "st_constr", st_constr);
             }
             else {
+               JsonNode *dims = json_mkarray();
                const int ndims = type_dims(type);
                for (int i = 0; i < ndims; i++) {
                   if (i > 0) printf(", ");
-                  dump_range(type_dim(type, i));
+                  json_append_element(dims, dump_range(type_dim(type, i)));
                }
+               json_append_member(decl, "dims", dims);
             }
-            printf(")");
             if (!is_subtype) {
-               printf(" of ");
-               dump_type(type_elem(type));
+               json_append_member(decl, "of", dump_type(type_elem(type)));
             }
          }
          else if (type_is_protected(type)) {
-            printf("protected\n");
+            JsonNode *prot = json_mkarray();
             for (unsigned i = 0; i < type_decls(type); i++)
-               dump_decl(type_decl(type, i));
+               json_append_element(prot, dump_decl(type_decl(type, i)));
 
-            printf("end protected");
+            json_append_member(decl, "prot", prot);
          }
          else if (kind == T_ENUM) {
-            printf("(");
+            JsonNode *enum_val = json_mkarray();
             for (unsigned i = 0; i < type_enum_literals(type); i++) {
-               if (i > 0) printf(", ");
-               printf("%s", istr(tree_ident(type_enum_literal(type, i))));
+               json_append_element(enum_val, json_mkstring(istr(tree_ident(type_enum_literal(type, i)))));
             }
-            printf(")");
+            json_append_member(decl, "enum_val", enum_val);
          }
          else
-            dump_type(type);
+            json_append_member(decl, "type", dump_type(type));
       }
-      printf(";\n");
       {
          const int nops = tree_ops(t);
          for (int i = 0; i < nops; i++)
