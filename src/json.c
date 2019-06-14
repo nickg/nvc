@@ -566,16 +566,14 @@ static JsonNode *dump_decl(tree_t t)
 
    case T_ATTR_DECL:
       json_append_member(decl, "cls", json_mkstring("attr_decl"));
-      syntax("#attribute %s : ", istr(tree_ident(t)));
-      dump_type(tree_type(t));
-      printf(";\n");
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(decl, "type", dump_type(tree_type(t)));
       return decl;
 
    case T_GENVAR:
       json_append_member(decl, "cls", json_mkstring("genvar"));
-      syntax("#genvar %s : ", istr(tree_ident(t)));
-      dump_type(tree_type(t));
-      printf(";\n");
+      json_append_member(decl, "name", json_mkstring(istr(tree_ident(t))));
+      json_append_member(decl, "type", dump_type(tree_type(t)));
       return decl;
 
    case T_FUNC_DECL:
