@@ -59,7 +59,7 @@ static void add_filename(JsonNode *obj, tree_t node) {
    json_append_member(obj, "filename", json_mkstring(istr(loc->file)));
 }
 
-__attribute__((format(printf,1,2)))
+/*__attribute__((format(printf,1,2)))
 static void syntax(const char *fmt, ...)
 {
    LOCAL_TEXT_BUF tb = tb_new();
@@ -101,7 +101,7 @@ static void syntax(const char *fmt, ...)
    va_start(ap, fmt);
    color_vprintf(tb_get(tb), ap);
    va_end(ap);
-}
+}*/
 
 static JsonNode *dump_params(tree_t t, get_fn_t get, int n, const char *prefix)
 {
@@ -358,7 +358,7 @@ static JsonNode *dump_type(type_t type)
    return type_node;
 }
 
-static void dump_op(tree_t t, int indent)
+/*static void dump_op(tree_t t, int indent)
 {
 
    syntax("-- predefined %s [", istr(tree_ident(t)));
@@ -378,7 +378,7 @@ static void dump_op(tree_t t, int indent)
    }
 
    syntax("\n");
-}
+}*/
 
 static JsonNode *dump_ports(tree_t t, int indent)
 {
@@ -525,11 +525,11 @@ static JsonNode *dump_decl(tree_t t)
          else
             json_append_member(decl, "type", dump_type(type));
       }
-      {
+      /*{
          const int nops = tree_ops(t);
          for (int i = 0; i < nops; i++)
             dump_op(tree_op(t, i), 0);
-      }
+      }*/
       return decl;
 
    case T_SPEC:
@@ -907,7 +907,6 @@ static JsonNode *dump_stmt(tree_t t)
 
    case T_NEXT:
       json_append_member(statement, "cls", json_mkstring("next"));
-      syntax("#next");
       if (tree_has_value(t)) {
          json_append_member(statement, "when", dump_expr(tree_value(t)));
       } else {
