@@ -354,7 +354,7 @@ static JsonNode *dump_type(type_t type)
       }
    }
    else
-      json_append_member(type_node, "name", json_mkstring(type_pp_minify(type, dump_minify_type)+1));
+      json_append_member(type_node, "name", json_mkstring(type_pp_minify(type, dump_minify_type)));
    return type_node;
 }
 
