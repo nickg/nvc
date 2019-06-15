@@ -317,11 +317,18 @@ static const char *dump_minify_type(const char *name)
 static JsonNode *dump_type(type_t type)
 {
    JsonNode *type_node = json_mkobject();
-   
+   char *type_name = strdup(type_pp_minify(type, dump_minify_type));
+   if (type_name[0] == '~') // remove first ~ from type if present
+      type_name ++;
+
+   unsigned long type_name_len = strlen(type_name);
+   if (type_name[type_name_len-2] == '%')
+      type_name[type_name_len-2] = '\0';
+
    if (type_kind(type) == T_SUBTYPE && type_has_ident(type))
-      json_append_member(type_node, "name", json_mkstring(type_pp_minify(type, dump_minify_type)+1));
+      json_append_member(type_node, "name", json_mkstring(type_name));
    else if (type_is_array(type) && !type_is_unconstrained(type)) {
-      json_append_member(type_node, "name", json_mkstring(type_pp_minify(type, dump_minify_type)+1));
+      json_append_member(type_node, "name", json_mkstring(type_name));
       const int ndims = array_dimension(type);
       JsonNode *range = json_mkarray();
       json_append_member(type_node, "range", range);
@@ -354,7 +361,7 @@ static JsonNode *dump_type(type_t type)
       }
    }
    else
-      json_append_member(type_node, "name", json_mkstring(type_pp_minify(type, dump_minify_type)));
+      json_append_member(type_node, "name", json_mkstring(type_name));
    return type_node;
 }
 
