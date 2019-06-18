@@ -961,6 +961,9 @@ static JsonNode *dump_port(tree_t t)
    }
    json_append_member(port, "dir", json_mkstring(dir));
    json_append_member(port, "type", dump_type(tree_type(t)));
+   if (tree_has_value(t)) {
+      json_append_member(port, "val", dump_expr(tree_value(t)));
+   }
    return port;
 }
 
