@@ -894,6 +894,7 @@ static JsonNode *dump_stmt(tree_t t)
          assert(false);
       }
       json_append_member(statement, "name", json_mkstring(istr(tree_ident2(t))));
+      json_append_member(statement, "iname", json_mkstring(istr(tree_ident(t))));
       if (tree_has_spec(t)) {
          tree_t bind = tree_value(tree_spec(t));
          json_append_member(statement, "bound_to", json_mkstring(istr(tree_ident(bind))));
