@@ -209,20 +209,20 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
          add_lineno(aggreg, t);
          switch (tree_subkind(a)) {
          case A_POS:
-            json_append_member(aggreg, "cls", json_mkstring("pos"));
+            json_append_member(aggreg, "cls", json_mkstring("aggregate_pos"));
             json_append_member(aggreg, "expr", dump_expr(value));
             break;
          case A_NAMED:
-            json_append_member(aggreg, "cls", json_mkstring("named"));
+            json_append_member(aggreg, "cls", json_mkstring("aggregate_named"));
             json_append_member(aggreg, "l", dump_expr(tree_name(a)));
             json_append_member(aggreg, "expr", dump_expr(value));
             break;
          case A_OTHERS:
-            json_append_member(aggreg, "cls", json_mkstring("others"));
+            json_append_member(aggreg, "cls", json_mkstring("aggregate_others"));
             json_append_member(aggreg, "expr", dump_expr(value));
             break;
          case A_RANGE:
-            json_append_member(aggreg, "cls", json_mkstring("range"));
+            json_append_member(aggreg, "cls", json_mkstring("aggregate_range"));
             json_append_member(aggreg, "range", dump_range(tree_range(a, 0)));
             json_append_member(aggreg, "expr", dump_expr(value));
             break;
