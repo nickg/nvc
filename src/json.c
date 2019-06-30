@@ -131,7 +131,10 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
          json_append_member(expr_node, "value", json_mknull());
          break;
       case L_STRING:
-         json_append_member(expr_node, "cls", json_mkstring("string"));
+         if (type_ident(tree_type(t)) == ident_new("STD.STANDARD.STRING"))
+            json_append_member(expr_node, "cls", json_mkstring("string"));
+         else
+            json_append_member(expr_node, "cls", json_mkstring("string_lit"));
          {
             const int nchars = tree_chars(t);
             char *str = malloc(nchars+1);
