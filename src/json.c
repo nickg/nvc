@@ -49,59 +49,17 @@ static void cannot_dump(tree_t t, const char *hint)
    fatal("cannot dump %s kind %s", hint, tree_kind_str(tree_kind(t)));
 }
 
-static void add_lineno(JsonNode *obj, tree_t node) {
+static void add_lineno(JsonNode *obj, tree_t node)
+{
    const loc_t *loc = tree_loc(node);
    json_append_member(obj, "ln", json_mknumber(loc->first_line));
 }
 
-static void add_filename(JsonNode *obj, tree_t node) {
+static void add_filename(JsonNode *obj, tree_t node)
+{
    const loc_t *loc = tree_loc(node);
    json_append_member(obj, "filename", json_mkstring(istr(loc->file)));
 }
-
-/*__attribute__((format(printf,1,2)))
-static void syntax(const char *fmt, ...)
-{
-   LOCAL_TEXT_BUF tb = tb_new();
-   bool highlighting = false;
-   static bool comment = false;
-   for (const char *p = fmt; *p != '\0'; p++) {
-      if (comment) {
-         if (*p == '\n') {
-            comment = false;
-            tb_printf(tb, "$$");
-         }
-         if (*p != '~' && *p != '#')
-            tb_append(tb, *p);
-      }
-      else if (*p == '#') {
-         tb_printf(tb, "$bold$$cyan$");
-         highlighting = true;
-      }
-      else if (*p == '~') {
-         tb_printf(tb, "$yellow$");
-         highlighting = true;
-      }
-      else if (*p == '-' && *(p + 1) == '-') {
-         tb_printf(tb, "$red$-");
-         comment = true;
-      }
-      else if (!isalnum((int)*p) && *p != '_' && *p != '%' && highlighting) {
-         tb_printf(tb, "$$%c", *p);
-         highlighting = false;
-      }
-      else
-         tb_append(tb, *p);
-   }
-
-   if (highlighting)
-      tb_printf(tb, "$$");
-
-   va_list ap;
-   va_start(ap, fmt);
-   color_vprintf(tb_get(tb), ap);
-   va_end(ap);
-}*/
 
 static JsonNode *dump_params(tree_t t, get_fn_t get, int n, const char *prefix)
 {
@@ -368,28 +326,6 @@ static JsonNode *dump_type(type_t type)
    return type_node;
 }
 
-/*static void dump_op(tree_t t, int indent)
-{
-
-   syntax("-- predefined %s [", istr(tree_ident(t)));
-
-   const int nports = tree_ports(t);
-   for (int i = 0; i < nports; i++) {
-      dump_type(tree_type(tree_port(t, i)));
-      if (i + 1 < nports)
-         printf(", ");
-   }
-
-   printf("]");
-
-   if (tree_kind(t) == T_FUNC_DECL) {
-      printf(" return ");
-      dump_type(type_result(tree_type(t)));
-   }
-
-   syntax("\n");
-}*/
-
 static JsonNode *dump_ports(tree_t t, int indent)
 {
    JsonNode *ports = json_mkarray();
@@ -419,22 +355,6 @@ static JsonNode *dump_block(tree_t t)
    json_append_member(blkobj, "stmts", stmts);
    return blkobj;
 }
-
-/*
-static void dump_wait_level(tree_t t)
-{
-   switch (tree_attr_int(t, wait_level_i, WAITS_MAYBE)) {
-   case WAITS_NO:
-      syntax("   -- Never waits");
-      break;
-   case WAITS_MAYBE:
-      syntax("   -- Maybe waits");
-      break;
-   case WAITS_YES:
-      syntax("   -- Waits");
-      break;
-   }
-}*/
 
 static JsonNode *dump_decl(tree_t t)
 {
@@ -1105,7 +1025,7 @@ void dump_json(tree_t *elements, unsigned int n_elements, const char *filename)
 {
    FILE* dump_file = fopen(filename, "w");
    if (!dump_file) {
-      fclose(dump_file);
+      fatal_errno(filename);
       return;
    }
 
