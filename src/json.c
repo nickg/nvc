@@ -87,6 +87,7 @@ static JsonNode *dump_params(tree_t t, get_fn_t get, int n, const char *prefix)
 static JsonNode *dump_range(range_t r)
 {
    JsonNode *range_obj = json_mkobject();
+   json_append_member(range_obj, "cls", json_mkstring("range"));
    add_lineno(range_obj, r.left);
    json_append_member(range_obj, "l", dump_expr(r.left));
    switch (r.kind) {
@@ -299,6 +300,7 @@ static JsonNode *dump_type(type_t type)
       for (int i = 0; i < ndims; i++) {
          JsonNode *range_obj = json_mkobject();
          range_t r = range_of(type, i);
+         json_append_member(range_obj, "cls", json_mkstring("type_range"));
          json_append_member(range_obj, "l", dump_expr(r.left));
          
          switch (r.kind) {
