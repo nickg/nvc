@@ -18,6 +18,7 @@ lib_libnvc_a_SOURCES = \
 	src/fbuf.c \
 	src/hash.c \
 	src/group.c \
+	src/json.c \
 	src/bounds.c \
 	src/make.c \
 	src/object.c \
@@ -54,6 +55,7 @@ bin_nvc_LDADD = \
 	lib/liblxt.a \
 	lib/libfst.a \
 	lib/libfastlz.a \
+	lib/libjson.a \
 	$(LLVM_LIBS) \
 	$(libdw_LIBS)
 
