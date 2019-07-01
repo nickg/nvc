@@ -1028,7 +1028,7 @@ void dump_json(tree_t *elements, unsigned int n_elements, const char *filename)
 {
    FILE* dump_file = fopen(filename, "w");
    if (!dump_file) {
-      fatal_errno(filename);
+      fatal_errno("Failed to open JSON file %s", filename);
       return;
    }
 
