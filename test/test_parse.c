@@ -2812,6 +2812,25 @@ START_TEST(test_vests1)
 }
 END_TEST;
 
+START_TEST(test_synth)
+{
+   opt_set_int("synthesis", 1);
+
+   input_from_file(TESTDIR "/parse/synth.vhd");
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_decls(a) == 1);
+   fail_unless(tree_ident(tree_decl(a, 0)) == ident_new("Y"));
+   fail_unless(tree_stmts(a) == 1);
+
+   fail_if(parse() != NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST;
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -2858,6 +2877,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue367);
    tcase_add_test(tc_core, test_issue369);
    tcase_add_test(tc_core, test_vests1);
+   tcase_add_test(tc_core, test_synth);
    suite_add_tcase(s, tc_core);
 
    return s;

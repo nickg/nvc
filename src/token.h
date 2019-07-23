@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2015  Nick Gasson
+//  Copyright (C) 2014-2019  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
 
 #ifndef _TOKEN_H
 #define _TOKEN_H
+
+#include <stdint.h>
 
 typedef union {
    double  d;
@@ -160,7 +162,9 @@ typedef enum {
    tCONDELSIF,
    tCONDEND,
    tCONDERROR,
-   tCONDWARN
+   tCONDWARN,
+   tSYNTHOFF,
+   tSYNTHON
 } token_t;
 
 #endif

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2019  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -215,7 +215,10 @@ static void dump_expr(tree_t t)
       break;
 
    case T_REF:
-      printf("%s", istr(tree_ident(tree_ref(t))));
+      if (tree_has_ref(t))
+         printf("%s", istr(tree_ident(tree_ref(t))));
+      else
+         printf("%s", istr(tree_ident(t)));
       break;
 
    case T_ATTR_REF:

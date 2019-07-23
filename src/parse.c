@@ -76,6 +76,7 @@ static yylval_t      last_lval;
 static token_t       opt_hist[8];
 static int           nopt_hist = 0;
 static cond_state_t *cond_state = NULL;
+static bool          translate_on = true;
 
 loc_t yylloc;
 int yylex(void);
@@ -179,7 +180,7 @@ static const char *token_str(token_t tok)
       "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl",
       "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
-      "`error", "`warning"
+      "`error", "`warning", "translate_off", "translate_on",
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -270,6 +271,24 @@ static token_t conditional_yylex(void)
          return conditional_yylex();
       }
 
+   case tSYNTHOFF:
+      {
+         BEGIN("synthesis translate_off");
+
+         if (opt_get_int("synthesis"))
+            translate_on = false;
+
+         return conditional_yylex();
+      }
+
+   case tSYNTHON:
+      {
+         BEGIN("synthesis translate_off");
+
+         translate_on = true;
+         return conditional_yylex();
+      }
+
    case tEOF:
       if (cond_state != NULL) {
          parse_error(&(cond_state->loc), "unterminated conditional "
@@ -279,7 +298,7 @@ static token_t conditional_yylex(void)
       return tEOF;
 
    default:
-      if (cond_state == NULL || cond_state->result)
+      if (translate_on && (cond_state == NULL || cond_state->result))
          return token;
       else
          return conditional_yylex();

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2019  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -176,7 +176,7 @@ static int analyse(int argc, char **argv)
    if (opt_get_str("dump-json")) {
       dump_json(units, n_units, opt_get_str("dump-json"));
    }
-      
+
    lib_save(lib_work());
 
    for (int i = 0; i < n_units; i++) {
@@ -785,6 +785,7 @@ static void set_default_opts(void)
    opt_set_int("force-init", 0);
    opt_set_int("verbose", 0);
    opt_set_int("rt_profile", 0);
+   opt_set_int("synthesis", 0);
 }
 
 static void usage(void)
