@@ -85,8 +85,9 @@ BASED_INTEGER   [0-9a-fA-F][0-9a-fA-F_]*
 BASED_LITERAL   ({INTEGER}[#]{BASED_INTEGER}(\.{BASED_INTEGER})?[#]{EXPONENT}?)|({INTEGER}[:]{BASED_INTEGER}(\.{BASED_INTEGER})?[:]{EXPONENT}?)
 SPACE           [ \t\r\n]+
 TICK            \'
-SYNTH_OFF       --[ \t]*(?i:synthesis)[ \t]+(?i:translate_off).*
-SYNTH_ON        --[ \t]*(?i:synthesis)[ \t]+(?i:translate_on).*
+PRAGMA          --[ \t]*
+SYNTH_OFF       {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_off).*
+SYNTH_ON        {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_on).*
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -189,10 +190,25 @@ CONTEXT       ?i:context
 ERROR         ?i:error
 WARNING       ?i:warning
 
+/* Pragma triggers */
+COVERAGE_ON   ?:coverage_on
+COVERAGE_OFF  ?:coverage_off
+LINT_ON       ?:lint_on
+LINT_OFF      ?:lint_off
+TRACING_ON    ?:tracing_on
+TRACING_OFF   ?:tracing_off
+
 %%
 
 {SYNTH_OFF}     { TOKEN(tSYNTHOFF); }
 {SYNTH_ON}      { TOKEN(tSYNTHON); }
+
+{PRAGMA}{COVERAGE_ON}.*  { TOKEN(tPRAGMA); }
+{PRAGMA}{COVERAGE_OFF}.* { TOKEN(tPRAGMA); }
+{PRAGMA}{LINT_ON}.*      { TOKEN(tPRAGMA); }
+{PRAGMA}{LINT_OFF}.*     { TOKEN(tPRAGMA); }
+{PRAGMA}{TRACING_ON}.*   { TOKEN(tPRAGMA); }
+{PRAGMA}{TRACING_OFF}.*  { TOKEN(tPRAGMA); }
 
 {COMMENT}       { }
 

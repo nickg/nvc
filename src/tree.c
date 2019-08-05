@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2019  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -252,6 +252,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_BLOCK_CONFIG
    (I_DECLS | I_IDENT | I_VALUE | I_RANGES),
+
+   // T_PRAGMA
+   (I_TEXT),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -273,7 +276,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_USE",
    "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY",
    "T_DESIGN_UNIT",  "T_CONFIGURATION", "T_PROT_BODY",  "T_CONTEXT",
-   "T_CTXREF",       "T_CONSTRAINT",    "T_BLOCK_CONFIG",
+   "T_CTXREF",       "T_CONSTRAINT",    "T_BLOCK_CONFIG", "T_PRAGMA",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -311,7 +314,7 @@ static const tree_kind_t stmt_kinds[] = {
    T_RETURN,  T_CASSIGN,     T_WHILE,        T_FOR,
    T_EXIT,    T_PCALL,       T_CASE,         T_BLOCK,
    T_SELECT,  T_IF_GENERATE, T_FOR_GENERATE, T_CPCALL,
-   T_CASSERT, T_NEXT
+   T_CASSERT, T_NEXT,        T_PRAGMA,
 };
 
 static tree_kind_t expr_kinds[] = {
@@ -824,7 +827,7 @@ tree_t tree_context(tree_t t, unsigned n)
 void tree_add_context(tree_t t, tree_t ctx)
 {
    assert(ctx->object.kind == T_USE || ctx->object.kind == T_LIBRARY
-          || ctx->object.kind == T_CTXREF);
+          || ctx->object.kind == T_CTXREF || ctx->object.kind == T_PRAGMA);
    tree_array_add(&(lookup_item(&tree_object, t, I_CONTEXT)->tree_array), ctx);
 }
 
@@ -931,6 +934,16 @@ void tree_change_range(tree_t t, unsigned n, range_t r)
    item_t *item = lookup_item(&tree_object, t, I_RANGES);
    assert(n < item->range_array.count);
    item->range_array.items[n] = r;
+}
+
+char *tree_text(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_TEXT)->text;
+}
+
+void tree_set_text(tree_t t, const char *text)
+{
+   lookup_item(&tree_object, t, I_TEXT)->text = xstrdup(text);
 }
 
 unsigned tree_pos(tree_t t)

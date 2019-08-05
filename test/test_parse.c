@@ -2831,6 +2831,32 @@ START_TEST(test_synth)
 }
 END_TEST;
 
+START_TEST(test_pragma)
+{
+   input_from_file(TESTDIR "/parse/pragma.vhd");
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   ck_assert_int_eq(3, tree_contexts(a));
+   ck_assert_int_eq(T_PRAGMA, tree_kind(tree_context(a, 2)));
+   ck_assert_str_eq("-- tracing_on foo bar", tree_text(tree_context(a, 2)));
+
+   tree_t p = tree_stmt(a, 0);
+   ck_assert_int_eq(T_PRAGMA, tree_kind(tree_stmt(p, 0)));
+   ck_assert_str_eq("-- lint_on x y z", tree_text(tree_stmt(p, 0)));
+
+   tree_t x = tree_stmt(a, 1);
+   ck_assert_int_eq(T_PRAGMA, tree_kind(x));
+   ck_assert_str_eq("-- lint_off", tree_text(x));
+
+   fail_if(parse() != NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST;
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -2878,6 +2904,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue369);
    tcase_add_test(tc_core, test_vests1);
    tcase_add_test(tc_core, test_synth);
+   tcase_add_test(tc_core, test_pragma);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2019  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -157,6 +157,7 @@ typedef enum tree_kind {
    T_CTXREF,
    T_CONSTRAINT,
    T_BLOCK_CONFIG,
+   T_PRAGMA,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -259,6 +260,9 @@ void tree_add_trigger(tree_t t, tree_t s);
 
 tree_t tree_target(tree_t t);
 void tree_set_target(tree_t t, tree_t lhs);
+
+char *tree_text(tree_t t);
+void tree_set_text(tree_t t, const char *text);
 
 tree_t tree_ref(tree_t t);
 bool tree_has_ref(tree_t t);

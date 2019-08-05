@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2017  Nick Gasson
+//  Copyright (C) 2013-2019  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -83,6 +83,7 @@ typedef uint64_t imask_t;
 #define I_CHARS      ONE_HOT(47)
 #define I_CONSTR     ONE_HOT(48)
 #define I_FLAGS      ONE_HOT(49)
+#define I_TEXT       ONE_HOT(50)
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
@@ -102,6 +103,7 @@ typedef uint64_t imask_t;
 #define ITEM_RANGE_ARRAY (I_RANGES | I_DIMS)
 #define ITEM_TEXT_BUF    (I_TEXT_BUF)
 #define ITEM_ATTRS       (I_ATTRS)
+#define ITEM_TEXT        (I_TEXT)
 
 #define OBJECT_TAG_TREE  0
 #define OBJECT_TAG_TYPE  1
@@ -168,6 +170,7 @@ typedef union {
    type_array_t   type_array;
    attr_tab_t     attrs;
    ident_array_t  ident_array;
+   char          *text;
 } item_t;
 
 typedef struct {
