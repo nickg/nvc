@@ -19,10 +19,11 @@ bin_unit_test_SOURCES = \
 	test/test_heap.c \
 	test/test_group.c \
 	test/test_bounds.c \
-	test/test_value.c
+	test/test_value.c \
+	test/test_json.c
 
 bin_unit_test_LDADD = lib/libnvc.a lib/librt.a lib/libfastlz.a \
-	$(CHECK_LIBS) $(POW_LIB) $(libdw_LIBS)
+	$(CHECK_LIBS) $(POW_LIB) $(libdw_LIBS) lib/libjson.a
 
 bin_run_regr_SOURCES = test/run_regr.c
 

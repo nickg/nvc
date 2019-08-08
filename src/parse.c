@@ -77,6 +77,7 @@ static token_t       opt_hist[8];
 static int           nopt_hist = 0;
 static cond_state_t *cond_state = NULL;
 static bool          translate_on = true;
+static bool          parse_pragmas = false;
 
 loc_t yylloc;
 int yylex(void);
@@ -298,8 +299,12 @@ static token_t conditional_yylex(void)
       return tEOF;
 
    default:
-      if (translate_on && (cond_state == NULL || cond_state->result))
-         return token;
+      if (translate_on && (cond_state == NULL || cond_state->result)) {
+         if (token == tPRAGMA && !parse_pragmas)
+            return conditional_yylex();
+         else
+            return token;
+      }
       else
          return conditional_yylex();
    }
@@ -5908,6 +5913,7 @@ void input_from_file(const char *file)
    n_row              = 0;
    n_token_next_start = 0;
    translate_on       = true;
+   parse_pragmas      = opt_get_int("parse-pragmas");
 
    if (tokenq == NULL) {
       tokenq_sz = 128;

@@ -59,6 +59,7 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(lower);
    nfail += RUN_TESTS(group);
    nfail += RUN_TESTS(elab);
+   nfail += RUN_TESTS(json);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

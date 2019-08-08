@@ -2814,6 +2814,8 @@ END_TEST;
 
 START_TEST(test_synth)
 {
+#if 0
+   // XXX: these are just parsed as pragmas for now
    opt_set_int("synthesis", 1);
 
    input_from_file(TESTDIR "/parse/synth.vhd");
@@ -2828,11 +2830,14 @@ START_TEST(test_synth)
    fail_if(parse() != NULL);
 
    fail_unless(parse_errors() == 0);
+#endif
 }
 END_TEST;
 
 START_TEST(test_pragma)
 {
+   opt_set_int("parse-pragmas", 1);
+
    input_from_file(TESTDIR "/parse/pragma.vhd");
 
    tree_t a = parse();

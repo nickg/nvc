@@ -108,6 +108,7 @@ static int analyse(int argc, char **argv)
       { "dump-json",       required_argument, 0, 'j' },
       { "dump-llvm",       no_argument,       0, 'D' },
       { "dump-vcode",      optional_argument, 0, 'v' },
+      { "parse-pragmas",   no_argument,       0, 'P' },
       { "prefer-explicit", no_argument,       0, 'p' },   // DEPRECATED
       { "relax",           required_argument, 0, 'R' },
       { 0, 0, 0, 0 }
@@ -135,6 +136,9 @@ static int analyse(int argc, char **argv)
          break;
       case 'j':
          opt_set_str("dump-json", optarg ?: "");
+         break;
+      case 'P':
+         opt_set_int("parse-pragmas", 1);
          break;
       case 'p':
          warnf("the --prefer-explict option is deprecated: use "
@@ -786,6 +790,7 @@ static void set_default_opts(void)
    opt_set_int("verbose", 0);
    opt_set_int("rt_profile", 0);
    opt_set_int("synthesis", 0);
+   opt_set_int("parse-pragmas", 0);
 }
 
 static void usage(void)
@@ -815,6 +820,7 @@ static void usage(void)
           "\n"
           "Analyse options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
+          "     --parse-pragmas\tEnable parsing comments for pragmas\n"
           "     --relax=RULES\tDisable certain pedantic rule checks\n"
           "\n"
           "Elaborate options:\n"
