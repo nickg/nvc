@@ -1991,6 +1991,22 @@ START_TEST(test_issue377)
 }
 END_TEST
 
+START_TEST(test_issue386)
+{
+   input_from_file(TESTDIR "/sem/issue386.vhd");
+
+   const error_t expect[] = {
+      {  7, "type of parameter BYTE does not match type BIT_VECTOR" },
+      {  2, "parameter BYTE was originally declared here" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2093,6 +2109,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue340);
    tcase_add_test(tc_core, test_issue225);
    tcase_add_test(tc_core, test_issue377);
+   tcase_add_test(tc_core, test_issue386);
    suite_add_tcase(s, tc_core);
 
    return s;

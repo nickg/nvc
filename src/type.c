@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2019  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -129,6 +129,59 @@ type_kind_t type_kind(type_t t)
    assert(t != NULL);
 
    return t->object.kind;
+}
+
+bool type_strict_eq(type_t a, type_t b)
+{
+   assert(a != NULL);
+   assert(b != NULL);
+
+   if (a == b)
+      return true;
+
+   type_kind_t kind_a = a->object.kind;
+   type_kind_t kind_b = b->object.kind;
+
+   if ((kind_a == T_UNRESOLVED) || (kind_b == T_UNRESOLVED))
+      return false;
+
+   if (kind_a != kind_b)
+      return false;
+
+   if (type_has_ident(a) && type_has_ident(b)) {
+      if (type_ident(a) != type_ident(b))
+         return false;
+   }
+
+   // Access types are equal if the pointed to type is the same
+   if (kind_a == T_ACCESS)
+      return type_eq(type_access(a), type_access(b));
+
+   const imask_t has = has_map[a->object.kind];
+
+   if (has & I_ELEM)
+      return type_strict_eq(type_elem(a), type_elem(b));
+
+   if ((has & I_DIMS) && (type_dims(a) != type_dims(b)))
+      return false;
+
+   if (kind_a == T_FUNC) {
+      if (!type_strict_eq(type_result(a), type_result(b)))
+         return false;
+   }
+
+   if (has & I_PTYPES) {
+      if (type_params(a) != type_params(b))
+         return false;
+
+      const int nparams = type_params(a);
+      for (int i = 0; i < nparams; i++) {
+         if (!type_strict_eq(type_param(a, i), type_param(b, i)))
+             return false;
+      }
+   }
+
+   return true;
 }
 
 bool type_eq(type_t a, type_t b)

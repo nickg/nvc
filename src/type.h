@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2019  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -50,6 +50,7 @@ type_kind_t type_kind(type_t t);
 const char *type_kind_str(type_kind_t t);
 
 bool type_eq(type_t a, type_t b);
+bool type_strict_eq(type_t a, type_t b);
 
 // See `has_map' in type.c for definition of which fields each type
 // kind contains

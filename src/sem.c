@@ -2554,8 +2554,7 @@ static void sem_check_subprogram_matches_spec(tree_t subprog, tree_t proto)
       tree_t matching_port = NULL;
       for (int j = 0; j < nports && matching_port == NULL; j++) {
          tree_t body_port = tree_port(subprog, j);
-         if (tree_ident(body_port) == proto_name
-             && type_eq(tree_type(body_port), proto_type))
+         if (tree_ident(body_port) == proto_name)
             matching_port = body_port;
       }
 
@@ -2563,6 +2562,18 @@ static void sem_check_subprogram_matches_spec(tree_t subprog, tree_t proto)
          error_at(tree_loc(subprog), "subprogram body %s missing parameter %s "
                   "with type %s", istr(tree_ident(subprog)), istr(proto_name),
                   sem_type_str(proto_type));
+         note_at(tree_loc(proto_port), "parameter %s was originally "
+                 "declared here", istr(proto_name));
+         errors += 2;
+         continue;
+      }
+
+      type_t body_type = tree_type(matching_port);
+
+      if (!type_strict_eq(body_type, proto_type)) {
+         error_at(tree_loc(matching_port), "type of parameter %s "
+                  "does not match type %s in specification",
+                  istr(proto_name), sem_type_str(proto_type));
          note_at(tree_loc(proto_port), "parameter %s was originally "
                  "declared here", istr(proto_name));
          errors += 2;
