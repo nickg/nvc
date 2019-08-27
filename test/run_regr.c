@@ -226,8 +226,8 @@ static bool is_comment(const char *str)
 
 static bool parse_test_list(int argc, char **argv)
 {
-   char testlist[PATH_MAX];
-   snprintf(testlist, PATH_MAX + 22, "%s/regress/testlist.txt", test_dir);
+   char testlist[PATH_MAX + 22];
+   snprintf(testlist, sizeof(testlist), "%s/regress/testlist.txt", test_dir);
 
    FILE *f = fopen(testlist, "r");
    if (f == NULL) {
