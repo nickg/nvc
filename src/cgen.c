@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2019  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "common.h"
 #include "vcode.h"
 #include "array.h"
+#include "hash.h"
 #include "rt/rt.h"
 #include "rt/cover.h"
 
@@ -81,6 +82,8 @@ static LLVMBuilderRef builder = NULL;
 static char **link_args = NULL;
 static size_t n_link_args = 0;
 static size_t max_link_args = 0;
+
+static hash_t *string_pool = NULL;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata);
@@ -591,11 +594,8 @@ static LLVMValueRef cgen_signal_nets(vcode_signal_t sig)
 
 static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
 {
-   LLVMValueRef file_name = LLVMGetNamedGlobal(module, "file_name");
+   LLVMValueRef file_name = hash_get(string_pool, ctx->last_loc.file);
    if (file_name == NULL) {
-      if (ctx->last_loc.file == NULL)
-         fatal_trace("missing location information");
-
       const char *name_str = istr(ctx->last_loc.file);
       const size_t len = strlen(name_str);
       file_name = LLVMAddGlobal(module,
@@ -605,6 +605,8 @@ static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
       LLVMSetInitializer(file_name, LLVMConstString(name_str, len, false));
       LLVMSetLinkage(file_name, LLVMPrivateLinkage);
       LLVMSetUnnamedAddr(file_name, true);
+
+      hash_put(string_pool, ctx->last_loc.file, file_name);
    }
 
    LLVMTypeRef rt_loc = llvm_rt_loc();
@@ -632,14 +634,21 @@ static LLVMValueRef cgen_hint_str(int op)
    if (hint == NULL)
       return LLVMConstNull(llvm_char_ptr());
 
-   const size_t len = strlen(hint);
-   LLVMTypeRef type = LLVMArrayType(LLVMInt8Type(), len + 1);
+   ident_t hint_id = ident_new(hint);
+   LLVMValueRef glob = hash_get(string_pool, hint_id);
 
-   LLVMValueRef glob = LLVMAddGlobal(module, type, "");
-   LLVMSetGlobalConstant(glob, true);
-   LLVMSetLinkage(glob, LLVMPrivateLinkage);
-   LLVMSetInitializer(glob, LLVMConstString(hint, len, false));
-   LLVMSetUnnamedAddr(glob, true);
+   if (glob == NULL) {
+      const size_t len = strlen(hint);
+      LLVMTypeRef type = LLVMArrayType(LLVMInt8Type(), len + 1);
+
+      glob = LLVMAddGlobal(module, type, "");
+      LLVMSetGlobalConstant(glob, true);
+      LLVMSetLinkage(glob, LLVMPrivateLinkage);
+      LLVMSetInitializer(glob, LLVMConstString(hint, len, false));
+      LLVMSetUnnamedAddr(glob, true);
+
+      hash_put(string_pool, hint_id, glob);
+   }
 
    return cgen_array_pointer(glob);
 }
@@ -1341,7 +1350,6 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
       LLVMTypeRef array_type = LLVMArrayType(LLVMInt8Type(), total_chars);
 
       elems_glob = LLVMAddGlobal(module, array_type, istr(elems_name));
-      LLVMSetGlobalConstant(elems_glob, true);
       LLVMSetGlobalConstant(elems_glob, true);
       LLVMSetLinkage(elems_glob, LLVMLinkOnceAnyLinkage);
 
@@ -4151,6 +4159,8 @@ void cgen(tree_t top, vcode_unit_t vcode)
    char *layout LOCAL = LLVMCopyStringRepOfTargetData(data_ref);
    LLVMSetDataLayout(module, layout);
 
+   string_pool = hash_new(128, true);
+
    cgen_tmp_stack();
 
    cgen_top(top, vcode);
@@ -4163,6 +4173,8 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
    cgen_optimise();
    cgen_native(top, tm_ref);
+
+   hash_free(string_pool);
 
    LLVMDisposeModule(module);
    LLVMDisposeBuilder(builder);
