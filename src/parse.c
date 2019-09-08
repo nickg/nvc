@@ -5401,8 +5401,11 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label)
    tree_t t = p_name();
 
    const tree_kind_t kind = tree_kind(t);
-   if ((kind != T_REF) && (kind != T_FCALL))
-      assert(false);  // XXX: FIXME
+   if (kind != T_REF && kind != T_FCALL) {
+      // This can only happen due to some earlier parsing error
+      assert(n_errors > 0);
+      return tree_new(T_CPCALL);
+   }
 
    tree_change_kind(t, T_CPCALL);
    tree_set_ident2(t, tree_ident(t));

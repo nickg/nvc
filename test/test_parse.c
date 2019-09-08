@@ -2862,6 +2862,24 @@ START_TEST(test_pragma)
 }
 END_TEST;
 
+START_TEST(test_issue388)
+{
+   input_from_file(TESTDIR "/parse/issue388.vhd");
+
+   const error_t expect[] = {
+      {  6, "unexpected => while parsing slice name, expecting one of" },
+      {  7, "unexpected => while parsing concurrent statement" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_unless(p == NULL);
+
+   fail_unless(parse_errors() == 2);
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -2910,6 +2928,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_vests1);
    tcase_add_test(tc_core, test_synth);
    tcase_add_test(tc_core, test_pragma);
+   tcase_add_test(tc_core, test_issue388);
    suite_add_tcase(s, tc_core);
 
    return s;
