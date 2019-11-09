@@ -1270,7 +1270,7 @@ void register_gdb_signal_handlers(void)
 void term_init(void)
 {
    const char *nvc_no_color = getenv("NVC_NO_COLOR");
-   const char *term = getenv("TERM");
+   const char *term = getenv("TERM") ?: "";
 
    static const char *term_blacklist[] = {
       "dumb"
