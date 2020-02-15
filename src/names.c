@@ -2447,6 +2447,11 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
    if (type_is_record(type)) {
       const int nfields = type_fields(type);
       const int nassocs = tree_assocs(agg);
+
+      // Mask used for finding the types of an "others" association.
+      // This won't work with more than 64 fields.
+      uint64_t fmask = 0;
+
       for (int i = 0; i < nassocs; i++) {
          type_set_push(tab);
          tree_t a = tree_assoc(agg, i);
@@ -2457,6 +2462,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
                int pos = tree_pos(a);
                if (pos < nfields)
                   type_set_add(tab, tree_type(type_field(type, pos)));
+               if (pos < 64) fmask |= (1 << pos);
             }
             break;
 
@@ -2467,12 +2473,24 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
                tree_t name = tree_name(a);
                solve_types(tab, name, NULL);
                pop_scope(tab);
-               if (tree_has_ref(name))
-                  type_set_add(tab, tree_type(tree_ref(name)));
+               if (tree_has_ref(name)) {
+                  tree_t field = tree_ref(name);
+                  type_set_add(tab, tree_type(field));
+                  if (tree_kind(field) == T_FIELD_DECL) {
+                     const int pos = tree_pos(field);
+                     if (pos < 64) fmask |= (1 << pos);
+                  }
+               }
             }
             break;
 
          case A_OTHERS:
+            // Add the types of all the fields that haven't already be
+            // specified to the type set
+            for (int i = 0; i < MIN(nfields, 64); i++) {
+               if (!(fmask & (1 << i)))
+                  type_set_add(tab, tree_type(type_field(type, i)));
+            }
             break;
 
          case A_RANGE:

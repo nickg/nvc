@@ -2361,6 +2361,29 @@ static int lower_field_index(type_t type, ident_t field)
    assert(false);
 }
 
+static vcode_reg_t lower_record_sub_aggregate(tree_t value, type_t type,
+                                              bool is_const, expr_ctx_t ctx)
+{
+   if (type_is_array(type) && is_const) {
+      if (tree_kind(value) == T_LITERAL)
+         return lower_string_literal(value, false);
+      else if (mode == LOWER_THUNK && !lower_const_bounds(type))
+         return emit_undefined(lower_type(type));
+      else {
+         int nvals;
+         vcode_reg_t *values LOCAL =
+            lower_const_array_aggregate(value, type, 0, &nvals);
+         return emit_const_array(lower_type(type), values, nvals, false);
+      }
+   }
+   else if (type_is_record(type) && is_const)
+      return lower_record_aggregate(value, true, true, ctx);
+   else if (type_is_scalar(type))
+      return lower_reify_expr(value);
+   else
+      return lower_expr(value, ctx);
+}
+
 static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
                                           bool is_const, expr_ctx_t ctx)
 {
@@ -2377,42 +2400,29 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
 
       tree_t value = tree_value(a);
       type_t value_type = tree_type(value);
-      vcode_reg_t v = VCODE_INVALID_REG;
-      if (type_is_array(value_type) && is_const) {
-         if (tree_kind(value) == T_LITERAL)
-            v = lower_string_literal(value, false);
-         else if (mode == LOWER_THUNK && !lower_const_bounds(value_type))
-            v = emit_undefined(lower_type(value_type));
-         else {
-            int nvals;
-            vcode_reg_t *values LOCAL =
-               lower_const_array_aggregate(value, value_type, 0, &nvals);
-            v = emit_const_array(lower_type(value_type), values, nvals, false);
-         }
-      }
-      else if (type_is_record(value_type) && is_const)
-         v = lower_record_aggregate(value, true, true, ctx);
-      else if (type_is_scalar(value_type))
-         v = lower_reify_expr(value);
-      else
-         v = lower_expr(value, ctx);
 
       switch (tree_subkind(a)) {
       case A_POS:
-         vals[tree_pos(a)] = v;
+         vals[tree_pos(a)] =
+            lower_record_sub_aggregate(value, value_type, is_const, ctx);
          break;
 
       case A_NAMED:
          {
-            int index = lower_field_index(type, tree_ident(tree_name(a)));
-            vals[index] = v;
+            unsigned index = tree_pos(tree_ref(tree_name(a)));
+            assert(index < nfields);
+            vals[index] =
+               lower_record_sub_aggregate(value, value_type, is_const, ctx);
          }
          break;
 
       case A_OTHERS:
          for (int j = 0; j < nfields; j++) {
-            if (vals[j] == VCODE_INVALID_REG)
-               vals[j] = v;
+            if (vals[j] == VCODE_INVALID_REG) {
+               type_t ftype = tree_type(type_field(type, j));
+               vals[j] = lower_record_sub_aggregate(value, ftype,
+                                                    is_const, ctx);
+            }
          }
          break;
 

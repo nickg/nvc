@@ -3754,10 +3754,12 @@ static void p_element_declaration(type_t rec)
 
    consume(tSEMI);
 
+   int pos = type_fields(rec);
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t f = tree_new(T_FIELD_DECL);
       tree_set_ident(f, it->ident);
       tree_set_type(f, type);
+      tree_set_pos(f, pos++);
       tree_set_loc(f, CURRENT_LOC);
 
       type_add_field(rec, f);

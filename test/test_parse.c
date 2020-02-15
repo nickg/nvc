@@ -762,6 +762,7 @@ START_TEST(test_types)
    fail_unless(type_fields(t) == 3);
    f = type_field(t, 1);
    fail_unless(tree_kind(f) == T_FIELD_DECL);
+   fail_unless(tree_pos(f) == 1);
    fail_unless(tree_ident(f) == ident_new("B"));
 
    d = search_decls(a, ident_new("F4"), 0);

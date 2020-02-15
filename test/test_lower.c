@@ -3363,6 +3363,32 @@ START_TEST(test_incomplete)
 }
 END_TEST
 
+START_TEST(test_issue389)
+{
+   input_from_file(TESTDIR "/lower/issue389.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE);
+   bounds_check(p);
+   fail_if(error_count() > 0);
+   lower_unit(p);
+
+   vcode_unit_t v0 = find_unit(p);
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_INDEX, .name = "WORK.COMMON.EXAMPLE_INIT" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST_ARRAY, .length = 64 },
+      { VCODE_OP_CONST_ARRAY, .length = 32 },
+      { VCODE_OP_CONST_RECORD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3443,6 +3469,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_vital1);
    tcase_add_test(tc, test_case1);
    tcase_add_test(tc, test_incomplete);
+   tcase_add_test(tc, test_issue389);
    suite_add_tcase(s, tc);
 
    return s;
