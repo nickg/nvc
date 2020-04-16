@@ -62,6 +62,7 @@ typedef struct {
    LLVMValueRef resolution;
    uint32_t     count;
    uint32_t     flags;
+   uint32_t     ileft;
 } size_list_t;
 
 DECLARE_AND_DEFINE_ARRAY(size_list)
@@ -227,6 +228,7 @@ static LLVMTypeRef llvm_size_list_type(void)
       LLVMInt32Type(),
       LLVMInt32Type(),
       llvm_void_ptr(),
+      LLVMInt32Type(),
       LLVMInt32Type()
    };
    return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
@@ -1751,6 +1753,7 @@ static void cgen_append_size_list(size_list_array_t *list,
    result->size  = llvm_sizeof(cgen_type(elem));
    result->count = count;
    result->flags = 0;
+   result->ileft = 0;
 
    if (resolution != NULL) {
       assert(*res_elem < resolution->count);
@@ -1761,6 +1764,8 @@ static void cgen_append_size_list(size_list_array_t *list,
          result->flags |= R_RECORD;
       if (resolution->element[*res_elem].boundary)
          result->flags |= R_BOUNDARY;
+
+      result->ileft = resolution->element[*res_elem].ileft;
 
       ++(*res_elem);
    }
@@ -1808,37 +1813,11 @@ static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata)
 {
    // Resolution functions are in LRM 93 section 2.4
 
-   char *buf LOCAL = xasprintf("%s_resolution", istr(rdata->name));
-
-   const char *wrapper_name = safe_symbol(buf);
-   LLVMValueRef fn = LLVMGetNamedFunction(module, wrapper_name);
-   if (fn != NULL)
-      return llvm_void_cast(fn);    // Already generated wrapper
-
-   const bool is_record = vtype_kind(rdata->type) == VCODE_TYPE_RECORD;
-
-   LLVMTypeRef elem_type = cgen_type(rdata->type);
-   LLVMTypeRef pointer_type = LLVMPointerType(elem_type, 0);
-   LLVMTypeRef uarray_type = llvm_uarray_type(elem_type, 1);
-   LLVMTypeRef result_type = is_record ? pointer_type : LLVMInt64Type();
-
-   LLVMTypeRef args[] = {
-      pointer_type,
-      LLVMInt32Type()
-   };
-   fn = LLVMAddFunction(module, wrapper_name,
-                        LLVMFunctionType(result_type, args,
-                                         ARRAY_LEN(args), false));
-
-   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
-
-   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
-   LLVMPositionBuilderAtEnd(builder, entry_bb);
-
    LLVMValueRef rfn = cgen_signature(rdata->name, rdata->type, NULL, NULL, 0);
    if (rfn == NULL) {
       // The resolution function is not visible yet e.g. because it
       // is declared in another package
+      const bool is_record = vtype_kind(rdata->type) == VCODE_TYPE_RECORD;
       vcode_type_t rtype = is_record ? vtype_pointer(rdata->type) : rdata->type;
       vcode_type_t args[] = {
          vtype_uarray(1, rdata->type, vtype_int(0, INT32_MAX))
@@ -1846,42 +1825,7 @@ static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata)
       rfn = cgen_signature(rdata->name, rtype, NULL, args, 1);
    }
 
-   LLVMTypeRef field_types[LLVMCountStructElementTypes(uarray_type)];
-   LLVMGetStructElementTypes(uarray_type, field_types);
-
-   LLVMTypeRef dim_struct = LLVMGetElementType(field_types[1]);
-   LLVMValueRef dim_array = LLVMGetUndef(field_types[1]);
-
-   LLVMValueRef left  = llvm_int32(rdata->ileft);
-   LLVMValueRef right = LLVMBuildAdd(builder, left,
-                                     LLVMBuildSub(builder, LLVMGetParam(fn, 1),
-                                                  llvm_int32(1), ""), "right");
-   LLVMValueRef dir   = llvm_int1(RANGE_TO);
-   LLVMValueRef vals  = LLVMGetParam(fn, 0);
-
-   LLVMValueRef d = LLVMGetUndef(dim_struct);
-   d = LLVMBuildInsertValue(builder, d, left, 0, "");
-   d = LLVMBuildInsertValue(builder, d, right, 1, "");
-   d = LLVMBuildInsertValue(builder, d, dir, 2, "");
-
-   dim_array = LLVMBuildInsertValue(builder, dim_array, d, 0, "");
-
-   LLVMValueRef wrapped = LLVMBuildAlloca(builder, uarray_type, "");
-   LLVMBuildStore(builder, vals, LLVMBuildStructGEP(builder, wrapped, 0, ""));
-   LLVMBuildStore(builder, dim_array,
-                  LLVMBuildStructGEP(builder, wrapped, 1, ""));
-
-   LLVMValueRef r = LLVMBuildCall(builder, rfn, &wrapped, 1, "");
-
-   if (is_record)
-      LLVMBuildRet(builder, r);
-   else
-      LLVMBuildRet(builder,
-                   LLVMBuildZExt(builder, r, LLVMInt64Type(), ""));
-
-   LLVMPositionBuilderAtEnd(builder, saved_bb);
-
-   return llvm_void_cast(fn);
+   return llvm_void_cast(rfn);
 }
 
 static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
@@ -1921,6 +1865,7 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
          size_list.items[0].size,
          llvm_int32(size_list.items[0].count),
          llvm_void_cast(size_list.items[0].resolution),
+         llvm_int32(size_list.items[0].ileft),
          llvm_void_cast(name_ll)
       };
       LLVMBuildCall(builder, llvm_fn("_set_initial_1"), args,
@@ -1944,6 +1889,8 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
                         LLVMBuildStructGEP(builder, elemptr, 2, ""));
          LLVMBuildStore(builder, llvm_int32(size_list.items[i].flags),
                         LLVMBuildStructGEP(builder, elemptr, 3, ""));
+         LLVMBuildStore(builder, llvm_int32(size_list.items[i].ileft),
+                        LLVMBuildStructGEP(builder, elemptr, 4, ""));
       }
 
       LLVMValueRef args[] = {
@@ -3679,6 +3626,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMInt32Type(),
          llvm_void_ptr(),
+         LLVMInt32Type(),
          LLVMPointerType(LLVMInt8Type(), 0)
       };
       fn = LLVMAddFunction(module, "_set_initial_1",

@@ -55,8 +55,10 @@
 #define TRACE_PENDING 0
 #define RT_DEBUG      0
 
+struct uarray;
+
 typedef void (*proc_fn_t)(int32_t reset);
-typedef uint64_t (*resolution_fn_t)(void *vals, int32_t n);
+typedef uint64_t (*resolution_fn_t)(struct uarray u);
 
 typedef struct netgroup   netgroup_t;
 typedef struct driver     driver_t;
@@ -183,6 +185,7 @@ struct watch_list {
 struct res_memo {
    resolution_fn_t fn;
    res_flags_t     flags;
+   int32_t         ileft;
    int8_t          tab2[16][16];
    int8_t          tab1[16];
 };
@@ -220,6 +223,7 @@ struct size_list {
    uint32_t count;
    void    *resolution;
    uint32_t flags;
+   int32_t  ileft;
 };
 
 static struct rt_proc   *procs = NULL;
@@ -651,6 +655,7 @@ void _set_initial(int32_t nid, const uint8_t *values,
       if (size_list[part].resolution != NULL) {
          memo = rt_memo_resolution_fn(type, size_list[part].resolution);
          memo->flags |= size_list[part].flags;
+         memo->ileft = size_list[part].ileft;
 
          if (size_list[part].flags & R_BOUNDARY)
             g->flags |= NET_F_BOUNDARY;
@@ -686,13 +691,15 @@ void _set_initial(int32_t nid, const uint8_t *values,
 
 DLLEXPORT
 void _set_initial_1(int32_t nid, const uint8_t *values, uint32_t size,
-                    uint32_t count, void *resolution, const char *name)
+                    uint32_t count, void *resolution, int32_t ileft,
+                    const char *name)
 {
    const size_list_t size_list = {
       .size       = size,
       .count      = count,
       .resolution = resolution,
-      .flags      = 0
+      .flags      = 0,
+      .ileft      = ileft
    };
 
    _set_initial(nid, values, &size_list, 1, name);
@@ -1423,7 +1430,10 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
    for (int i = 0; i < nlits; i++) {
       for (int j = 0; j < nlits; j++) {
          int8_t args[2] = { i, j };
-         memo->tab2[i][j] = (*fn)(args, 2);
+         struct uarray u = {
+            args, { { memo->ileft, memo->ileft + 1, RANGE_TO } }
+         };
+         memo->tab2[i][j] = (*fn)(u);
       }
    }
 
@@ -1433,7 +1443,8 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
    bool identity = true;
    for (int i = 0; i < nlits; i++) {
       int8_t args[1] = { i };
-      memo->tab1[i] = (*fn)(args, 1);
+      struct uarray u = { args, { { memo->ileft, memo->ileft, RANGE_TO } } };
+      memo->tab1[i] = (*fn)(u);
       identity = identity && (memo->tab1[i] == i);
    }
 
@@ -1760,8 +1771,12 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
          offset += p->length;
       }
 
-      uint8_t *result =
-         (uint8_t *)(*group->resolution->fn)(inputs, group->n_drivers);
+      struct uarray u = {
+         inputs, { { group->resolution->ileft,
+                     group->resolution->ileft + group->n_drivers - 1,
+                     RANGE_TO } }
+      };
+      uint8_t *result = (uint8_t *)(*group->resolution->fn)(u);
       resolved = result + group_off;
    }
    else {
@@ -1779,7 +1794,13 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
             if (likely(driver >= 0))                                    \
                vals[driver] = ((const type *)values)[j];                \
             type *r = (type *)resolved;                                 \
-            r[j] = (*group->resolution->fn)(vals, group->n_drivers);    \
+            struct uarray u = {                                         \
+               vals, {                                                  \
+                  { group->resolution->ileft,                           \
+                    group->resolution->ileft + group->n_drivers - 1,    \
+                    RANGE_TO } }                                        \
+            };                                                          \
+            r[j] = (*group->resolution->fn)(u);                         \
          } while (0)
 
          FOR_ALL_SIZES(group->size, CALL_RESOLUTION_FN);
