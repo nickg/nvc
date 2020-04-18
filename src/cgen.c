@@ -1378,16 +1378,17 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
       ident_t values_name = ident_prefix(map.name, ident_new("values"), '.');
       LLVMValueRef values_glob = LLVMGetNamedGlobal(module, istr(values_name));
       if (values_glob == NULL) {
-         LLVMTypeRef array_type = LLVMArrayType(LLVMInt64Type(), map.nelems);
+         LLVMTypeRef elem_type = LLVMInt64Type();
+         LLVMTypeRef array_type = LLVMArrayType(elem_type, map.nelems);
          values_glob = LLVMAddGlobal(module, array_type, istr(values_name));
          LLVMSetGlobalConstant(values_glob, true);
          LLVMSetLinkage(values_glob, LLVMLinkOnceAnyLinkage);
 
          LLVMValueRef *lvalues = xmalloc(sizeof(LLVMValueRef) * map.nelems);
          for (size_t i = 0; i < map.nelems; i++)
-            lvalues[i] = llvm_int64(map.values[i]);
+            lvalues[i] = LLVMConstInt(elem_type, map.values[i], false);
 
-         LLVMValueRef init = LLVMConstArray(array_type, lvalues, map.nelems);
+         LLVMValueRef init = LLVMConstArray(elem_type, lvalues, map.nelems);
          LLVMSetInitializer(values_glob, init);
 
          free(lvalues);
