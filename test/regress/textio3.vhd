@@ -30,6 +30,15 @@ begin
         file_close(tmp);
 
         check_content("hello, world");
+
+        -- Check corner case of reading LINE_BUFFER_SIZE characters (issue #393)
+        file_open(tmp, "tmp.txt", WRITE_MODE);
+        write(l, string'("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"));
+        writeline(tmp, l);
+        file_close(tmp);
+
+        check_content("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+
         wait;
     end process;
 

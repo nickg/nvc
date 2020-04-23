@@ -135,11 +135,12 @@ package body textio is
         variable tmp : line;
     begin
         assert l /= null;
-        assert size < l'length;
-        tmp := new string(1 to size);
-        tmp.all := l.all(1 to size);
-        deallocate(l);
-        l := tmp;
+        if size < l'length then
+            tmp := new string(1 to size);
+            tmp.all := l.all(1 to size);
+            deallocate(l);
+            l := tmp;
+        end if;
     end procedure;
 
     procedure consume (l : inout line; nchars : in natural) is
@@ -425,6 +426,8 @@ package body textio is
         assert good report "time read failed";
     end procedure;
 
+    constant LINE_BUFFER_SIZE : positive := 128;
+
     procedure readline (file f: text; l: inout line) is
         variable tmp  : line;
         variable ch   : string(1 to 1);
@@ -435,7 +438,7 @@ package body textio is
             deallocate(l);
         end if;
 
-        tmp := new string(1 to 128);
+        tmp := new string(1 to LINE_BUFFER_SIZE);
         loop
             exit when endfile(f);
 
@@ -448,7 +451,7 @@ package body textio is
                 exit;
             else
                 if used = tmp'length then
-                    grow(tmp, 128, used);
+                    grow(tmp, LINE_BUFFER_SIZE, used);
                 end if;
                 used := used + 1;
                 tmp(used) := ch(1);
