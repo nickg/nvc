@@ -100,6 +100,10 @@ AC_DEFUN([AX_LLVM_C], [
                                  [LLVM intrinsics have alignment param])
           fi
 
+          if test "$llvm_ver_num" -ge "80"; then
+            AC_MSG_WARN(LLVM 8 and later not yet supported)
+          fi
+
           LLVM_OBJ_EXT="o"
           case $host_os in
               *cygwin*|msys*|mingw32*)

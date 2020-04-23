@@ -2,7 +2,6 @@
 
 [![Build Status](https://travis-ci.org/nickg/nvc.svg?branch=master)](https://travis-ci.org/nickg/nvc)
 [![Windows status](https://ci.appveyor.com/api/projects/status/7eo8mjn98misbhva/branch/master?svg=true)](https://ci.appveyor.com/project/nickg72247/nvc/branch/master)
-[![Join the chat at https://gitter.im/nvc-vhdl/Lobby](https://badges.gitter.im/nvc-vhdl/Lobby.svg)](https://gitter.im/nvc-vhdl/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 NVC is a GPLv3 VHDL compiler and simulator aiming for IEEE 1076-2002 compliance. See
 these [blog posts](http://www.doof.me.uk/category/vhdl/) for background
@@ -52,7 +51,8 @@ To build from a released tarball:
     sudo make install
 
 To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
-to the configure command. LLVM 3.8 or later is required.
+to the configure command. LLVM 7 is recommended. Note that LLVM 8 and
+later are *not* supported at this time.
 
 NVC also depends GNU Flex to generate the lexical analyser.
 
