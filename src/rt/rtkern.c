@@ -58,7 +58,7 @@
 struct uarray;
 
 typedef void (*proc_fn_t)(int32_t reset);
-typedef uint64_t (*resolution_fn_t)(struct uarray u);
+typedef uint64_t (*resolution_fn_t)(const struct uarray *u);
 
 typedef struct netgroup   netgroup_t;
 typedef struct driver     driver_t;
@@ -1433,7 +1433,7 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
          struct uarray u = {
             args, { { memo->ileft, memo->ileft + 1, RANGE_TO } }
          };
-         memo->tab2[i][j] = (*fn)(u);
+         memo->tab2[i][j] = (*fn)(&u);
       }
    }
 
@@ -1444,7 +1444,7 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
    for (int i = 0; i < nlits; i++) {
       int8_t args[1] = { i };
       struct uarray u = { args, { { memo->ileft, memo->ileft, RANGE_TO } } };
-      memo->tab1[i] = (*fn)(u);
+      memo->tab1[i] = (*fn)(&u);
       identity = identity && (memo->tab1[i] == i);
    }
 
@@ -1776,7 +1776,7 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
                      group->resolution->ileft + group->n_drivers - 1,
                      RANGE_TO } }
       };
-      uint8_t *result = (uint8_t *)(*group->resolution->fn)(u);
+      uint8_t *result = (uint8_t *)(*group->resolution->fn)(&u);
       resolved = result + group_off;
    }
    else {
@@ -1800,7 +1800,7 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
                     group->resolution->ileft + group->n_drivers - 1,    \
                     RANGE_TO } }                                        \
             };                                                          \
-            r[j] = (*group->resolution->fn)(u);                         \
+            r[j] = (*group->resolution->fn)(&u);                        \
          } while (0)
 
          FOR_ALL_SIZES(group->size, CALL_RESOLUTION_FN);
