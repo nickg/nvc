@@ -3,11 +3,11 @@ language: c
 matrix:
   include:
     - os: linux
-      dist: trusty
+      dist: bionic
       sudo: false
       env:
         - COVERAGE=true
-        - CONFARGS="--enable-gcov --with-llvm=/usr/bin/llvm-config-3.8"
+        - CONFARGS="--enable-gcov --with-llvm=/usr/bin/llvm-config"
     - os: osx
 
 addons:
@@ -15,7 +15,7 @@ addons:
     packages:
       - automake
       - flex
-      - llvm-3.8-dev
+      - llvm-dev
       - check
       - lcov
 
@@ -29,7 +29,6 @@ before_install:
 install:
   - llvm-config --version
   - llvm-config --components
-  - ./tools/fetch-ieee.sh
 
 script:
   - ./autogen.sh

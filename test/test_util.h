@@ -6,6 +6,10 @@
 
 #include <check.h>
 
+#ifndef ck_assert_ptr_nonnull
+#define ck_assert_ptr_nonnull(p) ck_assert_ptr_ne(p, NULL)
+#endif
+
 #define parse_and_check(...) ({                                    \
          static const tree_kind_t array[] = { __VA_ARGS__ };       \
          _parse_and_check(array, ARRAY_LEN(array), false, false);  \
