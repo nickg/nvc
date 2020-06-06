@@ -421,6 +421,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
 
    case VCODE_OP_ALLOCA:
       defn->subkind = VCODE_ALLOCA_HEAP;
+      active_unit->flags &= ~UNIT_PURE;
       break;
 
    case VCODE_OP_INDEX:
