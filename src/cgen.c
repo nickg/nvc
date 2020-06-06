@@ -73,6 +73,7 @@ typedef enum {
    FUNC_ATTR_READONLY,
    FUNC_ATTR_NOCAPTURE,
    FUNC_ATTR_BYVAL,
+   FUNC_ATTR_UWTABLE,
 
    FUNC_ATTR_DLLEXPORT,   // Should be last
 } func_attr_t;
@@ -263,7 +264,7 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
 
 #if LLVM_NEW_ATTRIBUTE_API
    const char *names[] = {
-      "nounwind", "noreturn", "readonly", "nocapture", "byval"
+      "nounwind", "noreturn", "readonly", "nocapture", "byval", "uwtable",
    };
    assert(attr < ARRAY_LEN(names));
 
@@ -282,7 +283,8 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
       LLVMNoReturnAttribute,
       LLVMReadOnlyAttribute,
       LLVMNoCaptureAttribute,
-      LLVMByValAttribute
+      LLVMByValAttribute,
+      LLVMUWTable,
    };
    assert(attr < ARRAY_LEN(llvm_attrs));
 
@@ -3102,6 +3104,7 @@ static void cgen_function(LLVMTypeRef display_type)
 
    LLVMValueRef fn = cgen_signature(vcode_unit_name(), vcode_unit_result(),
                                     display_type, params, nparams);
+   cgen_add_func_attr(fn, FUNC_ATTR_UWTABLE, -1);
 
    const bool pure =
       display_type == NULL
@@ -3208,6 +3211,7 @@ static void cgen_procedure(LLVMTypeRef display_type)
 
    LLVMValueRef fn = cgen_signature(vcode_unit_name(), VCODE_INVALID_TYPE,
                                     display_type, params, nparams);
+   cgen_add_func_attr(fn, FUNC_ATTR_UWTABLE, -1);
 
    cgen_ctx_t ctx = {
       .fn = fn
@@ -3282,6 +3286,7 @@ static void cgen_process(vcode_unit_t code)
    LLVMValueRef fn = LLVMAddFunction(module, name, ftype);
    cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND, -1);
    cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT, -1);
+   cgen_add_func_attr(fn, FUNC_ATTR_UWTABLE, -1);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMBasicBlockRef reset_bb = LLVMAppendBasicBlock(fn, "reset");
@@ -3373,6 +3378,7 @@ static void cgen_reset_function(tree_t top)
       LLVMAddFunction(module, name,
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
    cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT, -1);
+   cgen_add_func_attr(fn, FUNC_ATTR_UWTABLE, -1);
 
    LLVMBasicBlockRef init_bb = NULL;
 
