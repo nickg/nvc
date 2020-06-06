@@ -831,7 +831,7 @@ static void eval_op_cast(int op, eval_state_t *state)
       dst->kind = VALUE_INTEGER;
       switch (src->kind) {
       case VALUE_INTEGER: dst->integer = src->integer; break;
-      case VALUE_REAL: dst->integer = (int64_t)src->real; break;
+      case VALUE_REAL: dst->integer = (int64_t)round(src->real); break;
       default: break;
       }
       break;

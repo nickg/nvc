@@ -1476,7 +1476,10 @@ static void cgen_op_cast(int op, cgen_ctx_t *ctx)
                                           cgen_reg_name(result));
    }
    else if (result_kind == VCODE_TYPE_INT && arg_kind == VCODE_TYPE_REAL) {
-      ctx->regs[result] = LLVMBuildFPToSI(builder, arg_ll,
+      LLVMValueRef args[] = { arg_ll };
+      LLVMValueRef rounded = LLVMBuildCall(builder, llvm_fn("llvm.round.f64"),
+                                           args, ARRAY_LEN(args), "");
+      ctx->regs[result] = LLVMBuildFPToSI(builder, rounded,
                                           cgen_type(result_type),
                                           cgen_reg_name(result));
    }
@@ -3727,6 +3730,14 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMDoubleType()
       };
       fn = LLVMAddFunction(module, "llvm.pow.f64",
+                           LLVMFunctionType(LLVMDoubleType(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "llvm.round.f64") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMDoubleType()
+      };
+      fn = LLVMAddFunction(module, "llvm.round.f64",
                            LLVMFunctionType(LLVMDoubleType(),
                                             args, ARRAY_LEN(args), false));
    }

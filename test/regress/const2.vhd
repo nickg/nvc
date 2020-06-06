@@ -56,7 +56,7 @@ begin
 
     process is
     begin
-        assert get_it = 16;
+        assert get_it = 17;
         assert some_bits(some_bits'right) = '1';
         assert a_bit = '0';
         wait;
