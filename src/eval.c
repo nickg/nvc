@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2017  Nick Gasson
+//  Copyright (C) 2013-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -495,6 +495,11 @@ static value_t *eval_get_var(vcode_var_t var, eval_state_t *state)
          vcode_select_block(0);
 
          context_t *new_context = eval_new_context(state);
+         if (new_context == NULL) {
+            state->failed = true;
+            return NULL;
+         }
+
          context->parent = new_context;
 
          eval_state_t new_state = {
