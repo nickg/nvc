@@ -1425,6 +1425,9 @@ static void eval_op_index_check(int op, eval_state_t *state)
 static void eval_op_image_map(int op, eval_state_t *state)
 {
    image_map_t *map = eval_alloc(sizeof(image_map_t), state);
+   if (map == NULL)
+      return;
+
    vcode_get_image_map(op, map);
 
    value_t *result = eval_get_reg(vcode_get_result(op), state);
@@ -2230,6 +2233,8 @@ tree_t eval(tree_t expr, eval_flags_t flags)
    vcode_select_block(0);
 
    context_t *context = eval_new_context(NULL);
+   if (context == NULL)
+      return expr;
 
    eval_state_t state = {
       .context = context,
