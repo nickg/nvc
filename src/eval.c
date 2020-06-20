@@ -29,7 +29,6 @@
 #include <float.h>
 
 #define MAX_DIMS   4
-#define EVAL_HEAP  (16 * 1024)
 #define ITER_LIMIT 1000
 
 typedef enum {
@@ -78,14 +77,20 @@ struct context {
    int        refcount;
 };
 
+struct eval_alloc_struct;
+typedef struct eval_alloc_struct eval_alloc_t;
+struct eval_alloc_struct {
+   eval_alloc_t *next;
+   char mem[];
+};
+
 typedef struct {
    context_t   *context;
    int          result;
    tree_t       fcall;
    eval_flags_t flags;
    bool         failed;
-   void        *heap;
-   size_t       halloc;
+   eval_alloc_t *allocations;
    loc_t        last_loc;
    int          iterations;
 } eval_state_t;
@@ -344,20 +349,10 @@ static void eval_assert_fail(int op, value_t *value, const char *value_str,
 
 static void *eval_alloc(size_t nbytes, eval_state_t *state)
 {
-   if (state->halloc + nbytes > EVAL_HEAP) {
-      EVAL_WARN(state->fcall, "evaluation heap exhaustion prevents "
-                "constant folding (%zu allocated, %zu requested)",
-                state->halloc, nbytes);
-      state->failed = true;
-      return NULL;
-   }
-
-   if (state->heap == NULL)
-      state->heap = xmalloc(EVAL_HEAP);
-
-   void *ptr = (char *)state->heap + state->halloc;
-   state->halloc += nbytes;
-   return ptr;
+   eval_alloc_t *new_alloc = xmalloc(sizeof(eval_alloc_t) + nbytes);
+   new_alloc->next = state->allocations;
+   state->allocations = new_alloc;
+   return new_alloc->mem;
 }
 
 static bool eval_new_var(value_t *value, vcode_type_t type, eval_state_t *state)
@@ -473,6 +468,19 @@ static void eval_free_context(context_t *context)
    }
 }
 
+void eval_cleanup_state(eval_state_t *state)
+{
+   eval_alloc_t *next, *current;
+   
+   eval_free_context(state->context);
+   for (current = state->allocations; current != NULL; current = next)
+   {
+      next = current->next;
+      free(current);
+   }
+   state->allocations = NULL;
+}
+
 static value_t *eval_get_reg(vcode_reg_t reg, eval_state_t *state)
 {
    return &(state->context->regs[reg]);
@@ -508,15 +516,13 @@ static value_t *eval_get_var(vcode_var_t var, eval_state_t *state)
             .fcall   = state->fcall,
             .failed  = false,
             .flags   = state->flags | EVAL_BOUNDS,
-            .heap    = state->heap,
-            .halloc  = state->halloc
+            .allocations = state->allocations
          };
 
          eval_vcode(&new_state);
          vcode_state_restore(&vcode_state);
 
-         state->heap = new_state.heap;
-         state->halloc = new_state.halloc;
+         state->allocations = new_state.allocations;
 
          if (new_state.failed) {
             state->failed = true;
@@ -939,15 +945,13 @@ static void eval_op_fcall(int op, eval_state_t *state)
       .fcall   = state->fcall,
       .failed  = false,
       .flags   = state->flags | EVAL_BOUNDS,
-      .heap    = state->heap,
-      .halloc  = state->halloc
+      .allocations = state->allocations
    };
 
    eval_vcode(&new);
    vcode_state_restore(&vcode_state);
 
-   state->heap = new.heap;
-   state->halloc = new.halloc;
+   state->allocations = new.allocations;
 
    if (new.failed)
       state->failed = true;
@@ -2250,8 +2254,7 @@ tree_t eval(tree_t expr, eval_flags_t flags)
    thunk = NULL;
 
    if (state.failed) {
-      eval_free_context(state.context);
-      free(state.heap);
+      eval_cleanup_state(&state);
       return expr;
    }
 
@@ -2267,8 +2270,7 @@ tree_t eval(tree_t expr, eval_flags_t flags)
    }
 
    tree_t tree = eval_value_to_tree(&result, type, tree_loc(expr));
-   eval_free_context(state.context);
-   free(state.heap);
+   eval_cleanup_state(&state);
    return tree;
 }
 
