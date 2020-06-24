@@ -2218,7 +2218,7 @@ static void cgen_op_vec_load(int op, cgen_ctx_t *ctx)
       llvm_void_cast(tmp),
       llvm_int32(0),
       LLVMBuildSub(builder, length, llvm_int32(1), "high"),
-      llvm_int1(vcode_get_subkind(op))
+      llvm_int32(vcode_get_subkind(op))
    };
 
    vcode_reg_t result = vcode_get_result(op);
@@ -3690,7 +3690,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_void_ptr(),
          LLVMInt32Type(),
          LLVMInt32Type(),
-         LLVMInt1Type()
+         LLVMInt32Type()
       };
       fn = LLVMAddFunction(module, "_vec_load",
                            LLVMFunctionType(llvm_void_ptr(),
