@@ -202,18 +202,21 @@ AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$system_cc"], [System compiler])
 
 case $host_os in
   *cygwin*|msys*|mingw32*)
-      implib_required=yes
-      dll_ext=dll
-      ;;
+    implib_required=yes
+    DLL_EXT=dll
+    LIB_EXT=obj
+    ;;
   *)
-      dll_ext=so
-      ;;
+    DLL_EXT=so
+    LIB_EXT=a
+    ;;
 esac
 if test x$implib_required = xyes ; then
   AC_DEFINE_UNQUOTED([IMPLIB_REQUIRED], [1], [Import library required])
 fi
-AC_DEFINE_UNQUOTED([DLL_EXT], ["$dll_ext"], [Dynamic library extension])
-
+AC_DEFINE_UNQUOTED([DLL_EXT], ["$DLL_EXT"], [Dynamic library extension])
+AC_SUBST(DLL_EXT)
+AC_SUBST(LIB_EXT)
 AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
 
 AC_ARG_ENABLE([vhpi],

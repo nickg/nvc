@@ -42,6 +42,11 @@ dnl In Autoconf 2.60, ${datadir} refers to ${datarootdir}, which in turn
 dnl refers to ${prefix}.  Thus we have to use `eval' twice.
   eval ax_define_dir="\"[$]$2\""
   eval ax_define_dir="\"$ax_define_dir\""
+  case $host_os in
+    msys*|mingw32*)
+      ax_define_dir="$(cygpath -w $ax_define_dir | sed 's|\\|\\\\|g')"
+      ;;
+  esac
   AC_SUBST($1, "$ax_define_dir")
   AC_DEFINE_UNQUOTED($1, "$ax_define_dir", [$3])
   test "$prefix_NONE" && prefix=NONE

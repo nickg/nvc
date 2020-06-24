@@ -5,10 +5,10 @@ nvc_DATA = \
 	lib/nvc/NVC.ENV \
 	lib/nvc/NVC.ENV-body
 
-nvc_so = lib/nvc/_NVC.ENV-body.so
+nvc_so = lib/nvc/_NVC.ENV-body.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
-nvc_DATA += lib/nvc/_NVC.ENV-body.a
+nvc_DATA += lib/nvc/_NVC.ENV-body.$(LIB_EXT)
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 nvc_SCRIPTS = $(nvc_so)

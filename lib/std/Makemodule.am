@@ -17,23 +17,23 @@ std_08_DATA = \
 	lib/std.08/STD.ENV-body
 
 std_so = \
-	lib/std/_STD.TEXTIO.so \
-	lib/std/_STD.TEXTIO-body.so
+	lib/std/_STD.TEXTIO.$(DLL_EXT) \
+	lib/std/_STD.TEXTIO-body.$(DLL_EXT)
 
 std_08_so = \
-	lib/std.08/_STD.TEXTIO.so \
-	lib/std.08/_STD.TEXTIO-body.so \
-	lib/std.08/_STD.ENV-body.so
+	lib/std.08/_STD.TEXTIO.$(DLL_EXT) \
+	lib/std.08/_STD.TEXTIO-body.$(DLL_EXT) \
+	lib/std.08/_STD.ENV-body.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
 
 std_DATA += \
-	lib/std/_STD.TEXTIO.a \
-	lib/std/_STD.TEXTIO-body.a
+	lib/std/_STD.TEXTIO.$(LIB_EXT) \
+	lib/std/_STD.TEXTIO-body.$(LIB_EXT)
 std_08_DATA += \
-	lib/std.08/_STD.TEXTIO.a \
-	lib/std.08/_STD.TEXTIO-body.a \
-	lib/std.08/_STD.ENV-body.a
+	lib/std.08/_STD.TEXTIO.$(LIB_EXT) \
+	lib/std.08/_STD.TEXTIO-body.$(LIB_EXT) \
+	lib/std.08/_STD.ENV-body.$(LIB_EXT)
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 std_SCRIPTS = $(std_so)
