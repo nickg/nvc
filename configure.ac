@@ -275,7 +275,7 @@ AC_ARG_ENABLE([gcov],
   [enable_gcov=$enableval],
   [])
 if test x$enable_gcov = xyes ; then
-  COV_CFLAGS="--coverage --no-inline -Og"
+  COV_CFLAGS="--coverage -fno-inline -Og"
   COV_LDFLAGS="--coverage"
   AC_MSG_WARN([code coverage with gcov is for use in development only])
 fi

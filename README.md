@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/nickg/nvc.svg?branch=master)](https://travis-ci.org/nickg/nvc)
 [![Windows status](https://ci.appveyor.com/api/projects/status/7eo8mjn98misbhva/branch/master?svg=true)](https://ci.appveyor.com/project/nickg72247/nvc/branch/master)
+[![Coverage Status](https://coveralls.io/repos/github/nickg/nvc/badge.svg)](https://coveralls.io/github/nickg/nvc?branch=coveralls)
 
 NVC is a GPLv3 VHDL compiler and simulator aiming for IEEE 1076-2002 compliance. See
 these [blog posts](http://www.doof.me.uk/category/vhdl/) for background

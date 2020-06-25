@@ -5,9 +5,6 @@ matrix:
     - os: linux
       dist: bionic
       sudo: false
-      env:
-        - COVERAGE=true
-        - CONFARGS="--enable-gcov --with-llvm=/usr/bin/llvm-config"
     - os: osx
 
 addons:
@@ -18,6 +15,8 @@ addons:
       - llvm-dev
       - check
       - lcov
+      - python3-pip
+      - python3-setuptools
 
 before_install:
   - >-
@@ -25,6 +24,7 @@ before_install:
       HOMEBREW_NO_AUTO_UPDATE=1 brew install llvm check
       export PATH=$PATH:$(brew --prefix llvm)/bin
     fi
+  - python3 -mpip install --user cpp-coveralls
       
 install:
   - llvm-config --version
@@ -32,23 +32,19 @@ install:
 
 script:
   - ./autogen.sh
-  - mkdir build && cd build
-  - ../configure --enable-vhpi $CONFARGS
-  - if [ -n "$COVERAGE" ]; then make cov-reset; fi
+  - >-
+    if [ "$TRAVIS_OS_NAME" = "osx" ]; then
+      ./configure --enable-vhpi
+    else
+      ./configure --enable-vhpi --enable-gcov --with-llvm=/usr/bin/llvm-config
+    fi
   - make check
 
 after_success:
-  - git config user.name "Travis CI"
-  - git config user.email "$COMMIT_AUTHOR_EMAIL"
   - >-
-    if [ -n "$COVERAGE" -a "$TRAVIS_BRANCH" = "master" ]; then
-      make cov-report
-      git clone https://$GITHUB_TOKEN:x-oauth-basic@github.com/nickg/nickg.github.io.git
-      cp -ra coverage nickg.github.io
-      cd nickg.github.io
-      git add --all
-      git commit -a -m "Travis CI coverage report"
-      git push origin master
+    if [ "$TRAVIS_OS_NAME" = "linux" ]; then
+      coveralls --gcov-options '\-lp' --exclude thirdparty \
+        --exclude build --exclude config.h --exclude src/lexer.c
     fi
 
 notifications:
