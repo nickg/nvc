@@ -4,7 +4,7 @@ environment:
       BITS: 64
     - SYSTEM: MSYS
       BITS: 32
-    - SYSTEM: CYGWIN
+#    - SYSTEM: CYGWIN
 
 install: 
   - IF "%BITS%" == "32" SET ARCH=i686

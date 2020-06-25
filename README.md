@@ -24,8 +24,8 @@ Report bugs using the [GitHub issue tracker](https://github.com/nickg/nvc/issues
 
 ### Installing
 
-NVC is developed on Debian Linux and is regularly tested on OS X and Windows under
-MSYS2 and Cygwin. Ports to other systems are welcome.
+NVC is developed on Debian Linux and is regularly tested on OS X and Windows
+under MSYS2. Ports to other systems are welcome.
 
 NVC has both a release branch and a development master branch. The master branch
 should be stable enough for day-to-day use and has comprehensive regression tests,
@@ -50,8 +50,8 @@ To build from a released tarball:
     make
     sudo make install
 
-To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
-to the configure command. LLVM 7, 8, and 9 have all been tested.
+To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config` to
+the configure command. LLVM 7, 8, and 9 have all been tested.
 
 NVC also depends GNU Flex to generate the lexical analyser.
 
@@ -63,8 +63,8 @@ waveforms. Version 3.3.79 or later is reqiured for the default FST format.
 
 #### Debian and Ubuntu
 
-On a Debian derivative the following should be sufficient to install all required
-dependencies:
+On a Debian derivative the following should be sufficient to install all
+required dependencies:
 
     sudo apt-get install build-essential automake autoconf autoconf-archive flex \
         check llvm-dev pkg-config zlib1g-dev curl
@@ -75,7 +75,8 @@ The easiest way to install NVC on OS X is with [Homebrew](http://brew.sh/).
 
     brew install nvc
 
-This will install the latest stable version. The current git master can be installed with
+This will install the latest stable version. The current git master can be
+installed with
 
     brew install --HEAD nvc
 
@@ -83,7 +84,7 @@ To build from source follow the generic instructions above.
 
 #### Windows
 
-Windows support is via [Cygwin](http://www.cygwin.com/) or MinGW.
+Windows support is via MinGW or [Cygwin](http://www.cygwin.com/).
 
 If you do not already have Cygwin it is easiest to build for MinGW using
 [MSYS2](https://msys2.github.io/). Install the following dependencies using
@@ -96,9 +97,9 @@ If you do not already have Cygwin it is easiest to build for MinGW using
     make install
 
 For Cygwin use `setup.exe` to install either `gcc` or `clang` and the following
-dependencies: `automake`, `autoconf`, `pkg-config`, `llvm`, `libllvm-devel`, `flex`,
-`libffi-devel`, `libcurses-devel`, `curl`, and `make`. Then follow the standard
-installation instructions above.
+dependencies: `automake`, `autoconf`, `pkg-config`, `llvm`, `libllvm-devel`,
+`flex`, `libffi-devel`, `libcurses-devel`, `curl`, and `make`. Then follow the
+standard installation instructions above.
 
 #### OpenBSD
 
@@ -106,8 +107,8 @@ Install the dependencies with `pkg_add`:
 
     pkg_add -r automake-1.15p0 autoconf-2.69p2 libexecinfo llvm check libexecinfo
 
-Use a modern compiler such as Clang to build, as the system GCC does not support many modern
-language features.
+Use a modern compiler such as Clang to build, as the system GCC does not support
+many modern language features.
 
     ./configure --with-llvm=/usr/local/bin/llvm-config CC=clang CXX=clang++
 
@@ -115,10 +116,10 @@ Then follow the generic instructions above.
 
 #### IEEE Libraries
 
-The source files for the IEEE standard libraries are included in the
-repository for convenience but the license forbids distribution of
-modifications. See [lib/ieee/README.iee](lib/ieee/README.ieee) for
-details. These files can also be downloaded from the [IEEE
+The source files for the IEEE standard libraries are included in the repository
+for convenience but the license forbids distribution of modifications. See
+[lib/ieee/README.ieee](lib/ieee/README.ieee) for details. These files can also
+be downloaded from the [IEEE
 SA](https://standards.ieee.org/content/dam/ieee-standards/standards/web/download/).
 
 To recompile the standard libraries:
