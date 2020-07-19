@@ -1,8 +1,16 @@
-## master
+## 1.5 - 2020-07-19
 - Updated FST library to match GtkWave 3.3.79
 - The LXT wave output format is deprecated, use FST instead
-- Fix incorrect file name in assertion message (#387)
-- Fix crash while recovering from parse error (#388)
+- Fix incorrect file name in assertion message
+- Fix crash while recovering from parse error
+- Add `--dump-json` command to print AST as JSON (from Sebastien Van
+  Cauwenberghe)
+- Fix crash when using LLVM 7 and later
+- Fix spurious assertion failure in `std.textio.readline`
+- Reals are now rounded to the nearest integer as specified by the LRM
+- Fix crash when constant folding uses too much memory
+- Improved memory management in evaluator (thanks to Frank Mori Hess)
+- Various other minor fixes and improvements
 
 ## 1.4 - 2018-07-16
 - Windows with MSYS2 is now fully supported
