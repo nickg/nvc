@@ -1,4 +1,5 @@
 ## 1.5 - 2020-07-19
+- IEEE library sources are now distributed
 - Updated FST library to match GtkWave 3.3.79
 - The LXT wave output format is deprecated, use FST instead
 - Fix incorrect file name in assertion message

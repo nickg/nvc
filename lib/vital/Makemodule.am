@@ -36,6 +36,14 @@ vital_DATA += $(vital_so)
 
 endif  # IMPLIB_REQUIRED
 
+EXTRA_DIST += \
+	lib/vital/timing_b.vhdl \
+	lib/vital/timing_p.vhdl \
+	lib/vital/prmtvs_b.vhdl \
+	lib/vital/memory_p.vhdl \
+	lib/vital/memory_b.vhdl \
+	lib/vital/prmtvs_p.vhdl
+
 lib/ieee/_NVC_LIB:
 
 lib/ieee/_index:

@@ -54,6 +54,18 @@ ieee_DATA += $(ieee_so)
 
 endif  # IMPLIB_REQUIRED
 
+EXTRA_DIST += \
+	lib/ieee/numeric_bit.vhdl \
+	lib/ieee/math_complex-body.vhdl \
+	lib/ieee/math_real-body.vhdl \
+	lib/ieee/numeric_bit-body.vhdl \
+	lib/ieee/numeric_std.vhdl \
+	lib/ieee/std_logic_1164-body.vhdl \
+	lib/ieee/math_complex.vhdl \
+	lib/ieee/std_logic_1164.vhdl \
+	lib/ieee/math_real.vhdl \
+	lib/ieee/numeric_std-body.vhdl
+
 lib/ieee/_NVC_LIB:
 
 lib/ieee/_index:
