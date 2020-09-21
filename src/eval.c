@@ -471,7 +471,7 @@ static void eval_free_context(context_t *context)
 void eval_cleanup_state(eval_state_t *state)
 {
    eval_alloc_t *next, *current;
-   
+
    eval_free_context(state->context);
    for (current = state->allocations; current != NULL; current = next)
    {
@@ -1313,23 +1313,28 @@ static void eval_op_copy(int op, eval_state_t *state)
 {
    value_t *dst = eval_get_reg(vcode_get_arg(op, 0), state);
    value_t *src = eval_get_reg(vcode_get_arg(op, 1), state);
-   value_t *count = eval_get_reg(vcode_get_arg(op, 2), state);
 
    EVAL_ASSERT_VALUE(op, dst, VALUE_POINTER);
    EVAL_ASSERT_VALUE(op, src, VALUE_POINTER);
-   EVAL_ASSERT_VALUE(op, count, VALUE_INTEGER);
+
+   int count = 1;
+   if (vcode_count_args(op) > 2) {
+      value_t *count_val = eval_get_reg(vcode_get_arg(op, 2), state);
+      EVAL_ASSERT_VALUE(op, count_val, VALUE_INTEGER);
+      count = count_val->integer;
+   }
 
    const uintptr_t dstp = (uintptr_t)dst->pointer;
    const uintptr_t srcp = (uintptr_t)src->pointer;
 
-   if (dstp - srcp >= (uintptr_t)(count->integer * sizeof(value_t))) {
+   if (dstp - srcp >= (uintptr_t)(count * sizeof(value_t))) {
       // Copy forwards
-      for (int i = 0; i < count->integer; i++)
+      for (int i = 0; i < count; i++)
          dst->pointer[i] = src->pointer[i];
    }
    else {
       // Copy backwards for overlapping case
-      for (int i = count->integer - 1; i >= 0; i--)
+      for (int i = count - 1; i >= 0; i--)
          dst->pointer[i] = src->pointer[i];
    }
 }
