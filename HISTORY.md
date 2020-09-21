@@ -1,3 +1,6 @@
+## master
+- Fix a constant folding crash with nested records.
+
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed
 - Updated FST library to match GtkWave 3.3.79

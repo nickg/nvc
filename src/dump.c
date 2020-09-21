@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2019  Nick Gasson
+//  Copyright (C) 2011-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -199,7 +199,7 @@ static void dump_expr(tree_t t)
             dump_expr(value);
             break;
          case A_OTHERS:
-            printf("others => ");
+            syntax("#others => ");
             dump_expr(value);
             break;
          case A_RANGE:
@@ -748,7 +748,7 @@ static void dump_stmt(tree_t t, int indent)
       printf(";");
       if (tree_attr_int(t, ident_new("static"), 0))
          syntax("   -- static");
-      printf("\n");
+      syntax("\n");
       return;
 
    case T_BLOCK:
