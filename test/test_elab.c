@@ -629,6 +629,22 @@ START_TEST(test_issue374)
 }
 END_TEST
 
+START_TEST(test_issue404)
+{
+   input_from_file(TESTDIR "/elab/issue404.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t p0 = tree_stmt(e, 0);
+   fail_unless(tree_kind(p0) == T_PROCESS);
+   tree_t s0 = tree_stmt(p0, 0);
+   fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
+   tree_t v0 = tree_value(tree_waveform(s0, 0));
+   fail_unless(tree_kind(v0) == T_AGGREGATE);
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -675,6 +691,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue232);
    tcase_add_test(tc, test_issue373);
    tcase_add_test(tc, test_issue374);
+   tcase_add_test(tc, test_issue404);
    suite_add_tcase(s, tc);
 
    return s;
