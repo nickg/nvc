@@ -56,9 +56,6 @@ the configure command. LLVM 7, 8, and 9 have all been tested.
 
 NVC also depends GNU Flex to generate the lexical analyser.
 
-If a readline-compatible library is installed it will be used to provide
-line editing in the interactive mode.
-
 [GtkWave](http://gtkwave.sourceforge.net/) can be used to view simulation
 waveforms. Version 3.3.79 or later is reqiured for the default FST format.
 

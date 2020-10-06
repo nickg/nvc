@@ -1306,8 +1306,23 @@ void vcode_dump_with_mark(int mark_op)
             color_printf("    Shadow $magenta$%s$$\n",
                          istr(vcode_var_name(s->shadow)));
          printf("    Nets   [");
-         for (size_t j = 0; j < s->nnets; j++)
-            printf("%s%d", j > 0 ? "," : "", s->nets[j]);
+         netid_t last_nid = NETID_INVALID;
+         size_t last_printed = 0;
+         for (size_t j = 0; j < s->nnets; j++) {
+            if (j == 0)
+               printf("%d", s->nets[j]);
+            else if (s->nets[j] == last_nid + 1) {
+               if (j + 1 == s->nnets)
+                  printf("..%d", s->nets[j]);
+            }
+            else {
+               if (last_printed != j - 1)
+                  printf("..%d", s->nets[j - 1]);
+               printf(",%d", s->nets[j]);
+               last_printed = j;
+            }
+            last_nid = s->nets[j];
+         }
          printf("]\n");
       }
    }
