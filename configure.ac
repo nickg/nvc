@@ -283,8 +283,8 @@ AC_SUBST(COV_CFLAGS)
 AC_SUBST(COV_LDFLAGS)
 AM_CONDITIONAL([ENABLE_GCOV], [test x$enable_gcov = xyes])
 
-AC_CHECK_PROG([RONN], [ronn], [1])
-AM_CONDITIONAL([HAVE_RONN], [test -n "$RONN"])
+AC_CHECK_PROG([PANDOC], [pandoc], [1])
+AM_CONDITIONAL([HAVE_PANDOC], [test -n "$PANDOC"])
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])

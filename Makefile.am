@@ -38,9 +38,9 @@ include lib/nvc/Makemodule.am
 include lib/synopsys/Makemodule.am
 include tools/Makemodule.am
 
-if HAVE_RONN
+if HAVE_PANDOC
 nvc.1: nvc.1.md
-	$(AM_V_GEN)ronn --roff $(top_srcdir)/nvc.1.md --manual="NVC Manual"
+	$(AM_V_GEN)pandoc -s -t man $(top_srcdir)/nvc.1.md -o $(top_srcdir)/nvc.1
 endif
 
 gtags:
