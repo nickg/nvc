@@ -1554,6 +1554,19 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
       else
          return lower_protected_var(decl);
    }
+
+   const int depth = tree_attr_int(decl, nested_i, 0);
+   if (depth > 0 && vcode_unit_depth() != depth) {
+      vcode_reg_t ptr_reg = emit_var_upref(vcode_unit_depth() - depth, var);
+      if (ctx == EXPR_LVALUE)
+         return ptr_reg;
+      else if (type_is_scalar(type))
+         return emit_load_indirect(ptr_reg);
+      else if (type_is_array(type) && !lower_const_bounds(type))
+         return emit_load_indirect(ptr_reg);
+      else
+         return ptr_reg;
+   }
    else if (type_is_array(type) && lower_const_bounds(type))
       return emit_index(var, VCODE_INVALID_REG);
    else if (type_is_record(type) || type_is_protected(type))
@@ -4544,8 +4557,11 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
       }
       else if (kind == T_PROT_BODY)
          lower_protected_constants(d);
-      else if (scope_kind != T_PROT_BODY)
+      else if (scope_kind != T_PROT_BODY) {
          lower_decl(d);
+         if (nested)
+            tree_add_attr_int(d, nested_i, nest_depth + 1);
+      }
    }
 
    for (int i = 0; i < ndecls; i++) {

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2019  Nick Gasson
+//  Copyright (C) 2011-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1673,6 +1673,26 @@ static void cgen_op_param_upref(int op, cgen_ctx_t *ctx)
                                              cgen_reg_name(result));
 }
 
+static void cgen_op_var_upref(int op, cgen_ctx_t *ctx)
+{
+   const int hops = vcode_get_hops(op);
+
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   for (int i = 0; i < hops; i++)
+      vcode_select_unit(vcode_unit_context());
+
+   vcode_state_restore(&state);
+
+   LLVMValueRef display = cgen_display_upref(hops, ctx);
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildExtractValue(builder, display,
+                                             vcode_var_index(vcode_get_address(op)),
+                                             cgen_reg_name(result));
+}
+
 static void cgen_op_resolved_address(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef args[] = {
@@ -2853,6 +2873,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_PARAM_UPREF:
       cgen_op_param_upref(i, ctx);
+      break;
+   case VCODE_OP_VAR_UPREF:
+      cgen_op_var_upref(i, ctx);
       break;
    case VCODE_OP_RESOLVED_ADDRESS:
       cgen_op_resolved_address(i, ctx);

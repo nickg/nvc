@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2018  Nick Gasson
+//  Copyright (C) 2014-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -38,7 +38,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_CAST || VCODE_OP_CONST_RECORD)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
-    || x == VCODE_OP_RESOLVED_ADDRESS)
+    || x == VCODE_OP_RESOLVED_ADDRESS || x == VCODE_OP_VAR_UPREF)
 #define OP_HAS_SUBKIND(x)                                               \
    (x == VCODE_OP_SCHED_EVENT || x == VCODE_OP_BOUNDS                   \
     || x == VCODE_OP_VEC_LOAD || x == VCODE_OP_BIT_VEC_OP               \
@@ -60,7 +60,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_UARRAY_DIR || x == VCODE_OP_UARRAY_LEN)
 #define OP_HAS_HOPS(x)                                                  \
    (x == VCODE_OP_PARAM_UPREF || x == VCODE_OP_NESTED_FCALL             \
-    || x == VCODE_OP_NESTED_PCALL || x == VCODE_OP_NESTED_RESUME)
+    || x == VCODE_OP_NESTED_PCALL || x == VCODE_OP_NESTED_RESUME        \
+    || x == VCODE_OP_VAR_UPREF)
 #define OP_HAS_FIELD(x)                                                 \
    (x == VCODE_OP_RECORD_REF)
 #define OP_HAS_CMP(x)                                                   \
@@ -1074,7 +1075,7 @@ const char *vcode_op_string(vcode_op_t op)
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
       "uarray len", "heap save", "heap restore", "nested resume", "undefined",
-      "image map", "debug info", "addi", "range null"
+      "image map", "debug info", "addi", "range null", "var upref"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1218,7 +1219,7 @@ static void vcode_dump_result_type(int col, const op_t *op)
    }
 }
 
-static int vcode_dump_var(vcode_var_t var)
+static int vcode_dump_var(vcode_var_t var, int hops)
 {
    if (MASK_CONTEXT(var) != active_unit->depth) {
       vcode_unit_t owner = active_unit;
@@ -1227,8 +1228,13 @@ static int vcode_dump_var(vcode_var_t var)
       return color_printf("$magenta$%s@%s$$", istr(vcode_var_name(var)),
                           istr(owner->name));
    }
-   else
-      return color_printf("$magenta$%s$$", istr(vcode_var_name(var)));
+   else {
+      vcode_unit_t owner = active_unit;
+      while (hops--)
+        owner = owner->context;
+      var_t *v = var_array_nth_ptr(&(owner->vars), MASK_INDEX(var));
+      return color_printf("$magenta$%s$$", istr(v->name));
+   }
 }
 
 void vcode_dump_with_mark(int mark_op)
@@ -1487,7 +1493,7 @@ void vcode_dump_with_mark(int mark_op)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_var(op->address);
+               col += vcode_dump_var(op->address, 0);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -1503,7 +1509,7 @@ void vcode_dump_with_mark(int mark_op)
 
          case VCODE_OP_STORE:
             {
-               vcode_dump_var(op->address);
+               vcode_dump_var(op->address, 0);
                printf(" := %s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
             }
@@ -1521,7 +1527,7 @@ void vcode_dump_with_mark(int mark_op)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_var(op->address);
+               col += vcode_dump_var(op->address, 0);
                if (op->args.count > 0) {
                   col += printf(" + ");
                   col += vcode_dump_reg(op->args.items[0]);
@@ -1775,9 +1781,19 @@ void vcode_dump_with_mark(int mark_op)
             }
             break;
 
+         case VCODE_OP_VAR_UPREF:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s %d, ", vcode_op_string(op->kind),
+                             op->hops);
+               col += vcode_dump_var(op->address, op->hops);
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
          case VCODE_OP_RESOLVED_ADDRESS:
             {
-               vcode_dump_var(op->address);
+               vcode_dump_var(op->address, 0);
                color_printf(" := %s $white$%s$$", vcode_op_string(op->kind),
                             istr(vcode_signal_name(op->signal)));
             }
@@ -4164,6 +4180,39 @@ vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg)
 
    reg_t *rr = vcode_reg_data(op->result);
    rr->bounds = p->bounds;
+
+   return op->result;
+}
+
+vcode_reg_t emit_var_upref(int hops, vcode_var_t var)
+{
+   op_t *op = vcode_add_op(VCODE_OP_VAR_UPREF);
+   op->hops    = hops;
+   op->address = var;
+
+   VCODE_ASSERT(hops > 0, "invalid hop count");
+
+   vcode_unit_t vu = active_unit;
+   for (int i = 0; i < hops; i++)
+      vu = vu->context;
+
+   VCODE_ASSERT(vu->kind != VCODE_UNIT_CONTEXT,
+                "upref context is not a subprogram or process");
+   VCODE_ASSERT(MASK_INDEX(var) < vu->vars.count, "upref is not a variable");
+
+   var_t *v = &(vu->vars.items[MASK_INDEX(var)]);
+
+   switch (vtype_kind(v->type)) {
+   case VCODE_TYPE_CARRAY:
+      op->result = vcode_add_reg(vtype_pointer(vtype_elem(v->type)));
+      break;
+   default:
+      op->result = vcode_add_reg(vtype_pointer(v->type));
+      break;
+   }
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->bounds = v->bounds;
 
    return op->result;
 }

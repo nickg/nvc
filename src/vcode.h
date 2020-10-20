@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2017  Nick Gasson
+//  Copyright (C) 2014-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -133,6 +133,7 @@ typedef enum {
    VCODE_OP_DEBUG_INFO,
    VCODE_OP_ADDI,
    VCODE_OP_RANGE_NULL,
+   VCODE_OP_VAR_UPREF
 } vcode_op_t;
 
 typedef enum {
@@ -409,6 +410,7 @@ vcode_reg_t emit_unwrap(vcode_reg_t array);
 vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg);
+vcode_reg_t emit_var_upref(int hops, vcode_var_t var);
 void emit_resolved_address(vcode_var_t var, vcode_signal_t signal);
 void emit_set_initial(vcode_signal_t signal, vcode_reg_t value,
                       vcode_res_fn_t *resolution);

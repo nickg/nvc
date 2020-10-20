@@ -255,6 +255,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_PARAM_UPREF:
+      case VCODE_OP_VAR_UPREF:
          if (vcode_get_hops(i) != e->hops) {
             vcode_dump_with_mark(i);
             fail("expect op %d in block %d to have hop count %d"
@@ -1077,7 +1078,8 @@ START_TEST(test_nest1)
                        ":nest1:line_7_LINE_7.ADD_TO_X_DO_IT()I"));
 
       EXPECT_BB(0) = {
-         { VCODE_OP_LOAD, .name = "LINE_7.X" },
+         { VCODE_OP_VAR_UPREF, .hops = 2 },
+         { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_PARAM_UPREF, .hops = 1 },
          { VCODE_OP_ADD },
          { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
