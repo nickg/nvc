@@ -210,6 +210,10 @@ START_TEST(test_icmp)
    fail_if(icmp(i, "cake"));
    fail_if(icmp(i, "fooba"));
    fail_if(icmp(j, "cakesniffer"));
+
+   fail_unless(icmp(NULL, NULL));
+   fail_if(icmp(NULL, "one"));
+   fail_if(icmp(i, NULL));
 }
 END_TEST;
 

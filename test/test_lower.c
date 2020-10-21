@@ -254,8 +254,27 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          break;
 
-      case VCODE_OP_PARAM_UPREF:
       case VCODE_OP_VAR_UPREF:
+         {
+            vcode_state_t state;
+            vcode_state_save(&state);
+
+            vcode_var_t address = vcode_get_address(i);
+            int hops = vcode_get_hops(i);
+            while (hops--)
+               vcode_select_unit(vcode_unit_context());
+
+            if (!icmp(vcode_var_name(address), e->name)) {
+               vcode_dump_with_mark(i);
+               fail("expect op %d in block %d to have address %s"
+                    " but has %s", i, bb, e->name, istr(vcode_var_name(address)));
+            }
+
+            vcode_state_restore(&state);
+         }
+         // Fall-through
+
+      case VCODE_OP_PARAM_UPREF:
          if (vcode_get_hops(i) != e->hops) {
             vcode_dump_with_mark(i);
             fail("expect op %d in block %d to have hop count %d"
@@ -593,7 +612,8 @@ START_TEST(test_signal1)
 
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
-         { VCODE_OP_LOAD, .name = "resolved_:signal1:x" },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:signal1:x" },
+         { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -635,7 +655,8 @@ START_TEST(test_cond1)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_LOAD, .name = "resolved_:cond1:x" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:cond1:x" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD, .name = "Y" },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -653,7 +674,8 @@ START_TEST(test_cond1)
    CHECK_BB(2);
 
    EXPECT_BB(3) = {
-      { VCODE_OP_LOAD, .name = "resolved_:cond1:x" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:cond1:x" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD, .name = "Y" },
       { VCODE_OP_ADDI, .value = 1 },
@@ -1078,7 +1100,7 @@ START_TEST(test_nest1)
                        ":nest1:line_7_LINE_7.ADD_TO_X_DO_IT()I"));
 
       EXPECT_BB(0) = {
-         { VCODE_OP_VAR_UPREF, .hops = 2 },
+         { VCODE_OP_VAR_UPREF, .hops = 2, .name = "LINE_7.X" },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_PARAM_UPREF, .hops = 1 },
          { VCODE_OP_ADD },
@@ -1287,7 +1309,8 @@ START_TEST(test_signal4)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_LOAD, .name = "resolved_:signal4:s" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:signal4:s" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_ADDI, .value = 1 },
@@ -1296,6 +1319,7 @@ START_TEST(test_signal4)
       { VCODE_OP_NETS, .name = ":signal4:s" },
       { VCODE_OP_CONST, .value = 4 },
       { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_COPY },
       { VCODE_OP_WAIT, .target = 2 }
    };
@@ -1948,10 +1972,12 @@ START_TEST(test_cover)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_COVER_STMT, .tag = 2 },
-      { VCODE_OP_LOAD, .name = "resolved_:cover:s" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:cover:s" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COVER_COND, .tag = 0, .subkind = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 10 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
@@ -2363,7 +2389,8 @@ START_TEST(test_choice1)
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CONST, .value = 4 },
       { VCODE_OP_CONST, .value = 5 },
-      { VCODE_OP_LOAD, .name = "resolved_:choice1:s" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:choice1:s" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CASE },
    };

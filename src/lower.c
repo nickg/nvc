@@ -40,9 +40,10 @@ typedef enum {
 
 #define MAX_CASE_ARCS 32
 
-typedef struct case_arc   case_arc_t;
-typedef struct case_state case_state_t;
-typedef struct loop_stack loop_stack_t;
+typedef struct case_arc    case_arc_t;
+typedef struct case_state  case_state_t;
+typedef struct loop_stack  loop_stack_t;
+typedef struct lower_scope lower_scope_t;
 
 struct loop_stack {
    loop_stack_t  *up;
@@ -76,10 +77,15 @@ typedef enum {
    SHORT_CIRCUIT_NOR
 } short_circuit_op_t;
 
-static const char  *verbose = NULL;
-static bool         tmp_alloc_used = false;
-static lower_mode_t mode = LOWER_NORMAL;
-static hash_t      *vcode_objs = NULL;
+struct lower_scope {
+   hash_t        *objects;
+   lower_scope_t *down;
+};
+
+static const char    *verbose        = NULL;
+static bool           tmp_alloc_used = false;
+static lower_mode_t   mode           = LOWER_NORMAL;
+static lower_scope_t *top_scope      = NULL;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_reify_expr(tree_t expr);
@@ -1454,45 +1460,71 @@ static vcode_reg_t lower_literal(tree_t lit, expr_ctx_t ctx)
    }
 }
 
-static int lower_get_vcode_obj(tree_t t)
+static void lower_push_scope(void)
 {
-   if (vcode_objs == NULL)
+   lower_scope_t *new = xmalloc(sizeof(lower_scope_t));
+   new->down    = top_scope;
+   new->objects = hash_new(128, true);
+
+   top_scope = new;
+}
+
+static void lower_pop_scope(void)
+{
+   lower_scope_t *tmp = top_scope;
+   top_scope = tmp->down;
+   hash_free(tmp->objects);
+   free(tmp);
+}
+
+static lower_scope_t *lower_bottom_scope(void)
+{
+   lower_scope_t *it;
+   for (it = top_scope; it->down; it = it->down)
+      ;
+   return it;
+}
+
+static int lower_get_vcode_obj(tree_t t, lower_scope_t *scope)
+{
+   if (scope == NULL)
       return VCODE_INVALID_REG;
    else {
-      const void *ptr = hash_get(vcode_objs, t);
+      const void *ptr = hash_get(scope->objects, t);
       return (uintptr_t)ptr - 1;
    }
 }
 
-static void lower_put_vcode_obj(tree_t t, int obj)
+static int lower_search_vcode_obj(tree_t t, lower_scope_t *scope, int *hops)
 {
-   hash_put(vcode_objs, t, (void *)(uintptr_t)(obj + 1));
+   *hops = 0;
+   while (scope != NULL) {
+      const void *ptr = hash_get(scope->objects, t);
+      const int obj = (uintptr_t)ptr - 1;
+      if (obj != VCODE_INVALID_REG)
+         return obj;
+      (*hops)++;
+      scope = scope->down;
+   }
+
+   return VCODE_INVALID_REG;
 }
 
-static vcode_var_t lower_get_var(tree_t decl)
+static void lower_put_vcode_obj(tree_t t, int obj, lower_scope_t *scope)
 {
-   vcode_var_t var = lower_get_vcode_obj(decl);
+   hash_put(scope->objects, t, (void *)(uintptr_t)(obj + 1));
+}
+
+static vcode_var_t lower_get_var(tree_t decl, int *hops)
+{
+   vcode_var_t var = lower_search_vcode_obj(decl, top_scope, hops);
 
    const bool is_extern =
       var == VCODE_INVALID_VAR
       && tree_attr_int(decl, prot_field_i, -1) == -1
       && mode == LOWER_NORMAL;
 
-   if (is_extern) {
-      vcode_state_t state;
-      vcode_state_save(&state);
-
-      while (vcode_unit_kind() != VCODE_UNIT_CONTEXT)
-         vcode_select_unit(vcode_unit_context());
-
-      type_t type = tree_type(decl);
-      var = emit_extern_var(lower_type(type), lower_bounds(type),
-                            tree_ident(decl));
-
-      vcode_state_restore(&state);
-   }
-
-   return var;
+   return is_extern ? VCODE_INVALID_VAR : var;
 }
 
 static vcode_signal_t lower_get_signal(tree_t decl)
@@ -1500,7 +1532,7 @@ static vcode_signal_t lower_get_signal(tree_t decl)
    if (mode == LOWER_THUNK)
       return emit_undefined(vtype_signal(lower_type(tree_type(decl))));
 
-   vcode_signal_t sig = lower_get_vcode_obj(decl);
+   vcode_signal_t sig = lower_get_vcode_obj(decl, lower_bottom_scope());
    if (sig == VCODE_INVALID_SIGNAL) {
       vcode_state_t state;
       vcode_state_save(&state);
@@ -1511,7 +1543,7 @@ static vcode_signal_t lower_get_signal(tree_t decl)
 
       sig = emit_signal(vtype_signal(lower_type(type)), lower_bounds(type),
                         ident_new(name), VCODE_INVALID_VAR, NULL, 0, true);
-      lower_put_vcode_obj(decl, sig);
+      lower_put_vcode_obj(decl, sig, lower_bottom_scope());
 
       vcode_state_restore(&state);
    }
@@ -1534,7 +1566,8 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
 {
    type_t type = tree_type(decl);
 
-   vcode_var_t var = lower_get_var(decl);
+   int hops = 0;
+   vcode_var_t var = lower_get_var(decl, &hops);
    if (var == VCODE_INVALID_VAR) {
       if (mode == LOWER_THUNK) {
          if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl))
@@ -1551,13 +1584,27 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
                return emit_undefined(vtype);
          }
       }
-      else
+      else if (tree_attr_int(decl, prot_field_i, -1) != -1)
          return lower_protected_var(decl);
+      else {
+         // External variable
+         vcode_state_t state;
+         vcode_state_save(&state);
+
+         while (vcode_unit_kind() != VCODE_UNIT_CONTEXT)
+            vcode_select_unit(vcode_unit_context());
+
+         type_t type = tree_type(decl);
+         var = emit_extern_var(lower_type(type), lower_bounds(type),
+                               tree_ident(decl));
+         lower_put_vcode_obj(decl, var, lower_bottom_scope());
+
+         vcode_state_restore(&state);
+      }
    }
 
-   const int depth = tree_attr_int(decl, nested_i, 0);
-   if (depth > 0 && vcode_unit_depth() != depth) {
-      vcode_reg_t ptr_reg = emit_var_upref(vcode_unit_depth() - depth, var);
+   if (hops > 0) {
+      vcode_reg_t ptr_reg = emit_var_upref(hops, var);
       if (ctx == EXPR_LVALUE)
          return ptr_reg;
       else if (type_is_scalar(type))
@@ -1591,7 +1638,8 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
    else {
       vcode_var_t shadow = vcode_signal_shadow(sig);
       if (shadow != VCODE_INVALID_VAR) {
-         vcode_reg_t r = emit_load(shadow);
+         vcode_reg_t ptr_reg = emit_var_upref(vcode_unit_depth(), shadow);
+         vcode_reg_t r = emit_load_indirect(ptr_reg);
          if (type_is_array(type) || type_is_record(type))
             return r;
          else
@@ -1604,7 +1652,8 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
 
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
 {
-   vcode_reg_t reg = lower_get_vcode_obj(decl);
+   int hops = 0;
+   vcode_reg_t reg = lower_search_vcode_obj(decl, top_scope, &hops);
 
    const bool undefined_in_thunk =
       mode == LOWER_THUNK && (reg == VCODE_INVALID_REG
@@ -1628,9 +1677,8 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
                   istr(tree_ident(decl)));
    }
 
-   const int depth = tree_attr_int(decl, nested_i, 0);
-   if (depth > 0 && vcode_unit_depth() != depth)
-      return emit_param_upref(vcode_unit_depth() - depth, reg);
+   if (hops > 0)
+      return emit_param_upref(hops, reg);
    else
       return reg;
 }
@@ -3273,11 +3321,13 @@ static void lower_var_assign(tree_t stmt)
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
       vcode_reg_t loaded_value = lower_reify(value_reg);
       vcode_var_t var = VCODE_INVALID_VAR;
+      int hops = 0;
       if (is_scalar)
          lower_check_scalar_bounds(loaded_value, type, stmt, NULL);
       if (is_var_decl
-          && (var = lower_get_var(tree_ref(target))) != VCODE_INVALID_VAR)
-         emit_store(loaded_value, lower_get_var(tree_ref(target)));
+          && (var = lower_get_var(tree_ref(target), &hops)) != VCODE_INVALID_VAR
+          && hops == 0)
+         emit_store(loaded_value, var);
       else
          emit_store_indirect(loaded_value, lower_expr(target, EXPR_LVALUE));
    }
@@ -3610,7 +3660,7 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
    tree_set_ident(idecl, ident);
 
    vcode_var_t ivar = emit_var(vtype, bounds, ident, false);
-   lower_put_vcode_obj(idecl, ivar);
+   lower_put_vcode_obj(idecl, ivar, top_scope);
 
    vcode_reg_t init_reg = r.kind == RANGE_RDYN ? right_reg : left_reg;
    emit_store(init_reg, ivar);
@@ -4217,7 +4267,7 @@ static void lower_var_decl(tree_t decl)
    vcode_type_t vbounds = lower_bounds(type);
    vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl),
                               tree_kind(decl) == T_CONST_DECL);
-   lower_put_vcode_obj(decl, var);
+   lower_put_vcode_obj(decl, var, top_scope);
 
    if (type_is_protected(type))
       lower_protected_init(decl, emit_index(var, VCODE_INVALID_REG));
@@ -4386,7 +4436,7 @@ static void lower_signal_decl(tree_t decl)
    vcode_type_t stype = vtype_signal(ltype);
    vcode_signal_t sig = emit_signal(stype, bounds, name, shadow,
                                     nets, nnets, from_package);
-   lower_put_vcode_obj(decl, sig);
+   lower_put_vcode_obj(decl, sig, lower_bottom_scope());
 
    if (nnets == 0 || is_package_signal)
       return;
@@ -4425,7 +4475,7 @@ static void lower_file_decl(tree_t decl)
    type_t type = tree_type(decl);
    vcode_type_t vtype = lower_type(type);
    vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl), false);
-   lower_put_vcode_obj(decl, var);
+   lower_put_vcode_obj(decl, var, top_scope);
 
    emit_store(emit_null(vtype), var);
 
@@ -4559,8 +4609,6 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
          lower_protected_constants(d);
       else if (scope_kind != T_PROT_BODY) {
          lower_decl(d);
-         if (nested)
-            tree_add_attr_int(d, nested_i, nest_depth + 1);
       }
    }
 
@@ -4648,7 +4696,7 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
       }
 
       vcode_reg_t reg = emit_param(vtype, vbounds, tree_ident(p));
-      lower_put_vcode_obj(p, reg);
+      lower_put_vcode_obj(p, reg, top_scope);
       if (has_subprograms)
          tree_add_attr_int(p, nested_i, vcode_unit_depth());
    }
@@ -4690,6 +4738,8 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
    else
       vu = emit_procedure(name, context);
 
+   lower_push_scope();
+
    emit_debug_info(tree_loc(body));
 
    const bool has_subprograms = lower_has_subprograms(body);
@@ -4705,6 +4755,7 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
       emit_return(VCODE_INVALID_REG);
 
    lower_finished();
+   lower_pop_scope();
 
    if (vcode_unit_has_undefined())
       vcode_unit_unref(vu);
@@ -4725,6 +4776,8 @@ static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
    vu = emit_function(name, context, vtype);
    emit_debug_info(tree_loc(body));
 
+   lower_push_scope();
+
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(body, has_subprograms);
 
@@ -4735,6 +4788,7 @@ static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
       lower_stmt(tree_stmt(body, i), NULL);
 
    lower_finished();
+   lower_pop_scope();
 
    if (vcode_unit_has_undefined()) {
       vcode_unit_unref(vu);
@@ -4939,6 +4993,8 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    vcode_unit_t vu = emit_process(tree_ident(proc), context);
    emit_debug_info(tree_loc(proc));
 
+   lower_push_scope();
+
    lower_decls(proc, vu);
    tree_visit(proc, lower_driver_fn, proc);
 
@@ -4958,12 +5014,15 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    emit_return(VCODE_INVALID_REG);
 
    lower_finished();
+   lower_pop_scope();
 }
 
 static vcode_unit_t lower_elab(tree_t unit)
 {
    vcode_unit_t context = emit_context(tree_ident(unit));
    emit_debug_info(tree_loc(unit));
+
+   lower_push_scope();
 
    lower_decls(unit, context);
 
@@ -4978,30 +5037,36 @@ static vcode_unit_t lower_elab(tree_t unit)
       lower_process(s, context);
    }
 
+   lower_pop_scope();
+
    return context;
 }
 
 static vcode_unit_t lower_pack_body(tree_t unit)
 {
    vcode_unit_t context = emit_context(tree_ident(unit));
+   lower_push_scope();
 
    lower_decls(unit, context);
 
    emit_return(VCODE_INVALID_REG);
 
    lower_finished();
+   lower_pop_scope();
    return context;
 }
 
 static vcode_unit_t lower_package(tree_t unit)
 {
    vcode_unit_t context = emit_context(tree_ident(unit));
+   lower_push_scope();
 
    lower_decls(unit, context);
 
    emit_return(VCODE_INVALID_REG);
 
    lower_finished();
+   lower_pop_scope();
    return context;
 }
 
@@ -5019,9 +5084,9 @@ static void lower_set_verbose(void)
 
 vcode_unit_t lower_unit(tree_t unit)
 {
+   assert(top_scope == NULL);
    lower_set_verbose();
 
-   vcode_objs = hash_new(4096, true);
    mode = LOWER_NORMAL;
    tmp_alloc_used = false;
 
@@ -5043,14 +5108,12 @@ vcode_unit_t lower_unit(tree_t unit)
 
    vcode_close();
 
-   hash_free(vcode_objs);
-   vcode_objs = NULL;
-
    return context;
 }
 
 vcode_unit_t lower_thunk(tree_t expr)
 {
+   assert(top_scope == NULL);
    lower_set_verbose();
 
    vcode_unit_t context = emit_context(thunk_i);
@@ -5095,20 +5158,20 @@ vcode_unit_t lower_thunk(tree_t expr)
 
 vcode_unit_t lower_func(tree_t body)
 {
+   assert(top_scope == NULL);
    lower_set_verbose();
 
    vcode_unit_t context = emit_context(thunk_i);
+   lower_push_scope();
 
    vcode_select_unit(context);
-   vcode_objs = hash_new(128, true);
    mode = LOWER_THUNK;
    tmp_alloc_used = false;
 
    vcode_unit_t vu = lower_func_body(body, context);
    vcode_close();
 
-   hash_free(vcode_objs);
-   vcode_objs = NULL;
+   lower_pop_scope();
 
    return vu;
 }

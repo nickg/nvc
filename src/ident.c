@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -447,7 +447,8 @@ ident_t ident_rfrom(ident_t i, char c)
 
 bool icmp(ident_t i, const char *s)
 {
-   assert(i != NULL);
+   if (i == NULL || s == NULL)
+      return i == NULL && s == NULL;
 
    trie_t *result;
    if (!search_trie(&s, &(root.trie), &result))

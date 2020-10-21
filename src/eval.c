@@ -486,8 +486,9 @@ static value_t *eval_get_reg(vcode_reg_t reg, eval_state_t *state)
    return &(state->context->regs[reg]);
 }
 
-static value_t *eval_get_var(vcode_var_t var, eval_state_t *state)
+static value_t *eval_get_var(vcode_var_t var, context_t *context)
 {
+#if 0
    const int var_depth = vcode_var_context(var);
 
    context_t *context = state->context;
@@ -532,14 +533,13 @@ static value_t *eval_get_var(vcode_var_t var, eval_state_t *state)
 
       context = context->parent;
    }
+#endif
 
-   if (vcode_var_use_heap(var)) {
-      value_t *proxy = &(context->vars[vcode_var_index(var)]);
-      EVAL_ASSERT_VALUE(-1, proxy, VALUE_HEAP_PROXY);
-      return proxy->pointer;
-   }
+   value_t *value = &(context->vars[vcode_var_index(var)]);
+   if (value->kind == VALUE_HEAP_PROXY)
+      return value->pointer;
    else
-      return &(context->vars[vcode_var_index(var)]);
+      return value;
 }
 
 static int eval_value_cmp(value_t *lhs, value_t *rhs)
@@ -989,10 +989,15 @@ static void eval_op_var_upref(int op, eval_state_t *state)
 {
    context_t *where = state->context;
    const int hops = vcode_get_hops(op);
-   for (int i = 0; i < hops; i++)
+   for (int i = 0; where && i < hops; i++)
       where = where->parent;
 
-   value_t *src = eval_get_var(vcode_get_address(op), state);
+   if (where == NULL) {
+      vcode_dump_with_mark(op);
+      fatal_trace("upref outside eval context");
+   }
+
+   value_t *src = eval_get_var(vcode_get_address(op), where);
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
    dst->kind = VALUE_POINTER;
    dst->pointer = src;
@@ -1120,7 +1125,7 @@ static void eval_op_wrap(int op, eval_state_t *state)
 static void eval_op_store(int op, eval_state_t *state)
 {
    value_t *src = eval_get_reg(vcode_get_arg(op, 0), state);
-   value_t *var = eval_get_var(vcode_get_address(op), state);
+   value_t *var = eval_get_var(vcode_get_address(op), state->context);
 
    if (var != NULL)
       *var = *src;
@@ -1129,7 +1134,7 @@ static void eval_op_store(int op, eval_state_t *state)
 static void eval_op_load(int op, eval_state_t *state)
 {
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
-   value_t *var = eval_get_var(vcode_get_address(op), state);
+   value_t *var = eval_get_var(vcode_get_address(op), state->context);
 
    if (var != NULL) {
       EVAL_ASSERT_VALID(op, var);
@@ -1256,7 +1261,7 @@ static void eval_op_undefined(int op, eval_state_t *state)
 
 static void eval_op_index(int op, eval_state_t *state)
 {
-   value_t *value = eval_get_var(vcode_get_address(op), state);
+   value_t *value = eval_get_var(vcode_get_address(op), state->context);
    if (value == NULL)
       return;
 

@@ -373,14 +373,8 @@ static var_t *vcode_var_data(vcode_var_t var)
 {
    assert(active_unit != NULL);
    assert(var != VCODE_INVALID_VAR);
-   vcode_unit_t unit = active_unit;
 
-   int depth = MASK_CONTEXT(var);
-   assert(depth <= unit->depth);
-   while (depth != unit->depth)
-      unit = unit->context;
-
-   return var_array_nth_ptr(&(unit->vars), MASK_INDEX(var));
+   return var_array_nth_ptr(&(active_unit->vars), MASK_INDEX(var));
 }
 
 void vcode_clear_storage_hint(uint32_t tag)
@@ -427,6 +421,10 @@ void vcode_heap_allocate(vcode_reg_t reg)
 
    case VCODE_OP_INDEX:
       vcode_var_data(defn->address)->flags |= VAR_HEAP;
+      break;
+
+   case VCODE_OP_VAR_UPREF:
+      // TODO: check this
       break;
 
    case VCODE_OP_WRAP:
@@ -1221,17 +1219,13 @@ static void vcode_dump_result_type(int col, const op_t *op)
 
 static int vcode_dump_var(vcode_var_t var, int hops)
 {
-   if (MASK_CONTEXT(var) != active_unit->depth) {
-      vcode_unit_t owner = active_unit;
-      for (int i = MASK_CONTEXT(var); i < active_unit->depth; i++)
-         owner = owner->context;
-      return color_printf("$magenta$%s@%s$$", istr(vcode_var_name(var)),
-                          istr(owner->name));
-   }
+   vcode_unit_t owner = active_unit;
+   while (owner && hops--)
+      owner = owner->context;
+
+   if (owner == NULL || MASK_INDEX(var) >= owner->vars.count)
+      return color_printf("$red$invalid$$");
    else {
-      vcode_unit_t owner = active_unit;
-      while (hops--)
-        owner = owner->context;
       var_t *v = var_array_nth_ptr(&(owner->vars), MASK_INDEX(var));
       return color_printf("$magenta$%s$$", istr(v->name));
    }
@@ -3615,6 +3609,37 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
                 "bounds check needs debug info");
 }
 
+static void vcode_calculate_var_index_type(op_t *op, var_t *var)
+{
+   switch (vtype_kind(var->type)) {
+   case VCODE_TYPE_CARRAY:
+      op->type = vtype_pointer(vtype_elem(var->type));
+      op->result = vcode_add_reg(op->type);
+      vcode_reg_data(op->result)->bounds = vtype_bounds(var->type);
+      break;
+
+   case VCODE_TYPE_RECORD:
+      op->type = vtype_pointer(var->type);
+      op->result = vcode_add_reg(op->type);
+      break;
+
+   case VCODE_TYPE_INT:
+   case VCODE_TYPE_FILE:
+   case VCODE_TYPE_ACCESS:
+   case VCODE_TYPE_REAL:
+   case VCODE_TYPE_UARRAY:
+   case VCODE_TYPE_POINTER:
+      op->type = vtype_pointer(var->type);
+      op->result = vcode_add_reg(op->type);
+      vcode_reg_data(op->result)->bounds = var->bounds;
+      break;
+
+   default:
+      VCODE_ASSERT(false, "variable %s cannot be indexed",
+                   istr(var->name));
+   }
+}
+
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
 {
    // Try to find a previous index of this var by this offset
@@ -3632,31 +3657,7 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
    if (offset != VCODE_INVALID_REG)
       vcode_add_arg(op, offset);
 
-   vcode_type_t typeref = vcode_var_type(var);
-   switch (vtype_kind(typeref)) {
-   case VCODE_TYPE_CARRAY:
-      op->type = vtype_pointer(vtype_elem(typeref));
-      op->result = vcode_add_reg(op->type);
-      vcode_reg_data(op->result)->bounds = vtype_bounds(typeref);
-      break;
-
-   case VCODE_TYPE_RECORD:
-      op->type = vtype_pointer(typeref);
-      op->result = vcode_add_reg(op->type);
-      break;
-
-   case VCODE_TYPE_INT:
-   case VCODE_TYPE_FILE:
-   case VCODE_TYPE_ACCESS:
-   case VCODE_TYPE_REAL:
-      op->type = vtype_pointer(typeref);
-      op->result = vcode_add_reg(op->type);
-      break;
-
-   default:
-      VCODE_ASSERT(false, "variable %s cannot be indexed",
-                   istr(vcode_var_name(var)));
-   }
+   vcode_calculate_var_index_type(op, vcode_var_data(var));
 
    if (offset != VCODE_INVALID_REG)
       VCODE_ASSERT(vtype_kind(vcode_reg_type(offset)) == VCODE_TYPE_OFFSET,
@@ -4161,6 +4162,11 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
 
 vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg)
 {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_PARAM_UPREF) {
+      if (other->hops == hops && other->args.items[0] == reg)
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_PARAM_UPREF);
    op->hops = hops;
    vcode_add_arg(op, reg);
@@ -4186,9 +4192,14 @@ vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg)
 
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var)
 {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_VAR_UPREF) {
+      if (other->hops == hops && other->address == MASK_INDEX(var))
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_VAR_UPREF);
    op->hops    = hops;
-   op->address = var;
+   op->address = MASK_INDEX(var);
 
    VCODE_ASSERT(hops > 0, "invalid hop count");
 
@@ -4196,23 +4207,9 @@ vcode_reg_t emit_var_upref(int hops, vcode_var_t var)
    for (int i = 0; i < hops; i++)
       vu = vu->context;
 
-   VCODE_ASSERT(vu->kind != VCODE_UNIT_CONTEXT,
-                "upref context is not a subprogram or process");
-   VCODE_ASSERT(MASK_INDEX(var) < vu->vars.count, "upref is not a variable");
+   VCODE_ASSERT(MASK_INDEX(var) < vu->vars.count, "upref %d is not a variable", MASK_INDEX(var));
 
-   var_t *v = &(vu->vars.items[MASK_INDEX(var)]);
-
-   switch (vtype_kind(v->type)) {
-   case VCODE_TYPE_CARRAY:
-      op->result = vcode_add_reg(vtype_pointer(vtype_elem(v->type)));
-      break;
-   default:
-      op->result = vcode_add_reg(vtype_pointer(v->type));
-      break;
-   }
-
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = v->bounds;
+   vcode_calculate_var_index_type(op, &(vu->vars.items[MASK_INDEX(var)]));
 
    return op->result;
 }

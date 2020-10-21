@@ -1676,6 +1676,7 @@ static void cgen_op_param_upref(int op, cgen_ctx_t *ctx)
 static void cgen_op_var_upref(int op, cgen_ctx_t *ctx)
 {
    const int hops = vcode_get_hops(op);
+   vcode_var_t address = vcode_var_index(vcode_get_address(op));
 
    vcode_state_t state;
    vcode_state_save(&state);
@@ -1683,14 +1684,35 @@ static void cgen_op_var_upref(int op, cgen_ctx_t *ctx)
    for (int i = 0; i < hops; i++)
       vcode_select_unit(vcode_unit_context());
 
+   const bool is_global = vcode_unit_kind() == VCODE_UNIT_CONTEXT;
+
+   ident_t var_name = vcode_var_name(address);
+   vcode_type_t var_type = vcode_var_type(address);
+
    vcode_state_restore(&state);
 
-   LLVMValueRef display = cgen_display_upref(hops, ctx);
-
    vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildExtractValue(builder, display,
-                                             vcode_var_index(vcode_get_address(op)),
-                                             cgen_reg_name(result));
+   if (is_global) {
+      const char *symbol_name = safe_symbol(istr(var_name));
+      ctx->regs[result] = LLVMGetNamedGlobal(module, symbol_name);
+      if (ctx->regs[result] == NULL)
+         fatal_trace("missing LLVM global for %s", istr(var_name));
+
+      if (vtype_kind(var_type) == VCODE_TYPE_CARRAY) {
+         LLVMValueRef index[] = {
+            llvm_int32(0),
+            llvm_int32(0)
+         };
+         ctx->regs[result] = LLVMBuildGEP(builder, ctx->regs[result],
+                                          index, ARRAY_LEN(index), "");
+      }
+   }
+   else {
+     LLVMValueRef display = cgen_display_upref(hops, ctx);
+     ctx->regs[result] = LLVMBuildExtractValue(builder, display,
+                                               vcode_var_index(address),
+                                               cgen_reg_name(result));
+   }
 }
 
 static void cgen_op_resolved_address(int op, cgen_ctx_t *ctx)
