@@ -425,11 +425,10 @@ static context_t *eval_new_context(eval_state_t *state)
    context->refcount = 1;
 
    for (int i = 0; i < nvars; i++) {
-      vcode_var_t var = vcode_var_handle(i);
-      vcode_type_t type = vcode_var_type(var);
+      vcode_type_t type = vcode_var_type(i);
 
       value_t *value = &(context->vars[i]);
-      if (vcode_var_use_heap(var)) {
+      if (vcode_var_use_heap(i)) {
          value->kind = VALUE_HEAP_PROXY;
          if ((value->pointer = eval_alloc(sizeof(value_t), state)) == NULL)
             goto fail;
@@ -535,7 +534,7 @@ static value_t *eval_get_var(vcode_var_t var, context_t *context)
    }
 #endif
 
-   value_t *value = &(context->vars[vcode_var_index(var)]);
+   value_t *value = &(context->vars[var]);
    if (value->kind == VALUE_HEAP_PROXY)
       return value->pointer;
    else

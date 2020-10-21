@@ -153,7 +153,6 @@ typedef struct {
 
 typedef enum {
    VAR_EXTERN = (1 << 0),
-   VAR_CONST  = (1 << 1),
    VAR_HEAP   = (1 << 2)
 } var_flags_t;
 
@@ -374,7 +373,7 @@ static var_t *vcode_var_data(vcode_var_t var)
    assert(active_unit != NULL);
    assert(var != VCODE_INVALID_VAR);
 
-   return var_array_nth_ptr(&(active_unit->vars), MASK_INDEX(var));
+   return var_array_nth_ptr(&(active_unit->vars), var);
 }
 
 void vcode_clear_storage_hint(uint32_t tag)
@@ -800,30 +799,14 @@ int vcode_count_vars(void)
 
 vcode_var_t vcode_find_var(ident_t name)
 {
+   // TODO: remove this?
    assert(active_unit != NULL);
    for (int i = 0; i < active_unit->vars.count; i++) {
       if (active_unit->vars.items[i].name == name)
-         return MAKE_HANDLE(active_unit->depth, i);
+         return i;
    }
 
    return VCODE_INVALID_VAR;
-}
-
-vcode_var_t vcode_var_handle(int index)
-{
-   assert(active_unit != NULL);
-   assert(index < active_unit->vars.count);
-   return MAKE_HANDLE(active_unit->depth, index);
-}
-
-int vcode_var_index(vcode_var_t var)
-{
-   return MASK_INDEX(var);
-}
-
-int vcode_var_context(vcode_var_t var)
-{
-   return MASK_CONTEXT(var);
 }
 
 ident_t vcode_var_name(vcode_var_t var)
@@ -1223,10 +1206,10 @@ static int vcode_dump_var(vcode_var_t var, int hops)
    while (owner && hops--)
       owner = owner->context;
 
-   if (owner == NULL || MASK_INDEX(var) >= owner->vars.count)
+   if (owner == NULL || var >= owner->vars.count)
       return color_printf("$red$invalid$$");
    else {
-      var_t *v = var_array_nth_ptr(&(owner->vars), MASK_INDEX(var));
+      var_t *v = var_array_nth_ptr(&(owner->vars), var);
       return color_printf("$magenta$%s$$", istr(v->name));
    }
 }
@@ -1281,11 +1264,6 @@ void vcode_dump_with_mark(int mark_op)
          col += printf(" extern");
       if (v->flags & VAR_HEAP)
          col += printf(" heap");
-
-      if (vu->kind == VCODE_UNIT_CONTEXT && !(v->flags & VAR_CONST))
-         col += printf(" mutable");
-      else if (vu->kind != VCODE_UNIT_CONTEXT && (v->flags & VAR_CONST))
-         col += printf(" const");
 
       vcode_dump_type(col, v->type, v->bounds);
       printf("\n");
@@ -3176,8 +3154,7 @@ void emit_jump(vcode_block_t target)
    vcode_add_target(op, target);
 }
 
-vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
-                     bool is_const)
+vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
 {
    assert(active_unit != NULL);
 
@@ -3187,9 +3164,9 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
    v->type     = type;
    v->bounds   = bounds;
    v->name     = name;
-   v->flags    = is_const ? VAR_CONST : 0;
+   v->flags    = 0;
 
-   return MAKE_HANDLE(active_unit->depth, var);
+   return var;
 }
 
 vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
@@ -3202,10 +3179,10 @@ vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
    for (unsigned i = 0; i < active_unit->vars.count; i++) {
       var_t *v = &(active_unit->vars.items[i]);
       if ((v->flags & VAR_EXTERN) && v->name == name)
-         return MAKE_HANDLE(active_unit->depth, i);
+         return i;
    }
 
-   vcode_var_t var = emit_var(type, bounds, name, false);
+   vcode_var_t var = emit_var(type, bounds, name);
    vcode_var_data(var)->flags |= VAR_EXTERN;
    return var;
 }
@@ -3275,8 +3252,7 @@ vcode_reg_t emit_load(vcode_var_t var)
 
    var_t *v = vcode_var_data(var);
 
-   if (fold != VCODE_INVALID_REG && !aliased
-       && ((v->flags & VAR_CONST) || MASK_CONTEXT(var) == active_unit->depth))
+   if (fold != VCODE_INVALID_REG && !aliased)
       return fold;
 
    op_t *op = vcode_add_op(VCODE_OP_LOAD);
@@ -4193,13 +4169,13 @@ vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg)
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_VAR_UPREF) {
-      if (other->hops == hops && other->address == MASK_INDEX(var))
+      if (other->hops == hops && other->address == var)
          return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_VAR_UPREF);
    op->hops    = hops;
-   op->address = MASK_INDEX(var);
+   op->address = var;
 
    VCODE_ASSERT(hops > 0, "invalid hop count");
 
@@ -4207,9 +4183,9 @@ vcode_reg_t emit_var_upref(int hops, vcode_var_t var)
    for (int i = 0; i < hops; i++)
       vu = vu->context;
 
-   VCODE_ASSERT(MASK_INDEX(var) < vu->vars.count, "upref %d is not a variable", MASK_INDEX(var));
+   VCODE_ASSERT(var < vu->vars.count, "upref %d is not a variable", var);
 
-   vcode_calculate_var_index_type(op, &(vu->vars.items[MASK_INDEX(var)]));
+   vcode_calculate_var_index_type(op, &(vu->vars.items[var]));
 
    return op->result;
 }

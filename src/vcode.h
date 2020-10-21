@@ -318,9 +318,6 @@ const vcode_res_fn_t *vcode_get_resolution(int op);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);
-vcode_var_t vcode_var_handle(int index);
-int vcode_var_index(vcode_var_t var);
-int vcode_var_context(vcode_var_t var);
 ident_t vcode_var_name(vcode_var_t var);
 vcode_type_t vcode_var_type(vcode_var_t var);
 bool vcode_var_extern(vcode_var_t var);
@@ -333,8 +330,7 @@ vcode_unit_t emit_process(ident_t name, vcode_unit_t context);
 vcode_unit_t emit_context(ident_t name);
 vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context, vcode_type_t type);
 vcode_block_t emit_block(void);
-vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
-                     bool is_const);
+vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
                             ident_t name);
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,

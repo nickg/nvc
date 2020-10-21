@@ -399,38 +399,26 @@ static LLVMValueRef cgen_display_upref(int hops, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
 {
-   const int my_depth  = vcode_unit_depth();
-   const int var_depth = vcode_var_context(var);
-   assert(my_depth >= var_depth);
-
    LLVMValueRef value = NULL;
 
-   if (var_depth == 0) {
+   if (vcode_unit_kind() == VCODE_UNIT_CONTEXT) {
       // Shared global variable
       const char *name = safe_symbol(istr(vcode_var_name(var)));
       value = LLVMGetNamedGlobal(module, name);
       if (value == NULL)
          fatal_trace("missing LLVM global for %s", istr(vcode_var_name(var)));
    }
-   else if (my_depth == var_depth) {
+   else {
       // Variable is inside current context
       if (ctx->state != NULL) {
          value = LLVMBuildStructGEP(builder, ctx->state,
-                                    ctx->var_base + vcode_var_index(var),
+                                    ctx->var_base + var,
                                     istr(vcode_var_name(var)));
       }
       else {
          assert(ctx->locals != NULL);
-         value = ctx->locals[vcode_var_index(var)];
+         value = ctx->locals[var];
       }
-   }
-   else {
-      // Variable is in a parent context: find it using the display
-      assert(my_depth > var_depth);
-
-      LLVMValueRef display = cgen_display_upref(my_depth - var_depth, ctx);
-      return LLVMBuildExtractValue(builder, display, vcode_var_index(var),
-                                   istr(vcode_var_name(var)));
    }
 
    if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_CARRAY) {
@@ -508,7 +496,7 @@ static LLVMTypeRef cgen_display_type(vcode_unit_t unit)
    LLVMTypeRef *outptr = fields;
 
    for (int i = 0; i < nvars; i++) {
-      vcode_type_t vtype = vcode_var_type(vcode_var_handle(i));
+      vcode_type_t vtype = vcode_var_type(i);
       if (vtype_kind(vtype) == VCODE_TYPE_CARRAY)
          *outptr++ = LLVMPointerType(cgen_type(vtype_elem(vtype)), 0);
       else
@@ -545,7 +533,7 @@ static LLVMValueRef cgen_display_struct(cgen_ctx_t *ctx, int hops)
    LLVMValueRef *outptr = fields;
 
    for (int i = 0; i < nvars; i++)
-      *outptr++ = cgen_get_var(vcode_var_handle(i), ctx);
+      *outptr++ = cgen_get_var(i, ctx);
 
    for (int i = 0; i < nparams; i++)
       *outptr++ = ctx->regs[i];
@@ -1676,7 +1664,7 @@ static void cgen_op_param_upref(int op, cgen_ctx_t *ctx)
 static void cgen_op_var_upref(int op, cgen_ctx_t *ctx)
 {
    const int hops = vcode_get_hops(op);
-   vcode_var_t address = vcode_var_index(vcode_get_address(op));
+   vcode_var_t address = vcode_get_address(op);
 
    vcode_state_t state;
    vcode_state_save(&state);
@@ -1709,8 +1697,7 @@ static void cgen_op_var_upref(int op, cgen_ctx_t *ctx)
    }
    else {
      LLVMValueRef display = cgen_display_upref(hops, ctx);
-     ctx->regs[result] = LLVMBuildExtractValue(builder, display,
-                                               vcode_var_index(address),
+     ctx->regs[result] = LLVMBuildExtractValue(builder, display, address,
                                                cgen_reg_name(result));
    }
 }
@@ -3130,11 +3117,10 @@ static void cgen_locals(cgen_ctx_t *ctx)
 
    const int nvars = vcode_count_vars();
    for (int i = 0; i < nvars; i++) {
-      vcode_var_t var = vcode_var_handle(i);
-      LLVMTypeRef lltype = cgen_type(vcode_var_type(var));
-      const char *name = istr(vcode_var_name(var));
+      LLVMTypeRef lltype = cgen_type(vcode_var_type(i));
+      const char *name = istr(vcode_var_name(i));
 
-      if (vcode_var_use_heap(var))
+      if (vcode_var_use_heap(i))
          ctx->locals[i] = cgen_tmp_alloc(llvm_sizeof(lltype), lltype);
       else
          ctx->locals[i] = LLVMBuildAlloca(builder, lltype, name);
@@ -3197,10 +3183,8 @@ static LLVMTypeRef cgen_state_type(cgen_ctx_t *ctx)
       ctx->var_base += nparams;
    }
 
-   for (int i = 0; i < nvars; i++) {
-      vcode_var_t var = vcode_var_handle(i);
-      fields[ctx->var_base + i] = cgen_type(vcode_var_type(var));
-   }
+   for (int i = 0; i < nvars; i++)
+      fields[ctx->var_base + i] = cgen_type(vcode_var_type(i));
 
    return LLVMStructType(fields, nfields, false);
 }
@@ -3529,12 +3513,10 @@ static void cgen_shared_variables(void)
 {
    const int nvars = vcode_count_vars();
    for (int i = 0; i < nvars; i++) {
-      vcode_var_t var = vcode_var_handle(i);
-
-      LLVMTypeRef type = cgen_type(vcode_var_type(var));
-      const char *name = safe_symbol(istr(vcode_var_name(var)));
+      LLVMTypeRef type = cgen_type(vcode_var_type(i));
+      const char *name = safe_symbol(istr(vcode_var_name(i)));
       LLVMValueRef global = LLVMAddGlobal(module, type, name);
-      if (vcode_var_extern(var)) {
+      if (vcode_var_extern(i)) {
 #ifdef IMPLIB_REQUIRED
          LLVMSetDLLStorageClass(global, LLVMDLLImportStorageClass);
 #endif

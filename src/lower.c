@@ -3210,7 +3210,7 @@ static void lower_wait(tree_t wait)
       remain = vcode_find_var(remain_i);
       if (remain == VCODE_INVALID_VAR) {
          vcode_type_t time = vtype_time();
-         remain = emit_var(time, time, remain_i, false);
+         remain = emit_var(time, time, remain_i);
       }
 
       vcode_reg_t now_reg = emit_fcall(ident_new("_std_standard_now"),
@@ -3659,7 +3659,7 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
    ident_t ident = ident_prefix(tree_ident2(stmt), tree_ident(stmt), '.');
    tree_set_ident(idecl, ident);
 
-   vcode_var_t ivar = emit_var(vtype, bounds, ident, false);
+   vcode_var_t ivar = emit_var(vtype, bounds, ident);
    lower_put_vcode_obj(idecl, ivar, top_scope);
 
    vcode_reg_t init_reg = r.kind == RANGE_RDYN ? right_reg : left_reg;
@@ -4265,8 +4265,7 @@ static void lower_var_decl(tree_t decl)
    type_t type = tree_type(decl);
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
-   vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl),
-                              tree_kind(decl) == T_CONST_DECL);
+   vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl));
    lower_put_vcode_obj(decl, var, top_scope);
 
    if (type_is_protected(type))
@@ -4422,8 +4421,7 @@ static void lower_signal_decl(tree_t decl)
       }
 
       shadow = emit_var(vtype_pointer(shadow_type), shadow_bounds,
-                        ident_prefix(ident_new("resolved"), name, '_'),
-                        true);
+                        ident_prefix(ident_new("resolved"), name, '_'));
    }
 
    netid_t *nets = xmalloc(sizeof(netid_t) * nnets);
@@ -4474,7 +4472,7 @@ static void lower_file_decl(tree_t decl)
 {
    type_t type = tree_type(decl);
    vcode_type_t vtype = lower_type(type);
-   vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl), false);
+   vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl));
    lower_put_vcode_obj(decl, var, top_scope);
 
    emit_store(emit_null(vtype), var);

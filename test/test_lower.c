@@ -1824,7 +1824,7 @@ START_TEST(test_record6)
    vcode_unit_t v0 = find_unit(tree_decl(e, 1));
    vcode_select_unit(v0);
 
-   fail_unless(vcode_var_use_heap(vcode_var_handle(0)));
+   fail_unless(vcode_var_use_heap(0));
 
    EXPECT_BB(0) = {
       { VCODE_OP_INDEX, .name = "R" },
