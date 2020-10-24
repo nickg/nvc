@@ -487,53 +487,6 @@ static value_t *eval_get_reg(vcode_reg_t reg, eval_state_t *state)
 
 static value_t *eval_get_var(vcode_var_t var, context_t *context)
 {
-#if 0
-   const int var_depth = vcode_var_context(var);
-
-   context_t *context = state->context;
-   for (int depth = vcode_unit_depth(); depth > var_depth; depth--) {
-      if (context->parent == NULL) {
-         assert(vcode_unit_kind() != VCODE_UNIT_THUNK);
-
-         vcode_state_t vcode_state;
-         vcode_state_save(&vcode_state);
-
-         vcode_select_unit(vcode_unit_context());
-         assert(vcode_unit_kind() == VCODE_UNIT_CONTEXT);
-         vcode_select_block(0);
-
-         context_t *new_context = eval_new_context(state);
-         if (new_context == NULL) {
-            state->failed = true;
-            return NULL;
-         }
-
-         context->parent = new_context;
-
-         eval_state_t new_state = {
-            .context = new_context,
-            .result  = -1,
-            .fcall   = state->fcall,
-            .failed  = false,
-            .flags   = state->flags | EVAL_BOUNDS,
-            .allocations = state->allocations
-         };
-
-         eval_vcode(&new_state);
-         vcode_state_restore(&vcode_state);
-
-         state->allocations = new_state.allocations;
-
-         if (new_state.failed) {
-            state->failed = true;
-            return NULL;
-         }
-      }
-
-      context = context->parent;
-   }
-#endif
-
    value_t *value = &(context->vars[var]);
    if (value->kind == VALUE_HEAP_PROXY)
       return value->pointer;
@@ -988,18 +941,57 @@ static void eval_op_var_upref(int op, eval_state_t *state)
 {
    context_t *where = state->context;
    const int hops = vcode_get_hops(op);
-   for (int i = 0; where && i < hops; i++)
-      where = where->parent;
 
-   if (where == NULL) {
-      vcode_dump_with_mark(op);
-      fatal_trace("upref outside eval context");
+   for (int i = 0; where && i < hops; i++) {
+      if (where->parent == NULL) {
+         assert(vcode_unit_kind() != VCODE_UNIT_THUNK);
+
+         vcode_state_t vcode_state;
+         vcode_state_save(&vcode_state);
+
+         vcode_select_unit(vcode_unit_context());
+         assert(vcode_unit_kind() == VCODE_UNIT_CONTEXT);
+         vcode_select_block(0);
+
+         context_t *new_context = eval_new_context(state);
+         if (new_context == NULL) {
+            state->failed = true;
+            return;
+         }
+
+         where->parent = new_context;
+
+         eval_state_t new_state = {
+            .context = new_context,
+            .result  = -1,
+            .fcall   = state->fcall,
+            .failed  = false,
+            .flags   = state->flags | EVAL_BOUNDS,
+            .allocations = state->allocations
+         };
+
+         eval_vcode(&new_state);
+         vcode_state_restore(&vcode_state);
+
+         state->allocations = new_state.allocations;
+
+         if (new_state.failed) {
+            state->failed = true;
+            return;
+         }
+      }
+
+      where = where->parent;
    }
 
    value_t *src = eval_get_var(vcode_get_address(op), where);
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
+
    dst->kind = VALUE_POINTER;
-   dst->pointer = src;
+   if (src->kind == VALUE_CARRAY)
+      dst->pointer = src->pointer;
+   else
+      dst->pointer = src;
 }
 
 static void eval_op_bounds(int op, eval_state_t *state)

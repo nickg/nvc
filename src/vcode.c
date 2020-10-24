@@ -234,7 +234,7 @@ struct vcode_unit {
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
 #define VCODE_MAGIC        0x76636f64
-#define VCODE_VERSION      6
+#define VCODE_VERSION      7
 #define VCODE_CHECK_UNIONS 0
 
 static vcode_unit_t  active_unit = NULL;
