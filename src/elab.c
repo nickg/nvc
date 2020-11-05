@@ -1189,6 +1189,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_ALIAS:
       case T_FILE_DECL:
       case T_VAR_DECL:
+      case T_CONST_DECL:
          tree_set_ident(d, npath);
          tree_add_decl(ctx->out, d);
          tree_add_attr_str(d, inst_name_i, ninst);
@@ -1202,11 +1203,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PROC_DECL:
          elab_set_subprogram_name(d, npath);
          break;
-      case T_CONST_DECL:
-         tree_set_ident(d, npath);
-         tree_add_attr_str(d, inst_name_i, ninst);
-         tree_add_decl(ctx->out, d);
-         break;
+      case T_TYPE_DECL:
       case T_USE:
          elab_use_clause(d, ctx);
          break;

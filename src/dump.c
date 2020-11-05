@@ -430,22 +430,22 @@ static void dump_decl(tree_t t, int indent)
          type_kind_t kind = type_kind(type);
          bool is_subtype = (kind == T_SUBTYPE);
 
-         printf("%stype %s is ", is_subtype ? "sub" : "", istr(tree_ident(t)));
+         syntax("#%stype %s #is ", is_subtype ? "sub" : "", istr(tree_ident(t)));
 
          if (is_subtype) {
             printf("%s ", istr(type_ident(type_base(type))));
          }
 
          if (type_is_integer(type) || type_is_real(type)) {
-            printf("range ");
+            syntax("#range ");
             dump_range(type_dim(type, 0));
          }
          else if (type_is_physical(type)) {
-            printf("range ");
+            syntax("#range ");
             dump_range(type_dim(type, 0));
             printf("\n");
             tab(indent + 2);
-            printf("units\n");
+            syntax("#units\n");
             {
                const int nunits = type_units(type);
                for (int i = 0; i < nunits; i++) {
@@ -457,18 +457,18 @@ static void dump_decl(tree_t t, int indent)
                }
             }
             tab(indent + 2);
-            printf("end units\n");
+            syntax("#end #units\n");
          }
          else if (type_is_array(type)) {
             if (!is_subtype)
-               printf("array ");
+               syntax("#array ");
             printf("(");
             if (kind == T_UARRAY) {
                const int nindex = type_index_constrs(type);
                for (int i = 0; i < nindex; i++) {
                   if (i > 0) printf(", ");
                   dump_type(type_index_constr(type, i));
-                  printf(" range <>");
+                  syntax(" #range <>");
                }
             }
             else if (kind == T_SUBTYPE) {
@@ -488,16 +488,16 @@ static void dump_decl(tree_t t, int indent)
             }
             printf(")");
             if (!is_subtype) {
-               printf(" of ");
+               syntax(" #of ");
                dump_type(type_elem(type));
             }
          }
          else if (type_is_protected(type)) {
-            printf("protected\n");
+            syntax("#protected\n");
             for (unsigned i = 0; i < type_decls(type); i++)
                dump_decl(type_decl(type, i), indent + 2);
             tab(indent);
-            printf("end protected");
+            syntax("#end #protected");
          }
          else if (kind == T_ENUM) {
             printf("(");
@@ -622,7 +622,7 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_PROT_BODY:
-      syntax("type %s #is #protected #body\n", istr(tree_ident(t)));
+      syntax("#type %s #is #protected #body\n", istr(tree_ident(t)));
       for (unsigned i = 0; i < tree_decls(t); i++)
          dump_decl(tree_decl(t, i), indent + 2);
       tab(indent);
@@ -761,12 +761,14 @@ static void dump_stmt(tree_t t, int indent)
       if (tree_has_value(t)) {
          syntax("#assert ");
          dump_expr(tree_value(t));
+         printf(" ");
       }
       if (tree_has_message(t)) {
-         syntax(" #report ");
+         syntax("#report ");
          dump_expr(tree_message(t));
+         printf(" ");
       }
-      syntax(" #severity ");
+      syntax("#severity ");
       dump_expr(tree_severity(t));
       break;
 
@@ -1038,6 +1040,7 @@ static void dump_arch(tree_t t)
    dump_context(t);
    syntax("#architecture %s #of %s #is\n",
           istr(tree_ident(t)), istr(tree_ident2(t)));
+   dump_decls(t, 2);
    syntax("#begin\n");
    for (unsigned i = 0; i < tree_stmts(t); i++)
       dump_stmt(tree_stmt(t, i), 2);
