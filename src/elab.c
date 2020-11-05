@@ -1203,7 +1203,6 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PROC_DECL:
          elab_set_subprogram_name(d, npath);
          break;
-      case T_TYPE_DECL:
       case T_USE:
          elab_use_clause(d, ctx);
          break;
