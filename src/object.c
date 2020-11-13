@@ -178,7 +178,7 @@ void object_one_time_init(void)
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the tree and type items table
-      const uint32_t format_fudge = 12;
+      const uint32_t format_fudge = 13;
 
       format_digest += format_fudge * UINT32_C(2654435761);
 
@@ -198,6 +198,7 @@ object_t *object_new(const object_class_t *class, int kind)
    object->kind  = kind;
    object->tag   = class->tag;
    object->index = UINT32_MAX;
+   object->loc   = LOC_INVALID;
 
    if (unlikely(all_objects == NULL))
       all_objects = xmalloc(sizeof(object_t *) * max_objects);
@@ -518,7 +519,7 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
    write_u16(object->kind, ctx->file);
 
    if (object->tag == OBJECT_TAG_TREE)
-      loc_write(&object->loc, ctx->file, ctx->ident_ctx);
+      loc_write(&object->loc, ctx->loc_ctx);
 
    const object_class_t *class = classes[object->tag];
 
@@ -616,6 +617,7 @@ object_wr_ctx_t *object_write_begin(fbuf_t *f)
    ctx->generation = next_generation++;
    ctx->n_objects  = 0;
    ctx->ident_ctx  = ident_write_begin(f);
+   ctx->loc_ctx    = loc_write_begin(f);
 
    return ctx;
 }
@@ -623,6 +625,7 @@ object_wr_ctx_t *object_write_begin(fbuf_t *f)
 void object_write_end(object_wr_ctx_t *ctx)
 {
    ident_write_end(ctx->ident_ctx);
+   loc_write_end(ctx->loc_ctx);
    free(ctx);
 }
 
@@ -645,7 +648,7 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
    object_t *object = object_new(class, marker);
 
    if (tag == OBJECT_TAG_TREE)
-      loc_read(&(object->loc), ctx->file, ctx->ident_ctx);
+      loc_read(&(object->loc), ctx->loc_ctx);
 
    // Stash pointer for later back references
    // This must be done early as a child node of this type may
@@ -773,6 +776,7 @@ object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname)
    object_rd_ctx_t *ctx = xcalloc(sizeof(object_rd_ctx_t));
    ctx->file      = f;
    ctx->ident_ctx = ident_read_begin(f);
+   ctx->loc_ctx   = loc_read_begin(f);
    ctx->store_sz  = 256;
    ctx->store     = xmalloc(ctx->store_sz * sizeof(object_t *));
    ctx->n_objects = 0;
@@ -783,8 +787,8 @@ object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname)
 
 void object_read_end(object_rd_ctx_t *ctx)
 {
-   if (ctx->ident_ctx != NULL)
-      ident_read_end(ctx->ident_ctx);
+   ident_read_end(ctx->ident_ctx);
+   loc_read_end(ctx->loc_ctx);
    free(ctx->store);
    free(ctx->db_fname);
    free(ctx);

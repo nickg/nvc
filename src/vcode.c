@@ -2194,7 +2194,7 @@ void vcode_dump_with_mark(int mark_op)
 
          case VCODE_OP_DEBUG_INFO:
             {
-               color_printf("$cyan$@ %s:%d:%d$$", istr(op->loc.file),
+               color_printf("$cyan$@ %s:%d:%d$$", loc_file_str(&(op->loc)),
                             op->loc.first_line, op->loc.first_column);
             }
             break;
@@ -3581,7 +3581,7 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
    VCODE_ASSERT(rkind == VCODE_TYPE_INT || tkind == VCODE_TYPE_REAL,
                 "reg argument to bounds must be integer or real");
 
-   VCODE_ASSERT(!loc_eq(vcode_last_loc(), &LOC_INVALID),
+   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),
                 "bounds check needs debug info");
 }
 
@@ -4700,7 +4700,7 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
                 "type mismatch in dynamic bounds range");
    VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
                 "dynamic bounds kind argument must be offset");
-   VCODE_ASSERT(!loc_eq(vcode_last_loc(), &LOC_INVALID),
+   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),
                 "bounds check needs debug info");
 }
 
@@ -4750,7 +4750,7 @@ void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
    if (op != NULL)
       op->type = bounds;
 
-   VCODE_ASSERT(!loc_eq(vcode_last_loc(), &LOC_INVALID),
+   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),
                 "index check needs debug info");
 }
 
@@ -4764,7 +4764,7 @@ void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
       vcode_add_arg(op, bhigh);
    }
 
-   VCODE_ASSERT(!loc_eq(vcode_last_loc(), &LOC_INVALID),
+   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),
                 "dynamic index check needs debug info");
 }
 
@@ -4908,7 +4908,7 @@ vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
 
 void emit_debug_info(const loc_t *loc)
 {
-   if (loc->file == NULL || loc_eq(loc, &LOC_INVALID))
+   if (loc_invalid_p(loc))
       return;
 
    bool seen_real_op = false;
@@ -4937,7 +4937,8 @@ void emit_debug_info(const loc_t *loc)
 }
 
 static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
-                             ident_wr_ctx_t ident_wr_ctx)
+                             ident_wr_ctx_t ident_wr_ctx,
+                             loc_wr_ctx_t *loc_wr_ctx)
 {
    write_u8(unit->kind, f);
    ident_write(unit->name, ident_wr_ctx);
@@ -5009,7 +5010,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
          if (OP_HAS_TAG(op->kind))
             write_u32(op->tag, f);
          if (OP_HAS_LOC(op->kind))
-            loc_write(&(op->loc), f, ident_wr_ctx);
+            loc_write(&(op->loc), loc_wr_ctx);
          if (OP_HAS_IMAGE_MAP(op->kind)) {
             ident_write(op->image_map->name, ident_wr_ctx);
             write_u16(op->image_map->kind, f);
@@ -5126,10 +5127,10 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
    }
 
    if (unit->next != NULL)
-      vcode_write_unit(unit->next, f, ident_wr_ctx);
+      vcode_write_unit(unit->next, f, ident_wr_ctx, loc_wr_ctx);
 
    if (unit->children != NULL)
-      vcode_write_unit(unit->children, f, ident_wr_ctx);
+      vcode_write_unit(unit->children, f, ident_wr_ctx, loc_wr_ctx);
 }
 
 void vcode_write(vcode_unit_t unit, fbuf_t *f)
@@ -5140,12 +5141,15 @@ void vcode_write(vcode_unit_t unit, fbuf_t *f)
    write_u8(VCODE_VERSION, f);
 
    ident_wr_ctx_t ident_wr_ctx = ident_write_begin(f);
-   vcode_write_unit(unit, f, ident_wr_ctx);
+   loc_wr_ctx_t *loc_wr_ctx = loc_write_begin(f);
+   vcode_write_unit(unit, f, ident_wr_ctx, loc_wr_ctx);
    write_u8(0xff, f);  // End marker
    ident_write_end(ident_wr_ctx);
+   loc_write_end(loc_wr_ctx);
 }
 
-static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx)
+static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
+                            loc_rd_ctx_t *loc_rd_ctx)
 {
    const uint8_t marker = read_u8(f);
    if (marker == 0xff)
@@ -5227,7 +5231,7 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx)
          if (OP_HAS_TAG(op->kind))
             op->tag = read_u32(f);
          if (OP_HAS_LOC(op->kind))
-            loc_read(&(op->loc), f, ident_rd_ctx);
+            loc_read(&(op->loc), loc_rd_ctx);
          if (OP_HAS_IMAGE_MAP(op->kind)) {
             op->image_map = xmalloc(sizeof(image_map_t));
             op->image_map->name = ident_read(ident_rd_ctx);
@@ -5371,11 +5375,13 @@ void vcode_read(fbuf_t *f)
             fbuf_file_name(f), version, VCODE_VERSION);
 
    ident_rd_ctx_t ident_rd_ctx = ident_read_begin(f);
+   loc_rd_ctx_t *loc_rd_ctx = loc_read_begin(f);
 
-   while (vcode_read_unit(f, ident_rd_ctx))
+   while (vcode_read_unit(f, ident_rd_ctx, loc_rd_ctx))
       ;
 
    ident_read_end(ident_rd_ctx);
+   loc_read_end(loc_rd_ctx);
 }
 
 #if VCODE_CHECK_UNIONS

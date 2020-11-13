@@ -22,6 +22,7 @@
 #include "array.h"
 #include "tree.h"
 #include "type.h"
+#include "loc.h"
 
 #include <stdint.h>
 
@@ -226,15 +227,17 @@ typedef struct {
 } object_class_t;
 
 typedef struct {
-   fbuf_t         *file;
-   ident_wr_ctx_t  ident_ctx;
-   unsigned        generation;
-   unsigned        n_objects;
+   fbuf_t          *file;
+   ident_wr_ctx_t   ident_ctx;
+   loc_wr_ctx_t    *loc_ctx;
+   unsigned         generation;
+   unsigned         n_objects;
 } object_wr_ctx_t;
 
 typedef struct {
    fbuf_t         *file;
    ident_rd_ctx_t  ident_ctx;
+   loc_rd_ctx_t   *loc_ctx;
    unsigned        n_objects;
    object_t      **store;
    unsigned        store_sz;

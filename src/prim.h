@@ -22,30 +22,9 @@
 #include <stddef.h>
 
 typedef struct trie *ident_t;
-
-typedef struct loc {
-   unsigned    first_line : 20;
-   unsigned    first_column : 12;
-   unsigned    last_line : 20;
-   unsigned    last_column : 12;
-   ident_t     file;
-   const char *linebuf;
-} loc_t;
-
-#define LINE_INVALID   0xfffff
-#define COLUMN_INVALID 0xfff
-
-static const loc_t LOC_INVALID = {
-   LINE_INVALID,
-   COLUMN_INVALID,
-   LINE_INVALID,
-   COLUMN_INVALID,
-   NULL,
-   NULL
-};
-
 typedef struct tree *tree_t;
 typedef struct type *type_t;
+typedef struct loc loc_t;
 
 typedef enum {
    RANGE_TO,

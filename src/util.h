@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -82,6 +82,8 @@ char *xasprintf(const char *fmt, ...)
 
 int color_printf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
+int color_fprintf(FILE *file, const char *fmt, ...)
+   __attribute__((format(printf, 2, 3)));
 int color_vprintf(const char *fmt, va_list ap);
 
 void errorf(const char *fmt, ...)
@@ -122,8 +124,6 @@ void note_at(const loc_t *loc, const char *fmt, ...)
 void fatal_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3), noreturn));
 void error_at_v(const loc_t *loc, const char *fmt, va_list ap);
-
-void fmt_loc(FILE *f, const loc_t *loc);
 
 void show_stacktrace(void);
 void register_trace_signal_handlers(void);
@@ -191,6 +191,7 @@ typedef enum {
 } message_style_t;
 
 void set_message_style(message_style_t style);
+message_style_t get_message_style(void);
 
 typedef struct {
    unsigned rss;

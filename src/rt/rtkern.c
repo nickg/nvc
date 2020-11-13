@@ -386,12 +386,9 @@ static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
 static void from_rt_loc(const rt_loc_t *rt, loc_t *loc)
 {
    // This function can be expensive: only call it when loc_t is required
-   loc->file = ident_new(rt->file);
-   loc->first_line = rt->first_line;
-   loc->last_line = rt->last_line;
-   loc->first_column = rt->first_column;
-   loc->last_column = rt->last_column;
-   loc->linebuf = NULL;
+   *loc = get_loc(rt->first_line, rt->first_column,
+                  rt->last_line, rt->last_column,
+                  loc_file_ref(ident_new(rt->file), NULL));
 }
 
 static void rt_show_trace(void)
@@ -2127,7 +2124,7 @@ static void rt_iteration_limit(void)
       tree_t p = it->proc->source;
       const loc_t *l = tree_loc(p);
       tb_printf(buf, "  %-30s %s line %d\n", istr(tree_ident(p)),
-                istr(l->file), l->first_line);
+                loc_file_str(l), l->first_line);
    }
 
    tb_printf(buf, "You can increase this limit with --stop-delta");

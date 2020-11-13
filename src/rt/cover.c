@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "cover.h"
+#include "loc.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -200,35 +201,35 @@ static void cover_append_line(cover_file_t *f, const char *buf)
 
 static cover_file_t *cover_file(const loc_t *loc)
 {
-   if (loc->file == NULL)
+   if (loc_invalid_p(loc))
       return NULL;
 
    cover_file_t *f;
    for (f = files; f != NULL; f = f->next) {
       // Comparing pointers directly here is OK since only one copy
       // of the file name string will be created by tree_read
-      if (f->name == loc->file)
+      if (f->name == loc_file(loc))
          return f->valid ? f : NULL;
    }
 
    f = xmalloc(sizeof(cover_file_t));
-   f->name        = loc->file;
+   f->name        = loc_file(loc);
    f->n_lines     = 0;
    f->alloc_lines = 1024;
    f->lines       = xmalloc(sizeof(cover_line_t) * f->alloc_lines);
    f->next        = files;
 
-   FILE *fp = fopen(istr(loc->file), "r");
+   FILE *fp = fopen(loc_file_str(loc), "r");
 
    if (fp == NULL) {
       // Guess the path is relative to the work library
       char *path LOCAL =
-         xasprintf("%s/../%s", lib_path(lib_work()), istr(loc->file));
+         xasprintf("%s/../%s", lib_path(lib_work()), loc_file_str(loc));
       fp = fopen(path, "r");
    }
 
    if (fp == NULL) {
-      warnf("failed to open %s for coverage report", istr(loc->file));
+      warnf("failed to open %s for coverage report", loc_file_str(loc));
       f->valid = false;
    }
    else {
@@ -239,7 +240,7 @@ static cover_file_t *cover_file(const loc_t *loc)
          if (fgets(buf, sizeof(buf), fp) != NULL)
             cover_append_line(f, buf);
          else if (ferror(fp))
-            fatal("error reading %s", istr(loc->file));
+            fatal("error reading %s", loc_file_str(loc));
       }
 
       fclose(fp);
@@ -266,8 +267,8 @@ static void cover_report_conds(tree_t t, report_ctx_t *ctx)
    cover_line_t *l = &(file->lines[loc->first_line - 1]);
 
    const int start = loc->first_column;
-   const int end = (loc->last_line == loc->first_line)
-      ? loc->last_column : l->len;
+   const int end = (loc->line_delta == 0)
+      ? loc->first_column + loc->column_delta : l->len;
 
    const int sub_cond = tree_attr_int(t, sub_cond_i, 0);
    const int mask = (masks[tag] >> (sub_cond * 2)) & 3;

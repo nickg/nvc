@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 
 #include "util.h"
 #include "ident.h"
+#include "loc.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -162,7 +163,7 @@ static error_fn_t      error_fn = def_error_fn;
 static fatal_fn_t      fatal_fn = NULL;
 static bool            want_color = false;
 static bool            error_force_plain = false;
-static struct option  *options = NULL;
+static option_t       *options = NULL;
 static guard_t        *guards;
 static message_style_t message_style = MESSAGE_FULL;
 static hint_t         *hints = NULL;
@@ -428,7 +429,7 @@ static int color_vfprintf(FILE *f, const char *fmt, va_list ap)
    return len;
 }
 
-static int color_fprintf(FILE *f, const char *fmt, ...)
+int color_fprintf(FILE *f, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
@@ -448,21 +449,7 @@ int color_printf(const char *fmt, ...)
 
 int color_vprintf(const char *fmt, va_list ap)
 {
-   char *strp LOCAL = prepare_msg(fmt, ap, false);
-
-   bool escape = false;
-   int len = 0;
-   for (const char *p = strp; *p != '\0'; p++) {
-      if (*p == '\033')
-         escape = true;
-      if (escape)
-         escape = (*p != 'm');
-      else
-         len += 1;
-   }
-
-   printf("%s", strp);
-   return len;
+   return color_vfprintf(stdout, fmt, ap);
 }
 
 void error_at(const loc_t *loc, const char *fmt, ...)
@@ -658,54 +645,6 @@ void fatal_errno(const char *fmt, ...)
    va_end(ap);
 
    exit(EXIT_FAILURE);
-}
-
-void fmt_loc(FILE *f, const struct loc *loc)
-{
-   if (loc == NULL || loc->first_line == LINE_INVALID || loc->file == NULL)
-      return;
-
-   if (message_style == MESSAGE_COMPACT) {
-      fprintf(f, "%s:%d:%d: ", istr(loc->file), loc->first_line,
-              loc->first_column + 1);
-      return;
-   }
-
-   fprintf(f, "\tFile %s, Line %u\n", istr(loc->file), loc->first_line);
-
-   if (loc->linebuf == NULL)
-      return;
-
-   const char *lb = loc->linebuf;
-   char buf[80];
-   size_t i = 0;
-   while (i < sizeof(buf) - 1 && *lb != '\0' && *lb != '\n') {
-      if (*lb == '\t')
-         buf[i++] = ' ';
-      else
-         buf[i++] = *lb;
-      ++lb;
-   }
-   buf[i] = '\0';
-
-   // Print ... if error location spans multiple lines
-   bool many_lines = (loc->first_line != loc->last_line)
-      || (i == sizeof(buf) - 1 && i <= loc->last_column);
-   int last_col = many_lines ? strlen(buf) + 3 : loc->last_column;
-
-   set_attr(ANSI_FG_CYAN);
-   fprintf(f, "    %s%s\n", buf, many_lines ? " ..." : "");
-   if (last_col >= loc->first_column) {
-      for (unsigned j = 0; j < loc->first_column + 4; j++)
-         fprintf(f, " ");
-      set_attr(ANSI_FG_GREEN);
-      for (unsigned j = 0; j < last_col - loc->first_column + 1; j++)
-         fprintf(f, "^");
-      set_attr(ANSI_RESET);
-      fprintf(f, "\n");
-   }
-
-   fflush(f);
 }
 
 #ifndef NO_STACK_TRACE
@@ -1604,6 +1543,11 @@ void set_message_style(message_style_t style)
 
    if (style == MESSAGE_COMPACT)
       want_color = false;
+}
+
+message_style_t get_message_style(void)
+{
+   return message_style;
 }
 
 #ifndef __MINGW32__

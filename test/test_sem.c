@@ -3,6 +3,7 @@
 #include "util.h"
 #include "common.h"
 #include "test_util.h"
+#include "loc.h"
 
 #include <check.h>
 #include <stdlib.h>

@@ -4,6 +4,7 @@
 #include "phase.h"
 #include "common.h"
 #include "test_util.h"
+#include "loc.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -2351,39 +2352,39 @@ START_TEST(test_loc)
    fail_unless(tree_kind(s) == T_CPCALL);
    l = tree_loc(s);
    fail_unless(l->first_line == 3);
-   fail_unless(l->last_line == 3);
+   fail_unless(l->line_delta == 0);
    fail_unless(l->first_column == 4);
-   fail_unless(l->last_column == 18);
+   fail_unless(l->column_delta == 14);
 
    p = tree_param(s, 0);
    l = tree_loc(p);
    fail_unless(l->first_line == 3);
-   fail_unless(l->last_line == 3);
+   fail_unless(l->line_delta == 0);
    fail_unless(l->first_column == 6);
-   fail_unless(l->last_column == 6);
+   fail_unless(l->column_delta == 0);
 
    p = tree_param(s, 2);
    l = tree_loc(p);
    fail_unless(l->first_line == 3);
-   fail_unless(l->last_line == 3);
+   fail_unless(l->line_delta == 0);
    fail_unless(l->first_column == 12);
-   fail_unless(l->last_column == 16);
+   fail_unless(l->column_delta == 4);
 
    s = tree_stmt(a, 1);
    fail_unless(tree_kind(s) == T_CASSERT);
    l = tree_loc(s);
    fail_unless(l->first_line == 4);
-   fail_unless(l->last_line == 4);
+   fail_unless(l->line_delta == 0);
    fail_unless(l->first_column == 4);
-   fail_unless(l->last_column == 17);
+   fail_unless(l->column_delta == 13);
 
    e = tree_value(s);
    fail_unless(tree_kind(e) == T_ATTR_REF);
    l = tree_loc(e);
    fail_unless(l->first_line == 4);
-   fail_unless(l->last_line == 4);
+   fail_unless(l->line_delta == 0);
    fail_unless(l->first_column == 11);
-   fail_unless(l->last_column == 16);
+   fail_unless(l->column_delta == 5);
 
    a = parse();
    fail_unless(a == NULL);

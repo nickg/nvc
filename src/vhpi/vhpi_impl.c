@@ -146,7 +146,7 @@ static void vhpi_error(vhpiSeverityT sev, const loc_t *loc,
    last_error.str = NULL;
 
    if (loc != NULL) {
-      last_error.file = (char *)loc->file;
+      last_error.file = (char *)loc_file(loc);
       last_error.line = loc->first_line;
    }
 

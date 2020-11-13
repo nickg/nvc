@@ -207,7 +207,7 @@ static void make_rule(tree_t t, rule_t **rules)
       free(name);
    }
    else {
-      const char *file = istr(tree_loc(t)->file);
+      const char *file = loc_file_str(tree_loc(t));
       r = make_rule_for_source(rules, RULE_ANALYSE, file);
       make_rule_add_input(r, file);
 

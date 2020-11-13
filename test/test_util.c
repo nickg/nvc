@@ -2,6 +2,7 @@
 #include "lib.h"
 #include "phase.h"
 #include "common.h"
+#include "loc.h"
 
 #include <assert.h>
 #include <stdlib.h>

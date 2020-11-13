@@ -20,6 +20,7 @@
 #include "util.h"
 #include "common.h"
 #include "phase.h"
+#include "loc.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -856,41 +857,6 @@ tree_t str_to_literal(const char *start, const char *end, type_t type)
    }
 
    return t;
-}
-
-bool loc_eq(const loc_t *a, const loc_t *b)
-{
-   return a->first_line == b->first_line
-      && a->first_column == b->first_column
-      && a->last_line == b->last_line
-      && a->last_column == b->last_column
-      && a->file == b->file;
-}
-
-void loc_write(const loc_t *loc, fbuf_t *f, ident_wr_ctx_t ctx)
-{
-   ident_write(loc->file, ctx);
-
-   const uint64_t merged =
-      ((uint64_t)loc->first_line << 44)
-      | ((uint64_t)loc->first_column << 32)
-      | ((uint64_t)loc->last_line << 12)
-      | (uint64_t)loc->last_column;
-
-   write_u64(merged, f);
-}
-
-void loc_read(loc_t *loc, fbuf_t *f, ident_rd_ctx_t ctx)
-{
-   loc->file = ident_read(ctx);
-   loc->linebuf = NULL;
-
-   const uint64_t merged = read_u64(f);
-
-   loc->first_line   = (merged >> 44) & 0xfffff;
-   loc->first_column = (merged >> 32) & 0xfff;
-   loc->last_line    = (merged >> 12) & 0xfffff;
-   loc->last_column  = merged & 0xfff;
 }
 
 char *vcode_file_name(ident_t unit_name)

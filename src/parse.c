@@ -19,6 +19,7 @@
 #include "phase.h"
 #include "token.h"
 #include "common.h"
+#include "loc.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -55,29 +56,28 @@ struct cond_state {
    loc_t         loc;
 };
 
-static const char   *perm_linebuf = NULL;
-static ident_t       perm_file_name = NULL;
-static int           n_token_next_start = 0;
-static int           n_row = 0;
-static bool          last_was_newline = true;
-static loc_t         start_loc;
-static loc_t         last_loc;
-static const char   *read_ptr;
-static const char   *file_start;
-static size_t        file_sz;
-static int           n_errors = 0;
-static const char   *hint_str = NULL;
-static int           n_correct = 0;
-static tokenq_t     *tokenq;
-static int           tokenq_sz;
-static int           tokenq_head;
-static int           tokenq_tail;
-static yylval_t      last_lval;
-static token_t       opt_hist[8];
-static int           nopt_hist = 0;
-static cond_state_t *cond_state = NULL;
-static bool          translate_on = true;
-static bool          parse_pragmas = false;
+static loc_file_ref_t file_ref = FILE_INVALID;
+static int            n_token_next_start = 0;
+static int            n_row = 0;
+static bool           last_was_newline = true;
+static loc_t          start_loc;
+static loc_t          last_loc;
+static const char    *read_ptr;
+static const char    *file_start;
+static size_t         file_sz;
+static int            n_errors = 0;
+static const char    *hint_str = NULL;
+static int            n_correct = 0;
+static tokenq_t      *tokenq;
+static int            tokenq_sz;
+static int            tokenq_head;
+static int            tokenq_tail;
+static yylval_t       last_lval;
+static token_t        opt_hist[8];
+static int            nopt_hist = 0;
+static cond_state_t  *cond_state = NULL;
+static bool           translate_on = true;
+static bool           parse_pragmas = false;
 
 loc_t yylloc;
 int yylex(void);
@@ -211,8 +211,10 @@ static token_t conditional_yylex(void)
 
          consume(tTHEN);
 
-         new->loc.last_column = yylloc.last_column;
-         new->loc.last_line   = yylloc.last_line;
+         new->loc.column_delta =
+            yylloc.first_column + yylloc.column_delta - new->loc.first_column;
+         new->loc.line_delta =
+            yylloc.first_line + yylloc.line_delta - new->loc.first_line;
 
          cond_state = new;
          return conditional_yylex();
@@ -257,8 +259,10 @@ static token_t conditional_yylex(void)
 
             loc_t loc = yylloc;
             if (consume(tSTRING)) {
-               loc.last_column = yylloc.last_column;
-               loc.last_line   = yylloc.last_line;
+               loc.column_delta =
+                  yylloc.first_column + yylloc.column_delta - loc.first_column;
+               loc.line_delta =
+                  yylloc.first_line + yylloc.line_delta - loc.first_line;
 
                if (token == tCONDWARN)
                   warn_at(&loc, "%s", last_lval.s);
@@ -392,7 +396,7 @@ static void drop_token(void)
 {
    assert(tokenq_head != tokenq_tail);
 
-   if (start_loc.last_line == LINE_INVALID)
+   if (start_loc.first_line == LINE_INVALID)
       start_loc = tokenq[tokenq_tail].loc;
 
    last_lval = tokenq[tokenq_tail].lval;
@@ -552,13 +556,11 @@ static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
 {
    static loc_t result;
 
-   result.first_line   = start->first_line;
-   result.first_column = start->first_column;
-   result.last_line    = end->last_line;
-   result.last_column  = end->last_column;
-   result.file         = start->file;
-   result.linebuf      = start->linebuf;
-
+   result = get_loc(start->first_line,
+                    start->first_column,
+                    end->first_line + end->line_delta,
+                    end->first_column + end->column_delta,
+                    start->file_ref);
    return &result;
 }
 
@@ -5859,19 +5861,17 @@ void begin_token(char *tok)
 
    const int last_col = n_token_start + n_token_length - 1;
 
-   yylloc.first_line   = MIN(n_row, LINE_INVALID);
-   yylloc.first_column = MIN(n_token_start, COLUMN_INVALID);
-   yylloc.last_line    = MIN(n_row, LINE_INVALID);
-   yylloc.last_column  = MIN(last_col, COLUMN_INVALID);
-   yylloc.file         = perm_file_name;
-   yylloc.linebuf      = perm_linebuf;
+   yylloc = get_loc(MIN(n_row, LINE_INVALID),
+                    MIN(n_token_start, COLUMN_INVALID),
+                    MIN(n_row, LINE_INVALID),
+                    MIN(last_col, COLUMN_INVALID),
+                    file_ref);
 }
 
 int get_next_char(char *b, int max_buffer)
 {
    if (last_was_newline) {
       n_row += 1;
-      perm_linebuf = read_ptr;
       last_was_newline = false;
    }
 
@@ -5880,9 +5880,6 @@ int get_next_char(char *b, int max_buffer)
       return 0;
    else
       *b = *read_ptr++;
-
-   if (perm_linebuf == NULL)
-      perm_linebuf = read_ptr;
 
    if (*b == '\n')
       last_was_newline = true;
@@ -5912,7 +5909,7 @@ void input_from_file(const char *file)
 
    read_ptr           = file_start;
    last_was_newline   = true;
-   perm_file_name     = ident_new(file);
+   file_ref           = loc_file_ref(ident_new(file), file_start);
    n_row              = 0;
    n_token_next_start = 0;
    translate_on       = true;

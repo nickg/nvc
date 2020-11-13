@@ -327,7 +327,7 @@ static void fst_process_hier(tree_t h)
    }
 
    const loc_t *loc = tree_loc(h);
-   fstWriterSetSourceStem(fst_ctx, istr(loc->file), loc->first_line, 1);
+   fstWriterSetSourceStem(fst_ctx, loc_file_str(loc), loc->first_line, 1);
 
    fstWriterSetScope(fst_ctx, st, istr(tree_ident(h)),
                      tree_has_ident2(h) ? istr(tree_ident2(h)) : "");

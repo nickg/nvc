@@ -18,6 +18,7 @@
 #include "phase.h"
 #include "util.h"
 #include "common.h"
+#include "loc.h"
 #include "rt/cover.h"
 
 #include <ctype.h>

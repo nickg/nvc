@@ -22,6 +22,7 @@
 #include "common.h"
 #include "rt/netdb.h"
 #include "json.h"
+#include "loc.h"
 
 #include <assert.h>
 #include <string.h>
@@ -54,7 +55,7 @@ static void add_lineno(JsonNode *obj, tree_t node)
 static void add_filename(JsonNode *obj, tree_t node)
 {
    const loc_t *loc = tree_loc(node);
-   json_append_member(obj, "filename", json_mkstring(istr(loc->file)));
+   json_append_member(obj, "filename", json_mkstring(loc_file_str(loc)));
 }
 
 static JsonNode *dump_params(tree_t t, get_fn_t get, int n, const char *prefix)

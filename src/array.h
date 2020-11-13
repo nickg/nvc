@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2012-2016  Nick Gasson
+//  Copyright (C) 2012-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -92,5 +92,26 @@
 #define DECLARE_AND_DEFINE_ARRAY(what) \
    DECLARE_ARRAY(what)                 \
    DEFINE_ARRAY(what)
+
+#define A(type) struct { type *items; uint32_t count; }
+
+#define APUSH(a, item) do {                                             \
+      if (unlikely(((a).count & ((a).count - 1)) == 0)) {               \
+         const int sz = MAX(next_power_of_2((a).count + 1),             \
+                            ARRAY_BASE_SZ);                             \
+         (a).items = xrealloc((a).items, sizeof((item)) * sz);          \
+      }                                                                 \
+      (a).items[(a).count++] = (item);                                  \
+   } while (0)
+
+#define AGET(a, index) ({                               \
+         assert((unsigned)(index) < (a).count);         \
+         (a).items[(index)];                            \
+      })
+
+#define AREF(a, index) ({                               \
+         assert((unsigned)(index) < (a).count);         \
+         &((a).items[(index)]);                         \
+      })
 
 #endif  // _ARRAY_H

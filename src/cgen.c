@@ -586,9 +586,9 @@ static LLVMValueRef cgen_signal_nets(vcode_signal_t sig)
 
 static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
 {
-   LLVMValueRef file_name = hash_get(string_pool, ctx->last_loc.file);
+   LLVMValueRef file_name = hash_get(string_pool, loc_file(&(ctx->last_loc)));
    if (file_name == NULL) {
-      const char *name_str = istr(ctx->last_loc.file);
+      const char *name_str = loc_file_str(&(ctx->last_loc));
       const size_t len = strlen(name_str);
       file_name = LLVMAddGlobal(module,
                                 LLVMArrayType(LLVMInt8Type(), len + 1),
@@ -598,20 +598,21 @@ static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
       LLVMSetLinkage(file_name, LLVMPrivateLinkage);
       LLVMSetUnnamedAddr(file_name, true);
 
-      hash_put(string_pool, ctx->last_loc.file, file_name);
+      hash_put(string_pool, loc_file(&(ctx->last_loc)), file_name);
    }
 
    LLVMTypeRef rt_loc = llvm_rt_loc();
 
+   unsigned last_line = ctx->last_loc.first_line + ctx->last_loc.line_delta;
+   unsigned last_column = ctx->last_loc.first_column + ctx->last_loc.column_delta;
+
    LLVMValueRef init = LLVMGetUndef(rt_loc);
    init = LLVMBuildInsertValue(builder, init,
                                llvm_int32(ctx->last_loc.first_line), 0, "");
-   init = LLVMBuildInsertValue(builder, init,
-                               llvm_int32(ctx->last_loc.last_line), 1, "");
+   init = LLVMBuildInsertValue(builder, init, llvm_int32(last_line), 1, "");
    init = LLVMBuildInsertValue(builder, init,
                                llvm_int16(ctx->last_loc.first_column), 2, "");
-   init = LLVMBuildInsertValue(builder, init,
-                               llvm_int16(ctx->last_loc.last_column), 3, "");
+   init = LLVMBuildInsertValue(builder, init, llvm_int16(last_column), 3, "");
    init = LLVMBuildInsertValue(builder, init,
                                cgen_array_pointer(file_name), 4, "");
 

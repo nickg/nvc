@@ -20,6 +20,7 @@
 
 #include "ident.h"
 #include "prim.h"
+#include "loc.h"
 
 #include <stdint.h>
 
