@@ -1180,25 +1180,27 @@ static void vcode_dump_tab(int col, int to_col)
    }
 }
 
-static void vcode_dump_loc(int col, const loc_t *loc)
+static void vcode_dump_loc(const loc_t *loc)
 {
    if (!loc_invalid_p(loc)) {
-      vcode_dump_tab(col, 40);
-      color_printf("$cyan$// %s:%d$$ ", loc_file_str(loc), loc->first_line);
+      color_printf("%s:%d", loc_file_str(loc), loc->first_line);
    }
+}
+
+static void vcode_dump_comment(int col)
+{
+   vcode_dump_tab(col, 40);
+   color_printf("$cyan$// ");
 }
 
 static void vcode_dump_type(int col, vcode_type_t type, vcode_type_t bounds)
 {
-   vcode_dump_tab(col, 40);
-
-   color_printf("$cyan$// ");
+   vcode_dump_comment(col);
    vcode_dump_one_type(type);
    if (!vtype_eq(type, bounds)) {
       printf(" => ");
       vcode_dump_one_type(bounds);
    }
-   color_printf("$$ ");
 }
 
 static void vcode_dump_result_type(int col, const op_t *op)
@@ -1589,24 +1591,27 @@ void vcode_dump_with_mark(int mark_op)
                   col += printf(" match ");
                   col += vcode_dump_one_type(op->type);
                }
+               vcode_dump_comment(col);
                if (op->hint != NULL)
-                  col += color_printf(" $cyan$// %s$$", op->hint);
-               vcode_dump_loc(col, &(op->loc));
+                  printf("%s ", op->hint);
+               vcode_dump_loc(&(op->loc));
             }
             break;
 
          case VCODE_OP_DYNAMIC_BOUNDS:
             {
-               printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
-               printf(" in ");
-               vcode_dump_reg(op->args.items[1]);
-               printf(" .. ");
-               vcode_dump_reg(op->args.items[2]);
-               printf(" kind ");
-               vcode_dump_reg(op->args.items[3]);
+               col += printf("%s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" in ");
+               col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" .. ");
+               col += vcode_dump_reg(op->args.items[2]);
+               col += printf(" kind ");
+               col += vcode_dump_reg(op->args.items[3]);
+               vcode_dump_comment(col);
                if (op->hint != NULL)
-                  color_printf("$cyan$// %s$$", op->hint);
+                  printf("%s ", op->hint);
+               vcode_dump_loc(&(op->loc));
             }
             break;
 
@@ -2012,7 +2017,8 @@ void vcode_dump_with_mark(int mark_op)
             {
                col += printf("%s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               vcode_dump_loc(col, &(op->loc));
+               vcode_dump_comment(col);
+               vcode_dump_loc(&(op->loc));
             }
             break;
 
@@ -2207,7 +2213,7 @@ void vcode_dump_with_mark(int mark_op)
          if (j == mark_op && i == active_block)
             color_printf("\t $red$<----$$");
 
-         printf("\n");
+         color_printf("$$\n");
       }
 
       if (b->ops.count == 0)
