@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2019  Nick Gasson
+//  Copyright (C) 2011-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include "util.h"
 #include "common.h"
 #include "hash.h"
+#include "array.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -79,9 +80,7 @@ struct loop_stack {
 };
 
 struct type_set {
-   type_t     *members;
-   unsigned    n_members;
-   unsigned    alloc;
+   A(type_t)   members;
    type_set_t *down;
 };
 
@@ -692,11 +691,8 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
 
 static void type_set_push(void)
 {
-   type_set_t *t = xmalloc(sizeof(type_set_t));
-   t->n_members = 0;
-   t->alloc     = 32;
-   t->members   = xmalloc(t->alloc * sizeof(type_t));
-   t->down      = top_type_set;
+   type_set_t *t = xcalloc(sizeof(type_set_t));
+   t->down = top_type_set;
 
    top_type_set = t;
 }
@@ -707,7 +703,7 @@ static void type_set_pop(void)
 
    type_set_t *old = top_type_set;
    top_type_set = old->down;
-   free(old->members);
+   ACLEAR(old->members);
    free(old);
 }
 
@@ -717,13 +713,12 @@ static void type_set_add(type_t t)
    assert(t != NULL);
    assert(type_kind(t) != T_UNRESOLVED);
 
-   for (unsigned i = 0; i < top_type_set->n_members; i++) {
-      if (type_eq(top_type_set->members[i], t))
+   for (unsigned i = 0; i < top_type_set->members.count; i++) {
+      if (type_eq(top_type_set->members.items[i], t))
          return;
    }
 
-   ARRAY_APPEND(top_type_set->members, t, top_type_set->n_members,
-                top_type_set->alloc);
+   APUSH(top_type_set->members, t);
 }
 
 static bool type_set_restrict(bool (*pred)(type_t))
@@ -732,12 +727,12 @@ static bool type_set_restrict(bool (*pred)(type_t))
       return false;
 
    int j = 0;
-   for (int i = 0; i < top_type_set->n_members; i++) {
-      type_t type = top_type_set->members[i];
+   for (int i = 0; i < top_type_set->members.count; i++) {
+      type_t type = top_type_set->members.items[i];
       if ((*pred)(type))
-         top_type_set->members[j++] = type;
+         top_type_set->members.items[j++] = type;
    }
-   top_type_set->n_members = j;
+   ATRIM(top_type_set->members, j);
 
    return j > 0;
 }
@@ -746,8 +741,8 @@ static bool type_set_uniq(type_t *pt)
 {
    assert(top_type_set != NULL);
 
-   if (top_type_set->n_members == 1) {
-      *pt = top_type_set->members[0];
+   if (top_type_set->members.count == 1) {
+      *pt = top_type_set->members.items[0];
       return true;
    }
    else {
@@ -758,10 +753,10 @@ static bool type_set_uniq(type_t *pt)
 
 static bool type_set_any(type_t *pt)
 {
-   if ((top_type_set == NULL) || (top_type_set->n_members == 0))
+   if ((top_type_set == NULL) || (top_type_set->members.count == 0))
       return false;
    else {
-      *pt = top_type_set->members[0];
+      *pt = top_type_set->members.items[0];
       return true;
    }
 }
@@ -770,11 +765,11 @@ static text_buf_t *type_set_fmt(void)
 {
    text_buf_t *tb = tb_new();
 
-   if (top_type_set != NULL && top_type_set->n_members > 0) {
+   if (top_type_set != NULL && top_type_set->members.count > 0) {
       tb_printf(tb, " (");
-      for (unsigned n = 0; n < top_type_set->n_members; n++) {
+      for (unsigned n = 0; n < top_type_set->members.count; n++) {
          tb_printf(tb, "%s%s", n > 0 ? ", " : "",
-                   sem_type_str(top_type_set->members[n]));
+                   sem_type_str(top_type_set->members.items[n]));
       }
       tb_printf(tb, ")");
    }
@@ -784,11 +779,11 @@ static text_buf_t *type_set_fmt(void)
 
 static bool type_set_member(type_t t)
 {
-   if (top_type_set == NULL || top_type_set->n_members == 0)
+   if (top_type_set == NULL || top_type_set->members.count == 0)
       return true;
 
-   for (unsigned n = 0; n < top_type_set->n_members; n++) {
-      if (type_eq(top_type_set->members[n], t))
+   for (unsigned n = 0; n < top_type_set->members.count; n++) {
+      if (type_eq(top_type_set->members.items[n], t))
          return true;
    }
 
@@ -4035,9 +4030,7 @@ static bool sem_check_fcall(tree_t t)
    if (!sem_check_params(t))
       return false;
 
-   int n_overloads = 0;
-   int max_overloads = 128;
-   tree_t *overloads LOCAL = xmalloc(max_overloads * sizeof(tree_t));
+   SCOPED_A(tree_t) overloads = AINIT;
 
    ident_t name = tree_ident(t);
    if (!sem_check_selected_name(name, t, NULL))
@@ -4113,16 +4106,16 @@ static bool sem_check_fcall(tree_t t)
             // Same function may appear multiple times in the symbol
             // table under different names
             bool duplicate = false;
-            for (int i = 0; i < n_overloads; i++) {
-               if (overloads[i] == NULL)
+            for (int i = 0; i < overloads.count; i++) {
+               if (overloads.items[i] == NULL)
                   continue;
-               else if (overloads[i] == decl)
+               else if (overloads.items[i] == decl)
                   duplicate = true;
-               else if (type_eq(tree_type(overloads[i]), func_type)) {
+               else if (type_eq(tree_type(overloads.items[i]), func_type)) {
                   const bool same_name =
-                     (tree_ident(overloads[i]) == tree_ident(decl));
+                     (tree_ident(overloads.items[i]) == tree_ident(decl));
                   const bool overload_i_is_builtin =
-                     tree_attr_str(overloads[i], builtin_i) != NULL;
+                     tree_attr_str(overloads.items[i], builtin_i) != NULL;
 
                   if (same_name)
                      duplicate = true;
@@ -4130,20 +4123,20 @@ static bool sem_check_fcall(tree_t t)
                      if (decl_is_builtin && !overload_i_is_builtin)
                         duplicate = true;
                      else if (!decl_is_builtin && overload_i_is_builtin)
-                        overloads[i] = decl;
+                        overloads.items[i] = decl;
                   }
                }
             }
 
             if (!duplicate) {
                // Found a matching function definition
-               ARRAY_APPEND(overloads, decl, n_overloads, max_overloads);
+               APUSH(overloads, decl);
             }
          }
       }
    } while (decl != NULL);
 
-   if (n_overloads == 0) {
+   if (overloads.count == 0) {
       if (type_set_restrict(type_is_array)) {
          // Possible to interpret this as an array reference on the result of
          // a zero argument function call
@@ -4164,7 +4157,8 @@ static bool sem_check_fcall(tree_t t)
    }
 
    int matches;
-   if (!sem_resolve_overload(t, &decl, &matches, overloads, n_overloads))
+   if (!sem_resolve_overload(t, &decl, &matches,
+                             overloads.items, overloads.count))
       return false;
 
    if (matches > 0 && decl == NULL)
@@ -4176,11 +4170,11 @@ static bool sem_check_fcall(tree_t t)
       const bool operator = !isalpha((int)*istr(name));
 
       int nimplicit = 0, nexplicit = 0;
-      for (int n = 0; n < n_overloads; n++) {
-         if (overloads[n] != NULL) {
-            const bool implicit = tree_attr_str(overloads[n], builtin_i);
+      for (int n = 0; n < overloads.count; n++) {
+         if (overloads.items[n] != NULL) {
+            const bool implicit = tree_attr_str(overloads.items[n], builtin_i);
             tb_printf(tb, "\n    %s%s",
-                      sem_type_str(tree_type(overloads[n])),
+                      sem_type_str(tree_type(overloads.items[n])),
                       implicit ? " (implicit)" : "");
             if (implicit)
                nimplicit++;
@@ -4212,12 +4206,12 @@ static bool sem_check_fcall(tree_t t)
                    (i == 0 ? "" : ", "),
                    sem_type_str(tree_type(tree_value(tree_param(t, i)))));
 
-      if ((top_type_set != NULL) && (top_type_set->n_members > 0)) {
+      if ((top_type_set != NULL) && (top_type_set->members.count > 0)) {
          tb_printf(tb, " return");
-         for (int i = 0; i < top_type_set->n_members; i++)
+         for (int i = 0; i < top_type_set->members.count; i++)
             tb_printf(tb, "%s %s",
                       (i > 0 ? " |" : ""),
-                      sem_type_str(top_type_set->members[i]));
+                      sem_type_str(top_type_set->members.items[i]));
       }
 
       tb_printf(tb, "]");
@@ -4262,9 +4256,7 @@ static bool sem_check_pcall(tree_t t)
    if (!sem_check_selected_name(name, t, NULL))
       return false;
 
-   int n_overloads = 0;
-   int max_overloads = 128;
-   tree_t *overloads LOCAL = xmalloc(max_overloads * sizeof(tree_t));
+   SCOPED_A(tree_t) overloads = AINIT;
 
    tree_t decl;
    int n = 0, found_proc = 0;
@@ -4291,17 +4283,18 @@ static bool sem_check_pcall(tree_t t)
             continue;
 
          // Found a matching function definition
-         ARRAY_APPEND(overloads, decl, n_overloads, max_overloads);
+         APUSH(overloads, decl);
       }
    } while (decl != NULL);
 
-   if (n_overloads == 0)
+   if (overloads.count == 0)
       sem_error(t, (found_proc > 0
                     ? "no matching procedure %s"
                     : "undefined procedure %s"), istr(name));
 
    int matches;
-   if (!sem_resolve_overload(t, &decl, &matches, overloads, n_overloads))
+   if (!sem_resolve_overload(t, &decl, &matches,
+                             overloads.items, overloads.count))
       return false;
 
    if (matches > 0 && decl == NULL)
@@ -4310,10 +4303,10 @@ static bool sem_check_pcall(tree_t t)
    if (matches > 1) {
       LOCAL_TEXT_BUF tb = tb_new();
 
-      for (int n = 0; n < n_overloads; n++) {
-         if (overloads[n] != NULL)
+      for (int n = 0; n < overloads.count; n++) {
+         if (overloads.items[n] != NULL)
             tb_printf(tb, "\n    %s",
-                      sem_type_str(tree_type(overloads[n])));
+                      sem_type_str(tree_type(overloads.items[n])));
       }
 
       sem_error(t, "ambiguous call to procedure %s%s",
@@ -4482,11 +4475,11 @@ static bool sem_check_concat_param(tree_t t, type_t hint)
 
    type_set_push();
 
-   for (unsigned i = 0; old != NULL && i < old->n_members; i++) {
-      if (!type_is_array(old->members[i]))
+   for (unsigned i = 0; old != NULL && i < old->members.count; i++) {
+      if (!type_is_array(old->members.items[i]))
          continue;
 
-      type_t base = type_base_recur(old->members[i]);
+      type_t base = type_base_recur(old->members.items[i]);
       type_t elem = type_elem(base);
 
       if (hint == NULL) {
@@ -4533,7 +4526,7 @@ static bool sem_check_concat(tree_t t)
    tree_t right = tree_value(tree_param(t, 1));
 
    const bool have_context =
-      top_type_set != NULL && top_type_set->n_members > 0;
+      top_type_set != NULL && top_type_set->members.count > 0;
 
    if (have_context && !type_set_restrict(sem_is_composite)) {
       LOCAL_TEXT_BUF ts = type_set_fmt();
@@ -4661,8 +4654,8 @@ static bool sem_check_concat(tree_t t)
       type_t composite = NULL;
       if (have_context) {
          // Match the element type to a composite in the type set
-         for (unsigned i = 0; i < top_type_set->n_members; i++) {
-            type_t this = top_type_set->members[i];
+         for (unsigned i = 0; i < top_type_set->members.count; i++) {
+            type_t this = top_type_set->members.items[i];
             if (type_is_array(this) && type_eq(type_elem(this), ltype))
                composite = this;
          }

@@ -19,6 +19,7 @@
 #include "tree.h"
 #include "phase.h"
 #include "common.h"
+#include "loc.h"
 #include "rt/netdb.h"
 
 #include <assert.h>

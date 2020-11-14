@@ -177,14 +177,6 @@ void _local_free(void *ptr);
 #define DLLEXPORT
 #endif
 
-#define ARRAY_APPEND(array, item, count, max) do {      \
-      if (unlikely(count == max)) {                     \
-         max *= 2;                                      \
-         array = xrealloc(array, max * sizeof(*array)); \
-      }                                                 \
-      array[count++] = item;                            \
-   } while(0);
-
 typedef enum {
    MESSAGE_FULL,
    MESSAGE_COMPACT

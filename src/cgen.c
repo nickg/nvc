@@ -80,11 +80,8 @@ typedef enum {
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
 
-static char **link_args = NULL;
-static size_t n_link_args = 0;
-static size_t max_link_args = 0;
-
-static hash_t *string_pool = NULL;
+static A(char *)  link_args;
+static hash_t    *string_pool = NULL;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata);
@@ -3964,7 +3961,7 @@ static void cgen_link_arg(const char *fmt, ...)
    char *buf = xvasprintf(fmt, ap);
    va_end(ap);
 
-   ARRAY_APPEND(link_args, buf, n_link_args, max_link_args);
+   APUSH(link_args, buf);
 }
 
 #ifdef IMPLIB_REQUIRED
@@ -4025,10 +4022,6 @@ static void cgen_native(tree_t top, LLVMTargetMachineRef tm_ref)
    if (LLVMTargetMachineEmitToFile(tm_ref, module, obj_path,
                                    LLVMObjectFile, &error))
       fatal("Failed to write object file: %s", error);
-
-   max_link_args = 64;
-   link_args = xmalloc(sizeof(char *) * max_link_args);
-   n_link_args = 0;
 
 #ifdef LINKER_PATH
    cgen_link_arg("%s", LINKER_PATH);
@@ -4093,14 +4086,13 @@ static void cgen_native(tree_t top, LLVMTargetMachineRef tm_ref)
    cgen_link_arg("-lnvcimp");
 #endif
 
-   ARRAY_APPEND(link_args, NULL, n_link_args, max_link_args);
+   APUSH(link_args, NULL);
 
-   run_program((const char * const *)link_args, n_link_args - 1);
+   run_program((const char * const *)link_args.items, link_args.count);
 
-   for (size_t i = 0; i < n_link_args; i++)
-      free(link_args[i]);
-   free(link_args);
-   link_args = NULL;
+   for (size_t i = 0; i < link_args.count; i++)
+      free(link_args.items[i]);
+   ACLEAR(link_args);
 }
 
 void cgen(tree_t top, vcode_unit_t vcode)

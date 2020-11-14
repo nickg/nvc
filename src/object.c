@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2019  Nick Gasson
+//  Copyright (C) 2014-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -43,9 +43,7 @@ static const char *item_text_map[] = {
 static object_class_t *classes[4];
 static uint32_t        format_digest;
 static generation_t    next_generation = 1;
-static object_t      **all_objects = NULL;
-static size_t          max_objects = 256;   // Grows at runtime
-static size_t          n_objects_alloc = 0;
+static A(object_t*)    all_objects;
 
 void object_lookup_failed(const char *name, const char **kind_text_map,
                           int kind, imask_t mask)
@@ -200,10 +198,7 @@ object_t *object_new(const object_class_t *class, int kind)
    object->index = UINT32_MAX;
    object->loc   = LOC_INVALID;
 
-   if (unlikely(all_objects == NULL))
-      all_objects = xmalloc(sizeof(object_t *) * max_objects);
-
-   ARRAY_APPEND(all_objects, object, n_objects_alloc, max_objects);
+   APUSH(all_objects, object);
 
    return object;
 }
@@ -246,14 +241,14 @@ void object_gc(void)
    const generation_t base_gen = next_generation;
 
    // Mark
-   for (unsigned i = 0; i < n_objects_alloc; i++) {
-      assert(all_objects[i] != NULL);
+   for (unsigned i = 0; i < all_objects.count; i++) {
+      assert(all_objects.items[i] != NULL);
 
-      const object_class_t *class = classes[all_objects[i]->tag];
+      const object_class_t *class = classes[all_objects.items[i]->tag];
 
       bool top_level = false;
       for (int j = 0; (j < class->gc_num_roots) && !top_level; j++) {
-         if (class->gc_roots[j] == all_objects[i]->kind)
+         if (class->gc_roots[j] == all_objects.items[i]->kind)
             top_level = true;
       }
 
@@ -268,30 +263,30 @@ void object_gc(void)
             .deep       = true
          };
 
-         object_visit(all_objects[i], &ctx);
+         object_visit(all_objects.items[i], &ctx);
       }
    }
 
    // Sweep
-   for (unsigned i = 0; i < n_objects_alloc; i++) {
-      object_t *object = all_objects[i];
+   for (unsigned i = 0; i < all_objects.count; i++) {
+      object_t *object = all_objects.items[i];
       if (object->generation < base_gen) {
          object_sweep(object);
-         all_objects[i] = NULL;
+         all_objects.items[i] = NULL;
       }
    }
 
    // Compact
    size_t p = 0;
-   for (unsigned i = 0; i < n_objects_alloc; i++) {
-      if (all_objects[i] != NULL)
-         all_objects[p++] = all_objects[i];
+   for (unsigned i = 0; i < all_objects.count; i++) {
+      if (all_objects.items[i] != NULL)
+         all_objects.items[p++] = all_objects.items[i];
    }
 
    if ((getenv("NVC_GC_VERBOSE") != NULL) || is_debugger_running())
-      notef("GC: freed %zu objects; %zu allocated", n_objects_alloc - p, p);
+      notef("GC: freed %zu objects; %zu allocated", all_objects.count - p, p);
 
-   n_objects_alloc = p;
+   ATRIM(all_objects, p);
 }
 
 void object_visit(object_t *object, object_visit_ctx_t *ctx)
@@ -461,11 +456,11 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    }
 
    if (unlikely(ctx->cache == NULL)) {
-      ctx->cache_size = MIN(4096, n_objects_alloc);
+      ctx->cache_size = MIN(4096, all_objects.count);
       ctx->cache = xcalloc(sizeof(object_t *) * ctx->cache_size);
    }
    else if (unlikely(ctx->index >= ctx->cache_size)) {
-      assert(ctx->index < n_objects_alloc);
+      assert(ctx->index < all_objects.count);
       while (ctx->index >= ctx->cache_size) {
          const size_t newsz = (ctx->cache_size * 3) / 2;
          ctx->cache = xrealloc(ctx->cache, newsz * sizeof(object_t *));

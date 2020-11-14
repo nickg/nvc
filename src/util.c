@@ -27,6 +27,7 @@
 #include "util.h"
 #include "ident.h"
 #include "loc.h"
+#include "array.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -1781,4 +1782,10 @@ const char *safe_symbol(const char *text)
 #else
    return text;
 #endif
+}
+
+void _cleanup_array(void *ptr)
+{
+   A(void *) *a = ptr;
+   ACLEAR(*a);
 }

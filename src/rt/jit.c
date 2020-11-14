@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -53,9 +53,7 @@ extern void ___chkstk_ms(void);
 extern void _alloca(void);
 #endif
 
-static HMODULE *search_modules;
-static size_t nmodules = 0, max_modules = 0;
-
+static A(HMODULE) search_modules;
 #endif
 
 void *jit_find_symbol(const char *name, bool required)
@@ -80,8 +78,9 @@ void *jit_find_symbol(const char *name, bool required)
    if (strcmp(name, "exp2") == 0)
       return (void *)(uintptr_t)exp2;
 
-   for (size_t i = 0; i < nmodules; i++) {
-      void *ptr = (void *)(uintptr_t)GetProcAddress(search_modules[i], name);
+   for (size_t i = 0; i < search_modules.count; i++) {
+      HMODULE h = search_modules.items[i];
+      void *ptr = (void *)(uintptr_t)GetProcAddress(h, name);
       if (ptr != NULL)
          return ptr;
    }
@@ -136,7 +135,7 @@ static void jit_load_module(ident_t name)
    if (hModule == NULL)
       fatal("failed to load %s", so_path);
 
-   ARRAY_APPEND(search_modules, hModule, nmodules, max_modules);
+   APUSH(search_modules, hModule);
 #else
    if (dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL) == NULL)
       fatal("%s: %s", so_path, dlerror());
@@ -146,12 +145,9 @@ static void jit_load_module(ident_t name)
 void jit_init(tree_t top)
 {
 #ifdef __MINGW32__
-   max_modules = 16;
-   nmodules = 0;
-   search_modules = xmalloc(sizeof(HMODULE) * max_modules);
-   ARRAY_APPEND(search_modules, GetModuleHandle(NULL), nmodules, max_modules);
-   ARRAY_APPEND(search_modules, GetModuleHandle("MSVCRT.DLL"),
-                nmodules, max_modules);
+   ACLEAR(search_modules);
+   APUSH(search_modules, GetModuleHandle(NULL));
+   APUSH(search_modules, GetModuleHandle("MSVCRT.DLL"));
 #endif
 
    const int ncontext = tree_contexts(top);

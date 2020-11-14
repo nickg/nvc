@@ -18,6 +18,7 @@
 #include "common.h"
 #include "phase.h"
 #include "util.h"
+#include "loc.h"
 
 #include <limits.h>
 #include <unistd.h>

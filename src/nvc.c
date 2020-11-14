@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2019  Nick Gasson
+//  Copyright (C) 2011-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "array.h"
 #include "phase.h"
 #include "common.h"
 #include "vcode.h"
@@ -153,47 +154,45 @@ static int analyse(int argc, char **argv)
       }
    }
 
-   size_t unit_list_sz = 32;
-   tree_t *units LOCAL = xmalloc(sizeof(tree_t) * unit_list_sz);
-   int n_units = 0;
+   SCOPED_A(tree_t) units = AINIT;
 
    for (int i = optind; i < next_cmd; i++) {
       input_from_file(argv[i]);
 
       tree_t unit;
       while ((unit = parse()) && sem_check(unit))
-         ARRAY_APPEND(units, unit, n_units, unit_list_sz);
+         APUSH(units, unit);
    }
 
-   for (int i = 0; i < n_units; i++) {
+   for (int i = 0; i < units.count; i++) {
       // Delete any stale vcode to prevent problems in constant folding
-      char *vcode LOCAL = vcode_file_name(tree_ident(units[i]));
+      char *vcode LOCAL = vcode_file_name(tree_ident(units.items[i]));
       lib_delete(lib_work(), vcode);
 
-      simplify(units[i], 0);
-      bounds_check(units[i]);
+      simplify(units.items[i], 0);
+      bounds_check(units.items[i]);
    }
 
    if (parse_errors() + sem_errors() + bounds_errors() > 0)
       return EXIT_FAILURE;
 
    if (opt_get_str("dump-json")) {
-      dump_json(units, n_units, opt_get_str("dump-json"));
+      dump_json(units.items, units.count, opt_get_str("dump-json"));
    }
 
    lib_save(lib_work());
 
-   for (int i = 0; i < n_units; i++) {
-      const tree_kind_t kind = tree_kind(units[i]);
+   for (int i = 0; i < units.count; i++) {
+      const tree_kind_t kind = tree_kind(units.items[i]);
       const bool need_cgen = kind == T_PACK_BODY
-         || (kind == T_PACKAGE && pack_needs_cgen(units[i]));
+         || (kind == T_PACKAGE && pack_needs_cgen(units.items[i]));
       if (need_cgen) {
-         vcode_unit_t vu = lower_unit(units[i]);
-         char *name LOCAL = vcode_file_name(tree_ident(units[i]));
+         vcode_unit_t vu = lower_unit(units.items[i]);
+         char *name LOCAL = vcode_file_name(tree_ident(units.items[i]));
          fbuf_t *fbuf = lib_fbuf_open(lib_work(), name, FBUF_OUT);
          vcode_write(vu, fbuf);
          fbuf_close(fbuf);
-         cgen(units[i], vu);
+         cgen(units.items[i], vu);
       }
    }
 
