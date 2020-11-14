@@ -54,7 +54,6 @@ typedef struct {
    size_t             var_base;
    size_t             param_base;
    LLVMValueRef      *locals;
-   loc_t              last_loc;
 } cgen_ctx_t;
 
 typedef struct {
@@ -584,11 +583,14 @@ static LLVMValueRef cgen_signal_nets(vcode_signal_t sig)
    return cgen_array_pointer(nets);
 }
 
-static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
+static LLVMValueRef cgen_location(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef file_name = hash_get(string_pool, loc_file(&(ctx->last_loc)));
+   const loc_t *loc = vcode_get_loc(op);
+   assert(!loc_invalid_p(loc));
+
+   LLVMValueRef file_name = hash_get(string_pool, loc_file(loc));
    if (file_name == NULL) {
-      const char *name_str = loc_file_str(&(ctx->last_loc));
+      const char *name_str = loc_file_str(loc);
       const size_t len = strlen(name_str);
       file_name = LLVMAddGlobal(module,
                                 LLVMArrayType(LLVMInt8Type(), len + 1),
@@ -598,20 +600,20 @@ static LLVMValueRef cgen_location(cgen_ctx_t *ctx)
       LLVMSetLinkage(file_name, LLVMPrivateLinkage);
       LLVMSetUnnamedAddr(file_name, true);
 
-      hash_put(string_pool, loc_file(&(ctx->last_loc)), file_name);
+      hash_put(string_pool, loc_file(loc), file_name);
    }
 
    LLVMTypeRef rt_loc = llvm_rt_loc();
 
-   unsigned last_line = ctx->last_loc.first_line + ctx->last_loc.line_delta;
-   unsigned last_column = ctx->last_loc.first_column + ctx->last_loc.column_delta;
+   unsigned last_line = loc->first_line + loc->line_delta;
+   unsigned last_column = loc->first_column + loc->column_delta;
 
    LLVMValueRef init = LLVMGetUndef(rt_loc);
    init = LLVMBuildInsertValue(builder, init,
-                               llvm_int32(ctx->last_loc.first_line), 0, "");
+                               llvm_int32(loc->first_line), 0, "");
    init = LLVMBuildInsertValue(builder, init, llvm_int32(last_line), 1, "");
    init = LLVMBuildInsertValue(builder, init,
-                               llvm_int16(ctx->last_loc.first_column), 2, "");
+                               llvm_int16(loc->first_column), 2, "");
    init = LLVMBuildInsertValue(builder, init, llvm_int16(last_column), 3, "");
    init = LLVMBuildInsertValue(builder, init,
                                cgen_array_pointer(file_name), 4, "");
@@ -873,7 +875,7 @@ static void cgen_op_report(int op, cgen_ctx_t *ctx)
       length,
       severity,
       llvm_int8(1),
-      cgen_location(ctx)
+      cgen_location(op, ctx)
    };
    LLVMBuildCall(builder, llvm_fn("_assert_fail"), args, ARRAY_LEN(args), "");
 }
@@ -923,7 +925,7 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
       length,
       severity,
       llvm_int8(0),
-      cgen_location(ctx)
+      cgen_location(op, ctx)
    };
    LLVMBuildCall(builder, llvm_fn("_assert_fail"), args, ARRAY_LEN(args), "");
 
@@ -1124,7 +1126,7 @@ static void cgen_op_div(int op, cgen_ctx_t *ctx)
       LLVMPositionBuilderAtEnd(builder, zero_bb);
 
       LLVMValueRef args[] = {
-         cgen_location(ctx)
+         cgen_location(op, ctx)
       };
       LLVMBuildCall(builder, llvm_fn("_div_zero"), args, ARRAY_LEN(args), "");
       LLVMBuildUnreachable(builder);
@@ -1255,7 +1257,7 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
       min,
       max,
       llvm_int32(vcode_get_subkind(op)),
-      cgen_location(ctx),
+      cgen_location(op, ctx),
       cgen_hint_str(op),
    };
 
@@ -1314,7 +1316,7 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
       min,
       max,
       kind,
-      cgen_location(ctx),
+      cgen_location(op, ctx),
       cgen_hint_str(op),
    };
 
@@ -2410,7 +2412,7 @@ static void cgen_op_null_check(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, null_bb);
 
    LLVMValueRef args[] = {
-      cgen_location(ctx)
+      cgen_location(op, ctx)
    };
    LLVMBuildCall(builder, llvm_fn("_null_deref"), args, ARRAY_LEN(args), "");
    LLVMBuildUnreachable(builder);
@@ -2456,7 +2458,7 @@ static void cgen_op_value(int op, cgen_ctx_t *ctx)
       cgen_get_arg(op, 0, ctx),
       cgen_get_arg(op, 1, ctx),
       image_map,
-      cgen_location(ctx)
+      cgen_location(op, ctx)
    };
    ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_value_attr"),
                                       args, ARRAY_LEN(args), "value");
@@ -2562,7 +2564,7 @@ static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
       llen,
       rlen,
       llvm_int32(BOUNDS_ARRAY_SIZE),
-      cgen_location(ctx),
+      cgen_location(op, ctx),
       LLVMConstNull(llvm_char_ptr())
    };
 
@@ -2618,7 +2620,7 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
          min,
          max,
          llvm_int32(vcode_get_subkind(op)),
-         cgen_location(ctx),
+         cgen_location(op, ctx),
          LLVMConstNull(llvm_char_ptr())
       };
 
@@ -2707,12 +2709,6 @@ static void cgen_op_heap_restore(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef cur_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
    LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cur_ptr);
-}
-
-static void cgen_op_debug_info(int op, cgen_ctx_t *ctx)
-{
-   // TODO: emit LLVM debug info here
-   ctx->last_loc = *vcode_get_loc(op);
 }
 
 static void cgen_op_addi(int op, cgen_ctx_t *ctx)
@@ -3033,9 +3029,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_IMAGE_MAP:
       cgen_op_image_map(i, ctx);
-      break;
-   case VCODE_OP_DEBUG_INFO:
-      cgen_op_debug_info(i, ctx);
       break;
    case VCODE_OP_ADDI:
       cgen_op_addi(i, ctx);

@@ -40,7 +40,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
    int eptr = 0, actual = nops;
    for (int i = 0; i < nops && eptr < len; i++) {
       const vcode_op_t vop = vcode_get_op(i);
-      if (vop == VCODE_OP_COMMENT || vop == VCODE_OP_DEBUG_INFO) {
+      if (vop == VCODE_OP_COMMENT) {
          actual--;
          continue;
       }
@@ -535,9 +535,9 @@ START_TEST(test_assign2)
 
    CHECK_BB(0);
 
-   fail_unless(vcode_get_op(6) == VCODE_OP_CONST_ARRAY);
+   fail_unless(vcode_get_op(5) == VCODE_OP_CONST_ARRAY);
    for (int i = 0; i < 8; i++)
-      fail_unless(vcode_get_arg(6, i) == vcode_get_result((i == 6) ? 4 : 5));
+      fail_unless(vcode_get_arg(5, i) == vcode_get_result((i == 6) ? 3 : 4));
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },

@@ -78,8 +78,6 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_NESTED_PCALL)
 #define OP_HAS_IMAGE_MAP(x)                                             \
    (x == VCODE_OP_IMAGE_MAP)
-#define OP_HAS_LOC(x)                                                   \
-   (x == VCODE_OP_DEBUG_INFO)
 #define OP_HAS_RESOLUTION(x)                                            \
    (x == VCODE_OP_SET_INITIAL)
 
@@ -87,6 +85,7 @@ typedef struct {
    vcode_op_t          kind;
    vcode_reg_array_t   args;
    vcode_reg_t         result;
+   loc_t               loc;
    vcode_type_t        type;          // OP_HAS_TYPE
    union {
       ident_t          func;          // OP_HAS_FUNC
@@ -94,7 +93,6 @@ typedef struct {
       unsigned         subkind;       // OP_HAS_SUBKIND
    };
    union {
-      loc_t               loc;        // OP_HAS_LOC
       vcode_block_array_t targets;    // OP_HAS_TARGET
       vcode_res_fn_t     *resolution; // OP_HAS_RESOLUTION
    };
@@ -302,6 +300,7 @@ static op_t *vcode_add_op(vcode_op_t kind)
    memset(op, '\0', sizeof(op_t));
    op->kind   = kind;
    op->result = VCODE_INVALID_REG;
+   op->loc    = block->last_loc;
 
    return op;
 }
@@ -996,7 +995,6 @@ uint32_t vcode_get_tag(int op)
 const loc_t *vcode_get_loc(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(OP_HAS_LOC(o->kind));
    return &(o->loc);
 }
 
@@ -1056,7 +1054,7 @@ const char *vcode_op_string(vcode_op_t op)
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
       "uarray len", "heap save", "heap restore", "nested resume", "undefined",
-      "image map", "debug info", "addi", "range null", "var upref"
+      "image map", "addi", "range null", "var upref"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1072,101 +1070,104 @@ static int vcode_dump_reg(vcode_reg_t reg)
       return color_printf("$green$r%d$$", reg);
 }
 
-static void vcode_pretty_print_int(int64_t n)
+static int vcode_pretty_print_int(int64_t n)
 {
    if (n == INT64_MAX)
-      printf("2^63-1");
+      return printf("2^63-1");
    else if (n == INT64_MIN)
-      printf("-2^63");
+      return printf("-2^63");
    else if (n == INT64_MIN + 1)
-      printf("-2^63");   // XXX: bug in lexer/parser
+      return printf("-2^63");   // XXX: bug in lexer/parser
    else if (n == INT32_MAX)
-      printf("2^31-1");
+      return printf("2^31-1");
    else if (n == INT32_MIN)
-      printf("-2^31");
+      return printf("-2^31");
    else
-      printf("%"PRIi64, n);
+      return printf("%"PRIi64, n);
 }
 
-static void vcode_dump_one_type(vcode_type_t type)
+static int vcode_dump_one_type(vcode_type_t type)
 {
+   int col = 0;
    vtype_t *vt = vcode_type_data(type);
    switch (vt->kind) {
    case VCODE_TYPE_INT:
       if (vt->low != vt->high) {
-         vcode_pretty_print_int(vt->low);
-         printf("..");
-         vcode_pretty_print_int(vt->high);
+         col += vcode_pretty_print_int(vt->low);
+         col += printf("..");
+         col += vcode_pretty_print_int(vt->high);
       }
       else
-         vcode_pretty_print_int(vt->low);
+         col += vcode_pretty_print_int(vt->low);
       break;
 
    case VCODE_TYPE_REAL:
-      printf("%%");
+      col += printf("%%");
       break;
 
    case VCODE_TYPE_CARRAY:
       {
-         printf("[%u] : ", vt->size);
-         vcode_dump_one_type(vt->elem);
+         col += printf("[%u] : ", vt->size);
+         col += vcode_dump_one_type(vt->elem);
          if (!vtype_eq(vt->elem, vt->bounds)) {
-            printf(" => ");
-            vcode_dump_one_type(vt->bounds);
+            col += printf(" => ");
+            col += vcode_dump_one_type(vt->bounds);
          }
       }
       break;
 
    case VCODE_TYPE_UARRAY:
       {
-         printf("[");
+         col += printf("[");
          for (unsigned i = 0; i < vt->dims; i++)
-            printf("%s*", i > 0 ? ", " : "");
-         printf("] : ");
-         vcode_dump_one_type(vt->elem);
+            col += printf("%s*", i > 0 ? ", " : "");
+         col += printf("] : ");
+         col += vcode_dump_one_type(vt->elem);
          if (!vtype_eq(vt->elem, vt->bounds)) {
-            printf(" => ");
-            vcode_dump_one_type(vt->bounds);
+            col += printf(" => ");
+            col += vcode_dump_one_type(vt->bounds);
          }
       }
       break;
 
    case VCODE_TYPE_POINTER:
-      printf("@<");
-      vcode_dump_one_type(vt->pointed);
-      printf(">");
+      col += printf("@<");
+      col += vcode_dump_one_type(vt->pointed);
+      col += printf(">");
       break;
 
    case VCODE_TYPE_ACCESS:
-      printf("A<");
-      vcode_dump_one_type(vt->pointed);
-      printf(">");
+      col += printf("A<");
+      col += vcode_dump_one_type(vt->pointed);
+      col += printf(">");
       break;
 
    case VCODE_TYPE_SIGNAL:
-      printf("$<");
-      vcode_dump_one_type(vt->base);
-      printf(">");
+      col += printf("$<");
+      col += vcode_dump_one_type(vt->base);
+      col += printf(">");
       break;
 
    case VCODE_TYPE_OFFSET:
-      printf("#");
+      col += printf("#");
       break;
 
    case VCODE_TYPE_RECORD:
-      printf("%s{}", istr(vt->name));
+      col += printf("%s{}", istr(vt->name));
       break;
 
    case VCODE_TYPE_FILE:
-      printf("F<");
-      vcode_dump_one_type(vt->base);
-      printf(">");
+      col += printf("F<");
+      col += vcode_dump_one_type(vt->base);
+      col += printf(">");
       break;
 
    case VCODE_TYPE_IMAGE_MAP:
-      printf("I<>");
+      col += printf("I<>");
       break;
    }
+
+   return col;
 }
 
 static void vcode_dump_tab(int col, int to_col)
@@ -1176,6 +1177,14 @@ static void vcode_dump_tab(int col, int to_col)
    else {
       while (col < to_col)
          col += printf(" ");
+   }
+}
+
+static void vcode_dump_loc(int col, const loc_t *loc)
+{
+   if (!loc_invalid_p(loc)) {
+      vcode_dump_tab(col, 40);
+      color_printf("$cyan$// %s:%d$$ ", loc_file_str(loc), loc->first_line);
    }
 }
 
@@ -1568,20 +1577,21 @@ void vcode_dump_with_mark(int mark_op)
          case VCODE_OP_BOUNDS:
             {
                vtype_t *vt = vcode_type_data(op->type);
-               printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
+               col += printf("%s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
                if (vt->kind == VCODE_TYPE_INT) {
-                  printf(" in ");
-                  vcode_pretty_print_int(vt->low);
-                  printf(" .. ");
-                  vcode_pretty_print_int(vt->high);
+                  col += printf(" in ");
+                  col += vcode_pretty_print_int(vt->low);
+                  col += printf(" .. ");
+                  col += vcode_pretty_print_int(vt->high);
                }
                else {
-                  printf(" match ");
-                  vcode_dump_one_type(op->type);
+                  col += printf(" match ");
+                  col += vcode_dump_one_type(op->type);
                }
                if (op->hint != NULL)
-                  color_printf(" $cyan$// %s$$", op->hint);
+                  col += color_printf(" $cyan$// %s$$", op->hint);
+               vcode_dump_loc(col, &(op->loc));
             }
             break;
 
@@ -2000,8 +2010,9 @@ void vcode_dump_with_mark(int mark_op)
          case VCODE_OP_NULL_CHECK:
          case VCODE_OP_DEALLOCATE:
             {
-               printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
+               col += printf("%s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               vcode_dump_loc(col, &(op->loc));
             }
             break;
 
@@ -2189,13 +2200,6 @@ void vcode_dump_with_mark(int mark_op)
                }
                col += printf(" ] ");
                vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_DEBUG_INFO:
-            {
-               color_printf("$cyan$@ %s:%d:%d$$", loc_file_str(&(op->loc)),
-                            op->loc.first_line, op->loc.first_column);
             }
             break;
          }
@@ -2750,12 +2754,12 @@ vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
                            vcode_type_t result)
 {
    vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
-   vu->kind    = VCODE_UNIT_FUNCTION;
-   vu->name    = name;
-   vu->context = context;
-   vu->result  = result;
-   vu->depth   = vcode_unit_calc_depth(vu);
-   vu->flags   = UNIT_PURE;
+   vu->kind     = VCODE_UNIT_FUNCTION;
+   vu->name     = name;
+   vu->context  = context;
+   vu->result   = result;
+   vu->depth    = vcode_unit_calc_depth(vu);
+   vu->flags    = UNIT_PURE;
    vu->refcount = 1;
 
    vcode_add_child(context, vu);
@@ -2866,6 +2870,7 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(value), vtype_bool()),
                 "value parameter to assert is not bool");
+   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()), "assert needs debug info");
 }
 
 void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity)
@@ -4560,6 +4565,8 @@ void emit_null_check(vcode_reg_t ptr)
 
    VCODE_ASSERT(vtype_kind(vcode_reg_type(ptr)) == VCODE_TYPE_ACCESS,
                 "null check argument must be an access");
+   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),
+                "null check needs debug info");
 }
 
 void emit_deallocate(vcode_reg_t ptr)
@@ -4908,32 +4915,8 @@ vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
 
 void emit_debug_info(const loc_t *loc)
 {
-   if (loc_invalid_p(loc))
-      return;
-
-   bool seen_real_op = false;
-   block_t *b = vcode_block_data();
-   for (int i = b->ops.count - 1; i >= 0; i--) {
-      op_t *other = &(b->ops.items[i]);
-      if (other->kind == VCODE_OP_DEBUG_INFO) {
-         if (loc_eq(&(other->loc), loc))
-            return;   // Matches last debug info
-         else if (!seen_real_op) {
-            other->loc = *loc;
-            b->last_loc = *loc;
-            return;   // Unused debug info
-         }
-         else
-            break;
-      }
-      else if (other->kind != VCODE_OP_COMMENT)
-         seen_real_op = true;
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_DEBUG_INFO);
-   op->loc = *loc;
-
-   b->last_loc = *loc;
+   if (!loc_invalid_p(loc))
+      vcode_block_data()->last_loc = *loc;
 }
 
 static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
@@ -4963,6 +4946,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
 
          write_u8(op->kind, f);
          write_u32(op->result, f);
+         loc_write(&(op->loc), loc_wr_ctx);
 
          write_u32(op->args.count, f);
          for (unsigned k = 0; k < op->args.count; k++)
@@ -5009,8 +4993,6 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
          }
          if (OP_HAS_TAG(op->kind))
             write_u32(op->tag, f);
-         if (OP_HAS_LOC(op->kind))
-            loc_write(&(op->loc), loc_wr_ctx);
          if (OP_HAS_IMAGE_MAP(op->kind)) {
             ident_write(op->image_map->name, ident_wr_ctx);
             write_u16(op->image_map->kind, f);
@@ -5183,6 +5165,7 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
 
          op->kind = read_u8(f);
          op->result = read_u32(f);
+         loc_read(&(op->loc), loc_rd_ctx);
 
          vcode_reg_array_resize(&(op->args), read_u32(f), 0);
          for (unsigned k = 0; k < op->args.count; k++)
@@ -5230,8 +5213,6 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
          }
          if (OP_HAS_TAG(op->kind))
             op->tag = read_u32(f);
-         if (OP_HAS_LOC(op->kind))
-            loc_read(&(op->loc), loc_rd_ctx);
          if (OP_HAS_IMAGE_MAP(op->kind)) {
             op->image_map = xmalloc(sizeof(image_map_t));
             op->image_map->name = ident_read(ident_rd_ctx);

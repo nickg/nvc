@@ -105,9 +105,10 @@ static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg);
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
 
-#define SAVE_DEBUG_INFO \
-   __attribute__((cleanup(emit_debug_info))) \
-   const loc_t _old_loc = *vcode_last_loc()
+#define PUSH_DEBUG_INFO(t)                              \
+   __attribute__((cleanup(emit_debug_info), unused))    \
+   const loc_t _old_loc = *vcode_last_loc();            \
+   emit_debug_info(tree_loc((t)));                      \
 
 static bool lower_is_const(tree_t t)
 {
@@ -582,12 +583,7 @@ static char *lower_get_hint_string(tree_t where, const char *prefix)
 static void lower_check_scalar_bounds(vcode_reg_t value, type_t type,
                                       tree_t where, tree_t hint)
 {
-   SAVE_DEBUG_INFO;
-
-   if (tree_kind(where) == T_PORT_DECL)
-      emit_debug_info(tree_loc(hint));
-   else
-      emit_debug_info(tree_loc(where));
+   PUSH_DEBUG_INFO(tree_kind(where) == T_PORT_DECL ? hint : where);
 
    const bounds_kind_t kind = lower_type_bounds_kind(type);
    const char *prefix = kind == BOUNDS_ENUM ? type_pp(type) : NULL;
@@ -1830,12 +1826,7 @@ static void lower_check_array_bounds(type_t type, int dim, vcode_reg_t array,
                                      vcode_reg_t value, tree_t where,
                                      tree_t hint)
 {
-   SAVE_DEBUG_INFO;
-
-   if (tree_kind(where) == T_PORT_DECL)
-      emit_debug_info(tree_loc(hint));
-   else
-      emit_debug_info(tree_loc(where));
+   PUSH_DEBUG_INFO(tree_kind(where) == T_PORT_DECL ? hint : where);
 
    vcode_reg_t left_reg  = lower_array_left(type, dim, array);
    vcode_reg_t right_reg = lower_array_right(type, dim, array);
@@ -2973,6 +2964,8 @@ static vcode_reg_t lower_qualified(tree_t expr, expr_ctx_t ctx)
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
 {
+   PUSH_DEBUG_INFO(expr);
+
    switch (tree_kind(expr)) {
    case T_FCALL:
       return lower_fcall(expr, ctx);
@@ -4112,6 +4105,8 @@ static void lower_case(tree_t stmt, loop_stack_t *loops)
 
 static void lower_stmt(tree_t stmt, loop_stack_t *loops)
 {
+   PUSH_DEBUG_INFO(stmt);
+
    if (vcode_block_finished()) {
       warn_at(tree_loc(stmt), "statement is unreachable");
       return;
@@ -4169,8 +4164,7 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
 
 static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
 {
-   SAVE_DEBUG_INFO;
-   emit_debug_info(tree_loc(hint));
+   PUSH_DEBUG_INFO(hint);
 
    const int ndims = array_dimension(type);
    for (int i = 0; i < ndims; i++) {

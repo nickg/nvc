@@ -91,7 +91,6 @@ typedef struct {
    eval_flags_t flags;
    bool         failed;
    eval_alloc_t *allocations;
-   loc_t        last_loc;
    int          iterations;
 } eval_state_t;
 
@@ -661,7 +660,7 @@ static void eval_op_div(int op, eval_state_t *state)
    switch (lhs->kind) {
    case VALUE_INTEGER:
       if (rhs->integer == 0) {
-         error_at(&(state->last_loc), "division by zero");
+         error_at(vcode_get_loc(op), "division by zero");
          state->failed = true;
       }
       else {
@@ -1013,13 +1012,13 @@ static void eval_op_bounds(int op, eval_state_t *state)
 
                switch ((bounds_kind_t)vcode_get_subkind(op)) {
                case BOUNDS_ARRAY_TO:
-                  error_at(&(state->last_loc), "array index %"PRIi64" outside "
+                  error_at(vcode_get_loc(op), "array index %"PRIi64" outside "
                            "bounds %"PRIi64" to %"PRIi64,
                            reg->integer, low, high);
                   break;
 
                case BOUNDS_ARRAY_DOWNTO:
-                  error_at(&(state->last_loc), "array index %"PRIi64" outside "
+                  error_at(vcode_get_loc(op), "array index %"PRIi64" outside "
                            "bounds %"PRIi64" downto %"PRIi64,
                            reg->integer, high, low);
                   break;
@@ -1355,7 +1354,7 @@ static void eval_op_report(int op, eval_state_t *state)
    value_t *severity = eval_get_reg(vcode_get_arg(op, 0), state);
 
    if (state->flags & EVAL_REPORT)
-      eval_message(text, length, severity, &(state->last_loc), "Report");
+      eval_message(text, length, severity, vcode_get_loc(op), "Report");
    else
       state->failed = true;  // Cannot fold as would change runtime behaviour
 }
@@ -1369,7 +1368,7 @@ static void eval_op_assert(int op, eval_state_t *state)
 
    if (test->integer == 0) {
       if (state->flags & EVAL_REPORT)
-         eval_message(text, length, severity, &(state->last_loc), "Assertion");
+         eval_message(text, length, severity, vcode_get_loc(op), "Assertion");
       state->failed = severity->integer >= SEVERITY_ERROR;
    }
 }
@@ -1661,17 +1660,12 @@ static void eval_op_array_size(int op, eval_state_t *state)
 
    if (rlen->integer != llen->integer) {
       if (state->flags & EVAL_BOUNDS) {
-         error_at(&(state->last_loc), "length of target %"PRIi64" does not "
+         error_at(vcode_get_loc(op), "length of target %"PRIi64" does not "
                   "match length of value %"PRIi64,
                   llen->integer, rlen->integer);
       }
       state->failed = true;
    }
-}
-
-static void eval_op_debug_info(int op, eval_state_t *state)
-{
-   state->last_loc = *vcode_get_loc(op);
 }
 
 static void eval_op_null(int op, eval_state_t *state)
@@ -1726,7 +1720,7 @@ static void eval_op_null_check(int op, eval_state_t *state)
 
    if (access->pointer == NULL) {
       if (state->flags & EVAL_BOUNDS)
-         error_at(&(state->last_loc), "null access dereference");
+         error_at(vcode_get_loc(op), "null access dereference");
       state->failed = true;
    }
 }
@@ -2076,10 +2070,6 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_IMAGE_MAP:
          eval_op_image_map(i, state);
-         break;
-
-      case VCODE_OP_DEBUG_INFO:
-         eval_op_debug_info(i, state);
          break;
 
       case VCODE_OP_NULL:
