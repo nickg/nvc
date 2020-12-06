@@ -85,7 +85,7 @@ void fmt_loc(FILE *f, const loc_t *loc)
    buf[i] = '\0';
 
    // Print ... if error location spans multiple lines
-   unsigned last_column = loc->first_column + loc->line_delta;
+   unsigned last_column = loc->first_column + loc->column_delta;
    bool many_lines = (loc->line_delta > 0)
       || (i == sizeof(buf) - 1 && i <= last_column);
    int last_col = many_lines ? strlen(buf) + 3 : last_column;
