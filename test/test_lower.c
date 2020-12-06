@@ -87,8 +87,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          if (e->value != vcode_get_value(i)) {
             vcode_dump_with_mark(i);
             vcode_dump_with_mark(i);
-            fail("expected op %d in block %d to have constant %d but has %d",
-                 i, bb, e->value, vcode_get_value(i));
+            fail("expected op %d in block %d to have constant %"PRIi64
+                 " but has %"PRIi64, i, bb, e->value, vcode_get_value(i));
          }
          break;
 
@@ -103,8 +103,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_CMP:
          if (e->cmp != vcode_get_cmp(i)) {
             vcode_dump_with_mark(i);
-            fail("expected op %d in block %d to have comparison %d but has %d",
-                 i, bb, e->value, vcode_get_cmp(i));
+            fail("expected op %d in block %d to have comparison %"PRIi64
+                 " but has %d", i, bb, e->value, vcode_get_cmp(i));
          }
          break;
 
@@ -124,6 +124,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ARRAY_SIZE:
       case VCODE_OP_NULL:
       case VCODE_OP_RANGE_NULL:
+      case VCODE_OP_NULL_CHECK:
          break;
 
       case VCODE_OP_UARRAY_LEFT:
@@ -349,9 +350,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
 static vcode_unit_t find_unit(tree_t t)
 {
-   ident_t name = tree_attr_str(t, mangled_i);
-   if (name == NULL)
-      name = tree_ident(t);
+   ident_t name = is_subprogram(t) ? tree_ident2(t) : tree_ident(t);
    vcode_unit_t vu = vcode_find_unit(name);
    if (vu == NULL)
       fail("missing vcode unit for %s", istr(name));
@@ -834,7 +833,7 @@ START_TEST(test_pack1)
    tree_t t, body = NULL;
    while ((t = parse())) {
       sem_check(t);
-      fail_if(sem_errors() > 0);
+      fail_if(error_count() > 0);
 
       simplify(t, 0);
 
@@ -886,7 +885,7 @@ START_TEST(test_func1)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_FCALL, .func = ":func1:add1(I)I", .args = 1 },
+      { VCODE_OP_FCALL, .func = ":func1$WORK.FUNC1(TEST).ADD1(I)I", .args = 1 },
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_WAIT, .target = 2 }
    };
@@ -1059,7 +1058,8 @@ START_TEST(test_nest1)
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_LINE_7.ADD_TO_X(I)I",
+         { VCODE_OP_NESTED_FCALL,
+           .func = ":nest1$WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I",
            .args = 1 },
          { VCODE_OP_CONST, .value = 7 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -1077,12 +1077,12 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit(f1);
       vcode_select_unit(v0);
 
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_LINE_7.ADD_TO_X(I)I"));
+      fail_unless(icmp(vcode_unit_name(),
+                       ":nest1$WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I"));
 
       EXPECT_BB(0) = {
          { VCODE_OP_NESTED_FCALL,
-           .func = ":nest1:line_7_LINE_7.ADD_TO_X(I)I__"
-           ":nest1:line_7_LINE_7.ADD_TO_X_DO_IT()I" },
+           .func = ":nest1$WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I.DO_IT()I" },
          { VCODE_OP_RETURN }
       };
 
@@ -1096,11 +1096,11 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit(f2);
       vcode_select_unit(v0);
 
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_LINE_7.ADD_TO_X(I)I__"
-                       ":nest1:line_7_LINE_7.ADD_TO_X_DO_IT()I"));
+      fail_unless(icmp(vcode_unit_name(),
+                       ":nest1$WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I.DO_IT()I"));
 
       EXPECT_BB(0) = {
-         { VCODE_OP_VAR_UPREF, .hops = 2, .name = "LINE_7.X" },
+         { VCODE_OP_VAR_UPREF, .hops = 2, .name = "X" },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_PARAM_UPREF, .hops = 1 },
          { VCODE_OP_ADD },
@@ -1385,14 +1385,16 @@ START_TEST(test_proc1)
       EXPECT_BB(1) = {
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
-         { VCODE_OP_FCALL, .func = ":proc1:add1(II)", .args = 2 },
+         { VCODE_OP_FCALL, .func = ":proc1$WORK.PROC1(TEST).ADD1(II)",
+           .args = 2 },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_FCALL, .func = ":proc1:add1(II)", .args = 2 },
+         { VCODE_OP_FCALL, .func = ":proc1$WORK.PROC1(TEST).ADD1(II)",
+           .args = 2 },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -1534,13 +1536,14 @@ START_TEST(test_proc3)
 
       EXPECT_BB(1) = {
          { VCODE_OP_INDEX, .name = "X" },
-         { VCODE_OP_PCALL, .func = ":proc3:p1(I)", .target = 2, .args = 1 }
+         { VCODE_OP_PCALL, .func = ":proc3$WORK.PROC3(TEST).P1(I)",
+           .target = 2, .args = 1 }
       };
 
       CHECK_BB(1);
 
       EXPECT_BB(2) = {
-         { VCODE_OP_RESUME, .func = ":proc3:p1(I)" },
+         { VCODE_OP_RESUME, .func = ":proc3$WORK.PROC3(TEST).P1(I)" },
          { VCODE_OP_WAIT, .target = 3 }
       };
 
@@ -1756,11 +1759,13 @@ START_TEST(test_func5)
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_NETS, .name = ":func5:x" },
-         { VCODE_OP_FCALL, .func = ":func5:add_one_s(sI)I", .args = 1 },
+         { VCODE_OP_FCALL, .func = ":func5$WORK.FUNC5(TEST).ADD_ONE_S(sI)I",
+           .args = 1 },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
-         { VCODE_OP_FCALL, .func = ":func5:event(sI)B", .args = 1 },
+         { VCODE_OP_FCALL, .func = ":func5$WORK.FUNC5(TEST).EVENT(sI)B",
+           .args = 1 },
          { VCODE_OP_ASSERT },
          { VCODE_OP_WAIT, .target = 2 }
       };
@@ -2016,7 +2021,8 @@ START_TEST(test_issue122)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_NESTED_FCALL, .func = ":issue122:func(I)I__NESTED()I" },
+      { VCODE_OP_NESTED_FCALL,
+        .func = ":issue122$WORK.ISSUE122(TEST).FUNC(I)I.NESTED()I" },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_RETURN }
    };
@@ -2177,8 +2183,9 @@ START_TEST(test_rectype)
    fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
    fail_unless(vtype_kind(1) == VCODE_TYPE_RECORD);
 
+   // We used to mangle this with @<address>
    ident_t r2_name = vtype_record_name(0);
-   fail_unless(strncmp(istr(r2_name), "R2@", 3) == 0);
+   fail_unless(strncmp(istr(r2_name), "WORK.E(A).R2", 3) == 0);
 
    ident_t r1_name = vtype_record_name(1);
    fail_unless(icmp(r1_name, "WORK.RECTYPE.R1"));
@@ -2239,8 +2246,9 @@ START_TEST(test_issue167)
    ident_t p1_name = vtype_record_name(0);
    fail_unless(icmp(p1_name, "WORK.PKG.P1"));
 
+   // This used to get mangled with @<address>
    ident_t p2_name = vtype_record_name(2);
-   fail_unless(strncmp(istr(p2_name), "P2@", 3) == 0);
+   fail_unless(icmp(p2_name, "WORK.E(A).P2"));
 }
 END_TEST
 
@@ -2620,8 +2628,8 @@ START_TEST(test_issue333)
       { VCODE_OP_NEW },
       { VCODE_OP_ALL },
       { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_STORE, .name = "MAIN.L" },
-      { VCODE_OP_INDEX, .name = "MAIN.L" },
+      { VCODE_OP_STORE, .name = "L" },
+      { VCODE_OP_INDEX, .name = "L" },
       { VCODE_OP_FCALL, .name = ":issue333:proc(vuLINE;", .args = 1 },
       { VCODE_OP_CONST, .value = 50 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
@@ -2634,7 +2642,7 @@ START_TEST(test_issue333)
       { VCODE_OP_NEW },
       { VCODE_OP_ALL },
       { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_STORE, .name = "MAIN.L" },
+      { VCODE_OP_STORE, .name = "L" },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
@@ -2863,7 +2871,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LOAD, .name = "X" },
-      { VCODE_OP_FCALL, .func = ":hintbug:func(J)Q" },
+      { VCODE_OP_FCALL, .func = ":hintbug$WORK.HINTBUG(TEST).FUNC(J)Q" },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_ARRAY_SIZE },
@@ -2898,7 +2906,7 @@ START_TEST(test_issue351)
       { VCODE_OP_CAST },
       { VCODE_OP_ADD },
       { VCODE_OP_WRAP },
-      { VCODE_OP_FCALL, .func = ":issue351:dump_words(11WORD_VECTOR)" },
+      { VCODE_OP_FCALL, .func = "*:issue351$WORK.ISSUE351(RTL).DUMP_WORDS" },
       { VCODE_OP_LOAD, .name = "I.LOOP1" },
       { VCODE_OP_ADDI, .value = 1 },
       { VCODE_OP_STORE, .name = "I.LOOP1" },
@@ -3080,8 +3088,12 @@ START_TEST(test_access1)
       { VCODE_OP_CONST, .value = INT32_MIN },
       { VCODE_OP_CONST_RECORD },
       { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_CAST },
       { VCODE_OP_STORE, .name = "N" },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_NULL_CHECK },   // Redundant, optimisation prevented by cast
+      { VCODE_OP_CAST },
+      { VCODE_OP_ALL },   // Redundant, optimisation prevented by cast
       { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_RECORD_REF, .field = 1 },
@@ -3100,10 +3112,13 @@ START_TEST(test_sum)
 
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
-   fail_if(bounds_errors() > 0);
+   fail_if(error_count() > 0);
    lower_unit(p);
 
-   vcode_unit_t v0 = find_unit(tree_decl(p, 1));
+   tree_t f = tree_decl(p, 11);
+   fail_unless(tree_kind(f) == T_FUNC_BODY);
+
+   vcode_unit_t v0 = find_unit(f);
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -3136,6 +3151,9 @@ START_TEST(test_sum)
       { VCODE_OP_ADD },
       { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
       { VCODE_OP_STORE, .name = "RESULT" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = -1 },
+      { VCODE_OP_SELECT },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE, .name = "I.SUMLOOP" },
       { VCODE_OP_UARRAY_RIGHT },
@@ -3145,6 +3163,203 @@ START_TEST(test_sum)
    };
 
    CHECK_BB(3);
+}
+END_TEST
+
+START_TEST(test_extern1)
+{
+   input_from_file(TESTDIR "/lower/extern1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   bounds_check(p);
+   fail_if(error_count() > 0);
+   lower_unit(p);
+
+   tree_t f = tree_decl(p, 0);
+   fail_unless(tree_kind(f) == T_FUNC_BODY);
+
+   vcode_unit_t v0 = find_unit(f);
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_VAR_UPREF, .hops = 2, .name = "WORK.COMPLEX.MATH_CZERO" },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
+START_TEST(test_synopsys1)
+{
+   input_from_file(TESTDIR "/lower/synopsys1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   bounds_check(p);
+   fail_if(error_count() > 0);
+   lower_unit(p);
+
+   tree_t f = search_decls(p, ident_new("WRITE"), 0);
+   fail_if(f == NULL);
+
+   vcode_unit_t v0 = find_unit(f);
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_CAST },
+      { VCODE_OP_ADDI, .value = -1 },
+      { VCODE_OP_ADDI, .value = 1 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "S" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "M" },
+      { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
+      { VCODE_OP_ARRAY_SIZE },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_COPY },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
+      { VCODE_OP_COND, .target = 2, .target_else = 1 }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
+START_TEST(test_access2)
+{
+   input_from_file(TESTDIR "/lower/access2.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   bounds_check(p);
+   fail_if(error_count() > 0);
+   lower_unit(p);
+
+   tree_t f = search_decls(p, ident_new("GET_FRESH"), 0);
+   fail_if(f == NULL);
+
+   vcode_unit_t v0 = find_unit(f);
+   vcode_select_unit(v0);
+
+   // TODO: eliminate the intermediate alloca here
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_ADDI, .value = 1 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_COPY },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
+START_TEST(test_vital1)
+{
+   input_from_file(TESTDIR "/lower/vital1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   bounds_check(p);
+   fail_if(error_count() > 0);
+   lower_unit(p);
+
+   tree_t f = search_decls(p, ident_new("VITALSETUPHOLDCHECK"), 0);
+   fail_if(f == NULL);
+
+   vcode_unit_t v0 = find_unit(f);
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_STORE, .name = "I.line_21" },
+      { VCODE_OP_JUMP, .target = 3 }
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(4) = {
+      { VCODE_OP_RESUME,
+        .func = "WORK.VITAL_TIMING.PROC(22WORK.VITAL_TIMING.LINEI)" },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = -1 },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_LOAD, .name = "I.line_21" },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE, .name = "I.line_21" },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 2, .target_else = 3 }
+   };
+
+   CHECK_BB(4);
+}
+END_TEST
+
+START_TEST(test_case1)
+{
+   input_from_file(TESTDIR "/lower/case1.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+}
+END_TEST
+
+START_TEST(test_incomplete)
+{
+   input_from_file(TESTDIR "/lower/incomplete.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   bounds_check(p);
+   fail_if(error_count() > 0);
+   lower_unit(p);
+
+   vcode_unit_t v0 = find_unit(p);
+   vcode_select_unit(v0);
+
+   fail_unless(vcode_count_vars() == 2);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_STORE, .name = "WORK.P.C" },
+      { VCODE_OP_STORE, .name = "WORK.P.CP" },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
 }
 END_TEST
 
@@ -3222,6 +3437,12 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_signal11);
    tcase_add_test(tc, test_access1);
    tcase_add_test(tc, test_sum);
+   tcase_add_test(tc, test_extern1);
+   tcase_add_test(tc, test_synopsys1);
+   tcase_add_test(tc, test_access2);
+   tcase_add_test(tc, test_vital1);
+   tcase_add_test(tc, test_case1);
+   tcase_add_test(tc, test_incomplete);
    suite_add_tcase(s, tc);
 
    return s;

@@ -15,8 +15,8 @@ use work.pack2;
 
 entity no_use_clause is
     port (
-        a : in pack1.my_int1;
-        b : out pack2.my_int1 );
+        a : in pack1.my_int1;           -- OK
+        b : out pack2.my_int1 );        -- OK
 end entity;
 
 -------------------------------------------------------------------------------
@@ -106,7 +106,7 @@ end behave;
 
 -------------------------------------------------------------------------------
 
-use work.all;
+use work.all;                           -- OK
 
 entity no_use_clause is
     port (

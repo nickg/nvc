@@ -61,9 +61,7 @@ START_TEST(test_cfold)
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
 
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-   fail_unless(sem_errors() == 0);
+   fail_if_errors();
 
    simplify(a, 0);
 
@@ -177,9 +175,7 @@ START_TEST(test_proc)
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
 
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-   fail_unless(sem_errors() == 0);
+   fail_if_errors();
 
    simplify(a, 0);
 
@@ -258,9 +254,7 @@ START_TEST(test_args)
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
 
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-   fail_unless(sem_errors() == 0);
+   fail_if_errors();
 
    simplify(a, 0);
 
@@ -297,7 +291,7 @@ START_TEST(test_ffold)
 
    tree_t a = parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
                                              T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_if_errors();
 
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
@@ -350,7 +344,7 @@ START_TEST(test_issue49)
    input_from_file(TESTDIR "/simp/issue49.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_if_errors();
 
    simplify(a, 0);
 }
@@ -361,23 +355,23 @@ START_TEST(test_issue155)
    input_from_file(TESTDIR "/simp/issue155.vhd");
 
    tree_t p = parse_and_check(T_PACKAGE);
-   fail_unless(sem_errors() == 0);
+   fail_if_errors();
 
    simplify(p, 0);
 
-   range_t ar = range_of(tree_type(tree_decl(p, 2)), 0);
+   range_t ar = range_of(tree_type(tree_decl(p, 4)), 0);
    fail_unless(folded_i(ar.left, 7));
    fail_unless(folded_i(ar.right, 0));
 
-   range_t br = range_of(tree_type(tree_decl(p, 3)), 0);
+   range_t br = range_of(tree_type(tree_decl(p, 5)), 0);
    fail_unless(folded_i(br.left, 3));
    fail_unless(folded_i(br.right, 0));
 
-   range_t cr = range_of(tree_type(tree_decl(p, 4)), 0);
+   range_t cr = range_of(tree_type(tree_decl(p, 6)), 0);
    fail_unless(folded_i(cr.left, 1));
    fail_unless(folded_i(cr.right, 0));
 
-   range_t dr = range_of(tree_type(tree_decl(p, 6)), 0);
+   range_t dr = range_of(tree_type(tree_decl(p, 8)), 0);
    fail_unless(folded_i(dr.left, 2));
    fail_unless(folded_i(dr.right, 1));
 }
@@ -397,15 +391,15 @@ START_TEST(test_context)
 
    lib_set_work(bar);
    tree_t e = parse_and_check(T_ENTITY);
-   fail_unless(sem_errors() == 0);
+   fail_if_errors();
 
-   fail_unless(tree_contexts(e) == 3);
+   fail_unless(tree_contexts(e) == 5);
 
    simplify(e, 0);
 
-   fail_unless(tree_contexts(e) == 4);
-   fail_unless(tree_kind(tree_context(e, 2)) == T_LIBRARY);
-   fail_unless(tree_kind(tree_context(e, 3)) == T_USE);
+   fail_unless(tree_contexts(e) == 7);
+   fail_unless(tree_kind(tree_context(e, 5)) == T_LIBRARY);
+   fail_unless(tree_kind(tree_context(e, 6)) == T_USE);
 }
 END_TEST
 
@@ -586,6 +580,50 @@ START_TEST(test_issue362)
 }
 END_TEST
 
+START_TEST(test_constarr)
+{
+   input_from_file(TESTDIR "/simp/constarr.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   fail_if(p == NULL);
+
+   simplify(p, EVAL_LOWER);
+
+   tree_t c1 = tree_value(tree_decl(p, 1));
+   fail_unless(tree_ident(c1) == ident_new("'1'"));
+   tree_t c2 = tree_value(tree_decl(p, 2));
+   fail_unless(tree_ident(c2) == ident_new("'0'"));
+}
+END_TEST
+
+START_TEST(test_table)
+{
+   input_from_file(TESTDIR "/simp/table.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   fail_if(p == NULL);
+
+   tree_t table = search_decls(p, ident_new("RESOLUTION_TABLE"), 0);
+   fail_if(table == NULL);
+
+   range_t r0 = type_dim(tree_type(table), 0);
+   fail_unless(r0.kind == RANGE_TO);
+   fail_unless(assume_int(r0.left) == 0);
+   fail_unless(assume_int(r0.right) == 8);
+}
+END_TEST
+
+START_TEST(test_func9)
+{
+   input_from_file(TESTDIR "/simp/func9.vhd");
+
+   tree_t e = run_elab();
+
+   // All statements are optimised out
+   fail_unless(tree_stmts(e) == 0);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -611,6 +649,9 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue344);
    tcase_add_test(tc_core, test_issue345);
    tcase_add_test(tc_core, test_issue362);
+   tcase_add_test(tc_core, test_constarr);
+   tcase_add_test(tc_core, test_table);
+   tcase_add_test(tc_core, test_func9);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -1,4 +1,12 @@
+entity e is end entity;
 architecture a of e is
+    signal x, a, b, c : bit;
+    signal foo, bar   : boolean;
+    signal y          : integer;
+    signal v          : bit_vector(1 to 2);
+
+    procedure pcall(x : in bit; y : in integer);
+    procedure xxx;
 begin
 
     x <= a or b;
@@ -14,9 +22,9 @@ begin
 
     pcall(x, y);
 
-    assert x = 5;
+    assert y = 5;
 
-    (a, b) <= c;
+    (a, b) <= v;
 
     xxx;
 

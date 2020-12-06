@@ -168,6 +168,7 @@ static option_t       *options = NULL;
 static guard_t        *guards;
 static message_style_t message_style = MESSAGE_FULL;
 static hint_t         *hints = NULL;
+static unsigned        n_errors = 0;
 
 static const struct color_escape escapes[] = {
    { "",        ANSI_RESET },
@@ -461,6 +462,7 @@ void error_at(const loc_t *loc, const char *fmt, ...)
    char *strp LOCAL = prepare_msg(fmt, ap, error_force_plain);
    error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
    show_hint();
+   n_errors++;
 
    va_end(ap);
 }
@@ -549,6 +551,9 @@ void warn_at(const loc_t *loc, const char *fmt, ...)
    catch_in_unit_test(warnf, loc, fmt, ap);
    show_hint();
    va_end(ap);
+
+   if (opt_get_int("unit-test"))
+      n_errors++;
 }
 
 void note_at(const loc_t *loc, const char *fmt, ...)
@@ -558,6 +563,9 @@ void note_at(const loc_t *loc, const char *fmt, ...)
    catch_in_unit_test(notef, loc, fmt, ap);
    show_hint();
    va_end(ap);
+
+   if (opt_get_int("unit-test"))
+      n_errors++;
 }
 
 void fatal_at(const loc_t *loc, const char *fmt, ...)
@@ -1611,8 +1619,9 @@ void run_program(const char *const *args, size_t n_args)
    const bool quiet = (getenv("NVC_LINK_QUIET") != NULL);
 
    if (!quiet) {
-      for (size_t i = 0; i < n_args; i++)
-         printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
+      for (size_t i = 0; i < n_args && args[i]; i++)
+         printf("%s%s", i > 0 ? " " : "", args[i]);
+      printf("\n");
       fflush(stdout);
    }
 
@@ -1788,4 +1797,14 @@ void _cleanup_array(void *ptr)
 {
    A(void *) *a = ptr;
    ACLEAR(*a);
+}
+
+unsigned error_count(void)
+{
+   return n_errors;
+}
+
+void reset_error_count(void)
+{
+   n_errors = 0;
 }

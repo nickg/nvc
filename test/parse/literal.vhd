@@ -1,4 +1,7 @@
 -- -*- coding: latin-1 -*-
+entity e is
+end entity;
+
 ARCHITECTURE a OF e IS
   SIGNAL pos : INTEGER := 64;
   SIGNAL neg : INTEGER := -265;
@@ -12,6 +15,7 @@ ARCHITECTURE a OF e IS
   CONSTANT h : REAL    := 235.1e-2;
   CONSTANT i : INTEGER := 1_2_3_4;
   CONSTANT j : REAL    := 5_6_7.12_3;
+  type ptr is access integer;
   CONSTANT k : ptr     := NULL;
   CONSTANT l : STRING  := "Setup time is too short";
   CONSTANT m : STRING  := "";

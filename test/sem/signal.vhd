@@ -13,14 +13,14 @@ begin
         (x, y, z) <= v;                 -- OK
         (x, y, z) <= x;                 -- Error
         (x, y, z) <= "101";             -- Error
-        ('1', y, z) <=  v;              -- Error
+        (bit'('1'), y, z) <=  v;        -- Error
         (others => x) <= v;             -- Error
         (p, y, z) <= v;                 -- Error
     end process;
 
     (x, y, z) <= v;                 -- OK
     (x, y, z) <= x;                 -- Error
-    ('1', y, z) <=  v;              -- Error
+    (bit'('1'), y, z) <=  v;        -- Error
     (others => x) <= v;             -- Error
     (p, y, z) <= v;                 -- Error
 

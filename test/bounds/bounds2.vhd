@@ -102,4 +102,20 @@ begin
         end process;
     end block;
 
+    textio1: block is
+        function unit_string (unit : time) return string is
+        begin
+            if unit = fs then           -- OK
+                return " fs";
+            elsif unit = ps then
+                return " ps";
+            elsif unit = ns then
+                return " ns";
+            else
+                report "invalid unit " & time'image(unit);
+            end if;
+        end function;
+    begin
+    end block;
+
 end architecture;

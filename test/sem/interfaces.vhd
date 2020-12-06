@@ -1,6 +1,6 @@
-use std.textio.all;
-
 package interfaces is
+
+    type text is file of string;
 
     component comp1 is
         port (
@@ -26,15 +26,15 @@ package interfaces is
                           p2 : integer);-- OK
     end component;
 
-    component comp5 is
+    component comp6 is
         generic (signal   p : integer); -- Error
     end component;
 
-    component comp5 is
+    component comp7 is
         generic (variable p : integer); -- Error
     end component;
 
-    component comp5 is
+    component comp8 is
         generic (file     p : text);    -- Error
     end component;
 
@@ -42,7 +42,7 @@ package interfaces is
     procedure proc2(c : linkage integer);   -- Error
 
     procedure proc3(constant c : inout integer);    -- Error
-    procedure proc3(constant c : out   integer);    -- Error
+    procedure proc3a(constant c : out   integer);    -- Error
 
     procedure proc4(file c : integer);              -- Error
     procedure proc5(constant c : text);             -- Error

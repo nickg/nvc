@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2020  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@
 #include <assert.h>
 
 const char *copy_string =
-   "Copyright (C) 2011-2018  Nick Gasson\n"
+   "Copyright (C) 2011-2021  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
@@ -162,8 +162,10 @@ static int analyse(int argc, char **argv)
       input_from_file(argv[i]);
 
       tree_t unit;
-      while ((unit = parse()) && sem_check(unit))
-         APUSH(units, unit);
+      while ((unit = parse())) {
+         if (sem_check(unit) && error_count() == 0)
+            APUSH(units, unit);
+      }
    }
 
    for (int i = 0; i < units.count; i++) {
@@ -175,7 +177,7 @@ static int analyse(int argc, char **argv)
       bounds_check(units.items[i]);
    }
 
-   if (parse_errors() + sem_errors() + bounds_errors() > 0)
+   if (error_count() > 0)
       return EXIT_FAILURE;
 
    if (opt_get_str("dump-json")) {
@@ -634,7 +636,7 @@ static int make_cmd(int argc, char **argv)
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
-static void list_walk_fn(ident_t ident, int kind, void *context)
+static void list_walk_fn(lib_t lib, ident_t ident, int kind, void *context)
 {
    const char *pretty = "???";
    switch (kind) {
@@ -704,7 +706,7 @@ static int syntax_cmd(int argc, char **argv)
       (void)parse();
    }
 
-   if (parse_errors() > 0)
+   if (error_count() > 0)
       return EXIT_FAILURE;
 
    argc -= next_cmd - 1;
@@ -726,7 +728,7 @@ static int dump_cmd(int argc, char **argv)
    bool add_elab = false, add_body = false, nets = false;
    int c, index = 0;
    const char *spec = "Eb";
-   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
          // Set a flag
@@ -789,6 +791,7 @@ static void set_default_opts(void)
    opt_set_int("rt_profile", 0);
    opt_set_int("synthesis", 0);
    opt_set_int("parse-pragmas", 0);
+   opt_set_int("missing-body", 1);
 }
 
 static void usage(void)

@@ -11,7 +11,7 @@
 START_TEST(test_bounds)
 {
    const error_t expect[] = {
-      {  26, "left index 0 violates constraint STD.STANDARD.POSITIVE" },
+      {  26, "left index 0 violates constraint POSITIVE" },
       {  27, "right index 60 violates constraint FOO" },
       {  31, "array S index -52 out of bounds 1 to 10" },
       {  32, "slice right index 11 out of bounds 1 to 10" },
@@ -59,12 +59,12 @@ START_TEST(test_bounds)
    input_from_file(TESTDIR "/bounds/bounds.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(a, 0);
    bounds_check(a);
 
-   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   check_expected_errors();
 }
 END_TEST
 
@@ -100,12 +100,12 @@ START_TEST(test_bounds2)
    input_from_file(TESTDIR "/bounds/bounds2.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(a, 0);
    bounds_check(a);
 
-   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   check_expected_errors();
 }
 END_TEST
 
@@ -119,7 +119,7 @@ START_TEST(test_case)
       {  44, "2147483647" },
       {  51, "value 50 is already covered" },
       {  53, "range 60 to 64 is already covered" },
-      {  59, "value -1 outside STD.STANDARD.NATURAL bounds" },
+      {  59, "value -1 outside NATURAL bounds" },
       {  58, "0 to 2147483647" },
       {  79, "choices cover only 2 of 8 possible values" },
       {  84, "expected 3 elements in aggregate but have 2" },
@@ -135,12 +135,12 @@ START_TEST(test_case)
    input_from_file(TESTDIR "/bounds/case.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(a, 0);
    bounds_check(a);
 
-   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   check_expected_errors();
 }
 END_TEST
 
@@ -149,12 +149,12 @@ START_TEST(test_issue36)
    input_from_file(TESTDIR "/bounds/issue36.vhd");
 
    tree_t e = parse_and_check(T_ENTITY);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(e, 0);
    bounds_check(e);
 
-   fail_unless(bounds_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -170,12 +170,12 @@ START_TEST(test_issue54)
    input_from_file(TESTDIR "/bounds/issue54.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(a, 0);
    bounds_check(a);
 
-   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   check_expected_errors();
 }
 END_TEST
 
@@ -191,19 +191,19 @@ START_TEST(test_issue99)
    input_from_file(TESTDIR "/bounds/issue99.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(a, 0);
    bounds_check(a);
 
-   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   check_expected_errors();
 }
 END_TEST
 
 START_TEST(test_issue150)
 {
    const error_t expect[] = {
-      { 10, "expected 8 elements in aggregate but have 6" },
+      {  7, "expected 8 elements in aggregate but have 6" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -211,12 +211,12 @@ START_TEST(test_issue150)
    input_from_file(TESTDIR "/bounds/issue150.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(a, 0);
    bounds_check(a);
 
-   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   check_expected_errors();
 }
 END_TEST
 
@@ -225,12 +225,12 @@ START_TEST(test_issue200)
    input_from_file(TESTDIR "/bounds/issue200.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(a, 0);
    bounds_check(a);
 
-   fail_unless(bounds_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -245,12 +245,12 @@ START_TEST(test_issue208)
    input_from_file(TESTDIR "/bounds/issue208.vhd");
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(a, 0);
    bounds_check(a);
 
-   fail_unless(bounds_errors() == ARRAY_LEN(expect) - 1);
+   check_expected_errors();
 }
 END_TEST
 
@@ -264,12 +264,12 @@ START_TEST(test_issue247)
    input_from_file(TESTDIR "/bounds/issue247.vhd");
 
    tree_t a = parse_and_check(T_PACKAGE);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(a, 0);
    bounds_check(a);
 
-   fail_unless(bounds_errors() == ARRAY_LEN(expect) - 1);
+   check_expected_errors();
 }
 END_TEST
 
@@ -283,12 +283,12 @@ START_TEST(test_issue269)
    input_from_file(TESTDIR "/bounds/issue269.vhd");
 
    tree_t a = parse_and_check(T_PACKAGE);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    simplify(a, 0);
    bounds_check(a);
 
-   fail_unless(bounds_errors() == ARRAY_LEN(expect) - 1);
+   check_expected_errors();
 }
 END_TEST
 
@@ -297,10 +297,10 @@ START_TEST(test_issue307b)
    input_from_file(TESTDIR "/bounds/issue307b.vhd");
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    bounds_check(a);
-   fail_unless(bounds_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -309,10 +309,10 @@ START_TEST(test_issue356)
    input_from_file(TESTDIR "/bounds/issue356.vhd");
 
    tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
-   fail_unless(sem_errors() == 0);
+   fail_unless(error_count() == 0);
 
    bounds_check(a);
-   fail_unless(bounds_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 

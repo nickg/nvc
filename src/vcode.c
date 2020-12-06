@@ -712,6 +712,7 @@ void vcode_opt(void)
             case VCODE_OP_UARRAY_LEFT:
             case VCODE_OP_UARRAY_RIGHT:
             case VCODE_OP_UNWRAP:
+            case VCODE_OP_NULL:
                if (uses[o->result] == -1) {
                   vcode_dump_with_mark(j);
                   fatal("defintion of r%d does not dominate all uses",
@@ -1165,6 +1166,10 @@ static int vcode_dump_one_type(vcode_type_t type)
    case VCODE_TYPE_IMAGE_MAP:
       col += printf("I<>");
       break;
+
+   case VCODE_TYPE_OPAQUE:
+      col += printf("?");
+      break;
    }
 
    return col;
@@ -1277,7 +1282,7 @@ void vcode_dump_with_mark(int mark_op)
          col += printf(" heap");
 
       vcode_dump_type(col, v->type, v->bounds);
-      printf("\n");
+      color_printf("$$\n");
    }
 
    if (vu->kind == VCODE_UNIT_CONTEXT) {
@@ -1290,7 +1295,7 @@ void vcode_dump_with_mark(int mark_op)
             col += printf("extern ");
          col += color_printf("$white$%s$$", istr(s->name));
          vcode_dump_type(col, s->type, s->bounds);
-         printf("\n");
+         color_printf("$$\n");
          if (s->shadow != VCODE_INVALID_VAR)
             color_printf("    Shadow $magenta$%s$$\n",
                          istr(vcode_var_name(s->shadow)));
@@ -1335,7 +1340,7 @@ void vcode_dump_with_mark(int mark_op)
             col += printf(" ");
          col += color_printf("$magenta$%s$$", istr(p->name));
          vcode_dump_type(col, p->type, p->bounds);
-         printf("\n");
+         color_printf("$$\n");
       }
    }
 
@@ -2249,6 +2254,7 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
          return vtype_eq(at->pointed, bt->pointed);
       case VCODE_TYPE_OFFSET:
       case VCODE_TYPE_REAL:
+      case VCODE_TYPE_OPAQUE:
          return true;
       case VCODE_TYPE_SIGNAL:
       case VCODE_TYPE_FILE:
@@ -2287,6 +2293,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    case VCODE_TYPE_OFFSET:
    case VCODE_TYPE_FILE:
    case VCODE_TYPE_IMAGE_MAP:
+   case VCODE_TYPE_OPAQUE:
       return false;
 
    case VCODE_TYPE_REAL:
@@ -2484,6 +2491,16 @@ vcode_type_t vtype_time(void)
 vcode_type_t vtype_char(void)
 {
    return vtype_int(0, 255);
+}
+
+vcode_type_t vtype_opaque(void)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind = VCODE_TYPE_OPAQUE;
+
+   return vtype_new(n);
 }
 
 vcode_type_t vtype_image_map(void)
@@ -3687,6 +3704,7 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
       { VCODE_TYPE_INT,    VCODE_TYPE_INT     },
       { VCODE_TYPE_INT,    VCODE_TYPE_REAL    },
       { VCODE_TYPE_REAL,   VCODE_TYPE_INT     },
+      { VCODE_TYPE_ACCESS, VCODE_TYPE_ACCESS  },
    };
 
    if (from == VCODE_TYPE_INT && bounds == VCODE_INVALID_TYPE) {
@@ -4607,6 +4625,9 @@ vcode_reg_t emit_all(vcode_reg_t reg)
    reg_t *rr = vcode_reg_data(op->result);
    rr->bounds = pointed;
 
+   VCODE_ASSERT(vtype_kind(pointed) != VCODE_TYPE_OPAQUE,
+                "cannot dereference opaque type");
+
    return op->result;
 }
 
@@ -5072,6 +5093,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
          break;
 
       case VCODE_TYPE_IMAGE_MAP:
+      case VCODE_TYPE_OPAQUE:
          break;
 
       case VCODE_TYPE_RECORD:
@@ -5301,6 +5323,7 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
          break;
 
       case VCODE_TYPE_IMAGE_MAP:
+      case VCODE_TYPE_OPAQUE:
          break;
 
       case VCODE_TYPE_RECORD:

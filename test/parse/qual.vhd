@@ -1,4 +1,5 @@
 -- Type qualified expressions
+entity bar is end entity;
 architecture foo of bar is
     type foo is (a, b, 'c');
     type bar is (a, b, c);

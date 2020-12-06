@@ -329,7 +329,7 @@ static const char *fmt_group(const netgroup_t *g)
    type_t type = tree_type(g->sig_decl);
    while (type_is_array(type)) {
       const int stride = type_width(type_elem(type));
-      const int ndims = array_dimension(type);
+      const int ndims = dimension_of(type);
 
       p += checked_sprintf(p, eptr - p, "[");
       for (int i = 0; i < ndims; i++) {

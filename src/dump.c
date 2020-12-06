@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2020  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -86,7 +86,7 @@ static void syntax(const char *fmt, ...)
          tb_append(tb, *p);
    }
 
-   if (highlighting)
+   if (highlighting || comment)
       tb_printf(tb, "$$");
 
    va_list ap;
@@ -134,7 +134,7 @@ static void dump_range(range_t r)
    case RANGE_RDYN:
       syntax(" #reverse_dynamic "); break;
    case RANGE_EXPR:
-      syntax(" #expr ");
+      return;
    }
    dump_expr(r.right);
 }
@@ -142,6 +142,10 @@ static void dump_range(range_t r)
 static void dump_expr(tree_t t)
 {
    switch (tree_kind(t)) {
+   case T_PROT_FCALL:
+      dump_expr(tree_name(t));
+      printf(".");
+      // Fall-through
    case T_FCALL:
       printf("%s", istr(tree_has_ref(t)
                         ? tree_ident(tree_ref(t)) : tree_ident(t)));
@@ -151,6 +155,7 @@ static void dump_expr(tree_t t)
    case T_LITERAL:
       switch (tree_subkind(t)) {
       case L_INT:
+      case L_PHYSICAL:
          printf("%"PRIi64, tree_ival(t));
          break;
       case L_REAL:
@@ -174,7 +179,7 @@ static void dump_expr(tree_t t)
       break;
 
    case T_NEW:
-      printf("new ");
+      syntax("#new ");
       dump_expr(tree_value(t));
       break;
 
@@ -245,22 +250,9 @@ static void dump_expr(tree_t t)
       break;
 
    case T_TYPE_CONV:
-      printf("%s(", istr(tree_ident(tree_ref(t))));
-      dump_expr(tree_value(tree_param(t, 0)));
+      printf("%s(", istr(type_ident(tree_type(t))));
+      dump_expr(tree_value(t));
       printf(")");
-      break;
-
-   case T_CONCAT:
-      {
-         printf("(");
-         const int nparams = tree_params(t);
-         for (int i = 0; i < nparams; i++) {
-            if (i > 0)
-               printf(" & ");
-            dump_expr(tree_value(tree_param(t, i)));
-         }
-         printf(")");
-      }
       break;
 
    case T_QUALIFIED:
@@ -285,17 +277,18 @@ static const char *dump_minify_type(const char *name)
       "IEEE.NUMERIC_STD.",
       "IEEE.STD_LOGIC_1164.",
    };
+   static char buf[256];
 
    for (size_t i = 0; i < ARRAY_LEN(known); i++) {
       const size_t len = strlen(known[i]);
       if (strncmp(name, known[i], len) == 0) {
-         static char buf[256];
          checked_sprintf(buf, sizeof(buf), "~%s%%s", name + len);
          return buf;
       }
    }
 
-   return name;
+   checked_sprintf(buf, sizeof(buf), "%s%%s", name);
+   return buf;
 }
 
 static void dump_type(type_t type)
@@ -304,7 +297,7 @@ static void dump_type(type_t type)
       syntax(type_pp_minify(type, dump_minify_type), "");
    else if (type_is_array(type) && !type_is_unconstrained(type)) {
       syntax(type_pp_minify(type, dump_minify_type), "(");
-      const int ndims = array_dimension(type);
+      const int ndims = dimension_of(type);
       for (int i = 0; i < ndims; i++) {
          if (i > 0)
             printf(", ");
@@ -312,19 +305,19 @@ static void dump_type(type_t type)
          dump_expr(r.left);
          switch (r.kind) {
          case RANGE_TO:
-            printf(" to ");
+            syntax(" #to ");
             dump_expr(r.right);
             break;
          case RANGE_DOWNTO:
-            printf(" downto ");
+            syntax(" #downto ");
             dump_expr(r.right);
             break;
          case RANGE_DYN:
-            printf(" dynamic ");
+            syntax(" #dynamic ");
             dump_expr(r.right);
             break;
          case RANGE_RDYN:
-            printf(" reverse_dynamic ");
+            syntax(" #reverse_dynamic ");
             dump_expr(r.right);
             break;
          case RANGE_EXPR:
@@ -335,29 +328,6 @@ static void dump_type(type_t type)
    }
    else
       syntax(type_pp_minify(type, dump_minify_type), "");
-}
-
-static void dump_op(tree_t t, int indent)
-{
-   tab(indent);
-
-   syntax("-- predefined %s [", istr(tree_ident(t)));
-
-   const int nports = tree_ports(t);
-   for (int i = 0; i < nports; i++) {
-      dump_type(tree_type(tree_port(t, i)));
-      if (i + 1 < nports)
-         printf(", ");
-   }
-
-   printf("]");
-
-   if (tree_kind(t) == T_FUNC_DECL) {
-      printf(" return ");
-      dump_type(type_result(tree_type(t)));
-   }
-
-   syntax("\n");
 }
 
 static void dump_ports(tree_t t, int indent)
@@ -383,9 +353,11 @@ static void dump_ports(tree_t t, int indent)
 
 static void dump_block(tree_t t, int indent)
 {
-   const int ndecls = tree_decls(t);
-   for (unsigned i = 0; i < ndecls; i++)
-      dump_decl(tree_decl(t, i), indent + 2);
+   if (is_subprogram(t) && tree_has_ident2(t)) {
+      tab(indent + 2);
+      syntax("-- %s\n", istr(tree_ident2(t)));
+   }
+   dump_decls(t, indent + 2);
    tab(indent);
    syntax("#begin\n");
    const int nstmts = tree_stmts(t);
@@ -435,7 +407,10 @@ static void dump_decl(tree_t t, int indent)
          type_kind_t kind = type_kind(type);
          bool is_subtype = (kind == T_SUBTYPE);
 
-         syntax("#%stype %s #is ", is_subtype ? "sub" : "", istr(tree_ident(t)));
+         syntax("#%stype %s", is_subtype ? "sub" : "", istr(tree_ident(t)));
+
+         if (kind != T_INCOMPLETE)
+            syntax(" #is ");
 
          if (is_subtype) {
             printf("%s ", istr(type_ident(type_base(type))));
@@ -462,7 +437,7 @@ static void dump_decl(tree_t t, int indent)
                }
             }
             tab(indent + 2);
-            syntax("#end #units\n");
+            syntax("#end #units");
          }
          else if (type_is_array(type)) {
             if (!is_subtype)
@@ -497,7 +472,7 @@ static void dump_decl(tree_t t, int indent)
                dump_type(type_elem(type));
             }
          }
-         else if (type_is_protected(type)) {
+         else if (type_kind(type) == T_PROTECTED) {
             syntax("#protected\n");
             for (unsigned i = 0; i < type_decls(type); i++)
                dump_decl(type_decl(type, i), indent + 2);
@@ -520,15 +495,12 @@ static void dump_decl(tree_t t, int indent)
             }
             printf(")");
          }
+         else if (kind == T_INCOMPLETE)
+            ;
          else
             dump_type(type);
       }
       printf(";\n");
-      {
-         const int nops = tree_ops(t);
-         for (int i = 0; i < nops; i++)
-            dump_op(tree_op(t, i), indent);
-      }
       return;
 
    case T_SPEC:
@@ -576,9 +548,13 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_FUNC_DECL:
-      syntax("#function %s", istr(tree_ident(t)));
-      dump_ports(t, indent);
-      syntax(" #return %s;\n", type_pp(type_result(tree_type(t))));
+      if (tree_flags(t) & TREE_F_PREDEFINED)
+         syntax("-- predefined %s\n", type_pp(tree_type(t)));
+      else {
+         syntax("#function %s", istr(tree_ident(t)));
+         dump_ports(t, indent);
+         syntax(" #return %s;\n", type_pp(type_result(tree_type(t))));
+      }
       return;
 
    case T_FUNC_BODY:
@@ -587,15 +563,19 @@ static void dump_decl(tree_t t, int indent)
       syntax(" #return %s #is\n", type_pp(type_result(tree_type(t))));
       dump_block(t, indent);
       tab(indent);
-      syntax("#end #function;\n\n");
+      syntax("#end #function;\n");
       return;
 
    case T_PROC_DECL:
-      syntax("#procedure %s", istr(tree_ident(t)));
-      dump_ports(t, indent);
-      printf(";");
-      dump_wait_level(t);
-      printf("\n");
+      if (tree_flags(t) & TREE_F_PREDEFINED)
+         syntax("-- predefined %s\n", type_pp(tree_type(t)));
+      else {
+         syntax("#procedure %s", istr(tree_ident(t)));
+         dump_ports(t, indent);
+         printf(";");
+         dump_wait_level(t);
+         syntax("\n");
+      }
       return;
 
    case T_PROC_BODY:
@@ -603,10 +583,10 @@ static void dump_decl(tree_t t, int indent)
       dump_ports(t, indent);
       syntax(" #is");
       dump_wait_level(t);
-      printf("\n");
+      syntax("\n");
       dump_block(t, indent);
       tab(indent);
-      syntax("#end #procedure;\n\n");
+      syntax("#end #procedure;\n");
       return;
 
    case T_HIER:
@@ -640,8 +620,7 @@ static void dump_decl(tree_t t, int indent)
 
    case T_PROT_BODY:
       syntax("#type %s #is #protected #body\n", istr(tree_ident(t)));
-      for (unsigned i = 0; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i), indent + 2);
+      dump_decls(t, indent + 2);
       tab(indent);
       syntax("#end #protected #body;\n");
       return;
@@ -771,6 +750,7 @@ static void dump_stmt(tree_t t, int indent)
    case T_BLOCK:
       syntax("#block #is\n");
       dump_block(t, indent);
+      tab(indent);
       syntax("#end #block");
       break;
 
@@ -860,7 +840,7 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_FOR:
-      syntax("#for %s #in ", istr(tree_ident2(t)));
+      syntax("#for %s #in ", istr(tree_ident(tree_decl(t, 0))));
       dump_range(tree_range(t, 0));
       syntax(" #loop\n");
       for (unsigned i = 0; i < tree_stmts(t); i++)
@@ -869,23 +849,28 @@ static void dump_stmt(tree_t t, int indent)
       syntax("#end #for");
       break;
 
+   case T_PROT_PCALL:
+      dump_expr(tree_name(t));
+      printf(".");
+      // Fall-through
    case T_PCALL:
-      printf("%s", istr(tree_ident(tree_ref(t))));
+      printf("%s", istr(tree_has_ref(t)
+                        ? tree_ident(tree_ref(t)) : tree_ident(t)));
       dump_params(t, tree_param, tree_params(t), NULL);
       break;
 
    case T_FOR_GENERATE:
-      syntax("#for %s #in ", istr(tree_ident2(t)));
+      syntax("#for %s #in ", istr(tree_ident(tree_decl(t, 0))));
       dump_range(tree_range(t, 0));
       syntax(" #generate\n");
-      for (unsigned i = 0; i < tree_decls(t); i++)
+      for (unsigned i = 1; i < tree_decls(t); i++)
          dump_decl(tree_decl(t, i), indent + 2);
       tab(indent);
       syntax("#begin\n");
       for (unsigned i = 0; i < tree_stmts(t); i++)
          dump_stmt(tree_stmt(t, i), indent + 2);
       tab(indent);
-      syntax("end generate");
+      syntax("#end #generate");
       break;
 
    case T_IF_GENERATE:
@@ -935,6 +920,10 @@ static void dump_stmt(tree_t t, int indent)
          syntax(" #when ");
          dump_expr(tree_value(t));
       }
+      break;
+
+   case T_NULL:
+      syntax("#null");
       break;
 
    default:
@@ -990,6 +979,9 @@ static void dump_context(tree_t t)
       case T_PRAGMA:
          dump_pragma(c);
          break;
+
+      case T_CTXREF:
+         syntax("#context %s;\n", istr(tree_ident(t)));
 
       default:
          break;
@@ -1048,8 +1040,17 @@ static void dump_entity(tree_t t)
 static void dump_decls(tree_t t, int indent)
 {
    const int ndecls = tree_decls(t);
-   for (unsigned i = 0; i < ndecls; i++)
-      dump_decl(tree_decl(t, i), indent);
+   bool was_body = false;
+   for (unsigned i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      tree_kind_t dkind = tree_kind(d);
+      const bool is_body = dkind == T_FUNC_BODY || dkind == T_PROT_BODY
+         || dkind == T_PROC_BODY;
+      if ((was_body && !is_body) || is_body)
+         syntax("\n");
+      was_body = is_body;
+      dump_decl(d, indent);
+   }
 }
 
 static void dump_arch(tree_t t)
@@ -1116,8 +1117,8 @@ void dump(tree_t t)
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:
    case T_TYPE_CONV:
-   case T_CONCAT:
    case T_RECORD_REF:
+   case T_ATTR_REF:
       dump_expr(t);
       printf("\n");
       break;
@@ -1134,6 +1135,9 @@ void dump(tree_t t)
    case T_TYPE_DECL:
    case T_FIELD_DECL:
    case T_FUNC_DECL:
+   case T_PROC_BODY:
+   case T_FUNC_BODY:
+   case T_PROC_DECL:
    case T_ATTR_DECL:
    case T_ATTR_SPEC:
    case T_ENUM_LIT:

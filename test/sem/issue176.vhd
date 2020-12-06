@@ -48,7 +48,7 @@ begin
   process is
       function fun2 return boolean is
       begin
-          proc;                         -- Error
+          proc;                         -- Error (not at sem)
           return true;
       end function;
   begin

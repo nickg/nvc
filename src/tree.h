@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2019  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -72,7 +72,8 @@ typedef enum literal_kind {
    L_INT,
    L_REAL,
    L_NULL,
-   L_STRING
+   L_STRING,
+   L_PHYSICAL
 } literal_kind_t;
 
 typedef enum constraint_kind {
@@ -126,7 +127,6 @@ typedef enum tree_kind {
    T_CASE,
    T_BLOCK,
    T_COND,
-   T_CONCAT,
    T_TYPE_CONV,
    T_SELECT,
    T_COMPONENT,
@@ -158,6 +158,8 @@ typedef enum tree_kind {
    T_CONSTRAINT,
    T_BLOCK_CONFIG,
    T_PRAGMA,
+   T_PROT_FCALL,
+   T_PROT_PCALL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -176,6 +178,11 @@ typedef enum {
    TREE_F_LAST_VALUE      = (1 << 10),
    TREE_F_PACKAGE_SIGNAL  = (1 << 11),
    TREE_F_SYNTHETIC_NAME  = (1 << 12),
+   TREE_F_PREDEFINED      = (1 << 13),
+   TREE_F_UNIVERSAL       = (1 << 14),
+   TREE_F_LOOP_VAR        = (1 << 15),
+   TREE_F_FOREIGN         = (1 << 16),
+   TREE_F_PROTECTED       = (1 << 17),
 } tree_flags_t;
 
 tree_t tree_new(tree_kind_t kind);
@@ -303,14 +310,11 @@ bool tree_has_reject(tree_t t);
 
 tree_t tree_name(tree_t t);
 void tree_set_name(tree_t t, tree_t n);
+bool tree_has_name(tree_t t);
 
 tree_t tree_spec(tree_t t);
 bool tree_has_spec(tree_t t);
 void tree_set_spec(tree_t t, tree_t s);
-
-unsigned tree_ops(tree_t t);
-tree_t tree_op(tree_t t, unsigned n);
-void tree_add_op(tree_t t, tree_t s);
 
 unsigned tree_chars(tree_t t);
 tree_t tree_char(tree_t t, unsigned n);

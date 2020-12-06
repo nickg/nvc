@@ -8,7 +8,7 @@ package body assert_after_missing_type is
 
   procedure calling_proc is
   begin
-    proc(1); -- Causes SIGABRT
+    proc(1); -- Error (used to cause SIGABRT)
   end;
 
 end package body;

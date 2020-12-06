@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2020  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -166,6 +166,10 @@ bool loc_invalid_p(const loc_t *loc)
 loc_t get_loc(unsigned first_line, unsigned first_column, unsigned last_line,
               unsigned last_column, loc_file_ref_t file_ref)
 {
+   if (first_line == LINE_INVALID || last_line == LINE_INVALID
+       || first_column == COLUMN_INVALID || last_column == COLUMN_INVALID)
+      return LOC_INVALID;
+
    assert(first_line <= last_line);
    assert(first_line != last_line || first_column <= last_column);
 

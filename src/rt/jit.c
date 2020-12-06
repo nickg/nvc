@@ -233,7 +233,7 @@ void jit_trace(jit_trace_t **trace, size_t *count)
       const int ndecls = tree_decls(unit);
       for (int i = 0; i < ndecls; i++) {
          tree_t d = tree_decl(unit, i);
-         if (tree_attr_str(d, mangled_i) == mangled)
+         if (tree_has_ident2(d) && tree_ident2(d) == mangled)
             best = d;
          else if (tree_ident(d) == decl_name && best == NULL)
             best = d;

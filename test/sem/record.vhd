@@ -35,18 +35,18 @@ end package;
 package body p is
 
     procedure p1 is
-        variable v1 : r1 := (1, 2);
+        variable v1 : r1 := (1, 2);     -- OK
         variable v2 : r4 := (1, 2);        -- Error
         variable v3 : r1 := (1, v1);       -- Error
-        variable v4 : r1 := (x => 1, y => 2);
+        variable v4 : r1 := (x => 1, y => 2);  -- OK
         variable v5 : r1 := (x => 1);   -- Error
         variable v6 : r1 := (x => 1, y => 2, q => 1);  -- Error
         variable v7 : r1 := (x => 1, y => v1);  -- Error
-        variable v8 : r1 := (others => 9);
+        variable v8 : r1 := (others => 9);  -- OK
         variable v9 : r1 := (x => 1, others => 2);
         variable v10 : r1 := (x => 1, x => 2, y => 3);  -- Error
         variable v11 : r1 := (1, x => 4, y => 2);  -- Error
-        variable v12 : r1 := (1, y => 4);
+        variable v12 : r1 := (1, y => 4);  -- OK
         variable v13 : r1;
     begin
     end procedure;
@@ -99,7 +99,7 @@ package body p is
     procedure p8 is
         function make_r1 return r1 is
         begin
-            return (x => 1, y => 2);
+            return (x => 1, y => 2);    -- OK
         end function;
     begin
         assert make_r1.x = 1;           -- OK
@@ -110,5 +110,19 @@ package body p is
     type r7 is record
         a : int_file;
     end record;
+
+    type r8 is record
+        a : integer range 1 to 10;
+    end record;
+
+    procedure p9 is
+        variable x : r8;                -- OK
+    begin
+    end procedure;
+
+    procedure p10 is
+        variable x : r8 := (ack => '1');  -- Error
+    begin
+    end procedure;
 
 end package body;

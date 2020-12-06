@@ -1,3 +1,6 @@
+entity b is
+end entity;
+
 architecture a of b is
     signal x : integer := 0;
 begin

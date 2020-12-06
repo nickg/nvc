@@ -1,4 +1,7 @@
+entity e is end entity;
+
 architecture a of e is
+    signal x : integer;
 begin
 
     bad syntax;
@@ -24,7 +27,7 @@ begin
     end process bar;                    -- No initial label
 
     b: block is
-        function "+" return boolean is
+        impure function "+" return boolean is
         begin
             my_if: if x > 5 then
                 null;

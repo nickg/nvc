@@ -33,8 +33,8 @@ begin
     process is
         variable v : int_vec_ptr;
     begin
-        assert v'length = 5;
-        assert v.all'length = 62;
+        assert v'length = 5;            -- OK
+        assert v.all'length = 62;       -- OK
     end process;
 
     process is
@@ -94,7 +94,7 @@ end package;
 package body p is
     function func(x : in integer) return integer is
     begin
-        report func'instance_name;
+        report func'instance_name;      -- OK
         return x + 1;
     end function;
 end package body;
@@ -189,4 +189,19 @@ begin
             assert fie2'RIGHT = 1;  -- OK
         end process;
     end block;
+
+    process
+        type int2_vec is array (66 to 67) of integer;
+        variable b : boolean;
+        variable x : int2_vec;
+    begin
+        b := a4'length = 5;             -- Error
+        b := x'length = 5;              -- OK
+        b := x'low(1) = 1;              -- OK
+        b := x'high(1) = 5;             -- OK
+        b := x'left = 1;                -- OK
+        b := x'right = 5;               -- OK
+        b := int2_vec'length = 2;       -- OK
+        b := int2_vec'low = 66;         -- OK
+    end process;
 end architecture;

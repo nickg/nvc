@@ -31,11 +31,11 @@ begin
         generic map ( 5 )
         port map ( o => x );
 
-    bot3: entity work.bot               -- Missing N
-        port map ( o => x );
+    bot3: entity work.bot
+        port map ( o => x );            -- Missing N
 
-    bot4: entity work.bot               -- Too many generics
-        generic map ( 1, 2 )
+    bot4: entity work.bot
+        generic map ( 1, 2 )            -- Too many generics
         port map ( o => x );
 
 end architecture;

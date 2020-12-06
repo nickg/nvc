@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2018  Nick Gasson
+//  Copyright (C) 2013-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -49,15 +49,18 @@ tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name);
 type_t array_aggregate_type(type_t array, int from_dim);
 tree_t make_default_value(type_t type, const loc_t *loc);
 unsigned bits_for_range(int64_t low, int64_t high);
-unsigned array_dimension(type_t a);
-type_t index_type_of(type_t type, int dim);
+unsigned dimension_of(type_t type);
+type_t index_type_of(type_t type, unsigned dim);
 range_kind_t direction_of(type_t type, unsigned dim);
 range_t range_of(type_t type, unsigned dim);
 tree_t str_to_literal(const char *start, const char *end, type_t type);
 int64_t rebase_index(type_t array_type, int dim, int64_t value);
 char *vcode_file_name(ident_t unit_name);
 bool pack_needs_cgen(tree_t t);
-ident_t mangle_func(tree_t decl, const char *prefix);
+bool is_subprogram(tree_t t);
+bool is_container(tree_t t);
+tree_t search_decls(tree_t container, ident_t name, int nth);
+type_t std_type(tree_t standard, const char *name);
 
 const char *fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);
@@ -142,7 +145,9 @@ typedef enum {
    ATTR_LEFTOF,
    ATTR_RIGHTOF,
    ATTR_POS,
-   ATTR_VAL
+   ATTR_VAL,
+   ATTR_RANGE,
+   ATTR_REVERSE_RANGE,
 } predef_attr_t;
 
 //
@@ -180,9 +185,7 @@ GLOBAL ident_t nested_i;
 GLOBAL ident_t drives_all_i;
 GLOBAL ident_t driver_init_i;
 GLOBAL ident_t GLOBAL_i;
-GLOBAL ident_t mangled_i;
 GLOBAL ident_t null_range_i;
-GLOBAL ident_t deferred_i;
 GLOBAL ident_t prot_field_i;
 GLOBAL ident_t stmt_tag_i;
 GLOBAL ident_t cond_tag_i;
@@ -196,6 +199,7 @@ GLOBAL ident_t simple_name_i;
 GLOBAL ident_t std_i;
 GLOBAL ident_t nnets_i;
 GLOBAL ident_t thunk_i;
+GLOBAL ident_t defer_overload_i;
 
 void intern_strings();
 

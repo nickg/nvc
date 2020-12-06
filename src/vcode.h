@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2020  Nick Gasson
+//  Copyright (C) 2014-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -146,7 +146,8 @@ typedef enum {
    VCODE_TYPE_FILE,
    VCODE_TYPE_ACCESS,
    VCODE_TYPE_REAL,
-   VCODE_TYPE_IMAGE_MAP
+   VCODE_TYPE_IMAGE_MAP,
+   VCODE_TYPE_OPAQUE
 } vtype_kind_t;
 
 typedef enum {
@@ -220,6 +221,7 @@ vcode_type_t vtype_offset(void);
 vcode_type_t vtype_time(void);
 vcode_type_t vtype_char(void);
 vcode_type_t vtype_image_map(void);
+vcode_type_t vtype_opaque(void);
 vcode_type_t vtype_find_named_record(ident_t name);
 vcode_type_t vtype_named_record(ident_t name, const vcode_type_t *field_types,
                                 int nfields);

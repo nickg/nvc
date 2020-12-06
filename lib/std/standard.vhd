@@ -4,10 +4,6 @@
 --
 package STANDARD is
 
-    type INTEGER;
-    type STRING;
-    type REAL;
-
     type BOOLEAN is (FALSE, TRUE);
 
     type BIT is ('0', '1');
@@ -56,7 +52,11 @@ package STANDARD is
 
     type SEVERITY_LEVEL is (NOTE, WARNING, ERROR, FAILURE);
 
+    -- type universal_integer is range implementation_defined;
+
     type INTEGER is range -2147483648 to 2147483647;
+
+    -- type universal_real is range implementation_defined;
 
     type REAL is range -1.7976931348623157e308 to 1.7976931348623157e308;
 

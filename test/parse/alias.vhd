@@ -1,4 +1,14 @@
+entity e is end entity;
+
 architecture a of e is
+    signal bar, boo : integer;
+
+    function func (x : integer; b : boolean) return boolean;
+    function func return integer;
+
+    procedure proc (x : integer);
+    procedure proc;
+
     alias foo is bar;
     alias blah : integer is boo;
 

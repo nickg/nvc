@@ -1,3 +1,9 @@
+package in_foo is
+    type thing is (x, y);
+end package;
+
+-------------------------------------------------------------------------------
+
 entity issue226 is
 end entity;
 
@@ -11,7 +17,7 @@ begin
     end process;
 
     process is
-        variable x : ieee.std_logic_1164.std_logic;  -- Error
+        variable x : foo.in_foo.thing;  -- Error
     begin
     end process;
 

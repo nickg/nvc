@@ -11,6 +11,7 @@
 static const error_t *error_lines = NULL;
 static error_fn_t     orig_error_fn = NULL;
 static lib_t          test_lib = NULL;
+static unsigned       errors_seen = 0;
 
 static void test_error_fn(const char *msg, const loc_t *loc)
 {
@@ -25,11 +26,12 @@ static void test_error_fn(const char *msg, const loc_t *loc)
       orig_error_fn(msg, loc);
       printf("expected line %d '%s'\n",
              error_lines->line, error_lines->snippet);
+      ck_abort_msg("expected line %d '%s'",
+                   error_lines->line, error_lines->snippet);
    }
 
-   fail_if(unexpected);
-
    error_lines++;
+   errors_seen++;
 }
 
 static void setup(void)
@@ -46,6 +48,7 @@ static void setup(void)
    opt_set_int("verbose", 0);
    opt_set_int("synthesis", 0);
    opt_set_int("parse-pragmas", 0);
+   opt_set_int("missing-body", 0);
    intern_strings();
 }
 
@@ -56,10 +59,7 @@ static void setup_per_test(void)
 
    opt_set_int("cover", 0);
 
-   reset_bounds_errors();
-   reset_sem_errors();
-   reset_parse_errors();
-   reset_eval_errors();
+   reset_error_count();
 
    set_standard(STD_93);
    set_relax_rules(0);
@@ -86,6 +86,18 @@ void expect_errors(const error_t *lines)
    orig_error_fn = set_error_fn(test_error_fn, false);
 #endif
    error_lines = lines;
+   errors_seen = 0;
+}
+
+void check_expected_errors(void)
+{
+   ck_assert_ptr_nonnull(error_lines);
+
+   if (error_lines->snippet != NULL || error_lines->line != -1)
+      ck_abort_msg("missing expected error line %d '%s'",
+                   error_lines->line, error_lines->snippet);
+
+   ck_assert_int_eq(error_count(), errors_seen);
 }
 
 TCase *nvc_unit_test(void)
@@ -100,10 +112,14 @@ tree_t run_elab(void)
 {
    tree_t t, last_ent = NULL;
    while ((t = parse())) {
+      fail_if(error_count() > 0);
       sem_check(t);
-      fail_if(sem_errors() > 0);
+      fail_if(error_count() > 0);
 
       simplify(t, 0);
+      bounds_check(t);
+      fail_if(error_count() > 0);
+
       if (tree_kind(t) == T_PACKAGE || tree_kind(t) == T_PACK_BODY)
          lower_unit(t);
 
@@ -123,15 +139,19 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
          return last;
 
       last = parse();
-      fail_if(last == NULL);
+      if (last == NULL) {
+        ck_abort_msg("expected %s but have NULL", tree_kind_str(array[i]));
+        continue;
+      }
+
       const tree_kind_t kind = tree_kind(last);
-      fail_unless(tree_kind(last) == array[i],
-                  "expected %s have %s", tree_kind_str(array[i]),
-                  tree_kind_str(kind));
+      ck_assert_msg(tree_kind(last) == array[i],
+                    "expected %s have %s", tree_kind_str(array[i]),
+                    tree_kind_str(kind));
 
       const bool sem_ok = sem_check(last);
       if (simp) {
-         fail_unless(sem_ok, "semantic check failed");
+         ck_assert_msg(sem_ok, "semantic check failed");
          simplify(last, 0);
       }
 
@@ -140,7 +160,11 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
    }
 
    fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
 
    return last;
+}
+
+void fail_if_errors(void)
+{
+   ck_assert_msg(error_count() == 0, "have errors");
 }

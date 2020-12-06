@@ -13,6 +13,10 @@ package p is
 
 end package;
 
+entity e is end entity;
+
+use work.p.all;
+
 architecture a of e is
     signal x : int_array(1 to 5);
     signal y : ten_ints;
@@ -31,8 +35,8 @@ begin
         y(2) <= n(2);
         y(3)(5) <= n(2)(1);
         x(1 to 3) <= z(1 to 3);
-        a := (x'range => 5);
-        a := (x'reverse_range => 3);
+        x := (x'range => 5);
+        x := (x'reverse_range => 3);
     end process;
 
 end architecture;

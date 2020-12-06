@@ -17,9 +17,14 @@ architecture test of func9 is
 begin
 
     process is
+        variable x : bit;
     begin
-        assert get_message('1') = "one";
-        assert get_message('0') = "zero";
+        x := '1';
+        wait for 1 ns;                  -- Prevent constant folding
+        assert get_message(x) = "one";
+        x := '0';
+        wait for 1 ns;
+        assert get_message(x) = "zero";
         wait;
     end process;
 

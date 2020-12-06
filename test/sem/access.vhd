@@ -85,4 +85,10 @@ package body p is
     begin
     end procedure;
 
+    procedure test5 is
+        type foo;
+        variable f : foo;               -- Error
+    begin
+    end procedure;
+
 end package body;

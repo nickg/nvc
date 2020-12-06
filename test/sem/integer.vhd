@@ -49,11 +49,11 @@ begin
     end process;
 
     process is
-        variable b : my_int2 := my_int2'left;
+        variable b : my_int2 := my_int2'left;  -- OK
     begin
-        b := my_int2'low;
-        b := my_int2'high;
-        b := my_int2'right;
+        b := my_int2'low;               -- OK
+        b := my_int2'high;              -- OK
+        b := my_int2'right;             -- OK
         b := my_int2'cake;              -- Error
     end process;
 

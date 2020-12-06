@@ -39,6 +39,7 @@ architecture test of e is
         bar_char('1');                  -- OK
         assert foo('1') = 1;            -- Error
         assert foo_int(1) = 1;          -- Error
+        bar_bit(character'( '1' ));     -- Error
         bar_bit(character'(1));         -- Error
     end procedure;
 

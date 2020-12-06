@@ -1,7 +1,19 @@
 -- test_ng.vhd
-library ieee;
-use     ieee.std_logic_1164.all;
-use     ieee.numeric_std.all;
+package my_logic is
+    type std_logic is ('0', '1');
+    type std_logic_vector is array (natural range <>) of std_logic;
+    type unsigned is array (natural range <>) of std_logic;
+    type signed is array (natural range <>) of std_logic;
+
+    function to_integer(x : unsigned) return integer;
+    function to_unsigned(x, width : natural) return unsigned;
+    function to_01(x : unsigned) return unsigned;
+    function resize(x : unsigned; width : natural) return unsigned;
+    function "-"(x, y : unsigned) return unsigned;
+    function ">"(x : unsigned; y : integer) return boolean;
+end package;
+
+use work.my_logic.all;
 entity  TEST_SUB is
     generic (
         SIZE_BITS   : integer := 32;
@@ -32,9 +44,7 @@ begin
     end process;
 end RTL;
 
-library ieee;
-use     ieee.std_logic_1164.all;
-use     ieee.numeric_std.all;
+use work.my_logic.all;
 entity  TEST_NG is
 end     TEST_NG;
 architecture RTL of TEST_NG is

@@ -24,13 +24,13 @@ static int run_suite(Suite *s, const char *name, int argc, char **argv)
          should_run = true;
    }
 
-   if (!should_run)
-      return 0;
-
    SRunner *sr = srunner_create(s);
-   srunner_run_all(sr, CK_NORMAL);
 
-   const int nfail = srunner_ntests_failed(sr);
+   int nfail = 0;
+   if (should_run) {
+     srunner_run_all(sr, CK_NORMAL);
+     nfail = srunner_ntests_failed(sr);
+   }
 
    srunner_free(sr);
 
@@ -44,7 +44,7 @@ int main(int argc, char **argv)
    term_init();
    register_trace_signal_handlers();
 
-   setenv("NVC_LIBPATH", "../lib/std", 1);
+   setenv("NVC_LIBPATH", "./lib", 1);
 
    int nfail = 0;
    nfail += RUN_TESTS(ident);

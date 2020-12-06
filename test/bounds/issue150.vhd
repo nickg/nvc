@@ -1,6 +1,3 @@
-library ieee;
-use ieee.numeric_std.all;
-
 entity issue150 is
 end entity issue150;
 

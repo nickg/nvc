@@ -4,7 +4,8 @@ std_DATA = \
 	lib/std/_index \
 	lib/std/STD.STANDARD \
 	lib/std/STD.TEXTIO \
-	lib/std/STD.TEXTIO-body
+	lib/std/STD.TEXTIO-body \
+	lib/std/_STD.TEXTIO-body.vcode
 
 std_08dir = $(pkgdatadir)/std.08
 std_08_DATA = \

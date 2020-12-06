@@ -111,7 +111,7 @@ package body func is
         variable v : integer;
         variable u : uenum;
     begin
-        v := sum(x => 4, 1);            -- Error
+        v := sum(x => 4, 1, 2);         -- Error
         v := sum(1, x => 4, x => 4);    -- Error
         v := sum(1, y => k, z => 4);    -- OK
         u := resolved3(A, x => 4);      -- OK
@@ -203,8 +203,8 @@ package body func is
 
     function test22 return integer is
     begin
-        assert test22a(1) = 2;
-        assert test22a(1) = 2.0;
+        assert test22a(1) = 2;          -- OK
+        assert test22a(1) = 2.0;        -- OK
         return 1;
     end function;
 
@@ -259,7 +259,7 @@ package body func3 is
     function issue182(bitv : bit_vector) return integer is
         function nested_fun return integer is
         begin
-            return bitv'length;
+            return bitv'length;         -- OK
         end function;
     begin
         return nested_fun;
@@ -269,6 +269,15 @@ package body func3 is
         function nested return integer is
         begin
             return x + 1;               -- Error
+        end function;
+    begin
+        return nested;
+    end function;
+
+    function constpure(x : integer) return integer is
+        function nested return integer is
+        begin
+            return x + 1;               -- OK
         end function;
     begin
         return nested;

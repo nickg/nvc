@@ -110,8 +110,6 @@ typedef struct {
          eval_assert_fail(op, value, #value, NULL, __FILE__, __LINE__); \
    } while (0)
 
-static int errors = 0;
-
 static void eval_vcode(eval_state_t *state);
 static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level);
 
@@ -165,11 +163,11 @@ static bool eval_have_lowered(tree_t func, eval_flags_t flags)
 {
    if (tree_attr_str(func, builtin_i))
       return true;
-
-   ident_t mangled = mangle_func(func, NULL);
-   if (mangled == NULL)
+   else if (!tree_has_ident2(func))
       return false;
-   else if (eval_find_unit(mangled, flags) == NULL) {
+
+   ident_t mangled = tree_ident2(func);
+   if (eval_find_unit(mangled, flags) == NULL) {
       if (!(flags & EVAL_LOWER))
          return false;
       else if (tree_kind(func) != T_FUNC_BODY)
@@ -217,7 +215,7 @@ static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level)
       return true;
 
    case T_TYPE_CONV:
-      return eval_possible(tree_value(tree_param(t, 0)), flags, false);
+      return eval_possible(tree_value(t), flags, false);
 
    case T_QUALIFIED:
       return eval_possible(tree_value(t), flags, false);
@@ -231,7 +229,8 @@ static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level)
             return true;
 
          case T_CONST_DECL:
-            return eval_possible(tree_value(decl), flags, false);
+            return tree_has_value(decl) &&
+               eval_possible(tree_value(decl), flags, false);
 
          default:
             if (flags & EVAL_WARN)
@@ -1021,8 +1020,6 @@ static void eval_op_bounds(int op, eval_state_t *state)
                   fatal_trace("unhandled bounds kind %d in %s",
                               vcode_get_subkind(op), __func__);
                }
-
-               errors++;
             }
             state->failed = true;
          }
@@ -2125,11 +2122,19 @@ static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
    case VALUE_INTEGER:
       if (type_is_enum(type)) {
          type_t enum_type = type_base_recur(type);
+         if ((unsigned)value->integer >= type_enum_literals(enum_type))
+            fatal_at(loc, "enum position %"PRIi64" out of range for type %s",
+                     value->integer, type_pp(enum_type));
          tree_t lit = type_enum_literal(enum_type, value->integer);
 
          tree = tree_new(T_REF);
          tree_set_ref(tree, lit);
          tree_set_ident(tree, tree_ident(lit));
+      }
+      else if (type_is_physical(type)) {
+         tree = tree_new(T_LITERAL);
+         tree_set_subkind(tree, L_PHYSICAL);
+         tree_set_ival(tree, value->integer);
       }
       else {
          tree = tree_new(T_LITERAL);
@@ -2274,14 +2279,4 @@ tree_t eval(tree_t expr, eval_flags_t flags)
    tree_t tree = eval_value_to_tree(&result, type, tree_loc(expr));
    eval_cleanup_state(&state);
    return tree;
-}
-
-int eval_errors(void)
-{
-   return errors;
-}
-
-void reset_eval_errors(void)
-{
-   errors = 0;
 }

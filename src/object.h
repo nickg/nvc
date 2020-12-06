@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2019  Nick Gasson
+//  Copyright (C) 2013-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -66,7 +66,7 @@ typedef uint64_t imask_t;
 #define I_NETS       ONE_HOT(29)
 #define I_DVAL       ONE_HOT(30)
 #define I_SPEC       ONE_HOT(31)
-#define I_OPS        ONE_HOT(32)
+//#define I_???        ONE_HOT(32)
 #define I_INDEXCON   ONE_HOT(33)
 #define I_BASE       ONE_HOT(34)
 #define I_ELEM       ONE_HOT(35)
@@ -92,7 +92,7 @@ typedef uint64_t imask_t;
                           | I_NAME | I_SPEC | I_RESOLUTION | I_CONSTR)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS  \
-                          | I_GENMAPS | I_ASSOCS | I_CONTEXT | I_OPS \
+                          | I_GENMAPS | I_ASSOCS | I_CONTEXT \
                           | I_LITERALS | I_FIELDS | I_UNITS | I_CHARS)
 #define ITEM_TYPE        (I_TYPE | I_BASE | I_ELEM | I_ACCESS | I_RESULT \
                           | I_FILE)
@@ -260,7 +260,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 unsigned object_next_generation(void);
 object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx);
 bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx);
-void object_replace(object_t *t, object_t *a);
 
 void object_write(object_t *object, object_wr_ctx_t *ctx);
 object_wr_ctx_t *object_write_begin(fbuf_t *f);

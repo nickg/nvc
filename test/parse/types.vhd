@@ -1,3 +1,6 @@
+entity b is
+end entity;
+
 architecture a of b is
     type my_int is range 0 to 100;
     signal x : my_int := 2;
@@ -15,6 +18,10 @@ architecture a of b is
     subtype my_small_int is my_int range 0 to 5;
 
     subtype foo is my_int range 2 to my_int'high;
+
+    type my_int_vec is array (natural range <>) of my_int;
+
+    function resolved (x : my_int_vec) return my_int;
 
     subtype rint is resolved my_int;
 

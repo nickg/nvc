@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2020  Nick Gasson
+//  Copyright (C) 2014-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@ static const char *item_text_map[] = {
    "I_TYPE",     "I_SUBKIND",   "I_DELAY",    "I_REJECT",     "I_POS",
    "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT",    "I_TRIGGERS",
    "I_ELSES",    "I_CLASS",     "I_RANGE",    "I_NAME",       "I_NETS",
-   "I_DVAL",     "I_SPEC",      "I_OPS",      "I_CONSTR",     "I_BASE",
+   "I_DVAL",     "I_SPEC",      "I_???",      "I_CONSTR",     "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_TEXT_BUF",
    "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CONSTR2",    "I_FLAGS",
@@ -48,7 +48,7 @@ static A(object_t*)    all_objects;
 void object_lookup_failed(const char *name, const char **kind_text_map,
                           int kind, imask_t mask)
 {
-   int item;
+   unsigned int item;
    for (item = 0; (mask & (1ull << item)) == 0; item++)
       ;
 
@@ -439,8 +439,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
                   (tree_t)object_rewrite((object_t *)a->items[i].left, ctx);
                a->items[i].right =
                   (tree_t)object_rewrite((object_t *)a->items[i].right, ctx);
-               assert(a->items[i].left);
-               assert(a->items[i].right);
             }
          }
          else if (ITEM_TEXT_BUF & mask)
@@ -978,57 +976,4 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
    }
 
    return copy;
-}
-
-void object_replace(object_t *t, object_t *a)
-{
-   const object_class_t *class = classes[t->tag];
-
-   object_change_kind(class, t, a->kind);
-
-   const imask_t has = class->has_map[t->kind];
-   const int nitems = class->object_nitems[t->kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_TYPE_ARRAY & mask) {
-            const type_array_t *from = &(a->items[n].type_array);
-            type_array_t *to = &(t->items[n].type_array);
-
-            type_array_resize(to, from->count, 0);
-
-            for (unsigned i = 0; i < from->count; i++)
-               to->items[i] = from->items[i];
-         }
-         else if (ITEM_TYPE & mask)
-            t->items[n].type = a->items[n].type;
-         else if (ITEM_TREE & mask)
-            t->items[n].tree = a->items[n].tree;
-         else if (ITEM_TREE_ARRAY & mask) {
-            const tree_array_t *from = &(a->items[n].tree_array);
-            tree_array_t *to = &(t->items[n].tree_array);
-
-            tree_array_resize(to, from->count, 0);
-
-            for (size_t i = 0; i < from->count; i++)
-               to->items[i] = from->items[i];
-         }
-         else if (ITEM_RANGE_ARRAY & mask) {
-            const range_array_t *from = &(a->items[n].range_array);
-            range_array_t *to = &(t->items[n].range_array);
-
-            range_array_resize(to, from->count, 0);
-
-            for (unsigned i = 0; i < from->count; i++)
-               to->items[i] = from->items[i];
-         }
-         else if (ITEM_TEXT_BUF & mask)
-            ;
-         else if (ITEM_IDENT & mask)
-            t->items[n].ident = a->items[n].ident;
-         else
-            item_without_type(mask);
-         n++;
-      }
-   }
 }

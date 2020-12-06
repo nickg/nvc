@@ -97,8 +97,8 @@ package body p is
 
     procedure test3(constant x : inout int_ptr);  -- Error
     procedure test4(x : in int_ptr);  -- Error
-    procedure test4(x : int_ptr);  -- Error
-    procedure test4(x : out int_ptr);  -- OK
+    procedure test4a(x : int_ptr);  -- Error
+    procedure test4b(x : out int_ptr);  -- OK
 
     procedure test5_a(variable x : integer) is
     begin

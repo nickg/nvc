@@ -1,3 +1,5 @@
+entity e is end entity;
+
 architecture a of e is
 begin
 
@@ -11,5 +13,5 @@ begin
     begin
         x <= y;
     end block;
-    
+
 end architecture;

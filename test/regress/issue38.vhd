@@ -5,6 +5,7 @@ end package p;
 package body p is
     function f (i : bit) return integer is
     begin
+        report f'instance_name;
         assert f'instance_name = ":work:p:f";
         assert f'path_name = ":work:p:f";
         return 0;

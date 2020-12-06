@@ -60,7 +60,7 @@ lib/ieee/IEEE.VITAL_PRIMITIVES: $(bootstrap) $(srcdir)/lib/vital/prmtvs_p.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/prmtvs_p.vhdl
 
 lib/ieee/IEEE.VITAL_PRIMITIVES-body: $(bootstrap) $(srcdir)/lib/vital/prmtvs_b.vhdl
-	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/prmtvs_b.vhdl
+	$(nvc) -L lib/ --work=lib/ieee -a --relax=impure $(srcdir)/lib/vital/prmtvs_b.vhdl
 
 lib/ieee/IEEE.VITAL_MEMORY: $(bootstrap) $(srcdir)/lib/vital/memory_p.vhdl
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/memory_p.vhdl

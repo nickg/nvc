@@ -186,7 +186,7 @@ static void fst_process_signal(tree_t d)
    enum fstVarType vt;
    enum fstSupplementalDataType sdt;
    if (type_is_array(type)) {
-      if (array_dimension(type) > 1) {
+      if (dimension_of(type) > 1) {
          warn_at(tree_loc(d), "cannot represent multidimensional arrays "
                  "in FST format");
          free(data);

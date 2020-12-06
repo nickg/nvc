@@ -1,3 +1,4 @@
+entity synth is end entity;
 -- tracing_on foo bar
 architecture test of synth is
     signal x : integer;

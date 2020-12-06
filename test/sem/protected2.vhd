@@ -28,7 +28,7 @@ architecture a1 of e1 is
     end record;
 
     signal    s : t_protected;          -- Error
-    attribute s : t_protected;          -- Error
+    attribute t : t_protected;          -- Error
 
     component bad_gen is
     generic (

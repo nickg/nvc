@@ -25,9 +25,9 @@ begin
         type baz is (a, b, c, d);
         variable z : baz := b;
     begin
-        z := d;
-        z := a;
-        x <= a;
+        z := d;                         -- OK
+        z := a;                         -- OK
+        x <= a;                         -- OK
     end process;
 
     process is
@@ -40,8 +40,8 @@ begin
         variable z : small := -5;
         variable a : boolean;
     begin
-        a := z = -5;
-        a := -5 = z;
+        a := z = -5;                    -- OK
+        a := -5 = z;                    -- OK
     end process;
 
     process is
@@ -57,7 +57,7 @@ begin
     end process;
 
     process is
-        subtype some_foo is foo range a to b;
+        subtype some_foo is foo range a to b;  -- OK
         subtype less_foo is some_foo range a to a;
         subtype all_foo is foo;
         variable f : some_foo;
@@ -75,9 +75,9 @@ begin
         variable x : weird;
         variable y : character;
     begin
-        x := '¢';
-        y := '¢';
-        report "foo¥bar";
+        x := '¢';                       -- OK
+        y := '¢';                       -- OK
+        report "foo¥bar";               -- OK
     end process;
 
     process is
@@ -100,7 +100,7 @@ begin
             return 1;
         end function;
     begin
-        for i in false to false loop    -- Error
+        for i in false to false loop    -- OK
         end loop;
     end process;
 

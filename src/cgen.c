@@ -351,6 +351,9 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
    case VCODE_TYPE_FILE:
       return llvm_void_ptr();
 
+   case VCODE_TYPE_OPAQUE:
+      return LLVMVoidType();
+
    default:
       fatal("cannot convert vcode type %d to LLVM", vtype_kind(type));
    }

@@ -3,7 +3,7 @@ entity e is
     attribute foo of e : entity is 55;
     constant c : integer := 1;
 begin
-    pass : assert (e'foo = 55 and c = 1)
+    pass : assert (e'foo = 55 and c = 1)  -- OK
            report "unexpected"
            severity failure;
 end entity;

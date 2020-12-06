@@ -1,10 +1,16 @@
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-
 entity computation is
 end entity;
 
+package my_logic is
+    type std_logic is ('0', '1');
+    type std_logic_vector is array (natural range <>) of std_logic;
+    type unsigned is array (natural range <>) of std_logic;
+    type signed is array (natural range <>) of std_logic;
+
+    function to_integer(x : unsigned) return integer;
+end package;
+
+use work.my_logic.all;
 
 architecture foo of computation is
     signal size :std_logic_vector (7 downto 0) := "00001001";

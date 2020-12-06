@@ -23,6 +23,11 @@ package p is
         begin
             return counter;
         end function value;
+
+        procedure add10 is
+        begin
+            increment(10);
+        end procedure;
     end protected body;
 
 end package;

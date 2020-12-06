@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2018  Nick Gasson
+//  Copyright (C) 2013-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,8 +35,12 @@ int64_t assume_int(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_LITERAL:
-      assert(tree_subkind(t) == L_INT);
-      return tree_ival(t);
+      switch (tree_subkind(t)) {
+      case L_INT:
+      case L_PHYSICAL:
+         return tree_ival(t);
+      }
+      break;
 
    case T_REF:
       {
@@ -67,12 +71,14 @@ int64_t assume_int(tree_t t)
             break;
          }
       }
-      // Fall-through
+      break;
 
    default:
-      fatal_at(tree_loc(t), "expression cannot be folded to "
-               "an integer constant");
+      break;
    }
+
+   fatal_at(tree_loc(t), "expression cannot be folded to "
+            "an integer constant");
 }
 
 void range_bounds(range_t r, int64_t *low, int64_t *high)
@@ -133,11 +139,13 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
    va_list ap;
    va_start(ap, type);
    tree_t arg;
+   int pos = 0;
    while ((arg = va_arg(ap, tree_t))) {
       tree_t p = tree_new(T_PARAM);
       tree_set_value(p, arg);
       tree_set_loc(p, tree_loc(arg));
       tree_set_subkind(p, P_POS);
+      tree_set_pos(p, pos++);
 
       tree_add_param(call, p);
    }
@@ -150,12 +158,14 @@ bool folded_int(tree_t t, int64_t *l)
 {
    switch (tree_kind(t)) {
    case T_LITERAL:
-      if (tree_subkind(t) == L_INT) {
+      switch (tree_subkind(t)) {
+      case L_INT:
+      case L_PHYSICAL:
          *l = tree_ival(t);
          return true;
-      }
-      else
+      default:
          return false;
+      }
    case T_QUALIFIED:
       return folded_int(tree_value(t), l);
    default:
@@ -311,16 +321,27 @@ const char *package_signal_path_name(ident_t i)
    char *buf = get_fmt_buf(strlen(str) + 3);
    char *p = buf;
 
+   // XXX: GHDL gives something like :work:p:f[bit return integer]: for
+   // objects inside package subprograms. The algorithm below is wrong
+   // because overloads may create duplicate paths names.
+
+   bool in_params = false, in_return = false;
    *p++ = ':';
    while (*str != '\0') {
       if (*str == '.') {
          *p++ = ':';
-         str++;
+         in_return = false;
       }
-      else {
+      else if (*str == '(')
+         in_params = true;
+      else if (*str == ')') {
+         in_params = false;
+         in_return = true;
+      }
+      else if (!in_params && !in_return) {
          *p++ = tolower((int)*str);
-         str++;
       }
+      str++;
    }
    *p = '\0';
 
@@ -461,6 +482,9 @@ tree_t find_record_field(tree_t rref)
    ident_t fname = tree_ident(rref);
    type_t value_type = tree_type(tree_value(rref));
 
+   if (!type_is_record(value_type))
+      return NULL;
+
    const int nfields = type_fields(value_type);
    for (int i = 0; i < nfields; i++) {
       tree_t field = type_field(value_type, i);
@@ -488,6 +512,7 @@ class_t class_of(tree_t t)
    case T_GENVAR:
    case T_ALIAS:
    case T_FIELD_DECL:
+   case T_ATTR_DECL:
       return C_DEFAULT;
    case T_UNIT_DECL:
       return C_UNITS;
@@ -518,6 +543,7 @@ class_t class_of(tree_t t)
    case T_RECORD_REF:
       return class_of(tree_value(t));
    case T_PACKAGE:
+   case T_PACK_BODY:
       return C_PACKAGE;
    case T_LIBRARY:
       return C_LIBRARY;
@@ -556,6 +582,38 @@ const char *class_str(class_t c)
    return strs[c];
 }
 
+bool is_subprogram(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_FUNC_DECL:
+   case T_FUNC_BODY:
+   case T_PROC_DECL:
+   case T_PROC_BODY:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool is_container(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_FUNC_DECL:
+   case T_FUNC_BODY:
+   case T_PROC_DECL:
+   case T_PROC_BODY:
+   case T_ENTITY:
+   case T_ARCH:
+   case T_PACKAGE:
+   case T_PACK_BODY:
+   case T_CONFIGURATION:
+   case T_BLOCK:
+      return true;
+   default:
+      return false;
+   }
+}
+
 tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name)
 {
    tree_t p = tree_new(T_PARAM);
@@ -563,19 +621,25 @@ tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name)
    tree_set_subkind(p, kind);
    tree_set_value(p, value);
 
-   if (kind == P_NAMED) {
+   switch (kind) {
+   case P_NAMED:
       assert(name != NULL);
       tree_set_name(p, name);
+      break;
+   case P_POS:
+      tree_set_pos(p, tree_params(call));
+      break;
    }
 
    tree_add_param(call, p);
    return p;
 }
 
-
 type_t array_aggregate_type(type_t array, int from_dim)
 {
-   if (type_is_unconstrained(array)) {
+   if (type_is_none(array))
+      return type_new(T_NONE);
+   else if (type_is_unconstrained(array)) {
       const int nindex = type_index_constrs(array);
       assert(from_dim < nindex);
 
@@ -589,7 +653,7 @@ type_t array_aggregate_type(type_t array, int from_dim)
       return type;
    }
    else {
-      const int ndims = array_dimension(array);
+      const int ndims = dimension_of(array);
       assert(from_dim < ndims);
 
       type_t type = type_new(T_CARRAY);
@@ -609,13 +673,14 @@ tree_t make_default_value(type_t type, const loc_t *loc)
 
    switch (type_kind(base)) {
    case T_UARRAY:
-      assert(type_kind(type) == T_SUBTYPE);
-      // Fall-through
+      if (type_kind(type) != T_SUBTYPE)
+         return NULL;
 
+      // Fall-through
    case T_CARRAY:
       {
          tree_t def = NULL;
-         const int ndims = array_dimension(type);
+         const int ndims = dimension_of(type);
          for (int i = ndims - 1; i >= 0; i--) {
             tree_t val = (def ? def : make_default_value(type_elem(base), loc));
             def = tree_new(T_AGGREGATE);
@@ -658,6 +723,7 @@ tree_t make_default_value(type_t type, const loc_t *loc)
 
             tree_t a = tree_new(T_ASSOC);
             tree_set_subkind(a, A_POS);
+            tree_set_pos(a, i);
             tree_set_value(a, make_default_value(tree_type(field),
                                                  tree_loc(field)));
 
@@ -676,7 +742,7 @@ tree_t make_default_value(type_t type, const loc_t *loc)
          return null;
       }
 
-   case T_UNRESOLVED:
+   case T_NONE:
       return NULL;
 
    default:
@@ -745,21 +811,29 @@ unsigned bits_for_range(int64_t low, int64_t high)
    }
 }
 
-unsigned array_dimension(type_t a)
+unsigned dimension_of(type_t type)
 {
-   switch (type_kind(a)) {
+   switch (type_kind(type)) {
    case T_SUBTYPE:
-      if (type_has_constraint(a))
-         return tree_ranges(type_constraint(a));
+      if (type_has_constraint(type))
+         return tree_ranges(type_constraint(type));
       else
-         return array_dimension(type_base(a));
-   case T_CARRAY:
-      return type_dims(a);
+         return dimension_of(type_base(type));
    case T_UARRAY:
-      return type_index_constrs(a);
+      return type_index_constrs(type);
+   case T_NONE:
+   case T_ACCESS:
+   case T_RECORD:
+      return 0;
+   case T_CARRAY:
+   case T_INTEGER:
+   case T_REAL:
+   case T_PHYSICAL:
+   case T_ENUM:
+      return type_dims(type);
    default:
-      fatal_trace("non-array type %s in array_dimension",
-                  type_kind_str(type_kind(a)));
+      fatal_trace("invalid type kind %s in dimension_of",
+                  type_kind_str(type_kind(type)));
    }
 }
 
@@ -800,14 +874,19 @@ range_kind_t direction_of(type_t type, unsigned dim)
    }
 }
 
-type_t index_type_of(type_t type, int dim)
+type_t index_type_of(type_t type, unsigned dim)
 {
-   if (type_is_unconstrained(type))
-      return type_index_constr(type_base_recur(type), dim);
-   else if (type_kind(type) == T_ENUM)
+   if (dim >= dimension_of(type))
+      return NULL;
+
+   type_t base = type_base_recur(type);
+   type_kind_t base_kind = type_kind(base);
+   if (base_kind == T_UARRAY)
+      return type_index_constr(base, dim);
+   else if (base_kind == T_ENUM || base_kind == T_NONE)
       return type;
    else {
-      tree_t left = range_of(type, dim).left;
+      tree_t left = range_of(base, dim).left;
 
       // If the left bound has not been assigned a type then there is some
       // error with it so just return a dummy type here
@@ -891,9 +970,7 @@ void intern_strings(void)
    drives_all_i     = ident_new("drives_all");
    driver_init_i    = ident_new("driver_init");
    static_i         = ident_new("static");
-   mangled_i        = ident_new("mangled");
    null_range_i     = ident_new("null_range");
-   deferred_i       = ident_new("deferred");
    prot_field_i     = ident_new("prot_field");
    stmt_tag_i       = ident_new("stmt_tag");
    cond_tag_i       = ident_new("cond_tag");
@@ -906,6 +983,7 @@ void intern_strings(void)
    std_i            = ident_new("STD");
    nnets_i          = ident_new("nnets");
    thunk_i          = ident_new("thunk");
+   defer_overload_i = ident_new("defer_overload");
 }
 
 bool pack_needs_cgen(tree_t t)
@@ -937,94 +1015,6 @@ bool pack_needs_cgen(tree_t t)
    return false;
 }
 
-static void mangle_one_type(text_buf_t *buf, type_t type)
-{
-   ident_t ident = type_ident(type);
-
-   if (icmp(ident, "STD.STANDARD.INTEGER"))
-      tb_printf(buf, "I");
-   else if (icmp(ident, "STD.STANDARD.STRING"))
-      tb_printf(buf, "S");
-   else if (icmp(ident, "STD.STANDARD.REAL"))
-      tb_printf(buf, "R");
-   else if (icmp(ident, "STD.STANDARD.BOOLEAN"))
-      tb_printf(buf, "B");
-   else if (icmp(ident, "STD.STANDARD.CHARACTER"))
-      tb_printf(buf, "C");
-   else if (icmp(ident, "STD.STANDARD.TIME"))
-      tb_printf(buf, "T");
-   else if (icmp(ident, "STD.STANDARD.NATURAL"))
-      tb_printf(buf, "N");
-   else if (icmp(ident, "STD.STANDARD.POSITIVE"))
-      tb_printf(buf, "P");
-   else if (icmp(ident, "STD.STANDARD.BIT"))
-      tb_printf(buf, "J");
-   else if (icmp(ident, "STD.STANDARD.BIT_VECTOR"))
-      tb_printf(buf, "Q");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC"))
-      tb_printf(buf, "L");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_ULOGIC"))
-      tb_printf(buf, "U");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR"))
-      tb_printf(buf, "V");
-   else {
-      const char *ident_str = istr(ident);
-      tb_printf(buf, "%d%s", (int)strlen(ident_str), ident_str);
-   }
-}
-
-ident_t mangle_func(tree_t decl, const char *prefix)
-{
-   ident_t prev = tree_attr_str(decl, mangled_i);
-   if (prev != NULL)
-      return prev;
-
-   tree_t foreign = tree_attr_tree(decl, foreign_i);
-   if (foreign != NULL) {
-      if (tree_kind(foreign) != T_LITERAL)
-         fatal_at(tree_loc(decl), "foreign attribute must have string "
-                  "literal value");
-
-      const int nchars = tree_chars(foreign);
-      char buf[nchars + 1];
-      for (int i = 0; i < nchars; i++)
-         buf[i] = tree_pos(tree_ref(tree_char(foreign, i)));
-      buf[nchars] = '\0';
-
-      ident_t name = ident_new(buf);
-      tree_add_attr_str(decl, mangled_i, name);
-      return name;
-   }
-
-   LOCAL_TEXT_BUF buf = tb_new();
-
-   if (prefix != NULL)
-      tb_printf(buf, "%s", prefix);
-
-   tb_printf(buf, "%s", istr(tree_ident(decl)));
-
-   const tree_kind_t kind = tree_kind(decl);
-   const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
-   const int nports = tree_ports(decl);
-   if (nports > 0 || is_func)
-      tb_printf(buf, "(");
-
-   for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(decl, i);
-      if (tree_class(p) == C_SIGNAL)
-         tb_printf(buf, "s");
-      mangle_one_type(buf, tree_type(p));
-   }
-
-   if (nports > 0 || is_func)
-      tb_printf(buf, ")");
-
-   if (is_func)
-      mangle_one_type(buf, type_result(tree_type(decl)));
-
-   return ident_new(tb_get(buf));
-}
-
 int relax_rules(void)
 {
    return relax;
@@ -1033,4 +1023,75 @@ int relax_rules(void)
 void set_relax_rules(int mask)
 {
    relax = mask;
+}
+
+tree_t search_decls(tree_t container, ident_t name, int nth)
+{
+   type_t type;
+   tree_kind_t kind = tree_kind(container);
+   if (kind == T_LIBRARY) {
+      lib_t lib = lib_find(tree_ident(container), true);
+      return lib_get(lib, name);
+   }
+   else if ((kind == T_VAR_DECL || kind == T_PORT_DECL)
+            && type_is_protected((type = tree_type(container)))) {
+      const int ndecls = type_decls(type);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = type_decl(type, i);
+         if (tree_ident(d) == name && nth-- == 0)
+            return d;
+      }
+      return NULL;
+   }
+   else {
+      // TODO: how to improve this?
+      const int ndecls = tree_decls(container);
+      tree_t best = NULL;
+
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = tree_decl(container, i);
+         if (tree_ident(d) == name) {
+            if (tree_kind(d) == T_TYPE_DECL
+                && type_kind(tree_type(d)) == T_INCOMPLETE)
+               best = d;
+            else if (nth-- == 0)
+               return d;
+         }
+         else if (tree_kind(d) == T_TYPE_DECL) {
+            type_t type = tree_type(d);
+            switch (type_kind(type)) {
+            case T_ENUM:
+               {
+                  const int nlits = type_enum_literals(type);
+                  for (int j = 0; j < nlits; j++) {
+                     tree_t lit = type_enum_literal(type, j);
+                     if (tree_ident(lit) == name && nth-- == 0)
+                        return lit;
+                  }
+               }
+               break;
+            default:
+               break;
+            }
+         }
+      }
+
+      return best;
+   }
+}
+
+type_t std_type(tree_t standard, const char *name)
+{
+   if (standard == NULL) {
+      lib_t std = lib_find(std_i, true);
+      standard = lib_get(std, std_standard_i);
+   }
+   else
+      assert(tree_kind(standard) == T_PACKAGE);
+
+   tree_t d = search_decls(standard, ident_new(name), 0);
+   if (d != NULL)
+      return tree_type(d);
+
+   fatal("cannot find standard type %s", name);
 }

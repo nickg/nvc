@@ -18,6 +18,7 @@
 #include "phase.h"
 #include "util.h"
 #include "common.h"
+#include "loc.h"
 
 #include <assert.h>
 #include <string.h>
@@ -35,10 +36,8 @@ struct interval {
    interval_t *next;
 };
 
-static int errors = 0;
-
 #define bounds_error(t, ...) \
-   do { errors++; error_at(tree_loc(t), __VA_ARGS__); } while (0)
+   do { error_at(tree_loc(t), __VA_ARGS__); } while (0)
 
 static void bounds_check_string_literal(tree_t t)
 {
@@ -72,7 +71,8 @@ static bool is_out_of_range(tree_t value, range_t range, bool *checked)
    case T_PHYSICAL:
       {
          int64_t ival, low, high;
-         *checked = folded_int(value, &ival) && folded_bounds(range, &low, &high);
+         *checked = folded_int(value, &ival)
+            && folded_bounds(range, &low, &high);
          if (*checked && (ival < low || ival > high))
             return true;
 
@@ -196,7 +196,7 @@ static tree_t bounds_check_call_args(tree_t t)
          if ((type_is_unconstrained(atype)) || (type_is_unconstrained(ftype)))
             continue;
 
-         const int ndims = array_dimension(ftype);
+         const int ndims = dimension_of(ftype);
 
          for (int j = 0; j < ndims; j++) {
             range_t formal_r = range_of(ftype, j);
@@ -213,12 +213,12 @@ static tree_t bounds_check_call_args(tree_t t)
 
             if (f_len != a_len) {
                if (ndims > 1)
-                  bounds_error(param, "actual length %"PRIi64" for dimension %d does "
-                               "not match formal length %"PRIi64,
+                  bounds_error(param, "actual length %"PRIi64" for dimension %d"
+                               " does not match formal length %"PRIi64,
                                a_len, j + 1, f_len);
                else
-                  bounds_error(param, "actual length %"PRIi64" does not match formal "
-                               "length %"PRIi64, a_len, f_len);
+                  bounds_error(param, "actual length %"PRIi64" does not match "
+                               "formal length %"PRIi64, a_len, f_len);
             }
          }
       }
@@ -435,7 +435,7 @@ static void bounds_check_aggregate(tree_t t)
 
    // Check the actual against the expected element count
 
-   const int ndims = array_dimension(type);
+   const int ndims = dimension_of(type);
 
    if (known_elem_count) {
       int64_t expect;
@@ -484,7 +484,7 @@ static void bounds_check_decl(tree_t t)
 
       type_t base = type_base(type);
 
-      const int ndims = array_dimension(base);
+      const int ndims = dimension_of(base);
       for (int i = 0; i < ndims; i++) {
          range_t dim = range_of(type, i);
 
@@ -558,7 +558,7 @@ static void bounds_check_assignment(tree_t target, tree_t value)
       && !type_is_unconstrained(value_type);
 
    if (check_array_length) {
-      const int ndims = array_dimension(target_type);
+      const int ndims = dimension_of(target_type);
       for (int i = 0; i < ndims; i++) {
          int64_t target_w, value_w;
          if (folded_length(range_of(target_type, i), &target_w)
@@ -871,7 +871,7 @@ static void bounds_check_case(tree_t t)
 
 static void bounds_check_type_conv(tree_t t)
 {
-   tree_t value = tree_value(tree_param(t, 0));
+   tree_t value = tree_value(t);
 
    type_t from = tree_type(value);
    type_t to   = tree_type(t);
@@ -918,7 +918,7 @@ static void bounds_check_attr_ref(tree_t t)
             const bool f = folded_int(dim_tree, &dim);
             assert(f);
 
-            if (dim < 1 || dim > array_dimension(type))
+            if (dim < 1 || dim > dimension_of(type))
                bounds_error(dim_tree, "invalid dimension %"PRIi64" for type %s",
                             dim, type_pp(type));
          }
@@ -989,14 +989,4 @@ static void bounds_visit_fn(tree_t t, void *context)
 void bounds_check(tree_t top)
 {
    tree_visit(top, bounds_visit_fn, NULL);
-}
-
-int bounds_errors(void)
-{
-   return errors;
-}
-
-void reset_bounds_errors(void)
-{
-   errors = 0;
 }

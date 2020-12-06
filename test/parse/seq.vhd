@@ -1,4 +1,9 @@
+entity b is
+end entity;
+
 architecture a of b is
+    signal x, y, z : integer;
+    signal w : bit_vector(1 to 3);
 begin
 
     -- Wait statements
@@ -34,6 +39,8 @@ begin
 
     -- Function calls
     process is
+        variable a, b : integer;
+        function foo (x, y, z : integer) return integer;
     begin
         x := foo(1, 2, 3);
         a := "abs"(b);
@@ -78,6 +85,7 @@ begin
 
     -- While
     process is
+        variable n : integer;
     begin
         while n > 0 loop
             n := n - 1;
@@ -100,6 +108,7 @@ begin
 
     -- For
     process is
+        type foo is (A, B, C);
     begin
         for i in 0 to 10 loop
             null;
@@ -118,6 +127,8 @@ begin
 
     -- Procedure call
     process is
+        procedure foo (a, b, c : integer);
+        procedure bar;
     begin
         foo(x, y, 1);
         bar;
@@ -143,11 +154,13 @@ begin
     process is
     begin
         next;
-        next when foo = 5;
+        next when x = 5;
     end process;
 
     -- Signal assignment to aggregate
     process is
+        type int_vec is array (natural range <>) of integer;
+        constant foo : int_vec := (1, 2, 3);
     begin
         ( x, y, z ) <= foo;
     end process;
@@ -155,7 +168,7 @@ begin
     -- Case statement range bug
     process is
     begin
-        case f is
+        case y is
             when 1 =>
                 for i in x'range loop
                 end loop;

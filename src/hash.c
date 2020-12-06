@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2014  Nick Gasson
+//  Copyright (C) 2013-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -135,14 +135,6 @@ void *hash_get(hash_t *h, const void *key)
 {
    int n = 0;
    return hash_get_nth(h, key, &n);
-}
-
-void hash_replace(hash_t *h, void *value, void *with)
-{
-   for (int i = 0; i < h->size; i++) {
-      if (h->values[i] == value)
-         h->values[i] = with;
-   }
 }
 
 bool hash_iter(hash_t *h, hash_iter_t *now, const void **key, void **value)

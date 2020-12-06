@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2019  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -43,10 +43,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_CHARS | I_FLAGS),
 
    // T_SIGNAL_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_NETS | I_ATTRS | I_FLAGS),
+   (I_IDENT | I_VALUE | I_TYPE | I_NETS | I_ATTRS | I_FLAGS | I_IDENT2),
 
    // T_VAR_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
 
    // T_PROCESS
    (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_ATTRS | I_FLAGS),
@@ -58,7 +58,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_DELAY | I_TRIGGERS | I_ATTRS),
 
    // T_TYPE_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_OPS | I_ATTRS),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
 
    // T_VAR_ASSIGN
    (I_IDENT | I_VALUE | I_TARGET | I_ATTRS),
@@ -76,10 +76,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_TYPE | I_POS | I_ATTRS),
 
    // T_CONST_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
 
    // T_FUNC_DECL
-   (I_IDENT | I_VALUE | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS),
+   (I_IDENT | I_VALUE | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
 
    // T_ELAB
    (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_ATTRS),
@@ -113,7 +113,8 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS),
 
    // T_FUNC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS),
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS
+    | I_IDENT2),
 
    // T_RETURN
    (I_IDENT | I_VALUE | I_ATTRS),
@@ -131,19 +132,20 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
 
    // T_FOR
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_RANGES | I_ATTRS),
+   (I_IDENT | I_STMTS | I_RANGES | I_ATTRS | I_DECLS),
 
    // T_ATTR_DECL
    (I_IDENT | I_TYPE | I_ATTRS),
 
    // T_ATTR_SPEC
-   (I_IDENT | I_VALUE | I_IDENT2 | I_CLASS | I_ATTRS),
+   (I_IDENT | I_VALUE | I_IDENT2 | I_CLASS | I_ATTRS | I_REF),
 
    // T_PROC_DECL
-   (I_IDENT | I_PORTS | I_TYPE | I_ATTRS),
+   (I_IDENT | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
 
    // T_PROC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS),
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS
+    | I_IDENT2),
 
    // T_EXIT
    (I_IDENT | I_VALUE | I_IDENT2 | I_ATTRS),
@@ -160,11 +162,8 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_COND
    (I_VALUE | I_WAVES | I_REJECT),
 
-   // T_CONCAT
-   (I_PARAMS | I_TYPE),
-
    // T_TYPE_CONV
-   (I_PARAMS | I_TYPE | I_REF | I_FLAGS),
+   (I_VALUE | I_TYPE | I_FLAGS),
 
    // T_SELECT
    (I_IDENT | I_VALUE | I_ASSOCS | I_FLAGS),
@@ -176,10 +175,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_DECLS | I_STMTS | I_ATTRS),
 
    // T_FOR_GENERATE
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_REF | I_RANGES | I_ATTRS),
+   (I_IDENT | I_DECLS | I_STMTS | I_RANGES | I_ATTRS),
 
    // T_FILE_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE | I_ATTRS),
+   (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE | I_ATTRS | I_IDENT2),
 
    // T_OPEN
    (I_TYPE),
@@ -209,7 +208,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_IDENT2 | I_ATTRS),
 
    // T_GENVAR
-   (I_IDENT | I_TYPE | I_ATTRS),
+   (I_IDENT | I_TYPE | I_ATTRS | I_FLAGS),
 
    // T_PARAM
    (I_VALUE | I_POS | I_SUBKIND | I_NAME),
@@ -255,28 +254,35 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_PRAGMA
    (I_TEXT),
+
+   // T_PROT_FCALL
+   (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_FLAGS | I_NAME),
+
+   // T_PROT_PCALL,
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF | I_NAME | I_ATTRS)
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
-   "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
-   "T_LITERAL",      "T_SIGNAL_DECL",   "T_VAR_DECL",   "T_PROCESS",
-   "T_REF",          "T_WAIT",          "T_TYPE_DECL",  "T_VAR_ASSIGN",
-   "T_PACKAGE",      "T_SIGNAL_ASSIGN", "T_QUALIFIED",  "T_ENUM_LIT",
-   "T_CONST_DECL",   "T_FUNC_DECL",     "T_ELAB",       "T_AGGREGATE",
-   "T_ASSERT",       "T_ATTR_REF",      "T_ARRAY_REF",  "T_ARRAY_SLICE",
-   "T_INSTANCE",     "T_IF",            "T_NULL",       "T_PACK_BODY",
-   "T_FUNC_BODY",    "T_RETURN",        "T_CASSIGN",    "T_WHILE",
-   "T_WAVEFORM",     "T_ALIAS",         "T_FOR",        "T_ATTR_DECL",
-   "T_ATTR_SPEC",    "T_PROC_DECL",     "T_PROC_BODY",  "T_EXIT",
-   "T_PCALL",        "T_CASE",          "T_BLOCK",      "T_COND",
-   "T_CONCAT",       "T_TYPE_CONV",     "T_SELECT",     "T_COMPONENT",
-   "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
-   "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
-   "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
-   "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_USE",
-   "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY",
-   "T_DESIGN_UNIT",  "T_CONFIGURATION", "T_PROT_BODY",  "T_CONTEXT",
-   "T_CTXREF",       "T_CONSTRAINT",    "T_BLOCK_CONFIG", "T_PRAGMA",
+   "T_ENTITY",        "T_ARCH",          "T_PORT_DECL",    "T_FCALL",
+   "T_LITERAL",       "T_SIGNAL_DECL",   "T_VAR_DECL",     "T_PROCESS",
+   "T_REF",           "T_WAIT",          "T_TYPE_DECL",    "T_VAR_ASSIGN",
+   "T_PACKAGE",       "T_SIGNAL_ASSIGN", "T_QUALIFIED",    "T_ENUM_LIT",
+   "T_CONST_DECL",    "T_FUNC_DECL",     "T_ELAB",         "T_AGGREGATE",
+   "T_ASSERT",        "T_ATTR_REF",      "T_ARRAY_REF",    "T_ARRAY_SLICE",
+   "T_INSTANCE",      "T_IF",            "T_NULL",         "T_PACK_BODY",
+   "T_FUNC_BODY",     "T_RETURN",        "T_CASSIGN",      "T_WHILE",
+   "T_WAVEFORM",      "T_ALIAS",         "T_FOR",          "T_ATTR_DECL",
+   "T_ATTR_SPEC",     "T_PROC_DECL",     "T_PROC_BODY",    "T_EXIT",
+   "T_PCALL",         "T_CASE",          "T_BLOCK",        "T_COND",
+   "T_TYPE_CONV",     "T_SELECT",        "T_COMPONENT",    "T_IF_GENERATE",
+   "T_FOR_GENERATE",  "T_FILE_DECL",     "T_OPEN",         "T_FIELD_DECL",
+   "T_RECORD_REF",    "T_ALL",           "T_NEW",          "T_CASSERT",
+   "T_CPCALL",        "T_UNIT_DECL",     "T_NEXT",         "T_GENVAR",
+   "T_PARAM",         "T_ASSOC",         "T_USE",          "T_HIER",
+   "T_SPEC",          "T_BINDING",       "T_LIBRARY",      "T_DESIGN_UNIT",
+   "T_CONFIGURATION", "T_PROT_BODY",     "T_CONTEXT",      "T_CTXREF",
+   "T_CONSTRAINT",    "T_BLOCK_CONFIG",  "T_PRAGMA",       "T_PROT_FCALL",
+   "T_PROT_PCALL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -286,7 +292,9 @@ static const change_allowed_t change_allowed[] = {
    { T_FCALL,       T_ARRAY_REF     },
    { T_FCALL,       T_PCALL         },
    { T_FCALL,       T_TYPE_CONV     },
+   { T_REF,         T_TYPE_CONV     },
    { T_REF,         T_RECORD_REF    },
+   { T_REF,         T_QUALIFIED     },
    { T_ARRAY_REF,   T_ARRAY_SLICE   },
    { T_ASSERT,      T_CASSERT       },
    { T_DESIGN_UNIT, T_ENTITY        },
@@ -299,8 +307,12 @@ static const change_allowed_t change_allowed[] = {
    { T_PROC_DECL,   T_PROC_BODY     },
    { T_REF,         T_ARRAY_SLICE   },
    { T_FCALL,       T_CPCALL        },
+   { T_PCALL,       T_CPCALL        },
    { T_REF,         T_CPCALL        },
    { T_ATTR_REF,    T_ARRAY_REF     },
+   { T_PROT_FCALL,  T_PROT_PCALL    },
+   { T_FCALL,       T_PROT_FCALL    },
+   { T_PCALL,       T_PROT_PCALL    },
    { -1,            -1              }
 };
 
@@ -314,14 +326,14 @@ static const tree_kind_t stmt_kinds[] = {
    T_RETURN,  T_CASSIGN,     T_WHILE,        T_FOR,
    T_EXIT,    T_PCALL,       T_CASE,         T_BLOCK,
    T_SELECT,  T_IF_GENERATE, T_FOR_GENERATE, T_CPCALL,
-   T_CASSERT, T_NEXT,        T_PRAGMA,
+   T_CASSERT, T_NEXT,        T_PRAGMA,       T_PROT_PCALL
 };
 
 static tree_kind_t expr_kinds[] = {
-   T_FCALL,     T_LITERAL,   T_REF,       T_QUALIFIED,
-   T_AGGREGATE, T_ATTR_REF,  T_ARRAY_REF, T_ARRAY_SLICE,
-   T_CONCAT,    T_TYPE_CONV, T_OPEN,      T_RECORD_REF,
-   T_ALL,       T_NEW
+   T_FCALL,     T_LITERAL,   T_REF,        T_QUALIFIED,
+   T_AGGREGATE, T_ATTR_REF,  T_ARRAY_REF,  T_ARRAY_SLICE,
+   T_TYPE_CONV, T_OPEN,      T_RECORD_REF, T_ALL,
+   T_NEW,       T_PROT_FCALL
 };
 
 static tree_kind_t decl_kinds[] = {
@@ -529,10 +541,6 @@ void tree_add_param(tree_t t, tree_t e)
    tree_assert_expr(tree_value(e));
 
    tree_array_t *array = &(lookup_item(&tree_object, t, I_PARAMS)->tree_array);
-
-   if (tree_subkind(e) == P_POS)
-      tree_set_pos(e, array->count);
-
    tree_array_add(array, e);
 }
 
@@ -552,22 +560,20 @@ void tree_add_genmap(tree_t t, tree_t e)
    tree_assert_expr(tree_value(e));
 
    tree_array_t *array = &(lookup_item(&tree_object, t, I_GENMAPS)->tree_array);
-
-   if (tree_subkind(e) == P_POS)
-      tree_set_pos(e, array->count);
-
-   tree_array_add(&(lookup_item(&tree_object, t, I_GENMAPS)->tree_array), e);
+   tree_array_add(array, e);
 }
 
 int64_t tree_ival(tree_t t)
 {
-   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_INT));
+   assert((t->object.kind == T_LITERAL)
+          && ({ int k = tree_subkind(t); k == L_INT || k == L_PHYSICAL; }));
    return lookup_item(&tree_object, t, I_IVAL)->ival;
 }
 
 void tree_set_ival(tree_t t, int64_t i)
 {
-   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_INT));
+   assert((t->object.kind == T_LITERAL)
+          && ({ int k = tree_subkind(t); k == L_INT || k == L_PHYSICAL; }));
    lookup_item(&tree_object, t, I_IVAL)->ival = i;
 }
 
@@ -751,22 +757,6 @@ void tree_add_trigger(tree_t t, tree_t s)
    tree_array_add(&(lookup_item(&tree_object, t, I_TRIGGERS)->tree_array), s);
 }
 
-unsigned tree_ops(tree_t t)
-{
-   return lookup_item(&tree_object, t, I_OPS)->tree_array.count;
-}
-
-tree_t tree_op(tree_t t, unsigned n)
-{
-   return tree_array_nth(&(lookup_item(&tree_object, t, I_OPS)->tree_array), n);
-}
-
-void tree_add_op(tree_t t, tree_t s)
-{
-   assert((s->object.kind == T_FUNC_DECL) || (s->object.kind == T_PROC_DECL));
-   tree_array_add(&(lookup_item(&tree_object, t, I_OPS)->tree_array), s);
-}
-
 tree_t tree_target(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_TARGET);
@@ -847,10 +837,6 @@ void tree_add_assoc(tree_t t, tree_t a)
    assert(a->object.kind == T_ASSOC);
 
    tree_array_t *array = &(lookup_item(&tree_object, t, I_ASSOCS)->tree_array);
-
-   if (tree_subkind(a) == A_POS)
-      tree_set_pos(a, array->count);
-
    tree_array_add(array, a);
 }
 
@@ -997,6 +983,11 @@ void tree_set_name(tree_t t, tree_t n)
    lookup_item(&tree_object, t, I_NAME)->tree = n;
 }
 
+bool tree_has_name(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_NAME)->tree != NULL;
+}
+
 tree_t tree_file_mode(tree_t t)
 {
    return lookup_item(&tree_object, t, I_FILE_MODE)->tree;
@@ -1133,6 +1124,9 @@ void tree_remove_attr(tree_t t, ident_t name)
 
    if (i == item->attrs.num)
       return;
+
+   // Zero pointer to help Valgrind identify leaks
+   item->attrs.table[i].pval = NULL;
 
    for (; i + 1 < item->attrs.num; i++)
       item->attrs.table[i] = item->attrs.table[i + 1];

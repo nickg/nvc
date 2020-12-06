@@ -13,7 +13,7 @@ architecture a of e is
         procedure foo (x : not_here);   -- Error
     end protected;
 
-    type bad1 is protected body
+    type bad1 is protected body         -- OK
     end protected body;
 
     type bad2 is protected body         -- Error
@@ -53,7 +53,7 @@ architecture a of e is
 
     shared variable y : SharedCounter;  -- OK
 
-    shared variable y : SharedCounter := 1;  -- Error
+    shared variable z : SharedCounter := 1;  -- Error
 
     function make return SharedCounter is
         variable result : SharedCounter;
@@ -123,7 +123,7 @@ begin
     process is
         function get_value (x : in sharedcounter ) return integer is  -- Error
         begin
-            return x.value;
+            return x.value;             -- OK
         end function;
     begin
     end process;

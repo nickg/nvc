@@ -21,7 +21,7 @@ end architecture test2;
 architecture test3 of test is
     procedure proc(
         variable a : in    integer := 1;
-        variable a : out   integer := 1
+        variable b : out   integer := 1  -- Error
     ) is
     begin
     end procedure proc;
@@ -31,7 +31,7 @@ end architecture test3;
 architecture test4 of test is
     procedure proc(
         variable a : in    integer := 1;
-        variable a : inout integer := 1
+        variable b : inout integer := 1  -- Error
     ) is
     begin
     end procedure proc;

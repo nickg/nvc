@@ -225,19 +225,7 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
    case T_TYPE_CONV:
       json_append_member(expr_node, "cls", json_mkstring("typeconv"));
       json_append_member(expr_node, "type", json_mkstring(istr(tree_ident(tree_ref(t)))));
-      json_append_member(expr_node, "expr", dump_expr(tree_value(tree_param(t, 0))));
-      break;
-
-   case T_CONCAT:
-      {
-         json_append_member(expr_node, "cls", json_mkstring("concat"));
-         JsonNode *items = json_mkarray();
-         const int nparams = tree_params(t);
-         for (int i = 0; i < nparams; i++) {
-            json_append_element(items, dump_expr(tree_value(tree_param(t, i))));
-         }
-         json_append_member(expr_node, "items", items);
-      }
+      json_append_member(expr_node, "expr", dump_expr(tree_value(t)));
       break;
 
    case T_QUALIFIED:
@@ -291,7 +279,7 @@ static JsonNode *dump_type(type_t type)
       json_append_member(type_node, "name", json_mkstring(type_name));
    else if (type_is_array(type) && !type_is_unconstrained(type)) {
       json_append_member(type_node, "name", json_mkstring(type_name));
-      const int ndims = array_dimension(type);
+      const int ndims = dimension_of(type);
       JsonNode *range = json_mkarray();
       json_append_member(type_node, "range", range);
       for (int i = 0; i < ndims; i++) {
@@ -458,11 +446,6 @@ static JsonNode *dump_decl(tree_t t)
          else
             json_append_member(decl, "type", dump_type(type));
       }
-      /*{
-         const int nops = tree_ops(t);
-         for (int i = 0; i < nops; i++)
-            dump_op(tree_op(t, i), 0);
-      }*/
       return decl;
 
    case T_SPEC:
@@ -1057,7 +1040,6 @@ JsonNode *trees_to_json(tree_t *elements, unsigned int n_elements)
       case T_ARRAY_REF:
       case T_ARRAY_SLICE:
       case T_TYPE_CONV:
-      case T_CONCAT:
       case T_RECORD_REF:
          dump_expr(t);
          break;

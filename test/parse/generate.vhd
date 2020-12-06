@@ -1,4 +1,11 @@
+entity g is end entity;
+
 architecture a of g is
+    constant foo, bar : boolean;
+    signal x, g, f, h : integer;
+
+    type text is file of string;
+    file output : text open WRITE_MODE is "STD_OUTPUT";
 begin
 
     g1: if foo generate

@@ -1,6 +1,6 @@
 package func is
 
-    function add(x, y : integer; y : in integer) return integer;
+    function add(x, y : integer; z : in integer) return integer;
 
     impure function naughty return integer;
 

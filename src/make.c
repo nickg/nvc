@@ -384,10 +384,10 @@ static void make_run(tree_t *targets, int count, FILE *out)
    }
 }
 
-static void make_add_target(ident_t name, int kind, void *context)
+static void make_add_target(lib_t lib, ident_t name, int kind, void *context)
 {
    tree_t **outp = context;
-   *(*outp)++ = lib_get(lib_work(), name);
+   *(*outp)++ = lib_get(lib, name);
 }
 
 void make(tree_t *targets, int count, FILE *out)

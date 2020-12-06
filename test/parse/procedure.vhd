@@ -2,6 +2,8 @@ package p is
 
     procedure foo(x : in integer; y : out integer);
 
+    type text is access string;
+
 end package;
 
 package body p is
@@ -15,6 +17,7 @@ package body p is
     procedure bar(file x : text);
 
     procedure baz is
+        variable y : integer;
         type foo;
         alias x is y;
         constant k : integer := 2;
@@ -22,7 +25,7 @@ package body p is
     end procedure;
 
     procedure tralala is
-        use work.foo;
+        use work.p;
     begin
     end procedure;
 

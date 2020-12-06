@@ -3,7 +3,9 @@ end entity;
 
 architecture test of proc is
     signal x, y : integer;
-    procedure proc(n : integer);
+    procedure proc(n : integer) is
+    begin
+    end procedure;
 begin
 
     -- Test rewrite of process sensitivity list

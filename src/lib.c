@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2020  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -81,7 +81,7 @@ static lib_t          work = NULL;
 static lib_list_t    *loaded = NULL;
 static search_path_t *search_paths = NULL;
 
-static const char *lib_file_path(lib_t lib, const char *name);
+static text_buf_t *lib_file_path(lib_t lib, const char *name);
 static lib_mtime_t lib_stat_mtime(struct stat *st);
 
 static const char *standard_suffix(vhdl_standard_t std)
@@ -185,9 +185,9 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    loaded = el;
 
    if (l->lock_fd == -1 && rpath != NULL) {
-      const char *lock_path = lib_file_path(l, "_NVC_LIB");
-      if ((l->lock_fd = open(lock_path, O_RDONLY)) < 0)
-         fatal_errno("lib_init: %s", lock_path);
+      LOCAL_TEXT_BUF lock_path = lib_file_path(l, "_NVC_LIB");
+      if ((l->lock_fd = open(tb_get(lock_path), O_RDONLY)) < 0)
+         fatal_errno("lib_init: %s", tb_get(lock_path));
 
       file_read_lock(l->lock_fd);
    }
@@ -284,11 +284,11 @@ static lib_t lib_find_at(const char *name, const char *path, bool exact)
    return lib_init(name, dir, -1);
 }
 
-static const char *lib_file_path(lib_t lib, const char *name)
+static text_buf_t *lib_file_path(lib_t lib, const char *name)
 {
-   static char buf[PATH_MAX];
-   checked_sprintf(buf, sizeof(buf), "%s" PATH_SEP "%s", lib->path, name);
-   return buf;
+   text_buf_t *tb = tb_new();
+   tb_printf(tb, "%s" PATH_SEP "%s", lib->path, name);
+   return tb;
 }
 
 lib_t lib_loaded(ident_t name_i)
@@ -398,7 +398,7 @@ static void push_path(const char *path)
 
    search_path_t *s = xmalloc(sizeof(search_path_t));
    s->next = search_paths;
-   s->path = path;
+   s->path = strdup(path);
 
    search_paths = s;
 }
@@ -410,13 +410,11 @@ static void lib_default_search_paths(void)
 
       const char *home_env = getenv("HOME");
       if (home_env) {
-         char *path;
-         if (asprintf(&path, "%s/.%s/lib", home_env, PACKAGE) < 0)
-            fatal_errno("asprintf");
+         char *LOCAL path = xasprintf("%s/.%s/lib", home_env, PACKAGE);
          push_path(path);
       }
 
-      char *env_copy = NULL;
+      char *LOCAL env_copy = NULL;
       const char *libpath_env = getenv("NVC_LIBPATH");
       if (libpath_env) {
          env_copy = strdup(libpath_env);
@@ -449,7 +447,7 @@ const char *lib_enum_search_paths(void **token)
 void lib_add_search_path(const char *path)
 {
    lib_default_search_paths();
-   push_path(strdup(path));
+   push_path(path);
 }
 
 void lib_add_map(const char *name, const char *path)
@@ -474,14 +472,14 @@ lib_t lib_find(ident_t name_i, bool required)
    }
 
    if (lib == NULL) {
-      text_buf_t *tb = tb_new();
+      LOCAL_TEXT_BUF tb = tb_new();
       tb_printf(tb, "library %s not found in:\n", name_str);
       for (search_path_t *it = search_paths; it != NULL; it = it->next)
          tb_printf(tb, "  %s\n", it->path);
       if (required)
          fatal("%s", tb_get(tb));
       else
-         errorf("%s", tb_get(tb));
+         error_at(NULL, "%s", tb_get(tb));
    }
 
    return lib;
@@ -490,7 +488,8 @@ lib_t lib_find(ident_t name_i, bool required)
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
 {
    assert(lib != NULL);
-   return fopen(lib_file_path(lib, name), mode);
+   LOCAL_TEXT_BUF path = lib_file_path(lib, name);
+   return fopen(tb_get(path), mode);
 }
 
 fbuf_t *lib_fbuf_open(lib_t lib, const char *name, fbuf_mode_t mode)
@@ -498,8 +497,10 @@ fbuf_t *lib_fbuf_open(lib_t lib, const char *name, fbuf_mode_t mode)
    assert(lib != NULL);
    if (lib->path[0] == '\0')
       return NULL;
-   else
-      return fbuf_open(lib_file_path(lib, name), mode);
+   else {
+      LOCAL_TEXT_BUF path = lib_file_path(lib, name);
+      return fbuf_open(tb_get(path), mode);
+   }
 }
 
 void lib_free(lib_t lib)
@@ -510,21 +511,24 @@ void lib_free(lib_t lib)
    if (lib->lock_fd != -1)
       close(lib->lock_fd);
 
-   for (lib_list_t *it = loaded, *prev = NULL;
-        it != NULL; loaded = it, it = it->next) {
-
-      if (it->item == lib) {
-         if (prev)
-            prev->next = it->next;
-         else
-            loaded = it->next;
-         free(it);
+   for (lib_list_t **it = &loaded; *it; it = &((*it)->next)) {
+      if ((*it)->item == lib) {
+         lib_list_t *tmp = *it;
+         *it = (*it)->next;
+         free(tmp);
          break;
       }
    }
 
+   while (lib->index) {
+      lib_index_t *tmp = lib->index->next;
+      free(lib->index);
+      lib->index = tmp;
+   }
+
    if (lib->units != NULL)
       free(lib->units);
+
    free(lib);
 }
 
@@ -608,12 +612,11 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
 {
    assert(lib != NULL);
 
-   // Handle aliased library names
+   // Handle aliased library names and names without the library prefix
    ident_t lname = ident_until(ident, '.');
-   if ((lname != NULL) && (lname != lib->name)) {
-      ident_t uname = ident_rfrom(ident, '.');
-      if (uname != NULL)
-         ident = ident_prefix(lib->name, uname, '.');
+   if (lname != lib->name) {
+      ident_t uname = ident_rfrom(ident, '.') ?: ident;
+      ident = ident_prefix(lib->name, uname, '.');
    }
 
    // Search in the list of already loaded units
@@ -639,12 +642,13 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    while ((e = readdir(d))) {
       if (strcmp(e->d_name, search) == 0) {
          fbuf_t *f = lib_fbuf_open(lib, e->d_name, FBUF_IN);
-         tree_rd_ctx_t ctx = tree_read_begin(f, lib_file_path(lib, e->d_name));
+         LOCAL_TEXT_BUF path = lib_file_path(lib, e->d_name);
+         tree_rd_ctx_t ctx = tree_read_begin(f, tb_get(path));
          tree_t top = tree_read(ctx);
          fbuf_close(f);
 
          struct stat st;
-         if (stat(lib_file_path(lib, e->d_name), &st) < 0)
+         if (stat(tb_get(path), &st) < 0)
             fatal_errno("%s", e->d_name);
 
          lib_mtime_t mt = lib_stat_mtime(&st);
@@ -705,7 +709,8 @@ lib_mtime_t lib_mtime(lib_t lib, ident_t ident)
 bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt)
 {
    struct stat buf;
-   if (stat(lib_file_path(lib, name), &buf) == 0) {
+   LOCAL_TEXT_BUF path = lib_file_path(lib, name);
+   if (stat(tb_get(path), &buf) == 0) {
       if (mt != NULL)
          *mt = lib_stat_mtime(&buf);
       return true;
@@ -781,9 +786,10 @@ void lib_save(lib_t lib)
       }
    }
 
-   const char *index_path = lib_file_path(lib, "_index");
+   LOCAL_TEXT_BUF index_path = lib_file_path(lib, "_index");
    struct stat st;
-   if (stat(index_path, &st) == 0 && lib_stat_mtime(&st) != lib->index_mtime) {
+   if (stat(tb_get(index_path), &st) == 0
+       && lib_stat_mtime(&st) != lib->index_mtime) {
       // Library was updated concurrently: re-read the index while we
       // have the lock
       lib_read_index(lib);
@@ -793,7 +799,7 @@ void lib_save(lib_t lib)
 
    fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_OUT);
    if (f == NULL)
-      fatal("failed to create library %s index", istr(lib->name));
+      fatal_errno("failed to create library %s index", istr(lib->name));
 
    ident_wr_ctx_t ictx = ident_write_begin(f);
 
@@ -820,7 +826,7 @@ void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context)
 
    lib_index_t *it;
    for (it = lib->index; it != NULL; it = it->next)
-      (*fn)(it->name, it->kind, context);
+      (*fn)(lib, it->name, it->kind, context);
 }
 
 unsigned lib_index_size(lib_t lib)
@@ -846,12 +852,14 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
 
 void lib_mkdir(lib_t lib, const char *name)
 {
-   make_dir(lib_file_path(lib, name));
+   LOCAL_TEXT_BUF path = lib_file_path(lib, name);
+   make_dir(tb_get(path));
 }
 
 void lib_delete(lib_t lib, const char *name)
 {
    assert(lib != NULL);
-   if (remove(lib_file_path(lib, name)) != 0 && errno != ENOENT)
+   LOCAL_TEXT_BUF path = lib_file_path(lib, name);
+   if (remove(tb_get(path)) != 0 && errno != ENOENT)
       fatal_errno("remove: %s", name);
 }

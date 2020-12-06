@@ -67,10 +67,13 @@ static tree_t simp_call_args(tree_t t)
       tree_set_ref(new, tree_ref(t));
 
       tree_kind_t kind = tree_kind(t);
-      if ((kind == T_FCALL) || (kind == T_ATTR_REF))
+      if (kind == T_FCALL || kind == T_ATTR_REF || kind == T_PROT_FCALL)
          tree_set_type(new, tree_type(t));
       else if (kind == T_CPCALL)
          tree_set_ident2(new, tree_ident2(t));
+
+      if (kind == T_PROT_PCALL || kind == T_PROT_FCALL)
+         tree_set_name(new, tree_name(t));
 
       for (int i = 0; i <= last_pos; i++) {
          tree_t port  = tree_port(decl, i);
@@ -114,8 +117,41 @@ static tree_t simp_call_args(tree_t t)
    return t;
 }
 
+static tree_t simp_flatten_concat(tree_t fcall)
+{
+   // Flatten nested concatenations to make efficient code generation easier
+   tree_t p0 = tree_value(tree_param(fcall, 0));
+   const bool nested_concat =
+      tree_kind(p0) == T_FCALL
+      && icmp(tree_attr_str(tree_ref(p0), builtin_i), "concat");
+
+   if (nested_concat) {
+      tree_t flat = tree_new(T_FCALL);
+      tree_add_attr_str(flat, builtin_i, ident_new("concat"));
+      tree_set_ref(flat, tree_ref(fcall));
+      tree_set_loc(flat, tree_loc(fcall));
+      tree_set_type(flat, tree_type(fcall));
+      tree_set_ident(flat, tree_ident(fcall));
+
+      assert(tree_params(fcall) == 2);
+
+      const int np0 = tree_params(p0);
+      for (int i = 0; i < np0; i++)
+         tree_add_param(flat, tree_param(p0, i));
+
+      tree_add_param(flat, tree_param(fcall, 1));
+
+      return flat;
+   }
+
+   return fcall;
+}
+
 static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 {
+   if (icmp(tree_attr_str(tree_ref(t), builtin_i), "concat"))
+      t = simp_flatten_concat(t);
+
    return eval(simp_call_args(t), EVAL_FCALL | EVAL_FOLDING | ctx->eval_flags);
 }
 
@@ -186,7 +222,7 @@ static tree_t simp_ref(tree_t t)
    case T_CONST_DECL:
       if (type_is_array(tree_type(decl)))
          return t;
-      else {
+      else if (tree_has_value(decl)) {
          tree_t value = tree_value(decl);
          switch (tree_kind(value)) {
          case T_LITERAL:
@@ -201,6 +237,8 @@ static tree_t simp_ref(tree_t t)
             return t;
          }
       }
+      else
+         return t;
 
    case T_UNIT_DECL:
       return tree_value(decl);
@@ -348,7 +386,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
             if (type_is_unconstrained(type))
                return t;
 
-            if (dim_i < 1 || dim_i > array_dimension(type))
+            if (dim_i < 1 || dim_i > dimension_of(type))
                return t;
          }
 
@@ -693,6 +731,7 @@ static void simp_build_wait(tree_t wait, tree_t expr)
    case T_WAVEFORM:
    case T_RECORD_REF:
    case T_QUALIFIED:
+   case T_TYPE_CONV:
       simp_build_wait(wait, tree_value(expr));
       break;
 
@@ -700,9 +739,7 @@ static void simp_build_wait(tree_t wait, tree_t expr)
       simp_build_wait(wait, tree_value(expr));
       // Fall-through
 
-   case T_CONCAT:
    case T_FCALL:
-   case T_TYPE_CONV:
       {
          const int nparams = tree_params(expr);
          for (int i = 0; i < nparams; i++)
@@ -900,29 +937,6 @@ static tree_t simp_cassert(tree_t t)
    return process;
 }
 
-static tree_t simp_concat(tree_t t)
-{
-   // Flatten nested concatenations to make efficient code generation easier
-
-   tree_t p0 = tree_value(tree_param(t, 0));
-   if (tree_kind(p0) != T_CONCAT)
-      return t;
-
-   tree_t flat = tree_new(T_CONCAT);
-   tree_set_loc(flat, tree_loc(t));
-   tree_set_type(flat, tree_type(t));
-
-   assert(tree_params(t) == 2);
-
-   const int np0 = tree_params(p0);
-   for (int i = 0; i < np0; i++)
-      tree_add_param(flat, tree_param(p0, i));
-
-   tree_add_param(flat, tree_param(t, 1));
-
-   return flat;
-}
-
 static tree_t simp_context_ref(tree_t t, simp_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -1004,8 +1018,10 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_ATTR_REF:
       return simp_attr_ref(t, ctx);
    case T_FCALL:
+   case T_PROT_FCALL:
       return simp_fcall(t, ctx);
    case T_PCALL:
+   case T_PROT_PCALL:
       return simp_pcall(t);
    case T_REF:
       return simp_ref(t);
@@ -1027,8 +1043,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_cpcall(t);
    case T_CASSERT:
       return simp_cassert(t);
-   case T_CONCAT:
-      return simp_concat(t);
    case T_RECORD_REF:
       return simp_record_ref(t);
    case T_CTXREF:

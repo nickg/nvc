@@ -29,7 +29,7 @@ end entity;
 architecture a of e is
     constant event1 : P1.EVENT_TYPE := P1.EVENT_1;  -- OK
     constant event2 : P2.EVENT_TYPE := P2.EVENT_1;  -- OK
-    --constant event3 : EVENT_TYPE := EVENT_1;  -- Error  (not currently caught)
+    constant event3 : EVENT_TYPE := EVENT_1;        -- Error
     constant event4 : P1.EVENT_TYPE := P2.EVENT_1;  -- Error
 begin
 

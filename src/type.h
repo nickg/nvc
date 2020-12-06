@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2019  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -24,7 +24,6 @@
 #include "prim.h"
 
 typedef enum type_kind {
-   T_UNRESOLVED,
    T_SUBTYPE,
    T_INTEGER,
    T_REAL,
@@ -113,9 +112,6 @@ tree_t type_body(type_t t);
 void type_set_body(type_t t, tree_t b);
 bool type_has_body(type_t t);
 
-void type_replace(type_t t, type_t a);
-void type_change_kind(type_t t, type_kind_t kind);
-
 void type_set_resolution(type_t t, tree_t r);
 bool type_has_resolution(type_t t);
 tree_t type_resolution(type_t t);
@@ -123,12 +119,12 @@ tree_t type_resolution(type_t t);
 // Pretty printing
 typedef const char *(*minify_fn_t)(const char *);
 const char *type_pp(type_t t);
+const char *type_pp2(type_t t, type_t other);
 const char *type_pp_minify(type_t t, minify_fn_t fn);
 
 // Predefined types
 type_t type_universal_int(void);
 type_t type_universal_real(void);
-bool type_is_universal(type_t t);
 
 // Type predicates that recurse to base of subtypes
 bool type_is_array(type_t t);
@@ -141,9 +137,14 @@ bool type_is_scalar(type_t t);
 bool type_is_file(type_t t);
 bool type_is_protected(type_t t);
 bool type_is_access(type_t t);
+bool type_is_incomplete(type_t t);
+bool type_is_none(type_t t);
 bool type_is_physical(type_t t);
 bool type_is_discrete(type_t t);
 bool type_is_subprogram(type_t t);
+bool type_is_universal(type_t t);
+bool type_is_convertible(type_t from, type_t to);
+bool type_is_composite(type_t t);
 
 // Helper to find ultimate base type
 type_t type_base_recur(type_t t);

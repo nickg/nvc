@@ -3,6 +3,8 @@
 - Fix a constant folding crash with nested records.
 - The `--relax=impure` option allows pure functions to call impure
   functions.
+- Name resolution and overload resolution has been completely rewritten
+  which should fix a number of long-standing issues.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

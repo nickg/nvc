@@ -90,8 +90,6 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_copy_context(tree_t src, const elab_ctx_t *ctx);
 static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx);
 
-static int errors = 0;
-
 static generic_list_t *generic_override = NULL;
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
@@ -134,7 +132,7 @@ static lib_t elab_find_lib(ident_t name, const elab_ctx_t *ctx)
       return lib_find(lib_name, true);
 }
 
-static void find_arch(ident_t name, int kind, void *context)
+static void find_arch(lib_t lib, ident_t name, int kind, void *context)
 {
    lib_search_params_t *params = context;
 
@@ -244,14 +242,13 @@ static tree_t rewrite_refs(tree_t t, void *context)
       case T_ARRAY_SLICE:
       case T_ARRAY_REF:
       case T_FCALL:
-      case T_CONCAT:
       case T_RECORD_REF:
       case T_OPEN:
       case T_QUALIFIED:
          return params->items[i].actual;
       case T_TYPE_CONV:
          // XXX: this only works in trivial cases
-         return tree_value(tree_param(params->items[i].actual, 0));
+         return tree_value(params->items[i].actual);
       default:
          fatal_at(tree_loc(params->items[i].actual), "cannot handle tree kind "
                   "%s in rewrite_refs",
@@ -345,7 +342,7 @@ static bool elab_have_context(tree_t unit, ident_t name)
    return false;
 }
 
-static void elab_context_walk_fn(ident_t name, int kind, void *context)
+static void elab_context_walk_fn(lib_t lib, ident_t name, int kind, void *context)
 {
    if (kind == T_PACKAGE) {
       const elab_ctx_t *ctx = (elab_ctx_t *)context;
@@ -513,7 +510,7 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
       // Only allow simple array type conversions for now
       {
          type_t to_type   = tree_type(actual);
-         type_t from_type = tree_type(tree_value(tree_param(actual, 0)));
+         type_t from_type = tree_type(tree_value(actual));
 
          if (type_is_array(to_type) && type_is_array(from_type))
             return actual;
@@ -657,7 +654,7 @@ static netid_t elab_get_net(tree_t expr, int n)
       {
          tree_t decl = tree_ref(expr);
          if (n < 0 || n >= tree_nets(decl)) {
-            assert(bounds_errors() > 0);   // Should have already caught this
+            assert(error_count() > 0);   // Should have already caught this
             return NETID_INVALID;
          }
          else
@@ -738,7 +735,6 @@ static void elab_map_nets(map_list_t *maps)
                error_at(tree_loc(maps->actual), "actual width %d does not "
                         "match formal %s width %d", awidth,
                         istr(tree_ident(maps->signal)), fwidth);
-               ++errors;
                continue;
             }
          }
@@ -812,7 +808,6 @@ static bool elab_should_copy(tree_t t)
    case T_UNIT_DECL:
    case T_USE:
    case T_IF_GENERATE:
-   case T_CONCAT:
    case T_LIBRARY:
    case T_TYPE_CONV:
    case T_ALL:
@@ -911,7 +906,6 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
                      "entity %s", what, istr(tree_ident(comp_f)),
                      istr(tree_ident(comp)), type_pp(comp_type),
                      type_pp(entity_type), istr(tree_ident(entity)));
-            ++errors;
             return false;
          }
       }
@@ -923,7 +917,6 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
                  istr(tree_ident(inst)));
          note_at(tree_loc(entity), "entity %s declared here",
                  istr(tree_ident(entity)));
-         ++errors;
          return false;
       }
    }
@@ -931,7 +924,7 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
    return true;
 }
 
-static void find_entity(ident_t name, int kind, void *context)
+static void find_entity(lib_t lib, ident_t name, int kind, void *context)
 {
    lib_search_params_t *params = context;
 
@@ -990,7 +983,6 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
       if (entity == NULL) {
          error_at(tree_loc(inst), "cannot find entity for component %s "
                   "without binding indication", istr(tree_ident(comp)));
-         ++errors;
          return NULL;
       }
    }
@@ -1059,6 +1051,45 @@ static void elab_hint_fn(void *arg)
    note_at(tree_loc(t), "%s", tb_get(tb));
 }
 
+static void elab_remangle_subprogram_names(tree_t container, ident_t path)
+{
+   const int ndecls = tree_decls(container);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(container, i);
+
+      switch (tree_kind(d)) {
+      case T_FUNC_BODY:
+      case T_PROC_BODY:
+         elab_remangle_subprogram_names(d, path);
+         // Fall-through
+      case T_FUNC_DECL:
+      case T_PROC_DECL:
+         if (tree_attr_str(d, builtin_i) == NULL)
+            tree_set_ident2(d, ident_prefix(path, tree_ident2(d), '$'));;
+         break;
+
+      default:
+         break;
+      }
+   }
+
+   const int nstmts = tree_stmts(container);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(container, i);
+
+      switch (tree_kind(s)) {
+      case T_PROCESS:
+      case T_BLOCK:
+      case T_FOR_GENERATE:
+      case T_IF_GENERATE:
+         elab_remangle_subprogram_names(s, path);
+         break;
+      default:
+         break;
+      }
+   }
+}
+
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
    lib_t new_lib = NULL;
@@ -1093,6 +1124,8 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
                           simple_name(istr(tree_ident2(arch))),
                           simple_name(istr(tree_ident(arch))));
 
+   elab_remangle_subprogram_names(arch, ctx->path);
+
    elab_ctx_t new_ctx = {
       .out      = ctx->out,
       .path     = ctx->path,
@@ -1114,7 +1147,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    bounds_check(arch);
    clear_hint();
 
-   if (eval_errors() > 0 || bounds_errors() > 0)
+   if (error_count() > 0)
       return;
 
    elab_arch(arch, &new_ctx);
@@ -1134,12 +1167,6 @@ static void elab_signal_nets(tree_t decl, const elab_ctx_t *ctx)
    }
 }
 
-static void elab_set_subprogram_name(tree_t decl, ident_t new)
-{
-   tree_set_ident(decl, new);
-   tree_remove_attr(decl, mangled_i);
-}
-
 static void elab_prot_body_decls(tree_t body)
 {
    type_t type = tree_type(body);
@@ -1149,20 +1176,18 @@ static void elab_prot_body_decls(tree_t body)
       tree_t d = type_decl(type, i);
 
       ident_t base = ident_rfrom(tree_ident(d), '.');
-      elab_set_subprogram_name(d, ident_prefix(tree_ident(body), base, '.'));
+      tree_set_ident(d, ident_prefix(tree_ident(body), base, '.'));
    }
 
    const int ndecls = tree_decls(body);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(body, i);
 
-      const tree_kind_t kind = tree_kind(d);
-      if ((kind != T_FUNC_DECL) && (kind != T_FUNC_BODY)
-          && (kind != T_PROC_DECL) && (kind != T_PROC_BODY))
+      if (!is_subprogram(d))
          continue;
 
       ident_t base = ident_rfrom(tree_ident(d), '.');
-      elab_set_subprogram_name(d, ident_prefix(tree_ident(body), base, '.'));
+      tree_set_ident(d, ident_prefix(tree_ident(body), base, '.'));
    }
 }
 
@@ -1185,12 +1210,12 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_SIGNAL_DECL:
          elab_signal_nets(d, ctx);
          // Fall-through
-      case T_FUNC_BODY:
-      case T_PROC_BODY:
       case T_ALIAS:
       case T_FILE_DECL:
       case T_VAR_DECL:
       case T_CONST_DECL:
+      case T_FUNC_BODY:
+      case T_PROC_BODY:
          tree_set_ident(d, npath);
          tree_add_decl(ctx->out, d);
          tree_add_attr_str(d, inst_name_i, ninst);
@@ -1202,7 +1227,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
          break;
       case T_FUNC_DECL:
       case T_PROC_DECL:
-         elab_set_subprogram_name(d, npath);
+         tree_set_ident(d, npath);
          break;
       case T_USE:
          elab_use_clause(d, ctx);
@@ -1271,7 +1296,8 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    for (int64_t i = low; i <= high; i++) {
       tree_t copy = elab_copy(t);
 
-      tree_t genvar = tree_ref(copy);
+      tree_t genvar = tree_decl(copy, 0);
+      assert(tree_kind(genvar) == T_GENVAR);
 
       rewrite_item_t rwitems[1] = {
          { .kind = RW_TREE,
@@ -1288,7 +1314,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       simplify(copy, EVAL_LOWER);
       bounds_check(copy);
 
-      if (eval_errors() > 0)
+      if (error_count() > 0)
          break;
 
       ident_t npath = hpathf(ctx->path, '\0', "[%"PRIi64"]", i);
@@ -1319,35 +1345,8 @@ static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
    }
 }
 
-static void elab_rename_subprograms(tree_t t, ident_t prefix)
-{
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(t, i);
-      switch (tree_kind(d)) {
-      case T_FUNC_DECL:
-      case T_FUNC_BODY:
-      case T_PROC_DECL:
-      case T_PROC_BODY:
-         {
-            ident_t new = ident_prefix(prefix, tree_ident(d), '_');
-            elab_set_subprogram_name(d, new);
-            elab_rename_subprograms(d, new);
-         }
-         break;
-      default:
-         break;
-      }
-   }
-}
-
 static void elab_process(tree_t t, const elab_ctx_t *ctx)
 {
-   // Rename local functions in this process to avoid collisions in the
-   // global LLVM namespace
-
-   elab_rename_subprograms(t, ctx->path);
-
    tree_add_attr_str(t, inst_name_i,
                      ident_prefix(ctx->inst, ident_new(":"), '\0'));
 }
@@ -1542,12 +1541,14 @@ static void elab_entity_arch(tree_t t, tree_t arch, const elab_ctx_t *ctx)
    elab_copy_context(t, ctx);
    elab_decls(t, ctx);
 
+   elab_remangle_subprogram_names(arch, npath);
+
    tree_add_attr_str(ctx->out, simple_name_i, npath);
 
    simplify(arch, EVAL_LOWER);
    bounds_check(arch);
 
-   if (bounds_errors() > 0 || eval_errors() > 0)
+   if (error_count() > 0)
       return;
 
    elab_ctx_t new_ctx = {
@@ -1593,7 +1594,7 @@ static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
       elab_signal_nets(d, ctx);
       tree_add_decl(ctx->out, d);
 
-      ident_t orig_name = tree_ident(d);
+      ident_t orig_name = tree_ident2(d);
       ident_t new_name = ident_new(package_signal_path_name(orig_name));
       tree_set_ident(d, new_name);
       tree_add_attr_str(d, inst_name_i, new_name);
@@ -1639,8 +1640,6 @@ tree_t elab(tree_t top)
                                   ident_new("elab"), '.'));
    tree_set_loc(e, tree_loc(top));
 
-   errors = 0;
-
    netid_t next_net = 0;
    elab_ctx_t ctx = {
       .out      = e,
@@ -1664,7 +1663,7 @@ tree_t elab(tree_t top)
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
 
-   if (errors > 0 || eval_errors() > 0)
+   if (error_count() > 0)
       return NULL;
 
    tree_add_attr_int(e, nnets_i, next_net);
@@ -1677,7 +1676,7 @@ tree_t elab(tree_t top)
          warnf("generic value for %s not used", istr(it->name));
    }
 
-   if (bounds_errors() == 0) {
+   if (error_count() == 0) {
       lib_put(lib_work(), e);
       return e;
    }

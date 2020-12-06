@@ -102,7 +102,7 @@ START_TEST(test_comp)
       { 55, "port Y not found in entity WORK.E2" },
       { 77, "while elaborating instance E2_1 here"},
       { 14, "entity WORK.E2 declared here" },
-      { 62, "type of port X in component declaration E3 is STD.STANDARD.BIT" },
+      { 62, "type of port X in component declaration E3 is BIT" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -264,7 +264,7 @@ START_TEST(test_libbind)
    lib_t other = lib_tmp("other");
    lib_set_work(other);
    parse_check_and_simplify(T_ENTITY, T_ARCH, -1);
-   fail_if(sem_errors() > 0);
+   fail_if_errors();
 
    lib_set_work(work);
    fail_if(run_elab() == NULL);
@@ -303,7 +303,7 @@ START_TEST(test_issue159)
    lib_t other = lib_tmp("dummy");
    lib_set_work(other);
    parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH, -1);
-   fail_if(sem_errors() > 0);
+   fail_if_errors();
 
    lib_set_work(work);
    fail_if(run_elab() == NULL);
@@ -317,7 +317,7 @@ START_TEST(test_issue175)
    lib_t lib2 = lib_tmp("lib2");
    lib_set_work(lib2);
    parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY, -1);
-   fail_if(sem_errors() > 0);
+   fail_if_errors();
 
    lib_t lib = lib_tmp("lib");
    lib_set_work(lib);
@@ -346,7 +346,7 @@ START_TEST(test_libbind2)
    lib_t other = lib_tmp("other");
    lib_set_work(other);
    parse_check_and_simplify(T_ENTITY, T_ARCH, -1);
-   fail_if(sem_errors() > 0);
+   fail_if_errors();
 
    lib_set_work(work);
    fail_if(run_elab() == NULL);
@@ -374,10 +374,10 @@ START_TEST(test_libbind3)
 
    lib_set_work(lib_tmp("foo"));
    parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, -1);
-   fail_if(sem_errors() > 0);
+   fail_if_errors();
 
    lib_set_work(lib_tmp("bar"));
-   run_elab();
+   fail_if(run_elab() == NULL);
 }
 END_TEST
 
@@ -392,7 +392,10 @@ START_TEST(test_issue251)
    };
    expect_errors(expect);
 
-   fail_unless(run_elab() == NULL);
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+   bounds_check(a);
+
+   check_expected_errors();
 }
 END_TEST
 

@@ -14,6 +14,7 @@ end context;
 -------------------------------------------------------------------------------
 
 -- Library bar
+library foo;
 context foo.test_context;
 
 entity foo is

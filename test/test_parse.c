@@ -21,22 +21,22 @@ START_TEST(test_entity)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("ONE"));
+   fail_unless(tree_ident(e) == ident_new("WORK.ONE"));
 
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("TWO"));
+   fail_unless(tree_ident(e) == ident_new("WORK.TWO"));
 
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("THREE"));
+   fail_unless(tree_ident(e) == ident_new("WORK.THREE"));
 
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("FOUR"));
+   fail_unless(tree_ident(e) == ident_new("WORK.FOUR"));
 
    fail_unless(tree_ports(e) == 5);
 
@@ -46,8 +46,8 @@ START_TEST(test_entity)
    fail_unless(tree_subkind(p) == PORT_IN);
    fail_unless(tree_class(p) == C_SIGNAL);
    t = tree_type(p);
-   fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("INTEGER"));
+   fail_unless(type_kind(t) == T_INTEGER);
+   fail_unless(type_ident(t) == ident_new("STD.STANDARD.INTEGER"));
    fail_unless(tree_has_value(p));
    v = tree_value(p);
    fail_unless(tree_kind(v) == T_LITERAL);
@@ -59,8 +59,8 @@ START_TEST(test_entity)
    fail_unless(tree_ident(p) == ident_new("B"));
    fail_unless(tree_subkind(p) == PORT_OUT);
    t = tree_type(p);
-   fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("BIT"));
+   fail_unless(type_kind(t) == T_ENUM);
+   fail_unless(type_ident(t) == ident_new("STD.STANDARD.BIT"));
    fail_if(tree_has_value(p));
 
    p = tree_port(e, 2);
@@ -68,8 +68,8 @@ START_TEST(test_entity)
    fail_unless(tree_ident(p) == ident_new("BEE"));
    fail_unless(tree_subkind(p) == PORT_OUT);
    t = tree_type(p);
-   fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("BIT"));
+   fail_unless(type_kind(t) == T_ENUM);
+   fail_unless(type_ident(t) == ident_new("STD.STANDARD.BIT"));
    fail_if(tree_has_value(p));
 
    p = tree_port(e, 3);
@@ -77,8 +77,8 @@ START_TEST(test_entity)
    fail_unless(tree_ident(p) == ident_new("C"));
    fail_unless(tree_subkind(p) == PORT_INOUT);
    t = tree_type(p);
-   fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("INTEGER"));
+   fail_unless(type_kind(t) == T_INTEGER);
+   fail_unless(type_ident(t) == ident_new("STD.STANDARD.INTEGER"));
    fail_if(tree_has_value(p));
 
    p = tree_port(e, 4);
@@ -86,14 +86,14 @@ START_TEST(test_entity)
    fail_unless(tree_ident(p) == ident_new("D"));
    fail_unless(tree_subkind(p) == PORT_BUFFER);
    t = tree_type(p);
-   fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("BIT"));
+   fail_unless(type_kind(t) == T_ENUM);
+   fail_unless(type_ident(t) == ident_new("STD.STANDARD.BIT"));
    fail_if(tree_has_value(p));
 
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("FIVE"));
+   fail_unless(tree_ident(e) == ident_new("WORK.FIVE"));
 
    fail_unless(tree_generics(e) == 2);
 
@@ -101,16 +101,16 @@ START_TEST(test_entity)
    fail_unless(tree_kind(g) == T_PORT_DECL);
    fail_unless(tree_ident(g) == ident_new("X"));
    t = tree_type(g);
-   fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("BOOLEAN"));
+   fail_unless(type_kind(t) == T_ENUM);
+   fail_unless(type_ident(t) == ident_new("STD.STANDARD.BOOLEAN"));
    fail_if(tree_has_value(p));
 
    g = tree_generic(e, 1);
    fail_unless(tree_kind(g) == T_PORT_DECL);
    fail_unless(tree_ident(g) == ident_new("Y"));
    t = tree_type(g);
-   fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("INTEGER"));
+   fail_unless(type_kind(t) == T_INTEGER);
+   fail_unless(type_ident(t) == ident_new("STD.STANDARD.INTEGER"));
    fail_unless(tree_has_value(g));
    v = tree_value(g);
    fail_unless(tree_kind(v) == T_FCALL);
@@ -155,7 +155,7 @@ START_TEST(test_entity)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("EIGHT"));
+   fail_unless(tree_ident(e) == ident_new("WORK.EIGHT"));
    fail_unless(tree_generics(e) == 1);
 
    g = tree_generic(e, 0);
@@ -165,33 +165,38 @@ START_TEST(test_entity)
    e = parse();
    fail_unless(e == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_arch)
 {
-   tree_t a, d, v;
+   tree_t e, a, d, v;
 
    input_from_file(TESTDIR "/parse/arch.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_ident(a) == ident_new("A"));
+   fail_unless(tree_ident(a) == ident_new("WORK.ONE-A"));
    fail_unless(tree_ident2(a) == ident_new("ONE"));
+   fail_unless(tree_ref(a) == e);
    fail_unless(tree_decls(a) == 3);
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
    fail_unless(tree_ident(d) == ident_new("X"));
-   fail_unless(type_kind(tree_type(d)) == T_UNRESOLVED);
-   fail_unless(type_ident(tree_type(d)) == ident_new("INTEGER"));
+   fail_unless(type_kind(tree_type(d)) == T_INTEGER);
+   fail_unless(type_ident(tree_type(d)) == ident_new("STD.STANDARD.INTEGER"));
    fail_if(tree_has_value(d));
    d = tree_decl(a, 1);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
    fail_unless(tree_ident(d) == ident_new("Y"));
-   fail_unless(type_kind(tree_type(d)) == T_UNRESOLVED);
-   fail_unless(type_ident(tree_type(d)) == ident_new("INTEGER"));
+   fail_unless(type_kind(tree_type(d)) == T_INTEGER);
+   fail_unless(type_ident(tree_type(d)) == ident_new("STD.STANDARD.INTEGER"));
    fail_unless(tree_has_value(d));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
@@ -200,8 +205,8 @@ START_TEST(test_arch)
    d = tree_decl(a, 2);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
    fail_unless(tree_ident(d) == ident_new("Z"));
-   fail_unless(type_kind(tree_type(d)) == T_UNRESOLVED);
-   fail_unless(type_ident(tree_type(d)) == ident_new("INTEGER"));
+   fail_unless(type_kind(tree_type(d)) == T_INTEGER);
+   fail_unless(type_ident(tree_type(d)) == ident_new("STD.STANDARD.INTEGER"));
    fail_unless(tree_has_value(d));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
@@ -211,27 +216,31 @@ START_TEST(test_arch)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_ident(a) == ident_new("B"));
+   fail_unless(tree_ident(a) == ident_new("WORK.ONE-B"));
    fail_unless(tree_ident2(a) == ident_new("ONE"));
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_ident(a) == ident_new("C"));
+   fail_unless(tree_ident(a) == ident_new("WORK.ONE-C"));
    fail_unless(tree_ident2(a) == ident_new("ONE"));
 
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_process)
 {
-   tree_t a, p, d, s;
+   tree_t e, a, p, d, s;
 
    input_from_file(TESTDIR "/parse/process.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
@@ -271,7 +280,7 @@ START_TEST(test_process)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -281,10 +290,16 @@ START_TEST(test_seq)
 
    input_from_file(TESTDIR "/parse/seq.vhd");
 
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 16);
+
+   fail_if_errors();
 
    // Wait statements
 
@@ -296,12 +311,10 @@ START_TEST(test_seq)
    fail_unless(tree_kind(s) == T_WAIT);
    fail_unless(tree_has_delay(s));
    e = tree_delay(s);
-   fail_unless(tree_kind(e) == T_FCALL);
-   fail_unless(tree_ident(e) == ident_new("\"*\""));
-   fail_unless(tree_params(e) == 2);
-   fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
-   fail_unless(tree_kind(tree_value(tree_param(e, 1))) == T_REF);
-   fail_unless(tree_ident(tree_value(tree_param(e, 1))) == ident_new("NS"));
+   fail_unless(tree_kind(e) == T_LITERAL);
+   fail_unless(tree_subkind(e) == L_PHYSICAL);
+   fail_unless(type_kind(tree_type(e)) == T_PHYSICAL);
+   fail_unless(tree_ival(e) == 1000000);
 
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_WAIT);
@@ -604,26 +617,30 @@ START_TEST(test_seq)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_types)
 {
-   tree_t a, d, f, u;
+   tree_t a, b, d, f, u;
    type_t t;
    range_t r;
 
    input_from_file(TESTDIR "/parse/types.vhd");
 
+   b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_ENTITY);
+
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 17);
+   fail_unless(tree_decls(a) == 78);  // Includes predefined
 
-   d = tree_decl(a, 0);
+   d = search_decls(a, ident_new("MY_INT"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("MY_INT"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_INTEGER);
    fail_unless(type_dims(t) == 1);
@@ -632,59 +649,64 @@ START_TEST(test_types)
    fail_unless(tree_kind(r.left) == T_LITERAL);
    fail_unless(tree_kind(r.right) == T_LITERAL);
 
-   d = tree_decl(a, 2);
+   d = search_decls(a, ident_new("RESISTANCE"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("RESISTANCE"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_PHYSICAL);
    fail_unless(type_dims(t) == 1);
    r = type_dim(t, 0);
    fail_unless(r.kind == RANGE_TO);
-   fail_unless(tree_kind(r.left) == T_FCALL);
-   fail_unless(tree_kind(r.right) == T_FCALL);
+   fail_unless(tree_kind(r.left) == T_LITERAL);
+   fail_unless(tree_kind(r.right) == T_LITERAL);
    fail_unless(type_units(t) == 3);
    u = type_unit(t, 0);
    fail_unless(tree_ident(u) == ident_new("OHM"));
    fail_unless(tree_kind(tree_value(u)) == T_LITERAL);
+   fail_unless(tree_subkind(tree_value(u)) == L_PHYSICAL);
    u = type_unit(t, 1);
    fail_unless(tree_ident(u) == ident_new("KOHM"));
-   fail_unless(tree_kind(tree_value(u)) == T_FCALL);
+   fail_unless(tree_kind(tree_value(u)) == T_LITERAL);
+   fail_unless(tree_subkind(tree_value(u)) == L_PHYSICAL);
+   fail_unless(tree_ival(tree_value(u)) == 1000);
    u = type_unit(t, 2);
    fail_unless(tree_ident(u) == ident_new("MOHM"));
-   fail_unless(tree_kind(tree_value(u)) == T_FCALL);
+   fail_unless(tree_kind(tree_value(u)) == T_LITERAL);
+   fail_unless(tree_subkind(tree_value(u)) == L_PHYSICAL);
+   fail_unless(tree_ival(tree_value(u)) == 1000000);
 
-   d = tree_decl(a, 4);
+   d = search_decls(a, ident_new("BIG_R"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("BIG_R"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_kind(type_base(t)) == T_UNRESOLVED);
-   fail_unless(type_ident(type_base(t)) == ident_new("RESISTANCE"));
+   fail_unless(type_kind(type_base(t)) == T_PHYSICAL);
+   fail_unless(type_ident(type_base(t)) == ident_new("WORK.B(A).RESISTANCE"));
 
-   d = tree_decl(a, 5);
+   d = search_decls(a, ident_new("MY_SMALL_INT"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("MY_SMALL_INT"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_kind(type_base(t)) == T_UNRESOLVED);
-   fail_unless(type_ident(type_base(t)) == ident_new("MY_INT"));
+   fail_unless(type_kind(type_base(t)) == T_INTEGER);
+   fail_unless(type_ident(type_base(t)) == ident_new("WORK.B(A).MY_INT"));
 
-   d = tree_decl(a, 6);
+   d = search_decls(a, ident_new("FOO"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("FOO"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_unless(type_kind(type_base(t)) == T_UNRESOLVED);
-   fail_unless(type_ident(type_base(t)) == ident_new("MY_INT"));
+   fail_unless(type_kind(type_base(t)) == T_INTEGER);
+   fail_unless(type_ident(type_base(t)) == ident_new("WORK.B(A).MY_INT"));
    r = tree_range(type_constraint(t), 0);
    fail_unless(tree_kind(r.left) == T_LITERAL);
    fail_unless(tree_kind(r.right) == T_ATTR_REF);
    fail_unless(tree_ident(tree_name(r.right)) == ident_new("MY_INT"));
    fail_unless(tree_ident(r.right) == ident_new("HIGH"));
 
-   d = tree_decl(a, 7);
+   d = search_decls(a, ident_new("RINT"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("RINT"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_has_resolution(t));
@@ -692,46 +714,46 @@ START_TEST(test_types)
    fail_unless(tree_kind(f) == T_REF);
    fail_unless(tree_ident(f) == ident_new("RESOLVED"));
 
-   d = tree_decl(a, 8);
+   d = search_decls(a, ident_new("P"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("P"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_ACCESS);
-   fail_unless(type_kind(type_access(t)) == T_UNRESOLVED);
-   fail_unless(type_ident(type_access(t)) == ident_new("MY_INT"));
+   fail_unless(type_kind(type_access(t)) == T_INTEGER);
+   fail_unless(type_ident(type_access(t)) == ident_new("WORK.B(A).MY_INT"));
 
-   d = tree_decl(a, 9);
+   d = search_decls(a, ident_new("F"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("F"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_FILE);
-   fail_unless(type_kind(type_file(t)) == T_UNRESOLVED);
-   fail_unless(type_ident(type_file(t)) == ident_new("MY_INT"));
+   fail_unless(type_kind(type_file(t)) == T_INTEGER);
+   fail_unless(type_ident(type_file(t)) == ident_new("WORK.B(A).MY_INT"));
 
-   d = tree_decl(a, 10);
+   d = search_decls(a, ident_new("F1"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_FILE_DECL);
-   fail_unless(tree_ident(d) == ident_new("F1"));
    fail_unless(tree_has_value(d));
    fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
 
-   d = tree_decl(a, 11);
+   d = search_decls(a, ident_new("F2"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_FILE_DECL);
-   fail_unless(tree_ident(d) == ident_new("F2"));
    fail_unless(tree_has_value(d));
    fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
    fail_unless(tree_subkind(tree_value(d)) == L_STRING);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
    fail_unless(tree_ident(tree_file_mode(d)) == ident_new("READ_MODE"));
 
-   d = tree_decl(a, 12);
+   d = search_decls(a, ident_new("F3"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_FILE_DECL);
-   fail_unless(tree_ident(d) == ident_new("F3"));
    fail_if(tree_has_value(d));
 
-   d = tree_decl(a, 13);
+   d = search_decls(a, ident_new("R1"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("R1"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_RECORD);
    fail_unless(type_fields(t) == 3);
@@ -739,24 +761,24 @@ START_TEST(test_types)
    fail_unless(tree_kind(f) == T_FIELD_DECL);
    fail_unless(tree_ident(f) == ident_new("B"));
 
-   d = tree_decl(a, 14);
+   d = search_decls(a, ident_new("F4"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_FILE_DECL);
-   fail_unless(tree_ident(d) == ident_new("F4"));
    fail_unless(tree_has_value(d));
    fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
    fail_unless(tree_ident(tree_file_mode(d)) == ident_new("WRITE_MODE"));
 
-   d = tree_decl(a, 15);
+   d = search_decls(a, ident_new("F5"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_FILE_DECL);
-   fail_unless(tree_ident(d) == ident_new("F5"));
    fail_unless(tree_has_value(d));
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
    fail_unless(tree_ident(tree_file_mode(d)) == ident_new("READ_MODE"));
 
-   d = tree_decl(a, 16);
+   d = search_decls(a, ident_new("R2"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("R2"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_RECORD);
    fail_unless(type_fields(t) == 1);
@@ -764,30 +786,35 @@ START_TEST(test_types)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_literal)
 {
-   tree_t a, d, v;
+   tree_t a, e, d, v;
 
    input_from_file(TESTDIR "/parse/literal.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 24);
 
-   d = tree_decl(a, 0);
-   fail_unless(tree_ident(d) == ident_new("POS"));
+   d = search_decls(a, ident_new("POS"), 0);
+   fail_if(d == NULL);
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_INT);
    fail_unless(tree_ival(v) == 64);
+   d = search_decls(a, ident_new("POS"), 0);
+   fail_if(d == NULL);
 
-   d = tree_decl(a, 1);
-   fail_unless(tree_ident(d) == ident_new("NEG"));
+   d = search_decls(a, ident_new("NEG"), 0);
+   fail_if(d == NULL);
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_FCALL);
    fail_unless(tree_ident(v) == ident_new("\"-\""));
@@ -795,7 +822,8 @@ START_TEST(test_literal)
    fail_unless(tree_subkind(tree_value(tree_param(v, 0))) == L_INT);
    fail_unless(tree_ival(tree_value(tree_param(v, 0))) == 265);
 
-   d = tree_decl(a, 2);
+   d = search_decls(a, ident_new("C"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("C"));
    v = tree_value(d);
@@ -803,7 +831,8 @@ START_TEST(test_literal)
    fail_unless(tree_subkind(v) == L_INT);
    fail_unless(tree_ival(v) == 523);
 
-   d = tree_decl(a, 3);
+   d = search_decls(a, ident_new("A"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("A"));
    v = tree_value(d);
@@ -817,7 +846,8 @@ START_TEST(test_literal)
    fail_unless(tree_ident(tree_char(v, 4)) == ident_new("'l'"));
    fail_unless(tree_ident(tree_char(v, 5)) == ident_new("'o'"));
 
-   d = tree_decl(a, 4);
+   d = search_decls(a, ident_new("B"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("B"));
    v = tree_value(d);
@@ -832,62 +862,70 @@ START_TEST(test_literal)
    fail_unless(tree_ident(tree_char(v, 5)) == ident_new("'e'"));
    fail_unless(tree_ident(tree_char(v, 6)) == ident_new("'\"'"));
 
-   d = tree_decl(a, 5);
+   d = search_decls(a, ident_new("D"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_ident(d) == ident_new("D"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_INT);
    fail_unless(tree_ival(v) == 1000);
 
-   d = tree_decl(a, 6);
+   d = search_decls(a, ident_new("E"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_ident(d) == ident_new("E"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_REAL);
    fail_unless(tree_dval(v) == 1.234);
 
-   d = tree_decl(a, 7);
-   fail_unless(tree_ident(d) == ident_new("F"));
+   d = search_decls(a, ident_new("F"), 0);
+   fail_if(d == NULL);
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_REAL);
    fail_unless(tree_dval(v) == 0.21712);
 
-   d = tree_decl(a, 8);
+   d = search_decls(a, ident_new("G"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_ident(d) == ident_new("G"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_REAL);
    fail_unless(tree_dval(v) == 1400000.0);
 
-   d = tree_decl(a, 9);
+   d = search_decls(a, ident_new("H"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_ident(d) == ident_new("H"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_REAL);
    fail_unless(tree_dval(v) == 2.351);
 
-   d = tree_decl(a, 10);
+   d = search_decls(a, ident_new("I"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_ident(d) == ident_new("I"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_INT);
    fail_unless(tree_ival(v) == 1234);
 
-   d = tree_decl(a, 11);
+   d = search_decls(a, ident_new("J"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_ident(d) == ident_new("J"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_REAL);
    fail_unless(tree_dval(v) == 567.123);
 
-   d = tree_decl(a, 12);
+   d = search_decls(a, ident_new("K"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_ident(d) == ident_new("K"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_NULL);
 
-   d = tree_decl(a, 13);
+   d = search_decls(a, ident_new("L"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("L"));
    v = tree_value(d);
@@ -918,7 +956,8 @@ START_TEST(test_literal)
    fail_unless(tree_ident(tree_char(v, 21)) == ident_new("'r'"));
    fail_unless(tree_ident(tree_char(v, 22)) == ident_new("'t'"));
 
-   d = tree_decl(a, 14);
+   d = search_decls(a, ident_new("M"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("M"));
    v = tree_value(d);
@@ -926,7 +965,8 @@ START_TEST(test_literal)
    fail_unless(tree_subkind(v) == L_STRING);
    fail_unless(tree_chars(v) == 0);
 
-   d = tree_decl(a, 15);
+   d = search_decls(a, ident_new("N"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("N"));
    v = tree_value(d);
@@ -935,7 +975,8 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("' '"));
 
-   d = tree_decl(a, 16);
+   d = search_decls(a, ident_new("O"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("O"));
    v = tree_value(d);
@@ -944,7 +985,8 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'A'"));
 
-   d = tree_decl(a, 17);
+   d = search_decls(a, ident_new("P"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("P"));
    v = tree_value(d);
@@ -953,7 +995,8 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'\"'"));
 
-   d = tree_decl(a, 18);
+   d = search_decls(a, ident_new("Q"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("Q"));
    v = tree_value(d);
@@ -984,7 +1027,8 @@ START_TEST(test_literal)
    fail_unless(tree_ident(tree_char(v, 21)) == ident_new("'r'"));
    fail_unless(tree_ident(tree_char(v, 22)) == ident_new("'t'"));
 
-   d = tree_decl(a, 19);
+   d = search_decls(a, ident_new("R"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("R"));
    v = tree_value(d);
@@ -992,7 +1036,8 @@ START_TEST(test_literal)
    fail_unless(tree_subkind(v) == L_STRING);
    fail_unless(tree_chars(v) == 0);
 
-   d = tree_decl(a, 20);
+   d = search_decls(a, ident_new("S"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("S"));
    v = tree_value(d);
@@ -1001,7 +1046,8 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("' '"));
 
-   d = tree_decl(a, 21);
+   d = search_decls(a, ident_new("T"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("T"));
    v = tree_value(d);
@@ -1010,7 +1056,8 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'A'"));
 
-   d = tree_decl(a, 22);
+   d = search_decls(a, ident_new("U"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("U"));
    v = tree_value(d);
@@ -1019,7 +1066,8 @@ START_TEST(test_literal)
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'%'"));
 
-   d = tree_decl(a, 23);
+   d = search_decls(a, ident_new("V"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("V"));
    v = tree_value(d);
@@ -1031,20 +1079,24 @@ START_TEST(test_literal)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_extended)
 {
-   tree_t a, d, n, s;
+   tree_t a, e, d, n, s;
 
    input_from_file(TESTDIR "/parse/extended.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 5);
+   fail_unless(tree_decls(a) == 7);
 
    d = tree_decl(a, 0);
    fail_unless(tree_ident(d) == ident_new("\\foo bar\\"));
@@ -1066,7 +1118,7 @@ START_TEST(test_extended)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -1076,26 +1128,31 @@ START_TEST(test_package)
 
    input_from_file(TESTDIR "/parse/package.vhd");
 
+   const error_t expect[] = {
+      { LINE_INVALID, "library FOO not found in:" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 2);
-   fail_unless(tree_contexts(p) == 2);
-   fail_unless(tree_ident(p) == ident_new("ONE"));
+   fail_unless(tree_contexts(p) == 3);
+   fail_unless(tree_ident(p) == ident_new("WORK.ONE"));
 
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_decls(p) == 1);
-   fail_unless(tree_contexts(p) == 3);
-   fail_unless(tree_ident(tree_context(p, 2)) == ident_new("WORK.ONE"));
-   fail_unless(icmp(tree_ident2(tree_context(p, 2)), "all"));
-   fail_unless(tree_ident(p) == ident_new("TWO"));
+   fail_unless(tree_contexts(p) == 4);
+   fail_unless(tree_ident(tree_context(p, 3)) == ident_new("WORK.ONE"));
+   fail_unless(icmp(tree_ident2(tree_context(p, 3)), "all"));
+   fail_unless(tree_ident(p) == ident_new("WORK.TWO"));
 
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACK_BODY);
-   fail_unless(tree_ident(p) == ident_new("ONE"));
+   fail_unless(tree_ident(p) == ident_new("WORK.ONE-body"));
    fail_unless(tree_decls(p) == 2);
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_FUNC_BODY);
@@ -1106,21 +1163,21 @@ START_TEST(test_package)
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_decls(p) == 2);
-   fail_unless(tree_ident(p) == ident_new("THREE"));
+   fail_unless(tree_ident(p) == ident_new("WORK.THREE"));
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
    d = tree_decl(p, 1);
    fail_unless(tree_kind(d) == T_ALIAS);
 
-   fail_unless(tree_contexts(p) == 3);
-   c = tree_context(p, 2);
+   fail_unless(tree_contexts(p) == 4);
+   c = tree_context(p, 3);
    fail_unless(tree_kind(c) == T_LIBRARY);
    fail_unless(tree_ident(c) == ident_new("FOO"));
 
    p = parse();
    fail_unless(p == NULL);
 
-   fail_unless(parse_errors() == 0);
+   check_expected_errors();
 }
 END_TEST
 
@@ -1134,9 +1191,9 @@ START_TEST(test_enum)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 3);
 
-   d = tree_decl(p, 0);
+   d = search_decls(p, ident_new("A"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("A"));
    t = tree_type(d);
@@ -1155,7 +1212,8 @@ START_TEST(test_enum)
    fail_unless(tree_ident(i) == ident_new("Z"));
    fail_unless(tree_pos(i) == 2);
 
-   d = tree_decl(p, 1);
+   d = search_decls(p, ident_new("B"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("B"));
    t = tree_type(d);
@@ -1171,7 +1229,8 @@ START_TEST(test_enum)
    fail_unless(tree_kind(i) == T_ENUM_LIT);
    fail_unless(tree_ident(i) == ident_new("Z"));
 
-   d = tree_decl(p, 2);
+   d = search_decls(p, ident_new("C"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("C"));
    t = tree_type(d);
@@ -1185,7 +1244,7 @@ START_TEST(test_enum)
    p = parse();
    fail_unless(p == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -1194,6 +1253,10 @@ START_TEST(test_qual)
    tree_t a, p, s, q, e;
 
    input_from_file(TESTDIR "/parse/qual.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
@@ -1207,7 +1270,7 @@ START_TEST(test_qual)
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    q = tree_value(tree_waveform(s, 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
-   fail_unless(tree_ident(q) == ident_new("FOO"));
+   fail_unless(tree_ident(q) == ident_new("WORK.BAR(FOO).FOO"));
    e = tree_value(q);
    fail_unless(tree_kind(e) == T_REF);
    fail_unless(tree_ident(e) == ident_new("B"));
@@ -1216,7 +1279,7 @@ START_TEST(test_qual)
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    q = tree_value(tree_waveform(s, 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
-   fail_unless(tree_ident(q) == ident_new("FOO"));
+   fail_unless(tree_ident(q) == ident_new("WORK.BAR(FOO).FOO"));
    e = tree_value(q);
    fail_unless(tree_kind(e) == T_REF);
    fail_unless(tree_ident(e) == ident_new("'c'"));
@@ -1224,7 +1287,7 @@ START_TEST(test_qual)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -1269,7 +1332,7 @@ START_TEST(test_func)
    p = parse();
    fail_unless(p == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -1285,29 +1348,31 @@ START_TEST(test_array)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 6);
 
-   d = tree_decl(p, 0);
+   d = search_decls(p, ident_new("INT_ARRAY"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("INT_ARRAY"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_UARRAY);
    fail_unless(type_index_constrs(t) == 1);
    i = type_index_constr(t, 0);
-   fail_unless(type_kind(i) == T_UNRESOLVED);
-   fail_unless(type_ident(i) == ident_new("INTEGER"));
+   fail_unless(type_kind(i) == T_INTEGER);
+   fail_unless(type_ident(i) == ident_new("STD.STANDARD.INTEGER"));
    b = type_elem(t);
-   fail_unless(type_kind(b) == T_UNRESOLVED);
-   fail_unless(type_ident(b) == ident_new("INTEGER"));
+   fail_unless(type_kind(b) == T_INTEGER);
+   fail_unless(type_ident(b) == ident_new("STD.STANDARD.INTEGER"));
 
-   d = tree_decl(p, 1);
+   d = search_decls(p, ident_new("TEN_INTS"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("TEN_INTS"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_CARRAY);
    fail_unless(type_dims(t) == 1);
 
-   d = tree_decl(p, 3);
+   d = search_decls(p, ident_new("CHAR_COUNTS"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("CHAR_COUNTS"));
    t = tree_type(d);
@@ -1315,11 +1380,16 @@ START_TEST(test_array)
    fail_unless(type_dims(t) == 1);
    r = type_dim(t, 0);
    fail_unless(r.kind == RANGE_EXPR);
-   fail_unless(tree_kind(r.left) == T_REF);
-   fail_unless(tree_ident(r.left) == ident_new("CHARS"));
+   fail_unless(tree_kind(r.left) == T_ATTR_REF);
+   fail_unless(tree_ident(r.left) == ident_new("RANGE"));
+   fail_unless(r.right == NULL);
+   x = tree_name(r.left);
+   fail_unless(tree_ident(x) == ident_new("CHARS"));
+   fail_unless(tree_kind(x) == T_REF);
    fail_unless(r.right == NULL);
 
-   d = tree_decl(p, 4);
+   d = search_decls(p, ident_new("TWO_D"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("TWO_D"));
    t = tree_type(d);
@@ -1332,12 +1402,17 @@ START_TEST(test_array)
    fail_unless(tree_ival(r.left) == 4);
    fail_unless(tree_ival(r.right) == 6);
 
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_decls(a) == 9);
 
-   d = tree_decl(a, 0);
+   d = search_decls(a, ident_new("X"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_ident(d) == ident_new("X"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
@@ -1346,14 +1421,15 @@ START_TEST(test_array)
    fail_unless(tree_ival(r.left) == 1);
    fail_unless(tree_ival(r.right) == 5);
 
-   d = tree_decl(a, 1);
+   d = search_decls(a, ident_new("Y"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_ident(d) == ident_new("Y"));
    t = tree_type(d);
-   fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("TEN_INTS"));
+   fail_unless(type_kind(t) == T_CARRAY);
+   fail_unless(type_ident(t) == ident_new("WORK.P.TEN_INTS"));
 
-   d = tree_decl(a, 2);
-   fail_unless(tree_ident(d) == ident_new("Z"));
+   d = search_decls(a, ident_new("Z"), 0);
+   fail_if(d == NULL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_has_constraint(t));
@@ -1371,8 +1447,8 @@ START_TEST(test_array)
       fail_unless(tree_ival(tree_value(x)) == i);
    }
 
-   d = tree_decl(a, 3);
-   fail_unless(tree_ident(d) == ident_new("N"));
+   d = search_decls(a, ident_new("N"), 0);
+   fail_if(d == NULL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_has_constraint(t));
@@ -1396,8 +1472,8 @@ START_TEST(test_array)
    fail_unless(tree_subkind(x) == A_OTHERS);
    fail_unless(tree_ival(tree_value(x)) == 2);
 
-   d = tree_decl(a, 4);
-   fail_unless(tree_ident(d) == ident_new("M"));
+   d = search_decls(a, ident_new("M"), 0);
+   fail_if(d == NULL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_has_constraint(t));
@@ -1415,19 +1491,19 @@ START_TEST(test_array)
    fail_unless(tree_ival(r.right) == 3);
    fail_unless(tree_ival(tree_value(x)) == 0);
 
-   d = tree_decl(a, 7);
-   fail_unless(tree_ident(d) == ident_new("U"));
+   d = search_decls(a, ident_new("U"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_assocs(tree_value(d)) == 4);
 
-   d = tree_decl(a, 8);
-   fail_unless(tree_ident(d) == ident_new("V"));
+   d = search_decls(a, ident_new("V"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_assocs(tree_value(d)) == 4);
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
    s = tree_stmt(p, 0);
    e = tree_target(s);
-   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
    fail_unless(tree_params(e) == 1);
    fail_unless(tree_subkind(tree_param(e, 0)) == P_POS);
    fail_unless(tree_pos(tree_param(e, 0)) == 0);
@@ -1436,7 +1512,7 @@ START_TEST(test_array)
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    fail_unless(tree_waveforms(s) == 1);
    e = tree_value(tree_waveform(s, 0));
-   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
    s = tree_stmt(p, 3);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    e = tree_target(s);
@@ -1459,15 +1535,31 @@ START_TEST(test_array)
    p = parse();
    fail_unless(p == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_instance)
 {
-   tree_t a, s;
+   tree_t e, a, s, c;
 
    input_from_file(TESTDIR "/parse/instance.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONFIGURATION);
 
    a = parse();
    fail_if(a == NULL);
@@ -1489,7 +1581,7 @@ START_TEST(test_instance)
    s = tree_stmt(a, 3);
    fail_unless(tree_kind(s) == T_INSTANCE);
    fail_unless(tree_class(s) == C_CONFIGURATION);
-   fail_unless(tree_ident(s) == ident_new("C"));
+   fail_unless(tree_ident(s) == ident_new("C1"));
    fail_unless(tree_ident2(s) == ident_new("WORK.BAR"));
 
    s = tree_stmt(a, 4);
@@ -1526,15 +1618,19 @@ START_TEST(test_instance)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_conc)
 {
-   tree_t a, s, c;
+   tree_t e, a, s, c;
 
    input_from_file(TESTDIR "/parse/conc.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
@@ -1584,42 +1680,46 @@ START_TEST(test_conc)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_alias)
 {
-   tree_t a, d;
+   tree_t e, a, d;
 
    input_from_file(TESTDIR "/parse/alias.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 0);
-   fail_unless(tree_decls(a) == 6);
+   fail_unless(tree_decls(a) == 12);
 
-   d = tree_decl(a, 0);
+   d = tree_decl(a, 6);
    fail_unless(tree_kind(d) == T_ALIAS);
    fail_unless(tree_ident(d) == ident_new("FOO"));
    fail_unless(tree_kind(tree_value(d)) == T_REF);
-   fail_if(tree_has_type(d));
+   fail_unless(tree_has_type(d));
 
-   d = tree_decl(a, 1);
+   d = tree_decl(a, 7);
    fail_unless(tree_kind(d) == T_ALIAS);
    fail_unless(tree_ident(d) == ident_new("BLAH"));
    fail_unless(tree_kind(tree_value(d)) == T_REF);
    fail_unless(tree_has_type(d));
 
-   d = tree_decl(a, 2);
+   d = tree_decl(a, 8);
    fail_unless(tree_kind(d) == T_ALIAS);
    fail_unless(tree_ident(d) == ident_new("FUNCI"));
    fail_unless(tree_kind(tree_value(d)) == T_REF);
    fail_unless(tree_has_type(d));
    fail_unless(type_kind(tree_type(d)) == T_FUNC);
 
-   d = tree_decl(a, 3);
+   d = tree_decl(a, 9);
    fail_unless(tree_kind(d) == T_ALIAS);
    fail_unless(tree_ident(d) == ident_new("PROCI"));
    fail_unless(tree_kind(tree_value(d)) == T_REF);
@@ -1629,66 +1729,73 @@ START_TEST(test_alias)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_attr)
 {
-   tree_t a, d, s, r;
+   tree_t e, a, d, s, r, v;
 
    input_from_file(TESTDIR "/parse/attr.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 1);
-   fail_unless(tree_decls(a) == 5);
-
-   d = tree_decl(a, 0);
-   fail_unless(tree_kind(d) == T_ATTR_DECL);
-   fail_unless(tree_ident(d) == ident_new("FOO"));
-   fail_unless(type_kind(tree_type(d)) == T_UNRESOLVED);
-   fail_unless(type_ident(tree_type(d)) == ident_new("INTEGER"));
-
-   d = tree_decl(a, 1);
-   fail_unless(tree_kind(d) == T_ATTR_SPEC);
-   fail_unless(tree_ident(d) == ident_new("FOO"));
-   fail_unless(tree_ident2(d) == ident_new("X"));
-   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
-   fail_unless(tree_class(d) == C_SIGNAL);
+   fail_unless(tree_decls(a) == 7);
 
    d = tree_decl(a, 2);
-   fail_unless(tree_kind(d) == T_ATTR_SPEC);
+   fail_unless(tree_kind(d) == T_ATTR_DECL);
    fail_unless(tree_ident(d) == ident_new("FOO"));
-   fail_unless(tree_ident2(d) == ident_new("X"));
-   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
-   fail_unless(tree_class(d) == C_COMPONENT);
+   fail_unless(type_kind(tree_type(d)) == T_INTEGER);
+   fail_unless(type_ident(tree_type(d)) == ident_new("STD.STANDARD.INTEGER"));
 
    d = tree_decl(a, 3);
    fail_unless(tree_kind(d) == T_ATTR_SPEC);
    fail_unless(tree_ident(d) == ident_new("FOO"));
    fail_unless(tree_ident2(d) == ident_new("X"));
    fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
-   fail_unless(tree_class(d) == C_LABEL);
+   fail_unless(tree_class(d) == C_SIGNAL);
 
    d = tree_decl(a, 4);
    fail_unless(tree_kind(d) == T_ATTR_SPEC);
    fail_unless(tree_ident(d) == ident_new("FOO"));
-   fail_unless(tree_ident2(d) == ident_new("X"));
+   fail_unless(tree_ident2(d) == ident_new("C"));
+   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
+   fail_unless(tree_class(d) == C_COMPONENT);
+
+   d = tree_decl(a, 5);
+   fail_unless(tree_kind(d) == T_ATTR_SPEC);
+   fail_unless(tree_ident(d) == ident_new("FOO"));
+   fail_unless(tree_ident2(d) == ident_new("'1'"));
+   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
+   fail_unless(tree_class(d) == C_LITERAL);
+
+   d = tree_decl(a, 6);
+   fail_unless(tree_kind(d) == T_ATTR_SPEC);
+   fail_unless(tree_ident(d) == ident_new("FOO"));
+   fail_unless(tree_ident2(d) == ident_new("INTEGER"));
    fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
    fail_unless(tree_class(d) == C_TYPE);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSERT);
    r = tree_value(s);
-   fail_unless(tree_kind(r) == T_ATTR_REF);
+   fail_unless(tree_kind(r) == T_ARRAY_REF);
    fail_unless(tree_params(r) == 1);
+   v = tree_value(r);
+   fail_unless(tree_kind(v) == T_ATTR_REF);
+   fail_unless(tree_params(v) == 0);
 
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -1701,9 +1808,9 @@ START_TEST(test_procedure)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 1);
 
-   d = tree_decl(p, 0);
+   d = search_decls(p, ident_new("FOO"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_PROC_DECL);
    fail_unless(tree_ports(d) == 2);
    fail_unless(tree_ident(d) == ident_new("FOO"));
@@ -1713,14 +1820,16 @@ START_TEST(test_procedure)
    fail_unless(tree_kind(p) == T_PACK_BODY);
    fail_unless(tree_decls(p) == 4);
 
-   d = tree_decl(p, 0);
+   d = search_decls(p, ident_new("FOO"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_PROC_BODY);
    fail_unless(tree_ports(d) == 2);
    fail_unless(tree_ident(d) == ident_new("FOO"));
    fail_unless(tree_decls(d) == 1);
    fail_unless(tree_stmts(d) == 1);
 
-   d = tree_decl(p, 1);
+   d = search_decls(p, ident_new("BAR"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_PROC_DECL);
    fail_unless(tree_ports(d) == 1);
    fail_unless(tree_ident(d) == ident_new("BAR"));
@@ -1739,15 +1848,19 @@ START_TEST(test_procedure)
    p = parse();
    fail_unless(p == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_ir1045)
 {
-   tree_t a, s, q, v, c;
+   tree_t e, a, s, q, v, c;
 
    input_from_file(TESTDIR "/parse/ir1045.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_unless(tree_kind(a) == T_ARCH);
@@ -1772,7 +1885,7 @@ START_TEST(test_ir1045)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -1782,19 +1895,23 @@ START_TEST(test_concat)
 
    input_from_file(TESTDIR "/parse/concat.vhd");
 
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
    a = parse();
    fail_unless(tree_kind(a) == T_ARCH);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
    e = tree_value(tree_waveform(tree_cond(s, 0), 0));
-   fail_unless(tree_kind(e) == T_CONCAT);
+   fail_unless(tree_kind(e) == T_FCALL);
    fail_unless(tree_params(e) == 2);
 
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -1865,7 +1982,7 @@ START_TEST(test_based)
    p = parse();
    fail_unless(p == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -2100,17 +2217,21 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 11)) == one);
 
    p = parse();
-   fail_unless(p == NULL);
+   fail_if(p == NULL);
 
-   fail_unless(parse_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   check_expected_errors();
 }
 END_TEST
 
 START_TEST(test_block)
 {
-   tree_t a, b;
+   tree_t e, a, b;
 
    input_from_file(TESTDIR "/parse/block.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
@@ -2130,7 +2251,7 @@ START_TEST(test_block)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -2160,15 +2281,19 @@ START_TEST(test_comp)
    p = parse();
    fail_unless(p == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_generate)
 {
-   tree_t a, g;
+   tree_t e, a, g, i;
 
    input_from_file(TESTDIR "/parse/generate.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
@@ -2194,36 +2319,48 @@ START_TEST(test_generate)
 
    g = tree_stmt(a, 2);
    fail_unless(tree_kind(g) == T_FOR_GENERATE);
-   fail_unless(tree_decls(g) == 1);
+   fail_unless(tree_decls(g) == 2);
    fail_unless(tree_stmts(g) == 1);
    fail_unless(icmp(tree_ident(g), "G3"));
-   fail_unless(icmp(tree_ident2(g), "I"));
+
+   i = tree_decl(g, 0);
+   fail_unless(tree_kind(i) == T_GENVAR);
+   fail_unless(icmp(tree_ident(i), "I"));
+   fail_unless(tree_flags(i) & TREE_F_LOOP_VAR);
 
    g = tree_stmt(a, 3);
    fail_unless(tree_kind(g) == T_FOR_GENERATE);
-   fail_unless(tree_decls(g) == 0);
+   fail_unless(tree_decls(g) == 1);
    fail_unless(tree_stmts(g) == 0);
    fail_unless(icmp(tree_ident(g), "G4"));
-   fail_unless(icmp(tree_ident2(g), "I"));
+
+   i = tree_decl(g, 0);
+   fail_unless(tree_kind(i) == T_GENVAR);
+   fail_unless(icmp(tree_ident(i), "I"));
+   fail_unless(tree_flags(i) & TREE_F_LOOP_VAR);
 
    g = tree_stmt(a, 4);
    fail_unless(tree_kind(g) == T_FOR_GENERATE);
-   fail_unless(tree_decls(g) == 0);
+   fail_unless(tree_decls(g) == 1);
    fail_unless(tree_stmts(g) == 0);
    fail_unless(icmp(tree_ident(g), "G5"));
 
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_access)
 {
-   tree_t a, p, s;
+   tree_t e, a, p, s;
 
    input_from_file(TESTDIR "/parse/access.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
@@ -2251,43 +2388,37 @@ START_TEST(test_access)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_spec)
 {
-   tree_t a, d, b;
+   tree_t a, d, b, e, c;
 
    input_from_file(TESTDIR "/parse/spec.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONFIGURATION);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 0);
-   fail_unless(tree_decls(a) == 7);
-
-   d = tree_decl(a, 0);
-   fail_unless(tree_kind(d) == T_SPEC);
-   fail_unless(tree_ident(d) == ident_new("X"));
-   fail_unless(tree_ident2(d) == ident_new("Y"));
-   b = tree_value(d);
-   fail_unless(tree_kind(b) == T_BINDING);
-   fail_unless(tree_class(b) == C_ENTITY);
-   fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
-
-   d = tree_decl(a, 1);
-   fail_unless(tree_kind(d) == T_SPEC);
-   fail_unless(tree_ident(d) == ident_new("X1"));
-   fail_unless(tree_ident2(d) == ident_new("Y"));
-   b = tree_value(d);
-   fail_unless(tree_kind(b) == T_BINDING);
-   fail_unless(tree_class(b) == C_ENTITY);
-   fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
+   fail_unless(tree_stmts(a) == 5);
+   fail_unless(tree_decls(a) == 9);
 
    d = tree_decl(a, 2);
    fail_unless(tree_kind(d) == T_SPEC);
-   fail_unless(tree_ident(d) == ident_new("X2"));
+   fail_unless(tree_ident(d) == ident_new("X"));
    fail_unless(tree_ident2(d) == ident_new("Y"));
    b = tree_value(d);
    fail_unless(tree_kind(b) == T_BINDING);
@@ -2296,7 +2427,25 @@ START_TEST(test_spec)
 
    d = tree_decl(a, 3);
    fail_unless(tree_kind(d) == T_SPEC);
-   fail_unless(tree_ident(d) == ident_new("X"));
+   fail_unless(tree_ident(d) == ident_new("X1"));
+   fail_unless(tree_ident2(d) == ident_new("Y"));
+   b = tree_value(d);
+   fail_unless(tree_kind(b) == T_BINDING);
+   fail_unless(tree_class(b) == C_ENTITY);
+   fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
+
+   d = tree_decl(a, 4);
+   fail_unless(tree_kind(d) == T_SPEC);
+   fail_unless(tree_ident(d) == ident_new("X2"));
+   fail_unless(tree_ident2(d) == ident_new("Y"));
+   b = tree_value(d);
+   fail_unless(tree_kind(b) == T_BINDING);
+   fail_unless(tree_class(b) == C_ENTITY);
+   fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
+
+   d = tree_decl(a, 5);
+   fail_unless(tree_kind(d) == T_SPEC);
+   fail_unless(tree_ident(d) == ident_new("X3"));
    fail_unless(tree_ident2(d) == ident_new("Y"));
    b = tree_value(d);
    fail_unless(tree_kind(b) == T_BINDING);
@@ -2304,9 +2453,9 @@ START_TEST(test_spec)
    fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
    fail_unless(tree_ident2(b) == ident_new("BAR"));
 
-   d = tree_decl(a, 4);
+   d = tree_decl(a, 6);
    fail_unless(tree_kind(d) == T_SPEC);
-   fail_unless(tree_ident(d) == ident_new("X"));
+   fail_unless(tree_ident(d) == ident_new("X4"));
    fail_unless(tree_ident2(d) == ident_new("Y"));
    b = tree_value(d);
    fail_unless(tree_kind(b) == T_BINDING);
@@ -2316,16 +2465,16 @@ START_TEST(test_spec)
    fail_unless(tree_genmaps(b) == 1);
    fail_unless(tree_params(b) == 1);
 
-   d = tree_decl(a, 5);
+   d = tree_decl(a, 7);
    fail_unless(tree_kind(d) == T_SPEC);
    fail_unless(tree_ident(d) == ident_new("all"));
-   fail_unless(tree_ident2(d) == ident_new("Y"));
+   fail_unless(tree_ident2(d) == ident_new("P"));
    b = tree_value(d);
    fail_unless(tree_kind(b) == T_BINDING);
    fail_unless(tree_class(b) == C_CONFIGURATION);
-   fail_unless(tree_ident(b) == ident_new("YAH"));
+   fail_unless(tree_ident(b) == ident_new("WORK.YAH"));
 
-   d = tree_decl(a, 6);
+   d = tree_decl(a, 8);
    fail_unless(tree_kind(d) == T_SPEC);
    fail_if(tree_has_ident(d));
    fail_unless(tree_ident2(d) == ident_new("Y"));
@@ -2334,7 +2483,7 @@ START_TEST(test_spec)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -2345,27 +2494,31 @@ START_TEST(test_loc)
 
    input_from_file(TESTDIR "/parse/loc.vhd");
 
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
    a = parse();
    fail_if(a == NULL);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CPCALL);
    l = tree_loc(s);
-   fail_unless(l->first_line == 3);
+   fail_unless(l->first_line == 7);
    fail_unless(l->line_delta == 0);
    fail_unless(l->first_column == 4);
    fail_unless(l->column_delta == 14);
 
    p = tree_param(s, 0);
    l = tree_loc(p);
-   fail_unless(l->first_line == 3);
+   fail_unless(l->first_line == 7);
    fail_unless(l->line_delta == 0);
    fail_unless(l->first_column == 6);
    fail_unless(l->column_delta == 0);
 
    p = tree_param(s, 2);
    l = tree_loc(p);
-   fail_unless(l->first_line == 3);
+   fail_unless(l->first_line == 7);
    fail_unless(l->line_delta == 0);
    fail_unless(l->first_column == 12);
    fail_unless(l->column_delta == 4);
@@ -2373,23 +2526,23 @@ START_TEST(test_loc)
    s = tree_stmt(a, 1);
    fail_unless(tree_kind(s) == T_CASSERT);
    l = tree_loc(s);
-   fail_unless(l->first_line == 4);
+   fail_unless(l->first_line == 8);
    fail_unless(l->line_delta == 0);
    fail_unless(l->first_column == 4);
-   fail_unless(l->column_delta == 13);
+   fail_unless(l->column_delta == 15);
 
    e = tree_value(s);
    fail_unless(tree_kind(e) == T_ATTR_REF);
    l = tree_loc(e);
-   fail_unless(l->first_line == 4);
+   fail_unless(l->first_line == 8);
    fail_unless(l->line_delta == 0);
    fail_unless(l->first_column == 11);
-   fail_unless(l->column_delta == 5);
+   fail_unless(l->column_delta == 7);
 
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -2399,11 +2552,18 @@ START_TEST(test_expr)
 
    input_from_file(TESTDIR "/parse/expr.vhd");
 
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 1);
-   fail_unless(tree_decls(a) == 0);
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
@@ -2457,47 +2617,72 @@ START_TEST(test_expr)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_error)
 {
-   tree_t a;
+   tree_t e, a;
 
    input_from_file(TESTDIR "/parse/error.vhd");
 
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
    const error_t expect[] = {
-      {  4, "unexpected identifier while parsing concurrent procedure call "
+      {  7, "unexpected identifier while parsing concurrent procedure call "
          "statement, expecting ;" },
-      {  8, "unexpected identifier while parsing concurrent procedure call "
+      {  7, "no matching subprogram BAD []" },
+      { 11, "unexpected identifier while parsing concurrent procedure call "
          "statement, expecting ;" },
-      { 14, "unexpected ; while parsing process statement, expecting process" },
-      { 20, "expected trailing process statement label to match FOO" },
-      { 24, "trailing label for process statement without label" },
-      { 31, "expected trailing if statement label to match MY_IF" },
-      { 33, "expected trailing subprogram body label to match \"+\"" },
+      { 11, "no matching subprogram SOME []" },
+      { 11, "no matching subprogram BAD []" },
+      { 17, "unexpected ; while parsing process statement, expecting process" },
+      { 23, "expected trailing process statement label to match FOO" },
+      { 27, "trailing label for process statement without label" },
+      { 34, "expected trailing if statement label to match MY_IF" },
+      { 36, "expected trailing subprogram body label to match \"+\"" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    a = parse();
-   fail_unless(a == NULL);
+   fail_if(a == NULL);
 
-   fail_unless(parse_errors() == ARRAY_LEN(expect) - 1);
+   check_expected_errors();
 }
 END_TEST
 
 START_TEST(test_config)
 {
-   tree_t c, s, b;
+   tree_t e, c, s, b;
 
    input_from_file(TESTDIR "/parse/config.vhd");
+
+   const error_t expect[] = {
+      { 15, "no visible declaration for X" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
-   fail_unless(tree_ident(c) == ident_new("CONF"));
+
+   c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONFIGURATION);
+   fail_unless(tree_ident(c) == ident_new("WORK.CONF"));
    fail_unless(tree_ident2(c) == ident_new("ENT"));
    fail_unless(tree_decls(c) == 3);
    fail_unless(tree_kind(tree_decl(c, 0)) == T_USE);
@@ -2516,7 +2701,7 @@ START_TEST(test_config)
    c = parse();
    fail_unless(c == NULL);
 
-   fail_unless(parse_errors() == 0);
+   check_expected_errors();
 }
 END_TEST
 
@@ -2532,11 +2717,10 @@ START_TEST(test_protected)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 2);
 
-   d = tree_decl(p, 0);
+   d = search_decls(p, ident_new("SHAREDCOUNTER"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("SHAREDCOUNTER"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_PROTECTED);
    fail_unless(type_decls(t) == 3);
@@ -2544,16 +2728,25 @@ START_TEST(test_protected)
    s = type_decl(t, 0);
    fail_unless(tree_kind(s) == T_PROC_DECL);
    fail_unless(tree_ident(s) == ident_new("INCREMENT"));
+   fail_unless(tree_flags(s) & TREE_F_PROTECTED);
 
-   d = tree_decl(p, 1);
+   d = search_decls(p, ident_new("SHAREDCOUNTER"), 1);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_PROT_BODY);
-   fail_unless(tree_ident(d) == ident_new("SHAREDCOUNTER"));
-   fail_unless(tree_decls(d) == 4);
+   fail_unless(tree_decls(d) == 5);
+
+   d = search_decls(d, ident_new("ADD10"), 0);
+   fail_if(d == NULL);
+   fail_unless(tree_kind(d) == T_PROC_BODY);
+   fail_unless(tree_flags(d) & TREE_F_PROTECTED);
+
+   s = tree_stmt(d, 0);
+   fail_unless(tree_kind(s) == T_PROT_PCALL);
 
    p = parse();
    fail_unless(p == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -2584,7 +2777,7 @@ START_TEST(test_issue205)
    fail_unless(tree_ident(tree_char(s, 1)) == ident_new("'\"'"));
 
    fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -2595,30 +2788,45 @@ START_TEST(test_context)
    input_from_file(TESTDIR "/parse/context.vhd");
 
    const error_t expect[] = {
-      { 13, "context clause preceeding context declaration must be empty" },
+      { 19, "context clause preceeding context declaration must be empty" },
       { -1, NULL }
    };
    expect_errors(expect);
 
+   lib_t widget_lib = lib_tmp("widget_lib");
+   lib_set_work(widget_lib);
+
+   tree_t p1 = parse();
+   fail_if(p1 == NULL);
+   fail_unless(tree_kind(p1) == T_PACKAGE);
+
+   tree_t p2 = parse();
+   fail_if(p2 == NULL);
+   fail_unless(tree_kind(p2) == T_PACKAGE);
+
    tree_t c1 = parse();
    fail_if(c1 == NULL);
    fail_unless(tree_kind(c1) == T_CONTEXT);
-   fail_unless(tree_ident(c1) == ident_new("WIDGET_CONTEXT"));
-   fail_unless(tree_contexts(c1) == 7);
-   fail_unless(tree_kind(tree_context(c1, 2)) == T_LIBRARY);
+   fail_unless(tree_ident(c1) == ident_new("WIDGET_LIB.WIDGET_CONTEXT"));
+   fail_unless(tree_contexts(c1) == 5);
+   fail_unless(tree_kind(tree_context(c1, 3)) == T_USE);
+
+   lib_t project = lib_tmp("project");
+   lib_set_work(project);
 
    tree_t c2 = parse();
    fail_if(c2 == NULL);
    fail_unless(tree_kind(c2) == T_CONTEXT);
-   fail_unless(tree_ident(c2) == ident_new("DONGLE_CONTEXT"));
-   fail_unless(tree_contexts(c2) == 4);
+   fail_unless(tree_ident(c2) == ident_new("PROJECT.DONGLE_CONTEXT"));
+   fail_unless(tree_contexts(c2) == 5);
 
-   tree_t r = tree_context(c2, 3);
+   tree_t r = tree_context(c2, 4);
    fail_unless(tree_kind(r) == T_CTXREF);
    fail_unless(tree_ident(r) == ident_new("WIDGET_LIB.WIDGET_CONTEXT"));
 
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == ARRAY_LEN(expect) - 1);
+   fail_if(parse() == NULL);
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -2640,13 +2848,17 @@ START_TEST(test_issue222)
       (void)parse();
 
    fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == ARRAY_LEN(expect) - 1);
+   check_expected_errors();
 }
 END_TEST
 
 START_TEST(test_guarded)
 {
    input_from_file(TESTDIR "/parse/guarded.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -2662,7 +2874,7 @@ START_TEST(test_guarded)
    fail_unless(tree_flags(s1) & TREE_F_GUARDED);
 
    fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -2684,14 +2896,12 @@ START_TEST(test_cond1)
    tree_t p = parse();
    fail_if(p == NULL);
 
-   fail_unless(parse_errors() == 0);
-
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_decls(p) == 1);
    fail_unless(tree_ident(tree_decl(p, 0)) == ident_new("C"));
 
-   fail_if(parse() != NULL);
-   fail_unless(parse_errors() == 2);
+   fail_unless(parse() != NULL);
+   check_expected_errors();
 }
 END_TEST
 
@@ -2709,9 +2919,9 @@ START_TEST(test_issue360)
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
 
-   fail_if(parse() != NULL);
+   fail_unless(parse() != NULL);
 
-   fail_unless(parse_errors() == 1);
+   check_expected_errors();
 }
 END_TEST
 
@@ -2747,7 +2957,7 @@ START_TEST(test_issue367)
 
    fail_if(parse() != NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST
 
@@ -2765,7 +2975,8 @@ START_TEST(test_issue369)
 
    tree_t p = tree_stmt(a, 0);
 
-   tree_t aspec = tree_decl(p, 3);
+   tree_t aspec = search_decls(p, ident_new("A"), 1);
+   fail_if(aspec == NULL);
    fail_unless(tree_kind(aspec) == T_ATTR_SPEC);
    fail_unless(tree_class(aspec) == C_LITERAL);
 
@@ -2781,13 +2992,17 @@ START_TEST(test_issue369)
 
    fail_if(parse() != NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST;
 
 START_TEST(test_vests1)
 {
    input_from_file(TESTDIR "/parse/vests1.vhd");
+
+   tree_t c0 = parse();
+   fail_if(c0 == NULL);
+   fail_unless(tree_kind(c0) == T_CONFIGURATION);
 
    tree_t c = parse();
    fail_if(c == NULL);
@@ -2809,7 +3024,7 @@ START_TEST(test_vests1)
 
    fail_if(parse() != NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST;
 
@@ -2830,7 +3045,7 @@ START_TEST(test_synth)
 
    fail_if(parse() != NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 #endif
 }
 END_TEST;
@@ -2841,13 +3056,17 @@ START_TEST(test_pragma)
 
    input_from_file(TESTDIR "/parse/pragma.vhd");
 
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
    tree_t a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
 
-   ck_assert_int_eq(3, tree_contexts(a));
-   ck_assert_int_eq(T_PRAGMA, tree_kind(tree_context(a, 2)));
-   ck_assert_str_eq("-- tracing_on foo bar", tree_text(tree_context(a, 2)));
+   ck_assert_int_eq(4, tree_contexts(a));
+   ck_assert_int_eq(T_PRAGMA, tree_kind(tree_context(a, 3)));
+   ck_assert_str_eq("-- tracing_on foo bar", tree_text(tree_context(a, 3)));
 
    tree_t p = tree_stmt(a, 0);
    ck_assert_int_eq(T_PRAGMA, tree_kind(tree_stmt(p, 0)));
@@ -2859,7 +3078,7 @@ START_TEST(test_pragma)
 
    fail_if(parse() != NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_if_errors();
 }
 END_TEST;
 
@@ -2868,18 +3087,156 @@ START_TEST(test_issue388)
    input_from_file(TESTDIR "/parse/issue388.vhd");
 
    const error_t expect[] = {
-      {  6, "unexpected => while parsing slice name, expecting one of" },
-      {  7, "unexpected => while parsing concurrent statement" },
+      { 11, "unexpected => while parsing slice name, expecting one of" },
+      { 12, "unexpected => while parsing concurrent procedure call" },
+      { 12, "no matching subprogram Q []" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   tree_t p = parse();
-   fail_unless(p == NULL);
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
-   fail_unless(parse_errors() == 2);
+   tree_t p = parse();
+   fail_if(p == NULL);
+
+   check_expected_errors();
 }
 END_TEST
+
+START_TEST(test_names)
+{
+   input_from_file(TESTDIR "/parse/names.vhd");
+
+   const error_t expect[] = {
+      {  14, "FUNC4 [INTEGER return INTEGER] already declared" },
+      {  13, "previous declaration of FUNC4 [INTEGER return INTEGER]" },
+      {  42, "ambiguous use of enumeration literal '1'" },
+      {   9, "visible declaration of '1' as BIT" },
+      {  19, "visible declaration of '1' as CHARACTER" },
+      {  46, "no possible overload of FUNC5 has formal Z" },
+      {  16, "subprogram FUNC5 [CHARACTER return INTEGER] has argument X" },
+      {  17, "subprogram FUNC5 [BIT return INTEGER] has argument Y" },
+      {  46, "ambiguous use of enumeration literal '1'" },
+      {   9, "visible declaration of '1' as BIT" },
+      {  19, "visible declaration of '1' as CHARACTER" },
+      {  47, "type of string literal cannot be determined from context" },
+      {  50, "type of aggregate is ambiguous (BIT_VECTOR, BOOL_VECTOR)" },
+      {  51, "type of aggregate is ambiguous (BIT_VECTOR, BOOL_VECTOR)" },
+      {  54, "ambiguous call to function FUNC7" },
+      {  26, "candidate FUNC7 [INTEGER return INTEGER]" },
+      {  27, "candidate FUNC7 [MY_INT return INTEGER]" },
+      {  56, "type of string literal is ambiguous (BIT_VECTOR, STRING)" },
+      {  69, "PROC4 [INTEGER] already declared in this region" },
+      {  68, "previous declaration of PROC4 [INTEGER] was here" },
+      {  84, "PROC8 already declared in this region" },
+      {  80, "previous declaration of PROC8 was here" },
+      {  92, "ambiguous use of enumeration literal '1'" },
+      {   9, "visible declaration of '1' as BIT" },
+      {  19, "visible declaration of '1' as CHARACTER" },
+      {  96, "no possible overload of PROC5 has formal Z" },
+      {  71, "subprogram PROC5 [CHARACTER] has argument X" },
+      {  72, "subprogram PROC5 [BIT] has argument Y" },
+      {  96, "ambiguous use of enumeration literal '1'" },
+      {   9, "visible declaration of '1' as BIT" },
+      {  19, "visible declaration of '1' as CHARACTER" },
+      {  97, "type of string literal cannot be determined from context" },
+      { 100, "type of aggregate is ambiguous (BIT_VECTOR, BOOL_VECTOR)" },
+      { 101, "type of aggregate is ambiguous (BIT_VECTOR, BOOL_VECTOR)" },
+      { 104, "ambiguous call to procedure PROC7" },
+      {  77, "candidate PROC7 [INTEGER]" },
+      {  78, "candidate PROC7 [MY_INT]" },
+      { 106, "type of string literal is ambiguous (BIT_VECTOR, STRING)" },
+      { 107, "invalid procedure call statement" },
+      { 108, "no matching subprogram FOO [universal_integer, universal" },
+      {  -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   type_t std_int = std_type(NULL, "INTEGER");
+
+   tree_t p = tree_stmt(a, 0);
+   tree_t s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_VAR_ASSIGN);
+   tree_t t = tree_value(s);
+   fail_unless(tree_kind(t) == T_FCALL);
+   fail_unless(type_eq(tree_type(t), std_int));
+   tree_t d = tree_ref(t);
+   fail_unless(tree_loc(d)->first_line == 5);
+   t = tree_value(tree_param(t, 0));
+   fail_unless(tree_kind(t) == T_LITERAL);
+   fail_unless(type_eq(tree_type(t), type_universal_int()));
+
+   p = tree_stmt(a, 4);
+   d = search_decls(p, ident_new("TABLE"), 0);
+   fail_if(d == NULL);
+   fail_unless(tree_kind(d) == T_CONST_DECL);
+   tree_t v = tree_value(d);
+   fail_unless(tree_kind(v) == T_AGGREGATE);
+   fail_unless(tree_assocs(v) == 2);
+   tree_t a0 = tree_assoc(v, 0);
+   fail_unless(tree_subkind(a0) == A_NAMED);
+   tree_t n0 = tree_name(a0);
+   fail_unless(tree_kind(n0) == T_REF);
+   fail_unless(tree_ident(n0) == ident_new("'0'"));
+   fail_unless(type_ident(tree_type(n0)) == ident_new("STD.STANDARD.BIT"));
+
+   tree_t b = tree_stmt(a, 7);
+   fail_unless(tree_kind(b) == T_BLOCK);
+   d = tree_decl(b, 0);
+   fail_unless(tree_kind(d) == T_FUNC_DECL);
+   fail_unless(tree_ident2(d) == ident_new("_get_foo"));
+
+   p = tree_stmt(a, 8);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_ASSERT);
+   v = tree_value(s);
+   fail_unless(tree_kind(v) == T_FCALL);
+   fail_unless(tree_ident(v) == ident_new("\"<\""));
+   d = tree_ref(v);
+   fail_unless(tree_kind(d) == T_FUNC_BODY);
+   fail_if(tree_flags(d) & TREE_F_PREDEFINED);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_implicit)
+{
+   opt_set_int("missing-body", 1);
+   input_from_file(TESTDIR "/parse/names.vhd");
+
+   fail_if_errors();
+}
+
+START_TEST(test_error2)
+{
+   input_from_file(TESTDIR "/parse/error2.vhd");
+
+   const error_t expect[] = {
+      {  1, "cannot find unit WORK.DUNNO" },
+      {  2, "no visible declaration for BAR" },
+      {  5, "no visible declaration for SDFF" },
+      { 10, "no visible declaration for SGHBBX" },
+      { 17, "cannot find unit STD.NOTHERE" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse();
+
+   check_expected_errors();
+}
 
 Suite *get_parse_tests(void)
 {
@@ -2930,6 +3287,9 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_synth);
    tcase_add_test(tc_core, test_pragma);
    tcase_add_test(tc_core, test_issue388);
+   tcase_add_test(tc_core, test_names);
+   tcase_add_test(tc_core, test_implicit);
+   tcase_add_test(tc_core, test_error2);
    suite_add_tcase(s, tc_core);
 
    return s;

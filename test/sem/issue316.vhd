@@ -1,5 +1,13 @@
-library ieee;
-use ieee.std_logic_1164.all;
+package my_logic is
+    type std_logic is ('0', '1');
+    type std_logic_vector is array (natural range <>) of std_logic;
+    type unsigned is array (natural range <>) of std_logic;
+    type signed is array (natural range <>) of std_logic;
+
+    function to_integer(x : unsigned) return integer;
+end package;
+
+use work.my_logic.all;
 
 entity test is
   port (

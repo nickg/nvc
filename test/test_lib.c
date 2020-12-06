@@ -107,7 +107,7 @@ START_TEST(test_lib_save)
 {
    {
       tree_t ent = tree_new(T_ENTITY);
-      tree_set_ident(ent, ident_new("name"));
+      tree_set_ident(ent, ident_new("TEST_LIB.name"));
 
       tree_add_attr_str(ent, ident_new("attr"), ident_new("test string"));
 
@@ -136,7 +136,7 @@ START_TEST(test_lib_save)
       tree_add_port(ent, p2);
 
       tree_t ar = tree_new(T_ARCH);
-      tree_set_ident(ar, ident_new("arch"));
+      tree_set_ident(ar, ident_new("TEST_LIB.arch"));
       tree_set_ident2(ar, ident_new("foo"));
 
       tree_t pr = tree_new(T_PROCESS);
@@ -194,10 +194,10 @@ START_TEST(test_lib_save)
    fail_if(work == NULL);
 
    {
-      tree_t ent = lib_get(work, ident_new("name"));
+      tree_t ent = lib_get(work, ident_new("TEST_LIB.name"));
       fail_if(ent == NULL);
       fail_unless(tree_kind(ent) == T_ENTITY);
-      fail_unless(tree_ident(ent) == ident_new("name"));
+      fail_unless(tree_ident(ent) == ident_new("TEST_LIB.name"));
       fail_unless(tree_ports(ent) == 2);
 
       ident_t attr = tree_attr_str(ent, ident_new("attr"));
@@ -226,9 +226,9 @@ START_TEST(test_lib_save)
       fail_unless(tree_ident(b) == ident_new("b"));
       fail_unless(tree_type(b) == e);
 
-      tree_t ar = lib_get(work, ident_new("arch"));
+      tree_t ar = lib_get(work, ident_new("TEST_LIB.arch"));
       fail_if(ar == NULL);
-      fail_unless(tree_ident(ar) == ident_new("arch"));
+      fail_unless(tree_ident(ar) == ident_new("TEST_LIB.arch"));
       fail_unless(tree_ident2(ar) == ident_new("foo"));
 
       tree_t pr = tree_stmt(ar, 0);

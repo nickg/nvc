@@ -32,20 +32,20 @@ typedef struct clist clist_t;
 typedef struct trie  trie_t;
 
 struct clist {
-   char     value;
-   trie_t  *down;
-   clist_t *left;
-   clist_t *right;
+   unsigned char  value;
+   trie_t        *down;
+   clist_t       *left;
+   clist_t       *right;
 };
 
 struct trie {
-   char      value;
-   uint16_t  write_gen;
-   uint16_t  depth;
-   uint32_t  write_index;
-   trie_t   *up;
-   clist_t  *list;
-   trie_t   *map[0];
+   unsigned char  value;
+   uint16_t       write_gen;
+   uint16_t       depth;
+   uint32_t       write_index;
+   trie_t        *up;
+   clist_t       *list;
+   trie_t        *map[0];
 };
 
 struct ident_rd_ctx {
@@ -56,9 +56,11 @@ struct ident_rd_ctx {
 };
 
 struct ident_wr_ctx {
-   fbuf_t   *file;
-   uint32_t  next_index;
-   uint16_t  generation;
+   fbuf_t        *file;
+   uint32_t       next_index;
+   uint16_t       generation;
+   unsigned char *scratch;
+   size_t         scratch_size;
 };
 
 typedef struct {
@@ -192,12 +194,30 @@ const char *istr(ident_t ident)
    if (ident == NULL)
       return NULL;
 
+#if 1
    char *p = get_fmt_buf(ident->depth) + ident->depth - 1;
    *p = '\0';
 
    trie_t *it;
    for (it = ident; it->value != '\0'; it = it->up)
-      *(--p) = it->value;
+      *(--p) = it->value < 128 ? it->value : '?';
+#else
+   char *p = get_fmt_buf(ident->depth * 5) + ident->depth * 5 - 1;
+   *p = '\0';
+
+   trie_t *it;
+   for (it = ident; it->value != '\0'; it = it->up) {
+      if (it->value < 128)
+         *(--p) = it->value;
+      else {
+         *(--p) = '0' + (it->value & 7);
+         *(--p) = '0' + ((it->value >> 3) & 7);
+         *(--p) = '0' + ((it->value >> 6) & 7);
+         *(--p) = '0';
+         *(--p) = '\\';
+      }
+   }
+#endif
 
    return p;
 }
@@ -207,16 +227,18 @@ ident_wr_ctx_t ident_write_begin(fbuf_t *f)
    static uint16_t ident_wr_gen = 1;
    assert(ident_wr_gen > 0);
 
-   struct ident_wr_ctx *ctx = xmalloc(sizeof(struct ident_wr_ctx));
-   ctx->file       = f;
-   ctx->generation = ident_wr_gen++;
-   ctx->next_index = 0;
+   struct ident_wr_ctx *ctx = xcalloc(sizeof(struct ident_wr_ctx));
+   ctx->file         = f;
+   ctx->generation   = ident_wr_gen++;
+   ctx->scratch_size = 100;
+   ctx->scratch      = xmalloc(ctx->scratch_size);
 
    return ctx;
 }
 
 void ident_write_end(ident_wr_ctx_t ctx)
 {
+   free(ctx->scratch);
    free(ctx);
 }
 
@@ -230,7 +252,20 @@ void ident_write(ident_t ident, ident_wr_ctx_t ctx)
       write_u32(ident->write_index, ctx->file);
    else {
       write_u32(UINT32_MAX, ctx->file);
-      write_raw(istr(ident), ident->depth, ctx->file);
+
+      if (ident->depth > ctx->scratch_size) {
+         ctx->scratch_size = next_power_of_2(ident->depth);
+         ctx->scratch = xrealloc(ctx->scratch, ctx->scratch_size);
+      }
+
+      unsigned char *p = ctx->scratch + ident->depth - 1;
+      *p = '\0';
+
+      trie_t *it;
+      for (it = ident; it->value != '\0'; it = it->up)
+         *(--p) = it->value;
+
+      write_raw(ctx->scratch, ident->depth, ctx->file);
 
       ident->write_gen   = ctx->generation;
       ident->write_index = ctx->next_index++;
