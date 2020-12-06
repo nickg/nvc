@@ -143,7 +143,8 @@ static void dump_expr(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_FCALL:
-      printf("%s", istr(tree_ident(tree_ref(t))));
+      printf("%s", istr(tree_has_ref(t)
+                        ? tree_ident(tree_ref(t)) : tree_ident(t)));
       dump_params(t, tree_param, tree_params(t), NULL);
       break;
 
@@ -424,6 +425,10 @@ static void dump_decl(tree_t t, int indent)
       syntax("#constant %s : ", istr(tree_ident(t)));
       break;
 
+   case T_FIELD_DECL:
+      syntax("%s : ", istr(tree_ident(t)));
+      break;
+
    case T_TYPE_DECL:
       {
          type_t type = tree_type(t);
@@ -436,11 +441,11 @@ static void dump_decl(tree_t t, int indent)
             printf("%s ", istr(type_ident(type_base(type))));
          }
 
-         if (type_is_integer(type) || type_is_real(type)) {
+         if ((type_is_integer(type) || type_is_real(type)) && !is_subtype) {
             syntax("#range ");
             dump_range(type_dim(type, 0));
          }
-         else if (type_is_physical(type)) {
+         else if (type_is_physical(type) && !is_subtype) {
             syntax("#range ");
             dump_range(type_dim(type, 0));
             printf("\n");
@@ -499,6 +504,14 @@ static void dump_decl(tree_t t, int indent)
             tab(indent);
             syntax("#end #protected");
          }
+         else if (type_is_record(type)) {
+            syntax("#record\n");
+            const int nfields = type_fields(type);
+            for (int i = 0; i < nfields; i++)
+               dump_decl(type_field(type, i), indent + 2);
+            tab(indent);
+            syntax("#end #record");
+         }
          else if (kind == T_ENUM) {
             printf("(");
             for (unsigned i = 0; i < type_enum_literals(type); i++) {
@@ -529,6 +542,10 @@ static void dump_decl(tree_t t, int indent)
       dump_decls(t, indent + 2);
       tab(indent);
       syntax("#end #for;\n");
+      return;
+
+   case T_ENUM_LIT:
+      printf("%s", istr(tree_ident(t)));
       return;
 
    case T_ALIAS:
@@ -654,7 +671,7 @@ static void dump_decl(tree_t t, int indent)
 
    dump_type(tree_type(t));
 
-   if (tree_has_value(t)) {
+   if (tree_kind(t) != T_FIELD_DECL && tree_has_value(t)) {
       printf(" := ");
       dump_expr(tree_value(t));
    }
@@ -1114,7 +1131,16 @@ void dump(tree_t t)
    case T_CONST_DECL:
    case T_VAR_DECL:
    case T_SIGNAL_DECL:
+   case T_TYPE_DECL:
+   case T_FIELD_DECL:
+   case T_FUNC_DECL:
+   case T_ATTR_DECL:
+   case T_ATTR_SPEC:
+   case T_ENUM_LIT:
       dump_decl(t, 0);
+      break;
+   case T_PORT_DECL:
+      dump_port(t, 0);
       break;
    default:
       cannot_dump(t, "tree");
