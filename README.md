@@ -1,7 +1,7 @@
 ### Synopsis
 
-[![Build Status](https://travis-ci.org/nickg/nvc.svg?branch=master)](https://travis-ci.org/nickg/nvc)
-[![Windows status](https://ci.appveyor.com/api/projects/status/7eo8mjn98misbhva/branch/master?svg=true)](https://ci.appveyor.com/project/nickg72247/nvc/branch/master)
+[![Build
+Status](https://github.com/nickg/nvc/workflows/Build%20and%20test/badge.svg?branch=master)](https://github.com/nickg/nvc/actions)
 [![Coverage Status](https://coveralls.io/repos/github/nickg/nvc/badge.svg?branch=master)](https://coveralls.io/github/nickg/nvc?branch=master)
 
 NVC is a GPLv3 VHDL compiler and simulator aiming for IEEE 1076-2002 compliance. See
@@ -89,10 +89,10 @@ Windows support is via MinGW or [Cygwin](http://www.cygwin.com/).
 
 If you do not already have Cygwin it is easiest to build for MinGW using
 [MSYS2](https://msys2.github.io/). Install the following dependencies using
-`pacman`. For 64-bit MSYS2 replace `i686` below with `x86_64`.
+`pacman`.
 
-    pacman -S base-devel mingw-w64-i686-{llvm,ncurses,libffi,check,pkg-config}
-    export PATH=/mingw32/bin:$PATH     # Or mingw64 for 64-bit
+    pacman -S base-devel mingw-w64-x86_64-{llvm,ncurses,libffi,check,pkg-config}
+    export PATH=/mingw64/bin:$PATH
     mkdir build && cd build
     ../configure
     make install
