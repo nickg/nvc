@@ -53,9 +53,13 @@ cov-reset:
 	find $(top_builddir) -name '*.gcda' -exec rm {} \;
 	lcov --directory $(build) --zerocounters
 
-cov-report:
+cov-generate:
 	mkdir -p $(covdir)
-	lcov --directory $(build) --capture --output-file $(covdir)/nvc.info
+	lcov --directory $(build) --capture --output-file $(covdir)/nvc.raw.info
+	lcov --output-file $(covdir)/nvc.info --remove $(covdir)/nvc.raw.info \
+	  '/usr/*' '*/lexer.c'
+
+cov-report: cov-generate
 	genhtml -o $(covdir) $(covdir)/nvc.info
 	-x-www-browser $(covdir)/index.html
 

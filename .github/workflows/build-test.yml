@@ -1,0 +1,80 @@
+name: Build and test
+
+on: [push, pull_request]
+
+jobs:
+  build-ubuntu:
+    name: Ubuntu 18.04
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: Install dependencies
+        run: sudo apt-get install automake flex llvm-dev check lcov
+      - name: Generate configure script
+        run: ./autogen.sh
+      - name: Configure
+        run: ./configure --enable-gcov --enable-vhpi --with-llvm=/usr/bin/llvm-config
+      - name: Build
+        run: make
+      - name: Test
+        run: make check
+      - name: Coverage report
+        run: make cov-generate
+      - name: Coveralls
+        uses: coverallsapp/github-action@master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: ./coverage/nvc.info
+
+  build-mac:
+    name: Mac OS X
+    runs-on: macos-10.15
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: Install dependencies
+        run: brew install llvm check automake
+      - name: Generate configure script
+        run: ./autogen.sh
+      - name: Configure
+        run: ./configure --enable-vhpi --with-llvm=$(brew --prefix llvm)/bin/llvm-config
+      - name: Build
+        run: make
+      - name: Test
+        run: make check
+
+  build-windows:
+    name: Windows MSYS2
+    runs-on: windows-2019
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            base-devel
+            mingw-w64-x86_64-llvm
+            mingw-w64-x86_64-check
+            mingw-w64-x86_64-ncurses
+            mingw-w64-x86_64-libffi
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-gcc
+            unzip
+            git
+      - name: Generate configure script
+        run: bash autogen.sh
+      - name: Configure
+        run: bash configure --enable-vhpi
+      - name: Build
+        run: make
+      # Disabled due to test_parse errors on Windows
+      #- name: Test
+      #  run: make check

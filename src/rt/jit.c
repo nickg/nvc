@@ -20,6 +20,7 @@
 #include "lib.h"
 #include "tree.h"
 #include "common.h"
+#include "array.h"
 
 #include <assert.h>
 #include <limits.h>
