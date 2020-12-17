@@ -457,6 +457,22 @@ bool icmp(ident_t i, const char *s)
       return result == i;
 }
 
+int ident_compare(ident_t a, ident_t b)
+{
+   if (a->up == b->up)
+      return a->value - b->value;
+   else if (a->depth > b->depth) {
+      int cmp = ident_compare(a->up, b);
+      return cmp == 0 ? a->value : cmp;
+   }
+   else if (b->depth > a->depth) {
+      int cmp = ident_compare(a, b->up);
+      return cmp == 0 ? 0 - b->value : cmp;
+   }
+   else
+      return ident_compare(a->up, b->up);
+}
+
 static bool ident_glob_walk(const trie_t *i, const char *g,
                             const char *const end)
 {

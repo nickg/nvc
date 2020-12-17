@@ -122,16 +122,10 @@ static void eval_load_vcode(lib_t lib, tree_t unit, eval_flags_t flags)
    if (flags & EVAL_VERBOSE)
       notef("loading vcode for %s", istr(unit_name));
 
-   char *name LOCAL = vcode_file_name(unit_name);
-   fbuf_t *f = lib_fbuf_open(lib, name, FBUF_IN);
-   if (f == NULL) {
+   if (!lib_load_vcode(lib, unit_name)) {
       if (flags & EVAL_WARN)
          warnf("cannot load vcode for %s", istr(unit_name));
-      return;
    }
-
-   vcode_read(f);
-   fbuf_close(f);
 }
 
 static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)

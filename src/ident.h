@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -65,6 +65,9 @@ ident_t ident_from(ident_t i, char c);
 
 // Compare identifier against a NULL-terminated string
 bool icmp(ident_t i, const char *s);
+
+// Compare two identifiers for lexical ordering
+int ident_compare(ident_t a, ident_t b);
 
 // Compare identifier against a pattern containing wildcards
 // Length is optional and may be set to -1 but improves performance

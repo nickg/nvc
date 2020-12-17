@@ -188,10 +188,7 @@ static int analyse(int argc, char **argv)
          || (kind == T_PACKAGE && pack_needs_cgen(units.items[i]));
       if (need_cgen) {
          vcode_unit_t vu = lower_unit(units.items[i]);
-         char *name LOCAL = vcode_file_name(tree_ident(units.items[i]));
-         fbuf_t *fbuf = lib_fbuf_open(lib_work(), name, FBUF_OUT);
-         vcode_write(vu, fbuf);
-         fbuf_close(fbuf);
+         lib_save_vcode(lib_work(), vu, tree_ident(units.items[i]));
          cgen(units.items[i], vu);
       }
    }

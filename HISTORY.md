@@ -1,4 +1,5 @@
 ## master
+- Library build is now reproducible when running `make -j`
 - Fix a constant folding crash with nested records.
 
 ## 1.5 - 2020-07-19
