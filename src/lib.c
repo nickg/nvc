@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2019  Nick Gasson
+//  Copyright (C) 2011-2020  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include "lib.h"
 #include "tree.h"
 #include "common.h"
+#include "vcode.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -61,6 +62,7 @@ struct lib {
    unsigned     units_alloc;
    lib_unit_t  *units;
    lib_index_t *index;
+   lib_mtime_t  index_mtime;
    int          lock_fd;
 };
 
@@ -79,6 +81,7 @@ static lib_list_t    *loaded = NULL;
 static search_path_t *search_paths = NULL;
 
 static const char *lib_file_path(lib_t lib, const char *name);
+static lib_mtime_t lib_stat_mtime(struct stat *st);
 
 static const char *standard_suffix(vhdl_standard_t std)
 {
@@ -112,6 +115,55 @@ static ident_t upcase_name(const char * name)
    return i;
 }
 
+static void lib_add_to_index(lib_t lib, ident_t name, tree_kind_t kind)
+{
+   // Keep the index in sorted order to make library builds reproducible
+   lib_index_t **it;
+   for (it = &(lib->index);
+        *it != NULL && ident_compare((*it)->name, name) < 0;
+        it = &((*it)->next))
+      ;
+
+   if (*it != NULL && (*it)->name == name) {
+      // Already in the index
+      (*it)->kind = kind;
+   }
+   else {
+      lib_index_t *new = xmalloc(sizeof(lib_index_t));
+      new->name = name;
+      new->kind = kind;
+      new->next = *it;
+
+      *it = new;
+   }
+}
+
+static void lib_read_index(lib_t lib)
+{
+   fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_IN);
+   if (f != NULL) {
+      struct stat st;
+      if (stat(fbuf_file_name(f), &st) < 0)
+         fatal_errno("%s", fbuf_file_name(f));
+
+      lib->index_mtime = lib_stat_mtime(&st);
+
+      ident_rd_ctx_t ictx = ident_read_begin(f);
+
+      const int entries = read_u32(f);
+      for (int i = 0; i < entries; i++) {
+         ident_t name = ident_read(ictx);
+         tree_kind_t kind = read_u16(f);
+         assert(kind < T_LAST_TREE_KIND);
+
+         lib_add_to_index(lib, name, kind);
+      }
+
+      ident_read_end(ictx);
+      fbuf_close(f);
+   }
+}
+
 static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
 {
    struct lib *l = xmalloc(sizeof(struct lib));
@@ -139,27 +191,7 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
       file_read_lock(l->lock_fd);
    }
 
-   fbuf_t *f = lib_fbuf_open(l, "_index", FBUF_IN);
-   if (f != NULL) {
-      ident_rd_ctx_t ictx = ident_read_begin(f);
-
-      const int entries = read_u32(f);
-      for (int i = 0; i < entries; i++) {
-         ident_t name = ident_read(ictx);
-         tree_kind_t kind = read_u16(f);
-         assert(kind < T_LAST_TREE_KIND);
-
-         lib_index_t *in = xmalloc(sizeof(lib_index_t));
-         in->name = name;
-         in->kind = kind;
-         in->next = l->index;
-
-         l->index = in;
-      }
-
-      ident_read_end(ictx);
-      fbuf_close(f);
-   }
+   lib_read_index(l);
 
    if (l->lock_fd != -1)
       file_unlock(l->lock_fd);
@@ -213,17 +245,7 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
    where->mtime    = mtime;
    where->kind     = tree_kind(unit);
 
-   lib_index_t *it = lib_find_in_index(lib, name);
-   if (it == NULL) {
-      lib_index_t *new = xmalloc(sizeof(lib_index_t));
-      new->name = name;
-      new->kind = tree_kind(unit);
-      new->next = lib->index;
-
-      lib->index = new;
-   }
-   else
-      it->kind = tree_kind(unit);
+   lib_add_to_index(lib, name, tree_kind(unit));
 
    return where;
 }
@@ -641,6 +663,37 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    return unit;
 }
 
+bool lib_load_vcode(lib_t lib, ident_t unit_name)
+{
+   if (lib->lock_fd != -1)
+      file_read_lock(lib->lock_fd);
+
+   char *name LOCAL = vcode_file_name(unit_name);
+   fbuf_t *f = lib_fbuf_open(lib, name, FBUF_IN);
+   if (f != NULL) {
+      vcode_read(f);
+      fbuf_close(f);
+   }
+
+   if (lib->lock_fd != -1)
+      file_unlock(lib->lock_fd);
+   return f != NULL;
+}
+
+void lib_save_vcode(lib_t lib, vcode_unit_t vu, ident_t unit_name)
+{
+   if (lib->lock_fd != -1)
+      file_write_lock(lib->lock_fd);
+
+   char *name LOCAL = vcode_file_name(unit_name);
+   fbuf_t *fbuf = lib_fbuf_open(lib, name, FBUF_OUT);
+   vcode_write(vu, fbuf);
+   fbuf_close(fbuf);
+
+   if (lib->lock_fd != -1)
+      file_unlock(lib->lock_fd);
+}
+
 lib_mtime_t lib_mtime(lib_t lib, ident_t ident)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
@@ -727,10 +780,15 @@ void lib_save(lib_t lib)
       }
    }
 
-   lib_index_t *it;
-   int index_sz = 0;
-   for (it = lib->index; it != NULL; it = it->next, ++index_sz)
-      ;
+   const char *index_path = lib_file_path(lib, "_index");
+   struct stat st;
+   if (stat(index_path, &st) == 0 && lib_stat_mtime(&st) != lib->index_mtime) {
+      // Library was updated concurrently: re-read the index while we
+      // have the lock
+      lib_read_index(lib);
+   }
+
+   int index_sz = lib_index_size(lib);
 
    fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_OUT);
    if (f == NULL)
@@ -739,7 +797,7 @@ void lib_save(lib_t lib)
    ident_wr_ctx_t ictx = ident_write_begin(f);
 
    write_u32(index_sz, f);
-   for (it = lib->index; it != NULL; it = it->next) {
+   for (lib_index_t *it = lib->index; it != NULL; it = it->next) {
       ident_write(it->name, ictx);
       write_u16(it->kind, f);
    }
@@ -751,15 +809,8 @@ void lib_save(lib_t lib)
 
 int lib_index_kind(lib_t lib, ident_t ident)
 {
-   assert(lib != NULL);
-
-   lib_index_t *it;
-   for (it = lib->index; it != NULL; it = it->next) {
-      if (it->name == ident)
-         return it->kind;
-   }
-
-   return T_LAST_TREE_KIND;
+   lib_index_t *it = lib_find_in_index(lib, ident);
+   return it != NULL ? it->kind : T_LAST_TREE_KIND;
 }
 
 void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context)

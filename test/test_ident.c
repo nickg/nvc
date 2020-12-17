@@ -14,7 +14,7 @@ START_TEST(test_ident_new)
 }
 END_TEST
 
-START_TEST(test_compare)
+START_TEST(test_equality)
 {
    ident_t i1, i2, i3, i4;
 
@@ -284,13 +284,34 @@ START_TEST(test_suffix_until)
 }
 END_TEST
 
+START_TEST(test_compare)
+{
+   ck_assert_int_eq(0, ident_compare(ident_new("a"), ident_new("a")));
+   ck_assert_int_eq(0, ident_compare(ident_new("aaa"), ident_new("aaa")));
+   ck_assert_int_eq('a' - 'b',
+                    ident_compare(ident_new("a"), ident_new("b")));
+   ck_assert_int_eq('a' - 'b',
+                    ident_compare(ident_new("aaa"), ident_new("aab")));
+   ck_assert_int_eq('b' - 'a',
+                    ident_compare(ident_new("aab"), ident_new("aaa")));
+   ck_assert_int_eq(0 - 'a',
+                    ident_compare(ident_new("aa"), ident_new("aaa")));
+   ck_assert_int_eq('a' - 0,
+                    ident_compare(ident_new("aaa"), ident_new("aa")));
+   ck_assert_int_eq('b' - 'a',
+                    ident_compare(ident_new("bab"), ident_new("aba")));
+   ck_assert_int_eq('b' - 'l',
+                    ident_compare(ident_new("abcd"), ident_new("alemnic")));
+}
+END_TEST
+
 Suite *get_ident_tests(void)
 {
    Suite *s = suite_create("ident");
 
    TCase *tc_core = nvc_unit_test();
    tcase_add_test(tc_core, test_ident_new);
-   tcase_add_test(tc_core, test_compare);
+   tcase_add_test(tc_core, test_equality);
    tcase_add_test(tc_core, test_istr);
    tcase_add_test(tc_core, test_rand);
    tcase_add_test(tc_core, test_read_write);
@@ -308,6 +329,7 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_len);
    tcase_add_test(tc_core, test_downcase);
    tcase_add_test(tc_core, test_suffix_until);
+   tcase_add_test(tc_core, test_compare);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -5,6 +5,7 @@
 - Update to latest `pc_from_uncontext.m4` for Apple M1 support.
 - Fix incorrect application of LRM rules for building an equivalent wait
   statement for concurrent statements.
+- Library build is now reproducible when running `make -j` (#409).
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed
