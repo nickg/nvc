@@ -4916,7 +4916,8 @@ static void lower_driver_target(tree_t expr, tree_t proc)
       const int nassocs = tree_assocs(expr);
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(expr, i);
-         assert(tree_subkind(a) == A_POS);
+         if (tree_subkind(a) != A_POS)
+            fatal_at(tree_loc(a), "unsupported target of signal assigment");
 
          lower_driver_target(tree_value(a), proc);
       }
