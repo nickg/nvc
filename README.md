@@ -60,7 +60,7 @@ If a readline-compatible library is installed it will be used to provide
 line editing in the interactive mode.
 
 [GtkWave](http://gtkwave.sourceforge.net/) can be used to view simulation
-waveforms. Version 3.3.79 or later is reqiured for the default FST format.
+waveforms. Version 3.3.79 or later is required for the default FST format.
 
 #### Debian and Ubuntu
 
@@ -68,7 +68,7 @@ On a Debian derivative the following should be sufficient to install all
 required dependencies:
 
     sudo apt-get install build-essential automake autoconf autoconf-archive flex \
-        check llvm-dev pkg-config zlib1g-dev curl
+        check llvm-dev pkg-config zlib1g-dev
 
 #### Mac OS X
 
@@ -99,19 +99,19 @@ If you do not already have Cygwin it is easiest to build for MinGW using
 
 For Cygwin use `setup.exe` to install either `gcc` or `clang` and the following
 dependencies: `automake`, `autoconf`, `pkg-config`, `llvm`, `libllvm-devel`,
-`flex`, `libffi-devel`, `libcurses-devel`, `curl`, and `make`. Then follow the
+`flex`, `libffi-devel`, `libcurses-devel`, and `make`. Then follow the
 standard installation instructions above.
 
 #### OpenBSD
 
 Install the dependencies with `pkg_add`:
 
-    pkg_add -r automake-1.15p0 autoconf-2.69p2 libexecinfo llvm check libexecinfo
+    pkg_add automake autoconf libexecinfo llvm check libexecinfo
 
-Use a modern compiler such as Clang to build, as the system GCC does not support
-many modern language features.
+To configure using the system compiler:
 
-    ./configure --with-llvm=/usr/local/bin/llvm-config CC=clang CXX=clang++
+    ./configure LDFLAGS="-L/usr/local/lib" CC=/usr/bin/cc CXX=/usr/bin/c++ \
+        --with-llvm=/usr/local/bin/llvm-config
 
 Then follow the generic instructions above.
 
