@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2020  Nick Gasson
+//  Copyright (C) 2014-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_TYPE(x)                                                  \
    (x == VCODE_OP_BOUNDS || x == VCODE_OP_ALLOCA  || x == VCODE_OP_COPY \
     || x == VCODE_OP_INDEX_CHECK || x == VCODE_OP_CONST                 \
-    || x == VCODE_OP_CAST || VCODE_OP_CONST_RECORD)
+    || x == VCODE_OP_CAST || x == VCODE_OP_CONST_RECORD)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_RESOLVED_ADDRESS || x == VCODE_OP_VAR_UPREF)
