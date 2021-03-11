@@ -25,7 +25,7 @@ Report bugs using the [GitHub issue tracker](https://github.com/nickg/nvc/issues
 
 ### Installing
 
-NVC is developed on Debian Linux and is regularly tested on OS X and Windows
+NVC is developed on Debian Linux and is regularly tested on macOS and Windows
 under MSYS2. Ports to other systems are welcome.
 
 NVC has both a release branch and a development master branch. The master branch
@@ -67,9 +67,9 @@ required dependencies:
     sudo apt-get install build-essential automake autoconf autoconf-archive flex \
         check llvm-dev pkg-config zlib1g-dev
 
-#### Mac OS X
+#### macOS
 
-The easiest way to install NVC on OS X is with [Homebrew](http://brew.sh/).
+The easiest way to install NVC on macOS is with [Homebrew](http://brew.sh/).
 
     brew install nvc
 
