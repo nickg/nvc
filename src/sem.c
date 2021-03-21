@@ -4226,7 +4226,8 @@ static bool sem_check_fcall(tree_t t)
    tree_t sub = top_scope->subprog;
    if ((sub != NULL) && (tree_kind(sub) == T_FUNC_BODY)) {
       if (!(tree_flags(sub) & TREE_F_IMPURE)
-          && (tree_flags(decl) & TREE_F_IMPURE))
+          && (tree_flags(decl) & TREE_F_IMPURE)
+          && !(relax_rules() & RELAX_IMPURE))
          sem_error(t, "pure function %s cannot call impure function %s",
                    istr(tree_ident(sub)), istr(tree_ident(decl)));
    }

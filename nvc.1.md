@@ -1,6 +1,6 @@
 % NVC(1)
 % Nick Gasson <nick@nickg.me.uk>
-% October 2020
+% March 2021
 
 # NAME
 
@@ -215,6 +215,9 @@ disable certain semantic rule checks.
 
 `pure-files`
 : Pure functions are allowed to declare file objects.
+
+`impure`
+: Pure functions may call impure functions.
 
 # SELECTING SIGNALS
 

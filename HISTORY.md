@@ -1,6 +1,8 @@
 ## master
 - Library build is now reproducible when running `make -j`
 - Fix a constant folding crash with nested records.
+- The `--relax=impure` option allows pure functions to call impure
+  functions.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

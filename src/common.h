@@ -106,6 +106,7 @@ const char *standard_text(vhdl_standard_t s);
 #define RELAX_LOCALLY_STATIC  (1 << 1)
 #define RELAX_UNIVERSAL_BOUND (1 << 2)
 #define RELAX_PURE_FILES      (1 << 3)
+#define RELAX_IMPURE          (1 << 4)
 
 int relax_rules(void);
 void set_relax_rules(int mask);

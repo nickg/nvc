@@ -76,6 +76,8 @@ static unsigned parse_relax(const char *str)
          mask |= RELAX_UNIVERSAL_BOUND;
       else if (strcmp(token, "pure-files") == 0)
          mask |= RELAX_PURE_FILES;
+      else if (strcmp(token, "impure") == 0)
+         mask |= RELAX_IMPURE;
       else
          fatal("invalid relax option '%s'", token);
 
