@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2020  Nick Gasson
+//  Copyright (C) 2013-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -194,8 +194,6 @@ static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level)
                        "impure function call prevents constant folding");
             return false;
          }
-         else if (!eval_have_lowered(tree_ref(t), flags))
-            return false;
 
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
@@ -210,7 +208,9 @@ static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level)
                return false;
          }
 
-         return true;
+         // This can actually lower the function on demand so only call
+         // it if we know all the parameters can be evaluated now
+         return eval_have_lowered(tree_ref(t), flags);
       }
 
    case T_LITERAL:
