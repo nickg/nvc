@@ -585,7 +585,7 @@ static LLVMValueRef cgen_location(int op, cgen_ctx_t *ctx)
    const loc_t *loc = vcode_get_loc(op);
    assert(!loc_invalid_p(loc));
 
-   LLVMValueRef file_name = hash_get(string_pool, loc_file(loc));
+   LLVMValueRef file_name = hash_get(string_pool, loc_file_str(loc));
    if (file_name == NULL) {
       const char *name_str = loc_file_str(loc);
       const size_t len = strlen(name_str);
@@ -597,7 +597,7 @@ static LLVMValueRef cgen_location(int op, cgen_ctx_t *ctx)
       LLVMSetLinkage(file_name, LLVMPrivateLinkage);
       LLVMSetUnnamedAddr(file_name, true);
 
-      hash_put(string_pool, loc_file(loc), file_name);
+      hash_put(string_pool, loc_file_str(loc), file_name);
    }
 
    LLVMTypeRef rt_loc = llvm_rt_loc();

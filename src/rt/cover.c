@@ -57,7 +57,7 @@ typedef struct {
 } cover_line_t;
 
 struct cover_file {
-   ident_t       name;
+   const char   *name;
    cover_line_t *lines;
    unsigned      n_lines;
    unsigned      alloc_lines;
@@ -208,12 +208,12 @@ static cover_file_t *cover_file(const loc_t *loc)
    for (f = files; f != NULL; f = f->next) {
       // Comparing pointers directly here is OK since only one copy
       // of the file name string will be created by tree_read
-      if (f->name == loc_file(loc))
+      if (f->name == loc_file_str(loc))
          return f->valid ? f : NULL;
    }
 
    f = xmalloc(sizeof(cover_file_t));
-   f->name        = loc_file(loc);
+   f->name        = loc_file_str(loc);
    f->n_lines     = 0;
    f->alloc_lines = 1024;
    f->lines       = xmalloc(sizeof(cover_line_t) * f->alloc_lines);
@@ -407,7 +407,7 @@ static void cover_report_line(FILE *fp, cover_line_t *l)
 static const char *cover_file_url(cover_file_t *f)
 {
    static char buf[256];
-   checked_sprintf(buf, sizeof(buf) - 6, "report_%s.html", istr(f->name));
+   checked_sprintf(buf, sizeof(buf) - 6, "report_%s.html", f->name);
    for (char *p = buf; *(p + 5) != '\0'; p++) {
       if (*p == PATH_SEP[0] || *p == '.')
          *p = '_';
@@ -445,7 +445,7 @@ static void cover_html_header(FILE *fp, const char *title, ...)
     fprintf(fp, "<ul class=\"nav\">\n");
     for (cover_file_t *f = files; f != NULL; f = f->next)
       fprintf(fp, "  <li><a href=\"%s\">%s</a></li>\n",
-              cover_file_url(f), istr(f->name));
+              cover_file_url(f), f->name);
     fprintf(fp, "</ul>\n");
     fprintf(fp, "</div>\n");
 

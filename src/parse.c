@@ -5909,7 +5909,7 @@ void input_from_file(const char *file)
 
    read_ptr           = file_start;
    last_was_newline   = true;
-   file_ref           = loc_file_ref(ident_new(file), file_start);
+   file_ref           = loc_file_ref(file, file_start);
    n_row              = 0;
    n_token_next_start = 0;
    translate_on       = true;

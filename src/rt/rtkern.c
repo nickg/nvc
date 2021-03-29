@@ -388,7 +388,7 @@ static void from_rt_loc(const rt_loc_t *rt, loc_t *loc)
    // This function can be expensive: only call it when loc_t is required
    *loc = get_loc(rt->first_line, rt->first_column,
                   rt->last_line, rt->last_column,
-                  loc_file_ref(ident_new(rt->file), NULL));
+                  loc_file_ref(rt->file, NULL));
 }
 
 static void rt_show_trace(void)

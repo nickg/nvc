@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2020  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -51,14 +51,13 @@ STATIC_ASSERT(sizeof(loc_t) == 8);
    })
 
 void fmt_loc(FILE *f, const loc_t *loc);
-ident_t loc_file(const loc_t *loc);
 const char *loc_file_str(const loc_t *loc);
 const char *loc_linebuf(const loc_t *loc);
 loc_t get_loc(unsigned first_line, unsigned first_column,
               unsigned last_line, unsigned last_column,
               loc_file_ref_t file_ref);
 bool loc_invalid_p(const loc_t *loc);
-loc_file_ref_t loc_file_ref(ident_t name, const char *linebuf);
+loc_file_ref_t loc_file_ref(const char *name, const char *linebuf);
 bool loc_eq(const loc_t *a, const loc_t *b);
 
 loc_wr_ctx_t *loc_write_begin(fbuf_t *f);
