@@ -886,7 +886,7 @@ START_TEST(test_func1)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_FCALL, .func = "*__ADD1(I)I", .args = 1 },
+      { VCODE_OP_FCALL, .func = ":func1:add1(I)I", .args = 1 },
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_WAIT, .target = 2 }
    };
@@ -1756,11 +1756,11 @@ START_TEST(test_func5)
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_NETS, .name = ":func5:x" },
-         { VCODE_OP_FCALL, .func = "*ADD_ONE_S(sI)I", .args = 1 },
+         { VCODE_OP_FCALL, .func = ":func5:add_one_s(sI)I", .args = 1 },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
-         { VCODE_OP_FCALL, .func = "*EVENT(sI)B", .args = 1 },
+         { VCODE_OP_FCALL, .func = ":func5:event(sI)B", .args = 1 },
          { VCODE_OP_ASSERT },
          { VCODE_OP_WAIT, .target = 2 }
       };
