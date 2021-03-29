@@ -5,12 +5,11 @@ require 'pathname'
 require 'colorize'
 require 'timeout'
 require 'fileutils'
-require 'getopt/std'
 
 TestDir = Pathname.new(__FILE__).realpath.dirname
 BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
 LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
-VestsDir = "#{TestDir}/vests"
+VestsDir = ARGV[0] || "#{TestDir}/vests"
 Prefix = "#{VestsDir}/vhdl-93"
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = 'nvc'
