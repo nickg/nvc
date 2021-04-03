@@ -2656,9 +2656,10 @@ type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
 
 type_t solve_range(nametab_t *tab, range_t r, type_t constraint)
 {
-   type_t type;
-   if (r.right == NULL)
-      type = solve_types(tab, r.left, constraint);
+   if (r.kind == RANGE_ERROR)
+      return type_new(T_NONE);
+   else if (r.right == NULL)
+      return solve_types(tab, r.left, constraint);
    else {
       // Potentially swap the argument order for checking if the right type
       // can be determined unambiguously
@@ -2673,9 +2674,8 @@ type_t solve_range(nametab_t *tab, range_t r, type_t constraint)
 
       if (swap) { tree_t tmp = r.left; r.left = r.right; r.right = tmp; }
 
-      type = solve_types(tab, r.left, constraint);
+      type_t type = solve_types(tab, r.left, constraint);
       solve_types(tab, r.right, constraint ?: type);
+      return type;
    }
-
-   return type;
 }

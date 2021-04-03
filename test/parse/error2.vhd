@@ -16,4 +16,10 @@ package body dunno is
     begin
         std.nothere.bang(4);            -- Error
     end procedure;
+
+    procedure proc2 is
+    begin
+        for foo in integer range blah blah loop  -- Error
+        end loop;
+    end procedure;
 end package body;

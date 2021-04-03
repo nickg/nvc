@@ -1628,18 +1628,16 @@ static range_t p_range(tree_t left, type_t constraint)
 
    EXTEND("range");
 
-   range_t r = {};
+   range_t r = { .kind = RANGE_ERROR, .left = left };
 
    switch (one_of(tTO, tDOWNTO)) {
    case tTO:
       r.kind  = RANGE_TO;
-      r.left  = left;
       r.right = p_expression();
       break;
 
    case tDOWNTO:
       r.kind  = RANGE_DOWNTO;
-      r.left  = left;
       r.right = p_expression();
       break;
    }

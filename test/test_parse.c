@@ -3230,6 +3230,7 @@ START_TEST(test_error2)
       {  5, "no visible declaration for SDFF" },
       { 10, "no visible declaration for SGHBBX" },
       { 17, "cannot find unit STD.NOTHERE" },
+      { 22, "unexpected identifier while parsing range" },
       { -1, NULL }
    };
    expect_errors(expect);

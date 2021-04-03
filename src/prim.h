@@ -31,7 +31,8 @@ typedef enum {
    RANGE_DOWNTO,
    RANGE_EXPR,
    RANGE_DYN,
-   RANGE_RDYN
+   RANGE_RDYN,
+   RANGE_ERROR
 } range_kind_t;
 
 typedef struct range {
