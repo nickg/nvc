@@ -22,4 +22,13 @@ package body dunno is
         for foo in integer range blah blah loop  -- Error
         end loop;
     end procedure;
+
+    type badunits is range 1 to 30
+        units
+            blah;
+        end units spork;
+
+    type badrecord is record
+        x : integer;
+    end record wrong;
 end package body;

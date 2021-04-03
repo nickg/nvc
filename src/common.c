@@ -159,8 +159,11 @@ bool folded_int(tree_t t, int64_t *l)
    switch (tree_kind(t)) {
    case T_LITERAL:
       switch (tree_subkind(t)) {
-      case L_INT:
       case L_PHYSICAL:
+         if (tree_has_ref(t))
+            return false;
+         // Fall-through
+      case L_INT:
          *l = tree_ival(t);
          return true;
       default:

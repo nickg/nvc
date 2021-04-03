@@ -2083,6 +2083,8 @@ START_TEST(test_issue386)
    expect_errors(expect);
 
    parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -2103,6 +2105,23 @@ START_TEST(test_vital1)
    parse_and_check(T_PACKAGE);
 
    fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_physical)
+{
+   input_from_file(TESTDIR "/sem/physical.vhd");
+
+   const error_t expect[] = {
+      {  7, "the abstract literal portion of a secondary unit declaration" },
+      { 14, "secondary unit BAR must have type MYOTHERTIME" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -2212,6 +2231,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue386);
    tcase_add_test(tc_core, test_textio);
    tcase_add_test(tc_core, test_vital1);
+   tcase_add_test(tc_core, test_physical);
    suite_add_tcase(s, tc_core);
 
    return s;

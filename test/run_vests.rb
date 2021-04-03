@@ -43,7 +43,8 @@ Dir.foreach('.') do |item|
 
   FileUtils.rm_rf 'work'
 
-  cmd = "#{Tool} -a #{Billowitch}/#{item}"
+  f = File.realpath "#{Billowitch}/#{item}"
+  cmd = "#{Tool} -a #{f}"
   if run_cmd cmd then
     # TODO: elaborate, run
     passes += 1

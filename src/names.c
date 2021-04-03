@@ -885,6 +885,9 @@ void resolve_specs(nametab_t *tab, tree_t container)
          while (hash_iter(tab->top_scope->members, &it, &key, &value)) {
             tree_t obj = value;
 
+            if (obj == (tree_t)-1)
+               continue;   // Error marker
+
             if (tree_kind(obj) != T_INSTANCE)
                continue;
 
@@ -2117,6 +2120,26 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
          if (!type_set_uniq(tab, &type)) {
             error_at(tree_loc(lit), "invalid use of null expression");
             type = type_new(T_NONE);
+         }
+
+         tree_set_type(lit, type);
+         return type;
+      }
+
+   case L_PHYSICAL:
+      {
+         ident_t id = tree_ident(lit);
+         type_t type;
+         tree_t decl = resolve_name(tab, tree_loc(lit), id);
+         if (decl == NULL)
+            type = type_new(T_NONE);
+         else if (tree_kind(decl) != T_UNIT_DECL) {
+            error_at(tree_loc(lit), "%s is not a physical unit", istr(id));
+            type = type_new(T_NONE);
+         }
+         else {
+            tree_set_ref(lit, decl);
+            type = tree_type(decl);
          }
 
          tree_set_type(lit, type);

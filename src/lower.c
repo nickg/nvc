@@ -279,6 +279,7 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
          break;
 
       case RANGE_EXPR:
+      case RANGE_ERROR:
          fatal_trace("unexpected range direction %d in lower_array_len",
                      r.kind);
       }
@@ -1415,8 +1416,10 @@ static vcode_reg_t lower_literal(tree_t lit, expr_ctx_t ctx)
       return VCODE_INVALID_REG;
 
    switch (tree_subkind(lit)) {
-   case L_INT:
    case L_PHYSICAL:
+      assert(!tree_has_ref(lit));
+      // Fall-through
+   case L_INT:
       return emit_const(lower_type(tree_type(lit)), tree_ival(lit));
 
    case L_STRING:

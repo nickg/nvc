@@ -235,4 +235,21 @@ begin
         end function;
     begin
     end block;
+
+    b16: block is
+        -- From VESTS tc290.vhd
+        type mytime is range 1 to 30
+            units
+                fs;
+            end units;
+    begin
+        testing: process
+            variable t,a   :mytime;
+            variable b   :integer;
+        begin
+            a:=30 fs;
+            b := 10;
+            t:= a/b;
+        end process;
+    end block;
 end architecture;

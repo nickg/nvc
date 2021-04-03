@@ -314,7 +314,9 @@ START_TEST(test_seq)
    fail_unless(tree_kind(e) == T_LITERAL);
    fail_unless(tree_subkind(e) == L_PHYSICAL);
    fail_unless(type_kind(tree_type(e)) == T_PHYSICAL);
-   fail_unless(tree_ival(e) == 1000000);
+   fail_unless(tree_ival(e) == 1);
+   fail_unless(tree_ident(e) == ident_new("NS"));
+   fail_unless(tree_kind(tree_ref(e)) == T_UNIT_DECL);
 
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_WAIT);
@@ -673,7 +675,8 @@ START_TEST(test_types)
    fail_unless(tree_ident(u) == ident_new("MOHM"));
    fail_unless(tree_kind(tree_value(u)) == T_LITERAL);
    fail_unless(tree_subkind(tree_value(u)) == L_PHYSICAL);
-   fail_unless(tree_ival(tree_value(u)) == 1000000);
+   fail_unless(tree_ival(tree_value(u)) == 1000);
+   fail_unless(tree_ident(tree_value(u)) == ident_new("KOHM"));
 
    d = search_decls(a, ident_new("BIG_R"), 0);
    fail_if(d == NULL);
@@ -3232,6 +3235,8 @@ START_TEST(test_error2)
       { 10, "no visible declaration for SGHBBX" },
       { 17, "cannot find unit STD.NOTHERE" },
       { 22, "unexpected identifier while parsing range" },
+      { 29, "expected physical type definition trailing" },
+      { 33, "expected record type definition trailing identifier" },
       { -1, NULL }
    };
    expect_errors(expect);

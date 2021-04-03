@@ -132,8 +132,7 @@ static const char *value_str(tree_t value)
          tree_t max_unit = NULL;
 
          // Find the largest unit that evenly divides the given value
-         for (unsigned u = 0; u < nunits; u++)
-         {
+         for (unsigned u = 0; u < nunits; u++) {
             tree_t unit = type_unit(vtype, u);
             int64_t unit_value;
             const bool is_folded = folded_int(tree_value(unit), &unit_value);

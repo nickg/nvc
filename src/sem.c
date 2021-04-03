@@ -618,13 +618,24 @@ static bool sem_check_type_decl(tree_t t)
 
    case T_PHYSICAL:
       {
-         // Check the units
          const int nunits = type_units(type);
          for (int i = 0; i < nunits; i++) {
             tree_t u = type_unit(type, i);
             tree_set_type(u, type);
             if (!sem_check(u))
                return false;
+
+            tree_t value = tree_value(u);
+
+            // LRM 08 section 5.2.4.1: the abstract literal portion
+            // shall be an integer literal
+            if (tree_ival(value) == 0 && tree_dval(value) != 0)
+               sem_error(value, "the abstract literal portion of a secondary "
+                         "unit declaration must be an integer literal");
+
+            if (i > 0 && !sem_check_type(value, type))
+               sem_error(value, "secondary unit %s must have type %s",
+                         istr(tree_ident(u)), type_pp(type));
          }
       }
 

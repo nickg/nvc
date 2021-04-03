@@ -2467,29 +2467,21 @@ static tree_t p_physical_literal(void)
 
    BEGIN("physical literal");
 
-   tree_t  mult  = p_abstract_literal();
+   tree_t mult;
+   if (scan(tINT, tREAL))
+      mult = p_abstract_literal();
+   else {
+      mult = tree_new(T_LITERAL);
+      tree_set_ival(mult, 1);
+   }
+
    ident_t ident = p_identifier();
 
-   tree_t decl = resolve_name(nametab, CURRENT_LOC, ident);
-   if (decl != NULL && tree_kind(decl) == T_UNIT_DECL) {
-      tree_set_type(mult, tree_type(decl));
-      // TODO: check for overflow here
-      int64_t unit = tree_ival(tree_value(decl)), ival;
-      if (tree_subkind(mult) == L_REAL)
-         ival = unit * tree_dval(mult);
-      else
-         ival = unit * tree_ival(mult);
-
-      tree_set_subkind(mult, L_PHYSICAL);
-      tree_set_ival(mult, ival);
-   }
-   else {
-      if (decl != NULL)
-         parse_error(CURRENT_LOC, "%s is not a physical unit", istr(ident));
-      tree_set_type(mult, type_new(T_NONE));
-   }
-
+   tree_set_subkind(mult, L_PHYSICAL);
    tree_set_loc(mult, CURRENT_LOC);
+   tree_set_ident(mult, ident);
+   tree_set_type(mult, NULL);
+
    return mult;
 }
 
@@ -3530,7 +3522,7 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
    }
 }
 
-static type_t p_integer_type_definition(range_t r)
+static type_t p_integer_type_definition(range_t r, ident_t id)
 {
    // range_constraint
 
@@ -3538,10 +3530,12 @@ static type_t p_integer_type_definition(range_t r)
 
    type_t t = type_new(T_INTEGER);
    type_add_dim(t, r);
+   type_set_ident(t, id);
+
    return t;
 }
 
-static type_t p_real_type_definition(range_t r)
+static type_t p_real_type_definition(range_t r, ident_t id)
 {
    // range_constraint
 
@@ -3549,6 +3543,8 @@ static type_t p_real_type_definition(range_t r)
 
    type_t t = type_new(T_REAL);
    type_add_dim(t, r);
+   type_set_ident(t, id);
+
    return t;
 }
 
@@ -3564,6 +3560,7 @@ static tree_t p_base_unit_declaration(void)
    tree_t value = tree_new(T_LITERAL);
    tree_set_loc(value, CURRENT_LOC);
    tree_set_subkind(value, L_PHYSICAL);
+   tree_set_ident(value, id);
    tree_set_ival(value, 1);
 
    tree_t t = tree_new(T_UNIT_DECL);
@@ -3574,7 +3571,7 @@ static tree_t p_base_unit_declaration(void)
    return t;
 }
 
-static tree_t p_secondary_unit_declaration(void)
+static tree_t p_secondary_unit_declaration(type_t type)
 {
    // identifier = physical_literal ;
 
@@ -3582,18 +3579,21 @@ static tree_t p_secondary_unit_declaration(void)
 
    ident_t id = p_identifier();
    consume(tEQ);
+
    tree_t value = p_physical_literal();
+
    consume(tSEMI);
 
    tree_t u = tree_new(T_UNIT_DECL);
    tree_set_ident(u, id);
    tree_set_value(u, value);
    tree_set_loc(u, CURRENT_LOC);
+   tree_set_type(u, type);
 
    return u;
 }
 
-static type_t p_physical_type_definition(range_t r)
+static type_t p_physical_type_definition(range_t r, ident_t id)
 {
    // range_constraint units base_unit_declaration
    //   { secondary_unit_declaration } end units [ name ]
@@ -3601,6 +3601,7 @@ static type_t p_physical_type_definition(range_t r)
    EXTEND("physical type definition");
 
    type_t t = type_new(T_PHYSICAL);
+   type_set_ident(t, id);
 
    consume(tUNITS);
 
@@ -3615,8 +3616,7 @@ static type_t p_physical_type_definition(range_t r)
    insert_name(nametab, base, NULL, 0);
 
    while (scan(tINT, tREAL, tID)) {
-      tree_t unit = p_secondary_unit_declaration();
-      tree_set_type(unit, t);
+      tree_t unit = p_secondary_unit_declaration(t);
       type_add_unit(t, unit);
       insert_name(nametab, unit, NULL, 0);
    }
@@ -3627,8 +3627,10 @@ static type_t p_physical_type_definition(range_t r)
    consume(tUNITS);
 
    if (peek() == tID) {
-      ident_t id = p_identifier();
-      (void)id;  // XXX: test this
+      ident_t trailing = p_identifier();
+      if (trailing != id)
+         parse_error(&yylloc, "expected physical type definition trailing "
+                     "identifier to match %s", istr(id));
    }
 
    return t;
@@ -3647,13 +3649,14 @@ static tree_t p_enumeration_literal(void)
    return t;
 }
 
-static type_t p_enumeration_type_definition(void)
+static type_t p_enumeration_type_definition(ident_t id)
 {
    // ( enumeration_literal { , enumeration_literal } )
 
    BEGIN("enumeration type definition");
 
    type_t t = type_new(T_ENUM);
+   type_set_ident(t, id);
 
    consume(tLPAREN);
 
@@ -3677,7 +3680,7 @@ static type_t p_enumeration_type_definition(void)
    return t;
 }
 
-static type_t p_scalar_type_definition(void)
+static type_t p_scalar_type_definition(ident_t id)
 {
    // enumeration_type_definition | integer_type_definition
    //   | floating_type_definition | physical_type_definition
@@ -3690,15 +3693,15 @@ static type_t p_scalar_type_definition(void)
          range_t r = tree_range(p_range_constraint(NULL), 0);
 
          if (peek() == tUNITS)
-            return p_physical_type_definition(r);
+            return p_physical_type_definition(r, id);
          else if (type_is_real(tree_type(r.left)))
-           return p_real_type_definition(r);
+            return p_real_type_definition(r, id);
          else
-           return p_integer_type_definition(r);
+            return p_integer_type_definition(r, id);
       }
 
    case tLPAREN:
-      return p_enumeration_type_definition();
+      return p_enumeration_type_definition(id);
 
    default:
       one_of(tRANGE, tLPAREN);
@@ -3706,7 +3709,7 @@ static type_t p_scalar_type_definition(void)
    }
 }
 
-static type_t p_access_type_definition(void)
+static type_t p_access_type_definition(ident_t id)
 {
    // access subtype_indication
 
@@ -3715,12 +3718,13 @@ static type_t p_access_type_definition(void)
    consume(tACCESS);
 
    type_t t = type_new(T_ACCESS);
+   type_set_ident(t, id);
    type_set_access(t, p_subtype_indication());
 
    return t;
 }
 
-static type_t p_file_type_definition(void)
+static type_t p_file_type_definition(ident_t id)
 {
    // file of type_mark
 
@@ -3730,6 +3734,7 @@ static type_t p_file_type_definition(void)
    consume(tOF);
 
    type_t t = type_new(T_FILE);
+   type_set_ident(t, id);
    type_set_file(t, p_type_mark(NULL));
 
    return t;
@@ -3759,7 +3764,7 @@ static void p_element_declaration(type_t rec)
    }
 }
 
-static type_t p_record_type_definition(void)
+static type_t p_record_type_definition(ident_t id)
 {
    // record element_declaration { element_declaration } end record
    //   [ simple_name ]
@@ -3769,6 +3774,7 @@ static type_t p_record_type_definition(void)
    consume(tRECORD);
 
    type_t r = type_new(T_RECORD);
+   type_set_ident(r, id);
 
    do {
       p_element_declaration(r);
@@ -3778,8 +3784,10 @@ static type_t p_record_type_definition(void)
    consume(tRECORD);
 
    if (peek() == tID) {
-      ident_t id = p_identifier();
-      (void)id;  // XXX: test this
+      ident_t trailing = p_identifier();
+      if (trailing != id)
+         parse_error(&yylloc, "expected record type definition trailing "
+                     "identifier to match %s", istr(id));
    }
 
    return r;
@@ -3799,7 +3807,7 @@ static type_t p_index_subtype_definition(void)
    return t;
 }
 
-static type_t p_unconstrained_array_definition(void)
+static type_t p_unconstrained_array_definition(ident_t id)
 {
    // array ( index_subtype_definition { , index_subtype_definition } )
    //   of subtype_indication
@@ -3810,6 +3818,7 @@ static type_t p_unconstrained_array_definition(void)
    consume(tLPAREN);
 
    type_t t = type_new(T_UARRAY);
+   type_set_ident(t, id);
    do {
       type_add_index_constr(t, p_index_subtype_definition());
    } while (optional(tCOMMA));
@@ -3821,7 +3830,7 @@ static type_t p_unconstrained_array_definition(void)
    return t;
 }
 
-static type_t p_constrained_array_definition(void)
+static type_t p_constrained_array_definition(ident_t id)
 {
    // array index_constraint of element_subtype_indication
 
@@ -3830,6 +3839,7 @@ static type_t p_constrained_array_definition(void)
    consume(tARRAY);
 
    type_t t = type_new(T_CARRAY);
+   type_set_ident(t, id);
 
    consume(tLPAREN);
    do {
@@ -3844,7 +3854,7 @@ static type_t p_constrained_array_definition(void)
    return t;
 }
 
-static type_t p_array_type_definition(void)
+static type_t p_array_type_definition(ident_t id)
 {
    // unconstrained_array_definition | constrained_array_definition
 
@@ -3860,12 +3870,12 @@ static type_t p_array_type_definition(void)
    };
 
    if (look_for(&lookp))
-      return p_unconstrained_array_definition();
+      return p_unconstrained_array_definition(id);
    else
-      return p_constrained_array_definition();
+      return p_constrained_array_definition(id);
 }
 
-static type_t p_composite_type_definition(void)
+static type_t p_composite_type_definition(ident_t id)
 {
    // array_type_definition | record_type_definition
 
@@ -3873,10 +3883,10 @@ static type_t p_composite_type_definition(void)
 
    switch (peek()) {
    case tRECORD:
-      return p_record_type_definition();
+      return p_record_type_definition(id);
 
    case tARRAY:
-      return p_array_type_definition();
+      return p_array_type_definition(id);
 
    default:
       expect(tRECORD, tARRAY);
@@ -3979,20 +3989,22 @@ static type_t p_type_definition(tree_t tdecl)
 
    BEGIN("type definition");
 
+   ident_t id = tree_ident(tdecl);
+
    switch (peek()) {
    case tRANGE:
    case tLPAREN:
-      return p_scalar_type_definition();
+      return p_scalar_type_definition(id);
 
    case tACCESS:
-      return p_access_type_definition();
+      return p_access_type_definition(id);
 
    case tFILE:
-      return p_file_type_definition();
+      return p_file_type_definition(id);
 
    case tRECORD:
    case tARRAY:
-      return p_composite_type_definition();
+      return p_composite_type_definition(id);
 
    case tPROTECTED:
       return p_protected_type_definition(tdecl);
@@ -4012,7 +4024,6 @@ static type_t p_full_type_declaration(tree_t tdecl)
    consume(tIS);
 
    type_t t = p_type_definition(tdecl);
-   type_set_ident(t, tree_ident(tdecl));
    mangle_type(nametab, t);
 
    consume(tSEMI);
@@ -4092,8 +4103,16 @@ static void p_type_declaration(tree_t container)
 
       tree_add_decl(container, t);
 
-      if (type_kind(type) != T_INCOMPLETE)
+      const type_kind_t kind = type_kind(type);
+
+      if (kind != T_INCOMPLETE)
          declare_predefined_ops(container, type);
+
+      if (kind == T_PHYSICAL) {
+         const int nunits = type_units(type);
+         for (int i = 0; i < nunits; i++)
+            solve_types(nametab, tree_value(type_unit(type, i)), type);
+      }
    }
 }
 

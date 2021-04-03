@@ -40,7 +40,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_ATTRS | I_FLAGS),
 
    // T_LITERAL
-   (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_CHARS | I_FLAGS),
+   (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_CHARS | I_FLAGS | I_IDENT | I_REF),
 
    // T_SIGNAL_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_NETS | I_ATTRS | I_FLAGS | I_IDENT2),
@@ -565,27 +565,21 @@ void tree_add_genmap(tree_t t, tree_t e)
 
 int64_t tree_ival(tree_t t)
 {
-   assert((t->object.kind == T_LITERAL)
-          && ({ int k = tree_subkind(t); k == L_INT || k == L_PHYSICAL; }));
    return lookup_item(&tree_object, t, I_IVAL)->ival;
 }
 
 void tree_set_ival(tree_t t, int64_t i)
 {
-   assert((t->object.kind == T_LITERAL)
-          && ({ int k = tree_subkind(t); k == L_INT || k == L_PHYSICAL; }));
    lookup_item(&tree_object, t, I_IVAL)->ival = i;
 }
 
 double tree_dval(tree_t t)
 {
-   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
    return lookup_item(&tree_object, t, I_DVAL)->dval;
 }
 
 void tree_set_dval(tree_t t, double d)
 {
-   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
    lookup_item(&tree_object, t, I_DVAL)->dval = d;
 }
 

@@ -97,7 +97,9 @@ static JsonNode *dump_range(range_t r)
    case RANGE_RDYN:
       json_append_member(range_obj, "dir", json_mkstring("reverse_dynamic")); break;
    case RANGE_EXPR:
-      json_append_member(range_obj, "dir", json_mkstring("expr"));
+      json_append_member(range_obj, "dir", json_mkstring("expr")); break;
+   case RANGE_ERROR:
+      break;
    }
    json_append_member(range_obj, "r", dump_expr(r.right));
    return range_obj;
@@ -306,6 +308,7 @@ static JsonNode *dump_type(type_t type)
             json_append_member(range_obj, "r", dump_expr(r.right));
             break;
          case RANGE_EXPR:
+         case RANGE_ERROR:
             break;
          }
          json_append_element(range, range_obj);

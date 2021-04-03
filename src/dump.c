@@ -134,6 +134,7 @@ static void dump_range(range_t r)
    case RANGE_RDYN:
       syntax(" #reverse_dynamic "); break;
    case RANGE_EXPR:
+   case RANGE_ERROR:
       return;
    }
    dump_expr(r.right);
@@ -155,8 +156,10 @@ static void dump_expr(tree_t t)
    case T_LITERAL:
       switch (tree_subkind(t)) {
       case L_INT:
-      case L_PHYSICAL:
          printf("%"PRIi64, tree_ival(t));
+         break;
+      case L_PHYSICAL:
+         printf("%"PRIi64" %s", tree_ival(t), istr(tree_ident(t)));
          break;
       case L_REAL:
          printf("%lf", tree_dval(t));
@@ -321,6 +324,7 @@ static void dump_type(type_t type)
             dump_expr(r.right);
             break;
          case RANGE_EXPR:
+         case RANGE_ERROR:
             break;
          }
       }

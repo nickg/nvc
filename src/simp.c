@@ -1004,6 +1004,31 @@ static tree_t simp_assoc(tree_t t)
    return t;
 }
 
+static tree_t simp_literal(tree_t t)
+{
+   switch (tree_subkind(t)) {
+   case L_PHYSICAL:
+      // Rewrite in terms of the base unit
+      if (tree_has_ref(t)) {
+         tree_t decl = tree_ref(t);
+         int64_t base = assume_int(tree_value(decl));
+
+         // TODO: check for overflow here
+         if (tree_ival(t) == 0)
+            tree_set_ival(t, tree_dval(t) * base);
+         else
+            tree_set_ival(t, tree_ival(t) * base);
+
+         tree_set_ref(t, NULL);
+         tree_set_ident(t, tree_ident(decl));
+      }
+      return t;
+
+   default:
+      return t;
+   }
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -1057,6 +1082,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_assoc(t);
    case T_TYPE_CONV:
       return simp_type_conv(t, ctx);
+   case T_LITERAL:
+      return simp_literal(t);
    default:
       return t;
    }
