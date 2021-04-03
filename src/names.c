@@ -2208,6 +2208,7 @@ static type_t solve_record_ref(nametab_t *tab, tree_t rref)
    else
       type = tree_type(field);
 
+   tree_set_ref(rref, field);
    tree_set_type(rref, type);
    return type;
 }

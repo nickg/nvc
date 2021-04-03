@@ -709,10 +709,11 @@ static netid_t elab_get_net(tree_t expr, int n)
 
    case T_RECORD_REF:
       {
-         tree_t rec  = tree_value(expr);
-         type_t type = tree_type(rec);
+         tree_t rec   = tree_value(expr);
+         type_t type  = tree_type(rec);
+         tree_t field = tree_ref(expr);
 
-         const int roff = record_field_to_net(type, tree_ident(expr));
+         const int roff = record_field_to_net(type, tree_pos(field));
 
          return elab_get_net(rec, n + roff);
       }

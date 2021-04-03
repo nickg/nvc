@@ -2349,18 +2349,6 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    return emit_wrap(mem_reg, &dim0, 1);
 }
 
-static int lower_field_index(type_t type, ident_t field)
-{
-   // Lookup the position of this field in the record type
-
-   const int nfields = type_fields(type);
-   for (int i = 0; i < nfields; i++) {
-      if (tree_ident(type_field(type, i)) == field)
-         return i;
-   }
-   assert(false);
-}
-
 static vcode_reg_t lower_record_sub_aggregate(tree_t value, type_t type,
                                               bool is_const, expr_ctx_t ctx)
 {
@@ -2493,7 +2481,7 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
    type_t type = tree_type(value);
    vcode_reg_t record = lower_expr(value, ctx);
 
-   const int index = lower_field_index(type, tree_ident(expr));
+   const int index = tree_pos(tree_ref(expr));
 
    if (lower_have_signal(record)) {
       if (ctx == EXPR_RVALUE) {
@@ -2501,7 +2489,7 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
          return emit_record_ref(emit_vec_load(record, count_reg, false), index);
       }
       else {
-         const netid_t offset = record_field_to_net(type, tree_ident(expr));
+         const netid_t offset = record_field_to_net(type, index);
          return emit_addi(record, offset);
       }
    }
@@ -4962,8 +4950,9 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
          else if (*has_non_const)
             return true;
 
+         tree_t field = tree_ref(t);
          type_t rtype = tree_type(value);
-         const netid_t offset = record_field_to_net(rtype, tree_ident(t));
+         const netid_t offset = record_field_to_net(rtype, tree_pos(field));
 
          vcode_reg_t field_nets = emit_addi(*driven_nets, offset);
 

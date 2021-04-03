@@ -2592,6 +2592,9 @@ START_TEST(test_expr)
    fail_unless(tree_kind(e) == T_RECORD_REF);
    fail_unless(tree_ident(e) == ident_new("Z"));
    fail_unless(tree_kind(tree_value(e)) == T_FCALL);
+   fail_unless(tree_has_ref(e));
+   fail_unless(tree_kind(tree_ref(e)) == T_FIELD_DECL);
+   fail_unless(tree_ident(tree_ref(e)) == ident_new("Z"));
 
    const char *shift_ops[] = { "sll", "srl", "sla", "sra", "rol", "ror" };
 

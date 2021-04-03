@@ -371,8 +371,10 @@ static bool group_name(tree_t target, group_nets_ctx_t *ctx, int start, int n)
    case T_RECORD_REF:
       {
          tree_t value = tree_value(target);
-         type_t rec = tree_type(value);
-         const int offset = record_field_to_net(rec, tree_ident(target));
+         type_t rec   = tree_type(value);
+         tree_t field = tree_ref(target);
+
+         const int offset = record_field_to_net(rec, tree_pos(field));
 
          return group_name(value, ctx, start + offset, n);
       }
