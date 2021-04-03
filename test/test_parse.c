@@ -3218,6 +3218,7 @@ START_TEST(test_implicit)
 
    fail_if_errors();
 }
+END_TEST
 
 START_TEST(test_error2)
 {
