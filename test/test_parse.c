@@ -3237,6 +3237,7 @@ START_TEST(test_error2)
 
    check_expected_errors();
 }
+END_TEST
 
 Suite *get_parse_tests(void)
 {
