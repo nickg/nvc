@@ -628,7 +628,16 @@ static int tree_stable_compar(const void *pa, const void *pb)
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 {
    scope_t *where = NULL, *limit = scope_formal_limit(tab);
-   tree_t decl = scope_find(tab->top_scope, name, limit, &where, 0);
+
+   // Skip over attribute specifications when looking for names as these
+   // should never be resolved by normal references
+   int n = 0;
+   tree_t decl;
+   tree_kind_t dkind = T_LAST_TREE_KIND;
+   while ((decl = scope_find(tab->top_scope, name, limit, &where, n++))
+          && decl != (void *)-1
+          && (dkind = tree_kind(decl)) == T_ATTR_SPEC)
+      ;
 
    if (decl == (void *)-1) {
       // Supressed an earlier failure for this name
@@ -712,7 +721,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
    else if (is_subprogram(decl)) {
       // Suprogram overload resolution is handled separately
    }
-   else if (can_overload(decl) && tree_kind(decl) != T_LIBRARY) {
+   else if (can_overload(decl) && dkind != T_LIBRARY) {
       // Might need to disambiguate enum names
       type_t uniq;
       tree_t decl1;
@@ -742,14 +751,12 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
          if (m.count > 1) {
             LOCAL_TEXT_BUF tb = tb_new();
-            for (unsigned i = 0; i < m.count; i++) {
+            for (unsigned i = 0; i < m.count; i++)
                tb_printf(tb, "%s%s", i > 0 ? ", " : "",
                          type_pp(tree_type(m.items[i])));
-            }
 
-            const bool physical = tree_kind(decl) == T_UNIT_DECL;
             error_at(loc, "ambiguous use of %s literal %s (%s)",
-                     physical ? "physical" : "enumeration",
+                     dkind == T_UNIT_DECL ? "physical" : "enumeration",
                      istr(name), tb_get(tb));
             decl = NULL;
 
@@ -769,8 +776,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             decl = m.items[0];
       }
    }
-   else if (tab->top_scope->overload == NULL
-            && tree_kind(decl) != T_ATTR_DECL) {
+   else if (tab->top_scope->overload == NULL && dkind != T_ATTR_DECL) {
       // Check for conflicting names imported from multiple packages
       scope_t *s, *limit = scope_end_of_chain(where);
       tree_t conflict = scope_find(where, name, limit, &s, 1);

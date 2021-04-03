@@ -87,11 +87,13 @@ begin
 
 end architecture;
 
-package p is
+package pack is
     function func(x : in integer) return integer;
+    attribute p : POSITIVE;
+    attribute p of pack : package is 10; -- OK
 end package;
 
-package body p is
+package body pack is
     function func(x : in integer) return integer is
     begin
         report func'instance_name;      -- OK
@@ -205,3 +207,22 @@ begin
         b := int2_vec'low = 66;         -- OK
     end process;
 end architecture;
+
+use work.pack.all;
+entity tc3109 is
+  attribute p of tc3109 : entity is 20;  -- OK
+end tc3109;
+
+architecture tc3109arch of tc3109 is
+  attribute p    of tc3109arch : architecture is 30;  -- OK
+begin
+  testing: process
+  begin
+    assert not(   tc3109'p   = 20   and  -- OK
+                  tc3109arch'p = 30   ); -- OK
+    assert (   tc3109'p   = 20   and    -- OK
+               tc3109arch'p = 30   );   -- OK
+    wait;
+  end process testing;
+
+end;

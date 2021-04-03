@@ -632,19 +632,19 @@ START_TEST(test_attr)
       {  65, "expected attribute type INTEGER" },
       {  66, "expected attribute type STRING" },
       {  85, "dimension of attribute LEFT must be locally static" },
-      { 133, "class of object I is variable not signal" },
-      { 127, "cannot index non-array type INTEGER" },
-      { 140, "prefix of attribute LAST_EVENT must denote a signal" },
-      { 152, "attribute RANGE with unconstrained array type BIT_VECTOR" },
-      { 153, "object B does not have a range" },
-      { 154, "prefix does not have a range" },
-      { 198, "prefix does not have LENGTH attribute" },
+      { 135, "class of object I is variable not signal" },
+      { 129, "cannot index non-array type INTEGER" },
+      { 142, "prefix of attribute LAST_EVENT must denote a signal" },
+      { 154, "attribute RANGE with unconstrained array type BIT_VECTOR" },
+      { 155, "object B does not have a range" },
+      { 156, "prefix does not have a range" },
+      { 200, "prefix does not have LENGTH attribute" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_ARCH, T_PACKAGE, T_PACK_BODY,
-                   T_ENTITY, T_ARCH);
+                   T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
 
    check_expected_errors();
 }
