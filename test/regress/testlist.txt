@@ -351,3 +351,4 @@ issue376        normal
 stack1          normal
 issue377        gold,normal,relax=prefer-explicit
 issue397        normal
+issue96         gold,normal

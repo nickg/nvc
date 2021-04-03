@@ -1,0 +1,2 @@
+called the user function
+concatenated string is abcdBefgh  abcdBefgh
