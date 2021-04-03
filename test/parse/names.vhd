@@ -223,4 +223,16 @@ begin
         end procedure;
     begin
     end block;
+
+    b15: block is
+        type mytype is (a, b);
+        function "+"(x, y : mytype) return mytype is
+            variable d : integer;
+        begin
+            d := "+".d;                 -- OK
+            d := "+".x;                 -- Error
+            return a;
+        end function;
+    begin
+    end block;
 end architecture;

@@ -139,6 +139,7 @@ static tree_t p_protected_type_body(ident_t id);
 static bool p_cond_analysis_expr(void);
 static type_t p_signature(void);
 static type_t p_type_mark(ident_t name);
+static tree_t p_function_call(ident_t id, tree_t prefix);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -1270,6 +1271,30 @@ static void apply_foreign_attribute(tree_t decl, tree_t value)
    tree_set_flag(decl, TREE_F_FOREIGN);
 }
 
+static tree_t select_decl(tree_t prefix, ident_t suffix)
+{
+   ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
+
+   tree_t d = search_decls(prefix, suffix, 0);
+   if (d == NULL) {
+      parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
+                  istr(tree_ident(prefix)));
+   }
+   else if (is_subprogram(d) && !bare_subprogram_name()) {
+      tree_t f = p_function_call(suffix, prefix);
+      tree_set_ident(f, qual); // TODO: seems a bit hacky?
+      return f;
+   }
+
+   tree_t ref = tree_new(T_REF);
+   tree_set_ident(ref, qual);
+   tree_set_ref(ref, d);
+   tree_set_type(ref, d ? tree_type(d) : type_new(T_NONE));
+   tree_set_loc(ref, CURRENT_LOC);
+
+   return ref;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -1900,7 +1925,7 @@ static void p_actual_parameter_part(tree_t call)
    p_association_list(call, NULL, F_SUBPROGRAM);
 }
 
-static tree_t p_function_call(ident_t id, tree_t prefix, bool have_args)
+static tree_t p_function_call(ident_t id, tree_t prefix)
 {
    // name [ ( actual_parameter_part ) ]
 
@@ -1915,7 +1940,7 @@ static tree_t p_function_call(ident_t id, tree_t prefix, bool have_args)
    if (protected)
       tree_set_name(call, prefix);
 
-   if (have_args && optional(tLPAREN)) {
+   if (optional(tLPAREN)) {
       p_actual_parameter_part(call);
       consume(tRPAREN);
    }
@@ -2096,7 +2121,6 @@ static tree_t p_selected_name(tree_t prefix)
          tree_add_context(scope_unit(nametab), use);
 
          return unit;
-
       }
 
    case T_PACKAGE:
@@ -2105,28 +2129,7 @@ static tree_t p_selected_name(tree_t prefix)
    case T_BLOCK:
    case T_ENTITY:
    case T_ARCH:
-      {
-         ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
-
-         tree_t d = search_decls(prefix, suffix, 0);
-         if (d == NULL) {
-            parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
-                        istr(tree_ident(prefix)));
-         }
-         else if (is_subprogram(d) && !bare_subprogram_name()) {
-            tree_t f = p_function_call(suffix, prefix, true);
-            tree_set_ident(f, qual); // TODO: seems a bit hacky?
-            return f;
-         }
-
-         tree_t ref = tree_new(T_REF);
-         tree_set_ident(ref, qual);
-         tree_set_ref(ref, d);
-         tree_set_type(ref, d ? tree_type(d) : type_new(T_NONE));
-         tree_set_loc(ref, CURRENT_LOC);
-
-         return ref;
-      }
+      return select_decl(prefix, suffix);
 
    default:
       break;
@@ -2134,7 +2137,7 @@ static tree_t p_selected_name(tree_t prefix)
 
    type_t type = solve_types(nametab, prefix, NULL);
 
-   if (type_kind(type) == T_NONE) {
+   if (type_is_none(type)) {
       tree_t r = tree_new(T_REF);
       tree_set_ident(r, suffix);
       tree_set_type(r, type);
@@ -2160,7 +2163,7 @@ static tree_t p_selected_name(tree_t prefix)
       return rref;
    }
    else if (type_is_protected(type)) {
-      return p_function_call(suffix, prefix, true);
+      return p_function_call(suffix, prefix);
    }
    else if (type_kind(type) == T_INCOMPLETE) {
       parse_error(tree_loc(prefix), "object with incomplete type %s cannot be "
@@ -2168,9 +2171,13 @@ static tree_t p_selected_name(tree_t prefix)
       return prefix;
    }
    else if (tree_kind(prefix) == T_REF) {
-      parse_error(tree_loc(prefix), "object %s with type %s cannot be selected",
-                  istr(tree_ident(prefix)), type_pp(type));
-      return prefix;
+      if (tree_has_ref(prefix) && tree_ref(prefix) == scope_subprogram(nametab))
+         return select_decl(tree_ref(prefix), suffix);
+      else {
+         parse_error(tree_loc(prefix), "object %s with type %s cannot be "
+                     "selected", istr(tree_ident(prefix)), type_pp(type));
+         return prefix;
+      }
    }
    else {
       parse_error(tree_loc(prefix), "object with type %s cannot be selected",
@@ -2267,7 +2274,7 @@ static tree_t p_name(void)
       else if (type == NULL && peek() == tDOT)
          prefix = decl;
       else if (type != NULL && type_is_subprogram(type))
-         prefix = p_function_call(id, NULL, true);
+         prefix = p_function_call(id, NULL);
       else {
          prefix = tree_new(T_REF);
          tree_set_ident(prefix, id);
@@ -2276,7 +2283,7 @@ static tree_t p_name(void)
       }
    }
    else if (peek() == tLPAREN && scope_formal_kind(nametab) != F_SUBPROGRAM)
-      prefix = p_function_call(id, NULL, true);
+      prefix = p_function_call(id, NULL);
    else {
       prefix = tree_new(T_REF);
       tree_set_ident(prefix, id);
@@ -2806,7 +2813,8 @@ static tree_t p_primary(void)
       return p_literal();
 
    case tSTRING:
-      return (peek_nth(2) == tLPAREN) ? p_name() : p_literal();
+      return peek_nth(2) == tLPAREN || peek_nth(2) == tDOT
+         ? p_name() : p_literal();
 
    case tID:
       if (peek_nth(2) == tTICK && peek_nth(3) == tLPAREN)

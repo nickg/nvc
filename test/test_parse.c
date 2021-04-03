@@ -3150,6 +3150,7 @@ START_TEST(test_names)
       { 106, "type of string literal is ambiguous (BIT_VECTOR, STRING)" },
       { 107, "invalid procedure call statement" },
       { 108, "no matching subprogram FOO [universal_integer, universal" },
+      { 233, "name X not found in \"+\"" },
       {  -1, NULL }
    };
    expect_errors(expect);
