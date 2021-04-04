@@ -171,7 +171,7 @@ void jit_shutdown(void)
 
 void jit_trace(jit_trace_t **trace, size_t *count)
 {
-#ifdef HAVE_EXECINFO_H
+#if defined HAVE_EXECINFO_H && defined __linux__
 
    void *frames[TRACE_MAX];
    char **messages = NULL;

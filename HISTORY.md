@@ -1,5 +1,7 @@
 ## 1.5.1 - TODO
 - Fix a compiler warning in vcode.c.
+- Disable VHDL backtrace on non-Linux systems as the symbol names cannot
+  be parsed reliably (#385).
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed
