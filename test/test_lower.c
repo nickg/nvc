@@ -3389,6 +3389,60 @@ START_TEST(test_issue389)
 }
 END_TEST
 
+START_TEST(test_const1)
+{
+   input_from_file(TESTDIR "/lower/const1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, -1);
+   bounds_check(p);
+   fail_if(error_count() > 0);
+   lower_unit(p);
+
+   {
+      vcode_unit_t v0 = find_unit(p);
+      vcode_select_unit(v0);
+
+      fail_unless(vcode_count_vars() == 1);
+      fail_unless(vcode_var_extern(0));
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   tree_t b = parse_check_and_simplify(T_PACK_BODY);
+   bounds_check(b);
+   fail_if(error_count() > 0);
+   lower_unit(b);
+
+   {
+      vcode_unit_t v1 = find_unit(b);
+      vcode_select_unit(v1);
+
+      fail_unless(vcode_count_vars() == 1);
+      fail_if(vcode_var_extern(0));
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST_ARRAY, .length = 3 },
+         { VCODE_OP_CONST, .value = 3 },
+         { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
+         { VCODE_OP_COPY },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "WORK.ISSUEH.C" },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3470,6 +3524,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_case1);
    tcase_add_test(tc, test_incomplete);
    tcase_add_test(tc, test_issue389);
+   tcase_add_test(tc, test_const1);
    suite_add_tcase(s, tc);
 
    return s;

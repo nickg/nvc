@@ -25,6 +25,7 @@ begin
 
     process is
     begin
+        assert not c'ascending;
         assert c'length = 5;
         assert c = "11111";
         wait;

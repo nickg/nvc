@@ -4297,6 +4297,14 @@ static void lower_var_decl(tree_t decl)
    vcode_type_t vbounds = lower_bounds(type);
    ident_t name = (top_scope->flags & SCOPE_GLOBAL)
       ? tree_ident2(decl) : tree_ident(decl);
+
+   if (tree_kind(decl) == T_CONST_DECL && !tree_has_value(decl)) {
+      // Deferred constant in package
+      vcode_var_t var = emit_extern_var(vtype, vbounds, name);
+      lower_put_vcode_obj(decl, var, top_scope);
+      return;
+   }
+
    vcode_var_t var = emit_var(vtype, vbounds, name);
    lower_put_vcode_obj(decl, var, top_scope);
 
