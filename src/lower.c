@@ -1807,7 +1807,9 @@ static vcode_reg_t lower_unalias_index(tree_t alias, vcode_reg_t index,
    vcode_reg_t adir = lower_array_dir(alias_type, 0, VCODE_INVALID_REG);
    vcode_reg_t same_dir = emit_cmp(VCODE_CMP_EQ, bdir, adir);
 
-   return emit_select(same_dir, emit_add(bleft, off), emit_sub(bleft, off));
+   vcode_reg_t a_reg = emit_add(bleft, off);
+   vcode_reg_t b_reg = emit_sub(bleft, off);
+   return emit_select(same_dir, a_reg, b_reg);
 }
 
 static void lower_check_array_bounds(type_t type, int dim, vcode_reg_t array,
@@ -1824,10 +1826,9 @@ static void lower_check_array_bounds(type_t type, int dim, vcode_reg_t array,
    vcode_reg_t max_reg = emit_select(dir_reg, left_reg, right_reg);
 
    vcode_type_t kind_type = vtype_offset();
-   vcode_reg_t kind_reg =
-      emit_select(dir_reg,
-                  emit_const(kind_type, BOUNDS_ARRAY_DOWNTO),
-                  emit_const(kind_type, BOUNDS_ARRAY_TO));
+   vcode_reg_t to_reg = emit_const(kind_type, BOUNDS_ARRAY_TO);
+   vcode_reg_t downto_reg = emit_const(kind_type, BOUNDS_ARRAY_DOWNTO);
+   vcode_reg_t kind_reg = emit_select(dir_reg, downto_reg, to_reg);
 
    char *hint_str LOCAL = lower_get_hint_string(where, NULL);
 
@@ -2948,7 +2949,6 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
       }
 
    default:
-      show_stacktrace();
       fatal_at(tree_loc(expr), "cannot lower attribute %s",
                istr(tree_ident(expr)));
    }
@@ -3716,11 +3716,12 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
       vcode_select_block(this.test_bb);
    }
 
-   vcode_reg_t dirn_reg = lower_range_dir(r, 0);
-   vcode_reg_t step_reg = emit_select(dirn_reg, emit_const(vtype, -1),
-                                      emit_const(vtype, 1));
-   vcode_reg_t ireg     = emit_load(ivar);
-   vcode_reg_t next_reg = emit_add(ireg, step_reg);
+   vcode_reg_t dirn_reg  = lower_range_dir(r, 0);
+   vcode_reg_t step_down = emit_const(vtype, -1);
+   vcode_reg_t step_up   = emit_const(vtype, 1);
+   vcode_reg_t step_reg  = emit_select(dirn_reg, step_down, step_up);
+   vcode_reg_t ireg      = emit_load(ivar);
+   vcode_reg_t next_reg  = emit_add(ireg, step_reg);
    emit_store(next_reg, ivar);
 
    vcode_reg_t final_reg =
