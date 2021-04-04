@@ -21,6 +21,7 @@
 #include "common.h"
 #include "rt/rt.h"
 #include "hash.h"
+#include "array.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -1339,22 +1340,20 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    const bool protected = tree_kind(fcall) == T_PROT_FCALL;
 
    const int nparams = tree_params(fcall);
-   const int nargs = nparams + (protected ? 1 : 0);
-   vcode_reg_t args[nargs];
-   int argp = 0;
+   SCOPED_A(vcode_reg_t) args = AINIT;
 
    if (protected) {
       if (tree_has_name(fcall))
-         args[argp++] = lower_expr(tree_name(fcall), EXPR_RVALUE);
+         APUSH(args, lower_expr(tree_name(fcall), EXPR_RVALUE));
       else {
          assert(vcode_count_params() > 0);
          assert(vcode_reg_kind(0) == VCODE_TYPE_POINTER);
-         args[argp++] = 0;   // Protected var is always first argument
+         APUSH(args, 0);   // Protected var is always first argument
       }
    }
 
    for (int i = 0; i < nparams; i++)
-      args[argp++] = lower_subprogram_arg(fcall, i);
+      APUSH(args, lower_subprogram_arg(fcall, i));
 
    if (!type_is_scalar(type_result(tree_type(decl))))
       tmp_alloc_used = true;
@@ -1365,10 +1364,10 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    const int nest_depth = tree_attr_int(decl, nested_i, 0);
    if (nest_depth > 0) {
       const int hops = vcode_unit_depth() - nest_depth;
-      return emit_nested_fcall(name, rtype, args, nargs, hops);
+      return emit_nested_fcall(name, rtype, args.items, args.count, hops);
    }
    else
-      return emit_fcall(name, rtype, args, nargs);
+      return emit_fcall(name, rtype, args.items, args.count);
 }
 
 static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)

@@ -41,10 +41,10 @@ AC_CHECK_HEADERS([execinfo.h sys/ptrace.h sys/sysctl.h sys/prctl.h])
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
 
-AX_CHECK_LINK_FLAG([-rdynamic],
-  [RDYNAMIC_FLAG="-rdynamic"],
-  [RDYNAMIC_FLAG=""])
-AC_SUBST(RDYNAMIC_FLAG)
+EXTRA_CFLAGS=
+EXTRA_LDFLAGS=
+
+AX_CHECK_LINK_FLAG([-rdynamic], [EXTRA_LDFLAGS+="-rdynamic"], [])
 
 AX_CHECK_COMPILE_FLAG([-fPIC],
   [PIC_FLAG="-fPIC"],
@@ -240,12 +240,14 @@ fi
 
 AC_ARG_ENABLE([werror],
   [AS_HELP_STRING([--enable-werror], [Treat warnings as errors])],
-  [enable_werror=$enableval]
-  [])
-if test x$enable_werror = xyes ; then
-  WERROR_CFLAGS="-Werror"
-fi
-AC_SUBST(WERROR_CFLAGS)
+  [EXTRA_CFLAGS+=" -Werror"])
+
+AC_ARG_ENABLE([ubsan],
+  [AS_HELP_STRING([--enable-ubsan], [Enable undefined behaviour sanitiser])],
+  [if test x$enableval = xyes; then
+     EXTRA_CFLAGS+=" -fsanitize=undefined"
+     EXTRA_LDFLAGS+=" -fsanitize=undefined"
+   fi])
 
 case $host_os in
   msys*|mingw32*)
@@ -275,13 +277,14 @@ AC_ARG_ENABLE([gcov],
   [enable_gcov=$enableval],
   [])
 if test x$enable_gcov = xyes ; then
-  COV_CFLAGS="--coverage -fno-inline -Og"
-  COV_LDFLAGS="--coverage"
+  EXTRA_CFLAGS+=" --coverage -fno-inline -Og"
+  EXTRA_LDFLAGS+=" --coverage"
   AC_MSG_WARN([code coverage with gcov is for use in development only])
 fi
-AC_SUBST(COV_CFLAGS)
-AC_SUBST(COV_LDFLAGS)
 AM_CONDITIONAL([ENABLE_GCOV], [test x$enable_gcov = xyes])
+
+AC_SUBST(EXTRA_CFLAGS)
+AC_SUBST(EXTRA_LDFLAGS)
 
 AC_CHECK_PROG([PANDOC], [pandoc], [1])
 AM_CONDITIONAL([HAVE_PANDOC], [test -n "$PANDOC"])
