@@ -254,4 +254,14 @@ begin
     end block;
 
     p17: assert nothere(1) = 5;         -- Error
+
+    p18: process is
+        type myrec is record
+            x, y : bit;
+        end record;
+        variable r : myrec;
+    begin
+        assert r.x = '1';               -- OK
+    end process;
+
 end architecture;
