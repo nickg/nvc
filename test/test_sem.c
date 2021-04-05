@@ -89,8 +89,8 @@ START_TEST(test_ports)
       { 64,  "BAR has ports I, O" },
       { 163, "BAR has no port named U" },
       { 64,  "component BAR has ports I, O" },
-      { 185, "no matching subprogram HELLO [universal_integer return MY_INT]" },
-      { 81,  "missing actual for formal I of mode IN without a default expression" },
+      { 185, "no visible declaration for HELLO" },
+      { 81,  "missing actual for formal I of mode IN without a default " },
       { 85,  "formal I already has an actual" },
       { 89,  "too many positional actuals" },
       { 89,  "too many positional actuals" },
@@ -141,7 +141,7 @@ START_TEST(test_scope)
       {  55, "previous declaration of P was here" },
       { 114, "no visible declaration for MY_INT1" },
       { 137, "no visible declaration for E1" },
-      { 160, "no matching subprogram FUNC2 [universal_integer return BOOLEAN" },
+      { 160, "no visible declaration for FUNC2" },
       { 167, "object NOT_HERE not found in unit WORK.PACK5" },
       { 189, "no visible declaration for MY_INT1" },
       { 236, "missing library clause for FOO" },
@@ -518,6 +518,7 @@ START_TEST(test_seq)
       { 190, "cannot use next outside loop" },
       { 192, "no nested loop with label FOO" },
       { 214, "type REAL does not have a range" },
+      { 222, "variable I is not a valid target of signal assignment" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1001,7 +1002,7 @@ START_TEST(test_protected)
       {  52, "shared variable X must have protected type" },
       {  56, "variable Z with protected type may not have an initial value" },
       {  64, "parameter with protected type can not have a default value" },
-      { 118, "no matching subprogram COUNTER []" },
+      { 118, "no visible declaration for COUNTER" },
       { 119, "expected 1 argument for subprogram DECREMENT [INTEGER] but " },
       { 124, "object X with protected type must have class VARIABLE" },
       { 135, "may not assign to variable of a protected type" },
@@ -1058,7 +1059,7 @@ START_TEST(test_alias)
       { 40, "ambiguous use of enumeration literal '1'" },
       {  9, "visible declaration of '1' as BIT" },
       { 19, "visible declaration of '1' as CHARACTER" },
-      { 41, "no matching subprogram FOO_INT" },
+      { 41, "no visible declaration for FOO_INT" },
       { 42, "type of actual CHARACTER does not match formal X type BIT" },
       { 43, "operand of qualified expression must have type CHARACTER" },
       { 50, "aliased name is not static" },
@@ -1241,7 +1242,7 @@ START_TEST(test_issue165)
 
    const error_t expect[] = {
       {  5, "no visible declaration for TYPE_T" },
-      { 11, "no matching subprogram PROC [universal_integer]" },
+      { 11, "no visible declaration for PROC" },
       { -1, NULL }
    };
    expect_errors(expect);

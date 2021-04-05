@@ -1144,7 +1144,9 @@ static bool sem_check_sensitivity(tree_t t)
    const int ntriggers = tree_triggers(t);
    for (int i = 0; i < ntriggers; i++) {
       tree_t r = tree_trigger(t, i);
-      if (!sem_check(r) || !sem_readable(r))
+      if (tree_kind(r) == T_ALL)
+         continue;
+      else if (!sem_check(r) || !sem_readable(r))
          return false;
 
       // Can only reference signals in sensitivity list
@@ -1694,6 +1696,11 @@ static bool sem_check_signal_target(tree_t target)
          else if (tree_class(decl) != C_SIGNAL)
             sem_error(target, "target of signal assignment is not a signal");
          break;
+
+      case T_VAR_DECL:
+      case T_CONST_DECL:
+         sem_error(target, "%s %s is not a valid target of signal assignment",
+                   class_str(class_of(decl)), istr(tree_ident(decl)));
 
       default:
          sem_error(target, "invalid target of signal assignment");

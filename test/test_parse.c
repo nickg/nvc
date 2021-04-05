@@ -288,6 +288,8 @@ START_TEST(test_seq)
 {
    tree_t a, p, s, e, b;
 
+   set_standard(STD_08);
+
    input_from_file(TESTDIR "/parse/seq.vhd");
 
    e = parse();
@@ -297,7 +299,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 16);
+   fail_unless(tree_stmts(a) == 17);
 
    fail_if_errors();
 
@@ -615,6 +617,12 @@ START_TEST(test_seq)
    fail_unless(tree_kind(s) == T_CASE);
    fail_unless(tree_assocs(s) == 1);
    fail_unless(tree_subkind(tree_assoc(s, 0)) == A_NAMED);
+
+   // Process with all-sensitivity
+
+   p = tree_stmt(a, 16);
+   fail_unless(tree_triggers(p) == 1);
+   fail_unless(tree_kind(tree_trigger(p, 0)) == T_ALL);
 
    a = parse();
    fail_unless(a == NULL);
@@ -2641,11 +2649,11 @@ START_TEST(test_error)
    const error_t expect[] = {
       {  7, "unexpected identifier while parsing concurrent procedure call "
          "statement, expecting ;" },
-      {  7, "no matching subprogram BAD []" },
+      {  7, "no visible declaration for BAD" },
       { 11, "unexpected identifier while parsing concurrent procedure call "
          "statement, expecting ;" },
-      { 11, "no matching subprogram SOME []" },
-      { 11, "no matching subprogram BAD []" },
+      { 11, "no visible declaration for SOME" },
+      { 11, "no visible declaration for BAD" },
       { 17, "unexpected ; while parsing process statement, expecting process" },
       { 23, "expected trailing process statement label to match FOO" },
       { 27, "trailing label for process statement without label" },
@@ -3096,7 +3104,7 @@ START_TEST(test_issue388)
    const error_t expect[] = {
       { 11, "unexpected => while parsing slice name, expecting one of" },
       { 12, "unexpected => while parsing concurrent procedure call" },
-      { 12, "no matching subprogram Q []" },
+      { 12, "no visible declaration for Q" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3156,8 +3164,9 @@ START_TEST(test_names)
       {  78, "candidate PROC7 [MY_INT]" },
       { 106, "type of string literal is ambiguous (BIT_VECTOR, STRING)" },
       { 107, "invalid procedure call statement" },
-      { 108, "no matching subprogram FOO [universal_integer, universal" },
+      { 108, "no visible declaration for FOO" },
       { 233, "name X not found in \"+\"" },
+      { 256, "no visible declaration for NOTHERE" },
       {  -1, NULL }
    };
    expect_errors(expect);

@@ -187,8 +187,12 @@ static void dump_expr(tree_t t)
       break;
 
    case T_ALL:
-      dump_expr(tree_value(t));
-      printf(".all");
+      if (tree_has_value(t)) {
+         dump_expr(tree_value(t));
+         syntax(".#all");
+      }
+      else
+         syntax("#all");
       break;
 
    case T_AGGREGATE:
@@ -233,6 +237,8 @@ static void dump_expr(tree_t t)
    case T_ATTR_REF:
       dump_expr(tree_name(t));
       printf("'%s", istr(tree_ident(t)));
+      if (tree_params(t) > 0)
+         dump_params(t, tree_param, tree_params(t), NULL);
       break;
 
    case T_ARRAY_REF:
@@ -343,7 +349,7 @@ static void dump_ports(tree_t t, int indent)
          indent += 4;
       }
       else {
-         printf(" (");
+         printf(" ( ");
          indent = 0;
       }
       for (int i = 0; i < nports; i++) {
@@ -794,7 +800,7 @@ static void dump_stmt(tree_t t, int indent)
          dump_stmt(tree_stmt(t, i), indent + 2);
       if (tree_else_stmts(t) > 0) {
          tab(indent);
-         printf("#else\n");
+         syntax("#else\n");
          for (unsigned i = 0; i < tree_else_stmts(t); i++)
             dump_stmt(tree_else_stmt(t, i), indent + 2);
       }
@@ -1050,7 +1056,7 @@ static void dump_decls(tree_t t, int indent)
       tree_kind_t dkind = tree_kind(d);
       const bool is_body = dkind == T_FUNC_BODY || dkind == T_PROT_BODY
          || dkind == T_PROC_BODY;
-      if ((was_body && !is_body) || is_body)
+      if ((was_body && !is_body) || (is_body && i > 0))
          syntax("\n");
       was_body = is_body;
       dump_decl(d, indent);

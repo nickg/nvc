@@ -7,6 +7,7 @@
   which should fix a number of long-standing issues.
 - Fixed a crash when a record aggregate contains an "others" association
   and the fields have array types with different lengths.
+- Added support for VHDL-2008 "all" sensitised processes.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

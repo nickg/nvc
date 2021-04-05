@@ -215,4 +215,11 @@ begin
         end loop;
     end process;
 
+    -- Signal assignment to variable
+    process is
+        variable i : integer;
+    begin
+        i <= 1;                         -- Error
+    end process;
+
 end architecture;

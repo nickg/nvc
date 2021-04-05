@@ -624,6 +624,201 @@ START_TEST(test_func9)
 }
 END_TEST
 
+START_TEST(test_allsens)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/allsens.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_if(a == NULL);
+
+   tree_t w, e;
+
+   // P0: y
+   w = tree_stmt(tree_stmt(a, 0), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 1);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("Y"));
+
+   // P1: v(1)
+   w = tree_stmt(tree_stmt(a, 1), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 1);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
+   fail_unless(tree_kind(tree_value(e)) == T_REF);
+   fail_unless(tree_ident(tree_value(e)) == ident_new("V"));
+
+   // P2: v, n
+   w = tree_stmt(tree_stmt(a, 2), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 2);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("V"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("N"));
+
+   // P3: z(1)(2)
+   w = tree_stmt(tree_stmt(a, 3), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 1);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
+   e = tree_value(e);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
+   fail_unless(tree_kind(tree_value(e)) == T_REF);
+   fail_unless(tree_ident(tree_value(e)) == ident_new("Z"));
+
+   // P4: z, n
+   w = tree_stmt(tree_stmt(a, 4), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 2);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("Z"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("N"));
+
+   // P5: z(2), n
+   w = tree_stmt(tree_stmt(a, 5), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 2);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
+   fail_unless(tree_ident(tree_value(e)) == ident_new("Z"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("N"));
+
+   // P6: v(1 to 2)
+   w = tree_stmt(tree_stmt(a, 6), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 1);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_ARRAY_SLICE);
+   fail_unless(tree_kind(tree_range(e, 0).left) == T_LITERAL);
+   fail_unless(tree_kind(tree_range(e, 0).right) == T_LITERAL);
+   fail_unless(tree_ident(tree_value(e)) == ident_new("V"));
+
+   // P7: v, n
+   w = tree_stmt(tree_stmt(a, 7), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 2);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("V"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("N"));
+
+   // P8: z, n
+   w = tree_stmt(tree_stmt(a, 8), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 2);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("Z"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("N"));
+
+   // P9: z(1 to 2), n
+   w = tree_stmt(tree_stmt(a, 9), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 2);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_ARRAY_SLICE);
+   fail_unless(tree_kind(tree_range(e, 0).left) == T_LITERAL);
+   fail_unless(tree_kind(tree_range(e, 0).right) == T_LITERAL);
+   fail_unless(tree_ident(tree_value(e)) == ident_new("Z"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("N"));
+
+   // P10: y, n
+   w = tree_stmt(tree_stmt(a, 10), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 2);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("N"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("Y"));
+
+   // P11: n, y, v(1), z(1)
+   w = tree_stmt(tree_stmt(a, 11), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 4);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("N"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("Y"));
+   e = tree_trigger(w, 2);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
+   fail_unless(tree_ident(tree_value(e)) == ident_new("V"));
+   e = tree_trigger(w, 3);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
+   fail_unless(tree_ident(tree_value(e)) == ident_new("Z"));
+
+   // P12: x, v(1), v(2)
+   w = tree_stmt(tree_stmt(a, 12), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 3);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("X"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
+   fail_unless(tree_ident(tree_value(e)) == ident_new("V"));
+   e = tree_trigger(w, 2);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
+   fail_unless(tree_ident(tree_value(e)) == ident_new("V"));
+
+   // P13: n, v
+   w = tree_stmt(tree_stmt(a, 13), 2);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 2);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("N"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("V"));
+
+   // P14: x, y, v(2)
+   w = tree_stmt(tree_stmt(a, 14), 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(tree_triggers(w) == 3);
+   e = tree_trigger(w, 0);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("X"));
+   e = tree_trigger(w, 1);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("Y"));
+   e = tree_trigger(w, 2);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_kind(tree_value(tree_param(e, 0))) == T_LITERAL);
+   fail_unless(tree_ident(tree_value(e)) == ident_new("V"));
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -652,6 +847,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_constarr);
    tcase_add_test(tc_core, test_table);
    tcase_add_test(tc_core, test_func9);
+   tcase_add_test(tc_core, test_allsens);
    suite_add_tcase(s, tc_core);
 
    return s;

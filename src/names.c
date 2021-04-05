@@ -1426,7 +1426,11 @@ static tree_t finish_overload_resolution(overload_t *o)
       }
    }
 
-   if (count > 1 && !o->error) {
+   if (o->initial == 0 && !o->error) {
+      error_at(tree_loc(o->tree), "no visible declaration for %s",
+               istr(o->name));
+   }
+   else if (count > 1 && !o->error) {
       error_at(tree_loc(o->tree), "ambiguous %s %s",
                ident_char(o->name, 0) == '"' ? "use of operator"
                : (tree_kind(o->tree) == T_FCALL ? "call to function"

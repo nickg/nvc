@@ -175,4 +175,10 @@ begin
         end case;
     end process;
 
+    -- 2008: all-sensitive process
+    process (all) is
+    begin
+        x <= y;
+    end process;
+
 end architecture;

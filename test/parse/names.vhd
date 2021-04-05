@@ -252,4 +252,6 @@ begin
             t:= a/b;
         end process;
     end block;
+
+    p17: assert nothere(1) = 5;         -- Error
 end architecture;

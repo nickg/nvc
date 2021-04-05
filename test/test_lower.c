@@ -1921,7 +1921,9 @@ START_TEST(test_issue116)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 8 },
       { VCODE_OP_ALLOC_DRIVER },
-      { VCODE_OP_SCHED_EVENT, .subkind = 3 },
+      { VCODE_OP_ADDI, .value = 1 },
+      { VCODE_OP_CONST, .value = 7 },
+      { VCODE_OP_SCHED_EVENT, .subkind = 2 },
       { VCODE_OP_RETURN }
    };
 

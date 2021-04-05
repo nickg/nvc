@@ -5040,6 +5040,23 @@ static void p_process_statement_part(tree_t proc)
    p_sequence_of_statements(proc, tree_add_stmt);
 }
 
+static void p_process_sensitivity_list(tree_t proc)
+{
+   // 2008: all | sensitivity_list
+
+   BEGIN("process sensitivity list");
+
+   if (peek() == tALL) {
+      consume(tALL);
+
+      tree_t all = tree_new(T_ALL);
+      tree_set_loc(all, CURRENT_LOC);
+      tree_add_trigger(proc, all);
+   }
+   else
+      p_sensitivity_list(proc);
+}
+
 static tree_t p_process_statement(ident_t label)
 {
    // [ process_label : ] [ postponed ] process [ ( sensitivity_list ) ] [ is ]
@@ -5055,7 +5072,10 @@ static tree_t p_process_statement(ident_t label)
    consume(tPROCESS);
 
    if (optional(tLPAREN)) {
-      p_sensitivity_list(t);
+      if (standard() < STD_08)
+         p_sensitivity_list(t);
+      else
+         p_process_sensitivity_list(t);
       consume(tRPAREN);
    }
 
