@@ -44,7 +44,8 @@ AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=
 
-AX_CHECK_LINK_FLAG([-rdynamic], [EXTRA_LDFLAGS+="-rdynamic"], [])
+AX_CHECK_LINK_FLAG([-rdynamic],
+                   [EXTRA_LDFLAGS="$EXTRA_LDFLAGS -rdynamic"])
 
 AX_CHECK_COMPILE_FLAG([-fPIC],
   [PIC_FLAG="-fPIC"],
@@ -240,13 +241,13 @@ fi
 
 AC_ARG_ENABLE([werror],
   [AS_HELP_STRING([--enable-werror], [Treat warnings as errors])],
-  [EXTRA_CFLAGS+=" -Werror"])
+  [EXTRA_CFLAGS="$EXTRA_CFLAGS -Werror"])
 
 AC_ARG_ENABLE([ubsan],
   [AS_HELP_STRING([--enable-ubsan], [Enable undefined behaviour sanitiser])],
   [if test x$enableval = xyes; then
-     EXTRA_CFLAGS+=" -fsanitize=undefined"
-     EXTRA_LDFLAGS+=" -fsanitize=undefined"
+     EXTRA_CFLAGS="$EXTRA_CFLAGS -fsanitize=undefined"
+     EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=undefined"
    fi])
 
 case $host_os in
@@ -277,8 +278,8 @@ AC_ARG_ENABLE([gcov],
   [enable_gcov=$enableval],
   [])
 if test x$enable_gcov = xyes ; then
-  EXTRA_CFLAGS+=" --coverage -fno-inline -Og"
-  EXTRA_LDFLAGS+=" --coverage"
+  EXTRA_CFLAGS="$EXTRA_CFLAGS --coverage -fno-inline -Og"
+  EXTRA_LDFLAGS="$EXTRA_LDFLAGS --coverage"
   AC_MSG_WARN([code coverage with gcov is for use in development only])
 fi
 AM_CONDITIONAL([ENABLE_GCOV], [test x$enable_gcov = xyes])
