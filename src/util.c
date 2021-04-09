@@ -51,7 +51,7 @@
 #ifdef HAVE_SYS_PTRACE_H
 #include <sys/ptrace.h>
 #endif
-#ifdef HAVE_SYS_SYSCTL_H
+#ifdef __APPLE__
 #include <sys/sysctl.h>
 #endif
 #ifndef __MINGW32__
