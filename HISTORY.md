@@ -1,4 +1,4 @@
-## 1.5.1 - TODO
+## 1.5.1 - 2021-09-04
 - Fix a compiler warning in vcode.c.
 - Disable VHDL backtrace on non-Linux systems as the symbol names cannot
   be parsed reliably (#385).
