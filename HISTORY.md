@@ -2,6 +2,7 @@
 - Fix a compiler warning in vcode.c.
 - Disable VHDL backtrace on non-Linux systems as the symbol names cannot
   be parsed reliably (#385).
+- Update to latest `pc_from_uncontext.m4` for Apple M1 support.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed
