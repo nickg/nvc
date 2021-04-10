@@ -22,6 +22,7 @@ include_HEADERS =
 check_PROGRAMS =
 check_LIBRARIES =
 CLEANFILES =
+BOOTSTRAPLIBS =
 LIBDIRS =
 
 include thirdparty/Makemodule.am
@@ -49,7 +50,5 @@ gtags:
 
 $(top_builddir)/compile_commands.json:
 	bear make -C $(top_builddir) clean check QUICK=1
-
-clean-local: clean-libs clean-test
 
 .PHONY: bootstrap cov-reset cov-report clean-libs clean-test gtags

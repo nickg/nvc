@@ -66,6 +66,8 @@ EXTRA_DIST += \
 	lib/ieee/math_real.vhdl \
 	lib/ieee/numeric_std-body.vhdl
 
+BOOTSTRAPLIBS += $(ieee_DATA)
+
 lib/ieee/_NVC_LIB:
 
 lib/ieee/_index:
@@ -105,8 +107,5 @@ lib/ieee/IEEE.MATH_COMPLEX-body: $(bootstrap) $(srcdir)/lib/ieee/math_complex-bo
 gen-deps-ieee:
 	$(nvc) -L lib/ --work=lib/ieee --make --posix --deps-only \
 		 | $(deps_pp) > $(srcdir)/lib/ieee/deps.mk
-
-clean-ieee:
-	$(RM) $(ieee_DATA)
 
 include lib/ieee/deps.mk

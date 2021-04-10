@@ -44,6 +44,8 @@ EXTRA_DIST += \
 	lib/vital/memory_b.vhdl \
 	lib/vital/prmtvs_p.vhdl
 
+BOOTSTRAPLIBS += $(vital_DATA)
+
 lib/ieee/_NVC_LIB:
 
 lib/ieee/_index:
@@ -70,8 +72,5 @@ lib/ieee/IEEE.VITAL_MEMORY-body: $(bootstrap) $(srcdir)/lib/vital/memory_b.vhdl
 
 gen-deps-vital:
 	true
-
-clean-vital:
-	$(RM) $(vital_DATA)
 
 include lib/vital/deps.mk

@@ -47,6 +47,8 @@ EXTRA_DIST += lib/synopsys/std_logic_arith.vhd lib/synopsys/std_logic_misc.vhd \
 	lib/synopsys/std_logic_unsigned.vhd lib/synopsys/std_logic_textio.vhd \
 	lib/synopsys/attributes.vhd
 
+BOOTSTRAPLIBS += $(synopsys_DATA)
+
 libs-synopsys: $(synopsys_ieee_DATA) $(synopsys_DATA)
 
 lib/synopsys/_NVC_LIB:
@@ -68,9 +70,6 @@ lib/ieee/IEEE.STD_LOGIC_MISC: $(bootstrap) $(srcdir)/lib/synopsys/std_logic_misc
 
 lib/synopsys/SYNOPSYS.ATTRIBUTES: $(bootstrap) $(srcdir)/lib/synopsys/attributes.vhd
 	$(nvc) -L lib/ --work=lib/synopsys -a $(srcdir)/lib/synopsys/attributes.vhd
-
-clean-synopsys:
-	$(RM) $(synopsys_DATA)
 
 gen-deps-synopsys:
 	$(nvc) -L lib/ --work=lib/synopsys --make --posix --deps-only | \

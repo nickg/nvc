@@ -20,15 +20,14 @@ nvc_DATA += $(nvc_so)
 
 endif  # IMPLIB_REQUIRED
 
+BOOTSTRAPLIBS += $(nvc_DATA)
+
 libs-nvc: $(nvc_DATA) $(nvc_SCRIPTS)
 
 lib/nvc/_NVC_LIB: lib/nvc/NVC.ENV
 
 lib/nvc/NVC.ENV lib/nvc/NVC.ENV-body: $(bootstrap) $(top_srcdir)/lib/std/env.vhd
 	$(nvc) -L lib/ --work=lib/nvc -a $(top_srcdir)/lib/std/env.vhd
-
-clean-nvc:
-	-$(RM) $(nvc_DATA)
 
 gen-deps-nvc:
 	$(nvc) -L lib/ --work=lib/nvc --make --posix --deps-only | \

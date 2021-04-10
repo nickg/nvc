@@ -11,17 +11,16 @@ deps_pp = sed \
 
 bootstrap = lib/.bootstrapped
 
-CLEANFILES += $(bootstrap)
-
 lib/.bootstrapped: bin/nvc$(EXEEXT)
 	[ -f $(bootstrap) ] || touch $(bootstrap)
 
 gen-deps: gen-deps-std gen-deps-ieee gen-deps-nvc gen-deps-synopsys gen-deps-vital
 
-bootstrap: clean-libs
+bootstrap:
+	rm -f $(BOOTSTRAPLIBS)
 	$(MAKE) libs-std libs-ieee libs-nvc libs-synopsys libs-vital
-
-clean-libs: clean-std clean-ieee clean-nvc clean-synopsys clean-vital
 
 distcheck-hook:
 	yes | $(top_srcdir)/tools/fetch-ieee.sh
+
+CLEANFILES += $(BOOTSTRAPLIBS) $(bootstrap)

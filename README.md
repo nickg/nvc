@@ -107,8 +107,8 @@ Install the dependencies with `pkg_add`:
 
 To configure using the system compiler:
 
-    ./configure LDFLAGS="-L/usr/local/lib" CC=/usr/bin/cc CXX=/usr/bin/c++ \
-        --with-llvm=/usr/local/bin/llvm-config
+    ./configure LDFLAGS="-L/usr/local/lib" CPPFLAGS="-I/usr/local/include" \
+        CC=/usr/bin/cc CXX=/usr/bin/c++ --with-llvm=/usr/local/bin/llvm-config
 
 Then follow the generic instructions above.
 

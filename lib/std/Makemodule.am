@@ -50,6 +50,7 @@ std_08_DATA += $(std_08_so)
 endif  # IMPLIB_REQUIRED
 
 EXTRA_DIST += lib/std/standard.vhd lib/std/textio.vhd lib/std/env.vhd
+BOOTSTRAPLIBS += $(std_DATA) $(std_08_DATA)
 
 libs-std: $(std_DATA) $(std_08_DATA)
 
@@ -82,8 +83,5 @@ gen-deps-std:
 		$(deps_pp) > $(srcdir)/lib/std/deps.mk
 	$(nvc) --std=2008 --work=lib/std.08 --make --posix --deps-only | \
 		$(deps_pp) >> $(srcdir)/lib/std/deps.mk
-
-clean-std:
-	$(RM) $(std_DATA) $(std_08_DATA)
 
 include lib/std/deps.mk
