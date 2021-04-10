@@ -31,4 +31,17 @@ package body dunno is
     type badrecord is record
         x : integer;
     end record wrong;
+
+    function func2 return integer is
+    begin
+        return 1;
+    end procedure;                      -- Error
+
+    procedure proc3 is
+    begin
+    end function;                       -- Error
+
+    type other is protected
+    end protected wrong;                -- Error
+
 end package body;

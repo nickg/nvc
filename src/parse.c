@@ -1823,8 +1823,8 @@ static tree_t p_actual_part(void)
 
    // If the actual part takes either the second or third form above then the
    // argument to the function call is the actual designator but only if the
-   // call is to a named function rather than an operator
-   // This is import for identifying conversion functions later
+   // call is to a named function rather than an operator.
+   // This is important for identifying conversion functions later.
    const token_t next = peek();
    const bool had_name = (next == tID || next == tSTRING);
 
@@ -3965,8 +3965,9 @@ static type_t p_protected_type_declaration(tree_t tdecl)
    consume(tEND);
    consume(tPROTECTED);
 
-   if (peek() == tID)
-      type_set_ident(type, p_identifier());  // XXX: check same as tdecl id
+   if (peek() == tID && p_identifier() != id)
+      parse_error(CURRENT_LOC, "expected protected type declaration trailing "
+                  "label to match %s", istr(id));
 
    return type;
 }
@@ -4907,20 +4908,8 @@ static tree_t p_subprogram_body(tree_t spec)
 
    pop_scope(nametab);
 
-   switch (peek()) {
-   case tFUNCTION:
-      consume(tFUNCTION);
-      // XXX: check is function;
-      break;
-
-   case tPROCEDURE:
-      consume(tPROCEDURE);
-      // XXX: check is procedure
-      break;
-
-   default:
-      break;
-   }
+   if (scan(tFUNCTION, tPROCEDURE))
+      consume(kind == T_FUNC_BODY ? tFUNCTION : tPROCEDURE);
 
    p_trailing_label(tree_ident(spec));
    consume(tSEMI);

@@ -3239,6 +3239,8 @@ END_TEST
 
 START_TEST(test_error2)
 {
+   set_standard(STD_00);
+
    input_from_file(TESTDIR "/parse/error2.vhd");
 
    const error_t expect[] = {
@@ -3250,6 +3252,9 @@ START_TEST(test_error2)
       { 22, "unexpected identifier while parsing range" },
       { 29, "expected physical type definition trailing" },
       { 33, "expected record type definition trailing identifier" },
+      { 38, "unexpected procedure while parsing subprogram body" },
+      { 42, "unexpected function while parsing subprogram body" },
+      { 44, "protected type declaration trailing label to match OTHER" },
       { -1, NULL }
    };
    expect_errors(expect);
