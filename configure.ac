@@ -1,4 +1,4 @@
-AC_INIT([nvc], [1.5],
+AC_INIT([nvc], [1.6-devel],
         [Nick Gasson <nick@nick.me.uk>],
         [nvc])
 AC_PREREQ([2.63])
@@ -289,6 +289,11 @@ AC_SUBST(EXTRA_LDFLAGS)
 
 AC_CHECK_PROG([PANDOC], [pandoc], [1])
 AM_CONDITIONAL([HAVE_PANDOC], [test -n "$PANDOC"])
+
+# Work around automake setting ARFLAGS=cru by default which produces a
+# warning on modern systems
+ARFLAGS="${ARFLAGS:-cr}"
+AC_SUBST(ARFLAGS)
 
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
