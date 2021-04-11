@@ -79,6 +79,7 @@ static void check_subprogram_matches_spec(nametab_t *tab, tree_t proto,
                                           tree_t subprog);
 static void check_deferred_constant(nametab_t *tab, tree_t first,
                                     tree_t second);
+static tree_t iter_name(nametab_t *tab, ident_t name, int nth);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Type sets
@@ -363,21 +364,21 @@ void scope_set_prefix(nametab_t *tab, ident_t prefix)
    tab->top_scope->prefix = ident_prefix(tab->top_scope->prefix, prefix, '.');
 }
 
-void scope_set_formal_kind(nametab_t *tab, tree_t unit, formal_kind_t kind)
+void scope_set_formal_kind(nametab_t *tab, tree_t formal, formal_kind_t kind)
 {
    tab->top_scope->formal_kind = kind;
-   tab->top_scope->formal = unit;
+   tab->top_scope->formal = formal;
 
-   if (unit != NULL) {
+   if (formal != NULL) {
       switch (kind) {
       case F_GENERIC_MAP:
-         insert_generics(tab, unit);
+         insert_generics(tab, formal);
          break;
       case F_PORT_MAP:
-         insert_ports(tab, unit);
+         insert_ports(tab, formal);
          break;
       case F_RECORD:
-         insert_field_names(tab, tree_type(unit));
+         insert_field_names(tab, tree_type(formal));
          break;
       default:
          break;
@@ -581,6 +582,24 @@ type_t resolve_type(nametab_t *r, type_t incomplete)
    }
 
    return incomplete;
+}
+
+bool name_is_formal(nametab_t *tab, ident_t id)
+{
+   if (tab->top_scope->formal_kind != F_SUBPROGRAM)
+      return false;
+
+   ident_t subprog = tree_ident(tab->top_scope->formal);
+   int n = 0;
+   tree_t decl;
+   while ((decl = iter_name(tab, subprog, n++)) && is_subprogram(decl)) {
+      const int nports = tree_ports(decl);
+      for (int i = 0; i < nports; i++)
+         if (tree_ident(tree_port(decl, i)) == id)
+            return true;
+   }
+
+   return false;
 }
 
 tree_t query_name(nametab_t *tab, ident_t name)

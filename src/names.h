@@ -36,13 +36,14 @@ void nametab_finish(nametab_t *tab);
 
 void push_scope(nametab_t *tab);
 void pop_scope(nametab_t *tab);
-void scope_set_formal_kind(nametab_t *tab, tree_t unit, formal_kind_t kind);
+void scope_set_formal_kind(nametab_t *tab, tree_t formal, formal_kind_t kind);
 void scope_set_subprogram(nametab_t *tab, tree_t subprog);
 void scope_set_unit(nametab_t *tab, tree_t unit);
 void scope_set_prefix(nametab_t *tab, ident_t prefix);
 formal_kind_t scope_formal_kind(nametab_t *tab);
 tree_t scope_subprogram(nametab_t *tab);
 tree_t scope_unit(nametab_t *tab);
+bool name_is_formal(nametab_t *tab, ident_t id);
 
 void mangle_func(nametab_t *tab, tree_t decl);
 void mangle_type(nametab_t *tab, type_t type);

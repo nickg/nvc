@@ -264,4 +264,11 @@ begin
         assert r.x = '1';               -- OK
     end process;
 
+    p19: process is
+        procedure p19_proc(x : in integer; y : out integer);
+        function p19_func(x : integer) return integer;
+    begin
+        p19_proc(5, p19_func(y) => 4);  -- OK
+    end process;
+
 end architecture;

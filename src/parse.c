@@ -1147,6 +1147,9 @@ static tree_t implicit_dereference(tree_t t)
 
 static type_t prefix_type(tree_t prefix)
 {
+   if (scope_formal_kind(nametab) == F_SUBPROGRAM)
+      return NULL;
+
    // Check we can acutally resolve the base reference at this point
    tree_t ref = prefix;
    tree_kind_t kind;
@@ -1841,7 +1844,8 @@ static tree_t p_actual_part(void)
    return designator;
 }
 
-static tree_t p_association_element(int pos, tree_t unit, formal_kind_t kind)
+static void p_association_element(tree_t map, int pos, tree_t unit,
+                                  formal_kind_t kind)
 {
    // [ formal_part => ] actual_part
 
@@ -1888,7 +1892,17 @@ static tree_t p_association_element(int pos, tree_t unit, formal_kind_t kind)
    if (kind == F_GENERIC_MAP || kind == F_PORT_MAP)
       solve_types(nametab, value, type);
 
-   return p;
+   switch (kind) {
+   case F_GENERIC_MAP:
+      tree_add_genmap(map, p);
+      break;
+   case F_PORT_MAP:
+   case F_SUBPROGRAM:
+      tree_add_param(map, p);
+      break;
+   default:
+      fatal_trace("unexpected formal kind in p_association_element");
+   }
 }
 
 static void p_association_list(tree_t map, tree_t unit, formal_kind_t kind)
@@ -1899,20 +1913,7 @@ static void p_association_list(tree_t map, tree_t unit, formal_kind_t kind)
 
    int pos = 0;
    do {
-      tree_t p = p_association_element(pos, unit, kind);
-      switch (kind) {
-      case F_GENERIC_MAP:
-         tree_add_genmap(map, p);
-         break;
-      case F_PORT_MAP:
-      case F_SUBPROGRAM:
-         tree_add_param(map, p);
-         break;
-      default:
-         fatal_trace("unexpected formal kind in p_association_list");
-      }
-      if (tree_subkind(p) == P_POS)
-         pos++;
+      p_association_element(map, pos++, unit, kind);
    } while (optional(tCOMMA));
 }
 
@@ -1922,7 +1923,7 @@ static void p_actual_parameter_part(tree_t call)
 
    BEGIN("actual parameter part");
 
-   p_association_list(call, NULL, F_SUBPROGRAM);
+   p_association_list(call, call, F_SUBPROGRAM);
 }
 
 static tree_t p_function_call(ident_t id, tree_t prefix)
@@ -2282,7 +2283,7 @@ static tree_t p_name(void)
          tree_set_ref(prefix, decl);
       }
    }
-   else if (peek() == tLPAREN && scope_formal_kind(nametab) != F_SUBPROGRAM)
+   else if (peek() == tLPAREN && !name_is_formal(nametab, id))
       prefix = p_function_call(id, NULL);
    else {
       prefix = tree_new(T_REF);
