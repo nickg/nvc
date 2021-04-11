@@ -226,6 +226,8 @@ static bool sem_check_subtype(tree_t decl, type_t type)
       return true;
 
    type_t base = type_base(type);
+   if (type_is_none(base))
+      return false;
 
    if (type_is_protected(base))
       sem_error(decl, "subtypes may not have protected base types");

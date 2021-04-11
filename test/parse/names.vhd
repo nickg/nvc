@@ -284,4 +284,11 @@ begin
         assert my_int'base'left = 1;    -- OK
     end process;
 
+    p22: process is
+        subtype my_int is integer range 1 to 5;
+        constant c : bit_vector(1 to 10) := (
+            my_int => '1', others => '0' );  -- OK
+    begin
+    end process;
+
 end architecture;

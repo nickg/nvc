@@ -2144,6 +2144,27 @@ START_TEST(test_block)
 }
 END_TEST
 
+START_TEST(test_issue407)
+{
+   input_from_file(TESTDIR "/sem/issue407.vhd");
+
+   const error_t expect[] = {
+      { 28, "expected type of range bound to be NATURAL but is BIT" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+
+   tree_t w = tree_waveform(tree_value(tree_assoc(tree_stmt(a, 0), 0)), 0);
+   tree_t assoc = tree_assoc(tree_value(w), 0);
+   fail_unless(tree_kind(assoc) == T_ASSOC);
+   fail_unless(tree_subkind(assoc) == A_RANGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2252,6 +2273,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_vital1);
    tcase_add_test(tc_core, test_physical);
    tcase_add_test(tc_core, test_block);
+   tcase_add_test(tc_core, test_issue407);
    suite_add_tcase(s, tc_core);
 
    return s;

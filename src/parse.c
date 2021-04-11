@@ -2568,24 +2568,31 @@ static void p_choice(tree_t parent, type_t constraint)
    if (optional(tOTHERS))
       tree_set_subkind(t, A_OTHERS);
    else {
-      const look_params_t lookp = {
-         .look     = { tDOWNTO, tTO, tRANGE, tREVRANGE },
-         .stop     = { tRPAREN, tCOMMA, tASSOC, tBAR },
-         .abort    = tSEMI,
-         .nest_in  = tLPAREN,
-         .nest_out = tRPAREN,
-         .depth    = 0
-      };
+      tree_t name = p_expression();
+      const tree_kind_t name_kind = tree_kind(name);
 
-      if (look_for(&lookp)) {
+      bool is_range = false;
+
+      if (scan(tDOWNTO, tTO, tRANGE, tREVRANGE))
+         is_range = true;
+      else if (name_kind == T_REF && tree_has_ref(name))
+         is_range = tree_kind(tree_ref(name)) == T_TYPE_DECL;
+      else if (name_kind == T_ATTR_REF) {
+         const predef_attr_t attr = tree_attr_int(name, builtin_i, -1);
+         is_range = attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE;
+      }
+
+      if (is_range) {
          tree_set_subkind(t, A_RANGE);
-         tree_add_range(t, p_discrete_range(constraint, NULL));
+         // XXX: p_discrete range solves types!
+         tree_add_range(t, p_discrete_range(constraint, name));
       }
       else {
-         tree_t name = p_expression();
          tree_set_subkind(t, A_NAMED);
          tree_set_name(t, name);
-         solve_types(nametab, name, constraint);
+
+         if (tree_kind(parent) != T_AGGREGATE)
+            solve_types(nametab, name, constraint);
       }
    }
 
@@ -2603,46 +2610,6 @@ static void p_choices(tree_t parent, type_t constraint)
 
    while (optional(tBAR))
       p_choice(parent, constraint);
-}
-
-
-static void p_element_association_choice(tree_t parent)
-{
-   // simple_expression | discrete_range | simple_name | others
-
-   // This is duplicated from p_choice as we cannot solve the types
-   // eagerly in an element association
-
-   BEGIN("choice");
-
-   tree_t t = tree_new(T_ASSOC);
-
-   if (optional(tOTHERS))
-      tree_set_subkind(t, A_OTHERS);
-   else {
-      const look_params_t lookp = {
-         .look     = { tDOWNTO, tTO, tRANGE, tREVRANGE },
-         .stop     = { tRPAREN, tCOMMA, tASSOC, tBAR },
-         .abort    = tSEMI,
-         .nest_in  = tLPAREN,
-         .nest_out = tRPAREN,
-         .depth    = 0
-      };
-
-      if (look_for(&lookp)) {
-         tree_set_subkind(t, A_RANGE);
-         // XXX: p_discrete range solves types!
-         tree_add_range(t, p_discrete_range(NULL, NULL));
-      }
-      else {
-         tree_t name = p_expression();
-         tree_set_subkind(t, A_NAMED);
-         tree_set_name(t, name);
-      }
-   }
-
-   tree_set_loc(t, CURRENT_LOC);
-   tree_add_assoc(parent, t);
 }
 
 static void p_element_association(tree_t agg)
@@ -2664,7 +2631,7 @@ static void p_element_association(tree_t agg)
       const int nstart = tree_assocs(agg);
 
       do {
-         p_element_association_choice(agg);
+         p_choice(agg, NULL);
       } while (optional(tBAR));
 
       consume(tASSOC);

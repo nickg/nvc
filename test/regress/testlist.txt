@@ -354,3 +354,4 @@ issue397        normal
 issue96         gold,normal
 wait14          normal
 block2          normal
+issue407        normal
