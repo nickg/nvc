@@ -271,4 +271,11 @@ begin
         p19_proc(5, p19_func(y) => 4);  -- OK
     end process;
 
+    p20: process is
+        type bit_ptr is access bit;
+        variable b : bit_ptr;
+    begin
+        assert b.all = '1';             -- OK
+    end process;
+
 end architecture;

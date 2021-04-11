@@ -1902,6 +1902,7 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
          || kind == T_TYPE_CONV
          || kind == T_ATTR_REF
          || kind == T_RECORD_REF
+         || kind == T_ALL
          || (kind == T_REF && tree_has_ref(value));
 
       if (solve_now) {
