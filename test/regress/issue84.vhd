@@ -1,7 +1,7 @@
 package sem_copy_default_args_bug is
   type protected_t is protected
     procedure procedure1(argument : inout boolean);
-  end protected portected_t;
+  end protected protected_t;
 end package;
 
 package body sem_copy_default_args_bug is
