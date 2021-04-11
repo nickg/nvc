@@ -188,8 +188,22 @@ package body textio is
                     value : out bit;
                     good  : out boolean ) is
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        good := false;
+        skip_whitespace(l);
+        if l.all'length > 0 then
+            case l.all(l'left) is
+                when '0' =>
+                    value := '0';
+                    good := true;
+                    consume(l, 1);
+                when '1' =>
+                    value := '1';
+                    good := true;
+                    consume(l, 1);
+                when others =>
+                    null;
+            end case;
+        end if;
     end procedure;
 
     procedure read (l     : inout line;

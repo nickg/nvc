@@ -1,5 +1,6 @@
 ## 1.5.2 - unreleased
 - Link libexecinfo on FreeBSD.
+- Add missing textio read subprogram for bit (#408).
 
 ## 1.5.1 - 2021-09-04
 - Fix a compiler warning in vcode.c.

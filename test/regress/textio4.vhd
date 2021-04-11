@@ -16,14 +16,14 @@ begin
         read(l, x, good);
         assert good;
         assert x = 123;
-        assert l.all(1) = ',';
+        assert l.all(l'left) = ',';
         read(l, x, good);
         assert not good;
-        assert l.all(1) = ',';
+        assert l.all(l'left) = ',';
         read(l, c, good);
         assert good;
         assert c = ',';
-        assert l.all(1) = '5';
+        assert l.all(l'left) = '5';
         read(l, x, good);
         assert good;
         assert x = 5;
@@ -34,15 +34,15 @@ begin
         read(l, x, good);
         assert good;
         assert x = -123;
-        assert l.all(1) = ',';
+        assert l.all(l'left) = ',';
 
         read(l, x, good);
         assert not good;
-        assert l.all(1) = ',';
+        assert l.all(l'left) = ',';
         read(l, c, good);
         assert good;
         assert c = ',';
-        assert l.all(1) = '-';
+        assert l.all(l'left) = '-';
 
         read(l, x, good);
         assert good;
@@ -105,14 +105,14 @@ begin
         read(l, x, good);
         assert good;
         assert x = true;
-        assert l.all(1) = ',';
+        assert l.all(l'left) = ',';
         read(l, x, good);
         assert not good;
-        assert l.all(1) = ',';
+        assert l.all(l'left) = ',';
         read(l, c, good);
         assert good;
         assert c = ',';
-        assert l.all(1) = 'f';
+        assert l.all(l'left) = 'f';
         read(l, x, good);
         assert good;
         assert x = false;
@@ -130,21 +130,21 @@ begin
         read(l, x, good);
         assert good;
         assert x > 5.151 and x < 5.153;
-        assert l.all(1) = ',';
+        assert l.all(l'left) = ',';
         read(l, x, good);
         assert not good;
-        assert l.all(1) = ',';
+        assert l.all(l'left) = ',';
         read(l, c, good);
         assert good;
         assert c = ',';
-        assert l.all(1) = '6';
+        assert l.all(l'left) = '6';
         read(l, x, good);
         assert good;
         assert x > 61.39 and x < 61.41;
         read(l, c, good);
         assert good;
         assert c = ',';
-        assert l.all(1) = '5';
+        assert l.all(l'left) = '5';
         read(l, x, good);
         assert not good;
         wait;
@@ -160,14 +160,31 @@ begin
         read(l, x, good);
         assert good;
         assert x = "1010";
-        assert l.all(1) = ' ';
+        assert l.all(l'left) = ' ';
         read(l, x, good);
         assert not good;
-        assert l.all(1) = ' ';
+        assert l.all(l'left) = ' ';
         read(l, x, good);
         assert good;
         assert x = "1111";
-        assert l.all(1) = '1';
+        assert l.all(l'left) = '1';
+        wait;
+    end process;
+
+    check_bit: process is
+        variable l : line;
+        variable b : bit;
+        variable good : boolean;
+    begin
+        l := new string'(" 1 0x");
+        read(l, b, good);
+        assert good;
+        assert b = '1';
+        read(l, b);
+        assert good;
+        assert b = '0';
+        read(l, b, good);
+        assert not good;
         wait;
     end process;
 
