@@ -2347,16 +2347,16 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    } break;
 
    case ATTR_LAST_EVENT:
-     type = std_type(find_std(tab), "TIME");
-     break;
+      type = std_type(find_std(tab), "TIME");
+      break;
 
    case ATTR_ASCENDING:
    case ATTR_EVENT:
    case ATTR_ACTIVE:
    case ATTR_STABLE:
    case ATTR_QUIET:
-     type = std_type(find_std(tab), "BOOLEAN");
-     break;
+      type = std_type(find_std(tab), "BOOLEAN");
+      break;
 
    case ATTR_LEFTOF:
    case ATTR_RIGHTOF:
@@ -2366,27 +2366,36 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    case ATTR_DELAYED:
    case ATTR_LAST_VALUE:
    case ATTR_VALUE:
-     type = prefix_type;
-     break;
+      type = prefix_type;
+      break;
 
    case ATTR_PATH_NAME:
    case ATTR_INSTANCE_NAME:
    case ATTR_IMAGE:
-     type = std_type(find_std(tab), "STRING");
-     break;
+      type = std_type(find_std(tab), "STRING");
+      break;
 
    case ATTR_TRANSACTION:
-     type = std_type(find_std(tab), "BIT");
-     break;
+      type = std_type(find_std(tab), "BIT");
+      break;
 
    case ATTR_POS:
-     type = type_universal_int();
-     break;
+      type = type_universal_int();
+      break;
 
    case ATTR_DRIVING_VALUE:
    case ATTR_LAST_ACTIVE:
    case ATTR_DRIVING:
-     break;
+      break;
+
+   case ATTR_BASE:
+      if (prefix_type != NULL) {
+         if (type_kind(prefix_type) == T_SUBTYPE)
+            type = type_base(prefix_type);
+         else
+            type = prefix_type;
+      }
+      break;
 
    case -1:
       {

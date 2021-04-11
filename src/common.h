@@ -148,6 +148,7 @@ typedef enum {
    ATTR_VAL,
    ATTR_RANGE,
    ATTR_REVERSE_RANGE,
+   ATTR_BASE,
 } predef_attr_t;
 
 //

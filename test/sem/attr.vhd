@@ -206,6 +206,18 @@ begin
         b := int2_vec'length = 2;       -- OK
         b := int2_vec'low = 66;         -- OK
     end process;
+
+    process is
+        subtype my_int is integer range 1 to 20;
+        subtype my_bool is boolean range true to true;
+        variable x : integer;
+    begin
+        assert my_int'base'left = 1;    -- OK
+        assert x'base'left = 2;         -- Error
+        assert my_int'base = 5;         -- Error
+        assert my_bool'base'pos(true) = 1;  -- OK
+        report my_bool'base'image(true);  -- OK
+    end process;
 end architecture;
 
 use work.pack.all;

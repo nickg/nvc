@@ -353,8 +353,11 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
    case ATTR_ASCENDING:
       {
          tree_t name = tree_name(t);
+         const tree_kind_t name_kind = tree_kind(name);
 
-         if (tree_kind(name) != T_REF)
+         if (name_kind != T_REF
+             && !(name_kind == T_ATTR_REF
+                  && tree_attr_int(name, builtin_i, -1) == ATTR_BASE))
             return t;   // Cannot fold this
 
          type_t type = tree_type(name);

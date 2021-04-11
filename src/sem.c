@@ -2850,16 +2850,41 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    // Attribute names are in LRM 93 section 6.6
 
    tree_t name = tree_name(t), decl = NULL;
+   type_t named_type = NULL;
    bool has_type = true;
-   if (tree_kind(name) == T_REF) {
+   switch (tree_kind(name)) {
+   case T_REF:
       if (sem_was_parse_error(name))
          return false;
 
       decl = tree_ref(name);
       has_type = class_has_type(class_of(decl));
+
+      if (tree_kind(decl) == T_TYPE_DECL)
+         named_type = tree_type(decl);
+
+      break;
+
+   case T_ATTR_REF:
+      if (tree_attr_int(name, builtin_i, -1) == ATTR_BASE) {
+         tree_t base = tree_name(name);
+         if (sem_was_parse_error(base))
+            return false;
+
+         if (tree_kind(base) != T_REF
+             || tree_kind(tree_ref(base)) != T_TYPE_DECL)
+            sem_error(base, "prefix of BASE attribute must be a type or "
+                      "subtype declaration");
+
+         named_type = tree_type(base);
+         break;
+      }
+      // Fall-through
+
+   default:
+      if (!sem_check(name))
+         return false;
    }
-   else if (!sem_check(name))
-      return false;
 
    ident_t attr = tree_ident(t);
    const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
@@ -3005,7 +3030,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    case ATTR_IMAGE:
    case ATTR_VALUE:
       {
-         if (decl == NULL || tree_kind(decl) != T_TYPE_DECL)
+         if (named_type == NULL)
             sem_error(t, "prefix of attribute %s must be a type", istr(attr));
 
          type_t name_type = tree_type(name);
@@ -3028,7 +3053,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    case ATTR_POS:
    case ATTR_VAL:
       {
-         if (decl == NULL || tree_kind(decl) != T_TYPE_DECL)
+         if (named_type == NULL)
             sem_error(t, "prefix of attribute %s must be a type", istr(attr));
 
          type_t name_type = tree_type(name);
@@ -3045,6 +3070,10 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
 
          return true;
       }
+
+   case ATTR_BASE:
+      sem_error(t, "BASE attribute is allowed only as the prefix of the name "
+                "of another attribute");
 
    case ATTR_DRIVING_VALUE:
    case ATTR_LAST_ACTIVE:

@@ -278,4 +278,10 @@ begin
         assert b.all = '1';             -- OK
     end process;
 
+    p21: process is
+        subtype my_int is integer range 1 to 20;
+    begin
+        assert my_int'base'left = 1;    -- OK
+    end process;
+
 end architecture;

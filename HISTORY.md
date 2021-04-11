@@ -9,6 +9,7 @@
   and the fields have array types with different lengths.
 - Added support for VHDL-2008 "all" sensitised processes.
 - Added support for ports and generics in block statements.
+- Added support for the 'BASE attribute.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

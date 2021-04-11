@@ -640,6 +640,8 @@ START_TEST(test_attr)
       { 155, "object B does not have a range" },
       { 156, "prefix does not have a range" },
       { 200, "prefix does not have LENGTH attribute" },
+      { 216, "prefix of BASE attribute must be a type or subtype declaration" },
+      { 217, "BASE attribute is allowed only as the prefix of the name" },
       { -1, NULL }
    };
    expect_errors(expect);

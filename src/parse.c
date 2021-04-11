@@ -2010,6 +2010,8 @@ static predef_attr_t parse_predefined_attr(ident_t ident)
       return ATTR_POS;
    else if (icmp(ident, "VAL"))
       return ATTR_VAL;
+   else if (icmp(ident, "BASE"))
+      return ATTR_BASE;
    else
       return (predef_attr_t)-1;
 }

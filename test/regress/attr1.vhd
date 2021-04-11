@@ -28,6 +28,7 @@ begin
         assert integer'rightof(x) = 2;
         assert my_int'leftof(y) = 2;
         assert my_int'rightof(y) = 0;
+        assert my_int'base'left = 10;
         wait;
     end process;
 
