@@ -144,39 +144,6 @@ static tree_t sem_int_lit(type_t type, int64_t i)
    return f;
 }
 
-static bool sem_was_parse_error(tree_t t) {
-   switch (tree_kind(t)) {
-   case T_FCALL:
-   case T_PCALL:
-   case T_CPCALL:
-   case T_PROT_FCALL:
-   case T_PROT_PCALL:
-   case T_REF:
-   case T_INSTANCE:
-   case T_ATTR_SPEC:
-      if (!tree_has_ref(t)) {
-         // Error caught during name resolution
-         if (error_count() == 0)
-            fmt_loc(stdout, tree_loc(t));
-         assert(error_count() > 0);
-         return true;
-      }
-      else
-         return false;
-   case T_AGGREGATE:
-   case T_ATTR_REF:
-   case T_QUALIFIED:
-   case T_LITERAL:
-   case T_ALIAS:
-   case T_NEW:
-   case T_RECORD_REF:
-   case T_PROT_BODY:
-      return !tree_has_type(t) || type_is_none(tree_type(t));
-   default:
-      return false;
-   }
-}
-
 static bool sem_check_resolution(type_t type)
 {
    // Resolution functions are described in LRM 93 section 2.4
@@ -185,7 +152,7 @@ static bool sem_check_resolution(type_t type)
 
    tree_t ref = type_resolution(type);
 
-   if (sem_was_parse_error(ref))
+   if (!tree_has_ref(ref))
       return false;
 
    tree_t fdecl = tree_ref(ref);
@@ -1635,9 +1602,9 @@ static bool sem_check_waveforms(tree_t t, type_t expect)
          if (!sem_check(delay))
             return false;
 
-         if (!type_eq(tree_type(delay), std_time))
-            sem_error(delay, "type of delay must be %s",
-                      type_pp(std_time));
+         if (!sem_check_type(delay, std_time))
+            sem_error(delay, "type of delay must be %s but have %s",
+                      type_pp(std_time), type_pp(tree_type(delay)));
       }
    }
 
@@ -2042,6 +2009,9 @@ static bool sem_check_fcall(tree_t t)
        && !sem_check(tree_name(t)))
       return false;
 
+   if (!tree_has_ref(t))
+      return false;
+
    tree_t decl = tree_ref(t);
 
    // Pure function may not call an impure function
@@ -2070,6 +2040,9 @@ static bool sem_check_pcall(tree_t t)
 
    if (tree_kind(t) == T_PROT_PCALL && tree_has_name(t)
        && !sem_check(tree_name(t)))
+      return false;
+
+   if (!tree_has_ref(t))
       return false;
 
    tree_t decl = tree_ref(t);
@@ -2119,8 +2092,9 @@ static bool sem_check_wait(tree_t t)
       if (!sem_check(delay))
          return false;
 
-      if (!type_eq(tree_type(delay), std_time))
-         sem_error(delay, "type of delay must be TIME");
+      if (!sem_check_type(delay, std_time))
+         sem_error(delay, "type of delay must be %s but have %s",
+                   type_pp(std_time), type_pp(tree_type(delay)));
    }
 
    if (tree_has_value(t)) {
@@ -2130,8 +2104,9 @@ static bool sem_check_wait(tree_t t)
       if (!sem_check(value))
          return false;
 
-      if (!type_eq(tree_type(value), std_bool))
-         sem_error(value, "type of condition must be BOOLEAN");
+      if (!sem_check_type(value, std_bool))
+         sem_error(value, "type of condition must be BOOLEAN but have %s",
+                   type_pp(tree_type(value)));
    }
 
    if (top_scope->flags & SCOPE_PROTECTED)
@@ -2217,6 +2192,9 @@ static bool sem_check_string_literal(tree_t t)
 
    type_t type = tree_type(t);
    type_t elem = type_base_recur(type_elem(type));
+
+   if (type_is_none(elem))
+      return false;
 
    const int nlits = type_enum_literals(elem);
    const int nchars = tree_chars(t);
@@ -2317,6 +2295,9 @@ static bool sem_check_aggregate(tree_t t)
    // Rules for aggregates are in LRM 93 section 7.3.2
 
    type_t composite_type = tree_type(t);
+
+   if (type_is_none(composite_type))
+      return false;
    assert(type_is_composite(composite_type));
 
    type_t base_type = type_base_recur(composite_type);
@@ -2446,9 +2427,6 @@ static bool sem_check_aggregate(tree_t t)
                if (tree_kind(name) != T_REF)
                   sem_error(name, "association name must be a field "
                             "identifier");
-
-               if (sem_was_parse_error(name))
-                  return false;
 
                ident_t name_i = tree_ident(name);
                for (f = 0; f < nfields; f++) {
@@ -2658,6 +2636,9 @@ static bool sem_check_aggregate(tree_t t)
 
 static bool sem_check_ref(tree_t t)
 {
+   if (!tree_has_ref(t))
+      return false;
+
    tree_t decl = tree_ref(t);
    class_t class = class_of(decl);
 
@@ -2856,7 +2837,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    bool has_type = true;
    switch (tree_kind(name)) {
    case T_REF:
-      if (sem_was_parse_error(name))
+      if (!tree_has_ref(name))
          return false;
 
       decl = tree_ref(name);
@@ -2870,16 +2851,19 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    case T_ATTR_REF:
       if (tree_attr_int(name, builtin_i, -1) == ATTR_BASE) {
          tree_t base = tree_name(name);
-         if (sem_was_parse_error(base))
-            return false;
 
-         if (tree_kind(base) != T_REF
-             || tree_kind(tree_ref(base)) != T_TYPE_DECL)
-            sem_error(base, "prefix of BASE attribute must be a type or "
-                      "subtype declaration");
+         if (tree_kind(base) == T_REF) {
+            if (!tree_has_ref(base))
+               return false;
 
-         named_type = tree_type(base);
-         break;
+            if (tree_kind(tree_ref(base)) == T_TYPE_DECL) {
+               named_type = tree_type(base);
+               break;
+            }
+         }
+
+         sem_error(base, "prefix of BASE attribute must be a type or "
+                   "subtype declaration");
       }
       // Fall-through
 
@@ -3084,7 +3068,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    }
 
    // Must be user-defined attribute
-   assert(tree_has_value(t));
+   if (!tree_has_value(t))
+      return false;
 
    if (!sem_static_name(name, sem_globally_static)) {
       if (tree_kind(name) == T_REF)
@@ -3374,8 +3359,10 @@ static bool sem_find_unit(tree_t t, ident_t name, tree_t *unit)
 
 static bool sem_check_instance(tree_t t)
 {
-   ident_t name = tree_ident2(t);
+   if (!tree_has_ref(t))
+      return false;
 
+   ident_t name = tree_ident2(t);
    tree_t unit = tree_ref(t);
 
    switch (tree_class(t)) {
@@ -4211,6 +4198,9 @@ static bool sem_check_new(tree_t t)
 
    type_t type = tree_type(value);
 
+   if (type_is_none(type))
+      return false;
+
    if (!sem_check_subtype(value, type))
       return false;
 
@@ -4234,9 +4224,11 @@ static bool sem_check_all(tree_t t)
 
    type_t value_type = tree_type(value);
 
+   if (type_is_none(value_type))
+      return false;
+
    if (!type_is_access(value_type))
-      sem_error(value, "expression type %s is not access",
-                type_pp(value_type));
+      sem_error(value, "expression type %s is not access", type_pp(value_type));
 
    return true;
 }
@@ -4369,6 +4361,9 @@ static bool sem_check_prot_body(tree_t t)
    ident_t name = tree_ident(t);
    type_t type = tree_type(t);
 
+   if (type_is_none(type))
+      return false;
+
    if (type_has_body(type))
       sem_error(t, "protected type %s already has body", istr(name));
 
@@ -4418,9 +4413,6 @@ static bool sem_check_context_ref(tree_t t)
 
 bool sem_check(tree_t t)
 {
-   if (sem_was_parse_error(t))
-      return false;
-
    switch (tree_kind(t)) {
    case T_ARCH:
       return sem_check_arch(t);

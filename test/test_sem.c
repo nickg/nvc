@@ -694,6 +694,8 @@ START_TEST(test_record)
       {  64, "type R1_VEC is unconstrained" },
       {  86, "index constraint cannot be used with non-array type R1" },
       { 111, "record field A cannot be of file type" },
+      { 153, "cannot index non-array type UNIT_SPEC_T" },
+      { 155, "cannot index non-array type UNIT_SPEC_T" },
       { -1, NULL }
    };
    expect_errors(expect);

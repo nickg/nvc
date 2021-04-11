@@ -2140,14 +2140,6 @@ static tree_t p_selected_name(tree_t prefix)
 
    type_t type = solve_types(nametab, prefix, NULL);
 
-   if (type_is_none(type)) {
-      tree_t r = tree_new(T_REF);
-      tree_set_ident(r, suffix);
-      tree_set_type(r, type);
-      tree_set_loc(r, CURRENT_LOC);
-      return r;
-   }
-
    if (type_is_access(type)) {
       prefix = implicit_dereference(prefix);
       type   = tree_type(prefix);
@@ -2158,7 +2150,7 @@ static tree_t p_selected_name(tree_t prefix)
       tree_set_type(prefix, type);
    }
 
-   if (type_is_record(type)) {
+   if (type_is_record(type) || type_is_none(type)) {
       tree_t rref = tree_new(T_RECORD_REF);
       tree_set_value(rref, prefix);
       tree_set_ident(rref, suffix);
@@ -4657,7 +4649,7 @@ static tree_t p_protected_type_body(ident_t id)
 
    tree_t body = tree_new(T_PROT_BODY);
    tree_set_ident(body, id);
-   tree_set_type(body, type);
+   tree_set_type(body, type ?: type_new(T_NONE));
 
    p_protected_type_body_declarative_part(body);
 

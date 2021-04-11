@@ -125,4 +125,38 @@ package body p is
     begin
     end procedure;
 
+    type line is access string;
+
+    -- Copied from incorrect code in std.textio
+    procedure read (l     : inout line;
+                    value : out time;
+                    good  : out boolean ) is
+        type unit_spec_t is record
+            name   : string(1 to 3);
+            length : positive;
+            unit   : time;
+        end record;
+
+        type unit_map_t is array (natural range <>) of unit_spec_t;
+
+        constant unit_map : unit_spec_t := (
+            ( "fs ", 2, fs ) );
+
+        variable scale, len : integer;
+        variable scale_good : boolean;
+    begin
+        good := false;
+        if not scale_good then
+            return;
+        end if;
+        for i in 0 to 0 loop
+            len := unit_map(i).length;  -- Error
+            if l'length > len
+                and l.all(1 to len) = unit_map(i).name(1 to len)
+            then
+                value := scale * unit_map(i).unit;
+                good := true;
+            end if;
+        end loop;
+    end procedure;
 end package body;

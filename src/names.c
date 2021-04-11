@@ -2222,12 +2222,19 @@ static type_t solve_record_ref(nametab_t *tab, tree_t rref)
    if (tree_has_type(rref))
       return tree_type(rref);
 
+   type_t value_type = solve_types(tab, tree_value(rref), NULL);
+
+   if (type_is_none(value_type)) {
+      tree_set_type(rref, value_type);
+      return value_type;
+   }
+
    tree_t field = find_record_field(rref);
 
    type_t type;
    if (field == NULL) {
       error_at(tree_loc(rref), "record type %s has no field named %s",
-               type_pp(tree_type(tree_value(rref))), istr(tree_ident(rref)));
+               type_pp(value_type), istr(tree_ident(rref)));
       type = type_new(T_NONE);
    }
    else
