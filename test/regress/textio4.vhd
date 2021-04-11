@@ -188,4 +188,24 @@ begin
         wait;
     end process;
 
+    check_time: process is
+        variable l : line;
+        variable t : time;
+        variable good : boolean;
+    begin
+        l := new string'(" 1 ns 15 sec 1 hr");
+        read(l, t, good);
+        assert good;
+        assert t = 1 ns;
+        read(l, t, good);
+        assert good;
+        assert t = 15 sec;
+        read(l, t, good);
+        assert good;
+        assert t = 1 hr;
+        read(l, t, good);
+        assert not good;
+        wait;
+    end process;
+
 end architecture;
