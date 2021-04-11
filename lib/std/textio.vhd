@@ -426,9 +426,44 @@ package body textio is
     procedure read (l     : inout line;
                     value : out time;
                     good  : out boolean ) is
+        type unit_spec_t is record
+            name   : string(1 to 3);
+            length : positive;
+            unit   : time;
+        end record;
+
+        type unit_map_t is array (natural range <>) of unit_spec_t;
+
+        constant unit_map : unit_map_t := (
+            ( "fs ", 2, fs ),
+            ( "ps ", 2, ps ),
+            ( "ns ", 2, ns ),
+            ( "us ", 2, us ),
+            ( "ms ", 2, ms ),
+            ( "sec", 3, sec ),
+            ( "min", 3, min ),
+            ( "hr ", 2, hr ) );
+
+        variable scale, len : integer;
+        variable scale_good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        good := false;
+        skip_whitespace(l);
+        read(l, scale, scale_good);
+        if not scale_good then
+            return;
+        end if;
+        skip_whitespace(l);
+        for i in unit_map'range loop
+            len := unit_map(i).length;
+            if l'length >= len
+                and l.all(1 to len) = unit_map(i).name(1 to len)
+            then
+                value := scale * unit_map(i).unit;
+                consume(l, len);
+                good := true;
+            end if;
+        end loop;
     end procedure;
 
     procedure read (l     : inout line;

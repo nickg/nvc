@@ -11,6 +11,7 @@
 - Added support for ports and generics in block statements.
 - Added support for the 'BASE attribute.
 - Type name now allowed in element association choice (#407).
+- Implement textio READ procedure for BIT and TIME (#408).
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed
