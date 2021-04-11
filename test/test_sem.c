@@ -2126,6 +2126,22 @@ START_TEST(test_physical)
 }
 END_TEST
 
+START_TEST(test_block)
+{
+   input_from_file(TESTDIR "/sem/block.vhd");
+
+   const error_t expect[] = {
+      { 19, "missing actual for formal G1 of mode IN without a default" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2233,6 +2249,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_textio);
    tcase_add_test(tc_core, test_vital1);
    tcase_add_test(tc_core, test_physical);
+   tcase_add_test(tc_core, test_block);
    suite_add_tcase(s, tc_core);
 
    return s;

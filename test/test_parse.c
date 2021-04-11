@@ -1647,7 +1647,7 @@ START_TEST(test_conc)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 7);
+   fail_unless(tree_stmts(a) == 8);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
@@ -1688,6 +1688,13 @@ START_TEST(test_conc)
    s = tree_stmt(a, 6);
    fail_unless(tree_kind(s) == T_CPCALL);
    fail_unless(tree_has_ident(s));
+
+   s = tree_stmt(a, 7);
+   fail_unless(tree_kind(s) == T_BLOCK);
+   fail_unless(tree_generics(s) == 2);
+   fail_unless(tree_genmaps(s) == 1);
+   fail_unless(tree_ports(s) == 1);
+   fail_unless(tree_params(s) == 1);
 
    a = parse();
    fail_unless(a == NULL);
@@ -3255,6 +3262,7 @@ START_TEST(test_error2)
       { 38, "unexpected procedure while parsing subprogram body" },
       { 42, "unexpected function while parsing subprogram body" },
       { 44, "protected type declaration trailing label to match OTHER" },
+      { 47, "unexpected integer while parsing subtype declaration" },
       { -1, NULL }
    };
    expect_errors(expect);

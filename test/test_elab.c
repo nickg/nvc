@@ -648,6 +648,25 @@ START_TEST(test_issue404)
 }
 END_TEST
 
+START_TEST(test_block1)
+{
+   input_from_file(TESTDIR "/elab/block1.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t i = search_decls(e, ident_new(":block1:b1:i"), 0);
+   fail_if(i == NULL);
+   fail_unless(tree_nets(i) == 1);
+   fail_unless(tree_net(i, 0) == 0);
+
+   tree_t o = search_decls(e, ident_new(":block1:b1:o"), 0);
+   fail_if(o == NULL);
+   fail_unless(tree_nets(o) == 1);
+   fail_unless(tree_net(o, 0) == 1);
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -695,6 +714,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue373);
    tcase_add_test(tc, test_issue374);
    tcase_add_test(tc, test_issue404);
+   tcase_add_test(tc, test_block1);
    suite_add_tcase(s, tc);
 
    return s;

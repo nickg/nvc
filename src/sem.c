@@ -3299,7 +3299,8 @@ static bool sem_check_map(tree_t t, tree_t unit,
    for (int i = 0; i < nactuals; i++)
       ok = sem_check_actual(formals, nformals, tree_A(t, i), unit) && ok;
 
-   if (tree_kind(unit) == T_ENTITY) {
+   const tree_kind_t kind = tree_kind(unit);
+   if (kind == T_ENTITY || kind == T_BLOCK) {
       // Component and configuration instantiations must be checked at
       // elaboration time
 
@@ -3965,6 +3966,13 @@ static bool sem_check_for(tree_t t)
 static bool sem_check_block(tree_t t)
 {
    scope_push(tree_ident(t));
+
+   if (!sem_check_map(t, t, tree_ports, tree_port, tree_params, tree_param))
+      return false;
+
+   if (!sem_check_map(t, t, tree_generics, tree_generic,
+                      tree_genmaps, tree_genmap))
+      return false;
 
    bool ok = true;
 

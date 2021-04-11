@@ -44,4 +44,6 @@ package body dunno is
     type other is protected
     end protected wrong;                -- Error
 
+    subtype weird is bit_vector 1 to 3; -- Error
+
 end package body;

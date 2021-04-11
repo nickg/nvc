@@ -6782,6 +6782,30 @@ static void p_block_declarative_part(tree_t arch)
       p_block_declarative_item(arch);
 }
 
+static void p_block_header(tree_t block)
+{
+   // [ generic_clause [ generic_map_aspect ; ] ]
+   //   [ port_clause [ port_map_aspect ; ] ]
+
+   if (peek() == tGENERIC) {
+      p_generic_clause(block);
+
+      if (peek() == tGENERIC) {
+         p_generic_map_aspect(block, block);
+         consume(tSEMI);
+      }
+   }
+
+   if (peek() == tPORT) {
+      p_port_clause(block);
+
+      if (peek() == tPORT) {
+         p_port_map_aspect(block, block);
+         consume(tSEMI);
+      }
+   }
+}
+
 static tree_t p_block_statement(ident_t label)
 {
    // label : block [ ( expression ) ] [ is ] block_header
@@ -6804,6 +6828,7 @@ static tree_t p_block_statement(ident_t label)
    }
 
    optional(tIS);
+   p_block_header(b);
    p_block_declarative_part(b);
    consume(tBEGIN);
    p_block_statement_part(b);

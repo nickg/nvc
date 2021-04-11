@@ -28,4 +28,12 @@ begin
 
     xxx;
 
+    b1: block is
+        generic ( g1 : integer; g2 : bit := '1' );
+        generic map ( g1 => 5 );
+        port ( p1 : integer );
+        port map ( p1 => y );
+    begin
+    end block;
+
 end architecture;

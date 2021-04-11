@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2020  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -548,8 +548,13 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
                             tree_formals_t tree_Fs, tree_formal_t tree_F,
                             tree_actuals_t tree_As, tree_actual_t tree_A)
 {
-   tree_t unit = tree_ref(arch);
-   assert(tree_kind(unit) == T_ENTITY);
+   tree_t unit;
+   if (tree_kind(arch) == T_ARCH) {
+      unit = tree_ref(arch);
+      assert(tree_kind(unit) == T_ENTITY);
+   }
+   else
+      unit = arch;
 
    const int nformals = tree_Fs(unit);
    const int nactuals = (tree_As != NULL) ? tree_As(t) : 0;
@@ -639,9 +644,8 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
       };
       tree_rewrite(arch, rewrite_refs, &params);
 
-      tree_t ent = tree_ref(arch);
-      if (tree_stmts(ent) > 0 || tree_decls(ent) > 0)
-         tree_rewrite(ent, rewrite_refs, &params);
+      if (tree_stmts(unit) > 0 || tree_decls(unit) > 0)
+         tree_rewrite(unit, rewrite_refs, &params);
    }
 
    return maps;
@@ -1396,6 +1400,15 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx)
 {
+   map_list_t *maps = elab_map(t, t, tree_ports, tree_port,
+                               tree_params, tree_param);
+
+   (void)elab_map(t, t, tree_generics, tree_generic,
+                  tree_genmaps, tree_genmap);
+
+   elab_map_nets(maps);
+   elab_free_maps(maps);
+
    elab_push_scope(t, ctx);
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
