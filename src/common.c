@@ -44,12 +44,28 @@ int64_t assume_int(tree_t t)
 
    case T_REF:
       {
-         tree_t ref = tree_ref(t);
-         if (tree_kind(ref) == T_CONST_DECL)
-            return assume_int(tree_value(ref));
+         tree_t decl = tree_ref(t);
+         if (tree_kind(decl) == T_CONST_DECL) {
+            if (tree_has_value(decl))
+               return assume_int(tree_value(decl));
+            else {
+               // Deferred constant
+               ident_t body_name =
+                  ident_prefix(ident_runtil(tree_ident2(decl), '.'),
+                               ident_new("body"), '-');
+
+               tree_t body = lib_get_qualified(body_name);
+               if (body != NULL
+                   && (decl = search_decls(body, tree_ident(decl), 0))) {
+                  assert(tree_kind(decl) == T_CONST_DECL);
+                  assert(tree_has_value(decl));
+                  return assume_int(tree_value(decl));
+               }
+            }
+         }
          else {
-            assert(tree_kind(ref) == T_ENUM_LIT);
-            return tree_pos(ref);
+            assert(tree_kind(decl) == T_ENUM_LIT);
+            return tree_pos(decl);
          }
       }
 

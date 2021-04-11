@@ -758,6 +758,19 @@ tree_t lib_get_check_stale(lib_t lib, ident_t ident)
       return NULL;
 }
 
+tree_t lib_get_qualified(ident_t qual)
+{
+   ident_t lib_name = ident_until(qual, '.');
+   if (lib_name == NULL)
+      return NULL;
+
+   lib_t lib = lib_find(lib_name, false);
+   if (lib == NULL)
+      return NULL;
+
+   return lib_get_check_stale(lib, qual);
+}
+
 ident_t lib_name(lib_t lib)
 {
    assert(lib != NULL);

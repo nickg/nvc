@@ -120,16 +120,32 @@ typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
 
 static bool lower_is_const(tree_t t)
 {
-   if (tree_kind(t) == T_AGGREGATE) {
-      bool is_const = true;
-      const int nassocs = tree_assocs(t);
-      for (int i = 0; i < nassocs; i++)
-         is_const = is_const && lower_is_const(tree_value(tree_assoc(t, i)));
-      return is_const;
+   switch (tree_kind(t)) {
+   case T_AGGREGATE:
+      {
+         bool is_const = true;
+         const int nassocs = tree_assocs(t);
+         for (int i = 0; i < nassocs; i++)
+            is_const = is_const && lower_is_const(tree_value(tree_assoc(t, i)));
+         return is_const;
+      }
+
+   case T_REF:
+      {
+         tree_t decl = tree_ref(t);
+         const tree_kind_t decl_kind = tree_kind(decl);
+         if (decl_kind == T_CONST_DECL && type_is_scalar(tree_type(t)))
+            return !tree_has_value(decl) || lower_is_const(tree_value(decl));
+         else
+            return decl_kind == T_ENUM_LIT;
+      }
+
+   case T_LITERAL:
+      return true;
+
+   default:
+      return false;
    }
-   else
-      return tree_kind(t) == T_LITERAL
-         || (tree_kind(t) == T_REF && tree_kind(tree_ref(t)) == T_ENUM_LIT);
 }
 
 static bool lower_const_bounds(type_t type)

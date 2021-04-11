@@ -3445,6 +3445,21 @@ START_TEST(test_const1)
 }
 END_TEST
 
+START_TEST(test_const2)
+{
+   input_from_file(TESTDIR "/lower/const2.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t vu = find_unit(e);
+   vcode_select_unit(vu);
+
+   fail_unless(vcode_count_signals() == 1);
+   fail_unless(vcode_signal_count_nets(0) == 5);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3527,6 +3542,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_incomplete);
    tcase_add_test(tc, test_issue389);
    tcase_add_test(tc, test_const1);
+   tcase_add_test(tc, test_const2);
    suite_add_tcase(s, tc);
 
    return s;
