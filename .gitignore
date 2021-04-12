@@ -42,7 +42,6 @@ GPATH
 GRTAGS
 GSYMS
 GTAGS
-.bootstrapped
 .dirstamp
 bin/
 .gtags.files

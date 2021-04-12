@@ -52,22 +52,22 @@ lib/ieee/_index:
 
 libs-vital: $(vital_DATA) $(vital_SCRIPTS)
 
-lib/ieee/IEEE.VITAL_TIMING: $(bootstrap) $(srcdir)/lib/vital/timing_p.vhdl
+lib/ieee/IEEE.VITAL_TIMING: $(srcdir)/lib/vital/timing_p.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/timing_p.vhdl
 
-lib/ieee/IEEE.VITAL_TIMING-body: $(bootstrap) $(srcdir)/lib/vital/timing_b.vhdl
+lib/ieee/IEEE.VITAL_TIMING-body: $(srcdir)/lib/vital/timing_b.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/timing_b.vhdl
 
-lib/ieee/IEEE.VITAL_PRIMITIVES: $(bootstrap) $(srcdir)/lib/vital/prmtvs_p.vhdl
+lib/ieee/IEEE.VITAL_PRIMITIVES: $(srcdir)/lib/vital/prmtvs_p.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/prmtvs_p.vhdl
 
-lib/ieee/IEEE.VITAL_PRIMITIVES-body: $(bootstrap) $(srcdir)/lib/vital/prmtvs_b.vhdl
+lib/ieee/IEEE.VITAL_PRIMITIVES-body: $(srcdir)/lib/vital/prmtvs_b.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a --relax=impure $(srcdir)/lib/vital/prmtvs_b.vhdl
 
-lib/ieee/IEEE.VITAL_MEMORY: $(bootstrap) $(srcdir)/lib/vital/memory_p.vhdl
+lib/ieee/IEEE.VITAL_MEMORY: $(srcdir)/lib/vital/memory_p.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/memory_p.vhdl
 
-lib/ieee/IEEE.VITAL_MEMORY-body: $(bootstrap) $(srcdir)/lib/vital/memory_b.vhdl
+lib/ieee/IEEE.VITAL_MEMORY-body: $(srcdir)/lib/vital/memory_b.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/memory_b.vhdl
 
 gen-deps-vital:

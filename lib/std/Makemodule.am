@@ -62,20 +62,20 @@ lib/std.08/_NVC_LIB: lib/std.08/STD.STANDARD
 
 lib/std.08/_index: lib/std.08/STD.STANDARD
 
-lib/std/STD.STANDARD: $(bootstrap) $(srcdir)/lib/std/standard.vhd
+lib/std/STD.STANDARD: $(srcdir)/lib/std/standard.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --work=lib/std -a --bootstrap $(srcdir)/lib/std/standard.vhd
 
-lib/std.08/STD.STANDARD: $(bootstrap) $(srcdir)/lib/std/standard.vhd
+lib/std.08/STD.STANDARD: $(srcdir)/lib/std/standard.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 --work=lib/std.08 -a --bootstrap \
 		$(srcdir)/lib/std/standard.vhd
 
-lib/std/STD.TEXTIO: $(bootstrap) lib/std/STD.STANDARD $(srcdir)/lib/std/textio.vhd
+lib/std/STD.TEXTIO: lib/std/STD.STANDARD $(srcdir)/lib/std/textio.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --work=lib/std -a $(srcdir)/lib/std/textio.vhd
 
-lib/std.08/STD.TEXTIO: $(bootstrap) lib/std.08/STD.STANDARD $(srcdir)/lib/std/textio.vhd
+lib/std.08/STD.TEXTIO: lib/std.08/STD.STANDARD $(srcdir)/lib/std/textio.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/textio.vhd
 
-lib/std.08/STD.ENV: $(bootstrap) lib/std.08/STD.STANDARD $(srcdir)/lib/std/env.vhd
+lib/std.08/STD.ENV: lib/std.08/STD.STANDARD $(srcdir)/lib/std/env.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/env.vhd
 
 gen-deps-std:

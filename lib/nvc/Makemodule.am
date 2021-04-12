@@ -26,7 +26,7 @@ libs-nvc: $(nvc_DATA) $(nvc_SCRIPTS)
 
 lib/nvc/_NVC_LIB: lib/nvc/NVC.ENV
 
-lib/nvc/NVC.ENV lib/nvc/NVC.ENV-body: $(bootstrap) $(top_srcdir)/lib/std/env.vhd
+lib/nvc/NVC.ENV lib/nvc/NVC.ENV-body: $(top_srcdir)/lib/std/env.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/nvc -a $(top_srcdir)/lib/std/env.vhd
 
 gen-deps-nvc:

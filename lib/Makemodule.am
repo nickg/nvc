@@ -9,11 +9,6 @@ deps_pp = sed \
 	-e 's|'`echo $(top_srcdir) | sed 's/\./\\\./g'`'|$$(top_srcdir)|g' \
 	-e 's|$(abs_top_builddir)/||g'
 
-bootstrap = lib/.bootstrapped
-
-lib/.bootstrapped: bin/nvc$(EXEEXT)
-	[ -f $(bootstrap) ] || touch $(bootstrap)
-
 gen-deps: gen-deps-std gen-deps-ieee gen-deps-nvc gen-deps-synopsys gen-deps-vital
 
 bootstrap:
@@ -23,4 +18,9 @@ bootstrap:
 distcheck-hook:
 	yes | $(top_srcdir)/tools/fetch-ieee.sh
 
-CLEANFILES += $(BOOTSTRAPLIBS) $(bootstrap)
+CLEANFILES += $(BOOTSTRAPLIBS)
+
+DRIVER = bin/nvc$(EXEEXT)
+
+# For compatibility with BSD make
+@ifnGNUmake@.ORDER: $(DRIVER) lib/std/STD.STANDARD lib/std.08/STD.STANDARD

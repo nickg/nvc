@@ -266,7 +266,7 @@ esac
 
 # Turn on silent make when using the GNU version
 AX_CHECK_GNU_MAKE
-if ! test x$_cv_gnu_make_command = x ; then
+if test x$_cv_have_gnu_make = xyes ; then
   MAKEFLAGS='$(if $(V),,-s)'
 fi
 AC_SUBST(MAKEFLAGS)

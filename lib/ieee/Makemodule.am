@@ -74,34 +74,34 @@ lib/ieee/_index:
 
 libs-ieee: $(ieee_DATA) $(ieee_SCRIPTS)
 
-lib/ieee/IEEE.STD_LOGIC_1164: $(bootstrap) $(srcdir)/lib/ieee/std_logic_1164.vhdl
+lib/ieee/IEEE.STD_LOGIC_1164: $(srcdir)/lib/ieee/std_logic_1164.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/std_logic_1164.vhdl
 
-lib/ieee/IEEE.STD_LOGIC_1164-body: $(bootstrap) $(srcdir)/lib/ieee/std_logic_1164-body.vhdl
+lib/ieee/IEEE.STD_LOGIC_1164-body: $(srcdir)/lib/ieee/std_logic_1164-body.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/std_logic_1164-body.vhdl
 
-lib/ieee/IEEE.NUMERIC_BIT: $(bootstrap) $(srcdir)/lib/ieee/numeric_bit.vhdl
+lib/ieee/IEEE.NUMERIC_BIT: $(srcdir)/lib/ieee/numeric_bit.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/numeric_bit.vhdl
 
-lib/ieee/IEEE.NUMERIC_STD: $(bootstrap) $(srcdir)/lib/ieee/numeric_std.vhdl
+lib/ieee/IEEE.NUMERIC_STD: $(srcdir)/lib/ieee/numeric_std.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/numeric_std.vhdl
 
-lib/ieee/IEEE.NUMERIC_STD-body: $(bootstrap) $(srcdir)/lib/ieee/numeric_std-body.vhdl
+lib/ieee/IEEE.NUMERIC_STD-body: $(srcdir)/lib/ieee/numeric_std-body.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/numeric_std-body.vhdl
 
-lib/ieee/IEEE.NUMERIC_BIT-body: $(bootstrap) $(srcdir)/lib/ieee/numeric_bit-body.vhdl
+lib/ieee/IEEE.NUMERIC_BIT-body: $(srcdir)/lib/ieee/numeric_bit-body.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/numeric_bit-body.vhdl
 
-lib/ieee/IEEE.MATH_REAL: $(bootstrap) $(srcdir)/lib/ieee/math_real.vhdl
+lib/ieee/IEEE.MATH_REAL: $(srcdir)/lib/ieee/math_real.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/math_real.vhdl
 
-lib/ieee/IEEE.MATH_REAL-body: $(bootstrap) $(srcdir)/lib/ieee/math_real-body.vhdl
+lib/ieee/IEEE.MATH_REAL-body: $(srcdir)/lib/ieee/math_real-body.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/math_real-body.vhdl
 
-lib/ieee/IEEE.MATH_COMPLEX: $(bootstrap) $(srcdir)/lib/ieee/math_complex.vhdl
+lib/ieee/IEEE.MATH_COMPLEX: $(srcdir)/lib/ieee/math_complex.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/math_complex.vhdl
 
-lib/ieee/IEEE.MATH_COMPLEX-body: $(bootstrap) $(srcdir)/lib/ieee/math_complex-body.vhdl
+lib/ieee/IEEE.MATH_COMPLEX-body: $(srcdir)/lib/ieee/math_complex-body.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/ieee/math_complex-body.vhdl
 
 gen-deps-ieee:
