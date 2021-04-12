@@ -4197,16 +4197,13 @@ static tree_t p_concurrent_assertion_statement(ident_t label)
 
    consume(tSEMI);
 
-   const loc_t *loc = CURRENT_LOC;
-   tree_set_loc(s, loc);
-
-   if (label == NULL)
-      label = loc_to_ident(loc);
-   tree_set_ident(s, label);
+   tree_set_loc(s, CURRENT_LOC);
+   ensure_labelled(s, label);
 
    if (postponed)
       tree_set_flag(s, TREE_F_POSTPONED);
 
+   insert_name(nametab, s, NULL, 0);
    return s;
 }
 
@@ -5814,12 +5811,8 @@ static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
 
    consume(tSEMI);
 
-   const loc_t *loc = CURRENT_LOC;
-   tree_set_loc(t, loc);
-
-   if (label == NULL)
-      label = loc_to_ident(loc);
-   tree_set_ident(t, label);
+   tree_set_loc(t, CURRENT_LOC);
+   ensure_labelled(t, label);
 
    return t;
 }
@@ -6677,17 +6670,13 @@ static tree_t p_concurrent_signal_assignment_statement(ident_t label)
       ? p_selected_signal_assignment()
       : p_conditional_signal_assignment();
 
-   const loc_t *loc = CURRENT_LOC;
-   tree_set_loc(t, loc);
-
-   if (label == NULL)
-      label = loc_to_ident(loc);
-   tree_set_ident(t, label);
+   tree_set_loc(t, CURRENT_LOC);
+   ensure_labelled(t, label);
 
    if (postponed)
       tree_set_flag(t, TREE_F_POSTPONED);
 
-   tree_set_loc(t, CURRENT_LOC);
+   insert_name(nametab, t, NULL, 0);
    return t;
 }
 
@@ -6720,6 +6709,7 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label)
    tree_set_loc(t, CURRENT_LOC);
    ensure_labelled(t, label);
 
+   insert_name(nametab, t, NULL, 0);
    solve_types(nametab, t, NULL);
    return t;
 }
@@ -6785,7 +6775,8 @@ static tree_t p_block_statement(ident_t label)
    if (label == NULL)
       parse_error(CURRENT_LOC, "block statement must have a label");
    else {
-      insert_name(nametab, b, NULL, 0);
+      tree_set_loc(b, CURRENT_LOC);
+      insert_name(nametab, b, NULL, 1);
       scope_set_prefix(nametab, label);
    }
 

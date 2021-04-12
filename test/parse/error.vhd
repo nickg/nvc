@@ -37,4 +37,23 @@ begin
     begin
     end block;
 
+    p1: process is begin end process;
+    p1: process is begin end process;   -- Error, duplicate label
+
+    a1: assert x = 1;
+    a1: assert x = 2;                   -- Error, duplicate label
+
+    s1: x <= 5;
+    s1: x <= 6;                         -- Error, duplicate label
+
+    b1: block is begin end block;
+    b1: block is begin end block;       -- Error, duplicate label
+
+    b2: block is
+        procedure proc(x : integer) is begin end procedure;
+    begin
+        c1: proc(1);
+        c1: proc(2);                    -- Error, duplicate label
+    end block;
+
 end architecture;

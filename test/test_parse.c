@@ -2666,6 +2666,16 @@ START_TEST(test_error)
       { 27, "trailing label for process statement without label" },
       { 34, "expected trailing if statement label to match MY_IF" },
       { 36, "expected trailing subprogram body label to match \"+\"" },
+      { 41, "P1 already declared in this region" },
+      { 40, "previous declaration of P1 was here" },
+      { 44, "A1 already declared in this region" },
+      { 43, "previous declaration of A1 was here" },
+      { 47, "S1 already declared in this region" },
+      { 46, "previous declaration of S1 was here" },
+      { 50, "B1 already declared in this region" },
+      { 49, "previous declaration of B1 was here" },
+      { 56, "C1 already declared in this region" },
+      { 55, "previous declaration of C1 was here" },
       { -1, NULL }
    };
    expect_errors(expect);
