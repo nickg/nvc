@@ -1,6 +1,7 @@
 ## 1.5.2 - unreleased
 - Link libexecinfo on FreeBSD.
 - Implement textio READ procedure for BIT and TIME (#408).
+- Fixed a crash when a long running procedure suspends in a loop (#412).
 
 ## 1.5.1 - 2021-09-04
 - Fix a compiler warning in vcode.c.
