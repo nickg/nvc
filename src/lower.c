@@ -3646,6 +3646,17 @@ static void lower_pcall(tree_t pcall)
    else {
       const int hops = nest_depth > 0 ? vcode_unit_depth() - nest_depth : 0;
       vcode_block_t resume_bb = emit_block();
+
+      // Save the temp stack mark in a variable so it is preserved
+      // across suspend/resume
+      vcode_var_t tmp_mark_var = VCODE_INVALID_VAR;
+      if (tmp_alloc_used) {
+         ident_t tmp_mark_i = ident_new("tmp_mark");
+         if ((tmp_mark_var = vcode_find_var(tmp_mark_i)) == VCODE_INVALID_VAR)
+            tmp_mark_var = emit_var(vtype_offset(), vtype_offset(), tmp_mark_i);
+         emit_store(saved_heap, tmp_mark_var);
+      }
+
       if (nest_depth > 0) {
          emit_nested_pcall(name, args, nargs, resume_bb, hops);
          vcode_select_block(resume_bb);
@@ -3656,6 +3667,9 @@ static void lower_pcall(tree_t pcall)
          vcode_select_block(resume_bb);
          emit_resume(name);
       }
+
+      if (tmp_alloc_used)
+         lower_cleanup_temp_objects(emit_load(tmp_mark_var));
    }
 }
 

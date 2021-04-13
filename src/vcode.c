@@ -4878,8 +4878,6 @@ void emit_heap_restore(vcode_reg_t reg)
 
    VCODE_ASSERT(vcode_reg_kind(reg) == VCODE_TYPE_OFFSET,
                 "saved heap must have offset type");
-   VCODE_ASSERT(vcode_find_definition(reg)->kind == VCODE_OP_HEAP_SAVE,
-                "register for heap restore must come from heap save");
 }
 
 vcode_reg_t emit_undefined(vcode_type_t type)
