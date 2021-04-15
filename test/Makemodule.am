@@ -64,3 +64,16 @@ cov-report: cov-generate
 	-x-www-browser $(covdir)/index.html
 
 endif
+
+update-test-dist:
+	$(AM_V_GEN)( \
+	  echo "# Generated automatically, do not edit." ; \
+	  echo "EXTRA_DIST += \\" ; \
+	  cd $(top_srcdir) ; \
+	  git ls-files -- 'test/*.vhd' 'test/*.txt' | \
+	    sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
+	) > $(top_srcdir)/test/dist.mk
+
+.PHONY: update-test-dist
+
+include test/dist.mk

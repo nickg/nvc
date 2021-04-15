@@ -15,9 +15,6 @@ bootstrap:
 	rm -f $(BOOTSTRAPLIBS)
 	$(MAKE) libs-std libs-ieee libs-nvc libs-synopsys libs-vital
 
-distcheck-hook:
-	yes | $(top_srcdir)/tools/fetch-ieee.sh
-
 CLEANFILES += $(BOOTSTRAPLIBS)
 
 DRIVER = bin/nvc$(EXEEXT)
