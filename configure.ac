@@ -57,7 +57,7 @@ AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
 AX_PROG_FLEX([], [AC_MSG_ERROR(GNU Flex not found)])
 
 case $host_os in
-  openbsd*)
+  openbsd*|freebsd*)
     # Need to link libexecinfo explicitly
     AC_SEARCH_LIBS([backtrace_symbols], [execinfo], [],
       [AC_MSG_ERROR(libexecinfo not found)], [])
