@@ -48,9 +48,8 @@ lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
 
 bin_nvc_SOURCES = src/nvc.c
 
-if FORCE_CXX_LINK
+# Force linking as C++ to allow LLVM static libraries
 nodist_EXTRA_bin_nvc_SOURCES = dummy.cxx
-endif
 
 bin_nvc_LDADD = \
 	lib/libnvc.a \

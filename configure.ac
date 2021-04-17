@@ -156,7 +156,6 @@ if test x$enable_fst_judy = xyes ; then
 fi
 
 AX_LLVM_C([engine bitreader bitwriter ipo linker])
-AM_CONDITIONAL([FORCE_CXX_LINK], [test ! x$ax_cv_llvm_shared = xyes])
 
 PKG_CHECK_EXISTS([check],
   [PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])],

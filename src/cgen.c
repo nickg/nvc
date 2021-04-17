@@ -258,7 +258,6 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
       return;
    }
 
-#if LLVM_NEW_ATTRIBUTE_API
    const char *names[] = {
       "nounwind", "noreturn", "readonly", "nocapture", "byval", "uwtable",
    };
@@ -273,22 +272,6 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
       LLVMCreateEnumAttribute(LLVMGetGlobalContext(), kind, 0);
 
    LLVMAddAttributeAtIndex(fn, param, ref);
-#else
-   LLVMAttribute llvm_attrs[] = {
-      LLVMNoUnwindAttribute,
-      LLVMNoReturnAttribute,
-      LLVMReadOnlyAttribute,
-      LLVMNoCaptureAttribute,
-      LLVMByValAttribute,
-      LLVMUWTable,
-   };
-   assert(attr < ARRAY_LEN(llvm_attrs));
-
-   if (param == -1)
-      LLVMAddFunctionAttr(fn, llvm_attrs[attr]);
-   else
-      LLVMAddAttribute(LLVMGetParam(fn, param - 1), llvm_attrs[attr]);
-#endif
 }
 
 static LLVMTypeRef cgen_net_id_type(void)
@@ -4132,12 +4115,7 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
    LLVMSetTarget(module, def_triple);
 
-#if LLVM_HAS_CREATE_TARGET_DATA_LAYOUT
    LLVMTargetDataRef data_ref = LLVMCreateTargetDataLayout(tm_ref);
-#else
-   LLVMTargetDataRef data_ref = LLVMGetTargetMachineData(tm_ref);
-#endif
-
    char *layout LOCAL = LLVMCopyStringRepOfTargetData(data_ref);
    LLVMSetDataLayout(module, layout);
 
@@ -4161,8 +4139,6 @@ void cgen(tree_t top, vcode_unit_t vcode)
    LLVMDisposeModule(module);
    LLVMDisposeBuilder(builder);
    LLVMDisposeTargetMachine(tm_ref);
-#if LLVM_HAS_CREATE_TARGET_DATA_LAYOUT
    LLVMDisposeTargetData(data_ref);
-#endif
    LLVMDisposeMessage(def_triple);
 }

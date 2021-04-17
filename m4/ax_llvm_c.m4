@@ -34,157 +34,119 @@
 AC_DEFUN([AX_LLVM_C], [
   AC_ARG_WITH([llvm],
     AS_HELP_STRING(
-      [--with-llvm@<:@=DIR@:>@],
-      [use llvm (default is yes) - it is possible to specify the root directory for llvm (optional)]),
-      [
-        if test "$withval" = "no"; then
-            want_llvm="no"
-        elif test "$withval" = "yes"; then
-            want_llvm="yes"
-            ac_llvm_config_path=`which llvm-config`
-        else
-            want_llvm="yes"
-            ac_llvm_config_path="$withval"
-        fi
-      ],
-      [want_llvm="yes"])
+      [--with-llvm=PATH],
+      [Use a specific version of llvm-config]),
+    [
+      if test "$withval" != "no"; then
+        ac_llvm_config_path="$withval"
+      fi
+    ],
+    [])
+
+  case $host_os in
+    darwin*)
+      ac_llvm_link_mode=""
+      ;;
+    *)
+      ac_llvm_link_mode="--link-shared"
+      ;;
+  esac
+
+  AC_ARG_ENABLE([static_llvm],
+                [AS_HELP_STRING([--enable-static-llvm],
+                                [Link to static LLVM libraries (default shared)])],
+                [
+                  if test x$enableval = xyes; then
+                    ac_llvm_link_mode="--link-static"
+                  fi
+                ])
 
   succeeded=no
   if test -z "$ac_llvm_config_path"; then
-      ac_llvm_config_path=`which llvm-config`
+    ac_llvm_config_path=`which llvm-config`
   fi
 
-  if test "x$want_llvm" = "xyes"; then
-      if test -e "$ac_llvm_config_path"; then
-          LLVM_VERSION="$($ac_llvm_config_path --version)"
-          llvm_ver_num=`echo $LLVM_VERSION | sed 's/\(@<:@0-9@:>@\{1,\}\)\.\(@<:@0-9@:>@\{1,\}\).*/\1\2/'`
+  if test -e "$ac_llvm_config_path"; then
+    ac_llvm_config="$ac_llvm_config_path $ac_llvm_link_mode"
 
-          LLVM_COMPS="$1"
-          if test "$llvm_ver_num" -lt "38"; then
-              LLVM_COMPS="$(echo $LLVM_COMPS | sed 's|orcjit||g')"
-          fi
+    LLVM_VERSION="$($ac_llvm_config --version)"
+    llvm_ver_num=`echo $LLVM_VERSION | sed 's/\(@<:@0-9@:>@\{1,\}\)\.\(@<:@0-9@:>@\{1,\}\).*/\1\2/'`
 
-          LLVM_CFLAGS=`$ac_llvm_config_path --cflags`
-          LLVM_CXXFLAGS=`$ac_llvm_config_path --cxxflags`
-          LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags | sed 's|\\|\\\\|g')"
-          LLVM_SYSLIBS="$($ac_llvm_config_path --system-libs)"
-          LLVM_LIBS="$($ac_llvm_config_path --libs $LLVM_COMPS) $LLVM_SYSLIBS"
-          LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir | sed 's|\\|\\\\|g')"
-          LLVM_LIBDIR="$($ac_llvm_config_path --libdir | sed 's|\\|\\\\|g')"
+    LLVM_CFLAGS=`$ac_llvm_config --cflags`
+    LLVM_CXXFLAGS=`$ac_llvm_config --cxxflags`
+    LLVM_LDFLAGS="$($ac_llvm_config --ldflags | sed 's|\\|\\\\|g')"
+    LLVM_SYSLIBS="$($ac_llvm_config --system-libs)"
+    LLVM_LIBS="$($ac_llvm_config --libs $1) $LLVM_SYSLIBS"
+    LLVM_CONFIG_BINDIR="$($ac_llvm_config $ac_llvm_config_flags --bindir | sed 's|\\|\\\\|g')"
+    LLVM_LIBDIR="$($ac_llvm_config --libdir | sed 's|\\|\\\\|g')"
 
-          if test "$llvm_ver_num" -lt "38"; then
-              AC_MSG_ERROR([LLVM version 3.8 or later required])
-          fi
+    if test "$llvm_ver_num" -lt "60"; then
+      AC_MSG_ERROR([LLVM version 6.0 or later required])
+    fi
 
-          if test "$llvm_ver_num" -ge "39"; then
-              AC_DEFINE_UNQUOTED(LLVM_HAS_LINK_MODULES2, [1],
-                                 [LLVM has LLVMLinkModules2])
-              AC_DEFINE_UNQUOTED(LLVM_HAS_ORC, [1],
-                                 [LLVM has ORC JIT engine])
-              AC_DEFINE_UNQUOTED(LLVM_HAS_CREATE_TARGET_DATA_LAYOUT, [1],
-                                 [LLVM has LLVMCreateTargetDataLayout])
-          fi
+    if test "$llvm_ver_num" -lt "70"; then
+      AC_DEFINE_UNQUOTED(LLVM_INTRINSIC_ALIGN, [1],
+                         [LLVM intrinsics have alignment param])
+    fi
 
-          if test "$llvm_ver_num" -ge "40"; then
-              AC_DEFINE_UNQUOTED(LLVM_NEW_ATTRIBUTE_API, [1],
-                                 [LLVM has new attribute API])
-          fi
+    LLVM_OBJ_EXT="o"
+    case $host_os in
+      *cygwin*|msys*|mingw32*)
+        LLVM_OBJ_EXT="obj"
+        ;;
+    esac
+    AC_DEFINE_UNQUOTED(LLVM_OBJ_EXT, ["$LLVM_OBJ_EXT"],
+                       [LLVM object file extension])
 
-          if test "$llvm_ver_num" -ge "50"; then
-              AC_DEFINE_UNQUOTED(LLVM_NEW_ORC_API, [1],
-                                 [LLVM has new ORC API])
-          fi
+    AC_REQUIRE([AC_PROG_CXX])
 
-          if test "$llvm_ver_num" -lt "70"; then
-              AC_DEFINE_UNQUOTED(LLVM_INTRINSIC_ALIGN, [1],
-                                 [LLVM intrinsics have alignment param])
-          fi
+    CFLAGS_SAVED="$CFLAGS"
+    CFLAGS="$CFLAGS $LLVM_CFLAGS"
+    export CFLAGS
 
-          LLVM_OBJ_EXT="o"
-          case $host_os in
-              *cygwin*|msys*|mingw32*)
-                  LLVM_OBJ_EXT="obj"
-                  ;;
-          esac
-          AC_DEFINE_UNQUOTED(LLVM_OBJ_EXT, ["$LLVM_OBJ_EXT"],
-                             [LLVM object file extension])
+    CXXFLAGS_SAVED="$CXXFLAGS"
+    CXXFLAGS="$CXXFLAGS $LLVM_CXXFLAGS"
+    export CXXFLAGS
 
-          AC_REQUIRE([AC_PROG_CXX])
+    LDFLAGS_SAVED="$LDFLAGS"
+    LDFLAGS="$LDFLAGS $LLVM_LDFLAGS"
+    export LDFLAGS
 
-          CFLAGS_SAVED="$CFLAGS"
-          CFLAGS="$CFLAGS $LLVM_CFLAGS"
-          export CFLAGS
+    LIBS_SAVED="$LIBS"
+    LIBS="$LIBS $LLVM_LIBS"
+    export LIBS
 
-          CXXFLAGS_SAVED="$CXXFLAGS"
-          CXXFLAGS="$CXXFLAGS $LLVM_CXXFLAGS"
-          export CXXFLAGS
+    AC_CACHE_CHECK([for LLVM ([$1])],
+                   ax_cv_llvm,
+                   [AC_LANG_PUSH([C++])
+                    AC_LINK_IFELSE(
+                      [AC_LANG_PROGRAM(
+                         [[@%:@include <llvm-c/Core.h>]],
+                         [[LLVMModuleCreateWithName("test"); return 0;]])],
+                      ax_cv_llvm=yes,
+                      ax_cv_llvm=no)
+                    AC_LANG_POP([C++])])
 
-          LDFLAGS_SAVED="$LDFLAGS"
-          LDFLAGS="$LDFLAGS $LLVM_LDFLAGS"
-          export LDFLAGS
+    if test "x$ax_cv_llvm" = "xyes"; then
+      succeeded=yes
+    fi
 
-          LIBS_SAVED="$LIBS"
-          LIBS="$LIBS $LLVM_LIBS"
-          export LIBS
-
-          AC_CACHE_CHECK([for LLVM ([$1])],
-                         ax_cv_llvm,
-                         [AC_LANG_PUSH([C++])
-                          AC_LINK_IFELSE(
-                              [AC_LANG_PROGRAM(
-                                      [[@%:@include <llvm-c/Core.h>]],
-                                      [[LLVMModuleCreateWithName("test"); return 0;]])],
-                              ax_cv_llvm=yes,
-                              ax_cv_llvm=no)
-                          AC_LANG_POP([C++])])
-
-          if test "x$ax_cv_llvm" = "xyes"; then
-              succeeded=yes
-          fi
-
-          ac_llvm_shared_lib="-Wl,-rpath $LLVM_LIBDIR -lLLVM-$LLVM_VERSION"
-          case $host_os in
-              msys*|mingw32*)
-                  ac_llvm_shared_lib="-L$LLVM_CONFIG_BINDIR -Wl,-rpath $LLVM_CONFIG_BINDIR -lLLVM"
-                  ;;
-          esac
-
-          LIBS="$LIBS_SAVED $ac_llvm_shared_lib"
-          export LIBS
-
-          AC_CACHE_CHECK([for LLVM shared library],
-                         ax_cv_llvm_shared,
-                         [AC_LANG_PUSH([C++])
-                          AC_RUN_IFELSE(
-                              [AC_LANG_PROGRAM(
-                                      [[@%:@include <llvm-c/Core.h>]],
-                                      [[LLVMModuleCreateWithName("test"); return 0;]])],
-                              ax_cv_llvm_shared=yes,
-                              ax_cv_llvm_shared=no)
-                          AC_LANG_POP([C++])])
-
-          if test "x$ax_cv_llvm_shared" = "xyes"; then
-              LLVM_LIBS="$ac_llvm_shared_lib"
-              succeeded=yes
-          fi
-
-          CFLAGS="$CFLAGS_SAVED"
-          CXXFLAGS="$CXXFLAGS_SAVED"
-          LDFLAGS="$LDFLAGS_SAVED"
-          LIBS="$LIBS_SAVED"
-      else
-          succeeded=no
-      fi
+    CFLAGS="$CFLAGS_SAVED"
+    CXXFLAGS="$CXXFLAGS_SAVED"
+    LDFLAGS="$LDFLAGS_SAVED"
+    LIBS="$LIBS_SAVED"
+  else
+    succeeded=no
   fi
 
   if test "$succeeded" != "yes" ; then
-      AC_MSG_ERROR([[We could not detect the llvm libraries make sure that llvm-config is on your path or specified by --with-llvm.]])
+    AC_MSG_ERROR([Could not detect the LLVM libraries. Make sure that llvm-config is on your path or specified by --with-llvm.])
   else
-      AC_SUBST(LLVM_CFLAGS)
-      AC_SUBST(LLVM_LDFLAGS)
-      AC_SUBST(LLVM_LIBS)
-      AC_DEFINE(HAVE_LLVM,,[Defined if LLVM is available])
-      AC_DEFINE_UNQUOTED(LLVM_VERSION,["$LLVM_VERSION"],[Version of LLVM installed])
-      AC_DEFINE_UNQUOTED(LLVM_CONFIG_BINDIR,["$LLVM_CONFIG_BINDIR"],[Location of LLVM binaries])
+    AC_SUBST(LLVM_CFLAGS)
+    AC_SUBST(LLVM_LDFLAGS)
+    AC_SUBST(LLVM_LIBS)
+    AC_DEFINE(HAVE_LLVM,,[Defined if LLVM is available])
+    AC_DEFINE_UNQUOTED(LLVM_VERSION,["$LLVM_VERSION"],[Version of LLVM installed])
+    AC_DEFINE_UNQUOTED(LLVM_CONFIG_BINDIR,["$LLVM_CONFIG_BINDIR"],[Location of LLVM binaries])
   fi
 ])
