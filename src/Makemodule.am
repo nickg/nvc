@@ -41,7 +41,9 @@ lib_libnvc_a_SOURCES = \
 	src/loc.h \
 	src/loc.c \
 	src/names.h \
-	src/names.c
+	src/names.c \
+	src/debug.h \
+	src/debug.c
 
 lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

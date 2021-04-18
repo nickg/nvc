@@ -28,6 +28,7 @@
 #include "ident.h"
 #include "loc.h"
 #include "array.h"
+#include "debug.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -35,9 +36,6 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
-#ifdef HAVE_EXECINFO_H
-#include <execinfo.h>
-#endif
 #include <signal.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -75,13 +73,6 @@
 #include <ucontext.h>
 #elif defined(HAVE_SYS_UCONTEXT_H)
 #include <sys/ucontext.h>
-#endif
-
-#ifdef HAVE_LIBDW
-#include <elfutils/libdw.h>
-#include <elfutils/libdwfl.h>
-#include <dwarf.h>
-#include <unwind.h>
 #endif
 
 #ifdef __MACH__
@@ -616,9 +607,7 @@ void fatal_trace(const char *fmt, ...)
    fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
    va_end(ap);
 
-#ifndef NO_STACK_TRACE
    show_stacktrace();
-#endif  // !NO_STACK_TRACE
 
    exit(EXIT_FAILURE);
 }
@@ -656,7 +645,56 @@ void fatal_errno(const char *fmt, ...)
    exit(EXIT_FAILURE);
 }
 
-#ifndef NO_STACK_TRACE
+__attribute__((noinline))
+void show_stacktrace(void)
+{
+   debug_info_t *di = debug_capture();
+
+   const int nframes = debug_count_frames(di);
+   for (int n = 1; n < nframes; n++) {
+      const debug_frame_t *frame = debug_get_frame(di, n);
+
+      color_printf("[$green$%p$$] ", (void *)frame->pc);
+      if (frame->kind == FRAME_LIB)
+         color_printf("($red$%s$$) ", frame->module);
+      if (frame->srcfile != NULL)
+         color_printf("%s:%d ", frame->srcfile, frame->lineno);
+      if (frame->symbol != NULL)
+         color_printf("$yellow$%s$$", frame->symbol);
+      printf("\n");
+
+      if (frame->srcfile != NULL) {
+         FILE *f = fopen(frame->srcfile, "r");
+         if (f != NULL) {
+            char buf[TRACE_MAX_LINE];
+            for (int i = 0; i < frame->lineno + 1 &&
+                    fgets(buf, sizeof(buf), f); i++) {
+               if (i < frame->lineno - 2)
+                  continue;
+
+               const size_t len = strlen(buf);
+               if (len <= 1)
+                  continue;
+               else if (buf[len - 1] == '\n')
+                  buf[len - 1] = '\0';
+
+               if (i == frame->lineno - 1)
+                  color_printf("$cyan$$bold$-->$$ $cyan$%s$$\n", buf);
+               else
+                  color_printf("    $cyan$%s$$\n", buf);
+            }
+            fclose(f);
+         }
+      }
+   }
+
+   debug_free(di);
+
+#if defined __linux && !defined HAVE_LIBDW
+   color_fprintf(stderr, "\n$cyan$Hint: you can get better stack traces by "
+                 "installing the libdw-dev package and reconfiguring$$\n");
+#endif
+}
 
 static bool check_guard_page(uintptr_t addr)
 {
@@ -670,219 +708,35 @@ static bool check_guard_page(uintptr_t addr)
    return false;
 }
 
-#if defined HAVE_LIBDW
-static bool die_has_pc(Dwarf_Die* die, Dwarf_Addr pc)
-{
-   Dwarf_Addr low, high;
-
-   if (dwarf_hasattr(die, DW_AT_low_pc) && dwarf_hasattr(die, DW_AT_high_pc)) {
-      if (dwarf_lowpc(die, &low) != 0)
-         return false;
-      if (dwarf_highpc(die, &high) != 0) {
-         Dwarf_Attribute attr_mem;
-         Dwarf_Attribute* attr = dwarf_attr(die, DW_AT_high_pc, &attr_mem);
-         Dwarf_Word value;
-         if (dwarf_formudata(attr, &value) != 0)
-            return false;
-         high = low + value;
-      }
-      return pc >= low && pc < high;
-   }
-
-   Dwarf_Addr base;
-   ptrdiff_t offset = 0;
-   while ((offset = dwarf_ranges(die, offset, &base, &low, &high)) > 0) {
-      if (pc >= low && pc < high)
-         return true;
-   }
-
-   return false;
-}
-
-static _Unwind_Reason_Code libdw_trace_iter(struct _Unwind_Context* ctx,
-                                            void *param)
-{
-   static Dwfl *handle = NULL;
-   static Dwfl_Module *home = NULL;
-
-   if (handle == NULL) {
-      static Dwfl_Callbacks callbacks = {
-         .find_elf = dwfl_linux_proc_find_elf,
-         .find_debuginfo = dwfl_standard_find_debuginfo,
-         .debuginfo_path = NULL
-      };
-
-      if ((handle = dwfl_begin(&callbacks)) == NULL) {
-         warnf("failed to initialise dwfl");
-         return _URC_NORMAL_STOP;
-      }
-
-      dwfl_report_begin(handle);
-      if (dwfl_linux_proc_report(handle, getpid()) < 0) {
-         warnf("dwfl_linux_proc_report failed");
-         return _URC_NORMAL_STOP;
-      }
-      dwfl_report_end(handle, NULL, NULL);
-
-      home = dwfl_addrmodule(handle, (uintptr_t)libdw_trace_iter);
-   }
-
-   int *skip = param;
-   if (skip != NULL && *skip > 0) {
-      (*skip)--;
-      return _URC_NO_REASON;
-   }
-
-   int ip_before_instruction = 0;
-   uintptr_t ip = _Unwind_GetIPInfo(ctx, &ip_before_instruction);
-
-   if (ip == 0)
-      return _URC_NO_REASON;
-   else if (!ip_before_instruction)
-      ip -= 1;
-
-   Dwfl_Module *mod = dwfl_addrmodule(handle, ip);
-
-   const char *module_name = dwfl_module_info(mod, 0, 0, 0, 0, 0, 0, 0);
-   const char *sym_name = dwfl_module_addrname(mod, ip);
-
-   Dwarf_Addr mod_bias = 0;
-   Dwarf_Die *die = dwfl_module_addrdie(mod, ip, &mod_bias);
-
-   if (die == NULL) {
-      // Hack to support Clang taken from backward-cpp
-      while ((die = dwfl_module_nextcu(mod, die, &mod_bias))) {
-         Dwarf_Die child;
-         if (dwarf_child(die, &child) != 0)
-            continue;
-
-         Dwarf_Die* iter = &child;
-         do {
-            switch (dwarf_tag(iter)) {
-            case DW_TAG_subprogram:
-            case DW_TAG_inlined_subroutine:
-               if (die_has_pc(iter, ip))
-                  goto found_die_with_ip;
-            }
-         } while (dwarf_siblingof(iter, iter) == 0);
-      }
-   found_die_with_ip:
-      ;
-   }
-
-   Dwarf_Line* srcloc = dwarf_getsrc_die(die, ip - mod_bias);
-   const char* srcfile = dwarf_linesrc(srcloc, 0, 0);
-
-   int line = 0, col = 0;
-   dwarf_lineno(srcloc, &line);
-   dwarf_linecol(srcloc, &col);
-
-   color_printf("[$green$%p$$] ", (void *)ip);
-   if (mod != home)
-      color_printf("($red$%s$$) ", module_name);
-   if (srcfile != NULL)
-      color_printf("%s:%d ", srcfile, line);
-   if (sym_name != NULL)
-      color_printf("$yellow$%s$$", sym_name);
-   printf("\n");
-
-   FILE *f = fopen(srcfile, "r");
-   if (f != NULL) {
-      char buf[TRACE_MAX_LINE];
-      for (int i = 0; i < line + 1 && fgets(buf, sizeof(buf), f); i++) {
-         if (i < line - 2)
-            continue;
-
-         const size_t len = strlen(buf);
-         if (len <= 1)
-            continue;
-         else if (buf[len - 1] == '\n')
-            buf[len - 1] = '\0';
-
-         if (i == line - 1)
-            color_printf("$cyan$$bold$-->$$ $cyan$%s$$\n", buf);
-         else
-            color_printf("    $cyan$%s$$\n", buf);
-      }
-      fclose(f);
-   }
-
-   if (sym_name != NULL && strcmp(sym_name, "main") == 0)
-      return _URC_NORMAL_STOP;
-   else
-      return _URC_NO_REASON;
-}
-#elif defined HAVE_EXECINFO_H
-
-static void print_trace(char **messages, int trace_size)
-{
-   fputs("\n-------- STACK TRACE --------\n", stderr);
-
-   for (int i = 0; i < trace_size; i++)
-      fprintf(stderr, "%s\n", messages[i]);
-
-   fputs("-----------------------------\n", stderr);
-
-#ifdef __linux
-   color_fprintf(stderr, "\n$cyan$Hint: you can get better stack traces by "
-                 "installing the libdw-dev package and reconfiguring$$\n");
-#endif  // __linux
-}
-#endif  // HAVE_EXECINFO_H
-
 #ifdef __MINGW32__
 
-#ifdef __WIN64
-static void win64_stacktrace(PCONTEXT context)
+static const char *exception_name(DWORD code)
 {
-   STACKFRAME64 stk;
-   memset(&stk, 0, sizeof(stk));
-
-   stk.AddrPC.Offset    = context->Rip;
-   stk.AddrPC.Mode      = AddrModeFlat;
-   stk.AddrStack.Offset = context->Rsp;
-   stk.AddrStack.Mode   = AddrModeFlat;
-   stk.AddrFrame.Offset = context->Rbp;
-   stk.AddrFrame.Mode   = AddrModeFlat;
-
-   fputs("\n-------- STACK TRACE --------\n", stderr);
-
-   HANDLE hProcess = GetCurrentProcess();
-
-   SymInitialize(hProcess, NULL, TRUE);
-
-   for (ULONG frame = 0; frame < 25; frame++) {
-      if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64,
-                       hProcess,
-                       GetCurrentThread(),
-                       &stk,
-                       context,
-                       NULL,
-                       SymFunctionTableAccess,
-                       SymGetModuleBase,
-                       NULL))
-         break;
-
-      char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
-      PSYMBOL_INFO psym = (PSYMBOL_INFO)buffer;
-      psym->SizeOfStruct = sizeof(SYMBOL_INFO);
-      psym->MaxNameLen = MAX_SYM_NAME;
-
-      DWORD64 disp;
-      if (SymFromAddr(hProcess, stk.AddrPC.Offset, &disp, psym)) {
-         fprintf(stderr, "%p %s+0x%x\n", (void *)(uintptr_t)stk.AddrPC.Offset,
-                 psym->Name, (int)disp);
-      }
-      else
-         fprintf(stderr, "%p ???\n", (void *)(uintptr_t)stk.AddrPC.Offset);
+   switch (code) {
+   case EXCEPTION_ACCESS_VIOLATION:
+      return "EXCEPTION_ACCESS_VIOLATION";
+   case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+      return "EXCEPTION_ARRAY_BOUNDS_EXCEEDED";
+   case EXCEPTION_BREAKPOINT:
+      return "EXCEPTION_BREAKPOINT";
+   case EXCEPTION_DATATYPE_MISALIGNMENT:
+      return "EXCEPTION_DATATYPE_MISALIGNMENT";
+   case EXCEPTION_ILLEGAL_INSTRUCTION:
+      return "EXCEPTION_ILLEGAL_INSTRUCTION";
+   case EXCEPTION_IN_PAGE_ERROR:
+      return "EXCEPTION_IN_PAGE_ERROR";
+   case EXCEPTION_INT_DIVIDE_BY_ZERO:
+      return "EXCEPTION_INT_DIVIDE_BY_ZERO";
+   case EXCEPTION_INT_OVERFLOW:
+      return "EXCEPTION_INT_OVERFLOW";
+   case EXCEPTION_PRIV_INSTRUCTION:
+      return "EXCEPTION_PRIV_INSTRUCTION";
+   case EXCEPTION_STACK_OVERFLOW:
+      return "EXCEPTION_STACK_OVERFLOW";
    }
 
-   fputs("-----------------------------\n", stderr);
-   fflush(stderr);
-
-   SymCleanup(hProcess);
+   return "???";
 }
-#endif  // __WIN64
 
 WINAPI
 static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
@@ -896,46 +750,13 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
    DWORD ip = ExceptionInfo->ContextRecord->Eip;
 #endif
 
-   const char *what = "???";
-   switch (code) {
-   case EXCEPTION_ACCESS_VIOLATION:
-      what = "EXCEPTION_ACCESS_VIOLATION";
+   if (code == EXCEPTION_ACCESS_VIOLATION) {
       addr = (PVOID)ExceptionInfo->ExceptionRecord->ExceptionInformation[1];
-      break;
-   case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
-      what = "EXCEPTION_ARRAY_BOUNDS_EXCEEDED";
-      break;
-   case EXCEPTION_BREAKPOINT:
-      what = "EXCEPTION_BREAKPOINT";
-      break;
-   case EXCEPTION_DATATYPE_MISALIGNMENT:
-      what = "EXCEPTION_DATATYPE_MISALIGNMENT";
-      break;
-   case EXCEPTION_ILLEGAL_INSTRUCTION:
-      what = "EXCEPTION_ILLEGAL_INSTRUCTION";
-      break;
-   case EXCEPTION_IN_PAGE_ERROR:
-      what = "EXCEPTION_IN_PAGE_ERROR";
-      break;
-   case EXCEPTION_INT_DIVIDE_BY_ZERO:
-      what = "EXCEPTION_INT_DIVIDE_BY_ZERO";
-      break;
-   case EXCEPTION_INT_OVERFLOW:
-      what = "EXCEPTION_INT_OVERFLOW";
-      break;
-   case EXCEPTION_PRIV_INSTRUCTION:
-      what = "EXCEPTION_PRIV_INSTRUCTION";
-      break;
-   case EXCEPTION_STACK_OVERFLOW:
-      what = "EXCEPTION_STACK_OVERFLOW";
-      break;
+      check_guard_page((uintptr_t)addr);
    }
 
-   if (code == EXCEPTION_ACCESS_VIOLATION)
-      check_guard_page((uintptr_t)addr);
-
    color_fprintf(stderr, "\n$red$$bold$*** Caught exception %x (%s)",
-                 code, what);
+                 (int)code, exception_name(code));
 
    switch (code) {
    case EXCEPTION_ACCESS_VIOLATION:
@@ -944,44 +765,19 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
       break;
    }
 
-   color_fprintf(stderr, " ***$$\n");
+   color_fprintf(stderr, " ***$$\n\n");
    fflush(stderr);
 
 #ifdef __WIN64
-   if (code != EXCEPTION_STACK_OVERFLOW )
-      win64_stacktrace(ExceptionInfo->ContextRecord);
+   if (code != EXCEPTION_STACK_OVERFLOW)
+      show_stacktrace();
 #endif
 
   return EXCEPTION_EXECUTE_HANDLER;
 }
 
-#endif  // __MINGW32__
+#else  // __MINGW32__
 
-void show_stacktrace(void)
-{
-#if defined HAVE_LIBDW
-   int skip = 1;
-   _Unwind_Backtrace(libdw_trace_iter, &skip);
-#elif defined HAVE_EXECINFO_H
-   void *trace[N_TRACE_DEPTH];
-   char **messages = NULL;
-   int trace_size = 0;
-
-   trace_size = backtrace(trace, N_TRACE_DEPTH);
-   messages = backtrace_symbols(trace, trace_size);
-
-   print_trace(messages, trace_size);
-
-   free(messages);
-#elif defined __WIN64
-   CONTEXT context;
-   RtlCaptureContext(&context);
-
-   win64_stacktrace(&context);
-#endif
-}
-
-#ifndef __MINGW32__
 static const char *signame(int sig)
 {
    switch (sig) {
@@ -995,10 +791,14 @@ static const char *signame(int sig)
    }
 }
 
-static void bt_sighandler(int sig, siginfo_t *info, void *secret)
+static void bt_sighandler(int sig, siginfo_t *info, void *context)
 {
-   ucontext_t *uc = (ucontext_t*)secret;
+#if defined HAVE_UCONTEXT_H && defined PC_FROM_UCONTEXT
+   ucontext_t *uc = (ucontext_t*)context;
    uintptr_t ip = uc->PC_FROM_UCONTEXT;
+#else
+   uintptr_t ip = 0;
+#endif
 
    if (sig == SIGSEGV)
       check_guard_page((uintptr_t)info->si_addr);
@@ -1015,36 +815,14 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
       break;
    }
 
-   color_fprintf(stderr, " ***$$\n");
+   color_fprintf(stderr, " ***$$\n\n");
 
-#if defined HAVE_LIBDW
-   fprintf(stderr, "\n");
-   int skip = 2;
-   _Unwind_Backtrace(libdw_trace_iter, &skip);
-#elif defined HAVE_EXECINFO_H
-   void *trace[N_TRACE_DEPTH];
-   int trace_size = 0;
-   char **messages = NULL;
-
-   trace_size = backtrace(trace, N_TRACE_DEPTH);
-
-   // Overwrite sigaction with caller's address
-   trace[1] = (void*)ip;
-
-   messages = backtrace_symbols(trace, trace_size);
-
-   // Skip first stack frame (points here)
-   print_trace(messages + 1, trace_size - 1);
-
-   free(messages);
-#endif
+   show_stacktrace();
 
    if (sig != SIGUSR1)
       exit(2);
 }
 #endif  // !__MINGW32__
-
-#endif  // NO_STACK_TRACE
 
 #if defined __linux__
 static bool scan_file_for_token(const char *file, const char *token)
@@ -1172,10 +950,8 @@ static void gdb_sighandler(int sig, siginfo_t *info)
 void register_trace_signal_handlers(void)
 {
 #if defined __MINGW32__
-
    SetUnhandledExceptionFilter(win32_exception_handler);
-
-#elif !defined NO_STACK_TRACE
+#else
    if (is_debugger_running())
       return;
 
@@ -1190,7 +966,7 @@ void register_trace_signal_handlers(void)
    sigaction(SIGBUS, &sa, NULL);
    sigaction(SIGILL, &sa, NULL);
    sigaction(SIGABRT, &sa, NULL);
-#endif  // NO_STACK_TRACE
+#endif  // !__MINGW32__
 }
 
 void register_gdb_signal_handlers(void)

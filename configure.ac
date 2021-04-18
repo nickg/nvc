@@ -254,12 +254,8 @@ case $host_os in
     LIBS="$LIBS -lDbgHelp"    # For StackTrace64
     ;;
   *)
-    # AC_PC_FROM_UCONTEXT doesn't accept []-quoted argument.
     AC_PC_FROM_UCONTEXT(
-      AC_MSG_WARN(no way to access program counter - stack trace is disabled))
-    if test x$pc_field_found = xfalse ; then
-      AC_DEFINE_UNQUOTED([NO_STACK_TRACE], [1], [Disable stack trace support])
-    fi
+      AC_MSG_WARN([no way to access program counter]))
     ;;
 esac
 
