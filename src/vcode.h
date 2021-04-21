@@ -125,8 +125,8 @@ typedef enum {
    VCODE_OP_COVER_STMT,
    VCODE_OP_COVER_COND,
    VCODE_OP_UARRAY_LEN,
-   VCODE_OP_HEAP_SAVE,
-   VCODE_OP_HEAP_RESTORE,
+   VCODE_OP_TEMP_STACK_MARK,
+   VCODE_OP_TEMP_STACK_RESTORE,
    VCODE_OP_NESTED_RESUME,
    VCODE_OP_UNDEFINED,
    VCODE_OP_IMAGE_MAP,
@@ -456,8 +456,8 @@ void emit_nested_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                        vcode_block_t resume_bb, int hops);
 void emit_cover_stmt(uint32_t tag);
 void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub);
-vcode_reg_t emit_heap_save(void);
-void emit_heap_restore(vcode_reg_t reg);
+vcode_reg_t emit_temp_stack_mark(void);
+void emit_temp_stack_restore(vcode_reg_t reg);
 vcode_reg_t emit_undefined(vcode_type_t type);
 vcode_reg_t emit_enum_map(ident_t name, size_t nelems, const ident_t *elems);
 vcode_reg_t emit_physical_map(ident_t name, size_t nelems,

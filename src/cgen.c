@@ -2680,7 +2680,7 @@ static void cgen_op_cover_cond(int op, cgen_ctx_t *ctx)
    LLVMBuildStore(builder, mask1, mask_ptr);
 }
 
-static void cgen_op_heap_save(int op, cgen_ctx_t *ctx)
+static void cgen_op_temp_stack_mark(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef cur_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
 
@@ -2688,7 +2688,7 @@ static void cgen_op_heap_save(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMBuildLoad(builder, cur_ptr, cgen_reg_name(result));
 }
 
-static void cgen_op_heap_restore(int op, cgen_ctx_t *ctx)
+static void cgen_op_temp_stack_restore(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef cur_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
    LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cur_ptr);
@@ -2998,11 +2998,11 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_UARRAY_LEN:
       cgen_op_uarray_len(i, ctx);
       break;
-   case VCODE_OP_HEAP_SAVE:
-      cgen_op_heap_save(i, ctx);
+   case VCODE_OP_TEMP_STACK_MARK:
+      cgen_op_temp_stack_mark(i, ctx);
       break;
-   case VCODE_OP_HEAP_RESTORE:
-      cgen_op_heap_restore(i, ctx);
+   case VCODE_OP_TEMP_STACK_RESTORE:
+      cgen_op_temp_stack_restore(i, ctx);
       break;
    case VCODE_OP_NAND:
       cgen_op_nand(i, ctx);

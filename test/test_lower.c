@@ -225,8 +225,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ALL:
       case VCODE_OP_DEALLOCATE:
       case VCODE_OP_CASE:
-      case VCODE_OP_HEAP_SAVE:
-      case VCODE_OP_HEAP_RESTORE:
+      case VCODE_OP_TEMP_STACK_MARK:
+      case VCODE_OP_TEMP_STACK_RESTORE:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -885,8 +885,10 @@ START_TEST(test_func1)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_FCALL, .func = ":func1$WORK.FUNC1(TEST).ADD1(I)I", .args = 1 },
       { VCODE_OP_STORE, .name = "R" },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
@@ -1383,18 +1385,22 @@ START_TEST(test_proc1)
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
+         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
          { VCODE_OP_FCALL, .func = ":proc1$WORK.PROC1(TEST).ADD1(II)",
            .args = 2 },
+         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
+         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_FCALL, .func = ":proc1$WORK.PROC1(TEST).ADD1(II)",
            .args = 2 },
+         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -1535,7 +1541,9 @@ START_TEST(test_proc3)
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
+         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_INDEX, .name = "X" },
+         { VCODE_OP_STORE, .name = "tmp_mark" },
          { VCODE_OP_PCALL, .func = ":proc3$WORK.PROC3(TEST).P1(I)",
            .target = 2, .args = 1 }
       };
@@ -1544,6 +1552,8 @@ START_TEST(test_proc3)
 
       EXPECT_BB(2) = {
          { VCODE_OP_RESUME, .func = ":proc3$WORK.PROC3(TEST).P1(I)" },
+         { VCODE_OP_LOAD, .name = "tmp_mark" },
+         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_WAIT, .target = 3 }
       };
 
@@ -2590,7 +2600,9 @@ START_TEST(test_dealloc)
    vcode_select_unit(v1);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_FCALL, .func = "WORK.PACK.ANOTHER_PROC(13WORK.PACK.PTR)" },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_RETURN }
    };
 
@@ -2631,8 +2643,10 @@ START_TEST(test_issue333)
       { VCODE_OP_ALL },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_STORE, .name = "L" },
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_INDEX, .name = "L" },
       { VCODE_OP_FCALL, .name = ":issue333:proc(vuLINE;", .args = 1 },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 50 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
       { VCODE_OP_CONST, .value = 2 },
@@ -2869,7 +2883,7 @@ START_TEST(test_hintbug)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_HEAP_SAVE },
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LOAD, .name = "X" },
@@ -2878,7 +2892,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_ARRAY_SIZE },
       { VCODE_OP_COPY },
-      { VCODE_OP_HEAP_RESTORE },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_ALLOCA },
@@ -2909,6 +2923,7 @@ START_TEST(test_issue351)
       { VCODE_OP_ADD },
       { VCODE_OP_WRAP },
       { VCODE_OP_FCALL, .func = "*:issue351$WORK.ISSUE351(RTL).DUMP_WORDS" },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_LOAD, .name = "I.LOOP1" },
       { VCODE_OP_ADDI, .value = 1 },
       { VCODE_OP_STORE, .name = "I.LOOP1" },
@@ -3312,6 +3327,8 @@ START_TEST(test_vital1)
    EXPECT_BB(4) = {
       { VCODE_OP_RESUME,
         .func = "WORK.VITAL_TIMING.PROC(22WORK.VITAL_TIMING.LINEI)" },
+      { VCODE_OP_LOAD, .name = "tmp_mark" },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_CONST, .value = 1 },

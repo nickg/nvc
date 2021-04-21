@@ -705,7 +705,7 @@ void vcode_opt(void)
             case VCODE_OP_NETS:
             case VCODE_OP_WRAP:
             case VCODE_OP_VEC_LOAD:
-            case VCODE_OP_HEAP_SAVE:
+            case VCODE_OP_TEMP_STACK_MARK:
             case VCODE_OP_EXP:
             case VCODE_OP_UNDEFINED:
             case VCODE_OP_UARRAY_LEN:
@@ -1055,8 +1055,8 @@ const char *vcode_op_string(vcode_op_t op)
       "bit vec op", "const real", "value", "last event", "needs last value",
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
-      "uarray len", "heap save", "heap restore", "nested resume", "undefined",
-      "image map", "addi", "range null", "var upref"
+      "uarray len", "temp stack mark", "temp stack restore", "nested resume",
+      "undefined", "image map", "addi", "range null", "var upref"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2161,7 +2161,7 @@ void vcode_dump_with_mark(int mark_op)
             }
             break;
 
-         case VCODE_OP_HEAP_SAVE:
+         case VCODE_OP_TEMP_STACK_MARK:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s", vcode_op_string(op->kind));
@@ -2169,7 +2169,7 @@ void vcode_dump_with_mark(int mark_op)
             }
             break;
 
-         case VCODE_OP_HEAP_RESTORE:
+         case VCODE_OP_TEMP_STACK_RESTORE:
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
@@ -4865,15 +4865,29 @@ void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub)
    op->subkind = sub;
 }
 
-vcode_reg_t emit_heap_save(void)
+vcode_reg_t emit_temp_stack_mark(void)
 {
-   op_t *op = vcode_add_op(VCODE_OP_HEAP_SAVE);
+   op_t *op = vcode_add_op(VCODE_OP_TEMP_STACK_MARK);
    return (op->result = vcode_add_reg(vtype_offset()));
 }
 
-void emit_heap_restore(vcode_reg_t reg)
+void emit_temp_stack_restore(vcode_reg_t reg)
 {
-   op_t *op = vcode_add_op(VCODE_OP_HEAP_RESTORE);
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == VCODE_OP_ALLOCA
+          || other->kind == VCODE_OP_PCALL
+          || other->kind == VCODE_OP_NESTED_PCALL
+          || other->kind == VCODE_OP_FCALL
+          || other->kind == VCODE_OP_NESTED_FCALL
+          || other->kind == VCODE_OP_RESUME
+          || other->kind == VCODE_OP_NESTED_RESUME
+          || other->kind == VCODE_OP_IMAGE)
+         break;
+      else if (other->kind == VCODE_OP_TEMP_STACK_MARK)
+         return;   // No use of temp stack between mark and restore
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_TEMP_STACK_RESTORE);
    vcode_add_arg(op, reg);
 
    VCODE_ASSERT(vcode_reg_kind(reg) == VCODE_TYPE_OFFSET,

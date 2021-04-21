@@ -2019,8 +2019,8 @@ static void eval_vcode(eval_state_t *state)
          eval_op_image(i, state);
          break;
 
-      case VCODE_OP_HEAP_SAVE:
-      case VCODE_OP_HEAP_RESTORE:
+      case VCODE_OP_TEMP_STACK_MARK:
+      case VCODE_OP_TEMP_STACK_RESTORE:
          break;
 
       case VCODE_OP_UARRAY_LEFT:

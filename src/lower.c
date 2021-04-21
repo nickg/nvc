@@ -90,7 +90,6 @@ struct lower_scope {
 };
 
 static const char    *verbose        = NULL;
-static bool           tmp_alloc_used = false;
 static lower_mode_t   mode           = LOWER_NORMAL;
 static lower_scope_t *top_scope      = NULL;
 
@@ -1370,9 +1369,6 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
 
    for (int i = 0; i < nparams; i++)
       APUSH(args, lower_subprogram_arg(fcall, i));
-
-   if (!type_is_scalar(type_result(tree_type(decl))))
-      tmp_alloc_used = true;
 
    ident_t name = tree_ident2(decl);
 
@@ -2893,7 +2889,6 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
       {
          tree_t value = tree_value(tree_param(expr, 0));
          vcode_reg_t map = lower_image_map(tree_type(value));
-         tmp_alloc_used = true;
          return emit_image(lower_param(value, NULL, PORT_IN), map);
       }
 
@@ -3031,14 +3026,6 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
    }
 }
 
-static void lower_cleanup_temp_objects(vcode_reg_t saved_heap)
-{
-   if (tmp_alloc_used) {
-      emit_heap_restore(saved_heap);
-      tmp_alloc_used = false;
-   }
-}
-
 static void lower_assert(tree_t stmt)
 {
    const int is_report = tree_attr_int(stmt, ident_new("is_report"), 0);
@@ -3058,7 +3045,7 @@ static void lower_assert(tree_t stmt)
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
 
    vcode_reg_t message = VCODE_INVALID_REG, length = VCODE_INVALID_REG;
-   vcode_reg_t saved_heap = VCODE_INVALID_REG;
+   vcode_reg_t saved_mark = VCODE_INVALID_REG;
    if (tree_has_message(stmt)) {
       tree_t m = tree_message(stmt);
 
@@ -3072,7 +3059,7 @@ static void lower_assert(tree_t stmt)
          vcode_select_block(message_bb);
       }
 
-      saved_heap = emit_heap_save();
+      saved_mark = emit_temp_stack_mark();
 
       vcode_reg_t message_wrapped = lower_expr(m, EXPR_RVALUE);
       message = lower_array_data(message_wrapped);
@@ -3084,8 +3071,8 @@ static void lower_assert(tree_t stmt)
    else
       emit_assert(value, message, length, severity);
 
-   if (saved_heap != VCODE_INVALID_REG)
-      lower_cleanup_temp_objects(saved_heap);
+   if (saved_mark != VCODE_INVALID_REG)
+      emit_temp_stack_restore(saved_mark);
 
    if (exit_bb != VCODE_INVALID_BLOCK) {
       emit_jump(exit_bb);
@@ -3338,7 +3325,7 @@ static void lower_var_assign(tree_t stmt)
    const bool is_scalar = type_is_scalar(type);
    const bool is_access = type_is_access(type);
 
-   const int saved_heap = emit_heap_save();
+   const int saved_mark = emit_temp_stack_mark();
    uint32_t hint = VCODE_INVALID_HINT;
 
    if (is_scalar || is_access) {
@@ -3390,12 +3377,12 @@ static void lower_var_assign(tree_t stmt)
    if (hint != VCODE_INVALID_HINT)
       vcode_clear_storage_hint(hint);
 
-   lower_cleanup_temp_objects(saved_heap);
+   emit_temp_stack_restore(saved_mark);
 }
 
 static void lower_signal_assign(tree_t stmt)
 {
-   const int saved_heap = emit_heap_save();
+   const int saved_mark = emit_temp_stack_mark();
 
    vcode_reg_t reject;
    if (tree_has_reject(stmt))
@@ -3491,14 +3478,14 @@ static void lower_signal_assign(tree_t stmt)
          reject = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
    }
 
-   lower_cleanup_temp_objects(saved_heap);
+   emit_temp_stack_restore(saved_mark);
 }
 
 static vcode_reg_t lower_test_expr(tree_t value)
 {
-   const int saved_heap = emit_heap_save();
+   const int saved_mark = emit_temp_stack_mark();
    vcode_reg_t test = lower_reify_expr(value);
-   lower_cleanup_temp_objects(saved_heap);
+   emit_temp_stack_restore(saved_mark);
    lower_cond_coverage(value, test);
    return test;
 }
@@ -3594,12 +3581,12 @@ static void lower_pcall(tree_t pcall)
 {
    tree_t decl = tree_ref(pcall);
 
-   const int saved_heap = emit_heap_save();
+   const int saved_mark = emit_temp_stack_mark();
 
    ident_t builtin = tree_attr_str(decl, builtin_i);
    if (builtin != NULL) {
       lower_builtin(pcall, builtin);
-      lower_cleanup_temp_objects(saved_heap);
+      emit_temp_stack_restore(saved_mark);
       return;
    }
 
@@ -3641,7 +3628,7 @@ static void lower_pcall(tree_t pcall)
       }
       else
          emit_fcall(name, VCODE_INVALID_TYPE, args, nargs);
-      lower_cleanup_temp_objects(saved_heap);
+      emit_temp_stack_restore(saved_mark);
    }
    else {
       const int hops = nest_depth > 0 ? vcode_unit_depth() - nest_depth : 0;
@@ -3649,13 +3636,11 @@ static void lower_pcall(tree_t pcall)
 
       // Save the temp stack mark in a variable so it is preserved
       // across suspend/resume
-      vcode_var_t tmp_mark_var = VCODE_INVALID_VAR;
-      if (tmp_alloc_used) {
-         ident_t tmp_mark_i = ident_new("tmp_mark");
-         if ((tmp_mark_var = vcode_find_var(tmp_mark_i)) == VCODE_INVALID_VAR)
-            tmp_mark_var = emit_var(vtype_offset(), vtype_offset(), tmp_mark_i);
-         emit_store(saved_heap, tmp_mark_var);
-      }
+      vcode_var_t tmp_mark_var;
+      ident_t tmp_mark_i = ident_new("tmp_mark");
+      if ((tmp_mark_var = vcode_find_var(tmp_mark_i)) == VCODE_INVALID_VAR)
+         tmp_mark_var = emit_var(vtype_offset(), vtype_offset(), tmp_mark_i);
+      emit_store(saved_mark, tmp_mark_var);
 
       if (nest_depth > 0) {
          emit_nested_pcall(name, args, nargs, resume_bb, hops);
@@ -3668,8 +3653,7 @@ static void lower_pcall(tree_t pcall)
          emit_resume(name);
       }
 
-      if (tmp_alloc_used)
-         lower_cleanup_temp_objects(emit_load(tmp_mark_var));
+      emit_temp_stack_restore(emit_load(tmp_mark_var));
    }
 }
 
@@ -5184,7 +5168,6 @@ vcode_unit_t lower_unit(tree_t unit)
    lower_set_verbose();
 
    mode = LOWER_NORMAL;
-   tmp_alloc_used = false;
 
    vcode_unit_t context = NULL;
    switch (tree_kind(unit)) {
@@ -5216,7 +5199,6 @@ vcode_unit_t lower_thunk(tree_t expr)
 
    vcode_select_unit(context);
    mode = LOWER_THUNK;
-   tmp_alloc_used = false;
 
    vcode_type_t vtype = VCODE_INVALID_TYPE;
    ident_t name_i;
@@ -5262,7 +5244,6 @@ vcode_unit_t lower_func(tree_t body)
 
    vcode_select_unit(context);
    mode = LOWER_THUNK;
-   tmp_alloc_used = false;
 
    vcode_unit_t vu = lower_func_body(body, context);
    vcode_close();
