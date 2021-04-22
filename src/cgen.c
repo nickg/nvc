@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2020  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -73,6 +73,7 @@ typedef enum {
    FUNC_ATTR_NOCAPTURE,
    FUNC_ATTR_BYVAL,
    FUNC_ATTR_UWTABLE,
+   FUNC_ATTR_NOINLINE,
 
    FUNC_ATTR_DLLEXPORT,   // Should be last
 } func_attr_t;
@@ -260,6 +261,7 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
 
    const char *names[] = {
       "nounwind", "noreturn", "readonly", "nocapture", "byval", "uwtable",
+      "noinline",
    };
    assert(attr < ARRAY_LEN(names));
 
@@ -438,6 +440,17 @@ static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
 
    return LLVMBuildPointerCast(builder, buf,
                                LLVMPointerType(type, 0), "tmp_buf");
+}
+
+static LLVMValueRef cgen_stack_save(void)
+{
+   return LLVMBuildCall(builder, llvm_fn("llvm.stacksave"), NULL, 0, "sp");
+}
+
+static void cgen_stack_restore(LLVMValueRef saved_sp)
+{
+   LLVMValueRef args[] = { saved_sp };
+   LLVMBuildCall(builder, llvm_fn("llvm.stackrestore"), args, 1, "");
 }
 
 static bool cgen_is_uarray_struct(LLVMValueRef meta)
@@ -747,6 +760,8 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
       fn = cgen_signature(func, rtype, display_type, atypes, nargs);
    }
 
+   LLVMValueRef saved_sp = cgen_stack_save();
+
    LLVMValueRef args[total_args];
    LLVMValueRef *pa = args;
    for (int i = 0; i < nargs; i++)
@@ -763,6 +778,8 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
                                         cgen_reg_name(result));
    else
       LLVMBuildCall(builder, fn, args, total_args, "");
+
+   cgen_stack_restore(saved_sp);
 }
 
 static void cgen_op_const(int op, cgen_ctx_t *ctx)
@@ -2074,6 +2091,8 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
       fn = cgen_signature(func, VCODE_INVALID_TYPE, display_type, atypes, nargs);
    }
 
+   LLVMValueRef saved_sp = cgen_stack_save();
+
    const int total_args = nargs + (nested ? 1 : 0) + 1;
    LLVMValueRef args[total_args];
    LLVMValueRef *ap = args;
@@ -2093,6 +2112,8 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
 
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
    LLVMBuildStore(builder, llvm_int32(vcode_get_target(op, 0)), state_ptr);
+
+   cgen_stack_restore(saved_sp);
 
    cgen_pcall_suspend(suspend, ctx->blocks[vcode_get_target(op, 0)], ctx);
 }
@@ -3777,6 +3798,17 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, cgen_memcpy_name(kind, width),
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "llvm.stacksave") == 0) {
+      fn = LLVMAddFunction(module, "llvm.stacksave",
+                           LLVMFunctionType(llvm_void_ptr(), NULL, 0, false));
+   }
+   else if (strcmp(name, "llvm.stackrestore") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr()
+      };
+      fn = LLVMAddFunction(module, "llvm.stackrestore",
+                           LLVMFunctionType(LLVMVoidType(), args, 1, false));
    }
    else if (strcmp(name, "_file_open") == 0) {
       LLVMTypeRef args[] = {

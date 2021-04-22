@@ -14,6 +14,8 @@
 - Implement textio READ procedure for BIT and TIME (#408).
 - LLVM 6.0 or later required to build.
 - Fixed a crash when a long running procedure suspends in a loop (#412).
+- Fixed a stack overflow when a subprogram with unconstrained array
+  arguments is called repeatedly in a loop (#414).
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

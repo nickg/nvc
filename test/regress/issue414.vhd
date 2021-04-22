@@ -1,10 +1,3 @@
--- Dynamic version wrote 100 Mword in 492 s (nvc) - about 1 GByte RAM
---   without marking, 468 s
---   and write directly to only first block - no search - 422 s
---   and fix address (0), 328 s
---   and fix data (0), 313 s
---   and std_logic_vector addr, 309 s
---   56 bit address, 411741 blocks
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -30,18 +23,22 @@ begin
   end process;
 
   process
-    procedure wr_data(address_in : std_logic_vector; data : std_logic_vector) is
+    procedure wr_data(address_in : std_logic_vector; data : std_logic_vector;
+                      do_wait : boolean) is
       -- Without this things work!
       constant address : std_logic_vector(address_in'length - 1 downto 0) := address_in;
     begin
       -- Without this I get, for high enough loop counts (1000000+):
       -- zsh: segmentation fault  nvc -a bug4.vhd -e bug4 -r
-      wait until clk = '1';
+      if do_wait then
+        wait until clk = '1';
+      end if;
     end;
 
-    procedure wr_data(address : unsigned; data : unsigned) is
+    procedure wr_data(address : unsigned; data : unsigned;
+                      do_wait : boolean) is
     begin
-      wr_data(std_logic_vector(address), std_logic_vector(data));
+      wr_data(std_logic_vector(address), std_logic_vector(data), do_wait);
     end;
 
     variable addr    : unsigned(55 downto 0) := (others => '0');
@@ -49,8 +46,11 @@ begin
   begin
     -- 1000 is OK
     for n in 0 to 4000 loop
---    for n in 0 to 1000000 loop
-      wr_data(addr, slvdata);  -- SIGBUS crash
+      wr_data(addr, slvdata, do_wait => true);  -- SIGBUS crash
+    end loop;
+
+    for n in 0 to 1000000 loop
+      wr_data(addr, slvdata, do_wait => false);  -- Stack overflow
     end loop;
 
     assert false report "Test OK" severity warning;
