@@ -21,7 +21,7 @@ begin
         y <= bar'(a);
     end process;
 
-    process is
+    p3: process is
         type baz is (a, b, c, d);
         variable z : baz := b;
     begin

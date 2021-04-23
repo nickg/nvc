@@ -226,13 +226,13 @@ START_TEST(test_ambiguous)
    s = tree_stmt(p, 0);
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(s));
-   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).line_24.BAZ"));
-   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).line_24.BAZ"));
+   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).P3.BAZ"));
+   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).P3.BAZ"));
    s = tree_stmt(p, 1);
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(s));
-   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).line_24.BAZ"));
-   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).line_24.BAZ"));
+   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).P3.BAZ"));
+   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).P3.BAZ"));
    s = tree_stmt(p, 2);
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(tree_waveform(s, 0)));

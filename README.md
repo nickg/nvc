@@ -133,7 +133,8 @@ To run the regression tests:
 
     make check
 
-The unit tests require the [check](http://check.sourceforge.net) library.
+The unit tests require the [check](https://libcheck.github.io/check/)
+library.
 
 ### VHDL-2008
 

@@ -48,7 +48,6 @@ static void setup(void)
    opt_set_int("verbose", 0);
    opt_set_int("synthesis", 0);
    opt_set_int("parse-pragmas", 0);
-   opt_set_int("missing-body", 0);
    intern_strings();
 }
 
@@ -58,6 +57,7 @@ static void setup_per_test(void)
    lib_set_work(test_lib);
 
    opt_set_int("cover", 0);
+   opt_set_int("missing-body", 0);
 
    reset_error_count();
 

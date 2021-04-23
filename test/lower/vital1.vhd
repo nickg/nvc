@@ -18,7 +18,7 @@ PACKAGE BODY VITAL_Timing IS
         VARIABLE StrPtr1 : LINE;
 
     BEGIN
-        FOR i IN TestSignal'RANGE LOOP
+        l1: FOR i IN TestSignal'RANGE LOOP
 
                 proc (StrPtr1, i);
         END LOOP;

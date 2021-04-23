@@ -2124,7 +2124,7 @@ static int lower_bit_width(type_t type)
       return bits_for_range(0, type_enum_literals(type) - 1);
 
    default:
-      assert(false);
+      fatal_trace("unhandled type %s in lower_bit_width", type_pp(type));
    }
 }
 
@@ -4764,7 +4764,8 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
          break;
 
       default:
-         assert(false);
+         fatal_trace("unhandled class %s in lower_subprogram_ports",
+                     class_str(tree_class(p)));
       }
 
       vcode_reg_t reg = emit_param(vtype, vbounds, tree_ident(p));

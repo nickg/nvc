@@ -39,6 +39,8 @@
 #include <execinfo.h>
 #endif
 
+#define MAX_TRACE_DEPTH   25
+
 struct debug_info {
    A(debug_frame_t) frames;
    unsigned         skip;
@@ -215,7 +217,8 @@ static void debug_walk_frames(debug_info_t *di)
 
    SymInitialize(hProcess, NULL, TRUE);
 
-   for (ULONG n = 0; n < 25; n++) {
+   int skip = 2;
+   for (ULONG n = 0; n < MAX_TRACE_DEPTH; n++) {
       if (!StackWalk64(IMAGE_FILE_MACHINE_AMD64,
                        hProcess,
                        GetCurrentThread(),
@@ -226,6 +229,9 @@ static void debug_walk_frames(debug_info_t *di)
                        SymGetModuleBase,
                        NULL))
          break;
+
+      if (skip-- > 0)
+         continue;
 
       debug_frame_t frame = {
          .kind = FRAME_PROG,
@@ -254,8 +260,6 @@ static void debug_walk_frames(debug_info_t *di)
 // Execinfo backend
 
 #elif defined HAVE_EXECINFO_H
-
-#define MAX_TRACE_DEPTH   16
 
 __attribute__((noinline))
 static void debug_walk_frames(debug_info_t *di)

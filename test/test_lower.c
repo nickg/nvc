@@ -3318,7 +3318,7 @@ START_TEST(test_vital1)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_STORE, .name = "I.line_21" },
+      { VCODE_OP_STORE, .name = "I.L1" },
       { VCODE_OP_JUMP, .target = 3 }
    };
 
@@ -3333,9 +3333,9 @@ START_TEST(test_vital1)
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SELECT },
-      { VCODE_OP_LOAD, .name = "I.line_21" },
+      { VCODE_OP_LOAD, .name = "I.L1" },
       { VCODE_OP_ADD },
-      { VCODE_OP_STORE, .name = "I.line_21" },
+      { VCODE_OP_STORE, .name = "I.L1" },
       { VCODE_OP_UARRAY_LEFT },
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },

@@ -20,6 +20,7 @@
 
 static int call_line = 0;
 
+DLLEXPORT
 __attribute__((noinline))
 void global_func(void)
 {

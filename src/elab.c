@@ -723,7 +723,8 @@ static netid_t elab_get_net(tree_t expr, int n)
       }
 
    default:
-      assert(false);
+      fatal_trace("unhandled tree kind %s in elab_get_net",
+                  tree_kind_str(tree_kind(expr)));
    }
 }
 
