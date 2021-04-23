@@ -105,7 +105,8 @@ Install the dependencies with `pkg_add`:
 
     pkg_add automake autoconf libexecinfo llvm check libexecinfo
 
-To configure using the system compiler:
+Pass `CC` and `CXX` explicitly to configure to ensure Clang is used
+instead of an old version of GCC.
 
     ./configure LDFLAGS="-L/usr/local/lib" CPPFLAGS="-I/usr/local/include" \
         CC=/usr/bin/cc CXX=/usr/bin/c++ --with-llvm=/usr/local/bin/llvm-config
