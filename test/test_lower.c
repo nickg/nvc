@@ -1880,16 +1880,9 @@ START_TEST(test_proc7)
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },
       { VCODE_OP_CAST },
-      { VCODE_OP_UARRAY_DIR },
-      { VCODE_OP_SUB },
-      { VCODE_OP_SUB },
-      { VCODE_OP_SELECT },
-      { VCODE_OP_ADDI, .value = 1 },
-      { VCODE_OP_CAST },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
-      { VCODE_OP_SELECT },
+      { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_ALLOCA, .subkind = 1 },
+      { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "Y" },
       { VCODE_OP_CONST, .value = 0 },
@@ -2291,22 +2284,13 @@ START_TEST(test_sigvar)
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_UNWRAP },
-         { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_UARRAY_LEFT },
          { VCODE_OP_CAST },
          { VCODE_OP_UARRAY_RIGHT },
          { VCODE_OP_CAST },
-         { VCODE_OP_UARRAY_DIR },
-         { VCODE_OP_SUB },
-         { VCODE_OP_SUB },
-         { VCODE_OP_SELECT },
-         { VCODE_OP_ADDI, .value = 1 },
-         { VCODE_OP_CAST },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
-         { VCODE_OP_SELECT },
+         { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_ALLOCA },
+         { VCODE_OP_UARRAY_DIR },
          { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "Y" },
          { VCODE_OP_CONST, .value = 0 },
@@ -2314,7 +2298,7 @@ START_TEST(test_sigvar)
          { VCODE_OP_SELECT },
          { VCODE_OP_SELECT },
          { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
-         { VCODE_OP_ARRAY_SIZE },
+         { VCODE_OP_UNWRAP },
          { VCODE_OP_VEC_LOAD },
          { VCODE_OP_COPY },
          { VCODE_OP_RETURN }
@@ -3278,14 +3262,7 @@ START_TEST(test_access2)
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },
       { VCODE_OP_CAST },
-      { VCODE_OP_SUB },
-      { VCODE_OP_SUB },
-      { VCODE_OP_SELECT },
-      { VCODE_OP_ADDI, .value = 1 },
-      { VCODE_OP_CAST },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
-      { VCODE_OP_SELECT },
+      { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_ALLOCA },
       { VCODE_OP_MEMSET },
       { VCODE_OP_NEW },
@@ -3336,8 +3313,6 @@ START_TEST(test_vital1)
       { VCODE_OP_LOAD, .name = "I.L1" },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE, .name = "I.L1" },
-      { VCODE_OP_UARRAY_LEFT },
-      { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },
       { VCODE_OP_CAST },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -3477,6 +3452,53 @@ START_TEST(test_const2)
 }
 END_TEST
 
+START_TEST(test_vital2)
+{
+   input_from_file(TESTDIR "/lower/vital2.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   bounds_check(p);
+   fail_if(error_count() > 0);
+   lower_unit(p);
+
+   tree_t f = search_decls(p, ident_new("VITALSETUPHOLDCHECK"), 0);
+   fail_if(f == NULL);
+
+   vcode_unit_t v0 = find_unit(f);
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_TEMP_STACK_MARK },
+      { VCODE_OP_RECORD_REF, .field = 8 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_NULL_CHECK },
+      { VCODE_OP_ALL },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_SUB },
+      { VCODE_OP_ADDI, .value = 1 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_JUMP, .target = 1 },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3560,6 +3582,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue389);
    tcase_add_test(tc, test_const1);
    tcase_add_test(tc, test_const2);
+   tcase_add_test(tc, test_vital2);
    suite_add_tcase(s, tc);
 
    return s;

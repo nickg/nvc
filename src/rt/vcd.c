@@ -138,16 +138,16 @@ static void vcd_process_signal(tree_t d, int *next_key)
          return;
       }
 
-      range_t r = type_dim(type, 0);
+      tree_t r = type_dim(type, 0);
 
       int64_t low, high;
       range_bounds(r, &low, &high);
 
-      data->dir  = r.kind;
+      data->dir  = tree_subkind(r);
       data->size = high - low + 1;
 
-      msb = assume_int(r.left);
-      lsb = assume_int(r.right);
+      msb = assume_int(tree_left(r));
+      lsb = assume_int(tree_right(r));
 
       type_t elem = type_elem(type);
       if (!vcd_can_fmt_chars(elem, data)) {

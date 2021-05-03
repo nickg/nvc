@@ -65,9 +65,8 @@ type_t type_elem(type_t t);
 void type_set_elem(type_t t, type_t e);
 
 unsigned type_dims(type_t t);
-range_t type_dim(type_t t, unsigned n);
-void type_add_dim(type_t t, range_t r);
-void type_change_dim(type_t t, unsigned n, range_t r);
+tree_t type_dim(type_t t, unsigned n);
+void type_add_dim(type_t t, tree_t r);
 
 unsigned type_enum_literals(type_t t);
 struct tree *type_enum_literal(type_t t, unsigned n);
@@ -80,7 +79,6 @@ void type_add_unit(type_t t, tree_t u);
 unsigned type_params(type_t t);
 type_t type_param(type_t t, unsigned n);
 void type_add_param(type_t t, type_t p);
-void type_change_param(type_t t, unsigned n, type_t p);
 
 type_t type_result(type_t t);
 void type_set_result(type_t t, type_t r);
@@ -93,7 +91,6 @@ void type_set_file(type_t t, type_t f);
 
 unsigned type_index_constrs(type_t t);
 void type_add_index_constr(type_t t, type_t c);
-void type_change_index_constr(type_t t, unsigned n, type_t c);
 type_t type_index_constr(type_t t, unsigned n);
 
 void type_set_constraint(type_t t, tree_t c);

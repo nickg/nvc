@@ -26,21 +26,6 @@ typedef struct tree *tree_t;
 typedef struct type *type_t;
 typedef struct loc loc_t;
 
-typedef enum {
-   RANGE_TO,
-   RANGE_DOWNTO,
-   RANGE_EXPR,
-   RANGE_DYN,
-   RANGE_RDYN,
-   RANGE_ERROR
-} range_kind_t;
-
-typedef struct range {
-   tree_t       left;
-   tree_t       right;
-   range_kind_t kind;
-} range_t;
-
 typedef struct tree_wr_ctx *tree_wr_ctx_t;
 typedef struct tree_rd_ctx *tree_rd_ctx_t;
 

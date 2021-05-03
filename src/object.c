@@ -24,7 +24,6 @@
 DEFINE_ARRAY(tree);
 DEFINE_ARRAY(netid);
 DEFINE_ARRAY(type);
-DEFINE_ARRAY(range);
 
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE",    "I_TARGET",
@@ -32,12 +31,12 @@ static const char *item_text_map[] = {
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",      "I_CONDS",
    "I_TYPE",     "I_SUBKIND",   "I_DELAY",    "I_REJECT",     "I_POS",
    "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT",    "I_TRIGGERS",
-   "I_ELSES",    "I_CLASS",     "I_RANGE",    "I_NAME",       "I_NETS",
+   "I_ELSES",    "I_CLASS",     "I_RANGES",   "I_NAME",       "I_NETS",
    "I_DVAL",     "I_SPEC",      "I_???",      "I_CONSTR",     "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_TEXT_BUF",
    "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CONSTR2",    "I_FLAGS",
-   "I_TEXT",
+   "I_TEXT",     "I_LEFT",      "I_RIGHT"
 };
 
 static object_class_t *classes[4];
@@ -157,7 +156,7 @@ static void object_init(object_class_t *class)
    } while (changed);
 
    if (getenv("NVC_TREE_SIZES") != NULL) {
-      for (int i = 0; i < T_LAST_TREE_KIND; i++)
+      for (int i = 0; i < class->last_kind; i++)
          printf("%-15s %d\n", class->kind_text_map[i],
                 (int)class->object_size[i]);
    }
@@ -220,8 +219,6 @@ static void object_sweep(object_t *object)
             free(object->items[n].netid_array.items);
          else if (ITEM_ATTRS & mask)
             free(object->items[n].attrs.table);
-         else if (ITEM_RANGE_ARRAY & mask)
-            free(object->items[n].range_array.items);
          else if (ITEM_TEXT_BUF & mask) {
             if (object->items[n].text_buf != NULL)
                tb_free(object->items[n].text_buf);
@@ -338,13 +335,6 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
             ;
          else if (ITEM_DOUBLE & mask)
             ;
-         else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(object->items[i].range_array);
-            for (unsigned j = 0; j < a->count; j++) {
-               object_visit((object_t *)a->items[j].left, ctx);
-               object_visit((object_t *)a->items[j].right, ctx);
-            }
-         }
          else if (ITEM_NETID_ARRAY & mask)
             ;
          else if (ITEM_TEXT_BUF & mask)
@@ -431,15 +421,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
             type_array_t *a = &(object->items[n].type_array);
             for (unsigned i = 0; i < a->count; i++)
                (void)object_rewrite((object_t *)a->items[i], ctx);
-         }
-         else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(object->items[n].range_array);
-            for (unsigned i = 0; i < a->count; i++) {
-               a->items[i].left =
-                  (tree_t)object_rewrite((object_t *)a->items[i].left, ctx);
-               a->items[i].right =
-                  (tree_t)object_rewrite((object_t *)a->items[i].right, ctx);
-            }
          }
          else if (ITEM_TEXT_BUF & mask)
             ;
@@ -576,15 +557,6 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
                }
             }
          }
-         else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(object->items[n].range_array);
-            write_u16(a->count, ctx->file);
-            for (unsigned i = 0; i < a->count; i++) {
-               write_u8(a->items[i].kind, ctx->file);
-               object_write((object_t *)a->items[i].left, ctx);
-               object_write((object_t *)a->items[i].right, ctx);
-            }
-         }
          else if (ITEM_TEXT & mask) {
             size_t len = strlen(object->items[n].text);
             assert(len <= UINT16_MAX);
@@ -680,18 +652,6 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
             object->items[n].ival = read_u64(ctx->file);
          else if (ITEM_INT32 & mask)
             object->items[n].ival = read_u32(ctx->file);
-         else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(object->items[n].range_array);
-            range_array_resize(a, read_u16(ctx->file), 0);
-
-            for (unsigned i = 0; i < a->count; i++) {
-               a->items[i].kind  = read_u8(ctx->file);
-               a->items[i].left  =
-                  (tree_t)object_read(ctx, OBJECT_TAG_TREE);
-               a->items[i].right =
-                  (tree_t)object_read(ctx, OBJECT_TAG_TREE);
-            }
-         }
          else if (ITEM_TEXT_BUF & mask)
             ;
          else if (ITEM_TEXT & mask) {
@@ -842,15 +802,6 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
             ;
          else if (ITEM_INT32 & mask)
             ;
-         else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(object->items[n].range_array);
-            for (unsigned i = 0; i < a->count; i++) {
-               marked = object_copy_mark((object_t *)a->items[i].left, ctx)
-                  || marked;
-               marked = object_copy_mark((object_t *)a->items[i].right, ctx)
-                  || marked;
-            }
-         }
          else if (ITEM_NETID_ARRAY & mask)
             ;
          else if (ITEM_ATTRS & mask)
@@ -942,19 +893,6 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
                for (unsigned i = 0; i < object->items[n].attrs.num; i++)
                   copy->items[n].attrs.table[i] =
                      object->items[n].attrs.table[i];
-            }
-         }
-         else if (ITEM_RANGE_ARRAY & mask) {
-            const range_array_t *from = &(object->items[n].range_array);
-            range_array_t *to = &(copy->items[n].range_array);
-            range_array_resize(to, from->count, 0);
-
-            for (unsigned i = 0; i < from->count; i++) {
-               to->items[i].kind = from->items[i].kind;
-               to->items[i].left = (tree_t)
-                  object_copy_sweep((object_t *)from->items[i].left, ctx);
-               to->items[i].right = (tree_t)
-                  object_copy_sweep((object_t *)from->items[i].right, ctx);
             }
          }
          else if (ITEM_TYPE_ARRAY & mask) {

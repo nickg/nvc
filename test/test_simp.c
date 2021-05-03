@@ -46,8 +46,7 @@ static bool folded_b(tree_t t, bool b)
 
 START_TEST(test_cfold)
 {
-   tree_t e, a, p, s;
-   range_t r;
+   tree_t e, a, p, s, r;
 
    input_from_file(TESTDIR "/simp/cfold.vhd");
 
@@ -68,8 +67,8 @@ START_TEST(test_cfold)
    fail_unless(folded_i(tree_value(tree_decl(a, 0)), -10));
 
    r = type_dim(tree_type(tree_decl(a, 1)), 0);
-   fail_unless(folded_i(r.left, -5));
-   fail_unless(folded_i(r.right, 8));
+   fail_unless(folded_i(tree_left(r), -5));
+   fail_unless(folded_i(tree_right(r), 8));
 
    p = tree_stmt(a, 0);
 
@@ -359,21 +358,21 @@ START_TEST(test_issue155)
 
    simplify(p, 0);
 
-   range_t ar = range_of(tree_type(tree_decl(p, 4)), 0);
-   fail_unless(folded_i(ar.left, 7));
-   fail_unless(folded_i(ar.right, 0));
+   tree_t ar = range_of(tree_type(tree_decl(p, 4)), 0);
+   fail_unless(folded_i(tree_left(ar), 7));
+   fail_unless(folded_i(tree_right(ar), 0));
 
-   range_t br = range_of(tree_type(tree_decl(p, 5)), 0);
-   fail_unless(folded_i(br.left, 3));
-   fail_unless(folded_i(br.right, 0));
+   tree_t br = range_of(tree_type(tree_decl(p, 5)), 0);
+   fail_unless(folded_i(tree_left(br), 3));
+   fail_unless(folded_i(tree_right(br), 0));
 
-   range_t cr = range_of(tree_type(tree_decl(p, 6)), 0);
-   fail_unless(folded_i(cr.left, 1));
-   fail_unless(folded_i(cr.right, 0));
+   tree_t cr = range_of(tree_type(tree_decl(p, 6)), 0);
+   fail_unless(folded_i(tree_left(cr), 1));
+   fail_unless(folded_i(tree_right(cr), 0));
 
-   range_t dr = range_of(tree_type(tree_decl(p, 8)), 0);
-   fail_unless(folded_i(dr.left, 2));
-   fail_unless(folded_i(dr.right, 1));
+   tree_t dr = range_of(tree_type(tree_decl(p, 8)), 0);
+   fail_unless(folded_i(tree_left(dr), 2));
+   fail_unless(folded_i(tree_right(dr), 1));
 }
 END_TEST
 
@@ -606,10 +605,10 @@ START_TEST(test_table)
    tree_t table = search_decls(p, ident_new("RESOLUTION_TABLE"), 0);
    fail_if(table == NULL);
 
-   range_t r0 = type_dim(tree_type(table), 0);
-   fail_unless(r0.kind == RANGE_TO);
-   fail_unless(assume_int(r0.left) == 0);
-   fail_unless(assume_int(r0.right) == 8);
+   tree_t r0 = type_dim(tree_type(table), 0);
+   fail_unless(tree_subkind(r0) == RANGE_TO);
+   fail_unless(assume_int(tree_left(r0)) == 0);
+   fail_unless(assume_int(tree_right(r0)) == 8);
 }
 END_TEST
 
@@ -706,8 +705,8 @@ START_TEST(test_allsens)
    fail_unless(tree_triggers(w) == 1);
    e = tree_trigger(w, 0);
    fail_unless(tree_kind(e) == T_ARRAY_SLICE);
-   fail_unless(tree_kind(tree_range(e, 0).left) == T_LITERAL);
-   fail_unless(tree_kind(tree_range(e, 0).right) == T_LITERAL);
+   fail_unless(tree_kind(tree_left(tree_range(e, 0))) == T_LITERAL);
+   fail_unless(tree_kind(tree_right(tree_range(e, 0))) == T_LITERAL);
    fail_unless(tree_ident(tree_value(e)) == ident_new("V"));
 
    // P7: v, n
@@ -738,8 +737,8 @@ START_TEST(test_allsens)
    fail_unless(tree_triggers(w) == 2);
    e = tree_trigger(w, 0);
    fail_unless(tree_kind(e) == T_ARRAY_SLICE);
-   fail_unless(tree_kind(tree_range(e, 0).left) == T_LITERAL);
-   fail_unless(tree_kind(tree_range(e, 0).right) == T_LITERAL);
+   fail_unless(tree_kind(tree_left(tree_range(e, 0))) == T_LITERAL);
+   fail_unless(tree_kind(tree_left(tree_range(e, 0))) == T_LITERAL);
    fail_unless(tree_ident(tree_value(e)) == ident_new("Z"));
    e = tree_trigger(w, 1);
    fail_unless(tree_kind(e) == T_REF);

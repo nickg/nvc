@@ -121,23 +121,25 @@ static void dump_params(tree_t t, get_fn_t get, int n, const char *prefix)
    }
 }
 
-static void dump_range(range_t r)
+static void dump_range(tree_t r)
 {
-   dump_expr(r.left);
-   switch (r.kind) {
+   switch (tree_subkind(r)) {
    case RANGE_TO:
-      syntax(" #to "); break;
+      dump_expr(tree_left(r));
+      syntax(" #to ");
+      dump_expr(tree_right(r));
+      break;
    case RANGE_DOWNTO:
-      syntax(" #downto "); break;
-   case RANGE_DYN:
-      syntax(" #dynamic "); break;
-   case RANGE_RDYN:
-      syntax(" #reverse_dynamic "); break;
+      dump_expr(tree_left(r));
+      syntax(" #downto ");
+      dump_expr(tree_right(r));
+      break;
    case RANGE_EXPR:
    case RANGE_ERROR:
+      if (tree_has_value(r))
+         dump_expr(tree_value(r));
       return;
    }
-   dump_expr(r.right);
 }
 
 static void dump_expr(tree_t t)
@@ -308,31 +310,8 @@ static void dump_type(type_t type)
       syntax(type_pp_minify(type, dump_minify_type), "(");
       const int ndims = dimension_of(type);
       for (int i = 0; i < ndims; i++) {
-         if (i > 0)
-            printf(", ");
-         range_t r = range_of(type, i);
-         dump_expr(r.left);
-         switch (r.kind) {
-         case RANGE_TO:
-            syntax(" #to ");
-            dump_expr(r.right);
-            break;
-         case RANGE_DOWNTO:
-            syntax(" #downto ");
-            dump_expr(r.right);
-            break;
-         case RANGE_DYN:
-            syntax(" #dynamic ");
-            dump_expr(r.right);
-            break;
-         case RANGE_RDYN:
-            syntax(" #reverse_dynamic ");
-            dump_expr(r.right);
-            break;
-         case RANGE_EXPR:
-         case RANGE_ERROR:
-            break;
-         }
+         if (i > 0) printf(", ");
+         dump_range(range_of(type, i));
       }
       printf(")");
    }
@@ -1155,6 +1134,10 @@ void dump(tree_t t)
       break;
    case T_PORT_DECL:
       dump_port(t, 0);
+      break;
+   case T_RANGE:
+      dump_range(t);
+      printf("\n");
       break;
    default:
       cannot_dump(t, "tree");

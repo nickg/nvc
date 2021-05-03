@@ -158,9 +158,9 @@ void lxt_restart(void)
             continue;
          }
 
-         range_t r = type_dim(type, 0);
-         msb = assume_int(r.left);
-         lsb = assume_int(r.right);
+         tree_t r = type_dim(type, 0);
+         msb = assume_int(tree_left(r));
+         lsb = assume_int(tree_right(r));
       }
       else {
          rows = 0;
@@ -183,7 +183,7 @@ void lxt_restart(void)
             continue;
          }
 
-         data->dir = type_dim(type, 0).kind;
+         data->dir = tree_subkind(type_dim(type, 0));
       }
       else {
          type_t base = type_base_recur(type);

@@ -387,47 +387,59 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
                assert(f);
             }
 
-            if (type_is_unconstrained(type))
-               return t;
+            if (name_kind == T_REF
+                && tree_kind(tree_ref(name)) == T_TYPE_DECL
+                && type_is_unconstrained(type)) {
 
-            if (dim_i < 1 || dim_i > dimension_of(type))
+               // Get index type of unconstrained array
+
+               if (dim_i < 1 || dim_i > type_index_constrs(type))
+                  return t;
+
+               type  = type_index_constr(type, dim_i - 1);
+               dim_i = 1;
+            }
+            else if (type_is_unconstrained(type))
+               return t;
+            else if (dim_i < 1 || dim_i > dimension_of(type))
                return t;
          }
 
-         range_t r = range_of(type, dim_i - 1);
+         tree_t r = range_of(type, dim_i - 1);
 
-         const bool known_dir =
-            (r.kind == RANGE_TO) || (r.kind == RANGE_DOWNTO);
+         const range_kind_t rkind = tree_subkind(r);
+         if (rkind != RANGE_TO && rkind != RANGE_DOWNTO)
+            return t;
 
-         if (predef == ATTR_LENGTH && known_dir) {
-            if (tree_kind(r.left) == T_LITERAL
-                && tree_kind(r.right) == T_LITERAL) {
+         switch (predef) {
+         case ATTR_LENGTH:
+            if (tree_kind(tree_left(r)) == T_LITERAL
+                && tree_kind(tree_right(r)) == T_LITERAL) {
                int64_t low, high;
                range_bounds(r, &low, &high);
                return get_int_lit(t, (high < low) ? 0 : high - low + 1);
             }
             else
                return t;
-         }
-         else if (predef == ATTR_LOW && known_dir)
-            return (r.kind == RANGE_TO) ? r.left : r.right;
-         else if (predef == ATTR_HIGH && known_dir)
-            return (r.kind == RANGE_TO) ? r.right : r.left;
-         else if (predef == ATTR_LEFT)
-            return r.left;
-         else if (predef == ATTR_RIGHT)
-            return r.right;
-         else if (predef == ATTR_ASCENDING && known_dir)
-            return get_enum_lit(t, (r.kind == RANGE_TO));
-         else
+
+         case ATTR_LOW:
+            return (rkind == RANGE_TO) ? tree_left(r) : tree_right(r);
+         case ATTR_HIGH:
+            return (rkind == RANGE_TO) ? tree_right(r) : tree_left(r);
+         case ATTR_LEFT:
+            return tree_left(r);
+         case ATTR_RIGHT:
+            return tree_right(r);
+         case ATTR_ASCENDING:
+            return get_enum_lit(t, (rkind == RANGE_TO));
+         default:
             return t;
+         }
       }
 
    default:
-      break;
+      return t;
    }
-
-   return t;
 }
 
 static tree_t simp_extract_string_literal(tree_t literal, int64_t index,
@@ -435,11 +447,11 @@ static tree_t simp_extract_string_literal(tree_t literal, int64_t index,
 {
    type_t type = tree_type(literal);
 
-   range_t bounds = range_of(type, 0);
+   tree_t bounds = range_of(type, 0);
    int64_t low, high;
    range_bounds(bounds, &low, &high);
 
-   const bool to = (bounds.kind == RANGE_TO);
+   const bool to = (tree_subkind(bounds) == RANGE_TO);
 
    const int pos = to ? (index + low) : (high - index);
    if ((pos < 0) || (pos > tree_chars(literal)))
@@ -450,11 +462,11 @@ static tree_t simp_extract_string_literal(tree_t literal, int64_t index,
 
 static tree_t simp_extract_aggregate(tree_t agg, int64_t index, tree_t def)
 {
-   range_t bounds = range_of(tree_type(agg), 0);
+   tree_t bounds = range_of(tree_type(agg), 0);
    int64_t low, high;
    range_bounds(bounds, &low, &high);
 
-   const bool to = (bounds.kind == RANGE_TO);
+   const bool to = (tree_subkind(bounds) == RANGE_TO);
 
    const int nassocs = tree_assocs(agg);
    for (int i = 0; i < nassocs; i++) {
@@ -474,9 +486,9 @@ static tree_t simp_extract_aggregate(tree_t agg, int64_t index, tree_t def)
 
       case A_RANGE:
          {
-            range_t r = tree_range(a, 0);
-            const int64_t left  = assume_int(r.left);
-            const int64_t right = assume_int(r.right);
+            tree_t r = tree_range(a, 0);
+            const int64_t left  = assume_int(tree_left(r));
+            const int64_t right = assume_int(tree_right(r));
 
             if ((to && (index >= left) && (index <= right))
                 || (!to && (index <= left) && (index >= right)))
@@ -759,8 +771,8 @@ static tree_t simp_longest_static_prefix(tree_t expr)
 
          const int nranges = tree_ranges(expr);
          for (int i = 0; i < nranges; i++) {
-            range_t r = tree_range(expr, i);
-            if (!simp_is_static(r.left) || !simp_is_static(r.right))
+            tree_t r = tree_range(expr, i);
+            if (!simp_is_static(tree_left(r)) || !simp_is_static(tree_right(r)))
                return prefix;
          }
 
@@ -776,13 +788,7 @@ static void simp_build_wait_for_target(tree_t wait, tree_t expr, bool all)
 {
    switch (tree_kind(expr)) {
    case T_ARRAY_SLICE:
-      {
-         range_t r = tree_range(expr, 0);
-         if (r.left != NULL)
-            simp_build_wait(wait, r.left, all);
-         if (r.right != NULL)
-            simp_build_wait(wait, r.right, all);
-      }
+      simp_build_wait(wait, tree_range(expr, 0), all);
       break;
 
    case T_ARRAY_REF:
@@ -944,11 +950,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
 
    case T_FOR:
       {
-         range_t r = tree_range(expr, 0);
-         if (r.left != NULL)
-            simp_build_wait(wait, r.left, all);
-         if (r.right != NULL)
-            simp_build_wait(wait, r.right, all);
+         simp_build_wait(wait, tree_range(expr, 0), all);
 
          const int nstmts = tree_stmts(expr);
          for (int i = 0; i < nstmts; i++)
@@ -963,6 +965,15 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
          const int nstmts = tree_stmts(expr);
          for (int i = 0; i < nstmts; i++)
             simp_build_wait(wait, tree_stmt(expr, i), all);
+      }
+      break;
+
+   case T_RANGE:
+      if (tree_subkind(expr) == RANGE_EXPR)
+         simp_build_wait(wait, tree_value(expr), all);
+      else {
+         simp_build_wait(wait, tree_left(expr), all);
+         simp_build_wait(wait, tree_right(expr), all);
       }
       break;
 
@@ -1229,6 +1240,56 @@ static tree_t simp_literal(tree_t t)
    }
 }
 
+static tree_t simp_range(tree_t t)
+{
+   if (tree_subkind(t) != RANGE_EXPR)
+      return t;
+
+   tree_t value = tree_value(t);
+   assert(tree_kind(value) == T_ATTR_REF);
+
+   const predef_attr_t attr = tree_attr_int(value, builtin_i, -1);
+   assert(attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE);
+
+   tree_t name = tree_name(value);
+   if (tree_kind(name) != T_REF)
+      return t;
+
+   tree_t decl = tree_ref(name);
+   switch (tree_kind(decl)) {
+   case T_TYPE_DECL:
+   case T_CONST_DECL:
+   case T_VAR_DECL:
+   case T_SIGNAL_DECL:
+   case T_PORT_DECL:
+   case T_ALIAS:
+      {
+         type_t type = tree_type(decl);
+         if (type_is_unconstrained(type))
+            return t;
+
+         if (attr == ATTR_REVERSE_RANGE) {
+            tree_t base_r = range_of(tree_type(decl), 0);
+            const range_kind_t base_kind = tree_subkind(base_r);
+            assert(base_kind == RANGE_TO || base_kind == RANGE_DOWNTO);
+
+            tree_t rev = tree_new(T_RANGE);
+            tree_set_subkind(rev, base_kind ^ 1);
+            tree_set_loc(rev, tree_loc(t));
+            tree_set_type(rev, tree_type(t));
+            tree_set_left(rev, tree_right(base_r));
+            tree_set_right(rev, tree_left(base_r));
+
+            return rev;
+         }
+         else
+            return range_of(tree_type(decl), 0);
+      }
+   default:
+      return t;
+   }
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -1284,6 +1345,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_type_conv(t, ctx);
    case T_LITERAL:
       return simp_literal(t);
+   case T_RANGE:
+      return simp_range(t);
    default:
       return t;
    }

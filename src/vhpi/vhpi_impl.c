@@ -77,7 +77,6 @@ struct vhpi_obj {
       tree_t  tree;
       type_t  type;
       void   *pointer;
-      range_t range;
    };
 };
 
@@ -384,17 +383,17 @@ static vhpi_obj_t *vhpi_type_to_obj(type_t t)
    return obj;
 }
 
-static vhpi_obj_t *vhpi_range_to_obj(range_t r)
+static vhpi_obj_t *vhpi_range_to_obj(tree_t r)
 {
-   vhpi_obj_t *obj = hash_get(handle_hash, r.left /* XXX */);
+   vhpi_obj_t *obj = hash_get(handle_hash, r);
    if (obj == NULL) {
       obj = xcalloc(sizeof(vhpi_obj_t));
       obj->magic  = VHPI_MAGIC;
       obj->kind   = VHPI_RANGE;
-      obj->range  = r;
+      obj->tree   = r;
       obj->refcnt = 1;
 
-      hash_put(handle_hash, r.left, obj);
+      hash_put(handle_hash, r, obj);
    }
    else {
       assert(obj->refcnt > 0);
@@ -980,7 +979,7 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
             return invalid;
 
          tree_t bound = property == vhpiPhysLeftBoundP
-            ? handle->range.left : handle->range.right;
+            ? tree_left(handle->tree) : tree_right(handle->tree);
 
          if (!type_is_physical(tree_type(bound))) {
             vhpi_error(vhpiError, NULL, "type %s is not a physical type",

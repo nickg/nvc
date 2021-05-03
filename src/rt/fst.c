@@ -193,16 +193,16 @@ static void fst_process_signal(tree_t d)
          return;
       }
 
-      range_t r = range_of(type, 0);
+      tree_t r = range_of(type, 0);
 
       int64_t low, high;
       range_bounds(r, &low, &high);
 
-      data->dir  = r.kind;
+      data->dir  = tree_subkind(r);
       data->size = high - low + 1;
 
-      msb = assume_int(r.left);
-      lsb = assume_int(r.right);
+      msb = assume_int(tree_left(r));
+      lsb = assume_int(tree_right(r));
 
       type_t elem = type_elem(type);
       if (!fst_can_fmt_chars(elem, data, &vt, &sdt)) {

@@ -865,7 +865,7 @@ START_TEST(test_subtype)
    type_t type = type_elem(tree_type(d));
    fail_unless(type_kind(type) == T_SUBTYPE);
 
-   tree_t right = range_of(type, 0).right;
+   tree_t right = tree_right(range_of(type, 0));
    fail_if(type_is_universal(tree_type(right)));
 
    check_expected_errors();

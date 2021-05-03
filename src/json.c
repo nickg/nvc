@@ -81,27 +81,26 @@ static JsonNode *dump_params(tree_t t, get_fn_t get, int n, const char *prefix)
    return params;
 }
 
-static JsonNode *dump_range(range_t r)
+static JsonNode *dump_range(tree_t r)
 {
    JsonNode *range_obj = json_mkobject();
    json_append_member(range_obj, "cls", json_mkstring("range"));
-   add_lineno(range_obj, r.left);
-   json_append_member(range_obj, "l", dump_expr(r.left));
-   switch (r.kind) {
+   add_lineno(range_obj, r);
+   switch (tree_subkind(r)) {
    case RANGE_TO:
-      json_append_member(range_obj, "dir", json_mkstring("to")); break;
    case RANGE_DOWNTO:
-      json_append_member(range_obj, "dir", json_mkstring("downto")); break;
-   case RANGE_DYN:
-      json_append_member(range_obj, "dir", json_mkstring("dynamic")); break;
-   case RANGE_RDYN:
-      json_append_member(range_obj, "dir", json_mkstring("reverse_dynamic")); break;
+      json_append_member(range_obj, "l", dump_expr(tree_left(r)));
+      json_append_member(range_obj, "r", dump_expr(tree_right(r)));
+      json_append_member(range_obj, "dir",
+                         json_mkstring(tree_subkind(r) == RANGE_TO
+                                       ? "to" : "downto"));
+      break;
    case RANGE_EXPR:
-      json_append_member(range_obj, "dir", json_mkstring("expr")); break;
+      json_append_member(range_obj, "expr", dump_expr(tree_value(r)));
+      break;
    case RANGE_ERROR:
       break;
    }
-   json_append_member(range_obj, "r", dump_expr(r.right));
    return range_obj;
 }
 
@@ -285,32 +284,9 @@ static JsonNode *dump_type(type_t type)
       JsonNode *range = json_mkarray();
       json_append_member(type_node, "range", range);
       for (int i = 0; i < ndims; i++) {
-         JsonNode *range_obj = json_mkobject();
-         range_t r = range_of(type, i);
+         tree_t r = range_of(type, i);
+         JsonNode *range_obj = dump_range(r);
          json_append_member(range_obj, "cls", json_mkstring("type_range"));
-         json_append_member(range_obj, "l", dump_expr(r.left));
-
-         switch (r.kind) {
-         case RANGE_TO:
-            json_append_member(range_obj, "dir", json_mkstring("to"));
-            json_append_member(range_obj, "r", dump_expr(r.right));
-            break;
-         case RANGE_DOWNTO:
-            json_append_member(range_obj, "dir", json_mkstring("downto"));
-            json_append_member(range_obj, "r", dump_expr(r.right));
-            break;
-         case RANGE_DYN:
-            json_append_member(range_obj, "dir", json_mkstring("dynamic"));
-            json_append_member(range_obj, "r", dump_expr(r.right));
-            break;
-         case RANGE_RDYN:
-            json_append_member(range_obj, "dir", json_mkstring("reverse_dynamic"));
-            json_append_member(range_obj, "r", dump_expr(r.right));
-            break;
-         case RANGE_EXPR:
-         case RANGE_ERROR:
-            break;
-         }
          json_append_element(range, range_obj);
       }
    }

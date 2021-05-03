@@ -335,7 +335,7 @@ static const char *fmt_group(const netgroup_t *g)
       for (int i = 0; i < ndims; i++) {
          int stride2 = stride;
          for (int j = i + 1; j < ndims; j++) {
-            range_t r = range_of(type, j);
+            tree_t r = range_of(type, j);
 
             int64_t low, high;
             range_bounds(r, &low, &high);

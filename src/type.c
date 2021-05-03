@@ -284,25 +284,18 @@ void type_set_ident(type_t t, ident_t id)
 
 unsigned type_dims(type_t t)
 {
-   return lookup_item(&type_object, t, I_DIMS)->range_array.count;
+   return lookup_item(&type_object, t, I_DIMS)->tree_array.count;
 }
 
-range_t type_dim(type_t t, unsigned n)
+tree_t type_dim(type_t t, unsigned n)
 {
    item_t *item = lookup_item(&type_object, t, I_DIMS);
-   return range_array_nth(&(item->range_array), n);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
-void type_add_dim(type_t t, range_t r)
+void type_add_dim(type_t t, tree_t r)
 {
-   range_array_add(&(lookup_item(&type_object, t, I_DIMS)->range_array), r);
-}
-
-void type_change_dim(type_t t, unsigned n, range_t r)
-{
-   item_t *item = lookup_item(&type_object, t, I_DIMS);
-   assert(n < item->range_array.count);
-   item->range_array.items[n] = r;
+   tree_array_add(&(lookup_item(&type_object, t, I_DIMS)->tree_array), r);
 }
 
 type_t type_base(type_t t)
@@ -343,9 +336,12 @@ static type_t type_make_universal(type_kind_t kind, const char *name,
    type_t t = type_new(kind);
    type_set_ident(t, ident_new(name));
 
-   range_t r = { .kind  = RANGE_TO,
-                 .left  = min,
-                 .right = max };
+   tree_t r = tree_new(T_RANGE);
+   tree_set_subkind(r, RANGE_TO);
+   tree_set_left(r, min);
+   tree_set_right(r, max);
+   tree_set_type(r, t);
+
    type_add_dim(t, r);
 
    tree_set_type(min, t);
@@ -456,13 +452,6 @@ void type_add_param(type_t t, type_t p)
    type_array_add(&(lookup_item(&type_object, t, I_PTYPES)->type_array), p);
 }
 
-void type_change_param(type_t t, unsigned n, type_t p)
-{
-   type_array_t *a = &(lookup_item(&type_object, t, I_PTYPES)->type_array);
-   assert(n < a->count);
-   a->items[n] = p;
-}
-
 unsigned type_fields(type_t t)
 {
    if (t->object.kind == T_SUBTYPE)
@@ -523,13 +512,6 @@ unsigned type_index_constrs(type_t t)
 void type_add_index_constr(type_t t, type_t c)
 {
    type_array_add(&(lookup_item(&type_object, t, I_INDEXCON)->type_array), c);
-}
-
-void type_change_index_constr(type_t t, unsigned n, type_t c)
-{
-   type_array_t *a = &(lookup_item(&type_object, t, I_INDEXCON)->type_array);
-   assert(n < a->count);
-   a->items[n] = c;
 }
 
 type_t type_index_constr(type_t t, unsigned n)

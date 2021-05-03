@@ -2269,7 +2269,7 @@ static type_t solve_array_slice(nametab_t *tab, tree_t slice)
 
    type_t base_type = _solve_types(tab, tree_value(slice));
 
-   range_t r = tree_range(slice, 0);
+   tree_t r = tree_range(slice, 0);
 
    tree_t constraint = tree_new(T_CONSTRAINT);
    tree_set_subkind(constraint, C_INDEX);
@@ -2737,28 +2737,45 @@ type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
    return type;
 }
 
-type_t solve_range(nametab_t *tab, range_t r, type_t constraint)
+type_t solve_range(nametab_t *tab, tree_t r, type_t constraint)
 {
-   if (r.kind == RANGE_ERROR)
-      return type_new(T_NONE);
-   else if (r.right == NULL)
-      return solve_types(tab, r.left, constraint);
-   else {
-      // Potentially swap the argument order for checking if the right type
-      // can be determined unambiguously
-      tree_kind_t rkind = tree_kind(r.right);
-      const bool swap =
-         (tree_has_type(r.right) && !type_is_universal(tree_type(r.right)))
-         || rkind == T_QUALIFIED
-         || rkind == T_ARRAY_REF
-         || rkind == T_ARRAY_SLICE
-         || rkind == T_TYPE_CONV
-         || (rkind == T_REF && query_name(tab, tree_ident(r.right)));
+   // TODO: this can be merged into solve_types
 
-      if (swap) { tree_t tmp = r.left; r.left = r.right; r.right = tmp; }
+   type_t type = NULL;
+   switch (tree_subkind(r)) {
+   case RANGE_ERROR:
+      type = type_new(T_NONE);
+      break;
+   case RANGE_EXPR:
+      type = solve_types(tab, tree_value(r), constraint);
+      break;
+   case RANGE_TO:
+   case RANGE_DOWNTO:
+      {
+         tree_t left = tree_left(r);
+         tree_t right = tree_right(r);
 
-      type_t type = solve_types(tab, r.left, constraint);
-      solve_types(tab, r.right, constraint ?: type);
-      return type;
+         // Potentially swap the argument order for checking if the
+         // right type can be determined unambiguously
+         tree_kind_t rkind = tree_kind(right);
+         const bool swap =
+            (tree_has_type(right) && !type_is_universal(tree_type(right)))
+            || rkind == T_QUALIFIED
+            || rkind == T_ARRAY_REF
+            || rkind == T_ARRAY_SLICE
+            || rkind == T_TYPE_CONV
+            || (rkind == T_REF && query_name(tab, tree_ident(right)));
+
+         if (swap) { tree_t tmp = left; left = right; right = tmp; }
+
+         type = solve_types(tab, left, constraint);
+         solve_types(tab, right, constraint ?: type);
+         break;
+      }
+   default:
+      assert(false);
    }
+
+   tree_set_type(r, type);
+   return type;
 }

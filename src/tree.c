@@ -260,7 +260,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_FLAGS | I_NAME),
 
    // T_PROT_PCALL,
-   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF | I_NAME | I_ATTRS)
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF | I_NAME | I_ATTRS),
+
+   // T_RANGE
+   (I_SUBKIND | I_VALUE | I_LEFT | I_RIGHT | I_TYPE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -283,7 +286,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_SPEC",          "T_BINDING",       "T_LIBRARY",      "T_DESIGN_UNIT",
    "T_CONFIGURATION", "T_PROT_BODY",     "T_CONTEXT",      "T_CTXREF",
    "T_CONSTRAINT",    "T_BLOCK_CONFIG",  "T_PRAGMA",       "T_PROT_FCALL",
-   "T_PROT_PCALL",
+   "T_PROT_PCALL",    "T_RANGE",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -894,27 +897,27 @@ void tree_set_message(tree_t t, tree_t m)
    lookup_item(&tree_object, t, I_MESSAGE)->tree = m;
 }
 
-void tree_add_range(tree_t t, range_t r)
+void tree_add_range(tree_t t, tree_t r)
 {
-   range_array_add(&(lookup_item(&tree_object, t, I_RANGES)->range_array), r);
+   tree_array_add(&(lookup_item(&tree_object, t, I_RANGES)->tree_array), r);
 }
 
-range_t tree_range(tree_t t, unsigned n)
+tree_t tree_range(tree_t t, unsigned n)
 {
    item_t *item = lookup_item(&tree_object, t, I_RANGES);
-   return range_array_nth(&(item->range_array), n);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 unsigned tree_ranges(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_RANGES)->range_array.count;
+   return lookup_item(&tree_object, t, I_RANGES)->tree_array.count;
 }
 
-void tree_change_range(tree_t t, unsigned n, range_t r)
+void tree_change_range(tree_t t, unsigned n, tree_t r)
 {
    item_t *item = lookup_item(&tree_object, t, I_RANGES);
-   assert(n < item->range_array.count);
-   item->range_array.items[n] = r;
+   assert(n < item->tree_array.count);
+   item->tree_array.items[n] = r;
 }
 
 char *tree_text(tree_t t)
@@ -935,6 +938,32 @@ unsigned tree_pos(tree_t t)
 void tree_set_pos(tree_t t, unsigned pos)
 {
    lookup_item(&tree_object, t, I_POS)->ival = pos;
+}
+
+tree_t tree_left(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_LEFT);
+   assert(item->tree != NULL);
+   return item->tree;
+}
+
+void tree_set_left(tree_t t, tree_t left)
+{
+   tree_assert_expr(left);
+   lookup_item(&tree_object, t, I_LEFT)->tree = left;
+}
+
+tree_t tree_right(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_RIGHT);
+   assert(item->tree != NULL);
+   return item->tree;
+}
+
+void tree_set_right(tree_t t, tree_t right)
+{
+   tree_assert_expr(right);
+   lookup_item(&tree_object, t, I_RIGHT)->tree = right;
 }
 
 class_t tree_class(tree_t t)

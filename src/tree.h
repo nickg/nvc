@@ -82,6 +82,13 @@ typedef enum constraint_kind {
    C_COMPUTED
 } constraint_kind_t;
 
+typedef enum {
+   RANGE_TO,
+   RANGE_DOWNTO,
+   RANGE_EXPR,
+   RANGE_ERROR
+} range_kind_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_ARCH,
@@ -160,6 +167,7 @@ typedef enum tree_kind {
    T_PRAGMA,
    T_PROT_FCALL,
    T_PROT_PCALL,
+   T_RANGE,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -293,13 +301,19 @@ void tree_set_message(tree_t t, tree_t m);
 unsigned tree_pos(tree_t t);
 void tree_set_pos(tree_t t, unsigned pos);
 
+tree_t tree_left(tree_t t);
+void tree_set_left(tree_t t, tree_t left);
+
+tree_t tree_right(tree_t t);
+void tree_set_right(tree_t t, tree_t right);
+
 unsigned tree_subkind(tree_t t);
 void tree_set_subkind(tree_t t, unsigned sub);
 
-void tree_add_range(tree_t t, range_t r);
-range_t tree_range(tree_t t, unsigned n);
+void tree_add_range(tree_t t, tree_t r);
+tree_t tree_range(tree_t t, unsigned n);
 unsigned tree_ranges(tree_t t);
-void tree_change_range(tree_t t, unsigned n, range_t r);
+void tree_change_range(tree_t t, unsigned n, tree_t r);  // XXX: remove
 
 class_t tree_class(tree_t t);
 void tree_set_class(tree_t t, class_t c);

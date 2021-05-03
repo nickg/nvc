@@ -78,7 +78,7 @@ static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_same_type(tree_t left, tree_t right);
 static bool sem_check_type(tree_t t, type_t expect);
 static bool sem_static_name(tree_t t, static_fn_t check_fn);
-static bool sem_check_range(range_t *r, type_t context);
+static bool sem_check_range(tree_t r, type_t context);
 static bool sem_check_attr_ref(tree_t t, bool allow_range);
 static bool sem_check_array_dims(type_t type, type_t constraint);
 
@@ -227,10 +227,9 @@ static bool sem_check_subtype(tree_t decl, type_t type)
                    ndims_base, type_pp(base), ndims);
 
       for (int i = 0; i < ndims; i++) {
-         range_t r = tree_range(constraint, i);
-         if (!sem_check_range(&r, index_type_of(base, i)))
+         tree_t r = tree_range(constraint, i);
+         if (!sem_check_range(r, index_type_of(base, i)))
             return false;
-         tree_change_range(constraint, i, r);
       }
    }
 
@@ -242,98 +241,79 @@ static bool sem_check_subtype(tree_t decl, type_t type)
    return true;
 }
 
-static bool sem_check_range(range_t *r, type_t expect)
+static bool sem_check_range(tree_t r, type_t expect)
 {
-   bool was_expr = false;
-   if (r->kind == RANGE_EXPR) {
-      tree_t expr = r->left;
-      assert(r->right == NULL);
-      assert(tree_kind(r->left) == T_ATTR_REF);
+   switch (tree_subkind(r)) {
+   case RANGE_EXPR:
+      {
+         tree_t expr = tree_value(r);
+         assert(tree_kind(expr) == T_ATTR_REF);
 
-      if (!sem_check_attr_ref(expr, true))
-         return false;
+         if (!sem_check_attr_ref(expr, true))
+            return false;
 
-      tree_t name = tree_name(expr);
-
-      tree_t a = tree_new(T_ATTR_REF);
-      tree_set_name(a, name);
-      tree_set_ident(a, ident_new("LEFT"));
-      tree_set_loc(a, tree_loc(expr));
-      tree_set_type(a, tree_type(expr));
-      tree_add_attr_int(a, builtin_i, ATTR_LEFT);
-
-      tree_t b = tree_new(T_ATTR_REF);
-      tree_set_name(b, name);
-      tree_set_ident(b, ident_new("RIGHT"));
-      tree_set_loc(b, tree_loc(expr));
-      tree_set_type(b, tree_type(expr));
-      tree_add_attr_int(b, builtin_i, ATTR_RIGHT);
-
-      const bool reverse =
-         tree_attr_int(expr, builtin_i, -1) == ATTR_REVERSE_RANGE;
-
-      type_t type = tree_type(name);
-      if (type_is_unconstrained(type)) {
-         // If this is an unconstrained array then we can
-         // only find out the direction at runtime
-         r->kind  = reverse ? RANGE_RDYN : RANGE_DYN;
-         r->left  = a;
-         r->right = b;
+         if (expect && !sem_check_type(expr, expect))
+            sem_error(expr, "expected type of range bound to be %s but is %s",
+                      type_pp(expect), type_pp(tree_type(expr)));
       }
-      else {
-         range_kind_t dir = direction_of(type, 0);
-         if (reverse)
-            dir = (dir == RANGE_TO) ? RANGE_DOWNTO : RANGE_TO;
+      break;
 
-         r->left  = reverse ? b : a ;
-         r->right = reverse ? a : b;
-         r->kind  = dir;
-      }
+   case RANGE_TO:
+   case RANGE_DOWNTO:
+      {
+         tree_t left = tree_left(r);
+         if (!sem_check(left))
+            return false;
 
-      was_expr = true;
-   }
+         tree_t right = tree_right(r);
+         if (!sem_check(right))
+            return false;
 
-   if (!sem_check(r->left))
-      return false;
+         type_t left_type  = tree_type(left);
+         type_t right_type = tree_type(right);
 
-   if (!sem_check(r->right))
-      return false;
+         if (!sem_check_same_type(left, right))
+            sem_error(right, "type mismatch in range: left is %s, right is %s",
+                      type_pp(left_type), type_pp(right_type));
 
-   type_t left_type  = tree_type(r->left);
-   type_t right_type = tree_type(r->right);
+         if (expect == NULL) {
+            if (type_is_universal(left_type) && type_is_universal(right_type)) {
+               tree_kind_t lkind = tree_kind(left);
+               tree_kind_t rkind = tree_kind(right);
 
-   if (!sem_check_same_type(r->left, r->right))
-      sem_error(r->right, "type mismatch in range: left is %s, right is %s",
-                type_pp(left_type), type_pp(right_type));
+               // See LRM 93 section 3.2.1.1
+               // Later LRMs relax the wording here
+               const bool invalid =
+                  standard() < STD_00
+                  && !(relax_rules() & RELAX_UNIVERSAL_BOUND)
+                  && lkind != T_LITERAL && lkind != T_ATTR_REF
+                  && rkind != T_LITERAL && rkind != T_ATTR_REF;
 
-   if (expect == NULL) {
-      if (type_is_universal(left_type) && type_is_universal(right_type)) {
-         tree_kind_t lkind = tree_kind(r->left);
-         tree_kind_t rkind = tree_kind(r->right);
+               if (invalid)
+                  sem_error(left, "universal integer bound must be "
+                            "numeric literal or attribute");
 
-         // See LRM 93 section 3.2.1.1
-         // Later LRMs relax the wording here
-         if (standard() < STD_00 && !(relax_rules() & RELAX_UNIVERSAL_BOUND)) {
-            if ((lkind != T_LITERAL) && (lkind != T_ATTR_REF)
-                && (rkind != T_LITERAL) && (rkind != T_ATTR_REF))
-               sem_error(r->left, "universal integer bound must be "
-                         "numeric literal or attribute");
+               type_t std_int = std_type(NULL, "INTEGER");
+               if (!sem_check_type(left, std_int))
+                  sem_error(left, "universal bound not convertible to INTEGER");
+               if (!sem_check_type(right, std_int))
+                  sem_error(right, "universal bound not convertible to INTEGER");
+            }
+         }
+         else if (!sem_check_type(left, expect)) {
+            sem_error(left, "expected type of left bound to be %s but is %s",
+                      type_pp(expect), type_pp(tree_type(left)));
+         }
+         else if (!sem_check_type(right, expect)) {
+            sem_error(right, "expected type of right bound to be %s but is %s",
+                      type_pp(expect), type_pp(tree_type(right)));
          }
 
-         type_t std_int = std_type(NULL, "INTEGER");
-         if (!sem_check_type(r->left, std_int))
-            sem_error(r->left, "universal bound not convertible to INTEGER");
-         if (!sem_check_type(r->right, std_int))
-            sem_error(r->right, "universal bound not convertible to INTEGER");
+         // Propagate any implicit conversion to the type of the whole range
+         tree_set_type(r, tree_type(left));
       }
+      break;
    }
-   else if (!sem_check_type(r->left, expect))
-      sem_error(r->left, "expected type of %s bound to be %s but is %s",
-                was_expr ? "range" : "left",
-                type_pp(expect), type_pp(tree_type(r->left)));
-   else if (!was_expr && !sem_check_type(r->right, expect))
-      sem_error(r->right, "expected type of right bound to be %s but is %s",
-                type_pp(expect), type_pp(tree_type(r->right)));
 
    return true;
 }
@@ -410,38 +390,23 @@ static bool sem_readable(tree_t t)
 static bool sem_check_array_dims(type_t type, type_t constraint)
 {
    const int ndims = dimension_of(type);
-   const type_kind_t kind = type_kind(type);
    for (int i = 0; i < ndims; i++) {
-      range_t r = range_of(type, i);
+      tree_t r = range_of(type, i);
 
       type_t index_type = NULL;
       if (constraint != NULL && i < dimension_of(constraint))
          index_type = index_type_of(constraint, i);
 
-      if (!sem_check_range(&r, index_type))
+      if (!sem_check_range(r, index_type))
          return false;
 
       if (index_type == NULL)
-         index_type = tree_type(r.left);
+         index_type = tree_type(r);
 
-      tree_t error = NULL;
-      if (!sem_check_type(r.left, index_type))
-         error = r.left;
-      else if (!sem_check_type(r.right, index_type))
-         error = r.right;
-
-      if (error)
-         sem_error(error, "type of bound %s does not match type of index %s",
-                   type_pp(tree_type(error)),
+      if (!sem_check_type(r, index_type))
+         sem_error(r, "type of bound %s does not match type of index %s",
+                   type_pp(tree_type(r)),
                    type_pp(index_type));
-
-      tree_set_type(r.left, index_type);
-      tree_set_type(r.right, index_type);
-
-      if (kind == T_SUBTYPE)
-         tree_change_range(type_constraint(type), i, r);
-      else
-         type_change_dim(type, i, r);
    }
 
    return true;
@@ -574,16 +539,7 @@ static bool sem_check_type_decl(tree_t t)
       }
 
    case T_ENUM:
-      {
-         range_t r = {
-            .kind  = RANGE_TO,
-            .left  = sem_int_lit(type, 0),
-            .right = sem_int_lit(type, type_enum_literals(type) - 1)
-         };
-         type_add_dim(type, r);
-
-         return true;
-      }
+      return true;
 
    case T_PHYSICAL:
       {
@@ -612,23 +568,26 @@ static bool sem_check_type_decl(tree_t t)
    case T_INTEGER:
    case T_REAL:
       {
-         range_t r = type_dim(type, 0);
+         tree_t r = type_dim(type, 0);
 
-         if (!sem_check(r.left))
+         tree_t left = tree_left(r);
+         if (!sem_check(left))
             return false;
 
-         if (!sem_check(r.right))
+         tree_t right = tree_right(r);
+         if (!sem_check(right))
             return false;
 
-         if (!sem_check_same_type(r.left, r.right))
+         if (!sem_check_same_type(left, right))
             sem_error(t, "type of left bound %s does not match type of right "
-                      "bound %s", type_pp(tree_type(r.left)),
-                      type_pp(tree_type(r.right)));
+                      "bound %s", type_pp(tree_type(left)),
+                      type_pp(tree_type(right)));
 
          // Standard specifies type of 'LEFT and 'RIGHT are same
          // as the declared type
-         tree_set_type(r.left, type);
-         tree_set_type(r.right, type);
+         tree_set_type(left, type);
+         tree_set_type(right, type);
+         tree_set_type(r, type);
 
          return true;
       }
@@ -1158,18 +1117,12 @@ static void sem_check_static_elab(tree_t t)
    case T_SIGNAL_DECL:
       {
          type_t type = tree_type(t);
-         if (type_is_scalar(type) && !type_is_none(type)) {
-            range_t r = range_of(type, 0);
-            sem_check_static_elab(r.left);
-            sem_check_static_elab(r.right);
-         }
+         if (type_is_scalar(type) && !type_is_none(type))
+            sem_check_static_elab(range_of(type, 0));
          else if (type_is_array(type) && !type_is_unconstrained(type)) {
             const int ndims = dimension_of(type);
-            for (int i = 0; i < ndims; i++) {
-               range_t r = range_of(type, i);
-               sem_check_static_elab(r.left);
-               sem_check_static_elab(r.right);
-            }
+            for (int i = 0; i < ndims; i++)
+               sem_check_static_elab(range_of(type, i));
          }
 
          if (tree_has_value(t))
@@ -1185,6 +1138,19 @@ static void sem_check_static_elab(tree_t t)
    case T_FCALL:
       if (!sem_globally_static(t))
          tree_visit_only(t, sem_check_static_elab_fn, NULL, T_REF);
+      break;
+
+   case T_RANGE:
+      switch (tree_subkind(t)) {
+      case RANGE_TO:
+      case RANGE_DOWNTO:
+         sem_check_static_elab(tree_left(t));
+         sem_check_static_elab(tree_right(t));
+         break;
+      case RANGE_EXPR:
+         sem_check_static_elab(tree_value(t));
+         break;
+      }
       break;
 
    default:
@@ -2240,17 +2206,19 @@ static bool sem_check_string_literal(tree_t t)
       if (indexk == T_ENUM)
          left = make_ref(type_enum_literal(index_type, 0));
       else
-         left = range_of(index_type, 0).left;
+         left = tree_left(range_of(index_type, 0));
 
       right = call_builtin("add", index_type,
                            sem_int_lit(std_int, nchars - 1),
                            left, NULL);
 
-      range_t r = {
-         .kind  = dir,
-         .left  = left,
-         .right = right
-      };
+      // TODO: should this happen in type solver?
+      tree_t r = tree_new(T_RANGE);
+      tree_set_subkind(r, dir);
+      tree_set_left(r, left);
+      tree_set_right(r, right);
+      tree_set_loc(r, tree_loc(t));
+
       tree_t c = tree_new(T_CONSTRAINT);
       tree_set_subkind(c, C_COMPUTED);
       tree_add_range(c, r);
@@ -2378,10 +2346,9 @@ static bool sem_check_aggregate(tree_t t)
          switch (tree_subkind(a)) {
          case A_RANGE:
             {
-               range_t r = tree_range(a, 0);
-               if (!sem_check_range(&r, index_type))
+               tree_t r = tree_range(a, 0);
+               if (!sem_check_range(r, index_type))
                   return false;
-               tree_change_range(a, 0, r);
             }
             break;
 
@@ -2533,6 +2500,8 @@ static bool sem_check_aggregate(tree_t t)
          dir = direction_of(composite_type, 0);
       }
 
+      assert(dir == RANGE_TO || dir == RANGE_DOWNTO);
+
       tree_t left = NULL, right = NULL;
 
       if (have_pos || !have_named) {
@@ -2552,7 +2521,7 @@ static bool sem_check_aggregate(tree_t t)
          }
          else {
             type_t std_int = std_type(NULL, "INTEGER");
-            left = range_of(index_type, 0).left;
+            left = tree_left(range_of(index_type, 0));
             right = call_builtin("add", index_type,
                                  sem_int_lit(std_int, nassocs - 1),
                                  left, NULL);
@@ -2581,20 +2550,38 @@ static bool sem_check_aggregate(tree_t t)
 
             case A_RANGE:
                {
-                  range_t r = tree_range(a, 0);
-                  if (r.kind == RANGE_TO) {
-                     add_param(low, r.left, P_POS, NULL);
-                     add_param(high, r.right, P_POS, NULL);
-                  }
-                  else if (r.kind == RANGE_DOWNTO) {
-                     add_param(low, r.right, P_POS, NULL);
-                     add_param(high, r.left, P_POS, NULL);
-                  }
-                  else {
-                     add_param(low, r.right, P_POS, NULL);
-                     add_param(low, r.left, P_POS, NULL);
-                     add_param(high, r.right, P_POS, NULL);
-                     add_param(high, r.left, P_POS, NULL);
+                  tree_t r = tree_range(a, 0);
+                  switch (tree_subkind(r)) {
+                  case RANGE_TO:
+                     add_param(low, tree_left(r), P_POS, NULL);
+                     add_param(high, tree_right(r), P_POS, NULL);
+                     break;
+
+                  case RANGE_DOWNTO:
+                     add_param(low, tree_right(r), P_POS, NULL);
+                     add_param(high, tree_left(r), P_POS, NULL);
+                     break;
+
+                  case RANGE_EXPR:
+                     {
+                        tree_t name = tree_name(tree_value(r));
+
+                        tree_t rlow = tree_new(T_ATTR_REF);
+                        tree_set_ident(rlow, ident_new("LOW"));
+                        tree_set_name(rlow, name);
+                        tree_add_attr_int(rlow, builtin_i, ATTR_LOW);
+                        tree_set_type(rlow, tree_type(r));
+
+                        tree_t rhigh = tree_new(T_ATTR_REF);
+                        tree_set_ident(rhigh, ident_new("HIGH"));
+                        tree_set_name(rhigh, name);
+                        tree_add_attr_int(rhigh, builtin_i, ATTR_HIGH);
+                        tree_set_type(rhigh, tree_type(r));
+
+                        add_param(low, rlow, P_POS, NULL);
+                        add_param(high, rhigh, P_POS, NULL);
+                     }
+                     break;
                   }
                }
                break;
@@ -2608,15 +2595,17 @@ static bool sem_check_aggregate(tree_t t)
       tree_t constraint = tree_new(T_CONSTRAINT);
       tree_set_subkind(constraint, C_INDEX);
 
-      range_t r = {
-         .kind  = dir,
-         .left  = left,
-         .right = right
-      };
+      tree_t r = tree_new(T_RANGE);
+      tree_set_subkind(r, dir);
+      tree_set_left(r, left);
+      tree_set_right(r, right);
+      tree_set_loc(r, tree_loc(t));
+      tree_set_type(r, tree_type(left));
+
       tree_add_range(constraint, r);
 
       for (int i = 1; i < ndims; i++) {
-         range_t dim;
+         tree_t dim;
          if (unconstrained)
             dim = range_of(tree_type(tree_value(tree_assoc(t, 0))), i - 1);
          else
@@ -2738,29 +2727,28 @@ static bool sem_check_array_slice(tree_t t)
    if (!type_is_array(array_type))
       sem_error(t, "type of slice prefix is not an array");
 
-   range_t r = tree_range(t, 0);
-   if (!sem_check_range(&r, index_type_of(array_type, 0)))
+   tree_t r = tree_range(t, 0);
+   if (!sem_check_range(r, index_type_of(array_type, 0)))
       return false;
 
-   tree_change_range(t, 0, r);
-
    type_t slice_type = tree_type(t);
-   tree_change_range(type_constraint(slice_type), 0, r);
+   tree_change_range(type_constraint(slice_type), 0, r);   // XXX: really need this?
 
    const bool unconstrained = type_is_unconstrained(array_type);
    const range_kind_t prefix_dir =
       unconstrained ? RANGE_EXPR : direction_of(array_type, 0);
 
+   const range_kind_t rkind = tree_subkind(r);
    const bool wrong_dir =
       !unconstrained
-      && r.kind != prefix_dir
-      && (r.kind == RANGE_TO || r.kind == RANGE_DOWNTO)
+      && rkind != prefix_dir
+      && (rkind == RANGE_TO || rkind == RANGE_DOWNTO)
       && (prefix_dir == RANGE_TO || prefix_dir == RANGE_DOWNTO);
 
    if (wrong_dir) {
       const char *text[] = { "TO", "DOWNTO", "?", "??", "???" };
       sem_error(t, "range direction of slice %s does not match prefix %s",
-                text[r.kind], text[prefix_dir]);
+                text[rkind], text[prefix_dir]);
    }
 
    return true;
@@ -3436,8 +3424,7 @@ static bool sem_subtype_locally_static(type_t type)
       {
          const int ndims = dimension_of(type);
          for (int i = 0; i < ndims; i++) {
-            range_t r = range_of(type, i);
-            if (!sem_locally_static(r.left) || !sem_locally_static(r.right))
+            if (!sem_locally_static(range_of(type, i)))
                return false;
          }
 
@@ -3504,6 +3491,22 @@ static bool sem_locally_static(tree_t t)
       }
    }
 
+   // A locally static range
+   if (kind == T_RANGE) {
+      switch (tree_subkind(t)) {
+      case RANGE_TO:
+      case RANGE_DOWNTO:
+         return sem_locally_static(tree_left(t))
+            && sem_locally_static(tree_right(t));
+
+      case RANGE_EXPR:
+         return sem_locally_static(tree_value(t));
+
+      default:
+         return false;
+      }
+   }
+
    // An alias of a locally static name
    if (kind == T_ALIAS)
       return sem_locally_static(tree_value(t));
@@ -3563,14 +3566,8 @@ static bool sem_locally_static(tree_t t)
       if (sem_unconstrained_value(t))
          return false;
 
-      if (type_is_array(type)) {
-         range_t r = range_of(type, 0);
-         if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
-            return false;
-
-         if (!sem_locally_static(r.left) || !sem_locally_static(r.right))
-            return false;
-      }
+      if (type_is_array(type) && !sem_locally_static(range_of(type, 0)))
+         return false;
 
       const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {
@@ -3592,8 +3589,8 @@ static bool sem_locally_static(tree_t t)
    // [2008] A slice name whose prefix and range is locally static
    if (kind == T_ARRAY_SLICE &&
        (standard() >= STD_08 || (relax_rules() & RELAX_LOCALLY_STATIC))) {
-      range_t r = tree_range(t, 0);
-      if (!sem_locally_static(r.left) || !sem_locally_static(r.right))
+
+      if (!sem_locally_static(tree_range(t, 0)))
          return false;
 
       return sem_locally_static(tree_value(t));
@@ -3658,13 +3655,8 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          if (!sem_static_name(tree_value(t), check_fn))
             return false;
 
-         range_t r = tree_range(t, 0);
-
-         return (r.kind == RANGE_TO || r.kind == RANGE_DOWNTO)
-            && (*check_fn)(r.left)
-            && (*check_fn)(r.right);
+         return (*check_fn)(tree_range(t, 0));
       }
-      // Fall-through
 
    default:
       return false;
@@ -3710,17 +3702,24 @@ static bool sem_globally_static(tree_t t)
    if (kind == T_ALIAS)
       return sem_globally_static(tree_value(t));
 
+   if (kind == T_RANGE) {
+      if (tree_subkind(t) == RANGE_EXPR)
+         return sem_globally_static(tree_value(t));
+
+      if (!sem_globally_static(tree_left(t)))
+         return false;
+
+      if (!sem_globally_static(tree_right(t)))
+         return false;
+
+      return true;
+   }
+
    // Aggregates must have globally static range and all elements
    // must have globally static values
    if (kind == T_AGGREGATE) {
-      if (type_is_array(type)) {
-         range_t r = range_of(type, 0);
-         if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
-            return false;
-
-         if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
-            return false;
-      }
+      if (type_is_array(type) && !sem_globally_static(range_of(type, 0)))
+         return false;
 
       const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {
@@ -3819,8 +3818,7 @@ static bool sem_globally_static(tree_t t)
       if (!sem_globally_static(tree_value(t)))
          return false;
 
-      range_t r = tree_range(t, 0);
-      if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
+      if (!sem_globally_static(tree_range(t, 0)))
          return false;
 
       return true;
@@ -3881,14 +3879,14 @@ static bool sem_check_case(tree_t t)
 
       case A_RANGE:
          {
-            range_t r = tree_range(a, 0);
-            if ((ok = sem_check_range(&r, type) && ok)) {
-               if (!sem_locally_static(r.left))
-                  sem_error(r.left, "left index of case choice range is "
+            tree_t r = tree_range(a, 0);
+            if ((ok = sem_check_range(r, type) && ok)) {
+               if (!sem_locally_static(tree_left(r)))
+                  sem_error(tree_left(r), "left index of case choice range is "
                             "not locally static");
-               else if (!sem_locally_static(r.right))
-                  sem_error(r.right, "right index of case choice range is "
-                            "not locally static");
+               else if (!sem_locally_static(tree_right(r)))
+                  sem_error(tree_right(r), "right index of case choice range "
+                            "is not locally static");
             }
          }
          break;
@@ -3951,11 +3949,10 @@ static bool sem_check_while(tree_t t)
 
 static bool sem_check_for(tree_t t)
 {
-   range_t r = tree_range(t, 0);
-   const bool is_range_expr = (r.kind == RANGE_EXPR);
-   if (!sem_check_range(&r, NULL))
+   tree_t r = tree_range(t, 0);
+   const bool is_range_expr = (tree_subkind(r) == RANGE_EXPR);
+   if (!sem_check_range(r, NULL))
       return false;
-   tree_change_range(t, 0, r);
 
    tree_t idecl = tree_decl(t, 0);
 
@@ -3963,7 +3960,7 @@ static bool sem_check_for(tree_t t)
       return false;
 
    tree_t name = NULL;
-   if (is_range_expr && tree_kind((name = tree_name(r.left))) == T_REF) {
+   if (is_range_expr && tree_kind((name = tree_name(tree_value(r)))) == T_REF) {
       // Find the variable X in X'RANGE
       tree_t range_var = tree_ref(name);
       tree_add_attr_tree(idecl, range_var_i, range_var);
@@ -4102,15 +4099,12 @@ static bool sem_check_if_generate(tree_t t)
 
 static bool sem_check_for_generate(tree_t t)
 {
-   range_t r = tree_range(t, 0);
-   if (!sem_check_range(&r, NULL))
+   tree_t r = tree_range(t, 0);
+   if (!sem_check_range(r, NULL))
       return false;
-   tree_change_range(t, 0, r);
 
-   if (!sem_globally_static(r.left))
-      sem_error(r.left, "range of generate statement must be static");
-   else if (!sem_globally_static(r.right))
-      sem_error(r.right, "range of generate statement must be static");
+   if (!sem_globally_static(r))
+      sem_error(r, "range of generate statement must be static");
 
    tree_t idecl = tree_decl(t, 0);
    assert(tree_kind(idecl) == T_GENVAR);

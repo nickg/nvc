@@ -25,15 +25,15 @@
 //
 
 int64_t assume_int(tree_t t);
-void range_bounds(range_t r, int64_t *low, int64_t *high);
+void range_bounds(tree_t r, int64_t *low, int64_t *high);
 tree_t call_builtin(const char *builtin, type_t type, ...);
 bool folded_int(tree_t t, int64_t *i);
 bool folded_real(tree_t t, double *d);
 bool folded_bool(tree_t t, bool *b);
-bool folded_length(range_t r, int64_t *l);
+bool folded_length(tree_t r, int64_t *l);
 bool folded_enum(tree_t t, unsigned *pos);
-bool folded_bounds(range_t r, int64_t *low, int64_t *high);
-bool folded_bounds_real(range_t r, double *low, double *high);
+bool folded_bounds(tree_t r, int64_t *low, int64_t *high);
+bool folded_bounds_real(tree_t r, double *low, double *high);
 tree_t get_int_lit(tree_t t, int64_t i);
 tree_t get_enum_lit(tree_t t, int pos);
 tree_t get_real_lit(tree_t t, double r);
@@ -52,7 +52,7 @@ unsigned bits_for_range(int64_t low, int64_t high);
 unsigned dimension_of(type_t type);
 type_t index_type_of(type_t type, unsigned dim);
 range_kind_t direction_of(type_t type, unsigned dim);
-range_t range_of(type_t type, unsigned dim);
+tree_t range_of(type_t type, unsigned dim);
 tree_t str_to_literal(const char *start, const char *end, type_t type);
 int64_t rebase_index(type_t array_type, int dim, int64_t value);
 char *vcode_file_name(ident_t unit_name);

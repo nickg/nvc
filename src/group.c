@@ -332,7 +332,7 @@ static bool group_name(tree_t target, group_nets_ctx_t *ctx, int start, int n)
             }
             else {
                if (i > 0) {
-                  range_t type_r = range_of(type, i);
+                  tree_t type_r = range_of(type, i);
                   int64_t low, high;
                   range_bounds(type_r, &low, &high);
                   offset *= high - low + 1;
@@ -353,16 +353,18 @@ static bool group_name(tree_t target, group_nets_ctx_t *ctx, int start, int n)
          if (type_is_unconstrained(type))
             return false;    // Only in procedure
 
-         range_t slice = tree_range(target, 0 );
+         tree_t slice = tree_range(target, 0);
 
-         if (tree_kind(slice.left) != T_LITERAL
-             || tree_kind(slice.right) != T_LITERAL)
+         tree_t left = tree_left(slice);
+         tree_t right = tree_right(slice);
+
+         if (tree_kind(left) != T_LITERAL || tree_kind(right) != T_LITERAL)
             return false;
 
          int64_t low, high;
          range_bounds(slice, &low, &high);
 
-         const int64_t low0 = rebase_index(type, 0, assume_int(slice.left));
+         const int64_t low0 = rebase_index(type, 0, assume_int(left));
          const int stride   = type_width(type_elem(type));
 
          return group_name(value, ctx, start + low0 * stride, n);

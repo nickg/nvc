@@ -62,7 +62,7 @@ static void bounds_check_literal(tree_t t)
    }
 }
 
-static bool is_out_of_range(tree_t value, range_t range, bool *checked)
+static bool is_out_of_range(tree_t value, tree_t range, bool *checked)
 {
    type_kind_t base_kind = type_base_kind(tree_type(value));
 
@@ -198,8 +198,8 @@ static tree_t bounds_check_call_args(tree_t t)
          const int ndims = dimension_of(ftype);
 
          for (int j = 0; j < ndims; j++) {
-            range_t formal_r = range_of(ftype, j);
-            range_t actual_r = range_of(atype, j);
+            tree_t formal_r = range_of(ftype, j);
+            tree_t actual_r = range_of(atype, j);
 
             int64_t f_len, a_len;
 
@@ -222,15 +222,15 @@ static tree_t bounds_check_call_args(tree_t t)
          }
       }
       else if (type_is_scalar(ftype)) {
-         range_t r = range_of(ftype, 0);
+         tree_t r = range_of(ftype, 0);
          bool checked;
 
          if (is_out_of_range(value, r, &checked))
             bounds_error(value, "value %s out of bounds %s %s %s for "
                          "parameter %s", value_str(value),
-                         value_str(r.left),
-                         (r.kind == RANGE_TO) ? "to" : "downto",
-                         value_str(r.right), istr(tree_ident(port)));
+                         value_str(tree_left(r)),
+                         (tree_subkind(r) == RANGE_TO) ? "to" : "downto",
+                         value_str(tree_right(r)), istr(tree_ident(port)));
       }
    }
 
@@ -257,14 +257,14 @@ static void bounds_check_array_ref(tree_t t)
       bool checked = false;
 
       if (!unconstrained) {
-         range_t r = range_of(value_type, i);
+         tree_t r = range_of(value_type, i);
          if (is_out_of_range(pvalue, r, &checked)) {
             const char *name = value_is_ref ? istr(tree_ident(value)) : NULL;
             bounds_error(t, "array %s%sindex %s out of bounds %s %s %s",
                          name ? name : "", name ? " " : "",
-                         value_str(pvalue), value_str(r.left),
-                         (r.kind == RANGE_TO) ? "to" : "downto",
-                         value_str(r.right));
+                         value_str(pvalue), value_str(tree_left(r)),
+                         (tree_subkind(r) == RANGE_TO) ? "to" : "downto",
+                         value_str(tree_right(r)));
          }
       }
 
@@ -299,25 +299,29 @@ static void bounds_check_array_slice(tree_t t)
    if (type_is_unconstrained(value_type))
       return;
 
-   range_t b = range_of(value_type, 0);
-   range_t r = tree_range(t, 0);
+   tree_t b = range_of(value_type, 0);
+   tree_t r = tree_range(t, 0);
 
-   if ((b.kind != RANGE_TO) && (b.kind != RANGE_DOWNTO))
+   const range_kind_t bkind = tree_subkind(b);
+   const range_kind_t rkind = tree_subkind(r);
+
+   if ((bkind != RANGE_TO) && (bkind != RANGE_DOWNTO))
       return;
-   else if ((r.kind != RANGE_TO) && (r.kind != RANGE_DOWNTO))
+   else if ((rkind != RANGE_TO) && (rkind != RANGE_DOWNTO))
       return;
 
    int64_t b_left, r_left;
    bool left_error = false;
-   if (folded_int(b.left, &b_left) && folded_int(r.left, &r_left))
-      left_error = ((b.kind == RANGE_TO) && (r_left < b_left))
-         || ((b.kind == RANGE_DOWNTO) && (r_left > b_left));
+   if (folded_int(tree_left(b), &b_left) && folded_int(tree_left(r), &r_left))
+      left_error = ((bkind == RANGE_TO) && (r_left < b_left))
+         || ((bkind == RANGE_DOWNTO) && (r_left > b_left));
 
    int64_t b_right, r_right;
    bool right_error = false;
-   if (folded_int(b.right, &b_right) && folded_int(r.right, &r_right))
-      right_error = ((b.kind == RANGE_TO) && (r_right > b_right))
-         || ((b.kind == RANGE_DOWNTO) && (r_right < b_right));
+   if (folded_int(tree_right(b), &b_right)
+       && folded_int(tree_right(r), &r_right))
+      right_error = ((bkind == RANGE_TO) && (r_right > b_right))
+         || ((bkind == RANGE_DOWNTO) && (r_right < b_right));
 
    if (left_error || right_error) {
       const char *name = (tree_kind(value) == T_REF)
@@ -327,7 +331,7 @@ static void bounds_check_array_slice(tree_t t)
                    name ? name : "", name ? " " : "",
                    left_error ? "left" : "right",
                    left_error ? r_left : r_right, b_left,
-                   (b.kind == RANGE_TO) ? "to" : "downto", b_right);
+                   (bkind == RANGE_TO) ? "to" : "downto", b_right);
    }
 }
 
@@ -373,7 +377,7 @@ static void bounds_check_aggregate(tree_t t)
    int64_t low, high;
    bool have_bounds = false;
 
-   range_t type_r = range_of(type, 0);
+   tree_t type_r = range_of(type, 0);
 
    const bool unconstrained = tree_flags(t) & TREE_F_UNCONSTRAINED;
 
@@ -384,7 +388,7 @@ static void bounds_check_aggregate(tree_t t)
 
       type_t index = type_index_constr(base, 0);
 
-      range_t base_r = range_of(index, 0);
+      tree_t base_r = range_of(index, 0);
 
       have_bounds = folded_bounds(base_r, &low, &high);
    }
@@ -404,15 +408,19 @@ static void bounds_check_aggregate(tree_t t)
 
       switch (tree_subkind(a)) {
       case A_NAMED:
-         bounds_within(tree_name(a), type_r.kind, "aggregate", low, high);
+         bounds_within(tree_name(a), tree_subkind(type_r),
+                       "aggregate", low, high);
          nelems++;
          break;
 
       case A_RANGE:
          {
-            range_t r = tree_range(a, 0);
-            bounds_within(r.left, r.kind, "aggregate", low, high);
-            bounds_within(r.right, r.kind, "aggregate", low, high);
+            tree_t r = tree_range(a, 0);
+            const range_kind_t rkind = tree_subkind(r);
+            if (rkind == RANGE_TO || rkind == RANGE_DOWNTO) {
+               bounds_within(tree_left(r), rkind, "aggregate", low, high);
+               bounds_within(tree_right(r), rkind, "aggregate", low, high);
+            }
 
             int64_t length;
             if (folded_length(r, &length))
@@ -485,14 +493,14 @@ static void bounds_check_decl(tree_t t)
 
       const int ndims = dimension_of(base);
       for (int i = 0; i < ndims; i++) {
-         range_t dim = range_of(type, i);
+         tree_t dim = range_of(type, i);
 
          type_t cons = index_type_of(base, i);
          type_t cons_base  = type_base_recur(cons);
 
          const bool is_enum = (type_kind(cons_base) == T_ENUM);
 
-         range_t bounds = range_of(cons, 0);
+         tree_t bounds = range_of(cons, 0);
 
          // Only check here if range can be determined to be non-null
 
@@ -512,34 +520,38 @@ static void bounds_check_decl(tree_t t)
          if (is_null)
             continue;
 
+         const range_kind_t dim_kind = tree_subkind(dim);
+         tree_t dim_left = tree_left(dim);
+         tree_t dim_right = tree_right(dim);
+
          if (dim_low < bounds_low) {
             if (is_enum) {
-               tree_t lit = type_enum_literal(cons_base, (unsigned) dim_low);
-               bounds_error((dim.kind == RANGE_TO) ? dim.left : dim.right,
+               tree_t lit = type_enum_literal(cons_base, (unsigned)dim_low);
+               bounds_error(dim_kind == RANGE_TO ? dim_left : dim_right,
                             "%s index %s violates constraint %s",
-                            (dim.kind == RANGE_TO) ? "left" : "right",
+                            dim_kind == RANGE_TO ? "left" : "right",
                             istr(tree_ident(lit)), type_pp(cons));
             }
             else
-               bounds_error((dim.kind == RANGE_TO) ? dim.left : dim.right,
+               bounds_error(dim_kind == RANGE_TO ? dim_left : dim_right,
                             "%s index %"PRIi64" violates constraint %s",
-                            (dim.kind == RANGE_TO) ? "left" : "right",
+                            dim_kind == RANGE_TO ? "left" : "right",
                             dim_low, type_pp(cons));
 
          }
 
          if (dim_high > bounds_high) {
             if (is_enum) {
-               tree_t lit = type_enum_literal(cons_base, (unsigned) dim_high);
-               bounds_error((dim.kind == RANGE_TO) ? dim.right : dim.left,
+               tree_t lit = type_enum_literal(cons_base, (unsigned)dim_high);
+               bounds_error(dim_kind == RANGE_TO ? dim_right : dim_left,
                             "%s index %s violates constraint %s",
-                            (dim.kind == RANGE_TO) ? "right" : "left",
+                            dim_kind == RANGE_TO ? "right" : "left",
                             istr(tree_ident(lit)), type_pp(cons));
             }
             else
-               bounds_error((dim.kind == RANGE_TO) ? dim.right : dim.left,
+               bounds_error(dim_kind == RANGE_TO ? dim_right : dim_left,
                             "%s index %"PRIi64" violates constraint %s",
-                            (dim.kind == RANGE_TO) ? "right" : "left",
+                            dim_kind == RANGE_TO ? "right" : "left",
                             dim_high, type_pp(cons));
          }
       }
@@ -577,14 +589,14 @@ static void bounds_check_assignment(tree_t target, tree_t value)
    }
 
    if (type_is_scalar(target_type)) {
-      range_t r = range_of(target_type, 0);
+      tree_t r = range_of(target_type, 0);
       bool checked;
 
       if (is_out_of_range(value, r, &checked)) {
          bounds_error(value, "value %s out of target bounds %s %s %s",
-                      value_str(value), value_str(r.left),
-                      (r.kind == RANGE_TO) ? "to" : "downto",
-                      value_str(r.right));
+                      value_str(value), value_str(tree_left(r)),
+                      (tree_subkind(r) == RANGE_TO) ? "to" : "downto",
+                      value_str(tree_right(r)));
       }
    }
 }
@@ -695,15 +707,17 @@ static void bounds_check_case(tree_t t)
 
       unsigned nlits, low, high;
       if (type_kind(type) == T_SUBTYPE) {
-         range_t r = range_of(type, 0);
-         assert(r.kind == RANGE_TO);
+         tree_t r = range_of(type, 0);
+         assert(tree_subkind(r) == RANGE_TO);
 
-         if ((tree_kind(r.left) != T_REF)
-             || ((tree_kind(r.right) != T_REF)))
+         tree_t left = tree_left(r);
+         tree_t right = tree_right(r);
+
+         if (tree_kind(left) != T_REF || tree_kind(right) != T_REF)
             return;
 
-         tree_t ldecl = tree_ref(r.left);
-         tree_t rdecl = tree_ref(r.right);
+         tree_t ldecl = tree_ref(left);
+         tree_t rdecl = tree_ref(right);
 
          assert(tree_kind(ldecl) == T_ENUM_LIT);
          assert(tree_kind(rdecl) == T_ENUM_LIT);
@@ -783,10 +797,10 @@ static void bounds_check_case(tree_t t)
 
          case A_RANGE:
             {
-               range_t r = tree_range(a, 0);
-               assert(r.kind == RANGE_TO);
-               low  = assume_int(r.left);
-               high = assume_int(r.right);
+               tree_t r = tree_range(a, 0);
+               assert(tree_subkind(r) == RANGE_TO);
+               low  = assume_int(tree_left(r));
+               high = assume_int(tree_right(r));
             }
             break;
          }

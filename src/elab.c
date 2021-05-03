@@ -679,7 +679,7 @@ static netid_t elab_get_net(tree_t expr, int n)
                rebase_index(array_type, i, assume_int(index));
 
             if (i > 0) {
-               range_t type_r = type_dim(array_type, i);
+               tree_t type_r = type_dim(array_type, i);
                int64_t low, high;
                range_bounds(type_r, &low, &high);
 
@@ -698,13 +698,13 @@ static netid_t elab_get_net(tree_t expr, int n)
          tree_t value = tree_value(expr);
          type_t array_type = tree_type(value);
 
-         range_t type_r  = range_of(array_type, 0);
-         range_t slice_r = tree_range(expr, 0);
+         tree_t type_r  = range_of(array_type, 0);
+         tree_t slice_r = tree_range(expr, 0);
 
-         assert(type_r.kind == slice_r.kind);
+         assert(tree_subkind(type_r) == tree_subkind(slice_r));
 
          const int64_t type_off =
-            rebase_index(array_type, 0, assume_int(slice_r.left));
+            rebase_index(array_type, 0, assume_int(tree_left(slice_r)));
 
          const int stride = type_width(type_elem(array_type));
 
@@ -774,13 +774,13 @@ static void elab_map_nets(map_list_t *maps)
             {
                type_t array_type = tree_type(maps->formal);
 
-               range_t slice = tree_range(maps->name, 0);
+               tree_t slice = tree_range(maps->name, 0);
 
                int64_t low, high;
                range_bounds(slice, &low, &high);
 
                const int64_t base_off =
-                  rebase_index(array_type, 0, assume_int(slice.left));
+                  rebase_index(array_type, 0, assume_int(tree_left(slice)));
 
                const int width = MAX(high - low + 1, 0);
                for (int i = 0; i < width; i++)
@@ -825,6 +825,7 @@ static bool elab_should_copy(tree_t t)
    case T_AGGREGATE:
    case T_CONSTRAINT:
    case T_QUALIFIED:
+   case T_RANGE:
        return false;
    case T_VAR_DECL:
       if (tree_flags(t) & TREE_F_SHARED)

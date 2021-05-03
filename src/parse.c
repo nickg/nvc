@@ -830,7 +830,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
 
       const int ndims = type_dims(t);
       for (int i = 0; i < ndims; i++)
-         type_add_index_constr(u, tree_type(type_dim(t, i).left));
+         type_add_index_constr(u, tree_type(type_dim(t, i)));
 
       t = u;
    }
@@ -1650,25 +1650,29 @@ static port_mode_t p_mode(void)
    }
 }
 
-static range_t p_range(tree_t left, type_t constraint)
+static tree_t p_range(tree_t left, type_t constraint)
 {
    // attribute_name | simple_expression direction simple_expression
 
    EXTEND("range");
 
-   range_t r = { .kind = RANGE_ERROR, .left = left };
+   tree_t r = tree_new(T_RANGE);
+   tree_set_subkind(r, RANGE_ERROR);
+   tree_set_left(r, left);
 
    switch (one_of(tTO, tDOWNTO)) {
    case tTO:
-      r.kind  = RANGE_TO;
-      r.right = p_expression();
+      tree_set_subkind(r, RANGE_TO);
+      tree_set_right(r, p_expression());
       break;
 
    case tDOWNTO:
-      r.kind  = RANGE_DOWNTO;
-      r.right = p_expression();
+      tree_set_subkind(r, RANGE_DOWNTO);
+      tree_set_right(r, p_expression());
       break;
    }
+
+   tree_set_loc(r, CURRENT_LOC);
 
    solve_range(nametab, r, constraint);
 
@@ -1695,13 +1699,13 @@ static tree_t p_range_constraint(type_t constraint)
       break;
    default:
       {
-         solve_types(nametab, expr1, constraint);
+         tree_t r = tree_new(T_RANGE);
+         tree_set_loc(r, tree_loc(expr1));
+         tree_set_subkind(r, RANGE_EXPR);
+         tree_set_value(r, expr1);
 
-         range_t r = {
-            .kind  = RANGE_EXPR,
-            .left  = expr1,
-            .right = NULL
-         };
+         solve_range(nametab, r, constraint);
+
          tree_add_range(t, r);
       }
    }
@@ -1710,7 +1714,7 @@ static tree_t p_range_constraint(type_t constraint)
    return t;
 }
 
-static range_t p_discrete_range(type_t constraint, tree_t head)
+static tree_t p_discrete_range(type_t constraint, tree_t head)
 {
    // subtype_indication | range
 
@@ -1739,34 +1743,29 @@ static range_t p_discrete_range(type_t constraint, tree_t head)
          consume(tRANGE);
 
          tree_t left = p_expression();
-         range_t r = p_range(left, constraint);
-
-         tree_set_type(left, constraint);  // XXX: need type check
-         if (r.right) tree_set_type(r.right, constraint);
-
+         tree_t r = p_range(left, constraint);
+         tree_set_type(r, constraint);  // XXX: need type check?
          return r;
       }
 
    default:
       {
-         solve_types(nametab, expr1, constraint);
-
          if (tree_kind(expr1) != T_ATTR_REF) {
             tree_t tmp = tree_new(T_ATTR_REF);
             tree_set_name(tmp, expr1);
             tree_set_ident(tmp, ident_new("RANGE"));
             tree_set_loc(tmp, tree_loc(expr1));
-            tree_set_type(tmp, tree_type(expr1));
             tree_add_attr_int(tmp, builtin_i, ATTR_RANGE);
 
             expr1 = tmp;
          }
 
-         range_t r = {
-            .kind  = RANGE_EXPR,
-            .left  = expr1,
-            .right = NULL
-         };
+         tree_t r = tree_new(T_RANGE);
+         tree_set_subkind(r, RANGE_EXPR);
+         tree_set_value(r, expr1);
+         tree_set_loc(r, tree_loc(expr1));
+
+         solve_range(nametab, r, constraint);
          return r;
       }
    }
@@ -3484,7 +3483,7 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
    }
 }
 
-static type_t p_integer_type_definition(range_t r, ident_t id)
+static type_t p_integer_type_definition(tree_t r, ident_t id)
 {
    // range_constraint
 
@@ -3497,7 +3496,7 @@ static type_t p_integer_type_definition(range_t r, ident_t id)
    return t;
 }
 
-static type_t p_real_type_definition(range_t r, ident_t id)
+static type_t p_real_type_definition(tree_t r, ident_t id)
 {
    // range_constraint
 
@@ -3555,7 +3554,7 @@ static tree_t p_secondary_unit_declaration(type_t type)
    return u;
 }
 
-static type_t p_physical_type_definition(range_t r, ident_t id)
+static type_t p_physical_type_definition(tree_t range, ident_t id)
 {
    // range_constraint units base_unit_declaration
    //   { secondary_unit_declaration } end units [ name ]
@@ -3571,7 +3570,7 @@ static type_t p_physical_type_definition(range_t r, ident_t id)
    tree_set_type(base, t);
    tree_set_type(tree_value(base), t);
    type_add_unit(t, base);
-   type_add_dim(t, r);
+   type_add_dim(t, range);
 
    push_scope(nametab);
 
@@ -3630,11 +3629,13 @@ static type_t p_enumeration_type_definition(ident_t id)
       type_enum_add_literal(t, lit);
    } while (optional(tCOMMA));
 
-   range_t r = {
-      .kind  = RANGE_TO,
-      .left  = get_int_lit(type_enum_literal(t, 0), 0),
-      .right = get_int_lit(type_enum_literal(t, pos - 1), pos -1)
-   };
+   tree_t r = tree_new(T_RANGE);
+   tree_set_subkind(r, RANGE_TO);
+   tree_set_left(r, get_int_lit(type_enum_literal(t, 0), 0));
+   tree_set_right(r, get_int_lit(type_enum_literal(t, pos - 1), pos -1));
+   tree_set_loc(r, CURRENT_LOC);
+   tree_set_type(r, t);
+
    type_add_dim(t, r);
 
    consume(tRPAREN);
@@ -3652,11 +3653,11 @@ static type_t p_scalar_type_definition(ident_t id)
    switch (peek()) {
    case tRANGE:
       {
-         range_t r = tree_range(p_range_constraint(NULL), 0);
+         tree_t r = tree_range(p_range_constraint(NULL), 0);
 
          if (peek() == tUNITS)
             return p_physical_type_definition(r, id);
-         else if (type_is_real(tree_type(r.left)))
+         else if (type_is_real(tree_type(r)))
             return p_real_type_definition(r, id);
          else
             return p_integer_type_definition(r, id);
@@ -6100,10 +6101,10 @@ static void p_parameter_specification(tree_t loop)
 
    consume(tIN);
 
-   range_t r = p_discrete_range(NULL, NULL);
+   tree_t r = p_discrete_range(NULL, NULL);
    tree_add_range(loop, r);
 
-   type_t base = tree_type(r.left);
+   type_t base = tree_type(r);
    if (type_is_universal(base))
       // XXX: seems like this will hide some errors
       base = std_type(find_std(nametab), "INTEGER");

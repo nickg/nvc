@@ -76,10 +76,10 @@ static const uint64_t *pp_array(text_buf_t *buf, type_t type,
 
    tb_printf(buf, all_char ? "\"" : "(");
 
-   range_t r = type_dim(type, 0);
-   const int left  = assume_int(r.left);
-   const int right = assume_int(r.right);
-   const int step  = (r.kind == RANGE_TO) ? 1 : -1;
+   tree_t r = type_dim(type, 0);
+   const int left  = assume_int(tree_left(r));
+   const int right = assume_int(tree_right(r));
+   const int step  = (tree_subkind(r) == RANGE_TO) ? 1 : -1;
 
    for (int i = left; i != right + step; i += step) {
       if (!all_char && (i != left))

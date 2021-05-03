@@ -66,7 +66,10 @@ static tree_t str_to_agg(const char *p, const char *end)
    type_t type = type_new(T_CARRAY);
    type_set_ident(type, ident_new("string"));
    type_set_elem(type, type_universal_int());
-   range_t r = { .kind = RANGE_DOWNTO, .left = left, .right = right };
+   tree_t r = tree_new(T_RANGE);
+   tree_set_subkind(r, RANGE_DOWNTO);
+   tree_set_left(r, left);
+   tree_set_right(r, right);
    type_add_dim(type, r);
 
    tree_set_type(t, type);

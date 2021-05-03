@@ -97,13 +97,15 @@ int64_t assume_int(tree_t t)
             "an integer constant");
 }
 
-void range_bounds(range_t r, int64_t *low, int64_t *high)
+void range_bounds(tree_t r, int64_t *low, int64_t *high)
 {
-   const int64_t left = assume_int(r.left);
-   const int64_t right = assume_int(r.right);
+   assert(tree_kind(r) == T_RANGE);
 
-   *low  = r.kind == RANGE_TO ? left : right;
-   *high = r.kind == RANGE_TO ? right : left;
+   const int64_t left = assume_int(tree_left(r));
+   const int64_t right = assume_int(tree_right(r));
+
+   *low  = tree_subkind(r) == RANGE_TO ? left : right;
+   *high = tree_subkind(r) == RANGE_TO ? right : left;
 }
 
 tree_t call_builtin(const char *builtin, type_t type, ...)
@@ -209,7 +211,7 @@ bool folded_real(tree_t t, double *l)
    }
 }
 
-bool folded_length(range_t r, int64_t *l)
+bool folded_length(tree_t r, int64_t *l)
 {
    int64_t low, high;
    if (folded_bounds(r, &low, &high)) {
@@ -220,20 +222,28 @@ bool folded_length(range_t r, int64_t *l)
       return false;
 }
 
-bool folded_bounds(range_t r, int64_t *low, int64_t *high)
+bool folded_bounds(tree_t r, int64_t *low, int64_t *high)
 {
+   assert(tree_kind(r) == T_RANGE);
+
+   const range_kind_t rkind = tree_subkind(r);
+
+   if (rkind != RANGE_TO && rkind != RANGE_DOWNTO)
+      return false;
+
    int64_t left, right;
    unsigned leftu, rightu;
-   if (folded_int(r.left, &left) && folded_int(r.right, &right))
+   if (folded_int(tree_left(r), &left) && folded_int(tree_right(r), &right))
        ;
-   else if (folded_enum(r.left, &leftu) && folded_enum(r.right, &rightu)) {
+   else if (folded_enum(tree_left(r), &leftu)
+            && folded_enum(tree_right(r), &rightu)) {
       left  = leftu;
       right = rightu;
    }
    else
       return false;
 
-   switch (r.kind) {
+   switch (rkind) {
    case RANGE_TO:
       *low  = left;
       *high = right;
@@ -247,11 +257,18 @@ bool folded_bounds(range_t r, int64_t *low, int64_t *high)
    }
 }
 
-bool folded_bounds_real(range_t r, double *low, double *high)
+bool folded_bounds_real(tree_t r, double *low, double *high)
 {
+   assert(tree_kind(r) == T_RANGE);
+
+   const range_kind_t rkind = tree_subkind(r);
+
+   if (rkind != RANGE_TO && rkind != RANGE_DOWNTO)
+      return false;
+
    double left, right;
-   if (folded_real(r.left, &left) && folded_real(r.right, &right)) {
-      switch (r.kind) {
+   if (folded_real(tree_left(r), &left) && folded_real(tree_right(r), &right)) {
+      switch (rkind) {
       case RANGE_TO:
          *low  = left;
          *high = right;
@@ -712,17 +729,30 @@ tree_t make_default_value(type_t type, const loc_t *loc)
    case T_INTEGER:
    case T_PHYSICAL:
    case T_REAL:
-      return range_of(type, 0).left;
+      {
+         tree_t r = range_of(type, 0);
+         if (tree_subkind(r) == RANGE_EXPR) {
+            tree_t aref = tree_new(T_ATTR_REF);
+            tree_set_loc(aref, loc);
+            tree_set_ident(aref, ident_new("LEFT"));
+            tree_set_name(aref, tree_name(tree_value(r)));
+            tree_set_type(aref, tree_type(r));
+            tree_add_attr_int(aref, builtin_i, ATTR_LEFT);
+            return aref;
+         }
+         else
+            return tree_left(range_of(type, 0));
+      }
 
    case T_ENUM:
       {
          int64_t val = 0;
-         range_t r = range_of(type, 0);
-         const bool folded = folded_int(r.left, &val);
+         tree_t r = range_of(type, 0);
+         const bool folded = folded_int(tree_left(r), &val);
          if (folded)
             return make_ref(type_enum_literal(base, (unsigned) val));
          else
-            return r.left;
+            return tree_left(r);
       }
 
    case T_RECORD:
@@ -849,7 +879,7 @@ unsigned dimension_of(type_t type)
    }
 }
 
-range_t range_of(type_t type, unsigned dim)
+tree_t range_of(type_t type, unsigned dim)
 {
    switch (type_kind(type)) {
    case T_SUBTYPE:
@@ -879,7 +909,27 @@ range_kind_t direction_of(type_t type, unsigned dim)
    case T_PHYSICAL:
    case T_CARRAY:
    case T_SUBTYPE:
-      return range_of(type, dim).kind;
+      {
+         tree_t r = range_of(type, dim);
+         const range_kind_t rkind = tree_subkind(r);
+         if (rkind == RANGE_EXPR) {
+            // Return a fixed direction if possible
+            tree_t value = tree_value(r);
+            assert(tree_kind(value) == T_ATTR_REF);
+
+            const predef_attr_t attr = tree_attr_int(value, builtin_i, -1);
+            assert(attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE);
+
+            tree_t name = tree_name(value);
+            assert(tree_kind(name) == T_REF);
+
+            tree_t decl = tree_ref(name);
+            if (tree_kind(decl) == T_TYPE_DECL)
+               return direction_of(tree_type(decl), 0);
+         }
+
+         return rkind;
+      }
    default:
       fatal_trace("invalid type kind %s in direction_of",
                   type_kind_str(type_kind(type)));
@@ -897,21 +947,16 @@ type_t index_type_of(type_t type, unsigned dim)
       return type_index_constr(base, dim);
    else if (base_kind == T_ENUM || base_kind == T_NONE)
       return type;
-   else {
-      tree_t left = range_of(base, dim).left;
-
-      // If the left bound has not been assigned a type then there is some
-      // error with it so just return a dummy type here
-      return tree_has_type(left) ? tree_type(left) : type_new(T_NONE);
-   }
+   else
+      return tree_type(range_of(base, dim));
 }
 
 int64_t rebase_index(type_t array_type, int dim, int64_t value)
 {
    // Convert value which is in the range of array_type to a zero-based index
-   range_t r = range_of(array_type, dim);
-   const int64_t left = assume_int(r.left);
-   return (r.kind == RANGE_TO) ? value - left : left - value;
+   tree_t r = range_of(array_type, dim);
+   const int64_t left = assume_int(tree_left(r));
+   return (tree_subkind(r) == RANGE_TO) ? value - left : left - value;
 }
 
 tree_t str_to_literal(const char *start, const char *end, type_t type)

@@ -85,15 +85,19 @@ typedef uint64_t imask_t;
 #define I_CONSTR     ONE_HOT(48)
 #define I_FLAGS      ONE_HOT(49)
 #define I_TEXT       ONE_HOT(50)
+#define I_LEFT       ONE_HOT(51)
+#define I_RIGHT      ONE_HOT(52)
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
-#define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
-                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE  \
-                          | I_NAME | I_SPEC | I_RESOLUTION | I_CONSTR)
+#define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET   \
+                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE    \
+                          | I_NAME | I_SPEC | I_RESOLUTION | I_CONSTR   \
+                          | I_LEFT | I_RIGHT)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
-                          | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS  \
-                          | I_GENMAPS | I_ASSOCS | I_CONTEXT \
-                          | I_LITERALS | I_FIELDS | I_UNITS | I_CHARS)
+                          | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS   \
+                          | I_GENMAPS | I_ASSOCS | I_CONTEXT | I_LEFT   \
+                          | I_RIGHT | I_LITERALS | I_FIELDS | I_UNITS   \
+                          | I_CHARS | I_DIMS | I_RANGES)
 #define ITEM_TYPE        (I_TYPE | I_BASE | I_ELEM | I_ACCESS | I_RESULT \
                           | I_FILE)
 #define ITEM_INT64       (I_POS | I_IVAL)
@@ -101,7 +105,6 @@ typedef uint64_t imask_t;
 #define ITEM_NETID_ARRAY (I_NETS)
 #define ITEM_DOUBLE      (I_DVAL)
 #define ITEM_TYPE_ARRAY  (I_PTYPES | I_INDEXCON)
-#define ITEM_RANGE_ARRAY (I_RANGES | I_DIMS)
 #define ITEM_TEXT_BUF    (I_TEXT_BUF)
 #define ITEM_ATTRS       (I_ATTRS)
 #define ITEM_TEXT        (I_TEXT)
@@ -110,7 +113,6 @@ typedef uint64_t imask_t;
 #define OBJECT_TAG_TYPE  1
 
 DECLARE_ARRAY(netid);
-DECLARE_ARRAY(range);
 DECLARE_ARRAY(tree);
 DECLARE_ARRAY(type);
 DECLARE_ARRAY(ident);
@@ -164,9 +166,7 @@ typedef union {
    unsigned       subkind;
    int64_t        ival;
    double         dval;
-   range_t       *range;
    netid_array_t  netid_array;
-   range_array_t  range_array;
    text_buf_t    *text_buf;
    type_array_t   type_array;
    attr_tab_t     attrs;
