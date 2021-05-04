@@ -3248,19 +3248,12 @@ static void lower_wait(tree_t wait)
    const bool is_static = tree_attr_int(wait, static_i, 0);
    assert(!is_static || (!tree_has_delay(wait) && !tree_has_value(wait)));
 
-   vcode_block_t active_bb = vcode_active_block();
-   if (is_static) {
-      // This process is always sensitive to the same set of signals so
-      // only call _sched_event once at startup
-      vcode_select_block(0);
+   if (!is_static) {
+      // The _sched_event for static waits is emitted in the reset block
+      const int ntriggers = tree_triggers(wait);
+      for (int i = 0; i < ntriggers; i++)
+         lower_sched_event(tree_trigger(wait, i), is_static);
    }
-
-   const int ntriggers = tree_triggers(wait);
-   for (int i = 0; i < ntriggers; i++)
-      lower_sched_event(tree_trigger(wait, i), is_static);
-
-   if (is_static)
-      vcode_select_block(active_bb);
 
    const bool has_delay = tree_has_delay(wait);
    const bool has_value = tree_has_value(wait);
@@ -3314,11 +3307,10 @@ static void lower_wait(tree_t wait)
 
       vcode_select_block(again_bb);
 
-      if (!is_static) {
-         const int ntriggers = tree_triggers(wait);
-         for (int i = 0; i < ntriggers; i++)
-            lower_sched_event(tree_trigger(wait, i), is_static);
-      }
+      assert(!is_static);
+      const int ntriggers = tree_triggers(wait);
+      for (int i = 0; i < ntriggers; i++)
+         lower_sched_event(tree_trigger(wait, i), is_static);
 
       emit_wait(resume, timeout_reg);
 
@@ -5131,25 +5123,40 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    vcode_unit_t vu = emit_process(tree_ident(proc), context);
    emit_debug_info(tree_loc(proc));
 
+   // The code generator assumes the first state starts at block number
+   // one. Allocate it here in case lowering the declarations generates
+   // additional basic blocks.
+   vcode_block_t start_bb = emit_block();
+   assert(start_bb == 1);
+
    lower_push_scope();
 
    lower_decls(proc, vu);
    tree_visit(proc, lower_driver_fn, proc);
 
-   vcode_block_t reset_bb = vcode_active_block();
+   // If the last statement in the process is a static wait then this
+   // process is always sensitive to the same set of signals and we can
+   // emit a single _sched_event call in the reset block
+   const int nstmts = tree_stmts(proc);
+   tree_t wait = NULL;
+   if (nstmts > 0
+       && tree_kind((wait = tree_stmt(proc, nstmts - 1))) == T_WAIT
+       && tree_attr_int(wait, static_i, 0)) {
 
-   vcode_block_t start_bb = emit_block();
+      const int ntriggers = tree_triggers(wait);
+      for (int i = 0; i < ntriggers; i++)
+         lower_sched_event(tree_trigger(wait, i), true);
+   }
+
+   emit_return(VCODE_INVALID_REG);
+
    vcode_select_block(start_bb);
 
-   const int nstmts = tree_stmts(proc);
    for (int i = 0; i < nstmts; i++)
       lower_stmt(tree_stmt(proc, i), NULL);
 
    if (!vcode_block_finished())
       emit_jump(start_bb);
-
-   vcode_select_block(reset_bb);
-   emit_return(VCODE_INVALID_REG);
 
    lower_finished();
    lower_pop_scope();

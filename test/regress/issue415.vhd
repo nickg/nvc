@@ -11,7 +11,7 @@ end bug5;
 architecture behavioral of bug5 is
   -- This complains with stack trace:
   -- Fatal: signal cannot have unconstrained array type
---  signal last_addr : std_logic_vector(addr'range);
+    signal last_addr_s : std_logic_vector(addr'range);
   -- This is fine
 --  signal last_addr : std_logic_vector(addr'high downto addr'low);
 
@@ -39,8 +39,17 @@ begin
       if addr = (addr'range => '0') then
         mem2 := (others => chunk_empty);
       end if;
+      last_addr_s <= addr;
     end if;
   end process;
+
+  check: process is
+  begin
+      wait for 5 ns;
+      assert last_addr_s = X"00000000000001";
+      wait;
+  end process;
+
 end behavioral;
 
 -------------------------------------------------------------------------------
@@ -62,5 +71,18 @@ begin
       clk => clk,
       addr => addr
     );
+
+  stim: process is
+  begin
+      wait for 1 ns;
+      clk <= '1';
+      wait for 1 ns;
+      clk <= '0';
+      addr <= X"00000000000001";
+      wait for 1 ns;
+      clk <= '1';
+      wait for 1 ns;
+      wait;
+  end process;
 
 end behavioral;
