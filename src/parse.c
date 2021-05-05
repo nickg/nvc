@@ -1673,9 +1673,7 @@ static tree_t p_range(tree_t left, type_t constraint)
    }
 
    tree_set_loc(r, CURRENT_LOC);
-
-   solve_range(nametab, r, constraint);
-
+   solve_types(nametab, r, constraint);
    return r;
 }
 
@@ -1704,7 +1702,7 @@ static tree_t p_range_constraint(type_t constraint)
          tree_set_subkind(r, RANGE_EXPR);
          tree_set_value(r, expr1);
 
-         solve_range(nametab, r, constraint);
+         solve_types(nametab, r, constraint);
 
          tree_add_range(t, r);
       }
@@ -1765,7 +1763,7 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
          tree_set_value(r, expr1);
          tree_set_loc(r, tree_loc(expr1));
 
-         solve_range(nametab, r, constraint);
+         solve_types(nametab, r, constraint);
          return r;
       }
    }

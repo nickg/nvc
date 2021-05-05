@@ -2572,7 +2572,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
             solve_types(tab, tree_name(a), index_type);
             break;
          case A_RANGE:
-            solve_range(tab, tree_range(a, 0), index_type);
+            solve_types(tab, tree_range(a, 0), index_type);
             break;
          }
 
@@ -2683,6 +2683,51 @@ static type_t solve_open(nametab_t *tab, tree_t open)
    return type;
 }
 
+static type_t solve_range(nametab_t *tab, tree_t r)
+{
+   type_t type = NULL;
+   switch (tree_subkind(r)) {
+   case RANGE_ERROR:
+      type = type_new(T_NONE);
+      break;
+   case RANGE_EXPR:
+      type = _solve_types(tab, tree_value(r));
+      break;
+   case RANGE_TO:
+   case RANGE_DOWNTO:
+      {
+         tree_t left = tree_left(r);
+         tree_t right = tree_right(r);
+
+         // Potentially swap the argument order for checking if the
+         // right type can be determined unambiguously
+         tree_kind_t rkind = tree_kind(right);
+         const bool swap =
+            (tree_has_type(right) && !type_is_universal(tree_type(right)))
+            || rkind == T_QUALIFIED
+            || rkind == T_ARRAY_REF
+            || rkind == T_ARRAY_SLICE
+            || rkind == T_TYPE_CONV
+            || (rkind == T_REF && query_name(tab, tree_ident(right)));
+
+         if (swap) { tree_t tmp = left; left = right; right = tmp; }
+
+         type = _solve_types(tab, left);
+
+         if (tab->top_type_set->members.count == 0)
+            type_set_add(tab, type);
+
+         _solve_types(tab, right);
+         break;
+      }
+   default:
+      assert(false);
+   }
+
+   tree_set_type(r, type);
+   return type;
+}
+
 static type_t _solve_types(nametab_t *tab, tree_t expr)
 {
    switch (tree_kind(expr)) {
@@ -2721,6 +2766,8 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_new(tab, expr);
    case T_ALL:
       return solve_all(tab, expr);
+   case T_RANGE:
+      return solve_range(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }
@@ -2734,48 +2781,5 @@ type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
    type_set_add(tab, constraint);
    type_t type = _solve_types(tab, expr);
    type_set_pop(tab);
-   return type;
-}
-
-type_t solve_range(nametab_t *tab, tree_t r, type_t constraint)
-{
-   // TODO: this can be merged into solve_types
-
-   type_t type = NULL;
-   switch (tree_subkind(r)) {
-   case RANGE_ERROR:
-      type = type_new(T_NONE);
-      break;
-   case RANGE_EXPR:
-      type = solve_types(tab, tree_value(r), constraint);
-      break;
-   case RANGE_TO:
-   case RANGE_DOWNTO:
-      {
-         tree_t left = tree_left(r);
-         tree_t right = tree_right(r);
-
-         // Potentially swap the argument order for checking if the
-         // right type can be determined unambiguously
-         tree_kind_t rkind = tree_kind(right);
-         const bool swap =
-            (tree_has_type(right) && !type_is_universal(tree_type(right)))
-            || rkind == T_QUALIFIED
-            || rkind == T_ARRAY_REF
-            || rkind == T_ARRAY_SLICE
-            || rkind == T_TYPE_CONV
-            || (rkind == T_REF && query_name(tab, tree_ident(right)));
-
-         if (swap) { tree_t tmp = left; left = right; right = tmp; }
-
-         type = solve_types(tab, left, constraint);
-         solve_types(tab, right, constraint ?: type);
-         break;
-      }
-   default:
-      assert(false);
-   }
-
-   tree_set_type(r, type);
    return type;
 }
