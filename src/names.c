@@ -801,7 +801,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       tree_t conflict = scope_find(where, name, limit, &s, 1);
       if (conflict != NULL && is_forward_decl(tab, decl, conflict))
          ;   // Forward declaration
-      if (conflict != NULL && is_forward_decl(tab, conflict, decl)) {
+      else if (conflict != NULL && is_forward_decl(tab, conflict, decl)) {
          // Forward declaration, prefer the full declaration
          decl = conflict;
       }
