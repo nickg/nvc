@@ -4181,10 +4181,12 @@ static bool sem_check_new(tree_t t)
    // Rules for allocators are in LRM 93 section 7.3.6
 
    tree_t value = tree_value(t);
-
    type_t access_type = tree_type(t);
-   assert(type_is_access(access_type));
 
+   if (type_is_none(access_type))
+      return false;
+
+   assert(type_is_access(access_type));
    assert(tree_kind(value) == T_QUALIFIED);
 
    if (!sem_check(value))

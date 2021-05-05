@@ -750,6 +750,7 @@ START_TEST(test_access)
       { 38, "unexpected integer while parsing type mark, expecting" },
       { 39, "type mark I does not refer to a type" },
       { 56, "type mark S does not refer to a type" },
+      { 97, "cannot determine type of allocator expression from context" },
       { 34, "null expression must have access type" },
       { 41, "does not match type of target INT_PTR" },
       { 47, "type of value REC does not match type of" },

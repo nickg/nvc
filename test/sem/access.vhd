@@ -91,4 +91,10 @@ package body p is
     begin
     end procedure;
 
+    procedure test6 is
+        variable v : int_vec(1 to 3);
+    begin
+        v(1) := new integer'(5);        -- Error
+    end procedure;
+
 end package body;
