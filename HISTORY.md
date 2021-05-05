@@ -2,8 +2,9 @@
 - Link libexecinfo on FreeBSD.
 - Implement textio READ procedure for BIT and TIME (#408).
 - Fixed a crash when a long running procedure suspends in a loop (#412).
+- Fix static build with LLVM 12.0.
 
-## 1.5.1 - 2021-09-04
+## 1.5.1 - 2021-04-09
 - Fix a compiler warning in vcode.c.
 - Disable VHDL backtrace on non-Linux systems as the symbol names cannot
   be parsed reliably (#385).
