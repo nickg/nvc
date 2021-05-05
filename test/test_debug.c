@@ -32,7 +32,7 @@ void global_func(void)
    const debug_frame_t *f0 = debug_get_frame(di, 0);
    fail_unless(f0->kind == FRAME_PROG);
    fail_if(f0->symbol == NULL);
-#if defined HAVE_LIBDW
+#if defined HAVE_LIBDW || defined HAVE_LIBDWARF
    ck_assert_str_eq(f0->symbol, "global_func");
    fail_unless(strstr(f0->module, "unit_test"));
 #endif
@@ -42,7 +42,7 @@ void global_func(void)
 
    const debug_frame_t *f1 = debug_get_frame(di, 1);
    fail_unless(f1->kind == FRAME_PROG);
-#if defined HAVE_LIBDW
+#if defined HAVE_LIBDW || defined HAVE_LIBDWARF
    if (f1->symbol)
       ck_assert_str_eq(f1->symbol, "static_func");   // May be stripped
    fail_unless(strstr(f1->module, "unit_test"));

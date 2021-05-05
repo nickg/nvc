@@ -3,6 +3,9 @@ AC_INIT([nvc], [1.6-devel],
         [nvc])
 AC_PREREQ([2.63])
 
+AC_CANONICAL_HOST
+AC_CANONICAL_TARGET
+
 dnl Automake 1.11 does not support the serial-tests option
 dnl Remove this when 1.11 no longer in common use
 m4_define([serial_tests], [
@@ -21,8 +24,6 @@ AM_SILENT_RULES([yes])
 
 AC_CONFIG_MACRO_DIR([m4])
 
-AC_CANONICAL_HOST
-
 AC_PROG_CC
 AC_PROG_CC_C99
 AC_PROG_CXX
@@ -35,7 +36,7 @@ AC_EXEEXT
 AC_C_INLINE
 AC_C_RESTRICT
 
-AC_CHECK_HEADERS([execinfo.h sys/ptrace.h sys/prctl.h])
+AC_CHECK_HEADERS([sys/ptrace.h sys/prctl.h])
 
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
@@ -54,15 +55,9 @@ AC_SUBST(PIC_FLAG)
 
 AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
 
-AX_PROG_FLEX([], [AC_MSG_ERROR(GNU Flex not found)])
+AX_PROG_FLEX([], [AC_MSG_ERROR(Flex not found)])
 
 case $host_os in
-  openbsd*|freebsd*)
-    # Need to link libexecinfo explicitly
-    AC_SEARCH_LIBS([backtrace_symbols], [execinfo], [],
-      [AC_MSG_ERROR(libexecinfo not found)], [])
-    ;;
-
   *cygwin*|msys*|mingw32*)
     # LLVM on Windows needs libffi and curses
     AX_WITH_CURSES
@@ -156,18 +151,45 @@ fi
 
 AX_LLVM_C([engine passes ipo linker native])
 
-PKG_CHECK_EXISTS([check],
-  [PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])],
-  [AC_MSG_WARN(libcheck not found - unit tests will not run)])
+PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [],
+                  [AC_MSG_WARN(libcheck not found - unit tests will not run)])
+
+debug_backend=
+AC_CHECK_HEADER([unwind.h],
+  AC_SEARCH_LIBS([_Unwind_Backtrace], [c++abi],
+    [
+      # libc++-abi needs to link -lpthread on OpenBSD
+      if test "$ac_cv_search__Unwind_Backtrace" = "-lc++abi"; then
+        [AX_PTHREAD([LIBS="$PTHREAD_LIBS $LIBS"],
+                    [AC_MSG_ERROR([pthread not found])])]
+      fi
+    ],
+    [AC_MSG_ERROR(cannot find library for _Unwind_Backtrace)],
+    [-lpthread])
+
+  [PKG_CHECK_MODULES([libdw], [libdw >= 0.159],
+     [AC_DEFINE_UNQUOTED([HAVE_LIBDW], [1], [Have libdw for stack traces])
+      debug_backend=libdw],
+     [true])
+
+   AC_CHECK_HEADER([libdwarf/libdwarf.h],
+     [AC_SEARCH_LIBS([elf_version], [elf], [], [AC_MSG_ERROR(cannot find libelf)])
+      AC_SEARCH_LIBS([dwarf_init], [dwarf],
+        [AC_DEFINE_UNQUOTED([HAVE_LIBDWARF], [1], [Have libdwarf for stack traces])
+         debug_backend=libdwarf],
+        [AC_MSG_WARN(cannot link against libdwarf)], [])])])
 
 case $host_os in
-  linux*)
-    PKG_CHECK_EXISTS([libdw],
-      [PKG_CHECK_MODULES([libdw], [libdw >= 0.159], [], [])
-       AC_DEFINE_UNQUOTED([HAVE_LIBDW], [1], [Have libdw for stack traces])],
-      [AC_MSG_NOTICE(libdw not found - using basic stack traces)])
+  *cygwin*|msys*|mingw32*)
+    debug_backend=win32
     ;;
 esac
+
+if test -z "$debug_backend"; then
+  AX_EXECINFO
+  AC_MSG_NOTICE(libdw or libdwarf not found - using basic stack traces)
+  debug_backend=execinfo
+fi
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 AX_DEFINE_DIR([LIBDIR], [libdir], [Installation library directory])

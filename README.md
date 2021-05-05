@@ -51,10 +51,11 @@ To build from a released tarball:
     make
     sudo make install
 
-To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config` to
-the configure command. LLVM 7, 8, and 9 have all been tested.
+To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
+to the configure command. LLVM 7, 8, 9, 10, 11 and 12 have all been
+tested.
 
-NVC also depends GNU Flex to generate the lexical analyser.
+NVC also depends on Flex to generate the lexical analyser.
 
 [GtkWave](http://gtkwave.sourceforge.net/) can be used to view simulation
 waveforms. Version 3.3.79 or later is required for the default FST format.
@@ -64,8 +65,8 @@ waveforms. Version 3.3.79 or later is required for the default FST format.
 On a Debian derivative the following should be sufficient to install all
 required dependencies:
 
-    sudo apt-get install build-essential automake autoconf autoconf-archive flex \
-        check llvm-dev pkg-config zlib1g-dev
+    sudo apt-get install build-essential automake autoconf \
+        flex check llvm-dev pkg-config zlib1g-dev libdw-dev
 
 #### macOS
 
@@ -103,7 +104,7 @@ standard installation instructions above.
 
 Install the dependencies with `pkg_add`:
 
-    pkg_add automake autoconf libexecinfo llvm check libexecinfo
+    pkg_add automake autoconf libdwarf llvm check libexecinfo
 
 Pass `CC` and `CXX` explicitly to configure to ensure Clang is used
 instead of an old version of GCC.

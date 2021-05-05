@@ -38,6 +38,7 @@
 #include <stdbool.h>
 #include <signal.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <assert.h>
@@ -659,8 +660,11 @@ void show_stacktrace(void)
          color_printf("($red$%s$$) ", frame->module);
       if (frame->srcfile != NULL)
          color_printf("%s:%d ", frame->srcfile, frame->lineno);
-      if (frame->symbol != NULL)
+      if (frame->symbol != NULL) {
          color_printf("$yellow$%s$$", frame->symbol);
+         if (frame->srcfile == NULL && frame->disp != 0)
+            color_printf("$yellow$+0x%"PRIxPTR"$$", frame->disp);
+      }
       printf("\n");
 
       if (frame->srcfile != NULL) {
