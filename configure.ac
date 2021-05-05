@@ -155,7 +155,7 @@ if test x$enable_fst_judy = xyes ; then
   AC_DEFINE_UNQUOTED([_WAVE_HAVE_JUDY], [1], [Internal definition of GTKWave for Judy])
 fi
 
-AX_LLVM_C([engine bitreader bitwriter ipo linker])
+AX_LLVM_C([engine passes ipo linker native])
 
 PKG_CHECK_EXISTS([check],
   [PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])],
