@@ -1740,19 +1740,24 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
 
    case tRANGE:
       {
-         if (tree_kind(expr1) != T_REF)
-            assert(false);   // XXX: FIXME
-
          constraint = solve_types(nametab, expr1, NULL);
 
-         if (tree_has_ref(expr1))
-            assert(tree_kind(tree_ref(expr1)) == T_TYPE_DECL);  // XXX
+         const bool is_type_decl =
+            tree_kind(expr1) == T_REF
+            && tree_has_ref(expr1)
+            && tree_kind(tree_ref(expr1)) == T_TYPE_DECL;
+
+         if (!is_type_decl && !type_is_none(constraint)) {
+            parse_error(tree_loc(expr1), "expected type mark while parsing "
+                        "discrete range");
+            constraint = type_new(T_NONE);
+         }
 
          consume(tRANGE);
 
          tree_t left = p_expression();
          tree_t r = p_range(left, constraint);
-         tree_set_type(r, constraint);  // XXX: need type check?
+         tree_set_type(r, constraint);
          return r;
       }
 

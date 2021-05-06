@@ -222,4 +222,15 @@ begin
         i <= 1;                         -- Error
     end process;
 
+    -- Corner cases in discrete range
+    drange: process is
+    begin
+        for i in 1 range 1 to 2 loop    -- Error
+        end loop;
+        for i in integer range 1.0 to 2.0 loop  -- Error
+        end loop;
+        for i in real range real'(1.0) to real'(2.0) loop  -- Error
+        end loop;
+    end process;
+
 end architecture;

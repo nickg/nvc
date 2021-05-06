@@ -499,6 +499,7 @@ START_TEST(test_seq)
       {  79, "no visible declaration for X" },
       { 205, "DUP already declared in this region" },
       { 204, "previous declaration of DUP was here" },
+      { 228, "expected type mark while parsing discrete range" },
       {  15, "type of test must be BOOLEAN" },
       {  25, "type of value BOOLEAN does not match type of target INTEGER" },
       {  48, "return statement not allowed outside subprogram" },
@@ -519,6 +520,8 @@ START_TEST(test_seq)
       { 192, "no nested loop with label FOO" },
       { 214, "type REAL does not have a range" },
       { 222, "variable I is not a valid target of signal assignment" },
+      { 230, "universal bound not convertible to INTEGER" },
+      { 232, "type of range bounds REAL is not discrete" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -775,7 +778,7 @@ START_TEST(test_real)
    const error_t expect[] = {
       { 16, "type of value MY_REAL does not match type of target" },
       { 25, "conversion only allowed between closely related types" },
-      { 38, "type of left bound INTEGER does not match type of right" },
+      { 38, "type mismatch in range: left is INTEGER, right is REAL" },
       { -1, NULL }
    };
    expect_errors(expect);

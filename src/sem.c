@@ -269,47 +269,68 @@ static bool sem_check_range(tree_t r, type_t expect)
          if (!sem_check(right))
             return false;
 
-         type_t left_type  = tree_type(left);
-         type_t right_type = tree_type(right);
-
          if (!sem_check_same_type(left, right))
             sem_error(right, "type mismatch in range: left is %s, right is %s",
-                      type_pp(left_type), type_pp(right_type));
+                      type_pp(tree_type(left)), type_pp(tree_type(right)));
 
-         if (expect == NULL) {
-            if (type_is_universal(left_type) && type_is_universal(right_type)) {
-               tree_kind_t lkind = tree_kind(left);
-               tree_kind_t rkind = tree_kind(right);
-
-               // See LRM 93 section 3.2.1.1
-               // Later LRMs relax the wording here
-               const bool invalid =
-                  standard() < STD_00
-                  && !(relax_rules() & RELAX_UNIVERSAL_BOUND)
-                  && lkind != T_LITERAL && lkind != T_ATTR_REF
-                  && rkind != T_LITERAL && rkind != T_ATTR_REF;
-
-               if (invalid)
-                  sem_error(left, "universal integer bound must be "
-                            "numeric literal or attribute");
-
-               type_t std_int = std_type(NULL, "INTEGER");
-               if (!sem_check_type(left, std_int))
-                  sem_error(left, "universal bound not convertible to INTEGER");
-               if (!sem_check_type(right, std_int))
-                  sem_error(right, "universal bound not convertible to INTEGER");
+         if (expect != NULL) {
+            if (!sem_check_type(left, expect)) {
+               sem_error(left, "expected type of left bound to be %s but is %s",
+                         type_pp(expect), type_pp(tree_type(left)));
             }
-         }
-         else if (!sem_check_type(left, expect)) {
-            sem_error(left, "expected type of left bound to be %s but is %s",
-                      type_pp(expect), type_pp(tree_type(left)));
-         }
-         else if (!sem_check_type(right, expect)) {
-            sem_error(right, "expected type of right bound to be %s but is %s",
-                      type_pp(expect), type_pp(tree_type(right)));
+            else if (!sem_check_type(right, expect)) {
+               sem_error(right, "expected type of right bound to be %s but is "
+                         "%s", type_pp(expect), type_pp(tree_type(right)));
+            }
          }
       }
       break;
+   }
+
+   return true;
+}
+
+static bool sem_check_discrete_range(tree_t r, type_t expect)
+{
+   if (!sem_check_range(r, expect))
+      return false;
+
+   type_t type = tree_type(r);
+   if (type_is_none(type))
+      return false;
+
+   if (!type_is_discrete(type))
+      sem_error(r, "type of range bounds %s is not discrete", type_pp(type));
+
+   if (expect == NULL && tree_subkind(r) != RANGE_EXPR) {
+      tree_t left  = tree_left(r);
+      tree_t right = tree_right(r);
+
+      type_t left_type  = tree_type(left);
+      type_t right_type = tree_type(right);
+
+      if (type_is_universal(left_type) && type_is_universal(right_type)) {
+         tree_kind_t lkind = tree_kind(left);
+         tree_kind_t rkind = tree_kind(right);
+
+         // See LRM 93 section 3.2.1.1
+         // Later LRMs relax the wording here
+         const bool invalid =
+            standard() < STD_00
+            && !(relax_rules() & RELAX_UNIVERSAL_BOUND)
+            && lkind != T_LITERAL && lkind != T_ATTR_REF
+            && rkind != T_LITERAL && rkind != T_ATTR_REF;
+
+         if (invalid)
+            sem_error(left, "universal integer bound must be "
+                      "numeric literal or attribute");
+
+         type_t std_int = std_type(NULL, "INTEGER");
+         if (!sem_check_type(left, std_int))
+            sem_error(left, "universal bound not convertible to INTEGER");
+         if (!sem_check_type(right, std_int))
+            sem_error(right, "universal bound not convertible to INTEGER");
+      }
    }
 
    return true;
@@ -394,7 +415,7 @@ static bool sem_check_array_dims(type_t type, type_t constraint)
       if (constraint != NULL && i < dimension_of(constraint))
          index_type = index_type_of(constraint, i);
 
-      if (!sem_check_range(r, index_type))
+      if (!sem_check_discrete_range(r, index_type))
          return false;
 
       if (index_type == NULL)
@@ -567,23 +588,13 @@ static bool sem_check_type_decl(tree_t t)
       {
          tree_t r = type_dim(type, 0);
 
-         tree_t left = tree_left(r);
-         if (!sem_check(left))
+         if (!sem_check_range(r, NULL))
             return false;
-
-         tree_t right = tree_right(r);
-         if (!sem_check(right))
-            return false;
-
-         if (!sem_check_same_type(left, right))
-            sem_error(t, "type of left bound %s does not match type of right "
-                      "bound %s", type_pp(tree_type(left)),
-                      type_pp(tree_type(right)));
 
          // Standard specifies type of 'LEFT and 'RIGHT are same
          // as the declared type
-         tree_set_type(left, type);
-         tree_set_type(right, type);
+         tree_set_type(tree_left(r), type);
+         tree_set_type(tree_right(r), type);
          tree_set_type(r, type);
 
          return true;
@@ -2341,7 +2352,7 @@ static bool sem_check_aggregate(tree_t t)
          case A_RANGE:
             {
                tree_t r = tree_range(a, 0);
-               if (!sem_check_range(r, index_type))
+               if (!sem_check_discrete_range(r, index_type))
                   return false;
             }
             break;
@@ -2721,7 +2732,7 @@ static bool sem_check_array_slice(tree_t t)
       sem_error(t, "type of slice prefix is not an array");
 
    tree_t r = tree_range(t, 0);
-   if (!sem_check_range(r, index_type_of(array_type, 0)))
+   if (!sem_check_discrete_range(r, index_type_of(array_type, 0)))
       return false;
 
    type_t slice_type = tree_type(t);
@@ -3873,7 +3884,7 @@ static bool sem_check_case(tree_t t)
       case A_RANGE:
          {
             tree_t r = tree_range(a, 0);
-            if ((ok = sem_check_range(r, type) && ok)) {
+            if ((ok = sem_check_discrete_range(r, type) && ok)) {
                if (!sem_locally_static(tree_left(r)))
                   sem_error(tree_left(r), "left index of case choice range is "
                             "not locally static");
@@ -3944,7 +3955,7 @@ static bool sem_check_for(tree_t t)
 {
    tree_t r = tree_range(t, 0);
    const bool is_range_expr = (tree_subkind(r) == RANGE_EXPR);
-   if (!sem_check_range(r, NULL))
+   if (!sem_check_discrete_range(r, NULL))
       return false;
 
    tree_t idecl = tree_decl(t, 0);
@@ -4091,7 +4102,7 @@ static bool sem_check_if_generate(tree_t t)
 static bool sem_check_for_generate(tree_t t)
 {
    tree_t r = tree_range(t, 0);
-   if (!sem_check_range(r, NULL))
+   if (!sem_check_discrete_range(r, NULL))
       return false;
 
    if (!sem_globally_static(r))
