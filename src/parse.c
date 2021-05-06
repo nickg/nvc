@@ -1726,7 +1726,17 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
    case tTO:
    case tDOWNTO:
    case tTICK:
-      return p_range(expr1, constraint);
+      {
+         tree_t r = p_range(expr1, constraint);
+
+         // LRM 08 section 5.3.2.2: an implicit conversion to the
+         // predefined type INTEGER is assumed if the type of both
+         // bounds is the type universal_integer
+         if (type_eq(tree_type(r), type_universal_int()))
+            tree_set_type(r, std_type(find_std(nametab), "INTEGER"));
+
+         return r;
+      }
 
    case tRANGE:
       {
@@ -6103,9 +6113,6 @@ static void p_parameter_specification(tree_t loop)
    tree_add_range(loop, r);
 
    type_t base = tree_type(r);
-   if (type_is_universal(base))
-      // XXX: seems like this will hide some errors
-      base = std_type(find_std(nametab), "INTEGER");
 
    tree_t constraint = tree_new(T_CONSTRAINT);
    tree_set_subkind(constraint, C_RANGE);

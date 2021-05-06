@@ -308,9 +308,6 @@ static bool sem_check_range(tree_t r, type_t expect)
             sem_error(right, "expected type of right bound to be %s but is %s",
                       type_pp(expect), type_pp(tree_type(right)));
          }
-
-         // Propagate any implicit conversion to the type of the whole range
-         tree_set_type(r, tree_type(left));
       }
       break;
    }
@@ -2171,11 +2168,8 @@ static bool sem_check_string_literal(tree_t t)
       bool valid = false;
       for (int j = 0; !valid && (j < nlits); j++) {
          tree_t lit = type_enum_literal(elem, j);
-         if (ch_i == tree_ident(lit)) {
-            tree_set_ref(ch, lit);
-            tree_set_type(ch, elem);
+         if (ch_i == tree_ident(lit))
             valid = true;
-         }
       }
 
       if (!valid)
@@ -2713,7 +2707,6 @@ static bool sem_check_array_ref(tree_t t)
                    type_pp(expect));
    }
 
-   tree_set_type(t, type_elem(type));
    return ok;
 }
 
@@ -3966,8 +3959,6 @@ static bool sem_check_for(tree_t t)
       tree_add_attr_tree(idecl, range_var_i, range_var);
    }
 
-   tree_add_decl(t, idecl);
-
    scope_push(tree_ident(t));
    loop_push(tree_ident(t));
 
@@ -4126,8 +4117,6 @@ static bool sem_check_for_generate(tree_t t)
    }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
-
-   tree_add_decl(t, idecl);
 
    scope_pop();
    return ok;
