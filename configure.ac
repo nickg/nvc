@@ -25,11 +25,10 @@ AC_CANONICAL_HOST
 
 AC_PROG_CC
 AC_PROG_CC_C99
-AM_PROG_CC_C_O
 AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_MKDIR_P
-AM_PROG_LEX
+AC_PROG_LEX
 AC_PROG_RANLIB
 AC_EXEEXT
 
@@ -105,7 +104,7 @@ AC_SEARCH_LIBS([pow], [m], [], [
 AC_CHECK_LIB([z], [deflate], [], [AC_MSG_ERROR(zlib not found)])
 
 AC_ARG_ENABLE([fst_debug],
-  [AC_HELP_STRING([--enable-fst-debug],
+  [AS_HELP_STRING([--enable-fst-debug],
     [Enable FST debugging (for development only)])],
   [enable_fst_debug=$enableval],
   [enable_fst_debug=no])
@@ -115,7 +114,7 @@ if test x$enable_fst_debug = xyes ; then
 fi
 
 AC_ARG_ENABLE([fst_glitch_removal],
-  [AC_HELP_STRING([--enable-fst-glitch-removal],
+  [AS_HELP_STRING([--enable-fst-glitch-removal],
     [Enable FST glitch removal (has performance impact)])],
   [enable_fst_glitch_removal=$enableval],
   [enable_fst_glitch_removal=no])
@@ -194,7 +193,7 @@ case $host_os in
     ;;
 esac
 AC_ARG_WITH([system-cc],
-            [AC_HELP_STRING([--with-system-cc=PATH],
+            [AS_HELP_STRING([--with-system-cc=PATH],
                             [Path to system compiler to be used for linking])],
             [system_cc="$withval"],
             [system_cc="$cc_bare"])
