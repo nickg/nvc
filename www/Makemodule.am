@@ -1,0 +1,9 @@
+if HAVE_MANDOC
+$(top_srcdir)/www/nvc.1.html: $(top_srcdir)/nvc.1
+	$(AM_V_GEN)mandoc -T html -O style=mandoc.css $(top_srcdir)/nvc.1 \
+		> $(top_srcdir)/www/nvc.1.html
+
+www: $(top_srcdir)/www/nvc.1.html
+endif
+
+.PHONY: www

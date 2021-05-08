@@ -39,11 +39,7 @@ include lib/vital/Makemodule.am
 include lib/nvc/Makemodule.am
 include lib/synopsys/Makemodule.am
 include tools/Makemodule.am
-
-if HAVE_PANDOC
-nvc.1: nvc.1.md
-	$(AM_V_GEN)pandoc -s -t man $(top_srcdir)/nvc.1.md -o $(top_srcdir)/nvc.1
-endif
+include www/Makemodule.am
 
 gtags:
 	find $(abs_srcdir) -name '*.[chl]' -print \

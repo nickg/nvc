@@ -310,8 +310,8 @@ AM_CONDITIONAL([ENABLE_GCOV], [test x$enable_gcov = xyes])
 AC_SUBST(EXTRA_CFLAGS)
 AC_SUBST(EXTRA_LDFLAGS)
 
-AC_CHECK_PROG([PANDOC], [pandoc], [1])
-AM_CONDITIONAL([HAVE_PANDOC], [test -n "$PANDOC"])
+AC_PATH_PROG([MANDOC], [mandoc])
+AM_CONDITIONAL([HAVE_MANDOC], [test -n "$MANDOC"])
 
 # Work around automake setting ARFLAGS=cru by default which produces a
 # warning on modern systems
