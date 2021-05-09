@@ -21,6 +21,7 @@
 #include "util.h"
 #include "fbuf.h"
 #include "ident.h"
+#include "prim.h"
 
 #include <stdint.h>
 
@@ -59,6 +60,7 @@ loc_t get_loc(unsigned first_line, unsigned first_column,
 bool loc_invalid_p(const loc_t *loc);
 loc_file_ref_t loc_file_ref(const char *name, const char *linebuf);
 bool loc_eq(const loc_t *a, const loc_t *b);
+bool loc_contains(const loc_t *outer, const loc_t *inner);
 
 loc_wr_ctx_t *loc_write_begin(fbuf_t *f);
 void loc_write(const loc_t *loc, loc_wr_ctx_t *ctx);
@@ -67,5 +69,7 @@ void loc_write_end(loc_wr_ctx_t *ctx);
 loc_rd_ctx_t *loc_read_begin(fbuf_t *f);
 void loc_read(loc_t *loc, loc_rd_ctx_t *ctx);
 void loc_read_end(loc_rd_ctx_t *ctx);
+
+unsigned drill_trees(tree_t base, const loc_t *loc, tree_t **out);
 
 #endif // _LOC_H

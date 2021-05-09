@@ -106,11 +106,6 @@ typedef enum {
    SEVERITY_FAILURE
 } rt_severity_t;
 
-typedef struct {
-   loc_t  loc;
-   tree_t tree;
-} jit_trace_t;
-
 void rt_start_of_tool(tree_t top);
 void rt_end_of_tool(tree_t top);
 void rt_run_sim(uint64_t stop_time);
@@ -134,7 +129,6 @@ void rt_set_exit_severity(rt_severity_t severity);
 void jit_init(tree_t top);
 void jit_shutdown(void);
 void *jit_find_symbol(const char *name, bool required);
-void jit_trace(jit_trace_t **trace, size_t *count);
 
 text_buf_t *pprint(struct tree *t, const uint64_t *values, size_t len);
 

@@ -392,30 +392,47 @@ static void from_rt_loc(const rt_loc_t *rt, loc_t *loc)
                   loc_file_ref(rt->file, NULL));
 }
 
-static void rt_show_trace(void)
+static void rt_show_trace(const loc_t *skip)
 {
    debug_info_t *di = debug_capture();
 
    const int nframes = debug_count_frames(di);
-   for (int i = 0; i < nframes; i++) {
+   for (int i = nframes - 1; i >= 0; i--) {
       const debug_frame_t *f = debug_get_frame(di, i);
-      if (f->kind != FRAME_VHDL)
+      if (f->kind != FRAME_VHDL || f->vhdl_unit == NULL)
          continue;
 
-      // TODO: work out how to get a tree_t here
+      tree_t unit = lib_get_qualified(f->vhdl_unit);
+      if (unit == NULL)
+         continue;
+
+      const loc_t loc = get_loc(f->lineno, f->colno, f->lineno, f->colno,
+                                loc_file_ref(f->srcfile, NULL));
+
+      tree_t *trees = NULL;
+      const unsigned ntrees = drill_trees(unit, &loc, &trees);
+
+      tree_t enclosing = NULL;
+      for (unsigned i = 0; i < ntrees; i++) {
+         const tree_kind_t kind = tree_kind(trees[i]);
+         if (kind == T_FUNC_BODY || kind == T_PROC_BODY || kind == T_PROCESS)
+            enclosing = trees[i];
+      }
+
+      if (enclosing && ntrees > 0) {
+         const loc_t *loc = tree_loc(trees[ntrees - 1]);
+         if (!loc_eq(skip, loc)) {
+            if (tree_kind(enclosing) == T_PROCESS)
+               note_at(loc, "in process %s", istr(tree_ident(enclosing)));
+            else
+               note_at(loc, "in subprogram %s", type_pp(tree_type(enclosing)));
+         }
+      }
+
+      free(trees);
    }
 
    debug_free(di);
-
-   jit_trace_t *trace;
-   size_t count;
-   jit_trace(&trace, &count);
-
-   for (size_t i = 0; i < count; i++)
-      note_at(&(trace[i].loc), "in subprogram %s",
-              istr(tree_ident(trace[i].tree)));
-
-   free(trace);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -738,10 +755,10 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       return;
    }
 
-   rt_show_trace();
-
    loc_t loc;
    from_rt_loc(where, &loc);
+
+   rt_show_trace(&loc);
 
    void (*fn)(const loc_t *loc, const char *fmt, ...) = fatal_at;
 
@@ -768,10 +785,10 @@ DLLEXPORT
 void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
                   rt_loc_t *where, const char *hint)
 {
-   rt_show_trace();
-
    loc_t loc;
    from_rt_loc(where, &loc);
+
+   rt_show_trace(&loc);
 
    char *copy LOCAL = xstrdup(hint ?: "");
    const char *prefix = copy, *suffix = copy;

@@ -127,6 +127,11 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
          if (dwarf_child(die, &child) != 0)
             continue;
 
+         if (dwarf_tag(&child) == DW_TAG_module) {
+            if (dwarf_child(&child, &child) != 0)
+               continue;
+         }
+
          Dwarf_Die* iter = &child;
          do {
             switch (dwarf_tag(iter)) {
@@ -148,8 +153,15 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
    dwarf_lineno(srcloc, &line);
    dwarf_linecol(srcloc, &col);
 
-   if (dwarf_srclang(die) == DW_LANG_Ada83)
+   if (dwarf_srclang(die) == DW_LANG_Ada83) {
       frame.kind = FRAME_VHDL;
+
+      // VHDL compilation units are wrapped in a DWARF module which
+      // gives the unit name
+      Dwarf_Die ns;
+      if (dwarf_child(die, &ns) == 0 && dwarf_tag(&ns) == DW_TAG_module)
+         frame.vhdl_unit = ident_new(dwarf_diename(&ns));
+   }
    else if (mod == home)
       frame.kind = FRAME_PROG;
    else
@@ -163,6 +175,7 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
       frame.module = xstrdup(module_name);
 
    frame.lineno = line;
+   frame.colno  = col;
 
    APUSH(di->frames, frame);
 

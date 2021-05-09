@@ -18,6 +18,7 @@
 #include "loc.h"
 #include "ident.h"
 #include "array.h"
+#include "tree.h"
 
 #include <assert.h>
 #include <string.h>
@@ -192,6 +193,16 @@ bool loc_eq(const loc_t *a, const loc_t *b)
       && a->file_ref == b->file_ref;
 }
 
+bool loc_contains(const loc_t *outer, const loc_t *inner)
+{
+   // TODO: test!
+   return inner->first_line >= outer->first_line
+      && (inner->first_line > outer->first_line
+          || inner->first_column >= outer->first_column)
+      && (inner->first_line + inner->line_delta
+          <= outer->first_line + outer->line_delta);
+}
+
 loc_wr_ctx_t *loc_write_begin(fbuf_t *f)
 {
    loc_wr_ctx_t *ctx = xmalloc(sizeof(loc_wr_ctx_t));
@@ -300,4 +311,193 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
    loc->line_delta   = (merged >> 24) & 0xff;
    loc->column_delta = (merged >> 16) & 0xff;
    loc->file_ref     = new_ref;
+}
+
+typedef A(tree_t) tree_array_t;
+
+static void _drill_trees(tree_array_t *out, const loc_t *loc, tree_t t)
+{
+   const tree_kind_t kind = tree_kind(t);
+
+   // TODO: add tests for this
+
+   if (loc_contains(tree_loc(t), loc))
+      APUSH(*out, t);
+   else if (kind != T_ELAB)
+      return;
+
+   switch (kind) {
+   case T_ELAB:
+   case T_FUNC_BODY:
+   case T_PROC_BODY:
+   case T_PROCESS:
+   case T_BLOCK:
+      {
+         const int ndecls = tree_decls(t);
+         for (int i = 0; i < ndecls; i++)
+            _drill_trees(out, loc, tree_decl(t, i));
+
+         const int nstmts = tree_stmts(t);
+         for (int i = 0; i < nstmts; i++)
+            _drill_trees(out, loc, tree_stmt(t, i));
+      }
+      break;
+   case T_PACK_BODY:
+   case T_PACKAGE:
+   case T_PROT_BODY:
+      {
+         const int ndecls = tree_decls(t);
+         for (int i = 0; i < ndecls; i++)
+            _drill_trees(out, loc, tree_decl(t, i));
+      }
+      break;
+   case T_ASSERT:
+      if (tree_has_value(t))
+         _drill_trees(out, loc, tree_value(t));
+      if (tree_has_message(t))
+         _drill_trees(out, loc, tree_message(t));
+      break;
+   case T_ATTR_REF:
+      {
+         _drill_trees(out, loc, tree_name(t));
+
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++)
+            _drill_trees(out, loc, tree_param(t, i));
+      }
+      break;
+   case T_ARRAY_REF:
+      {
+         _drill_trees(out, loc, tree_value(t));
+
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++)
+            _drill_trees(out, loc, tree_param(t, i));
+      }
+      break;
+   case T_PARAM:
+      _drill_trees(out, loc, tree_value(t));
+      if (tree_subkind(t) == P_NAMED)
+         _drill_trees(out, loc, tree_name(t));
+      break;
+   case T_ASSOC:
+      _drill_trees(out, loc, tree_value(t));
+      switch (tree_subkind(t)) {
+      case A_NAMED: _drill_trees(out, loc, tree_name(t)); break;
+      case A_RANGE: _drill_trees(out, loc, tree_range(t, 0)); break;
+      }
+      break;
+   case T_VAR_DECL:
+   case T_RETURN:
+   case T_TYPE_CONV:
+   case T_QUALIFIED:
+      if (tree_has_value(t))
+         _drill_trees(out, loc, tree_value(t));
+      break;
+   case T_VAR_ASSIGN:
+      _drill_trees(out, loc, tree_target(t));
+      _drill_trees(out, loc, tree_value(t));
+      break;
+   case T_SIGNAL_ASSIGN:
+      {
+         _drill_trees(out, loc, tree_target(t));
+
+         const int nwaves = tree_waveforms(t);
+         for (int i = 0; i < nwaves; i++)
+            _drill_trees(out, loc, tree_waveform(t, i));
+      }
+      break;
+   case T_FCALL:
+   case T_PCALL:
+      {
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++)
+            _drill_trees(out, loc, tree_param(t, i));
+      }
+      break;
+   case T_ARRAY_SLICE:
+      {
+         const int nranges = tree_ranges(t);
+         for (int i = 0; i < nranges; i++)
+            _drill_trees(out, loc, tree_range(t, i));
+      }
+      break;
+   case T_RANGE:
+      if (tree_subkind(t) == RANGE_EXPR)
+         _drill_trees(out, loc, tree_value(t));
+      else {
+         _drill_trees(out, loc, tree_left(t));
+         _drill_trees(out, loc, tree_right(t));
+      }
+      break;
+   case T_AGGREGATE:
+      {
+         const int nassocs = tree_assocs(t);
+         for (int i = 0; i < nassocs; i++)
+            _drill_trees(out, loc, tree_assoc(t, i));
+      }
+      break;
+   case T_WAVEFORM:
+      _drill_trees(out, loc, tree_value(t));
+      if (tree_has_delay(t))
+         _drill_trees(out, loc, tree_delay(t));
+      break;
+   case T_REF:
+   case T_HIER:
+   case T_LITERAL:
+      break;
+   case T_IF:
+      {
+         _drill_trees(out, loc, tree_value(t));
+
+         const int nstmts = tree_stmts(t);
+         for (int i = 0; i < nstmts; i++)
+            _drill_trees(out, loc, tree_stmt(t, i));
+
+         const int nelses = tree_else_stmts(t);
+         for (int i = 0; i < nelses; i++)
+            _drill_trees(out, loc, tree_else_stmt(t, i));
+      }
+      break;
+   case T_CASE:
+      {
+         _drill_trees(out, loc, tree_value(t));
+
+         const int nassocs = tree_assocs(t);
+         for (int i = 0; i < nassocs; i++)
+            _drill_trees(out, loc, tree_assoc(t, i));
+      }
+      break;
+   case T_FOR:
+      {
+         _drill_trees(out, loc, tree_range(t, 0));
+
+         const int nstmts = tree_stmts(t);
+         for (int i = 0; i < nstmts; i++)
+            _drill_trees(out, loc, tree_stmt(t, i));
+      }
+      break;
+   case T_WHILE:
+      {
+         _drill_trees(out, loc, tree_value(t));
+
+         const int nstmts = tree_stmts(t);
+         for (int i = 0; i < nstmts; i++)
+            _drill_trees(out, loc, tree_stmt(t, i));
+      }
+      break;
+   default:
+      fatal_trace("cannot handle tree kind %s in _drill_trees",
+                  tree_kind_str(kind));
+   }
+}
+
+unsigned drill_trees(tree_t base, const loc_t *loc, tree_t **out)
+{
+   tree_array_t array = AINIT;
+
+   _drill_trees(&array, loc, base);
+
+   *out = array.items;
+   return array.count;
 }

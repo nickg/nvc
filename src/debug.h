@@ -19,6 +19,7 @@
 #define _DEBUG_H
 
 #include "util.h"
+#include "ident.h"
 
 #include <stdint.h>
 
@@ -36,7 +37,9 @@ typedef struct {
    const char   *symbol;
    const char   *srcfile;
    const char   *module;
+   ident_t       vhdl_unit;
    unsigned      lineno;
+   unsigned      colno;
    ptrdiff_t     disp;
 } debug_frame_t;
 

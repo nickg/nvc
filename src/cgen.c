@@ -392,6 +392,12 @@ static LLVMMetadataRef cgen_top_debug_scope(void)
    return AGET(debug_scopes, debug_scopes.count - 1);
 }
 
+static LLVMMetadataRef cgen_debug_file(const loc_t *loc)
+{
+   // Ignore the passed in loc and just return the top-level file
+   return LLVMDIScopeGetFile(AGET(debug_scopes, 0));
+}
+
 static void cgen_debug_loc(cgen_ctx_t *ctx, const loc_t *loc, bool force)
 {
    static loc_t last_loc = LOC_INVALID;
@@ -413,7 +419,7 @@ static void cgen_debug_push_func(cgen_ctx_t *ctx)
    const char *symbol = safe_symbol(name);
 
    const loc_t *loc = vcode_unit_loc();
-   LLVMMetadataRef file_ref = LLVMDIScopeGetFile(scope);
+   LLVMMetadataRef file_ref = cgen_debug_file(loc);
    LLVMMetadataRef dtype = LLVMDIBuilderCreateSubroutineType(
       debuginfo, file_ref, NULL, 0, 0);
    LLVMMetadataRef sp = LLVMDIBuilderCreateFunction(
@@ -3670,11 +3676,18 @@ static void cgen_module_debug_info(void)
       0, "", 0,
       LLVMDWARFEmissionFull, 0, false, false
 #if LLVM_CREATE_CU_HAS_SYSROOT
-      , "", 0, "", 0
+      , "/", 1, "", 0
 #endif
    );
 
    cgen_push_debug_scope(cu);
+
+   const char *unit_name = istr(vcode_unit_name());
+   LLVMMetadataRef mod = LLVMDIBuilderCreateModule(
+      debuginfo, cu, unit_name, strlen(unit_name),
+      "", 0, "", 0, "", 0);
+
+   cgen_push_debug_scope(mod);
 }
 
 static void cgen_top(tree_t t, vcode_unit_t vcode)
@@ -3687,6 +3700,7 @@ static void cgen_top(tree_t t, vcode_unit_t vcode)
    cgen_signals();
    cgen_reset_function(t);
    cgen_subprograms(vcode);
+   cgen_pop_debug_scope();
    cgen_pop_debug_scope();
 }
 
