@@ -694,7 +694,7 @@ void show_stacktrace(void)
 
    debug_free(di);
 
-#if defined __linux && !defined HAVE_LIBDW
+#if defined __linux && !defined HAVE_LIBDW && !defined HAVE_LIBDWARF
    color_fprintf(stderr, "\n$cyan$Hint: you can get better stack traces by "
                  "installing the libdw-dev package and reconfiguring$$\n");
 #endif

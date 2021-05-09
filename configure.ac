@@ -156,28 +156,35 @@ PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [],
 
 debug_backend=
 AC_CHECK_HEADER([unwind.h],
-  AC_SEARCH_LIBS([_Unwind_Backtrace], [c++abi],
-    [
-      # libc++-abi needs to link -lpthread on OpenBSD
-      if test "$ac_cv_search__Unwind_Backtrace" = "-lc++abi"; then
-        [AX_PTHREAD([LIBS="$PTHREAD_LIBS $LIBS"],
-                    [AC_MSG_ERROR([pthread not found])])]
-      fi
-    ],
-    [AC_MSG_ERROR(cannot find library for _Unwind_Backtrace)],
-    [-lpthread])
+  [
+    AC_SEARCH_LIBS([_Unwind_Backtrace], [c++abi],
+      [
+        # libc++-abi needs to link -lpthread on OpenBSD
+        if test "$ac_cv_search__Unwind_Backtrace" = "-lc++abi"; then
+          AX_PTHREAD([LIBS="$PTHREAD_LIBS $LIBS"],
+                     [AC_MSG_ERROR([pthread not found])])
+        fi
+      ],
+      [AC_MSG_ERROR(cannot find library for _Unwind_Backtrace)],
+      [-lpthread])
 
-  [PKG_CHECK_MODULES([libdw], [libdw >= 0.159],
-     [AC_DEFINE_UNQUOTED([HAVE_LIBDW], [1], [Have libdw for stack traces])
-      debug_backend=libdw],
-     [true])
+    PKG_CHECK_MODULES([libdw], [libdw >= 0.159],
+      [AC_DEFINE_UNQUOTED([HAVE_LIBDW], [1], [Have libdw for stack traces])
+       debug_backend=libdw],
+      [true]) # Do not error if libdw not installed
 
-   AC_CHECK_HEADER([libdwarf/libdwarf.h],
-     [AC_SEARCH_LIBS([elf_version], [elf], [], [AC_MSG_ERROR(cannot find libelf)])
-      AC_SEARCH_LIBS([dwarf_init], [dwarf],
-        [AC_DEFINE_UNQUOTED([HAVE_LIBDWARF], [1], [Have libdwarf for stack traces])
-         debug_backend=libdwarf],
-        [AC_MSG_WARN(cannot link against libdwarf)], [])])])
+    # libdw and libdwarf conflict so take care not to add both to LIBS
+    if test "$debug_backend" != "libdw"; then
+      AC_CHECK_HEADER([libdwarf/libdwarf.h],
+        [AC_SEARCH_LIBS([elf_version], [elf], [],
+                        [AC_MSG_ERROR(cannot find libelf)])
+         AC_SEARCH_LIBS([dwarf_init], [dwarf],
+                        [AC_DEFINE_UNQUOTED([HAVE_LIBDWARF], [1],
+                                            [Have libdwarf for stack traces])
+                         debug_backend=libdwarf],
+                        [AC_MSG_WARN(cannot link against libdwarf)], [])])
+    fi
+  ])
 
 case $host_os in
   *cygwin*|msys*|mingw32*)
