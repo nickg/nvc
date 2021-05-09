@@ -16,6 +16,7 @@
 - Fixed a crash when a long running procedure suspends in a loop (#412).
 - Fixed a stack overflow when a subprogram with unconstrained array
   arguments is called repeatedly in a loop (#414).
+- Compiled VHDL code now includes DWARF debug information.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

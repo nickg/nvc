@@ -658,6 +658,8 @@ void show_stacktrace(void)
       color_printf("[$green$%p$$] ", (void *)frame->pc);
       if (frame->kind == FRAME_LIB)
          color_printf("($red$%s$$) ", frame->module);
+      else if (frame->kind == FRAME_VHDL)
+         color_printf("$magenta$[VHDL]$$ ");
       if (frame->srcfile != NULL)
          color_printf("%s:%d ", frame->srcfile, frame->lineno);
       if (frame->symbol != NULL) {

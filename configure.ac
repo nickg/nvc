@@ -206,7 +206,7 @@ AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 linker_path=
 case $host_os in
   linux*)
-    AC_PATH_PROG([linker_path], [ld])
+    AC_PATH_TARGET_TOOL([linker_path], [ld])
     ;;
 esac
 

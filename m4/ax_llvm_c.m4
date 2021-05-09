@@ -80,13 +80,13 @@ AC_DEFUN([AX_LLVM_C], [
     LLVM_CONFIG_BINDIR="$($ac_llvm_config $ac_llvm_config_flags --bindir | sed 's|\\|\\\\|g')"
     LLVM_LIBDIR="$($ac_llvm_config --libdir | sed 's|\\|\\\\|g')"
 
-    if test "$llvm_ver_num" -lt "60"; then
-      AC_MSG_ERROR([LLVM version 6.0 or later required])
+    if test "$llvm_ver_num" -lt "70"; then
+      AC_MSG_ERROR([LLVM version 7.0 or later required])
     fi
 
-    if test "$llvm_ver_num" -lt "70"; then
-      AC_DEFINE_UNQUOTED(LLVM_INTRINSIC_ALIGN, [1],
-                         [LLVM intrinsics have alignment param])
+    if test "$llvm_ver_num" -ge "110"; then
+      AC_DEFINE_UNQUOTED(LLVM_CREATE_CU_HAS_SYSROOT, [1],
+                         [LLVMDIBuilderCreateCompileUnit has SysRoot parameter])
     fi
 
     LLVM_OBJ_EXT="o"

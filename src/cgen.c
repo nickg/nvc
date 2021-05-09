@@ -35,6 +35,7 @@
 #include <llvm-c/BitWriter.h>
 #include <llvm-c/ExecutionEngine.h>
 #include <llvm-c/Analysis.h>
+#include <llvm-c/DebugInfo.h>
 #include <llvm-c/Transforms/Scalar.h>
 #include <llvm-c/Transforms/IPO.h>
 #include <llvm-c/Transforms/PassManagerBuilder.h>
@@ -43,7 +44,8 @@
 #undef NDEBUG
 #include <assert.h>
 
-#define MAX_STATIC_NETS 256
+#define MAX_STATIC_NETS        256
+#define DEBUG_METADATA_VERSION 3
 
 typedef struct {
    LLVMValueRef      *regs;
@@ -74,15 +76,18 @@ typedef enum {
    FUNC_ATTR_BYVAL,
    FUNC_ATTR_UWTABLE,
    FUNC_ATTR_NOINLINE,
+   FUNC_ATTR_PRESERVE_FP,
 
    FUNC_ATTR_DLLEXPORT,   // Should be last
 } func_attr_t;
 
-static LLVMModuleRef  module = NULL;
-static LLVMBuilderRef builder = NULL;
+static LLVMModuleRef    module = NULL;
+static LLVMBuilderRef   builder = NULL;
+static LLVMDIBuilderRef debuginfo = NULL;
 
-static A(char *)  link_args;
-static hash_t    *string_pool = NULL;
+static A(char *)           link_args;
+static hash_t             *string_pool = NULL;
+static A(LLVMMetadataRef)  debug_scopes;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata);
@@ -232,6 +237,13 @@ static LLVMTypeRef llvm_size_list_type(void)
    return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
 }
 
+static void llvm_add_module_flag(const char *key, int value)
+{
+   LLVMAddModuleFlag(module, LLVMModuleFlagBehaviorWarning,
+                     key, strlen(key),
+                     LLVMValueAsMetadata(llvm_int32(value)));
+}
+
 #if 0
 static void debug_out(LLVMValueRef val)
 {
@@ -252,26 +264,31 @@ static void debug_dump(LLVMValueRef ptr, LLVMValueRef len)
 
 static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
 {
+   LLVMAttributeRef ref;
    if (attr == FUNC_ATTR_DLLEXPORT) {
 #ifdef IMPLIB_REQUIRED
       LLVMSetDLLStorageClass(fn, LLVMDLLExportStorageClass);
 #endif
       return;
    }
+   else if (attr == FUNC_ATTR_PRESERVE_FP) {
+      ref = LLVMCreateStringAttribute(LLVMGetGlobalContext(),
+                                      "frame-pointer", 13, "all", 3);
+   }
+   else {
+      const char *names[] = {
+         "nounwind", "noreturn", "readonly", "nocapture", "byval", "uwtable",
+         "noinline"
+      };
+      assert(attr < ARRAY_LEN(names));
 
-   const char *names[] = {
-      "nounwind", "noreturn", "readonly", "nocapture", "byval", "uwtable",
-      "noinline",
-   };
-   assert(attr < ARRAY_LEN(names));
+      const unsigned kind =
+         LLVMGetEnumAttributeKindForName(names[attr], strlen(names[attr]));
+      if (kind == 0)
+         fatal_trace("Cannot get LLVM attribute for %s", names[attr]);
 
-   const unsigned kind =
-      LLVMGetEnumAttributeKindForName(names[attr], strlen(names[attr]));
-   if (kind == 0)
-      fatal_trace("Cannot get LLVM attribute for %s", names[attr]);
-
-   LLVMAttributeRef ref =
-      LLVMCreateEnumAttribute(LLVMGetGlobalContext(), kind, 0);
+      ref = LLVMCreateEnumAttribute(LLVMGetGlobalContext(), kind, 0);
+   }
 
    LLVMAddAttributeAtIndex(fn, param, ref);
 }
@@ -357,6 +374,57 @@ static const char *cgen_memcpy_name(const char *kind, int width)
    checked_sprintf(name, sizeof(name),
                    "llvm.%s.p0i%d.p0i%d.i32", kind, width, width);
    return name;
+}
+
+static void cgen_push_debug_scope(LLVMMetadataRef scope)
+{
+   APUSH(debug_scopes, scope);
+}
+
+static void cgen_pop_debug_scope(void)
+{
+   APOP(debug_scopes);
+}
+
+static LLVMMetadataRef cgen_top_debug_scope(void)
+{
+   assert(debug_scopes.count > 0);
+   return AGET(debug_scopes, debug_scopes.count - 1);
+}
+
+static void cgen_debug_loc(cgen_ctx_t *ctx, const loc_t *loc, bool force)
+{
+   static loc_t last_loc = LOC_INVALID;
+
+   if (loc_eq(loc, &last_loc) && !force)
+      return;
+
+   LLVMMetadataRef dloc = LLVMDIBuilderCreateDebugLocation(
+      LLVMGetGlobalContext(), loc->first_line, loc->first_column,
+      cgen_top_debug_scope(), NULL);
+   LLVMSetCurrentDebugLocation2(builder, dloc);
+}
+
+static void cgen_debug_push_func(cgen_ctx_t *ctx)
+{
+   LLVMMetadataRef scope = cgen_top_debug_scope();
+
+   const char *name   = istr(vcode_unit_name());
+   const char *symbol = safe_symbol(name);
+
+   const loc_t *loc = vcode_unit_loc();
+   LLVMMetadataRef file_ref = LLVMDIScopeGetFile(scope);
+   LLVMMetadataRef dtype = LLVMDIBuilderCreateSubroutineType(
+      debuginfo, file_ref, NULL, 0, 0);
+   LLVMMetadataRef sp = LLVMDIBuilderCreateFunction(
+      debuginfo, scope, name, strlen(name),
+      symbol, strlen(symbol), file_ref,
+      loc->first_line, dtype, true, true,
+      1, 0, opt_get_int("optimise"));
+   LLVMSetSubprogram(ctx->fn, sp);
+
+   cgen_push_debug_scope(sp);
+   cgen_debug_loc(ctx, vcode_unit_loc(), true);
 }
 
 static LLVMValueRef cgen_get_arg(int op, int arg, cgen_ctx_t *ctx)
@@ -2022,9 +2090,6 @@ static void cgen_op_copy(int op, cgen_ctx_t *ctx)
       llvm_void_cast(dest),
       llvm_void_cast(src),
       bytes,
-#if LLVM_INTRINSIC_ALIGN
-      llvm_int32(4),
-#endif
       llvm_int1(0)
    };
    LLVMBuildCall(builder, llvm_fn(cgen_memcpy_name("memmove", 8)),
@@ -2228,9 +2293,6 @@ static void cgen_op_memset(int op, cgen_ctx_t *ctx)
       llvm_void_cast(ptr),
       LLVMBuildZExt(builder, value, LLVMInt8Type(), ""),
       length,
-#if LLVM_INTRINSIC_ALIGN
-      llvm_int32(4),
-#endif
       llvm_int1(false)
    };
 
@@ -2763,6 +2825,8 @@ static void cgen_op_range_null(int op, cgen_ctx_t *ctx)
 
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
+   cgen_debug_loc(ctx, vcode_get_loc(i), false);
+
    const vcode_op_t op = vcode_get_op(i);
    switch (op) {
    case VCODE_OP_RETURN:
@@ -3149,6 +3213,7 @@ static void cgen_function(LLVMTypeRef display_type)
    cgen_ctx_t ctx = {
       .fn = fn
    };
+   cgen_debug_push_func(&ctx);
    cgen_alloc_context(&ctx);
 
    if (display_type != NULL)
@@ -3158,6 +3223,7 @@ static void cgen_function(LLVMTypeRef display_type)
    cgen_locals(&ctx);
    cgen_code(&ctx);
    cgen_free_context(&ctx);
+   cgen_pop_debug_scope();
 }
 
 static LLVMTypeRef cgen_state_type(cgen_ctx_t *ctx)
@@ -3254,6 +3320,7 @@ static void cgen_procedure(LLVMTypeRef display_type)
    LLVMBasicBlockRef alloc_bb = LLVMAppendBasicBlock(fn, "alloc");
    LLVMBasicBlockRef jump_bb  = LLVMAppendBasicBlock(fn, "jump_table");
 
+   cgen_debug_push_func(&ctx);
    cgen_alloc_context(&ctx);
    cgen_params(&ctx);
 
@@ -3303,6 +3370,7 @@ static void cgen_procedure(LLVMTypeRef display_type)
    cgen_jump_table(&ctx);
    cgen_code(&ctx);
    cgen_free_context(&ctx);
+   cgen_pop_debug_scope();
 }
 
 static void cgen_process(vcode_unit_t code)
@@ -3325,6 +3393,7 @@ static void cgen_process(vcode_unit_t code)
    cgen_ctx_t ctx = {
       .fn = fn
    };
+   cgen_debug_push_func(&ctx);
    cgen_state_struct(&ctx);
    cgen_alloc_context(&ctx);
 
@@ -3353,6 +3422,7 @@ static void cgen_process(vcode_unit_t code)
 
    cgen_code(&ctx);
    cgen_free_context(&ctx);
+   cgen_pop_debug_scope();
 }
 
 static void cgen_net_mapping_table(vcode_signal_t sig, int offset,
@@ -3445,11 +3515,13 @@ static void cgen_reset_function(tree_t top)
    cgen_ctx_t ctx = {
       .fn = fn
    };
+   cgen_debug_push_func(&ctx);
    cgen_alloc_context(&ctx);
    if (init_bb != NULL)
       LLVMBuildBr(builder, ctx.blocks[0]);
    cgen_code(&ctx);
    cgen_free_context(&ctx);
+   cgen_pop_debug_scope();
 }
 
 static void cgen_coverage_state(tree_t t)
@@ -3570,15 +3642,52 @@ static void cgen_signals(void)
    }
 }
 
+static void cgen_module_debug_info(void)
+{
+   llvm_add_module_flag("Debug Info Version", DEBUG_METADATA_VERSION);
+#ifdef __APPLE__
+   llvm_add_module_flag("Dwarf Version", 2);
+#else
+   llvm_add_module_flag("Dwarf Version", 4);
+#endif
+
+   const char *file_path = loc_file_str(vcode_unit_loc());
+   const char *sep = strrchr(file_path, PATH_SEP[0]);
+
+   const char *file = sep ? sep + 1 : file_path;
+   size_t file_len = strlen(file);
+
+   const char *dir = file_path;
+   size_t dir_len = sep ? sep - file_path : strlen(dir);
+
+   LLVMMetadataRef file_ref =
+      LLVMDIBuilderCreateFile(debuginfo, file, file_len, dir, dir_len);
+
+   LLVMMetadataRef cu = LLVMDIBuilderCreateCompileUnit(
+      debuginfo, LLVMDWARFSourceLanguageAda83,
+      file_ref, PACKAGE, sizeof(PACKAGE) - 1,
+      opt_get_int("optimise"), "", 0,
+      0, "", 0,
+      LLVMDWARFEmissionFull, 0, false, false
+#if LLVM_CREATE_CU_HAS_SYSROOT
+      , "", 0, "", 0
+#endif
+   );
+
+   cgen_push_debug_scope(cu);
+}
+
 static void cgen_top(tree_t t, vcode_unit_t vcode)
 {
    vcode_select_unit(vcode);
 
+   cgen_module_debug_info();
    cgen_coverage_state(t);
    cgen_shared_variables();
    cgen_signals();
    cgen_reset_function(t);
    cgen_subprograms(vcode);
+   cgen_pop_debug_scope();
 }
 
 static void cgen_optimise(void)
@@ -3771,9 +3880,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMInt8Type(), 0),
          LLVMInt8Type(),
          LLVMInt32Type(),
-#if LLVM_INTRINSIC_ALIGN
-         LLVMInt32Type(),
-#endif
          LLVMInt1Type()
       };
       fn = LLVMAddFunction(module, "llvm.memset.p0i8.i32",
@@ -3790,9 +3896,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMIntType(width), 0),
          LLVMPointerType(LLVMIntType(width), 0),
          LLVMInt32Type(),
-#if LLVM_INTRINSIC_ALIGN
-         LLVMInt32Type(),
-#endif
          LLVMInt1Type()
       };
       fn = LLVMAddFunction(module, cgen_memcpy_name(kind, width),
@@ -4041,8 +4144,21 @@ static void cgen_native(tree_t top, LLVMTargetMachineRef tm_ref)
                                    LLVMObjectFile, &error))
       fatal("Failed to write object file: %s", error);
 
+   if (opt_get_int("assembly")) {
+      char *asm_name LOCAL = xasprintf("_%s.s", istr(unit_name));
+
+      char asm_path[PATH_MAX];
+      lib_realpath(lib_work(), asm_name, asm_path, sizeof(asm_path));
+
+      char *error;
+      if (LLVMTargetMachineEmitToFile(tm_ref, module, asm_path,
+                                      LLVMAssemblyFile, &error))
+         fatal("Failed to write assembly file: %s", error);
+   }
+
 #ifdef LINKER_PATH
    cgen_link_arg("%s", LINKER_PATH);
+   cgen_link_arg("--eh-frame-hdr");
 #else
    cgen_link_arg("%s", SYSTEM_CC);
 #endif
@@ -4121,6 +4237,7 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
    module = LLVMModuleCreateWithName(istr(tree_ident(top)));
    builder = LLVMCreateBuilder();
+   debuginfo = LLVMCreateDIBuilderDisallowUnresolved(module);
 
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();
@@ -4157,6 +4274,8 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
    cgen_top(top, vcode);
 
+   LLVMDIBuilderFinalize(debuginfo);
+
    if (opt_get_int("dump-llvm"))
       LLVMDumpModule(module);
 
@@ -4166,10 +4285,12 @@ void cgen(tree_t top, vcode_unit_t vcode)
    cgen_optimise();
    cgen_native(top, tm_ref);
 
+   assert(debug_scopes.count == 0);
    hash_free(string_pool);
 
    LLVMDisposeModule(module);
    LLVMDisposeBuilder(builder);
+   LLVMDisposeDIBuilder(debuginfo);
    LLVMDisposeTargetMachine(tm_ref);
    LLVMDisposeTargetData(data_ref);
    LLVMDisposeMessage(def_triple);

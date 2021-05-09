@@ -210,6 +210,7 @@ struct vcode_unit {
    vcode_unit_t   children;
    vcode_unit_t   next;
    unsigned       refcount;
+   loc_t          loc;
 };
 
 #define MASK_CONTEXT(x)   ((x) >> 24)
@@ -2730,6 +2731,12 @@ vcode_unit_t vcode_unit_context(void)
    return active_unit->context;
 }
 
+const loc_t *vcode_unit_loc(void)
+{
+   assert(active_unit != NULL);
+   return &(active_unit->loc);
+}
+
 static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
 {
    int hops = 0;
@@ -2774,7 +2781,7 @@ static void vcode_add_child(vcode_unit_t context, vcode_unit_t child)
    }
 }
 
-vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
+vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context,
                            vcode_type_t result)
 {
    vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
@@ -2784,6 +2791,7 @@ vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
    vu->result   = result;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->flags    = UNIT_PURE;
+   vu->loc      = *loc;
    vu->refcount = 1;
 
    vcode_add_child(context, vu);
@@ -2796,7 +2804,8 @@ vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
    return vu;
 }
 
-vcode_unit_t emit_procedure(ident_t name, vcode_unit_t context)
+vcode_unit_t emit_procedure(ident_t name, const loc_t *loc,
+                            vcode_unit_t context)
 {
    vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
    vu->kind     = VCODE_UNIT_PROCEDURE;
@@ -2804,6 +2813,7 @@ vcode_unit_t emit_procedure(ident_t name, vcode_unit_t context)
    vu->context  = context;
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
+   vu->loc      = *loc;
    vu->refcount = 1;
 
    vcode_add_child(context, vu);
@@ -2816,7 +2826,7 @@ vcode_unit_t emit_procedure(ident_t name, vcode_unit_t context)
    return vu;
 }
 
-vcode_unit_t emit_process(ident_t name, vcode_unit_t context)
+vcode_unit_t emit_process(ident_t name, const loc_t *loc, vcode_unit_t context)
 {
    assert(context->kind == VCODE_UNIT_CONTEXT);
 
@@ -2826,6 +2836,7 @@ vcode_unit_t emit_process(ident_t name, vcode_unit_t context)
    vu->context  = context;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
+   vu->loc      = *loc;
    vu->refcount = 1;
 
    vcode_add_child(context, vu);

@@ -27,6 +27,7 @@ typedef struct debug_info debug_info_t;
 typedef enum {
    FRAME_PROG,
    FRAME_LIB,
+   FRAME_VHDL
 } frame_kind_t;
 
 typedef struct {

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include "netdb.h"
 #include "cover.h"
 #include "hash.h"
+#include "debug.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -393,6 +394,19 @@ static void from_rt_loc(const rt_loc_t *rt, loc_t *loc)
 
 static void rt_show_trace(void)
 {
+   debug_info_t *di = debug_capture();
+
+   const int nframes = debug_count_frames(di);
+   for (int i = 0; i < nframes; i++) {
+      const debug_frame_t *f = debug_get_frame(di, i);
+      if (f->kind != FRAME_VHDL)
+         continue;
+
+      // TODO: work out how to get a tree_t here
+   }
+
+   debug_free(di);
+
    jit_trace_t *trace;
    size_t count;
    jit_trace(&trace, &count);

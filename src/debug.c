@@ -65,34 +65,6 @@ struct debug_info {
 
 #if defined HAVE_LIBDW
 
-static bool die_has_pc(Dwarf_Die* die, Dwarf_Addr pc)
-{
-   Dwarf_Addr low, high;
-
-   if (dwarf_hasattr(die, DW_AT_low_pc) && dwarf_hasattr(die, DW_AT_high_pc)) {
-      if (dwarf_lowpc(die, &low) != 0)
-         return false;
-      if (dwarf_highpc(die, &high) != 0) {
-         Dwarf_Attribute attr_mem;
-         Dwarf_Attribute* attr = dwarf_attr(die, DW_AT_high_pc, &attr_mem);
-         Dwarf_Word value;
-         if (dwarf_formudata(attr, &value) != 0)
-            return false;
-         high = low + value;
-      }
-      return pc >= low && pc < high;
-   }
-
-   Dwarf_Addr base;
-   ptrdiff_t offset = 0;
-   while ((offset = dwarf_ranges(die, offset, &base, &low, &high)) > 0) {
-      if (pc >= low && pc < high)
-         return true;
-   }
-
-   return false;
-}
-
 static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
                                             void *param)
 {
@@ -160,7 +132,7 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
             switch (dwarf_tag(iter)) {
             case DW_TAG_subprogram:
             case DW_TAG_inlined_subroutine:
-               if (die_has_pc(iter, ip))
+               if (dwarf_haspc(iter, ip - mod_bias))
                   goto found_die_with_ip;
             }
          } while (dwarf_siblingof(iter, iter) == 0);
@@ -176,6 +148,13 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
    dwarf_lineno(srcloc, &line);
    dwarf_linecol(srcloc, &col);
 
+   if (dwarf_srclang(die) == DW_LANG_Ada83)
+      frame.kind = FRAME_VHDL;
+   else if (mod == home)
+      frame.kind = FRAME_PROG;
+   else
+      frame.kind = FRAME_LIB;
+
    if (srcfile != NULL)
       frame.srcfile = xstrdup(srcfile);
    if (sym_name != NULL)
@@ -184,11 +163,6 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
       frame.module = xstrdup(module_name);
 
    frame.lineno = line;
-
-   if (mod == home)
-      frame.kind = FRAME_PROG;
-   else
-      frame.kind = FRAME_LIB;
 
    APUSH(di->frames, frame);
 

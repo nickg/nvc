@@ -266,6 +266,7 @@ vcode_type_t vcode_unit_result(void);
 vcode_block_t vcode_active_block(void);
 vcode_unit_t vcode_active_unit(void);
 vcode_unit_t vcode_unit_context(void);
+const loc_t *vcode_unit_loc(void);
 
 void vcode_write(vcode_unit_t unit, fbuf_t *fbuf);
 void vcode_read(fbuf_t *fbuf);
@@ -324,10 +325,11 @@ vcode_type_t vcode_var_type(vcode_var_t var);
 bool vcode_var_extern(vcode_var_t var);
 bool vcode_var_use_heap(vcode_var_t var);
 
-vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
+vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context,
                            vcode_type_t result);
-vcode_unit_t emit_procedure(ident_t name, vcode_unit_t context);
-vcode_unit_t emit_process(ident_t name, vcode_unit_t context);
+vcode_unit_t emit_procedure(ident_t name, const loc_t *loc,
+                            vcode_unit_t context);
+vcode_unit_t emit_process(ident_t name, const loc_t *loc, vcode_unit_t context);
 vcode_unit_t emit_context(ident_t name);
 vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context, vcode_type_t type);
 vcode_block_t emit_block(void);

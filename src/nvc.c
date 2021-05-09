@@ -792,6 +792,7 @@ static void set_default_opts(void)
    opt_set_int("synthesis", 0);
    opt_set_int("parse-pragmas", 0);
    opt_set_int("missing-body", 1);
+   opt_set_int("assembly", 0);
 }
 
 static void usage(void)

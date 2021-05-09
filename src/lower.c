@@ -4856,9 +4856,9 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
       return;
 
    if (never_waits)
-      vu = emit_function(name, context, VCODE_INVALID_TYPE);
+      vu = emit_function(name, tree_loc(body), context, VCODE_INVALID_TYPE);
    else
-      vu = emit_procedure(name, context);
+      vu = emit_procedure(name, tree_loc(body), context);
 
    if (top_scope->protected != VCODE_INVALID_TYPE)
       emit_param(top_scope->protected, top_scope->protected, protected_i);
@@ -4897,7 +4897,7 @@ static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
    if (vu != NULL)
       return vu;
 
-   vu = emit_function(name, context, vtype);
+   vu = emit_function(name, tree_loc(body), context, vtype);
    emit_debug_info(tree_loc(body));
 
    if (top_scope->protected != VCODE_INVALID_TYPE)
@@ -5120,7 +5120,7 @@ static void lower_driver_fn(tree_t t, void *_ctx)
 
 static void lower_process(tree_t proc, vcode_unit_t context)
 {
-   vcode_unit_t vu = emit_process(tree_ident(proc), context);
+   vcode_unit_t vu = emit_process(tree_ident(proc), tree_loc(proc), context);
    emit_debug_info(tree_loc(proc));
 
    // The code generator assumes the first state starts at block number

@@ -111,6 +111,11 @@ void _cleanup_array(void *ptr);
       (a).items[(a).count++] = (item);                                  \
    } while (0)
 
+#define APOP(a) ({                              \
+         assert((a).count > 0);                 \
+         (a).items[(a).count--];                \
+      })
+
 #define ACLEAR(a) do {                          \
       free((a).items);                          \
       (a).items = NULL;                         \
