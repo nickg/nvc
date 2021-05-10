@@ -806,8 +806,10 @@ static void bt_sighandler(int sig, siginfo_t *info, void *context)
    uintptr_t ip = 0;
 #endif
 
-   if (sig == SIGSEGV)
+   if (sig == SIGSEGV) {
+      signal(SIGSEGV, SIG_DFL);
       check_guard_page((uintptr_t)info->si_addr);
+   }
 
    color_fprintf(stderr, "\n$red$$bold$*** Caught signal %d (%s)",
                  sig, signame(sig));
@@ -1589,4 +1591,24 @@ unsigned error_count(void)
 void reset_error_count(void)
 {
    n_errors = 0;
+}
+
+char *search_path(const char *name)
+{
+   const char *path = getenv("PATH");
+   if (path == NULL)
+      return xstrdup(name);
+
+   char LOCAL *tmp = xstrdup(path);
+   for (char *p = strtok(tmp, ":"); p; p = strtok(NULL, ":")) {
+      char *full = xasprintf("%s"PATH_SEP"%s", p, name);
+
+      struct stat sb;
+      if (stat(full, &sb) == 0)
+         return full;
+
+      free(full);
+   }
+
+   return xstrdup(name);
 }

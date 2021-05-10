@@ -205,7 +205,7 @@ AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 # Prefer calling the linker directy to using CC
 linker_path=
 case $host_os in
-  linux*)
+  linux*|openbsd*)
     AC_PATH_TARGET_TOOL([linker_path], [ld])
     ;;
 esac

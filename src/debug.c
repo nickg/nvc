@@ -204,8 +204,9 @@ static bool libdwarf_die_has_pc(Dwarf_Die die, Dwarf_Addr pc)
    if (dwarf_lowpc(die, &low_pc, NULL) != DW_DLV_OK)
       return false;
 
+   Dwarf_Half form;
    enum Dwarf_Form_Class class;
-   if (dwarf_highpc_b(die, &high_pc, NULL, &class, NULL) == DW_DLV_OK) {
+   if (dwarf_highpc_b(die, &high_pc, &form, &class, NULL) == DW_DLV_OK) {
       if (class == DW_FORM_CLASS_CONSTANT)
          high_pc += low_pc;   // DWARF4
       return pc >= low_pc && pc < high_pc;
@@ -224,19 +225,31 @@ static Dwarf_Debug libdwarf_handle_for_file(const char *fname)
    ident_t key = ident_new(fname);
    Dwarf_Debug handle = hash_get(hash, key);
 
-   if (handle == NULL) {
+   if (handle == (void *)-1)
+      return NULL;
+   else if (handle == NULL) {
       if (elf_version(EV_CURRENT) == EV_NONE)
          fatal("ELF library too old");
 
-      int fd = open(fname, O_RDONLY);
+      int fd;
+      if (strchr(fname, PATH_SEP[0]))
+         fd = open(fname, O_RDONLY);
+      else {
+         char LOCAL *full = search_path(fname);
+         fd = open(full, O_RDONLY);
+      }
+
       if (fd == -1) {
-         warnf("%s: %s", fname, strerror(errno));
+         warnf("open: %s: %s", fname, strerror(errno));
+         hash_put(hash, key, (void *)-1);
          return NULL;
       }
 
-      Dwarf_Error err;
+      Dwarf_Error err = NULL;
       if (dwarf_init(fd, DW_DLC_READ, NULL, NULL, &handle, &err) != DW_DLV_OK) {
          warnf("dwarf_init: %s: %s", fname, dwarf_errmsg(err));
+         free(err);
+         hash_put(hash, key, (void *)-1);
          return NULL;
       }
 
@@ -249,31 +262,53 @@ static Dwarf_Debug libdwarf_handle_for_file(const char *fname)
 static void libdwarf_get_symbol(Dwarf_Debug handle, Dwarf_Die die,
                                 Dwarf_Unsigned rel_addr, debug_frame_t *frame)
 {
-   Dwarf_Error error;
    Dwarf_Die child, prev = NULL;
-   if (dwarf_child(die, &child, &error) == DW_DLV_OK) {
-      do {
-         dwarf_dealloc(handle, prev, DW_DLA_DIE);
-         prev = child;
+   if (dwarf_child(die, &child, NULL) != DW_DLV_OK)
+      return;
 
-         Dwarf_Half tag;
-         if (dwarf_tag(child, &tag, &error) != DW_DLV_OK)
-            continue;
-         else if (tag != DW_TAG_subprogram && tag != DW_TAG_inlined_subroutine)
-            continue;
-         else if (!libdwarf_die_has_pc(child, rel_addr))
-            continue;
+   Dwarf_Half tag;
+   if (dwarf_tag(child, &tag, NULL) == DW_DLV_OK && tag == DW_TAG_module) {
+      char *name;
+      if (dwarf_diename(child, &name, NULL) == DW_DLV_OK) {
+         frame->vhdl_unit = ident_new(name);
+         dwarf_dealloc(handle, name, DW_DLA_STRING);
+      }
 
-         char *name;
-         if (dwarf_diename(child, &name, &error) == DW_DLV_OK) {
-            frame->symbol = xstrdup(name);
-            dwarf_dealloc(handle, name, DW_DLA_STRING);
-            break;
-         }
-      } while (dwarf_siblingof(handle, child, &child, &error) == DW_DLV_OK);
+      prev = child;
+      if (dwarf_child(prev, &child, NULL) != DW_DLV_OK)
+         return;
 
       dwarf_dealloc(handle, prev, DW_DLA_DIE);
    }
+
+   do {
+      dwarf_dealloc(handle, prev, DW_DLA_DIE);
+      prev = child;
+
+      if (dwarf_tag(child, &tag, NULL) != DW_DLV_OK)
+         continue;
+      else if (tag != DW_TAG_subprogram && tag != DW_TAG_inlined_subroutine)
+         continue;
+      else if (!libdwarf_die_has_pc(child, rel_addr))
+         continue;
+
+      char *name;
+      if (dwarf_diename(child, &name, NULL) == DW_DLV_OK) {
+         frame->symbol = xstrdup(name);
+         dwarf_dealloc(handle, name, DW_DLA_STRING);
+      }
+
+      Dwarf_Unsigned srclang;
+      if (dwarf_srclang(die, &srclang, NULL) == DW_DLV_OK) {
+         if (srclang == DW_LANG_Ada83) {
+            frame->kind = FRAME_VHDL;
+         }
+      }
+
+      break;
+   } while (dwarf_siblingof(handle, child, &child, NULL) == DW_DLV_OK);
+
+   dwarf_dealloc(handle, prev, DW_DLA_DIE);
 }
 
 static void libdwarf_get_srcline(Dwarf_Debug handle, Dwarf_Die die,
@@ -364,9 +399,10 @@ static bool libdwarf_scan_aranges(Dwarf_Debug handle, Dwarf_Unsigned rel_addr,
 static bool libdwarf_scan_cus(Dwarf_Debug handle, Dwarf_Unsigned rel_addr,
                               debug_frame_t *frame)
 {
+   Dwarf_Unsigned next_cu_offset;
    bool found = false;
    while (dwarf_next_cu_header(handle, NULL, NULL, NULL, NULL,
-                               NULL, NULL) == DW_DLV_OK) {
+                               &next_cu_offset, NULL) == DW_DLV_OK) {
 
       if (found)
          continue;   // Read all the way to the end to reset the iterator
@@ -443,10 +479,12 @@ static _Unwind_Reason_Code libdwarf_frame_iter(struct _Unwind_Context* ctx,
 
    if (!libdwarf_scan_aranges(handle, rel_addr, &frame)) {
       // Clang does emit aranges so we have to search each compilation unit
-      if (!libdwarf_scan_cus(handle, rel_addr, &frame)) {
-         // Fallback: just use the nearest global symbol
-         frame.symbol = xstrdup(dli.dli_sname);
-      }
+      libdwarf_scan_cus(handle, rel_addr, &frame);
+   }
+
+   if (frame.symbol == NULL) {
+      // Fallback: just use the nearest global symbol
+      frame.symbol = xstrdup(dli.dli_sname);
    }
 
    APUSH(di->frames, frame);

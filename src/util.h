@@ -201,6 +201,7 @@ void file_unlock(int fd);
 void *map_file(int fd, size_t size);
 void unmap_file(void *ptr, size_t size);
 void make_dir(const char *path);
+char *search_path(const char *name);
 
 unsigned error_count(void);
 void reset_error_count(void);
