@@ -46,6 +46,7 @@
 #include <time.h>
 
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #ifdef HAVE_SYS_PTRACE_H
 #include <sys/ptrace.h>
@@ -58,7 +59,6 @@
 #include <sys/wait.h>
 #include <sys/resource.h>
 #include <sys/file.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #endif
 
