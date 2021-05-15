@@ -731,7 +731,7 @@ static void dump_stmt(tree_t t, int indent)
          dump_expr(tree_delay(t));
       }
       printf(";");
-      if (tree_attr_int(t, ident_new("static"), 0))
+      if (tree_flags(t) & TREE_F_STATIC_WAIT)
          syntax("   -- static");
       syntax("\n");
       return;

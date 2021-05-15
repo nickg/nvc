@@ -319,7 +319,7 @@ static tree_t simp_attr_delayed_transaction(tree_t t, predef_attr_t predef,
 
    tree_t wait = tree_new(T_WAIT);
    tree_set_ident(wait, ident_new("wait"));
-   tree_add_attr_int(wait, ident_new("static"), 1);
+   tree_set_flag(wait, TREE_F_STATIC_WAIT);
    tree_add_trigger(wait, name);
 
    tree_add_stmt(p, wait);
@@ -593,7 +593,7 @@ static tree_t simp_process(tree_t t)
 
       tree_t w = tree_new(T_WAIT);
       tree_set_ident(w, tree_ident(p));
-      tree_add_attr_int(w, ident_new("static"), 1);
+      tree_set_flag(w, TREE_F_STATIC_WAIT);
       if (ntriggers == 1 && tree_kind(tree_trigger(t, 0)) == T_ALL)
          simp_build_wait(w, t, true);
       else {
@@ -993,7 +993,7 @@ static tree_t simp_cassign(tree_t t)
 
    tree_t w = tree_new(T_WAIT);
    tree_set_ident(w, ident_new("cassign"));
-   tree_add_attr_int(w, ident_new("static"), 1);
+   tree_set_flag(w, TREE_F_STATIC_WAIT);
 
    tree_t container = p;  // Where to add new statements
    void (*add_stmt)(tree_t, tree_t) = tree_add_stmt;
@@ -1053,7 +1053,7 @@ static tree_t simp_select(tree_t t)
 
    tree_t w = tree_new(T_WAIT);
    tree_set_ident(w, ident_new("select_wait"));
-   tree_add_attr_int(w, ident_new("static"), 1);
+   tree_set_flag(w, TREE_F_STATIC_WAIT);
 
    tree_t c = tree_new(T_CASE);
    tree_set_ident(c, ident_new("select_case"));
@@ -1130,7 +1130,7 @@ static tree_t simp_cassert(tree_t t)
 
    tree_t wait = tree_new(T_WAIT);
    tree_set_ident(wait, ident_new("assert_wait"));
-   tree_add_attr_int(wait, ident_new("static"), 1);
+   tree_set_flag(wait, TREE_F_STATIC_WAIT);
 
    tree_t a = tree_new(T_ASSERT);
    tree_set_ident(a, ident_new("assert_wrap"));

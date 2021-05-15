@@ -3245,7 +3245,7 @@ static void lower_sched_event(tree_t on, bool is_static)
 
 static void lower_wait(tree_t wait)
 {
-   const bool is_static = tree_attr_int(wait, static_i, 0);
+   const bool is_static = !!(tree_flags(wait) & TREE_F_STATIC_WAIT);
    assert(!is_static || (!tree_has_delay(wait) && !tree_has_value(wait)));
 
    if (!is_static) {
@@ -5141,7 +5141,7 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    tree_t wait = NULL;
    if (nstmts > 0
        && tree_kind((wait = tree_stmt(proc, nstmts - 1))) == T_WAIT
-       && tree_attr_int(wait, static_i, 0)) {
+       && (tree_flags(wait) & TREE_F_STATIC_WAIT)) {
 
       const int ntriggers = tree_triggers(wait);
       for (int i = 0; i < ntriggers; i++)

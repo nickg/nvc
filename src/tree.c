@@ -55,7 +55,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_TYPE | I_REF | I_ATTRS | I_FLAGS),
 
    // T_WAIT
-   (I_IDENT | I_VALUE | I_DELAY | I_TRIGGERS | I_ATTRS),
+   (I_IDENT | I_VALUE | I_DELAY | I_TRIGGERS | I_FLAGS | I_ATTRS),
 
    // T_TYPE_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),

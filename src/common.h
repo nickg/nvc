@@ -191,7 +191,6 @@ GLOBAL ident_t prot_field_i;
 GLOBAL ident_t stmt_tag_i;
 GLOBAL ident_t cond_tag_i;
 GLOBAL ident_t sub_cond_i;
-GLOBAL ident_t static_i;
 GLOBAL ident_t range_var_i;
 GLOBAL ident_t work_i;
 GLOBAL ident_t wait_level_i;

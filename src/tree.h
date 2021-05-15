@@ -191,6 +191,7 @@ typedef enum {
    TREE_F_LOOP_VAR        = (1 << 15),
    TREE_F_FOREIGN         = (1 << 16),
    TREE_F_PROTECTED       = (1 << 17),
+   TREE_F_STATIC_WAIT     = (1 << 18),
 } tree_flags_t;
 
 tree_t tree_new(tree_kind_t kind);

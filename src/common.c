@@ -1026,7 +1026,6 @@ void intern_strings(void)
    nested_i         = ident_new("nested");
    drives_all_i     = ident_new("drives_all");
    driver_init_i    = ident_new("driver_init");
-   static_i         = ident_new("static");
    null_range_i     = ident_new("null_range");
    prot_field_i     = ident_new("prot_field");
    stmt_tag_i       = ident_new("stmt_tag");
