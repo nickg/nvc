@@ -526,7 +526,11 @@ static void debug_walk_frames(debug_info_t *di)
 
    HANDLE hProcess = GetCurrentProcess();
 
-   SymInitialize(hProcess, NULL, TRUE);
+   static bool done_sym_init = false;
+   if (!done_sym_init) {
+     SymInitialize(hProcess, NULL, TRUE);
+     done_sym_init = true;
+   }
 
    int skip = 2;
    for (ULONG n = 0; n < MAX_TRACE_DEPTH; n++) {
@@ -562,8 +566,6 @@ static void debug_walk_frames(debug_info_t *di)
 
       APUSH(di->frames, frame);
    }
-
-   SymCleanup(hProcess);
 #endif  // __WIN64
 }
 
