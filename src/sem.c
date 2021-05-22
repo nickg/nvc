@@ -2213,7 +2213,7 @@ static bool sem_check_string_literal(tree_t t)
       else
          left = tree_left(range_of(index_type, 0));
 
-      right = call_builtin("add", index_type,
+      right = call_builtin(S_ADD, index_type,
                            sem_int_lit(std_int, nchars - 1),
                            left, NULL);
 
@@ -2527,7 +2527,7 @@ static bool sem_check_aggregate(tree_t t)
          else {
             type_t std_int = std_type(NULL, "INTEGER");
             left = tree_left(range_of(index_type, 0));
-            right = call_builtin("add", index_type,
+            right = call_builtin(S_ADD, index_type,
                                  sem_int_lit(std_int, nassocs - 1),
                                  left, NULL);
          }
@@ -2536,8 +2536,8 @@ static bool sem_check_aggregate(tree_t t)
          // The left and right bounds are determined by the smallest and
          // largest choices
 
-         tree_t low  = call_builtin("min", index_type, NULL);
-         tree_t high = call_builtin("max", index_type, NULL);
+         tree_t low  = call_builtin(S_MINIMUM, index_type, NULL);
+         tree_t high = call_builtin(S_MAXIMUM, index_type, NULL);
 
          tree_set_loc(low, tree_loc(t));
          tree_set_loc(high, tree_loc(t));
@@ -3517,7 +3517,7 @@ static bool sem_locally_static(tree_t t)
 
    // A function call of an implicit operator with locally static actuals
    if (kind == T_FCALL) {
-      if (tree_attr_str(tree_ref(t), builtin_i) == NULL)
+      if (!is_builtin(tree_subkind(tree_ref(t))))
          return false;
 
       bool all_static = true;

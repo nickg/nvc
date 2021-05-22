@@ -124,11 +124,10 @@ static tree_t simp_flatten_concat(tree_t fcall)
    tree_t p0 = tree_value(tree_param(fcall, 0));
    const bool nested_concat =
       tree_kind(p0) == T_FCALL
-      && icmp(tree_attr_str(tree_ref(p0), builtin_i), "concat");
+      && tree_subkind(tree_ref(p0)) == S_CONCAT;
 
    if (nested_concat) {
       tree_t flat = tree_new(T_FCALL);
-      tree_add_attr_str(flat, builtin_i, ident_new("concat"));
       tree_set_ref(flat, tree_ref(fcall));
       tree_set_loc(flat, tree_loc(fcall));
       tree_set_type(flat, tree_type(fcall));
@@ -150,7 +149,7 @@ static tree_t simp_flatten_concat(tree_t fcall)
 
 static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 {
-   if (icmp(tree_attr_str(tree_ref(t), builtin_i), "concat"))
+   if (tree_subkind(tree_ref(t)) == S_CONCAT)
       t = simp_flatten_concat(t);
 
    return eval(simp_call_args(t), EVAL_FCALL | EVAL_FOLDING | ctx->eval_flags);
@@ -302,7 +301,7 @@ static tree_t simp_attr_delayed_transaction(tree_t t, predef_attr_t predef,
       {
          tree_set_value(s, make_default_value(tree_type(s), tree_loc(s)));
 
-         tree_t not = call_builtin("not", tree_type(r), r, NULL);
+         tree_t not = call_builtin(S_SCALAR_NOT, tree_type(r), r, NULL);
 
          tree_t wave = tree_new(T_WAVEFORM);
          tree_set_value(wave, not);

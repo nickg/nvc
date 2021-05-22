@@ -26,7 +26,7 @@
 
 int64_t assume_int(tree_t t);
 void range_bounds(tree_t r, int64_t *low, int64_t *high);
-tree_t call_builtin(const char *builtin, type_t type, ...);
+tree_t call_builtin(subprogram_kind_t kind, type_t type, ...);
 bool folded_int(tree_t t, int64_t *i);
 bool folded_real(tree_t t, double *d);
 bool folded_bool(tree_t t, bool *b);
@@ -61,6 +61,7 @@ bool is_subprogram(tree_t t);
 bool is_container(tree_t t);
 tree_t search_decls(tree_t container, ident_t name, int nth);
 type_t std_type(tree_t standard, const char *name);
+bool is_builtin(subprogram_kind_t kind);
 
 const char *fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

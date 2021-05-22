@@ -756,7 +756,7 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
       mode = tree_subkind(tree_port(decl, nth));
 
    tree_t port = NULL;
-   if (tree_attr_str(decl, builtin_i) == NULL)
+   if (!is_builtin(tree_subkind(decl)))
       port = tree_port(decl, nth);
 
    return lower_param(value, port, mode);
@@ -1119,7 +1119,7 @@ static bool lower_trivial_expression(tree_t expr)
       return true;
    case T_FCALL:
       {
-         if (tree_attr_str(tree_ref(expr), builtin_i) == NULL)
+         if (!is_builtin(tree_subkind(tree_ref(expr))))
             return false;
 
          const int nparams = tree_params(expr);
@@ -1204,19 +1204,19 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
    return lower_logical(fcall, result);
 }
 
-static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
+static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
 {
-   if (icmp(builtin, "max"))
+   if (builtin == S_MAXIMUM)
       return lower_min_max(VCODE_CMP_GT, fcall);
-   else if (icmp(builtin, "min"))
+   else if (builtin == S_MINIMUM)
       return lower_min_max(VCODE_CMP_LT, fcall);
-   else if (icmp(builtin, "and"))
+   else if (builtin == S_SCALAR_AND)
       return lower_short_circuit(fcall, SHORT_CIRCUIT_AND);
-   else if (icmp(builtin, "or"))
+   else if (builtin == S_SCALAR_OR)
       return lower_short_circuit(fcall, SHORT_CIRCUIT_OR);
-   else if (icmp(builtin, "nor"))
+   else if (builtin == S_SCALAR_NOR)
       return lower_short_circuit(fcall, SHORT_CIRCUIT_NOR);
-   else if (icmp(builtin, "concat"))
+   else if (builtin == S_CONCAT)
       return lower_concat(fcall, EXPR_RVALUE);
 
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
@@ -1225,164 +1225,172 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    type_t r0_type = lower_arg_type(fcall, 0);
    type_t r1_type = lower_arg_type(fcall, 1);
 
-   if (icmp(builtin, "eq"))
+   switch (builtin) {
+   case S_SCALAR_EQ:
       return lower_logical(fcall, emit_cmp(VCODE_CMP_EQ, r0, r1));
-   else if (icmp(builtin, "neq"))
+   case S_SCALAR_NEQ:
       return lower_logical(fcall, emit_cmp(VCODE_CMP_NEQ, r0, r1));
-   else if (icmp(builtin, "lt"))
+   case S_SCALAR_LT:
       return lower_logical(fcall, emit_cmp(VCODE_CMP_LT, r0, r1));
-   else if (icmp(builtin, "gt"))
+   case S_SCALAR_GT:
       return lower_logical(fcall, emit_cmp(VCODE_CMP_GT, r0, r1));
-   else if (icmp(builtin, "leq"))
+   case S_SCALAR_LE:
       return lower_logical(fcall, emit_cmp(VCODE_CMP_LEQ, r0, r1));
-   else if (icmp(builtin, "geq"))
+   case S_SCALAR_GE:
       return lower_logical(fcall, emit_cmp(VCODE_CMP_GEQ, r0, r1));
-   else if (icmp(builtin, "mul"))
+   case S_MUL:
       return lower_arith(fcall, emit_mul, r0, r1);
-   else if (icmp(builtin, "add"))
+   case S_ADD:
       return lower_arith(fcall, emit_add, r0, r1);
-   else if (icmp(builtin, "sub"))
+   case S_SUB:
       return lower_arith(fcall, emit_sub, r0, r1);
-   else if (icmp(builtin, "div")) {
+   case S_DIV:
       if (!type_eq(r0_type, r1_type))
          r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
       return lower_narrow(tree_type(fcall), emit_div(r0, r1));
-   }
-   else if (icmp(builtin, "exp")) {
+   case S_EXP:
       if (!type_eq(r0_type, r1_type))
          r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
       return lower_arith(fcall, emit_exp, r0, r1);
-   }
-   else if (icmp(builtin, "mod"))
+   case S_MOD:
       return lower_arith(fcall, emit_mod, r0, r1);
-   else if (icmp(builtin, "rem"))
+   case S_REM:
       return lower_arith(fcall, emit_rem, r0, r1);
-   else if (icmp(builtin, "neg"))
+   case S_NEGATE:
       return emit_neg(r0);
-   else if (icmp(builtin, "abs"))
+   case S_ABS:
       return emit_abs(r0);
-   else if (icmp(builtin, "identity"))
+   case S_IDENTITY:
       return r0;
-   else if (icmp(builtin, "not"))
+   case S_SCALAR_NOT:
       return lower_logical(fcall, emit_not(r0));
-   else if (icmp(builtin, "xor"))
+   case S_SCALAR_XOR:
       return lower_logical(fcall, emit_xor(r0, r1));
-   else if (icmp(builtin, "xnor"))
+   case S_SCALAR_XNOR:
       return lower_logical(fcall, emit_xnor(r0, r1));
-   else if (icmp(builtin, "nand"))
+   case S_SCALAR_NAND:
       return lower_logical(fcall, emit_nand(r0, r1));
-   else if (icmp(builtin, "aeq"))
+   case S_ARRAY_EQ:
       return lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_EQ);
-   else if (icmp(builtin, "aneq"))
+   case S_ARRAY_NEQ:
       return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_EQ));
-   else if (icmp(builtin, "alt"))
+   case S_ARRAY_LT:
       return lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LT);
-   else if (icmp(builtin, "aleq"))
+   case S_ARRAY_LE:
       return lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LEQ);
-   else if (icmp(builtin, "agt"))
+   case S_ARRAY_GT:
       return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LEQ));
-   else if (icmp(builtin, "ageq"))
+   case S_ARRAY_GE:
       return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LT));
-   else if (icmp(builtin, "req"))
+   case S_RECORD_EQ:
       return lower_logical(fcall, lower_record_eq(r0, r1, r0_type));
-   else if (icmp(builtin, "rneq"))
+   case S_RECORD_NEQ:
       return lower_logical(fcall, emit_not(lower_record_eq(r0, r1, r0_type)));
-   else if (icmp(builtin, "endfile"))
+   case S_ENDFILE:
       return emit_endfile(r0);
-   else if (icmp(builtin, "file_open1")) {
-      vcode_reg_t name   = lower_array_data(r1);
-      vcode_reg_t length = lower_array_len(r1_type, 0, r1);
-      emit_file_open(r0, name, length, lower_subprogram_arg(fcall, 2),
-                     VCODE_INVALID_REG);
-      return VCODE_INVALID_REG;
-   }
-   else if (icmp(builtin, "file_open2")) {
-      vcode_reg_t r2     = lower_subprogram_arg(fcall, 2);
-      vcode_reg_t name   = lower_array_data(r2);
-      vcode_reg_t length = lower_array_len(lower_arg_type(fcall, 2), 0, r2);
-      emit_file_open(r1, name, length, lower_subprogram_arg(fcall, 3), r0);
-      return VCODE_INVALID_REG;
-   }
-   else if (icmp(builtin, "file_write")) {
-      vcode_reg_t length = VCODE_INVALID_REG;
-      vcode_reg_t data   = r1;
-      if (type_is_array(r1_type)) {
-         length = lower_array_len(r1_type, 0, r1);
-         data   = lower_array_data(r1);
+   case S_FILE_OPEN1:
+      {
+         vcode_reg_t name   = lower_array_data(r1);
+         vcode_reg_t length = lower_array_len(r1_type, 0, r1);
+         emit_file_open(r0, name, length, lower_subprogram_arg(fcall, 2),
+                        VCODE_INVALID_REG);
+         return VCODE_INVALID_REG;
       }
-      emit_file_write(r0, data, length);
-      return VCODE_INVALID_REG;
-   }
-   else if (icmp(builtin, "file_close")) {
+   case S_FILE_OPEN2:
+      {
+         vcode_reg_t r2     = lower_subprogram_arg(fcall, 2);
+         vcode_reg_t name   = lower_array_data(r2);
+         vcode_reg_t length = lower_array_len(lower_arg_type(fcall, 2), 0, r2);
+         emit_file_open(r1, name, length, lower_subprogram_arg(fcall, 3), r0);
+         return VCODE_INVALID_REG;
+      }
+   case S_FILE_WRITE:
+      {
+         vcode_reg_t length = VCODE_INVALID_REG;
+         vcode_reg_t data   = r1;
+         if (type_is_array(r1_type)) {
+            length = lower_array_len(r1_type, 0, r1);
+            data   = lower_array_data(r1);
+         }
+         emit_file_write(r0, data, length);
+         return VCODE_INVALID_REG;
+      }
+   case S_FILE_CLOSE:
       emit_file_close(r0);
       return VCODE_INVALID_REG;
-   }
-   else if (icmp(builtin, "file_read")) {
-      vcode_reg_t inlen = VCODE_INVALID_REG;
-      if (type_is_array(r1_type))
-         inlen = lower_array_len(r1_type, 0, r1);
+   case S_FILE_READ:
+      {
+         vcode_reg_t inlen = VCODE_INVALID_REG;
+         if (type_is_array(r1_type))
+            inlen = lower_array_len(r1_type, 0, r1);
 
-      vcode_reg_t outlen = VCODE_INVALID_REG;
-      if (tree_params(fcall) == 3)
-         outlen = lower_subprogram_arg(fcall, 2);
+         vcode_reg_t outlen = VCODE_INVALID_REG;
+         if (tree_params(fcall) == 3)
+            outlen = lower_subprogram_arg(fcall, 2);
 
-      emit_file_read(r0, r1, inlen, outlen);
-      return VCODE_INVALID_REG;
-   }
-   else if (icmp(builtin, "deallocate")) {
+         emit_file_read(r0, r1, inlen, outlen);
+         return VCODE_INVALID_REG;
+      }
+   case S_DEALLOCATE:
       emit_deallocate(r0);
       return VCODE_INVALID_REG;
-   }
-   else if (icmp(builtin, "v_not"))
+   case S_ARRAY_NOT:
       return lower_bit_vec_op(BIT_VEC_NOT, r0, r1, fcall);
-   else if (icmp(builtin, "v_and"))
+   case S_ARRAY_AND:
       return lower_bit_vec_op(BIT_VEC_AND, r0, r1, fcall);
-   else if (icmp(builtin, "v_or"))
+   case S_ARRAY_OR:
       return lower_bit_vec_op(BIT_VEC_OR, r0, r1, fcall);
-   else if (icmp(builtin, "v_xor"))
+   case S_ARRAY_XOR:
       return lower_bit_vec_op(BIT_VEC_XOR, r0, r1, fcall);
-   else if (icmp(builtin, "v_xnor"))
+   case S_ARRAY_XNOR:
       return lower_bit_vec_op(BIT_VEC_XNOR, r0, r1, fcall);
-   else if (icmp(builtin, "v_nand"))
+   case S_ARRAY_NAND:
       return lower_bit_vec_op(BIT_VEC_NAND, r0, r1, fcall);
-   else if (icmp(builtin, "v_nor"))
+   case S_ARRAY_NOR:
       return lower_bit_vec_op(BIT_VEC_NOR, r0, r1, fcall);
-   else if (icmp(builtin, "sll"))
+   case S_SLL:
       return lower_bit_shift(BIT_SHIFT_SLL, r0, r0_type, r1);
-   else if (icmp(builtin, "srl"))
+   case S_SRL:
       return lower_bit_shift(BIT_SHIFT_SRL, r0, r0_type, r1);
-   else if (icmp(builtin, "sla"))
+   case S_SLA:
       return lower_bit_shift(BIT_SHIFT_SLA, r0, r0_type, r1);
-   else if (icmp(builtin, "sra"))
+   case S_SRA:
       return lower_bit_shift(BIT_SHIFT_SRA, r0, r0_type, r1);
-   else if (icmp(builtin, "rol"))
+   case S_ROL:
       return lower_bit_shift(BIT_SHIFT_ROL, r0, r0_type, r1);
-   else if (icmp(builtin, "ror"))
+   case S_ROR:
       return lower_bit_shift(BIT_SHIFT_ROR, r0, r0_type, r1);
-   else if (icmp(builtin, "mulrp") || icmp(builtin, "mulri")) {
-      vcode_type_t vreal  = vtype_real();
-      vcode_type_t rtype  = lower_type(tree_type(fcall));
-      return emit_cast(rtype, rtype, emit_mul(r0, emit_cast(vreal, vreal, r1)));
+   case S_MUL_RP:
+   case S_MUL_RI:
+      {
+         vcode_type_t vreal  = vtype_real();
+         vcode_type_t rtype  = lower_type(tree_type(fcall));
+         return emit_cast(rtype, rtype, emit_mul(r0, emit_cast(vreal, vreal, r1)));
+      }
+   case S_MUL_PR:
+   case S_MUL_IR:
+      {
+         vcode_type_t vreal  = vtype_real();
+         vcode_type_t rtype  = lower_type(tree_type(fcall));
+         return emit_cast(rtype, rtype, emit_mul(emit_cast(vreal, vreal, r0), r1));
+      }
+   case S_DIV_PR:
+      {
+         vcode_type_t vreal  = vtype_real();
+         vcode_type_t rtype  = lower_type(tree_type(fcall));
+         return emit_cast(rtype, rtype,
+                          emit_div(emit_cast(vreal, vreal, r0), r1));
+      }
+   case S_DIV_RI:
+      {
+         vcode_type_t vreal  = vtype_real();
+         vcode_type_t rtype  = lower_type(tree_type(fcall));
+         return emit_cast(rtype, rtype,
+                          emit_div(r0, emit_cast(vreal, vreal, r1)));
+      }
+   default:
+      fatal_at(tree_loc(fcall), "cannot lower builtin %d", builtin);
    }
-   else if (icmp(builtin, "mulpr") || icmp(builtin, "mulir")) {
-      vcode_type_t vreal  = vtype_real();
-      vcode_type_t rtype  = lower_type(tree_type(fcall));
-      return emit_cast(rtype, rtype, emit_mul(emit_cast(vreal, vreal, r0), r1));
-   }
-   else if (icmp(builtin, "divpr")) {
-      vcode_type_t vreal  = vtype_real();
-      vcode_type_t rtype  = lower_type(tree_type(fcall));
-      return emit_cast(rtype, rtype,
-                       emit_div(emit_cast(vreal, vreal, r0), r1));
-   }
-   else if (icmp(builtin, "divri")) {
-      vcode_type_t vreal  = vtype_real();
-      vcode_type_t rtype  = lower_type(tree_type(fcall));
-      return emit_cast(rtype, rtype,
-                       emit_div(r0, emit_cast(vreal, vreal, r1)));
-   }
-   else
-      fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
 
 static vcode_type_t lower_func_result_type(tree_t func)
@@ -1401,9 +1409,9 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
 {
    tree_t decl = tree_ref(fcall);
 
-   ident_t builtin = tree_attr_str(decl, builtin_i);
-   if (builtin != NULL)
-      return lower_builtin(fcall, builtin);
+   const subprogram_kind_t kind = tree_subkind(decl);
+   if (is_builtin(kind))
+      return lower_builtin(fcall, kind);
 
    const bool protected = tree_kind(fcall) == T_PROT_FCALL;
 
@@ -3630,9 +3638,9 @@ static void lower_pcall(tree_t pcall)
 
    const int saved_mark = emit_temp_stack_mark();
 
-   ident_t builtin = tree_attr_str(decl, builtin_i);
-   if (builtin != NULL) {
-      lower_builtin(pcall, builtin);
+   const subprogram_kind_t kind = tree_subkind(decl);
+   if (is_builtin(kind)) {
+      lower_builtin(pcall, kind);
       emit_temp_stack_restore(saved_mark);
       return;
    }
@@ -4009,7 +4017,7 @@ static int64_t lower_case_find_choice_element(tree_t value, int depth)
       }
 
    case T_FCALL:
-      if (icmp(tree_attr_str(tree_ref(value), builtin_i), "concat")) {
+      if (tree_subkind(tree_ref(value)) == S_CONCAT) {
          const int nparams = tree_params(value);
          for (int i = 0; i < nparams; i++) {
             tree_t left = tree_value(tree_param(value, i));

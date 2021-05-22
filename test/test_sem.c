@@ -2061,7 +2061,7 @@ START_TEST(test_issue377)
       fail_unless(tree_kind(fcall) == T_FCALL);
 
       tree_t decl = tree_ref(fcall);
-      fail_unless(tree_attr_str(decl, builtin_i) == NULL);
+      fail_unless(tree_subkind(decl) == S_USER);
       fail_unless(tree_ident(decl) == ident_new("\"=\""));
    }
 
@@ -2072,7 +2072,7 @@ START_TEST(test_issue377)
       fail_unless(tree_kind(fcall) == T_FCALL);
 
       tree_t decl = tree_ref(fcall);
-      fail_unless(tree_attr_str(decl, builtin_i) == NULL);
+      fail_unless(tree_subkind(decl) == S_USER);
       fail_unless(tree_ident(decl) == ident_new("\"=\""));
    }
 

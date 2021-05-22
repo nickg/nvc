@@ -18,6 +18,8 @@
   arguments is called repeatedly in a loop (#414).
 - Compiled VHDL code now includes DWARF debug information which is used
   for runtime stack trace if libdw or libdwarf is installed.
+- Added support for MINIMUM and MAXIMUM predefined operators in
+  VHDL-2008.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

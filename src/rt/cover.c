@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2018  Nick Gasson
+//  Copyright (C) 2013-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 #include "util.h"
 #include "cover.h"
 #include "loc.h"
+#include "common.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -85,11 +86,6 @@ typedef struct {
    const int32_t *conds;
 } report_ctx_t;
 
-static ident_t       stmt_tag_i;
-static ident_t       cond_tag_i;
-static ident_t       sub_cond_i;
-static ident_t       builtin_i;
-static ident_t       std_bool_i;
 static cover_file_t *files;
 static cover_stats_t stats;
 
@@ -108,7 +104,7 @@ static void cover_tag_conditions(tree_t t, cover_tag_ctx_t *ctx, int branch)
 
    // Tag Boolean sub-expressions
 
-   if (tree_attr_str(tree_ref(t), builtin_i) == NULL)
+   if (!is_builtin(tree_subkind(tree_ref(t))))
       return;
 
    const int nparams = tree_params(t);
@@ -168,12 +164,6 @@ static void cover_tag_visit_fn(tree_t t, void *context)
 
 void cover_tag(tree_t top)
 {
-   stmt_tag_i = ident_new("stmt_tag");
-   cond_tag_i = ident_new("cond_tag");
-   sub_cond_i = ident_new("sub_cond");
-   std_bool_i = ident_new("STD.STANDARD.BOOLEAN");
-   builtin_i  = ident_new("builtin");
-
    cover_tag_ctx_t ctx = {
       .next_stmt_tag = 0,
       .next_cond_tag = 0
@@ -539,10 +529,6 @@ static void cover_index(ident_t name, const char *dir)
 
 void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
 {
-   stmt_tag_i = ident_new("stmt_tag");
-   cond_tag_i = ident_new("cond_tag");
-   sub_cond_i = ident_new("sub_cond");
-
    report_ctx_t report_ctx = {
       .stmts = stmts,
       .conds = conds

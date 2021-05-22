@@ -79,7 +79,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
 
    // T_FUNC_DECL
-   (I_IDENT | I_VALUE | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
+   (I_IDENT | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2 | I_SUBKIND),
 
    // T_ELAB
    (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_ATTRS),
@@ -114,7 +114,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_FUNC_BODY
    (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS
-    | I_IDENT2),
+    | I_IDENT2 | I_SUBKIND),
 
    // T_RETURN
    (I_IDENT | I_VALUE | I_ATTRS),
@@ -141,11 +141,11 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_IDENT2 | I_CLASS | I_ATTRS | I_REF),
 
    // T_PROC_DECL
-   (I_IDENT | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
+   (I_IDENT | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2 | I_SUBKIND),
 
    // T_PROC_BODY
    (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS
-    | I_IDENT2),
+    | I_IDENT2 | I_SUBKIND),
 
    // T_EXIT
    (I_IDENT | I_VALUE | I_IDENT2 | I_ATTRS),

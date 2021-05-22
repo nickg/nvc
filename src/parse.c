@@ -763,7 +763,7 @@ static tree_t add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
    return port;
 }
 
-static tree_t builtin_proc(ident_t name, const char *builtin, ...)
+static tree_t builtin_proc(ident_t name, subprogram_kind_t kind, ...)
 {
    type_t f = type_new(T_PROC);
    type_set_ident(f, name);
@@ -771,7 +771,7 @@ static tree_t builtin_proc(ident_t name, const char *builtin, ...)
    tree_t d = tree_new(T_PROC_DECL);
    tree_set_ident(d, name);
    tree_set_type(d, f);
-   tree_add_attr_str(d, builtin_i, ident_new(builtin));
+   tree_set_subkind(d, kind);
    tree_add_attr_int(d, wait_level_i, WAITS_NO);
 
    tree_set_flag(d, TREE_F_PREDEFINED);
@@ -779,7 +779,8 @@ static tree_t builtin_proc(ident_t name, const char *builtin, ...)
    return d;
 }
 
-static tree_t builtin_fn(ident_t name, type_t result, const char *builtin, ...)
+static tree_t builtin_fn(ident_t name, type_t result,
+                         subprogram_kind_t kind, ...)
 {
    type_t f = type_new(T_FUNC);
    type_set_ident(f, name);
@@ -788,10 +789,10 @@ static tree_t builtin_fn(ident_t name, type_t result, const char *builtin, ...)
    tree_t d = tree_new(T_FUNC_DECL);
    tree_set_ident(d, name);
    tree_set_type(d, f);
-   tree_add_attr_str(d, builtin_i, ident_new(builtin));
+   tree_set_subkind(d, kind);
 
    va_list ap;
-   va_start(ap, builtin);
+   va_start(ap, kind);
    type_t arg;
    while ((arg = va_arg(ap, type_t)))
       add_port(d, arg, PORT_IN, NULL);
@@ -803,17 +804,17 @@ static tree_t builtin_fn(ident_t name, type_t result, const char *builtin, ...)
 }
 
 static void declare_binary(tree_t container, ident_t name, type_t lhs,
-                           type_t rhs, type_t result, const char *builtin)
+                           type_t rhs, type_t result, subprogram_kind_t kind)
 {
-   tree_t d = builtin_fn(name, result, builtin, lhs, rhs, NULL);
+   tree_t d = builtin_fn(name, result, kind, lhs, rhs, NULL);
    insert_name(nametab, d, NULL, 0);
    tree_add_decl(container, d);
 }
 
 static void declare_unary(tree_t container, ident_t name, type_t operand,
-                          type_t result, const char *builtin)
+                          type_t result, subprogram_kind_t kind)
 {
-   tree_t d = builtin_fn(name, result, builtin, operand, NULL);
+   tree_t d = builtin_fn(name, result, kind, operand, NULL);
    insert_name(nametab, d, NULL, 0);
    tree_add_decl(container, d);
 }
@@ -835,10 +836,16 @@ static void declare_predefined_ops(tree_t container, type_t t)
       t = u;
    }
 
-   ident_t mult  = ident_new("\"*\"");
-   ident_t div   = ident_new("\"/\"");
-   ident_t plus  = ident_new("\"+\"");
-   ident_t minus = ident_new("\"-\"");
+   ident_t mult   = ident_new("\"*\"");
+   ident_t div    = ident_new("\"/\"");
+   ident_t plus   = ident_new("\"+\"");
+   ident_t minus  = ident_new("\"-\"");
+   ident_t cmp_lt = ident_new("\"<\"");
+   ident_t cmp_le = ident_new("\"<=\"");
+   ident_t cmp_gt = ident_new("\">\"");
+   ident_t cmp_ge = ident_new("\">=\"");
+   ident_t eq     = ident_new("\"=\"");
+   ident_t neq    = ident_new("\"/=\"");
 
    // Predefined operators
 
@@ -860,27 +867,27 @@ static void declare_predefined_ops(tree_t container, type_t t)
    case T_CARRAY:
    case T_UARRAY:
       // Operators on arrays
-      declare_binary(container, ident_new("\"=\""), t, t, std_bool, "aeq");
-      declare_binary(container, ident_new("\"/=\""), t, t, std_bool, "aneq");
+      declare_binary(container, eq, t, t, std_bool, S_ARRAY_EQ);
+      declare_binary(container, neq, t, t, std_bool, S_ARRAY_NEQ);
       if (dimension_of(t) == 1) {
-         declare_binary(container, ident_new("\"<\""), t, t, std_bool, "alt");
-         declare_binary(container, ident_new("\"<=\""), t, t, std_bool, "aleq");
-         declare_binary(container, ident_new("\">\""), t, t, std_bool, "agt");
-         declare_binary(container, ident_new("\">=\""), t, t, std_bool, "ageq");
+         declare_binary(container, cmp_lt, t, t, std_bool, S_ARRAY_LT);
+         declare_binary(container, cmp_le, t, t, std_bool, S_ARRAY_LE);
+         declare_binary(container, cmp_gt, t, t, std_bool, S_ARRAY_GT);
+         declare_binary(container, cmp_ge, t, t, std_bool, S_ARRAY_GE);
 
          type_t elem = type_elem(t);
          ident_t concat = ident_new("\"&\"");
-         declare_binary(container, concat, t, t, t, "concat");
-         declare_binary(container, concat, t, elem, t, "concat");
-         declare_binary(container, concat, elem, t, t, "concat");
-         declare_binary(container, concat, elem, elem, t, "concat");
+         declare_binary(container, concat, t, t, t, S_CONCAT);
+         declare_binary(container, concat, t, elem, t, S_CONCAT);
+         declare_binary(container, concat, elem, t, t, S_CONCAT);
+         declare_binary(container, concat, elem, elem, t, S_CONCAT);
       }
       break;
 
    case T_RECORD:
       // Operators on records
-      declare_binary(container, ident_new("\"=\""), t, t, std_bool, "req");
-      declare_binary(container, ident_new("\"/=\""), t, t, std_bool, "rneq");
+      declare_binary(container, eq, t, t, std_bool, S_RECORD_EQ);
+      declare_binary(container, neq, t, t, std_bool, S_RECORD_NEQ);
       break;
 
    case T_PHYSICAL:
@@ -888,86 +895,91 @@ static void declare_predefined_ops(tree_t container, type_t t)
       std_real = std_type(std, "REAL");
 
       // Multiplication
-      declare_binary(container, mult, t, std_int, t, "mul");
-      declare_binary(container, mult, t, std_real, t, "mulpr");
-      declare_binary(container, mult, std_int, t, t, "mul");
-      declare_binary(container, mult, std_real, t, t, "mulrp");
+      declare_binary(container, mult, t, std_int, t, S_MUL);
+      declare_binary(container, mult, t, std_real, t, S_MUL_PR);
+      declare_binary(container, mult, std_int, t, t, S_MUL);
+      declare_binary(container, mult, std_real, t, t, S_MUL_RP);
 
       // Division
-      declare_binary(container, div, t, std_int, t, "div");
-      declare_binary(container, div, t, std_real, t, "divpr");
-      declare_binary(container, div, t, t, std_int, "div");
+      declare_binary(container, div, t, std_int, t, S_DIV);
+      declare_binary(container, div, t, std_real, t, S_DIV_PR);
+      declare_binary(container, div, t, t, std_int, S_DIV);
 
       // Addition
-      declare_binary(container, plus, t, t, t, "add");
+      declare_binary(container, plus, t, t, t, S_ADD);
 
       // Subtraction
-      declare_binary(container, minus, t, t, t, "sub");
+      declare_binary(container, minus, t, t, t, S_SUB);
 
       // Sign operators
-      declare_unary(container, plus, t, t, "identity");
-      declare_unary(container, minus, t, t, "neg");
+      declare_unary(container, plus, t, t, S_IDENTITY);
+      declare_unary(container, minus, t, t, S_NEGATE);
 
       // Comparison
-      declare_binary(container, ident_new("\"<\""), t, t, std_bool, "lt");
-      declare_binary(container, ident_new("\"<=\""), t, t, std_bool, "leq");
-      declare_binary(container, ident_new("\">\""), t, t, std_bool, "gt");
-      declare_binary(container, ident_new("\">=\""), t, t, std_bool, "geq");
+      declare_binary(container, cmp_lt, t, t, std_bool, S_SCALAR_LT);
+      declare_binary(container, cmp_le, t, t, std_bool, S_SCALAR_LE);
+      declare_binary(container, cmp_gt, t, t, std_bool, S_SCALAR_GT);
+      declare_binary(container, cmp_ge, t, t, std_bool, S_SCALAR_GE);
 
       // Equality
-      declare_binary(container, ident_new("\"=\""), t, t, std_bool, "eq");
-      declare_binary(container, ident_new("\"/=\""), t, t, std_bool, "neq");
+      declare_binary(container, eq, t, t, std_bool, S_SCALAR_EQ);
+      declare_binary(container, neq, t, t, std_bool, S_SCALAR_NEQ);
 
       // Absolute value
-      declare_unary(container, ident_new("\"abs\""), t, t, "abs");
+      declare_unary(container, ident_new("\"abs\""), t, t, S_ABS);
 
       break;
 
    case T_INTEGER:
       // Modulus
-      declare_binary(container, ident_new("\"mod\""), t, t, t, "mod");
+      declare_binary(container, ident_new("\"mod\""), t, t, t, S_MOD);
 
       // Remainder
-      declare_binary(container, ident_new("\"rem\""), t, t, t, "rem");
+      declare_binary(container, ident_new("\"rem\""), t, t, t, S_REM);
 
       // Fall-through
    case T_REAL:
       // Addition
-      declare_binary(container, plus, t, t, t, "add");
+      declare_binary(container, plus, t, t, t, S_ADD);
 
       // Subtraction
-      declare_binary(container, minus, t, t, t, "sub");
+      declare_binary(container, minus, t, t, t, S_SUB);
 
       // Multiplication
-      declare_binary(container, mult, t, t, t, "mul");
+      declare_binary(container, mult, t, t, t, S_MUL);
 
       // Division
-      declare_binary(container, div, t, t, t, "div");
+      declare_binary(container, div, t, t, t, S_DIV);
 
       // Sign operators
-      declare_unary(container, plus, t, t, "identity");
-      declare_unary(container, minus, t, t, "neg");
+      declare_unary(container, plus, t, t, S_IDENTITY);
+      declare_unary(container, minus, t, t, S_NEGATE);
 
       // Exponentiation
       if (!universal) {
          std_int = std_type(std, "INTEGER");
-         declare_binary(container, ident_new("\"**\""), t, std_int, t, "exp");
+         declare_binary(container, ident_new("\"**\""), t, std_int, t, S_EXP);
       }
 
       // Absolute value
-      declare_unary(container, ident_new("\"abs\""), t, t, "abs");
+      declare_unary(container, ident_new("\"abs\""), t, t, S_ABS);
 
       // Fall-through
    case T_ENUM:
-      declare_binary(container, ident_new("\"<\""), t, t, std_bool, "lt");
-      declare_binary(container, ident_new("\"<=\""), t, t, std_bool, "leq");
-      declare_binary(container, ident_new("\">\""), t, t, std_bool, "gt");
-      declare_binary(container, ident_new("\">=\""), t, t, std_bool, "geq");
+      declare_binary(container, cmp_lt, t, t, std_bool, S_SCALAR_LT);
+      declare_binary(container, cmp_le, t, t, std_bool, S_SCALAR_LE);
+      declare_binary(container, cmp_gt, t, t, std_bool, S_SCALAR_GT);
+      declare_binary(container, cmp_ge, t, t, std_bool, S_SCALAR_GE);
+
+      if (standard() >= STD_08) {
+         declare_binary(container, ident_new("MINIMUM"), t, t, t, S_MINIMUM);
+         declare_binary(container, ident_new("MAXIMUM"), t, t, t, S_MAXIMUM);
+      }
 
       // Fall-through
    default:
-      declare_binary(container, ident_new("\"=\""), t, t, std_bool, "eq");
-      declare_binary(container, ident_new("\"/=\""), t, t, std_bool, "neq");
+      declare_binary(container, eq, t, t, std_bool, S_SCALAR_EQ);
+      declare_binary(container, neq, t, t, std_bool, S_SCALAR_NEQ);
 
       break;
    }
@@ -983,21 +995,21 @@ static void declare_predefined_ops(tree_t container, type_t t)
       ident_t mult = ident_new("\"*\"");
       ident_t div  = ident_new("\"/\"");
 
-      declare_binary(container, mult, ureal, uint, ureal, "mulri");
-      declare_binary(container, mult, uint, ureal, ureal, "mulir");
-      declare_binary(container, div, ureal, uint, ureal, "divri");
+      declare_binary(container, mult, ureal, uint, ureal, S_MUL_RI);
+      declare_binary(container, mult, uint, ureal, ureal, S_MUL_IR);
+      declare_binary(container, div, ureal, uint, ureal, S_DIV_RI);
    }
 
    // Logical operators
 
    if (bootstrapping && (t == std_bool || t == std_type(std, "BIT"))) {
-      declare_binary(container, ident_new("\"and\""), t, t, t, "and");
-      declare_binary(container, ident_new("\"or\""), t, t, t, "or");
-      declare_binary(container, ident_new("\"xor\""), t, t, t, "xor");
-      declare_binary(container, ident_new("\"nand\""), t, t, t, "nand");
-      declare_binary(container, ident_new("\"nor\""), t, t, t, "nor");
-      declare_binary(container, ident_new("\"xnor\""), t, t, t, "xnor");
-      declare_unary(container, ident_new("\"not\""), t, t, "not");
+      declare_binary(container, ident_new("\"and\""), t, t, t, S_SCALAR_AND);
+      declare_binary(container, ident_new("\"or\""), t, t, t, S_SCALAR_OR);
+      declare_binary(container, ident_new("\"xor\""), t, t, t, S_SCALAR_XOR);
+      declare_binary(container, ident_new("\"nand\""), t, t, t, S_SCALAR_NAND);
+      declare_binary(container, ident_new("\"nor\""), t, t, t, S_SCALAR_NOR);
+      declare_binary(container, ident_new("\"xnor\""), t, t, t, S_SCALAR_XNOR);
+      declare_unary(container, ident_new("\"not\""), t, t, S_SCALAR_NOT);
    }
 
    bool vec_logical = false;
@@ -1009,20 +1021,20 @@ static void declare_predefined_ops(tree_t container, type_t t)
    if (vec_logical) {
       std_int = std_type(std, "INTEGER");
 
-      declare_binary(container, ident_new("\"and\""), t, t, t, "v_and");
-      declare_binary(container, ident_new("\"or\""), t, t, t, "v_or");
-      declare_binary(container, ident_new("\"xor\""), t, t, t, "v_xor");
-      declare_binary(container, ident_new("\"nand\""), t, t, t, "v_nand");
-      declare_binary(container, ident_new("\"nor\""), t, t, t, "v_nor");
-      declare_binary(container, ident_new("\"xnor\""), t, t, t, "v_xnor");
-      declare_unary(container, ident_new("\"not\""), t, t, "v_not");
+      declare_binary(container, ident_new("\"and\""), t, t, t, S_ARRAY_AND);
+      declare_binary(container, ident_new("\"or\""), t, t, t, S_ARRAY_OR);
+      declare_binary(container, ident_new("\"xor\""), t, t, t, S_ARRAY_XOR);
+      declare_binary(container, ident_new("\"nand\""), t, t, t, S_ARRAY_NAND);
+      declare_binary(container, ident_new("\"nor\""), t, t, t, S_ARRAY_NOR);
+      declare_binary(container, ident_new("\"xnor\""), t, t, t, S_ARRAY_XNOR);
+      declare_unary(container, ident_new("\"not\""), t, t, S_ARRAY_NOT);
 
-      declare_binary(container, ident_new("\"sll\""), t, std_int, t, "sll");
-      declare_binary(container, ident_new("\"srl\""), t, std_int, t, "srl");
-      declare_binary(container, ident_new("\"sla\""), t, std_int, t, "sla");
-      declare_binary(container, ident_new("\"sra\""), t, std_int, t, "sra");
-      declare_binary(container, ident_new("\"rol\""), t, std_int, t, "rol");
-      declare_binary(container, ident_new("\"ror\""), t, std_int, t, "ror");
+      declare_binary(container, ident_new("\"sll\""), t, std_int, t, S_SLL);
+      declare_binary(container, ident_new("\"srl\""), t, std_int, t, S_SRL);
+      declare_binary(container, ident_new("\"sla\""), t, std_int, t, S_SLA);
+      declare_binary(container, ident_new("\"sra\""), t, std_int, t, S_SRA);
+      declare_binary(container, ident_new("\"rol\""), t, std_int, t, S_ROL);
+      declare_binary(container, ident_new("\"ror\""), t, std_int, t, S_ROR);
    }
 
    // Predefined procedures
@@ -1043,14 +1055,14 @@ static void declare_predefined_ops(tree_t container, type_t t)
          type_t open_status = std_type(std, "FILE_OPEN_STATUS");
          type_t std_string  = std_type(std, "STRING");
 
-         tree_t file_open1 = builtin_proc(file_open_i, "file_open1");
+         tree_t file_open1 = builtin_proc(file_open_i, S_FILE_OPEN1);
          add_port(file_open1, t, PORT_INOUT, NULL);
          add_port(file_open1, std_string, PORT_IN, NULL);
          add_port(file_open1, open_kind, PORT_IN, make_ref(read_mode));
          insert_name(nametab, file_open1, file_open_i, 0);
          tree_add_decl(container, file_open1);
 
-         tree_t file_open2 = builtin_proc(file_open_i, "file_open2");
+         tree_t file_open2 = builtin_proc(file_open_i, S_FILE_OPEN2);
          add_port(file_open2, open_status, PORT_OUT, NULL);
          add_port(file_open2, t, PORT_INOUT, NULL);
          add_port(file_open2, std_string, PORT_IN, NULL);
@@ -1058,14 +1070,14 @@ static void declare_predefined_ops(tree_t container, type_t t)
          insert_name(nametab, file_open2, file_open_i, 0);
          tree_add_decl(container, file_open2);
 
-         tree_t file_close = builtin_proc(file_close_i, "file_close");
+         tree_t file_close = builtin_proc(file_close_i, S_FILE_CLOSE);
          add_port(file_close, t, PORT_INOUT, NULL);
          insert_name(nametab, file_close, file_close_i, 0);
          tree_add_decl(container, file_close);
 
          type_t of = type_file(t);
 
-         tree_t read = builtin_proc(read_i, "file_read");
+         tree_t read = builtin_proc(read_i, S_FILE_READ);
          add_port(read, t, PORT_INOUT, NULL);
          add_port(read, of, PORT_OUT, NULL);
          if (type_is_array(of) && type_is_unconstrained(of))
@@ -1073,13 +1085,13 @@ static void declare_predefined_ops(tree_t container, type_t t)
          insert_name(nametab, read, read_i, 0);
          tree_add_decl(container, read);
 
-         tree_t write = builtin_proc(write_i, "file_write");
+         tree_t write = builtin_proc(write_i, S_FILE_WRITE);
          add_port(write, t, PORT_INOUT, NULL);
          add_port(write, of, PORT_IN, NULL);
          insert_name(nametab, write, write_i, 0);
          tree_add_decl(container, write);
 
-         declare_unary(container, endfile_i, t, std_bool, "endfile");
+         declare_unary(container, endfile_i, t, std_bool, S_ENDFILE);
       }
       break;
 
@@ -1087,7 +1099,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
       {
          ident_t deallocate_i = ident_new("DEALLOCATE");
 
-         tree_t deallocate = builtin_proc(deallocate_i, "deallocate");
+         tree_t deallocate = builtin_proc(deallocate_i, S_DEALLOCATE);
          add_port(deallocate, t, PORT_INOUT, NULL);
          insert_name(nametab, deallocate, deallocate_i, 0);
          tree_add_decl(container, deallocate);
@@ -4272,6 +4284,7 @@ static tree_t p_subprogram_specification(void)
 
    tree_set_type(t, type);
    tree_set_ident(t, p_designator());
+   tree_set_subkind(t, S_USER);
 
    type_set_ident(type, tree_ident(t));
 

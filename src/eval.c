@@ -161,7 +161,7 @@ static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
 
 static bool eval_have_lowered(tree_t func, eval_flags_t flags)
 {
-   if (tree_attr_str(func, builtin_i))
+   if (is_builtin(tree_subkind(func)))
       return true;
    else if (!tree_has_ident2(func))
       return false;

@@ -108,28 +108,26 @@ void range_bounds(tree_t r, int64_t *low, int64_t *high)
    *high = tree_subkind(r) == RANGE_TO ? right : left;
 }
 
-tree_t call_builtin(const char *builtin, type_t type, ...)
+tree_t call_builtin(subprogram_kind_t builtin, type_t type, ...)
 {
    struct decl_cache {
       struct decl_cache *next;
-      ident_t bname;
+      subprogram_kind_t bname;
       tree_t  decl;
    };
 
-   char *name = xasprintf("NVC.BUILTIN.%s", builtin);
+   char *name LOCAL = xasprintf("NVC.BUILTIN.%d", builtin);
    for (char *p = name; *p != '\0'; p++)
       *p = toupper((int)*p);
 
    static struct decl_cache *cache = NULL;
 
-   ident_t bname = ident_new(builtin);
    ident_t name_i = ident_new(name);
-   free(name);
 
    struct decl_cache *it;
    tree_t decl = NULL;
    for (it = cache; it != NULL; it = it->next) {
-      if (it->bname == bname) {
+      if (it->bname == builtin) {
          decl = it->decl;
          break;
       }
@@ -138,12 +136,12 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
    if (decl == NULL) {
       decl = tree_new(T_FUNC_DECL);
       tree_set_ident(decl, name_i);
-      tree_add_attr_str(decl, builtin_i, ident_new(builtin));
+      tree_set_subkind(decl, builtin);
    }
 
    struct decl_cache *c = xmalloc(sizeof(struct decl_cache));
    c->next  = cache;
-   c->bname = bname;
+   c->bname = builtin;
    c->decl  = decl;
 
    cache = c;
@@ -1150,4 +1148,9 @@ type_t std_type(tree_t standard, const char *name)
       return tree_type(d);
 
    fatal("cannot find standard type %s", name);
+}
+
+bool is_builtin(subprogram_kind_t kind)
+{
+   return kind != S_USER && kind != S_FOREIGN;
 }
