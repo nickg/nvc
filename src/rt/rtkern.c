@@ -1013,10 +1013,14 @@ struct uarray _std_to_string_real_format(double value, struct uarray *format)
    else
       str_len = format->dims[0].left - format->dims[0].right + 1;
 
-   char *LOCAL fmt_str = xmalloc(str_len + 2);
-   fmt_str[0] = '%';
-   memcpy(fmt_str + 1, format->ptr, str_len);
-   fmt_str[str_len + 1] = '\0';
+   char *LOCAL fmt_str = xmalloc(str_len + 1);
+   memcpy(fmt_str, format->ptr, str_len);
+   fmt_str[str_len] = '\0';
+
+   if (fmt_str[0] != '%') {
+      rt_show_trace(NULL);
+      fatal("conversion specification must start with '%%'");
+   }
 
    for (const char *p = fmt_str + 1; *p; p++) {
       switch (*p) {

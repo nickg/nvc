@@ -51,8 +51,8 @@ begin
         report to_string(r, 0);
         assert to_string(r, 0)(1 to 7) = "1.23456";
 
-        report to_string(r, "1.1f");
-        assert to_string(r, "1.1f") = "1.2";
+        report to_string(r, "%1.1f");
+        assert to_string(r, "%1.1f") = "1.2";
 
         wait;
     end process;
