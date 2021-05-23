@@ -1232,10 +1232,6 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
          elab_prot_body_decls(d);
          tree_add_decl(ctx->out, d);
          break;
-      case T_FUNC_DECL:
-      case T_PROC_DECL:
-         tree_set_ident(d, npath);
-         break;
       case T_USE:
          elab_use_clause(d, ctx);
          break;

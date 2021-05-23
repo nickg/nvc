@@ -161,7 +161,10 @@ static void dump_expr(tree_t t)
          printf("%"PRIi64, tree_ival(t));
          break;
       case L_PHYSICAL:
-         printf("%"PRIi64" %s", tree_ival(t), istr(tree_ident(t)));
+         if (tree_has_ident(t))
+            printf("%"PRIi64" %s", tree_ival(t), istr(tree_ident(t)));
+         else
+            printf("%"PRIi64, tree_ival(t));
          break;
       case L_REAL:
          printf("%lf", tree_dval(t));

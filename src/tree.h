@@ -152,6 +152,7 @@ typedef enum {
    S_DEALLOCATE,
    S_MINIMUM,
    S_MAXIMUM,
+   S_TO_STRING,
 } subprogram_kind_t;
 
 typedef enum tree_kind {

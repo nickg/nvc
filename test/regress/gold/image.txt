@@ -4,7 +4,7 @@
 0ms+0: Report Note: i=73 units
 0ms+0: Report Note: 'c'
 0ms+0: Report Note: 'X'
-10ps+0: Report Note: 10000 FS
+10ps+0: Report Note: 10000 fs
 1010ps+0: Report Note: a
 1010ps+0: Report Note: c
 1010ps+0: Report Note: a

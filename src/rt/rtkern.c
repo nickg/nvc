@@ -421,7 +421,7 @@ static void rt_show_trace(const loc_t *skip)
 
       if (enclosing && ntrees > 0) {
          const loc_t *loc = tree_loc(trees[ntrees - 1]);
-         if (!loc_eq(skip, loc)) {
+         if (skip == NULL || !loc_eq(skip, loc)) {
             if (tree_kind(enclosing) == T_PROCESS)
                note_at(loc, "in process %s", istr(tree_ident(enclosing)));
             else
@@ -953,6 +953,95 @@ DLLEXPORT
 int64_t _std_standard_now(void)
 {
    return now;
+}
+
+DLLEXPORT
+struct uarray _std_to_string_time(int64_t value, int64_t unit)
+{
+   const char *unit_str = "";
+   switch (unit) {
+   case 1ll: unit_str = "fs"; break;
+   case 1000ll: unit_str = "ps"; break;
+   case 1000000ll: unit_str = "ns"; break;
+   case 1000000000ll: unit_str = "us"; break;
+   case 1000000000000ll: unit_str = "ms"; break;
+   case 1000000000000000ll: unit_str = "sec"; break;
+   case 60000000000000000ll: unit_str = "min"; break;
+   case 3600000000000000000ll: unit_str = "hr"; break;
+   default:
+      rt_show_trace(NULL);
+      fatal("invalid UNIT argument %"PRIi64" in TO_STRING", unit);
+   }
+
+   size_t max_len = 16 + strlen(unit_str) + 1;
+   char *buf = rt_tmp_alloc(max_len);
+   size_t len = checked_sprintf(buf, max_len, "%"PRIi64" %s",
+                                value / unit, unit_str);
+
+   struct uarray u = {
+      .ptr = buf,
+      .dims = { [0] = { .dir = RANGE_TO, .left = 1, .right = len } }
+   };
+   return u;
+}
+
+DLLEXPORT
+struct uarray _std_to_string_real_digits(double value, int32_t digits)
+{
+   size_t max_len = 32;
+   char *buf = rt_tmp_alloc(max_len);
+
+   size_t len;
+   if (digits == 0)
+      len = checked_sprintf(buf, max_len, "%.17g", value);
+   else
+      len = checked_sprintf(buf, max_len, "%.*f", digits, value);
+
+   struct uarray u = {
+      .ptr = buf,
+      .dims = { [0] = { .dir = RANGE_TO, .left = 1, .right = len } }
+   };
+   return u;
+}
+
+DLLEXPORT
+struct uarray _std_to_string_real_format(double value, struct uarray *format)
+{
+   size_t str_len;
+   if (format->dims[0].dir == RANGE_TO)
+      str_len = format->dims[0].right - format->dims[0].left + 1;
+   else
+      str_len = format->dims[0].left - format->dims[0].right + 1;
+
+   char *LOCAL fmt_str = xmalloc(str_len + 2);
+   fmt_str[0] = '%';
+   memcpy(fmt_str + 1, format->ptr, str_len);
+   fmt_str[str_len + 1] = '\0';
+
+   for (const char *p = fmt_str + 1; *p; p++) {
+      switch (*p) {
+      case 'e': case 'E': case 'f': case 'F': case 'g': case 'G':
+      case 'a': case 'A':
+         continue;
+      case '0'...'9':
+         continue;
+      case '.': case '-':
+         continue;
+      default:
+         rt_show_trace(NULL);
+         fatal("illegal character '%c' in format \"%s\"", *p, fmt_str + 1);
+      }
+   }
+
+   size_t max_len = 64;
+   char *buf = rt_tmp_alloc(max_len);
+   size_t len = checked_sprintf(buf, max_len, fmt_str, value);
+
+   struct uarray u = {
+      .ptr = buf,
+      .dims = { [0] = { .dir = RANGE_TO, .left = 1, .right = len } }
+   };
+   return u;
 }
 
 DLLEXPORT

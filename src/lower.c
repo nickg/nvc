@@ -108,6 +108,7 @@ static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type);
 static void lower_decls(tree_t scope, vcode_unit_t context);
 static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg);
 static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx);
+static vcode_reg_t lower_image_map(type_t type);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -1387,6 +1388,11 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
          vcode_type_t rtype  = lower_type(tree_type(fcall));
          return emit_cast(rtype, rtype,
                           emit_div(r0, emit_cast(vreal, vreal, r1)));
+      }
+   case S_TO_STRING:
+      {
+         vcode_reg_t map = lower_image_map(r0_type);
+         return emit_image(r0, map);
       }
    default:
       fatal_at(tree_loc(fcall), "cannot lower builtin %d", builtin);

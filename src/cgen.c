@@ -29,6 +29,7 @@
 #include <string.h>
 #include <limits.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <sys/stat.h>
 
 #include <llvm-c/Core.h>
@@ -1425,10 +1426,13 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
       char *strings LOCAL = xmalloc(total_chars);
       for (size_t i = 0; i < map.nelems; i++) {
          const size_t tlen = ident_len(map.elems[i]);
+         bool quoted = false;
          for (size_t j = 0; j < max_len + 1; j++) {
             const size_t off = (i * (max_len + 1)) + j;
+            char ch = ident_char(map.elems[i], tlen - j - 1);
+            quoted |= ch == '\'';
             if (j < tlen)
-               strings[off] = ident_char(map.elems[i], tlen - j - 1);
+               strings[off] = quoted ? ch : tolower(ch);
             else
                strings[off] = '\0';
          }

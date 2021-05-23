@@ -742,13 +742,13 @@ static const char *get_cond_analysis_identifier(const char *name)
       return NULL;
 }
 
-static tree_t add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
+static tree_t add_port(tree_t d, const char *name, type_t type,
+                       port_mode_t mode, tree_t def)
 {
    type_t ftype = tree_type(d);
 
-   char *argname LOCAL = xasprintf("_arg%d", type_params(ftype));
    tree_t port = tree_new(T_PORT_DECL);
-   tree_set_ident(port, ident_new(argname));
+   tree_set_ident(port, ident_new(name));
    tree_set_loc(port, tree_loc(d));
    tree_set_type(port, type);
    tree_set_subkind(port, mode);
@@ -793,9 +793,12 @@ static tree_t builtin_fn(ident_t name, type_t result,
 
    va_list ap;
    va_start(ap, kind);
-   type_t arg;
-   while ((arg = va_arg(ap, type_t)))
-      add_port(d, arg, PORT_IN, NULL);
+   char *argname;
+   while ((argname = va_arg(ap, char*))) {
+      type_t type = va_arg(ap, type_t);
+      assert(type != NULL);
+      add_port(d, argname, type, PORT_IN, NULL);
+   }
    va_end(ap);
 
    tree_set_flag(d, TREE_F_PREDEFINED);
@@ -806,7 +809,7 @@ static tree_t builtin_fn(ident_t name, type_t result,
 static void declare_binary(tree_t container, ident_t name, type_t lhs,
                            type_t rhs, type_t result, subprogram_kind_t kind)
 {
-   tree_t d = builtin_fn(name, result, kind, lhs, rhs, NULL);
+   tree_t d = builtin_fn(name, result, kind, "L", lhs, "R", rhs, NULL);
    insert_name(nametab, d, NULL, 0);
    tree_add_decl(container, d);
 }
@@ -814,7 +817,7 @@ static void declare_binary(tree_t container, ident_t name, type_t lhs,
 static void declare_unary(tree_t container, ident_t name, type_t operand,
                           type_t result, subprogram_kind_t kind)
 {
-   tree_t d = builtin_fn(name, result, kind, operand, NULL);
+   tree_t d = builtin_fn(name, result, kind, "VALUE", operand, NULL);
    insert_name(nametab, d, NULL, 0);
    tree_add_decl(container, d);
 }
@@ -981,6 +984,11 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_binary(container, eq, t, t, std_bool, S_SCALAR_EQ);
       declare_binary(container, neq, t, t, std_bool, S_SCALAR_NEQ);
 
+      if (standard() >= STD_08 && !bootstrapping) {
+         declare_unary(container, ident_new("TO_STRING"), t,
+                       std_type(std, "STRING"), S_TO_STRING);
+      }
+
       break;
    }
 
@@ -1056,38 +1064,40 @@ static void declare_predefined_ops(tree_t container, type_t t)
          type_t std_string  = std_type(std, "STRING");
 
          tree_t file_open1 = builtin_proc(file_open_i, S_FILE_OPEN1);
-         add_port(file_open1, t, PORT_INOUT, NULL);
-         add_port(file_open1, std_string, PORT_IN, NULL);
-         add_port(file_open1, open_kind, PORT_IN, make_ref(read_mode));
+         add_port(file_open1, "F", t, PORT_INOUT, NULL);
+         add_port(file_open1, "EXTERNAL_NAME", std_string, PORT_IN, NULL);
+         add_port(file_open1, "OPEN_KIND", open_kind, PORT_IN,
+                  make_ref(read_mode));
          insert_name(nametab, file_open1, file_open_i, 0);
          tree_add_decl(container, file_open1);
 
          tree_t file_open2 = builtin_proc(file_open_i, S_FILE_OPEN2);
-         add_port(file_open2, open_status, PORT_OUT, NULL);
-         add_port(file_open2, t, PORT_INOUT, NULL);
-         add_port(file_open2, std_string, PORT_IN, NULL);
-         add_port(file_open2, open_kind, PORT_IN, make_ref(read_mode));
+         add_port(file_open2, "STATUS", open_status, PORT_OUT, NULL);
+         add_port(file_open2, "F", t, PORT_INOUT, NULL);
+         add_port(file_open2, "EXTERNAL_NAME", std_string, PORT_IN, NULL);
+         add_port(file_open2, "OPEN_KIND", open_kind, PORT_IN,
+                  make_ref(read_mode));
          insert_name(nametab, file_open2, file_open_i, 0);
          tree_add_decl(container, file_open2);
 
          tree_t file_close = builtin_proc(file_close_i, S_FILE_CLOSE);
-         add_port(file_close, t, PORT_INOUT, NULL);
+         add_port(file_close, "F", t, PORT_INOUT, NULL);
          insert_name(nametab, file_close, file_close_i, 0);
          tree_add_decl(container, file_close);
 
          type_t of = type_file(t);
 
          tree_t read = builtin_proc(read_i, S_FILE_READ);
-         add_port(read, t, PORT_INOUT, NULL);
-         add_port(read, of, PORT_OUT, NULL);
+         add_port(read, "F", t, PORT_INOUT, NULL);
+         add_port(read, "VALUE", of, PORT_OUT, NULL);
          if (type_is_array(of) && type_is_unconstrained(of))
-            add_port(read, std_type(std, "INTEGER"), PORT_OUT, NULL);
+            add_port(read, "LENGTH", std_type(std, "NATURAL"), PORT_OUT, NULL);
          insert_name(nametab, read, read_i, 0);
          tree_add_decl(container, read);
 
          tree_t write = builtin_proc(write_i, S_FILE_WRITE);
-         add_port(write, t, PORT_INOUT, NULL);
-         add_port(write, of, PORT_IN, NULL);
+         add_port(write, "F", t, PORT_INOUT, NULL);
+         add_port(write, "VALUE", of, PORT_IN, NULL);
          insert_name(nametab, write, write_i, 0);
          tree_add_decl(container, write);
 
@@ -1100,7 +1110,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
          ident_t deallocate_i = ident_new("DEALLOCATE");
 
          tree_t deallocate = builtin_proc(deallocate_i, S_DEALLOCATE);
-         add_port(deallocate, t, PORT_INOUT, NULL);
+         add_port(deallocate, "P", t, PORT_INOUT, NULL);
          insert_name(nametab, deallocate, deallocate_i, 0);
          tree_add_decl(container, deallocate);
       }
@@ -1109,6 +1119,47 @@ static void declare_predefined_ops(tree_t container, type_t t)
    default:
       break;
    }
+}
+
+static void declare_standard_to_string(tree_t unit)
+{
+   // LRM 08 5.2.6 says TO_STRING is declared at the end of the STANDARD
+   // package
+
+   assert(bootstrapping);
+
+   ident_t to_string   = ident_new("TO_STRING");
+   type_t  std_string  = std_type(unit, "STRING");
+   type_t  std_time    = std_type(unit, "TIME");
+   type_t  std_real    = std_type(unit, "REAL");
+   type_t  std_natural = std_type(unit, "NATURAL");
+
+   const int ndecls = tree_decls(unit);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(unit, i);
+      if (tree_kind(d) == T_TYPE_DECL) {
+         type_t type = tree_type(d);
+         if (type_is_scalar(type))
+            declare_unary(unit, to_string, type, std_string, S_TO_STRING);
+      }
+   }
+
+   // The following special cases are implicitly defined
+
+   tree_t d1 = builtin_fn(to_string, std_string, S_FOREIGN,
+                          "VALUE", std_time, "UNIT", std_time, NULL);
+   tree_set_ident2(d1, ident_new("_std_to_string_time"));
+   tree_add_decl(unit, d1);
+
+   tree_t d2 = builtin_fn(to_string, std_string, S_FOREIGN,
+                          "VALUE", std_real, "DIGITS", std_natural, NULL);
+   tree_set_ident2(d2, ident_new("_std_to_string_real_digits"));
+   tree_add_decl(unit, d2);
+
+   tree_t d3 = builtin_fn(to_string, std_string, S_FOREIGN,
+                          "VALUE", std_real, "FORMAT", std_string, NULL);
+   tree_set_ident2(d3, ident_new("_std_to_string_real_format"));
+   tree_add_decl(unit, d3);
 }
 
 static void skip_selected_name(void)
@@ -7287,6 +7338,9 @@ static tree_t p_design_unit(void)
 
    p_context_clause(unit);
    p_library_unit(unit);
+
+   if (bootstrapping && standard() >= STD_08)
+      declare_standard_to_string(unit);
 
    pop_scope(nametab);
 
