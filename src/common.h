@@ -150,7 +150,6 @@ GLOBAL ident_t nested_i;
 GLOBAL ident_t drives_all_i;
 GLOBAL ident_t driver_init_i;
 GLOBAL ident_t GLOBAL_i;
-GLOBAL ident_t null_range_i;
 GLOBAL ident_t prot_field_i;
 GLOBAL ident_t stmt_tag_i;
 GLOBAL ident_t cond_tag_i;

@@ -252,7 +252,7 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
       group_add(ctx, first, len);
    else {
       // Array signal with null range
-      tree_add_attr_int(decl, null_range_i, 1);
+      tree_set_flag(decl, TREE_F_NULL_RANGE);
    }
 }
 

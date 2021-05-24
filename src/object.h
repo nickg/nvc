@@ -142,8 +142,8 @@ typedef uint16_t generation_t;
 typedef uint32_t index_t;
 
 typedef struct {
-   attr_kind_t kind;
-   ident_t     name;
+   tree_attr_kind_t kind;
+   ident_t          name;
    union {
       ident_t sval;
       int     ival;

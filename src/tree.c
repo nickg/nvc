@@ -1091,7 +1091,7 @@ void tree_read_end(tree_rd_ctx_t ctx)
    object_read_end((object_rd_ctx_t *)ctx);
 }
 
-static attr_t *tree_find_attr(tree_t t, ident_t name, attr_kind_t kind)
+static attr_t *tree_find_attr(tree_t t, ident_t name, tree_attr_kind_t kind)
 {
    assert(t != NULL);
    assert(name != NULL);
@@ -1106,7 +1106,7 @@ static attr_t *tree_find_attr(tree_t t, ident_t name, attr_kind_t kind)
    return NULL;
 }
 
-static attr_t *tree_add_attr(tree_t t, ident_t name, attr_kind_t kind)
+static attr_t *tree_add_attr(tree_t t, ident_t name, tree_attr_kind_t kind)
 {
    assert(t != NULL);
    assert(name != NULL);

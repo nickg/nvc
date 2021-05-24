@@ -4534,7 +4534,7 @@ static void lower_signal_decl(tree_t decl)
    bool is_package_signal = false;
    ident_t name = tree_ident(decl);
 
-   if (nnets == 0 && !tree_attr_int(decl, null_range_i, 0)) {
+   if (nnets == 0 && !(tree_flags(decl) & TREE_F_NULL_RANGE)) {
       // Signal declared in a package
       nnets = type_width(tree_type(decl));
       is_package_signal = true;
