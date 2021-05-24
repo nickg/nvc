@@ -60,6 +60,7 @@
 #define F_COVER   (1 << 7)
 #define F_GENERIC (1 << 8)
 #define F_RELAX   (1 << 9)
+#define F_CLEAN   (1 << 10)
 
 typedef struct test test_t;
 typedef struct generic generic_t;
@@ -306,6 +307,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_OPT;
          else if (strcmp(opt, "cover") == 0)
             test->flags |= F_COVER;
+         else if (strcmp(opt, "clean") == 0)
+            test->flags |= F_CLEAN;
          else if (strncmp(opt, "g", 1) == 0) {
             char *value = strchr(opt, '=');
             if (value == NULL) {
@@ -503,6 +506,11 @@ static bool run_test(test_t *test)
       goto out_chdir;
    }
 #endif
+
+   if ((test->flags & F_CLEAN) && system("rm -r work") != 0) {
+      fprintf(stderr, "Failed to clean work directory\n");
+      goto out_chdir;
+   }
 
    FILE *outf = fopen("out", "w");
    if (outf == NULL) {

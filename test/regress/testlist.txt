@@ -222,7 +222,7 @@ issue53         normal
 issue59         normal
 issue60         normal
 record11        normal
-issue63         normal
+issue63         normal,clean
 driver5         normal
 textio3         normal
 record12        normal
