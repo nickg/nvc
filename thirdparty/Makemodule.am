@@ -1,6 +1,4 @@
-noinst_LIBRARIES += lib/libfst.a lib/liblxt.a lib/libfastlz.a lib/libjson.a
-
-lib_liblxt_a_SOURCES = thirdparty/lxt_write.c thirdparty/lxt_write.h
+noinst_LIBRARIES += lib/libfst.a lib/libfastlz.a lib/libjson.a
 
 lib_libfst_a_SOURCES = thirdparty/fstapi.c thirdparty/lz4.c thirdparty/fstapi.h \
 	thirdparty/lz4.h

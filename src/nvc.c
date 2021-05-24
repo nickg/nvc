@@ -460,7 +460,7 @@ static int run(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
-   enum { LXT, FST, VCD} wave_fmt = FST;
+   enum { FST, VCD} wave_fmt = FST;
 
    uint64_t stop_time = UINT64_MAX;
    const char *wave_fname = NULL;
@@ -500,8 +500,6 @@ static int run(int argc, char **argv)
             wave_fmt = VCD;
          else if (strcmp(optarg, "fst") == 0)
             wave_fmt = FST;
-         else if (strcmp(optarg, "lxt") == 0)
-            wave_fmt = LXT;
          else
             fatal("invalid waveform format: %s", optarg);
          break;
@@ -544,8 +542,8 @@ static int run(int argc, char **argv)
       fatal("%s not suitable top level", istr(top_level));
 
    if (wave_fname != NULL) {
-      const char *name_map[] = { "LXT", "FST", "VCD" };
-      const char *ext_map[]  = { "lxt", "fst", "vcd" };
+      const char *name_map[] = { "FST", "VCD" };
+      const char *ext_map[]  = { "fst", "vcd" };
       char *tmp LOCAL = NULL;
 
       if (*wave_fname == '\0') {
@@ -557,9 +555,6 @@ static int run(int argc, char **argv)
       wave_include_file(argv[optind]);
 
       switch (wave_fmt) {
-      case LXT:
-         lxt_init(wave_fname, e);
-         break;
       case VCD:
          vcd_init(wave_fname, e);
          break;

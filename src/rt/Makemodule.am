@@ -8,7 +8,6 @@ lib_librt_a_SOURCES = \
 	src/rt/pprint.c \
 	src/rt/netdb.c \
 	src/rt/cover.c \
-	src/rt/lxt.c \
 	src/rt/fst.c \
 	src/rt/wave.c \
 	src/rt/rt.h \

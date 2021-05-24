@@ -20,6 +20,8 @@
   for runtime stack trace if libdw or libdwarf is installed.
 - Added support for MINIMUM, MAXIMUM, and TO_STRING predefined operators
   in VHDL-2008.
+- Support for the LXT wave output format, which was deprecated in
+  version 1.5, has been removed. Use the default FST format instead.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

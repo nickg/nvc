@@ -162,7 +162,6 @@ GLOBAL ident_t simple_name_i;
 GLOBAL ident_t std_i;
 GLOBAL ident_t nnets_i;
 GLOBAL ident_t thunk_i;
-GLOBAL ident_t defer_overload_i;
 
 void intern_strings();
 

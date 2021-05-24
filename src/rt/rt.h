@@ -135,9 +135,6 @@ text_buf_t *pprint(struct tree *t, const uint64_t *values, size_t len);
 void vcd_init(const char *file, struct tree *top);
 void vcd_restart(void);
 
-void lxt_init(const char *file, struct tree *top);
-void lxt_restart(void);
-
 void fst_init(const char *file, tree_t top);
 void fst_restart(void);
 

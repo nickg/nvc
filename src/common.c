@@ -1035,7 +1035,6 @@ void intern_strings(void)
    std_i            = ident_new("STD");
    nnets_i          = ident_new("nnets");
    thunk_i          = ident_new("thunk");
-   defer_overload_i = ident_new("defer_overload");
 }
 
 bool pack_needs_cgen(tree_t t)

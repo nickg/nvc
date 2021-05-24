@@ -2380,7 +2380,6 @@ static void rt_cycle(int stop_delta)
 
    if (unlikely(now == 0 && iteration == 0)) {
       vcd_restart();
-      lxt_restart();
       fst_restart();
    }
    else if (unlikely((stop_delta > 0) && (iteration == stop_delta)))
