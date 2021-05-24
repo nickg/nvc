@@ -1,5 +1,5 @@
 package pack is
-    signal x : integer := 0;
+    signal x, y : integer := 0;
 
     procedure inc(signal s : out integer);
 end package;
@@ -57,8 +57,12 @@ begin
         inc(x);
         wait for 1 ns;
         assert x = 1;
+        wait for 1 ns;
+        assert y = 2;
         wait;
     end process;
+
+    y <= x + 1;
 
     sub_i: entity work.sub;
 
