@@ -735,7 +735,7 @@ tree_t make_default_value(type_t type, const loc_t *loc)
             tree_set_ident(aref, ident_new("LEFT"));
             tree_set_name(aref, tree_name(tree_value(r)));
             tree_set_type(aref, tree_type(r));
-            tree_add_attr_int(aref, builtin_i, ATTR_LEFT);
+            tree_set_subkind(aref, ATTR_LEFT);
             return aref;
          }
          else
@@ -915,7 +915,7 @@ range_kind_t direction_of(type_t type, unsigned dim)
             tree_t value = tree_value(r);
             assert(tree_kind(value) == T_ATTR_REF);
 
-            const predef_attr_t attr = tree_attr_int(value, builtin_i, -1);
+            const attr_kind_t attr = tree_subkind(value);
             assert(attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE);
 
             tree_t name = tree_name(value);
@@ -1000,7 +1000,6 @@ char *vcode_file_name(ident_t unit_name)
 
 void intern_strings(void)
 {
-   builtin_i        = ident_new("builtin");
    std_standard_i   = ident_new("STD.STANDARD");
    formal_i         = ident_new("formal");
    elab_copy_i      = ident_new("elab_copy");

@@ -248,7 +248,7 @@ static tree_t simp_ref(tree_t t)
    }
 }
 
-static tree_t simp_attr_delayed_transaction(tree_t t, predef_attr_t predef,
+static tree_t simp_attr_delayed_transaction(tree_t t, attr_kind_t predef,
                                             simp_ctx_t *ctx)
 {
    tree_t name = tree_name(t);
@@ -338,7 +338,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
    if (tree_has_value(t))
       return tree_value(t);
 
-   const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
+   const attr_kind_t predef = tree_subkind(t);
    switch (predef) {
    case ATTR_DELAYED:
    case ATTR_TRANSACTION:
@@ -355,8 +355,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
          const tree_kind_t name_kind = tree_kind(name);
 
          if (name_kind != T_REF
-             && !(name_kind == T_ATTR_REF
-                  && tree_attr_int(name, builtin_i, -1) == ATTR_BASE))
+             && !(name_kind == T_ATTR_REF && tree_subkind(name) == ATTR_BASE))
             return t;   // Cannot fold this
 
          type_t type = tree_type(name);
@@ -884,7 +883,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
 
    case T_ATTR_REF:
       {
-         const predef_attr_t predef = tree_attr_int(expr, builtin_i, -1);
+         const attr_kind_t predef = tree_subkind(expr);
          if (predef == ATTR_EVENT || predef == ATTR_ACTIVE)
             simp_build_wait(wait, tree_name(expr), all);
 
@@ -1247,7 +1246,7 @@ static tree_t simp_range(tree_t t)
    tree_t value = tree_value(t);
    assert(tree_kind(value) == T_ATTR_REF);
 
-   const predef_attr_t attr = tree_attr_int(value, builtin_i, -1);
+   const attr_kind_t attr = tree_subkind(value);
    assert(attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE);
 
    tree_t name = tree_name(value);

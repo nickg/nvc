@@ -1248,7 +1248,7 @@ static bool is_range_expr(tree_t t)
 
    case T_ATTR_REF:
       {
-         predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
+         const attr_kind_t predef = tree_subkind(t);
          return predef == ATTR_RANGE || predef == ATTR_REVERSE_RANGE;
       }
 
@@ -1831,7 +1831,7 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
             tree_set_name(tmp, expr1);
             tree_set_ident(tmp, ident_new("RANGE"));
             tree_set_loc(tmp, tree_loc(expr1));
-            tree_add_attr_int(tmp, builtin_i, ATTR_RANGE);
+            tree_set_subkind(tmp, ATTR_RANGE);
 
             expr1 = tmp;
          }
@@ -2025,7 +2025,7 @@ static tree_t p_function_call(ident_t id, tree_t prefix)
    return call;
 }
 
-static predef_attr_t parse_predefined_attr(ident_t ident)
+static attr_kind_t parse_predefined_attr(ident_t ident)
 {
    if (icmp(ident, "RANGE"))
       return ATTR_RANGE;
@@ -2088,7 +2088,7 @@ static predef_attr_t parse_predefined_attr(ident_t ident)
    else if (icmp(ident, "BASE"))
       return ATTR_BASE;
    else
-      return (predef_attr_t)-1;
+      return ATTR_USER;
 }
 
 static tree_t p_attribute_name(tree_t prefix)
@@ -2130,14 +2130,11 @@ static tree_t p_attribute_name(tree_t prefix)
    }
    tree_set_ident(t, id);
 
-   predef_attr_t predef = -1;
-   if ((predef = parse_predefined_attr(id)) != -1) {
-      tree_add_attr_int(t, builtin_i, predef);
-
-      if (optional(tLPAREN)) {
-         add_param(t, p_expression(), P_POS, NULL);
-         consume(tRPAREN);
-      }
+   const attr_kind_t kind = parse_predefined_attr(id);
+   tree_set_subkind(t, kind);
+   if (kind != ATTR_USER && optional(tLPAREN)) {
+      add_param(t, p_expression(), P_POS, NULL);
+      consume(tRPAREN);
    }
 
    tree_set_loc(t, CURRENT_LOC);
@@ -2645,7 +2642,7 @@ static void p_choice(tree_t parent, type_t constraint)
       else if (name_kind == T_REF && tree_has_ref(name))
          is_range = tree_kind(tree_ref(name)) == T_TYPE_DECL;
       else if (name_kind == T_ATTR_REF) {
-         const predef_attr_t attr = tree_attr_int(name, builtin_i, -1);
+         const attr_kind_t attr = tree_subkind(name);
          is_range = attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE;
       }
 

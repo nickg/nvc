@@ -115,42 +115,6 @@ const char *standard_text(vhdl_standard_t s);
 int relax_rules(void);
 void set_relax_rules(int mask);
 
-//
-// Pre-defined attributes
-//
-
-typedef enum {
-   ATTR_LAST_EVENT,
-   ATTR_EVENT,
-   ATTR_ACTIVE,
-   ATTR_LAST_VALUE,
-   ATTR_PATH_NAME,
-   ATTR_INSTANCE_NAME,
-   ATTR_DELAYED,
-   ATTR_STABLE,
-   ATTR_QUIET,
-   ATTR_TRANSACTION,
-   ATTR_LENGTH,
-   ATTR_LEFT,
-   ATTR_LOW,
-   ATTR_HIGH,
-   ATTR_RIGHT,
-   ATTR_ASCENDING,
-   ATTR_IMAGE,
-   ATTR_LAST_ACTIVE,
-   ATTR_DRIVING,
-   ATTR_DRIVING_VALUE,
-   ATTR_VALUE,
-   ATTR_SUCC,
-   ATTR_PRED,
-   ATTR_LEFTOF,
-   ATTR_RIGHTOF,
-   ATTR_POS,
-   ATTR_VAL,
-   ATTR_RANGE,
-   ATTR_REVERSE_RANGE,
-   ATTR_BASE,
-} predef_attr_t;
 
 //
 // Shared interned strings
@@ -162,7 +126,6 @@ typedef enum {
 #define GLOBAL
 #endif
 
-GLOBAL ident_t builtin_i;
 GLOBAL ident_t std_standard_i;
 GLOBAL ident_t formal_i;
 GLOBAL ident_t elab_copy_i;

@@ -2311,7 +2311,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    if (nparams == 1) {
       type_set_push(tab);
 
-      switch (tree_attr_int(aref, builtin_i, -1)) {
+      switch (tree_subkind(aref)) {
       case ATTR_IMAGE:
       case ATTR_LEFTOF:
       case ATTR_RIGHTOF:
@@ -2328,7 +2328,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    }
 
    type_t type = NULL;
-   switch (tree_attr_int(aref, builtin_i, -1)) {
+   switch (tree_subkind(aref)) {
    case ATTR_LENGTH:
       type = std_type(find_std(tab), "INTEGER");
       break;
@@ -2404,7 +2404,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
       }
       break;
 
-   case -1:
+   case ATTR_USER:
       {
          if (tree_kind(prefix) == T_REF) {
             tree_t decl = tree_ref(prefix);
@@ -2451,6 +2451,10 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
             type = type_new(T_NONE);
          }
       }
+      break;
+
+   default:
+      fatal_trace("unhandled attribute %s", istr(tree_ident(aref)));
    }
 
    tree_set_type(aref, type);

@@ -197,7 +197,7 @@ static bool lower_is_reverse_range(tree_t r)
 {
    tree_t value = tree_value(r);
    assert(tree_kind(value) == T_ATTR_REF);
-   return tree_attr_int(value, builtin_i, -1) == ATTR_REVERSE_RANGE;
+   return tree_subkind(value) == ATTR_REVERSE_RANGE;
 }
 
 static vcode_reg_t lower_range_left(tree_t r)
@@ -251,9 +251,8 @@ static vcode_reg_t lower_range_dir(tree_t r, int dim)
 
          tree_t value = tree_value(r);
          assert(tree_kind(value) == T_ATTR_REF);
-         const predef_attr_t attr = tree_attr_int(value, builtin_i, -1);
 
-         if (attr == ATTR_REVERSE_RANGE)
+         if (tree_subkind(value) == ATTR_REVERSE_RANGE)
             return emit_not(emit_uarray_dir(reg, 0));
          else
             return emit_uarray_dir(reg, 0);
@@ -2837,7 +2836,7 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 {
    tree_t name = tree_name(expr);
 
-   const predef_attr_t predef = tree_attr_int(expr, builtin_i, -1);
+   const attr_kind_t predef = tree_subkind(expr);
    switch (predef) {
    case ATTR_LEFT:
    case ATTR_RIGHT:
@@ -3029,8 +3028,8 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
       }
 
    default:
-      fatal_at(tree_loc(expr), "cannot lower attribute %s",
-               istr(tree_ident(expr)));
+      fatal_at(tree_loc(expr), "cannot lower attribute %s (%d)",
+               istr(tree_ident(expr)), predef);
    }
 }
 

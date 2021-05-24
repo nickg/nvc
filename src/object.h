@@ -136,7 +136,7 @@ DECLARE_ARRAY(ident);
 
 typedef enum {
    A_STRING, A_INT, A_PTR, A_TREE
-} attr_kind_t;
+} tree_attr_kind_t;
 
 typedef uint16_t generation_t;
 typedef uint32_t index_t;

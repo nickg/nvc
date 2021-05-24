@@ -2574,13 +2574,13 @@ static bool sem_check_aggregate(tree_t t)
                         tree_t rlow = tree_new(T_ATTR_REF);
                         tree_set_ident(rlow, ident_new("LOW"));
                         tree_set_name(rlow, name);
-                        tree_add_attr_int(rlow, builtin_i, ATTR_LOW);
+                        tree_set_subkind(rlow, ATTR_LOW);
                         tree_set_type(rlow, tree_type(r));
 
                         tree_t rhigh = tree_new(T_ATTR_REF);
                         tree_set_ident(rhigh, ident_new("HIGH"));
                         tree_set_name(rhigh, name);
-                        tree_add_attr_int(rhigh, builtin_i, ATTR_HIGH);
+                        tree_set_subkind(rhigh, ATTR_HIGH);
                         tree_set_type(rhigh, tree_type(r));
 
                         add_param(low, rlow, P_POS, NULL);
@@ -2841,7 +2841,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       break;
 
    case T_ATTR_REF:
-      if (tree_attr_int(name, builtin_i, -1) == ATTR_BASE) {
+      if (tree_subkind(name) == ATTR_BASE) {
          tree_t base = tree_name(name);
 
          if (tree_kind(base) == T_REF) {
@@ -2865,7 +2865,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    }
 
    ident_t attr = tree_ident(t);
-   const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
+   const attr_kind_t predef = tree_subkind(t);
 
    switch (predef) {
    case ATTR_RANGE:
@@ -3057,20 +3057,23 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    case ATTR_LAST_ACTIVE:
    case ATTR_DRIVING:
       fatal_at(tree_loc(t), "sorry, attribute %s not implemented", istr(attr));
+
+   case ATTR_USER:
+      if (!tree_has_value(t))
+         return false;
+
+      if (!sem_static_name(name, sem_globally_static)) {
+         if (tree_kind(name) == T_REF)
+            sem_error(name, "%s is not a static name", istr(tree_ident(name)));
+         else
+            sem_error(name, "invalid attribute reference");
+      }
+
+      return true;
+
+   default:
+      fatal_trace("unhandled attribute kind %d", predef);
    }
-
-   // Must be user-defined attribute
-   if (!tree_has_value(t))
-      return false;
-
-   if (!sem_static_name(name, sem_globally_static)) {
-      if (tree_kind(name) == T_REF)
-         sem_error(name, "%s is not a static name", istr(tree_ident(name)));
-      else
-         sem_error(name, "invalid attribute reference");
-   }
-
-   return true;
 }
 
 static bool sem_check_qualified(tree_t t)
@@ -3533,7 +3536,7 @@ static bool sem_locally_static(tree_t t)
       // A predefined attribute other than those listed below whose prefix
       // prefix is either a locally static subtype or is an object that is
       // of a locally static subtype
-      const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
+      const attr_kind_t predef = tree_subkind(t);
       if (predef == ATTR_EVENT || predef == ATTR_ACTIVE
           || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
           || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING
@@ -3758,13 +3761,13 @@ static bool sem_globally_static(tree_t t)
    if (kind == T_ATTR_REF) {
       // A predefined attribute other than those listed below whose prefix
       // is appropriate for a globally static attribute
-      const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
+      const attr_kind_t predef = tree_subkind(t);
       if (predef == ATTR_EVENT || predef == ATTR_ACTIVE
           || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
           || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING
           || predef == ATTR_DRIVING_VALUE)
          return false;   // Clause k
-      else if (predef != (predef_attr_t)-1) {
+      else if (predef != ATTR_USER) {
          tree_t name = tree_name(t);
          switch (tree_kind(name)) {
          case T_REF:

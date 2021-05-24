@@ -914,15 +914,14 @@ static void bounds_check_type_conv(tree_t t)
 
 static void bounds_check_attr_ref(tree_t t)
 {
-   const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
+   const attr_kind_t predef = tree_subkind(t);
    switch (predef) {
    case ATTR_LENGTH:
    case ATTR_LOW:
    case ATTR_HIGH:
    case ATTR_LEFT:
    case ATTR_RIGHT:
-      if (tree_params(t) > 0)
-      {
+      if (tree_params(t) > 0) {
          type_t type = tree_type(tree_name(t));
          if (type_is_array(type) && !type_is_unconstrained(type)) {
             tree_t dim_tree = tree_value(tree_param(t, 0));
