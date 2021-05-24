@@ -4956,7 +4956,7 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
             return lower_driver_nets(tree_value(*decl), decl, all_nets,
                                      all_length, driven_nets, driven_length,
                                      has_non_const, proc);
-         else if (kind != T_SIGNAL_DECL || tree_nets(*decl) == 0)
+         else if (kind != T_SIGNAL_DECL)
             return false;
 
          *all_nets = *driven_nets = lower_signal_ref(*decl, EXPR_LVALUE);
@@ -5236,7 +5236,7 @@ static void lower_set_verbose(void)
    static bool set = false;
    if (!set) {
       const char *venv = getenv("NVC_LOWER_VERBOSE");
-      if (venv != NULL)
+      if (venv != NULL && venv[0] != '\0')
          verbose = isalpha((int)venv[0]) || venv[0] == ':' ? venv : "";
       else
          verbose = opt_get_str("dump-vcode");
