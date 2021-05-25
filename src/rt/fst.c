@@ -23,6 +23,7 @@
 
 #include <assert.h>
 #include <unistd.h>
+#include <limits.h>
 
 #if !defined __CYGWIN__ && !defined __MINGW32__
 #include <libgen.h>
