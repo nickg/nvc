@@ -861,7 +861,7 @@ static void usage(void)
 static vhdl_standard_t parse_standard(const char *str)
 {
    char *eptr = NULL;
-   const int year = strtol(str, &eptr, 0);
+   const int year = strtol(str, &eptr, 10);
    if ((eptr != NULL) && (*eptr == '\0')) {
       switch (year) {
       case 1987:
