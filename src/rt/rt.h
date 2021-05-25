@@ -106,6 +106,11 @@ typedef enum {
    SEVERITY_FAILURE
 } rt_severity_t;
 
+typedef enum {
+   FST_OUTPUT_FST,
+   FST_OUTPUT_VCD
+} fst_output_t;
+
 void rt_start_of_tool(tree_t top);
 void rt_end_of_tool(tree_t top);
 void rt_run_sim(uint64_t stop_time);
@@ -132,10 +137,7 @@ void *jit_find_symbol(const char *name, bool required);
 
 text_buf_t *pprint(struct tree *t, const uint64_t *values, size_t len);
 
-void vcd_init(const char *file, struct tree *top);
-void vcd_restart(void);
-
-void fst_init(const char *file, tree_t top);
+void fst_init(const char *file, tree_t top, fst_output_t output);
 void fst_restart(void);
 
 void wave_include_glob(const char *glob);

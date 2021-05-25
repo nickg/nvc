@@ -2378,10 +2378,8 @@ static void rt_cycle(int stop_delta)
       rt_free(event_stack, event);
    }
 
-   if (unlikely(now == 0 && iteration == 0)) {
-      vcd_restart();
+   if (unlikely(now == 0 && iteration == 0))
       fst_restart();
-   }
    else if (unlikely((stop_delta > 0) && (iteration == stop_delta)))
       rt_iteration_limit();
 

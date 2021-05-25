@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2013-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -22,10 +22,17 @@
 #include "fstapi.h"
 
 #include <assert.h>
+#include <unistd.h>
 
-static tree_t   fst_top;
-static void    *fst_ctx;
-static uint64_t last_time;
+#if !defined __CYGWIN__ && !defined __MINGW32__
+#include <libgen.h>
+#endif
+
+static tree_t        fst_top;
+static void         *fst_ctx;
+static uint64_t      last_time;
+static FILE         *vcdfile;
+static char         *tmpfst;
 
 typedef struct fst_data fst_data_t;
 
@@ -54,6 +61,35 @@ static void fst_close(void)
 {
    fstWriterEmitTimeChange(fst_ctx, rt_now(NULL));
    fstWriterClose(fst_ctx);
+
+   if (vcdfile) {
+      void *xc = fstReaderOpen(tmpfst);
+      if (xc == NULL)
+         fatal("fstReaderOpen failed for temporary FST file");
+
+      fstReaderSetVcdExtensions(xc, 1);
+      if (!fstReaderProcessHier(xc, vcdfile))
+         fatal("fstReaderProcessHier failed");
+
+      fstReaderSetFacProcessMaskAll(xc);
+      fstReaderIterBlocks(xc, NULL, NULL, vcdfile);
+
+      fstReaderClose(xc);
+      fclose(vcdfile);
+      vcdfile = NULL;
+
+      if (unlink(tmpfst) != 0)
+         fatal_errno("unlink: %s", tmpfst);
+
+#if !defined __CYGWIN__ && !defined __MINGW32__
+      char *tmpdir = dirname(tmpfst);
+      if (rmdir(tmpdir) != 0)
+         fatal_errno("unlink: %s", tmpdir);
+#endif
+
+      free(tmpfst);
+      tmpfst = NULL;
+   }
 }
 
 static void fst_fmt_int(tree_t decl, watch_t *w, fst_data_t *data)
@@ -371,9 +407,33 @@ void fst_restart(void)
    }
 }
 
-void fst_init(const char *file, tree_t top)
+void fst_init(const char *file, tree_t top, fst_output_t output)
 {
-   if ((fst_ctx = fstWriterCreate(file, 1)) == NULL)
+   if (output == FST_OUTPUT_VCD) {
+#if defined __CYGWIN__ || defined __MINGW32__
+      const char *tmpdir = ".";
+#else
+      char tmpdir[PATH_MAX] = "/tmp/vcdXXXXXX";
+      checked_sprintf(tmpdir, PATH_MAX, "%s/vcdXXXXXX",
+                      getenv("TMPDIR") ?: "/tmp");
+      if (mkdtemp(tmpdir) == NULL)
+         fatal_errno("mkdtemp");
+#endif
+
+      vcdfile = fopen(file, "wb");
+      if (vcdfile == NULL)
+         fatal_errno("%s", file);
+
+      tmpfst  = xasprintf("%s" PATH_SEP "temp.fst", tmpdir);
+      fst_ctx = fstWriterCreate(tmpfst, 1);
+   }
+   else {
+      vcdfile = NULL;
+      tmpfst  = NULL;
+      fst_ctx = fstWriterCreate(file, 1);
+   }
+
+   if (fst_ctx == NULL)
       fatal("fstWriterCreate failed");
 
    fstWriterSetFileType(fst_ctx, FST_FT_VHDL);
