@@ -309,10 +309,9 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
    // Always use real library name rather than WORK alias
    tree_set_ident(t, tree_ident(unit));
 
-   tree_add_context(ctx->out, t);
-
    if (tree_kind(unit) == T_PACKAGE) {
       elab_copy_context(unit, ctx);
+      tree_add_context(ctx->out, t);
       elab_package_signals(unit, ctx);
 
       ident_t name = tree_ident(unit);
@@ -328,6 +327,8 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
          tree_add_context(ctx->out, u);
       }
    }
+   else
+     tree_add_context(ctx->out, t);
 }
 
 static bool elab_have_context(tree_t unit, ident_t name)

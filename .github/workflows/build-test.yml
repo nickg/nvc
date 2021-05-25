@@ -29,8 +29,8 @@ jobs:
           path-to-lcov: ./coverage/nvc.info
 
   build-mac:
-    name: Mac OS X
-    runs-on: macos-10.15
+    name: Mac OS
+    runs-on: macos-11
     steps:
       - uses: actions/checkout@v2
         with:
@@ -75,6 +75,5 @@ jobs:
         run: bash configure --enable-vhpi
       - name: Build
         run: make
-      # Disabled due to test_parse errors on Windows
-      #- name: Test
-      #  run: make check
+      - name: Test
+        run: make check
