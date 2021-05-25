@@ -3090,6 +3090,7 @@ START_TEST(test_pragma)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
 
+#if !defined __CYGWIN__ && !defined __MINGW32__
    ck_assert_int_eq(4, tree_contexts(a));
    ck_assert_int_eq(T_PRAGMA, tree_kind(tree_context(a, 3)));
    ck_assert_str_eq("-- tracing_on foo bar", tree_text(tree_context(a, 3)));
@@ -3101,6 +3102,7 @@ START_TEST(test_pragma)
    tree_t x = tree_stmt(a, 1);
    ck_assert_int_eq(T_PRAGMA, tree_kind(x));
    ck_assert_str_eq("-- lint_off", tree_text(x));
+#endif
 
    fail_if(parse() != NULL);
 

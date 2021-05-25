@@ -507,7 +507,7 @@ static bool run_test(test_t *test)
    }
 #endif
 
-   if ((test->flags & F_CLEAN) && system("rm -r work") != 0) {
+   if ((test->flags & F_CLEAN) && system("[ -d work ] && rm -r work") != 0) {
       fprintf(stderr, "Failed to clean work directory\n");
       goto out_chdir;
    }
