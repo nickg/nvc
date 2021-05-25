@@ -479,6 +479,12 @@ static int make_dir(const char *name)
 #endif
 }
 
+static bool dir_exists(const char *path)
+{
+   struct stat st;
+   return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
 static bool run_test(test_t *test)
 {
    bool result = false;
@@ -507,15 +513,21 @@ static bool run_test(test_t *test)
    }
 #endif
 
-   if ((test->flags & F_CLEAN) && system("[ -d work ] && rm -r work") != 0) {
-      fprintf(stderr, "Failed to clean work directory\n");
-      goto out_chdir;
+   if ((test->flags & F_CLEAN) && dir_exists("work")) {
+      if (system("rm -r work") != 0) {
+         set_attr(ANSI_FG_RED);
+         printf("failed (error cleaning work directory)\n");
+         set_attr(ANSI_RESET);
+         goto out_chdir;
+      }
    }
 
    FILE *outf = fopen("out", "w");
    if (outf == NULL) {
-      fprintf(stderr, "Failed to create logs/%s/out log file: %s\n",
-              strerror(errno), test->name);
+      set_attr(ANSI_FG_RED);
+      printf("failed (error creating logs/%s/out log file: %s)\n",
+             test->name, strerror(errno));
+      set_attr(ANSI_RESET);
       goto out_chdir;
    }
 
