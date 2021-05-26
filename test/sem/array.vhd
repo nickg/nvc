@@ -387,4 +387,10 @@ begin
     begin
     end block;
 
+    process is
+	type bad1 is array (real range <>) of real;  -- Error
+	type bad2 is array (natural range <>, bit_vector range <>) of bit;  -- Error
+    begin
+    end process;
+
 end architecture;

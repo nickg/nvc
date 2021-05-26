@@ -437,6 +437,8 @@ START_TEST(test_array)
       { 366, "may not change constraints of a constrained array" },
       { 373, "too many elements in array" },
       { 379, "array T_FILE_ARRAY cannot have element of file type" },
+      { 391, "index type REAL is not discrete" },
+      { 392, "index type BIT_VECTOR is not discrete" },
       { -1, NULL }
    };
    expect_errors(expect);
