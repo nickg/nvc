@@ -4534,8 +4534,8 @@ static tree_t p_alias_declaration(void)
 
    consume(tSEMI);
 
-   insert_name(nametab, t, NULL, 0);
    tree_set_loc(t, CURRENT_LOC);
+   insert_name(nametab, t, NULL, 0);
    return t;
 }
 

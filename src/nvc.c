@@ -41,6 +41,7 @@ static ident_t top_level = NULL;
 static char *top_level_orig = NULL;
 
 static int process_command(int argc, char **argv);
+static int parse_int(const char *str);
 
 static ident_t to_unit_name(const char *str)
 {
@@ -108,6 +109,7 @@ static int analyse(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "bootstrap",       no_argument,       0, 'b' },
+      { "error-limit",     required_argument, 0, 'l' },
       { "dump-json",       required_argument, 0, 'j' },
       { "dump-llvm",       no_argument,       0, 'D' },
       { "dump-vcode",      optional_argument, 0, 'v' },
@@ -120,6 +122,8 @@ static int analyse(int argc, char **argv)
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = "";
+
+   opt_set_int("error-limit", 20);
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -150,6 +154,9 @@ static int analyse(int argc, char **argv)
          break;
       case 'R':
          set_relax_rules(parse_relax(optarg));
+         break;
+      case 'l':
+         opt_set_int("error-limit", parse_int(optarg));
          break;
       default:
          abort();
@@ -779,6 +786,7 @@ static void set_default_opts(void)
    opt_set_int("parse-pragmas", 0);
    opt_set_int("missing-body", 1);
    opt_set_int("assembly", 0);
+   opt_set_int("error-limit", -1);
 }
 
 static void usage(void)
@@ -808,6 +816,7 @@ static void usage(void)
           "\n"
           "Analyse options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
+          "     --error-limit=NUM\tStop after NUM errors\n"
           "     --parse-pragmas\tEnable parsing comments for pragmas\n"
           "     --relax=RULES\tDisable certain pedantic rule checks\n"
           "\n"

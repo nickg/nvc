@@ -385,6 +385,9 @@ static void def_error_fn(const char *msg, const loc_t *loc)
    errorf("%s", msg);
    if (message_style == MESSAGE_FULL)
       fmt_loc(stderr, loc);
+
+   if (n_errors == opt_get_int("error-limit"))
+      fatal("too many errors, giving up");
 }
 
 static char *prepare_msg(const char *fmt, va_list ap, bool force_plain)

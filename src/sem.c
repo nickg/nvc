@@ -836,7 +836,9 @@ static bool sem_check_alias(tree_t t)
    tree_t value = tree_value(t);
    type_t type = tree_type(t);
 
-   if (type_is_subprogram(type)) {
+   if (type_is_none(type))
+      return false;
+   else if (type_is_subprogram(type)) {
       // Alias of subprogram
       // Rules for matching signatures are in LRM 93 section 2.3.2
       assert(tree_kind(value) == T_REF);
