@@ -9,7 +9,7 @@ deps_pp = sed \
 	-e 's|'`echo $(top_srcdir) | sed 's/\./\\\./g'`'|$$(top_srcdir)|g' \
 	-e 's|$(abs_top_builddir)/||g'
 
-gen-deps: gen-deps-std gen-deps-ieee gen-deps-nvc gen-deps-synopsys gen-deps-vital
+gen-deps: gen-deps-std gen-deps-ieee gen-deps-nvc gen-deps-synopsys gen-deps-vital gen-deps-ieee-08
 
 bootstrap:
 	rm -f $(BOOTSTRAPLIBS)

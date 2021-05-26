@@ -116,11 +116,16 @@ Then follow the generic instructions above.
 
 #### IEEE Libraries
 
-The source files for the IEEE standard libraries are included in the repository
-for convenience but the license forbids distribution of modifications. See
-[lib/ieee/README.ieee](lib/ieee/README.ieee) for details. These files can also
-be downloaded from the [IEEE
-SA](https://standards.ieee.org/content/dam/ieee-standards/standards/web/download/).
+The source files for the IEEE standard libraries are included in the
+repository. These were originally provided under a license that forbid
+distribution of modifications, but in 2019 were relicensed under Apache
+2.0. Freely redistributable versions of the 1993 libraries were made by
+editing and removing declarations from the 2019 libraries, and so are
+also licensed under Apache 2.0.
+
+The VITAL libraries are distributed under `lib/vital`. These were
+derived from draft copies of the packages freely available on the
+internet. The license status of these is unclear.
 
 To recompile the standard libraries:
 

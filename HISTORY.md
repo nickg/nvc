@@ -24,6 +24,8 @@
   version 1.5, has been removed. Use the default FST format instead.
 - VCD files are now generated from FST data in a similar manner to
   `fst2vcd(1)`. This should improve compatibility with other tools.
+- The `fetch-ieee.sh` script which did nothing since the last release
+  has been removed.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed
