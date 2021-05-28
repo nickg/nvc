@@ -1,0 +1,107 @@
+ieee_08dir = $(pkgdatadir)/ieee.08
+ieee_08_DATA = \
+	lib/ieee.08/_NVC_LIB \
+	lib/ieee.08/_index \
+	lib/ieee.08/IEEE.STD_LOGIC_1164 \
+	lib/ieee.08/IEEE.NUMERIC_BIT \
+	lib/ieee.08/IEEE.NUMERIC_STD \
+	lib/ieee.08/IEEE.STD_LOGIC_1164-body \
+	lib/ieee.08/IEEE.NUMERIC_STD-body \
+	lib/ieee.08/IEEE.NUMERIC_BIT-body \
+	lib/ieee.08/IEEE.MATH_REAL \
+	lib/ieee.08/IEEE.MATH_REAL-body \
+	lib/ieee.08/IEEE.MATH_COMPLEX \
+	lib/ieee.08/IEEE.MATH_COMPLEX-body \
+	lib/ieee.08/_IEEE.NUMERIC_BIT.vcode \
+	lib/ieee.08/_IEEE.NUMERIC_STD.vcode \
+	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.vcode \
+	lib/ieee.08/_IEEE.NUMERIC_STD-body.vcode \
+	lib/ieee.08/_IEEE.NUMERIC_BIT-body.vcode \
+	lib/ieee.08/_IEEE.MATH_REAL.vcode \
+	lib/ieee.08/_IEEE.MATH_REAL-body.vcode \
+	lib/ieee.08/_IEEE.MATH_COMPLEX.vcode \
+	lib/ieee.08/_IEEE.MATH_COMPLEX-body.vcode
+
+ieee_08_so = \
+	lib/ieee.08/_IEEE.NUMERIC_STD.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_BIT.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_STD-body.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_BIT-body.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.MATH_REAL.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.MATH_REAL-body.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.MATH_COMPLEX.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.MATH_COMPLEX-body.$(DLL_EXT)
+
+if IMPLIB_REQUIRED
+ieee_08_DATA += \
+	lib/ieee.08/_IEEE.NUMERIC_STD.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_STD-body.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_BIT-body.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.MATH_REAL.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.MATH_REAL-body.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.MATH_COMPLEX.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.MATH_COMPLEX-body.$(LIB_EXT)
+
+# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
+ieee_08_SCRIPTS = $(ieee_08_so)
+
+$(ieee_08_SCRIPTS) : $(ieee_08_DATA)
+else
+
+ieee_08_DATA += $(ieee_08_so)
+
+endif  # IMPLIB_REQUIRED
+
+EXTRA_DIST += \
+	lib/ieee.08/numeric_bit.vhdl \
+	lib/ieee.08/numeric_bit-body.vhdl \
+	lib/ieee.08/numeric_std.vhdl \
+	lib/ieee.08/std_logic_1164-body.vhdl \
+	lib/ieee.08/std_logic_1164.vhdl \
+	lib/ieee.08/numeric_std-body.vhdl
+
+BOOTSTRAPLIBS += $(ieee_08_DATA)
+
+lib/ieee.08/_NVC_LIB:
+
+lib/ieee.08/_index:
+
+libs-ieee-08: $(ieee_08_DATA) $(ieee_08_SCRIPTS)
+
+lib/ieee.08/IEEE.STD_LOGIC_1164: $(srcdir)/lib/ieee.08/std_logic_1164.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/std_logic_1164.vhdl
+
+lib/ieee.08/IEEE.STD_LOGIC_1164-body: $(srcdir)/lib/ieee.08/std_logic_1164-body.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/std_logic_1164-body.vhdl
+
+lib/ieee.08/IEEE.NUMERIC_BIT: $(srcdir)/lib/ieee.08/numeric_bit.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_bit.vhdl
+
+lib/ieee.08/IEEE.NUMERIC_STD: $(srcdir)/lib/ieee.08/numeric_std.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_std.vhdl
+
+lib/ieee.08/IEEE.NUMERIC_STD-body: $(srcdir)/lib/ieee.08/numeric_std-body.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_std-body.vhdl
+
+lib/ieee.08/IEEE.NUMERIC_BIT-body: $(srcdir)/lib/ieee.08/numeric_bit-body.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_bit-body.vhdl
+
+lib/ieee.08/IEEE.MATH_REAL: $(srcdir)/lib/ieee/math_real.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee/math_real.vhdl
+
+lib/ieee.08/IEEE.MATH_REAL-body: $(srcdir)/lib/ieee/math_real-body.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee/math_real-body.vhdl
+
+lib/ieee.08/IEEE.MATH_COMPLEX: $(srcdir)/lib/ieee/math_complex.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee/math_complex.vhdl
+
+lib/ieee.08/IEEE.MATH_COMPLEX-body: $(srcdir)/lib/ieee/math_complex-body.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee/math_complex-body.vhdl
+
+gen-deps-ieee-08:
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 --make --posix --deps-only \
+		 | $(deps_pp) > $(srcdir)/lib/ieee.08/deps.mk
+
+include lib/ieee.08/deps.mk

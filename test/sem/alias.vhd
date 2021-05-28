@@ -65,5 +65,12 @@ architecture test of e is
     constant c1 : int_array_2(1 to 3) := (1, 2, 3);
     constant c2 : int_vector(1 to 3) := int_vector(c1);  -- OK
 
+    subtype bad is blah blah blah;  -- Error
+
+    function foo_bad (x : bit) return bad;  -- OK
+    function foo_bad (x : bit) return bad;  -- OK
+
+    alias foo_o is foo_bad [bit return bad];  -- OK
+    alias foo_o is foo_bad [character return bad];  -- Error (suppressed)
 begin
 end architecture;

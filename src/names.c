@@ -257,15 +257,19 @@ static scope_t *scope_containing(nametab_t *tab, tree_t decl)
 static bool can_overload(tree_t t)
 {
    const tree_kind_t kind = tree_kind(t);
-   return kind == T_ENUM_LIT
-      || kind == T_UNIT_DECL
-      || kind == T_FUNC_DECL
-      || kind == T_FUNC_BODY
-      || kind == T_PROC_DECL
-      || kind == T_PROC_BODY
-      || kind == T_ATTR_SPEC
-      || kind == T_LIBRARY   // Allow multiple redundant library declarations
-      || (kind == T_ALIAS && type_is_subprogram(tree_type(t)));
+   if (kind == T_ALIAS) {
+      type_t type = tree_type(t);
+      return type_is_subprogram(type) || type_is_none(type);
+   }
+   else
+      return kind == T_ENUM_LIT
+         || kind == T_UNIT_DECL
+         || kind == T_FUNC_DECL
+         || kind == T_FUNC_BODY
+         || kind == T_PROC_DECL
+         || kind == T_PROC_BODY
+         || kind == T_ATTR_SPEC
+         || kind == T_LIBRARY;  // Allow multiple redundant library declarations
 }
 
 nametab_t *nametab_new(void)
@@ -542,7 +546,6 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
                         type_pp(tree_type(decl)));
                note_at(tree_loc(existing), "previous definition of %s was "
                        "here", type_pp(tree_type(existing)));
-               return;
             }
             else if ((ekind == T_FUNC_DECL || ekind == T_PROC_DECL)
                      && (tree_flags(existing) & TREE_F_PREDEFINED)) {
@@ -550,13 +553,14 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
                // user-defined subprograms in the same region
                continue;
             }
-            else {
+            else if (!type_is_none(tree_type(decl))) {
                error_at(tree_loc(decl), "%s already declared in this region",
                         type_pp(tree_type(decl)));
                note_at(tree_loc(existing), "previous declaration of %s was "
                        "here", type_pp(tree_type(existing)));
-               return;
             }
+
+            return;
          }
       }
    } while (existing != NULL);

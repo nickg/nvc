@@ -1070,6 +1070,7 @@ START_TEST(test_alias)
       {  9, "visible declaration of '1' as BIT" },
       { 19, "visible declaration of '1' as CHARACTER" },
       { 41, "no visible declaration for FOO_INT" },
+      { 68, "unexpected identifier while parsing subtype declaration" },
       { 42, "type of actual CHARACTER does not match formal X type BIT" },
       { 43, "operand of qualified expression must have type CHARACTER" },
       { 50, "aliased name is not static" },
