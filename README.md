@@ -18,11 +18,13 @@ Or more succinctly, as a single command:
 
     $ nvc -a my_design.vhd my_tb.vhd -e my_tb -r
 
-The full manual can be read after installing NVC using `man nvc` or
+The full manual can be read after installation using `man nvc` or
 [online](https://www.nickg.me.uk/nvc/nvc.1.html).
 
 Report bugs to [nick@nickg.me.uk](mailto:nick+nvc@nickg.me.uk) or using
-the [GitHub issue tracker](https://github.com/nickg/nvc/issues).
+the [GitHub issue tracker](https://github.com/nickg/nvc/issues).  Please
+include enough information to reproduce the problem, ideally with a
+small VHDL test case.
 
 ### Installing
 
