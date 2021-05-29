@@ -3056,31 +3056,9 @@ END_TEST;
 
 START_TEST(test_synth)
 {
-#if 0
-   // XXX: these are just parsed as pragmas for now
    opt_set_int("synthesis", 1);
 
    input_from_file(TESTDIR "/parse/synth.vhd");
-
-   tree_t a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 1);
-   fail_unless(tree_ident(tree_decl(a, 0)) == ident_new("Y"));
-   fail_unless(tree_stmts(a) == 1);
-
-   fail_if(parse() != NULL);
-
-   fail_if_errors();
-#endif
-}
-END_TEST;
-
-START_TEST(test_pragma)
-{
-   opt_set_int("parse-pragmas", 1);
-
-   input_from_file(TESTDIR "/parse/pragma.vhd");
 
    tree_t e = parse();
    fail_if(e == NULL);
@@ -3089,20 +3067,9 @@ START_TEST(test_pragma)
    tree_t a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-
-#if !defined __CYGWIN__ && !defined __MINGW32__
-   ck_assert_int_eq(4, tree_contexts(a));
-   ck_assert_int_eq(T_PRAGMA, tree_kind(tree_context(a, 3)));
-   ck_assert_str_eq("-- tracing_on foo bar", tree_text(tree_context(a, 3)));
-
-   tree_t p = tree_stmt(a, 0);
-   ck_assert_int_eq(T_PRAGMA, tree_kind(tree_stmt(p, 0)));
-   ck_assert_str_eq("-- lint_on x y z", tree_text(tree_stmt(p, 0)));
-
-   tree_t x = tree_stmt(a, 1);
-   ck_assert_int_eq(T_PRAGMA, tree_kind(x));
-   ck_assert_str_eq("-- lint_off", tree_text(x));
-#endif
+   fail_unless(tree_decls(a) == 1);
+   fail_unless(tree_ident(tree_decl(a, 0)) == ident_new("Y"));
+   fail_unless(tree_stmts(a) == 1);
 
    fail_if(parse() != NULL);
 
@@ -3326,7 +3293,6 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue369);
    tcase_add_test(tc_core, test_vests1);
    tcase_add_test(tc_core, test_synth);
-   tcase_add_test(tc_core, test_pragma);
    tcase_add_test(tc_core, test_issue388);
    tcase_add_test(tc_core, test_names);
    tcase_add_test(tc_core, test_implicit);

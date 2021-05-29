@@ -812,11 +812,6 @@ static JsonNode *dump_stmt(tree_t t)
 
       break;
 
-   case T_PRAGMA:
-      json_append_member(statement, "cls", json_mkstring("pragma"));
-      json_append_member(statement, "comment", json_mkstring(tree_text(t)));
-      break;
-
    default:
       cannot_dump(t, "stmt");
    }

@@ -78,7 +78,6 @@ static token_t        opt_hist[8];
 static int            nopt_hist = 0;
 static cond_state_t  *cond_state = NULL;
 static bool           translate_on = true;
-static bool           parse_pragmas = false;
 static nametab_t     *nametab = NULL;
 static bool           bootstrapping = false;
 
@@ -186,7 +185,7 @@ static const char *token_str(token_t tok)
       "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl",
       "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
-      "`error", "`warning", "translate_off", "translate_on", "pragma"
+      "`error", "`warning", "translate_off", "translate_on"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -308,12 +307,8 @@ static token_t conditional_yylex(void)
       return tEOF;
 
    default:
-      if (translate_on && (cond_state == NULL || cond_state->result)) {
-         if (token == tPRAGMA && !parse_pragmas)
-            return conditional_yylex();
-         else
-            return token;
-      }
+      if (translate_on && (cond_state == NULL || cond_state->result))
+         return token;
       else
          return conditional_yylex();
    }
@@ -1635,22 +1630,6 @@ static void p_context_reference(tree_t unit)
    consume(tSEMI);
 }
 
-static tree_t p_pragma(void)
-{
-   // A pragma is a special comment such as
-   //     -- lint_off ....
-   // The contents of the comment are stored in a special T_PRAGMA node for
-   // processing by external tools.
-
-   consume(tPRAGMA);
-
-   extern char *yytext;
-
-   tree_t pragma = tree_new(T_PRAGMA);
-   tree_set_text(pragma, yytext);
-   return pragma;
-}
-
 static void p_context_item(tree_t unit)
 {
    // library_clause | use_clause | 2008: context_reference
@@ -1670,10 +1649,6 @@ static void p_context_item(tree_t unit)
       p_context_reference(unit);
       break;
 
-   case tPRAGMA:
-      tree_add_context(unit, p_pragma());
-      break;
-
    default:
       expect(tLIBRARY, tUSE, tCONTEXT);
    }
@@ -1685,7 +1660,7 @@ static void p_context_clause(tree_t unit)
 
    BEGIN("context clause");
 
-   while (scan(tLIBRARY, tUSE, tCONTEXT, tPRAGMA)) {
+   while (scan(tLIBRARY, tUSE, tCONTEXT)) {
       if (peek() == tCONTEXT && peek_nth(3) == tIS)
          break;
       else
@@ -6429,9 +6404,6 @@ static tree_t p_sequential_statement(void)
 
    BEGIN("sequential statement");
 
-   if (peek() == tPRAGMA)
-      return p_pragma();
-
    ident_t label = NULL;
    if ((peek() == tID) && (peek_nth(2) == tCOLON)) {
       label = p_identifier();
@@ -6946,9 +6918,6 @@ static tree_t p_concurrent_statement(void)
 
    BEGIN("concurrent statement");
 
-   if (peek() == tPRAGMA)
-      return p_pragma();
-
    ident_t label = NULL;
    if ((peek() == tID) && (peek_nth(2) == tCOLON)) {
       label = p_identifier();
@@ -7413,7 +7382,6 @@ void input_from_file(const char *file)
    n_row              = 0;
    n_token_next_start = 0;
    translate_on       = true;
-   parse_pragmas      = opt_get_int("parse-pragmas");
    bootstrapping      = opt_get_int("bootstrap");
 
    if (tokenq == NULL) {

@@ -253,9 +253,6 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_BLOCK_CONFIG
    (I_DECLS | I_IDENT | I_VALUE | I_RANGES),
 
-   // T_PRAGMA
-   (I_TEXT),
-
    // T_PROT_FCALL
    (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_FLAGS | I_NAME),
 
@@ -285,8 +282,8 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_PARAM",         "T_ASSOC",         "T_USE",          "T_HIER",
    "T_SPEC",          "T_BINDING",       "T_LIBRARY",      "T_DESIGN_UNIT",
    "T_CONFIGURATION", "T_PROT_BODY",     "T_CONTEXT",      "T_CTXREF",
-   "T_CONSTRAINT",    "T_BLOCK_CONFIG",  "T_PRAGMA",       "T_PROT_FCALL",
-   "T_PROT_PCALL",    "T_RANGE",
+   "T_CONSTRAINT",    "T_BLOCK_CONFIG",  "T_PROT_FCALL",   "T_PROT_PCALL",
+   "T_RANGE",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -330,7 +327,7 @@ static const tree_kind_t stmt_kinds[] = {
    T_RETURN,  T_CASSIGN,     T_WHILE,        T_FOR,
    T_EXIT,    T_PCALL,       T_CASE,         T_BLOCK,
    T_SELECT,  T_IF_GENERATE, T_FOR_GENERATE, T_CPCALL,
-   T_CASSERT, T_NEXT,        T_PRAGMA,       T_PROT_PCALL
+   T_CASSERT, T_NEXT,        T_PROT_PCALL
 };
 
 static tree_kind_t expr_kinds[] = {
@@ -815,7 +812,7 @@ tree_t tree_context(tree_t t, unsigned n)
 void tree_add_context(tree_t t, tree_t ctx)
 {
    assert(ctx->object.kind == T_USE || ctx->object.kind == T_LIBRARY
-          || ctx->object.kind == T_CTXREF || ctx->object.kind == T_PRAGMA);
+          || ctx->object.kind == T_CTXREF);
    tree_array_add(&(lookup_item(&tree_object, t, I_CONTEXT)->tree_array), ctx);
 }
 
@@ -918,16 +915,6 @@ void tree_change_range(tree_t t, unsigned n, tree_t r)
    item_t *item = lookup_item(&tree_object, t, I_RANGES);
    assert(n < item->tree_array.count);
    item->tree_array.items[n] = r;
-}
-
-char *tree_text(tree_t t)
-{
-   return lookup_item(&tree_object, t, I_TEXT)->text;
-}
-
-void tree_set_text(tree_t t, const char *text)
-{
-   lookup_item(&tree_object, t, I_TEXT)->text = xstrdup(text);
 }
 
 unsigned tree_pos(tree_t t)

@@ -86,10 +86,8 @@ BASED_LITERAL   ({INTEGER}[#]{BASED_INTEGER}(\.{BASED_INTEGER})?[#]{EXPONENT}?)|
 SPACE           [ \t\r\n]+
 TICK            \'
 PRAGMA          --[ \t]*
-/*
 SYNTH_OFF       {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_off).*
 SYNTH_ON        {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_on).*
-*/
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -192,31 +190,10 @@ CONTEXT       ?i:context
 ERROR         ?i:error
 WARNING       ?i:warning
 
-/* Pragma triggers */
-COVERAGE_ON   ?:coverage_on
-COVERAGE_OFF  ?:coverage_off
-LINT_ON       ?:lint_on
-LINT_OFF      ?:lint_off
-TRACING_ON    ?:tracing_on
-TRACING_OFF   ?:tracing_off
-SYNTHESIS     ?:synthesis
-SYNOPSYS      ?:synopsys
-
-/*
-{SYNTH_OFF}     { TOKEN(tSYNTHOFF); }
-{SYNTH_ON}      { TOKEN(tSYNTHON); }
-*/
-
 %%
 
-{PRAGMA}{COVERAGE_ON}.*  { TOKEN(tPRAGMA); }
-{PRAGMA}{COVERAGE_OFF}.* { TOKEN(tPRAGMA); }
-{PRAGMA}{LINT_ON}.*      { TOKEN(tPRAGMA); }
-{PRAGMA}{LINT_OFF}.*     { TOKEN(tPRAGMA); }
-{PRAGMA}{TRACING_ON}.*   { TOKEN(tPRAGMA); }
-{PRAGMA}{TRACING_OFF}.*  { TOKEN(tPRAGMA); }
-{PRAGMA}{SYNTHESIS}.*    { TOKEN(tPRAGMA); }
-{PRAGMA}{SYNOPSYS}.*     { TOKEN(tPRAGMA); }
+{SYNTH_OFF}     { TOKEN(tSYNTHOFF); }
+{SYNTH_ON}      { TOKEN(tSYNTHON); }
 
 {COMMENT}       { }
 

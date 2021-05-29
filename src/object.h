@@ -84,7 +84,7 @@ typedef uint64_t imask_t;
 #define I_CHARS      ONE_HOT(47)
 #define I_CONSTR     ONE_HOT(48)
 #define I_FLAGS      ONE_HOT(49)
-#define I_TEXT       ONE_HOT(50)
+//#define I_???       ONE_HOT(50)
 #define I_LEFT       ONE_HOT(51)
 #define I_RIGHT      ONE_HOT(52)
 
@@ -107,7 +107,6 @@ typedef uint64_t imask_t;
 #define ITEM_TYPE_ARRAY  (I_PTYPES | I_INDEXCON)
 #define ITEM_TEXT_BUF    (I_TEXT_BUF)
 #define ITEM_ATTRS       (I_ATTRS)
-#define ITEM_TEXT        (I_TEXT)
 
 #define OBJECT_TAG_TREE  0
 #define OBJECT_TAG_TYPE  1

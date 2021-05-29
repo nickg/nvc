@@ -1,3 +1,5 @@
+entity synth is end entity;
+
 architecture test of synth is
     -- synthesis translate_off
     signal x : integer;                     -- Should ignore

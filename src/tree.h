@@ -264,7 +264,6 @@ typedef enum tree_kind {
    T_CTXREF,
    T_CONSTRAINT,
    T_BLOCK_CONFIG,
-   T_PRAGMA,
    T_PROT_FCALL,
    T_PROT_PCALL,
    T_RANGE,
@@ -377,9 +376,6 @@ void tree_add_trigger(tree_t t, tree_t s);
 
 tree_t tree_target(tree_t t);
 void tree_set_target(tree_t t, tree_t lhs);
-
-char *tree_text(tree_t t);
-void tree_set_text(tree_t t, const char *text);
 
 tree_t tree_ref(tree_t t);
 bool tree_has_ref(tree_t t);

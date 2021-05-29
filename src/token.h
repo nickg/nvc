@@ -165,7 +165,6 @@ typedef enum {
    tCONDWARN,
    tSYNTHOFF,
    tSYNTHON,
-   tPRAGMA
 } token_t;
 
 #endif

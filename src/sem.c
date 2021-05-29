@@ -943,12 +943,8 @@ static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
                             int nstmts)
 {
    bool ok = true;
-   for (int i = 0; i < nstmts; i++) {
-      tree_t s = get_stmt(t, i);
-      if (tree_kind(s) == T_PRAGMA)
-         continue;
-      ok = sem_check(s) && ok;
-   }
+   for (int i = 0; i < nstmts; i++)
+      ok = sem_check(get_stmt(t, i)) && ok;
 
    return ok;
 }
@@ -4464,7 +4460,6 @@ bool sem_check(tree_t t)
    case T_IF:
       return sem_check_if(t);
    case T_NULL:
-   case T_PRAGMA:
       return true;
    case T_PACK_BODY:
       return sem_check_pack_body(t);

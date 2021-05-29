@@ -223,8 +223,6 @@ static void object_sweep(object_t *object)
             if (object->items[n].text_buf != NULL)
                tb_free(object->items[n].text_buf);
          }
-         else if (ITEM_TEXT & mask)
-            free(object->items[n].text);
          n++;
       }
    }
@@ -339,8 +337,6 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
             ;
          else if (ITEM_TEXT_BUF & mask)
             ;
-         else if (ITEM_TEXT & mask)
-            ;
          else if (ITEM_ATTRS & mask) {
             attr_tab_t *attrs = &(object->items[i].attrs);
             for (unsigned j = 0; j < attrs->num; j++) {
@@ -423,8 +419,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
                (void)object_rewrite((object_t *)a->items[i], ctx);
          }
          else if (ITEM_TEXT_BUF & mask)
-            ;
-         else if (ITEM_TEXT & mask)
             ;
          else
             item_without_type(mask);
@@ -557,12 +551,6 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
                }
             }
          }
-         else if (ITEM_TEXT & mask) {
-            size_t len = strlen(object->items[n].text);
-            assert(len <= UINT16_MAX);
-            write_u16(len, ctx->file);
-            write_raw(object->items[n].text, len, ctx->file);
-         }
          else if (ITEM_TEXT_BUF & mask)
             ;
          else
@@ -654,12 +642,6 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
             object->items[n].ival = read_u32(ctx->file);
          else if (ITEM_TEXT_BUF & mask)
             ;
-         else if (ITEM_TEXT & mask) {
-            size_t len = read_u16(ctx->file);
-            object->items[n].text = xmalloc(len + 1);
-            read_raw(object->items[n].text, len, ctx->file);
-            object->items[n].text[len] = '\0';
-         }
          else if (ITEM_NETID_ARRAY & mask) {
             netid_array_t *a = &(object->items[n].netid_array);
             netid_array_resize(a, read_u32(ctx->file), 0xff);

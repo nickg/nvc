@@ -148,6 +148,7 @@ EXTRA_DIST += \
 	test/lower/thunk.vhd \
 	test/lower/tounsigned.vhd \
 	test/lower/vital1.vhd \
+	test/lower/vital2.vhd \
 	test/lower/wait1.vhd \
 	test/lower/while1.vhd \
 	test/misc/bufr_test.vhd \
@@ -192,7 +193,6 @@ EXTRA_DIST += \
 	test/parse/loc.vhd \
 	test/parse/names.vhd \
 	test/parse/package.vhd \
-	test/parse/pragma.vhd \
 	test/parse/procedure.vhd \
 	test/parse/process.vhd \
 	test/parse/protected.vhd \
@@ -508,6 +508,9 @@ EXTRA_DIST += \
 	test/regress/issue38.vhd \
 	test/regress/issue397.vhd \
 	test/regress/issue407.vhd \
+	test/regress/issue412.vhd \
+	test/regress/issue414.vhd \
+	test/regress/issue415.vhd \
 	test/regress/issue45.vhd \
 	test/regress/issue53.vhd \
 	test/regress/issue56.vhd \
@@ -549,6 +552,7 @@ EXTRA_DIST += \
 	test/regress/operator3.vhd \
 	test/regress/operator4.vhd \
 	test/regress/operator5.vhd \
+	test/regress/predef1.vhd \
 	test/regress/proc10.vhd \
 	test/regress/proc11.vhd \
 	test/regress/proc1.vhd \
