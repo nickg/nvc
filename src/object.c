@@ -34,9 +34,9 @@ static const char *item_text_map[] = {
    "I_ELSES",    "I_CLASS",     "I_RANGES",   "I_NAME",       "I_NETS",
    "I_DVAL",     "I_SPEC",      "I_???",      "I_CONSTR",     "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
-   "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_TEXT_BUF",
+   "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_???",
    "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CONSTR2",    "I_FLAGS",
-   "I_TEXT",     "I_LEFT",      "I_RIGHT"
+   "I_???",      "I_LEFT",      "I_RIGHT"
 };
 
 static object_class_t *classes[4];
@@ -219,10 +219,6 @@ static void object_sweep(object_t *object)
             free(object->items[n].netid_array.items);
          else if (ITEM_ATTRS & mask)
             free(object->items[n].attrs.table);
-         else if (ITEM_TEXT_BUF & mask) {
-            if (object->items[n].text_buf != NULL)
-               tb_free(object->items[n].text_buf);
-         }
          n++;
       }
    }
@@ -335,8 +331,6 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
             ;
          else if (ITEM_NETID_ARRAY & mask)
             ;
-         else if (ITEM_TEXT_BUF & mask)
-            ;
          else if (ITEM_ATTRS & mask) {
             attr_tab_t *attrs = &(object->items[i].attrs);
             for (unsigned j = 0; j < attrs->num; j++) {
@@ -418,8 +412,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
             for (unsigned i = 0; i < a->count; i++)
                (void)object_rewrite((object_t *)a->items[i], ctx);
          }
-         else if (ITEM_TEXT_BUF & mask)
-            ;
          else
             item_without_type(mask);
       }
@@ -551,8 +543,6 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
                }
             }
          }
-         else if (ITEM_TEXT_BUF & mask)
-            ;
          else
             item_without_type(mask);
          n++;
@@ -640,8 +630,6 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
             object->items[n].ival = read_u64(ctx->file);
          else if (ITEM_INT32 & mask)
             object->items[n].ival = read_u32(ctx->file);
-         else if (ITEM_TEXT_BUF & mask)
-            ;
          else if (ITEM_NETID_ARRAY & mask) {
             netid_array_t *a = &(object->items[n].netid_array);
             netid_array_resize(a, read_u32(ctx->file), 0xff);
@@ -788,8 +776,6 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
             ;
          else if (ITEM_ATTRS & mask)
             ;
-         else if (ITEM_TEXT_BUF & mask)
-            ;
          else
             item_without_type(mask);
          n++;
@@ -887,8 +873,6 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
                to->items[i] = (type_t)
                   object_copy_sweep((object_t *)from->items[i], ctx);
          }
-         else if (ITEM_TEXT_BUF & mask)
-            ;
          else
             item_without_type(mask);
          n++;

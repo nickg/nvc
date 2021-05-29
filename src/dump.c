@@ -284,33 +284,12 @@ static void dump_expr(tree_t t)
    }
 }
 
-static const char *dump_minify_type(const char *name)
-{
-   static const char *known[] = {
-      "STD.STANDARD.",
-      "IEEE.NUMERIC_STD.",
-      "IEEE.STD_LOGIC_1164.",
-   };
-   static char buf[256];
-
-   for (size_t i = 0; i < ARRAY_LEN(known); i++) {
-      const size_t len = strlen(known[i]);
-      if (strncmp(name, known[i], len) == 0) {
-         checked_sprintf(buf, sizeof(buf), "~%s%%s", name + len);
-         return buf;
-      }
-   }
-
-   checked_sprintf(buf, sizeof(buf), "%s%%s", name);
-   return buf;
-}
-
 static void dump_type(type_t type)
 {
    if (type_kind(type) == T_SUBTYPE && type_has_ident(type))
-      syntax(type_pp_minify(type, dump_minify_type), "");
+      printf("%s", type_pp(type));
    else if (type_is_array(type) && !type_is_unconstrained(type)) {
-      syntax(type_pp_minify(type, dump_minify_type), "(");
+      printf("%s(", type_pp(type));
       const int ndims = dimension_of(type);
       for (int i = 0; i < ndims; i++) {
          if (i > 0) printf(", ");
@@ -319,7 +298,7 @@ static void dump_type(type_t type)
       printf(")");
    }
    else
-      syntax(type_pp_minify(type, dump_minify_type), "");
+      printf("%s", type_pp(type));
 }
 
 static void dump_ports(tree_t t, int indent)

@@ -21,6 +21,7 @@
 #include "array.h"
 #include "common.h"
 #include "object.h"
+#include "hash.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -61,13 +62,13 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT | I_ACCESS),
 
    // T_FUNC
-   (I_IDENT | I_PTYPES | I_RESULT | I_TEXT_BUF),
+   (I_IDENT | I_PTYPES | I_RESULT),
 
    // T_INCOMPLETE
    (I_IDENT),
 
    // T_PROC
-   (I_IDENT | I_PTYPES | I_TEXT_BUF),
+   (I_IDENT | I_PTYPES),
 
    // T_NONE
    (I_IDENT),
@@ -599,55 +600,6 @@ bool type_has_body(type_t t)
    return (item->tree != NULL);
 }
 
-const char *type_pp_minify(type_t t, minify_fn_t fn)
-{
-   assert(t != NULL);
-
-   switch (type_kind(t)) {
-   case T_FUNC:
-   case T_PROC:
-      {
-         item_t *tbi = lookup_item(&type_object, t, I_TEXT_BUF);
-         if (tbi->text_buf == NULL)
-            tbi->text_buf = tb_new();
-         else
-            tb_rewind(tbi->text_buf);
-
-         if (type_has_ident(t)) {
-            const char *fname = (*fn)(istr(type_ident(t)));
-            tb_printf(tbi->text_buf, "%s ", fname);
-         }
-         tb_printf(tbi->text_buf, "[");
-         const int nparams = type_params(t);
-         for (int i = 0; i < nparams; i++)
-            tb_printf(tbi->text_buf, "%s%s",
-                      (i == 0 ? "" : ", "),
-                      (*fn)(istr(type_ident(type_param(t, i)))));
-         if (type_kind(t) == T_FUNC)
-            tb_printf(tbi->text_buf, "%sreturn %s",
-                      nparams > 0 ? " " : "",
-                      (*fn)(istr(type_ident(type_result(t)))));
-         tb_printf(tbi->text_buf, "]");
-
-         return tb_get(tbi->text_buf);
-      }
-
-   default:
-      return (*fn)(istr(type_ident(t)));
-   }
-}
-
-static const char *type_minify_strip_prefix(const char *s)
-{
-   const char *dot = strrchr(s, '.');
-   return dot ? dot + 1 : s;
-}
-
-const char *type_pp(type_t t)
-{
-   return type_pp_minify(t, type_minify_strip_prefix);
-}
-
 const char *type_pp2(type_t t, type_t other)
 {
    assert(t != NULL);
@@ -656,29 +608,31 @@ const char *type_pp2(type_t t, type_t other)
    case T_FUNC:
    case T_PROC:
       {
-         item_t *tbi = lookup_item(&type_object, t, I_TEXT_BUF);
-         if (tbi->text_buf == NULL)
-            tbi->text_buf = tb_new();
-         else
-            tb_rewind(tbi->text_buf);
+         static hash_t *cache = NULL;
+         if (cache == NULL)
+            cache = hash_new(64, true);
 
-         if (type_has_ident(t)) {
-            const char *fname = istr(type_ident(t));
-            tb_printf(tbi->text_buf, "%s ", fname);
+         text_buf_t *tb = hash_get(cache, t);
+         if (tb == NULL) {
+            tb = tb_new();
+            hash_put(cache, t, tb);
+
+            if (type_has_ident(t)) {
+               const char *fname = istr(type_ident(t));
+               tb_printf(tb, "%s ", fname);
+            }
+            tb_printf(tb, "[");
+            const int nparams = type_params(t);
+            for (int i = 0; i < nparams; i++)
+               tb_printf(tb, "%s%s", (i == 0 ? "" : ", "),
+                         type_pp(type_param(t, i)));
+            if (type_kind(t) == T_FUNC)
+               tb_printf(tb, "%sreturn %s", nparams > 0 ? " " : "",
+                         type_pp(type_result(t)));
+            tb_printf(tb, "]");
          }
-         tb_printf(tbi->text_buf, "[");
-         const int nparams = type_params(t);
-         for (int i = 0; i < nparams; i++)
-            tb_printf(tbi->text_buf, "%s%s",
-                      (i == 0 ? "" : ", "),
-                      istr(type_ident(type_param(t, i))));
-         if (type_kind(t) == T_FUNC)
-            tb_printf(tbi->text_buf, "%sreturn %s",
-                      nparams > 0 ? " " : "",
-                      istr(type_ident(type_result(t))));
-         tb_printf(tbi->text_buf, "]");
 
-         return tb_get(tbi->text_buf);
+         return tb_get(tb);
       }
 
    default:
@@ -698,6 +652,11 @@ const char *type_pp2(type_t t, type_t other)
             return tail1;
       }
    }
+}
+
+const char *type_pp(type_t t)
+{
+   return type_pp2(t, NULL);
 }
 
 type_kind_t type_base_kind(type_t t)

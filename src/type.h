@@ -114,10 +114,8 @@ bool type_has_resolution(type_t t);
 tree_t type_resolution(type_t t);
 
 // Pretty printing
-typedef const char *(*minify_fn_t)(const char *);
 const char *type_pp(type_t t);
 const char *type_pp2(type_t t, type_t other);
-const char *type_pp_minify(type_t t, minify_fn_t fn);
 
 // Predefined types
 type_t type_universal_int(void);

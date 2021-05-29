@@ -245,36 +245,10 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
    return expr_node;
 }
 
-static const char *dump_minify_type(const char *name)
-{
-   static const char *known[] = {
-      "STD.STANDARD.",
-      "IEEE.NUMERIC_STD.",
-      "IEEE.STD_LOGIC_1164.",
-   };
-
-   for (size_t i = 0; i < ARRAY_LEN(known); i++) {
-      const size_t len = strlen(known[i]);
-      if (strncmp(name, known[i], len) == 0) {
-         static char buf[256];
-         checked_sprintf(buf, sizeof(buf), "~%s%%s", name + len);
-         return buf;
-      }
-   }
-
-   return name;
-}
-
 static JsonNode *dump_type(type_t type)
 {
    JsonNode *type_node = json_mkobject();
-   char *type_name = strdup(type_pp_minify(type, dump_minify_type));
-   if (type_name[0] == '~') // remove first ~ from type if present
-      type_name ++;
-
-   unsigned long type_name_len = strlen(type_name);
-   if (type_name[type_name_len-2] == '%')
-      type_name[type_name_len-2] = '\0';
+   char *type_name = xstrdup(type_pp(type));
 
    if (type_kind(type) == T_SUBTYPE && type_has_ident(type))
       json_append_member(type_node, "name", json_mkstring(type_name));

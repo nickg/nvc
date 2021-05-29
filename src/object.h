@@ -78,7 +78,7 @@ typedef uint64_t imask_t;
 #define I_LITERALS   ONE_HOT(41)
 #define I_DIMS       ONE_HOT(42)
 #define I_FIELDS     ONE_HOT(43)
-#define I_TEXT_BUF   ONE_HOT(44)
+//#define I_???       ONE_HOT(44)
 #define I_ATTRS      ONE_HOT(45)
 #define I_PTYPES     ONE_HOT(46)
 #define I_CHARS      ONE_HOT(47)
@@ -105,7 +105,6 @@ typedef uint64_t imask_t;
 #define ITEM_NETID_ARRAY (I_NETS)
 #define ITEM_DOUBLE      (I_DVAL)
 #define ITEM_TYPE_ARRAY  (I_PTYPES | I_INDEXCON)
-#define ITEM_TEXT_BUF    (I_TEXT_BUF)
 #define ITEM_ATTRS       (I_ATTRS)
 
 #define OBJECT_TAG_TREE  0
