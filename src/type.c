@@ -85,16 +85,7 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 };
 
 static const change_allowed_t change_allowed[] = {
-   { T_INCOMPLETE, T_INTEGER  },
-   { T_INCOMPLETE, T_REAL     },
-   { T_INCOMPLETE, T_PHYSICAL },
-   { T_INCOMPLETE, T_UARRAY   },
-   { T_INCOMPLETE, T_RECORD   },
-   { T_INCOMPLETE, T_ACCESS   },
-   { T_INCOMPLETE, T_ENUM     },
-   { T_INTEGER,    T_REAL     },
-   { T_REAL,       T_INTEGER  },
-   { -1,           -1         }
+   { -1, -1 }
 };
 
 struct type {
@@ -126,11 +117,10 @@ type_t type_new(type_kind_t kind)
 type_kind_t type_kind(type_t t)
 {
    assert(t != NULL);
-
    return t->object.kind;
 }
 
-bool type_strict_eq(type_t a, type_t b)
+static bool _type_eq(type_t a, type_t b, bool strict)
 {
    assert(a != NULL);
    assert(b != NULL);
@@ -141,113 +131,72 @@ bool type_strict_eq(type_t a, type_t b)
    type_kind_t kind_a = a->object.kind;
    type_kind_t kind_b = b->object.kind;
 
-   if (kind_a != kind_b)
-      return false;
+   if (!strict) {
+      // Subtypes are convertible to the base type
+      while ((kind_a = a->object.kind) == T_SUBTYPE)
+         a = type_base(a);
+      while ((kind_b = b->object.kind) == T_SUBTYPE)
+         b = type_base(b);
 
-   if (type_has_ident(a) && type_has_ident(b)) {
-      if (type_ident(a) != type_ident(b))
-         return false;
+      if (a == b)
+         return true;
    }
 
-   // Access types are equal if the pointed to type is the same
-   if (kind_a == T_ACCESS)
-      return type_eq(type_access(a), type_access(b));
+   ident_t ai = lookup_item(&type_object, a, I_IDENT)->ident;
+   ident_t bi = lookup_item(&type_object, b, I_IDENT)->ident;
+
+   if (ai != bi)
+      return false;
+
+   if (kind_a == T_INCOMPLETE || kind_b == T_INCOMPLETE)
+      return true;
 
    const imask_t has = has_map[a->object.kind];
-
-   if (has & I_ELEM)
-      return type_strict_eq(type_elem(a), type_elem(b));
-
-   if ((has & I_DIMS) && (type_dims(a) != type_dims(b)))
-      return false;
-
-   if (kind_a == T_FUNC) {
-      if (!type_strict_eq(type_result(a), type_result(b)))
-         return false;
-   }
-
-   if (has & I_PTYPES) {
-      if (type_params(a) != type_params(b))
-         return false;
-
-      const int nparams = type_params(a);
-      for (int i = 0; i < nparams; i++) {
-         if (!type_strict_eq(type_param(a, i), type_param(b, i)))
-             return false;
-      }
-   }
-
-   return true;
-}
-
-bool type_eq(type_t a, type_t b)
-{
-   assert(a != NULL);
-   assert(b != NULL);
-
-   if (a == b)
-      return true;
-
-   type_kind_t kind_a = a->object.kind;
-   type_kind_t kind_b = b->object.kind;
-
-   // Subtypes are convertible to the base type
-   // XXX: remove this and use type_is_convertible?
-   while ((kind_a = a->object.kind) == T_SUBTYPE)
-      a = type_base(a);
-   while ((kind_b = b->object.kind) == T_SUBTYPE)
-      b = type_base(b);
 
    const bool compare_c_u_arrays =
       (kind_a == T_CARRAY && kind_b == T_UARRAY)
       || (kind_a == T_UARRAY && kind_b == T_CARRAY);
 
-   const bool incomplete = kind_a == T_INCOMPLETE || kind_b == T_INCOMPLETE;
-
-   if ((kind_a != kind_b) && !compare_c_u_arrays && !incomplete)
+   if (kind_a != kind_b && (!compare_c_u_arrays || strict))
       return false;
 
-   // XXX: this is not quite right as structurally equivalent types
-   // may be declared in different scopes with the same name but
-   // shouldn't compare equal
+   if (has & I_ELEM)
+      return _type_eq(type_elem(a), type_elem(b), strict);
 
-   if (type_has_ident(a) && type_has_ident(b)) {
-      if (type_ident(a) != type_ident(b))
-         return false;
-   }
-
-   if (incomplete)
-      return true;
-
-   // Access types are equal if the pointed to type is the same
    if (kind_a == T_ACCESS)
-      return type_eq(type_access(a), type_access(b));
-
-   if (compare_c_u_arrays)
-      return type_eq(type_elem(a), type_elem(b));
-
-   const imask_t has = has_map[a->object.kind];
+      return _type_eq(type_access(a), type_access(b), strict);
 
    if ((has & I_DIMS) && (type_dims(a) != type_dims(b)))
       return false;
 
    if (type_kind(a) == T_FUNC) {
-      if (!type_eq(type_result(a), type_result(b)))
+      if (!_type_eq(type_result(a), type_result(b), strict))
          return false;
    }
 
    if (has & I_PTYPES) {
-      if (type_params(a) != type_params(b))
+      const int nparams = type_params(a);
+
+      if (type_params(b) != nparams)
          return false;
 
-      const int nparams = type_params(a);
       for (int i = 0; i < nparams; i++) {
-         if (!type_eq(type_param(a, i), type_param(b, i)))
+         if (!_type_eq(type_param(a, i), type_param(b, i), strict))
              return false;
       }
    }
 
    return true;
+}
+
+bool type_strict_eq(type_t a, type_t b)
+{
+   return _type_eq(a, b, true);
+}
+
+bool type_eq(type_t a, type_t b)
+{
+   return _type_eq(a, b, false);
 }
 
 ident_t type_ident(type_t t)
@@ -264,7 +213,8 @@ ident_t type_ident(type_t t)
          return ident_new("none");
 
       default:
-         fatal_trace("type kind %s has no ident", type_kind_str(t->object.kind));
+         fatal_trace("type kind %s has no ident",
+                     type_kind_str(t->object.kind));
       }
    }
    else

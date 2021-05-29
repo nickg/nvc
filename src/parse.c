@@ -4488,8 +4488,10 @@ static tree_t p_alias_declaration(void)
          parse_error(tree_loc(value), "invalid name in subprogram alias");
          type = type_new(T_NONE);
       }
-      else
+      else {
+         type_set_ident(type, tree_ident(value));
          solve_types(nametab, value, type);
+      }
       tree_set_type(t, type);
    }
    else {

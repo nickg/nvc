@@ -846,8 +846,9 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
       }
 
       if (!match) {
+         const char *signature = strchr(type_pp(constraint), '[');
          error_at(tree_loc(ref), "no visible subprogram %s matches "
-                  "signature %s", istr(tree_ident(ref)), type_pp(constraint));
+                  "signature %s", istr(tree_ident(ref)), signature);
          return NULL;
       }
       else

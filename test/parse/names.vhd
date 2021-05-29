@@ -291,4 +291,15 @@ begin
     begin
     end process;
 
+    p23: process is
+        type typ;
+        function p23_func(x : typ) return integer;
+        type typ is (a, b, c);
+        function p23_func(x : typ) return integer is  -- OK
+        begin
+            return 5;
+        end function;
+    begin
+    end process;
+
 end architecture;
