@@ -818,6 +818,17 @@ static void declare_unary(tree_t container, ident_t name, type_t operand,
    tree_add_decl(container, d);
 }
 
+static bool all_character_literals(type_t type)
+{
+   const int nlits = type_enum_literals(type);
+   for (int i = 0; i < nlits; i++) {
+      if (ident_char(tree_ident(type_enum_literal(type, i)), 0) != '\'')
+         return false;
+   }
+
+   return true;
+}
+
 static void declare_predefined_ops(tree_t container, type_t t)
 {
    // Prefined operators are defined in LRM 93 section 7.2
@@ -884,6 +895,10 @@ static void declare_predefined_ops(tree_t container, type_t t)
          if (standard() >= STD_08 && type_is_scalar(elem)) {
             declare_unary(container, ident_new("MINIMUM"), t, elem, S_MINIMUM);
             declare_unary(container, ident_new("MAXIMUM"), t, elem, S_MAXIMUM);
+
+            if (type_is_enum(elem) && all_character_literals(elem))
+               declare_unary(container, ident_new("TO_STRING"), t,
+                             std_type(std, "STRING"), S_TO_STRING);
          }
       }
       break;

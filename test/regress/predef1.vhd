@@ -5,6 +5,8 @@ architecture test of predef1 is
     type my_int is range 1 to 10;
     type my_enum is (X, Y, FOO, BAR);
     type int_vector is array (natural range <>) of integer;
+    type my_char is ('a', 'b', 'c');
+    type char_vector is array (natural range <>) of my_char;
 begin
 
     main: process is
@@ -14,6 +16,7 @@ begin
         variable e : my_enum;
         variable r : real := 1.23456;
         variable v : int_vector(1 to 3) := (1, 2, 3);
+        variable c : char_vector(1 to 3) := "bca";
     begin
         -----------------------------------------------------------------------
         -- MINIMUM
@@ -35,7 +38,6 @@ begin
         wait for 1 ns;
         assert maximum(4, m) = 6;
         assert maximum(b, false) = true;
-        report integer'image(maximum(int_vector'(5, -1, 2)));
         assert maximum(int_vector'(5, -1, 2)) = 5;
         assert maximum(v) = 3;
 
@@ -60,6 +62,10 @@ begin
 
         report to_string(r, "%1.1f");
         assert to_string(r, "%1.1f") = "1.2";
+
+        report to_string(char_vector'("abc"));
+        assert to_string(char_vector'("abc")) = "abc";
+        assert to_string(c) = "bca";
 
         wait;
     end process;
