@@ -1266,6 +1266,24 @@ static vcode_reg_t lower_array_to_string(tree_t fcall, vcode_reg_t array_reg)
    return result_reg;
 }
 
+static vcode_reg_t lower_falling_rising_edge(tree_t fcall,
+                                             subprogram_kind_t kind)
+{
+   tree_t p0 = tree_value(tree_param(fcall, 0));
+
+   vcode_reg_t nets_reg  = lower_expr(p0, EXPR_LVALUE);
+   vcode_reg_t value_reg = lower_expr(p0, EXPR_RVALUE);
+
+   if (kind == S_FALLING_EDGE)
+      value_reg = emit_not(value_reg);
+
+   vcode_reg_t event_reg =
+      emit_event_flag(nets_reg, emit_const(vtype_offset(), 1));
+   vcode_reg_t r = emit_and(event_reg, value_reg);
+   vcode_dump();
+   return r;
+}
+
 static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
 {
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
@@ -1348,6 +1366,8 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
       return lower_short_circuit(fcall, SHORT_CIRCUIT_NOR);
    else if (builtin == S_CONCAT)
       return lower_concat(fcall, EXPR_RVALUE);
+   else if (builtin == S_RISING_EDGE || builtin == S_FALLING_EDGE)
+      return lower_falling_rising_edge(fcall, builtin);
 
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);

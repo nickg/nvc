@@ -1135,6 +1135,21 @@ static void declare_predefined_ops(tree_t container, type_t t)
    default:
       break;
    }
+
+   if (bootstrapping && standard() >= STD_08) {
+      // Special predefined operators only declared in STANDARD
+      if (t == std_bool || t == std_type(std, "BIT")) {
+         tree_t d1 = builtin_fn(ident_new("RISING_EDGE"), std_bool,
+                                S_RISING_EDGE, "S", t, NULL);
+         tree_set_class(tree_port(d1, 0), C_SIGNAL);
+         tree_add_decl(container, d1);
+
+         tree_t d2 = builtin_fn(ident_new("FALLING_EDGE"), std_bool,
+                                S_FALLING_EDGE, "S", t, NULL);
+         tree_set_class(tree_port(d2, 0), C_SIGNAL);
+         tree_add_decl(container, d2);
+      }
+   }
 }
 
 static void declare_standard_to_string(tree_t unit)

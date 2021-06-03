@@ -153,6 +153,8 @@ typedef enum {
    S_MINIMUM,
    S_MAXIMUM,
    S_TO_STRING,
+   S_RISING_EDGE,
+   S_FALLING_EDGE
 } subprogram_kind_t;
 
 typedef enum {

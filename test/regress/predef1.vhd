@@ -7,6 +7,9 @@ architecture test of predef1 is
     type int_vector is array (natural range <>) of integer;
     type my_char is ('a', 'b', 'c');
     type char_vector is array (natural range <>) of my_char;
+
+    signal sa : bit := '0';
+    signal sb : boolean := true;
 begin
 
     main: process is
@@ -66,6 +69,19 @@ begin
         report to_string(char_vector'("abc"));
         assert to_string(char_vector'("abc")) = "abc";
         assert to_string(c) = "bca";
+
+        -----------------------------------------------------------------------
+        -- RISING_EDGE / FALLING_EDGE
+
+        sa <= '1';
+        sb <= false;
+        wait for 0 ns;
+        assert sa'event and sa = '1';
+        assert rising_edge(sa);
+        assert not falling_edge(sa);
+        assert sb'event and sb = false;
+        assert not rising_edge(sb);
+        assert falling_edge(sb);
 
         wait;
     end process;
