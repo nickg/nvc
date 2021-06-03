@@ -2651,11 +2651,11 @@ START_TEST(test_error)
    const error_t expect[] = {
       {  7, "unexpected identifier while parsing concurrent procedure call "
          "statement, expecting ;" },
-      {  7, "no visible declaration for BAD" },
+      {  7, "no visible subprogram declaration for BAD" },
       { 11, "unexpected identifier while parsing concurrent procedure call "
          "statement, expecting ;" },
-      { 11, "no visible declaration for SOME" },
-      { 11, "no visible declaration for BAD" },
+      { 11, "no visible subprogram declaration for SOME" },
+      { 11, "no visible subprogram declaration for BAD" },
       { 17, "unexpected ; while parsing process statement, expecting process" },
       { 23, "expected trailing process statement label to match FOO" },
       { 27, "trailing label for process statement without label" },
@@ -3084,7 +3084,7 @@ START_TEST(test_issue388)
    const error_t expect[] = {
       { 11, "unexpected => while parsing slice name, expecting one of" },
       { 12, "unexpected => while parsing concurrent procedure call" },
-      { 12, "no visible declaration for Q" },
+      { 12, "no visible subprogram declaration for Q" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3144,9 +3144,9 @@ START_TEST(test_names)
       {  78, "candidate PROC7 [MY_INT]" },
       { 106, "type of string literal is ambiguous (BIT_VECTOR, STRING)" },
       { 107, "invalid procedure call statement" },
-      { 108, "no visible declaration for FOO" },
+      { 108, "no visible subprogram declaration for FOO" },
       { 233, "name X not found in \"+\"" },
-      { 256, "no visible declaration for NOTHERE" },
+      { 256, "no visible subprogram declaration for NOTHERE" },
       {  -1, NULL }
    };
    expect_errors(expect);
@@ -3246,6 +3246,38 @@ START_TEST(test_error2)
 }
 END_TEST
 
+START_TEST(test_vhdl2008)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/vhdl2008.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   tree_t d = search_decls(a, ident_new("MY_TYPE_VECTOR"), 0);
+   fail_if(d == NULL);
+   type_t type = tree_type(d);
+   fail_unless(type_kind(type) == T_SUBTYPE);
+   fail_unless(type_has_resolution(type));
+   tree_t r = type_resolution(type);
+   fail_unless(tree_kind(r) == T_AGGREGATE);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3297,6 +3329,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_names);
    tcase_add_test(tc_core, test_implicit);
    tcase_add_test(tc_core, test_error2);
+   tcase_add_test(tc_core, test_vhdl2008);
    suite_add_tcase(s, tc_core);
 
    return s;

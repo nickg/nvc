@@ -139,6 +139,7 @@ static bool p_cond_analysis_expr(void);
 static type_t p_signature(void);
 static type_t p_type_mark(ident_t name);
 static tree_t p_function_call(ident_t id, tree_t prefix);
+static tree_t p_resolution_indication(void);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -2299,8 +2300,15 @@ static tree_t p_name(void)
       break;
 
    default:
-      expect(tSTRING, tID);
-      return tree_new(T_OPEN);
+      {
+         expect(tSTRING, tID);
+
+         tree_t dummy = tree_new(T_REF);
+         tree_set_loc(dummy, CURRENT_LOC);
+         tree_set_ident(dummy, ident_new("error"));
+         tree_set_type(dummy, type_new(T_NONE));
+         return dummy;
+      }
    }
 
    tree_t prefix = NULL;
@@ -2440,6 +2448,43 @@ static void p_constraint(type_t type)
    }
 }
 
+static tree_t p_element_resolution(void)
+{
+   // array_element_resolution | record_resolution
+
+   BEGIN("element resolution");
+
+   tree_t t = tree_new(T_AGGREGATE);
+
+   do {
+      tree_t a = tree_new(T_ASSOC);
+      tree_set_subkind(a, A_POS);
+      tree_set_value(a, p_resolution_indication());
+      tree_set_loc(a, CURRENT_LOC);
+
+      tree_add_assoc(t, a);
+   } while (optional(tCOMMA));
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_resolution_indication(void)
+{
+   // resolution_function_name | 2008: ( element_resolution )
+
+   BEGIN("resolution indication");
+
+   if (peek() == tID || standard() < STD_08)
+      return p_name();
+   else {
+      one_of(tLPAREN, tID);
+      tree_t rname = p_element_resolution();
+      consume(tRPAREN);
+      return rname;
+   }
+}
+
 static type_t p_subtype_indication(void)
 {
    // [ name ] type_mark [ constraint ]
@@ -2448,17 +2493,17 @@ static type_t p_subtype_indication(void)
 
    bool made_subtype = false;
    type_t type = NULL;
-   if ((peek() == tID) && (peek_nth(2) == tID)) {
+   if ((peek() == tID && peek_nth(2) == tID) || peek() == tLPAREN) {
       type = type_new(T_SUBTYPE);
       made_subtype = true;
 
-      tree_t rname = p_name();
-      // XXX: check name is resolution_function_name
+      tree_t rname = p_resolution_indication();
       type_set_resolution(type, rname);
-      solve_types(nametab, rname, NULL);
 
       type_t base = p_type_mark(NULL);
       type_set_base(type, base);
+
+      resolve_resolution(nametab, rname, type);
    }
    else
       type = p_type_mark(NULL);

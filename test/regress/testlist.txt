@@ -359,3 +359,4 @@ issue412        normal
 issue414        normal
 issue415        normal
 predef1         normal,2008
+signal15        normal,2008

@@ -81,6 +81,9 @@ static void check_deferred_constant(nametab_t *tab, tree_t first,
                                     tree_t second);
 static tree_t iter_name(nametab_t *tab, ident_t name, int nth);
 
+static void begin_overload_resolution(overload_t *o);
+static tree_t finish_overload_resolution(overload_t *o);
+
 ////////////////////////////////////////////////////////////////////////////////
 // Type sets
 
@@ -929,6 +932,45 @@ void resolve_specs(nametab_t *tab, tree_t container)
    }
 }
 
+void resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
+{
+   // Finding the resolution function is a special case of overload resolution
+
+   if (tree_kind(rname) == T_AGGREGATE) {
+      if (type_is_record(type))
+         error_at(tree_loc(rname), "sorry, record element resolution is not "
+                  "supported yet");
+      else if (!type_is_array(type))
+         error_at(tree_loc(rname), "non-composite type %s may not have element "
+                  "resolution indication", type_pp(type));
+      else if (tree_assocs(rname) != 1)
+         error_at(tree_loc(rname), "non-record type %s may not have record "
+                  "element resolution indication", type_pp(type));
+      else {
+         tree_t a0 = tree_value(tree_assoc(rname, 0));
+         resolve_resolution(tab, a0, type_elem(type));
+      }
+   }
+   else {
+      assert(tree_kind(rname) == T_REF);
+
+      type_set_push(tab);
+      type_set_add(tab, type);
+
+      overload_t o = {
+         .tree     = rname,
+         .state    = O_IDLE,
+         .nametab  = tab,
+         .trace    = false,
+         .name     = tree_ident(rname)
+      };
+      begin_overload_resolution(&o);
+      tree_set_ref(rname, finish_overload_resolution(&o));
+
+      type_set_pop(tab);
+   }
+}
+
 tree_t find_std(nametab_t *tab)
 {
    tree_t std = resolve_name(tab, NULL, ident_new("STANDARD"));
@@ -1451,7 +1493,7 @@ static tree_t finish_overload_resolution(overload_t *o)
    }
 
    if (o->initial == 0 && !o->error) {
-      error_at(tree_loc(o->tree), "no visible declaration for %s",
+      error_at(tree_loc(o->tree), "no visible subprogram declaration for %s",
                istr(o->name));
    }
    else if (count > 1 && !o->error) {

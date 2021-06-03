@@ -4477,9 +4477,29 @@ static void lower_var_decl(tree_t decl)
 static bool lower_resolution_func(type_t type, vcode_res_fn_t **data,
                                   size_t *max_elems, vcode_res_elem_t *rparent)
 {
-   if (rparent == NULL && type_kind(type) == T_SUBTYPE
-       && type_has_resolution(type)) {
-      tree_t rdecl = tree_ref(type_resolution(type));
+   tree_t rname = NULL;
+   if (type_kind(type) == T_SUBTYPE) {
+      if (type_has_resolution(type))
+         rname = type_resolution(type);
+      else if (type_is_array(type)) {
+         // Special handling for subtype created when object is decalared
+         type_t base = type_base(type);
+         if (type_kind(base) == T_SUBTYPE && type_is_unconstrained(base)
+             && type_has_resolution(base))
+            rname = type_resolution(base);
+      }
+   }
+
+   if (rparent == NULL && rname != NULL) {
+      while (tree_kind(rname) == T_AGGREGATE) {
+         assert(type_is_array(type));
+         assert(tree_assocs(rname) == 1);
+
+         rname = tree_value(tree_assoc(rname, 0));
+         type = type_elem(type);
+      }
+
+      tree_t rdecl = tree_ref(rname);
       ident_t rfunc = tree_ident2(rdecl);
       vcode_type_t rtype = lower_type(type);
 
@@ -4488,10 +4508,10 @@ static bool lower_resolution_func(type_t type, vcode_res_fn_t **data,
       type_t uarray_param = type_param(tree_type(rdecl), 0);
       tree_t r = range_of(type_index_constr(uarray_param, 0), 0);
       vcode_res_elem_t parent = {
-         .name     = rfunc,
-         .type     = rtype,
-         .ileft    = assume_int(tree_left(r)),
-         .kind     = is_record ? RES_RECORD : RES_SCALAR,
+         .name = rfunc,
+         .type = rtype,
+         .ileft = assume_int(tree_left(r)),
+         .kind = is_record ? RES_RECORD : RES_SCALAR,
          .boundary = is_record
       };
       return lower_resolution_func(type, data, max_elems, &parent);

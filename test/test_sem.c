@@ -89,7 +89,7 @@ START_TEST(test_ports)
       { 64,  "BAR has ports I, O" },
       { 163, "BAR has no port named U" },
       { 64,  "component BAR has ports I, O" },
-      { 185, "no visible declaration for HELLO" },
+      { 185, "no visible subprogram declaration for HELLO" },
       { 81,  "missing actual for formal I of mode IN without a default " },
       { 85,  "formal I already has an actual" },
       { 89,  "too many positional actuals" },
@@ -141,7 +141,7 @@ START_TEST(test_scope)
       {  55, "previous declaration of P was here" },
       { 114, "no visible declaration for MY_INT1" },
       { 137, "no visible declaration for E1" },
-      { 160, "no visible declaration for FUNC2" },
+      { 160, "no visible subprogram declaration for FUNC2" },
       { 167, "object NOT_HERE not found in unit WORK.PACK5" },
       { 189, "no visible declaration for MY_INT1" },
       { 236, "missing library clause for FOO" },
@@ -359,10 +359,10 @@ START_TEST(test_func)
    input_from_file(TESTDIR "/sem/func.vhd");
 
    const error_t expect[] = {
+      {  25, "no visible subprogram declaration for UENUM" },
       {   5, "function arguments must have mode IN" },
-      {  17, "must be an unconstrained array type" },
-      {  21, "resolution function must have single argument" },
-      {  25, "declaration UENUM is not a function" },
+      {  19, "must be an unconstrained array type" },
+      {  23, "resolution function must have a single argument" },
       {  27, "type of default value universal_integer does not" },
       {  29, "subprogram body is not allowed in package specification" },
       {  36, "cannot find unit WORK.BAD" },
@@ -857,7 +857,7 @@ START_TEST(test_subtype)
    input_from_file(TESTDIR "/sem/subtype.vhd");
 
    const error_t expect[] = {
-      { 16, "no visible declaration for NOT_HERE" },
+      { 16, "no visible subprogram declaration for NOT_HERE" },
       {  9, "expected type of range bound to be INTEGER but is" },
       { -1, NULL }
    };
@@ -1012,7 +1012,7 @@ START_TEST(test_protected)
       {  52, "shared variable X must have protected type" },
       {  56, "variable Z with protected type may not have an initial value" },
       {  64, "parameter with protected type can not have a default value" },
-      { 118, "no visible declaration for COUNTER" },
+      { 118, "no visible subprogram declaration for COUNTER" },
       { 119, "expected 1 argument for subprogram DECREMENT [INTEGER] but " },
       { 124, "object X with protected type must have class VARIABLE" },
       { 135, "may not assign to variable of a protected type" },
@@ -1069,7 +1069,7 @@ START_TEST(test_alias)
       { 40, "ambiguous use of enumeration literal '1'" },
       {  9, "visible declaration of '1' as BIT" },
       { 19, "visible declaration of '1' as CHARACTER" },
-      { 41, "no visible declaration for FOO_INT" },
+      { 41, "no visible subprogram declaration for FOO_INT" },
       { 68, "unexpected identifier while parsing subtype declaration" },
       { 42, "type of actual CHARACTER does not match formal X type BIT" },
       { 43, "operand of qualified expression must have type CHARACTER" },
@@ -1253,7 +1253,7 @@ START_TEST(test_issue165)
 
    const error_t expect[] = {
       {  5, "no visible declaration for TYPE_T" },
-      { 11, "no visible declaration for PROC" },
+      { 11, "no visible subprogram declaration for PROC" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2174,6 +2174,30 @@ START_TEST(test_issue407)
 }
 END_TEST
 
+START_TEST(test_resolution)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/resolution.vhd");
+
+   const error_t expect[] = {
+      {  6, "no visible subprogram declaration for BIT_VECTOR" },
+      { 10, "type mark VEC does not refer to a type" },
+      { 10, "unexpected identifier while parsing subtype declaration" },
+      { 17, "non-record type MY_UTYPE_VECTOR may not have record element" },
+      { 29, "non-composite type MY_UTYPE may not have element resolution" },
+      { 33, "resolution function name PROC is not a function" },
+      { 37, "parameter of resolution function must be an array of MY_UTYPE" },
+      { 41, "result of resolution function must be MY_UTYPE but have UREC" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2283,6 +2307,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_physical);
    tcase_add_test(tc_core, test_block);
    tcase_add_test(tc_core, test_issue407);
+   tcase_add_test(tc_core, test_resolution);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -144,45 +144,62 @@ static tree_t sem_int_lit(type_t type, int64_t i)
    return f;
 }
 
-static bool sem_check_resolution(type_t type)
+static bool sem_check_resolution(type_t type, tree_t res)
 {
    // Resolution functions are described in LRM 93 section 2.4
 
-   assert(type_kind(type) == T_SUBTYPE);
+   if (tree_kind(res) == T_AGGREGATE) {
+      // VHDL-2008 element resolution
+      assert(standard() >= STD_08);
 
-   tree_t ref = type_resolution(type);
+      if (type_is_array(type)) {
+         tree_t sub = tree_value(tree_assoc(res, 0));
+         return sem_check_resolution(type_elem(type), sub);
+      }
+      else if (type_is_record(type))
+         sem_error(res, "sorry, record element resolution functions are not"
+                   "supported yet");
+      else {
+         // Should have been caught during name resolution
+         assert(error_count() > 0);
+         return false;
+      }
+   }
 
-   if (!tree_has_ref(ref))
+   assert(tree_kind(res) == T_REF);
+
+   if (!tree_has_ref(res))
       return false;
 
-   tree_t fdecl = tree_ref(ref);
-
-   tree_kind_t kind = tree_kind(fdecl);
-   if ((kind != T_FUNC_DECL) && (kind != T_FUNC_BODY))
-      sem_error(ref, "declaration %s is not a function",
-                istr(tree_ident(ref)));
+   tree_t fdecl = tree_ref(res);
+   assert(is_subprogram(fdecl));
 
    type_t ftype = tree_type(fdecl);
+
+   if (type_kind(ftype) != T_FUNC)
+      sem_error(res, "resolution function name %s is not a function",
+                istr(tree_ident(res)));
 
    // Must take a single parameter of array of base type
 
    if (type_params(ftype) != 1)
-      sem_error(fdecl, "resolution function must have single argument");
+      sem_error(res, "resolution function must have a single argument");
 
    type_t param = type_param(ftype, 0);
    if (type_kind(param) != T_UARRAY)
-      sem_error(fdecl, "parameter of resolution function must be "
+      sem_error(res, "parameter of resolution function must be "
                 "an unconstrained array type");
 
    if (!type_eq(type_elem(param), type))
-      sem_error(fdecl, "parameter of resolution function must be "
-                "array of %s", type_pp(type));
+      sem_error(res, "parameter of resolution function must be "
+                "an array of %s but found %s", type_pp(type),
+                type_pp(type_elem(param)));
 
    // Return type must be the resolved type
 
    if (!type_eq(type_result(ftype), type))
-      sem_error(fdecl, "result of resolution function must %s",
-                type_pp(type));
+      sem_error(res, "result of resolution function must be %s but have %s",
+                type_pp(type), type_pp(type_result(ftype)));
 
    return true;
 }
@@ -234,7 +251,7 @@ static bool sem_check_subtype(tree_t decl, type_t type)
    }
 
    if (type_has_resolution(type)) {
-      if (!sem_check_resolution(type))
+      if (!sem_check_resolution(type_base(type), type_resolution(type)))
          return false;
    }
 

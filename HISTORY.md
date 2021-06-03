@@ -26,6 +26,7 @@
   `fst2vcd(1)`. This should improve compatibility with other tools.
 - The `fetch-ieee.sh` script which did nothing since the last release
   has been removed.
+- Added support for VHDL-2008 element resolution.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

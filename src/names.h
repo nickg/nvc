@@ -60,6 +60,7 @@ void insert_generics(nametab_t *tab, tree_t container);
 tree_t resolve_name(nametab_t *r, const loc_t *loc, ident_t name);
 type_t resolve_type(nametab_t *r, type_t incomplete);
 void resolve_specs(nametab_t *tab, tree_t container);
+void resolve_resolution(nametab_t *tab, tree_t rname, type_t type);
 tree_t query_name(nametab_t *tab, ident_t name);
 tree_t find_std(nametab_t *tab);
 
