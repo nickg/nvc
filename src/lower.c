@@ -109,6 +109,8 @@ static void lower_decls(tree_t scope, vcode_unit_t context);
 static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg);
 static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_image_map(type_t type);
+static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
+                                   type_t type, unsigned dim);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -961,14 +963,75 @@ static vcode_reg_t lower_min_max(vcode_cmp_t cmp, tree_t fcall)
 {
    vcode_reg_t result = VCODE_INVALID_REG;
 
-   const int nparams = tree_params(fcall);
-   for (int i = 0; i < nparams; i++) {
-      vcode_reg_t value = lower_subprogram_arg(fcall, i);
-      if (result == VCODE_INVALID_REG)
-         result = value;
-      else {
-         vcode_reg_t test = emit_cmp(cmp, value, result);
-         result = emit_select(test, value, result);
+   tree_t p0 = tree_value(tree_param(fcall, 0));
+   type_t type = tree_type(p0);
+
+   if (type_is_array(type)) {
+      type_t elem = type_elem(type);
+      assert(type_is_scalar(elem));
+
+      vcode_reg_t array_reg = lower_subprogram_arg(fcall, 0);
+
+      ident_t i_name = ident_uniq("minmax_i");
+      vcode_var_t i_var = emit_var(vtype_offset(), vtype_offset(), i_name);
+      emit_store(emit_const(vtype_offset(), 0), i_var);
+
+      ident_t result_name = ident_uniq("minmax_result");
+      vcode_type_t elem_vtype = lower_type(elem);
+      vcode_var_t result_var = emit_var(elem_vtype, elem_vtype, result_name);
+
+      tree_t elem_r = range_of(elem, 0);
+      vcode_reg_t def_reg =
+         (cmp == VCODE_CMP_GT && tree_subkind(elem_r) == RANGE_TO)
+         || (cmp == VCODE_CMP_LT && tree_subkind(elem_r) == RANGE_DOWNTO)
+         ? lower_range_left(elem_r)
+         : lower_range_right(elem_r);
+
+      emit_store(def_reg, result_var);
+
+      vcode_reg_t left_reg  = lower_array_left(type, 0, array_reg);
+      vcode_reg_t right_reg = lower_array_right(type, 0, array_reg);
+      vcode_reg_t kind_reg  = lower_array_dir(type, 0, array_reg);
+      vcode_reg_t data_reg  = lower_array_data(array_reg);
+
+      vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, kind_reg);
+      vcode_reg_t step_reg = emit_select(kind_reg,
+                                         emit_const(vtype_offset(), -1),
+                                         emit_const(vtype_offset(), 1));
+
+      vcode_block_t body_bb = emit_block();
+      vcode_block_t exit_bb = emit_block();
+
+      emit_cond(null_reg, exit_bb, body_bb);
+
+      vcode_select_block(body_bb);
+
+      vcode_reg_t i_reg    = emit_load(i_var);
+      vcode_reg_t elem_reg = emit_load_indirect(emit_add(data_reg, i_reg));
+      vcode_reg_t cur_reg  = emit_load(result_var);
+      vcode_reg_t cmp_reg  = emit_cmp(cmp, elem_reg, cur_reg);
+      vcode_reg_t next_reg = emit_select(cmp_reg, elem_reg, cur_reg);
+
+      emit_store(next_reg, result_var);
+      emit_store(emit_add(i_reg, step_reg), i_var);
+
+      vcode_reg_t stop_reg = lower_array_off(right_reg, array_reg, type, 0);
+      vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, i_reg, stop_reg);
+      emit_cond(done_reg, exit_bb, body_bb);
+
+      vcode_select_block(exit_bb);
+      result = emit_load(result_var);
+   }
+   else {
+      const int nparams = tree_params(fcall);
+      for (int i = 0; i < nparams; i++) {
+         vcode_reg_t value = lower_subprogram_arg(fcall, i);
+         if (result == VCODE_INVALID_REG)
+            result = value;
+         else {
+            vcode_reg_t test = emit_cmp(cmp, value, result);
+            result = emit_select(test, value, result);
+         }
       }
    }
 

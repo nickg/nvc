@@ -880,6 +880,11 @@ static void declare_predefined_ops(tree_t container, type_t t)
          declare_binary(container, concat, t, elem, t, S_CONCAT);
          declare_binary(container, concat, elem, t, t, S_CONCAT);
          declare_binary(container, concat, elem, elem, t, S_CONCAT);
+
+         if (standard() >= STD_08 && type_is_scalar(elem)) {
+            declare_unary(container, ident_new("MINIMUM"), t, elem, S_MINIMUM);
+            declare_unary(container, ident_new("MAXIMUM"), t, elem, S_MAXIMUM);
+         }
       }
       break;
 

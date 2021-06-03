@@ -4,6 +4,7 @@ end entity;
 architecture test of predef1 is
     type my_int is range 1 to 10;
     type my_enum is (X, Y, FOO, BAR);
+    type int_vector is array (natural range <>) of integer;
 begin
 
     main: process is
@@ -12,6 +13,7 @@ begin
         variable m : my_int;
         variable e : my_enum;
         variable r : real := 1.23456;
+        variable v : int_vector(1 to 3) := (1, 2, 3);
     begin
         -----------------------------------------------------------------------
         -- MINIMUM
@@ -22,6 +24,8 @@ begin
         wait for 1 ns;
         assert minimum(4, m) = 4;
         assert minimum(b, false) = false;
+        assert minimum(int_vector'(5, -1, 2)) = -1;
+        assert minimum(v) = 1;
 
         -----------------------------------------------------------------------
         -- MAXIMUM
@@ -31,6 +35,9 @@ begin
         wait for 1 ns;
         assert maximum(4, m) = 6;
         assert maximum(b, false) = true;
+        report integer'image(maximum(int_vector'(5, -1, 2)));
+        assert maximum(int_vector'(5, -1, 2)) = 5;
+        assert maximum(v) = 3;
 
         -----------------------------------------------------------------------
         -- TO_STRING

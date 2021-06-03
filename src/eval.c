@@ -358,6 +358,7 @@ static bool eval_new_var(value_t *value, vcode_type_t type, eval_state_t *state)
       break;
 
    case VCODE_TYPE_INT:
+   case VCODE_TYPE_OFFSET:
       value->kind = VALUE_INTEGER;
       value->integer = 0;
       break;
@@ -486,7 +487,7 @@ static value_t *eval_get_var(vcode_var_t var, context_t *context)
       return value;
 }
 
-static int eval_value_cmp(value_t *lhs, value_t *rhs)
+static int64_t eval_value_cmp(value_t *lhs, value_t *rhs)
 {
    assert(lhs->kind == rhs->kind);
    switch (lhs->kind) {
@@ -1840,6 +1841,15 @@ static void eval_op_range_null(int op, eval_state_t *state)
       result->integer = right->integer > left->integer;
 }
 
+static void eval_op_debug_out(int op, eval_state_t *state)
+{
+   vcode_reg_t reg = vcode_get_arg(op, 0);
+   value_t *value = eval_get_reg(reg, state);
+   assert(value->kind == VALUE_INTEGER);
+
+   printf("DEBUG: r%d val=%"PRIi64"\n", reg, value->integer);
+}
+
 static void eval_vcode(eval_state_t *state)
 {
    if (++(state->iterations) >= ITER_LIMIT) {
@@ -2105,6 +2115,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_RANGE_NULL:
          eval_op_range_null(i, state);
+         break;
+
+      case VCODE_OP_DEBUG_OUT:
+         eval_op_debug_out(i, state);
          break;
 
       default:
