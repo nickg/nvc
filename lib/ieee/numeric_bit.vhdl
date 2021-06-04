@@ -54,8 +54,6 @@
 -- $Date: 2008-04-10 17:16:09 +0930 (Thu, 10 Apr 2008) $
 -- --------------------------------------------------------------------
 
-use STD.TEXTIO.all;
-
 package NUMERIC_BIT is
   constant CopyRightNotice : STRING
     := "Copyright © 2008 IEEE. All rights reserved.";
