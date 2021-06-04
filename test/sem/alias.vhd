@@ -72,5 +72,8 @@ architecture test of e is
 
     alias foo_o is foo_bad [bit return bad];  -- OK
     alias foo_o is foo_bad [character return bad];  -- Error (suppressed)
+
+    alias my_now is std.standard.now [return delay_length];  -- OK
+    alias my_eq is std.standard."=" [bit, bit return boolean];  -- OK
 begin
 end architecture;

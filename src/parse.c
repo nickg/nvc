@@ -820,9 +820,10 @@ static void declare_unary(tree_t container, ident_t name, type_t operand,
 
 static bool all_character_literals(type_t type)
 {
-   const int nlits = type_enum_literals(type);
+   type_t base = type_base_recur(type);
+   const int nlits = type_enum_literals(base);
    for (int i = 0; i < nlits; i++) {
-      if (ident_char(tree_ident(type_enum_literal(type, i)), 0) != '\'')
+      if (ident_char(tree_ident(type_enum_literal(base, i)), 0) != '\'')
          return false;
    }
 
@@ -1377,10 +1378,19 @@ static tree_t select_decl(tree_t prefix, ident_t suffix)
       parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
                   istr(tree_ident(prefix)));
    }
-   else if (is_subprogram(d) && !bare_subprogram_name()) {
-      tree_t f = p_function_call(suffix, prefix);
-      tree_set_ident(f, qual); // TODO: seems a bit hacky?
-      return f;
+   else if (is_subprogram(d)) {
+      if (bare_subprogram_name()) {
+         // Overload will be resolved after signature has been parsed
+         tree_t ref = tree_new(T_REF);
+         tree_set_ident(ref, qual);
+         tree_set_loc(ref, CURRENT_LOC);
+         return ref;
+      }
+      else {
+         tree_t f = p_function_call(suffix, prefix);
+         tree_set_ident(f, qual);
+         return f;
+      }
    }
 
    tree_t ref = tree_new(T_REF);
@@ -4569,7 +4579,8 @@ static tree_t p_alias_declaration(void)
          type = type_new(T_NONE);
       }
       else {
-         type_set_ident(type, tree_ident(value));
+         ident_t id = tree_ident(value);
+         type_set_ident(type, ident_rfrom(id, '.') ?: id);
          solve_types(nametab, value, type);
       }
       tree_set_type(t, type);

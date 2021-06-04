@@ -840,10 +840,37 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
    type_t constraint;
    if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
       // Reference to subprogram with signature
-      int n = 0;
+
+      ident_t full_name = tree_ident(ref);
+      tree_t prefix = NULL;
+
+      for (;;) {
+         ident_t next = ident_until(full_name, '.');
+         if (next == full_name)
+            break;
+
+         if (prefix == NULL)
+            prefix = resolve_name(tab, tree_loc(ref), next);
+         else {
+            tree_t old_prefix = prefix;
+            if ((prefix = search_decls(prefix, next, 0)) == NULL) {
+               error_at(tree_loc(ref), "name %s not found in %s", istr(next),
+                        istr(tree_ident(old_prefix)));
+            }
+         }
+
+         if (prefix == NULL)
+            return NULL;
+
+         full_name = ident_from(full_name, '.');
+      }
+
       bool match = false;
       tree_t decl = NULL;
-      while (!match && (decl = iter_name(tab, tree_ident(ref), n++))) {
+      for (int n = 0;
+           !match && (decl = (prefix ? search_decls(prefix, full_name, n)
+                              : iter_name(tab, full_name, n)));
+           n++) {
          if (is_subprogram(decl))
             match = type_eq(constraint, tree_type(decl));
       }
