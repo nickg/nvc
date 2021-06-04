@@ -90,6 +90,10 @@ static A(char *)           link_args;
 static hash_t             *string_pool = NULL;
 static A(LLVMMetadataRef)  debug_scopes;
 
+#ifndef LLVM_HAVE_DI_SCOPE_GET_FILE
+static LLVMMetadataRef debug_file = NULL;
+#endif
+
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMValueRef cgen_resolution_wrapper(const vcode_res_elem_t *rdata);
 
@@ -396,7 +400,11 @@ static LLVMMetadataRef cgen_top_debug_scope(void)
 static LLVMMetadataRef cgen_debug_file(const loc_t *loc)
 {
    // Ignore the passed in loc and just return the top-level file
+#ifdef LLVM_HAVE_DI_SCOPE_GET_FILE
    return LLVMDIScopeGetFile(AGET(debug_scopes, 0));
+#else
+   return debug_file;
+#endif
 }
 
 static void cgen_debug_loc(cgen_ctx_t *ctx, const loc_t *loc, bool force)
@@ -409,7 +417,12 @@ static void cgen_debug_loc(cgen_ctx_t *ctx, const loc_t *loc, bool force)
    LLVMMetadataRef dloc = LLVMDIBuilderCreateDebugLocation(
       LLVMGetGlobalContext(), loc->first_line, loc->first_column,
       cgen_top_debug_scope(), NULL);
+#ifdef LLVM_HAVE_SET_CURRENT_DEBUG_LOCATION_2
    LLVMSetCurrentDebugLocation2(builder, dloc);
+#else
+   LLVMValueRef md = LLVMMetadataAsValue(LLVMGetGlobalContext(), dloc);
+   LLVMSetCurrentDebugLocation(builder, md);
+#endif
 }
 
 static void cgen_debug_push_func(cgen_ctx_t *ctx)
@@ -3672,6 +3685,10 @@ static void cgen_module_debug_info(void)
 
    LLVMMetadataRef file_ref =
       LLVMDIBuilderCreateFile(debuginfo, file, file_len, dir, dir_len);
+
+#ifndef LLVM_HAVE_DI_SCOPE_GET_FILE
+   debug_file = file_ref;
+#endif
 
    LLVMMetadataRef cu = LLVMDIBuilderCreateCompileUnit(
       debuginfo, LLVMDWARFSourceLanguageAda83,
