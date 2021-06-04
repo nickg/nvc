@@ -1352,6 +1352,70 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
    return lower_logical(fcall, result);
 }
 
+static vcode_reg_t lower_reduction_op(subprogram_kind_t kind, vcode_reg_t r0,
+                                      type_t r0_type)
+{
+   ident_t result_name = ident_uniq("reduce_result");
+   vcode_var_t result_var = emit_var(vtype_bool(), vtype_bool(), result_name);
+   vcode_reg_t init_reg =
+      emit_const(vtype_bool(), kind == S_REDUCE_NAND || kind == S_REDUCE_AND);
+   emit_store(init_reg, result_var);
+
+   ident_t i_name = ident_uniq("reduce_i");
+   vcode_var_t i_var = emit_var(vtype_offset(), vtype_offset(), i_name);
+   emit_store(emit_const(vtype_offset(), 0), i_var);
+
+   vcode_reg_t len_reg   = lower_array_len(r0_type, 0, r0);
+   vcode_reg_t data_reg  = lower_array_data(r0);
+   vcode_reg_t left_reg  = lower_array_left(r0_type, 0, r0);
+   vcode_reg_t right_reg = lower_array_right(r0_type, 0, r0);
+   vcode_reg_t dir_reg   = lower_array_dir(r0_type, 0, r0);
+   vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
+
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   emit_cond(null_reg, exit_bb, body_bb);
+
+   vcode_select_block(body_bb);
+
+   vcode_reg_t i_reg   = emit_load(i_var);
+   vcode_reg_t src_reg = emit_load_indirect(emit_add(data_reg, i_reg));
+   vcode_reg_t cur_reg = emit_load(result_var);
+
+   vcode_reg_t result_reg = VCODE_INVALID_REG;
+   switch (kind) {
+   case S_REDUCE_OR:
+   case S_REDUCE_NOR:
+      result_reg = emit_or(cur_reg, src_reg);
+      break;
+   case S_REDUCE_AND:
+   case S_REDUCE_NAND:
+      result_reg = emit_and(cur_reg, src_reg);
+      break;
+   case S_REDUCE_XOR:
+   case S_REDUCE_XNOR:
+      result_reg = emit_xor(cur_reg, src_reg);
+      break;
+   default:
+      break;
+   }
+
+   emit_store(result_reg, result_var);
+
+   vcode_reg_t next_reg = emit_addi(i_reg, 1);
+   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
+   emit_store(next_reg, i_var);
+   emit_cond(cmp_reg, exit_bb, body_bb);
+
+   vcode_select_block(exit_bb);
+
+   if (kind == S_REDUCE_NOR || kind == S_REDUCE_NAND || kind == S_REDUCE_XNOR)
+      return emit_not(emit_load(result_var));
+   else
+      return emit_load(result_var);
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
 {
    if (builtin == S_MAXIMUM)
@@ -1498,6 +1562,13 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
       return lower_bit_vec_op(BIT_VEC_NAND, r0, r1, fcall);
    case S_ARRAY_NOR:
       return lower_bit_vec_op(BIT_VEC_NOR, r0, r1, fcall);
+   case S_REDUCE_OR:
+   case S_REDUCE_AND:
+   case S_REDUCE_NAND:
+   case S_REDUCE_NOR:
+   case S_REDUCE_XOR:
+   case S_REDUCE_XNOR:
+      return lower_reduction_op(builtin, r0, r0_type);
    case S_SLL:
       return lower_bit_shift(BIT_SHIFT_SLL, r0, r0_type, r1);
    case S_SRL:

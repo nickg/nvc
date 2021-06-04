@@ -154,7 +154,13 @@ typedef enum {
    S_MAXIMUM,
    S_TO_STRING,
    S_RISING_EDGE,
-   S_FALLING_EDGE
+   S_FALLING_EDGE,
+   S_REDUCE_AND,
+   S_REDUCE_OR,
+   S_REDUCE_NAND,
+   S_REDUCE_NOR,
+   S_REDUCE_XOR,
+   S_REDUCE_XNOR,
 } subprogram_kind_t;
 
 typedef enum {

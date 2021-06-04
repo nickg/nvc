@@ -1060,6 +1060,16 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_binary(container, ident_new("\"sra\""), t, std_int, t, S_SRA);
       declare_binary(container, ident_new("\"rol\""), t, std_int, t, S_ROL);
       declare_binary(container, ident_new("\"ror\""), t, std_int, t, S_ROR);
+
+      if (standard() >= STD_08) {
+         type_t e = type_elem(t);
+         declare_unary(container, ident_new("\"and\""), t, e, S_REDUCE_AND);
+         declare_unary(container, ident_new("\"or\""), t, e, S_REDUCE_OR);
+         declare_unary(container, ident_new("\"xor\""), t, e, S_REDUCE_XOR);
+         declare_unary(container, ident_new("\"nand\""), t, e, S_REDUCE_NAND);
+         declare_unary(container, ident_new("\"nor\""), t, e, S_REDUCE_NOR);
+         declare_unary(container, ident_new("\"xnor\""), t, e, S_REDUCE_XNOR);
+      }
    }
 
    // Predefined procedures
@@ -2922,9 +2932,30 @@ static tree_t p_primary(void)
    }
 }
 
+static ident_t p_logical_operator(void)
+{
+   switch (one_of(tAND, tOR, tNAND, tNOR, tXOR, tXNOR)) {
+   case tAND:
+      return ident_new("\"and\"");
+   case tOR:
+      return ident_new("\"or\"");
+   case tNAND:
+      return ident_new("\"nand\"");
+   case tNOR:
+      return ident_new("\"nor\"");
+   case tXOR:
+      return ident_new("\"xor\"");
+   case tXNOR:
+      return ident_new("\"xnor\"");
+   default:
+      return ident_new("error");
+   }
+}
+
 static tree_t p_factor(void)
 {
    // primary [ ** primary ] | abs primary | not primary
+   //   2008: logical_operator primary
 
    BEGIN("factor");
 
@@ -2938,6 +2969,16 @@ static tree_t p_factor(void)
    case tABS:
       consume(tABS);
       op = ident_new("\"abs\"");
+      break;
+
+   case tAND:
+   case tOR:
+   case tNAND:
+   case tNOR:
+   case tXOR:
+   case tXNOR:
+      if (standard() >= STD_08)
+         op = p_logical_operator();
       break;
 
    default:

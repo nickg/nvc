@@ -15,6 +15,20 @@ architecture test of vhdl2008 is
     subtype my_type is resolved my_utype;
     subtype my_type_vector is (resolved) my_utype_vector;  -- OK
 
+    type my_logical_vec is array (natural range <>) of bit;
 begin
+
+    process is
+        variable b : bit;
+        variable v : my_logical_vec(1 to 3);
+    begin
+        b := or v;                      -- OK
+        if or v = '1' then end if;      -- OK
+        b := and v;                     -- OK
+        b := xor v;                     -- OK
+        b := xnor v;                    -- OK
+        b := nand v;                    -- OK
+        b := nor v;                     -- OK
+    end process;
 
 end architecture;

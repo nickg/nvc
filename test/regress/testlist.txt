@@ -360,3 +360,4 @@ issue414        normal
 issue415        normal
 predef1         normal,2008
 signal15        normal,2008
+logical3        normal,2008
