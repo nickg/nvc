@@ -247,7 +247,7 @@ static void make_rule(tree_t t, rule_t **rules)
    }
 
    const int nctx = tree_contexts(t);
-   tree_t *deps = xmalloc(nctx * sizeof(tree_t));
+   tree_t *deps = xmalloc_array(nctx, sizeof(tree_t));
 
    const bool deps_only = opt_get_int("make-deps-only");
 
@@ -397,7 +397,7 @@ void make(tree_t *targets, int count, FILE *out)
    if (count == 0) {
       lib_t work = lib_work();
       count = lib_index_size(work);
-      targets = xmalloc(count * sizeof(tree_t));
+      targets = xmalloc_array(count, sizeof(tree_t));
       tree_t *outp = targets;
       lib_walk_index(work, make_add_target, &outp);
    }

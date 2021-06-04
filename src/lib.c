@@ -229,12 +229,12 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
    if (where == NULL) {
       if (lib->n_units == 0) {
          lib->units_alloc = 16;
-         lib->units = xmalloc(sizeof(lib_unit_t) * lib->units_alloc);
+         lib->units = xmalloc_array(sizeof(lib_unit_t), lib->units_alloc);
       }
       else if (lib->n_units == lib->units_alloc) {
          lib->units_alloc *= 2;
-         lib->units = xrealloc(lib->units,
-                               sizeof(lib_unit_t) * lib->units_alloc);
+         lib->units = xrealloc_array(lib->units,
+                                     sizeof(lib_unit_t), lib->units_alloc);
       }
 
       where = &(lib->units[lib->n_units++]);

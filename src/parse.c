@@ -324,7 +324,7 @@ static token_t peek_nth(int n)
       int next = (tokenq_head + 1) & (tokenq_sz - 1);
       if (unlikely(next == tokenq_tail)) {
          const int newsz = tokenq_sz * 2;
-         tokenq_t *new = xmalloc(newsz * sizeof(tokenq_t));
+         tokenq_t *new = xmalloc_array(newsz, sizeof(tokenq_t));
 
          tokenq_t *p = new;
          for (int i = tokenq_tail; i != tokenq_head;
@@ -7520,7 +7520,7 @@ void input_from_file(const char *file)
 
    if (tokenq == NULL) {
       tokenq_sz = 128;
-      tokenq = xmalloc(tokenq_sz * sizeof(tokenq_t));
+      tokenq = xmalloc_array(tokenq_sz, sizeof(tokenq_t));
    }
 
    tokenq_head = tokenq_tail = 0;

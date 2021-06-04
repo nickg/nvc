@@ -108,9 +108,9 @@ void object_change_kind(const object_class_t *class, object_t *object, int kind)
 
 static void object_init(object_class_t *class)
 {
-   class->object_size   = xmalloc(class->last_kind * sizeof(size_t));
-   class->object_nitems = xmalloc(class->last_kind * sizeof(int));
-   class->item_lookup   = xmalloc(class->last_kind * sizeof(int) * 64);
+   class->object_size   = xmalloc_array(class->last_kind, sizeof(size_t));
+   class->object_nitems = xmalloc_array(class->last_kind, sizeof(int));
+   class->item_lookup   = xmalloc_array(class->last_kind, sizeof(int) * 64);
 
    assert(class->last_kind < (1 << (sizeof(uint8_t) * 8)));
 
@@ -644,7 +644,7 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
             attrs->num = read_u16(ctx->file);
             if (attrs->num > 0) {
                attrs->alloc = next_power_of_2(attrs->num);
-               attrs->table = xmalloc(sizeof(attr_t) * attrs->alloc);
+               attrs->table = xmalloc_array(sizeof(attr_t), attrs->alloc);
             }
 
             for (unsigned i = 0; i < attrs->num; i++) {
@@ -701,7 +701,7 @@ object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname)
    ctx->ident_ctx = ident_read_begin(f);
    ctx->loc_ctx   = loc_read_begin(f);
    ctx->store_sz  = 256;
-   ctx->store     = xmalloc(ctx->store_sz * sizeof(object_t *));
+   ctx->store     = xmalloc_array(ctx->store_sz, sizeof(object_t *));
    ctx->n_objects = 0;
    ctx->db_fname  = xstrdup(fname);
 
@@ -857,7 +857,7 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
             if ((copy->items[n].attrs.num = object->items[n].attrs.num) > 0) {
                copy->items[n].attrs.alloc = object->items[n].attrs.alloc;
                copy->items[n].attrs.table =
-                  xmalloc(sizeof(attr_t) * copy->items[n].attrs.alloc);
+                  xmalloc_array(copy->items[n].attrs.alloc, sizeof(attr_t));
                for (unsigned i = 0; i < object->items[n].attrs.num; i++)
                   copy->items[n].attrs.table[i] =
                      object->items[n].attrs.table[i];

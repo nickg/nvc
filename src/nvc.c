@@ -603,7 +603,7 @@ static int make_cmd(int argc, char **argv)
    }
 
    const int count = next_cmd - optind;
-   tree_t *targets = xmalloc(count * sizeof(tree_t));
+   tree_t *targets = xmalloc_array(count, sizeof(tree_t));
 
    lib_t work = lib_work();
 

@@ -35,7 +35,7 @@ static void rt_alloc_add_objects(rt_alloc_stack_t s, size_t n)
 {
    rt_chunk_t *c = xmalloc(sizeof(rt_chunk_t));
    c->next = s->chunks;
-   c->ptr  = xmalloc(n * s->item_sz);
+   c->ptr  = xmalloc_array(n, s->item_sz);
 
    char *p = c->ptr;
    for (int i = 0; i < n; i++, p += s->item_sz)
@@ -47,7 +47,7 @@ static void rt_alloc_add_objects(rt_alloc_stack_t s, size_t n)
 rt_alloc_stack_t rt_alloc_stack_new(size_t size, const char *name)
 {
    struct rt_alloc_stack *s = xmalloc(sizeof(struct rt_alloc_stack));
-   s->stack     = xmalloc(sizeof(void *) * INIT_ITEMS);
+   s->stack     = xmalloc_array(INIT_ITEMS, sizeof(void *));
    s->stack_sz  = INIT_ITEMS;
    s->stack_top = 0;
    s->item_sz   = size;

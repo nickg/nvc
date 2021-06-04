@@ -2208,12 +2208,12 @@ static void rt_push_run_queue(event_t *e)
    if (unlikely(run_queue.wr == run_queue.alloc)) {
       if (run_queue.alloc == 0) {
          run_queue.alloc = 128;
-         run_queue.queue = xmalloc(sizeof(event_t *) * run_queue.alloc);
+         run_queue.queue = xmalloc_array(run_queue.alloc, sizeof(event_t *));
       }
       else {
          run_queue.alloc *= 2;
-         run_queue.queue = realloc(run_queue.queue,
-                                   sizeof(event_t *) * run_queue.alloc);
+         run_queue.queue = xrealloc_array(run_queue.queue, run_queue.alloc,
+                                          sizeof(event_t *));
       }
    }
 

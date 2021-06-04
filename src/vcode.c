@@ -674,7 +674,7 @@ void vcode_opt(void)
 {
    // Prune assignments to unused registers
 
-   int *uses LOCAL = xmalloc(active_unit->regs.count * sizeof(int));
+   int *uses LOCAL = xmalloc_array(active_unit->regs.count, sizeof(int));
 
    int pruned = 0;
    do {
@@ -4925,7 +4925,7 @@ vcode_reg_t emit_enum_map(ident_t name, size_t nelems, const ident_t *elems)
    img->kind   = IMAGE_ENUM;
    img->nelems = nelems;
    img->values = NULL;
-   img->elems  = xmalloc(nelems * sizeof(ident_t));
+   img->elems  = xmalloc_array(nelems, sizeof(ident_t));
    for (size_t i = 0; i < nelems; i++)
       img->elems[i] = elems[i];
 
@@ -5272,14 +5272,14 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
 
             op->image_map->nelems = read_u16(f);
             op->image_map->elems =
-               xmalloc(sizeof(uint64_t) * op->image_map->nelems);
+               xmalloc_array(op->image_map->nelems, sizeof(uint64_t));
             for (size_t i = 0; i < op->image_map->nelems; i++)
                op->image_map->elems[i] = ident_read(ident_rd_ctx);
 
             const bool has_values = read_u8(f);
             if (has_values) {
                op->image_map->values =
-                  xmalloc(sizeof(uint64_t) * op->image_map->nelems);
+                  xmalloc_array(op->image_map->nelems, sizeof(uint64_t));
                for (size_t i = 0; i < op->image_map->nelems; i++)
                   op->image_map->values[i] = read_u64(f);
             }
@@ -5379,7 +5379,7 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
       s->shadow = read_u32(f);
       s->flags = read_u32(f);
       s->nnets = read_u32(f);
-      s->nets = xmalloc(sizeof(uint32_t) * s->nnets);
+      s->nets = xmalloc_array(s->nnets, sizeof(uint32_t));
       for (unsigned j = 0; j < s->nnets; j++)
          s->nets[j] = read_u32(f);
    }

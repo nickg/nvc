@@ -72,8 +72,11 @@
 #define LCOV_EXCL_BR_STOP
 
 void *xmalloc(size_t size) RETURNS_NONNULL;
+void *xmalloc_array(size_t nelems, size_t size) RETURNS_NONNULL;
 void *xcalloc(size_t size) RETURNS_NONNULL;
+void *xcalloc_array(size_t nelems, size_t size) RETURNS_NONNULL;
 void *xrealloc(void *ptr, size_t size) RETURNS_NONNULL;
+void *xrealloc_array(void *ptr, size_t nelems, size_t size) RETURNS_NONNULL;
 char *xstrdup(const char *str) RETURNS_NONNULL;
 
 char *xvasprintf(const char *fmt, va_list ap) RETURNS_NONNULL;

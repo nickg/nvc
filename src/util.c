@@ -292,6 +292,15 @@ void *xmalloc(size_t size)
    return p;
 }
 
+void *xmalloc_array(size_t nelems, size_t size)
+{
+   size_t bytes;
+   if (__builtin_mul_overflow(nelems, size, &bytes))
+      fatal("array size overflow: requested %zd * %zd bytes", size, nelems);
+
+   return xmalloc(bytes);
+}
+
 void *xcalloc(size_t size)
 {
    void *p = calloc(1, size);
@@ -300,12 +309,30 @@ void *xcalloc(size_t size)
    return p;
 }
 
+void *xcalloc_array(size_t nelems, size_t size)
+{
+   size_t bytes;
+   if (__builtin_mul_overflow(nelems, size, &bytes))
+      fatal("array size overflow: requested %zd * %zd bytes", size, nelems);
+
+   return xcalloc(bytes);
+}
+
 void *xrealloc(void *ptr, size_t size)
 {
    ptr = realloc(ptr, size);
    if (ptr == NULL)
       fatal("memory exhausted (realloc %lu)", (long unsigned)size);
    return ptr;
+}
+
+void *xrealloc_array(void *ptr, size_t nelems, size_t size)
+{
+   size_t bytes;
+   if (__builtin_mul_overflow(nelems, size, &bytes))
+      fatal("array size overflow: requested %zd * %zd bytes", size, nelems);
+
+   return xrealloc(ptr, bytes);
 }
 
 char *xstrdup(const char *str)

@@ -1206,7 +1206,7 @@ static vcode_reg_t lower_array_to_string(tree_t fcall, vcode_reg_t array_reg)
    vcode_type_t elem_vtype = lower_type(elem);
 
    const int nlits = type_enum_literals(elem);
-   vcode_reg_t *map LOCAL = xmalloc(nlits * sizeof(vcode_reg_t));
+   vcode_reg_t *map LOCAL = xmalloc_array(nlits, sizeof(vcode_reg_t));
    for (int i = 0; i < nlits; i++) {
       const ident_t id = tree_ident(type_enum_literal(elem, i));
       assert(ident_char(id, 0) == '\'');
@@ -1677,7 +1677,7 @@ static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
    vcode_type_t vtype = lower_type(type_elem(ltype));
 
    *nchars = tree_chars(lit);
-   vcode_reg_t *tmp = xmalloc(*nchars * sizeof(vcode_reg_t));
+   vcode_reg_t *tmp = xmalloc_array(*nchars, sizeof(vcode_reg_t));
 
    for (int i = 0; i < *nchars; i++)
       tmp[i] = emit_const(vtype, tree_pos(tree_ref(tree_char(lit, i))));
@@ -2312,7 +2312,7 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
    if ((*n_elems = lower_array_const_size(type)) == 0)
       return NULL;
 
-   vcode_reg_t *vals = xmalloc(*n_elems * sizeof(vcode_reg_t));
+   vcode_reg_t *vals = xmalloc_array(*n_elems, sizeof(vcode_reg_t));
 
    for (int i = 0; i < *n_elems; i++)
       vals[i] = VCODE_INVALID_VAR;
@@ -3020,7 +3020,7 @@ static vcode_reg_t lower_image_map(type_t type)
    case T_ENUM:
       {
          const int nlits = type_enum_literals(base);
-         ident_t *map LOCAL = xmalloc(sizeof(ident_t) * nlits);
+         ident_t *map LOCAL = xmalloc_array(sizeof(ident_t), nlits);
          for (int i = 0; i < nlits; i++) {
             // LRM specifies result is lowercase for enumerated types when
             // the value is a basic identifier
@@ -3037,8 +3037,8 @@ static vcode_reg_t lower_image_map(type_t type)
    case T_PHYSICAL:
       {
          const int nunits = type_units(base);
-         ident_t *map LOCAL = xmalloc(sizeof(ident_t) * nunits);
-         int64_t *values LOCAL = xmalloc(sizeof(int64_t) * nunits);
+         ident_t *map LOCAL = xmalloc_array(sizeof(ident_t), nunits);
+         int64_t *values LOCAL = xmalloc_array(sizeof(int64_t), nunits);
          for (int i = 0; i < nunits; i++) {
             tree_t unit = type_unit(base, i);
             map[i] = tree_ident(unit);
@@ -4806,7 +4806,7 @@ static void lower_signal_decl(tree_t decl)
                         ident_prefix(ident_new("resolved"), name, '_'));
    }
 
-   netid_t *nets = xmalloc(sizeof(netid_t) * nnets);
+   netid_t *nets = xmalloc_array(sizeof(netid_t), nnets);
    for (int i = 0; i < nnets; i++)
       nets[i] = is_package_signal ? NETID_INVALID : tree_net(decl, i);
 

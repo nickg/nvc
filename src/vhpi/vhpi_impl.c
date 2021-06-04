@@ -248,13 +248,13 @@ static void vhpi_remember_cb(cb_list_t *list, vhpi_obj_t *obj)
 {
    if (unlikely(list->objects == NULL)) {
       list->max = 64;
-      list->objects = xmalloc(list->max * sizeof(vhpi_obj_t));
-      memset(list->objects, '\0', list->max * sizeof(vhpi_obj_t));
+      list->objects = xcalloc_array(list->max, sizeof(vhpi_obj_t));
    }
    else if (unlikely(list->num == list->max)) {
       const unsigned oldmax = list->max;
       list->max *= 2;
-      list->objects = xrealloc(list->objects, list->max * sizeof(vhpi_obj_t));
+      list->objects =
+         xrealloc_array(list->objects, list->max, sizeof(vhpi_obj_t));
       memset(list->objects + oldmax, '\0',
              (list->max - oldmax)  * sizeof(vhpi_obj_t));
    }
@@ -1151,7 +1151,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       }
 
       const int max = value_p->bufSize / elemsz;
-      uint64_t *values LOCAL = xmalloc(sizeof(uint64_t) * max);
+      uint64_t *values LOCAL = xmalloc_array(max, sizeof(uint64_t));
       value_p->numElems = rt_signal_value(expr->tree, values, max);
 
       const int copy = MIN(value_p->numElems, max);
@@ -1234,14 +1234,14 @@ int vhpi_put_value(vhpiHandleT handle,
             case vhpiLogicVecVal:
             case vhpiEnumVecVal:
                num_elems = value_p->bufSize / sizeof(vhpiEnumT);
-               expanded = xmalloc(sizeof(uint64_t) * num_elems);
+               expanded = xmalloc_array(num_elems, sizeof(uint64_t));
                for (int i = 0; i < num_elems; i++)
                   expanded[i] = value_p->value.enumvs[i];
                break;
 
             case vhpiSmallEnumVecVal:
                num_elems = value_p->bufSize / sizeof(vhpiSmallEnumT);
-               expanded = xmalloc(sizeof(uint64_t) * num_elems);
+               expanded = xmalloc_array(num_elems, sizeof(uint64_t));
                for (int i = 0; i < num_elems; i++)
                   expanded[i] = value_p->value.smallenumvs[i];
                break;

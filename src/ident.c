@@ -280,7 +280,7 @@ ident_rd_ctx_t ident_read_begin(fbuf_t *f)
    ctx->file        = f;
    ctx->cache_alloc = 256;
    ctx->cache_sz    = 0;
-   ctx->cache       = xmalloc(ctx->cache_alloc * sizeof(ident_t));
+   ctx->cache       = xmalloc_array(ctx->cache_alloc, sizeof(ident_t));
 
    return ctx;
 }

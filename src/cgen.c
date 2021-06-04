@@ -883,7 +883,7 @@ static void cgen_op_const_array(int op, cgen_ctx_t *ctx)
    vcode_type_t type  = vcode_reg_type(result);
 
    const int length = vcode_count_args(op);
-   LLVMValueRef *tmp LOCAL = xmalloc(length * sizeof(LLVMValueRef));
+   LLVMValueRef *tmp LOCAL = xmalloc_array(length, sizeof(LLVMValueRef));
    for (int i = 0; i < length; i++)
       tmp[i] = ctx->regs[vcode_get_arg(op, i)];
 
@@ -1468,14 +1468,13 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
          LLVMSetGlobalConstant(values_glob, true);
          LLVMSetLinkage(values_glob, LLVMLinkOnceAnyLinkage);
 
-         LLVMValueRef *lvalues = xmalloc(sizeof(LLVMValueRef) * map.nelems);
+         LLVMValueRef *lvalues LOCAL =
+            xmalloc_array(sizeof(LLVMValueRef), map.nelems);
          for (size_t i = 0; i < map.nelems; i++)
             lvalues[i] = LLVMConstInt(elem_type, map.values[i], false);
 
          LLVMValueRef init = LLVMConstArray(elem_type, lvalues, map.nelems);
          LLVMSetInitializer(values_glob, init);
-
-         free(lvalues);
       }
 
       values_ptr = cgen_array_pointer(values_glob);
@@ -3646,7 +3645,7 @@ static void cgen_signals(void)
             LLVMSetGlobalConstant(map_var, true);
             LLVMSetUnnamedAddr(map_var, true);
 
-            LLVMValueRef *init = xmalloc(sizeof(LLVMValueRef) * nnets);
+            LLVMValueRef *init = xmalloc_array(sizeof(LLVMValueRef), nnets);
             for (int i = 0; i < nnets; i++)
                init[i] = LLVMConstInt(nid_type, nets[i], false);
 

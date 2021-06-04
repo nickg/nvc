@@ -1106,12 +1106,12 @@ static attr_t *tree_add_attr(tree_t t, ident_t name, tree_attr_kind_t kind)
 
    if (item->attrs.table == NULL) {
       item->attrs.alloc = 8;
-      item->attrs.table = xmalloc(sizeof(attr_t) * item->attrs.alloc);
+      item->attrs.table = xmalloc_array(item->attrs.alloc, sizeof(attr_t));
    }
    else if (item->attrs.alloc == item->attrs.num) {
       item->attrs.alloc *= 2;
-      item->attrs.table = xrealloc(item->attrs.table,
-                                   sizeof(attr_t) * item->attrs.alloc);
+      item->attrs.table = xrealloc_array(item->attrs.table, item->attrs.alloc,
+                                         sizeof(attr_t));
    }
 
    unsigned i = item->attrs.num++;

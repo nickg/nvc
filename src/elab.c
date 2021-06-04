@@ -560,14 +560,14 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
    const int nformals = tree_Fs(unit);
    const int nactuals = (tree_As != NULL) ? tree_As(t) : 0;
 
-   bool *have_formals LOCAL = xmalloc(sizeof(bool) * nformals);
+   bool *have_formals LOCAL = xmalloc_array(sizeof(bool), nformals);
 
    for (int i = 0; i < nformals; i++)
       have_formals[i] = false;
 
    const int maxr = nformals + nactuals;
 
-   rewrite_item_t *rwitems LOCAL = xcalloc(sizeof(rewrite_item_t) * maxr);
+   rewrite_item_t *rwitems LOCAL = xcalloc_array(sizeof(rewrite_item_t), maxr);
    int count = 0;
 
    map_list_t *maps = NULL;
@@ -1594,7 +1594,8 @@ static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
 
    elab_push_scope(unit, ctx);
 
-   rewrite_item_t *rwitems LOCAL = xmalloc(sizeof(rewrite_item_t) * nsignals);
+   rewrite_item_t *rwitems LOCAL =
+      xmalloc_array(sizeof(rewrite_item_t), nsignals);
    int count = 0;
 
    for (int i = 0; i < ndecls; i++) {
