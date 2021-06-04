@@ -15,7 +15,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#if defined(__MINGW32__)
+#if defined __MINGW32__ || defined __CYGWIN__
 #define WINVER 0x0A00
 #define _WIN32_WINNT 0x0A00
 #include <windows.h>
@@ -31,13 +31,13 @@
 #include <string.h>
 #include <sys/types.h>
 
-#ifndef __MINGW32__
+#if !defined __MINGW32__ && !defined __CYGWIN__
 #include <unistd.h>
 #include <fcntl.h>
 #include <assert.h>
 #include <dlfcn.h>
 #include <errno.h>
-#endif  // !__MINGW32__
+#endif  // !__MINGW32__ && !__CYGWIN__
 
 #if defined HAVE_LIBDW
 #include <elfutils/libdw.h>
@@ -505,7 +505,7 @@ static void debug_walk_frames(debug_info_t *di)
 ////////////////////////////////////////////////////////////////////////////////
 // Windows backend
 
-#elif defined __MINGW32__
+#elif defined __MINGW32__ || defined __CYGWIN__
 
 __attribute__((noinline))
 static void debug_walk_frames(debug_info_t *di)

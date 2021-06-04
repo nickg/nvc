@@ -1206,7 +1206,7 @@ static vcode_reg_t lower_array_to_string(tree_t fcall, vcode_reg_t array_reg)
    vcode_type_t elem_vtype = lower_type(elem);
 
    const int nlits = type_enum_literals(elem);
-   vcode_reg_t *map LOCAL = xmalloc(nlits);
+   vcode_reg_t *map LOCAL = xmalloc(nlits * sizeof(vcode_reg_t));
    for (int i = 0; i < nlits; i++) {
       const ident_t id = tree_ident(type_enum_literal(elem, i));
       assert(ident_char(id, 0) == '\'');
