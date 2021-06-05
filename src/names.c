@@ -1428,6 +1428,8 @@ static tree_t finish_overload_resolution(overload_t *o)
 {
    assert(o->state == O_IDLE);
 
+   overload_trace_candidates(o, "before final pruning");
+
    // Prune candidates with more required arguments than supplied
    if (o->candidates.count > 1) {
       const int nactual = o->params.count;
@@ -1446,14 +1448,22 @@ static tree_t finish_overload_resolution(overload_t *o)
    // Optionally allow explicitly defined operators to hide implicitly
    // defined ones in different scopes
    if (o->candidates.count > 1 && (relax_rules() & RELAX_PREFER_EXPLICT)) {
-      unsigned wptr = 0;
+      int nexplicit = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
-         if (tree_flags(o->candidates.items[i]) & TREE_F_PREDEFINED)
-            overload_prune_candidate(o, i);
-         else
-            o->candidates.items[wptr++] = o->candidates.items[i];
+         if (!(tree_flags(o->candidates.items[i]) & TREE_F_PREDEFINED))
+            nexplicit++;
       }
-      ATRIM(o->candidates, wptr);
+
+      if (nexplicit > 0) {
+         unsigned wptr = 0;
+         for (unsigned i = 0; i < o->candidates.count; i++) {
+            if (tree_flags(o->candidates.items[i]) & TREE_F_PREDEFINED)
+               overload_prune_candidate(o, i);
+            else
+               o->candidates.items[wptr++] = o->candidates.items[i];
+         }
+         ATRIM(o->candidates, wptr);
+      }
    }
 
    // Prune candidates which do not have all the required arguments

@@ -302,4 +302,9 @@ begin
     begin
     end process;
 
+    p24: process is
+        variable v : bit_vector(8+23+2 downto 0);  -- OK
+    begin
+    end process;
+
 end architecture;
