@@ -161,6 +161,12 @@ typedef enum {
    S_REDUCE_NOR,
    S_REDUCE_XOR,
    S_REDUCE_XNOR,
+   S_MATCH_LT,
+   S_MATCH_LE,
+   S_MATCH_GT,
+   S_MATCH_GE,
+   S_MATCH_EQ,
+   S_MATCH_NEQ,
 } subprogram_kind_t;
 
 typedef enum {

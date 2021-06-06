@@ -307,4 +307,10 @@ begin
     begin
     end process;
 
+    p25: process is
+        variable b : bit;
+    begin
+        b := fnork(b, '1');             -- Error ("fnork" undeclared)
+    end process;
+
 end architecture;

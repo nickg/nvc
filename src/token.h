@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2019  Nick Gasson
+//  Copyright (C) 2014-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -165,6 +165,12 @@ typedef enum {
    tCONDWARN,
    tSYNTHOFF,
    tSYNTHON,
+   tMEQ,
+   tMNEQ,
+   tMLT,
+   tMLE,
+   tMGT,
+   tMGE,
 } token_t;
 
 #endif

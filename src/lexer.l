@@ -1,7 +1,7 @@
 /* -*- mode: c; c-basic-offset: 3 -*- */
 
 /*
- *  Copyright (C) 2011-2019  Nick Gasson
+ *  Copyright (C) 2011-2021  Nick Gasson
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -314,12 +314,18 @@ WARNING       ?i:warning
 "<="              { TOKEN(tLE); }
 ">"               { TOKEN(tGT); }
 ">="              { TOKEN(tGE); }
+"?<"              { TOKEN_08(tMLT); }
+"?<="             { TOKEN_08(tMLE); }
+"?>"              { TOKEN_08(tMGT); }
+"?>="             { TOKEN_08(tMGE); }
 "=>"              { TOKEN(tASSOC); }
 "+"               { TOKEN(tPLUS); }
 "-"               { TOKEN(tMINUS); }
 "*"               { TOKEN(tTIMES); }
 "/="              { TOKEN(tNEQ); }
 "="               { TOKEN(tEQ); }
+"?/="             { TOKEN_08(tMNEQ); }
+"?="              { TOKEN_08(tMEQ); }
 "/"               { TOKEN(tOVER); }
 "."               { TOKEN(tDOT); }
 "&"               { TOKEN(tAMP); }

@@ -386,6 +386,7 @@ START_TEST(test_func)
       { 245, "class default of subprogram body TEST26 parameter" },
       { 243, "parameter X was originally declared here" },
       { 271, "invalid reference to X inside pure function NESTED" },
+      { 288, "no visible subprogram declaration for FNORK" },
       { -1, NULL }
    };
    expect_errors(expect);

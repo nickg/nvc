@@ -3147,6 +3147,7 @@ START_TEST(test_names)
       { 108, "no visible subprogram declaration for FOO" },
       { 233, "name X not found in \"+\"" },
       { 256, "no visible subprogram declaration for NOTHERE" },
+      { 313, "no visible subprogram declaration for FNORK" },
       {  -1, NULL }
    };
    expect_errors(expect);

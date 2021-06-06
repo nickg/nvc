@@ -283,4 +283,9 @@ package body func3 is
         return nested;
     end function;
 
+    procedure notdef(x : integer) is
+    begin
+        fnork(x + 1);                   -- Error
+    end procedure;
+
 end package body;

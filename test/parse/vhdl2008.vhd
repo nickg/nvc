@@ -31,4 +31,18 @@ begin
         b := nor v;                     -- OK
     end process;
 
+    process is
+        variable b : bit;
+        variable v : my_logical_vec(1 to 3);
+    begin
+        b := b ?= '1';                  -- OK
+        b := b ?/= '1';                 -- OK
+        b := b ?< '0';                  -- OK
+        b := b ?> '0';                  -- OK
+        b := b ?<= '1';                 -- OK
+        b := b ?>= '1';                 -- OK
+        b := v ?= "101";                -- OK
+        b := v ?/= "111";               -- OK
+    end process;
+
 end architecture;

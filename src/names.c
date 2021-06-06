@@ -1393,6 +1393,12 @@ static void begin_overload_resolution(overload_t *o)
    o->initial = o->candidates.count;
    o->error   = type_set_error(o->nametab);
 
+   if (o->initial == 0 && !o->error) {
+      error_at(tree_loc(o->tree), "no visible subprogram declaration for %s",
+               istr(o->name));
+      o->error = true;
+   }
+
    // If there are multiple candidates prune based on return type
    if (o->candidates.count > 1) {
       unsigned wptr = 0;
@@ -1529,11 +1535,7 @@ static tree_t finish_overload_resolution(overload_t *o)
       }
    }
 
-   if (o->initial == 0 && !o->error) {
-      error_at(tree_loc(o->tree), "no visible subprogram declaration for %s",
-               istr(o->name));
-   }
-   else if (count > 1 && !o->error) {
+   if (count > 1 && !o->error) {
       error_at(tree_loc(o->tree), "ambiguous %s %s",
                ident_char(o->name, 0) == '"' ? "use of operator"
                : (tree_kind(o->tree) == T_FCALL ? "call to function"
@@ -2046,6 +2048,13 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
          tree_t p = tree_param(call, i);
          tree_t value = tree_value(p);
          tree_kind_t kind = tree_kind(value);
+
+         if (o->error && o->initial == 0) {
+            // Avoid cascading errors from an undefined subprogram
+            tree_set_type(value, type_new(T_NONE));
+            pmask |= 1 << i;
+            continue;
+         }
 
          const bool solve_now =
             kind == T_FCALL

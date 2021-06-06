@@ -186,7 +186,8 @@ static const char *token_str(token_t tok)
       "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl",
       "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
-      "`error", "`warning", "translate_off", "translate_on"
+      "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
+      "?<=", "?>", "?>="
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -830,6 +831,19 @@ static bool all_character_literals(type_t type)
    return true;
 }
 
+static bool is_bit_or_std_ulogic(type_t type)
+{
+   if (!type_is_enum(type))
+      return false;
+
+   ident_t bit_i = ident_new("STD.STANDARD.BIT");
+   ident_t ulogic_i = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
+
+   ident_t name = type_ident(type);
+
+   return name == bit_i || name == ulogic_i;
+}
+
 static void declare_predefined_ops(tree_t container, type_t t)
 {
    // Prefined operators are defined in LRM 93 section 7.2
@@ -1023,6 +1037,28 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_binary(container, mult, ureal, uint, ureal, S_MUL_RI);
       declare_binary(container, mult, uint, ureal, ureal, S_MUL_IR);
       declare_binary(container, div, ureal, uint, ureal, S_DIV_RI);
+   }
+
+   // Matching comparison for BIT and STD_ULOGIC
+
+   if (standard() >= STD_08) {
+      type_t m = NULL;
+      if (kind == T_CARRAY || kind == T_UARRAY) {
+         type_t elem = type_elem(t);
+         if (is_bit_or_std_ulogic(elem))
+            m = elem;
+      }
+      else if (is_bit_or_std_ulogic(t))
+         m = t;
+
+      if (m != NULL) {
+         declare_binary(container, ident_new("\"?=\""), t, t, m, S_MATCH_EQ);
+         declare_binary(container, ident_new("\"?/=\""), t, t, m, S_MATCH_NEQ);
+         declare_binary(container, ident_new("\"?<\""), t, t, m, S_MATCH_LT);
+         declare_binary(container, ident_new("\"?<=\""), t, t, m, S_MATCH_LE);
+         declare_binary(container, ident_new("\"?>\""), t, t, m, S_MATCH_GT);
+         declare_binary(container, ident_new("\"?>=\""), t, t, m, S_MATCH_GE);
+      }
    }
 
    // Logical operators
@@ -3146,7 +3182,8 @@ static tree_t p_shift_expression(void)
 
 static ident_t p_relational_operator(void)
 {
-   switch (one_of(tEQ, tNEQ, tLT, tLE, tGT, tGE)) {
+   switch (one_of(tEQ, tNEQ, tLT, tLE, tGT, tGE,
+                  tMEQ, tMNEQ, tMLT, tMLE, tMGT, tMGE)) {
    case tEQ:
       return ident_new("\"=\"");
    case tNEQ:
@@ -3159,6 +3196,18 @@ static ident_t p_relational_operator(void)
       return ident_new("\">\"");
    case tGE:
       return ident_new("\">=\"");
+   case tMEQ:
+      return ident_new("\"?=\"");
+   case tMNEQ:
+      return ident_new("\"?/=\"");
+   case tMLT:
+      return ident_new("\"?<\"");
+   case tMLE:
+      return ident_new("\"?<=\"");
+   case tMGT:
+      return ident_new("\"?>\"");
+   case tMGE:
+      return ident_new("\"?>=\"");
    default:
       return ident_new("error");
    }
@@ -3172,7 +3221,8 @@ static tree_t p_relation(void)
 
    tree_t rel = p_shift_expression();
 
-   while (scan(tEQ, tNEQ, tLT, tLE, tGT, tGE)) {
+   while (scan(tEQ, tNEQ, tLT, tLE, tGT, tGE,
+               tMEQ, tMNEQ, tMLT, tMLE, tMGT, tMGE)) {
       ident_t op  = p_relational_operator();
       tree_t left = rel;
 
