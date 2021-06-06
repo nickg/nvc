@@ -13,7 +13,7 @@ gen-deps: gen-deps-std gen-deps-ieee gen-deps-nvc gen-deps-synopsys gen-deps-vit
 
 bootstrap:
 	rm -f $(BOOTSTRAPLIBS)
-	$(MAKE) libs-std libs-ieee libs-nvc libs-synopsys libs-vital
+	$(MAKE) libs-std libs-ieee libs-ieee-08 libs-nvc libs-synopsys libs-vital
 
 CLEANFILES += $(BOOTSTRAPLIBS)
 

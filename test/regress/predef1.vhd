@@ -1,6 +1,9 @@
 entity predef1 is
 end entity;
 
+library ieee;
+use ieee.std_logic_1164.all;
+
 architecture test of predef1 is
     type my_int is range 1 to 10;
     type my_enum is (X, Y, FOO, BAR);
@@ -10,6 +13,9 @@ architecture test of predef1 is
 
     signal sa : bit := '0';
     signal sb : boolean := true;
+    signal sl : std_logic := '0';
+    signal sv : bit_vector(1 to 3);
+    signal sx : std_logic_vector(1 to 3);
 begin
 
     main: process is
@@ -82,6 +88,29 @@ begin
         assert sb'event and sb = false;
         assert not rising_edge(sb);
         assert falling_edge(sb);
+
+        -----------------------------------------------------------------------
+        -- Matching comparison
+
+        sa <= '1';
+        wait for 0 ns;
+        assert (sa ?= '1') = '1';
+        assert (sa ?/= '0') = '1';
+        assert (sa ?< '1') = '0';
+        assert (sa ?<= '1') = '1';
+        assert (sa ?> '0') = '1';
+        assert (sa ?>= '1') = '1';
+
+        sl <= '1';
+        wait for 0 ns;
+        assert (sl ?= '1') = '1';
+        assert (sl ?/= '0') = '1';
+        assert (sl ?< '1') = '0';
+        assert (sl ?<= '1') = '1';
+        assert (sl ?> '0') = '1';
+        assert (sl ?>= '1') = '1';
+        assert (sl ?= 'Z') = 'X';
+        assert (sl ?< 'H') = '0';
 
         wait;
     end process;

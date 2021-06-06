@@ -1569,4 +1569,54 @@ package body std_logic_1164 is
     write (L, TO_HSTRING (VALUE), JUSTIFIED, FIELD);
   end procedure HWRITE;
 
+  -----------------------------------------------------------------------------
+  -- BEGIN NVC ADDITIONS
+  -----------------------------------------------------------------------------
+
+  -- The standard specifies the matching relational operators on
+  -- STD_ULOGIC are predefined but they are implemented here in VHDL for
+  -- convenience. These functions are not exported from the package and
+  -- cannot be called directly by user code. Instead the compiler emits
+  -- calls to these functions when lowering the predefined operators.
+
+  type match_table_t is array (std_ulogic, std_ulogic) of std_ulogic;
+
+  constant match_eq_table : match_table_t := (
+      ( 'U', 'U', 'U', 'U', 'U', 'U', 'U', 'U', '1' ),
+      ( 'U', 'X', 'X', 'X', 'X', 'X', 'X', 'X', '1' ),
+      ( 'U', 'X', '1', '0', 'X', 'X', '1', '0', '1' ),
+      ( 'U', 'X', '0', '1', 'X', 'X', '0', '1', '1' ),
+      ( 'U', 'X', 'X', 'X', 'X', 'X', 'X', 'X', '1' ),
+      ( 'U', 'X', 'X', 'X', 'X', 'X', 'X', 'X', '1' ),
+      ( 'U', 'X', '1', '0', 'X', 'X', '1', '0', '1' ),
+      ( 'U', 'X', '0', '1', 'X', 'X', '0', '1', '1' ),
+      ( '1', '1', '1', '1', '1', '1', '1', '1', '1' ) );
+
+  function "?=" (l, r : std_ulogic) return std_ulogic is
+  begin
+      assert l /= '-' and r /= '-'
+          report "STD_LOGIC_1164: '-' operand for matching ordering operator"
+          severity ERROR;
+      return match_eq_table(l, r);
+  end function;
+
+  constant match_lt_table : match_table_t := (
+      ( 'U', 'U', 'U', 'U', 'U', 'U', 'U', 'U', 'X' ),
+      ( 'U', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X' ),
+      ( 'U', 'X', '0', '1', 'X', 'X', '0', '1', 'X' ),
+      ( 'U', 'X', '0', '0', 'X', 'X', '0', '0', 'X' ),
+      ( 'U', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X' ),
+      ( 'U', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X' ),
+      ( 'U', 'X', '0', '1', 'X', 'X', '0', '1', 'X' ),
+      ( 'U', 'X', '0', '0', 'X', 'X', '0', '0', 'X' ),
+      ( 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X' ) );
+
+  function "?<" (l, r : std_ulogic) return std_ulogic is
+  begin
+      assert l /= '-' and r /= '-'
+          report "STD_LOGIC_1164: '-' operand for matching ordering operator"
+          severity ERROR;
+      return match_lt_table(l, r);
+  end function;
+
 end package body std_logic_1164;

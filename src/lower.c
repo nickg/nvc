@@ -1416,6 +1416,65 @@ static vcode_reg_t lower_reduction_op(subprogram_kind_t kind, vcode_reg_t r0,
       return emit_load(result_var);
 }
 
+static vcode_reg_t lower_match_op(subprogram_kind_t kind, vcode_reg_t r0,
+                                  type_t r0_type, vcode_reg_t r1)
+{
+   vcode_cmp_t cmp;
+   bool invert = false;
+   switch (kind) {
+   case S_MATCH_NEQ:
+      invert = true;
+   case S_MATCH_EQ:
+      cmp = VCODE_CMP_EQ;
+      break;
+   case S_MATCH_GE:
+      invert = true;
+   case S_MATCH_LT:
+      cmp = VCODE_CMP_LT;
+      break;
+   case S_MATCH_GT:
+      invert = true;
+   case S_MATCH_LE:
+      cmp = VCODE_CMP_LEQ;
+      break;
+   default:
+      fatal_trace("invalid match operator %d", kind);
+   }
+
+   bool is_array = false, is_bit = false;
+   if (type_is_array(r0_type)) {
+      is_array = true;
+      is_bit = type_ident(type_elem(r0_type)) == std_bit_i;
+   }
+   else
+      is_bit = type_ident(r0_type) == std_bit_i;
+
+   vcode_reg_t result = VCODE_INVALID_REG;
+   if (is_array) {
+      fatal_trace("sorry, array matching operators not implemented yet");
+   }
+   else if (type_ident(r0_type) == std_bit_i)
+      result = emit_cmp(cmp, r0, r1);
+   else {
+      vcode_reg_t args[2] = { r0, r1 };
+      ident_t func = cmp == VCODE_CMP_LT
+         ? ident_new("IEEE.STD_LOGIC_1164.\"?<\"(UU)U")
+         : ident_new("IEEE.STD_LOGIC_1164.\"?=\"(UU)U");
+
+      result = emit_fcall(func, lower_type(r0_type), args, 2);
+   }
+
+   if (invert && is_bit)
+      return emit_not(result);
+   else if (invert) {
+      vcode_reg_t args[1] = { result };
+      return emit_fcall(ident_new("IEEE.STD_LOGIC_1164.\"not\"(U)4UX01"),
+                        vcode_reg_type(result), args, 1);
+   }
+   else
+      return result;
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
 {
    if (builtin == S_MAXIMUM)
@@ -1569,6 +1628,13 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
    case S_REDUCE_XOR:
    case S_REDUCE_XNOR:
       return lower_reduction_op(builtin, r0, r0_type);
+   case S_MATCH_EQ:
+   case S_MATCH_NEQ:
+   case S_MATCH_LT:
+   case S_MATCH_LE:
+   case S_MATCH_GT:
+   case S_MATCH_GE:
+      return lower_match_op(builtin, r0, r0_type, r1);
    case S_SLL:
       return lower_bit_shift(BIT_SHIFT_SLL, r0, r0_type, r1);
    case S_SRL:
