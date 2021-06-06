@@ -2396,8 +2396,10 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
             tree_set_type(prefix, (prefix_type = tree_type(decl)));
       }
    }
-   else
-      prefix_type = solve_types(tab, prefix, NULL);
+   else if (type_is_none((prefix_type = solve_types(tab, prefix, NULL)))) {
+      tree_set_type(aref, prefix_type);
+      return prefix_type;
+   }
 
    const int nparams = tree_params(aref);
    assert(nparams <= 1);

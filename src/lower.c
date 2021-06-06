@@ -2081,28 +2081,17 @@ static vcode_reg_t lower_unalias_index(tree_t alias, vcode_reg_t index,
    vcode_reg_t off = emit_sub(index, lower_range_left(alias_r));
 
    vcode_reg_t bleft = VCODE_INVALID_REG, bdir = VCODE_INVALID_REG;
-   switch (type_kind(base_type)) {
-   case T_CARRAY:
-   case T_SUBTYPE:
-      // The transformation is a constant offset of indices
-      {
-         tree_t base_r = range_of(base_type, 0);
-         bleft = lower_reify_expr(tree_left(base_r));
-         bdir  = lower_array_dir(base_type, 0, VCODE_INVALID_REG);
-      }
-      break;
-
-   case T_UARRAY:
+   if (type_is_unconstrained(base_type)) {
       // The transformation must be computed at runtime
-      {
-         assert(meta != VCODE_INVALID_REG);
-         bleft = lower_array_left(base_type, 0, meta);
-         bdir  = lower_array_dir(base_type, 0, meta);
-      }
-      break;
-
-   default:
-      assert(false);
+      assert(meta != VCODE_INVALID_REG);
+      bleft = lower_array_left(base_type, 0, meta);
+      bdir  = lower_array_dir(base_type, 0, meta);
+   }
+   else {
+      // The transformation is a constant offset of indices
+      tree_t base_r = range_of(base_type, 0);
+      bleft = lower_reify_expr(tree_left(base_r));
+      bdir  = lower_array_dir(base_type, 0, VCODE_INVALID_REG);
    }
 
    vcode_reg_t adir = lower_array_dir(alias_type, 0, VCODE_INVALID_REG);
