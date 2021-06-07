@@ -7593,6 +7593,9 @@ tree_t parse(void)
       cond_state = tmp;
    }
 
+   nametab_finish(nametab);
+   nametab = NULL;
+
    if (tree_kind(unit) == T_DESIGN_UNIT)
       return NULL;
 

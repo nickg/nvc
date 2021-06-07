@@ -1724,16 +1724,25 @@ static void overload_next_argument(overload_t *o, tree_t p)
 
    if (o->initial > 1) {
       unsigned wptr = 0;
+      int first_match = -1;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          tree_t port = overload_find_port(o->candidates.items[i], p);
          if (port != NULL && type != NULL) {
             type_t ptype = tree_type(port);
 
-            int matches = 0;
-            if (type_eq(ptype, type) || type_is_convertible(type, ptype))
-               matches++;
-
-            if (matches == 0 && tree_subkind(p) == P_POS) {
+            if (type_eq(ptype, type) || type_is_convertible(type, ptype)) {
+               // We've found at least one candidate with a matching
+               // argument. Prune all the previous candidates that were
+               // speculatively allowed through.
+               if (first_match == -1) {
+                  assert(wptr == i);
+                  for (unsigned j = 0; j < wptr; j++)
+                     overload_prune_candidate(o, j);
+                  wptr = 0;
+                  first_match = i;
+               }
+            }
+            else if (first_match != -1) {
                overload_prune_candidate(o, i);
                continue;
             }
@@ -1742,6 +1751,14 @@ static void overload_next_argument(overload_t *o, tree_t p)
          o->candidates.items[wptr++] = o->candidates.items[i];
       }
       ATRIM(o->candidates, wptr);
+
+      if (first_match == -1 && tree_subkind(p) == P_POS) {
+         // No candidates matched this positional argument. Delete all
+         // those that were speculatively allowed through.
+         for (unsigned i = 0; i < wptr; i++)
+            overload_prune_candidate(o, i);
+         ATRIM(o->candidates, 0);
+      }
    }
 
    if (type != NULL && type_is_none(type))
@@ -2017,16 +2034,24 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
             if (decl == (void*)-1 || !class_has_type(class_of(decl)))
                break;
 
-            type_t type = tree_type(decl);
-            if (type_kind(type) == T_FUNC)
-               type = type_result(type);
+            type_t type1 = tree_type(decl);
+            if (type_kind(type1) == T_FUNC)
+               type1 = type_result(type1);
 
-            APUSH(possible, type);
-
-            if (kind == T_FCALL && type_is_array(type)) {
+            type_t type2 = NULL;
+            if (kind == T_FCALL && type_is_array(type1)) {
                // Grammar is ambiguous between indexed name and function call
-               APUSH(possible, type_elem(type));
+               type2 = type_elem(type1);
             }
+
+            bool have1 = false, have2 = false;
+            for (unsigned j = 0; j < possible.count; j++) {
+               have1 |= possible.items[j] == type1;
+               have2 |= possible.items[j] == type2;
+            }
+
+            if (!have1) APUSH(possible, type1);
+            if (type2 && !have2) APUSH(possible, type2);
 
             if (!can_overload(decl))
                break;

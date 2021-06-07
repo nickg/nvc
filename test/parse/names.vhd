@@ -313,4 +313,13 @@ begin
         b := fnork(b, '1');             -- Error ("fnork" undeclared)
     end process;
 
+    p26: process is
+        type my_bit_vector is array (natural range <>) of bit;
+        procedure p26_1(x : integer; y : bit_vector);
+        procedure p26_1(x : integer; y : my_bit_vector);
+        variable v : my_bit_vector(1 to 3);
+    begin
+        p26_1(x => 1, y => v);          -- OK
+    end process;
+
 end architecture;
