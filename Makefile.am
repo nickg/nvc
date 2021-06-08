@@ -1,4 +1,4 @@
-EXTRA_DIST = autogen.sh data/coverage.css nvc.1 nvc.1.md README.md
+EXTRA_DIST = autogen.sh data/coverage.css nvc.1 README.md
 
 ACLOCAL_AMFLAGS = -I m4
 

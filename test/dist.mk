@@ -71,7 +71,7 @@ EXTRA_DIST += \
 	test/group/recref1.vhd \
 	test/group/recref2.vhd \
 	test/group/slice1.vhd \
-	test/json/pragma.vhd \
+	test/json/basic.vhd \
 	test/lower/access1.vhd \
 	test/lower/access2.vhd \
 	test/lower/access_bug.vhd \
@@ -189,6 +189,7 @@ EXTRA_DIST += \
 	test/parse/issue367.vhd \
 	test/parse/issue369.vhd \
 	test/parse/issue388.vhd \
+	test/parse/issue416.vhd \
 	test/parse/literal.vhd \
 	test/parse/loc.vhd \
 	test/parse/names.vhd \
@@ -202,6 +203,7 @@ EXTRA_DIST += \
 	test/parse/synth.vhd \
 	test/parse/types.vhd \
 	test/parse/vests1.vhd \
+	test/parse/vhdl2008.vhd \
 	test/perf/arraycase.vhd \
 	test/perf/bigram.vhd \
 	test/perf/dyn_agg.vhd \
@@ -544,6 +546,7 @@ EXTRA_DIST += \
 	test/regress/link2.vhd \
 	test/regress/logical1.vhd \
 	test/regress/logical2.vhd \
+	test/regress/logical3.vhd \
 	test/regress/loop1.vhd \
 	test/regress/null1.vhd \
 	test/regress/null2.vhd \
@@ -595,6 +598,7 @@ EXTRA_DIST += \
 	test/regress/signal12.vhd \
 	test/regress/signal13.vhd \
 	test/regress/signal14.vhd \
+	test/regress/signal15.vhd \
 	test/regress/signal1.vhd \
 	test/regress/signal2.vhd \
 	test/regress/signal3.vhd \
@@ -610,7 +614,6 @@ EXTRA_DIST += \
 	test/regress/slice4.vhd \
 	test/regress/stack1.vhd \
 	test/regress/stop1.vhd \
-	test/regress/stop2.vhd \
 	test/regress/synopsys1.vhd \
 	test/regress/testlist.txt \
 	test/regress/textio1.vhd \
@@ -727,6 +730,7 @@ EXTRA_DIST += \
 	test/sem/protected.vhd \
 	test/sem/real.vhd \
 	test/sem/record.vhd \
+	test/sem/resolution.vhd \
 	test/sem/scope.vhd \
 	test/sem/seq.vhd \
 	test/sem/signal.vhd \
