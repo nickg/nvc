@@ -5,9 +5,7 @@ ieee_08_DATA = \
 	lib/ieee.08/IEEE.STD_LOGIC_1164 \
 	lib/ieee.08/IEEE.NUMERIC_BIT \
 	lib/ieee.08/IEEE.NUMERIC_STD \
-	lib/ieee.08/IEEE.STD_LOGIC_1164-body
-
-#\
+	lib/ieee.08/IEEE.STD_LOGIC_1164-body \
 	lib/ieee.08/IEEE.NUMERIC_STD-body \
 	lib/ieee.08/IEEE.NUMERIC_BIT-body \
 	lib/ieee.08/IEEE.MATH_REAL \
@@ -24,7 +22,7 @@ ieee_08_DATA = \
 	lib/ieee.08/_IEEE.MATH_COMPLEX.vcode \
 	lib/ieee.08/_IEEE.MATH_COMPLEX-body.vcode
 
-#ieee_08_so = \
+ieee_08_so = \
 	lib/ieee.08/_IEEE.NUMERIC_STD.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_BIT.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.$(DLL_EXT) \
@@ -36,7 +34,7 @@ ieee_08_DATA = \
 	lib/ieee.08/_IEEE.MATH_COMPLEX-body.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
-#ieee_08_DATA += \
+ieee_08_DATA += \
 	lib/ieee.08/_IEEE.NUMERIC_STD.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_STD-body.$(LIB_EXT) \

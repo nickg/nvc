@@ -1,0 +1,62 @@
+std_08dir = $(pkgdatadir)/std.08
+std_08_DATA = \
+	lib/std.08/_NVC_LIB \
+	lib/std.08/_index \
+	lib/std.08/STD.STANDARD \
+	lib/std.08/STD.TEXTIO \
+	lib/std.08/STD.TEXTIO-body \
+	lib/std.08/STD.ENV \
+	lib/std.08/STD.ENV-body
+
+std_08_so = \
+	lib/std.08/_STD.TEXTIO.$(DLL_EXT) \
+	lib/std.08/_STD.TEXTIO-body.$(DLL_EXT) \
+	lib/std.08/_STD.ENV-body.$(DLL_EXT)
+
+if IMPLIB_REQUIRED
+
+std_08_DATA += \
+	lib/std.08/_STD.TEXTIO.$(LIB_EXT) \
+	lib/std.08/_STD.TEXTIO-body.$(LIB_EXT) \
+	lib/std.08/_STD.ENV-body.$(LIB_EXT)
+
+# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
+std_08_SCRIPTS = $(std_08_so)
+
+$(std_08_SCRIPTS) : $(std_08_DATA)
+else
+
+std_08_DATA += $(std_08_so)
+
+endif  # IMPLIB_REQUIRED
+
+EXTRA_DIST += lib/std.08/env.vhd lib/std.08/env-body.vhd lib/std.08/textio.vhd
+BOOTSTRAPLIBS += $(std_08_DATA)
+
+libs-std-08: $(std_08_DATA)
+
+lib/std.08/_NVC_LIB: lib/std.08/STD.STANDARD
+
+lib/std.08/_index: lib/std.08/STD.STANDARD
+
+lib/std.08/STD.STANDARD: $(srcdir)/lib/std/standard.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 --work=lib/std.08 -a --bootstrap \
+		$(srcdir)/lib/std/standard.vhd
+
+lib/std.08/STD.TEXTIO: $(srcdir)/lib/std.08/textio.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std.08/textio.vhd
+
+lib/std.08/STD.TEXTIO-body: $(srcdir)/lib/std/textio-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/textio-body.vhd
+
+lib/std.08/STD.ENV: $(srcdir)/lib/std.08/env.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std.08/env.vhd
+
+lib/std.08/STD.ENV-body: $(srcdir)/lib/std.08/env-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std.08/env-body.vhd
+
+gen-deps-std-08:
+	$(nvc) --std=2008 --work=lib/std.08 --make --posix --deps-only | \
+		$(deps_pp) > $(srcdir)/lib/std.08/deps.mk
+
+include lib/std.08/deps.mk

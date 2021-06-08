@@ -1,8 +1,8 @@
 entity stop1 is
 end entity;
 
-library nvc;
-use nvc.env.all;
+library std;
+use std.env.all;
 
 architecture test of stop1 is
 begin

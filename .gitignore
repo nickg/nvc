@@ -30,11 +30,6 @@ src/lexer.c
 /config.guess
 /config.sub
 /src/nvc
-/lib/std/std
-/lib/std/std.08
-/lib/ieee/ieee
-/lib/synopsys/synopsys
-/lib/nvc/nvc
 stamp-h1
 IDEAS
 PERF
@@ -59,11 +54,14 @@ test/examples/*
 # Libraries built in-tree
 lib/ieee/IEEE.*
 lib/ieee/_IEEE.*
+lib/ieee.08/IEEE.*
+lib/ieee.08/_IEEE.*
 lib/std/STD.*
 lib/std/_STD.*
 lib/nvc/_NVC.*
 lib/nvc/NVC.*
-lib/std.08/
+lib/std.08/STD.*
+lib/std.08/_STD.*
 lib/synopsys/SYNOPSYS.*
 _index
 _NVC_LIB

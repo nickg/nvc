@@ -7,81 +7,46 @@ std_DATA = \
 	lib/std/STD.TEXTIO-body \
 	lib/std/_STD.TEXTIO-body.vcode
 
-std_08dir = $(pkgdatadir)/std.08
-std_08_DATA = \
-	lib/std.08/_NVC_LIB \
-	lib/std.08/_index \
-	lib/std.08/STD.STANDARD \
-	lib/std.08/STD.TEXTIO \
-	lib/std.08/STD.TEXTIO-body \
-	lib/std.08/STD.ENV \
-	lib/std.08/STD.ENV-body
-
 std_so = \
 	lib/std/_STD.TEXTIO.$(DLL_EXT) \
 	lib/std/_STD.TEXTIO-body.$(DLL_EXT)
-
-std_08_so = \
-	lib/std.08/_STD.TEXTIO.$(DLL_EXT) \
-	lib/std.08/_STD.TEXTIO-body.$(DLL_EXT) \
-	lib/std.08/_STD.ENV-body.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
 
 std_DATA += \
 	lib/std/_STD.TEXTIO.$(LIB_EXT) \
 	lib/std/_STD.TEXTIO-body.$(LIB_EXT)
-std_08_DATA += \
-	lib/std.08/_STD.TEXTIO.$(LIB_EXT) \
-	lib/std.08/_STD.TEXTIO-body.$(LIB_EXT) \
-	lib/std.08/_STD.ENV-body.$(LIB_EXT)
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 std_SCRIPTS = $(std_so)
-std_08_SCRIPTS = $(std_08_so)
 
 $(std_SCRIPTS) : $(std_DATA)
-$(std_08_SCRIPTS) : $(std_08_DATA)
 else
 
 std_DATA += $(std_so)
-std_08_DATA += $(std_08_so)
 
 endif  # IMPLIB_REQUIRED
 
-EXTRA_DIST += lib/std/standard.vhd lib/std/textio.vhd lib/std/env.vhd
-BOOTSTRAPLIBS += $(std_DATA) $(std_08_DATA)
+EXTRA_DIST += lib/std/standard.vhd lib/std/textio.vhd lib/std/textio-body.vhd
+BOOTSTRAPLIBS += $(std_DATA)
 
-libs-std: $(std_DATA) $(std_08_DATA)
+libs-std: $(std_DATA)
 
 lib/std/_NVC_LIB:
 
 lib/std/_index:
 
-lib/std.08/_NVC_LIB: lib/std.08/STD.STANDARD
-
-lib/std.08/_index: lib/std.08/STD.STANDARD
-
 lib/std/STD.STANDARD: $(srcdir)/lib/std/standard.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --work=lib/std -a --bootstrap $(srcdir)/lib/std/standard.vhd
 
-lib/std.08/STD.STANDARD: $(srcdir)/lib/std/standard.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 --work=lib/std.08 -a --bootstrap \
-		$(srcdir)/lib/std/standard.vhd
-
-lib/std/STD.TEXTIO: lib/std/STD.STANDARD $(srcdir)/lib/std/textio.vhd @ifGNUmake@ | $(DRIVER)
+lib/std/STD.TEXTIO: $(srcdir)/lib/std/textio.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --work=lib/std -a $(srcdir)/lib/std/textio.vhd
 
-lib/std.08/STD.TEXTIO: lib/std.08/STD.STANDARD $(srcdir)/lib/std/textio.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/textio.vhd
-
-lib/std.08/STD.ENV: lib/std.08/STD.STANDARD $(srcdir)/lib/std/env.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/env.vhd
+lib/std/STD.TEXTIO-body: $(srcdir)/lib/std/textio-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --work=lib/std -a $(srcdir)/lib/std/textio-body.vhd
 
 gen-deps-std:
 	$(nvc) --work=lib/std --make --posix --deps-only | \
 		$(deps_pp) > $(srcdir)/lib/std/deps.mk
-	$(nvc) --std=2008 --work=lib/std.08 --make --posix --deps-only | \
-		$(deps_pp) >> $(srcdir)/lib/std/deps.mk
 
 include lib/std/deps.mk

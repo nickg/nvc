@@ -204,8 +204,7 @@ alias8          normal
 textio2         normal
 elab20          normal
 issue38         normal
-stop1           normal,gold
-stop2           normal,gold,2008
+stop1           normal,gold,2008
 record7         normal
 record8         normal
 elab21          normal

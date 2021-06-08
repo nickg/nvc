@@ -1091,7 +1091,7 @@ struct uarray _std_to_ostring_bit_vec(struct uarray *vec)
 }
 
 DLLEXPORT
-void _nvc_env_stop(int32_t finish, int32_t have_status, int32_t status)
+void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 {
    if (have_status)
       notef("%s called with status %d", finish ? "FINISH" : "STOP", status);
