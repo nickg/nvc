@@ -1227,6 +1227,16 @@ static void declare_predefined_ops(tree_t container, type_t t)
    }
 }
 
+static void declare_alias(tree_t container, tree_t to, ident_t name)
+{
+   tree_t alias = tree_new(T_ALIAS);
+   tree_set_ident(alias, name);
+   tree_set_value(alias, make_ref(to));
+   tree_set_type(alias, tree_type(to));
+
+   tree_add_decl(container, alias);
+}
+
 static void declare_standard_to_string(tree_t unit)
 {
    // LRM 08 5.2.6 says TO_STRING is declared at the end of the STANDARD
@@ -1239,6 +1249,7 @@ static void declare_standard_to_string(tree_t unit)
    type_t  std_time    = std_type(unit, "TIME");
    type_t  std_real    = std_type(unit, "REAL");
    type_t  std_natural = std_type(unit, "NATURAL");
+   type_t  std_bit_vec = std_type(unit, "BIT_VECTOR");
 
    const int ndecls = tree_decls(unit);
    for (int i = 0; i < ndecls; i++) {
@@ -1266,6 +1277,30 @@ static void declare_standard_to_string(tree_t unit)
                           "VALUE", std_real, "FORMAT", std_string, NULL);
    tree_set_ident2(d3, ident_new("_std_to_string_real_format"));
    tree_add_decl(unit, d3);
+
+   tree_t d4 = builtin_fn(ident_new("TO_HSTRING"), std_string, S_FOREIGN,
+                          "VALUE", std_bit_vec, NULL);
+   tree_set_ident2(d4, ident_new("_std_to_hstring_bit_vec"));
+   tree_add_decl(unit, d4);
+
+   declare_alias(unit, d4, ident_new("TO_HEX_STRING"));
+
+   tree_t d5 = builtin_fn(ident_new("TO_OSTRING"), std_string, S_FOREIGN,
+                          "VALUE", std_bit_vec, NULL);
+   tree_set_ident2(d5, ident_new("_std_to_ostring_bit_vec"));
+   tree_add_decl(unit, d5);
+
+   declare_alias(unit, d5, ident_new("TO_OCTAL_STRING"));
+
+   tree_t d6;
+   for (int n = 0; (d6 = search_decls(unit, to_string, n)); n++) {
+      if (type_eq(tree_type(tree_port(d6, 0)), std_bit_vec))
+         break;
+   }
+
+   assert(d6 != NULL);
+   declare_alias(unit, d6, ident_new("TO_BSTRING"));
+   declare_alias(unit, d6, ident_new("TO_BINARY_STRING"));
 }
 
 static void skip_selected_name(void)

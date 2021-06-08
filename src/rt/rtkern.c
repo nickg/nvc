@@ -435,6 +435,46 @@ static void rt_show_trace(const loc_t *skip)
    debug_free(di);
 }
 
+static size_t uarray_len(struct uarray *u)
+{
+   if (u->dims[0].dir == RANGE_TO)
+      return u->dims[0].right - u->dims[0].left + 1;
+   else
+      return u->dims[0].left - u->dims[0].right + 1;
+}
+
+struct uarray wrap_str(char *buf, size_t len)
+{
+   struct uarray u = {
+      .ptr = buf,
+      .dims = { [0] = { .dir = RANGE_TO, .left = 1, .right = len } }
+   };
+   return u;
+}
+
+struct uarray bit_vec_to_string(struct uarray *vec, int log_base)
+{
+   const size_t vec_len = uarray_len(vec);
+   const size_t result_len = (vec_len + log_base - 1) / log_base;
+   const int left_pad = (log_base - (vec_len % log_base)) % log_base;
+   char *buf = rt_tmp_alloc(result_len);
+
+   for (int i = 0; i < result_len; i++) {
+      unsigned nibble = 0;
+      for (int j = 0; j < log_base; j++) {
+         if (i > 0 || j >= left_pad) {
+            nibble <<= 1;
+            nibble |= !!(((uint8_t *)vec->ptr)[i*log_base + j - left_pad]);
+         }
+      }
+
+      static const char map[16] = "0123456789ABCDEF";
+      buf[i] = map[nibble];
+   }
+
+   return wrap_str(buf, result_len);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -1007,12 +1047,7 @@ struct uarray _std_to_string_real_digits(double value, int32_t digits)
 DLLEXPORT
 struct uarray _std_to_string_real_format(double value, struct uarray *format)
 {
-   size_t str_len;
-   if (format->dims[0].dir == RANGE_TO)
-      str_len = format->dims[0].right - format->dims[0].left + 1;
-   else
-      str_len = format->dims[0].left - format->dims[0].right + 1;
-
+   size_t str_len = uarray_len(format);
    char *LOCAL fmt_str = xmalloc(str_len + 1);
    memcpy(fmt_str, format->ptr, str_len);
    fmt_str[str_len] = '\0';
@@ -1040,12 +1075,19 @@ struct uarray _std_to_string_real_format(double value, struct uarray *format)
    size_t max_len = 64;
    char *buf = rt_tmp_alloc(max_len);
    size_t len = checked_sprintf(buf, max_len, fmt_str, value);
+   return wrap_str(buf, len);
+}
 
-   struct uarray u = {
-      .ptr = buf,
-      .dims = { [0] = { .dir = RANGE_TO, .left = 1, .right = len } }
-   };
-   return u;
+DLLEXPORT
+struct uarray _std_to_hstring_bit_vec(struct uarray *vec)
+{
+   return bit_vec_to_string(vec, 4);
+}
+
+DLLEXPORT
+struct uarray _std_to_ostring_bit_vec(struct uarray *vec)
+{
+   return bit_vec_to_string(vec, 3);
 }
 
 DLLEXPORT

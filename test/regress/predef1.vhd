@@ -75,6 +75,28 @@ begin
         report to_string(char_vector'("abc"));
         assert to_string(char_vector'("abc")) = "abc";
         assert to_string(c) = "bca";
+        assert to_string(bit_vector'("110")) = "110";
+
+        -----------------------------------------------------------------------
+        -- TO_BSTRING
+
+        assert to_bstring(bit_vector'("101")) = "101";
+
+        -----------------------------------------------------------------------
+        -- TO_HSTRING
+
+        report to_hstring(bit_vector'("10101111"));
+        assert to_hstring(bit_vector'("10101111")) = "AF";
+        assert to_hstring(bit_vector'("01100")) = "0C";
+        assert to_hex_string(bit_vector'("111")) = "7";
+
+        -----------------------------------------------------------------------
+        -- TO_OSTRING
+
+        report to_ostring(bit_vector'("10101111"));
+        assert to_ostring(bit_vector'("10101111")) = "257";
+        assert to_ostring(bit_vector'("01100")) = "14";
+        assert to_octal_string(bit_vector'("0")) = "0";
 
         -----------------------------------------------------------------------
         -- RISING_EDGE / FALLING_EDGE
