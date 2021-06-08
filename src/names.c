@@ -48,7 +48,6 @@ typedef struct {
    type_t            signature;
    tree_t            prefix;
    unsigned          initial;
-   tree_t            backup;
 } overload_t;
 
 struct scope {
@@ -1269,7 +1268,6 @@ static void overload_prune_candidate(overload_t *o, int index)
              (tree_flags(d) & TREE_F_PREDEFINED) ? " (predefined)" : "");
    }
 
-   o->backup = o->candidates.items[index];
    o->candidates.items[index] = NULL;
 }
 
@@ -1636,11 +1634,6 @@ static void overload_positional_argument(overload_t *o, int pos)
          o->candidates.items[wptr++] = d;
    }
    ATRIM(o->candidates, wptr);
-
-   // Try to provide more helpful error messages if we have already
-   // eliminated all the candidates
-   if (o->candidates.count == 0 && o->backup && pos < tree_ports(o->backup))
-      type_set_add(o->nametab, tree_type(tree_port(o->backup, pos)));
 
    o->state = O_POS;
 }

@@ -1280,7 +1280,6 @@ static vcode_reg_t lower_falling_rising_edge(tree_t fcall,
    vcode_reg_t event_reg =
       emit_event_flag(nets_reg, emit_const(vtype_offset(), 1));
    vcode_reg_t r = emit_and(event_reg, value_reg);
-   vcode_dump();
    return r;
 }
 
@@ -1414,6 +1413,70 @@ static vcode_reg_t lower_reduction_op(subprogram_kind_t kind, vcode_reg_t r0,
       return emit_not(emit_load(result_var));
    else
       return emit_load(result_var);
+}
+
+static vcode_reg_t lower_bit_vec_op2(subprogram_kind_t kind, vcode_reg_t r0,
+                                     type_t r0_type, vcode_reg_t r1,
+                                     type_t r1_type)
+{
+   ident_t i_name = ident_uniq("bit_vec_i");
+   vcode_var_t i_var = emit_var(vtype_offset(), vtype_offset(), i_name);
+   emit_store(emit_const(vtype_offset(), 0), i_var);
+
+   const bool r0_is_array = type_is_array(r0_type);
+   //const bool r1_is_array = type_is_array(r1_type);
+
+   type_t array_type = r0_is_array ? r0_type : r1_type;
+   vcode_reg_t array_reg = r0_is_array ? r0 : r1;
+
+   vcode_reg_t len_reg   = lower_array_len(array_type, 0, array_reg);
+   vcode_reg_t data_reg  = lower_array_data(array_reg);
+   vcode_reg_t left_reg  = lower_array_left(array_type, 0, array_reg);
+   vcode_reg_t right_reg = lower_array_right(array_type, 0, array_reg);
+   vcode_reg_t dir_reg   = lower_array_dir(array_type, 0, array_reg);
+   vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
+
+   vcode_reg_t mem_reg = emit_alloca(vtype_bool(), vtype_bool(), len_reg);
+
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   emit_cond(null_reg, exit_bb, body_bb);
+
+   vcode_select_block(body_bb);
+
+   vcode_reg_t i_reg = emit_load(i_var);
+   vcode_reg_t l_reg = emit_load_indirect(emit_add(data_reg, i_reg));
+   vcode_reg_t r_reg = r0_is_array ? r1 : r0;
+
+   vcode_reg_t result_reg = VCODE_INVALID_REG;
+   switch (kind) {
+   case S_MIXED_AND:  result_reg = emit_and(l_reg, r_reg);  break;
+   case S_MIXED_OR:   result_reg = emit_or(l_reg, r_reg);   break;
+   case S_MIXED_NAND: result_reg = emit_nand(l_reg, r_reg); break;
+   case S_MIXED_NOR:  result_reg = emit_nor(l_reg, r_reg);  break;
+   case S_MIXED_XOR:  result_reg = emit_xor(l_reg, r_reg);  break;
+   case S_MIXED_XNOR: result_reg = emit_xnor(l_reg, r_reg); break;
+   default: break;
+   }
+
+   emit_store_indirect(result_reg, emit_add(mem_reg, i_reg));
+
+   vcode_reg_t next_reg = emit_addi(i_reg, 1);
+   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
+   emit_store(next_reg, i_var);
+   emit_cond(cmp_reg, exit_bb, body_bb);
+
+   vcode_select_block(exit_bb);
+
+   vcode_dim_t dims[1] = {
+      {
+         .left  = left_reg,
+         .right = right_reg,
+         .dir   = dir_reg
+      }
+   };
+   return emit_wrap(mem_reg, dims, 1);
 }
 
 static vcode_reg_t lower_match_op(subprogram_kind_t kind, vcode_reg_t r0,
@@ -1621,6 +1684,13 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
       return lower_bit_vec_op(BIT_VEC_NAND, r0, r1, fcall);
    case S_ARRAY_NOR:
       return lower_bit_vec_op(BIT_VEC_NOR, r0, r1, fcall);
+   case S_MIXED_AND:
+   case S_MIXED_OR:
+   case S_MIXED_XOR:
+   case S_MIXED_XNOR:
+   case S_MIXED_NAND:
+   case S_MIXED_NOR:
+      return lower_bit_vec_op2(builtin, r0, r0_type, r1, r1_type);
    case S_REDUCE_OR:
    case S_REDUCE_AND:
    case S_REDUCE_NAND:

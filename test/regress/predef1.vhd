@@ -112,6 +112,19 @@ begin
         assert (sl ?= 'Z') = 'X';
         assert (sl ?< 'H') = '0';
 
+        -----------------------------------------------------------------------
+        -- Mixed array/scalar bit_vector operations
+
+        sa <= '1';
+        sv <= "101";
+        wait for 1 ns;
+        assert (sa and sv) = "101";
+        assert (sa or sv) = "111";
+        assert (sv xor sa) = "010";
+        assert (sv nor sa) = "000";
+        assert (sv nand sa) = "010";
+        assert (sa xnor sv) = "101";
+
         wait;
     end process;
 

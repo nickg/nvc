@@ -1082,12 +1082,20 @@ static void declare_predefined_ops(tree_t container, type_t t)
    if (vec_logical) {
       std_int = std_type(std, "INTEGER");
 
-      declare_binary(container, ident_new("\"and\""), t, t, t, S_ARRAY_AND);
-      declare_binary(container, ident_new("\"or\""), t, t, t, S_ARRAY_OR);
-      declare_binary(container, ident_new("\"xor\""), t, t, t, S_ARRAY_XOR);
-      declare_binary(container, ident_new("\"nand\""), t, t, t, S_ARRAY_NAND);
-      declare_binary(container, ident_new("\"nor\""), t, t, t, S_ARRAY_NOR);
-      declare_binary(container, ident_new("\"xnor\""), t, t, t, S_ARRAY_XNOR);
+      ident_t and  = ident_new("\"and\"");
+      ident_t or   = ident_new("\"or\"");
+      ident_t xor  = ident_new("\"xor\"");
+      ident_t nand = ident_new("\"nand\"");
+      ident_t nor  = ident_new("\"nor\"");
+      ident_t xnor = ident_new("\"xnor\"");
+
+      declare_binary(container, and, t, t, t, S_ARRAY_AND);
+      declare_binary(container, or, t, t, t, S_ARRAY_OR);
+      declare_binary(container, xor, t, t, t, S_ARRAY_XOR);
+      declare_binary(container, nand, t, t, t, S_ARRAY_NAND);
+      declare_binary(container, nor, t, t, t, S_ARRAY_NOR);
+      declare_binary(container, xnor, t, t, t, S_ARRAY_XNOR);
+
       declare_unary(container, ident_new("\"not\""), t, t, S_ARRAY_NOT);
 
       declare_binary(container, ident_new("\"sll\""), t, std_int, t, S_SLL);
@@ -1099,12 +1107,27 @@ static void declare_predefined_ops(tree_t container, type_t t)
 
       if (standard() >= STD_08) {
          type_t e = type_elem(t);
-         declare_unary(container, ident_new("\"and\""), t, e, S_REDUCE_AND);
-         declare_unary(container, ident_new("\"or\""), t, e, S_REDUCE_OR);
-         declare_unary(container, ident_new("\"xor\""), t, e, S_REDUCE_XOR);
-         declare_unary(container, ident_new("\"nand\""), t, e, S_REDUCE_NAND);
-         declare_unary(container, ident_new("\"nor\""), t, e, S_REDUCE_NOR);
-         declare_unary(container, ident_new("\"xnor\""), t, e, S_REDUCE_XNOR);
+
+         declare_unary(container, and, t, e, S_REDUCE_AND);
+         declare_unary(container, or, t, e, S_REDUCE_OR);
+         declare_unary(container, xor, t, e, S_REDUCE_XOR);
+         declare_unary(container, nand, t, e, S_REDUCE_NAND);
+         declare_unary(container, nor, t, e, S_REDUCE_NOR);
+         declare_unary(container, xnor, t, e, S_REDUCE_XNOR);
+
+         declare_binary(container, and, t, e, t, S_MIXED_AND);
+         declare_binary(container, or, t, e, t, S_MIXED_OR);
+         declare_binary(container, xor, t, e, t, S_MIXED_XOR);
+         declare_binary(container, nand, t, e, t, S_MIXED_NAND);
+         declare_binary(container, nor, t, e, t, S_MIXED_NOR);
+         declare_binary(container, xnor, t, e, t, S_MIXED_XNOR);
+
+         declare_binary(container, and, e, t, t, S_MIXED_AND);
+         declare_binary(container, or, e, t, t, S_MIXED_OR);
+         declare_binary(container, xor, e, t, t, S_MIXED_XOR);
+         declare_binary(container, nand, e, t, t, S_MIXED_NAND);
+         declare_binary(container, nor, e, t, t, S_MIXED_NOR);
+         declare_binary(container, xnor, e, t, t, S_MIXED_XNOR);
       }
    }
 

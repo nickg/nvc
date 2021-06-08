@@ -322,4 +322,13 @@ begin
         p26_1(x => 1, y => v);          -- OK
     end process;
 
+    p27: process is
+        type my_bit_vector is array (natural range <>) of bit;
+        function "="(l, r : my_bit_vector) return boolean;
+        variable v : my_bit_vector(1 to 3);
+        variable b : bit;
+    begin
+        assert b and v = "101";         -- Error
+    end process;
+
 end architecture;
