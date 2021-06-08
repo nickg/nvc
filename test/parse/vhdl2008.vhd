@@ -45,4 +45,20 @@ begin
         b := v ?/= "111";               -- OK
     end process;
 
+    process is
+        variable b : bit;
+        variable i : integer;
+        function "??"(x : integer) return boolean;
+    begin
+        if b then end if;               -- OK
+        if b xor '1' then end if;       -- OK
+        while b and '1' loop end loop;  -- OK
+        if i + 1 then end if;           -- OK
+        if now + 1 ns then end if;      -- Error
+        exit when b or '1';             -- OK
+        next when b or '1';             -- OK
+        wait until b xor '0';           -- OK
+        assert b nor '1';               -- OK
+    end process;
+
 end architecture;

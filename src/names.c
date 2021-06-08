@@ -67,11 +67,17 @@ struct scope {
 struct nametab {
    scope_t    *top_scope;
    type_set_t *top_type_set;
+   tree_t      std;
 };
 
+typedef enum {
+   TS_CONDITION_CONVERSION = (1 << 0)
+} type_set_flags_t;
+
 struct type_set {
-   A(type_t)   members;
-   type_set_t *down;
+   A(type_t)         members;
+   type_set_t       *down;
+   type_set_flags_t  flags;
 };
 
 static type_t _solve_types(nametab_t *tab, tree_t expr);
@@ -1000,11 +1006,13 @@ void resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
 
 tree_t find_std(nametab_t *tab)
 {
-   tree_t std = resolve_name(tab, NULL, ident_new("STANDARD"));
-   if (std == NULL)
-      fatal_trace("cannot continue without STD.STANDARD");
+   if (tab->std == NULL) {
+      tab->std = resolve_name(tab, NULL, ident_new("STANDARD"));
+      if (tab->std == NULL)
+         fatal_trace("cannot continue without STD.STANDARD");
+   }
 
-   return std;
+   return tab->std;
 }
 
 static bool already_imported(nametab_t *tab, ident_t tag)
@@ -1399,8 +1407,10 @@ static void begin_overload_resolution(overload_t *o)
       o->error = true;
    }
 
-   // If there are multiple candidates prune based on return type
-   if (o->candidates.count > 1) {
+   const bool allow_condition_conversion =
+      !!(o->nametab->top_type_set->flags & TS_CONDITION_CONVERSION);
+
+   if (o->candidates.count > 1 && !allow_condition_conversion) {
       unsigned wptr = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          type_t type = tree_type(o->candidates.items[i]);
@@ -2903,6 +2913,20 @@ type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
 {
    type_set_push(tab);
    type_set_add(tab, constraint);
+   type_t type = _solve_types(tab, expr);
+   type_set_pop(tab);
+   return type;
+}
+
+
+type_t solve_condition(nametab_t *tab, tree_t expr, type_t constraint)
+{
+   type_set_push(tab);
+   type_set_add(tab, constraint);
+
+   if (standard() >= STD_08)
+      tab->top_type_set->flags |= TS_CONDITION_CONVERSION;
+
    type_t type = _solve_types(tab, expr);
    type_set_pop(tab);
    return type;

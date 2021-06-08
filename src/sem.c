@@ -3410,7 +3410,7 @@ static bool sem_check_if(tree_t t)
       return false;
 
    if (!sem_check_type(value, std_bool))
-      sem_error(value, "type of test must be %s but is %s",
+      sem_error(value, "type of condition must be %s but is %s",
                 type_pp(std_bool), type_pp(tree_type(value)));
 
    if (!sem_readable(value))

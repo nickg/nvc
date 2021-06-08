@@ -503,7 +503,7 @@ START_TEST(test_seq)
       { 205, "DUP already declared in this region" },
       { 204, "previous declaration of DUP was here" },
       { 228, "expected type mark while parsing discrete range" },
-      {  15, "type of test must be BOOLEAN" },
+      {  15, "type of condition must be BOOLEAN" },
       {  25, "type of value BOOLEAN does not match type of target INTEGER" },
       {  48, "return statement not allowed outside subprogram" },
       {  62, "return statement not allowed outside subprogram" },

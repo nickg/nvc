@@ -1185,7 +1185,8 @@ static void declare_predefined_ops(tree_t container, type_t t)
 
    if (bootstrapping && standard() >= STD_08) {
       // Special predefined operators only declared in STANDARD
-      if (t == std_bool || t == std_type(std, "BIT")) {
+      type_t std_bit = NULL;
+      if (t == std_bool || t == (std_bit = std_type(std, "BIT"))) {
          tree_t d1 = builtin_fn(ident_new("RISING_EDGE"), std_bool,
                                 S_RISING_EDGE, "S", t, NULL);
          tree_set_class(tree_port(d1, 0), C_SIGNAL);
@@ -1195,6 +1196,10 @@ static void declare_predefined_ops(tree_t container, type_t t)
                                 S_FALLING_EDGE, "S", t, NULL);
          tree_set_class(tree_port(d2, 0), C_SIGNAL);
          tree_add_decl(container, d2);
+
+         if (t == std_bit)
+            declare_unary(container, ident_new("\"??\""), t,
+                          std_bool, S_IDENTITY);
       }
    }
 }
@@ -4379,6 +4384,29 @@ static void p_constant_declaration(tree_t parent)
    }
 }
 
+static tree_t p_condition(void)
+{
+   BEGIN("condition");
+
+   type_t boolean = std_type(find_std(nametab), "BOOLEAN");
+
+   tree_t value = p_expression();
+   type_t type = solve_condition(nametab, value, boolean);
+
+   if (standard() < STD_08 || type_eq(type, boolean))
+      return value;
+   else {
+      // LRM 08 section 9.2.9 rules for implicit condition conversion
+      tree_t fcall = tree_new(T_FCALL);
+      tree_set_loc(fcall, CURRENT_LOC);
+      tree_set_ident(fcall, ident_new("\"??\""));
+      add_param(fcall, value, P_POS, NULL);
+
+      solve_types(nametab, fcall, boolean);
+      return fcall;
+   }
+}
+
 static tree_t p_assertion(void)
 {
    // assert condition [ report expression ] [ severity expression ]
@@ -4391,9 +4419,7 @@ static tree_t p_assertion(void)
 
    tree_t std = find_std(nametab);
 
-   tree_t value = p_expression();
-   solve_types(nametab, value, std_type(std, "BOOLEAN"));
-   tree_set_value(s, value);
+   tree_set_value(s, p_condition());
 
    if (optional(tREPORT)) {
       tree_t message = p_expression();
@@ -6167,9 +6193,7 @@ static void p_condition_clause(tree_t wait)
 
    consume(tUNTIL);
 
-   tree_t value = p_expression();
-   tree_set_value(wait, value);
-   solve_types(nametab, value, std_type(find_std(nametab), "BOOLEAN"));
+   tree_set_value(wait, p_condition());
 }
 
 static void p_timeout_clause(tree_t wait)
@@ -6269,11 +6293,7 @@ static tree_t p_if_statement(ident_t label)
 
    consume(tIF);
 
-   type_t boolean = std_type(find_std(nametab), "BOOLEAN");
-
-   tree_t value = p_expression();
-   tree_set_value(t, value);
-   solve_types(nametab, value, boolean);
+   tree_set_value(t, p_condition());
 
    consume(tTHEN);
 
@@ -6284,9 +6304,7 @@ static tree_t p_if_statement(ident_t label)
    while (optional(tELSIF)) {
       tree_t elsif = tree_new(T_IF);
       tree_set_ident(elsif, ident_uniq("elsif"));
-      tree_t elsif_value = p_expression();
-      tree_set_value(elsif, elsif_value);
-      solve_types(nametab, elsif_value, boolean);
+      tree_set_value(elsif, p_condition());
 
       consume(tTHEN);
 
@@ -6367,9 +6385,7 @@ static tree_t p_iteration_scheme(void)
 
    if (optional(tWHILE)) {
       tree_t t = tree_new(T_WHILE);
-      tree_t value = p_expression();
-      tree_set_value(t, value);
-      solve_types(nametab, value, std_type(find_std(nametab), "BOOLEAN"));
+      tree_set_value(t, p_condition());
       return t;
    }
    else if (optional(tFOR)) {
@@ -6455,11 +6471,8 @@ static tree_t p_exit_statement(ident_t label)
    if (peek() == tID)
       tree_set_ident2(t, p_identifier());
 
-   if (optional(tWHEN)) {
-      tree_t when = p_expression();
-      tree_set_value(t, when);
-      solve_types(nametab, when, std_type(find_std(nametab), "BOOLEAN"));
-   }
+   if (optional(tWHEN))
+      tree_set_value(t, p_condition());
 
    consume(tSEMI);
 
@@ -6480,11 +6493,8 @@ static tree_t p_next_statement(ident_t label)
    if (peek() == tID)
       tree_set_ident2(t, p_identifier());
 
-   if (optional(tWHEN)) {
-      tree_t when = p_expression();
-      tree_set_value(t, when);
-      solve_types(nametab, when, std_type(find_std(nametab), "BOOLEAN"));
-   }
+   if (optional(tWHEN))
+      tree_set_value(t, p_condition());
 
    consume(tSEMI);
 

@@ -29,7 +29,8 @@
 - Added support for VHDL-2008 element resolution.
 - The VHDL-1993 standard libraries are now derived from the Apache 2.0
   licensed sources from VHDL-2019.
-- Added support for VHDL-2008 reduction operators.
+- Added support for VHDL-2008 reduction operators, match operators, and
+  condition conversion.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

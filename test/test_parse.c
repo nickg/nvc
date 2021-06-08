@@ -3253,6 +3253,7 @@ START_TEST(test_vhdl2008)
    input_from_file(TESTDIR "/parse/vhdl2008.vhd");
 
    const error_t expect[] = {
+      { 57, "no matching operator \"??\" [TIME return BOOLEAN]" },
       { -1, NULL }
    };
    expect_errors(expect);
