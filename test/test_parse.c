@@ -3148,7 +3148,8 @@ START_TEST(test_names)
       { 233, "name X not found in \"+\"" },
       { 256, "no visible subprogram declaration for NOTHERE" },
       { 313, "no visible subprogram declaration for FNORK" },
-      { 331, "no matching operator \"and\" [BIT, BOOLEAN return BOOLEAN]" },
+      { 323, "no matching subprogram P26_1 [universal_integer" },
+      { 332, "no matching operator \"and\" [BIT, BOOLEAN return BOOLEAN]" },
       {  -1, NULL }
    };
    expect_errors(expect);

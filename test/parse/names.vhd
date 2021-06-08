@@ -320,6 +320,7 @@ begin
         variable v : my_bit_vector(1 to 3);
     begin
         p26_1(x => 1, y => v);          -- OK
+        p26_1(x => 1, y => 2);          -- Error
     end process;
 
     p27: process is

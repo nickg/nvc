@@ -1728,10 +1728,12 @@ static void overload_next_argument(overload_t *o, tree_t p)
    if (o->initial > 1) {
       unsigned wptr = 0;
       int first_match = -1;
+      bool found_port = false;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          tree_t port = overload_find_port(o->candidates.items[i], p);
          if (port != NULL && type != NULL) {
             type_t ptype = tree_type(port);
+            found_port = true;
 
             if (type_eq(ptype, type) || type_is_convertible(type, ptype)) {
                // We've found at least one candidate with a matching
@@ -1755,7 +1757,7 @@ static void overload_next_argument(overload_t *o, tree_t p)
       }
       ATRIM(o->candidates, wptr);
 
-      if (first_match == -1 && tree_subkind(p) == P_POS) {
+      if (first_match == -1 && found_port) {
          // No candidates matched this positional argument. Delete all
          // those that were speculatively allowed through.
          for (unsigned i = 0; i < wptr; i++)
