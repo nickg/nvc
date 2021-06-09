@@ -30,7 +30,12 @@ std_08_DATA += $(std_08_so)
 
 endif  # IMPLIB_REQUIRED
 
-EXTRA_DIST += lib/std.08/env.vhd lib/std.08/env-body.vhd lib/std.08/textio.vhd
+EXTRA_DIST += \
+	lib/std.08/standard.vhd \
+	lib/std.08/env.vhd \
+	lib/std.08/env-body.vhd \
+	lib/std.08/textio.vhd
+
 BOOTSTRAPLIBS += $(std_08_DATA)
 
 libs-std-08: $(std_08_DATA)
@@ -39,9 +44,9 @@ lib/std.08/_NVC_LIB: lib/std.08/STD.STANDARD
 
 lib/std.08/_index: lib/std.08/STD.STANDARD
 
-lib/std.08/STD.STANDARD: $(srcdir)/lib/std/standard.vhd @ifGNUmake@ | $(DRIVER)
+lib/std.08/STD.STANDARD: $(srcdir)/lib/std.08/standard.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 --work=lib/std.08 -a --bootstrap \
-		$(srcdir)/lib/std/standard.vhd
+		$(srcdir)/lib/std.08/standard.vhd
 
 lib/std.08/STD.TEXTIO: $(srcdir)/lib/std.08/textio.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std.08/textio.vhd
