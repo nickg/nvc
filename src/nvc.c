@@ -105,6 +105,14 @@ static int scan_cmd(int start, int argc, char **argv)
    return argc;
 }
 
+static void bad_option(const char *what, char **argv)
+{
+   if (optopt == 0)
+      fatal("unrecognised %s option %s", what, argv[optind - 1]);
+   else
+      fatal("unrecognised %s option -%c", what, optopt);
+}
+
 static int analyse(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -130,7 +138,7 @@ static int analyse(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         fatal("unrecognised analyse option %s", argv[optind - 1]);
+         bad_option("analyse", argv);
       case 'b':
          opt_set_int("bootstrap", 1);
          break;
@@ -307,7 +315,7 @@ static int elaborate(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         fatal("unrecognised elaborate option %s", argv[optind - 1]);
+         bad_option("elaborate", argv);
       default:
          abort();
       }
@@ -369,7 +377,7 @@ static int codegen(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         fatal("unrecognised codegen option %s", argv[optind - 1]);
+         bad_option("codegen", argv);
       default:
          abort();
       }
@@ -484,7 +492,7 @@ static int run(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         fatal("unrecognised run option %s", argv[optind - 1]);
+         bad_option("run", argv);
       case 't':
          opt_set_int("rt_trace_en", 1);
          break;
@@ -590,7 +598,7 @@ static int make_cmd(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         fatal("unrecognised make option %s", argv[optind - 1]);
+         bad_option("make", argv);
       case 'd':
          opt_set_int("make-deps-only", 1);
          break;
@@ -655,7 +663,7 @@ static int list_cmd(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         fatal("unrecognised list option %s", argv[optind - 1]);
+         bad_option("list", argv);
       default:
          abort();
       }
@@ -684,7 +692,7 @@ static int syntax_cmd(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         fatal("unrecognised syntax option %s", argv[optind - 1]);
+         bad_option("syntax", argv);
       default:
          abort();
       }
@@ -723,7 +731,7 @@ static int dump_cmd(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         fatal("unrecognised dump option %s", argv[optind - 1]);
+         bad_option("dump", argv);
       case 'E':
          add_elab = true;
          break;
@@ -1037,7 +1045,7 @@ int main(int argc, char **argv)
          warnf("the --native option is deprecated and has no effect");
          break;
       case '?':
-         fatal("unrecognised global option %s", argv[optind]);
+         bad_option("global", argv);
       default:
          abort();
       }
