@@ -12,6 +12,7 @@ static const error_t *error_lines = NULL;
 static error_fn_t     orig_error_fn = NULL;
 static lib_t          test_lib = NULL;
 static unsigned       errors_seen = 0;
+static bool           no_fork_mode = false;
 
 static void test_error_fn(const char *msg, const loc_t *loc)
 {
@@ -49,6 +50,13 @@ static void setup(void)
    opt_set_int("synthesis", 0);
    opt_set_int("error-limit", -1);
    intern_strings();
+
+#ifdef __MINGW32__
+   no_fork_mode = true;
+#else
+   const char *ck_fork = getenv("CK_FORK");
+   no_fork_mode = ck_fork != NULL && strcmp(ck_fork, "no") == 0;
+#endif
 }
 
 static void setup_per_test(void)
@@ -77,14 +85,16 @@ static void teardown_per_test(void)
 
 void expect_errors(const error_t *lines)
 {
-#ifdef __MINGW32__
-   error_fn_t old_fn = set_error_fn(test_error_fn, false);
-   if (orig_error_fn == NULL)
-      orig_error_fn = old_fn;
-#else
-   fail_unless(orig_error_fn == NULL);
-   orig_error_fn = set_error_fn(test_error_fn, false);
-#endif
+   if (no_fork_mode) {
+      error_fn_t old_fn = set_error_fn(test_error_fn, false);
+      if (orig_error_fn == NULL)
+         orig_error_fn = old_fn;
+   }
+   else {
+      fail_unless(orig_error_fn == NULL);
+      orig_error_fn = set_error_fn(test_error_fn, false);
+   }
+
    error_lines = lines;
    errors_seen = 0;
 }

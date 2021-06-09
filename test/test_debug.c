@@ -43,8 +43,6 @@ void global_func(void)
    const debug_frame_t *f1 = debug_get_frame(di, 1);
    fail_unless(f1->kind == FRAME_PROG);
 #if defined HAVE_LIBDW || defined HAVE_LIBDWARF
-   if (f1->symbol)
-      ck_assert_str_eq(f1->symbol, "static_func");   // May be stripped
    fail_unless(strstr(f1->module, "unit_test"));
 #endif
    fail_unless(f1->lineno == 0 || f1->lineno == call_line);
@@ -53,7 +51,7 @@ void global_func(void)
 }
 
 __attribute__((noinline))
-static void static_func(void)
+void static_func(void)
 {
    call_line = __LINE__; global_func();
 }

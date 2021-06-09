@@ -185,10 +185,10 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
       return _URC_NO_REASON;
 }
 
-__attribute__((noinline))
+__attribute__((always_inline))
 static void debug_walk_frames(debug_info_t *di)
 {
-   di->skip = 2;
+   di->skip = 1;
    _Unwind_Backtrace(libdw_frame_iter, di);
 }
 
@@ -495,7 +495,7 @@ static _Unwind_Reason_Code libdwarf_frame_iter(struct _Unwind_Context* ctx,
       return _URC_NO_REASON;
 }
 
-__attribute__((noinline))
+__attribute__((always_inline))
 static void debug_walk_frames(debug_info_t *di)
 {
    di->skip = 2;

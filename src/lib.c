@@ -68,8 +68,9 @@ struct lib {
 };
 
 struct lib_list {
-   lib_t       item;
-   lib_list_t *next;
+   lib_t            item;
+   lib_list_t      *next;
+   vhdl_standard_t  standard;
 };
 
 struct search_path {
@@ -179,9 +180,10 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    else if (realpath(rpath, l->path) == NULL)
       checked_sprintf(l->path, PATH_MAX, "%s", rpath);
 
-   lib_list_t *el = xmalloc(sizeof(lib_list_t));
-   el->item = l;
-   el->next = loaded;
+   lib_list_t *el = xcalloc(sizeof(lib_list_t));
+   el->item     = l;
+   el->next     = loaded;
+   el->standard = standard();
    loaded = el;
 
    if (l->lock_fd == -1 && rpath != NULL) {
@@ -297,7 +299,7 @@ lib_t lib_loaded(ident_t name_i)
       return work;
 
    for (lib_list_t *it = loaded; it != NULL; it = it->next) {
-      if (lib_name(it->item) == name_i)
+      if (lib_name(it->item) == name_i && it->standard == standard())
          return it->item;
    }
 
