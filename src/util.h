@@ -126,7 +126,6 @@ void note_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 void fatal_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3), noreturn));
-void error_at_v(const loc_t *loc, const char *fmt, va_list ap);
 
 void show_stacktrace(void);
 void register_trace_signal_handlers(void);

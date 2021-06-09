@@ -392,12 +392,14 @@ static void from_rt_loc(const rt_loc_t *rt, loc_t *loc)
                   loc_file_ref(rt->file, NULL));
 }
 
-static void rt_show_trace(const loc_t *skip)
+static text_buf_t *rt_fmt_trace(const loc_t *fixed)
 {
    debug_info_t *di = debug_capture();
+   text_buf_t *tb = tb_new();
 
+   bool found_fixed = false;
    const int nframes = debug_count_frames(di);
-   for (int i = nframes - 1; i >= 0; i--) {
+   for (int i = 0; i < nframes; i++) {
       const debug_frame_t *f = debug_get_frame(di, i);
       if (f->kind != FRAME_VHDL || f->vhdl_unit == NULL)
          continue;
@@ -421,18 +423,51 @@ static void rt_show_trace(const loc_t *skip)
 
       if (enclosing && ntrees > 0) {
          const loc_t *loc = tree_loc(trees[ntrees - 1]);
-         if (skip == NULL || !loc_eq(skip, loc)) {
-            if (tree_kind(enclosing) == T_PROCESS)
-               note_at(loc, "in process %s", istr(tree_ident(enclosing)));
-            else
-               note_at(loc, "in subprogram %s", type_pp(tree_type(enclosing)));
+         if (!found_fixed && (fixed == NULL || loc_eq(fixed, loc)))
+            found_fixed = true;
+
+         if (tree_kind(enclosing) == T_PROCESS)
+            tb_printf(tb, "\r\tProcess %s", istr(tree_ident(enclosing)));
+         else {
+            type_t type = tree_type(enclosing);
+            tb_printf(tb, "\r\t%s %s",
+                      type_kind(type) == T_FUNC ? "Function" : "Procedure",
+                      type_pp(type));
          }
+
+         tb_printf(tb, "\r\t    File %s, Line %u", loc_file_str(loc),
+                   loc->first_line);
       }
 
       free(trees);
    }
 
+   if (nframes == 0 || !found_fixed) {
+      const char *pname = active_proc == NULL
+         ? "(init)" : istr(tree_ident(active_proc->source));
+      tb_printf(tb, "\r\tProcess %s", pname);
+      tb_printf(tb, "\r\t    File %s, Line %u", loc_file_str(fixed),
+                fixed->first_line);
+   }
+
    debug_free(di);
+   return tb;
+}
+
+typedef void (*rt_msg_fn_t)(const char *, ...);
+
+__attribute__((format(printf, 3, 4)))
+static void rt_msg(const loc_t *loc, rt_msg_fn_t fn, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   char *LOCAL buf = xvasprintf(fmt, ap);
+   LOCAL_TEXT_BUF trace = rt_fmt_trace(loc);
+
+   va_end(ap);
+
+   (*fn)("%s%s", buf, tb_get(trace));
 }
 
 static size_t uarray_len(struct uarray *u)
@@ -618,8 +653,8 @@ void _alloc_driver(const int32_t *all_nets, int32_t all_length,
       // Allocate memory for drivers on demand
       if (driver == g->n_drivers) {
          if ((g->n_drivers == 1) && (g->resolution == NULL))
-            fatal_at(tree_loc(g->sig_decl), "group %s has multiple drivers "
-                     "but no resolution function", fmt_group(g));
+            rt_msg(tree_loc(g->sig_decl), fatal, "group %s has multiple "
+                   "drivers but no resolution function", fmt_group(g));
 
          const size_t driver_sz = sizeof(struct driver);
          g->drivers = xrealloc(g->drivers, (driver + 1) * driver_sz);
@@ -798,27 +833,23 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    loc_t loc;
    from_rt_loc(where, &loc);
 
-   rt_show_trace(&loc);
-
-   void (*fn)(const loc_t *loc, const char *fmt, ...) = fatal_at;
+   void (*fn)(const char *fmt, ...) = fatal;
 
    switch (severity) {
-   case SEVERITY_NOTE:    fn = note_at; break;
-   case SEVERITY_WARNING: fn = warn_at; break;
+   case SEVERITY_NOTE:    fn = notef; break;
+   case SEVERITY_WARNING: fn = warnf; break;
    case SEVERITY_ERROR:
-   case SEVERITY_FAILURE: fn = error_at; break;
+   case SEVERITY_FAILURE: fn = errorf; break;
    }
 
    if (severity >= exit_severity)
-      fn = fatal_at;
+      fn = fatal;
 
-   (*fn)(&loc, "%s+%d: %s %s: %.*s\r\tProcess %s",
-         fmt_time(now), iteration,
-         (is_report ? "Report" : "Assertion"),
-         levels[severity],
-         msg_len, msg,
-         ((active_proc == NULL) ? "(init)"
-          : istr(tree_ident(active_proc->source))));
+   rt_msg(&loc, fn, "%s+%d: %s %s: %.*s",
+          fmt_time(now), iteration,
+          (is_report ? "Report" : "Assertion"),
+          levels[severity],
+          msg_len, msg);
 }
 
 DLLEXPORT
@@ -827,8 +858,6 @@ void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
 {
    loc_t loc;
    from_rt_loc(where, &loc);
-
-   rt_show_trace(&loc);
 
    char *copy LOCAL = xstrdup(hint ?: "");
    const char *prefix = copy, *suffix = copy;
@@ -842,42 +871,42 @@ void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
 
    switch ((bounds_kind_t)kind) {
    case BOUNDS_ARRAY_TO:
-      fatal_at(&loc, "array index %d outside bounds %d to %d%s%s",
-               value, min, max, spacer, suffix);
+      rt_msg(&loc, fatal, "array index %d outside bounds %d to %d%s%s",
+             value, min, max, spacer, suffix);
       break;
    case BOUNDS_ARRAY_DOWNTO:
-      fatal_at(&loc, "array index %d outside bounds %d downto %d%s%s",
-               value, max, min, spacer, suffix);
+      rt_msg(&loc, fatal, "array index %d outside bounds %d downto %d%s%s",
+             value, max, min, spacer, suffix);
       break;
 
    case BOUNDS_ENUM:
-      fatal_at(&loc, "value %d outside %s bounds %d to %d%s%s",
-               value, prefix, min, max, spacer, suffix);
+      rt_msg(&loc, fatal, "value %d outside %s bounds %d to %d%s%s",
+             value, prefix, min, max, spacer, suffix);
       break;
 
    case BOUNDS_TYPE_TO:
-      fatal_at(&loc, "value %d outside bounds %d to %d%s%s",
-               value, min, max, spacer, suffix);
+      rt_msg(&loc, fatal, "value %d outside bounds %d to %d%s%s",
+             value, min, max, spacer, suffix);
       break;
 
    case BOUNDS_TYPE_DOWNTO:
-      fatal_at(&loc, "value %d outside bounds %d downto %d%s%s",
-               value, max, min, spacer, suffix);
+      rt_msg(&loc, fatal, "value %d outside bounds %d downto %d%s%s",
+             value, max, min, spacer, suffix);
       break;
 
    case BOUNDS_ARRAY_SIZE:
-      fatal_at(&loc, "length of target %d does not match length of value "
-               "%d%s%s", min, max, spacer, suffix);
+      rt_msg(&loc, fatal, "length of target %d does not match length of value "
+             "%d%s%s", min, max, spacer, suffix);
       break;
 
    case BOUNDS_INDEX_TO:
-      fatal_at(&loc, "index %d violates constraint bounds %d to %d",
-               value, min, max);
+      rt_msg(&loc, fatal, "index %d violates constraint bounds %d to %d",
+             value, min, max);
       break;
 
    case BOUNDS_INDEX_DOWNTO:
-      fatal_at(&loc, "index %d violates constraint bounds %d downto %d",
-               value, max, min);
+      rt_msg(&loc, fatal, "index %d violates constraint bounds %d downto %d",
+             value, max, min);
       break;
    }
 }
@@ -918,20 +947,20 @@ int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
 
          if (num_digits == 0) {
             from_rt_loc(where, &loc);
-            fatal_at(&loc, "invalid integer value "
-                     "\"%.*s\"", str_len, (const char *)raw_str);
+            rt_msg(&loc, fatal, "invalid integer value "
+                   "\"%.*s\"", str_len, (const char *)raw_str);
          }
       }
       break;
 
    case IMAGE_REAL:
       from_rt_loc(where, &loc);
-      fatal_at(&loc, "real values not yet supported in 'VALUE");
+      rt_msg(&loc, fatal, "real values not yet supported in 'VALUE");
       break;
 
    case IMAGE_PHYSICAL:
       from_rt_loc(where, &loc);
-      fatal_at(&loc, "physical values not yet supported in 'VALUE");
+      rt_msg(&loc, fatal, "physical values not yet supported in 'VALUE");
       break;
 
    case IMAGE_ENUM:
@@ -954,8 +983,8 @@ int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
 
       if (value < 0) {
          from_rt_loc(where, &loc);
-         fatal_at(&loc, "\"%.*s\" is not a valid enumeration value",
-                  str_len, (const char *)raw_str);
+         rt_msg(&loc, fatal, "\"%.*s\" is not a valid enumeration value",
+                str_len, (const char *)raw_str);
       }
       break;
    }
@@ -963,9 +992,9 @@ int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
    while (p < endp && *p != '\0') {
       if (!isspace((int)*p)) {
          from_rt_loc(where, &loc);
-         fatal_at(&loc, "found invalid characters \"%.*s\" after value "
-                  "\"%.*s\"", (int)(endp - p), p, str_len,
-                  (const char *)raw_str);
+         rt_msg(&loc, fatal, "found invalid characters \"%.*s\" after value "
+                "\"%.*s\"", (int)(endp - p), p, str_len,
+                (const char *)raw_str);
       }
       p++;
    }
@@ -978,7 +1007,7 @@ void _div_zero(const rt_loc_t *where)
 {
    loc_t loc;
    from_rt_loc(where, &loc);
-   fatal_at(&loc, "division by zero");
+   rt_msg(&loc, fatal, "division by zero");
 }
 
 DLLEXPORT
@@ -986,7 +1015,7 @@ void _null_deref(const rt_loc_t *where)
 {
    loc_t loc;
    from_rt_loc(where, &loc);
-   fatal_at(&loc, "null access dereference");
+   rt_msg(&loc, fatal, "null access dereference");
 }
 
 DLLEXPORT
@@ -1009,8 +1038,7 @@ struct uarray _std_to_string_time(int64_t value, int64_t unit)
    case 60000000000000000ll: unit_str = "min"; break;
    case 3600000000000000000ll: unit_str = "hr"; break;
    default:
-      rt_show_trace(NULL);
-      fatal("invalid UNIT argument %"PRIi64" in TO_STRING", unit);
+      rt_msg(NULL, fatal, "invalid UNIT argument %"PRIi64" in TO_STRING", unit);
    }
 
    size_t max_len = 16 + strlen(unit_str) + 1;
@@ -1052,10 +1080,8 @@ struct uarray _std_to_string_real_format(double value, struct uarray *format)
    memcpy(fmt_str, format->ptr, str_len);
    fmt_str[str_len] = '\0';
 
-   if (fmt_str[0] != '%') {
-      rt_show_trace(NULL);
-      fatal("conversion specification must start with '%%'");
-   }
+   if (fmt_str[0] != '%')
+      rt_msg(NULL, fatal, "conversion specification must start with '%%'");
 
    for (const char *p = fmt_str + 1; *p; p++) {
       switch (*p) {
@@ -1067,8 +1093,8 @@ struct uarray _std_to_string_real_format(double value, struct uarray *format)
       case '.': case '-':
          continue;
       default:
-         rt_show_trace(NULL);
-         fatal("illegal character '%c' in format \"%s\"", *p, fmt_str + 1);
+         rt_msg(NULL, fatal, "illegal character '%c' in format \"%s\"",
+                *p, fmt_str + 1);
       }
    }
 
@@ -2621,9 +2647,9 @@ static void rt_emit_coverage(tree_t top)
 static void rt_interrupt(void)
 {
    if (active_proc != NULL)
-      fatal_at(tree_loc(active_proc->source),
-               "interrupted in process %s at %s+%d",
-               istr(tree_ident(active_proc->source)), fmt_time(now), iteration);
+      rt_msg(NULL, fatal,
+             "interrupted in process %s at %s+%d",
+             istr(tree_ident(active_proc->source)), fmt_time(now), iteration);
    else
       fatal("interrupted");
 }
