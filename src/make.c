@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2018  Nick Gasson
+//  Copyright (C) 2013-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -131,19 +131,23 @@ static rule_t *make_rule_for_source(rule_t **all, rule_kind_t kind,
 {
    ident_t ident = ident_new(source);
 
-   for (rule_t *it = *all; it != NULL; it = it->next) {
-      if (it->source == ident)
-         return it;
+   rule_t **ins;
+   for (ins = all; *ins != NULL; ins = &((*ins)->next)) {
+      int cmp = ident_compare((*ins)->source, ident);
+      if (cmp == 0)
+         return *ins;
+      else if (cmp > 0)
+         break;
    }
 
    rule_t *new = xmalloc(sizeof(rule_t));
    new->inputs  = NULL;
    new->outputs = NULL;
    new->kind    = kind;
-   new->next    = *all;
+   new->next    = *ins;
    new->source  = ident;
 
-   *all = new;
+   *ins = new;
    return new;
 }
 
