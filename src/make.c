@@ -19,6 +19,7 @@
 #include "phase.h"
 #include "util.h"
 #include "loc.h"
+#include "hash.h"
 
 #include <limits.h>
 #include <unistd.h>
@@ -54,7 +55,7 @@ struct rule {
    ident_t       source;
 };
 
-static ident_t make_tag_i;
+static hash_t *rule_map = NULL;
 
 static lib_t make_get_lib(ident_t name)
 {
@@ -194,10 +195,8 @@ static char *make_elab_name(tree_t t)
 
 static void make_rule(tree_t t, rule_t **rules)
 {
-   if (tree_attr_int(t, make_tag_i, 0))
+   if (hash_get(rule_map, t))
       return;
-   else
-      tree_add_attr_int(t, make_tag_i, 1);
 
    lib_t work = make_get_lib(tree_ident(t));
    if (work != lib_work())
@@ -225,6 +224,8 @@ static void make_rule(tree_t t, rule_t **rules)
             make_rule_add_input(r, make_product(pack, MAKE_TREE));
       }
    }
+
+   hash_put(rule_map, t, r);
 
    switch (kind) {
    case T_ELAB:
@@ -396,7 +397,7 @@ static void make_add_target(lib_t lib, ident_t name, int kind, void *context)
 
 void make(tree_t *targets, int count, FILE *out)
 {
-   make_tag_i = ident_new("make_tag");
+   rule_map = hash_new(256, true);
 
    if (count == 0) {
       lib_t work = lib_work();
@@ -429,4 +430,7 @@ void make(tree_t *targets, int count, FILE *out)
    }
 
    free(targets);
+
+   hash_free(rule_map);
+   rule_map = NULL;
 }
