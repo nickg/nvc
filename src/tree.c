@@ -254,7 +254,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_DECLS | I_IDENT | I_VALUE | I_RANGES),
 
    // T_PROT_FCALL
-   (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_FLAGS | I_NAME),
+   (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_FLAGS | I_NAME | I_ATTRS),
 
    // T_PROT_PCALL,
    (I_IDENT | I_IDENT2 | I_PARAMS | I_REF | I_NAME | I_ATTRS),

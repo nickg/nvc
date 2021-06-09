@@ -627,4 +627,25 @@ package body textio is
         report "unimplemented" severity failure;
     end procedure;
 
+    function justify (value     : string;
+                      justified : side  := right;
+                      field     : width := 0) return string
+    is
+        variable width  : natural := max(value'length, field);
+        variable result : string(1 to width);
+    begin
+        if justified = left then
+            result(1 to value'length) := value;
+            for i in value'length + 1 to width loop
+                result(i) := ' ';
+            end loop;
+        else
+            for i in 1 to width - value'length loop
+                result(i) := ' ';
+            end loop;
+            result(1 + width - value'length to width) := value;
+        end if;
+        return result;
+    end function;
+
 end package body;

@@ -24,6 +24,10 @@ begin
         readline(fptr, l);
         assert l.all = "4567";
         file_close(fptr);
+
+        assert justify("hello", right, 7) = "  hello";
+        assert justify("hello", left, 0) = "hello";
+        assert justify("hello", left, 6) = "hello ";
         wait;
     end process;
 

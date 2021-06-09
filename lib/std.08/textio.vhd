@@ -11,6 +11,10 @@ package textio is
 
     subtype width is natural;
 
+    function justify (value     : string;
+                      justified : side  := right;
+                      field     : width := 0) return string;
+
     file input : text open READ_MODE is "STD_INPUT";
 
     file output : text open WRITE_MODE is "STD_OUTPUT";
