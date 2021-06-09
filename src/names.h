@@ -56,6 +56,7 @@ void insert_field_names(nametab_t *tab, type_t record);
 void insert_decls(nametab_t *tab, tree_t container);
 void insert_ports(nametab_t *tab, tree_t container);
 void insert_generics(nametab_t *tab, tree_t container);
+void insert_protected_decls(nametab_t *tab, type_t type);
 
 tree_t resolve_name(nametab_t *r, const loc_t *loc, ident_t name);
 type_t resolve_type(nametab_t *r, type_t incomplete);

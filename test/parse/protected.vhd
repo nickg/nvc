@@ -30,4 +30,17 @@ package p is
         end procedure;
     end protected body;
 
+    procedure proc_1 (x : integer);
+
+    type pt2 is protected
+        procedure proc_1 (y : integer);
+    end protected;
+
+    type pt2 is protected body
+        procedure proc_2 is
+        begin
+            proc_1(y => 5);              -- OK
+        end procedure;
+    end protected body;
+
 end package;

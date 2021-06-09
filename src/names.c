@@ -1162,6 +1162,15 @@ void insert_field_names(nametab_t *tab, type_t record)
       insert_name(tab, type_field(record, i), NULL, 0);
 }
 
+void insert_protected_decls(nametab_t *tab, type_t type)
+{
+   assert(type_is_protected(type));
+
+   const int ndecls = type_decls(type);
+   for (int i = 0; i < ndecls; i++)
+      insert_name(tab, type_decl(type, i), NULL, 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Name mangling
 

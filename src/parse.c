@@ -4958,8 +4958,8 @@ static tree_t p_protected_type_body(ident_t id)
                      "declaration", istr(id));
          type = type_new(T_NONE);
       }
-
-      insert_name(nametab, tdecl, NULL, 0);
+      else
+         insert_protected_decls(nametab, type);
    }
 
    tree_t body = tree_new(T_PROT_BODY);
