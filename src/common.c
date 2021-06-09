@@ -1016,9 +1016,6 @@ void intern_strings(void)
    foreign_i        = ident_new("FOREIGN");
    nested_i         = ident_new("nested");
    prot_field_i     = ident_new("prot_field");
-   stmt_tag_i       = ident_new("stmt_tag");
-   cond_tag_i       = ident_new("cond_tag");
-   sub_cond_i       = ident_new("sub_cond");
    range_var_i      = ident_new("range_var");
    work_i           = ident_new("WORK");
    wait_level_i     = ident_new("wait_level");

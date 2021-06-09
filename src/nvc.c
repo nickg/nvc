@@ -21,6 +21,7 @@
 #include "common.h"
 #include "vcode.h"
 #include "rt/rt.h"
+#include "rt/cover.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -199,9 +200,9 @@ static int analyse(int argc, char **argv)
 
    for (int i = 0; i < units.count; i++) {
       if (unit_needs_cgen(units.items[i])) {
-         vcode_unit_t vu = lower_unit(units.items[i]);
+         vcode_unit_t vu = lower_unit(units.items[i], NULL);
          lib_save_vcode(lib_work(), vu, tree_ident(units.items[i]));
-         cgen(units.items[i], vu);
+         cgen(units.items[i], vu, NULL);
       }
    }
 
@@ -320,7 +321,13 @@ static int elaborate(int argc, char **argv)
    lib_save(lib_work());
    progress("saving library");
 
-   vcode_unit_t vu = lower_unit(top);
+   cover_tagging_t *cover = NULL;
+   if (opt_get_int("cover")) {
+      cover = cover_tag(top);
+      progress("generating coverage information");
+   }
+
+   vcode_unit_t vu = lower_unit(top, cover);
    progress("generating intermediate code");
 
    e_node_t e = eopt_build(top);
@@ -333,7 +340,7 @@ static int elaborate(int argc, char **argv)
    lib_save(lib_work());
    progress("saving library");
 
-   cgen(top, vu);
+   cgen(top, vu, cover);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

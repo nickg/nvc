@@ -19,6 +19,9 @@
 #include "cover.h"
 #include "loc.h"
 #include "common.h"
+#include "hash.h"
+#include "fbuf.h"
+#include "array.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -31,18 +34,22 @@
 #define CSS_DIR DATADIR
 #endif
 
+#define SUB_COND_BITS 5
+#define MAX_SUB_CONDS (1 << SUB_COND_BITS)
+#define SUB_COND_MASK (MAX_SUB_CONDS - 1)
+
 #define PERCENT_RED    50.0f
 #define PERCENT_ORANGE 90.0f
 
-typedef struct cover_hl cover_hl_t;
-typedef struct cover_file cover_file_t;
+typedef struct _cover_hl cover_hl_t;
+typedef struct _cover_file cover_file_t;
 
 typedef enum {
    HL_HIT,
    HL_MISS
 } hl_kind_t;
 
-struct cover_hl {
+struct _cover_hl {
    cover_hl_t *next;
    int         start;
    int         end;
@@ -57,7 +64,7 @@ typedef struct {
    cover_hl_t *hl;
 } cover_line_t;
 
-struct cover_file {
+struct _cover_file {
    const char   *name;
    cover_line_t *lines;
    unsigned      n_lines;
@@ -66,11 +73,24 @@ struct cover_file {
    cover_file_t *next;
 };
 
+typedef enum { TAG_STMT, TAG_COND, TAG_LAST } tag_kind_t;
+
 typedef struct {
-   int next_stmt_tag;
-   int next_cond_tag;
-   int next_sub_cond;
-} cover_tag_ctx_t;
+   tag_kind_t kind;
+   int32_t    tag;
+   int32_t    sub_cond;
+   loc_t      loc;
+} cover_tag_t;
+
+typedef A(cover_tag_t) tag_array_t;
+
+struct _cover_tagging {
+   int          next_stmt_tag;
+   int          next_cond_tag;
+   int          next_sub_cond;
+   hash_t      *tree_hash;
+   tag_array_t  tags;
+};
 
 typedef struct {
    unsigned total_branches;
@@ -82,22 +102,28 @@ typedef struct {
 } cover_stats_t;
 
 typedef struct {
-   const int32_t *stmts;
-   const int32_t *conds;
+   const int32_t   *stmts;
+   const int32_t   *conds;
+   cover_tagging_t *tagging;
 } report_ctx_t;
 
-static cover_file_t *files;
-static cover_stats_t stats;
+static cover_file_t  *files;
+static cover_stats_t  stats;
 
-static void cover_tag_conditions(tree_t t, cover_tag_ctx_t *ctx, int branch)
+static void cover_tag_conditions(tree_t t, cover_tagging_t *ctx, int branch)
 {
-   const int tag = (branch == -1) ? (ctx->next_cond_tag)++ : branch;
+   const int32_t tag = (branch == -1) ? (ctx->next_cond_tag)++ : branch;
 
-   if (ctx->next_sub_cond == 16)
+   if (ctx->next_sub_cond == MAX_SUB_CONDS)
       return;
 
-   tree_add_attr_int(t, cond_tag_i, tag);
-   tree_add_attr_int(t, sub_cond_i, (ctx->next_sub_cond)++);
+   intptr_t enc = 0;
+   enc |= tag << SUB_COND_BITS;
+   enc |= ((ctx->next_sub_cond)++ & SUB_COND_MASK);
+   enc <<= 2;
+   enc |= 3;
+
+   hash_put(ctx->tree_hash, t, (void *)enc);
 
    if (tree_kind(t) != T_FCALL)
       return;
@@ -150,10 +176,14 @@ static bool cover_is_stmt(tree_t t)
 
 static void cover_tag_visit_fn(tree_t t, void *context)
 {
-   cover_tag_ctx_t *ctx = context;
+   cover_tagging_t *ctx = context;
 
    if (cover_is_stmt(t)) {
-      tree_add_attr_int(t, stmt_tag_i, (ctx->next_stmt_tag)++);
+      intptr_t enc = 0;
+      enc |= (ctx->next_stmt_tag)++ << SUB_COND_BITS;
+      enc <<= 2;
+      enc |= 1;
+      hash_put(ctx->tree_hash, t, (void *)enc);
 
       if (cover_has_conditions(t)) {
          ctx->next_sub_cond = 0;
@@ -162,24 +192,121 @@ static void cover_tag_visit_fn(tree_t t, void *context)
    }
 }
 
-void cover_tag(tree_t top)
+cover_tagging_t *cover_tag(tree_t top)
 {
-   cover_tag_ctx_t ctx = {
-      .next_stmt_tag = 0,
-      .next_cond_tag = 0
-   };
+   cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
+   ctx->tree_hash = hash_new(1024, true);
 
-   tree_visit(top, cover_tag_visit_fn, &ctx);
+   tree_visit(top, cover_tag_visit_fn, ctx);
 
-   tree_add_attr_int(top, ident_new("stmt_tags"), ctx.next_stmt_tag);
-   tree_add_attr_int(top, ident_new("cond_tags"), ctx.next_cond_tag);
+   if (opt_get_int("unit-test"))
+      return ctx;
+
+   char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));
+   fbuf_t *f = lib_fbuf_open(lib_work(), dbname, FBUF_OUT);
+   if (f == NULL)
+      fatal_errno("failed to create coverage db file: %s", dbname);
+
+   write_u32(ctx->next_stmt_tag, f);
+   write_u32(ctx->next_cond_tag, f);
+
+   loc_wr_ctx_t *loc_wr = loc_write_begin(f);
+
+   hash_iter_t it = HASH_BEGIN;
+   tree_t tree;
+   intptr_t enc;
+   while (hash_iter(ctx->tree_hash, &it, (const void **)&tree, (void **)&enc)) {
+      const tag_kind_t kind = (enc & 3) == 1 ? TAG_STMT : TAG_COND;
+      enc >>= 2;
+
+      write_u8(kind, f);
+      write_u32(enc >> SUB_COND_BITS, f);
+      if (kind == TAG_COND) write_u8(enc & SUB_COND_MASK, f);
+      loc_write(tree_loc(tree), loc_wr);
+   }
+
+   write_u8(TAG_LAST, f);
+
+   loc_write_end(loc_wr);
+   fbuf_close(f);
+
+   return ctx;
+}
+
+cover_tagging_t *cover_read_tags(tree_t top)
+{
+   char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));
+   fbuf_t *f = lib_fbuf_open(lib_work(), dbname, FBUF_IN);
+   if (f == NULL)
+      return NULL;
+
+   cover_tagging_t *tagging = xcalloc(sizeof(cover_tagging_t));
+
+   tagging->next_stmt_tag = read_u32(f);
+   tagging->next_cond_tag = read_u32(f);
+
+   loc_rd_ctx_t *loc_rd = loc_read_begin(f);
+
+   for (;;) {
+      const tag_kind_t kind = read_u8(f);
+      if (kind == TAG_LAST)
+         break;
+
+      const int32_t tag = read_u32(f);
+      const int32_t sub_cond = kind == TAG_COND ? read_u8(f) : 0;
+
+      loc_t loc;
+      loc_read(&loc, loc_rd);
+
+      cover_tag_t new = {
+         .kind     = kind,
+         .loc      = loc,
+         .tag      = tag,
+         .sub_cond = sub_cond,
+      };
+      APUSH(tagging->tags, new);
+   }
+
+   loc_read_end(loc_rd);
+   fbuf_close(f);
+   return tagging;
+}
+
+void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,
+                      int32_t *n_conds)
+{
+   if (tagging == NULL) {
+      *n_stmts = 0;
+      *n_conds = 0;
+   }
+   else {
+      *n_stmts = tagging->next_stmt_tag;
+      *n_conds = tagging->next_cond_tag;
+   }
+}
+
+bool cover_is_tagged(cover_tagging_t *tagging, tree_t t,
+                     int32_t *tag, int32_t *sub_cond)
+{
+   if (tagging == NULL)
+      return false;
+
+   intptr_t enc = (intptr_t)hash_get(tagging->tree_hash, t);
+   if (enc == 0)
+      return false;
+
+   enc >>= 2;
+   if (sub_cond) *sub_cond = enc & 0x1f;
+   if (tag) *tag = enc >> 5;
+
+   return true;
 }
 
 static void cover_append_line(cover_file_t *f, const char *buf)
 {
    if (f->n_lines == f->alloc_lines) {
       f->alloc_lines *= 2;
-      f->lines = xrealloc(f->lines, f->alloc_lines * sizeof(cover_line_t));
+      f->lines = xrealloc_array(f->lines, f->alloc_lines, sizeof(cover_line_t));
    }
 
    cover_line_t *l = &(f->lines[(f->n_lines)++]);
@@ -206,7 +333,7 @@ static cover_file_t *cover_file(const loc_t *loc)
    f->name        = loc_file_str(loc);
    f->n_lines     = 0;
    f->alloc_lines = 1024;
-   f->lines       = xmalloc(sizeof(cover_line_t) * f->alloc_lines);
+   f->lines       = xmalloc_array(f->alloc_lines, sizeof(cover_line_t));
    f->next        = files;
 
    FILE *fp = fopen(loc_file_str(loc), "r");
@@ -239,95 +366,67 @@ static cover_file_t *cover_file(const loc_t *loc)
    return (files = f);
 }
 
-static void cover_report_conds(tree_t t, report_ctx_t *ctx)
+static void cover_process_tag(cover_tag_t *tag, const int32_t *stmts,
+                              const int32_t *conds)
 {
-   const int32_t *masks = ctx->conds;
-
-   const int tag = tree_attr_int(t, cond_tag_i, -1);
-   if ((tag == -1) || (masks[tag] == 0))
+   cover_file_t *file = cover_file(&(tag->loc));
+   if (file == NULL || !file->valid || tag->loc.first_line == 0)
       return;
 
-   const loc_t *loc = tree_loc(t);
-   cover_file_t *file = cover_file(loc);
-   if ((file == NULL) || !file->valid)
-      return;
+   assert(tag->loc.first_line < file->n_lines);
 
-   assert(loc->first_line < file->n_lines);
+   cover_line_t *l = &(file->lines[tag->loc.first_line - 1]);
 
-   cover_line_t *l = &(file->lines[loc->first_line - 1]);
+   if (tag->kind == TAG_STMT) {
+      l->hits = MAX(stmts[tag->tag], l->hits);
 
-   const int start = loc->first_column;
-   const int end = (loc->line_delta == 0)
-      ? loc->first_column + loc->column_delta : l->len;
+      if (stmts[tag->tag] > 0)
+         stats.hit_stmts++;
 
-   const int sub_cond = tree_attr_int(t, sub_cond_i, 0);
-   const int mask = (masks[tag] >> (sub_cond * 2)) & 3;
+      stats.total_stmts++;
+   }
+   else {
+      const int start = tag->loc.first_column;
+      const int end = (tag->loc.line_delta == 0)
+         ? tag->loc.first_column + tag->loc.column_delta : l->len;
 
-   if (sub_cond == 0) {
-      stats.total_branches++;
+      const int mask = (conds[tag->tag] >> (tag->sub_cond * 2)) & 3;
+
+      if (tag->sub_cond == 0) {
+         stats.total_branches++;
+         if (mask == 3)
+            stats.hit_branches++;
+      }
+
+      stats.total_conds++;
       if (mask == 3)
-         stats.hit_branches++;
+         stats.hit_conds++;
+
+      cover_hl_t *hl;
+      for (hl = l->hl; hl != NULL; hl = hl->next) {
+         if ((hl->start == start) && (hl->end == end))
+            break;
+      }
+
+      if (hl == NULL) {
+         hl = xmalloc(sizeof(cover_hl_t));
+         hl->start  = start;
+         hl->end    = end;
+         hl->next   = l->hl;
+
+         l->hl = hl;
+      }
+      else if (hl->kind == HL_HIT)
+         return;
+
+      hl->kind = (mask == 3) ? HL_HIT : HL_MISS;
+      hl->help = NULL;
+
+      if (mask == 1)
+         hl->help = "Condition never evaluated to TRUE";
+      else if (mask == 2)
+         hl->help = "Condition never evaluated to FALSE";
    }
-
-   stats.total_conds++;
-   if (mask == 3)
-      stats.hit_conds++;
-
-   cover_hl_t *hl;
-   for (hl = l->hl; hl != NULL; hl = hl->next) {
-      if ((hl->start == start) && (hl->end == end))
-         break;
-   }
-
-   if (hl == NULL) {
-      hl = xmalloc(sizeof(cover_hl_t));
-      hl->start  = start;
-      hl->end    = end;
-      hl->next   = l->hl;
-
-      l->hl = hl;
-   }
-   else if (hl->kind == HL_HIT)
-      return;
-
-   hl->kind = (mask == 3) ? HL_HIT : HL_MISS;
-   hl->help = NULL;
-
-   if (mask == 1)
-      hl->help = "Condition never evaluated to TRUE";
-   else if (mask == 2)
-      hl->help = "Condition never evaluated to FALSE";
-}
-
-static void cover_report_fn(tree_t t, void *context)
-{
-   report_ctx_t *ctx = context;
-   const int32_t *counts = ctx->stmts;
-
-   if (!cover_is_stmt(t))
-      return;
-
-   if (cover_has_conditions(t))
-      cover_report_conds(tree_value(t), ctx);
-
-   const int tag = tree_attr_int(t, stmt_tag_i, -1);
-   if (tag == -1)
-      return;
-
-   const loc_t *loc = tree_loc(t);
-   cover_file_t *file = cover_file(loc);
-   if ((file == NULL) || !file->valid)
-      return;
-
-   assert(loc->first_line < file->n_lines);
-
-   cover_line_t *l = &(file->lines[loc->first_line - 1]);
-   l->hits = MAX(counts[tag], l->hits);
-
-   if (counts[tag] > 0)
-      stats.hit_stmts++;
-
-   stats.total_stmts++;
 }
 
 static void cover_report_line(FILE *fp, cover_line_t *l)
@@ -527,14 +626,11 @@ static void cover_index(ident_t name, const char *dir)
    fclose(fp);
 }
 
-void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
+void cover_report(tree_t top, cover_tagging_t *tagging,
+                  const int32_t *stmts, const int32_t *conds)
 {
-   report_ctx_t report_ctx = {
-      .stmts = stmts,
-      .conds = conds
-   };
-
-   tree_visit(top, cover_report_fn, &report_ctx);
+   for (unsigned i = 0; i < tagging->tags.count; i++)
+      cover_process_tag(&(tagging->tags.items[i]), stmts, conds);
 
    ident_t name = ident_strip(tree_ident(top), ident_new(".elab"));
 

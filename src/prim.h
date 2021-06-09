@@ -33,4 +33,6 @@ typedef struct tree_rd_ctx *tree_rd_ctx_t;
 
 typedef struct vcode_unit *vcode_unit_t;
 
+typedef struct _cover_tagging cover_tagging_t;
+
 #endif  // _PRIM_H

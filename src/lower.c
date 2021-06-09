@@ -20,6 +20,7 @@
 #include "vcode.h"
 #include "common.h"
 #include "rt/rt.h"
+#include "rt/cover.h"
 #include "hash.h"
 #include "array.h"
 #include "casefsm.h"
@@ -69,9 +70,10 @@ struct lower_scope {
    tree_t         container;
 };
 
-static const char    *verbose        = NULL;
-static lower_mode_t   mode           = LOWER_NORMAL;
-static lower_scope_t *top_scope      = NULL;
+static const char      *verbose = NULL;
+static lower_mode_t     mode = LOWER_NORMAL;
+static lower_scope_t   *top_scope = NULL;
+static cover_tagging_t *cover_tags = NULL;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_reify_expr(tree_t expr);
@@ -1273,22 +1275,19 @@ static vcode_reg_t lower_bit_shift(bit_shift_kind_t kind, vcode_reg_t array,
 
 static void lower_cond_coverage(tree_t test, vcode_reg_t value)
 {
-   const int cover_tag = tree_attr_int(test, cond_tag_i, -1);
-   if (cover_tag == -1)
-      return;
-
-   const int sub_cond = tree_attr_int(test, sub_cond_i, 0);
-
-   emit_cover_cond(value, cover_tag, sub_cond);
+   int32_t cover_tag, sub_cond;
+   if (cover_is_tagged(cover_tags, test, &cover_tag, &sub_cond))
+      emit_cover_cond(value, cover_tag, sub_cond);
 }
 
 static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result)
 {
-   if (tree_attr_int(fcall, sub_cond_i, 0) > 0) {
-      // This is a sub-condition of a Boolean expression being annotated
-      // for coverage
-      lower_cond_coverage(fcall, result);
-   }
+   int32_t cover_tag, sub_cond;
+   if (!cover_is_tagged(cover_tags, fcall, &cover_tag, &sub_cond))
+      return result;
+
+   if (sub_cond > 0)
+      emit_cover_cond(result, cover_tag, sub_cond);
 
    return result;
 }
@@ -4580,9 +4579,9 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
       return;
    }
 
-   const int cover_tag = tree_attr_int(stmt, stmt_tag_i, -1);
-   if (cover_tag != -1)
-      emit_cover_stmt(cover_tag);
+   int32_t stmt_tag;
+   if (cover_is_tagged(cover_tags, stmt, &stmt_tag, NULL))
+      emit_cover_stmt(stmt_tag);
 
    emit_debug_info(tree_loc(stmt));
 
@@ -5764,11 +5763,12 @@ static void lower_set_verbose(void)
    }
 }
 
-vcode_unit_t lower_unit(tree_t unit)
+vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover)
 {
    assert(top_scope == NULL);
    lower_set_verbose();
 
+   cover_tags = cover;
    mode = LOWER_NORMAL;
 
    vcode_unit_t root = NULL;

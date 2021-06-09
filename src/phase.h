@@ -53,7 +53,7 @@ tree_t elab(tree_t top);
 void elab_set_generic(const char *name, const char *value);
 
 // Generate LLVM bitcode for a design unit
-void cgen(tree_t top, vcode_unit_t vu);
+void cgen(tree_t top, vcode_unit_t vu, cover_tagging_t *cover);
 
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);
@@ -71,7 +71,7 @@ void input_from_file(const char *file);
 tree_t parse(void);
 
 // Generate vcode for a design unit
-vcode_unit_t lower_unit(tree_t unit);
+vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover);
 
 // Generate vcode for an isolated function call
 vcode_unit_t lower_thunk(tree_t fcall);

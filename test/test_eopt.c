@@ -184,7 +184,7 @@ static e_node_t run_eopt(void)
 {
    tree_t top = run_elab();
    fail_if(error_count() > 0);
-   lower_unit(top);
+   lower_unit(top, NULL);
 
    e_node_t e = eopt_build(top);
 

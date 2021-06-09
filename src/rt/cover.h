@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2013-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,7 +21,15 @@
 #include "util.h"
 #include "tree.h"
 
-void cover_tag(tree_t top);
-void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds);
+typedef struct _cover_tagging cover_tagging_t;
+
+cover_tagging_t *cover_tag(tree_t top);
+void cover_report(tree_t top, cover_tagging_t *tagging,
+                  const int32_t *stmts, const int32_t *conds);
+bool cover_is_tagged(cover_tagging_t *tagging, tree_t t,
+                     int32_t *tag, int32_t *sub_cond);
+void cover_count_tags(cover_tagging_t *tagging, int32_t *n_stmts,
+                      int32_t *n_conds);
+cover_tagging_t *cover_read_tags(tree_t top);
 
 #endif  // _COVER_H

@@ -276,37 +276,38 @@ typedef struct {
    uint64_t deltas;
 } rt_profile_t;
 
-static rt_proc_t      *active_proc = NULL;
-static rt_scope_t     *active_scope = NULL;
-static rt_scope_t     *scopes = NULL;
-static rt_run_queue_t  run_queue;
-static heap_t          eventq_heap = NULL;
-static unsigned        n_scopes = 0;
-static unsigned        n_nexuses = 0;
-static uint64_t        now = 0;
-static int             iteration = -1;
-static bool            trace_on = false;
-static nvc_rusage_t    ready_rusage;
-static jmp_buf         fatal_jmp;
-static bool            aborted = false;
-static sens_list_t    *resume = NULL;
-static sens_list_t    *postponed = NULL;
-static watch_t        *watches = NULL;
-static watch_t        *callbacks = NULL;
-static event_t        *delta_proc = NULL;
-static event_t        *delta_driver = NULL;
-static void           *global_tmp_stack = NULL;
-static void           *proc_tmp_stack = NULL;
-static uint32_t        global_tmp_alloc;
-static hash_t         *res_memo_hash = NULL;
-static side_effect_t   init_side_effect = SIDE_EFFECT_ALLOW;
-static bool            force_stop;
-static bool            can_create_delta;
-static callback_t     *global_cbs[RT_LAST_EVENT];
-static rt_severity_t   exit_severity = SEVERITY_ERROR;
-static bool            profiling = false;
-static rt_profile_t    profile;
-static rt_nexus_t     *nexuses = NULL;
+static rt_proc_t       *active_proc = NULL;
+static rt_scope_t      *active_scope = NULL;
+static rt_scope_t      *scopes = NULL;
+static rt_run_queue_t   run_queue;
+static heap_t           eventq_heap = NULL;
+static unsigned         n_scopes = 0;
+static unsigned         n_nexuses = 0;
+static uint64_t         now = 0;
+static int              iteration = -1;
+static bool             trace_on = false;
+static nvc_rusage_t     ready_rusage;
+static jmp_buf          fatal_jmp;
+static bool             aborted = false;
+static sens_list_t     *resume = NULL;
+static sens_list_t     *postponed = NULL;
+static watch_t         *watches = NULL;
+static watch_t         *callbacks = NULL;
+static event_t         *delta_proc = NULL;
+static event_t         *delta_driver = NULL;
+static void            *global_tmp_stack = NULL;
+static void            *proc_tmp_stack = NULL;
+static uint32_t         global_tmp_alloc;
+static hash_t          *res_memo_hash = NULL;
+static side_effect_t    init_side_effect = SIDE_EFFECT_ALLOW;
+static bool             force_stop;
+static bool             can_create_delta;
+static callback_t      *global_cbs[RT_LAST_EVENT];
+static rt_severity_t    exit_severity = SEVERITY_ERROR;
+static bool             profiling = false;
+static rt_profile_t     profile;
+static rt_nexus_t      *nexuses = NULL;
+static cover_tagging_t *cover = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -2844,25 +2845,31 @@ static void rt_stats_print(void)
 
 static void rt_reset_coverage(tree_t top)
 {
+   assert(cover == NULL);
+
+   if ((cover = cover_read_tags(top)) == NULL)
+      return;
+
+   int32_t n_stmts, n_conds;
+   cover_count_tags(cover, &n_stmts, &n_conds);
+
    int32_t *cover_stmts = jit_find_symbol("cover_stmts", false);
-   if (cover_stmts != NULL) {
-      const int ntags = tree_attr_int(top, ident_new("stmt_tags"), 0);
-      memset(cover_stmts, '\0', sizeof(int32_t) * ntags);
-   }
+   if (cover_stmts != NULL)
+      memset(cover_stmts, '\0', sizeof(int32_t) * n_stmts);
 
    int32_t *cover_conds = jit_find_symbol("cover_conds", false);
-   if (cover_conds != NULL) {
-      const int ntags = tree_attr_int(top, ident_new("cond_tags"), 0);
-      memset(cover_conds, '\0', sizeof(int32_t) * ntags);
-   }
+   if (cover_conds != NULL)
+      memset(cover_conds, '\0', sizeof(int32_t) * n_conds);
 }
 
 static void rt_emit_coverage(tree_t top)
 {
-   const int32_t *cover_stmts = jit_find_symbol("cover_stmts", false);
-   const int32_t *cover_conds = jit_find_symbol("cover_conds", false);
-   if (cover_stmts != NULL)
-      cover_report(top, cover_stmts, cover_conds);
+   if (cover != NULL) {
+      const int32_t *cover_stmts = jit_find_symbol("cover_stmts", false);
+      const int32_t *cover_conds = jit_find_symbol("cover_conds", false);
+      if (cover_stmts != NULL)
+         cover_report(top, cover, cover_stmts, cover_conds);
+   }
 }
 
 static void rt_interrupt(void)

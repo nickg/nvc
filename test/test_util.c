@@ -124,7 +124,7 @@ tree_t run_elab(void)
 
       const tree_kind_t kind = tree_kind(t);
       if ((kind == T_PACKAGE && !package_needs_body(t)) || kind == T_PACK_BODY)
-         lower_unit(t);
+         lower_unit(t, NULL);
 
       if (tree_kind(t) == T_ENTITY)
          last_ent = t;
@@ -160,7 +160,7 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
 
       if (lower && ((kind == T_PACKAGE && !package_needs_body(last))
                     || kind == T_PACK_BODY))
-         lower_unit(last);
+         lower_unit(last, NULL);
    }
 
    fail_unless(parse() == NULL);

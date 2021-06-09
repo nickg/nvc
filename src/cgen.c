@@ -3798,9 +3798,11 @@ static void cgen_reset_function(void)
    cgen_pop_debug_scope();
 }
 
-static void cgen_coverage_state(tree_t t)
+static void cgen_coverage_state(tree_t t, cover_tagging_t *tagging)
 {
-   const int stmt_tags = tree_attr_int(t, ident_new("stmt_tags"), 0);
+   int32_t stmt_tags, cond_tags;
+   cover_count_tags(tagging, &stmt_tags, &cond_tags);
+
    if (stmt_tags > 0) {
       LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
       LLVMValueRef var = LLVMAddGlobal(module, type, "cover_stmts");
@@ -3808,7 +3810,6 @@ static void cgen_coverage_state(tree_t t)
       cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT, -1);
    }
 
-   const int cond_tags = tree_attr_int(t, ident_new("cond_tags"), 0);
    if (cond_tags > 0) {
       LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
       LLVMValueRef var = LLVMAddGlobal(module, type, "cover_conds");
@@ -3904,12 +3905,12 @@ static void cgen_module_debug_info(void)
    cgen_push_debug_scope(mod);
 }
 
-static void cgen_top(tree_t top, vcode_unit_t vcode)
+static void cgen_top(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
 {
    vcode_select_unit(vcode);
 
    cgen_module_debug_info();
-   cgen_coverage_state(top);
+   cgen_coverage_state(top, cover);
    cgen_reset_function();
    cgen_children(vcode);
    cgen_pop_debug_scope();
@@ -4542,7 +4543,7 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
    ACLEAR(link_args);
 }
 
-void cgen(tree_t top, vcode_unit_t vcode)
+void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
 {
    vcode_select_unit(vcode);
 
@@ -4587,7 +4588,7 @@ void cgen(tree_t top, vcode_unit_t vcode)
    cgen_abi_version();
    cgen_tmp_stack();
 
-   cgen_top(top, vcode);
+   cgen_top(top, vcode, cover);
 
    LLVMDIBuilderFinalize(debuginfo);
 
