@@ -332,4 +332,16 @@ begin
         assert b and v = "101";         -- Error
     end process;
 
+    p28: process is
+        function p28_1 (x : integer; y : boolean) return boolean;
+        procedure p28_1 (x : integer; y : boolean);
+        function p28_2 return boolean;
+        procedure p28_2;
+    begin
+        assert p28_1(x => 1, y => true);  -- OK
+        p28_1(x => 1, y => true);       -- OK
+        assert p28_2;                   -- OK
+        p28_2;                          -- OK
+    end process;
+
 end architecture;

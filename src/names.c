@@ -1420,6 +1420,21 @@ static void begin_overload_resolution(overload_t *o)
       }
       ATRIM(o->candidates, wptr);
    }
+
+   // Remove procedures in a function call context and functions in a
+   // procedure call context
+   if (o->candidates.count > 1) {
+      const bool is_fcall = tree_kind(o->tree) == T_FCALL;
+      unsigned wptr = 0;
+      for (unsigned i = 0; i < o->candidates.count; i++) {
+         type_kind_t typek = type_kind(tree_type(o->candidates.items[i]));
+         if ((is_fcall && typek != T_FUNC) || (!is_fcall && typek != T_PROC))
+            overload_prune_candidate(o, i);
+         else
+            o->candidates.items[wptr++] = o->candidates.items[i];
+      }
+      ATRIM(o->candidates, wptr);
+   }
 }
 
 static int param_compar(const void *pa, const void *pb)
