@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #define LOC_MAGIC 0xf00f
 
@@ -78,7 +79,7 @@ void fmt_loc(FILE *f, const loc_t *loc)
    while (i < sizeof(buf) - 1 && *lb != '\0' && *lb != '\n') {
       if (*lb == '\t')
          buf[i++] = ' ';
-      else
+      else if (isprint((int)*lb))
          buf[i++] = *lb;
       ++lb;
    }
