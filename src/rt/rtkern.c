@@ -384,15 +384,7 @@ static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
    return (when << 2) | (kind & 3);
 }
 
-static void from_rt_loc(const rt_loc_t *rt, loc_t *loc)
-{
-   // This function can be expensive: only call it when loc_t is required
-   *loc = get_loc(rt->first_line, rt->first_column,
-                  rt->last_line, rt->last_column,
-                  loc_file_ref(rt->file, NULL));
-}
-
-static text_buf_t *rt_fmt_trace(const loc_t *fixed)
+static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
 {
    debug_info_t *di = debug_capture();
    text_buf_t *tb = tb_new();
@@ -422,9 +414,9 @@ static text_buf_t *rt_fmt_trace(const loc_t *fixed)
       }
 
       if (enclosing && ntrees > 0) {
-         const loc_t *loc = tree_loc(trees[ntrees - 1]);
-         if (!found_fixed && (fixed == NULL || loc_eq(fixed, loc)))
-            found_fixed = true;
+         found_fixed |= fixed == NULL
+            || (strcmp(f->srcfile, fixed->file) == 0
+                && f->lineno == fixed->first_line);
 
          if (tree_kind(enclosing) == T_PROCESS)
             tb_printf(tb, "\r\tProcess %s", istr(tree_ident(enclosing)));
@@ -435,8 +427,7 @@ static text_buf_t *rt_fmt_trace(const loc_t *fixed)
                       type_pp(type));
          }
 
-         tb_printf(tb, "\r\t    File %s, Line %u", loc_file_str(loc),
-                   loc->first_line);
+         tb_printf(tb, "\r\t    File %s, Line %u", f->srcfile, f->lineno);
       }
 
       free(trees);
@@ -446,8 +437,7 @@ static text_buf_t *rt_fmt_trace(const loc_t *fixed)
       const char *pname = active_proc == NULL
          ? "(init)" : istr(tree_ident(active_proc->source));
       tb_printf(tb, "\r\tProcess %s", pname);
-      tb_printf(tb, "\r\t    File %s, Line %u", loc_file_str(fixed),
-                fixed->first_line);
+      tb_printf(tb, "\r\t    File %s, Line %u", fixed->file, fixed->first_line);
    }
 
    debug_free(di);
@@ -457,13 +447,13 @@ static text_buf_t *rt_fmt_trace(const loc_t *fixed)
 typedef void (*rt_msg_fn_t)(const char *, ...);
 
 __attribute__((format(printf, 3, 4)))
-static void rt_msg(const loc_t *loc, rt_msg_fn_t fn, const char *fmt, ...)
+static void rt_msg(const rt_loc_t *where, rt_msg_fn_t fn, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
 
    char *LOCAL buf = xvasprintf(fmt, ap);
-   LOCAL_TEXT_BUF trace = rt_fmt_trace(loc);
+   LOCAL_TEXT_BUF trace = rt_fmt_trace(where);
 
    va_end(ap);
 
@@ -653,8 +643,8 @@ void _alloc_driver(const int32_t *all_nets, int32_t all_length,
       // Allocate memory for drivers on demand
       if (driver == g->n_drivers) {
          if ((g->n_drivers == 1) && (g->resolution == NULL))
-            rt_msg(tree_loc(g->sig_decl), fatal, "group %s has multiple "
-                   "drivers but no resolution function", fmt_group(g));
+            fatal_at(tree_loc(g->sig_decl), "group %s has multiple "
+                     "drivers but no resolution function", fmt_group(g));
 
          const size_t driver_sz = sizeof(struct driver);
          g->drivers = xrealloc(g->drivers, (driver + 1) * driver_sz);
@@ -830,9 +820,6 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       return;
    }
 
-   loc_t loc;
-   from_rt_loc(where, &loc);
-
    void (*fn)(const char *fmt, ...) = fatal;
 
    switch (severity) {
@@ -845,7 +832,7 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    if (severity >= exit_severity)
       fn = fatal;
 
-   rt_msg(&loc, fn, "%s+%d: %s %s: %.*s",
+   rt_msg(where, fn, "%s+%d: %s %s: %.*s",
           fmt_time(now), iteration,
           (is_report ? "Report" : "Assertion"),
           levels[severity],
@@ -856,9 +843,6 @@ DLLEXPORT
 void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
                   rt_loc_t *where, const char *hint)
 {
-   loc_t loc;
-   from_rt_loc(where, &loc);
-
    char *copy LOCAL = xstrdup(hint ?: "");
    const char *prefix = copy, *suffix = copy;
    char *sep = strchr(copy, '|');
@@ -871,41 +855,41 @@ void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
 
    switch ((bounds_kind_t)kind) {
    case BOUNDS_ARRAY_TO:
-      rt_msg(&loc, fatal, "array index %d outside bounds %d to %d%s%s",
+      rt_msg(where, fatal, "array index %d outside bounds %d to %d%s%s",
              value, min, max, spacer, suffix);
       break;
    case BOUNDS_ARRAY_DOWNTO:
-      rt_msg(&loc, fatal, "array index %d outside bounds %d downto %d%s%s",
+      rt_msg(where, fatal, "array index %d outside bounds %d downto %d%s%s",
              value, max, min, spacer, suffix);
       break;
 
    case BOUNDS_ENUM:
-      rt_msg(&loc, fatal, "value %d outside %s bounds %d to %d%s%s",
+      rt_msg(where, fatal, "value %d outside %s bounds %d to %d%s%s",
              value, prefix, min, max, spacer, suffix);
       break;
 
    case BOUNDS_TYPE_TO:
-      rt_msg(&loc, fatal, "value %d outside bounds %d to %d%s%s",
+      rt_msg(where, fatal, "value %d outside bounds %d to %d%s%s",
              value, min, max, spacer, suffix);
       break;
 
    case BOUNDS_TYPE_DOWNTO:
-      rt_msg(&loc, fatal, "value %d outside bounds %d downto %d%s%s",
+      rt_msg(where, fatal, "value %d outside bounds %d downto %d%s%s",
              value, max, min, spacer, suffix);
       break;
 
    case BOUNDS_ARRAY_SIZE:
-      rt_msg(&loc, fatal, "length of target %d does not match length of value "
+      rt_msg(where, fatal, "length of target %d does not match length of value "
              "%d%s%s", min, max, spacer, suffix);
       break;
 
    case BOUNDS_INDEX_TO:
-      rt_msg(&loc, fatal, "index %d violates constraint bounds %d to %d",
+      rt_msg(where, fatal, "index %d violates constraint bounds %d to %d",
              value, min, max);
       break;
 
    case BOUNDS_INDEX_DOWNTO:
-      rt_msg(&loc, fatal, "index %d violates constraint bounds %d downto %d",
+      rt_msg(where, fatal, "index %d violates constraint bounds %d downto %d",
              value, max, min);
       break;
    }
@@ -921,7 +905,6 @@ int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
    while (p < endp && isspace((int)*p))
       ++p;
 
-   loc_t loc = LOC_INVALID;
    int64_t value = INT64_MIN;
 
    switch (map->kind) {
@@ -945,22 +928,18 @@ int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
             value = -value;
          }
 
-         if (num_digits == 0) {
-            from_rt_loc(where, &loc);
-            rt_msg(&loc, fatal, "invalid integer value "
+         if (num_digits == 0)
+            rt_msg(where, fatal, "invalid integer value "
                    "\"%.*s\"", str_len, (const char *)raw_str);
-         }
       }
       break;
 
    case IMAGE_REAL:
-      from_rt_loc(where, &loc);
-      rt_msg(&loc, fatal, "real values not yet supported in 'VALUE");
+      rt_msg(where, fatal, "real values not yet supported in 'VALUE");
       break;
 
    case IMAGE_PHYSICAL:
-      from_rt_loc(where, &loc);
-      rt_msg(&loc, fatal, "physical values not yet supported in 'VALUE");
+      rt_msg(where, fatal, "physical values not yet supported in 'VALUE");
       break;
 
    case IMAGE_ENUM:
@@ -981,18 +960,15 @@ int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
          }
       }
 
-      if (value < 0) {
-         from_rt_loc(where, &loc);
-         rt_msg(&loc, fatal, "\"%.*s\" is not a valid enumeration value",
+      if (value < 0)
+         rt_msg(where, fatal, "\"%.*s\" is not a valid enumeration value",
                 str_len, (const char *)raw_str);
-      }
       break;
    }
 
    while (p < endp && *p != '\0') {
       if (!isspace((int)*p)) {
-         from_rt_loc(where, &loc);
-         rt_msg(&loc, fatal, "found invalid characters \"%.*s\" after value "
+         rt_msg(where, fatal, "found invalid characters \"%.*s\" after value "
                 "\"%.*s\"", (int)(endp - p), p, str_len,
                 (const char *)raw_str);
       }
@@ -1005,17 +981,13 @@ int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
 DLLEXPORT
 void _div_zero(const rt_loc_t *where)
 {
-   loc_t loc;
-   from_rt_loc(where, &loc);
-   rt_msg(&loc, fatal, "division by zero");
+   rt_msg(where, fatal, "division by zero");
 }
 
 DLLEXPORT
 void _null_deref(const rt_loc_t *where)
 {
-   loc_t loc;
-   from_rt_loc(where, &loc);
-   rt_msg(&loc, fatal, "null access dereference");
+   rt_msg(where, fatal, "null access dereference");
 }
 
 DLLEXPORT

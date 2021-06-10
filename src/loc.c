@@ -392,6 +392,7 @@ static void _drill_trees(tree_array_t *out, const loc_t *loc, tree_t t)
    case T_RETURN:
    case T_TYPE_CONV:
    case T_QUALIFIED:
+   case T_ALL:
       if (tree_has_value(t))
          _drill_trees(out, loc, tree_value(t));
       break;
