@@ -18,6 +18,12 @@
 #include "debug.h"
 #include "test_util.h"
 
+#if defined __clang__
+#pragma clang optimize off
+#elif defined __GNUC__
+#pragma GCC optimize ("O0")
+#endif
+
 static int call_line = 0;
 
 DLLEXPORT
@@ -25,6 +31,7 @@ __attribute__((noinline))
 void global_func(void)
 {
    int capture_line = __LINE__; debug_info_t *di = debug_capture();
+   (void)capture_line;
 
    const int nframes = debug_count_frames(di);
    fail_unless(nframes >= 3);
@@ -32,26 +39,26 @@ void global_func(void)
    const debug_frame_t *f0 = debug_get_frame(di, 0);
    fail_unless(f0->kind == FRAME_PROG);
    fail_if(f0->symbol == NULL);
-#if defined HAVE_LIBDW || defined HAVE_LIBDWARF
    ck_assert_str_eq(f0->symbol, "global_func");
    fail_unless(strstr(f0->module, "unit_test"));
+#if defined HAVE_LIBDW || defined HAVE_LIBDWARF
+   fail_unless(f0->lineno == capture_line);
 #endif
-   fail_unless(f0->lineno == 0 || f0->lineno == capture_line);
    fail_unless(f0->pc >= (uintptr_t)global_func);
    fail_unless(f0->pc < (uintptr_t)global_func + 0x1000);
 
    const debug_frame_t *f1 = debug_get_frame(di, 1);
    fail_unless(f1->kind == FRAME_PROG);
-#if defined HAVE_LIBDW || defined HAVE_LIBDWARF
    fail_unless(strstr(f1->module, "unit_test"));
+#if defined HAVE_LIBDW || defined HAVE_LIBDWARF
+   fail_unless(f1->lineno == call_line);
 #endif
-   fail_unless(f1->lineno == 0 || f1->lineno == call_line);
 
    debug_free(di);
 }
 
 __attribute__((noinline))
-void static_func(void)
+static void static_func(void)
 {
    call_line = __LINE__; global_func();
 }
