@@ -622,20 +622,20 @@ static void debug_walk_frames(debug_info_t *di)
       if (skip-- > 0)
          continue;
 
-      debug_frame_t frame = {
-         .kind = FRAME_PROG,
-         .pc   = (uintptr_t)stk.AddrPC.Offset
-      };
+      debug_frame_t *frame;
+      if (!di_lru_get((uintptr_t)stk.AddrPC.Offset, &frame)) {
+         frame->kind = FRAME_PROG;
 
-      char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
-      PSYMBOL_INFO psym = (PSYMBOL_INFO)buffer;
-      psym->SizeOfStruct = sizeof(SYMBOL_INFO);
-      psym->MaxNameLen = MAX_SYM_NAME;
+         char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+         PSYMBOL_INFO psym = (PSYMBOL_INFO)buffer;
+         psym->SizeOfStruct = sizeof(SYMBOL_INFO);
+         psym->MaxNameLen = MAX_SYM_NAME;
 
-      DWORD64 disp;
-      if (SymFromAddr(hProcess, stk.AddrPC.Offset, &disp, psym)) {
-         frame.symbol = xstrdup(psym->Name);
-         frame.disp   = disp;
+         DWORD64 disp;
+         if (SymFromAddr(hProcess, stk.AddrPC.Offset, &disp, psym)) {
+            frame->symbol = xstrdup(psym->Name);
+            frame->disp   = disp;
+         }
       }
 
       APUSH(di->frames, frame);
@@ -659,11 +659,11 @@ static void debug_walk_frames(debug_info_t *di)
    messages = backtrace_symbols(trace, trace_size);
 
    for (int i = 2; i < trace_size; i++) {
-      debug_frame_t frame = {
-         .kind   = FRAME_PROG,
-         .pc     = (uintptr_t)trace[i],
-         .symbol = xstrdup(messages[i])
-      };
+      debug_frame_t *frame;
+      if (!di_lru_get((uintptr_t)trace[i], &frame)) {
+         frame->kind   = FRAME_PROG;
+         frame->symbol = xstrdup(messages[i]);
+      }
 
       APUSH(di->frames, frame);
    }
