@@ -56,22 +56,88 @@
 #define MAX_TRACE_DEPTH   25
 
 struct debug_info {
-   A(debug_frame_t) frames;
-   unsigned         skip;
+   A(debug_frame_t*) frames;
+   unsigned          skip;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+// Utilities
+
+typedef struct _di_lru_cache di_lru_cache_t;
+
+struct _di_lru_cache {
+   di_lru_cache_t *next;
+   di_lru_cache_t *prev;
+   debug_frame_t   frame;
+};
+
+#define DI_LRU_SIZE 256
+STATIC_ASSERT(DI_LRU_SIZE > MAX_TRACE_DEPTH);
+
+static di_lru_cache_t *lru_cache = NULL;
+
+static void di_lru_reuse_frame(debug_frame_t *frame, uintptr_t pc)
+{
+   free((char *)frame->module);
+   free((char *)frame->symbol);
+   free((char *)frame->srcfile);
+
+   memset(frame, '\0', sizeof(debug_frame_t));
+
+   frame->pc = pc;
+}
+
+static bool di_lru_get(uintptr_t pc, debug_frame_t **pframe)
+{
+   unsigned size;
+   di_lru_cache_t **it;
+   for (it = &lru_cache, size = 0;
+        *it != NULL && (*it)->frame.pc != pc;
+        it = &((*it)->next), size++)
+      ;
+
+   if (*it != NULL) {
+      di_lru_cache_t *tmp = *it;
+      if ((*it)->next) (*it)->next->prev = (*it)->prev;
+      *it = (*it)->next;
+      tmp->next = lru_cache;
+      tmp->prev = NULL;
+      lru_cache->prev = tmp;
+      lru_cache = tmp;
+      *pframe = &(tmp->frame);
+      return true;
+   }
+   else if (size < DI_LRU_SIZE) {
+      di_lru_cache_t *new = xcalloc(sizeof(di_lru_cache_t));
+      new->prev = NULL;
+      new->next = lru_cache;
+      if (lru_cache) lru_cache->prev = new;
+      lru_cache = new;
+      di_lru_reuse_frame(&(new->frame), pc);
+      *pframe = &(new->frame);
+      return false;
+   }
+   else {
+      di_lru_cache_t *lru = container_of(it, di_lru_cache_t, next);
+      lru->prev->next = NULL;
+      lru->next = lru_cache;
+      lru_cache->prev = lru;
+      lru_cache = lru;
+      di_lru_reuse_frame(&(lru->frame), pc);
+      *pframe = &(lru->frame);
+      return false;
+   }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Libdw backend
 
 #if defined HAVE_LIBDW
 
-static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
-                                            void *param)
+static void libdw_fill_frame(uintptr_t ip, debug_frame_t *frame)
 {
    static Dwfl *handle = NULL;
    static Dwfl_Module *home = NULL;
-
-   debug_info_t *di = param;
 
    if (handle == NULL) {
       static Dwfl_Callbacks callbacks = {
@@ -81,36 +147,19 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
       };
 
       if ((handle = dwfl_begin(&callbacks)) == NULL) {
-         warnf("failed to initialise dwfl");
-         return _URC_NORMAL_STOP;
+         fatal("failed to initialise dwfl");
+         return;
       }
 
       dwfl_report_begin(handle);
       if (dwfl_linux_proc_report(handle, getpid()) < 0) {
-         warnf("dwfl_linux_proc_report failed");
-         return _URC_NORMAL_STOP;
+         fatal("dwfl_linux_proc_report failed");
+         return;
       }
       dwfl_report_end(handle, NULL, NULL);
 
-      home = dwfl_addrmodule(handle, (uintptr_t)libdw_frame_iter);
+      home = dwfl_addrmodule(handle, (uintptr_t)libdw_fill_frame);
    }
-
-   if (di->skip > 0) {
-      di->skip--;
-      return _URC_NO_REASON;
-   }
-
-   int ip_before_instruction = 0;
-   uintptr_t ip = _Unwind_GetIPInfo(ctx, &ip_before_instruction);
-
-   if (ip == 0)
-      return _URC_NO_REASON;
-   else if (!ip_before_instruction)
-      ip -= 1;
-
-   debug_frame_t frame = {
-      .pc = ip
-   };
 
    Dwfl_Module *mod = dwfl_addrmodule(handle, ip);
 
@@ -154,32 +203,56 @@ static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
    dwarf_linecol(srcloc, &col);
 
    if (dwarf_srclang(die) == DW_LANG_Ada83) {
-      frame.kind = FRAME_VHDL;
+      frame->kind = FRAME_VHDL;
 
       // VHDL compilation units are wrapped in a DWARF module which
       // gives the unit name
       Dwarf_Die ns;
       if (dwarf_child(die, &ns) == 0 && dwarf_tag(&ns) == DW_TAG_module)
-         frame.vhdl_unit = ident_new(dwarf_diename(&ns));
+         frame->vhdl_unit = ident_new(dwarf_diename(&ns));
    }
    else if (mod == home)
-      frame.kind = FRAME_PROG;
+      frame->kind = FRAME_PROG;
    else
-      frame.kind = FRAME_LIB;
+      frame->kind = FRAME_LIB;
 
    if (srcfile != NULL)
-      frame.srcfile = xstrdup(srcfile);
+      frame->srcfile = xstrdup(srcfile);
    if (sym_name != NULL)
-      frame.symbol = xstrdup(sym_name);
+      frame->symbol = xstrdup(sym_name);
    if (module_name != NULL)
-      frame.module = xstrdup(module_name);
+      frame->module = xstrdup(module_name);
 
-   frame.lineno = line;
-   frame.colno  = col;
+   frame->lineno = line;
+   frame->colno  = col;
+   frame->pc     = ip;
+}
+
+static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
+                                            void *param)
+{
+   debug_info_t *di = param;
+
+   if (di->skip > 0) {
+      di->skip--;
+      return _URC_NO_REASON;
+   }
+
+   int ip_before_instruction = 0;
+   uintptr_t ip = _Unwind_GetIPInfo(ctx, &ip_before_instruction);
+
+   if (ip == 0)
+      return _URC_NO_REASON;
+   else if (!ip_before_instruction)
+      ip -= 1;
+
+   debug_frame_t *frame;
+   if (!di_lru_get(ip, &frame))
+      libdw_fill_frame(ip, frame);
 
    APUSH(di->frames, frame);
 
-   if (sym_name != NULL && strcmp(sym_name, "main") == 0)
+   if (frame->symbol != NULL && strcmp(frame->symbol, "main") == 0)
       return _URC_NORMAL_STOP;
    else
       return _URC_NO_REASON;
@@ -431,6 +504,41 @@ static bool libdwarf_scan_cus(Dwarf_Debug handle, Dwarf_Unsigned rel_addr,
    return found;
 }
 
+static void libdwarf_fill_frame(uintptr_t ip, debug_frame_t *frame)
+{
+   Dl_info dli;
+   if (!dladdr((void *)ip, &dli))
+      return;
+
+   static void *home_fbase = NULL;
+   if (home_fbase == NULL) {
+      Dl_info dli_home;
+      extern int main(int, char **);
+      if (dladdr(main, &dli_home))
+         home_fbase = dli_home.dli_fbase;
+   }
+
+   frame->kind   = dli.dli_fbase == home_fbase ? FRAME_PROG : FRAME_LIB;
+   frame->module = xstrdup(dli.dli_fname);
+   frame->disp   = ip - (uintptr_t)dli.dli_saddr;
+
+   Dwarf_Addr rel_addr = ip - (uintptr_t)dli.dli_fbase;
+
+   Dwarf_Debug handle = libdwarf_handle_for_file(dli.dli_fname);
+   if (handle == NULL)
+      return;
+
+   if (!libdwarf_scan_aranges(handle, rel_addr, frame)) {
+      // Clang does emit aranges so we have to search each compilation unit
+      libdwarf_scan_cus(handle, rel_addr, frame);
+   }
+
+   if (frame->symbol == NULL && dli.dli_sname != NULL) {
+      // Fallback: just use the nearest global symbol
+      frame->symbol = xstrdup(dli.dli_sname);
+   }
+}
+
 static _Unwind_Reason_Code libdwarf_frame_iter(struct _Unwind_Context* ctx,
                                                void *param)
 {
@@ -449,47 +557,13 @@ static _Unwind_Reason_Code libdwarf_frame_iter(struct _Unwind_Context* ctx,
    else if (!ip_before_instruction)
       ip -= 1;
 
-   debug_frame_t frame = {
-      .pc = ip
-   };
-
-   Dl_info dli;
-   if (!dladdr((void *)ip, &dli)) {
-      warnf("dladdr: %p: %s", (void *)ip, dlerror());
-      return _URC_NO_REASON;
-   }
-
-   static void *home_fbase = NULL;
-   if (home_fbase == NULL) {
-      Dl_info dli_home;
-      extern int main(int, char **);
-      if (dladdr(main, &dli_home))
-         home_fbase = dli_home.dli_fbase;
-   }
-
-   frame.kind   = dli.dli_fbase == home_fbase ? FRAME_PROG : FRAME_LIB;
-   frame.module = xstrdup(dli.dli_fname);
-   frame.disp   = ip - (uintptr_t)dli.dli_saddr;
-
-   Dwarf_Addr rel_addr = ip - (uintptr_t)dli.dli_fbase;
-
-   Dwarf_Debug handle = libdwarf_handle_for_file(dli.dli_fname);
-   if (handle == NULL)
-      return _URC_NO_REASON;
-
-   if (!libdwarf_scan_aranges(handle, rel_addr, &frame)) {
-      // Clang does emit aranges so we have to search each compilation unit
-      libdwarf_scan_cus(handle, rel_addr, &frame);
-   }
-
-   if (frame.symbol == NULL) {
-      // Fallback: just use the nearest global symbol
-      frame.symbol = xstrdup(dli.dli_sname);
-   }
+   debug_frame_t *frame;
+   if (!di_lru_get(ip, &frame))
+      libdwarf_fill_frame(ip, frame);
 
    APUSH(di->frames, frame);
 
-   if (strcmp(frame.symbol, "main") == 0)
+   if (frame->symbol != NULL && strcmp(frame->symbol, "main") == 0)
       return _URC_NORMAL_STOP;
    else
       return _URC_NO_REASON;
@@ -614,13 +688,6 @@ debug_info_t *debug_capture(void)
 
 void debug_free(debug_info_t *di)
 {
-   for (unsigned i = 0; i < di->frames.count; i++) {
-      debug_frame_t *f = AREF(di->frames, i);
-      free((char *)f->module);
-      free((char *)f->symbol);
-      free((char *)f->srcfile);
-   }
-
    ACLEAR(di->frames);
    free(di);
 }
@@ -632,5 +699,5 @@ unsigned debug_count_frames(debug_info_t *di)
 
 const debug_frame_t *debug_get_frame(debug_info_t *di, unsigned n)
 {
-   return AREF(di->frames, n);
+   return AGET(di->frames, n);
 }

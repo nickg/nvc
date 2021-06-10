@@ -71,6 +71,10 @@
 #define LCOV_EXCL_BR_START
 #define LCOV_EXCL_BR_STOP
 
+#define container_of(ptr, type, member) ({               \
+   const typeof(((type *)0)->member) * __mptr = (ptr);   \
+   (type *)((char *)__mptr - offsetof(type, member)); })
+
 void *xmalloc(size_t size) RETURNS_NONNULL;
 void *xmalloc_array(size_t nelems, size_t size) RETURNS_NONNULL;
 void *xcalloc(size_t size) RETURNS_NONNULL;
