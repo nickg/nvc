@@ -157,6 +157,9 @@ PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [],
 debug_backend=
 AC_CHECK_HEADER([unwind.h],
   [
+    AC_DEFINE_UNQUOTED([HAVE_UNWIND_H], [1], [Have unwind.h])
+    debug_backend=unwind
+
     AC_SEARCH_LIBS([_Unwind_Backtrace], [c++abi],
       [
         # libc++-abi needs to link -lpthread on OpenBSD

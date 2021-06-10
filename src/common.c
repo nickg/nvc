@@ -625,9 +625,7 @@ bool is_subprogram(tree_t t)
 bool is_container(tree_t t)
 {
    switch (tree_kind(t)) {
-   case T_FUNC_DECL:
    case T_FUNC_BODY:
-   case T_PROC_DECL:
    case T_PROC_BODY:
    case T_ENTITY:
    case T_ARCH:
@@ -1150,4 +1148,34 @@ type_t std_type(tree_t standard, const char *name)
 bool is_builtin(subprogram_kind_t kind)
 {
    return kind != S_USER && kind != S_FOREIGN;
+}
+
+tree_t find_mangled_decl(tree_t container, ident_t name)
+{
+   const int ndecls = tree_decls(container);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(container, i);
+      if (is_subprogram(d) && tree_has_ident2(d) && tree_ident2(d) == name)
+         return d;
+      else if (is_container(d) && (d = find_mangled_decl(d, name)))
+         return d;
+   }
+
+   const tree_kind_t kind = tree_kind(container);
+   if (kind == T_ARCH || kind == T_ELAB) {
+      const int nstmts = tree_stmts(container);
+      for (int i = 0; i < nstmts; i++) {
+         tree_t s = tree_stmt(container, i);
+         if (tree_kind(s) == T_PROCESS) {
+            if (tree_ident(s) == name)
+               return s;
+
+            tree_t d = find_mangled_decl(s, name);
+            if (d != NULL)
+               return d;
+         }
+      }
+   }
+
+   return NULL;
 }

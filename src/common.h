@@ -62,6 +62,7 @@ bool is_container(tree_t t);
 tree_t search_decls(tree_t container, ident_t name, int nth);
 type_t std_type(tree_t standard, const char *name);
 bool is_builtin(subprogram_kind_t kind);
+tree_t find_mangled_decl(tree_t container, ident_t name);
 
 const char *fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

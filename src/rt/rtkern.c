@@ -400,24 +400,46 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
       if (unit == NULL)
          continue;
 
-      const loc_t loc = get_loc(f->lineno, f->colno, f->lineno, f->colno,
-                                loc_file_ref(f->srcfile, NULL));
-
-      tree_t *trees = NULL;
-      const unsigned ntrees = drill_trees(unit, &loc, &trees);
-
+      unsigned lineno = f->lineno;
+      const char *srcfile = f->srcfile;
       tree_t enclosing = NULL;
-      for (unsigned i = 0; i < ntrees; i++) {
-         const tree_kind_t kind = tree_kind(trees[i]);
-         if (kind == T_FUNC_BODY || kind == T_PROC_BODY || kind == T_PROCESS)
-            enclosing = trees[i];
+      if (f->lineno > 0) {
+         // Exact location using DWARF debug info
+         const loc_t loc = get_loc(f->lineno, f->colno, f->lineno, f->colno,
+                                   loc_file_ref(f->srcfile, NULL));
+
+         tree_t *trees = NULL;
+         const unsigned ntrees = drill_trees(unit, &loc, &trees);
+
+         for (unsigned i = 0; i < ntrees; i++) {
+            const tree_kind_t kind = tree_kind(trees[i]);
+            if (kind == T_FUNC_BODY || kind == T_PROC_BODY || kind == T_PROCESS)
+               enclosing = trees[i];
+         }
+
+         if (enclosing && !found_fixed && fixed != NULL)
+            found_fixed = (strcmp(f->srcfile, fixed->file) == 0
+                           && f->lineno == fixed->first_line);
+
+         free(trees);
+      }
+      else if (f->symbol != NULL) {
+         // Inexact information using symbol name
+         if ((enclosing = find_mangled_decl(unit, ident_new(f->symbol)))) {
+            if (fixed != NULL && !found_fixed) {
+               lineno = fixed->first_line;
+               srcfile = fixed->file;
+               found_fixed = true;
+            }
+            else {
+               const loc_t *loc = tree_loc(enclosing);
+               lineno = loc->first_line;
+               srcfile = loc_file_str(loc);
+            }
+         }
       }
 
-      if (enclosing && ntrees > 0) {
-         found_fixed |= fixed == NULL
-            || (strcmp(f->srcfile, fixed->file) == 0
-                && f->lineno == fixed->first_line);
-
+      if (enclosing) {
          if (tree_kind(enclosing) == T_PROCESS)
             tb_printf(tb, "\r\tProcess %s", istr(tree_ident(enclosing)));
          else {
@@ -427,13 +449,11 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
                       type_pp(type));
          }
 
-         tb_printf(tb, "\r\t    File %s, Line %u", f->srcfile, f->lineno);
+         tb_printf(tb, "\r\t    File %s, Line %u", srcfile, lineno);
       }
-
-      free(trees);
    }
 
-   if (nframes == 0 || !found_fixed) {
+   if (fixed != NULL && (nframes == 0 || !found_fixed)) {
       const char *pname = active_proc == NULL
          ? "(init)" : istr(tree_ident(active_proc->source));
       tb_printf(tb, "\r\tProcess %s", pname);

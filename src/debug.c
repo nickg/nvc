@@ -26,6 +26,7 @@
 #include "array.h"
 #include "hash.h"
 #include "ident.h"
+#include "lib.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -39,16 +40,18 @@
 #include <errno.h>
 #endif  // !__MINGW32__ && !__CYGWIN__
 
+#if defined HAVE_UNWIND_H
+#include <unwind.h>
+#endif
+
 #if defined HAVE_LIBDW
 #include <elfutils/libdw.h>
 #include <elfutils/libdwfl.h>
 #include <dwarf.h>
-#include <unwind.h>
 #elif defined HAVE_LIBDWARF
 #include <libdwarf/libdwarf.h>
 #include <libdwarf/dwarf.h>
 #include <libelf.h>
-#include <unwind.h>
 #elif defined HAVE_EXECINFO_H
 #include <execinfo.h>
 #endif
@@ -637,6 +640,93 @@ static void debug_walk_frames(debug_info_t *di)
       APUSH(di->frames, frame);
    }
 #endif  // __WIN64
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Unwind backend
+
+#elif defined HAVE_UNWIND_H
+
+static void unwind_parse_vhdl_symbol(debug_frame_t *frame)
+{
+   lib_t lib = lib_at(frame->module);
+   if (lib == NULL)
+      return;
+
+   const char *slash = strrchr(frame->module, PATH_SEP[0]);
+   char *file LOCAL = xstrdup(slash ? slash + 1 : frame->module);
+   if (file[0] != '_')
+      return;
+
+   char *last_dot = strrchr(file, '.');
+   if (last_dot == NULL || strcmp(last_dot + 1, DLL_EXT) != 0)
+      return;
+
+   *last_dot = '\0';
+
+   frame->kind = FRAME_VHDL;
+   frame->vhdl_unit = ident_new(file + 1);
+}
+
+static void unwind_fill_frame(uintptr_t ip, debug_frame_t *frame)
+{
+   Dl_info dli;
+   if (!dladdr((void *)ip, &dli))
+      return;
+
+   static void *home_fbase = NULL;
+   if (home_fbase == NULL) {
+      Dl_info dli_home;
+      extern int main(int, char **);
+      if (dladdr(main, &dli_home))
+         home_fbase = dli_home.dli_fbase;
+   }
+
+   frame->kind   = dli.dli_fbase == home_fbase ? FRAME_PROG : FRAME_LIB;
+   frame->module = xstrdup(dli.dli_fname);
+   frame->disp   = ip - (uintptr_t)dli.dli_saddr;
+
+   if (dli.dli_sname) {
+      frame->symbol = xstrdup(dli.dli_sname);
+      unwind_parse_vhdl_symbol(frame);
+   }
+}
+
+static _Unwind_Reason_Code unwind_frame_iter(struct _Unwind_Context* ctx,
+                                             void *param)
+{
+   debug_info_t *di = param;
+
+   if (di->skip > 0) {
+      di->skip--;
+      return _URC_NO_REASON;
+   }
+
+   int ip_before_instruction = 0;
+   uintptr_t ip = _Unwind_GetIPInfo(ctx, &ip_before_instruction);
+
+   if (ip == 0)
+      return _URC_NO_REASON;
+   else if (!ip_before_instruction)
+      ip -= 1;
+
+   debug_frame_t *frame;
+   if (!di_lru_get(ip, &frame))
+      unwind_fill_frame(ip, frame);
+
+   APUSH(di->frames, frame);
+
+   if (frame->symbol != NULL && strcmp(frame->symbol, "main") == 0)
+      return _URC_NORMAL_STOP;
+   else
+      return _URC_NO_REASON;
+}
+
+__attribute__((always_inline))
+static inline void debug_walk_frames(debug_info_t *di)
+{
+   di->skip = 2;
+   _Unwind_Backtrace(unwind_frame_iter, di);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

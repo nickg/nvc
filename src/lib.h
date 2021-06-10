@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2017  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -33,6 +33,7 @@ lib_t lib_find(ident_t name, bool required);
 lib_t lib_loaded(ident_t name);
 lib_t lib_new(const char *name, const char *path);
 lib_t lib_tmp(const char *name);
+lib_t lib_at(const char *path);
 void lib_free(lib_t lib);
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode);
 fbuf_t *lib_fbuf_open(lib_t lib, const char *name, fbuf_mode_t mode);

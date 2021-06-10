@@ -385,6 +385,17 @@ lib_t lib_new(const char *name, const char *path)
    return lib_init(name, path, fd);
 }
 
+lib_t lib_at(const char *path)
+{
+   for (lib_list_t *it = loaded; it != NULL; it = it->next) {
+      if (strncmp(path, it->item->path, strlen(it->item->path)) == 0
+          && it->standard == standard())
+         return it->item;
+   }
+
+   return NULL;
+}
+
 lib_t lib_tmp(const char *name)
 {
    // For unit tests, avoids creating files
