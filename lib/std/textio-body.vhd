@@ -431,12 +431,8 @@ package body textio is
             end if;
         end loop;
 
-        if used = 0 then
-            l := new string'("");
-        else
-            shrink(tmp, used);
-            l := tmp;
-        end if;
+        shrink(tmp, used);
+        l := tmp;
     end procedure;
 
     procedure writeline (file f : text; l : inout line) is
