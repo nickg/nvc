@@ -146,16 +146,12 @@ static void libdw_fill_frame(uintptr_t ip, debug_frame_t *frame)
          .debuginfo_path = NULL
       };
 
-      if ((handle = dwfl_begin(&callbacks)) == NULL) {
+      if ((handle = dwfl_begin(&callbacks)) == NULL)
          fatal("failed to initialise dwfl");
-         return;
-      }
 
       dwfl_report_begin(handle);
-      if (dwfl_linux_proc_report(handle, getpid()) < 0) {
+      if (dwfl_linux_proc_report(handle, getpid()) < 0)
          fatal("dwfl_linux_proc_report failed");
-         return;
-      }
       dwfl_report_end(handle, NULL, NULL);
 
       home = dwfl_addrmodule(handle, (uintptr_t)libdw_fill_frame);

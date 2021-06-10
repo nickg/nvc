@@ -434,9 +434,9 @@ static void _vexpect(va_list ap)
 
    for (int i = 0; i < nopt_hist; i++) {
       if (first)
-         tb_printf(tb, "one of ");
+         tb_cat(tb, "one of ");
       else
-         tb_printf(tb, ", ");
+         tb_cat(tb, ", ");
 
       tb_printf(tb, "$yellow$%s$$", token_str(opt_hist[i]));
 
@@ -449,9 +449,9 @@ static void _vexpect(va_list ap)
       tok = va_arg(ap, int);
 
       if (first && (tok != -1))
-         tb_printf(tb, "one of ");
+         tb_cat(tb, "one of ");
       else if (!first)
-         tb_printf(tb, (tok == -1) ? " or " : ", ");
+         tb_cat(tb, (tok == -1) ? " or " : ", ");
 
       tb_printf(tb, "$yellow$%s$$", token_str(tmp));
 
@@ -459,7 +459,7 @@ static void _vexpect(va_list ap)
    }
 
    if (n_correct >= RECOVER_THRESH) {
-      error_at(&(tokenq[tokenq_tail].loc), "%s", tb_get(tb));
+      error_at(&(tokenq[tokenq_tail].loc), tb_get(tb), "");
    }
 
    n_correct = 0;

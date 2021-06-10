@@ -9,7 +9,6 @@
 #include <time.h>
 
 static const error_t *error_lines = NULL;
-static error_fn_t     orig_error_fn = NULL;
 static lib_t          test_lib = NULL;
 static unsigned       errors_seen = 0;
 static bool           no_fork_mode = false;
@@ -24,7 +23,8 @@ static void test_error_fn(const char *msg, const loc_t *loc)
       || strstr(msg, error_lines->snippet) == NULL;
 
    if (unexpected) {
-      orig_error_fn(msg, loc);
+      set_error_fn(NULL);
+      error_at(loc, "%s", msg);
       printf("expected line %d '%s'\n",
              error_lines->line, error_lines->snippet);
       ck_abort_msg("expected line %d '%s'",
@@ -73,7 +73,7 @@ static void setup_per_test(void)
    set_relax_rules(0);
 
    error_lines = NULL;
-   set_error_fn(NULL, 1);
+   set_error_fn(NULL);
 }
 
 static void teardown_per_test(void)
@@ -85,15 +85,7 @@ static void teardown_per_test(void)
 
 void expect_errors(const error_t *lines)
 {
-   if (no_fork_mode) {
-      error_fn_t old_fn = set_error_fn(test_error_fn, false);
-      if (orig_error_fn == NULL)
-         orig_error_fn = old_fn;
-   }
-   else {
-      fail_unless(orig_error_fn == NULL);
-      orig_error_fn = set_error_fn(test_error_fn, false);
-   }
+   set_error_fn(test_error_fn);
 
    error_lines = lines;
    errors_seen = 0;

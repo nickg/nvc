@@ -102,8 +102,8 @@
 
 typedef void (*print_fn_t)(const char *fmt, ...);
 
-static void def_error_fn(const char *msg, const loc_t *loc);
 static void show_hint(void);
+static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain);
 
 typedef struct guard guard_t;
 typedef struct option option_t;
@@ -152,10 +152,9 @@ struct text_buf {
    size_t len;
 };
 
-static error_fn_t      error_fn = def_error_fn;
+static error_fn_t      error_fn = NULL;
 static fatal_fn_t      fatal_fn = NULL;
 static bool            want_color = false;
-static bool            error_force_plain = false;
 static option_t       *options = NULL;
 static guard_t        *guards;
 static message_style_t message_style = MESSAGE_FULL;
@@ -174,115 +173,6 @@ static const struct color_escape escapes[] = {
    { "cyan",    ANSI_FG_CYAN },
    { "white",   ANSI_FG_WHITE },
 };
-
-static char *filter_color(const char *str, bool force_plain)
-{
-   // Replace color strings like "$red$foo$$bar" with ANSI escaped
-   // strings like "\033[31mfoo\033[0mbar"
-
-   const size_t maxlen = strlen(str) * 2;
-   char *copy = xmalloc(maxlen);
-   char *p = copy;
-   char *eptr = copy + maxlen;
-
-   const char *escape_start = NULL;
-
-   while (*str != '\0') {
-      if (*str == '$') {
-         if (escape_start == NULL)
-            escape_start = str;
-         else {
-            const char *e = escape_start + 1;
-            const size_t len = str - e;
-
-            if (want_color && !force_plain) {
-               bool found = false;
-               for (int i = 0; i < ARRAY_LEN(escapes); i++) {
-                  if (strncmp(e, escapes[i].name, len) == 0) {
-                     p += snprintf(p, eptr - p, "\033[%dm", escapes[i].value);
-                     found = true;
-                     break;
-                  }
-               }
-
-               if (!found) {
-                  strncpy(p, escape_start, len + 1);
-                  p += len + 1;
-                  escape_start = str;
-               }
-               else
-                  escape_start = NULL;
-            }
-            else
-               escape_start = NULL;
-         }
-      }
-      else if (escape_start == NULL)
-         *p++ = *str;
-
-      ++str;
-   }
-
-   if (escape_start != NULL) {
-      const size_t len = str - escape_start;
-      strncpy(p, escape_start, len + 1);
-      p += len + 1;
-   }
-
-   *p = '\0';
-
-   return copy;
-}
-
-static void paginate_msg(const char *fmt, va_list ap,
-                         int start, int left, int right)
-{
-   char *strp = xvasprintf(fmt, ap);
-
-   char *filtered = filter_color(strp, false);
-
-   const char *p = filtered;
-   int col = start;
-   bool escape = false;
-   while (*p != '\0') {
-      if ((*p == '\n') || (*p == '\r') || (isspace((int)*p) && col >= right)) {
-         // Can break line here
-         fputc('\n', stderr);
-         if (*p == '\r')
-            col = 0;
-         else {
-            for (col = 0; col < left; col++)
-               fputc(' ', stderr);
-         }
-      }
-      else {
-         fputc(*p, stderr);
-         if (*p == '\033')
-            escape = true;
-         else if (escape) {
-            if (*p == 'm')
-               escape = false;
-         }
-         else
-            ++col;
-      }
-      ++p;
-   }
-   fputc('\n', stderr);
-
-#ifdef __MINGW32__
-   fflush(stderr);
-#endif
-
-   free(filtered);
-   free(strp);
-}
-
-static void set_attr(int attr)
-{
-   if (want_color)
-      fprintf(stderr, "\033[%dm", attr);
-}
 
 void *xmalloc(size_t size)
 {
@@ -360,17 +250,62 @@ char *xasprintf(const char *fmt, ...)
    return strp;
 }
 
+static void paginate_msg(text_buf_t *tb, const char *fmt, va_list ap,
+                         int start, int left, int right)
+{
+   char *strp LOCAL = color_vasprintf(fmt, ap, false);
+
+   const char *p = strp, *begin = strp;
+   int col = start;
+   bool escape = false;
+   while (*p != '\0') {
+      if ((*p == '\n') || (*p == '\r') || (isspace((int)*p) && col >= right)) {
+         // Can break line here
+         if (begin < p) tb_catn(tb, begin, p - begin);
+         tb_append(tb, '\n');
+         if (*p == '\r')
+            col = 0;
+         else {
+            tb_repeat(tb, ' ', left);
+            col = left;
+         }
+         begin = ++p;
+      }
+      else {
+         if (*p == '\033')
+            escape = true;
+         else if (escape) {
+            if (*p == 'm')
+               escape = false;
+         }
+         else
+            ++col;
+         ++p;
+      }
+   }
+   if (begin < p) tb_catn(tb, begin, p - begin);
+   tb_append(tb, '\n');
+}
+
 static void fmt_color(int color, const char *prefix,
                       const char *fmt, va_list ap)
 {
-   set_attr(color);
+   LOCAL_TEXT_BUF tb = tb_new();
+   if (want_color)
+      tb_printf(tb, "\033[%dm", color);
    if (message_style == MESSAGE_COMPACT)
-      fprintf(stderr, "%c%s: ", tolower((int)prefix[0]), prefix + 1);
+      tb_printf(tb, "%c%s: ", tolower((int)prefix[0]), prefix + 1);
    else
-      fprintf(stderr, "** %s: ", prefix);
-   set_attr(ANSI_RESET);
-   paginate_msg(fmt, ap, strlen(prefix) + 5, 10,
+      tb_printf(tb, "** %s: ", prefix);
+   if (want_color)
+      tb_printf(tb, "\033[%dm", ANSI_RESET);
+   paginate_msg(tb, fmt, ap, strlen(prefix) + 5, 10,
                 (message_style == MESSAGE_COMPACT) ? INT_MAX : PAGINATE_RIGHT);
+
+   fputs(tb_get(tb), stderr);
+#ifdef __MINGW32__
+   fflush(stderr);
+#endif
 }
 
 void errorf(const char *fmt, ...)
@@ -397,46 +332,71 @@ void notef(const char *fmt, ...)
    va_end(ap);
 }
 
-static void fatalf(const char *fmt, ...)
+static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)
 {
-   va_list ap;
-   va_start(ap, fmt);
-   fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
-   va_end(ap);
-}
+   // Replace color strings like "$red$foo$$bar" with ANSI escaped
+   // strings like "\033[31mfoo\033[0mbar"
 
-static void def_error_fn(const char *msg, const loc_t *loc)
-{
-   if (message_style == MESSAGE_COMPACT)
-      fmt_loc(stderr, loc);
-   errorf("%s", msg);
-   if (message_style == MESSAGE_FULL)
-      fmt_loc(stderr, loc);
+   if (strchr(fmt, '$') == NULL)
+      return xvasprintf(fmt, ap);
 
-   if (n_errors == opt_get_int("error-limit"))
-      fatal("too many errors, giving up");
-}
+   const size_t maxlen = strlen(fmt) * 2;
+   char *copy LOCAL = xmalloc(maxlen);
+   char *p = copy;
+   char *eptr = copy + maxlen;
 
-static char *prepare_msg(const char *fmt, va_list ap, bool force_plain)
-{
-   char *strp LOCAL = xvasprintf(fmt, ap);
-   return filter_color(strp, force_plain);
-}
+   const char *escape_start = NULL;
 
-static void msg_at(print_fn_t fn, const loc_t *loc, const char *fmt, va_list ap)
-{
-   char *strp = prepare_msg(fmt, ap, false);
-   if (message_style == MESSAGE_COMPACT)
-      fmt_loc(stderr, loc);
-   (*fn)("%s", strp);
-   if (message_style == MESSAGE_FULL)
-      fmt_loc(stderr, loc);
-   free(strp);
+   while (*fmt != '\0') {
+      if (*fmt == '$') {
+         if (escape_start == NULL)
+            escape_start = fmt;
+         else {
+            const char *e = escape_start + 1;
+            const size_t len = fmt - e;
+
+            if (want_color && !force_plain) {
+               bool found = false;
+               for (int i = 0; i < ARRAY_LEN(escapes); i++) {
+                  if (strncmp(e, escapes[i].name, len) == 0) {
+                     p += snprintf(p, eptr - p, "\033[%dm", escapes[i].value);
+                     found = true;
+                     break;
+                  }
+               }
+
+               if (!found) {
+                  strncpy(p, escape_start, len + 1);
+                  p += len + 1;
+                  escape_start = fmt;
+               }
+               else
+                  escape_start = NULL;
+            }
+            else
+               escape_start = NULL;
+         }
+      }
+      else if (escape_start == NULL)
+         *p++ = *fmt;
+
+      ++fmt;
+   }
+
+   if (escape_start != NULL) {
+      const size_t len = fmt - escape_start;
+      memcpy(p, escape_start, len + 1);
+      p += len + 1;
+   }
+
+   *p = '\0';
+
+   return xvasprintf(copy, ap);
 }
 
 static int color_vfprintf(FILE *f, const char *fmt, va_list ap)
 {
-   char *strp LOCAL = prepare_msg(fmt, ap, false);
+   char *strp LOCAL = color_vasprintf(fmt, ap, false);
 
    bool escape = false;
    int len = 0;
@@ -476,28 +436,15 @@ int color_vprintf(const char *fmt, va_list ap)
    return color_vfprintf(stdout, fmt, ap);
 }
 
-void error_at(const loc_t *loc, const char *fmt, ...)
+static bool catch_in_unit_test(const loc_t *loc, const char *fmt, va_list ap)
 {
-   va_list ap;
-   va_start(ap, fmt);
-
-   char *strp LOCAL = prepare_msg(fmt, ap, error_force_plain);
-   error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
-   show_hint();
-   n_errors++;
-
-   va_end(ap);
-}
-
-static void catch_in_unit_test(print_fn_t fn, const loc_t *loc,
-                               const char *fmt, va_list ap)
-{
-   if (opt_get_int("unit-test")) {
-      char *strp LOCAL = prepare_msg(fmt, ap, error_force_plain);
+   if (error_fn != NULL) {
+      char *strp LOCAL = color_vasprintf(fmt, ap, true);
       error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
+      return true;
    }
    else
-      msg_at(fn, loc, fmt, ap);
+      return false;
 }
 
 static void default_hint_fn(void *arg)
@@ -556,7 +503,7 @@ void hint_at(const loc_t *loc, const char *fmt, ...)
 
    hint_t *h = xmalloc(sizeof(hint_t));
    h->func = default_hint_fn;
-   h->str = prepare_msg(fmt, ap, error_force_plain);
+   h->str = color_vasprintf(fmt, ap, false);
    h->context = h;
    h->loc = *loc;
    h->next = hints;
@@ -566,11 +513,37 @@ void hint_at(const loc_t *loc, const char *fmt, ...)
    hints = h;
 }
 
+void error_at(const loc_t *loc, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   if (!catch_in_unit_test(loc, fmt, ap)) {
+      if (message_style == MESSAGE_COMPACT)
+         fmt_loc(stderr, loc);
+      fmt_color(ANSI_FG_RED, "Error", fmt, ap);
+      if (message_style == MESSAGE_FULL)
+         fmt_loc(stderr, loc);
+   }
+   show_hint();
+   n_errors++;
+
+   va_end(ap);
+
+   if (n_errors == opt_get_int("error-limit"))
+      fatal("too many errors, giving up");
+}
+
 void warn_at(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   catch_in_unit_test(warnf, loc, fmt, ap);
+   if (!catch_in_unit_test(loc, fmt, ap)) {
+      if (message_style == MESSAGE_COMPACT)
+         fmt_loc(stderr, loc);
+      fmt_color(ANSI_FG_YELLOW, "Warning", fmt, ap);
+      if (message_style == MESSAGE_FULL)
+         fmt_loc(stderr, loc);
+   }
    show_hint();
    va_end(ap);
 
@@ -582,7 +555,13 @@ void note_at(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   catch_in_unit_test(notef, loc, fmt, ap);
+   if (!catch_in_unit_test(loc, fmt, ap)) {
+      if (message_style == MESSAGE_COMPACT)
+         fmt_loc(stderr, loc);
+      fmt_color(ANSI_RESET, "Note", fmt, ap);
+      if (message_style == MESSAGE_FULL)
+         fmt_loc(stderr, loc);
+   }
    show_hint();
    va_end(ap);
 
@@ -594,7 +573,13 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   catch_in_unit_test(fatalf, loc, fmt, ap);
+   if (!catch_in_unit_test(loc, fmt, ap)) {
+      if (message_style == MESSAGE_COMPACT)
+         fmt_loc(stderr, loc);
+      fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
+      if (message_style == MESSAGE_FULL)
+         fmt_loc(stderr, loc);
+   }
    show_hint();
    va_end(ap);
 
@@ -604,12 +589,9 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
    exit(EXIT_FAILURE);
 }
 
-error_fn_t set_error_fn(error_fn_t fn, bool want_color)
+void set_error_fn(error_fn_t fn)
 {
-   error_fn_t old = error_fn;
-   error_fn = fn ?: def_error_fn;
-   error_force_plain = !want_color;
-   return old;
+   error_fn = fn;
 }
 
 void set_fatal_fn(fatal_fn_t fn)
@@ -645,14 +627,6 @@ void fatal_trace(const char *fmt, ...)
 
 void fatal_errno(const char *fmt, ...)
 {
-   va_list ap;
-   va_start(ap, fmt);
-
-   set_attr(ANSI_FG_RED);
-   fprintf(stderr, "** Fatal: ");
-   set_attr(ANSI_RESET);
-   vfprintf(stderr, fmt, ap);
-
 #ifdef __MINGW32__
    LPSTR mbuf = NULL;
    FormatMessage(
@@ -663,14 +637,16 @@ void fatal_errno(const char *fmt, ...)
       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
       (LPSTR)&mbuf, 0, NULL);
 
-   fprintf(stderr, ": %s", mbuf);
-   fflush(stderr);
+   char *fmt_err LOCAL = xasprintf("%s: %s", fmt, mbuf);
 
    LocalFree(mbuf);
 #else
-   fprintf(stderr, ": %s\n", strerror(errno));
+   char *fmt_err LOCAL = xasprintf("%s: %s", fmt, strerror(errno));
 #endif
 
+   va_list ap;
+   va_start(ap, fmt);
+   fmt_color(ANSI_FG_RED, "Fatal", fmt_err, ap);
    va_end(ap);
 
    exit(EXIT_FAILURE);
@@ -1310,7 +1286,7 @@ void tb_printf(text_buf_t *tb, const char *fmt, ...)
 
       va_end(ap);
 
-      if (nchars < avail)
+      if (nchars + 1 < avail)
          break;
 
       tb->alloc *= 2;
@@ -1322,12 +1298,40 @@ void tb_printf(text_buf_t *tb, const char *fmt, ...)
 
 void tb_append(text_buf_t *tb, char ch)
 {
-   if (tb->len + 1 >= tb->alloc) {
+   if (tb->len + 2 >= tb->alloc) {
       tb->alloc *= 2;
       tb->buf = xrealloc(tb->buf, tb->alloc);
    }
 
    tb->buf[(tb->len)++] = ch;
+   tb->buf[tb->len] = '\0';
+}
+
+void tb_catn(text_buf_t *tb, const char *str, size_t nchars)
+{
+   if (tb->len + nchars + 1 >= tb->alloc) {
+      tb->alloc = next_power_of_2(tb->alloc + nchars);
+      tb->buf = xrealloc(tb->buf, tb->alloc);
+   }
+
+   memcpy(tb->buf + tb->len, str, nchars + 1);
+   tb->len += nchars;
+}
+
+void tb_cat(text_buf_t *tb, const char *str)
+{
+   tb_catn(tb, str, strlen(str));
+}
+
+void tb_repeat(text_buf_t *tb, char ch, size_t count)
+{
+   if (tb->len + count + 1 >= tb->alloc) {
+      tb->alloc = next_power_of_2(tb->alloc + count);
+      tb->buf = xrealloc(tb->buf, tb->alloc);
+   }
+
+   memset(tb->buf + tb->len, ch, count);
+   tb->len += count;
    tb->buf[tb->len] = '\0';
 }
 

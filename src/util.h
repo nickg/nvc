@@ -111,7 +111,7 @@ void fatal_errno(const char *fmt, ...)
 
 // Error callback for use in unit tests.
 typedef void (*error_fn_t)(const char *msg, const loc_t *loc);
-error_fn_t set_error_fn(error_fn_t fn, bool want_color);
+void set_error_fn(error_fn_t fn);
 
 typedef void (*fatal_fn_t)(void);
 void set_fatal_fn(fatal_fn_t fn);
@@ -168,6 +168,9 @@ void _tb_cleanup(text_buf_t **tb);
 void tb_printf(text_buf_t *tb, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 void tb_append(text_buf_t *tb, char ch);
+void tb_cat(text_buf_t *tb, const char *str);
+void tb_catn(text_buf_t *tb, const char *str, size_t nchars);
+void tb_repeat(text_buf_t *tb, char ch, size_t count);
 const char *tb_get(text_buf_t *tb);
 char *tb_claim(text_buf_t *tb);
 void tb_rewind(text_buf_t *tb);
