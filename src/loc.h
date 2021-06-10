@@ -70,6 +70,4 @@ loc_rd_ctx_t *loc_read_begin(fbuf_t *f);
 void loc_read(loc_t *loc, loc_rd_ctx_t *ctx);
 void loc_read_end(loc_rd_ctx_t *ctx);
 
-unsigned drill_trees(tree_t base, const loc_t *loc, tree_t **out);
-
 #endif // _LOC_H

@@ -393,7 +393,7 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
    const int nframes = debug_count_frames(di);
    for (int i = 0; i < nframes; i++) {
       const debug_frame_t *f = debug_get_frame(di, i);
-      if (f->kind != FRAME_VHDL || f->vhdl_unit == NULL)
+      if (f->kind != FRAME_VHDL || f->vhdl_unit == NULL || f->symbol == NULL)
          continue;
 
       tree_t unit = lib_get_qualified(f->vhdl_unit);
@@ -403,39 +403,17 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
       unsigned lineno = f->lineno;
       const char *srcfile = f->srcfile;
       tree_t enclosing = NULL;
-      if (f->lineno > 0) {
-         // Exact location using DWARF debug info
-         const loc_t loc = get_loc(f->lineno, f->colno, f->lineno, f->colno,
-                                   loc_file_ref(f->srcfile, NULL));
-
-         tree_t *trees = NULL;
-         const unsigned ntrees = drill_trees(unit, &loc, &trees);
-
-         for (unsigned i = 0; i < ntrees; i++) {
-            const tree_kind_t kind = tree_kind(trees[i]);
-            if (kind == T_FUNC_BODY || kind == T_PROC_BODY || kind == T_PROCESS)
-               enclosing = trees[i];
+      if ((enclosing = find_mangled_decl(unit, ident_new(f->symbol)))) {
+         if (fixed != NULL && !found_fixed) {
+            lineno = fixed->first_line;
+            srcfile = fixed->file;
+            found_fixed = true;
          }
-
-         if (enclosing && !found_fixed && fixed != NULL)
-            found_fixed = (strcmp(f->srcfile, fixed->file) == 0
-                           && f->lineno == fixed->first_line);
-
-         free(trees);
-      }
-      else if (f->symbol != NULL) {
-         // Inexact information using symbol name
-         if ((enclosing = find_mangled_decl(unit, ident_new(f->symbol)))) {
-            if (fixed != NULL && !found_fixed) {
-               lineno = fixed->first_line;
-               srcfile = fixed->file;
-               found_fixed = true;
-            }
-            else {
-               const loc_t *loc = tree_loc(enclosing);
-               lineno = loc->first_line;
-               srcfile = loc_file_str(loc);
-            }
+         else if (f->lineno == 0) {
+            // Exact DWARF debug info not available
+            const loc_t *loc = tree_loc(enclosing);
+            lineno = loc->first_line;
+            srcfile = loc_file_str(loc);
          }
       }
 

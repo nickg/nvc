@@ -1,0 +1,27 @@
+** Warning: 0ms+0: Assertion Warning: There is an 'U'|'X'|'W'|'Z'|'-' in
+          an arithmetic operand, the result will be 'X'(es).
+	Function MAKE_BINARY [UNSIGNED return UNSIGNED]
+	    File ../lib/synopsys/std_logic_arith.vhd, Line 255
+	Function CONV_UNSIGNED [UNSIGNED, INTEGER return UNSIGNED]
+	    File ../lib/synopsys/std_logic_arith.vhd, Line
+	Function "+" [UNSIGNED, UNSIGNED return STD_LOGIC_VECTOR]
+	    File ../lib/synopsys/std_logic_arith.vhd, Line
+	Function "+" [STD_LOGIC_VECTOR, STD_LOGIC_VECTOR return STD_LOGIC_VECTOR]
+	    File ../lib/synopsys/std_logic_unsigned.vhd, Line
+	Process :debug1:warn
+	    File /home/nick/nvc/test/regress/debug1.vhd, Line
+** Warning: 0ms+0: Assertion Warning: There is an 'U'|'X'|'W'|'Z'|'-' in
+          an arithmetic operand, the result will be 'X'(es).
+	Function MAKE_BINARY [UNSIGNED return UNSIGNED]
+	    File ../lib/synopsys/std_logic_arith.vhd, Line 255
+	Function CONV_UNSIGNED [UNSIGNED, INTEGER return UNSIGNED]
+	    File ../lib/synopsys/std_logic_arith.vhd, Line
+	Function "+" [UNSIGNED, UNSIGNED return STD_LOGIC_VECTOR]
+	    File ../lib/synopsys/std_logic_arith.vhd, Line
+	Function "+" [STD_LOGIC_VECTOR, STD_LOGIC_VECTOR return STD_LOGIC_VECTOR]
+	    File ../lib/synopsys/std_logic_unsigned.vhd, Line
+	Process :debug1:warn
+	    File /home/nick/nvc/test/regress/debug1.vhd, Line
+** Note: 1ns+0: Report Note: simulation finished
+	Process :debug1:control
+	    File /home/nick/nvc/test/regress/debug1.vhd, Line 20
