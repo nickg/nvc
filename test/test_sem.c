@@ -251,7 +251,7 @@ START_TEST(test_const)
    input_from_file(TESTDIR "/sem/const.vhd");
 
    const error_t expect[] = {
-      { 24, "invalid target of variable assignment" },
+      { 24, "target of variable assignment must be a variable name" },
       { 28, "deferred constant declarations are only permitted" },
       { 58, "C already declared in this region" },
       { 57, "previous declaration of C was here" },
@@ -525,6 +525,10 @@ START_TEST(test_seq)
       { 222, "variable I is not a valid target of signal assignment" },
       { 230, "universal bound not convertible to INTEGER" },
       { 232, "type of range bounds REAL is not discrete" },
+      { 243, "target of variable assignment must be a variable name" },
+      { 244, "aggregate element must be locally static name" },
+      { 245, "others association not allowed in aggregate variable target" },
+      { 246, "range association not allowed in aggregate variable target" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -567,7 +571,7 @@ START_TEST(test_procedure)
       {  63, "missing actual for formal X without default value" },
       {  64, "positional parameters must precede named parameters" },
       {  83, "cannot read output port Y" },
-      {  84, "invalid target of variable assignment" },
+      {  84, "target of variable assignment must be a variable name" },
       {  90, "implicit signal STABLE cannot be used in a subprogram body" },
       {  91, "implicit signal QUIET cannot be used in a subprogram body" },
       {  92, "implicit signal TRANSACTION cannot be used in a subprogram" },
@@ -578,10 +582,10 @@ START_TEST(test_procedure)
       { 137, "sorry, this form of parameter name is not yet supported" },
       { 142, "cannot read output port X" },
       { 148, "target of signal assignment is not a signal" },
-      { 157, "object ARG with type containing an access type must have class VARIABLE" },
-      { 162, "object ARG with type containing an access type must have class VARIABLE" },
-      { 167, "object ARG with type containing an access type must have class VARIABLE" },
-      { 172, "object ARG with type containing an access type must have class VARIABLE" },
+      { 157, "object ARG with type containing an access type must have class" },
+      { 162, "object ARG with type containing an access type must have class" },
+      { 167, "object ARG with type containing an access type must have class" },
+      { 172, "object ARG with type containing an access type must have class" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -817,10 +821,10 @@ START_TEST(test_signal)
       { 14, "has non-composite type BIT" },
       { 15, "type of string literal cannot be determined from context" },
       { 22, "aggregate has non-composite type BIT" },
-      { 16, "not a suitable l-value" },
+      { 16, "target of signal assignment must be a signal name" },
       { 17, "others association not allowed in aggregate signal target" },
       { 18, "cannot assign to input port P" },
-      { 23, "not a suitable l-value" },
+      { 23, "target of signal assignment must be a signal name" },
       { 24, "others association not allowed in aggregate signal target" },
       { 25, "cannot assign to input port P" },
       { 30, "aggregate element must be locally static name" },

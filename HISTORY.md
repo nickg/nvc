@@ -33,6 +33,7 @@
   condition conversion.
 - VHDL-2008 IEEE standard libraries are now built and installed in
   addition to the VHDL-1993 libraries.
+- Variable assignment now support aggregate targets.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

@@ -299,7 +299,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 17);
+   fail_unless(tree_stmts(a) == 18);
 
    fail_if_errors();
 
@@ -622,6 +622,14 @@ START_TEST(test_seq)
    p = tree_stmt(a, 16);
    fail_unless(tree_triggers(p) == 1);
    fail_unless(tree_kind(tree_trigger(p, 0)) == T_ALL);
+
+   // Aggregate target of variable assignment
+
+   p = tree_stmt(a, 17);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_VAR_ASSIGN);
+   fail_unless(tree_kind(tree_target(s)) == T_AGGREGATE);
 
    a = parse();
    fail_unless(a == NULL);

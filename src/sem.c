@@ -1524,32 +1524,76 @@ static tree_t sem_check_lvalue(tree_t t)
    }
 }
 
+static bool sem_check_variable_target(tree_t target)
+{
+   if (tree_kind(target) == T_AGGREGATE) {
+      // Rules for aggregate variable targets in LRM 93 section 8.5
+
+      if (!type_is_composite(tree_type(target)))
+         sem_error(target, "aggregate target of variable assignment has "
+                   "non-composite type %s", type_pp(tree_type(target)));
+
+      const int nassocs = tree_assocs(target);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(target, i);
+         tree_t value = tree_value(a);
+
+         if (!sem_check_variable_target(value))
+            return false;
+
+         if (!sem_static_name(value, sem_locally_static))
+            sem_error(value, "aggregate element must be locally static name");
+
+         assoc_kind_t kind = tree_subkind(a);
+         switch (kind) {
+         case A_OTHERS:
+            sem_error(a, "others association not allowed in aggregate "
+                      "variable target");
+         case A_RANGE:
+            sem_error(a, "range association not allowed in aggregate "
+                      "variable target");
+         case A_NAMED:
+            sem_error(a, "sorry, named associations are not yet "
+                      "supported here");
+         case A_POS:
+            break;
+         }
+      }
+   }
+   else {
+      tree_t decl = sem_check_lvalue(target);
+
+      bool suitable = false;
+      if (decl != NULL) {
+         const tree_kind_t kind = tree_kind(decl);
+         suitable = kind == T_VAR_DECL
+            || (kind == T_PORT_DECL && tree_class(decl) == C_VARIABLE);
+      }
+
+      if (!suitable)
+         sem_error(target, "target of variable assignment must be a variable "
+                   "name or aggregate");
+   }
+
+   return true;
+}
+
 static bool sem_check_var_assign(tree_t t)
 {
    tree_t target = tree_target(t);
    tree_t value = tree_value(t);
 
-   bool ok = sem_check(target);
-   if (!ok)
+   if (!sem_check(target))
       return false;
 
-   ok = sem_check(value);
-   if (!ok)
+   if (!sem_check(value))
       return false;
 
-   ok = sem_readable(value);
-   if (!ok)
+   if (!sem_readable(value))
       return false;
 
-   tree_t decl = sem_check_lvalue(target);
-   if (decl == NULL)
-      sem_error(target, "not a suitable l-value");
-
-   bool suitable = (tree_kind(decl) == T_VAR_DECL)
-      || (tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_VARIABLE);
-
-   if (!suitable)
-      sem_error(target, "invalid target of variable assignment");
+   if (!sem_check_variable_target(target))
+      return false;
 
    type_t target_type = tree_type(target);
    type_t value_type  = tree_type(value);
@@ -1562,7 +1606,7 @@ static bool sem_check_var_assign(tree_t t)
                 type_pp2(value_type, target_type),
                 type_pp2(target_type, value_type));
 
-   return ok;
+   return true;
 }
 
 static bool sem_check_waveforms(tree_t t, type_t expect)
@@ -1617,7 +1661,7 @@ static bool sem_check_signal_target(tree_t target)
          if (!sem_check_signal_target(value))
             return false;
 
-         if (!sem_static_name(value, sem_globally_static))
+         if (!sem_static_name(value, sem_locally_static))
             sem_error(value, "aggregate element must be locally static name");
 
          assoc_kind_t kind = tree_subkind(a);
@@ -1641,7 +1685,8 @@ static bool sem_check_signal_target(tree_t target)
    else {
       tree_t decl = sem_check_lvalue(target);
       if (decl == NULL)
-         sem_error(target, "not a suitable l-value");
+         sem_error(target, "target of signal assignment must be a signal "
+                   "name or aggregate");
 
       switch (tree_kind(decl)) {
       case T_SIGNAL_DECL:

@@ -6119,13 +6119,19 @@ static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
    tree_t target = p_target(name);
    tree_set_target(t, target);
 
-   type_t target_type = solve_types(nametab, target, NULL);
-
    consume(tASSIGN);
+
+   type_t target_type = NULL;
+   const bool aggregate = tree_kind(target) == T_AGGREGATE;
+   if (!aggregate)
+      target_type = solve_types(nametab, target, NULL);
 
    tree_t value = p_expression();
    tree_set_value(t, value);
-   solve_types(nametab, value, target_type);
+   type_t value_type = solve_types(nametab, value, target_type);
+
+   if (aggregate)
+      solve_types(nametab, target, value_type);
 
    consume(tSEMI);
 

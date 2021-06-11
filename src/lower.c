@@ -3754,6 +3754,24 @@ static void lower_var_assign(tree_t stmt)
       else
          emit_store_indirect(loaded_value, lower_expr(target, EXPR_LVALUE));
    }
+   else if (tree_kind(target) == T_AGGREGATE) {
+      vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
+      vcode_reg_t src_data = lower_array_data(value_reg);
+      lower_check_array_sizes(stmt, type, tree_type(value),
+                              VCODE_INVALID_REG, value_reg);
+
+      const int nassocs = tree_assocs(target);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(target, i);
+         assert(tree_subkind(a) == A_POS);
+
+         vcode_reg_t target_reg = lower_expr(tree_value(a), EXPR_LVALUE);
+         emit_store_indirect(emit_load_indirect(src_data), target_reg);
+
+         if (i + 1 < nassocs)
+            src_data = emit_add(src_data, emit_const(vtype_offset(), 1));
+      }
+   }
    else if (type_is_array(type)) {
       vcode_reg_t target_reg  = lower_expr(target, EXPR_LVALUE);
       vcode_reg_t count_reg   = lower_array_total_len(type, target_reg);

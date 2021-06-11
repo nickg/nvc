@@ -233,4 +233,17 @@ begin
         end loop;
     end process;
 
+    -- Variable assignment to aggregate
+    process is
+        type int_vec is array (natural range <>) of integer;
+        variable v : int_vec(1 to 2);
+        variable a, b : integer;
+    begin
+        (a, b) := v;                    -- OK
+        (a, 1) := v;                    -- Error
+        (v(a), b) := v;                 -- Error
+        (others => a) := v;             -- Error
+        (1 to 2 => a) := v;             -- Error
+    end process;
+
 end architecture;

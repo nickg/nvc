@@ -181,4 +181,13 @@ begin
         x <= y;
     end process;
 
+    -- Variable assignment with aggregate target
+    process is
+        type int_vec is array (natural range <>) of integer;
+        variable v : int_vec(1 to 2);
+        variable a, b : integer;
+    begin
+        (a, b) := v;                    -- OK
+    end process;
+
 end architecture;
