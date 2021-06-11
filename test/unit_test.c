@@ -1,6 +1,7 @@
 #include "test_util.h"
 #include "phase.h"
 #include "common.h"
+#include "rt/heap.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -48,8 +49,7 @@ int main(int argc, char **argv)
 
    int nfail = 0;
    nfail += RUN_TESTS(ident);
-   nfail += RUN_TESTS(hash);
-   nfail += RUN_TESTS(heap);
+   nfail += RUN_TESTS(misc);
    nfail += RUN_TESTS(lib);
    nfail += RUN_TESTS(parse);
    nfail += RUN_TESTS(sem);

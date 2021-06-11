@@ -14,9 +14,8 @@ bin_unit_test_SOURCES = \
 	test/test_lib.c \
 	test/test_sem.c \
 	test/test_simp.c \
-	test/test_hash.c \
+	test/test_misc.c \
 	test/test_elab.c \
-	test/test_heap.c \
 	test/test_group.c \
 	test/test_bounds.c \
 	test/test_value.c \
