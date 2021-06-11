@@ -3305,6 +3305,68 @@ START_TEST(test_issue416)
 }
 END_TEST
 
+START_TEST(test_explicit_93)
+{
+   set_standard(STD_93);
+   input_from_file(TESTDIR "/parse/explicit.vhd");
+
+   const error_t expect[] = {
+      { 25, "ambiguous use of operator \"<=\"" },
+      {  3, "candidate \"<=\" [MY_VEC, MY_VEC return BOOLEAN]" },
+      { 10, "candidate \"<=\" [MY_VEC, MY_VEC return BOOLEAN]" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p1 = parse();
+   fail_if(p1 == NULL);
+   fail_unless(tree_kind(p1) == T_PACKAGE);
+
+   tree_t p2 = parse();
+   fail_if(p2 == NULL);
+   fail_unless(tree_kind(p2) == T_PACKAGE);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_explicit_08)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/explicit.vhd");
+
+   tree_t p1 = parse();
+   fail_if(p1 == NULL);
+   fail_unless(tree_kind(p1) == T_PACKAGE);
+
+   tree_t p2 = parse();
+   fail_if(p2 == NULL);
+   fail_unless(tree_kind(p2) == T_PACKAGE);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3358,6 +3420,8 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_error2);
    tcase_add_test(tc_core, test_vhdl2008);
    tcase_add_test(tc_core, test_issue416);
+   tcase_add_test(tc_core, test_explicit_93);
+   tcase_add_test(tc_core, test_explicit_08);
    suite_add_tcase(s, tc_core);
 
    return s;

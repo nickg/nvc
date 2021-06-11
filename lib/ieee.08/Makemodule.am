@@ -4,20 +4,27 @@ ieee_08_DATA = \
 	lib/ieee.08/_index \
 	lib/ieee.08/IEEE.STD_LOGIC_1164 \
 	lib/ieee.08/IEEE.NUMERIC_BIT \
+	lib/ieee.08/IEEE.NUMERIC_BIT_UNSIGNED \
 	lib/ieee.08/IEEE.NUMERIC_STD \
+	lib/ieee.08/IEEE.NUMERIC_STD_UNSIGNED \
 	lib/ieee.08/IEEE.STD_LOGIC_1164-body \
 	lib/ieee.08/IEEE.NUMERIC_STD-body \
+	lib/ieee.08/IEEE.NUMERIC_STD_UNSIGNED-body \
 	lib/ieee.08/IEEE.NUMERIC_BIT-body \
+	lib/ieee.08/IEEE.NUMERIC_BIT_UNSIGNED-body \
 	lib/ieee.08/IEEE.STD_LOGIC_TEXTIO \
 	lib/ieee.08/IEEE.MATH_REAL \
 	lib/ieee.08/IEEE.MATH_REAL-body \
 	lib/ieee.08/IEEE.MATH_COMPLEX \
 	lib/ieee.08/IEEE.MATH_COMPLEX-body \
 	lib/ieee.08/_IEEE.NUMERIC_BIT.vcode \
+	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED.vcode \
 	lib/ieee.08/_IEEE.NUMERIC_STD.vcode \
 	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.vcode \
 	lib/ieee.08/_IEEE.NUMERIC_STD-body.vcode \
+	lib/ieee.08/_IEEE.NUMERIC_STD_UNSIGNED-body.vcode \
 	lib/ieee.08/_IEEE.NUMERIC_BIT-body.vcode \
+	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED-body.vcode \
 	lib/ieee.08/_IEEE.MATH_REAL.vcode \
 	lib/ieee.08/_IEEE.MATH_REAL-body.vcode \
 	lib/ieee.08/_IEEE.MATH_COMPLEX.vcode \
@@ -25,10 +32,13 @@ ieee_08_DATA = \
 
 ieee_08_so = \
 	lib/ieee.08/_IEEE.NUMERIC_STD.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_STD_UNSIGNED.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_BIT.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_STD-body.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_BIT-body.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED-body.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.MATH_REAL.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.MATH_REAL-body.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.MATH_COMPLEX.$(DLL_EXT) \
@@ -37,9 +47,13 @@ ieee_08_so = \
 if IMPLIB_REQUIRED
 ieee_08_DATA += \
 	lib/ieee.08/_IEEE.NUMERIC_STD.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_STD_UNSIGNED.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_BIT.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_STD-body.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_BIT-body.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED-body.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.MATH_REAL.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.MATH_REAL-body.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.MATH_COMPLEX.$(LIB_EXT) \
@@ -81,11 +95,23 @@ lib/ieee.08/IEEE.STD_LOGIC_1164-body: $(srcdir)/lib/ieee.08/std_logic_1164-body.
 lib/ieee.08/IEEE.NUMERIC_BIT: $(srcdir)/lib/ieee.08/numeric_bit.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_bit.vhdl
 
+lib/ieee.08/IEEE.NUMERIC_BIT_UNSIGNED: $(srcdir)/lib/ieee.08/numeric_bit_unsigned.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_bit_unsigned.vhdl
+
+lib/ieee.08/IEEE.NUMERIC_BIT_UNSIGNED-body: $(srcdir)/lib/ieee.08/numeric_bit_unsigned-body.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_bit_unsigned-body.vhdl
+
 lib/ieee.08/IEEE.NUMERIC_STD: $(srcdir)/lib/ieee.08/numeric_std.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_std.vhdl
 
+lib/ieee.08/IEEE.NUMERIC_STD_UNSIGNED: $(srcdir)/lib/ieee.08/numeric_std_unsigned.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_std_unsigned.vhdl
+
 lib/ieee.08/IEEE.NUMERIC_STD-body: $(srcdir)/lib/ieee.08/numeric_std-body.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_std-body.vhdl
+
+lib/ieee.08/IEEE.NUMERIC_STD_UNSIGNED-body: $(srcdir)/lib/ieee.08/numeric_std_unsigned-body.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_std_unsigned-body.vhdl
 
 lib/ieee.08/IEEE.NUMERIC_BIT-body: $(srcdir)/lib/ieee.08/numeric_bit-body.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/numeric_bit-body.vhdl

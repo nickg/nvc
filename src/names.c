@@ -1488,9 +1488,13 @@ static tree_t finish_overload_resolution(overload_t *o)
       ATRIM(o->candidates, wptr);
    }
 
-   // Optionally allow explicitly defined operators to hide implicitly
-   // defined ones in different scopes
-   if (o->candidates.count > 1 && (relax_rules() & RELAX_PREFER_EXPLICT)) {
+   // Allow explicitly defined operators to hide implicitly defined ones
+   // in different scopes. This is required behaviour in VHDL-2008 (see
+   // section 12.4) and an optional rule relaxation in earlier revisions.
+   const bool prefer_explicit =
+      standard() >= STD_08 || !!(relax_rules() & RELAX_PREFER_EXPLICT);
+
+   if (o->candidates.count > 1 && prefer_explicit) {
       int nexplicit = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          if (!(tree_flags(o->candidates.items[i]) & TREE_F_PREDEFINED))
