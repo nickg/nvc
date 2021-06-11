@@ -1259,7 +1259,7 @@ void mangle_decl(nametab_t *tab, tree_t decl)
 static void overload_trace_candidates(overload_t *o, const char *phase)
 {
    if (o->trace) {
-      printf("%s: %s candidates\n", istr(o->name), phase);
+      printf("%s: %s\n", istr(o->name), phase);
       for (unsigned i = 0; i < o->candidates.count; i++) {
          tree_t d = o->candidates.items[i];
          printf("  %s%s\n", type_pp(tree_type(d)),
@@ -1398,7 +1398,7 @@ static void begin_overload_resolution(overload_t *o)
       }
    }
 
-   overload_trace_candidates(o, "initial");
+   overload_trace_candidates(o, "initial candidates");
 
    if (o->trace && o->nametab->top_type_set->members.count > 0) {
       LOCAL_TEXT_BUF tb = type_set_fmt(o->nametab);
@@ -1433,7 +1433,8 @@ static void begin_overload_resolution(overload_t *o)
    // Remove procedures in a function call context and functions in a
    // procedure call context
    if (o->candidates.count > 1) {
-      const bool is_fcall = tree_kind(o->tree) == T_FCALL;
+      const tree_kind_t kind = tree_kind(o->tree);
+      const bool is_fcall = kind == T_FCALL || kind == T_PROT_FCALL;
       unsigned wptr = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          type_kind_t typek = type_kind(tree_type(o->candidates.items[i]));
@@ -1444,6 +1445,9 @@ static void begin_overload_resolution(overload_t *o)
       }
       ATRIM(o->candidates, wptr);
    }
+
+   if (o->candidates.count != o->initial)
+      overload_trace_candidates(o, "after initial pruning");
 }
 
 static int param_compar(const void *pa, const void *pb)
@@ -1546,7 +1550,7 @@ static tree_t finish_overload_resolution(overload_t *o)
       ATRIM(o->candidates, wptr);
    }
 
-   overload_trace_candidates(o, "final");
+   overload_trace_candidates(o, "final candidates");
 
    int count = 0;
    tree_t result = NULL;
