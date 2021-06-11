@@ -73,7 +73,7 @@ static tree_t simp_call_args(tree_t t)
       else if (kind == T_CPCALL)
          tree_set_ident2(new, tree_ident2(t));
 
-      if (kind == T_PROT_PCALL || kind == T_PROT_FCALL)
+      if ((kind == T_PROT_PCALL || kind == T_PROT_FCALL) && tree_has_name(t))
          tree_set_name(new, tree_name(t));
 
       for (int i = 0; i <= last_pos; i++) {

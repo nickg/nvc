@@ -1201,14 +1201,17 @@ static bool lower_trivial_expression(tree_t expr)
 
 static vcode_reg_t lower_array_to_string(tree_t fcall, vcode_reg_t array_reg)
 {
-   type_t type = tree_type(tree_value(tree_param(fcall, 0)));
-   type_t elem = type_base_recur(type_elem(type));
-   vcode_type_t elem_vtype = lower_type(elem);
+   type_t arg_type    = tree_type(tree_value(tree_param(fcall, 0)));
+   type_t result_type = tree_type(fcall);
+   type_t arg_elem    = type_base_recur(type_elem(arg_type));
+   type_t result_elem = type_base_recur(type_elem(result_type));
 
-   const int nlits = type_enum_literals(elem);
+   vcode_type_t elem_vtype = lower_type(result_elem);
+
+   const int nlits = type_enum_literals(arg_elem);
    vcode_reg_t *map LOCAL = xmalloc_array(nlits, sizeof(vcode_reg_t));
    for (int i = 0; i < nlits; i++) {
-      const ident_t id = tree_ident(type_enum_literal(elem, i));
+      const ident_t id = tree_ident(type_enum_literal(arg_elem, i));
       assert(ident_char(id, 0) == '\'');
       map[i] = emit_const(elem_vtype, ident_char(id, 1));
    }
@@ -1216,15 +1219,15 @@ static vcode_reg_t lower_array_to_string(tree_t fcall, vcode_reg_t array_reg)
    vcode_type_t map_vtype = vtype_carray(nlits, elem_vtype, elem_vtype);
    vcode_reg_t map_reg = emit_const_array(map_vtype, map, nlits, true);
 
-   vcode_reg_t len_reg = lower_array_len(type, 0, array_reg);
+   vcode_reg_t len_reg = lower_array_len(arg_type, 0, array_reg);
    vcode_reg_t mem_reg = emit_alloca(elem_vtype, elem_vtype, len_reg);
 
    type_t std_string = tree_type(fcall);
    vcode_type_t index_vtype = lower_type(index_type_of(std_string, 0));
 
-   vcode_reg_t left_reg  = lower_array_left(type, 0, array_reg);
-   vcode_reg_t right_reg = lower_array_right(type, 0, array_reg);
-   vcode_reg_t dir_reg   = lower_array_dir(type, 0, array_reg);
+   vcode_reg_t left_reg  = lower_array_left(arg_type, 0, array_reg);
+   vcode_reg_t right_reg = lower_array_right(arg_type, 0, array_reg);
+   vcode_reg_t dir_reg   = lower_array_dir(arg_type, 0, array_reg);
 
    ident_t i_name = ident_uniq("to_string_i");
    vcode_var_t i_var = emit_var(vtype_offset(), vtype_offset(), i_name);

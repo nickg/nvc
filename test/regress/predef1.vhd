@@ -76,6 +76,7 @@ begin
         assert to_string(char_vector'("abc")) = "abc";
         assert to_string(c) = "bca";
         assert to_string(bit_vector'("110")) = "110";
+        assert to_string(bit_vector'("110")) & "..." = "110...";
 
         -----------------------------------------------------------------------
         -- TO_BSTRING
