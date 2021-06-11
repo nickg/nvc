@@ -8,6 +8,7 @@ ieee_08_DATA = \
 	lib/ieee.08/IEEE.STD_LOGIC_1164-body \
 	lib/ieee.08/IEEE.NUMERIC_STD-body \
 	lib/ieee.08/IEEE.NUMERIC_BIT-body \
+	lib/ieee.08/IEEE.STD_LOGIC_TEXTIO \
 	lib/ieee.08/IEEE.MATH_REAL \
 	lib/ieee.08/IEEE.MATH_REAL-body \
 	lib/ieee.08/IEEE.MATH_COMPLEX \
@@ -60,7 +61,8 @@ EXTRA_DIST += \
 	lib/ieee.08/numeric_std.vhdl \
 	lib/ieee.08/std_logic_1164-body.vhdl \
 	lib/ieee.08/std_logic_1164.vhdl \
-	lib/ieee.08/numeric_std-body.vhdl
+	lib/ieee.08/numeric_std-body.vhdl \
+	lib/ieee.08/std_logic_textio.vhdl
 
 BOOTSTRAPLIBS += $(ieee_08_DATA)
 
@@ -99,6 +101,9 @@ lib/ieee.08/IEEE.MATH_COMPLEX: $(srcdir)/lib/ieee/math_complex.vhdl @ifGNUmake@ 
 
 lib/ieee.08/IEEE.MATH_COMPLEX-body: $(srcdir)/lib/ieee/math_complex-body.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee/math_complex-body.vhdl
+
+lib/ieee.08/IEEE.STD_LOGIC_TEXTIO: $(srcdir)/lib/ieee.08/std_logic_textio.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/ieee.08/std_logic_textio.vhdl
 
 gen-deps-ieee-08:
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 --make --posix --deps-only \

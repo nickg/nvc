@@ -807,7 +807,8 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             decl = m.items[0];
       }
    }
-   else if (tab->top_scope->overload == NULL && dkind != T_ATTR_DECL) {
+   else if (tab->top_scope->overload == NULL && dkind != T_ATTR_DECL
+            && dkind != T_LIBRARY) {
       // Check for conflicting names imported from multiple packages
       scope_t *s, *limit = scope_end_of_chain(where);
       tree_t conflict = scope_find(where, name, limit, &s, 1);
