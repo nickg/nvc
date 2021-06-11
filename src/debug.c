@@ -627,13 +627,27 @@ static void debug_walk_frames(debug_info_t *di)
 
          char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
          PSYMBOL_INFO psym = (PSYMBOL_INFO)buffer;
+         memset(buffer, '\0', sizeof(SYMBOL_INFO));
          psym->SizeOfStruct = sizeof(SYMBOL_INFO);
          psym->MaxNameLen = MAX_SYM_NAME;
 
          DWORD64 disp;
          if (SymFromAddr(hProcess, stk.AddrPC.Offset, &disp, psym)) {
-            frame->symbol = xstrdup(psym->Name);
+            frame->symbol = unsafe_symbol(psym->Name);
             frame->disp   = disp;
+         }
+
+         IMAGEHLP_MODULE module;
+         memset(&module, '\0', sizeof(module));
+         module.SizeOfStruct = sizeof(module);
+         if (SymGetModuleInfo(hProcess, stk.AddrPC.Offset, &module)) {
+            frame->module = xstrdup(module.ModuleName);
+
+            lib_t lib = lib_at(module.ImageName);
+            if (lib != NULL && module.ModuleName[0] == '_') {
+               frame->kind = FRAME_VHDL;
+               frame->vhdl_unit = ident_new(module.ModuleName + 1);
+            }
          }
       }
 

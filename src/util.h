@@ -156,7 +156,8 @@ void *mmap_guarded(size_t sz, const char *tag);
 
 void run_program(const char *const *args, size_t n_args);
 
-const char *safe_symbol(const char *text);
+char *safe_symbol(const char *text);
+char *unsafe_symbol(const char *text);
 
 typedef struct text_buf text_buf_t;
 

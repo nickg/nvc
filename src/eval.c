@@ -687,7 +687,7 @@ static void eval_op_mod(int op, eval_state_t *state)
       }
       else {
          dst->kind    = VALUE_INTEGER;
-         dst->integer = labs(lhs->integer % rhs->integer);
+         dst->integer = llabs(lhs->integer % rhs->integer);
       }
       break;
 

@@ -69,6 +69,19 @@ START_TEST(test_replace)
 }
 END_TEST;
 
+START_TEST(test_safe_symbol)
+{
+  const char *orig = "foo[]()+*\"=bar";
+  char *enc = safe_symbol(orig);
+  char *dec = unsafe_symbol(enc);
+
+  ck_assert_str_eq(orig, dec);
+
+  if (enc != orig) free(enc);
+  if (dec != orig) free(dec);
+}
+END_TEST
+
 Suite *get_hash_tests(void)
 {
    Suite *s = suite_create("hash");
@@ -78,6 +91,10 @@ Suite *get_hash_tests(void)
    tcase_add_test(tc_core, test_rand);
    tcase_add_test(tc_core, test_replace);
    suite_add_tcase(s, tc_core);
+
+   TCase *tc_sym = tcase_create("safe_symbol");
+   tcase_add_test(tc_sym, test_safe_symbol);
+   suite_add_tcase(s, tc_sym);
 
    return s;
 }

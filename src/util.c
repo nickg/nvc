@@ -1581,33 +1581,77 @@ uint64_t get_timestamp_us()
 #endif
 }
 
-const char *safe_symbol(const char *text)
+#if defined _WIN32 || defined __CYGWIN__
+static struct {
+   char illegal;
+   const char *rep;
+} symbol_replacements[] = {
+   { '(', "_lp_"   },
+   { ')', "_rp_"   },
+   { '"', "_q_"    },
+   { '[', "_ls_"   },
+   { ']', "_rs_"   },
+   { '*', "_mult_" },
+   { '+', "_plus_" },
+   { '=', "_eq_"   }
+};
+#endif
+
+char *safe_symbol(const char *text)
 {
    // Return a string that is safe to use as a symbol name on this platform
 #if defined _WIN32 || defined __CYGWIN__
    if (strpbrk(text, "()\"[]*+=") == NULL)
-      return text;
+      return (char *)text;
 
    text_buf_t *tb = tb_new();
 
    for (const char *p = text; *p != '\0' && p - text < 240; p++) {
-      switch (*p) {
-      case '(': tb_printf(tb, "_lp_"); break;
-      case ')': tb_printf(tb, "_rp_"); break;
-      case '"': tb_printf(tb, "_q_"); break;
-      case '[': tb_printf(tb, "_ls_"); break;
-      case ']': tb_printf(tb, "_rs_"); break;
-      case '*': tb_printf(tb, "_mult_"); break;
-      case '+': tb_printf(tb, "_plus_"); break;
-      case '=': tb_printf(tb, "_eq_"); break;
-      default:
-         tb_append(tb, *p);
+      bool replaced = false;
+      for (size_t j = 0; j < ARRAY_LEN(symbol_replacements); j++) {
+         if (*p == symbol_replacements[j].illegal) {
+            tb_cat(tb, symbol_replacements[j].rep);
+            replaced = true;
+            break;
+         }
       }
+
+      if (!replaced)
+         tb_append(tb, *p);
    }
 
-   return tb_get(tb);
+   return tb_claim(tb);
 #else
-   return text;
+   return (char *)text;
+#endif
+}
+
+char *unsafe_symbol(const char *text)
+{
+   // Restore original symbol from safe_symbol
+#if defined _WIN32 || defined __CYGWIN__
+   text_buf_t *tb = tb_new();
+
+   const char *p = text;
+   while (*p) {
+      bool replaced = false;
+      for (size_t j = 0; j < ARRAY_LEN(symbol_replacements); j++) {
+         size_t len = strlen(symbol_replacements[j].rep);
+         if (strncmp(p, symbol_replacements[j].rep, len) == 0) {
+            tb_append(tb, symbol_replacements[j].illegal);
+            p += len;
+            replaced = true;
+            break;
+         }
+      }
+
+      if (!replaced)
+         tb_append(tb, *p++);
+   }
+
+   return tb_claim(tb);
+#else
+   return (char *)text;
 #endif
 }
 

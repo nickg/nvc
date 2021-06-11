@@ -40,6 +40,7 @@ void global_func(void)
    fail_unless(f0->kind == FRAME_PROG);
    fail_if(f0->symbol == NULL);
    ck_assert_str_eq(f0->symbol, "global_func");
+   fail_if(f0->module == NULL);
    fail_unless(strstr(f0->module, "unit_test"));
 #if defined HAVE_LIBDW || defined HAVE_LIBDWARF
    fail_unless(f0->lineno == capture_line);
