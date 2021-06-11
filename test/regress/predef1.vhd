@@ -49,6 +49,7 @@ begin
         assert maximum(b, false) = true;
         assert maximum(int_vector'(5, -1, 2)) = 5;
         assert maximum(v) = 3;
+        assert maximum(1 ns, 1 hr) = 1 hr;
 
         -----------------------------------------------------------------------
         -- TO_STRING

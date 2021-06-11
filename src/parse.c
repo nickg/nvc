@@ -962,6 +962,11 @@ static void declare_predefined_ops(tree_t container, type_t t)
       // Absolute value
       declare_unary(container, ident_new("\"abs\""), t, t, S_ABS);
 
+      if (standard() >= STD_08) {
+         declare_binary(container, ident_new("MINIMUM"), t, t, t, S_MINIMUM);
+         declare_binary(container, ident_new("MAXIMUM"), t, t, t, S_MAXIMUM);
+      }
+
       break;
 
    case T_INTEGER:

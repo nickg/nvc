@@ -90,6 +90,8 @@ package STANDARD is
 
     type TIME_VECTOR is array (NATURAL range <>) of TIME;
 
+    type BOOLEAN_VECTOR is array (NATURAL range <>) of BOOLEAN;
+
     type FILE_OPEN_KIND is (READ_MODE, WRITE_MODE, APPEND_MODE);
 
     type FILE_OPEN_STATUS is (OPEN_OK, STATUS_ERROR, NAME_ERROR,
