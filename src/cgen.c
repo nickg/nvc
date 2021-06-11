@@ -329,7 +329,13 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
 
    case VCODE_TYPE_POINTER:
    case VCODE_TYPE_ACCESS:
-      return LLVMPointerType(cgen_type(vtype_pointed(type)), 0);
+      {
+         vcode_type_t pointed = vtype_pointed(type);
+         if (vtype_kind(pointed) == VCODE_TYPE_OPAQUE)
+            return llvm_void_ptr();
+         else
+            return LLVMPointerType(cgen_type(pointed), 0);
+      }
 
    case VCODE_TYPE_RECORD:
       {
