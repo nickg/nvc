@@ -1850,18 +1850,25 @@ static tree_t p_range(tree_t left, type_t constraint)
 
    tree_t r = tree_new(T_RANGE);
    tree_set_subkind(r, RANGE_ERROR);
-   tree_set_left(r, left);
 
-   switch (one_of(tTO, tDOWNTO)) {
-   case tTO:
-      tree_set_subkind(r, RANGE_TO);
-      tree_set_right(r, p_expression());
-      break;
+   if (is_range_expr(left)) {
+      tree_set_subkind(r, RANGE_EXPR);
+      tree_set_value(r, left);
+   }
+   else {
+      tree_set_left(r, left);
 
-   case tDOWNTO:
-      tree_set_subkind(r, RANGE_DOWNTO);
-      tree_set_right(r, p_expression());
-      break;
+      switch (one_of(tTO, tDOWNTO)) {
+      case tTO:
+         tree_set_subkind(r, RANGE_TO);
+         tree_set_right(r, p_expression());
+         break;
+
+      case tDOWNTO:
+         tree_set_subkind(r, RANGE_DOWNTO);
+         tree_set_right(r, p_expression());
+         break;
+      }
    }
 
    tree_set_loc(r, CURRENT_LOC);
@@ -1909,8 +1916,6 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
    // subtype_indication | range
 
    BEGIN("discrete range");
-
-   // TODO: check for peek() == tID and if type parse p_type_mark
 
    tree_t expr1 = head ?: p_expression();
 
@@ -1965,13 +1970,7 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
             expr1 = tmp;
          }
 
-         tree_t r = tree_new(T_RANGE);
-         tree_set_subkind(r, RANGE_EXPR);
-         tree_set_value(r, expr1);
-         tree_set_loc(r, tree_loc(expr1));
-
-         solve_types(nametab, r, constraint);
-         return r;
+         return p_range(expr1, constraint);
       }
    }
 }

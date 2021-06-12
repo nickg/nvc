@@ -11,6 +11,8 @@ package p is
 
     type ab_chars is array (chars range A to B) of integer;
 
+    type it is array (integer range ten_ints'range) of bit;
+
 end package;
 
 entity e is end entity;

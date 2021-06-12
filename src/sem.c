@@ -319,7 +319,11 @@ static bool sem_check_discrete_range(tree_t r, type_t expect)
    if (!type_is_discrete(type))
       sem_error(r, "type of range bounds %s is not discrete", type_pp(type));
 
-   if (expect == NULL && tree_subkind(r) != RANGE_EXPR) {
+   const range_kind_t rkind = tree_subkind(r);
+   if (rkind == RANGE_ERROR)
+      return false;
+
+   if (expect == NULL && rkind != RANGE_EXPR) {
       tree_t left  = tree_left(r);
       tree_t right = tree_right(r);
 
