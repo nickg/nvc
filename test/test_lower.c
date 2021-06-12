@@ -3499,6 +3499,47 @@ START_TEST(test_vital2)
 }
 END_TEST
 
+START_TEST(test_conv1)
+{
+   input_from_file(TESTDIR "/lower/conv1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   bounds_check(p);
+   fail_if(error_count() > 0);
+   lower_unit(p);
+
+   tree_t f = search_decls(p, ident_new("GET"), 0);
+   fail_if(f == NULL);
+
+   vcode_unit_t v0 = find_unit(f);
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_DYNAMIC_BOUNDS },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_ADD },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3583,6 +3624,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_const1);
    tcase_add_test(tc, test_const2);
    tcase_add_test(tc, test_vital2);
+   tcase_add_test(tc, test_conv1);
    suite_add_tcase(s, tc);
 
    return s;

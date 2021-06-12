@@ -3879,6 +3879,8 @@ vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
    int64_t tconst;
    if (vcode_reg_const(test, &tconst))
       return !!tconst ? rtrue : rfalse;
+   else if (rtrue == rfalse)
+      return rtrue;
 
    // Find a previous identical select
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_SELECT) {
