@@ -100,7 +100,7 @@ begin
             return 1;
         end function;
     begin
-        for i in false to false loop    -- OK
+        for i in false to false loop    -- Error
         end loop;
     end process;
 
@@ -139,6 +139,18 @@ begin
     begin
         assert x > y;                   -- OK
         assert x < y;                   -- Error
+    end process;
+
+    process is
+        function uniform (a, b : real) return real;
+        type disttype is (none, uniform, other);
+        variable v : disttype;
+        variable r : real;
+    begin
+        case v is
+            when none | uniform => r := uniform(1.0, 2.0);  -- OK
+            when others => r := 0.0;
+        end case;
     end process;
 
 end architecture;

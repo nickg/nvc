@@ -749,9 +749,6 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       // Suppress further errors for this name
       hash_put(tab->top_scope->members, name, (void *)-1);
    }
-   else if (is_subprogram(decl)) {
-      // Suprogram overload resolution is handled separately
-   }
    else if (can_overload(decl) && dkind != T_LIBRARY) {
       // Might need to disambiguate enum names
       type_t uniq;
@@ -762,13 +759,19 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       else if ((decl1 = scope_find(tab->top_scope, name, limit, NULL, 1))) {
          SCOPED_A(tree_t) m = AINIT;
          APUSH(m, decl);
-         APUSH(m, decl1);
 
-         tree_t d;
-         for (int i = 2;
-              (d = scope_find(tab->top_scope, name, limit, NULL, i));
-              i++)
-            APUSH(m, d);
+         // Suprogram overload resolution is handled separately so do
+         // not generate an error if all the possible overloads are
+         // subprograms
+         bool only_subprograms = is_subprogram(decl);
+
+         int n = 2;
+         do {
+            if (!can_overload(decl1))
+                break;
+            only_subprograms &= is_subprogram(decl1);
+            APUSH(m, decl1);
+         } while ((decl1 = scope_find(tab->top_scope, name, limit, NULL, n++)));
 
          if (tab->top_type_set) {
             unsigned wptr = 0;
@@ -780,14 +783,22 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             ATRIM(m, wptr);
          }
 
-         if (m.count > 1) {
+         if (m.count > 1 && !only_subprograms) {
             LOCAL_TEXT_BUF tb = tb_new();
-            for (unsigned i = 0; i < m.count; i++)
+            tree_kind_t what = T_LAST_TREE_KIND;
+            for (unsigned i = 0; i < m.count; i++) {
                tb_printf(tb, "%s%s", i > 0 ? ", " : "",
                          type_pp(tree_type(m.items[i])));
+               const tree_kind_t kind = tree_kind(m.items[i]);
+               if (what == T_LAST_TREE_KIND)
+                  what = kind;
+               else if (what != kind)
+                  what = T_REF;
+            }
 
-            error_at(loc, "ambiguous use of %s literal %s (%s)",
-                     dkind == T_UNIT_DECL ? "physical" : "enumeration",
+            error_at(loc, "ambiguous use of %s %s (%s)",
+                     what == T_ENUM_LIT ? "enumeration literal"
+                     : (what == T_UNIT_DECL ? "physical literal" : "name"),
                      istr(name), tb_get(tb));
             decl = NULL;
 

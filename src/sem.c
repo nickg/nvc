@@ -3936,8 +3936,8 @@ static bool sem_check_case(tree_t t)
             tree_t name = tree_name(a);
             if ((ok = sem_check(name) && ok)) {
                if (!sem_check_type(name, type))
-                  sem_error(name, "case choice must have type %s",
-                            type_pp(type));
+                  sem_error(name, "case choice must have type %s but found %s",
+                            type_pp(type), type_pp(tree_type(name)));
                else if (!sem_locally_static(name))
                   sem_error(name, "case choice must be locally static");
             }
