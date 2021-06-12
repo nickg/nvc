@@ -3,6 +3,9 @@
 - Implement textio READ procedure for BIT and TIME (#408).
 - Fixed a crash when a long running procedure suspends in a loop (#412).
 - Fix static build with LLVM 12.0.
+- Fix crash when assigning to a signal declared in a package.
+- Fix incorrect recording of dependencies which caused a failure to load
+  generated DLLs on Windows.
 
 ## 1.5.1 - 2021-04-09
 - Fix a compiler warning in vcode.c.

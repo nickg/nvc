@@ -2610,19 +2610,23 @@ static vcode_reg_t lower_type_conv(tree_t expr, expr_ctx_t ctx)
    vcode_reg_t value_reg = lower_expr(value, ctx);
 
    if (from_k == T_REAL && to_k == T_INTEGER) {
+      value_reg = lower_reify(value_reg);
       vcode_type_t to_vtype = lower_type(to);
       vcode_reg_t cast = emit_cast(to_vtype, to_vtype, value_reg);
       lower_check_scalar_bounds(cast, to, expr, NULL);
       return cast;
    }
-   else if (from_k == T_INTEGER && to_k == T_REAL)
+   else if (from_k == T_INTEGER && to_k == T_REAL) {
+      value_reg = lower_reify(value_reg);
       return emit_cast(lower_type(to), lower_bounds(to), value_reg);
+   }
    else if (type_is_array(to) && !lower_const_bounds(to)) {
       // Need to wrap in metadata
       return lower_wrap(from, value_reg);
    }
    else if (from_k == T_INTEGER && to_k == T_INTEGER) {
       // Possibly change width
+      value_reg = lower_reify(value_reg);
       lower_check_scalar_bounds(value_reg, to, expr, NULL);
       return emit_cast(lower_type(to), lower_bounds(to), value_reg);
    }
