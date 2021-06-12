@@ -145,14 +145,6 @@ To run the regression tests:
 The unit tests require the [check](https://libcheck.github.io/check/)
 library.
 
-### VHDL-2008
-
-NVC supports a small subset of VHDL-2008 which can be enabled with the `--std=2008`
-option. If you require library functions from the 2008 standard you can use the
-[VHDL-2008 Support Library](http://www.eda.org/fphdl/) which provides
-backwards-compatible implementations for VHDL-1993. Run
-`./tools/build-2008-support.rb` to download and install this.
-
 ### Vendor Libraries
 
 NVC provides scripts to compile the simulation libraries of common FPGA vendors.
