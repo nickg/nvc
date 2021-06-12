@@ -1266,8 +1266,16 @@ static tree_t simp_range(tree_t t)
          if (type_is_unconstrained(type))
             return t;
 
+         int dim = 0;
+         if (tree_params(value) > 0) {
+            int64_t ival;
+            if (!folded_int(tree_value(tree_param(value, 0)), &ival))
+               return t;
+            dim = ival - 1;
+         }
+
          if (attr == ATTR_REVERSE_RANGE) {
-            tree_t base_r = range_of(tree_type(decl), 0);
+            tree_t base_r = range_of(tree_type(decl), dim);
             const range_kind_t base_kind = tree_subkind(base_r);
             assert(base_kind == RANGE_TO || base_kind == RANGE_DOWNTO);
 
@@ -1281,7 +1289,7 @@ static tree_t simp_range(tree_t t)
             return rev;
          }
          else
-            return range_of(tree_type(decl), 0);
+            return range_of(tree_type(decl), dim);
       }
    default:
       return t;

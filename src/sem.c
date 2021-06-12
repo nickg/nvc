@@ -571,7 +571,8 @@ static bool sem_check_type_decl(tree_t t)
          for (int i = 0; i < nindex; i++) {
             type_t index_type = type_index_constr(type, i);
             if (!type_is_discrete(index_type))
-               sem_error(t, "index type %s is not discrete", type_pp(index_type));
+               sem_error(t, "index type %s is not discrete",
+                         type_pp(index_type));
          }
 
          return true;

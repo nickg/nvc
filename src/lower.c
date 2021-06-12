@@ -238,7 +238,7 @@ static vcode_reg_t lower_range_right(tree_t r)
       return lower_reify_expr(tree_right(r));
 }
 
-static vcode_reg_t lower_range_dir(tree_t r, int dim)
+static vcode_reg_t lower_range_dir(tree_t r)
 {
    const range_kind_t rkind = tree_subkind(r);
 
@@ -321,7 +321,7 @@ static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg)
    }
    else {
       assert(!type_is_unconstrained(type));
-      return lower_range_dir(range_of(type, dim), dim);
+      return lower_range_dir(range_of(type, dim));
    }
 }
 
@@ -607,7 +607,7 @@ static bool lower_scalar_has_static_bounds(type_t type, vcode_reg_t *low_reg,
          tree_t r = range_of(type, 0);
          int64_t low, high;
          if (!folded_bounds(r, &low, &high)) {
-            vcode_reg_t dir_reg   = lower_range_dir(r, 0);
+            vcode_reg_t dir_reg   = lower_range_dir(r);
             vcode_reg_t left_reg  = lower_range_left(r);
             vcode_reg_t right_reg = lower_range_right(r);
 
@@ -2348,7 +2348,7 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
 
    vcode_reg_t left_reg  = lower_range_left(r);
    vcode_reg_t right_reg = lower_range_right(r);
-   vcode_reg_t kind_reg  = lower_range_dir(r, 0);
+   vcode_reg_t kind_reg  = lower_range_dir(r);
 
    vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, kind_reg);
 
@@ -3245,7 +3245,7 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 
             left_reg  = lower_range_left(r);
             right_reg = lower_range_right(r);
-            dir_reg   = lower_range_dir(r, dim);
+            dir_reg   = lower_range_dir(r);
          }
 
          if (predef == ATTR_LOW)
@@ -4095,7 +4095,7 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
    tree_t r = tree_range(stmt, 0);
    vcode_reg_t left_reg  = lower_range_left(r);
    vcode_reg_t right_reg = lower_range_right(r);
-   vcode_reg_t dir_reg   = lower_range_dir(r, 0);
+   vcode_reg_t dir_reg   = lower_range_dir(r);
    vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
 
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
@@ -4160,7 +4160,7 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
       vcode_select_block(this.test_bb);
    }
 
-   vcode_reg_t dirn_reg  = lower_range_dir(r, 0);
+   vcode_reg_t dirn_reg  = lower_range_dir(r);
    vcode_reg_t step_down = emit_const(vtype, -1);
    vcode_reg_t step_up   = emit_const(vtype, 1);
    vcode_reg_t step_reg  = emit_select(dirn_reg, step_down, step_up);

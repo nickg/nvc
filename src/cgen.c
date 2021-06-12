@@ -2290,7 +2290,11 @@ static void cgen_op_memcmp(int op, cgen_ctx_t *ctx)
    LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
    LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
 
-   LLVMValueRef eq = LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
+   LLVMValueRef eq;
+   if (LLVMGetTypeKind(LLVMTypeOf(l_val)) == LLVMDoubleTypeKind)
+      eq = LLVMBuildFCmp(builder, LLVMRealUEQ, l_val, r_val, "eq");
+   else
+      eq = LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
 
    LLVMValueRef inc = LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
    LLVMBuildStore(builder, inc, i);
