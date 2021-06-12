@@ -3,7 +3,7 @@ nvc = $(nvc_verbose) NVC_IMP_LIB=$(top_builddir)/lib \
 
 nvc_verbose = $(nvc_verbose_@AM_V@)
 nvc_verbose_ = $(nvc_verbose_@AM_DEFAULT_V@)
-nvc_verbose_0 = @echo "  NVC     " $@; NVC_LINK_QUIET=1
+nvc_verbose_0 = @echo "  NVC     " $@;
 
 deps_pp = sed \
 	-e 's|'`echo $(top_srcdir) | sed 's/\./\\\./g'`'|$$(top_srcdir)|g' \

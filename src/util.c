@@ -1434,36 +1434,32 @@ void nvc_rusage(nvc_rusage_t *ru)
 
 void run_program(const char *const *args, size_t n_args)
 {
-   const bool quiet = (getenv("NVC_LINK_QUIET") != NULL);
-
-   if (!quiet) {
-      for (size_t i = 0; i < n_args && args[i]; i++)
-         printf("%s%s", i > 0 ? " " : "", args[i]);
-      printf("\n");
-      fflush(stdout);
-   }
-
 #if defined __CYGWIN__ || defined __MINGW32__
    int status = spawnv(_P_WAIT, args[0], (char *const *)args);
-   if (status != 0)
-      fatal("%s failed with status %d", args[0], status);
 #else  // __CYGWIN__
    pid_t pid = fork();
+   int status = 0;
    if (pid == 0) {
       execv(args[0], (char *const *)args);
       fatal_errno("execv");
    }
    else if (pid > 0) {
-      int status;
       if (waitpid(pid, &status, 0) != pid)
          fatal_errno("waitpid");
 
-      if (WEXITSTATUS(status) != 0)
-         fatal("%s failed with status %d", args[0], WEXITSTATUS(status));
+      status = WEXITSTATUS(status);
    }
    else
       fatal_errno("fork");
 #endif  // __CYGWIN__
+
+   if (status != 0) {
+      for (size_t i = 0; i < n_args && args[i]; i++)
+         fprintf(stderr, "%s%s", i > 0 ? " " : "", args[i]);
+      fprintf(stderr, "\n");
+      fflush(stderr);
+      fatal("%s failed with status %d", args[0], status);
+   }
 }
 
 void file_read_lock(int fd)
