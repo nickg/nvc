@@ -2338,6 +2338,14 @@ static tree_t p_selected_name(tree_t prefix)
       break;
    }
 
+   if (scope_formal_kind(nametab) == F_SUBPROGRAM) {
+      tree_t rref = tree_new(T_RECORD_REF);
+      tree_set_value(rref, prefix);
+      tree_set_ident(rref, suffix);
+      tree_set_loc(rref, CURRENT_LOC);
+      return rref;
+   }
+
    type_t type = solve_types(nametab, prefix, NULL);
 
    if (type_is_access(type)) {

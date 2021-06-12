@@ -615,10 +615,18 @@ static bool sem_check_type_decl(tree_t t)
 
          // Standard specifies type of 'LEFT and 'RIGHT are same
          // as the declared type
-         tree_set_type(tree_left(r), type);
-         tree_set_type(tree_right(r), type);
-         tree_set_type(r, type);
+         switch (tree_subkind(r)) {
+         case RANGE_TO:
+         case RANGE_DOWNTO:
+            tree_set_type(tree_left(r), type);
+            tree_set_type(tree_right(r), type);
+            break;
+         case RANGE_EXPR:
+            tree_set_type(tree_value(r), type);
+            break;
+         }
 
+         tree_set_type(r, type);
          return true;
       }
 
