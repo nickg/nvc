@@ -2206,12 +2206,23 @@ START_TEST(test_resolution)
 }
 END_TEST
 
-START_TEST(test_osvmm1)
+START_TEST(test_osvvm1)
 {
    set_standard(STD_08);
-   input_from_file(TESTDIR "/sem/osvmm1.vhd");
+   input_from_file(TESTDIR "/sem/osvvm1.vhd");
 
    parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_osvvm2)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/osvvm2.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACKAGE);
 
    fail_if_errors();
 }
@@ -2327,7 +2338,8 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_block);
    tcase_add_test(tc_core, test_issue407);
    tcase_add_test(tc_core, test_resolution);
-   tcase_add_test(tc_core, test_osvmm1);
+   tcase_add_test(tc_core, test_osvvm1);
+   tcase_add_test(tc_core, test_osvvm2);
    suite_add_tcase(s, tc_core);
 
    return s;

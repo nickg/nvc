@@ -1334,14 +1334,6 @@ static void binary_op(tree_t expr, tree_t left, tree_t (*right_fn)(void))
    add_param(expr, right, P_POS, NULL);
 }
 
-static bool bare_subprogram_name(void)
-{
-   // Context in which a function name appears as a reference rather
-   // than a call (i.e. before a signature or as a resolution function
-   // name in a subtype declaration)
-   return peek() == tLSQUARE || peek() == tID || peek() == tTICK;
-}
-
 static tree_t implicit_dereference(tree_t t)
 {
    type_t access = type_access(tree_type(t));
@@ -1492,26 +1484,25 @@ static tree_t select_decl(tree_t prefix, ident_t suffix)
       parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
                   istr(tree_ident(prefix)));
    }
-   else if (is_subprogram(d)) {
-      if (bare_subprogram_name()) {
-         // Overload will be resolved after signature has been parsed
-         tree_t ref = tree_new(T_REF);
-         tree_set_ident(ref, qual);
-         tree_set_loc(ref, CURRENT_LOC);
-         return ref;
-      }
-      else {
-         tree_t f = p_function_call(suffix, prefix);
-         tree_set_ident(f, qual);
-         return f;
-      }
+   else if (is_subprogram(d) && peek() != tLSQUARE) {
+      tree_t f = p_function_call(suffix, prefix);
+      tree_set_ident(f, qual);
+      return f;
    }
 
    tree_t ref = tree_new(T_REF);
    tree_set_ident(ref, qual);
-   tree_set_ref(ref, d);
-   tree_set_type(ref, d ? tree_type(d) : type_new(T_NONE));
    tree_set_loc(ref, CURRENT_LOC);
+
+   // If the name is followed by a signature we need to parse that
+   // before resolving the overload
+   const bool need_signature =
+      peek() == tLSQUARE && (is_subprogram(d) || tree_kind(d) == T_ENUM_LIT);
+
+   if (!need_signature) {
+      tree_set_ref(ref, d);
+      tree_set_type(ref, d ? tree_type(d) : type_new(T_NONE));
+   }
 
    return ref;
 }

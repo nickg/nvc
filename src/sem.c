@@ -856,10 +856,9 @@ static bool sem_check_alias(tree_t t)
    if (type_is_none(type))
       return false;
    else if (type_is_subprogram(type)) {
-      // Alias of subprogram
+      // Alias of subprogram or enumeration literal
       // Rules for matching signatures are in LRM 93 section 2.3.2
       assert(tree_kind(value) == T_REF);
-      assert(!tree_has_ref(value) || type_eq(type, tree_type(tree_ref(value))));
    }
    else if (tree_kind(value) == T_REF
             && tree_kind(tree_ref(value)) == T_TYPE_DECL) {

@@ -856,7 +856,7 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
 {
    type_t constraint;
    if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
-      // Reference to subprogram with signature
+      // Reference to subprogram or enumeration literal with signature
 
       ident_t full_name = tree_ident(ref);
       tree_t prefix = NULL;
@@ -882,6 +882,9 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
          full_name = ident_from(full_name, '.');
       }
 
+      const bool allow_enum =
+         type_kind(constraint) == T_FUNC && type_params(constraint) == 0;
+
       bool match = false;
       tree_t decl = NULL;
       for (int n = 0;
@@ -890,12 +893,15 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
            n++) {
          if (is_subprogram(decl))
             match = type_eq(constraint, tree_type(decl));
+         else if (allow_enum && tree_kind(decl) == T_ENUM_LIT)
+            match = type_eq(type_result(constraint), tree_type(decl));
       }
 
       if (!match) {
          const char *signature = strchr(type_pp(constraint), '[');
-         error_at(tree_loc(ref), "no visible subprogram %s matches "
-                  "signature %s", istr(tree_ident(ref)), signature);
+         error_at(tree_loc(ref), "no visible subprogram%s %s matches "
+                  "signature %s", allow_enum ? " or enumeration literal" : "",
+                  istr(tree_ident(ref)), signature);
          return NULL;
       }
       else
