@@ -140,6 +140,7 @@ static type_t p_signature(void);
 static type_t p_type_mark(ident_t name);
 static tree_t p_function_call(ident_t id, tree_t prefix);
 static tree_t p_resolution_indication(void);
+static tree_t p_type_conversion(tree_t tdecl);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -1479,7 +1480,7 @@ static tree_t select_decl(tree_t prefix, ident_t suffix)
 {
    ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
 
-   tree_t d = search_decls(prefix, suffix, 0);
+   tree_t d = search_decls(prefix, suffix, 0), type_decl = NULL;
    if (d == NULL) {
       parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
                   istr(tree_ident(prefix)));
@@ -1489,6 +1490,8 @@ static tree_t select_decl(tree_t prefix, ident_t suffix)
       tree_set_ident(f, qual);
       return f;
    }
+   else if (peek() == tLPAREN && (type_decl = aliased_type_decl(d)))
+      return p_type_conversion(type_decl);
 
    tree_t ref = tree_new(T_REF);
    tree_set_ident(ref, qual);
@@ -2411,7 +2414,7 @@ static tree_t p_indexed_name(tree_t prefix, tree_t head)
    return t;
 }
 
-static tree_t p_type_conversion(ident_t id)
+static tree_t p_type_conversion(tree_t tdecl)
 {
    // type_conversion ::= type_mark ( expression )
 
@@ -2419,10 +2422,10 @@ static tree_t p_type_conversion(ident_t id)
 
    consume(tLPAREN);
 
-   type_t type = p_type_mark(id);
+   assert(tree_kind(tdecl) == T_TYPE_DECL);
 
    tree_t conv = tree_new(T_TYPE_CONV);
-   tree_set_type(conv, type);
+   tree_set_type(conv, tree_type(tdecl));
    tree_set_value(conv, p_expression());
 
    consume(tRPAREN);
@@ -2469,8 +2472,9 @@ static tree_t p_name(void)
       if (class_has_type(class_of(decl)))
          type = tree_type(decl);
 
-      if (peek() == tLPAREN && aliased_type_decl(decl) != NULL)
-         prefix = p_type_conversion(id);
+      tree_t type_decl;
+      if (peek() == tLPAREN && (type_decl = aliased_type_decl(decl)))
+         prefix = p_type_conversion(type_decl);
       else if (type == NULL && peek() == tDOT)
          prefix = decl;
       else if (type != NULL && type_is_subprogram(type))

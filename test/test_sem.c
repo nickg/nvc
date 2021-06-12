@@ -2228,6 +2228,17 @@ START_TEST(test_osvvm2)
 }
 END_TEST
 
+START_TEST(test_osvvm3)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/osvvm3.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_PACK_BODY);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2340,6 +2351,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_resolution);
    tcase_add_test(tc_core, test_osvvm1);
    tcase_add_test(tc_core, test_osvvm2);
+   tcase_add_test(tc_core, test_osvvm3);
    suite_add_tcase(s, tc_core);
 
    return s;
