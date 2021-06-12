@@ -1854,6 +1854,7 @@ static tree_t p_range(tree_t left, type_t constraint)
    if (is_range_expr(left)) {
       tree_set_subkind(r, RANGE_EXPR);
       tree_set_value(r, left);
+      tree_set_loc(r, tree_loc(left));
    }
    else {
       tree_set_left(r, left);
@@ -1869,9 +1870,10 @@ static tree_t p_range(tree_t left, type_t constraint)
          tree_set_right(r, p_expression());
          break;
       }
+
+      tree_set_loc(r, CURRENT_LOC);
    }
 
-   tree_set_loc(r, CURRENT_LOC);
    solve_types(nametab, r, constraint);
    return r;
 }
