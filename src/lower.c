@@ -2229,7 +2229,7 @@ static vcode_reg_t lower_unalias_index(tree_t alias, vcode_reg_t index,
    else {
       // The transformation is a constant offset of indices
       tree_t base_r = range_of(base_type, 0);
-      bleft = lower_reify_expr(tree_left(base_r));
+      bleft = lower_range_left(base_r);
       bdir  = lower_array_dir(base_type, 0, VCODE_INVALID_REG);
    }
 
