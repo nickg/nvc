@@ -3140,6 +3140,9 @@ void emit_wait(vcode_block_t target, vcode_reg_t time)
    vcode_add_target(op, target);
    vcode_add_arg(op, time);
 
+   VCODE_ASSERT(time == VCODE_INVALID_REG
+                || vcode_reg_kind(time) == VCODE_TYPE_INT,
+                "wait time must have integer type");
    VCODE_ASSERT(active_unit->kind == VCODE_UNIT_PROCEDURE
                 || active_unit->kind == VCODE_UNIT_PROCESS,
                 "wait only allowed in process or procedure");
