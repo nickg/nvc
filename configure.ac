@@ -151,7 +151,7 @@ fi
 
 AX_LLVM_C([engine passes ipo linker native])
 
-PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [],
+PKG_CHECK_MODULES([check], [check >= 0.9.4], [],
                   [AC_MSG_WARN(libcheck not found - unit tests will not run)])
 
 debug_backend=

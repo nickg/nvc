@@ -139,6 +139,18 @@ static LLVMTypeRef llvm_char_ptr(void)
    return LLVMPointerType(LLVMInt8Type(), 0);
 }
 
+static LLVMValueRef llvm_ensure_int_bits(LLVMValueRef value, int bits)
+{
+   const int value_bits = LLVMGetIntTypeWidth(LLVMTypeOf(value));
+   if (value_bits < bits)
+      return LLVMBuildZExt(builder, value, LLVMInt32Type(), "");
+   else if (value_bits > bits) {
+      return LLVMBuildTrunc(builder, value, LLVMInt32Type(), "");
+   }
+   else
+      return value;
+}
+
 static LLVMTypeRef llvm_rt_loc(void)
 {
    LLVMTypeRef fields[] = {
@@ -1338,18 +1350,10 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, fail_bb);
 
-   if (value_bits > 32) {
-      // TODO: we should probably pass all the arguments as 64-bit here
-      LLVMTypeRef ll_int32 = LLVMInt32Type();
-      value = LLVMBuildTrunc(builder, value, ll_int32, "");
-      min   = LLVMBuildTrunc(builder, min, ll_int32, "");
-      max   = LLVMBuildTrunc(builder, max, ll_int32, "");
-   }
-
    LLVMValueRef args[] = {
-      value,
-      min,
-      max,
+      llvm_ensure_int_bits(value, 32),
+      llvm_ensure_int_bits(min, 32),
+      llvm_ensure_int_bits(max, 32),
       llvm_int32(vcode_get_subkind(op)),
       cgen_location(op, ctx),
       cgen_hint_str(op),
@@ -1640,6 +1644,9 @@ static void cgen_op_wrap(int op, cgen_ctx_t *ctx)
       LLVMValueRef left  = cgen_get_arg(op, (i * 3) + 1, ctx);
       LLVMValueRef right = cgen_get_arg(op, (i * 3) + 2, ctx);
       LLVMValueRef dir   = cgen_get_arg(op, (i * 3) + 3, ctx);
+
+      left  = llvm_ensure_int_bits(left, 32);
+      right = llvm_ensure_int_bits(right, 32);
 
       LLVMValueRef d = LLVMGetUndef(dim_struct);
       d = LLVMBuildInsertValue(builder, d, left, 0, "");
