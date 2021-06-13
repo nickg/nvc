@@ -1,6 +1,6 @@
 name: Build and test
 
-on: [push, pull_request]
+on: [push, pull_request, release]
 
 jobs:
   build-ubuntu:
@@ -77,3 +77,70 @@ jobs:
         run: make
       - name: Test
         run: make check
+
+  release:
+    name: Release
+    if: github.event_name != 'pull_request'
+    needs: [ build-ubuntu, build-mac, build-windows ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - name: Get version
+        id: version
+        run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
+      - name: Install dependencies
+        run: sudo apt-get install automake flex llvm-dev lcov libdw-dev
+      - name: Generate configure script
+        run: ./autogen.sh
+      - name: Configure
+        run: >-
+          ./configure --enable-vhpi --with-llvm=/usr/bin/llvm-config \
+             --prefix=/opt/nvc-${{ steps.version.outputs.version }}
+      - name: Build
+        run: make
+      - name: Install
+        run: sudo make install
+      - name: Archive
+        run: >-
+          tar -czf nvc-${{ steps.version.outputs.version }}.tar.gz \
+            /opt/nvc-${{ steps.version.outputs.version }}
+      - name: 'Upload artifact'
+        uses: actions/upload-artifact@v2
+        with:
+          name: nvc-${{ steps.version.outputs.version }}
+          path: nvc-${{ steps.version.outputs.version }}.tar.gz
+
+  vests:
+    name: VESTs
+    if: github.event_name != 'pull_request'
+    needs: [ release ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - uses: actions/checkout@v2
+        with:
+          repository: nickg/vests
+          path: vests
+          fetch-depth: 1
+      - name: Get version
+        id: version
+        run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
+      - name: Install dependencies
+        run: sudo apt-get install ruby ruby-colorize llvm libdw1
+      - uses: actions/download-artifact@v2
+        with:
+          name: nvc-${{ steps.version.outputs.version }}
+      - name: Extract pre-built binary
+        run: >-
+          sudo tar -C / -zxvf nvc-${{ steps.version.outputs.version }}.tar.gz
+      - name: Add to PATH
+        run: >-
+          echo /opt/nvc-${{ steps.version.outputs.version }}/bin >> $GITHUB_PATH
+      - name: Check --version output
+        run: nvc --version
+      - name: Run VESTs
+        run: ./test/run_vests.rb $(pwd)/vests
