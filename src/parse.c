@@ -566,6 +566,12 @@ static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
    return &result;
 }
 
+static ident_t error_marker(void)
+{
+   static ident_t id = NULL;
+   return id ?: (id = ident_new("error"));
+}
+
 static tree_t find_unit(const loc_t *where, ident_t name)
 {
    ident_t lname = ident_until(name, '.');
@@ -577,6 +583,8 @@ static tree_t find_unit(const loc_t *where, ident_t name)
 
       return unit;
    }
+   else if (name == error_marker())
+      return NULL;
    else {
       parse_error(where, "missing library clause for %s", istr(lname));
       return NULL;
@@ -588,10 +596,17 @@ tree_t find_binding(tree_t inst)
    if (inst == NULL)
       return NULL;
 
-   ident_t name =
-      tree_kind(inst) == T_BINDING ? tree_ident(inst) : tree_ident2(inst);
+   ident_t name;
+   tree_t ref;
+   if (tree_kind(inst) == T_BINDING) {
+      name = tree_ident(inst);
+      ref  = query_name(nametab, name);
+   }
+   else {
+      name = tree_ident2(inst);
+      ref  = tree_has_ref(inst) ? tree_ref(inst) : query_name(nametab, name);
+   }
 
-   tree_t ref = query_name(nametab, name);
    if (ref != NULL) {
       if (tree_kind(ref) != T_COMPONENT) {
          parse_error(tree_loc(inst), "object %s is not a component declaration",
@@ -1418,12 +1433,12 @@ static type_t positional_actual_type(tree_t unit, unsigned pos,
 {
    switch (kind) {
    case F_GENERIC_MAP:
-      if (pos >= tree_generics(unit))
+      if (unit == NULL || pos >= tree_generics(unit))
          return NULL;
       else
          return tree_type(tree_generic(unit, pos));
    case F_PORT_MAP:
-      if (pos >= tree_ports(unit))
+      if (unit == NULL || pos >= tree_ports(unit))
          return NULL;
       else
          return tree_type(tree_port(unit, pos));
@@ -1504,7 +1519,10 @@ static tree_t select_decl(tree_t prefix, ident_t suffix)
 
    if (!need_signature) {
       tree_set_ref(ref, d);
-      tree_set_type(ref, d ? tree_type(d) : type_new(T_NONE));
+      if (d == NULL)
+         tree_set_type(ref, type_new(T_NONE));
+      else if (class_has_type(class_of(d)))
+         tree_set_type(ref, tree_type(d));
    }
 
    return ref;
@@ -1627,7 +1645,7 @@ static ident_t p_identifier(void)
       return i;
    }
    else
-      return ident_new("error");
+      return error_marker();
 }
 
 static ident_t p_selected_identifier(void)
@@ -2256,7 +2274,7 @@ static tree_t p_attribute_name(tree_t prefix)
       break;
    default:
       one_of(tRANGE, tREVRANGE, tID);
-      id = ident_new("error");
+      id = error_marker();
    }
    tree_set_ident(t, id);
 
@@ -2467,7 +2485,7 @@ static tree_t p_name(void)
 
          tree_t dummy = tree_new(T_REF);
          tree_set_loc(dummy, CURRENT_LOC);
-         tree_set_ident(dummy, ident_new("error"));
+         tree_set_ident(dummy, error_marker());
          tree_set_type(dummy, type_new(T_NONE));
          return dummy;
       }
@@ -3056,7 +3074,7 @@ static ident_t p_logical_operator(void)
    case tXNOR:
       return ident_new("\"xnor\"");
    default:
-      return ident_new("error");
+      return error_marker();
    }
 }
 
@@ -3131,7 +3149,7 @@ static ident_t p_multiplying_operator(void)
    case tREM:
       return ident_new("\"rem\"");
    default:
-      return ident_new("error");
+      return error_marker();
    }
 }
 
@@ -3165,7 +3183,7 @@ static ident_t p_adding_operator(void)
    case tAMP:
       return ident_new("\"&\"");
    default:
-      return ident_new("error");
+      return error_marker();
    }
 }
 
@@ -3177,7 +3195,7 @@ static ident_t p_sign(void)
    case tMINUS:
       return ident_new("\"-\"");
    default:
-      return ident_new("error");
+      return error_marker();
    }
 }
 
@@ -3224,7 +3242,7 @@ static ident_t p_shift_operator(void)
    case tROR:
       return ident_new("\"ror\"");
    default:
-      return ident_new("error");
+      return error_marker();
    }
 }
 
@@ -3281,7 +3299,7 @@ static ident_t p_relational_operator(void)
    case tMGE:
       return ident_new("\"?>=\"");
    default:
-      return ident_new("error");
+      return error_marker();
    }
 }
 
@@ -3327,8 +3345,7 @@ static tree_t p_expression(void)
       case tNAND: op = ident_new("\"nand\""); break;
       case tNOR:  op = ident_new("\"nor\""); break;
       case tXNOR: op = ident_new("\"xnor\""); break;
-      default:
-         op = ident_new("error");
+      default:    op = error_marker();
       }
 
       tree_t left = expr;
@@ -4543,7 +4560,7 @@ static ident_t p_designator(void)
       return p_operator_symbol();
    default:
       expect(tID, tSTRING);
-      return ident_new("error");
+      return error_marker();
    }
 }
 
@@ -6755,7 +6772,7 @@ static tree_t p_sequential_statement(void)
    }
 }
 
-static tree_t p_instantiated_unit(void)
+static tree_t p_instantiated_unit(tree_t name)
 {
    // [ component ] name
    //   | entity name [ ( identifier ) ]
@@ -6784,7 +6801,19 @@ static tree_t p_instantiated_unit(void)
       tree_set_class(t, C_COMPONENT);
    }
 
-   tree_set_ident2(t, p_selected_identifier());
+   if (name != NULL) {
+      if (tree_kind(name) == T_REF) {
+         tree_set_ident2(t, tree_ident(name));
+         if (tree_has_ref(name))
+            tree_set_ref(t, tree_ref(name));
+      }
+      else {
+         parse_error(tree_loc(name), "invalid instantiated unit name");
+         tree_set_ident2(t, error_marker());
+      }
+   }
+   else
+      tree_set_ident2(t, p_selected_identifier());
 
    if ((tree_class(t) == C_ENTITY) && optional(tLPAREN)) {
       tree_set_ident2(t, ident_prefix(tree_ident2(t), p_identifier(), '-'));
@@ -6795,13 +6824,13 @@ static tree_t p_instantiated_unit(void)
    return t;
 }
 
-static tree_t p_component_instantiation_statement(ident_t label)
+static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
 {
    // label : instantiated_unit [ generic_map_aspect ] [ port_map_aspect ] ;
 
    EXTEND("component instantiation statement");
 
-   tree_t t = p_instantiated_unit();
+   tree_t t = p_instantiated_unit(name);
    tree_set_ident(t, label);
 
    tree_t ref = find_binding(t);
@@ -6864,14 +6893,14 @@ static void p_conditional_waveforms(tree_t stmt, type_t constraint)
    }
 }
 
-static tree_t p_conditional_signal_assignment(void)
+static tree_t p_conditional_signal_assignment(tree_t name)
 {
    // target <= options conditional_waveforms ;
 
    BEGIN("conditional signal assignment");
 
    tree_t t = tree_new(T_CASSIGN);
-   tree_t target = p_target(NULL);
+   tree_t target = p_target(name);
    tree_set_target(t, target);
 
    consume(tLE);
@@ -6968,7 +6997,8 @@ static tree_t p_selected_signal_assignment(void)
    return t;
 }
 
-static tree_t p_concurrent_signal_assignment_statement(ident_t label)
+static tree_t p_concurrent_signal_assignment_statement(ident_t label,
+                                                       tree_t name)
 {
    // [ label : ] [ postponed ] conditional_signal_assignment
    //   | [ label : ] [ postponed ] selected_signal_assignment
@@ -6977,9 +7007,13 @@ static tree_t p_concurrent_signal_assignment_statement(ident_t label)
 
    const bool postponed = optional(tPOSTPONED);
 
-   tree_t t = (peek() == tWITH)
-      ? p_selected_signal_assignment()
-      : p_conditional_signal_assignment();
+   tree_t t;
+   if (peek() == tWITH) {
+      assert(name == NULL);
+      t = p_selected_signal_assignment();
+   }
+   else
+      t = p_conditional_signal_assignment(name);
 
    tree_set_loc(t, CURRENT_LOC);
    ensure_labelled(t, label);
@@ -6991,7 +7025,7 @@ static tree_t p_concurrent_signal_assignment_statement(ident_t label)
    return t;
 }
 
-static tree_t p_concurrent_procedure_call_statement(ident_t label)
+static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
 {
    // [ label : ] [ postponed ] procedure_call ;
 
@@ -6999,7 +7033,7 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label)
 
    const bool postponed = optional(tPOSTPONED);
 
-   tree_t t = p_name();
+   tree_t t = name;
 
    const tree_kind_t kind = tree_kind(t);
    if (kind != T_REF && kind != T_FCALL && kind != T_PCALL) {
@@ -7193,22 +7227,20 @@ static tree_t p_concurrent_statement(void)
 
    if (peek() == tID) {
       const token_t p2 = peek_nth(2);
-      if (((label != NULL) && (p2 == tSEMI))
-          || (p2 == tGENERIC) || (p2 == tPORT))
-         return p_component_instantiation_statement(label);
+      if ((label != NULL && p2 == tSEMI) || p2 == tGENERIC || p2 == tPORT)
+         return p_component_instantiation_statement(label, NULL);
       else {
-         const look_params_t lookp = {
-            .look     = { tLE },
-            .stop     = { tSEMI },
-            .nest_in  = tLPAREN,
-            .nest_out = tRPAREN,
-            .depth    = 0
-         };
-
-         if (look_for(&lookp))
-            return p_concurrent_signal_assignment_statement(label);
+         tree_t name = p_name();
+         if (peek() == tLE)
+            return p_concurrent_signal_assignment_statement(label, name);
+         else if (tree_kind(name) == T_REF
+                  && tree_has_ref(name)
+                  && tree_kind(tree_ref(name)) == T_COMPONENT)
+            return p_component_instantiation_statement(label, name);
+         else if (scan(tGENERIC, tPORT))
+            return p_component_instantiation_statement(label, name);
          else
-            return p_concurrent_procedure_call_statement(label);
+            return p_concurrent_procedure_call_statement(label, name);
       }
    }
    else {
@@ -7219,10 +7251,10 @@ static tree_t p_concurrent_statement(void)
       case tCOMPONENT:
       case tENTITY:
       case tCONFIGURATION:
-         return p_component_instantiation_statement(label);
+         return p_component_instantiation_statement(label, NULL);
 
       case tWITH:
-         return p_concurrent_signal_assignment_statement(label);
+         return p_concurrent_signal_assignment_statement(label, NULL);
 
       case tASSERT:
          return p_concurrent_assertion_statement(label);
@@ -7241,7 +7273,7 @@ static tree_t p_concurrent_statement(void)
          return p_generate_statement(label);
 
       case tLPAREN:
-         return p_concurrent_signal_assignment_statement(label);
+         return p_concurrent_signal_assignment_statement(label, NULL);
 
       default:
          expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,

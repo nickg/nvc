@@ -7,6 +7,6 @@ package p is
 
     component foo
         port ( x : inout integer );
-    end component foo;        
-    
+    end component foo;
+
 end package;

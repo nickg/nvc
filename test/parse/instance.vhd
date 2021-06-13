@@ -14,11 +14,20 @@ configuration bar of foo is
     end for;
 end configuration;
 
+package p is
+    component c is
+        port ( x : bit );
+    end component;
+end package;
+
+use work.p;
+
 architecture test of instance is
     component foo is
     end component;
     signal x, c : integer;
     signal s1, s2, s3 : integer;
+    signal v : bit_vector(1 to 3);
 begin
 
     a: foo;
@@ -45,5 +54,9 @@ begin
         port map ( a => open );
 
     i: foo port map ( x );
+
+    j: work.p.c port map ( '1' );
+
+    k: v(1) port map ( x );
 
 end architecture;

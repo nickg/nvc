@@ -1556,9 +1556,15 @@ END_TEST
 
 START_TEST(test_instance)
 {
-   tree_t e, a, s, c;
+   tree_t e, a, s, c, p;
 
    input_from_file(TESTDIR "/parse/instance.vhd");
+
+   const error_t expect[] = {
+      { 60, "invalid instantiated unit name" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
 
    e = parse();
    fail_if(e == NULL);
@@ -1576,10 +1582,14 @@ START_TEST(test_instance)
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
 
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 10);
+   fail_unless(tree_stmts(a) == 12);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_INSTANCE);
@@ -1630,10 +1640,16 @@ START_TEST(test_instance)
    fail_unless(tree_kind(s) == T_INSTANCE);
    fail_unless(tree_class(s) == C_COMPONENT);
 
+   s = tree_stmt(a, 10);
+   fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_class(s) == C_COMPONENT);
+   fail_unless(tree_has_ref(s));
+   fail_unless(tree_loc(tree_ref(s))->first_line == 18);
+
    a = parse();
    fail_unless(a == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -2658,10 +2674,10 @@ START_TEST(test_error)
 
    const error_t expect[] = {
       {  7, "unexpected identifier while parsing concurrent procedure call "
-         "statement, expecting ;" },
+         "statement, expecting one of postponed or ;" },
       {  7, "no visible subprogram declaration for BAD" },
       { 11, "unexpected identifier while parsing concurrent procedure call "
-         "statement, expecting ;" },
+         "statement, expecting one of postponed or ;" },
       { 11, "no visible subprogram declaration for SOME" },
       { 11, "no visible subprogram declaration for BAD" },
       { 17, "unexpected ; while parsing process statement, expecting process" },
