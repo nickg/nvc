@@ -3628,7 +3628,7 @@ static void lower_wait(tree_t wait)
 
    vcode_reg_t delay = VCODE_INVALID_REG;
    if (has_delay)
-      delay = lower_expr(tree_delay(wait), EXPR_RVALUE);
+      delay = lower_reify_expr(tree_delay(wait));
 
    vcode_var_t remain = VCODE_INVALID_VAR;
    if (has_value && has_delay) {
