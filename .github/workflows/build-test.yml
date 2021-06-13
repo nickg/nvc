@@ -144,3 +144,36 @@ jobs:
         run: nvc --version
       - name: Run VESTs
         run: ./test/run_vests.rb $(pwd)/vests
+
+  projects:
+    name: External Projects
+    if: github.event_name != 'pull_request'
+    needs: [ release ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1
+      - uses: actions/checkout@v2
+        with:
+          repository: nickg/vhdl-projects
+          path: vhdl-projects
+          fetch-depth: 1
+      - name: Get version
+        id: version
+        run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
+      - name: Install dependencies
+        run: sudo apt-get install llvm libdw1
+      - uses: actions/download-artifact@v2
+        with:
+          name: nvc-${{ steps.version.outputs.version }}
+      - name: Extract pre-built binary
+        run: >-
+          sudo tar -C / -zxvf nvc-${{ steps.version.outputs.version }}.tar.gz
+      - name: Add to PATH
+        run: >-
+          echo /opt/nvc-${{ steps.version.outputs.version }}/bin >> $GITHUB_PATH
+      - name: Check --version output
+        run: nvc --version
+      - name: Test ZPU
+        run: ./vhdl-projects/zpu/test.sh
