@@ -446,6 +446,20 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
    const bool partial_map = name != NULL;
 
    switch (tree_kind(actual)) {
+   case T_TYPE_CONV:
+      // Only allow simple array type conversions for now
+      {
+         type_t to_type   = tree_type(actual);
+         type_t from_type = tree_type(tree_value(actual));
+
+         if (type_is_array(to_type) && type_is_array(from_type))
+            actual = tree_value(actual);
+         else
+            fatal_at(tree_loc(actual), "sorry, this form of type conversion "
+                     "is not supported as an actual");
+      }
+      // Fall-through
+
    case T_REF:
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:
@@ -506,19 +520,6 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
       }
 
       return elab_open_value(formal);
-
-   case T_TYPE_CONV:
-      // Only allow simple array type conversions for now
-      {
-         type_t to_type   = tree_type(actual);
-         type_t from_type = tree_type(tree_value(actual));
-
-         if (type_is_array(to_type) && type_is_array(from_type))
-            return actual;
-         else
-            fatal_at(tree_loc(actual), "sorry, this form of type conversion "
-                     "is not supported as an actual");
-      }
 
    default:
       fatal_at(tree_loc(actual), "tree %s not supported as actual",
