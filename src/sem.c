@@ -2807,9 +2807,6 @@ static bool sem_check_array_slice(tree_t t)
    if (!sem_check_discrete_range(r, index_type_of(array_type, 0)))
       return false;
 
-   type_t slice_type = tree_type(t);
-   tree_change_range(type_constraint(slice_type), 0, r);   // XXX: really need this?
-
    const bool unconstrained = type_is_unconstrained(array_type);
    const range_kind_t prefix_dir =
       unconstrained ? RANGE_EXPR : direction_of(array_type, 0);

@@ -910,13 +910,6 @@ unsigned tree_ranges(tree_t t)
    return lookup_item(&tree_object, t, I_RANGES)->tree_array.count;
 }
 
-void tree_change_range(tree_t t, unsigned n, tree_t r)
-{
-   item_t *item = lookup_item(&tree_object, t, I_RANGES);
-   assert(n < item->tree_array.count);
-   item->tree_array.items[n] = r;
-}
-
 unsigned tree_pos(tree_t t)
 {
    return lookup_item(&tree_object, t, I_POS)->ival;

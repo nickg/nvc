@@ -431,7 +431,6 @@ void tree_set_subkind(tree_t t, unsigned sub);
 void tree_add_range(tree_t t, tree_t r);
 tree_t tree_range(tree_t t, unsigned n);
 unsigned tree_ranges(tree_t t);
-void tree_change_range(tree_t t, unsigned n, tree_t r);  // XXX: remove
 
 class_t tree_class(tree_t t);
 void tree_set_class(tree_t t, class_t c);
