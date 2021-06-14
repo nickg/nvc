@@ -18,7 +18,6 @@
 #include "type.h"
 #include "tree.h"
 #include "util.h"
-#include "array.h"
 #include "common.h"
 #include "object.h"
 #include "hash.h"
@@ -88,7 +87,11 @@ static const change_allowed_t change_allowed[] = {
    { -1, -1 }
 };
 
-struct type {
+struct _type {
+   object_t object;
+};
+
+struct _tree {
    object_t object;
 };
 
@@ -108,6 +111,26 @@ object_class_t type_object = {
    .tag            = OBJECT_TAG_TYPE,
    .last_kind      = T_LAST_TYPE_KIND
 };
+
+static inline tree_t tree_array_nth(item_t *item, unsigned n)
+{
+   return container_of(AGET(item->obj_array, n), struct _tree, object);
+}
+
+static inline void tree_array_add(item_t *item, tree_t t)
+{
+   APUSH(item->obj_array, &(t->object));
+}
+
+static inline type_t type_array_nth(item_t *item, unsigned n)
+{
+   return container_of(AGET(item->obj_array, n), struct _type, object);
+}
+
+static inline void type_array_add(item_t *item, type_t t)
+{
+   APUSH(item->obj_array, &(t->object));
+}
 
 type_t type_new(type_kind_t kind)
 {
@@ -235,18 +258,18 @@ void type_set_ident(type_t t, ident_t id)
 
 unsigned type_dims(type_t t)
 {
-   return lookup_item(&type_object, t, I_DIMS)->tree_array.count;
+   return lookup_item(&type_object, t, I_DIMS)->obj_array.count;
 }
 
 tree_t type_dim(type_t t, unsigned n)
 {
    item_t *item = lookup_item(&type_object, t, I_DIMS);
-   return tree_array_nth(&(item->tree_array), n);
+   return tree_array_nth(item, n);
 }
 
 void type_add_dim(type_t t, tree_t r)
 {
-   tree_array_add(&(lookup_item(&type_object, t, I_DIMS)->tree_array), r);
+   tree_array_add(lookup_item(&type_object, t, I_DIMS), r);
 }
 
 type_t type_base(type_t t)
@@ -356,51 +379,51 @@ bool type_is_universal(type_t t)
 
 unsigned type_units(type_t t)
 {
-   return lookup_item(&type_object, t, I_UNITS)->tree_array.count;
+   return lookup_item(&type_object, t, I_UNITS)->obj_array.count;
 }
 
 tree_t type_unit(type_t t, unsigned n)
 {
    item_t *item = lookup_item(&type_object, t, I_UNITS);
-   return tree_array_nth(&(item->tree_array), n);
+   return tree_array_nth(item, n);
 }
 
 void type_add_unit(type_t t, tree_t u)
 {
-   tree_array_add(&(lookup_item(&type_object, t, I_UNITS)->tree_array), u);
+   tree_array_add(lookup_item(&type_object, t, I_UNITS), u);
 }
 
 unsigned type_enum_literals(type_t t)
 {
-   return lookup_item(&type_object, t, I_LITERALS)->tree_array.count;
+   return lookup_item(&type_object, t, I_LITERALS)->obj_array.count;
 }
 
 tree_t type_enum_literal(type_t t, unsigned n)
 {
    item_t *item = lookup_item(&type_object, t, I_LITERALS);
-   return tree_array_nth(&(item->tree_array), n);
+   return tree_array_nth(item, n);
 }
 
 void type_enum_add_literal(type_t t, tree_t lit)
 {
    assert(tree_kind(lit) == T_ENUM_LIT);
-   tree_array_add(&(lookup_item(&type_object, t, I_LITERALS)->tree_array), lit);
+   tree_array_add(lookup_item(&type_object, t, I_LITERALS), lit);
 }
 
 unsigned type_params(type_t t)
 {
-   return lookup_item(&type_object, t, I_PTYPES)->type_array.count;
+   return lookup_item(&type_object, t, I_PTYPES)->obj_array.count;
 }
 
 type_t type_param(type_t t, unsigned n)
 {
    item_t *item = lookup_item(&type_object, t, I_PTYPES);
-   return type_array_nth(&(item->type_array), n);
+   return type_array_nth(item, n);
 }
 
 void type_add_param(type_t t, type_t p)
 {
-   type_array_add(&(lookup_item(&type_object, t, I_PTYPES)->type_array), p);
+   type_array_add(lookup_item(&type_object, t, I_PTYPES), p);
 }
 
 unsigned type_fields(type_t t)
@@ -408,7 +431,7 @@ unsigned type_fields(type_t t)
    if (t->object.kind == T_SUBTYPE)
       return type_fields(type_base(t));
    else
-      return lookup_item(&type_object, t, I_FIELDS)->tree_array.count;
+      return lookup_item(&type_object, t, I_FIELDS)->obj_array.count;
 }
 
 tree_t type_field(type_t t, unsigned n)
@@ -417,30 +440,30 @@ tree_t type_field(type_t t, unsigned n)
       return type_field(type_base(t), n);
    else {
       item_t *item = lookup_item(&type_object, t, I_FIELDS);
-      return tree_array_nth(&(item->tree_array), n);
+      return tree_array_nth(item, n);
    }
 }
 
 void type_add_field(type_t t, tree_t p)
 {
-   assert(tree_kind(p) == T_FIELD_DECL);
-   tree_array_add(&(lookup_item(&type_object, t, I_FIELDS)->tree_array), p);
+   assert(p->object.kind == T_FIELD_DECL);
+   tree_array_add(lookup_item(&type_object, t, I_FIELDS), p);
 }
 
 unsigned type_decls(type_t t)
 {
-   return lookup_item(&type_object, t, I_DECLS)->tree_array.count;
+   return lookup_item(&type_object, t, I_DECLS)->obj_array.count;
 }
 
 tree_t type_decl(type_t t, unsigned n)
 {
    item_t *item = lookup_item(&type_object, t, I_DECLS);
-   return tree_array_nth(&(item->tree_array), n);
+   return tree_array_nth(item, n);
 }
 
 void type_add_decl(type_t t, tree_t p)
 {
-   tree_array_add(&(lookup_item(&type_object, t, I_DECLS)->tree_array), p);
+   tree_array_add(lookup_item(&type_object, t, I_DECLS), p);
 }
 
 type_t type_result(type_t t)
@@ -457,52 +480,52 @@ void type_set_result(type_t t, type_t r)
 
 unsigned type_index_constrs(type_t t)
 {
-   return lookup_item(&type_object, t, I_INDEXCON)->type_array.count;
+   return lookup_item(&type_object, t, I_INDEXCON)->obj_array.count;
 }
 
 void type_add_index_constr(type_t t, type_t c)
 {
-   type_array_add(&(lookup_item(&type_object, t, I_INDEXCON)->type_array), c);
+   type_array_add(lookup_item(&type_object, t, I_INDEXCON), c);
 }
 
 type_t type_index_constr(type_t t, unsigned n)
 {
    item_t *item = lookup_item(&type_object, t, I_INDEXCON);
-   return type_array_nth(&(item->type_array), n);
+   return type_array_nth(item, n);
 }
 
 void type_set_constraint(type_t t, tree_t c)
 {
-   lookup_item(&type_object, t, I_CONSTR)->tree = c;
+   lookup_item(&type_object, t, I_CONSTR)->object = &(c->object);
 }
 
 bool type_has_constraint(type_t t)
 {
-   return lookup_item(&type_object, t, I_CONSTR)->tree != NULL;
+   return lookup_item(&type_object, t, I_CONSTR)->object != NULL;
 }
 
 tree_t type_constraint(type_t t)
 {
    item_t *item = lookup_item(&type_object, t, I_CONSTR);
-   assert(item->tree != NULL);
-   return item->tree;
+   assert(item->object != NULL);
+   return container_of(item->object, struct _tree, object);
 }
 
 void type_set_resolution(type_t t, tree_t r)
 {
-   lookup_item(&type_object, t, I_RESOLUTION)->tree = r;
+   lookup_item(&type_object, t, I_RESOLUTION)->object = &(r->object);
 }
 
 bool type_has_resolution(type_t t)
 {
-   return lookup_item(&type_object, t, I_RESOLUTION)->tree != NULL;
+   return lookup_item(&type_object, t, I_RESOLUTION)->object != NULL;
 }
 
 tree_t type_resolution(type_t t)
 {
    item_t *item = lookup_item(&type_object, t, I_RESOLUTION);
-   assert(item->tree != NULL);
-   return item->tree;
+   assert(item->object != NULL);
+   return container_of(item->object, struct _tree, object);
 }
 
 type_t type_access(type_t t)
@@ -532,22 +555,22 @@ tree_t type_body(type_t t)
 {
    assert(t->object.kind == T_PROTECTED);
    item_t *item = lookup_item(&type_object, t, I_REF);
-   assert(item->tree);
-   return item->tree;
+   assert(item->object);
+   return container_of(item->object, struct _tree, object);
 }
 
 void type_set_body(type_t t, tree_t b)
 {
    assert(t->object.kind == T_PROTECTED);
    item_t *item = lookup_item(&type_object, t, I_REF);
-   item->tree = b;
+   item->object = &(b->object);
 }
 
 bool type_has_body(type_t t)
 {
    assert(t->object.kind == T_PROTECTED);
    item_t *item = lookup_item(&type_object, t, I_REF);
-   return (item->tree != NULL);
+   return (item->object != NULL);
 }
 
 const char *type_pp2(type_t t, type_t other)

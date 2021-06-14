@@ -19,7 +19,6 @@
 #include "util.h"
 #include "common.h"
 #include "hash.h"
-#include "array.h"
 #include "loc.h"
 
 #include <assert.h>

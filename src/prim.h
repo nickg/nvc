@@ -22,8 +22,8 @@
 #include <stddef.h>
 
 typedef struct trie *ident_t;
-typedef struct tree *tree_t;
-typedef struct type *type_t;
+typedef struct _tree *tree_t;
+typedef struct _type *type_t;
 typedef struct loc loc_t;
 
 typedef struct tree_wr_ctx *tree_wr_ctx_t;

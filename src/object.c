@@ -21,10 +21,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-DEFINE_ARRAY(tree);
-DEFINE_ARRAY(netid);
-DEFINE_ARRAY(type);
-
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE",    "I_TARGET",
    "I_LITERAL",  "I_IDENT2",    "I_DECLS",    "I_STMTS",      "I_PORTS",
@@ -32,10 +28,10 @@ static const char *item_text_map[] = {
    "I_TYPE",     "I_SUBKIND",   "I_DELAY",    "I_REJECT",     "I_POS",
    "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT",    "I_TRIGGERS",
    "I_ELSES",    "I_CLASS",     "I_RANGES",   "I_NAME",       "I_NETS",
-   "I_DVAL",     "I_SPEC",      "I_???",      "I_CONSTR",     "I_BASE",
+   "I_DVAL",     "I_SPEC",      "I_SCOPES",   "I_INDEXCON",   "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_???",
-   "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CONSTR2",    "I_FLAGS",
+   "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CONSTR",     "I_FLAGS",
    "I_???",      "I_LEFT",      "I_RIGHT"
 };
 
@@ -174,8 +170,8 @@ void object_one_time_init(void)
       object_init(&type_object);
 
       // Increment this each time a incompatible change is made to the
-      // on-disk format not expressed in the tree and type items table
-      const uint32_t format_fudge = 13;
+      // on-disk format not expressed in the object items table
+      const uint32_t format_fudge = 14;
 
       format_digest += format_fudge * UINT32_C(2654435761);
 
@@ -211,10 +207,8 @@ static void object_sweep(object_t *object)
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
-         if (ITEM_TREE_ARRAY & mask)
-            free(object->items[n].tree_array.items);
-         else if (ITEM_TYPE_ARRAY & mask)
-            free(object->items[n].type_array.items);
+         if (ITEM_OBJ_ARRAY & mask)
+            free(object->items[n].obj_array.items);
          else if (ITEM_NETID_ARRAY & mask)
             free(object->items[n].netid_array.items);
          else if (ITEM_ATTRS & mask)
@@ -309,20 +303,12 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
       if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
          if (ITEM_IDENT & mask)
             ;
-         else if (ITEM_TREE & mask)
-            object_visit((object_t *)object->items[i].tree, ctx);
-         else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(object->items[i].tree_array);
-            for (unsigned j = 0; j < a->count; j++)
-               object_visit((object_t *)a->items[j], ctx);
+         else if (ITEM_OBJECT & mask)
+            object_visit(object->items[i].object, ctx);
+         else if (ITEM_OBJ_ARRAY & mask) {
+            for (unsigned j = 0; j < object->items[i].obj_array.count; j++)
+               object_visit(object->items[i].obj_array.items[j], ctx);
          }
-         else if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(object->items[i].type_array);
-            for (unsigned j = 0; j < a->count; j++)
-               object_visit((object_t *)a->items[j], ctx);
-         }
-         else if (ITEM_TYPE & mask)
-            object_visit((object_t *)object->items[i].type, ctx);
          else if (ITEM_INT64 & mask)
             ;
          else if (ITEM_INT32 & mask)
@@ -381,37 +367,29 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       if (has & mask & ~skip_mask) {
          if (ITEM_IDENT & mask)
             ;
-         else if (ITEM_TREE & mask)
-            object->items[n].tree =
-               (tree_t)object_rewrite((object_t *)object->items[n].tree, ctx);
-         else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(object->items[n].tree_array);
-
-            for (size_t i = 0; i < a->count; i++)
-               a->items[i] =
-                  (tree_t)object_rewrite((object_t *)a->items[i], ctx);
-
-            // If an item was rewritten to NULL then delete it
-            size_t n = 0;
-            for (size_t i = 0; i < a->count; i++) {
-               if (a->items[i] != NULL)
-                  a->items[n++] = a->items[i];
+         else if (ITEM_OBJECT & mask) {
+            object_t *o = object->items[n].object;
+            if (o != NULL && o->tag == OBJECT_TAG_TYPE)
+               type_item = n;
+            else {
+               object->items[n].object = object_rewrite(o, ctx);
             }
-            a->count = n;
          }
-         else if (ITEM_TYPE & mask)
-            type_item = n;
+         else if (ITEM_OBJ_ARRAY & mask) {
+            unsigned wptr = 0;
+            for (size_t i = 0; i < object->items[n].obj_array.count; i++) {
+               object_t *o = object->items[n].obj_array.items[i];
+               if ((o = object_rewrite(o, ctx)))
+                  object->items[n].obj_array.items[wptr++] = o;
+            }
+            ATRIM(object->items[n].obj_array, wptr);
+         }
          else if (ITEM_INT64 & mask)
             ;
          else if (ITEM_INT32 & mask)
             ;
          else if (ITEM_DOUBLE & mask)
             ;
-         else if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(object->items[n].type_array);
-            for (unsigned i = 0; i < a->count; i++)
-               (void)object_rewrite((object_t *)a->items[i], ctx);
-         }
          else
             item_without_type(mask);
       }
@@ -476,7 +454,8 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
    object->generation = ctx->generation;
    object->index      = (ctx->n_objects)++;
 
-   write_u16(object->kind, ctx->file);
+   const uint16_t marker = (object->tag & 0xf) << 12 | (object->kind & 0xfff);
+   write_u16(marker, ctx->file);
 
    if (object->tag == OBJECT_TAG_TREE)
       loc_write(&object->loc, ctx->loc_ctx);
@@ -490,31 +469,23 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
       if (has & mask) {
          if (ITEM_IDENT & mask)
             ident_write(object->items[n].ident, ctx->ident_ctx);
-         else if (ITEM_TREE & mask)
-            object_write((object_t *)object->items[n].tree, ctx);
-         else if (ITEM_TYPE & mask)
-            object_write((object_t *)object->items[n].type, ctx);
-         else if (ITEM_TREE_ARRAY & mask) {
-            const tree_array_t *a = &(object->items[n].tree_array);
-            write_u32(a->count, ctx->file);
-            for (unsigned i = 0; i < a->count; i++)
-               object_write((object_t *)a->items[i], ctx);
-         }
-         else if (ITEM_TYPE_ARRAY & mask) {
-            const type_array_t *a = &(object->items[n].type_array);
-            write_u16(a->count, ctx->file);
-            for (unsigned i = 0; i < a->count; i++)
-               object_write((object_t *)a->items[i], ctx);
+         else if (ITEM_OBJECT & mask)
+            object_write(object->items[n].object, ctx);
+         else if (ITEM_OBJ_ARRAY & mask) {
+            const unsigned count = object->items[n].obj_array.count;
+            write_u32(count, ctx->file);
+            for (unsigned i = 0; i < count; i++)
+               object_write(object->items[n].obj_array.items[i], ctx);
          }
          else if (ITEM_INT64 & mask)
             write_u64(object->items[n].ival, ctx->file);
          else if (ITEM_INT32 & mask)
             write_u32(object->items[n].ival, ctx->file);
          else if (ITEM_NETID_ARRAY & mask) {
-            const netid_array_t *a = &(object->items[n].netid_array);
-            write_u32(a->count, ctx->file);
-            for (unsigned i = 0; i < a->count; i++)
-               write_u32(a->items[i], ctx->file);
+            const unsigned count = object->items[n].netid_array.count;
+            write_u32(count, ctx->file);
+            for (unsigned i = 0; i < count; i++)
+               write_u32(object->items[n].netid_array.items[i], ctx->file);
          }
          else if (ITEM_DOUBLE & mask)
             write_double(object->items[n].dval, ctx->file);
@@ -572,7 +543,7 @@ void object_write_end(object_wr_ctx_t *ctx)
    free(ctx);
 }
 
-object_t *object_read(object_rd_ctx_t *ctx, int tag)
+object_t *object_read(object_rd_ctx_t *ctx)
 {
    uint16_t marker = read_u16(ctx->file);
    if (marker == UINT16_C(0xffff))
@@ -584,11 +555,15 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
       return ctx->store[index];
    }
 
+   const unsigned tag = (marker >> 12) & 0xf;
+   assert(tag < OBJECT_TAG_COUNT);
+
    const object_class_t *class = classes[tag];
 
-   assert(marker < class->last_kind);
+   const unsigned kind = marker & 0xfff;
+   assert(kind < class->last_kind);
 
-   object_t *object = object_new(class, marker);
+   object_t *object = object_new(class, kind);
 
    if (tag == OBJECT_TAG_TREE)
       loc_read(&(object->loc), ctx->loc_ctx);
@@ -610,31 +585,25 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
       if (has & mask) {
          if (ITEM_IDENT & mask)
             object->items[n].ident = ident_read(ctx->ident_ctx);
-         else if (ITEM_TREE & mask)
-            object->items[n].tree = (tree_t)object_read(ctx, OBJECT_TAG_TREE);
-         else if (ITEM_TYPE & mask)
-            object->items[n].tree = (tree_t)object_read(ctx, OBJECT_TAG_TYPE);
-         else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(object->items[n].tree_array);
-            tree_array_resize(a, read_u32(ctx->file), 0);
-            for (unsigned i = 0; i < a->count; i++)
-               a->items[i] = (tree_t)object_read(ctx, OBJECT_TAG_TREE);
-         }
-         else if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(object->items[n].type_array);
-            type_array_resize(a, read_u16(ctx->file), 0);
-            for (unsigned i = 0; i < a->count; i++)
-               a->items[i] = (type_t)object_read(ctx, OBJECT_TAG_TYPE);
+         else if (ITEM_OBJECT & mask)
+            object->items[n].object = object_read(ctx);
+         else if (ITEM_OBJ_ARRAY & mask) {
+            const unsigned count = read_u32(ctx->file);
+            ARESIZE(object->items[n].obj_array, count);
+            for (unsigned i = 0; i < count; i++) {
+               object_t *o = object_read(ctx);
+               object->items[n].obj_array.items[i] = o;
+            }
          }
          else if (ITEM_INT64 & mask)
             object->items[n].ival = read_u64(ctx->file);
          else if (ITEM_INT32 & mask)
             object->items[n].ival = read_u32(ctx->file);
          else if (ITEM_NETID_ARRAY & mask) {
-            netid_array_t *a = &(object->items[n].netid_array);
-            netid_array_resize(a, read_u32(ctx->file), 0xff);
-            for (unsigned i = 0; i < a->count; i++)
-               a->items[i] = read_u32(ctx->file);
+            const unsigned count = read_u32(ctx->file);
+            ARESIZE(object->items[n].netid_array, count);
+            for (unsigned i = 0; i < count; i++)
+               object->items[n].netid_array.items[i] = read_u32(ctx->file);
          }
          else if (ITEM_DOUBLE & mask)
             object->items[n].dval = read_double(ctx->file);
@@ -661,8 +630,7 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
                   break;
 
                case A_TREE:
-                  attrs->table[i].tval =
-                     (tree_t)object_read(ctx, OBJECT_TAG_TREE);
+                  attrs->table[i].tval = (tree_t)object_read(ctx);
                   break;
 
                default:
@@ -749,25 +717,21 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
       if (has & mask) {
          if (ITEM_IDENT & mask)
             ;
-         else if (ITEM_TREE & mask)
-            marked = object_copy_mark((object_t *)object->items[n].tree, ctx)
-               || marked;
+         else if (ITEM_OBJECT & mask) {
+            object_t *o = object->items[n].object;
+            if (o != NULL && o->tag == OBJECT_TAG_TYPE)
+               type_item = n;
+            else
+               marked = object_copy_mark(o, ctx) || marked;
+         }
          else if (ITEM_DOUBLE & mask)
             ;
-         else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(object->items[n].tree_array);
-            for (unsigned i = 0; i < a->count; i++)
-               marked = object_copy_mark((object_t *)a->items[i], ctx)
-                  || marked;
+         else if (ITEM_OBJ_ARRAY & mask) {
+            for (unsigned i = 0; i < object->items[n].obj_array.count; i++) {
+               object_t *o = object->items[n].obj_array.items[i];
+               marked = object_copy_mark(o, ctx) || marked;
+            }
          }
-         else if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(object->items[n].type_array);
-            for (unsigned i = 0; i < a->count; i++)
-               marked = object_copy_mark((object_t *)a->items[i], ctx)
-                  || marked;
-         }
-         else if (ITEM_TYPE & mask)
-            type_item = n;
          else if (ITEM_INT64 & mask)
             ;
          else if (ITEM_INT32 & mask)
@@ -784,7 +748,7 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
 
    // Check type last as it may contain a circular reference
    if (type_item != -1)
-      marked = object_copy_mark((object_t *)object->items[type_item].type, ctx)
+      marked = object_copy_mark(object->items[type_item].object, ctx)
          || marked;
 
    if (marked && (object->index == UINT32_MAX))
@@ -824,34 +788,30 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
       if (has & mask) {
          if (ITEM_IDENT & mask)
             copy->items[n].ident = object->items[n].ident;
-         else if (ITEM_TREE & mask)
-            copy->items[n].tree = (tree_t)
-               object_copy_sweep((object_t *)object->items[n].tree, ctx);
+         else if (ITEM_OBJECT & mask)
+            copy->items[n].object =
+               object_copy_sweep(object->items[n].object, ctx);
          else if (ITEM_DOUBLE & mask)
             copy->items[n].dval = object->items[n].dval;
-         else if (ITEM_TREE_ARRAY & mask) {
-            const tree_array_t *from = &(object->items[n].tree_array);
-            tree_array_t *to = &(copy->items[n].tree_array);
-
-            tree_array_resize(to, from->count, 0);
-
-            for (size_t i = 0; i < from->count; i++)
-               to->items[i] = (tree_t)
-                  object_copy_sweep((object_t *)from->items[i], ctx);
+         else if (ITEM_OBJ_ARRAY & mask) {
+            const item_t *from = &(object->items[n]);
+            item_t *to = &(copy->items[n]);
+            ARESIZE(to->obj_array, from->obj_array.count);
+            for (size_t i = 0; i < from->obj_array.count; i++) {
+               object_t *o = object_copy_sweep(from->obj_array.items[i], ctx);
+               to->obj_array.items[i] = o;
+            }
          }
-         else if (ITEM_TYPE & mask)
-            copy->items[n].type = (type_t)
-               object_copy_sweep((object_t *)object->items[n].type, ctx);
          else if ((ITEM_INT64 & mask) || (ITEM_INT32 & mask))
             copy->items[n].ival = object->items[n].ival;
          else if (ITEM_NETID_ARRAY & mask) {
-            const netid_array_t *from = &(object->items[n].netid_array);
-            netid_array_t *to = &(copy->items[n].netid_array);
+            const item_t *from = &(object->items[n]);
+            item_t *to = &(copy->items[n]);
 
-            netid_array_resize(to, from->count, 0xff);
+            ARESIZE(to->netid_array, from->netid_array.count);
 
-            for (unsigned i = 0; i < from->count; i++)
-               to->items[i] = from->items[i];
+            for (unsigned i = 0; i < from->netid_array.count; i++)
+               to->netid_array.items[i] = from->netid_array.items[i];
          }
          else if (ITEM_ATTRS & mask) {
             if ((copy->items[n].attrs.num = object->items[n].attrs.num) > 0) {
@@ -862,16 +822,6 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
                   copy->items[n].attrs.table[i] =
                      object->items[n].attrs.table[i];
             }
-         }
-         else if (ITEM_TYPE_ARRAY & mask) {
-            const type_array_t *from = &(object->items[n].type_array);
-            type_array_t *to = &(copy->items[n].type_array);
-
-            type_array_resize(to, from->count, 0);
-
-            for (unsigned i = 0; i < from->count; i++)
-               to->items[i] = (type_t)
-                  object_copy_sweep((object_t *)from->items[i], ctx);
          }
          else
             item_without_type(mask);

@@ -27,8 +27,8 @@
 #include "util.h"
 #include "ident.h"
 #include "loc.h"
-#include "array.h"
 #include "debug.h"
+#include "array.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -1651,10 +1651,22 @@ char *unsafe_symbol(const char *text)
 #endif
 }
 
-void _cleanup_array(void *ptr)
+void __cleanup_array(void *ptr)
 {
    A(void *) *a = ptr;
    ACLEAR(*a);
+}
+
+void *__array_resize_slow(void *ptr, uint32_t count, size_t size)
+{
+   if (count == 0) {
+      free(ptr);
+      return NULL;
+   }
+   else {
+      const int limit = MAX(next_power_of_2(count), ARRAY_BASE_SZ);
+      return xrealloc_array(ptr, limit, size);
+   }
 }
 
 unsigned error_count(void)

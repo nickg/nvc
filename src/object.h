@@ -19,9 +19,9 @@
 #define _OBJECT_H
 
 #include "util.h"
-#include "array.h"
 #include "tree.h"
 #include "type.h"
+#include "array.h"
 #include "loc.h"
 
 #include <stdint.h>
@@ -66,7 +66,7 @@ typedef uint64_t imask_t;
 #define I_NETS       ONE_HOT(29)
 #define I_DVAL       ONE_HOT(30)
 #define I_SPEC       ONE_HOT(31)
-//#define I_???        ONE_HOT(32)
+#define I_SCOPES     ONE_HOT(32)
 #define I_INDEXCON   ONE_HOT(33)
 #define I_BASE       ONE_HOT(34)
 #define I_ELEM       ONE_HOT(35)
@@ -89,31 +89,32 @@ typedef uint64_t imask_t;
 #define I_RIGHT      ONE_HOT(52)
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
-#define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET   \
+#define ITEM_OBJECT      (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET   \
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE    \
                           | I_NAME | I_SPEC | I_RESOLUTION | I_CONSTR   \
-                          | I_LEFT | I_RIGHT)
-#define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
+                          | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
+                          | I_ACCESS | I_RESULT | I_FILE)
+#define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS   \
                           | I_GENMAPS | I_ASSOCS | I_CONTEXT | I_LEFT   \
                           | I_RIGHT | I_LITERALS | I_FIELDS | I_UNITS   \
-                          | I_CHARS | I_DIMS | I_RANGES)
-#define ITEM_TYPE        (I_TYPE | I_BASE | I_ELEM | I_ACCESS | I_RESULT \
-                          | I_FILE)
+                          | I_CHARS | I_DIMS | I_RANGES | I_PTYPES      \
+                          | I_INDEXCON)
 #define ITEM_INT64       (I_POS | I_IVAL)
 #define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
 #define ITEM_NETID_ARRAY (I_NETS)
 #define ITEM_DOUBLE      (I_DVAL)
-#define ITEM_TYPE_ARRAY  (I_PTYPES | I_INDEXCON)
 #define ITEM_ATTRS       (I_ATTRS)
 
-#define OBJECT_TAG_TREE  0
-#define OBJECT_TAG_TYPE  1
+enum {
+   OBJECT_TAG_TREE   = 0,
+   OBJECT_TAG_TYPE   = 1,
+   OBJECT_TAG_E_NODE = 2,
 
-DECLARE_ARRAY(netid);
-DECLARE_ARRAY(tree);
-DECLARE_ARRAY(type);
-DECLARE_ARRAY(ident);
+   OBJECT_TAG_COUNT
+};
+
+typedef struct _object object_t;
 
 #define lookup_item(class, t, mask) ({                                  \
          assert((t) != NULL);                                           \
@@ -157,29 +158,27 @@ typedef struct {
 } attr_tab_t;
 
 typedef union {
-   ident_t        ident;
-   tree_t         tree;
-   tree_array_t   tree_array;
-   type_t         type;
-   unsigned       subkind;
-   int64_t        ival;
-   double         dval;
-   netid_array_t  netid_array;
-   text_buf_t    *text_buf;
-   type_array_t   type_array;
-   attr_tab_t     attrs;
-   ident_array_t  ident_array;
-   char          *text;
+   ident_t       ident;
+   object_t     *object;
+   A(object_t*)  obj_array;
+   type_t        type;
+   unsigned      subkind;
+   int64_t       ival;
+   double        dval;
+   A(netid_t)    netid_array;
+   text_buf_t   *text_buf;
+   attr_tab_t    attrs;
+   char         *text;
 } item_t;
 
-typedef struct {
+struct _object {
    uint8_t      kind;
    uint8_t      tag;
    generation_t generation;
    index_t      index;
    loc_t        loc;
    item_t       items[0];
-} object_t;
+};
 
 typedef struct {
    generation_t    generation;
@@ -265,6 +264,6 @@ void object_write_end(object_wr_ctx_t *ctx);
 
 object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname);
 void object_read_end(object_rd_ctx_t *ctx);
-object_t *object_read(object_rd_ctx_t *ctx, int tag);
+object_t *object_read(object_rd_ctx_t *ctx);
 
 #endif   // _OBJECT_H

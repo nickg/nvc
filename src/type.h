@@ -69,7 +69,7 @@ tree_t type_dim(type_t t, unsigned n);
 void type_add_dim(type_t t, tree_t r);
 
 unsigned type_enum_literals(type_t t);
-struct tree *type_enum_literal(type_t t, unsigned n);
+tree_t type_enum_literal(type_t t, unsigned n);
 void type_enum_add_literal(type_t t, tree_t lit);
 
 unsigned type_units(type_t t);

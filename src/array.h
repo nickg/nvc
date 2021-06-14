@@ -95,20 +95,25 @@
 
 #define A(type) struct { type *items; uint32_t count; }
 
-void _cleanup_array(void *ptr);
+void __cleanup_array(void *ptr);
+void *__array_resize_slow(void *ptr, uint32_t count, size_t size);
 
 #define SCOPED_A(type) \
-    __attribute__((cleanup(_cleanup_array))) A(type)
+    __attribute__((cleanup(__cleanup_array))) A(type)
 
 #define AINIT { .items = NULL, .count = 0 }
 
 #define APUSH(a, item) do {                                             \
-      if (unlikely(((a).count & ((a).count - 1)) == 0)) {               \
-         const int sz = MAX(next_power_of_2((a).count + 1),             \
-                            ARRAY_BASE_SZ);                             \
-         (a).items = xrealloc((a).items, sizeof((item)) * sz);          \
-      }                                                                 \
+      if (unlikely(((a).count & ((a).count - 1)) == 0))                 \
+         (a).items = __array_resize_slow((a).items, (a).count + 1,      \
+                                         sizeof((a).items[0]));         \
       (a).items[(a).count++] = (item);                                  \
+   } while (0)
+
+#define ARESIZE(a, newsize) do {                                        \
+      (a).items = __array_resize_slow((a).items, newsize,               \
+                                      sizeof((a).items[0]));            \
+      (a).count = (newsize);                                            \
    } while (0)
 
 #define APOP(a) ({                              \

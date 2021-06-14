@@ -135,7 +135,7 @@ void jit_init(tree_t top);
 void jit_shutdown(void);
 void *jit_find_symbol(const char *name, bool required);
 
-text_buf_t *pprint(struct tree *t, const uint64_t *values, size_t len);
+text_buf_t *pprint(tree_t t, const uint64_t *values, size_t len);
 
 void fst_init(const char *file, tree_t top, fst_output_t output);
 void fst_restart(void);
