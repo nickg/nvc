@@ -4,11 +4,28 @@
 Status](https://github.com/nickg/nvc/workflows/Build%20and%20test/badge.svg?branch=master)](https://github.com/nickg/nvc/actions)
 [![Coverage Status](https://coveralls.io/repos/github/nickg/nvc/badge.svg?branch=master)](https://coveralls.io/github/nickg/nvc?branch=master)
 
-NVC is a GPLv3 VHDL compiler and simulator aiming for IEEE 1076-2002 compliance. See
-these [blog posts](http://www.doof.me.uk/category/vhdl/) for background
-information. NVC has been successfully used to simulate several real-world designs.
+NVC is a [VHDL](https://en.wikipedia.org/wiki/VHDL) compiler and
+simulator.
 
-Brief usage example:
+NVC is currently under active development but VHDL-2002 support is
+largely complete and it has been successfully used to simulate several
+real-world designs.
+
+NVC has a particular emphasis on simulation performance and uses
+[LLVM](https://llvm.org/) to compile VHDL to native machine code.
+
+NVC is not a synthesizer.  That is, it does not output something that
+could be used to program an FPGA or ASIC.  It implements only the
+simulation behaviour of the language as described by the [IEEE
+1076](https://standards.ieee.org/standard/1076-2019.html) standard.
+
+### Usage
+
+Simulating a VHDL hardware design involves three steps: _analysing_ the
+source files; _elaborating_ the design; and _running_ the
+simulation.  This is analogous to compiling, linking, and executing a
+software program.  With NVC these steps are accomplished using the `-a`,
+`-e`, and `-r` commands:
 
     $ nvc -a my_design.vhd my_tb.vhd
     $ nvc -e my_tb
@@ -18,25 +35,51 @@ Or more succinctly, as a single command:
 
     $ nvc -a my_design.vhd my_tb.vhd -e my_tb -r
 
+Where `my_tb` is the name of the top-level test-bench entity.
+
 The full manual can be read after installation using `man nvc` or
 [online](https://www.nickg.me.uk/nvc/nvc.1.html).
 
-Report bugs to [nick@nickg.me.uk](mailto:nick+nvc@nickg.me.uk) or using
-the [GitHub issue tracker](https://github.com/nickg/nvc/issues).  Please
-include enough information to reproduce the problem, ideally with a
-small VHDL test case.
+### License
+
+This program is [free
+software](https://www.gnu.org/philosophy/free-sw.en.html) distributed
+under the terms of the GNU General Public License version 3 or later.
+You may use, modify, and redistribute the program as you wish but if you
+distribute modifications you must preserve the license text and
+copyright notices, and also make the modified source code available to
+your users.
+
+The source files for the IEEE standard libraries are included in the
+repository.  These were originally provided under a proprietary license
+that forbid distribution of modifications, but in 2019 were relicensed
+under Apache 2.0.  Freely redistributable versions of the 1993 libraries
+were made by editing and removing declarations from the 2019 libraries,
+and so are also licensed under Apache 2.0.
+
+The VITAL libraries are distributed under `lib/vital`.  These were
+derived from draft copies of the packages freely available on the
+internet.  The license status of these is unclear as the final text is
+part of the VITAL standard which must be purchased from the IEEE.
 
 ### Installing
 
-NVC is developed on Debian Linux and is regularly tested on macOS and Windows
-under MSYS2. Ports to other systems are welcome.
+NVC is developed under GNU/Linux and is regularly tested on macOS and
+Windows under MSYS2.
 
-NVC has both a release branch and a development master branch. The master branch
-should be stable enough for day-to-day use and has comprehensive regression tests,
-but the release branch is more suitable for third party packaging. The latest
-released version is
+On macOS NVC can be installed with `brew install nvc`.  NVC is also
+packaged for [FreeBSD](https://www.freshports.org/cad/nvc), [GNU
+Guix](https://www.freshports.org/cad/nvc), and Arch Linux
+[AUR](https://www.freshports.org/cad/nvc).  Users of other systems
+should build from source.
+
+NVC has both a release branch and a development master branch. The
+master branch should be stable enough for day-to-day use and has
+comprehensive regression tests, but the release branch is more suitable
+for third party packaging.  The latest released version is
 [1.5.1](https://github.com/nickg/nvc/releases/download/r1.5.1/nvc-1.5.1.tar.gz).
-Significant changes since the last release are detailed in [HISTORY.md](HISTORY.md).
+Significant changes since the last release are detailed in
+[HISTORY.md](HISTORY.md).
 
 To build from a Git clone:
 
@@ -44,9 +87,10 @@ To build from a Git clone:
     mkdir build && cd build
     ../configure
     make
-    make install
+    sudo make install
 
-Generating the configure script requires autoconf 2.63 and automake 1.11 or later.
+Generating the configure script requires autoconf 2.63 and automake 1.11
+or later.
 
 To build from a released tarball:
 
@@ -58,83 +102,25 @@ To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
 to the configure command.  The minimum supported LLVM version is 7.0.
 Versions 7, 8, 9, 10, 11 and 12 have all been tested.
 
+On Linux the `libdw` or `libdwarf` libraries can be used to generate
+more accurate VHDL stack traces if installed.
+
 NVC also depends on Flex to generate the lexical analyser.
-
-[GtkWave](http://gtkwave.sourceforge.net/) can be used to view simulation
-waveforms. Version 3.3.79 or later is required for the default FST format.
-
-#### Debian and Ubuntu
 
 On a Debian derivative the following should be sufficient to install all
 required dependencies:
 
     sudo apt-get install build-essential automake autoconf \
-        flex check llvm-dev pkg-config zlib1g-dev libdw-dev
+      flex check llvm-dev pkg-config zlib1g-dev libdw-dev
 
-#### macOS
-
-The easiest way to install NVC on macOS is with [Homebrew](http://brew.sh/).
-
-    brew install nvc
-
-This will install the latest stable version. The current git master can be
-installed with
-
-    brew install --HEAD nvc
-
-To build from source follow the generic instructions above.
-
-#### Windows
-
-Windows support is via MinGW or [Cygwin](http://www.cygwin.com/).
-
-If you do not already have Cygwin it is easiest to build for MinGW using
-[MSYS2](https://msys2.github.io/). Install the following dependencies using
-`pacman`.
+Only the MSYS2 environment on Windows is supported.  The required
+dependencies can be installed with:
 
     pacman -S base-devel mingw-w64-x86_64-{llvm,ncurses,libffi,check,pkg-config}
-    export PATH=/mingw64/bin:$PATH
-    mkdir build && cd build
-    ../configure
-    make install
 
-For Cygwin use `setup.exe` to install either `gcc` or `clang` and the following
-dependencies: `automake`, `autoconf`, `pkg-config`, `llvm`, `libllvm-devel`,
-`flex`, `libffi-devel`, `libcurses-devel`, and `make`. Then follow the
-standard installation instructions above.
-
-#### OpenBSD
-
-Install the dependencies with `pkg_add`:
-
-    pkg_add automake autoconf libdwarf llvm check libexecinfo
-
-Pass `CC` and `CXX` explicitly to configure to ensure Clang is used
-instead of an old version of GCC.
-
-    ./configure LDFLAGS="-L/usr/local/lib" CPPFLAGS="-I/usr/local/include" \
-        CC=/usr/bin/cc CXX=/usr/bin/c++ --with-llvm=/usr/local/bin/llvm-config
-
-Then follow the generic instructions above.
-
-#### IEEE Libraries
-
-The source files for the IEEE standard libraries are included in the
-repository. These were originally provided under a license that forbid
-distribution of modifications, but in 2019 were relicensed under Apache
-2.0. Freely redistributable versions of the 1993 libraries were made by
-editing and removing declarations from the 2019 libraries, and so are
-also licensed under Apache 2.0.
-
-The VITAL libraries are distributed under `lib/vital`. These were
-derived from draft copies of the packages freely available on the
-internet. The license status of these is unclear.
-
-To recompile the standard libraries:
-
-    make bootstrap
-
-Note this happens automatically when installing.
+[GtkWave](http://gtkwave.sourceforge.net/) can be used to view
+simulation waveforms.  Version 3.3.79 or later is required for the
+default FST format.
 
 #### Testing
 
@@ -144,6 +130,108 @@ To run the regression tests:
 
 The unit tests require the [check](https://libcheck.github.io/check/)
 library.
+
+### Reporting bugs
+
+Report bugs to [nick@nickg.me.uk](mailto:nick+nvc@nickg.me.uk) or using
+the [GitHub issue tracker](https://github.com/nickg/nvc/issues).  Please
+include enough information to reproduce the problem, ideally with a
+small VHDL test case.  Issue
+[#412](https://github.com/nickg/nvc/issues/412) is a good example.
+
+Please remember that this software is provided to you with NO WARRANTY
+and no expectation of support, but I will do my best to help with any
+issues you encounter.
+
+### Contributing
+
+This project does not generally accept code contributions, except for
+small bug fixes as described below, and I am not looking for additional
+regular contributors.  NVC is primarily a hobby project which I work on
+in my spare time for relaxation and enjoyment.  Reviewing patches and
+managing a community of contributors requires a significant amount of
+time and can be both mentally and emotionally exhausting.  This is not
+something I am prepared to do outside of my day job.  That said I do
+welcome contributions of the following kind:
+* Build fixes.  For example to support a new version of a library or new
+  compiler warnings.
+* Portability fixes.  For example to support a new Linux distribution or
+  BSD variant.  I am particularly open to patches that simplify
+  downstream packaging.
+* Documentation fixes.
+* Trivial bug fixes.  Please include a test case which demonstrates the
+  problem.
+
+Patches can be sent with either [git
+--send-email](https://git-send-email.io/) or as a pull request on
+GitHub.
+
+The best way you can contribute to NVC is by using it for your work or
+hobby project and reporting any bugs or issues you find.  I am
+particularly interested in performance comparisons with commercial
+simulators or any general usability issues you encounter.  Even just a
+quick note to say you used it on some project and what your experience
+was is very motivational.
+
+### Language Support
+
+VHDL standard revisions are commonly referred to by the year they were
+published.  For example IEEE 1076-2008 is known as VHDL-2008.  The
+default standard in NVC is VHDL-93 as this remains the most widely used
+in the industry.  The default can be changed with the `--std` argument.
+For example `--std=2008` selects the VHDL-2008 standard.
+
+##### VHDL-1987
+
+Not supported.  Although it is trivial to replace legacy constructs with
+VHDL-1993 equivalents.
+
+##### VHDL-1993
+
+Mostly supported with a few exceptions:
+* Configurations have several bugs and are missing features.
+* No support for `buffer` ports.
+* No guard expressions on blocks.
+* `bus` and `register` signal kinds are not supported.
+* Limited support for conversions in port maps.
+
+Please raise bugs for any missing or incorrectly implemented features
+you encounter.
+
+##### VHDL-2000
+
+This revision added protected types which are fully supported.
+
+##### VHDL-2002
+
+The only significant change in VHDL-2002 was to the behaviour of
+`buffer` ports which are currently not implemented.
+
+##### VHDL-2008
+
+VHDL-2008 was a large change to the standard with many new features.
+Support for these is currently in development.  Notable omissions
+include:
+* Enhanced generics on packages and subprograms are not supported.
+* PSL is not supported.
+* Hierarchical references are not supported.
+* Force / release is not supported.
+* `case?` statement with "don't care" is not supported.
+
+##### VHDL-2019
+
+The most recent revision of the standard also added many new features.
+None of these are supported with the exception of conditional
+compilation directives.
+
+##### VHPI
+
+The VHDL standard contains a comprehensive API called VHPI for
+interfacing with foreign code written in C or another language.  There
+is very limited support for this which can be enabled with the
+`--enable-vhpi` option when configuring.  Refer to the
+[manual](https://www.nickg.me.uk/nvc/nvc.1.html#VHPI) for more
+information.
 
 ### Vendor Libraries
 
