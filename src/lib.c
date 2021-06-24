@@ -65,6 +65,7 @@ struct lib {
    lib_index_t *index;
    lib_mtime_t  index_mtime;
    int          lock_fd;
+   bool         readonly;
 };
 
 struct lib_list {
@@ -168,12 +169,13 @@ static void lib_read_index(lib_t lib)
 
 static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
 {
-   struct lib *l = xmalloc(sizeof(struct lib));
-   l->n_units = 0;
-   l->units   = NULL;
-   l->name    = upcase_name(name);
-   l->index   = NULL;
-   l->lock_fd = lock_fd;
+   struct lib *l = xcalloc(sizeof(struct lib));
+   l->n_units  = 0;
+   l->units    = NULL;
+   l->name     = upcase_name(name);
+   l->index    = NULL;
+   l->lock_fd  = lock_fd;
+   l->readonly = false;
 
    if (rpath == NULL)
       l->path[0] = '\0';
@@ -188,8 +190,21 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
 
    if (l->lock_fd == -1 && rpath != NULL) {
       LOCAL_TEXT_BUF lock_path = lib_file_path(l, "_NVC_LIB");
-      if ((l->lock_fd = open(tb_get(lock_path), O_RDONLY)) < 0)
-         fatal_errno("lib_init: %s", tb_get(lock_path));
+
+      // Try to open the lock file read-write as this is required for
+      // exlusive locking on some NFS implementations
+      int mode = O_RDWR;
+      if (access(tb_get(lock_path), mode) != 0) {
+         if (errno == EACCES) {
+            mode = O_RDONLY;
+            l->readonly = true;
+         }
+         else
+            fatal_errno("access: %s", tb_get(lock_path));
+      }
+
+      if ((l->lock_fd = open(tb_get(lock_path), mode)) < 0)
+         fatal_errno("open: %s", tb_get(lock_path));
 
       file_read_lock(l->lock_fd);
    }
@@ -681,6 +696,12 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    return unit;
 }
 
+static void lib_ensure_writable(lib_t lib)
+{
+   if (lib->readonly)
+      fatal("cannot write to read-only library %s", istr(lib->name));
+}
+
 bool lib_load_vcode(lib_t lib, ident_t unit_name)
 {
    if (lib->lock_fd != -1)
@@ -700,6 +721,8 @@ bool lib_load_vcode(lib_t lib, ident_t unit_name)
 
 void lib_save_vcode(lib_t lib, vcode_unit_t vu, ident_t unit_name)
 {
+   lib_ensure_writable(lib);
+
    if (lib->lock_fd != -1)
       file_write_lock(lib->lock_fd);
 
@@ -795,6 +818,7 @@ void lib_save(lib_t lib)
    assert(lib != NULL);
 
    assert(lib->lock_fd != -1);   // Should not be called in unit tests
+   lib_ensure_writable(lib);
    file_write_lock(lib->lock_fd);
 
    for (unsigned n = 0; n < lib->n_units; n++) {
