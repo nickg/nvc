@@ -141,8 +141,19 @@ static void lib_add_to_index(lib_t lib, ident_t name, tree_kind_t kind)
    }
 }
 
+static void lib_free_index(lib_t lib)
+{
+   while (lib->index) {
+      lib_index_t *tmp = lib->index->next;
+      free(lib->index);
+      lib->index = tmp;
+   }
+}
+
 static void lib_read_index(lib_t lib)
 {
+   lib_free_index(lib);
+
    fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_IN);
    if (f != NULL) {
       struct stat st;
@@ -152,6 +163,7 @@ static void lib_read_index(lib_t lib)
       lib->index_mtime = lib_stat_mtime(&st);
 
       ident_rd_ctx_t ictx = ident_read_begin(f);
+      lib_index_t **insert = &(lib->index);
 
       const int entries = read_u32(f);
       for (int i = 0; i < entries; i++) {
@@ -159,7 +171,15 @@ static void lib_read_index(lib_t lib)
          tree_kind_t kind = read_u16(f);
          assert(kind < T_LAST_TREE_KIND);
 
-         lib_add_to_index(lib, name, kind);
+         // Index is sorted on disk so no point calling lib_add_to_index
+         // which would search all the way to the end of the list
+         lib_index_t *new = xmalloc(sizeof(lib_index_t));
+         new->name = name;
+         new->kind = kind;
+         new->next = NULL;
+
+         *insert = new;
+         insert = &(new->next);
       }
 
       ident_read_end(ictx);
@@ -548,11 +568,7 @@ void lib_free(lib_t lib)
       }
    }
 
-   while (lib->index) {
-      lib_index_t *tmp = lib->index->next;
-      free(lib->index);
-      lib->index = tmp;
-   }
+   lib_free_index(lib);
 
    if (lib->units != NULL)
       free(lib->units);
@@ -861,6 +877,11 @@ void lib_save(lib_t lib)
 
    ident_write_end(ictx);
    fbuf_close(f);
+
+   if (stat(tb_get(index_path), &st) != 0)
+      fatal_errno("stat: %s", tb_get(index_path));
+   lib->index_mtime = lib_stat_mtime(&st);
+
    file_unlock(lib->lock_fd);
 }
 
