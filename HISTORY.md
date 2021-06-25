@@ -7,6 +7,7 @@
 - Fix incorrect recording of dependencies which caused a failure to load
   generated DLLs on Windows.
 - Fix file locking error when a library is located on NFS (#417).
+- Optimise loading large library index from disk.
 
 ## 1.5.1 - 2021-04-09
 - Fix a compiler warning in vcode.c.
