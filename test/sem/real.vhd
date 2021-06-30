@@ -39,4 +39,11 @@ begin
     begin
     end process;
 
+    process is
+        variable t : time;
+        variable r : real;
+    begin
+        r := (t / 1 ps) * 1.0;          -- OK
+    end process;
+
 end architecture;

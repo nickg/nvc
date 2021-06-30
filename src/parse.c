@@ -953,7 +953,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
       // Division
       declare_binary(container, div, t, std_int, t, S_DIV);
       declare_binary(container, div, t, std_real, t, S_DIV_PR);
-      declare_binary(container, div, t, t, std_int, S_DIV);
+      declare_binary(container, div, t, t, type_universal_int(), S_DIV);
 
       // Addition
       declare_binary(container, plus, t, t, t, S_ADD);
