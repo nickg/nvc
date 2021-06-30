@@ -2117,8 +2117,8 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
       }
    }
 
-   // Make two additional passes: one to do function calls and refs and
-   // a final catch-all
+   // Make two additional passes: one to do function calls and a final
+   // catch-all
 
    for (int pass = 0; pass < 2; pass++) {
       for (int i = 0; i < nparams; i++) {
@@ -2136,12 +2136,7 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
             continue;
          }
 
-         const bool solve_now =
-            kind == T_FCALL
-            || kind == T_REF
-            || pass == 1;
-
-         if (solve_now) {
+         if (kind == T_FCALL || pass == 1) {
             solve_one_param(tab, p, o);
             pmask |= (1 << i);
          }

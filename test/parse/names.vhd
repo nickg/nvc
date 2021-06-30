@@ -344,4 +344,13 @@ begin
         p28_2;                          -- OK
     end process;
 
+    p29: process is
+        type unsigned is array (natural range <>) of bit;
+        variable mult : bit_vector(1 downto 0);
+        variable p : unsigned(1 downto 0);
+        variable u : bit_vector(4 downto 0);
+    begin
+        u := bit_vector('1' & (unsigned(mult) & p));  -- OK
+    end process;
+
 end architecture;
