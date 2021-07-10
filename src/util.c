@@ -384,8 +384,9 @@ static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)
                }
 
                if (!found) {
-                  strncpy(p, escape_start, len + 1);
-                  p += len + 1;
+                  const size_t total = len + 1 + bold;
+                  strncpy(p, escape_start, total);
+                  p += total;
                   escape_start = fmt;
                }
                else

@@ -171,6 +171,15 @@ START_TEST(test_color_printf)
 
    char *LOCAL str3 = color_asprintf("$!blue$bold$$ normal");
    ck_assert_str_eq(str3, "\033[1;34mbold\033[0m normal");
+
+   char *LOCAL str4 = color_asprintf("a $bad$ color");
+   ck_assert_str_eq(str4, "a $bad$ color");
+
+   char *LOCAL str5 = color_asprintf("$!wrong$ end");
+   ck_assert_str_eq(str5, "$!wrong$ end");
+
+   char *LOCAL str6 = color_asprintf("$missing");
+   ck_assert_str_eq(str6, "$missing");
 }
 END_TEST
 
