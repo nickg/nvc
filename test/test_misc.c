@@ -158,6 +158,22 @@ START_TEST(test_heap_rand)
 }
 END_TEST
 
+START_TEST(test_color_printf)
+{
+   setenv("NVC_COLORS", "always", 1);
+   term_init();
+
+   char *LOCAL str1 = color_asprintf("$red$hello$$");
+   ck_assert_str_eq(str1, "\033[31mhello\033[0m");
+
+   char *LOCAL str2 = color_asprintf("$#42$world$$");
+   ck_assert_str_eq(str2, "\033[38;5;42mworld\033[0m");
+
+   char *LOCAL str3 = color_asprintf("$!blue$bold$$ normal");
+   ck_assert_str_eq(str3, "\033[1;34mbold\033[0m normal");
+}
+END_TEST
+
 Suite *get_misc_tests(void)
 {
    Suite *s = suite_create("misc");
@@ -177,6 +193,10 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_heap, test_heap_rand);
    tcase_add_test(tc_heap, test_heap_walk);
    suite_add_tcase(s, tc_heap);
+
+   TCase *tc_util = tcase_create("util");
+   tcase_add_test(tc_heap, test_color_printf);
+   suite_add_tcase(s, tc_util);
 
    return s;
 }

@@ -297,7 +297,7 @@ Otherwise the output may use extensions specific to GNU make.
 The following can be specified as a comma-separated list to the
 .Fl -relax
 option to disable certain semantic rule checks.
-.Bl -tag -width Ds
+.Bl -tag -width "universal bound"
 .\"
 .It Cm prefer-explict
 Any visible explicitly declared operator always hides an implicit
@@ -407,8 +407,21 @@ void (*vhpi_startup_routines[])() = {
    NULL
 };
 .Ed
-.\" .Sh ENVIRONMENT
-.\" For sections 1, 6, 7, and 8 only.
+.Sh ENVIRONMENT
+.Bl -tag -width "NVC_COLORS"
+.It Ev NVC_COLORS
+Controls whether
+.Nm
+uses ANSI colour escape sequences to print diagnostic messages on the
+terminal.  The possible values are
+.Cm never ,
+.Cm always ,
+and
+.Cm auto
+which enables colour if stdout is connected to a terminal.
+The default is
+.Cm auto .
+.El
 .\" .Sh FILES
 .\" .Sh EXIT STATUS
 .\" For sections 1, 6, and 8 only.

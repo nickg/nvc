@@ -353,13 +353,31 @@ static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)
             escape_start = fmt;
          else {
             const char *e = escape_start + 1;
-            const size_t len = fmt - e;
+            size_t len = fmt - e;
+
+            bool bold;
+            if ((bold = (*e == '!')))
+               ++e, --len;
 
             if (want_color && !force_plain) {
                bool found = false;
-               for (int i = 0; i < ARRAY_LEN(escapes); i++) {
+
+               if (*e == '#') {
+                  char *eptr;
+                  int code = strtoul(e + 1, &eptr, 10);
+                  if (eptr == e + len) {
+                     p += snprintf(p, eptr - p,
+                                   bold ? "\033[1;38;5;%dm" : "\033[38;5;%dm",
+                                   code);
+                     found = true;
+                  }
+               }
+
+               for (int i = 0; !found && i < ARRAY_LEN(escapes); i++) {
                   if (strncmp(e, escapes[i].name, len) == 0) {
-                     p += snprintf(p, eptr - p, "\033[%dm", escapes[i].value);
+                     p += snprintf(p, eptr - p,
+                                   bold ? "\033[1;%dm" : "\033[%dm",
+                                   escapes[i].value);
                      found = true;
                      break;
                   }
@@ -434,6 +452,15 @@ int color_printf(const char *fmt, ...)
 int color_vprintf(const char *fmt, va_list ap)
 {
    return color_vfprintf(stdout, fmt, ap);
+}
+
+char *color_asprintf(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   char *str = color_vasprintf(fmt, ap, false);
+   va_end(ap);
+   return str;
 }
 
 static bool catch_in_unit_test(const loc_t *loc, const char *fmt, va_list ap)
@@ -1007,7 +1034,7 @@ void register_gdb_signal_handlers(void)
 
 void term_init(void)
 {
-   const char *nvc_no_color = getenv("NVC_NO_COLOR");
+   const char *nvc_colors = getenv("NVC_COLORS");
    const char *term = getenv("TERM") ?: "";
 
    static const char *term_blacklist[] = {
@@ -1034,13 +1061,19 @@ void term_init(void)
    }
 #endif
 
-   want_color = is_tty && (nvc_no_color == NULL);
+   if (nvc_colors && strcmp(nvc_colors, "always") == 0)
+      want_color = true;
+   else if (nvc_colors && strcmp(nvc_colors, "never") == 0)
+      want_color = false;
+   else {
+      want_color = is_tty;
 
-   if (want_color && (term != NULL)) {
-      for (size_t i = 0; i < ARRAY_LEN(term_blacklist); i++) {
-         if (strcmp(term, term_blacklist[i]) == 0) {
-            want_color = false;
-            break;
+      if (want_color && (term != NULL)) {
+         for (size_t i = 0; i < ARRAY_LEN(term_blacklist); i++) {
+            if (strcmp(term, term_blacklist[i]) == 0) {
+               want_color = false;
+               break;
+            }
          }
       }
    }
