@@ -177,3 +177,5 @@ jobs:
         run: nvc --version
       - name: Test ZPU
         run: ./vhdl-projects/zpu/test.sh
+      - name: Test Flopoco
+        run: ./vhdl-projects/flopoco/test.sh
