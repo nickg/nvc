@@ -433,12 +433,12 @@ static bool run_cmd(FILE *log, arglist_t **args)
       signal(SIGALRM, SIG_DFL);
       signal(SIGCHLD, SIG_DFL);
 
-      int status;
-      if (waitpid(pid, &status, WNOHANG) < 0) {
+      int status, nready = waitpid(pid, &status, WNOHANG);
+      if (nready < 0) {
          fprintf(stderr, "Waiting for child failed: %s\n", strerror(errno));
          return false;
       }
-      else if (!WIFEXITED(status)) {
+      else if (nready == 0 || !WIFEXITED(status)) {
          fprintf(log, "Timeout!\n");
 
          if (kill(pid, SIGTERM) != 0)
