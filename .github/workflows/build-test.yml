@@ -81,7 +81,7 @@ jobs:
   release:
     name: Release
     if: github.event_name != 'pull_request'
-    needs: [ build-ubuntu, build-mac, build-windows ]
+    needs: [ build-ubuntu ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
