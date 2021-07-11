@@ -340,11 +340,7 @@ static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)
    if (strchr(fmt, '$') == NULL)
       return xvasprintf(fmt, ap);
 
-   const size_t maxlen = strlen(fmt) * 2;
-   char *copy LOCAL = xmalloc(maxlen);
-   char *p = copy;
-   char *eptr = copy + maxlen;
-
+   LOCAL_TEXT_BUF tb = tb_new();
    const char *escape_start = NULL;
 
    while (*fmt != '\0') {
@@ -366,27 +362,27 @@ static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)
                   char *eptr;
                   int code = strtoul(e + 1, &eptr, 10);
                   if (eptr == e + len) {
-                     p += snprintf(p, eptr - p,
-                                   bold ? "\033[1;38;5;%dm" : "\033[38;5;%dm",
-                                   code);
+                     if (bold)
+                        tb_printf(tb, "\033[1;38;5;%dm", code);
+                     else
+                        tb_printf(tb, "\033[38;5;%dm", code);
                      found = true;
                   }
                }
 
                for (int i = 0; !found && i < ARRAY_LEN(escapes); i++) {
                   if (strncmp(e, escapes[i].name, len) == 0) {
-                     p += snprintf(p, eptr - p,
-                                   bold ? "\033[1;%dm" : "\033[%dm",
-                                   escapes[i].value);
+                     if (bold)
+                        tb_printf(tb, "\033[1;%dm", escapes[i].value);
+                     else
+                        tb_printf(tb, "\033[%dm", escapes[i].value);
                      found = true;
                      break;
                   }
                }
 
                if (!found) {
-                  const size_t total = len + 1 + bold;
-                  strncpy(p, escape_start, total);
-                  p += total;
+                  tb_catn(tb, escape_start, len + 1 + bold);
                   escape_start = fmt;
                }
                else
@@ -397,20 +393,15 @@ static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)
          }
       }
       else if (escape_start == NULL)
-         *p++ = *fmt;
+         tb_append(tb, *fmt);
 
       ++fmt;
    }
 
-   if (escape_start != NULL) {
-      const size_t len = fmt - escape_start;
-      memcpy(p, escape_start, len + 1);
-      p += len + 1;
-   }
+   if (escape_start != NULL)
+      tb_cat(tb, escape_start);
 
-   *p = '\0';
-
-   return xvasprintf(copy, ap);
+   return xvasprintf(tb_get(tb), ap);
 }
 
 static int color_vfprintf(FILE *f, const char *fmt, va_list ap)
