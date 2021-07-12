@@ -56,4 +56,7 @@ begin
         c1: proc(2);                    -- Error, duplicate label
     end block;
 
+    c1: not_a_library                   -- Error
+        port map ( x => 1 );
+
 end architecture;

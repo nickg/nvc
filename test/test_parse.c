@@ -2695,6 +2695,7 @@ START_TEST(test_error)
       { 49, "previous declaration of B1 was here" },
       { 56, "C1 already declared in this region" },
       { 55, "previous declaration of C1 was here" },
+      { 59, "NOT_A_LIBRARY does not name a visible component or design unit" },
       { -1, NULL }
    };
    expect_errors(expect);

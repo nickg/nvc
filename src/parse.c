@@ -585,6 +585,11 @@ static tree_t find_unit(const loc_t *where, ident_t name)
    }
    else if (name == error_marker())
       return NULL;
+   else if (lname == name) {
+      parse_error(where, "%s does not name a visible component or design unit",
+                  istr(name));
+      return NULL;
+   }
    else {
       parse_error(where, "missing library clause for %s", istr(lname));
       return NULL;
