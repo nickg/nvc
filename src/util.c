@@ -1682,15 +1682,20 @@ void __cleanup_array(void *ptr)
    ACLEAR(*a);
 }
 
-void *__array_resize_slow(void *ptr, uint32_t count, size_t size)
+void __array_resize_slow(void **ptr, uint32_t *limit, uint32_t count,
+                         size_t size)
 {
    if (count == 0) {
-      free(ptr);
-      return NULL;
+      free(*ptr);
+      *ptr = NULL;
+      *limit = 0;
    }
    else {
-      const int limit = MAX(next_power_of_2(count), ARRAY_BASE_SZ);
-      return xrealloc_array(ptr, limit, size);
+      if (*limit == 0)
+         *limit = count;  // Setting the initial size of the array
+      else
+         *limit = next_power_of_2(count);
+      *ptr = xrealloc_array(*ptr, *limit, size);
    }
 }
 

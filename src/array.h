@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2012-2020  Nick Gasson
+//  Copyright (C) 2012-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
 #define _ARRAY_H
 
 #include <assert.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #define ARRAY_BASE_SZ 8
 
@@ -93,26 +95,29 @@
    DECLARE_ARRAY(what)                 \
    DEFINE_ARRAY(what)
 
-#define A(type) struct { type *items; uint32_t count; }
+#define A(type) struct { type *items; uint32_t count; uint32_t limit; }
 
 void __cleanup_array(void *ptr);
-void *__array_resize_slow(void *ptr, uint32_t count, size_t size);
+void __array_resize_slow(void **ptr, uint32_t *limit, uint32_t count,
+                         size_t size);
 
 #define SCOPED_A(type) \
     __attribute__((cleanup(__cleanup_array))) A(type)
 
-#define AINIT { .items = NULL, .count = 0 }
+#define AINIT { .items = NULL, .count = 0, .limit = 0 }
 
 #define APUSH(a, item) do {                                             \
-      if (unlikely(((a).count & ((a).count - 1)) == 0))                 \
-         (a).items = __array_resize_slow((a).items, (a).count + 1,      \
-                                         sizeof((a).items[0]));         \
+      if (unlikely(((a).count == (a).limit)))                           \
+         __array_resize_slow((void **)&((a).items), &((a).limit),       \
+                             (a).count + ARRAY_BASE_SZ,                 \
+                             sizeof((a).items[0]));                     \
       (a).items[(a).count++] = (item);                                  \
    } while (0)
 
 #define ARESIZE(a, newsize) do {                                        \
-      (a).items = __array_resize_slow((a).items, newsize,               \
-                                      sizeof((a).items[0]));            \
+      if ((unsigned)(newsize) > (a).limit)                              \
+         __array_resize_slow((void **)&((a).items), &((a).limit),       \
+                             newsize, sizeof((a).items[0]));            \
       (a).count = (newsize);                                            \
    } while (0)
 
@@ -125,9 +130,11 @@ void *__array_resize_slow(void *ptr, uint32_t count, size_t size);
       free((a).items);                          \
       (a).items = NULL;                         \
       (a).count = 0;                            \
+      (a).limit = 0;                            \
    } while (0)
 
 #define ATRIM(a, num) do {                          \
+      assert((unsigned)num <= (a).count);           \
       (a).count = (num);                            \
    } while (0)
 
