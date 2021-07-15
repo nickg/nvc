@@ -43,9 +43,11 @@ AC_DEFUN([AX_LLVM_C], [
     ],
     [])
 
+  llvm_maybe_static=no
   case $host_os in
     darwin*)
       ac_llvm_link_mode=""
+      llvm_maybe_static=yes
       ;;
     *)
       ac_llvm_link_mode="--link-shared"
@@ -58,6 +60,7 @@ AC_DEFUN([AX_LLVM_C], [
                 [
                   if test x$enableval = xyes; then
                     ac_llvm_link_mode="--link-static"
+                    llvm_maybe_static=yes
                   fi
                 ])
 
@@ -152,6 +155,7 @@ AC_DEFUN([AX_LLVM_C], [
     AC_SUBST(LLVM_CFLAGS)
     AC_SUBST(LLVM_LDFLAGS)
     AC_SUBST(LLVM_LIBS)
+    AM_CONDITIONAL([LLVM_STATIC], [test x$llvm_maybe_static = xyes])
     AC_DEFINE(HAVE_LLVM,,[Defined if LLVM is available])
     AC_DEFINE_UNQUOTED(LLVM_VERSION,["$LLVM_VERSION"],[Version of LLVM installed])
     AC_DEFINE_UNQUOTED(LLVM_CONFIG_BINDIR,["$LLVM_CONFIG_BINDIR"],[Location of LLVM binaries])

@@ -56,9 +56,6 @@ lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
 
 bin_nvc_SOURCES = src/nvc.c
 
-# Force linking as C++ to allow LLVM static libraries
-nodist_EXTRA_bin_nvc_SOURCES = dummy.cxx
-
 bin_nvc_LDADD = \
 	lib/libnvc.a \
 	lib/libcgen.a \
@@ -83,4 +80,14 @@ pkgdata_DATA += lib/libnvcimp.a
 
 lib/libnvcimp.a: bin/nvc$(EXEEXT)
 
+endif
+
+if LLVM_STATIC
+# Force linking as C++ to allow LLVM static libraries
+nodist_EXTRA_bin_nvc_SOURCES = dummy.cxx   # Make sure CXXLD is defined
+bin_nvc_LINK = $(CXXLD) $(AM_CFLAGS) $(CFLAGS) $(bin_nvc_LDFLAGS) -o $@
+AM_V_bin_nvc_LINK = $(AM_V_CXXLD)
+else
+bin_nvc_LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(bin_nvc_LDFLAGS) -o $@
+AM_V_bin_nvc_LINK = $(AM_V_CCLD)
 endif
