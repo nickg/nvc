@@ -21,7 +21,7 @@ begin
         assert integer'value(integer'image(integer'low)) = integer'low;
 
         assert my_enum'value("A") = A;
-        --assert my_sub'value("A") = A;
+        assert my_sub'value(" B  ") = B;
         wait;
     end process;
 

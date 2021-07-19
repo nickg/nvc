@@ -34,6 +34,7 @@
 - VHDL-2008 IEEE standard libraries are now built and installed in
   addition to the VHDL-1993 libraries.
 - Variable assignment now support aggregate targets.
+- Fix a crash when using 'VALUE with enumeration subtypes (#419).
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed
