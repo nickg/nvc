@@ -1795,33 +1795,6 @@ static void eval_op_bitvec_op(int op, eval_state_t *state)
    }
 }
 
-static void eval_op_addi(int op, eval_state_t *state)
-{
-   value_t *dst = eval_get_reg(vcode_get_result(op), state);
-   value_t *lhs = eval_get_reg(vcode_get_arg(op, 0), state);
-   int64_t rhs = vcode_get_value(op);
-
-   switch (lhs->kind) {
-   case VALUE_INTEGER:
-      dst->kind    = VALUE_INTEGER;
-      dst->integer = lhs->integer + rhs;
-      break;
-
-   case VALUE_REAL:
-      dst->kind = VALUE_REAL;
-      dst->real = lhs->real + rhs;
-      break;
-
-   case VALUE_POINTER:
-      dst->kind = VALUE_POINTER;
-      dst->pointer = lhs->pointer + rhs;
-      break;
-
-   default:
-      fatal_trace("invalid value type in %s", __func__);
-   }
-}
-
 static void eval_op_range_null(int op, eval_state_t *state)
 {
    value_t *result = eval_get_reg(vcode_get_result(op), state);
@@ -2099,10 +2072,6 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_BIT_VEC_OP:
          eval_op_bitvec_op(i, state);
-         break;
-
-      case VCODE_OP_ADDI:
-         eval_op_addi(i, state);
          break;
 
       case VCODE_OP_PARAM_UPREF:

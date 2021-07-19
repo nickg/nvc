@@ -130,7 +130,6 @@ typedef enum {
    VCODE_OP_NESTED_RESUME,
    VCODE_OP_UNDEFINED,
    VCODE_OP_IMAGE_MAP,
-   VCODE_OP_ADDI,
    VCODE_OP_RANGE_NULL,
    VCODE_OP_VAR_UPREF
 } vcode_op_t;
@@ -354,7 +353,6 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);
-vcode_reg_t emit_addi(vcode_reg_t lhs, int64_t rhs);
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                  vcode_reg_t severity);
 void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity);

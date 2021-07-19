@@ -51,7 +51,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_REAL(x)                                                  \
    (x == VCODE_OP_CONST_REAL)
 #define OP_HAS_VALUE(x)                                                 \
-   (x == VCODE_OP_CONST || x == VCODE_OP_ADDI)
+   (x == VCODE_OP_CONST)
 #define OP_HAS_SIGNAL(x)                                                \
    (x == VCODE_OP_NETS || x == VCODE_OP_RESOLVED_ADDRESS                \
     || x == VCODE_OP_SET_INITIAL || x == VCODE_OP_NEEDS_LAST_VALUE)
@@ -432,7 +432,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
       break;
 
    case VCODE_OP_ADD:
-   case VCODE_OP_ADDI:
       // When adding pointers only the first argument is a pointer
       vcode_heap_allocate(defn->args.items[0]);
       break;
@@ -698,7 +697,6 @@ void vcode_opt(void)
             case VCODE_OP_LOAD:
             case VCODE_OP_LOAD_INDIRECT:
             case VCODE_OP_ADD:
-            case VCODE_OP_ADDI:
             case VCODE_OP_SUB:
             case VCODE_OP_MUL:
             case VCODE_OP_CMP:
@@ -1057,7 +1055,7 @@ const char *vcode_op_string(vcode_op_t op)
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
       "uarray len", "temp stack mark", "temp stack restore", "nested resume",
-      "undefined", "image map", "addi", "range null", "var upref"
+      "undefined", "image map", "range null", "var upref"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1560,16 +1558,6 @@ void vcode_dump_with_mark(int mark_op)
                default: break;
                }
                col += vcode_dump_reg(op->args.items[1]);
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_ADDI:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
-               col += printf(" + %"PRIi64, op->value);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -3519,8 +3507,6 @@ vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
       return lhs;
    else if (l_is_const && lconst == 0)
       return rhs;
-   else if (r_is_const)
-      return emit_addi(lhs, rconst);
 
    vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs);
 
@@ -3549,8 +3535,6 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
       return lhs;
    else if (l_is_const && lconst == 0)
       return rhs;
-   else if (r_is_const)
-      return emit_addi(lhs, -rconst);
 
    vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs);
 
@@ -3567,37 +3551,6 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
    }
 
    return reg;
-}
-
-vcode_reg_t emit_addi(vcode_reg_t lhs, int64_t rhs)
-{
-   int64_t lconst;
-   if (vcode_reg_const(lhs, &lconst))
-      return emit_const(vcode_reg_type(lhs), lconst + rhs);
-   else if (rhs == 0)
-      return lhs;
-
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_ADDI) {
-      if (other->args.items[0] == lhs && other->value == rhs)
-         return other->result;
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_ADDI);
-   vcode_add_arg(op, lhs);
-   op->result = vcode_add_reg(vcode_reg_type(lhs));
-   op->value  = rhs;
-
-   const vtype_kind_t ltypek = vtype_kind(vcode_reg_type(lhs));
-
-   reg_t *rr = vcode_reg_data(op->result);
-   if (ltypek == VCODE_TYPE_POINTER || ltypek == VCODE_TYPE_SIGNAL)
-      rr->bounds = vcode_reg_data(lhs)->bounds;
-   else if (ltypek != VCODE_TYPE_REAL) {
-      vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-      rr->bounds = vtype_int(sadd64(bl->low, rhs), sadd64(bl->high, rhs));
-   }
-
-   return op->result;
 }
 
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
