@@ -331,7 +331,9 @@ bool parse_value(type_t type, const char *str, int64_t *value)
    while (isspace((int)*str))
       ++str;
 
-   switch (type_kind(type_base_recur(type))) {
+   type_t base = type_base_recur(type);
+
+   switch (type_kind(base)) {
    case T_INTEGER:
       {
          bool is_negative = *str == '-';
@@ -366,7 +368,7 @@ bool parse_value(type_t type, const char *str, int64_t *value)
    case T_ENUM:
       {
          bool upcase = true;
-         char *copy = xstrdup(str), *p;
+         char *copy LOCAL = xstrdup(str), *p;
          for (p = copy; (*p != '\0') && !isspace((int)*p); p++, str++) {
             if (*p == '\'')
                upcase = false;
@@ -376,13 +378,12 @@ bool parse_value(type_t type, const char *str, int64_t *value)
          *p = '\0';
 
          ident_t id = ident_new(copy);
-         free(copy);
 
          *value = -1;
 
-         const int nlits = type_enum_literals(type);
+         const int nlits = type_enum_literals(base);
          for (int i = 0; (*value == -1) && (i < nlits); i++) {
-            if (tree_ident(type_enum_literal(type, i)) == id)
+            if (tree_ident(type_enum_literal(base, i)) == id)
                *value = i;
          }
 
