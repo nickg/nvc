@@ -35,6 +35,8 @@
   addition to the VHDL-1993 libraries.
 - Variable assignment now support aggregate targets.
 - Fix a crash when using 'VALUE with enumeration subtypes (#419).
+- The `--codegen` command, which has been deprecated since 1.3, was
+  removed.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

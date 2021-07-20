@@ -92,7 +92,7 @@ static unsigned parse_relax(const char *str)
 static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
-      "-a", "-e", "-r", "--codegen", "--dump", "--make", "--syntax", "--list"
+      "-a", "-e", "-r", "--dump", "--make", "--syntax", "--list"
    };
 
    for (int i = start; i < argc; i++) {
@@ -351,55 +351,6 @@ static int elaborate(int argc, char **argv)
 
    cgen(e, vu);
    elab_verbose(verbose, "generating LLVM");
-
-   argc -= next_cmd - 1;
-   argv += next_cmd - 1;
-
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
-}
-
-// DEPRECATED
-static int codegen(int argc, char **argv)
-{
-   warnf("The --codegen option is deprecated, pass global option --native "
-         "when analysing instead");
-
-   static struct option long_options[] = {
-      { 0, 0, 0, 0 }
-   };
-
-   const int next_cmd = scan_cmd(2, argc, argv);
-   int c, index = 0;
-   const char *spec = "";
-   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
-      switch (c) {
-      case 0:
-         // Set a flag
-         break;
-      case '?':
-         bad_option("codegen", argv);
-      default:
-         abort();
-      }
-   }
-
-   set_top_level(argv, next_cmd);
-
-   tree_t pack = lib_get(lib_work(), top_level);
-   if (pack == NULL)
-      fatal("cannot find unit %s in library %s",
-            istr(top_level), istr(lib_name(lib_work())));
-
-   if (tree_kind(pack) != T_PACKAGE)
-      fatal("this command can only be used with packages");
-
-   if (pack_needs_cgen(pack))
-      /* NOP */;
-
-   ident_t body_i = ident_prefix(top_level, ident_new("body"), '-');
-   tree_t body = lib_get(lib_work(), body_i);
-   if (body != NULL)
-      /* NOP */;
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -936,7 +887,6 @@ static int process_command(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "dump",    no_argument, 0, 'd' },
-      { "codegen", no_argument, 0, 'c' },   // DEPRECATED
       { "make",    no_argument, 0, 'm' },
       { "syntax",  no_argument, 0, 's' },
       { "list",    no_argument, 0, 'l' },
@@ -957,8 +907,6 @@ static int process_command(int argc, char **argv)
       return run(argc, argv);
    case 'd':
       return dump_cmd(argc, argv);
-   case 'c':
-      return codegen(argc, argv);
    case 'm':
       return make_cmd(argc, argv);
    case 's':

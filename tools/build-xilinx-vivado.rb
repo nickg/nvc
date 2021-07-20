@@ -42,12 +42,6 @@ def run_nvc(lib, file)
   exit 1 unless system cmd
 end
 
-def run_codegen(lib, unit)
-  cmd = "nvc --work=#{$libdir}/#{lib} --codegen #{unit}"
-  puts cmd
-  exit 1 unless system "#{cmd} > /dev/null"
-end
-
 def put_title(what)
   puts
   puts "------ #{what} ------"
@@ -56,8 +50,6 @@ end
 put_title "UNISIM package"
 run_nvc "unisim", "unisims/unisim_VPKG.vhd"
 run_nvc "unisim", "unisims/unisim_retarget_VCOMP.vhd"
-run_codegen "unisim", "vpkg"
-run_codegen "unisim", "vcomponents"
 
 put_title "UNIMACRO library"
 run_nvc "unimacro", "unimacro/unimacro_VCOMP.vhd"

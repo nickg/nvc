@@ -37,12 +37,6 @@ def run_nvc(lib, file)
   exit 1 unless system cmd
 end
 
-def run_codegen(lib, unit)
-  cmd = "nvc --work=#{$libdir}/#{lib} --codegen #{unit}"
-  puts cmd
-  exit 1 unless system "#{cmd} > /dev/null"
-end
-
 def put_title(what)
   puts
   puts "------ #{what} ------"
