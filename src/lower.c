@@ -111,6 +111,8 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_image_map(type_t type);
 static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
                                    type_t type, unsigned dim);
+static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
+                                    vcode_reg_t lval, vcode_reg_t rval);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -2688,8 +2690,17 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       if (kind != A_OTHERS) {
          tree_t value = tree_value(a);
          value_reg = lower_expr(value, EXPR_RVALUE);
-         if (type_is_scalar(tree_type(value)))
+
+         type_t value_type = tree_type(value);
+         if (type_is_scalar(value_type))
             value_reg = lower_reify(value_reg);
+         else if (type_is_array(value_type)) {
+            if (!lower_const_bounds(value_type)) {
+               lower_check_array_sizes(value, elem_type, value_type,
+                                       VCODE_INVALID_REG, value_reg);
+            }
+            value_reg = lower_array_data(value_reg);
+         }
       }
 
       if (what == VCODE_INVALID_REG) {
