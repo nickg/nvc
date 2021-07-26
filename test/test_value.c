@@ -91,10 +91,11 @@ START_TEST(test_subtype)
 
       type_set_base(s, t);
 
-      tree_t r = tree_new(T_RANGE);
-      tree_set_subkind(r, RANGE_TO);
-      tree_set_left(r, make_ref(lit1));
-      tree_set_right(r, make_ref(lit2));
+      range_t r = {
+         .kind = RANGE_TO,
+         .left = make_ref(lit1),
+         .right = make_ref(lit2)
+      };
 
       tree_t c = tree_new(T_CONSTRAINT);
       tree_set_subkind(c, C_RANGE);
