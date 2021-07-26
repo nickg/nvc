@@ -3399,15 +3399,19 @@ static void cgen_reset_function(tree_t top)
       }
 
       const netid_t *nets = vcode_signal_nets(i);
+
+      if (nets[0] == NETID_INVALID)
+         continue;
+
       netid_t first = nets[0];
       int     off   = 0;
       netid_t last  = first;
-      for (int i = 1; i < nnets; i++) {
-         const netid_t this = nets[i];
+      for (int j = 1; j < nnets; j++) {
+         const netid_t this = nets[j];
          if (this != last + 1) {
             cgen_net_mapping_table(i, off, first, last, fn);
             first = last = this;
-            off = i;
+            off = j;
          }
          else
             last = this;

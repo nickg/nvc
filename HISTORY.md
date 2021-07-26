@@ -9,6 +9,8 @@
 - Fix file locking error when a library is located on NFS (#417).
 - Optimise loading large library index from disk.
 - Fix a crash when using 'VALUE with enumeration subtypes (#419).
+- Fix a crash when a signal with more than 256 elements is declared in a
+  package (#420).
 
 ## 1.5.1 - 2021-04-09
 - Fix a compiler warning in vcode.c.
