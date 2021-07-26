@@ -1,0 +1,27 @@
+package globals is
+
+  signal COMMAND_FILE_ENDIAN  : bit;
+  signal COMMAND_FILE_NAME    : string(1 to 1024);
+  signal COMMAND_FILE_NAMELEN : integer;
+  signal COMMAND_FILE_TARGET  : integer;
+  signal COMMAND_FILE_START   : bit;
+  signal COMMAND_FILE_ACK     : bit;
+
+end package globals;
+
+entity issue420 is
+end entity;
+
+use work.globals.all;
+
+architecture test of issue420 is
+begin
+
+    check: process is
+    begin
+        assert COMMAND_FILE_ACK = '0';
+        assert COMMAND_FILE_NAME = (1 to 1024 => NUL);
+        wait;
+    end process;
+
+end architecture;
