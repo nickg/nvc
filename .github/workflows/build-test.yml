@@ -179,3 +179,5 @@ jobs:
         run: ./vhdl-projects/zpu/test.sh
       - name: Test Flopoco
         run: ./vhdl-projects/flopoco/test.sh
+      - name: Test HardH264
+        run: ./vhdl-projects/hardh264/test.sh
