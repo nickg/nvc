@@ -38,22 +38,22 @@
 #include <assert.h>
 #include <dlfcn.h>
 #include <errno.h>
-#endif  // !__MINGW32__ && !__CYGWIN__
-
-#if defined HAVE_UNWIND_H
 #include <unwind.h>
-#endif
+#endif  // !__MINGW32__ && !__CYGWIN__
 
 #if defined HAVE_LIBDW
 #include <elfutils/libdw.h>
 #include <elfutils/libdwfl.h>
 #include <dwarf.h>
 #elif defined HAVE_LIBDWARF
+#if defined HAVE_LIBDWARF_LIBDWARF_H
 #include <libdwarf/libdwarf.h>
 #include <libdwarf/dwarf.h>
+#else  // HAVE_LIBDWARF_LIBDWARF_H
+#include <libdwarf.h>
+#include <dwarf.h>
+#endif  // HAVE_LIBDWARF_LIBDWARF_H
 #include <libelf.h>
-#elif defined HAVE_EXECINFO_H
-#include <execinfo.h>
 #endif
 
 #define MAX_TRACE_DEPTH   25
@@ -269,6 +269,13 @@ static inline void debug_walk_frames(debug_info_t *di)
 
 #elif defined HAVE_LIBDWARF
 
+typedef struct {
+   Dwarf_Debug   debug;
+   Dwarf_Arange *aranges;
+   Dwarf_Signed  arange_count;
+   int           fd;
+} libdwarf_handle_t;
+
 static bool libdwarf_die_has_pc(Dwarf_Die die, Dwarf_Addr pc)
 {
    Dwarf_Addr low_pc = 0, high_pc = 0;
@@ -287,7 +294,7 @@ static bool libdwarf_die_has_pc(Dwarf_Die die, Dwarf_Addr pc)
    return false;
 }
 
-static Dwarf_Debug libdwarf_handle_for_file(const char *fname)
+static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
 {
    static hash_t *hash = NULL;
 
@@ -295,7 +302,7 @@ static Dwarf_Debug libdwarf_handle_for_file(const char *fname)
       hash = hash_new(64, true);
 
    ident_t key = ident_new(fname);
-   Dwarf_Debug handle = hash_get(hash, key);
+   libdwarf_handle_t *handle = hash_get(hash, key);
 
    if (handle == (void *)-1)
       return NULL;
@@ -317,13 +324,17 @@ static Dwarf_Debug libdwarf_handle_for_file(const char *fname)
          return NULL;
       }
 
-      Dwarf_Error err = NULL;
-      if (dwarf_init(fd, DW_DLC_READ, NULL, NULL, &handle, &err) != DW_DLV_OK) {
+      Dwarf_Debug debug;
+      Dwarf_Error err;
+      if (dwarf_init(fd, DW_DLC_READ, NULL, NULL, &debug, &err) != DW_DLV_OK) {
          warnf("dwarf_init: %s: %s", fname, dwarf_errmsg(err));
-         free(err);
          hash_put(hash, key, (void *)-1);
          return NULL;
       }
+
+      handle = xcalloc(sizeof(libdwarf_handle_t));
+      handle->fd    = fd;
+      handle->debug = debug;
 
       hash_put(hash, key, handle);
    }
@@ -331,7 +342,7 @@ static Dwarf_Debug libdwarf_handle_for_file(const char *fname)
    return handle;
 }
 
-static void libdwarf_get_symbol(Dwarf_Debug handle, Dwarf_Die die,
+static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
                                 Dwarf_Unsigned rel_addr, debug_frame_t *frame)
 {
    Dwarf_Die child, prev = NULL;
@@ -343,18 +354,16 @@ static void libdwarf_get_symbol(Dwarf_Debug handle, Dwarf_Die die,
       char *name;
       if (dwarf_diename(child, &name, NULL) == DW_DLV_OK) {
          frame->vhdl_unit = ident_new(name);
-         dwarf_dealloc(handle, name, DW_DLA_STRING);
+         dwarf_dealloc(handle->debug, name, DW_DLA_STRING);
       }
 
       prev = child;
       if (dwarf_child(prev, &child, NULL) != DW_DLV_OK)
-         return;
-
-      dwarf_dealloc(handle, prev, DW_DLA_DIE);
+         goto out_dealloc;
    }
 
    do {
-      dwarf_dealloc(handle, prev, DW_DLA_DIE);
+      dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
       prev = child;
 
       if (dwarf_tag(child, &tag, NULL) != DW_DLV_OK)
@@ -367,7 +376,7 @@ static void libdwarf_get_symbol(Dwarf_Debug handle, Dwarf_Die die,
       char *name;
       if (dwarf_diename(child, &name, NULL) == DW_DLV_OK) {
          frame->symbol = xstrdup(name);
-         dwarf_dealloc(handle, name, DW_DLA_STRING);
+         dwarf_dealloc(handle->debug, name, DW_DLA_STRING);
       }
 
       Dwarf_Unsigned srclang;
@@ -378,12 +387,13 @@ static void libdwarf_get_symbol(Dwarf_Debug handle, Dwarf_Die die,
       }
 
       break;
-   } while (dwarf_siblingof(handle, child, &child, NULL) == DW_DLV_OK);
+   } while (dwarf_siblingof(handle->debug, child, &child, NULL) == DW_DLV_OK);
 
-   dwarf_dealloc(handle, prev, DW_DLA_DIE);
+ out_dealloc:
+   dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
 }
 
-static void libdwarf_get_srcline(Dwarf_Debug handle, Dwarf_Die die,
+static void libdwarf_get_srcline(libdwarf_handle_t *handle, Dwarf_Die die,
                                  Dwarf_Unsigned rel_addr, debug_frame_t *frame)
 {
    Dwarf_Line*  linebuf = NULL;
@@ -414,36 +424,38 @@ static void libdwarf_get_srcline(Dwarf_Debug handle, Dwarf_Die die,
          char *srcfile;
          if (dwarf_linesrc(linebuf[idx], &srcfile, NULL) == DW_DLV_OK) {
             frame->srcfile = xstrdup(srcfile);
-            dwarf_dealloc(handle, srcfile, DW_DLA_STRING);
+            dwarf_dealloc(handle->debug, srcfile, DW_DLA_STRING);
          }
       }
 
-      dwarf_srclines_dealloc(handle, linebuf, linecount);
+      dwarf_srclines_dealloc(handle->debug, linebuf, linecount);
    }
 }
 
-static bool libdwarf_scan_aranges(Dwarf_Debug handle, Dwarf_Unsigned rel_addr,
+static bool libdwarf_scan_aranges(libdwarf_handle_t *handle,
+                                  Dwarf_Unsigned rel_addr,
                                   debug_frame_t *frame)
 {
-   Dwarf_Off     cu_header_offset = 0;
-   Dwarf_Arange *aranges;
-   Dwarf_Signed  arange_count;
-   bool          found = false;
+   Dwarf_Off cu_header_offset = 0;
+   bool      found = false;
 
-   if (dwarf_get_aranges(handle, &aranges, &arange_count, NULL) != DW_DLV_OK)
-      return false;
+   if (handle->aranges == NULL) {
+      if (dwarf_get_aranges(handle->debug, &(handle->aranges),
+                            &(handle->arange_count), NULL) != DW_DLV_OK)
+         return false;
+   }
 
    Dwarf_Arange arange;
-   if (dwarf_get_arange(aranges, arange_count, rel_addr, &arange,
-                        NULL) != DW_DLV_OK)
-      goto free_aranges;
+   if (dwarf_get_arange(handle->aranges, handle->arange_count, rel_addr,
+                        &arange, NULL) != DW_DLV_OK)
+      return false;
 
    if (dwarf_get_cu_die_offset(arange, &cu_header_offset, NULL) != DW_DLV_OK)
-      goto free_aranges;
+      return false;
 
    Dwarf_Die die = NULL;
-   if (dwarf_offdie(handle, cu_header_offset, &die, NULL) != DW_DLV_OK)
-      goto free_aranges;
+   if (dwarf_offdie(handle->debug, cu_header_offset, &die, NULL) != DW_DLV_OK)
+      return false;
 
    Dwarf_Half tag = 0;
    if (dwarf_tag(die, &tag, NULL) != DW_DLV_OK)
@@ -458,29 +470,25 @@ static bool libdwarf_scan_aranges(Dwarf_Debug handle, Dwarf_Unsigned rel_addr,
    }
 
  free_die:
-   dwarf_dealloc(handle, die, DW_DLA_DIE);
-
- free_aranges:
-   for (int i = 0; i < arange_count; i++)
-      dwarf_dealloc(handle, aranges[i], DW_DLA_ARANGE);
-   dwarf_dealloc(handle, aranges, DW_DLA_LIST);
+   dwarf_dealloc(handle->debug, die, DW_DLA_DIE);
 
    return found;
 }
 
-static bool libdwarf_scan_cus(Dwarf_Debug handle, Dwarf_Unsigned rel_addr,
+static bool libdwarf_scan_cus(libdwarf_handle_t *handle,
+                              Dwarf_Unsigned rel_addr,
                               debug_frame_t *frame)
 {
    Dwarf_Unsigned next_cu_offset;
    bool found = false;
-   while (dwarf_next_cu_header(handle, NULL, NULL, NULL, NULL,
+   while (dwarf_next_cu_header(handle->debug, NULL, NULL, NULL, NULL,
                                &next_cu_offset, NULL) == DW_DLV_OK) {
 
       if (found)
          continue;   // Read all the way to the end to reset the iterator
 
       Dwarf_Die die = NULL;
-      if (dwarf_siblingof(handle, 0, &die, NULL) != DW_DLV_OK)
+      if (dwarf_siblingof(handle->debug, 0, &die, NULL) != DW_DLV_OK)
          continue;
 
       Dwarf_Half tag = 0;
@@ -496,7 +504,7 @@ static bool libdwarf_scan_cus(Dwarf_Debug handle, Dwarf_Unsigned rel_addr,
       }
 
    free_die:
-      dwarf_dealloc(handle, die, DW_DLA_DIE);
+      dwarf_dealloc(handle->debug, die, DW_DLA_DIE);
       die = NULL;
    }
 
@@ -523,7 +531,7 @@ static void libdwarf_fill_frame(uintptr_t ip, debug_frame_t *frame)
 
    Dwarf_Addr rel_addr = ip - (uintptr_t)dli.dli_fbase;
 
-   Dwarf_Debug handle = libdwarf_handle_for_file(dli.dli_fname);
+   libdwarf_handle_t *handle = libdwarf_handle_for_file(dli.dli_fname);
    if (handle == NULL)
       return;
 
@@ -659,7 +667,7 @@ static void debug_walk_frames(debug_info_t *di)
 ////////////////////////////////////////////////////////////////////////////////
 // Unwind backend
 
-#elif defined HAVE_UNWIND_H
+#else
 
 static void unwind_parse_vhdl_symbol(debug_frame_t *frame)
 {
@@ -743,36 +751,6 @@ static inline void debug_walk_frames(debug_info_t *di)
    _Unwind_Backtrace(unwind_frame_iter, di);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Execinfo backend
-
-#elif defined HAVE_EXECINFO_H
-
-__attribute__((noinline))
-static void debug_walk_frames(debug_info_t *di)
-{
-   void *trace[MAX_TRACE_DEPTH];
-   char **messages = NULL;
-   int trace_size = 0;
-
-   trace_size = backtrace(trace, MAX_TRACE_DEPTH);
-   messages = backtrace_symbols(trace, trace_size);
-
-   for (int i = 2; i < trace_size; i++) {
-      debug_frame_t *frame;
-      if (!di_lru_get((uintptr_t)trace[i], &frame)) {
-         frame->kind   = FRAME_PROG;
-         frame->symbol = xstrdup(messages[i]);
-      }
-
-      APUSH(di->frames, frame);
-   }
-
-   free(messages);
-}
-
-#else
-#error No suitable frame walking backend
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////

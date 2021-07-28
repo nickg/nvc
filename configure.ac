@@ -154,52 +154,40 @@ AX_LLVM_C([engine passes ipo linker native])
 PKG_CHECK_MODULES([check], [check >= 0.9.4], [],
                   [AC_MSG_WARN(libcheck not found - unit tests will not run)])
 
-debug_backend=
-AC_CHECK_HEADER([unwind.h],
+AC_CHECK_HEADER([unwind.h], [],
+  [AC_MSG_ERROR([required header unwind.h not found (try installing libunwind)])])
+
+AC_SEARCH_LIBS([_Unwind_Backtrace], [c++abi],
   [
-    AC_DEFINE_UNQUOTED([HAVE_UNWIND_H], [1], [Have unwind.h])
-    debug_backend=unwind
-
-    AC_SEARCH_LIBS([_Unwind_Backtrace], [c++abi],
-      [
-        # libc++-abi needs to link -lpthread on OpenBSD
-        if test "$ac_cv_search__Unwind_Backtrace" = "-lc++abi"; then
-          AX_PTHREAD([LIBS="$PTHREAD_LIBS $LIBS"],
-                     [AC_MSG_ERROR([pthread not found])])
-        fi
-      ],
-      [AC_MSG_ERROR(cannot find library for _Unwind_Backtrace)],
-      [-lpthread])
-
-    PKG_CHECK_MODULES([libdw], [libdw >= 0.159],
-      [AC_DEFINE_UNQUOTED([HAVE_LIBDW], [1], [Have libdw for stack traces])
-       debug_backend=libdw],
-      [true]) # Do not error if libdw not installed
-
-    # libdw and libdwarf conflict so take care not to add both to LIBS
-    if test "$debug_backend" != "libdw"; then
-      AC_CHECK_HEADER([libdwarf/libdwarf.h],
-        [AC_SEARCH_LIBS([elf_version], [elf], [],
-                        [AC_MSG_ERROR(cannot find libelf)])
-         AC_SEARCH_LIBS([dwarf_init], [dwarf],
-                        [AC_DEFINE_UNQUOTED([HAVE_LIBDWARF], [1],
-                                            [Have libdwarf for stack traces])
-                         debug_backend=libdwarf],
-                        [AC_MSG_WARN(cannot link against libdwarf)], [])])
+    # libc++-abi needs to link -lpthread on OpenBSD
+    if test "$ac_cv_search__Unwind_Backtrace" = "-lc++abi"; then
+      AX_PTHREAD([LIBS="$PTHREAD_LIBS $LIBS"],
+                 [AC_MSG_ERROR([pthread not found])])
     fi
-  ])
+  ],
+  [AC_MSG_ERROR([cannot find library for _Unwind_Backtrace])],
+  [-lpthread])
 
 case $host_os in
-  *cygwin*|msys*|mingw32*)
-    debug_backend=win32
+  linux*)
+    PKG_CHECK_MODULES([libdw], [libdw >= 0.159],
+      [AC_DEFINE_UNQUOTED([HAVE_LIBDW], [1], [Have libdw for stack traces])])
+    ;;
+
+  freebsd*|openbsd*)
+    AC_CHECK_HEADERS([libdwarf/libdwarf.h libdwarf.h],
+      [AC_SEARCH_LIBS([elf_version], [elf], [],
+                      [AC_MSG_ERROR(cannot find libelf)])
+       AC_SEARCH_LIBS([dwarf_init], [dwarf],
+                      [AC_DEFINE_UNQUOTED([HAVE_LIBDWARF], [1],
+                                          [Have libdwarf for stack traces])],
+                      [AC_MSG_ERROR(cannot link against libdwarf)], [])
+       break])
+    if test -z "$ac_cv_search_dwarf_init"; then
+      AC_MSG_ERROR([cannot find libdwarf.h])
+    fi
     ;;
 esac
-
-if test -z "$debug_backend"; then
-  AX_EXECINFO
-  AC_MSG_NOTICE(libdw or libdwarf not found - using basic stack traces)
-  debug_backend=execinfo
-fi
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 AX_DEFINE_DIR([LIBDIR], [libdir], [Installation library directory])
