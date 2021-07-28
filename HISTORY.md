@@ -1,8 +1,8 @@
-## 1.5.2 - unreleased
+## 1.5.2 - 2021-07-28
 - Link libexecinfo on FreeBSD.
 - Implement textio READ procedure for BIT and TIME (#408).
 - Fixed a crash when a long running procedure suspends in a loop (#412).
-- Fix static build with LLVM 12.0.
+- Fix static linking with LLVM 12.0.
 - Fix crash when assigning to a signal declared in a package.
 - Fix incorrect recording of dependencies which caused a failure to load
   generated DLLs on Windows.
