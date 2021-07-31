@@ -92,6 +92,7 @@ typedef struct {
    bool         failed;
    eval_alloc_t *allocations;
    int          iterations;
+   int          op;
 } eval_state_t;
 
 #define EVAL_WARN(t, ...) do {                                          \
@@ -543,6 +544,19 @@ static void eval_message(value_t *text, value_t *length, value_t *severity,
    (*fn)(loc, "%s %s: %s", prefix, levels[severity->integer],
          copy ?: "Assertion violation");
    free(copy);
+}
+
+static void eval_branch(vcode_block_t target, eval_state_t *state)
+{
+   if (++(state->iterations) >= ITER_LIMIT) {
+      EVAL_WARN(state->fcall, "iteration limit reached while evaluating %s",
+                istr(tree_ident(state->fcall)));
+      state->failed = true;
+      return;
+   }
+
+   vcode_select_block(target);
+   state->op = 0;
 }
 
 static void eval_op_const(int op, eval_state_t *state)
@@ -1220,17 +1234,13 @@ static void eval_op_or(int op, eval_state_t *state)
 
 static void eval_op_jump(int op, eval_state_t *state)
 {
-   vcode_select_block(vcode_get_target(op, 0));
-   eval_vcode(state);
+   eval_branch(vcode_get_target(op, 0), state);
 }
 
 static void eval_op_cond(int op, eval_state_t *state)
 {
    value_t *test = eval_get_reg(vcode_get_arg(op, 0), state);
-
-   const vcode_block_t next = vcode_get_target(op, !(test->integer));
-   vcode_select_block(next);
-   eval_vcode(state);
+   eval_branch(vcode_get_target(op, !(test->integer)), state);
 }
 
 static void eval_op_undefined(int op, eval_state_t *state)
@@ -1305,8 +1315,7 @@ static void eval_op_case(int op, eval_state_t *state)
       }
    }
 
-   vcode_select_block(target);
-   eval_vcode(state);
+   eval_branch(target, state);
 }
 
 static void eval_op_copy(int op, eval_state_t *state)
@@ -1825,181 +1834,175 @@ static void eval_op_debug_out(int op, eval_state_t *state)
 
 static void eval_vcode(eval_state_t *state)
 {
-   if (++(state->iterations) >= ITER_LIMIT) {
-      EVAL_WARN(state->fcall, "iteration limit reached while evaluating %s",
-                istr(tree_ident(state->fcall)));
-      state->failed = true;
-      return;
-   }
+   state->op = 0;
 
-   const int nops = vcode_count_ops();
-   for (int i = 0; i < nops && !(state->failed); i++) {
-      switch (vcode_get_op(i)) {
+   while (!(state->failed)) {
+      switch (vcode_get_op(state->op)) {
       case VCODE_OP_COMMENT:
          break;
 
       case VCODE_OP_CONST:
-         eval_op_const(i, state);
+         eval_op_const(state->op, state);
          break;
 
       case VCODE_OP_CONST_REAL:
-         eval_op_const_real(i, state);
+         eval_op_const_real(state->op, state);
          break;
 
       case VCODE_OP_RETURN:
-         eval_op_return(i, state);
+         eval_op_return(state->op, state);
          return;
 
       case VCODE_OP_NOT:
-         eval_op_not(i, state);
+         eval_op_not(state->op, state);
          break;
 
       case VCODE_OP_ADD:
-         eval_op_add(i, state);
+         eval_op_add(state->op, state);
          break;
 
       case VCODE_OP_SUB:
-         eval_op_sub(i, state);
+         eval_op_sub(state->op, state);
          break;
 
       case VCODE_OP_MUL:
-         eval_op_mul(i, state);
+         eval_op_mul(state->op, state);
          break;
 
       case VCODE_OP_DIV:
-         eval_op_div(i, state);
+         eval_op_div(state->op, state);
          break;
 
       case VCODE_OP_CMP:
-         eval_op_cmp(i, state);
+         eval_op_cmp(state->op, state);
          break;
 
       case VCODE_OP_CAST:
-         eval_op_cast(i, state);
+         eval_op_cast(state->op, state);
          break;
 
       case VCODE_OP_NEG:
-         eval_op_neg(i, state);
+         eval_op_neg(state->op, state);
          break;
 
       case VCODE_OP_FCALL:
       case VCODE_OP_NESTED_FCALL:
          if (state->flags & EVAL_FCALL)
-            eval_op_fcall(i, state);
+            eval_op_fcall(state->op, state);
          else
             state->failed = true;
          break;
 
       case VCODE_OP_BOUNDS:
-         eval_op_bounds(i, state);
+         eval_op_bounds(state->op, state);
          break;
 
       case VCODE_OP_CONST_ARRAY:
-         eval_op_const_array(i, state);
+         eval_op_const_array(state->op, state);
          break;
 
       case VCODE_OP_WRAP:
-         eval_op_wrap(i, state);
+         eval_op_wrap(state->op, state);
          break;
 
       case VCODE_OP_STORE:
-         eval_op_store(i, state);
+         eval_op_store(state->op, state);
          break;
 
       case VCODE_OP_UNWRAP:
-         eval_op_unwrap(i, state);
+         eval_op_unwrap(state->op, state);
          break;
 
       case VCODE_OP_UARRAY_LEN:
-         eval_op_uarray_len(i, state);
+         eval_op_uarray_len(state->op, state);
          break;
 
       case VCODE_OP_MEMCMP:
-         eval_op_memcmp(i, state);
+         eval_op_memcmp(state->op, state);
          break;
 
       case VCODE_OP_AND:
-         eval_op_and(i, state);
+         eval_op_and(state->op, state);
          break;
 
       case VCODE_OP_OR:
-         eval_op_or(i, state);
+         eval_op_or(state->op, state);
          break;
 
       case VCODE_OP_COND:
-         eval_op_cond(i, state);
-         return;
+         eval_op_cond(state->op, state);
+         continue;
 
       case VCODE_OP_JUMP:
-         eval_op_jump(i, state);
-         return;
+         eval_op_jump(state->op, state);
+         continue;
 
       case VCODE_OP_LOAD:
-         eval_op_load(i, state);
+         eval_op_load(state->op, state);
          break;
 
       case VCODE_OP_UNDEFINED:
-         eval_op_undefined(i, state);
+         eval_op_undefined(state->op, state);
          break;
 
       case VCODE_OP_CASE:
-         eval_op_case(i, state);
-         return;
+         eval_op_case(state->op, state);
+         continue;
 
       case VCODE_OP_MOD:
-         eval_op_mod(i, state);
+         eval_op_mod(state->op, state);
          break;
 
       case VCODE_OP_REM:
-         eval_op_rem(i, state);
+         eval_op_rem(state->op, state);
          break;
 
       case VCODE_OP_DYNAMIC_BOUNDS:
-         eval_op_dynamic_bounds(i, state);
+         eval_op_dynamic_bounds(state->op, state);
          break;
 
       case VCODE_OP_INDEX:
-         eval_op_index(i, state);
+         eval_op_index(state->op, state);
          break;
 
       case VCODE_OP_COPY:
-         eval_op_copy(i, state);
+         eval_op_copy(state->op, state);
          break;
 
       case VCODE_OP_LOAD_INDIRECT:
-         eval_op_load_indirect(i, state);
+         eval_op_load_indirect(state->op, state);
          break;
 
       case VCODE_OP_STORE_INDIRECT:
-         eval_op_store_indirect(i, state);
+         eval_op_store_indirect(state->op, state);
          break;
 
       case VCODE_OP_REPORT:
-         eval_op_report(i, state);
+         eval_op_report(state->op, state);
          break;
 
       case VCODE_OP_ASSERT:
-         eval_op_assert(i, state);
+         eval_op_assert(state->op, state);
          break;
 
       case VCODE_OP_SELECT:
-         eval_op_select(i, state);
+         eval_op_select(state->op, state);
          break;
 
       case VCODE_OP_ALLOCA:
-         eval_op_alloca(i, state);
+         eval_op_alloca(state->op, state);
          break;
 
       case VCODE_OP_INDEX_CHECK:
-         eval_op_index_check(i, state);
+         eval_op_index_check(state->op, state);
          break;
 
       case VCODE_OP_ABS:
-         eval_op_abs(i, state);
+         eval_op_abs(state->op, state);
          break;
 
       case VCODE_OP_IMAGE:
-         eval_op_image(i, state);
+         eval_op_image(state->op, state);
          break;
 
       case VCODE_OP_TEMP_STACK_MARK:
@@ -2007,93 +2010,96 @@ static void eval_vcode(eval_state_t *state)
          break;
 
       case VCODE_OP_UARRAY_LEFT:
-         eval_op_uarray_left(i, state);
+         eval_op_uarray_left(state->op, state);
          break;
 
       case VCODE_OP_UARRAY_RIGHT:
-         eval_op_uarray_right(i, state);
+         eval_op_uarray_right(state->op, state);
          break;
 
       case VCODE_OP_UARRAY_DIR:
-         eval_op_uarray_dir(i, state);
+         eval_op_uarray_dir(state->op, state);
          break;
 
       case VCODE_OP_EXP:
-         eval_op_exp(i, state);
+         eval_op_exp(state->op, state);
          break;
 
       case VCODE_OP_CONST_RECORD:
-         eval_op_const_record(i, state);
+         eval_op_const_record(state->op, state);
          break;
 
       case VCODE_OP_RECORD_REF:
-         eval_op_record_ref(i, state);
+         eval_op_record_ref(state->op, state);
          break;
 
       case VCODE_OP_MEMSET:
-         eval_op_memset(i, state);
+         eval_op_memset(state->op, state);
          break;
 
       case VCODE_OP_BIT_SHIFT:
-         eval_op_bit_shift(i, state);
+         eval_op_bit_shift(state->op, state);
          break;
 
       case VCODE_OP_ARRAY_SIZE:
-         eval_op_array_size(i, state);
+         eval_op_array_size(state->op, state);
          break;
 
       case VCODE_OP_IMAGE_MAP:
-         eval_op_image_map(i, state);
+         eval_op_image_map(state->op, state);
          break;
 
       case VCODE_OP_NULL:
-         eval_op_null(i, state);
+         eval_op_null(state->op, state);
          break;
 
       case VCODE_OP_PCALL:
-         eval_op_pcall(i, state);
+         eval_op_pcall(state->op, state);
          break;
 
       case VCODE_OP_NEW:
-         eval_op_new(i, state);
+         eval_op_new(state->op, state);
          break;
 
       case VCODE_OP_ALL:
-         eval_op_all(i, state);
+         eval_op_all(state->op, state);
          break;
 
       case VCODE_OP_NULL_CHECK:
-         eval_op_null_check(i, state);
+         eval_op_null_check(state->op, state);
          break;
 
       case VCODE_OP_DEALLOCATE:
-         eval_op_deallocate(i, state);
+         eval_op_deallocate(state->op, state);
          break;
 
       case VCODE_OP_BIT_VEC_OP:
-         eval_op_bitvec_op(i, state);
+         eval_op_bitvec_op(state->op, state);
          break;
 
       case VCODE_OP_PARAM_UPREF:
-         eval_op_param_upref(i, state);
+         eval_op_param_upref(state->op, state);
          break;
 
       case VCODE_OP_VAR_UPREF:
-         eval_op_var_upref(i, state);
+         eval_op_var_upref(state->op, state);
          break;
 
       case VCODE_OP_RANGE_NULL:
-         eval_op_range_null(i, state);
+         eval_op_range_null(state->op, state);
          break;
 
       case VCODE_OP_DEBUG_OUT:
-         eval_op_debug_out(i, state);
+         eval_op_debug_out(state->op, state);
          break;
 
       default:
          vcode_dump();
-         fatal("cannot evaluate vcode op %s", vcode_op_string(vcode_get_op(i)));
+         fatal("cannot evaluate vcode op %s",
+               vcode_op_string(vcode_get_op(state->op)));
       }
+
+      (state->op)++;
    }
 }
 
