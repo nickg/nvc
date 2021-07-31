@@ -1,3 +1,6 @@
+## 1.5.3 - unreleased
+- Handle access(2) returning EPERM in macOS sandbox (#421).
+
 ## 1.5.2 - 2021-07-28
 - Link libexecinfo on FreeBSD.
 - Implement textio READ procedure for BIT and TIME (#408).
