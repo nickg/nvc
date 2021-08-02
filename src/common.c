@@ -1163,11 +1163,12 @@ tree_t find_mangled_decl(tree_t container, ident_t name)
    }
 
    const tree_kind_t kind = tree_kind(container);
-   if (kind == T_ARCH || kind == T_ELAB) {
+   if (kind == T_ARCH || kind == T_ELAB || kind == T_BLOCK) {
       const int nstmts = tree_stmts(container);
       for (int i = 0; i < nstmts; i++) {
          tree_t s = tree_stmt(container, i);
-         if (tree_kind(s) == T_PROCESS) {
+         const tree_kind_t skind = tree_kind(s);
+         if (skind == T_PROCESS || skind == T_BLOCK) {
             if (tree_ident(s) == name)
                return s;
 
