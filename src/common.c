@@ -1181,3 +1181,20 @@ tree_t find_mangled_decl(tree_t container, ident_t name)
 
    return NULL;
 }
+
+tree_t name_to_ref(tree_t name)
+{
+   tree_kind_t kind;
+   while ((kind = tree_kind(name)) != T_REF) {
+      switch (kind) {
+      case T_ARRAY_REF:
+      case T_ARRAY_SLICE:
+         name = tree_value(name);
+         break;
+      default:
+         return NULL;
+      }
+   }
+
+   return name;
+}

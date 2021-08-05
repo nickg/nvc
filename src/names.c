@@ -1298,23 +1298,6 @@ static void overload_prune_candidate(overload_t *o, int index)
    o->candidates.items[index] = NULL;
 }
 
-static tree_t name_to_ref(tree_t name)
-{
-   tree_kind_t kind;
-   while ((kind = tree_kind(name)) != T_REF) {
-      switch (kind) {
-      case T_ARRAY_REF:
-      case T_ARRAY_SLICE:
-         name = tree_value(name);
-         break;
-      default:
-         return NULL;
-      }
-   }
-
-   return name;
-}
-
 static void overload_add_candidate(overload_t *o, tree_t d)
 {
    tree_kind_t dkind = tree_kind(d);

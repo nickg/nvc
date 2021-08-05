@@ -113,6 +113,7 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
                                    type_t type, unsigned dim);
 static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
                                     vcode_reg_t lval, vcode_reg_t rval);
+static vcode_type_t lower_alias_type(tree_t alias);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -2112,27 +2113,37 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
 
 static vcode_reg_t lower_alias_ref(tree_t alias, expr_ctx_t ctx)
 {
-   assert(tree_kind(alias) == T_ALIAS);
+   type_t type = tree_type(alias);
 
-   tree_t value = tree_value(alias);
-   vcode_reg_t aliased = lower_expr(value, ctx);
+   if (!type_is_array(type))
+      return lower_expr(tree_value(alias), ctx);
 
-   // The aliased object may have non-constant bounds whereas the
-   // alias itself has known bounds
+   int hops = 0;
+   vcode_var_t var = lower_get_var(alias, &hops);
+   if (var == VCODE_INVALID_VAR) {
+      if (mode == LOWER_THUNK)
+         return emit_undefined(lower_type(type));
+      else {
+         // External alias variable
+         vcode_state_t state;
+         vcode_state_save(&state);
 
-   type_t alias_type = tree_type(alias);
-   type_t value_type = tree_type(value);
+         while (vcode_unit_kind() != VCODE_UNIT_CONTEXT)
+            vcode_select_unit(vcode_unit_context());
 
-   if (!type_is_array(alias_type))
-      return aliased;
+         type_t type = tree_type(alias);
+         var = emit_extern_var(lower_alias_type(alias), lower_bounds(type),
+                               tree_ident(alias));
+         lower_put_vcode_obj(alias, var, lower_bottom_scope());
 
-   const bool alias_const = lower_const_bounds(alias_type);
-   const bool value_const = lower_const_bounds(value_type);
+         vcode_state_restore(&state);
+      }
+   }
 
-   if (!alias_const || !value_const)
-      return lower_wrap(alias_type, aliased);
+   if (hops == 0)
+      return emit_load(var);
    else
-      return aliased;
+      return emit_load_indirect(emit_var_upref(hops, var));
 }
 
 static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
@@ -2211,39 +2222,6 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    return emit_cast(vtype_offset(), VCODE_INVALID_TYPE, zeroed);
 }
 
-static vcode_reg_t lower_unalias_index(tree_t alias, vcode_reg_t index,
-                                       vcode_reg_t meta)
-{
-   type_t alias_type = tree_type(alias);
-   type_t base_type  = tree_type(tree_value(alias));
-
-   assert(dimension_of(alias_type) == 1);  // TODO: multi-dimensional arrays
-
-   tree_t alias_r = range_of(alias_type, 0);
-   vcode_reg_t off = emit_sub(index, lower_range_left(alias_r));
-
-   vcode_reg_t bleft = VCODE_INVALID_REG, bdir = VCODE_INVALID_REG;
-   if (type_is_unconstrained(base_type)) {
-      // The transformation must be computed at runtime
-      assert(meta != VCODE_INVALID_REG);
-      bleft = lower_array_left(base_type, 0, meta);
-      bdir  = lower_array_dir(base_type, 0, meta);
-   }
-   else {
-      // The transformation is a constant offset of indices
-      tree_t base_r = range_of(base_type, 0);
-      bleft = lower_range_left(base_r);
-      bdir  = lower_array_dir(base_type, 0, VCODE_INVALID_REG);
-   }
-
-   vcode_reg_t adir = lower_array_dir(alias_type, 0, VCODE_INVALID_REG);
-   vcode_reg_t same_dir = emit_cmp(VCODE_CMP_EQ, bdir, adir);
-
-   vcode_reg_t a_reg = emit_add(bleft, off);
-   vcode_reg_t b_reg = emit_sub(bleft, off);
-   return emit_select(same_dir, a_reg, b_reg);
-}
-
 static void lower_check_array_bounds(type_t type, int dim, vcode_reg_t array,
                                      vcode_reg_t value, tree_t where,
                                      tree_t hint)
@@ -2286,13 +2264,6 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
    tree_t value = tree_value(ref);
    type_t value_type = tree_type(value);
 
-   tree_t alias = NULL;
-   if (tree_kind(value) == T_REF) {
-      tree_t decl = tree_ref(value);
-      if (tree_kind(decl) == T_ALIAS)
-         alias = decl;
-   }
-
    const bool elide_bounds = tree_flags(ref) & TREE_F_ELIDE_BOUNDS;
 
    vcode_reg_t idx = emit_const(vtype_offset(), 0);
@@ -2304,14 +2275,8 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
       vcode_reg_t offset = lower_reify_expr(tree_value(p));
 
       if (!elide_bounds)
-         lower_check_array_bounds(value_type, i,
-                                  (alias ? VCODE_INVALID_REG : array), offset,
+         lower_check_array_bounds(value_type, i, array, offset,
                                   tree_value(p), NULL);
-
-      if (alias != NULL) {
-         offset = lower_unalias_index(alias, offset, array);
-         value_type = tree_type(tree_value(alias));
-      }
 
       if (i > 0) {
          vcode_reg_t stride = lower_array_len(value_type, i, array);
@@ -2352,19 +2317,8 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    vcode_reg_t left_reg  = lower_range_left(r);
    vcode_reg_t right_reg = lower_range_right(r);
    vcode_reg_t kind_reg  = lower_range_dir(r);
-
-   vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, kind_reg);
-
-   tree_t alias = NULL;
-   if (tree_kind(value) == T_REF) {
-      tree_t decl = tree_ref(value);
-      if (tree_kind(decl) == T_ALIAS)
-         alias = decl;
-   }
-
-   vcode_reg_t array_reg = VCODE_INVALID_REG;
-   if (alias == NULL)
-      array_reg = lower_expr(value, ctx);
+   vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, kind_reg);
+   vcode_reg_t array_reg = lower_expr(value, ctx);
 
    int64_t null_const;
    const bool known_not_null =
@@ -2393,15 +2347,6 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    if (!known_not_null) {
       emit_jump(after_bounds_bb);
       vcode_select_block(after_bounds_bb);
-   }
-
-   if (alias != NULL) {
-      tree_t aliased = tree_value(alias);
-      type = tree_type(aliased);
-      array_reg = lower_expr(aliased, ctx);
-      left_reg  = lower_unalias_index(alias, left_reg, array_reg);
-      right_reg = lower_unalias_index(alias, right_reg, array_reg);
-      kind_reg  = lower_array_dir(type, 0, array_reg);
    }
 
    if (array_reg == VCODE_INVALID_REG)
@@ -5040,6 +4985,41 @@ static void lower_file_decl(tree_t decl)
    }
 }
 
+static vcode_type_t lower_alias_type(tree_t alias)
+{
+   type_t type = tree_type(alias);
+   if (!type_is_array(type))
+      return VCODE_INVALID_TYPE;
+
+   tree_t ref = name_to_ref(tree_value(alias));
+   if (ref == NULL || tree_kind(tree_ref(ref)) == T_TYPE_DECL)
+      return VCODE_INVALID_TYPE;
+
+   vcode_type_t velem = lower_type(lower_elem_recur(type));
+   if (class_of(tree_ref(ref)) == C_SIGNAL)
+      velem = vtype_signal(velem);
+
+   vcode_type_t vbounds = lower_bounds(type);
+   return vtype_uarray(dimension_of(type), velem, vbounds);
+}
+
+static void lower_alias_decl(tree_t decl)
+{
+   vcode_type_t vtype = lower_alias_type(decl);
+   if (vtype == VCODE_INVALID_TYPE)
+      return;
+
+   type_t type = tree_type(decl);
+
+   vcode_var_t var = emit_var(vtype, lower_bounds(type), tree_ident(decl));
+   lower_put_vcode_obj(decl, var, top_scope);
+
+   vcode_reg_t value_reg = lower_expr(tree_value(decl), EXPR_LVALUE);
+   vcode_reg_t data_reg  = lower_array_data(value_reg);
+
+   emit_store(lower_wrap(type, data_reg), var);
+}
+
 static void lower_protected_constants(tree_t body)
 {
    const int ndecls = tree_decls(body);
@@ -5070,9 +5050,12 @@ static void lower_decl(tree_t decl)
       lower_file_decl(decl);
       break;
 
+   case T_ALIAS:
+      lower_alias_decl(decl);
+      break;
+
    case T_HIER:
    case T_TYPE_DECL:
-   case T_ALIAS:
    case T_FUNC_DECL:
    case T_PROC_DECL:
    case T_ATTR_SPEC:

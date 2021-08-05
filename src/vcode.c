@@ -3728,7 +3728,11 @@ vcode_reg_t emit_nets(vcode_signal_t sig)
    VCODE_ASSERT(vtype_kind(stype) == VCODE_TYPE_SIGNAL,
                 "argument to nets is not a signal");
 
-   op->result = vcode_add_reg(stype);
+   vcode_type_t base = vtype_base(stype);
+   if (vtype_kind(base) == VCODE_TYPE_CARRAY)
+     op->type = vtype_signal(vtype_elem(base));
+
+   op->result = vcode_add_reg(op->type);
 
    reg_t *rr = vcode_reg_data(op->result);
    rr->bounds = vcode_signal_bounds(sig);
