@@ -393,4 +393,11 @@ begin
     begin
     end process;
 
+    process is
+    begin
+	x <= (true => 1, others => 0);  -- Error
+	x <= (1 to true => 0);  	-- Error
+	x <= (false to true => 0, 1 => 1);  -- Error
+    end process;
+
 end architecture;

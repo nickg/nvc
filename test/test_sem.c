@@ -443,6 +443,9 @@ START_TEST(test_array)
       { 379, "array T_FILE_ARRAY cannot have element of file type" },
       { 391, "index type REAL is not discrete" },
       { 392, "index type BIT_VECTOR is not discrete" },
+      { 398, "type of array aggregate choice BOOLEAN does not match INT_" },
+      { 399, "in range: left is universal_integer, right is BOOLEAN" },
+      { 400, "expected type of left bound to be INTEGER but is BOOLEAN" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -2429,8 +2429,17 @@ static bool sem_check_aggregate(tree_t t)
             break;
 
          case A_NAMED:
-            if (!sem_check(tree_name(a)))
-               return false;
+            {
+               tree_t name = tree_name(a);
+
+               if (!sem_check(name))
+                  return false;
+
+               if (!sem_check_type(name, index_type))
+                  sem_error(name, "type of array aggregate choice %s does not "
+                            "match %s index type %s", type_pp(tree_type(name)),
+                            type_pp(composite_type), type_pp(index_type));
+            }
             break;
 
          default:
