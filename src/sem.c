@@ -2334,222 +2334,94 @@ static bool sem_check_literal(tree_t t)
    return true;
 }
 
-static bool sem_check_aggregate(tree_t t)
+static bool sem_check_array_aggregate(tree_t t)
 {
-   // Rules for aggregates are in LRM 93 section 7.3.2
-
    type_t composite_type = tree_type(t);
-
-   if (type_is_none(composite_type))
-      return false;
-   assert(type_is_composite(composite_type));
-
    type_t base_type = type_base_recur(composite_type);
 
    const bool unconstrained = type_is_unconstrained(composite_type);
-   const bool array = type_is_array(composite_type);
 
-   // All positional associations must appear before named associations
-   // and those must appear before any others association
+   type_t elem_type = NULL;
+   const int ndims = dimension_of(composite_type);
+   if (ndims == 1)
+      elem_type = type_elem(base_type);
+   else {
+      // The parser will have constructed a type with ndims - 1
+      // dimensions.
+      elem_type = tree_type(tree_value(tree_assoc(t, 0)));
 
-   enum { POS, NAMED, OTHERS } state = POS;
+      if (!type_is_unconstrained(elem_type)) {
+         if (!sem_check_array_dims(elem_type, NULL))
+            return false;
+      }
+   }
+
+   type_t index_type = index_type_of(composite_type, 0);
+
    bool have_named = false;
    bool have_pos = false;
    bool have_others = false;
 
    const int nassocs = tree_assocs(t);
-
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
 
-      switch (tree_subkind(a)) {
-      case A_POS:
-         if (state > POS)
-            sem_error(a, "positional associations must appear "
-                      "first in aggregate");
-         have_pos = true;
+      switch ((assoc_kind_t)tree_subkind(a)) {
+      case A_RANGE:
+         {
+            tree_t r = tree_range(a, 0);
+            if (!sem_check_discrete_range(r, index_type))
+               return false;
+
+            have_named = true;
+         }
          break;
 
       case A_NAMED:
-      case A_RANGE:
-         if (state > NAMED)
-            sem_error(a, "named association must not follow "
-                      "others association in aggregate");
-         state = NAMED;
-         have_named = true;
+         {
+            tree_t name = tree_name(a);
+
+            if (!sem_check(name))
+               return false;
+
+            if (!sem_check_type(name, index_type))
+               sem_error(name, "type of array aggregate choice %s does not "
+                         "match %s index type %s", type_pp(tree_type(name)),
+                         type_pp(composite_type), type_pp(index_type));
+
+            have_named = true;
+         }
+         break;
+
+      case A_POS:
+         have_pos = true;
          break;
 
       case A_OTHERS:
-         if (state == OTHERS)
-            sem_error(a, "only a single others association "
-                      "allowed in aggregate");
          if (unconstrained)
             sem_error(a, "others choice not allowed in this context");
-         state = OTHERS;
          have_others = true;
          break;
       }
+
+      tree_t value = tree_value(a);
+
+      if (!sem_check(value))
+         return false;
+
+      if (!sem_check_type(value, elem_type))
+         sem_error(value, "type of element %s does not match base "
+                   "type of aggregate %s",
+                   type_pp(tree_type(value)),
+                   type_pp(elem_type));
    }
 
    // Named and positional associations cannot be mixed in array
    // aggregates
 
-   if (array && have_named && have_pos)
+   if (have_named && have_pos)
       sem_error(t, "named and positional associations cannot be "
                 "mixed in array aggregates");
-
-   if (array) {
-      type_t elem_type = NULL;
-      const int ndims = dimension_of(composite_type);
-      if (ndims == 1)
-         elem_type = type_elem(base_type);
-      else {
-         // The parser will have constructed a type with ndims - 1
-         // dimensions.
-         elem_type = tree_type(tree_value(tree_assoc(t, 0)));
-
-         if (!type_is_unconstrained(elem_type)) {
-            if (!sem_check_array_dims(elem_type, NULL))
-               return false;
-         }
-      }
-
-      type_t index_type = index_type_of(composite_type, 0);
-
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(t, i);
-
-         switch (tree_subkind(a)) {
-         case A_RANGE:
-            {
-               tree_t r = tree_range(a, 0);
-               if (!sem_check_discrete_range(r, index_type))
-                  return false;
-            }
-            break;
-
-         case A_NAMED:
-            {
-               tree_t name = tree_name(a);
-
-               if (!sem_check(name))
-                  return false;
-
-               if (!sem_check_type(name, index_type))
-                  sem_error(name, "type of array aggregate choice %s does not "
-                            "match %s index type %s", type_pp(tree_type(name)),
-                            type_pp(composite_type), type_pp(index_type));
-            }
-            break;
-
-         default:
-            break;
-         }
-
-         tree_t value = tree_value(a);
-
-         if (!sem_check(value))
-            return false;
-
-         if (!sem_check_type(value, elem_type))
-            sem_error(value, "type of element %s does not match base "
-                      "type of aggregate %s",
-                      type_pp(tree_type(value)),
-                      type_pp(elem_type));
-      }
-   }
-
-   // Checks for record aggregates are given in LRM 93 section 7.3.2.1
-
-   if (type_is_record(base_type)) {
-      const int nfields = type_fields(base_type);
-      bool have[nfields];
-      int pos = 0;
-      for (int i = 0; i < nfields; i++)
-         have[i] = false;
-
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(t, i);
-         int f = -1;
-
-         switch (tree_subkind(a)) {
-         case A_NAMED:
-            {
-               tree_t name = tree_name(a);
-               if (tree_kind(name) != T_REF)
-                  sem_error(name, "association name must be a field "
-                            "identifier");
-
-               ident_t name_i = tree_ident(name);
-               for (f = 0; f < nfields; f++) {
-                  if (tree_ident(type_field(base_type, f)) == name_i)
-                     break;
-               }
-
-               if (f == nfields) {
-                  // Should have been checked in parser
-                  assert(error_count() > 0);
-                  return false;
-               }
-            }
-            break;
-
-         case A_POS:
-            {
-               if (pos >= nfields)
-                  sem_error(t, "too many positional associations");
-
-               f = pos++;
-            }
-            break;
-
-         case A_OTHERS:
-            f = -1;
-            break;
-
-         case A_RANGE:
-            sem_error(a, "range is not allowed here");
-         }
-
-         for (int j = 0; j < nfields; j++) {
-            if ((f != -1) && (f != j))
-               continue;
-
-            tree_t field = type_field(base_type, j);
-            type_t field_type = tree_type(field);
-
-            if (have[j]) {
-               if (f == -1)
-                  continue;
-               else
-                  sem_error(a, "field %s already has a value",
-                            istr(tree_ident(field)));
-            }
-
-            tree_t value = tree_value(a);
-
-            if (!sem_check(value))
-               return false;
-
-            if (!sem_check_type(value, field_type))
-               sem_error(value, "type of value %s does not match type %s"
-                         " of field %s",
-                         type_pp2(tree_type(value), field_type),
-                         type_pp2(field_type, tree_type(value)),
-                         istr(tree_ident(field)));
-
-            have[j] = true;
-         }
-      }
-
-      for (int i = 0; i < nfields; i++) {
-         if (!have[i]) {
-            tree_t field = type_field(base_type, i);
-            sem_error(t, "field %s does not have a value",
-                      istr(tree_ident(field)));
-         }
-      }
-   }
 
    // If a named choice is not locally static then it must be the
    // only element
@@ -2566,7 +2438,7 @@ static bool sem_check_aggregate(tree_t t)
    // If there is no others choice or the base type is unconstrained then
    // construct a new array subtype using the rules in LRM 93 7.3.2.2
 
-   if (array && (have_named || unconstrained) && !have_others) {
+   if ((have_named || unconstrained) && !have_others) {
       type_t tmp = type_new(T_SUBTYPE);
       type_set_ident(tmp, type_ident(base_type));
       type_set_base(tmp, base_type);
@@ -2706,6 +2578,164 @@ static bool sem_check_aggregate(tree_t t)
       tree_set_flag(t, TREE_F_UNCONSTRAINED);
 
    return true;
+}
+
+static bool sem_check_record_aggregate(tree_t t)
+{
+   // Checks for record aggregates are given in LRM 93 section 7.3.2.1
+
+   type_t composite_type = tree_type(t);
+   type_t base_type = type_base_recur(composite_type);
+
+   const int nfields = type_fields(base_type);
+   tree_t *have LOCAL = xcalloc_array(nfields, sizeof(tree_t));
+   int pos = 0;
+
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
+      int f = -1;
+
+      switch (tree_subkind(a)) {
+      case A_NAMED:
+         {
+            tree_t name = tree_name(a);
+            if (tree_kind(name) != T_REF)
+               sem_error(name, "association choice must be a field name");
+
+            ident_t name_i = tree_ident(name);
+            for (f = 0; f < nfields; f++) {
+               if (tree_ident(type_field(base_type, f)) == name_i)
+                  break;
+            }
+
+            if (f == nfields) {
+               // Should have been checked in parser
+               assert(error_count() > 0);
+               return false;
+            }
+         }
+         break;
+
+      case A_POS:
+         {
+            if (pos >= nfields)
+               sem_error(a, "%d positional associations given but record type"
+                         " %s only has %d fields", pos + 1,
+                         type_pp(composite_type), nfields);
+
+            f = pos++;
+         }
+         break;
+
+      case A_OTHERS:
+         f = -1;
+         break;
+
+      case A_RANGE:
+         sem_error(a, "range is not allowed here");
+      }
+
+      int nmatched = 0;
+      for (int j = 0; j < nfields; j++) {
+         if ((f != -1) && (f != j))
+            continue;
+
+         tree_t field = type_field(base_type, j);
+         type_t field_type = tree_type(field);
+
+         if (have[j]) {
+            if (f == -1)
+               continue;
+
+            const char *akind = "";
+            switch (tree_subkind(have[j])) {
+            case A_NAMED: akind = "named"; break;
+            case A_POS:   akind = "positional"; break;
+            }
+
+            sem_error(a, "field %s was already given a value by earlier "
+                      "%s choice", istr(tree_ident(field)), akind);
+         }
+
+         tree_t value = tree_value(a);
+
+         if (!sem_check(value))
+            return false;
+
+         if (!sem_check_type(value, field_type))
+            sem_error(value, "type of value %s does not match type %s"
+                      " of field %s",
+                      type_pp2(tree_type(value), field_type),
+                      type_pp2(field_type, tree_type(value)),
+                      istr(tree_ident(field)));
+
+         have[j] = a;
+         nmatched++;
+      }
+
+      if (f == -1 && nmatched == 0)
+         sem_error(a, "others association must represent at least one element");
+   }
+
+   for (int i = 0; i < nfields; i++) {
+      if (have[i] == NULL) {
+         tree_t field = type_field(base_type, i);
+         sem_error(t, "field %s does not have a value",
+                   istr(tree_ident(field)));
+      }
+   }
+
+   return true;
+}
+
+static bool sem_check_aggregate(tree_t t)
+{
+   // Rules for aggregates are in LRM 93 section 7.3.2
+
+   type_t composite_type = tree_type(t);
+
+   if (type_is_none(composite_type))
+      return false;
+   assert(type_is_composite(composite_type));
+
+   // All positional associations must appear before named associations
+   // and those must appear before any others association
+
+   enum { POS, NAMED, OTHERS } state = POS;
+
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
+
+      switch (tree_subkind(a)) {
+      case A_POS:
+         if (state > POS)
+            sem_error(a, "positional associations must appear "
+                      "first in aggregate");
+         break;
+
+      case A_NAMED:
+      case A_RANGE:
+         if (state > NAMED)
+            sem_error(a, "named association must not follow "
+                      "others association in aggregate");
+         state = NAMED;
+         break;
+
+      case A_OTHERS:
+         if (state == OTHERS)
+            sem_error(a, "only a single others association "
+                      "allowed in aggregate");
+         state = OTHERS;
+         break;
+      }
+   }
+
+   if (type_is_array(composite_type))
+      return sem_check_array_aggregate(t);
+   else
+      return sem_check_record_aggregate(t);
 }
 
 static bool sem_check_ref(tree_t t)

@@ -705,13 +705,16 @@ START_TEST(test_record)
       {  40, "does not match type INTEGER of field Y" },
       {  42, "field Y does not have a value" },
       {  44, "type of value R1 does not match type INTEGER of" },
-      {  47, "field X already has a value" },
-      {  48, "field X already has a value" },
+      {  47, "field X was already given a value by earlier named choice" },
+      {  48, "field X was already given a value by earlier positional choice" },
       {  64, "type R1_VEC is unconstrained" },
       {  86, "index constraint cannot be used with non-array type R1" },
       { 111, "record field A cannot be of file type" },
       { 153, "cannot index non-array type UNIT_SPEC_T" },
       { 155, "cannot index non-array type UNIT_SPEC_T" },
+      { 166, "association choice must be a field name" },
+      { 167, "3 positional associations given but record type R1 only has 2" },
+      { 168, "others association must represent at least one element" },
       { -1, NULL }
    };
    expect_errors(expect);

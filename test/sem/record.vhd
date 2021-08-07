@@ -159,4 +159,14 @@ package body p is
             end if;
         end loop;
     end procedure;
+
+    procedure aggregates is
+        variable r : r1;
+    begin
+        r := (1 => 1);                  -- Error
+        r := (1, 2, 3);                 -- Error
+        r := (1, 2, others => 3);       -- Error
+        --r := (x to y => 4);             -- Error
+    end procedure;
+
 end package body;
