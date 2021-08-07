@@ -114,6 +114,7 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
 static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
                                     vcode_reg_t lval, vcode_reg_t rval);
 static vcode_type_t lower_alias_type(tree_t alias);
+static bool lower_const_bounds(type_t type);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -129,6 +130,9 @@ static bool lower_is_const(tree_t t)
    case T_AGGREGATE:
       {
          bool is_const = true;
+         type_t type = tree_type(t);
+         if (type_is_array(type))
+            is_const = lower_const_bounds(tree_type(t));
          const int nassocs = tree_assocs(t);
          for (int i = 0; i < nassocs; i++)
             is_const = is_const && lower_is_const(tree_value(tree_assoc(t, i)));
