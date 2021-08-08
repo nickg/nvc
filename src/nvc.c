@@ -700,7 +700,8 @@ static int syntax_cmd(int argc, char **argv)
 
    for (int i = optind; i < next_cmd; i++) {
       input_from_file(argv[i]);
-      (void)parse();
+      while (parse())
+         ;
    }
 
    if (parse_errors() > 0)
