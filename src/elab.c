@@ -291,7 +291,7 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
          tree_add_attr_tree(s, driver_init_i, tree_value(port));
    }
 
-   tree_add_decl(arch, s);
+   tree_insert_decl(arch, 0, s);
    return s;
 }
 

@@ -402,6 +402,21 @@ static inline void tree_array_add(item_t *item, tree_t t)
    APUSH(item->obj_array, &(t->object));
 }
 
+static inline void tree_array_insert(item_t *item, unsigned opos, tree_t new)
+{
+   assert(opos <= item->obj_array.count);
+
+   if (opos == item->obj_array.count)
+      APUSH(item->obj_array, &(new->object));
+   else {
+      ARESIZE(item->obj_array, item->obj_array.count + 1);
+      memmove(item->obj_array.items + opos + 1,
+              item->obj_array.items + opos,
+              (item->obj_array.count - opos) * sizeof(object_t*));
+      item->obj_array.items[opos] = &(new->object);
+   }
+}
+
 tree_t tree_new(tree_kind_t kind)
 {
    return (tree_t)object_new(&tree_object, kind);
@@ -653,6 +668,12 @@ void tree_add_decl(tree_t t, tree_t d)
 {
    tree_assert_decl(d);
    tree_array_add(lookup_item(&tree_object, t, I_DECLS), d);
+}
+
+void tree_insert_decl(tree_t t, unsigned pos, tree_t d)
+{
+   tree_assert_decl(d);
+   tree_array_insert(lookup_item(&tree_object, t, I_DECLS), pos, d);
 }
 
 unsigned tree_stmts(tree_t t)
