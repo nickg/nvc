@@ -96,7 +96,7 @@ static const char *standard_suffix(vhdl_standard_t std)
    return ext[std];
 }
 
-static ident_t upcase_name(const char * name)
+static ident_t upcase_name(const char *name)
 {
    char *name_copy LOCAL = xstrdup(name);
 
@@ -114,8 +114,10 @@ static ident_t upcase_name(const char * name)
    if (last_dot != NULL)
       *last_dot = '\0';
 
-   ident_t i = ident_new(name_up);
-   return i;
+   if (*name_up == '\0')
+      fatal("invalid library name %s", name);
+
+   return ident_new(name_up);
 }
 
 static void lib_add_to_index(lib_t lib, ident_t name, tree_kind_t kind)
