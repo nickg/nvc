@@ -394,10 +394,24 @@ begin
     end process;
 
     process is
+        variable n : positive;
     begin
-	x <= (true => 1, others => 0);  -- Error
-	x <= (1 to true => 0);  	-- Error
-	x <= (false to true => 0, 1 => 1);  -- Error
+        x <= (true => 1, others => 0);  -- Error
+        x <= (1 to true => 0);          -- Error
+        x <= (false to true => 0, 1 => 1);  -- Error
+        x <= (n to n + 4 => n);         -- OK
+        x <= (n => 3, others => 0);     -- Error
+        x <= (1 => 0, 2 to n => 1);     -- Error
+        x <= (1 to n => 1);             -- OK
+    end process;
+
+    process is
+	procedure p(l : natural) is
+	    variable v : int_array(1 to l);
+	begin
+	    v := (1 => 0, others => 1);  -- Error
+	end procedure;
+    begin
     end process;
 
 end architecture;

@@ -2392,7 +2392,8 @@ static bool sem_check_array_aggregate(tree_t t)
 
       case A_OTHERS:
          if (unconstrained)
-            sem_error(a, "others choice not allowed in this context");
+            sem_error(a, "index range of array aggregate with others choice "
+                      "cannot be determined from the context");
          have_others = true;
          break;
       }
@@ -2416,15 +2417,21 @@ static bool sem_check_array_aggregate(tree_t t)
       sem_error(t, "named and positional associations cannot be "
                 "mixed in array aggregates");
 
-   // If a named choice is not locally static then it must be the
-   // only element
+   // If a choice is not locally static then it must be the only element
 
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(t, i);
-      if (tree_subkind(a) == A_NAMED && !sem_locally_static(tree_name(a))) {
-         if (tree_assocs(t) != 1)
-            sem_error(tree_name(a), "non-locally static choice must be "
-                      "only choice");
+   if (have_named && nassocs > 1) {
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
+         tree_t choice = NULL;
+         switch (tree_subkind(a)) {
+         case A_NAMED: choice = tree_name(a); break;
+         case A_RANGE: choice = tree_range(a, 0); break;
+         }
+
+         if (choice && !sem_locally_static(choice))
+            sem_error(choice, "a choice that is not locally static is allowed"
+                      " only if the array aggregate contains a single element"
+                      " association");
       }
    }
 
