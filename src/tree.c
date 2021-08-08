@@ -412,7 +412,7 @@ static inline void tree_array_insert(item_t *item, unsigned opos, tree_t new)
       ARESIZE(item->obj_array, item->obj_array.count + 1);
       memmove(item->obj_array.items + opos + 1,
               item->obj_array.items + opos,
-              (item->obj_array.count - opos) * sizeof(object_t*));
+              (item->obj_array.count - 1 - opos) * sizeof(object_t*));
       item->obj_array.items[opos] = &(new->object);
    }
 }

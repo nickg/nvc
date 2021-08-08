@@ -117,7 +117,7 @@ void __array_resize_slow(void **ptr, uint32_t *limit, uint32_t count,
 #define ARESIZE(a, newsize) do {                                        \
       if ((unsigned)(newsize) > (a).limit)                              \
          __array_resize_slow((void **)&((a).items), &((a).limit),       \
-                             newsize, sizeof((a).items[0]));            \
+                             (newsize), sizeof((a).items[0]));          \
       (a).count = (newsize);                                            \
    } while (0)
 
