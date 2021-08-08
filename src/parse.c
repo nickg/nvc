@@ -120,9 +120,11 @@ typedef struct {
    hint_str = s;                                                       \
    _push_state(&_state);
 
-#define BEGIN(s)                                                       \
-   EXTEND(s);                                                          \
-   start_loc = LOC_INVALID;
+#define BEGIN_WITH_HEAD(s, t)                           \
+   EXTEND(s);                                           \
+   start_loc = (t) ? *tree_loc(t) : LOC_INVALID;        \
+
+#define BEGIN(s)  BEGIN_WITH_HEAD(s, NULL)
 
 #define CURRENT_LOC _diff_loc(&start_loc, &last_loc)
 
@@ -1943,7 +1945,7 @@ static tree_t p_discrete_range(tree_t head)
 {
    // subtype_indication | range
 
-   BEGIN("discrete range");
+   BEGIN_WITH_HEAD("discrete range", head);
 
    tree_t expr1 = head ?: p_expression();
 
