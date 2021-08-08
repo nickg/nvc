@@ -1939,7 +1939,7 @@ static tree_t p_range_constraint(type_t constraint)
    return t;
 }
 
-static tree_t p_discrete_range(type_t constraint, tree_t head)
+static tree_t p_discrete_range(tree_t head)
 {
    // subtype_indication | range
 
@@ -1951,22 +1951,11 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
    case tTO:
    case tDOWNTO:
    case tTICK:
-      {
-         tree_t r = p_range(expr1);
-         solve_types(nametab, r, constraint);
-
-         // LRM 08 section 5.3.2.2: an implicit conversion to the
-         // predefined type INTEGER is assumed if the type of both
-         // bounds is the type universal_integer
-         if (type_eq(tree_type(r), type_universal_int()))
-            tree_set_type(r, std_type(find_std(nametab), "INTEGER"));
-
-         return r;
-      }
+      return p_range(expr1);
 
    case tRANGE:
       {
-         constraint = solve_types(nametab, expr1, NULL);
+         type_t constraint = solve_types(nametab, expr1, NULL);
 
          const bool is_type_decl =
             tree_kind(expr1) == T_REF
@@ -2000,11 +1989,28 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
             expr1 = tmp;
          }
 
-         tree_t r = p_range(expr1);
-         solve_types(nametab, r, constraint);
-         return r;
+         return p_range(expr1);
       }
    }
+}
+
+static tree_t p_constrained_discrete_range(type_t index_type)
+{
+   tree_t r = p_discrete_range(NULL);
+
+   if (tree_has_type(r))
+      return r;   // Already constrained e.g. from INTEGER range X to Y
+
+   // LRM 08 section 5.3.2.2: an implicit conversion to the predefined
+   // type INTEGER is assumed if the type of both bounds is the type
+   // universal_integer
+
+   type_t type = solve_types(nametab, r, index_type);
+
+   if (type_eq(type, type_universal_int()))
+      tree_set_type(r, std_type(find_std(nametab), "INTEGER"));
+
+   return r;
 }
 
 static tree_t p_slice_name(tree_t prefix, tree_t head)
@@ -2027,7 +2033,10 @@ static tree_t p_slice_name(tree_t prefix, tree_t head)
    if (type != NULL && type_is_array(type))
       index_type = index_type_of(type, 0);
 
-   tree_add_range(t, p_discrete_range(index_type, head));
+   tree_t r = p_discrete_range(head);
+   solve_types(nametab, r, index_type);
+
+   tree_add_range(t, r);
    consume(tRPAREN);
 
    tree_set_loc(t, CURRENT_LOC);
@@ -2609,7 +2618,7 @@ static tree_t p_index_constraint(type_t base)
    tree_set_subkind(t, C_INDEX);
    do {
       type_t index_type = base ? index_type_of(base, n++) : NULL;
-      tree_add_range(t, p_discrete_range(index_type, NULL));
+      tree_add_range(t, p_constrained_discrete_range(index_type));
    } while (optional(tCOMMA));
 
    consume(tRPAREN);
@@ -2859,18 +2868,18 @@ static void p_choice(tree_t parent, type_t constraint)
          is_range = attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE;
       }
 
+      tree_t choice = NULL;
       if (is_range) {
          tree_set_subkind(t, A_RANGE);
-         // XXX: p_discrete range solves types!
-         tree_add_range(t, p_discrete_range(constraint, name));
+         tree_add_range(t, (choice = p_discrete_range(name)));
       }
       else {
          tree_set_subkind(t, A_NAMED);
-         tree_set_name(t, name);
-
-         if (tree_kind(parent) != T_AGGREGATE)
-            solve_types(nametab, name, constraint);
+         tree_set_name(t, (choice = name));
       }
+
+      if (tree_kind(parent) != T_AGGREGATE)
+         solve_types(nametab, choice, constraint);
    }
 
    tree_set_loc(t, CURRENT_LOC);
@@ -4139,7 +4148,7 @@ static type_t p_constrained_array_definition(ident_t id)
    consume(tLPAREN);
    do {
       type_t index_type = std_type(find_std(nametab), "INTEGER");
-      type_add_dim(t, p_discrete_range(index_type, NULL));
+      type_add_dim(t, p_constrained_discrete_range(index_type));
    } while (optional(tCOMMA));
    consume(tRPAREN);
 
@@ -5917,7 +5926,7 @@ static void p_index_specification(void)
    };
 
    if (look_for(&lookp)) {
-      p_discrete_range(NULL, NULL);
+      p_discrete_range(NULL);
    }
    else {
       p_expression();
@@ -6454,7 +6463,7 @@ static void p_parameter_specification(tree_t loop)
 
    consume(tIN);
 
-   tree_t r = p_discrete_range(NULL, NULL);
+   tree_t r = p_constrained_discrete_range(NULL);
    tree_add_range(loop, r);
 
    type_t base = tree_type(r);
@@ -6641,8 +6650,10 @@ static void p_case_statement_alternative(tree_t stmt)
 
    consume(tWHEN);
 
+   type_t type = tree_type(tree_value(stmt));
+
    const int nstart = tree_assocs(stmt);
-   p_choices(stmt, tree_type(tree_value(stmt)));
+   p_choices(stmt, type);
 
    consume(tASSOC);
 
@@ -6655,8 +6666,14 @@ static void p_case_statement_alternative(tree_t stmt)
       tree_t a = tree_assoc(stmt, i);
       tree_set_value(a, b);
 
-      if (tree_subkind(a) == A_NAMED)
-         solve_types(nametab, tree_name(a), tree_type(tree_value(stmt)));
+      switch (tree_subkind(a)) {
+      case A_NAMED:
+         solve_types(nametab, tree_name(a), type);
+         break;
+      case A_RANGE:
+         solve_types(nametab, tree_range(a, 0), type);
+         break;
+      }
    }
 }
 

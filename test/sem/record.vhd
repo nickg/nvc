@@ -166,7 +166,8 @@ package body p is
         r := (1 => 1);                  -- Error
         r := (1, 2, 3);                 -- Error
         r := (1, 2, others => 3);       -- Error
-        --r := (x to y => 4);             -- Error
+        r := (x to y => 4);             -- Error
+        r := (x to z => 2);             -- Error
     end procedure;
 
 end package body;

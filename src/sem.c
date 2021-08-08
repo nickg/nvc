@@ -259,6 +259,8 @@ static bool sem_check_subtype(tree_t decl, type_t type)
 
 static bool sem_check_range(tree_t r, type_t expect)
 {
+   assert(expect == NULL || !type_is_universal(expect));
+
    switch (tree_subkind(r)) {
    case RANGE_EXPR:
       {
@@ -298,6 +300,8 @@ static bool sem_check_range(tree_t r, type_t expect)
             // same type and left is equal to expect, but we still need
             // to call sem_check_type for the implicit conversion
             sem_check_type(right, expect);
+
+            tree_set_type(r, expect);
          }
       }
       break;
@@ -2622,7 +2626,7 @@ static bool sem_check_record_aggregate(tree_t t)
          break;
 
       case A_RANGE:
-         sem_error(a, "range is not allowed here");
+         sem_error(a, "range association invalid in record aggregate");
       }
 
       int nmatched = 0;

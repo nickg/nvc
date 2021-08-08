@@ -701,6 +701,7 @@ START_TEST(test_record)
       {  82, "record type R1_SUB has no field named Z" },
       { 106, "record type R1 has no field named Z" },
       { 124, "record type R8 has no field named ACK" },
+      { 170, "record type R1 has no field named Z" },
       {  39, "field Z does not have a value" },
       {  40, "does not match type INTEGER of field Y" },
       {  42, "field Y does not have a value" },
@@ -715,6 +716,8 @@ START_TEST(test_record)
       { 166, "association choice must be a field name" },
       { 167, "3 positional associations given but record type R1 only has 2" },
       { 168, "others association must represent at least one element" },
+      { 169, "range association invalid in record aggregate" },
+      { 170, "range association invalid in record aggregate" },
       { -1, NULL }
    };
    expect_errors(expect);

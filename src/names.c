@@ -2693,8 +2693,12 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
             break;
 
          case A_RANGE:
-            error_at(tree_loc(a), "range association invalid in record "
-                     "aggregate");
+            // This is illegal and will generate an error during
+            // semantic checking
+            push_scope(tab);
+            scope_set_formal_kind(tab, agg, F_RECORD);
+            solve_types(tab, tree_range(a, 0), NULL);
+            pop_scope(tab);
             break;
          }
 
