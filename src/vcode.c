@@ -4276,9 +4276,13 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
    vcode_type_t result_type = VCODE_INVALID_TYPE;
 
    const vtype_kind_t fkind = vtype_kind(field_type);
-   if (fkind == VCODE_TYPE_CARRAY || fkind == VCODE_TYPE_UARRAY) {
+   if (fkind == VCODE_TYPE_CARRAY) {
       bounds_type = vtype_elem(field_type);
       result_type = vtype_pointer(bounds_type);
+   }
+   else if (fkind == VCODE_TYPE_UARRAY) {
+      bounds_type = vtype_elem(field_type);
+      result_type = vtype_pointer(field_type);
    }
    else
       result_type = vtype_pointer(field_type);

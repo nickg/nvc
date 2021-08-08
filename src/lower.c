@@ -2831,9 +2831,17 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
          type_t ftype = tree_type(type_field(type, i));
          vcode_reg_t ptr_reg = emit_record_ref(mem_reg, i);
          if (type_is_array(ftype)) {
-            vcode_reg_t src_reg = lower_array_data(vals[i]);
-            vcode_reg_t length_reg = lower_array_total_len(ftype, vals[i]);
-            emit_copy(ptr_reg, src_reg, length_reg);
+            if (lower_const_bounds(ftype)) {
+               vcode_reg_t src_reg = lower_array_data(vals[i]);
+               vcode_reg_t length_reg = lower_array_total_len(ftype, vals[i]);
+               emit_copy(ptr_reg, src_reg, length_reg);
+            }
+            else {
+               vcode_reg_t src_reg = vals[i];
+               if (vcode_reg_kind(src_reg) != VCODE_TYPE_UARRAY)
+                  src_reg = lower_wrap(ftype, src_reg);
+               emit_store_indirect(src_reg, ptr_reg);
+            }
          }
          else if (type_is_record(ftype))
             emit_copy(ptr_reg, vals[i], VCODE_INVALID_REG);
@@ -2872,6 +2880,7 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
    vcode_reg_t record = lower_expr(value, ctx);
 
    const int index = tree_pos(tree_ref(expr));
+   type_t ftype = tree_type(type_field(type, index));
 
    if (lower_have_signal(record)) {
       if (ctx == EXPR_RVALUE) {
@@ -2883,6 +2892,8 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
          return emit_add(record, emit_const(vtype_offset(), offset));
       }
    }
+   else if (type_is_array(ftype) && !lower_const_bounds(ftype))
+      return emit_load_indirect(emit_record_ref(record, index));
    else
       return emit_record_ref(record, index);
 }
