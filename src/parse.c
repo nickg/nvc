@@ -1865,7 +1865,7 @@ static port_mode_t p_mode(void)
    }
 }
 
-static tree_t p_range(tree_t left, type_t constraint)
+static tree_t p_range(tree_t left)
 {
    // attribute_name | simple_expression direction simple_expression
 
@@ -1897,7 +1897,6 @@ static tree_t p_range(tree_t left, type_t constraint)
       tree_set_loc(r, CURRENT_LOC);
    }
 
-   solve_types(nametab, r, constraint);
    return r;
 }
 
@@ -1917,7 +1916,11 @@ static tree_t p_range_constraint(type_t constraint)
    switch (peek()) {
    case tTO:
    case tDOWNTO:
-      tree_add_range(t, p_range(expr1, constraint));
+      {
+         tree_t r = p_range(expr1);
+         solve_types(nametab, r, constraint);
+         tree_add_range(t, r);
+      }
       break;
    default:
       {
@@ -1949,7 +1952,8 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
    case tDOWNTO:
    case tTICK:
       {
-         tree_t r = p_range(expr1, constraint);
+         tree_t r = p_range(expr1);
+         solve_types(nametab, r, constraint);
 
          // LRM 08 section 5.3.2.2: an implicit conversion to the
          // predefined type INTEGER is assumed if the type of both
@@ -1978,7 +1982,8 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
          consume(tRANGE);
 
          tree_t left = p_expression();
-         tree_t r = p_range(left, constraint);
+         tree_t r = p_range(left);
+         solve_types(nametab, r, constraint);
          tree_set_type(r, constraint);
          return r;
       }
@@ -1995,7 +2000,9 @@ static tree_t p_discrete_range(type_t constraint, tree_t head)
             expr1 = tmp;
          }
 
-         return p_range(expr1, constraint);
+         tree_t r = p_range(expr1);
+         solve_types(nametab, r, constraint);
+         return r;
       }
    }
 }

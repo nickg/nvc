@@ -445,7 +445,7 @@ START_TEST(test_array)
       { 392, "index type BIT_VECTOR is not discrete" },
       { 398, "type of array aggregate choice BOOLEAN does not match INT_" },
       { 399, "in range: left is universal_integer, right is BOOLEAN" },
-      { 400, "expected type of left bound to be INTEGER but is BOOLEAN" },
+      { 400, "expected type of range bounds to be INTEGER but have BOOLEAN" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -520,7 +520,7 @@ START_TEST(test_seq)
       { 136, "case choice must be locally static" },
       { 139, "invalid use of type BIT" },
       { 146, "type mismatch in range" },
-      { 150, "expected type of left bound to be INTEGER but is BIT" },
+      { 150, "expected type of range bounds to be INTEGER but have BIT" },
       { 154, "right index of case choice range is not locally static" },
       { 164, "type of exit condition must be BOOLEAN" },
       { 179, "actual for formal Y with class VARIABLE must be" },
@@ -529,7 +529,7 @@ START_TEST(test_seq)
       { 192, "no nested loop with label FOO" },
       { 214, "type REAL does not have a range" },
       { 222, "variable I is not a valid target of signal assignment" },
-      { 230, "universal bound not convertible to INTEGER" },
+      { 230, "range bounds to be INTEGER but have universal_real" },
       { 232, "type of range bounds REAL is not discrete" },
       { 243, "target of variable assignment must be a variable name" },
       { 244, "aggregate element must be locally static name" },

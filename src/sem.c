@@ -290,14 +290,14 @@ static bool sem_check_range(tree_t r, type_t expect)
                       type_pp(tree_type(left)), type_pp(tree_type(right)));
 
          if (expect != NULL) {
-            if (!sem_check_type(left, expect)) {
-               sem_error(left, "expected type of left bound to be %s but is %s",
-                         type_pp(expect), type_pp(tree_type(left)));
-            }
-            else if (!sem_check_type(right, expect)) {
-               sem_error(right, "expected type of right bound to be %s but is "
-                         "%s", type_pp(expect), type_pp(tree_type(right)));
-            }
+            if (!sem_check_type(left, expect))
+               sem_error(r, "expected type of range bounds to be %s but"
+                         " have %s", type_pp(expect), type_pp(tree_type(left)));
+
+            // This cannot fail because we know left and right have the
+            // same type and left is equal to expect, but we still need
+            // to call sem_check_type for the implicit conversion
+            sem_check_type(right, expect);
          }
       }
       break;
@@ -308,21 +308,9 @@ static bool sem_check_range(tree_t r, type_t expect)
 
 static bool sem_check_discrete_range(tree_t r, type_t expect)
 {
-   if (!sem_check_range(r, expect))
-      return false;
-
-   type_t type = tree_type(r);
-   if (type_is_none(type))
-      return false;
-
-   if (!type_is_discrete(type))
-      sem_error(r, "type of range bounds %s is not discrete", type_pp(type));
-
-   const range_kind_t rkind = tree_subkind(r);
-   if (rkind == RANGE_ERROR)
-      return false;
-
-   if (expect == NULL && rkind != RANGE_EXPR) {
+   // See LRM 93 section 3.2.1.1: universal integer bound must be a
+   // numeric literal or attribute. Later LRMs relax the wording here.
+   if (standard() < STD_00 && tree_subkind(r) != RANGE_EXPR) {
       tree_t left  = tree_left(r);
       tree_t right = tree_right(r);
 
@@ -333,25 +321,26 @@ static bool sem_check_discrete_range(tree_t r, type_t expect)
          tree_kind_t lkind = tree_kind(left);
          tree_kind_t rkind = tree_kind(right);
 
-         // See LRM 93 section 3.2.1.1
-         // Later LRMs relax the wording here
          const bool invalid =
-            standard() < STD_00
-            && !(relax_rules() & RELAX_UNIVERSAL_BOUND)
+            !(relax_rules() & RELAX_UNIVERSAL_BOUND)
             && lkind != T_LITERAL && lkind != T_ATTR_REF
             && rkind != T_LITERAL && rkind != T_ATTR_REF;
 
          if (invalid)
-            sem_error(left, "universal integer bound must be "
-                      "numeric literal or attribute");
-
-         type_t std_int = std_type(NULL, "INTEGER");
-         if (!sem_check_type(left, std_int))
-            sem_error(left, "universal bound not convertible to INTEGER");
-         if (!sem_check_type(right, std_int))
-            sem_error(right, "universal bound not convertible to INTEGER");
+            sem_error(r, "universal integer bound must be numeric"
+                      " literal or attribute");
       }
    }
+
+   if (!sem_check_range(r, expect ?: tree_type(r)))
+      return false;
+
+   type_t type = tree_type(r);
+   if (type_is_none(type))
+      return false;
+
+   if (!type_is_discrete(type))
+      sem_error(r, "type of range bounds %s is not discrete", type_pp(type));
 
    return true;
 }
