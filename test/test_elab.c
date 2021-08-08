@@ -406,7 +406,7 @@ START_TEST(test_jcore1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t s = tree_decl(top, 3);
+   tree_t s = tree_decl(top, 4);
    fail_unless(tree_kind(s) == T_SIGNAL_DECL);
    fail_unless(tree_ident(s) == ident_new(":jcore1:sub_i:x"));
    fail_if(tree_attr_int(s, partial_map_i, 0));
