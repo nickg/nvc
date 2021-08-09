@@ -64,6 +64,7 @@ struct lib {
    lib_unit_t  *units;
    lib_index_t *index;
    lib_mtime_t  index_mtime;
+   off_t        index_size;
    int          lock_fd;
    bool         readonly;
 };
@@ -143,19 +144,8 @@ static void lib_add_to_index(lib_t lib, ident_t name, tree_kind_t kind)
    }
 }
 
-static void lib_free_index(lib_t lib)
-{
-   while (lib->index) {
-      lib_index_t *tmp = lib->index->next;
-      free(lib->index);
-      lib->index = tmp;
-   }
-}
-
 static void lib_read_index(lib_t lib)
 {
-   lib_free_index(lib);
-
    fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_IN);
    if (f != NULL) {
       struct stat st;
@@ -163,6 +153,7 @@ static void lib_read_index(lib_t lib)
          fatal_errno("%s", fbuf_file_name(f));
 
       lib->index_mtime = lib_stat_mtime(&st);
+      lib->index_size  = st.st_size;
 
       ident_rd_ctx_t ictx = ident_read_begin(f);
       lib_index_t **insert = &(lib->index);
@@ -173,15 +164,22 @@ static void lib_read_index(lib_t lib)
          tree_kind_t kind = read_u16(f);
          assert(kind < T_LAST_TREE_KIND);
 
-         // Index is sorted on disk so no point calling lib_add_to_index
-         // which would search all the way to the end of the list
-         lib_index_t *new = xmalloc(sizeof(lib_index_t));
-         new->name = name;
-         new->kind = kind;
-         new->next = NULL;
+         while (*insert && ident_compare((*insert)->name, name) < 0)
+            insert = &((*insert)->next);
 
-         *insert = new;
-         insert = &(new->next);
+         if (*insert && (*insert)->name == name) {
+            (*insert)->kind = kind;
+            insert = &((*insert)->next);
+         }
+         else {
+            lib_index_t *new = xmalloc(sizeof(lib_index_t));
+            new->name = name;
+            new->kind = kind;
+            new->next = *insert;
+
+            *insert = new;
+            insert = &(new->next);
+         }
       }
 
       ident_read_end(ictx);
@@ -408,6 +406,9 @@ lib_t lib_new(const char *name, const char *path)
 
    int fd = open(lockf, O_CREAT | O_EXCL | O_RDWR, 0777);
    if (fd < 0) {
+      // If errno is EEXIST we raced with another process to create the
+      // lock file.  Calling into lib_init with fd as -1 will cause it
+      // to be opened again without O_CREAT.
       if (errno != EEXIST)
          fatal_errno("lib_new: %s", lockf);
    }
@@ -570,7 +571,11 @@ void lib_free(lib_t lib)
       }
    }
 
-   lib_free_index(lib);
+   while (lib->index) {
+      lib_index_t *tmp = lib->index->next;
+      free(lib->index);
+      lib->index = tmp;
+   }
 
    if (lib->units != NULL)
       free(lib->units);
@@ -857,7 +862,8 @@ void lib_save(lib_t lib)
    LOCAL_TEXT_BUF index_path = lib_file_path(lib, "_index");
    struct stat st;
    if (stat(tb_get(index_path), &st) == 0
-       && lib_stat_mtime(&st) != lib->index_mtime) {
+       && (lib_stat_mtime(&st) != lib->index_mtime
+           || st.st_size != lib->index_size)) {
       // Library was updated concurrently: re-read the index while we
       // have the lock
       lib_read_index(lib);
@@ -883,6 +889,7 @@ void lib_save(lib_t lib)
    if (stat(tb_get(index_path), &st) != 0)
       fatal_errno("stat: %s", tb_get(index_path));
    lib->index_mtime = lib_stat_mtime(&st);
+   lib->index_size  = st.st_size;
 
    file_unlock(lib->lock_fd);
 }
