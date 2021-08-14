@@ -1,4 +1,4 @@
-0ms+0: Report Note: 0
+0ms+0: Report Note: -2147483648
 5ns+2: Report Note: 1
 15ns+2: Report Note: 2
 25ns+2: Report Note: 3

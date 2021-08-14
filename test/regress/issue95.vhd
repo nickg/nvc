@@ -18,7 +18,7 @@ architecture behav of issue95 is
     end procedure;
 
 begin
-    process
+    p1: process
     begin
         assert points(3).x = 1;
         points(2).y <= 4;
@@ -27,7 +27,7 @@ begin
         wait;
     end process;
 
-    process is
+    p2: process is
     begin
         wait for 1 ns;
         assert points(2) = (1, 4, true);

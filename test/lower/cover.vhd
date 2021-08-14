@@ -5,7 +5,7 @@ architecture test of cover is
     signal s : integer;
 begin
 
-    process is
+    p1: process is
         variable v : integer;
     begin
         v := 1;

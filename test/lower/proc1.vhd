@@ -10,7 +10,7 @@ architecture test of proc1 is
 
 begin
 
-    process is
+    p1: process is
         variable a, b : integer;
     begin
         add1(a, b);

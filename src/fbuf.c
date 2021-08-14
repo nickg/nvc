@@ -30,7 +30,7 @@
 #define SPILL_SIZE 65536
 #define BLOCK_SIZE (SPILL_SIZE - (SPILL_SIZE / 16))
 
-struct fbuf {
+struct _fbuf {
    fbuf_mode_t  mode;
    char        *fname;
    FILE        *file;
@@ -69,7 +69,7 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
          if (h == NULL)
             return NULL;
 
-         f = xmalloc(sizeof(struct fbuf));
+         f = xmalloc(sizeof(struct _fbuf));
 
          f->file  = h;
          f->rmap  = NULL;
@@ -93,7 +93,7 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
 
          close(fd);
 
-         f = xmalloc(sizeof(struct fbuf));
+         f = xmalloc(sizeof(struct _fbuf));
 
          f->file   = NULL;
          f->rmap   = rmap;
@@ -107,7 +107,7 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
       break;
    }
 
-   f->fname = strdup(file);
+   f->fname = xstrdup(file);
    f->mode  = mode;
    f->next  = open_list;
    f->prev  = NULL;

@@ -9,13 +9,13 @@ architecture test of vhpi1 is
     signal b : bit;
 begin
 
-    process (x) is
+    p1: process (x) is
     begin
         report "x=" & integer'image(x);
         y <= x + 1 after 1 ns;
     end process;
 
-    process is
+    p2: process is
     begin
         wait for 1 ms;
         report "VHPI plugin did not end simulation" severity failure;

@@ -122,7 +122,8 @@ tree_t run_elab(void)
       bounds_check(t);
       fail_if(error_count() > 0);
 
-      if (tree_kind(t) == T_PACKAGE || tree_kind(t) == T_PACK_BODY)
+      const tree_kind_t kind = tree_kind(t);
+      if ((kind == T_PACKAGE && !package_needs_body(t)) || kind == T_PACK_BODY)
          lower_unit(t);
 
       if (tree_kind(t) == T_ENTITY)
@@ -157,7 +158,8 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
          simplify(last, 0);
       }
 
-      if (lower && (kind == T_PACKAGE || kind == T_PACK_BODY))
+      if (lower && ((kind == T_PACKAGE && !package_needs_body(last))
+                    || kind == T_PACK_BODY))
          lower_unit(last);
    }
 

@@ -304,7 +304,7 @@ typedef enum {
    TREE_F_GUARDED         = (1 << 8),
    TREE_F_ELIDE_BOUNDS    = (1 << 9),
    TREE_F_LAST_VALUE      = (1 << 10),
-   TREE_F_PACKAGE_SIGNAL  = (1 << 11),
+   TREE_F_FORMAL_NAME     = (1 << 11),
    TREE_F_SYNTHETIC_NAME  = (1 << 12),
    TREE_F_PREDEFINED      = (1 << 13),
    TREE_F_UNIVERSAL       = (1 << 14),
@@ -452,11 +452,6 @@ void tree_set_spec(tree_t t, tree_t s);
 unsigned tree_chars(tree_t t);
 tree_t tree_char(tree_t t, unsigned n);
 void tree_add_char(tree_t t, tree_t ref);
-
-unsigned tree_nets(tree_t t);
-netid_t tree_net(tree_t t, unsigned n);
-void tree_add_net(tree_t t, netid_t n);
-void tree_change_net(tree_t t, unsigned n, netid_t i);
 
 tree_flags_t tree_flags(tree_t t);
 void tree_set_flag(tree_t t, tree_flags_t mask);

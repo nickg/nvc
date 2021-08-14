@@ -299,9 +299,10 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
    static hash_t *hash = NULL;
 
    if (hash == NULL)
-      hash = hash_new(64, true, HASH_STRING);
+      hash = hash_new(64, true);
 
-   libdwarf_handle_t *handle = hash_get(hash, fname);
+   ident_t key = ident_new(fname);
+   libdwarf_handle_t *handle = hash_get(hash, key);
 
    if (handle == (void *)-1)
       return NULL;
@@ -335,7 +336,7 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
       handle->fd    = fd;
       handle->debug = debug;
 
-      hash_put(hash, fname, handle);
+      hash_put(hash, key, handle);
    }
 
    return handle;

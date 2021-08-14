@@ -4870,6 +4870,7 @@ static tree_t p_alias_declaration(void)
    consume(tSEMI);
 
    tree_set_loc(t, CURRENT_LOC);
+   mangle_decl(nametab, t);
    insert_name(nametab, t, NULL, 0);
    return t;
 }

@@ -538,7 +538,6 @@ class_t class_of(tree_t t)
    case T_LITERAL:
       return C_LITERAL;
    case T_GENVAR:
-   case T_ALIAS:
    case T_FIELD_DECL:
    case T_ATTR_DECL:
       return C_DEFAULT;
@@ -565,10 +564,11 @@ class_t class_of(tree_t t)
    case T_COMPONENT:
       return C_COMPONENT;
    case T_REF:
-      return class_of(tree_ref(t));
+      return tree_has_ref(t) ? class_of(tree_ref(t)) : C_DEFAULT;
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:
    case T_RECORD_REF:
+   case T_ALIAS:
       return class_of(tree_value(t));
    case T_PACKAGE:
    case T_PACK_BODY:
@@ -994,21 +994,16 @@ tree_t str_to_literal(const char *start, const char *end, type_t type)
 
 char *vcode_file_name(ident_t unit_name)
 {
-   return xasprintf("_%s.vcode", istr(unit_name));
+   ident_t base = ident_strip(unit_name, ident_new("-body")) ?: unit_name;
+   return xasprintf("_%s.vcode", istr(base));
 }
 
 void intern_strings(void)
 {
    std_standard_i   = ident_new("STD.STANDARD");
-   formal_i         = ident_new("formal");
    elab_copy_i      = ident_new("elab_copy");
    all_i            = ident_new("all");
    protected_i      = ident_new("protected");
-   inst_name_i      = ident_new("INSTANCE_NAME");
-   fst_dir_i        = ident_new("fst_dir");
-   scope_pop_i      = ident_new("scope_pop");
-   partial_map_i    = ident_new("partial_map");
-   fst_data_i       = ident_new("fst_data");
    std_logic_i      = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
    std_ulogic_i     = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
    std_bit_i        = ident_new("STD.STANDARD.BIT");
@@ -1020,8 +1015,6 @@ void intern_strings(void)
    unsigned_i       = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
    foreign_i        = ident_new("FOREIGN");
    nested_i         = ident_new("nested");
-   drives_all_i     = ident_new("drives_all");
-   driver_init_i    = ident_new("driver_init");
    prot_field_i     = ident_new("prot_field");
    stmt_tag_i       = ident_new("stmt_tag");
    cond_tag_i       = ident_new("cond_tag");
@@ -1032,33 +1025,49 @@ void intern_strings(void)
    impure_io_i      = ident_new("impure_io");
    simple_name_i    = ident_new("simple_name");
    std_i            = ident_new("STD");
-   nnets_i          = ident_new("nnets");
    thunk_i          = ident_new("thunk");
 }
 
-bool pack_needs_cgen(tree_t t)
+bool unit_needs_cgen(tree_t unit)
 {
-   // True if the package contains shared variables or signals which
-   // must be run through code generation
+   switch (tree_kind(unit)) {
+   case T_ELAB:
+   case T_PACK_BODY:
+      return true;
+   case T_PACKAGE:
+      return !package_needs_body(unit);
+   default:
+      return false;
+   }
+}
 
-   const int ndecls = tree_decls(t);
+bool package_needs_body(tree_t pack)
+{
+   assert(tree_kind(pack) == T_PACKAGE);
+
+   const int ndecls = tree_decls(pack);
    for (int i = 0; i < ndecls; i++) {
-      tree_t decl = tree_decl(t, i);
-      switch (tree_kind(decl)) {
-      case T_VAR_DECL:
-      case T_SIGNAL_DECL:
-      case T_FILE_DECL:
+      tree_t d = tree_decl(pack, i);
+
+      switch (tree_kind(d)) {
+      case T_FUNC_DECL:
+      case T_PROC_DECL:
+         if (tree_flags(d) & (TREE_F_PREDEFINED | TREE_F_FOREIGN))
+            continue;
          return true;
+
       case T_CONST_DECL:
-         if (type_is_array(tree_type(decl)))
+         if (!tree_has_value(d))
             return true;
-         else if (tree_has_value(decl)) {
-            if (tree_kind(tree_value(decl)) != T_LITERAL)
-               return true;
-         }
-         break;
+         continue;
+
+      case T_TYPE_DECL:
+         if (type_is_protected(tree_type(d)))
+            return true;
+         continue;
+
       default:
-         break;
+         continue;
       }
    }
 
@@ -1164,12 +1173,13 @@ tree_t find_mangled_decl(tree_t container, ident_t name)
 
    const tree_kind_t kind = tree_kind(container);
    if (kind == T_ARCH || kind == T_ELAB || kind == T_BLOCK) {
+      ident_t leaf = ident_rfrom(name, '.');
       const int nstmts = tree_stmts(container);
       for (int i = 0; i < nstmts; i++) {
          tree_t s = tree_stmt(container, i);
          const tree_kind_t skind = tree_kind(s);
          if (skind == T_PROCESS || skind == T_BLOCK) {
-            if (tree_ident(s) == name)
+            if (tree_ident(s) == leaf)
                return s;
 
             tree_t d = find_mangled_decl(s, name);

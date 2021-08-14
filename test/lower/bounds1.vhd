@@ -5,7 +5,7 @@ architecture test of bounds1 is
     type int_vec is array (natural range <>) of integer;
 begin
 
-    process is
+    p1: process is
         variable v : int_vec(0 to 9) := (others => 0);
         variable k : integer range 0 to 9;
     begin

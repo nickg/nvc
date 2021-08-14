@@ -111,6 +111,7 @@ static void after_5ns(const vhpiCbDataT *cb_data)
    vhpi_get_value(handle_y, &value);
    check_error();
    fail_unless(value.format == vhpiIntVal);
+   vhpi_printf("value=%d", value.value.intg);
    fail_unless(value.value.intg == 6);
 
    value.value.intg = 70;

@@ -16,11 +16,11 @@ bin_unit_test_SOURCES = \
 	test/test_simp.c \
 	test/test_misc.c \
 	test/test_elab.c \
-	test/test_group.c \
 	test/test_bounds.c \
 	test/test_value.c \
 	test/test_json.c \
-	test/test_debug.c
+	test/test_debug.c \
+	test/test_eopt.c
 
 bin_unit_test_LDADD = lib/libnvc.a lib/librt.a lib/libfastlz.a \
 	$(check_LIBS) $(POW_LIB) $(libdw_LIBS) lib/libjson.a

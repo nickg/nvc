@@ -5,7 +5,7 @@ architecture test of signal1 is
     signal x : integer := 5;
 begin
 
-    process is
+    p1: process is
     begin
         assert x = 5;
         x <= 6;

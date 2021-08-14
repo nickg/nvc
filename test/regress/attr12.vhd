@@ -9,8 +9,8 @@ package body pack is
 
     procedure proc is
     begin
-        report pack'instance_name;
-        report iname;
+        report pack'instance_name & " <--";
+        report iname & " <--";
     end procedure;
 
 end package body;

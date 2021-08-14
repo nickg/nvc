@@ -16,7 +16,7 @@ architecture test of func5 is
     signal x : integer := 5;
 begin
 
-    process is
+    p1: process is
     begin
         assert add_one_s(x) = 6;
         assert event(x);

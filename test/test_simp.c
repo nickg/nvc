@@ -420,7 +420,7 @@ START_TEST(test_shift2)
    input_from_file(TESTDIR "/simp/shift2.vhd");
 
    tree_t top = run_elab();
-   fail_unless(tree_stmts(top) == 0);
+   fail_unless(tree_stmts(tree_stmt(top, 0)) == 0);
 }
 END_TEST
 
@@ -443,7 +443,10 @@ START_TEST(test_issue309)
    input_from_file(TESTDIR "/simp/issue309.vhd");
 
    tree_t top = run_elab();
-   fail_unless(tree_stmts(top) == 0);
+
+   fail_unless(tree_stmts(tree_stmt(top, 0)) == 2);
+   fail_unless(tree_stmts(tree_stmt(tree_stmt(top, 0), 0)) == 0);
+   fail_unless(tree_stmts(tree_stmt(tree_stmt(top, 0), 1)) == 0);
 }
 END_TEST
 
@@ -470,11 +473,13 @@ START_TEST(test_issue321)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   fail_unless(tree_decls(top) == 7);
-   tree_t d5 = tree_decl(top, 5);
+   tree_t test_ng = tree_stmt(top, 0);
+
+   fail_unless(tree_decls(test_ng) == 7);
+   tree_t d5 = tree_decl(test_ng, 5);
    fail_unless(tree_kind(tree_value(d5)) == T_LITERAL);
    fail_unless(tree_ival(tree_value(d5)) == 23);
-   tree_t d6 = tree_decl(top, 6);
+   tree_t d6 = tree_decl(test_ng, 6);
    fail_unless(tree_kind(tree_value(d6)) == T_LITERAL);
    fail_unless(tree_ival(tree_value(d6)) == 5);
 }
@@ -487,9 +492,11 @@ START_TEST(test_issue331)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   fail_unless(tree_decls(top) == 8);
-   tree_t d2 = tree_decl(top, 2);
-   fail_unless(tree_ident(d2) == ident_new(":test_ng:vec_range"));
+   tree_t test_ng = tree_stmt(top, 0);
+
+   fail_unless(tree_decls(test_ng) == 4);
+   tree_t d2 = tree_decl(test_ng, 2);
+   fail_unless(tree_ident(d2) == ident_new("VEC_RANGE"));
    tree_t agg = tree_value(d2);
    fail_unless(tree_kind(agg) == T_AGGREGATE);
    tree_t info_0 = tree_value(tree_assoc(agg, 2));
@@ -518,7 +525,7 @@ START_TEST(test_issue322)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t p0 = tree_stmt(top, 0);
+   tree_t p0 = tree_stmt(tree_stmt(top, 0), 0);
    fail_unless(tree_kind(p0) == T_PROCESS);
 
    tree_t d0 = tree_decl(p0, 0);
@@ -558,7 +565,7 @@ START_TEST(test_issue344)
 
    tree_t top = run_elab();
 
-   tree_t p0 = tree_stmt(top, 0);
+   tree_t p0 = tree_stmt(tree_stmt(top, 0), 0);
    fail_unless(tree_stmts(p0) == 2);
 }
 END_TEST
@@ -569,7 +576,7 @@ START_TEST(test_issue345)
 
    tree_t top = run_elab();
 
-   fail_unless(tree_stmts(top) == 0);
+   fail_unless(tree_stmts(tree_stmt(top, 0)) == 0);
 }
 END_TEST
 
@@ -579,7 +586,7 @@ START_TEST(test_issue362)
 
    tree_t top = run_elab();
 
-   fail_unless(tree_stmts(top) == 0);
+   fail_unless(tree_stmts(tree_stmt(top, 0)) == 0);
 }
 END_TEST
 
@@ -623,7 +630,7 @@ START_TEST(test_func9)
    tree_t e = run_elab();
 
    // All statements are optimised out
-   fail_unless(tree_stmts(e) == 0);
+   fail_unless(tree_stmts(tree_stmt(e, 0)) == 0);
 }
 END_TEST
 

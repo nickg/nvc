@@ -5,17 +5,17 @@ std_DATA = \
 	lib/std/STD.STANDARD \
 	lib/std/STD.TEXTIO \
 	lib/std/STD.TEXTIO-body \
-	lib/std/_STD.TEXTIO-body.vcode
+	lib/std/_STD.STANDARD.vcode \
+	lib/std/_STD.TEXTIO.vcode
 
 std_so = \
-	lib/std/_STD.TEXTIO.$(DLL_EXT) \
-	lib/std/_STD.TEXTIO-body.$(DLL_EXT)
+	lib/std/_STD.STANDARD.$(DLL_EXT) \
+	lib/std/_STD.TEXTIO.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
 
 std_DATA += \
-	lib/std/_STD.TEXTIO.$(LIB_EXT) \
-	lib/std/_STD.TEXTIO-body.$(LIB_EXT)
+	lib/std/_STD.TEXTIO.$(LIB_EXT)
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 std_SCRIPTS = $(std_so)

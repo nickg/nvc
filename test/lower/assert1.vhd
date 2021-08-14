@@ -4,7 +4,7 @@ end entity;
 architecture test of assert1 is
 begin
 
-    process is
+    p1: process is
         variable b : boolean;
     begin
         b := true;

@@ -57,10 +57,10 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(simp);
    nfail += RUN_TESTS(value);
    nfail += RUN_TESTS(lower);
-   nfail += RUN_TESTS(group);
    nfail += RUN_TESTS(elab);
    nfail += RUN_TESTS(json);
    nfail += RUN_TESTS(debug);
+   nfail += RUN_TESTS(eopt);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

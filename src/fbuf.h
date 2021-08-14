@@ -24,8 +24,6 @@
 // Compressed binary file input/output
 //
 
-typedef struct fbuf fbuf_t;
-
 typedef enum {
    FBUF_IN,
    FBUF_OUT,

@@ -5,7 +5,7 @@ architecture test of choice1 is
     signal s : integer;
 begin
 
-    process is
+    p1: process is
         variable x : integer;
     begin
         case s is

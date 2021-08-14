@@ -67,6 +67,7 @@ static const char *make_product(tree_t t, make_product_t product)
    char *buf = get_fmt_buf(PATH_MAX);
 
    ident_t name = tree_ident(t);
+   ident_t base = ident_strip(name, ident_new("-body")) ?: name;
    lib_t lib = make_get_lib(name);
 
    const char *path = lib_path(lib);
@@ -77,21 +78,21 @@ static const char *make_product(tree_t t, make_product_t product)
       break;
 
    case MAKE_VCODE:
-      checked_sprintf(buf, PATH_MAX, "%s/_%s.vcode", path, istr(name));
+      checked_sprintf(buf, PATH_MAX, "%s/_%s.vcode", path, istr(base));
       break;
 
    case MAKE_SO:
-      checked_sprintf(buf, PATH_MAX, "%s/_%s.so", path, istr(name));
+      checked_sprintf(buf, PATH_MAX, "%s/_%s.so", path, istr(base));
       break;
 
    case MAKE_IMPLIB:
-      checked_sprintf(buf, PATH_MAX, "%s/_%s.a", path, istr(name));
+      checked_sprintf(buf, PATH_MAX, "%s/_%s.a", path, istr(base));
       break;
 
    case MAKE_FINAL_SO:
       {
-         ident_t base = ident_runtil(name, '.');
-         checked_sprintf(buf, PATH_MAX, "%s/_%s.final.so", path, istr(base));
+         ident_t final = ident_runtil(name, '.');
+         checked_sprintf(buf, PATH_MAX, "%s/_%s.final.so", path, istr(final));
       }
       break;
 
@@ -234,7 +235,7 @@ static void make_rule(tree_t t, rule_t **rules)
       break;
 
    case T_PACKAGE:
-      if (pack_needs_cgen(t)) {
+      if (!package_needs_body(t)) {
       case T_PACK_BODY:
          make_rule_add_output(r, make_product(t, MAKE_VCODE));
          make_rule_add_output(r, make_product(t, MAKE_SO));
@@ -397,7 +398,7 @@ static void make_add_target(lib_t lib, ident_t name, int kind, void *context)
 
 void make(tree_t *targets, int count, FILE *out)
 {
-   rule_map = hash_new(256, true, HASH_PTR);
+   rule_map = hash_new(256, true);
 
    if (count == 0) {
       lib_t work = lib_work();

@@ -216,6 +216,9 @@ static tree_t simp_record_ref(tree_t t)
 
 static tree_t simp_ref(tree_t t)
 {
+   if (tree_flags(t) & TREE_F_FORMAL_NAME)
+      return t;
+
    tree_t decl = tree_ref(t);
 
    switch (tree_kind(decl)) {

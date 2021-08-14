@@ -8,23 +8,16 @@ vital_DATA = \
 	lib/ieee/IEEE.VITAL_PRIMITIVES-body \
 	lib/ieee/IEEE.VITAL_MEMORY \
 	lib/ieee/_IEEE.VITAL_TIMING.vcode \
-	lib/ieee/_IEEE.VITAL_TIMING-body.vcode \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.vcode \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.vcode \
-	lib/ieee/_IEEE.VITAL_MEMORY.vcode
+	lib/ieee/_IEEE.VITAL_PRIMITIVES.vcode
 
 vital_so = \
 	lib/ieee/_IEEE.VITAL_TIMING.$(DLL_EXT) \
-	lib/ieee/_IEEE.VITAL_TIMING-body.$(DLL_EXT) \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.$(DLL_EXT) \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.$(DLL_EXT)
+	lib/ieee/_IEEE.VITAL_PRIMITIVES.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
 vital_DATA += \
 	lib/ieee/_IEEE.VITAL_TIMING.$(LIB_EXT) \
-	lib/ieee/_IEEE.VITAL_TIMING-body.$(LIB_EXT) \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.$(LIB_EXT) \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.$(LIB_EXT)
+	lib/ieee/_IEEE.VITAL_PRIMITIVES.$(LIB_EXT)
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 vital_SCRIPTS = $(vital_so)

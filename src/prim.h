@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2016  Nick Gasson
+//  Copyright (C) 2013-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -24,15 +24,13 @@
 typedef struct trie *ident_t;
 typedef struct _tree *tree_t;
 typedef struct _type *type_t;
+typedef struct _e_node *e_node_t;
 typedef struct loc loc_t;
+typedef struct _fbuf fbuf_t;
 
 typedef struct tree_wr_ctx *tree_wr_ctx_t;
 typedef struct tree_rd_ctx *tree_rd_ctx_t;
 
 typedef struct vcode_unit *vcode_unit_t;
-
-typedef uint32_t netid_t;
-
-#define NETID_INVALID UINT32_MAX
 
 #endif  // _PRIM_H

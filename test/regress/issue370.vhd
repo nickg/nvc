@@ -1,3 +1,4 @@
+-- -*- vhdl-basic-offset: 2 -*-
 package run_types_pkg is
   type runner_phase_unresolved_t is (test_runner_entry, test_runner_setup, test_suite_setup, test_case_setup, test_case, test_case_cleanup, test_suite_cleanup, test_runner_cleanup, test_runner_exit, multiple_drivers);
   type runner_phase_unresolved_array_t is array (integer range <>) of runner_phase_unresolved_t;
@@ -37,7 +38,7 @@ package body run_types_pkg is
     variable n_set_values : natural := 0;
     variable result : runner_phase_unresolved_t := test_runner_entry;
   begin
-      report "resolve_runner_phase called";
+    report "resolve_runner_phase called";
     for i in values'range loop
       if values(i) = test_runner_exit then
         return test_runner_exit;
@@ -59,7 +60,7 @@ package body run_types_pkg is
     return phase_locks_unresolved_t is
     variable result : phase_locks_t;
   begin
-      report "resolve_phase_locks called";
+    report "resolve_phase_locks called";
     result.entry_is_locked := false;
     result.exit_is_locked := false;
     for i in values'range loop
@@ -103,6 +104,12 @@ architecture a of issue370 is
     runner.exit_without_errors <= value;
   end;
 begin
+
+  p0 : process
+  begin
+    drive(runner, false);
+    wait;
+  end process;
 
   p1 : process
   begin

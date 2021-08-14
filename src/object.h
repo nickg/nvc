@@ -63,7 +63,7 @@ typedef uint64_t imask_t;
 #define I_CLASS      ONE_HOT(26)
 #define I_RANGES     ONE_HOT(27)
 #define I_NAME       ONE_HOT(28)
-#define I_NETS       ONE_HOT(29)
+//#define I_NETS     ONE_HOT(29)
 #define I_DVAL       ONE_HOT(30)
 #define I_SPEC       ONE_HOT(31)
 #define I_SCOPES     ONE_HOT(32)
@@ -78,31 +78,40 @@ typedef uint64_t imask_t;
 #define I_LITERALS   ONE_HOT(41)
 #define I_DIMS       ONE_HOT(42)
 #define I_FIELDS     ONE_HOT(43)
-//#define I_???       ONE_HOT(44)
+#define I_PARENT     ONE_HOT(44)
 #define I_ATTRS      ONE_HOT(45)
 #define I_PTYPES     ONE_HOT(46)
 #define I_CHARS      ONE_HOT(47)
 #define I_CONSTR     ONE_HOT(48)
 #define I_FLAGS      ONE_HOT(49)
-//#define I_???       ONE_HOT(50)
+#define I_SIGNALS    ONE_HOT(50)
 #define I_LEFT       ONE_HOT(51)
 #define I_RIGHT      ONE_HOT(52)
+#define I_PROCS      ONE_HOT(53)
+#define I_NEXUS      ONE_HOT(54)
+#define I_PATH       ONE_HOT(55)
+#define I_DEPS       ONE_HOT(56)
+#define I_SIZE       ONE_HOT(57)
+#define I_VCODE      ONE_HOT(58)
+//#define I_SLICE    ONE_HOT(59)
+#define I_SOURCES    ONE_HOT(60)
 
-#define ITEM_IDENT       (I_IDENT | I_IDENT2)
+#define ITEM_IDENT       (I_IDENT | I_IDENT2 | I_PATH | I_VCODE)
 #define ITEM_OBJECT      (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET   \
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE    \
                           | I_NAME | I_SPEC | I_RESOLUTION | I_CONSTR   \
                           | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
-                          | I_ACCESS | I_RESULT | I_FILE)
-#define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
-                          | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS   \
-                          | I_GENMAPS | I_ASSOCS | I_CONTEXT | I_LEFT   \
-                          | I_RIGHT | I_LITERALS | I_FIELDS | I_UNITS   \
-                          | I_CHARS | I_DIMS | I_RANGES | I_PTYPES      \
-                          | I_INDEXCON)
+                          | I_ACCESS | I_RESULT | I_FILE | I_PARENT)
+#define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
+                          | I_WAVES | I_CONDS | I_TRIGGERS | I_ELSES    \
+                          | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
+                          | I_LEFT | I_RIGHT | I_LITERALS | I_FIELDS    \
+                          | I_UNITS | I_CHARS | I_DIMS | I_RANGES       \
+                          | I_PTYPES | I_INDEXCON | I_SIGNALS | I_PROCS \
+                          | I_NEXUS | I_SCOPES | I_SOURCES)
+#define ITEM_IDENT_ARRAY (I_DEPS)
 #define ITEM_INT64       (I_POS | I_IVAL)
-#define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
-#define ITEM_NETID_ARRAY (I_NETS)
+#define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS | I_SIZE)
 #define ITEM_DOUBLE      (I_DVAL)
 #define ITEM_ATTRS       (I_ATTRS)
 
@@ -165,10 +174,10 @@ typedef union {
    unsigned      subkind;
    int64_t       ival;
    double        dval;
-   A(netid_t)    netid_array;
    text_buf_t   *text_buf;
    attr_tab_t    attrs;
    char         *text;
+   A(ident_t)    ident_array;
 } item_t;
 
 struct _object {

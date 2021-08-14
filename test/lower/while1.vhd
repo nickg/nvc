@@ -4,7 +4,7 @@ end entity;
 architecture test of while1 is
 begin
 
-    process is
+    p1: process is
         variable n : integer := 5;
     begin
         while n > 0 loop

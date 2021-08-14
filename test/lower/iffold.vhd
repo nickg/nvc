@@ -7,7 +7,7 @@ architecture test of sub is
     signal x, y : integer;
 begin
 
-    process is
+    p1: process is
     begin
         if N > 3 then
             x <= 5;

@@ -1269,7 +1269,8 @@ int checked_sprintf(char *buf, int len, const char *fmt, ...)
 
    const int nbytes = vsnprintf(buf, len, fmt, ap);
    if (nbytes >= len)
-      fatal_trace("checked_sprintf requires %d bytes but have %d", nbytes, len);
+      fatal_trace("checked_sprintf requires %d bytes but have %d",
+                  nbytes + 1, len);
 
    va_end(ap);
 

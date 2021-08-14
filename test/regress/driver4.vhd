@@ -6,7 +6,7 @@ end entity;
 architecture test of sub is
 begin
 
-    process is
+    p1: process is
     begin
         wait for 20 ns;
         x <= 10;
@@ -27,7 +27,7 @@ begin
     sub_i: entity work.sub
         port map ( x => x );
 
-    process is
+    p2: process is
     begin
         report integer'image(x);
         assert x = 5;

@@ -20,29 +20,18 @@ ieee_08_DATA = \
 	lib/ieee.08/_IEEE.NUMERIC_BIT.vcode \
 	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED.vcode \
 	lib/ieee.08/_IEEE.NUMERIC_STD.vcode \
-	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.vcode \
-	lib/ieee.08/_IEEE.NUMERIC_STD-body.vcode \
-	lib/ieee.08/_IEEE.NUMERIC_STD_UNSIGNED-body.vcode \
-	lib/ieee.08/_IEEE.NUMERIC_BIT-body.vcode \
-	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED-body.vcode \
+	lib/ieee.08/_IEEE.STD_LOGIC_1164.vcode \
 	lib/ieee.08/_IEEE.MATH_REAL.vcode \
-	lib/ieee.08/_IEEE.MATH_REAL-body.vcode \
-	lib/ieee.08/_IEEE.MATH_COMPLEX.vcode \
-	lib/ieee.08/_IEEE.MATH_COMPLEX-body.vcode
+	lib/ieee.08/_IEEE.MATH_COMPLEX.vcode
 
 ieee_08_so = \
 	lib/ieee.08/_IEEE.NUMERIC_STD.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_STD_UNSIGNED.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_BIT.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_STD-body.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_BIT-body.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED-body.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.STD_LOGIC_1164.$(DLL_EXT) \
 	lib/ieee.08/_IEEE.MATH_REAL.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.MATH_REAL-body.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.MATH_COMPLEX.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.MATH_COMPLEX-body.$(DLL_EXT)
+	lib/ieee.08/_IEEE.MATH_COMPLEX.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
 ieee_08_DATA += \
@@ -50,14 +39,9 @@ ieee_08_DATA += \
 	lib/ieee.08/_IEEE.NUMERIC_STD_UNSIGNED.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_BIT.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.STD_LOGIC_1164-body.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_STD-body.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_BIT-body.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED-body.$(LIB_EXT) \
+	lib/ieee.08/_IEEE.STD_LOGIC_1164.$(LIB_EXT) \
 	lib/ieee.08/_IEEE.MATH_REAL.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.MATH_REAL-body.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.MATH_COMPLEX.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.MATH_COMPLEX-body.$(LIB_EXT)
+	lib/ieee.08/_IEEE.MATH_COMPLEX.$(LIB_EXT)
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 ieee_08_SCRIPTS = $(ieee_08_so)

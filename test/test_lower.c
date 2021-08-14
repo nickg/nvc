@@ -48,7 +48,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       const check_bb_t *e = &(expect[eptr++]);
 
       if (vop != e->op) {
-         vcode_dump_with_mark(i);
+         vcode_dump_with_mark(i, NULL, NULL);
          fail("expected op %d in block %d to be %s but was %s",
               i, bb, vcode_op_string(e->op), vcode_op_string(vop));
       }
@@ -56,7 +56,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       switch (e->op) {
       case VCODE_OP_PCALL:
          if (e->target != vcode_get_target(i, 0)) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have resume target %d but "
                  "has %d", i, bb, e->target, vcode_get_target(i, 0));
          }
@@ -71,13 +71,13 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
                bad = !icmp(vcode_get_func(i), e->func);
 
             if (bad) {
-               vcode_dump_with_mark(i);
+               vcode_dump_with_mark(i, NULL, NULL);
                fail("expected op %d in block %d to call %s but calls %s",
                     i, bb, e->func, istr(vcode_get_func(i)));
             }
          }
          else if (e->args != vcode_count_args(i)) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have %d arguments but has %d",
                  i, bb, e->args, vcode_count_args(i));
          }
@@ -85,8 +85,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_CONST:
          if (e->value != vcode_get_value(i)) {
-            vcode_dump_with_mark(i);
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have constant %"PRIi64
                  " but has %"PRIi64, i, bb, e->value, vcode_get_value(i));
          }
@@ -94,7 +93,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_CONST_REAL:
          if (e->real != vcode_get_real(i)) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have constant %lf but has %lf",
                  i, bb, e->real, vcode_get_real(i));
          }
@@ -102,7 +101,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_CMP:
          if (e->cmp != vcode_get_cmp(i)) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have comparison %"PRIi64
                  " but has %d", i, bb, e->value, vcode_get_cmp(i));
          }
@@ -124,7 +123,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_UARRAY_DIR:
       case VCODE_OP_UARRAY_LEN:
          if (e->dim != vcode_get_dim(i)) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have dimension %d but has %d",
                  i, bb, e->dim, vcode_get_dim(i));
          }
@@ -132,19 +131,19 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_WAIT:
          if (e->target != vcode_get_target(i, 0)) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have wait target %d but has %d",
                  i, bb, e->target, vcode_get_target(i, 0));
          }
          else if (e->delay && vcode_get_arg(i, 0) == VCODE_INVALID_REG) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have wait delay", i, bb);
          }
          break;
 
       case VCODE_OP_COND:
          if (e->target_else != vcode_get_target(i, 1)) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have else target %d but has %d",
                  i, bb, e->target_else, vcode_get_target(i, 1));
          }
@@ -152,7 +151,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_JUMP:
          if (e->target != vcode_get_target(i, 0)) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have jump target %d but has %d",
                  i, bb, e->target, vcode_get_target(i, 0));
          }
@@ -164,20 +163,18 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          {
             ident_t name = vcode_var_name(vcode_get_address(i));
             if (name != ident_new(e->name)) {
-               vcode_dump_with_mark(i);
+               vcode_dump_with_mark(i, NULL, NULL);
                fail("expected op %d in block %d to have address name %s but "
                     "has %s", i, bb, e->name, istr(name));
             }
          }
          break;
 
-      case VCODE_OP_NETS:
-      case VCODE_OP_RESOLVED_ADDRESS:
-      case VCODE_OP_NEEDS_LAST_VALUE:
+      case VCODE_OP_LINK_SIGNAL:
          {
-            ident_t name = vcode_signal_name(vcode_get_signal(i));
+            ident_t name = vcode_get_ident(i);
             if (name != ident_new(e->name)) {
-               vcode_dump_with_mark(i);
+               vcode_dump_with_mark(i, NULL, NULL);
                fail("expected op %d in block %d to have signal name %s but "
                     "has %s", i, bb, e->name, istr(name));
             }
@@ -202,8 +199,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_STORE_INDIRECT:
       case VCODE_OP_SCHED_WAVEFORM:
       case VCODE_OP_SELECT:
-      case VCODE_OP_SET_INITIAL:
-      case VCODE_OP_ALLOC_DRIVER:
       case VCODE_OP_EVENT:
       case VCODE_OP_ACTIVE:
       case VCODE_OP_CONST_RECORD:
@@ -211,7 +206,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_MEMCMP:
       case VCODE_OP_MEMSET:
       case VCODE_OP_WRAP:
-      case VCODE_OP_VEC_LOAD:
       case VCODE_OP_DYNAMIC_BOUNDS:
       case VCODE_OP_NEW:
       case VCODE_OP_ALL:
@@ -219,11 +213,13 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_CASE:
       case VCODE_OP_TEMP_STACK_MARK:
       case VCODE_OP_TEMP_STACK_RESTORE:
+      case VCODE_OP_INIT_SIGNAL:
+      case VCODE_OP_RESOLVED:
          break;
 
       case VCODE_OP_CONST_ARRAY:
          if (vcode_count_args(i) != e->length) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have %d array elements but "
                  "has %d", i, bb, e->length, vcode_count_args(i));
          }
@@ -234,12 +230,12 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             vcode_type_t bounds = vcode_get_type(i);
             if (vtype_kind(bounds) == VCODE_TYPE_INT) {
                if (e->low != vtype_low(bounds)) {
-                  vcode_dump_with_mark(i);
+                  vcode_dump_with_mark(i, NULL, NULL);
                   fail("expect op %d in block %d to have low bound %"PRIi64
                        " but has %"PRIi64, i, bb, e->low, vtype_low(bounds));
                }
                else if (e->high != vtype_high(bounds)) {
-                  vcode_dump_with_mark(i);
+                  vcode_dump_with_mark(i, NULL, NULL);
                   fail("expect op %d in block %d to have high bound %"PRIi64
                        " but has %"PRIi64, i, bb, e->high, vtype_high(bounds));
                }
@@ -257,19 +253,20 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             while (hops--)
                vcode_select_unit(vcode_unit_context());
 
-            if (!icmp(vcode_var_name(address), e->name)) {
-               vcode_dump_with_mark(i);
-               fail("expect op %d in block %d to have address %s"
-                    " but has %s", i, bb, e->name, istr(vcode_var_name(address)));
-            }
-
+            ident_t actual = vcode_var_name(address);
             vcode_state_restore(&state);
+
+            if (!icmp(actual, e->name)) {
+               vcode_dump_with_mark(i, NULL, NULL);
+               fail("expect op %d in block %d to have address %s"
+                    " but has %s", i, bb, e->name, istr(actual));
+            }
          }
          // Fall-through
 
       case VCODE_OP_PARAM_UPREF:
          if (vcode_get_hops(i) != e->hops) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expect op %d in block %d to have hop count %d"
                  " but has %d", i, bb, e->hops, vcode_get_hops(i));
          }
@@ -277,7 +274,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_RECORD_REF:
          if (vcode_get_field(i) != e->field) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expect op %d in block %d to have field %d"
                  " but has %d", i, bb, e->field, vcode_get_field(i));
          }
@@ -287,7 +284,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ALLOCA:
       case VCODE_OP_INDEX_CHECK:
          if (vcode_get_subkind(i) != e->subkind) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have subkind %x but "
                  "has %x", i, bb, e->subkind, vcode_get_subkind(i));
          }
@@ -295,7 +292,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_RESUME:
          if ((e->func != NULL) && !icmp(vcode_get_func(i), e->func)) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to call %s but calls %s",
                  i, bb, e->func, istr(vcode_get_func(i)));
          }
@@ -303,7 +300,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_COVER_COND:
          if (vcode_get_subkind(i) != e->subkind) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have sub cond %x but "
                  "has %x", i, bb, e->subkind, vcode_get_subkind(i));
          }
@@ -311,7 +308,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_COVER_STMT:
          if (e->tag != vcode_get_tag(i)) {
-            vcode_dump_with_mark(i);
+            vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have cover tag %d but has %d",
                  i, bb, e->tag, vcode_get_tag(i));
          }
@@ -322,7 +319,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             image_map_t map;
             vcode_get_image_map(i, &map);
             if (!icmp(map.name, e->name)) {
-               vcode_dump_with_mark(i);
+               vcode_dump_with_mark(i, NULL, NULL);
                fail("expected op %d in block %d to have image map name %s but "
                     "has %s", i, bb, e->name, istr(map.name));
             }
@@ -335,17 +332,26 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
    }
 
    if (actual != eptr) {
-      vcode_dump_with_mark(len + nops - actual);
+      vcode_dump_with_mark(len + nops - actual, NULL, NULL);
       fail("expected %d ops in block %d but have %d", len, bb, actual);
    }
 }
 
-static vcode_unit_t find_unit(tree_t t)
+static vcode_unit_t find_unit_for(tree_t decl)
 {
-   ident_t name = is_subprogram(t) ? tree_ident2(t) : tree_ident(t);
-   vcode_unit_t vu = vcode_find_unit(name);
+   fail_unless(is_subprogram(decl));
+
+   vcode_unit_t vu = vcode_find_unit(tree_ident2(decl));
    if (vu == NULL)
-      fail("missing vcode unit for %s", istr(name));
+      fail("missing vcode unit for %s", istr(tree_ident2(decl)));
+   return vu;
+}
+
+static vcode_unit_t find_unit(const char *name)
+{
+   vcode_unit_t vu = vcode_find_unit(ident_new(name));
+   if (vu == NULL)
+      fail("missing vcode unit for %s", name);
    return vu;
 }
 
@@ -361,7 +367,7 @@ START_TEST(test_wait1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.WAIT1.P1");
    vcode_select_unit(v0);
 
    const check_bb_t bb0[] = {
@@ -431,7 +437,7 @@ START_TEST(test_assign1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ASSIGN1.P1");
    vcode_select_unit(v0);
 
    fail_unless(vcode_count_vars() == 2);
@@ -512,7 +518,7 @@ START_TEST(test_assign2)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ASSIGN2.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -579,33 +585,31 @@ START_TEST(test_signal1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t vc = find_unit(e);
+   vcode_unit_t vc = find_unit("WORK.SIGNAL1");
    vcode_select_unit(vc);
 
    {
       EXPECT_BB(0) = {
+         { VCODE_OP_LINK_SIGNAL, .name = "X" },
+         { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_SET_INITIAL },
-         { VCODE_OP_RESOLVED_ADDRESS, .name = ":signal1:x" },
+         { VCODE_OP_CONST, .value = 4 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_INIT_SIGNAL },
          { VCODE_OP_RETURN }
       };
 
       CHECK_BB(0);
    }
 
-   fail_unless(vcode_count_signals() == 1);
-   fail_unless(icmp(vcode_signal_name(0), ":signal1:x"));
-   fail_unless(vcode_signal_count_nets(0) == 1);
-   fail_unless(vcode_signal_nets(0)[0] == 0);
+   fail_unless(vcode_count_vars() == 1);
+   fail_unless(icmp(vcode_var_name(0), "X"));
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.SIGNAL1.P1");
    vcode_select_unit(v0);
 
    {
       EXPECT_BB(0) = {
-         { VCODE_OP_NETS, .name = ":signal1:x" },
-         { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_ALLOC_DRIVER },
          { VCODE_OP_RETURN }
       };
 
@@ -613,14 +617,15 @@ START_TEST(test_signal1)
 
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
-         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:signal1:x" },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
          { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_RESOLVED },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_NETS, .name = ":signal1:x" },
+         { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_SCHED_WAVEFORM },
@@ -644,7 +649,7 @@ START_TEST(test_cond1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.COND1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -656,8 +661,9 @@ START_TEST(test_cond1)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:cond1:x" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD, .name = "Y" },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -675,8 +681,9 @@ START_TEST(test_cond1)
    CHECK_BB(2);
 
    EXPECT_BB(3) = {
-      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:cond1:x" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD, .name = "Y" },
       { VCODE_OP_CONST, .value = 1 },
@@ -729,7 +736,7 @@ START_TEST(test_arith1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ARITH1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -850,7 +857,7 @@ START_TEST(test_pack1)
    tree_t add1 = tree_decl(body, 0);
    fail_unless(tree_kind(add1) == T_FUNC_BODY);
 
-   vcode_unit_t v0 = find_unit(add1);
+   vcode_unit_t v0 = find_unit_for(add1);
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -876,7 +883,7 @@ START_TEST(test_func1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.FUNC1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -926,7 +933,7 @@ START_TEST(test_arrayop1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ARRAYOP1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1008,7 +1015,7 @@ START_TEST(test_array1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ARRAY1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -1060,10 +1067,11 @@ START_TEST(test_nest1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   tree_t p = tree_stmt(e, 0);
+   tree_t p = tree_stmt(tree_stmt(e, 0), 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
 
    {
-      vcode_unit_t v0 = find_unit(p);
+      vcode_unit_t v0 = find_unit("WORK.NEST1.LINE_7");
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
@@ -1087,7 +1095,7 @@ START_TEST(test_nest1)
    fail_unless(tree_kind(f1) == T_FUNC_BODY);
 
    {
-      vcode_unit_t v0 = find_unit(f1);
+      vcode_unit_t v0 = find_unit_for(f1);
       vcode_select_unit(v0);
 
       fail_unless(icmp(vcode_unit_name(),
@@ -1106,7 +1114,7 @@ START_TEST(test_nest1)
    fail_unless(tree_kind(f2) == T_FUNC_BODY);
 
    {
-      vcode_unit_t v0 = find_unit(f2);
+      vcode_unit_t v0 = find_unit_for(f2);
       vcode_select_unit(v0);
 
       fail_unless(icmp(vcode_unit_name(),
@@ -1139,7 +1147,7 @@ START_TEST(test_signal2)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.SIGNAL2.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1150,10 +1158,12 @@ START_TEST(test_signal2)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_NETS, .name = ":signal2:x" },
+      { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_EVENT },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_ACTIVE },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 2 }
@@ -1175,7 +1185,7 @@ START_TEST(test_attr1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ATTR1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -1228,7 +1238,7 @@ START_TEST(test_assign3)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ASSIGN3.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -1259,7 +1269,7 @@ START_TEST(test_record1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.RECORD1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1320,22 +1330,24 @@ START_TEST(test_signal4)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.SIGNAL4.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:signal4:s" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_NETS, .name = ":signal4:s" },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 4 },
       { VCODE_OP_SCHED_WAVEFORM },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
       { VCODE_OP_COPY },
       { VCODE_OP_WAIT, .target = 2 }
    };
@@ -1356,13 +1368,13 @@ START_TEST(test_staticwait)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.STATICWAIT.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_NETS, .name = ":staticwait:x" },
+      { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_ALLOC_DRIVER },
       { VCODE_OP_SCHED_EVENT, .subkind = 2 },
       { VCODE_OP_RETURN }
    };
@@ -1371,7 +1383,8 @@ START_TEST(test_staticwait)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_NETS, .name = ":staticwait:x" },
+      { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SCHED_WAVEFORM },
@@ -1395,7 +1408,7 @@ START_TEST(test_proc1)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+      vcode_unit_t v0 = find_unit("WORK.PROC1.P1");
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
@@ -1426,7 +1439,7 @@ START_TEST(test_proc1)
    }
 
    {
-      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1454,7 +1467,7 @@ START_TEST(test_while1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.WHILE1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(2) = {
@@ -1491,7 +1504,7 @@ START_TEST(test_loop1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.LOOP1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(3) = {
@@ -1533,7 +1546,7 @@ START_TEST(test_proc3)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1554,7 +1567,7 @@ START_TEST(test_proc3)
    }
 
    {
-      vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+      vcode_unit_t v0 = find_unit("WORK.PROC3.P2");
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
@@ -1591,7 +1604,7 @@ START_TEST(test_loop2)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(2) = {
@@ -1622,7 +1635,7 @@ START_TEST(test_slice1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.SLICE1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -1666,7 +1679,7 @@ START_TEST(test_funcif)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    fail_unless(vcode_count_blocks() == 3);
@@ -1686,7 +1699,7 @@ START_TEST(test_memset)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1709,7 +1722,7 @@ START_TEST(test_memset)
    }
 
    {
-      vcode_unit_t v0 = find_unit(tree_decl(e, 2));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 2));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1749,11 +1762,11 @@ START_TEST(test_func5)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_VEC_LOAD },
+         { VCODE_OP_RESOLVED },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_ADD },
@@ -1765,7 +1778,7 @@ START_TEST(test_func5)
    }
 
    {
-      vcode_unit_t v0 = find_unit(tree_decl(e, 2));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 2));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1778,13 +1791,14 @@ START_TEST(test_func5)
    }
 
    {
-      vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+      vcode_unit_t v0 = find_unit("WORK.FUNC5.P1");
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
          { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 2 },
-         { VCODE_OP_NETS, .name = ":func5:x" },
+         { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_FCALL, .func = ":func5$WORK.FUNC5(TEST).ADD_ONE_S(sI)I",
            .args = 1 },
          { VCODE_OP_CONST, .value = 6 },
@@ -1792,6 +1806,7 @@ START_TEST(test_func5)
          { VCODE_OP_ASSERT },
          { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_TEMP_STACK_MARK },
+         { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_FCALL, .func = ":func5$WORK.FUNC5(TEST).EVENT(sI)B",
            .args = 1 },
          { VCODE_OP_ASSERT },
@@ -1816,7 +1831,7 @@ START_TEST(test_bounds1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.BOUNDS1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -1855,10 +1870,10 @@ START_TEST(test_record6)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
-   fail_unless(vcode_var_use_heap(0));
+   fail_unless(vcode_var_flags(0) & VAR_HEAP);
 
    EXPECT_BB(0) = {
       { VCODE_OP_INDEX, .name = "R" },
@@ -1891,7 +1906,7 @@ START_TEST(test_proc7)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1935,14 +1950,13 @@ START_TEST(test_issue116)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ISSUE116.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_NETS, .name = ":issue116:intstat" },
+      { VCODE_OP_VAR_UPREF, .name = "INTSTAT", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_CONST, .value = 8 },
-      { VCODE_OP_ALLOC_DRIVER },
       { VCODE_OP_ADD },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_SCHED_EVENT, .subkind = 2 },
@@ -1965,7 +1979,7 @@ START_TEST(test_mulphys)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -1993,7 +2007,7 @@ START_TEST(test_cover)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.COVER.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -2001,12 +2015,14 @@ START_TEST(test_cover)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_COVER_STMT, .tag = 2 },
-      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:cover:s" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COVER_COND, .tag = 0, .subkind = 1 },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 10 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
@@ -2041,7 +2057,7 @@ START_TEST(test_issue122)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2067,7 +2083,7 @@ START_TEST(test_issue124)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2088,7 +2104,7 @@ START_TEST(test_issue135)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2139,7 +2155,7 @@ START_TEST(test_issue134)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2164,7 +2180,7 @@ START_TEST(test_issue136)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(tree_decl(e, 1), 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_decl(tree_stmt(e, 0), 1), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2201,7 +2217,7 @@ START_TEST(test_rectype)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(e);
+   vcode_unit_t v0 = find_unit("WORK.E.P1");
    vcode_select_unit(v0);
 
    fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
@@ -2223,7 +2239,7 @@ START_TEST(test_issue149)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2262,7 +2278,7 @@ START_TEST(test_issue167)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(e);
+   vcode_unit_t v0 = find_unit("WORK.E");
    vcode_select_unit(v0);
 
    fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
@@ -2284,10 +2300,10 @@ START_TEST(test_issue164)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    lower_unit(p);
 
-   vcode_select_unit(find_unit(tree_decl(p, 0)));
+   vcode_select_unit(find_unit_for(tree_decl(p, 0)));
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME(I)"));
 
-   vcode_select_unit(find_unit(tree_decl(p, 1)));
+   vcode_select_unit(find_unit_for(tree_decl(p, 1)));
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME()I"));
 }
 END_TEST
@@ -2300,7 +2316,7 @@ START_TEST(test_sigvar)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -2319,7 +2335,7 @@ START_TEST(test_sigvar)
          { VCODE_OP_SELECT },
          { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
          { VCODE_OP_UNWRAP },
-         { VCODE_OP_VEC_LOAD },
+         { VCODE_OP_RESOLVED },
          { VCODE_OP_COPY },
          { VCODE_OP_RETURN }
       };
@@ -2328,7 +2344,7 @@ START_TEST(test_sigvar)
    }
 
    {
-      vcode_unit_t v0 = find_unit(tree_decl(e, 2));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 2));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -2338,7 +2354,7 @@ START_TEST(test_sigvar)
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_ARRAY_SIZE },
          { VCODE_OP_UNWRAP },
-         { VCODE_OP_VEC_LOAD },
+         { VCODE_OP_RESOLVED },
          { VCODE_OP_SCHED_WAVEFORM },
          { VCODE_OP_RETURN }
       };
@@ -2355,7 +2371,7 @@ START_TEST(test_issue181)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    fail_unless(vcode_count_vars() == 2);
@@ -2375,12 +2391,12 @@ START_TEST(test_issue203)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(e);
+   vcode_unit_t v0 = find_unit("WORK.ISSUE203");
    vcode_select_unit(v0);
 
    fail_unless(vcode_count_vars() == 1);
    fail_unless(icmp(vcode_var_name(0), "STD.TEXTIO.OUTPUT"));
-   fail_unless(vcode_var_extern(0));
+   fail_unless(vcode_var_flags(0) & VAR_EXTERN);
 }
 END_TEST
 
@@ -2390,10 +2406,6 @@ START_TEST(test_issue215)
 
    tree_t e = run_elab();
    lower_unit(e);
-
-   vcode_unit_t v0 = find_unit(e);
-   vcode_select_unit(v0);
-
 }
 END_TEST
 
@@ -2404,7 +2416,7 @@ START_TEST(test_choice1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.CHOICE1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -2413,8 +2425,9 @@ START_TEST(test_choice1)
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CONST, .value = 4 },
       { VCODE_OP_CONST, .value = 5 },
-      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "resolved_:choice1:s" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CASE },
    };
@@ -2454,27 +2467,43 @@ START_TEST(test_tag)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(e);
-   vcode_select_unit(v0);
+   {
+      vcode_unit_t v0 = find_unit("WORK.TAG");
+      vcode_select_unit(v0);
 
-   EXPECT_BB(0) = {
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_SET_INITIAL },
-      { VCODE_OP_NEEDS_LAST_VALUE, .name = ":work:p:s" },
-      { VCODE_OP_RESOLVED_ADDRESS, .name = ":work:p:s" },
-      { VCODE_OP_SET_INITIAL },
-      { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:p" },
-      { VCODE_OP_SET_INITIAL },
-      { VCODE_OP_NEEDS_LAST_VALUE, .name = ":tag:x" },
-      { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:x" },
-      { VCODE_OP_SET_INITIAL },
-      { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:y" },
-      { VCODE_OP_NEEDS_LAST_VALUE, .name = ":tag:sub_i:i" },
-      { VCODE_OP_RESOLVED_ADDRESS, .name = ":tag:sub_i:i" },
-      { VCODE_OP_RETURN },
-   };
+      EXPECT_BB(0) = {
+         { VCODE_OP_LINK_SIGNAL, .name = "P" },
+         { VCODE_OP_STORE, .name = "P" },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_INIT_SIGNAL },
+         { VCODE_OP_LINK_SIGNAL, .name = "X" },
+         { VCODE_OP_STORE, .name = "X" },
+         { VCODE_OP_INIT_SIGNAL },
+         { VCODE_OP_LINK_SIGNAL, .name = "Y" },
+         { VCODE_OP_STORE, .name = "Y" },
+         { VCODE_OP_INIT_SIGNAL },
+         { VCODE_OP_RETURN },
+      };
 
-   CHECK_BB(0);
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t v1 = find_unit("WORK.P");
+      vcode_select_unit(v1);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_LINK_SIGNAL, .name = "S" },
+         { VCODE_OP_STORE, .name = "S" },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_INIT_SIGNAL },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
 }
 END_TEST
 
@@ -2485,12 +2514,13 @@ START_TEST(test_iffold)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.IFFOLD.SUB_I.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_NETS, .name = ":iffold:sub_i:x" },
+      { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SCHED_WAVEFORM },
@@ -2509,7 +2539,7 @@ START_TEST(test_real1)
    lower_unit(e);
 
    {
-      vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -2522,7 +2552,7 @@ START_TEST(test_real1)
    }
 
    {
-      vcode_unit_t v0 = find_unit(tree_decl(e, 2));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 2));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -2545,7 +2575,7 @@ START_TEST(test_assert1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ASSERT1.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -2601,7 +2631,7 @@ START_TEST(test_dealloc)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    lower_unit(p);
 
-   vcode_unit_t v1 = find_unit(tree_decl(p, 1));
+   vcode_unit_t v1 = find_unit_for(tree_decl(p, 1));
    vcode_select_unit(v1);
 
    EXPECT_BB(0) = {
@@ -2631,7 +2661,7 @@ START_TEST(test_issue333)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ISSUE333.MAIN");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -2678,9 +2708,11 @@ START_TEST(test_issue338)
    tree_t e = run_elab();
    lower_unit(e);
 
+   e = tree_stmt(e, 0);
+
    // Function f1
    {
-      vcode_unit_t vu = find_unit(tree_decl(e, 1));
+      vcode_unit_t vu = find_unit_for(tree_decl(e, 1));
       vcode_select_unit(vu);
 
       EXPECT_BB(0) = {
@@ -2710,7 +2742,7 @@ START_TEST(test_issue338)
 
    // Function f2
    {
-      vcode_unit_t vu = find_unit(tree_decl(e, 2));
+      vcode_unit_t vu = find_unit_for(tree_decl(e, 2));
       vcode_select_unit(vu);
 
       EXPECT_BB(0) = {
@@ -2723,7 +2755,7 @@ START_TEST(test_issue338)
 
    // Function f3
    {
-      vcode_unit_t vu = find_unit(tree_decl(e, 3));
+      vcode_unit_t vu = find_unit_for(tree_decl(e, 3));
       vcode_select_unit(vu);
 
       EXPECT_BB(0) = {
@@ -2737,7 +2769,7 @@ START_TEST(test_issue338)
 
    // Function f4
    {
-      vcode_unit_t vu = find_unit(tree_decl(e, 4));
+      vcode_unit_t vu = find_unit_for(tree_decl(e, 4));
       vcode_select_unit(vu);
 
       EXPECT_BB(0) = {
@@ -2751,7 +2783,7 @@ START_TEST(test_issue338)
 
    // Function f5
    {
-      vcode_unit_t vu = find_unit(tree_decl(e, 5));
+      vcode_unit_t vu = find_unit_for(tree_decl(e, 5));
       vcode_select_unit(vu);
 
       EXPECT_BB(0) = {
@@ -2767,7 +2799,7 @@ START_TEST(test_issue338)
 
    // Function f6
    {
-      vcode_unit_t vu = find_unit(tree_decl(e, 6));
+      vcode_unit_t vu = find_unit_for(tree_decl(e, 6));
       vcode_select_unit(vu);
 
       EXPECT_BB(0) = {
@@ -2797,7 +2829,7 @@ START_TEST(test_issue338)
 
    // Function f7
    {
-      vcode_unit_t vu = find_unit(tree_decl(e, 7));
+      vcode_unit_t vu = find_unit_for(tree_decl(e, 7));
       vcode_select_unit(vu);
 
       EXPECT_BB(0) = {
@@ -2835,7 +2867,7 @@ START_TEST(test_issue338b)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2884,7 +2916,7 @@ START_TEST(test_hintbug)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.HINTBUG.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -2923,7 +2955,7 @@ START_TEST(test_issue351)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_stmt(e, 0));
+   vcode_unit_t v0 = find_unit("WORK.ISSUE351.P1");
    vcode_select_unit(v0);
 
    EXPECT_BB(6) = {
@@ -2952,7 +2984,7 @@ START_TEST(test_tounsigned)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    lower_unit(p);
 
-   vcode_unit_t v0 = find_unit(tree_decl(p, 0));
+   vcode_unit_t v0 = find_unit_for(tree_decl(p, 0));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -3085,19 +3117,9 @@ START_TEST(test_signal11)
    fail_if(vpack == NULL);
 
    vcode_select_unit(vpack);
-   fail_unless(vcode_count_signals() == 1);
-   fail_unless(vcode_signal_name(0) == ident_new(":work:pack:x"));
-   fail_if(vcode_signal_extern(0));
-   fail_unless(vcode_signal_count_nets(0) == 1);
-   fail_unless(vcode_signal_nets(0)[0] == NETID_INVALID);
-
-   vcode_unit_t vbody = vcode_find_unit(ident_new("WORK.PACK-body"));
-   fail_if(vpack == NULL);
-
-   vcode_select_unit(vbody);
-   fail_unless(vcode_count_signals() == 1);
-   fail_unless(vcode_signal_name(0) == ident_new(":work:pack:x"));
-   fail_unless(vcode_signal_extern(0));
+   fail_unless(vcode_count_vars() == 1);
+   fail_unless(vcode_var_name(0) == ident_new("X"));
+   fail_unless(vcode_var_flags(0) & VAR_SIGNAL);
 }
 END_TEST
 
@@ -3108,7 +3130,7 @@ START_TEST(test_access1)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t v0 = find_unit(tree_decl(e, 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -3148,7 +3170,7 @@ START_TEST(test_sum)
    tree_t f = tree_decl(p, 11);
    fail_unless(tree_kind(f) == T_FUNC_BODY);
 
-   vcode_unit_t v0 = find_unit(f);
+   vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -3208,11 +3230,11 @@ START_TEST(test_extern1)
    tree_t f = tree_decl(p, 0);
    fail_unless(tree_kind(f) == T_FUNC_BODY);
 
-   vcode_unit_t v0 = find_unit(f);
+   vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_VAR_UPREF, .hops = 2, .name = "WORK.COMPLEX.MATH_CZERO" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "WORK.COMPLEX.MATH_CZERO" },
       { VCODE_OP_RETURN },
    };
 
@@ -3232,7 +3254,7 @@ START_TEST(test_synopsys1)
    tree_t f = search_decls(p, ident_new("WRITE"), 0);
    fail_if(f == NULL);
 
-   vcode_unit_t v0 = find_unit(f);
+   vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -3279,7 +3301,7 @@ START_TEST(test_access2)
    tree_t f = search_decls(p, ident_new("GET_FRESH"), 0);
    fail_if(f == NULL);
 
-   vcode_unit_t v0 = find_unit(f);
+   vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
 
    // TODO: eliminate the intermediate alloca here
@@ -3320,7 +3342,7 @@ START_TEST(test_vital1)
    tree_t f = search_decls(p, ident_new("VITALSETUPHOLDCHECK"), 0);
    fail_if(f == NULL);
 
-   vcode_unit_t v0 = find_unit(f);
+   vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
@@ -3370,7 +3392,7 @@ START_TEST(test_incomplete)
    fail_if(error_count() > 0);
    lower_unit(p);
 
-   vcode_unit_t v0 = find_unit(p);
+   vcode_unit_t v0 = find_unit("WORK.P");
    vcode_select_unit(v0);
 
    fail_unless(vcode_count_vars() == 2);
@@ -3395,7 +3417,7 @@ START_TEST(test_issue389)
    fail_if(error_count() > 0);
    lower_unit(p);
 
-   vcode_unit_t v0 = find_unit(p);
+   vcode_unit_t v0 = find_unit("WORK.COMMON");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -3416,36 +3438,17 @@ START_TEST(test_const1)
 {
    input_from_file(TESTDIR "/lower/const1.vhd");
 
-   tree_t p = parse_check_and_simplify(T_PACKAGE, -1);
-   bounds_check(p);
-   fail_if(error_count() > 0);
-   lower_unit(p);
-
-   {
-      vcode_unit_t v0 = find_unit(p);
-      vcode_select_unit(v0);
-
-      fail_unless(vcode_count_vars() == 1);
-      fail_unless(vcode_var_extern(0));
-
-      EXPECT_BB(0) = {
-         { VCODE_OP_RETURN },
-      };
-
-      CHECK_BB(0);
-   }
-
-   tree_t b = parse_check_and_simplify(T_PACK_BODY);
+   tree_t b = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(b);
    fail_if(error_count() > 0);
    lower_unit(b);
 
    {
-      vcode_unit_t v1 = find_unit(b);
+      vcode_unit_t v1 = find_unit("WORK.ISSUEH");
       vcode_select_unit(v1);
 
       fail_unless(vcode_count_vars() == 1);
-      fail_if(vcode_var_extern(0));
+      fail_if(vcode_var_flags(0) & VAR_EXTERN);
 
       EXPECT_BB(0) = {
          { VCODE_OP_CONST, .value = 1 },
@@ -3473,11 +3476,14 @@ START_TEST(test_const2)
    tree_t e = run_elab();
    lower_unit(e);
 
-   vcode_unit_t vu = find_unit(e);
+   vcode_unit_t vu = find_unit("WORK.CONST2");
    vcode_select_unit(vu);
 
-   fail_unless(vcode_count_signals() == 1);
-   fail_unless(vcode_signal_count_nets(0) == 5);
+   fail_unless(vcode_count_vars() == 2);
+
+   vcode_type_t v0_type = vcode_var_type(0);
+   fail_unless(vtype_kind(v0_type) == VCODE_TYPE_SIGNAL);
+   fail_unless(vcode_var_flags(0) & VAR_SIGNAL);
 }
 END_TEST
 
@@ -3488,12 +3494,12 @@ START_TEST(test_vital2)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    bounds_check(p);
    fail_if(error_count() > 0);
-   lower_unit(p);
+   vcode_select_unit(lower_unit(p));
 
    tree_t f = search_decls(p, ident_new("VITALSETUPHOLDCHECK"), 0);
    fail_if(f == NULL);
 
-   vcode_unit_t v0 = find_unit(f);
+   vcode_unit_t v0 = find_unit(istr(tree_ident2(f)));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -3541,7 +3547,7 @@ START_TEST(test_conv1)
    tree_t f = search_decls(p, ident_new("GET"), 0);
    fail_if(f == NULL);
 
-   vcode_unit_t v0 = find_unit(f);
+   vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {

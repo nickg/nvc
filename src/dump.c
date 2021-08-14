@@ -19,7 +19,6 @@
 #include "util.h"
 #include "hash.h"
 #include "common.h"
-#include "rt/netdb.h"
 
 #include <assert.h>
 #include <string.h>
@@ -35,8 +34,6 @@ static void dump_decl(tree_t t, int indent);
 static void dump_decls(tree_t t, int indent);
 
 typedef tree_t (*get_fn_t)(tree_t, unsigned);
-
-static hash_t *net_hash = NULL;
 
 static void tab(int indent)
 {
@@ -276,7 +273,7 @@ static void dump_expr(tree_t t)
       break;
 
    case T_OPEN:
-      printf("open");
+      syntax("#open");
       break;
 
    default:
@@ -301,7 +298,7 @@ static void dump_type(type_t type)
       printf("%s", type_pp(type));
 }
 
-static void dump_ports(tree_t t, int indent)
+static void dump_arguments(tree_t t, int indent)
 {
    const int nports = tree_ports(t);
    if (nports > 0) {
@@ -322,6 +319,78 @@ static void dump_ports(tree_t t, int indent)
    }
 }
 
+static void dump_ports(tree_t t, int indent)
+{
+   const int nports = tree_ports(t);
+   if (nports > 0) {
+      tab(indent);
+      syntax("#port (");
+      if (nports > 1) {
+         printf("\n");
+         for (unsigned i = 0; i < nports; i++) {
+            if (i > 0) printf(";\n");
+            dump_port(tree_port(t, i), indent + 2);
+         }
+      }
+      else
+         dump_port(tree_port(t, 0), 1);
+      printf(" );\n");
+   }
+}
+
+static void dump_generics(tree_t t, int indent)
+{
+   const int ngenerics = tree_generics(t);
+   if (ngenerics > 0) {
+      tab(indent);
+      syntax("#generic (");
+      if (ngenerics > 1) {
+         printf("\n");
+         for (unsigned i = 0; i < ngenerics; i++) {
+            if (i > 0) printf(";\n");
+            dump_port(tree_generic(t, i), indent + 2);
+         }
+      }
+      else
+         dump_port(tree_generic(t, 0), 1);
+      printf(" );\n");
+   }
+}
+
+static void dump_port_map(tree_t t, int indent)
+{
+   const int nparams = tree_params(t);
+   if (nparams > 0) {
+      tab(indent);
+      dump_params(t, tree_param, nparams, "#port #map");
+      printf(";\n");
+   }
+}
+
+static void dump_generic_map(tree_t t, int indent)
+{
+   const int ngenmaps = tree_genmaps(t);
+   if (ngenmaps > 0) {
+      tab(indent);
+      dump_params(t, tree_genmap, ngenmaps, "#generic #map");
+      printf(";\n");
+   }
+}
+
+static void dump_stmts(tree_t t, int indent)
+{
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(t, i);
+      const tree_kind_t kind = tree_kind(s);
+      const bool needs_newline =
+         kind == T_BLOCK || kind == T_PROCESS || kind == T_INSTANCE;
+      if (needs_newline && i > 0)
+         printf("\n");
+      dump_stmt(s, indent);
+   }
+}
+
 static void dump_block(tree_t t, int indent)
 {
    if (is_subprogram(t) && tree_has_ident2(t)) {
@@ -331,9 +400,7 @@ static void dump_block(tree_t t, int indent)
    dump_decls(t, indent + 2);
    tab(indent);
    syntax("#begin\n");
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      dump_stmt(tree_stmt(t, i), indent + 2);
+   dump_stmts(t, indent + 2);
 }
 
 static void dump_wait_level(tree_t t)
@@ -554,14 +621,14 @@ static void dump_decl(tree_t t, int indent)
          syntax("-- predefined %s\n", type_pp(tree_type(t)));
       else {
          syntax("#function %s", istr(tree_ident(t)));
-         dump_ports(t, indent);
+         dump_arguments(t, indent);
          syntax(" #return %s;\n", type_pp(type_result(tree_type(t))));
       }
       return;
 
    case T_FUNC_BODY:
       syntax("#function %s", istr(tree_ident(t)));
-      dump_ports(t, indent);
+      dump_arguments(t, indent);
       syntax(" #return %s #is\n", type_pp(type_result(tree_type(t))));
       dump_block(t, indent);
       tab(indent);
@@ -573,7 +640,7 @@ static void dump_decl(tree_t t, int indent)
          syntax("-- predefined %s\n", type_pp(tree_type(t)));
       else {
          syntax("#procedure %s", istr(tree_ident(t)));
-         dump_ports(t, indent);
+         dump_arguments(t, indent);
          printf(";");
          dump_wait_level(t);
          syntax("\n");
@@ -582,7 +649,7 @@ static void dump_decl(tree_t t, int indent)
 
    case T_PROC_BODY:
       syntax("#procedure %s", istr(tree_ident(t)));
-      dump_ports(t, indent);
+      dump_arguments(t, indent);
       syntax(" #is");
       dump_wait_level(t);
       syntax("\n");
@@ -592,21 +659,21 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_HIER:
-      syntax("-- Enter scope %s\n", istr(tree_ident(t)));
+      {
+         const char *kind = "Scope";
+         switch (tree_subkind(t)) {
+         case T_ARCH: kind = "Instance"; break;
+         case T_IF_GENERATE: kind = "If generate"; break;
+         case T_FOR_GENERATE: kind = "For generate"; break;
+         case T_BLOCK: kind = "Block"; break;
+         }
+         syntax("-- %s %s\n", kind, istr(tree_ident2(t)));
+      }
       return;
 
    case T_COMPONENT:
       syntax("#component %s is\n", istr(tree_ident(t)));
-      if (tree_generics(t) > 0) {
-         syntax("    #generic (\n");
-         for (unsigned i = 0; i < tree_generics(t); i++) {
-            if (i > 0)
-               printf(";\n");
-            tab(4);
-            dump_port(tree_generic(t, i), 2);
-         }
-         printf(" );\n");
-      }
+      dump_generics(t, indent + 2);
       if (tree_ports(t) > 0) {
          syntax("    #port (\n");
          for (unsigned i = 0; i < tree_ports(t); i++) {
@@ -668,8 +735,11 @@ static void dump_stmt(tree_t t, int indent)
 {
    tab(indent);
 
-   if (tree_has_ident(t))
-      printf("%s: ", istr(tree_ident(t)));
+   if (tree_has_ident(t)) {
+      const char *label = istr(tree_ident(t));
+      if (label[0] != 'l')   // Skip generated labels
+         printf("%s: ", label);
+   }
 
    switch (tree_kind(t)) {
    case T_PROCESS:
@@ -687,10 +757,9 @@ static void dump_stmt(tree_t t, int indent)
       dump_decls(t, indent + 2);
       tab(indent);
       syntax("#begin\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 2);
+      dump_stmts(t, indent + 2);
       tab(indent);
-      syntax("#end #process;\n\n");
+      syntax("#end #process;\n");
       return;
 
    case T_SIGNAL_ASSIGN:
@@ -741,10 +810,14 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_BLOCK:
       syntax("#block #is\n");
+      dump_generics(t, indent + 2);
+      dump_generic_map(t, indent + 2);
+      dump_ports(t, indent + 2);
+      dump_port_map(t, indent + 2);
       dump_block(t, indent);
       tab(indent);
-      syntax("#end #block");
-      break;
+      syntax("#end #block;\n");
+      return;
 
    case T_ASSERT:
       if (tree_has_value(t)) {
@@ -989,7 +1062,7 @@ static void dump_elab(tree_t t)
    syntax("#begin\n");
    for (unsigned i = 0; i < tree_stmts(t); i++)
       dump_stmt(tree_stmt(t, i), 2);
-   syntax("#end #architecture;\n");
+   syntax("#end #architecture;\n\n");
 }
 
 static void dump_entity(tree_t t)
@@ -1006,23 +1079,14 @@ static void dump_entity(tree_t t)
       }
       printf("  );\n");
    }
-   if (tree_ports(t) > 0) {
-      syntax("  #port (\n");
-      for (unsigned i = 0; i < tree_ports(t); i++) {
-         if (i > 0)
-            printf(";\n");
-         tab(4);
-         dump_port(tree_port(t, i), 2);
-      }
-      printf("  );\n");
-   }
+   dump_ports(t, 2);
    if (tree_stmts(t) > 0) {
       syntax("#begin\n");
       for (unsigned i = 0; i < tree_stmts(t); i++) {
          dump_stmt(tree_stmt(t, i), 2);
       }
    }
-   syntax("#end #entity;\n");
+   syntax("#end #entity;\n\n");
 }
 
 static void dump_decls(tree_t t, int indent)
@@ -1050,7 +1114,7 @@ static void dump_arch(tree_t t)
    syntax("#begin\n");
    for (unsigned i = 0; i < tree_stmts(t); i++)
       dump_stmt(tree_stmt(t, i), 2);
-   syntax("#end #architecture;\n");
+   syntax("#end #architecture;\n\n");
 }
 
 static void dump_package(tree_t t)
@@ -1058,7 +1122,7 @@ static void dump_package(tree_t t)
    dump_context(t);
    syntax("#package %s #is\n", istr(tree_ident(t)));
    dump_decls(t, 2);
-   syntax("#end #package;\n");
+   syntax("#end #package;\n\n");
 }
 
 static void dump_package_body(tree_t t)
@@ -1066,7 +1130,7 @@ static void dump_package_body(tree_t t)
    dump_context(t);
    syntax("#package #body %s #is\n", istr(tree_ident(t)));
    dump_decls(t, 2);
-   syntax("#end #package #body;\n");
+   syntax("#end #package #body;\n\n");
 }
 
 static void dump_configuration(tree_t t)
@@ -1110,6 +1174,7 @@ void dump(tree_t t)
       dump_expr(t);
       printf("\n");
       break;
+   case T_INSTANCE:
    case T_FOR_GENERATE:
    case T_BLOCK:
    case T_PROCESS:
@@ -1141,58 +1206,6 @@ void dump(tree_t t)
    default:
       cannot_dump(t, "tree");
    }
-}
-
-static void dump_group_fn(groupid_t gid, netid_t first, unsigned length)
-{
-   int tmp, k = 0;
-   tree_t d;
-   while ((tmp = k++),
-          (d = hash_get_nth(net_hash,
-                            (const void *)(uintptr_t)(first + 1), &tmp))) {
-      if (k == 1) {
-         char buf[64];
-         checked_sprintf(buf, sizeof(buf), "%d..%d", first, first + length - 1);
-         printf("%10s   ", buf);
-      }
-      else
-         printf(" ");
-      printf("%s", istr(tree_ident(d)));
-
-      if (type_is_array(tree_type(d))) {
-         const int nnets = tree_nets(d);
-         for (int j = 0; j < nnets; j++) {
-            if (first == tree_net(d, j)) {
-               printf("[%d]", j);
-               break;
-            }
-         }
-      }
-   }
-   printf("\n");
-}
-
-void dump_nets(tree_t top)
-{
-   net_hash = hash_new(2048, false, HASH_PTR);
-
-   const int ndecls = tree_decls(top);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(top, i);
-
-      if (tree_kind(d) != T_SIGNAL_DECL)
-         continue;
-
-      const int nnets = tree_nets(d);
-      for (int j = 0; j < nnets; j++)
-         hash_put(net_hash, (const void *)(uintptr_t)(tree_net(d, j) + 1), d);
-   }
-
-   netdb_t *db = netdb_open(top);
-   netdb_walk(db, dump_group_fn);
-   netdb_close(db);
-
-   hash_free(net_hash);
 }
 
 LCOV_EXCL_STOP

@@ -9,7 +9,7 @@ architecture test of func1 is
 
 begin
 
-    process is
+    p1: process is
         variable r : integer;
     begin
         r := 2;

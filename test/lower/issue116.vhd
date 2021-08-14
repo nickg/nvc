@@ -7,6 +7,6 @@ architecture behav of issue116 is
   ALIAS  INT_int            : BIT is intstat(7);
 
 begin
-    INT_int <= '1' when (intstat(6 downto 0) and "1111111") /= "0000000";
+    p1: INT_int <= '1' when (intstat(6 downto 0) and "1111111") /= "0000000";
     --intstat(7) <= '1' when (intstat(6 downto 0) and "1111111") /= "0000000";
 end behav;

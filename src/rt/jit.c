@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2020  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "tree.h"
 #include "common.h"
 #include "array.h"
+#include "enode.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -111,21 +112,12 @@ static void jit_load_module(ident_t name)
 {
    lib_t lib = lib_find(ident_until(name, '.'), true);
 
-   tree_kind_t kind = lib_index_kind(lib, name);
-   if (kind == T_LAST_TREE_KIND)
-      fatal("Cannot find %s in library %s", istr(name), istr(lib_name(lib)));
-
-   if (kind == T_ENTITY || kind == T_ARCH)
-      return;
-
-   const bool optional = (kind == T_PACKAGE || kind == T_PACK_BODY);
-
    char *so_fname LOCAL = xasprintf("_%s." DLL_EXT, istr(name));
 
    char so_path[PATH_MAX];
    lib_realpath(lib, so_fname, so_path, sizeof(so_path));
 
-   if (access(so_path, F_OK) != 0 && optional)
+   if (access(so_path, F_OK) != 0)
       return;
 
    if (opt_get_int("rt_trace_en"))
@@ -162,7 +154,7 @@ static void jit_load_module(ident_t name)
             so_path, abi_version, RT_ABI_VERSION);
 }
 
-void jit_init(tree_t top)
+void jit_init(e_node_t top)
 {
 #ifdef __MINGW32__
    ACLEAR(search_modules);
@@ -170,14 +162,11 @@ void jit_init(tree_t top)
    APUSH(search_modules, GetModuleHandle("MSVCRT.DLL"));
 #endif
 
-   const int ncontext = tree_contexts(top);
-   for (int i = 0; i < ncontext; i++) {
-      tree_t c = tree_context(top, i);
-      if (tree_kind(c) == T_USE)
-         jit_load_module(tree_ident(c));
-   }
+   const int ndeps = e_deps(top);
+   for (int i = 0; i < ndeps; i++)
+      jit_load_module(e_dep(top, i));
 
-   jit_load_module(tree_ident(top));
+   jit_load_module(e_ident(top));
 }
 
 void jit_shutdown(void)

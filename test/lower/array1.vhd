@@ -7,7 +7,7 @@ architecture test of array1 is
 
 begin
 
-    process is
+    p1: process is
     begin
         assert func = "10";
         wait;

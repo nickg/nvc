@@ -19,7 +19,7 @@ architecture a of e is
     signal s : r2;
 begin
 
-    process is
+    p1: process is
         type r3 is record
             x : r2;
         end record;

@@ -8,10 +8,10 @@ end entity;
 architecture test of sub is
 begin
 
-    (b(0), c(0)) <= a;
-    (b(1), c(1)) <= a;
+    p1: (b(0), c(0)) <= a;
+    p2: (b(1), c(1)) <= a;
 
-    d(1) <= '1';
+    p3: d(1) <= '1';
 
 end architecture;
 
@@ -30,7 +30,7 @@ begin
             b => b1,
             c => open );
 
-    process is
+    p4: process is
     begin
         a1 <= "01";
         wait for 1 ns;
@@ -43,7 +43,7 @@ begin
             a => a2,
             b => b2 );
 
-    process is
+    p5: process is
     begin
         a2 <= "10";
         wait for 1 ns;

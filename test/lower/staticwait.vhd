@@ -5,7 +5,7 @@ architecture test of staticwait is
     signal x : integer;
 begin
 
-    process (x) is
+    p1: process (x) is
     begin
         x <= 0;
     end process;

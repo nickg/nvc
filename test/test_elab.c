@@ -166,19 +166,21 @@ START_TEST(test_copy1)
    tree_t e = run_elab();
    fail_if(e == NULL);
 
-   int nfuncs = 0, nshared = 0;
+   tree_t copy1 = tree_stmt(e, 0);
+   tree_t sub1_i = tree_stmt(copy1, 0);
+   tree_t sub2_i = tree_stmt(copy1, 1);
 
-   const int ndecls = tree_decls(e);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t t = tree_decl(e, i);
-      if (tree_kind(t) == T_FUNC_BODY)
-         nfuncs++;
-      else if (tree_kind(t) == T_VAR_DECL)
-         nshared++;
-   }
+   tree_t func1 = search_decls(sub1_i, ident_new("DOUBLE"), 0);
+   tree_t func2 = search_decls(sub2_i, ident_new("DOUBLE"), 0);
+   fail_if(func1 == NULL);
+   fail_if(func2 == NULL);
+   fail_unless(func1 == func2);   // Should not copy functions
 
-   fail_unless(nfuncs == 1);
-   fail_unless(nshared == 2);
+   tree_t var1 = search_decls(sub1_i, ident_new("GLOBAL"), 0);
+   tree_t var2 = search_decls(sub2_i, ident_new("GLOBAL"), 0);
+   fail_if(var1 == NULL);
+   fail_if(var2 == NULL);
+   fail_if(var1 == var2);   // Should copy variables
 }
 END_TEST
 
@@ -232,7 +234,7 @@ START_TEST(test_issue93)
 
    tree_t top = run_elab();
    fail_if(top == NULL);
-   fail_unless(tree_stmts(top) == 4);
+   fail_unless(tree_stmts(tree_stmt(top, 0)) == 4);
 }
 END_TEST
 
@@ -248,10 +250,16 @@ START_TEST(test_const1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t ctr_r = tree_decl(top, tree_decls(top) - 1);
+   tree_t pwm_1 = tree_stmt(tree_stmt(top, 0), 0);
+   fail_unless(tree_kind(pwm_1) == T_BLOCK);
+
+   tree_t ctr_r = tree_decl(pwm_1, tree_decls(pwm_1) - 1);
    fail_unless(tree_kind(ctr_r) == T_SIGNAL_DECL);
-   fail_unless(tree_ident(ctr_r) == ident_new(":top:pwm_1:ctr_r"));
-   fail_unless(tree_nets(ctr_r) == 15);
+   fail_unless(tree_ident(ctr_r) == ident_new("CTR_R"));
+
+   int64_t len;
+   fail_unless(folded_length(range_of(tree_type(ctr_r), 0), &len));
+   fail_unless(len == 15);
 }
 END_TEST
 
@@ -332,8 +340,11 @@ START_TEST(test_issue184)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   fail_unless(tree_stmts(top) == 1);
-   fail_unless(icmp(tree_ident(tree_stmt(top, 0)), ":ent:gen_cfg2:good"));
+   tree_t gen_cfg2 = tree_stmt(tree_stmt(top, 0), 0);
+   fail_unless(tree_kind(gen_cfg2) == T_BLOCK);
+
+   fail_unless(tree_stmts(gen_cfg2) == 1);
+   fail_unless(icmp(tree_ident(tree_stmt(gen_cfg2, 0)), "GOOD"));
 }
 END_TEST
 
@@ -364,7 +375,7 @@ START_TEST(test_toplevel2)
 
    tree_t top = run_elab();
    fail_if(top == NULL);
-   fail_unless(tree_stmts(top) == 3);
+   fail_unless(tree_stmts(tree_stmt(top, 0)) == 3);
 }
 END_TEST
 
@@ -406,10 +417,13 @@ START_TEST(test_jcore1)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t s = tree_decl(top, 4);
-   fail_unless(tree_kind(s) == T_SIGNAL_DECL);
-   fail_unless(tree_ident(s) == ident_new(":jcore1:sub_i:x"));
-   fail_if(tree_attr_int(s, partial_map_i, 0));
+   tree_t sub_i = tree_stmt(tree_stmt(top, 0), 0);
+   fail_unless(tree_kind(sub_i) == T_BLOCK);
+   fail_unless(tree_params(sub_i) == 2);
+
+   tree_t p0 = tree_param(sub_i, 0);
+   fail_unless(tree_subkind(p0) == P_POS);
+   fail_unless(tree_kind(tree_value(p0)) == T_RECORD_REF);
 }
 END_TEST
 
@@ -437,10 +451,13 @@ START_TEST(test_issue305)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t s = tree_decl(top, 2);
+   tree_t s = tree_decl(tree_stmt(top, 0), 2);
    fail_unless(tree_kind(s) == T_SIGNAL_DECL);
-   fail_unless(icmp(tree_ident(s), ":test_ng:data_i"));
-   fail_unless(tree_nets(s) == 8);
+   fail_unless(icmp(tree_ident(s), "DATA_I"));
+
+   int64_t len;
+   fail_unless(folded_length(range_of(tree_type(s), 0), &len));
+   fail_unless(len == 8);
 }
 END_TEST
 
@@ -460,7 +477,7 @@ START_TEST(test_issue307)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t proc = tree_stmt(top, 0);
+   tree_t proc = tree_stmt(tree_stmt(top, 0), 0);
    fail_unless(tree_kind(proc) == T_PROCESS);
    tree_t s0 = tree_stmt(proc, 0);
    fail_unless(tree_kind(s0) == T_PCALL);
@@ -474,8 +491,8 @@ START_TEST(test_issue315)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t d2 = tree_decl(top, 2);
-   fail_unless(icmp(tree_ident(d2), ":issue315:info"));
+   tree_t d2 = tree_decl(tree_stmt(top, 0), 2);
+   fail_unless(icmp(tree_ident(d2), "INFO"));
    fail_unless(tree_kind(tree_value(d2)) == T_AGGREGATE);
 }
 END_TEST
@@ -498,9 +515,9 @@ START_TEST(test_issue328)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t d2 = tree_decl(top, 2);
+   tree_t d2 = tree_decl(tree_stmt(top, 0), 2);
    fail_unless(tree_kind(d2) == T_CONST_DECL);
-   fail_unless(icmp(tree_ident(d2), ":test_ng:vec_range"));
+   fail_unless(icmp(tree_ident(d2), "VEC_RANGE"));
 
    tree_t v = tree_value(d2);
    fail_unless(tree_kind(v) == T_AGGREGATE);
@@ -523,9 +540,9 @@ START_TEST(test_issue330)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t d2 = tree_decl(top, 2);
+   tree_t d2 = tree_decl(tree_stmt(top, 0), 2);
    fail_unless(tree_kind(d2) == T_CONST_DECL);
-   fail_unless(icmp(tree_ident(d2), ":test_ng_comp:vec_range"));
+   fail_unless(icmp(tree_ident(d2), "VEC_RANGE"));
 
    tree_t v = tree_value(d2);
    fail_unless(tree_kind(v) == T_AGGREGATE);
@@ -547,7 +564,7 @@ START_TEST(test_issue336)
 
    tree_t e = run_elab();
    fail_if(e == NULL);
-   fail_unless(tree_stmts(e) == 3);
+   fail_unless(tree_stmts(tree_stmt(e, 0)) == 3);
 }
 END_TEST
 
@@ -557,26 +574,41 @@ START_TEST(test_openinout)
 
    tree_t e = run_elab();
 
-   tree_t p0 = tree_stmt(e, 0);
+   tree_t b_top = tree_stmt(e, 0);
+
+   tree_t b_uut = tree_stmt(b_top, 0);
+   fail_unless(tree_ident(b_uut) == ident_new("UUT"));
+   fail_unless(tree_params(b_uut) == 4);
+
+   tree_t b_uut_m0 = tree_param(b_uut, 0);
+   fail_unless(tree_subkind(b_uut_m0) == P_POS);
+   fail_unless(tree_kind(tree_value(b_uut_m0)) == T_OPEN);
+
+   tree_t p0 = tree_stmt(b_uut, 0);
    tree_t p0s0 = tree_stmt(p0, 0);
    fail_unless(tree_kind(p0s0) == T_SIGNAL_ASSIGN);
    tree_t p0s0w0 = tree_value(tree_waveform(p0s0, 0));
-   fail_unless(tree_kind(p0s0w0) == T_LITERAL);
-   fail_unless(tree_ival(p0s0w0) == 1);
+   fail_unless(tree_kind(p0s0w0) == T_FCALL);
 
-   tree_t p1 = tree_stmt(e, 1);
+   tree_t p1 = tree_stmt(b_uut, 1);
    tree_t p1s0 = tree_stmt(p1, 0);
    fail_unless(tree_kind(p1s0) == T_SIGNAL_ASSIGN);
    tree_t p1s0w0 = tree_value(tree_waveform(p1s0, 0));
-   fail_unless(tree_kind(p1s0w0) == T_LITERAL);
-   fail_unless(tree_ival(p1s0w0) == 6);
+   fail_unless(tree_kind(p1s0w0) == T_FCALL);
 
-   tree_t p2 = tree_stmt(e, 2);
+   tree_t b_uut2 = tree_stmt(b_top, 1);
+   fail_unless(tree_ident(b_uut2) == ident_new("UUT2"));
+   fail_unless(tree_params(b_uut2) == 2);
+
+   tree_t b_sub = tree_stmt(b_uut2, 0);
+   fail_unless(tree_ident(b_sub) == ident_new("SUB_I"));
+   fail_unless(tree_params(b_sub) == 4);
+
+   tree_t p2 = tree_stmt(b_sub, 0);
    tree_t p2s0 = tree_stmt(p2, 0);
    fail_unless(tree_kind(p2s0) == T_SIGNAL_ASSIGN);
    tree_t p2s0w0 = tree_value(tree_waveform(p2s0, 0));
-   fail_unless(tree_kind(p2s0w0) == T_LITERAL);
-   fail_unless(tree_ival(p2s0w0) == 1);
+   fail_unless(tree_kind(p2s0w0) == T_FCALL);
 }
 END_TEST
 
@@ -585,7 +617,16 @@ START_TEST(test_opencase)
    input_from_file(TESTDIR "/elab/opencase.vhd");
 
    tree_t e = run_elab();
-   fail_unless(tree_stmts(e) == 0);
+
+   tree_t uut = tree_stmt(tree_stmt(e, 0), 0);
+   fail_unless(tree_params(uut) == 2);
+   fail_unless(tree_stmts(uut) == 1);
+
+   tree_t py = tree_param(uut, 1);
+   fail_unless(tree_subkind(py) == P_POS);
+   fail_unless(tree_pos(py) == 1);
+   fail_unless(tree_kind(tree_value(py)) == T_LITERAL);
+   fail_unless(tree_ival(tree_value(py)) == -2147483648);
 }
 END_TEST
 
@@ -595,11 +636,15 @@ START_TEST(test_issue232)
 
    tree_t e = run_elab();
 
-   tree_t p0 = tree_stmt(e, 0);
+   tree_t e1 = tree_stmt(tree_stmt(e, 0), 0);
+   fail_unless(tree_kind(e1) == T_BLOCK);
+   tree_t p0 = tree_stmt(e1, 0);
    fail_unless(tree_kind(p0) == T_PROCESS);
    tree_t s0 = tree_stmt(p0, 0);
    fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
-   tree_t v = tree_value(tree_waveform(s0, 0));
+   fail_unless(tree_params(e1) == 2);
+   fail_unless(tree_kind(tree_value(tree_param(e1, 0))) == T_OPEN);
+   tree_t v = tree_value(tree_port(e1, 0));
    fail_unless(tree_kind(v) == T_LITERAL);
    fail_unless(tree_subkind(v) == L_STRING);
    fail_unless(tree_chars(v) == 2);
@@ -614,7 +659,7 @@ START_TEST(test_issue373)
 
    tree_t e = run_elab();
 
-   tree_t p0 = tree_stmt(e, 0);
+   tree_t p0 = tree_stmt(tree_stmt(tree_stmt(e, 0), 0), 0);
    fail_unless(tree_kind(p0) == T_PROCESS);
    tree_t s0 = tree_stmt(p0, 0);
    fail_unless(tree_kind(s0) == T_ASSERT);
@@ -639,7 +684,7 @@ START_TEST(test_issue404)
    tree_t e = run_elab();
    fail_if(e == NULL);
 
-   tree_t p0 = tree_stmt(e, 0);
+   tree_t p0 = tree_stmt(tree_stmt(e, 0), 0);
    fail_unless(tree_kind(p0) == T_PROCESS);
    tree_t s0 = tree_stmt(p0, 0);
    fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
@@ -655,15 +700,28 @@ START_TEST(test_block1)
    tree_t e = run_elab();
    fail_if(e == NULL);
 
-   tree_t i = search_decls(e, ident_new(":block1:b1:i"), 0);
-   fail_if(i == NULL);
-   fail_unless(tree_nets(i) == 1);
-   fail_unless(tree_net(i, 0) == 0);
+   tree_t b = tree_stmt(tree_stmt(e, 0), 0);
+   fail_unless(tree_kind(b) == T_BLOCK);
 
-   tree_t o = search_decls(e, ident_new(":block1:b1:o"), 0);
-   fail_if(o == NULL);
-   fail_unless(tree_nets(o) == 1);
-   fail_unless(tree_net(o, 0) == 1);
+   fail_unless(tree_params(b) == 2);
+   fail_unless(tree_genmaps(b) == 1);
+}
+END_TEST
+
+START_TEST(test_open3)
+{
+   input_from_file(TESTDIR "/elab/open3.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b = tree_stmt(tree_stmt(e, 0), 0);
+   fail_unless(tree_kind(b) == T_BLOCK);
+
+   fail_unless(tree_params(b) == 3);
+   fail_unless(tree_subkind(tree_param(b, 0)) == P_NAMED);
+   fail_unless(tree_subkind(tree_param(b, 1)) == P_NAMED);
+   fail_unless(tree_subkind(tree_param(b, 2)) == P_NAMED);
 }
 END_TEST
 
@@ -715,6 +773,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue374);
    tcase_add_test(tc, test_issue404);
    tcase_add_test(tc, test_block1);
+   tcase_add_test(tc, test_open3);
    suite_add_tcase(s, tc);
 
    return s;

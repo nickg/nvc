@@ -27,12 +27,13 @@ static const char *item_text_map[] = {
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",      "I_CONDS",
    "I_TYPE",     "I_SUBKIND",   "I_DELAY",    "I_REJECT",     "I_POS",
    "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT",    "I_TRIGGERS",
-   "I_ELSES",    "I_CLASS",     "I_RANGES",   "I_NAME",       "I_NETS",
+   "I_ELSES",    "I_CLASS",     "I_RANGES",   "I_NAME",       "????",
    "I_DVAL",     "I_SPEC",      "I_SCOPES",   "I_INDEXCON",   "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
-   "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_???",
+   "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_PARENT",
    "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CONSTR",     "I_FLAGS",
-   "I_???",      "I_LEFT",      "I_RIGHT"
+   "I_SIGNALS",  "I_LEFT",      "I_RIGHT",    "I_PROCS",      "I_NEXUS",
+   "I_PATH",     "I_DEPS",      "I_SIZE",     "I_VCODE",      "I_SLICE",
 };
 
 static object_class_t *classes[4];
@@ -162,12 +163,14 @@ void object_one_time_init(void)
 {
    extern object_class_t tree_object;
    extern object_class_t type_object;
+   extern object_class_t e_node_object;
 
    static bool done = false;
 
    if (unlikely(!done)) {
       object_init(&tree_object);
       object_init(&type_object);
+      object_init(&e_node_object);
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the object items table
@@ -209,8 +212,6 @@ static void object_sweep(object_t *object)
       if (has & mask) {
          if (ITEM_OBJ_ARRAY & mask)
             free(object->items[n].obj_array.items);
-         else if (ITEM_NETID_ARRAY & mask)
-            free(object->items[n].netid_array.items);
          else if (ITEM_ATTRS & mask)
             free(object->items[n].attrs.table);
          n++;
@@ -315,7 +316,7 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
             ;
          else if (ITEM_DOUBLE & mask)
             ;
-         else if (ITEM_NETID_ARRAY & mask)
+         else if (ITEM_IDENT_ARRAY & mask)
             ;
          else if (ITEM_ATTRS & mask) {
             attr_tab_t *attrs = &(object->items[i].attrs);
@@ -355,7 +356,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       return ctx->cache[object->index];
    }
 
-   const imask_t skip_mask = (I_REF | I_ATTRS | I_NETS);
+   const imask_t skip_mask = (I_REF | I_ATTRS);
 
    const object_class_t *class = classes[object->tag];
 
@@ -481,12 +482,6 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
             write_u64(object->items[n].ival, ctx->file);
          else if (ITEM_INT32 & mask)
             write_u32(object->items[n].ival, ctx->file);
-         else if (ITEM_NETID_ARRAY & mask) {
-            const unsigned count = object->items[n].netid_array.count;
-            write_u32(count, ctx->file);
-            for (unsigned i = 0; i < count; i++)
-               write_u32(object->items[n].netid_array.items[i], ctx->file);
-         }
          else if (ITEM_DOUBLE & mask)
             write_double(object->items[n].dval, ctx->file);
          else if (ITEM_ATTRS & mask) {
@@ -513,6 +508,12 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
                   fatal("pointer attributes cannot be saved");
                }
             }
+         }
+         else if (ITEM_IDENT_ARRAY & mask) {
+            item_t *item = &(object->items[n]);
+            write_u32(item->ident_array.count, ctx->file);
+            for (unsigned i = 0; i < item->ident_array.count; i++)
+               ident_write(item->ident_array.items[i], ctx->ident_ctx);
          }
          else
             item_without_type(mask);
@@ -599,12 +600,6 @@ object_t *object_read(object_rd_ctx_t *ctx)
             object->items[n].ival = read_u64(ctx->file);
          else if (ITEM_INT32 & mask)
             object->items[n].ival = read_u32(ctx->file);
-         else if (ITEM_NETID_ARRAY & mask) {
-            const unsigned count = read_u32(ctx->file);
-            ARESIZE(object->items[n].netid_array, count);
-            for (unsigned i = 0; i < count; i++)
-               object->items[n].netid_array.items[i] = read_u32(ctx->file);
-         }
          else if (ITEM_DOUBLE & mask)
             object->items[n].dval = read_double(ctx->file);
          else if (ITEM_ATTRS & mask) {
@@ -636,6 +631,14 @@ object_t *object_read(object_rd_ctx_t *ctx)
                default:
                   abort();
                }
+            }
+         }
+         else if (ITEM_IDENT_ARRAY & mask) {
+            const unsigned count = read_u32(ctx->file);
+            ARESIZE(object->items[n].ident_array, count);;
+            for (unsigned i = 0; i < count; i++) {
+               ident_t id = ident_read(ctx->ident_ctx);
+               object->items[n].ident_array.items[i] = id;
             }
          }
          else
@@ -736,8 +739,6 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
             ;
          else if (ITEM_INT32 & mask)
             ;
-         else if (ITEM_NETID_ARRAY & mask)
-            ;
          else if (ITEM_ATTRS & mask)
             ;
          else
@@ -804,15 +805,6 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
          }
          else if ((ITEM_INT64 & mask) || (ITEM_INT32 & mask))
             copy->items[n].ival = object->items[n].ival;
-         else if (ITEM_NETID_ARRAY & mask) {
-            const item_t *from = &(object->items[n]);
-            item_t *to = &(copy->items[n]);
-
-            ARESIZE(to->netid_array, from->netid_array.count);
-
-            for (unsigned i = 0; i < from->netid_array.count; i++)
-               to->netid_array.items[i] = from->netid_array.items[i];
-         }
          else if (ITEM_ATTRS & mask) {
             if ((copy->items[n].attrs.num = object->items[n].attrs.num) > 0) {
                copy->items[n].attrs.alloc = object->items[n].attrs.alloc;

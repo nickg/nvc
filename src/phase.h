@@ -61,12 +61,6 @@ void dump(tree_t top);
 // Dump out a JSON VHDL representation of the given unit
 void dump_json(tree_t *elements, unsigned int n_elements, const char *filename);
 
-// Print out the interconnect nets in an elaborated design
-void dump_nets(tree_t top);
-
-// Groups nets which never have sub-elements assigned.
-void group_nets(tree_t top);
-
 // Generate a makefile for the givein unit
 void make(tree_t *targets, int count, FILE *out);
 
@@ -84,5 +78,8 @@ vcode_unit_t lower_thunk(tree_t fcall);
 
 // Lower an isolated function body
 vcode_unit_t lower_func(tree_t body);
+
+// Build and optimise elaboration database
+e_node_t eopt_build(tree_t elab);
 
 #endif  // _PHASE_H

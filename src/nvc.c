@@ -198,10 +198,7 @@ static int analyse(int argc, char **argv)
    lib_save(lib_work());
 
    for (int i = 0; i < units.count; i++) {
-      const tree_kind_t kind = tree_kind(units.items[i]);
-      const bool need_cgen = kind == T_PACK_BODY
-         || (kind == T_PACKAGE && pack_needs_cgen(units.items[i]));
-      if (need_cgen) {
+      if (unit_needs_cgen(units.items[i])) {
          vcode_unit_t vu = lower_unit(units.items[i]);
          lib_save_vcode(lib_work(), vu, tree_ident(units.items[i]));
          cgen(units.items[i], vu);
@@ -332,24 +329,31 @@ static int elaborate(int argc, char **argv)
 
    elab_verbose(verbose, "loading top-level unit");
 
-   tree_t e = elab(unit);
-   if (e == NULL)
+   tree_t top = elab(unit);
+   if (top == NULL)
       return EXIT_FAILURE;
 
    elab_verbose(verbose, "elaborating design");
-
-   group_nets(e);
-   elab_verbose(verbose, "grouping nets");
 
    // Save the library now so the code generator can attach temporary
    // meta data to trees
    lib_save(lib_work());
    elab_verbose(verbose, "saving library");
 
-   vcode_unit_t vu = lower_unit(e);
+   vcode_unit_t vu = lower_unit(top);
    elab_verbose(verbose, "generating intermediate code");
 
-   cgen(e, vu);
+   e_node_t e = eopt_build(top);
+   elab_verbose(verbose, "optimising design");
+
+   if (error_count() > 0)
+      return EXIT_FAILURE;
+
+   lib_put_elaborated(lib_work(), e);
+   lib_save(lib_work());
+   elab_verbose(verbose, "saving library");
+
+   cgen(top, vu);
    elab_verbose(verbose, "generating LLVM");
 
    argc -= next_cmd - 1;
@@ -496,11 +500,10 @@ static int run(int argc, char **argv)
    set_top_level(argv, next_cmd);
 
    ident_t ename = ident_prefix(top_level, ident_new("elab"), '.');
-   tree_t e = lib_get(lib_work(), ename);
-   if (e == NULL)
+   e_node_t e = lib_get_elaborated(lib_work(), ename);
+   tree_t top = lib_get_check_stale(lib_work(), ename);
+   if (e == NULL || top == NULL)
       fatal("%s not elaborated", istr(top_level));
-   else if (tree_kind(e) != T_ELAB)
-      fatal("%s not suitable top level", istr(top_level));
 
    if (wave_fname != NULL) {
       const char *name_map[] = { "FST", "VCD" };
@@ -514,17 +517,17 @@ static int run(int argc, char **argv)
       }
 
       wave_include_file(argv[optind]);
-      fst_init(wave_fname, e, wave_fmt);
+      fst_init(wave_fname, top, e, wave_fmt);
    }
 
-   rt_start_of_tool(e);
+   rt_start_of_tool(top, e);
 
    if (vhpi_plugins != NULL)
-      vhpi_load_plugins(e, vhpi_plugins);
+      vhpi_load_plugins(top, e, vhpi_plugins);
 
    rt_restart(e);
    rt_run_sim(stop_time);
-   rt_end_of_tool(e);
+   rt_end_of_tool(top, e);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -669,12 +672,11 @@ static int dump_cmd(int argc, char **argv)
    static struct option long_options[] = {
       { "elab", no_argument, 0, 'E' },
       { "body", no_argument, 0, 'b' },
-      { "nets", no_argument, 0, 'n' },
       { 0, 0, 0, 0 }
    };
 
    const int next_cmd = scan_cmd(2, argc, argv);
-   bool add_elab = false, add_body = false, nets = false;
+   bool add_elab = false, add_body = false;
    int c, index = 0;
    const char *spec = "Eb";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
@@ -689,10 +691,6 @@ static int dump_cmd(int argc, char **argv)
          break;
       case 'b':
          add_body = true;
-         break;
-      case 'n':
-         add_elab = true;
-         nets = true;
          break;
       default:
          abort();
@@ -710,7 +708,8 @@ static int dump_cmd(int argc, char **argv)
    tree_t top = lib_get(lib_work(), name);
    if (top == NULL)
       fatal("%s not analysed", istr(name));
-   (nets ? dump_nets : dump)(top);
+
+   dump(top);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -803,7 +802,6 @@ static void usage(void)
           "Dump options:\n"
           " -e, --elab\t\tDump an elaborated unit\n"
           " -b, --body\t\tDump package body\n"
-          "     --nets\t\tShow mapping from signals to nets\n"
           "\n"
           "Make options:\n"
           "     --deps-only\tOutput dependencies without actions\n"

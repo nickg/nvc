@@ -4,7 +4,7 @@ end entity;
 architecture test of assign2 is
 begin
 
-    process is
+    p1: process is
         variable x : bit_vector(7 downto 0) := (1 => '1', others => '0');
         subtype myint is integer range 1 to 10;
         type myint_array is array (integer range <>) of myint;

@@ -20,7 +20,6 @@
 #include "util.h"
 #include "hash.h"
 #include "common.h"
-#include "rt/netdb.h"
 #include "json.h"
 #include "loc.h"
 

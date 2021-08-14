@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2018  Nick Gasson
+//  Copyright (C) 2014-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -30,6 +30,8 @@
 #include "hash.h"
 #include "tree.h"
 #include "common.h"
+#include "ctype.h"
+#include "enode.h"
 #include "rt/rt.h"
 
 #include <string.h>
@@ -62,22 +64,24 @@ typedef enum {
    VHPI_CALLBACK,
    VHPI_TREE,
    VHPI_TYPE,
-   VHPI_RANGE
+   VHPI_RANGE,
 } vhpi_obj_kind_t;
 
 #define VHPI_ANY (vhpi_obj_kind_t)-1
 
 struct vhpi_obj {
-   uint32_t        magic;
-   vhpiClassKindT  class;
-   vhpi_obj_kind_t kind;
-   unsigned        refcnt;
-   vhpi_cb_t       cb;
+   uint32_t         magic;
+   vhpiClassKindT   class;
+   vhpi_obj_kind_t  kind;
+   unsigned         refcnt;
+   vhpi_cb_t        cb;
    union {
-      tree_t  tree;
-      type_t  type;
-      void   *pointer;
+      tree_t        tree;
+      type_t        type;
+      void         *pointer;
    };
+   e_node_t         enode;
+   rt_signal_t     *signal;
 };
 
 typedef struct {
@@ -88,6 +92,7 @@ typedef struct {
 
 static cb_list_t       cb_list;
 static tree_t          top_level;
+static e_node_t        e_root;
 static hash_t         *handle_hash;
 static vhpiErrorInfoT  last_error;
 static bool            trace_on = false;
@@ -342,7 +347,8 @@ static void vhpi_check_for_leaks(void)
    }
 }
 
-static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
+static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, e_node_t e, rt_signal_t *s,
+                                    vhpiClassKindT class)
 {
    vhpi_obj_t *obj = hash_get(handle_hash, t);
    if (obj == NULL) {
@@ -352,6 +358,8 @@ static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
       obj->class  = class;
       obj->tree   = t;
       obj->refcnt = 1;
+      obj->enode  = e;
+      obj->signal = s;
 
       hash_put(handle_hash, t, obj);
    }
@@ -403,6 +411,17 @@ static vhpi_obj_t *vhpi_range_to_obj(tree_t r)
    return obj;
 }
 
+static rt_signal_t *vhpi_get_signal(vhpi_obj_t *obj)
+{
+   if (obj->signal == NULL)
+      obj->signal = rt_find_signal(obj->enode);
+
+   if (obj->signal == NULL)
+      fatal("missing runtime signal object for %s", istr(e_path(obj->enode)));
+
+   return obj->signal;
+}
+
 static void vhpi_fire_event(vhpi_obj_t *obj)
 {
    if (obj->cb.released) {
@@ -427,7 +446,7 @@ static void vhpi_timeout_cb(uint64_t now, void *user)
       vhpi_fire_event((vhpiHandleT)user);
 }
 
-static void vhpi_signal_event_cb(uint64_t now, tree_t sig,
+static void vhpi_signal_event_cb(uint64_t now, rt_signal_t *signal,
                                  watch_t *watch, void *user)
 {
    if (vhpi_validate_handle(user, VHPI_CALLBACK))
@@ -564,9 +583,10 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          if (!vhpi_validate_handle(cb_data_p->obj, VHPI_TREE))
             goto failed;
 
-         if (tree_kind(cb_data_p->obj->tree) != T_SIGNAL_DECL) {
+         const tree_kind_t kind = tree_kind(cb_data_p->obj->tree);
+         if (kind != T_SIGNAL_DECL && kind != T_PORT_DECL) {
             vhpi_error(vhpiError, tree_loc(cb_data_p->obj->tree),
-                       "object %s is not a signal",
+                       "object %s is not a port or signal",
                        istr(tree_ident(cb_data_p->obj->tree)));
             goto failed;
          }
@@ -574,7 +594,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          obj->tree = cb_data_p->obj->tree;
          obj->cb.repetitive = true;
 
-         rt_set_event_cb(cb_data_p->obj->tree, vhpi_signal_event_cb,
+         rt_set_event_cb(vhpi_get_signal(cb_data_p->obj), vhpi_signal_event_cb,
                          obj, false);
 
          vhpi_remember_cb(&cb_list, obj);
@@ -641,46 +661,69 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 
    VHPI_TRACE("name=%s scope=%p", name, scope);
 
-   tree_t root = NULL;
+   char *copy LOCAL = xstrdup(name);
+   for (char *p = copy; *p; p++)
+      *p = toupper((int)*p);
+
+   char *saveptr;
+   char *first = strtok_r(copy, ".", &saveptr);
 
    if (scope == NULL) {
-      const char *root_name = istr(tree_attr_str(top_level, simple_name_i)) + 1;
-      if (strcmp(root_name, name) == 0)
-         return (vhpiHandleT)vhpi_tree_to_obj(top_level, vhpiRootInstK);
-
-      const char *dot = strchr(name, '.');
-      if (dot == NULL)
-         return NULL;
-
-      if (strncmp(root_name, name, dot - name) != 0)
-         return NULL;
-
-      root = top_level;
-      name = dot + 1;
-   }
-   else {
-      if (!vhpi_validate_handle(scope, VHPI_TREE))
-         return NULL;
-
-      root = scope->tree;
+      scope = vhpi_handle(vhpiRootInst, NULL);
+      first = strtok_r(NULL, ".", &saveptr);
    }
 
-   ident_t search = NULL;
-   if (tree_kind(root) == T_ELAB)
-      search = ident_prefix(tree_attr_str(root, simple_name_i),
-                            ident_new(name), ':');
-   else
-      search = ident_prefix(tree_ident(root), ident_new(name), ':');
+   if (!vhpi_validate_handle(scope, VHPI_TREE))
+      return NULL;
 
-   const int ndecls = tree_decls(top_level);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(top_level, i);
+   tree_t container = scope->tree;
+   e_node_t escope  = scope->enode;
+
+   if (tree_kind(container) == T_ELAB) {
+      container = tree_stmt(container, 0);
+      assert(tree_kind(container) == T_BLOCK);
+      escope = e_scope(escope, e_scopes(escope) - 1);
+   }
+
+   ident_t search = ident_new(first);
+   tree_t decl = NULL;
+
+   if (tree_kind(container) == T_BLOCK) {
+      const int nports = tree_ports(container);
+      for (int i = 0; decl == NULL && i < nports; i++) {
+         tree_t p = tree_port(container, i);
+         if (tree_ident(p) == search)
+            decl = p;
+      }
+   }
+
+   const int ndecls = tree_decls(container);
+   for (int i = 0; decl == NULL && i < ndecls; i++) {
+      tree_t d = tree_decl(container, i);
       if (tree_ident(d) == search)
-         return (vhpiHandleT)vhpi_tree_to_obj(d, vhpiSigDeclK);
+         decl = d;
    }
 
-   vhpi_error(vhpiError, NULL, "object %s not found", istr(search));
-   return NULL;
+   if (decl == NULL) {
+      vhpi_error(vhpiError, NULL, "object %s not found", istr(search));
+      return NULL;
+   }
+
+   e_node_t enode = NULL;
+   rt_signal_t *signal = NULL;
+   const tree_kind_t kind = tree_kind(decl);
+   if (kind == T_SIGNAL_DECL || kind == T_PORT_DECL) {
+      const int nsignals = e_signals(escope);
+      for (int i = 0; enode == NULL && i < nsignals; i++) {
+         e_node_t e = e_signal(escope, i);
+         if (e_ident(e) == search) {
+            enode  = e;
+            signal = rt_find_signal(e);
+         }
+      }
+   }
+
+   return vhpi_tree_to_obj(decl, enode, signal, vhpiSigDeclK);
 }
 
 vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
@@ -723,7 +766,7 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
    switch (type) {
    case vhpiRootInst:
    case vhpiDesignUnit:
-      return vhpi_tree_to_obj(top_level, vhpiRootInstK);
+      return vhpi_tree_to_obj(top_level, e_root, NULL, vhpiRootInstK);
 
    case vhpiBaseType:
    case vhpiType:
@@ -806,18 +849,9 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
             return vhpiUndefined;
 
          switch (tree_kind(handle->tree)) {
-         case T_PORT_DECL:
-            return vhpiPortDeclK;
-
-         case T_SIGNAL_DECL:
-            if (tree_attr_int(handle->tree, fst_dir_i, -1) == -1)
-               return vhpiSigDeclK;
-            else
-               return vhpiPortDeclK;
-
-         case T_ELAB:
-            return vhpiRootInstK;
-
+         case T_PORT_DECL:   return vhpiPortDeclK;
+         case T_SIGNAL_DECL: return vhpiSigDeclK;
+         case T_ELAB:        return vhpiRootInstK;
          default:
             vhpi_error(vhpiFailure, tree_loc(handle->tree), "cannot convert "
                        "tree kind %s to vhpiClassKindT",
@@ -963,7 +997,7 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
          }
 
          uint64_t value;
-         rt_signal_value(handle->tree, &value, 1);
+         rt_signal_value(vhpi_get_signal(handle), &value, 1);
 
          const vhpiPhysT result = {
             .low  = value & 0xffffffff,
@@ -1028,9 +1062,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    if (!vhpi_validate_handle(expr, VHPI_TREE))
       return -1;
 
-   if (tree_kind(expr->tree) != T_SIGNAL_DECL) {
+   const tree_kind_t kind = tree_kind(expr->tree);
+   if (kind != T_SIGNAL_DECL && kind != T_PORT_DECL) {
       vhpi_error(vhpiInternal, tree_loc(expr->tree), "vhpi_get_value is only "
-                 "supported for signal declaration objects");
+                 "supported for signal and port objects");
       return -1;
    }
 
@@ -1105,7 +1140,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    }
 
    if (format == vhpiBinStrVal) {
-      const size_t need = rt_signal_string(expr->tree,
+      const size_t need = rt_signal_string(vhpi_get_signal(expr),
                                            vhpi_map_str_for_type(type),
                                            (char *)value_p->value.str,
                                            value_p->bufSize);
@@ -1116,7 +1151,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    }
    else if (type_is_scalar(type)) {
       uint64_t value;
-      rt_signal_value(expr->tree, &value, 1);
+      rt_signal_value(vhpi_get_signal(expr), &value, 1);
 
       switch (format) {
       case vhpiLogicVal:
@@ -1133,7 +1168,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          return 0;
 
       default:
-            assert(false);
+         assert(false);
       }
    }
    else {
@@ -1152,7 +1187,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
       const int max = value_p->bufSize / elemsz;
       uint64_t *values LOCAL = xmalloc_array(max, sizeof(uint64_t));
-      value_p->numElems = rt_signal_value(expr->tree, values, max);
+      value_p->numElems = rt_signal_value(vhpi_get_signal(expr), values, max);
 
       const int copy = MIN(value_p->numElems, max);
 
@@ -1219,7 +1254,7 @@ int vhpi_put_value(vhpiHandleT handle,
             }
 
             if (!propagate || rt_can_create_delta())
-               rt_force_signal(handle->tree, &expanded, 1, propagate);
+               rt_force_signal(vhpi_get_signal(handle), &expanded, 1, propagate);
             else {
                vhpi_error(vhpiError, tree_loc(handle->tree), "cannot force "
                           "propagate signal during current simulation phase");
@@ -1253,7 +1288,8 @@ int vhpi_put_value(vhpiHandleT handle,
                return 1;
             }
 
-            rt_force_signal(handle->tree, expanded, num_elems, propagate);
+            rt_force_signal(vhpi_get_signal(handle),
+                            expanded, num_elems, propagate);
             free(expanded);
          }
          return 0;
@@ -1406,7 +1442,7 @@ int vhpi_release_handle(vhpiHandleT handle)
       case vhpiCbValueChange:
          if (handle->cb.list_pos != -1)
             vhpi_forget_cb(&cb_list, handle);
-         rt_set_event_cb(handle->tree, NULL, handle, false);
+         rt_set_event_cb(vhpi_get_signal(handle), NULL, handle, false);
          return 0;
 
       default:
@@ -1464,16 +1500,21 @@ int vhpi_is_printable(char ch)
       return 1;
 }
 
-void vhpi_load_plugins(tree_t top, const char *plugins)
+void vhpi_load_plugins(tree_t top, e_node_t root, const char *plugins)
 {
    top_level = top;
+   e_root    = root;
 
    if (handle_hash != NULL)
       hash_free(handle_hash);
 
-   handle_hash = hash_new(1024, true, HASH_PTR);
+   handle_hash = hash_new(1024, true);
 
    trace_on = opt_get_int("vhpi_trace_en");
+
+   const char *verbose = getenv("NVC_VHPI_VERBOSE");
+   if (verbose && *verbose != '\0')
+      trace_on = true;
 
    vhpi_clear_error();
 

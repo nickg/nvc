@@ -12,9 +12,17 @@ architecture arch of issue352 is
     signal R  :std_logic_vector(5 downto 0);
 
     function check_dims(x : unsigned) return unsigned is
+        alias ax : unsigned(1 to x'length) is x;
+        variable s : string(1 to x'length);
     begin
         assert x'low >= unsigned'low;
         assert x'high <= unsigned'high;
+
+        for i in 1 to x'length loop
+            s(i) := std_logic'image(ax(i))(2);
+        end loop;
+        report s;
+
         return x;
     end function;
 
@@ -26,6 +34,7 @@ begin
     begin
         wait for 1 ns;
         assert R = "000001";
+        assert FixRealKCM_F400_uid2_Rtemp'last_event = time'high;
         wait;
     end process;
 end architecture;

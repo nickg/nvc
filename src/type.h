@@ -140,6 +140,7 @@ bool type_is_subprogram(type_t t);
 bool type_is_universal(type_t t);
 bool type_is_convertible(type_t from, type_t to);
 bool type_is_composite(type_t t);
+bool type_is_homogeneous(type_t t);
 
 // Helper to find ultimate base type
 type_t type_base_recur(type_t t);

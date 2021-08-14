@@ -24,11 +24,13 @@
 
 #include <stdint.h>
 
-#define RT_ABI_VERSION 0
+#define RT_ABI_VERSION 1
 
-typedef struct watch watch_t;
+typedef struct watch       watch_t;
+typedef struct rt_signal_s rt_signal_t;
 
-typedef void (*sig_event_fn_t)(uint64_t now, tree_t, watch_t *, void *user);
+typedef void (*sig_event_fn_t)(uint64_t now, rt_signal_t *signal, watch_t *watch,
+                               void *user);
 typedef void (*timeout_fn_t)(uint64_t now, void *user);
 typedef void (*rt_event_fn_t)(void *user);
 
@@ -74,7 +76,6 @@ typedef enum {
    R_MEMO     = (1 << 0),
    R_IDENT    = (1 << 1),
    R_RECORD   = (1 << 2),
-   R_BOUNDARY = (1 << 3),
 } res_flags_t;
 
 typedef enum {
@@ -84,7 +85,6 @@ typedef enum {
    NET_F_OWNS_MEM   = (1 << 3),
    NET_F_GLOBAL     = (1 << 4),
    NET_F_LAST_VALUE = (1 << 5),
-   NET_F_BOUNDARY   = (1 << 6),
 } net_flags_t;
 
 typedef enum {
@@ -114,33 +114,35 @@ typedef enum {
    FST_OUTPUT_VCD
 } fst_output_t;
 
-void rt_start_of_tool(tree_t top);
-void rt_end_of_tool(tree_t top);
+void rt_start_of_tool(tree_t top, e_node_t e);
+void rt_end_of_tool(tree_t top, e_node_t e);
 void rt_run_sim(uint64_t stop_time);
 void rt_run_interactive(uint64_t stop_time);
-void rt_restart(tree_t top);
+void rt_restart(e_node_t top);
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user);
-watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
+watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
                          bool postponed);
 void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user);
-size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max, bool last);
+size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max);
 size_t rt_watch_string(watch_t *w, const char *map, char *buf, size_t max);
-size_t rt_signal_value(tree_t s, uint64_t *buf, size_t max);
-size_t rt_signal_string(tree_t s, const char *map, char *buf, size_t max);
-bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
+size_t rt_signal_value(rt_signal_t *s, uint64_t *buf, size_t max);
+size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max);
+bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count,
                      bool propagate);
+rt_signal_t *rt_find_signal(e_node_t esignal);
 bool rt_can_create_delta(void);
 uint64_t rt_now(unsigned *deltas);
 void rt_stop(void);
 void rt_set_exit_severity(rt_severity_t severity);
 
-void jit_init(tree_t top);
+void jit_init(e_node_t top);
 void jit_shutdown(void);
 void *jit_find_symbol(const char *name, bool required);
 
 text_buf_t *pprint(tree_t t, const uint64_t *values, size_t len);
 
-void fst_init(const char *file, tree_t top, fst_output_t output);
+void fst_init(const char *file, tree_t top, e_node_t e_root,
+              fst_output_t output);
 void fst_restart(void);
 
 void wave_include_glob(const char *glob);
@@ -149,9 +151,9 @@ void wave_include_file(const char *base);
 bool wave_should_dump(tree_t decl);
 
 #ifdef ENABLE_VHPI
-void vhpi_load_plugins(tree_t top, const char *plugins);
+void vhpi_load_plugins(tree_t top, e_node_t root, const char *plugins);
 #else
-#define vhpi_load_plugins(top, plugins)
+#define vhpi_load_plugins(top, root, plugins)
 #endif
 
 #endif  // _RT_H

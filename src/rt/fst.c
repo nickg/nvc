@@ -20,6 +20,7 @@
 #include "tree.h"
 #include "common.h"
 #include "fstapi.h"
+#include "enode.h"
 
 #include <assert.h>
 #include <unistd.h>
@@ -29,15 +30,16 @@
 #include <libgen.h>
 #endif
 
-static tree_t        fst_top;
-static void         *fst_ctx;
-static uint64_t      last_time;
-static FILE         *vcdfile;
-static char         *tmpfst;
+static tree_t    fst_top;
+static e_node_t  fst_e_root;
+static void     *fst_ctx;
+static uint64_t  last_time;
+static FILE     *vcdfile;
+static char     *tmpfst;
 
 typedef struct fst_data fst_data_t;
 
-typedef void (*fst_fmt_fn_t)(tree_t, watch_t *, fst_data_t *);
+typedef void (*fst_fmt_fn_t)(watch_t *, fst_data_t *);
 
 typedef struct {
    int64_t  mult;
@@ -56,6 +58,8 @@ struct fst_data {
    fst_type_t    type;
    size_t        size;
    watch_t      *watch;
+   tree_t        decl;
+   rt_signal_t  *signal;
 };
 
 static void fst_close(void)
@@ -93,10 +97,10 @@ static void fst_close(void)
    }
 }
 
-static void fst_fmt_int(tree_t decl, watch_t *w, fst_data_t *data)
+static void fst_fmt_int(watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_watch_value(w, &val, 1, false);
+   rt_watch_value(w, &val, 1);
 
    char buf[data->size + 1];
    for (size_t i = 0; i < data->size; i++)
@@ -106,10 +110,10 @@ static void fst_fmt_int(tree_t decl, watch_t *w, fst_data_t *data)
    fstWriterEmitValueChange(fst_ctx, data->handle, buf);
 }
 
-static void fst_fmt_physical(tree_t decl, watch_t *w, fst_data_t *data)
+static void fst_fmt_physical(watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_watch_value(w, &val, 1, false);
+   rt_watch_value(w, &val, 1);
 
    fst_unit_t *unit = data->type.units;
    while ((val % unit->mult) != 0)
@@ -123,7 +127,7 @@ static void fst_fmt_physical(tree_t decl, watch_t *w, fst_data_t *data)
       fst_ctx, data->handle, buf, strlen(buf));
 }
 
-static void fst_fmt_chars(tree_t decl, watch_t *w, fst_data_t *data)
+static void fst_fmt_chars(watch_t *w, fst_data_t *data)
 {
    const int nvals = data->size;
    char buf[nvals + 1];
@@ -135,19 +139,19 @@ static void fst_fmt_chars(tree_t decl, watch_t *w, fst_data_t *data)
          fst_ctx, data->handle, buf, data->size);
 }
 
-static void fst_fmt_enum(tree_t decl, watch_t *w, fst_data_t *data)
+static void fst_fmt_enum(watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_watch_value(w, &val, 1, false);
+   rt_watch_value(w, &val, 1);
 
-   tree_t lit = type_enum_literal(tree_type(decl), val);
+   tree_t lit = type_enum_literal(tree_type(data->decl), val);
    const char *str = istr(tree_ident(lit));
 
    fstWriterEmitVariableLengthValueChange(
       fst_ctx, data->handle, str, strlen(str));
 }
 
-static void fst_event_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
+static void fst_event_cb(uint64_t now, rt_signal_t *s, watch_t *w, void *user)
 {
    if (now != last_time) {
       fstWriterEmitTimeChange(fst_ctx, now);
@@ -156,7 +160,7 @@ static void fst_event_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
 
    fst_data_t *data = user;
    if (likely(data != NULL))
-      (*data->fmt)(decl, w, data);
+      (*data->fmt)(w, data);
 }
 
 static fst_unit_t *fst_make_unit_map(type_t type)
@@ -211,8 +215,10 @@ static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
       return false;
 }
 
-static void fst_process_signal(tree_t d)
+static void fst_process_signal(tree_t d, e_node_t e)
 {
+   assert(tree_ident(d) == e_ident(e));
+
    type_t type = tree_type(d);
    type_t base = type_base_recur(type);
 
@@ -315,14 +321,16 @@ static void fst_process_signal(tree_t d)
 
    enum fstVarDir dir = FST_VD_IMPLICIT;
 
-   switch (tree_attr_int(d, fst_dir_i, -1)) {
-   case PORT_IN: dir = FST_VD_INPUT; break;
-   case PORT_OUT: dir = FST_VD_OUTPUT; break;
-   case PORT_INOUT: dir = FST_VD_INOUT; break;
-   case PORT_BUFFER: dir = FST_VD_BUFFER; break;
+   if (tree_kind(d) == T_PORT_DECL) {
+      switch (tree_subkind(d)) {
+      case PORT_IN:     dir = FST_VD_INPUT; break;
+      case PORT_OUT:    dir = FST_VD_OUTPUT; break;
+      case PORT_INOUT:  dir = FST_VD_INOUT; break;
+      case PORT_BUFFER: dir = FST_VD_BUFFER; break;
+      }
    }
 
-   const char *name_base = strrchr(istr(tree_ident(d)), ':') + 1;
+   const char *name_base = istr(e_ident(e));
    const size_t base_len = strlen(name_base);
    char name[base_len + 64];
    if (type_is_array(type))
@@ -341,12 +349,12 @@ static void fst_process_signal(tree_t d)
       FST_SVT_VHDL_SIGNAL,
       sdt);
 
-   tree_add_attr_ptr(d, fst_data_i, data);
-
-   data->watch = rt_set_event_cb(d, fst_event_cb, data, true);
+   data->decl   = d;
+   data->signal = rt_find_signal(e);
+   data->watch  = rt_set_event_cb(data->signal, fst_event_cb, data, true);
 }
 
-static void fst_process_hier(tree_t h)
+static void fst_process_hier(tree_t h, tree_t block)
 {
    const tree_kind_t scope_kind = tree_subkind(h);
 
@@ -366,8 +374,53 @@ static void fst_process_hier(tree_t h)
    const loc_t *loc = tree_loc(h);
    fstWriterSetSourceStem(fst_ctx, loc_file_str(loc), loc->first_line, 1);
 
-   fstWriterSetScope(fst_ctx, st, istr(tree_ident(h)),
-                     tree_has_ident2(h) ? istr(tree_ident2(h)) : "");
+   // TODO: store the component name in T_HIER somehow?
+   fstWriterSetScope(fst_ctx, st, istr(ident_downcase(tree_ident(block))), "");
+}
+
+static void fst_walk_design(tree_t block, e_node_t scope)
+{
+   int nsignal = 0;
+
+   tree_t h = tree_decl(block, 0);
+   assert(tree_kind(h) == T_HIER);
+   fst_process_hier(h, block);
+
+   const int nports = tree_ports(block);
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(block, i);
+      e_node_t e = e_signal(scope, nsignal++);
+      if (wave_should_dump(p))
+         fst_process_signal(p, e);
+   }
+
+   const int ndecls = tree_decls(block);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(block, i);
+      if (tree_kind(d) == T_SIGNAL_DECL) {
+         e_node_t e = e_signal(scope, nsignal++);
+         if (wave_should_dump(d))
+            fst_process_signal(d, e);
+      }
+   }
+
+   int nscope = 0;
+   const int nstmts = tree_stmts(block);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(block, i);
+      switch (tree_kind(s)) {
+      case T_BLOCK:
+         fst_walk_design(s, e_scope(scope, nscope++));
+         break;
+      case T_PROCESS:
+         break;
+      default:
+         fatal_trace("cannot handle tree kind %s in fst_walk_design",
+                     tree_kind_str(tree_kind(s)));
+      }
+   }
+
+   fstWriterSetUpscope(fst_ctx);
 }
 
 void fst_restart(void)
@@ -375,40 +428,14 @@ void fst_restart(void)
    if (fst_ctx == NULL)
       return;
 
-   const int ndecls = tree_decls(fst_top);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(fst_top, i);
-
-      switch (tree_kind(d)) {
-      case T_SIGNAL_DECL:
-         if (wave_should_dump(d))
-            fst_process_signal(d);
-         break;
-      case T_HIER:
-         fst_process_hier(d);
-         break;
-      default:
-         break;
-      }
-
-      int npop = tree_attr_int(d, ident_new("scope_pop"), 0);
-      while (npop-- > 0)
-         fstWriterSetUpscope(fst_ctx);
-   }
+   fst_walk_design(tree_stmt(fst_top, 0),
+                   e_scope(fst_e_root, e_scopes(fst_e_root) - 1));
 
    last_time = UINT64_MAX;
-
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(fst_top, i);
-      if (tree_kind(d) == T_SIGNAL_DECL) {
-         fst_data_t *data = tree_attr_ptr(d, fst_data_i);
-         if (likely(data != NULL))
-            fst_event_cb(0, d, data->watch, data);
-      }
-   }
 }
 
-void fst_init(const char *file, tree_t top, fst_output_t output)
+void fst_init(const char *file, tree_t top, e_node_t e_root,
+              fst_output_t output)
 {
    if (output == FST_OUTPUT_VCD) {
 #if defined __CYGWIN__ || defined __MINGW32__
@@ -447,4 +474,5 @@ void fst_init(const char *file, tree_t top, fst_output_t output)
    atexit(fst_close);
 
    fst_top = top;
+   fst_e_root = e_root;
 }

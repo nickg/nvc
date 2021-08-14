@@ -42,7 +42,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_CHARS | I_FLAGS | I_IDENT | I_REF),
 
    // T_SIGNAL_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_NETS | I_ATTRS | I_FLAGS | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
 
    // T_VAR_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
@@ -128,7 +128,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_DELAY),
 
    // T_ALIAS
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_IDENT2),
 
    // T_FOR
    (I_IDENT | I_STMTS | I_RANGES | I_ATTRS | I_DECLS),
@@ -858,35 +858,6 @@ void tree_add_assoc(tree_t t, tree_t a)
 {
    assert(a->object.kind == T_ASSOC);
    tree_array_add(lookup_item(&tree_object, t, I_ASSOCS), a);
-}
-
-unsigned tree_nets(tree_t t)
-{
-   return lookup_item(&tree_object, t, I_NETS)->netid_array.count;
-}
-
-netid_t tree_net(tree_t t, unsigned n)
-{
-   item_t *item = lookup_item(&tree_object, t, I_NETS);
-   netid_t nid = AGET(item->netid_array, n);
-   assert(nid != NETID_INVALID);
-   return nid;
-}
-
-void tree_add_net(tree_t t, netid_t n)
-{
-   item_t *item = lookup_item(&tree_object, t, I_NETS);
-   APUSH(item->netid_array, n);
-}
-
-void tree_change_net(tree_t t, unsigned n, netid_t i)
-{
-   item_t *item = lookup_item(&tree_object, t, I_NETS);
-
-   if (n >= item->netid_array.count)
-      ARESIZE(item->netid_array, n + 1);
-
-   item->netid_array.items[n] = i;
 }
 
 tree_t tree_severity(tree_t t)

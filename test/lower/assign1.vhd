@@ -4,7 +4,7 @@ end entity;
 architecture test of assign1 is
 begin
 
-    process is
+    p1: process is
         variable x : integer := 64;
         variable y : integer := -4;
     begin

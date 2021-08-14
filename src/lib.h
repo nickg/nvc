@@ -53,9 +53,11 @@ lib_t lib_work(void);
 void lib_set_work(lib_t lib);
 
 void lib_put(lib_t lib, tree_t unit);
+void lib_put_elaborated(lib_t lib, e_node_t e);
 tree_t lib_get(lib_t lib, ident_t ident);
 tree_t lib_get_check_stale(lib_t lib, ident_t ident);
 tree_t lib_get_qualified(ident_t qual);
+e_node_t lib_get_elaborated(lib_t lib, ident_t ident);
 lib_mtime_t lib_mtime(lib_t lib, ident_t ident);
 unsigned lib_index_size(lib_t lib);
 int lib_index_kind(lib_t lib, ident_t ident);

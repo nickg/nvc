@@ -9,7 +9,7 @@ architecture test of record1 is
 
 begin
 
-    process is
+    p1: process is
         variable a, b : r1 := (1, 2);
     begin
         assert a.x = 1;

@@ -12,7 +12,7 @@ architecture RTL of ISSUE351 is
     begin
     end procedure;
 begin
-    process
+    p1: process
         variable curr_queue : WORD_VECTOR(0 to 3);
     begin
         loop1: for i in curr_queue'range loop

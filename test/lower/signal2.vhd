@@ -5,7 +5,7 @@ architecture test of signal2 is
     signal x : bit := '0';
 begin
 
-    process is
+    p1: process is
     begin
         assert x'event;
         assert x'active;

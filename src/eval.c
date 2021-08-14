@@ -328,7 +328,7 @@ __attribute__((noreturn))
 static void eval_assert_fail(int op, value_t *value, const char *value_str,
                              const char *expect, const char *file, int line)
 {
-   vcode_dump_with_mark(op);
+   vcode_dump_with_mark(op, NULL, NULL);
    if (expect == NULL)
       fatal_trace("Expected %s to have valid value (at %s:%d)",
                   value_str, file, line);
@@ -396,6 +396,13 @@ static bool eval_new_var(value_t *value, vcode_type_t type, eval_state_t *state)
       value->pointer = NULL;
       break;
 
+   case VCODE_TYPE_POINTER:
+      EVAL_WARN(state->fcall, "cannot evaluate pointer variables");
+      state->failed = true;
+      value->kind = VALUE_POINTER;
+      value->pointer = NULL;
+      break;
+
    default:
       fatal_at(tree_loc(state->fcall), "cannot evaluate variables with "
                "type %d", vtype_kind(type));
@@ -422,7 +429,7 @@ static context_t *eval_new_context(eval_state_t *state)
       vcode_type_t type = vcode_var_type(i);
 
       value_t *value = &(context->vars[i]);
-      if (vcode_var_use_heap(i)) {
+      if (vcode_var_flags(i) & VAR_HEAP) {
          value->kind = VALUE_HEAP_PROXY;
          if ((value->pointer = eval_alloc(sizeof(value_t), state)) == NULL)
             goto fail;
@@ -954,6 +961,7 @@ static void eval_op_var_upref(int op, eval_state_t *state)
 {
    context_t *where = state->context;
    const int hops = vcode_get_hops(op);
+   vcode_var_t var = vcode_get_address(op);
 
    for (int i = 0; where && i < hops; i++) {
       if (where->parent == NULL) {
@@ -963,7 +971,8 @@ static void eval_op_var_upref(int op, eval_state_t *state)
          vcode_state_save(&vcode_state);
 
          vcode_select_unit(vcode_unit_context());
-         assert(vcode_unit_kind() == VCODE_UNIT_CONTEXT);
+         assert(vcode_unit_kind() == VCODE_UNIT_PACKAGE
+                || vcode_unit_kind() == VCODE_UNIT_INSTANCE);
          vcode_select_block(0);
 
          context_t *new_context = eval_new_context(state);
@@ -984,6 +993,13 @@ static void eval_op_var_upref(int op, eval_state_t *state)
          };
 
          eval_vcode(&new_state);
+
+         if (vcode_var_flags(var) & VAR_EXTERN) {
+            EVAL_WARN(state->fcall, "reference to external variable %s "
+                      "prevents constant folding", istr(vcode_var_name(var)));
+            new_state.failed = true;
+         }
+
          vcode_state_restore(&vcode_state);
 
          state->allocations = new_state.allocations;
@@ -997,7 +1013,7 @@ static void eval_op_var_upref(int op, eval_state_t *state)
       where = where->parent;
    }
 
-   value_t *src = eval_get_var(vcode_get_address(op), where);
+   value_t *src = eval_get_var(var, where);
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
 
    dst->kind = VALUE_POINTER;
@@ -2181,6 +2197,11 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_DEBUG_OUT:
          eval_op_debug_out(state->op, state);
+         break;
+
+      case VCODE_OP_LINK_VAR:
+      case VCODE_OP_LINK_SIGNAL:
+         state->failed = true;
          break;
 
       default:

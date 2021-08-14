@@ -27,7 +27,6 @@ typedef int32_t vcode_type_t;
 typedef int32_t vcode_block_t;
 typedef int32_t vcode_var_t;
 typedef int32_t vcode_reg_t;
-typedef int32_t vcode_signal_t;
 
 typedef enum {
    VCODE_CMP_EQ,
@@ -58,7 +57,6 @@ typedef enum {
    VCODE_OP_LOAD_INDIRECT,
    VCODE_OP_STORE_INDIRECT,
    VCODE_OP_RETURN,
-   VCODE_OP_NETS,
    VCODE_OP_SCHED_WAVEFORM,
    VCODE_OP_COND,
    VCODE_OP_REPORT,
@@ -81,9 +79,6 @@ typedef enum {
    VCODE_OP_AND,
    VCODE_OP_NESTED_FCALL,
    VCODE_OP_PARAM_UPREF,
-   VCODE_OP_RESOLVED_ADDRESS,
-   VCODE_OP_SET_INITIAL,
-   VCODE_OP_ALLOC_DRIVER,
    VCODE_OP_EVENT,
    VCODE_OP_ACTIVE,
    VCODE_OP_CONST_RECORD,
@@ -98,7 +93,6 @@ typedef enum {
    VCODE_OP_NAND,
    VCODE_OP_NOR,
    VCODE_OP_MEMSET,
-   VCODE_OP_VEC_LOAD,
    VCODE_OP_CASE,
    VCODE_OP_ENDFILE,
    VCODE_OP_FILE_OPEN,
@@ -114,7 +108,6 @@ typedef enum {
    VCODE_OP_CONST_REAL,
    VCODE_OP_VALUE,
    VCODE_OP_LAST_EVENT,
-   VCODE_OP_NEEDS_LAST_VALUE,
    VCODE_OP_DYNAMIC_BOUNDS,
    VCODE_OP_ARRAY_SIZE,
    VCODE_OP_INDEX_CHECK,
@@ -131,7 +124,15 @@ typedef enum {
    VCODE_OP_UNDEFINED,
    VCODE_OP_IMAGE_MAP,
    VCODE_OP_RANGE_NULL,
-   VCODE_OP_VAR_UPREF
+   VCODE_OP_VAR_UPREF,
+   VCODE_OP_LINK_SIGNAL,
+   VCODE_OP_RESOLVED,
+   VCODE_OP_LAST_VALUE,
+   VCODE_OP_INIT_SIGNAL,
+   VCODE_OP_MAP_SIGNAL,
+   VCODE_OP_DRIVE_SIGNAL,
+   VCODE_OP_LINK_VAR,
+   VCODE_OP_RESOLUTION_WRAPPER,
 } vcode_op_t;
 
 typedef enum {
@@ -146,7 +147,8 @@ typedef enum {
    VCODE_TYPE_ACCESS,
    VCODE_TYPE_REAL,
    VCODE_TYPE_IMAGE_MAP,
-   VCODE_TYPE_OPAQUE
+   VCODE_TYPE_OPAQUE,
+   VCODE_TYPE_RESOLUTION
 } vtype_kind_t;
 
 typedef enum {
@@ -154,13 +156,20 @@ typedef enum {
    VCODE_UNIT_CONTEXT,
    VCODE_UNIT_FUNCTION,
    VCODE_UNIT_PROCEDURE,
-   VCODE_UNIT_THUNK
+   VCODE_UNIT_THUNK,
+   VCODE_UNIT_INSTANCE,
+   VCODE_UNIT_PACKAGE
 } vunit_kind_t;
 
 typedef enum {
    VCODE_ALLOCA_STACK,
    VCODE_ALLOCA_HEAP
 } vcode_alloca_t;
+
+typedef enum {
+   VCODE_CC_VHDL,
+   VCODE_CC_FOREIGN
+} vcode_cc_t;
 
 typedef struct {
    vcode_reg_t left;
@@ -182,31 +191,27 @@ typedef struct {
 } image_map_t;
 
 typedef enum {
-   RES_SCALAR,
-   RES_RECORD,
-} res_kind_t;
-
-typedef struct {
-   ident_t      name;
-   vcode_type_t type;
-   int32_t      ileft;
-   res_kind_t   kind;
-   bool         boundary;
-} vcode_res_elem_t;
-
-typedef struct {
-   size_t count;
-   vcode_res_elem_t element[];
-} vcode_res_fn_t;
+   VAR_EXTERN  = (1 << 0),
+   VAR_HEAP    = (1 << 2),
+   VAR_CONST   = (1 << 3),
+   VAR_SIGNAL  = (1 << 4),
+   VAR_GLOBAL  = (1 << 5)
+} vcode_var_flags_t;
 
 #define VCODE_INVALID_REG    -1
 #define VCODE_INVALID_BLOCK  -1
 #define VCODE_INVALID_VAR    -1
-#define VCODE_INVALID_SIGNAL -1
 #define VCODE_INVALID_TYPE   -1
 #define VCODE_INVALID_IMAGE  -1
 
 #define VCODE_INVALID_HINT 0xffffffff
+
+typedef enum {
+   VCODE_DUMP_OP,
+   VCODE_DUMP_REG,
+} vcode_dump_reason_t;
+
+typedef int (*vcode_dump_fn_t)(vcode_dump_reason_t, int, void *);
 
 vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
@@ -225,6 +230,7 @@ vcode_type_t vtype_find_named_record(ident_t name);
 vcode_type_t vtype_named_record(ident_t name, const vcode_type_t *field_types,
                                 int nfields);
 vcode_type_t vtype_file(vcode_type_t base);
+vcode_type_t vtype_resolution(vcode_type_t base);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
@@ -248,7 +254,7 @@ void vcode_unit_unref(vcode_unit_t unit);
 void vcode_opt(void);
 void vcode_close(void);
 void vcode_dump(void);
-void vcode_dump_with_mark(int mark_op);
+void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg);
 void vcode_select_unit(vcode_unit_t vu);
 void vcode_select_block(vcode_block_t block);
 int vcode_count_blocks(void);
@@ -265,6 +271,7 @@ vcode_block_t vcode_active_block(void);
 vcode_unit_t vcode_active_unit(void);
 vcode_unit_t vcode_unit_context(void);
 const loc_t *vcode_unit_loc(void);
+void vcode_set_result(vcode_type_t type);
 
 void vcode_write(vcode_unit_t unit, fbuf_t *fbuf);
 void vcode_read(fbuf_t *fbuf);
@@ -283,15 +290,6 @@ vcode_type_t vcode_reg_bounds(vcode_reg_t reg);
 bool vcode_reg_const(vcode_reg_t reg, int64_t *value);
 void vcode_heap_allocate(vcode_reg_t reg);
 
-int vcode_count_signals(void);
-vcode_var_t vcode_signal_shadow(vcode_signal_t sig);
-ident_t vcode_signal_name(vcode_signal_t sig);
-size_t vcode_signal_count_nets(vcode_signal_t sig);
-const netid_t *vcode_signal_nets(vcode_signal_t sig);
-vcode_type_t vcode_signal_type(vcode_signal_t sig);
-vcode_type_t vcode_signal_bounds(vcode_signal_t sig);
-bool vcode_signal_extern(vcode_signal_t sig);
-
 int vcode_count_ops(void);
 vcode_op_t vcode_get_op(int op);
 ident_t vcode_get_func(int op);
@@ -302,11 +300,11 @@ const loc_t *vcode_get_loc(int op);
 const char *vcode_get_hint(int op);
 vcode_block_t vcode_get_target(int op, int nth);
 vcode_var_t vcode_get_address(int op);
+ident_t vcode_get_ident(int op);
 int vcode_count_args(int op);
 vcode_reg_t vcode_get_arg(int op, int arg);
 vcode_type_t vcode_get_type(int op);
 vcode_reg_t vcode_get_result(int op);
-vcode_signal_t vcode_get_signal(int op);
 unsigned vcode_get_dim(int op);
 int vcode_get_hops(int op);
 int vcode_get_field(int op);
@@ -314,29 +312,25 @@ unsigned vcode_get_subkind(int op);
 uint32_t vcode_get_tag(int op);
 void vcode_get_image_map(int op, image_map_t *map);
 void vcode_clear_storage_hint(uint32_t tag);
-const vcode_res_fn_t *vcode_get_resolution(int op);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);
 ident_t vcode_var_name(vcode_var_t var);
 vcode_type_t vcode_var_type(vcode_var_t var);
-bool vcode_var_extern(vcode_var_t var);
-bool vcode_var_use_heap(vcode_var_t var);
+vcode_var_flags_t vcode_var_flags(vcode_var_t var);
 
-vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context,
-                           vcode_type_t result);
+vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context);
 vcode_unit_t emit_procedure(ident_t name, const loc_t *loc,
                             vcode_unit_t context);
 vcode_unit_t emit_process(ident_t name, const loc_t *loc, vcode_unit_t context);
 vcode_unit_t emit_context(ident_t name);
-vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context, vcode_type_t type);
+vcode_unit_t emit_instance(ident_t name, const loc_t *loc,
+                           vcode_unit_t context);
+vcode_unit_t emit_package(ident_t name, const loc_t *loc);
+vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context);
 vcode_block_t emit_block(void);
-vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
-vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
-                            ident_t name);
-vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
-                           ident_t name, vcode_var_t shadow,
-                           netid_t *nets, size_t nnets, bool is_extern);
+vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
+                     vcode_var_flags_t flags);
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
                         vcode_reg_t count);
 vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name);
@@ -356,7 +350,7 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                  vcode_reg_t severity);
 void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
-vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
+vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_cc_t cc,
                        const vcode_reg_t *args, int nargs);
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb);
@@ -380,7 +374,6 @@ void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t bounds, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);
-vcode_reg_t emit_nets(vcode_signal_t sig);
 void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
                          vcode_reg_t values, vcode_reg_t reject,
                          vcode_reg_t after);
@@ -407,12 +400,10 @@ vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg);
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var);
-void emit_resolved_address(vcode_var_t var, vcode_signal_t signal);
-void emit_set_initial(vcode_signal_t signal, vcode_reg_t value,
-                      vcode_res_fn_t *resolution);
-void emit_alloc_driver(vcode_reg_t all_nets, vcode_reg_t all_length,
-                       vcode_reg_t driven_nets, vcode_reg_t driven_length,
-                       vcode_reg_t init);
+void emit_init_signal(vcode_reg_t signal, vcode_reg_t value, vcode_reg_t count,
+                      vcode_reg_t size, vcode_reg_t resolution);
+vcode_reg_t emit_resolved(vcode_reg_t sig);
+vcode_reg_t emit_last_value(vcode_reg_t sig);
 vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);
@@ -422,8 +413,6 @@ void emit_resume(ident_t func);
 void emit_nested_resume(ident_t func, int hops);
 vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
-vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length,
-                          bool last_value);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
                const vcode_block_t *blocks, int ncases);
 vcode_reg_t emit_endfile(vcode_reg_t file);
@@ -444,7 +433,6 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
                             vcode_reg_t rhs_dir, vcode_type_t result);
 vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, vcode_reg_t map);
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);
-void emit_needs_last_value(vcode_signal_t sig);
 void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, bounds_kind_t kind,
                      const char *hint);
 vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
@@ -465,5 +453,12 @@ vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
 void emit_debug_info(const loc_t *loc);
 vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
                             vcode_reg_t dir);
+vcode_reg_t emit_link_signal(ident_t name, vcode_type_t type);
+vcode_reg_t emit_link_var(ident_t name, vcode_type_t type);
+void emit_map_signal(vcode_reg_t dst, vcode_reg_t src, vcode_reg_t count,
+                     vcode_reg_t source);
+void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
+vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
+                                    vcode_reg_t ileft);
 
 #endif  // _VCODE_H

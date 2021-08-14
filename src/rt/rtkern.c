@@ -22,10 +22,10 @@
 #include "alloc.h"
 #include "heap.h"
 #include "common.h"
-#include "netdb.h"
 #include "cover.h"
 #include "hash.h"
 #include "debug.h"
+#include "enode.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -54,42 +54,46 @@
 
 #define TRACE_DELTAQ  1
 #define TRACE_PENDING 0
-#define RT_DEBUG      0
+#define RT_DEBUG      1
+
+// TODO: remove these
+typedef uint32_t netid_t;
+#define NETID_INVALID UINT32_MAX
 
 struct uarray;
 
-typedef void (*proc_fn_t)(int32_t reset);
-typedef uint64_t (*resolution_fn_t)(const struct uarray *u);
+typedef struct netgroup    netgroup_t;
+typedef struct event       event_t;
+typedef struct waveform    waveform_t;
+typedef struct sens_list   sens_list_t;
+typedef struct value       value_t;
+typedef struct watch_list  watch_list_t;
+typedef struct callback    callback_t;
+typedef struct image_map   image_map_t;
+typedef struct rt_loc      rt_loc_t;
+typedef struct rt_nexus_s  rt_nexus_t;
+typedef struct rt_scope_s  rt_scope_t;
 
-typedef struct netgroup   netgroup_t;
-typedef struct driver     driver_t;
-typedef struct rt_proc    rt_proc_t;
-typedef struct event      event_t;
-typedef struct waveform   waveform_t;
-typedef struct sens_list  sens_list_t;
-typedef struct value      value_t;
-typedef struct watch_list watch_list_t;
-typedef struct res_memo   res_memo_t;
-typedef struct callback   callback_t;
-typedef struct image_map  image_map_t;
-typedef struct rt_loc     rt_loc_t;
-typedef struct size_list  size_list_t;
+typedef void *(*proc_fn_t)(void *, rt_scope_t *);
+typedef uint64_t (*resolution_fn_t)(void *, const struct uarray *);
 
-struct rt_proc {
-   tree_t    source;
-   proc_fn_t proc_fn;
-   uint32_t  wakeup_gen;
-   void     *tmp_stack;
-   uint32_t  tmp_alloc;
-   bool      postponed;
-   bool      pending;
-   uint64_t  usage;
-};
+typedef struct {
+   e_node_t    source;
+   proc_fn_t   proc_fn;
+   uint32_t    wakeup_gen;
+   void       *tmp_stack;
+   uint32_t    tmp_alloc;
+   bool        postponed;
+   bool        pending;
+   uint64_t    usage;
+   rt_scope_t *scope;
+   void       *privdata;
+} rt_proc_t;
 
 typedef enum {
-   E_TIMEOUT,
-   E_DRIVER,
-   E_PROCESS
+   EVENT_TIMEOUT,
+   EVENT_DRIVER,
+   EVENT_PROCESS
 } event_kind_t;
 
 struct event {
@@ -98,7 +102,7 @@ struct event {
    uint32_t      wakeup_gen;
    event_t      *delta_chain;
    rt_proc_t    *proc;
-   netgroup_t   *group;
+   rt_nexus_t   *nexus;
    timeout_fn_t  timeout_fn;
    void         *timeout_user;
 };
@@ -118,10 +122,10 @@ struct sens_list {
    netid_t       last;
 };
 
-struct driver {
+typedef struct {
    rt_proc_t  *proc;
    waveform_t *waveforms;
-};
+} rt_source_t;
 
 struct value {
    value_t *next;
@@ -131,24 +135,74 @@ struct value {
    };
 } __attribute__((aligned(8)));
 
-struct netgroup {
-   netid_t       first;
-   uint32_t      length;
-   net_flags_t   flags;
-   void         *resolved;
-   void         *last_value;
-   value_t      *forcing;
-   uint16_t      size;
-   uint16_t      n_drivers;
-   driver_t     *drivers;
-   res_memo_t   *resolution;
-   uint64_t      last_event;
-   tree_t        sig_decl;
+// The code generator knows the layout of this struct
+typedef struct {
+   resolution_fn_t  fn;
+   void            *context;
+   uint32_t         flags;
+   int32_t          ileft;
+} rt_resolution_t;
+
+typedef struct {
+   resolution_fn_t  fn;
+   void            *context;
+   res_flags_t      flags;
+   int32_t          ileft;
+   int8_t           tab2[16][16];
+   int8_t           tab1[16];
+} res_memo_t;
+
+typedef struct rt_nexus_s {
+   e_node_t      enode;
+   uint32_t      width;
+   uint32_t      size;
    value_t      *free_values;
+   uint64_t      last_event;
    sens_list_t  *pending;
    watch_list_t *watching;
-};
+   value_t      *forcing;
+   net_flags_t   flags;
+   res_memo_t   *resolution;
+   uint32_t      n_sources;
+   rt_source_t  *sources;
+   void         *resolved;
+   void         *last_value;
+   unsigned      n_signals;
+   rt_signal_t **signals;
+   unsigned     *offsets;
+} rt_nexus_t;
 
+// The code generator knows the layout of this struct
+typedef struct {
+   uint32_t  id;
+   uint32_t  __pad;             // TODO: put flags here
+   void     *resolved;
+   void     *last_value;
+} sig_shared_t;
+
+STATIC_ASSERT(sizeof(sig_shared_t) == 24);
+
+typedef struct rt_signal_s {
+   sig_shared_t   shared;
+   e_node_t       enode;
+   uint32_t       width;
+   uint32_t       size;
+   net_flags_t    flags;
+   uint32_t       n_nexus;
+   rt_nexus_t   **nexus;        // TODO: flatten this
+} rt_signal_t;
+
+typedef struct rt_scope_s {
+   rt_signal_t *signals;
+   unsigned     n_signals;
+   rt_proc_t   *procs;
+   unsigned     n_procs;
+   e_node_t     enode;
+   void        *privdata;
+   rt_scope_t  *parent;
+} rt_scope_t;
+
+// The code generator knows the layout of this struct
 struct uarray {
    void    *ptr;
    struct {
@@ -158,37 +212,26 @@ struct uarray {
    } dims[1];
 };
 
-struct run_queue {
+typedef struct {
    event_t **queue;
    size_t    wr, rd;
    size_t    alloc;
-};
+} rt_run_queue_t;
 
 struct watch {
-   tree_t         signal;
-   sig_event_fn_t fn;
-   bool           pending;
-   watch_t       *chain_all;
-   watch_t       *chain_pending;
-   netgroup_t   **groups;
-   int            n_groups;
-   void          *user_data;
-   range_kind_t   dir;
-   size_t         length;
-   bool           postponed;
+   rt_signal_t    *signal;
+   sig_event_fn_t  fn;
+   bool            pending;
+   watch_t        *chain_all;
+   watch_t        *chain_pending;
+   void           *user_data;
+   size_t          length;
+   bool            postponed;
 };
 
 struct watch_list {
    watch_t      *watch;
    watch_list_t *next;
-};
-
-struct res_memo {
-   resolution_fn_t fn;
-   res_flags_t     flags;
-   int32_t         ileft;
-   int8_t          tab2[16][16];
-   int8_t          tab1[16];
 };
 
 typedef enum {
@@ -219,46 +262,37 @@ struct rt_loc {
    const char *file;
 };
 
-struct size_list {
-   uint32_t size;
-   uint32_t count;
-   void    *resolution;
-   uint32_t flags;
-   int32_t  ileft;
-};
-
-static struct rt_proc   *procs = NULL;
-static struct rt_proc   *active_proc = NULL;
-static struct run_queue  run_queue;
-
-static heap_t        eventq_heap = NULL;
-static size_t        n_procs = 0;
-static uint64_t      now = 0;
-static int           iteration = -1;
-static bool          trace_on = false;
-static nvc_rusage_t  ready_rusage;
-static jmp_buf       fatal_jmp;
-static bool          aborted = false;
-static netdb_t      *netdb = NULL;
-static netgroup_t   *groups = NULL;
-static sens_list_t  *pending = NULL;
-static sens_list_t  *resume = NULL;
-static sens_list_t  *postponed = NULL;
-static watch_t      *watches = NULL;
-static watch_t      *callbacks = NULL;
-static event_t      *delta_proc = NULL;
-static event_t      *delta_driver = NULL;
-static void         *global_tmp_stack = NULL;
-static void         *proc_tmp_stack = NULL;
-static uint32_t      global_tmp_alloc;
-static hash_t       *res_memo_hash = NULL;
-static side_effect_t init_side_effect = SIDE_EFFECT_ALLOW;
-static bool          force_stop;
-static bool          can_create_delta;
-static callback_t   *global_cbs[RT_LAST_EVENT];
-static rt_severity_t exit_severity = SEVERITY_ERROR;
-static hash_t       *decl_hash = NULL;
-static bool          profiling = false;
+static rt_proc_t      *active_proc = NULL;
+static rt_scope_t     *active_scope = NULL;
+static rt_scope_t     *scopes = NULL;
+static rt_run_queue_t  run_queue;
+static heap_t          eventq_heap = NULL;
+static unsigned        n_scopes = 0;
+static unsigned        n_nexuses = 0;
+static uint64_t        now = 0;
+static int             iteration = -1;
+static bool            trace_on = false;
+static nvc_rusage_t    ready_rusage;
+static jmp_buf         fatal_jmp;
+static bool            aborted = false;
+static sens_list_t    *pending = NULL;
+static sens_list_t    *resume = NULL;
+static sens_list_t    *postponed = NULL;
+static watch_t        *watches = NULL;
+static watch_t        *callbacks = NULL;
+static event_t        *delta_proc = NULL;
+static event_t        *delta_driver = NULL;
+static void           *global_tmp_stack = NULL;
+static void           *proc_tmp_stack = NULL;
+static uint32_t        global_tmp_alloc;
+static hash_t         *res_memo_hash = NULL;
+static side_effect_t   init_side_effect = SIDE_EFFECT_ALLOW;
+static bool            force_stop;
+static bool            can_create_delta;
+static callback_t     *global_cbs[RT_LAST_EVENT];
+static rt_severity_t   exit_severity = SEVERITY_ERROR;
+static bool            profiling = false;
+static rt_nexus_t     *nexuses = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -266,25 +300,27 @@ static rt_alloc_stack_t sens_list_stack = NULL;
 static rt_alloc_stack_t watch_stack = NULL;
 static rt_alloc_stack_t callback_stack = NULL;
 
-static netgroup_t **active_groups;
-static unsigned     n_active_groups = 0;
+static rt_nexus_t **active_nexus;
+static unsigned     n_active_nexus = 0;
 static unsigned     n_active_alloc = 0;
 
 static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake);
-static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
+static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
                                  rt_proc_t *driver);
-static bool rt_sched_driver(netgroup_t *group, uint64_t after,
+static bool rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
                             uint64_t reject, value_t *values);
 static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
                            rt_proc_t *proc, bool is_static);
 static void *rt_tmp_alloc(size_t sz);
-static value_t *rt_alloc_value(netgroup_t *g);
-static tree_t rt_recall_decl(const char *name);
-static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn);
+static value_t *rt_alloc_value(rt_nexus_t *n);
+static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
+                                         rt_resolution_t *resolution);
+static inline unsigned rt_signal_nexus_index(rt_signal_t *s, unsigned offset);
 static void _tracef(const char *fmt, ...);
 
 #define GLOBAL_TMP_STACK_SZ (1024 * 1024)
 #define PROC_TMP_STACK_SZ   (64 * 1024)
+#define FMT_VALUES_SZ       128
 
 #if RT_DEBUG
 #define RT_ASSERT(x) assert((x))
@@ -312,76 +348,64 @@ static void _tracef(const char *fmt, ...);
 ////////////////////////////////////////////////////////////////////////////////
 // Utilities
 
-static const char *fmt_group(const netgroup_t *g)
-{
-   static const size_t BUF_LEN = 512;
-   char *buf = get_fmt_buf(BUF_LEN);
-
-   const char *eptr = buf + BUF_LEN;
-   char *p = buf;
-
-   p += checked_sprintf(p, eptr - p, "%s", istr(tree_ident(g->sig_decl)));
-
-   groupid_t sig_group0 = netdb_lookup(netdb, tree_net(g->sig_decl, 0));
-   netid_t sig_net0 = groups[sig_group0].first;
-   int offset = g->first - sig_net0;
-
-   const int length = g->length;
-   type_t type = tree_type(g->sig_decl);
-   while (type_is_array(type)) {
-      const int stride = type_width(type_elem(type));
-      const int ndims = dimension_of(type);
-
-      p += checked_sprintf(p, eptr - p, "[");
-      for (int i = 0; i < ndims; i++) {
-         int stride2 = stride;
-         for (int j = i + 1; j < ndims; j++) {
-            tree_t r = range_of(type, j);
-
-            int64_t low, high;
-            range_bounds(r, &low, &high);
-
-            stride2 *= (high - low) + 1;
-         }
-
-         const int index = offset / stride2;
-         p += checked_sprintf(p, eptr - p, "%s%d", (i > 0) ? "," : "", index);
-         if ((length / stride2) > 1)
-            p += checked_sprintf(p, eptr - p, "..%d",
-                                 index + (length / stride2) - 1);
-         offset %= stride2;
-      }
-      p += checked_sprintf(p, eptr - p, "]");
-
-      type = type_elem(type);
-   }
-
-   return buf;
-}
-
-static const char *fmt_net(netid_t nid)
-{
-   return fmt_group(&(groups[netdb_lookup(netdb, nid)]));
-}
-
-static const char *fmt_values(const void *values, int length)
-{
-   const size_t len = (length * 2) + 1;
-   char *vbuf = get_fmt_buf(len);
-
-   char *p = vbuf;
-   for (int i = 0; i < length; i++)
-      p += checked_sprintf(p, vbuf + len - p, "%02x",
-                           ((uint8_t *)values)[i]);
-
-   return vbuf;
-}
-
 static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
 {
    // Use the bottom bit of the key to indicate the kind
    // The highest priority should have the lowest enumeration value
    return (when << 2) | (kind & 3);
+}
+
+static char *fmt_nexus_r(rt_nexus_t *n, const void *values,
+                         char *buf, size_t max)
+{
+   char *p = buf;
+   const uint8_t *vptr = values;
+
+   for (unsigned i = 0; i < n->size * n->width; i++) {
+      if (buf + max - p <= 4) {
+         p += checked_sprintf(p, buf + max - p, "...");
+         break;
+      }
+      else
+         p += checked_sprintf(p, buf + max - p, "%02x", *vptr++);
+   }
+
+   return p;
+}
+
+static const char *fmt_nexus(rt_nexus_t *n, const void *values)
+{
+   static char buf[FMT_VALUES_SZ*2 + 2];
+   fmt_nexus_r(n, values, buf, sizeof(buf));
+   return buf;
+}
+
+static const char *fmt_values(rt_signal_t *s, const void *values,
+                              unsigned offset, uint32_t len)
+{
+   static char buf[FMT_VALUES_SZ*2 + 2];
+
+   char *p = buf;
+   const uint8_t *vptr = values;
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (len > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+      len -= n->width;
+      RT_ASSERT(len >= 0);
+
+      if (buf + sizeof(buf) - p <= 5) {
+         checked_sprintf(p, buf + sizeof(buf) - p, "...");
+         break;
+      }
+
+      if (p > buf) p += checked_sprintf(p, buf + sizeof(buf) - p, ",");
+
+      p = fmt_nexus_r(n, vptr, p, buf + sizeof(buf) - p);
+      vptr += n->size * n->width;
+   }
+
+   return buf;
 }
 
 static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
@@ -400,14 +424,22 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
       if (unit == NULL)
          continue;
 
+      if (tree_kind(unit) == T_PACKAGE) {
+         ident_t body_name = ident_prefix(f->vhdl_unit, ident_new("body"), '-');
+         tree_t body = lib_get_qualified(body_name);
+         if (body != NULL)
+            unit = body;
+      }
+
       static hash_t *cache = NULL;
       if (cache == NULL)
-         cache = hash_new(256, true, HASH_STRING);
+         cache = hash_new(256, true);
 
-      tree_t enclosing = hash_get(cache, f->symbol);
+      ident_t key = ident_new(f->symbol);
+      tree_t enclosing = hash_get(cache, key);
       if (enclosing == NULL) {
-         if ((enclosing = find_mangled_decl(unit, ident_new(f->symbol))))
-            hash_put(cache, f->symbol, enclosing);
+         if ((enclosing = find_mangled_decl(unit, key)))
+            hash_put(cache, key, enclosing);
       }
 
       if (enclosing) {
@@ -426,7 +458,7 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
          }
 
          if (tree_kind(enclosing) == T_PROCESS)
-            tb_printf(tb, "\r\tProcess %s", istr(tree_ident(enclosing)));
+            tb_printf(tb, "\r\tProcess %s", istr(e_path(active_proc->source)));
          else {
             type_t type = tree_type(enclosing);
             tb_printf(tb, "\r\t%s %s",
@@ -440,7 +472,7 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
 
    if (fixed != NULL && (nframes == 0 || !found_fixed)) {
       const char *pname = active_proc == NULL
-         ? "(init)" : istr(tree_ident(active_proc->source));
+         ? "(init)" : istr(e_path(active_proc->source));
       tb_printf(tb, "\r\tProcess %s", pname);
       tb_printf(tb, "\r\t    File %s, Line %u", fixed->file, fixed->first_line);
    }
@@ -473,7 +505,7 @@ static size_t uarray_len(struct uarray *u)
       return u->dims[0].left - u->dims[0].right + 1;
 }
 
-struct uarray wrap_str(char *buf, size_t len)
+static struct uarray wrap_str(char *buf, size_t len)
 {
    struct uarray u = {
       .ptr = buf,
@@ -482,7 +514,7 @@ struct uarray wrap_str(char *buf, size_t len)
    return u;
 }
 
-struct uarray bit_vec_to_string(struct uarray *vec, int log_base)
+static struct uarray bit_vec_to_string(struct uarray *vec, int log_base)
 {
    const size_t vec_len = uarray_len(vec);
    const size_t result_len = (vec_len + log_base - 1) / log_base;
@@ -505,6 +537,21 @@ struct uarray bit_vec_to_string(struct uarray *vec, int log_base)
    return wrap_str(buf, result_len);
 }
 
+static inline unsigned rt_signal_nexus_index(rt_signal_t *s, unsigned offset)
+{
+   unsigned nid = 0;
+   while (offset > 0) {
+      RT_ASSERT(nid < s->n_nexus);
+      rt_nexus_t *n = s->nexus[nid++];
+      offset -= n->width * n->size;
+   }
+
+   RT_ASSERT(nid < s->n_nexus);
+   RT_ASSERT(offset == 0);
+
+   return nid;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -519,75 +566,89 @@ void _sched_process(int64_t delay)
 }
 
 DLLEXPORT
-void _sched_waveform_s(void *_nids, uint64_t scalar,
+void _sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
                        int64_t after, int64_t reject)
 {
-   const int32_t *nids = _nids;
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("_sched_waveform_s %s value=%08x after=%s reject=%s",
-         fmt_net(nids[0]), scalar, fmt_time(after), fmt_time(reject));
+   TRACE("_sched_waveform_s %s+%d value=%"PRIi64" after=%s reject=%s",
+         istr(e_path(s->enode)), offset, scalar, fmt_time(after),
+         fmt_time(reject));
 
    if (unlikely(active_proc->postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
-            istr(tree_ident(active_proc->source)));
+            istr(e_path(active_proc->source)));
 
-   const netid_t nid = nids[0];
-   if (likely(nid != NETID_INVALID)) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+   rt_nexus_t *n = s->nexus[rt_signal_nexus_index(s, offset)];
 
-      value_t *values_copy = rt_alloc_value(g);
-      values_copy->qwords[0] = scalar;
+   value_t *values_copy = rt_alloc_value(n);
+   values_copy->qwords[0] = scalar;
 
-      if (!rt_sched_driver(g, after, reject, values_copy))
-         deltaq_insert_driver(after, g, active_proc);
+   if (!rt_sched_driver(n, after, reject, values_copy))
+      deltaq_insert_driver(after, n, active_proc);
+}
+
+DLLEXPORT
+void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
+                     int32_t len, int64_t after, int64_t reject)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("_sched_waveform %s+%d value=%s len=%d after=%s reject=%s",
+         istr(e_path(s->enode)), offset, fmt_values(s, values, offset, len),
+         len, fmt_time(after), fmt_time(reject));
+
+   if (unlikely(active_proc->postponed && (after == 0)))
+      fatal("postponed process %s cannot cause a delta cycle",
+            istr(e_path(active_proc->source)));
+
+   char *vptr = values;
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (len > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+      len -= n->width;
+      RT_ASSERT(len >= 0);
+
+      value_t *values_copy = rt_alloc_value(n);
+      memcpy(values_copy->data, vptr, n->size * n->width);
+      vptr += n->size * n->width;
+
+      if (!rt_sched_driver(n, after, reject, values_copy))
+         deltaq_insert_driver(after, n, active_proc);
    }
 }
 
 DLLEXPORT
-void _sched_waveform(void *_nids, void *values, int32_t n,
-                     int64_t after, int64_t reject)
+void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
+                  int32_t flags)
 {
-   const int32_t *nids = _nids;
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("_sched_waveform %s values=%s n=%d after=%s reject=%s",
-         fmt_net(nids[0]),
-         fmt_values(values, n * groups[netdb_lookup(netdb, nids[0])].size),
-         n, fmt_time(after), fmt_time(reject));
+   TRACE("_sched_event %s+%d count=%d flags=%d proc %s", istr(e_path(s->enode)),
+         offset, count, flags, istr(e_path(active_proc->source)));
 
-   if (unlikely(active_proc->postponed && (after == 0)))
-      fatal("postponed process %s cannot cause a delta cycle",
-            istr(tree_ident(active_proc->source)));
+   // TODO: only add to per-nexus sensitivity list if sid != 0 or count
+   // != length of signal
 
-   const uint8_t *vp = values;
-   int offset = 0;
-   while (offset < n) {
-      const netid_t nid = nids[offset];
-      if (likely(nid != NETID_INVALID)) {
-         netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (count > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+      rt_sched_event(&(n->pending), NETID_INVALID, NETID_INVALID,
+                     active_proc, !!(flags & SCHED_STATIC));
 
-         value_t *values_copy = rt_alloc_value(g);
-         memcpy(values_copy->data, vp, g->size * g->length);
-
-         if (!rt_sched_driver(g, after, reject, values_copy))
-            deltaq_insert_driver(after, g, active_proc);
-
-         vp += g->size * g->length;
-         offset += g->length;
-      }
-      else
-         offset++;
+      count -= n->width;
+      RT_ASSERT(count >= 0);
    }
 
-   RT_ASSERT(offset == n);
-}
-
-DLLEXPORT
-void _sched_event(void *_nids, int32_t n, int32_t flags)
-{
+   // TODO: add a sensitivity list to signals and remove the global
+   // pending list
+#if 0
    const int32_t *nids = _nids;
 
    TRACE("_sched_event %s n=%d flags=%d proc %s", fmt_net(nids[0]), n,
-         flags, istr(tree_ident(active_proc->source)));
+         flags, istr(e_path(active_proc->_source)));
 
    netgroup_t *g0 = &(groups[netdb_lookup(netdb, nids[0])]);
 
@@ -621,62 +682,7 @@ void _sched_event(void *_nids, int32_t n, int32_t flags)
             break;
       }
    }
-}
-
-DLLEXPORT
-void _alloc_driver(const int32_t *all_nets, int32_t all_length,
-                   const int32_t *driven_nets, int32_t driven_length,
-                   const void *init)
-{
-   TRACE("_alloc_driver all=%s+%d driven=%s+%d", fmt_net(all_nets[0]),
-         all_length, fmt_net(driven_nets[0]), driven_length);
-
-   const char *initp = init;
-
-   int offset = 0;
-   while (offset < driven_length) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, driven_nets[offset])]);
-      offset += g->length;
-
-      // Try to find this process in the list of existing drivers
-      int driver;
-      for (driver = 0; driver < g->n_drivers; driver++) {
-         if (likely(g->drivers[driver].proc == active_proc))
-            break;
-      }
-
-      // Allocate memory for drivers on demand
-      if (driver == g->n_drivers) {
-         if ((g->n_drivers == 1) && (g->resolution == NULL))
-            fatal_at(tree_loc(g->sig_decl), "group %s has multiple "
-                     "drivers but no resolution function", fmt_group(g));
-
-         const size_t driver_sz = sizeof(struct driver);
-         g->drivers = xrealloc(g->drivers, (driver + 1) * driver_sz);
-         memset(&g->drivers[g->n_drivers], '\0',
-                (driver + 1 - g->n_drivers) * driver_sz);
-         g->n_drivers = driver + 1;
-
-         TRACE("allocate driver %s %d %s", fmt_group(g), driver,
-               istr(tree_ident(active_proc->source)));
-
-         driver_t *d = &(g->drivers[driver]);
-         d->proc = active_proc;
-
-         const void *src = (init == NULL) ? g->resolved : initp;
-
-         // Assign the initial value of the driver
-         waveform_t *dummy = rt_alloc(waveform_stack);
-         dummy->when   = 0;
-         dummy->next   = NULL;
-         dummy->values = rt_alloc_value(g);
-         memcpy(dummy->values->data, src, g->length * g->size);
-
-         d->waveforms = dummy;
-      }
-
-      initp += g->length * g->size;
-   }
+#endif
 }
 
 DLLEXPORT
@@ -689,116 +695,100 @@ void _private_stack(void)
       active_proc->tmp_stack = _tmp_stack;
 
       proc_tmp_stack = mmap_guarded(PROC_TMP_STACK_SZ,
-                                    istr(tree_ident(active_proc->source)));
+                                    istr(e_path(active_proc->source)));
    }
 
    active_proc->tmp_alloc = _tmp_alloc;
 }
 
 DLLEXPORT
-void *_resolved_address(int32_t nid)
+sig_shared_t *_link_signal(const char *name)
 {
-   groupid_t gid = netdb_lookup(netdb, nid);
-   netgroup_t *g = &(groups[gid]);
-   TRACE("_resolved_address %d %p", nid, g->resolved);
-   return g->resolved;
-}
+   TRACE("_link_signal %s", name);
 
-DLLEXPORT
-void _needs_last_value(const int32_t *nids, int32_t n)
-{
-   TRACE("_needs_last_value %s n=%d", fmt_net(nids[0]), n);
+   ident_t id = ident_new(name);
+   rt_scope_t *search_scope = active_scope;
 
-   int offset = 0;
-   while (offset < n) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
-      g->flags |= NET_F_LAST_VALUE;
+   const bool is_path = name[0] == ':';
 
-      offset += g->length;
-   }
-}
-
-DLLEXPORT
-void _set_initial(int32_t nid, const uint8_t *values,
-                  const size_list_t *size_list, int32_t nparts,
-                  const char *name)
-{
-   tree_t decl = rt_recall_decl(name);
-   RT_ASSERT(tree_kind(decl) == T_SIGNAL_DECL);
-
-   TRACE("_set_initial %s values=%s nparts=%d", name,
-         fmt_values(values, size_list[0].count * size_list[0].size), nparts);
-
-   int total_size = 0;
-   for (int i = 0; i < nparts; i++)
-      total_size += size_list[i].size * size_list[i].count;
-
-   uint8_t *res_mem  = xmalloc(total_size * 2);
-   uint8_t *last_mem = res_mem + total_size;
-
-   type_t type = tree_type(decl);
-
-   const uint8_t *src = values;
-   int offset = 0, part = 0, remain = size_list[0].count;
-   while (part < nparts) {
-      groupid_t gid = netdb_lookup(netdb, nid + offset);
-      netgroup_t *g = &(groups[gid]);
-
-      const int size = size_list[part].size;
-
-      RT_ASSERT(g->sig_decl == NULL);
-      RT_ASSERT(remain >= g->length);
-
-      res_memo_t *memo = NULL;
-      if (size_list[part].resolution != NULL) {
-         memo = rt_memo_resolution_fn(type, size_list[part].resolution);
-         memo->flags |= size_list[part].flags;
-         memo->ileft = size_list[part].ileft;
-
-         if (size_list[part].flags & R_BOUNDARY)
-            g->flags |= NET_F_BOUNDARY;
+   if (is_path) {
+      ident_t scope_path = ident_runtil(id, ':');
+      for (unsigned i = 0; i < n_scopes; i++) {
+         if (e_path(scopes[i].enode) == scope_path) {
+            search_scope = &(scopes[i]);
+            break;
+         }
       }
+   }
 
-      g->sig_decl   = decl;
-      g->resolution = memo;
-      g->size       = size;
-      g->resolved   = res_mem;
-      g->last_value = last_mem;
+   for (unsigned i = 0; i < search_scope->n_signals; i++) {
+      rt_signal_t *signal = &(search_scope->signals[i]);
+      if (e_ident(signal->enode) == id)
+         return &(signal->shared);
+      else if (is_path && e_path(signal->enode) == id)
+         return &(signal->shared);
+   }
 
-      if (offset == 0)
-         g->flags |= NET_F_OWNS_MEM;
+   fatal("failed to link signal %s in scope %s", name,
+         istr(e_instance(search_scope->enode)));
+}
 
-      const int nbytes = g->length * size;
+DLLEXPORT
+void _init_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
+                  uint32_t size, const uint8_t *values,
+                  rt_resolution_t *resolution)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-      res_mem += nbytes;
-      last_mem += nbytes;
+   TRACE("_init_signal %s+%d values=%s count=%d%s",
+         istr(e_path(s->enode)), offset, fmt_values(s, values, offset, count),
+         count, resolution ? " resolved" : "");
 
-      memcpy(g->resolved, src, nbytes);
-      memcpy(g->last_value, src, nbytes);
+   res_memo_t *memo = NULL;
+   if (resolution != NULL)
+      memo = rt_memo_resolution_fn(s, resolution);
 
-      offset += g->length;
-      src    += nbytes;
-      remain -= g->length;
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (count > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+      RT_ASSERT(n->size == size);
 
-      if (remain == 0 && ++part < nparts)
-         remain = size_list[part].count;
+      RT_ASSERT(n->resolution == NULL || n->resolution == memo);
+      n->resolution = memo;
+
+      memcpy(n->resolved, values, n->size * n->width);
+      if (n->flags & NET_F_LAST_VALUE)
+         memcpy(n->last_value, values, n->size * n->width);
+
+      count -= n->width;
+      values += n->width * n->size;
+      RT_ASSERT(count >= 0);
    }
 }
 
 DLLEXPORT
-void _set_initial_1(int32_t nid, const uint8_t *values, uint32_t size,
-                    uint32_t count, void *resolution, int32_t ileft,
-                    const char *name)
+void _source_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
+                    const uint8_t *values)
 {
-   const size_list_t size_list = {
-      .size       = size,
-      .count      = count,
-      .resolution = resolution,
-      .flags      = 0,
-      .ileft      = ileft
-   };
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   _set_initial(nid, values, &size_list, 1, name);
+   TRACE("_source_signal %s+%d values=%s count=%d", istr(e_path(s->enode)),
+         offset, fmt_values(s, values, offset, count), count);
+
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (count > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+
+      memcpy(n->resolved, values, n->size * n->width);
+      if (n->flags & NET_F_LAST_VALUE)
+         memcpy(n->last_value, values, n->size * n->width);
+
+      count -= n->width;
+      values += n->width * n->size;
+      RT_ASSERT(count >= 0);
+   }
 }
 
 DLLEXPORT
@@ -1108,54 +1098,6 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 }
 
 DLLEXPORT
-void *_vec_load(const int32_t *nids, void *where,
-                int32_t low, int32_t high, int32_t last)
-{
-   TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
-         fmt_net(nids[0]), where, low, high, last);
-
-   if (low > high) return where;   // Handle null signal
-
-   int offset = low;
-
-   groupid_t gid = netdb_lookup(netdb, nids[offset]);
-   netgroup_t *g = &(groups[gid]);
-   int skip = nids[offset] - g->first;
-
-   RT_ASSERT((g->flags & NET_F_LAST_VALUE) || !last);
-
-   if (offset + g->length - skip > high) {
-      // If the signal data is already contiguous return a pointer to
-      // that rather than copying into the user buffer
-      void *r = unlikely(last) ? g->last_value : g->resolved;
-      return (uint8_t *)r + (skip * g->size);
-   }
-
-   uint8_t *p = where;
-   for (;;) {
-      const int to_copy = MIN(high - offset + 1, g->length - skip);
-      const int bytes   = to_copy * g->size;
-
-      const void *src = unlikely(last) ? g->last_value : g->resolved;
-
-      memcpy(p, (uint8_t *)src + (skip * g->size), bytes);
-
-      offset += g->length - skip;
-      p += bytes;
-
-      if (offset > high)
-         break;
-
-      gid = netdb_lookup(netdb, nids[offset]);
-      g = &(groups[gid]);
-      skip = nids[offset] - g->first;
-   }
-
-   // Signal data was non-contiguous so return the user buffer
-   return where;
-}
-
-DLLEXPORT
 void _image(int64_t val, image_map_t *map, struct uarray *u)
 {
    char *buf = NULL;
@@ -1312,36 +1254,49 @@ void _debug_dump(const uint8_t *ptr, int32_t len)
 }
 
 DLLEXPORT
-int64_t _last_event(const int32_t *nids, int32_t n)
+int64_t _last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
-   //TRACE("_last_event %s n=%d %d", fmt_net(nids[0]), n);
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("_last_event %s offset=%d count=%d",
+         istr(e_path(s->enode)), offset, count);
 
    int64_t last = INT64_MAX;
-   int offset = 0;
-   while (offset < n) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
-      if (g->last_event < now)
-         last = MIN(last, now - g->last_event);
 
-      offset += g->length;
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (count > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+
+      if (n->last_event < now)
+         last = MIN(last, now - n->last_event);
+
+      count -= n->width;
+      RT_ASSERT(count >= 0);
    }
 
    return last;
 }
 
 DLLEXPORT
-int32_t _test_net_flag(const int32_t *nids, int32_t n, int32_t flag)
+int32_t _test_net_flag(sig_shared_t *ss, uint32_t offset, int32_t count,
+                       int32_t flag)
 {
-   //TRACE("_test_net_flag %s n=%d flag=%d", fmt_net(nids[0]), n, flag);
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   int offset = 0;
-   while (offset < n) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
+   TRACE("_test_net_flag %s offset=%d count=%d flag=%d",
+         istr(e_path(s->enode)), offset, count, flag);
 
-      if (g->flags & flag)
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (count > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+
+      if (n->flags & flag)
          return 1;
 
-      offset += g->length;
+      count -= n->width;
+      RT_ASSERT(count >= 0);
    }
 
    return 0;
@@ -1466,6 +1421,7 @@ int8_t _endfile(void *_f)
 ////////////////////////////////////////////////////////////////////////////////
 // Simulation kernel
 
+__attribute__((format(printf, 1, 2)))
 static void _tracef(const char *fmt, ...)
 {
    va_list ap;
@@ -1487,7 +1443,7 @@ static void _tracef(const char *fmt, ...)
 static void deltaq_insert(event_t *e)
 {
    if (e->when == now) {
-      event_t **chain = (e->kind == E_DRIVER) ? &delta_driver : &delta_proc;
+      event_t **chain = (e->kind == EVENT_DRIVER) ? &delta_driver : &delta_proc;
       e->delta_chain = *chain;
       *chain = e;
    }
@@ -1501,20 +1457,20 @@ static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake)
 {
    event_t *e = rt_alloc(event_stack);
    e->when       = now + delta;
-   e->kind       = E_PROCESS;
+   e->kind       = EVENT_PROCESS;
    e->proc       = wake;
    e->wakeup_gen = wake->wakeup_gen;
 
    deltaq_insert(e);
 }
 
-static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
+static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
                                  rt_proc_t *driver)
 {
    event_t *e = rt_alloc(event_stack);
    e->when       = now + delta;
-   e->kind       = E_DRIVER;
-   e->group      = group;
+   e->kind       = EVENT_DRIVER;
+   e->nexus      = nexus;
    e->proc       = driver;
    e->wakeup_gen = UINT32_MAX;
 
@@ -1528,14 +1484,14 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
 
    fprintf(stderr, "%s\t", fmt_time(e->when));
    switch (e->kind) {
-   case E_DRIVER:
-      fprintf(stderr, "driver\t %s\n", fmt_group(e->group));
+   case EVENT_DRIVER:
+      fprintf(stderr, "driver\t %s\n", istr(e_ident(e->nexus->enode)));
       break;
-   case E_PROCESS:
-      fprintf(stderr, "process\t %s%s\n", istr(tree_ident(e->proc->source)),
+   case EVENT_PROCESS:
+      fprintf(stderr, "process\t %s%s\n", istr(e_path(e->proc->source)),
               (e->wakeup_gen == e->proc->wakeup_gen) ? "" : " (stale)");
       break;
-   case E_TIMEOUT:
+   case EVENT_TIMEOUT:
       fprintf(stderr, "timeout\t %p %p\n", e->timeout_fn, e->timeout_user);
       break;
    }
@@ -1544,33 +1500,38 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
 static void deltaq_dump(void)
 {
    for (event_t *e = delta_driver; e != NULL; e = e->delta_chain)
-      fprintf(stderr, "delta\tdriver\t %s\n", fmt_group(e->group));
+      fprintf(stderr, "delta\tdriver\t %s\n", istr(e_ident(e->nexus->enode)));
 
    for (event_t *e = delta_proc; e != NULL; e = e->delta_chain)
       fprintf(stderr, "delta\tprocess\t %s%s\n",
-              istr(tree_ident(e->proc->source)),
+              istr(e_path(e->proc->source)),
               (e->wakeup_gen == e->proc->wakeup_gen) ? "" : " (stale)");
 
    heap_walk(eventq_heap, deltaq_walk, NULL);
 }
 #endif
 
-static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
+static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
+                                         rt_resolution_t *resolution)
 {
    // Optimise some common resolution functions by memoising them
 
-   res_memo_t *memo = hash_get(res_memo_hash, fn);
+   res_memo_t *memo = hash_get(res_memo_hash, resolution->fn);
    if (memo != NULL)
       return memo;
+
+   type_t type = e_type(signal->enode);
 
    if (type_is_array(type))
       type = type_elem(type);
 
    memo = xmalloc(sizeof(res_memo_t));
-   memo->fn    = fn;
-   memo->flags = 0;
+   memo->fn      = resolution->fn;
+   memo->context = resolution->context;
+   memo->flags   = resolution->flags;
+   memo->ileft   = resolution->ileft;
 
-   hash_put(res_memo_hash, fn, memo);
+   hash_put(res_memo_hash, memo->fn, memo);
 
    if (type_kind(type_base_recur(type)) != T_ENUM)
       return memo;
@@ -1604,7 +1565,8 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
          struct uarray u = {
             args, { { memo->ileft, memo->ileft + 1, RANGE_TO } }
          };
-         memo->tab2[i][j] = (*fn)(&u);
+         memo->tab2[i][j] = (*memo->fn)(memo->context, &u);
+         RT_ASSERT(memo->tab2[i][j] < nlits);
       }
    }
 
@@ -1615,7 +1577,7 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
    for (int i = 0; i < nlits; i++) {
       int8_t args[1] = { i };
       struct uarray u = { args, { { memo->ileft, memo->ileft, RANGE_TO } } };
-      memo->tab1[i] = (*fn)(&u);
+      memo->tab1[i] = (*memo->fn)(memo->context, &u);
       identity = identity && (memo->tab1[i] == i);
    }
 
@@ -1643,27 +1605,27 @@ static void rt_global_event(rt_event_t kind)
    }
 }
 
-static value_t *rt_alloc_value(netgroup_t *g)
+static value_t *rt_alloc_value(rt_nexus_t *n)
 {
-   if (g->free_values == NULL) {
-      const size_t size = MAX(sizeof(uint64_t), g->size * g->length);
+   if (n->free_values == NULL) {
+      const size_t size = MAX(sizeof(uint64_t), n->size * n->width);
       value_t *v = xmalloc(sizeof(struct value) + size);
       v->next = NULL;
       return v;
    }
    else {
-      value_t *v = g->free_values;
-      g->free_values = v->next;
+      value_t *v = n->free_values;
+      n->free_values = v->next;
       v->next = NULL;
       return v;
    }
 }
 
-static void rt_free_value(netgroup_t *g, value_t *v)
+static void rt_free_value(rt_nexus_t *n, value_t *v)
 {
    RT_ASSERT(v->next == NULL);
-   v->next = g->free_values;
-   g->free_values = v;
+   v->next = n->free_values;
+   n->free_values = v;
 }
 
 static void *rt_tmp_alloc(size_t sz)
@@ -1719,15 +1681,6 @@ static void rt_dump_pending(void)
 }
 #endif  // TRACE_PENDING
 
-static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
-{
-   netgroup_t *g = &(groups[gid]);
-   memset(g, '\0', sizeof(netgroup_t));
-   g->first       = first;
-   g->length      = length;
-   g->last_event  = INT64_MAX;
-}
-
 static void rt_free_delta_events(event_t *e)
 {
    while (e != NULL) {
@@ -1737,11 +1690,206 @@ static void rt_free_delta_events(event_t *e)
    }
 }
 
-static void rt_setup(tree_t top)
+static unsigned rt_count_scopes(e_node_t e)
+{
+   unsigned sum = 0;
+
+   if (e_kind(e) == E_SCOPE)
+      sum++;
+
+   const int sub_scopes = e_scopes(e);
+   for (int i = 0; i < sub_scopes; i++)
+      sum += rt_count_scopes(e_scope(e, i));
+
+   return sum;
+}
+
+static void rt_setup_signal(e_node_t e, rt_signal_t *s, unsigned *total_mem)
+{
+   s->enode   = e;
+   s->width   = e_width(e);
+   s->n_nexus = e_nexuses(e);
+   s->nexus   = xmalloc_array(s->n_nexus, sizeof(rt_nexus_t*));
+   s->flags   = 0;
+
+   *total_mem += s->n_nexus * sizeof(rt_nexus_t*);
+
+   const e_flags_t flags = e_flags(e);
+
+   unsigned offset = 0;
+   for (int j = 0; j < s->n_nexus; j++) {
+      rt_nexus_t *n = &(nexuses[e_pos(e_nexus(e, j))]);
+      s->nexus[j] = n;
+
+      unsigned o;
+      for (o = 0; o < n->n_signals; o++) {
+         if (e_signal(n->enode, o) == e)
+            break;
+      }
+
+      if (o == n->n_signals)
+         fatal_trace("signal %s missing in nexus %s", istr(e_path(e)),
+                     istr(e_ident(n->enode)));
+
+      assert(n->signals[o] == NULL);
+      n->signals[o] = s;
+      n->offsets[o] = offset;
+
+      offset += n->width * n->size;
+
+      if (flags & E_F_LAST_VALUE) {
+         n->flags |= NET_F_LAST_VALUE;
+
+         if (n->last_value == NULL)
+            n->last_value = xcalloc_array(n->width, n->size);
+      }
+   }
+
+   s->size = offset;
+
+   if (flags & E_F_CONTIGUOUS)
+      s->shared.resolved = s->nexus[0]->resolved;
+   else {
+      s->shared.resolved = xcalloc(s->size);
+      s->flags |= NET_F_OWNS_MEM;
+   }
+
+   if (flags & E_F_LAST_VALUE) {
+      s->shared.last_value = xcalloc(s->size);
+      s->flags |= NET_F_LAST_VALUE;
+   }
+}
+
+static void rt_setup_scopes_recur(e_node_t e, rt_scope_t *parent,
+                                  unsigned *next_scope,
+                                  unsigned *total_mem)
+{
+   rt_scope_t *scope = NULL;
+
+   if (e_kind(e) == E_SCOPE) {
+      const int nsignals = e_signals(e);
+      const int nprocs = e_procs(e);
+
+      scope = &(scopes[(*next_scope)++]);
+      scope->enode = e;
+      scope->parent = parent;
+
+      scope->n_procs = nprocs;
+      scope->procs = xcalloc_array(nprocs, sizeof(rt_proc_t));
+
+      scope->n_signals = nsignals;
+      scope->signals = xcalloc_array(nsignals, sizeof(rt_signal_t));
+
+      *total_mem += nsignals * sizeof(rt_signal_t) + nprocs * sizeof(rt_proc_t);
+
+      for (int i = 0; i < nprocs; i++) {
+         e_node_t p = e_proc(e, i);
+
+         rt_proc_t *r = &(scope->procs[i]);
+         r->source     = p;
+         r->proc_fn    = jit_find_symbol(istr(e_vcode(p)), true);
+         r->wakeup_gen = 0;
+         r->postponed  = !!(e_flags(p) & E_F_POSTPONED);
+         r->tmp_stack  = NULL;
+         r->tmp_alloc  = 0;
+         r->pending    = false;
+         r->usage      = 0;
+         r->scope      = scope;
+
+         const int nnexus = e_nexuses(p);
+         for (int j = 0; j < nnexus; j++) {
+            rt_nexus_t *n = &(nexuses[e_pos(e_nexus(p, j))]);
+            for (unsigned k = 0; k < n->n_sources; k++) {
+               if (e_source(n->enode, k) == p)
+                  n->sources[k].proc = r;
+            }
+         }
+      }
+
+      for (int i = 0; i < nsignals; i++)
+         rt_setup_signal(e_signal(e, i), &(scope->signals[i]), total_mem);
+   }
+
+   const int nscopes = e_scopes(e);
+   for (int i = 0; i < nscopes; i++)
+      rt_setup_scopes_recur(e_scope(e, i), scope, next_scope, total_mem);
+}
+
+static void rt_setup_scopes(e_node_t e)
+{
+   n_scopes = rt_count_scopes(e);
+   scopes  = xcalloc_array(n_scopes, sizeof(rt_scope_t));
+
+   unsigned total_mem = n_scopes * sizeof(rt_scope_t);
+
+   unsigned next_scope = 0;
+   rt_setup_scopes_recur(e, NULL, &next_scope, &total_mem);
+   assert(next_scope == n_scopes);
+
+   TRACE("allocated %u bytes for %d scopes", total_mem, n_scopes);
+}
+
+static void rt_setup_nexus(e_node_t top)
+{
+   assert(nexuses == NULL);
+
+   // TODO: how to optimise this for cache locality?
+
+   n_nexuses = e_nexuses(top);
+   nexuses = xcalloc_array(n_nexuses, sizeof(rt_nexus_t));
+   unsigned total_mem = n_nexuses * sizeof(rt_nexus_t);
+
+   size_t resolved_size = 0;
+   for (int i = 0; i < n_nexuses; i++) {
+      rt_nexus_t *n = &(nexuses[i]);
+      e_node_t e = e_nexus(top, i);
+      n->enode     = e;
+      n->width     = e_width(e);
+      n->size      = e_size(e);
+      n->n_sources = e_sources(e);
+      n->n_signals = e_signals(e);
+
+      if (n->n_sources > 0) {
+         n->sources = xcalloc_array(n->n_sources, sizeof(rt_source_t));
+         total_mem += n->n_sources * sizeof(rt_source_t);
+      }
+
+      if (n->n_signals > 0) {
+         n->signals = xcalloc_array(n->n_signals, sizeof(rt_signal_t *));
+         n->offsets = xcalloc_array(n->n_signals, sizeof(unsigned));
+
+         total_mem += n->n_signals * (sizeof(rt_signal_t *) + sizeof(unsigned));
+      }
+
+      const size_t valuesz = n->width * n->size;
+      resolved_size += valuesz;
+   }
+
+   // Allocate memory for all nexuses as one contiguous blob. This is
+   // important so that the common case of signals consisting only of
+   // contiguous nexuses do not need a private copy of the resolved
+   // value.
+   uint8_t *resolved_mem = NULL;
+   if (resolved_size > 0) resolved_mem = xcalloc(resolved_size);
+   total_mem += resolved_size;
+
+   uint8_t *nextp = resolved_mem;
+   for (int i = 0; i < n_nexuses; i++) {
+      rt_nexus_t *n = &(nexuses[i]);
+      if (i == 0) n->flags |= NET_F_OWNS_MEM;
+      n->resolved = nextp;
+      nextp += n->width * n->size;
+   }
+
+   TRACE("allocated %u bytes for %d nexuses", total_mem, n_nexuses);
+}
+
+static void rt_setup(e_node_t top)
 {
    now = 0;
    iteration = -1;
    active_proc = NULL;
+   active_scope = NULL;
    force_stop = false;
    can_create_delta = true;
 
@@ -1754,51 +1902,22 @@ static void rt_setup(tree_t top)
       heap_free(eventq_heap);
    eventq_heap = heap_new(512);
 
-   if (netdb == NULL) {
-      netdb = netdb_open(top);
-      groups = xmalloc(sizeof(struct netgroup) * netdb_size(netdb));
-   }
+   rt_setup_nexus(top);
+   rt_setup_scopes(top);
 
-   if (procs == NULL) {
-      n_procs = tree_stmts(top);
-      procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
-   }
-
-   const int ndecls = tree_decls(top);
-   decl_hash = hash_new(ndecls * 2, true, HASH_PTR);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(top, i);
-      hash_put(decl_hash, tree_ident(d), d);
-   }
-
-   res_memo_hash = hash_new(128, true, HASH_PTR);
-
-   netdb_walk(netdb, rt_reset_group);
-
-   const int nstmts = tree_stmts(top);
-   for (int i = 0; i < nstmts; i++) {
-      tree_t p = tree_stmt(top, i);
-      RT_ASSERT(tree_kind(p) == T_PROCESS);
-
-      procs[i].source     = p;
-      procs[i].proc_fn    = jit_find_symbol(istr(tree_ident(p)), true);
-      procs[i].wakeup_gen = 0;
-      procs[i].postponed  = !!(tree_flags(p) & TREE_F_POSTPONED);
-      procs[i].tmp_stack  = NULL;
-      procs[i].tmp_alloc  = 0;
-      procs[i].pending    = false;
-      procs[i].usage      = 0;
-   }
+   res_memo_hash = hash_new(128, true);
 }
 
-static void rt_run(struct rt_proc *proc, bool reset)
+static void rt_run(rt_proc_t *proc)
 {
-   TRACE("%s process %s", reset ? "reset" : "run",
-         istr(tree_ident(proc->source)));
+   TRACE("%s process %s", proc->privdata ? "run" : "reset",
+         istr(e_path(proc->source)));
 
    uint64_t start_clock = 0;
    if (profiling)
       start_clock = get_timestamp_us();
+
+   const bool reset = (proc->privdata == NULL);
 
    if (reset) {
       _tmp_stack = global_tmp_stack;
@@ -1819,244 +1938,272 @@ static void rt_run(struct rt_proc *proc, bool reset)
    }
 
    active_proc = proc;
-   (*proc->proc_fn)(reset ? 1 : 0);
+   active_scope = proc->scope;
 
-   if (reset)
+   if (unlikely(reset)) {
+      proc->privdata = (*proc->proc_fn)(NULL, proc->scope->privdata);
       global_tmp_alloc = _tmp_alloc;
+      RT_ASSERT(proc->privdata);
+   }
+   else
+      (*proc->proc_fn)(proc->privdata, proc->scope->privdata);
 
    if (start_clock != 0)
       proc->usage += get_timestamp_us() - start_clock;
 }
 
-static void rt_call_module_reset(ident_t name)
+static void *rt_call_module_reset(ident_t name, void *arg)
 {
    char *buf LOCAL = xasprintf("%s_reset", istr(name));
 
    _tmp_stack = global_tmp_stack;
    _tmp_alloc = global_tmp_alloc;
 
-   void (*reset_fn)(void) = jit_find_symbol(buf, false);
-   if (reset_fn != NULL) {
-      TRACE("reset module %s", istr(name));
-      (*reset_fn)();
-   }
+   void *result = NULL;
+   void *(*reset_fn)(void *) = jit_find_symbol(buf, false);
+   if (reset_fn != NULL)
+      result = (*reset_fn)(arg);
+   else
+      warnf("symbol %s not found", buf);
 
    global_tmp_alloc = _tmp_alloc;
+   return result;
 }
 
-static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
+static inline void *rt_resolution_buffer(size_t required)
 {
-   // Set driver to -1 for initial call to resolution function
+   static void *rbuf = NULL;
+   static size_t size = 0;
 
-   const size_t valuesz = group->size * group->length;
+   if (likely(size >= required))
+      return rbuf;
 
+   size = MAX(required, 16);
+   return (rbuf = xrealloc(rbuf, size));
+}
+
+static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
+{
    void *resolved = NULL;
-   if (unlikely(group->flags & NET_F_FORCED)) {
-      resolved = group->forcing->data;
+   if (unlikely(nexus->flags & NET_F_FORCED)) {
+      resolved = nexus->forcing->data;
    }
-   else if (group->resolution == NULL) {
+   else if (nexus->resolution == NULL) {
       resolved = values;
    }
-   else if ((group->resolution->flags & R_IDENT) && (group->n_drivers == 1)) {
+   else if ((nexus->resolution->flags & R_IDENT) && (nexus->n_sources == 1)) {
       // Resolution function behaves like identity for a single driver
       resolved = values;
    }
-   else if ((group->resolution->flags & R_MEMO) && (group->n_drivers == 1)) {
+   else if ((nexus->resolution->flags & R_MEMO) && (nexus->n_sources == 1)) {
       // Resolution function has been memoised so do a table lookup
 
-      resolved = alloca(valuesz);
+      resolved = rt_resolution_buffer(nexus->width * nexus->size);
 
-      for (int j = 0; j < group->length; j++) {
+      for (int j = 0; j < nexus->width; j++) {
          const int index = { ((const char *)values)[j] };
-         const int8_t r = group->resolution->tab1[index];
+         const int8_t r = nexus->resolution->tab1[index];
          ((int8_t *)resolved)[j] = r;
       }
    }
-   else if ((group->resolution->flags & R_MEMO) && (group->n_drivers == 2)) {
+   else if ((nexus->resolution->flags & R_MEMO) && (nexus->n_sources == 2)) {
       // Resolution function has been memoised so do a table lookup
 
-      resolved = alloca(valuesz);
+      resolved = rt_resolution_buffer(nexus->width * nexus->size);
 
-      const char *p0 = group->drivers[0].waveforms->values->data;
-      const char *p1 = group->drivers[1].waveforms->values->data;
+      const char *p0 = nexus->sources[0].waveforms->values->data;
+      const char *p1 = nexus->sources[1].waveforms->values->data;
 
-      for (int j = 0; j < group->length; j++) {
+      for (int j = 0; j < nexus->width; j++) {
          int driving[2] = { p0[j], p1[j] };
-         if (likely(driver >= 0))
-            driving[driver] = ((const char *)values)[j];
+         driving[driver] = ((const char *)values)[j];
 
-         const int8_t r = group->resolution->tab2[driving[0]][driving[1]];
+         const int8_t r = nexus->resolution->tab2[driving[0]][driving[1]];
          ((int8_t *)resolved)[j] = r;
       }
    }
-   else if (group->resolution->flags & R_RECORD) {
+   else if (nexus->resolution->flags & R_RECORD) {
       // Call resolution function for resolved record
 
-      netid_t first = group->first, last = group->first + group->length - 1;
+      rt_signal_t *s0 = nexus->signals[0];
+      uint8_t *inputs = rt_resolution_buffer(nexus->n_sources * s0->size);
 
-      for (const netgroup_t *it = group;
-           it->resolution == group->resolution && it->first > 0
-              && !(it->flags & NET_F_BOUNDARY);
-           it = &(groups[netdb_lookup(netdb, it->first - 1)]),
-              first = it->first)
-         ;
+      size_t offset = 0, result_offset = 0;
+      for (unsigned i = 0; i < s0->n_nexus; i++) {
+         rt_nexus_t *n = s0->nexus[i];
 
-      for (const netgroup_t *it = group;
-           it->resolution == group->resolution
-              && it->first + it->length < netdb_size(netdb)
-              && (it == group
-                  || !(it->flags & (NET_F_BOUNDARY | NET_F_OWNS_MEM)));
-           it = &(groups[netdb_lookup(netdb, it->first + it->length)]),
-              last = it->first + it->length - 1)
-         ;
-
-      size_t size = 0, group_off = 0;
-      for (int offset = first; offset <= last;) {
-         netgroup_t *g = &(groups[netdb_lookup(netdb, offset)]);
-         size += g->size * g->length;
-         if (offset < group->first)
-            group_off = size;
-         assert(g->n_drivers == group->n_drivers);
-
-         offset += g->length;
-      }
-
-      uint8_t *inputs = alloca(size * group->n_drivers);
-
-      size_t ptr = 0;
-      for (int offset = first; offset <= last;) {
-         netgroup_t *p = &(groups[netdb_lookup(netdb, offset)]);
-
-         for (int i = 0; i < p->n_drivers; i++) {
-            void *src = NULL;
-            if (i == driver && p == group)
-               src = p->drivers[i].waveforms->next->values->data;
+         for (unsigned j = 0; j < nexus->n_sources; j++) {
+            const void *src = NULL;
+            if (n == nexus) {
+               result_offset = offset;
+               if (j == driver)
+                  src = values;
+               else
+                  src = n->sources[j].waveforms->values->data;
+            }
             else
-               src = p->drivers[i].waveforms->values->data;
-            memcpy(inputs + ptr + (i * size),
-                   src,
-                   p->size * p->length);
-         }
-         ptr += p->size * p->length;
+               src = n->resolved;
 
-         offset += p->length;
+            memcpy(inputs + offset + (j * s0->size), src, n->size * n->width);
+         }
+
+         offset += n->size * n->width;
       }
 
       struct uarray u = {
-         inputs, { { group->resolution->ileft,
-                     group->resolution->ileft + group->n_drivers - 1,
+         inputs, { { nexus->resolution->ileft,
+                     nexus->resolution->ileft + nexus->n_sources - 1,
                      RANGE_TO } }
       };
-      uint8_t *result = (uint8_t *)(*group->resolution->fn)(&u);
-      resolved = result + group_off;
+      void *priv = nexus->resolution->context;
+      uint8_t *result = (uint8_t *)(*nexus->resolution->fn)(priv, &u);
+      resolved = result + result_offset;
    }
    else {
       // Must actually call resolution function in general case
 
-      resolved = alloca(valuesz);
+      resolved = rt_resolution_buffer(nexus->width * nexus->size);
 
-      for (int j = 0; j < group->length; j++) {
+      for (int j = 0; j < nexus->width; j++) {
 #define CALL_RESOLUTION_FN(type) do {                                   \
-            type vals[group->n_drivers];                                \
-            for (int i = 0; i < group->n_drivers; i++) {                \
-               const value_t *v = group->drivers[i].waveforms->values;  \
+            type vals[nexus->n_sources];                                \
+            for (int i = 0; i < nexus->n_sources; i++) {                \
+               const value_t *v = nexus->sources[i].waveforms->values;  \
                vals[i] = ((const type *)v->data)[j];                    \
             }                                                           \
-            if (likely(driver >= 0))                                    \
-               vals[driver] = ((const type *)values)[j];                \
+            vals[driver] = ((const type *)values)[j];                   \
             type *r = (type *)resolved;                                 \
             struct uarray u = {                                         \
                vals, {                                                  \
-                  { group->resolution->ileft,                           \
-                    group->resolution->ileft + group->n_drivers - 1,    \
+                  { nexus->resolution->ileft,                           \
+                    nexus->resolution->ileft + nexus->n_sources - 1,    \
                     RANGE_TO } }                                        \
             };                                                          \
-            r[j] = (*group->resolution->fn)(&u);                        \
+            void *priv = nexus->resolution->context;                    \
+            r[j] = (*nexus->resolution->fn)(priv, &u);                  \
          } while (0)
 
-         FOR_ALL_SIZES(group->size, CALL_RESOLUTION_FN);
+         FOR_ALL_SIZES(nexus->size, CALL_RESOLUTION_FN);
       }
    }
 
+   return resolved;
+}
+
+static void rt_propagate_nexus(rt_nexus_t *nexus, const void *resolved)
+{
+   const size_t valuesz = nexus->size * nexus->width;
+
+   // LAST_VALUE is the same as the initial value when there have
+   // been no events on the signal otherwise only update it when
+   // there is an event
+   if (nexus->flags & NET_F_LAST_VALUE)
+      memcpy(nexus->last_value, nexus->resolved, valuesz);
+   if (nexus->resolved != resolved)   // Can occur during startup
+      memcpy(nexus->resolved, resolved, valuesz);
+
+   for (unsigned i = 0; i < nexus->n_signals; i++) {
+      rt_signal_t *s = nexus->signals[i];
+      if (s->flags & NET_F_LAST_VALUE)
+         memcpy(s->shared.last_value + nexus->offsets[i],
+                nexus->last_value, valuesz);
+      if (s->flags & NET_F_OWNS_MEM)
+         memcpy(s->shared.resolved + nexus->offsets[i],
+                nexus->resolved, valuesz);
+   }
+}
+
+static int32_t rt_resolve_nexus(rt_nexus_t *nexus, int driver, void *values)
+{
+   void *resolved = rt_call_resolution_fn(nexus, driver, values);
+   const size_t valuesz = nexus->size * nexus->width;
+
    int32_t new_flags = NET_F_ACTIVE;
-   if (memcmp(group->resolved, resolved, valuesz) != 0)
+   if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
       new_flags |= NET_F_EVENT;
-
-   // LAST_VALUE is the same as the initial value when
-   // there have been no events on the signal otherwise
-   // only update it when there is an event
-   if (new_flags & NET_F_EVENT) {
-      if (group->flags & NET_F_LAST_VALUE)
-         memcpy(group->last_value, group->resolved, valuesz);
-      memcpy(group->resolved, resolved, valuesz);
-
-      group->last_event = now;
+      rt_propagate_nexus(nexus, resolved);
+      nexus->last_event = now;
    }
 
    return new_flags;
 }
 
-static void rt_group_inital(groupid_t gid, netid_t first, unsigned length)
+static void rt_reset_scopes(e_node_t top)
 {
-   netgroup_t *g = &(groups[gid]);
-   if ((g->n_drivers == 1) && (g->resolution == NULL))
-      rt_resolve_group(g, -1, g->drivers[0].waveforms->values->data);
-   else if (g->n_drivers > 0)
-      rt_resolve_group(g, -1, g->resolved);
+   for (unsigned i = 0; i < n_scopes; i++) {
+      rt_scope_t *s = &(scopes[i]);
+      TRACE("reset scope %s", istr(e_path(s->enode)));
+
+      void *privdata = s->parent ? s->parent->privdata : NULL;
+      active_scope = s;
+
+      s->privdata = rt_call_module_reset(e_vcode(s->enode), privdata);
+
+   }
+   active_scope = NULL;
 }
 
-static void rt_initial(tree_t top)
+static void rt_driver_initial(rt_nexus_t *nexus)
+{
+   const size_t valuesz = nexus->size * nexus->width;
+
+   // Assign the initial value of the drivers
+   for (unsigned i = 0; i < nexus->n_sources; i++) {
+      waveform_t *dummy = rt_alloc(waveform_stack);
+      dummy->when   = 0;
+      dummy->next   = NULL;
+      dummy->values = rt_alloc_value(nexus);
+      memcpy(dummy->values->data, nexus->resolved, valuesz);
+
+      RT_ASSERT(nexus->sources[i].waveforms == NULL);
+      nexus->sources[i].waveforms = dummy;
+   }
+
+   void *resolved;
+   if (nexus->n_sources > 0) {
+      resolved = rt_call_resolution_fn(nexus, 0, nexus->resolved);
+      nexus->last_event = now;
+   }
+   else {
+      resolved = nexus->resolved;
+      nexus->last_event = INT64_MAX;    // TIME'HIGH
+   }
+
+   // This is necessary to update signals with non-contiguous memory
+   rt_propagate_nexus(nexus, resolved);
+}
+
+static void rt_initial(e_node_t top)
 {
    // Initialisation is described in LRM 93 section 12.6.4
 
-   const int ncontext = tree_contexts(top);
-   for (int i = 0; i < ncontext; i++) {
-      tree_t c = tree_context(top, i);
-      ident_t unit_name = tree_ident(c);
-      rt_call_module_reset(unit_name);
+   rt_reset_scopes(top);
+
+   for (unsigned i = 0; i < n_scopes; i++) {
+      for (unsigned j = 0; j < scopes[i].n_procs; j++)
+         rt_run(&(scopes[i].procs[j]));
    }
-
-   rt_call_module_reset(tree_ident(top));
-
-   for (size_t i = 0; i < n_procs; i++)
-      rt_run(&procs[i], true /* reset */);
 
    TRACE("calculate initial driver values");
 
    init_side_effect = SIDE_EFFECT_ALLOW;
-   netdb_walk(netdb, rt_group_inital);
+
+   for (unsigned i = 0; i < n_nexuses; i++)
+      rt_driver_initial(&(nexuses[i]));
 
    TRACE("used %d bytes of global temporary stack", global_tmp_alloc);
 }
 
 static void rt_watch_signal(watch_t *w)
 {
-   const int nnets = tree_nets(w->signal);
-   int offset = 0;
-   while (offset < nnets) {
-      netid_t nid = tree_net(w->signal, offset);
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+   for (unsigned i = 0; i < w->signal->n_nexus; i++) {
+      rt_nexus_t *n = w->signal->nexus[i];
 
       watch_list_t *link = xmalloc(sizeof(watch_list_t));
-      link->next  = g->watching;
+      link->next  = n->watching;
       link->watch = w;
 
-      g->watching = link;
-
-      offset += g->length;
-      (w->n_groups)++;
-   }
-
-   w->groups = xmalloc(sizeof(netgroup_t *) * w->n_groups);
-
-   int ptr = 0;
-   offset = 0;
-   while (offset < nnets) {
-      netid_t nid = tree_net(w->signal, offset);
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
-      w->groups[ptr++] = g;
-      w->length += g->length;
-      offset += g->length;
+      n->watching = link;
    }
 }
 
@@ -2071,7 +2218,7 @@ static void rt_wakeup(sens_list_t *sl)
    // have already resumed.
 
    if (sl->wakeup_gen == sl->proc->wakeup_gen || sl->reenq != NULL) {
-      TRACE("wakeup process %s%s", istr(tree_ident(sl->proc->source)),
+      TRACE("wakeup process %s%s", istr(e_path(sl->proc->source)),
             sl->proc->postponed ? " [postponed]" : "");
       ++(sl->proc->wakeup_gen);
 
@@ -2090,27 +2237,28 @@ static void rt_wakeup(sens_list_t *sl)
       rt_free(sens_list_stack, sl);
 }
 
-static bool rt_sched_driver(netgroup_t *group, uint64_t after,
+static bool rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
                             uint64_t reject, value_t *values)
 {
    if (unlikely(reject > after))
       fatal("signal %s pulse reject limit %s is greater than "
-            "delay %s", fmt_group(group), fmt_time(reject), fmt_time(after));
+            "delay %s", istr(e_path(nexus->signals[0]->enode)),
+            fmt_time(reject), fmt_time(after));
 
    int driver = 0;
-   if (unlikely(group->n_drivers != 1)) {
+   if (unlikely(nexus->n_sources != 1)) {
       // Try to find this process in the list of existing drivers
-      for (driver = 0; driver < group->n_drivers; driver++) {
-         if (likely(group->drivers[driver].proc == active_proc))
+      for (driver = 0; driver < nexus->n_sources; driver++) {
+         if (likely(nexus->sources[driver].proc == active_proc))
             break;
       }
 
-      RT_ASSERT(driver != group->n_drivers);
+      RT_ASSERT(driver != nexus->n_sources);
    }
 
-   driver_t *d = &(group->drivers[driver]);
+   rt_source_t *d = &(nexus->sources[driver]);
 
-   const size_t valuesz = group->size * group->length;
+   const size_t valuesz = nexus->size * nexus->width;
 
    waveform_t *w = rt_alloc(waveform_stack);
    w->when   = now + after;
@@ -2127,7 +2275,7 @@ static bool rt_sched_driver(netgroup_t *group, uint64_t after,
           && (memcmp(it->values->data, w->values->data, valuesz) != 0)) {
          waveform_t *next = it->next;
          last->next = next;
-         rt_free_value(group, it->values);
+         rt_free_value(nexus, it->values);
          rt_free(waveform_stack, it);
          it = next;
       }
@@ -2145,7 +2293,7 @@ static bool rt_sched_driver(netgroup_t *group, uint64_t after,
    // up for the empty event
    bool already_scheduled = false;
    while (it != NULL) {
-      rt_free_value(group, it->values);
+      rt_free_value(nexus, it->values);
 
       if (it->when == w->when)
          already_scheduled = true;
@@ -2158,41 +2306,44 @@ static bool rt_sched_driver(netgroup_t *group, uint64_t after,
    return already_scheduled;
 }
 
-static void rt_update_group(netgroup_t *group, int driver, void *values)
+static void rt_update_nexus(rt_nexus_t *nexus, int driver, void *values)
 {
-   const size_t valuesz = group->size * group->length;
+   TRACE("update nexus %s values=%s driver=%d",
+         istr(e_ident(nexus->enode)), fmt_nexus(nexus, values), driver);
 
-   TRACE("update group %s values=%s driver=%d",
-         fmt_group(group), fmt_values(values, valuesz), driver);
+   const int32_t new_flags = rt_resolve_nexus(nexus, driver, values);
+   nexus->flags |= new_flags;
 
-   const int32_t new_flags = rt_resolve_group(group, driver, values);
-   group->flags |= new_flags;
-
-   if (unlikely(n_active_groups == n_active_alloc)) {
+   if (unlikely(n_active_nexus == n_active_alloc)) {
       n_active_alloc *= 2;
       const size_t newsz = n_active_alloc * sizeof(struct netgroup *);
-      active_groups = xrealloc(active_groups, newsz);
+      active_nexus = xrealloc(active_nexus, newsz);
    }
-   active_groups[n_active_groups++] = group;
+   active_nexus[n_active_nexus++] = nexus;
 
-   // Wake up any processes sensitive to this group
+   // Wake up any processes sensitive to this nexus
    if (new_flags & NET_F_EVENT) {
       sens_list_t *it, *last = NULL, *next = NULL;
 
-      // First wakeup everything on the group specific pending list
-      for (it = group->pending; it != NULL; it = next) {
+      (void)next;
+      (void)last;
+
+      // First wakeup everything on the nexus specific pending list
+      for (it = nexus->pending; it != NULL; it = next) {
          next = it->next;
          rt_wakeup(it);
-         group->pending = next;
+         nexus->pending = next;
       }
 
       // Now check the global pending list
-      if (group->flags & NET_F_GLOBAL) {
+      if (nexus->flags & NET_F_GLOBAL) {
+         // XXX: do we need this now?
+#if 0
          for (it = pending; it != NULL; it = next) {
             next = it->next;
 
-            const netid_t x = group->first;
-            const netid_t y = group->first + group->length - 1;
+            const netid_t x = nexus->first;
+            const netid_t y = nexus->first + nexus->length - 1;
             const netid_t a = it->first;
             const netid_t b = it->last;
 
@@ -2208,10 +2359,11 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
             else
                last = it;
          }
+#endif
       }
 
       // Schedule any callbacks to run
-      for (watch_list_t *wl = group->watching; wl != NULL; wl = wl->next) {
+      for (watch_list_t *wl = nexus->watching; wl != NULL; wl = wl->next) {
          if (!wl->watch->pending) {
             wl->watch->chain_pending = callbacks;
             wl->watch->pending = true;
@@ -2221,36 +2373,36 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
    }
 }
 
-static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
+static void rt_update_driver(rt_nexus_t *nexus, rt_proc_t *proc)
 {
    if (likely(proc != NULL)) {
       // Find the driver owned by proc
       int driver;
-      for (driver = 0; driver < group->n_drivers; driver++) {
-         if (likely(group->drivers[driver].proc == proc))
+      for (driver = 0; driver < nexus->n_sources; driver++) {
+         if (likely(nexus->sources[driver].proc == proc))
             break;
       }
-      RT_ASSERT(driver != group->n_drivers);
+      RT_ASSERT(driver != nexus->n_sources);
 
-      waveform_t *w_now  = group->drivers[driver].waveforms;
+      waveform_t *w_now  = nexus->sources[driver].waveforms;
       waveform_t *w_next = w_now->next;
 
       if (likely((w_next != NULL) && (w_next->when == now))) {
-         rt_update_group(group, driver, w_next->values->data);
-         group->drivers[driver].waveforms = w_next;
-         rt_free_value(group, w_now->values);
+         rt_update_nexus(nexus, driver, w_next->values->data);
+         nexus->sources[driver].waveforms = w_next;
+         rt_free_value(nexus, w_now->values);
          rt_free(waveform_stack, w_now);
       }
       else
          RT_ASSERT(w_now != NULL);
    }
-   else if (group->flags & NET_F_FORCED)
-      rt_update_group(group, -1, group->forcing->data);
+   else if (nexus->flags & NET_F_FORCED)
+      rt_update_nexus(nexus, -1, nexus->forcing->data);
 }
 
 static bool rt_stale_event(event_t *e)
 {
-   return (e->kind == E_PROCESS) && (e->wakeup_gen != e->proc->wakeup_gen);
+   return (e->kind == EVENT_PROCESS) && (e->wakeup_gen != e->proc->wakeup_gen);
 }
 
 static void rt_push_run_queue(event_t *e)
@@ -2271,7 +2423,7 @@ static void rt_push_run_queue(event_t *e)
       rt_free(event_stack, e);
    else {
       run_queue.queue[(run_queue.wr)++] = e;
-      if (e->kind == E_PROCESS)
+      if (e->kind == EVENT_PROCESS)
          ++(e->proc->wakeup_gen);
    }
 }
@@ -2295,9 +2447,8 @@ static void rt_iteration_limit(void)
              opt_get_int("stop-delta"));
 
    for (sens_list_t *it = resume; it != NULL; it = it->next) {
-      tree_t p = it->proc->source;
-      const loc_t *l = tree_loc(p);
-      tb_printf(buf, "  %-30s %s line %d\n", istr(tree_ident(p)),
+      const loc_t *l = e_loc(it->proc->source);
+      tb_printf(buf, "  %-30s %s line %d\n", istr(e_path(it->proc->source)),
                 loc_file_str(l), l->first_line);
    }
 
@@ -2311,7 +2462,7 @@ static void rt_resume_processes(sens_list_t **list)
    sens_list_t *it = *list;
    while (it != NULL) {
       if (it->proc->pending) {
-         rt_run(it->proc, false /* reset */);
+         rt_run(it->proc);
          it->proc->pending = false;
       }
 
@@ -2414,13 +2565,13 @@ static void rt_cycle(int stop_delta)
    event_t *event;
    while ((event = rt_pop_run_queue())) {
       switch (event->kind) {
-      case E_PROCESS:
-         rt_run(event->proc, false /* reset */);
+      case EVENT_PROCESS:
+         rt_run(event->proc);
          break;
-      case E_DRIVER:
-         rt_update_driver(event->group, event->proc);
+      case EVENT_DRIVER:
+         rt_update_driver(event->nexus, event->proc);
          break;
-      case E_TIMEOUT:
+      case EVENT_TIMEOUT:
          (*event->timeout_fn)(now, event->timeout_user);
          break;
       }
@@ -2428,9 +2579,7 @@ static void rt_cycle(int stop_delta)
       rt_free(event_stack, event);
    }
 
-   if (unlikely(now == 0 && iteration == 0))
-      fst_restart();
-   else if (unlikely((stop_delta > 0) && (iteration == stop_delta)))
+   if (unlikely((stop_delta > 0) && (iteration == stop_delta)))
       rt_iteration_limit();
 
    // Run all non-postponed event callbacks
@@ -2440,11 +2589,11 @@ static void rt_cycle(int stop_delta)
    rt_resume_processes(&resume);
    rt_global_event(RT_END_OF_PROCESSES);
 
-   for (unsigned i = 0; i < n_active_groups; i++) {
-      netgroup_t *g = active_groups[i];
-      g->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
+   for (unsigned i = 0; i < n_active_nexus; i++) {
+      rt_nexus_t *n = active_nexus[i];
+      n->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
    }
-   n_active_groups = 0;
+   n_active_nexus = 0;
 
    if (!rt_next_cycle_is_delta()) {
       can_create_delta = false;
@@ -2460,57 +2609,67 @@ static void rt_cycle(int stop_delta)
    }
 }
 
-static tree_t rt_recall_decl(const char *name)
+static void rt_cleanup_nexus(rt_nexus_t *n)
 {
-   tree_t decl = hash_get(decl_hash, ident_new(name));
-   if (decl != NULL)
-      return decl;
-   else
-      fatal("cannot find name %s in elaborated design", name);
-}
+   if (n->flags & NET_F_OWNS_MEM)
+      free(n->resolved);
+   if (n->flags & NET_F_LAST_VALUE)
+      free(n->last_value);
 
-static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
-{
-   netgroup_t *g = &(groups[gid]);
+   free(n->forcing);
 
-   RT_ASSERT(g->first == first);
-   RT_ASSERT(g->length == length);
-
-   if (g->flags & NET_F_OWNS_MEM)
-      free(g->resolved);
-
-   free(g->forcing);
-
-   for (int j = 0; j < g->n_drivers; j++) {
-      while (g->drivers[j].waveforms != NULL) {
-         waveform_t *next = g->drivers[j].waveforms->next;
-         rt_free_value(g, g->drivers[j].waveforms->values);
-         rt_free(waveform_stack, g->drivers[j].waveforms);
-         g->drivers[j].waveforms = next;
+   for (int j = 0; j < n->n_sources; j++) {
+      while (n->sources[j].waveforms != NULL) {
+         waveform_t *next = n->sources[j].waveforms->next;
+         rt_free_value(n, n->sources[j].waveforms->values);
+         rt_free(waveform_stack, n->sources[j].waveforms);
+         n->sources[j].waveforms = next;
       }
    }
-   free(g->drivers);
+   free(n->sources);
 
-   while (g->free_values != NULL) {
-      value_t *next = g->free_values->next;
-      free(g->free_values);
-      g->free_values = next;
+   free(n->signals);
+   free(n->offsets);
+
+   while (n->free_values != NULL) {
+      value_t *next = n->free_values->next;
+      free(n->free_values);
+      n->free_values = next;
    }
 
-   while (g->pending != NULL) {
-      sens_list_t *next = g->pending->next;
-      rt_free(sens_list_stack, g->pending);
-      g->pending = next;
+   while (n->pending != NULL) {
+      sens_list_t *next = n->pending->next;
+      rt_free(sens_list_stack, n->pending);
+      n->pending = next;
    }
 
-   while (g->watching != NULL) {
-      watch_list_t *next = g->watching->next;
-      free(g->watching);
-      g->watching = next;
+   while (n->watching != NULL) {
+      watch_list_t *next = n->watching->next;
+      free(n->watching);
+      n->watching = next;
    }
 }
 
-static void rt_cleanup(tree_t top)
+static void rt_cleanup_scope(rt_scope_t *scope)
+{
+   for (unsigned i = 0; i < scope->n_procs; i++)
+      free(scope->procs[i].privdata);
+
+   for (unsigned i = 0; i < scope->n_signals; i++) {
+      rt_signal_t *s = &(scope->signals[i]);
+      if (s->flags & NET_F_OWNS_MEM)
+         free(s->shared.resolved);
+      if (s->flags & NET_F_LAST_VALUE)
+         free(s->shared.last_value);
+      free(s->nexus);
+   }
+
+   free(scope->privdata);
+   free(scope->procs);
+   free(scope->signals);
+}
+
+static void rt_cleanup(e_node_t top)
 {
    RT_ASSERT(resume == NULL);
 
@@ -2523,16 +2682,21 @@ static void rt_cleanup(tree_t top)
    heap_free(eventq_heap);
    eventq_heap = NULL;
 
-   netdb_walk(netdb, rt_cleanup_group);
-   netdb_close(netdb);
+   for (unsigned i = 0; i < n_nexuses; i++)
+      rt_cleanup_nexus(&(nexuses[i]));
 
-   hash_free(decl_hash);
-   decl_hash = NULL;
+   free(nexuses);
+   nexuses = NULL;
+
+   for (unsigned i = 0; i < n_scopes; i++)
+      rt_cleanup_scope(&(scopes[i]));
+
+   free(scopes);
+   scopes = NULL;
 
    while (watches != NULL) {
       watch_t *next = watches->chain_all;
       rt_free(watch_stack, watches);
-      free(watches->groups);
       watches = next;
    }
 
@@ -2575,10 +2739,12 @@ static bool rt_stop_now(uint64_t stop_time)
    }
 }
 
+#if 0
 static int rt_proc_usage_cmp(const void *lhs, const void *rhs)
 {
    return ((const rt_proc_t *)rhs)->usage - ((const rt_proc_t *)lhs)->usage;
 }
+#endif
 
 static void rt_stats_print(void)
 {
@@ -2586,6 +2752,7 @@ static void rt_stats_print(void)
    nvc_rusage(&ru);
 
    if (profiling) {
+#if 0
       notef("top processes by CPU usage");
 
       qsort(procs, n_procs, sizeof(rt_proc_t), rt_proc_usage_cmp);
@@ -2596,8 +2763,9 @@ static void rt_stats_print(void)
       for (size_t i = 0; i < MIN(n_procs, 10); i++) {
          const double pc = ((double)procs[i].usage / ru_us) * 100.0;
          printf("%10"PRIu64" %5.1f %s\n", procs[i].usage, pc,
-                istr(tree_ident(procs[i].source)));
+                istr(e_path(procs[i].source)));
       }
+#endif
    }
 
    notef("setup:%ums run:%ums maxrss:%ukB", ready_rusage.ms, ru.ms, ru.rss);
@@ -2631,7 +2799,7 @@ static void rt_interrupt(void)
    if (active_proc != NULL)
       rt_msg(NULL, fatal,
              "interrupted in process %s at %s+%d",
-             istr(tree_ident(active_proc->source)), fmt_time(now), iteration);
+             istr(e_path(active_proc->source)), fmt_time(now), iteration);
    else
       fatal("interrupted");
 }
@@ -2650,12 +2818,12 @@ static BOOL rt_win_ctrl_handler(DWORD fdwCtrlType)
 }
 #endif
 
-void rt_start_of_tool(tree_t top)
+void rt_start_of_tool(tree_t top, e_node_t e)
 {
-   jit_init(top);
+   jit_init(e);
 
 #if RT_DEBUG
-   warnf("runtime debug assertions enabled");
+   warnf("runtime debug checks enabled");
 #endif
 
 #ifndef __MINGW32__
@@ -2680,7 +2848,7 @@ void rt_start_of_tool(tree_t top)
    callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
 
    n_active_alloc = 128;
-   active_groups = xmalloc(n_active_alloc * sizeof(struct netgroup *));
+   active_nexus = xmalloc(n_active_alloc * sizeof(struct netgroup *));
 
    global_tmp_stack = mmap_guarded(GLOBAL_TMP_STACK_SZ, "global temp stack");
    proc_tmp_stack   = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
@@ -2692,9 +2860,9 @@ void rt_start_of_tool(tree_t top)
    nvc_rusage(&ready_rusage);
 }
 
-void rt_end_of_tool(tree_t top)
+void rt_end_of_tool(tree_t top, e_node_t e)
 {
-   rt_cleanup(top);
+   rt_cleanup(e);
    rt_emit_coverage(top);
 
    jit_shutdown();
@@ -2706,6 +2874,8 @@ void rt_end_of_tool(tree_t top)
 void rt_run_sim(uint64_t stop_time)
 {
    const int stop_delta = opt_get_int("stop-delta");
+
+   fst_restart();
 
    rt_global_event(RT_START_OF_SIMULATION);
    while (!rt_stop_now(stop_time))
@@ -2735,7 +2905,7 @@ void rt_run_interactive(uint64_t stop_time)
    }
 }
 
-void rt_restart(tree_t top)
+void rt_restart(e_node_t top)
 {
    rt_setup(top);
    rt_initial(top);
@@ -2746,8 +2916,8 @@ void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user)
 {
    event_t *e = rt_alloc(event_stack);
    e->when         = now + when;
-   e->kind         = E_TIMEOUT;
-   e->group        = NULL;
+   e->kind         = EVENT_TIMEOUT;
+   e->nexus        = NULL;
    e->proc         = NULL;
    e->timeout_fn   = fn;
    e->timeout_user = user;
@@ -2756,11 +2926,9 @@ void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user)
    deltaq_insert(e);
 }
 
-watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
+watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
                          bool postponed)
 {
-   RT_ASSERT(tree_kind(s) == T_SIGNAL_DECL);
-
    if (fn == NULL) {
       // Find the first entry in the watch list and disable it
       for (watch_t *it = watches; it != NULL; it = it->chain_all) {
@@ -2780,17 +2948,9 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
       w->chain_all     = watches;
       w->chain_pending = NULL;
       w->pending       = false;
-      w->groups        = NULL;
-      w->n_groups      = 0;
       w->user_data     = user;
       w->length        = 0;
       w->postponed     = postponed;
-
-      type_t type = tree_type(s);
-      if (type_is_array(type))
-         w->dir = direction_of(type, 0);
-      else
-         w->dir = RANGE_TO;
 
       watches = w;
 
@@ -2811,132 +2971,112 @@ void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user)
    global_cbs[event] = cb;
 }
 
-size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max, bool last)
+size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max)
 {
-   int offset = 0;
-   for (int i = 0; (i < w->n_groups) && (offset < max); i++) {
-      netgroup_t *g = w->groups[i];
-
-#define SIGNAL_VALUE_EXPAND_U64(type) do {                              \
-         const type *sp = (type *)(last ? g->last_value : g->resolved); \
-         for (int j = 0; (j < g->length) && (offset + j < max); j++)    \
-            buf[offset + j] = sp[j];                                    \
-      } while (0)
-
-      FOR_ALL_SIZES(g->size, SIGNAL_VALUE_EXPAND_U64);
-
-      offset += g->length;
-   }
-
-   return offset;
-}
-
-static size_t rt_group_string(netgroup_t *group, const char *map,
-                              char *buf, const char *end1)
-{
-   char *bp = buf;
-   const char *vals = group->resolved;
-
-   if (likely(map != NULL)) {
-      for (int j = 0; j < group->length; j++) {
-         if (bp + 1 < end1)
-            *bp++ = map[(int)vals[j]];
-      }
-   }
-   else {
-      for (int j = 0; j < group->length; j++) {
-         if (bp + 1 < end1)
-            *bp++ = vals[j];
-      }
-   }
-
-   if (bp < end1)
-      *bp = '\0';
-
-   return bp - buf;
+   return rt_signal_value(w->signal, buf, max);
 }
 
 size_t rt_watch_string(watch_t *w, const char *map, char *buf, size_t max)
 {
-   char *bp = buf;
-   size_t offset = 0;
-   for (int i = 0; i < w->n_groups; i++) {
-      netgroup_t *g = w->groups[i];
-      bp += rt_group_string(g, map, bp, buf + max);
-      offset += g->length;
+   return rt_signal_string(w->signal, map, buf, max);
+}
+
+size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
+{
+   char *endp = buf + max;
+   int offset = 0;
+   for (unsigned i = 0; i < s->n_nexus; i++) {
+      rt_nexus_t *n = s->nexus[i];
+
+      const char *vals = n->resolved;
+      if (likely(map != NULL)) {
+         for (int j = 0; j < n->width; j++) {
+            if (buf + 1 < endp)
+               *buf++ = map[(int)vals[j]];
+         }
+      }
+      else {
+         for (int j = 0; j < n->width; j++) {
+            if (buf + 1 < endp)
+               *buf++ = vals[j];
+         }
+      }
+
+      if (buf < endp)
+         *buf = '\0';
+
+      offset += n->width;
    }
 
    return offset + 1;
 }
 
-size_t rt_signal_string(tree_t s, const char *map, char *buf, size_t max)
+size_t rt_signal_value(rt_signal_t *s, uint64_t *buf, size_t max)
 {
-   char *bp = buf;
-   const int nnets = tree_nets(s);
    int offset = 0;
-   while (offset < nnets) {
-      netid_t nid = tree_net(s, offset);
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
-      bp += rt_group_string(g, map, bp, buf + max);
-      offset += g->length;
-   }
-
-   return offset + 1;
-}
-
-size_t rt_signal_value(tree_t s, uint64_t *buf, size_t max)
-{
-   const int nnets = tree_nets(s);
-   int offset = 0;
-   while (offset < nnets) {
-      netid_t nid = tree_net(s, offset);
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+   for (unsigned i = 0; i < s->n_nexus && offset < max; i++) {
+      rt_nexus_t *n = s->nexus[i];
 
 #define SIGNAL_READ_EXPAND_U64(type) do {                               \
-         const type *sp = (type *)g->resolved;                          \
-         for (int i = 0; (i < g->length) && (offset + i < max); i++)    \
-            buf[offset + i] = sp[i];                                    \
+         const type *sp = (type *)n->resolved;                          \
+         for (int j = 0; (j < n->width) && (offset + j < max); j++)     \
+            buf[offset + j] = sp[j];                                    \
       } while (0)
 
-      FOR_ALL_SIZES(g->size, SIGNAL_READ_EXPAND_U64);
+      FOR_ALL_SIZES(n->size, SIGNAL_READ_EXPAND_U64);
 
-      offset += g->length;
+      offset += n->width;
    }
 
    return offset;
 }
 
-bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
+rt_signal_t *rt_find_signal(e_node_t esignal)
+{
+   assert(e_kind(esignal) == E_SIGNAL);
+
+   for (unsigned i = 0; i < n_scopes; i++) {
+      for (unsigned j = 0; j < scopes[i].n_signals; j++) {
+         if (scopes[i].signals[j].enode == esignal)
+            return &(scopes[i].signals[j]);
+      }
+   }
+
+   return NULL;
+}
+
+bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count,
                      bool propagate)
 {
-   TRACE("force signal %s to %s propagate=%d", istr(tree_ident(s)),
-         fmt_values(buf, count * sizeof(uint64_t)), propagate);
+   TRACE("force signal %s to %"PRIu64"%s propagate=%d", istr(e_path(s->enode)),
+         buf[0], count > 1 ? "..." : "", propagate);
 
    RT_ASSERT(!propagate || can_create_delta);
 
-   const int nnets = tree_nets(s);
-   int offset = 0;
-   while (offset < nnets) {
-      netid_t nid = tree_net(s, offset);
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+   int offset = 0, index = 0;
+   while (count > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
 
-      g->flags |= NET_F_FORCED;
+      n->flags |= NET_F_FORCED;
 
-      if (g->forcing == NULL)
-         g->forcing = rt_alloc_value(g);
+      if (n->forcing == NULL)
+         n->forcing = rt_alloc_value(n);
 
 #define SIGNAL_FORCE_EXPAND_U64(type) do {                              \
-         type *dp = (type *)g->forcing->data;                           \
-         for (int i = 0; (i < g->length) && (offset + i < count); i++)  \
+         type *dp = (type *)n->forcing->data;                           \
+         for (int i = 0; (i < n->width) && (offset + i < count); i++)   \
             dp[i] = buf[offset + i];                                    \
       } while (0)
 
-      FOR_ALL_SIZES(g->size, SIGNAL_FORCE_EXPAND_U64);
+      FOR_ALL_SIZES(n->size, SIGNAL_FORCE_EXPAND_U64);
 
-      if (propagate)
-         deltaq_insert_driver(0, g, NULL);
+      if (propagate)   // XXX: this is wrong, sensitive process can run twice
+                       //      see vhpi1
+         deltaq_insert_driver(0, n, NULL);
 
-      offset += g->length;
+      offset += n->width;
+      count -= n->width;
    }
 
    return (offset == count);

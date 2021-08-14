@@ -5,7 +5,7 @@ architecture test of attr1 is
     type my_int is range 10 downto 0;
 begin
 
-    process is
+    p1: process is
         variable x : integer := 0;
         variable y : my_int;
         variable z : integer := 1;

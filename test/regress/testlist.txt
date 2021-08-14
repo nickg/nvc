@@ -372,3 +372,9 @@ record14        normal
 alias11         normal
 bounds18        fail,gold
 bounds19        fail,gold
+ieee6           normal
+attr13          normal,work=lib
+record15        normal
+record16        normal
+signal16        normal
+record17        normal

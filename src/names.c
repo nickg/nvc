@@ -312,7 +312,7 @@ void nametab_finish(nametab_t *tab)
 void push_scope(nametab_t *tab)
 {
    scope_t *s = xcalloc(sizeof(scope_t));
-   s->members = hash_new(128, false, HASH_PTR);  // XXX: allocate this on-demand
+   s->members = hash_new(128, false);  // XXX: allocate this on-demand
    s->parent  = tab->top_scope;
    s->subprog = tab->top_scope ? tab->top_scope->subprog : NULL;
    s->prefix  = tab->top_scope ? tab->top_scope->prefix : NULL;
@@ -341,7 +341,7 @@ void pop_scope(nametab_t *tab)
 static scope_t *chain_scope(nametab_t *tab, ident_t tag)
 {
    scope_t *s = xcalloc(sizeof(scope_t));
-   s->members = hash_new(128, false, HASH_PTR);
+   s->members = hash_new(128, false);
    s->import  = tag;
    s->parent  = tab->top_scope->parent;
 

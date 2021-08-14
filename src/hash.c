@@ -25,12 +25,11 @@ struct hash {
    unsigned     size;
    unsigned     members;
    bool         replace;
-   hash_func_t  func;
    void       **values;
    const void **keys;
 };
 
-static inline int hash_slot_ptr(hash_t *h, const void *key)
+static inline int hash_slot(hash_t *h, const void *key)
 {
    assert(key != NULL);
 
@@ -52,35 +51,12 @@ static inline int hash_slot_ptr(hash_t *h, const void *key)
    return a & (h->size - 1);
 }
 
-static int hash_slot_str(hash_t *h, const char *key)
-{
-   assert(key != NULL);
-
-   // http://www.cse.yorku.ca/~oz/hash.html
-   unsigned long hash = 5381;
-   int c;
-
-   while ((c = *key++))
-      hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
-
-   return hash & (h->size - 1);
-}
-
-static inline int hash_slot(hash_t *h, const void *key)
-{
-   if (likely(h->func == HASH_PTR))
-      return hash_slot_ptr(h, key);
-   else
-      return hash_slot_str(h, key);
-}
-
-hash_t *hash_new(int size, bool replace, hash_func_t func)
+hash_t *hash_new(int size, bool replace)
 {
    struct hash *h = xmalloc(sizeof(struct hash));
    h->size    = next_power_of_2(size);
    h->members = 0;
    h->replace = replace;
-   h->func    = func;
 
    char *mem = xcalloc(h->size * 2 * sizeof(void *));
    h->values = (void **)mem;

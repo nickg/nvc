@@ -41,4 +41,7 @@ begin
     sub_i: entity work.sub
         generic map ( 6 );
 
+    sub2_i: entity work.sub
+        generic map ( 7 );
+
 end architecture;

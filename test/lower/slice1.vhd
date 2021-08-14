@@ -6,7 +6,7 @@ architecture test of slice1 is
     signal x : int_vector(0 to 3);
 begin
 
-    process is
+    p1: process is
         variable u : int_vector(5 downto 2);
         variable v : int_vector(0 to 3);
     begin

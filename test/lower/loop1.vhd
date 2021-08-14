@@ -4,7 +4,7 @@ end entity;
 architecture test of loop1 is
 begin
 
-    process is
+    p1: process is
         variable a, b : integer;
     begin
         loop

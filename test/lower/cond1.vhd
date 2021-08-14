@@ -5,7 +5,7 @@ architecture test of cond1 is
     signal x : integer := 5;
 begin
 
-    process is
+    p1: process is
         variable y : integer;
     begin
         if x = y then

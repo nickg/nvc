@@ -4,7 +4,7 @@ end entity;
 architecture test of arith1 is
 begin
 
-    process is
+    p1: process is
         variable x, y : integer;
     begin
         x := 3;

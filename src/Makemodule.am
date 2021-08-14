@@ -17,7 +17,6 @@ lib_libnvc_a_SOURCES = \
 	src/common.c \
 	src/fbuf.c \
 	src/hash.c \
-	src/group.c \
 	src/json.c \
 	src/bounds.c \
 	src/make.c \
@@ -43,7 +42,12 @@ lib_libnvc_a_SOURCES = \
 	src/names.h \
 	src/names.c \
 	src/debug.h \
-	src/debug.c
+	src/debug.c \
+	src/enode.h \
+	src/enode.c \
+	src/eopt.c \
+	src/cprop.h \
+	src/cprop.c
 
 lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

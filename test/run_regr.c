@@ -61,6 +61,7 @@
 #define F_GENERIC (1 << 8)
 #define F_RELAX   (1 << 9)
 #define F_CLEAN   (1 << 10)
+#define F_WORKLIB (1 << 11)
 
 typedef struct test test_t;
 typedef struct generic generic_t;
@@ -79,6 +80,7 @@ struct test {
    char      *stop;
    generic_t *generics;
    char      *relax;
+   char      *work;
 };
 
 struct arglist {
@@ -336,6 +338,17 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_RELAX;
             test->relax = strdup(value + 1);
          }
+         else if (strncmp(opt, "work", 4) == 0) {
+            char *value = strchr(opt, '=');
+            if (value == NULL) {
+               fprintf(stderr, "Error on testlist line %d: missing argument to "
+                       "work option in test %s\n", lineno, name);
+               goto out_close;
+            }
+
+            test->flags |= F_WORKLIB;
+            test->work = strdup(value + 1);
+         }
          else {
             fprintf(stderr, "Error on testlist line %d: invalid option %s in "
                  "test %s\n", lineno, opt, name);
@@ -535,6 +548,9 @@ static bool run_test(test_t *test)
    push_arg(&args, "%s" PATH_SEP "nvc%s", bin_dir, EXEEXT);
    push_std(test, &args);
 
+   if (test->flags & F_WORKLIB)
+      push_arg(&args, "--work=%s", test->work);
+
    push_arg(&args, "-a");
    push_arg(&args, "%s" PATH_SEP "regress" PATH_SEP "%s.vhd",
             test_dir, test->name);
@@ -712,11 +728,19 @@ int main(int argc, char **argv)
       return EXIT_FAILURE;
    }
 
-   bool pass = true;
+   int fails = 0;
    for (test_t *it = test_list; it != NULL; it = it->next) {
       if (!run_test(it))
-         pass = false;
+         fails++;
    }
 
-   return pass ? 0 : EXIT_FAILURE;
+   if (fails > 0) {
+      set_attr(ANSI_FG_RED);
+      set_attr(ANSI_BOLD);
+      printf("%d failures!\n", fails);
+      set_attr(ANSI_RESET);
+      return EXIT_FAILURE;
+   }
+
+   return 0;
 }

@@ -8,7 +8,7 @@ architecture test of hintbug is
     end function;
 begin
 
-    process is
+    p1: process is
         variable v : bit_vector(1 downto 0);
         variable x : bit := '1';
     begin

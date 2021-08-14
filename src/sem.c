@@ -3102,6 +3102,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
          sem_error(t, "prefix of %s attribute must be a named entity",
                    istr(attr));
 
+      tree_set_flag(name, TREE_F_FORMAL_NAME);
       return true;
 
    case ATTR_DELAYED:
@@ -3290,7 +3291,7 @@ static bool sem_check_actual(formal_map_t *formals, int nformals,
                formals[i].partial = (tree_kind(name) != T_REF);
                decl = formals[i].decl;
                tree_set_ref(ref, decl);
-               tree_add_attr_int(ref, formal_i, 1);
+               tree_set_flag(ref, TREE_F_FORMAL_NAME);
                break;
             }
          }

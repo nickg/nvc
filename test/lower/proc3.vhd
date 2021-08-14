@@ -12,7 +12,7 @@ architecture test of proc3 is
 
 begin
 
-    process is
+    p2: process is
         variable x : integer;
     begin
         p1(x);

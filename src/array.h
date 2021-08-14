@@ -123,7 +123,7 @@ void __array_resize_slow(void **ptr, uint32_t *limit, uint32_t count,
 
 #define APOP(a) ({                              \
          assert((a).count > 0);                 \
-         (a).items[(a).count--];                \
+         (a).items[--(a).count];                \
       })
 
 #define ACLEAR(a) do {                          \

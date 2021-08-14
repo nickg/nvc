@@ -583,7 +583,7 @@ const char *type_pp2(type_t t, type_t other)
       {
          static hash_t *cache = NULL;
          if (cache == NULL)
-            cache = hash_new(64, true, HASH_PTR);
+            cache = hash_new(64, true);
 
          text_buf_t *tb = hash_get(cache, t);
          if (tb == NULL) {
@@ -814,4 +814,14 @@ bool type_is_composite(type_t t)
 {
    const type_kind_t base = type_base_kind(t);
    return base == T_CARRAY || base == T_UARRAY || base == T_RECORD;
+}
+
+bool type_is_homogeneous(type_t t)
+{
+   if (type_is_scalar(t))
+      return true;
+   else if (type_is_array(t))
+      return type_is_homogeneous(type_elem(t));
+   else
+      return false;
 }

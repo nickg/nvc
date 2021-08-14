@@ -21,6 +21,8 @@
 #include "common.h"
 #include "loc.h"
 #include "vcode.h"
+#include "array.h"
+#include "enode.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -56,17 +58,24 @@ struct lib_index {
    lib_index_t *next;
 };
 
+typedef struct {
+   ident_t  name;
+   e_node_t node;
+   bool     dirty;
+} lib_elab_t;
+
 struct lib {
-   char         path[PATH_MAX];
-   ident_t      name;
-   unsigned     n_units;
-   unsigned     units_alloc;
-   lib_unit_t  *units;
-   lib_index_t *index;
-   lib_mtime_t  index_mtime;
-   off_t        index_size;
-   int          lock_fd;
-   bool         readonly;
+   char          path[PATH_MAX];
+   ident_t       name;
+   unsigned      n_units;
+   unsigned      units_alloc;
+   lib_unit_t   *units;
+   lib_index_t  *index;
+   lib_mtime_t   index_mtime;
+   off_t         index_size;
+   int           lock_fd;
+   bool          readonly;
+   A(lib_elab_t) elaborated;
 };
 
 struct lib_list {
@@ -648,6 +657,29 @@ void lib_put(lib_t lib, tree_t unit)
    lib_put_aux(lib, unit, NULL, true, usecs);
 }
 
+void lib_put_elaborated(lib_t lib, e_node_t e)
+{
+   ident_t ident = e_ident(e);
+   bool exist = false;
+   for (unsigned i = 0; !exist && i < lib->elaborated.count; i++) {
+      lib_elab_t *item = &(lib->elaborated.items[i]);
+      if (item->name == ident) {
+         item->node  = e;
+         item->dirty = true;
+         exist = true;
+      }
+   }
+
+   if (!exist) {
+      lib_elab_t new = {
+         .name  = ident,
+         .node  = e,
+         .dirty = true
+      };
+      APUSH(lib->elaborated, new);
+   }
+}
+
 static lib_mtime_t lib_stat_mtime(struct stat *st)
 {
    lib_mtime_t mt = lib_time_to_usecs(st->st_mtime);
@@ -830,6 +862,24 @@ tree_t lib_get_qualified(ident_t qual)
    return lib_get_check_stale(lib, qual);
 }
 
+e_node_t lib_get_elaborated(lib_t lib, ident_t ident)
+{
+   for (unsigned i = 0; i < lib->elaborated.count; i++) {
+      if (lib->elaborated.items[i].name == ident)
+         return lib->elaborated.items[i].node;
+      printf("%s is not %s\n", istr(ident), istr(lib->elaborated.items[i].name));
+   }
+
+   char *name LOCAL = xasprintf("_%s.elab", istr(ident));
+   fbuf_t *f = lib_fbuf_open(lib, name, FBUF_IN);
+   if (f == NULL)
+      return NULL;
+
+   e_node_t e = e_read(f);
+   fbuf_close(f);
+   return e;
+}
+
 ident_t lib_name(lib_t lib)
 {
    assert(lib != NULL);
@@ -856,6 +906,18 @@ void lib_save(lib_t lib)
          fbuf_close(f);
 
          lib->units[n].dirty = false;
+      }
+   }
+
+   for (unsigned i = 0; i < lib->elaborated.count; i++) {
+      lib_elab_t *item = &(lib->elaborated.items[i]);
+      if (item->dirty) {
+         char *name LOCAL = xasprintf("_%s.elab", istr(item->name));
+         fbuf_t *f = lib_fbuf_open(lib, name, FBUF_OUT);
+         e_write(item->node, f);
+         fbuf_close(f);
+
+         item->dirty = false;
       }
    }
 
