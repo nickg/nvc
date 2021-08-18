@@ -736,8 +736,12 @@ static vcode_reg_t lower_param(tree_t value, tree_t port, port_mode_t mode)
          reg = new_reg;
    }
 
-   if (type_is_array(value_type))
+   if (type_is_array(value_type)) {
+      if (!type_is_unconstrained(port_type))
+         lower_check_array_sizes(value, port_type, value_type,
+                                 VCODE_INVALID_REG, reg);
       return lower_coerce_arrays(value_type, port_type, reg);
+   }
    else if (class == C_SIGNAL || class == C_FILE)
       return reg;
    else {

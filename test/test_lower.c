@@ -937,9 +937,9 @@ START_TEST(test_arrayop1)
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_INDEX, .name = "X" },
+      { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
-      { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_ALLOCA },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE_INDIRECT },
@@ -1009,9 +1009,9 @@ START_TEST(test_array1)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_UARRAY_LEN },
-      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_ALLOCA },
       { VCODE_OP_STORE_INDIRECT },
@@ -2828,9 +2828,9 @@ START_TEST(test_issue338b)
 
    EXPECT_BB(0) = {
       { VCODE_OP_CONST_ARRAY, .length = 0 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_UARRAY_LEN },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_ALLOCA },
       { VCODE_OP_STORE_INDIRECT },

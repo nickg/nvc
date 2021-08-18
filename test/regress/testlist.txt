@@ -370,3 +370,4 @@ debug2          normal,gold
 alias10         normal
 record14        normal
 alias11         normal
+bounds18        fail,gold
