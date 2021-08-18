@@ -43,7 +43,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_SCHED_EVENT || x == VCODE_OP_BOUNDS                   \
     || x == VCODE_OP_VEC_LOAD || x == VCODE_OP_BIT_VEC_OP               \
     || x == VCODE_OP_INDEX_CHECK || x == VCODE_OP_BIT_SHIFT             \
-    || x == VCODE_OP_ALLOCA || x == VCODE_OP_COVER_COND)
+    || x == VCODE_OP_ALLOCA || x == VCODE_OP_COVER_COND                 \
+    || x == VCODE_OP_ARRAY_SIZE)
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_NESTED_FCALL                   \
     || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME                      \
@@ -71,7 +72,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_HINT(x)                                                  \
-   (x == VCODE_OP_BOUNDS || x == VCODE_OP_DYNAMIC_BOUNDS)
+   (x == VCODE_OP_BOUNDS || x == VCODE_OP_DYNAMIC_BOUNDS                \
+    || x == VCODE_OP_ARRAY_SIZE)
 #define OP_HAS_TARGET(x)                                                \
    (x == VCODE_OP_WAIT || x == VCODE_OP_JUMP || x == VCODE_OP_COND      \
     || x == VCODE_OP_PCALL || x == VCODE_OP_CASE                        \
@@ -4717,7 +4719,8 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
                 "bounds check needs debug info");
 }
 
-void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen)
+void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, bounds_kind_t kind,
+                     const char *hint)
 {
    if (rlen == llen)
       return;
@@ -4725,6 +4728,8 @@ void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen)
    op_t *op = vcode_add_op(VCODE_OP_ARRAY_SIZE);
    vcode_add_arg(op, llen);
    vcode_add_arg(op, rlen);
+   op->subkind = kind;
+   op->hint    = hint ? xstrdup(hint) : NULL;
 }
 
 static op_t *emit_index_check_null(vcode_reg_t rlow, vcode_reg_t rhigh,

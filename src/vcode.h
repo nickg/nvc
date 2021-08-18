@@ -446,7 +446,8 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
 vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, vcode_reg_t map);
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);
 void emit_needs_last_value(vcode_signal_t sig);
-void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen);
+void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, bounds_kind_t kind,
+                     const char *hint);
 vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
                            vcode_reg_t len, vcode_reg_t dir, vcode_reg_t shift,
                            vcode_type_t result);

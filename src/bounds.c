@@ -213,11 +213,13 @@ static tree_t bounds_check_call_args(tree_t t)
             if (f_len != a_len) {
                if (ndims > 1)
                   bounds_error(param, "actual length %"PRIi64" for dimension %d"
-                               " does not match formal length %"PRIi64,
-                               a_len, j + 1, f_len);
+                               " does not match formal length %"PRIi64
+                               " for parameter %s",
+                               a_len, j + 1, f_len, istr(tree_ident(port)));
                else
                   bounds_error(param, "actual length %"PRIi64" does not match "
-                               "formal length %"PRIi64, a_len, f_len);
+                               "formal length %"PRIi64" for parameter %s",
+                               a_len, f_len, istr(tree_ident(port)));
             }
          }
       }
@@ -558,6 +560,24 @@ static void bounds_check_decl(tree_t t)
    }
 }
 
+static char *bounds_get_hint_str(tree_t where)
+{
+   switch (tree_kind(where)) {
+   case T_PORT_DECL:
+      return xasprintf(" for %s %s",
+                       tree_class(where) == C_SIGNAL ? "signal" : "parameter",
+                       istr(tree_ident(where)));
+   case T_VAR_DECL:
+      return xasprintf(" for variable %s", istr(tree_ident(where)));
+   case T_SIGNAL_DECL:
+      return xasprintf(" for signal %s", istr(tree_ident(where)));
+   case T_REF:
+      return bounds_get_hint_str(tree_ref(where));
+   default:
+      return NULL;
+   }
+}
+
 static void bounds_check_assignment(tree_t target, tree_t value)
 {
    type_t target_type = tree_type(target);
@@ -575,14 +595,15 @@ static void bounds_check_assignment(tree_t target, tree_t value)
          if (folded_length(range_of(target_type, i), &target_w)
              && folded_length(range_of(value_type, i), &value_w)) {
             if (target_w != value_w) {
+               char *hint LOCAL = bounds_get_hint_str(target);
                if (i > 0)
                   bounds_error(value, "length of dimension %d of value %"PRIi64
-                               " does not match length of target %"PRIi64,
-                               i + 1, value_w, target_w);
+                               " does not match length of target %"PRIi64"%s",
+                               i + 1, value_w, target_w, hint ?: "");
                else
                   bounds_error(value, "length of value %"PRIi64" does not "
-                               "match length of target %"PRIi64,
-                               value_w, target_w);
+                               "match length of target %"PRIi64"%s",
+                               value_w, target_w, hint ?: "");
             }
          }
       }
@@ -593,10 +614,11 @@ static void bounds_check_assignment(tree_t target, tree_t value)
       bool checked;
 
       if (is_out_of_range(value, r, &checked)) {
-         bounds_error(value, "value %s out of target bounds %s %s %s",
+         char *hint LOCAL = bounds_get_hint_str(target);
+         bounds_error(value, "value %s out of target bounds %s %s %s%s",
                       value_str(value), value_str(tree_left(r)),
                       (tree_subkind(r) == RANGE_TO) ? "to" : "downto",
-                      value_str(tree_right(r)));
+                      value_str(tree_right(r)), hint ?: "");
       }
    }
 }

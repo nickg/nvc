@@ -881,6 +881,11 @@ void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
              "%d%s%s", min, max, spacer, suffix);
       break;
 
+   case BOUNDS_PARAM_SIZE:
+      rt_msg(where, fatal, "actual length %d does not match formal length "
+             "%d%s%s", max, min, spacer, suffix);
+      break;
+
    case BOUNDS_INDEX_TO:
       rt_msg(where, fatal, "index %d violates constraint bounds %d to %d",
              value, min, max);

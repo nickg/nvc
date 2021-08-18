@@ -649,10 +649,7 @@ static char *lower_get_hint_string(tree_t where, const char *prefix)
       return xasprintf("%s|for variable %s",
                        prefix ?: "", istr(tree_ident(where)));
    default:
-      if (prefix != NULL)
-         return xstrdup(prefix);
-      else
-         return NULL;
+      return prefix ? xstrdup(prefix) : NULL;
    }
 }
 
@@ -738,7 +735,7 @@ static vcode_reg_t lower_param(tree_t value, tree_t port, port_mode_t mode)
 
    if (type_is_array(value_type)) {
       if (!type_is_unconstrained(port_type))
-         lower_check_array_sizes(value, port_type, value_type,
+         lower_check_array_sizes(port, port_type, value_type,
                                  VCODE_INVALID_REG, reg);
       return lower_coerce_arrays(value_type, port_type, reg);
    }
@@ -3662,7 +3659,7 @@ static void lower_wait(tree_t wait)
    }
 }
 
-static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
+static void lower_check_array_sizes(tree_t where, type_t ltype, type_t rtype,
                                     vcode_reg_t lval, vcode_reg_t rval)
 {
    // TODO: for each dimension
@@ -3670,7 +3667,16 @@ static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
    vcode_reg_t llen_reg = lower_array_len(ltype, 0, lval);
    vcode_reg_t rlen_reg = lower_array_len(rtype, 0, rval);
 
-   emit_array_size(llen_reg, rlen_reg);
+   bounds_kind_t kind = BOUNDS_ARRAY_SIZE;
+   char *hint_str LOCAL = NULL;
+
+   if (where != NULL) {
+      hint_str = lower_get_hint_string(where, NULL);
+      if (tree_kind(where) == T_PORT_DECL)
+         kind = BOUNDS_PARAM_SIZE;
+   }
+
+   emit_array_size(llen_reg, rlen_reg, kind, hint_str);
 }
 
 static void lower_find_matching_refs(tree_t ref, void *context)

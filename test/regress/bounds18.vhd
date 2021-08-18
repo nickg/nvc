@@ -17,7 +17,9 @@ architecture test of bounds18 is
 begin
 
     process is
+        variable v : bit_vector(1 to 4);
     begin
+        --assert func(v) = '0';         -- Caught during analysis
         proc(5);                        -- OK
         proc(3);                        -- Failure here
         wait;

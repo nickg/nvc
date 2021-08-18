@@ -171,7 +171,7 @@ void object_one_time_init(void)
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the object items table
-      const uint32_t format_fudge = 15;
+      const uint32_t format_fudge = 16;
 
       format_digest += format_fudge * UINT32_C(2654435761);
 

@@ -2668,9 +2668,9 @@ static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
       llvm_int32(0),
       llen,
       rlen,
-      llvm_int32(BOUNDS_ARRAY_SIZE),
+      llvm_int32(vcode_get_subkind(op)),
       cgen_location(op, ctx),
-      LLVMConstNull(llvm_char_ptr())
+      cgen_hint_str(op),
    };
 
    LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
