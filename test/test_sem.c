@@ -390,6 +390,8 @@ START_TEST(test_func)
       { 243, "parameter X was originally declared here" },
       { 271, "invalid reference to X inside pure function NESTED" },
       { 288, "no visible subprogram declaration for FNORK" },
+      { 294, "procedure NOTDEF not allowed in an expression" },
+      { 293, "function CONSTPURE cannot be called as a procedure" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -574,6 +576,7 @@ START_TEST(test_procedure)
 
    const error_t expect[] = {
       {   5, "subprogram body is not allowed in package specification" },
+      { 180, "invalid procedure call statement" },
       {  28, "cannot return a value from a procedure" },
       {  45, "type of default value universal_integer does not match" },
       {  63, "missing actual for formal X without default value" },

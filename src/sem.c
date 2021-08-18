@@ -2085,6 +2085,14 @@ static bool sem_check_pcall(tree_t t)
 
    tree_t decl = tree_ref(t);
 
+   const tree_kind_t kind = tree_kind(decl);
+   if (kind == T_FUNC_DECL || kind == T_FUNC_BODY)
+      sem_error(t, "function %s cannot be called as a procedure",
+                istr(tree_ident2(t)));
+
+   // All other errors should be caught at parsing stage
+   assert(kind == T_PROC_DECL || kind == T_PROC_BODY);
+
    if (!sem_check_call_args(t, decl))
       return false;
 
@@ -2103,7 +2111,8 @@ static bool sem_check_pcall(tree_t t)
    const bool in_func = top_scope->subprog != NULL
       && tree_kind(top_scope->subprog) == T_FUNC_BODY;
 
-   const bool in_pure_func = in_func && !(tree_flags(top_scope->subprog) & TREE_F_IMPURE);
+   const bool in_pure_func =
+      in_func && !(tree_flags(top_scope->subprog) & TREE_F_IMPURE);
 
    if (waits == WAITS_YES && in_func)
       sem_error(t, "function %s cannot call procedure %s which contains "

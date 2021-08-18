@@ -174,4 +174,10 @@ package body p is
         null;
     end procedure;
 
+    procedure test14 is
+        variable x : bit_vector(1 to 3);
+    begin
+        x(1);                           -- Error
+    end procedure;
+
 end package body;

@@ -288,4 +288,10 @@ package body func3 is
         fnork(x + 1);                   -- Error
     end procedure;
 
+    procedure not_a_procedure is
+    begin
+        constpure(1);                   -- Error
+        assert notdef(2) = 1;           -- Error
+    end procedure;
+
 end package body;
