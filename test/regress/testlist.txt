@@ -371,3 +371,4 @@ alias10         normal
 record14        normal
 alias11         normal
 bounds18        fail,gold
+bounds19        fail,gold

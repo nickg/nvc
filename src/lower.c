@@ -2571,6 +2571,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       (type_is_integer(elem_type) || type_is_enum(elem_type))
       && tree_assocs(agg) == 1
       && tree_subkind(agg0) == A_OTHERS
+      && !multidim
       && ((bits = lower_bit_width(elem_type)) <= 8
           || lower_memset_bit_pattern(tree_value(agg0), bits, &byte));
 
@@ -3662,21 +3663,24 @@ static void lower_wait(tree_t wait)
 static void lower_check_array_sizes(tree_t where, type_t ltype, type_t rtype,
                                     vcode_reg_t lval, vcode_reg_t rval)
 {
-   // TODO: for each dimension
+   const int ndims = dimension_of(ltype);
+   for (int i = 0; i < ndims; i++) {
+      vcode_reg_t llen_reg = lower_array_len(ltype, i, lval);
+      vcode_reg_t rlen_reg = lower_array_len(rtype, i, rval);
 
-   vcode_reg_t llen_reg = lower_array_len(ltype, 0, lval);
-   vcode_reg_t rlen_reg = lower_array_len(rtype, 0, rval);
+      bounds_kind_t kind = BOUNDS_ARRAY_SIZE;
+      char *hint_str LOCAL = NULL;
 
-   bounds_kind_t kind = BOUNDS_ARRAY_SIZE;
-   char *hint_str LOCAL = NULL;
+      if (where != NULL) {
+         char *prefix LOCAL =
+            ndims > 1 ? xasprintf(" for dimension %d", i + 1) : NULL;
+         hint_str = lower_get_hint_string(where, prefix);
+         if (tree_kind(where) == T_PORT_DECL)
+            kind = BOUNDS_PARAM_SIZE;
+      }
 
-   if (where != NULL) {
-      hint_str = lower_get_hint_string(where, NULL);
-      if (tree_kind(where) == T_PORT_DECL)
-         kind = BOUNDS_PARAM_SIZE;
+      emit_array_size(llen_reg, rlen_reg, kind, hint_str);
    }
-
-   emit_array_size(llen_reg, rlen_reg, kind, hint_str);
 }
 
 static void lower_find_matching_refs(tree_t ref, void *context)
