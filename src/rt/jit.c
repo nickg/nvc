@@ -131,16 +131,35 @@ static void jit_load_module(ident_t name)
    if (opt_get_int("rt_trace_en"))
       fprintf(stderr, "TRACE (init): load %s from %s\n", istr(name), so_path);
 
+   uint32_t abi_version = 0;
+
 #ifdef __MINGW32__
    HMODULE hModule = LoadLibrary(so_path);
    if (hModule == NULL)
       fatal("failed to load %s", so_path);
 
    APUSH(search_modules, hModule);
+
+   FARPROC p = GetProcAddress(hModule, "__nvc_abi_version");
+   if (p == NULL)
+      warnf("%s: cannot find symbol __nvc_abi_version", so_path);
+   else
+      abi_version = *(uint32_t *)(uintptr_t)p;
 #else
-   if (dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL) == NULL)
+   void *handle = dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL);
+   if (handle == NULL)
       fatal("%s: %s", so_path, dlerror());
+
+   uint32_t *p = dlsym(handle, "__nvc_abi_version");
+   if (p == NULL)
+      warnf("%s", dlerror());
+   else
+      abi_version = *p;
 #endif
+
+   if (abi_version != RT_ABI_VERSION)
+      fatal("%s: ABI version %d does not match current version %d",
+            so_path, abi_version, RT_ABI_VERSION);
 }
 
 void jit_init(tree_t top)

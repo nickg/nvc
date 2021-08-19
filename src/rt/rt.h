@@ -24,6 +24,8 @@
 
 #include <stdint.h>
 
+#define RT_ABI_VERSION 0
+
 typedef struct watch watch_t;
 
 typedef void (*sig_event_fn_t)(uint64_t now, tree_t, watch_t *, void *user);

@@ -4099,6 +4099,14 @@ static void cgen_tmp_stack(void)
    LLVMSetLinkage(_tmp_alloc, LLVMExternalLinkage);
 }
 
+static void cgen_abi_version(void)
+{
+   LLVMValueRef global =
+      LLVMAddGlobal(module, LLVMInt32Type(), "__nvc_abi_version");
+   LLVMSetInitializer(global, llvm_int32(RT_ABI_VERSION));
+   LLVMSetGlobalConstant(global, true);
+}
+
 static void cgen_link_arg(const char *fmt, ...)
 {
    va_list ap;
@@ -4294,6 +4302,7 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
    string_pool = hash_new(128, true, HASH_STRING);
 
+   cgen_abi_version();
    cgen_tmp_stack();
 
    cgen_top(top, vcode);
