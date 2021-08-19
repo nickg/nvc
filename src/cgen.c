@@ -4292,7 +4292,7 @@ void cgen(tree_t top, vcode_unit_t vcode)
    char *layout LOCAL = LLVMCopyStringRepOfTargetData(data_ref);
    LLVMSetDataLayout(module, layout);
 
-   string_pool = hash_new(128, true);
+   string_pool = hash_new(128, true, HASH_STRING);
 
    cgen_tmp_stack();
 

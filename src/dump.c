@@ -1174,7 +1174,7 @@ static void dump_group_fn(groupid_t gid, netid_t first, unsigned length)
 
 void dump_nets(tree_t top)
 {
-   net_hash = hash_new(2048, false);
+   net_hash = hash_new(2048, false, HASH_PTR);
 
    const int ndecls = tree_decls(top);
    for (int i = 0; i < ndecls; i++) {

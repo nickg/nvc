@@ -1758,13 +1758,13 @@ static void rt_setup(tree_t top)
    }
 
    const int ndecls = tree_decls(top);
-   decl_hash = hash_new(next_power_of_2(ndecls * 2), true);
+   decl_hash = hash_new(ndecls * 2, true, HASH_PTR);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(top, i);
       hash_put(decl_hash, tree_ident(d), d);
    }
 
-   res_memo_hash = hash_new(128, true);
+   res_memo_hash = hash_new(128, true, HASH_PTR);
 
    netdb_walk(netdb, rt_reset_group);
 

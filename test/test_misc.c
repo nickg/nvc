@@ -11,7 +11,7 @@
 
 START_TEST(test_hash_basic)
 {
-   hash_t *h = hash_new(8, true);
+   hash_t *h = hash_new(8, true, HASH_PTR);
 
    hash_put(h, VOIDP(1516), VOIDP(6));
    hash_put(h, VOIDP(151670), VOIDP(4));
@@ -25,9 +25,28 @@ START_TEST(test_hash_basic)
 }
 END_TEST;
 
+START_TEST(test_hash_string)
+{
+   hash_t *h = hash_new(8, true, HASH_STRING);
+
+   hash_put(h, "hello", VOIDP(6));
+   hash_put(h, "world", VOIDP(4));
+   hash_put(h, "test 123", VOIDP(1));
+
+   fail_unless(hash_get(h, "hello") == VOIDP(6));
+   fail_unless(hash_get(h, "world") == VOIDP(4));
+   fail_unless(hash_get(h, "test 123") == VOIDP(1));
+
+   hash_put(h, "hello", VOIDP(567));
+   fail_unless(hash_get(h, "hello") == VOIDP(567));
+
+   hash_free(h);
+}
+END_TEST;
+
 START_TEST(test_hash_rand)
 {
-  hash_t *h = hash_new(32, true);
+  hash_t *h = hash_new(32, true, HASH_PTR);
 
   static const int N = 1024;
 
@@ -51,7 +70,7 @@ END_TEST;
 
 START_TEST(test_hash_replace)
 {
-   hash_t *h = hash_new(8, false);
+   hash_t *h = hash_new(8, false, HASH_PTR);
 
    hash_put(h, VOIDP(10), VOIDP(6));
    hash_put(h, VOIDP(10), VOIDP(4));
@@ -191,6 +210,7 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_hash, test_hash_basic);
    tcase_add_test(tc_hash, test_hash_rand);
    tcase_add_test(tc_hash, test_hash_replace);
+   tcase_add_test(tc_hash, test_hash_string);
    suite_add_tcase(s, tc_hash);
 
    TCase *tc_sym = tcase_create("safe_symbol");

@@ -583,7 +583,7 @@ const char *type_pp2(type_t t, type_t other)
       {
          static hash_t *cache = NULL;
          if (cache == NULL)
-            cache = hash_new(64, true);
+            cache = hash_new(64, true, HASH_PTR);
 
          text_buf_t *tb = hash_get(cache, t);
          if (tb == NULL) {

@@ -29,7 +29,11 @@ typedef unsigned hash_iter_t;
 #define HASH_BEGIN 0
 #define HASH_END   UINT_MAX
 
-hash_t *hash_new(int size, bool replace);
+typedef enum {
+   HASH_PTR, HASH_STRING
+} hash_func_t;
+
+hash_t *hash_new(int size, bool replace, hash_func_t func);
 void hash_free(hash_t *h);
 bool hash_put(hash_t *h, const void *key, void *value);
 void *hash_get(hash_t *h, const void *key);

@@ -2738,7 +2738,7 @@ static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
 static void vcode_registry_add(vcode_unit_t vu)
 {
    if (registry == NULL)
-      registry = hash_new(512, true);
+      registry = hash_new(512, true, HASH_PTR);
 
    assert(vu->refcount > 0);
    hash_put(registry, vu->name, vu);

@@ -397,7 +397,7 @@ static void make_add_target(lib_t lib, ident_t name, int kind, void *context)
 
 void make(tree_t *targets, int count, FILE *out)
 {
-   rule_map = hash_new(256, true);
+   rule_map = hash_new(256, true, HASH_PTR);
 
    if (count == 0) {
       lib_t work = lib_work();

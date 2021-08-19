@@ -1471,7 +1471,7 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
    if (handle_hash != NULL)
       hash_free(handle_hash);
 
-   handle_hash = hash_new(1024, true);
+   handle_hash = hash_new(1024, true, HASH_PTR);
 
    trace_on = opt_get_int("vhpi_trace_en");
 

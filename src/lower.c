@@ -1889,7 +1889,7 @@ static void lower_push_scope(void)
 {
    lower_scope_t *new = xcalloc(sizeof(lower_scope_t));
    new->down      = top_scope;
-   new->objects   = hash_new(128, true);
+   new->objects   = hash_new(128, true, HASH_PTR);
    new->protected = top_scope ? top_scope->protected : VCODE_INVALID_TYPE;
 
    top_scope = new;
