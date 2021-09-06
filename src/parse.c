@@ -1519,18 +1519,8 @@ static tree_t select_decl(tree_t prefix, ident_t suffix)
    tree_set_ident(ref, qual);
    tree_set_loc(ref, CURRENT_LOC);
 
-   // If the name is followed by a signature we need to parse that
-   // before resolving the overload
-   const bool need_signature =
-      peek() == tLSQUARE && (is_subprogram(d) || tree_kind(d) == T_ENUM_LIT);
-
-   if (!need_signature) {
+   if (d != NULL && !class_has_type(class_of(d)))
       tree_set_ref(ref, d);
-      if (d == NULL)
-         tree_set_type(ref, type_new(T_NONE));
-      else if (class_has_type(class_of(d)))
-         tree_set_type(ref, tree_type(d));
-   }
 
    return ref;
 }

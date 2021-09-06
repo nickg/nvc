@@ -409,17 +409,19 @@ size_t ident_len(ident_t i)
       return ident_len(i->up) + 1;
 }
 
-ident_t ident_suffix_until(ident_t i, char c, ident_t shared, char escape)
+static ident_t ident_suffix_until(ident_t i, char c, char escape1, char escape2)
 {
    assert(i != NULL);
 
-   bool escaping = false;
+   bool escaping1 = false, escaping2 = false;
    ident_t r = i;
-   while (i->value != '\0' && i->up != shared) {
-      if (!escaping && i->value == c)
+   while (i->value != '\0') {
+      if (!escaping1 && !escaping2 && i->value == c)
          r = i->up;
-      else if (i->value == escape)
-         escaping = !escaping;
+      else if (i->value == escape1)
+         escaping1 = !escaping1;
+      else if (i->value == escape2)
+         escaping2 = !escaping2;
       i = i->up;
    }
 
@@ -428,7 +430,7 @@ ident_t ident_suffix_until(ident_t i, char c, ident_t shared, char escape)
 
 ident_t ident_until(ident_t i, char c)
 {
-   return ident_suffix_until(i, c, NULL, '\0');
+   return ident_suffix_until(i, c, '\0', '\0');
 }
 
 ident_t ident_runtil(ident_t i, char c)
@@ -614,4 +616,25 @@ bool ident_list_find(const ident_list_t *list, ident_t i)
    }
 
    return false;
+}
+
+ident_t ident_walk_selected(ident_t *i)
+{
+   if (*i == NULL)
+      return NULL;
+
+   ident_t result = ident_suffix_until(*i, '.', '\'', '\\');
+   if (result == NULL || result == *i) {
+      result = *i;
+      *i = NULL;
+   }
+   else {
+      char *LOCAL buf = xmalloc((*i)->depth + 1), *p = buf + (*i)->depth + 1;
+      *--p = '\0';
+      for (ident_t it = *i; it != result; it = it->up)
+         *--p = it->value;
+      *i = ident_new(p + 1);
+   }
+
+   return result;
 }

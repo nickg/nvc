@@ -2253,6 +2253,32 @@ START_TEST(test_osvvm3)
 }
 END_TEST
 
+START_TEST(test_murax)
+{
+   input_from_file(TESTDIR "/sem/murax.vhd");
+
+   tree_t p1 = parse();
+   fail_if(p1 == NULL);
+   fail_unless(tree_kind(p1) == T_PACKAGE);
+
+   tree_t p2 = parse();
+   fail_if(p2 == NULL);
+   fail_unless(tree_kind(p2) == T_PACKAGE);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2366,6 +2392,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_osvvm1);
    tcase_add_test(tc_core, test_osvvm2);
    tcase_add_test(tc_core, test_osvvm3);
+   tcase_add_test(tc_core, test_murax);
    suite_add_tcase(s, tc_core);
 
    return s;

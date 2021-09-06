@@ -58,8 +58,8 @@ void insert_ports(nametab_t *tab, tree_t container);
 void insert_generics(nametab_t *tab, tree_t container);
 void insert_protected_decls(nametab_t *tab, type_t type);
 
-tree_t resolve_name(nametab_t *r, const loc_t *loc, ident_t name);
-type_t resolve_type(nametab_t *r, type_t incomplete);
+tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name);
+type_t resolve_type(nametab_t *tab, type_t incomplete);
 void resolve_specs(nametab_t *tab, tree_t container);
 void resolve_resolution(nametab_t *tab, tree_t rname, type_t type);
 tree_t query_name(nametab_t *tab, ident_t name);

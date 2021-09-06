@@ -274,20 +274,6 @@ START_TEST(test_downcase)
 }
 END_TEST
 
-START_TEST(test_suffix_until)
-{
-   ident_t i1 = ident_new("foobar.bar.baz");
-   ident_t i2 = ident_new("foobar.'.'.baz");
-   ident_t i3 = ident_new("foobar.'.'");
-   ident_t i4 = ident_new("foobar");
-   ident_t i5 = ident_new("foobar.bar");
-
-   fail_unless(ident_suffix_until(i1, '.', NULL, '\0') == i4);
-   fail_unless(ident_suffix_until(i1, '.', i4, '\0') == i5);
-   fail_unless(ident_suffix_until(i2, '.', i4, '\'') == i3);
-}
-END_TEST
-
 START_TEST(test_compare)
 {
    ck_assert_int_eq(0, ident_compare(ident_new("a"), ident_new("a")));
@@ -306,6 +292,32 @@ START_TEST(test_compare)
                     ident_compare(ident_new("bab"), ident_new("aba")));
    ck_assert_int_eq('b' - 'l',
                     ident_compare(ident_new("abcd"), ident_new("alemnic")));
+}
+END_TEST
+
+START_TEST(test_walk_selected)
+{
+   ident_t it = ident_new("foo.bar.baz");
+   fail_unless(ident_walk_selected(&it) == ident_new("foo"));
+   fail_unless(it == ident_new("bar.baz"));
+   fail_unless(ident_walk_selected(&it) == ident_new("bar"));
+   fail_unless(it == ident_new("baz"));
+   fail_unless(ident_walk_selected(&it) == ident_new("baz"));
+   fail_unless(it == NULL);
+
+   it = ident_new("foo");
+   fail_unless(ident_walk_selected(&it) == ident_new("foo"));
+   fail_unless(it == NULL);
+
+   it = ident_new("foo.'.'.bar");
+   fail_unless(ident_walk_selected(&it) == ident_new("foo"));
+   fail_unless(it == ident_new("'.'.bar"));
+   fail_unless(ident_walk_selected(&it) == ident_new("'.'"));
+   fail_unless(it == ident_new("bar"));
+
+   it = ident_new("\\foo.'.'.bar\\");
+   fail_unless(ident_walk_selected(&it) == ident_new("\\foo.'.'.bar\\"));
+   fail_unless(it == NULL);
 }
 END_TEST
 
@@ -332,8 +344,8 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_contains);
    tcase_add_test(tc_core, test_len);
    tcase_add_test(tc_core, test_downcase);
-   tcase_add_test(tc_core, test_suffix_until);
    tcase_add_test(tc_core, test_compare);
+   tcase_add_test(tc_core, test_walk_selected);
    suite_add_tcase(s, tc_core);
 
    return s;

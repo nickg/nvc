@@ -51,9 +51,6 @@ size_t ident_len(ident_t i);
 // Return the prefix of i that does not include c
 ident_t ident_until(ident_t i, char c);
 
-// Return the prefix of i and shared that does not include c
-ident_t ident_suffix_until(ident_t i, char c, ident_t shared, char escape);
-
 // Return the prefix of i up to the final c
 ident_t ident_runtil(ident_t i, char c);
 
@@ -79,6 +76,9 @@ bool ident_contains(ident_t i, const char *search);
 
 // Convert an indentifier to lower case
 ident_t ident_downcase(ident_t i);
+
+// Iterate through dot-separated name components
+ident_t ident_walk_selected(ident_t *i);
 
 // Convert an identifier reference to a NULL-terminated string.
 // This function is quite slow so its use should be avoided except

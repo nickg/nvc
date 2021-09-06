@@ -353,4 +353,31 @@ begin
         u := bit_vector('1' & (unsigned(mult) & p));  -- OK
     end process;
 
+    p30: process is
+        variable x : integer;
+        variable c : character;
+    begin
+        x := x.y + 1;                   -- Error
+        c := std.standard.'.';          -- OK
+        foo.bar.p(1, 2, 3);             -- Error
+    end process;
+
+    p31: process is
+        type list;
+        type list_ptr is access list;
+
+        type list is record
+            f : integer;
+        end record;
+
+        procedure p is
+            type list is range 1 to 10;
+            variable x : list_ptr;      -- OK
+        begin
+            x.all.f := 1;               -- OK
+        end procedure;
+    begin
+        p;
+    end process;
+
 end architecture;

@@ -663,12 +663,12 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
 {
    assert(lib != NULL);
 
-   // Handle aliased library names and names without the library prefix
-   ident_t lname = ident_until(ident, '.');
-   if (lname != lib->name) {
-      ident_t uname = ident_rfrom(ident, '.') ?: ident;
+   // Handle aliased library names and names without the library
+   ident_t uname = ident, lname = ident_walk_selected(&uname);
+   if (uname == NULL)
+      ident = ident_prefix(lib->name, lname, '.');
+   else if (lname != lib->name)
       ident = ident_prefix(lib->name, uname, '.');
-   }
 
    // Search in the list of already loaded units
    for (unsigned n = 0; n < lib->n_units; n++) {

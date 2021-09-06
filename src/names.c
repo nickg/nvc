@@ -79,12 +79,28 @@ struct type_set {
    type_set_flags_t  flags;
 };
 
+typedef enum {
+   ITER_FREE, ITER_SELECTED
+} iter_mode_t;
+
+typedef struct {
+   nametab_t   *tab;
+   ident_t      name;
+   unsigned     nth;
+   scope_t     *where;
+   scope_t     *limit;
+   iter_mode_t  mode;
+   ident_t      next;
+   tree_t       prefix;
+} iter_state_t;
+
 static type_t _solve_types(nametab_t *tab, tree_t expr);
 static void check_subprogram_matches_spec(nametab_t *tab, tree_t proto,
                                           tree_t subprog);
 static void check_deferred_constant(nametab_t *tab, tree_t first,
                                     tree_t second);
-static tree_t iter_name(nametab_t *tab, ident_t name, int nth);
+static void begin_iter(nametab_t *tab, ident_t name, iter_state_t *state);
+static tree_t iter_name(iter_state_t *state);
 
 static void begin_overload_resolution(overload_t *o);
 static tree_t finish_overload_resolution(overload_t *o);
@@ -337,7 +353,7 @@ static scope_t *chain_scope(nametab_t *tab, ident_t tag)
 
 static scope_t *scope_end_of_chain(scope_t *s)
 {
-   while (s->chain)
+   while (s && s->chain)
       s = s->chain;
    return s;
 }
@@ -576,14 +592,14 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
    insert_name_at(s, name, decl);
 }
 
-type_t resolve_type(nametab_t *r, type_t incomplete)
+type_t resolve_type(nametab_t *tab, type_t incomplete)
 {
    assert(type_kind(incomplete) == T_INCOMPLETE);
 
    ident_t name = ident_rfrom(type_ident(incomplete), '.');
    tree_t decl;
    int n = 0;
-   while ((decl = scope_find(r->top_scope, name, NULL, NULL, n++))) {
+   while ((decl = scope_find(tab->top_scope, name, NULL, NULL, n++))) {
       if (decl == (void *)-1)
          continue;  // Error marker
       else if (tree_kind(decl) == T_TYPE_DECL) {
@@ -601,10 +617,12 @@ bool name_is_formal(nametab_t *tab, ident_t id)
    if (tab->top_scope->formal_kind != F_SUBPROGRAM)
       return false;
 
+   iter_state_t iter;
    ident_t subprog = tree_ident(tab->top_scope->formal);
-   int n = 0;
    tree_t decl;
-   while ((decl = iter_name(tab, subprog, n++)) && is_subprogram(decl)) {
+   begin_iter(tab, subprog, &iter);
+   while ((decl = iter_name(&iter))
+          && decl != (tree_t)-1 && is_subprogram(decl)) {
       const int nports = tree_ports(decl);
       for (int i = 0; i < nports; i++)
          if (tree_ident(tree_port(decl, i)) == id)
@@ -637,10 +655,48 @@ tree_t query_name(nametab_t *tab, ident_t name)
    return decl;
 }
 
-static tree_t iter_name(nametab_t *tab, ident_t name, int nth)
+static void begin_iter(nametab_t *tab, ident_t name, iter_state_t *state)
 {
-   tree_t decl = scope_find(tab->top_scope, name, NULL, NULL, nth);
-   return decl == (void *)-1 ? NULL : decl;
+   state->tab    = tab;
+   state->nth    = 0;
+   state->where  = NULL;
+   state->limit  = NULL;
+   state->prefix = NULL;
+   state->next   = ident_walk_selected(&name);
+   state->mode   = name == NULL ? ITER_FREE : ITER_SELECTED;
+   state->name   = name;
+}
+
+static tree_t iter_name(iter_state_t *state)
+{
+   if (state->mode == ITER_FREE)
+      return scope_find(state->tab->top_scope, state->next, state->limit,
+                        &(state->where), (state->nth)++);
+
+   if (state->prefix == NULL) {
+      do {
+         if (state->prefix == NULL)
+            state->prefix = scope_find(state->tab->top_scope, state->next,
+                                       NULL, NULL, 0);
+         else
+            state->prefix = search_decls(state->prefix, state->next, 0);
+
+         if (state->prefix == NULL) {
+            assert(error_count() > 0);  // Parser should have reported
+            return (tree_t)-1;
+         }
+
+         state->next = ident_walk_selected(&(state->name));
+      } while (state->name != NULL);
+   }
+
+   tree_t d = search_decls(state->prefix, state->next, (state->nth)++);
+   if (d == NULL && state->nth == 1) {
+      assert(error_count() > 0);  // Parser should have reported
+      return (tree_t)-1;
+   }
+
+   return d;
 }
 
 static int tree_stable_compar(const void *pa, const void *pb)
@@ -658,14 +714,15 @@ static int tree_stable_compar(const void *pa, const void *pb)
 
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 {
-   scope_t *where = NULL, *limit = scope_formal_limit(tab);
+   iter_state_t iter;
+   begin_iter(tab, name, &iter);
+   iter.limit = scope_formal_limit(tab);
 
    // Skip over attribute specifications when looking for names as these
    // should never be resolved by normal references
-   int n = 0;
    tree_t decl;
    tree_kind_t dkind = T_LAST_TREE_KIND;
-   while ((decl = scope_find(tab->top_scope, name, limit, &where, n++))
+   while ((decl = iter_name(&iter))
           && decl != (void *)-1
           && (dkind = tree_kind(decl)) == T_ATTR_SPEC)
       ;
@@ -756,7 +813,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       if (tab->top_type_set != NULL && type_set_uniq(tab, &uniq)
           && type_eq(uniq, tree_type(decl)))
          ;   // Only choice for current type set
-      else if ((decl1 = scope_find(tab->top_scope, name, limit, NULL, 1))) {
+      else if ((decl1 = iter_name(&iter))) {
          SCOPED_A(tree_t) m = AINIT;
          APUSH(m, decl);
 
@@ -765,13 +822,12 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          // subprograms
          bool only_subprograms = is_subprogram(decl);
 
-         int n = 2;
          do {
             if (!can_overload(decl1))
                 break;
             only_subprograms &= is_subprogram(decl1);
             APUSH(m, decl1);
-         } while ((decl1 = scope_find(tab->top_scope, name, limit, NULL, n++)));
+         } while ((decl1 = iter_name(&iter)));
 
          if (tab->top_type_set) {
             unsigned wptr = 0;
@@ -821,8 +877,9 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
    else if (tab->top_scope->overload == NULL && dkind != T_ATTR_DECL
             && dkind != T_LIBRARY) {
       // Check for conflicting names imported from multiple packages
-      scope_t *s, *limit = scope_end_of_chain(where);
-      tree_t conflict = scope_find(where, name, limit, &s, 1);
+      scope_t *first = iter.where;
+      iter.limit = scope_end_of_chain(first);
+      tree_t conflict = iter_name(&iter);
       if (conflict != NULL && is_forward_decl(tab, decl, conflict))
          ;   // Forward declaration
       else if (conflict != NULL && is_forward_decl(tab, conflict, decl)) {
@@ -834,7 +891,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                   istr(name));
 
          const struct { tree_t decl; scope_t *scope; } visible[2] = {
-            { decl, where}, { conflict, s }
+            { decl, first }, { conflict, iter.where }
          };
 
          for (int i = 0; i < 2; i++) {
@@ -858,39 +915,15 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
    if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
       // Reference to subprogram or enumeration literal with signature
 
-      ident_t full_name = tree_ident(ref);
-      tree_t prefix = NULL;
-
-      for (;;) {
-         ident_t next = ident_until(full_name, '.');
-         if (next == full_name)
-            break;
-
-         if (prefix == NULL)
-            prefix = resolve_name(tab, tree_loc(ref), next);
-         else {
-            tree_t old_prefix = prefix;
-            if ((prefix = search_decls(prefix, next, 0)) == NULL) {
-               error_at(tree_loc(ref), "name %s not found in %s", istr(next),
-                        istr(tree_ident(old_prefix)));
-            }
-         }
-
-         if (prefix == NULL)
-            return NULL;
-
-         full_name = ident_from(full_name, '.');
-      }
+      iter_state_t iter;
+      begin_iter(tab, tree_ident(ref), &iter);
 
       const bool allow_enum =
          type_kind(constraint) == T_FUNC && type_params(constraint) == 0;
 
       bool match = false;
       tree_t decl = NULL;
-      for (int n = 0;
-           !match && (decl = (prefix ? search_decls(prefix, full_name, n)
-                              : iter_name(tab, full_name, n)));
-           n++) {
+      while (!match && (decl = iter_name(&iter)) && decl != (tree_t)-1) {
          if (is_subprogram(decl))
             match = type_eq(constraint, tree_type(decl));
          else if (allow_enum && tree_kind(decl) == T_ENUM_LIT)
@@ -1966,36 +1999,29 @@ static void check_deferred_constant(nametab_t *tab, tree_t first, tree_t second)
 
 static void solve_subprogram_prefix(overload_t *o)
 {
-   ident_t full_name = o->name ?: tree_ident(o->tree);
+   if (o->name == NULL)
+      o->name = tree_ident(o->tree);
 
-   tree_t prefix = o->prefix;
-   if (prefix == NULL) {
+   if (o->prefix == NULL) {
+      ident_t full_name = o->name;
       for (;;) {
-         ident_t next = ident_until(full_name, '.');
-         if (next == full_name)
+         o->name = ident_walk_selected(&full_name);
+         if (full_name == NULL)
             break;
 
-         if (prefix == NULL)
-            prefix = resolve_name(o->nametab, tree_loc(o->tree), next);
-         else {
-            tree_t old_prefix = prefix;
-            if ((prefix = search_decls(prefix, next, 0)) == NULL) {
-               error_at(tree_loc(o->tree), "name %s not found in %s",
-                        istr(next), istr(tree_ident(old_prefix)));
-            }
-         }
+         if (o->prefix == NULL)
+            o->prefix = scope_find(o->nametab->top_scope, o->name,
+                                   NULL, NULL, 0);
+         else
+            o->prefix = search_decls(o->prefix, o->name, 0);
 
-         if (prefix == NULL) {
+         if (o->prefix == NULL) {
+            assert(error_count() > 0);  // Parser should have reported
             o->error = true;
             break;
          }
-
-         full_name = ident_from(full_name, '.');
       }
    }
-
-   o->prefix = prefix;
-   o->name   = full_name;
 }
 
 static void solve_one_param(nametab_t *tab, tree_t p, overload_t *o)
@@ -2579,7 +2605,10 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
             }
             else {
                // TODO: this isn't right, should only search same region as decl
-               for (int n = 0; (a = iter_name(tab, attr, n)); n++) {
+               iter_state_t iter;
+               begin_iter(tab, attr, &iter);
+
+               while ((a = iter_name(&iter)) && a != (tree_t)-1) {
                   if (tree_kind(a) == T_ATTR_SPEC
                       && tree_class(a) == class
                       && tree_ident2(a) == id)
