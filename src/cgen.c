@@ -3669,8 +3669,8 @@ static void cgen_module_debug_info(void)
    const char *file = sep ? sep + 1 : file_path;
    size_t file_len = strlen(file);
 
-   const char *dir = file_path;
-   size_t dir_len = sep ? sep - file_path : strlen(dir);
+   const char *dir = sep ? file_path : "";
+   size_t dir_len = sep ? sep - file_path : 0;
 
    LLVMMetadataRef file_ref =
       LLVMDIBuilderCreateFile(debuginfo, file, file_len, dir, dir_len);
