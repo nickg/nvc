@@ -400,10 +400,19 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
       if (unit == NULL)
          continue;
 
-      unsigned lineno = f->lineno;
-      const char *srcfile = f->srcfile;
-      tree_t enclosing = NULL;
-      if ((enclosing = find_mangled_decl(unit, ident_new(f->symbol)))) {
+      static hash_t *cache = NULL;
+      if (cache == NULL)
+         cache = hash_new(256, true, HASH_STRING);
+
+      tree_t enclosing = hash_get(cache, f->symbol);
+      if (enclosing == NULL) {
+         if ((enclosing = find_mangled_decl(unit, ident_new(f->symbol))))
+            hash_put(cache, f->symbol, enclosing);
+      }
+
+      if (enclosing) {
+         unsigned lineno = f->lineno;
+         const char *srcfile = f->srcfile;
          if (fixed != NULL && !found_fixed) {
             lineno = fixed->first_line;
             srcfile = fixed->file;
@@ -415,9 +424,7 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
             lineno = loc->first_line;
             srcfile = loc_file_str(loc);
          }
-      }
 
-      if (enclosing) {
          if (tree_kind(enclosing) == T_PROCESS)
             tb_printf(tb, "\r\tProcess %s", istr(tree_ident(enclosing)));
          else {
