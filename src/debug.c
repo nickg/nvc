@@ -299,10 +299,9 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
    static hash_t *hash = NULL;
 
    if (hash == NULL)
-      hash = hash_new(64, true);
+      hash = hash_new(64, true, HASH_STRING);
 
-   ident_t key = ident_new(fname);
-   libdwarf_handle_t *handle = hash_get(hash, key);
+   libdwarf_handle_t *handle = hash_get(hash, fname);
 
    if (handle == (void *)-1)
       return NULL;
@@ -320,7 +319,7 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
 
       if (fd == -1) {
          warnf("open: %s: %s", fname, strerror(errno));
-         hash_put(hash, key, (void *)-1);
+         hash_put(hash, fname, (void *)-1);
          return NULL;
       }
 
@@ -328,7 +327,7 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
       Dwarf_Error err;
       if (dwarf_init(fd, DW_DLC_READ, NULL, NULL, &debug, &err) != DW_DLV_OK) {
          warnf("dwarf_init: %s: %s", fname, dwarf_errmsg(err));
-         hash_put(hash, key, (void *)-1);
+         hash_put(hash, fname, (void *)-1);
          return NULL;
       }
 
@@ -336,7 +335,7 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
       handle->fd    = fd;
       handle->debug = debug;
 
-      hash_put(hash, key, handle);
+      hash_put(hash, fname, handle);
    }
 
    return handle;
