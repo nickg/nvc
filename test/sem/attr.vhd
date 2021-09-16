@@ -97,6 +97,10 @@ package body pack is
     function func(x : in integer) return integer is
     begin
         report func'instance_name;      -- OK
+        report x'simple_name;           -- OK
+        report true'simple_name;        -- Error
+        report pack'path_name;          -- OK
+        report integer'path_name;       -- Error
         return x + 1;
     end function;
 end package body;

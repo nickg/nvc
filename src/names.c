@@ -2557,6 +2557,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
 
    case ATTR_PATH_NAME:
    case ATTR_INSTANCE_NAME:
+   case ATTR_SIMPLE_NAME:
    case ATTR_IMAGE:
       type = std_type(find_std(tab), "STRING");
       break;

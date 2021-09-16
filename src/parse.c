@@ -2218,6 +2218,8 @@ static attr_kind_t parse_predefined_attr(ident_t ident)
       return ATTR_PATH_NAME;
    else if (icmp(ident, "INSTANCE_NAME"))
       return ATTR_INSTANCE_NAME;
+   else if (icmp(ident, "SIMPLE_NAME"))
+      return ATTR_SIMPLE_NAME;
    else if (icmp(ident, "DELAYED"))
       return ATTR_DELAYED;
    else if (icmp(ident, "STABLE"))

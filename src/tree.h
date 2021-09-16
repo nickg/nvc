@@ -207,6 +207,7 @@ typedef enum {
    ATTR_RANGE,
    ATTR_REVERSE_RANGE,
    ATTR_BASE,
+   ATTR_SIMPLE_NAME,
 } attr_kind_t;
 
 typedef enum tree_kind {

@@ -2936,6 +2936,24 @@ static bool sem_check_dimension_attr(tree_t t)
    return true;
 }
 
+static bool sem_is_named_entity(tree_t t)
+{
+   if (tree_kind(t) != T_REF)
+      return false;
+
+   switch (tree_kind(tree_ref(t))) {
+   case T_SIGNAL_DECL:  case T_VAR_DECL:    case T_PORT_DECL:
+   case T_ALIAS:        case T_ENTITY:      case T_ARCH:
+   case T_PACKAGE:      case T_PACK_BODY:   case T_BLOCK:
+   case T_FILE_DECL:    case T_CONST_DECL:  case T_FUNC_DECL:
+   case T_FUNC_BODY:    case T_PROC_DECL:   case T_PROC_BODY:
+   case T_PROCESS:
+      return true;
+   default:
+      return false;
+   }
+}
+
 static bool sem_check_attr_ref(tree_t t, bool allow_range)
 {
    // Attribute names are in LRM 93 section 6.6
@@ -3076,15 +3094,12 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
 
    case ATTR_PATH_NAME:
    case ATTR_INSTANCE_NAME:
-      {
-         const class_t class = class_of(name);
-         if (class != C_SIGNAL && class != C_ARCHITECTURE && class != C_ENTITY
-             && class != C_FUNCTION && class != C_PROCEDURE && class != C_LABEL
-             && class != C_PACKAGE)
-            sem_error(t, "prefix does not have attribute %s", istr(attr));
+   case ATTR_SIMPLE_NAME:
+      if (!sem_is_named_entity(name))
+         sem_error(t, "prefix of %s attribute must be a named entity",
+                   istr(attr));
 
-         return true;
-      }
+      return true;
 
    case ATTR_DELAYED:
    case ATTR_STABLE:
