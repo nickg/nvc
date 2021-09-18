@@ -46,4 +46,11 @@ package body dunno is
 
     subtype weird is bit_vector 1 to 3; -- Error
 
+    procedure proc4 is
+        type ft is file of integer;
+        file f : ft;
+    begin
+        f(0) := 1;                      -- Error
+    end procedure;
+
 end package body;

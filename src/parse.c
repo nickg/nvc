@@ -2446,7 +2446,9 @@ static tree_t p_indexed_name(tree_t prefix, tree_t head)
       head = NULL;
       add_param(t, index, P_POS, NULL);
 
-      type_t index_type = type ? index_type_of(type, n++) : NULL;
+      type_t index_type = NULL;
+      if (type != NULL && type_is_array(type))
+         index_type = index_type_of(type, n++);
       solve_types(nametab, index, index_type);
    } while (optional(tCOMMA));
 
