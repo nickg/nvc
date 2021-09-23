@@ -3210,13 +3210,8 @@ static void cgen_function(LLVMTypeRef display_type)
                                     display_type, params, nparams);
    cgen_add_func_attr(fn, FUNC_ATTR_UWTABLE, -1);
 
-   const bool pure =
-      display_type == NULL
-      && vcode_unit_result() != VCODE_INVALID_TYPE
-      && vcode_unit_pure();
-
-   if (pure)
-      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, -1);
+   // Do not add FUNC_ATTR_READONLY here: it can result in unexpected
+   // optimisations, such as removing assertions.
 
    cgen_ctx_t ctx = {
       .fn = fn

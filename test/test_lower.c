@@ -1694,8 +1694,6 @@ START_TEST(test_memset)
       };
 
       CHECK_BB(0);
-
-      fail_if(vcode_unit_pure());
    }
 
    {
@@ -1722,8 +1720,6 @@ START_TEST(test_memset)
       };
 
       CHECK_BB(0);
-
-      fail_if(vcode_unit_pure());
    }
 }
 END_TEST

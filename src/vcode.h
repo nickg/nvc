@@ -258,7 +258,6 @@ bool vcode_block_finished(void);
 bool vcode_block_empty(void);
 ident_t vcode_unit_name(void);
 int vcode_unit_depth(void);
-bool vcode_unit_pure(void);
 bool vcode_unit_has_undefined(void);
 vunit_kind_t vcode_unit_kind(void);
 vcode_type_t vcode_unit_result(void);

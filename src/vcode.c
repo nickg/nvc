@@ -192,7 +192,6 @@ DECLARE_AND_DEFINE_ARRAY(signal);
 DECLARE_AND_DEFINE_ARRAY(vtype);
 
 typedef enum {
-   UNIT_PURE      = (1 << 0),
    UNIT_UNDEFINED = (1 << 1)
 } unit_flags_t;
 
@@ -418,7 +417,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
 
    case VCODE_OP_ALLOCA:
       defn->subkind = VCODE_ALLOCA_HEAP;
-      active_unit->flags &= ~UNIT_PURE;
       break;
 
    case VCODE_OP_INDEX:
@@ -2684,12 +2682,6 @@ ident_t vcode_unit_name(void)
    return active_unit->name;
 }
 
-bool vcode_unit_pure(void)
-{
-   assert(active_unit != NULL);
-   return active_unit->flags & UNIT_PURE;
-}
-
 bool vcode_unit_has_undefined(void)
 {
    assert(active_unit != NULL);
@@ -2780,7 +2772,6 @@ vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context,
    vu->context  = context;
    vu->result   = result;
    vu->depth    = vcode_unit_calc_depth(vu);
-   vu->flags    = UNIT_PURE;
    vu->loc      = *loc;
    vu->refcount = 1;
 
@@ -2878,13 +2869,9 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                  vcode_reg_t severity)
 {
    int64_t value_const;
-   if (vcode_reg_const(value, &value_const)) {
-      if (value_const == 0)
-         active_unit->flags &= ~UNIT_PURE;
-      else {
-         emit_comment("Always true assertion on r%d", value);
-         return;
-      }
+   if (vcode_reg_const(value, &value_const) && value_const != 0) {
+      emit_comment("Always true assertion on r%d", value);
+      return;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_ASSERT);
@@ -2904,8 +2891,6 @@ void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity)
    vcode_add_arg(op, severity);
    vcode_add_arg(op, message);
    vcode_add_arg(op, length);
-
-   active_unit->flags &= ~UNIT_PURE;
 }
 
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
@@ -4485,8 +4470,6 @@ void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length)
 
    VCODE_ASSERT(vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE),
                 "file write first argument must have file pointer type");
-
-   active_unit->flags &= ~UNIT_PURE;
 }
 
 void emit_file_close(vcode_reg_t file)
@@ -4517,8 +4500,6 @@ void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
    VCODE_ASSERT(outlen == VCODE_INVALID_REG
                 || vtype_kind(vcode_reg_type(outlen)) == VCODE_TYPE_POINTER,
                 "file read outlen argument must have pointer type");
-
-   active_unit->flags &= ~UNIT_PURE;
 }
 
 vcode_reg_t emit_null(vcode_type_t type)
