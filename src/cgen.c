@@ -1161,10 +1161,29 @@ static void cgen_op_rem(int op, cgen_ctx_t *ctx)
 static void cgen_op_mod(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildURem(builder,
-                                     cgen_get_arg(op, 0, ctx),
-                                     cgen_get_arg(op, 1, ctx),
-                                     cgen_reg_name(result));
+
+   LLVMValueRef numer = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef denom = cgen_get_arg(op, 1, ctx);
+
+   // Calculate the following:
+   //
+   //   long r = numer % denom;
+   //   if ((r > 0 && denom < 0) || (r < 0 && denom > 0))
+   //      r = r + denom;
+
+   LLVMValueRef r = LLVMBuildSRem(builder, numer, denom, "");
+
+   LLVMValueRef zero = llvm_int32(0);
+   LLVMValueRef c1 = LLVMBuildICmp(builder, LLVMIntSGT, r, zero, "");
+   LLVMValueRef c2 = LLVMBuildICmp(builder, LLVMIntSLT, denom, zero, "");
+   LLVMValueRef c3 = LLVMBuildAnd(builder, c1, c2, "");
+   LLVMValueRef c4 = LLVMBuildICmp(builder, LLVMIntSLT, r, zero, "");
+   LLVMValueRef c5 = LLVMBuildICmp(builder, LLVMIntSGT, denom, zero, "");
+   LLVMValueRef c6 = LLVMBuildAnd(builder, c4, c5, "");
+   LLVMValueRef c7 = LLVMBuildOr(builder, c3, c6, "");
+
+   LLVMValueRef v1 = LLVMBuildAdd(builder, r, denom, "");
+   ctx->regs[result] = LLVMBuildSelect(builder, c7, v1, r, "");
 }
 
 static void cgen_op_exp(int op, cgen_ctx_t *ctx)

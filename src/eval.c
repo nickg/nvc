@@ -735,8 +735,14 @@ static void eval_op_mod(int op, eval_state_t *state)
          state->failed = true;
       }
       else {
+         const int64_t numer = lhs->integer;
+         const int64_t denom = rhs->integer;
+         int64_t r = numer % denom;
+         if ((r > 0 && denom < 0) || (r < 0 && denom > 0))
+            r = r + denom;
+
          dst->kind    = VALUE_INTEGER;
-         dst->integer = labs(lhs->integer % rhs->integer);
+         dst->integer = r;
       }
       break;
 
