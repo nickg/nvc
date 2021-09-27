@@ -180,4 +180,10 @@ package body p is
         x(1);                           -- Error
     end procedure;
 
+    procedure test15 is
+        variable x : integer;
+    begin
+        x := ?? x;                      -- Error, parsed as pcall in 93
+    end process;
+
 end package body;

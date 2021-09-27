@@ -6623,6 +6623,7 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
    case T_PROT_FCALL:
    case T_REF:
       tree_change_kind(name, namek == T_PROT_FCALL ? T_PROT_PCALL : T_PCALL);
+      tree_set_ref(name, NULL);
       // Fall-through
    case T_PCALL:
       tree_set_ident2(name, tree_ident(name));
