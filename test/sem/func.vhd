@@ -294,4 +294,8 @@ package body func3 is
         assert notdef(2) = 1;           -- Error
     end procedure;
 
+    constant bad_c : bad_type := foo;       -- Error
+
+    function bad_param ( constant x : bad_type := bad_c ) return bad_type;  -- Error
+
 end package body;

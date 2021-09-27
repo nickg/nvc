@@ -391,6 +391,8 @@ START_TEST(test_func)
       { 271, "invalid reference to X inside pure function NESTED" },
       { 288, "no visible subprogram declaration for FNORK" },
       { 294, "procedure NOTDEF not allowed in an expression" },
+      { 297, "no visible declaration for BAD_TYPE" },
+      { 297, "no visible declaration for FOO" },
       { 293, "function CONSTPURE cannot be called as a procedure" },
       { -1, NULL }
    };

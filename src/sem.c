@@ -908,6 +908,9 @@ static bool sem_check_interface_class(tree_t port)
        }
 
        tree_t value = tree_value(port);
+       if (type_is_none(tree_type(value)))
+          return false;
+
        if (!sem_globally_static(value))
           sem_error(value, "default value must be a static expression");
 
