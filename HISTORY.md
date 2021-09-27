@@ -2,6 +2,7 @@
 - Handle access(2) returning EPERM in macOS sandbox (#421).
 - Fix race when multiple processes concurrently update a library.
 - Fix `--syntax` command when file contains multiple design units.
+- Allow constant folding of nand/nor/xor/xnor.
 
 ## 1.5.2 - 2021-07-28
 - Link libexecinfo on FreeBSD.

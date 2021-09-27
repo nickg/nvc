@@ -1212,6 +1212,74 @@ static void eval_op_or(int op, eval_state_t *state)
    }
 }
 
+static void eval_op_xor(int op, eval_state_t *state)
+{
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+   value_t *lhs = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *rhs = eval_get_reg(vcode_get_arg(op, 1), state);
+
+   switch (lhs->kind) {
+   case VALUE_INTEGER:
+      dst->kind    = VALUE_INTEGER;
+      dst->integer = lhs->integer ^ rhs->integer;
+      break;
+
+   default:
+      fatal_trace("invalid value type in %s", __func__);
+   }
+}
+
+static void eval_op_xnor(int op, eval_state_t *state)
+{
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+   value_t *lhs = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *rhs = eval_get_reg(vcode_get_arg(op, 1), state);
+
+   switch (lhs->kind) {
+   case VALUE_INTEGER:
+      dst->kind    = VALUE_INTEGER;
+      dst->integer = !(lhs->integer ^ rhs->integer);
+      break;
+
+   default:
+      fatal_trace("invalid value type in %s", __func__);
+   }
+}
+
+static void eval_op_nand(int op, eval_state_t *state)
+{
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+   value_t *lhs = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *rhs = eval_get_reg(vcode_get_arg(op, 1), state);
+
+   switch (lhs->kind) {
+   case VALUE_INTEGER:
+      dst->kind    = VALUE_INTEGER;
+      dst->integer = !(lhs->integer & rhs->integer);
+      break;
+
+   default:
+      fatal_trace("invalid value type in %s", __func__);
+   }
+}
+
+static void eval_op_nor(int op, eval_state_t *state)
+{
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+   value_t *lhs = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *rhs = eval_get_reg(vcode_get_arg(op, 1), state);
+
+   switch (lhs->kind) {
+   case VALUE_INTEGER:
+      dst->kind    = VALUE_INTEGER;
+      dst->integer = !(lhs->integer | rhs->integer);
+      break;
+
+   default:
+      fatal_trace("invalid value type in %s", __func__);
+   }
+}
+
 static void eval_op_jump(int op, eval_state_t *state)
 {
    vcode_select_block(vcode_get_target(op, 0));
@@ -1941,6 +2009,22 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_OR:
          eval_op_or(i, state);
+         break;
+
+      case VCODE_OP_XOR:
+         eval_op_xor(i, state);
+         break;
+
+      case VCODE_OP_XNOR:
+         eval_op_xnor(i, state);
+         break;
+
+      case VCODE_OP_NAND:
+         eval_op_nand(i, state);
+         break;
+
+      case VCODE_OP_NOR:
+         eval_op_nor(i, state);
          break;
 
       case VCODE_OP_COND:

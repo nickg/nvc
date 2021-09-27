@@ -53,6 +53,7 @@ package pack is
 
     function test_alloc_proc(a, b, c : string) return boolean;
 
+    function test_logic(x, y : bit) return bit;
 end package;
 
 package body pack is
@@ -249,6 +250,12 @@ package body pack is
         return r;
     end function;
 
+    function test_logic(x, y : bit) return bit is
+    begin
+        return (x and y) xor (x or y) xor (x nand y)
+            xor (x nor y) xor (x xnor y);
+    end function;
+
 end package body;
 
 -------------------------------------------------------------------------------
@@ -290,6 +297,7 @@ begin
         signal s24 : boolean := make_rec("010", 4).x = "010";
         signal s25 : boolean := test_alloc_proc("hello", "world", "helloworld");
         signal s26 : boolean := test_alloc_proc("hello", "moo", "hellomoowee");
+        signal s27 : bit := test_logic('1', '0');
     begin
     end block;
 

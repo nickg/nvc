@@ -328,6 +328,10 @@ START_TEST(test_ffold)
    fail_unless(folded_b(tree_value(tree_decl(b, 24)), true));
    fail_unless(folded_b(tree_value(tree_decl(b, 25)), true));
    fail_unless(folded_b(tree_value(tree_decl(b, 26)), false));
+
+   unsigned bval;
+   fail_unless(folded_enum(tree_value(tree_decl(b, 27)), &bval));
+   fail_unless(bval == 0);
 }
 END_TEST
 
