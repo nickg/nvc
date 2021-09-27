@@ -1116,6 +1116,8 @@ void *_vec_load(const int32_t *nids, void *where,
    TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
          fmt_net(nids[0]), where, low, high, last);
 
+   if (low > high) return where;   // Handle null signal
+
    int offset = low;
 
    groupid_t gid = netdb_lookup(netdb, nids[offset]);
