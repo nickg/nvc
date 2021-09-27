@@ -981,6 +981,7 @@ START_TEST(test_array1)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
+      { VCODE_OP_HEAP_SAVE },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .name = ":array1:func" },
       { VCODE_OP_CONST, .value = 1 },
@@ -1008,6 +1009,7 @@ START_TEST(test_array1)
    EXPECT_BB(3) = {
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_HEAP_RESTORE },
       { VCODE_OP_WAIT, .target = 4 }
    };
 

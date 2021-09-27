@@ -2973,6 +2973,7 @@ static void lower_cleanup_temp_objects(vcode_reg_t saved_heap)
 static void lower_assert(tree_t stmt)
 {
    const int is_report = tree_attr_int(stmt, ident_new("is_report"), 0);
+   const int saved_mark = emit_heap_save();
 
    vcode_reg_t severity = lower_reify_expr(tree_severity(stmt));
 
@@ -2989,7 +2990,6 @@ static void lower_assert(tree_t stmt)
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
 
    vcode_reg_t message = VCODE_INVALID_REG, length = VCODE_INVALID_REG;
-   vcode_reg_t saved_heap = VCODE_INVALID_REG;
    if (tree_has_message(stmt)) {
       tree_t m = tree_message(stmt);
 
@@ -3003,8 +3003,6 @@ static void lower_assert(tree_t stmt)
          vcode_select_block(message_bb);
       }
 
-      saved_heap = emit_heap_save();
-
       vcode_reg_t message_wrapped = lower_expr(m, EXPR_RVALUE);
       message = lower_array_data(message_wrapped);
       length  = lower_array_len(tree_type(m), 0, message_wrapped);
@@ -3015,13 +3013,12 @@ static void lower_assert(tree_t stmt)
    else
       emit_assert(value, message, length, severity);
 
-   if (saved_heap != VCODE_INVALID_REG)
-      lower_cleanup_temp_objects(saved_heap);
-
    if (exit_bb != VCODE_INVALID_BLOCK) {
       emit_jump(exit_bb);
       vcode_select_block(exit_bb);
    }
+
+   lower_cleanup_temp_objects(saved_mark);
 }
 
 static bool lower_signal_sequential_nets(tree_t decl)
