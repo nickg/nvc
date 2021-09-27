@@ -371,11 +371,13 @@ START_TEST(test_wait1)
    CHECK_BB(0);
 
    const check_bb_t bb1[] = {
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_WAIT,  .target = 2 }
    };
@@ -383,11 +385,13 @@ START_TEST(test_wait1)
    CHECK_BB(1);
 
    const check_bb_t bb2[] = {
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_WAIT,  .target = 3 }
    };
@@ -395,11 +399,13 @@ START_TEST(test_wait1)
    CHECK_BB(2);
 
    const check_bb_t bb3[] = {
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 1000001 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT,  .target = 4 }
    };
 
@@ -935,6 +941,7 @@ START_TEST(test_arrayop1)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 3 },
@@ -981,6 +988,7 @@ START_TEST(test_arrayop1)
    EXPECT_BB(4) = {
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 5 }
    };
 
@@ -1004,6 +1012,7 @@ START_TEST(test_array1)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .name = ":array1:func" },
       { VCODE_OP_CONST, .value = 1 },
@@ -1031,6 +1040,7 @@ START_TEST(test_array1)
    EXPECT_BB(3) = {
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 4 }
    };
 
@@ -1057,6 +1067,7 @@ START_TEST(test_nest1)
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
+         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_NESTED_FCALL,
@@ -1065,6 +1076,7 @@ START_TEST(test_nest1)
          { VCODE_OP_CONST, .value = 7 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
+         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_WAIT, .target = 2 }
       };
 
@@ -1770,6 +1782,7 @@ START_TEST(test_func5)
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
+         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_NETS, .name = ":func5:x" },
          { VCODE_OP_FCALL, .func = ":func5$WORK.FUNC5(TEST).ADD_ONE_S(sI)I",
@@ -1777,9 +1790,12 @@ START_TEST(test_func5)
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
+         { VCODE_OP_TEMP_STACK_RESTORE },
+         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_FCALL, .func = ":func5$WORK.FUNC5(TEST).EVENT(sI)B",
            .args = 1 },
          { VCODE_OP_ASSERT },
+         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_WAIT, .target = 2 }
       };
 
@@ -2882,6 +2898,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_ARRAY_SIZE },
       { VCODE_OP_COPY },
       { VCODE_OP_TEMP_STACK_RESTORE },
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
@@ -2891,6 +2908,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_MEMCMP },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
