@@ -15,11 +15,13 @@ jobs:
       - name: Generate configure script
         run: ./autogen.sh
       - name: Configure
-        run: ./configure --enable-gcov --enable-vhpi --with-llvm=/usr/bin/llvm-config
+        run: |
+          ./configure --enable-gcov --enable-vhpi --enable-asan \
+               --with-llvm=/usr/bin/llvm-config
       - name: Build
-        run: make
+        run: ASAN_OPTIONS=detect_leaks=0 make
       - name: Test
-        run: make check
+        run: ASAN_OPTIONS=detect_leaks=0 make check
       - name: Coverage report
         run: make cov-generate
       - name: Coveralls
