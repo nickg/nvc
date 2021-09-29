@@ -1518,11 +1518,58 @@ static tree_t select_decl(tree_t prefix, ident_t suffix)
    tree_t ref = tree_new(T_REF);
    tree_set_ident(ref, qual);
    tree_set_loc(ref, CURRENT_LOC);
-
-   if (d != NULL && !class_has_type(class_of(d)))
-      tree_set_ref(ref, d);
+   tree_set_ref(ref, d);
 
    return ref;
+}
+
+static tree_t could_be_slice_name(tree_t fcall)
+{
+   // The expression F(X) where X is a type name and F is a function
+   // should be parsed as an array slice F(X'RANGE) where F is called
+   // with no arguments
+
+   if (tree_params(fcall) != 1)
+      return fcall;
+
+   tree_t p0 = tree_param(fcall, 0);
+   if (tree_subkind(p0) != P_POS)
+      return fcall;
+
+   tree_t value = tree_value(p0);
+   if (tree_kind(value) != T_REF)
+      return fcall;
+
+   if (!tree_has_ref(value))
+      return fcall;
+
+   tree_t decl = tree_ref(value);
+   if (tree_kind(decl) != T_TYPE_DECL)
+      return fcall;
+
+   tree_t new = tree_new(T_FCALL);
+   tree_set_ident(new, tree_ident(fcall));
+   tree_set_loc(new, tree_loc(fcall));
+
+   tree_t aref = tree_new(T_ATTR_REF);
+   tree_set_name(aref, value);
+   tree_set_ident(aref, ident_new("RANGE"));
+   tree_set_loc(aref, tree_loc(value));
+   tree_set_subkind(aref, ATTR_RANGE);
+
+   tree_t r = tree_new(T_RANGE);
+   tree_set_subkind(r, RANGE_EXPR);
+   tree_set_value(r, aref);
+   tree_set_loc(r, tree_loc(p0));
+
+   solve_types(nametab, r, NULL);
+
+   tree_t slice = tree_new(T_ARRAY_SLICE);
+   tree_set_value(slice, new);
+   tree_add_range(slice, r);
+   tree_set_loc(slice, tree_loc(fcall));
+
+   return slice;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2183,7 +2230,7 @@ static tree_t p_function_call(ident_t id, tree_t prefix)
    }
 
    tree_set_loc(call, CURRENT_LOC);
-   return call;
+   return could_be_slice_name(call);
 }
 
 static attr_kind_t parse_predefined_attr(ident_t ident)

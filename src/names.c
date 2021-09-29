@@ -2042,7 +2042,6 @@ static void solve_one_param(nametab_t *tab, tree_t p, overload_t *o)
       break;
    }
 
-   _solve_types(tab, tree_value(p));
    overload_next_argument(o, p);
 }
 

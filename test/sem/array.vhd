@@ -133,7 +133,7 @@ begin
 
     process is
         function foo(size: integer) return int_array is
-	    subtype rtype is int_array(size-1 downto 0);
+            subtype rtype is int_array(size-1 downto 0);
             variable result: rtype;
         begin
             assert result(0) = 1;
@@ -388,8 +388,8 @@ begin
     end block;
 
     process is
-	type bad1 is array (real range <>) of real;  -- Error
-	type bad2 is array (natural range <>, bit_vector range <>) of bit;  -- Error
+        type bad1 is array (real range <>) of real;  -- Error
+        type bad2 is array (natural range <>, bit_vector range <>) of bit;  -- Error
     begin
     end process;
 
@@ -406,12 +406,29 @@ begin
     end process;
 
     process is
-	procedure p(l : natural) is
-	    variable v : int_array(1 to l);
-	begin
-	    v := (1 => 0, others => 1);  -- Error
-	end procedure;
+        procedure p(l : natural) is
+            variable v : int_array(1 to l);
+        begin
+            v := (1 => 0, others => 1);  -- Error
+        end procedure;
     begin
     end process;
 
+    process is
+        function f(b:integer:=0) return string is begin return "abc"; end function;
+        function f               return string is begin return "def"; end function;
+        alias f0 is f [integer return string];
+        subtype r is integer range 1 to 2;
+    begin
+        report "x: " & f0(r) severity note;  -- OK
+        report "x: " & f(r) severity note;   -- Error
+    end process;
+
+    process is
+        type bit_map is array (bit) of integer;
+        function f return bit_map is begin return (0, 1); end function;
+    begin
+        assert f(bit) = (0, 1);                 -- OK
+        assert f(std.standard.bit) = (0, 1);    -- OK
+    end process;
 end architecture;
