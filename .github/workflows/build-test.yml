@@ -175,6 +175,8 @@ jobs:
           echo /opt/nvc-${{ steps.version.outputs.version }}/bin >> $GITHUB_PATH
       - name: Check --version output
         run: nvc --version
+      - name: Test FPHDL
+        run: ./vhdl-projects/fphdl/test.sh
       - name: Test ZPU
         run: ./vhdl-projects/zpu/test.sh
       - name: Test Flopoco
