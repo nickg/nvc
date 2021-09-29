@@ -3926,7 +3926,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
    }
    else if (strncmp(name, "llvm.mem", 8) == 0) {
       int width;
-      char kind[16];
+      char kind[17];
       if (sscanf(name, "llvm.%16[^.].p0i%d", kind, &width) != 2)
          fatal("invalid memcpy intrinsic %s", name);
 

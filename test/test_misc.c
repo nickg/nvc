@@ -46,25 +46,27 @@ END_TEST;
 
 START_TEST(test_hash_rand)
 {
-  hash_t *h = hash_new(32, true, HASH_PTR);
+   hash_t *h = hash_new(32, true, HASH_PTR);
 
-  static const int N = 1024;
+   static const int N = 1024;
 
-  void *keys[N];
-  void *values[N];
+   void *keys[N];
+   void *values[N];
 
-  for (int i = 0; i < N; i++) {
-     do {
-        keys[i] = VOIDP(((i << 16) | (rand() & 0xffff)));
-     } while (keys[i] == NULL);
-     values[i] = VOIDP(rand());
-  }
+   for (int i = 0; i < N; i++) {
+      do {
+         keys[i] = VOIDP(((i << 16) | (rand() & 0xffff)));
+      } while (keys[i] == NULL);
+      values[i] = VOIDP(rand());
+   }
 
-  for (int i = 0; i < N; i++)
-     hash_put(h, keys[i], values[i]);
+   for (int i = 0; i < N; i++)
+      hash_put(h, keys[i], values[i]);
 
-  for (int i = 0; i < N; i++)
-     fail_unless(hash_get(h, keys[i]) == values[i]);
+   for (int i = 0; i < N; i++)
+      fail_unless(hash_get(h, keys[i]) == values[i]);
+
+   hash_free(h);
 }
 END_TEST;
 

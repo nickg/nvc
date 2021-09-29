@@ -248,7 +248,7 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
 static JsonNode *dump_type(type_t type)
 {
    JsonNode *type_node = json_mkobject();
-   char *type_name = xstrdup(type_pp(type));
+   char *type_name LOCAL = xstrdup(type_pp(type));
 
    if (type_kind(type) == T_SUBTYPE && type_has_ident(type))
       json_append_member(type_node, "name", json_mkstring(type_name));
@@ -556,14 +556,16 @@ static JsonNode *dump_stmt(tree_t t)
 {
    JsonNode *statement = json_mkobject();
    add_lineno(statement, t);
-   JsonNode *stmt = json_mkarray();
    switch (tree_kind(t)) {
    case T_PROCESS:
-      json_append_member(statement, "cls", json_mkstring("process"));
-      json_append_member(statement, "decls", dump_decls(t));
-      json_append_member(statement, "stmts", stmt);
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         json_append_element(stmt, dump_stmt(tree_stmt(t, i)));
+      {
+         JsonNode *stmt = json_mkarray();
+         json_append_member(statement, "cls", json_mkstring("process"));
+         json_append_member(statement, "decls", dump_decls(t));
+         json_append_member(statement, "stmts", stmt);
+         for (unsigned i = 0; i < tree_stmts(t); i++)
+            json_append_element(stmt, dump_stmt(tree_stmt(t, i)));
+      }
       break;
 
    case T_SIGNAL_ASSIGN:

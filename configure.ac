@@ -268,6 +268,13 @@ AC_ARG_ENABLE([ubsan],
      EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=undefined"
    fi])
 
+AC_ARG_ENABLE([asan],
+  [AS_HELP_STRING([--enable-sasn], [Enable address sanitiser])],
+  [if test x$enableval = xyes; then
+     EXTRA_CFLAGS="$EXTRA_CFLAGS -fsanitize=address -fno-omit-frame-pointer"
+     EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=address -fno-omit-frame-pointer"
+   fi])
+
 case $host_os in
   msys*|mingw32*)
     LIBS="$LIBS -lDbgHelp"    # For StackTrace64

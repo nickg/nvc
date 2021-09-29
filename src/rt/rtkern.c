@@ -780,10 +780,8 @@ void _set_initial(int32_t nid, const uint8_t *values,
       src    += nbytes;
       remain -= g->length;
 
-      if (remain == 0) {
-         part++;
+      if (remain == 0 && ++part < nparts)
          remain = size_list[part].count;
-      }
    }
 }
 

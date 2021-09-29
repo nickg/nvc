@@ -28,6 +28,7 @@ begin
         assert good;
         assert x = 5;
         assert l.all'length = 0;
+        deallocate(l);
 
         report "Negative integers";
         l := new string'("  -123,-5");
@@ -49,6 +50,8 @@ begin
         assert x = -5;
         assert l.all'length = 0;
 
+        deallocate(l);
+
         report "Integers min and max";
         l := new string'(integer'image(integer'low) & "," & integer'image(integer'high));
         read(l, x, good);
@@ -62,6 +65,8 @@ begin
         assert good;
         assert x = integer'high;
         assert l.all'length = 0;
+
+        deallocate(l);
 
         report "Negative integer not good with single minus";
         l := new string'("-,100");
@@ -82,6 +87,8 @@ begin
         assert x = 100;
         assert l.all'length = 0;
 
+        deallocate(l);
+
         report "Negative integer with minus in the middle";
         l := new string'("10-10");
         read(l, x, good);
@@ -91,6 +98,7 @@ begin
         assert good;
         assert x = -10;
         assert l.all'length = 0;
+        deallocate(l);
 
         wait;
     end process;
@@ -117,6 +125,7 @@ begin
         assert good;
         assert x = false;
         assert l.all'length = 0;
+        deallocate(l);
         wait;
     end process;
 
@@ -147,6 +156,7 @@ begin
         assert l.all(l'left) = '5';
         read(l, x, good);
         assert not good;
+        deallocate(l);
         wait;
     end process;
 
@@ -168,6 +178,7 @@ begin
         assert good;
         assert x = "1111";
         assert l.all(l'left) = '1';
+        deallocate(l);
         wait;
     end process;
 
@@ -185,6 +196,7 @@ begin
         assert b = '0';
         read(l, b, good);
         assert not good;
+        deallocate(l);
         wait;
     end process;
 
@@ -205,6 +217,7 @@ begin
         assert t = 1 hr;
         read(l, t, good);
         assert not good;
+        deallocate(l);
         wait;
     end process;
 
