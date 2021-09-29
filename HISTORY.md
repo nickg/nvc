@@ -11,7 +11,7 @@
 - Added support for ports and generics in block statements.
 - Added support for the 'BASE attribute.
 - Type name now allowed in element association choice (#407).
-- Implement textio READ procedure for BIT and TIME (#408).
+- Implement textio READ procedure for BIT, TIME, and REAL (#408).
 - LLVM 6.0 or later required to build.
 - Fixed a crash when a long running procedure suspends in a loop (#412).
 - Fixed a stack overflow when a subprogram with unconstrained array

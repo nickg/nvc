@@ -33,8 +33,17 @@ begin
         write(l, 10 ns);
         writeline(output, l);
 
-        --write(l, 50 ns, field => 20, justified => right, unit => us);
-        --writeline(output, l);
+        write(l, 50 ns, field => 20, justified => right, unit => us);
+        writeline(output, l);
+
+        write(l, 1.234);
+        writeline(output, l);
+
+        write(l, 1.234, digits => 1);
+        writeline(output, l);
+
+        write(l, 1.234567, digits => 4);
+        writeline(output, l);
 
         wait;
     end process;

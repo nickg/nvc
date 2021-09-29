@@ -592,9 +592,16 @@ package body textio is
                      justified : in side:= right;
                      field     : in width := 0;
                      digits    : in natural:= 0 ) is
+        -- This may be compiled as VHDL-93 so cannot call TO_STRING directly
+        function fmt(value : real; spec : string) return string;
+        attribute foreign of fmt : function is "_std_to_string_real_format";
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        if digits = 0 then
+            write(l, fmt(value, "%e"), justified, field);
+        else
+            write(l, fmt(value, "%." & integer'image(digits) & "f"),
+                  justified, field);
+        end if;
     end procedure;
 
     procedure write (l         : inout line;
