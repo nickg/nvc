@@ -39,6 +39,8 @@
   removed.
 - The `--profile` option now prints internal simulation statistics
   instead of the top processes by CPU time.
+- The elaboration phase was largely written which fixes a number of
+  long-standing issues and significantly improves elaboration speed.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

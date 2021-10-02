@@ -185,3 +185,5 @@ jobs:
         run: ./vhdl-projects/flopoco/test.sh
       - name: Test HardH264
         run: ./vhdl-projects/hardh264/test.sh
+      - name: Test big RAM
+        run: ./vhdl-projects/bigram/test.sh
