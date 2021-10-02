@@ -789,8 +789,8 @@ static void usage(void)
 #ifdef ENABLE_VHPI
           "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
 #endif
-          "     --profile\t\tColect profiling data during run\n"
-          "     --stats\t\tPrint statistics at end of run\n"
+          "     --profile\t\tDisplay detailed statistics at end of run\n"
+          "     --stats\t\tPrint time and memory usage at end of run\n"
           "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"

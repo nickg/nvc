@@ -37,6 +37,8 @@
 - Fix a crash when using 'VALUE with enumeration subtypes (#419).
 - The `--codegen` command, which has been deprecated since 1.3, was
   removed.
+- The `--profile` option now prints internal simulation statistics
+  instead of the top processes by CPU time.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

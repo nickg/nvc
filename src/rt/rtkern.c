@@ -262,6 +262,18 @@ struct rt_loc {
    const char *file;
 };
 
+typedef struct {
+   uint32_t n_signals;
+   uint32_t n_contig;
+   uint32_t n_procs;
+   uint32_t runq_min;
+   uint32_t runq_max;
+   uint32_t n_simple;
+   double   runq_m2;
+   double   runq_mean;
+   uint64_t deltas;
+} rt_profile_t;
+
 static rt_proc_t      *active_proc = NULL;
 static rt_scope_t     *active_scope = NULL;
 static rt_scope_t     *scopes = NULL;
@@ -292,6 +304,7 @@ static bool            can_create_delta;
 static callback_t     *global_cbs[RT_LAST_EVENT];
 static rt_severity_t   exit_severity = SEVERITY_ERROR;
 static bool            profiling = false;
+static rt_profile_t    profile;
 static rt_nexus_t     *nexuses = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
@@ -1747,8 +1760,12 @@ static void rt_setup_signal(e_node_t e, rt_signal_t *s, unsigned *total_mem)
 
    s->size = offset;
 
-   if (flags & E_F_CONTIGUOUS)
+   profile.n_signals++;
+
+   if (flags & E_F_CONTIGUOUS) {
       s->shared.resolved = s->nexus[0]->resolved;
+      profile.n_contig++;
+   }
    else {
       s->shared.resolved = xcalloc(s->size);
       s->flags |= NET_F_OWNS_MEM;
@@ -1804,6 +1821,8 @@ static void rt_setup_scopes_recur(e_node_t e, rt_scope_t *parent,
                   n->sources[k].proc = r;
             }
          }
+
+         profile.n_procs++;
       }
 
       for (int i = 0; i < nsignals; i++)
@@ -1863,6 +1882,8 @@ static void rt_setup_nexus(e_node_t top)
 
       const size_t valuesz = n->width * n->size;
       resolved_size += valuesz;
+
+      profile.n_simple += n->width;
    }
 
    // Allocate memory for all nexuses as one contiguous blob. This is
@@ -1913,10 +1934,6 @@ static void rt_run(rt_proc_t *proc)
    TRACE("%s process %s", proc->privdata ? "run" : "reset",
          istr(e_path(proc->source)));
 
-   uint64_t start_clock = 0;
-   if (profiling)
-      start_clock = get_timestamp_us();
-
    const bool reset = (proc->privdata == NULL);
 
    if (reset) {
@@ -1947,9 +1964,6 @@ static void rt_run(rt_proc_t *proc)
    }
    else
       (*proc->proc_fn)(proc->privdata, proc->scope->privdata);
-
-   if (start_clock != 0)
-      proc->usage += get_timestamp_us() - start_clock;
 }
 
 static void *rt_call_module_reset(ident_t name, void *arg)
@@ -2562,6 +2576,19 @@ static void rt_cycle(int stop_delta)
       }
    }
 
+   if (profiling) {
+      const uint32_t nevents = run_queue.wr;
+
+      profile.deltas++;
+      profile.runq_min = MIN(profile.runq_min, nevents);
+      profile.runq_max = MAX(profile.runq_max, nevents);
+
+      const double diff = nevents - profile.runq_mean;
+      profile.runq_mean += diff / profile.deltas;
+      const double diff2 = nevents - profile.runq_mean;
+      profile.runq_m2 += diff * diff2;
+   }
+
    event_t *event;
    while ((event = rt_pop_run_queue())) {
       switch (event->kind) {
@@ -2739,33 +2766,28 @@ static bool rt_stop_now(uint64_t stop_time)
    }
 }
 
-#if 0
-static int rt_proc_usage_cmp(const void *lhs, const void *rhs)
-{
-   return ((const rt_proc_t *)rhs)->usage - ((const rt_proc_t *)lhs)->usage;
-}
-#endif
-
 static void rt_stats_print(void)
 {
    nvc_rusage_t ru;
    nvc_rusage(&ru);
 
    if (profiling) {
-#if 0
-      notef("top processes by CPU usage");
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_printf(tb, "Signals: %d  (%.1f%% contiguous)\n", profile.n_signals,
+                100.0f * ((float)profile.n_contig / (float)profile.n_signals));
+      tb_printf(tb, "Nexuses: %-5d      Simple signals: %d (1:%.1f)\n",
+                n_nexuses, profile.n_simple,
+                (double)profile.n_simple / n_nexuses);
+      tb_printf(tb, "Processes: %-5d    Scopes: %d\n",
+                profile.n_procs, n_scopes);
+      tb_printf(tb, "Cycles: %"PRIu64"\n", profile.deltas);
 
-      qsort(procs, n_procs, sizeof(rt_proc_t), rt_proc_usage_cmp);
+      const double runq_std = sqrt(profile.runq_m2 / profile.deltas);
+      tb_printf(tb, "Run queue:   min:%d max:%d avg:%.1f var:%.1f%%",
+                profile.runq_min, profile.runq_max, profile.runq_mean,
+                100.0 * (runq_std / profile.runq_mean));
 
-      const uint64_t ru_us = ru.ms * 1000;
-
-      color_printf("$white$%10s %5s %s$$\n", "us", "%", "process");
-      for (size_t i = 0; i < MIN(n_procs, 10); i++) {
-         const double pc = ((double)procs[i].usage / ru_us) * 100.0;
-         printf("%10"PRIu64" %5.1f %s\n", procs[i].usage, pc,
-                istr(e_path(procs[i].source)));
-      }
-#endif
+      notef("Simulation profile data:\n%s", tb_get(tb));
    }
 
    notef("setup:%ums run:%ums maxrss:%ukB", ready_rusage.ms, ru.ms, ru.rss);
@@ -2840,6 +2862,11 @@ void rt_start_of_tool(tree_t top, e_node_t e)
 
    trace_on = opt_get_int("rt_trace_en");
    profiling = opt_get_int("rt_profile");
+
+   if (profiling) {
+      memset(&profile, '\0', sizeof(profile));
+      profile.runq_min = ~0;
+   }
 
    event_stack     = rt_alloc_stack_new(sizeof(event_t), "event");
    waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t), "waveform");
