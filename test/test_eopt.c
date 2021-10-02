@@ -214,6 +214,8 @@ START_TEST(test_ram1)
    e_node_t ram = e_signal(s1, 0);
    fail_unless(e_ident(ram) == ident_new("RAM"));
    fail_unless(e_nexuses(ram) == 16);
+   fail_unless(e_flags(ram) & E_F_CONTIGUOUS);
+   fail_if(e_flags(ram) & E_F_LAST_VALUE);
 
    for (int i = 0; i < 16; i++) {
       e_node_t n = e_nexus(ram, i);
@@ -635,6 +637,8 @@ START_TEST(test_slice2)
    fail_unless(e_width(s) == 8);
    fail_unless(e_nexuses(s) == 8);
    fail_unless(e_width(e_nexus(s, 0)) == 1);
+   fail_unless(e_flags(s) & E_F_CONTIGUOUS);
+   fail_unless(e_flags(s) & E_F_LAST_VALUE);
 }
 END_TEST
 
@@ -720,10 +724,12 @@ START_TEST(test_map2)
    e_node_t a = e_signal(top, 0);
    fail_unless(e_ident(a) == ident_new("A"));
    fail_unless(e_nexuses(a) == 1);
+   fail_unless(e_flags(a) & E_F_CONTIGUOUS);
 
    e_node_t c = e_signal(top, 2);
    fail_unless(e_ident(c) == ident_new("C"));
    fail_unless(e_nexuses(c) == 1);
+   fail_unless(e_flags(c) & E_F_CONTIGUOUS);
 
    e_node_t sub = e_scope(top, 0);
    fail_unless(e_instance(sub) == ident_new(":map2(test):sub1_i@sub(test)"));
@@ -733,6 +739,8 @@ START_TEST(test_map2)
    fail_unless(e_ident(i) == ident_new("I"));
    fail_unless(e_width(i) == 8);
    fail_unless(e_nexuses(i) == 4);
+   fail_if(e_flags(i) & E_F_CONTIGUOUS);
+   fail_if(e_flags(i) & E_F_LAST_VALUE);
 
    e_node_t n0 = e_nexus(i, 0);
    fail_unless(n0 == e_nexus(a, 0));

@@ -497,7 +497,9 @@ static void _e_dump(e_node_t e, int indent)
 
          const e_flags_t flags = e_flags(e);
          if (flags & E_F_LAST_VALUE)
-            color_printf(" $cyan$needs-last-value$$");
+            color_printf(" $cyan$last-value$$");
+         if (!(flags & E_F_CONTIGUOUS))
+            color_printf(" $cyan$non-contiguous$$");
 
          const int nnexus = e_nexuses(e);
          fputc(nnexus == 1 && flags == 0 ? ' ' : '\n', stdout);
