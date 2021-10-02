@@ -54,11 +54,7 @@
 
 #define TRACE_DELTAQ  1
 #define TRACE_PENDING 0
-#define RT_DEBUG      1
-
-// TODO: remove these
-typedef uint32_t netid_t;
-#define NETID_INVALID UINT32_MAX
+#define RT_DEBUG      0
 
 struct uarray;
 
@@ -118,8 +114,6 @@ struct sens_list {
    sens_list_t  *next;
    sens_list_t **reenq;
    uint32_t      wakeup_gen;
-   netid_t       first;
-   netid_t       last;
 };
 
 typedef struct {
@@ -280,7 +274,6 @@ typedef struct {
    uint32_t nmap_direct;
    uint32_t nmap_search;
    uint32_t nmap_divide;
-   double   runq_m2;
    double   runq_mean;
    uint64_t deltas;
 } rt_profile_t;
@@ -298,7 +291,6 @@ static bool            trace_on = false;
 static nvc_rusage_t    ready_rusage;
 static jmp_buf         fatal_jmp;
 static bool            aborted = false;
-static sens_list_t    *pending = NULL;
 static sens_list_t    *resume = NULL;
 static sens_list_t    *postponed = NULL;
 static watch_t        *watches = NULL;
@@ -333,8 +325,7 @@ static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
                                  rt_proc_t *driver);
 static bool rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
                             uint64_t reject, value_t *values);
-static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
-                           rt_proc_t *proc, bool is_static);
+static void rt_sched_event(sens_list_t **list, rt_proc_t *proc, bool is_static);
 static void *rt_tmp_alloc(size_t sz);
 static value_t *rt_alloc_value(rt_nexus_t *n);
 static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
@@ -664,61 +655,15 @@ void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
    TRACE("_sched_event %s+%d count=%d flags=%d proc %s", istr(e_path(s->enode)),
          offset, count, flags, istr(e_path(active_proc->source)));
 
-   // TODO: only add to per-nexus sensitivity list if sid != 0 or count
-   // != length of signal
-
    unsigned index = rt_signal_nexus_index(s, offset);
    while (count > 0) {
       RT_ASSERT(index < s->n_nexus);
       rt_nexus_t *n = s->nexus[index++];
-      rt_sched_event(&(n->pending), NETID_INVALID, NETID_INVALID,
-                     active_proc, !!(flags & SCHED_STATIC));
+      rt_sched_event(&(n->pending), active_proc, !!(flags & SCHED_STATIC));
 
       count -= n->width;
       RT_ASSERT(count >= 0);
    }
-
-   // TODO: add a sensitivity list to signals and remove the global
-   // pending list
-#if 0
-   const int32_t *nids = _nids;
-
-   TRACE("_sched_event %s n=%d flags=%d proc %s", fmt_net(nids[0]), n,
-         flags, istr(e_path(active_proc->_source)));
-
-   netgroup_t *g0 = &(groups[netdb_lookup(netdb, nids[0])]);
-
-   if (g0->length == n) {
-      rt_sched_event(&(g0->pending), NETID_INVALID, NETID_INVALID,
-                     active_proc, flags & SCHED_STATIC);
-   }
-   else {
-      const bool global = !!(flags & SCHED_SEQUENTIAL);
-      if (global) {
-         // Place on the global pending list
-         rt_sched_event(&pending, nids[0], nids[n - 1], active_proc,
-                        flags & SCHED_STATIC);
-      }
-
-      int offset = 0;
-      netgroup_t *g = g0;
-      for (;;) {
-         if (global)
-            g->flags |= NET_F_GLOBAL;
-         else {
-            // Place on the net group's pending list
-            rt_sched_event(&(g->pending), NETID_INVALID, NETID_INVALID,
-                           active_proc, flags & SCHED_STATIC);
-         }
-
-         offset += g->length;
-         if (offset < n)
-            g = &(groups[netdb_lookup(netdb, nids[offset])]);
-         else
-            break;
-      }
-   }
-#endif
 }
 
 DLLEXPORT
@@ -1673,8 +1618,7 @@ static void *rt_tmp_alloc(size_t sz)
    return ptr;
 }
 
-static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
-                           rt_proc_t *proc, bool is_static)
+static void rt_sched_event(sens_list_t **list, rt_proc_t *proc, bool is_static)
 {
    // See if there is already a stale entry in the pending
    // list for this process
@@ -1691,8 +1635,6 @@ static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
       node->proc       = proc;
       node->wakeup_gen = proc->wakeup_gen;
       node->next       = *list;
-      node->first      = first;
-      node->last       = last;
       node->reenq      = (is_static ? list : NULL);
 
       *list = node;
@@ -1701,8 +1643,6 @@ static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
       // Reuse the stale entry
       RT_ASSERT(!is_static);
       it->wakeup_gen = proc->wakeup_gen;
-      it->first      = first;
-      it->last       = last;
    }
 }
 
@@ -2393,33 +2333,6 @@ static void rt_update_nexus(rt_nexus_t *nexus, int driver, void *values)
          nexus->pending = next;
       }
 
-      // Now check the global pending list
-      if (nexus->flags & NET_F_GLOBAL) {
-         // XXX: do we need this now?
-#if 0
-         for (it = pending; it != NULL; it = next) {
-            next = it->next;
-
-            const netid_t x = nexus->first;
-            const netid_t y = nexus->first + nexus->length - 1;
-            const netid_t a = it->first;
-            const netid_t b = it->last;
-
-            const bool hit = (x <= b) && (a <= y);
-
-            if (hit) {
-               rt_wakeup(it);
-               if (last == NULL)
-                  pending = next;
-               else
-                  last->next = next;
-            }
-            else
-               last = it;
-         }
-#endif
-      }
-
       // Schedule any callbacks to run
       for (watch_list_t *wl = nexus->watching; wl != NULL; wl = wl->next) {
          if (!wl->watch->pending) {
@@ -2626,11 +2539,7 @@ static void rt_cycle(int stop_delta)
       profile.deltas++;
       profile.runq_min = MIN(profile.runq_min, nevents);
       profile.runq_max = MAX(profile.runq_max, nevents);
-
-      const double diff = nevents - profile.runq_mean;
-      profile.runq_mean += diff / profile.deltas;
-      const double diff2 = nevents - profile.runq_mean;
-      profile.runq_m2 += diff * diff2;
+      profile.runq_mean += (nevents - profile.runq_mean) / profile.deltas;
    }
 
    event_t *event;
@@ -2721,19 +2630,24 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
    }
 }
 
+static void rt_cleanup_signal(rt_signal_t *s)
+{
+   if (s->flags & NET_F_OWNS_MEM)
+      free(s->shared.resolved);
+
+   if (s->flags & NET_F_LAST_VALUE)
+      free(s->shared.last_value);
+
+   free(s->nexus);
+}
+
 static void rt_cleanup_scope(rt_scope_t *scope)
 {
    for (unsigned i = 0; i < scope->n_procs; i++)
       free(scope->procs[i].privdata);
 
-   for (unsigned i = 0; i < scope->n_signals; i++) {
-      rt_signal_t *s = &(scope->signals[i]);
-      if (s->flags & NET_F_OWNS_MEM)
-         free(s->shared.resolved);
-      if (s->flags & NET_F_LAST_VALUE)
-         free(s->shared.last_value);
-      free(s->nexus);
-   }
+   for (unsigned i = 0; i < scope->n_signals; i++)
+      rt_cleanup_signal(&(scope->signals[i]));
 
    free(scope->privdata);
    free(scope->procs);
@@ -2769,12 +2683,6 @@ static void rt_cleanup(e_node_t top)
       watch_t *next = watches->chain_all;
       rt_free(watch_stack, watches);
       watches = next;
-   }
-
-   while (pending != NULL) {
-      sens_list_t *next = pending->next;
-      rt_free(sens_list_stack, pending);
-      pending = next;
    }
 
    for (int i = 0; i < RT_LAST_EVENT; i++) {
@@ -2818,7 +2726,7 @@ static void rt_stats_print(void)
    if (profiling) {
       LOCAL_TEXT_BUF tb = tb_new();
       tb_printf(tb, "Signals: %d  (%.1f%% contiguous)\n", profile.n_signals,
-                100.0f * ((float)profile.n_contig / (float)profile.n_signals));
+                100.0f * ((float)profile.n_contig / profile.n_signals));
       tb_printf(tb, "Nexuses: %-5d      Simple signals: %d (1:%.1f)\n",
                 n_nexuses, profile.n_simple,
                 (double)profile.n_simple / n_nexuses);
@@ -2827,13 +2735,10 @@ static void rt_stats_print(void)
       tb_printf(tb, "Processes: %-5d    Scopes: %d\n",
                 profile.n_procs, n_scopes);
       tb_printf(tb, "Cycles: %"PRIu64"\n", profile.deltas);
+      tb_printf(tb, "Run queue:   min:%d max:%d avg:%.2f\n",
+                profile.runq_min, profile.runq_max, profile.runq_mean);
 
-      const double runq_std = sqrt(profile.runq_m2 / profile.deltas);
-      tb_printf(tb, "Run queue:   min:%d max:%d avg:%.1f var:%.1f%%",
-                profile.runq_min, profile.runq_max, profile.runq_mean,
-                100.0 * (runq_std / profile.runq_mean));
-
-      notef("Simulation profile data:\n%s", tb_get(tb));
+      notef("Simulation profile data:%s", tb_get(tb));
    }
 
    notef("setup:%ums run:%ums maxrss:%ukB", ready_rusage.ms, ru.ms, ru.rss);

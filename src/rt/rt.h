@@ -83,7 +83,7 @@ typedef enum {
    NET_F_EVENT      = (1 << 1),
    NET_F_FORCED     = (1 << 2),
    NET_F_OWNS_MEM   = (1 << 3),
-   NET_F_GLOBAL     = (1 << 4),
+   // unused        = (1 << 4),
    NET_F_LAST_VALUE = (1 << 5),
 } net_flags_t;
 
