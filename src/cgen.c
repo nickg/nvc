@@ -3759,19 +3759,23 @@ static void cgen_optimise(void)
 {
    LLVMPassManagerRef pass_mgr = LLVMCreatePassManager();
 
-   LLVMAddInstructionCombiningPass(pass_mgr);
-   LLVMAddReassociatePass(pass_mgr);
-   LLVMAddGVNPass(pass_mgr);
-   LLVMAddCFGSimplificationPass(pass_mgr);
+   const int olevel = opt_get_int("optimise");
 
-   LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
-   LLVMPassManagerBuilderSetOptLevel(builder, opt_get_int("optimise"));
-   LLVMPassManagerBuilderPopulateModulePassManager(builder, pass_mgr);
+   if (olevel == 0) {
+      LLVMAddInstructionCombiningPass(pass_mgr);
+      LLVMAddReassociatePass(pass_mgr);
+      LLVMAddGVNPass(pass_mgr);
+      LLVMAddCFGSimplificationPass(pass_mgr);
+   }
+   else {
+      LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
+      LLVMPassManagerBuilderSetOptLevel(builder, olevel);
+      LLVMPassManagerBuilderPopulateModulePassManager(builder, pass_mgr);
+      LLVMPassManagerBuilderDispose(builder);
+   }
 
    LLVMRunPassManager(pass_mgr, module);
-
    LLVMDisposePassManager(pass_mgr);
-   LLVMPassManagerBuilderDispose(builder);
 }
 
 static LLVMValueRef cgen_support_fn(const char *name)
