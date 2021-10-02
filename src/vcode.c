@@ -4132,6 +4132,12 @@ void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)
 vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
                                     vcode_reg_t ileft)
 {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_RESOLUTION_WRAPPER) {
+      if (other->func == func && other->subkind == VCODE_CC_VHDL
+          && other->args.items[0] == ileft)
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_RESOLUTION_WRAPPER);
    vcode_add_arg(op, ileft);
    op->func    = func;

@@ -215,6 +215,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_TEMP_STACK_RESTORE:
       case VCODE_OP_INIT_SIGNAL:
       case VCODE_OP_RESOLVED:
+      case VCODE_OP_RESOLUTION_WRAPPER:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -3576,6 +3577,35 @@ START_TEST(test_conv1)
 }
 END_TEST
 
+START_TEST(test_resfn1)
+{
+   input_from_file(TESTDIR "/lower/resfn1.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t vu = find_unit("WORK.RESFN1");
+   vcode_select_unit(vu);
+
+   // Should only be one call to resolution wrapper
+   EXPECT_BB(0) = {
+      { VCODE_OP_LINK_SIGNAL, .name = "X" },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_RESOLUTION_WRAPPER },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_LINK_SIGNAL, .name = "Y" },
+      { VCODE_OP_STORE, .name = "Y" },
+      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3661,6 +3691,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_const2);
    tcase_add_test(tc, test_vital2);
    tcase_add_test(tc, test_conv1);
+   tcase_add_test(tc, test_resfn1);
    suite_add_tcase(s, tc);
 
    return s;
