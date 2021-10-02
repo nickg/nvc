@@ -182,14 +182,22 @@ typedef struct {
 
 STATIC_ASSERT(sizeof(sig_shared_t) == 24);
 
+typedef enum {
+   NEXUS_MAP_SEARCH,
+   NEXUS_MAP_DIVIDE,
+   NEXUS_MAP_DIRECT
+} rt_nexus_map_t;
+
 typedef struct rt_signal_s {
-   sig_shared_t   shared;
-   e_node_t       enode;
-   uint32_t       width;
-   uint32_t       size;
-   net_flags_t    flags;
-   uint32_t       n_nexus;
-   rt_nexus_t   **nexus;        // TODO: flatten this
+   sig_shared_t     shared;
+   e_node_t         enode;
+   uint32_t         width;
+   uint32_t         size;
+   rt_nexus_map_t   nmap_kind;
+   uint32_t         nmap_param;
+   net_flags_t      flags;
+   uint32_t         n_nexus;
+   rt_nexus_t     **nexus;      // TODO: flatten this
 } rt_signal_t;
 
 typedef struct rt_scope_s {
@@ -269,6 +277,9 @@ typedef struct {
    uint32_t runq_min;
    uint32_t runq_max;
    uint32_t n_simple;
+   uint32_t nmap_direct;
+   uint32_t nmap_search;
+   uint32_t nmap_divide;
    double   runq_m2;
    double   runq_mean;
    uint64_t deltas;
@@ -550,18 +561,30 @@ static struct uarray bit_vec_to_string(struct uarray *vec, int log_base)
    return wrap_str(buf, result_len);
 }
 
-static inline unsigned rt_signal_nexus_index(rt_signal_t *s, unsigned offset)
+static unsigned rt_signal_nexus_index(rt_signal_t *s, unsigned offset)
 {
    unsigned nid = 0;
-   while (offset > 0) {
-      RT_ASSERT(nid < s->n_nexus);
-      rt_nexus_t *n = s->nexus[nid++];
-      offset -= n->width * n->size;
+
+   switch (s->nmap_kind) {
+   case NEXUS_MAP_SEARCH:
+      while (offset > 0) {
+         RT_ASSERT(nid < s->n_nexus);
+         rt_nexus_t *n = s->nexus[nid++];
+         offset -= n->width * n->size;
+      }
+      RT_ASSERT(offset == 0);
+      break;
+
+   case NEXUS_MAP_DIVIDE:
+      nid = offset / s->nmap_param;
+      break;
+
+   case NEXUS_MAP_DIRECT:
+      nid = offset;
+      break;
    }
 
    RT_ASSERT(nid < s->n_nexus);
-   RT_ASSERT(offset == 0);
-
    return nid;
 }
 
@@ -1729,7 +1752,7 @@ static void rt_setup_signal(e_node_t e, rt_signal_t *s, unsigned *total_mem)
 
    const e_flags_t flags = e_flags(e);
 
-   unsigned offset = 0;
+   unsigned offset = 0, nmdivide = 0;
    for (int j = 0; j < s->n_nexus; j++) {
       rt_nexus_t *n = &(nexuses[e_pos(e_nexus(e, j))]);
       s->nexus[j] = n;
@@ -1748,7 +1771,14 @@ static void rt_setup_signal(e_node_t e, rt_signal_t *s, unsigned *total_mem)
       n->signals[o] = s;
       n->offsets[o] = offset;
 
-      offset += n->width * n->size;
+      const unsigned bytes = n->width * n->size;
+
+      if (j == 0)
+         nmdivide = bytes;
+      else if (nmdivide != bytes)
+         nmdivide = 0;
+
+      offset += bytes;
 
       if (flags & E_F_LAST_VALUE) {
          n->flags |= NET_F_LAST_VALUE;
@@ -1756,6 +1786,20 @@ static void rt_setup_signal(e_node_t e, rt_signal_t *s, unsigned *total_mem)
          if (n->last_value == NULL)
             n->last_value = xcalloc_array(n->width, n->size);
       }
+   }
+
+   if (s->n_nexus == 1 || nmdivide == 1) {
+      s->nmap_kind = NEXUS_MAP_DIRECT;
+      profile.nmap_direct++;
+   }
+   else if (nmdivide == 0) {
+      s->nmap_kind = NEXUS_MAP_SEARCH;
+      profile.nmap_search++;
+   }
+   else {
+      s->nmap_kind = NEXUS_MAP_DIVIDE;
+      s->nmap_param = nmdivide;
+      profile.nmap_divide++;
    }
 
    s->size = offset;
@@ -2778,6 +2822,8 @@ static void rt_stats_print(void)
       tb_printf(tb, "Nexuses: %-5d      Simple signals: %d (1:%.1f)\n",
                 n_nexuses, profile.n_simple,
                 (double)profile.n_simple / n_nexuses);
+      tb_printf(tb, "Mapping:  direct:%d search:%d divide:%d\n",
+                profile.nmap_direct, profile.nmap_search, profile.nmap_divide);
       tb_printf(tb, "Processes: %-5d    Scopes: %d\n",
                 profile.n_procs, n_scopes);
       tb_printf(tb, "Cycles: %"PRIu64"\n", profile.deltas);
