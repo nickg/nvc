@@ -68,6 +68,8 @@ typedef enum {
    FUNC_ATTR_UWTABLE,
    FUNC_ATTR_NOINLINE,
    FUNC_ATTR_WRITEONLY,
+   FUNC_ATTR_NONNULL,
+   FUNC_ATTR_COLD,
 
    // Attributes requiring special handling
    FUNC_ATTR_PRESERVE_FP,
@@ -361,7 +363,7 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
    else {
       const char *names[] = {
          "nounwind", "noreturn", "readonly", "nocapture", "byval", "uwtable",
-         "noinline", "writeonly"
+         "noinline", "writeonly", "nonnull", "cold"
       };
       assert(attr < ARRAY_LEN(names));
 
@@ -3873,6 +3875,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_sched_waveform",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 3);
+      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 3);
    }
    else if (strcmp(name, "_sched_waveform_s") == 0) {
       LLVMTypeRef args[] = {
@@ -3885,6 +3890,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_sched_waveform_s",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
    }
    else if (strcmp(name, "_sched_event") == 0) {
       LLVMTypeRef args[] = {
@@ -3896,6 +3902,8 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_sched_event",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
+      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 1);
    }
    else if (strcmp(name, "_init_signal") == 0) {
       LLVMTypeRef args[] = {
@@ -3909,6 +3917,11 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_init_signal",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 5);
+      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 5);
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 6);
+      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 6);
    }
    else if (strcmp(name, "_source_signal") == 0) {
       LLVMTypeRef args[] = {
@@ -3920,6 +3933,8 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_source_signal",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 4);
    }
    else if (strcmp(name, "_link_signal") == 0) {
       LLVMTypeRef args[] = {
@@ -3929,6 +3944,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_link_signal",
                            LLVMFunctionType(result_type,
                                             args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
+      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 1);
+      cgen_add_func_attr(fn, FUNC_ATTR_NONNULL, 0);
    }
    else if (strcmp(name, "_assert_fail") == 0) {
       LLVMTypeRef args[] = {
@@ -3941,6 +3959,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_assert_fail",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 5);
+      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
    }
    else if (strcmp(name, "_image") == 0) {
       LLVMTypeRef args[] = {
@@ -3951,6 +3972,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "_image",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_WRITEONLY, 3);
    }
    else if (strcmp(name, "_debug_out") == 0) {
       LLVMTypeRef args[] = {
@@ -4092,6 +4114,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
+      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
    }
    else if (strcmp(name, "_div_zero") == 0) {
       LLVMTypeRef args[] = {
@@ -4101,6 +4124,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
+      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
    }
    else if (strcmp(name, "_null_deref") == 0) {
       LLVMTypeRef args[] = {
@@ -4110,6 +4134,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
+      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
    }
    else if (strcmp(name, "_bit_shift") == 0) {
       LLVMTypeRef args[] = {
