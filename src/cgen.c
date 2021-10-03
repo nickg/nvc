@@ -691,12 +691,20 @@ static LLVMValueRef cgen_location(int op, cgen_ctx_t *ctx)
    const loc_t *loc = vcode_get_loc(op);
    assert(!loc_invalid_p(loc));
 
+   unsigned last_line = loc->first_line + loc->line_delta;
+   unsigned last_column = loc->first_column + loc->column_delta;
+
+   char *buf LOCAL = xasprintf("loc.%d.%d.%d.%d.%d", loc->file_ref,
+                               loc->first_line, last_line,
+                               loc->first_column, last_column);
+
+   LLVMValueRef global = LLVMGetNamedGlobal(module, buf);
+   if (global != NULL)
+      return global;
+
    LLVMValueRef file_name = cgen_const_string(loc_file_str(loc));
 
    LLVMTypeRef rt_loc = llvm_rt_loc();
-
-   unsigned last_line = loc->first_line + loc->line_delta;
-   unsigned last_column = loc->first_column + loc->column_delta;
 
    LLVMValueRef init = LLVMGetUndef(rt_loc);
    init = LLVMBuildInsertValue(builder, init,
@@ -707,8 +715,13 @@ static LLVMValueRef cgen_location(int op, cgen_ctx_t *ctx)
    init = LLVMBuildInsertValue(builder, init, llvm_int16(last_column), 3, "");
    init = LLVMBuildInsertValue(builder, init, file_name, 4, "");
 
-   // TODO: this could be global read-only data
-   return cgen_pointer_to(init, ctx);
+   global = LLVMAddGlobal(module, rt_loc, buf);
+   LLVMSetGlobalConstant(global, true);
+   LLVMSetInitializer(global, init);
+   LLVMSetLinkage(global, LLVMPrivateLinkage);
+   LLVMSetUnnamedAddr(global, true);
+
+   return global;
 }
 
 static LLVMValueRef cgen_hint_str(int op)
