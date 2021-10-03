@@ -47,6 +47,9 @@
 
 #define DEBUG_METADATA_VERSION 3
 
+#define DUMP_ASSEMBLY 0
+#define DUMP_BITCODE  0
+
 typedef struct {
    LLVMValueRef      *regs;
    LLVMBasicBlockRef *blocks;
@@ -4196,17 +4199,26 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
                                    LLVMObjectFile, &error))
       fatal("Failed to write object file: %s", error);
 
-   if (opt_get_int("assembly")) {
-      char *asm_name LOCAL = xasprintf("_%s.s", module_name);
+#if DUMP_ASSEMBLY
+   char *asm_name LOCAL = xasprintf("_%s.s", module_name);
 
-      char asm_path[PATH_MAX];
-      lib_realpath(lib_work(), asm_name, asm_path, sizeof(asm_path));
+   char asm_path[PATH_MAX];
+   lib_realpath(lib_work(), asm_name, asm_path, sizeof(asm_path));
 
-      char *error;
-      if (LLVMTargetMachineEmitToFile(tm_ref, module, asm_path,
-                                      LLVMAssemblyFile, &error))
-         fatal("Failed to write assembly file: %s", error);
-   }
+    if (LLVMTargetMachineEmitToFile(tm_ref, module, asm_path,
+                                   LLVMAssemblyFile, &error))
+      fatal("Failed to write assembly file: %s", error);
+#endif
+
+#if DUMP_BITCODE
+    char *bc_name LOCAL = xasprintf("_%s.bc", module_name);
+
+    char bc_path[PATH_MAX];
+    lib_realpath(lib_work(), bc_name, bc_path, sizeof(bc_path));
+
+    if (LLVMWriteBitcodeToFile(module, bc_path))
+       fatal("Failed to write bitcode to file");
+#endif
 
 #ifdef LINKER_PATH
    cgen_link_arg("%s", LINKER_PATH);
