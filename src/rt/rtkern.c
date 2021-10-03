@@ -69,7 +69,7 @@ typedef struct rt_scope_s  rt_scope_t;
 typedef struct uarray      uarray_t;
 
 typedef void *(*proc_fn_t)(void *, rt_scope_t *);
-typedef uint64_t (*resolution_fn_t)(void *, const uarray_t *);
+typedef uint64_t (*resolution_fn_t)(void *, void *, int32_t, int32_t);
 
 typedef struct {
    e_node_t    source;
@@ -340,6 +340,11 @@ static void _tracef(const char *fmt, ...);
 #define RT_ASSERT(x)
 #endif
 
+// Macro to generate the correct calling convention for LLVM by-value
+// uarray aggregates
+#define EXPLODED_UARRAY(name) \
+   void *name##_ptr, int32_t name##_left, int32_t name##_length
+
 #define TRACE(...) do {                                 \
       if (unlikely(trace_on)) _tracef(__VA_ARGS__);     \
    } while (0)
@@ -523,7 +528,7 @@ static uarray_t wrap_str(char *buf, size_t len)
    return u;
 }
 
-static uarray_t bit_vec_to_string(uarray_t *vec, int log_base)
+static uarray_t bit_vec_to_string(const uarray_t *vec, int log_base)
 {
    const size_t vec_len = uarray_len(vec);
    const size_t result_len = (vec_len + log_base - 1) / log_base;
@@ -1010,17 +1015,16 @@ void _std_to_string_real_digits(double value, int32_t digits, uarray_t *u)
 }
 
 DLLEXPORT
-void _std_to_string_real_format(double value, uarray_t *format, uarray_t *u)
+void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt), uarray_t *u)
 {
-   size_t str_len = uarray_len(format);
-   char *LOCAL fmt_str = xmalloc(str_len + 1);
-   memcpy(fmt_str, format->ptr, str_len);
-   fmt_str[str_len] = '\0';
+   char *LOCAL fmt_cstr = xmalloc(fmt_length + 1);
+   memcpy(fmt_cstr, fmt_ptr, fmt_length);
+   fmt_cstr[fmt_length] = '\0';
 
-   if (fmt_str[0] != '%')
+   if (fmt_cstr[0] != '%')
       rt_msg(NULL, fatal, "conversion specification must start with '%%'");
 
-   for (const char *p = fmt_str + 1; *p; p++) {
+   for (const char *p = fmt_cstr + 1; *p; p++) {
       switch (*p) {
       case 'e': case 'E': case 'f': case 'F': case 'g': case 'G':
       case 'a': case 'A':
@@ -1031,26 +1035,28 @@ void _std_to_string_real_format(double value, uarray_t *format, uarray_t *u)
          continue;
       default:
          rt_msg(NULL, fatal, "illegal character '%c' in format \"%s\"",
-                *p, fmt_str + 1);
+                *p, fmt_cstr + 1);
       }
    }
 
    size_t max_len = 64;
    char *buf = rt_tmp_alloc(max_len);
-   size_t len = checked_sprintf(buf, max_len, fmt_str, value);
+   size_t len = checked_sprintf(buf, max_len, fmt_cstr, value);
    *u = wrap_str(buf, len);
 }
 
 DLLEXPORT
-void _std_to_hstring_bit_vec(uarray_t *vec, uarray_t *u)
+void _std_to_hstring_bit_vec(EXPLODED_UARRAY(vec), uarray_t *u)
 {
-   *u = bit_vec_to_string(vec, 4);
+   const uarray_t vec = { vec_ptr, { { vec_left, vec_length } } };
+   *u = bit_vec_to_string(&vec, 4);
 }
 
 DLLEXPORT
-void _std_to_ostring_bit_vec(uarray_t *vec, uarray_t *u)
+void _std_to_ostring_bit_vec(EXPLODED_UARRAY(vec), uarray_t *u)
 {
-   *u = bit_vec_to_string(vec, 3);
+   const uarray_t vec = { vec_ptr, { { vec_left, vec_length } } };
+   *u = bit_vec_to_string(&vec, 3);
 }
 
 DLLEXPORT
@@ -1524,10 +1530,7 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
    for (int i = 0; i < nlits; i++) {
       for (int j = 0; j < nlits; j++) {
          int8_t args[2] = { i, j };
-         const uarray_t u = {
-            args, { { memo->ileft, 2 } }
-         };
-         memo->tab2[i][j] = (*memo->fn)(memo->context, &u);
+         memo->tab2[i][j] = (*memo->fn)(memo->context, args, memo->ileft, 2);
          RT_ASSERT(memo->tab2[i][j] < nlits);
       }
    }
@@ -1538,8 +1541,7 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
    bool identity = true;
    for (int i = 0; i < nlits; i++) {
       int8_t args[1] = { i };
-      const uarray_t u = { args, { { memo->ileft, 1 } } };
-      memo->tab1[i] = (*memo->fn)(memo->context, &u);
+      memo->tab1[i] = (*memo->fn)(memo->context, args, memo->ileft, 1);
       identity = identity && (memo->tab1[i] == i);
    }
 
@@ -2029,11 +2031,11 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
          offset += n->size * n->width;
       }
 
-      const uarray_t u = {
-         inputs, { { nexus->resolution->ileft, nexus->n_sources } }
-      };
+      const int32_t left = nexus->resolution->ileft;
+      const int32_t len  = nexus->n_sources;
       void *priv = nexus->resolution->context;
-      uint8_t *result = (uint8_t *)(*nexus->resolution->fn)(priv, &u);
+      uint8_t *result =
+         (uint8_t *)(*nexus->resolution->fn)(priv, inputs, left, len);
       resolved = result + result_offset;
    }
    else {
@@ -2050,11 +2052,10 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
             }                                                           \
             vals[driver] = ((const type *)values)[j];                   \
             type *r = (type *)resolved;                                 \
-            const uarray_t u = {                                        \
-               vals, { { nexus->resolution->ileft, nexus->n_sources } } \
-            };                                                          \
+            const int32_t left = nexus->resolution->ileft;              \
+            const int32_t len  = nexus->n_sources;                      \
             void *priv = nexus->resolution->context;                    \
-            r[j] = (*nexus->resolution->fn)(priv, &u);                  \
+            r[j] = (*nexus->resolution->fn)(priv, vals, left, len);     \
          } while (0)
 
          FOR_ALL_SIZES(nexus->size, CALL_RESOLUTION_FN);

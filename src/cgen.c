@@ -67,9 +67,11 @@ typedef enum {
    FUNC_ATTR_BYVAL,
    FUNC_ATTR_UWTABLE,
    FUNC_ATTR_NOINLINE,
-   FUNC_ATTR_PRESERVE_FP,
+   FUNC_ATTR_WRITEONLY,
 
-   FUNC_ATTR_DLLEXPORT,   // Should be last
+   // Attributes requiring special handling
+   FUNC_ATTR_PRESERVE_FP,
+   FUNC_ATTR_DLLEXPORT,
 } func_attr_t;
 
 static LLVMModuleRef    module = NULL;
@@ -297,6 +299,28 @@ static void llvm_add_module_flag(const char *key, int value)
                      LLVMValueAsMetadata(llvm_int32(value)));
 }
 
+static void llvm_lifetime_start(LLVMValueRef ptr, LLVMTypeRef type)
+{
+   LLVMValueRef fn = llvm_fn("llvm.lifetime.start.p0i8");
+   LLVMTargetDataRef td = LLVMGetModuleDataLayout(module);
+   LLVMValueRef args[] = {
+      llvm_int64(LLVMABISizeOfType(td, type)),
+      llvm_void_cast(ptr)
+   };
+   LLVMBuildCall(builder, fn, args, ARRAY_LEN(args), "");
+}
+
+static void llvm_lifetime_end(LLVMValueRef ptr, LLVMTypeRef type)
+{
+   LLVMValueRef fn = llvm_fn("llvm.lifetime.end.p0i8");
+   LLVMTargetDataRef td = LLVMGetModuleDataLayout(module);
+   LLVMValueRef args[] = {
+      llvm_int64(LLVMABISizeOfType(td, type)),
+      llvm_void_cast(ptr)
+   };
+   LLVMBuildCall(builder, fn, args, ARRAY_LEN(args), "");
+}
+
 __attribute__((unused))
 static void llvm_dump(const char *tag, LLVMValueRef value)
 {
@@ -337,7 +361,7 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
    else {
       const char *names[] = {
          "nounwind", "noreturn", "readonly", "nocapture", "byval", "uwtable",
-         "noinline"
+         "noinline", "writeonly"
       };
       assert(attr < ARRAY_LEN(names));
 
@@ -609,17 +633,6 @@ static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
                                LLVMPointerType(type, 0), "tmp_buf");
 }
 
-static LLVMValueRef cgen_stack_save(void)
-{
-   return LLVMBuildCall(builder, llvm_fn("llvm.stacksave"), NULL, 0, "sp");
-}
-
-static void cgen_stack_restore(LLVMValueRef saved_sp)
-{
-   LLVMValueRef args[] = { saved_sp };
-   LLVMBuildCall(builder, llvm_fn("llvm.stackrestore"), args, 1, "");
-}
-
 static bool cgen_is_uarray_struct(LLVMValueRef meta)
 {
    return LLVMGetTypeKind(LLVMTypeOf(meta)) == LLVMStructTypeKind;
@@ -668,7 +681,7 @@ static LLVMValueRef cgen_const_string(const char *str)
    return cgen_array_pointer(ref);
 }
 
-static LLVMValueRef cgen_pointer_to(LLVMValueRef value, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_scoped_alloca(LLVMTypeRef type, cgen_ctx_t *ctx)
 {
    LLVMBasicBlockRef orig_bb = LLVMGetInsertBlock(builder);
    LLVMBasicBlockRef entry_bb = LLVMGetEntryBasicBlock(ctx->fn);
@@ -679,26 +692,7 @@ static LLVMValueRef cgen_pointer_to(LLVMValueRef value, cgen_ctx_t *ctx)
    else
       LLVMPositionBuilderBefore(builder, first);
 
-   LLVMValueRef valptr = LLVMBuildAlloca(builder, LLVMTypeOf(value), "");
-   LLVMPositionBuilderAtEnd(builder, orig_bb);
-   LLVMBuildStore(builder, value, valptr);
-   return valptr;
-}
-
-static LLVMValueRef cgen_alloca_uarray(vcode_type_t type, cgen_ctx_t *ctx)
-{
-   assert(vtype_kind(type) == VCODE_TYPE_UARRAY);
-
-   LLVMBasicBlockRef orig_bb = LLVMGetInsertBlock(builder);
-   LLVMBasicBlockRef entry_bb = LLVMGetEntryBasicBlock(ctx->fn);
-
-   LLVMValueRef first = LLVMGetFirstInstruction(entry_bb);
-   if (first == NULL)
-      LLVMPositionBuilderAtEnd(builder, entry_bb);
-   else
-      LLVMPositionBuilderBefore(builder, first);
-
-   LLVMValueRef ptr = LLVMBuildAlloca(builder, cgen_type(type), "");
+   LLVMValueRef ptr = LLVMBuildAlloca(builder, type, "");
    LLVMPositionBuilderAtEnd(builder, orig_bb);
    return ptr;
 }
@@ -784,7 +778,7 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
       && vtype_kind(result) == VCODE_TYPE_UARRAY;
 
    const int nextra = !!display_type + has_state_arg + foreign_uarray_result;
-   LLVMTypeRef params[nparams + nextra + 1];
+   LLVMTypeRef params[nparams + nextra];
    LLVMTypeRef *p = params;
 
    if (display_type != NULL)
@@ -793,12 +787,8 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
    if (has_state_arg)
       *p++ = llvm_void_ptr();
 
-   for (size_t i = 0; i < nparams; i++) {
-      if (vtype_kind(vparams[i]) == VCODE_TYPE_UARRAY)
-         *p++ = LLVMPointerType(cgen_type(vparams[i]), 0);
-      else
-         *p++ = cgen_type(vparams[i]);
-   }
+   for (size_t i = 0; i < nparams; i++)
+      *p++ = cgen_type(vparams[i]);
 
    if (foreign_uarray_result)
       *p++ = LLVMPointerType(cgen_type(result), 0);
@@ -816,6 +806,11 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
 
    cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT, -1);
    cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND, -1);
+
+   if (foreign_uarray_result) {
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, nparams + nextra);
+      cgen_add_func_attr(fn, FUNC_ATTR_WRITEONLY, nparams + nextra);
+   }
 
    return fn;
 }
@@ -920,19 +915,6 @@ static LLVMValueRef cgen_display_for_call(int op, cgen_ctx_t *ctx)
    return LLVMBuildLoad(builder, global, "");
 }
 
-static LLVMValueRef cgen_subprogram_arg(int op, int arg, cgen_ctx_t *ctx)
-{
-   LLVMValueRef value = cgen_get_arg(op, arg, ctx);
-   if (vcode_reg_kind(vcode_get_arg(op, arg)) == VCODE_TYPE_UARRAY) {
-      // Pass all uarray parameters by pointer to match C calling convention
-      LLVMValueRef mem = LLVMBuildAlloca(builder, LLVMTypeOf(value), "");
-      LLVMBuildStore(builder, value, mem);
-      return mem;
-   }
-   else
-      return value;
-}
-
 static void cgen_op_return(int op, cgen_ctx_t *ctx)
 {
    switch (vcode_unit_kind()) {
@@ -1004,8 +986,6 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
       fn = cgen_signature(func, rtype, cc, display_type, atypes, nargs);
    }
 
-   LLVMValueRef saved_sp = cgen_stack_save();
-
    LLVMValueRef args[total_args];
    LLVMValueRef *pa = args;
    if (cc != VCODE_CC_FOREIGN)
@@ -1013,22 +993,23 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
    if (has_state_arg)
       *pa++ = LLVMConstNull(llvm_void_ptr());
    for (int i = 0; i < nargs; i++)
-      *pa++ = cgen_subprogram_arg(op, i, ctx);
+      *pa++ = cgen_get_arg(op, i, ctx);
 
    if (foreign_uarray_result) {
-      LLVMValueRef uresult = cgen_alloca_uarray(rtype, ctx);
+      LLVMTypeRef utype = cgen_type(rtype);
+      LLVMValueRef uresult = cgen_scoped_alloca(utype, ctx);
       *pa++ = uresult;
+      llvm_lifetime_start(uresult, utype);
       LLVMBuildCall(builder, fn, args, total_args, "");
       ctx->regs[result] =
          LLVMBuildLoad(builder, uresult, cgen_reg_name(result));
+      llvm_lifetime_end(uresult, utype);
    }
    else if (result != VCODE_INVALID_REG)
       ctx->regs[result] = LLVMBuildCall(builder, fn, args, total_args,
                                         cgen_reg_name(result));
    else
       LLVMBuildCall(builder, fn, args, total_args, "");
-
-   cgen_stack_restore(saved_sp);
 }
 
 static void cgen_op_const(int op, cgen_ctx_t *ctx)
@@ -2034,15 +2015,25 @@ static void cgen_op_last_value(int op, cgen_ctx_t *ctx)
       ctx->regs[result] = deref;
 }
 
-static LLVMValueRef cgen_pointer_to_arg_data(int op, int arg, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_pointer_to_arg_data(int op, int arg,
+                                             LLVMTypeRef *alloca_type,
+                                             cgen_ctx_t *ctx)
 {
    const vtype_kind_t kind = vcode_reg_kind(vcode_get_arg(op, arg));
-   if (kind == VCODE_TYPE_INT || kind == VCODE_TYPE_REAL) {
+   if (kind == VCODE_TYPE_INT || kind == VCODE_TYPE_REAL
+       || kind == VCODE_TYPE_RESOLUTION) {
       // Need to get a pointer to the data
-      return cgen_pointer_to(cgen_get_arg(op, arg, ctx), ctx);
+      LLVMValueRef scalar = cgen_get_arg(op, arg, ctx);
+      *alloca_type = LLVMTypeOf(scalar);
+      LLVMValueRef mem = cgen_scoped_alloca(*alloca_type, ctx);
+      llvm_lifetime_start(mem, *alloca_type);
+      LLVMBuildStore(builder, scalar, mem);
+      return mem;
    }
-   else
+   else {
+      *alloca_type = NULL;
       return cgen_get_arg(op, arg, ctx);
+   }
 }
 
 static void cgen_op_sched_waveform(int op, cgen_ctx_t *ctx)
@@ -2275,8 +2266,6 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
                           atypes, nargs);
    }
 
-   LLVMValueRef saved_sp = cgen_stack_save();
-
    const vcode_cc_t cc = vcode_get_subkind(op);
    const int total_args = nargs + (cc != VCODE_CC_FOREIGN ? 1 : 0) + 1;
    LLVMValueRef args[total_args];
@@ -2285,7 +2274,7 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
       *ap++ = cgen_display_for_call(op, ctx);
    *ap++ = LLVMConstNull(llvm_void_ptr());
    for (int i = 0; i < nargs; i++)
-      *ap++ = cgen_subprogram_arg(op, i, ctx);
+      *ap++ = cgen_get_arg(op, i, ctx);
 
    LLVMValueRef suspend = LLVMBuildCall(builder, fn, args, total_args, "");
 
@@ -2295,8 +2284,6 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
 
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
    LLVMBuildStore(builder, llvm_int32(vcode_get_target(op, 0)), state_ptr);
-
-   cgen_stack_restore(saved_sp);
 
    cgen_pcall_suspend(suspend, ctx->blocks[vcode_get_target(op, 0)], ctx);
 }
@@ -2470,14 +2457,13 @@ static void cgen_op_file_open(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_file_write(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef file  = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef value = cgen_pointer_to_arg_data(op, 1, ctx);
+   LLVMValueRef file = cgen_get_arg(op, 0, ctx);
+
+   LLVMTypeRef alloca_type;
+   LLVMValueRef value = cgen_pointer_to_arg_data(op, 1, &alloca_type, ctx);
 
    LLVMTypeRef value_type = LLVMGetElementType(LLVMTypeOf(value));
-   LLVMValueRef bytes = LLVMBuildIntCast(builder,
-                                         LLVMSizeOf(value_type),
-                                         LLVMInt32Type(), "");
-
+   LLVMValueRef bytes = llvm_sizeof(value_type);
 
    LLVMValueRef length = bytes;
    if (vcode_count_args(op) == 3)
@@ -2485,6 +2471,9 @@ static void cgen_op_file_write(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef args[] = { file, llvm_void_cast(value), length };
    LLVMBuildCall(builder, llvm_fn("_file_write"), args, ARRAY_LEN(args), "");
+
+   if (alloca_type != NULL)
+      llvm_lifetime_end(value, alloca_type);
 }
 
 static void cgen_op_file_close(int op, cgen_ctx_t *ctx)
@@ -2873,21 +2862,32 @@ static void cgen_op_init_signal(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
 
+   const bool have_resolution = vcode_count_args(op) > 4;
+
+   LLVMTypeRef res_alloca_type = NULL;
    LLVMValueRef resfn = NULL;
-   if (vcode_count_args(op) > 4)
-      resfn = cgen_pointer_to(cgen_get_arg(op, 4, ctx), ctx);
+   if (have_resolution)
+      resfn = cgen_pointer_to_arg_data(op, 4, &res_alloca_type, ctx);
    else
       resfn = LLVMConstNull(LLVMPointerType(llvm_resolution_type(), 0));
+
+   LLVMTypeRef alloca_type;
+   LLVMValueRef initval = cgen_pointer_to_arg_data(op, 1, &alloca_type, ctx);
 
    LLVMValueRef args[] = {
       LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
       LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
       cgen_get_arg(op, 2, ctx),
       cgen_get_arg(op, 3, ctx),
-      llvm_void_cast(cgen_pointer_to_arg_data(op, 1, ctx)),
+      llvm_void_cast(initval),
       resfn
    };
    LLVMBuildCall(builder, llvm_fn("_init_signal"), args, ARRAY_LEN(args), "");
+
+   if (res_alloca_type != NULL)
+      llvm_lifetime_end(resfn, res_alloca_type);
+   if (alloca_type != NULL)
+      llvm_lifetime_end(initval, alloca_type);
 }
 
 static void cgen_op_map_signal(int op, cgen_ctx_t *ctx)
@@ -2897,13 +2897,19 @@ static void cgen_op_map_signal(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
 
+   LLVMTypeRef alloca_type;
+   LLVMValueRef initval = cgen_pointer_to_arg_data(op, 3, &alloca_type, ctx);
+
    LLVMValueRef args[] = {
       LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
       LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
       cgen_get_arg(op, 2, ctx),
-      llvm_void_cast(cgen_pointer_to_arg_data(op, 3, ctx)),
+      llvm_void_cast(initval),
    };
    LLVMBuildCall(builder, llvm_fn("_source_signal"), args, ARRAY_LEN(args), "");
+
+   if (alloca_type != NULL)
+      llvm_lifetime_end(initval, alloca_type);
 }
 
 static void cgen_op_link_signal(int op, cgen_ctx_t *ctx)
@@ -3306,15 +3312,8 @@ static void cgen_params(cgen_ctx_t *ctx)
 {
    const int p0 = cgen_is_procedure() ? 2 : 1;
    const int nparams = vcode_count_params();
-   for (int i = 0; i < nparams; i++) {
-      LLVMValueRef param = LLVMGetParam(ctx->fn, p0 + i);
-      if (vtype_kind(vcode_param_type(i)) == VCODE_TYPE_UARRAY) {
-         LLVMPositionBuilderAtEnd(builder, LLVMGetFirstBasicBlock(ctx->fn));
-         ctx->regs[vcode_param_reg(i)] = LLVMBuildLoad(builder, param, "");
-      }
-      else
-         ctx->regs[vcode_param_reg(i)] = param;
-   }
+   for (int i = 0; i < nparams; i++)
+      ctx->regs[vcode_param_reg(i)] = LLVMGetParam(ctx->fn, p0 + i);
 }
 
 static void cgen_locals(cgen_ctx_t *ctx)
@@ -3334,12 +3333,7 @@ static void cgen_locals(cgen_ctx_t *ctx)
       for (int i = 0; i < nparams; i++) {
          const int offset = cgen_param_offset(i);
          LLVMValueRef ptr = LLVMBuildStructGEP(builder, ctx->state, offset, "");
-
-         LLVMValueRef pval = LLVMGetParam(ctx->fn, p0 + i);
-         if (vtype_kind(vcode_param_type(i)) == VCODE_TYPE_UARRAY)
-            pval = LLVMBuildLoad(builder, pval, "");
-
-         LLVMBuildStore(builder, pval, ptr);
+         LLVMBuildStore(builder, LLVMGetParam(ctx->fn, p0 + i), ptr);
       }
    }
    else {
@@ -4005,16 +3999,21 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
    }
-   else if (strcmp(name, "llvm.stacksave") == 0) {
-      fn = LLVMAddFunction(module, "llvm.stacksave",
-                           LLVMFunctionType(llvm_void_ptr(), NULL, 0, false));
-   }
-   else if (strcmp(name, "llvm.stackrestore") == 0) {
+   else if (strcmp(name, "llvm.lifetime.start.p0i8") == 0) {
       LLVMTypeRef args[] = {
+         LLVMInt64Type(),
          llvm_void_ptr()
       };
-      fn = LLVMAddFunction(module, "llvm.stackrestore",
-                           LLVMFunctionType(LLVMVoidType(), args, 1, false));
+      fn = LLVMAddFunction(module, "llvm.lifetime.start.p0i8",
+                           LLVMFunctionType(LLVMVoidType(), args, 2, false));
+   }
+   else if (strcmp(name, "llvm.lifetime.end.p0i8") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt64Type(),
+         llvm_void_ptr()
+      };
+      fn = LLVMAddFunction(module, "llvm.lifetime.end.p0i8",
+                           LLVMFunctionType(LLVMVoidType(), args, 2, false));
    }
    else if (strcmp(name, "_file_open") == 0) {
       LLVMTypeRef args[] = {
