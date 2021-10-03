@@ -756,8 +756,12 @@ static void eval_op_exp(int op, eval_state_t *state)
    switch (lhs->kind) {
    case VALUE_INTEGER:
       EVAL_ASSERT_VALUE(op, rhs, VALUE_INTEGER);
-      dst->kind = VALUE_INTEGER;
-      dst->integer = ipow(lhs->integer, rhs->integer);
+      if (rhs->integer >= 0) {
+         dst->kind = VALUE_INTEGER;
+         dst->integer = ipow(lhs->integer, rhs->integer);
+      }
+      else
+         state->failed = true;
       break;
    case VALUE_REAL:
       EVAL_ASSERT_VALUE(op, rhs, VALUE_REAL);

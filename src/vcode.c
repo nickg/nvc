@@ -3381,7 +3381,8 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)
 {
    int64_t lconst, rconst;
-   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
+   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst)
+       && rconst >= 0)
       return emit_const(vcode_reg_type(lhs), ipow(lconst, rconst));
 
    return emit_arith(VCODE_OP_EXP, lhs, rhs);

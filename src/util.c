@@ -1215,6 +1215,7 @@ int ilog2(int64_t n)
 
 int64_t ipow(int64_t x, int64_t y)
 {
+   assert(y >= 0);
    int64_t r = 1;
    while (y) {
       if (y & 1)
