@@ -24,7 +24,7 @@
 
 #include <stdint.h>
 
-#define RT_ABI_VERSION 1
+#define RT_ABI_VERSION 2
 
 typedef struct watch       watch_t;
 typedef struct rt_signal_s rt_signal_t;

@@ -263,8 +263,7 @@ static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
 
    LLVMTypeRef dim_fields[] = {
       LLVMInt32Type(),      // Left
-      LLVMInt32Type(),      // Right
-      LLVMInt1Type()        // Direction
+      LLVMInt32Type(),      // Length
    };
 
    LLVMTypeRef dim_struct =
@@ -686,6 +685,24 @@ static LLVMValueRef cgen_pointer_to(LLVMValueRef value, cgen_ctx_t *ctx)
    return valptr;
 }
 
+static LLVMValueRef cgen_alloca_uarray(vcode_type_t type, cgen_ctx_t *ctx)
+{
+   assert(vtype_kind(type) == VCODE_TYPE_UARRAY);
+
+   LLVMBasicBlockRef orig_bb = LLVMGetInsertBlock(builder);
+   LLVMBasicBlockRef entry_bb = LLVMGetEntryBasicBlock(ctx->fn);
+
+   LLVMValueRef first = LLVMGetFirstInstruction(entry_bb);
+   if (first == NULL)
+      LLVMPositionBuilderAtEnd(builder, entry_bb);
+   else
+      LLVMPositionBuilderBefore(builder, first);
+
+   LLVMValueRef ptr = LLVMBuildAlloca(builder, cgen_type(type), "");
+   LLVMPositionBuilderAtEnd(builder, orig_bb);
+   return ptr;
+}
+
 static LLVMValueRef cgen_location(int op, cgen_ctx_t *ctx)
 {
    const loc_t *loc = vcode_get_loc(op);
@@ -762,7 +779,11 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
 
    const bool has_state_arg =
       result == VCODE_INVALID_TYPE && cc != VCODE_CC_FOREIGN;
-   const int nextra = (display_type ? 1 : 0) + (has_state_arg ? 1 : 0);
+   const bool foreign_uarray_result =
+      cc == VCODE_CC_FOREIGN && result != VCODE_INVALID_REG
+      && vtype_kind(result) == VCODE_TYPE_UARRAY;
+
+   const int nextra = !!display_type + has_state_arg + foreign_uarray_result;
    LLVMTypeRef params[nparams + nextra + 1];
    LLVMTypeRef *p = params;
 
@@ -779,9 +800,14 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
          *p++ = cgen_type(vparams[i]);
    }
 
+   if (foreign_uarray_result)
+      *p++ = LLVMPointerType(cgen_type(result), 0);
+
    LLVMTypeRef type = NULL;
    if (result == VCODE_INVALID_TYPE)
       type = LLVMFunctionType(llvm_void_ptr(), params, nparams + nextra, false);
+   else if (foreign_uarray_result)
+      type = LLVMFunctionType(LLVMVoidType(), params, nparams + nextra, false);
    else
       type = LLVMFunctionType(cgen_type(result), params,
                               nparams + nextra, false);
@@ -952,13 +978,20 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
+   vcode_type_t rtype = VCODE_INVALID_TYPE;
+   if (result != VCODE_INVALID_REG)
+      rtype = vcode_reg_type(result);
+
    const vcode_cc_t cc = vcode_get_subkind(op);
    ident_t func = vcode_get_func(op);
    const bool has_state_arg =
       result == VCODE_INVALID_REG && cc == VCODE_CC_VHDL;
+   const bool foreign_uarray_result =
+      cc == VCODE_CC_FOREIGN && result != VCODE_INVALID_REG
+      && vtype_kind(rtype) == VCODE_TYPE_UARRAY;
    const int nargs = vcode_count_args(op);
    const int total_args =
-      nargs + (cc != VCODE_CC_FOREIGN ? 1 : 0) + (has_state_arg ? 1 : 0);
+      nargs + (cc != VCODE_CC_FOREIGN) + has_state_arg + foreign_uarray_result;
 
    LLVMValueRef fn =
       cgen_signature(func, VCODE_INVALID_TYPE, cc, NULL, NULL, 0);
@@ -968,11 +1001,6 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
          atypes[i] = vcode_reg_type(vcode_get_arg(op, i));
 
       LLVMTypeRef display_type = cgen_display_type_for_call(op, ctx);
-
-      vcode_type_t rtype = VCODE_INVALID_TYPE;
-      if (result != VCODE_INVALID_REG)
-         rtype = vcode_reg_type(result);
-
       fn = cgen_signature(func, rtype, cc, display_type, atypes, nargs);
    }
 
@@ -987,7 +1015,14 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
    for (int i = 0; i < nargs; i++)
       *pa++ = cgen_subprogram_arg(op, i, ctx);
 
-   if (result != VCODE_INVALID_REG)
+   if (foreign_uarray_result) {
+      LLVMValueRef uresult = cgen_alloca_uarray(rtype, ctx);
+      *pa++ = uresult;
+      LLVMBuildCall(builder, fn, args, total_args, "");
+      ctx->regs[result] =
+         LLVMBuildLoad(builder, uresult, cgen_reg_name(result));
+   }
+   else if (result != VCODE_INVALID_REG)
       ctx->regs[result] = LLVMBuildCall(builder, fn, args, total_args,
                                         cgen_reg_name(result));
    else
@@ -1774,7 +1809,8 @@ static void cgen_op_wrap(int op, cgen_ctx_t *ctx)
    const int dims = vcode_count_args(op) / 3;
    LLVMTypeRef uarray_type = cgen_type(vcode_reg_type(result));
 
-   LLVMTypeRef field_types[LLVMCountStructElementTypes(uarray_type)];
+   assert(LLVMCountStructElementTypes(uarray_type) == 2);
+   LLVMTypeRef field_types[2];
    LLVMGetStructElementTypes(uarray_type, field_types);
 
    LLVMTypeRef dim_struct = LLVMGetElementType(field_types[1]);
@@ -1789,10 +1825,21 @@ static void cgen_op_wrap(int op, cgen_ctx_t *ctx)
       left  = llvm_ensure_int_bits(left, 32);
       right = llvm_ensure_int_bits(right, 32);
 
+      LLVMValueRef diff_up   = LLVMBuildSub(builder, right, left, "");
+      LLVMValueRef diff_down = LLVMBuildSub(builder, left, right, "");
+
+      LLVMValueRef diff = LLVMBuildSelect(builder, dir, diff_down, diff_up, "");
+      LLVMValueRef zero = llvm_int32(0);
+      LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntSLT, diff, zero, "");
+
+      LLVMValueRef length  = LLVMBuildAdd(builder, diff, llvm_int32(1), "");
+      LLVMValueRef clamped = LLVMBuildSelect(builder, null, zero, length, "");
+      LLVMValueRef neg     = LLVMBuildNeg(builder, clamped, "");
+      LLVMValueRef signlen = LLVMBuildSelect(builder, dir, neg, clamped, "");
+
       LLVMValueRef d = LLVMGetUndef(dim_struct);
       d = LLVMBuildInsertValue(builder, d, left, 0, "");
-      d = LLVMBuildInsertValue(builder, d, right, 1, "");
-      d = LLVMBuildInsertValue(builder, d, dir, 2, "");
+      d = LLVMBuildInsertValue(builder, d, signlen, 1, "le");
 
       dim_array = LLVMBuildInsertValue(builder, dim_array, d, i, "");
    }
@@ -1850,9 +1897,15 @@ static void cgen_op_uarray_right(int op, cgen_ctx_t *ctx)
    LLVMValueRef dim = cgen_uarray_dim(cgen_get_arg(op, 0, ctx),
                                       vcode_get_dim(op));
 
+   LLVMValueRef left   = LLVMBuildExtractValue(builder, dim, 0, "");
+   LLVMValueRef length = LLVMBuildExtractValue(builder, dim, 1, "");
+   LLVMValueRef zero   = llvm_int32(0);
+   LLVMValueRef sign   = LLVMBuildICmp(builder, LLVMIntSLT, length, zero, "");
+   LLVMValueRef diff   = LLVMBuildAdd(builder, left, length, "");
+   LLVMValueRef adj    = LLVMBuildSelect(builder, sign, llvm_int32(1), llvm_int32(-1), "");
+
    vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildExtractValue(builder, dim, 1,
-                                             cgen_reg_name(result));
+   ctx->regs[result] = LLVMBuildAdd(builder, diff, adj, cgen_reg_name(result));
 }
 
 static void cgen_op_uarray_dir(int op, cgen_ctx_t *ctx)
@@ -1861,8 +1914,10 @@ static void cgen_op_uarray_dir(int op, cgen_ctx_t *ctx)
                                       vcode_get_dim(op));
 
    vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildExtractValue(builder, dim, 2,
-                                             cgen_reg_name(result));
+
+   LLVMValueRef length = LLVMBuildExtractValue(builder, dim, 1, "length");
+   LLVMValueRef zero = llvm_int32(0);
+   ctx->regs[result] = LLVMBuildICmp(builder, LLVMIntSLT, length, zero, "");
 }
 
 static void cgen_op_uarray_len(int op, cgen_ctx_t *ctx)
@@ -1870,20 +1925,14 @@ static void cgen_op_uarray_len(int op, cgen_ctx_t *ctx)
    LLVMValueRef dim = cgen_uarray_dim(cgen_get_arg(op, 0, ctx),
                                       vcode_get_dim(op));
 
-   LLVMValueRef left  = LLVMBuildExtractValue(builder, dim, 0, "left");
-   LLVMValueRef right = LLVMBuildExtractValue(builder, dim, 1, "right");
-   LLVMValueRef dir   = LLVMBuildExtractValue(builder, dim, 2, "dir");
-
-   LLVMValueRef downto = LLVMBuildSub(builder, left, right, "");
-   LLVMValueRef upto   = LLVMBuildSub(builder, right, left, "");
-   LLVMValueRef diff   = LLVMBuildSelect(builder, dir, downto, upto, "");
-   LLVMValueRef len    = LLVMBuildAdd(builder, diff, llvm_int32(1), "");
-   LLVMValueRef zero   = llvm_int32(0);
-   LLVMValueRef neg    = LLVMBuildICmp(builder, LLVMIntSLT, len, zero, "");
+   LLVMValueRef length = LLVMBuildExtractValue(builder, dim, 1, "length");
+   LLVMValueRef zero = llvm_int32(0);
+   LLVMValueRef negative = LLVMBuildICmp(builder, LLVMIntSLT, length, zero, "");
 
    vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildSelect(builder, neg, zero, len,
-                                       cgen_reg_name(result));
+   ctx->regs[result] = LLVMBuildSelect(builder, negative,
+                                       LLVMBuildNeg(builder, length, ""),
+                                       length, cgen_reg_name(result));
 }
 
 static void cgen_op_param_upref(int op, cgen_ctx_t *ctx)

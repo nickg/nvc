@@ -56,9 +56,6 @@
 #define TRACE_PENDING 0
 #define RT_DEBUG      0
 
-struct uarray;
-
-typedef struct netgroup    netgroup_t;
 typedef struct event       event_t;
 typedef struct waveform    waveform_t;
 typedef struct sens_list   sens_list_t;
@@ -69,9 +66,10 @@ typedef struct image_map   image_map_t;
 typedef struct rt_loc      rt_loc_t;
 typedef struct rt_nexus_s  rt_nexus_t;
 typedef struct rt_scope_s  rt_scope_t;
+typedef struct uarray      uarray_t;
 
 typedef void *(*proc_fn_t)(void *, rt_scope_t *);
-typedef uint64_t (*resolution_fn_t)(void *, const struct uarray *);
+typedef uint64_t (*resolution_fn_t)(void *, const uarray_t *);
 
 typedef struct {
    e_node_t    source;
@@ -205,14 +203,13 @@ typedef struct rt_scope_s {
 } rt_scope_t;
 
 // The code generator knows the layout of this struct
-struct uarray {
-   void    *ptr;
+typedef struct uarray {
+   void *ptr;
    struct {
       int32_t left;
-      int32_t right;
-      int8_t  dir;
+      int32_t length;
    } dims[1];
-};
+} uarray_t;
 
 typedef struct {
    event_t **queue;
@@ -512,24 +509,21 @@ static void rt_msg(const rt_loc_t *where, rt_msg_fn_t fn, const char *fmt, ...)
    (*fn)("%s%s", buf, tb_get(trace));
 }
 
-static size_t uarray_len(struct uarray *u)
+static size_t uarray_len(const uarray_t *u)
 {
-   if (u->dims[0].dir == RANGE_TO)
-      return u->dims[0].right - u->dims[0].left + 1;
-   else
-      return u->dims[0].left - u->dims[0].right + 1;
+   return abs(u->dims[0].length);
 }
 
-static struct uarray wrap_str(char *buf, size_t len)
+static uarray_t wrap_str(char *buf, size_t len)
 {
-   struct uarray u = {
+   uarray_t u = {
       .ptr = buf,
-      .dims = { [0] = { .dir = RANGE_TO, .left = 1, .right = len } }
+      .dims = { [0] = { .left = 1, .length = len } }
    };
    return u;
 }
 
-static struct uarray bit_vec_to_string(struct uarray *vec, int log_base)
+static uarray_t bit_vec_to_string(uarray_t *vec, int log_base)
 {
    const size_t vec_len = uarray_len(vec);
    const size_t result_len = (vec_len + log_base - 1) / log_base;
@@ -976,7 +970,7 @@ int64_t _std_standard_now(void)
 }
 
 DLLEXPORT
-struct uarray _std_to_string_time(int64_t value, int64_t unit)
+void _std_to_string_time(int64_t value, int64_t unit, uarray_t *u)
 {
    const char *unit_str = "";
    switch (unit) {
@@ -997,15 +991,11 @@ struct uarray _std_to_string_time(int64_t value, int64_t unit)
    size_t len = checked_sprintf(buf, max_len, "%"PRIi64" %s",
                                 value / unit, unit_str);
 
-   struct uarray u = {
-      .ptr = buf,
-      .dims = { [0] = { .dir = RANGE_TO, .left = 1, .right = len } }
-   };
-   return u;
+   *u = wrap_str(buf, len);
 }
 
 DLLEXPORT
-struct uarray _std_to_string_real_digits(double value, int32_t digits)
+void _std_to_string_real_digits(double value, int32_t digits, uarray_t *u)
 {
    size_t max_len = 32;
    char *buf = rt_tmp_alloc(max_len);
@@ -1016,15 +1006,11 @@ struct uarray _std_to_string_real_digits(double value, int32_t digits)
    else
       len = checked_sprintf(buf, max_len, "%.*f", digits, value);
 
-   struct uarray u = {
-      .ptr = buf,
-      .dims = { [0] = { .dir = RANGE_TO, .left = 1, .right = len } }
-   };
-   return u;
+   *u = wrap_str(buf, len);
 }
 
 DLLEXPORT
-struct uarray _std_to_string_real_format(double value, struct uarray *format)
+void _std_to_string_real_format(double value, uarray_t *format, uarray_t *u)
 {
    size_t str_len = uarray_len(format);
    char *LOCAL fmt_str = xmalloc(str_len + 1);
@@ -1052,19 +1038,19 @@ struct uarray _std_to_string_real_format(double value, struct uarray *format)
    size_t max_len = 64;
    char *buf = rt_tmp_alloc(max_len);
    size_t len = checked_sprintf(buf, max_len, fmt_str, value);
-   return wrap_str(buf, len);
+   *u = wrap_str(buf, len);
 }
 
 DLLEXPORT
-struct uarray _std_to_hstring_bit_vec(struct uarray *vec)
+void _std_to_hstring_bit_vec(uarray_t *vec, uarray_t *u)
 {
-   return bit_vec_to_string(vec, 4);
+   *u = bit_vec_to_string(vec, 4);
 }
 
 DLLEXPORT
-struct uarray _std_to_ostring_bit_vec(struct uarray *vec)
+void _std_to_ostring_bit_vec(uarray_t *vec, uarray_t *u)
 {
-   return bit_vec_to_string(vec, 3);
+   *u = bit_vec_to_string(vec, 3);
 }
 
 DLLEXPORT
@@ -1079,7 +1065,7 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 }
 
 DLLEXPORT
-void _image(int64_t val, image_map_t *map, struct uarray *u)
+void _image(int64_t val, image_map_t *map, uarray_t *u)
 {
    char *buf = NULL;
    size_t len = 0;
@@ -1114,15 +1100,12 @@ void _image(int64_t val, image_map_t *map, struct uarray *u)
       break;
    }
 
-   u->ptr = buf;
-   u->dims[0].left  = 1;
-   u->dims[0].right = len;
-   u->dims[0].dir   = RANGE_TO;
+   *u = wrap_str(buf, len);
 }
 
 DLLEXPORT
 void _bit_shift(int32_t kind, const uint8_t *data, int32_t len,
-                int8_t dir, int32_t shift, struct uarray *u)
+                int8_t dir, int32_t shift, uarray_t *u)
 {
    if (shift < 0) {
       kind  = kind ^ 1;
@@ -1157,15 +1140,14 @@ void _bit_shift(int32_t kind, const uint8_t *data, int32_t len,
    }
 
    u->ptr = buf;
-   u->dims[0].left  = (dir == RANGE_TO) ? 0 : len - 1;
-   u->dims[0].right = (dir == RANGE_TO) ? len - 1 : 0;
-   u->dims[0].dir   = dir;
+   u->dims[0].left = (dir == RANGE_TO) ? 0 : len - 1;
+   u->dims[0].length = (dir == RANGE_TO) ? len : -len;
 }
 
 DLLEXPORT
 void _bit_vec_op(int32_t kind, const uint8_t *left, int32_t left_len,
                  int8_t left_dir, const uint8_t *right, int32_t right_len,
-                 int8_t right_dir, struct uarray *u)
+                 int8_t right_dir, uarray_t *u)
 {
    if ((kind != BIT_VEC_NOT) && (left_len != right_len))
       fatal("arguments to bit vector operation are not the same length");
@@ -1210,9 +1192,8 @@ void _bit_vec_op(int32_t kind, const uint8_t *left, int32_t left_len,
    }
 
    u->ptr = buf;
-   u->dims[0].left  = (left_dir == RANGE_TO) ? 0 : left_len - 1;
-   u->dims[0].right = (left_dir == RANGE_TO) ? left_len - 1 : 0;
-   u->dims[0].dir   = left_dir;
+   u->dims[0].left = (left_dir == RANGE_TO) ? 0 : left_len - 1;
+   u->dims[0].length = (left_dir == RANGE_TO) ? left_len : -left_len;
 }
 
 DLLEXPORT
@@ -1543,8 +1524,8 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
    for (int i = 0; i < nlits; i++) {
       for (int j = 0; j < nlits; j++) {
          int8_t args[2] = { i, j };
-         struct uarray u = {
-            args, { { memo->ileft, memo->ileft + 1, RANGE_TO } }
+         const uarray_t u = {
+            args, { { memo->ileft, 2 } }
          };
          memo->tab2[i][j] = (*memo->fn)(memo->context, &u);
          RT_ASSERT(memo->tab2[i][j] < nlits);
@@ -1557,7 +1538,7 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
    bool identity = true;
    for (int i = 0; i < nlits; i++) {
       int8_t args[1] = { i };
-      struct uarray u = { args, { { memo->ileft, memo->ileft, RANGE_TO } } };
+      const uarray_t u = { args, { { memo->ileft, 1 } } };
       memo->tab1[i] = (*memo->fn)(memo->context, &u);
       identity = identity && (memo->tab1[i] == i);
    }
@@ -2048,10 +2029,8 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
          offset += n->size * n->width;
       }
 
-      struct uarray u = {
-         inputs, { { nexus->resolution->ileft,
-                     nexus->resolution->ileft + nexus->n_sources - 1,
-                     RANGE_TO } }
+      const uarray_t u = {
+         inputs, { { nexus->resolution->ileft, nexus->n_sources } }
       };
       void *priv = nexus->resolution->context;
       uint8_t *result = (uint8_t *)(*nexus->resolution->fn)(priv, &u);
@@ -2071,11 +2050,8 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
             }                                                           \
             vals[driver] = ((const type *)values)[j];                   \
             type *r = (type *)resolved;                                 \
-            struct uarray u = {                                         \
-               vals, {                                                  \
-                  { nexus->resolution->ileft,                           \
-                    nexus->resolution->ileft + nexus->n_sources - 1,    \
-                    RANGE_TO } }                                        \
+            const uarray_t u = {                                        \
+               vals, { { nexus->resolution->ileft, nexus->n_sources } } \
             };                                                          \
             void *priv = nexus->resolution->context;                    \
             r[j] = (*nexus->resolution->fn)(priv, &u);                  \

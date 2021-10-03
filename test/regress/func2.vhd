@@ -42,6 +42,7 @@ begin
     begin
         assert len(v) = 5;
         assert sum(v) = 17;
+        assert len(u) = 5;
         assert sum(u) = 13;
         assert asc(v);
         assert get_low(u) = 1;
