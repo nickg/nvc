@@ -623,8 +623,8 @@ static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
    LLVMValueRef stack = LLVMBuildLoad(builder, _tmp_stack_ptr, "stack");
 
    LLVMValueRef indexes[] = { llvm_zext_to_intptr(alloc) };
-   LLVMValueRef buf = LLVMBuildGEP(builder, stack,
-                                   indexes, ARRAY_LEN(indexes), "");
+   LLVMValueRef buf = LLVMBuildInBoundsGEP(builder, stack,
+                                           indexes, ARRAY_LEN(indexes), "");
 
    LLVMValueRef alloc_next =
       LLVMBuildAnd(builder,
@@ -1227,16 +1227,16 @@ static void cgen_op_add(int op, cgen_ctx_t *ctx)
 
    if (kind == VCODE_TYPE_POINTER) {
       LLVMValueRef index[] = { rhs };
-      ctx->regs[result] = LLVMBuildGEP(builder, lhs,
-                                       index, ARRAY_LEN(index),
-                                       cgen_reg_name(result));
+      ctx->regs[result] = LLVMBuildInBoundsGEP(builder, lhs,
+                                               index, ARRAY_LEN(index),
+                                               cgen_reg_name(result));
    }
    else if (kind == VCODE_TYPE_SIGNAL) {
       LLVMValueRef base = LLVMBuildExtractValue(builder, lhs, 1, "base");
       vcode_type_t vtype = vtype_base(vcode_reg_type(vcode_get_arg(op, 0)));
       LLVMValueRef null = LLVMConstNull(LLVMPointerType(cgen_type(vtype), 0));
       LLVMValueRef index[] = { rhs };
-      LLVMValueRef gep = LLVMBuildGEP(builder, null, index, 1, "");
+      LLVMValueRef gep = LLVMBuildInBoundsGEP(builder, null, index, 1, "");
       LLVMValueRef scaled =
          LLVMBuildPtrToInt(builder, gep, LLVMInt32Type(), "");
       LLVMValueRef add = LLVMBuildAdd(builder, base, scaled, "");
@@ -1865,8 +1865,8 @@ static void cgen_op_index(int op, cgen_ctx_t *ctx)
       offset = llvm_int32(0);
 
    LLVMValueRef index[] = { llvm_zext_to_intptr(offset) };
-   ctx->regs[result] = LLVMBuildGEP(builder, var, index,
-                                    ARRAY_LEN(index), name);
+   ctx->regs[result] = LLVMBuildInBoundsGEP(builder, var, index,
+                                            ARRAY_LEN(index), name);
 }
 
 static void cgen_op_select(int op, cgen_ctx_t *ctx)
@@ -1998,8 +1998,8 @@ static void cgen_op_resolved(int op, cgen_ctx_t *ctx)
    LLVMValueRef index[] = {
       llvm_zext_to_intptr(LLVMBuildExtractValue(builder, sigptr, 1, "offset")),
    };
-   LLVMValueRef raw_ptr = LLVMBuildGEP(builder, resolved, index,
-                                       ARRAY_LEN(index), "");
+   LLVMValueRef raw_ptr = LLVMBuildInBoundsGEP(builder, resolved, index,
+                                               ARRAY_LEN(index), "");
    ctx->regs[result] = LLVMBuildBitCast(builder, raw_ptr,
                                         cgen_type(vcode_reg_type(result)),
                                         cgen_reg_name(result));
@@ -2023,8 +2023,8 @@ static void cgen_op_last_value(int op, cgen_ctx_t *ctx)
    if (LLVMGetTypeKind(LLVMTypeOf(deref)) == LLVMPointerTypeKind) {
       LLVMValueRef offset = LLVMBuildExtractValue(builder, sigptr, 1, "offset");
       LLVMValueRef index[] = { llvm_zext_to_intptr(offset) };
-      ctx->regs[result] = LLVMBuildGEP(builder, deref, index,
-                                       ARRAY_LEN(index), "");
+      ctx->regs[result] = LLVMBuildInBoundsGEP(builder, deref, index,
+                                               ARRAY_LEN(index), "");
    }
    else
       ctx->regs[result] = deref;
@@ -2374,8 +2374,8 @@ static void cgen_op_memcmp(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, body_bb);
 
    LLVMValueRef index[] = { llvm_zext_to_intptr(i_test) };
-   LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, index, 1, "l_ptr");
-   LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data, index, 1, "r_ptr");
+   LLVMValueRef l_ptr = LLVMBuildInBoundsGEP(builder, lhs_data, index, 1, "");
+   LLVMValueRef r_ptr = LLVMBuildInBoundsGEP(builder, rhs_data, index, 1, "");
 
    LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
    LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
