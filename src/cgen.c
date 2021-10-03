@@ -145,6 +145,11 @@ static LLVMValueRef llvm_ensure_int_bits(LLVMValueRef value, int bits)
       return value;
 }
 
+static LLVMValueRef llvm_zext_to_intptr(LLVMValueRef value)
+{
+   return LLVMBuildZExt(builder, value, LLVMIntType(sizeof(void *) * 8), "");
+}
+
 static LLVMTypeRef llvm_rt_loc(void)
 {
    LLVMTypeRef fields[] = {
@@ -617,7 +622,7 @@ static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
    LLVMValueRef alloc = LLVMBuildLoad(builder, _tmp_alloc_ptr, "alloc");
    LLVMValueRef stack = LLVMBuildLoad(builder, _tmp_stack_ptr, "stack");
 
-   LLVMValueRef indexes[] = { alloc };
+   LLVMValueRef indexes[] = { llvm_zext_to_intptr(alloc) };
    LLVMValueRef buf = LLVMBuildGEP(builder, stack,
                                    indexes, ARRAY_LEN(indexes), "");
 
@@ -1853,11 +1858,15 @@ static void cgen_op_index(int op, cgen_ctx_t *ctx)
    LLVMValueRef var = cgen_get_var(vcode_get_address(op), ctx);
    const char *name = cgen_reg_name(result);
 
-   LLVMValueRef index_ptr[] = {
-      (vcode_count_args(op) > 0) ? cgen_get_arg(op, 0, ctx) : llvm_int32(0)
-   };
-   ctx->regs[result] = LLVMBuildGEP(builder, var, index_ptr,
-                                    ARRAY_LEN(index_ptr), name);
+   LLVMValueRef offset;
+   if (vcode_count_args(op) > 0)
+      offset = cgen_get_arg(op, 0, ctx);
+   else
+      offset = llvm_int32(0);
+
+   LLVMValueRef index[] = { llvm_zext_to_intptr(offset) };
+   ctx->regs[result] = LLVMBuildGEP(builder, var, index,
+                                    ARRAY_LEN(index), name);
 }
 
 static void cgen_op_select(int op, cgen_ctx_t *ctx)
@@ -1987,7 +1996,7 @@ static void cgen_op_resolved(int op, cgen_ctx_t *ctx)
    LLVMValueRef resolved = LLVMBuildStructGEP(builder, shared, 2, "resolved");
    resolved = LLVMBuildLoad(builder, resolved, "");
    LLVMValueRef index[] = {
-      LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
+      llvm_zext_to_intptr(LLVMBuildExtractValue(builder, sigptr, 1, "offset")),
    };
    LLVMValueRef raw_ptr = LLVMBuildGEP(builder, resolved, index,
                                        ARRAY_LEN(index), "");
@@ -2012,9 +2021,8 @@ static void cgen_op_last_value(int op, cgen_ctx_t *ctx)
    LLVMValueRef deref = LLVMBuildLoad(builder, cast, cgen_reg_name(result));
 
    if (LLVMGetTypeKind(LLVMTypeOf(deref)) == LLVMPointerTypeKind) {
-      LLVMValueRef index[] = {
-         LLVMBuildExtractValue(builder, sigptr, 1, "offset")
-      };
+      LLVMValueRef offset = LLVMBuildExtractValue(builder, sigptr, 1, "offset");
+      LLVMValueRef index[] = { llvm_zext_to_intptr(offset) };
       ctx->regs[result] = LLVMBuildGEP(builder, deref, index,
                                        ARRAY_LEN(index), "");
    }
@@ -2365,8 +2373,9 @@ static void cgen_op_memcmp(int op, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, body_bb);
 
-   LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, &i_test, 1, "l_ptr");
-   LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data, &i_test, 1, "r_ptr");
+   LLVMValueRef index[] = { llvm_zext_to_intptr(i_test) };
+   LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, index, 1, "l_ptr");
+   LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data, index, 1, "r_ptr");
 
    LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
    LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
@@ -2980,7 +2989,9 @@ static void cgen_op_link_var(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef base_ptr = llvm_void_cast(LLVMBuildLoad(builder, global, ""));
 
-   LLVMValueRef indexes[] = { LLVMBuildLoad(builder, offset, "") };
+   LLVMValueRef indexes[] = {
+      llvm_zext_to_intptr(LLVMBuildLoad(builder, offset, ""))
+   };
    LLVMValueRef raw_ptr = LLVMBuildGEP(builder, base_ptr, indexes, 1, "");
 
    ctx->regs[result] = LLVMBuildPointerCast(builder, raw_ptr,
