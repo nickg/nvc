@@ -853,7 +853,7 @@ static void bt_sighandler(int sig, siginfo_t *info, void *context)
    show_stacktrace();
 
    if (sig != SIGUSR1)
-      exit(2);
+      _exit(2);
 }
 #endif  // !__MINGW32__
 
@@ -980,6 +980,15 @@ static void gdb_sighandler(int sig, siginfo_t *info)
 }
 #endif  // __linux
 
+#ifndef __MINGW32__
+static void free_altstack(void)
+{
+   stack_t ss;
+   if (sigaltstack(NULL, &ss) == 0)
+      free(ss.ss_sp);
+}
+#endif  // !__MINGW32__
+
 void register_trace_signal_handlers(void)
 {
 #if defined __MINGW32__
@@ -988,10 +997,19 @@ void register_trace_signal_handlers(void)
    if (is_debugger_running())
       return;
 
+   stack_t ss;
+   ss.ss_sp    = xmalloc(SIGSTKSZ);
+   ss.ss_size  = SIGSTKSZ;
+   ss.ss_flags = 0;
+   if (sigaltstack(&ss, NULL) == -1)
+      fatal_errno("sigaltstack");
+
+   atexit(free_altstack);
+
    struct sigaction sa;
    sa.sa_sigaction = (void*)bt_sighandler;
    sigemptyset(&sa.sa_mask);
-   sa.sa_flags = SA_RESTART | SA_SIGINFO;
+   sa.sa_flags = SA_RESTART | SA_SIGINFO | SA_ONSTACK;
 
    sigaction(SIGSEGV, &sa, NULL);
    sigaction(SIGUSR1, &sa, NULL);
