@@ -1657,8 +1657,7 @@ static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
    lmap = LLVMBuildInsertValue(builder, lmap, llvm_int32(map.nelems), 4, "");
 
    vcode_reg_t result = vcode_get_result(op);
-   LLVMValueRef tmp =
-      LLVMBuildAlloca(builder, llvm_image_map(), cgen_reg_name(result));
+   LLVMValueRef tmp = cgen_scoped_alloca(llvm_image_map(), ctx);
    LLVMBuildStore(builder, lmap, tmp);
    ctx->regs[result] = tmp;
 }
@@ -1672,24 +1671,26 @@ static void cgen_op_image(int op, cgen_ctx_t *ctx)
    const bool is_signed = arg_kind == VCODE_TYPE_INT && vtype_low(arg_type) < 0;
    const bool real = (arg_kind == VCODE_TYPE_REAL);
 
+   LLVMTypeRef alloca_type = NULL;
    LLVMValueRef image_map;
    if (vcode_count_args(op) > 1)
       image_map = cgen_get_arg(op, 1, ctx);
    else {
-      image_map = LLVMBuildAlloca(builder, llvm_image_map(), "");
+      alloca_type = llvm_image_map();
+      image_map = cgen_scoped_alloca(alloca_type, ctx);
+      llvm_lifetime_start(image_map, alloca_type);
       LLVMBuildStore(
          builder,
-         LLVMBuildInsertValue(builder,
-                              LLVMGetUndef(llvm_image_map()),
+         LLVMBuildInsertValue(builder, LLVMGetUndef(alloca_type),
                               llvm_int32(real ? IMAGE_REAL : IMAGE_INTEGER),
                               0, ""),
          image_map);
    }
 
    LLVMOpcode cop = real ? LLVMBitCast : (is_signed ? LLVMSExt : LLVMZExt);
-   LLVMValueRef res = LLVMBuildAlloca(builder,
-                                      llvm_uarray_type(LLVMInt8Type(), 1),
-                                      "image");
+   LLVMTypeRef utype = llvm_uarray_type(LLVMInt8Type(), 1);
+   LLVMValueRef res = cgen_scoped_alloca(utype, ctx);
+   llvm_lifetime_start(res, utype);
    LLVMValueRef iargs[] = {
       LLVMBuildCast(builder, cop, ctx->regs[arg], LLVMInt64Type(), ""),
       image_map,
@@ -1699,6 +1700,10 @@ static void cgen_op_image(int op, cgen_ctx_t *ctx)
 
    vcode_reg_t result = vcode_get_result(op);
    ctx->regs[result] = LLVMBuildLoad(builder, res, cgen_reg_name(result));
+
+   if (alloca_type != NULL)
+      llvm_lifetime_end(image_map, alloca_type);
+   llvm_lifetime_end(res, utype);
 }
 
 static void cgen_op_cast(int op, cgen_ctx_t *ctx)
@@ -2337,8 +2342,7 @@ static void cgen_op_memcmp(int op, cgen_ctx_t *ctx)
    LLVMValueRef rhs_data = cgen_get_arg(op, 1, ctx);
    LLVMValueRef length   = cgen_get_arg(op, 2, ctx);
 
-   LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
-   LLVMBuildStore(builder, llvm_int32(0), i);
+   LLVMBasicBlockRef entry_bb = LLVMGetInsertBlock(builder);
 
    LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(ctx->fn, "memcmp_test");
    LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(ctx->fn, "memcmp_body");
@@ -2350,8 +2354,8 @@ static void cgen_op_memcmp(int op, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, test_bb);
 
-   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "i");
-   LLVMValueRef len_ge = LLVMBuildICmp(builder, LLVMIntUGE, i_loaded,
+   LLVMValueRef i_test = LLVMBuildPhi(builder, LLVMInt32Type(), "i");
+   LLVMValueRef len_ge = LLVMBuildICmp(builder, LLVMIntUGE, i_test,
                                        length, "len_ge");
    LLVMBuildCondBr(builder, len_ge, exit_bb, body_bb);
 
@@ -2359,8 +2363,8 @@ static void cgen_op_memcmp(int op, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, body_bb);
 
-   LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, &i_loaded, 1, "l_ptr");
-   LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data, &i_loaded, 1, "r_ptr");
+   LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, &i_test, 1, "l_ptr");
+   LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data, &i_test, 1, "r_ptr");
 
    LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
    LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
@@ -2371,8 +2375,11 @@ static void cgen_op_memcmp(int op, cgen_ctx_t *ctx)
    else
       eq = LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
 
-   LLVMValueRef inc = LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
-   LLVMBuildStore(builder, inc, i);
+   LLVMValueRef inc = LLVMBuildAdd(builder, i_test, llvm_int32(1), "inc");
+
+   LLVMValueRef i_test_in_vals[]    = { llvm_int32(0), inc     };
+   LLVMBasicBlockRef i_test_in_bb[] = { entry_bb,      body_bb };
+   LLVMAddIncoming(i_test, i_test_in_vals, i_test_in_bb, 2);
 
    LLVMBuildCondBr(builder, eq, test_bb, exit_bb);
 
@@ -2587,16 +2594,19 @@ static void cgen_op_value(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
+   LLVMTypeRef alloca_type = NULL;
    LLVMValueRef image_map;
    if (vcode_count_args(op) > 2)
       image_map = cgen_get_arg(op, 2, ctx);
    else {
+      alloca_type = llvm_image_map();
+      image_map = cgen_scoped_alloca(alloca_type, ctx);
+      llvm_lifetime_start(image_map, alloca_type);
       const bool real = vcode_reg_kind(result) == VCODE_TYPE_REAL;
-      image_map = LLVMBuildAlloca(builder, llvm_image_map(), "");
       LLVMBuildStore(
          builder,
          LLVMBuildInsertValue(builder,
-                              LLVMGetUndef(llvm_image_map()),
+                              LLVMGetUndef(alloca_type),
                               llvm_int32(real ? IMAGE_REAL : IMAGE_INTEGER),
                               0, ""),
          image_map);
@@ -2610,13 +2620,16 @@ static void cgen_op_value(int op, cgen_ctx_t *ctx)
    };
    ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_value_attr"),
                                       args, ARRAY_LEN(args), "value");
+
+   if (alloca_type != NULL)
+      llvm_lifetime_end(image_map, alloca_type);
 }
 
 static void cgen_op_bit_shift(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef tmp = LLVMBuildAlloca(builder,
-                                      llvm_uarray_type(LLVMInt1Type(), 1),
-                                      "bit_shift");
+   LLVMTypeRef utype = llvm_uarray_type(LLVMInt1Type(), 1);
+   LLVMValueRef tmp = cgen_scoped_alloca(utype, ctx);
+   llvm_lifetime_start(tmp, utype);
 
    LLVMValueRef data  = cgen_get_arg(op, 0, ctx);
    LLVMValueRef len   = cgen_get_arg(op, 1, ctx);
@@ -2635,13 +2648,14 @@ static void cgen_op_bit_shift(int op, cgen_ctx_t *ctx)
 
    vcode_reg_t result = vcode_get_result(op);
    ctx->regs[result] = LLVMBuildLoad(builder, tmp, cgen_reg_name(result));
+   llvm_lifetime_end(tmp, utype);
 }
 
 static void cgen_op_bit_vec_op(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef tmp = LLVMBuildAlloca(builder,
-                                      llvm_uarray_type(LLVMInt1Type(), 1),
-                                      "bit_vec_op");
+   LLVMTypeRef utype = llvm_uarray_type(LLVMInt1Type(), 1);
+   LLVMValueRef tmp = cgen_scoped_alloca(utype, ctx);
+   llvm_lifetime_start(tmp, utype);
 
    LLVMValueRef left_data = cgen_get_arg(op, 0, ctx);
    LLVMValueRef left_len  = cgen_get_arg(op, 1, ctx);
@@ -2673,6 +2687,7 @@ static void cgen_op_bit_vec_op(int op, cgen_ctx_t *ctx)
 
    vcode_reg_t result = vcode_get_result(op);
    ctx->regs[result] = LLVMBuildLoad(builder, tmp, cgen_reg_name(result));
+   llvm_lifetime_end(tmp, utype);
 }
 
 static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
