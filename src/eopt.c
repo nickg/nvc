@@ -24,6 +24,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 static e_node_t      root = NULL;
 static cprop_vars_t *cprop_vars = NULL;
@@ -313,6 +314,9 @@ static void eopt_init_signal_cb(int op, cprop_state_t *regs, void *__ctx)
       fatal_trace("init signal target is not a signal");
    }
 
+   if (vcode_count_args(op) > 4)
+      e_set_flag(signal, E_F_RESOLVED);
+
    const unsigned width = e_width(signal);
    assert(offset + count <= width);
 
@@ -525,6 +529,7 @@ static void eopt_signal_decl(tree_t decl, e_node_t cursor)
    e_set_ident(e, name);
    e_set_width(e, type_width(type));
    e_set_type(e, type);
+   e_set_loc(e, tree_loc(decl));
    eopt_path_from_cursor(e, name, cursor);
 
    if (tree_flags(decl) & TREE_F_LAST_VALUE)
@@ -611,6 +616,56 @@ static void eopt_context(tree_t unit)
    }
 }
 
+static void eopt_report_multiple_sources(e_node_t nexus)
+{
+   e_node_t s0 = e_signal(nexus, 0);
+
+   const int nsignals = e_signals(nexus);
+   const int nsources = e_sources(nexus);
+   const int width    = e_width(s0);
+
+   bool partof = false;
+   int *LOCAL drivenw = xcalloc_array(nsources, sizeof(int));
+
+   for (int i = 0; i < nsources; i++) {
+      e_node_t e = e_source(nexus, i);
+      assert(e_kind(e) == E_PROCESS);  // TODO: handle port sources
+
+      const int nn = e_nexuses(e);
+      for (int j = 0; j < nn; j++) {
+         e_node_t n = e_nexus(e, j);
+         for (int k = 0; k < e_signals(n); k++) {
+            if (e_signal(n, k) == s0)
+               drivenw[i] += e_width(n);
+         }
+      }
+
+      if (drivenw[i] != width)
+         partof = true;
+   }
+
+   error_at(e_loc(s0), "%sunresolved signal %s with instance name %s has "
+            "multiple sources", partof ? "part of " : "",
+            istr(e_ident(s0)), istr(e_instance(s0)));
+
+   for (int i = 0; i < nsources; i++) {
+      e_node_t e = e_source(nexus, i);
+      assert(e_kind(e) == E_PROCESS);
+
+      const char *procname = istr(e_ident(e));
+      const bool anonymous = islower(procname[0]);
+
+      note_at(e_loc(e), "%s%s is driven by %s%s in instance %s",
+              drivenw[i] != width ? "part of " : "",
+              istr(e_ident(s0)), anonymous ? "a process" : "process ",
+              anonymous ? "" : procname, istr(e_instance(e_parent(e))));
+   }
+
+   // Prevent multiple errors for the same signal
+   for (int i = 0; i < nsignals; i++)
+      e_set_flag(e_signal(nexus, i), E_F_RESOLVED);
+}
+
 static void eopt_post_process_nexus(e_node_t root)
 {
    const int nnexus = e_nexuses(root);
@@ -621,6 +676,17 @@ static void eopt_post_process_nexus(e_node_t root)
       if (e_signals(n) == 0) continue;
 
       e_node_t s0 = e_signal(n, 0);
+
+      if (e_sources(n) > 1) {
+         const int nsignals = e_signals(n);
+         for (int i = 0; i < nsignals; i++) {
+            e_node_t s = e_signal(n, i);
+            if (!(e_flags(s) & E_F_RESOLVED)) {
+               eopt_report_multiple_sources(n);
+               break;
+            }
+         }
+      }
 
       const int width = e_width(n);
       if (e_width(s0) == width) continue;

@@ -37,6 +37,7 @@ typedef enum {
    E_F_LAST_VALUE = (1 << 0),
    E_F_CONTIGUOUS = (1 << 1),
    E_F_POSTPONED  = (1 << 2),
+   E_F_RESOLVED   = (1 << 3)
 } e_flags_t;
 
 #define NEXUS_POS_INVALID ~0u

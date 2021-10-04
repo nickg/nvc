@@ -2,14 +2,19 @@ entity arrayref is
 end entity;
 
 architecture test of arrayref is
-    type bv2d is array (integer range <>) of bit_vector(1 downto 0);
+    function resolved (x : bit_vector) return bit;
 
-    signal x : bit_vector(2 downto 0);  -- 0..2
-    signal y : bit_vector(1 downto 0);  -- 3..4
-    signal i : integer;                 -- 5..5
-    signal p : bv2d(0 to 1);            -- 6..9
-    signal q : bv2d(0 to 2);            -- 10..15
-    signal r : bv2d(0 to 2);            -- 16..21
+    subtype r_bit is resolved bit;
+    type r_bit_vector is array (natural range <>) of r_bit;
+
+    type bv2d is array (integer range <>) of r_bit_vector(1 downto 0);
+
+    signal x : r_bit_vector(2 downto 0);  -- 0..2
+    signal y : r_bit_vector(1 downto 0);  -- 3..4
+    signal i : integer;                   -- 5..5
+    signal p : bv2d(0 to 1);              -- 6..9
+    signal q : bv2d(0 to 2);              -- 10..15
+    signal r : bv2d(0 to 2);              -- 16..21
 begin
 
     x(0) <= '1';

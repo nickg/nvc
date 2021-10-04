@@ -187,9 +187,10 @@ static e_node_t run_eopt(void)
    lower_unit(top);
 
    e_node_t e = eopt_build(top);
-   fail_if(error_count() > 0);
 
-   check_eopt(e);
+   if (error_count() == 0)
+      check_eopt(e);
+
    return e;
 }
 
@@ -844,6 +845,36 @@ START_TEST(test_arrayref4)
 }
 END_TEST
 
+START_TEST(test_source1)
+{
+   input_from_file(TESTDIR "/eopt/source1.vhd");
+
+   const error_t expect[] = {
+      { 18, "unresolved signal X with instance name :source1(test):x "
+        "has multiple sources" },
+      { 22, "X is driven by a process in instance :source1(test)" },
+      { 23, "X is driven by process FOO in instance :source1(test)" },
+      { 19, "part of unresolved signal Y with instance name :source1(test):y "
+        "has multiple sources" },
+      { 25, "Y is driven by a process in instance :source1(test)" },
+      { 26, "part of Y is driven by a process in instance :source1(test)" },
+      {  9, "part of Y is driven by a process in instance "
+         ":source1(test):sub2_i@sub(test)" },
+      { 19, "part of unresolved signal Y with instance name :source1(test):y "
+        "has multiple sources" },
+      { 25, "Y is driven by a process in instance :source1(test)" },
+      {  9, "part of Y is driven by a process in instance "
+         ":source1(test):sub1_i@sub(test)" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   run_eopt();
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_eopt_tests(void)
 {
    Suite *s = suite_create("eopt");
@@ -872,6 +903,7 @@ Suite *get_eopt_tests(void)
    tcase_add_test(tc, test_alias1);
    tcase_add_test(tc, test_pcall1);
    tcase_add_test(tc, test_arrayref4);
+   tcase_add_test(tc, test_source1);
    suite_add_tcase(s, tc);
 
    return s;

@@ -2,8 +2,13 @@ entity slice1 is
 end entity;
 
 architecture test of slice1 is
-    signal x : bit_vector(0 to 7);
-    signal y : bit_vector(7 downto 0);
+    function resolved (x : bit_vector) return bit;
+
+    subtype r_bit is resolved bit;
+    type r_bit_vector is array (natural range <>) of r_bit;
+
+    signal x : r_bit_vector(0 to 7);
+    signal y : r_bit_vector(7 downto 0);
 begin
 
     x(0 to 3) <= "1111";
