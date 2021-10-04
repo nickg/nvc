@@ -211,24 +211,6 @@ static int analyse(int argc, char **argv)
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
-static void elab_verbose(bool verbose, const char *fmt, ...)
-{
-   if (verbose) {
-      va_list ap;
-      va_start(ap, fmt);
-      char *msg LOCAL = xvasprintf(fmt, ap);
-      va_end(ap);
-
-      static nvc_rusage_t last_ru;
-
-      nvc_rusage_t ru;
-      nvc_rusage(&ru);
-      notef("%s [%ums %+dkB]", msg, ru.ms, ru.rss - last_ru.rss);
-
-      last_ru = ru;
-   }
-}
-
 static void parse_generic(const char *str)
 {
    char *copy LOCAL = xstrdup(str);
@@ -271,7 +253,6 @@ static int elaborate(int argc, char **argv)
    };
 
    const int next_cmd = scan_cmd(2, argc, argv);
-   bool verbose = false;
    int c, index = 0;
    const char *spec = "Vg:O:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
@@ -302,7 +283,6 @@ static int elaborate(int argc, char **argv)
          opt_set_int("cover", 1);
          break;
       case 'V':
-         verbose = true;
          opt_set_int("verbose", 1);
          break;
       case 'g':
@@ -320,41 +300,41 @@ static int elaborate(int argc, char **argv)
 
    set_top_level(argv, next_cmd);
 
-   elab_verbose(verbose, "initialising");
+   progress("initialising");
 
    tree_t unit = lib_get(lib_work(), top_level);
    if (unit == NULL)
       fatal("cannot find unit %s in library %s",
             istr(top_level), istr(lib_name(lib_work())));
 
-   elab_verbose(verbose, "loading top-level unit");
+   progress("loading top-level unit");
 
    tree_t top = elab(unit);
    if (top == NULL)
       return EXIT_FAILURE;
 
-   elab_verbose(verbose, "elaborating design");
+   progress("elaborating design");
 
    // Save the library now so the code generator can attach temporary
    // meta data to trees
    lib_save(lib_work());
-   elab_verbose(verbose, "saving library");
+   progress("saving library");
 
    vcode_unit_t vu = lower_unit(top);
-   elab_verbose(verbose, "generating intermediate code");
+   progress("generating intermediate code");
 
    e_node_t e = eopt_build(top);
-   elab_verbose(verbose, "optimising design");
+   progress("optimising design");
 
    if (error_count() > 0)
       return EXIT_FAILURE;
 
    lib_put_elaborated(lib_work(), e);
    lib_save(lib_work());
-   elab_verbose(verbose, "saving library");
+   progress("saving library");
 
    cgen(top, vu);
-   elab_verbose(verbose, "generating LLVM");
+   progress("generating LLVM");
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

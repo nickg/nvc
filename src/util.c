@@ -1748,3 +1748,21 @@ char *search_path(const char *name)
 
    return xstrdup(name);
 }
+
+void progress(const char *fmt, ...)
+{
+   if (opt_get_int("verbose")) {
+      va_list ap;
+      va_start(ap, fmt);
+      char *msg LOCAL = xvasprintf(fmt, ap);
+      va_end(ap);
+
+      static nvc_rusage_t last_ru;
+
+      nvc_rusage_t ru;
+      nvc_rusage(&ru);
+      notef("%s [%ums %+dkB]", msg, ru.ms, ru.rss - last_ru.rss);
+
+      last_ru = ru;
+   }
+}
