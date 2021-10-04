@@ -3842,27 +3842,51 @@ static void cgen_top(tree_t top, vcode_unit_t vcode)
    cgen_pop_debug_scope();
 }
 
+static void cgen_dump_module(const char *tag)
+{
+   size_t length;
+   const char *module_name = LLVMGetModuleIdentifier(module, &length);
+   char *file_name LOCAL = xasprintf("_%s.%s.ll", module_name, tag);
+
+   char file_path[PATH_MAX];
+   lib_realpath(lib_work(), file_name, file_path, sizeof(file_path));
+
+   char *error;
+   if (LLVMPrintModuleToFile(module, file_path, &error))
+      fatal("Failed to write LLVM IR file: %s", error);
+
+   notef("wrote LLVM IR to %s", file_path);
+}
+
 static void cgen_optimise(void)
 {
-   LLVMPassManagerRef pass_mgr = LLVMCreatePassManager();
+   LLVMPassManagerRef fpm = LLVMCreateFunctionPassManagerForModule(module);
+   LLVMPassManagerRef mpm = LLVMCreatePassManager();
 
-   const int olevel = opt_get_int("optimise");
+   LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
+   LLVMPassManagerBuilderSetOptLevel(builder, opt_get_int("optimise"));
+   LLVMPassManagerBuilderSetSizeLevel(builder, 0);
+   LLVMPassManagerBuilderUseInlinerWithThreshold(builder, 50);
 
-   if (olevel == 0) {
-      LLVMAddInstructionCombiningPass(pass_mgr);
-      LLVMAddReassociatePass(pass_mgr);
-      LLVMAddGVNPass(pass_mgr);
-      LLVMAddCFGSimplificationPass(pass_mgr);
-   }
-   else {
-      LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
-      LLVMPassManagerBuilderSetOptLevel(builder, olevel);
-      LLVMPassManagerBuilderPopulateModulePassManager(builder, pass_mgr);
-      LLVMPassManagerBuilderDispose(builder);
-   }
+   LLVMPassManagerBuilderPopulateFunctionPassManager(builder, fpm);
+   LLVMPassManagerBuilderPopulateModulePassManager(builder, mpm);
+   LLVMPassManagerBuilderDispose(builder);
 
-   LLVMRunPassManager(pass_mgr, module);
-   LLVMDisposePassManager(pass_mgr);
+   LLVMInitializeFunctionPassManager(fpm);
+
+   for (LLVMValueRef fn = LLVMGetFirstFunction(module);
+        fn != NULL; fn = LLVMGetNextFunction(fn))
+      LLVMRunFunctionPassManager(fpm, fn);
+
+   LLVMFinalizeFunctionPassManager(fpm);
+   LLVMDisposePassManager(fpm);
+
+   progress("running function pass manager");
+
+   LLVMRunPassManager(mpm, module);
+   LLVMDisposePassManager(mpm);
+
+   progress("running module pass manager");
 }
 
 static LLVMValueRef cgen_support_fn(const char *name)
@@ -4311,6 +4335,8 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
                                    LLVMObjectFile, &error))
       fatal("Failed to write object file: %s", error);
 
+   progress("generating native code");
+
 #if DUMP_ASSEMBLY
    char *asm_name LOCAL = xasprintf("_%s.s", module_name);
 
@@ -4320,6 +4346,8 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
     if (LLVMTargetMachineEmitToFile(tm_ref, module, asm_path,
                                    LLVMAssemblyFile, &error))
       fatal("Failed to write assembly file: %s", error);
+
+    progress("writing assembly");
 #endif
 
 #if DUMP_BITCODE
@@ -4330,7 +4358,10 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
 
     if (LLVMWriteBitcodeToFile(module, bc_path))
        fatal("Failed to write bitcode to file");
+
+    progress("writing bitcode");
 #endif
+
 
 #ifdef LINKER_PATH
    cgen_link_arg("%s", LINKER_PATH);
@@ -4401,6 +4432,8 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
 
    run_program((const char * const *)link_args.items, link_args.count);
 
+   progress("linking shared library");
+
    for (size_t i = 0; i < link_args.count; i++)
       free(link_args.items[i]);
    ACLEAR(link_args);
@@ -4455,16 +4488,25 @@ void cgen(tree_t top, vcode_unit_t vcode)
 
    LLVMDIBuilderFinalize(debuginfo);
 
-   if (opt_get_int("dump-llvm") || getenv("NVC_CGEN_VERBOSE") != NULL)
+   progress("generating LLVM IR");
+
+   const bool dump_ir = opt_get_int("dump-llvm");
+   if (dump_ir) cgen_dump_module("initial");
+
+   if (getenv("NVC_CGEN_VERBOSE") != NULL)
       LLVMDumpModule(module);
 
    if (LLVMVerifyModule(module, LLVMPrintMessageAction, NULL))
       fatal("LLVM verification failed");
 
+   progress("verifying module");
+
    vcode_select_unit(vcode);
 
    cgen_optimise();
    cgen_native(tm_ref);
+
+   if (dump_ir) cgen_dump_module("final");
 
    assert(debug_scopes.count == 0);
    hash_free(string_pool);

@@ -334,7 +334,6 @@ static int elaborate(int argc, char **argv)
    progress("saving library");
 
    cgen(top, vu);
-   progress("generating LLVM");
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
@@ -754,7 +753,7 @@ static void usage(void)
           "\n"
           "Elaborate options:\n"
           "     --cover\t\tEnable code coverage reporting\n"
-          "     --dump-llvm\tPrint generated LLVM IR\n"
+          "     --dump-llvm\nDump generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
           " -O0, -O1, -O2, -O3\tSet optimisation level (default is -O2)\n"
