@@ -1271,7 +1271,6 @@ int64_t _last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    return last;
 }
 
-
 DLLEXPORT
 int64_t _last_active(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
@@ -1295,6 +1294,76 @@ int64_t _last_active(sig_shared_t *ss, uint32_t offset, int32_t count)
    }
 
    return last;
+}
+
+DLLEXPORT
+bool _driving(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("_driving %s offset=%d count=%d",
+         istr(e_path(s->enode)), offset, count);
+
+   int ntotal = 0, ndriving = 0;
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (count > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+
+      int driver;
+      for (driver = 0; driver < n->n_sources; driver++) {
+         if (likely(n->sources[driver].proc == active_proc))
+            break;
+      }
+
+      if (driver != n->n_sources) ndriving++;
+      ntotal++;
+
+      count -= n->width;
+      RT_ASSERT(count >= 0);
+   }
+
+   if (ndriving == 0)
+      rt_msg(NULL, fatal, "process %s does not contain a driver for %s",
+             istr(e_path(active_proc->source)), istr(e_ident(s->enode)));
+
+   return ntotal == ndriving;
+}
+
+DLLEXPORT
+void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("_driving_value %s offset=%d count=%d",
+         istr(e_path(s->enode)), offset, count);
+
+   void *result = rt_tmp_alloc(s->size);
+
+   uint8_t *p = result;
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (count > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+
+      int driver;
+      for (driver = 0; driver < n->n_sources; driver++) {
+         if (likely(n->sources[driver].proc == active_proc))
+            break;
+      }
+
+      if (driver == n->n_sources)
+         rt_msg(NULL, fatal, "process %s does not contain a driver for %s",
+                istr(e_path(active_proc->source)), istr(e_ident(s->enode)));
+
+      memcpy(p, n->sources[driver].waveforms->values->data, n->width * n->size);
+      p += n->width * n->size;
+
+      count -= n->width;
+      RT_ASSERT(count >= 0);
+   }
+
+   return result;
 }
 
 DLLEXPORT

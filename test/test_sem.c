@@ -2288,6 +2288,24 @@ START_TEST(test_murax)
 }
 END_TEST
 
+START_TEST(test_driving)
+{
+   input_from_file(TESTDIR "/sem/driving.vhd");
+
+   const error_t expect[] = {
+      { 15, "prefix of attribute DRIVING must denote a signal" },
+      { 17, "prefix of attribute DRIVING must denote a signal or a port "
+        "with mode IN, INOUT, or BUFFER" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2402,6 +2420,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_osvvm2);
    tcase_add_test(tc_core, test_osvvm3);
    tcase_add_test(tc_core, test_murax);
+   tcase_add_test(tc_core, test_driving);
    suite_add_tcase(s, tc_core);
 
    return s;

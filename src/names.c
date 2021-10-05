@@ -2541,6 +2541,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    case ATTR_ACTIVE:
    case ATTR_STABLE:
    case ATTR_QUIET:
+   case ATTR_DRIVING:
       type = std_type(find_std(tab), "BOOLEAN");
       break;
 
@@ -2552,6 +2553,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    case ATTR_DELAYED:
    case ATTR_LAST_VALUE:
    case ATTR_VALUE:
+   case ATTR_DRIVING_VALUE:
       type = prefix_type;
       break;
 
@@ -2568,10 +2570,6 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
 
    case ATTR_POS:
       type = type_universal_int();
-      break;
-
-   case ATTR_DRIVING_VALUE:
-   case ATTR_DRIVING:
       break;
 
    case ATTR_BASE:

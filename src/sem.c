@@ -2898,6 +2898,31 @@ static bool sem_check_signal_attr(tree_t t)
    return true;
 }
 
+static bool sem_check_driving(tree_t t)
+{
+   // See LRM 08 section 16.2.4 for special rules about 'DRIVING and
+   // 'DRIVING_VALUE
+
+   if (!sem_check_signal_attr(t))
+      return false;
+
+   tree_t ref = name_to_ref(tree_name(t));
+   if (ref == NULL || !tree_has_ref(ref))
+      return false;
+
+   tree_t decl = tree_ref(ref);
+   if (tree_kind(decl) == T_PORT_DECL) {
+      const port_mode_t mode = tree_subkind(decl);
+      if (mode != PORT_OUT && mode != PORT_INOUT && mode != PORT_BUFFER)
+         sem_error(t, "prefix of attribute %s must denote a signal or a port "
+                   "with mode IN, INOUT, or BUFFER", istr(tree_ident(t)));
+   }
+
+   // TODO: check within a process
+
+   return true;
+}
+
 static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max)
 {
    const int nparams = tree_params(t);
@@ -3141,6 +3166,10 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
 
       return true;
 
+   case ATTR_DRIVING_VALUE:
+   case ATTR_DRIVING:
+      return sem_check_driving(t);
+
    case ATTR_IMAGE:
    case ATTR_VALUE:
       {
@@ -3188,10 +3217,6 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    case ATTR_BASE:
       sem_error(t, "BASE attribute is allowed only as the prefix of the name "
                 "of another attribute");
-
-   case ATTR_DRIVING_VALUE:
-   case ATTR_DRIVING:
-      fatal_at(tree_loc(t), "sorry, attribute %s not implemented", istr(attr));
 
    case ATTR_USER:
       if (!tree_has_value(t))

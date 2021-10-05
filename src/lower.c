@@ -3411,6 +3411,7 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 
    case ATTR_LAST_EVENT:
    case ATTR_LAST_ACTIVE:
+   case ATTR_DRIVING:
       {
          type_t name_type = tree_type(name);
          vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE);
@@ -3420,8 +3421,29 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 
          if (predef == ATTR_LAST_EVENT)
             return emit_last_event(name_reg, len_reg);
-         else
+         else if (predef == ATTR_LAST_ACTIVE)
             return emit_last_active(name_reg, len_reg);
+         else
+            return emit_driving(name_reg, len_reg);
+      }
+
+   case ATTR_DRIVING_VALUE:
+      {
+         type_t name_type = tree_type(name);
+         vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE);
+         if (type_is_array(name_type)) {
+            vcode_reg_t len_reg = lower_array_total_len(name_type, name_reg);
+            vcode_reg_t ptr_reg = emit_driving_value(name_reg, len_reg);
+            if (lower_const_bounds(name_type))
+               return ptr_reg;
+            else
+               return lower_wrap(name_type, ptr_reg);
+         }
+         else {
+            vcode_reg_t ptr_reg =
+               emit_driving_value(name_reg, VCODE_INVALID_REG);
+            return emit_load_indirect(ptr_reg);
+         }
       }
 
    case ATTR_EVENT:

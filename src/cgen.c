@@ -2459,6 +2459,44 @@ static void cgen_op_last_active(int op, cgen_ctx_t *ctx)
                                      ARRAY_LEN(args), cgen_reg_name(result));
 }
 
+static void cgen_op_driving(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef length =
+      vcode_count_args(op) > 1 ? cgen_get_arg(op, 1, ctx) : llvm_int32(1);
+
+   LLVMValueRef args[] = {
+      LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
+      LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
+      length
+   };
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_driving"), args,
+                                     ARRAY_LEN(args), cgen_reg_name(result));
+}
+
+static void cgen_op_driving_value(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef length =
+      vcode_count_args(op) > 1 ? cgen_get_arg(op, 1, ctx) : llvm_int32(1);
+
+   LLVMValueRef args[] = {
+      LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
+      LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
+      length
+   };
+
+   LLVMValueRef raw = LLVMBuildCall(builder, llvm_fn("_driving_value"),
+                                    args, ARRAY_LEN(args), "");
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildCast(builder, LLVMBitCast, raw,
+                                     cgen_type(vcode_reg_type(result)),
+                                     cgen_reg_name(result));
+}
+
 static void cgen_op_case(int op, cgen_ctx_t *ctx)
 {
    const int num_cases = vcode_count_args(op) - 1;
@@ -3243,6 +3281,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_LAST_ACTIVE:
       cgen_op_last_active(i, ctx);
+      break;
+   case VCODE_OP_DRIVING:
+      cgen_op_driving(i, ctx);
+      break;
+   case VCODE_OP_DRIVING_VALUE:
+      cgen_op_driving_value(i, ctx);
       break;
    case VCODE_OP_BIT_VEC_OP:
       cgen_op_bit_vec_op(i, ctx);
@@ -4252,6 +4296,26 @@ static LLVMValueRef cgen_support_fn(const char *name)
       };
       fn = LLVMAddFunction(module, "_last_active",
                            LLVMFunctionType(LLVMInt64Type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_driving") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         LLVMInt32Type(),
+         LLVMInt32Type()
+      };
+      fn = LLVMAddFunction(module, "_driving",
+                           LLVMFunctionType(LLVMInt1Type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_driving_value") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         LLVMInt32Type(),
+         LLVMInt32Type()
+      };
+      fn = LLVMAddFunction(module, "_driving_value",
+                           LLVMFunctionType(llvm_void_ptr(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_value_attr") == 0) {

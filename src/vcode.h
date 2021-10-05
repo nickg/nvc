@@ -134,6 +134,8 @@ typedef enum {
    VCODE_OP_LINK_VAR,
    VCODE_OP_RESOLUTION_WRAPPER,
    VCODE_OP_LAST_ACTIVE,
+   VCODE_OP_DRIVING,
+   VCODE_OP_DRIVING_VALUE,
 } vcode_op_t;
 
 typedef enum {
@@ -435,6 +437,8 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
 vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, vcode_reg_t map);
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);
 vcode_reg_t emit_last_active(vcode_reg_t signal, vcode_reg_t len);
+vcode_reg_t emit_driving(vcode_reg_t signal, vcode_reg_t len);
+vcode_reg_t emit_driving_value(vcode_reg_t signal, vcode_reg_t len);
 void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, bounds_kind_t kind,
                      const char *hint);
 vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
