@@ -2442,6 +2442,23 @@ static void cgen_op_last_event(int op, cgen_ctx_t *ctx)
                                      ARRAY_LEN(args), cgen_reg_name(result));
 }
 
+static void cgen_op_last_active(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef length =
+      vcode_count_args(op) > 1 ? cgen_get_arg(op, 1, ctx) : llvm_int32(1);
+
+   LLVMValueRef args[] = {
+      LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
+      LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
+      length
+   };
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_last_active"), args,
+                                     ARRAY_LEN(args), cgen_reg_name(result));
+}
+
 static void cgen_op_case(int op, cgen_ctx_t *ctx)
 {
    const int num_cases = vcode_count_args(op) - 1;
@@ -3223,6 +3240,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_LAST_EVENT:
       cgen_op_last_event(i, ctx);
+      break;
+   case VCODE_OP_LAST_ACTIVE:
+      cgen_op_last_active(i, ctx);
       break;
    case VCODE_OP_BIT_VEC_OP:
       cgen_op_bit_vec_op(i, ctx);
@@ -4221,6 +4241,16 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type()
       };
       fn = LLVMAddFunction(module, "_last_event",
+                           LLVMFunctionType(LLVMInt64Type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_last_active") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         LLVMInt32Type(),
+         LLVMInt32Type()
+      };
+      fn = LLVMAddFunction(module, "_last_active",
                            LLVMFunctionType(LLVMInt64Type(),
                                             args, ARRAY_LEN(args), false));
    }

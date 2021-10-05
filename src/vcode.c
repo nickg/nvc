@@ -963,7 +963,7 @@ const char *vcode_op_string(vcode_op_t op)
       "uarray len", "temp stack mark", "temp stack restore", "nested resume",
       "undefined", "image map", "range null", "var upref", "link signal",
       "resolved", "last value", "init signal", "map signal", "drive signal",
-      "link var", "resolution wrapper"
+      "link var", "resolution wrapper", "last active"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1940,6 +1940,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_VALUE:
          case VCODE_OP_LAST_EVENT:
+         case VCODE_OP_LAST_ACTIVE:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
@@ -4599,6 +4600,22 @@ vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len)
    VCODE_ASSERT(len == VCODE_INVALID_REG
                 || vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
                 "length argument to last event must have offset type");
+
+   return (op->result = vcode_add_reg(vtype_time()));
+}
+
+vcode_reg_t emit_last_active(vcode_reg_t signal, vcode_reg_t len)
+{
+   op_t *op = vcode_add_op(VCODE_OP_LAST_ACTIVE);
+   vcode_add_arg(op, signal);
+   if (len != VCODE_INVALID_REG)
+      vcode_add_arg(op, len);
+
+   VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
+                "signal argument to last active must have signal type");
+   VCODE_ASSERT(len == VCODE_INVALID_REG
+                || vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
+                "length argument to last active must have offset type");
 
    return (op->result = vcode_add_reg(vtype_time()));
 }

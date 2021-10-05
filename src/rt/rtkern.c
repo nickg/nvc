@@ -150,6 +150,7 @@ typedef struct rt_nexus_s {
    uint32_t      size;
    value_t      *free_values;
    uint64_t      last_event;
+   uint64_t      last_active;
    sens_list_t  *pending;
    watch_list_t *watching;
    value_t      *forcing;
@@ -1270,6 +1271,32 @@ int64_t _last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    return last;
 }
 
+
+DLLEXPORT
+int64_t _last_active(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("_last_active %s offset=%d count=%d",
+         istr(e_path(s->enode)), offset, count);
+
+   int64_t last = INT64_MAX;
+
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (count > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+
+      if (n->last_active < now)
+         last = MIN(last, now - n->last_active);
+
+      count -= n->width;
+      RT_ASSERT(count >= 0);
+   }
+
+   return last;
+}
+
 DLLEXPORT
 int32_t _test_net_flag(sig_shared_t *ss, uint32_t offset, int32_t count,
                        int32_t flag)
@@ -2118,6 +2145,7 @@ static int32_t rt_resolve_nexus(rt_nexus_t *nexus, int driver, void *values)
    const size_t valuesz = nexus->size * nexus->width;
 
    int32_t new_flags = NET_F_ACTIVE;
+   nexus->last_active = now;
    if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
       new_flags |= NET_F_EVENT;
       rt_propagate_nexus(nexus, resolved);
@@ -2161,11 +2189,11 @@ static void rt_driver_initial(rt_nexus_t *nexus)
    void *resolved;
    if (nexus->n_sources > 0) {
       resolved = rt_call_resolution_fn(nexus, 0, nexus->resolved);
-      nexus->last_event = now;
+      nexus->last_event = nexus->last_active = now;
    }
    else {
       resolved = nexus->resolved;
-      nexus->last_event = INT64_MAX;    // TIME'HIGH
+      nexus->last_event = nexus->last_active = INT64_MAX;    // TIME'HIGH
    }
 
    // This is necessary to update signals with non-contiguous memory

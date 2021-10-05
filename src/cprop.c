@@ -643,6 +643,7 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_NAND:
          case VCODE_OP_LAST_VALUE:
          case VCODE_OP_LAST_EVENT:
+         case VCODE_OP_LAST_ACTIVE:
          case VCODE_OP_CONST_REAL:
          case VCODE_OP_CONST_RECORD:
          case VCODE_OP_NULL:

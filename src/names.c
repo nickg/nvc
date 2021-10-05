@@ -2532,6 +2532,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    } break;
 
    case ATTR_LAST_EVENT:
+   case ATTR_LAST_ACTIVE:
       type = std_type(find_std(tab), "TIME");
       break;
 
@@ -2570,7 +2571,6 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
       break;
 
    case ATTR_DRIVING_VALUE:
-   case ATTR_LAST_ACTIVE:
    case ATTR_DRIVING:
       break;
 

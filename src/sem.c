@@ -3073,6 +3073,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       }
 
    case ATTR_LAST_EVENT:
+   case ATTR_LAST_ACTIVE:
       if (!sem_check_attr_param(t, NULL, 0, 0))
          return false;
 
@@ -3189,7 +3190,6 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
                 "of another attribute");
 
    case ATTR_DRIVING_VALUE:
-   case ATTR_LAST_ACTIVE:
    case ATTR_DRIVING:
       fatal_at(tree_loc(t), "sorry, attribute %s not implemented", istr(attr));
 

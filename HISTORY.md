@@ -41,6 +41,7 @@
   instead of the top processes by CPU time.
 - The elaboration phase was largely written which fixes a number of
   long-standing issues and significantly improves elaboration speed.
+- Added support for 'LAST_ACTIVE attribute (#423).
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

@@ -3410,14 +3410,18 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
       }
 
    case ATTR_LAST_EVENT:
+   case ATTR_LAST_ACTIVE:
       {
          type_t name_type = tree_type(name);
          vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE);
+         vcode_reg_t len_reg = VCODE_INVALID_REG;
          if (type_is_array(name_type))
-            return emit_last_event(name_reg,
-                                   lower_array_total_len(name_type, name_reg));
+            len_reg = lower_array_total_len(name_type, name_reg);
+
+         if (predef == ATTR_LAST_EVENT)
+            return emit_last_event(name_reg, len_reg);
          else
-            return emit_last_event(name_reg, VCODE_INVALID_REG);
+            return emit_last_active(name_reg, len_reg);
       }
 
    case ATTR_EVENT:

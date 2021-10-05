@@ -379,3 +379,4 @@ record16        normal
 signal16        normal
 record17        normal
 issue405        normal
+issue423        normal
