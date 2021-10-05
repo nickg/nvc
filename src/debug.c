@@ -168,7 +168,9 @@ static void libdw_fill_inlining(uintptr_t biased_ip, Dwarf_Die *fundie,
          if (dwarf_formref_die(&attr, &origin) == NULL)
             continue;
 
-         inl->srcfile = xstrdup(dwarf_decl_file(iter));
+         const char *srcfile = dwarf_decl_file(iter);
+         if (srcfile != NULL)
+            inl->srcfile = xstrdup(srcfile);
 
          if (frame->kind == FRAME_VHDL) {
             Dwarf_Die *scopes;
