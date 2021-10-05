@@ -23,7 +23,9 @@
 
 #include <stdint.h>
 
-typedef struct debug_info debug_info_t;
+typedef struct debug_info   debug_info_t;
+typedef struct debug_inline debug_inline_t;
+typedef struct debug_src    debug_src_t;
 
 typedef enum {
    FRAME_PROG,
@@ -31,16 +33,26 @@ typedef enum {
    FRAME_VHDL
 } frame_kind_t;
 
+typedef struct debug_inline {
+   const char     *symbol;
+   const char     *srcfile;
+   ident_t         vhdl_unit;
+   unsigned        lineno;
+   unsigned        colno;
+   debug_inline_t *next;
+} debug_inline_t;
+
 typedef struct {
-   frame_kind_t  kind;
-   uintptr_t     pc;
-   const char   *symbol;
-   const char   *srcfile;
-   const char   *module;
-   ident_t       vhdl_unit;
-   unsigned      lineno;
-   unsigned      colno;
-   ptrdiff_t     disp;
+   frame_kind_t    kind;
+   uintptr_t       pc;
+   const char     *symbol;
+   const char     *srcfile;
+   const char     *module;
+   ident_t         vhdl_unit;
+   unsigned        lineno;
+   unsigned        colno;
+   ptrdiff_t       disp;
+   debug_inline_t *inlined;
 } debug_frame_t;
 
 debug_info_t *debug_capture(void);

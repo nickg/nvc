@@ -671,6 +671,50 @@ void fatal_errno(const char *fmt, ...)
    exit(EXIT_FAILURE);
 }
 
+static void trace_one_frame(uintptr_t pc, const char *module,
+                            const char *srcfile, const char *symbol,
+                            unsigned lineno, unsigned colno,
+                            ptrdiff_t disp, frame_kind_t kind)
+{
+   color_printf("[$green$%p$$] ", (void *)pc);
+   if (kind == FRAME_LIB)
+      color_printf("($red$%s$$) ", module);
+   if (srcfile != NULL)
+      color_printf("%s:%d ", srcfile, lineno);
+   if (symbol != NULL) {
+      color_printf("$yellow$%s$$", symbol);
+      if (srcfile == NULL && disp != 0)
+         color_printf("$yellow$+0x%"PRIxPTR"$$", disp);
+   }
+   if (kind == FRAME_VHDL)
+      color_printf(" $magenta$[VHDL]$$");
+   printf("\n");
+
+   if (srcfile != NULL) {
+      FILE *f = fopen(srcfile, "r");
+      if (f != NULL) {
+         char buf[TRACE_MAX_LINE];
+         for (int i = 0; i < lineno + 1 &&
+                 fgets(buf, sizeof(buf), f); i++) {
+            if (i < lineno - 2)
+               continue;
+
+            const size_t len = strlen(buf);
+            if (len <= 1)
+               continue;
+            else if (buf[len - 1] == '\n')
+               buf[len - 1] = '\0';
+
+            if (i == lineno - 1)
+               color_printf("$cyan$$bold$-->$$ $cyan$%s$$\n", buf);
+            else
+               color_printf("    $cyan$%s$$\n", buf);
+         }
+         fclose(f);
+      }
+   }
+}
+
 __attribute__((noinline))
 void show_stacktrace(void)
 {
@@ -678,45 +722,15 @@ void show_stacktrace(void)
 
    const int nframes = debug_count_frames(di);
    for (int n = 1; n < nframes; n++) {
-      const debug_frame_t *frame = debug_get_frame(di, n);
+      const debug_frame_t *f = debug_get_frame(di, n);
 
-      color_printf("[$green$%p$$] ", (void *)frame->pc);
-      if (frame->kind == FRAME_LIB)
-         color_printf("($red$%s$$) ", frame->module);
-      if (frame->srcfile != NULL)
-         color_printf("%s:%d ", frame->srcfile, frame->lineno);
-      if (frame->symbol != NULL) {
-         color_printf("$yellow$%s$$", frame->symbol);
-         if (frame->srcfile == NULL && frame->disp != 0)
-            color_printf("$yellow$+0x%"PRIxPTR"$$", frame->disp);
-      }
-      if (frame->kind == FRAME_VHDL)
-         color_printf(" $magenta$[VHDL]$$");
-      printf("\n");
+      for (debug_inline_t *inl = f->inlined; inl != NULL; inl = inl->next)
+         trace_one_frame(f->pc, f->module, inl->srcfile, inl->symbol,
+                         inl->lineno, inl->colno, f->disp, f->kind);
 
-      if (frame->srcfile != NULL) {
-         FILE *f = fopen(frame->srcfile, "r");
-         if (f != NULL) {
-            char buf[TRACE_MAX_LINE];
-            for (int i = 0; i < frame->lineno + 1 &&
-                    fgets(buf, sizeof(buf), f); i++) {
-               if (i < frame->lineno - 2)
-                  continue;
+      trace_one_frame(f->pc, f->module, f->srcfile, f->symbol, f->lineno,
+                      f->colno, f->disp, f->kind);
 
-               const size_t len = strlen(buf);
-               if (len <= 1)
-                  continue;
-               else if (buf[len - 1] == '\n')
-                  buf[len - 1] = '\0';
-
-               if (i == frame->lineno - 1)
-                  color_printf("$cyan$$bold$-->$$ $cyan$%s$$\n", buf);
-               else
-                  color_printf("    $cyan$%s$$\n", buf);
-            }
-            fclose(f);
-         }
-      }
    }
 
    debug_free(di);

@@ -3863,10 +3863,14 @@ static void cgen_optimise(void)
    LLVMPassManagerRef fpm = LLVMCreateFunctionPassManagerForModule(module);
    LLVMPassManagerRef mpm = LLVMCreatePassManager();
 
+   const int olevel = opt_get_int("optimise");
+
    LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
-   LLVMPassManagerBuilderSetOptLevel(builder, opt_get_int("optimise"));
+   LLVMPassManagerBuilderSetOptLevel(builder, olevel);
    LLVMPassManagerBuilderSetSizeLevel(builder, 0);
-   LLVMPassManagerBuilderUseInlinerWithThreshold(builder, 50);
+
+   if (olevel >= 2)
+      LLVMPassManagerBuilderUseInlinerWithThreshold(builder, 50);
 
    LLVMPassManagerBuilderPopulateFunctionPassManager(builder, fpm);
    LLVMPassManagerBuilderPopulateModulePassManager(builder, mpm);

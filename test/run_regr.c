@@ -56,7 +56,7 @@
 #define F_VHPI    (1 << 3)
 #define F_2008    (1 << 4)
 #define F_2000    (1 << 5)
-#define F_OPT     (1 << 6)
+// Unused         (1 << 6)
 #define F_COVER   (1 << 7)
 #define F_GENERIC (1 << 8)
 #define F_RELAX   (1 << 9)
@@ -81,6 +81,7 @@ struct test {
    generic_t *generics;
    char      *relax;
    char      *work;
+   unsigned   olevel;
 };
 
 struct arglist {
@@ -274,6 +275,7 @@ static bool parse_test_list(int argc, char **argv)
 
       test_t *test = calloc(sizeof(test_t), 1);
       test->name = strdup(name);
+      test->olevel = 0;
 
       if (last == NULL)
          test_list = test;
@@ -305,8 +307,13 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_2000;
          else if (strcmp(opt, "vhpi") == 0)
             test->flags |= F_VHPI;
-         else if (strcmp(opt, "opt") == 0)
-            test->flags |= F_OPT;
+         else if (strncmp(opt, "O", 1) == 0) {
+            if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
+               fprintf(stderr, "Error on testlist line %d: invalid "
+                       "optimisation level %s\n", lineno, opt);
+               goto out_close;
+            }
+         }
          else if (strcmp(opt, "cover") == 0)
             test->flags |= F_COVER;
          else if (strcmp(opt, "clean") == 0)
@@ -560,9 +567,7 @@ static bool run_test(test_t *test)
 
    push_arg(&args, "-e");
    push_arg(&args, "%s", test->name);
-
-   if (!(test->flags & F_OPT))
-      push_arg(&args, "-O0");
+   push_arg(&args, "-O%u", test->olevel);
 
    if (test->flags & F_COVER)
       push_arg(&args, "--cover");

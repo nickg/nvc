@@ -244,7 +244,7 @@ slice3          normal
 alias9          normal
 issue79         normal
 issue84         normal,2000
-issue82         normal,opt
+issue82         normal,O2
 issue86         normal
 issue94         normal
 access6         gold,fail
@@ -360,13 +360,13 @@ issue415        normal
 predef1         normal,2008
 signal15        normal,2008
 logical3        normal,2008
-debug1          normal,gold
+debug1          normal,gold,O0
 assign4         normal
 vests1          normal
 wait15          normal
 grlib1          normal
 issue420        normal
-debug2          normal,gold
+debug2          normal,gold,O0
 alias10         normal
 record14        normal
 alias11         normal

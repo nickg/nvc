@@ -425,6 +425,33 @@ static const char *fmt_values(rt_signal_t *s, const void *values,
    return buf;
 }
 
+static tree_t rt_find_enclosing_decl(ident_t unit_name, const char *symbol)
+{
+   tree_t unit = lib_get_qualified(unit_name);
+   if (unit == NULL)
+      return NULL;
+
+   if (tree_kind(unit) == T_PACKAGE) {
+      ident_t body_name = ident_prefix(unit_name, ident_new("body"), '-');
+      tree_t body = lib_get_qualified(body_name);
+      if (body != NULL)
+         unit = body;
+   }
+
+   static hash_t *cache = NULL;
+   if (cache == NULL)
+      cache = hash_new(256, true);
+
+   ident_t key = ident_new(symbol);
+   tree_t enclosing = hash_get(cache, key);
+   if (enclosing == NULL) {
+      if ((enclosing = find_mangled_decl(unit, key)))
+         hash_put(cache, key, enclosing);
+   }
+
+   return enclosing;
+}
+
 static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
 {
    debug_info_t *di = debug_capture();
@@ -437,54 +464,51 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
       if (f->kind != FRAME_VHDL || f->vhdl_unit == NULL || f->symbol == NULL)
          continue;
 
-      tree_t unit = lib_get_qualified(f->vhdl_unit);
-      if (unit == NULL)
+      for (debug_inline_t *inl = f->inlined; inl != NULL; inl = inl->next) {
+         tree_t enclosing = rt_find_enclosing_decl(inl->vhdl_unit, inl->symbol);
+         if (enclosing == NULL)
+            continue;
+
+         found_fixed = true;  // DWARF data should be most accurate
+
+         // Processes should never be inlined
+         assert(tree_kind(enclosing) != T_PROCESS);
+
+         type_t type = tree_type(enclosing);
+         tb_printf(tb, "\r\tInlined %s %s",
+                   type_kind(type) == T_FUNC ? "function" : "procedure",
+                   type_pp(type));
+         tb_printf(tb, "\r\t    File %s, Line %u", inl->srcfile, inl->lineno);
+      }
+
+      tree_t enclosing = rt_find_enclosing_decl(f->vhdl_unit, f->symbol);
+      if (enclosing == NULL)
          continue;
 
-      if (tree_kind(unit) == T_PACKAGE) {
-         ident_t body_name = ident_prefix(f->vhdl_unit, ident_new("body"), '-');
-         tree_t body = lib_get_qualified(body_name);
-         if (body != NULL)
-            unit = body;
+      unsigned lineno = f->lineno;
+      const char *srcfile = f->srcfile;
+      if (fixed != NULL && !found_fixed) {
+         lineno = fixed->first_line;
+         srcfile = fixed->file;
+         found_fixed = true;
+      }
+      else if (f->lineno == 0) {
+         // Exact DWARF debug info not available
+         const loc_t *loc = tree_loc(enclosing);
+         lineno = loc->first_line;
+         srcfile = loc_file_str(loc);
       }
 
-      static hash_t *cache = NULL;
-      if (cache == NULL)
-         cache = hash_new(256, true);
-
-      ident_t key = ident_new(f->symbol);
-      tree_t enclosing = hash_get(cache, key);
-      if (enclosing == NULL) {
-         if ((enclosing = find_mangled_decl(unit, key)))
-            hash_put(cache, key, enclosing);
+      if (tree_kind(enclosing) == T_PROCESS)
+         tb_printf(tb, "\r\tProcess %s", istr(e_path(active_proc->source)));
+      else {
+         type_t type = tree_type(enclosing);
+         tb_printf(tb, "\r\t%s %s",
+                   type_kind(type) == T_FUNC ? "Function" : "Procedure",
+                   type_pp(type));
       }
 
-      if (enclosing) {
-         unsigned lineno = f->lineno;
-         const char *srcfile = f->srcfile;
-         if (fixed != NULL && !found_fixed) {
-            lineno = fixed->first_line;
-            srcfile = fixed->file;
-            found_fixed = true;
-         }
-         else if (f->lineno == 0) {
-            // Exact DWARF debug info not available
-            const loc_t *loc = tree_loc(enclosing);
-            lineno = loc->first_line;
-            srcfile = loc_file_str(loc);
-         }
-
-         if (tree_kind(enclosing) == T_PROCESS)
-            tb_printf(tb, "\r\tProcess %s", istr(e_path(active_proc->source)));
-         else {
-            type_t type = tree_type(enclosing);
-            tb_printf(tb, "\r\t%s %s",
-                      type_kind(type) == T_FUNC ? "Function" : "Procedure",
-                      type_pp(type));
-         }
-
-         tb_printf(tb, "\r\t    File %s, Line %u", srcfile, lineno);
-      }
+      tb_printf(tb, "\r\t    File %s, Line %u", srcfile, lineno);
    }
 
    if (fixed != NULL && (nframes == 0 || !found_fixed)) {

@@ -85,6 +85,14 @@ static void di_lru_reuse_frame(debug_frame_t *frame, uintptr_t pc)
    free((char *)frame->symbol);
    free((char *)frame->srcfile);
 
+   for (debug_inline_t *it = frame->inlined; it != NULL; ) {
+      debug_inline_t *next = it->next;
+      free((char *)it->symbol);
+      free((char *)it->srcfile);
+      free(it);
+      it = next;
+   }
+
    memset(frame, '\0', sizeof(debug_frame_t));
 
    frame->pc = pc;
@@ -137,6 +145,71 @@ static bool di_lru_get(uintptr_t pc, debug_frame_t **pframe)
 
 #if defined HAVE_LIBDW
 
+static void libdw_fill_inlining(uintptr_t biased_ip, Dwarf_Die *fundie,
+                                debug_frame_t *frame)
+{
+   Dwarf_Die child;
+   if (dwarf_child(fundie, &child) == 0) {
+      Dwarf_Die *iter = &child;
+      do {
+         if (dwarf_tag(iter) != DW_TAG_inlined_subroutine)
+            continue;
+         else if (!dwarf_haspc(iter, biased_ip))
+            continue;
+
+         debug_inline_t *inl = xcalloc(sizeof(debug_inline_t));
+         inl->symbol = xstrdup(dwarf_diename(iter));
+
+         Dwarf_Attribute attr;
+         if (dwarf_attr(iter, DW_AT_abstract_origin, &attr) == NULL)
+            continue;
+
+         Dwarf_Die origin;
+         if (dwarf_formref_die(&attr, &origin) == NULL)
+            continue;
+
+         inl->srcfile = xstrdup(dwarf_decl_file(iter));
+
+         if (frame->kind == FRAME_VHDL) {
+            Dwarf_Die *scopes;
+            int n = dwarf_getscopes_die(&origin, &scopes);
+            for (int i = 0; i < n; i++) {
+               if (dwarf_tag(&(scopes[i])) == DW_TAG_module)
+                  inl->vhdl_unit = ident_new(dwarf_diename(&(scopes[i])));
+            }
+         }
+
+         Dwarf_Word call_lineno = 0;
+         if (dwarf_attr(iter, DW_AT_call_line, &attr))
+            dwarf_formudata(&attr, &call_lineno);
+
+         Dwarf_Word call_colno = 0;
+         if (dwarf_attr(iter, DW_AT_call_column, &attr))
+            dwarf_formudata(&attr, &call_colno);
+
+         if (frame->inlined) {
+            inl->lineno = frame->inlined->lineno;
+            inl->colno  = frame->inlined->colno;
+
+            frame->inlined->lineno = call_lineno;
+            frame->inlined->colno  = call_colno;
+         }
+         else {
+            inl->lineno = frame->lineno;
+            inl->colno  = frame->colno;
+
+            frame->lineno = call_lineno;
+            frame->colno  = call_colno;
+         }
+
+         inl->next = frame->inlined;
+         frame->inlined = inl;
+
+         libdw_fill_inlining(biased_ip, iter, frame);
+      } while (dwarf_siblingof(iter, iter) == 0);
+   }
+}
+
 static void libdw_fill_frame(uintptr_t ip, debug_frame_t *frame)
 {
    static Dwfl *handle = NULL;
@@ -161,70 +234,72 @@ static void libdw_fill_frame(uintptr_t ip, debug_frame_t *frame)
    }
 
    Dwfl_Module *mod = dwfl_addrmodule(handle, ip);
+   frame->kind = (mod == home) ? FRAME_PROG : FRAME_LIB;
+   frame->pc   = ip;
 
    const char *module_name = dwfl_module_info(mod, 0, 0, 0, 0, 0, 0, 0);
    const char *sym_name = dwfl_module_addrname(mod, ip);
 
    Dwarf_Addr mod_bias = 0;
-   Dwarf_Die *die = dwfl_module_addrdie(mod, ip, &mod_bias);
+   Dwarf_Die *cudie = dwfl_module_addrdie(mod, ip, &mod_bias);
 
-   if (die == NULL) {
+   if (cudie == NULL) {
       // Clang does not emit aranges so search each CU
-      while ((die = dwfl_module_nextcu(mod, die, &mod_bias))) {
-         Dwarf_Die child;
-         if (dwarf_child(die, &child) != 0)
+      cudie = dwfl_module_nextcu(mod, NULL, &mod_bias);
+   }
+
+   Dwarf_Die *fundie = NULL, child;
+   do {
+      if (dwarf_child(cudie, &child) != 0)
+         continue;
+
+      if (dwarf_tag(&child) == DW_TAG_module) {
+         if (dwarf_child(&child, &child) != 0)
             continue;
-
-         if (dwarf_tag(&child) == DW_TAG_module) {
-            if (dwarf_child(&child, &child) != 0)
-               continue;
-         }
-
-         Dwarf_Die* iter = &child;
-         do {
-            switch (dwarf_tag(iter)) {
-            case DW_TAG_subprogram:
-            case DW_TAG_inlined_subroutine:
-               if (dwarf_haspc(iter, ip - mod_bias))
-                  goto found_die_with_ip;
-            }
-         } while (dwarf_siblingof(iter, iter) == 0);
       }
-   found_die_with_ip:
-      ;
+
+      Dwarf_Die *iter = &child;
+      do {
+         switch (dwarf_tag(iter)) {
+         case DW_TAG_inlined_subroutine:
+         case DW_TAG_subprogram:
+            if (dwarf_haspc(iter, ip - mod_bias)) {
+               fundie = iter;
+               goto found_die_with_ip;
+            }
+         }
+      } while (dwarf_siblingof(iter, iter) == 0);
+   } while ((cudie = dwfl_module_nextcu(mod, cudie, &mod_bias)));
+
+ found_die_with_ip:
+   if (cudie != NULL) {
+      Dwarf_Line *srcloc = dwarf_getsrc_die(cudie, ip - mod_bias);
+      const char *srcfile = dwarf_linesrc(srcloc, 0, 0);
+
+      dwarf_lineno(srcloc, (int *)&(frame->lineno));
+      dwarf_linecol(srcloc, (int *)&(frame->colno));
+
+      if (dwarf_srclang(cudie) == DW_LANG_Ada83) {
+         frame->kind = FRAME_VHDL;
+
+         // VHDL compilation units are wrapped in a DWARF module which
+         // gives the unit name
+         Dwarf_Die ns;
+         if (dwarf_child(cudie, &ns) == 0 && dwarf_tag(&ns) == DW_TAG_module)
+            frame->vhdl_unit = ident_new(dwarf_diename(&ns));
+      }
+
+      if (srcfile != NULL)
+         frame->srcfile = xstrdup(srcfile);
+
+      if (fundie != NULL)
+         libdw_fill_inlining(ip - mod_bias, fundie, frame);
    }
 
-   Dwarf_Line* srcloc = dwarf_getsrc_die(die, ip - mod_bias);
-   const char* srcfile = dwarf_linesrc(srcloc, 0, 0);
-
-   int line = 0, col = 0;
-   dwarf_lineno(srcloc, &line);
-   dwarf_linecol(srcloc, &col);
-
-   if (dwarf_srclang(die) == DW_LANG_Ada83) {
-      frame->kind = FRAME_VHDL;
-
-      // VHDL compilation units are wrapped in a DWARF module which
-      // gives the unit name
-      Dwarf_Die ns;
-      if (dwarf_child(die, &ns) == 0 && dwarf_tag(&ns) == DW_TAG_module)
-         frame->vhdl_unit = ident_new(dwarf_diename(&ns));
-   }
-   else if (mod == home)
-      frame->kind = FRAME_PROG;
-   else
-      frame->kind = FRAME_LIB;
-
-   if (srcfile != NULL)
-      frame->srcfile = xstrdup(srcfile);
    if (sym_name != NULL)
       frame->symbol = xstrdup(sym_name);
    if (module_name != NULL)
       frame->module = xstrdup(module_name);
-
-   frame->lineno = line;
-   frame->colno  = col;
-   frame->pc     = ip;
 }
 
 static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
