@@ -172,6 +172,16 @@ static const char *value_str(tree_t value)
    return (const char *) buf;
 }
 
+static const char *bounds_dimension_str(int ndims, int dim)
+{
+   static char dimstr[32];
+   if (ndims > 1)
+      checked_sprintf(dimstr, sizeof(dimstr), " for dimension %d", dim + 1);
+   else
+      dimstr[0] = '\0';
+   return dimstr;
+}
+
 static tree_t bounds_check_call_args(tree_t t)
 {
    tree_t decl = tree_ref(t);
@@ -210,17 +220,11 @@ static tree_t bounds_check_call_args(tree_t t)
             if (!folded)
                continue;
 
-            if (f_len != a_len) {
-               if (ndims > 1)
-                  bounds_error(param, "actual length %"PRIi64" for dimension %d"
-                               " does not match formal length %"PRIi64
-                               " for parameter %s",
-                               a_len, j + 1, f_len, istr(tree_ident(port)));
-               else
-                  bounds_error(param, "actual length %"PRIi64" does not match "
-                               "formal length %"PRIi64" for parameter %s",
-                               a_len, f_len, istr(tree_ident(port)));
-            }
+            if (f_len != a_len)
+               bounds_error(param, "actual length %"PRIi64"%s does not match "
+                            "formal length %"PRIi64" for parameter %s",
+                            a_len, bounds_dimension_str(ndims, j),
+                            f_len, istr(tree_ident(port)));
          }
       }
       else if (type_is_scalar(ftype)) {
@@ -972,6 +976,61 @@ static void bounds_check_wait(tree_t t)
          bounds_error(tree_delay(t), "wait timeout may not be negative");
 }
 
+static void bounds_check_block(tree_t t)
+{
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++) {
+      tree_t m = tree_param(t, i);
+
+      bool is_subelement = false;
+      type_t ftype = NULL;
+      tree_t port = NULL;
+      if (tree_subkind(m) == P_POS) {
+         port  = tree_port(t, tree_pos(m));
+         ftype = tree_type(port);
+      }
+      else {
+         tree_t name = tree_name(m);
+         port = tree_ref(name_to_ref(name));
+         ftype = tree_type(name);
+         is_subelement = tree_kind(name) != T_REF;
+      }
+
+      if (!type_is_array(ftype) || type_is_unconstrained(ftype))
+         continue;
+
+      tree_t value = tree_value(m);
+      for (tree_kind_t kind = tree_kind(value);
+           kind == T_TYPE_CONV || kind == T_QUALIFIED;
+           value = tree_value(value), kind = tree_kind(value))
+         ;
+
+      type_t atype = tree_type(value);
+
+      if (type_is_unconstrained(atype))
+         continue;
+
+      const int ndims = dimension_of(ftype);
+      for (int j = 0; j < ndims; j++) {
+         tree_t formal_r = range_of(ftype, j);
+         tree_t actual_r = range_of(atype, j);
+
+         int64_t f_len, a_len;
+         const bool folded =
+            folded_length(formal_r, &f_len) && folded_length(actual_r, &a_len);
+
+         if (!folded) continue;
+
+         if (f_len != a_len)
+            bounds_error(value, "actual length %"PRIi64"%s does not match "
+                         "formal length %"PRIi64" for%s port %s",
+                         a_len, bounds_dimension_str(ndims, j), f_len,
+                         is_subelement ? " subelement of" : "",
+                         istr(tree_ident(port)));
+      }
+   }
+}
+
 static void bounds_visit_fn(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -1014,6 +1073,9 @@ static void bounds_visit_fn(tree_t t, void *context)
       break;
    case T_WAIT:
       bounds_check_wait(t);
+      break;
+   case T_BLOCK:
+      bounds_check_block(t);
       break;
    default:
       break;

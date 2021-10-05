@@ -12,12 +12,9 @@ START_TEST(test_elab1)
 {
    input_from_file(TESTDIR "/elab/elab1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    (void)run_elab();
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -25,12 +22,9 @@ START_TEST(test_elab2)
 {
    input_from_file(TESTDIR "/elab/elab2.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    (void)run_elab();
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -38,12 +32,9 @@ START_TEST(test_elab3)
 {
    input_from_file(TESTDIR "/elab/elab3.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    (void)run_elab();
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -52,12 +43,14 @@ START_TEST(test_elab4)
    input_from_file(TESTDIR "/elab/elab4.vhd");
 
    const error_t expect[] = {
-      { 21, "actual width 9 does not match formal X width 8" },
+      { 21, "actual length 9 does not match formal length 8 for port X" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    (void)run_elab();
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -67,17 +60,14 @@ START_TEST(test_open)
 
    input_from_file(TESTDIR "/elab/open.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    top = run_elab();
    fail_if(top == NULL);
 
    // We used to delete all statements here but the behaviour
    // has changed
    fail_unless(tree_stmts(top) == 1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -85,12 +75,9 @@ START_TEST(test_genagg)
 {
    input_from_file(TESTDIR "/elab/genagg.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    (void)run_elab();
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -108,6 +95,8 @@ START_TEST(test_comp)
    expect_errors(expect);
 
    (void)run_elab();
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -115,12 +104,9 @@ START_TEST(test_issue17)
 {
    input_from_file(TESTDIR "/elab/issue17.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    (void)run_elab();
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -128,14 +114,11 @@ START_TEST(test_issue19)
 {
    input_from_file(TESTDIR "/elab/issue19.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    tree_t e = run_elab();
    fail_if(e == NULL);
    fail_unless(tree_stmts(e) == 1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -158,11 +141,6 @@ START_TEST(test_copy1)
 {
    input_from_file(TESTDIR "/elab/copy1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    tree_t e = run_elab();
    fail_if(e == NULL);
 
@@ -181,6 +159,8 @@ START_TEST(test_copy1)
    fail_if(var1 == NULL);
    fail_if(var2 == NULL);
    fail_if(var1 == var2);   // Should copy variables
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -188,12 +168,9 @@ START_TEST(test_record)
 {
    input_from_file(TESTDIR "/elab/record.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    fail_if(run_elab() == NULL);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -201,12 +178,8 @@ START_TEST(test_ifgen)
 {
    input_from_file(TESTDIR "/elab/ifgen.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    fail_if(run_elab() == NULL);
+   fail_if_errors();
 }
 END_TEST
 
@@ -220,6 +193,7 @@ START_TEST(test_open2)
    expect_errors(expect);
 
    fail_if(run_elab() == NULL);
+   fail_if_errors();
 }
 END_TEST
 
@@ -235,6 +209,8 @@ START_TEST(test_issue93)
    tree_t top = run_elab();
    fail_if(top == NULL);
    fail_unless(tree_stmts(tree_stmt(top, 0)) == 4);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -260,6 +236,8 @@ START_TEST(test_const1)
    int64_t len;
    fail_unless(folded_length(range_of(tree_type(ctr_r), 0), &len));
    fail_unless(len == 15);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -276,6 +254,8 @@ START_TEST(test_libbind)
 
    lib_set_work(work);
    fail_if(run_elab() == NULL);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -291,6 +271,8 @@ START_TEST(test_issue153)
    expect_errors(expect);
 
    fail_unless(run_elab() == NULL);
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -299,6 +281,7 @@ START_TEST(test_issue157)
    input_from_file(TESTDIR "/elab/issue157.vhd");
 
    fail_if(run_elab() == NULL);
+   fail_if_errors();
 }
 END_TEST
 
@@ -315,6 +298,7 @@ START_TEST(test_issue159)
 
    lib_set_work(work);
    fail_if(run_elab() == NULL);
+   fail_if_errors();
 }
 END_TEST
 
@@ -330,6 +314,7 @@ START_TEST(test_issue175)
    lib_t lib = lib_tmp("lib");
    lib_set_work(lib);
    fail_if(run_elab() == NULL);
+   fail_if_errors();
 }
 END_TEST
 
@@ -345,6 +330,8 @@ START_TEST(test_issue184)
 
    fail_unless(tree_stmts(gen_cfg2) == 1);
    fail_unless(icmp(tree_ident(tree_stmt(gen_cfg2, 0)), "GOOD"));
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -361,6 +348,7 @@ START_TEST(test_libbind2)
 
    lib_set_work(work);
    fail_if(run_elab() == NULL);
+   fail_if_errors();
 }
 END_TEST
 
@@ -376,6 +364,7 @@ START_TEST(test_toplevel2)
    tree_t top = run_elab();
    fail_if(top == NULL);
    fail_unless(tree_stmts(tree_stmt(top, 0)) == 3);
+   fail_if_errors();
 }
 END_TEST
 
@@ -389,6 +378,7 @@ START_TEST(test_libbind3)
 
    lib_set_work(lib_tmp("bar"));
    fail_if(run_elab() == NULL);
+   fail_if_errors();
 }
 END_TEST
 
@@ -424,6 +414,8 @@ START_TEST(test_jcore1)
    tree_t p0 = tree_param(sub_i, 0);
    fail_unless(tree_subkind(p0) == P_POS);
    fail_unless(tree_kind(tree_value(p0)) == T_RECORD_REF);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -435,12 +427,13 @@ START_TEST(test_eval1)
       { 12, "array index -1 outside bounds 7 downto 0" },
       { 16, "while evaluating call to FUNC" },
       { 30, "while elaborating instance SUB_I" },
-      { 16, "expression cannot be folded to an integer constant" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    fail_unless(run_elab() == NULL);
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -458,6 +451,8 @@ START_TEST(test_issue305)
    int64_t len;
    fail_unless(folded_length(range_of(tree_type(s), 0), &len));
    fail_unless(len == 8);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -467,6 +462,7 @@ START_TEST(test_gbounds)
 
    tree_t top = run_elab();
    fail_if(top == NULL);
+   fail_if_errors();
 }
 END_TEST
 
@@ -481,6 +477,8 @@ START_TEST(test_issue307)
    fail_unless(tree_kind(proc) == T_PROCESS);
    tree_t s0 = tree_stmt(proc, 0);
    fail_unless(tree_kind(s0) == T_PCALL);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -494,6 +492,8 @@ START_TEST(test_issue315)
    tree_t d2 = tree_decl(tree_stmt(top, 0), 2);
    fail_unless(icmp(tree_ident(d2), "INFO"));
    fail_unless(tree_kind(tree_value(d2)) == T_AGGREGATE);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -504,6 +504,8 @@ START_TEST(test_issue325)
    lib_set_work(lib_tmp("foo"));
    tree_t top = run_elab();
    fail_if(top == NULL);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -530,6 +532,8 @@ START_TEST(test_issue328)
    tree_t f1 = tree_value(tree_assoc(v, 1));
    fail_unless(folded_int(f1, &ival));
    fail_unless(ival == 1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -555,6 +559,8 @@ START_TEST(test_issue330)
    tree_t f1 = tree_value(tree_assoc(v, 1));
    fail_unless(folded_int(f1, &ival));
    fail_unless(ival == 1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -565,6 +571,8 @@ START_TEST(test_issue336)
    tree_t e = run_elab();
    fail_if(e == NULL);
    fail_unless(tree_stmts(tree_stmt(e, 0)) == 3);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -609,6 +617,8 @@ START_TEST(test_openinout)
    fail_unless(tree_kind(p2s0) == T_SIGNAL_ASSIGN);
    tree_t p2s0w0 = tree_value(tree_waveform(p2s0, 0));
    fail_unless(tree_kind(p2s0w0) == T_FCALL);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -627,6 +637,8 @@ START_TEST(test_opencase)
    fail_unless(tree_pos(py) == 1);
    fail_unless(tree_kind(tree_value(py)) == T_LITERAL);
    fail_unless(tree_ival(tree_value(py)) == -2147483648);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -650,6 +662,8 @@ START_TEST(test_issue232)
    fail_unless(tree_chars(v) == 2);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'A'"));
    fail_unless(tree_ident(tree_char(v, 1)) == ident_new("'B'"));
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -665,6 +679,8 @@ START_TEST(test_issue373)
    fail_unless(tree_kind(s0) == T_ASSERT);
    tree_t m = tree_message(s0);
    fail_unless(tree_kind(m) == T_QUALIFIED);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -674,6 +690,7 @@ START_TEST(test_issue374)
 
    tree_t e = run_elab();
    fail_if(e == NULL);
+   fail_if_errors();
 }
 END_TEST
 
@@ -690,6 +707,8 @@ START_TEST(test_issue404)
    fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
    tree_t v0 = tree_value(tree_waveform(s0, 0));
    fail_unless(tree_kind(v0) == T_AGGREGATE);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -705,6 +724,8 @@ START_TEST(test_block1)
 
    fail_unless(tree_params(b) == 2);
    fail_unless(tree_genmaps(b) == 1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -722,6 +743,8 @@ START_TEST(test_open3)
    fail_unless(tree_subkind(tree_param(b, 0)) == P_NAMED);
    fail_unless(tree_subkind(tree_param(b, 1)) == P_NAMED);
    fail_unless(tree_subkind(tree_param(b, 2)) == P_NAMED);
+
+   fail_if_errors();
 }
 END_TEST
 

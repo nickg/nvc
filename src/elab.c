@@ -889,10 +889,13 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_rewrite_later(arch, b, &new_ctx);
    elab_fold_generics(arch, &new_ctx);
 
-   set_hint_fn(elab_hint_fn, t);
-   simplify(arch, EVAL_LOWER);
-   bounds_check(arch);
-   clear_hint();
+   if (error_count() == 0) {
+      bounds_check(b);
+      set_hint_fn(elab_hint_fn, t);
+      simplify(arch, EVAL_LOWER);
+      bounds_check(arch);
+      clear_hint();
+   }
 
    if (error_count() == 0)
       elab_arch(arch, &new_ctx);
