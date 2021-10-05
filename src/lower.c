@@ -4466,38 +4466,6 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
    vcode_select_block(exit_bb);
 }
 
-static void lower_case_emit_state_code(case_state_t *state,
-                                       vcode_block_t *all_blocks,
-                                       vcode_reg_t value,
-                                       vcode_block_t exit_bb,
-                                       vcode_block_t others_bb,
-                                       loop_stack_t *loops)
-{
-   vcode_select_block(all_blocks[state->id]);
-   emit_comment("Case state %d depth %d", state->id, state->depth);
-
-   if (state->stmts != NULL) {
-      lower_stmt(state->stmts, loops);
-      if (!vcode_block_finished())
-         emit_jump(exit_bb);
-   }
-   else {
-      vcode_reg_t depth_reg = emit_const(vtype_offset(), state->depth);
-      vcode_reg_t ptr_reg = emit_add(value, depth_reg);
-      vcode_reg_t loaded = lower_reify(ptr_reg);
-
-      vcode_block_t blocks[state->narcs];
-      vcode_reg_t cases[state->narcs];
-
-      for (int i = 0; i < state->narcs; i++) {
-         blocks[i] = all_blocks[state->arcs[i].next->id];
-         cases[i]  = emit_const(vcode_reg_type(loaded), state->arcs[i].value);
-      }
-
-      emit_case(loaded, others_bb, cases, blocks, state->narcs);
-   }
-}
-
 static void lower_case_array(tree_t stmt, loop_stack_t *loops)
 {
    // Case staments on arrays are implemented by building a decision tree
@@ -4508,12 +4476,22 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
 
    vcode_reg_t val = lower_expr(tree_value(stmt), EXPR_RVALUE);
 
-   case_fsm_t *fsm = case_fsm_new(stmt);
+   case_fsm_t *fsm   = case_fsm_new(stmt);
    const int nstates = case_fsm_count_states(fsm);
+   const int depth   = case_fsm_max_depth(fsm);
+   const int maxarcs = case_fsm_max_arcs(fsm);
 
    vcode_block_t *blocks LOCAL = xmalloc_array(nstates, sizeof(vcode_block_t));
    for (int i = 0; i < nstates; i++)
       blocks[i] = emit_block();
+
+   vcode_reg_t data_ptr = lower_array_data(val);
+   vcode_reg_t *elems LOCAL = xmalloc_array(depth, sizeof(vcode_reg_t));
+   for (int i = 0; i < depth; i++) {
+      vcode_reg_t depth_reg = emit_const(vtype_offset(), i);
+      vcode_reg_t ptr_reg = emit_add(data_ptr, depth_reg);
+      elems[i] = lower_reify(ptr_reg);
+   }
 
    tree_t others_stmt = NULL;
    const int nassocs = tree_assocs(stmt);
@@ -4525,13 +4503,33 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
       }
    }
 
-   vcode_reg_t data_ptr = lower_array_data(val);
-
    emit_jump(blocks[0]);
 
-   for (case_state_t *state = case_fsm_root(fsm); state; state = state->next)
-      lower_case_emit_state_code(state, blocks, data_ptr, exit_bb,
-                                 others_bb, loops);
+   vcode_block_t *targets LOCAL = xmalloc_array(maxarcs, sizeof(vcode_block_t));
+   vcode_reg_t   *cases LOCAL = xmalloc_array(maxarcs, sizeof(vcode_reg_t));
+
+   for (case_state_t *state = case_fsm_root(fsm); state; state = state->next) {
+      vcode_select_block(blocks[state->id]);
+      emit_comment("Case state %d depth %d", state->id, state->depth);
+
+      if (state->stmts != NULL) {
+         assert(state->narcs == 0);
+         lower_stmt(state->stmts, loops);
+         if (!vcode_block_finished())
+            emit_jump(exit_bb);
+      }
+      else {
+         vcode_type_t etype = vcode_reg_type(elems[state->depth]);
+
+         for (int i = 0; i < state->narcs; i++) {
+            targets[i] = blocks[state->arcs[i].next->id];
+            cases[i]   = emit_const(etype, state->arcs[i].value);
+         }
+
+         emit_case(elems[state->depth], others_bb, cases, targets,
+                   state->narcs);
+      }
+   }
 
    case_fsm_free(fsm);
 

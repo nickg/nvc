@@ -32,6 +32,7 @@ struct __case_fsm {
    case_state_t **tailp;
    unsigned       nextid;
    unsigned       maxarcs;
+   unsigned       maxdepth;
 };
 
 static int64_t lower_case_find_choice_element(tree_t value, int depth)
@@ -154,6 +155,8 @@ static void lower_case_add_branch(case_fsm_t *fsm, case_state_t *where,
       case_state_t *next = case_fsm_alloc_state(fsm);
       next->depth = depth + 1;
 
+      fsm->maxdepth = MAX(next->depth, fsm->maxdepth);
+
       assert(where->narcs < fsm->maxarcs);
       case_arc_t *arc = &(where->arcs[(where->narcs)++]);
       arc->value = this;
@@ -254,5 +257,15 @@ case_state_t *case_fsm_root(case_fsm_t *fsm)
 
 unsigned case_fsm_count_states(case_fsm_t *fsm)
 {
-   return fsm->nextid + 1;
+   return fsm->nextid;
+}
+
+unsigned case_fsm_max_depth(case_fsm_t *fsm)
+{
+   return fsm->maxdepth;
+}
+
+unsigned case_fsm_max_arcs(case_fsm_t *fsm)
+{
+   return fsm->maxarcs;
 }

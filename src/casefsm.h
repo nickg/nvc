@@ -44,5 +44,7 @@ case_fsm_t *case_fsm_new(tree_t stmt);
 case_state_t *case_fsm_root(case_fsm_t *fsm);
 void case_fsm_free(case_fsm_t *fsm);
 unsigned case_fsm_count_states(case_fsm_t *fsm);
+unsigned case_fsm_max_depth(case_fsm_t *fsm);
+unsigned case_fsm_max_arcs(case_fsm_t *fsm);
 
 #endif   // _CASEFSM_H
