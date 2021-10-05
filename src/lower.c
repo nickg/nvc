@@ -22,6 +22,7 @@
 #include "rt/rt.h"
 #include "hash.h"
 #include "array.h"
+#include "casefsm.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -34,10 +35,6 @@ typedef enum {
    EXPR_RVALUE
 } expr_ctx_t;
 
-#define MAX_CASE_ARCS 32
-
-typedef struct case_arc    case_arc_t;
-typedef struct case_state  case_state_t;
 typedef struct loop_stack  loop_stack_t;
 typedef struct lower_scope lower_scope_t;
 
@@ -46,20 +43,6 @@ struct loop_stack {
    ident_t        name;
    vcode_block_t  test_bb;
    vcode_block_t  exit_bb;
-};
-
-// Connects case_state_t elements
-struct case_arc {
-   int64_t       value;
-   case_state_t *next;
-};
-
-// Decision tree used for array case statements
-struct case_state {
-   tree_t        stmts;
-   int           narcs;
-   vcode_block_t block;
-   case_arc_t    arcs[MAX_CASE_ARCS];
 };
 
 typedef enum {
@@ -4483,140 +4466,15 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
    vcode_select_block(exit_bb);
 }
 
-static int64_t lower_case_find_choice_element(tree_t value, int depth)
-{
-   switch (tree_kind(value)) {
-   case T_LITERAL:
-      {
-         assert(tree_subkind(value) == L_STRING);
-         tree_t ch = tree_char(value, depth);
-         return tree_pos(tree_ref(ch));
-      }
-      break;
-
-   case T_AGGREGATE:
-      {
-         const int nassocs = tree_assocs(value);
-         type_t type = tree_type(value);
-
-         for (int i = 0; i < nassocs; i++) {
-            tree_t a = tree_assoc(value, i);
-            switch (tree_subkind(a)) {
-            case A_NAMED:
-               if (rebase_index(type, 0, assume_int(tree_name(a))) == depth)
-                  return assume_int(tree_value(a));
-               break;
-
-            case A_POS:
-               if (tree_pos(a) == (unsigned)depth)
-                  return assume_int(tree_value(a));
-               break;
-
-            case A_OTHERS:
-               return assume_int(tree_value(a));
-            }
-         }
-      }
-      break;
-
-   case T_REF:
-      {
-         tree_t decl = tree_ref(value);
-         assert(tree_kind(decl) == T_CONST_DECL);
-         return lower_case_find_choice_element(tree_value(decl), depth);
-      }
-      break;
-
-   case T_ARRAY_SLICE:
-      {
-         tree_t base = tree_value(value);
-         tree_t r = tree_range(value, 0);
-         const int64_t rleft = assume_int(tree_left(r));
-         const int64_t offset = rebase_index(tree_type(base), 0, rleft);
-         return lower_case_find_choice_element(base, depth + offset);
-      }
-
-   case T_FCALL:
-      if (tree_subkind(tree_ref(value)) == S_CONCAT) {
-         const int nparams = tree_params(value);
-         for (int i = 0; i < nparams; i++) {
-            tree_t left = tree_value(tree_param(value, i));
-
-            tree_t lr = range_of(tree_type(left), 0);
-            int64_t left_len;
-            if (!folded_length(lr, &left_len))
-               fatal_at(tree_loc(left), "cannot determine length of left hand "
-                        "side of concatenation");
-
-            if (depth < left_len || i + 1 == nparams)
-               return lower_case_find_choice_element(left, depth);
-
-            depth -= left_len;
-         }
-      }
-      // Fall-through
-
-   default:
-      fatal_at(tree_loc(value), "unsupported tree type %s in case choice",
-               tree_kind_str(tree_kind(value)));
-   }
-
-   fatal_at(tree_loc(value), "cannot find element %d in choice", depth);
-}
-
-static void lower_case_add_branch(case_state_t *where, int left, int right,
-                                  int depth, int dirmul,
-                                  tree_t value, tree_t stmts)
-{
-   const int n = left + (depth * dirmul);
-
-   if ((dirmul == -1 && n < right) || (dirmul == 1 && n > right)) {
-      if (where->stmts != NULL)
-         fatal_at(tree_loc(value), "duplicate choice in case statement");
-
-      assert(where->narcs == 0);
-      where->stmts = stmts;
-   }
-   else {
-      const int64_t this = lower_case_find_choice_element(value, depth);
-
-      for (int i = 0; i < where->narcs; i++) {
-         if (where->arcs[i].value == this) {
-            lower_case_add_branch(where->arcs[i].next,
-                                  left, right, depth + 1, dirmul, value, stmts);
-            return;
-         }
-      }
-
-      case_state_t *next = xmalloc(sizeof(case_state_t));
-      next->stmts = NULL;
-      next->narcs = 0;
-
-      assert(where->narcs < MAX_CASE_ARCS);
-      case_arc_t *arc = &(where->arcs[(where->narcs)++]);
-      arc->value = this;
-      arc->next  = next;
-
-      lower_case_add_branch(next, left, right, depth + 1,
-                            dirmul, value, stmts);
-   }
-}
-
-static void lower_case_alloc_basic_blocks(case_state_t *state)
-{
-   state->block = emit_block();
-   for (int i = 0; i < state->narcs; i++)
-      lower_case_alloc_basic_blocks(state->arcs[i].next);
-}
-
 static void lower_case_emit_state_code(case_state_t *state,
-                                       vcode_reg_t value, int depth,
+                                       vcode_block_t *all_blocks,
+                                       vcode_reg_t value,
                                        vcode_block_t exit_bb,
                                        vcode_block_t others_bb,
                                        loop_stack_t *loops)
 {
-   vcode_select_block(state->block);
-   emit_comment("Case state depth %d", depth);
+   vcode_select_block(all_blocks[state->id]);
+   emit_comment("Case state %d depth %d", state->id, state->depth);
 
    if (state->stmts != NULL) {
       lower_stmt(state->stmts, loops);
@@ -4624,33 +4482,20 @@ static void lower_case_emit_state_code(case_state_t *state,
          emit_jump(exit_bb);
    }
    else {
-      vcode_reg_t ptr_reg = emit_add(value, emit_const(vtype_offset(), depth));
-      vcode_reg_t loaded  = lower_reify(ptr_reg);
+      vcode_reg_t depth_reg = emit_const(vtype_offset(), state->depth);
+      vcode_reg_t ptr_reg = emit_add(value, depth_reg);
+      vcode_reg_t loaded = lower_reify(ptr_reg);
 
       vcode_block_t blocks[state->narcs];
       vcode_reg_t cases[state->narcs];
 
       for (int i = 0; i < state->narcs; i++) {
-         vcode_select_block(state->block);
-
-         blocks[i] = state->arcs[i].next->block;
+         blocks[i] = all_blocks[state->arcs[i].next->id];
          cases[i]  = emit_const(vcode_reg_type(loaded), state->arcs[i].value);
-
-         lower_case_emit_state_code(state->arcs[i].next, value,
-                                    depth + 1, exit_bb, others_bb, loops);
       }
 
-      vcode_select_block(state->block);
       emit_case(loaded, others_bb, cases, blocks, state->narcs);
    }
-}
-
-static void lower_case_cleanup(case_state_t *state, bool root)
-{
-   for (int i = 0; i < state->narcs; i++)
-      lower_case_cleanup(state->arcs[i].next, false);
-   if (!root)
-      free(state);
 }
 
 static void lower_case_array(tree_t stmt, loop_stack_t *loops)
@@ -4662,52 +4507,37 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
    vcode_block_t others_bb = exit_bb;
 
    vcode_reg_t val = lower_expr(tree_value(stmt), EXPR_RVALUE);
-   type_t type = tree_type(tree_value(stmt));
 
+   case_fsm_t *fsm = case_fsm_new(stmt);
+   const int nstates = case_fsm_count_states(fsm);
+
+   vcode_block_t *blocks LOCAL = xmalloc_array(nstates, sizeof(vcode_block_t));
+   for (int i = 0; i < nstates; i++)
+      blocks[i] = emit_block();
+
+   tree_t others_stmt = NULL;
    const int nassocs = tree_assocs(stmt);
-
-   case_state_t root = {
-      .stmts = NULL,
-      .narcs = 0,
-      .block = VCODE_INVALID_BLOCK
-   };
-
-   tree_t r = range_of(type, 0);
-   const int64_t left  = assume_int(tree_left(r));
-   const int64_t right = assume_int(tree_right(r));
-   const int dirmul = (tree_subkind(r) == RANGE_DOWNTO) ? -1 : 1;
-
-   int others_assoc = -1;
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(stmt, i);
-      switch (tree_subkind(a)) {
-      case A_NAMED:
-         lower_case_add_branch(&root, left, right, 0, dirmul,
-                               tree_name(a), tree_value(a));
-         break;
-
-      case A_OTHERS:
-         others_assoc = i;
+   if (nassocs > 0) {
+      tree_t last_a = tree_assoc(stmt, nassocs - 1);
+      if (tree_subkind(last_a) == A_OTHERS) {
+         others_stmt = tree_value(last_a);
          others_bb = emit_block();
-         break;
-
-      default:
-         assert(false);
       }
    }
 
    vcode_reg_t data_ptr = lower_array_data(val);
 
-   lower_case_alloc_basic_blocks(&root);
+   emit_jump(blocks[0]);
 
-   emit_jump(root.block);
+   for (case_state_t *state = case_fsm_root(fsm); state; state = state->next)
+      lower_case_emit_state_code(state, blocks, data_ptr, exit_bb,
+                                 others_bb, loops);
 
-   lower_case_emit_state_code(&root, data_ptr, 0, exit_bb, others_bb, loops);
-   lower_case_cleanup(&root, true);
+   case_fsm_free(fsm);
 
-   if (others_assoc != -1) {
+   if (others_stmt != NULL) {
       vcode_select_block(others_bb);
-      lower_stmt(tree_value(tree_assoc(stmt, others_assoc)), loops);
+      lower_stmt(others_stmt, loops);
       if (!vcode_block_finished())
          emit_jump(exit_bb);
    }

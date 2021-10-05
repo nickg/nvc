@@ -46,6 +46,6 @@ gtags:
 	  | (cd $(top_srcdir) && gtags -f -)
 
 $(top_builddir)/compile_commands.json:
-	bear make -C $(top_builddir) clean check QUICK=1
+	bear -- make -C $(top_builddir) clean check QUICK=1
 
 .PHONY: bootstrap cov-reset cov-report clean-libs clean-test gtags

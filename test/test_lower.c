@@ -2,6 +2,7 @@
 #include "phase.h"
 #include "vcode.h"
 #include "common.h"
+#include "casefsm.h"
 
 #include <inttypes.h>
 
@@ -3381,6 +3382,27 @@ START_TEST(test_case1)
 
    tree_t e = run_elab();
    lower_unit(e);
+
+   tree_t s = tree_stmt(tree_stmt(tree_stmt(e, 0), 0), 0);
+   fail_unless(tree_kind(s) == T_CASE);
+
+   case_fsm_t *fsm = case_fsm_new(s);
+   fail_unless(case_fsm_count_states(fsm) == 19);
+
+   case_state_t *root = case_fsm_root(fsm);
+   fail_unless(root->id == 0);
+   fail_unless(root->depth == 0);
+   fail_unless(root->narcs == 1);
+   fail_unless(root->arcs[0].value == 0);
+
+   case_state_t *d2 = root->arcs[0].next->arcs[0].next;
+   fail_unless(d2->id == 2);
+   fail_unless(d2->depth == 2);
+   fail_unless(d2->narcs == 2);
+   fail_unless(d2->arcs[0].value == 0);
+   fail_unless(d2->arcs[1].value == 1);
+
+   case_fsm_free(fsm);
 }
 END_TEST
 

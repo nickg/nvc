@@ -47,7 +47,9 @@ lib_libnvc_a_SOURCES = \
 	src/enode.c \
 	src/eopt.c \
 	src/cprop.h \
-	src/cprop.c
+	src/cprop.c \
+	src/casefsm.h \
+	src/casefsm.c
 
 lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
