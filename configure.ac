@@ -222,7 +222,7 @@ case $host_os in
   *cygwin*|msys*|mingw32*)
     implib_required=yes
     DLL_EXT=dll
-    LIB_EXT=obj
+    LIB_EXT=lib
     ;;
   *)
     DLL_EXT=so
