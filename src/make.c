@@ -36,7 +36,6 @@ typedef enum {
    MAKE_LIB,
    MAKE_SO,
    MAKE_FINAL_SO,
-   MAKE_IMPLIB,
    MAKE_VCODE,
 } make_product_t;
 
@@ -83,10 +82,6 @@ static const char *make_product(tree_t t, make_product_t product)
 
    case MAKE_SO:
       checked_sprintf(buf, PATH_MAX, "%s/_%s.so", path, istr(base));
-      break;
-
-   case MAKE_IMPLIB:
-      checked_sprintf(buf, PATH_MAX, "%s/_%s.a", path, istr(base));
       break;
 
    case MAKE_FINAL_SO:
@@ -239,7 +234,6 @@ static void make_rule(tree_t t, rule_t **rules)
       case T_PACK_BODY:
          make_rule_add_output(r, make_product(t, MAKE_VCODE));
          make_rule_add_output(r, make_product(t, MAKE_SO));
-         make_rule_add_output(r, make_product(t, MAKE_IMPLIB));
       }
       // Fall-through
 

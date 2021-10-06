@@ -26,12 +26,6 @@ ieee_so = \
 	lib/ieee/_IEEE.MATH_COMPLEX.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
-ieee_DATA += \
-	lib/ieee/_IEEE.NUMERIC_STD.$(LIB_EXT) \
-	lib/ieee/_IEEE.STD_LOGIC_1164.$(LIB_EXT) \
-	lib/ieee/_IEEE.NUMERIC_BIT.$(LIB_EXT) \
-	lib/ieee/_IEEE.MATH_REAL.$(LIB_EXT) \
-	lib/ieee/_IEEE.MATH_COMPLEX.$(LIB_EXT)
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 ieee_SCRIPTS = $(ieee_so)

@@ -2,15 +2,11 @@
 
 lib/std/STD.STANDARD: $(top_srcdir)/lib/std/standard.vhd
 
-lib/std/_STD.STANDARD.a: $(top_srcdir)/lib/std/standard.vhd
-
 lib/std/_STD.STANDARD.so: $(top_srcdir)/lib/std/standard.vhd
 
 lib/std/_STD.STANDARD.vcode: $(top_srcdir)/lib/std/standard.vhd
 
 lib/std/STD.TEXTIO-body: lib/std/STD.STANDARD lib/std/STD.TEXTIO $(top_srcdir)/lib/std/textio-body.vhd
-
-lib/std/_STD.TEXTIO.a: lib/std/STD.STANDARD lib/std/STD.TEXTIO $(top_srcdir)/lib/std/textio-body.vhd
 
 lib/std/_STD.TEXTIO.so: lib/std/STD.STANDARD lib/std/STD.TEXTIO $(top_srcdir)/lib/std/textio-body.vhd
 

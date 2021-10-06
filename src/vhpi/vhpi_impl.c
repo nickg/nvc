@@ -25,6 +25,11 @@
 //  of the IEEE VHPI reference code used as well as that of the covered work.
 //
 
+#if defined __MINGW32__ || defined __CYGWIN__
+#define PLI_DLLISPEC __declspec(dllexport)
+#define PLI_DLLESPEC __declspec(dllimport)
+#endif
+
 #include "vhpi_user.h"
 #include "util.h"
 #include "hash.h"

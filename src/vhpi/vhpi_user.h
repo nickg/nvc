@@ -67,7 +67,7 @@ extern "C" {
 /*--------------------------- Portability Help -----------------------*/
 /*--------------------------------------------------------------------*/
 /* Use to export a symbol */
-#if defined (_MSC_VER)
+#if defined (_MSC_VER) || defined (__MINGW32__) || defined (__CYGWIN__)
 #ifndef PLI_DLLISPEC
 #define PLI_DLLISPEC __declspec(dllimport)
 #define VHPI_USER_DEFINED_DLLISPEC 1
@@ -79,7 +79,7 @@ extern "C" {
 #endif
 
 /* Use to import a symbol */
-#if defined (_MSC_VER)
+#if defined (_MSC_VER) || defined (__MINGW32__) || defined (__CYGWIN__)
 #ifndef PLI_DLLESPEC
 #define PLI_DLLESPEC __declspec(dllexport)
 #define VHPI_USER_DEFINED_DLLESPEC 1

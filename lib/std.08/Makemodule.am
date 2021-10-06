@@ -18,11 +18,6 @@ std_08_so = \
 
 if IMPLIB_REQUIRED
 
-std_08_DATA += \
-	lib/std.08/_STD.STANDARD.$(LIB_EXT) \
-	lib/std.08/_STD.TEXTIO.$(LIB_EXT) \
-	lib/std.08/_STD.ENV.$(LIB_EXT)
-
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 std_08_SCRIPTS = $(std_08_so)
 

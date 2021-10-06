@@ -25,12 +25,6 @@ synopsys_ieee_so = \
 	lib/ieee/_IEEE.STD_LOGIC_MISC.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
-synopsys_ieee_DATA += \
-	lib/ieee/_IEEE.STD_LOGIC_ARITH.$(LIB_EXT) \
-	lib/ieee/_IEEE.STD_LOGIC_SIGNED.$(LIB_EXT) \
-	lib/ieee/_IEEE.STD_LOGIC_UNSIGNED.$(LIB_EXT) \
-	lib/ieee/_IEEE.STD_LOGIC_TEXTIO.$(LIB_EXT) \
-	lib/ieee/_IEEE.STD_LOGIC_MISC.$(LIB_EXT)
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 synopsys_ieee_SCRIPTS = $(synopsys_ieee_so)

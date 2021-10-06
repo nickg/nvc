@@ -14,9 +14,6 @@ std_so = \
 
 if IMPLIB_REQUIRED
 
-std_DATA += \
-	lib/std/_STD.TEXTIO.$(LIB_EXT)
-
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 std_SCRIPTS = $(std_so)
 

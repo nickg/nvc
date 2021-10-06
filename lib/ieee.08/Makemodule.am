@@ -34,14 +34,6 @@ ieee_08_so = \
 	lib/ieee.08/_IEEE.MATH_COMPLEX.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
-ieee_08_DATA += \
-	lib/ieee.08/_IEEE.NUMERIC_STD.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_STD_UNSIGNED.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_BIT.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.STD_LOGIC_1164.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.MATH_REAL.$(LIB_EXT) \
-	lib/ieee.08/_IEEE.MATH_COMPLEX.$(LIB_EXT)
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 ieee_08_SCRIPTS = $(ieee_08_so)
@@ -121,7 +113,7 @@ gen-deps-ieee-08:
 
 include lib/ieee.08/deps.mk
 
-# Extra dependencies required by implib on Windows
+# Extra dependencies required for linking on Windows
 
 lib/ieee.08/IEEE.STD_LOGIC_1164: lib/std.08/STD.TEXTIO-body
 

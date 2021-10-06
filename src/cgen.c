@@ -4374,11 +4374,9 @@ static void cgen_link_arg(const char *fmt, ...)
 }
 
 #ifdef IMPLIB_REQUIRED
-static void cgen_find_implib_deps(ident_t unit_name, ident_list_t **deps)
+static void cgen_find_dll_deps(ident_t unit_name, ident_list_t **deps)
 {
-   lib_t lib = lib_find(ident_until(unit_name, '.'), true);
-   tree_t unit = lib_get(lib, unit_name);
-
+   tree_t unit = lib_get_qualified(unit_name);
    if (unit == NULL)
       return;
 
@@ -4393,14 +4391,14 @@ static void cgen_find_implib_deps(ident_t unit_name, ident_list_t **deps)
    case T_PACKAGE:
       {
          ident_t body_name = ident_prefix(unit_name, ident_new("body"), '-');
-         cgen_find_implib_deps(body_name, deps);
+         cgen_find_dll_deps(body_name, deps);
       }
       break;
 
    case T_PACK_BODY:
       {
          ident_t pack_name = ident_until(unit_name, '-');
-         cgen_find_implib_deps(pack_name, deps);
+         cgen_find_dll_deps(pack_name, deps);
       }
       break;
 
@@ -4414,7 +4412,7 @@ static void cgen_find_implib_deps(ident_t unit_name, ident_list_t **deps)
       if (tree_kind(c) != T_USE)
          continue;
 
-      cgen_find_implib_deps(tree_ident(c), deps);
+      cgen_find_dll_deps(tree_ident(c), deps);
    }
 }
 #endif  // IMPLIB_REQUIRED
@@ -4486,16 +4484,13 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
    cgen_link_arg("%s", obj_path);
 
 #if IMPLIB_REQUIRED
-   char *impname LOCAL = xasprintf("_%s.lib", module_name);
-   char imp_path[PATH_MAX];
-   lib_realpath(lib_work(), impname, imp_path, PATH_MAX);
+   // Windows needs all symbols to be resolved when linking a DLL
 
-   cgen_link_arg("-Wl,--out-implib=%s", imp_path);
    cgen_link_arg("-L%s", lib_path(lib_work()));
 
    ident_t name = ident_new(module_name);
    LOCAL_IDENT_LIST deps = NULL;
-   cgen_find_implib_deps(name, &deps);
+   cgen_find_dll_deps(name, &deps);
 
    for (const ident_list_t *it = deps; it != NULL; it = it->next) {
       if (it->ident == name)
@@ -4503,11 +4498,11 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
 
       lib_t lib = lib_find(ident_until(it->ident, '.'), true);
 
-      char *imp_name LOCAL = xasprintf("_%s.lib", istr(it->ident));
-      char import_imp[PATH_MAX];
-      lib_realpath(lib, imp_name, import_imp, PATH_MAX);
+      char *dll_name LOCAL = xasprintf("_%s." DLL_EXT, istr(it->ident));
+      char dll_path[PATH_MAX];
+      lib_realpath(lib, dll_name, dll_path, PATH_MAX);
 
-      if (access(import_imp, F_OK) == 0) {
+      if (access(dll_path, F_OK) == 0) {
          if (lib != lib_work())
             cgen_link_arg("-L%s", lib_path(lib));
          cgen_link_arg("-l_%s", istr(it->ident));

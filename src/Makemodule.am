@@ -77,7 +77,7 @@ bin_nvc_LDFLAGS = $(AM_LDFLAGS)
 
 if IMPLIB_REQUIRED
 
-bin_nvc_LDFLAGS += -Wl,--export-all-symbols -Wl,--out-implib=lib/libnvcimp.a
+bin_nvc_LDFLAGS += -Wl,--out-implib=lib/libnvcimp.a
 
 pkgdata_DATA += lib/libnvcimp.a
 
