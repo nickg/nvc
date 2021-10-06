@@ -590,6 +590,22 @@ START_TEST(test_issue362)
 }
 END_TEST
 
+START_TEST(test_issue425)
+{
+   input_from_file(TESTDIR "/simp/issue425.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   tree_t init = tree_decl(top, 4);
+   fail_unless(tree_kind(init) == T_CONST_DECL);
+   fail_unless(tree_ident(init) == ident_new(":issue425:m:c0:init_signals"));
+
+   tree_t value = tree_value(init);
+   fail_unless(tree_kind(value) == T_AGGREGATE);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -615,6 +631,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue344);
    tcase_add_test(tc_core, test_issue345);
    tcase_add_test(tc_core, test_issue362);
+   tcase_add_test(tc_core, test_issue425);
    suite_add_tcase(s, tc_core);
 
    return s;

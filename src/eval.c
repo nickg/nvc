@@ -1461,12 +1461,8 @@ static void eval_op_alloca(int op, eval_state_t *state)
    vcode_type_t vtype = vcode_get_type(op);
    switch (vtype_kind(vtype)) {
    case VCODE_TYPE_RECORD:
-      if ((result->pointer = eval_alloc(sizeof(value_t), state))) {
-         const int nfields = vtype_fields(vtype);
-         result->pointer->kind = VALUE_RECORD;
-         result->pointer->length = nfields;
-         result->pointer->fields = eval_alloc(sizeof(value_t) * nfields, state);
-      }
+      if ((result->pointer = eval_alloc(sizeof(value_t), state)))
+         eval_new_var(result->pointer, vtype, state);
       break;
 
    default:
@@ -1622,6 +1618,7 @@ static void eval_op_record_ref(int op, eval_state_t *state)
    EVAL_ASSERT_VALUE(op, ptr->pointer, VALUE_RECORD);
 
    value_t *field = &(ptr->pointer->fields[vcode_get_field(op)]);
+   EVAL_ASSERT_VALID(op, field);
 
    dst->kind = VALUE_POINTER;
    dst->pointer = (field->kind == VALUE_CARRAY) ? field->pointer : field;
