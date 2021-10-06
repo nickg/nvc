@@ -4506,7 +4506,7 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
    emit_jump(blocks[0]);
 
    vcode_block_t *targets LOCAL = xmalloc_array(maxarcs, sizeof(vcode_block_t));
-   vcode_reg_t   *cases LOCAL = xmalloc_array(maxarcs, sizeof(vcode_reg_t));
+   vcode_reg_t *cases LOCAL = xmalloc_array(maxarcs, sizeof(vcode_reg_t));
 
    for (case_state_t *state = case_fsm_root(fsm); state; state = state->next) {
       vcode_select_block(blocks[state->id]);
@@ -4518,12 +4518,34 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
          if (!vcode_block_finished())
             emit_jump(exit_bb);
       }
+      else if (state->narcs == 1) {
+         vcode_type_t etype = vcode_reg_type(elems[state->depth]);
+         vcode_reg_t cond_reg = VCODE_INVALID_REG;
+
+         if (state->arcs[0].nvalues == 1) {
+            vcode_reg_t const_reg = emit_const(etype, state->arcs[0].u.value);
+            cond_reg = emit_cmp(VCODE_CMP_EQ, elems[state->depth], const_reg);
+         }
+         else {
+            cond_reg = emit_const(vtype_bool(), 1);
+            for (int j = 0; j < state->arcs[0].nvalues; j++) {
+               vcode_reg_t const_reg =
+                  emit_const(etype, state->arcs[0].u.values[j]);
+               vcode_reg_t cmp_reg =
+                  emit_cmp(VCODE_CMP_EQ, elems[state->depth + j], const_reg);
+               cond_reg = emit_and(cond_reg, cmp_reg);
+            }
+         }
+
+         emit_cond(cond_reg, blocks[state->arcs[0].next->id], others_bb);
+      }
       else {
          vcode_type_t etype = vcode_reg_type(elems[state->depth]);
 
          for (int i = 0; i < state->narcs; i++) {
+            assert(state->arcs[i].nvalues == 1);
             targets[i] = blocks[state->arcs[i].next->id];
-            cases[i]   = emit_const(etype, state->arcs[i].value);
+            cases[i]   = emit_const(etype, state->arcs[i].u.value);
          }
 
          emit_case(elems[state->depth], others_bb, cases, targets,

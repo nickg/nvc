@@ -26,8 +26,12 @@ typedef struct __case_state case_state_t;
 
 // Connects case_state_t elements
 struct __case_arc {
-   int64_t       value;
+   unsigned      nvalues;
    case_state_t *next;
+   union {
+      int64_t  value;
+      int64_t *values;
+   } u;
 };
 
 // Decision tree used for array case statements

@@ -676,19 +676,19 @@ static void trace_one_frame(uintptr_t pc, const char *module,
                             unsigned lineno, unsigned colno,
                             ptrdiff_t disp, frame_kind_t kind)
 {
-   color_printf("[$green$%p$$] ", (void *)pc);
+   color_fprintf(stderr, "[$green$%p$$] ", (void *)pc);
    if (kind == FRAME_LIB)
-      color_printf("($red$%s$$) ", module);
+      color_fprintf(stderr, "($red$%s$$) ", module);
    if (srcfile != NULL)
-      color_printf("%s:%d ", srcfile, lineno);
+      color_fprintf(stderr, "%s:%d ", srcfile, lineno);
    if (symbol != NULL) {
-      color_printf("$yellow$%s$$", symbol);
+      color_fprintf(stderr, "$yellow$%s$$", symbol);
       if (srcfile == NULL && disp != 0)
-         color_printf("$yellow$+0x%"PRIxPTR"$$", disp);
+         color_fprintf(stderr, "$yellow$+0x%"PRIxPTR"$$", disp);
    }
    if (kind == FRAME_VHDL)
-      color_printf(" $magenta$[VHDL]$$");
-   printf("\n");
+      color_fprintf(stderr, " $magenta$[VHDL]$$");
+   fprintf(stderr, "\n");
 
    if (srcfile != NULL) {
       FILE *f = fopen(srcfile, "r");
@@ -706,9 +706,9 @@ static void trace_one_frame(uintptr_t pc, const char *module,
                buf[len - 1] = '\0';
 
             if (i == lineno - 1)
-               color_printf("$cyan$$bold$-->$$ $cyan$%s$$\n", buf);
+               color_fprintf(stderr, "$cyan$$bold$-->$$ $cyan$%s$$\n", buf);
             else
-               color_printf("    $cyan$%s$$\n", buf);
+               color_fprintf(stderr, "    $cyan$%s$$\n", buf);
          }
          fclose(f);
       }

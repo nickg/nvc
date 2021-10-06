@@ -3387,20 +3387,32 @@ START_TEST(test_case1)
    fail_unless(tree_kind(s) == T_CASE);
 
    case_fsm_t *fsm = case_fsm_new(s);
-   fail_unless(case_fsm_count_states(fsm) == 19);
+   fail_unless(case_fsm_count_states(fsm) == 10);
 
    case_state_t *root = case_fsm_root(fsm);
    fail_unless(root->id == 0);
    fail_unless(root->depth == 0);
    fail_unless(root->narcs == 1);
-   fail_unless(root->arcs[0].value == 0);
+   fail_unless(root->arcs[0].nvalues == 2);
+   fail_unless(root->arcs[0].u.values[0] == 0);
+   fail_unless(root->arcs[0].u.values[1] == 0);
 
-   case_state_t *d2 = root->arcs[0].next->arcs[0].next;
-   fail_unless(d2->id == 2);
+   case_state_t *d2 = root->arcs[0].next;
+   fail_unless(d2->id == 1);
    fail_unless(d2->depth == 2);
    fail_unless(d2->narcs == 2);
-   fail_unless(d2->arcs[0].value == 0);
-   fail_unless(d2->arcs[1].value == 1);
+   fail_unless(d2->arcs[0].nvalues == 1);
+   fail_unless(d2->arcs[0].u.value == 0);
+   fail_unless(d2->arcs[1].u.value == 1);
+
+   case_state_t *d3 = d2->arcs[1].next;
+   fail_unless(d3->id == 8);
+   fail_unless(d3->depth == 3);
+   fail_unless(d3->narcs == 1);
+   fail_unless(d3->arcs[0].nvalues == 5);
+   fail_unless(d3->arcs[0].u.values[0] == 0);
+   fail_unless(d3->arcs[0].u.values[3] == 1);
+   fail_unless(d3->arcs[0].u.values[4] == 0);
 
    case_fsm_free(fsm);
 }

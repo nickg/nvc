@@ -16,7 +16,7 @@ begin
                 y <= 5;
             when C1 & X"8" =>
                 y <= 6;
-            when C2 & X"0" =>
+            when C2 & X"2" =>
                 y <= 10;
             when others =>
                 y <= 0;
