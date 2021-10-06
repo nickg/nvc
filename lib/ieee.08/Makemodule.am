@@ -115,8 +115,8 @@ include lib/ieee.08/deps.mk
 
 # Extra dependencies required for linking on Windows
 
-lib/ieee.08/IEEE.STD_LOGIC_1164: lib/std.08/STD.TEXTIO-body
+@IMPLIB_REQUIRED_TRUE@lib/ieee.08/IEEE.STD_LOGIC_1164: lib/std.08/STD.TEXTIO-body
 
-lib/ieee.08/IEEE.NUMERIC_STD: lib/std.08/STD.TEXTIO-body
+@IMPLIB_REQUIRED_TRUE@lib/ieee.08/IEEE.NUMERIC_STD: lib/std.08/STD.TEXTIO-body
 
-lib/ieee.08/IEEE.NUMERIC_BIT: lib/std.08/STD.TEXTIO-body
+@IMPLIB_REQUIRED_TRUE@lib/ieee.08/IEEE.NUMERIC_BIT: lib/std.08/STD.TEXTIO-body
