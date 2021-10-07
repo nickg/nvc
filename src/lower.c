@@ -5616,6 +5616,8 @@ static void lower_generics(tree_t block)
          count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
          hint = emit_storage_hint(mem_reg, count_reg);
       }
+      else if (type_is_record(type))
+         mem_reg = emit_index(var, VCODE_INVALID_REG);
 
       tree_t value = tree_value(m);
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);

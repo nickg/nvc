@@ -3640,6 +3640,27 @@ START_TEST(test_resfn1)
 }
 END_TEST
 
+START_TEST(test_issue426)
+{
+   input_from_file(TESTDIR "/lower/issue426.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t vu = find_unit("WORK.TEST_1_1.U");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_INDEX, .name = "EXP_STATUS" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "EXP_STATUS" },
+      { VCODE_OP_COPY },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3726,6 +3747,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_vital2);
    tcase_add_test(tc, test_conv1);
    tcase_add_test(tc, test_resfn1);
+   tcase_add_test(tc, test_issue426);
    suite_add_tcase(s, tc);
 
    return s;
