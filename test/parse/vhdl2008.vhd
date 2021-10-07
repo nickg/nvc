@@ -5,8 +5,32 @@
 entity vhdl2008 is
 end entity;
 
-architecture test of vhdl2008 is
+package genpack is
+    generic ( x : integer := 5; y : boolean );  -- OK
+    generic map ( x => 5 );             -- OK
 
+    constant c : bit_vector(1 to x) := (1 to x => '1');
+end package;
+
+package genpack2 is
+    generic ( x : integer := 5; y : boolean );  -- OK
+    function add_x_if_y ( arg : integer ) return integer;
+end package;
+
+package body genpack2 is
+    function add_x_if_y ( arg : integer ) return integer is
+    begin
+        if y then
+            return arg + x;
+        else
+            return arg;
+        end if;
+    end function;
+end package body;
+
+package primary_genpack2 is new work.genpack2 generic map (4, false);  -- OK
+
+architecture test of vhdl2008 is
     type my_utype is (a, b, c);
     type my_utype_vector is array (natural range <>) of my_utype;
 
@@ -16,6 +40,9 @@ architecture test of vhdl2008 is
     subtype my_type_vector is (resolved) my_utype_vector;  -- OK
 
     type my_logical_vec is array (natural range <>) of bit;
+
+    type my_bool is (true, false);
+    package my_genpack2 is new work.genpack2 generic map (1, true);  -- OK
 begin
 
     process is

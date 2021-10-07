@@ -3474,12 +3474,12 @@ START_TEST(test_vhdl2008)
    input_from_file(TESTDIR "/parse/vhdl2008.vhd");
 
    const error_t expect[] = {
-      { 57, "no matching operator \"??\" [TIME return BOOLEAN]" },
-      { 81, "excess non-zero digits in bit string literal" },
-      { 82, "excess non-zero digits in bit string literal" },
-      { 87, "sorry, decimal values greater than 6" },
-      { 91, "excess significant digits in bit string literal" },
-      { 94, "invalid digit 'C' in bit string" },
+      {  84, "no matching operator \"??\" [TIME return BOOLEAN]" },
+      { 108, "excess non-zero digits in bit string literal" },
+      { 109, "excess non-zero digits in bit string literal" },
+      { 114, "sorry, decimal values greater than 6" },
+      { 118, "excess significant digits in bit string literal" },
+      { 121, "invalid digit 'C' in bit string" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3487,6 +3487,30 @@ START_TEST(test_vhdl2008)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(tree_generics(p) == 2);
+   fail_unless(tree_genmaps(p) == 1);
+
+   tree_t p2 = parse();
+   fail_if(p2 == NULL);
+   fail_unless(tree_kind(p2) == T_PACKAGE);
+   fail_unless(package_needs_body(p2));
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+   fail_unless(tree_primary(b) == p2);
+
+   tree_t p3 = parse();
+   fail_if(p3 == NULL);
+   fail_unless(tree_kind(p3) == T_PACK_INST);
+   fail_unless(tree_generics(p3) == 2);
+   fail_unless(tree_genmaps(p3) == 2);
+   fail_unless(tree_decls(p3) == 2);
+   fail_unless(tree_kind(tree_decl(p3, 1)) == T_FUNC_BODY);
 
    tree_t a = parse();
    fail_if(a == NULL);

@@ -476,3 +476,5 @@ assign6         normal
 bitstr1         normal,2008
 elab29          normal,2008
 signal18        normal,2008
+pack1           normal,2008
+ieee7           normal,2008

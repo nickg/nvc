@@ -325,7 +325,7 @@ vcode_unit_t emit_procedure(ident_t name, const loc_t *loc,
 vcode_unit_t emit_process(ident_t name, const loc_t *loc, vcode_unit_t context);
 vcode_unit_t emit_instance(ident_t name, const loc_t *loc,
                            vcode_unit_t context);
-vcode_unit_t emit_package(ident_t name, const loc_t *loc);
+vcode_unit_t emit_package(ident_t name, const loc_t *loc, vcode_unit_t context);
 vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
                             vcode_unit_t context);
 vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context);

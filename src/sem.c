@@ -79,6 +79,11 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn);
 static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind);
 static bool sem_check_attr_ref(tree_t t, bool allow_range);
 static bool sem_check_array_dims(type_t type, type_t constraint);
+static bool sem_check_generics(tree_t t);
+static bool sem_check_map(tree_t t, tree_t unit,
+                          tree_formals_t tree_Fs, tree_formal_t tree_F,
+                          tree_actuals_t tree_As, tree_actual_t tree_A,
+                          map_kind_t kind);
 
 static scope_t      *top_scope = NULL;
 static loop_stack_t *loop_stack = NULL;
@@ -1293,9 +1298,11 @@ static bool sem_check_process(tree_t t)
 
 static bool sem_check_package(tree_t t)
 {
-   assert(top_scope == NULL);
+   const bool is_design_unit = top_scope == NULL;
+
    scope_push();
-   top_scope->unit = t;
+   if (is_design_unit)
+      top_scope->unit = t;
 
    const int ndecls = tree_decls(t);
 
@@ -1305,6 +1312,18 @@ static bool sem_check_package(tree_t t)
 
       // Allow constant declarations without initial values
       top_scope->flags |= SCOPE_PACKAGE;
+
+      const int ngenerics = tree_generics(t);
+      const int ngenmaps  = tree_genmaps(t);
+
+      if (ngenerics > 0 && ngenmaps == 0)
+         top_scope->flags |= SCOPE_COPY_SUBS;   // Uninstantiated package
+
+      ok &= sem_check_generics(t);
+
+      if (ok && tree_genmaps(t) > 0)
+         ok &= sem_check_map(t, t, tree_generics, tree_generic,
+                             tree_genmaps, tree_genmap, MAP_GENERIC);
 
       for (int n = 0; n < ndecls; n++) {
          tree_t decl = tree_decl(t, n);
@@ -1324,6 +1343,22 @@ static bool sem_check_package(tree_t t)
        sem_error(d, "subprogram body is not allowed in package specification");
    }
 
+   return ok;
+}
+
+static bool sem_check_pack_inst(tree_t t)
+{
+   if (tree_generics(t) == 0)
+      return false;   // Was a parse error
+
+   scope_push();
+
+   bool ok = sem_check_map(t, t, tree_generics, tree_generic,
+                           tree_genmaps, tree_genmap, MAP_GENERIC);
+
+   // Other declarations were checked on the uninstantiated package
+
+   scope_pop();
    return ok;
 }
 
@@ -1385,6 +1420,9 @@ static bool sem_check_pack_body(tree_t t)
    bool ok = sem_check_context_clause(pack) && sem_check_context_clause(t);
 
    scope_push();
+
+   if (tree_generics(pack) > 0 && tree_genmaps(pack) == 0)
+      top_scope->flags |= SCOPE_COPY_SUBS;   // Uninstantiated package
 
    if (ok) {
       const int ndecls = tree_decls(t);
@@ -3488,7 +3526,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
       return ok;
 
    const tree_kind_t kind = tree_kind(unit);
-   if (kind == T_ENTITY || kind == T_BLOCK) {
+   if (kind != T_COMPONENT) {
       // Component and configuration instantiations must be checked at
       // elaboration time
 
@@ -4756,6 +4794,8 @@ bool sem_check(tree_t t)
       return sem_check_concurrent(t);
    case T_SEQUENCE:
       return sem_check_sequence(t);
+   case T_PACK_INST:
+      return sem_check_pack_inst(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

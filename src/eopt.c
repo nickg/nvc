@@ -37,6 +37,7 @@ typedef void (*eopt_nexus_fn_t)(e_node_t, void *);
 static void eopt_stmts(tree_t container, e_node_t cursor);
 static void eopt_ports(tree_t block, e_node_t cursor);
 static bool eopt_decls(tree_t container, e_node_t cursor);
+static void eopt_package(tree_t pack, e_node_t cursor);
 static void eopt_do_cprop(e_node_t e);
 
 static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
@@ -653,6 +654,10 @@ static bool eopt_decls(tree_t container, e_node_t cursor)
          if (type_is_scalar(tree_type(d)))
             need_cprop = true;
          break;
+      case T_PACK_INST:
+         eopt_package(d, cursor);
+         need_cprop = true;
+         break;
       default:
          break;
       }
@@ -682,9 +687,16 @@ static void eopt_stmts(tree_t container, e_node_t cursor)
 
 static void eopt_package(tree_t pack, e_node_t cursor)
 {
+   if (is_uninstantiated_package(pack))
+      return;   // Uninstantiated package
+
+   ident_t vcode = tree_ident(pack);
+   if (cursor != root)
+      vcode = ident_prefix(e_vcode(cursor), vcode, '.');
+
    e_node_t e = e_new(E_SCOPE);
    e_set_parent(e, cursor);
-   e_set_vcode(e, tree_ident(pack));
+   e_set_vcode(e, vcode);
 
    ident_t path = ident_new(package_signal_path_name(tree_ident(pack)));
    e_set_instance(e, path);
@@ -734,6 +746,10 @@ static void eopt_deps_cb(ident_t name, void *__ctx)
       break;
    case T_PACK_BODY:
       break;    // Dependency tracked from package header
+   case T_PACK_INST:
+      eopt_package(unit, root);
+      e_add_dep(root, name);
+      break;
    default:
       e_add_dep(root, name);
       break;

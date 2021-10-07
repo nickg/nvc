@@ -63,7 +63,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TARGET),
 
    // T_PACKAGE
-   (I_IDENT | I_DECLS | I_CONTEXT),
+   (I_IDENT | I_DECLS | I_CONTEXT | I_GENERICS | I_GENMAPS),
 
    // T_SIGNAL_ASSIGN
    (I_IDENT | I_TARGET | I_WAVES | I_REJECT),
@@ -279,6 +279,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_SEQUENCE
    (I_IDENT | I_STMTS | I_DECLS),
+
+   // T_PACK_INST
+   (I_IDENT | I_REF | I_DECLS | I_CONTEXT | I_GENERICS | I_GENMAPS),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -310,6 +313,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_IMPLICIT_SIGNAL", "T_DISCONNECT",      "T_GROUP_TEMPLATE",
    "T_GROUP",           "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN",
    "T_CONV_FUNC",       "T_CONCURRENT",      "T_SEQUENCE",
+   "T_PACK_INST",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -329,6 +333,7 @@ static const change_allowed_t change_allowed[] = {
    { T_DESIGN_UNIT, T_ARCH          },
    { T_DESIGN_UNIT, T_CONFIGURATION },
    { T_DESIGN_UNIT, T_CONTEXT       },
+   { T_DESIGN_UNIT, T_PACK_INST     },
    { T_FUNC_DECL,   T_FUNC_BODY     },
    { T_PROC_DECL,   T_PROC_BODY     },
    { T_REF,         T_ARRAY_SLICE   },
@@ -374,7 +379,8 @@ static tree_kind_t decl_kinds[] = {
    T_COMPONENT,  T_FILE_DECL,      T_FIELD_DECL,   T_UNIT_DECL,
    T_GENVAR,     T_HIER,           T_SPEC,         T_BINDING,
    T_USE,        T_PROT_BODY,      T_BLOCK_CONFIG, T_IMPLICIT_SIGNAL,
-   T_DISCONNECT, T_GROUP_TEMPLATE, T_GROUP,        T_SUBTYPE_DECL
+   T_DISCONNECT, T_GROUP_TEMPLATE, T_GROUP,        T_SUBTYPE_DECL,
+   T_PACKAGE,    T_PACK_BODY,      T_PACK_INST
 };
 
 object_class_t tree_object = {
@@ -385,8 +391,9 @@ object_class_t tree_object = {
    .tag            = OBJECT_TAG_TREE,
    .last_kind      = T_LAST_TREE_KIND,
    .gc_roots       = { T_ARCH, T_ENTITY, T_PACKAGE, T_ELAB, T_PACK_BODY,
-                       T_CONTEXT, T_CONFIGURATION, T_DESIGN_UNIT },
-   .gc_num_roots   = 8
+                       T_CONTEXT, T_CONFIGURATION, T_DESIGN_UNIT,
+                       T_PACK_INST },
+   .gc_num_roots   = 9
 };
 
 object_arena_t *global_arena = NULL;

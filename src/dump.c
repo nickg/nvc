@@ -16,6 +16,7 @@
 //
 
 #include "phase.h"
+#include "tree.h"
 #include "util.h"
 #include "hash.h"
 #include "common.h"
@@ -39,6 +40,8 @@ static void dump_port(tree_t t, int indent);
 static void dump_decl(tree_t t, int indent);
 static void dump_decls(tree_t t, int indent);
 static void dump_type(type_t type);
+static void dump_package(tree_t t, int indent);
+static void dump_package_body(tree_t t, int indent);
 
 typedef tree_t (*get_fn_t)(tree_t, unsigned);
 
@@ -502,10 +505,6 @@ static void dump_stmts(tree_t t, int indent)
 
 static void dump_block(tree_t t, int indent)
 {
-   if (is_subprogram(t) && tree_has_ident2(t)) {
-      tab(indent + 2);
-      syntax("-- %s\n", istr(tree_ident2(t)));
-   }
    dump_decls(t, indent + 2);
    tab(indent);
    syntax("#begin\n");
@@ -727,6 +726,10 @@ static void dump_decl(tree_t t, int indent)
          syntax("#function %s", istr(tree_ident(t)));
          dump_arguments(t, indent);
          syntax(" #return %s;\n", type_pp(type_result(tree_type(t))));
+         if (tree_has_ident2(t)) {
+            tab(indent + 2);
+            syntax("-- %s\n", istr(tree_ident2(t)));
+         }
       }
       return;
 
@@ -734,6 +737,10 @@ static void dump_decl(tree_t t, int indent)
       syntax("#function %s", istr(tree_ident(t)));
       dump_arguments(t, indent);
       syntax(" #return %s #is\n", type_pp(type_result(tree_type(t))));
+      if (tree_has_ident2(t)) {
+         tab(indent + 2);
+         syntax("-- %s\n", istr(tree_ident2(t)));
+      }
       dump_block(t, indent);
       tab(indent);
       syntax("#end #function;\n");
@@ -815,6 +822,15 @@ static void dump_decl(tree_t t, int indent)
       if (tree_has_ident2(t))
          printf(".%s", istr(tree_ident2(t)));
       printf(";\n");
+      return;
+
+   case T_PACKAGE:
+   case T_PACK_INST:
+      dump_package(t, indent);
+      return;
+
+   case T_PACK_BODY:
+      dump_package_body(t, indent);
       return;
 
    default:
@@ -1165,7 +1181,7 @@ static void dump_port(tree_t t, int indent)
    }
 }
 
-static void dump_context(tree_t t)
+static void dump_context(tree_t t, int indent)
 {
    const int nctx = tree_contexts(t);
    for (int i = 0; i < nctx; i++) {
@@ -1186,19 +1202,24 @@ static void dump_context(tree_t t)
 
       case T_CTXREF:
          syntax("#context %s;\n", istr(tree_ident(t)));
+         break;
 
       default:
          break;
       }
+
+      tab(indent);
    }
 
-   if (nctx > 0)
+   if (nctx > 0) {
       printf("\n");
+      tab(indent);
+   }
 }
 
 static void dump_elab(tree_t t)
 {
-   dump_context(t);
+   dump_context(t, 0);
    syntax("#entity %s #is\n#end #entity;\n\n", istr(tree_ident(t)));
    syntax("#architecture #elab #of %s #is\n", istr(tree_ident(t)));
    dump_decls(t, 2);
@@ -1210,7 +1231,7 @@ static void dump_elab(tree_t t)
 
 static void dump_entity(tree_t t)
 {
-   dump_context(t);
+   dump_context(t, 0);
    dump_address(t);
    syntax("#entity %s #is\n", istr(tree_ident(t)));
    if (tree_generics(t) > 0) {
@@ -1251,7 +1272,7 @@ static void dump_decls(tree_t t, int indent)
 
 static void dump_arch(tree_t t)
 {
-   dump_context(t);
+   dump_context(t, 0);
    dump_address(t);
    syntax("#architecture %s #of %s #is\n",
           istr(tree_ident(t)), istr(tree_ident2(t)));
@@ -1261,19 +1282,27 @@ static void dump_arch(tree_t t)
    syntax("#end #architecture;\n\n");
 }
 
-static void dump_package(tree_t t)
+static void dump_package(tree_t t, int indent)
 {
-   dump_context(t);
+   dump_context(t, indent);
    syntax("#package %s #is\n", istr(tree_ident(t)));
-   dump_decls(t, 2);
+   if (tree_kind(t) == T_PACK_INST) {
+      tab(indent);
+      syntax("  -- Instantiated from %s\n", istr(tree_ident(tree_ref(t))));
+   }
+   dump_generics(t, indent + 2);
+   dump_generic_map(t, indent + 2, ";\n");
+   dump_decls(t, indent + 2);
+   tab(indent);
    syntax("#end #package;\n\n");
 }
 
-static void dump_package_body(tree_t t)
+static void dump_package_body(tree_t t, int indent)
 {
-   dump_context(t);
+   dump_context(t, indent);
    syntax("#package #body %s #is\n", istr(tree_ident(t)));
-   dump_decls(t, 2);
+   dump_decls(t, indent + 2);
+   tab(indent);
    syntax("#end #package #body;\n\n");
 }
 
@@ -1289,21 +1318,28 @@ void dump(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_ELAB:
+      dump_address(t);
       dump_elab(t);
       break;
    case T_ENTITY:
+      dump_address(t);
       dump_entity(t);
       break;
    case T_ARCH:
+      dump_address(t);
       dump_arch(t);
       break;
    case T_PACKAGE:
-      dump_package(t);
+   case T_PACK_INST:
+      dump_address(t);
+      dump_package(t, 0);
       break;
    case T_PACK_BODY:
-      dump_package_body(t);
+      dump_address(t);
+      dump_package_body(t, 0);
       break;
    case T_CONFIGURATION:
+      dump_address(t);
       dump_configuration(t);
       break;
    case T_REF:

@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#include "tree.h"
 #include "util.h"
 #include "phase.h"
 #include "token.h"
@@ -22,6 +23,7 @@
 #include "loc.h"
 #include "names.h"
 #include "type.h"
+#include "array.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -58,6 +60,14 @@ struct cond_state {
    bool          result;
    loc_t         loc;
 };
+
+typedef A(tree_t) tree_list_t;
+typedef A(type_t) type_list_t;
+
+typedef struct {
+   tree_list_t copied_subs;
+   type_list_t copied_types;
+} package_copy_ctx_t;
 
 static loc_file_ref_t file_ref = FILE_INVALID;
 static int            n_token_next_start = 0;
@@ -145,6 +155,7 @@ static tree_t p_function_call(ident_t id, tree_t prefix);
 static tree_t p_resolution_indication(void);
 static tree_t p_type_conversion(tree_t tdecl);
 static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0);
+static void p_generic_map_aspect(tree_t inst, tree_t unit);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -1621,6 +1632,7 @@ static tree_t external_reference(tree_t t)
    case T_LIBRARY:
    case T_ARCH:
    case T_PACKAGE:
+   case T_PACK_INST:
    case T_CONFIGURATION:
       {
          tree_t ref = tree_new(T_REF);
@@ -1834,6 +1846,145 @@ static tree_t fcall_to_conv_func(tree_t value)
    tree_set_ref(conv, decl);
 
    return conv;
+}
+
+static bool package_should_copy(tree_t t, void *__ctx)
+{
+   switch (tree_kind(t)) {
+   case T_FUNC_DECL:
+   case T_FUNC_BODY:
+   case T_PROC_DECL:
+   case T_PROC_BODY:
+      return !!(tree_flags(t) & TREE_F_ELAB_COPY);
+   case T_FCALL:
+      // Globally static expressions should be copied and folded
+      return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC);
+   case T_REF:
+      {
+         tree_t decl = tree_ref(t);
+         if (tree_kind(decl) == T_PORT_DECL)
+            return !!(tree_flags(decl) & TREE_F_ELAB_COPY);
+         else
+            return false;
+      }
+   case T_VAR_DECL:
+      return !!(tree_flags(t) & TREE_F_SHARED);
+   case T_PACKAGE:
+   case T_PACK_BODY:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static void package_tree_copy_cb(tree_t t, void *__ctx)
+{
+   package_copy_ctx_t *ctx = __ctx;
+
+   if (is_subprogram(t))
+      APUSH(ctx->copied_subs, t);
+}
+
+static void package_type_copy_cb(type_t type, void *__ctx)
+{
+   package_copy_ctx_t *ctx = __ctx;
+
+   if (type_has_ident(type))
+      APUSH(ctx->copied_types, type);
+}
+
+static void instantiate_package(tree_t new, tree_t pack, tree_t body)
+{
+   package_copy_ctx_t copy_ctx = {};
+
+   tree_t pack_copy = NULL, body_copy = NULL;
+   if (body == NULL)
+      pack_copy = tree_copy(pack, package_should_copy, package_tree_copy_cb,
+                            package_type_copy_cb, &copy_ctx);
+   else {
+      assert(tree_primary(body) == pack);
+      body_copy = tree_copy(body, package_should_copy, package_tree_copy_cb,
+                            package_type_copy_cb, &copy_ctx);
+      pack_copy = tree_primary(body_copy);
+   }
+
+   ident_t prefixes[] = { tree_ident(pack) };
+   ident_t dotted = ident_prefix(lib_name(lib_work()), tree_ident(new), '.');
+
+   // Change the name of any copied types to reflect the new hiearchy
+   for (unsigned i = 0; i < copy_ctx.copied_types.count; i++) {
+      type_t type = copy_ctx.copied_types.items[i];
+      ident_t orig = type_ident(type);
+      for (unsigned j = 0; j < ARRAY_LEN(prefixes); j++) {
+         if (ident_starts_with(orig, prefixes[j])) {
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_cat(tb, istr(dotted));
+            tb_cat(tb, istr(orig) + ident_len(prefixes[j]));
+
+            type_set_ident(type, ident_new(tb_get(tb)));
+         }
+      }
+   }
+   ACLEAR(copy_ctx.copied_types);
+
+   // Change the mangled name of copied subprograms so that copies in
+   // different instances do not collide
+   for (unsigned i = 0; i < copy_ctx.copied_subs.count; i++) {
+      tree_t decl = copy_ctx.copied_subs.items[i];
+      ident_t orig = tree_ident2(decl);
+      for (unsigned j = 0; j < ARRAY_LEN(prefixes); j++) {
+         if (ident_starts_with(orig, prefixes[j])) {
+            ident_t prefix = ident_runtil(orig, '(');
+
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_cat(tb, istr(dotted));
+            tb_cat(tb, istr(prefix) + ident_len(prefixes[j]));
+
+            const tree_kind_t kind = tree_kind(decl);
+            const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
+            const int nports = tree_ports(decl);
+            if (nports > 0 || is_func)
+               tb_append(tb, '(');
+
+            for (int i = 0; i < nports; i++) {
+               tree_t p = tree_port(decl, i);
+               if (tree_class(p) == C_SIGNAL)
+                  tb_printf(tb, "s");
+               mangle_one_type(tb, tree_type(p));
+            }
+
+            if (nports > 0 || is_func)
+               tb_printf(tb, ")");
+
+            if (is_func)
+               mangle_one_type(tb, type_result(tree_type(decl)));
+
+            tree_set_ident2(decl, ident_new(tb_get(tb)));
+         }
+      }
+   }
+   ACLEAR(copy_ctx.copied_subs);
+
+   const int ngenerics = tree_generics(pack_copy);
+   for (int i = 0; i < ngenerics; i++)
+      tree_add_generic(new, tree_generic(pack_copy, i));
+
+   assert(tree_genmaps(pack_copy) == 0);
+
+   const int ndecls = tree_decls(pack_copy);
+   for (int i = 0; i < ndecls; i++)
+      tree_add_decl(new, tree_decl(pack_copy, i));
+
+   if (body != NULL) {
+      // Copy all the declarations from the body into the package to
+      // save keeping track of two separate units. The LRM says the
+      // implicit instantiated package body is in the body of an
+      // enclosing package if this is in a package declaration. Just
+      // ignore that, it doesn't matter.
+      const int ndecls = tree_decls(body_copy);
+      for (int i = 0; i < ndecls; i++)
+         tree_add_decl(new, tree_decl(body_copy, i));
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2085,8 +2236,11 @@ static void p_use_clause(tree_t unit, add_func_t addf)
 
       if (head != NULL) {
          const tree_kind_t kind = tree_kind(head);
-         if ((kind == T_LIBRARY && tree_has_ident2(head))
-             || kind == T_PACKAGE) {
+         if (kind == T_LIBRARY && !tree_has_ident2(head)) {
+            // Library declaration had an error
+         }
+         else if (kind == T_LIBRARY || kind == T_PACKAGE
+                  || kind == T_PACK_INST) {
             tree_set_ref(u, head);
             insert_names_from_use(nametab, u);
          }
@@ -2701,6 +2855,7 @@ static tree_t p_selected_name(tree_t prefix)
       }
 
    case T_PACKAGE:
+   case T_PACK_INST:
    case T_PROCESS:
    case T_FOR:
    case T_BLOCK:
@@ -5508,6 +5663,63 @@ static tree_t p_protected_type_body(ident_t id)
    return body;
 }
 
+static tree_t p_package_instantiation_declaration(tree_t unit)
+{
+   // 2008: package identifier is new name [ generic_map_aspect ] ;
+
+   consume(tPACKAGE);
+
+   ident_t id = p_identifier();
+
+   consume(tIS);
+   consume(tNEW);
+
+   ident_t unit_name = p_selected_identifier();
+   tree_t pack = find_unit(CURRENT_LOC, unit_name, "package");
+
+   if (pack != NULL && !is_uninstantiated_package(pack)) {
+      parse_error(CURRENT_LOC, "unit %s is not an uninstantiated package",
+                  istr(unit_name));
+      pack = NULL;
+   }
+
+   tree_t new;
+   if (unit != NULL) {
+      // Package instantiation declaration as primary unit
+      assert(tree_kind(unit) == T_DESIGN_UNIT);
+      tree_change_kind(unit, T_PACK_INST);
+      new = unit;
+   }
+   else
+      new = tree_new(T_PACK_INST);
+
+   tree_set_ident(new, id);
+   tree_set_ref(new, pack);
+
+   tree_t body = NULL;
+   if (pack != NULL) {
+      ident_t body_i = ident_new("body");
+      if (package_needs_body(pack)) {
+         ident_t body_name = ident_prefix(unit_name, body_i, '-');
+         if ((body = lib_get_qualified(body_name)) == NULL)
+            parse_error(CURRENT_LOC, "package %s cannot be instantiated until "
+                        "its body has been analysed", istr(unit_name));
+      }
+
+      instantiate_package(new, pack, body);
+   }
+
+   if (peek() == tGENERIC)
+      p_generic_map_aspect(new, new);
+
+   consume(tSEMI);
+
+   tree_set_loc(new, CURRENT_LOC);
+   insert_name(nametab, new, NULL, 0);
+
+   return new;
+}
+
 static void p_entity_declarative_item(tree_t entity)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -6055,6 +6267,7 @@ static void p_package_declarative_item(tree_t pack)
    //   | component_declaration | attribute_declaration
    //   | attribute_specification | disconnection_specification | use_clause
    //   | group_template_declaration | group_declaration
+   //   | 2008: package_instantiation_declaration
    //
 
    BEGIN("package declarative item");
@@ -6129,10 +6342,18 @@ static void p_package_declarative_item(tree_t pack)
          tree_add_decl(pack, p_group_declaration());
       break;
 
+   case tPACKAGE:
+      tree_add_decl(pack, p_package_instantiation_declaration(NULL));
+      if (standard() < STD_08)
+         parse_error(CURRENT_LOC, "package declarative part may not contain "
+                     "package declarations in VHDL-%s",
+                     standard_text(standard()));
+      break;
+
    default:
       expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
              tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED, tALIAS, tUSE,
-             tDISCONNECT, tGROUP);
+             tDISCONNECT, tGROUP, tPACKAGE);
    }
 }
 
@@ -6146,10 +6367,29 @@ static void p_package_declarative_part(tree_t pack)
       p_package_declarative_item(pack);
 }
 
+static void p_package_header(tree_t unit)
+{
+   // 2008: [ generic_clause [ generic_map_aspect ; ] ]
+
+   BEGIN("package header");
+
+   if (peek() == tGENERIC) {
+      p_generic_clause(unit);
+
+      if (peek() == tGENERIC) {
+         p_generic_map_aspect(unit, unit);
+         consume(tSEMI);
+      }
+   }
+}
+
 static void p_package_declaration(tree_t unit)
 {
    // package identifier is package_declarative_part end [ package ]
    //   [ simple_name ] ;
+   //
+   // 2008: package identifier is package_header package_declarative_part
+   //   end [ package ] [ simple_name ] ;
 
    BEGIN("package declaration");
 
@@ -6168,6 +6408,8 @@ static void p_package_declaration(tree_t unit)
    consume(tIS);
 
    push_scope(nametab);
+   if (standard() >= STD_08)
+      p_package_header(unit);
    p_package_declarative_part(unit);
 
    if (bootstrapping && standard() >= STD_08)
@@ -6662,6 +6904,7 @@ static void p_context_declaration(tree_t unit)
 static void p_primary_unit(tree_t unit)
 {
    // entity_declaration | configuration_declaration | package_declaration
+   //   | 2008: package_instantiation_declaration
 
    BEGIN("primary unit");
 
@@ -6671,7 +6914,10 @@ static void p_primary_unit(tree_t unit)
       break;
 
    case tPACKAGE:
-      p_package_declaration(unit);
+      if (standard() >= STD_08 && peek_nth(4) == tNEW)
+         p_package_instantiation_declaration(unit);
+      else
+         p_package_declaration(unit);
       break;
 
    case tCONFIGURATION:
@@ -6689,7 +6935,8 @@ static void p_primary_unit(tree_t unit)
 
 static void p_block_declarative_item(tree_t parent)
 {
-   // subprogram_declaration | subprogram_body | type_declaration
+   // subprogram_declaration | subprogram_body
+   //   | 2008: package_instantiation_declaration | type_declaration
    //   | subtype_declaration | constant_declaration | signal_declaration
    //   | shared_variable_declaration | file_declaration | alias_declaration
    //   | component_declaration | attribute_declaration
@@ -6773,10 +7020,18 @@ static void p_block_declarative_item(tree_t parent)
          tree_add_decl(parent, p_group_declaration());
       break;
 
+   case tPACKAGE:
+      tree_add_decl(parent, p_package_instantiation_declaration(NULL));
+      if (standard() < STD_08)
+         parse_error(CURRENT_LOC, "block declarative part may not contain "
+                     "package declarations in VHDL-%s",
+                     standard_text(standard()));
+      break;
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
              tPURE, tPROCEDURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE,
-             tSHARED, tDISCONNECT, tGROUP);
+             tSHARED, tDISCONNECT, tGROUP, tPACKAGE);
    }
 }
 
@@ -8323,8 +8578,10 @@ static void p_package_body(tree_t unit)
 
    push_scope(nametab);
 
-   if (pack != NULL)
+   if (pack != NULL) {
+      insert_generics(nametab, pack);
       insert_decls(nametab, pack);
+   }
 
    p_package_body_declarative_part(unit);
 

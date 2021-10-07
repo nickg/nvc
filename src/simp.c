@@ -1681,6 +1681,13 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return t;
    case T_COND:
       return simp_cond(t);
+   case T_PACK_INST:
+      simp_generic_map(t, t);
+      return t;
+   case T_PACKAGE:
+      if (!is_uninstantiated_package(t))
+         simp_generic_map(t, t);
+      return t;
    default:
       return t;
    }
@@ -1736,6 +1743,8 @@ static void simp_pre_cb(tree_t t, void *__ctx)
 
    switch (tree_kind(t)) {
    case T_BLOCK:
+   case T_PACKAGE:
+   case T_PACK_INST:
       if (tree_genmaps(t) > 0)
          simp_generics(t, ctx);
       break;

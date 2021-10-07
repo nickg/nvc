@@ -70,6 +70,7 @@
 - Non-globally-static actuals allowed in port maps in VHDL-2008 mode.
 - Added support for VHDL-2008 sequential conditional signal assignment
   statements.
+- Added basic support for package generics and package instantiation.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

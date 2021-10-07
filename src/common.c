@@ -493,6 +493,7 @@ class_t class_of(tree_t t)
       return class_of(tree_value(t));
    case T_PACKAGE:
    case T_PACK_BODY:
+   case T_PACK_INST:
       return C_PACKAGE;
    case T_LIBRARY:
       return C_LIBRARY;
@@ -959,15 +960,26 @@ void intern_strings(void)
    thunk_i          = ident_new("thunk");
 }
 
+bool is_uninstantiated_package(tree_t pack)
+{
+   return tree_kind(pack) == T_PACKAGE
+      && tree_generics(pack) > 0
+      && tree_genmaps(pack) == 0;
+}
+
 bool unit_needs_cgen(tree_t unit)
 {
    switch (tree_kind(unit)) {
    case T_ELAB:
+   case T_PACK_INST:
       return true;
    case T_PACK_BODY:
-      return package_needs_body(tree_primary(unit));
+      {
+         tree_t pack = tree_primary(unit);
+         return package_needs_body(pack) && !is_uninstantiated_package(pack);
+      }
    case T_PACKAGE:
-      return !package_needs_body(unit);
+      return !package_needs_body(unit) && !is_uninstantiated_package(unit);
    default:
       return false;
    }

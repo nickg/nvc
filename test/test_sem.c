@@ -2469,6 +2469,27 @@ START_TEST(test_vhdl2008)
 }
 END_TEST
 
+START_TEST(test_genpack)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/genpack.vhd");
+
+   const error_t expect[] = {
+      { 45, "unit WORK.ENT is not an uninstantiated package" },
+      { 46, "unit STD.STANDARD is not an uninstantiated package" },
+      { 47, "missing declaration for package WORK.NOT_HERE" },
+      { 48, "missing actual for generic FRAC without a default expression" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_INST,
+                   T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2591,6 +2612,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_error3);
    tcase_add_test(tc_core, test_tc792);
    tcase_add_test(tc_core, test_vhdl2008);
+   tcase_add_test(tc_core, test_genpack);
    suite_add_tcase(s, tc_core);
 
    return s;

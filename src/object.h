@@ -223,7 +223,7 @@ typedef struct {
    const char            **kind_text_map;
    const int               tag;
    const int               last_kind;
-   const int               gc_roots[8];
+   const int               gc_roots[10];
    const int               gc_num_roots;
    int                    *object_nitems;
    size_t                 *object_size;

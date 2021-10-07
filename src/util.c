@@ -926,6 +926,7 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
    }
 
    color_fprintf(stderr, " ***$$\n\n");
+   fflush(stderr);
 
    show_stacktrace();
 

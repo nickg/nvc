@@ -2740,14 +2740,17 @@ vcode_unit_t emit_instance(ident_t name, const loc_t *loc, vcode_unit_t context)
    return vu;
 }
 
-vcode_unit_t emit_package(ident_t name, const loc_t *loc)
+vcode_unit_t emit_package(ident_t name, const loc_t *loc, vcode_unit_t context)
 {
    vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
    vu->kind     = VCODE_UNIT_PACKAGE;
    vu->name     = name;
-   vu->context  = NULL;
+   vu->context  = context;
    vu->result   = VCODE_INVALID_TYPE;
    vu->loc      = *loc;
+
+   if (context != NULL)
+      vcode_add_child(context, vu);
 
    active_unit = vu;
    vcode_select_block(emit_block());

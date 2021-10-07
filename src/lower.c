@@ -130,6 +130,7 @@ static void lower_finished(void);
 static void lower_predef(tree_t decl, vcode_unit_t context);
 static ident_t lower_predef_func_name(type_t type, const char *op);
 static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context);
+static void lower_generics(tree_t block);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -5634,7 +5635,28 @@ static void lower_value_helper(tree_t decl)
    vcode_state_restore(&state);
 }
 
-static void lower_decl(tree_t decl)
+static void lower_instantiated_package(tree_t decl, vcode_unit_t context)
+{
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   vcode_select_unit(context);
+   ident_t name = ident_prefix(vcode_unit_name(), tree_ident(decl), '.');
+
+   vcode_unit_t vu = emit_package(name, tree_loc(decl), context);
+
+   lower_push_scope(decl);
+   lower_generics(decl);
+   lower_decls(decl, vu);
+
+   emit_return(VCODE_INVALID_REG);
+
+   lower_pop_scope();
+   lower_finished();
+   vcode_state_restore(&state);
+}
+
+static void lower_decl(tree_t decl, vcode_unit_t context)
 {
    PUSH_DEBUG_INFO(decl);
 
@@ -5679,6 +5701,12 @@ static void lower_decl(tree_t decl)
    case T_GROUP:
    case T_GROUP_TEMPLATE:
    case T_SUBTYPE_DECL:
+      break;
+
+   case T_PACKAGE:
+   case T_PACK_BODY:
+   case T_PACK_INST:
+      lower_instantiated_package(decl, context);
       break;
 
    default:
@@ -5729,7 +5757,7 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
       else if (is_subprogram(d) || kind == T_PROT_BODY)
          continue;
       else
-         lower_decl(d);
+         lower_decl(d, context);
    }
 
    for (int i = 0; i < ndecls; i++) {
@@ -7527,8 +7555,9 @@ static vcode_unit_t lower_elab(tree_t unit)
 static vcode_unit_t lower_pack_body(tree_t unit)
 {
    tree_t pack = tree_primary(unit);
+   assert(!is_uninstantiated_package(pack));
 
-   vcode_unit_t context = emit_package(tree_ident(pack), tree_loc(unit));
+   vcode_unit_t context = emit_package(tree_ident(pack), tree_loc(unit), NULL);
    lower_push_scope(unit);
    top_scope->flags |= SCOPE_GLOBAL;
 
@@ -7544,10 +7573,13 @@ static vcode_unit_t lower_pack_body(tree_t unit)
 
 static vcode_unit_t lower_package(tree_t unit)
 {
-   vcode_unit_t context = emit_package(tree_ident(unit), tree_loc(unit));
+   assert(!is_uninstantiated_package(unit));
+
+   vcode_unit_t context = emit_package(tree_ident(unit), tree_loc(unit), NULL);
    lower_push_scope(unit);
    top_scope->flags |= SCOPE_GLOBAL;
 
+   lower_generics(unit);
    lower_decls(unit, context);
 
    emit_return(VCODE_INVALID_REG);
@@ -7589,6 +7621,8 @@ vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover)
       break;
    case T_PACKAGE:
       assert(!package_needs_body(unit));
+      // Fall-through
+   case T_PACK_INST:
       root = lower_package(unit);
       break;
    default:
