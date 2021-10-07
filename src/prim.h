@@ -21,14 +21,16 @@
 #include <stdint.h>
 #include <stddef.h>
 
+typedef struct _object object_t;
+typedef struct _object_arena object_arena_t;
 typedef struct trie *ident_t;
 typedef struct _tree *tree_t;
 typedef struct _type *type_t;
 typedef struct _e_node *e_node_t;
 typedef struct loc loc_t;
 typedef struct _fbuf fbuf_t;
+typedef struct hash hash_t;
 
-typedef struct tree_wr_ctx *tree_wr_ctx_t;
 typedef struct tree_rd_ctx *tree_rd_ctx_t;
 
 typedef struct vcode_unit *vcode_unit_t;

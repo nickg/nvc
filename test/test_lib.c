@@ -109,6 +109,8 @@ END_TEST
 START_TEST(test_lib_save)
 {
    {
+      make_new_arena();
+
       tree_t ent = tree_new(T_ENTITY);
       tree_set_ident(ent, ident_new("TEST_LIB.name"));
 
@@ -137,6 +139,8 @@ START_TEST(test_lib_save)
       tree_set_subkind(p2, PORT_IN);
       tree_set_type(p2, e);
       tree_add_port(ent, p2);
+
+      make_new_arena();
 
       tree_t ar = tree_new(T_ARCH);
       tree_set_ident(ar, ident_new("TEST_LIB.arch"));
@@ -186,8 +190,6 @@ START_TEST(test_lib_save)
       lib_put(work, ar);
       lib_put(work, ent);
    }
-
-   tree_gc();
 
    lib_save(work);
    lib_free(work);

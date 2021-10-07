@@ -726,7 +726,8 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
       if (strcmp(e->d_name, search) == 0) {
          fbuf_t *f = lib_fbuf_open(lib, e->d_name, FBUF_IN);
          LOCAL_TEXT_BUF path = lib_file_path(lib, e->d_name);
-         tree_rd_ctx_t ctx = tree_read_begin(f, tb_get(path));
+         tree_rd_ctx_t ctx = tree_read_begin(f, tb_get(path),
+                                             lib_get_qualified);
          tree_t top = tree_read(ctx);
          fbuf_close(f);
 
@@ -900,9 +901,7 @@ void lib_save(lib_t lib)
          fbuf_t *f = lib_fbuf_open(lib, name, FBUF_OUT);
          if (f == NULL)
             fatal("failed to create %s in library %s", name, istr(lib->name));
-         tree_wr_ctx_t ctx = tree_write_begin(f);
-         tree_write(lib->units[n].top, ctx);
-         tree_write_end(ctx);
+         tree_write(lib->units[n].top, f);
          fbuf_close(f);
 
          lib->units[n].dirty = false;

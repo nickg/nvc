@@ -320,6 +320,10 @@ struct _tree {
    object_t object;
 };
 
+struct _type {
+   object_t object;
+};
+
 static const tree_kind_t stmt_kinds[] = {
    T_PROCESS, T_WAIT,        T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
    T_ASSERT,  T_INSTANCE,    T_IF,           T_NULL,
@@ -353,9 +357,11 @@ object_class_t tree_object = {
    .tag            = OBJECT_TAG_TREE,
    .last_kind      = T_LAST_TREE_KIND,
    .gc_roots       = { T_ARCH, T_ENTITY, T_PACKAGE, T_ELAB, T_PACK_BODY,
-                       T_CONTEXT },
-   .gc_num_roots   = 5
+                       T_CONTEXT, T_CONFIGURATION },
+   .gc_num_roots   = 7
 };
+
+object_arena_t *global_arena = NULL;
 
 static bool tree_kind_in(tree_t t, const tree_kind_t *list, size_t len)
 {
@@ -419,12 +425,7 @@ static inline void tree_array_insert(item_t *item, unsigned opos, tree_t new)
 
 tree_t tree_new(tree_kind_t kind)
 {
-   return (tree_t)object_new(&tree_object, kind);
-}
-
-void tree_gc(void)
-{
-   object_gc();
+   return (tree_t)object_new(global_arena, &tree_object, kind);
 }
 
 const loc_t *tree_loc(tree_t t)
@@ -502,6 +503,7 @@ void tree_add_port(tree_t t, tree_t d)
 {
    tree_assert_decl(d);
    tree_array_add(lookup_item(&tree_object, t, I_PORTS), d);
+   object_write_barrier(&(t->object), &(d->object));
 }
 
 unsigned tree_subkind(tree_t t)
@@ -530,6 +532,7 @@ void tree_add_generic(tree_t t, tree_t d)
 {
    tree_assert_decl(d);
    tree_array_add(lookup_item(&tree_object, t, I_GENERICS), d);
+   object_write_barrier(&(t->object), &(d->object));
 }
 
 type_t tree_type(tree_t t)
@@ -542,6 +545,7 @@ type_t tree_type(tree_t t)
 void tree_set_type(tree_t t, type_t ty)
 {
    lookup_item(&tree_object, t, I_TYPE)->type = ty;
+   object_write_barrier(&(t->object), &(ty->object));
 }
 
 bool tree_has_type(tree_t t)
@@ -566,6 +570,7 @@ void tree_add_param(tree_t t, tree_t e)
    tree_assert_expr(tree_value(e));
 
    tree_array_add(lookup_item(&tree_object, t, I_PARAMS), e);
+   object_write_barrier(&(t->object), &(e->object));
 }
 
 unsigned tree_genmaps(tree_t t)
@@ -632,6 +637,7 @@ void tree_add_char(tree_t t, tree_t ref)
 {
    assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_STRING));
    tree_array_add(lookup_item(&tree_object, t, I_CHARS), ref);
+   object_write_barrier(&(t->object), &(ref->object));
 }
 
 bool tree_has_value(tree_t t)
@@ -651,6 +657,7 @@ void tree_set_value(tree_t t, tree_t v)
    if ((v != NULL) && (t->object.kind != T_ASSOC) && (t->object.kind != T_SPEC))
       tree_assert_expr(v);
    lookup_item(&tree_object, t, I_VALUE)->object = &(v->object);
+   object_write_barrier(&(t->object), &(v->object));
 }
 
 unsigned tree_decls(tree_t t)
@@ -668,12 +675,14 @@ void tree_add_decl(tree_t t, tree_t d)
 {
    tree_assert_decl(d);
    tree_array_add(lookup_item(&tree_object, t, I_DECLS), d);
+   object_write_barrier(&(t->object), &(d->object));
 }
 
 void tree_insert_decl(tree_t t, unsigned pos, tree_t d)
 {
    tree_assert_decl(d);
    tree_array_insert(lookup_item(&tree_object, t, I_DECLS), pos, d);
+   object_write_barrier(&(t->object), &(d->object));
 }
 
 unsigned tree_stmts(tree_t t)
@@ -691,6 +700,7 @@ void tree_add_stmt(tree_t t, tree_t s)
 {
    tree_assert_stmt(s);
    tree_array_add(lookup_item(&tree_object, t, I_STMTS), s);
+   object_write_barrier(&(t->object), &(s->object));
 }
 
 unsigned tree_waveforms(tree_t t)
@@ -708,6 +718,7 @@ void tree_add_waveform(tree_t t, tree_t w)
 {
    assert(w->object.kind == T_WAVEFORM);
    tree_array_add(lookup_item(&tree_object, t, I_WAVES), w);
+   object_write_barrier(&(t->object), &(w->object));
 }
 
 unsigned tree_else_stmts(tree_t t)
@@ -725,6 +736,7 @@ void tree_add_else_stmt(tree_t t, tree_t s)
 {
    tree_assert_stmt(s);
    tree_array_add(lookup_item(&tree_object, t, I_ELSES), s);
+   object_write_barrier(&(t->object), &(s->object));
 }
 
 unsigned tree_conds(tree_t t)
@@ -742,6 +754,7 @@ void tree_add_cond(tree_t t, tree_t c)
 {
    assert(c->object.kind == T_COND);
    tree_array_add(lookup_item(&tree_object, t, I_CONDS), c);
+   object_write_barrier(&(t->object), &(c->object));
 }
 
 bool tree_has_delay(tree_t t)
@@ -760,6 +773,7 @@ void tree_set_delay(tree_t t, tree_t d)
 {
    tree_assert_expr(d);
    lookup_item(&tree_object, t, I_DELAY)->object = &(d->object);
+   object_write_barrier(&(t->object), &(d->object));
 }
 
 unsigned tree_triggers(tree_t t)
@@ -777,6 +791,7 @@ void tree_add_trigger(tree_t t, tree_t s)
 {
    tree_assert_expr(s);
    tree_array_add(lookup_item(&tree_object, t, I_TRIGGERS), s);
+   object_write_barrier(&(t->object), &(s->object));
 }
 
 tree_t tree_target(tree_t t)
@@ -789,6 +804,7 @@ tree_t tree_target(tree_t t)
 void tree_set_target(tree_t t, tree_t lhs)
 {
    lookup_item(&tree_object, t, I_TARGET)->object = &(lhs->object);
+   object_write_barrier(&(t->object), &(lhs->object));
 }
 
 tree_t tree_ref(tree_t t)
@@ -806,6 +822,7 @@ bool tree_has_ref(tree_t t)
 void tree_set_ref(tree_t t, tree_t decl)
 {
    lookup_item(&tree_object, t, I_REF)->object = &(decl->object);
+   object_write_barrier(&(t->object), &(decl->object));
 }
 
 tree_t tree_spec(tree_t t)
@@ -823,6 +840,7 @@ bool tree_has_spec(tree_t t)
 void tree_set_spec(tree_t t, tree_t s)
 {
    lookup_item(&tree_object, t, I_SPEC)->object = &(s->object);
+   object_write_barrier(&(t->object), &(s->object));
 }
 
 unsigned tree_contexts(tree_t t)
@@ -841,6 +859,7 @@ void tree_add_context(tree_t t, tree_t ctx)
    assert(ctx->object.kind == T_USE || ctx->object.kind == T_LIBRARY
           || ctx->object.kind == T_CTXREF);
    tree_array_add(lookup_item(&tree_object, t, I_CONTEXT), ctx);
+   object_write_barrier(&(t->object), &(ctx->object));
 }
 
 unsigned tree_assocs(tree_t t)
@@ -858,6 +877,7 @@ void tree_add_assoc(tree_t t, tree_t a)
 {
    assert(a->object.kind == T_ASSOC);
    tree_array_add(lookup_item(&tree_object, t, I_ASSOCS), a);
+   object_write_barrier(&(t->object), &(a->object));
 }
 
 tree_t tree_severity(tree_t t)
@@ -871,6 +891,7 @@ void tree_set_severity(tree_t t, tree_t s)
 {
    tree_assert_expr(s);
    lookup_item(&tree_object, t, I_SEVERITY)->object = &(s->object);
+   object_write_barrier(&(t->object), &(s->object));
 }
 
 tree_t tree_message(tree_t t)
@@ -889,11 +910,13 @@ void tree_set_message(tree_t t, tree_t m)
 {
    tree_assert_expr(m);
    lookup_item(&tree_object, t, I_MESSAGE)->object = &(m->object);
+   object_write_barrier(&(t->object), &(m->object));
 }
 
 void tree_add_range(tree_t t, tree_t r)
 {
    tree_array_add(lookup_item(&tree_object, t, I_RANGES), r);
+   object_write_barrier(&(t->object), &(r->object));
 }
 
 tree_t tree_range(tree_t t, unsigned n)
@@ -928,6 +951,7 @@ void tree_set_left(tree_t t, tree_t left)
 {
    tree_assert_expr(left);
    lookup_item(&tree_object, t, I_LEFT)->object = &(left->object);
+   object_write_barrier(&(t->object), &(left->object));
 }
 
 tree_t tree_right(tree_t t)
@@ -941,6 +965,7 @@ void tree_set_right(tree_t t, tree_t right)
 {
    tree_assert_expr(right);
    lookup_item(&tree_object, t, I_RIGHT)->object = &(right->object);
+   object_write_barrier(&(t->object), &(right->object));
 }
 
 class_t tree_class(tree_t t)
@@ -964,6 +989,7 @@ void tree_set_reject(tree_t t, tree_t r)
 {
    tree_assert_expr(r);
    lookup_item(&tree_object, t, I_REJECT)->object = &(r->object);
+   object_write_barrier(&(t->object), &(r->object));
 }
 
 bool tree_has_reject(tree_t t)
@@ -982,6 +1008,7 @@ void tree_set_name(tree_t t, tree_t n)
 {
    tree_assert_expr(n);
    lookup_item(&tree_object, t, I_NAME)->object = &(n->object);
+   object_write_barrier(&(t->object), &(n->object));
 }
 
 bool tree_has_name(tree_t t)
@@ -998,6 +1025,7 @@ tree_t tree_file_mode(tree_t t)
 void tree_set_file_mode(tree_t t, tree_t m)
 {
    lookup_item(&tree_object, t, I_FILE_MODE)->object = &(m->object);
+   object_write_barrier(&(t->object), &(m->object));
 }
 
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
@@ -1011,7 +1039,7 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
       .context    = context,
       .kind       = T_LAST_TREE_KIND,
       .generation = object_next_generation(),
-      .deep       = false
+      .deep       = false,
    };
 
    object_visit(&(t->object), &ctx);
@@ -1039,19 +1067,14 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
    return ctx.count;
 }
 
-tree_wr_ctx_t tree_write_begin(fbuf_t *f)
+void tree_write(tree_t t, fbuf_t *f)
 {
-   return (tree_wr_ctx_t)object_write_begin(f);
-}
+   if (global_arena != NULL) {
+      object_arena_freeze(global_arena);
+      global_arena = NULL;
+   }
 
-void tree_write_end(tree_wr_ctx_t ctx)
-{
-   object_write_end((object_wr_ctx_t *)ctx);
-}
-
-void tree_write(tree_t t, tree_wr_ctx_t ctx)
-{
-   object_write(&(t->object), (object_wr_ctx_t *)ctx);
+   object_write(&(t->object), f);
 }
 
 tree_t tree_read(tree_rd_ctx_t ctx)
@@ -1061,9 +1084,11 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    return container_of(o, struct _tree, object);
 }
 
-tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname)
+tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname,
+                              tree_load_fn_t find_deps_fn)
 {
-   return (tree_rd_ctx_t)object_read_begin(f, fname);
+   return (tree_rd_ctx_t)object_read_begin(f, fname,
+                                           (object_load_fn_t)find_deps_fn);
 }
 
 void tree_read_end(tree_rd_ctx_t ctx)
@@ -1186,10 +1211,10 @@ void tree_add_attr_tree(tree_t t, ident_t name, tree_t val)
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 {
    object_rewrite_ctx_t ctx = {
-      .index      = 0,
       .generation = object_next_generation(),
       .fn         = fn,
-      .context    = context
+      .context    = context,
+      .arena      = global_arena
    };
 
    tree_t result = (tree_t)object_rewrite(&(t->object), &ctx);
@@ -1201,26 +1226,23 @@ tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context)
 {
    object_copy_ctx_t ctx = {
       .generation = object_next_generation(),
-      .index      = 0,
       .callback   = fn,
       .context    = context,
-      .copied     = NULL
+      .arena      = global_arena,
    };
 
-   object_copy_mark(&(t->object), &ctx);
-
-   if (t->object.index == UINT32_MAX)
-      return t;   // Nothing to copy
-
-   ctx.copied = xcalloc(sizeof(void *) * ctx.index);
-
-   tree_t copy = (tree_t)object_copy_sweep(&(t->object), &ctx);
-
-   free(ctx.copied);
-   return copy;
+   return (tree_t)object_copy(&(t->object), &ctx);
 }
 
 const char *tree_kind_str(tree_kind_t t)
 {
    return kind_text_map[t];
+}
+
+void make_new_arena(void)
+{
+   if (global_arena != NULL)
+      object_arena_freeze(global_arena);
+
+   global_arena = object_arena_new(OBJECT_ARENA_SZ);
 }

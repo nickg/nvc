@@ -19,9 +19,9 @@
 #define _OBJECT_H
 
 #include "util.h"
-#include "tree.h"
-#include "type.h"
+#include "prim.h"
 #include "array.h"
+#include "tree.h"
 #include "loc.h"
 
 #include <stdint.h>
@@ -105,7 +105,7 @@ typedef uint64_t imask_t;
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_ELSES    \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
-                          | I_LEFT | I_RIGHT | I_LITERALS | I_FIELDS    \
+                          | I_LITERALS | I_FIELDS                       \
                           | I_UNITS | I_CHARS | I_DIMS | I_RANGES       \
                           | I_PTYPES | I_INDEXCON | I_SIGNALS | I_PROCS \
                           | I_NEXUS | I_SCOPES | I_SOURCES)
@@ -123,7 +123,15 @@ enum {
    OBJECT_TAG_COUNT
 };
 
-typedef struct _object object_t;
+
+#define OBJECT_ARENA_SZ      (1 << 24)
+#define OBJECT_PAGE_SZ       (1 << 16)
+#define OBJECT_PAGE_MASK     (OBJECT_PAGE_SZ - 1)
+#define OBJECT_ALIGN_BITS    4
+#define OBJECT_ALIGN         (1 << OBJECT_ALIGN_BITS)
+#define OBJECT_UNMAP_UNUSED  1
+
+STATIC_ASSERT(OBJECT_ALIGN >= sizeof(double));
 
 #define lookup_item(class, t, mask) ({                                  \
          assert((t) != NULL);                                           \
@@ -148,6 +156,9 @@ typedef enum {
 
 typedef uint16_t generation_t;
 typedef uint32_t index_t;
+typedef uint16_t arena_key_t;
+
+typedef A(object_t *) obj_array_t;
 
 typedef struct {
    tree_attr_kind_t kind;
@@ -169,7 +180,7 @@ typedef struct {
 typedef union {
    ident_t       ident;
    object_t     *object;
-   A(object_t*)  obj_array;
+   obj_array_t   obj_array;
    type_t        type;
    unsigned      subkind;
    int64_t       ival;
@@ -183,27 +194,28 @@ typedef union {
 struct _object {
    uint8_t      kind;
    uint8_t      tag;
-   generation_t generation;
-   index_t      index;
+   arena_key_t  arena;
+   uint16_t     __unused;
    loc_t        loc;
    item_t       items[0];
 };
 
+STATIC_ASSERT(sizeof(object_t) == 16);
+
 typedef struct {
-   generation_t    generation;
-   index_t         index;
-   tree_copy_fn_t  callback;
-   void           *context;
-   object_t      **copied;
+   generation_t     generation;
+   tree_copy_fn_t   callback;
+   void            *context;
+   object_arena_t  *arena;
+   hash_t          *copy_map;
 } object_copy_ctx_t;
 
 typedef struct {
    object_t        **cache;
-   index_t           index;
    generation_t      generation;
    tree_rewrite_fn_t fn;
    void             *context;
-   size_t            cache_size;
+   object_arena_t   *arena;
 } object_rewrite_ctx_t;
 
 typedef struct {
@@ -225,7 +237,7 @@ typedef struct {
    const char            **kind_text_map;
    const int               tag;
    const int               last_kind;
-   const int               gc_roots[6];
+   const int               gc_roots[8];
    const int               gc_num_roots;
    int                    *object_nitems;
    size_t                 *object_size;
@@ -238,16 +250,22 @@ typedef struct {
    loc_wr_ctx_t    *loc_ctx;
    unsigned         generation;
    unsigned         n_objects;
+   object_arena_t  *arena;
 } object_wr_ctx_t;
 
+typedef object_t *(*object_load_fn_t)(ident_t);
+
 typedef struct {
-   fbuf_t         *file;
-   ident_rd_ctx_t  ident_ctx;
-   loc_rd_ctx_t   *loc_ctx;
-   unsigned        n_objects;
-   object_t      **store;
-   unsigned        store_sz;
-   char           *db_fname;
+   fbuf_t            *file;
+   ident_rd_ctx_t     ident_ctx;
+   loc_rd_ctx_t      *loc_ctx;
+   unsigned           n_objects;
+   object_t         **store;
+   unsigned           store_sz;
+   char              *db_fname;
+   object_arena_t    *arena;
+   arena_key_t       *key_map;
+   object_load_fn_t   loader_fn;
 } object_rd_ctx_t;
 
 __attribute__((noreturn))
@@ -258,21 +276,34 @@ void item_without_type(imask_t mask);
 
 void object_change_kind(const object_class_t *class,
                         object_t *object, int kind);
-object_t *object_new(const object_class_t *class, int kind);
+object_t *object_new(object_arena_t *arena,
+                     const object_class_t *class, int kind);
 void object_one_time_init(void);
-void object_gc(void);
 void object_visit(object_t *object, object_visit_ctx_t *ctx);
 object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 unsigned object_next_generation(void);
-object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx);
-bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx);
+object_t *object_copy(object_t *object, object_copy_ctx_t *ctx);
 
-void object_write(object_t *object, object_wr_ctx_t *ctx);
-object_wr_ctx_t *object_write_begin(fbuf_t *f);
-void object_write_end(object_wr_ctx_t *ctx);
+void object_write(object_t *object, fbuf_t *f);
 
-object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname);
+object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname,
+                                   object_load_fn_t loader);
 void object_read_end(object_rd_ctx_t *ctx);
 object_t *object_read(object_rd_ctx_t *ctx);
+
+
+#define object_write_barrier(lhs, rhs) do {                     \
+      uintptr_t __lp = (uintptr_t)(lhs) & ~OBJECT_PAGE_MASK;    \
+      uintptr_t __rp = (uintptr_t)(rhs) & ~OBJECT_PAGE_MASK;    \
+      if (__lp != __rp && (rhs) != NULL)                        \
+         __object_write_barrier((lhs), (rhs));                  \
+   } while (0);
+
+void __object_write_barrier(object_t *lhs, object_t *rhs);
+
+object_arena_t *object_arena_new(size_t size);
+void object_arena_freeze(object_arena_t *arena);
+
+void object_add_global_root(object_t **object);
 
 #endif   // _OBJECT_H

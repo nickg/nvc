@@ -175,18 +175,17 @@ static int analyse(int argc, char **argv)
 
       tree_t unit;
       while ((unit = parse())) {
-         if (sem_check(unit) && error_count() == 0)
+         if (sem_check(unit) && error_count() == 0) {
             APUSH(units, unit);
+
+            // Delete any stale vcode to prevent problems in constant folding
+            char *vcode LOCAL = vcode_file_name(tree_ident(unit));
+            lib_delete(lib_work(), vcode);
+
+            simplify(unit, 0);
+            bounds_check(unit);
+         }
       }
-   }
-
-   for (int i = 0; i < units.count; i++) {
-      // Delete any stale vcode to prevent problems in constant folding
-      char *vcode LOCAL = vcode_file_name(tree_ident(units.items[i]));
-      lib_delete(lib_work(), vcode);
-
-      simplify(units.items[i], 0);
-      bounds_check(units.items[i]);
    }
 
    if (error_count() > 0)
@@ -909,9 +908,6 @@ int main(int argc, char **argv)
    set_default_opts();
    intern_strings();
    register_signal_handlers();
-
-   if (is_debugger_running())
-      atexit(tree_gc);
 
    atexit(fbuf_cleanup);
 

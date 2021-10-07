@@ -144,6 +144,10 @@ tree_t call_builtin(subprogram_kind_t builtin, type_t type, ...)
    c->bname = builtin;
    c->decl  = decl;
 
+   // XXX: this is horrible
+   extern void object_add_global_root(object_t **object);
+   object_add_global_root((object_t **)&(c->decl));
+
    cache = c;
 
    tree_t call = tree_new(T_FCALL);

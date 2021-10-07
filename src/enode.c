@@ -60,7 +60,13 @@ object_class_t e_node_object = {
    .gc_num_roots   = 1
 };
 
+extern object_arena_t *global_arena;
+
 struct _e_node {
+   object_t object;
+};
+
+struct _type {
    object_t object;
 };
 
@@ -96,7 +102,7 @@ static inline void e_array_insert(item_t *item, e_node_t after, e_node_t new)
 
 e_node_t e_new(e_kind_t kind)
 {
-   return (e_node_t)object_new(&e_node_object, kind);
+   return (e_node_t)object_new(global_arena, &e_node_object, kind);
 }
 
 e_kind_t e_kind(e_node_t e)
@@ -111,14 +117,14 @@ const char *e_kind_str(e_kind_t t)
 
 void e_write(e_node_t e, fbuf_t *fbuf)
 {
-   object_wr_ctx_t *ctx = object_write_begin(fbuf);
-   object_write(&(e->object), ctx);
-   object_write_end(ctx);
+   object_arena_freeze(global_arena);
+   object_write(&(e->object), fbuf);
 }
 
 e_node_t e_read(fbuf_t *fbuf)
 {
-   object_rd_ctx_t *ctx = object_read_begin(fbuf, fbuf_file_name(fbuf));
+   object_rd_ctx_t *ctx = object_read_begin(fbuf, fbuf_file_name(fbuf),
+                                            (object_load_fn_t)lib_get_qualified);
    object_t *object = object_read(ctx);
    object_read_end(ctx);
    assert(object->tag == OBJECT_TAG_E_NODE);
@@ -234,6 +240,7 @@ void e_add_scope(e_node_t e, e_node_t s)
    assert(s->object.kind == E_SCOPE);
    item_t *item = lookup_item(&e_node_object, e, I_SCOPES);
    e_array_add(item, s);
+   object_write_barrier(&(e->object), &(s->object));
 }
 
 unsigned e_procs(e_node_t e)
@@ -252,6 +259,7 @@ void e_add_proc(e_node_t e, e_node_t p)
    assert(p->object.kind == E_PROCESS);
    item_t *item = lookup_item(&e_node_object, e, I_PROCS);
    e_array_add(item, p);
+   object_write_barrier(&(e->object), &(p->object));
 }
 
 unsigned e_sources(e_node_t e)
@@ -270,6 +278,7 @@ void e_add_source(e_node_t e, e_node_t s)
    assert(s->object.kind == E_PROCESS || s->object.kind == E_SIGNAL);
    item_t *item = lookup_item(&e_node_object, e, I_SOURCES);
    e_array_add(item, s);
+   object_write_barrier(&(e->object), &(s->object));
 }
 
 e_node_t e_parent(e_node_t e)
@@ -282,6 +291,7 @@ e_node_t e_parent(e_node_t e)
 void e_set_parent(e_node_t e, e_node_t p)
 {
    lookup_item(&e_node_object, e, I_PARENT)->object = &(p->object);
+   object_write_barrier(&(e->object), &(p->object));
 }
 
 bool e_has_parent(e_node_t e)
@@ -304,6 +314,7 @@ void e_add_signal(e_node_t e, e_node_t s)
 {
    item_t *item = lookup_item(&e_node_object, e, I_SIGNALS);
    e_array_add(item, s);
+   object_write_barrier(&(e->object), &(s->object));
 }
 
 unsigned e_nexuses(e_node_t e)
@@ -322,6 +333,7 @@ void e_add_nexus(e_node_t e, e_node_t n)
    assert(n->object.kind == E_NEXUS || n->object.kind == E_PADDING);
    item_t *item = lookup_item(&e_node_object, e, I_NEXUS);
    e_array_add(item, n);
+   object_write_barrier(&(e->object), &(n->object));
 }
 
 void e_change_nexus(e_node_t e, unsigned o, e_node_t n)
@@ -330,6 +342,7 @@ void e_change_nexus(e_node_t e, unsigned o, e_node_t n)
    item_t *item = lookup_item(&e_node_object, e, I_NEXUS);
    assert(o < item->obj_array.count);
    item->obj_array.items[o] = &(n->object);
+   object_write_barrier(&(e->object), &(n->object));
 }
 
 void e_insert_nexus(e_node_t e, e_node_t after, e_node_t new)
@@ -338,6 +351,7 @@ void e_insert_nexus(e_node_t e, e_node_t after, e_node_t new)
    assert(new->object.kind == E_NEXUS || after->object.kind == E_PADDING);
 
    e_array_insert(lookup_item(&e_node_object, e, I_NEXUS), after, new);
+   object_write_barrier(&(e->object), &(new->object));
 }
 
 unsigned e_width(e_node_t e)
@@ -382,6 +396,7 @@ void e_set_type(e_node_t e, type_t type)
 {
    assert(type != NULL);
    lookup_item(&e_node_object, e, I_TYPE)->type = type;
+   object_write_barrier(&(e->object), &(type->object));
 }
 
 e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)

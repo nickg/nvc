@@ -302,8 +302,7 @@ static bool sem_check_range(tree_t r, type_t expect)
             // same type and left is equal to expect, but we still need
             // to call sem_check_type for the implicit conversion
             sem_check_type(right, expect);
-
-            tree_set_type(r, expect);
+            sem_check_type(r, expect);
          }
       }
       break;
@@ -997,10 +996,16 @@ static bool sem_check_func_body(tree_t t)
    scope_push(NULL);
    top_scope->subprog = t;
 
+   const int nest_depth = tree_attr_int(t, nested_i, 0);
+
    bool ok = true;
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
+
+      if (is_subprogram(d))
+         tree_add_attr_int(d, nested_i, nest_depth + 1);
+
       ok = sem_check(d) && ok;
 
       if (tree_kind(d) == T_USE)
@@ -1076,10 +1081,16 @@ static bool sem_check_proc_body(tree_t t)
    scope_push(NULL);
    top_scope->subprog = t;
 
+   const int nest_depth = tree_attr_int(t, nested_i, 0);
+
    bool ok = true;
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
+
+      if (is_subprogram(d))
+         tree_add_attr_int(d, nested_i, nest_depth + 1);
+
       ok = sem_check(d) && ok;
 
       if (tree_kind(d) == T_USE)
@@ -1213,6 +1224,9 @@ static bool sem_check_process(tree_t t)
    const int ndecls = tree_decls(t);
    for (int n = 0; n < ndecls; n++) {
       tree_t d = tree_decl(t, n);
+
+      if (is_subprogram(d))
+         tree_add_attr_int(d, nested_i, 1);
 
       if ((ok = sem_check(d) && ok))
          sem_check_static_elab(d);
@@ -1363,10 +1377,6 @@ static bool sem_check_pack_body(tree_t t)
    if (!ok)
       return false;
 
-   // Mark the package declaration as dirty in the library so any changes
-   // to declaration attributes are saved
-   lib_put(lib_work(), pack);
-
    return ok;
 }
 
@@ -1421,6 +1431,9 @@ static bool sem_check_ports(tree_t t)
       ok = sem_check(p) && ok;
 
       ok = sem_no_access_file_or_protected(p, tree_type(p), "ports") && ok;
+
+      if (ok && !tree_has_value(p) && tree_subkind(p) != PORT_IN)
+         tree_set_value(p, make_default_value(tree_type(p), tree_loc(p)));
    }
 
    return ok;
@@ -2092,6 +2105,11 @@ static bool sem_check_fcall(tree_t t)
 
    if (!sem_copy_default_args(t, decl))
       return false;
+
+   if (sem_locally_static(t))
+      tree_set_flag(t, TREE_F_LOCALLY_STATIC);
+   else if (sem_globally_static(t))
+      tree_set_flag(t, TREE_F_GLOBALLY_STATIC);
 
    return true;
 }
@@ -3716,7 +3734,8 @@ static bool sem_locally_static(tree_t t)
       if (predef == ATTR_EVENT || predef == ATTR_ACTIVE
           || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
           || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING
-          || predef == ATTR_DRIVING_VALUE || predef == ATTR_PATH_NAME)
+          || predef == ATTR_DRIVING_VALUE || predef == ATTR_PATH_NAME
+          || predef == ATTR_INSTANCE_NAME || predef == ATTR_SIMPLE_NAME)
          return false;
       else if (!tree_has_value(t)) {
          type_t type = tree_type(tree_name(t));
@@ -4163,6 +4182,12 @@ static bool sem_check_block(tree_t t)
 {
    scope_push(tree_ident(t));
 
+   if (!sem_check_generics(t))
+      return false;
+
+   if (!sem_check_ports(t))
+      return false;
+
    if (!sem_check_map(t, t, tree_ports, tree_port, tree_params, tree_param))
       return false;
 
@@ -4542,11 +4567,16 @@ static bool sem_check_prot_body(tree_t t)
    scope_push(ident_prefix(top_scope->prefix, name, '.'));
    top_scope->flags |= SCOPE_PROTECTED;
 
+   int nvars = 0;
    bool ok = true;
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
       ok = sem_check(d) && ok;
+
+      const tree_kind_t kind = tree_kind(d);
+      if (kind == T_VAR_DECL || kind == T_FILE_DECL)
+         tree_add_attr_int(d, prot_field_i, nvars++);
    }
 
    scope_pop();

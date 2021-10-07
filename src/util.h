@@ -60,6 +60,9 @@
 #endif
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
+#define ALIGN_UP(p, a) (typeof(p))({                  \
+   const typeof(a) __a = (a);                         \
+   (((uintptr_t)(p) + (__a) - 1) & ~((__a) - 1)); })
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
@@ -153,6 +156,13 @@ int next_power_of_2(int n) __attribute__((pure));
 int ilog2(int64_t n) __attribute__((pure));
 int64_t ipow(int64_t x, int64_t y)  __attribute__((pure));
 
+typedef enum {
+   MEM_NONE, MEM_RO, MEM_RW
+} mem_access_t;
+
+void *nvc_memalign(size_t align, size_t sz);
+void nvc_munmap(void *ptr, size_t length);
+void nvc_memprotect(void *ptr, size_t length, mem_access_t prot);
 void *mmap_guarded(size_t sz, const char *tag);
 
 void run_program(const char *const *args, size_t n_args);

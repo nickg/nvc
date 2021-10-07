@@ -147,7 +147,7 @@ static void dump_type_hint(tree_t t)
 {
 #if DUMP_TYPE_HINT
    static int nested = 0;
-   if (++nested == 1) {
+   if (++nested == 1 && tree_has_type(t)) {
       color_printf("$red$$<$/*");
       dump_type(tree_type(t));
       color_printf("$>$$red$*/$$");
@@ -171,8 +171,13 @@ static void dump_expr(tree_t t)
       printf(".");
       // Fall-through
    case T_FCALL:
-      printf("%s", istr(tree_has_ref(t)
-                        ? tree_ident(tree_ref(t)) : tree_ident(t)));
+      if (tree_has_ref(t)) {
+         tree_t decl = tree_ref(t);
+         dump_address(decl);
+         printf("%s", istr(tree_ident(decl)));
+      }
+      else
+         printf("%s", istr(tree_ident(t)));
       dump_params(t, tree_param, tree_params(t), NULL);
       break;
 
@@ -579,7 +584,7 @@ static void dump_type_decl(tree_t t, int indent)
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
-   dump_address(t);
+   if (tree_kind(t) != T_HIER) dump_address(t);
 
    switch (tree_kind(t)) {
    case T_SIGNAL_DECL:
@@ -773,6 +778,7 @@ static void dump_stmt(tree_t t, int indent)
 
    switch (tree_kind(t)) {
    case T_PROCESS:
+      dump_address(t);
       syntax("#process ");
       if (tree_triggers(t) > 0) {
          printf("(");
@@ -839,6 +845,7 @@ static void dump_stmt(tree_t t, int indent)
       return;
 
    case T_BLOCK:
+      dump_address(t);
       syntax("#block #is\n");
       dump_generics(t, indent + 2);
       dump_generic_map(t, indent + 2);
@@ -949,8 +956,13 @@ static void dump_stmt(tree_t t, int indent)
       printf(".");
       // Fall-through
    case T_PCALL:
-      printf("%s", istr(tree_has_ref(t)
-                        ? tree_ident(tree_ref(t)) : tree_ident(t)));
+      if (tree_has_ref(t)) {
+         tree_t decl = tree_ref(t);
+         dump_address(decl);
+         printf("%s", istr(tree_ident(decl)));
+      }
+      else
+         printf("%s", istr(tree_ident(t)));
       dump_params(t, tree_param, tree_params(t), NULL);
       break;
 
@@ -1099,6 +1111,7 @@ static void dump_elab(tree_t t)
 static void dump_entity(tree_t t)
 {
    dump_context(t);
+   dump_address(t);
    syntax("#entity %s #is\n", istr(tree_ident(t)));
    if (tree_generics(t) > 0) {
       syntax("  #generic (\n");
@@ -1139,6 +1152,7 @@ static void dump_decls(tree_t t, int indent)
 static void dump_arch(tree_t t)
 {
    dump_context(t);
+   dump_address(t);
    syntax("#architecture %s #of %s #is\n",
           istr(tree_ident(t)), istr(tree_ident2(t)));
    dump_decls(t, 2);
@@ -1193,10 +1207,10 @@ void dump(tree_t t)
    case T_CONFIGURATION:
       dump_configuration(t);
       break;
+   case T_REF:
    case T_FCALL:
    case T_LITERAL:
    case T_AGGREGATE:
-   case T_REF:
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:
    case T_TYPE_CONV:

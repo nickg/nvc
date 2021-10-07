@@ -3682,6 +3682,36 @@ START_TEST(test_issue426)
 }
 END_TEST
 
+START_TEST(test_instance1)
+{
+   input_from_file(TESTDIR "/lower/instance1.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.INSTANCE1.SUB_I");
+   vcode_select_unit(vu);
+
+   fail_unless(vcode_unit_kind() == VCODE_UNIT_INSTANCE);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_STORE, .name = "WIDTH" },
+      { VCODE_OP_LINK_SIGNAL, .name = "X" },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST_ARRAY, .length = 5 },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3769,6 +3799,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_conv1);
    tcase_add_test(tc, test_resfn1);
    tcase_add_test(tc, test_issue426);
+   tcase_add_test(tc, test_instance1);
    suite_add_tcase(s, tc);
 
    return s;

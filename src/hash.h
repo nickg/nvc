@@ -19,10 +19,9 @@
 #define _HASH_H
 
 #include "util.h"
+#include "prim.h"
 
 #include <limits.h>
-
-typedef struct hash hash_t;
 
 typedef unsigned hash_iter_t;
 

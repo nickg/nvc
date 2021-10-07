@@ -249,6 +249,8 @@ static void bounds_check_array_ref(tree_t t)
 
    if (!tree_has_type(value))
       return;
+   else if (tree_flags(t) & TREE_F_ELIDE_BOUNDS)
+      return;
 
    type_t value_type = tree_type(value);
 

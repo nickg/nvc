@@ -7774,6 +7774,7 @@ tree_t parse(void)
    if (peek() == tEOF)
       return NULL;
 
+   make_new_arena();
    nametab = nametab_new();
 
    tree_t unit = p_design_unit();

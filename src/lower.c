@@ -1157,7 +1157,7 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
             vcode_select_unit(vcode_unit_context());
          }
 
-         obj &= 0x7fffffff;
+         obj &= 0x3fffffff;
          ident_t var_name = vcode_var_name((vcode_var_t)obj);
 
          vcode_state_restore(&state);
@@ -2190,6 +2190,8 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
    // TODO: remove this....
    const bool is_entity_port =
       obj != VCODE_INVALID_VAR && !!(obj & 0x80000000);
+   const bool is_generic =
+      obj != VCODE_INVALID_VAR && !!(obj & 0x40000000);
 
    if (is_entity_port) {
       if (mode == LOWER_THUNK) {
@@ -2213,6 +2215,25 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
          return sig_reg;
       else
          return emit_resolved(lower_array_data(sig_reg));
+   }
+   else if (is_generic) {
+      type_t type = tree_type(decl);
+      vcode_var_t var = obj & 0x3fffffff;
+      if (hops > 0) {
+         vcode_reg_t ptr_reg = emit_var_upref(hops, var);
+         if (type_is_scalar(type))
+            return emit_load_indirect(ptr_reg);
+         else if (type_is_array(type) && !lower_const_bounds(type))
+            return emit_load_indirect(ptr_reg);
+         else
+            return ptr_reg;
+      }
+      else if (type_is_array(type) && lower_const_bounds(type))
+         return emit_index(var, VCODE_INVALID_REG);
+      else if (type_is_record(type) || type_is_protected(type))
+         return emit_index(var, VCODE_INVALID_REG);
+      else
+         return emit_load(var);
    }
    else {
       vcode_reg_t reg = obj;
@@ -5226,16 +5247,14 @@ static void lower_protected_init_func(tree_t body, vcode_type_t vtype,
 
 static void lower_protected_body(tree_t body, vcode_unit_t context)
 {
-   int nvars = 0, nfields = 0;
+   int nfields = 0;
    const int ndecls = tree_decls(body);
    vcode_type_t fields[ndecls];
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(body, i);
       const tree_kind_t kind = tree_kind(d);
-      if (kind == T_VAR_DECL || kind == T_FILE_DECL) {
-         tree_add_attr_int(d, prot_field_i, nvars++);
+      if (kind == T_VAR_DECL || kind == T_FILE_DECL)
          fields[nfields++] = lower_type(tree_type(d));
-      }
    }
 
    vcode_select_unit(context);
@@ -5251,22 +5270,12 @@ static void lower_protected_body(tree_t body, vcode_unit_t context)
 
    lower_decls(body, context);
 
-   for (int i = 0; i < ndecls; i++) {
-      tree_t decl = tree_decl(body, i);
-      if (tree_kind(decl) != T_USE)
-         tree_remove_attr(decl, prot_field_i);
-   }
-
    lower_pop_scope();
 }
 
 static void lower_decls(tree_t scope, vcode_unit_t context)
 {
    const tree_kind_t scope_kind = tree_kind(scope);
-   const bool nested = scope_kind == T_FUNC_BODY || scope_kind == T_PROC_BODY
-      || scope_kind == T_PROCESS;
-
-   const int nest_depth = tree_attr_int(scope, nested_i, 0);
 
    // Lower declarations in two passes with subprograms after signals,
    // variables, constants, etc.
@@ -5279,10 +5288,8 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
       if (mode == LOWER_THUNK
           && (kind == T_SIGNAL_DECL || kind == T_PROT_BODY))
          continue;
-      else if (is_subprogram(d)) {
-         if (nested)
-            tree_add_attr_int(d, nested_i, nest_depth + 1);
-      }
+      else if (is_subprogram(d))
+         continue;
       else if (kind == T_PROT_BODY)
          lower_protected_constants(d);
       else if (scope_kind != T_PROT_BODY) {
@@ -5376,8 +5383,6 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
 
       vcode_reg_t reg = emit_param(vtype, vbounds, tree_ident(p));
       lower_put_vcode_obj(p, reg, top_scope);
-      if (has_subprograms)
-         tree_add_attr_int(p, nested_i, vcode_unit_depth());
    }
 }
 
@@ -5572,6 +5577,7 @@ static void lower_ports(tree_t block)
       tree_t p = tree_param(block, i);
       vcode_reg_t port_reg = VCODE_INVALID_REG;
       tree_t port = NULL;
+      type_t name_type = NULL;
 
       switch (tree_subkind(p)) {
       case P_POS:
@@ -5581,6 +5587,7 @@ static void lower_ports(tree_t block)
             vcode_var_t var = lower_get_var(port, &hops) & 0x3fffffff;
             assert(hops == 0);
             port_reg = emit_load(var);
+            name_type = tree_type(port);
          }
          break;
       case P_NAMED:
@@ -5588,6 +5595,7 @@ static void lower_ports(tree_t block)
             tree_t name = tree_name(p);
             port_reg = lower_expr(name, EXPR_LVALUE);
             port = tree_ref(name_to_ref(name));
+            name_type = tree_type(name);
          }
          break;
       }
@@ -5623,7 +5631,8 @@ static void lower_ports(tree_t block)
          emit_map_signal(port_reg, value_reg, count_reg, source_reg);
       }
       else
-         lower_sub_signals(type, port, port_reg, value_reg, VCODE_INVALID_REG);
+         lower_sub_signals(name_type, port, port_reg, value_reg,
+                           VCODE_INVALID_REG);
    }
 }
 
@@ -5669,7 +5678,7 @@ static void lower_generics(tree_t block)
       if (hint != VCODE_INVALID_HINT)
          vcode_clear_storage_hint(hint);
 
-      lower_put_vcode_obj(g, var | 0x80000000, top_scope);
+      lower_put_vcode_obj(g, var | 0x40000000, top_scope);
    }
 }
 

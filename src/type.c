@@ -112,6 +112,8 @@ object_class_t type_object = {
    .last_kind      = T_LAST_TYPE_KIND
 };
 
+extern object_arena_t *global_arena;
+
 static inline tree_t tree_array_nth(item_t *item, unsigned n)
 {
    return container_of(AGET(item->obj_array, n), struct _tree, object);
@@ -134,7 +136,7 @@ static inline void type_array_add(item_t *item, type_t t)
 
 type_t type_new(type_kind_t kind)
 {
-   return (type_t)object_new(&type_object, kind);
+   return (type_t)object_new(global_arena, &type_object, kind);
 }
 
 type_kind_t type_kind(type_t t)
@@ -270,6 +272,7 @@ tree_t type_dim(type_t t, unsigned n)
 void type_add_dim(type_t t, tree_t r)
 {
    tree_array_add(lookup_item(&type_object, t, I_DIMS), r);
+   object_write_barrier(&(t->object), &(r->object));
 }
 
 type_t type_base(type_t t)
@@ -282,6 +285,7 @@ type_t type_base(type_t t)
 void type_set_base(type_t t, type_t b)
 {
    lookup_item(&type_object, t, I_BASE)->type = b;
+   object_write_barrier(&(t->object), &(b->object));
 }
 
 type_t type_elem(type_t t)
@@ -302,6 +306,7 @@ type_t type_elem(type_t t)
 void type_set_elem(type_t t, type_t e)
 {
    lookup_item(&type_object, t, I_ELEM)->type = e;
+   object_write_barrier(&(t->object), &(e->object));
 }
 
 static type_t type_make_universal(type_kind_t kind, const char *name,
@@ -338,6 +343,8 @@ type_t type_universal_int(void)
       tree_set_ival(max, INT64_MAX);
 
       t = type_make_universal(T_INTEGER, "universal_integer", min, max);
+
+      object_add_global_root((object_t **)&t);
    }
 
    return t;
@@ -357,6 +364,8 @@ type_t type_universal_real(void)
       tree_set_dval(max, DBL_MAX);
 
       t = type_make_universal(T_REAL, "universal_real", min, max);
+
+      object_add_global_root((object_t **)&t);
    }
 
    return t;
@@ -391,6 +400,7 @@ tree_t type_unit(type_t t, unsigned n)
 void type_add_unit(type_t t, tree_t u)
 {
    tree_array_add(lookup_item(&type_object, t, I_UNITS), u);
+   object_write_barrier(&(t->object), &(u->object));
 }
 
 unsigned type_enum_literals(type_t t)
@@ -408,6 +418,7 @@ void type_enum_add_literal(type_t t, tree_t lit)
 {
    assert(tree_kind(lit) == T_ENUM_LIT);
    tree_array_add(lookup_item(&type_object, t, I_LITERALS), lit);
+   object_write_barrier(&(t->object), &(lit->object));
 }
 
 unsigned type_params(type_t t)
@@ -424,6 +435,7 @@ type_t type_param(type_t t, unsigned n)
 void type_add_param(type_t t, type_t p)
 {
    type_array_add(lookup_item(&type_object, t, I_PTYPES), p);
+   object_write_barrier(&(t->object), &(p->object));
 }
 
 unsigned type_fields(type_t t)
@@ -448,6 +460,7 @@ void type_add_field(type_t t, tree_t p)
 {
    assert(p->object.kind == T_FIELD_DECL);
    tree_array_add(lookup_item(&type_object, t, I_FIELDS), p);
+   object_write_barrier(&(t->object), &(p->object));
 }
 
 unsigned type_decls(type_t t)
@@ -464,6 +477,7 @@ tree_t type_decl(type_t t, unsigned n)
 void type_add_decl(type_t t, tree_t p)
 {
    tree_array_add(lookup_item(&type_object, t, I_DECLS), p);
+   object_write_barrier(&(t->object), &(p->object));
 }
 
 type_t type_result(type_t t)
@@ -476,6 +490,7 @@ type_t type_result(type_t t)
 void type_set_result(type_t t, type_t r)
 {
    lookup_item(&type_object, t, I_RESULT)->type = r;
+   object_write_barrier(&(t->object), &(r->object));
 }
 
 unsigned type_index_constrs(type_t t)
@@ -486,6 +501,7 @@ unsigned type_index_constrs(type_t t)
 void type_add_index_constr(type_t t, type_t c)
 {
    type_array_add(lookup_item(&type_object, t, I_INDEXCON), c);
+   object_write_barrier(&(t->object), &(c->object));
 }
 
 type_t type_index_constr(type_t t, unsigned n)
@@ -497,6 +513,7 @@ type_t type_index_constr(type_t t, unsigned n)
 void type_set_constraint(type_t t, tree_t c)
 {
    lookup_item(&type_object, t, I_CONSTR)->object = &(c->object);
+   object_write_barrier(&(t->object), &(c->object));
 }
 
 bool type_has_constraint(type_t t)
@@ -514,6 +531,7 @@ tree_t type_constraint(type_t t)
 void type_set_resolution(type_t t, tree_t r)
 {
    lookup_item(&type_object, t, I_RESOLUTION)->object = &(r->object);
+   object_write_barrier(&(t->object), &(r->object));
 }
 
 bool type_has_resolution(type_t t)
@@ -539,6 +557,7 @@ type_t type_access(type_t t)
 void type_set_access(type_t t, type_t a)
 {
    lookup_item(&type_object, t, I_ACCESS)->type = a;
+   object_write_barrier(&(t->object), &(a->object));
 }
 
 type_t type_file(type_t t)
@@ -549,6 +568,7 @@ type_t type_file(type_t t)
 void type_set_file(type_t t, type_t f)
 {
    lookup_item(&type_object, t, I_FILE)->type = f;
+   object_write_barrier(&(t->object), &(f->object));
 }
 
 const char *type_pp2(type_t t, type_t other)

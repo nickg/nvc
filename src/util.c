@@ -163,6 +163,8 @@ static message_style_t message_style = MESSAGE_FULL;
 static hint_t         *hints = NULL;
 static unsigned        n_errors = 0;
 
+static volatile sig_atomic_t crashing = 0;
+
 static const struct color_escape escapes[] = {
    { "",        ANSI_RESET },
    { "bold",    ANSI_BOLD },
@@ -596,6 +598,15 @@ void note_at(const loc_t *loc, const char *fmt, ...)
       n_errors++;
 }
 
+__attribute__((noreturn))
+static void fatal_exit(int status)
+{
+   if (crashing)
+      _exit(status);
+   else
+      exit(status);
+}
+
 void fatal_at(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;
@@ -613,7 +624,7 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
    if (fatal_fn != NULL)
       (*fatal_fn)();
 
-   exit(EXIT_FAILURE);
+   fatal_exit(EXIT_FAILURE);
 }
 
 void set_error_fn(error_fn_t fn)
@@ -637,7 +648,7 @@ void fatal(const char *fmt, ...)
    if (fatal_fn != NULL)
       (*fatal_fn)();
 
-   exit(EXIT_FAILURE);
+   fatal_exit(EXIT_FAILURE);
 }
 
 void fatal_trace(const char *fmt, ...)
@@ -649,7 +660,7 @@ void fatal_trace(const char *fmt, ...)
 
    show_stacktrace();
 
-   exit(EXIT_FAILURE);
+   fatal_exit(EXIT_FAILURE);
 }
 
 void fatal_errno(const char *fmt, ...)
@@ -853,9 +864,15 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
    uintptr_t ip = 0;
 #endif
 
+   if (sig != SIGUSR1)
+      crashing = 1;
+
+   extern void check_frozen_object_fault(void *addr);
+
    if (sig == SIGSEGV) {
       signal(SIGSEGV, SIG_DFL);
       check_guard_page((uintptr_t)info->si_addr);
+      check_frozen_object_fault(info->si_addr);
    }
 
    color_fprintf(stderr, "\n$red$$bold$*** Caught signal %d (%s)",
@@ -1187,16 +1204,18 @@ int64_t ipow(int64_t x, int64_t y)
    return r;
 }
 
-void *mmap_guarded(size_t sz, const char *tag)
+static long nvc_page_size(void)
 {
 #ifndef __MINGW32__
-   const long pagesz = sysconf(_SC_PAGESIZE);
+   return sysconf(_SC_PAGESIZE);
 #else
-   const long pagesz = 4096;
+   return 4096;   // TODO: how to get page size on Windows?
 #endif
-   const size_t pagemsk = pagesz - 1;
-   if (sz & pagemsk)
-      sz = (sz & ~pagemsk) + pagesz;
+}
+
+static void *nvc_mmap(size_t sz)
+{
+   sz = ALIGN_UP(sz, nvc_page_size());
 
 #if (defined __APPLE__ || defined __OpenBSD__)
    const int flags = MAP_SHARED | MAP_ANON;
@@ -1205,30 +1224,76 @@ void *mmap_guarded(size_t sz, const char *tag)
 #endif
 
 #ifndef __MINGW32__
-   void *ptr = mmap(NULL, sz + pagesz, PROT_READ | PROT_WRITE, flags, -1, 0);
+   void *ptr = mmap(NULL, sz, PROT_READ | PROT_WRITE, flags, -1, 0);
    if (ptr == MAP_FAILED)
       fatal_errno("mmap");
 #else
-   HANDLE handle = CreateFileMapping(NULL, NULL, PAGE_READWRITE,
-                                     0, sz + pagesz, NULL);
-   if (!handle)
-      fatal_errno("CreateFileMapping");
-
-   void *ptr = MapViewOfFileEx(handle, FILE_MAP_ALL_ACCESS, 0,
-                               0, (SIZE_T) (sz + pagesz), (LPVOID) NULL);
-   CloseHandle(handle);
+   void *ptr = VirtualAlloc(NULL, sz, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
    if (ptr == NULL)
-      fatal_errno("MapViewOfFileEx");
+      fatal_errno("VirtualAlloc");
 #endif
-   uint8_t *guard_ptr = (uint8_t *)ptr + sz;
+
+   return ptr;
+}
+
+void nvc_munmap(void *ptr, size_t length)
+{
 #ifndef __MINGW32__
-   if (mprotect(guard_ptr, pagesz, PROT_NONE) < 0)
+   if (munmap(ptr, length) != 0)
+      fatal_errno("munmap");
+#else
+   if (!VirtualFree(ptr, length, MEM_DECOMMIT))
+      fatal_errno("VirtualFree");
+#endif
+}
+
+void *nvc_memalign(size_t align, size_t sz)
+{
+   assert((align & (align - 1)) == 0);
+   const size_t mapsz = ALIGN_UP(sz + align - 1, align);
+   void *ptr = nvc_mmap(mapsz);
+
+   void *aligned = ALIGN_UP(ptr, align);
+   void *limit = aligned + sz;
+
+   const size_t low_waste = aligned - ptr;
+   const size_t high_waste = ptr + mapsz - limit;
+   assert(low_waste + high_waste == align);
+
+   if (low_waste > 0) nvc_munmap(ptr, low_waste);
+   if (high_waste > 0) nvc_munmap(limit, high_waste);
+
+   return aligned;
+}
+
+void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
+{
+#ifndef __MINGW32__
+   static const int map[] = {
+      PROT_NONE, PROT_READ, PROT_READ | PROT_WRITE
+   };
+   if (mprotect(ptr, length, map[prot]) < 0)
       fatal_errno("mprotect");
 #else
+   static const int map[] = {
+      PAGE_NOACCESS, PAGE_READONLY, PAGE_READWRITE
+   };
    DWORD old_prot;
-   if (!VirtualProtect(guard_ptr, pagesz, PAGE_NOACCESS, &old_prot))
+   if (!VirtualProtect(ptr, length, map[prot], &old_prot))
       fatal_errno("VirtualProtect");
 #endif
+}
+
+void *mmap_guarded(size_t sz, const char *tag)
+{
+   const long pagesz = nvc_page_size();
+   sz = ALIGN_UP(sz, pagesz);
+
+   void *ptr = nvc_mmap(sz + pagesz);
+
+   uint8_t *guard_ptr = (uint8_t *)ptr + sz;
+   nvc_memprotect(guard_ptr, pagesz, MEM_NONE);
+
    guard_t *guard = xmalloc(sizeof(guard_t));
    guard->next  = guards;
    guard->tag   = tag;

@@ -29,6 +29,8 @@
 static e_node_t      root = NULL;
 static cprop_vars_t *cprop_vars = NULL;
 
+extern object_arena_t *global_arena;
+
 typedef void (*eopt_nexus_fn_t)(e_node_t, void *);
 
 static void eopt_stmts(tree_t container, e_node_t cursor);
@@ -752,8 +754,8 @@ static void eopt_post_process_nexus(e_node_t root)
 
 static void eopt_post_process_signal(e_node_t e)
 {
-   bool contig = true;
    const int nnexus = e_nexuses(e);
+   bool contig = nnexus > 0;   // Null signal not marked as contiguous
    if (nnexus > 1) {
       unsigned last_pos = e_pos(e_nexus(e, 0));
       for (int i = 1; contig && i < nnexus; i++) {
@@ -784,6 +786,8 @@ e_node_t eopt_build(tree_t elab)
 {
    assert(tree_kind(elab) == T_ELAB);
    assert(root == NULL);
+
+   make_new_arena();   // TODO: should share arena with elab tree
 
    e_node_t e = root = e_new(E_ROOT);
    e_set_ident(e, tree_ident(elab));

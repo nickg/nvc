@@ -17,9 +17,31 @@
 
 #include "object.h"
 #include "common.h"
+#include "hash.h"
 
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
+
+typedef uint64_t mark_mask_t;
+
+typedef A(object_arena_t *) arena_array_t;
+typedef A(object_t **) object_ptr_array_t;
+
+typedef enum { OBJ_DISK, OBJ_FRESH } obj_src_t;
+
+typedef struct _object_arena {
+   void          *base;
+   void          *alloc;
+   void          *limit;
+   bool           frozen;
+   mark_mask_t   *mark_bits;
+   size_t         mark_sz;
+   generation_t   generation;
+   arena_key_t    key;
+   arena_array_t  deps;
+   obj_src_t      source;
+} object_arena_t;
 
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE",    "I_TARGET",
@@ -36,10 +58,97 @@ static const char *item_text_map[] = {
    "I_PATH",     "I_DEPS",      "I_SIZE",     "I_VCODE",      "I_SLICE",
 };
 
-static object_class_t *classes[4];
-static uint32_t        format_digest;
-static generation_t    next_generation = 1;
-static A(object_t*)    all_objects;
+
+static object_class_t     *classes[4];
+static uint32_t            format_digest;
+static generation_t        next_generation = 1;
+static arena_array_t       all_arenas;
+static object_ptr_array_t  global_roots;
+
+#if __SANITIZE_ADDRESS__
+static void object_purge_at_exit(void);
+#endif
+
+static inline bool object_in_arena_p(object_arena_t *arena, object_t *object)
+{
+   return (void *)object >= arena->base && (void *)object < arena->limit;
+}
+
+static inline object_arena_t *object_arena(object_t *object)
+{
+   assert(object->arena < all_arenas.count);
+   assert(object->arena != 0);
+   return all_arenas.items[object->arena];
+}
+
+static ident_t object_arena_name(object_arena_t *arena)
+{
+   if (arena->alloc > arena->base) {
+      object_t *root = (object_t *)arena->base;
+
+      const object_class_t *class = classes[root->tag];
+      const imask_t has = class->has_map[root->kind];
+
+      if (has & I_IDENT) {
+         const int tzc = __builtin_ctzll(I_IDENT);
+         const int off = (root->kind * 64) + tzc;
+         const int n   = class->item_lookup[off];
+
+         return root->items[n].ident;
+      }
+   }
+
+   return ident_new("???");
+}
+
+static bool object_marked_p(object_t *object, generation_t generation)
+{
+   object_arena_t *arena = object_arena(object);
+
+   if (arena->mark_bits == NULL) {
+      const size_t nbits = (arena->limit - arena->base) / OBJECT_ALIGN;
+      arena->mark_sz = ALIGN_UP(nbits, 64) / 8;
+      arena->mark_bits = xcalloc(arena->mark_sz);
+      arena->generation = generation;
+   }
+   else if (arena->generation != generation) {
+      memset(arena->mark_bits, '\0', arena->mark_sz);
+      arena->generation = generation;
+   }
+
+   uintptr_t bit = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
+   uintptr_t word = bit / 64;
+   uint64_t mask = 1ull << bit;
+
+   const bool marked = !!(arena->mark_bits[word] & mask);
+   arena->mark_bits[word] |= mask;
+
+   return marked;
+}
+
+void __object_write_barrier(object_t *lhs, object_t *rhs)
+{
+   const uintptr_t lhs_mask = (uintptr_t)lhs & ~OBJECT_PAGE_MASK;
+   const uintptr_t rhs_mask = (uintptr_t)rhs & ~OBJECT_PAGE_MASK;
+
+   if (lhs_mask == rhs_mask || rhs == NULL)
+      return;
+   else if (lhs->arena == rhs->arena)
+      return;
+
+   object_arena_t *larena = object_arena(lhs);
+   object_arena_t *rarena = object_arena(rhs);
+
+   assert(!larena->frozen);
+   assert(rarena->frozen);
+
+   for (unsigned i = 0; i < larena->deps.count; i++) {
+      if (larena->deps.items[i] == rarena)
+         return;
+   }
+
+   APUSH(larena->deps, rarena);
+}
 
 void object_lookup_failed(const char *name, const char **kind_text_map,
                           int kind, imask_t mask)
@@ -143,6 +252,9 @@ static void object_init(object_class_t *class)
             if (class->change_allowed[j][0] == i)
                max_size = MAX(max_size,
                               class->object_size[class->change_allowed[j][1]]);
+            else if (class->change_allowed[j][1] == i)
+               max_size = MAX(max_size,
+                              class->object_size[class->change_allowed[j][0]]);
          }
 
          if (max_size != class->object_size[i]) {
@@ -174,117 +286,237 @@ void object_one_time_init(void)
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the object items table
-      const uint32_t format_fudge = 16;
+      const uint32_t format_fudge = 17;
 
       format_digest += format_fudge * UINT32_C(2654435761);
+
+#if __SANITIZE_ADDRESS__
+      atexit(object_purge_at_exit);
+#endif
 
       done = true;
    }
 }
 
-object_t *object_new(const object_class_t *class, int kind)
+object_t *object_new(object_arena_t *arena,
+                     const object_class_t *class, int kind)
 {
    if (unlikely(kind >= class->last_kind))
       fatal_trace("invalid kind %d for %s object", kind, class->name);
 
    object_one_time_init();
 
-   object_t *object = xcalloc(class->object_size[kind]);
+   if (unlikely(arena == NULL))
+      fatal_trace("allocating object without active arena");
+
+   const size_t size = ALIGN_UP(class->object_size[kind], OBJECT_ALIGN);
+
+   const uintptr_t alloc_addr = (uintptr_t)arena->alloc;
+   assert((alloc_addr & (OBJECT_ALIGN - 1)) == 0);
+
+   if (unlikely(arena->limit - arena->alloc < size))
+      fatal_trace("out of space in arena %s", istr(object_arena_name(arena)));
+
+   object_t *object = arena->alloc;
+   arena->alloc = (char *)arena->alloc + size;
+
+   memset(object, '\0', size);
 
    object->kind  = kind;
    object->tag   = class->tag;
-   object->index = UINT32_MAX;
+   object->arena = arena->key;
    object->loc   = LOC_INVALID;
-
-   APUSH(all_objects, object);
 
    return object;
 }
 
-static void object_sweep(object_t *object)
+static void gc_forward_one_pointer(object_t **pobject, object_arena_t *arena,
+                                   uint32_t *forward)
 {
-   const object_class_t *class = classes[object->tag];
+   if (*pobject != NULL && object_in_arena_p(arena, *pobject)) {
+      ptrdiff_t index = ((void *)*pobject - arena->base) >> OBJECT_ALIGN_BITS;
+      *pobject = (object_t *)((char *)arena->base + forward[index]);
+   }
+}
 
+static void gc_forward_pointers(object_t *object, object_arena_t *arena,
+                                const object_class_t *class, uint32_t *forward)
+{
    const imask_t has = class->has_map[object->kind];
    const int nitems = class->object_nitems[object->kind];
    imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
+   for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask) {
-         if (ITEM_OBJ_ARRAY & mask)
-            free(object->items[n].obj_array.items);
-         else if (ITEM_ATTRS & mask)
-            free(object->items[n].attrs.table);
-         n++;
+         if (ITEM_OBJECT & mask)
+            gc_forward_one_pointer(&(object->items[i].object), arena, forward);
+         else if (ITEM_OBJ_ARRAY & mask) {
+            for (unsigned j = 0; j < object->items[i].obj_array.count; j++)
+               gc_forward_one_pointer(&(object->items[i].obj_array.items[j]),
+                                      arena, forward);
+         }
+         else if (ITEM_ATTRS & mask) {
+            attr_tab_t *attrs = &(object->items[i].attrs);
+            for (unsigned j = 0; j < attrs->num; j++) {
+               switch (attrs->table[j].kind) {
+               case A_TREE:
+                  gc_forward_one_pointer((object_t **)&(attrs->table[j].tval),
+                                         arena, forward);
+                  break;
+
+               default:
+                  break;
+               }
+            }
+         }
+
+         i++;
       }
    }
-
-   free(object);
 }
 
-void object_gc(void)
+static void gc_mark_from_root(object_t *root, generation_t generation)
 {
-   // Generation will be updated by tree_visit
-   const generation_t base_gen = next_generation;
+   object_visit_ctx_t ctx = {
+      .count      = 0,
+      .postorder  = NULL,
+      .preorder   = NULL,
+      .context    = NULL,
+      .kind       = T_LAST_TREE_KIND,
+      .generation = generation,
+      .deep       = true
+   };
+
+   object_visit(root, &ctx);
+}
+
+static void gc_free_external(object_t *object)
+{
+   const object_class_t *class = classes[object->tag];
+   const imask_t has = class->has_map[object->kind];
+   const int nitems = class->object_nitems[object->kind];
+   imask_t mask = 1;
+   for (int i = 0; i < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_OBJ_ARRAY & mask)
+            ACLEAR(object->items[i].obj_array);
+         else if (ITEM_IDENT_ARRAY & mask)
+            ACLEAR(object->items[i].ident_array);
+         else if (ITEM_ATTRS & mask)
+            free(object->items[i].attrs.table);
+
+         i++;
+      }
+   }
+}
+
+void object_arena_gc(object_arena_t *arena)
+{
+   const generation_t generation = object_next_generation();
+   const uint64_t start_ticks = get_timestamp_us();
 
    // Mark
-   for (unsigned i = 0; i < all_objects.count; i++) {
-      assert(all_objects.items[i] != NULL);
+   for (void *p = arena->base; p != arena->alloc; ) {
+      assert(p < arena->alloc);
+      object_t *object = p;
 
-      const object_class_t *class = classes[all_objects.items[i]->tag];
+      const object_class_t *class = classes[object->tag];
 
       bool top_level = false;
       for (int j = 0; (j < class->gc_num_roots) && !top_level; j++) {
-         if (class->gc_roots[j] == all_objects.items[i]->kind)
+         if (class->gc_roots[j] == object->kind)
             top_level = true;
       }
 
-      if (top_level) {
-         object_visit_ctx_t ctx = {
-            .count      = 0,
-            .postorder  = NULL,
-            .preorder   = NULL,
-            .context    = NULL,
-            .kind       = T_LAST_TREE_KIND,
-            .generation = next_generation++,
-            .deep       = true
-         };
+      if (top_level)
+         gc_mark_from_root(object, generation);
 
-         object_visit(all_objects.items[i], &ctx);
-      }
+      const size_t size =
+         ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
+      p = (char *)p + size;
    }
 
-   // Sweep
-   for (unsigned i = 0; i < all_objects.count; i++) {
-      object_t *object = all_objects.items[i];
-      if (object->generation < base_gen) {
-         object_sweep(object);
-         all_objects.items[i] = NULL;
+   for (unsigned i = 0; i < global_roots.count; i++)
+      gc_mark_from_root(*(global_roots.items[i]), generation);
+
+   // Calculate forwarding addresses
+   const size_t fwdsz = (arena->alloc - arena->base) / OBJECT_ALIGN;
+   uint32_t *forward LOCAL = xmalloc_array(fwdsz, sizeof(uint32_t));
+   unsigned woffset = 0, live = 0, dead = 0;
+   for (void *rptr = arena->base; rptr != arena->alloc; ) {
+      assert(rptr < arena->alloc);
+      object_t *object = rptr;
+
+      const object_class_t *class = classes[object->tag];
+
+      const size_t size =
+         ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
+
+      ptrdiff_t index = (rptr - arena->base) >> OBJECT_ALIGN_BITS;
+      if (!object_marked_p(object, generation)) {
+         forward[index] = UINT32_MAX;
+         gc_free_external(object);
+         dead++;
       }
+      else {
+         forward[index] = woffset;
+         woffset += size;
+         live++;
+      }
+
+      rptr = (char *)rptr + size;
    }
+
+   if (dead == 0)
+      goto skip_gc;
+   else if (woffset == 0)
+      fatal_trace("GC removed all objects from arena %s",
+                  istr(object_arena_name(arena)));
 
    // Compact
-   size_t p = 0;
-   for (unsigned i = 0; i < all_objects.count; i++) {
-      if (all_objects.items[i] != NULL)
-         all_objects.items[p++] = all_objects.items[i];
+   for (void *rptr = arena->base; rptr != arena->alloc; ) {
+      assert(rptr < arena->alloc);
+      object_t *object = rptr;
+
+      const object_class_t *class = classes[object->tag];
+
+      const size_t size =
+         ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
+
+      ptrdiff_t index = (rptr - arena->base) >> OBJECT_ALIGN_BITS;
+      if (forward[index] != UINT32_MAX) {
+         void *wptr = (char *)arena->base + forward[index];
+         assert(wptr <= rptr);
+
+         gc_forward_pointers(object, arena, class, forward);
+
+         if (wptr != rptr) memmove(wptr, rptr, size);
+      }
+
+      rptr = (char *)rptr + size;
    }
 
-   if ((getenv("NVC_GC_VERBOSE") != NULL) || is_debugger_running())
-      notef("GC: freed %zu objects; %zu allocated", all_objects.count - p, p);
+   for (unsigned i = 0; i < global_roots.count; i++)
+      gc_forward_one_pointer(global_roots.items[i], arena, forward);
 
-   ATRIM(all_objects, p);
+   arena->alloc = (char *)arena->base + woffset;
+
+ skip_gc:
+   if ((getenv("NVC_GC_VERBOSE") != NULL) || is_debugger_running()) {
+      const int ticks = get_timestamp_us() - start_ticks;
+      notef("GC: %s: freed %d objects; %d allocated [%d us]",
+            istr(object_arena_name(arena)), dead, live, ticks);
+   }
 }
 
 void object_visit(object_t *object, object_visit_ctx_t *ctx)
 {
    // If `deep' then will follow links above the tree originally passed
    // to tree_visit - e.g. following references back to their declarations
-   // Outside the garbage collector this is usually not what is required
 
-   if ((object == NULL) || (object->generation == ctx->generation))
+   if (object == NULL)
       return;
-
-   object->generation = ctx->generation;
+   else if (object_marked_p(object, ctx->generation))
+      return;
 
    const bool visit =
       (object->tag == OBJECT_TAG_TREE && object->kind == ctx->kind)
@@ -351,10 +583,37 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    if (object == NULL)
       return NULL;
 
-   if (object->generation == ctx->generation) {
-      // Already rewritten this tree so return the cached version
-      return ctx->cache[object->index];
+   if (!object_in_arena_p(ctx->arena, object))
+      return object;
+
+   if (unlikely(ctx->cache == NULL)) {
+      const size_t n = (ctx->arena->alloc - ctx->arena->base) / OBJECT_ALIGN;
+      ctx->cache = xmalloc_array(sizeof(object_t *), n);
    }
+
+   const ptrdiff_t index =
+      ((void *)object - ctx->arena->base) >> OBJECT_ALIGN_BITS;
+
+   if (object_marked_p(object, ctx->generation)) {
+      if (ctx->cache[index] == (object_t *)-1) {
+         // Found a circular reference: eagerly rewrite the object now
+         // and break the cycle
+         if (object->tag == OBJECT_TAG_TREE) {
+            object_t *new =
+               (object_t *)(*ctx->fn)((tree_t)object, ctx->context);
+            object_write_barrier(object, new);
+            return (ctx->cache[index] = new);
+         }
+         else
+            return (ctx->cache[index] = object);
+      }
+      else {
+         // Already rewritten this tree so return the cached version
+         return ctx->cache[index];
+      }
+   }
+
+   ctx->cache[index] = (object_t *)-1;  // Rewrite in progress marker
 
    const imask_t skip_mask = (I_REF | I_ATTRS);
 
@@ -362,7 +621,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
 
    const imask_t has = class->has_map[object->kind];
    const int nitems = class->object_nitems[object->kind];
-   int type_item = -1;
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask & ~skip_mask) {
@@ -370,11 +628,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
             ;
          else if (ITEM_OBJECT & mask) {
             object_t *o = object->items[n].object;
-            if (o != NULL && o->tag == OBJECT_TAG_TYPE)
-               type_item = n;
-            else {
-               object->items[n].object = object_rewrite(o, ctx);
-            }
+            object->items[n].object = object_rewrite(o, ctx);
          }
          else if (ITEM_OBJ_ARRAY & mask) {
             unsigned wptr = 0;
@@ -399,258 +653,298 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          n++;
    }
 
-   if (unlikely(ctx->cache == NULL)) {
-      ctx->cache_size = MIN(4096, all_objects.count);
-      ctx->cache = xcalloc(sizeof(object_t *) * ctx->cache_size);
+   if (ctx->cache[index] != (object_t *)-1) {
+      // The cache was already updated due to a circular reference
    }
-   else if (unlikely(ctx->index >= ctx->cache_size)) {
-      assert(ctx->index < all_objects.count);
-      while (ctx->index >= ctx->cache_size) {
-         const size_t newsz = (ctx->cache_size * 3) / 2;
-         ctx->cache = xrealloc(ctx->cache, newsz * sizeof(object_t *));
-         memset(ctx->cache + ctx->cache_size, '\0',
-                (newsz - ctx->cache_size) * sizeof(object_t *));
-         ctx->cache_size = newsz;
-      }
-   }
-
-   if (object->generation != ctx->generation) {
-      object->generation = ctx->generation;
-      object->index      = ctx->index++;
-   }
-
-   if (object->tag == OBJECT_TAG_TREE) {
+   else if (object->tag == OBJECT_TAG_TREE) {
       // Rewrite this tree before we rewrite the type as there may
       // be a circular reference
       object_t *new = (object_t *)(*ctx->fn)((tree_t)object, ctx->context);
-      if (new != NULL && object != new) {
-         new->generation = ctx->generation;
-         new->index      = object->index;
-      }
-      ctx->cache[object->index] = new;
+      object_write_barrier(object, new);
+      ctx->cache[index] = new;
    }
    else
-      ctx->cache[object->index] = object;
+      ctx->cache[index] = object;
 
-   if (type_item != -1)
-      (void)object_rewrite((object_t *)object->items[type_item].type, ctx);
-
-   return ctx->cache[object->index];
+   return ctx->cache[index];
 }
 
-void object_write(object_t *object, object_wr_ctx_t *ctx)
+static void object_write_ref(object_t *object, fbuf_t *f)
 {
-   if (object == NULL) {
-      write_u16(UINT16_C(0xffff), ctx->file);  // Null marker
-      return;
-   }
+   if (object == NULL)
+      write_u16(0, f);
+   else {
+      object_arena_t *arena = object_arena(object);
+      assert(arena->key != 0);
 
-   if (object->generation == ctx->generation) {
-      // Already visited this tree
-      write_u16(UINT16_C(0xfffe), ctx->file);   // Back reference marker
-      write_u32(object->index, ctx->file);
-      return;
-   }
-
-   object->generation = ctx->generation;
-   object->index      = (ctx->n_objects)++;
-
-   const uint16_t marker = (object->tag & 0xf) << 12 | (object->kind & 0xfff);
-   write_u16(marker, ctx->file);
-
-   if (object->tag == OBJECT_TAG_TREE)
-      loc_write(&object->loc, ctx->loc_ctx);
-
-   const object_class_t *class = classes[object->tag];
-
-   const imask_t has = class->has_map[object->kind];
-   const int nitems = class->object_nitems[object->kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_IDENT & mask)
-            ident_write(object->items[n].ident, ctx->ident_ctx);
-         else if (ITEM_OBJECT & mask)
-            object_write(object->items[n].object, ctx);
-         else if (ITEM_OBJ_ARRAY & mask) {
-            const unsigned count = object->items[n].obj_array.count;
-            write_u32(count, ctx->file);
-            for (unsigned i = 0; i < count; i++)
-               object_write(object->items[n].obj_array.items[i], ctx);
-         }
-         else if (ITEM_INT64 & mask)
-            write_u64(object->items[n].ival, ctx->file);
-         else if (ITEM_INT32 & mask)
-            write_u32(object->items[n].ival, ctx->file);
-         else if (ITEM_DOUBLE & mask)
-            write_double(object->items[n].dval, ctx->file);
-         else if (ITEM_ATTRS & mask) {
-            const attr_tab_t *attrs = &(object->items[n].attrs);
-            write_u16(attrs->num, ctx->file);
-            for (unsigned i = 0; i < attrs->num; i++) {
-               write_u16(attrs->table[i].kind, ctx->file);
-               ident_write(attrs->table[i].name, ctx->ident_ctx);
-
-               switch (attrs->table[i].kind) {
-               case A_STRING:
-                  ident_write(attrs->table[i].sval, ctx->ident_ctx);
-                  break;
-
-               case A_INT:
-                  write_u32(attrs->table[i].ival, ctx->file);
-                  break;
-
-               case A_TREE:
-                  object_write((object_t *)attrs->table[i].tval, ctx);
-                  break;
-
-               case A_PTR:
-                  fatal("pointer attributes cannot be saved");
-               }
-            }
-         }
-         else if (ITEM_IDENT_ARRAY & mask) {
-            item_t *item = &(object->items[n]);
-            write_u32(item->ident_array.count, ctx->file);
-            for (unsigned i = 0; i < item->ident_array.count; i++)
-               ident_write(item->ident_array.items[i], ctx->ident_ctx);
-         }
-         else
-            item_without_type(mask);
-         n++;
-      }
+      write_u16(arena->key, f);
+      write_u32((void *)object - arena->base, f);
    }
 }
 
-object_wr_ctx_t *object_write_begin(fbuf_t *f)
+void object_write(object_t *root, fbuf_t *f)
 {
+   object_arena_t *arena = object_arena(root);
+
    write_u32(format_digest, f);
    write_u8(standard(), f);
+   write_u32(arena->limit - arena->base, f);
 
-   object_wr_ctx_t *ctx = xmalloc(sizeof(object_wr_ctx_t));
-   ctx->file       = f;
-   ctx->generation = next_generation++;
-   ctx->n_objects  = 0;
-   ctx->ident_ctx  = ident_write_begin(f);
-   ctx->loc_ctx    = loc_write_begin(f);
+   ident_wr_ctx_t ident_ctx = ident_write_begin(f);
+   loc_wr_ctx_t *loc_ctx = loc_write_begin(f);
 
-   return ctx;
+   if (root != arena->base)
+      fatal_trace("must write root object first");
+   else if (arena->source == OBJ_DISK)
+      fatal_trace("writing arena %s originally read from disk",
+                  istr(object_arena_name(arena)));
+   else if (!arena->frozen)
+      fatal_trace("arena %s must be frozen before writing to disk",
+                  istr(object_arena_name(arena)));
+
+   write_u16(arena->key, f);
+   ident_write(object_arena_name(arena), ident_ctx);
+
+   arena_key_t max_key = arena->key;
+   for (unsigned i = 0; i < arena->deps.count; i++)
+      max_key = MAX(max_key, arena->deps.items[i]->key);
+   write_u16(max_key, f);
+
+   write_u16(arena->deps.count, f);
+   for (unsigned i = 0; i < arena->deps.count; i++) {
+      write_u16(arena->deps.items[i]->key, f);
+      ident_write(object_arena_name(arena->deps.items[i]), ident_ctx);
+   }
+
+   for (void *p = arena->base; p != arena->alloc; ) {
+      assert(p < arena->alloc);
+
+      object_t *object = p;
+      object_class_t *class = classes[object->tag];
+
+      write_u8(object->tag, f);
+      write_u8(object->kind, f);
+
+      if (object->tag == OBJECT_TAG_TREE || object->tag == OBJECT_TAG_E_NODE)
+         loc_write(&object->loc, loc_ctx);
+
+      const imask_t has = class->has_map[object->kind];
+      const int nitems = class->object_nitems[object->kind];
+      imask_t mask = 1;
+      for (int n = 0; n < nitems; mask <<= 1) {
+         if (has & mask) {
+            if (ITEM_IDENT & mask)
+               ident_write(object->items[n].ident, ident_ctx);
+            else if (ITEM_OBJECT & mask)
+               object_write_ref(object->items[n].object, f);
+            else if (ITEM_OBJ_ARRAY & mask) {
+               const unsigned count = object->items[n].obj_array.count;
+               write_u32(count, f);
+               for (unsigned i = 0; i < count; i++)
+                  object_write_ref(object->items[n].obj_array.items[i], f);
+            }
+            else if (ITEM_INT64 & mask)
+               write_u64(object->items[n].ival, f);
+            else if (ITEM_INT32 & mask)
+               write_u32(object->items[n].ival, f);
+            else if (ITEM_DOUBLE & mask)
+               write_double(object->items[n].dval, f);
+            else if (ITEM_ATTRS & mask) {
+               const attr_tab_t *attrs = &(object->items[n].attrs);
+               write_u16(attrs->num, f);
+               for (unsigned i = 0; i < attrs->num; i++) {
+                  write_u16(attrs->table[i].kind, f);
+                  ident_write(attrs->table[i].name, ident_ctx);
+
+                  switch (attrs->table[i].kind) {
+                  case A_STRING:
+                     ident_write(attrs->table[i].sval, ident_ctx);
+                     break;
+
+                  case A_INT:
+                     write_u32(attrs->table[i].ival, f);
+                     break;
+
+                  case A_TREE:
+                     object_write_ref((object_t *)attrs->table[i].tval, f);
+                     break;
+
+                  case A_PTR:
+                     fatal("pointer attributes cannot be saved");
+                  }
+               }
+            }
+            else if (ITEM_IDENT_ARRAY & mask) {
+               item_t *item = &(object->items[n]);
+               write_u32(item->ident_array.count, f);
+               for (unsigned i = 0; i < item->ident_array.count; i++)
+                  ident_write(item->ident_array.items[i], ident_ctx);
+            }
+            else
+               item_without_type(mask);
+            n++;
+         }
+      }
+
+      p = (char *)p + ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
+   }
+
+   write_u8(0xff, f);   // End of objects marker
+
+   ident_write_end(ident_ctx);
+   loc_write_end(loc_ctx);
 }
 
-void object_write_end(object_wr_ctx_t *ctx)
+static object_t *object_read_ref(object_rd_ctx_t *ctx)
 {
-   ident_write_end(ctx->ident_ctx);
-   loc_write_end(ctx->loc_ctx);
-   free(ctx);
+   arena_key_t key = read_u16(ctx->file);
+   if (key == 0)
+      return NULL;
+
+   arena_key_t mapped = ctx->key_map[key];
+   uint32_t offset = read_u32(ctx->file);
+
+   if (unlikely(mapped == 0))
+      fatal_trace("%s missing dependency with key %d", ctx->db_fname, key);
+
+   assert(mapped < all_arenas.count);
+   assert(mapped > 0);
+   assert((offset & (OBJECT_ALIGN - 1)) == 0);
+
+   object_arena_t *arena = all_arenas.items[mapped];
+   assert(!arena->frozen || offset < arena->alloc - arena->base);
+
+   return (object_t *)((char *)arena->base + offset);
 }
 
 object_t *object_read(object_rd_ctx_t *ctx)
 {
-   uint16_t marker = read_u16(ctx->file);
-   if (marker == UINT16_C(0xffff))
-      return NULL;    // Null marker
-   else if (marker == UINT16_C(0xfffe)) {
-      // Back reference marker
-      index_t index = read_u32(ctx->file);
-      assert(index < ctx->n_objects);
-      return ctx->store[index];
+   arena_key_t key = read_u16(ctx->file);
+   ident_t name = ident_read(ctx->ident_ctx);
+   (void)name;  // Not currently used
+
+   arena_key_t max_key = read_u16(ctx->file);
+
+   ctx->key_map = xcalloc_array(max_key + 1, sizeof(arena_key_t));
+   ctx->key_map[key] = ctx->arena->key;
+
+   const int ndeps = read_u16(ctx->file);
+   for (int i = 0; i < ndeps; i++) {
+      arena_key_t dkey = read_u16(ctx->file);
+      ident_t dep = ident_read(ctx->ident_ctx);
+
+      object_arena_t *arena = NULL;
+      for (unsigned j = 1; arena == NULL && j < all_arenas.count; j++) {
+         if (dep == object_arena_name(all_arenas.items[j]))
+            arena = all_arenas.items[j];
+      }
+
+      if (arena == NULL) {
+         object_t *droot = NULL;
+         if (ctx->loader_fn)
+            droot = (*ctx->loader_fn)(dep);
+
+         if (droot == NULL)
+            fatal_trace("missing dependent object %s", istr(dep));
+
+         arena = object_arena(droot);
+      }
+
+      APUSH(ctx->arena->deps, arena);
+
+      assert(dkey <= max_key);
+      ctx->key_map[dkey] = arena->key;
    }
 
-   const unsigned tag = (marker >> 12) & 0xf;
-   assert(tag < OBJECT_TAG_COUNT);
+   for (;;) {
+      const uint8_t tag = read_u8(ctx->file);
+      if (tag == 0xff) break;
 
-   const object_class_t *class = classes[tag];
+      assert(tag < OBJECT_TAG_COUNT);
 
-   const unsigned kind = marker & 0xfff;
-   assert(kind < class->last_kind);
+      const object_class_t *class = classes[tag];
 
-   object_t *object = object_new(class, kind);
+      const uint8_t kind = read_u8(ctx->file);
 
-   if (tag == OBJECT_TAG_TREE)
-      loc_read(&(object->loc), ctx->loc_ctx);
+      object_t *object = object_new(ctx->arena, class, kind);
 
-   // Stash pointer for later back references
-   // This must be done early as a child node of this type may
-   // reference upwards
-   object->index = ctx->n_objects++;
-   if (ctx->n_objects == ctx->store_sz) {
-      ctx->store_sz *= 2;
-      ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(tree_t));
-   }
-   ctx->store[object->index] = object;
+      if (tag == OBJECT_TAG_TREE || tag == OBJECT_TAG_E_NODE)
+         loc_read(&(object->loc), ctx->loc_ctx);
 
-   const imask_t has = class->has_map[object->kind];
-   const int nitems = class->object_nitems[object->kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_IDENT & mask)
-            object->items[n].ident = ident_read(ctx->ident_ctx);
-         else if (ITEM_OBJECT & mask)
-            object->items[n].object = object_read(ctx);
-         else if (ITEM_OBJ_ARRAY & mask) {
-            const unsigned count = read_u32(ctx->file);
-            ARESIZE(object->items[n].obj_array, count);
-            for (unsigned i = 0; i < count; i++) {
-               object_t *o = object_read(ctx);
-               object->items[n].obj_array.items[i] = o;
-            }
-         }
-         else if (ITEM_INT64 & mask)
-            object->items[n].ival = read_u64(ctx->file);
-         else if (ITEM_INT32 & mask)
-            object->items[n].ival = read_u32(ctx->file);
-         else if (ITEM_DOUBLE & mask)
-            object->items[n].dval = read_double(ctx->file);
-         else if (ITEM_ATTRS & mask) {
-            attr_tab_t *attrs = &(object->items[n].attrs);
-
-            attrs->num = read_u16(ctx->file);
-            if (attrs->num > 0) {
-               attrs->alloc = next_power_of_2(attrs->num);
-               attrs->table = xmalloc_array(sizeof(attr_t), attrs->alloc);
-            }
-
-            for (unsigned i = 0; i < attrs->num; i++) {
-               attrs->table[i].kind = read_u16(ctx->file);
-               attrs->table[i].name = ident_read(ctx->ident_ctx);
-
-               switch (attrs->table[i].kind) {
-               case A_STRING:
-                  attrs->table[i].sval = ident_read(ctx->ident_ctx);
-                  break;
-
-               case A_INT:
-                  attrs->table[i].ival = read_u32(ctx->file);
-                  break;
-
-               case A_TREE:
-                  attrs->table[i].tval = (tree_t)object_read(ctx);
-                  break;
-
-               default:
-                  abort();
+      const imask_t has = class->has_map[object->kind];
+      const int nitems = class->object_nitems[object->kind];
+      imask_t mask = 1;
+      for (int n = 0; n < nitems; mask <<= 1) {
+         if (has & mask) {
+            if (ITEM_IDENT & mask)
+               object->items[n].ident = ident_read(ctx->ident_ctx);
+            else if (ITEM_OBJECT & mask)
+               object->items[n].object = object_read_ref(ctx);
+            else if (ITEM_OBJ_ARRAY & mask) {
+               const unsigned count = read_u32(ctx->file);
+               ARESIZE(object->items[n].obj_array, count);
+               for (unsigned i = 0; i < count; i++) {
+                  object_t *o = object_read_ref(ctx);
+                  object->items[n].obj_array.items[i] = o;
                }
             }
-         }
-         else if (ITEM_IDENT_ARRAY & mask) {
-            const unsigned count = read_u32(ctx->file);
-            ARESIZE(object->items[n].ident_array, count);;
-            for (unsigned i = 0; i < count; i++) {
-               ident_t id = ident_read(ctx->ident_ctx);
-               object->items[n].ident_array.items[i] = id;
+            else if (ITEM_INT64 & mask)
+               object->items[n].ival = read_u64(ctx->file);
+            else if (ITEM_INT32 & mask)
+               object->items[n].ival = read_u32(ctx->file);
+            else if (ITEM_DOUBLE & mask)
+               object->items[n].dval = read_double(ctx->file);
+            else if (ITEM_ATTRS & mask) {
+               attr_tab_t *attrs = &(object->items[n].attrs);
+
+               attrs->num = read_u16(ctx->file);
+               if (attrs->num > 0) {
+                  attrs->alloc = next_power_of_2(attrs->num);
+                  attrs->table = xmalloc_array(sizeof(attr_t), attrs->alloc);
+               }
+
+               for (unsigned i = 0; i < attrs->num; i++) {
+                  attrs->table[i].kind = read_u16(ctx->file);
+                  attrs->table[i].name = ident_read(ctx->ident_ctx);
+
+                  switch (attrs->table[i].kind) {
+                  case A_STRING:
+                     attrs->table[i].sval = ident_read(ctx->ident_ctx);
+                     break;
+
+                  case A_INT:
+                     attrs->table[i].ival = read_u32(ctx->file);
+                     break;
+
+                  case A_TREE:
+                     attrs->table[i].tval = (tree_t)object_read_ref(ctx);
+                     break;
+
+                  default:
+                     abort();
+                  }
+               }
             }
+            else if (ITEM_IDENT_ARRAY & mask) {
+               const unsigned count = read_u32(ctx->file);
+               ARESIZE(object->items[n].ident_array, count);;
+               for (unsigned i = 0; i < count; i++) {
+                  ident_t id = ident_read(ctx->ident_ctx);
+                  object->items[n].ident_array.items[i] = id;
+               }
+            }
+            else
+               item_without_type(mask);
+            n++;
          }
-         else
-            item_without_type(mask);
-         n++;
       }
    }
 
-   return object;
+   return (object_t *)ctx->arena->base;
 }
 
-object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname)
+object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname,
+                                   object_load_fn_t loader_fn)
 {
    object_one_time_init();
 
@@ -667,6 +961,13 @@ object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname)
             "is more recent that the currently selected standard %s",
             fname, standard_text(std), standard_text(standard()));
 
+   const unsigned size = read_u32(f);
+   if (size > OBJECT_ARENA_SZ)
+      fatal("%s: arena size %u is greater than current maximum %u",
+            fname, size, OBJECT_ARENA_SZ);
+   else if (size & OBJECT_PAGE_MASK)
+      fatal("%s: arena size %x bad alignment", fname, size);
+
    object_rd_ctx_t *ctx = xcalloc(sizeof(object_rd_ctx_t));
    ctx->file      = f;
    ctx->ident_ctx = ident_read_begin(f);
@@ -675,16 +976,21 @@ object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname)
    ctx->store     = xmalloc_array(ctx->store_sz, sizeof(object_t *));
    ctx->n_objects = 0;
    ctx->db_fname  = xstrdup(fname);
+   ctx->arena     = object_arena_new(size);
+   ctx->loader_fn = loader_fn;
 
+   ctx->arena->source = OBJ_DISK;
    return ctx;
 }
 
 void object_read_end(object_rd_ctx_t *ctx)
 {
+   object_arena_freeze(ctx->arena);
    ident_read_end(ctx->ident_ctx);
    loc_read_end(ctx->loc_ctx);
    free(ctx->store);
    free(ctx->db_fname);
+   free(ctx->key_map);
    free(ctx);
 }
 
@@ -693,23 +999,27 @@ unsigned object_next_generation(void)
    return next_generation++;
 }
 
-bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
+static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
 {
    if (object == NULL)
       return false;
 
-   if (object->generation == ctx->generation)
-      return (object->index != UINT32_MAX);
+   if (ctx->copy_map == NULL)
+      ctx->copy_map = hash_new(1024, true);
 
-   object->generation = ctx->generation;
-   object->index      = UINT32_MAX;
+   if (object_marked_p(object, ctx->generation))
+      return hash_get(ctx->copy_map, object) != NULL;
 
    const object_class_t *class = classes[object->tag];
 
    bool marked = false;
-   if (object->tag == OBJECT_TAG_TREE) {
-      if ((marked = (*ctx->callback)((tree_t)object, ctx->context)))
-         object->index = (ctx->index)++;
+   if (object->tag == OBJECT_TAG_TREE)
+      marked = (*ctx->callback)((tree_t)object, ctx->context);
+
+   object_t *copy = NULL;
+   if (marked) {
+      copy = object_new(ctx->arena, class, object->kind);
+      hash_put(ctx->copy_map, object, copy);
    }
 
    int type_item = -1;
@@ -725,14 +1035,14 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
             if (o != NULL && o->tag == OBJECT_TAG_TYPE)
                type_item = n;
             else
-               marked = object_copy_mark(o, ctx) || marked;
+               marked |= object_copy_mark(o, ctx);
          }
          else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_OBJ_ARRAY & mask) {
             for (unsigned i = 0; i < object->items[n].obj_array.count; i++) {
                object_t *o = object->items[n].obj_array.items[i];
-               marked = object_copy_mark(o, ctx) || marked;
+               marked |= object_copy_mark(o, ctx);
             }
          }
          else if (ITEM_INT64 & mask)
@@ -749,77 +1059,189 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
 
    // Check type last as it may contain a circular reference
    if (type_item != -1)
-      marked = object_copy_mark(object->items[type_item].object, ctx)
-         || marked;
+      marked |= object_copy_mark(object->items[type_item].object, ctx);
 
-   if (marked && (object->index == UINT32_MAX))
-      object->index = (ctx->index)++;
+   if (marked && copy == NULL) {
+      copy = object_new(ctx->arena, class, object->kind);
+      hash_put(ctx->copy_map, object, copy);
+   }
 
    return marked;
 }
 
-object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
+static object_t *object_copy_map(object_t *object, object_copy_ctx_t *ctx)
 {
    if (object == NULL)
       return NULL;
 
-   assert(object->generation == ctx->generation);
+   object_t *map = hash_get(ctx->copy_map, object);
+   return map ?: object;
+}
 
-   if (object->index == UINT32_MAX)
-      return object;
+object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
+{
+   (void)object_copy_mark(root, ctx);
 
-   assert(object->index < ctx->index);
-
-   if (ctx->copied[object->index] != NULL) {
-      // Already copied this object
-      return ctx->copied[object->index];
+   object_t *result = hash_get(ctx->copy_map, root);
+   if (result == NULL) {
+      hash_free(ctx->copy_map);
+      return root;
    }
 
-   const object_class_t *class = classes[object->tag];
+   unsigned ncopied = 0;
+   const void *key;
+   void *value;
+   hash_iter_t it = HASH_BEGIN;
+   while (hash_iter(ctx->copy_map, &it, &key, &value)) {
+      const object_t *object = key;
+      object_t *copy = value;
+      ncopied++;
 
-   object_t *copy = object_new(class, object->kind);
-   ctx->copied[object->index] = copy;
+      copy->loc = object->loc;
 
-   copy->loc = object->loc;
+      const object_class_t *class = classes[object->tag];
 
-   const imask_t has = class->has_map[object->kind];
-   const int nitems = class->object_nitems[object->kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_IDENT & mask)
-            copy->items[n].ident = object->items[n].ident;
-         else if (ITEM_OBJECT & mask)
-            copy->items[n].object =
-               object_copy_sweep(object->items[n].object, ctx);
-         else if (ITEM_DOUBLE & mask)
-            copy->items[n].dval = object->items[n].dval;
-         else if (ITEM_OBJ_ARRAY & mask) {
-            const item_t *from = &(object->items[n]);
-            item_t *to = &(copy->items[n]);
-            ARESIZE(to->obj_array, from->obj_array.count);
-            for (size_t i = 0; i < from->obj_array.count; i++) {
-               object_t *o = object_copy_sweep(from->obj_array.items[i], ctx);
-               to->obj_array.items[i] = o;
+      const imask_t has = class->has_map[object->kind];
+      const int nitems = class->object_nitems[object->kind];
+      imask_t mask = 1;
+      for (int n = 0; n < nitems; mask <<= 1) {
+         if (has & mask) {
+            if (ITEM_IDENT & mask)
+               copy->items[n].ident = object->items[n].ident;
+            else if (ITEM_OBJECT & mask) {
+               object_t *o = object_copy_map(object->items[n].object, ctx);
+               copy->items[n].object = o;
+               object_write_barrier(copy, o);
             }
-         }
-         else if ((ITEM_INT64 & mask) || (ITEM_INT32 & mask))
-            copy->items[n].ival = object->items[n].ival;
-         else if (ITEM_ATTRS & mask) {
-            if ((copy->items[n].attrs.num = object->items[n].attrs.num) > 0) {
-               copy->items[n].attrs.alloc = object->items[n].attrs.alloc;
-               copy->items[n].attrs.table =
-                  xmalloc_array(copy->items[n].attrs.alloc, sizeof(attr_t));
-               for (unsigned i = 0; i < object->items[n].attrs.num; i++)
-                  copy->items[n].attrs.table[i] =
-                     object->items[n].attrs.table[i];
+            else if (ITEM_DOUBLE & mask)
+               copy->items[n].dval = object->items[n].dval;
+            else if (ITEM_OBJ_ARRAY & mask) {
+               const item_t *from = &(object->items[n]);
+               item_t *to = &(copy->items[n]);
+               ARESIZE(to->obj_array, from->obj_array.count);
+               for (size_t i = 0; i < from->obj_array.count; i++) {
+                  object_t *o = object_copy_map(from->obj_array.items[i], ctx);
+                  to->obj_array.items[i] = o;
+                  object_write_barrier(copy, o);
+               }
             }
+            else if ((ITEM_INT64 & mask) || (ITEM_INT32 & mask))
+               copy->items[n].ival = object->items[n].ival;
+            else if (ITEM_ATTRS & mask) {
+               if ((copy->items[n].attrs.num = object->items[n].attrs.num) > 0) {
+                  copy->items[n].attrs.alloc = object->items[n].attrs.alloc;
+                  copy->items[n].attrs.table =
+                     xmalloc_array(copy->items[n].attrs.alloc, sizeof(attr_t));
+                  for (unsigned i = 0; i < object->items[n].attrs.num; i++)
+                     copy->items[n].attrs.table[i] =
+                        object->items[n].attrs.table[i];
+               }
+            }
+            else
+               item_without_type(mask);
+            n++;
          }
-         else
-            item_without_type(mask);
-         n++;
       }
    }
 
-   return copy;
+   if (getenv("NVC_GC_VERBOSE") != NULL)
+      notef("copied %d objects into arena %s", ncopied,
+            istr(object_arena_name(ctx->arena)));
+
+   hash_free(ctx->copy_map);
+   return result;
 }
+
+object_arena_t *object_arena_new(size_t size)
+{
+   if (all_arenas.count == 0)
+      APUSH(all_arenas, NULL);   // Dummy null arena
+
+   object_arena_t *arena = xcalloc(sizeof(object_arena_t));
+   arena->base   = nvc_memalign(OBJECT_PAGE_SZ, size);
+   arena->alloc  = arena->base;
+   arena->limit  = (char *)arena->base + size;
+   arena->key    = all_arenas.count;
+   arena->source = OBJ_FRESH;
+
+   APUSH(all_arenas, arena);
+
+   if (all_arenas.count == UINT16_MAX - 1)
+      fatal_trace("too many object arenas");
+
+   return arena;
+}
+
+void object_arena_freeze(object_arena_t *arena)
+{
+   if (arena->frozen)
+      fatal_trace("arena %s already frozen", istr(object_arena_name(arena)));
+
+   if (arena->source == OBJ_FRESH)
+      object_arena_gc(arena);
+
+   if (getenv("NVC_GC_VERBOSE") != NULL)
+      notef("arena %s frozen (%d bytes)", istr(object_arena_name(arena)),
+            (int)(arena->alloc - arena->base));
+
+   void *next_page = ALIGN_UP(arena->alloc, OBJECT_PAGE_SZ);
+   nvc_memprotect(arena->base, next_page - arena->base, MEM_RO);
+
+   if (next_page < arena->limit) {
+#if OBJECT_UNMAP_UNUSED
+      nvc_munmap(next_page, arena->limit - next_page);
+      arena->limit = next_page;
+#else
+      // This can be useful for debugging use-after-free
+      nvc_memprotect(next_page, arena->limit - next_page, MEM_NONE);
+#endif
+   }
+
+   arena->frozen = true;
+}
+
+void check_frozen_object_fault(void *addr)
+{
+   for (unsigned i = 1; i < all_arenas.count; i++) {
+      object_arena_t *arena = AGET(all_arenas, i);
+      if (!arena->frozen)
+         continue;
+      else if (addr < arena->base)
+         continue;
+      else if (addr >= arena->limit)
+         continue;
+
+      fatal_trace("Write to object in frozen arena %s [address=%p]",
+                  istr(object_arena_name(arena)), addr);
+   }
+}
+
+void object_add_global_root(object_t **object)
+{
+   APUSH(global_roots, object);
+}
+
+#if __SANITIZE_ADDRESS__
+static void object_arena_purge(object_arena_t *arena)
+{
+   nvc_memprotect(arena->base, arena->limit - arena->base, MEM_RW);
+
+   for (void *p = arena->base; p != arena->alloc; ) {
+      object_t *object = p;
+      object_class_t *class = classes[object->tag];
+      gc_free_external(object);
+      p = (char *)p + ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
+   }
+
+   nvc_munmap(arena->base, arena->limit - arena->base);
+}
+
+static void object_purge_at_exit(void)
+{
+   // Address sanitizer cannot track addresses from user-mmaped regions
+   // so manually free up all malloc-ed memory accessible from objects
+
+   for (unsigned i = 1; i < all_arenas.count; i++)
+      object_arena_purge(AGET(all_arenas, i));
+}
+#endif  // __SANITIZE_ADDRESS__

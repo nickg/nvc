@@ -1,5 +1,6 @@
 #include "type.h"
 #include "common.h"
+#include "tree.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -8,6 +9,11 @@
 
 START_TEST(test_integer)
 {
+   make_new_arena();
+
+   tree_t dummy = tree_new(T_ENTITY);
+   (void)dummy;   // Ensure at least one object survives GC
+
    type_t t = type_new(T_INTEGER);
    int64_t v;
 
@@ -39,6 +45,11 @@ END_TEST
 
 START_TEST(test_enum)
 {
+   make_new_arena();
+
+   tree_t dummy = tree_new(T_ENTITY);
+   (void)dummy;   // Ensure at least one object survives GC
+
    int64_t v;
    type_t t = type_new(T_ENUM);
    {
@@ -69,6 +80,11 @@ END_TEST
 
 START_TEST(test_subtype)
 {
+   make_new_arena();
+
+   tree_t dummy = tree_new(T_ENTITY);
+   (void)dummy;   // Ensure at least one object survives GC
+
    int64_t v;
    type_t t = type_new(T_ENUM);
    type_t s = type_new(T_SUBTYPE);

@@ -853,6 +853,38 @@ START_TEST(test_issue425)
 }
 END_TEST
 
+START_TEST(test_static1)
+{
+   input_from_file(TESTDIR "/simp/static1.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   tree_t bigram = tree_stmt(top, 0);
+   fail_unless(tree_kind(bigram) == T_BLOCK);
+   fail_unless(tree_ident(bigram) == ident_new("BIGRAM"));
+
+   tree_t addr = tree_decl(bigram, 5);
+   fail_unless(tree_kind(addr) == T_SIGNAL_DECL);
+   fail_unless(tree_ident(addr) == ident_new("ADDR"));
+   fail_unless(folded_i(tree_left(range_of(tree_type(addr), 0)), 9));
+
+   tree_t uut = tree_stmt(tree_stmt(top, 0), 1);
+   fail_unless(tree_kind(uut) == T_BLOCK);
+   fail_unless(tree_ident(uut) == ident_new("UUT"));
+
+   tree_t addr_p = tree_port(uut, 1);
+   fail_unless(tree_kind(addr_p) == T_PORT_DECL);
+   fail_unless(tree_ident(addr_p) == ident_new("ADDR"));
+   fail_unless(folded_i(tree_left(range_of(tree_type(addr_p), 0)), 9));
+
+   tree_t addr_r = tree_decl(uut, 1);
+   fail_unless(tree_kind(addr_r) == T_SIGNAL_DECL);
+   fail_unless(tree_ident(addr_r) == ident_new("ADDR_R"));
+   fail_unless(folded_i(tree_left(range_of(tree_type(addr_r), 0)), 9));
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -883,6 +915,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_func9);
    tcase_add_test(tc_core, test_allsens);
    tcase_add_test(tc_core, test_issue425);
+   tcase_add_test(tc_core, test_static1);
    suite_add_tcase(s, tc_core);
 
    return s;

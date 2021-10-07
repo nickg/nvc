@@ -53,13 +53,6 @@ typedef struct {
    rw_list_t rwlist;
 } elab_ctx_t;
 
-typedef struct copy_list copy_list_t;
-
-struct copy_list {
-   copy_list_t *next;
-   tree_t       tree;
-};
-
 typedef struct {
    lib_t    lib;
    ident_t  name;
@@ -248,7 +241,11 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
       fatal_at(tree_loc(t), "cannot find unit %s", istr(cname));
 
    // Always use real library name rather than WORK alias
-   tree_set_ident(t, tree_ident(unit));
+   tree_t new = tree_new(T_USE);
+   tree_set_loc(new, tree_loc(t));
+   tree_set_ident(new, tree_ident(unit));
+   tree_set_ident2(new, all_i);
+
 
    if (tree_kind(unit) == T_PACKAGE) {
       elab_copy_context(unit, ctx);
@@ -260,10 +257,10 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
       if (body != NULL)
          elab_copy_context(body, ctx);
 
-      tree_add_context(ctx->root, t);
+      tree_add_context(ctx->root, new);
    }
    else
-     tree_add_context(ctx->root, t);
+     tree_add_context(ctx->root, new);
 }
 
 static bool elab_have_context(tree_t unit, ident_t name)
@@ -295,8 +292,6 @@ static void elab_context_walk_fn(lib_t lib, ident_t name, int kind, void *contex
 
 static void elab_use_clause(tree_t use, const elab_ctx_t *ctx)
 {
-   tree_set_ident2(use, all_i);
-
    ident_t name = tree_ident(use);
    ident_t lname = ident_until(name, '.');
 
@@ -354,37 +349,32 @@ static bool elab_should_copy(tree_t t, void *__ctx)
 {
    switch (tree_kind(t)) {
    case T_GENVAR:
-   case T_PROCESS:
-   case T_ARCH:
       return true;
-   case T_LITERAL:
-   case T_ASSOC:
-   case T_PARAM:
-   case T_WAVEFORM:
-   case T_ARRAY_SLICE:
-   case T_UNIT_DECL:
-   case T_USE:
-   case T_IF_GENERATE:
-   case T_LIBRARY:
-   case T_TYPE_CONV:
-   case T_ALL:
-   case T_OPEN:
-   case T_ATTR_REF:
-   case T_NEW:
-   case T_BINDING:
-   case T_SPEC:
-   case T_AGGREGATE:
-   case T_CONSTRAINT:
-   case T_QUALIFIED:
-   case T_RANGE:
-   case T_SIGNAL_DECL:
-       return false;
-   case T_VAR_DECL:
-      if (tree_flags(t) & TREE_F_SHARED)
-         return true;
-      // Fall-through
-   default:
+   case T_FUNC_DECL:
+   case T_FUNC_BODY:
+   case T_PROC_DECL:
+   case T_PROC_BODY:
       return tree_attr_int(t, elab_copy_i, 0);
+   case T_FCALL:
+      // Globally static expressions should be copied and folded
+      return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC);
+   case T_REF:
+      {
+         tree_t decl = tree_ref(t);
+         if (tree_attr_int(decl, elab_copy_i, 0))
+            return true;
+         else {
+            // These may appear in attribute references like 'PATH_NAME
+            // which need to get rewritten to point at the corresponding
+            // block in the elaborated design
+            const tree_kind_t kind = tree_kind(decl);
+            return kind == T_ENTITY || kind == T_ARCH || kind == T_BLOCK;
+         }
+      }
+   case T_VAR_DECL:
+      return !!(tree_flags(t) & TREE_F_SHARED);
+   default:
+      return false;
    }
 }
 
@@ -406,7 +396,7 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
       tree_t comp_f = (*tree_F)(comp, i);
 
       bool found = false;
-      for (int j = 0; j < entity_nf; j++) {
+      for (int j = 0; !found && j < entity_nf; j++) {
          tree_t entity_f = (*tree_F)(entity, j);
 
          if (tree_ident(comp_f) != tree_ident(entity_f))
@@ -616,10 +606,6 @@ static void elab_ports(tree_t entity, tree_t inst, elab_ctx_t *ctx)
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(entity, i), map = NULL;
 
-      // TODO: move this to sem?
-      if (!tree_has_value(p) && tree_subkind(p) != PORT_IN)
-         tree_set_value(p, make_default_value(tree_type(p), tree_loc(p)));
-
       if (i < nparams) {
          tree_t m = tree_param(inst, i);
          if (tree_subkind(m) == P_POS) {
@@ -713,20 +699,16 @@ static void elab_ports(tree_t entity, tree_t inst, elab_ctx_t *ctx)
    }
 }
 
-static void elab_generics(tree_t entity, tree_t inst, elab_ctx_t *ctx)
+static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
+                          elab_ctx_t *ctx)
 {
-   const int ngenerics = tree_generics(entity);
+   const int ngenerics = tree_generics(comp);
    const int ngenmaps = tree_genmaps(inst);
 
-   int inst_generics = 0;
-   tree_t inst_unit = NULL;
-   if (tree_kind(inst) == T_INSTANCE) {
-      inst_unit = tree_ref(inst);   // May be component declaration
-      inst_generics = tree_generics(inst_unit);
-   }
+   assert(tree_generics(entity) == ngenerics);
 
    for (int i = 0; i < ngenerics; i++) {
-      tree_t g = tree_generic(entity, i);
+      tree_t g = tree_generic(comp, i);
       tree_add_generic(ctx->out, g);
 
       tree_t map = NULL;
@@ -774,8 +756,17 @@ static void elab_generics(tree_t entity, tree_t inst, elab_ctx_t *ctx)
 
       tree_t value = tree_value(map);
       elab_rewrite_later(g, value, ctx);
-      if (inst_unit != NULL && i < inst_generics)   // TODO: avoid if possible
-         elab_rewrite_later(tree_generic(inst_unit, i), value, ctx);
+
+      if (entity != comp) {
+         // Find the matching generic in the entity declaration
+         for (unsigned j = 0; j < ngenerics; j++) {
+            tree_t gj = tree_generic(entity, j);
+            if (tree_ident(gj) == tree_ident(g)) {
+               elab_rewrite_later(gj, value, ctx);
+               break;
+            }
+         }
+      }
    }
 }
 
@@ -835,19 +826,21 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    };
 
    tree_t entity = tree_ref(arch);
+   tree_t comp = tree_ref(t);
+
    elab_remangle_subprogram_names(entity, ctx->path);
    elab_push_scope(arch, &new_ctx);
    elab_copy_context(entity, &new_ctx);
-   elab_generics(entity, t, &new_ctx);
+   elab_generics(entity, comp, t, &new_ctx);
    elab_fold_generics(entity, &new_ctx);
    elab_ports(entity, t, &new_ctx);
-   elab_fold_generics(b, &new_ctx);    // TODO: avoid this if possible
    elab_decls(entity, &new_ctx);
    elab_rewrite_later(entity, b, &new_ctx);
    elab_rewrite_later(arch, b, &new_ctx);
    elab_fold_generics(arch, &new_ctx);
 
    if (error_count() == 0) {
+      simplify(b, EVAL_LOWER);
       bounds_check(b);
       set_hint_fn(elab_hint_fn, t);
       simplify(arch, EVAL_LOWER);
@@ -1027,7 +1020,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    };
 
    elab_push_scope(t, &new_ctx);
-   elab_generics(t, t, &new_ctx);
+   elab_generics(t, t, t, &new_ctx);
    elab_rewrite_later(t, b, &new_ctx);
    elab_fold_generics(t, &new_ctx);
    elab_ports(t, t, &new_ctx);
@@ -1141,8 +1134,10 @@ static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
    }
 }
 
-static void elab_top_level(tree_t entity, tree_t arch, const elab_ctx_t *ctx)
+static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
 {
+   tree_t entity = tree_ref(arch);
+
    const char *name = simple_name(istr(tree_ident(entity)));
    ident_t ninst = hpathf(ctx->inst, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
@@ -1207,6 +1202,8 @@ void elab_set_generic(const char *name, const char *value)
 
 tree_t elab(tree_t top)
 {
+   make_new_arena();
+
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, ident_prefix(tree_ident(top),
                                   ident_new("elab"), '.'));
@@ -1223,12 +1220,12 @@ tree_t elab(tree_t top)
    switch (tree_kind(top)) {
    case T_ENTITY:
       {
-         tree_t arch = pick_arch(NULL, tree_ident(top), NULL, &ctx);
-         elab_top_level(top, arch, &ctx);
+         tree_t arch = elab_copy(pick_arch(NULL, tree_ident(top), NULL, &ctx));
+         elab_top_level(arch, &ctx);
       }
       break;
    case T_ARCH:
-      elab_top_level(tree_ref(top), top, &ctx);
+      elab_top_level(top, &ctx);
       break;
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
