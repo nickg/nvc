@@ -182,6 +182,9 @@ START_TEST(test_color_printf)
 
    char *LOCAL str6 = color_asprintf("$missing");
    ck_assert_str_eq(str6, "$missing");
+
+   char *LOCAL str7 = color_asprintf("$<$$red$override$$$>$");
+   ck_assert_str_eq(str7, "override");
 }
 END_TEST
 

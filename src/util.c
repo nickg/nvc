@@ -337,6 +337,8 @@ static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)
    // Replace color strings like "$red$foo$$bar" with ANSI escaped
    // strings like "\033[31mfoo\033[0mbar"
 
+   static int override = 0;
+
    if (strchr(fmt, '$') == NULL)
       return xvasprintf(fmt, ap);
 
@@ -355,7 +357,11 @@ static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)
             if ((bold = (*e == '!')))
                ++e, --len;
 
-            if (want_color && !force_plain) {
+            if ((*e == '<' || *e == '>') && *(e + 1) == '$') {
+               override += *e == '<' ? -1 : 1;
+               escape_start = NULL;
+            }
+            else if (want_color && !force_plain && override >= 0) {
                bool found = false;
 
                if (*e == '#') {

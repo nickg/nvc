@@ -25,6 +25,8 @@
 #include <ctype.h>
 #include <inttypes.h>
 
+#define DUMP_TYPE_HINT 0
+
 LCOV_EXCL_START
 
 static void dump_expr(tree_t t);
@@ -32,6 +34,7 @@ static void dump_stmt(tree_t t, int indent);
 static void dump_port(tree_t t, int indent);
 static void dump_decl(tree_t t, int indent);
 static void dump_decls(tree_t t, int indent);
+static void dump_type(type_t type);
 
 typedef tree_t (*get_fn_t)(tree_t, unsigned);
 
@@ -137,6 +140,19 @@ static void dump_range(tree_t r)
          dump_expr(tree_value(r));
       return;
    }
+}
+
+static void dump_type_hint(tree_t t)
+{
+#if DUMP_TYPE_HINT
+   static int nested = 0;
+   if (++nested == 1) {
+      color_printf("$red$$<$/*");
+      dump_type(tree_type(t));
+      color_printf("$>$$red$*/$$");
+   }
+   --nested;
+#endif
 }
 
 static void dump_expr(tree_t t)
@@ -279,6 +295,8 @@ static void dump_expr(tree_t t)
    default:
       cannot_dump(t, "expr");
    }
+
+   dump_type_hint(t);
 }
 
 static void dump_type(type_t type)
