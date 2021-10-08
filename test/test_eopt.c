@@ -875,6 +875,28 @@ START_TEST(test_source1)
 }
 END_TEST
 
+START_TEST(test_issue427)
+{
+   input_from_file(TESTDIR "/eopt/issue427.vhd");
+
+   e_node_t e = run_eopt();
+
+   fail_unless(e_nexuses(e) == 5);
+   fail_unless(e_scopes(e) == 4);
+
+   e_node_t top = e_scope(e, 3);
+   fail_unless(e_instance(top) == ident_new(":test_ng(model)"));
+   fail_unless(e_signals(top) == 3);
+
+   e_node_t s0 = e_signal(top, 0);
+   fail_unless(e_ident(s0) == ident_new("SYNC"));
+   fail_unless(e_nexuses(s0) == 1);
+   fail_unless(e_flags(s0) & E_F_RESOLVED);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_eopt_tests(void)
 {
    Suite *s = suite_create("eopt");
@@ -904,6 +926,7 @@ Suite *get_eopt_tests(void)
    tcase_add_test(tc, test_pcall1);
    tcase_add_test(tc, test_arrayref4);
    tcase_add_test(tc, test_source1);
+   tcase_add_test(tc, test_issue427);
    suite_add_tcase(s, tc);
 
    return s;

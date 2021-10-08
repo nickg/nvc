@@ -223,6 +223,9 @@ static void eopt_map_signal_cb(int op, cprop_state_t *regs, void *__ctx)
    assert(stride1 == 0);
    assert(count0 == count1);
 
+   if (e_flags(src) & E_F_RESOLVED)
+      e_set_flag(dst, E_F_RESOLVED);
+
    // Ensure the existing nexuses are split at the right places
    eopt_split_signal(src, offset1, count1, false, NULL);
 
