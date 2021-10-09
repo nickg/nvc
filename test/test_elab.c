@@ -152,7 +152,7 @@ START_TEST(test_copy1)
    tree_t func2 = search_decls(sub2_i, ident_new("DOUBLE"), 0);
    fail_if(func1 == NULL);
    fail_if(func2 == NULL);
-   fail_unless(func1 == func2);   // Should not copy functions
+   fail_if(func1 == func2);   // Should copy functions
 
    tree_t var1 = search_decls(sub1_i, ident_new("GLOBAL"), 0);
    tree_t var2 = search_decls(sub2_i, ident_new("GLOBAL"), 0);

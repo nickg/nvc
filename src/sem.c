@@ -1204,6 +1204,8 @@ static bool sem_check_process(tree_t t)
 
       if (tree_kind(d) == T_USE)
          tree_add_context(top_scope->unit, d);
+      else if (is_subprogram(d))
+         tree_add_attr_int(d, elab_copy_i, 1);
    }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
@@ -1494,6 +1496,8 @@ static bool sem_check_arch(tree_t t)
 
          if (tree_kind(d) == T_USE)
             tree_add_context(t, d);
+         else if (is_subprogram(d))
+            tree_add_attr_int(d, elab_copy_i, 1);
       }
    }
 
