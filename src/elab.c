@@ -350,10 +350,9 @@ static void elab_pseudo_context(tree_t out, tree_t src)
    tree_add_context(out, c);
 }
 
-static bool elab_should_copy(tree_t t)
+static bool elab_should_copy(tree_t t, void *__ctx)
 {
    switch (tree_kind(t)) {
-   case T_SIGNAL_DECL:
    case T_GENVAR:
    case T_PROCESS:
    case T_ARCH:
@@ -378,6 +377,7 @@ static bool elab_should_copy(tree_t t)
    case T_CONSTRAINT:
    case T_QUALIFIED:
    case T_RANGE:
+   case T_SIGNAL_DECL:
        return false;
    case T_VAR_DECL:
       if (tree_flags(t) & TREE_F_SHARED)
@@ -388,51 +388,9 @@ static bool elab_should_copy(tree_t t)
    }
 }
 
-static void elab_build_copy_list(tree_t t, void *context)
-{
-   copy_list_t **list = context;
-
-   if (elab_should_copy(t)) {
-      copy_list_t *new = xmalloc(sizeof(copy_list_t));
-      new->tree = t;
-      new->next = *list;
-
-      *list = new;
-   }
-}
-
-static bool elab_copy_trees(tree_t t, void *context)
-{
-   copy_list_t *list = context;
-
-   if (elab_should_copy(t)) {
-      for (; list != NULL; list = list->next) {
-         if (list->tree == t)
-            return true;
-      }
-   }
-
-   return false;
-}
-
 static tree_t elab_copy(tree_t t)
 {
-   copy_list_t *copy_list = NULL;
-   tree_visit(t, elab_build_copy_list, &copy_list);
-
-   // For achitectures, also make a copy of the entity ports
-   if (tree_kind(t) == T_ARCH)
-      tree_visit(tree_ref(t), elab_build_copy_list, &copy_list);
-
-   tree_t copy = tree_copy(t, elab_copy_trees, copy_list);
-
-   while (copy_list != NULL) {
-      copy_list_t *tmp = copy_list->next;
-      free(copy_list);
-      copy_list = tmp;
-   }
-
-   return copy;
+   return tree_copy(t, elab_should_copy, NULL);
 }
 
 static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
@@ -946,13 +904,18 @@ static void elab_pop_scope(const elab_ctx_t *ctx)
 {
 }
 
+static bool elab_is_genvar(tree_t t, void *__ctx)
+{
+   return tree_kind(t) == T_GENVAR;
+}
+
 static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
 {
    int64_t low, high;
    range_bounds(tree_range(t, 0), &low, &high);
 
    for (int64_t i = low; i <= high; i++) {
-      tree_t copy = elab_copy(t);
+      tree_t copy = tree_copy(t, elab_is_genvar, NULL);
 
       tree_t genvar = tree_decl(copy, 0);
       assert(tree_kind(genvar) == T_GENVAR);

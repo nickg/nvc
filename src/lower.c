@@ -1155,7 +1155,8 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
    case T_CONST_DECL:
       {
          int hops, obj = lower_search_vcode_obj(decl, top_scope, &hops);
-         assert(obj != -1);
+         if (obj == -1)
+            return lower_wrap_string(package_signal_path_name(tree_ident2(decl)));
 
          vcode_state_t state;
          vcode_state_save(&state);

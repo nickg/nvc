@@ -26,6 +26,7 @@
 #include <inttypes.h>
 
 #define DUMP_TYPE_HINT 0
+#define DUMP_ADDRESS   0
 
 LCOV_EXCL_START
 
@@ -155,6 +156,13 @@ static void dump_type_hint(tree_t t)
 #endif
 }
 
+static void dump_address(tree_t t)
+{
+#if DUMP_ADDRESS
+   color_printf("$!green${%p}$$", t);
+#endif
+}
+
 static void dump_expr(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -246,8 +254,11 @@ static void dump_expr(tree_t t)
       break;
 
    case T_REF:
-      if (tree_has_ref(t))
-         printf("%s", istr(tree_ident(tree_ref(t))));
+      if (tree_has_ref(t)) {
+         tree_t decl = tree_ref(t);
+         dump_address(decl);
+         printf("%s", istr(tree_ident(decl)));
+      }
       else
          printf("%s", istr(tree_ident(t)));
       break;
@@ -568,6 +579,7 @@ static void dump_type_decl(tree_t t, int indent)
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
+   dump_address(t);
 
    switch (tree_kind(t)) {
    case T_SIGNAL_DECL:
@@ -1019,6 +1031,7 @@ static void dump_stmt(tree_t t, int indent)
 static void dump_port(tree_t t, int indent)
 {
    tab(indent);
+   dump_address(t);
    const char *class = NULL, *dir = NULL;
    switch (tree_class(t)) {
    case C_SIGNAL:   class = "signal";   break;
