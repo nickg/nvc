@@ -43,7 +43,7 @@ int main(int argc, char **argv)
    srand((unsigned)time(NULL));
 
    term_init();
-   register_trace_signal_handlers();
+   register_signal_handlers();
 
    setenv("NVC_LIBPATH", "./lib", 1);
 

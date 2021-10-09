@@ -81,6 +81,12 @@
 #include <mach/mach.h>
 #endif
 
+#ifdef __SANITIZE_ADDRESS__
+#define SIGNAL_STACK_SZ (16 * SIGSTKSZ)
+#else
+#define SIGNAL_STACK_SZ (2 * SIGSTKSZ)
+#endif
+
 #define N_TRACE_DEPTH   16
 #define ERROR_SZ        1024
 #define PAGINATE_RIGHT  72
@@ -842,7 +848,7 @@ static const char *signame(int sig)
    }
 }
 
-static void bt_sighandler(int sig, siginfo_t *info, void *context)
+static void signal_handler(int sig, siginfo_t *info, void *context)
 {
 #if defined HAVE_UCONTEXT_H && defined PC_FROM_UCONTEXT
    ucontext_t *uc = (ucontext_t*)context;
@@ -973,33 +979,6 @@ bool is_debugger_running(void)
 #endif
 }
 
-#ifdef __linux
-static void gdb_sighandler(int sig, siginfo_t *info)
-{
-   char exe[256];
-   if (readlink("/proc/self/exe", exe, sizeof(exe)) < 0)
-      fatal_errno("readlink");
-
-   pid_t pp = getpid();
-
-   pid_t p = fork();
-   if (p == 0) {
-      char *pid = xasprintf("%d", pp);
-      execl("/usr/bin/gdb", "gdb", "-ex", "cont", exe, pid, NULL);
-      free(pid);
-      fatal_errno("execl");
-   }
-   else if (p < 0)
-      fatal_errno("fork");
-   else {
-      // Allow a little time for GDB to start before dropping
-      // into the default signal handler
-      sleep(1);
-      signal(sig, SIG_DFL);
-   }
-}
-#endif  // __linux
-
 #ifndef __MINGW32__
 static void free_altstack(void)
 {
@@ -1009,17 +988,16 @@ static void free_altstack(void)
 }
 #endif  // !__MINGW32__
 
-void register_trace_signal_handlers(void)
+void register_signal_handlers(void)
 {
 #if defined __MINGW32__
    SetUnhandledExceptionFilter(win32_exception_handler);
 #else
-   if (is_debugger_running())
-      return;
+   (void)is_debugger_running();    // Caches the result
 
    stack_t ss;
-   ss.ss_sp    = xmalloc(SIGSTKSZ);
-   ss.ss_size  = SIGSTKSZ;
+   ss.ss_sp    = xmalloc(SIGNAL_STACK_SZ);
+   ss.ss_size  = SIGNAL_STACK_SZ;
    ss.ss_flags = 0;
    if (sigaltstack(&ss, NULL) == -1)
       fatal_errno("sigaltstack");
@@ -1027,7 +1005,7 @@ void register_trace_signal_handlers(void)
    atexit(free_altstack);
 
    struct sigaction sa;
-   sa.sa_sigaction = (void*)bt_sighandler;
+   sa.sa_sigaction = signal_handler;
    sigemptyset(&sa.sa_mask);
    sa.sa_flags = SA_RESTART | SA_SIGINFO | SA_ONSTACK;
 
@@ -1038,28 +1016,6 @@ void register_trace_signal_handlers(void)
    sigaction(SIGILL, &sa, NULL);
    sigaction(SIGABRT, &sa, NULL);
 #endif  // !__MINGW32__
-}
-
-void register_gdb_signal_handlers(void)
-{
-#ifdef __linux
-   if (is_debugger_running())
-      return;
-
-   struct sigaction sa;
-   sa.sa_sigaction = (void*)gdb_sighandler;
-   sigemptyset(&sa.sa_mask);
-   sa.sa_flags = SA_RESTART | SA_SIGINFO;
-
-   sigaction(SIGSEGV, &sa, NULL);
-   sigaction(SIGUSR1, &sa, NULL);
-   sigaction(SIGFPE, &sa, NULL);
-   sigaction(SIGBUS, &sa, NULL);
-   sigaction(SIGILL, &sa, NULL);
-   sigaction(SIGABRT, &sa, NULL);
-#else  // __linux
-   register_trace_signal_handlers();
-#endif  // __linux
 }
 
 void term_init(void)

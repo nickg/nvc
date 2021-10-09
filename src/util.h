@@ -134,8 +134,7 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3), noreturn));
 
 void show_stacktrace(void);
-void register_trace_signal_handlers(void);
-void register_gdb_signal_handlers(void);
+void register_signal_handlers(void);
 bool is_debugger_running(void);
 
 void term_init(void);
