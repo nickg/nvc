@@ -81,11 +81,7 @@
 #include <mach/mach.h>
 #endif
 
-#ifdef __SANITIZE_ADDRESS__
-#define SIGNAL_STACK_SZ (16 * SIGSTKSZ)
-#else
-#define SIGNAL_STACK_SZ (2 * SIGSTKSZ)
-#endif
+#define SIGNAL_STACK_SZ MAX(SIGSTKSZ, 262144)
 
 #define N_TRACE_DEPTH   16
 #define ERROR_SZ        1024
@@ -979,15 +975,6 @@ bool is_debugger_running(void)
 #endif
 }
 
-#ifndef __MINGW32__
-static void free_altstack(void)
-{
-   stack_t ss;
-   if (sigaltstack(NULL, &ss) == 0)
-      free(ss.ss_sp);
-}
-#endif  // !__MINGW32__
-
 void register_signal_handlers(void)
 {
 #if defined __MINGW32__
@@ -996,13 +983,11 @@ void register_signal_handlers(void)
    (void)is_debugger_running();    // Caches the result
 
    stack_t ss;
-   ss.ss_sp    = xmalloc(SIGNAL_STACK_SZ);
+   ss.ss_sp    = mmap_guarded(SIGNAL_STACK_SZ, "signal stack");
    ss.ss_size  = SIGNAL_STACK_SZ;
    ss.ss_flags = 0;
    if (sigaltstack(&ss, NULL) == -1)
       fatal_errno("sigaltstack");
-
-   atexit(free_altstack);
 
    struct sigaction sa;
    sa.sa_sigaction = signal_handler;
