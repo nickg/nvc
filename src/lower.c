@@ -5103,8 +5103,6 @@ static void lower_protected_constants(tree_t body)
       tree_t decl = tree_decl(body, i);
       if (tree_kind(decl) != T_CONST_DECL)
          continue;
-      else if (type_is_scalar(tree_type(decl)) && tree_has_value(decl))
-         continue;
       else
          lower_var_decl(decl);
    }

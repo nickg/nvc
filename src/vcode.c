@@ -1211,6 +1211,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          col += printf(", heap");
       if (v->flags & VAR_CONST)
          col += printf(", constant");
+      if (v->flags & VAR_GLOBAL)
+         col += printf(", global");
       color_printf("$$\n");
    }
 
