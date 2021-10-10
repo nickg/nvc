@@ -2283,6 +2283,16 @@ static vcode_reg_t lower_alias_ref(tree_t alias, expr_ctx_t ctx)
       return emit_load_indirect(emit_var_upref(hops, var));
 }
 
+static bool lower_is_trivial_constant(tree_t decl)
+{
+   if (!type_is_scalar(tree_type(decl)))
+      return false;
+   else if (!tree_has_value(decl))
+      return false;
+   else
+      return tree_kind(tree_value(decl)) == T_LITERAL;
+}
+
 static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
 {
    tree_t decl = tree_ref(ref);
@@ -2311,7 +2321,7 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
    case T_CONST_DECL:
       if (ctx == EXPR_LVALUE)
          return VCODE_INVALID_REG;
-      else if (type_is_scalar(tree_type(decl)) && tree_has_value(decl))
+      else if (lower_is_trivial_constant(decl))
          return lower_expr(tree_value(decl), ctx);
       else
          return lower_var_ref(decl, ctx);
