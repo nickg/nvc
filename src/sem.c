@@ -39,7 +39,8 @@ typedef enum {
    SCOPE_PACKAGE   = (1 << 0),
    SCOPE_FORMAL    = (1 << 1),
    SCOPE_PROTECTED = (1 << 2),
-   SCOPE_CONTEXT   = (1 << 3)
+   SCOPE_CONTEXT   = (1 << 3),
+   SCOPE_COPY_SUBS = (1 << 4),
 } scope_flags_t;
 
 struct scope {
@@ -983,6 +984,9 @@ static bool sem_check_func_decl(tree_t t)
    if (!sem_check_func_ports(t))
       return false;
 
+   if (top_scope->flags & SCOPE_COPY_SUBS)
+      tree_add_attr_int(t, elab_copy_i, 1);
+
    return true;
 }
 
@@ -1010,6 +1014,9 @@ static bool sem_check_func_body(tree_t t)
 
    scope_pop();
    scope_pop();
+
+   if (top_scope->flags & SCOPE_COPY_SUBS)
+      tree_add_attr_int(t, elab_copy_i, 1);
 
    unsigned nret = tree_visit_only(t, NULL, NULL, T_RETURN);
    if (nret == 0)
@@ -1056,6 +1063,9 @@ static bool sem_check_proc_decl(tree_t t)
    if (tree_flags(t) & TREE_F_FOREIGN)
       tree_add_attr_int(t, wait_level_i, WAITS_NO);
 
+   if (top_scope->flags & SCOPE_COPY_SUBS)
+      tree_add_attr_int(t, elab_copy_i, 1);
+
    return true;
 }
 
@@ -1096,6 +1106,10 @@ static bool sem_check_proc_body(tree_t t)
 
    scope_pop();
    scope_pop();
+
+   if (top_scope->flags & SCOPE_COPY_SUBS)
+      tree_add_attr_int(t, elab_copy_i, 1);
+
    return ok;
 }
 
@@ -1195,6 +1209,8 @@ static bool sem_check_process(tree_t t)
    const bool synthetic_name = !!(tree_flags(t) & TREE_F_SYNTHETIC_NAME);
    scope_push(synthetic_name ? NULL : tree_ident(t));
 
+   top_scope->flags |= SCOPE_COPY_SUBS;
+
    bool ok = sem_check_sensitivity(t);
 
    const int ndecls = tree_decls(t);
@@ -1206,8 +1222,6 @@ static bool sem_check_process(tree_t t)
 
       if (tree_kind(d) == T_USE)
          tree_add_context(top_scope->unit, d);
-      else if (is_subprogram(d))
-         tree_add_attr_int(d, elab_copy_i, 1);
    }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
@@ -1435,6 +1449,7 @@ static bool sem_check_entity(tree_t t)
    bool ok = sem_check_context_clause(t);
 
    scope_push(NULL);
+   top_scope->flags |= SCOPE_COPY_SUBS;
 
    ok = ok && sem_check_generics(t) && sem_check_ports(t);
 
@@ -1486,6 +1501,7 @@ static bool sem_check_arch(tree_t t)
    scope_push(NULL);
 
    scope_push(NULL);
+   top_scope->flags |= SCOPE_COPY_SUBS;
 
    // Now check the architecture itself
 
@@ -1498,8 +1514,6 @@ static bool sem_check_arch(tree_t t)
 
          if (tree_kind(d) == T_USE)
             tree_add_context(t, d);
-         else if (is_subprogram(d))
-            tree_add_attr_int(d, elab_copy_i, 1);
       }
    }
 
