@@ -1,6 +1,7 @@
 AC_INIT([nvc], [1.6-devel],
         [Nick Gasson <nick@nickg.me.uk>],
-        [nvc])
+        [nvc],
+        [https://github.com/nickg/nvc])
 AC_PREREQ([2.63])
 
 AC_CANONICAL_HOST

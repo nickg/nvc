@@ -1,8 +1,6 @@
-EXTRA_DIST = autogen.sh data/coverage.css nvc.1 README.md
+EXTRA_DIST = autogen.sh nvc.1 README.md
 
 ACLOCAL_AMFLAGS = -I m4
-
-pkgdata_DATA = data/coverage.css
 
 man_MANS = nvc.1
 
@@ -21,6 +19,7 @@ noinst_LIBRARIES =
 include_HEADERS =
 check_PROGRAMS =
 check_LIBRARIES =
+pkgdata_DATA =
 CLEANFILES =
 BOOTSTRAPLIBS =
 LIBDIRS =
