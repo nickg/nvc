@@ -4419,6 +4419,7 @@ static void p_type_declaration(tree_t container)
       tree_t body = p_protected_type_body(id);
       consume(tSEMI);
 
+      insert_name(nametab, body, id, 0);
       tree_add_decl(container, body);
    }
    else {
@@ -4450,7 +4451,6 @@ static void p_type_declaration(tree_t container)
       tree_set_loc(t, CURRENT_LOC);
 
       insert_name(nametab, t, id, 0);
-
       tree_add_decl(container, t);
 
       const type_kind_t kind = type_kind(type);

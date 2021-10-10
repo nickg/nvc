@@ -752,6 +752,8 @@ static bool sem_check_decl(tree_t t)
 
    if (!sem_check_subtype(t, type))
       return false;
+   else if (type_is_none(type))
+      return false;
 
    tree_kind_t kind = tree_kind(t);
 
@@ -4526,11 +4528,6 @@ static bool sem_check_prot_body(tree_t t)
 
    if (type_is_none(type))
       return false;
-
-   if (type_has_body(type))
-      sem_error(t, "protected type %s already has body", istr(name));
-
-   type_set_body(type, t);
 
    scope_push(ident_prefix(top_scope->prefix, name, '.'));
    top_scope->flags |= SCOPE_PROTECTED;

@@ -73,7 +73,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT),
 
    // T_PROTECTED
-   (I_IDENT | I_DECLS | I_REF)
+   (I_IDENT | I_DECLS)
 };
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
@@ -549,28 +549,6 @@ type_t type_file(type_t t)
 void type_set_file(type_t t, type_t f)
 {
    lookup_item(&type_object, t, I_FILE)->type = f;
-}
-
-tree_t type_body(type_t t)
-{
-   assert(t->object.kind == T_PROTECTED);
-   item_t *item = lookup_item(&type_object, t, I_REF);
-   assert(item->object);
-   return container_of(item->object, struct _tree, object);
-}
-
-void type_set_body(type_t t, tree_t b)
-{
-   assert(t->object.kind == T_PROTECTED);
-   item_t *item = lookup_item(&type_object, t, I_REF);
-   item->object = &(b->object);
-}
-
-bool type_has_body(type_t t)
-{
-   assert(t->object.kind == T_PROTECTED);
-   item_t *item = lookup_item(&type_object, t, I_REF);
-   return (item->object != NULL);
 }
 
 const char *type_pp2(type_t t, type_t other)

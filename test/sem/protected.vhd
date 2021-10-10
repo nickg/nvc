@@ -19,7 +19,7 @@ architecture a of e is
     type bad2 is protected body         -- Error
     end protected body;
 
-    type integer is protected body      -- Error
+    type boolean is protected body      -- Error
     end protected body;
 
     type now is protected body          -- Error

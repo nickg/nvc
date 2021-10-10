@@ -1036,9 +1036,10 @@ START_TEST(test_protected)
    const error_t expect[] = {
       {  13, "no visible declaration for NOT_HERE" },
       {  19, "no visible declaration for BAD2" },
-      {  22, "object INTEGER is not a protected type declaration" },
+      {  22, "object BOOLEAN is not a protected type declaration" },
       {  25, "object NOW is not a protected type declaration" },
-      {  47, "protected type SHAREDCOUNTER already has body" },
+      {  47, "SHAREDCOUNTER already declared in this region" },
+      {  28, "previous declaration of SHAREDCOUNTER was here" },
       {  50, "subtypes may not have protected base types" },
       {  52, "shared variable X must have protected type" },
       {  56, "variable Z with protected type may not have an initial value" },
@@ -1376,7 +1377,6 @@ START_TEST(test_use)
 
    const error_t expect[] = {
       { 25, "no visible declaration for MY_INT3" },
-      { 25, "deferred constant declarations are only permitted in packages" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -415,20 +415,24 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
       {
          const char *name = istr(vtype_record_name(type));
          LLVMTypeRef lltype = LLVMGetTypeByName(module, name);
-         if (lltype != NULL)
+         if (lltype != NULL && !LLVMIsOpaqueStruct(lltype))
             return lltype;
-
-         lltype = LLVMStructCreateNamed(LLVMGetGlobalContext(), name);
-         if (lltype == NULL)
-            fatal("failed to add record type %s", name);
+         else if (lltype == NULL) {
+            lltype = LLVMStructCreateNamed(LLVMGetGlobalContext(), name);
+            if (lltype == NULL)
+               fatal("failed to add record type %s", name);
+         }
 
          const int nfields = vtype_fields(type);
-         LLVMTypeRef fields[nfields];
+         if (nfields > 0) {
+            LLVMTypeRef fields[nfields];
 
-         for (int i = 0; i < nfields; i++)
-            fields[i] = cgen_type(vtype_field(type, i));
+            for (int i = 0; i < nfields; i++)
+               fields[i] = cgen_type(vtype_field(type, i));
 
-         LLVMStructSetBody(lltype, fields, nfields, true);
+            LLVMStructSetBody(lltype, fields, nfields, true);
+         }
+
          return lltype;
       }
 
@@ -910,6 +914,12 @@ static LLVMValueRef cgen_display_for_call(int op, cgen_ctx_t *ctx)
    if (scope_name == NULL) {
       scope_name = ident_runtil(ident_runtil(subprog, '('), '.');
       assert(scope_name != NULL);
+
+      ident_t next = ident_runtil(scope_name, '.');
+      while (ident_runtil(next, '.') != next) {
+         scope_name = next;
+         next = ident_runtil(scope_name, '.');
+      }
    }
 
    const char *var_name = istr(scope_name);

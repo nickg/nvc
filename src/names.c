@@ -886,6 +886,8 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          // Forward declaration, prefer the full declaration
          decl = conflict;
       }
+      else if (conflict != NULL && tree_kind(conflict) == T_PROT_BODY)
+         ;
       else if (conflict != NULL && conflict != (tree_t)-1 && conflict != decl) {
          error_at(loc, "multiple conflicting visible declarations of %s",
                   istr(name));
