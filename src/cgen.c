@@ -181,8 +181,8 @@ static LLVMValueRef llvm_void_cast(LLVMValueRef ptr)
 
 static LLVMValueRef llvm_sizeof(LLVMTypeRef type)
 {
-   return LLVMBuildIntCast(builder, LLVMSizeOf(type),
-                           LLVMInt32Type(), "");
+   LLVMTargetDataRef td = LLVMGetModuleDataLayout(module);
+   return llvm_int32(LLVMABISizeOfType(td, type));
 }
 
 static LLVMValueRef llvm_fn(const char *name)

@@ -56,7 +56,7 @@
 #define F_VHPI    (1 << 3)
 #define F_2008    (1 << 4)
 #define F_2000    (1 << 5)
-// Unused         (1 << 6)
+#define F_NOTWIN  (1 << 6)
 #define F_COVER   (1 << 7)
 #define F_GENERIC (1 << 8)
 #define F_RELAX   (1 << 9)
@@ -307,6 +307,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_2000;
          else if (strcmp(opt, "vhpi") == 0)
             test->flags |= F_VHPI;
+         else if (strcmp(opt, "!windows") == 0)
+            test->flags |= F_NOTWIN;
          else if (strncmp(opt, "O", 1) == 0) {
             if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
@@ -523,15 +525,21 @@ static bool run_test(test_t *test)
 
    printf("%15s : ", test->name);
 
+   int skip = 0;
 #ifndef ENABLE_VHPI
-   if (test->flags & F_VHPI) {
+   skip |= (test->flags & F_VHPI);
+#endif
+#if defined __MINGW32__ || defined __CYGWIN__
+   skip |= (test->flags & F_NOTWIN);
+#endif
+
+   if (skip) {
       set_attr(ANSI_FG_CYAN);
       printf("skipped\n");
       set_attr(ANSI_RESET);
       result = true;
       goto out_chdir;
    }
-#endif
 
    if ((test->flags & F_CLEAN) && dir_exists("work")) {
       if (system("rm -r work") != 0) {
