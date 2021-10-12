@@ -385,3 +385,4 @@ driver7         fail,gold
 issue428        normal
 protected5      normal,2000,!windows
 issue429        normal
+record18        normal
