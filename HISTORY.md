@@ -8,6 +8,7 @@
 - Fix incorrect result of `mod` operator with negative operands.
 - Fixed intermittent crash when evaluating nested constant records
   (#425).
+- Buffer too small for printing TIME'HIGH (#98).
 
 ## 1.5.2 - 2021-07-28
 - Link libexecinfo on FreeBSD.
