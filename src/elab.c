@@ -1237,6 +1237,10 @@ tree_t elab(tree_t top)
    if (error_count() > 0)
       return NULL;
 
+   const char *verbose = getenv("NVC_ELAB_VERBOSE");
+   if (verbose && *verbose != '\0')
+      dump(e);
+
    for (generic_list_t *it = generic_override; it != NULL; it = it->next) {
       if (!it->used)
          warnf("generic value for %s not used", istr(it->name));
