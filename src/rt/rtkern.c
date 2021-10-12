@@ -1126,8 +1126,8 @@ void _image(int64_t val, image_map_t *map, uarray_t *u)
       break;
 
    case IMAGE_PHYSICAL:
-      buf = rt_tmp_alloc(16 + map->stride);
-      len = checked_sprintf(buf, 16 + map->stride, "%"PRIi64" %s",
+      buf = rt_tmp_alloc(20 + map->stride);
+      len = checked_sprintf(buf, 20 + map->stride, "%"PRIi64" %s",
                             val, map->elems + (0 * map->stride));
       break;
    }
