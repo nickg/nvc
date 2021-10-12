@@ -4843,7 +4843,7 @@ static vcode_reg_t lower_resolution_func(type_t type)
    return emit_resolution_wrapper(rfunc, rtype, ileft_reg);
 }
 
-static void lower_sub_signals(type_t type, vcode_reg_t subsig,
+static void lower_sub_signals(type_t type, tree_t where, vcode_reg_t subsig,
                               vcode_reg_t init_reg, vcode_reg_t resolution)
 {
    if (resolution == VCODE_INVALID_REG)
@@ -4855,9 +4855,13 @@ static void lower_sub_signals(type_t type, vcode_reg_t subsig,
       if (type_is_array(type)) {
          len_reg = lower_array_total_len(type, init_reg);
          init_reg = lower_array_data(init_reg);
+         // TODO: need array size check here
       }
-      else
+      else {
          len_reg = emit_const(vtype_offset(), 1);
+         init_reg = lower_reify(init_reg);
+         lower_check_scalar_bounds(init_reg, type, where, where);
+      }
 
       emit_init_signal(subsig, init_reg, len_reg, size_reg, resolution);
    }
@@ -4889,7 +4893,7 @@ static void lower_sub_signals(type_t type, vcode_reg_t subsig,
       vcode_select_block(body_bb);
 
       vcode_reg_t ptr_reg = emit_add(subsig, i_reg);
-      lower_sub_signals(type_elem(type), ptr_reg, init_reg, resolution);
+      lower_sub_signals(type_elem(type), where, ptr_reg, init_reg, resolution);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
 
@@ -4903,7 +4907,7 @@ static void lower_sub_signals(type_t type, vcode_reg_t subsig,
          type_t ft = tree_type(type_field(type, i));
          vcode_reg_t field_reg = emit_record_ref(init_reg, i);
          vcode_reg_t ptr_reg = emit_record_ref(subsig, i);
-         lower_sub_signals(ft, ptr_reg, field_reg, resolution);
+         lower_sub_signals(ft, where, ptr_reg, field_reg, resolution);
       }
    }
    else
@@ -5020,7 +5024,7 @@ static void lower_signal_decl(tree_t decl)
       init_reg = lower_array_data(init_reg);
    }
 
-   lower_sub_signals(type, shared, init_reg, VCODE_INVALID_REG);
+   lower_sub_signals(type, decl, shared, init_reg, VCODE_INVALID_REG);
 }
 
 static void lower_file_decl(tree_t decl)
@@ -5611,7 +5615,7 @@ static void lower_ports(tree_t block)
          emit_map_signal(port_reg, value_reg, count_reg, source_reg);
       }
       else
-         lower_sub_signals(type, port_reg, value_reg, VCODE_INVALID_REG);
+         lower_sub_signals(type, port, port_reg, value_reg, VCODE_INVALID_REG);
    }
 }
 

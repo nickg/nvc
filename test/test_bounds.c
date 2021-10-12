@@ -316,6 +316,25 @@ START_TEST(test_issue356)
 }
 END_TEST
 
+START_TEST(test_issue98)
+{
+   input_from_file(TESTDIR "/bounds/issue98.vhd");
+
+   const error_t expect[] = {
+      {  5, "value 9223372036854775807 out of target bounds -2147483648 "
+         "to 2147483647 for signal I" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_unless(error_count() == 0);
+
+   bounds_check(a);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -334,6 +353,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue269);
    tcase_add_test(tc_core, test_issue307b);
    tcase_add_test(tc_core, test_issue356);
+   tcase_add_test(tc_core, test_issue98);
    suite_add_tcase(s, tc_core);
 
    return s;

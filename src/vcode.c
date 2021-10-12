@@ -4099,8 +4099,13 @@ void emit_init_signal(vcode_reg_t signal, vcode_reg_t value, vcode_reg_t count,
    if (resolution != VCODE_INVALID_REG)
       vcode_add_arg(op, resolution);
 
-   VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
+   vcode_type_t stype = vcode_reg_type(signal);
+   vcode_type_t vtype = vcode_reg_type(value);
+   VCODE_ASSERT(vtype_kind(stype) == VCODE_TYPE_SIGNAL,
                 "argument to init signal is not a signal");
+   VCODE_ASSERT(vtype_eq(vtype, vtype_base(stype))
+                || vtype_kind(vtype) == VCODE_TYPE_POINTER,
+                "init signal value type does not match signal type");
    VCODE_ASSERT(resolution == VCODE_INVALID_REG
                 || vcode_reg_kind(resolution) == VCODE_TYPE_RESOLUTION,
                 "resolution wrapper argument has wrong type");

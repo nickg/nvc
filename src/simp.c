@@ -347,6 +347,15 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
    case ATTR_TRANSACTION:
       return simp_attr_delayed_transaction(t, predef, ctx);
 
+   case ATTR_POS:
+      {
+         int64_t arg;
+         if (folded_int(tree_value(tree_param(t, 0)), &arg))
+            return get_int_lit(t, arg);
+         else
+            return t;
+      }
+
    case ATTR_LENGTH:
    case ATTR_LEFT:
    case ATTR_LOW:
