@@ -30,6 +30,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <libgen.h>
 #include <sys/stat.h>
 
 #include <llvm-c/Core.h>
@@ -3869,13 +3870,15 @@ static void cgen_module_debug_info(void)
    assert(!loc_invalid_p(loc));
 
    const char *file_path = loc_file_str(loc);
-   const char *sep = strrchr(file_path, PATH_SEP[0]);
 
-   const char *file = sep ? sep + 1 : file_path;
-   size_t file_len = strlen(file);
+   char *basec LOCAL = xstrdup(file_path);
+   char *dirc LOCAL = xstrdup(file_path);
 
-   const char *dir = sep ? file_path : "";
-   size_t dir_len = sep ? sep - file_path : 0;
+   const char *file = basename(basec);
+   const size_t file_len = strlen(file);
+
+   const char *dir = dirname(dirc);
+   const size_t dir_len = strlen(dir);
 
    LLVMMetadataRef file_ref =
       LLVMDIBuilderCreateFile(debuginfo, file, file_len, dir, dir_len);
