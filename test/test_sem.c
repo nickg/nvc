@@ -854,6 +854,8 @@ START_TEST(test_signal)
       { 24, "others association not allowed in aggregate signal target" },
       { 25, "cannot assign to input port P" },
       { 30, "aggregate element must be locally static name" },
+      { 40, "signal X is not a formal parameter and procedure PROC1 [BIT] "
+        "is not contained within a process statement" },
       { -1, NULL }
    };
    expect_errors(expect);

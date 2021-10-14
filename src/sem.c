@@ -41,6 +41,7 @@ typedef enum {
    SCOPE_PROTECTED = (1 << 2),
    SCOPE_CONTEXT   = (1 << 3),
    SCOPE_COPY_SUBS = (1 << 4),
+   SCOPE_PROCESS   = (1 << 5),
 } scope_flags_t;
 
 struct scope {
@@ -1209,7 +1210,7 @@ static bool sem_check_process(tree_t t)
    const bool synthetic_name = !!(tree_flags(t) & TREE_F_SYNTHETIC_NAME);
    scope_push(synthetic_name ? NULL : tree_ident(t));
 
-   top_scope->flags |= SCOPE_COPY_SUBS;
+   top_scope->flags |= SCOPE_COPY_SUBS | SCOPE_PROCESS;
 
    bool ok = sem_check_sensitivity(t);
 
@@ -1717,6 +1718,15 @@ static bool sem_check_signal_target(tree_t target)
 
       switch (tree_kind(decl)) {
       case T_SIGNAL_DECL:
+         if (top_scope->subprog && !(top_scope->flags & SCOPE_PROCESS)) {
+            // LRM 08 section 10.5.2.2: if a signal assignment appears
+            // in a procedure not contained within a process then the
+            // target must be a formal parameter
+            sem_error(target, "signal %s is not a formal parameter and "
+                      "procedure %s is not contained within a process "
+                      "statement", istr(tree_ident(decl)),
+                      type_pp(tree_type(top_scope->subprog)));
+         }
          break;
 
       case T_PORT_DECL:

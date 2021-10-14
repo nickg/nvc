@@ -30,4 +30,18 @@ begin
         (v(i), v(1), v(2)) <= v;        -- Error
     end process;
 
+    b1: block is
+        procedure proc1 (signal s : out bit) is
+            procedure nested is
+            begin
+                s <= '0';               -- OK
+            end procedure;
+        begin
+            x <= '1';                   -- Error
+            s <= '1';                   -- OK
+        end procedure;
+    begin
+    end block;
+
+
 end architecture;
