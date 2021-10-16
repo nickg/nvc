@@ -253,6 +253,13 @@ void cprop(cprop_req_t *req)
    const int nregs = vcode_count_regs();
    cprop_state_t *regs LOCAL = xcalloc_array(nregs, sizeof(cprop_state_t));
 
+   const vunit_kind_t kind = vcode_unit_kind();
+   if (kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE) {
+      const int nparams = vcode_count_params();
+      for (int i = 0; i < nparams; i++)
+         regs[i].tag = CP_UNKNOWN;
+   }
+
    const int nblocks = vcode_count_blocks();
    for (int i = 0; i < nblocks; i++) {
       vcode_select_block(i);
@@ -480,6 +487,7 @@ void cprop(cprop_req_t *req)
             break;
 
          case VCODE_OP_PCALL:
+         case VCODE_OP_NESTED_PCALL:
             if (req->pcall)
                (*req->pcall)(op, regs, req->context);
             break;
@@ -582,6 +590,7 @@ void cprop(cprop_req_t *req)
            }
            break;
 
+         case VCODE_OP_NESTED_FCALL:
          case VCODE_OP_FCALL:
             {
                vcode_reg_t result = vcode_get_result(op);
@@ -614,7 +623,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_FILE_READ:
          case VCODE_OP_FILE_CLOSE:
          case VCODE_OP_FILE_WRITE:
-         case VCODE_OP_NESTED_PCALL:
          case VCODE_OP_NESTED_RESUME:
          case VCODE_OP_DEALLOCATE:
          case VCODE_OP_MEMSET:
@@ -661,9 +669,9 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_REM:
          case VCODE_OP_ALL:
          case VCODE_OP_ENDFILE:
-         case VCODE_OP_NESTED_FCALL:
          case VCODE_OP_RANGE_NULL:
          case VCODE_OP_RESOLUTION_WRAPPER:
+         case VCODE_OP_PARAM_UPREF:
             {
                vcode_reg_t result = vcode_get_result(op);
                if (result != VCODE_INVALID_REG)

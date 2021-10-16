@@ -897,6 +897,53 @@ START_TEST(test_issue427)
 }
 END_TEST
 
+START_TEST(test_pcall2)
+{
+   input_from_file(TESTDIR "/eopt/pcall2.vhd");
+
+   e_node_t e = run_eopt();
+
+   fail_unless(e_nexuses(e) == 11);
+   fail_unless(e_scopes(e) == 2);
+
+   e_node_t top = e_scope(e, 1);
+   fail_unless(e_instance(top) == ident_new(":pcall2(test)"));
+   fail_unless(e_signals(top) == 4);
+
+   e_node_t x = e_signal(top, 0);
+   fail_unless(e_ident(x) == ident_new("X"));
+   fail_unless(e_nexuses(x) == 2);
+   fail_unless(e_width(x) == 3);
+   fail_unless(e_width(e_nexus(x, 0)) == 2);
+   fail_unless(e_sources(e_nexus(x, 0)) == 0);
+   fail_unless(e_sources(e_nexus(x, 1)) == 1);
+   fail_if(e_flags(x) & E_F_LAST_VALUE);
+
+   e_node_t y = e_signal(top, 1);
+   fail_unless(e_ident(y) == ident_new("Y"));
+   fail_unless(e_nexuses(y) == 3);
+   fail_unless(e_width(y) == 3);
+   fail_unless(e_width(e_nexus(y, 0)) == 1);
+   fail_unless(e_flags(y) & E_F_LAST_VALUE);
+
+   e_node_t z = e_signal(top, 2);
+   fail_unless(e_ident(z) == ident_new("Z"));
+   fail_unless(e_nexuses(z) == 3);
+   fail_unless(e_width(z) == 3);
+   fail_unless(e_width(e_nexus(z, 0)) == 1);
+   fail_if(e_flags(z) & E_F_LAST_VALUE);
+
+   e_node_t s = e_signal(top, 3);
+   fail_unless(e_ident(s) == ident_new("S"));
+   fail_unless(e_nexuses(s) == 3);
+   fail_unless(e_width(s) == 3);
+   fail_unless(e_width(e_nexus(s, 0)) == 1);
+   fail_unless(e_flags(s) & E_F_LAST_VALUE);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_eopt_tests(void)
 {
    Suite *s = suite_create("eopt");
@@ -927,6 +974,7 @@ Suite *get_eopt_tests(void)
    tcase_add_test(tc, test_arrayref4);
    tcase_add_test(tc, test_source1);
    tcase_add_test(tc, test_issue427);
+   tcase_add_test(tc, test_pcall2);
    suite_add_tcase(s, tc);
 
    return s;

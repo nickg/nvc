@@ -145,8 +145,16 @@ static void eopt_add_driver(int op, vcode_reg_t target, vcode_reg_t count_reg,
    cprop_get_signal(target, count_reg, regs, &offset, &stride, &count, &signal);
 
    if (signal == NULL) {
-      cprop_dump(op, regs);
-      fatal_trace("unknown target signal");
+      const vunit_kind_t kind = vcode_unit_kind();
+      if (kind == VCODE_UNIT_PROCEDURE || kind == VCODE_UNIT_FUNCTION) {
+         // Ignore signal assignments to formal parameters: these are
+         // handled by VCODE_OP_DRIVE_SIGNAL
+         return;
+      }
+      else {
+         cprop_dump(op, regs);
+         fatal_trace("unknown target signal");
+      }
    }
 
    eopt_nexus_fn_t fn = driven ? eopt_nexus_add_driver_cb : NULL;
@@ -337,11 +345,6 @@ static void eopt_driver_cb(int op, cprop_state_t *regs, void *__ctx)
    vcode_reg_t target = vcode_get_arg(op, 0);
    assert(target != VCODE_INVALID_REG);
 
-   if (regs[target].tag == CP_UNKNOWN) {
-      cprop_dump(op, regs);
-      fatal_trace("unknown target of signal assignment");
-   }
-
    vcode_reg_t count = vcode_get_arg(op, 1);
    assert(count != VCODE_INVALID_REG);
 
@@ -351,6 +354,9 @@ static void eopt_driver_cb(int op, cprop_state_t *regs, void *__ctx)
 
 static void eopt_pcall_cb(int op, cprop_state_t *regs, void *__ctx)
 {
+   if (vcode_get_result(op) != VCODE_INVALID_REG)
+      return;   // Really a function call
+
    const int nargs = vcode_count_args(op);
    for (int i = 0; i < nargs; i++) {
       vcode_reg_t arg = vcode_get_arg(op, i);
@@ -368,14 +374,24 @@ static void eopt_pcall_cb(int op, cprop_state_t *regs, void *__ctx)
    }
 }
 
-static void eopt_drivers(e_node_t proc, e_node_t cursor)
+static void eopt_drivers(vcode_unit_t unit, e_node_t cursor)
 {
-   vcode_unit_t unit = vcode_find_unit(e_vcode(proc));
-   if (unit == NULL)
-      fatal("cannot find vcode unit %s", istr(e_vcode(proc)));
-
    vcode_state_t state;
    vcode_state_save(&state);
+
+   vcode_select_unit(unit);
+
+   if (vcode_unit_kind() == VCODE_UNIT_FUNCTION
+       && vcode_unit_result() != VCODE_INVALID_TYPE) {
+      // Function cannot contain signal assignments
+      vcode_state_restore(&state);
+      return;
+   }
+
+   for (vcode_unit_t child = vcode_unit_child(unit);
+        child != NULL; child = vcode_unit_next(child)) {
+      eopt_drivers(child, cursor);
+   }
 
    vcode_select_unit(unit);
 
@@ -497,8 +513,12 @@ static void eopt_process(tree_t proc, e_node_t cursor)
 
    e_add_proc(cursor, e);
 
+   vcode_unit_t unit = vcode_find_unit(e_vcode(e));
+   if (unit == NULL)
+      fatal("cannot find vcode unit %s", istr(e_vcode(e)));
+
    cprop_vars_enter(cprop_vars);
-   eopt_drivers(e, e);
+   eopt_drivers(unit, e);
    cprop_vars_leave(cprop_vars);
 }
 
