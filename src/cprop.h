@@ -65,6 +65,7 @@ typedef struct {
    cprop_callback_t      pcall;
    cprop_callback_t      fcall;
    cprop_callback_t      drive_signal;
+   cprop_callback_t      last_value;
    cprop_find_signal_t   find_signal;
    cprop_vars_t         *vars;
    unsigned              hop_bias;

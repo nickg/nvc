@@ -354,24 +354,41 @@ static void eopt_driver_cb(int op, cprop_state_t *regs, void *__ctx)
 
 static void eopt_pcall_cb(int op, cprop_state_t *regs, void *__ctx)
 {
-   if (vcode_get_result(op) != VCODE_INVALID_REG)
-      return;   // Really a function call
+   const bool is_pcall = (vcode_get_result(op) == VCODE_INVALID_REG);
 
    const int nargs = vcode_count_args(op);
    for (int i = 0; i < nargs; i++) {
       vcode_reg_t arg = vcode_get_arg(op, i);
-      if (regs[arg].tag == CP_SIGNAL) {
+      if (regs[arg].tag != CP_UNKNOWN && regs[arg].tag != CP_CONST) {
          unsigned offset = 0, stride = 0, count = 0;
          e_node_t signal = NULL;
          cprop_get_signal(arg, VCODE_INVALID_REG, regs, &offset, &stride,
                           &count, &signal);
 
-         // TODO: should recursively cprop into the procedure call here
-         const unsigned width = e_width(signal);
-         for (int j = offset; j < width; j++)
-            eopt_split_signal(signal, j, 1, NULL, NULL);
+         if (signal == NULL)
+            continue;
+
+         if (is_pcall) {
+            // TODO: should recursively cprop into the procedure call here
+            const unsigned width = e_width(signal);
+            for (int j = offset; j < width; j++)
+               eopt_split_signal(signal, j, 1, NULL, NULL);
+         }
+
+         e_set_flag(signal, E_F_LAST_VALUE);
       }
    }
+}
+
+static void eopt_last_value_cb(int op, cprop_state_t *regs, void *__ctx)
+{
+   unsigned offset = 0, stride = 0, count = 0;
+   e_node_t signal = NULL;
+   cprop_get_signal(vcode_get_arg(op, 0), VCODE_INVALID_REG, regs, &offset,
+                    &stride, &count, &signal);
+
+   if (signal != NULL)
+      e_set_flag(signal, E_F_LAST_VALUE);
 }
 
 static void eopt_drivers(vcode_unit_t unit, e_node_t cursor)
@@ -402,6 +419,7 @@ static void eopt_drivers(vcode_unit_t unit, e_node_t cursor)
       .drive_signal   = eopt_driver_cb,
       .pcall          = eopt_pcall_cb,
       .fcall          = eopt_pcall_cb,
+      .last_value     = eopt_last_value_cb,
       .vars           = cprop_vars,
       .context        = cursor,
       .flags          = CPROP_BOUNDS
@@ -431,9 +449,6 @@ static void eopt_ports(tree_t block, e_node_t cursor)
       e_set_width(e, type_width(type));
       e_set_type(e, type);
       eopt_path_from_cursor(e, tree_ident(p), cursor);
-
-      if (tree_flags(p) & TREE_F_LAST_VALUE)
-        e_set_flag(e, E_F_LAST_VALUE);
 
       e_add_signal(cursor, e);
    }
@@ -554,10 +569,6 @@ static void eopt_signal_decl(tree_t decl, e_node_t cursor)
    e_set_type(e, type);
    e_set_loc(e, tree_loc(decl));
    eopt_path_from_cursor(e, name, cursor);
-
-   if (tree_flags(decl) & TREE_F_LAST_VALUE)
-      e_set_flag(e, E_F_LAST_VALUE);
-
    eopt_nexus_for_type(e, type, NULL);
 
    e_add_signal(cursor, e);
@@ -606,8 +617,14 @@ static void eopt_package(tree_t pack, e_node_t cursor)
 
    eopt_decls(pack, e);
 
-   if (e_signals(e) > 0)
+   const int nsignals = e_signals(e);
+   if (nsignals > 0) {
+      // Cannot optimise out LAST_VALUE for package signals
+      for (int i = 0; i < nsignals; i++)
+         e_set_flag(e_signal(e, i), E_F_LAST_VALUE);
+
       eopt_do_cprop(e);
+   }
 }
 
 static void eopt_context(tree_t unit)

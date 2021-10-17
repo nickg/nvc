@@ -1119,7 +1119,6 @@ START_TEST(test_alias)
    tree_t x_decl = tree_decl(arch, 1);
    fail_unless(tree_kind(x_decl) == T_SIGNAL_DECL);
    fail_unless(icmp(tree_ident(x_decl), "X"));
-   fail_unless(tree_flags(x_decl) & TREE_F_LAST_VALUE);
 }
 END_TEST
 

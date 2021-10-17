@@ -492,6 +492,11 @@ void cprop(cprop_req_t *req)
                (*req->pcall)(op, regs, req->context);
             break;
 
+         case VCODE_OP_LAST_VALUE:
+            if (req->last_value)
+               (*req->last_value)(op, regs, req->context);
+            break;
+
          case VCODE_OP_STORE:
             if (req->vars)
                cprop_store_var(req->vars, op, regs);
@@ -649,7 +654,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_NOR:
          case VCODE_OP_XNOR:
          case VCODE_OP_NAND:
-         case VCODE_OP_LAST_VALUE:
          case VCODE_OP_LAST_EVENT:
          case VCODE_OP_LAST_ACTIVE:
          case VCODE_OP_CONST_REAL:

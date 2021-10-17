@@ -813,10 +813,6 @@ static bool sem_check_decl(tree_t t)
                    istr(tree_ident(t)));
    }
 
-   // Cannot optimise out LAST_VALUE for package signals
-   if (kind == T_SIGNAL_DECL && (top_scope->flags & SCOPE_PACKAGE))
-      tree_set_flag(t, TREE_F_LAST_VALUE);
-
    return true;
 }
 
@@ -2023,10 +2019,6 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
          if (kind != T_REF)
             sem_error(value, "actual for formal %s with class SIGNAL must be a "
                       "name denoting a signal", istr(tree_ident(port)));
-
-         // The 'LAST_VALUE attribute may be accessed in the body so cannot
-         // optimise this out
-         tree_set_flag(tree_ref(value), TREE_F_LAST_VALUE);
       }
 
       if (class == C_VARIABLE) {
@@ -3139,16 +3131,10 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
 
    case ATTR_EVENT:
    case ATTR_ACTIVE:
-      if (!sem_check_signal_attr(t))
-         return false;
-
-      return true;
-
    case ATTR_LAST_VALUE:
       if (!sem_check_signal_attr(t))
          return false;
 
-      tree_set_flag(tree_ref(name), TREE_F_LAST_VALUE);
       return true;
 
    case ATTR_PATH_NAME:
