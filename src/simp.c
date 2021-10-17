@@ -1131,6 +1131,13 @@ static tree_t simp_cpcall(tree_t t)
 
 static tree_t simp_cassert(tree_t t)
 {
+   tree_t value = tree_value(t);
+   bool value_b;
+   if (folded_bool(value, &value_b) && value_b) {
+      // Assertion always passes
+      return NULL;
+   }
+
    tree_t process = tree_new(T_PROCESS);
    tree_set_ident(process, tree_ident(t));
    tree_set_loc(process, tree_loc(t));
@@ -1145,7 +1152,7 @@ static tree_t simp_cassert(tree_t t)
    tree_t a = tree_new(T_ASSERT);
    tree_set_ident(a, ident_new("assert_wrap"));
    tree_set_loc(a, tree_loc(t));
-   tree_set_value(a, tree_value(t));
+   tree_set_value(a, value);
    tree_set_severity(a, tree_severity(t));
    if (tree_has_message(t))
       tree_set_message(a, tree_message(t));
