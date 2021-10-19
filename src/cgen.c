@@ -2184,6 +2184,25 @@ static void cgen_op_const_record(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMConstNamedStruct(lltype, fields, nargs);
 }
 
+static void cgen_op_address_of(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   char *name LOCAL = xasprintf("%s_const_r%d",
+                                istr(vcode_unit_name()), result);
+
+   LLVMValueRef init = cgen_get_arg(op, 0, ctx);
+   LLVMTypeRef type = LLVMTypeOf(init);
+
+   LLVMValueRef global = LLVMAddGlobal(module, type, name);
+   LLVMSetLinkage(global, LLVMInternalLinkage);
+   LLVMSetGlobalConstant(global, true);
+   LLVMSetUnnamedAddr(global, true);
+   LLVMSetInitializer(global, init);
+
+   ctx->regs[result] = global;
+}
+
 static void cgen_op_copy(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef dest = cgen_get_arg(op, 0, ctx);
@@ -3214,6 +3233,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_CONST_RECORD:
       cgen_op_const_record(i, ctx);
+      break;
+   case VCODE_OP_ADDRESS_OF:
+      cgen_op_address_of(i, ctx);
       break;
    case VCODE_OP_COPY:
       cgen_op_copy(i, ctx);

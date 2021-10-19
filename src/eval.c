@@ -1367,19 +1367,6 @@ static void eval_op_load_indirect(int op, eval_state_t *state)
    *dst = *(src->pointer);
 }
 
-static void eval_deep_copy(int op, value_t *dst, value_t *src)
-{
-   EVAL_ASSERT_VALUE(op, dst, VALUE_RECORD);
-   assert(dst->length == src->length);
-
-   for (int i = 0; i < src->length; i++) {
-      if (src->fields[i].kind == VALUE_RECORD)
-         eval_deep_copy(op, dst->fields + i, src->fields + i);
-      else
-         dst->fields[i] = src->fields[i];
-   }
-}
-
 static void eval_op_store_indirect(int op, eval_state_t *state)
 {
    vcode_reg_t dst_reg = vcode_get_arg(op, 1);
@@ -1389,10 +1376,7 @@ static void eval_op_store_indirect(int op, eval_state_t *state)
 
    EVAL_ASSERT_VALUE(op, dst, VALUE_POINTER);
 
-   if (src->kind == VALUE_RECORD)
-      eval_deep_copy(op, dst->pointer, src);
-   else
-      *(dst->pointer) = *src;
+   *(dst->pointer) = *src;
 }
 
 static void eval_op_case(int op, eval_state_t *state)
@@ -1410,6 +1394,19 @@ static void eval_op_case(int op, eval_state_t *state)
    }
 
    eval_branch(target, state);
+}
+
+static void eval_deep_copy(int op, value_t *dst, value_t *src)
+{
+   EVAL_ASSERT_VALUE(op, dst, VALUE_RECORD);
+   assert(dst->length == src->length);
+
+   for (int i = 0; i < src->length; i++) {
+      if (src->fields[i].kind == VALUE_RECORD)
+         eval_deep_copy(op, dst->fields + i, src->fields + i);
+      else
+         dst->fields[i] = src->fields[i];
+   }
 }
 
 static void eval_op_copy(int op, eval_state_t *state)
@@ -1432,13 +1429,21 @@ static void eval_op_copy(int op, eval_state_t *state)
 
    if (dstp - srcp >= (uintptr_t)(count * sizeof(value_t))) {
       // Copy forwards
-      for (int i = 0; i < count; i++)
-         dst->pointer[i] = src->pointer[i];
+      for (int i = 0; i < count; i++) {
+         if (src->pointer->kind == VALUE_RECORD)
+            eval_deep_copy(op, &(dst->pointer[i]), &(src->pointer[i]));
+         else
+            dst->pointer[i] = src->pointer[i];
+      }
    }
    else {
       // Copy backwards for overlapping case
-      for (int i = count - 1; i >= 0; i--)
-         dst->pointer[i] = src->pointer[i];
+      for (int i = count - 1; i >= 0; i--) {
+         if (src->pointer->kind == VALUE_RECORD)
+            eval_deep_copy(op, &(dst->pointer[i]), &(src->pointer[i]));
+         else
+            dst->pointer[i] = src->pointer[i];
+      }
    }
 }
 
@@ -1642,6 +1647,17 @@ static void eval_op_const_record(int op, eval_state_t *state)
       if (vtype_kind(vtype_field(vtype, i)) == VCODE_TYPE_CARRAY)
          dst->fields[i].kind = VALUE_CARRAY;
    }
+}
+
+static void eval_op_address_of(int op, eval_state_t *state)
+{
+   value_t *src = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+
+   EVAL_ASSERT_VALUE(op, src, VALUE_RECORD);
+
+   dst->kind = VALUE_POINTER;
+   dst->pointer = src;
 }
 
 static void eval_op_record_ref(int op, eval_state_t *state)
@@ -2134,6 +2150,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_CONST_RECORD:
          eval_op_const_record(state->op, state);
+         break;
+
+      case VCODE_OP_ADDRESS_OF:
+         eval_op_address_of(state->op, state);
          break;
 
       case VCODE_OP_RECORD_REF:

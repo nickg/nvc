@@ -2967,7 +2967,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
       if (!nest) {
          vcode_type_t vtype = lower_type(type);
          vcode_reg_t mem_reg = emit_alloca(vtype, vtype, VCODE_INVALID_REG);
-         emit_store_indirect(reg, mem_reg);
+         emit_copy(mem_reg, emit_address_of(reg), VCODE_INVALID_REG);
          return mem_reg;
       }
       else

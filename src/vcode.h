@@ -136,6 +136,7 @@ typedef enum {
    VCODE_OP_LAST_ACTIVE,
    VCODE_OP_DRIVING,
    VCODE_OP_DRIVING_VALUE,
+   VCODE_OP_ADDRESS_OF,
 } vcode_op_t;
 
 typedef enum {
@@ -342,6 +343,7 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
                              bool allocate);
 vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_const_real(double value);
+vcode_reg_t emit_address_of(vcode_reg_t value);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);

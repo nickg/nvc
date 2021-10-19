@@ -199,6 +199,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_NOT:
       case VCODE_OP_LOAD_INDIRECT:
       case VCODE_OP_STORE_INDIRECT:
+      case VCODE_OP_ADDRESS_OF:
       case VCODE_OP_SCHED_WAVEFORM:
       case VCODE_OP_SELECT:
       case VCODE_OP_EVENT:
@@ -1280,9 +1281,10 @@ START_TEST(test_record1)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONST_RECORD },
-      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_COPY },
       { VCODE_OP_INDEX, .name = "B" },
-      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_COPY },
       { VCODE_OP_RETURN }
    };
 
@@ -1884,7 +1886,8 @@ START_TEST(test_record6)
       { VCODE_OP_CONST_ARRAY, .length = 3 },
       { VCODE_OP_CONST, .value = INT32_MIN },
       { VCODE_OP_CONST_RECORD },
-      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_COPY },
       { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_COPY },
@@ -3142,7 +3145,8 @@ START_TEST(test_access1)
       { VCODE_OP_ALL },
       { VCODE_OP_CONST, .value = INT32_MIN },
       { VCODE_OP_CONST_RECORD },
-      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_COPY },
       { VCODE_OP_CAST },
       { VCODE_OP_STORE, .name = "N" },
       { VCODE_OP_LOAD_INDIRECT },
@@ -3462,7 +3466,8 @@ START_TEST(test_issue389)
       { VCODE_OP_CONST_ARRAY, .length = 64 },
       { VCODE_OP_CONST_ARRAY, .length = 32 },
       { VCODE_OP_CONST_RECORD },
-      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_COPY },
       { VCODE_OP_RETURN },
    };
 

@@ -964,7 +964,7 @@ const char *vcode_op_string(vcode_op_t op)
       "undefined", "image map", "range null", "var upref", "link signal",
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
-      "driving value",
+      "driving value", "address of",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1583,6 +1583,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
+         case VCODE_OP_ADDRESS_OF:
          case VCODE_OP_CAST:
             {
                col += vcode_dump_reg(op->result);
@@ -2528,6 +2529,21 @@ static bool vtype_is_pointer(vcode_type_t type, vtype_kind_t to)
       && vtype_kind(vtype_pointed(type)) == to;
 }
 
+static bool vtype_is_scalar(vcode_type_t type)
+{
+   const vtype_kind_t kind = vtype_kind(type);
+   return kind == VCODE_TYPE_INT || kind == VCODE_TYPE_OFFSET
+      || kind == VCODE_TYPE_UARRAY || kind == VCODE_TYPE_POINTER
+      || kind == VCODE_TYPE_FILE || kind == VCODE_TYPE_ACCESS
+      || kind == VCODE_TYPE_REAL || kind == VCODE_TYPE_SIGNAL;
+}
+
+static bool vtype_is_aggregate(vcode_type_t type)
+{
+   const vtype_kind_t kind = vtype_kind(type);
+   return kind == VCODE_TYPE_RECORD || kind == VCODE_TYPE_CARRAY;
+}
+
 int vcode_count_params(void)
 {
    assert(active_unit != NULL);
@@ -3127,6 +3143,23 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
    return op->result;
 }
 
+vcode_reg_t emit_address_of(vcode_reg_t value)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_ADDRESS_OF) {
+      if (other->args.items[0] == value)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_ADDRESS_OF);
+   vcode_add_arg(op, value);
+
+   vcode_type_t type = vcode_reg_type(value);
+   VCODE_ASSERT(vtype_is_aggregate(type),
+                "address of argument must be record or array");
+
+   return (op->result = vcode_add_reg(vtype_pointer(type)));
+}
+
 void emit_wait(vcode_block_t target, vcode_reg_t time)
 {
    op_t *op = vcode_add_op(VCODE_OP_WAIT);
@@ -3211,13 +3244,7 @@ vcode_reg_t emit_load(vcode_var_t var)
    op->address = var;
    op->result  = vcode_add_reg(v->type);
 
-   vtype_kind_t type_kind = vtype_kind(v->type);
-   VCODE_ASSERT(
-      type_kind == VCODE_TYPE_INT || type_kind == VCODE_TYPE_OFFSET
-      || type_kind == VCODE_TYPE_UARRAY || type_kind == VCODE_TYPE_POINTER
-      || type_kind == VCODE_TYPE_FILE || type_kind == VCODE_TYPE_ACCESS
-      || type_kind == VCODE_TYPE_REAL || type_kind == VCODE_TYPE_SIGNAL,
-      "cannot load non-scalar type");
+   VCODE_ASSERT(vtype_is_scalar(v->type), "cannot load non-scalar type");
 
    reg_t *r = vcode_reg_data(op->result);
    r->bounds = v->bounds;
@@ -3238,13 +3265,7 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
    vcode_type_t deref = vtype_pointed(rtype);
    op->result = vcode_add_reg(deref);
 
-   vtype_kind_t type_kind = vtype_kind(deref);
-   VCODE_ASSERT(
-      type_kind == VCODE_TYPE_INT || type_kind == VCODE_TYPE_OFFSET
-      || type_kind == VCODE_TYPE_UARRAY || type_kind == VCODE_TYPE_POINTER
-      || type_kind == VCODE_TYPE_FILE || type_kind == VCODE_TYPE_ACCESS
-      || type_kind == VCODE_TYPE_REAL || type_kind == VCODE_TYPE_SIGNAL,
-      "cannot load non-scalar type");
+   VCODE_ASSERT(vtype_is_scalar(deref), "cannot load non-scalar type");
 
    vcode_reg_data(op->result)->bounds = vcode_reg_data(reg)->bounds;
 
@@ -3278,6 +3299,7 @@ void emit_store(vcode_reg_t reg, vcode_var_t var)
 
    VCODE_ASSERT(vtype_eq(v->type, r->type),
                 "variable and stored value do not have same type");
+   VCODE_ASSERT(vtype_is_scalar(v->type), "cannot store non-scalar type");
 }
 
 void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
@@ -3293,6 +3315,7 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
                 "store indirect target is not a pointer");
    VCODE_ASSERT(vtype_eq(vtype_pointed(p->type), r->type),
                 "pointer and stored value do not have same type");
+   VCODE_ASSERT(vtype_is_scalar(r->type), "cannot store non-scalar type");
 }
 
 static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
