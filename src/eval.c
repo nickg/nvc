@@ -1654,10 +1654,14 @@ static void eval_op_address_of(int op, eval_state_t *state)
    value_t *src = eval_get_reg(vcode_get_arg(op, 0), state);
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
 
-   EVAL_ASSERT_VALUE(op, src, VALUE_RECORD);
-
-   dst->kind = VALUE_POINTER;
-   dst->pointer = src;
+   if (src->kind == VALUE_RECORD) {
+      dst->kind = VALUE_POINTER;
+      dst->pointer = src;
+   }
+   else {
+      // Constant arrays are already VALUE_POINTER
+      *dst = *src;
+   }
 }
 
 static void eval_op_record_ref(int op, eval_state_t *state)

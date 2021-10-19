@@ -531,11 +531,13 @@ START_TEST(test_assign2)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 8 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_COPY },
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_COPY },
       { VCODE_OP_RETURN }
    };
@@ -719,6 +721,7 @@ START_TEST(test_cond1)
       { VCODE_OP_CONST, .value = 100 },
       { VCODE_OP_CONST, .value = 111 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_REPORT },
       { VCODE_OP_WAIT, .target = 7 }
@@ -945,6 +948,7 @@ START_TEST(test_arrayop1)
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_COPY },
       { VCODE_OP_RETURN }
    };
@@ -958,6 +962,7 @@ START_TEST(test_arrayop1)
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_ALLOCA },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE_INDIRECT },
@@ -1029,6 +1034,7 @@ START_TEST(test_array1)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_UARRAY_LEN },
@@ -1651,6 +1657,7 @@ START_TEST(test_slice1)
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CONST, .value = 4 },
       { VCODE_OP_CONST_ARRAY, .length = 4 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_COPY },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
@@ -1658,10 +1665,12 @@ START_TEST(test_slice1)
       { VCODE_OP_CONST, .value = 6 },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_COPY },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ADD },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_MEMCMP },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 1000000 },
@@ -2166,6 +2175,7 @@ START_TEST(test_issue134)
 
    EXPECT_BB(0) = {
       { VCODE_OP_CONST_ARRAY, .length = 0 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 0 },
@@ -2607,6 +2617,7 @@ START_TEST(test_thunk)
    EXPECT_BB(0) = {
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST_ARRAY, .length = 4 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ADD },
       { VCODE_OP_LOAD_INDIRECT },
@@ -2673,6 +2684,7 @@ START_TEST(test_issue333)
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 49 },
       { VCODE_OP_CONST_ARRAY, .length = 1 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
@@ -2690,6 +2702,7 @@ START_TEST(test_issue333)
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 50 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_NEW },
@@ -2878,6 +2891,7 @@ START_TEST(test_issue338b)
 
    EXPECT_BB(0) = {
       { VCODE_OP_CONST_ARRAY, .length = 0 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_UARRAY_LEN },
@@ -3495,6 +3509,7 @@ START_TEST(test_const1)
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST_ARRAY, .length = 3 },
+         { VCODE_OP_ADDRESS_OF },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
          { VCODE_OP_COPY },

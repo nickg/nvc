@@ -384,6 +384,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_CONST_ARRAY:
    case VCODE_OP_NULL:
    case VCODE_OP_UNDEFINED:
+   case VCODE_OP_ADDRESS_OF:
       break;
 
    case VCODE_OP_ALLOCA:
@@ -674,6 +675,7 @@ void vcode_opt(void)
             case VCODE_OP_UARRAY_RIGHT:
             case VCODE_OP_UNWRAP:
             case VCODE_OP_NULL:
+            case VCODE_OP_ADDRESS_OF:
                if (uses[o->result] == -1) {
                   vcode_dump_with_mark(j, NULL, NULL);
                   fatal("defintion of r%d does not dominate all uses",
@@ -3057,42 +3059,37 @@ vcode_reg_t emit_const_real(double value)
    return op->result;
 }
 
-vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
-                             bool allocate)
+vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
 {
    vtype_kind_t kind = vtype_kind(type);
-   vcode_type_t rtype = allocate && kind == VCODE_TYPE_CARRAY
-      ? vtype_pointer(vtype_elem(type))
-      : type;
 
    // Reuse any previous operation in this block with the same arguments
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONST_ARRAY) {
-      if (other->args.count == num && vtype_eq(type, other->type)) {
-         bool match = true;
-         for (int i = 0; match && i < num; i++) {
-            if (other->args.items[i] != values[i])
-               match = false;
-         }
+      if (other->args.count != num)
+         continue;
+      else if (!vtype_eq(vcode_reg_type(other->result), type))
+         continue;
 
-         if (match && vtype_eq(vcode_reg_type(other->result), rtype))
-            return other->result;
+      bool match = true;
+      for (int i = 0; match && i < num; i++) {
+         if (other->args.items[i] != values[i])
+            match = false;
       }
+
+      if (match) return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CONST_ARRAY);
-   op->type   = type;
-   op->result = vcode_add_reg(rtype);
+   op->result = vcode_add_reg(type);
 
    for (int i = 0; i < num; i++)
       vcode_add_arg(op, values[i]);
 
-   VCODE_ASSERT(
-      kind == VCODE_TYPE_CARRAY || (allocate && kind == VCODE_TYPE_POINTER),
-      "constant array must have constrained array type");
+   VCODE_ASSERT(kind == VCODE_TYPE_CARRAY,
+                "constant array must have constrained array type");
 
    reg_t *r = vcode_reg_data(op->result);
-   r->bounds = (kind == VCODE_TYPE_POINTER)
-      ? vtype_pointed(type) : vtype_elem(type);
+   r->bounds = vtype_elem(type);
 
    return op->result;
 }
@@ -3157,7 +3154,17 @@ vcode_reg_t emit_address_of(vcode_reg_t value)
    VCODE_ASSERT(vtype_is_aggregate(type),
                 "address of argument must be record or array");
 
-   return (op->result = vcode_add_reg(vtype_pointer(type)));
+   if (vtype_kind(type) == VCODE_TYPE_CARRAY) {
+      vcode_type_t elem = vtype_elem(type);
+      op->result = vcode_add_reg(vtype_pointer(elem));
+
+      reg_t *rr = vcode_reg_data(op->result);
+      rr->bounds = elem;
+
+      return op->result;
+   }
+   else
+      return (op->result = vcode_add_reg(vtype_pointer(type)));
 }
 
 void emit_wait(vcode_block_t target, vcode_reg_t time)

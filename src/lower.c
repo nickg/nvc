@@ -1041,14 +1041,15 @@ static vcode_reg_t lower_wrap_string(const char *str)
    for (int j = 0; j < len; j++)
       chars[j] = emit_const(ctype, str[j]);
 
-   vcode_reg_t data = emit_const_array(vtype_pointer(ctype), chars, len, true);
+   vcode_type_t str_type = vtype_carray(len, ctype, ctype);
+   vcode_reg_t data = emit_const_array(str_type, chars, len);
 
    vcode_dim_t dim0 = {
       .left  = emit_const(vtype_offset(), 1),
       .right = emit_const(vtype_offset(), len),
       .dir   = emit_const(vtype_bool(), RANGE_TO)
    };
-   return emit_wrap(data, &dim0, 1);
+   return emit_wrap(emit_address_of(data), &dim0, 1);
 }
 
 static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
@@ -1336,7 +1337,7 @@ static vcode_reg_t lower_array_to_string(tree_t fcall, vcode_reg_t array_reg)
    }
 
    vcode_type_t map_vtype = vtype_carray(nlits, elem_vtype, elem_vtype);
-   vcode_reg_t map_reg = emit_const_array(map_vtype, map, nlits, true);
+   vcode_reg_t map_reg = emit_const_array(map_vtype, map, nlits);
 
    vcode_reg_t len_reg = lower_array_len(arg_type, 0, array_reg);
    vcode_reg_t mem_reg = emit_alloca(elem_vtype, elem_vtype, len_reg);
@@ -1365,7 +1366,7 @@ static vcode_reg_t lower_array_to_string(tree_t fcall, vcode_reg_t array_reg)
    vcode_reg_t sptr_reg = emit_add(lower_array_data(array_reg), i_reg);
    vcode_reg_t src_reg  = emit_load_indirect(sptr_reg);
    vcode_reg_t off_reg  = emit_cast(vtype_offset(), vtype_offset(), src_reg);
-   vcode_reg_t lptr_reg = emit_add(lower_array_data(map_reg), off_reg);
+   vcode_reg_t lptr_reg = emit_add(emit_address_of(map_reg), off_reg);
    vcode_reg_t dptr_reg = emit_add(lower_array_data(mem_reg), i_reg);
    emit_store_indirect(emit_load_indirect(lptr_reg), dptr_reg);
 
@@ -1958,15 +1959,16 @@ static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
    return tmp;
 }
 
-static vcode_reg_t lower_string_literal(tree_t lit, bool allocate)
+static vcode_reg_t lower_string_literal(tree_t lit)
 {
    int nchars;
    vcode_reg_t *tmp LOCAL = lower_string_literal_chars(lit, &nchars);
 
    type_t type = tree_type(lit);
    if (type_is_array(type) && !lower_const_bounds(type)) {
-      vcode_type_t base = vtype_pointer(lower_type(type_elem(type)));
-      vcode_reg_t data = emit_const_array(base, tmp, nchars, allocate);
+      vcode_type_t elem = lower_type(type_elem(type));
+      vcode_type_t array_type = vtype_carray(nchars, elem, elem);
+      vcode_reg_t data = emit_const_array(array_type, tmp, nchars);
       if (type_is_unconstrained(type)) {
          // Will occur with overridden generic strings
          vcode_dim_t dim0 = {
@@ -1974,13 +1976,13 @@ static vcode_reg_t lower_string_literal(tree_t lit, bool allocate)
             .right = emit_const(vtype_offset(), nchars),
             .dir   = emit_const(vtype_bool(), RANGE_TO)
          };
-         return emit_wrap(data, &dim0, 1);
+         return emit_wrap(emit_address_of(data), &dim0, 1);
       }
       else
-         return lower_wrap(type, data);
+         return lower_wrap(type, emit_address_of(data));
    }
    else
-      return emit_const_array(lower_type(type), tmp, nchars, allocate);
+      return emit_const_array(lower_type(type), tmp, nchars);
 }
 
 static vcode_reg_t lower_literal(tree_t lit, expr_ctx_t ctx)
@@ -1996,7 +1998,12 @@ static vcode_reg_t lower_literal(tree_t lit, expr_ctx_t ctx)
       return emit_const(lower_type(tree_type(lit)), tree_ival(lit));
 
    case L_STRING:
-      return lower_string_literal(lit, true);
+      {
+         vcode_reg_t array = lower_string_literal(lit);
+         if (vcode_reg_kind(array) == VCODE_TYPE_CARRAY)
+            array = emit_address_of(array);
+         return array;
+      }
 
    case L_NULL:
       return emit_null(lower_type(tree_type(lit)));
@@ -2894,14 +2901,14 @@ static vcode_reg_t lower_record_sub_aggregate(tree_t value, type_t type,
 {
    if (type_is_array(type) && is_const) {
       if (tree_kind(value) == T_LITERAL)
-         return lower_string_literal(value, false);
+         return lower_string_literal(value);
       else if (mode == LOWER_THUNK && !lower_const_bounds(type))
          return emit_undefined(lower_type(type));
       else {
          int nvals;
          vcode_reg_t *values LOCAL =
             lower_const_array_aggregate(value, type, 0, &nvals);
-         return emit_const_array(lower_type(type), values, nvals, false);
+         return emit_const_array(lower_type(type), values, nvals);
       }
    }
    else if (type_is_record(type) && is_const)
@@ -3017,7 +3024,8 @@ static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
       vcode_reg_t *values LOCAL =
          lower_const_array_aggregate(expr, type, 0, &nvals);
 
-      return emit_const_array(lower_type(type), values, nvals, true);
+      vcode_reg_t array = emit_const_array(lower_type(type), values, nvals);
+      return emit_address_of(array);
    }
    else
       return lower_dyn_aggregate(expr, type);

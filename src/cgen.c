@@ -1047,27 +1047,7 @@ static void cgen_op_const_array(int op, cgen_ctx_t *ctx)
    for (int i = 0; i < length; i++)
       tmp[i] = ctx->regs[vcode_get_arg(op, i)];
 
-   if (vtype_kind(vcode_reg_type(result)) == VCODE_TYPE_POINTER) {
-      char *name LOCAL = xasprintf("%s_const_array_r%d",
-                                   istr(vcode_unit_name()), result);
-
-      LLVMTypeRef elem_type  = cgen_type(vtype_pointed(type));
-      LLVMTypeRef array_type = LLVMArrayType(elem_type, length);
-
-      LLVMValueRef global = LLVMAddGlobal(module, array_type, name);
-      LLVMSetLinkage(global, LLVMInternalLinkage);
-      LLVMSetGlobalConstant(global, true);
-      LLVMSetUnnamedAddr(global, true);
-
-      LLVMValueRef init = LLVMConstArray(elem_type, tmp, length);
-      LLVMSetInitializer(global, init);
-
-      ctx->regs[result] = cgen_array_pointer(global);
-      LLVMSetValueName(ctx->regs[result], cgen_reg_name(result));
-   }
-   else
-      ctx->regs[result] = LLVMConstArray(cgen_type(vtype_elem(type)),
-                                         tmp, length);
+   ctx->regs[result] = LLVMConstArray(cgen_type(vtype_elem(type)), tmp, length);
 }
 
 static void cgen_op_cmp(int op, cgen_ctx_t *ctx)
@@ -2200,7 +2180,10 @@ static void cgen_op_address_of(int op, cgen_ctx_t *ctx)
    LLVMSetUnnamedAddr(global, true);
    LLVMSetInitializer(global, init);
 
-   ctx->regs[result] = global;
+   if (LLVMGetTypeKind(type) == LLVMArrayTypeKind)
+      ctx->regs[result] = cgen_array_pointer(global);
+   else
+      ctx->regs[result] = global;
 }
 
 static void cgen_op_copy(int op, cgen_ctx_t *ctx)
