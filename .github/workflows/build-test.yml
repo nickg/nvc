@@ -187,3 +187,5 @@ jobs:
         run: ./vhdl-projects/hardh264/test.sh
       - name: Test big RAM
         run: ./vhdl-projects/bigram/test.sh
+      - name: Test Dummy_Plug
+        run: ./vhdl-projects/dummyplug/test.sh
