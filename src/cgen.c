@@ -71,6 +71,7 @@ typedef enum {
    FUNC_ATTR_WRITEONLY,
    FUNC_ATTR_NONNULL,
    FUNC_ATTR_COLD,
+   FUNC_ATTR_OPTNONE,
 
    // Attributes requiring special handling
    FUNC_ATTR_PRESERVE_FP,
@@ -369,7 +370,7 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
    else {
       const char *names[] = {
          "nounwind", "noreturn", "readonly", "nocapture", "byval", "uwtable",
-         "noinline", "writeonly", "nonnull", "cold"
+         "noinline", "writeonly", "nonnull", "cold", "optnone",
       };
       assert(attr < ARRAY_LEN(names));
 
@@ -1132,7 +1133,7 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
 
          global = LLVMAddGlobal(module, LLVMTypeOf(init), "default_message");
          LLVMSetInitializer(global, init);
-         LLVMSetLinkage(global, LLVMInternalLinkage);
+         LLVMSetLinkage(global, LLVMPrivateLinkage);
          LLVMSetGlobalConstant(global, true);
          LLVMSetUnnamedAddr(global, true);
       }
@@ -2175,7 +2176,7 @@ static void cgen_op_address_of(int op, cgen_ctx_t *ctx)
    LLVMTypeRef type = LLVMTypeOf(init);
 
    LLVMValueRef global = LLVMAddGlobal(module, type, name);
-   LLVMSetLinkage(global, LLVMInternalLinkage);
+   LLVMSetLinkage(global, LLVMPrivateLinkage);
    LLVMSetGlobalConstant(global, true);
    LLVMSetUnnamedAddr(global, true);
    LLVMSetInitializer(global, init);
@@ -3771,6 +3772,9 @@ static void cgen_reset_function(void)
    ctx.fn = LLVMAddFunction(module, name, ftype);
    cgen_add_func_attr(ctx.fn, FUNC_ATTR_DLLEXPORT, -1);
    cgen_add_func_attr(ctx.fn, FUNC_ATTR_UWTABLE, -1);
+   cgen_add_func_attr(ctx.fn, FUNC_ATTR_OPTNONE, -1);
+   cgen_add_func_attr(ctx.fn, FUNC_ATTR_NOINLINE, -1);
+   cgen_add_func_attr(ctx.fn, FUNC_ATTR_COLD, -1);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(ctx.fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
