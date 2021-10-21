@@ -293,7 +293,7 @@ void object_one_time_init(void)
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the object items table
-      const uint32_t format_fudge = 22;
+      const uint32_t format_fudge = 23;
 
       format_digest += format_fudge * UINT32_C(2654435761);
 
@@ -653,13 +653,14 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
 static void object_write_ref(object_t *object, fbuf_t *f)
 {
    if (object == NULL)
-      write_u16(0, f);
+      fbuf_put_uint(f, 0);
    else {
       object_arena_t *arena = __object_arena(object);
       assert(arena->key != 0);
+      fbuf_put_uint(f, arena->key);
 
-      write_u16(arena->key, f);
-      write_u32((void *)object - arena->base, f);
+      ptrdiff_t offset = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
+      fbuf_put_uint(f, offset);
    }
 }
 
@@ -668,8 +669,8 @@ void object_write(object_t *root, fbuf_t *f)
    object_arena_t *arena = __object_arena(root);
 
    write_u32(format_digest, f);
-   write_u8(standard(), f);
-   write_u32(arena->limit - arena->base, f);
+   fbuf_put_uint(f, standard());
+   fbuf_put_uint(f, arena->limit - arena->base);
 
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
    loc_wr_ctx_t *loc_ctx = loc_write_begin(f);
@@ -683,18 +684,18 @@ void object_write(object_t *root, fbuf_t *f)
       fatal_trace("arena %s must be frozen before writing to disk",
                   istr(object_arena_name(arena)));
 
-   write_u16(arena->key, f);
+   fbuf_put_uint(f, arena->key);
    ident_write(object_arena_name(arena), ident_ctx);
 
    arena_key_t max_key = arena->key;
    for (unsigned i = 0; i < arena->deps.count; i++)
       max_key = MAX(max_key, arena->deps.items[i]->key);
-   write_u16(max_key, f);
+   fbuf_put_uint(f, max_key);
 
-   write_u16(arena->deps.count, f);
+   fbuf_put_uint(f, arena->deps.count);
    for (unsigned i = 0; i < arena->deps.count; i++) {
-      write_u16(arena->deps.items[i]->key, f);
-      write_u8(arena->deps.items[i]->std, f);
+      fbuf_put_uint(f, arena->deps.items[i]->key);
+      fbuf_put_uint(f, arena->deps.items[i]->std);
       ident_write(object_arena_name(arena->deps.items[i]), ident_ctx);
    }
 
@@ -704,8 +705,8 @@ void object_write(object_t *root, fbuf_t *f)
       object_t *object = p;
       object_class_t *class = classes[object->tag];
 
-      write_u8(object->tag, f);
-      write_u8(object->kind, f);
+      STATIC_ASSERT(OBJECT_TAG_COUNT <= 4);
+      fbuf_put_uint(f, object->tag | (object->kind << 2));
 
       if (object->tag == OBJECT_TAG_TREE || object->tag == OBJECT_TAG_E_NODE)
          loc_write(&object->loc, loc_ctx);
@@ -721,19 +722,19 @@ void object_write(object_t *root, fbuf_t *f)
                object_write_ref(object->items[n].object, f);
             else if (ITEM_OBJ_ARRAY & mask) {
                const unsigned count = object->items[n].obj_array.count;
-               write_u32(count, f);
+               fbuf_put_uint(f, count);
                for (unsigned i = 0; i < count; i++)
                   object_write_ref(object->items[n].obj_array.items[i], f);
             }
             else if (ITEM_INT64 & mask)
-               write_u64(object->items[n].ival, f);
+               fbuf_put_int(f, object->items[n].ival);
             else if (ITEM_INT32 & mask)
-               write_u32(object->items[n].ival, f);
+               fbuf_put_int(f, object->items[n].ival);
             else if (ITEM_DOUBLE & mask)
                write_double(object->items[n].dval, f);
             else if (ITEM_IDENT_ARRAY & mask) {
                item_t *item = &(object->items[n]);
-               write_u32(item->ident_array.count, f);
+               fbuf_put_uint(f, item->ident_array.count);
                for (unsigned i = 0; i < item->ident_array.count; i++)
                   ident_write(item->ident_array.items[i], ident_ctx);
             }
@@ -746,7 +747,7 @@ void object_write(object_t *root, fbuf_t *f)
       p = (char *)p + ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
    }
 
-   write_u8(0xff, f);   // End of objects marker
+   fbuf_put_uint(f, UINT16_MAX);   // End of objects marker
 
    ident_write_end(ident_ctx);
    loc_write_end(loc_ctx);
@@ -754,19 +755,18 @@ void object_write(object_t *root, fbuf_t *f)
 
 static object_t *object_read_ref(fbuf_t *f, const arena_key_t *key_map)
 {
-   arena_key_t key = read_u16(f);
+   arena_key_t key = fbuf_get_uint(f);
    if (key == 0)
       return NULL;
 
    arena_key_t mapped = key_map[key];
-   uint32_t offset = read_u32(f);
+   ptrdiff_t offset = fbuf_get_uint(f) << OBJECT_ALIGN_BITS;
 
    if (unlikely(mapped == 0))
       fatal_trace("%s missing dependency with key %d", fbuf_file_name(f), key);
 
    assert(mapped < all_arenas.count);
    assert(mapped > 0);
-   assert((offset & (OBJECT_ALIGN - 1)) == 0);
 
    object_arena_t *arena = all_arenas.items[mapped];
    assert(!arena->frozen || offset < arena->alloc - arena->base);
@@ -785,13 +785,13 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
             PACKAGE_NAME " and should be reanalysed.",
             fbuf_file_name(f), ver, format_digest);
 
-   const vhdl_standard_t std = read_u8(f);
+   const vhdl_standard_t std = fbuf_get_uint(f);
    if (std > standard())
       fatal("%s: design unit was analysed using standard revision %s which "
             "is more recent that the currently selected standard %s",
             fbuf_file_name(f), standard_text(std), standard_text(standard()));
 
-   const unsigned size = read_u32(f);
+   const unsigned size = fbuf_get_uint(f);
    if (size > OBJECT_ARENA_SZ)
       fatal("%s: arena size %u is greater than current maximum %u",
             fbuf_file_name(f), size, OBJECT_ARENA_SZ);
@@ -804,19 +804,19 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
    object_arena_t *arena = object_arena_new(size, std);
    arena->source = OBJ_DISK;
 
-   arena_key_t key = read_u16(f);
+   arena_key_t key = fbuf_get_uint(f);
    ident_t name = ident_read(ident_ctx);
    (void)name;  // Not currently used
 
-   arena_key_t max_key = read_u16(f);
+   arena_key_t max_key = fbuf_get_uint(f);
 
    arena_key_t *key_map LOCAL = xcalloc_array(max_key + 1, sizeof(arena_key_t));
    key_map[key] = arena->key;
 
-   const int ndeps = read_u16(f);
+   const int ndeps = fbuf_get_uint(f);
    for (int i = 0; i < ndeps; i++) {
-      arena_key_t dkey = read_u16(f);
-      vhdl_standard_t dstd = read_u8(f);
+      arena_key_t dkey = fbuf_get_uint(f);
+      vhdl_standard_t dstd = fbuf_get_uint(f);
       ident_t dep = ident_read(ident_ctx);
 
       object_arena_t *a = NULL;
@@ -848,14 +848,15 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
    }
 
    for (;;) {
-      const uint8_t tag = read_u8(f);
-      if (tag == 0xff) break;
+      const uint64_t hdr = fbuf_get_uint(f);
+      if (hdr == UINT16_MAX) break;
+
+      const unsigned tag = hdr & 3;
+      const unsigned kind = hdr >> 2;
 
       assert(tag < OBJECT_TAG_COUNT);
 
       const object_class_t *class = classes[tag];
-
-      const uint8_t kind = read_u8(f);
 
       object_t *object = object_new(arena, class, kind);
 
@@ -872,7 +873,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
             else if (ITEM_OBJECT & mask)
                object->items[n].object = object_read_ref(f, key_map);
             else if (ITEM_OBJ_ARRAY & mask) {
-               const unsigned count = read_u32(f);
+               const unsigned count = fbuf_get_uint(f);
                ARESIZE(object->items[n].obj_array, count);
                for (unsigned i = 0; i < count; i++) {
                   object_t *o = object_read_ref(f, key_map);
@@ -880,13 +881,13 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
                }
             }
             else if (ITEM_INT64 & mask)
-               object->items[n].ival = read_u64(f);
+               object->items[n].ival = fbuf_get_int(f);
             else if (ITEM_INT32 & mask)
-               object->items[n].ival = read_u32(f);
+               object->items[n].ival = fbuf_get_int(f);
             else if (ITEM_DOUBLE & mask)
                object->items[n].dval = read_double(f);
             else if (ITEM_IDENT_ARRAY & mask) {
-               const unsigned count = read_u32(f);
+               const unsigned count = fbuf_get_uint(f);
                ARESIZE(object->items[n].ident_array, count);;
                for (unsigned i = 0; i < count; i++) {
                   ident_t id = ident_read(ident_ctx);

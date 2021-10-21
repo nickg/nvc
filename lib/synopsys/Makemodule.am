@@ -31,6 +31,7 @@ synopsys_ieee_08_DATA = \
 	lib/ieee.08/_IEEE.STD_LOGIC_UNSIGNED.vcode
 synopsys_DATA = \
 	lib/synopsys/_NVC_LIB \
+	lib/synopsys/_index \
 	lib/synopsys/SYNOPSYS.ATTRIBUTES
 
 synopsys_ieee_so = \

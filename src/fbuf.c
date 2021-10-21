@@ -223,6 +223,29 @@ void fbuf_close(fbuf_t *f)
    free(f);
 }
 
+void fbuf_put_uint(fbuf_t *f, uint64_t val)
+{
+   uint8_t enc[10];
+   int nbytes = 0;
+
+   do {
+      enc[nbytes] = val & 0x7f;
+      val >>= 7;
+      if (val) enc[nbytes] |= 0x80;
+      nbytes++;
+   } while (val);
+
+   fbuf_maybe_flush(f, nbytes, false);
+   for (int i = 0; i < nbytes; i++)
+      *(f->wbuf + f->wpend++) = enc[i];
+}
+
+void fbuf_put_int(fbuf_t *f, int64_t val)
+{
+   uint64_t zz = (val << 1) ^ (val >> 63);   // Zig-zag encoding
+   fbuf_put_uint(f, zz);
+}
+
 void write_u32(uint32_t u, fbuf_t *f)
 {
    fbuf_maybe_flush(f, 4, false);
@@ -270,6 +293,32 @@ void write_double(double d, fbuf_t *f)
    union { double d; uint64_t i; } u;
    u.d = d;
    write_u64(u.i, f);
+}
+
+uint64_t fbuf_get_uint(fbuf_t *f)
+{
+   uint8_t dec[10];
+   int nbytes = 0;
+
+   uint8_t byte;
+   do {
+      byte = read_u8(f);
+      dec[nbytes++] = byte & 0x7f;
+   } while (byte & 0x80);
+
+   uint64_t val = 0;
+   for (int i = nbytes - 1; i >= 0; i--) {
+      val <<= 7;
+      val |= dec[i];
+   }
+
+   return val;
+}
+
+int64_t fbuf_get_int(fbuf_t *f)
+{
+   uint64_t zz = fbuf_get_uint(f);
+   return (zz >> 1) ^ -(zz & 1);
 }
 
 uint32_t read_u32(fbuf_t *f)

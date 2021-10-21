@@ -232,6 +232,7 @@ ident_wr_ctx_t ident_write_begin(fbuf_t *f)
    ctx->generation   = ident_wr_gen++;
    ctx->scratch_size = 100;
    ctx->scratch      = xmalloc(ctx->scratch_size);
+   ctx->next_index   = 1;   // Skip over null ident
 
    return ctx;
 }
@@ -244,14 +245,12 @@ void ident_write_end(ident_wr_ctx_t ctx)
 
 void ident_write(ident_t ident, ident_wr_ctx_t ctx)
 {
-   if (ident == NULL) {
-      write_u32(UINT32_MAX, ctx->file);
-      write_u8(0, ctx->file);
-   }
+   if (ident == NULL)
+      fbuf_put_uint(ctx->file, 1);
    else if (ident->write_gen == ctx->generation)
-      write_u32(ident->write_index, ctx->file);
+      fbuf_put_uint(ctx->file, ident->write_index + 1);
    else {
-      write_u32(UINT32_MAX, ctx->file);
+      fbuf_put_uint(ctx->file, 0);
 
       if (ident->depth > ctx->scratch_size) {
          ctx->scratch_size = next_power_of_2(ident->depth);
@@ -282,6 +281,9 @@ ident_rd_ctx_t ident_read_begin(fbuf_t *f)
    ctx->cache_sz    = 0;
    ctx->cache       = xmalloc_array(ctx->cache_alloc, sizeof(ident_t));
 
+   // First index is implicit null
+   ctx->cache[ctx->cache_sz++] = NULL;
+
    return ctx;
 }
 
@@ -293,8 +295,8 @@ void ident_read_end(ident_rd_ctx_t ctx)
 
 ident_t ident_read(ident_rd_ctx_t ctx)
 {
-   const uint32_t index = read_u32(ctx->file);
-   if (index == UINT32_MAX) {
+   const uint32_t index = fbuf_get_uint(ctx->file);
+   if (index == 0) {
       if (ctx->cache_sz == ctx->cache_alloc) {
          ctx->cache_alloc *= 2;
          ctx->cache = xrealloc(ctx->cache, ctx->cache_alloc * sizeof(ident_t));
@@ -324,8 +326,8 @@ ident_t ident_read(ident_rd_ctx_t ctx)
          return p;
       }
    }
-   else if (likely(index < ctx->cache_sz))
-      return ctx->cache[index];
+   else if (likely(index - 1 < ctx->cache_sz))
+      return ctx->cache[index - 1];
    else
       fatal("ident index in %s is corrupt: index=%d cache_sz=%d",
             fbuf_file_name(ctx->file), index, (int)ctx->cache_sz);

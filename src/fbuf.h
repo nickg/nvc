@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2016  Nick Gasson
+//  Copyright (C) 2013-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -33,6 +33,12 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode);
 void fbuf_close(fbuf_t *f);
 void fbuf_cleanup(void);
 const char *fbuf_file_name(fbuf_t *f);
+
+int64_t fbuf_get_int(fbuf_t *f);
+uint64_t fbuf_get_uint(fbuf_t *f);
+
+void fbuf_put_uint(fbuf_t *f, uint64_t val);
+void fbuf_put_int(fbuf_t *f, int64_t val);
 
 void write_u32(uint32_t u, fbuf_t *f);
 void write_u16(uint16_t s, fbuf_t *f);
