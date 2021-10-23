@@ -95,14 +95,6 @@ struct _tree {
    object_t object;
 };
 
-struct type_rd_ctx {
-   tree_rd_ctx_t  tree_ctx;
-   ident_rd_ctx_t ident_ctx;
-   unsigned       n_types;
-   type_t         *store;
-   unsigned       store_sz;
-};
-
 object_class_t type_object = {
    .name           = "type",
    .change_allowed = change_allowed,

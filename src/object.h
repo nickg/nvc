@@ -259,10 +259,6 @@ typedef struct {
    fbuf_t            *file;
    ident_rd_ctx_t     ident_ctx;
    loc_rd_ctx_t      *loc_ctx;
-   unsigned           n_objects;
-   object_t         **store;
-   unsigned           store_sz;
-   char              *db_fname;
    object_arena_t    *arena;
    arena_key_t       *key_map;
    object_load_fn_t   loader_fn;
@@ -286,8 +282,7 @@ object_t *object_copy(object_t *object, object_copy_ctx_t *ctx);
 
 void object_write(object_t *object, fbuf_t *f);
 
-object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname,
-                                   object_load_fn_t loader);
+object_rd_ctx_t *object_read_begin(fbuf_t *f, object_load_fn_t loader);
 void object_read_end(object_rd_ctx_t *ctx);
 object_t *object_read(object_rd_ctx_t *ctx);
 

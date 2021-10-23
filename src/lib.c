@@ -47,7 +47,6 @@ typedef struct lib_map     lib_map_t;
 struct lib_unit {
    tree_t        top;
    tree_kind_t   kind;
-   tree_rd_ctx_t read_ctx;
    bool          dirty;
    lib_mtime_t   mtime;
 };
@@ -257,8 +256,7 @@ static lib_index_t *lib_find_in_index(lib_t lib, ident_t name)
    return it;
 }
 
-static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
-                               tree_rd_ctx_t ctx, bool dirty,
+static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty,
                                lib_mtime_t mtime)
 {
    assert(lib != NULL);
@@ -287,7 +285,6 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
    }
 
    where->top      = unit;
-   where->read_ctx = ctx;
    where->dirty    = dirty;
    where->mtime    = mtime;
    where->kind     = tree_kind(unit);
@@ -654,7 +651,7 @@ void lib_put(lib_t lib, tree_t unit)
       fatal_errno("gettimeofday");
 
    lib_mtime_t usecs = ((lib_mtime_t)tv.tv_sec * 1000000) + tv.tv_usec;
-   lib_put_aux(lib, unit, NULL, true, usecs);
+   lib_put_aux(lib, unit, true, usecs);
 }
 
 void lib_put_elaborated(lib_t lib, e_node_t e)
@@ -725,11 +722,10 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    while ((e = readdir(d))) {
       if (strcmp(e->d_name, search) == 0) {
          fbuf_t *f = lib_fbuf_open(lib, e->d_name, FBUF_IN);
-         LOCAL_TEXT_BUF path = lib_file_path(lib, e->d_name);
-         tree_rd_ctx_t ctx = tree_read_begin(f, tb_get(path),
-                                             lib_get_qualified);
-         tree_t top = tree_read(ctx);
+         tree_t top = tree_read(f, lib_get_qualified);
          fbuf_close(f);
+
+         LOCAL_TEXT_BUF path = lib_file_path(lib, e->d_name);
 
          struct stat st;
          if (stat(tb_get(path), &st) < 0)
@@ -737,7 +733,7 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
 
          lib_mtime_t mt = lib_stat_mtime(&st);
 
-         unit = lib_put_aux(lib, top, ctx, false, mt);
+         unit = lib_put_aux(lib, top, false, mt);
          break;
       }
    }
@@ -814,13 +810,8 @@ bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt)
 tree_t lib_get(lib_t lib, ident_t ident)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
-   if (lu != NULL) {
-      if (lu->read_ctx != NULL) {
-         tree_read_end(lu->read_ctx);
-         lu->read_ctx = NULL;
-      }
+   if (lu != NULL)
       return lu->top;
-   }
    else
       return NULL;
 }
@@ -829,11 +820,6 @@ tree_t lib_get_check_stale(lib_t lib, ident_t ident)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
-      if (lu->read_ctx != NULL) {
-         tree_read_end(lu->read_ctx);
-         lu->read_ctx = NULL;
-      }
-
       if (!opt_get_int("ignore-time")) {
          const loc_t *loc = tree_loc(lu->top);
 

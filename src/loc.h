@@ -19,7 +19,6 @@
 #define _LOC_H
 
 #include "util.h"
-#include "fbuf.h"
 #include "ident.h"
 #include "prim.h"
 

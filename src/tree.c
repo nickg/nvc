@@ -1077,23 +1077,13 @@ void tree_write(tree_t t, fbuf_t *f)
    object_write(&(t->object), f);
 }
 
-tree_t tree_read(tree_rd_ctx_t ctx)
+tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn)
 {
+   object_rd_ctx_t *ctx = object_read_begin(f, (object_load_fn_t)find_deps_fn);
    object_t *o = object_read((object_rd_ctx_t *)ctx);
    assert(o->tag == OBJECT_TAG_TREE);
+   object_read_end(ctx);
    return container_of(o, struct _tree, object);
-}
-
-tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname,
-                              tree_load_fn_t find_deps_fn)
-{
-   return (tree_rd_ctx_t)object_read_begin(f, fname,
-                                           (object_load_fn_t)find_deps_fn);
-}
-
-void tree_read_end(tree_rd_ctx_t ctx)
-{
-   object_read_end((object_rd_ctx_t *)ctx);
 }
 
 static attr_t *tree_find_attr(tree_t t, ident_t name, tree_attr_kind_t kind)

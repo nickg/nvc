@@ -19,7 +19,6 @@
 #define _IDENT_H
 
 #include "lib.h"
-#include "fbuf.h"
 #include "prim.h"
 
 typedef struct ident_wr_ctx *ident_wr_ctx_t;

@@ -805,7 +805,8 @@ static object_t *object_read_ref(object_rd_ctx_t *ctx)
    uint32_t offset = read_u32(ctx->file);
 
    if (unlikely(mapped == 0))
-      fatal_trace("%s missing dependency with key %d", ctx->db_fname, key);
+      fatal_trace("%s missing dependency with key %d",
+                  fbuf_file_name(ctx->file), key);
 
    assert(mapped < all_arenas.count);
    assert(mapped > 0);
@@ -943,8 +944,7 @@ object_t *object_read(object_rd_ctx_t *ctx)
    return (object_t *)ctx->arena->base;
 }
 
-object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname,
-                                   object_load_fn_t loader_fn)
+object_rd_ctx_t *object_read_begin(fbuf_t *f, object_load_fn_t loader_fn)
 {
    object_one_time_init();
 
@@ -953,29 +953,25 @@ object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname,
       fatal("%s: serialised format digest is %x expected %x. This design "
             "unit uses a library format from an earlier version of "
             PACKAGE_NAME " and should be reanalysed.",
-            fname, ver, format_digest);
+            fbuf_file_name(f), ver, format_digest);
 
    const vhdl_standard_t std = read_u8(f);
    if (std > standard())
       fatal("%s: design unit was analysed using standard revision %s which "
             "is more recent that the currently selected standard %s",
-            fname, standard_text(std), standard_text(standard()));
+            fbuf_file_name(f), standard_text(std), standard_text(standard()));
 
    const unsigned size = read_u32(f);
    if (size > OBJECT_ARENA_SZ)
       fatal("%s: arena size %u is greater than current maximum %u",
-            fname, size, OBJECT_ARENA_SZ);
+            fbuf_file_name(f), size, OBJECT_ARENA_SZ);
    else if (size & OBJECT_PAGE_MASK)
-      fatal("%s: arena size %x bad alignment", fname, size);
+      fatal("%s: arena size %x bad alignment", fbuf_file_name(f), size);
 
    object_rd_ctx_t *ctx = xcalloc(sizeof(object_rd_ctx_t));
    ctx->file      = f;
    ctx->ident_ctx = ident_read_begin(f);
    ctx->loc_ctx   = loc_read_begin(f);
-   ctx->store_sz  = 256;
-   ctx->store     = xmalloc_array(ctx->store_sz, sizeof(object_t *));
-   ctx->n_objects = 0;
-   ctx->db_fname  = xstrdup(fname);
    ctx->arena     = object_arena_new(size);
    ctx->loader_fn = loader_fn;
 
@@ -988,8 +984,6 @@ void object_read_end(object_rd_ctx_t *ctx)
    object_arena_freeze(ctx->arena);
    ident_read_end(ctx->ident_ctx);
    loc_read_end(ctx->loc_ctx);
-   free(ctx->store);
-   free(ctx->db_fname);
    free(ctx->key_map);
    free(ctx);
 }

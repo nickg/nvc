@@ -479,13 +479,9 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context);
 typedef bool (*tree_copy_fn_t)(tree_t t, void *context);
 tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context);
 
-void tree_write(tree_t t, fbuf_t *f);
-
 typedef tree_t (*tree_load_fn_t)(ident_t);
 
-tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *name,
-                              tree_load_fn_t find_deps_fn);
-tree_t tree_read(tree_rd_ctx_t ctx);
-void tree_read_end(tree_rd_ctx_t ctx);
+void tree_write(tree_t t, fbuf_t *f);
+tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn);
 
 #endif  // _TREE_H
