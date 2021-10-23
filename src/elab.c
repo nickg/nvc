@@ -387,8 +387,6 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
                                 tree_t inst, tree_formals_t tree_Fs,
                                 tree_formal_t tree_F)
 {
-   // TODO: for now they must exactly match up
-
    const int comp_nf   = (*tree_Fs)(comp);
    const int entity_nf = (*tree_Fs)(entity);
 
@@ -413,6 +411,8 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
                      "entity %s", what, istr(tree_ident(comp_f)),
                      istr(tree_ident(comp)), type_pp(comp_type),
                      type_pp(entity_type), istr(tree_ident(entity)));
+            note_at(tree_loc(inst), "while elaborating instance %s here",
+                    istr(tree_ident(inst)));
             return false;
          }
       }
@@ -702,19 +702,31 @@ static void elab_ports(tree_t entity, tree_t inst, elab_ctx_t *ctx)
 static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                           elab_ctx_t *ctx)
 {
-   const int ngenerics = tree_generics(comp);
+   const int ngenerics = tree_generics(entity);
    const int ngenmaps = tree_genmaps(inst);
 
-   assert(tree_generics(entity) == ngenerics);
-
    for (int i = 0; i < ngenerics; i++) {
-      tree_t g = tree_generic(comp, i);
-      tree_add_generic(ctx->out, g);
+      tree_t eg = tree_generic(entity, i), cg = eg;
+      unsigned pos = i;
+
+      if (entity != comp) {
+         const int ngenerics_comp = tree_generics(comp);
+         for (int j = 0; j < ngenerics_comp; j++) {
+            tree_t g = tree_generic(comp, j);
+            if (tree_ident(g) == tree_ident(eg)) {
+               cg = g;
+               pos = j;
+               break;
+            }
+         }
+      }
+
+      tree_add_generic(ctx->out, cg);
 
       tree_t map = NULL;
 
-      if (i < ngenmaps) {
-         tree_t m = tree_genmap(inst, i);
+      if (pos < ngenmaps) {
+         tree_t m = tree_genmap(inst, pos);
          if (tree_subkind(m) == P_POS)
             map = m;
       }
@@ -726,7 +738,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                tree_t name = tree_name(m);
                assert(tree_kind(name) == T_REF);
 
-               if (tree_ident(name) == tree_ident(g)) {
+               if (tree_ident(name) == tree_ident(cg)) {
                   map = tree_new(T_PARAM);
                   tree_set_loc(map, tree_loc(m));
                   tree_set_subkind(map, P_POS);
@@ -738,35 +750,25 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          }
       }
 
-      if (map == NULL && tree_has_value(g)) {
+      if (map == NULL && tree_has_value(cg)) {
          map = tree_new(T_PARAM);
-         tree_set_loc(map, tree_loc(g));
+         tree_set_loc(map, tree_loc(cg));
          tree_set_subkind(map, P_POS);
          tree_set_pos(map, i);
-         tree_set_value(map, tree_value(g));
+         tree_set_value(map, tree_value(cg));
       }
 
       if (map == NULL) {
          error_at(tree_loc(inst), "missing value for generic %s with no "
-                  "default", istr(tree_ident(g)));
+                  "default", istr(tree_ident(cg)));
          continue;
       }
 
       tree_add_genmap(ctx->out, map);
 
       tree_t value = tree_value(map);
-      elab_rewrite_later(g, value, ctx);
-
-      if (entity != comp) {
-         // Find the matching generic in the entity declaration
-         for (unsigned j = 0; j < ngenerics; j++) {
-            tree_t gj = tree_generic(entity, j);
-            if (tree_ident(gj) == tree_ident(g)) {
-               elab_rewrite_later(gj, value, ctx);
-               break;
-            }
-         }
-      }
+      elab_rewrite_later(cg, value, ctx);
+      if (eg != cg) elab_rewrite_later(eg, value, ctx);
    }
 }
 

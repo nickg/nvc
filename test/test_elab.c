@@ -90,6 +90,7 @@ START_TEST(test_comp)
       { 77, "while elaborating instance E2_1 here"},
       { 14, "entity WORK.E2 declared here" },
       { 62, "type of port X in component declaration E3 is BIT" },
+      { 83, "while elaborating instance E3_1 here" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -748,6 +749,67 @@ START_TEST(test_open3)
 }
 END_TEST
 
+START_TEST(test_comp2)
+{
+   input_from_file(TESTDIR "/elab/comp2.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t top = tree_stmt(e, 0);
+   fail_unless(tree_kind(top) == T_BLOCK);
+   fail_unless(tree_stmts(top) == 2);
+
+   tree_t sub1 = tree_stmt(top, 0);
+   fail_unless(tree_kind(sub1) == T_BLOCK);
+   fail_unless(tree_generics(sub1) == 1);
+   fail_unless(tree_genmaps(sub1) == 1);
+
+   tree_t sub1_x = tree_value(tree_genmap(sub1, 0));
+   fail_unless(tree_kind(sub1_x) == T_LITERAL);
+   fail_unless(tree_ival(sub1_x) == 4);
+
+   tree_t sub1_y = tree_value(tree_decl(sub1, 1));
+   fail_unless(tree_kind(sub1_y) == T_LITERAL);
+   fail_unless(tree_ival(sub1_y) == 4);
+
+   tree_t sub2 = tree_stmt(top, 1);
+   fail_unless(tree_kind(sub2) == T_BLOCK);
+   fail_unless(tree_generics(sub2) == 2);
+   fail_unless(tree_genmaps(sub2) == 2);
+
+   tree_t sub2_x = tree_value(tree_genmap(sub2, 0));
+   fail_unless(tree_kind(sub2_x) == T_LITERAL);
+   fail_unless(tree_ival(sub2_x) == 7);
+
+   tree_t sub2_y = tree_value(tree_genmap(sub2, 1));
+   fail_unless(tree_kind(sub2_y) == T_REF);
+   fail_unless(tree_ident(sub2_y) == ident_new("FALSE"));
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_comp3)
+{
+   input_from_file(TESTDIR "/elab/comp3.vhd");
+
+   const error_t expect[] = {
+      { 36, "missing value for generic X with no default" },
+      { 31, "type of generic X in component declaration SUB2 is BOOLEAN which"
+        " does not match type INTEGER in entity WORK.SUB2" },
+      { 38, "while elaborating instance SUB2_I here" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -797,6 +859,8 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue404);
    tcase_add_test(tc, test_block1);
    tcase_add_test(tc, test_open3);
+   tcase_add_test(tc, test_comp2);
+   tcase_add_test(tc, test_comp3);
    suite_add_tcase(s, tc);
 
    return s;
