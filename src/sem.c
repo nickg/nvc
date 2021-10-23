@@ -4506,17 +4506,6 @@ static bool sem_check_block_config(tree_t t)
    return ok;
 }
 
-static bool sem_copy_instances(tree_t t, void *context)
-{
-   switch (tree_kind(t)) {
-   case T_INSTANCE:
-   case T_ARCH:
-      return true;
-   default:
-      return false;
-   }
-}
-
 static bool sem_check_configuration(tree_t t)
 {
    const int ndecls = tree_decls(t);
@@ -4534,10 +4523,6 @@ static bool sem_check_configuration(tree_t t)
                 istr(ident_rfrom(name_qual, '-')),
                 istr(ident_until(name_qual, '-')),
                 istr(lib_name(work)));
-
-   tree_t copy = tree_copy(arch, sem_copy_instances, NULL);
-   tree_set_ident(copy, ident_prefix(name_qual, tree_ident(t), '-'));
-   lib_put(lib_work(), copy);
 
    scope_push(NULL);
    top_scope->unit = t;

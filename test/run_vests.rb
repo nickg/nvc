@@ -14,6 +14,7 @@ Prefix = "#{VestsDir}/vhdl-93"
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = 'nvc'
 Billowitch = "#{Prefix}/billowitch/compliant"
+ExpectFails = 89
 
 def run_cmd(c)
   Process.wait Process.spawn(c)
@@ -63,3 +64,9 @@ File.open("#{VestsDir}/HISTORY", 'a') do |f|
   f.printf("%20s %10s   %4d passes   %4d failures\n",
     Time.new.ctime, GitRev, passes, fails)
 end
+
+if fails > ExpectFails then
+  puts "Expected #{ExpectFails} failures but have #{fails}"
+  exit 1
+end
+
