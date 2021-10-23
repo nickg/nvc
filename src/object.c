@@ -795,18 +795,17 @@ void object_write(object_t *root, fbuf_t *f)
    loc_write_end(loc_ctx);
 }
 
-static object_t *object_read_ref(object_rd_ctx_t *ctx)
+static object_t *object_read_ref(fbuf_t *f, const arena_key_t *key_map)
 {
-   arena_key_t key = read_u16(ctx->file);
+   arena_key_t key = read_u16(f);
    if (key == 0)
       return NULL;
 
-   arena_key_t mapped = ctx->key_map[key];
-   uint32_t offset = read_u32(ctx->file);
+   arena_key_t mapped = key_map[key];
+   uint32_t offset = read_u32(f);
 
    if (unlikely(mapped == 0))
-      fatal_trace("%s missing dependency with key %d",
-                  fbuf_file_name(ctx->file), key);
+      fatal_trace("%s missing dependency with key %d", fbuf_file_name(f), key);
 
    assert(mapped < all_arenas.count);
    assert(mapped > 0);
@@ -818,133 +817,7 @@ static object_t *object_read_ref(object_rd_ctx_t *ctx)
    return (object_t *)((char *)arena->base + offset);
 }
 
-object_t *object_read(object_rd_ctx_t *ctx)
-{
-   arena_key_t key = read_u16(ctx->file);
-   ident_t name = ident_read(ctx->ident_ctx);
-   (void)name;  // Not currently used
-
-   arena_key_t max_key = read_u16(ctx->file);
-
-   ctx->key_map = xcalloc_array(max_key + 1, sizeof(arena_key_t));
-   ctx->key_map[key] = ctx->arena->key;
-
-   const int ndeps = read_u16(ctx->file);
-   for (int i = 0; i < ndeps; i++) {
-      arena_key_t dkey = read_u16(ctx->file);
-      ident_t dep = ident_read(ctx->ident_ctx);
-
-      object_arena_t *arena = NULL;
-      for (unsigned j = 1; arena == NULL && j < all_arenas.count; j++) {
-         if (dep == object_arena_name(all_arenas.items[j]))
-            arena = all_arenas.items[j];
-      }
-
-      if (arena == NULL) {
-         object_t *droot = NULL;
-         if (ctx->loader_fn)
-            droot = (*ctx->loader_fn)(dep);
-
-         if (droot == NULL)
-            fatal_trace("missing dependent object %s", istr(dep));
-
-         arena = object_arena(droot);
-      }
-
-      APUSH(ctx->arena->deps, arena);
-
-      assert(dkey <= max_key);
-      ctx->key_map[dkey] = arena->key;
-   }
-
-   for (;;) {
-      const uint8_t tag = read_u8(ctx->file);
-      if (tag == 0xff) break;
-
-      assert(tag < OBJECT_TAG_COUNT);
-
-      const object_class_t *class = classes[tag];
-
-      const uint8_t kind = read_u8(ctx->file);
-
-      object_t *object = object_new(ctx->arena, class, kind);
-
-      if (tag == OBJECT_TAG_TREE || tag == OBJECT_TAG_E_NODE)
-         loc_read(&(object->loc), ctx->loc_ctx);
-
-      const imask_t has = class->has_map[object->kind];
-      const int nitems = class->object_nitems[object->kind];
-      imask_t mask = 1;
-      for (int n = 0; n < nitems; mask <<= 1) {
-         if (has & mask) {
-            if (ITEM_IDENT & mask)
-               object->items[n].ident = ident_read(ctx->ident_ctx);
-            else if (ITEM_OBJECT & mask)
-               object->items[n].object = object_read_ref(ctx);
-            else if (ITEM_OBJ_ARRAY & mask) {
-               const unsigned count = read_u32(ctx->file);
-               ARESIZE(object->items[n].obj_array, count);
-               for (unsigned i = 0; i < count; i++) {
-                  object_t *o = object_read_ref(ctx);
-                  object->items[n].obj_array.items[i] = o;
-               }
-            }
-            else if (ITEM_INT64 & mask)
-               object->items[n].ival = read_u64(ctx->file);
-            else if (ITEM_INT32 & mask)
-               object->items[n].ival = read_u32(ctx->file);
-            else if (ITEM_DOUBLE & mask)
-               object->items[n].dval = read_double(ctx->file);
-            else if (ITEM_ATTRS & mask) {
-               attr_tab_t *attrs = &(object->items[n].attrs);
-
-               attrs->num = read_u16(ctx->file);
-               if (attrs->num > 0) {
-                  attrs->alloc = next_power_of_2(attrs->num);
-                  attrs->table = xmalloc_array(sizeof(attr_t), attrs->alloc);
-               }
-
-               for (unsigned i = 0; i < attrs->num; i++) {
-                  attrs->table[i].kind = read_u16(ctx->file);
-                  attrs->table[i].name = ident_read(ctx->ident_ctx);
-
-                  switch (attrs->table[i].kind) {
-                  case A_STRING:
-                     attrs->table[i].sval = ident_read(ctx->ident_ctx);
-                     break;
-
-                  case A_INT:
-                     attrs->table[i].ival = read_u32(ctx->file);
-                     break;
-
-                  case A_TREE:
-                     attrs->table[i].tval = (tree_t)object_read_ref(ctx);
-                     break;
-
-                  default:
-                     abort();
-                  }
-               }
-            }
-            else if (ITEM_IDENT_ARRAY & mask) {
-               const unsigned count = read_u32(ctx->file);
-               ARESIZE(object->items[n].ident_array, count);;
-               for (unsigned i = 0; i < count; i++) {
-                  ident_t id = ident_read(ctx->ident_ctx);
-                  object->items[n].ident_array.items[i] = id;
-               }
-            }
-            else
-               item_without_type(mask);
-            n++;
-         }
-      }
-   }
-
-   return (object_t *)ctx->arena->base;
-}
-
-object_rd_ctx_t *object_read_begin(fbuf_t *f, object_load_fn_t loader_fn)
+object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
 {
    object_one_time_init();
 
@@ -968,24 +841,137 @@ object_rd_ctx_t *object_read_begin(fbuf_t *f, object_load_fn_t loader_fn)
    else if (size & OBJECT_PAGE_MASK)
       fatal("%s: arena size %x bad alignment", fbuf_file_name(f), size);
 
-   object_rd_ctx_t *ctx = xcalloc(sizeof(object_rd_ctx_t));
-   ctx->file      = f;
-   ctx->ident_ctx = ident_read_begin(f);
-   ctx->loc_ctx   = loc_read_begin(f);
-   ctx->arena     = object_arena_new(size);
-   ctx->loader_fn = loader_fn;
+   ident_rd_ctx_t ident_ctx = ident_read_begin(f);
+   loc_rd_ctx_t *loc_ctx = loc_read_begin(f);
 
-   ctx->arena->source = OBJ_DISK;
-   return ctx;
-}
+   object_arena_t *arena = object_arena_new(size);
+   arena->source = OBJ_DISK;
 
-void object_read_end(object_rd_ctx_t *ctx)
-{
-   object_arena_freeze(ctx->arena);
-   ident_read_end(ctx->ident_ctx);
-   loc_read_end(ctx->loc_ctx);
-   free(ctx->key_map);
-   free(ctx);
+   arena_key_t key = read_u16(f);
+   ident_t name = ident_read(ident_ctx);
+   (void)name;  // Not currently used
+
+   arena_key_t max_key = read_u16(f);
+
+   arena_key_t *key_map LOCAL = xcalloc_array(max_key + 1, sizeof(arena_key_t));
+   key_map[key] = arena->key;
+
+   const int ndeps = read_u16(f);
+   for (int i = 0; i < ndeps; i++) {
+      arena_key_t dkey = read_u16(f);
+      ident_t dep = ident_read(ident_ctx);
+
+      object_arena_t *arena = NULL;
+      for (unsigned j = 1; arena == NULL && j < all_arenas.count; j++) {
+         if (dep == object_arena_name(all_arenas.items[j]))
+            arena = all_arenas.items[j];
+      }
+
+      if (arena == NULL) {
+         object_t *droot = NULL;
+         if (loader_fn) droot = (*loader_fn)(dep);
+
+         if (droot == NULL)
+            fatal_trace("missing dependent object %s", istr(dep));
+
+         arena = object_arena(droot);
+      }
+
+      APUSH(arena->deps, arena);
+
+      assert(dkey <= max_key);
+      key_map[dkey] = arena->key;
+   }
+
+   for (;;) {
+      const uint8_t tag = read_u8(f);
+      if (tag == 0xff) break;
+
+      assert(tag < OBJECT_TAG_COUNT);
+
+      const object_class_t *class = classes[tag];
+
+      const uint8_t kind = read_u8(f);
+
+      object_t *object = object_new(arena, class, kind);
+
+      if (tag == OBJECT_TAG_TREE || tag == OBJECT_TAG_E_NODE)
+         loc_read(&(object->loc), loc_ctx);
+
+      const imask_t has = class->has_map[object->kind];
+      const int nitems = class->object_nitems[object->kind];
+      imask_t mask = 1;
+      for (int n = 0; n < nitems; mask <<= 1) {
+         if (has & mask) {
+            if (ITEM_IDENT & mask)
+               object->items[n].ident = ident_read(ident_ctx);
+            else if (ITEM_OBJECT & mask)
+               object->items[n].object = object_read_ref(f, key_map);
+            else if (ITEM_OBJ_ARRAY & mask) {
+               const unsigned count = read_u32(f);
+               ARESIZE(object->items[n].obj_array, count);
+               for (unsigned i = 0; i < count; i++) {
+                  object_t *o = object_read_ref(f, key_map);
+                  object->items[n].obj_array.items[i] = o;
+               }
+            }
+            else if (ITEM_INT64 & mask)
+               object->items[n].ival = read_u64(f);
+            else if (ITEM_INT32 & mask)
+               object->items[n].ival = read_u32(f);
+            else if (ITEM_DOUBLE & mask)
+               object->items[n].dval = read_double(f);
+            else if (ITEM_ATTRS & mask) {
+               attr_tab_t *attrs = &(object->items[n].attrs);
+
+               attrs->num = read_u16(f);
+               if (attrs->num > 0) {
+                  attrs->alloc = next_power_of_2(attrs->num);
+                  attrs->table = xmalloc_array(sizeof(attr_t), attrs->alloc);
+               }
+
+               for (unsigned i = 0; i < attrs->num; i++) {
+                  attrs->table[i].kind = read_u16(f);
+                  attrs->table[i].name = ident_read(ident_ctx);
+
+                  switch (attrs->table[i].kind) {
+                  case A_STRING:
+                     attrs->table[i].sval = ident_read(ident_ctx);
+                     break;
+
+                  case A_INT:
+                     attrs->table[i].ival = read_u32(f);
+                     break;
+
+                  case A_TREE:
+                     attrs->table[i].tval = (tree_t)object_read_ref(f, key_map);
+                     break;
+
+                  default:
+                     abort();
+                  }
+               }
+            }
+            else if (ITEM_IDENT_ARRAY & mask) {
+               const unsigned count = read_u32(f);
+               ARESIZE(object->items[n].ident_array, count);;
+               for (unsigned i = 0; i < count; i++) {
+                  ident_t id = ident_read(ident_ctx);
+                  object->items[n].ident_array.items[i] = id;
+               }
+            }
+            else
+               item_without_type(mask);
+            n++;
+         }
+      }
+   }
+
+   object_arena_freeze(arena);
+   ident_read_end(ident_ctx);
+   loc_read_end(loc_ctx);
+
+   return (object_t *)arena->base;
 }
 
 unsigned object_next_generation(void)

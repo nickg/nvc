@@ -1079,10 +1079,8 @@ void tree_write(tree_t t, fbuf_t *f)
 
 tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn)
 {
-   object_rd_ctx_t *ctx = object_read_begin(f, (object_load_fn_t)find_deps_fn);
-   object_t *o = object_read((object_rd_ctx_t *)ctx);
+   object_t *o = object_read(f, (object_load_fn_t)find_deps_fn);
    assert(o->tag == OBJECT_TAG_TREE);
-   object_read_end(ctx);
    return container_of(o, struct _tree, object);
 }
 

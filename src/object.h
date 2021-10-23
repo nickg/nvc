@@ -244,25 +244,7 @@ typedef struct {
    int                    *item_lookup;
 } object_class_t;
 
-typedef struct {
-   fbuf_t          *file;
-   ident_wr_ctx_t   ident_ctx;
-   loc_wr_ctx_t    *loc_ctx;
-   unsigned         generation;
-   unsigned         n_objects;
-   object_arena_t  *arena;
-} object_wr_ctx_t;
-
 typedef object_t *(*object_load_fn_t)(ident_t);
-
-typedef struct {
-   fbuf_t            *file;
-   ident_rd_ctx_t     ident_ctx;
-   loc_rd_ctx_t      *loc_ctx;
-   object_arena_t    *arena;
-   arena_key_t       *key_map;
-   object_load_fn_t   loader_fn;
-} object_rd_ctx_t;
 
 __attribute__((noreturn))
 void object_lookup_failed(const char *name, const char **kind_text_map,
@@ -281,11 +263,7 @@ unsigned object_next_generation(void);
 object_t *object_copy(object_t *object, object_copy_ctx_t *ctx);
 
 void object_write(object_t *object, fbuf_t *f);
-
-object_rd_ctx_t *object_read_begin(fbuf_t *f, object_load_fn_t loader);
-void object_read_end(object_rd_ctx_t *ctx);
-object_t *object_read(object_rd_ctx_t *ctx);
-
+object_t *object_read(fbuf_t *f, object_load_fn_t loader);
 
 #define object_write_barrier(lhs, rhs) do {                     \
       uintptr_t __lp = (uintptr_t)(lhs) & ~OBJECT_PAGE_MASK;    \

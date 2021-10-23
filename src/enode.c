@@ -123,10 +123,7 @@ void e_write(e_node_t e, fbuf_t *fbuf)
 
 e_node_t e_read(fbuf_t *fbuf)
 {
-   object_rd_ctx_t *ctx =
-      object_read_begin(fbuf, (object_load_fn_t)lib_get_qualified);
-   object_t *object = object_read(ctx);
-   object_read_end(ctx);
+   object_t *object = object_read(fbuf, (object_load_fn_t)lib_get_qualified);
    assert(object->tag == OBJECT_TAG_E_NODE);
    return container_of(object, struct _e_node, object);
 }
