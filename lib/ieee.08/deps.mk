@@ -62,3 +62,27 @@ lib/ieee.08/_IEEE.MATH_REAL.vcode: lib/std.08/STD.STANDARD lib/ieee.08/IEEE.MATH
 
 lib/ieee.08/IEEE.MATH_REAL: lib/std.08/STD.STANDARD $(top_srcdir)/lib/ieee/math_real.vhdl
 
+lib/ieee.08/IEEE.STD_LOGIC_ARITH-body: lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
+
+lib/ieee.08/_IEEE.STD_LOGIC_ARITH.so: lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
+
+lib/ieee.08/_IEEE.STD_LOGIC_ARITH.vcode: lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
+
+lib/ieee.08/IEEE.STD_LOGIC_ARITH: lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
+
+lib/ieee.08/IEEE.STD_LOGIC_SIGNED-body: lib/ieee.08/IEEE.STD_LOGIC_ARITH lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_signed.vhd
+
+lib/ieee.08/_IEEE.STD_LOGIC_SIGNED.so: lib/ieee.08/IEEE.STD_LOGIC_ARITH lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_signed.vhd
+
+lib/ieee.08/_IEEE.STD_LOGIC_SIGNED.vcode: lib/ieee.08/IEEE.STD_LOGIC_ARITH lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_signed.vhd
+
+lib/ieee.08/IEEE.STD_LOGIC_SIGNED: lib/ieee.08/IEEE.STD_LOGIC_ARITH lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_signed.vhd
+
+lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED-body: lib/ieee.08/IEEE.STD_LOGIC_ARITH lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_unsigned.vhd
+
+lib/ieee.08/_IEEE.STD_LOGIC_UNSIGNED.so: lib/ieee.08/IEEE.STD_LOGIC_ARITH lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_unsigned.vhd
+
+lib/ieee.08/_IEEE.STD_LOGIC_UNSIGNED.vcode: lib/ieee.08/IEEE.STD_LOGIC_ARITH lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_unsigned.vhd
+
+lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED: lib/ieee.08/IEEE.STD_LOGIC_ARITH lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_unsigned.vhd
+

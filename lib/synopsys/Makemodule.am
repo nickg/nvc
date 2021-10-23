@@ -1,6 +1,7 @@
 # The Synopsys packages are not part of the IEEE standard but are
 # traditionally compiled into the IEEE library
 synopsys_ieeedir = $(pkgdatadir)/ieee
+synopsys_ieee_08dir = $(pkgdatadir)/ieee.08
 synopsysdir = $(pkgdatadir)/synopsys
 synopsys_ieee_DATA = \
 	lib/ieee/IEEE.STD_LOGIC_ARITH \
@@ -12,7 +13,22 @@ synopsys_ieee_DATA = \
 	lib/ieee/IEEE.STD_LOGIC_TEXTIO \
 	lib/ieee/IEEE.STD_LOGIC_TEXTIO-body \
 	lib/ieee/IEEE.STD_LOGIC_MISC \
-	lib/ieee/IEEE.STD_LOGIC_MISC-body
+	lib/ieee/IEEE.STD_LOGIC_MISC-body \
+	lib/ieee/_IEEE.STD_LOGIC_ARITH.vcode \
+	lib/ieee/_IEEE.STD_LOGIC_SIGNED.vcode \
+	lib/ieee/_IEEE.STD_LOGIC_UNSIGNED.vcode \
+	lib/ieee/_IEEE.STD_LOGIC_TEXTIO.vcode \
+	lib/ieee/_IEEE.STD_LOGIC_MISC.vcode
+synopsys_ieee_08_DATA = \
+	lib/ieee.08/IEEE.STD_LOGIC_ARITH \
+	lib/ieee.08/IEEE.STD_LOGIC_ARITH-body \
+	lib/ieee.08/IEEE.STD_LOGIC_SIGNED \
+	lib/ieee.08/IEEE.STD_LOGIC_SIGNED-body \
+	lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED \
+	lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED-body \
+	lib/ieee.08/_IEEE.STD_LOGIC_ARITH.vcode \
+	lib/ieee.08/_IEEE.STD_LOGIC_SIGNED.vcode \
+	lib/ieee.08/_IEEE.STD_LOGIC_UNSIGNED.vcode
 synopsys_DATA = \
 	lib/synopsys/_NVC_LIB \
 	lib/synopsys/SYNOPSYS.ATTRIBUTES
@@ -24,15 +40,20 @@ synopsys_ieee_so = \
 	lib/ieee/_IEEE.STD_LOGIC_TEXTIO.$(DLL_EXT) \
 	lib/ieee/_IEEE.STD_LOGIC_MISC.$(DLL_EXT)
 
+synopsys_ieee_08_so = \
+	lib/ieee.08/_IEEE.STD_LOGIC_ARITH.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.STD_LOGIC_SIGNED.$(DLL_EXT) \
+	lib/ieee.08/_IEEE.STD_LOGIC_UNSIGNED.$(DLL_EXT)
+
 if IMPLIB_REQUIRED
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
-synopsys_ieee_SCRIPTS = $(synopsys_ieee_so)
+synopsys_ieee_SCRIPTS = $(synopsys_ieee_so) $(synopsys_ieee_08_so)
 
-$(synopsys_ieee_SCRIPTS) : $(synopsys_ieee_DATA)
+$(synopsys_ieee_SCRIPTS) : $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA)
 else
 
-synopsys_ieee_DATA += $(synopsys_ieee_so)
+synopsys_ieee_DATA += $(synopsys_ieee_so) #$(synopsys_ieee_08_so)
 
 endif  # IMPLIB_REQUIRED
 
@@ -41,9 +62,9 @@ EXTRA_DIST += lib/synopsys/std_logic_arith.vhd lib/synopsys/std_logic_misc.vhd \
 	lib/synopsys/std_logic_unsigned.vhd lib/synopsys/std_logic_textio.vhd \
 	lib/synopsys/attributes.vhd
 
-BOOTSTRAPLIBS += $(synopsys_DATA)
+BOOTSTRAPLIBS += $(synopsys_DATA) $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA)
 
-libs-synopsys: $(synopsys_ieee_DATA) $(synopsys_DATA)
+libs-synopsys: $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA) $(synopsys_DATA)
 
 lib/synopsys/_NVC_LIB:
 
@@ -61,6 +82,15 @@ lib/ieee/IEEE.STD_LOGIC_TEXTIO: $(srcdir)/lib/synopsys/std_logic_textio.vhd @ifG
 
 lib/ieee/IEEE.STD_LOGIC_MISC: $(srcdir)/lib/synopsys/std_logic_misc.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_misc.vhd
+
+lib/ieee.08/IEEE.STD_LOGIC_ARITH: $(srcdir)/lib/synopsys/std_logic_arith.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/synopsys/std_logic_arith.vhd
+
+lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED: $(srcdir)/lib/synopsys/std_logic_unsigned.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/synopsys/std_logic_unsigned.vhd
+
+lib/ieee.08/IEEE.STD_LOGIC_SIGNED: $(srcdir)/lib/synopsys/std_logic_signed.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/synopsys/std_logic_signed.vhd
 
 lib/synopsys/SYNOPSYS.ATTRIBUTES: $(srcdir)/lib/synopsys/attributes.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/synopsys -a $(srcdir)/lib/synopsys/attributes.vhd

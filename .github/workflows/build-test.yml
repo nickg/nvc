@@ -189,3 +189,5 @@ jobs:
         run: ./vhdl-projects/bigram/test.sh
       - name: Test Dummy_Plug
         run: ./vhdl-projects/dummyplug/test.sh
+      - name: Test OpenRIO
+        run: ./vhdl-projects/openrio/test.sh
