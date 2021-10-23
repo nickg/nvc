@@ -2160,13 +2160,6 @@ START_TEST(test_issue134)
 {
    input_from_file(TESTDIR "/lower/issue134.vhd");
 
-   const error_t expect[] = {
-      {  8, "statement is unreachable" },
-      {  8, "statement is unreachable" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    tree_t e = run_elab();
    lower_unit(e, NULL);
 

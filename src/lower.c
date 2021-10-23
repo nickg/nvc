@@ -4603,10 +4603,8 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
 {
    PUSH_DEBUG_INFO(stmt);
 
-   if (vcode_block_finished()) {
-      warn_at(tree_loc(stmt), "statement is unreachable");
-      return;
-   }
+   if (vcode_block_finished())
+      return;   // Unreachable
 
    int32_t stmt_tag;
    if (cover_is_tagged(cover_tags, stmt, &stmt_tag, NULL))
