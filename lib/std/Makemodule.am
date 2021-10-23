@@ -1,4 +1,4 @@
-stddir = $(pkgdatadir)/std
+stddir = $(pkglibdir)/std
 std_DATA = \
 	lib/std/_NVC_LIB \
 	lib/std/_index \

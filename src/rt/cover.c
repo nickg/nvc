@@ -28,12 +28,6 @@
 #include <string.h>
 #include <limits.h>
 
-#if 0
-#define CSS_DIR "/home/nick/nvc/data/"
-#else
-#define CSS_DIR DATADIR
-#endif
-
 #define SUB_COND_BITS 5
 #define MAX_SUB_CONDS (1 << SUB_COND_BITS)
 #define SUB_COND_MASK (MAX_SUB_CONDS - 1)

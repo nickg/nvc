@@ -1,8 +1,8 @@
 # The Synopsys packages are not part of the IEEE standard but are
 # traditionally compiled into the IEEE library
-synopsys_ieeedir = $(pkgdatadir)/ieee
-synopsys_ieee_08dir = $(pkgdatadir)/ieee.08
-synopsysdir = $(pkgdatadir)/synopsys
+synopsys_ieeedir = $(pkglibdir)/ieee
+synopsys_ieee_08dir = $(pkglibdir)/ieee.08
+synopsysdir = $(pkglibdir)/synopsys
 synopsys_ieee_DATA = \
 	lib/ieee/IEEE.STD_LOGIC_ARITH \
 	lib/ieee/IEEE.STD_LOGIC_ARITH-body \
@@ -100,3 +100,9 @@ gen-deps-synopsys:
 		$(deps_pp) > $(srcdir)/lib/synopsys/deps.mk
 
 include lib/synopsys/deps.mk
+
+# Extra dependencies required for linking on Windows
+
+@IMPLIB_REQUIRED_TRUE@lib/ieee/IEEE.STD_LOGIC_ARITH: lib/ieee/IEEE.STD_LOGIC_1164-body
+
+@IMPLIB_REQUIRED_TRUE@lib/ieee.08/IEEE.STD_LOGIC_ARITH: lib/ieee.08/IEEE.STD_LOGIC_1164-body

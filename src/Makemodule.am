@@ -76,7 +76,7 @@ if IMPLIB_REQUIRED
 
 bin_nvc_LDFLAGS += -Wl,--out-implib=lib/libnvcimp.a
 
-pkgdata_DATA += lib/libnvcimp.a
+lib_LIBRARIES += lib/libnvcimp.a
 
 lib/libnvcimp.a: bin/nvc$(EXEEXT)
 

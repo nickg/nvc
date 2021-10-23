@@ -1,4 +1,4 @@
-std_08dir = $(pkgdatadir)/std.08
+std_08dir = $(pkglibdir)/std.08
 std_08_DATA = \
 	lib/std.08/_NVC_LIB \
 	lib/std.08/_index \

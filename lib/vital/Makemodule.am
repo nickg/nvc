@@ -1,4 +1,4 @@
-vitaldir = $(pkgdatadir)/ieee
+vitaldir = $(pkglibdir)/ieee
 vital_DATA = \
 	lib/ieee/_NVC_LIB \
 	lib/ieee/_index \

@@ -463,7 +463,7 @@ static void push_path(const char *path)
 static void lib_default_search_paths(void)
 {
    if (search_paths == NULL) {
-      push_path(DATADIR);
+      push_path(LIBDIR);
 
       const char *home_env = getenv("HOME");
       if (home_env) {

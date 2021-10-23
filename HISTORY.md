@@ -46,6 +46,8 @@
 - Fixed intermittent crash when evaluating nested constant records
   (#425).
 - Fixed missing import libraries on Windows (#424).
+- Standard libraries are now installed under `$prefix/lib/nvc/` instead
+  of `$prefix/share/nvc`.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

@@ -190,7 +190,7 @@ case $host_os in
 esac
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
-AX_DEFINE_DIR([LIBDIR], [libdir], [Installation library directory])
+AX_DEFINE_DIR([LIBDIR], [libdir/nvc], [Installation library directory])
 AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 
 # Prefer calling the linker directy to using CC

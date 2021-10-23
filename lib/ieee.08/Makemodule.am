@@ -1,4 +1,4 @@
-ieee_08dir = $(pkgdatadir)/ieee.08
+ieee_08dir = $(pkglibdir)/ieee.08
 ieee_08_DATA = \
 	lib/ieee.08/_NVC_LIB \
 	lib/ieee.08/_index \

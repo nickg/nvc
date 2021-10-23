@@ -4539,7 +4539,7 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
 
 #ifdef IMPLIB_REQUIRED
    const char *cyglib = getenv("NVC_IMP_LIB");
-   char *cygarg LOCAL = xasprintf("-L%s", (cyglib != NULL) ? cyglib : DATADIR);
+   char *cygarg LOCAL = xasprintf("-L%s", (cyglib != NULL) ? cyglib : LIBDIR);
    cgen_link_arg(cygarg);
    cgen_link_arg("-lnvcimp");
 #endif

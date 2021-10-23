@@ -23,6 +23,7 @@ pkgdata_DATA =
 CLEANFILES =
 BOOTSTRAPLIBS =
 LIBDIRS =
+lib_LIBRARIES =
 
 include thirdparty/Makemodule.am
 include src/Makemodule.am
