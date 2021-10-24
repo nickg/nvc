@@ -857,8 +857,15 @@ static void parse_library_map(char *str)
 static void parse_work_name(char *str, const char **name, const char **path)
 {
    char *split = strchr(str, ':');
-   if (split == NULL)
-      *name = *path = str;
+   if (split == NULL) {
+      char *slash = strrchr(str, *PATH_SEP) ?: strrchr(str, '/');
+      if (slash == NULL)
+         *name = *path = str;
+      else {
+         *name = slash + 1;
+         *path = str;
+      }
+   }
    else {
       *split = '\0';
       *name = str;

@@ -145,7 +145,8 @@ jobs:
       - name: Check --version output
         run: nvc --version
       - name: Run VESTs
-        run: ./test/run_vests.rb $(pwd)/vests
+        run: >-
+          cd vests && ../test/run_vests.rb .
 
   projects:
     name: External Projects

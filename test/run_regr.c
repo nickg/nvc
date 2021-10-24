@@ -62,6 +62,7 @@
 #define F_RELAX   (1 << 9)
 #define F_CLEAN   (1 << 10)
 #define F_WORKLIB (1 << 11)
+#define F_SHELL   (1 << 12)
 
 typedef struct test test_t;
 typedef struct generic generic_t;
@@ -307,6 +308,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_2000;
          else if (strcmp(opt, "vhpi") == 0)
             test->flags |= F_VHPI;
+         else if (strcmp(opt, "shell") == 0)
+            test->flags |= F_SHELL | F_NOTWIN;
          else if (strcmp(opt, "!windows") == 0)
             test->flags |= F_NOTWIN;
          else if (strncmp(opt, "O", 1) == 0) {
@@ -560,46 +563,55 @@ static bool run_test(test_t *test)
    }
 
    arglist_t *args = NULL;
-   push_arg(&args, "%s" PATH_SEP "nvc%s", bin_dir, EXEEXT);
-   push_std(test, &args);
 
-   if (test->flags & F_WORKLIB)
-      push_arg(&args, "--work=%s", test->work);
-
-   push_arg(&args, "-a");
-   push_arg(&args, "%s" PATH_SEP "regress" PATH_SEP "%s.vhd",
-            test_dir, test->name);
-
-   if (test->flags & F_RELAX)
-      push_arg(&args, "--relax=%s", test->relax);
-
-   push_arg(&args, "-e");
-   push_arg(&args, "%s", test->name);
-   push_arg(&args, "-O%u", test->olevel);
-
-   if (test->flags & F_COVER)
-      push_arg(&args, "--cover");
-
-   for (generic_t *g = test->generics; g != NULL; g = g->next)
-      push_arg(&args, "-g%s=%s", g->name, g->value);
-
-   if (test->flags & F_FAIL) {
-      if (!run_cmd(outf, &args))
-         goto out_print;
-
-      push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
-      push_std(test, &args);
+   if (test->flags & F_SHELL) {
+      push_arg(&args, "/bin/sh");
+      push_arg(&args, "%s" PATH_SEP "regress" PATH_SEP "%s.sh",
+               test_dir, test->name);
    }
+   else {
+      push_arg(&args, "%s" PATH_SEP "nvc%s", bin_dir, EXEEXT);
+      push_std(test, &args);
 
-   push_arg(&args, "-r");
+      if (test->flags & F_WORKLIB)
+         push_arg(&args, "--work=%s", test->work);
 
-   if (test->flags & F_STOP)
-      push_arg(&args, "--stop-time=%s", test->stop);
+      push_arg(&args, "-a");
+      push_arg(&args, "%s" PATH_SEP "regress" PATH_SEP "%s.vhd",
+               test_dir, test->name);
 
-   if (test->flags & F_VHPI)
-      push_arg(&args, "--load=%s/../lib/%s.so%s", bin_dir, test->name, EXEEXT);
+      if (test->flags & F_RELAX)
+         push_arg(&args, "--relax=%s", test->relax);
 
-   push_arg(&args, "%s", test->name);
+      push_arg(&args, "-e");
+      push_arg(&args, "%s", test->name);
+      push_arg(&args, "-O%u", test->olevel);
+
+      if (test->flags & F_COVER)
+         push_arg(&args, "--cover");
+
+      for (generic_t *g = test->generics; g != NULL; g = g->next)
+         push_arg(&args, "-g%s=%s", g->name, g->value);
+
+      if (test->flags & F_FAIL) {
+         if (!run_cmd(outf, &args))
+            goto out_print;
+
+         push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
+         push_std(test, &args);
+      }
+
+      push_arg(&args, "-r");
+
+      if (test->flags & F_STOP)
+         push_arg(&args, "--stop-time=%s", test->stop);
+
+      if (test->flags & F_VHPI)
+         push_arg(&args, "--load=%s/../lib/%s.so%s", bin_dir,
+                  test->name, EXEEXT);
+
+      push_arg(&args, "%s", test->name);
+   }
 
    result = run_cmd(outf, &args);
 
@@ -740,6 +752,15 @@ int main(int argc, char **argv)
               strerror(errno));
       return EXIT_FAILURE;
    }
+
+   char *newpath;
+   if (asprintf(&newpath, "%s:%s", bin_dir, getenv("PATH")) == -1)
+      abort();
+
+#ifndef __MINGW32__
+   setenv("PATH", newpath, 1);
+   setenv("TESTDIR", test_dir, 1);
+#endif
 
    int fails = 0;
    for (test_t *it = test_list; it != NULL; it = it->next) {

@@ -354,42 +354,17 @@ lib_t lib_new(const char *name, const char *path)
    lib_t lib = lib_loaded(name_i);
    if (lib != NULL)
       return lib;
-
-   char *name_copy LOCAL = xstrdup(name);
-   char *sep = strrchr(name_copy, '/');
-
-   // Ignore trailing slashes
-   while ((sep != NULL) && (*(sep + 1) == '\0')) {
-      *sep = '\0';
-      sep = strrchr(name_copy, '/');
-   }
-
-   if (sep != NULL) {
-      // Work library contains explicit path
-      *sep = '\0';
-      name = sep + 1;
-      lib = lib_find_at(name, name_copy, false);
-   }
-   else {
-      // Look only in working directory
-      lib = lib_find_at(name, ".", false);
-   }
-
-   if (lib != NULL)
+   else if ((lib = lib_find_at(name, path, false)) != NULL)
       return lib;
 
-   const char *last_slash = strrchr(name, '/');
    const char *last_dot = strrchr(name, '.');
-
-   if ((last_dot != NULL) && (last_dot > last_slash)) {
+   if (last_dot != NULL) {
       const char *ext = standard_suffix(standard());
       if (strcmp(last_dot + 1, ext) != 0)
          fatal("library directory suffix must be '%s' for this standard", ext);
    }
 
-   for (const char *p = (last_slash ? last_slash + 1 : name);
-        (*p != '\0') && (p != last_dot);
-        p++) {
+   for (const char *p = name; *p && p != last_dot; p++) {
       if (!isalnum((int)*p) && (*p != '_'))
          fatal("invalid character '%c' in library name", *p);
    }
