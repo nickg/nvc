@@ -4925,7 +4925,8 @@ static void lower_sub_signals(type_t type, tree_t where, vcode_reg_t subsig,
       vcode_select_block(body_bb);
 
       vcode_reg_t ptr_reg = emit_add(subsig, i_reg);
-      lower_sub_signals(type_elem(type), where, ptr_reg, init_reg, resolution);
+      vcode_reg_t data_reg = lower_array_data(init_reg);
+      lower_sub_signals(type_elem(type), where, ptr_reg, data_reg, resolution);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
 
