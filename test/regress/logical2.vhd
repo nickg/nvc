@@ -8,6 +8,7 @@ architecture test of logical2 is
 begin
 
     process is
+        variable v : boolean := true;
     begin
         x <= '0';
         wait for 1 ns;
@@ -38,6 +39,14 @@ begin
         assert (x nand one) = zero;
         assert (x nor zero) = zero;
         assert (x nor one) = zero;
+
+        v := v and v; assert v;
+        v := v or v; assert v;
+        v := v nand v; assert not v;
+        v := v nor v; assert v;
+        v := v xor v; assert not v;
+        v := v xnor v; assert v;
+        v := v xnor v; assert v;
 
         wait;
     end process;

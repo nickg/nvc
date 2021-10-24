@@ -3828,8 +3828,15 @@ static vcode_reg_t emit_logical(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs)
       case VCODE_OP_AND:
       case VCODE_OP_OR:
          return lhs;
+      case VCODE_OP_NAND:
+      case VCODE_OP_NOR:
+         return emit_not(lhs);
+      case VCODE_OP_XOR:
+         return emit_const(vtbool, 0);
+      case VCODE_OP_XNOR:
+         return emit_const(vtbool, 1);
       default:
-         fatal_trace("cannot simplify X %s X", vcode_op_string(op));
+         fatal_trace("cannot constant fold logical %s", vcode_op_string(op));
       }
    }
 
