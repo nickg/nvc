@@ -223,7 +223,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_SUBKIND | I_IDENT2 | I_ATTRS),
 
    // T_SPEC
-   (I_IDENT | I_IDENT2 | I_VALUE),
+   (I_IDENT | I_IDENT2 | I_VALUE | I_REF),
 
    // T_BINDING
    (I_PARAMS | I_GENMAPS | I_IDENT | I_IDENT2 | I_CLASS),
@@ -235,7 +235,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_CONTEXT),
 
    // T_CONFIGURATION
-   (I_IDENT | I_IDENT2 | I_DECLS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_REF),
 
    // T_PROT_BODY
    (I_IDENT | I_TYPE | I_DECLS | I_ATTRS),
@@ -250,7 +250,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_SUBKIND | I_RANGES),
 
    // T_BLOCK_CONFIG
-   (I_DECLS | I_IDENT | I_VALUE | I_RANGES),
+   (I_DECLS | I_IDENT | I_VALUE | I_RANGES | I_REF),
 
    // T_PROT_FCALL
    (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_FLAGS | I_NAME | I_ATTRS),

@@ -2444,6 +2444,10 @@ START_TEST(test_spec)
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
 
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
@@ -2709,12 +2713,15 @@ END_TEST
 
 START_TEST(test_config)
 {
-   tree_t e, c, s, b;
+   tree_t e, c, s, b, a;
 
    input_from_file(TESTDIR "/parse/config.vhd");
 
    const error_t expect[] = {
-      { 15, "no visible declaration for X" },
+      { 29, "no visible declaration for X" },
+      { 38, "CONF does not name an entity in library WORK" },
+      { 45, "cannot find unit WORK.ENT-BAD" },
+      { 52, "P is not a block that can be configured" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2727,6 +2734,14 @@ START_TEST(test_config)
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
 
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
@@ -2735,7 +2750,7 @@ START_TEST(test_config)
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
    fail_unless(tree_ident(c) == ident_new("WORK.CONF"));
-   fail_unless(tree_ident2(c) == ident_new("ENT"));
+   fail_unless(tree_ident2(c) == ident_new("WORK.ENT"));
    fail_unless(tree_decls(c) == 3);
    fail_unless(tree_kind(tree_decl(c, 0)) == T_USE);
    fail_unless(tree_kind(tree_decl(c, 1)) == T_ATTR_SPEC);
@@ -2749,6 +2764,18 @@ START_TEST(test_config)
    fail_unless(tree_kind(s) == T_SPEC);
    fail_unless(tree_ident(s) == ident_new("all"));
    fail_unless(tree_ident2(s) == ident_new("COMP"));
+
+   c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONFIGURATION);
+
+   c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONFIGURATION);
+
+   c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONFIGURATION);
 
    c = parse();
    fail_unless(c == NULL);
@@ -3051,27 +3078,48 @@ START_TEST(test_vests1)
 {
    input_from_file(TESTDIR "/parse/vests1.vhd");
 
+   tree_t e0 = parse();
+   fail_if(e0 == NULL);
+   fail_unless(tree_kind(e0) == T_ENTITY);
+
+   tree_t a0 = parse();
+   fail_if(a0 == NULL);
+   fail_unless(tree_kind(a0) == T_ARCH);
+
    tree_t c0 = parse();
    fail_if(c0 == NULL);
    fail_unless(tree_kind(c0) == T_CONFIGURATION);
+   fail_unless(tree_ref(c0) == e0);
+
+   tree_t e1 = parse();
+   fail_if(e1 == NULL);
+   fail_unless(tree_kind(e1) == T_ENTITY);
+
+   tree_t a1 = parse();
+   fail_if(a1 == NULL);
+   fail_unless(tree_kind(a1) == T_ARCH);
 
    tree_t c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
    fail_unless(tree_decls(c) == 1);
+   fail_unless(tree_ref(c) == e1);
 
    tree_t b = tree_decl(c, 0);
    fail_unless(tree_kind(b) == T_BLOCK_CONFIG);
    fail_unless(tree_decls(b) == 1);
+   fail_unless(tree_ref(b) == a1);
 
    tree_t b2 = tree_decl(b, 0);
    fail_unless(tree_kind(b2) == T_BLOCK_CONFIG);
    fail_unless(tree_decls(b2) == 3);
+   fail_unless(tree_ref(b2) == tree_stmt(a1, 0));
 
    tree_t b3 = tree_decl(b2, 2);
    fail_unless(tree_kind(b3) == T_BLOCK_CONFIG);
    fail_unless(tree_ident(b3) == ident_new("G"));
    fail_unless(tree_decls(b3) == 1);
+   fail_unless(tree_ref(b3) == tree_stmt(tree_stmt(a1, 0), 1));
 
    fail_if(parse() != NULL);
 

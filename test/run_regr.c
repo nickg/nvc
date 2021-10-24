@@ -566,8 +566,6 @@ static bool enter_test_directory(test_t *test, char *dir)
    if (chdir(dir) != 0)
       return false;
 
-   printf("chdir ok");
-
    return true;
 }
 

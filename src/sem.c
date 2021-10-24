@@ -3551,24 +3551,25 @@ static bool sem_check_instance(tree_t t)
    if (!tree_has_ref(t))
       return false;
 
-   ident_t name = tree_ident2(t);
    tree_t unit = tree_ref(t);
 
-   switch (tree_class(t)) {
-   case C_ENTITY:
-      if (tree_kind(unit) != T_ENTITY)
-         sem_error(t, "unit %s is not an entity", istr(name));
-      break;
-
-   case C_COMPONENT:
-      if (tree_kind(unit) != T_COMPONENT)
-         sem_error(t, "object %s is not a component declaration", istr(name));
-      break;
-
-   default:
+   if (tree_class(t) == C_CONFIGURATION)
       sem_error(t, "sorry, this form of instance is not supported yet");
-   }
 
+   if (tree_has_spec(t)) {
+      tree_t spec = tree_spec(t);
+
+      if (tree_class(t) != C_COMPONENT)
+         sem_error(spec, "specification may only be used with component"
+                   " instances");
+
+      assert(tree_kind(unit) == T_COMPONENT);   // Checked by parser
+
+      if (tree_has_ref(spec) && tree_ref(spec) != unit)
+         sem_error(spec, "component mismatch for instance %s: expected %s "
+                   "but specification has %s", istr(tree_ident(t)),
+                   istr(tree_ident(unit)), istr(tree_ident(tree_ref(spec))));
+   }
 
    if (!sem_check_map(t, unit, tree_ports, tree_port, tree_params, tree_param))
       return false;
@@ -4424,36 +4425,6 @@ static bool sem_check_all(tree_t t)
    return true;
 }
 
-bool sem_bind(tree_t spec, tree_t inst, tree_t comp)
-{
-   ident_t cname = tree_ident2(spec);
-
-   if (tree_kind(comp) != T_COMPONENT)
-      sem_error(spec, "object %s is not a component declaration", istr(cname));
-
-   if (tree_class(inst) != C_COMPONENT)
-      sem_error(spec, "specification may only be used with component "
-                "instances");
-
-   if (!tree_has_ref(inst))
-      return false;
-
-   if (tree_ref(inst) != comp)
-      sem_error(spec, "component mismatch for instance %s: expected %s but "
-                "specification has %s", istr(tree_ident(spec)),
-                istr(tree_ident(tree_ref(inst))), istr(cname));
-
-   if (tree_has_spec(inst)) {
-      tree_t exist = tree_spec(inst);
-      if (tree_has_ident(exist))  // Not an OTHERS specification
-         sem_error(spec, "instance %s is already bound by a specification",
-                   istr(tree_ident(inst)));
-   }
-
-   tree_set_spec(inst, spec);
-   return true;
-}
-
 static bool sem_check_binding(tree_t t)
 {
    if (tree_params(t) > 0)
@@ -4506,8 +4477,7 @@ static bool sem_check_configuration(tree_t t)
    lib_t work = lib_work();
 
    ident_t name_qual =
-      ident_prefix(ident_prefix(lib_name(work), tree_ident2(t), '.'),
-                   tree_ident(block_config), '-');
+      ident_prefix(tree_ident2(t), tree_ident(block_config), '-');
    tree_t arch = lib_get(work, name_qual);
    if (arch == NULL || tree_kind(arch) != T_ARCH)
       sem_error(t, "architecture %s of entity %s not found in library %s",

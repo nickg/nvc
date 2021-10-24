@@ -5,6 +5,10 @@ entity foo is
     port ( b : in integer );
 end entity;
 
+architecture arch of foo is
+begin
+end architecture;
+
 configuration yah of foo is
     use work.foo;
     for arch

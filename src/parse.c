@@ -135,7 +135,7 @@ static tree_t p_subprogram_declaration(tree_t spec);
 static tree_t p_subprogram_body(tree_t spec);
 static tree_t p_subprogram_specification(void);
 static tree_t p_name(void);
-static tree_t p_block_configuration(void);
+static tree_t p_block_configuration(tree_t of);
 static tree_t p_protected_type_body(ident_t id);
 static bool p_cond_analysis_expr(void);
 static type_t p_signature(void);
@@ -600,24 +600,21 @@ static tree_t find_unit(const loc_t *where, ident_t name)
    }
 }
 
-tree_t find_binding(tree_t inst)
+static tree_t find_binding(tree_t inst)
 {
-   if (inst == NULL)
-      return NULL;
-
    ident_t name;
-   tree_t ref;
+   tree_t unit;
    if (tree_kind(inst) == T_BINDING) {
       name = tree_ident(inst);
-      ref  = query_name(nametab, name);
+      unit = query_name(nametab, name);
    }
    else {
       name = tree_ident2(inst);
-      ref  = tree_has_ref(inst) ? tree_ref(inst) : query_name(nametab, name);
+      unit = tree_has_ref(inst) ? tree_ref(inst) : query_name(nametab, name);
    }
 
-   if (ref != NULL) {
-      if (tree_kind(ref) != T_COMPONENT) {
+   if (unit != NULL) {
+      if (tree_kind(unit) != T_COMPONENT) {
          parse_error(tree_loc(inst), "object %s is not a component declaration",
                      istr(name));
          return NULL;
@@ -626,21 +623,21 @@ tree_t find_binding(tree_t inst)
    else {
       ident_t ename = ident_until(name, '-');
 
-      ref = find_unit(tree_loc(inst), ename);
-      if (ref != NULL) {
-         tree_kind_t kind = tree_kind(ref);
+      unit = find_unit(tree_loc(inst), ename);
+      if (unit != NULL) {
+         tree_kind_t kind = tree_kind(unit);
          if (kind != T_ENTITY && kind != T_CONFIGURATION) {
             parse_error(tree_loc(inst), "unit %s cannot be instantiated",
                         istr(name));
-            ref = NULL;
+            unit = NULL;
          }
          else if (kind == T_CONFIGURATION) {
-            ref = NULL;  // TODO
+            unit = NULL;  // TODO
          }
       }
    }
 
-   return ref;
+   return unit;
 }
 
 static ident_t loc_to_ident(const loc_t *loc)
@@ -1572,6 +1569,13 @@ static tree_t could_be_slice_name(tree_t fcall)
    tree_set_loc(slice, tree_loc(fcall));
 
    return slice;
+}
+
+static bool is_implicit_block(tree_t t)
+{
+   const tree_kind_t kind = tree_kind(t);
+   return kind == T_ARCH || kind == T_BLOCK || kind == T_IF_GENERATE
+      || kind == T_FOR_GENERATE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -5811,33 +5815,37 @@ static tree_t p_entity_aspect(void)
    }
 }
 
-static tree_t p_binding_indication(void)
+static tree_t p_binding_indication(tree_t comp)
 {
    // [ use entity_aspect ] [ generic_map_aspect ] [ port_map_aspect ]
 
    BEGIN("binding indication");
 
-   tree_t bind = NULL;
-   if (optional(tUSE))
-      bind = p_entity_aspect();
+   tree_t bind = NULL, unit = NULL;
+   if (optional(tUSE)) {
+      if ((bind = p_entity_aspect()))
+         unit = find_binding(bind);
+   }
    else
       bind = tree_new(T_BINDING);
 
-   tree_t ref = find_binding(bind);
+   push_scope(nametab);
+   if (comp) insert_ports(nametab, comp);
 
    if (peek() == tGENERIC) {
       assert(bind != NULL);   // XXX: check for open here
-      p_generic_map_aspect(bind, ref);
+      p_generic_map_aspect(bind, unit);
    }
 
    if (peek() == tPORT) {
       assert(bind != NULL);   // XXX: check for open here
-      p_port_map_aspect(bind, ref);
+      p_port_map_aspect(bind, unit);
    }
 
    if (bind != NULL)
       tree_set_loc(bind, CURRENT_LOC);
 
+   pop_scope(nametab);
    return bind;
 }
 
@@ -5852,7 +5860,13 @@ static void p_configuration_specification(tree_t parent)
    ident_t comp_name;
    LOCAL_IDENT_LIST ids = p_component_specification(&comp_name);
 
-   tree_t bind = p_binding_indication();
+   tree_t comp = resolve_name(nametab, CURRENT_LOC, comp_name);
+   if (comp != NULL && tree_kind(comp) != T_COMPONENT) {
+      parse_error(CURRENT_LOC, "%s does not name a component", istr(comp_name));
+      comp = NULL;
+   }
+
+   tree_t bind = p_binding_indication(comp);
    consume(tSEMI);
 
    const loc_t *loc = CURRENT_LOC;
@@ -5864,6 +5878,7 @@ static void p_configuration_specification(tree_t parent)
          tree_set_ident(t, it->ident);
          tree_set_ident2(t, comp_name);
          tree_set_value(t, bind);
+         tree_set_ref(t, comp);
 
          tree_add_decl(parent, t);
       }
@@ -5874,6 +5889,7 @@ static void p_configuration_specification(tree_t parent)
       tree_set_loc(t, loc);
       tree_set_ident2(t, comp_name);
       tree_set_value(t, bind);
+      tree_set_ref(t, comp);
 
       tree_add_decl(parent, t);
    }
@@ -5911,8 +5927,14 @@ static void p_component_configuration(tree_t unit)
    ident_t comp_name;
    LOCAL_IDENT_LIST ids = p_component_specification(&comp_name);
 
+   tree_t comp = resolve_name(nametab, CURRENT_LOC, comp_name);
+   if (comp != NULL && tree_kind(comp) != T_COMPONENT) {
+      parse_error(CURRENT_LOC, "%s does not name a component", istr(comp_name));
+      comp = NULL;
+   }
+
    // TODO: should be optional
-   tree_t bind = p_binding_indication();
+   tree_t bind = p_binding_indication(comp);
    consume(tSEMI);
 
    const loc_t *loc = CURRENT_LOC;
@@ -5924,6 +5946,7 @@ static void p_component_configuration(tree_t unit)
          tree_set_ident(t, it->ident);
          tree_set_ident2(t, comp_name);
          tree_set_value(t, bind);
+         tree_set_ref(t, comp);
 
          tree_add_decl(unit, t);
       }
@@ -5934,6 +5957,7 @@ static void p_component_configuration(tree_t unit)
       tree_set_loc(t, loc);
       tree_set_ident2(t, comp_name);
       tree_set_value(t, bind);
+      tree_set_ref(t, comp);
 
       tree_add_decl(unit, t);
    }
@@ -5945,7 +5969,7 @@ static void p_component_configuration(tree_t unit)
    consume(tSEMI);
 }
 
-static void p_configuration_item(tree_t unit)
+static void p_configuration_item(tree_t unit, tree_t of)
 {
    // block_configuration | component_configuration
 
@@ -5955,7 +5979,7 @@ static void p_configuration_item(tree_t unit)
    if ((third == tCOLON) || (third == tCOMMA))
       p_component_configuration(unit);
    else
-      tree_add_decl(unit, p_block_configuration());
+      tree_add_decl(unit, p_block_configuration(of));
 }
 
 static void p_index_specification(void)
@@ -5979,21 +6003,22 @@ static void p_index_specification(void)
    }
 }
 
-static void p_block_specification(tree_t unit)
+static void p_block_specification(tree_t b)
 {
    // label | label [ ( index_specification ) ]
 
    BEGIN("block specification");
 
-   tree_set_ident(unit, p_identifier());
+   ident_t id = p_identifier();
+   tree_set_ident(b, id);
 
    if (optional(tLPAREN)) {
-      p_index_specification();
+      p_index_specification();    // XXX: not used
       consume(tRPAREN);
    }
 }
 
-static tree_t p_block_configuration(void)
+static tree_t p_block_configuration(tree_t of)
 {
    // for block_specification { use_clause } { configuration_item } end for ;
 
@@ -6002,11 +6027,37 @@ static tree_t p_block_configuration(void)
    consume(tFOR);
 
    tree_t b = tree_new(T_BLOCK_CONFIG);
-
    p_block_specification(b);
 
+   push_scope(nametab);
+
+   tree_t sub = NULL;
+   if (of != NULL) {
+      if (tree_kind(of) == T_ENTITY) {
+         ident_t qual = ident_prefix(tree_ident(of), tree_ident(b), '-');
+         sub = find_unit(CURRENT_LOC, qual);
+      }
+      else
+         sub = resolve_name(nametab, CURRENT_LOC, tree_ident(b));
+   }
+
+   if (sub != NULL && !is_implicit_block(sub)) {
+      parse_error(CURRENT_LOC, "%s is not a block that can be configured",
+                  istr(tree_ident(b)));
+      sub = NULL;
+   }
+
+   if (sub != NULL) {
+      tree_set_ref(b, sub);
+      insert_names_for_config(nametab, sub);
+   }
+   else
+      suppress_errors(nametab);
+
    while (not_at_token(tEND))
-      p_configuration_item(b);
+      p_configuration_item(b, sub);
+
+   pop_scope(nametab);
 
    consume(tEND);
    consume(tFOR);
@@ -6029,14 +6080,25 @@ static void p_configuration_declaration(tree_t unit)
 
    consume(tOF);
 
-   tree_set_ident2(unit, p_identifier());
+   ident_t id = p_identifier();
+   ident_t qual = ident_prefix(lib_name(lib_work()), id, '.');
+   tree_set_ident2(unit, qual);
+
+   tree_t of = find_unit(CURRENT_LOC, qual);
+   if (of != NULL && tree_kind(of) != T_ENTITY) {
+      parse_error(CURRENT_LOC, "%s does not name an entity in library %s",
+                  istr(id), istr(lib_name(lib_work())));
+      of = NULL;
+   }
+
+   tree_set_ref(unit, of);
 
    consume(tIS);
 
    while (not_at_token(tFOR))
       p_configuration_declarative_part(unit);
 
-   tree_add_decl(unit, p_block_configuration());
+   tree_add_decl(unit, p_block_configuration(of));
 
    consume(tEND);
    optional(tCONFIGURATION);

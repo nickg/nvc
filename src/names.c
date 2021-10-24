@@ -61,6 +61,7 @@ struct scope {
    tree_t         subprog;
    ident_t        prefix;
    tree_t         unit;
+   bool           suppress;
 };
 
 struct nametab {
@@ -336,6 +337,11 @@ void pop_scope(nametab_t *tab)
 
    free(tab->top_scope);
    tab->top_scope = tmp;
+}
+
+void suppress_errors(nametab_t *tab)
+{
+   tab->top_scope->suppress = true;
 }
 
 static scope_t *chain_scope(nametab_t *tab, ident_t tag)
@@ -732,7 +738,11 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       return NULL;
    }
    else if (decl == NULL) {
-      if (name == ident_new("error")) {
+      if (tab->top_scope->suppress) {
+         // Suppressing cascading errors
+         assert(error_count() > 0);
+      }
+      else if (name == ident_new("error")) {
          // Was a parse error, suppress further errors
       }
       else if (tab->top_scope->formal_kind != F_NONE) {
@@ -948,6 +958,22 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
    }
 }
 
+static void bind_instance(tree_t inst, tree_t spec)
+{
+   if (tree_has_spec(inst)) {
+      tree_t exist = tree_spec(inst);
+      if (tree_has_ident(exist)) {  // Not an OTHERS specification
+         error_at(tree_loc(spec), "instance %s is already bound by a "
+                  "specification", istr(tree_ident(inst)));
+         note_at(tree_loc(exist), "originally bound by specification "
+                 "here");
+         return;
+      }
+   }
+
+   tree_set_spec(inst, spec);
+}
+
 void resolve_specs(nametab_t *tab, tree_t container)
 {
    const int ndecls = tree_decls(container);
@@ -967,13 +993,12 @@ void resolve_specs(nametab_t *tab, tree_t container)
       else
          kind = NAMED;
 
-      ident_t cname = tree_ident2(d);
-      tree_t comp = resolve_name(tab, tree_loc(d), cname);
+      if (!tree_has_ref(d))
+         continue;
 
-      if (comp == NULL) {
-         // Skip it
-      }
-      else if (kind == NAMED) {
+      tree_t comp = tree_ref(d);
+
+      if (kind == NAMED) {
          // Only look for the instance in the innermost scope
          scope_t *inner = tab->top_scope;
          tree_t inst = scope_find(inner, iname, inner, NULL, 0);
@@ -988,7 +1013,7 @@ void resolve_specs(nametab_t *tab, tree_t container)
             continue;
          }
 
-         sem_bind(d, inst, comp);
+         bind_instance(inst, d);
       }
       else {
          const void *key;
@@ -999,19 +1024,16 @@ void resolve_specs(nametab_t *tab, tree_t container)
 
             if (obj == (tree_t)-1)
                continue;   // Error marker
-
-            if (tree_kind(obj) != T_INSTANCE)
+            else if (tree_kind(obj) != T_INSTANCE)
                continue;
-
-            if (tree_class(obj) != C_COMPONENT)
+            else if (tree_class(obj) != C_COMPONENT)
                continue;
-
-            if (tree_ident2(obj) == cname) {
-               if (kind == ALL || !tree_has_spec(obj)) {
-                  if (!sem_bind(d, obj, comp))
-                     break;
-               }
-            }
+            else if (!tree_has_ref(obj))
+               continue;
+            else if (tree_ref(obj) != comp)
+               continue;
+            else if (kind == ALL || !tree_has_spec(obj))
+               bind_instance(obj, d);
          }
       }
    }
@@ -1222,6 +1244,20 @@ void insert_protected_decls(nametab_t *tab, type_t type)
    const int ndecls = type_decls(type);
    for (int i = 0; i < ndecls; i++)
       insert_name(tab, type_decl(type, i), NULL, 0);
+}
+
+void insert_names_for_config(nametab_t *tab, tree_t unit)
+{
+   const int ndecls = tree_decls(unit);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(unit, i);
+      if (tree_kind(d) == T_COMPONENT)
+         insert_name(tab, d, NULL, 0);
+   }
+
+   const int nstmts = tree_stmts(unit);
+   for (int i = 0; i < nstmts; i++)
+      insert_name(tab, tree_stmt(unit, i), NULL, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -434,6 +434,14 @@ static void dump_generic_map(tree_t t, int indent)
    }
 }
 
+static void dump_binding(tree_t t, int indent)
+{
+   syntax("#use %s", istr(tree_ident(t)));
+   if (tree_has_ident2(t))
+      printf("(%s)", istr(tree_ident2(t)));
+   printf(";\n");
+}
+
 static void dump_stmts(tree_t t, int indent)
 {
    const int nstmts = tree_stmts(t);
@@ -1253,6 +1261,9 @@ void dump(tree_t t)
    case T_RANGE:
       dump_range(t);
       printf("\n");
+      break;
+   case T_BINDING:
+      dump_binding(t, 0);
       break;
    default:
       cannot_dump(t, "tree");

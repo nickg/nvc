@@ -34,9 +34,6 @@ typedef enum {
 // Returns false on error.
 bool sem_check(tree_t t);
 
-// Interface from parser and resolver into sem.
-bool sem_bind(tree_t spec, tree_t inst, tree_t comp);
-
 // Rewrite to simpler forms
 void simplify(tree_t top, eval_flags_t flags);
 

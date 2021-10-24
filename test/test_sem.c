@@ -954,16 +954,19 @@ START_TEST(test_spec)
    input_from_file(TESTDIR "/sem/spec.vhd");
 
    const error_t expect[] = {
+      { 24, "E does not name a component" },
       { 34, "cannot find unit WORK.NOT_HERE" },
       { 36, "unit WORK.P cannot be instantiated" },
-      { 22, "component mismatch for instance I1: expected C1" },
-      { 24, "object E is not a component declaration" },
       { 28, "instance BAD not found" },
-      { 30, "specification may only be used with component instances" },
       { 32, "instance I1 is already bound by a specification" },
+      { 22, "originally bound by specification here" },
       { 36, "instance I3 is already bound by a specification" },
+      { 34, "originally bound by specification here" },
       { 40, "instance I5 not found" },
       { 42, "instance I4 is already bound by a specification" },
+      { 38, "originally bound by specification here" },
+      { 22, "component mismatch for instance I1: expected C1" },
+      { 30, "specification may only be used with component instances" },
       { -1, NULL }
    };
    expect_errors(expect);

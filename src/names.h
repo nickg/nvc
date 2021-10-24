@@ -44,6 +44,7 @@ formal_kind_t scope_formal_kind(nametab_t *tab);
 tree_t scope_subprogram(nametab_t *tab);
 tree_t scope_unit(nametab_t *tab);
 bool name_is_formal(nametab_t *tab, ident_t id);
+void suppress_errors(nametab_t *tab);
 
 void mangle_func(nametab_t *tab, tree_t decl);
 void mangle_type(nametab_t *tab, type_t type);
@@ -57,6 +58,7 @@ void insert_decls(nametab_t *tab, tree_t container);
 void insert_ports(nametab_t *tab, tree_t container);
 void insert_generics(nametab_t *tab, tree_t container);
 void insert_protected_decls(nametab_t *tab, type_t type);
+void insert_names_for_config(nametab_t *tab, tree_t unit);
 
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name);
 type_t resolve_type(nametab_t *tab, type_t incomplete);

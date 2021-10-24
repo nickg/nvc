@@ -23,7 +23,7 @@ architecture a of e is
 
     for i1: e use entity work.c1_ent1;    -- Error
 
-    for i1: c1 use entity work.c1_ent1;   -- OK
+    for i8: c1 use entity work.c1_ent1;   -- OK
 
     for bad: c1 use entity work.c1_ent1;  -- Error
 
@@ -63,5 +63,7 @@ begin
     i6: component c1;
 
     i7: component c1;
+
+    i8: component c1;
 
 end architecture;
