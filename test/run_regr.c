@@ -21,6 +21,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <signal.h>
+#include <dirent.h>
 
 #ifdef __CYGWIN__
 #include <process.h>
@@ -60,7 +61,7 @@
 #define F_COVER   (1 << 7)
 #define F_GENERIC (1 << 8)
 #define F_RELAX   (1 << 9)
-#define F_CLEAN   (1 << 10)
+// F_CLEAN        (1 << 10)
 #define F_WORKLIB (1 << 11)
 #define F_SHELL   (1 << 12)
 
@@ -321,8 +322,6 @@ static bool parse_test_list(int argc, char **argv)
          }
          else if (strcmp(opt, "cover") == 0)
             test->flags |= F_COVER;
-         else if (strcmp(opt, "clean") == 0)
-            test->flags |= F_CLEAN;
          else if (strncmp(opt, "g", 1) == 0) {
             char *value = strchr(opt, '=');
             if (value == NULL) {
@@ -495,6 +494,38 @@ static void chomp(char *str)
       str[len - 1] = '\0';
 }
 
+#ifndef __MINGW32__
+static bool remove_dir(const char *path)
+{
+   DIR *d = opendir(path);
+   if (d == NULL)
+      return false;
+
+   bool result = false;
+   char buf[PATH_MAX];
+   struct dirent *e;
+   while ((e = readdir(d))) {
+      if (e->d_name[0] != '.') {
+         snprintf(buf, sizeof(buf), "%s" PATH_SEP "%s", path, e->d_name);
+         if (e->d_type == DT_DIR && !remove_dir(buf))
+            goto out_close;
+         else if (e->d_type == DT_REG && unlink(buf) < 0)
+            goto out_close;
+      }
+   }
+
+   if (rmdir(path) < 0)
+      goto out_close;
+
+   result = true;
+
+ out_close:
+   closedir(d);
+   return result;
+}
+#endif
+
+__attribute__((unused))
 static int make_dir(const char *name)
 {
 #ifdef __MINGW32__
@@ -504,28 +535,44 @@ static int make_dir(const char *name)
 #endif
 }
 
+__attribute__((unused))
 static bool dir_exists(const char *path)
 {
    struct stat st;
    return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
 }
 
+static bool enter_test_directory(test_t *test, char *dir)
+{
+#ifdef __MINGW32__
+   if (!dir_exists("logs") && !make_dir("logs")) {
+      printf("make_dir %s failed\n", "logs");
+      return false;
+   }
+
+   snprintf(dir, PATH_MAX, "logs/%s", test->name);
+
+   if (!dir_exists(dir) && !make_dir(dir)) {
+      printf("make_dir %s failed\n", dir);
+      return false;
+   }
+#else
+   snprintf(dir, PATH_MAX, "%s/nvcXXXXXX", getenv("TEMP") ?: "/tmp");
+
+   if (mkdtemp(dir) == NULL)
+      return false;
+#endif
+
+   if (chdir(dir) != 0)
+      return false;
+
+   printf("chdir ok");
+
+   return true;
+}
+
 static bool run_test(test_t *test)
 {
-   bool result = false;
-
-   if (make_dir(test->name) != 0 && errno != EEXIST) {
-      fprintf(stderr, "Failed to make logs/%s directory: %s\n",
-              strerror(errno), test->name);
-      return false;
-   }
-
-   if (chdir(test->name) != 0) {
-      fprintf(stderr, "Failed to switch to logs/%s directory: %s\n",
-              strerror(errno), test->name);
-      return false;
-   }
-
    printf("%15s : ", test->name);
 
    int skip = 0;
@@ -540,24 +587,31 @@ static bool run_test(test_t *test)
       set_attr(ANSI_FG_CYAN);
       printf("skipped\n");
       set_attr(ANSI_RESET);
-      result = true;
-      goto out_chdir;
+      return true;
    }
 
-   if ((test->flags & F_CLEAN) && dir_exists("work")) {
-      if (system("rm -r work") != 0) {
-         set_attr(ANSI_FG_RED);
-         printf("failed (error cleaning work directory)\n");
-         set_attr(ANSI_RESET);
-         goto out_chdir;
-      }
+   bool result = false;
+   char dir[PATH_MAX], cwd[PATH_MAX];
+
+   if (getcwd(cwd, PATH_MAX) == NULL) {
+      set_attr(ANSI_FG_RED);
+      printf("failed (error getting working directory: %s)\n", strerror(errno));
+      set_attr(ANSI_RESET);
+      return false;
+   }
+
+   if (!enter_test_directory(test, dir)) {
+      set_attr(ANSI_FG_RED);
+      printf("failed (error creating test directory %s)\n", strerror(errno));
+      set_attr(ANSI_RESET);
+      return false;
    }
 
    FILE *outf = fopen("out", "w");
    if (outf == NULL) {
       set_attr(ANSI_FG_RED);
-      printf("failed (error creating logs/%s/out log file: %s)\n",
-             test->name, strerror(errno));
+      printf("failed (error creating %s/out log file: %s)\n",
+             dir, strerror(errno));
       set_attr(ANSI_RESET);
       goto out_chdir;
    }
@@ -682,11 +736,21 @@ static bool run_test(test_t *test)
    fclose(outf);
 
  out_chdir:
-   if (chdir("..") != 0) {
-      fprintf(stderr, "Failed to switch to logs directory: %s\n",
-              strerror(errno));
+   if (chdir(cwd) != 0) {
+      set_attr(ANSI_FG_RED);
+      printf("Failed to switch to %s: %s\n", cwd, strerror(errno));
+      set_attr(ANSI_RESET);
       return false;
    }
+
+#ifndef __MINGW32__
+   if (!remove_dir(dir)) {
+      set_attr(ANSI_FG_RED);
+      printf("Failed to remove directory %s: %s\n", dir, strerror(errno));
+      set_attr(ANSI_RESET);
+      return false;
+   }
+#endif
 
    return result;
 }
@@ -741,17 +805,6 @@ int main(int argc, char **argv)
 
    if (!parse_test_list(argc - 1, argv + 1))
       return EXIT_FAILURE;
-
-   if (make_dir("logs") != 0 && errno != EEXIST) {
-      fprintf(stderr, "Failed to make logs directory: %s\n", strerror(errno));
-      return EXIT_FAILURE;
-   }
-
-   if (chdir("logs") != 0) {
-      fprintf(stderr, "Failed to change to logs directory: %s\n",
-              strerror(errno));
-      return EXIT_FAILURE;
-   }
 
    char *newpath;
    if (asprintf(&newpath, "%s:%s", bin_dir, getenv("PATH")) == -1)
