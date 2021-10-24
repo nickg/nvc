@@ -1763,7 +1763,7 @@ char *search_path(const char *name)
 
    char LOCAL *tmp = xstrdup(path);
    for (char *p = strtok(tmp, ":"); p; p = strtok(NULL, ":")) {
-      char *full = xasprintf("%s"PATH_SEP"%s", p, name);
+      char *full = xasprintf("%s"DIR_SEP"%s", p, name);
 
       struct stat sb;
       if (stat(full, &sb) == 0)

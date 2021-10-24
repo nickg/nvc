@@ -388,7 +388,7 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
          fatal("ELF library too old");
 
       int fd;
-      if (strchr(fname, PATH_SEP[0]))
+      if (strchr(fname, DIR_SEP[0]))
          fd = open(fname, O_RDONLY);
       else {
          char LOCAL *full = search_path(fname);
@@ -752,7 +752,7 @@ static void unwind_parse_vhdl_symbol(debug_frame_t *frame)
    if (lib == NULL)
       return;
 
-   const char *slash = strrchr(frame->module, PATH_SEP[0]);
+   const char *slash = strrchr(frame->module, DIR_SEP[0]);
    char *file LOCAL = xstrdup(slash ? slash + 1 : frame->module);
    if (file[0] != '_')
       return;

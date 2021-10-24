@@ -506,7 +506,7 @@ static bool remove_dir(const char *path)
    struct dirent *e;
    while ((e = readdir(d))) {
       if (e->d_name[0] != '.') {
-         snprintf(buf, sizeof(buf), "%s" PATH_SEP "%s", path, e->d_name);
+         snprintf(buf, sizeof(buf), "%s" DIR_SEP "%s", path, e->d_name);
          if (e->d_type == DT_DIR && !remove_dir(buf))
             goto out_close;
          else if (e->d_type == DT_REG && unlink(buf) < 0)
@@ -526,12 +526,12 @@ static bool remove_dir(const char *path)
 #endif
 
 __attribute__((unused))
-static int make_dir(const char *name)
+static bool make_dir(const char *name)
 {
 #ifdef __MINGW32__
-   return mkdir(name);
+   return mkdir(name) == 0;
 #else
-   return mkdir(name, 0777);
+   return mkdir(name, 0777) == 0;
 #endif
 }
 
@@ -602,7 +602,7 @@ static bool run_test(test_t *test)
 
    if (!enter_test_directory(test, dir)) {
       set_attr(ANSI_FG_RED);
-      printf("failed (error creating test directory %s)\n", strerror(errno));
+      printf("failed (error creating test directory: %s)\n", strerror(errno));
       set_attr(ANSI_RESET);
       return false;
    }
@@ -620,18 +620,18 @@ static bool run_test(test_t *test)
 
    if (test->flags & F_SHELL) {
       push_arg(&args, "/bin/sh");
-      push_arg(&args, "%s" PATH_SEP "regress" PATH_SEP "%s.sh",
+      push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.sh",
                test_dir, test->name);
    }
    else {
-      push_arg(&args, "%s" PATH_SEP "nvc%s", bin_dir, EXEEXT);
+      push_arg(&args, "%s" DIR_SEP "nvc%s", bin_dir, EXEEXT);
       push_std(test, &args);
 
       if (test->flags & F_WORKLIB)
          push_arg(&args, "--work=%s", test->work);
 
       push_arg(&args, "-a");
-      push_arg(&args, "%s" PATH_SEP "regress" PATH_SEP "%s.vhd",
+      push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.vhd",
                test_dir, test->name);
 
       if (test->flags & F_RELAX)

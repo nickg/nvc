@@ -452,7 +452,7 @@ void fst_init(const char *file, tree_t top, e_node_t e_root,
       if (vcdfile == NULL)
          fatal_errno("%s", file);
 
-      tmpfst  = xasprintf("%s" PATH_SEP "temp.fst", tmpdir);
+      tmpfst  = xasprintf("%s" DIR_SEP "temp.fst", tmpdir);
       fst_ctx = fstWriterCreate(tmpfst, 1);
    }
    else {

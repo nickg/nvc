@@ -20,7 +20,7 @@ static void setup(void)
          tmp = "/tmp";
    }
 
-   char *path LOCAL = xasprintf("%s" PATH_SEP "test_lib", tmp);
+   char *path LOCAL = xasprintf("%s" DIR_SEP "test_lib", tmp);
    work = lib_new("test_lib", path);
    fail_if(work == NULL);
 }

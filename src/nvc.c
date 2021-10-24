@@ -858,7 +858,7 @@ static void parse_work_name(char *str, const char **name, const char **path)
 {
    char *split = strchr(str, ':');
    if (split == NULL) {
-      char *slash = strrchr(str, *PATH_SEP) ?: strrchr(str, '/');
+      char *slash = strrchr(str, *DIR_SEP) ?: strrchr(str, '/');
       if (slash == NULL)
          *name = *path = str;
       else {

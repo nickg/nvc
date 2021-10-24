@@ -492,7 +492,7 @@ static const char *cover_file_url(cover_file_t *f)
    static char buf[256];
    checked_sprintf(buf, sizeof(buf) - 6, "report_%s.html", f->name);
    for (char *p = buf; *(p + 5) != '\0'; p++) {
-      if (*p == PATH_SEP[0] || *p == '.')
+      if (*p == DIR_SEP[0] || *p == '.')
          *p = '_';
    }
    return buf;
@@ -571,7 +571,7 @@ static void cover_html_footer(FILE *fp)
 
 static void cover_report_file(cover_file_t *f, const char *dir)
 {
-   char *buf LOCAL = xasprintf("%s" PATH_SEP "%s", dir, cover_file_url(f));
+   char *buf LOCAL = xasprintf("%s" DIR_SEP "%s", dir, cover_file_url(f));
    FILE *fp = lib_fopen(lib_work(), buf, "w");
    if (fp == NULL)
       fatal("failed to create %s", buf);

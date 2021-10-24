@@ -298,7 +298,7 @@ static lib_t lib_find_at(const char *name, const char *path, bool exact)
 {
    char dir[PATH_MAX];
    char *p = dir + checked_sprintf(dir, sizeof(dir) - 4 - strlen(name),
-                                   "%s" PATH_SEP, path);
+                                   "%s" DIR_SEP, path);
    bool found = false;
 
    if (!exact) {
@@ -320,7 +320,7 @@ static lib_t lib_find_at(const char *name, const char *path, bool exact)
    }
 
    char marker[PATH_MAX];
-   checked_sprintf(marker, sizeof(marker), "%s" PATH_SEP "_NVC_LIB", dir);
+   checked_sprintf(marker, sizeof(marker), "%s" DIR_SEP "_NVC_LIB", dir);
    if (access(marker, F_OK) < 0)
       return NULL;
 
@@ -330,7 +330,7 @@ static lib_t lib_find_at(const char *name, const char *path, bool exact)
 static text_buf_t *lib_file_path(lib_t lib, const char *name)
 {
    text_buf_t *tb = tb_new();
-   tb_printf(tb, "%s" PATH_SEP "%s", lib->path, name);
+   tb_printf(tb, "%s" DIR_SEP "%s", lib->path, name);
    return tb;
 }
 
@@ -369,7 +369,7 @@ lib_t lib_new(const char *name, const char *path)
          fatal("invalid character '%c' in library name", *p);
    }
 
-   char *lockf LOCAL = xasprintf("%s" PATH_SEP "%s", path, "_NVC_LIB");
+   char *lockf LOCAL = xasprintf("%s" DIR_SEP "%s", path, "_NVC_LIB");
 
    struct stat buf;
    if (stat(path, &buf) == 0) {
@@ -584,7 +584,7 @@ void lib_destroy(lib_t lib)
    struct dirent *e;
    while ((e = readdir(d))) {
       if (e->d_name[0] != '.') {
-         checked_sprintf(buf, sizeof(buf), "%s" PATH_SEP "%s",
+         checked_sprintf(buf, sizeof(buf), "%s" DIR_SEP "%s",
                          lib->path, e->d_name);
          if (unlink(buf) < 0)
             perror("unlink");
@@ -947,7 +947,7 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
    assert(lib != NULL);
 
    if (name)
-      checked_sprintf(buf, buflen, "%s" PATH_SEP "%s", lib->path, name);
+      checked_sprintf(buf, buflen, "%s" DIR_SEP "%s", lib->path, name);
    else
       strncpy(buf, lib->path, buflen);
 }
