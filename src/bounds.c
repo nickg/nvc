@@ -282,9 +282,22 @@ static void bounds_check_array_ref(tree_t t)
          //   for i in x'range loop
          //     y := a(x);  -- Always in bounds
 
-         tree_t range_var = tree_attr_tree(tree_ref(pvalue), range_var_i);
-         if (range_var == tree_ref(value))
-            checked = true;
+         type_t ptype = tree_type(pvalue);
+         if (type_kind(ptype) == T_SUBTYPE && type_has_constraint(ptype)) {
+            tree_t c = type_constraint(ptype);
+            if (tree_subkind(c) == C_RANGE) {
+               tree_t r = tree_range(c, 0);
+               if (tree_subkind(r) == RANGE_EXPR) {
+                  tree_t r_attr = tree_value(r);
+                  assert(tree_kind(r_attr) == T_ATTR_REF);
+                  tree_t r_base = tree_name(r_attr);
+                  assert(tree_kind(r_base) == T_REF);
+
+                  if (tree_ref(r_base) == tree_ref(value))
+                     checked = true;
+               }
+            }
+         }
       }
 
       if (checked)

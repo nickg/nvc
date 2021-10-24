@@ -4151,22 +4151,13 @@ static bool sem_check_while(tree_t t)
 
 static bool sem_check_for(tree_t t)
 {
-   tree_t r = tree_range(t, 0);
-   const bool is_range_expr = (tree_subkind(r) == RANGE_EXPR);
-   if (!sem_check_discrete_range(r, NULL))
+   if (!sem_check_discrete_range(tree_range(t, 0), NULL))
       return false;
 
    tree_t idecl = tree_decl(t, 0);
 
    if (!sem_check_subtype(idecl, tree_type(idecl)))
       return false;
-
-   tree_t name = NULL;
-   if (is_range_expr && tree_kind((name = tree_name(tree_value(r)))) == T_REF) {
-      // Find the variable X in X'RANGE
-      tree_t range_var = tree_ref(name);
-      tree_add_attr_tree(idecl, range_var_i, range_var);
-   }
 
    scope_push(tree_ident(t));
    loop_push(tree_ident(t));

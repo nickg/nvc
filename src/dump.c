@@ -315,10 +315,33 @@ static void dump_expr(tree_t t)
    dump_type_hint(t);
 }
 
+static void dump_constraint(tree_t t)
+{
+   const int nranges = tree_ranges(t);
+
+   switch (tree_subkind(t)) {
+   case C_RANGE:
+      syntax(" #range ");
+      dump_range(tree_range(t, 0));
+      break;
+   case C_INDEX:
+      printf("(");
+      for (int i = 0; i < nranges; i++) {
+         if (i > 0) printf(", ");
+         dump_range(tree_range(t, i));
+      }
+      printf(")");
+      break;
+   }
+}
+
 static void dump_type(type_t type)
 {
-   if (type_kind(type) == T_SUBTYPE && type_has_ident(type))
+   if (type_kind(type) == T_SUBTYPE) {
       printf("%s", type_pp(type));
+      if (type_ident(type) == type_ident(type_base(type)))
+         dump_constraint(type_constraint(type));
+   }
    else if (type_is_array(type) && !type_is_unconstrained(type)) {
       printf("%s(", type_pp(type));
       const int ndims = dimension_of(type);
@@ -463,27 +486,9 @@ static void dump_type_decl(tree_t t, int indent)
          dump_expr(type_resolution(type));
          printf(" ");
       }
-      dump_type(type_base(type));
-      if (type_has_constraint(type)) {
-         tree_t c = type_constraint(type);
-         switch (tree_subkind(c)) {
-         case C_INDEX:
-            {
-               printf(" (");
-               const int nranges = tree_ranges(c);
-               for (int i = 0; i < nranges; i++) {
-                  if (i > 0) printf(", ");
-                  dump_range(tree_range(c, i));
-               }
-               printf(")");
-            }
-            break;
-         case C_RANGE:
-            syntax(" #range ");
-            dump_range(tree_range(c, 0));
-            break;
-         }
-      }
+      printf("%s", type_pp(type_base(type)));
+      if (type_has_constraint(type))
+         dump_constraint(type_constraint(type));
       printf(";\n");
       return;
    }
@@ -1243,6 +1248,7 @@ void dump(tree_t t)
       break;
    case T_PORT_DECL:
       dump_port(t, 0);
+      printf("\n");
       break;
    case T_RANGE:
       dump_range(t);

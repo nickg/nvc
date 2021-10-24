@@ -1020,7 +1020,6 @@ void intern_strings(void)
    foreign_i        = ident_new("FOREIGN");
    nested_i         = ident_new("nested");
    prot_field_i     = ident_new("prot_field");
-   range_var_i      = ident_new("range_var");
    work_i           = ident_new("WORK");
    wait_level_i     = ident_new("wait_level");
    impure_io_i      = ident_new("impure_io");
