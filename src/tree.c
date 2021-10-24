@@ -1127,41 +1127,6 @@ static attr_t *tree_add_attr(tree_t t, ident_t name, tree_attr_kind_t kind)
    return &(item->attrs.table[i]);
 }
 
-void tree_remove_attr(tree_t t, ident_t name)
-{
-   assert(t != NULL);
-   assert(name != NULL);
-
-   item_t *item = lookup_item(&tree_object, t, I_ATTRS);
-
-   unsigned i;
-   for (i = 0; (i < item->attrs.num)
-           && (item->attrs.table[i].name != name); i++)
-      ;
-
-   if (i == item->attrs.num)
-      return;
-
-   // Zero pointer to help Valgrind identify leaks
-   item->attrs.table[i].pval = NULL;
-
-   for (; i + 1 < item->attrs.num; i++)
-      item->attrs.table[i] = item->attrs.table[i + 1];
-
-   item->attrs.num--;
-}
-
-void tree_add_attr_str(tree_t t, ident_t name, ident_t str)
-{
-   tree_add_attr(t, name, A_STRING)->sval = str;
-}
-
-ident_t tree_attr_str(tree_t t, ident_t name)
-{
-   attr_t *a = tree_find_attr(t, name, A_STRING);
-   return a ? a->sval : NULL;
-}
-
 void tree_add_attr_int(tree_t t, ident_t name, int n)
 {
    tree_add_attr(t, name, A_INT)->ival = n;
@@ -1171,29 +1136,6 @@ int tree_attr_int(tree_t t, ident_t name, int def)
 {
    attr_t *a = tree_find_attr(t, name, A_INT);
    return a ? a->ival : def;
-}
-
-void tree_add_attr_ptr(tree_t t, ident_t name, void *ptr)
-{
-   tree_add_attr(t, name, A_PTR)->pval = ptr;
-}
-
-void *tree_attr_ptr(tree_t t, ident_t name)
-{
-   attr_t *a = tree_find_attr(t, name, A_PTR);
-   return a ? a->pval : NULL;
-}
-
-tree_t tree_attr_tree(tree_t t, ident_t name)
-{
-   attr_t *a = tree_find_attr(t, name, A_TREE);
-   return a ? a->tval : NULL;
-}
-
-void tree_add_attr_tree(tree_t t, ident_t name, tree_t val)
-{
-   assert(val != NULL);
-   tree_add_attr(t, name, A_TREE)->tval = val;
 }
 
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)

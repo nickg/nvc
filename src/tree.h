@@ -458,15 +458,8 @@ void tree_add_char(tree_t t, tree_t ref);
 tree_flags_t tree_flags(tree_t t);
 void tree_set_flag(tree_t t, tree_flags_t mask);
 
-void tree_add_attr_str(tree_t t, ident_t name, ident_t str);
-ident_t tree_attr_str(tree_t t, ident_t name);
 void tree_add_attr_int(tree_t t, ident_t name, int n);
 int tree_attr_int(tree_t t, ident_t name, int def);
-void tree_add_attr_ptr(tree_t t, ident_t name, void *ptr);
-void *tree_attr_ptr(tree_t t, ident_t name);
-tree_t tree_attr_tree(tree_t t, ident_t name);
-void tree_add_attr_tree(tree_t t, ident_t name, tree_t val);
-void tree_remove_attr(tree_t t, ident_t name);
 
 typedef void (*tree_visit_fn_t)(tree_t t, void *context);
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context);

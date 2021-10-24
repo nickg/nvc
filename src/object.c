@@ -286,7 +286,7 @@ void object_one_time_init(void)
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the object items table
-      const uint32_t format_fudge = 17;
+      const uint32_t format_fudge = 18;
 
       format_digest += format_fudge * UINT32_C(2654435761);
 
@@ -353,20 +353,6 @@ static void gc_forward_pointers(object_t *object, object_arena_t *arena,
             for (unsigned j = 0; j < object->items[i].obj_array.count; j++)
                gc_forward_one_pointer(&(object->items[i].obj_array.items[j]),
                                       arena, forward);
-         }
-         else if (ITEM_ATTRS & mask) {
-            attr_tab_t *attrs = &(object->items[i].attrs);
-            for (unsigned j = 0; j < attrs->num; j++) {
-               switch (attrs->table[j].kind) {
-               case A_TREE:
-                  gc_forward_one_pointer((object_t **)&(attrs->table[j].tval),
-                                         arena, forward);
-                  break;
-
-               default:
-                  break;
-               }
-            }
          }
 
          i++;
@@ -550,19 +536,8 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
             ;
          else if (ITEM_IDENT_ARRAY & mask)
             ;
-         else if (ITEM_ATTRS & mask) {
-            attr_tab_t *attrs = &(object->items[i].attrs);
-            for (unsigned j = 0; j < attrs->num; j++) {
-               switch (attrs->table[j].kind) {
-               case A_TREE:
-                  object_visit((object_t *)attrs->table[j].tval, ctx);
-                  break;
-
-               default:
-                  break;
-               }
-            }
-         }
+         else if (ITEM_ATTRS & mask)
+            ;
          else
             item_without_type(mask);
       }
@@ -757,20 +732,9 @@ void object_write(object_t *root, fbuf_t *f)
                   ident_write(attrs->table[i].name, ident_ctx);
 
                   switch (attrs->table[i].kind) {
-                  case A_STRING:
-                     ident_write(attrs->table[i].sval, ident_ctx);
-                     break;
-
                   case A_INT:
                      write_u32(attrs->table[i].ival, f);
                      break;
-
-                  case A_TREE:
-                     object_write_ref((object_t *)attrs->table[i].tval, f);
-                     break;
-
-                  case A_PTR:
-                     fatal("pointer attributes cannot be saved");
                   }
                }
             }
@@ -935,16 +899,8 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
                   attrs->table[i].name = ident_read(ident_ctx);
 
                   switch (attrs->table[i].kind) {
-                  case A_STRING:
-                     attrs->table[i].sval = ident_read(ident_ctx);
-                     break;
-
                   case A_INT:
                      attrs->table[i].ival = read_u32(f);
-                     break;
-
-                  case A_TREE:
-                     attrs->table[i].tval = (tree_t)object_read_ref(f, key_map);
                      break;
 
                   default:

@@ -151,11 +151,10 @@ STATIC_ASSERT(OBJECT_ALIGN >= sizeof(double));
       })
 
 typedef enum {
-   A_STRING, A_INT, A_PTR, A_TREE
+   A_INT
 } tree_attr_kind_t;
 
 typedef uint16_t generation_t;
-typedef uint32_t index_t;
 typedef uint16_t arena_key_t;
 
 typedef A(object_t *) obj_array_t;
@@ -164,10 +163,7 @@ typedef struct {
    tree_attr_kind_t kind;
    ident_t          name;
    union {
-      ident_t sval;
       int     ival;
-      void    *pval;
-      tree_t  tval;
    };
 } attr_t;
 

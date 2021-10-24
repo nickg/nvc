@@ -114,8 +114,6 @@ START_TEST(test_lib_save)
       tree_t ent = tree_new(T_ENTITY);
       tree_set_ident(ent, ident_new("TEST_LIB.name"));
 
-      tree_add_attr_str(ent, ident_new("attr"), ident_new("test string"));
-
       type_t e = type_new(T_ENUM);
       type_set_ident(e, ident_new("myenum"));
       tree_t a = tree_new(T_ENUM_LIT);
@@ -204,10 +202,6 @@ START_TEST(test_lib_save)
       fail_unless(tree_kind(ent) == T_ENTITY);
       fail_unless(tree_ident(ent) == ident_new("TEST_LIB.name"));
       fail_unless(tree_ports(ent) == 2);
-
-      ident_t attr = tree_attr_str(ent, ident_new("attr"));
-      fail_if(attr == NULL);
-      fail_unless(icmp(attr, "test string"));
 
       tree_t p1 = tree_port(ent, 0);
       fail_unless(tree_kind(p1) == T_PORT_DECL);

@@ -1172,8 +1172,6 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
 
    elab_remangle_subprogram_names(arch, npath);
 
-   tree_add_attr_str(ctx->out, simple_name_i, npath);
-
    simplify(arch, EVAL_LOWER);
    bounds_check(arch);
 

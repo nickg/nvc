@@ -909,12 +909,7 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
          if (!vhpi_validate_handle(handle, VHPI_TREE))
             return NULL;
 
-         const char *full = NULL;
-         if (tree_kind(handle->tree) == T_ELAB)
-            full = istr(tree_attr_str(handle->tree, simple_name_i));
-         else
-            full = istr(tree_ident(handle->tree));
-
+         const char *full = istr(tree_ident(handle->tree));
          const char *last_sep = strrchr(full, ':');
          if (last_sep == NULL)
             return (vhpiCharT *)full;
@@ -928,11 +923,7 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
          if (!vhpi_validate_handle(handle, VHPI_TREE))
             return NULL;
 
-         if (tree_kind(handle->tree) == T_ELAB)
-            return (vhpiCharT *)istr(tree_attr_str(handle->tree,
-                                                   simple_name_i));
-         else
-            return (vhpiCharT *)istr(tree_ident(handle->tree));
+         return (vhpiCharT *)istr(tree_ident(handle->tree));
       }
 
    case vhpiKindStrP:
