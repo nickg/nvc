@@ -63,7 +63,7 @@ Dir.foreach(Billowitch) do |item|
   Dir.mktmpdir do |tmpdir|
     f = File.realpath "#{Billowitch}/#{item}"
     top = guess_top f
-    #cmd = "#{Tool} --work=work:#{tmpdir} -a #{f} -e #{top} -r"
+    #cmd = "#{Tool} --force-init --work=work:#{tmpdir} -a #{f} -e #{top} -r"
     cmd = "#{Tool} --force-init --work=work:#{tmpdir} -a #{f}"
     if run_cmd cmd then
       passes += 1

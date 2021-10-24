@@ -389,3 +389,4 @@ record18        normal
 issue98         normal
 issue430        normal
 libdir1         shell
+vests2          normal

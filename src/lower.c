@@ -3139,6 +3139,11 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
          if (i + 1 < nparams)
             ptr = emit_add(ptr, src_len);
       }
+      else if (type_is_record(args[i].type)) {
+         emit_copy(ptr, args[i].reg, VCODE_INVALID_REG);
+         if (i + 1 < nparams)
+            ptr = emit_add(ptr, emit_const(vtype_offset(), 1));
+      }
       else {
          emit_store_indirect(lower_reify(args[i].reg), ptr);
          if (i + 1 < nparams)
