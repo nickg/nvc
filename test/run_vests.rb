@@ -15,19 +15,32 @@ Prefix = "#{VestsDir}/vhdl-93"
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = 'nvc'
 Billowitch = "#{Prefix}/billowitch/compliant"
-ExpectFails = 85
+ExpectFails = 473
 
 ENV['NVC_COLORS'] = 'always'
 
 def run_cmd(c)
-  Timeout.timeout(10) do
-    stdout, stderr, status = Open3.capture3(c)
+  Open3.popen2e(c) do |i, oe, t|
+    i.close
+
+    output = nil
+    begin
+      Timeout::timeout(5) do
+        output = oe.read
+      end
+    rescue Timeout::Error
+      Process.kill("KILL", t.pid)
+      output = 'Timeout!'
+    end
+
+    status = t.value
+
     if status != 0 then
       puts
       puts c.magenta
-      puts stdout
-      puts stderr
+      puts output
     end
+
     return status == 0
   end
 end
@@ -57,19 +70,41 @@ passes = 0
 # Billowitch, compliant
 #
 
-Dir.foreach(Billowitch) do |item|
-  next unless item =~ /\.vhdl?$/
+Dir.mktmpdir do |tmpdir|
+  Dir.chdir tmpdir
 
-  Dir.mktmpdir do |tmpdir|
-    f = File.realpath "#{Billowitch}/#{item}"
-    top = guess_top f
-    #cmd = "#{Tool} --force-init --work=work:#{tmpdir} -a #{f} -e #{top} -r"
-    cmd = "#{Tool} --force-init --work=work:#{tmpdir} -a #{f}"
-    if run_cmd cmd then
-      passes += 1
-      print '+'.green
-    else
-      fails += 1
+  File.open("#{Billowitch}/compliant.exp").each_line do |line|
+    next unless m = line.match(/^run_compliant_test +(\w+.vhdl?)(.*)$/)
+
+    tc = m.captures[0]
+    io = m.captures[1]
+
+    if mi = io.match(/INPUT=(iofile.\d+):(iofiles\/iofile.\d+)/) then
+      FileUtils.cp("#{Billowitch}/#{mi.captures[1]}", mi.captures[0])
+    end
+
+    mo = io.match(/OUTPUT=(iofile.\d+):(iofiles\/iofile.\d+)/)
+
+    Dir.mktmpdir do |workdir|
+      f = File.realpath "#{Billowitch}/#{tc}"
+      top = guess_top f
+      cmd = "#{Tool} --force-init --work=work:#{workdir} -a #{f} -e #{top} -r"
+      #cmd = "#{Tool} --force-init --work=work:#{workdir} -a #{f}"
+
+      if run_cmd cmd then
+        if mo and not FileUtils.identical?("#{Billowitch}/#{mo.captures[1]}",
+                                           mo.captures[0]) then
+          puts cmd.magenta
+          puts "#{mo.captures[0]} does not match #{Billowitch}/#{mo.captures[1]}"
+          puts
+          fails += 1
+        else
+          passes += 1
+          print '+'.green
+        end
+      else
+        fails += 1
+      end
     end
   end
 end
