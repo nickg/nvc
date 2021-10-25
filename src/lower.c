@@ -5145,7 +5145,8 @@ static void lower_alias_decl(tree_t decl)
    vcode_var_t var = emit_var(vtype, lower_bounds(type), name, flags);
    lower_put_vcode_obj(decl, var, top_scope);
 
-   vcode_reg_t value_reg = lower_expr(value, EXPR_LVALUE);
+   const expr_ctx_t ctx = flags & VAR_SIGNAL ? EXPR_LVALUE : EXPR_RVALUE;
+   vcode_reg_t value_reg = lower_expr(value, ctx);
    vcode_reg_t data_reg  = lower_array_data(value_reg);
 
    emit_store(lower_wrap(type, data_reg), var);

@@ -393,3 +393,4 @@ vests2          normal
 vests3          normal
 vests4          normal
 vests5          normal
+vests6          normal
