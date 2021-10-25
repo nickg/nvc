@@ -505,9 +505,9 @@ lib_t lib_find(ident_t name_i, bool required)
 
    if (lib == NULL) {
       LOCAL_TEXT_BUF tb = tb_new();
-      tb_printf(tb, "library %s not found in:\n", name_str);
+      tb_printf(tb, "library %s not found in:", name_str);
       for (search_path_t *it = search_paths; it != NULL; it = it->next)
-         tb_printf(tb, "  %s\n", it->path);
+         tb_printf(tb, "\n  %s", it->path);
       if (required)
          fatal("%s", tb_get(tb));
       else

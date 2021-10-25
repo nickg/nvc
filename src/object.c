@@ -836,7 +836,8 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
          if (loader_fn) droot = (*loader_fn)(dep);
 
          if (droot == NULL)
-            fatal_trace("missing dependent object %s", istr(dep));
+            fatal("%s depends on %s which cannot be found",
+		  fbuf_file_name(f), istr(dep));
 
          arena = object_arena(droot);
       }
