@@ -70,6 +70,30 @@ package body textio is
         end if;
     end function;
 
+    function tolower (x : character) return character is
+        constant offset : natural := character'pos('a') - character'pos('A');
+    begin
+        if x >= 'A' and x <= 'Z' then
+            return character'val(character'pos(x) + offset);
+        else
+            return x;
+        end if;
+    end function;
+
+    function strcasecmp (x, y : string) return boolean is
+    begin
+        if x'length /= y'length then
+            return false;
+        else
+            for i in 1 to x'length loop
+                if tolower(x(i)) /= tolower(y(i)) then
+                    return false;
+                end if;
+            end loop;
+        end if;
+        return true;
+    end function;
+
     procedure read (l     : inout line;
                     value : out bit;
                     good  : out boolean ) is
@@ -145,30 +169,14 @@ package body textio is
     begin
         good := false;
         skip_whitespace(l);
-        if l.all'length = 0 then
-            return;
-        end if;
-        if l(1) = 'T' or l(1) = 't' then
-            if l.all'length >= 4
-                and (l(2) = 'R' or l(2) = 'r')
-                and (l(3) = 'U' or l(3) = 'u')
-                and (l(4) = 'E' or l(4) = 'e')
-            then
-                consume(l, 4);
-                good := true;
-                value := true;
-            end if;
-        elsif l(1) = 'F' or l(1) = 'f' then
-            if l.all'length >= 5
-                and (l(2) = 'A' or l(2) = 'a')
-                and (l(3) = 'L' or l(3) = 'l')
-                and (l(4) = 'S' or l(4) = 's')
-                and (l(5) = 'E' or l(5) = 'e')
-            then
-                consume(l, 5);
-                good := true;
-                value := false;
-            end if;
+        if l.all'length >= 4 and strcasecmp(l.all(1 to 4), "true") then
+            consume(l, 4);
+            good := true;
+            value := true;
+        elsif l.all'length >= 5 and strcasecmp(l.all(1 to 5), "false") then
+            consume(l, 5);
+            good := true;
+            value := false;
         end if;
     end procedure;
 
@@ -343,7 +351,7 @@ package body textio is
         for i in unit_map'range loop
             len := unit_map(i).length;
             if l'length >= len
-                and l.all(1 to len) = unit_map(i).name(1 to len)
+                and strcasecmp(l.all(1 to len), unit_map(i).name(1 to len))
             then
                 value := scale * unit_map(i).unit;
                 consume(l, len);

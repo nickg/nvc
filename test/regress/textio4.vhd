@@ -205,7 +205,7 @@ begin
         variable t : time;
         variable good : boolean;
     begin
-        l := new string'(" 1 ns 15 sec 1 hr");
+        l := new string'(" 1 ns 15 sec 1 HR");
         read(l, t, good);
         assert good;
         assert t = 1 ns;
