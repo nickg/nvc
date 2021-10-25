@@ -115,19 +115,6 @@ const char *e_kind_str(e_kind_t t)
    return kind_text_map[t];
 }
 
-void e_write(e_node_t e, fbuf_t *fbuf)
-{
-   object_arena_freeze(global_arena);
-   object_write(&(e->object), fbuf);
-}
-
-e_node_t e_read(fbuf_t *fbuf)
-{
-   object_t *object = object_read(fbuf, (object_load_fn_t)lib_get_qualified);
-   assert(object->tag == OBJECT_TAG_E_NODE);
-   return container_of(object, struct _e_node, object);
-}
-
 ident_t e_ident(e_node_t e)
 {
    item_t *item = lookup_item(&e_node_object, e, I_IDENT);

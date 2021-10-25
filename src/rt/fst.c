@@ -31,7 +31,6 @@
 #endif
 
 static tree_t    fst_top;
-static e_node_t  fst_e_root;
 static void     *fst_ctx;
 static uint64_t  last_time;
 static FILE     *vcdfile;
@@ -428,14 +427,14 @@ void fst_restart(void)
    if (fst_ctx == NULL)
       return;
 
+   e_node_t e_root = tree_eopt(fst_top);
    fst_walk_design(tree_stmt(fst_top, 0),
-                   e_scope(fst_e_root, e_scopes(fst_e_root) - 1));
+                   e_scope(e_root, e_scopes(e_root) - 1));
 
    last_time = UINT64_MAX;
 }
 
-void fst_init(const char *file, tree_t top, e_node_t e_root,
-              fst_output_t output)
+void fst_init(const char *file, tree_t top, fst_output_t output)
 {
    if (output == FST_OUTPUT_VCD) {
 #if defined __CYGWIN__ || defined __MINGW32__
@@ -474,5 +473,4 @@ void fst_init(const char *file, tree_t top, e_node_t e_root,
    atexit(fst_close);
 
    fst_top = top;
-   fst_e_root = e_root;
 }

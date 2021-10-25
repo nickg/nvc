@@ -81,7 +81,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2 | I_SUBKIND),
 
    // T_ELAB
-   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_ATTRS),
+   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_EOPT),
 
    // T_AGGREGATE
    (I_TYPE | I_ASSOCS | I_FLAGS),
@@ -321,6 +321,10 @@ struct _tree {
 };
 
 struct _type {
+   object_t object;
+};
+
+struct _e_node {
    object_t object;
 };
 
@@ -618,6 +622,18 @@ tree_flags_t tree_flags(tree_t t)
 void tree_set_flag(tree_t t, tree_flags_t mask)
 {
    lookup_item(&tree_object, t, I_FLAGS)->ival |= mask;
+}
+
+e_node_t tree_eopt(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_EOPT);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _e_node, object);
+}
+
+void tree_set_eopt(tree_t t, e_node_t e)
+{
+   lookup_item(&tree_object, t, I_EOPT)->object = &(e->object);
 }
 
 unsigned tree_chars(tree_t t)

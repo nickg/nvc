@@ -461,6 +461,9 @@ void tree_set_flag(tree_t t, tree_flags_t mask);
 void tree_add_attr_int(tree_t t, ident_t name, int n);
 int tree_attr_int(tree_t t, ident_t name, int def);
 
+e_node_t tree_eopt(tree_t t);
+void tree_set_eopt(tree_t t, e_node_t e);
+
 typedef void (*tree_visit_fn_t)(tree_t t, void *context);
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context);
 unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,

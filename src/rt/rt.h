@@ -141,8 +141,7 @@ void *jit_find_symbol(const char *name, bool required);
 
 text_buf_t *pprint(tree_t t, const uint64_t *values, size_t len);
 
-void fst_init(const char *file, tree_t top, e_node_t e_root,
-              fst_output_t output);
+void fst_init(const char *file, tree_t top, fst_output_t output);
 void fst_restart(void);
 
 void wave_include_glob(const char *glob);
@@ -151,9 +150,9 @@ void wave_include_file(const char *base);
 bool wave_should_dump(tree_t decl);
 
 #ifdef ENABLE_VHPI
-void vhpi_load_plugins(tree_t top, e_node_t root, const char *plugins);
+void vhpi_load_plugins(tree_t top, const char *plugins);
 #else
-#define vhpi_load_plugins(top, root, plugins)
+#define vhpi_load_plugins(top, plugins)
 #endif
 
 #endif  // _RT_H

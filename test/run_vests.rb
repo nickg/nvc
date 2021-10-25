@@ -10,7 +10,7 @@ require 'tmpdir'
 TestDir = Pathname.new(__FILE__).realpath.dirname
 BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
 LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
-VestsDir = ARGV[0] || "#{TestDir}/vests"
+VestsDir = Pathname.new(ARGV[0] || "#{TestDir}/vests").realpath
 Prefix = "#{VestsDir}/vhdl-93"
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = 'nvc'

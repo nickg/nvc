@@ -1496,10 +1496,10 @@ int vhpi_is_printable(char ch)
       return 1;
 }
 
-void vhpi_load_plugins(tree_t top, e_node_t root, const char *plugins)
+void vhpi_load_plugins(tree_t top, const char *plugins)
 {
    top_level = top;
-   e_root    = root;
+   e_root    = tree_eopt(top);
 
    if (handle_hash != NULL)
       hash_free(handle_hash);

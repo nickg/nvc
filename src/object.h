@@ -63,7 +63,7 @@ typedef uint64_t imask_t;
 #define I_CLASS      ONE_HOT(26)
 #define I_RANGES     ONE_HOT(27)
 #define I_NAME       ONE_HOT(28)
-//#define I_NETS     ONE_HOT(29)
+#define I_EOPT       ONE_HOT(29)
 #define I_DVAL       ONE_HOT(30)
 #define I_SPEC       ONE_HOT(31)
 #define I_SCOPES     ONE_HOT(32)
@@ -101,7 +101,8 @@ typedef uint64_t imask_t;
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE    \
                           | I_NAME | I_SPEC | I_RESOLUTION | I_CONSTR   \
                           | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
-                          | I_ACCESS | I_RESULT | I_FILE | I_PARENT)
+                          | I_ACCESS | I_RESULT | I_FILE | I_PARENT     \
+                          | I_EOPT)
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_ELSES    \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \

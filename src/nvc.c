@@ -315,11 +315,6 @@ static int elaborate(int argc, char **argv)
 
    progress("elaborating design");
 
-   // Save the library now so the code generator can attach temporary
-   // meta data to trees
-   lib_save(lib_work());
-   progress("saving library");
-
    cover_tagging_t *cover = NULL;
    if (opt_get_int("cover")) {
       cover = cover_tag(top);
@@ -329,13 +324,12 @@ static int elaborate(int argc, char **argv)
    vcode_unit_t vu = lower_unit(top, cover);
    progress("generating intermediate code");
 
-   e_node_t e = eopt_build(top);
+   eopt_build(top);
    progress("optimising design");
 
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   lib_put_elaborated(lib_work(), e);
    lib_save(lib_work());
    progress("saving library");
 
@@ -485,10 +479,11 @@ static int run(int argc, char **argv)
    set_top_level(argv, next_cmd);
 
    ident_t ename = ident_prefix(top_level, ident_new("elab"), '.');
-   e_node_t e = lib_get_elaborated(lib_work(), ename);
    tree_t top = lib_get_check_stale(lib_work(), ename);
-   if (e == NULL || top == NULL)
+   if (top == NULL)
       fatal("%s not elaborated", istr(top_level));
+
+   e_node_t e = tree_eopt(top);
 
    if (wave_fname != NULL) {
       const char *name_map[] = { "FST", "VCD" };
@@ -502,13 +497,13 @@ static int run(int argc, char **argv)
       }
 
       wave_include_file(argv[optind]);
-      fst_init(wave_fname, top, e, wave_fmt);
+      fst_init(wave_fname, top, wave_fmt);
    }
 
    rt_start_of_tool(top, e);
 
    if (vhpi_plugins != NULL)
-      vhpi_load_plugins(top, e, vhpi_plugins);
+      vhpi_load_plugins(top, vhpi_plugins);
 
    rt_restart(e);
    rt_run_sim(stop_time);
