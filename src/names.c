@@ -890,7 +890,9 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       scope_t *first = iter.where;
       iter.limit = scope_end_of_chain(first);
       tree_t conflict = iter_name(&iter);
-      if (conflict != NULL && is_forward_decl(tab, decl, conflict))
+      if (conflict == (tree_t)-1)
+         ;   // Error marker
+      else if (conflict != NULL && is_forward_decl(tab, decl, conflict))
          ;   // Forward declaration
       else if (conflict != NULL && is_forward_decl(tab, conflict, decl)) {
          // Forward declaration, prefer the full declaration
@@ -898,7 +900,9 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       }
       else if (conflict != NULL && tree_kind(conflict) == T_PROT_BODY)
          ;
-      else if (conflict != NULL && conflict != (tree_t)-1 && conflict != decl) {
+      else if (conflict != NULL && iter.where->import && !first->import)
+         ;   // Second declaration was potentially visible homograph
+      else if (conflict != NULL && conflict != decl) {
          error_at(loc, "multiple conflicting visible declarations of %s",
                   istr(name));
 
@@ -915,6 +919,8 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
             note_at(tree_loc(visible[i].decl), "%s", tb_get(tb));
          }
+
+         insert_name_at(tab->top_scope, name, (tree_t)-1);
       }
    }
 
