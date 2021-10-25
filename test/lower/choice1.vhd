@@ -13,6 +13,8 @@ begin
                 x := 3;
             when 3 | 4 | 5 =>
                 x := 4;
+            when integer'low to 0 =>
+                x := -1;
             when others =>
                 x := 5;
         end case;

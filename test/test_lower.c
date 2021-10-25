@@ -2429,30 +2429,33 @@ START_TEST(test_choice1)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_CONST, .value = 3 },
-      { VCODE_OP_CONST, .value = 4 },
-      { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_RESOLVED },
       { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_CASE },
+      { VCODE_OP_CONST, .value = -2147483648 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GEQ },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_LEQ },
+      { VCODE_OP_AND },
+      { VCODE_OP_COND, .target = 4, .target_else = 3 },
    };
 
    CHECK_BB(1);
 
    EXPECT_BB(3) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONST, .value = 3 },
-      { VCODE_OP_STORE, .name = "X" },
-      { VCODE_OP_JUMP, .target = 2 }
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_CASE },
    };
 
    CHECK_BB(3);
 
    EXPECT_BB(4) = {
-      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }
    };
@@ -2460,12 +2463,28 @@ START_TEST(test_choice1)
    CHECK_BB(4);
 
    EXPECT_BB(5) = {
-      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_JUMP, .target = 2 }
    };
 
    CHECK_BB(5);
+
+   EXPECT_BB(6) = {
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_JUMP, .target = 2 }
+   };
+
+   CHECK_BB(6);
+
+   EXPECT_BB(7) = {
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_JUMP, .target = 2 }
+   };
+
+   CHECK_BB(7);
 }
 END_TEST
 

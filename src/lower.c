@@ -4414,85 +4414,93 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
 {
    const int nassocs = tree_assocs(stmt);
 
-   vcode_block_t start_bb = vcode_active_block();
    vcode_block_t def_bb = VCODE_INVALID_BLOCK;
+   vcode_block_t exit_bb = emit_block();
+   vcode_block_t hit_bb = VCODE_INVALID_BLOCK;
 
-   int ncases = 0;
+   vcode_reg_t value_reg = lower_reify_expr(tree_value(stmt));
+
+   tree_t last = NULL;
+
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(stmt, i);
-      switch (tree_subkind(a)) {
-      case A_RANGE:
-         {
-            int64_t low, high;
-            range_bounds(tree_range(a, 0), &low, &high);
-            ncases += high - low + 1;
+
+      if (tree_subkind(a) == A_RANGE) {
+         // Pre-filter range choices in case the number of elements is large
+         tree_t r = tree_range(a, 0);
+         vcode_reg_t left_reg = lower_range_left(r);
+         vcode_reg_t right_reg = lower_range_right(r);
+
+         const range_kind_t dir = tree_subkind(r);
+         vcode_reg_t low_reg = dir == RANGE_TO ? left_reg : right_reg;
+         vcode_reg_t high_reg = dir == RANGE_TO ? right_reg : left_reg;
+
+         vcode_reg_t lcmp_reg = emit_cmp(VCODE_CMP_GEQ, value_reg, low_reg);
+         vcode_reg_t hcmp_reg = emit_cmp(VCODE_CMP_LEQ, value_reg, high_reg);
+         vcode_reg_t hit_reg = emit_and(lcmp_reg, hcmp_reg);
+
+         vcode_block_t skip_bb = emit_block();
+
+         tree_t block = tree_value(a);
+         if (block != last) hit_bb = emit_block();
+
+         emit_cond(hit_reg, hit_bb, skip_bb);
+
+         if (stmt != last) {
+            vcode_select_block(hit_bb);
+            lower_stmt(block, loops);
+            if (!vcode_block_finished())
+               emit_jump(exit_bb);
          }
-         break;
-      case A_NAMED:
-         ncases++;
-         break;
+
+         last = block;
+         vcode_select_block(skip_bb);
       }
    }
 
-   vcode_block_t *blocks LOCAL = xcalloc(ncases * sizeof(vcode_block_t));
-   vcode_reg_t *cases LOCAL = xcalloc(ncases * sizeof(vcode_reg_t));
+   vcode_block_t start_bb = vcode_active_block();
 
-   vcode_block_t exit_bb = emit_block();
+   vcode_reg_t *cases LOCAL = xcalloc_array(nassocs, sizeof(vcode_reg_t));
+   vcode_block_t *blocks LOCAL = xcalloc_array(nassocs, sizeof(vcode_block_t));
 
-   tree_t last = NULL;
+   last = NULL;
+   hit_bb = VCODE_INVALID_BLOCK;
+
    int cptr = 0;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(stmt, i);
+      const assoc_kind_t kind = tree_subkind(a);
 
-      tree_t stmt = tree_value(a);
-      vcode_block_t bb = stmt != last ? emit_block() : blocks[cptr - 1];
+      if (kind == A_RANGE)
+         continue;    // Handled separately above
 
-      switch (tree_subkind(a)) {
-      case A_OTHERS:
-         def_bb = bb;
-         break;
+      tree_t block = tree_value(a);
+      if (block != last) hit_bb = emit_block();
 
-      case A_NAMED:
+      if (kind == A_OTHERS)
+         def_bb = hit_bb;
+      else {
          vcode_select_block(start_bb);
          cases[cptr]  = lower_reify_expr(tree_name(a));
-         blocks[cptr] = bb;
+         blocks[cptr] = hit_bb;
          cptr++;
-         break;
-
-      case A_RANGE:
-         {
-            vcode_select_block(start_bb);
-
-            tree_t r = tree_range(a, 0);
-            int64_t low, high;
-            range_bounds(r, &low, &high);
-
-            vcode_type_t vt = lower_type(tree_type(r));
-            for (int64_t j = low; j <= high; j++) {
-               cases[cptr]  = emit_const(vt, j);
-               blocks[cptr] = bb;
-               cptr++;
-            }
-         }
-         break;
       }
 
-      if (stmt != last) {
-         vcode_select_block(bb);
-         lower_stmt(stmt, loops);
+      if (block != last) {
+         vcode_select_block(hit_bb);
+         lower_stmt(block, loops);
          if (!vcode_block_finished())
             emit_jump(exit_bb);
-
-         last = stmt;
       }
+
+      last = block;
    }
 
    if (def_bb == VCODE_INVALID_BLOCK)
       def_bb = exit_bb;
 
    vcode_select_block(start_bb);
-   vcode_reg_t value_reg = lower_reify_expr(tree_value(stmt));
-   emit_case(value_reg, def_bb, cases, blocks, ncases);
+   emit_case(value_reg, def_bb, cases, blocks, cptr);
 
    vcode_select_block(exit_bb);
 }

@@ -391,3 +391,4 @@ issue430        normal
 libdir1         shell
 vests2          normal
 vests3          normal
+vests4          normal
