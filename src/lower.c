@@ -503,6 +503,8 @@ static vcode_type_t lower_bounds(type_t type)
       if (folded_bounds(r, &low, &high))
          return vtype_int(low, high);
    }
+   else if (type_is_array(type))
+      return lower_bounds(type_elem(type));
 
    return lower_type(type);
 }
@@ -1648,15 +1650,17 @@ static vcode_reg_t lower_match_op(subprogram_kind_t kind, vcode_reg_t r0,
          ? ident_new("IEEE.STD_LOGIC_1164.\"?<\"(UU)U")
          : ident_new("IEEE.STD_LOGIC_1164.\"?=\"(UU)U");
 
-      result = emit_fcall(func, lower_type(r0_type), VCODE_CC_VHDL, args, 2);
+      vcode_type_t rtype = lower_type(r0_type);
+      result = emit_fcall(func, rtype, rtype, VCODE_CC_VHDL, args, 2);
    }
 
    if (invert && is_bit)
       return emit_not(result);
    else if (invert) {
       vcode_reg_t args[1] = { result };
+      vcode_type_t rtype = vcode_reg_type(result);
       return emit_fcall(ident_new("IEEE.STD_LOGIC_1164.\"not\"(U)4UX01"),
-                        vcode_reg_type(result), VCODE_CC_VHDL, args, 1);
+                        rtype, rtype, VCODE_CC_VHDL, args, 1);
    }
    else
       return result;
@@ -1881,9 +1885,8 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
    }
 }
 
-static vcode_type_t lower_func_result_type(tree_t func)
+static vcode_type_t lower_func_result_type(type_t result)
 {
-   type_t result = type_result(tree_type(func));
    if (type_is_array(result) && lower_const_bounds(result)) {
       return vtype_pointer(lower_type(lower_elem_recur(result)));
    }
@@ -1934,15 +1937,18 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
 
    ident_t name = tree_ident2(decl);
 
-   vcode_type_t rtype = lower_func_result_type(decl);
+   type_t result = type_result(tree_type(decl));
+   vcode_type_t rtype = lower_func_result_type(result);
+   vcode_type_t rbounds = lower_bounds(result);
    const int nest_depth = tree_attr_int(decl, nested_i, 0);
    const vcode_cc_t cc = lower_cc_for_call(fcall);
    if (nest_depth > 0 && cc == VCODE_CC_VHDL) {
       const int hops = vcode_unit_depth() - nest_depth;
-      return emit_nested_fcall(name, rtype, args.items, args.count, hops);
+      return emit_nested_fcall(name, rtype, rbounds, args.items,
+                               args.count, hops);
    }
    else
-      return emit_fcall(name, rtype, cc, args.items, args.count);
+      return emit_fcall(name, rtype, rbounds, cc, args.items, args.count);
 }
 
 static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
@@ -3781,8 +3787,9 @@ static void lower_wait(tree_t wait)
          remain = emit_var(time, time, remain_i, 0);
       }
 
+      vcode_type_t rtype = vtype_time();
       vcode_reg_t now_reg = emit_fcall(ident_new("_std_standard_now"),
-                                       vtype_time(), VCODE_CC_FOREIGN, NULL, 0);
+                                       rtype, rtype, VCODE_CC_FOREIGN, NULL, 0);
       vcode_reg_t abs_reg = emit_add(now_reg, delay);
       emit_store(abs_reg, remain);
    }
@@ -3800,9 +3807,10 @@ static void lower_wait(tree_t wait)
       vcode_reg_t timeout_reg = VCODE_INVALID_REG;
       vcode_reg_t done_reg = until_reg;
       if (has_delay) {
+         vcode_type_t rtype = vtype_time();
          vcode_reg_t remain_reg = emit_load(remain);
          vcode_reg_t now_reg = emit_fcall(ident_new("_std_standard_now"),
-                                          vtype_time(), VCODE_CC_FOREIGN,
+                                          rtype, rtype, VCODE_CC_FOREIGN,
                                           NULL, 0);
          timeout_reg = emit_sub(remain_reg, now_reg);
 
@@ -4213,10 +4221,12 @@ static void lower_pcall(tree_t pcall)
       const vcode_cc_t cc = lower_cc_for_call(pcall);
       if (nest_depth > 0 && cc == VCODE_CC_VHDL) {
          const int hops = vcode_unit_depth() - nest_depth;
-         emit_nested_fcall(name, VCODE_INVALID_TYPE, args, nargs, hops);
+         emit_nested_fcall(name, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+                           args, nargs, hops);
       }
       else
-         emit_fcall(name, VCODE_INVALID_TYPE, cc, args, nargs);
+         emit_fcall(name, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+                    cc, args, nargs);
       emit_temp_stack_restore(saved_mark);
    }
    else {
@@ -4731,7 +4741,8 @@ static vcode_reg_t lower_new_protected_object(tree_t decl)
 {
    type_t type = tree_type(decl);
    ident_t init_func = ident_prefix(type_ident(type), ident_new("init"), '.');
-   return emit_fcall(init_func, lower_type(type), VCODE_CC_VHDL, NULL, 0);
+   vcode_type_t rtype = lower_type(type);
+   return emit_fcall(init_func, rtype, rtype, VCODE_CC_VHDL, NULL, 0);
 }
 
 static void lower_var_decl(tree_t decl)
@@ -5468,7 +5479,7 @@ static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
       return vu;
 
    vu = emit_function(name, tree_loc(body), context);
-   vcode_set_result(lower_func_result_type(body));
+   vcode_set_result(lower_func_result_type(type_result(tree_type(body))));
    emit_debug_info(tree_loc(body));
 
    if (top_scope->protected != VCODE_INVALID_TYPE)
@@ -5847,7 +5858,7 @@ vcode_unit_t lower_thunk(tree_t expr)
    if (tree_kind(expr) == T_FCALL) {
       tree_t decl = tree_ref(expr);
       if (tree_has_type(decl))
-         vtype = lower_func_result_type(decl);
+         vtype = lower_func_result_type(type_result(tree_type(decl)));
    }
 
    if (vtype == VCODE_INVALID_TYPE)

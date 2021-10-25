@@ -354,12 +354,13 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                  vcode_reg_t severity);
 void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
-vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_cc_t cc,
-                       const vcode_reg_t *args, int nargs);
+vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
+                       vcode_cc_t cc, const vcode_reg_t *args, int nargs);
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb);
 vcode_reg_t emit_nested_fcall(ident_t func, vcode_type_t type,
-                              const vcode_reg_t *args, int nargs, int hops);
+                              vcode_type_t bounds, const vcode_reg_t *args,
+                              int nargs, int hops);
 void emit_wait(vcode_block_t target, vcode_reg_t time);
 void emit_jump(vcode_block_t target);
 vcode_reg_t emit_load(vcode_var_t var);
