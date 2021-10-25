@@ -2336,6 +2336,9 @@ vcode_type_t vtype_pointer(vcode_type_t to)
    n->kind    = VCODE_TYPE_POINTER;
    n->pointed = to;
 
+   VCODE_ASSERT(vtype_kind(to) != VCODE_TYPE_CARRAY,
+                "cannot get pointer to carray type");
+
    return vtype_new(n);
 }
 
@@ -4486,6 +4489,8 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
    if (length != VCODE_INVALID_REG)
       vcode_add_arg(op, length);
 
+   op->result = vcode_add_reg(vtype_access(type));
+
    vtype_kind_t kind = vtype_kind(type);
    VCODE_ASSERT(kind == VCODE_TYPE_INT || kind == VCODE_TYPE_RECORD
                 || kind == VCODE_TYPE_UARRAY || kind == VCODE_TYPE_ACCESS
@@ -4495,7 +4500,7 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
                 || vtype_kind(vcode_reg_type(length)) == VCODE_TYPE_OFFSET,
                 "new length must have offset type");
 
-   return (op->result = vcode_add_reg(vtype_access(type)));
+   return op->result;
 }
 
 void emit_null_check(vcode_reg_t ptr)
@@ -4992,8 +4997,14 @@ vcode_reg_t emit_link_var(ident_t name, vcode_type_t type)
    op_t *op = vcode_add_op(VCODE_OP_LINK_VAR);
    op->ident = name;
 
-   op->result = vcode_add_reg(vtype_pointer(type));
-   vcode_reg_data(op->result)->bounds = type;
+   if (vtype_kind(type) == VCODE_TYPE_CARRAY) {
+      op->result = vcode_add_reg(vtype_pointer(vtype_elem(type)));
+      vcode_reg_data(op->result)->bounds = vtype_bounds(type);
+   }
+   else {
+      op->result = vcode_add_reg(vtype_pointer(type));
+      vcode_reg_data(op->result)->bounds = type;
+   }
 
    return op->result;
 }

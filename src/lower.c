@@ -478,7 +478,7 @@ static vcode_type_t lower_type(type_t type)
       {
          type_t access = type_access(type);
          if (type_is_array(access) && lower_const_bounds(access))
-            return vtype_access(lower_type(type_elem(access)));
+            return vtype_access(lower_type(lower_elem_recur(access)));
          else
             return vtype_access(lower_type(access));
       }
@@ -3169,7 +3169,7 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
       vcode_reg_t length_reg = lower_array_total_len(value_type, init_reg);
 
-      type_t elem_type = type_elem(value_type);
+      type_t elem_type = lower_elem_recur(value_type);
       vcode_reg_t mem_reg = emit_new(lower_type(elem_type), length_reg);
       vcode_reg_t raw_reg = emit_all(mem_reg);
 
@@ -4995,7 +4995,7 @@ static void lower_link_var(tree_t decl)
       flags |= VAR_SIGNAL;
    }
    else if (type_is_array(type) && lower_const_bounds(type))
-      vtype = lower_type(type_elem(type));
+      vtype = lower_type(lower_elem_recur(type));
    else
       vtype = lower_type(type);
 
