@@ -503,7 +503,7 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
 
       if (tree_kind(enclosing) == T_PROCESS)
          tb_printf(tb, "\r\tProcess %s", istr(e_path(active_proc->source)));
-      else {
+      else if (is_subprogram(enclosing)) {
          type_t type = tree_type(enclosing);
          tb_printf(tb, "\r\t%s %s",
                    type_kind(type) == T_FUNC ? "Function" : "Procedure",

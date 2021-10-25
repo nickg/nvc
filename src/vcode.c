@@ -1967,10 +1967,12 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_ARRAY_SIZE:
             {
-               printf("%s left ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
-               printf(" == right ");
-               vcode_dump_reg(op->args.items[1]);
+               col += printf("%s left ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" == right ");
+               col += vcode_dump_reg(op->args.items[1]);
+               vcode_dump_comment(col);
+               vcode_dump_loc(&(op->loc));
             }
             break;
 

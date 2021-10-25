@@ -5166,6 +5166,8 @@ static void lower_protected_constants(tree_t body)
 
 static void lower_decl(tree_t decl)
 {
+   PUSH_DEBUG_INFO(decl);
+
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
    case T_VAR_DECL:

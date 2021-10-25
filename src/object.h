@@ -191,7 +191,7 @@ struct _object {
    uint8_t      kind;
    uint8_t      tag;
    arena_key_t  arena;
-   uint16_t     __unused;
+   uint16_t     __pad;
    loc_t        loc;
    item_t       items[0];
 };
