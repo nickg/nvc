@@ -288,6 +288,13 @@ AC_ARG_ENABLE([asan],
      EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=address -fno-omit-frame-pointer"
    fi])
 
+AC_ARG_ENABLE([tsan],
+  [AS_HELP_STRING([--enable-tsan], [Enable thread sanitiser])],
+  [if test x$enableval = xyes; then
+     EXTRA_CFLAGS="$EXTRA_CFLAGS -fsanitize=thread"
+     EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=thread"
+   fi])
+
 case $host_os in
   msys*|mingw32*)
     LIBS="$LIBS -lDbgHelp"    # For StackTrace64
