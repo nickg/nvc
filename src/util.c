@@ -76,11 +76,6 @@
 #include <sys/ucontext.h>
 #endif
 
-#ifdef __MACH__
-#include <mach/clock.h>
-#include <mach/mach.h>
-#endif
-
 #define N_TRACE_DEPTH   16
 #define ERROR_SZ        1024
 #define PAGINATE_RIGHT  72
@@ -1635,14 +1630,7 @@ void make_dir(const char *path)
 
 uint64_t get_timestamp_us()
 {
-#if defined __MACH__ && !defined CLOCK_MONOTONIC
-   clock_serv_t cclock;
-   mach_timespec_t mts;
-   host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
-   clock_get_time(cclock, &mts);
-   mach_port_deallocate(mach_task_self(), cclock);
-   return (mts.tv_nsec / 1000) + (mts.tv_sec * 1000 * 1000);
-#elif defined _WIN32
+#if defined __MINGW32__
    return 0;  // TODO
 #else
    struct timespec ts;
