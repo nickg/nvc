@@ -120,25 +120,7 @@ if test x$enable_fst_glitch_removal = xyes ; then
     [Enable FST glitch removal (has performance impact)])
 fi
 
-# thirdparty/fstapi.c can use pthread to write FST in parallel if HAVE_LIBPTHREAD
-# and FST_WRITER_PARALLEL is defined.
-# FIXME: -lpthread may be in LLVM_LDFLAGS already.
-AC_ARG_ENABLE([fst_pthread],
-  [AS_HELP_STRING([--enable-fst-pthread],
-    [Use pthread to write FST in parallel])],
-  [enable_fst_pthread=$enableval],
-  [enable_fst_pthread=no])
-if test x$enable_fst_pthread = xyes ; then
-  AX_PTHREAD([], [AC_MSG_ERROR([pthread not found])])
-  if test x$ax_pthread_ok = xyes ; then
-    AC_DEFINE_UNQUOTED([HAVE_LIBPTHREAD], [1],
-      [Preprequisite definition of GTKWave for parallel FST writer])
-    AC_DEFINE_UNQUOTED([FST_WRITER_PARALLEL], [1],
-      [Internal definition of GTKWave for parallel FST writer])
-  fi
-fi
-
-AM_CONDITIONAL([FST_WRITER_PARALLEL], [test x$ax_pthread_ok = xyes])
+AX_PTHREAD([], [AC_MSG_ERROR([pthread not found])])
 
 # thirdparty/fstapi.c can use Judy instead of builtin Jenkins if _WAVE_HAVE_JUDY is defined.
 AC_ARG_ENABLE([fst_judy],

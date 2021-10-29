@@ -8,11 +8,9 @@ AM_CPPFLAGS = -I$(top_srcdir)/thirdparty -I$(top_srcdir)/src
 AM_CFLAGS   = -Wall $(EXTRA_CFLAGS) $(check_CFLAGS) $(libdw_CFLAGS)
 AM_LDFLAGS  = $(EXTRA_LDFLAGS) $(LLVM_LDFLAGS)
 
-if FST_WRITER_PARALLEL
 AM_CC       = $(PTHREAD_CC)
-AM_CFLAGS  += $(PTHREAD_CFLAFGS)
+AM_CFLAGS  += $(PTHREAD_CFLAGS)
 AM_LDFLAGS += $(PTHREAD_LIBS)
-endif
 
 bin_PROGRAMS =
 noinst_LIBRARIES =

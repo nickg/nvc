@@ -234,6 +234,37 @@ START_TEST(test_color_printf)
 }
 END_TEST
 
+static volatile int counter = 0;
+
+static void *thread_fn(void *__arg)
+{
+   nvc_mutex_t *mtx = __arg;
+
+   for (int i = 0; i < 10000; i++) {
+      mutex_lock(mtx);
+      counter++;
+      mutex_unlock(mtx);
+   }
+
+   return NULL;
+}
+
+START_TEST(test_threads)
+{
+   nvc_mutex_t *mtx = mutex_create();
+
+   static const int N = 5;
+   nvc_thread_t *threads[N];
+   for (int i = 0; i < N; i++)
+      threads[i] = thread_create(thread_fn, mtx, "t%d", i);
+
+   for (int i = 0; i < N; i++)
+      thread_join(threads[i]);
+
+   ck_assert_int_eq(counter, N * 10000);
+}
+END_TEST
+
 Suite *get_misc_tests(void)
 {
    Suite *s = suite_create("misc");
@@ -259,6 +290,10 @@ Suite *get_misc_tests(void)
    TCase *tc_util = tcase_create("util");
    tcase_add_test(tc_heap, test_color_printf);
    suite_add_tcase(s, tc_util);
+
+   TCase *tc_thread = tcase_create("thread");
+   tcase_add_test(tc_heap, test_threads);
+   suite_add_tcase(s, tc_thread);
 
    return s;
 }
