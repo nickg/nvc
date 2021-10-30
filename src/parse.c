@@ -5828,8 +5828,10 @@ static tree_t p_binding_indication(tree_t comp)
 
    tree_t bind = NULL, unit = NULL;
    if (optional(tUSE)) {
-      if ((bind = p_entity_aspect()))
+      if ((bind = p_entity_aspect())) {
          unit = find_binding(bind);
+         tree_set_ref(bind, unit);
+      }
    }
    else
       bind = tree_new(T_BINDING);
@@ -6053,6 +6055,12 @@ static tree_t p_block_configuration(tree_t of)
    }
 
    if (sub != NULL) {
+      if (tree_kind(sub) == T_ARCH) {
+         // Make a writable copy of the architecture where we can bind
+         // the instances
+         // sub = tree_copy(sub, copy_instances_fn, NULL);
+      }
+
       tree_set_ref(b, sub);
       insert_names_for_config(nametab, sub);
    }
@@ -6061,6 +6069,8 @@ static tree_t p_block_configuration(tree_t of)
 
    while (not_at_token(tEND))
       p_configuration_item(b, sub);
+
+   if (sub != NULL) resolve_specs(nametab, b, false);
 
    pop_scope(nametab);
 
@@ -6083,6 +6093,8 @@ static void p_configuration_declaration(tree_t unit)
    tree_change_kind(unit, T_CONFIGURATION);
    tree_set_ident(unit, p_identifier());
 
+   push_scope(nametab);
+
    consume(tOF);
 
    ident_t id = p_identifier();
@@ -6095,8 +6107,11 @@ static void p_configuration_declaration(tree_t unit)
                   istr(id), istr(lib_name(lib_work())));
       of = NULL;
    }
-
-   tree_set_primary(unit, of);
+   else if (of != NULL) {
+      tree_set_primary(unit, of);
+      insert_name(nametab, of, id, 0);
+      insert_decls(nametab, of);
+   }
 
    consume(tIS);
 
@@ -6109,6 +6124,8 @@ static void p_configuration_declaration(tree_t unit)
    optional(tCONFIGURATION);
    p_trailing_label(tree_ident(unit));
    consume(tSEMI);
+
+   pop_scope(nametab);
 
    tree_set_loc(unit, CURRENT_LOC);
 }
@@ -7278,7 +7295,7 @@ static tree_t p_block_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
-   resolve_specs(nametab, b);
+   resolve_specs(nametab, b, true);
 
    pop_scope(nametab);
 
@@ -7506,7 +7523,7 @@ static void p_architecture_body(tree_t unit)
    p_trailing_label(tree_ident(unit));
    consume(tSEMI);
 
-   resolve_specs(nametab, unit);
+   resolve_specs(nametab, unit, true);
 
    pop_scope(nametab);
    pop_scope(nametab);

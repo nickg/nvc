@@ -1023,10 +1023,17 @@ START_TEST(test_config)
 {
    input_from_file(TESTDIR "/sem/config.vhd");
 
+   const error_t expect[] = {
+      { 42, "no visible declaration for O" },
+      { 48, "instance BAD not found" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ENTITY,
                    T_ARCH, T_CONFIGURATION);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

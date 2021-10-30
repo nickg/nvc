@@ -349,6 +349,7 @@ static bool elab_should_copy(tree_t t, void *__ctx)
 {
    switch (tree_kind(t)) {
    case T_GENVAR:
+   case T_INSTANCE:
       return true;
    case T_FUNC_DECL:
    case T_FUNC_BODY:
@@ -381,6 +382,43 @@ static bool elab_should_copy(tree_t t, void *__ctx)
 static tree_t elab_copy(tree_t t)
 {
    return tree_copy(t, elab_should_copy, NULL);
+}
+
+static void elab_config_instance(tree_t block, tree_t spec)
+{
+   const int nstmts = tree_stmts(block);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(block, i);
+      if (tree_kind(s) != T_INSTANCE)
+         continue;
+      else if (tree_ident(s) != tree_ident(spec))
+         continue;
+
+      assert(!tree_has_spec(s));   // TODO: how to handle this?
+      tree_set_spec(s, spec);
+   }
+}
+
+static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx)
+{
+   assert(tree_kind(config) == T_BLOCK_CONFIG);
+
+   tree_t what = tree_ref(config);
+
+   const int ndecls = tree_decls(config);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(config, i);
+      switch (tree_kind(d)) {
+      case T_SPEC:
+         elab_config_instance(what, d);
+         break;
+      default:
+         fatal_trace("cannot handle block config item %s",
+                     tree_kind_str(tree_kind(d)));
+      }
+   }
+
+   return what;
 }
 
 static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
@@ -507,6 +545,23 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
       return NULL;
 
    return arch;
+}
+
+static tree_t elab_binding(tree_t inst, tree_t spec, lib_t *new_lib,
+                           const elab_ctx_t *ctx)
+{
+   tree_t bind = tree_value(spec);
+   assert(tree_kind(bind) == T_BINDING);
+
+   tree_t unit = tree_ref(bind);
+   switch (tree_kind(unit)) {
+   case T_ENTITY:
+      return elab_copy(pick_arch(tree_loc(inst), tree_ident(unit),
+                                 new_lib, ctx));
+   default:
+      fatal_at(tree_loc(bind), "sorry, this form of binding indication is not"
+               " supported yet");
+   }
 }
 
 static void elab_hint_fn(void *arg)
@@ -793,7 +848,10 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       break;
 
    case C_COMPONENT:
-      arch = elab_default_binding(t, &new_lib, ctx);
+      if (tree_has_spec(t))
+         arch = elab_binding(t, tree_spec(t), &new_lib, ctx);
+      else
+         arch = elab_default_binding(t, &new_lib, ctx);
       break;
 
    case C_CONFIGURATION:
@@ -1228,6 +1286,13 @@ tree_t elab(tree_t top)
       break;
    case T_ARCH:
       elab_top_level(top, &ctx);
+      break;
+   case T_CONFIGURATION:
+      {
+         tree_t copy = elab_copy(top);
+         tree_t arch = elab_block_config(tree_decl(copy, 0), &ctx);
+         elab_top_level(arch, &ctx);
+      }
       break;
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));

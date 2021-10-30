@@ -2726,6 +2726,7 @@ START_TEST(test_config)
       { 38, "CONF does not name an entity in library WORK" },
       { 45, "cannot find unit WORK.ENT-BAD" },
       { 52, "P is not a block that can be configured" },
+      { 55, "object P is not an instance" },
       { -1, NULL }
    };
    expect_errors(expect);

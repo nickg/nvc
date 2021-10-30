@@ -62,7 +62,7 @@ void insert_names_for_config(nametab_t *tab, tree_t unit);
 
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name);
 type_t resolve_type(nametab_t *tab, type_t incomplete);
-void resolve_specs(nametab_t *tab, tree_t container);
+void resolve_specs(nametab_t *tab, tree_t container, bool bind);
 void resolve_resolution(nametab_t *tab, tree_t rname, type_t type);
 tree_t query_name(nametab_t *tab, ident_t name);
 tree_t find_std(nametab_t *tab);

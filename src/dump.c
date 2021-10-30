@@ -414,23 +414,23 @@ static void dump_generics(tree_t t, int indent)
    }
 }
 
-static void dump_port_map(tree_t t, int indent)
+static void dump_port_map(tree_t t, int indent, const char *trailer)
 {
    const int nparams = tree_params(t);
    if (nparams > 0) {
       tab(indent);
       dump_params(t, tree_param, nparams, "#port #map");
-      printf(";\n");
+      fputs(trailer, stdout);
    }
 }
 
-static void dump_generic_map(tree_t t, int indent)
+static void dump_generic_map(tree_t t, int indent, const char *trailer)
 {
    const int ngenmaps = tree_genmaps(t);
    if (ngenmaps > 0) {
       tab(indent);
       dump_params(t, tree_genmap, ngenmaps, "#generic #map");
-      printf(";\n");
+      fputs(trailer, stdout);
    }
 }
 
@@ -439,6 +439,9 @@ static void dump_binding(tree_t t, int indent)
    syntax("#use %s", istr(tree_ident(t)));
    if (tree_has_ident2(t))
       printf("(%s)", istr(tree_ident2(t)));
+   printf("\n");
+   dump_generic_map(t, indent + 2, "\n");
+   dump_port_map(t, indent + 2, "");
    printf(";\n");
 }
 
@@ -621,7 +624,12 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_SPEC:
-      syntax("#for %s\n", istr(tree_ident(t)));
+      syntax("#for %s", istr(tree_ident(t)));
+      if (tree_has_ref(t))
+         printf(" : %s", istr(tree_ident(tree_ref(t))));
+      printf("\n");
+      tab(indent + 2);
+      dump_binding(tree_value(t), indent + 2);
       tab(indent);
       syntax("#end #for;\n");
       return;
@@ -861,9 +869,9 @@ static void dump_stmt(tree_t t, int indent)
       dump_address(t);
       syntax("#block #is\n");
       dump_generics(t, indent + 2);
-      dump_generic_map(t, indent + 2);
+      dump_generic_map(t, indent + 2, ";\n");
       dump_ports(t, indent + 2);
-      dump_port_map(t, indent + 2);
+      dump_port_map(t, indent + 2, ";\n");
       dump_block(t, indent);
       tab(indent);
       syntax("#end #block;\n");
@@ -1017,11 +1025,14 @@ static void dump_stmt(tree_t t, int indent)
       printf("%s", istr(tree_ident2(t)));
       if (tree_has_spec(t)) {
          tree_t bind = tree_value(tree_spec(t));
-         syntax(" -- bound to %s", istr(tree_ident(bind)));
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_cat(tb, istr(tree_ident(bind)));
          if (tree_has_ident2(bind))
-            printf("(%s)", istr(tree_ident2(bind)));
+            tb_printf(tb, "(%s)", istr(tree_ident2(bind)));
+         syntax("  -- bound to %s\n", tb_get(tb));
       }
-      printf("\n");
+      else
+         printf("\n");
       if (tree_genmaps(t) > 0) {
          tab(indent + 4);
          dump_params(t, tree_genmap, tree_genmaps(t), "#generic #map");
@@ -1252,6 +1263,9 @@ void dump(tree_t t)
    case T_ATTR_DECL:
    case T_ATTR_SPEC:
    case T_ENUM_LIT:
+   case T_COMPONENT:
+   case T_BLOCK_CONFIG:
+   case T_SPEC:
       dump_decl(t, 0);
       break;
    case T_PORT_DECL:

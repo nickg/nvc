@@ -980,7 +980,7 @@ static void bind_instance(tree_t inst, tree_t spec)
    tree_set_spec(inst, spec);
 }
 
-void resolve_specs(nametab_t *tab, tree_t container)
+void resolve_specs(nametab_t *tab, tree_t container, bool bind)
 {
    const int ndecls = tree_decls(container);
    for (int i = 0; i < ndecls; i++) {
@@ -1019,7 +1019,7 @@ void resolve_specs(nametab_t *tab, tree_t container)
             continue;
          }
 
-         bind_instance(inst, d);
+         if (bind) bind_instance(inst, d);
       }
       else {
          const void *key;
@@ -1038,8 +1038,9 @@ void resolve_specs(nametab_t *tab, tree_t container)
                continue;
             else if (tree_ref(obj) != comp)
                continue;
-            else if (kind == ALL || !tree_has_spec(obj))
-               bind_instance(obj, d);
+            else if (kind == ALL || !tree_has_spec(obj)) {
+               if (bind) bind_instance(obj, d);
+            }
          }
       }
    }

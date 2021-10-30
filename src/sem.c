@@ -4240,6 +4240,9 @@ static bool sem_check_attr_decl(tree_t t)
 
 static bool sem_check_attr_spec(tree_t t)
 {
+   if (!tree_has_ref(t))
+      return false;
+
    tree_t attr_decl = tree_ref(t);
    type_t type = tree_type(attr_decl);
 

@@ -17,6 +17,7 @@ end architecture;
 -------------------------------------------------------------------------------
 
 entity top is
+    attribute x : integer;
 end entity;
 
 architecture a of top is
@@ -38,8 +39,13 @@ end architecture;
 -------------------------------------------------------------------------------
 
 configuration conf of top is
+    attribute o of 'A' : literal is 5;  -- Error
+    attribute x of top : entity is 5;   -- OK
     for a
         for c1 : comp
+            use entity work.sub2(a);
+        end for;
+        for bad : comp                  -- Error
             use entity work.sub2(a);
         end for;
     end for;
