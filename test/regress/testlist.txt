@@ -399,3 +399,6 @@ vests8          normal
 signal17        normal
 assign5         normal
 bounds20        fail,gold
+vests9          normal
+bounds21        fail,gold
+issue228        fail,gold,gG=10

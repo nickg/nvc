@@ -1113,6 +1113,7 @@ static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
       tree_t value = NULL;
       if (it != NULL) {
          value = elab_generic_parse(g, it->value);
+         tree_set_loc(value, tree_loc(g));
          it->used = true;
       }
       else if (tree_has_value(g))
