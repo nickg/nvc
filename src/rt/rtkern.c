@@ -2064,18 +2064,22 @@ static inline void *rt_resolution_buffer(size_t required)
    return (rbuf = xrealloc(rbuf, size));
 }
 
-static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
+static void *rt_call_resolution_fn(rt_nexus_t *nexus)
 {
    void *resolved = NULL;
    if (unlikely(nexus->flags & NET_F_FORCED)) {
       resolved = nexus->forcing->data;
    }
+   else if (nexus->resolution == NULL && nexus->n_sources == 0) {
+      // Always maintains initial driver value
+      resolved = nexus->resolved;
+   }
    else if (nexus->resolution == NULL) {
-      resolved = values;
+      resolved = nexus->sources[0].waveforms->values->data;
    }
    else if ((nexus->resolution->flags & R_IDENT) && (nexus->n_sources == 1)) {
       // Resolution function behaves like identity for a single driver
-      resolved = values;
+      resolved = nexus->sources[0].waveforms->values->data;
    }
    else if ((nexus->resolution->flags & R_MEMO) && (nexus->n_sources == 1)) {
       // Resolution function has been memoised so do a table lookup
@@ -2083,7 +2087,7 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
       resolved = rt_resolution_buffer(nexus->width * nexus->size);
 
       for (int j = 0; j < nexus->width; j++) {
-         const int index = { ((const char *)values)[j] };
+         const int index = nexus->sources[0].waveforms->values->data[j];
          const int8_t r = nexus->resolution->tab1[index];
          ((int8_t *)resolved)[j] = r;
       }
@@ -2097,9 +2101,7 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
       const char *p1 = nexus->sources[1].waveforms->values->data;
 
       for (int j = 0; j < nexus->width; j++) {
-         int driving[2] = { p0[j], p1[j] };
-         driving[driver] = ((const char *)values)[j];
-
+         const int driving[2] = { p0[j], p1[j] };
          const int8_t r = nexus->resolution->tab2[driving[0]][driving[1]];
          ((int8_t *)resolved)[j] = r;
       }
@@ -2118,10 +2120,7 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
             const void *src = NULL;
             if (n == nexus) {
                result_offset = offset;
-               if (j == driver)
-                  src = values;
-               else
-                  src = n->sources[j].waveforms->values->data;
+               src = n->sources[j].waveforms->values->data;
             }
             else
                src = n->resolved;
@@ -2151,7 +2150,6 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
                const value_t *v = nexus->sources[i].waveforms->values;  \
                vals[i] = ((const type *)v->data)[j];                    \
             }                                                           \
-            vals[driver] = ((const type *)values)[j];                   \
             type *r = (type *)resolved;                                 \
             const int32_t left = nexus->resolution->ileft;              \
             const int32_t len  = nexus->n_sources;                      \
@@ -2189,9 +2187,9 @@ static void rt_propagate_nexus(rt_nexus_t *nexus, const void *resolved)
    }
 }
 
-static int32_t rt_resolve_nexus(rt_nexus_t *nexus, int driver, void *values)
+static int32_t rt_resolve_nexus(rt_nexus_t *nexus)
 {
-   void *resolved = rt_call_resolution_fn(nexus, driver, values);
+   void *resolved = rt_call_resolution_fn(nexus);
    const size_t valuesz = nexus->size * nexus->width;
 
    int32_t new_flags = NET_F_ACTIVE;
@@ -2238,7 +2236,7 @@ static void rt_driver_initial(rt_nexus_t *nexus)
 
    void *resolved;
    if (nexus->n_sources > 0) {
-      resolved = rt_call_resolution_fn(nexus, 0, nexus->resolved);
+      resolved = rt_call_resolution_fn(nexus);
       nexus->last_event = nexus->last_active = now;
    }
    else {
@@ -2383,13 +2381,13 @@ static bool rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
    return already_scheduled;
 }
 
-static void rt_update_nexus(rt_nexus_t *nexus, int driver, void *values)
+static void rt_update_nexus(rt_nexus_t *nexus)
 {
-   TRACE("update nexus %s values=%s driver=%d",
-         istr(e_ident(nexus->enode)), fmt_nexus(nexus, values), driver);
-
-   const int32_t new_flags = rt_resolve_nexus(nexus, driver, values);
+   const int32_t new_flags = rt_resolve_nexus(nexus);
    nexus->flags |= new_flags;
+
+   TRACE("update nexus %s resolved=%s", istr(e_ident(nexus->enode)),
+         fmt_nexus(nexus, nexus->resolved));
 
    if (unlikely(n_active_nexus == n_active_alloc)) {
       n_active_alloc *= 2;
@@ -2438,16 +2436,17 @@ static void rt_update_driver(rt_nexus_t *nexus, rt_proc_t *proc)
       waveform_t *w_next = w_now->next;
 
       if (likely((w_next != NULL) && (w_next->when == now))) {
-         rt_update_nexus(nexus, driver, w_next->values->data);
          nexus->sources[driver].waveforms = w_next;
          rt_free_value(nexus, w_now->values);
          rt_free(waveform_stack, w_now);
+         rt_update_nexus(nexus);
       }
       else
          RT_ASSERT(w_now != NULL);
    }
    else if (nexus->flags & NET_F_FORCED)
-      rt_update_nexus(nexus, -1, nexus->forcing->data);
+      rt_update_nexus(nexus);
+
 }
 
 static bool rt_stale_event(event_t *e)
