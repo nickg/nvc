@@ -73,9 +73,9 @@ typedef enum {
 } image_kind_t;
 
 typedef enum {
-   R_MEMO     = (1 << 0),
-   R_IDENT    = (1 << 1),
-   R_RECORD   = (1 << 2),
+   R_MEMO      = (1 << 0),
+   R_IDENT     = (1 << 1),
+   R_COMPOSITE = (1 << 2),
 } res_flags_t;
 
 typedef enum {

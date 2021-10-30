@@ -133,6 +133,7 @@ typedef struct {
    void            *context;
    uint32_t         flags;
    int32_t          ileft;
+   int32_t          nlits;
 } rt_resolution_t;
 
 typedef struct {
@@ -1609,11 +1610,6 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
    if (memo != NULL)
       return memo;
 
-   type_t type = e_type(signal->enode);
-
-   if (type_is_array(type))
-      type = type_elem(type);
-
    memo = xmalloc(sizeof(res_memo_t));
    memo->fn      = resolution->fn;
    memo->context = resolution->context;
@@ -1622,34 +1618,15 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
 
    hash_put(res_memo_hash, memo->fn, memo);
 
-   if (type_kind(type_base_recur(type)) != T_ENUM)
-      return memo;
-
-   int nlits;
-   switch (type_kind(type)) {
-   case T_ENUM:
-      nlits = type_enum_literals(type);
-      break;
-   case T_SUBTYPE:
-      {
-         int64_t low, high;
-         range_bounds(range_of(type, 0), &low, &high);
-         nlits = high - low + 1;
-      }
-      break;
-   default:
-      return memo;
-   }
-
-   if (nlits > 16)
+   if (resolution->nlits == 0 || resolution->nlits > 16)
       return memo;
 
    init_side_effect = SIDE_EFFECT_DISALLOW;
 
    // Memoise the function for all two value cases
 
-   for (int i = 0; i < nlits; i++) {
-      for (int j = 0; j < nlits; j++) {
+   for (int i = 0; i < resolution->nlits; i++) {
+      for (int j = 0; j < resolution->nlits; j++) {
          int8_t args[2] = { i, j };
          memo->tab2[i][j] = (*memo->fn)(memo->context, args, memo->ileft, 2);
          RT_ASSERT(memo->tab2[i][j] < nlits);
@@ -1660,7 +1637,7 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
    // function behaves like the identity function
 
    bool identity = true;
-   for (int i = 0; i < nlits; i++) {
+   for (int i = 0; i < resolution->nlits; i++) {
       int8_t args[1] = { i };
       memo->tab1[i] = (*memo->fn)(memo->context, args, memo->ileft, 1);
       identity = identity && (memo->tab1[i] == i);
@@ -1671,6 +1648,9 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
       if (identity)
          memo->flags |= R_IDENT;
    }
+
+   TRACE("memoised resolution function %p for type %s",
+         resolution->fn, type_pp(e_type(signal->enode)));
 
    return memo;
 }
@@ -2124,8 +2104,8 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus, int driver, void *values)
          ((int8_t *)resolved)[j] = r;
       }
    }
-   else if (nexus->resolution->flags & R_RECORD) {
-      // Call resolution function for resolved record
+   else if (nexus->resolution->flags & R_COMPOSITE) {
+      // Call resolution function of composite type
 
       rt_signal_t *s0 = nexus->signals[0];
       uint8_t *inputs = rt_resolution_buffer(nexus->n_sources * s0->size);

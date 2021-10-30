@@ -3660,6 +3660,7 @@ START_TEST(test_resfn1)
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_RESOLUTION_WRAPPER },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_INIT_SIGNAL },

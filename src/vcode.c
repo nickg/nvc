@@ -2536,7 +2536,7 @@ static bool vtype_is_pointer(vcode_type_t type, vtype_kind_t to)
       && vtype_kind(vtype_pointed(type)) == to;
 }
 
-static bool vtype_is_scalar(vcode_type_t type)
+bool vtype_is_scalar(vcode_type_t type)
 {
    const vtype_kind_t kind = vtype_kind(type);
    return kind == VCODE_TYPE_INT || kind == VCODE_TYPE_OFFSET
@@ -2545,7 +2545,7 @@ static bool vtype_is_scalar(vcode_type_t type)
       || kind == VCODE_TYPE_REAL || kind == VCODE_TYPE_SIGNAL;
 }
 
-static bool vtype_is_aggregate(vcode_type_t type)
+bool vtype_is_composite(vcode_type_t type)
 {
    const vtype_kind_t kind = vtype_kind(type);
    return kind == VCODE_TYPE_RECORD || kind == VCODE_TYPE_CARRAY;
@@ -3165,7 +3165,7 @@ vcode_reg_t emit_address_of(vcode_reg_t value)
    vcode_add_arg(op, value);
 
    vcode_type_t type = vcode_reg_type(value);
-   VCODE_ASSERT(vtype_is_aggregate(type),
+   VCODE_ASSERT(vtype_is_composite(type),
                 "address of argument must be record or array");
 
    if (vtype_kind(type) == VCODE_TYPE_CARRAY) {
@@ -4193,7 +4193,7 @@ void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)
 }
 
 vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
-                                    vcode_reg_t ileft)
+                                    vcode_reg_t ileft, vcode_reg_t nlits)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_RESOLUTION_WRAPPER) {
       if (other->func == func && other->subkind == VCODE_CC_VHDL
@@ -4203,6 +4203,7 @@ vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
 
    op_t *op = vcode_add_op(VCODE_OP_RESOLUTION_WRAPPER);
    vcode_add_arg(op, ileft);
+   vcode_add_arg(op, nlits);
    op->func    = func;
    op->subkind = VCODE_CC_VHDL;
 

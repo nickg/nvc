@@ -238,6 +238,8 @@ vcode_type_t vtype_resolution(vcode_type_t base);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
+bool vtype_is_scalar(vcode_type_t type);
+bool vtype_is_composite(vcode_type_t type);
 int64_t vtype_low(vcode_type_t type);
 int64_t vtype_high(vcode_type_t type);
 vcode_type_t vtype_elem(vcode_type_t type);
@@ -467,6 +469,6 @@ void emit_map_signal(vcode_reg_t dst, vcode_reg_t src, vcode_reg_t count,
                      vcode_reg_t source);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
 vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
-                                    vcode_reg_t ileft);
+                                    vcode_reg_t ileft, vcode_reg_t nlits);
 
 #endif  // _VCODE_H

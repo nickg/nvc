@@ -5028,7 +5028,21 @@ static vcode_reg_t lower_resolution_func(type_t type)
 
    vcode_reg_t ileft_reg = emit_const(vtype_offset(), assume_int(tree_left(r)));
 
-   return emit_resolution_wrapper(rfunc, rtype, ileft_reg);
+   vcode_reg_t nlits_reg;
+   if (type_is_enum(type)) {
+      // This resolution function can potentially be memoised
+      if (type_kind(type) == T_SUBTYPE) {
+         int64_t low, high;
+         range_bounds(range_of(type, 0), &low, &high);
+         nlits_reg = emit_const(vtype_offset(), high - low + 1);
+      }
+      else
+         nlits_reg = emit_const(vtype_offset(), type_enum_literals(type));
+   }
+   else
+      nlits_reg = emit_const(vtype_offset(), 0);
+
+   return emit_resolution_wrapper(rfunc, rtype, ileft_reg, nlits_reg);
 }
 
 static void lower_sub_signals(type_t type, tree_t where, vcode_reg_t subsig,

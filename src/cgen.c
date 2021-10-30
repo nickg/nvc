@@ -296,7 +296,8 @@ static LLVMTypeRef llvm_resolution_type(void)
       llvm_void_ptr(),     // Function pointer
       llvm_void_ptr(),     // Context pointer
       LLVMInt32Type(),     // Flags
-      LLVMInt32Type()      // Left index
+      LLVMInt32Type(),     // Left index
+      LLVMInt32Type()      // Number of enumeration literals
    };
    return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
 }
@@ -2099,26 +2100,30 @@ static void cgen_op_resolution_wrapper(int op, cgen_ctx_t *ctx)
       // The resolution function is not visible yet e.g. because it
       // is declared in another package
       const bool is_record = vtype_kind(type) == VCODE_TYPE_RECORD;
-      vcode_type_t rtype = is_record ? vtype_pointer(type) : type;
+      const bool is_carray = vtype_kind(type) == VCODE_TYPE_CARRAY;
+      vcode_type_t elem = is_carray ? vtype_elem(type) : type;
+      vcode_type_t rtype = is_record || is_carray ? vtype_pointer(elem) : type;
       vcode_type_t args[] = {
-         vtype_uarray(1, type, vtype_int(0, INT32_MAX))
+         vtype_uarray(1, elem, vtype_int(0, INT32_MAX))
       };
       LLVMTypeRef display_type = cgen_display_type_for_call(op, ctx);
       rfn = cgen_signature(func, rtype, VCODE_CC_VHDL, display_type, args, 1);
    }
 
    uint32_t flags = 0;
-   if (vtype_kind(type) == VCODE_TYPE_RECORD)
-      flags |= R_RECORD;
+   if (vtype_is_composite(type))
+      flags |= R_COMPOSITE;
 
    LLVMValueRef display = cgen_display_for_call(op, ctx);
    LLVMValueRef ileft   = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef nlits   = cgen_get_arg(op, 1, ctx);
 
    LLVMValueRef rdata = LLVMGetUndef(llvm_resolution_type());
    rdata = LLVMBuildInsertValue(builder, rdata, llvm_void_cast(rfn), 0, "");
    rdata = LLVMBuildInsertValue(builder, rdata, llvm_void_cast(display), 1, "");
    rdata = LLVMBuildInsertValue(builder, rdata, llvm_int32(flags), 2, "");
    rdata = LLVMBuildInsertValue(builder, rdata, ileft, 3, "");
+   rdata = LLVMBuildInsertValue(builder, rdata, nlits, 4, "");
 
    ctx->regs[result] = rdata;
 }
