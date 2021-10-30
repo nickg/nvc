@@ -1578,8 +1578,10 @@ static bool sem_check_variable_target(tree_t target)
          if (!sem_check_variable_target(value))
             return false;
 
-         if (!sem_static_name(value, sem_locally_static))
-            sem_error(value, "aggregate element must be locally static name");
+         if (tree_kind(value) != T_AGGREGATE) {
+            if (!sem_static_name(value, sem_locally_static))
+               sem_error(value, "aggregate element must be locally static name");
+         }
 
          assoc_kind_t kind = tree_subkind(a);
          switch (kind) {
@@ -1698,8 +1700,10 @@ static bool sem_check_signal_target(tree_t target)
          if (!sem_check_signal_target(value))
             return false;
 
-         if (!sem_static_name(value, sem_locally_static))
-            sem_error(value, "aggregate element must be locally static name");
+         if (tree_kind(value) != T_AGGREGATE) {
+            if (!sem_static_name(value, sem_locally_static))
+               sem_error(value, "aggregate element must be locally static name");
+         }
 
          assoc_kind_t kind = tree_subkind(a);
          switch (kind) {

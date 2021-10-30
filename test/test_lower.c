@@ -2358,12 +2358,12 @@ START_TEST(test_sigvar)
 
       EXPECT_BB(0) = {
          { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_UNWRAP },
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_ARRAY_SIZE },
          { VCODE_OP_UNWRAP },
          { VCODE_OP_RESOLVED },
+         { VCODE_OP_UNWRAP },
          { VCODE_OP_SCHED_WAVEFORM },
          { VCODE_OP_RETURN }
       };

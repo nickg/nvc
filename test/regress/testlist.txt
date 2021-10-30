@@ -395,3 +395,7 @@ vests4          normal
 vests5          normal
 vests6          normal
 vests7          normal
+vests8          normal
+signal17        normal
+assign5         normal
+bounds20        fail,gold

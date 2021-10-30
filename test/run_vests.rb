@@ -15,7 +15,7 @@ Prefix = "#{VestsDir}/vhdl-93"
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = 'nvc'
 Billowitch = "#{Prefix}/billowitch/compliant"
-ExpectFails = 458
+ExpectFails = 453
 
 ENV['NVC_COLORS'] = 'always'
 
@@ -47,7 +47,7 @@ end
 
 def guess_top(src)
   best = nil
-  File.open(src).lines do |l|
+  File.open(src).each_line do |l|
     if m = l.match(/^(?:entity|configuration) *(\w+)/i) then
       best = m.captures[0]
     end
