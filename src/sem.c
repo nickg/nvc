@@ -1331,15 +1331,10 @@ static bool sem_check_missing_body(tree_t body, tree_t spec)
 
 static bool sem_check_pack_body(tree_t t)
 {
-   // Look up package declaration
-   ident_t pname = ident_until(tree_ident(t), '-');
-   tree_t pack = lib_get_check_stale(lib_work(), pname);
-   if (pack == NULL)
-      sem_error(t, "missing declaration for package %s",
-                istr(ident_rfrom(pname, '.')));
+   if (!tree_has_primary(t))
+      return false;
 
-   if (tree_kind(pack) != T_PACKAGE)
-      sem_error(t, "unit %s is not a package", istr(tree_ident(pack)));
+   tree_t pack = tree_primary(t);
 
    assert(top_scope == NULL);
    scope_push(NULL);
@@ -1487,18 +1482,10 @@ static bool sem_check_entity(tree_t t)
 
 static bool sem_check_arch(tree_t t)
 {
-   // Find the corresponding entity
-   tree_t e = lib_get_check_stale(lib_work(),
-                                  ident_prefix(lib_name(lib_work()),
-                                               tree_ident2(t), '.'));
-   if (e == NULL)
-      sem_error(t, "missing declaration for entity %s",
-                istr(tree_ident2(t)));
+   if (!tree_has_primary(t))
+      return false;
 
-   if (tree_kind(e) != T_ENTITY)
-      sem_error(t, "unit %s is not an entity", istr(tree_ident(e)));
-
-   tree_set_ref(t, e);
+   tree_t e = tree_primary(t);
 
    assert(top_scope == NULL);
    scope_push(NULL);
@@ -4477,17 +4464,6 @@ static bool sem_check_configuration(tree_t t)
    const int ndecls = tree_decls(t);
    tree_t block_config = tree_decl(t, ndecls - 1);
    assert(tree_kind(block_config) == T_BLOCK_CONFIG);
-
-   lib_t work = lib_work();
-
-   ident_t name_qual =
-      ident_prefix(tree_ident2(t), tree_ident(block_config), '-');
-   tree_t arch = lib_get(work, name_qual);
-   if (arch == NULL || tree_kind(arch) != T_ARCH)
-      sem_error(t, "architecture %s of entity %s not found in library %s",
-                istr(ident_rfrom(name_qual, '-')),
-                istr(ident_until(name_qual, '-')),
-                istr(lib_name(work)));
 
    scope_push(NULL);
    top_scope->unit = t;

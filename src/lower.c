@@ -5921,12 +5921,9 @@ static vcode_unit_t lower_elab(tree_t unit)
 
 static vcode_unit_t lower_pack_body(tree_t unit)
 {
-   ident_t pack_i = ident_strip(tree_ident(unit), ident_new("-body"));
-   tree_t pack = lib_get_check_stale(lib_work(), pack_i);
-   if (pack == NULL)
-      fatal("cannot find package declaration for %s", istr(pack_i));
+   tree_t pack = tree_primary(unit);
 
-   vcode_unit_t context = emit_package(pack_i, tree_loc(unit));
+   vcode_unit_t context = emit_package(tree_ident(pack), tree_loc(unit));
    lower_push_scope(unit);
    top_scope->flags |= SCOPE_GLOBAL;
 

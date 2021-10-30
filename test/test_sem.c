@@ -83,7 +83,7 @@ START_TEST(test_ports)
       { 42,  "cannot assign to input port I" },
       { 92,  "WORK.FOO has no port named CAKE" },
       { 10,  "entity WORK.FOO has ports O, I" },
-      { 94,  "cannot find unit WORK.BAD" },
+      { 94,  "missing declaration for entity WORK.BAD" },
       { 116, "object X is not a component declaration" },
       { 155, "BAR has no port named Q" },
       { 64,  "BAR has ports I, O" },
@@ -368,8 +368,7 @@ START_TEST(test_func)
       {  23, "resolution function must have a single argument" },
       {  27, "type of default value universal_integer does not" },
       {  29, "subprogram body is not allowed in package specification" },
-      {  36, "cannot find unit WORK.BAD" },
-      {  36, "missing declaration for package BAD" },
+      {  36, "missing declaration for package WORK.BAD" },
       {  62, "FOO [INTEGER, INTEGER, INTEGER return INTEGER] already " },
       {  61, "previous declaration of FOO [INTEGER, INTEGER, INTEGER" },
       {  48, "expected return type INTEGER but have UENUM" },
@@ -955,7 +954,7 @@ START_TEST(test_spec)
 
    const error_t expect[] = {
       { 24, "E does not name a component" },
-      { 34, "cannot find unit WORK.NOT_HERE" },
+      { 34, "missing declaration for entity WORK.NOT_HERE" },
       { 36, "unit WORK.P cannot be instantiated" },
       { 28, "instance BAD not found" },
       { 32, "instance I1 is already bound by a specification" },
@@ -1494,7 +1493,7 @@ START_TEST(test_context)
 
    const error_t expect[] = {
       { 27, "unit FOO.PACK is not a context declaration" },
-      { 42, "cannot find unit WORK.BLAH" },
+      { 42, "missing declaration for context WORK.BLAH" },
       { 40, "library clause in a context declaration may not have logical" },
       { 41, "context declaration use clause may not have WORK" },
       { 42, "context declaration context reference may not have WORK" },
@@ -2065,7 +2064,7 @@ START_TEST(test_issue225)
    fail_unless(tree_ident(tree_context(a, 6)) == ident_new("WORK.P5"));
    fail_unless(tree_ident(tree_context(a, 7)) == ident_new("WORK.P6"));
 
-   tree_t e = tree_ref(a);
+   tree_t e = tree_primary(a);
    fail_unless(tree_contexts(e) == 4);
    fail_unless(tree_ident(tree_context(e, 3)) == ident_new("WORK.P1"));
 }

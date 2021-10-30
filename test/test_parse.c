@@ -184,7 +184,7 @@ START_TEST(test_arch)
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_ident(a) == ident_new("WORK.ONE-A"));
    fail_unless(tree_ident2(a) == ident_new("ONE"));
-   fail_unless(tree_ref(a) == e);
+   fail_unless(tree_primary(a) == e);
    fail_unless(tree_decls(a) == 3);
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
@@ -2700,9 +2700,13 @@ START_TEST(test_error)
       { 56, "C1 already declared in this region" },
       { 55, "previous declaration of C1 was here" },
       { 59, "NOT_A_LIBRARY does not name a visible component or design unit" },
+      { 64, "missing declaration for entity WORK.NOT_HERE" },
       { -1, NULL }
    };
    expect_errors(expect);
+
+   a = parse();
+   fail_if(a == NULL);
 
    a = parse();
    fail_if(a == NULL);
@@ -3089,7 +3093,7 @@ START_TEST(test_vests1)
    tree_t c0 = parse();
    fail_if(c0 == NULL);
    fail_unless(tree_kind(c0) == T_CONFIGURATION);
-   fail_unless(tree_ref(c0) == e0);
+   fail_unless(tree_primary(c0) == e0);
 
    tree_t e1 = parse();
    fail_if(e1 == NULL);
@@ -3103,7 +3107,7 @@ START_TEST(test_vests1)
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
    fail_unless(tree_decls(c) == 1);
-   fail_unless(tree_ref(c) == e1);
+   fail_unless(tree_primary(c) == e1);
 
    tree_t b = tree_decl(c, 0);
    fail_unless(tree_kind(b) == T_BLOCK_CONFIG);
@@ -3302,7 +3306,7 @@ START_TEST(test_error2)
    input_from_file(TESTDIR "/parse/error2.vhd");
 
    const error_t expect[] = {
-      {  1, "cannot find unit WORK.DUNNO" },
+      {  1, "missing declaration for package WORK.DUNNO" },
       {  2, "no visible declaration for BAR" },
       {  5, "no visible declaration for SDFF" },
       { 10, "no visible declaration for SGHBBX" },

@@ -60,3 +60,7 @@ begin
         port map ( x => 1 );
 
 end architecture;
+
+architecture bad of not_here is         -- Error
+begin
+end architecture;

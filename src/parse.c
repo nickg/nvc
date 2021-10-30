@@ -576,14 +576,19 @@ static ident_t error_marker(void)
    return id ?: (id = ident_new("error"));
 }
 
-static tree_t find_unit(const loc_t *where, ident_t name)
+static tree_t find_unit(const loc_t *where, ident_t name, const char *hint)
 {
    ident_t lname = ident_until(name, '.');
    lib_t lib = lib_loaded(lname);
    if (lib != NULL) {
       tree_t unit = lib_get_check_stale(lib, name);
-      if (unit == NULL)
-         parse_error(where, "cannot find unit %s", istr(name));
+      if (unit == NULL) {
+         if (hint != NULL)
+            parse_error(where, "missing declaration for %s %s",
+                        hint, istr(name));
+         else
+            parse_error(where, "cannot find unit %s", istr(name));
+      }
 
       return unit;
    }
@@ -623,7 +628,7 @@ static tree_t find_binding(tree_t inst)
    else {
       ident_t ename = ident_until(name, '-');
 
-      unit = find_unit(tree_loc(inst), ename);
+      unit = find_unit(tree_loc(inst), ename, "entity");
       if (unit != NULL) {
          tree_kind_t kind = tree_kind(unit);
          if (kind != T_ENTITY && kind != T_CONFIGURATION) {
@@ -1837,7 +1842,7 @@ static void p_context_reference(tree_t unit)
       tree_set_ident(c, name);
       tree_set_loc(c, CURRENT_LOC);
 
-      tree_t ctx = find_unit(CURRENT_LOC, name);
+      tree_t ctx = find_unit(CURRENT_LOC, name, "context");
       if (ctx != NULL && tree_kind(ctx) == T_CONTEXT) {
          insert_names_from_context(nametab, ctx);
          tree_set_ref(c, ctx);
@@ -2395,7 +2400,7 @@ static tree_t p_selected_name(tree_t prefix)
    case T_LIBRARY:
       {
          ident_t unit_name = ident_prefix(tree_ident(prefix), suffix, '.');
-         tree_t unit = find_unit(CURRENT_LOC, unit_name);
+         tree_t unit = find_unit(CURRENT_LOC, unit_name, NULL);
          if (unit == NULL) {
             tree_t dummy = tree_new(T_REF);
             tree_set_ident(dummy, unit_name);
@@ -6035,7 +6040,7 @@ static tree_t p_block_configuration(tree_t of)
    if (of != NULL) {
       if (tree_kind(of) == T_ENTITY) {
          ident_t qual = ident_prefix(tree_ident(of), tree_ident(b), '-');
-         sub = find_unit(CURRENT_LOC, qual);
+         sub = find_unit(CURRENT_LOC, qual, NULL);
       }
       else
          sub = resolve_name(nametab, CURRENT_LOC, tree_ident(b));
@@ -6084,14 +6089,14 @@ static void p_configuration_declaration(tree_t unit)
    ident_t qual = ident_prefix(lib_name(lib_work()), id, '.');
    tree_set_ident2(unit, qual);
 
-   tree_t of = find_unit(CURRENT_LOC, qual);
+   tree_t of = find_unit(CURRENT_LOC, qual, "entity");
    if (of != NULL && tree_kind(of) != T_ENTITY) {
       parse_error(CURRENT_LOC, "%s does not name an entity in library %s",
                   istr(id), istr(lib_name(lib_work())));
       of = NULL;
    }
 
-   tree_set_ref(unit, of);
+   tree_set_primary(unit, of);
 
    consume(tIS);
 
@@ -7463,20 +7468,19 @@ static void p_architecture_body(tree_t unit)
    push_scope(nametab);
 
    ident_t qual = ident_prefix(lib_name(lib_work()), entity_name, '.');
-   tree_t e = lib_get_check_stale(lib_work(), qual);
-   if (e == NULL)
-      parse_error(CURRENT_LOC, "missing declaration for entity %s",
-                  istr(entity_name));
-   else if (tree_kind(e) == T_ENTITY) {
-      tree_set_ref(unit, e);
+   tree_t e = find_unit(CURRENT_LOC, qual, "entity");
+   if (e != NULL && tree_kind(e) == T_ENTITY) {
+      tree_set_primary(unit, e);
 
       insert_names_from_context(nametab, e);
 
       if (entity_name != arch_name)
          insert_name(nametab, e, entity_name, 0);
    }
-   else
-      e = NULL;   // TODO: raise error here?
+   else if (e != NULL) {
+      parse_error(CURRENT_LOC, "unit %s is not an entity", istr(qual));
+      e = NULL;
+   }
 
    char *LOCAL prefix = xasprintf("%s(%s)", istr(qual), istr(arch_name));
    scope_set_prefix(nametab, ident_new(prefix));
@@ -7617,13 +7621,15 @@ static void p_package_body(tree_t unit)
    push_scope(nametab);
 
    ident_t qual = ident_prefix(lib_name(lib_work()), name, '.');
-   tree_t pack = find_unit(CURRENT_LOC, qual);
+   tree_t pack = find_unit(CURRENT_LOC, qual, "package");
    if (pack != NULL && tree_kind(pack) != T_PACKAGE) {
       parse_error(CURRENT_LOC, "unit %s is not a package", istr(qual));
       pack = NULL;
    }
-   else if (pack != NULL)
+   else if (pack != NULL) {
+      tree_set_primary(unit, pack);
       insert_names_from_context(nametab, pack);
+   }
 
    scope_set_prefix(nametab, qual);
    insert_name(nametab, unit, name, 0);

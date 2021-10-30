@@ -211,14 +211,8 @@ static void make_rule(tree_t t, rule_t **rules)
       r = make_rule_for_source(rules, RULE_ANALYSE, file);
       make_rule_add_input(r, file);
 
-      if (kind == T_PACK_BODY) {
-         ident_t pack_name = ident_until(tree_ident(t), '-');
-         tree_t pack = lib_get(work, pack_name);
-         if ((pack == NULL) || (tree_kind(pack) != T_PACKAGE))
-            warnf("cannot find package %s", istr(pack_name));
-         else
-            make_rule_add_input(r, make_product(pack, MAKE_TREE));
-      }
+      if (kind == T_PACK_BODY)
+         make_rule_add_input(r, make_product(tree_primary(t), MAKE_TREE));
    }
 
    hash_put(rule_map, t, r);

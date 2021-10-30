@@ -4566,7 +4566,7 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
 
    ident_t name = tree_ident(top);
    if (tree_kind(top) == T_PACK_BODY)
-      name = ident_strip(name, ident_new("-body"));
+      name = tree_ident(tree_primary(top));
 
    module = LLVMModuleCreateWithName(istr(name));
    builder = LLVMCreateBuilder();

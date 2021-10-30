@@ -827,7 +827,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       .arch     = arch
    };
 
-   tree_t entity = tree_ref(arch);
+   tree_t entity = tree_primary(arch);
    tree_t comp = tree_ref(t);
 
    elab_remangle_subprogram_names(entity, ctx->path);
@@ -1034,12 +1034,13 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_arch(tree_t t, const elab_ctx_t *ctx)
 {
-   elab_stmts(tree_ref(t), ctx);
+   tree_t entity = tree_primary(t);
+   elab_stmts(entity, ctx);
    elab_copy_context(t, ctx);
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
    elab_pseudo_context(ctx->root, t);
-   elab_pseudo_context(ctx->root, tree_ref(t));
+   elab_pseudo_context(ctx->root, entity);
 }
 
 static void elab_top_level_ports(tree_t entity, const elab_ctx_t *ctx)
@@ -1097,7 +1098,7 @@ static tree_t elab_generic_parse(tree_t generic, const char *str)
 
 static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
 {
-   tree_t ent = tree_ref(arch);
+   tree_t ent = tree_primary(arch);
 
    const int ngenerics = tree_generics(ent);
    for (int i = 0; i < ngenerics; i++) {
@@ -1139,7 +1140,7 @@ static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
 
 static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
 {
-   tree_t entity = tree_ref(arch);
+   tree_t entity = tree_primary(arch);
 
    const char *name = simple_name(istr(tree_ident(entity)));
    ident_t ninst = hpathf(ctx->inst, ':', ":%s(%s)", name,

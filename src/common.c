@@ -1033,14 +1033,7 @@ bool unit_needs_cgen(tree_t unit)
    case T_ELAB:
       return true;
    case T_PACK_BODY:
-      {
-         ident_t pack_i = ident_strip(tree_ident(unit), ident_new("-body"));
-         tree_t pack = lib_get_qualified(pack_i);
-         if (pack != NULL)
-            return package_needs_body(pack);
-         else
-            return false;
-      }
+      return package_needs_body(tree_primary(unit));
    case T_PACKAGE:
       return !package_needs_body(unit);
    default:

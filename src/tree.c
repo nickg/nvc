@@ -30,7 +30,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PORTS | I_GENERICS | I_CONTEXT | I_DECLS | I_STMTS | I_ATTRS),
 
    // T_ARCH
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_CONTEXT | I_REF | I_ATTRS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_CONTEXT | I_PRIMARY | I_ATTRS),
 
    // T_PORT_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_ATTRS | I_FLAGS),
@@ -109,7 +109,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_PACK_BODY
-   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS),
+   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS | I_PRIMARY),
 
    // T_FUNC_BODY
    (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS
@@ -235,7 +235,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_CONTEXT),
 
    // T_CONFIGURATION
-   (I_IDENT | I_IDENT2 | I_DECLS | I_REF),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_PRIMARY),
 
    // T_PROT_BODY
    (I_IDENT | I_TYPE | I_DECLS | I_ATTRS),
@@ -634,6 +634,25 @@ e_node_t tree_eopt(tree_t t)
 void tree_set_eopt(tree_t t, e_node_t e)
 {
    lookup_item(&tree_object, t, I_EOPT)->object = &(e->object);
+   object_write_barrier(&(t->object), &(e->object));
+}
+
+tree_t tree_primary(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_PRIMARY);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _tree, object);
+}
+
+bool tree_has_primary(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_PRIMARY)->object != NULL;
+}
+
+void tree_set_primary(tree_t t, tree_t unit)
+{
+   lookup_item(&tree_object, t, I_PRIMARY)->object = &(unit->object);
+   object_write_barrier(&(t->object), &(unit->object));
 }
 
 unsigned tree_chars(tree_t t)
