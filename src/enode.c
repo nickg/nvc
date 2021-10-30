@@ -29,20 +29,21 @@ static const imask_t has_map[E_LAST_NODE_KIND] = {
    (I_PARENT | I_SIGNALS | I_SCOPES | I_PROCS | I_IDENT2 | I_PATH | I_VCODE),
 
    // E_SIGNAL
-   (I_IDENT | I_NEXUS | I_IVAL | I_IDENT2 | I_PATH | I_FLAGS | I_TYPE),
+   (I_IDENT | I_NEXUS | I_IVAL | I_IDENT2 | I_PATH | I_FLAGS | I_TYPE
+    | I_PARENT),
 
    // E_PROCESS
    (I_IDENT | I_IDENT2 | I_PATH | I_NEXUS | I_VCODE | I_PARENT | I_FLAGS),
 
    // E_NEXUS
-   (I_IDENT | I_IVAL | I_SIGNALS | I_POS | I_SIZE | I_SOURCES),
+   (I_IDENT | I_IVAL | I_SIGNALS | I_POS | I_SIZE | I_SOURCES | I_OUTPUTS),
 
-   // E_PADDING
-   (I_IVAL | I_SIZE),
+   // E_PORT
+   (I_IDENT | I_NEXUS | I_FLAGS),
 };
 
 static const char *kind_text_map[E_LAST_NODE_KIND] = {
-   "E_ROOT", "E_SCOPE", "E_SIGNAL", "E_PROCESS", "E_NEXUS", "E_PADDING"
+   "E_ROOT", "E_SCOPE", "E_SIGNAL", "E_PROCESS", "E_NEXUS", "E_PORT"
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -259,8 +260,27 @@ e_node_t e_source(e_node_t e, unsigned n)
 
 void e_add_source(e_node_t e, e_node_t s)
 {
-   assert(s->object.kind == E_PROCESS || s->object.kind == E_SIGNAL);
+   assert(s->object.kind == E_PROCESS || s->object.kind == E_PORT);
    item_t *item = lookup_item(&e_node_object, e, I_SOURCES);
+   e_array_add(item, s);
+   object_write_barrier(&(e->object), &(s->object));
+}
+
+unsigned e_outputs(e_node_t e)
+{
+   return lookup_item(&e_node_object, e, I_OUTPUTS)->obj_array.count;
+}
+
+e_node_t e_output(e_node_t e, unsigned n)
+{
+   item_t *item = lookup_item(&e_node_object, e, I_OUTPUTS);
+   return e_array_nth(item, n);
+}
+
+void e_add_output(e_node_t e, e_node_t s)
+{
+   assert(s->object.kind == E_PORT);
+   item_t *item = lookup_item(&e_node_object, e, I_OUTPUTS);
    e_array_add(item, s);
    object_write_barrier(&(e->object), &(s->object));
 }
@@ -314,7 +334,7 @@ e_node_t e_nexus(e_node_t e, unsigned n)
 
 void e_add_nexus(e_node_t e, e_node_t n)
 {
-   assert(n->object.kind == E_NEXUS || n->object.kind == E_PADDING);
+   assert(n->object.kind == E_NEXUS);
    item_t *item = lookup_item(&e_node_object, e, I_NEXUS);
    e_array_add(item, n);
    object_write_barrier(&(e->object), &(n->object));
@@ -331,8 +351,8 @@ void e_change_nexus(e_node_t e, unsigned o, e_node_t n)
 
 void e_insert_nexus(e_node_t e, e_node_t after, e_node_t new)
 {
-   assert(after->object.kind == E_NEXUS || after->object.kind == E_PADDING);
-   assert(new->object.kind == E_NEXUS || after->object.kind == E_PADDING);
+   assert(after->object.kind == E_NEXUS);
+   assert(new->object.kind == E_NEXUS);
 
    e_array_insert(lookup_item(&e_node_object, e, I_NEXUS), after, new);
    object_write_barrier(&(e->object), &(new->object));
@@ -359,6 +379,11 @@ void e_set_size(e_node_t e, unsigned s)
    lookup_item(&e_node_object, e, I_SIZE)->ival = s;
 }
 
+bool e_has_vcode(e_node_t e)
+{
+   return lookup_item(&e_node_object, e, I_VCODE)->ident != NULL;
+}
+
 ident_t e_vcode(e_node_t e)
 {
    item_t *item = lookup_item(&e_node_object, e, I_VCODE);
@@ -383,6 +408,18 @@ void e_set_type(e_node_t e, type_t type)
    object_write_barrier(&(e->object), &(type->object));
 }
 
+static void e_clone_port(e_node_t p, e_node_t from, e_node_t to)
+{
+   e_node_t p2 = e_new(E_PORT);
+   e_set_loc(p2, e_loc(p));
+   e_set_ident(p2, e_ident(p));
+   e_add_nexus(p2, from);
+   e_add_nexus(p2, to);
+
+   e_add_source(to, p2);
+   e_add_output(from, p2);
+}
+
 e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)
 {
    assert(root->object.kind == E_ROOT);
@@ -397,7 +434,7 @@ e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)
    e_set_width(new, owidth - width);
    e_set_size(new, e_size(orig));
 
-   e_array_insert(lookup_item(&e_node_object, root, I_NEXUS), orig , new);
+   e_array_insert(lookup_item(&e_node_object, root, I_NEXUS), orig, new);
 
    const int nsignals = e_signals(orig);
    for (int i = 0; i < nsignals; i++) {
@@ -406,15 +443,51 @@ e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)
       e_array_insert(lookup_item(&e_node_object, s, I_NEXUS), orig, new);
    }
 
+   e_set_width(orig, width);
+
    const int nsources = e_sources(orig);
    for (int i = 0; i < nsources; i++) {
       e_node_t p = e_source(orig, i);
-      e_add_source(new, p);
-      assert(e_kind(p) == E_PROCESS);
-      e_add_nexus(p, new);
+      switch (e_kind(p)) {
+      case E_PROCESS:
+         e_add_source(new, p);
+         e_add_nexus(p, new);
+         break;
+      case E_PORT:
+         {
+            assert(e_nexus(p, 1) == orig);
+            e_node_t from = e_nexus(p, 0);
+            if (e_flags(p) & E_F_CONV_FUNC)
+               e_clone_port(p, from, new);
+            else if (e_width(from) > width) {
+               e_node_t from2 = e_split_nexus(root, from, width);
+               e_clone_port(p, from2, new);
+            }
+            else
+               assert(e_width(from) == width);  // Cycle breaking
+         }
+         break;
+      default:
+         fatal_trace("unexpected source kind %s", e_kind_str(e_kind(p)));
+      }
    }
 
-   e_set_width(orig, width);
+   const int noutputs = e_outputs(orig);
+   for (int i = 0; i < noutputs; i++) {
+      e_node_t o = e_output(orig, i);
+      assert(e_kind(o) == E_PORT);
+      assert(e_nexus(o, 0) == orig);
+
+      e_node_t to = e_nexus(o, 1);
+      if (e_flags(o) & E_F_CONV_FUNC)
+         e_clone_port(o, new, to);
+      else if (e_width(to) > width) {
+         e_node_t to2 = e_split_nexus(root, to, width);
+         e_clone_port(o, new, to2);
+      }
+      else
+         assert(e_width(to) == width);  // Cycle breaking
+   }
 
    return new;
 }
@@ -505,10 +578,7 @@ static void _e_dump(e_node_t e, int indent)
          for (int i = 0; i < nnexus; i++) {
             e_node_t n = e_nexus(e, i);
             if (nnexus != 1 || flags != 0) e_dump_indent(indent + 2);
-            if (e_kind(n) == E_PADDING)
-               color_printf("$cyan$padding$$");
-            else
-               color_printf("$cyan$nexus$$ %s", istr(e_ident(n)));
+            color_printf("$cyan$nexus$$ %s", istr(e_ident(n)));
             if (nnexus != 1 || flags != 0 || e_width(n) != e_width(e)) {
                if (e_kind(n) == E_NEXUS && e_has_pos(n))
                   color_printf(" $cyan$id$$ %u", e_pos(n));
@@ -537,8 +607,11 @@ static void _e_dump(e_node_t e, int indent)
          for (int i = 0; i < nsources; i++) {
             e_node_t s = e_source(e, i);
             switch (e_kind(s)) {
-            case E_SIGNAL:
-               color_printf("    $cyan$port$$ %s\n", istr(e_path(s)));
+            case E_PORT:
+               color_printf("    $cyan$port$$ %s", istr(e_ident(s)));
+               if (e_flags(s) & E_F_CONV_FUNC)
+                  color_printf(" $cyan$conv-func$$");
+               printf("\n");
                break;
             case E_PROCESS:
                color_printf("    $cyan$driver$$ %s\n", istr(e_path(s)));
@@ -546,6 +619,15 @@ static void _e_dump(e_node_t e, int indent)
             default:
                fatal_trace("unexpected source kind %s", e_kind_str(e_kind(s)));
             }
+         }
+
+         const int noutputs = e_outputs(e);
+         for (int i = 0; i < noutputs; i++) {
+            e_node_t s = e_output(e, i);
+            assert(e_kind(s) == E_PORT);
+
+            e_node_t o = e_nexus(s, 1);
+            color_printf("    $cyan$sources$$ %s\n", istr(e_ident(o)));
          }
       }
       break;

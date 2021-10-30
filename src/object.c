@@ -56,7 +56,7 @@ static const char *item_text_map[] = {
    "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CONSTR",     "I_FLAGS",
    "I_SIGNALS",  "I_LEFT",      "I_RIGHT",    "I_PROCS",      "I_NEXUS",
    "I_PATH",     "I_DEPS",      "I_SIZE",     "I_VCODE",      "I_PRIMARY",
-   "I_SOURCES",
+   "I_SOURCES",  "I_OUTPUTS",
 };
 
 

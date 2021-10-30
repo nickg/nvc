@@ -77,13 +77,6 @@ static int check_eopt(e_node_t e)
             e_node_t n = e_nexus(e, i);
             width += e_width(n);
 
-            if (e_kind(n) == E_PADDING) {
-              printf("signal %s (%s) contains padding nexus\n",
-                     istr(e_ident(e)), istr(e_path(e)));
-              nerrors++;
-              continue;
-            }
-
             bool found = false;
             const int nsignals = e_signals(n);
             for (int j = 0; !found && j < nsignals; j++)
@@ -858,13 +851,8 @@ START_TEST(test_source1)
         "has multiple sources" },
       { 25, "Y is driven by a process in instance :source1(test)" },
       { 26, "part of Y is driven by a process in instance :source1(test)" },
-      {  9, "part of Y is driven by a process in instance "
+      {  4, "part of Y is sourced by port O in instance "
          ":source1(test):sub2_i@sub(test)" },
-      { 19, "part of unresolved signal Y with instance name :source1(test):y "
-        "has multiple sources" },
-      { 25, "Y is driven by a process in instance :source1(test)" },
-      {  9, "part of Y is driven by a process in instance "
-         ":source1(test):sub1_i@sub(test)" },
       { -1, NULL }
    };
    expect_errors(expect);

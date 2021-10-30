@@ -28,7 +28,7 @@ typedef enum {
    E_SIGNAL,
    E_PROCESS,
    E_NEXUS,
-   E_PADDING,
+   E_PORT,
 
    E_LAST_NODE_KIND
 } e_kind_t;
@@ -37,7 +37,8 @@ typedef enum {
    E_F_LAST_VALUE = (1 << 0),
    E_F_CONTIGUOUS = (1 << 1),
    E_F_POSTPONED  = (1 << 2),
-   E_F_RESOLVED   = (1 << 3)
+   E_F_RESOLVED   = (1 << 3),
+   E_F_CONV_FUNC  = (1 << 4),
 } e_flags_t;
 
 #define NEXUS_POS_INVALID ~0u
@@ -81,6 +82,10 @@ unsigned e_sources(e_node_t e);
 e_node_t e_source(e_node_t e, unsigned n);
 void e_add_source(e_node_t e, e_node_t s);
 
+unsigned e_outputs(e_node_t e);
+e_node_t e_output(e_node_t e, unsigned n);
+void e_add_output(e_node_t e, e_node_t s);
+
 unsigned e_deps(e_node_t e);
 ident_t e_dep(e_node_t e, unsigned n);
 void e_add_dep(e_node_t e, ident_t i);
@@ -105,6 +110,7 @@ void e_set_width(e_node_t e, unsigned w);
 unsigned e_size(e_node_t e);
 void e_set_size(e_node_t e, unsigned s);
 
+bool e_has_vcode(e_node_t e);
 ident_t e_vcode(e_node_t e);
 void e_set_vcode(e_node_t e, ident_t vunit);
 

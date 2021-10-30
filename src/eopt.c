@@ -29,98 +29,60 @@
 static e_node_t      root = NULL;
 static cprop_vars_t *cprop_vars = NULL;
 
-extern object_arena_t *global_arena;
-
 typedef void (*eopt_nexus_fn_t)(e_node_t, void *);
 
 static void eopt_stmts(tree_t container, e_node_t cursor);
 static void eopt_decls(tree_t container, e_node_t cursor);
-
-static e_node_t eopt_split_nexus(e_node_t signal, e_node_t n, unsigned width)
-{
-   if (e_kind(n) == E_PADDING) {
-      const unsigned owidth = e_width(n);
-      assert(width > 0);
-      assert(width < owidth);
-
-      e_set_width(n, width);
-
-      e_node_t pad2 = e_new(E_PADDING);
-      e_set_width(pad2, owidth - width);
-
-      e_insert_nexus(signal, n, pad2);
-      return pad2;
-   }
-   else
-      return e_split_nexus(root, n, width);
-}
+static void eopt_ports(tree_t block, e_node_t cursor);
 
 static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
-                              eopt_nexus_fn_t callback, void *context)
+                              unsigned stride, eopt_nexus_fn_t callback,
+                              void *context)
 {
-   unsigned o = 0;
-   for (int i = 0; count > 0 && i < e_nexuses(signal); i++) {
-      e_node_t n = e_nexus(signal, i), drive = NULL;
+   const unsigned total_length = stride > 0 ? e_width(signal) : 0;
+   unsigned o = 0, nnexus = e_nexuses(signal), pos = 0;
+   do {
+      unsigned remain = count, search = offset;
+      for (; remain > 0 && pos < nnexus; pos++) {
+         e_node_t n = e_nexus(signal, pos), drive = NULL;
 
-      const int length = e_width(n);
-      int dpos = i;
+         int length = e_width(n), dwidth;
+         if (search == o) {
+            if (remain < length) {
+               e_split_nexus(root, n, remain);
+               nnexus++;
+               length = remain;
+            }
+            dwidth = length;
+            drive = n;
+         } else if (search > o && search < o + length) {
+            drive = e_split_nexus(root, n, search - o);
+            nnexus++;
+            dwidth = length - search + o;
+            length = search - o;
+            if (dwidth > remain) {
+               e_split_nexus(root, drive, remain);
+               nnexus++;
+               dwidth = remain;
+            }
+         } else if (search + length < o)
+            break;
 
-      if (offset == o) {
-         if (count < length)
-            eopt_split_nexus(signal, n, count);
-         drive = n;
-      } else if (offset > o && offset < o + length) {
-         drive = eopt_split_nexus(signal, n, offset - o);
-         dpos++;
-         if (length - offset + o > count)
-            eopt_split_nexus(signal, drive, count);
-      } else if (offset + length < o)
-         break;
+         o += length;
 
-      o += e_width(n);
+         if (drive == NULL)
+            continue;
 
-      if (drive == NULL)
-         continue;
+         if (callback) (*callback)(drive, context);
 
-      if (e_kind(drive) == E_PADDING) {
-         // Convert padding into a real nexus
-         e_node_t new = e_new(E_NEXUS);
-         e_set_ident(new, e_path(signal));
-         e_set_size(new, e_size(drive));
-         e_set_width(new, e_width(drive));
-         e_add_signal(new, signal);
-
-         e_add_nexus(root, new);
-         e_change_nexus(signal, dpos, new);
-         drive = new;
+         remain -= dwidth;
+         search += dwidth;
       }
 
-      if (callback) (*callback)(drive, context);
+      assert(search == o || remain == 0);
 
-      const int consumed = e_width(drive);
-      count -= consumed;
-      offset += consumed;
-   }
-
-   if (offset != o && count > 0) {
-      assert(o < offset);
-      e_node_t n = e_new(E_PADDING);
-      e_set_width(n, offset - o);
-      e_add_nexus(signal, n);
-   }
-
-   if (count > 0) {
-      e_node_t n = e_new(E_NEXUS);
-      e_set_pos(n, NEXUS_POS_INVALID);
-      e_set_ident(n, e_path(signal));
-      e_set_width(n, count);
-      e_add_signal(n, signal);
-
-      e_add_nexus(signal, n);
-      e_add_nexus(root, n);
-
-      if (callback) (*callback)(n, context);
-   }
+      offset += stride;
+   } while (offset < total_length);
 }
 
 static void eopt_nexus_add_driver_cb(e_node_t nexus, void *__ctx)
@@ -160,16 +122,7 @@ static void eopt_add_driver(int op, vcode_reg_t target, vcode_reg_t count_reg,
    }
 
    eopt_nexus_fn_t fn = driven ? eopt_nexus_add_driver_cb : NULL;
-
-   if (stride == 0)
-      eopt_split_signal(signal, offset, count, fn, cursor);
-   else {
-      const unsigned total_length = e_width(signal);
-      while (offset < total_length) {
-         eopt_split_signal(signal, offset, count, fn, cursor);
-         offset += stride;
-      }
-   }
+   eopt_split_signal(signal, offset, count, stride, fn, cursor);
 }
 
 static e_node_t eopt_find_signal_cb(ident_t name, int hops, void *__ctx)
@@ -206,13 +159,23 @@ static e_node_t eopt_find_signal_cb(ident_t name, int hops, void *__ctx)
                istr(e_path(scope)));
 }
 
+static void eopt_set_nexus_size_cb(e_node_t nexus, void *__ctx)
+{
+   // It would be nice to assert that e_size(nexus) == 0 here but that
+   // runs into problems with arrays of records where the signals are
+   // initialised in a loop
+
+   e_set_size(nexus, (uintptr_t)__ctx);
+}
+
 static void eopt_map_signal_cb(int op, cprop_state_t *regs, void *__ctx)
 {
    vcode_reg_t arg0 = vcode_get_arg(op, 0);
    vcode_reg_t arg1 = vcode_get_arg(op, 1);
    vcode_reg_t arg2 = vcode_get_arg(op, 2);
+   vcode_reg_t arg3 = vcode_get_arg(op, 3);
 
-   if (regs[arg2].tag != CP_CONST) {
+   if (regs[arg2].tag != CP_CONST || regs[arg3].tag != CP_CONST) {
       cprop_dump(op, regs);
       fatal_trace("map signal count is not constant");
    }
@@ -221,8 +184,8 @@ static void eopt_map_signal_cb(int op, cprop_state_t *regs, void *__ctx)
    unsigned offset1 = 0, stride1 = 0, count1 = 0;
    e_node_t src = NULL, dst = NULL;
 
-   cprop_get_signal(arg0, arg2, regs, &offset0, &stride0, &count0, &dst);
-   cprop_get_signal(arg1, arg2, regs, &offset1, &stride1, &count1, &src);
+   cprop_get_signal(arg0, arg2, regs, &offset0, &stride0, &count0, &src);
+   cprop_get_signal(arg1, arg3, regs, &offset1, &stride1, &count1, &dst);
 
    if (dst == NULL || src == NULL) {
       cprop_dump(op, regs);
@@ -231,78 +194,66 @@ static void eopt_map_signal_cb(int op, cprop_state_t *regs, void *__ctx)
 
    assert(stride0 == 0);
    assert(stride1 == 0);
-   assert(count0 == count1);
 
-   if (e_flags(src) & E_F_RESOLVED)
-      e_set_flag(dst, E_F_RESOLVED);
+   if (e_flags(dst) & E_F_RESOLVED)
+      e_set_flag(src, E_F_RESOLVED);
 
    // Ensure the existing nexuses are split at the right places
-   eopt_split_signal(src, offset1, count1, false, NULL);
+   eopt_split_signal(src, offset0, count0, 0, NULL, NULL);
+   eopt_split_signal(dst, offset1, count1, 0, NULL, NULL);
 
-   assert(offset0 + count0 <= e_width(dst));
+   assert(offset0 + count0 <= e_width(src));
 
-   int dst_i = 0, dst_nnexus = e_nexuses(dst);
-   while (offset0 > 0) {
-      if (dst_i == dst_nnexus) {
-         e_node_t n = e_new(E_PADDING);
-         e_set_width(n, offset0);
-         offset0 = 0;
-
-         e_add_nexus(dst, n);
-         dst_i++, dst_nnexus++;
-      }
-      else {
-         e_node_t n = e_nexus(dst, dst_i++);
-         const unsigned w = e_width(n);
-         if (w > offset0) {
-            assert(e_kind(n) == E_PADDING);
-            eopt_split_nexus(dst, n, offset0);
-            offset0 = 0;
-         }
-         else
-            offset0 -= w;
-      }
-   }
+   e_flags_t pflags = 0;
+   if (vcode_count_args(op) > 4)
+      pflags |= E_F_CONV_FUNC;
 
    int src_i = 0;
-   while (offset1 > 0) {
+   while (offset0 > 0) {
       e_node_t n = e_nexus(src, src_i++);
+      const unsigned w = e_width(n);
+      assert(w <= offset0);
+      offset0 -= w;
+   }
+
+   int dst_i = 0;
+   while (offset1 > 0) {
+      e_node_t n = e_nexus(dst, dst_i++);
       const unsigned w = e_width(n);
       assert(w <= offset1);
       offset1 -= w;
    }
 
-   e_node_t source = NULL;
-   if (vcode_count_args(op) > 3)
-      source = dst;
+   while (count0 > 0 || count1 > 0) {
+      e_node_t src_n = e_nexus(src, src_i);
+      e_node_t dst_n = e_nexus(dst, dst_i);
 
-   while (count0 > 0) {
-      e_node_t n = e_nexus(src, src_i++);
-      const unsigned w = e_width(n);
-      if (dst_i == dst_nnexus)
-         e_add_nexus(dst, n);
-      else {
-         e_node_t pad = e_nexus(dst, dst_i);
-         assert(e_kind(pad) == E_PADDING);
-         if (e_width(pad) != w)
-            eopt_split_nexus(dst, pad, w);
-         e_change_nexus(dst, dst_i++, n);
-      }
-      e_add_signal(n, dst);
-      // TODO: proper handling of undriven port sources here
-      (void)source;
-      assert(w <= count0);
-      count0 -= w;
+      unsigned src_w = e_width(src_n);
+      unsigned dst_w = e_width(dst_n);
+      if (pflags & E_F_CONV_FUNC)
+         ;  // Nexus widths do not have to match
+      else if (dst_w < src_w)
+         e_split_nexus(root, src_n, (src_w = dst_w));
+      else if (dst_w > src_w)
+         e_split_nexus(root, dst_n, (dst_w = src_w));
+
+      e_node_t p = e_new(E_PORT);
+      e_set_loc(p, e_loc(src));
+      e_set_ident(p, e_path(src));
+      e_add_nexus(p, src_n);
+      e_add_nexus(p, dst_n);
+      e_add_source(dst_n, p);
+      e_add_output(src_n, p);
+
+      assert((pflags & E_F_CONV_FUNC) || e_size(src_n) == e_size(dst_n));
+      e_set_flag(p, pflags);
+
+      assert(src_w <= count0 || (pflags & E_F_CONV_FUNC));
+      assert(dst_w <= count1 || (pflags & E_F_CONV_FUNC));
+
+      if (count0 > 0 && (count0 -= src_w) > 0) src_i++;
+      if (count1 > 0 && (count1 -= dst_w) > 0) dst_i++;
    }
-}
-
-static void eopt_set_nexus_size_cb(e_node_t nexus, void *__ctx)
-{
-   // It would be nice to assert that e_size(nexus) == 0 here but that
-   // runs into problems with arrays of records where the signals are
-   // initialised in a loop
-
-   e_set_size(nexus, (uintptr_t)__ctx);
 }
 
 static void eopt_init_signal_cb(int op, cprop_state_t *regs, void *__ctx)
@@ -330,14 +281,8 @@ static void eopt_init_signal_cb(int op, cprop_state_t *regs, void *__ctx)
    if (vcode_count_args(op) > 4)
       e_set_flag(signal, E_F_RESOLVED);
 
-   const unsigned width = e_width(signal);
-   assert(offset + count <= width);
-
-   do {
-      eopt_split_signal(signal, offset, count, eopt_set_nexus_size_cb,
-                        (void *)(uintptr_t)size);
-      offset += stride;
-   } while (stride > 0 && offset + count <= width);
+   eopt_split_signal(signal, offset, count, stride, eopt_set_nexus_size_cb,
+                     (void *)(uintptr_t)size);
 }
 
 static void eopt_driver_cb(int op, cprop_state_t *regs, void *__ctx)
@@ -352,6 +297,28 @@ static void eopt_driver_cb(int op, cprop_state_t *regs, void *__ctx)
 
    const bool driven = vcode_get_op(op) != VCODE_OP_SCHED_EVENT;
    eopt_add_driver(op, target, count, regs, cursor, driven);
+}
+
+static void eopt_signal_flag_cb(int op, cprop_state_t *regs, void *__ctx)
+{
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+   vcode_reg_t arg1 = vcode_get_arg(op, 1);
+
+   if (regs[arg1].tag != CP_CONST) {
+      cprop_dump(op, regs);
+      fatal_trace("signal flag net count is not constant");
+   }
+
+   unsigned offset = 0, stride = 0, count = 0;
+   e_node_t signal = NULL;
+   cprop_get_signal(arg0, arg1, regs, &offset, &stride, &count, &signal);
+
+   if (signal == NULL) {
+      cprop_dump(op, regs);
+      fatal_trace("signal flag argument is not a signal");
+   }
+
+   eopt_split_signal(signal, offset, count, stride, NULL, NULL);
 }
 
 static void eopt_pcall_cb(int op, cprop_state_t *regs, void *__ctx)
@@ -372,9 +339,7 @@ static void eopt_pcall_cb(int op, cprop_state_t *regs, void *__ctx)
 
          if (is_pcall) {
             // TODO: should recursively cprop into the procedure call here
-            const unsigned width = e_width(signal);
-            for (int j = offset; j < width; j++)
-               eopt_split_signal(signal, j, 1, NULL, NULL);
+            eopt_split_signal(signal, offset, 1, 1, NULL, NULL);
          }
 
          e_set_flag(signal, E_F_LAST_VALUE);
@@ -422,6 +387,7 @@ static void eopt_drivers(vcode_unit_t unit, e_node_t cursor)
       .pcall          = eopt_pcall_cb,
       .fcall          = eopt_pcall_cb,
       .last_value     = eopt_last_value_cb,
+      .signal_flag    = eopt_signal_flag_cb,
       .vars           = cprop_vars,
       .context        = cursor,
       .flags          = CPROP_BOUNDS
@@ -437,23 +403,6 @@ static void eopt_path_from_cursor(e_node_t e, ident_t name, e_node_t cursor)
 
    e_set_path(e, ident_prefix(e_path(cursor), name_lower, ':'));
    e_set_instance(e, ident_prefix(e_instance(cursor), name_lower, ':'));
-}
-
-static void eopt_ports(tree_t block, e_node_t cursor)
-{
-   const int nports = tree_ports(block);
-   for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(block, i);
-      type_t type = tree_type(p);
-
-      e_node_t e = e_new(E_SIGNAL);
-      e_set_ident(e, tree_ident(p));
-      e_set_width(e, type_width(type));
-      e_set_type(e, type);
-      eopt_path_from_cursor(e, tree_ident(p), cursor);
-
-      e_add_signal(cursor, e);
-   }
 }
 
 static ident_t eopt_vcode_unit_name(tree_t t, e_node_t cursor)
@@ -560,6 +509,26 @@ static void eopt_nexus_for_type(e_node_t signal, type_t type, ident_t field)
    }
 }
 
+static void eopt_ports(tree_t block, e_node_t cursor)
+{
+   const int nports = tree_ports(block);
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(block, i);
+      type_t type = tree_type(p);
+
+      e_node_t e = e_new(E_SIGNAL);
+      e_set_ident(e, tree_ident(p));
+      e_set_width(e, type_width(type));
+      e_set_type(e, type);
+      e_set_parent(e, cursor);
+      e_set_loc(e, tree_loc(p));
+      eopt_path_from_cursor(e, tree_ident(p), cursor);
+      eopt_nexus_for_type(e, type, NULL);
+
+      e_add_signal(cursor, e);
+   }
+}
+
 static void eopt_signal_decl(tree_t decl, e_node_t cursor)
 {
    ident_t name = tree_ident(decl);
@@ -569,6 +538,7 @@ static void eopt_signal_decl(tree_t decl, e_node_t cursor)
    e_set_ident(e, name);
    e_set_width(e, type_width(type));
    e_set_type(e, type);
+   e_set_parent(e, cursor);
    e_set_loc(e, tree_loc(decl));
    eopt_path_from_cursor(e, name, cursor);
    eopt_nexus_for_type(e, type, NULL);
@@ -671,7 +641,6 @@ static void eopt_report_multiple_sources(e_node_t nexus)
 
    for (int i = 0; i < nsources; i++) {
       e_node_t e = e_source(nexus, i);
-      assert(e_kind(e) == E_PROCESS);  // TODO: handle port sources
 
       const int nn = e_nexuses(e);
       for (int j = 0; j < nn; j++) {
@@ -692,15 +661,23 @@ static void eopt_report_multiple_sources(e_node_t nexus)
 
    for (int i = 0; i < nsources; i++) {
       e_node_t e = e_source(nexus, i);
-      assert(e_kind(e) == E_PROCESS);
 
-      const char *procname = istr(e_ident(e));
-      const bool anonymous = islower(procname[0]);
+      if (e_kind(e) == E_PROCESS) {
+         const char *procname = istr(e_ident(e));
+         const bool anonymous = islower(procname[0]);
 
-      note_at(e_loc(e), "%s%s is driven by %s%s in instance %s",
-              drivenw[i] != width ? "part of " : "",
-              istr(e_ident(s0)), anonymous ? "a process" : "process ",
-              anonymous ? "" : procname, istr(e_instance(e_parent(e))));
+         note_at(e_loc(e), "%s%s is driven by %s%s in instance %s",
+                 drivenw[i] != width ? "part of " : "",
+                 istr(e_ident(s0)), anonymous ? "a process" : "process ",
+                 anonymous ? "" : procname, istr(e_instance(e_parent(e))));
+      }
+      else {
+         e_node_t s = e_signal(e_nexus(e, 0), 0);
+         note_at(e_loc(e), "%s%s is sourced by port %s in instance %s",
+                 drivenw[i] != width ? "part of " : "",
+                 istr(e_ident(s0)), istr(e_ident(s)),
+                 istr(e_instance(e_parent(s))));
+      }
    }
 
    // Prevent multiple errors for the same signal
@@ -721,7 +698,24 @@ static void eopt_post_process_nexus(e_node_t root)
 
       e_node_t s0 = e_signal(n, 0);
 
-      if (e_sources(n) > 1) {
+      const int nsources = e_sources(n);
+      if (nsources > 1) {
+         int nunique = 0;
+         e_node_t slast = NULL;
+         for (int i = 0; i < nsources; i++) {
+            e_node_t s = e_source(n, i);
+            if (e_kind(s) == E_PORT) {
+               assert(e_nexus(s, 1) == n);
+               e_node_t src = e_signal(e_nexus(s, 0), 0);
+               if (src != slast) nunique++;
+               slast = src;
+            }
+            else
+               nunique++;
+         }
+
+         if (nunique < 2) continue;
+
          const int nsignals = e_signals(n);
          for (int i = 0; i < nsignals; i++) {
             e_node_t s = e_signal(n, i);

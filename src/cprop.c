@@ -497,6 +497,13 @@ void cprop(cprop_req_t *req)
                (*req->last_value)(op, regs, req->context);
             break;
 
+         case VCODE_OP_EVENT:
+         case VCODE_OP_ACTIVE:
+         case VCODE_OP_DRIVING:
+            if (req->signal_flag)
+               (*req->signal_flag)(op, regs, req->context);
+            break;
+
          case VCODE_OP_STORE:
             if (req->vars)
                cprop_store_var(req->vars, op, regs);
@@ -646,8 +653,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_ALLOCA:
          case VCODE_OP_INDEX:
          case VCODE_OP_IMAGE:
-         case VCODE_OP_EVENT:
-         case VCODE_OP_ACTIVE:
          case VCODE_OP_AND:
          case VCODE_OP_OR:
          case VCODE_OP_XOR:
@@ -665,7 +670,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_DIV:
          case VCODE_OP_NEW:
          case VCODE_OP_VALUE:
-         case VCODE_OP_DRIVING:
          case VCODE_OP_DRIVING_VALUE:
          case VCODE_OP_BIT_VEC_OP:
          case VCODE_OP_NEG:
@@ -677,6 +681,7 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_RANGE_NULL:
          case VCODE_OP_RESOLUTION_WRAPPER:
          case VCODE_OP_PARAM_UPREF:
+         case VCODE_OP_CLOSURE:
             {
                vcode_reg_t result = vcode_get_result(op);
                if (result != VCODE_INVALID_REG)

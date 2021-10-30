@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2018  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -113,6 +113,23 @@ typedef enum {
    FST_OUTPUT_FST,
    FST_OUTPUT_VCD
 } fst_output_t;
+
+typedef enum {
+   RT_FFI_INT,
+   RT_FFI_FLOAT,
+   RT_FFI_POINTER,
+   RT_FFI_UARRAY,
+} rt_ffi_type_t;
+
+typedef union {
+   struct {
+      rt_ffi_type_t atype : 4;
+      rt_ffi_type_t rtype : 4;
+   };
+   uint32_t bits;
+} rt_ffi_spec_t;
+
+STATIC_ASSERT(sizeof(rt_ffi_spec_t) == 4);
 
 void rt_start_of_tool(tree_t top, e_node_t e);
 void rt_end_of_tool(tree_t top, e_node_t e);

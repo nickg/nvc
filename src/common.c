@@ -794,7 +794,7 @@ tree_t make_default_value(type_t type, const loc_t *loc)
    }
 }
 
-const char *fmt_time_r(char *buf, size_t len, uint64_t t)
+int fmt_time_r(char *buf, size_t len, uint64_t t)
 {
    static const struct {
       uint64_t time;
@@ -812,16 +812,16 @@ const char *fmt_time_r(char *buf, size_t len, uint64_t t)
    while (units[u + 1].unit && (t % units[u + 1].time == 0))
       ++u;
 
-   snprintf(buf, len, "%"PRIu64"%s",
-            t / units[u].time, units[u].unit);
-
-   return buf;
+   return checked_sprintf(buf, len, "%"PRIu64"%s",
+                          t / units[u].time, units[u].unit);
 }
 
 const char *fmt_time(uint64_t t)
 {
    static const int BUF_SZ = 64;
-   return fmt_time_r(get_fmt_buf(BUF_SZ), BUF_SZ, t);
+   char *buf = get_fmt_buf(BUF_SZ);
+   fmt_time_r(buf, BUF_SZ, t);
+   return buf;
 }
 
 unsigned bits_for_range(int64_t low, int64_t high)

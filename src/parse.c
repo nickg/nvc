@@ -4032,8 +4032,8 @@ static type_t p_enumeration_type_definition(ident_t id)
 
    tree_t r = tree_new(T_RANGE);
    tree_set_subkind(r, RANGE_TO);
-   tree_set_left(r, get_int_lit(type_enum_literal(t, 0), 0));
-   tree_set_right(r, get_int_lit(type_enum_literal(t, pos - 1), pos -1));
+   tree_set_left(r, make_ref(type_enum_literal(t, 0)));
+   tree_set_right(r, make_ref(type_enum_literal(t, pos - 1)));
    tree_set_loc(r, CURRENT_LOC);
    tree_set_type(r, t);
 

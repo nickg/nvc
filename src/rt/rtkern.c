@@ -54,7 +54,7 @@
 
 #define TRACE_DELTAQ  1
 #define TRACE_PENDING 0
-#define RT_DEBUG      0
+#define RT_DEBUG      1
 
 typedef struct event       event_t;
 typedef struct waveform    waveform_t;
@@ -67,6 +67,7 @@ typedef struct rt_loc      rt_loc_t;
 typedef struct rt_nexus_s  rt_nexus_t;
 typedef struct rt_scope_s  rt_scope_t;
 typedef struct uarray      uarray_t;
+typedef struct rt_source_s rt_source_t;
 
 typedef void *(*proc_fn_t)(void *, rt_scope_t *);
 typedef uint64_t (*resolution_fn_t)(void *, void *, int32_t, int32_t);
@@ -114,9 +115,22 @@ struct sens_list {
    uint32_t      wakeup_gen;
 };
 
+// The code generator knows the layout of this struct
 typedef struct {
-   rt_proc_t  *proc;
-   waveform_t *waveforms;
+   void          *fn;
+   void          *context;
+   rt_ffi_spec_t  spec;
+   uint32_t       __pad;
+} rt_closure_t;
+
+STATIC_ASSERT(sizeof(rt_closure_t) == 24);
+
+typedef struct rt_source_s {
+   rt_proc_t    *proc;
+   rt_nexus_t   *input;
+   rt_nexus_t   *output;
+   waveform_t   *waveforms;
+   rt_closure_t  conv_func;
 } rt_source_t;
 
 struct value {
@@ -164,6 +178,9 @@ typedef struct rt_nexus_s {
    unsigned      n_signals;
    rt_signal_t **signals;
    unsigned     *offsets;
+   unsigned      rank;
+   uint32_t      n_outputs;
+   rt_source_t **outputs;
 } rt_nexus_t;
 
 // The code generator knows the layout of this struct
@@ -280,7 +297,9 @@ typedef struct {
 static rt_proc_t       *active_proc = NULL;
 static rt_scope_t      *active_scope = NULL;
 static rt_scope_t      *scopes = NULL;
-static rt_run_queue_t   run_queue;
+static rt_run_queue_t   timeoutq;
+static rt_run_queue_t   driverq;
+static rt_run_queue_t   procq;
 static heap_t           eventq_heap = NULL;
 static unsigned         n_scopes = 0;
 static unsigned         n_nexuses = 0;
@@ -309,6 +328,7 @@ static bool             profiling = false;
 static rt_profile_t     profile;
 static rt_nexus_t      *nexuses = NULL;
 static cover_tagging_t *cover = NULL;
+static unsigned         highest_rank;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -367,13 +387,6 @@ static void _tracef(const char *fmt, ...);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Utilities
-
-static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
-{
-   // Use the bottom bit of the key to indicate the kind
-   // The highest priority should have the lowest enumeration value
-   return (when << 2) | (kind & 3);
-}
 
 static char *fmt_nexus_r(rt_nexus_t *n, const void *values,
                          char *buf, size_t max)
@@ -598,6 +611,18 @@ static unsigned rt_signal_nexus_index(rt_signal_t *s, unsigned offset)
    return nid;
 }
 
+static int rt_fmt_now(char *buf, size_t len)
+{
+   if (iteration < 0)
+      return checked_sprintf(buf, len, "(init)");
+   else {
+      char *p = buf;
+      p += fmt_time_r(p, buf + len - p, now);
+      p += checked_sprintf(p, buf + len - p, "+%d", iteration);
+      return p - buf;
+   }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -768,25 +793,25 @@ void _init_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
 }
 
 DLLEXPORT
-void _source_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
-                    const uint8_t *values)
+void _convert_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
+                     rt_closure_t *closure)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("_source_signal %s+%d values=%s count=%d", istr(e_path(s->enode)),
-         offset, fmt_values(s, values, offset, count), count);
+   TRACE("_convert_signal %s+%d count=%d fn=%p context=%p",
+         istr(e_path(s->enode)), offset, count, closure->fn, closure->context);
 
    unsigned index = rt_signal_nexus_index(s, offset);
    while (count > 0) {
       RT_ASSERT(index < s->n_nexus);
       rt_nexus_t *n = s->nexus[index++];
 
-      memcpy(n->resolved, values, n->size * n->width);
-      if (n->flags & NET_F_LAST_VALUE)
-         memcpy(n->last_value, values, n->size * n->width);
+      for (unsigned i = 0; i < n->n_sources; i++) {
+         if (n->sources[i].proc == NULL)   // Is a port source
+            n->sources[i].conv_func = *closure;
+      }
 
       count -= n->width;
-      values += n->width * n->size;
       RT_ASSERT(count >= 0);
    }
 }
@@ -825,11 +850,12 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    if (severity >= exit_severity)
       fn = fatal;
 
-   rt_msg(where, fn, "%s+%d: %s %s: %.*s",
-          fmt_time(now), iteration,
-          (is_report ? "Report" : "Assertion"),
-          levels[severity],
-          msg_len, msg);
+   char tmbuf[64];
+   rt_fmt_now(tmbuf, sizeof(tmbuf));
+
+   rt_msg(where, fn, "%s: %s %s: %.*s",
+          tmbuf, (is_report ? "Report" : "Assertion"),
+          levels[severity], msg_len, msg);
 }
 
 DLLEXPORT
@@ -1517,11 +1543,9 @@ static void _tracef(const char *fmt, ...)
    va_start(ap, fmt);
 
    char buf[64];
-   if (iteration < 0)
-      fprintf(stderr, "TRACE (init): ");
-   else
-      fprintf(stderr, "TRACE %s+%d: ",
-              fmt_time_r(buf, sizeof(buf), now), iteration);
+   rt_fmt_now(buf, sizeof(buf));
+
+   fprintf(stderr, "TRACE %s: ", buf);
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
    fflush(stderr);
@@ -1538,7 +1562,7 @@ static void deltaq_insert(event_t *e)
    }
    else {
       e->delta_chain = NULL;
-      heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
+      heap_insert(eventq_heap, e->when, e);
    }
 }
 
@@ -1628,7 +1652,7 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
       for (int j = 0; j < resolution->nlits; j++) {
          int8_t args[2] = { i, j };
          memo->tab2[i][j] = (*memo->fn)(memo->context, args, memo->ileft, 2);
-         RT_ASSERT(memo->tab2[i][j] < nlits);
+         RT_ASSERT(memo->tab2[i][j] < resolution->nlits);
       }
    }
 
@@ -1933,11 +1957,27 @@ static void rt_setup_nexus(e_node_t top)
       n->width     = e_width(e);
       n->size      = e_size(e);
       n->n_sources = e_sources(e);
+      n->n_outputs = e_outputs(e);
       n->n_signals = e_signals(e);
 
       if (n->n_sources > 0) {
          n->sources = xcalloc_array(n->n_sources, sizeof(rt_source_t));
          total_mem += n->n_sources * sizeof(rt_source_t);
+      }
+
+      if (n->n_outputs > 0) {
+         n->outputs = xcalloc_array(n->n_outputs, sizeof(rt_source_t *));
+         total_mem += n->n_sources * sizeof(rt_source_t *);
+      }
+
+      for (unsigned i = 0; i < n->n_sources; i++) {
+         waveform_t *w = rt_alloc(waveform_stack);
+         w->when   = 0;
+         w->next   = NULL;
+         w->values = rt_alloc_value(n);
+
+         n->sources[i].waveforms = w;
+         n->sources[i].output = n;
       }
 
       if (n->n_signals > 0) {
@@ -1961,12 +2001,57 @@ static void rt_setup_nexus(e_node_t top)
    if (resolved_size > 0) resolved_mem = xcalloc(resolved_size);
    total_mem += resolved_size;
 
+   highest_rank = 0;
+
    uint8_t *nextp = resolved_mem;
    for (int i = 0; i < n_nexuses; i++) {
       rt_nexus_t *n = &(nexuses[i]);
       if (i == 0) n->flags |= NET_F_OWNS_MEM;
       n->resolved = nextp;
       nextp += n->width * n->size;
+
+      // Attach port outputs to sources
+      for (int j = 0; j < n->n_outputs; j++) {
+         e_node_t p = e_output(n->enode, j);
+         assert(e_nexus(p, 0) == n->enode);
+         rt_nexus_t *to = &(nexuses[e_pos(e_nexus(p, 1))]);
+
+         int to_src_id = 0;
+         for (; to_src_id < to->n_sources; to_src_id++) {
+            if (e_source(to->enode, to_src_id) == p)
+               break;
+         }
+         assert(to_src_id != to->n_sources);
+
+         n->outputs[j] = &(to->sources[to_src_id]);
+         n->outputs[j]->input = n;
+
+         if (n->outputs[j]->output->rank <= n->rank) {
+            n->outputs[j]->output->rank = n->rank + 1;
+            highest_rank = MAX(n->rank + 1, highest_rank);
+         }
+      }
+   }
+
+   // Calculate the rank of each nexus so signals can be updated in the
+   // correct order
+   if (highest_rank > 0) {
+      bool made_changes;
+      do {
+         made_changes = false;
+         for (int i = 0; i < n_nexuses; i++) {
+            rt_nexus_t *n = &(nexuses[i]);
+            for (int j = 0; j < n->n_outputs; j++) {
+               if (n->outputs[j]->output->rank <= n->rank) {
+                  n->outputs[j]->output->rank = n->rank + 1;
+                  highest_rank = MAX(n->rank + 1, highest_rank);
+                  made_changes = true;
+               }
+            }
+         }
+      } while (made_changes);
+
+      TRACE("highest rank is %u", highest_rank);
    }
 
    TRACE("allocated %u bytes for %d nexuses", total_mem, n_nexuses);
@@ -2163,6 +2248,68 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus)
    return resolved;
 }
 
+static void rt_call_conversion_func(rt_source_t *source, const void *input)
+{
+   TRACE("call conversion function %p", source->conv_func.fn);
+
+   rt_closure_t *c = &(source->conv_func);
+   const size_t outsz = source->output->size * source->output->width;
+
+   // This implicitly assumes little-endian representation
+
+   if (c->spec.atype == RT_FFI_INT && c->spec.rtype == RT_FFI_INT) {
+      int64_t (*fn)(void *, uint64_t) = c->fn;
+      const int64_t r = (*fn)(c->context, *(uint64_t *)input);
+      TRACE("integer result is %"PRIi64, r);
+      RT_ASSERT(outsz <= sizeof(int64_t));
+      memcpy(source->waveforms->values->data, &r, outsz);
+   }
+   else if (c->spec.atype == RT_FFI_FLOAT && c->spec.rtype == RT_FFI_INT) {
+      int64_t (*fn)(void *, double) = c->fn;
+      const int64_t r = (*fn)(c->context, *(double *)input);
+      TRACE("integer result is %"PRIi64, r);
+      RT_ASSERT(outsz <= sizeof(int64_t));
+      memcpy(source->waveforms->values->data, &r, outsz);
+   }
+   else if (c->spec.atype == RT_FFI_INT && c->spec.rtype == RT_FFI_FLOAT) {
+      double (*fn)(void *, uint64_t) = c->fn;
+      const double r = (*fn)(c->context, *(uint64_t *)input);
+      TRACE("float result is %f", r);
+      RT_ASSERT(outsz == sizeof(double));
+      memcpy(source->waveforms->values->data, &r, outsz);
+   }
+   else if (c->spec.atype == RT_FFI_FLOAT && c->spec.rtype == RT_FFI_FLOAT) {
+      double (*fn)(void *, double) = c->fn;
+      const double r = (*fn)(c->context, *(double *)input);
+      TRACE("float result is %f", r);
+      RT_ASSERT(outsz == sizeof(double));
+      memcpy(source->waveforms->values->data, &r, outsz);
+   }
+   else if (c->spec.atype == RT_FFI_POINTER && c->spec.rtype == RT_FFI_INT) {
+      rt_signal_t *s0 = source->input->signals[0];
+      int64_t (*fn)(void *, void *) = c->fn;
+      const int64_t r = (*fn)(c->context, s0->shared.resolved);
+      TRACE("integer result is %"PRIi64, r);
+      RT_ASSERT(outsz <= sizeof(int64_t));
+      memcpy(source->waveforms->values->data, &r, outsz);
+   }
+   else if (c->spec.atype == RT_FFI_POINTER && c->spec.rtype == RT_FFI_INT) {
+      rt_signal_t *s0 = source->input->signals[0];
+      int64_t (*fn)(void *, void *) = c->fn;
+      const int64_t r = (*fn)(c->context, s0->shared.resolved);
+      TRACE("integer result is %"PRIi64, r);
+      RT_ASSERT(outsz <= sizeof(int64_t));
+      memcpy(source->waveforms->values->data, &r, outsz);
+   }
+   else if (c->spec.atype == RT_FFI_INT && c->spec.rtype == RT_FFI_POINTER) {
+      void *(*fn)(void *, uint64_t) = c->fn;
+      void *r = (*fn)(c->context, *(uint64_t *)input);
+      memcpy(source->waveforms->values->data, r, outsz);
+   }
+   else
+      fatal_trace("unhandled conversion function argument combination");
+}
+
 static void rt_propagate_nexus(rt_nexus_t *nexus, const void *resolved)
 {
    const size_t valuesz = nexus->size * nexus->width;
@@ -2186,8 +2333,25 @@ static void rt_propagate_nexus(rt_nexus_t *nexus, const void *resolved)
    }
 }
 
+static void rt_update_inputs(rt_nexus_t *nexus)
+{
+   for (unsigned i = 0; i < nexus->n_sources; i++) {
+      rt_source_t *s = &(nexus->sources[i]);
+      if (s->proc != NULL)
+         continue;
+      else if (likely(s->conv_func.fn == NULL)) {
+         const size_t valuesz = s->input->size * s->input->width;
+         memcpy(s->waveforms->values->data, s->input->resolved, valuesz);
+      }
+      else
+         rt_call_conversion_func(s, s->input->resolved);
+   }
+}
+
 static int32_t rt_resolve_nexus(rt_nexus_t *nexus)
 {
+   rt_update_inputs(nexus);
+
    void *resolved = rt_call_resolution_fn(nexus);
    const size_t valuesz = nexus->size * nexus->width;
 
@@ -2223,15 +2387,12 @@ static void rt_driver_initial(rt_nexus_t *nexus)
 
    // Assign the initial value of the drivers
    for (unsigned i = 0; i < nexus->n_sources; i++) {
-      waveform_t *dummy = rt_alloc(waveform_stack);
-      dummy->when   = 0;
-      dummy->next   = NULL;
-      dummy->values = rt_alloc_value(nexus);
-      memcpy(dummy->values->data, nexus->resolved, valuesz);
-
-      RT_ASSERT(nexus->sources[i].waveforms == NULL);
-      nexus->sources[i].waveforms = dummy;
+      rt_source_t *s = &(nexus->sources[i]);
+      if (s->proc != NULL)  // Driver not port source
+         memcpy(s->waveforms->values->data, nexus->resolved, valuesz);
    }
+
+   rt_update_inputs(nexus);
 
    void *resolved;
    if (nexus->n_sources > 0) {
@@ -2243,7 +2404,9 @@ static void rt_driver_initial(rt_nexus_t *nexus)
       nexus->last_event = nexus->last_active = INT64_MAX;    // TIME'HIGH
    }
 
-   // This is necessary to update signals with non-contiguous memory
+   TRACE("%s rank %d initial value %s", istr(e_ident(nexus->enode)),
+         nexus->rank, fmt_nexus(nexus, resolved));
+
    rt_propagate_nexus(nexus, resolved);
 }
 
@@ -2262,8 +2425,12 @@ static void rt_initial(e_node_t top)
 
    init_side_effect = SIDE_EFFECT_ALLOW;
 
-   for (unsigned i = 0; i < n_nexuses; i++)
-      rt_driver_initial(&(nexuses[i]));
+   for (int rank = 0; rank <= highest_rank; rank++) {
+      for (unsigned i = 0; i < n_nexuses; i++) {
+         if (nexuses[i].rank == rank)
+            rt_driver_initial(&(nexuses[i]));
+      }
+   }
 
    TRACE("used %d bytes of global temporary stack", global_tmp_alloc);
 }
@@ -2385,22 +2552,12 @@ static void rt_update_nexus(rt_nexus_t *nexus)
    const int32_t new_flags = rt_resolve_nexus(nexus);
    nexus->flags |= new_flags;
 
-   TRACE("update nexus %s resolved=%s", istr(e_ident(nexus->enode)),
-         fmt_nexus(nexus, nexus->resolved));
-
-   if (unlikely(n_active_nexus == n_active_alloc)) {
-      n_active_alloc *= 2;
-      const size_t newsz = n_active_alloc * sizeof(struct netgroup *);
-      active_nexus = xrealloc(active_nexus, newsz);
-   }
-   active_nexus[n_active_nexus++] = nexus;
+   TRACE("update nexus %s rank %d resolved=%s", istr(e_ident(nexus->enode)),
+         nexus->rank, fmt_nexus(nexus, nexus->resolved));
 
    // Wake up any processes sensitive to this nexus
    if (new_flags & NET_F_EVENT) {
-      sens_list_t *it, *last = NULL, *next = NULL;
-
-      (void)next;
-      (void)last;
+      sens_list_t *it = NULL, *next = NULL;
 
       // First wakeup everything on the nexus specific pending list
       for (it = nexus->pending; it != NULL; it = next) {
@@ -2417,6 +2574,25 @@ static void rt_update_nexus(rt_nexus_t *nexus)
             callbacks = wl->watch;
          }
       }
+   }
+}
+
+static void rt_push_active_nexus(rt_nexus_t *nexus)
+{
+   if (unlikely(n_active_nexus == n_active_alloc)) {
+      n_active_alloc *= 2;
+      const size_t newsz = n_active_alloc * sizeof(struct netgroup *);
+      active_nexus = xrealloc(active_nexus, newsz);
+   }
+   active_nexus[n_active_nexus++] = nexus;
+
+   for (unsigned i = 0; i < nexus->n_outputs; i++) {
+      rt_source_t *o = nexus->outputs[i];
+      TRACE("active nexus %s rank %d sources nexus %s rank %d",
+            istr(e_ident(nexus->enode)), nexus->rank,
+            istr(e_ident(o->output->enode)), o->output->rank);
+      RT_ASSERT(nexus->rank < o->output->rank);
+      rt_push_active_nexus(o->output);
    }
 }
 
@@ -2438,14 +2614,13 @@ static void rt_update_driver(rt_nexus_t *nexus, rt_proc_t *proc)
          nexus->sources[driver].waveforms = w_next;
          rt_free_value(nexus, w_now->values);
          rt_free(waveform_stack, w_now);
-         rt_update_nexus(nexus);
+         rt_push_active_nexus(nexus);
       }
       else
          RT_ASSERT(w_now != NULL);
    }
    else if (nexus->flags & NET_F_FORCED)
-      rt_update_nexus(nexus);
-
+      rt_push_active_nexus(nexus);
 }
 
 static bool rt_stale_event(event_t *e)
@@ -2453,38 +2628,37 @@ static bool rt_stale_event(event_t *e)
    return (e->kind == EVENT_PROCESS) && (e->wakeup_gen != e->proc->wakeup_gen);
 }
 
-static void rt_push_run_queue(event_t *e)
+static void rt_push_run_queue(rt_run_queue_t *q, event_t *e)
 {
-   if (unlikely(run_queue.wr == run_queue.alloc)) {
-      if (run_queue.alloc == 0) {
-         run_queue.alloc = 128;
-         run_queue.queue = xmalloc_array(run_queue.alloc, sizeof(event_t *));
+   if (unlikely(q->wr == q->alloc)) {
+      if (q->alloc == 0) {
+         q->alloc = 128;
+         q->queue = xmalloc_array(q->alloc, sizeof(event_t *));
       }
       else {
-         run_queue.alloc *= 2;
-         run_queue.queue = xrealloc_array(run_queue.queue, run_queue.alloc,
-                                          sizeof(event_t *));
+         q->alloc *= 2;
+         q->queue = xrealloc_array(q->queue, q->alloc, sizeof(event_t *));
       }
    }
 
    if (unlikely(rt_stale_event(e)))
       rt_free(event_stack, e);
    else {
-      run_queue.queue[(run_queue.wr)++] = e;
+      q->queue[(q->wr)++] = e;
       if (e->kind == EVENT_PROCESS)
          ++(e->proc->wakeup_gen);
    }
 }
 
-static event_t *rt_pop_run_queue(void)
+static event_t *rt_pop_run_queue(rt_run_queue_t *q)
 {
-   if (run_queue.wr == run_queue.rd) {
-      run_queue.wr = 0;
-      run_queue.rd = 0;
+   if (q->wr == q->rd) {
+      q->wr = 0;
+      q->rd = 0;
       return NULL;
    }
    else
-      return run_queue.queue[(run_queue.rd)++];
+      return q->queue[(q->rd)++];
 }
 
 static void rt_iteration_limit(void)
@@ -2587,10 +2761,10 @@ static void rt_cycle(int stop_delta)
 
    if (is_delta_cycle) {
       for (event_t *e = delta_driver; e != NULL; e = e->delta_chain)
-         rt_push_run_queue(e);
+         rt_push_run_queue(&driverq, e);
 
       for (event_t *e = delta_proc; e != NULL; e = e->delta_chain)
-         rt_push_run_queue(e);
+         rt_push_run_queue(&procq, e);
 
       delta_driver = NULL;
       delta_proc = NULL;
@@ -2599,7 +2773,12 @@ static void rt_cycle(int stop_delta)
       rt_global_event(RT_NEXT_TIME_STEP);
 
       for (;;) {
-         rt_push_run_queue(heap_extract_min(eventq_heap));
+         event_t *e = heap_extract_min(eventq_heap);
+         switch (e->kind) {
+         case EVENT_PROCESS: rt_push_run_queue(&procq, e); break;
+         case EVENT_DRIVER:  rt_push_run_queue(&driverq, e); break;
+         case EVENT_TIMEOUT: rt_push_run_queue(&timeoutq, e); break;
+         }
 
          if (heap_size(eventq_heap) == 0)
             break;
@@ -2611,7 +2790,7 @@ static void rt_cycle(int stop_delta)
    }
 
    if (profiling) {
-      const uint32_t nevents = run_queue.wr;
+      const uint32_t nevents = procq.wr + driverq.wr + timeoutq.wr;
 
       profile.deltas++;
       profile.runq_min = MIN(profile.runq_min, nevents);
@@ -2620,19 +2799,26 @@ static void rt_cycle(int stop_delta)
    }
 
    event_t *event;
-   while ((event = rt_pop_run_queue())) {
-      switch (event->kind) {
-      case EVENT_PROCESS:
-         rt_run(event->proc);
-         break;
-      case EVENT_DRIVER:
-         rt_update_driver(event->nexus, event->proc);
-         break;
-      case EVENT_TIMEOUT:
-         (*event->timeout_fn)(now, event->timeout_user);
-         break;
-      }
 
+   while ((event = rt_pop_run_queue(&timeoutq))) {
+      (*event->timeout_fn)(now, event->timeout_user);
+      rt_free(event_stack, event);
+   }
+
+   while ((event = rt_pop_run_queue(&driverq))) {
+      rt_update_driver(event->nexus, event->proc);
+      rt_free(event_stack, event);
+   }
+
+   for (int rank = 0; rank <= highest_rank; rank++) {
+      for (unsigned i = 0; i < n_active_nexus; i++) {
+         if (active_nexus[i]->rank == rank)
+            rt_update_nexus(active_nexus[i]);
+      }
+   }
+
+   while ((event = rt_pop_run_queue(&procq))) {
+      rt_run(event->proc);
       rt_free(event_stack, event);
    }
 
@@ -2685,6 +2871,7 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
    }
    free(n->sources);
 
+   free(n->outputs);
    free(n->signals);
    free(n->offsets);
 

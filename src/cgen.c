@@ -298,6 +298,16 @@ static LLVMTypeRef llvm_resolution_type(void)
    return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
 }
 
+static LLVMTypeRef llvm_closure_type(void)
+{
+   LLVMTypeRef struct_elems[] = {
+      llvm_void_ptr(),     // Function pointer
+      llvm_void_ptr(),     // Context pointer
+      LLVMInt32Type(),     // FFI spec
+   };
+   return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
+}
+
 static void llvm_add_module_flag(const char *key, int value)
 {
    LLVMAddModuleFlag(module, LLVMModuleFlagBehaviorWarning,
@@ -446,6 +456,9 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
 
    case VCODE_TYPE_RESOLUTION:
       return llvm_resolution_type();
+
+   case VCODE_TYPE_CLOSURE:
+      return llvm_closure_type();
 
    default:
       fatal("cannot convert vcode type %d to LLVM", vtype_kind(type));
@@ -2042,7 +2055,7 @@ static LLVMValueRef cgen_pointer_to_arg_data(int op, int arg,
 {
    const vtype_kind_t kind = vcode_reg_kind(vcode_get_arg(op, arg));
    if (kind == VCODE_TYPE_INT || kind == VCODE_TYPE_REAL
-       || kind == VCODE_TYPE_RESOLUTION) {
+       || kind == VCODE_TYPE_RESOLUTION || kind == VCODE_TYPE_CLOSURE) {
       // Need to get a pointer to the data
       LLVMValueRef scalar = cgen_get_arg(op, arg, ctx);
       *alloca_type = LLVMTypeOf(scalar);
@@ -2139,6 +2152,58 @@ static void cgen_op_resolution_wrapper(int op, cgen_ctx_t *ctx)
    rdata = LLVMBuildInsertValue(builder, rdata, nlits, 4, "");
 
    ctx->regs[result] = rdata;
+}
+
+static rt_ffi_type_t cgen_ffi_type(vcode_type_t type)
+{
+   switch (vtype_kind(type)) {
+   case VCODE_TYPE_INT:
+   case VCODE_TYPE_OFFSET:
+      return RT_FFI_INT;
+   case VCODE_TYPE_REAL:
+      return RT_FFI_FLOAT;
+   case VCODE_TYPE_CARRAY:
+   case VCODE_TYPE_RECORD:
+   case VCODE_TYPE_POINTER:
+      return RT_FFI_POINTER;
+   case VCODE_TYPE_UARRAY:
+      return RT_FFI_UARRAY;
+   default:
+      fatal_trace("cannot handle type %d in cgen_ffi_type", vtype_kind(type));
+   }
+}
+
+static void cgen_op_closure(int op, cgen_ctx_t *ctx)
+{
+   ident_t func = vcode_get_func(op);
+   vcode_reg_t result = vcode_get_result(op);
+
+   vcode_type_t rtype = vtype_base(vcode_reg_type(result));
+   vcode_type_t atype = vcode_get_type(op);
+
+   LLVMValueRef fn = cgen_signature(func, VCODE_INVALID_TYPE, VCODE_CC_VHDL,
+                                    NULL, NULL, 0);
+   if (fn == NULL) {
+      // The function is not visible yet e.g. because it is declared in
+      // another package
+      vcode_type_t args[] = { atype };
+      LLVMTypeRef display_type = cgen_display_type_for_call(op, ctx);
+      fn = cgen_signature(func, rtype, VCODE_CC_VHDL, display_type, args, 1);
+   }
+
+   rt_ffi_spec_t spec = {
+      .atype = cgen_ffi_type(atype),
+      .rtype = cgen_ffi_type(rtype)
+   };
+
+   LLVMValueRef display = cgen_display_for_call(op, ctx);
+
+   LLVMValueRef cdata = LLVMGetUndef(llvm_closure_type());
+   cdata = LLVMBuildInsertValue(builder, cdata, llvm_void_cast(fn), 0, "");
+   cdata = LLVMBuildInsertValue(builder, cdata, llvm_void_cast(display), 1, "");
+   cdata = LLVMBuildInsertValue(builder, cdata, llvm_int32(spec.bits), 2, "");
+
+   ctx->regs[result] = cdata;
 }
 
 static void cgen_net_flag(int op, net_flags_t flag, cgen_ctx_t *ctx)
@@ -2494,8 +2559,7 @@ static void cgen_op_last_active(int op, cgen_ctx_t *ctx)
 static void cgen_op_driving(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef length =
-      vcode_count_args(op) > 1 ? cgen_get_arg(op, 1, ctx) : llvm_int32(1);
+   LLVMValueRef length = cgen_get_arg(op, 1, ctx);
 
    LLVMValueRef args[] = {
       LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
@@ -3003,28 +3067,6 @@ static void cgen_op_init_signal(int op, cgen_ctx_t *ctx)
       llvm_lifetime_end(initval, alloca_type);
 }
 
-static void cgen_op_map_signal(int op, cgen_ctx_t *ctx)
-{
-   if (vcode_count_args(op) < 4)
-      return;   // Not a source, nothing to do
-
-   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
-
-   LLVMTypeRef alloca_type;
-   LLVMValueRef initval = cgen_pointer_to_arg_data(op, 3, &alloca_type, ctx);
-
-   LLVMValueRef args[] = {
-      LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
-      LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
-      cgen_get_arg(op, 2, ctx),
-      llvm_void_cast(initval),
-   };
-   LLVMBuildCall(builder, llvm_fn("_source_signal"), args, ARRAY_LEN(args), "");
-
-   if (alloca_type != NULL)
-      llvm_lifetime_end(initval, alloca_type);
-}
-
 static void cgen_op_link_signal(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -3084,6 +3126,28 @@ static void cgen_op_link_var(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMBuildPointerCast(builder, raw_ptr,
                                             cgen_type(vcode_reg_type(result)),
                                             cgen_reg_name(result));
+}
+
+static void cgen_op_map_signal(int op, cgen_ctx_t *ctx)
+{
+   if (vcode_count_args(op) < 5)
+      return;
+
+   LLVMTypeRef alloca_type = NULL;
+   LLVMValueRef closure = cgen_pointer_to_arg_data(op, 4, &alloca_type, ctx);
+
+   LLVMValueRef sigptr = cgen_get_arg(op, 1, ctx);
+
+   LLVMValueRef args[] = {
+      LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
+      LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
+      cgen_get_arg(op, 3, ctx),
+      closure
+   };
+   LLVMBuildCall(builder, llvm_fn("_convert_signal"),
+                 args, ARRAY_LEN(args), "");
+
+   llvm_lifetime_end(closure, alloca_type);
 }
 
 static void cgen_op(int i, cgen_ctx_t *ctx)
@@ -3379,6 +3443,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_RESOLUTION_WRAPPER:
       cgen_op_resolution_wrapper(i, ctx);
+      break;
+   case VCODE_OP_CLOSURE:
+      cgen_op_closure(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -4051,19 +4118,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 6);
       cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 6);
    }
-   else if (strcmp(name, "_source_signal") == 0) {
-      LLVMTypeRef args[] = {
-         LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type(),
-         llvm_void_ptr(),
-      };
-      fn = LLVMAddFunction(module, "_source_signal",
-                           LLVMFunctionType(LLVMVoidType(),
-                                            args, ARRAY_LEN(args), false));
-      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
-      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 4);
-   }
    else if (strcmp(name, "_link_signal") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(LLVMInt8Type(), 0)
@@ -4341,6 +4395,17 @@ static LLVMValueRef cgen_support_fn(const char *name)
       };
       fn = LLVMAddFunction(module, "_driving_value",
                            LLVMFunctionType(llvm_void_ptr(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_convert_signal") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMPointerType(llvm_closure_type(), 0),
+      };
+      fn = LLVMAddFunction(module, "_convert_signal",
+                           LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_value_attr") == 0) {

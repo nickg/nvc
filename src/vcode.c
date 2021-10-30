@@ -35,7 +35,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_TYPE(x)                                                  \
    (x == VCODE_OP_BOUNDS || x == VCODE_OP_ALLOCA  || x == VCODE_OP_COPY \
     || x == VCODE_OP_INDEX_CHECK || x == VCODE_OP_CONST                 \
-    || x == VCODE_OP_CAST || x == VCODE_OP_CONST_RECORD)
+    || x == VCODE_OP_CAST || x == VCODE_OP_CONST_RECORD                 \
+    || x == VCODE_OP_CLOSURE)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
@@ -46,12 +47,13 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_ALLOCA || x == VCODE_OP_COVER_COND                 \
     || x == VCODE_OP_ARRAY_SIZE || x == VCODE_OP_PCALL                  \
     || x == VCODE_OP_NESTED_FCALL || x == VCODE_OP_NESTED_PCALL         \
-    || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER)
+    || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
+    || x == VCODE_OP_CLOSURE)
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_NESTED_FCALL                   \
     || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME                      \
     || x == VCODE_OP_NESTED_PCALL || x == VCODE_OP_NESTED_RESUME        \
-    || x == VCODE_OP_RESOLUTION_WRAPPER)
+    || x == VCODE_OP_RESOLUTION_WRAPPER || x == VCODE_OP_CLOSURE)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_SIGNAL || x == VCODE_OP_LINK_VAR)
 #define OP_HAS_REAL(x)                                                  \
@@ -966,7 +968,7 @@ const char *vcode_op_string(vcode_op_t op)
       "undefined", "image map", "range null", "var upref", "link signal",
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
-      "driving value", "address of",
+      "driving value", "address of", "closure"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1090,6 +1092,12 @@ static int vcode_dump_one_type(vcode_type_t type)
 
    case VCODE_TYPE_RESOLUTION:
       col += printf("R<");
+      col += vcode_dump_one_type(vt->base);
+      col += printf(">");
+      break;
+
+   case VCODE_TYPE_CLOSURE:
+      col += printf("C<");
       col += vcode_dump_one_type(vt->base);
       col += printf(">");
       break;
@@ -1330,11 +1338,19 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[0]);
                printf(" to ");
                vcode_dump_reg(op->args.items[1]);
-               printf(" count ");
-               vcode_dump_reg(op->args.items[2]);
-               if (op->args.count > 3) {
-                  printf(" source ");
+               if (op->args.items[2] == op->args.items[3]) {
+                  printf(" count ");
+                  vcode_dump_reg(op->args.items[2]);
+               }
+               else {
+                  printf(" src count ");
+                  vcode_dump_reg(op->args.items[2]);
+                  printf(" dst count ");
                   vcode_dump_reg(op->args.items[3]);
+               }
+               if (op->args.count > 4) {
+                  printf(" conv ");
+                  vcode_dump_reg(op->args.items[4]);
                }
             }
             break;
@@ -1372,6 +1388,16 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                                    vcode_op_string(op->kind),
                                    istr(op->func));
                col += vcode_dump_reg(op->args.items[0]);
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_CLOSURE:
+            {
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s $magenta$%s$$",
+                                   vcode_op_string(op->kind),
+                                   istr(op->func));
                vcode_dump_result_type(col, op);
             }
             break;
@@ -1720,6 +1746,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
          case VCODE_OP_ACTIVE:
          case VCODE_OP_EVENT:
+         case VCODE_OP_DRIVING:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
@@ -1947,7 +1974,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_VALUE:
          case VCODE_OP_LAST_EVENT:
          case VCODE_OP_LAST_ACTIVE:
-         case VCODE_OP_DRIVING:
          case VCODE_OP_DRIVING_VALUE:
             {
                col += vcode_dump_reg(op->result);
@@ -2162,6 +2188,7 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       case VCODE_TYPE_OPAQUE:
          return true;
       case VCODE_TYPE_RESOLUTION:
+      case VCODE_TYPE_CLOSURE:
       case VCODE_TYPE_SIGNAL:
       case VCODE_TYPE_FILE:
          return vtype_eq(at->base, bt->base);
@@ -2199,6 +2226,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    case VCODE_TYPE_OFFSET:
    case VCODE_TYPE_FILE:
    case VCODE_TYPE_RESOLUTION:
+   case VCODE_TYPE_CLOSURE:
    case VCODE_TYPE_IMAGE_MAP:
    case VCODE_TYPE_OPAQUE:
       return false;
@@ -2380,6 +2408,17 @@ vcode_type_t vtype_resolution(vcode_type_t base)
    return vtype_new(n);
 }
 
+vcode_type_t vtype_closure(vcode_type_t result)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind = VCODE_TYPE_CLOSURE;
+   n->base = result;
+
+   return vtype_new(n);
+}
+
 vcode_type_t vtype_file(vcode_type_t base)
 {
    assert(active_unit != NULL);
@@ -2463,7 +2502,8 @@ vcode_type_t vtype_base(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
    assert(vt->kind == VCODE_TYPE_SIGNAL || vt->kind == VCODE_TYPE_FILE
-          || vt->kind == VCODE_TYPE_RESOLUTION);
+          || vt->kind == VCODE_TYPE_RESOLUTION
+          || vt->kind == VCODE_TYPE_CLOSURE);
    return vt->base;
 }
 
@@ -4162,22 +4202,30 @@ void emit_init_signal(vcode_reg_t signal, vcode_reg_t value, vcode_reg_t count,
                 "resolution wrapper argument has wrong type");
 }
 
-void emit_map_signal(vcode_reg_t dst, vcode_reg_t src, vcode_reg_t count,
-                     vcode_reg_t source)
+void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
+                     vcode_reg_t dst_count, vcode_reg_t conv)
 {
    op_t *op = vcode_add_op(VCODE_OP_MAP_SIGNAL);
-   vcode_add_arg(op, dst);
    vcode_add_arg(op, src);
-   vcode_add_arg(op, count);
-   if (source != VCODE_INVALID_REG)
-      vcode_add_arg(op, source);
+   vcode_add_arg(op, dst);
+   vcode_add_arg(op, src_count);
+   vcode_add_arg(op, dst_count);
+   if (conv != VCODE_INVALID_REG)
+      vcode_add_arg(op, conv);
 
-   VCODE_ASSERT(vcode_reg_kind(dst) == VCODE_TYPE_SIGNAL,
-                "dst argument to map signal is not a signal");
    VCODE_ASSERT(vcode_reg_kind(src) == VCODE_TYPE_SIGNAL,
                 "src argument to map signal is not a signal");
-   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
-                "count argument type to map signal is not offset");
+   VCODE_ASSERT(vcode_reg_kind(dst) == VCODE_TYPE_SIGNAL,
+                "dst argument to map signal is not a signal");
+   VCODE_ASSERT(vcode_reg_kind(src_count) == VCODE_TYPE_OFFSET,
+                "src count argument type to map signal is not offset");
+   VCODE_ASSERT(vcode_reg_kind(dst_count) == VCODE_TYPE_OFFSET,
+                "dst count argument type to map signal is not offset");
+   VCODE_ASSERT(conv != VCODE_INVALID_REG || dst_count == src_count ,
+                "dst count must equal src count without conversion");
+   VCODE_ASSERT(conv == VCODE_INVALID_REG
+                || vcode_reg_kind(conv) == VCODE_TYPE_CLOSURE,
+                "conv argument type to map signal is not closure");
 }
 
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)
@@ -4208,6 +4256,21 @@ vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
    op->subkind = VCODE_CC_VHDL;
 
    return (op->result = vcode_add_reg(vtype_resolution(type)));
+}
+
+vcode_reg_t emit_closure(ident_t func, vcode_type_t atype, vcode_type_t rtype)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CLOSURE) {
+      if (other->func == func && other->subkind == VCODE_CC_VHDL)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_CLOSURE);
+   op->func    = func;
+   op->subkind = VCODE_CC_VHDL;
+   op->type    = atype;
+
+   return (op->result = vcode_add_reg(vtype_closure(rtype)));
 }
 
 static vcode_reg_t emit_signal_flag(vcode_op_t opkind, vcode_reg_t nets,
@@ -4684,17 +4747,15 @@ vcode_reg_t emit_last_active(vcode_reg_t signal, vcode_reg_t len)
    return (op->result = vcode_add_reg(vtype_time()));
 }
 
-vcode_reg_t emit_driving(vcode_reg_t signal, vcode_reg_t len)
+vcode_reg_t emit_driving_flag(vcode_reg_t signal, vcode_reg_t len)
 {
    op_t *op = vcode_add_op(VCODE_OP_DRIVING);
    vcode_add_arg(op, signal);
-   if (len != VCODE_INVALID_REG)
-      vcode_add_arg(op, len);
+   vcode_add_arg(op, len);
 
    VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
                 "signal argument to last active must have signal type");
-   VCODE_ASSERT(len == VCODE_INVALID_REG
-                || vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
+   VCODE_ASSERT(vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
                 "length argument to last active must have offset type");
 
    return (op->result = vcode_add_reg(vtype_bool()));
@@ -5142,6 +5203,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
       case VCODE_TYPE_FILE:
       case VCODE_TYPE_SIGNAL:
       case VCODE_TYPE_RESOLUTION:
+      case VCODE_TYPE_CLOSURE:
          write_u32(t->base, f);
          break;
 
@@ -5341,6 +5403,7 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
       case VCODE_TYPE_FILE:
       case VCODE_TYPE_SIGNAL:
       case VCODE_TYPE_RESOLUTION:
+      case VCODE_TYPE_CLOSURE:
          t->base = read_u32(f);
          break;
 

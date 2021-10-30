@@ -3715,8 +3715,9 @@ START_TEST(test_instance1)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 5 },
       { VCODE_OP_ADDRESS_OF },
-      { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_INIT_SIGNAL },   // Redundant, could be optimised out
       { VCODE_OP_INIT_SIGNAL },
       { VCODE_OP_RETURN }
    };

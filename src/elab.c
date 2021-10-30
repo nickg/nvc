@@ -216,9 +216,6 @@ static tree_t rewrite_refs(tree_t t, void *context)
          // Fall-through
       case T_REF:
          return params->items[i].actual;
-      case T_TYPE_CONV:
-         // XXX: this only works in trivial cases
-         return tree_value(params->items[i].actual);
       default:
          fatal_at(tree_loc(params->items[i].actual),
                   "cannot handle tree kind %s in rewrite_refs",
@@ -682,13 +679,28 @@ static void elab_ports(tree_t entity, tree_t inst, elab_ctx_t *ctx)
             tree_t m = tree_param(inst, j);
             if (tree_subkind(m) == P_NAMED) {
                tree_t name = tree_name(m);
-               tree_t ref  = name_to_ref(name);
+               bool is_conv = false;
+
+               switch (tree_kind(name)) {
+               case T_TYPE_CONV:
+                  is_conv = true;
+                  name = tree_value(name);
+                  break;
+               case T_FCALL:
+                  is_conv = true;
+                  name = tree_value(tree_param(name, 0));
+                  break;
+               default:
+                  break;
+               }
+
+               tree_t ref = name_to_ref(name);
                assert(ref != NULL);
 
                if (tree_ident(ref) != pname)
                   continue;
 
-               if (!have_named && ref == name) {
+               if (!have_named && !is_conv && ref == name) {
                   map = tree_new(T_PARAM);
                   tree_set_loc(map, tree_loc(m));
                   tree_set_subkind(map, P_POS);

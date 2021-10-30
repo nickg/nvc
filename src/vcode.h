@@ -137,6 +137,7 @@ typedef enum {
    VCODE_OP_DRIVING,
    VCODE_OP_DRIVING_VALUE,
    VCODE_OP_ADDRESS_OF,
+   VCODE_OP_CLOSURE,
 } vcode_op_t;
 
 typedef enum {
@@ -152,7 +153,8 @@ typedef enum {
    VCODE_TYPE_REAL,
    VCODE_TYPE_IMAGE_MAP,
    VCODE_TYPE_OPAQUE,
-   VCODE_TYPE_RESOLUTION
+   VCODE_TYPE_RESOLUTION,
+   VCODE_TYPE_CLOSURE,
 } vtype_kind_t;
 
 typedef enum {
@@ -235,6 +237,7 @@ vcode_type_t vtype_named_record(ident_t name, const vcode_type_t *field_types,
                                 int nfields);
 vcode_type_t vtype_file(vcode_type_t base);
 vcode_type_t vtype_resolution(vcode_type_t base);
+vcode_type_t vtype_closure(vcode_type_t result);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
@@ -441,7 +444,7 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
 vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, vcode_reg_t map);
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);
 vcode_reg_t emit_last_active(vcode_reg_t signal, vcode_reg_t len);
-vcode_reg_t emit_driving(vcode_reg_t signal, vcode_reg_t len);
+vcode_reg_t emit_driving_flag(vcode_reg_t signal, vcode_reg_t len);
 vcode_reg_t emit_driving_value(vcode_reg_t signal, vcode_reg_t len);
 void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, bounds_kind_t kind,
                      const char *hint);
@@ -465,10 +468,11 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
                             vcode_reg_t dir);
 vcode_reg_t emit_link_signal(ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_var(ident_t name, vcode_type_t type);
-void emit_map_signal(vcode_reg_t dst, vcode_reg_t src, vcode_reg_t count,
-                     vcode_reg_t source);
+void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
+                     vcode_reg_t dst_count, vcode_reg_t conv);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
 vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
                                     vcode_reg_t ileft, vcode_reg_t nlits);
+vcode_reg_t emit_closure(ident_t func, vcode_type_t atype, vcode_type_t rtype);
 
 #endif  // _VCODE_H

@@ -403,4 +403,15 @@ vests9          normal
 bounds21        fail,gold
 issue228        fail,gold,gG=10
 vests10         normal
+vests11         normal
+vests12         normal
 vests13         normal
+elab26          normal
+conv2           normal
+conv3           normal
+conv4           normal
+conv5           normal
+bounds22        fail,gold
+bounds23        fail,gold
+vests14         normal
+conv6           normal

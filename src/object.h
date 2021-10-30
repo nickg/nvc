@@ -95,6 +95,7 @@ typedef uint64_t imask_t;
 #define I_VCODE      ONE_HOT(58)
 #define I_PRIMARY    ONE_HOT(59)
 #define I_SOURCES    ONE_HOT(60)
+#define I_OUTPUTS    ONE_HOT(61)
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2 | I_PATH | I_VCODE)
 #define ITEM_OBJECT      (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET   \
@@ -106,7 +107,7 @@ typedef uint64_t imask_t;
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_ELSES    \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
-                          | I_LITERALS | I_FIELDS                       \
+                          | I_LITERALS | I_FIELDS | I_OUTPUTS           \
                           | I_UNITS | I_CHARS | I_DIMS | I_RANGES       \
                           | I_PTYPES | I_INDEXCON | I_SIGNALS | I_PROCS \
                           | I_NEXUS | I_SCOPES | I_SOURCES)

@@ -1006,6 +1006,11 @@ static void bounds_check_block(tree_t t)
       }
       else {
          tree_t name = tree_name(m);
+
+         // Skip output conversions
+         const tree_kind_t kind = tree_kind(name);
+         if (kind == T_TYPE_CONV || kind == T_FCALL) return;
+
          port = tree_ref(name_to_ref(name));
          ftype = tree_type(name);
          is_subelement = tree_kind(name) != T_REF;
