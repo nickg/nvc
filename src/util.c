@@ -81,8 +81,6 @@
 #include <mach/mach.h>
 #endif
 
-#define SIGNAL_STACK_SZ MAX(SIGSTKSZ, 262144)
-
 #define N_TRACE_DEPTH   16
 #define ERROR_SZ        1024
 #define PAGINATE_RIGHT  72
@@ -1002,17 +1000,10 @@ void register_signal_handlers(void)
 #else
    (void)is_debugger_running();    // Caches the result
 
-   stack_t ss;
-   ss.ss_sp    = mmap_guarded(SIGNAL_STACK_SZ, "signal stack");
-   ss.ss_size  = SIGNAL_STACK_SZ;
-   ss.ss_flags = 0;
-   if (sigaltstack(&ss, NULL) == -1)
-      fatal_errno("sigaltstack");
-
    struct sigaction sa;
    sa.sa_sigaction = signal_handler;
    sigemptyset(&sa.sa_mask);
-   sa.sa_flags = SA_RESTART | SA_SIGINFO | SA_ONSTACK;
+   sa.sa_flags = SA_RESTART | SA_SIGINFO;
 
    sigaction(SIGSEGV, &sa, NULL);
    sigaction(SIGUSR1, &sa, NULL);
