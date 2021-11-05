@@ -2316,6 +2316,29 @@ START_TEST(test_driving)
 }
 END_TEST
 
+START_TEST(test_error1)
+{
+   input_from_file(TESTDIR "/sem/error1.vhd");
+
+   // There are probably too many errors generated here
+   const error_t expect[] = {
+      { 25, "unexpected ; while parsing port map aspect, expecting" },
+      { 26, "unexpected , while parsing concurrent procedure call statement" },
+      { 27, "no visible subprogram declaration for Y" },
+      { 27, "unexpected , while parsing concurrent procedure call statement" },
+      { 28, "no visible subprogram declaration for Z" },
+      { 28, "no visible subprogram declaration for B" },
+      { 23, "missing actual for formal Y of mode IN without a default" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2431,6 +2454,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_osvvm3);
    tcase_add_test(tc_core, test_murax);
    tcase_add_test(tc_core, test_driving);
+   tcase_add_test(tc_core, test_error1);
    suite_add_tcase(s, tc_core);
 
    return s;

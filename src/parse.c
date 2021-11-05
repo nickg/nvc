@@ -470,6 +470,7 @@ static void _vexpect(va_list ap)
    n_correct = 0;
 
    drop_token();
+   suppress_errors(nametab);
 }
 
 static void _expect(int dummy, ...)
@@ -574,6 +575,13 @@ static ident_t error_marker(void)
 {
    static ident_t id = NULL;
    return id ?: (id = ident_new("error"));
+}
+
+static tree_t error_expr(void)
+{
+   tree_t t = tree_new(T_OPEN);
+   tree_set_type(t, type_new(T_NONE));
+   return t;
 }
 
 static tree_t find_unit(const loc_t *where, ident_t name, const char *hint)
@@ -2893,7 +2901,7 @@ static tree_t p_literal(void)
 
    default:
       expect(tNULL, tINT, tREAL);
-      return tree_new(T_OPEN);
+      return error_expr();
    }
 }
 
@@ -3129,7 +3137,7 @@ static tree_t p_primary(void)
 
    default:
       expect(tLPAREN, tINT, tREAL, tNULL, tID, tSTRING, tBITSTRING, tNEW);
-      return tree_new(T_OPEN);
+      return error_expr();
    }
 }
 

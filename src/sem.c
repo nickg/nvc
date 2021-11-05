@@ -2123,9 +2123,10 @@ static bool sem_check_pcall(tree_t t)
    if (kind == T_FUNC_DECL || kind == T_FUNC_BODY)
       sem_error(t, "function %s cannot be called as a procedure",
                 istr(tree_ident2(t)));
-
-   // All other errors should be caught at parsing stage
-   assert(kind == T_PROC_DECL || kind == T_PROC_BODY);
+   else if (kind != T_PROC_DECL && kind != T_PROC_BODY) {
+      // All other errors should be caught at parsing stage
+      return false;
+   }
 
    if (!sem_check_call_args(t, decl))
       return false;
