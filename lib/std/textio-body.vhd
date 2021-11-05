@@ -149,14 +149,18 @@ package body textio is
         variable char     : character;
     begin
         good := true;
-        skip_whitespace(l);
 
-        for i in value'range loop
-            if l.all'length < consumed then
-                good := false;
-                exit;
-            end if;
-            char := l.all(consumed + 1);
+        outer: for i in value'range loop
+            loop
+                if l.all'length < consumed then
+                    good := false;
+                    exit outer;
+                end if;
+                char := l.all(consumed + 1);
+                exit when not is_whitespace(char);
+                consumed := consumed + 1;
+            end loop;
+
             if char = '0' then
                 value(i) := '0';
             elsif char = '1' then

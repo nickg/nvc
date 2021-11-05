@@ -163,6 +163,7 @@ begin
     check_bit_vector: process is
         variable l : line;
         variable x : bit_vector(1 to 4);
+        variable y : bit_vector(7 downto 0);
         variable good : boolean;
         variable c : character;
     begin
@@ -171,13 +172,19 @@ begin
         assert good;
         assert x = "1010";
         assert l.all(l'left) = ' ';
-        read(l, x, good);
-        assert not good;
+        read(l, x(1 to 3), good);
+        assert good;
         assert l.all(l'left) = ' ';
         read(l, x, good);
         assert good;
         assert x = "1111";
         assert l.all(l'left) = '1';
+        deallocate(l);
+
+        l := new string'("1 1 0 0 0 0 1 1");
+        read(l, y, good);
+        assert good;
+        assert y = "11000011";
         deallocate(l);
         wait;
     end process;
