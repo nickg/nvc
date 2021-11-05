@@ -403,3 +403,4 @@ vests9          normal
 bounds21        fail,gold
 issue228        fail,gold,gG=10
 vests10         normal
+vests13         normal

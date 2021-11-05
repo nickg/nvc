@@ -2929,12 +2929,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       i_stride = emit_mul(i_loaded, stride);
 
    vcode_reg_t ptr_reg = emit_add(mem_reg, i_stride);
-   if (type_is_array(elem_type)) {
-      vcode_reg_t src_reg = lower_array_data(what);
-      vcode_reg_t length_reg = lower_array_total_len(elem_type, what);
-      emit_copy(ptr_reg, src_reg, length_reg);
-   }
-   else if (multidim) {
+   if (type_is_array(elem_type) || multidim) {
       vcode_reg_t src_reg = lower_array_data(what);
       emit_copy(ptr_reg, src_reg, stride);
    }
