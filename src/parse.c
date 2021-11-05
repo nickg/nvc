@@ -7572,16 +7572,15 @@ static void p_package_body_declarative_item(tree_t parent)
       break;
 
    case tATTRIBUTE:
+      if (peek_nth(3) == tOF)
+         p_attribute_specification(parent, tree_add_decl);
+      else
+         tree_add_decl(parent, p_attribute_declaration());
+
       if (standard() < STD_08)
-         parse_error(CURRENT_LOC, "package body may not contain attribute "
-                     "declarations or specifications in VHDL-%s",
-                     standard_text(standard()));
-      else {
-         if (peek_nth(3) == tOF)
-            p_attribute_specification(parent, tree_add_decl);
-         else
-            tree_add_decl(parent, p_attribute_declaration());
-      }
+         parse_error(tree_loc(tree_decl(parent, tree_decls(parent) - 1)),
+                     "package body may not contain attribute declarations or"
+                     " specifications in VHDL-%s", standard_text(standard()));
       break;
 
    case tTYPE:

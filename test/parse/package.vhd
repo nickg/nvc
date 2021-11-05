@@ -24,6 +24,9 @@ package body one is
 
     shared variable x : integer;
 
+    function foo return boolean;
+    attribute foreign of foo : function is "_foo";  -- Error
+
 end package body;
 
 -------------------------------------------------------------------------------

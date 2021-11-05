@@ -1147,6 +1147,7 @@ START_TEST(test_package)
    input_from_file(TESTDIR "/parse/package.vhd");
 
    const error_t expect[] = {
+      { 28, "package body may not contain attribute declarations" },
       { LINE_INVALID, "library FOO not found in:" },
       { -1, NULL }
    };
@@ -1171,11 +1172,15 @@ START_TEST(test_package)
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACK_BODY);
    fail_unless(tree_ident(p) == ident_new("WORK.ONE-body"));
-   fail_unless(tree_decls(p) == 2);
+   fail_unless(tree_decls(p) == 4);
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_FUNC_BODY);
    d = tree_decl(p, 1);
    fail_unless(tree_kind(d) == T_VAR_DECL);
+   d = tree_decl(p, 2);
+   fail_unless(tree_kind(d) == T_FUNC_DECL);
+   d = tree_decl(p, 3);
+   fail_unless(tree_kind(d) == T_ATTR_SPEC);
 
    p = parse();
    fail_if(p == NULL);
