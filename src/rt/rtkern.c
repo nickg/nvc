@@ -382,10 +382,8 @@ static char *fmt_nexus_r(rt_nexus_t *n, const void *values,
    const uint8_t *vptr = values;
 
    for (unsigned i = 0; i < n->size * n->width; i++) {
-      if (buf + max - p <= 4) {
-         p += checked_sprintf(p, buf + max - p, "...");
-         break;
-      }
+      if (buf + max - p <= 5)
+         return p + checked_sprintf(p, buf + max - p, "...");
       else
          p += checked_sprintf(p, buf + max - p, "%02x", *vptr++);
    }
@@ -408,16 +406,11 @@ static const char *fmt_values(rt_signal_t *s, const void *values,
    char *p = buf;
    const uint8_t *vptr = values;
    unsigned index = rt_signal_nexus_index(s, offset);
-   while (len > 0) {
+   while (len > 0 && buf + sizeof(buf) - p > 5)  {
       RT_ASSERT(index < s->n_nexus);
       rt_nexus_t *n = s->nexus[index++];
       len -= n->width;
       RT_ASSERT(len >= 0);
-
-      if (buf + sizeof(buf) - p <= 5) {
-         checked_sprintf(p, buf + sizeof(buf) - p, "...");
-         break;
-      }
 
       if (p > buf) p += checked_sprintf(p, buf + sizeof(buf) - p, ",");
 
