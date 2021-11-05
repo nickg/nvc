@@ -710,6 +710,8 @@ static void eopt_report_multiple_sources(e_node_t nexus)
 
 static void eopt_post_process_nexus(e_node_t root)
 {
+   e_node_t slast = NULL;
+   int next_lsb = 0;
    const int nnexus = e_nexuses(root);
    for (int i = 0; i < nnexus; i++) {
       e_node_t n = e_nexus(root, i);
@@ -734,11 +736,15 @@ static void eopt_post_process_nexus(e_node_t root)
       if (e_width(s0) == width) continue;
 
       int lsb = 0;
-      const int s0_nnexus = e_nexuses(s0);
-      for (int j = 0; j < s0_nnexus; j++) {
-         e_node_t nj = e_nexus(s0, j);
-         if (nj == n) break;
-         lsb += e_width(nj);
+      if (s0 == slast)
+         lsb = next_lsb;
+      else {
+         const int s0_nnexus = e_nexuses(s0);
+         for (int j = 0; j < s0_nnexus; j++) {
+            e_node_t nj = e_nexus(s0, j);
+            if (nj == n) break;
+            lsb += e_width(nj);
+         }
       }
 
       const int msb = lsb + width - 1;
@@ -749,6 +755,9 @@ static void eopt_post_process_nexus(e_node_t root)
          checked_sprintf(slice, sizeof(slice), "[%d:%d]", lsb, msb);
 
       e_set_ident(n, ident_prefix(e_ident(n), ident_new(slice), '\0'));
+
+      slast = s0;
+      next_lsb = msb + 1;
    }
 }
 

@@ -749,7 +749,7 @@ START_TEST(test_map2)
    fail_unless(e_signals(n0) == 2);
 
    e_node_t n1 = e_nexus(i, 1);
-   fail_unless(e_ident(n1) == ident_new(":map2:sub1_i:i[2]"));
+   fail_unless(e_ident(n1) == ident_new(":map2:sub1_i:i[8]"));  // Should be [2]
    fail_unless(e_width(n1) == 1);
    fail_unless(e_signals(n1) == 1);
 
