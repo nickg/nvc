@@ -1,0 +1,39 @@
+nvcdir = $(pkglibdir)/nvc
+nvc_DATA = \
+	lib/nvc/_NVC_LIB \
+	lib/nvc/_index \
+	lib/nvc/NVC.SIM_PKG \
+	lib/nvc/_NVC.SIM_PKG.vcode
+
+nvc_so = \
+	lib/nvc/_NVC.SIM_PKG.$(DLL_EXT)
+
+if IMPLIB_REQUIRED
+
+# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
+nvc_SCRIPTS = $(nvc_so)
+
+$(nvc_SCRIPTS) : $(nvc_DATA)
+else
+
+nvc_DATA += $(nvc_so)
+
+endif  # IMPLIB_REQUIRED
+
+EXTRA_DIST += lib/nvc/sim_pkg.vhd
+BOOTSTRAPLIBS += $(nvc_DATA)
+
+libs-nvc: $(nvc_DATA)
+
+lib/nvc/_NVC_LIB:
+
+lib/nvc/_index:
+
+lib/nvc/NVC.SIM_PKG: $(srcdir)/lib/nvc/sim_pkg.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/sim_pkg.vhd
+
+gen-deps-nvc:
+	$(nvc) -L lib/ --work=lib/nvc --make --posix --deps-only | \
+		$(deps_pp) > $(srcdir)/lib/nvc/deps.mk
+
+include lib/nvc/deps.mk

@@ -50,6 +50,12 @@ distribute modifications you must preserve the license text and
 copyright notices, and also make the modified source code available to
 your users.
 
+Certain VHDL libraries developed specifically for NVC under `lib/nvc`
+and `lib/std` are licensed under the GNU Lesser General Public License
+version 3 or later.  This license does not require distribution of the
+corresponding source for programs dynamically linked against these
+libraries.  See the individual files for details.
+
 The source files for the IEEE standard libraries are included in the
 repository.  These were originally provided under a proprietary license
 that forbid distribution of modifications, but in 2019 were relicensed

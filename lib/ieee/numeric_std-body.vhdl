@@ -57,6 +57,9 @@
 -- $Date: 2008-04-10 17:16:09 +0930 (Thu, 10 Apr 2008) $
 -- --------------------------------------------------------------------
 
+library nvc;
+use nvc.sim_pkg.ieee_warnings;
+
 package body NUMERIC_STD is
 
   -- null range array constants
@@ -66,7 +69,7 @@ package body NUMERIC_STD is
 
   -- implementation controls
 
-  constant NO_WARNING : BOOLEAN := false;  -- default to emit warnings
+  constant NO_WARNING : BOOLEAN := not ieee_warnings;
 
   -- =========================Local Subprograms =================================
 

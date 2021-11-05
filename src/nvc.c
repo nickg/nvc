@@ -371,6 +371,16 @@ static int parse_int(const char *str)
    return n;
 }
 
+static bool parse_on_off(const char *str)
+{
+   if (strcasecmp(str, "on") == 0)
+      return true;
+   else if (strcasecmp(str, "off") == 0)
+      return false;
+
+   fatal("specifiy 'on' or 'off' instead of '%s'", str);
+}
+
 static rt_severity_t parse_severity(const char *str)
 {
    if (strcasecmp(str, "note") == 0)
@@ -396,6 +406,7 @@ static int run(int argc, char **argv)
       { "stop-delta",    required_argument, 0, 'd' },
       { "format",        required_argument, 0, 'f' },
       { "include",       required_argument, 0, 'i' },
+      { "ieee-warnings", required_argument, 0, 'I' },
       { "exclude",       required_argument, 0, 'e' },
       { "exit-severity", required_argument, 0, 'x' },
 #if ENABLE_VHPI
@@ -471,6 +482,9 @@ static int run(int argc, char **argv)
       case 'x':
          rt_set_exit_severity(parse_severity(optarg));
          break;
+      case 'I':
+        opt_set_int("ieee-warnings", parse_on_off(optarg));
+        break;
       default:
          abort();
       }
@@ -720,6 +734,7 @@ static void set_default_opts(void)
    opt_set_int("synthesis", 0);
    opt_set_int("missing-body", 1);
    opt_set_int("error-limit", -1);
+   opt_set_int("ieee-warnings", 1);
 }
 
 static void usage(void)
@@ -754,7 +769,7 @@ static void usage(void)
           "\n"
           "Elaborate options:\n"
           "     --cover\t\tEnable code coverage reporting\n"
-          "     --dump-llvm\nDump generated LLVM IR\n"
+          "     --dump-llvm\tDump generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
           " -O0, -O1, -O2, -O3\tSet optimisation level (default is -O2)\n"
@@ -764,6 +779,8 @@ static void usage(void)
           "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
           "     --exit-severity=S\tExit after assertion failure of severity S\n"
           "     --format=FMT\tWaveform format is either fst or vcd\n"
+          "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
+          "     \t\t\tfrom IEEE packages\n"
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
 #ifdef ENABLE_VHPI
           "     --load=PLUGIN\tLoad VHPI plugin at startup\n"

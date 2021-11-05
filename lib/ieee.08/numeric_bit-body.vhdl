@@ -1,15 +1,15 @@
 -- -----------------------------------------------------------------
--- 
+--
 -- Copyright 2019 IEEE P1076 WG Authors
--- 
+--
 -- See the LICENSE file distributed with this work for copyright and
 -- licensing information and the AUTHORS file.
--- 
+--
 -- This file to you under the Apache License, Version 2.0 (the "License").
 -- You may obtain a copy of the License at
--- 
+--
 --     http://www.apache.org/licenses/LICENSE-2.0
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software
 -- distributed under the License is distributed on an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
@@ -54,6 +54,9 @@
 -- $Date: 2008-04-10 17:16:09 +0930 (Thu, 10 Apr 2008) $
 -- --------------------------------------------------------------------
 
+library nvc;
+use nvc.sim_pkg.ieee_warnings;
+
 package body NUMERIC_BIT is
 
   -- null range array constants
@@ -63,7 +66,7 @@ package body NUMERIC_BIT is
 
   -- implementation controls
 
-  constant NO_WARNING : BOOLEAN := false;  -- default to emit warnings
+  constant NO_WARNING : BOOLEAN := not ieee_warnings;
 
   -- =========================Local Subprograms =================================
 

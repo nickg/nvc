@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
---  Copyright (C) 2014-2021  Nick Gasson
+--  Copyright (C) 2021  Nick Gasson
 --
 --  This program is free software; you can redistribute it and/or modify
 --  it under the terms of the GNU Lesser General Public License as
@@ -16,17 +16,15 @@
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
--- Environment package for VHDL-2008
+-- This package provides VHDL interfaces to internal simulator
+-- functionality.
 -------------------------------------------------------------------------------
 
-package env is
+package sim_pkg is
 
-    procedure stop(status : integer);
-    procedure stop;
+    -- Return TRUE if IEEE warning messages should be displayed
+    function ieee_warnings return boolean;
 
-    procedure finish(status : integer);
-    procedure finish;
-
-    function resolution_limit return delay_length;
+    attribute foreign of ieee_warnings : function is "_nvc_ieee_warnings";
 
 end package;

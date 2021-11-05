@@ -170,20 +170,20 @@ package std_logic_arith is
     function CONV_SIGNED(ARG: SIGNED; SIZE: INTEGER) return SIGNED;
     function CONV_SIGNED(ARG: STD_ULOGIC; SIZE: INTEGER) return SIGNED;
 
-    function CONV_STD_LOGIC_VECTOR(ARG: INTEGER; SIZE: INTEGER) 
+    function CONV_STD_LOGIC_VECTOR(ARG: INTEGER; SIZE: INTEGER)
 						       return STD_LOGIC_VECTOR;
-    function CONV_STD_LOGIC_VECTOR(ARG: UNSIGNED; SIZE: INTEGER) 
+    function CONV_STD_LOGIC_VECTOR(ARG: UNSIGNED; SIZE: INTEGER)
 						       return STD_LOGIC_VECTOR;
-    function CONV_STD_LOGIC_VECTOR(ARG: SIGNED; SIZE: INTEGER) 
+    function CONV_STD_LOGIC_VECTOR(ARG: SIGNED; SIZE: INTEGER)
 						       return STD_LOGIC_VECTOR;
-    function CONV_STD_LOGIC_VECTOR(ARG: STD_ULOGIC; SIZE: INTEGER) 
+    function CONV_STD_LOGIC_VECTOR(ARG: STD_ULOGIC; SIZE: INTEGER)
 						       return STD_LOGIC_VECTOR;
-    -- zero extend STD_LOGIC_VECTOR (ARG) to SIZE, 
+    -- zero extend STD_LOGIC_VECTOR (ARG) to SIZE,
     -- SIZE < 0 is same as SIZE = 0
     -- returns STD_LOGIC_VECTOR(SIZE-1 downto 0)
     function EXT(ARG: STD_LOGIC_VECTOR; SIZE: INTEGER) return STD_LOGIC_VECTOR;
 
-    -- sign extend STD_LOGIC_VECTOR (ARG) to SIZE, 
+    -- sign extend STD_LOGIC_VECTOR (ARG) to SIZE,
     -- SIZE < 0 is same as SIZE = 0
     -- return STD_LOGIC_VECTOR(SIZE-1 downto 0)
     function SXT(ARG: STD_LOGIC_VECTOR; SIZE: INTEGER) return STD_LOGIC_VECTOR;
@@ -195,7 +195,12 @@ end Std_logic_arith;
 library IEEE;
 use IEEE.std_logic_1164.all;
 
+library nvc;
+use nvc.sim_pkg.ieee_warnings;
+
 package body std_logic_arith is
+
+    constant NO_WARNING : BOOLEAN := not ieee_warnings;
 
     function max(L, R: INTEGER) return INTEGER is
     begin
@@ -235,7 +240,7 @@ package body std_logic_arith is
     begin
 	-- synopsys synthesis_off
 	    if (IS_X(A)) then
-		assert false 
+		assert no_warning
 		report "There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)."
 		severity warning;
 	        return ('X');
@@ -252,7 +257,7 @@ package body std_logic_arith is
 	-- synopsys synthesis_off
 	    for i in A'range loop
 	        if (IS_X(A(i))) then
-		    assert false 
+		    assert no_warning
 		    report "There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)."
 		    severity warning;
 		    result := (others => 'X');
@@ -272,7 +277,7 @@ package body std_logic_arith is
 	-- synopsys synthesis_off
 	    for i in A'range loop
 	        if (IS_X(A(i))) then
-		    assert false 
+		    assert no_warning
 		    report "There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)."
 		    severity warning;
 		    result := (others => 'X');
@@ -292,7 +297,7 @@ package body std_logic_arith is
 	-- synopsys synthesis_off
 	    for i in A'range loop
 	        if (IS_X(A(i))) then
-		    assert false 
+		    assert no_warning
 		    report "There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)."
 		    severity warning;
 		    result := (others => 'X');
@@ -312,7 +317,7 @@ package body std_logic_arith is
 	-- synopsys synthesis_off
 	    for i in A'range loop
 	        if (IS_X(A(i))) then
-		    assert false 
+		    assert no_warning
 		    report "There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)."
 		    severity warning;
 		    result := (others => 'X');
@@ -332,7 +337,7 @@ package body std_logic_arith is
 	-- synopsys synthesis_off
 	    for i in A'range loop
 	        if (IS_X(A(i))) then
-		    assert false 
+		    assert no_warning
 		    report "There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)."
 		    severity warning;
 		    result := (others => 'X');
@@ -352,7 +357,7 @@ package body std_logic_arith is
 	-- synopsys synthesis_off
 	    for i in A'range loop
 	        if (IS_X(A(i))) then
-		    assert false 
+		    assert no_warning
 		    report "There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)."
 		    severity warning;
 		    result := (others => 'X');
@@ -372,7 +377,7 @@ package body std_logic_arith is
 	-- synopsys synthesis_off
 	    for i in A'range loop
 	        if (IS_X(A(i))) then
-		    assert false 
+		    assert no_warning
 		    report "There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)."
 		    severity warning;
 		    result := (others => 'X');
@@ -394,7 +399,7 @@ package body std_logic_arith is
     begin
       return(Z);
     end;
-	
+
     -- Type propagation function which returns an unsigned type with the
     -- size of the left arg.
     function LEFT_UNSIGNED_ARG(A,B: UNSIGNED) return UNSIGNED is
@@ -403,7 +408,7 @@ package body std_logic_arith is
     begin
       return(Z);
     end;
-	
+
     -- Type propagation function which returns a signed type with the
     -- size of the result of a signed multiplication
     function MULT_SIGNED_ARG(A,B: SIGNED) return SIGNED is
@@ -412,7 +417,7 @@ package body std_logic_arith is
     begin
       return(Z);
     end;
-	
+
     -- Type propagation function which returns an unsigned type with the
     -- size of the result of a unsigned multiplication
     function MULT_UNSIGNED_ARG(A,B: UNSIGNED) return UNSIGNED is
@@ -431,7 +436,7 @@ package body std_logic_arith is
       variable AA: SIGNED(A'length downto 0);
       variable neg: STD_ULOGIC;
       constant one : UNSIGNED(1 downto 0) := "01";
-      
+
       -- pragma map_to_operator MULT_TC_OP
       -- pragma type_function MULT_SIGNED_ARG
       -- pragma return_port_name Z
@@ -453,7 +458,7 @@ package body std_logic_arith is
         end loop;
         if (neg= '1') then
           return(-PA);
-        else 
+        else
           return(PA);
         end if;
       end;
@@ -463,7 +468,7 @@ package body std_logic_arith is
       variable BA: UNSIGNED((A'length+B'length-1) downto 0);
       variable PA: UNSIGNED((A'length+B'length-1) downto 0);
       constant one : UNSIGNED(1 downto 0) := "01";
-      
+
       -- pragma map_to_operator MULT_UNS_OP
       -- pragma type_function MULT_UNSIGNED_ARG
       -- pragma return_port_name Z
@@ -603,23 +608,23 @@ package body std_logic_arith is
 	-- synopsys subpgm_id 296
     begin
           return     mult(CONV_SIGNED(L, L'length),
-		          CONV_SIGNED(R, R'length)); -- pragma label mult 
+		          CONV_SIGNED(R, R'length)); -- pragma label mult
     end;
-      
+
     function "*"(L: UNSIGNED; R: UNSIGNED) return UNSIGNED is
 	-- pragma label_applies_to mult
 	-- synopsys subpgm_id 295
     begin
           return   mult(CONV_UNSIGNED(L, L'length),
-                        CONV_UNSIGNED(R, R'length)); -- pragma label mult 
+                        CONV_UNSIGNED(R, R'length)); -- pragma label mult
     end;
-        
+
     function "*"(L: UNSIGNED; R: SIGNED) return SIGNED is
 	-- pragma label_applies_to mult
 	-- synopsys subpgm_id 297
     begin
  	return       mult(CONV_SIGNED(L, L'length+1),
-		          CONV_SIGNED(R, R'length)); -- pragma label mult 
+		          CONV_SIGNED(R, R'length)); -- pragma label mult
     end;
 
     function "*"(L: SIGNED; R: UNSIGNED) return SIGNED is
@@ -627,7 +632,7 @@ package body std_logic_arith is
 	-- synopsys subpgm_id 298
     begin
 	return      mult(CONV_SIGNED(L, L'length),
-		         CONV_SIGNED(R, R'length+1)); -- pragma label mult 
+		         CONV_SIGNED(R, R'length+1)); -- pragma label mult
     end;
 
 
@@ -636,26 +641,26 @@ package body std_logic_arith is
 	-- synopsys subpgm_id 301
     begin
           return STD_LOGIC_VECTOR (
-		mult(-- pragma label mult 
-		CONV_SIGNED(L, L'length), CONV_SIGNED(R, R'length))); 
+		mult(-- pragma label mult
+		CONV_SIGNED(L, L'length), CONV_SIGNED(R, R'length)));
     end;
-      
+
     function "*"(L: UNSIGNED; R: UNSIGNED) return STD_LOGIC_VECTOR is
 	-- pragma label_applies_to mult
 	-- synopsys subpgm_id 300
     begin
           return STD_LOGIC_VECTOR (
 		mult(-- pragma label mult
-		CONV_UNSIGNED(L, L'length), CONV_UNSIGNED(R, R'length))); 
+		CONV_UNSIGNED(L, L'length), CONV_UNSIGNED(R, R'length)));
     end;
-        
+
     function "*"(L: UNSIGNED; R: SIGNED) return STD_LOGIC_VECTOR is
 	-- pragma label_applies_to mult
 	-- synopsys subpgm_id 302
     begin
  	return STD_LOGIC_VECTOR (
 		mult(-- pragma label mult
-		CONV_SIGNED(L, L'length+1), CONV_SIGNED(R, R'length))); 
+		CONV_SIGNED(L, L'length+1), CONV_SIGNED(R, R'length)));
     end;
 
     function "*"(L: SIGNED; R: UNSIGNED) return STD_LOGIC_VECTOR is
@@ -664,7 +669,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		mult(-- pragma label mult
-		CONV_SIGNED(L, L'length), CONV_SIGNED(R, R'length+1))); 
+		CONV_SIGNED(L, L'length), CONV_SIGNED(R, R'length+1)));
     end;
 
 
@@ -798,7 +803,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		unsigned_plus(-- pragma label plus
-		CONV_UNSIGNED(L, length), CONV_UNSIGNED(R, length))); 
+		CONV_UNSIGNED(L, length), CONV_UNSIGNED(R, length)));
     end;
 
 
@@ -809,7 +814,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		plus(-- pragma label plus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -820,7 +825,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		plus(-- pragma label plus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -831,7 +836,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		plus(-- pragma label plus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -864,7 +869,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		plus(-- pragma label plus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -875,7 +880,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		plus(-- pragma label plus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -886,7 +891,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		unsigned_plus(-- pragma label plus
-		CONV_UNSIGNED(L, length), CONV_UNSIGNED(R, length))) ; 
+		CONV_UNSIGNED(L, length), CONV_UNSIGNED(R, length))) ;
     end;
 
 
@@ -897,7 +902,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		unsigned_plus(-- pragma label plus
-		CONV_UNSIGNED(L, length), CONV_UNSIGNED(R, length))); 
+		CONV_UNSIGNED(L, length), CONV_UNSIGNED(R, length)));
     end;
 
 
@@ -908,7 +913,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		plus(-- pragma label plus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -919,7 +924,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		plus(-- pragma label plus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -1057,7 +1062,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		unsigned_minus(-- pragma label minus
-		CONV_UNSIGNED(L, length), CONV_UNSIGNED(R, length))); 
+		CONV_UNSIGNED(L, length), CONV_UNSIGNED(R, length)));
     end;
 
 
@@ -1068,7 +1073,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		minus(-- pragma label minus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -1079,7 +1084,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		minus(-- pragma label minus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -1090,7 +1095,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		minus(-- pragma label minus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -1123,7 +1128,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		minus(-- pragma label minus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -1134,7 +1139,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		minus(-- pragma label minus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -1167,7 +1172,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		minus(-- pragma label minus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -1178,7 +1183,7 @@ package body std_logic_arith is
     begin
 	return STD_LOGIC_VECTOR (
 		minus(-- pragma label minus
-		CONV_SIGNED(L, length), CONV_SIGNED(R, length))); 
+		CONV_SIGNED(L, length), CONV_SIGNED(R, length)));
     end;
 
 
@@ -1237,7 +1242,7 @@ package body std_logic_arith is
 	variable tmp: SIGNED(L'length-1 downto 0);
     begin
 	tmp := 0 - L;  -- pragma label minus
-	return STD_LOGIC_VECTOR (tmp); 
+	return STD_LOGIC_VECTOR (tmp);
     end;
 
 
@@ -1261,7 +1266,7 @@ package body std_logic_arith is
     begin
       return(Z);
     end;
-	
+
     -- Type propagation function which returns the type BOOLEAN
     function SIGNED_RETURN_BOOLEAN(A,B: SIGNED) return BOOLEAN is
       variable Z: BOOLEAN;
@@ -1269,7 +1274,7 @@ package body std_logic_arith is
     begin
       return(Z);
     end;
-	
+
 
     -- compare two signed numbers of the same length
     -- both arrays must have range (msb downto 0)
@@ -1896,7 +1901,7 @@ package body std_logic_arith is
 	    if control(i) = '1' then
 		temp := rtype'(others => '0');
 		if 2**i <= result_msb then
-		    temp(result_msb downto 2**i) := 
+		    temp(result_msb downto 2**i) :=
 				    result(result_msb - 2**i downto 0);
 		end if;
 		result := temp;
@@ -1925,7 +1930,7 @@ package body std_logic_arith is
 	    if control(i) = '1' then
 		temp := rtype'(others => '0');
 		if 2**i <= result_msb then
-		    temp(result_msb downto 2**i) := 
+		    temp(result_msb downto 2**i) :=
 				    result(result_msb - 2**i downto 0);
 		end if;
 		result := temp;
@@ -1955,7 +1960,7 @@ package body std_logic_arith is
 	    if control(i) = '1' then
 		temp := rtype'(others => '0');
 		if 2**i <= result_msb then
-		    temp(result_msb - 2**i downto 0) := 
+		    temp(result_msb - 2**i downto 0) :=
 					result(result_msb downto 2**i);
 		end if;
 		result := temp;
@@ -1986,7 +1991,7 @@ package body std_logic_arith is
 	    if control(i) = '1' then
 		temp := rtype'(others => sign_bit);
 		if 2**i <= result_msb then
-		    temp(result_msb - 2**i downto 0) := 
+		    temp(result_msb - 2**i downto 0) :=
 					result(result_msb downto 2**i);
 		end if;
 		result := temp;
@@ -2021,10 +2026,10 @@ package body std_logic_arith is
 	    if tmp = '1' then
 		result := result + 1;
 	    elsif tmp = 'X' then
-		assert false 
+		assert no_warning
 		report "There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)."
 		severity warning;
-		assert false
+		assert no_warning
 		report "CONV_INTEGER: There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, and it has been converted to 0."
 		severity WARNING;
 		return 0;
@@ -2053,10 +2058,10 @@ package body std_logic_arith is
 	        if tmp = '1' then
 		    result := result + 1;
 	        elsif tmp = 'X' then
-		    assert false 
+		    assert no_warning
 		    report "There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es)."
 		    severity warning;
-		    assert false
+		    assert no_warning
 		    report "CONV_INTEGER: There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, and it has been converted to 0."
 		    severity WARNING;
 		    return 0;
@@ -2086,7 +2091,7 @@ package body std_logic_arith is
 	if tmp = '1' then
 	    return 1;
 	elsif tmp = 'X' then
-	    assert false
+	    assert no_warning
 	    report "CONV_INTEGER: There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, and it has been converted to 0."
 	    severity WARNING;
 	    return 0;
@@ -2109,7 +2114,7 @@ package body std_logic_arith is
 	for i in 0 to SIZE-1 loop
 	    if (temp mod 2) = 1 then
 		result(i) := '1';
-	    else 
+	    else
 		result(i) := '0';
 	    end if;
 	    if temp > 0 then
@@ -2194,7 +2199,7 @@ package body std_logic_arith is
 	for i in 0 to SIZE-1 loop
 	    if (temp mod 2) = 1 then
 		result(i) := '1';
-	    else 
+	    else
 		result(i) := '0';
 	    end if;
 	    if temp > 0 then
@@ -2280,7 +2285,7 @@ package body std_logic_arith is
 	for i in 0 to SIZE-1 loop
 	    if (temp mod 2) = 1 then
 		result(i) := '1';
-	    else 
+	    else
 		result(i) := '0';
 	    end if;
 	    if temp > 0 then
@@ -2353,7 +2358,7 @@ package body std_logic_arith is
 	-- synopsys synthesis_on
     end;
 
-    function EXT(ARG: STD_LOGIC_VECTOR; SIZE: INTEGER) 
+    function EXT(ARG: STD_LOGIC_VECTOR; SIZE: INTEGER)
 						return STD_LOGIC_VECTOR is
 	constant msb: INTEGER := min(ARG'length, SIZE) - 1;
 	subtype rtype is STD_LOGIC_VECTOR (SIZE-1 downto 0);

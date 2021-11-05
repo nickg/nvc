@@ -989,6 +989,12 @@ void _null_deref(const rt_loc_t *where)
 }
 
 DLLEXPORT
+bool _nvc_ieee_warnings(void)
+{
+   return opt_get_int("ieee-warnings");
+}
+
+DLLEXPORT
 int64_t _std_standard_now(void)
 {
    return now;

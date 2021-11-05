@@ -22,9 +22,11 @@
 .Sh DESCRIPTION
 .Nm
 is an implementation of the VHDL language as defined by IEEE standard
-1076-1993 and later revisions.  Simulating a design typically involves
-three steps: analysing one more more source files into the work library;
-elaborating a top-level design unit; and running the elaborated design.
+1076-1993 and later revisions.
+.Pp
+Simulating a design typically involves three steps: analysing one or
+more source files into the work library; elaborating a top-level design
+unit; and finally running the elaborated design.
 .Pp
 .Nm
 accepts three kinds of options: global options; commands; and options
@@ -99,14 +101,11 @@ section below for details.
 Specify exactly the location of the logical library
 .Ar name .
 Libraries mapped in this way will not use the normal search path.
-.\"
-.It Fl -messages Ns = Ns Ar style
-Select either the
-.Ar full
-or
-.Ar compact
-message format.  The default full message format is designed for
-readability whereas the compact messages can be easily parsed by tools.
+.\" --messages
+.It Fl -messages Ns = Ns Bo Cm full Ns | Ns Cm compact Bc
+Select the format used for printing error and informational messages.
+The default full message format is designed for readability whereas the
+compact messages can be easily parsed by tools.
 .\"
 .It Fl -std Ns = Ns Ar rev
 Select the VHDL standard revision to use.  VHDL standard revisions are
@@ -193,6 +192,7 @@ Prints resource usage information after each elaboration step.
 .\" ------------------------------------------------------------
 .Ss Runtime options
 .Bl -tag -width Ds
+.\" --exit-severity
 .It Fl -exit-severity Ns = Ns Ar level
 Terminate the simulation after an assertion failures of severity greater
 than or equal to
@@ -205,7 +205,7 @@ and
 .Cm failure .
 The default is
 .Cm error .
-.\"
+.\" --format
 .It Fl -format= Ns Ar fmt
 Generate waveform data in format
 .Ar fmt .
@@ -221,7 +221,11 @@ poor: select this only if you must use the output with a tool that does
 not support FST.  The default format is FST if this option is not
 provided.  Note that GtkWave 3.3.79 or later is required to view the FST
 output.
-.\"
+.\" --ieee-warnings
+.It Fl -ieee-warnings= Ns Bo Cm on Ns | Ns Cm off Bc
+Enable or disable warning messages from the standard IEEE packages.  The
+default is warnings enabled.
+.\" --include, --exclude
 .It Fl -include= Ns Ar glob , Fl -exclude= Ns Ar glob
 Signals that match
 .Ar glob
@@ -229,28 +233,28 @@ are included in or excluded from the waveform dump.  See section
 .Sx SELECTING SIGNALS
 for details on how to select particular signals.  These options can be
 given multiple times.
-.\"
+.\" --load
 .It Fl -load= Ns Ar plugin
 Loads a VHPI plugin from the shared library
 .Ar plugin .
 See section
 .Sx VHPI
 for details on the VHPI implementation.
-.\"
+.\" --profile
 .It Fl -profile
 Print various internal statistics about the simulation at the end of the
 run.  This is mostly useful for tuning the runtime itself.
-.\"
+.\" --stats
 .It Fl -stats
 Print a summary of the time taken and memory used at the end of the run.
-.\"
+.\" --stop-delta
 .It Fl -stop-delta Ns = Ns Ar N
 Stop after
 .Ar N
 delta cycles.  This can be used to detect zero-time loops in your model.
 The default is 1000 if not specified.  Setting this to zero disables the
 delta cycle limit.
-.\"
+.\" --stop-time
 .It Fl -stop-time Ns = Ns Ar T
 Stop the simulation after the given time has elapsed.  Format of
 .Ar T
@@ -258,15 +262,15 @@ is an integer followed by a time unit in lower case.  For example
 .Cm 5ns
 or
 .Cm 20ms .
-.\"
+.\" --trace
 .It Fl -trace
 Trace simulation events.  This is usually only useful for debugging the
 simulator.
-.\"
+.\" --vhpi-trace
 .It Fl -vhpi-trace
 Trace VHPI calls and events.  This can be useful for debugging VHPI
 plugins.
-.\"
+.\" --wave
 .It Fl w , Fl -wave Ns = Ns Ar file
 Write waveform data to
 .Ar file .
@@ -283,10 +287,11 @@ section below for how to control this.
 .\" ------------------------------------------------------------
 .Ss Make options
 .Bl -tag -width Ds
+.\" --deps-only
 .It Fl -deps-only
 Generate rules that only contain dependencies without actions.  These
 can be useful for inclusion in a hand written makefile.
-.\"
+.\" --posix
 .It Fl -posix
 The generated makefile will work with any POSIX compliant make.
 Otherwise the output may use extensions specific to GNU make.

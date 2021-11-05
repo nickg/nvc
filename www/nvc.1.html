@@ -2,7 +2,6 @@
 <html>
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link rel="stylesheet" href="mandoc.css" type="text/css" media="all"/>
   <title>NVC(1)</title>
 </head>
@@ -17,8 +16,8 @@
 <div class="manual-text">
 <section class="Sh">
 <h1 class="Sh" id="NAME"><a class="permalink" href="#NAME">NAME</a></h1>
-<p class="Pp"><code class="Nm">nvc</code> &#x2014; <span class="Nd">VHDL
-    Compiler and Simulator</span></p>
+<code class="Nm">nvc</code> &#x2014;
+<div class="Nd">VHDL Compiler and Simulator</div>
 </section>
 <section class="Sh">
 <h1 class="Sh" id="SYNOPSIS"><a class="permalink" href="#SYNOPSIS">SYNOPSIS</a></h1>
@@ -45,11 +44,11 @@
 </section>
 <section class="Sh">
 <h1 class="Sh" id="DESCRIPTION"><a class="permalink" href="#DESCRIPTION">DESCRIPTION</a></h1>
-<p class="Pp"><code class="Nm">nvc</code> is an implementation of the VHDL
-    language as defined by IEEE standard 1076-1993 and later revisions.
-    Simulating a design typically involves three steps: analysing one more more
-    source files into the work library; elaborating a top-level design unit; and
-    running the elaborated design.</p>
+<code class="Nm">nvc</code> is an implementation of the VHDL language as defined
+  by IEEE standard 1076-1993 and later revisions.
+<p class="Pp">Simulating a design typically involves three steps: analysing one
+    or more source files into the work library; elaborating a top-level design
+    unit; and finally running the elaborated design.</p>
 <p class="Pp"><code class="Nm">nvc</code> accepts three kinds of options: global
     options; commands; and options specific to the command. Global options must
     be placed before the command and specific options must be placed after the
@@ -57,25 +56,25 @@
 <section class="Ss">
 <h2 class="Ss" id="Commands"><a class="permalink" href="#Commands">Commands</a></h2>
 <dl class="Bl-tag">
-  <dt id="a"><a class="permalink" href="#a"><code class="Fl">-a</code></a>
+  <dt><a class="permalink" href="#a"><code class="Fl" id="a">-a</code></a>
     <var class="Ar">file ...</var></dt>
   <dd>Analyse one or more files into the work library.</dd>
-  <dt id="e"><a class="permalink" href="#e"><code class="Fl">-e</code></a>
+  <dt><a class="permalink" href="#e"><code class="Fl" id="e">-e</code></a>
     <var class="Ar">unit</var></dt>
   <dd>Elaborate a previously analysed top level design unit.</dd>
-  <dt id="r"><a class="permalink" href="#r"><code class="Fl">-r</code></a>
+  <dt><a class="permalink" href="#r"><code class="Fl" id="r">-r</code></a>
     <var class="Ar">unit</var></dt>
   <dd>Execute a previously elaborated top level design unit.</dd>
-  <dt id="dump"><a class="permalink" href="#dump"><code class="Fl">--dump</code></a>
+  <dt><a class="permalink" href="#-dump"><code class="Fl" id="-dump">--dump</code></a>
     <var class="Ar">unit</var></dt>
   <dd>Print out a pseudo-VHDL representation of an analysed unit. This is
       usually only useful for debugging the compiler.</dd>
-  <dt id="list"><a class="permalink" href="#list"><code class="Fl">--list</code></a></dt>
+  <dt><a class="permalink" href="#-list"><code class="Fl" id="-list">--list</code></a></dt>
   <dd>Print all analysed and elaborated units in the work library.</dd>
-  <dt id="make"><a class="permalink" href="#make"><code class="Fl">--make</code></a>
+  <dt><a class="permalink" href="#-make"><code class="Fl" id="-make">--make</code></a>
     <var class="Ar">unit ...</var></dt>
   <dd>Generate a makefile for already analysed units.</dd>
-  <dt id="syntax"><a class="permalink" href="#syntax"><code class="Fl">--syntax</code></a>
+  <dt><a class="permalink" href="#-syntax"><code class="Fl" id="-syntax">--syntax</code></a>
     <var class="Ar">file ...</var></dt>
   <dd>Check input files for syntax errors only.</dd>
 </dl>
@@ -93,40 +92,39 @@
 <h2 class="Ss" id="Global_options"><a class="permalink" href="#Global_options">Global
   options</a></h2>
 <dl class="Bl-tag">
-  <dt id="force-init"><a class="permalink" href="#force-init"><code class="Fl">--force-init</code></a></dt>
+  <dt><a class="permalink" href="#-force-init"><code class="Fl" id="-force-init">--force-init</code></a></dt>
   <dd>Initialise a library work directory even if it already exists and is
       non-empty.</dd>
-  <dt id="h"><a class="permalink" href="#h"><code class="Fl">-h</code></a>,
+  <dt><a class="permalink" href="#h"><code class="Fl" id="h">-h</code></a>,
     <code class="Fl">--help</code></dt>
   <dd>Display usage summary.</dd>
-  <dt id="ignore-time"><a class="permalink" href="#ignore-time"><code class="Fl">--ignore-time</code></a></dt>
+  <dt><a class="permalink" href="#-ignore-time"><code class="Fl" id="-ignore-time">--ignore-time</code></a></dt>
   <dd>Do not check the timestamps of source files when the corresponding design
       unit is loaded from a library.</dd>
-  <dt id="L"><a class="permalink" href="#L"><code class="Fl">-L</code></a>
+  <dt><a class="permalink" href="#L"><code class="Fl" id="L">-L</code></a>
     <var class="Ar">path</var></dt>
   <dd>Add <var class="Ar">path</var> to the list of directories to search for
       libraries. See the <a class="Sx" href="#LIBRARIES">LIBRARIES</a> section
       below for details.</dd>
-  <dt id="map"><a class="permalink" href="#map"><code class="Fl">--map</code></a>=<var class="Ar">name</var>:<var class="Ar">path</var></dt>
+  <dt><a class="permalink" href="#-map"><code class="Fl" id="-map">--map</code></a>=<var class="Ar">name</var>:<var class="Ar">path</var></dt>
   <dd>Specify exactly the location of the logical library
       <var class="Ar">name</var>. Libraries mapped in this way will not use the
       normal search path.</dd>
-  <dt id="messages"><a class="permalink" href="#messages"><code class="Fl">--messages</code></a>=<var class="Ar">style</var></dt>
-  <dd>Select either the <var class="Ar">full</var> or
-      <var class="Ar">compact</var> message format. The default full message
-      format is designed for readability whereas the compact messages can be
-      easily parsed by tools.</dd>
-  <dt id="std"><a class="permalink" href="#std"><code class="Fl">--std</code></a>=<var class="Ar">rev</var></dt>
+  <dt><a class="permalink" href="#-messages"><code class="Fl" id="-messages">--messages</code></a>=[<code class="Cm">full</code>|<code class="Cm">compact</code>]</dt>
+  <dd>Select the format used for printing error and informational messages. The
+      default full message format is designed for readability whereas the
+      compact messages can be easily parsed by tools.</dd>
+  <dt><a class="permalink" href="#-std"><code class="Fl" id="-std">--std</code></a>=<var class="Ar">rev</var></dt>
   <dd>Select the VHDL standard revision to use. VHDL standard revisions are
       commonly referred to by the year they were published. For example IEEE
       1076-1993 is known as VHDL-93. Specify either the full year such as 1993
       or just the last two digits such as 93. The accepted revisions are 1993,
       2000, 2002, and 2008. Note there is very limited supported for any
       features beyond those in VHDL-2002. VHDL-87 is not supported.</dd>
-  <dt id="v"><a class="permalink" href="#v"><code class="Fl">-v</code></a>,
+  <dt><a class="permalink" href="#v"><code class="Fl" id="v">-v</code></a>,
     <code class="Fl">--version</code></dt>
   <dd>Display version and copyright information.</dd>
-  <dt id="work"><a class="permalink" href="#work"><code class="Fl">--work</code></a>=<var class="Ar">name</var>,
+  <dt><a class="permalink" href="#-work"><code class="Fl" id="-work">--work</code></a>=<var class="Ar">name</var>,
     <code class="Fl">--work</code>=<var class="Ar">name</var>:<var class="Ar">path</var></dt>
   <dd>Use <var class="Ar">name</var> as the work library. The second variant
       explicitly specifies the location of the library. See the
@@ -138,13 +136,13 @@
 <h2 class="Ss" id="Analysis_options"><a class="permalink" href="#Analysis_options">Analysis
   options</a></h2>
 <dl class="Bl-tag">
-  <dt id="bootstrap"><a class="permalink" href="#bootstrap"><code class="Fl">--bootstrap</code></a></dt>
+  <dt><a class="permalink" href="#-bootstrap"><code class="Fl" id="-bootstrap">--bootstrap</code></a></dt>
   <dd>Allow compilation of the &#x2018;<code class="Li">STANDARD</code>&#x2019;
       package. Not useful in any other circumstances.</dd>
-  <dt id="error-limit"><a class="permalink" href="#error-limit"><code class="Fl">--error-limit</code></a>=<var class="Ar">num</var></dt>
+  <dt><a class="permalink" href="#-error-limit"><code class="Fl" id="-error-limit">--error-limit</code></a>=<var class="Ar">num</var></dt>
   <dd>Stop after reporting <var class="Ar">num</var> errors. The default is 20.
       Zero allows unlimited errors.</dd>
-  <dt id="relax"><a class="permalink" href="#relax"><code class="Fl">--relax</code></a>=<var class="Ar">rules</var></dt>
+  <dt><a class="permalink" href="#-relax"><code class="Fl" id="-relax">--relax</code></a>=<var class="Ar">rules</var></dt>
   <dd>Disable certain pedantic rule checks specified in the comma-separated list
       <var class="Ar">rules</var>. See the
       <a class="Sx" href="#RELAXING_RULES">RELAXING RULES</a> section below for
@@ -155,27 +153,27 @@
 <h2 class="Ss" id="Elaboration_options"><a class="permalink" href="#Elaboration_options">Elaboration
   options</a></h2>
 <dl class="Bl-tag">
-  <dt id="cover"><a class="permalink" href="#cover"><code class="Fl">--cover</code></a></dt>
+  <dt><a class="permalink" href="#-cover"><code class="Fl" id="-cover">--cover</code></a></dt>
   <dd>Enable code coverage reporting (see the
       <a class="Sx" href="#CODE_COVERAGE">CODE COVERAGE</a> section below).</dd>
-  <dt id="dump-llvm"><a class="permalink" href="#dump-llvm"><code class="Fl">--dump-llvm</code></a></dt>
+  <dt><a class="permalink" href="#-dump-llvm"><code class="Fl" id="-dump-llvm">--dump-llvm</code></a></dt>
   <dd>Write generated LLVM IR to the work library directory before and after
       optimisation.</dd>
-  <dt id="dump-vcode"><a class="permalink" href="#dump-vcode"><code class="Fl">--dump-vcode</code></a></dt>
+  <dt><a class="permalink" href="#-dump-vcode"><code class="Fl" id="-dump-vcode">--dump-vcode</code></a></dt>
   <dd>Print generated intermediate code. This is only useful for debugging the
       compiler.</dd>
-  <dt id="g"><a class="permalink" href="#g"><code class="Fl">-g</code></a>
+  <dt><a class="permalink" href="#g"><code class="Fl" id="g">-g</code></a>
     <var class="Ar">name</var>=<var class="Ar">value</var></dt>
   <dd>Override top-level generic <var class="Ar">name</var> with
       <var class="Ar">value</var>. Integers, enumeration literals, and string
       literals are supported. For example <code class="Fl">-gI=5</code>,
       <code class="Fl">-gINIT='1'</code>, and
       <code class="Fl">-gSTR=&quot;hello&quot;</code>.</dd>
-  <dt id="O0"><a class="permalink" href="#O0"><code class="Fl">-O0</code></a>,
+  <dt><a class="permalink" href="#O0"><code class="Fl" id="O0">-O0</code></a>,
     <code class="Fl">-01</code>, <code class="Fl">-02</code>,
     <code class="Fl">-O3</code></dt>
   <dd>Set LLVM optimisation level. Default is <code class="Fl">-O2</code>.</dd>
-  <dt id="V"><a class="permalink" href="#V"><code class="Fl">-V</code></a>,
+  <dt><a class="permalink" href="#V"><code class="Fl" id="V">-V</code></a>,
     <code class="Fl">--verbose</code></dt>
   <dd>Prints resource usage information after each elaboration step.</dd>
 </dl>
@@ -184,13 +182,13 @@
 <h2 class="Ss" id="Runtime_options"><a class="permalink" href="#Runtime_options">Runtime
   options</a></h2>
 <dl class="Bl-tag">
-  <dt id="exit-severity"><a class="permalink" href="#exit-severity"><code class="Fl">--exit-severity</code></a>=<var class="Ar">level</var></dt>
+  <dt><a class="permalink" href="#-exit-severity"><code class="Fl" id="-exit-severity">--exit-severity</code></a>=<var class="Ar">level</var></dt>
   <dd>Terminate the simulation after an assertion failures of severity greater
       than or equal to <var class="Ar">level</var>. Valid levels are
       <code class="Cm">note</code>, <code class="Cm">warning</code>,
       <code class="Cm">error</code>, and <code class="Cm">failure</code>. The
       default is <code class="Cm">error</code>.</dd>
-  <dt id="format="><a class="permalink" href="#format="><code class="Fl">--format=</code></a><var class="Ar">fmt</var></dt>
+  <dt><a class="permalink" href="#-format="><code class="Fl" id="-format=">--format=</code></a><var class="Ar">fmt</var></dt>
   <dd>Generate waveform data in format <var class="Ar">fmt</var>. Currently
       supported formats are: <code class="Cm">fst</code> and
       <code class="Cm">vcd</code>. The FST format is native to
@@ -200,39 +198,42 @@
       select this only if you must use the output with a tool that does not
       support FST. The default format is FST if this option is not provided.
       Note that GtkWave 3.3.79 or later is required to view the FST output.</dd>
-  <dt id="include="><a class="permalink" href="#include="><code class="Fl">--include=</code></a><var class="Ar">glob</var>,
+  <dt><a class="permalink" href="#-ieee-warnings="><code class="Fl" id="-ieee-warnings=">--ieee-warnings=</code></a>[<code class="Cm">on</code>|<code class="Cm">off</code>]</dt>
+  <dd>Enable or disable warning messages from the standard IEEE packages. The
+      default is warnings enabled.</dd>
+  <dt><a class="permalink" href="#-include="><code class="Fl" id="-include=">--include=</code></a><var class="Ar">glob</var>,
     <code class="Fl">--exclude=</code><var class="Ar">glob</var></dt>
   <dd>Signals that match <var class="Ar">glob</var> are included in or excluded
       from the waveform dump. See section
       <a class="Sx" href="#SELECTING_SIGNALS">SELECTING SIGNALS</a> for details
       on how to select particular signals. These options can be given multiple
       times.</dd>
-  <dt id="load="><a class="permalink" href="#load="><code class="Fl">--load=</code></a><var class="Ar">plugin</var></dt>
+  <dt><a class="permalink" href="#-load="><code class="Fl" id="-load=">--load=</code></a><var class="Ar">plugin</var></dt>
   <dd>Loads a VHPI plugin from the shared library <var class="Ar">plugin</var>.
       See section <a class="Sx" href="#VHPI">VHPI</a> for details on the VHPI
       implementation.</dd>
-  <dt id="profile"><a class="permalink" href="#profile"><code class="Fl">--profile</code></a></dt>
+  <dt><a class="permalink" href="#-profile"><code class="Fl" id="-profile">--profile</code></a></dt>
   <dd>Print various internal statistics about the simulation at the end of the
       run. This is mostly useful for tuning the runtime itself.</dd>
-  <dt id="stats"><a class="permalink" href="#stats"><code class="Fl">--stats</code></a></dt>
+  <dt><a class="permalink" href="#-stats"><code class="Fl" id="-stats">--stats</code></a></dt>
   <dd>Print a summary of the time taken and memory used at the end of the
     run.</dd>
-  <dt id="stop-delta"><a class="permalink" href="#stop-delta"><code class="Fl">--stop-delta</code></a>=<var class="Ar">N</var></dt>
+  <dt><a class="permalink" href="#-stop-delta"><code class="Fl" id="-stop-delta">--stop-delta</code></a>=<var class="Ar">N</var></dt>
   <dd>Stop after <var class="Ar">N</var> delta cycles. This can be used to
       detect zero-time loops in your model. The default is 1000 if not
       specified. Setting this to zero disables the delta cycle limit.</dd>
-  <dt id="stop-time"><a class="permalink" href="#stop-time"><code class="Fl">--stop-time</code></a>=<var class="Ar">T</var></dt>
+  <dt><a class="permalink" href="#-stop-time"><code class="Fl" id="-stop-time">--stop-time</code></a>=<var class="Ar">T</var></dt>
   <dd>Stop the simulation after the given time has elapsed. Format of
       <var class="Ar">T</var> is an integer followed by a time unit in lower
       case. For example <code class="Cm">5ns</code> or
       <code class="Cm">20ms</code>.</dd>
-  <dt id="trace"><a class="permalink" href="#trace"><code class="Fl">--trace</code></a></dt>
+  <dt><a class="permalink" href="#-trace"><code class="Fl" id="-trace">--trace</code></a></dt>
   <dd>Trace simulation events. This is usually only useful for debugging the
       simulator.</dd>
-  <dt id="vhpi-trace"><a class="permalink" href="#vhpi-trace"><code class="Fl">--vhpi-trace</code></a></dt>
+  <dt><a class="permalink" href="#-vhpi-trace"><code class="Fl" id="-vhpi-trace">--vhpi-trace</code></a></dt>
   <dd>Trace VHPI calls and events. This can be useful for debugging VHPI
       plugins.</dd>
-  <dt id="w"><a class="permalink" href="#w"><code class="Fl">-w</code></a>,
+  <dt><a class="permalink" href="#w"><code class="Fl" id="w">-w</code></a>,
     <code class="Fl">--wave</code>=<var class="Ar">file</var></dt>
   <dd>Write waveform data to <var class="Ar">file</var>. The file name is
       optional and if not specified will default to the name of the top-level
@@ -247,10 +248,10 @@
 <h2 class="Ss" id="Make_options"><a class="permalink" href="#Make_options">Make
   options</a></h2>
 <dl class="Bl-tag">
-  <dt id="deps-only"><a class="permalink" href="#deps-only"><code class="Fl">--deps-only</code></a></dt>
+  <dt><a class="permalink" href="#-deps-only"><code class="Fl" id="-deps-only">--deps-only</code></a></dt>
   <dd>Generate rules that only contain dependencies without actions. These can
       be useful for inclusion in a hand written makefile.</dd>
-  <dt id="posix"><a class="permalink" href="#posix"><code class="Fl">--posix</code></a></dt>
+  <dt><a class="permalink" href="#-posix"><code class="Fl" id="-posix">--posix</code></a></dt>
   <dd>The generated makefile will work with any POSIX compliant make. Otherwise
       the output may use extensions specific to GNU make.</dd>
 </dl>
@@ -258,14 +259,14 @@
 </section>
 <section class="Sh">
 <h1 class="Sh" id="LIBRARIES"><a class="permalink" href="#LIBRARIES">LIBRARIES</a></h1>
-<p class="Pp">A library is a directory containing analysed design units and
-    other files generated by <code class="Nm">nvc</code>. The default library is
-    called &quot;work&quot; and is placed in a directory also called
-    <i class="Em">work</i>. Note that VHDL also has a concept of the &quot;work
-    library&quot; where the current library can be referred to by the alias
-    <i class="Em">work</i>. This confusing behaviour is an unfortunate hangover
-    from the proprietary tools the author used prior to writing
-    <code class="Nm">nvc</code>.</p>
+A library is a directory containing analysed design units and other files
+  generated by <code class="Nm">nvc</code>. The default library is called
+  &quot;work&quot; and is placed in a directory also called
+  <i class="Em">work</i>. Note that VHDL also has a concept of the &quot;work
+  library&quot; where the current library can be referred to by the alias
+  <i class="Em">work</i>. This confusing behaviour is an unfortunate hangover
+  from the proprietary tools the author used prior to writing
+  <code class="Nm">nvc</code>.
 <p class="Pp">The name and physical location of the work library is controlled
     by the <code class="Fl">--work</code> global option. In the simple case of
     <code class="Fl">--work</code>=<var class="Ar">name</var> the library name
@@ -275,20 +276,26 @@
     <code class="Fl">--work</code>=<var class="Ar">name</var>:<var class="Ar">path</var>
     where <var class="Ar">path</var> is the directory name.</p>
 <p class="Pp">The following examples should make this behaviour clear:</p>
-<div class="Bd Pp Bd-indent Li">
-<pre>$ nvc --work=mylib ...</pre>
+<div class="Bd Pp Bd-indent">
+<pre>
+$ nvc --work=mylib ...
+</pre>
 </div>
 <p class="Pp">The work library is named
     &#x2018;<code class="Li">mylib</code>&#x2019; and is mapped to a directory
     with the same name in the current working directory.</p>
-<div class="Bd Pp Bd-indent Li">
-<pre>$ nvc --work=mylib:somedir ...</pre>
+<div class="Bd Pp Bd-indent">
+<pre>
+$ nvc --work=mylib:somedir ...
+</pre>
 </div>
 <p class="Pp">The work library is named
     &#x2018;<code class="Li">mylib</code>&#x2019; and is mapped to a directory
     <span class="Pa">somedir</span> in the current working directory.</p>
-<div class="Bd Pp Bd-indent Li">
-<pre>$ nvc --work=mylib:/foo/bar ...</pre>
+<div class="Bd Pp Bd-indent">
+<pre>
+$ nvc --work=mylib:/foo/bar ...
+</pre>
 </div>
 <p class="Pp">The work library is named
     &#x2018;<code class="Li">mylib</code>&#x2019; and is mapped to the absolute
@@ -297,37 +304,36 @@
 <section class="Sh">
 <h1 class="Sh" id="RELAXING_RULES"><a class="permalink" href="#RELAXING_RULES">RELAXING
   RULES</a></h1>
-<p class="Pp">The following can be specified as a comma-separated list to the
-    <code class="Fl">--relax</code> option to disable certain semantic rule
-    checks.</p>
+The following can be specified as a comma-separated list to the
+  <code class="Fl">--relax</code> option to disable certain semantic rule
+  checks.
 <dl class="Bl-tag">
-  <dt id="prefer-explict"><a class="permalink" href="#prefer-explict"><code class="Cm">prefer-explict</code></a></dt>
+  <dt><a class="permalink" href="#prefer-explict"><code class="Cm" id="prefer-explict">prefer-explict</code></a></dt>
   <dd>Any visible explicitly declared operator always hides an implicit operator
       regardless of the region in which it is declared. This is required to
       analyse code that uses the non-standard Synopsys
-      <a class="permalink" href="#std_logic_arith"><b class="Sy" id="std_logic_arith">std_logic_arith</b></a>
-      package.</dd>
-  <dt id="locally-static"><a class="permalink" href="#locally-static"><code class="Cm">locally-static</code></a></dt>
+      <b class="Sy">std_logic_arith</b> package.</dd>
+  <dt><a class="permalink" href="#locally-static"><code class="Cm" id="locally-static">locally-static</code></a></dt>
   <dd>References to generics and array slices are allowed in locally static
       expressions using the VHDL-2008 rules.</dd>
-  <dt id="universal-bound"><a class="permalink" href="#universal-bound"><code class="Cm">universal-bound</code></a></dt>
+  <dt><a class="permalink" href="#universal-bound"><code class="Cm" id="universal-bound">universal-bound</code></a></dt>
   <dd>Prior to VHDL-2000 when range bounds have universal integer type the
       expressions must be either numeric literals or attributes. This option
       allows ranges such as &#x2018;<code class="Li">-1 to 1</code>&#x2019; in
       VHDL-1993 which otherwise must be written
       &#x2018;<code class="Li">integer'(-1) to 1</code>&#x2019;.</dd>
-  <dt id="pure-files"><a class="permalink" href="#pure-files"><code class="Cm">pure-files</code></a></dt>
+  <dt><a class="permalink" href="#pure-files"><code class="Cm" id="pure-files">pure-files</code></a></dt>
   <dd>Pure functions are allowed to declare file objects.</dd>
-  <dt id="impure"><a class="permalink" href="#impure"><code class="Cm">impure</code></a></dt>
+  <dt><a class="permalink" href="#impure"><code class="Cm" id="impure">impure</code></a></dt>
   <dd>Pure functions may call impure functions.</dd>
 </dl>
 </section>
 <section class="Sh">
 <h1 class="Sh" id="SELECTING_SIGNALS"><a class="permalink" href="#SELECTING_SIGNALS">SELECTING
   SIGNALS</a></h1>
-<p class="Pp">Every signal object in an elaborated design has a unique
-    hierarchical path name. In VHDL this can be accessed using the
-    &#x2018;<code class="Li">PATH_NAME</code>&#x2019; attribute.</p>
+Every signal object in an elaborated design has a unique hierarchical path name.
+  In VHDL this can be accessed using the
+  &#x2018;<code class="Li">PATH_NAME</code>&#x2019; attribute.
 <p class="Pp">A signal can be referred to using its full path name, for example
     &#x2018;<code class="Li">:top:sub:x</code>&#x2019;, and
     &#x2018;<code class="Li">:top:other:x</code>&#x2019; are two different
@@ -343,13 +349,13 @@
 <section class="Ss">
 <h2 class="Ss" id="Restricting_waveform_dumps"><a class="permalink" href="#Restricting_waveform_dumps">Restricting
   waveform dumps</a></h2>
-<p class="Pp">Path names and globs can be used to exclude or explicitly include
-    signals in a waveform dump. For simple cases this can be done using the
-    <code class="Fl">--include</code> and <code class="Fl">--exclude</code>
-    arguments. For example
-    <code class="Fl">--exclude=</code>&quot;<var class="Ar">:top:sub:*</var>&quot;
-    will exclude all matching signals from the waveform dump. Multiple inclusion
-    and exclusion patterns can be provided.</p>
+Path names and globs can be used to exclude or explicitly include signals in a
+  waveform dump. For simple cases this can be done using the
+  <code class="Fl">--include</code> and <code class="Fl">--exclude</code>
+  arguments. For example
+  <code class="Fl">--exclude=</code>&#x201C;<var class="Ar">:top:sub:*</var>&#x201D;
+  will exclude all matching signals from the waveform dump. Multiple inclusion
+  and exclusion patterns can be provided.
 <p class="Pp">Specifying large numbers of patterns on the command line quickly
     becomes cumbersome. Instead inclusion and exclusion patterns can be read
     from a text file. If the top-level unit name is
@@ -367,30 +373,34 @@
 </section>
 <section class="Sh">
 <h1 class="Sh" id="VHPI"><a class="permalink" href="#VHPI">VHPI</a></h1>
-<p class="Pp"><code class="Nm">nvc</code> supports a subset of VHPI allowing
-    access to signal values and events at runtime. The standard VHPI header file
-    <code class="In">&lt;<a class="In">vhpi_user.h</a>&gt;</code> will be placed
-    in the system include directory as part of the installation process. VHPI
-    plugins should be compiled as shared libraries; for example:</p>
-<div class="Bd Pp Bd-indent Li">
-<pre>$ cc -shared -fPIC my_plugin.c -o my_plugin.so
-$ nvc -r --load my_plugin.so my_tb</pre>
+<code class="Nm">nvc</code> supports a subset of VHPI allowing access to signal
+  values and events at runtime. The standard VHPI header file
+  <code class="In">&lt;<a class="In">vhpi_user.h</a>&gt;</code> will be placed
+  in the system include directory as part of the installation process. VHPI
+  plugins should be compiled as shared libraries; for example:
+<div class="Bd Pp Bd-indent">
+<pre>
+$ cc -shared -fPIC my_plugin.c -o my_plugin.so
+$ nvc -r --load my_plugin.so my_tb
+</pre>
 </div>
 <p class="Pp">The plugin should define a global
     <var class="Va">vhpi_startup_routines</var> which is a NULL-terminated list
     of functions to call when the plugin is loaded:</p>
-<div class="Bd Pp Bd-indent Li">
-<pre>void (*vhpi_startup_routines[])() = {
+<div class="Bd Pp Bd-indent">
+<pre>
+void (*vhpi_startup_routines[])() = {
    startup_1,
    startup_2,
    NULL
-};</pre>
+};
+</pre>
 </div>
 </section>
 <section class="Sh">
 <h1 class="Sh" id="ENVIRONMENT"><a class="permalink" href="#ENVIRONMENT">ENVIRONMENT</a></h1>
 <dl class="Bl-tag">
-  <dt id="NVC_COLORS"><a class="permalink" href="#NVC_COLORS"><code class="Ev">NVC_COLORS</code></a></dt>
+  <dt><a class="permalink" href="#NVC_COLORS"><code class="Ev" id="NVC_COLORS">NVC_COLORS</code></a></dt>
   <dd>Controls whether <code class="Nm">nvc</code> uses ANSI colour escape
       sequences to print diagnostic messages. The possible values are
       <code class="Cm">never</code>, <code class="Cm">always</code>, and
@@ -401,26 +411,24 @@ $ nvc -r --load my_plugin.so my_tb</pre>
 <section class="Sh">
 <h1 class="Sh" id="SEE_ALSO"><a class="permalink" href="#SEE_ALSO">SEE
   ALSO</a></h1>
-<p class="Pp"><a class="Xr">gtkwave(1)</a>, <a class="Xr">ghdl(1)</a></p>
+<a class="Xr">gtkwave(1)</a>, <a class="Xr">ghdl(1)</a>
 </section>
 <section class="Sh">
 <h1 class="Sh" id="AUTHORS"><a class="permalink" href="#AUTHORS">AUTHORS</a></h1>
-<p class="Pp">Written by <span class="An">Nick Gasson</span>
-    &#x27E8;nick@nickg.me.uk&#x27E9;</p>
+Written by <span class="An">Nick Gasson</span> &#x27E8;nick@nickg.me.uk&#x27E9;
 </section>
 <section class="Sh">
 <h1 class="Sh" id="BUGS"><a class="permalink" href="#BUGS">BUGS</a></h1>
-<p class="Pp">Report bugs to
-    <a class="Mt" href="mailto:nick@nickg.me.uk">nick@nickg.me.uk</a> or using
-    the GitHub issue tracker at
-    <a class="Lk" href="https://github.com/nickg/nvc/issues">https://github.com/nickg/nvc/issues</a>.
-    Please include enough information to reproduce the problem, ideally with a
-    small VHDL test case.</p>
+Report bugs to <a class="Mt" href="mailto:nick@nickg.me.uk">nick@nickg.me.uk</a>
+  or using the GitHub issue tracker at
+  <a class="Lk" href="https://github.com/nickg/nvc/issues">https://github.com/nickg/nvc/issues</a>.
+  Please include enough information to reproduce the problem, ideally with a
+  small VHDL test case.
 </section>
 </div>
 <table class="foot">
   <tr>
-    <td class="foot-date">October 24, 2021</td>
+    <td class="foot-date">November 5, 2021</td>
     <td class="foot-os">Debian</td>
   </tr>
 </table>

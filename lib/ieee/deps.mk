@@ -16,19 +16,19 @@ lib/ieee/_IEEE.MATH_REAL.vcode: lib/std/STD.STANDARD lib/ieee/IEEE.MATH_REAL $(t
 
 lib/ieee/IEEE.MATH_REAL: lib/std/STD.STANDARD $(top_srcdir)/lib/ieee/math_real.vhdl
 
-lib/ieee/IEEE.NUMERIC_BIT-body: lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_BIT $(top_srcdir)/lib/ieee/numeric_bit-body.vhdl
+lib/ieee/IEEE.NUMERIC_BIT-body: lib/nvc/NVC.SIM_PKG lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_BIT $(top_srcdir)/lib/ieee/numeric_bit-body.vhdl
 
-lib/ieee/_IEEE.NUMERIC_BIT.so: lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_BIT $(top_srcdir)/lib/ieee/numeric_bit-body.vhdl
+lib/ieee/_IEEE.NUMERIC_BIT.so: lib/nvc/NVC.SIM_PKG lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_BIT $(top_srcdir)/lib/ieee/numeric_bit-body.vhdl
 
-lib/ieee/_IEEE.NUMERIC_BIT.vcode: lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_BIT $(top_srcdir)/lib/ieee/numeric_bit-body.vhdl
+lib/ieee/_IEEE.NUMERIC_BIT.vcode: lib/nvc/NVC.SIM_PKG lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_BIT $(top_srcdir)/lib/ieee/numeric_bit-body.vhdl
 
 lib/ieee/IEEE.NUMERIC_BIT: lib/std/STD.STANDARD $(top_srcdir)/lib/ieee/numeric_bit.vhdl
 
-lib/ieee/IEEE.NUMERIC_STD-body: lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_STD $(top_srcdir)/lib/ieee/numeric_std-body.vhdl
+lib/ieee/IEEE.NUMERIC_STD-body: lib/nvc/NVC.SIM_PKG lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_STD $(top_srcdir)/lib/ieee/numeric_std-body.vhdl
 
-lib/ieee/_IEEE.NUMERIC_STD.so: lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_STD $(top_srcdir)/lib/ieee/numeric_std-body.vhdl
+lib/ieee/_IEEE.NUMERIC_STD.so: lib/nvc/NVC.SIM_PKG lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_STD $(top_srcdir)/lib/ieee/numeric_std-body.vhdl
 
-lib/ieee/_IEEE.NUMERIC_STD.vcode: lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_STD $(top_srcdir)/lib/ieee/numeric_std-body.vhdl
+lib/ieee/_IEEE.NUMERIC_STD.vcode: lib/nvc/NVC.SIM_PKG lib/std/STD.STANDARD lib/ieee/IEEE.NUMERIC_STD $(top_srcdir)/lib/ieee/numeric_std-body.vhdl
 
 lib/ieee/IEEE.NUMERIC_STD: lib/ieee/IEEE.STD_LOGIC_1164 lib/std/STD.STANDARD $(top_srcdir)/lib/ieee/numeric_std.vhdl
 
@@ -40,13 +40,13 @@ lib/ieee/_IEEE.STD_LOGIC_1164.vcode: lib/std/STD.STANDARD lib/ieee/IEEE.STD_LOGI
 
 lib/ieee/IEEE.STD_LOGIC_1164: lib/std/STD.STANDARD $(top_srcdir)/lib/ieee/std_logic_1164.vhdl
 
-lib/ieee/IEEE.STD_LOGIC_ARITH-body: lib/ieee/IEEE.STD_LOGIC_1164 lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
+lib/ieee/IEEE.STD_LOGIC_ARITH-body: lib/nvc/NVC.SIM_PKG lib/ieee/IEEE.STD_LOGIC_1164 lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
 
-lib/ieee/_IEEE.STD_LOGIC_ARITH.so: lib/ieee/IEEE.STD_LOGIC_1164 lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
+lib/ieee/_IEEE.STD_LOGIC_ARITH.so: lib/nvc/NVC.SIM_PKG lib/ieee/IEEE.STD_LOGIC_1164 lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
 
-lib/ieee/_IEEE.STD_LOGIC_ARITH.vcode: lib/ieee/IEEE.STD_LOGIC_1164 lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
+lib/ieee/_IEEE.STD_LOGIC_ARITH.vcode: lib/nvc/NVC.SIM_PKG lib/ieee/IEEE.STD_LOGIC_1164 lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
 
-lib/ieee/IEEE.STD_LOGIC_ARITH: lib/ieee/IEEE.STD_LOGIC_1164 lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
+lib/ieee/IEEE.STD_LOGIC_ARITH: lib/nvc/NVC.SIM_PKG lib/ieee/IEEE.STD_LOGIC_1164 lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
 
 lib/ieee/IEEE.STD_LOGIC_MISC-body: lib/synopsys/SYNOPSYS.ATTRIBUTES lib/ieee/IEEE.STD_LOGIC_1164 lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/std_logic_misc.vhd
 
