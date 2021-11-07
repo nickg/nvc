@@ -20,6 +20,7 @@
 
 #include <string.h>
 #include <inttypes.h>
+#include <stdlib.h>
 
 static const imask_t has_map[E_LAST_NODE_KIND] = {
    // E_ROOT
@@ -413,6 +414,7 @@ static void e_clone_port(e_node_t p, e_node_t from, e_node_t to)
    e_node_t p2 = e_new(E_PORT);
    e_set_loc(p2, e_loc(p));
    e_set_ident(p2, e_ident(p));
+   e_set_flag(p2, e_flags(p));
    e_add_nexus(p2, from);
    e_add_nexus(p2, to);
 
@@ -430,6 +432,7 @@ e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)
    assert(width < owidth);
 
    e_node_t new = e_new(E_NEXUS);
+   e_set_pos(new, NEXUS_POS_INVALID);
    e_set_ident(new, e_ident(orig));
    e_set_width(new, owidth - width);
    e_set_size(new, e_size(orig));
@@ -490,6 +493,63 @@ e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)
    }
 
    return new;
+}
+
+void e_collapse_port(e_node_t root, unsigned pos, e_node_t old, e_node_t port)
+{
+   assert(root->object.kind == E_ROOT);
+   assert(old->object.kind == E_NEXUS);
+   assert(port->object.kind == E_PORT);
+   assert(e_nexus(port, 1) == old);
+
+   e_node_t new = e_nexus(port, 0);
+
+   const int nsignals = e_signals(old);
+   for (int i = 0; i < nsignals; i++) {
+      e_node_t s = e_signal(old, i);
+      e_add_signal(new, s);
+
+      obj_array_t *nexus_array =
+         &(lookup_item(&e_node_object, s, I_NEXUS)->obj_array);
+      for (unsigned i = 0; i < nexus_array->count; i++) {
+         if (nexus_array->items[i] == &(old->object))
+            nexus_array->items[i] = &(new->object);
+      }
+   }
+
+   obj_array_t *output_array =
+      &(lookup_item(&e_node_object, new, I_OUTPUTS)->obj_array);
+
+   unsigned wptr = 0;
+   for (unsigned i = 0; i < output_array->count; i++) {
+      if (output_array->items[i] != &(port->object))
+         output_array->items[wptr++] = output_array->items[i];
+   }
+   ATRIM(*output_array, wptr);
+
+   lookup_item(&e_node_object, root, I_NEXUS)->obj_array.items[pos] = NULL;
+}
+
+void e_clean_nexus_array(e_node_t root)
+{
+   assert(root->object.kind == E_ROOT);
+   obj_array_t *array =
+      &(lookup_item(&e_node_object, root, I_NEXUS)->obj_array);
+
+   unsigned wptr = 0;
+   for (unsigned i = 0; i < array->count; i++) {
+      object_t *o = array->items[i];
+      if (o == NULL) continue;
+
+      e_node_t n = container_of(o, struct _e_node, object);
+      item_t *pos = lookup_item(&e_node_object, n, I_POS);
+      if (pos->ival == NEXUS_POS_INVALID) {
+         pos->ival = wptr;
+         array->items[wptr++] = o;
+      }
+   }
+
+   ATRIM(*array, wptr);
 }
 
 static void e_dump_indent(int indent)

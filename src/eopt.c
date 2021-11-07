@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+#define COLLAPSE_PORTS 1
+
 static e_node_t      root = NULL;
 static cprop_vars_t *cprop_vars = NULL;
 
@@ -687,13 +689,14 @@ static void eopt_report_multiple_sources(e_node_t nexus)
 
 static void eopt_post_process_nexus(e_node_t root)
 {
+   // First pass: detect multiple drivers for unresolved signals and
+   // generate human-readable nexus names
+
    e_node_t slast = NULL;
    int next_lsb = 0;
    const int nnexus = e_nexuses(root);
    for (int i = 0; i < nnexus; i++) {
       e_node_t n = e_nexus(root, i);
-      e_set_pos(n, i);
-
       if (e_signals(n) == 0) continue;
 
       e_node_t s0 = e_signal(n, 0);
@@ -753,6 +756,25 @@ static void eopt_post_process_nexus(e_node_t root)
       slast = s0;
       next_lsb = msb + 1;
    }
+
+#if COLLAPSE_PORTS
+   // Second pass: collapse inputs and outputs with single source/driver
+
+   for (int i = 0; i < nnexus; i++) {
+      e_node_t n = e_nexus(root, i);
+      if (e_sources(n) != 1) continue;
+      if (e_outputs(n) != 0) continue;
+
+      e_node_t p = e_source(n, 0);
+      if (e_kind(p) == E_PORT && !(e_flags(p) & E_F_CONV_FUNC)) {
+         e_collapse_port(root, i, n, p);
+      }
+   }
+#endif
+
+   // Third pass: remove dead nexuses and assign IDs
+
+   e_clean_nexus_array(root);
 }
 
 static void eopt_post_process_signal(e_node_t e)

@@ -779,12 +779,14 @@ void _init_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
       rt_nexus_t *n = s->nexus[index++];
       RT_ASSERT(n->size == size);
 
-      RT_ASSERT(n->resolution == NULL || n->resolution == memo);
-      n->resolution = memo;
+      if (s == n->signals[0]) {
+         RT_ASSERT(n->resolution == NULL || n->resolution == memo);
+         n->resolution = memo;
 
-      memcpy(n->resolved, values, n->size * n->width);
-      if (n->flags & NET_F_LAST_VALUE)
-         memcpy(n->last_value, values, n->size * n->width);
+         memcpy(n->resolved, values, n->size * n->width);
+         if (n->flags & NET_F_LAST_VALUE)
+            memcpy(n->last_value, values, n->size * n->width);
+      }
 
       count -= n->width;
       values += n->width * n->size;

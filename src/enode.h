@@ -50,6 +50,8 @@ void e_dump(e_node_t e);
 e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width);
 void e_write(e_node_t e, fbuf_t *fbuf);
 e_node_t e_read(fbuf_t *fbuf);
+void e_clean_nexus_array(e_node_t root);
+void e_collapse_port(e_node_t root, unsigned pos, e_node_t old, e_node_t port);
 
 const loc_t *e_loc(e_node_t e);
 void e_set_loc(e_node_t e, const loc_t *loc);

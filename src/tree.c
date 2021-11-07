@@ -1177,14 +1177,15 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 {
    object_rewrite_ctx_t ctx = {
       .generation = object_next_generation(),
-      .fn         = fn,
+      .fn         = (object_rewrite_fn_t)fn,
       .context    = context,
-      .arena      = global_arena
+      .arena      = global_arena,
+      .tag        = OBJECT_TAG_TREE
    };
 
-   tree_t result = (tree_t)object_rewrite(&(t->object), &ctx);
+   object_t *result = object_rewrite(&(t->object), &ctx);
    free(ctx.cache);
-   return result;
+   return container_of(result, struct _tree, object);
 }
 
 tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context)

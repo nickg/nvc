@@ -139,17 +139,17 @@ STATIC_ASSERT(OBJECT_ALIGN >= sizeof(double));
          assert((t) != NULL);                                           \
          assert((mask & (mask - 1)) == 0);                              \
                                                                         \
-         const imask_t has = has_map[(t)->object.kind];                 \
+         const imask_t __has = has_map[(t)->object.kind];               \
                                                                         \
-         if (unlikely((has & mask) == 0))                               \
+         if (unlikely((__has & (mask)) == 0))                           \
             object_lookup_failed((class)->name, kind_text_map,          \
                                  (t)->object.kind, mask);               \
                                                                         \
-         const int tzc = __builtin_ctzll(mask);                         \
-         const int off = ((t)->object.kind * 64) + tzc;                 \
-         const int n   = (class)->item_lookup[off];                     \
+         const int __tzc = __builtin_ctzll(mask);                       \
+         const int __off = ((t)->object.kind * 64) + __tzc;             \
+         const int __n   = (class)->item_lookup[__off];                 \
                                                                         \
-         &((t)->object.items[n]);                                       \
+         &((t)->object.items[__n]);                                     \
       })
 
 typedef enum {
@@ -208,12 +208,15 @@ typedef struct {
    hash_t          *copy_map;
 } object_copy_ctx_t;
 
+typedef object_t *(*object_rewrite_fn_t)(object_t *, void *);
+
 typedef struct {
-   object_t        **cache;
-   generation_t      generation;
-   tree_rewrite_fn_t fn;
-   void             *context;
-   object_arena_t   *arena;
+   object_t            **cache;
+   generation_t          generation;
+   object_rewrite_fn_t   fn;
+   void                 *context;
+   object_arena_t       *arena;
+   unsigned              tag;
 } object_rewrite_ctx_t;
 
 typedef struct {

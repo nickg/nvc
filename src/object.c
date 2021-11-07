@@ -574,9 +574,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       if (ctx->cache[index] == (object_t *)-1) {
          // Found a circular reference: eagerly rewrite the object now
          // and break the cycle
-         if (object->tag == OBJECT_TAG_TREE) {
-            object_t *new =
-               (object_t *)(*ctx->fn)((tree_t)object, ctx->context);
+         if (object->tag == ctx->tag) {
+            object_t *new = (object_t *)(*ctx->fn)(object, ctx->context);
             object_write_barrier(object, new);
             return (ctx->cache[index] = new);
          }
@@ -621,6 +620,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
             ;
          else if (ITEM_DOUBLE & mask)
             ;
+	 else if (ITEM_IDENT_ARRAY & mask)
+	    ;
          else
             item_without_type(mask);
       }
@@ -632,10 +633,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    if (ctx->cache[index] != (object_t *)-1) {
       // The cache was already updated due to a circular reference
    }
-   else if (object->tag == OBJECT_TAG_TREE) {
-      // Rewrite this tree before we rewrite the type as there may
-      // be a circular reference
-      object_t *new = (object_t *)(*ctx->fn)((tree_t)object, ctx->context);
+   else if (object->tag == ctx->tag) {
+      object_t *new = (object_t *)(*ctx->fn)(object, ctx->context);
       object_write_barrier(object, new);
       ctx->cache[index] = new;
    }
