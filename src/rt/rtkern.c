@@ -2402,7 +2402,7 @@ static void rt_driver_initial(rt_nexus_t *nexus)
          memcpy(s->waveforms->values->data, nexus->resolved, valuesz);
    }
 
-   rt_update_inputs(nexus);
+   if (nexus->rank > 0) rt_update_inputs(nexus);
 
    void *resolved;
    if (nexus->n_sources > 0) {
@@ -2561,7 +2561,7 @@ static bool rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
 
 static void rt_update_nexus(rt_nexus_t *nexus)
 {
-   rt_update_inputs(nexus);
+   if (nexus->rank > 0) rt_update_inputs(nexus);
 
    void *resolved = rt_call_resolution_fn(nexus);
    const size_t valuesz = nexus->size * nexus->width;
@@ -2600,7 +2600,7 @@ static void rt_update_nexus(rt_nexus_t *nexus)
 
 static void rt_push_active_nexus(rt_nexus_t *nexus)
 {
-   if (nexus->rank == 0) {
+   if (likely(nexus->rank == 0)) {
       // This nexus does not depend on the values of any inputs so we
       // can eagerly update its value now
       rt_update_nexus(nexus);
