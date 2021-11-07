@@ -102,7 +102,7 @@ static void walk_fn(uint64_t key, void *user, void *context)
 
 START_TEST(test_heap_basic)
 {
-   heap_t h = heap_new(128);
+   heap_t *h = heap_new(128);
 
    heap_insert(h, 5, (void*)5);
    heap_insert(h, 2, (void*)2);
@@ -124,7 +124,7 @@ END_TEST
 
 START_TEST(test_heap_walk)
 {
-   heap_t h = heap_new(128);
+   heap_t *h = heap_new(128);
 
    heap_insert(h, 5, (void*)5);
    heap_insert(h, 2, (void*)2);
@@ -141,7 +141,7 @@ END_TEST
 
 START_TEST(test_heap_rand)
 {
-   heap_t h = heap_new(128);
+   heap_t *h = heap_new(128);
 
    static const int N = 1024;
    uintptr_t keys[N];

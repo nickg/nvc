@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -25,29 +25,23 @@
 #define LEFT(i)   (i << 1)
 #define RIGHT(i)  ((i << 1) + 1)
 
-struct node {
+struct heap_node {
    void     *user;
    uint64_t key;
-};
-
-struct heap {
-   struct node *nodes;
-   size_t    size;
-   size_t    max_size;
 };
 
 #define NODE(h, i) (h->nodes[i - 1])
 #define KEY(h, i)  (NODE(h, i).key)
 #define USER(h, i) (NODE(h, i).user)
 
-static inline void exchange(heap_t h, size_t i, size_t j)
+static inline void exchange(heap_t *h, size_t i, size_t j)
 {
-   struct node tmp = NODE(h, j);
+   heap_node_t tmp = NODE(h, j);
    NODE(h, j) = NODE(h, i);
    NODE(h, i) = tmp;
 }
 
-static void min_heapify(heap_t h, size_t i)
+static void min_heapify(heap_t *h, size_t i)
 {
    for (;;) {
       const size_t l = LEFT(i);
@@ -70,7 +64,7 @@ static void min_heapify(heap_t h, size_t i)
    }
 }
 
-static inline void heap_decrease_key(heap_t h, size_t i, uint64_t key)
+static inline void heap_decrease_key(heap_t *h, size_t i, uint64_t key)
 {
    if (unlikely(key > KEY(h, i)))
       fatal("new key is larger than current key") LCOV_EXCL_LINE;
@@ -82,22 +76,22 @@ static inline void heap_decrease_key(heap_t h, size_t i, uint64_t key)
    }
 }
 
-heap_t heap_new(size_t init_size)
+heap_t *heap_new(size_t init_size)
 {
-   struct heap *h = xmalloc(sizeof(struct heap));
-   h->nodes    = xmalloc(init_size * sizeof(struct node));
+   heap_t *h = xmalloc(sizeof(heap_t));
+   h->nodes    = xmalloc_array(init_size, sizeof(heap_node_t));
    h->max_size = init_size;
    h->size     = 0;
    return h;
 }
 
-void heap_free(heap_t h)
+void heap_free(heap_t *h)
 {
    free(h->nodes);
    free(h);
 }
 
-void *heap_extract_min(heap_t h)
+void *heap_extract_min(heap_t *h)
 {
    if (unlikely(h->size < 1))
       fatal_trace("heap underflow") LCOV_EXCL_LINE;
@@ -109,7 +103,7 @@ void *heap_extract_min(heap_t h)
    return min;
 }
 
-void *heap_min(heap_t h)
+void *heap_min(heap_t *h)
 {
    if (unlikely(h->size < 1))
       fatal_trace("heap underflow") LCOV_EXCL_LINE;
@@ -117,11 +111,11 @@ void *heap_min(heap_t h)
    return USER(h, 1);
 }
 
-void heap_insert(heap_t h, uint64_t key, void *user)
+void heap_insert(heap_t *h, uint64_t key, void *user)
 {
    if (unlikely(h->size == h->max_size)) {
       h->max_size *= 2;
-      h->nodes = xrealloc(h->nodes, h->max_size * sizeof(struct node));
+      h->nodes = xrealloc_array(h->nodes, h->max_size, sizeof(heap_node_t));
    }
 
    ++(h->size);
@@ -132,12 +126,7 @@ void heap_insert(heap_t h, uint64_t key, void *user)
    heap_decrease_key(h, h->size, key);
 }
 
-size_t heap_size(heap_t h)
-{
-   return h->size;
-}
-
-void heap_walk(heap_t h, heap_walk_fn_t fn, void *context)
+void heap_walk(heap_t *h, heap_walk_fn_t fn, void *context)
 {
    for (size_t i = 1; i <= h->size; i++)
       (*fn)(KEY(h, i), USER(h, i), context);

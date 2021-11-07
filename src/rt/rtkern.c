@@ -308,7 +308,7 @@ static rt_scope_t      *scopes = NULL;
 static rt_run_queue_t   timeoutq;
 static rt_run_queue_t   driverq;
 static rt_run_queue_t   procq;
-static heap_t           eventq_heap = NULL;
+static heap_t          *eventq_heap = NULL;
 static unsigned         n_scopes = 0;
 static unsigned         n_nexuses = 0;
 static uint64_t         now = 0;

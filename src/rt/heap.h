@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,16 +21,23 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct heap *heap_t;
+typedef struct heap_node heap_node_t;
+
+typedef struct {
+   heap_node_t *nodes;
+   size_t       size;
+   size_t       max_size;
+} heap_t;
 
 typedef void (*heap_walk_fn_t)(uint64_t key, void *user, void *context);
 
-heap_t heap_new(size_t init_size);
-void heap_free(heap_t h);
-void *heap_extract_min(heap_t h);
-void *heap_min(heap_t h);
-void heap_insert(heap_t h, uint64_t key, void *user);
-size_t heap_size(heap_t h);
-void heap_walk(heap_t h, heap_walk_fn_t fn, void *context);
+heap_t *heap_new(size_t init_size);
+void heap_free(heap_t *h);
+void *heap_extract_min(heap_t *h);
+void *heap_min(heap_t *h);
+void heap_insert(heap_t *h, uint64_t key, void *user);
+void heap_walk(heap_t *h, heap_walk_fn_t fn, void *context);
+
+#define heap_size(h) ((h)->size)
 
 #endif
