@@ -162,6 +162,28 @@ static int check_eopt(e_node_t e)
                nerrors++;
             }
          }
+
+         if (e_kind(p) == E_PORT) {
+            if (e_nexus(p, 1) != e) {
+               printf("port %s not linked to nexus %s\n",
+                      istr(e_ident(p)), istr(e_ident(e)));
+               nerrors++;
+            }
+
+            e_node_t src = e_nexus(p, 0);
+            const int noutputs = e_outputs(src);
+            bool found_link = false;
+            for (int j = 0; j < noutputs && !found_link; j++) {
+               if (e_output(src, j) == p)
+                  found_link = true;
+            }
+
+            if (!found_link) {
+               printf("port %s not linked to output of nexus %s\n",
+                      istr(e_ident(p)), istr(e_ident(src)));
+               nerrors++;
+            }
+         }
       }
 
       break;
@@ -742,7 +764,7 @@ START_TEST(test_map2)
    fail_unless(e_signals(n0) == 2);
 
    e_node_t n1 = e_nexus(i, 1);
-   fail_unless(e_ident(n1) == ident_new(":map2:sub1_i:i[8]"));  // Should be [2]
+   fail_unless(e_ident(n1) == ident_new(":map2:sub1_i:i[2]"));
    fail_unless(e_width(n1) == 1);
    fail_unless(e_signals(n1) == 1);
 
@@ -869,8 +891,17 @@ START_TEST(test_issue427)
 
    e_node_t e = run_eopt();
 
-   fail_unless(e_nexuses(e) == 5);
+   fail_unless(e_nexuses(e) == 7);
    fail_unless(e_scopes(e) == 4);
+
+   e_node_t n0 = e_nexus(e, 0);
+   fail_unless(e_ident(n0) == ident_new(":test_ng:sync"));
+   fail_unless(e_sources(n0) == 2);
+
+   e_node_t n0p0 = e_source(n0, 0);
+   fail_unless(e_kind(n0p0) == E_PORT);
+   fail_unless(e_ident(e_nexus(n0p0, 0)) ==
+               ident_new(":test_ng:plug(1):driver:sync"));
 
    e_node_t top = e_scope(e, 3);
    fail_unless(e_instance(top) == ident_new(":test_ng(model)"));
