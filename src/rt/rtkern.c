@@ -54,7 +54,7 @@
 
 #define TRACE_DELTAQ  1
 #define TRACE_PENDING 0
-#define RT_DEBUG      1
+#define RT_DEBUG      0
 
 typedef struct event       event_t;
 typedef struct waveform    waveform_t;
@@ -309,6 +309,7 @@ static rt_run_queue_t   timeoutq;
 static rt_run_queue_t   driverq;
 static rt_run_queue_t   procq;
 static heap_t          *eventq_heap = NULL;
+static heap_t          *rankn_heap = NULL;
 static unsigned         n_scopes = 0;
 static unsigned         n_nexuses = 0;
 static uint64_t         now = 0;
@@ -2103,9 +2104,8 @@ static void rt_setup(e_node_t top)
    rt_free_delta_events(delta_proc);
    rt_free_delta_events(delta_driver);
 
-   if (eventq_heap != NULL)
-      heap_free(eventq_heap);
    eventq_heap = heap_new(512);
+   rankn_heap = heap_new(128);
 
    rt_setup_nexus(top);
    rt_setup_scopes(top);
@@ -2604,12 +2604,16 @@ static void rt_update_nexus(rt_nexus_t *nexus)
 
 static void rt_push_active_nexus(rt_nexus_t *nexus)
 {
-   if (unlikely(n_active_nexus == n_active_alloc)) {
-      n_active_alloc *= 2;
-      const size_t newsz = n_active_alloc * sizeof(struct netgroup *);
-      active_nexus = xrealloc(active_nexus, newsz);
+   if (nexus->rank == 0) {
+      if (unlikely(n_active_nexus == n_active_alloc)) {
+         n_active_alloc *= 2;
+         const size_t newsz = n_active_alloc * sizeof(struct netgroup *);
+         active_nexus = xrealloc(active_nexus, newsz);
+      }
+      active_nexus[n_active_nexus++] = nexus;
    }
-   active_nexus[n_active_nexus++] = nexus;
+   else
+      heap_insert(rankn_heap, nexus->rank, nexus);
 
    for (unsigned i = 0; i < nexus->n_outputs; i++) {
       rt_source_t *o = nexus->outputs[i];
@@ -2835,11 +2839,12 @@ static void rt_cycle(int stop_delta)
       rt_free(event_stack, event);
    }
 
-   for (int rank = 0; rank <= highest_rank; rank++) {
-      for (unsigned i = 0; i < n_active_nexus; i++) {
-         if (active_nexus[i]->rank == rank)
-            rt_update_nexus(active_nexus[i]);
-      }
+   for (unsigned i = 0; i < n_active_nexus; i++)
+      rt_update_nexus(active_nexus[i]);
+
+   while (heap_size(rankn_heap) > 0) {
+      rt_nexus_t *n = heap_extract_min(rankn_heap);
+      rt_update_nexus(n);
    }
 
    while ((event = rt_pop_run_queue(&procq))) {
@@ -2951,6 +2956,9 @@ static void rt_cleanup(e_node_t top)
 
    heap_free(eventq_heap);
    eventq_heap = NULL;
+
+   heap_free(rankn_heap);
+   rankn_heap = NULL;
 
    for (unsigned i = 0; i < n_nexuses; i++)
       rt_cleanup_nexus(&(nexuses[i]));
