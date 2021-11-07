@@ -345,10 +345,6 @@ static rt_alloc_stack_t sens_list_stack = NULL;
 static rt_alloc_stack_t watch_stack = NULL;
 static rt_alloc_stack_t callback_stack = NULL;
 
-static rt_nexus_t **active_nexus;
-static unsigned     n_active_nexus = 0;
-static unsigned     n_active_alloc = 0;
-
 static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake);
 static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
                                  rt_proc_t *driver);
@@ -2605,12 +2601,9 @@ static void rt_update_nexus(rt_nexus_t *nexus)
 static void rt_push_active_nexus(rt_nexus_t *nexus)
 {
    if (nexus->rank == 0) {
-      if (unlikely(n_active_nexus == n_active_alloc)) {
-         n_active_alloc *= 2;
-         const size_t newsz = n_active_alloc * sizeof(struct netgroup *);
-         active_nexus = xrealloc(active_nexus, newsz);
-      }
-      active_nexus[n_active_nexus++] = nexus;
+      // This nexus does not depend on the values of any inputs so we
+      // can eagerly update its value now
+      rt_update_nexus(nexus);
    }
    else
       heap_insert(rankn_heap, nexus->rank, nexus);
@@ -2839,9 +2832,6 @@ static void rt_cycle(int stop_delta)
       rt_free(event_stack, event);
    }
 
-   for (unsigned i = 0; i < n_active_nexus; i++)
-      rt_update_nexus(active_nexus[i]);
-
    while (heap_size(rankn_heap) > 0) {
       rt_nexus_t *n = heap_extract_min(rankn_heap);
       rt_update_nexus(n);
@@ -2861,8 +2851,6 @@ static void rt_cycle(int stop_delta)
    // Run all processes that resumed because of signal events
    rt_resume_processes(&resume);
    rt_global_event(RT_END_OF_PROCESSES);
-
-   n_active_nexus = 0;
 
    if (!rt_next_cycle_is_delta()) {
       can_create_delta = false;
@@ -3123,9 +3111,6 @@ void rt_start_of_tool(tree_t top, e_node_t e)
    sens_list_stack = rt_alloc_stack_new(sizeof(sens_list_t), "sens_list");
    watch_stack     = rt_alloc_stack_new(sizeof(watch_t), "watch");
    callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
-
-   n_active_alloc = 128;
-   active_nexus = xmalloc(n_active_alloc * sizeof(struct netgroup *));
 
    global_tmp_stack = mmap_guarded(GLOBAL_TMP_STACK_SZ, "global temp stack");
    proc_tmp_stack   = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
