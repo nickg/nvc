@@ -517,15 +517,28 @@ void e_collapse_port(e_node_t root, unsigned pos, e_node_t old, e_node_t port)
       }
    }
 
-   obj_array_t *output_array =
+   obj_array_t *new_outs =
       &(lookup_item(&e_node_object, new, I_OUTPUTS)->obj_array);
 
    unsigned wptr = 0;
-   for (unsigned i = 0; i < output_array->count; i++) {
-      if (output_array->items[i] != &(port->object))
-         output_array->items[wptr++] = output_array->items[i];
+   for (unsigned i = 0; i < new_outs->count; i++) {
+      if (new_outs->items[i] != &(port->object))
+         new_outs->items[wptr++] = new_outs->items[i];
    }
-   ATRIM(*output_array, wptr);
+   ATRIM(*new_outs, wptr);
+
+   obj_array_t *old_outs =
+      &(lookup_item(&e_node_object, old, I_OUTPUTS)->obj_array);
+
+   for (unsigned i = 0; i < old_outs->count; i++) {
+      e_node_t p = container_of(old_outs->items[i], struct _e_node, object);
+      obj_array_t *nexus_array =
+         &(lookup_item(&e_node_object, p, I_NEXUS)->obj_array);
+      assert(nexus_array->items[0] == &(old->object));
+      nexus_array->items[0] = &(new->object);
+
+      APUSH(*new_outs, old_outs->items[i]);
+   }
 
    lookup_item(&e_node_object, root, I_NEXUS)->obj_array.items[pos] = NULL;
 }

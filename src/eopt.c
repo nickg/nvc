@@ -763,12 +763,10 @@ static void eopt_post_process_nexus(e_node_t root)
    for (int i = 0; i < nnexus; i++) {
       e_node_t n = e_nexus(root, i);
       if (e_sources(n) != 1) continue;
-      if (e_outputs(n) != 0) continue;
 
       e_node_t p = e_source(n, 0);
-      if (e_kind(p) == E_PORT && !(e_flags(p) & E_F_CONV_FUNC)) {
+      if (e_kind(p) == E_PORT && !(e_flags(p) & E_F_CONV_FUNC))
          e_collapse_port(root, i, n, p);
-      }
    }
 #endif
 
