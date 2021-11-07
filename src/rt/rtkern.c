@@ -98,6 +98,7 @@ struct event {
    event_t      *delta_chain;
    rt_proc_t    *proc;
    rt_nexus_t   *nexus;
+   rt_source_t  *source;
    timeout_fn_t  timeout_fn;
    void         *timeout_user;
 };
@@ -347,8 +348,8 @@ static rt_alloc_stack_t callback_stack = NULL;
 
 static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake);
 static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
-                                 rt_proc_t *driver);
-static bool rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
+                                 rt_source_t *source);
+static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
                             uint64_t reject, value_t *values);
 static void rt_sched_event(sens_list_t **list, rt_proc_t *proc, bool is_static);
 static void *rt_tmp_alloc(size_t sz);
@@ -660,8 +661,7 @@ void _sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
    value_t *values_copy = rt_alloc_value(n);
    values_copy->qwords[0] = scalar;
 
-   if (!rt_sched_driver(n, after, reject, values_copy))
-      deltaq_insert_driver(after, n, active_proc);
+   rt_sched_driver(n, after, reject, values_copy);
 }
 
 DLLEXPORT
@@ -690,8 +690,7 @@ void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
       memcpy(values_copy->data, vptr, n->size * n->width);
       vptr += n->size * n->width;
 
-      if (!rt_sched_driver(n, after, reject, values_copy))
-         deltaq_insert_driver(after, n, active_proc);
+      rt_sched_driver(n, after, reject, values_copy);
    }
 }
 
@@ -1607,13 +1606,13 @@ static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake)
 }
 
 static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
-                                 rt_proc_t *driver)
+                                 rt_source_t *source)
 {
    event_t *e = rt_alloc(event_stack);
    e->when       = now + delta;
    e->kind       = EVENT_DRIVER;
    e->nexus      = nexus;
-   e->proc       = driver;
+   e->source     = source;
    e->wakeup_gen = UINT32_MAX;
 
    deltaq_insert(e);
@@ -2490,7 +2489,7 @@ static void rt_wakeup(sens_list_t *sl)
       rt_free(sens_list_stack, sl);
 }
 
-static bool rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
+static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
                             uint64_t reject, value_t *values)
 {
    if (unlikely(reject > after))
@@ -2556,7 +2555,8 @@ static bool rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
       it = next;
    }
 
-   return already_scheduled;
+   if (!already_scheduled)
+      deltaq_insert_driver(after, nexus, d);
 }
 
 static void rt_update_nexus(rt_nexus_t *nexus)
@@ -2618,22 +2618,14 @@ static void rt_push_active_nexus(rt_nexus_t *nexus)
    }
 }
 
-static void rt_update_driver(rt_nexus_t *nexus, rt_proc_t *proc)
+static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
 {
-   if (likely(proc != NULL)) {
-      // Find the driver owned by proc
-      int driver;
-      for (driver = 0; driver < nexus->n_sources; driver++) {
-         if (likely(nexus->sources[driver].proc == proc))
-            break;
-      }
-      RT_ASSERT(driver != nexus->n_sources);
-
-      waveform_t *w_now  = nexus->sources[driver].waveforms;
+   if (likely(source != NULL)) {
+      waveform_t *w_now  = source->waveforms;
       waveform_t *w_next = w_now->next;
 
       if (likely((w_next != NULL) && (w_next->when == now))) {
-         nexus->sources[driver].waveforms = w_next;
+         source->waveforms = w_next;
          rt_free_value(nexus, w_now->values);
          rt_free(waveform_stack, w_now);
          rt_push_active_nexus(nexus);
@@ -2828,7 +2820,7 @@ static void rt_cycle(int stop_delta)
    }
 
    while ((event = rt_pop_run_queue(&driverq))) {
-      rt_update_driver(event->nexus, event->proc);
+      rt_update_driver(event->nexus, event->source);
       rt_free(event_stack, event);
    }
 
