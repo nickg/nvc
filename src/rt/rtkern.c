@@ -159,6 +159,12 @@ typedef struct {
    int8_t           tab1[16];
 } res_memo_t;
 
+typedef enum {
+   NET_F_FORCED     = (1 << 0),
+   NET_F_OWNS_MEM   = (1 << 1),
+   NET_F_LAST_VALUE = (1 << 2),
+} net_flags_t;
+
 typedef struct rt_nexus_s {
    e_node_t      enode;
    uint32_t      width;
@@ -166,6 +172,8 @@ typedef struct rt_nexus_s {
    value_t      *free_values;
    uint64_t      last_event;
    uint64_t      last_active;
+   int32_t       event_delta;
+   int32_t       active_delta;
    sens_list_t  *pending;
    watch_list_t *watching;
    value_t      *forcing;
@@ -186,7 +194,7 @@ typedef struct rt_nexus_s {
 // The code generator knows the layout of this struct
 typedef struct {
    uint32_t  id;
-   uint32_t  __pad;             // TODO: put flags here
+   uint32_t  __pad;
    void     *resolved;
    void     *last_value;
 } sig_shared_t;
@@ -1396,20 +1404,42 @@ void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
 }
 
 DLLEXPORT
-int32_t _test_net_flag(sig_shared_t *ss, uint32_t offset, int32_t count,
-                       int32_t flag)
+int32_t _test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("_test_net_flag %s offset=%d count=%d flag=%d",
-         istr(e_path(s->enode)), offset, count, flag);
+   TRACE("_test_net_active %s offset=%d count=%d",
+         istr(e_path(s->enode)), offset, count);
 
    unsigned index = rt_signal_nexus_index(s, offset);
    while (count > 0) {
       RT_ASSERT(index < s->n_nexus);
       rt_nexus_t *n = s->nexus[index++];
 
-      if (n->flags & flag)
+      if (n->last_active == now && n->active_delta == iteration)
+         return 1;
+
+      count -= n->width;
+      RT_ASSERT(count >= 0);
+   }
+
+   return 0;
+}
+
+DLLEXPORT
+int32_t _test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("_test_net_event %s offset=%d count=%d",
+         istr(e_path(s->enode)), offset, count);
+
+   unsigned index = rt_signal_nexus_index(s, offset);
+   while (count > 0) {
+      RT_ASSERT(index < s->n_nexus);
+      rt_nexus_t *n = s->nexus[index++];
+
+      if (n->last_event == now && n->event_delta == iteration)
          return 1;
 
       count -= n->width;
@@ -2350,24 +2380,6 @@ static void rt_update_inputs(rt_nexus_t *nexus)
    }
 }
 
-static int32_t rt_resolve_nexus(rt_nexus_t *nexus)
-{
-   rt_update_inputs(nexus);
-
-   void *resolved = rt_call_resolution_fn(nexus);
-   const size_t valuesz = nexus->size * nexus->width;
-
-   int32_t new_flags = NET_F_ACTIVE;
-   nexus->last_active = now;
-   if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
-      new_flags |= NET_F_EVENT;
-      rt_propagate_nexus(nexus, resolved);
-      nexus->last_event = now;
-   }
-
-   return new_flags;
-}
-
 static void rt_reset_scopes(e_node_t top)
 {
    for (unsigned i = 0; i < n_scopes; i++) {
@@ -2399,10 +2411,12 @@ static void rt_driver_initial(rt_nexus_t *nexus)
    void *resolved;
    if (nexus->n_sources > 0) {
       resolved = rt_call_resolution_fn(nexus);
+      nexus->event_delta = nexus->active_delta = -1;
       nexus->last_event = nexus->last_active = now;
    }
    else {
       resolved = nexus->resolved;
+      nexus->event_delta = nexus->active_delta = -1;
       nexus->last_event = nexus->last_active = INT64_MAX;    // TIME'HIGH
    }
 
@@ -2551,14 +2565,23 @@ static bool rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
 
 static void rt_update_nexus(rt_nexus_t *nexus)
 {
-   const int32_t new_flags = rt_resolve_nexus(nexus);
-   nexus->flags |= new_flags;
+   rt_update_inputs(nexus);
+
+   void *resolved = rt_call_resolution_fn(nexus);
+   const size_t valuesz = nexus->size * nexus->width;
+
+   nexus->last_active = now;
+   nexus->active_delta = iteration;
 
    TRACE("update nexus %s rank %d resolved=%s", istr(e_ident(nexus->enode)),
          nexus->rank, fmt_nexus(nexus, nexus->resolved));
 
-   // Wake up any processes sensitive to this nexus
-   if (new_flags & NET_F_EVENT) {
+   if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
+      nexus->last_event = now;
+      nexus->event_delta = iteration;
+      rt_propagate_nexus(nexus, resolved);
+
+      // Wake up any processes sensitive to this nexus
       sens_list_t *it = NULL, *next = NULL;
 
       // First wakeup everything on the nexus specific pending list
@@ -2834,10 +2857,6 @@ static void rt_cycle(int stop_delta)
    rt_resume_processes(&resume);
    rt_global_event(RT_END_OF_PROCESSES);
 
-   for (unsigned i = 0; i < n_active_nexus; i++) {
-      rt_nexus_t *n = active_nexus[i];
-      n->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
-   }
    n_active_nexus = 0;
 
    if (!rt_next_cycle_is_delta()) {

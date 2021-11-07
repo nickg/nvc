@@ -2206,7 +2206,7 @@ static void cgen_op_closure(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = cdata;
 }
 
-static void cgen_net_flag(int op, net_flags_t flag, cgen_ctx_t *ctx)
+static void cgen_net_flag(int op, const char *func, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
@@ -2216,21 +2216,20 @@ static void cgen_net_flag(int op, net_flags_t flag, cgen_ctx_t *ctx)
    LLVMValueRef args[] = {
       LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
       LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
-      count,
-      llvm_int32(flag)
+      count
    };
-   ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_test_net_flag"), args,
+   ctx->regs[result] = LLVMBuildCall(builder, llvm_fn(func), args,
                                      ARRAY_LEN(args), cgen_reg_name(result));
 }
 
 static void cgen_op_event(int op, cgen_ctx_t *ctx)
 {
-   cgen_net_flag(op, NET_F_EVENT, ctx);
+   cgen_net_flag(op, "_test_net_event", ctx);
 }
 
 static void cgen_op_active(int op, cgen_ctx_t *ctx)
 {
-   cgen_net_flag(op, NET_F_ACTIVE, ctx);
+   cgen_net_flag(op, "_test_net_active", ctx);
 }
 
 static void cgen_op_const_record(int op, cgen_ctx_t *ctx)
@@ -4346,14 +4345,23 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
    }
-   else if (strcmp(name, "_test_net_flag") == 0) {
+   else if (strcmp(name, "_test_net_event") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
          LLVMInt32Type(),
+         LLVMInt32Type()
+      };
+      fn = LLVMAddFunction(module, "_test_net_event",
+                           LLVMFunctionType(LLVMInt1Type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_test_net_active") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
          LLVMInt32Type(),
          LLVMInt32Type()
       };
-      fn = LLVMAddFunction(module, "_test_net_flag",
+      fn = LLVMAddFunction(module, "_test_net_active",
                            LLVMFunctionType(LLVMInt1Type(),
                                             args, ARRAY_LEN(args), false));
    }

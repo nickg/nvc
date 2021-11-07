@@ -24,7 +24,7 @@
 
 #include <stdint.h>
 
-#define RT_ABI_VERSION 2
+#define RT_ABI_VERSION 3
 
 typedef struct watch       watch_t;
 typedef struct rt_signal_s rt_signal_t;
@@ -77,15 +77,6 @@ typedef enum {
    R_IDENT     = (1 << 1),
    R_COMPOSITE = (1 << 2),
 } res_flags_t;
-
-typedef enum {
-   NET_F_ACTIVE     = (1 << 0),
-   NET_F_EVENT      = (1 << 1),
-   NET_F_FORCED     = (1 << 2),
-   NET_F_OWNS_MEM   = (1 << 3),
-   // unused        = (1 << 4),
-   NET_F_LAST_VALUE = (1 << 5),
-} net_flags_t;
 
 typedef enum {
    SCHED_SEQUENTIAL = (1 << 0),
