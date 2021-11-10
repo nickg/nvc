@@ -86,10 +86,6 @@ static A(char *)           link_args;
 static hash_t             *string_pool = NULL;
 static A(LLVMMetadataRef)  debug_scopes;
 
-#ifndef LLVM_HAVE_DI_SCOPE_GET_FILE
-static LLVMMetadataRef debug_file = NULL;
-#endif
-
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMTypeRef cgen_state_type(vcode_unit_t unit);
 
@@ -487,14 +483,31 @@ static LLVMMetadataRef cgen_top_debug_scope(void)
    return AGET(debug_scopes, debug_scopes.count - 1);
 }
 
-static LLVMMetadataRef cgen_debug_file(const loc_t *loc)
+static LLVMMetadataRef cgen_debug_file(const loc_t *loc, bool allow_cached)
 {
-   // Ignore the passed in loc and just return the top-level file
-#ifdef LLVM_HAVE_DI_SCOPE_GET_FILE
-   return LLVMDIScopeGetFile(AGET(debug_scopes, 0));
-#else
-   return debug_file;
-#endif
+   static LLVMMetadataRef last = NULL;
+   static loc_file_ref_t last_ref = FILE_INVALID;
+
+   if (loc->file_ref == last_ref && allow_cached)
+      return last;
+
+   const char *file_path = loc_file_str(loc);
+   if (file_path == NULL)
+      return last;
+
+   char *basec LOCAL = xstrdup(file_path);
+   char *dirc LOCAL = xstrdup(file_path);
+
+   const char *file = basename(basec);
+   const size_t file_len = strlen(file);
+
+   const char *dir = dirname(dirc);
+   const size_t dir_len = strlen(dir);
+
+   last_ref = loc->file_ref;
+   last = LLVMDIBuilderCreateFile(debuginfo, file, file_len, dir, dir_len);
+
+   return last;
 }
 
 static void cgen_debug_loc(cgen_ctx_t *ctx, const loc_t *loc, bool force)
@@ -523,7 +536,7 @@ static void cgen_debug_push_func(cgen_ctx_t *ctx)
    const char *symbol = safe_symbol(name);
 
    const loc_t *loc = vcode_unit_loc();
-   LLVMMetadataRef file_ref = cgen_debug_file(loc);
+   LLVMMetadataRef file_ref = cgen_debug_file(loc, true);
    LLVMMetadataRef dtype = LLVMDIBuilderCreateSubroutineType(
       debuginfo, file_ref, NULL, 0, 0);
    LLVMMetadataRef sp = LLVMDIBuilderCreateFunction(
@@ -3883,23 +3896,7 @@ static void cgen_module_debug_info(void)
    const loc_t *loc = vcode_unit_loc();
    assert(!loc_invalid_p(loc));
 
-   const char *file_path = loc_file_str(loc);
-
-   char *basec LOCAL = xstrdup(file_path);
-   char *dirc LOCAL = xstrdup(file_path);
-
-   const char *file = basename(basec);
-   const size_t file_len = strlen(file);
-
-   const char *dir = dirname(dirc);
-   const size_t dir_len = strlen(dir);
-
-   LLVMMetadataRef file_ref =
-      LLVMDIBuilderCreateFile(debuginfo, file, file_len, dir, dir_len);
-
-#ifndef LLVM_HAVE_DI_SCOPE_GET_FILE
-   debug_file = file_ref;
-#endif
+   LLVMMetadataRef file_ref = cgen_debug_file(loc, false);
 
    LLVMMetadataRef cu = LLVMDIBuilderCreateCompileUnit(
       debuginfo, LLVMDWARFSourceLanguageAda83,
