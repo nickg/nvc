@@ -2570,7 +2570,7 @@ static void rt_update_nexus(rt_nexus_t *nexus)
    nexus->active_delta = iteration;
 
    TRACE("update nexus %s rank %d resolved=%s", istr(e_ident(nexus->enode)),
-         nexus->rank, fmt_nexus(nexus, nexus->resolved));
+         nexus->rank, fmt_nexus(nexus, resolved));
 
    if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
       nexus->last_event = now;
