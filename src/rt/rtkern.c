@@ -178,18 +178,18 @@ typedef struct rt_nexus_s {
    sens_list_t  *pending;
    watch_list_t *watching;
    value_t      *forcing;
-   net_flags_t   flags;
    res_memo_t   *resolution;
-   uint32_t      n_sources;
+   net_flags_t   flags;
+   unsigned      rank;
+   unsigned      n_sources;
+   unsigned      n_signals;
+   unsigned      n_outputs;
    rt_source_t  *sources;
+   rt_signal_t **signals;
+   rt_source_t **outputs;
    void         *resolved;
    void         *last_value;
-   unsigned      n_signals;
-   rt_signal_t **signals;
    unsigned     *offsets;
-   unsigned      rank;
-   uint32_t      n_outputs;
-   rt_source_t **outputs;
 } rt_nexus_t;
 
 // The code generator knows the layout of this struct
@@ -686,9 +686,13 @@ void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
       len -= n->width;
       RT_ASSERT(len >= 0);
 
+      const size_t valuesz = n->width * n->size;
       value_t *values_copy = rt_alloc_value(n);
-      memcpy(values_copy->data, vptr, n->size * n->width);
-      vptr += n->size * n->width;
+      if (valuesz <= 8)
+         values_copy->qwords[0] = *(uint64_t *)vptr;
+      else
+         memcpy(values_copy->data, vptr, valuesz);
+      vptr += valuesz;
 
       rt_sched_driver(n, after, reject, values_copy);
    }
@@ -2015,9 +2019,7 @@ static void rt_setup_nexus(e_node_t top)
          total_mem += n->n_signals * (sizeof(rt_signal_t *) + sizeof(unsigned));
       }
 
-      const size_t valuesz = n->width * n->size;
-      resolved_size += valuesz;
-
+      resolved_size += n->width * n->size;
       profile.n_simple += n->width;
    }
 
