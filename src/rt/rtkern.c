@@ -164,6 +164,7 @@ typedef enum {
    NET_F_FORCED     = (1 << 0),
    NET_F_OWNS_MEM   = (1 << 1),
    NET_F_LAST_VALUE = (1 << 2),
+   NET_F_PENDING    = (1 << 3),
 } net_flags_t;
 
 typedef struct rt_nexus_s {
@@ -2417,8 +2418,8 @@ static void rt_driver_initial(rt_nexus_t *nexus)
       nexus->last_event = nexus->last_active = INT64_MAX;    // TIME'HIGH
    }
 
-   TRACE("%s rank %d initial value %s", istr(e_ident(nexus->enode)),
-         nexus->rank, fmt_nexus(nexus, resolved));
+   TRACE("%s initial value %s", istr(e_ident(nexus->enode)),
+         fmt_nexus(nexus, resolved));
 
    rt_propagate_nexus(nexus, resolved);
 }
@@ -2569,8 +2570,11 @@ static void rt_update_nexus(rt_nexus_t *nexus)
    nexus->last_active = now;
    nexus->active_delta = iteration;
 
-   TRACE("update nexus %s rank %d resolved=%s", istr(e_ident(nexus->enode)),
-         nexus->rank, fmt_nexus(nexus, resolved));
+   RT_ASSERT(nexus->flags & NET_F_PENDING);
+   nexus->flags &= ~NET_F_PENDING;
+
+   TRACE("update nexus %s resolved=%s", istr(e_ident(nexus->enode)),
+         fmt_nexus(nexus, resolved));
 
    if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
       nexus->last_event = now;
@@ -2600,9 +2604,14 @@ static void rt_update_nexus(rt_nexus_t *nexus)
 
 static void rt_push_active_nexus(rt_nexus_t *nexus)
 {
-   if (likely(nexus->rank == 0)) {
-      // This nexus does not depend on the values of any inputs so we
-      // can eagerly update its value now
+   if (nexus->flags & NET_F_PENDING)
+      return;   // Already scheduled
+
+   nexus->flags |= NET_F_PENDING;
+
+   if (nexus->rank == 0 && nexus->n_sources == 1) {
+      // This nexus does not depend on the values of any inputs or other
+      // drivers so we can eagerly update its value now
       rt_update_nexus(nexus);
    }
    else
@@ -2610,9 +2619,8 @@ static void rt_push_active_nexus(rt_nexus_t *nexus)
 
    for (unsigned i = 0; i < nexus->n_outputs; i++) {
       rt_source_t *o = nexus->outputs[i];
-      TRACE("active nexus %s rank %d sources nexus %s rank %d",
-            istr(e_ident(nexus->enode)), nexus->rank,
-            istr(e_ident(o->output->enode)), o->output->rank);
+      TRACE("active nexus %s sources nexus %s", istr(e_ident(nexus->enode)),
+            istr(e_ident(o->output->enode)));
       RT_ASSERT(nexus->rank < o->output->rank);
       rt_push_active_nexus(o->output);
    }
