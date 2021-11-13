@@ -696,10 +696,7 @@ void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
 
       const size_t valuesz = n->width * n->size;
       value_t *values_copy = rt_alloc_value(n);
-      if (valuesz <= 8)
-         values_copy->qwords[0] = *(uint64_t *)vptr;
-      else
-         memcpy(values_copy->data, vptr, valuesz);
+      memcpy(values_copy->data, vptr, valuesz);
       vptr += valuesz;
 
       rt_sched_driver(n, after, reject, values_copy);
