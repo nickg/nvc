@@ -17,24 +17,58 @@ begin
             when 0 =>
                 x <= 'L';
                 wait for 0 ns;
+                assert x'active;
+                assert x'event;
                 assert x = '0' report "expected '0' got " & std_logic'image(x);
                 wait for 0 ns;
+                assert x'active;
+                assert x'event;
                 wait for 0 ns;
+                assert x'active;
+                assert x'event;
                 x <= '1';
                 wait for 0 ns;
+                assert x'active;
+                assert x'event;
             when 1 =>
                 x <= '0';
                 wait for 0 ns;
+                assert x'active;
+                assert x'event;
                 assert x = '0' report "expected '0' got " & std_logic'image(x);
                 x <= '1';
                 wait for 0 ns;
+                assert x'active;
+                assert x'event;
                 assert x = '1' report "expected '1' got " & std_logic'image(x);
                 x <= 'Z';
                 wait for 0 ns;
+                assert x'active;
+                assert x'event;
                 assert x = 'L' report "expected 'L' got " & std_logic'image(x);
                 wait for 0 ns;
+                assert x'active;
+                assert x'event;
                 assert x = '1' report "expected '1' got " & std_logic'image(x);
+                wait for 5 ns;
+                assert x = 'X' report "expected 'X' got " & std_logic'image(x);
+                x <= '1';
+                wait for 0 ns;
+                assert x'active;
+                assert not x'event;
         end case;
+        wait;
+    end process;
+
+    p2: process is
+    begin
+        x <= 'Z';
+        for i in 1 to 4 loop
+            wait on x;
+        end loop;
+        assert x = '1';
+        wait for 1 ns;
+        x <= '0';
         wait;
     end process;
 
@@ -68,6 +102,8 @@ begin
         assert x = 'L' report "expected 'L' got " & std_logic'image(x);
         wait for 1 ns;
         assert x = '1' report "expected '1' got " & std_logic'image(x);
+        wait for 5 ns;
+        assert x = 'X' report "expected 'X' got " & std_logic'image(x);
         wait;
     end process;
 

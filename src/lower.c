@@ -937,7 +937,7 @@ static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
 
 static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
 {
-   vcode_reg_t nets = lower_expr(ref, EXPR_LVALUE);
+   vcode_reg_t nets = lower_expr(ref, EXPR_INPUT_ASPECT);
    if (nets == VCODE_INVALID_REG)
       return emit_const(vtype_bool(), 0);
 
@@ -2214,10 +2214,10 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
    else
       sig_reg = emit_load_indirect(emit_var_upref(hops, var));
 
-   if (ctx == EXPR_LVALUE)
-      return sig_reg;
-   else
+   if (ctx == EXPR_RVALUE)
       return emit_resolved(lower_array_data(sig_reg));
+   else
+      return sig_reg;
 }
 
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)

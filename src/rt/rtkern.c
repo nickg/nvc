@@ -2556,6 +2556,48 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
       deltaq_insert_driver(after, nexus, d);
 }
 
+static void rt_notify_event(rt_nexus_t *nexus)
+{
+   sens_list_t *it = NULL, *next = NULL;
+
+   nexus->last_event = nexus->last_active = now;
+   nexus->event_delta = nexus->active_delta = iteration;
+
+   // First wakeup everything on the nexus specific pending list
+   for (it = nexus->pending; it != NULL; it = next) {
+      next = it->next;
+      rt_wakeup(it);
+      nexus->pending = next;
+   }
+
+   for (unsigned i = 0; i < nexus->n_sources; i++) {
+      rt_source_t *o = &(nexus->sources[i]);
+      if (o->proc == NULL)
+         rt_notify_event(o->input);
+   }
+
+   // Schedule any callbacks to run
+   for (watch_list_t *wl = nexus->watching; wl != NULL; wl = wl->next) {
+      if (!wl->watch->pending) {
+         wl->watch->chain_pending = callbacks;
+         wl->watch->pending = true;
+         callbacks = wl->watch;
+      }
+   }
+}
+
+static void rt_notify_active(rt_nexus_t *nexus)
+{
+   nexus->last_active = now;
+   nexus->active_delta = iteration;
+
+   for (unsigned i = 0; i < nexus->n_sources; i++) {
+      rt_source_t *o = &(nexus->sources[i]);
+      if (o->proc == NULL)
+         rt_notify_active(o->input);
+   }
+}
+
 static void rt_update_nexus(rt_nexus_t *nexus)
 {
    void *resolved = rt_call_resolution_fn(nexus);
@@ -2571,29 +2613,11 @@ static void rt_update_nexus(rt_nexus_t *nexus)
          fmt_nexus(nexus, resolved));
 
    if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
-      nexus->last_event = now;
-      nexus->event_delta = iteration;
       rt_propagate_nexus(nexus, resolved);
-
-      // Wake up any processes sensitive to this nexus
-      sens_list_t *it = NULL, *next = NULL;
-
-      // First wakeup everything on the nexus specific pending list
-      for (it = nexus->pending; it != NULL; it = next) {
-         next = it->next;
-         rt_wakeup(it);
-         nexus->pending = next;
-      }
-
-      // Schedule any callbacks to run
-      for (watch_list_t *wl = nexus->watching; wl != NULL; wl = wl->next) {
-         if (!wl->watch->pending) {
-            wl->watch->chain_pending = callbacks;
-            wl->watch->pending = true;
-            callbacks = wl->watch;
-         }
-      }
+      rt_notify_event(nexus);
    }
+   else
+      rt_notify_active(nexus);
 }
 
 static void rt_push_active_nexus(rt_nexus_t *nexus)
