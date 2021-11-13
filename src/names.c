@@ -1999,13 +1999,10 @@ static void check_subprogram_matches_spec(nametab_t *tab, tree_t proto,
       const port_mode_t body_mode = tree_subkind(matching_port);
 
       if (proto_mode != body_mode) {
-         const char *mode_str[] = {
-            "INVALID", "IN", "OUT", "INOUT", "BUFFER", "LINKAGE"
-         };
          error_at(tree_loc(matching_port), "parameter %s of subprogram body "
                   "%s with mode %s does not match mode %s in specification",
                   istr(proto_name), istr(tree_ident(subprog)),
-                  mode_str[body_mode], mode_str[proto_mode]);
+                  port_mode_str(body_mode), port_mode_str(proto_mode));
          note_at(tree_loc(proto_port), "parameter %s was originally "
                  "declared here", istr(proto_name));
          continue;

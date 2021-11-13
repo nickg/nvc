@@ -90,12 +90,11 @@ START_TEST(test_ports)
       { 163, "BAR has no port named U" },
       { 64,  "component BAR has ports I, O" },
       { 185, "no visible subprogram declaration for HELLO" },
-      { 81,  "missing actual for formal I of mode IN without a default " },
+      { 81,  "missing actual for port I of mode IN without a default " },
       { 85,  "formal I already has an actual" },
-      { 89,  "too many positional actuals" },
-      { 89,  "too many positional actuals" },
+      { 89,  "at least 3 positional actuals but WORK.FOO has only 2 ports" },
       { 103, "unconnected port I with mode IN must have a default value" },
-      { 148, "actual must be globally static expression" },
+      { 148, "port O of mode OUT must be a static signal name or OPEN" },
       { 168, "formal name must be locally static" },
       { 177, "formal name must be locally static" },
       { 217, "port O of unconstrained type INT_VEC cannot be unconnected" },
@@ -104,16 +103,18 @@ START_TEST(test_ports)
       { 257, "missing body for function FUNC2 [BIT, INTEGER return MY_INT1]" },
       { 258, "missing body for function FUNC3 [BIT return INTEGER]" },
       { 259, "missing body for function FUNC4 [INTEGER return BIT]" },
-      { 271, "result of conversion for unconstrained formal I must" },
-      { 279, "actual must be globally static expression or locally" },
-      { 283, "conversion not allowed for formal O with mode OUT" },
-      { 293, "output conversion not allowed for formal I with mode IN" },
-      { 297, "output conversion for formal B must not have OPEN actual" },
-      { 311, "cannot assign to input port X" },
-      { 312, "cannot read output port Y" },
-      { 332, "cannot read parameter X with mode IN" },
-      { 346, "missing body for function \"not\" [INTEGER return INTEGER]" },
-      { 355, "actual must be globally static expression or locally static" },
+      { 272, "result of conversion for unconstrained formal I must" },
+      { 280, "port N of mode IN must be a globally static expression or " },
+      { 284, "conversion not allowed for formal O with mode OUT" },
+      { 294, "output conversion not allowed for formal I with mode IN" },
+      { 298, "output conversion for formal B must not have OPEN actual" },
+      { 304, "port B of mode INOUT must be a static signal name or OPEN" },
+      { 307, "port B of mode INOUT must be a static signal name or OPEN" },
+      { 318, "cannot assign to input port X" },
+      { 319, "cannot read output port Y" },
+      { 339, "cannot read parameter X with mode IN" },
+      { 353, "missing body for function \"not\" [INTEGER return INTEGER]" },
+      { 362, "associated with port I of mode IN must be a globally static" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -488,13 +489,13 @@ START_TEST(test_generics)
    input_from_file(TESTDIR "/sem/generics.vhd");
 
    const error_t expect[] = {
-      {  34, "missing actual for formal N" },
-      {  38, "too many positional actuals" },
+      {  34, "missing actual for generic N" },
+      {  38, "2 positional actuals but WORK.BOT has only 1 generic" },
       {  48, "no visible declaration for X" },
       {  58, "invalid object class for generic" },
       {  68, "no visible declaration for Y" },
       {  86, "missing body for function F [BIT_VECTOR return INTEGER]" },
-      { 109, "actual must be globally static expression or locally " },
+      { 109, "with generic X must be a globally static expression" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -872,7 +873,7 @@ START_TEST(test_static)
    const error_t expect[] = {
       { 36, "case choice must be locally static" },
       { 42, "case choice must be locally static" },
-      { 65, "actual must be globally static expression or locally static" },
+      { 65, "with port X of mode IN must be a globally static" },
       { 85, "formal name must be locally static" },
       { -1, NULL }
    };
@@ -1616,8 +1617,8 @@ START_TEST(test_issue236)
    input_from_file(TESTDIR "/sem/issue236.vhd");
 
    const error_t expect[] = {
-      { 24,  "missing actual for formal B of mode IN without a default expression" },
-      { 36,  "missing actual for formal C with unconstrained array type" },
+      { 25,  "missing actual for port B of mode IN without a default" },
+      { 37,  "missing actual for port C with unconstrained array type" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2183,7 +2184,7 @@ START_TEST(test_block)
    input_from_file(TESTDIR "/sem/block.vhd");
 
    const error_t expect[] = {
-      { 19, "missing actual for formal G1 of mode IN without a default" },
+      { 19, "missing actual for generic G1 without a default" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2328,7 +2329,7 @@ START_TEST(test_error1)
       { 27, "unexpected , while parsing concurrent procedure call statement" },
       { 28, "no visible subprogram declaration for Z" },
       { 28, "no visible subprogram declaration for B" },
-      { 23, "missing actual for formal Y of mode IN without a default" },
+      { 23, "missing actual for port Y of mode IN without a default" },
       { -1, NULL }
    };
    expect_errors(expect);

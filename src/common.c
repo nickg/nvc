@@ -1199,6 +1199,7 @@ tree_t name_to_ref(tree_t name)
       switch (kind) {
       case T_ARRAY_REF:
       case T_ARRAY_SLICE:
+      case T_RECORD_REF:
          name = tree_value(name);
          break;
       default:
@@ -1207,4 +1208,13 @@ tree_t name_to_ref(tree_t name)
    }
 
    return name;
+}
+
+const char *port_mode_str(port_mode_t mode)
+{
+   const char *mode_str[] = {
+      "INVALID", "IN", "OUT", "INOUT", "BUFFER", "LINKAGE"
+   };
+   assert(mode < ARRAY_LEN(mode_str));
+   return mode_str[mode];
 }

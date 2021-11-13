@@ -415,3 +415,5 @@ bounds22        fail,gold
 bounds23        fail,gold
 vests14         normal
 conv6           normal
+driver8         normal
+vests15         normal

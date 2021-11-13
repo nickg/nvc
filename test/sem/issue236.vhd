@@ -11,13 +11,14 @@ entity test is
 end entity;
 
 architecture a1 of test is
+    signal x : string(1 to 3);
 begin
 
     e1: entity work.subent      -- ok
         port map (
         -- a is an unassociated port of mode IN but has a default value
         b   => true,
-        c   => "1234"
+        c   => x
         -- d is unassociated port of mode OUT but is constrained
     );
 
@@ -25,7 +26,7 @@ begin
         port map (
         a   => true,
         -- b is not allowed to be unassociated
-        c   => "1234"
+        c   => x
     );
 
 end architecture;

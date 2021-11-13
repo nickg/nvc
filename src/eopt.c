@@ -511,23 +511,34 @@ static void eopt_nexus_for_type(e_node_t signal, type_t type, ident_t field)
    }
 }
 
+static void eopt_port_decl(tree_t port, ident_t suffix, e_node_t cursor)
+{
+   type_t type = tree_type(port);
+   ident_t name = ident_prefix(tree_ident(port), suffix, '$');
+
+   e_node_t e = e_new(E_SIGNAL);
+   e_set_ident(e, name);
+   e_set_width(e, type_width(type));
+   e_set_type(e, type);
+   e_set_parent(e, cursor);
+   e_set_loc(e, tree_loc(port));
+   eopt_path_from_cursor(e, name, cursor);
+   eopt_nexus_for_type(e, type, NULL);
+
+   e_add_signal(cursor, e);
+}
+
 static void eopt_ports(tree_t block, e_node_t cursor)
 {
    const int nports = tree_ports(block);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(block, i);
-      type_t type = tree_type(p);
-
-      e_node_t e = e_new(E_SIGNAL);
-      e_set_ident(e, tree_ident(p));
-      e_set_width(e, type_width(type));
-      e_set_type(e, type);
-      e_set_parent(e, cursor);
-      e_set_loc(e, tree_loc(p));
-      eopt_path_from_cursor(e, tree_ident(p), cursor);
-      eopt_nexus_for_type(e, type, NULL);
-
-      e_add_signal(cursor, e);
+      if (tree_subkind(p) == PORT_INOUT) {
+         eopt_port_decl(p, NULL, cursor);
+         eopt_port_decl(p, ident_new("in"), cursor);
+      }
+      else
+         eopt_port_decl(p, NULL, cursor);
    }
 }
 

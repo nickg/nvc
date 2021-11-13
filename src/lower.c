@@ -33,7 +33,8 @@
 
 typedef enum {
    EXPR_LVALUE,
-   EXPR_RVALUE
+   EXPR_RVALUE,
+   EXPR_INPUT_ASPECT,
 } expr_ctx_t;
 
 typedef struct loop_stack  loop_stack_t;
@@ -112,7 +113,7 @@ static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
                                     vcode_reg_t lval, vcode_reg_t rval);
 static vcode_type_t lower_alias_type(tree_t alias);
 static bool lower_const_bounds(type_t type);
-static int lower_search_vcode_obj(tree_t t, lower_scope_t *scope, int *hops);
+static int lower_search_vcode_obj(void *key, lower_scope_t *scope, int *hops);
 static void lower_link_signal(tree_t decl, bool from_package);
 static void lower_link_var(tree_t decl);
 static type_t lower_elem_recur(type_t type);
@@ -2072,11 +2073,11 @@ static void lower_pop_scope(void)
    free(tmp);
 }
 
-static int lower_search_vcode_obj(tree_t t, lower_scope_t *scope, int *hops)
+static int lower_search_vcode_obj(void *key, lower_scope_t *scope, int *hops)
 {
    *hops = 0;
    for (; scope != NULL; scope = scope->down) {
-      const void *ptr = hash_get(scope->objects, t);
+      const void *ptr = hash_get(scope->objects, key);
       const int obj = (uintptr_t)ptr - 1;
       if (obj != VCODE_INVALID_REG)
          return obj;
@@ -2090,9 +2091,9 @@ static int lower_search_vcode_obj(tree_t t, lower_scope_t *scope, int *hops)
    return VCODE_INVALID_REG;
 }
 
-static void lower_put_vcode_obj(tree_t t, int obj, lower_scope_t *scope)
+static void lower_put_vcode_obj(void *key, int obj, lower_scope_t *scope)
 {
-   hash_put(scope->objects, t, (void *)(uintptr_t)(obj + 1));
+   hash_put(scope->objects, key, (void *)(uintptr_t)(obj + 1));
 }
 
 static vcode_var_t lower_get_var(tree_t decl, int *hops)
@@ -2231,6 +2232,12 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
       obj != VCODE_INVALID_VAR && !!(obj & 0x40000000);
 
    if (is_entity_port) {
+      if (ctx != EXPR_LVALUE && tree_subkind(decl) == PORT_INOUT) {
+         // Actually we wanted to get the input aspect ($in suffix)
+         void *key = (void *)((uintptr_t)decl | 1);
+         obj = lower_search_vcode_obj(key, top_scope, &hops);
+      }
+
       if (mode == LOWER_THUNK) {
          emit_comment("Cannot resolve reference to signal %s in thunk",
                       istr(tree_ident(decl)));
@@ -2248,10 +2255,10 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
       else
          sig_reg = emit_load_indirect(emit_var_upref(hops, var));
 
-      if (ctx == EXPR_LVALUE)
-         return sig_reg;
-      else
+      if (ctx == EXPR_RVALUE)
          return emit_resolved(lower_array_data(sig_reg));
+      else
+         return sig_reg;
    }
    else if (is_generic) {
       type_t type = tree_type(decl);
@@ -5870,9 +5877,11 @@ static ident_t lower_converter(tree_t expr, type_t atype, type_t rtype,
 static void lower_port_map(tree_t block, tree_t map)
 {
    vcode_reg_t port_reg = VCODE_INVALID_REG;
+   vcode_reg_t inout_reg = VCODE_INVALID_REG;
    tree_t port = NULL;
    type_t name_type = NULL;
-   vcode_reg_t conv_func = VCODE_INVALID_REG;
+   vcode_reg_t out_conv = VCODE_INVALID_REG;
+   vcode_reg_t in_conv = VCODE_INVALID_REG;
    tree_t value = tree_value(map);
 
    switch (tree_subkind(map)) {
@@ -5884,6 +5893,13 @@ static void lower_port_map(tree_t block, tree_t map)
          assert(hops == 0);
          port_reg = emit_load(var);
          name_type = tree_type(port);
+
+         if (tree_subkind(port) == PORT_INOUT) {
+            void *key = (void *)((uintptr_t)port | 1);
+            var = lower_get_var(key, &hops) & 0x3fffffff;
+            assert(hops == 0);
+            inout_reg = emit_load(var);
+         }
       }
       break;
    case P_NAMED:
@@ -5898,7 +5914,7 @@ static void lower_port_map(tree_t block, tree_t map)
             vcode_type_t vrtype = VCODE_INVALID_TYPE;
             ident_t func = lower_converter(name, atype, rtype, tree_type(value),
                                            &vatype, &vrtype);
-            conv_func = emit_closure(func, vatype, vrtype);
+            out_conv = emit_closure(func, vatype, vrtype);
             name = p0;
          }
          else if (kind == T_TYPE_CONV) {
@@ -5910,13 +5926,16 @@ static void lower_port_map(tree_t block, tree_t map)
             ident_t func = lower_converter(name, atype, rtype, tree_type(value),
                                            &vatype, &vrtype);
             if (func != NULL)
-               conv_func = emit_closure(func, vatype, vrtype);
+               out_conv = emit_closure(func, vatype, vrtype);
             name = value;
          }
 
          port_reg = lower_expr(name, EXPR_LVALUE);
          port = tree_ref(name_to_ref(name));
          name_type = tree_type(name);
+
+         if (tree_subkind(port) == PORT_INOUT)
+            inout_reg = lower_expr(name, EXPR_INPUT_ASPECT);
       }
       break;
    }
@@ -5941,11 +5960,7 @@ static void lower_port_map(tree_t block, tree_t map)
             ident_t func = lower_converter(value, atype, rtype, name_type,
                                            &vatype, &vrtype);
             value = p0;
-
-            // This is probably incorrect: what if an inout port has
-            // both an input and output conversion?
-            if (conv_func == VCODE_INVALID_REG)
-               conv_func = emit_closure(func, vatype, vrtype);
+            in_conv = emit_closure(func, vatype, vrtype);
          }
       }
    }
@@ -5958,8 +5973,8 @@ static void lower_port_map(tree_t block, tree_t map)
          vcode_type_t vrtype = VCODE_INVALID_TYPE;
          ident_t func = lower_converter(value, atype, rtype, name_type,
                                         &vatype, &vrtype);
-         if (conv_func == VCODE_INVALID_REG && func != NULL)
-            conv_func = emit_closure(func, vatype, vrtype);
+         if (func != NULL)
+            in_conv = emit_closure(func, vatype, vrtype);
          value = p0;
       }
    }
@@ -5971,6 +5986,7 @@ static void lower_port_map(tree_t block, tree_t map)
 
       vcode_reg_t src_reg = input ? value_reg : port_reg;
       vcode_reg_t dst_reg = input ? port_reg : value_reg;
+      vcode_reg_t conv_func = input ? in_conv : out_conv;
 
       type_t src_type = input ? value_type : name_type;
       type_t dst_type = input ? name_type : value_type;
@@ -5994,44 +6010,69 @@ static void lower_port_map(tree_t block, tree_t map)
          dst_reg = lower_array_data(dst_reg);
 
       emit_map_signal(src_reg, dst_reg, src_count, dst_count, conv_func);
+
+      // If this is an inout port create the mapping between input and output
+      if (inout_reg != VCODE_INVALID_REG)
+         emit_map_signal(value_reg, inout_reg, dst_count, src_count, in_conv);
    }
    else {
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
       lower_sub_signals(name_type, port, port_reg, value_reg,
                         VCODE_INVALID_REG);
+
+      if (inout_reg != VCODE_INVALID_REG) {
+         vcode_reg_t count_reg;
+         if (type_is_array(name_type))
+            count_reg = lower_scalar_sub_elements(name_type, port_reg);
+         else
+            count_reg = emit_const(vtype_offset(), type_width(name_type));
+
+         emit_map_signal(port_reg, inout_reg, count_reg, count_reg, in_conv);
+      }
    }
+}
+
+static void lower_port_decl(tree_t port, ident_t suffix)
+{
+   ident_t pname = ident_prefix(tree_ident(port), suffix, '$');
+   type_t type = tree_type(port);
+
+   vcode_type_t vtype = lower_signal_type(type);
+   vcode_var_t var = emit_var(vtype, vtype, pname, VAR_SIGNAL);
+   vcode_reg_t shared = VCODE_INVALID_REG;
+
+   if (vtype_kind(vtype) == VCODE_TYPE_UARRAY) {
+      shared = emit_link_signal(pname, vtype_elem(vtype));
+      emit_store(lower_wrap(type, shared), var);
+   }
+   else {
+      shared = emit_link_signal(pname, vtype);
+      emit_store(shared, var);
+   }
+
+   void *key = suffix ? (void *)((uintptr_t)port | 1) : port;
+   lower_put_vcode_obj(key, var | 0x80000000, top_scope);
+
+   vcode_reg_t init_reg;
+   if (tree_has_value(port))
+      init_reg = lower_expr(tree_value(port), EXPR_RVALUE);
+   else
+      init_reg = lower_default_value(type, false);
+
+   lower_sub_signals(type, port, shared, init_reg, VCODE_INVALID_REG);
 }
 
 static void lower_ports(tree_t block)
 {
    const int nports = tree_ports(block);
    for (int i = 0; i < nports; i++) {
-      tree_t port = tree_port(block, i);
-      ident_t pname = tree_ident(port);
-      type_t type = tree_type(port);
-
-      vcode_type_t vtype = lower_signal_type(type);
-      vcode_var_t var = emit_var(vtype, vtype, pname, VAR_SIGNAL);
-      vcode_reg_t shared = VCODE_INVALID_REG;
-
-      if (vtype_kind(vtype) == VCODE_TYPE_UARRAY) {
-         shared = emit_link_signal(pname, vtype_elem(vtype));
-         emit_store(lower_wrap(type, shared), var);
+      tree_t p = tree_port(block, i);
+      if (tree_subkind(p) == PORT_INOUT) {
+         lower_port_decl(p, NULL);
+         lower_port_decl(p, ident_new("in"));
       }
-      else {
-         shared = emit_link_signal(pname, vtype);
-         emit_store(shared, var);
-      }
-
-      lower_put_vcode_obj(port, var | 0x80000000, top_scope);
-
-      vcode_reg_t init_reg;
-      if (tree_has_value(port))
-         init_reg = lower_expr(tree_value(port), EXPR_RVALUE);
       else
-         init_reg = lower_default_value(type, false);
-
-      lower_sub_signals(type, port, shared, init_reg, VCODE_INVALID_REG);
+         lower_port_decl(p, NULL);
    }
 
    const int nparams = tree_params(block);

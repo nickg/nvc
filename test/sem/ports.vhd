@@ -262,6 +262,7 @@ architecture conv of top is
     signal y : int_vec2(1 to 3);
     signal z : bit;
     signal i : integer;
+    shared variable b : bit;
 begin
 
     c1: component comp1
@@ -298,6 +299,12 @@ begin
 
     c11: component comp4
         port map ( func3(b) => func4(i) );  -- OK
+
+    c12: component comp4
+        port map ( '0' );               -- Error
+
+    c13: component comp4
+        port map ( b );                 -- Error
 
 end architecture;
 

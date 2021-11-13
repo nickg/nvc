@@ -738,8 +738,6 @@ void _private_stack(void)
 DLLEXPORT
 sig_shared_t *_link_signal(const char *name)
 {
-   TRACE("_link_signal %s", name);
-
    ident_t id = ident_new(name);
    rt_scope_t *search_scope = active_scope;
 
@@ -1512,8 +1510,6 @@ void _file_write(void **_fp, uint8_t *data, int32_t len)
 {
    FILE **fp = (FILE **)_fp;
 
-   TRACE("_file_write fp=%p data=%p len=%d", fp, data, len);
-
    if (*fp == NULL)
       fatal("write to closed file");
 
@@ -1524,8 +1520,6 @@ DLLEXPORT
 void _file_read(void **_fp, uint8_t *data, int32_t len, int32_t *out)
 {
    FILE **fp = (FILE **)_fp;
-
-   TRACE("_file_read fp=%p data=%p len=%d", fp, data, len);
 
    if (*fp == NULL)
       fatal("read from closed file");
