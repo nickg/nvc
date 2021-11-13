@@ -1,4 +1,4 @@
-## 1.5.3 - unreleased
+## 1.5.3 - 2021-11-13
 - Handle access(2) returning EPERM in macOS sandbox (#421).
 - Fix race when multiple processes concurrently update a library.
 - Fix `--syntax` command when file contains multiple design units.
