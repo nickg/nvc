@@ -151,33 +151,16 @@ issues you encounter.
 
 ### Contributing
 
-This project does not generally accept code contributions, except for
-small bug fixes as described below, and I am not looking for additional
-regular contributors.  NVC is primarily a hobby project which I work on
-in my spare time for relaxation and enjoyment.  Reviewing patches and
-managing a community of contributors requires a significant amount of
-time and can be both mentally and emotionally exhausting.  This is not
-something I am prepared to do outside of my day job.  That said I do
-welcome contributions of the following kind:
-* Build fixes.  For example to support a new version of a library or new
-  compiler warnings.
-* Portability fixes.  For example to support a new Linux distribution or
-  BSD variant.  I am particularly open to patches that simplify
-  downstream packaging.
-* Documentation fixes.
-* Trivial bug fixes.  Please include a test case which demonstrates the
-  problem.
-
-Patches can be sent with either [git
+Thank your for your interest, but please note that at this time I am not
+looking for additional regular contributors, nor do I have the time to
+review large new features contributed by third parties.  That said I am
+happy to accept patches to fix minor bugs, build issues, documentation,
+etc.  Patches can be sent with either [git
 --send-email](https://git-send-email.io/) or as a pull request on
 GitHub.
 
-The best way you can contribute to NVC is by using it for your work or
-hobby project and reporting any bugs or issues you find.  I am
-particularly interested in performance comparisons with commercial
-simulators or any general usability issues you encounter.  Even just a
-quick note to say you used it on some project and what your experience
-was is very motivational.
+If you are using NVC for your work or hobby project please get in
+touch: all feedback is greatly appreciated.
 
 ### Language Support
 
@@ -199,7 +182,6 @@ Mostly supported with a few exceptions:
 * No support for `buffer` ports.
 * No guard expressions on blocks.
 * `bus` and `register` signal kinds are not supported.
-* Limited support for conversions in port maps.
 
 Please raise bugs for any missing or incorrectly implemented features
 you encounter.
