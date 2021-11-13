@@ -121,7 +121,7 @@ typedef struct {
    void          *fn;
    void          *context;
    rt_ffi_spec_t  spec;
-   uint32_t       __pad;
+   uint32_t       refcnt;
 } rt_closure_t;
 
 STATIC_ASSERT(sizeof(rt_closure_t) == 24);
@@ -131,7 +131,7 @@ typedef struct rt_source_s {
    rt_nexus_t   *input;
    rt_nexus_t   *output;
    waveform_t   *waveforms;
-   rt_closure_t  conv_func;
+   rt_closure_t *conv_func;
 } rt_source_t;
 
 struct value {
@@ -630,6 +630,13 @@ static int rt_fmt_now(char *buf, size_t len)
    }
 }
 
+static void rt_unref_closure(rt_closure_t *closure)
+{
+   assert(closure->refcnt > 0);
+   if (--(closure->refcnt) == 0)
+      free(closure);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -810,19 +817,27 @@ void _convert_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
    TRACE("_convert_signal %s+%d count=%d fn=%p context=%p",
          istr(e_path(s->enode)), offset, count, closure->fn, closure->context);
 
+   rt_closure_t *copy = xmalloc(sizeof(rt_closure_t));
+   *copy = *closure;
+   copy->refcnt = 1;
+
    unsigned index = rt_signal_nexus_index(s, offset);
    while (count > 0) {
       RT_ASSERT(index < s->n_nexus);
       rt_nexus_t *n = s->nexus[index++];
 
       for (unsigned i = 0; i < n->n_sources; i++) {
-         if (n->sources[i].proc == NULL)   // Is a port source
-            n->sources[i].conv_func = *closure;
+         if (n->sources[i].proc == NULL) {  // Is a port source
+            (copy->refcnt)++;
+            n->sources[i].conv_func = copy;
+         }
       }
 
       count -= n->width;
       RT_ASSERT(count >= 0);
    }
+
+   rt_unref_closure(copy);
 }
 
 DLLEXPORT
@@ -2274,9 +2289,9 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus)
 
 static void rt_call_conversion_func(rt_source_t *source, const void *input)
 {
-   TRACE("call conversion function %p", source->conv_func.fn);
+   TRACE("call conversion function %p", source->conv_func->fn);
 
-   rt_closure_t *c = &(source->conv_func);
+   rt_closure_t *c = source->conv_func;
    const size_t outsz = source->output->size * source->output->width;
 
    // This implicitly assumes little-endian representation
@@ -2363,7 +2378,7 @@ static void rt_update_inputs(rt_nexus_t *nexus)
       rt_source_t *s = &(nexus->sources[i]);
       if (s->proc != NULL)
          continue;
-      else if (likely(s->conv_func.fn == NULL)) {
+      else if (likely(s->conv_func == NULL)) {
          const size_t valuesz = s->input->size * s->input->width;
          memcpy(s->waveforms->values->data, s->input->resolved, valuesz);
       }
@@ -2901,6 +2916,9 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
          rt_free(waveform_stack, n->sources[j].waveforms);
          n->sources[j].waveforms = next;
       }
+
+      if (n->sources[j].conv_func != NULL)
+         rt_unref_closure(n->sources[j].conv_func);
    }
    free(n->sources);
 
