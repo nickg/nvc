@@ -24,6 +24,7 @@
 #include "hash.h"
 #include "rt/rt.h"
 #include "rt/cover.h"
+#include "rt/ffi.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -2154,20 +2155,26 @@ static void cgen_op_resolution_wrapper(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = rdata;
 }
 
-static rt_ffi_type_t cgen_ffi_type(vcode_type_t type)
+static ffi_type_t cgen_ffi_type(vcode_type_t type)
 {
    switch (vtype_kind(type)) {
    case VCODE_TYPE_INT:
+      switch (bits_for_range(vtype_low(type), vtype_high(type))) {
+      case 1: case 8: return FFI_INT8;
+      case 16: return FFI_INT16;
+      case 32: return FFI_INT32;
+      default: return FFI_INT64;
+      }
    case VCODE_TYPE_OFFSET:
-      return RT_FFI_INT;
+      return FFI_INT32;
    case VCODE_TYPE_REAL:
-      return RT_FFI_FLOAT;
+      return FFI_FLOAT;
    case VCODE_TYPE_CARRAY:
    case VCODE_TYPE_RECORD:
    case VCODE_TYPE_POINTER:
-      return RT_FFI_POINTER;
+      return FFI_POINTER;
    case VCODE_TYPE_UARRAY:
-      return RT_FFI_UARRAY;
+      return FFI_UARRAY;
    default:
       fatal_trace("cannot handle type %d in cgen_ffi_type", vtype_kind(type));
    }
@@ -2191,7 +2198,7 @@ static void cgen_op_closure(int op, cgen_ctx_t *ctx)
       fn = cgen_signature(func, rtype, VCODE_CC_VHDL, display_type, args, 1);
    }
 
-   rt_ffi_spec_t spec = {
+   ffi_spec_t spec = {
       .atype = cgen_ffi_type(atype),
       .rtype = cgen_ffi_type(rtype)
    };

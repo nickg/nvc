@@ -12,4 +12,6 @@ lib_librt_a_SOURCES = \
 	src/rt/cover.h \
 	src/rt/alloc.h \
 	src/rt/heap.h \
-	src/rt/jit.c
+	src/rt/jit.c \
+	src/rt/ffi.h \
+	src/rt/ffi.c

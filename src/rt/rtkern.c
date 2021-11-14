@@ -26,6 +26,7 @@
 #include "hash.h"
 #include "debug.h"
 #include "enode.h"
+#include "ffi.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -116,22 +117,12 @@ struct sens_list {
    uint32_t      wakeup_gen;
 };
 
-// The code generator knows the layout of this struct
-typedef struct {
-   void          *fn;
-   void          *context;
-   rt_ffi_spec_t  spec;
-   uint32_t       refcnt;
-} rt_closure_t;
-
-STATIC_ASSERT(sizeof(rt_closure_t) == 24);
-
 typedef struct rt_source_s {
-   rt_proc_t    *proc;
-   rt_nexus_t   *input;
-   rt_nexus_t   *output;
-   waveform_t   *waveforms;
-   rt_closure_t *conv_func;
+   rt_proc_t     *proc;
+   rt_nexus_t    *input;
+   rt_nexus_t    *output;
+   waveform_t    *waveforms;
+   ffi_closure_t *conv_func;
 } rt_source_t;
 
 struct value {
@@ -630,13 +621,6 @@ static int rt_fmt_now(char *buf, size_t len)
    }
 }
 
-static void rt_unref_closure(rt_closure_t *closure)
-{
-   assert(closure->refcnt > 0);
-   if (--(closure->refcnt) == 0)
-      free(closure);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -807,14 +791,14 @@ void _init_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
 
 DLLEXPORT
 void _convert_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
-                     rt_closure_t *closure)
+                     ffi_closure_t *closure)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_convert_signal %s+%d count=%d fn=%p context=%p",
          istr(e_path(s->enode)), offset, count, closure->fn, closure->context);
 
-   rt_closure_t *copy = xmalloc(sizeof(rt_closure_t));
+   ffi_closure_t *copy = xmalloc(sizeof(ffi_closure_t));
    *copy = *closure;
    copy->refcnt = 1;
 
@@ -834,7 +818,7 @@ void _convert_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
       RT_ASSERT(count >= 0);
    }
 
-   rt_unref_closure(copy);
+   ffi_unref_closure(copy);
 }
 
 DLLEXPORT
@@ -2284,68 +2268,6 @@ static void *rt_call_resolution_fn(rt_nexus_t *nexus)
    return resolved;
 }
 
-static void rt_call_conversion_func(rt_source_t *source, const void *input)
-{
-   TRACE("call conversion function %p", source->conv_func->fn);
-
-   rt_closure_t *c = source->conv_func;
-   const size_t outsz = source->output->size * source->output->width;
-
-   // This implicitly assumes little-endian representation
-
-   if (c->spec.atype == RT_FFI_INT && c->spec.rtype == RT_FFI_INT) {
-      int64_t (*fn)(void *, uint64_t) = c->fn;
-      const int64_t r = (*fn)(c->context, *(uint64_t *)input);
-      TRACE("integer result is %"PRIi64, r);
-      RT_ASSERT(outsz <= sizeof(int64_t));
-      memcpy(source->waveforms->values->data, &r, outsz);
-   }
-   else if (c->spec.atype == RT_FFI_FLOAT && c->spec.rtype == RT_FFI_INT) {
-      int64_t (*fn)(void *, double) = c->fn;
-      const int64_t r = (*fn)(c->context, *(double *)input);
-      TRACE("integer result is %"PRIi64, r);
-      RT_ASSERT(outsz <= sizeof(int64_t));
-      memcpy(source->waveforms->values->data, &r, outsz);
-   }
-   else if (c->spec.atype == RT_FFI_INT && c->spec.rtype == RT_FFI_FLOAT) {
-      double (*fn)(void *, uint64_t) = c->fn;
-      const double r = (*fn)(c->context, *(uint64_t *)input);
-      TRACE("float result is %f", r);
-      RT_ASSERT(outsz == sizeof(double));
-      memcpy(source->waveforms->values->data, &r, outsz);
-   }
-   else if (c->spec.atype == RT_FFI_FLOAT && c->spec.rtype == RT_FFI_FLOAT) {
-      double (*fn)(void *, double) = c->fn;
-      const double r = (*fn)(c->context, *(double *)input);
-      TRACE("float result is %f", r);
-      RT_ASSERT(outsz == sizeof(double));
-      memcpy(source->waveforms->values->data, &r, outsz);
-   }
-   else if (c->spec.atype == RT_FFI_POINTER && c->spec.rtype == RT_FFI_INT) {
-      rt_signal_t *s0 = source->input->signals[0];
-      int64_t (*fn)(void *, void *) = c->fn;
-      const int64_t r = (*fn)(c->context, s0->shared.resolved);
-      TRACE("integer result is %"PRIi64, r);
-      RT_ASSERT(outsz <= sizeof(int64_t));
-      memcpy(source->waveforms->values->data, &r, outsz);
-   }
-   else if (c->spec.atype == RT_FFI_POINTER && c->spec.rtype == RT_FFI_INT) {
-      rt_signal_t *s0 = source->input->signals[0];
-      int64_t (*fn)(void *, void *) = c->fn;
-      const int64_t r = (*fn)(c->context, s0->shared.resolved);
-      TRACE("integer result is %"PRIi64, r);
-      RT_ASSERT(outsz <= sizeof(int64_t));
-      memcpy(source->waveforms->values->data, &r, outsz);
-   }
-   else if (c->spec.atype == RT_FFI_INT && c->spec.rtype == RT_FFI_POINTER) {
-      void *(*fn)(void *, uint64_t) = c->fn;
-      void *r = (*fn)(c->context, *(uint64_t *)input);
-      memcpy(source->waveforms->values->data, r, outsz);
-   }
-   else
-      fatal_trace("unhandled conversion function argument combination");
-}
-
 static void rt_propagate_nexus(rt_nexus_t *nexus, const void *resolved)
 {
    const size_t valuesz = nexus->size * nexus->width;
@@ -2379,8 +2301,16 @@ static void rt_update_inputs(rt_nexus_t *nexus)
          const size_t valuesz = s->input->size * s->input->width;
          memcpy(s->waveforms->values->data, s->input->resolved, valuesz);
       }
-      else
-         rt_call_conversion_func(s, s->input->resolved);
+      else {
+         TRACE("call conversion function %p", s->conv_func->fn);
+
+         const size_t outsz = s->output->size * s->output->width;
+         const size_t insz  = s->input->size * s->input->width;
+
+         rt_signal_t *s0 = s->input->signals[0];
+         ffi_call(s->conv_func, s0->shared.resolved, insz,
+                  s->waveforms->values->data, outsz);
+      }
    }
 }
 
@@ -2915,7 +2845,7 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
       }
 
       if (n->sources[j].conv_func != NULL)
-         rt_unref_closure(n->sources[j].conv_func);
+         ffi_unref_closure(n->sources[j].conv_func);
    }
    free(n->sources);
 
