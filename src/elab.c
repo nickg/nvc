@@ -381,12 +381,14 @@ static tree_t elab_copy(tree_t t)
 
 static void elab_config_instance(tree_t block, tree_t spec)
 {
+   ident_t match = tree_ident(spec);
+
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(block, i);
       if (tree_kind(s) != T_INSTANCE)
          continue;
-      else if (tree_ident(s) != tree_ident(spec))
+      else if (match != all_i && tree_ident(s) != match)
          continue;
 
       assert(!tree_has_spec(s));   // TODO: how to handle this?
