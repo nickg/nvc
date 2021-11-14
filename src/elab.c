@@ -29,8 +29,6 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
-#define FUNC_REPLACE_MAX 32
-
 typedef struct {
    tree_t formal;
    tree_t actual;
@@ -649,7 +647,7 @@ static void elab_rewrite_later(tree_t formal, tree_t actual, elab_ctx_t *ctx)
    APUSH(ctx->rwlist, item);
 }
 
-static void elab_ports(tree_t entity, tree_t inst, elab_ctx_t *ctx)
+static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
 {
    const int nports = tree_ports(entity);
    const int nparams = tree_params(inst);
@@ -658,7 +656,7 @@ static void elab_ports(tree_t entity, tree_t inst, elab_ctx_t *ctx)
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(entity, i), map = NULL;
 
-      if (i < nparams) {
+      if (i < nparams && !have_named && entity == comp) {
          tree_t m = tree_param(inst, i);
          if (tree_subkind(m) == P_POS) {
             tree_t m2 = tree_new(T_PARAM);
@@ -718,6 +716,24 @@ static void elab_ports(tree_t entity, tree_t inst, elab_ctx_t *ctx)
 
                tree_add_param(ctx->out, (map = m));
                have_named = true;
+            }
+            else if (tree_ident(tree_port(comp, tree_pos(m))) == pname) {
+               map = tree_new(T_PARAM);
+               tree_set_loc(map, tree_loc(m));
+               tree_set_value(map, tree_value(m));
+
+               if (!have_named) {
+                  tree_set_subkind(map, P_POS);
+                  tree_set_pos(map, i);
+               }
+               else {
+                  tree_set_subkind(map, P_NAMED);
+                  tree_set_name(map, make_ref(p));
+                  have_named = true;
+               }
+
+               tree_add_param(ctx->out, map);
+               break;
             }
          }
       }
@@ -905,7 +921,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_copy_context(entity, &new_ctx);
    elab_generics(entity, comp, t, &new_ctx);
    elab_fold_generics(entity, &new_ctx);
-   elab_ports(entity, t, &new_ctx);
+   elab_ports(entity, comp, t, &new_ctx);
    elab_decls(entity, &new_ctx);
    elab_rewrite_later(entity, b, &new_ctx);
    elab_rewrite_later(arch, b, &new_ctx);
@@ -1095,7 +1111,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_generics(t, t, t, &new_ctx);
    elab_rewrite_later(t, b, &new_ctx);
    elab_fold_generics(t, &new_ctx);
-   elab_ports(t, t, &new_ctx);
+   elab_ports(t, t, t, &new_ctx);
    elab_decls(t, &new_ctx);
    elab_stmts(t, &new_ctx);
    elab_pop_scope(&new_ctx);
