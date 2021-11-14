@@ -1,0 +1,4 @@
+1ns+0: Report Note: 4 <=> 2 = true
+1ns+0: Report Note: 4 <=> 2 = false
+2ns+0: Report Note: 4 <=> 7 = false
+2ns+0: Report Note: 4 <=> 7 = true

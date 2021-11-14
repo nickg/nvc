@@ -708,7 +708,6 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
             bp = tree_ref(remap);
             assert(tree_kind(bp) == T_PORT_DECL);
 
-            printf("remap %s -> %s\n", istr(pname), istr(tree_ident(bp)));
             pname = tree_ident(bp);
          }
       }
