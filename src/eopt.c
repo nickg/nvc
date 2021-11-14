@@ -415,15 +415,28 @@ static ident_t eopt_vcode_unit_name(tree_t t, e_node_t cursor)
       return ident_prefix(e_vcode(cursor), tree_ident(t), '.');
 }
 
+static vcode_unit_t eopt_find_vcode(e_node_t e)
+{
+   ident_t name = e_vcode(e);
+   vcode_unit_t unit = vcode_find_unit(name);
+   if (unit == NULL) {
+      lib_t lib = lib_find(ident_until(name, '.'), true);
+      if (lib != NULL && lib_load_vcode(lib, name))
+         unit = vcode_find_unit(name);
+   }
+
+   if (unit == NULL)
+      fatal("cannot find vcode unit %s", istr(name));
+
+   return unit;
+}
+
 static void eopt_do_cprop(e_node_t e)
 {
-   vcode_unit_t unit = vcode_find_unit(e_vcode(e));
-   if (unit == NULL)
-      fatal("cannot find vcode unit %s", istr(e_vcode(e)));
-
    vcode_state_t state;
    vcode_state_save(&state);
 
+   vcode_unit_t unit = eopt_find_vcode(e);
    vcode_select_unit(unit);
 
    cprop_req_t req = {
@@ -481,9 +494,7 @@ static void eopt_process(tree_t proc, e_node_t cursor)
 
    e_add_proc(cursor, e);
 
-   vcode_unit_t unit = vcode_find_unit(e_vcode(e));
-   if (unit == NULL)
-      fatal("cannot find vcode unit %s", istr(e_vcode(e)));
+   vcode_unit_t unit = eopt_find_vcode(e);
 
    cprop_vars_enter(cprop_vars);
    eopt_drivers(unit, e);
