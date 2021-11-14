@@ -50,6 +50,7 @@
   of `$prefix/share/nvc`.
 - Added a new option `--ieee-warnings=off` to disable warning messages
   from the standard IEEE packages.
+- Support for configurations has been significantly improved (#372).
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

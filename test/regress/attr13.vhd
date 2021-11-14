@@ -32,7 +32,7 @@ entity E is                                    -- E is the top-level design enti
     port (P: in INTEGER);                      -- P'PATH_NAME = ":e:p"
                                                -- P'INSTANCE_NAME = ":e(a):p"
 begin
-    assert E'PATH_NAME = ":attr13:e:";
+    assert E'PATH_NAME = ":top:e:";
 end entity E;
 
 architecture A of E is
@@ -58,18 +58,18 @@ begin
         assert lib.P'PATH_NAME = ":lib:p:";
         assert lib.P'INSTANCE_NAME = ":lib:p:";
         proc(t);
-        assert s'path_name = ":attr13:e:s";
-        assert s'instance_name = ":attr13(top):e@e(a):s";
-        assert t'path_name = ":attr13:e:p1:t";
-        assert t'instance_name = ":attr13(top):e@e(a):p1:t";
+        assert s'path_name = ":top:e:s";
+        assert s'instance_name = ":top(top):e@e(a):s";
+        assert t'path_name = ":top:e:p1:t";
+        assert t'instance_name = ":top(top):e@e(a):p1:t";
         wait;
     end process p1;
 
     process
         variable T: INTEGER := 12;             -- T'PATH_NAME = ":e::t"
     begin                                      -- T'INSTANCE_NAME = ":e(a)::t"
-        assert t'path_name = ":attr13:e::t";
-        assert t'instance_name = ":attr13(top):e@e(a)::t";
+        assert t'path_name = ":top:e::t" report t'path_name;
+        assert t'instance_name = ":top(top):e@e(a)::t";
         wait;
     end process;
 end architecture;
@@ -87,31 +87,31 @@ begin
     begin
         if GBottom = 4 then
             assert V'Simple_Name = "v"
-                and V'Path_Name = ":attr13:b1:b2:g1(4):b3:l1:processbottom:v"
+                and V'Path_Name = ":top:b1:b2:g1(4):b3:l1:processbottom:v"
                 and V'Instance_Name =
-                ":attr13(top):b1:b2:g1(4):b3:l1@bottom(bottomarch):processbottom:v";
+                ":top(top):b1:b2:g1(4):b3:l1@bottom(bottomarch):processbottom:v";
             assert GBottom'Simple_Name = "gbottom"
-                and GBottom'Path_Name = ":attr13:b1:b2:g1(4):b3:l1:gbottom"
+                and GBottom'Path_Name = ":top:b1:b2:g1(4):b3:l1:gbottom"
                 and GBottom'Instance_Name =
-                ":attr13(top):b1:b2:g1(4):b3:l1@bottom(bottomarch):gbottom";
+                ":top(top):b1:b2:g1(4):b3:l1@bottom(bottomarch):gbottom";
         elsif GBottom = -1 then
             assert V'Simple_Name = "v"
-                and V'Path_Name = ":attr13:l2:processbottom:v"
+                and V'Path_Name = ":top:l2:processbottom:v"
                 and V'Instance_Name =
-                ":attr13(top):l2@bottom(bottomarch):processbottom:v";
+                ":top(top):l2@bottom(bottomarch):processbottom:v";
             assert GBottom'Simple_Name = "gbottom"
-                and GBottom'Path_Name = ":attr13:l2:gbottom"
+                and GBottom'Path_Name = ":top:l2:gbottom"
                 and GBottom'Instance_Name =
-                ":attr13(top):l2@bottom(bottomarch):gbottom";
+                ":top(top):l2@bottom(bottomarch):gbottom";
         end if;
         wait;
     end process ProcessBottom;
 
 end architecture BottomArch;
 
-entity attr13 is end attr13;
+entity top is end entity;
 
-architecture top of attr13 is
+architecture top of top is
     component BComp is
         generic (GComp : INTEGER);
         port (PComp : INTEGER);
@@ -127,28 +127,27 @@ begin
             G1 : for I in 1 to 10 generate
                 B3 : block
                     signal S : INTEGER;
-                    --for L1 : BComp use entity Work.Bottom(BottomArch)
-                    --    generic map (GBottom => GComp)
-                    --    port map (PBottom => PComp);
+                    for L1 : BComp use entity Work.Bottom(BottomArch)
+                        generic map (GBottom => GComp)
+                        port map (PBottom => PComp);
                 begin
-                    --L1 : BComp generic map (I) port map (S);
-                    L1 : entity work.Bottom generic map (I) port map (S);
+                    L1 : BComp generic map (I) port map (S);
                     P1 : process
                         variable V : INTEGER;
                     begin
                         if I = 7 then
                             assert V'Simple_Name = "v"
-                                and V'Path_Name = ":attr13:b1:b2:g1(7):b3:p1:v"
-                                and V'Instance_Name=":attr13(top):b1:b2:g1(7):b3:p1:v";
+                                and V'Path_Name = ":top:b1:b2:g1(7):b3:p1:v"
+                                and V'Instance_Name=":top(top):b1:b2:g1(7):b3:p1:v";
                             assert P1'Simple_Name = "p1"
-                                and P1'Path_Name = ":attr13:b1:b2:g1(7):b3:p1:"
-                                and P1'Instance_Name = ":attr13(top):b1:b2:g1(7):b3:p1:";
+                                and P1'Path_Name = ":top:b1:b2:g1(7):b3:p1:"
+                                and P1'Instance_Name = ":top(top):b1:b2:g1(7):b3:p1:";
                             assert S'Simple_Name = "s"
-                                and S'Path_Name = ":attr13:b1:b2:g1(7):b3:s"
-                                and S'Instance_Name = ":attr13(top):b1:b2:g1(7):b3:s";
+                                and S'Path_Name = ":top:b1:b2:g1(7):b3:s"
+                                and S'Instance_Name = ":top(top):b1:b2:g1(7):b3:s";
                             assert B1.S'Simple_Name = "s"
-                                and B1.S'Path_Name = ":attr13:b1:s"
-                                and B1.S'Instance_Name = ":attr13(top):b1:s";
+                                and B1.S'Path_Name = ":top:b1:s"
+                                and B1.S'Instance_Name = ":top(top):b1:s";
                         end if;
                         wait;
                     end process P1;
@@ -156,18 +155,17 @@ begin
             end generate;
         end block B2;
     end block B1;
-    --L2 : BComp generic map (-1) port map (S);
-    L2 : entity work.Bottom generic map (-1) port map (S);
+    L2 : BComp generic map (-1) port map (S);
 
     E: entity work.E(A) generic map (1) port map (2);
 end architecture top;
 
--- configuration TopConf of Top is
---     for Top
---         for L2 : BComp
---             use entity Work.Bottom(BottomArch)
---                 generic map (GBottom => GComp)
---                 port map (PBottom => PComp);
---         end for;
---     end for;
--- end configuration TopConf;
+configuration attr13 of Top is
+    for Top
+        for L2 : BComp
+            use entity Work.Bottom(BottomArch)
+                generic map (GBottom => GComp)
+                port map (PBottom => PComp);
+        end for;
+    end for;
+end configuration attr13;

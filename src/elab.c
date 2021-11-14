@@ -407,6 +407,9 @@ static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx)
       case T_SPEC:
          elab_config_instance(what, d);
          break;
+      case T_BLOCK_CONFIG:
+         elab_block_config(d, ctx);
+         break;
       default:
          fatal_trace("cannot handle block config item %s",
                      tree_kind_str(tree_kind(d)));
@@ -553,6 +556,11 @@ static tree_t elab_binding(tree_t inst, tree_t spec, lib_t *new_lib,
    case T_ENTITY:
       return elab_copy(pick_arch(tree_loc(inst), tree_ident(unit),
                                  new_lib, ctx));
+   case T_CONFIGURATION:
+      {
+         tree_t copy = elab_copy(unit);
+         return elab_block_config(tree_decl(copy, 0), ctx);
+      }
    default:
       fatal_at(tree_loc(bind), "sorry, this form of binding indication is not"
                " supported yet");

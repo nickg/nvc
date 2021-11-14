@@ -5842,7 +5842,10 @@ static tree_t p_binding_indication(tree_t comp)
       bind = tree_new(T_BINDING);
 
    push_scope(nametab);
-   if (comp) insert_ports(nametab, comp);
+   if (comp) {
+      insert_generics(nametab, comp);
+      insert_ports(nametab, comp);
+   }
 
    if (peek() == tGENERIC) {
       assert(bind != NULL);   // XXX: check for open here
@@ -6060,12 +6063,6 @@ static tree_t p_block_configuration(tree_t of)
    }
 
    if (sub != NULL) {
-      if (tree_kind(sub) == T_ARCH) {
-         // Make a writable copy of the architecture where we can bind
-         // the instances
-         // sub = tree_copy(sub, copy_instances_fn, NULL);
-      }
-
       tree_set_ref(b, sub);
       insert_names_for_config(nametab, sub);
    }
