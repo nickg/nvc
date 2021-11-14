@@ -3587,7 +3587,7 @@ static bool sem_check_instance(tree_t t)
    tree_t unit = tree_ref(t);
 
    if (tree_class(t) == C_CONFIGURATION)
-      sem_error(t, "sorry, this form of instance is not supported yet");
+      unit = tree_primary(unit);
 
    if (tree_has_spec(t)) {
       tree_t spec = tree_spec(t);

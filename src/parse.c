@@ -644,9 +644,6 @@ static tree_t find_binding(tree_t inst)
                         istr(name));
             unit = NULL;
          }
-         else if (kind == T_CONFIGURATION) {
-            unit = NULL;  // TODO
-         }
       }
    }
 

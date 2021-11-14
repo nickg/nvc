@@ -653,8 +653,16 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
    const int nparams = tree_params(inst);
    bool have_named = false;
 
+   int binding_nparams = 0;
+   tree_t binding = NULL;
+   if (tree_kind(inst) == T_INSTANCE && tree_has_spec(inst)) {
+      binding = tree_value(tree_spec(inst));
+      binding_nparams = tree_params(binding);
+   }
+
    for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(entity, i), map = NULL;
+      tree_t p = tree_port(entity, i), bp = p, map = NULL;
+      ident_t pname = tree_ident(p);
 
       if (i < nparams && !have_named && entity == comp) {
          tree_t m = tree_param(inst, i);
@@ -669,10 +677,43 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
             map = m2;
          }
       }
+      else if (binding != NULL && binding_nparams) {
+         // Binding may add another level of port map
+         tree_t remap = NULL;
+         if (i < binding_nparams) {
+            tree_t m = tree_param(binding, i);
+            if (tree_subkind(m) == P_POS)
+               remap = tree_value(m);
+         }
+
+         if (remap == NULL) {
+            for (int j = 0; j < binding_nparams; j++) {
+               tree_t m = tree_param(binding, j);
+               if (tree_subkind(m) == P_NAMED) {
+                  tree_t name = tree_name(m);
+                  tree_t ref = name_to_ref(name);
+                  assert(ref != NULL);
+
+                  if (tree_ident(ref) == pname) {
+                     remap = tree_value(m);
+                     break;
+                  }
+               }
+            }
+         }
+
+         if (remap != NULL) {
+            assert(tree_kind(remap) == T_REF);
+
+            bp = tree_ref(remap);
+            assert(tree_kind(bp) == T_PORT_DECL);
+
+            printf("remap %s -> %s\n", istr(pname), istr(tree_ident(bp)));
+            pname = tree_ident(bp);
+         }
+      }
 
       if (map == NULL) {
-         ident_t pname = tree_ident(p);
-
          for (int j = 0; j < nparams; j++) {
             tree_t m = tree_param(inst, j);
             if (tree_subkind(m) == P_NAMED) {
@@ -883,7 +924,11 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       break;
 
    case C_CONFIGURATION:
-      fatal_at(tree_loc(t), "sorry, configurations is not supported yet");
+      {
+         tree_t unit = elab_copy(tree_ref(t));
+         arch = elab_block_config(tree_decl(unit, 0), ctx);
+         new_lib = lib_find(ident_until(tree_ident(unit), '.'), true);
+      }
       break;
 
    default:

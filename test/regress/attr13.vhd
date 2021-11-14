@@ -32,7 +32,7 @@ entity E is                                    -- E is the top-level design enti
     port (P: in INTEGER);                      -- P'PATH_NAME = ":e:p"
                                                -- P'INSTANCE_NAME = ":e(a):p"
 begin
-    --assert E'PATH_NAME = ":e:";
+    assert E'PATH_NAME = ":attr13:e:";
 end entity E;
 
 architecture A of E is

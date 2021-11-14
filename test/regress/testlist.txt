@@ -418,3 +418,4 @@ conv6           normal
 driver8         normal
 vests15         normal
 elab27          normal
+conf1           normal,gold
