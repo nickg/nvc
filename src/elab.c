@@ -837,9 +837,17 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
    const int ngenerics = tree_generics(entity);
    const int ngenmaps = tree_genmaps(inst);
 
+   int binding_ngenmaps = 0;
+   tree_t binding = NULL;
+   if (tree_kind(inst) == T_INSTANCE && tree_has_spec(inst)) {
+      binding = tree_value(tree_spec(inst));
+      binding_ngenmaps = tree_genmaps(binding);
+   }
+
    for (int i = 0; i < ngenerics; i++) {
       tree_t eg = tree_generic(entity, i), cg = eg;
       unsigned pos = i;
+      tree_t map = NULL;
 
       if (entity != comp) {
          const int ngenerics_comp = tree_generics(comp);
@@ -851,13 +859,40 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                break;
             }
          }
+
+         if (binding_ngenmaps > 0) {
+            for (int j = 0; j < binding_ngenmaps; j++) {
+               tree_t m = tree_genmap(binding, j);
+               if (tree_subkind(m) == P_NAMED) {
+                  tree_t name = tree_name(m);
+                  assert(tree_kind(name) == T_REF);
+                  if (tree_ident(name) != tree_ident(cg))
+                     continue;
+               }
+               else if (tree_pos(m) != pos)
+                  continue;
+
+               tree_t value = tree_value(m);
+               if (tree_kind(value) == T_REF) {
+                  cg = tree_ref(value);
+                  assert(tree_kind(cg) == T_PORT_DECL);
+               }
+               else if (tree_subkind(m) == P_POS)
+                  map = m;
+               else {
+                  map = tree_new(T_PARAM);
+                  tree_set_loc(map, tree_loc(m));
+                  tree_set_subkind(map, P_POS);
+                  tree_set_pos(map, i);
+                  tree_set_value(map, value);
+               }
+            }
+         }
       }
 
-      tree_add_generic(ctx->out, cg);
+      tree_add_generic(ctx->out, eg);
 
-      tree_t map = NULL;
-
-      if (pos < ngenmaps) {
+      if (map == NULL && pos < ngenmaps) {
          tree_t m = tree_genmap(inst, pos);
          if (tree_subkind(m) == P_POS)
             map = m;
@@ -899,8 +934,8 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       tree_add_genmap(ctx->out, map);
 
       tree_t value = tree_value(map);
-      elab_rewrite_later(cg, value, ctx);
-      if (eg != cg) elab_rewrite_later(eg, value, ctx);
+      elab_rewrite_later(eg, value, ctx);
+      if (eg != cg) elab_rewrite_later(cg, value, ctx);
    }
 }
 

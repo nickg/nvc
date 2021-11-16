@@ -965,13 +965,13 @@ START_TEST(test_spec)
       { 40, "instance I5 not found" },
       { 42, "instance I4 is already bound by a specification" },
       { 38, "originally bound by specification here" },
-      { 22, "component mismatch for instance I1: expected C1" },
-      { 30, "specification may only be used with component instances" },
+      { 79, "component mismatch for instance I1: expected C1" },
+      { 81, "specification may only be used with component instances" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_PACKAGE, T_ENTITY, T_ARCH);
+   parse_and_check(T_ENTITY, T_PACKAGE, T_ENTITY, T_ARCH, T_ARCH);
 
    check_expected_errors();
 }

@@ -6080,6 +6080,7 @@ static tree_t p_block_configuration(tree_t of)
    consume(tFOR);
    consume(tSEMI);
 
+   tree_set_loc(b, CURRENT_LOC);
    return b;
 }
 

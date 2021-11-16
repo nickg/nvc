@@ -190,7 +190,7 @@ static void cprop_store_var(cprop_vars_t *vars, int op, cprop_state_t *regs)
       .unit  = vcode_active_unit()
    };
 
-   if (!!(flags & VAR_CONST) && regs[arg0].tag == CP_CONST) {
+   if ((flags & VAR_CONST) && regs[arg0].tag == CP_CONST) {
       map.kind = VM_CONST;
       map.cval = regs[arg0].cval;
    }

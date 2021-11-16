@@ -764,7 +764,6 @@ int vcode_count_vars(void)
 
 vcode_var_t vcode_find_var(ident_t name)
 {
-   // TODO: remove this?
    assert(active_unit != NULL);
    for (int i = 0; i < active_unit->vars.count; i++) {
       if (active_unit->vars.items[i].name == name)

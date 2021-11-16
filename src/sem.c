@@ -3530,6 +3530,9 @@ static bool sem_check_map(tree_t t, tree_t unit,
          break;   // Prevent useless repeated errors
    }
 
+   if (tree_kind(t) == T_BINDING)
+      return ok;
+
    const tree_kind_t kind = tree_kind(unit);
    if (kind == T_ENTITY || kind == T_BLOCK) {
       // Component and configuration instantiations must be checked at
@@ -3565,20 +3568,6 @@ static bool sem_check_map(tree_t t, tree_t unit,
    return ok;
 }
 
-static bool sem_find_unit(tree_t t, ident_t name, tree_t *unit)
-{
-   ident_t lname = ident_until(name, '.');
-   lib_t lib = lib_loaded(lname);
-   if (lib != NULL) {
-      if ((*unit = lib_get_check_stale(lib, name)) == NULL)
-         sem_error(t, "cannot find unit %s", istr(name));
-
-      return true;
-   }
-   else
-      sem_error(t, "missing library clause for %s", istr(lname));
-}
-
 static bool sem_check_instance(tree_t t)
 {
    if (!tree_has_ref(t))
@@ -3604,12 +3593,12 @@ static bool sem_check_instance(tree_t t)
                    istr(tree_ident(unit)), istr(tree_ident(tree_ref(spec))));
    }
 
-   if (!sem_check_map(t, unit, tree_ports, tree_port,
-                      tree_params, tree_param, MAP_PORT))
-      return false;
-
    if (!sem_check_map(t, unit, tree_generics, tree_generic,
                       tree_genmaps, tree_genmap, MAP_GENERIC))
+      return false;
+
+   if (!sem_check_map(t, unit, tree_ports, tree_port,
+                      tree_params, tree_param, MAP_PORT))
       return false;
 
    return true;
@@ -4214,12 +4203,12 @@ static bool sem_check_block(tree_t t)
    if (!sem_check_ports(t))
       return false;
 
-   if (!sem_check_map(t, t, tree_ports, tree_port,
-                      tree_params, tree_param, MAP_PORT))
-      return false;
-
    if (!sem_check_map(t, t, tree_generics, tree_generic,
                       tree_genmaps, tree_genmap, MAP_GENERIC))
+      return false;
+
+   if (!sem_check_map(t, t, tree_ports, tree_port,
+                      tree_params, tree_param, MAP_PORT))
       return false;
 
    bool ok = true;
@@ -4465,29 +4454,18 @@ static bool sem_check_all(tree_t t)
 
 static bool sem_check_binding(tree_t t)
 {
-   if (tree_params(t) > 0)
-      sem_error(t, "sorry, bindings with port maps are not yet supported");
-
-   if (tree_genmaps(t) > 0)
-      sem_error(t, "sorry, bindings with generic maps are not yet supported");
-
-   tree_t unit;
-   if (!sem_find_unit(t, tree_ident(t), &unit))
+   if (!tree_has_ref(t))
       return false;
 
-   switch (tree_class(t)) {
-   case C_ENTITY:
-      if (tree_kind(unit) != T_ENTITY)
-         sem_error(t, "unit %s is not an entity", istr(tree_ident(t)));
-      break;
+   tree_t unit = tree_ref(t);
+   if (tree_kind(unit) == T_ENTITY) {
+      if (!sem_check_map(t, unit, tree_generics, tree_generic,
+                         tree_genmaps, tree_genmap, MAP_GENERIC))
+         return false;
 
-   case C_CONFIGURATION:
-      if (tree_kind(unit) != T_CONFIGURATION)
-         sem_error(t, "unit %s is not a configuration", istr(tree_ident(t)));
-      break;
-
-   default:
-      assert(false);
+      if (!sem_check_map(t, unit, tree_ports, tree_port,
+                         tree_params, tree_param, MAP_PORT))
+         return false;
    }
 
    return true;
@@ -4500,26 +4478,32 @@ static bool sem_check_block_config(tree_t t)
    bool ok = true;
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++)
-      ok = sem_check(tree_decl(t, i)) && ok;
+      ok &= sem_check(tree_decl(t, i));
 
    scope_pop();
    return ok;
 }
 
+static bool sem_check_spec(tree_t t)
+{
+   if (tree_has_value(t))
+      return sem_check(tree_value(t));
+   else
+      return true;
+}
+
 static bool sem_check_configuration(tree_t t)
 {
-   const int ndecls = tree_decls(t);
-   tree_t block_config = tree_decl(t, ndecls - 1);
-   assert(tree_kind(block_config) == T_BLOCK_CONFIG);
-
    scope_push(NULL);
    top_scope->unit = t;
 
    scope_push(NULL);
 
    bool ok = true;
+
+   const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++)
-      ok = sem_check(tree_decl(t, i)) && ok;
+      ok &= sem_check(tree_decl(t, i));
 
    scope_pop();
    scope_pop();
@@ -4696,7 +4680,7 @@ bool sem_check(tree_t t)
    case T_TYPE_CONV:
       return sem_check_conversion(t);
    case T_SPEC:
-      return true;
+      return sem_check_spec(t);
    case T_BINDING:
       return sem_check_binding(t);
    case T_LIBRARY:

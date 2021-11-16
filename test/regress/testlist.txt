@@ -423,3 +423,5 @@ conf2           normal,gold
 vests16         normal
 file3           normal
 vests17         normal
+vests18         normal
+vests19         normal

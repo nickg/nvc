@@ -2297,6 +2297,24 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
                return emit_undefined(vtype);
          }
       }
+      else if (reg == VCODE_INVALID_REG
+               && vcode_unit_kind() == VCODE_UNIT_INSTANCE
+               && tree_class(decl) == C_CONSTANT) {
+         // This can happen when a type contains a reference to a
+         // component generic. The elaborator does not currently rewrite
+         // it to point at the corresponding entity generic.
+
+         vcode_var_t var = vcode_find_var(tree_ident(decl));
+         assert(var != VCODE_INVALID_VAR);
+
+         type_t type = tree_type(decl);
+         if (type_is_array(type) && lower_const_bounds(type))
+            return emit_index(var, VCODE_INVALID_REG);
+         else if (type_is_record(type) || type_is_protected(type))
+            return emit_index(var, VCODE_INVALID_REG);
+         else
+            return emit_load(var);
+      }
       else if (reg == VCODE_INVALID_REG) {
          vcode_dump();
          fatal_trace("missing register for parameter %s",
