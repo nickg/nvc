@@ -34,8 +34,8 @@ static cprop_vars_t *cprop_vars = NULL;
 typedef void (*eopt_nexus_fn_t)(e_node_t, void *);
 
 static void eopt_stmts(tree_t container, e_node_t cursor);
-static void eopt_decls(tree_t container, e_node_t cursor);
 static void eopt_ports(tree_t block, e_node_t cursor);
+static bool eopt_decls(tree_t container, e_node_t cursor);
 
 static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
                               unsigned stride, eopt_nexus_fn_t callback,
@@ -570,14 +570,27 @@ static void eopt_signal_decl(tree_t decl, e_node_t cursor)
    e_add_signal(cursor, e);
 }
 
-static void eopt_decls(tree_t container, e_node_t cursor)
+static bool eopt_decls(tree_t container, e_node_t cursor)
 {
+   bool need_cprop = false;
+
    const int ndecls = tree_decls(container);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(container, i);
-      if (tree_kind(d) == T_SIGNAL_DECL)
+      switch (tree_kind(d)) {
+      case T_SIGNAL_DECL:
          eopt_signal_decl(d, cursor);
+         need_cprop = true;
+      case T_CONST_DECL:
+         if (type_is_scalar(tree_type(d)))
+            need_cprop = true;
+         break;
+      default:
+         break;
+      }
    }
+
+   return need_cprop;
 }
 
 static void eopt_stmts(tree_t container, e_node_t cursor)
@@ -611,11 +624,9 @@ static void eopt_package(tree_t pack, e_node_t cursor)
 
    e_add_scope(root, e);
 
-   eopt_decls(pack, e);
-
-   const int nsignals = e_signals(e);
-   if (nsignals > 0) {
+   if (eopt_decls(pack, e)) {
       // Cannot optimise out LAST_VALUE for package signals
+      const int nsignals = e_signals(e);
       for (int i = 0; i < nsignals; i++)
          e_set_flag(e_signal(e, i), E_F_LAST_VALUE);
 
@@ -647,8 +658,10 @@ static void eopt_context(tree_t unit)
       if (dep == NULL)
          fatal_at(tree_loc(c), "cannot find unit %s", istr(name));
 
-      if (tree_kind(dep) == T_PACKAGE)
+      if (tree_kind(dep) == T_PACKAGE) {
+         eopt_context(dep);
          eopt_package(dep, root);
+      }
    }
 }
 

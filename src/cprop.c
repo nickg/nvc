@@ -24,12 +24,22 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+typedef enum { VM_SIGNAL, VM_CONST } var_map_kind_t;
+
 typedef struct {
-   vcode_var_t  var;
-   vcode_unit_t unit;
-   ident_t      name;
-   e_node_t     signal;
-   unsigned     offset;
+   vcode_var_t    var;
+   vcode_unit_t   unit;
+   ident_t        name;
+   var_map_kind_t kind;
+   union {
+      struct {
+         e_node_t signal;
+         unsigned offset;
+      }; // VM_SIGNAL
+      struct {
+         int64_t  cval;
+      }; // VM_CONST
+   };
 } var_map_t;
 
 struct cprop_vars_s {
@@ -172,28 +182,35 @@ static void cprop_store_var(cprop_vars_t *vars, int op, cprop_state_t *regs)
 {
    vcode_var_t var = vcode_get_address(op);
    vcode_var_flags_t flags = vcode_var_flags(var);
-
-   if (!(flags & VAR_SIGNAL))   // TODO: VAR_CONST here?
-      return;    // Not a constant
-
-   unsigned offset = 0, stride = 0, count = 0;
-   e_node_t signal = NULL;
-
-   cprop_get_signal(vcode_get_arg(op, 0), VCODE_INVALID_REG, regs,
-                    &offset, &stride, &count, &signal);
-
-   if (signal == NULL)
-      return;
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
 
    var_map_t map = {
-      .var    = var,
-      .signal = signal,
-      .name   = (flags & VAR_GLOBAL) ? vcode_var_name(var) : NULL,
-      .offset = offset,
-      .unit   = vcode_active_unit()
+      .var   = var,
+      .name  = (flags & VAR_GLOBAL) ? vcode_var_name(var) : NULL,
+      .unit  = vcode_active_unit()
    };
+
+   if (!!(flags & VAR_CONST) && regs[arg0].tag == CP_CONST) {
+      map.kind = VM_CONST;
+      map.cval = regs[arg0].cval;
+   }
+   else if (flags & VAR_SIGNAL) {
+      unsigned offset = 0, stride = 0, count = 0;
+      e_node_t signal = NULL;
+
+      cprop_get_signal(arg0, VCODE_INVALID_REG, regs,
+                       &offset, &stride, &count, &signal);
+
+      if (signal == NULL)
+         return;
+
+      map.signal = signal;
+      map.offset = offset;
+   }
+   else
+      return;    // Not a constant
+
    APUSH(vars->maps, map);
-   assert(vars->maps.items[vars->maps.count - 1].signal);
 }
 
 static var_map_t *cprop_find_var(cprop_vars_t *vars, vcode_var_t var,
@@ -218,9 +235,17 @@ static void cprop_link_var(cprop_vars_t *vars, int op, cprop_state_t *regs)
    for (int i = 0; i < vars->maps.count; i++) {
       var_map_t *m = &(vars->maps.items[i]);
       if (m->name == name) {
-         regs[result].tag = CP_SIGNAL;
-         regs[result].signal.enode  = m->signal;
-         regs[result].signal.offset = m->offset;
+         switch (m->kind) {
+         case VM_SIGNAL:
+            regs[result].tag = CP_SIGNAL;
+            regs[result].signal.enode  = m->signal;
+            regs[result].signal.offset = m->offset;
+            break;
+         case VM_CONST:
+            regs[result].tag  = CP_CONST;
+            regs[result].cval = m->cval;
+            break;
+         }
          break;
       }
    }
@@ -407,9 +432,6 @@ void cprop(cprop_req_t *req)
                for (int i = 0; i < hops; i++)
                   vcode_select_unit((unit = vcode_unit_context()));
 
-               ident_t name = vcode_var_name(var);
-               vcode_var_flags_t flags = vcode_var_flags(var);
-
                vcode_state_restore(&state);
 
                vcode_reg_t result = vcode_get_result(op);
@@ -417,17 +439,17 @@ void cprop(cprop_req_t *req)
 
                var_map_t *map;
                if (req->vars && (map = cprop_find_var(req->vars, var, unit))) {
-                  regs[result].tag = CP_SIGNAL;
-                  regs[result].signal.enode  = map->signal;
-                  regs[result].signal.offset = map->offset;
-               }
-               else if (!!(flags & VAR_SIGNAL) && req->find_signal) {
-                  cprop_dump(op, regs);
-                  const int hops2 = hops - req->hop_bias;
-                  e_node_t e = (*req->find_signal)(name, hops2, req->context);
-                  regs[result].tag = CP_SIGNAL;
-                  regs[result].signal.enode  = e;
-                  regs[result].signal.offset = 0;
+                  switch (map->kind) {
+                  case VM_SIGNAL:
+                     regs[result].tag = CP_SIGNAL;
+                     regs[result].signal.enode  = map->signal;
+                     regs[result].signal.offset = map->offset;
+                     break;
+                  case VM_CONST:
+                     regs[result].tag  = CP_CONST;
+                     regs[result].cval = map->cval;
+                     break;
+                  }
                }
                else
                   regs[result].tag = CP_UNKNOWN;

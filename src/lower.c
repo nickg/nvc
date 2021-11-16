@@ -4927,15 +4927,20 @@ static void lower_var_decl(tree_t decl)
    type_t type = tree_type(decl);
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
-   const bool global = !!(top_scope->flags & SCOPE_GLOBAL);
-   ident_t name = global ? tree_ident2(decl) : tree_ident(decl);
+   const bool is_global = !!(top_scope->flags & SCOPE_GLOBAL);
+   const bool is_const = tree_kind(decl) == T_CONST_DECL;
+   ident_t name = is_global ? tree_ident2(decl) : tree_ident(decl);
 
-   if (tree_kind(decl) == T_CONST_DECL && !tree_has_value(decl)) {
+   if (is_const && !tree_has_value(decl)) {
       // Deferred constant in package
       return;
    }
 
-   vcode_var_t var = emit_var(vtype, vbounds, name, global ? VAR_GLOBAL : 0);
+   vcode_var_flags_t flags = 0;
+   if (is_const) flags |= VAR_CONST;
+   if (is_global) flags |= VAR_GLOBAL;
+
+   vcode_var_t var = emit_var(vtype, vbounds, name, flags);
    lower_put_vcode_obj(decl, var, top_scope);
 
    if (type_is_protected(type)) {
@@ -5179,6 +5184,8 @@ static void lower_link_var(tree_t decl)
    ident_t name = tree_ident2(decl);
 
    vcode_var_flags_t flags = VAR_EXTERN;
+   if (tree_kind(decl) == T_CONST_DECL) flags |= VAR_CONST;
+
    vcode_type_t vtype;
    if (class_of(decl) == C_SIGNAL) {
       // Alias to signal

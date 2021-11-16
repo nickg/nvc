@@ -26,6 +26,15 @@ package SYNC is
     end component;
 end package;
 
+package body sync is
+
+    function resolved (x : in std_ulogic_vector) return std_ulogic is
+    begin
+        return x(x'left);
+    end function;
+
+end package body;
+
 library WORK;
 use     WORK.SYNC.all;
 entity  SYNC_SIG_DRIVER is
