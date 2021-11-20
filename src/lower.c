@@ -3711,7 +3711,7 @@ static vcode_reg_t lower_default_value(type_t type, bool nested)
 
 static void lower_assert(tree_t stmt)
 {
-   const int is_report = tree_attr_int(stmt, ident_new("is_report"), 0);
+   const int is_report = !tree_has_value(stmt);
    const int saved_mark = emit_temp_stack_mark();
 
    vcode_reg_t severity = lower_reify_expr(tree_severity(stmt));

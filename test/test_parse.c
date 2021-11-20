@@ -410,7 +410,6 @@ START_TEST(test_seq)
    fail_unless(tree_has_message(s));
    fail_unless(tree_kind(tree_message(s)) == T_LITERAL);
    fail_unless(tree_subkind(tree_message(s)) == L_STRING);
-   fail_unless(tree_attr_int(s, ident_new("is_report"), 0) == 1);
 
    // Function calls
 
