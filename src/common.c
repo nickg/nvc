@@ -1005,7 +1005,6 @@ char *vcode_file_name(ident_t unit_name)
 void intern_strings(void)
 {
    std_standard_i   = ident_new("STD.STANDARD");
-   elab_copy_i      = ident_new("elab_copy");
    all_i            = ident_new("all");
    protected_i      = ident_new("protected");
    std_logic_i      = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");

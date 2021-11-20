@@ -986,7 +986,7 @@ static bool sem_check_func_decl(tree_t t)
       return false;
 
    if (top_scope->flags & SCOPE_COPY_SUBS)
-      tree_add_attr_int(t, elab_copy_i, 1);
+      tree_set_flag(t, TREE_F_ELAB_COPY);
 
    return true;
 }
@@ -1023,7 +1023,7 @@ static bool sem_check_func_body(tree_t t)
    scope_pop();
 
    if (top_scope->flags & SCOPE_COPY_SUBS)
-      tree_add_attr_int(t, elab_copy_i, 1);
+      tree_set_flag(t, TREE_F_ELAB_COPY);
 
    unsigned nret = tree_visit_only(t, NULL, NULL, T_RETURN);
    if (nret == 0)
@@ -1071,7 +1071,7 @@ static bool sem_check_proc_decl(tree_t t)
       tree_add_attr_int(t, wait_level_i, WAITS_NO);
 
    if (top_scope->flags & SCOPE_COPY_SUBS)
-      tree_add_attr_int(t, elab_copy_i, 1);
+      tree_set_flag(t, TREE_F_ELAB_COPY);
 
    return true;
 }
@@ -1121,7 +1121,7 @@ static bool sem_check_proc_body(tree_t t)
    scope_pop();
 
    if (top_scope->flags & SCOPE_COPY_SUBS)
-      tree_add_attr_int(t, elab_copy_i, 1);
+      tree_set_flag(t, TREE_F_ELAB_COPY);
 
    return ok;
 }
@@ -1398,7 +1398,7 @@ static bool sem_check_generics(tree_t t)
          sem_error(g, "invalid object class for generic");
       }
 
-      tree_add_attr_int(g, elab_copy_i, 1);
+      tree_set_flag(g, TREE_F_ELAB_COPY);
 
       ok = sem_check(g) && ok;
 
@@ -1426,7 +1426,7 @@ static bool sem_check_ports(tree_t t)
          sem_error(p, "invalid object class for port");
       }
 
-      tree_add_attr_int(p, elab_copy_i, 1);
+      tree_set_flag(p, TREE_F_ELAB_COPY);
 
       ok = sem_check(p) && ok;
 

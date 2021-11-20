@@ -131,7 +131,6 @@ void set_relax_rules(int mask);
 #endif
 
 GLOBAL ident_t std_standard_i;
-GLOBAL ident_t elab_copy_i;
 GLOBAL ident_t all_i;
 GLOBAL ident_t protected_i;
 GLOBAL ident_t std_logic_i;

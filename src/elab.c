@@ -349,21 +349,25 @@ static bool elab_should_copy(tree_t t, void *__ctx)
    case T_FUNC_BODY:
    case T_PROC_DECL:
    case T_PROC_BODY:
-      return tree_attr_int(t, elab_copy_i, 0);
+      return !!(tree_flags(t) & TREE_F_ELAB_COPY);
    case T_FCALL:
       // Globally static expressions should be copied and folded
       return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC);
    case T_REF:
       {
          tree_t decl = tree_ref(t);
-         if (tree_attr_int(decl, elab_copy_i, 0))
-            return true;
-         else {
+         switch (tree_kind(decl)) {
+         case T_PORT_DECL:
+            return !!(tree_flags(decl) & TREE_F_ELAB_COPY);
+         case T_ENTITY:
+         case T_ARCH:
+         case T_BLOCK:
             // These may appear in attribute references like 'PATH_NAME
             // which need to get rewritten to point at the corresponding
             // block in the elaborated design
-            const tree_kind_t kind = tree_kind(decl);
-            return kind == T_ENTITY || kind == T_ARCH || kind == T_BLOCK;
+            return true;
+         default:
+            return false;
          }
       }
    case T_VAR_DECL:
