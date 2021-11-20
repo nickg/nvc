@@ -1003,7 +1003,7 @@ static void cgen_op_jump(int i, cgen_ctx_t *ctx)
    LLVMBuildBr(builder, ctx->blocks[vcode_get_target(i, 0)]);
 }
 
-static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
+static void cgen_op_fcall(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
@@ -2367,7 +2367,7 @@ static void cgen_pcall_suspend(LLVMValueRef state, LLVMBasicBlockRef cont_bb,
    LLVMPositionBuilderAtEnd(builder, cont_bb);
 }
 
-static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
+static void cgen_op_pcall(int op, cgen_ctx_t *ctx)
 {
    ident_t func = vcode_get_func(op);
    const int nargs = vcode_count_args(op);
@@ -2406,7 +2406,7 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
    cgen_pcall_suspend(suspend, ctx->blocks[vcode_get_target(op, 0)], ctx);
 }
 
-static void cgen_op_resume(int op, bool nested, cgen_ctx_t *ctx)
+static void cgen_op_resume(int op, cgen_ctx_t *ctx)
 {
    LLVMBasicBlockRef after_bb = LLVMAppendBasicBlock(ctx->fn, "resume_after");
    LLVMBasicBlockRef call_bb  = LLVMAppendBasicBlock(ctx->fn, "resume_call");
@@ -3169,10 +3169,7 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       cgen_op_jump(i, ctx);
       break;
    case VCODE_OP_FCALL:
-      cgen_op_fcall(i, false, ctx);
-      break;
-   case VCODE_OP_NESTED_FCALL:
-      cgen_op_fcall(i, true, ctx);
+      cgen_op_fcall(i, ctx);
       break;
    case VCODE_OP_CONST:
       cgen_op_const(i, ctx);
@@ -3319,16 +3316,10 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       cgen_op_sched_event(i, ctx);
       break;
    case VCODE_OP_PCALL:
-      cgen_op_pcall(i, false, ctx);
-      break;
-   case VCODE_OP_NESTED_PCALL:
-      cgen_op_pcall(i, true, ctx);
+      cgen_op_pcall(i, ctx);
       break;
    case VCODE_OP_RESUME:
-      cgen_op_resume(i, false, ctx);
-      break;
-   case VCODE_OP_NESTED_RESUME:
-      cgen_op_resume(i, true, ctx);
+      cgen_op_resume(i, ctx);
       break;
    case VCODE_OP_MEMCMP:
       cgen_op_memcmp(i, ctx);
@@ -3676,8 +3667,7 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
       vcode_block_t target = VCODE_INVALID_BLOCK;
       vcode_op_t last_op = vcode_get_op(last);
 
-      if (last_op == VCODE_OP_WAIT || last_op == VCODE_OP_PCALL
-          || last_op == VCODE_OP_NESTED_PCALL)
+      if (last_op == VCODE_OP_WAIT || last_op == VCODE_OP_PCALL)
          target = vcode_get_target(last, 0);
       else if (vcode_unit_kind() == VCODE_UNIT_PROCESS
                && last_op == VCODE_OP_RETURN)

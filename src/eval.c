@@ -900,7 +900,7 @@ static void eval_op_fcall(int op, eval_state_t *state)
       return;
    }
 
-   const bool nested = vcode_get_op(op) == VCODE_OP_NESTED_FCALL;
+   vcode_unit_t caller = vcode_active_unit();
 
    vcode_select_unit(vcode);
    vcode_select_block(0);
@@ -909,7 +909,7 @@ static void eval_op_fcall(int op, eval_state_t *state)
    if (context == NULL)
       return;
 
-   if (nested)
+   if (vcode_unit_context() == caller)   // Nested
       context->parent = eval_ref_context(state->context);
 
    for (int i = 0; i < nparams; i++)
@@ -1997,7 +1997,6 @@ static void eval_vcode(eval_state_t *state)
          break;
 
       case VCODE_OP_FCALL:
-      case VCODE_OP_NESTED_FCALL:
          if (state->flags & EVAL_FCALL)
             eval_op_fcall(state->op, state);
          else

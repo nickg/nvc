@@ -77,7 +77,6 @@ typedef enum {
    VCODE_OP_UNWRAP,
    VCODE_OP_NOT,
    VCODE_OP_AND,
-   VCODE_OP_NESTED_FCALL,
    VCODE_OP_PARAM_UPREF,
    VCODE_OP_EVENT,
    VCODE_OP_ACTIVE,
@@ -114,13 +113,11 @@ typedef enum {
    VCODE_OP_BIT_SHIFT,
    VCODE_OP_STORAGE_HINT,
    VCODE_OP_DEBUG_OUT,
-   VCODE_OP_NESTED_PCALL,
    VCODE_OP_COVER_STMT,
    VCODE_OP_COVER_COND,
    VCODE_OP_UARRAY_LEN,
    VCODE_OP_TEMP_STACK_MARK,
    VCODE_OP_TEMP_STACK_RESTORE,
-   VCODE_OP_NESTED_RESUME,
    VCODE_OP_UNDEFINED,
    VCODE_OP_IMAGE_MAP,
    VCODE_OP_RANGE_NULL,
@@ -363,9 +360,6 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
                        vcode_cc_t cc, const vcode_reg_t *args, int nargs);
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb);
-vcode_reg_t emit_nested_fcall(ident_t func, vcode_type_t type,
-                              vcode_type_t bounds, const vcode_reg_t *args,
-                              int nargs, int hops);
 void emit_wait(vcode_block_t target, vcode_reg_t time);
 void emit_jump(vcode_block_t target);
 vcode_reg_t emit_load(vcode_var_t var);
@@ -420,7 +414,6 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags);
 void emit_resume(ident_t func);
-void emit_nested_resume(ident_t func, int hops);
 vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
@@ -453,8 +446,6 @@ vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
                            vcode_type_t result);
 uint32_t emit_storage_hint(vcode_reg_t mem, vcode_reg_t length);
 void emit_debug_out(vcode_reg_t reg);
-void emit_nested_pcall(ident_t func, const vcode_reg_t *args, int nargs,
-                       vcode_block_t resume_bb, int hops);
 void emit_cover_stmt(uint32_t tag);
 void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub);
 vcode_reg_t emit_temp_stack_mark(void);

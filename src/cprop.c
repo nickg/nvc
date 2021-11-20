@@ -509,7 +509,6 @@ void cprop(cprop_req_t *req)
             break;
 
          case VCODE_OP_PCALL:
-         case VCODE_OP_NESTED_PCALL:
             if (req->pcall)
                (*req->pcall)(op, regs, req->context);
             break;
@@ -624,7 +623,6 @@ void cprop(cprop_req_t *req)
            }
            break;
 
-         case VCODE_OP_NESTED_FCALL:
          case VCODE_OP_FCALL:
             {
                vcode_reg_t result = vcode_get_result(op);
@@ -657,7 +655,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_FILE_READ:
          case VCODE_OP_FILE_CLOSE:
          case VCODE_OP_FILE_WRITE:
-         case VCODE_OP_NESTED_RESUME:
          case VCODE_OP_DEALLOCATE:
          case VCODE_OP_MEMSET:
          case VCODE_OP_COVER_COND:

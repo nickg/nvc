@@ -1971,15 +1971,8 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    type_t result = type_result(tree_type(decl));
    vcode_type_t rtype = lower_func_result_type(result);
    vcode_type_t rbounds = lower_bounds(result);
-   const int nest_depth = tree_attr_int(decl, nested_i, 0);
    const vcode_cc_t cc = lower_cc_for_call(fcall);
-   if (nest_depth > 0 && cc == VCODE_CC_VHDL) {
-      const int hops = vcode_unit_depth() - nest_depth;
-      return emit_nested_fcall(name, rtype, rbounds, args.items,
-                               args.count, hops);
-   }
-   else
-      return emit_fcall(name, rtype, rbounds, cc, args.items, args.count);
+   return emit_fcall(name, rtype, rbounds, cc, args.items, args.count);
 }
 
 static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
@@ -4381,7 +4374,6 @@ static void lower_pcall(tree_t pcall)
       return;
    }
 
-   const int nest_depth = tree_attr_int(decl, nested_i, 0);
    const bool never_waits =
       tree_attr_int(decl, wait_level_i, WAITS_MAYBE) == WAITS_NO;
    const bool use_fcall =
@@ -4414,18 +4406,10 @@ static void lower_pcall(tree_t pcall)
 
    if (use_fcall) {
       const vcode_cc_t cc = lower_cc_for_call(pcall);
-      if (nest_depth > 0 && cc == VCODE_CC_VHDL) {
-         const int hops = vcode_unit_depth() - nest_depth;
-         emit_nested_fcall(name, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                           args, nargs, hops);
-      }
-      else
-         emit_fcall(name, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                    cc, args, nargs);
+      emit_fcall(name, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE, cc, args, nargs);
       emit_temp_stack_restore(saved_mark);
    }
    else {
-      const int hops = nest_depth > 0 ? vcode_unit_depth() - nest_depth : 0;
       vcode_block_t resume_bb = emit_block();
 
       // Save the temp stack mark in a variable so it is preserved
@@ -4436,16 +4420,9 @@ static void lower_pcall(tree_t pcall)
          tmp_mark_var = emit_var(vtype_offset(), vtype_offset(), tmp_mark_i, 0);
       emit_store(saved_mark, tmp_mark_var);
 
-      if (nest_depth > 0) {
-         emit_nested_pcall(name, args, nargs, resume_bb, hops);
-         vcode_select_block(resume_bb);
-         emit_nested_resume(name, hops);
-      }
-      else {
-         emit_pcall(name, args, nargs, resume_bb);
-         vcode_select_block(resume_bb);
-         emit_resume(name);
-      }
+      emit_pcall(name, args, nargs, resume_bb);
+      vcode_select_block(resume_bb);
+      emit_resume(name);
 
       emit_temp_stack_restore(emit_load(tmp_mark_var));
    }

@@ -46,13 +46,11 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_INDEX_CHECK || x == VCODE_OP_BIT_SHIFT             \
     || x == VCODE_OP_ALLOCA || x == VCODE_OP_COVER_COND                 \
     || x == VCODE_OP_ARRAY_SIZE || x == VCODE_OP_PCALL                  \
-    || x == VCODE_OP_NESTED_FCALL || x == VCODE_OP_NESTED_PCALL         \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
     || x == VCODE_OP_CLOSURE)
 #define OP_HAS_FUNC(x)                                                  \
-   (x == VCODE_OP_FCALL || x == VCODE_OP_NESTED_FCALL                   \
+   (x == VCODE_OP_FCALL                                                 \
     || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME                      \
-    || x == VCODE_OP_NESTED_PCALL || x == VCODE_OP_NESTED_RESUME        \
     || x == VCODE_OP_RESOLUTION_WRAPPER || x == VCODE_OP_CLOSURE)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_SIGNAL || x == VCODE_OP_LINK_VAR)
@@ -64,9 +62,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_UARRAY_LEFT || x == VCODE_OP_UARRAY_RIGHT             \
     || x == VCODE_OP_UARRAY_DIR || x == VCODE_OP_UARRAY_LEN)
 #define OP_HAS_HOPS(x)                                                  \
-   (x == VCODE_OP_PARAM_UPREF || x == VCODE_OP_NESTED_FCALL             \
-    || x == VCODE_OP_NESTED_PCALL || x == VCODE_OP_NESTED_RESUME        \
-    || x == VCODE_OP_VAR_UPREF)
+   (x == VCODE_OP_PARAM_UPREF || x == VCODE_OP_VAR_UPREF)
 #define OP_HAS_FIELD(x)                                                 \
    (x == VCODE_OP_RECORD_REF)
 #define OP_HAS_CMP(x)                                                   \
@@ -80,8 +76,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_ARRAY_SIZE)
 #define OP_HAS_TARGET(x)                                                \
    (x == VCODE_OP_WAIT || x == VCODE_OP_JUMP || x == VCODE_OP_COND      \
-    || x == VCODE_OP_PCALL || x == VCODE_OP_CASE                        \
-    || x == VCODE_OP_NESTED_PCALL)
+    || x == VCODE_OP_PCALL || x == VCODE_OP_CASE)
 #define OP_HAS_IMAGE_MAP(x)                                             \
    (x == VCODE_OP_IMAGE_MAP)
 
@@ -434,7 +429,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
       break;
 
    case VCODE_OP_FCALL:
-   case VCODE_OP_NESTED_FCALL:
       // Must have been safety checked by definition
       break;
 
@@ -954,16 +948,15 @@ const char *vcode_op_string(vcode_op_t op)
       "cast", "load indirect", "store indirect", "return",
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
       "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
-      "uarray right", "uarray dir", "unwrap", "not", "and", "nested fcall",
-      "param upref",
+      "uarray right", "uarray dir", "unwrap", "not", "and", "param upref",
       "event", "active", "const record", "record ref", "copy", "sched event",
       "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor", "memset",
       "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
       "bit vec op", "const real", "value", "last event",
       "dynamic bounds", "array size", "index check", "bit shift",
-      "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
-      "uarray len", "temp stack mark", "temp stack restore", "nested resume",
+      "storage hint", "debug out", "cover stmt", "cover cond",
+      "uarray len", "temp stack mark", "temp stack restore",
       "undefined", "image map", "range null", "var upref", "link signal",
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
@@ -1311,7 +1304,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_FCALL:
-         case VCODE_OP_NESTED_FCALL:
             {
                if (op->result != VCODE_INVALID_REG) {
                   col += vcode_dump_reg(op->result);
@@ -1789,7 +1781,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_PCALL:
-         case VCODE_OP_NESTED_PCALL:
             {
                color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
                             istr(op->func));
@@ -1806,14 +1797,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
                             istr(op->func));
-            }
-            break;
-
-         case VCODE_OP_NESTED_RESUME:
-            {
-               color_printf("%s $magenta$%s$$ hops %d",
-                            vcode_op_string(op->kind), istr(op->func),
-                            op->hops);
             }
             break;
 
@@ -3015,27 +2998,11 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
                         VCODE_INVALID_BLOCK, 0);
 }
 
-vcode_reg_t emit_nested_fcall(ident_t func, vcode_type_t type,
-                              vcode_type_t bounds, const vcode_reg_t *args,
-                              int nargs, int hops)
-{
-   return emit_fcall_op(VCODE_OP_NESTED_FCALL, func, type, bounds,
-                        VCODE_CC_VHDL, args, nargs, VCODE_INVALID_BLOCK, hops);
-}
-
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb)
 {
    emit_fcall_op(VCODE_OP_PCALL, func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
                  VCODE_CC_VHDL, args, nargs, resume_bb, 0);
-}
-
-void emit_nested_pcall(ident_t func, const vcode_reg_t *args, int nargs,
-                       vcode_block_t resume_bb, int hops)
-{
-   emit_fcall_op(VCODE_OP_NESTED_PCALL, func, VCODE_INVALID_TYPE,
-                 VCODE_INVALID_TYPE, VCODE_CC_VHDL, args, nargs,
-                 resume_bb, hops);
 }
 
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
@@ -3289,9 +3256,7 @@ vcode_reg_t emit_load(vcode_var_t var)
 
       if (other->kind == VCODE_OP_INDEX && other->address == var)
          aliased = true;
-      else if (other->kind == VCODE_OP_NESTED_FCALL
-               || other->kind == VCODE_OP_NESTED_PCALL
-               || other->kind == VCODE_OP_NESTED_RESUME)
+      else if (other->kind == VCODE_OP_FCALL || other->kind == VCODE_OP_PCALL)
          break;   // Nested call captures variables
    }
 
@@ -3342,8 +3307,7 @@ void emit_store(vcode_reg_t reg, vcode_var_t var)
             xasprintf("Dead store to %s", istr(vcode_var_name(var)));
          vcode_reg_array_resize(&(other->args), 0, VCODE_INVALID_REG);
       }
-      else if (other->kind == VCODE_OP_NESTED_FCALL
-               || other->kind == VCODE_OP_NESTED_PCALL)
+      else if (other->kind == VCODE_OP_FCALL || other->kind == VCODE_OP_PCALL)
          break;   // Needs to get variable for display
       else if ((other->kind == VCODE_OP_INDEX || other->kind == VCODE_OP_LOAD)
                && other->address == var)
@@ -4399,16 +4363,6 @@ void emit_resume(ident_t func)
    VCODE_ASSERT(b->ops.count == 1, "resume must be first op in a block");
 }
 
-void emit_nested_resume(ident_t func, int hops)
-{
-   op_t *op = vcode_add_op(VCODE_OP_NESTED_RESUME);
-   op->func = func;
-   op->hops = hops;
-
-   block_t *b = &(active_unit->blocks.items[active_block]);
-   VCODE_ASSERT(b->ops.count == 1, "resume must be first op in a block");
-}
-
 vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len)
 {
    op_t *op = vcode_add_op(VCODE_OP_MEMCMP);
@@ -4961,11 +4915,8 @@ void emit_temp_stack_restore(vcode_reg_t reg)
    VCODE_FOR_EACH_OP(other) {
       if (other->kind == VCODE_OP_ALLOCA
           || other->kind == VCODE_OP_PCALL
-          || other->kind == VCODE_OP_NESTED_PCALL
           || other->kind == VCODE_OP_FCALL
-          || other->kind == VCODE_OP_NESTED_FCALL
           || other->kind == VCODE_OP_RESUME
-          || other->kind == VCODE_OP_NESTED_RESUME
           || other->kind == VCODE_OP_IMAGE)
          break;
       else if (other->kind == VCODE_OP_TEMP_STACK_MARK)

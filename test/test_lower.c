@@ -64,7 +64,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          // Fall-through
       case VCODE_OP_FCALL:
-      case VCODE_OP_NESTED_FCALL:
          if (e->func != NULL) {
             bool bad;
             if (e->func[0] == '*')
@@ -903,6 +902,7 @@ START_TEST(test_func1)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_FCALL, .func = ":func1$WORK.FUNC1(TEST).ADD1(I)I", .args = 1 },
       { VCODE_OP_STORE, .name = "R" },
@@ -1088,7 +1088,7 @@ START_TEST(test_nest1)
          { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_NESTED_FCALL,
+         { VCODE_OP_FCALL,
            .func = ":nest1$WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I",
            .args = 1 },
          { VCODE_OP_CONST, .value = 7 },
@@ -1112,7 +1112,7 @@ START_TEST(test_nest1)
                        ":nest1$WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I"));
 
       EXPECT_BB(0) = {
-         { VCODE_OP_NESTED_FCALL,
+         { VCODE_OP_FCALL,
            .func = ":nest1$WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I.DO_IT()I" },
          { VCODE_OP_RETURN }
       };
@@ -2076,7 +2076,7 @@ START_TEST(test_issue122)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_NESTED_FCALL,
+      { VCODE_OP_FCALL,
         .func = ":issue122$WORK.ISSUE122(TEST).FUNC(I)I.NESTED()I" },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_RETURN }
@@ -2964,6 +2964,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_LOAD, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ALLOCA },
