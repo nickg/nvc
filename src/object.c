@@ -75,7 +75,7 @@ static inline bool object_in_arena_p(object_arena_t *arena, object_t *object)
    return (void *)object >= arena->base && (void *)object < arena->limit;
 }
 
-static inline object_arena_t *object_arena(object_t *object)
+static inline object_arena_t *__object_arena(object_t *object)
 {
    assert(object->arena < all_arenas.count);
    assert(object->arena != 0);
@@ -104,7 +104,7 @@ static ident_t object_arena_name(object_arena_t *arena)
 
 static bool object_marked_p(object_t *object, generation_t generation)
 {
-   object_arena_t *arena = object_arena(object);
+   object_arena_t *arena = __object_arena(object);
 
    if (arena->mark_bits == NULL) {
       const size_t nbits = (arena->limit - arena->base) / OBJECT_ALIGN;
@@ -127,6 +127,11 @@ static bool object_marked_p(object_t *object, generation_t generation)
    return marked;
 }
 
+object_arena_t *object_arena(object_t *object)
+{
+   return __object_arena(object);
+}
+
 void __object_write_barrier(object_t *lhs, object_t *rhs)
 {
    const uintptr_t lhs_mask = (uintptr_t)lhs & ~OBJECT_PAGE_MASK;
@@ -137,8 +142,8 @@ void __object_write_barrier(object_t *lhs, object_t *rhs)
    else if (lhs->arena == rhs->arena)
       return;
 
-   object_arena_t *larena = object_arena(lhs);
-   object_arena_t *rarena = object_arena(rhs);
+   object_arena_t *larena = __object_arena(lhs);
+   object_arena_t *rarena = __object_arena(rhs);
 
    assert(!larena->frozen);
    assert(rarena->frozen);
@@ -649,7 +654,7 @@ static void object_write_ref(object_t *object, fbuf_t *f)
    if (object == NULL)
       write_u16(0, f);
    else {
-      object_arena_t *arena = object_arena(object);
+      object_arena_t *arena = __object_arena(object);
       assert(arena->key != 0);
 
       write_u16(arena->key, f);
@@ -659,7 +664,7 @@ static void object_write_ref(object_t *object, fbuf_t *f)
 
 void object_write(object_t *root, fbuf_t *f)
 {
-   object_arena_t *arena = object_arena(root);
+   object_arena_t *arena = __object_arena(root);
 
    write_u32(format_digest, f);
    write_u8(standard(), f);
@@ -839,7 +844,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
             fatal("%s depends on %s which cannot be found",
 		  fbuf_file_name(f), istr(dep));
 
-         arena = object_arena(droot);
+         arena = __object_arena(droot);
       }
 
       APUSH(arena->deps, arena);

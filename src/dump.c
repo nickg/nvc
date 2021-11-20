@@ -159,7 +159,21 @@ static void dump_type_hint(tree_t t)
 static void dump_address(tree_t t)
 {
 #if DUMP_ADDRESS
-   color_printf("$!green${%p}$$", t);
+   uint32_t a = (uint32_t)((uintptr_t)tree_arena(t) >> 2);
+   a = (a ^ 61) ^ (a >> 16);
+   a = a + (a << 3);
+   a = a ^ (a >> 4);
+   a = a * UINT32_C(0x27d4eb2d);
+   a = a ^ (a >> 15);
+
+   const int r = 1 + a % 5;
+   const int g = 1 + (a >> 8) % 5;
+   const int b = 1 + (a >> 16) % 5;
+
+   const int color = 16 + 36*r + 6*g + b;
+
+   char *LOCAL fmt = xasprintf("$!#%d${%%p}$$", color);
+   color_printf(fmt, t);
 #endif
 }
 

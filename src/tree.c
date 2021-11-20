@@ -1212,3 +1212,8 @@ void make_new_arena(void)
 
    global_arena = object_arena_new(OBJECT_ARENA_SZ);
 }
+
+object_arena_t *tree_arena(tree_t t)
+{
+   return object_arena(&(t->object));
+}

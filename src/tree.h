@@ -484,4 +484,6 @@ typedef tree_t (*tree_load_fn_t)(ident_t);
 void tree_write(tree_t t, fbuf_t *f);
 tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn);
 
+object_arena_t *tree_arena(tree_t t);
+
 #endif  // _TREE_H

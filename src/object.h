@@ -262,6 +262,7 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx);
 object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 unsigned object_next_generation(void);
 object_t *object_copy(object_t *object, object_copy_ctx_t *ctx);
+object_arena_t *object_arena(object_t *object);
 
 void object_write(object_t *object, fbuf_t *f);
 object_t *object_read(fbuf_t *f, object_load_fn_t loader);
