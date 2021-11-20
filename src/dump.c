@@ -487,17 +487,11 @@ static void dump_block(tree_t t, int indent)
 
 static void dump_wait_level(tree_t t)
 {
-   switch (tree_attr_int(t, wait_level_i, WAITS_MAYBE)) {
-   case WAITS_NO:
+   const tree_flags_t flags = tree_flags(t);
+   if (flags & TREE_F_NEVER_WAITS)
       syntax("   -- Never waits");
-      break;
-   case WAITS_MAYBE:
-      syntax("   -- Maybe waits");
-      break;
-   case WAITS_YES:
-      syntax("   -- Waits");
-      break;
-   }
+   else if (flags & TREE_F_HAS_WAIT)
+      syntax("   -- Contains wait statement");
 }
 
 static void dump_type_decl(tree_t t, int indent)

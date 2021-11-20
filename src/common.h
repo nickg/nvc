@@ -80,12 +80,6 @@ typedef unsigned (*tree_actuals_t)(tree_t t);
 typedef tree_t (*tree_actual_t)(tree_t t, unsigned n);
 
 typedef enum {
-   WAITS_NO    = 0x0,
-   WAITS_MAYBE = 0x1,
-   WAITS_YES   = 0x3,
-} wait_level_t;
-
-typedef enum {
    IMPURE_FILE   = 0x1,
    IMPURE_SHARED = 0x2,
 } impure_io_t;
@@ -146,7 +140,6 @@ GLOBAL ident_t foreign_i;
 GLOBAL ident_t GLOBAL_i;
 GLOBAL ident_t prot_field_i;
 GLOBAL ident_t work_i;
-GLOBAL ident_t wait_level_i;
 GLOBAL ident_t impure_io_i;
 GLOBAL ident_t std_i;
 GLOBAL ident_t thunk_i;

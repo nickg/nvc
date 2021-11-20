@@ -1019,7 +1019,6 @@ void intern_strings(void)
    foreign_i        = ident_new("FOREIGN");
    prot_field_i     = ident_new("prot_field");
    work_i           = ident_new("WORK");
-   wait_level_i     = ident_new("wait_level");
    impure_io_i      = ident_new("impure_io");
    std_i            = ident_new("STD");
    thunk_i          = ident_new("thunk");

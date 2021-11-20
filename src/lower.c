@@ -4374,8 +4374,7 @@ static void lower_pcall(tree_t pcall)
       return;
    }
 
-   const bool never_waits =
-      tree_attr_int(decl, wait_level_i, WAITS_MAYBE) == WAITS_NO;
+   const bool never_waits = !!(tree_flags(decl) & TREE_F_NEVER_WAITS);
    const bool use_fcall =
       never_waits || vcode_unit_kind() == VCODE_UNIT_FUNCTION;
    const bool protected = tree_kind(pcall) == T_PROT_PCALL;
@@ -5624,8 +5623,7 @@ static vcode_unit_t lower_find_subprogram(ident_t name, vcode_unit_t context)
 
 static void lower_proc_body(tree_t body, vcode_unit_t context)
 {
-   const bool never_waits =
-      tree_attr_int(body, wait_level_i, WAITS_MAYBE) == WAITS_NO;
+   const bool never_waits = !!(tree_flags(body) & TREE_F_NEVER_WAITS);
 
    vcode_select_unit(context);
 

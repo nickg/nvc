@@ -313,6 +313,8 @@ typedef enum {
    TREE_F_PROTECTED       = (1 << 17),
    TREE_F_STATIC_WAIT     = (1 << 18),
    TREE_F_NULL_RANGE      = (1 << 19),
+   TREE_F_NEVER_WAITS     = (1 << 20),
+   TREE_F_HAS_WAIT        = (1 << 21),
 } tree_flags_t;
 
 tree_t tree_new(tree_kind_t kind);
@@ -457,6 +459,7 @@ void tree_add_char(tree_t t, tree_t ref);
 
 tree_flags_t tree_flags(tree_t t);
 void tree_set_flag(tree_t t, tree_flags_t mask);
+void tree_clear_flag(tree_t t, tree_flags_t mask);
 
 void tree_add_attr_int(tree_t t, ident_t name, int n);
 int tree_attr_int(tree_t t, ident_t name, int def);

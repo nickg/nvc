@@ -1853,7 +1853,7 @@ START_TEST(test_foreign1)
 
    tree_t decl = tree_decl(body, 0);
    fail_unless(icmp(tree_ident(decl), "PROC"));
-   fail_unless(tree_attr_int(decl, wait_level_i, WAITS_MAYBE) == WAITS_NO);
+   fail_unless(tree_flags(decl) & TREE_F_NEVER_WAITS);
 }
 END_TEST
 

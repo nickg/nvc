@@ -48,7 +48,6 @@ struct scope {
    scope_t       *down;
 
    tree_t         subprog;
-   wait_level_t   wait_level;
    impure_io_t    impure_io;
    tree_t         unit;
 
@@ -104,7 +103,6 @@ static void scope_push(ident_t prefix)
    s->subprog    = (top_scope ? top_scope->subprog : NULL) ;
    s->flags      = (top_scope ? top_scope->flags : 0);
    s->unit       = (top_scope ? top_scope->unit : NULL);
-   s->wait_level = WAITS_NO;
    s->impure_io  = 0;
 
    top_scope = s;
@@ -115,10 +113,8 @@ static void scope_pop(void)
    assert(top_scope != NULL);
 
    scope_t *s = top_scope;
-   if (s->down != NULL && s->down->subprog == s->subprog) {
-      s->down->wait_level |= s->wait_level;
+   if (s->down != NULL && s->down->subprog == s->subprog)
       s->down->impure_io  |= s->down->impure_io;
-   }
 
    top_scope = s->down;
    free(s);
@@ -1061,9 +1057,6 @@ static bool sem_check_proc_decl(tree_t t)
    if (!sem_check_proc_ports(t))
       return false;
 
-   if (tree_flags(t) & TREE_F_FOREIGN)
-      tree_add_attr_int(t, wait_level_i, WAITS_NO);
-
    if (top_scope->flags & SCOPE_COPY_SUBS)
       tree_set_flag(t, TREE_F_ELAB_COPY);
 
@@ -1080,6 +1073,9 @@ static bool sem_check_proc_body(tree_t t)
    scope_push(NULL);
    top_scope->subprog = t;
 
+   // Cleared by wait statement or pcall
+   tree_set_flag(t, TREE_F_NEVER_WAITS);
+
    bool ok = true;
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
@@ -1092,14 +1088,12 @@ static bool sem_check_proc_body(tree_t t)
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
-   tree_add_attr_int(t, wait_level_i, top_scope->wait_level);
    if (top_scope->impure_io)
       tree_add_attr_int(t, impure_io_i, top_scope->impure_io);
 
 #if 0
    tree_t proto = sem_check_duplicate(t, T_PROC_DECL);
    if (proto != NULL) {
-      tree_add_attr_int(proto, wait_level_i, top_scope->wait_level);
       if (top_scope->impure_io)
          tree_add_attr_int(t, impure_io_i, top_scope->impure_io);
    }
@@ -2124,11 +2118,18 @@ static bool sem_check_pcall(tree_t t)
    if (!sem_copy_default_args(t, decl))
       return false;
 
-   const wait_level_t waits = tree_attr_int(decl, wait_level_i, WAITS_MAYBE);
-   if (waits == WAITS_YES)
-      top_scope->wait_level = WAITS_YES;
-   else if (waits == WAITS_MAYBE && top_scope->wait_level == WAITS_NO)
-      top_scope->wait_level = WAITS_MAYBE;
+   const tree_flags_t flags = tree_flags(decl);
+
+   const bool never_waits = !!(flags & TREE_F_NEVER_WAITS);
+   const bool has_wait = !!(flags & TREE_F_HAS_WAIT);
+
+   assert(!never_waits || !has_wait);
+
+   if (!never_waits && top_scope->subprog)
+      tree_clear_flag(top_scope->subprog, TREE_F_NEVER_WAITS);
+
+   if (has_wait && top_scope->subprog)
+      tree_set_flag(top_scope->subprog, TREE_F_HAS_WAIT);
 
    const impure_io_t impure_io = tree_attr_int(decl, impure_io_i, 0);
    top_scope->impure_io |= impure_io;
@@ -2139,7 +2140,7 @@ static bool sem_check_pcall(tree_t t)
    const bool in_pure_func =
       in_func && !(tree_flags(top_scope->subprog) & TREE_F_IMPURE);
 
-   if (waits == WAITS_YES && in_func)
+   if (has_wait && in_func)
       sem_error(t, "function %s cannot call procedure %s which contains "
                 "a wait statement", istr(tree_ident(top_scope->subprog)),
                 istr(tree_ident(decl)));
@@ -2187,7 +2188,10 @@ static bool sem_check_wait(tree_t t)
             && tree_kind(top_scope->subprog) == T_FUNC_BODY)
       sem_error(t, "wait statement not allowed in function body");
 
-   top_scope->wait_level = WAITS_YES;
+   if (top_scope->subprog != NULL) {
+      tree_clear_flag(top_scope->subprog, TREE_F_NEVER_WAITS);
+      tree_set_flag(top_scope->subprog, TREE_F_HAS_WAIT);
+   }
 
    return sem_check_sensitivity(t);
 }

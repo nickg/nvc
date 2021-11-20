@@ -624,6 +624,11 @@ void tree_set_flag(tree_t t, tree_flags_t mask)
    lookup_item(&tree_object, t, I_FLAGS)->ival |= mask;
 }
 
+void tree_clear_flag(tree_t t, tree_flags_t mask)
+{
+   lookup_item(&tree_object, t, I_FLAGS)->ival &= ~mask;
+}
+
 e_node_t tree_eopt(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_EOPT);
