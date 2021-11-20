@@ -48,7 +48,6 @@ struct scope {
    scope_t       *down;
 
    tree_t         subprog;
-   impure_io_t    impure_io;
    tree_t         unit;
 
    // For design unit scopes
@@ -103,7 +102,6 @@ static void scope_push(ident_t prefix)
    s->subprog    = (top_scope ? top_scope->subprog : NULL) ;
    s->flags      = (top_scope ? top_scope->flags : 0);
    s->unit       = (top_scope ? top_scope->unit : NULL);
-   s->impure_io  = 0;
 
    top_scope = s;
 }
@@ -113,9 +111,6 @@ static void scope_pop(void)
    assert(top_scope != NULL);
 
    scope_t *s = top_scope;
-   if (s->down != NULL && s->down->subprog == s->subprog)
-      s->down->impure_io  |= s->down->impure_io;
-
    top_scope = s->down;
    free(s);
 }
@@ -1087,9 +1082,6 @@ static bool sem_check_proc_body(tree_t t)
    }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
-
-   if (top_scope->impure_io)
-      tree_add_attr_int(t, impure_io_i, top_scope->impure_io);
 
 #if 0
    tree_t proto = sem_check_duplicate(t, T_PROC_DECL);
@@ -2131,8 +2123,11 @@ static bool sem_check_pcall(tree_t t)
    if (has_wait && top_scope->subprog)
       tree_set_flag(top_scope->subprog, TREE_F_HAS_WAIT);
 
-   const impure_io_t impure_io = tree_attr_int(decl, impure_io_i, 0);
-   top_scope->impure_io |= impure_io;
+   if ((flags & TREE_F_IMPURE_FILE) && top_scope->subprog)
+      tree_set_flag(top_scope->subprog, TREE_F_IMPURE_FILE);
+
+   if ((flags & TREE_F_IMPURE_SHARED) && top_scope->subprog)
+      tree_set_flag(top_scope->subprog, TREE_F_IMPURE_SHARED);
 
    const bool in_func = top_scope->subprog != NULL
       && tree_kind(top_scope->subprog) == T_FUNC_BODY;
@@ -2144,11 +2139,11 @@ static bool sem_check_pcall(tree_t t)
       sem_error(t, "function %s cannot call procedure %s which contains "
                 "a wait statement", istr(tree_ident(top_scope->subprog)),
                 istr(tree_ident(decl)));
-   else if ((impure_io & IMPURE_FILE) && in_pure_func)
+   else if ((flags & TREE_F_IMPURE_FILE) && in_pure_func)
       sem_error(t, "pure function %s cannot call procedure %s which references "
                 "a file object", istr(tree_ident(top_scope->subprog)),
                 istr(tree_ident(decl)));
-   else if ((impure_io & IMPURE_SHARED) && in_pure_func)
+   else if ((flags & TREE_F_IMPURE_SHARED) && in_pure_func)
       sem_error(t, "pure function %s cannot call procedure %s which references "
                 "a shared variable", istr(tree_ident(top_scope->subprog)),
                 istr(tree_ident(decl)));
@@ -2806,9 +2801,9 @@ static bool sem_check_ref(tree_t t)
 
    if (top_scope->subprog != NULL) {
       if (kind == T_FILE_DECL)
-         top_scope->impure_io |= IMPURE_FILE;
+         tree_set_flag(top_scope->subprog, TREE_F_IMPURE_FILE);
       else if (kind == T_VAR_DECL && (tree_flags(decl) & TREE_F_SHARED))
-         top_scope->impure_io |= IMPURE_SHARED;
+         tree_set_flag(top_scope->subprog, TREE_F_IMPURE_SHARED);
    }
 
    return true;

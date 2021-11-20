@@ -300,7 +300,7 @@ typedef enum {
    TREE_F_CONVERSION      = (1 << 4),
    TREE_F_POSTPONED       = (1 << 5),
    TREE_F_SHARED          = (1 << 6),
-   TREE_F_REPORT          = (1 << 7),
+   // Unused              = (1 << 7),
    TREE_F_GUARDED         = (1 << 8),
    TREE_F_ELIDE_BOUNDS    = (1 << 9),
    TREE_F_ELAB_COPY       = (1 << 10),
@@ -315,6 +315,8 @@ typedef enum {
    TREE_F_NULL_RANGE      = (1 << 19),
    TREE_F_NEVER_WAITS     = (1 << 20),
    TREE_F_HAS_WAIT        = (1 << 21),
+   TREE_F_IMPURE_FILE     = (1 << 22),
+   TREE_F_IMPURE_SHARED   = (1 << 23),
 } tree_flags_t;
 
 tree_t tree_new(tree_kind_t kind);
