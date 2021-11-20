@@ -783,11 +783,11 @@ tree_t lib_get_check_stale(lib_t lib, ident_t ident)
 
 tree_t lib_get_qualified(ident_t qual)
 {
-   ident_t lib_name = ident_until(qual, '.');
-   if (lib_name == NULL)
+   ident_t lname = ident_until(qual, '.');
+   if (lname == NULL)
       return NULL;
 
-   lib_t lib = lib_find(lib_name, false);
+   lib_t lib = lib_find(lname, false);
    if (lib == NULL)
       return NULL;
 

@@ -241,7 +241,6 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
    tree_set_ident(new, tree_ident(unit));
    tree_set_ident2(new, all_i);
 
-
    if (tree_kind(unit) == T_PACKAGE) {
       elab_copy_context(unit, ctx);
 

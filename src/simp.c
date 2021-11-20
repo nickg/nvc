@@ -1176,6 +1176,23 @@ static tree_t simp_context_ref(tree_t t, simp_ctx_t *ctx)
    return NULL;
 }
 
+static tree_t simp_use(tree_t t)
+{
+   ident_t qual = tree_ident(t);
+   ident_t lname = ident_until(qual, '.');
+
+   if (lname == work_i) {
+      lib_t lib = lib_find(lname, true);
+      ident_t canon = lib_name(lib);
+      if (canon != lname) {
+         ident_t rest = ident_from(qual, '.');
+         tree_set_ident(t, ident_prefix(canon, rest, '.'));
+      }
+   }
+
+   return t;
+}
+
 static tree_t simp_assert(tree_t t)
 {
    bool value_b;
@@ -1358,6 +1375,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_record_ref(t);
    case T_CTXREF:
       return simp_context_ref(t, ctx);
+   case T_USE:
+      return simp_use(t);
    case T_ASSERT:
       return simp_assert(t);
    case T_IF_GENERATE:
