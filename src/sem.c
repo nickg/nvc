@@ -1001,17 +1001,11 @@ static bool sem_check_func_body(tree_t t)
    scope_push(NULL);
    top_scope->subprog = t;
 
-   const int nest_depth = tree_attr_int(t, nested_i, 0);
-
    bool ok = true;
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
-
-      if (is_subprogram(d))
-         tree_add_attr_int(d, nested_i, nest_depth + 1);
-
-      ok = sem_check(d) && ok;
+      ok &= sem_check(d);
 
       if (tree_kind(d) == T_USE)
          tree_add_context(top_scope->unit, d);
@@ -1086,17 +1080,11 @@ static bool sem_check_proc_body(tree_t t)
    scope_push(NULL);
    top_scope->subprog = t;
 
-   const int nest_depth = tree_attr_int(t, nested_i, 0);
-
    bool ok = true;
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
-
-      if (is_subprogram(d))
-         tree_add_attr_int(d, nested_i, nest_depth + 1);
-
-      ok = sem_check(d) && ok;
+      ok &= sem_check(d);
 
       if (tree_kind(d) == T_USE)
          tree_add_context(top_scope->unit, d);
@@ -1230,10 +1218,7 @@ static bool sem_check_process(tree_t t)
    for (int n = 0; n < ndecls; n++) {
       tree_t d = tree_decl(t, n);
 
-      if (is_subprogram(d))
-         tree_add_attr_int(d, nested_i, 1);
-
-      if ((ok = sem_check(d) && ok))
+      if ((ok &= sem_check(d)))
          sem_check_static_elab(d);
 
       if (tree_kind(d) == T_USE)

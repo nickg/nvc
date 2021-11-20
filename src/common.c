@@ -1017,7 +1017,6 @@ void intern_strings(void)
    signed_i         = ident_new("IEEE.NUMERIC_STD.SIGNED");
    unsigned_i       = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
    foreign_i        = ident_new("FOREIGN");
-   nested_i         = ident_new("nested");
    prot_field_i     = ident_new("prot_field");
    work_i           = ident_new("WORK");
    wait_level_i     = ident_new("wait_level");
