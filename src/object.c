@@ -53,7 +53,7 @@ static const char *item_text_map[] = {
    "I_DVAL",     "I_SPEC",      "I_SCOPES",   "I_INDEXCON",   "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_PARENT",
-   "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CONSTR",     "I_FLAGS",
+   "????",       "I_PTYPES",    "I_CHARS",    "I_CONSTR",     "I_FLAGS",
    "I_SIGNALS",  "I_LEFT",      "I_RIGHT",    "I_PROCS",      "I_NEXUS",
    "I_PATH",     "I_DEPS",      "I_SIZE",     "I_VCODE",      "I_PRIMARY",
    "I_SOURCES",  "I_OUTPUTS",
@@ -393,9 +393,6 @@ static void gc_free_external(object_t *object)
             ACLEAR(object->items[i].obj_array);
          else if (ITEM_IDENT_ARRAY & mask)
             ACLEAR(object->items[i].ident_array);
-         else if (ITEM_ATTRS & mask)
-            free(object->items[i].attrs.table);
-
          i++;
       }
    }
@@ -517,7 +514,7 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
    if (visit && ctx->preorder != NULL)
       (*ctx->preorder)((tree_t)object, ctx->context);
 
-   const imask_t deep_mask = I_TYPE | I_REF | I_ATTRS;
+   const imask_t deep_mask = I_TYPE | I_REF;
 
    const object_class_t *class = classes[object->tag];
 
@@ -541,8 +538,6 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
          else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_IDENT_ARRAY & mask)
-            ;
-         else if (ITEM_ATTRS & mask)
             ;
          else
             item_without_type(mask);
@@ -595,7 +590,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
 
    ctx->cache[index] = (object_t *)-1;  // Rewrite in progress marker
 
-   const imask_t skip_mask = (I_REF | I_ATTRS);
+   const imask_t skip_mask = I_REF;
 
    const object_class_t *class = classes[object->tag];
 
@@ -729,20 +724,6 @@ void object_write(object_t *root, fbuf_t *f)
                write_u32(object->items[n].ival, f);
             else if (ITEM_DOUBLE & mask)
                write_double(object->items[n].dval, f);
-            else if (ITEM_ATTRS & mask) {
-               const attr_tab_t *attrs = &(object->items[n].attrs);
-               write_u16(attrs->num, f);
-               for (unsigned i = 0; i < attrs->num; i++) {
-                  write_u16(attrs->table[i].kind, f);
-                  ident_write(attrs->table[i].name, ident_ctx);
-
-                  switch (attrs->table[i].kind) {
-                  case A_INT:
-                     write_u32(attrs->table[i].ival, f);
-                     break;
-                  }
-               }
-            }
             else if (ITEM_IDENT_ARRAY & mask) {
                item_t *item = &(object->items[n]);
                write_u32(item->ident_array.count, f);
@@ -891,29 +872,6 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
                object->items[n].ival = read_u32(f);
             else if (ITEM_DOUBLE & mask)
                object->items[n].dval = read_double(f);
-            else if (ITEM_ATTRS & mask) {
-               attr_tab_t *attrs = &(object->items[n].attrs);
-
-               attrs->num = read_u16(f);
-               if (attrs->num > 0) {
-                  attrs->alloc = next_power_of_2(attrs->num);
-                  attrs->table = xmalloc_array(sizeof(attr_t), attrs->alloc);
-               }
-
-               for (unsigned i = 0; i < attrs->num; i++) {
-                  attrs->table[i].kind = read_u16(f);
-                  attrs->table[i].name = ident_read(ident_ctx);
-
-                  switch (attrs->table[i].kind) {
-                  case A_INT:
-                     attrs->table[i].ival = read_u32(f);
-                     break;
-
-                  default:
-                     abort();
-                  }
-               }
-            }
             else if (ITEM_IDENT_ARRAY & mask) {
                const unsigned count = read_u32(f);
                ARESIZE(object->items[n].ident_array, count);;
@@ -991,8 +949,6 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
             ;
          else if (ITEM_INT32 & mask)
             ;
-         else if (ITEM_ATTRS & mask)
-            ;
          else
             item_without_type(mask);
          n++;
@@ -1069,16 +1025,6 @@ object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
             }
             else if ((ITEM_INT64 & mask) || (ITEM_INT32 & mask))
                copy->items[n].ival = object->items[n].ival;
-            else if (ITEM_ATTRS & mask) {
-               if ((copy->items[n].attrs.num = object->items[n].attrs.num) > 0) {
-                  copy->items[n].attrs.alloc = object->items[n].attrs.alloc;
-                  copy->items[n].attrs.table =
-                     xmalloc_array(copy->items[n].attrs.alloc, sizeof(attr_t));
-                  for (unsigned i = 0; i < object->items[n].attrs.num; i++)
-                     copy->items[n].attrs.table[i] =
-                        object->items[n].attrs.table[i];
-               }
-            }
             else
                item_without_type(mask);
             n++;

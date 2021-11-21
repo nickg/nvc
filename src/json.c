@@ -545,9 +545,6 @@ static JsonNode *dump_decl(tree_t t)
    else
       json_append_member(decl, "val", json_mknull());
 
-   if (tree_attr_int(t, ident_new("returned"), 0))
-      printf(" -- returned");
-
    return decl;
 }
 

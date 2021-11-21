@@ -79,7 +79,7 @@ typedef uint64_t imask_t;
 #define I_DIMS       ONE_HOT(42)
 #define I_FIELDS     ONE_HOT(43)
 #define I_PARENT     ONE_HOT(44)
-#define I_ATTRS      ONE_HOT(45)
+// Unused            ONE_HOT(45)
 #define I_PTYPES     ONE_HOT(46)
 #define I_CHARS      ONE_HOT(47)
 #define I_CONSTR     ONE_HOT(48)
@@ -115,7 +115,6 @@ typedef uint64_t imask_t;
 #define ITEM_INT64       (I_POS | I_IVAL)
 #define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS | I_SIZE)
 #define ITEM_DOUBLE      (I_DVAL)
-#define ITEM_ATTRS       (I_ATTRS)
 
 enum {
    OBJECT_TAG_TREE   = 0,
@@ -124,7 +123,6 @@ enum {
 
    OBJECT_TAG_COUNT
 };
-
 
 #define OBJECT_ARENA_SZ      (1 << 24)
 #define OBJECT_PAGE_SZ       (1 << 16)
@@ -152,28 +150,10 @@ STATIC_ASSERT(OBJECT_ALIGN >= sizeof(double));
          &((t)->object.items[__n]);                                     \
       })
 
-typedef enum {
-   A_INT
-} tree_attr_kind_t;
-
 typedef uint16_t generation_t;
 typedef uint16_t arena_key_t;
 
 typedef A(object_t *) obj_array_t;
-
-typedef struct {
-   tree_attr_kind_t kind;
-   ident_t          name;
-   union {
-      int     ival;
-   };
-} attr_t;
-
-typedef struct {
-   uint16_t  alloc;
-   uint16_t  num;
-   attr_t   *table;
-} attr_tab_t;
 
 typedef union {
    ident_t       ident;
@@ -184,7 +164,6 @@ typedef union {
    int64_t       ival;
    double        dval;
    text_buf_t   *text_buf;
-   attr_tab_t    attrs;
    char         *text;
    A(ident_t)    ident_array;
 } item_t;

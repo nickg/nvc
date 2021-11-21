@@ -27,58 +27,58 @@
 
 static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ENTITY
-   (I_IDENT | I_PORTS | I_GENERICS | I_CONTEXT | I_DECLS | I_STMTS | I_ATTRS),
+   (I_IDENT | I_PORTS | I_GENERICS | I_CONTEXT | I_DECLS | I_STMTS),
 
    // T_ARCH
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_CONTEXT | I_PRIMARY | I_ATTRS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_CONTEXT | I_PRIMARY),
 
    // T_PORT_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_ATTRS | I_FLAGS),
+   (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_FLAGS),
 
    // T_FCALL
-   (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_ATTRS | I_FLAGS),
+   (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_FLAGS),
 
    // T_LITERAL
    (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_CHARS | I_FLAGS | I_IDENT | I_REF),
 
    // T_SIGNAL_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_FLAGS | I_IDENT2),
 
    // T_VAR_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_FLAGS | I_IDENT2),
 
    // T_PROCESS
-   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_ATTRS | I_FLAGS),
+   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_FLAGS),
 
    // T_REF
-   (I_IDENT | I_TYPE | I_REF | I_ATTRS | I_FLAGS),
+   (I_IDENT | I_TYPE | I_REF | I_FLAGS),
 
    // T_WAIT
-   (I_IDENT | I_VALUE | I_DELAY | I_TRIGGERS | I_FLAGS | I_ATTRS),
+   (I_IDENT | I_VALUE | I_DELAY | I_TRIGGERS | I_FLAGS),
 
    // T_TYPE_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
+   (I_IDENT | I_VALUE | I_TYPE),
 
    // T_VAR_ASSIGN
-   (I_IDENT | I_VALUE | I_TARGET | I_ATTRS),
+   (I_IDENT | I_VALUE | I_TARGET),
 
    // T_PACKAGE
-   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS),
+   (I_IDENT | I_DECLS | I_CONTEXT),
 
    // T_SIGNAL_ASSIGN
-   (I_IDENT | I_TARGET | I_WAVES | I_REJECT | I_ATTRS),
+   (I_IDENT | I_TARGET | I_WAVES | I_REJECT),
 
    // T_QUALIFIED
    (I_IDENT | I_VALUE | I_TYPE),
 
    // T_ENUM_LIT
-   (I_IDENT | I_TYPE | I_POS | I_ATTRS),
+   (I_IDENT | I_TYPE | I_POS),
 
    // T_CONST_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_FLAGS | I_IDENT2),
 
    // T_FUNC_DECL
-   (I_IDENT | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2 | I_SUBKIND),
+   (I_IDENT | I_PORTS | I_TYPE | I_FLAGS | I_IDENT2 | I_SUBKIND),
 
    // T_ELAB
    (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_EOPT),
@@ -87,77 +87,75 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_TYPE | I_ASSOCS | I_FLAGS),
 
    // T_ASSERT
-   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE | I_ATTRS),
+   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE),
 
    // T_ATTR_REF
-   (I_NAME | I_VALUE | I_IDENT | I_PARAMS | I_TYPE | I_ATTRS | I_SUBKIND),
+   (I_NAME | I_VALUE | I_IDENT | I_PARAMS | I_TYPE | I_SUBKIND),
 
    // T_ARRAY_REF
-   (I_VALUE | I_PARAMS | I_TYPE | I_FLAGS | I_ATTRS),
+   (I_VALUE | I_PARAMS | I_TYPE | I_FLAGS),
 
    // T_ARRAY_SLICE
    (I_VALUE | I_TYPE | I_RANGES),
 
    // T_INSTANCE
-   (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF | I_CLASS | I_SPEC
-    | I_ATTRS),
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF | I_CLASS | I_SPEC),
 
    // T_IF
-   (I_IDENT | I_VALUE | I_STMTS | I_ELSES | I_ATTRS),
+   (I_IDENT | I_VALUE | I_STMTS | I_ELSES),
 
    // T_NULL
    (I_IDENT),
 
    // T_PACK_BODY
-   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS | I_PRIMARY),
+   (I_IDENT | I_DECLS | I_CONTEXT | I_PRIMARY),
 
    // T_FUNC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS
     | I_IDENT2 | I_SUBKIND),
 
    // T_RETURN
-   (I_IDENT | I_VALUE | I_ATTRS),
+   (I_IDENT | I_VALUE),
 
    // T_CASSIGN
    (I_IDENT | I_TARGET | I_CONDS | I_FLAGS),
 
    // T_WHILE
-   (I_IDENT | I_VALUE | I_STMTS | I_ATTRS),
+   (I_IDENT | I_VALUE | I_STMTS),
 
    // T_WAVEFORM
    (I_VALUE | I_DELAY),
 
    // T_ALIAS
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_IDENT2),
 
    // T_FOR
-   (I_IDENT | I_STMTS | I_RANGES | I_ATTRS | I_DECLS),
+   (I_IDENT | I_STMTS | I_RANGES | I_DECLS),
 
    // T_ATTR_DECL
-   (I_IDENT | I_TYPE | I_ATTRS),
+   (I_IDENT | I_TYPE),
 
    // T_ATTR_SPEC
-   (I_IDENT | I_VALUE | I_IDENT2 | I_CLASS | I_ATTRS | I_REF),
+   (I_IDENT | I_VALUE | I_IDENT2 | I_CLASS | I_REF),
 
    // T_PROC_DECL
-   (I_IDENT | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS | I_IDENT2 | I_SUBKIND),
+   (I_IDENT | I_PORTS | I_TYPE | I_FLAGS | I_IDENT2 | I_SUBKIND),
 
    // T_PROC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_FLAGS
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS
     | I_IDENT2 | I_SUBKIND),
 
    // T_EXIT
-   (I_IDENT | I_VALUE | I_IDENT2 | I_ATTRS),
+   (I_IDENT | I_VALUE | I_IDENT2),
 
    // T_PCALL
-   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF | I_ATTRS),
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF),
 
    // T_CASE
-   (I_IDENT | I_VALUE | I_ASSOCS | I_ATTRS),
+   (I_IDENT | I_VALUE | I_ASSOCS),
 
    // T_BLOCK
-   (I_IDENT | I_DECLS | I_STMTS | I_ATTRS | I_PORTS | I_GENERICS | I_PARAMS
-    | I_GENMAPS),
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_PARAMS | I_GENMAPS),
 
    // T_COND
    (I_VALUE | I_WAVES | I_REJECT),
@@ -169,25 +167,25 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_ASSOCS | I_FLAGS),
 
    // T_COMPONENT
-   (I_IDENT | I_PORTS | I_GENERICS | I_ATTRS),
+   (I_IDENT | I_PORTS | I_GENERICS),
 
    // T_IF_GENERATE
-   (I_IDENT | I_VALUE | I_DECLS | I_STMTS | I_ATTRS),
+   (I_IDENT | I_VALUE | I_DECLS | I_STMTS),
 
    // T_FOR_GENERATE
-   (I_IDENT | I_DECLS | I_STMTS | I_RANGES | I_ATTRS),
+   (I_IDENT | I_DECLS | I_STMTS | I_RANGES),
 
    // T_FILE_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE | I_ATTRS | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE | I_IDENT2),
 
    // T_OPEN
    (I_TYPE),
 
    // T_FIELD_DECL
-   (I_IDENT | I_TYPE | I_ATTRS | I_POS),
+   (I_IDENT | I_TYPE | I_POS),
 
    // T_RECORD_REF
-   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS | I_REF),
+   (I_IDENT | I_VALUE | I_TYPE | I_REF),
 
    // T_ALL
    (I_VALUE | I_TYPE),
@@ -205,10 +203,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE),
 
    // T_NEXT
-   (I_IDENT | I_VALUE | I_IDENT2 | I_ATTRS),
+   (I_IDENT | I_VALUE | I_IDENT2),
 
    // T_GENVAR
-   (I_IDENT | I_TYPE | I_ATTRS | I_FLAGS),
+   (I_IDENT | I_TYPE | I_FLAGS),
 
    // T_PARAM
    (I_VALUE | I_POS | I_SUBKIND | I_NAME),
@@ -220,7 +218,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2),
 
    // T_HIER
-   (I_IDENT | I_SUBKIND | I_IDENT2 | I_ATTRS),
+   (I_IDENT | I_SUBKIND | I_IDENT2),
 
    // T_SPEC
    (I_IDENT | I_IDENT2 | I_VALUE | I_REF),
@@ -238,7 +236,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2 | I_DECLS | I_PRIMARY),
 
    // T_PROT_BODY
-   (I_IDENT | I_TYPE | I_DECLS | I_ATTRS),
+   (I_IDENT | I_TYPE | I_DECLS),
 
    // T_CONTEXT
    (I_CONTEXT | I_IDENT),
@@ -253,10 +251,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_DECLS | I_IDENT | I_VALUE | I_RANGES | I_REF),
 
    // T_PROT_FCALL
-   (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_FLAGS | I_NAME | I_ATTRS),
+   (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_FLAGS | I_NAME),
 
    // T_PROT_PCALL
-   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF | I_NAME | I_ATTRS),
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF | I_NAME),
 
    // T_RANGE
    (I_SUBKIND | I_VALUE | I_LEFT | I_RIGHT | I_TYPE),
@@ -1122,60 +1120,6 @@ tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn)
    object_t *o = object_read(f, (object_load_fn_t)find_deps_fn);
    assert(o->tag == OBJECT_TAG_TREE);
    return container_of(o, struct _tree, object);
-}
-
-static attr_t *tree_find_attr(tree_t t, ident_t name, tree_attr_kind_t kind)
-{
-   assert(t != NULL);
-   assert(name != NULL);
-
-   item_t *item = lookup_item(&tree_object, t, I_ATTRS);
-   for (unsigned i = 0; i < item->attrs.num; i++) {
-      if ((item->attrs.table[i].kind == kind)
-          && (item->attrs.table[i].name == name))
-         return &(item->attrs.table[i]);
-   }
-
-   return NULL;
-}
-
-static attr_t *tree_add_attr(tree_t t, ident_t name, tree_attr_kind_t kind)
-{
-   assert(t != NULL);
-   assert(name != NULL);
-
-   attr_t *a = tree_find_attr(t, name, kind);
-   if (a != NULL)
-      return a;
-
-   item_t *item = lookup_item(&tree_object, t, I_ATTRS);
-
-   if (item->attrs.table == NULL) {
-      item->attrs.alloc = 8;
-      item->attrs.table = xmalloc_array(item->attrs.alloc, sizeof(attr_t));
-   }
-   else if (item->attrs.alloc == item->attrs.num) {
-      item->attrs.alloc *= 2;
-      item->attrs.table = xrealloc_array(item->attrs.table, item->attrs.alloc,
-                                         sizeof(attr_t));
-   }
-
-   unsigned i = item->attrs.num++;
-   item->attrs.table[i].kind = kind;
-   item->attrs.table[i].name = name;
-
-   return &(item->attrs.table[i]);
-}
-
-void tree_add_attr_int(tree_t t, ident_t name, int n)
-{
-   tree_add_attr(t, name, A_INT)->ival = n;
-}
-
-int tree_attr_int(tree_t t, ident_t name, int def)
-{
-   attr_t *a = tree_find_attr(t, name, A_INT);
-   return a ? a->ival : def;
 }
 
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)

@@ -787,12 +787,7 @@ static void dump_decl(tree_t t, int indent)
       printf(" := ");
       dump_expr(tree_value(t));
    }
-   printf(";");
-
-   if (tree_attr_int(t, ident_new("returned"), 0))
-      syntax(" -- returned");
-
-   printf("\n");
+   printf(";\n");
 }
 
 static void dump_stmt(tree_t t, int indent)
