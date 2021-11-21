@@ -57,6 +57,8 @@ package p is
 
     type ft4 is file of t_ok_rec;           -- OK
 
+    function get_ft4 return ft4;        -- Error
+
 end package;
 
 package body p is

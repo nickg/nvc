@@ -55,7 +55,7 @@ architecture a of e is
 
     shared variable z : SharedCounter := 1;  -- Error
 
-    function make return SharedCounter is
+    function make return SharedCounter is  -- Error
         variable result : SharedCounter;
     begin
         return result;

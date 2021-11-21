@@ -825,7 +825,7 @@ static bool sem_check_port_decl(tree_t t)
 
       port_mode_t mode = tree_subkind(t);
       if (mode == PORT_LINKAGE)
-         sem_error(t, "port with mode LINKAGE can not have a default value");
+         sem_error(t, "port with mode LINKAGE cannot have a default value");
 
       if (!sem_check_type(value, type))
          sem_error(value, "type of default value %s does not match type "
@@ -894,23 +894,26 @@ static bool sem_check_interface_class(tree_t port)
    const port_mode_t mode = tree_subkind(port);
 
    if (tree_has_value(port)) {
-       if (class == C_SIGNAL)
-          sem_error(port, "parameter of class SIGNAL can not have a default value");
+      if (class == C_SIGNAL)
+         sem_error(port, "parameter of class SIGNAL cannot have a "
+                   "default value");
 
-       if (class == C_VARIABLE) {
-          if (mode == PORT_OUT || mode == PORT_INOUT)
-             sem_error(port, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value");
-       }
+      if (class == C_VARIABLE) {
+         if (mode == PORT_OUT || mode == PORT_INOUT)
+            sem_error(port, "parameter of class VARIABLE with mode OUT or "
+                      "INOUT cannot have a default value");
+      }
 
-       tree_t value = tree_value(port);
-       if (type_is_none(tree_type(value)))
-          return false;
+      tree_t value = tree_value(port);
+      if (type_is_none(tree_type(value)))
+         return false;
 
-       if (!sem_globally_static(value))
-          sem_error(value, "default value must be a static expression");
+      if (!sem_globally_static(value))
+         sem_error(value, "default value must be a static expression");
 
-       if (kind == T_PROTECTED)
-          sem_error(port, "parameter with protected type can not have a default value");
+      if (kind == T_PROTECTED)
+         sem_error(port, "parameter with protected type cannot have "
+                   "a default value");
    }
 
    if (kind == T_FILE && class != C_FILE)
@@ -927,8 +930,8 @@ static bool sem_check_interface_class(tree_t port)
                 kind == T_ACCESS ? "access" : "protected");
 
    if (sem_has_access(type) && class != C_VARIABLE)
-      sem_error(port, "object %s with type containing an access type must have class VARIABLE",
-                istr(tree_ident(port)));
+      sem_error(port, "object %s with type containing an access type must "
+                "have class VARIABLE", istr(tree_ident(port)));
 
    if (class == C_CONSTANT && mode != PORT_IN)
       sem_error(port, "parameter of class CONSTANT must have mode IN");
@@ -958,6 +961,18 @@ static bool sem_check_func_ports(tree_t t)
    return true;
 }
 
+static bool sem_check_func_result(tree_t t)
+{
+   type_t result = type_result(tree_type(t));
+
+   if (type_is_protected(result))
+      sem_error(t, "function result subtype may not denote a protected type");
+   else if (type_is_file(result))
+      sem_error(t, "function result subtype may not denote a file type");
+
+   return true;
+}
+
 static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
                             int nstmts)
 {
@@ -976,6 +991,9 @@ static bool sem_check_func_decl(tree_t t)
    if (!sem_check_func_ports(t))
       return false;
 
+   if (!sem_check_func_result(t))
+      return false;
+
    if (top_scope->flags & SCOPE_COPY_SUBS)
       tree_set_flag(t, TREE_F_ELAB_COPY);
 
@@ -985,6 +1003,9 @@ static bool sem_check_func_decl(tree_t t)
 static bool sem_check_func_body(tree_t t)
 {
    if (!sem_check_func_ports(t))
+      return false;
+
+   if (!sem_check_func_result(t))
       return false;
 
    scope_push(NULL);

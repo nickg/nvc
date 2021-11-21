@@ -766,7 +766,8 @@ START_TEST(test_file)
       { 47, "type SUB_PTR_ARR has a subelement with an access type" },
       { 48, "type T_REC has a subelement with an access type" },
       { 49, "type T_REC2 has a subelement with an access type" },
-      { 74, "no matching subprogram READ [FT, FILE_OPEN_STATUS]" },
+      { 60, "function result subtype may not denote a file type" },
+      { 76, "no matching subprogram READ [FT, FILE_OPEN_STATUS]" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1055,7 +1056,8 @@ START_TEST(test_protected)
       {  50, "subtypes may not have protected base types" },
       {  52, "shared variable X must have protected type" },
       {  56, "variable Z with protected type may not have an initial value" },
-      {  64, "parameter with protected type can not have a default value" },
+      {  58, "function result subtype may not denote a protected type" },
+      {  64, "parameter with protected type cannot have a default value" },
       { 118, "no visible subprogram declaration for COUNTER" },
       { 119, "expected 1 argument for subprogram DECREMENT [INTEGER] but " },
       { 124, "object X with protected type must have class VARIABLE" },
@@ -1585,11 +1587,11 @@ START_TEST(test_issue224)
    input_from_file(TESTDIR "/sem/issue224.vhd");
 
    const error_t expect[] = {
-      {  6, "parameter of class SIGNAL can not have a default value" },
+      {  6, "parameter of class SIGNAL cannot have a default value" },
       { 18, "actual for formal A with class SIGNAL must not be OPEN" },
-      { 24, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value" },
-      { 34, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value" },
-      { 43, "port with mode LINKAGE can not have a default value" },
+      { 24, "parameter of class VARIABLE with mode OUT or INOUT cannot have" },
+      { 34, "parameter of class VARIABLE with mode OUT or INOUT cannot have" },
+      { 43, "port with mode LINKAGE cannot have a default value" },
       { -1, NULL }
    };
    expect_errors(expect);
