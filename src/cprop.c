@@ -659,6 +659,7 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_MEMSET:
          case VCODE_OP_COVER_COND:
          case VCODE_OP_COVER_STMT:
+         case VCODE_OP_PROTECTED_FREE:
             break;
 
          case VCODE_OP_RESOLVED:

@@ -138,6 +138,7 @@ typedef enum {
    VCODE_OP_PROTECTED_INIT,
    VCODE_OP_CONTEXT_UPREF,
    VCODE_OP_CONST_REP,
+   VCODE_OP_PROTECTED_FREE,
 } vcode_op_t;
 
 typedef enum {
@@ -477,6 +478,7 @@ vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
                                     vcode_reg_t ileft, vcode_reg_t nlits);
 vcode_reg_t emit_closure(ident_t func, vcode_type_t atype, vcode_type_t rtype);
 vcode_reg_t emit_protected_init(vcode_type_t type);
+void emit_protected_free(vcode_reg_t obj);
 vcode_reg_t emit_context_upref(int hops);
 
 #endif  // _VCODE_H

@@ -425,3 +425,4 @@ file3           normal
 vests17         normal
 vests18         normal
 vests19         normal
+protected6      normal,2000

@@ -2380,6 +2380,12 @@ static void cgen_op_protected_init(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMBuildPointerCast(builder, ptr, rtype, "");
 }
 
+static void cgen_op_protected_free(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef obj = cgen_get_arg(op, 0, ctx);
+   LLVMBuildFree(builder, obj);
+}
+
 static void cgen_net_flag(int op, const char *func, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -3627,6 +3633,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_PROTECTED_INIT:
       cgen_op_protected_init(i, ctx);
+      break;
+   case VCODE_OP_PROTECTED_FREE:
+      cgen_op_protected_free(i, ctx);
       break;
    case VCODE_OP_CONTEXT_UPREF:
       cgen_op_context_upref(i, ctx);

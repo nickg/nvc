@@ -59,7 +59,8 @@ typedef enum {
 } short_circuit_op_t;
 
 typedef enum {
-   SCOPE_GLOBAL = (1 << 0)
+   SCOPE_GLOBAL        = (1 << 0),
+   SCOPE_HAS_PROTECTED = (1 << 1),
 } scope_flags_t;
 
 struct lower_scope {
@@ -4374,6 +4375,24 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
       vcode_select_block(bmerge);
 }
 
+static void lower_cleanup_protected(void)
+{
+   if (!(top_scope->flags & SCOPE_HAS_PROTECTED))
+      return;
+   else if (!is_subprogram(top_scope->container))
+      return;
+
+   const int ndecls = tree_decls(top_scope->container);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(top_scope->container, i);
+      if (!type_is_protected(tree_type(d)))
+         continue;
+
+      vcode_reg_t obj_reg = lower_reify(lower_var_ref(d, EXPR_RVALUE));
+      emit_protected_free(obj_reg);
+   }
+}
+
 static void lower_return(tree_t stmt)
 {
    if (tree_has_value(stmt)) {
@@ -4978,6 +4997,7 @@ static void lower_var_decl(tree_t decl)
    if (type_is_protected(type)) {
       vcode_reg_t obj_reg = emit_protected_init(lower_type(tree_type(decl)));
       emit_store(obj_reg, var);
+      top_scope->flags |= SCOPE_HAS_PROTECTED;
       return;
    }
    else if (!tree_has_value(decl))
@@ -5614,8 +5634,10 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
    for (int i = 0; i < nstmts; i++)
       lower_stmt(tree_stmt(body, i), NULL);
 
-   if (!vcode_block_finished())
+   if (!vcode_block_finished()) {
+      lower_cleanup_protected();
       emit_return(VCODE_INVALID_REG);
+   }
 
    lower_finished();
    lower_pop_scope();

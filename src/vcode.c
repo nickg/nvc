@@ -963,7 +963,7 @@ const char *vcode_op_string(vcode_op_t op)
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
-      "context upref", "const rep",
+      "context upref", "const rep", "protected free"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1396,9 +1396,15 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s $magenta$%s$$",
-                                   vcode_op_string(op->kind),
-                                   istr(op->func));
+                                   vcode_op_string(op->kind), istr(op->func));
                vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_PROTECTED_FREE:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
             }
             break;
 
@@ -4337,6 +4343,15 @@ vcode_reg_t emit_protected_init(vcode_type_t type)
                 "protected init type must be context");
 
    return (op->result = vcode_add_reg(type));
+}
+
+void emit_protected_free(vcode_reg_t obj)
+{
+   op_t *op = vcode_add_op(VCODE_OP_PROTECTED_FREE);
+   vcode_add_arg(op, obj);
+
+   VCODE_ASSERT(vcode_reg_kind(obj) == VCODE_TYPE_CONTEXT,
+                "protected object type must be context");
 }
 
 vcode_reg_t emit_context_upref(int hops)
