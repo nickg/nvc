@@ -65,7 +65,6 @@ typedef enum {
 struct lower_scope {
    hash_t        *objects;
    lower_scope_t *down;
-   vcode_type_t   protected;
    scope_flags_t  flags;
    tree_t         hier;
    tree_t         container;
@@ -493,14 +492,7 @@ static vcode_type_t lower_type(type_t type)
       }
 
    case T_PROTECTED:
-      {
-         ident_t name = type_ident(type);
-         vcode_type_t record = vtype_find_named_record(name);
-         if (record == VCODE_INVALID_TYPE)
-            record = vtype_named_record(name, NULL, 0);
-
-         return vtype_pointer(record);
-      }
+      return vtype_context(type_ident(type));
 
    case T_FILE:
       return vtype_file(lower_type(type_file(type)));
@@ -1930,14 +1922,45 @@ static vcode_type_t lower_func_result_type(type_t result)
 static vcode_cc_t lower_cc_for_call(tree_t call)
 {
    tree_t decl = tree_ref(call);
-   const subprogram_kind_t kind = tree_subkind(decl);
+   const tree_kind_t kind = tree_kind(call);
 
-   if (kind == S_FOREIGN)
+   if (tree_subkind(decl) == S_FOREIGN)
       return VCODE_CC_FOREIGN;
    else if (tree_flags(decl) & TREE_F_FOREIGN)
       return VCODE_CC_FOREIGN;
+   else if (kind == T_PROT_FCALL || kind == T_PROT_PCALL)
+      return VCODE_CC_PROTECTED;
    else
       return VCODE_CC_VHDL;
+}
+
+static vcode_reg_t lower_context_for_call(tree_t subprog)
+{
+   ident_t unit_name = tree_ident2(subprog);
+   vcode_unit_t callee = vcode_find_unit(unit_name);
+   assert(callee);
+
+   const int caller_depth = vcode_unit_depth();
+
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   vcode_select_unit(callee);
+
+   const int callee_depth = vcode_unit_depth();
+
+   int hops;
+   if (callee_depth == caller_depth + 1)
+      hops = 0;
+   else if (callee_depth == caller_depth)
+      hops = 1;
+   else
+      fatal_trace("caller depth %d, callee depth %d invalid",
+                  caller_depth, callee_depth);
+
+   vcode_state_restore(&state);
+
+   return emit_context_upref(hops);
 }
 
 static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
@@ -1956,11 +1979,8 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    if (protected) {
       if (tree_has_name(fcall))
          APUSH(args, lower_reify(lower_expr(tree_name(fcall), EXPR_RVALUE)));
-      else {
-         assert(vcode_count_params() > 0);
-         assert(vcode_reg_kind(0) == VCODE_TYPE_POINTER);
-         APUSH(args, 0);   // Protected var is always first argument
-      }
+      else
+         APUSH(args, lower_context_for_call(decl));
    }
 
    for (int i = 0; i < nparams; i++)
@@ -2052,7 +2072,6 @@ static void lower_push_scope(tree_t container)
    lower_scope_t *new = xcalloc(sizeof(lower_scope_t));
    new->down      = top_scope;
    new->objects   = hash_new(128, true);
-   new->protected = top_scope ? top_scope->protected : VCODE_INVALID_TYPE;
    new->container = container;
 
    top_scope = new;
@@ -4387,11 +4406,8 @@ static void lower_pcall(tree_t pcall)
    if (protected) {
       if (tree_has_name(pcall))
          args[argp++] = lower_reify(lower_expr(tree_name(pcall), EXPR_RVALUE));
-      else {
-         assert(vcode_count_params() > 0);
-         assert(vcode_reg_kind(0) == VCODE_TYPE_POINTER);
-         args[argp++] = 0;   // Protected var is always first argument
-      }
+      else
+         args[argp++] = lower_context_for_call(decl);
    }
 
    for (int i = 0; i < nparams; i++) {
@@ -4908,14 +4924,6 @@ static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
    }
 }
 
-static vcode_reg_t lower_new_protected_object(tree_t decl)
-{
-   type_t type = tree_type(decl);
-   ident_t init_func = ident_prefix(type_ident(type), ident_new("init"), '.');
-   vcode_type_t rtype = lower_type(type);
-   return emit_fcall(init_func, rtype, rtype, VCODE_CC_VHDL, NULL, 0);
-}
-
 static void lower_var_decl(tree_t decl)
 {
    type_t type = tree_type(decl);
@@ -4938,7 +4946,8 @@ static void lower_var_decl(tree_t decl)
    lower_put_vcode_obj(decl, var, top_scope);
 
    if (type_is_protected(type)) {
-      emit_store(lower_new_protected_object(decl), var);
+      vcode_reg_t obj_reg = emit_protected_init(lower_type(tree_type(decl)));
+      emit_store(obj_reg, var);
       return;
    }
    else if (!tree_has_value(decl))
@@ -4959,7 +4968,8 @@ static void lower_var_decl(tree_t decl)
       || vunit_kind == VCODE_UNIT_CONTEXT
       || vunit_kind == VCODE_UNIT_PROCESS
       || vunit_kind == VCODE_UNIT_PACKAGE
-      || vunit_kind == VCODE_UNIT_INSTANCE;
+      || vunit_kind == VCODE_UNIT_INSTANCE
+      || vunit_kind == VCODE_UNIT_PROTECTED;
 
    if (type_is_record(type)) {
       dest_reg = emit_index(var, VCODE_INVALID_REG);
@@ -5344,18 +5354,6 @@ static void lower_alias_decl(tree_t decl)
    emit_store(lower_wrap(type, data_reg), var);
 }
 
-static void lower_protected_constants(tree_t body)
-{
-   const int ndecls = tree_decls(body);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t decl = tree_decl(body, i);
-      if (tree_kind(decl) != T_CONST_DECL)
-         continue;
-      else
-         lower_var_decl(decl);
-   }
-}
-
 static void lower_decl(tree_t decl)
 {
    PUSH_DEBUG_INFO(decl);
@@ -5393,8 +5391,7 @@ static void lower_decl(tree_t decl)
       break;
 
    default:
-      fatal_at(tree_loc(decl), "cannot lower decl kind %s",
-               tree_kind_str(tree_kind(decl)));
+      fatal_trace("cannot lower decl kind %s", tree_kind_str(tree_kind(decl)));
    }
 }
 
@@ -5408,93 +5405,24 @@ static void lower_finished(void)
    }
 }
 
-static void lower_protected_init_func(tree_t body, vcode_type_t vtype,
-                                      vcode_unit_t context)
-{
-   type_t type = tree_type(body);
-   ident_t init_func = ident_prefix(type_ident(type), ident_new("init"), '.');
-   emit_function(init_func, tree_loc(body), context);
-   vcode_set_result(vtype_pointer(vtype));
-   emit_debug_info(tree_loc(body));
-
-   vcode_reg_t pstruct = emit_alloca(vtype, vtype, VCODE_INVALID_REG);
-
-   int nvar = 0;
-   const int ndecls = tree_decls(body);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(body, i);
-      const tree_kind_t kind = tree_kind(d);
-      if (kind != T_VAR_DECL && kind != T_FILE_DECL)
-         continue;
-
-      type_t type = tree_type(d);
-
-      vcode_reg_t field = emit_record_ref(pstruct, nvar++);
-      if (type_is_protected(type))
-         emit_store_indirect(lower_new_protected_object(d), field);
-      else if (type_is_file(type))
-         emit_store_indirect(emit_null(lower_type(type)), field);
-      else {
-         vcode_reg_t value = lower_expr(tree_value(d), EXPR_RVALUE);
-
-         if (type_is_array(type)) {
-            vcode_reg_t count_reg =
-               lower_array_total_len(type, VCODE_INVALID_REG);
-            lower_check_indexes(type, value, d);
-            lower_check_array_sizes(d, type, tree_type(tree_value(d)),
-                                    VCODE_INVALID_REG, value);
-            emit_copy(field, lower_array_data(value), count_reg);
-         }
-         else if (type_is_record(type))
-            emit_copy(field, value, VCODE_INVALID_REG);
-         else if (type_is_scalar(type)) {
-            value = lower_reify(value);
-            lower_check_scalar_bounds(value, type, body, NULL);
-            emit_store_indirect(value, field);
-         }
-         else
-            emit_store_indirect(value, field);
-      }
-   }
-
-   vcode_heap_allocate(pstruct);
-   emit_return(pstruct);
-
-   lower_finished();
-}
-
 static void lower_protected_body(tree_t body, vcode_unit_t context)
 {
-   int nfields = 0;
-   const int ndecls = tree_decls(body);
-   vcode_type_t fields[ndecls];
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(body, i);
-      const tree_kind_t kind = tree_kind(d);
-      if (kind == T_VAR_DECL || kind == T_FILE_DECL)
-         fields[nfields++] = lower_type(tree_type(d));
-   }
-
    vcode_select_unit(context);
 
    type_t type = tree_type(body);
-   vcode_type_t vtype = vtype_named_record(type_ident(type), fields, nfields);
-   vcode_type_t pointer = vtype_pointer(vtype);
-
-   lower_protected_init_func(body, vtype, context);
+   vcode_unit_t vu = emit_protected(type_ident(type), tree_loc(body), context);
 
    lower_push_scope(body);
-   top_scope->protected = pointer;
 
-   lower_decls(body, context);
+   lower_decls(body, vu);
+   emit_return(VCODE_INVALID_REG);
 
+   lower_finished();
    lower_pop_scope();
 }
 
 static void lower_decls(tree_t scope, vcode_unit_t context)
 {
-   const tree_kind_t scope_kind = tree_kind(scope);
-
    // Lower declarations in two passes with subprograms after signals,
    // variables, constants, etc.
 
@@ -5503,16 +5431,12 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
       const tree_kind_t kind = tree_kind(d);
-      if (mode == LOWER_THUNK
-          && (kind == T_SIGNAL_DECL || kind == T_PROT_BODY))
+      if (mode == LOWER_THUNK && kind == T_SIGNAL_DECL)
          continue;
-      else if (is_subprogram(d))
+      else if (is_subprogram(d) || kind == T_PROT_BODY)
          continue;
-      else if (kind == T_PROT_BODY)
-         lower_protected_constants(d);
-      else if (scope_kind != T_PROT_BODY) {
+      else
          lower_decl(d);
-      }
    }
 
    for (int i = 0; i < ndecls; i++) {
@@ -5637,9 +5561,6 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
    else
       vu = emit_procedure(name, tree_loc(body), context);
 
-   if (top_scope->protected != VCODE_INVALID_TYPE)
-      emit_param(top_scope->protected, top_scope->protected, protected_i);
-
    lower_push_scope(body);
 
    emit_debug_info(tree_loc(body));
@@ -5675,9 +5596,6 @@ static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
    vu = emit_function(name, tree_loc(body), context);
    vcode_set_result(lower_func_result_type(type_result(tree_type(body))));
    emit_debug_info(tree_loc(body));
-
-   if (top_scope->protected != VCODE_INVALID_TYPE)
-      emit_param(top_scope->protected, top_scope->protected, protected_i);
 
    lower_push_scope(body);
 

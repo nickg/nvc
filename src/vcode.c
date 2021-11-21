@@ -47,11 +47,11 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_ALLOCA || x == VCODE_OP_COVER_COND                 \
     || x == VCODE_OP_ARRAY_SIZE || x == VCODE_OP_PCALL                  \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
-    || x == VCODE_OP_CLOSURE)
+    || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT)
 #define OP_HAS_FUNC(x)                                                  \
-   (x == VCODE_OP_FCALL                                                 \
-    || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME                      \
-    || x == VCODE_OP_RESOLUTION_WRAPPER || x == VCODE_OP_CLOSURE)
+   (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
+    || x == VCODE_OP_RESOLUTION_WRAPPER || x == VCODE_OP_CLOSURE        \
+    || x == VCODE_OP_PROTECTED_INIT)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_SIGNAL || x == VCODE_OP_LINK_VAR)
 #define OP_HAS_REAL(x)                                                  \
@@ -62,7 +62,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_UARRAY_LEFT || x == VCODE_OP_UARRAY_RIGHT             \
     || x == VCODE_OP_UARRAY_DIR || x == VCODE_OP_UARRAY_LEN)
 #define OP_HAS_HOPS(x)                                                  \
-   (x == VCODE_OP_PARAM_UPREF || x == VCODE_OP_VAR_UPREF)
+   (x == VCODE_OP_PARAM_UPREF || x == VCODE_OP_VAR_UPREF                \
+    || x == VCODE_OP_CONTEXT_UPREF)
 #define OP_HAS_FIELD(x)                                                 \
    (x == VCODE_OP_RECORD_REF)
 #define OP_HAS_CMP(x)                                                   \
@@ -960,7 +961,8 @@ const char *vcode_op_string(vcode_op_t op)
       "undefined", "image map", "range null", "var upref", "link signal",
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
-      "driving value", "address of", "closure"
+      "driving value", "address of", "closure", "protected init",
+      "context upref"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1089,9 +1091,13 @@ static int vcode_dump_one_type(vcode_type_t type)
       break;
 
    case VCODE_TYPE_CLOSURE:
-      col += printf("C<");
+      col += printf("~<");
       col += vcode_dump_one_type(vt->base);
       col += printf(">");
+      break;
+
+   case VCODE_TYPE_CONTEXT:
+      col += printf("C<%s>", istr(vt->name));
       break;
    }
 
@@ -1174,6 +1180,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    case VCODE_UNIT_INSTANCE:  printf("instance"); break;
    case VCODE_UNIT_THUNK:     printf("thunk"); break;
    case VCODE_UNIT_PACKAGE:   printf("package"); break;
+   case VCODE_UNIT_PROTECTED: printf("protected"); break;
    }
    color_printf("$$\n");
    if (vu->context != NULL)
@@ -1384,6 +1391,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_CLOSURE:
+         case VCODE_OP_PROTECTED_INIT:
             {
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s $magenta$%s$$",
@@ -1731,6 +1739,14 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += printf(" := %s %d, ", vcode_op_string(op->kind),
                              op->hops);
                col += vcode_dump_var(op->address, op->hops);
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_CONTEXT_UPREF:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s %d", vcode_op_string(op->kind), op->hops);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2175,6 +2191,7 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       case VCODE_TYPE_FILE:
          return vtype_eq(at->base, bt->base);
       case VCODE_TYPE_RECORD:
+      case VCODE_TYPE_CONTEXT:
          return at->name == bt->name;
       case VCODE_TYPE_IMAGE_MAP:
          return false;
@@ -2211,6 +2228,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    case VCODE_TYPE_CLOSURE:
    case VCODE_TYPE_IMAGE_MAP:
    case VCODE_TYPE_OPAQUE:
+   case VCODE_TYPE_CONTEXT:
       return false;
 
    case VCODE_TYPE_REAL:
@@ -2401,6 +2419,17 @@ vcode_type_t vtype_closure(vcode_type_t result)
    return vtype_new(n);
 }
 
+vcode_type_t vtype_context(ident_t name)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind = VCODE_TYPE_CONTEXT;
+   n->name = name;
+
+   return vtype_new(n);
+}
+
 vcode_type_t vtype_file(vcode_type_t base)
 {
    assert(active_unit != NULL);
@@ -2524,10 +2553,10 @@ vcode_type_t vtype_field(vcode_type_t type, int field)
    return vcode_type_array_nth(&(vt->fields), field);
 }
 
-ident_t vtype_record_name(vcode_type_t type)
+ident_t vtype_name(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_RECORD);
+   assert(vt->kind == VCODE_TYPE_RECORD || vt->kind == VCODE_TYPE_CONTEXT);
    return vt->name;
 }
 
@@ -2564,7 +2593,8 @@ bool vtype_is_scalar(vcode_type_t type)
    return kind == VCODE_TYPE_INT || kind == VCODE_TYPE_OFFSET
       || kind == VCODE_TYPE_UARRAY || kind == VCODE_TYPE_POINTER
       || kind == VCODE_TYPE_FILE || kind == VCODE_TYPE_ACCESS
-      || kind == VCODE_TYPE_REAL || kind == VCODE_TYPE_SIGNAL;
+      || kind == VCODE_TYPE_REAL || kind == VCODE_TYPE_SIGNAL
+      || kind == VCODE_TYPE_CONTEXT;
 }
 
 bool vtype_is_composite(vcode_type_t type)
@@ -2840,6 +2870,29 @@ vcode_unit_t emit_package(ident_t name, const loc_t *loc)
    vu->result   = VCODE_INVALID_TYPE;
    vu->loc      = *loc;
    vu->refcount = 1;
+
+   active_unit = vu;
+   vcode_select_block(emit_block());
+
+   vcode_registry_add(vu);
+
+   return vu;
+}
+
+vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
+                            vcode_unit_t context)
+{
+   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vu->kind     = VCODE_UNIT_PROTECTED;
+   vu->name     = name;
+   vu->context  = context;
+   vu->depth    = vcode_unit_calc_depth(vu);
+   vu->result   = VCODE_INVALID_TYPE;
+   vu->loc      = *loc;
+   vu->refcount = 1;
+
+   if (context != NULL)
+      vcode_add_child(context, vu);
 
    active_unit = vu;
    vcode_select_block(emit_block());
@@ -3571,6 +3624,7 @@ static void vcode_calculate_var_index_type(op_t *op, var_t *var)
    case VCODE_TYPE_UARRAY:
    case VCODE_TYPE_POINTER:
    case VCODE_TYPE_SIGNAL:
+   case VCODE_TYPE_CONTEXT:
       op->type = vtype_pointer(var->type);
       op->result = vcode_add_reg(op->type);
       vcode_reg_data(op->result)->bounds = var->bounds;
@@ -4234,6 +4288,39 @@ vcode_reg_t emit_closure(ident_t func, vcode_type_t atype, vcode_type_t rtype)
    op->type    = atype;
 
    return (op->result = vcode_add_reg(vtype_closure(rtype)));
+}
+
+vcode_reg_t emit_protected_init(vcode_type_t type)
+{
+   op_t *op = vcode_add_op(VCODE_OP_PROTECTED_INIT);
+   op->func    = vtype_name(type);
+   op->subkind = VCODE_CC_VHDL;
+
+   VCODE_ASSERT(vtype_kind(type) == VCODE_TYPE_CONTEXT,
+                "protected init type must be context");
+
+   return (op->result = vcode_add_reg(type));
+}
+
+vcode_reg_t emit_context_upref(int hops)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONTEXT_UPREF) {
+      if (other->hops == hops)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_CONTEXT_UPREF);
+   op->hops = hops;
+
+   VCODE_ASSERT(hops >= 0, "invalid hop count");
+
+   vcode_unit_t vu = active_unit;
+   for (int i = 0; i < hops; i++) {
+      vu = vu->context;
+      VCODE_ASSERT(vu, "hop count is greater than depth");
+   }
+
+   return (op->result = vcode_add_reg(vtype_context(vu->name)));
 }
 
 static vcode_reg_t emit_signal_flag(vcode_op_t opkind, vcode_reg_t nets,
@@ -5161,6 +5248,10 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
       case VCODE_TYPE_OPAQUE:
          break;
 
+      case VCODE_TYPE_CONTEXT:
+         ident_write(t->name, ident_wr_ctx);
+         break;
+
       case VCODE_TYPE_RECORD:
          ident_write(t->name, ident_wr_ctx);
          write_u32(t->fields.count, f);
@@ -5359,6 +5450,10 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
 
       case VCODE_TYPE_IMAGE_MAP:
       case VCODE_TYPE_OPAQUE:
+         break;
+
+      case VCODE_TYPE_CONTEXT:
+         t->name = ident_read(ident_rd_ctx);
          break;
 
       case VCODE_TYPE_RECORD:

@@ -2193,7 +2193,7 @@ START_TEST(test_issue136)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_VAR_UPREF, .name = "REC", .hops = 1 },
       { VCODE_OP_RETURN }
    };
 
@@ -2233,10 +2233,10 @@ START_TEST(test_rectype)
    fail_unless(vtype_kind(1) == VCODE_TYPE_RECORD);
 
    // We used to mangle this with @<address>
-   ident_t r2_name = vtype_record_name(0);
+   ident_t r2_name = vtype_name(0);
    fail_unless(strncmp(istr(r2_name), "WORK.E(A).R2", 3) == 0);
 
-   ident_t r1_name = vtype_record_name(1);
+   ident_t r1_name = vtype_name(1);
    fail_unless(icmp(r1_name, "WORK.RECTYPE.R1"));
 }
 END_TEST
@@ -2290,14 +2290,14 @@ START_TEST(test_issue167)
    vcode_unit_t v0 = find_unit("WORK.E");
    vcode_select_unit(v0);
 
-   fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
-   fail_unless(vtype_kind(2) == VCODE_TYPE_RECORD);
+   fail_unless(vtype_kind(0) == VCODE_TYPE_CONTEXT);
+   fail_unless(vtype_kind(1) == VCODE_TYPE_CONTEXT);
 
-   ident_t p1_name = vtype_record_name(0);
+   ident_t p1_name = vtype_name(0);
    fail_unless(icmp(p1_name, "WORK.PKG.P1"));
 
    // This used to get mangled with @<address>
-   ident_t p2_name = vtype_record_name(2);
+   ident_t p2_name = vtype_name(1);
    fail_unless(icmp(p2_name, "WORK.E(A).P2"));
 }
 END_TEST

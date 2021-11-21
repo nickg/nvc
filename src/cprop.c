@@ -701,6 +701,8 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_RESOLUTION_WRAPPER:
          case VCODE_OP_PARAM_UPREF:
          case VCODE_OP_CLOSURE:
+         case VCODE_OP_PROTECTED_INIT:
+         case VCODE_OP_CONTEXT_UPREF:
             {
                vcode_reg_t result = vcode_get_result(op);
                if (result != VCODE_INVALID_REG)

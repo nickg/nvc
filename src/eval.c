@@ -403,6 +403,13 @@ static bool eval_new_var(value_t *value, vcode_type_t type, eval_state_t *state)
       value->pointer = NULL;
       break;
 
+   case VCODE_TYPE_CONTEXT:
+      EVAL_WARN(state->fcall, "cannot evaluate context variables");
+      state->failed = true;
+      value->kind = VALUE_POINTER;
+      value->pointer = NULL;
+      break;
+
    default:
       fatal_at(tree_loc(state->fcall), "cannot evaluate variables with "
                "type %d", vtype_kind(type));
@@ -2225,6 +2232,7 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_LINK_VAR:
       case VCODE_OP_LINK_SIGNAL:
+      case VCODE_OP_PROTECTED_INIT:
          state->failed = true;
          break;
 

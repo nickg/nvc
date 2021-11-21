@@ -135,6 +135,8 @@ typedef enum {
    VCODE_OP_DRIVING_VALUE,
    VCODE_OP_ADDRESS_OF,
    VCODE_OP_CLOSURE,
+   VCODE_OP_PROTECTED_INIT,
+   VCODE_OP_CONTEXT_UPREF,
 } vcode_op_t;
 
 typedef enum {
@@ -152,6 +154,7 @@ typedef enum {
    VCODE_TYPE_OPAQUE,
    VCODE_TYPE_RESOLUTION,
    VCODE_TYPE_CLOSURE,
+   VCODE_TYPE_CONTEXT,
 } vtype_kind_t;
 
 typedef enum {
@@ -161,7 +164,8 @@ typedef enum {
    VCODE_UNIT_PROCEDURE,
    VCODE_UNIT_THUNK,
    VCODE_UNIT_INSTANCE,
-   VCODE_UNIT_PACKAGE
+   VCODE_UNIT_PACKAGE,
+   VCODE_UNIT_PROTECTED,
 } vunit_kind_t;
 
 typedef enum {
@@ -171,7 +175,8 @@ typedef enum {
 
 typedef enum {
    VCODE_CC_VHDL,
-   VCODE_CC_FOREIGN
+   VCODE_CC_FOREIGN,
+   VCODE_CC_PROTECTED,   // TODO: temporary
 } vcode_cc_t;
 
 typedef struct {
@@ -235,6 +240,7 @@ vcode_type_t vtype_named_record(ident_t name, const vcode_type_t *field_types,
 vcode_type_t vtype_file(vcode_type_t base);
 vcode_type_t vtype_resolution(vcode_type_t base);
 vcode_type_t vtype_closure(vcode_type_t result);
+vcode_type_t vtype_context(ident_t name);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
@@ -250,7 +256,7 @@ unsigned vtype_size(vcode_type_t type);
 int vtype_fields(vcode_type_t type);
 vcode_type_t vtype_field(vcode_type_t type, int field);
 vcode_type_t vtype_base(vcode_type_t type);
-ident_t vtype_record_name(vcode_type_t type);
+ident_t vtype_name(vcode_type_t type);
 vcode_type_t vtype_real(void);
 vcode_unit_t vcode_find_unit(ident_t name);
 vcode_unit_t vcode_unit_next(vcode_unit_t unit);
@@ -333,6 +339,8 @@ vcode_unit_t emit_context(ident_t name);
 vcode_unit_t emit_instance(ident_t name, const loc_t *loc,
                            vcode_unit_t context);
 vcode_unit_t emit_package(ident_t name, const loc_t *loc);
+vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
+                            vcode_unit_t context);
 vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
@@ -465,5 +473,7 @@ void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
 vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
                                     vcode_reg_t ileft, vcode_reg_t nlits);
 vcode_reg_t emit_closure(ident_t func, vcode_type_t atype, vcode_type_t rtype);
+vcode_reg_t emit_protected_init(vcode_type_t type);
+vcode_reg_t emit_context_upref(int hops);
 
 #endif  // _VCODE_H
