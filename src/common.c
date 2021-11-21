@@ -1006,7 +1006,6 @@ void intern_strings(void)
 {
    std_standard_i   = ident_new("STD.STANDARD");
    all_i            = ident_new("all");
-   protected_i      = ident_new("protected");
    std_logic_i      = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
    std_ulogic_i     = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
    std_bit_i        = ident_new("STD.STANDARD.BIT");
@@ -1017,7 +1016,6 @@ void intern_strings(void)
    signed_i         = ident_new("IEEE.NUMERIC_STD.SIGNED");
    unsigned_i       = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
    foreign_i        = ident_new("FOREIGN");
-   prot_field_i     = ident_new("prot_field");
    work_i           = ident_new("WORK");
    std_i            = ident_new("STD");
    thunk_i          = ident_new("thunk");

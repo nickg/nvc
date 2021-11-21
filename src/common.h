@@ -121,7 +121,6 @@ void set_relax_rules(int mask);
 
 GLOBAL ident_t std_standard_i;
 GLOBAL ident_t all_i;
-GLOBAL ident_t protected_i;
 GLOBAL ident_t std_logic_i;
 GLOBAL ident_t std_ulogic_i;
 GLOBAL ident_t std_bool_i;
@@ -132,8 +131,6 @@ GLOBAL ident_t positive_i;
 GLOBAL ident_t unsigned_i;
 GLOBAL ident_t signed_i;
 GLOBAL ident_t foreign_i;
-GLOBAL ident_t GLOBAL_i;
-GLOBAL ident_t prot_field_i;
 GLOBAL ident_t work_i;
 GLOBAL ident_t std_i;
 GLOBAL ident_t thunk_i;

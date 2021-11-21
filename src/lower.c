@@ -2113,18 +2113,6 @@ static vcode_var_t lower_get_var(tree_t decl, int *hops)
    return lower_search_vcode_obj(decl, top_scope, hops);
 }
 
-static vcode_reg_t lower_protected_var(tree_t decl)
-{
-   const int pfield = tree_attr_int(decl, prot_field_i, -1);
-   assert(pfield != -1);
-
-   assert(vcode_count_params() > 0);
-   assert(vcode_reg_kind(0) == VCODE_TYPE_POINTER);
-   vcode_reg_t pstruct = 0;   // Protected var is always first argument
-
-   return emit_record_ref(pstruct, pfield);
-}
-
 static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
 {
    type_t type = tree_type(decl);
@@ -2154,8 +2142,6 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
                return emit_undefined(vtype);
          }
       }
-      else if (tree_attr_int(decl, prot_field_i, -1) != -1)
-         return lower_protected_var(decl);
       else {
          // External variable
          lower_link_var(decl);

@@ -1083,14 +1083,6 @@ static bool sem_check_proc_body(tree_t t)
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
-#if 0
-   tree_t proto = sem_check_duplicate(t, T_PROC_DECL);
-   if (proto != NULL) {
-      if (top_scope->impure_io)
-         tree_add_attr_int(t, impure_io_i, top_scope->impure_io);
-   }
-#endif
-
    scope_pop();
    scope_pop();
 
@@ -4508,17 +4500,10 @@ static bool sem_check_prot_body(tree_t t)
    scope_push(ident_prefix(top_scope->prefix, name, '.'));
    top_scope->flags |= SCOPE_PROTECTED;
 
-   int nvars = 0;
    bool ok = true;
    const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(t, i);
-      ok = sem_check(d) && ok;
-
-      const tree_kind_t kind = tree_kind(d);
-      if (kind == T_VAR_DECL || kind == T_FILE_DECL)
-         tree_add_attr_int(d, prot_field_i, nvars++);
-   }
+   for (int i = 0; i < ndecls; i++)
+      ok &= sem_check(tree_decl(t, i));
 
    scope_pop();
    return ok;
