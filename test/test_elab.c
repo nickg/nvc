@@ -810,6 +810,22 @@ START_TEST(test_comp3)
 }
 END_TEST
 
+START_TEST(test_tc3138)
+{
+   input_from_file(TESTDIR "/elab/tc3138.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b0 = tree_stmt(e, 0);
+   fail_unless(tree_ident(b0) == ident_new("C05S02B02X00P02N01I03138ENT"));
+   fail_unless(tree_stmts(b0) == 1);
+   fail_unless(tree_kind(tree_stmt(b0, 0)) == T_PROCESS);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -861,6 +877,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_open3);
    tcase_add_test(tc, test_comp2);
    tcase_add_test(tc, test_comp3);
+   tcase_add_test(tc, test_tc3138);
    suite_add_tcase(s, tc);
 
    return s;

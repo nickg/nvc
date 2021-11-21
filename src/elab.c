@@ -553,6 +553,9 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
 static tree_t elab_binding(tree_t inst, tree_t spec, lib_t *new_lib,
                            const elab_ctx_t *ctx)
 {
+   if (!tree_has_value(spec))
+      return NULL;
+
    tree_t bind = tree_value(spec);
    assert(tree_kind(bind) == T_BINDING);
 
