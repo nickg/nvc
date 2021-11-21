@@ -48,6 +48,7 @@
 #include <assert.h>
 
 #define DEBUG_METADATA_VERSION 3
+#define CONST_REP_ARRAY_LIMIT  32
 
 #define DUMP_ASSEMBLY 0
 #define DUMP_BITCODE  0
@@ -83,9 +84,12 @@ static LLVMModuleRef    module = NULL;
 static LLVMBuilderRef   builder = NULL;
 static LLVMDIBuilderRef debuginfo = NULL;
 
+typedef A(LLVMValueRef) llvm_value_list_t;
+
 static A(char *)           link_args;
 static hash_t             *string_pool = NULL;
 static A(LLVMMetadataRef)  debug_scopes;
+static llvm_value_list_t   ctors;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMTypeRef cgen_state_type(vcode_unit_t unit);
@@ -169,6 +173,18 @@ static LLVMTypeRef llvm_image_map(void)
       LLVMPointerType(LLVMInt8Type(), 0),
       LLVMPointerType(LLVMInt64Type(), 0),
       LLVMInt32Type()
+   };
+   return LLVMStructType(field_types, ARRAY_LEN(field_types), false);
+}
+
+static LLVMTypeRef llvm_ctor_type(void)
+{
+   LLVMTypeRef fntype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
+
+   LLVMTypeRef field_types[] = {
+      LLVMInt32Type(),
+      LLVMPointerType(fntype, 0),
+      LLVMPointerType(LLVMInt8Type(), 0)
    };
    return LLVMStructType(field_types, ARRAY_LEN(field_types), false);
 }
@@ -1103,6 +1119,100 @@ static void cgen_op_const_array(int op, cgen_ctx_t *ctx)
       tmp[i] = ctx->regs[vcode_get_arg(op, i)];
 
    ctx->regs[result] = LLVMConstArray(cgen_type(vtype_elem(type)), tmp, length);
+}
+
+static void cgen_append_ctor(LLVMValueRef fn)
+{
+   LLVMValueRef entry = LLVMGetUndef(llvm_ctor_type());
+   entry = LLVMBuildInsertValue(builder, entry, llvm_int32(65535), 0, "");
+   entry = LLVMBuildInsertValue(builder, entry, fn, 1, "");
+   entry = LLVMBuildInsertValue(builder, entry,
+                                LLVMConstNull(llvm_void_ptr()), 2, "");
+
+   APUSH(ctors, entry);
+}
+
+static void cgen_op_const_rep(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   vcode_type_t elem_type = vtype_pointed(vcode_reg_type(result));
+
+   const int length = vcode_get_value(op);
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+
+   char *name LOCAL = xasprintf("%s_rep_r%d",
+                                istr(vcode_unit_name()), result);
+
+   LLVMTypeRef lltype = LLVMArrayType(cgen_type(elem_type), length);
+   LLVMValueRef global = LLVMAddGlobal(module, lltype, name);
+   LLVMSetLinkage(global, LLVMPrivateLinkage);
+
+   if (length <= CONST_REP_ARRAY_LIMIT) {
+      LLVMValueRef *tmp LOCAL = xmalloc_array(length, sizeof(LLVMValueRef));
+      for (int i = 0; i < length; i++)
+         tmp[i] = ctx->regs[arg0];
+
+      LLVMValueRef array = LLVMConstArray(cgen_type(elem_type), tmp, length);
+      LLVMSetUnnamedAddr(global, true);
+      LLVMSetInitializer(global, array);
+
+      ctx->regs[result] = cgen_array_pointer(global);
+   }
+   else {
+      int64_t init;
+      if (vcode_reg_const(arg0, &init) && init == 0)
+         LLVMSetInitializer(global, LLVMConstNull(lltype));
+      else {
+         LLVMSetInitializer(global, LLVMGetUndef(lltype));
+
+         char *fnname LOCAL = xasprintf("%s_init_rep_r%d",
+                                        istr(vcode_unit_name()), result);
+         LLVMTypeRef fntype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
+         LLVMValueRef initfn = LLVMAddFunction(module, fnname, fntype);
+
+         LLVMBasicBlockRef orig_bb  = LLVMGetInsertBlock(builder);
+         LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(initfn, "");
+         LLVMBasicBlockRef test_bb  = LLVMAppendBasicBlock(initfn, "test");
+         LLVMBasicBlockRef body_bb  = LLVMAppendBasicBlock(initfn, "body");
+         LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(initfn, "exit");
+
+         LLVMPositionBuilderAtEnd(builder, entry_bb);
+         LLVMBuildBr(builder, test_bb);
+
+         LLVMPositionBuilderAtEnd(builder, test_bb);
+         LLVMValueRef i_phi = LLVMBuildPhi(builder, LLVMInt32Type(), "i");
+
+         LLVMValueRef cmp =
+            LLVMBuildICmp(builder, LLVMIntSLT, i_phi, llvm_int32(length), "");
+         LLVMBuildCondBr(builder, cmp, body_bb, exit_bb);
+
+         LLVMPositionBuilderAtEnd(builder, body_bb);
+
+         LLVMValueRef indexes[] = {
+            llvm_int32(0),
+            llvm_zext_to_intptr(i_phi)
+         };
+         LLVMValueRef ptr = LLVMBuildGEP(builder, global, indexes, 2, "");
+         LLVMBuildStore(builder, ctx->regs[arg0], ptr);
+
+         LLVMValueRef i_inc = LLVMBuildAdd(builder, i_phi, llvm_int32(1), "");
+
+         LLVMValueRef i_phi_in[] = { llvm_int32(0), i_inc };
+         LLVMBasicBlockRef i_phi_bbs[] = { entry_bb, body_bb };
+         LLVMAddIncoming(i_phi, i_phi_in, i_phi_bbs, 2);
+
+         LLVMBuildBr(builder, test_bb);
+
+         LLVMPositionBuilderAtEnd(builder, exit_bb);
+         LLVMBuildRetVoid(builder);
+
+         LLVMPositionBuilderAtEnd(builder, orig_bb);
+
+         cgen_append_ctor(initfn);
+      }
+
+      ctx->regs[result] = global;
+   }
 }
 
 static void cgen_op_cmp(int op, cgen_ctx_t *ctx)
@@ -3265,6 +3375,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_CONST_ARRAY:
       cgen_op_const_array(i, ctx);
       break;
+   case VCODE_OP_CONST_REP:
+      cgen_op_const_rep(i, ctx);
+      break;
    case VCODE_OP_STORE:
       cgen_op_store(i, ctx);
       break;
@@ -4708,6 +4821,22 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
    ACLEAR(link_args);
 }
 
+static void cgen_global_ctors(void)
+{
+   if (ctors.count == 0)
+      return;
+
+   LLVMTypeRef ctor_type = llvm_ctor_type();
+   LLVMTypeRef array_type = LLVMArrayType(ctor_type, ctors.count);
+   LLVMValueRef global = LLVMAddGlobal(module, array_type, "llvm.global_ctors");
+   LLVMSetLinkage(global, LLVMAppendingLinkage);
+
+   LLVMValueRef array = LLVMConstArray(ctor_type, ctors.items, ctors.count);
+   LLVMSetInitializer(global, array);
+
+   ACLEAR(ctors);
+}
+
 void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
 {
    vcode_select_unit(vcode);
@@ -4754,6 +4883,8 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
    cgen_tmp_stack();
 
    cgen_top(top, vcode, cover);
+
+   cgen_global_ctors();
 
    LLVMDIBuilderFinalize(debuginfo);
 

@@ -92,6 +92,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          break;
 
+      case VCODE_OP_CONST_REP:
+         if (e->value != vcode_get_value(i)) {
+            vcode_dump_with_mark(i, NULL, NULL);
+            fail("expected op %d in block %d to have repeat count %"PRIi64
+                 " but has %"PRIi64, i, bb, e->value, vcode_get_value(i));
+         }
+         break;
+
       case VCODE_OP_CONST_REAL:
          if (e->real != vcode_get_real(i)) {
             vcode_dump_with_mark(i, NULL, NULL);
@@ -535,8 +543,7 @@ START_TEST(test_assign2)
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_CONST_ARRAY, .length = 3 },
-      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_CONST_REP, .value = 3 },
       { VCODE_OP_COPY },
       { VCODE_OP_RETURN }
    };
@@ -947,8 +954,7 @@ START_TEST(test_arrayop1)
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST_ARRAY, .length = 3 },
-      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_CONST_REP, .value = 3 },
       { VCODE_OP_COPY },
       { VCODE_OP_RETURN }
    };

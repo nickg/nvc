@@ -3110,12 +3110,27 @@ static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
    assert(type_is_array(type));
 
    if (lower_const_bounds(type) && lower_is_const(expr)) {
-      int nvals;
-      vcode_reg_t *values LOCAL =
-         lower_const_array_aggregate(expr, type, 0, &nvals);
+      type_t elem_type = type_elem(type);
+      const bool can_use_rep =
+         tree_assocs(expr) == 1
+         && dimension_of(type) == 1
+         && type_is_scalar(elem_type)
+         && tree_subkind(tree_assoc(expr, 0)) == A_OTHERS;
 
-      vcode_reg_t array = emit_const_array(lower_type(type), values, nvals);
-      return emit_address_of(array);
+      const int rep_size = can_use_rep ? lower_array_const_size(type) : -1;
+
+      if (rep_size > 1) {
+         vcode_reg_t elem = lower_reify_expr(tree_value(tree_assoc(expr, 0)));
+         return emit_const_rep(lower_type(type), elem, rep_size);
+      }
+      else {
+         int nvals;
+         vcode_reg_t *values LOCAL =
+            lower_const_array_aggregate(expr, type, 0, &nvals);
+
+         vcode_reg_t array = emit_const_array(lower_type(type), values, nvals);
+         return emit_address_of(array);
+      }
    }
    else
       return lower_dyn_aggregate(expr, type);

@@ -1120,6 +1120,21 @@ static void eval_op_const_array(int op, eval_state_t *state)
    }
 }
 
+static void eval_op_const_rep(int op, eval_state_t *state)
+{
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+
+   const int rep = vcode_get_value(op);
+   value_t *arg0 = eval_get_reg(vcode_get_arg(op, 0), state);
+
+   dst->kind = VALUE_POINTER;
+   dst->length = rep;
+   if ((dst->pointer = eval_alloc(sizeof(value_t) * rep, state))) {
+      for (int i = 0; i < rep; i++)
+         dst->pointer[i] = *arg0;
+   }
+}
+
 static void eval_op_wrap(int op, eval_state_t *state)
 {
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
@@ -2016,6 +2031,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_CONST_ARRAY:
          eval_op_const_array(state->op, state);
+         break;
+
+      case VCODE_OP_CONST_REP:
+         eval_op_const_rep(state->op, state);
          break;
 
       case VCODE_OP_WRAP:

@@ -57,7 +57,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_REAL(x)                                                  \
    (x == VCODE_OP_CONST_REAL)
 #define OP_HAS_VALUE(x)                                                 \
-   (x == VCODE_OP_CONST)
+   (x == VCODE_OP_CONST || x == VCODE_OP_CONST_REP)
 #define OP_HAS_DIM(x)                                                   \
    (x == VCODE_OP_UARRAY_LEFT || x == VCODE_OP_UARRAY_RIGHT             \
     || x == VCODE_OP_UARRAY_DIR || x == VCODE_OP_UARRAY_LEN)
@@ -962,7 +962,7 @@ const char *vcode_op_string(vcode_op_t op)
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
-      "context upref"
+      "context upref", "const rep",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1607,6 +1607,16 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
                putchar(op->kind == VCODE_OP_CONST_ARRAY ? ']' : '}');
                vcode_dump_result_type(col + 1, op);
+            }
+            break;
+
+         case VCODE_OP_CONST_REP:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := const [");
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf("]*%"PRIi64, op->value);
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -3163,6 +3173,29 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
 
    reg_t *r = vcode_reg_data(op->result);
    r->bounds = vtype_elem(type);
+
+   return op->result;
+}
+
+vcode_reg_t emit_const_rep(vcode_type_t type, vcode_reg_t value, int rep)
+{
+   // Reuse any previous operation in this block with the same arguments
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONST_REP) {
+      if (other->args.items[0] == value && other->value == rep)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_CONST_REP);
+   op->value = rep;
+   vcode_add_arg(op, value);
+
+   VCODE_ASSERT(vtype_kind(type) == VCODE_TYPE_CARRAY,
+                "constant array must have constrained array type");
+
+   op->result = vcode_add_reg(vtype_pointer(vtype_elem(type)));
+
+   reg_t *r = vcode_reg_data(op->result);
+   r->bounds = vtype_bounds(type);
 
    return op->result;
 }
