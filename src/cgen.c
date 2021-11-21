@@ -1140,79 +1140,77 @@ static void cgen_op_const_rep(int op, cgen_ctx_t *ctx)
    const int length = vcode_get_value(op);
    vcode_reg_t arg0 = vcode_get_arg(op, 0);
 
-   char *name LOCAL = xasprintf("%s_rep_r%d",
-                                istr(vcode_unit_name()), result);
+   char *name LOCAL = xasprintf("%s_rep_r%d", istr(vcode_unit_name()), result);
 
    LLVMTypeRef lltype = LLVMArrayType(cgen_type(elem_type), length);
    LLVMValueRef global = LLVMAddGlobal(module, lltype, name);
    LLVMSetLinkage(global, LLVMPrivateLinkage);
 
-   if (length <= CONST_REP_ARRAY_LIMIT) {
+   int64_t init;
+   if (vcode_reg_const(arg0, &init) && init == 0) {
+      // Make sure this is not a global constant: we want it to go in
+      // the .bss section not .rodata
+      LLVMSetGlobalConstant(global, false);
+      LLVMSetUnnamedAddr(global, true);
+      LLVMSetInitializer(global, LLVMConstNull(lltype));
+   }
+   else if (length <= CONST_REP_ARRAY_LIMIT) {
       LLVMValueRef *tmp LOCAL = xmalloc_array(length, sizeof(LLVMValueRef));
       for (int i = 0; i < length; i++)
          tmp[i] = ctx->regs[arg0];
 
       LLVMValueRef array = LLVMConstArray(cgen_type(elem_type), tmp, length);
-      LLVMSetUnnamedAddr(global, true);
       LLVMSetInitializer(global, array);
-
-      ctx->regs[result] = cgen_array_pointer(global);
+      LLVMSetGlobalConstant(global, true);
+      LLVMSetUnnamedAddr(global, true);
    }
    else {
-      int64_t init;
-      if (vcode_reg_const(arg0, &init) && init == 0)
-         LLVMSetInitializer(global, LLVMConstNull(lltype));
-      else {
-         LLVMSetInitializer(global, LLVMGetUndef(lltype));
+      LLVMSetInitializer(global, LLVMGetUndef(lltype));
 
-         char *fnname LOCAL = xasprintf("%s_init_rep_r%d",
-                                        istr(vcode_unit_name()), result);
-         LLVMTypeRef fntype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
-         LLVMValueRef initfn = LLVMAddFunction(module, fnname, fntype);
+      char *fnname LOCAL =
+          xasprintf("%s_init_rep_r%d", istr(vcode_unit_name()), result);
+      LLVMTypeRef fntype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
+      LLVMValueRef initfn = LLVMAddFunction(module, fnname, fntype);
 
-         LLVMBasicBlockRef orig_bb  = LLVMGetInsertBlock(builder);
-         LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(initfn, "");
-         LLVMBasicBlockRef test_bb  = LLVMAppendBasicBlock(initfn, "test");
-         LLVMBasicBlockRef body_bb  = LLVMAppendBasicBlock(initfn, "body");
-         LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(initfn, "exit");
+      LLVMBasicBlockRef orig_bb = LLVMGetInsertBlock(builder);
+      LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(initfn, "");
+      LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(initfn, "test");
+      LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(initfn, "body");
+      LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(initfn, "exit");
 
-         LLVMPositionBuilderAtEnd(builder, entry_bb);
-         LLVMBuildBr(builder, test_bb);
+      LLVMPositionBuilderAtEnd(builder, entry_bb);
+      LLVMBuildBr(builder, test_bb);
 
-         LLVMPositionBuilderAtEnd(builder, test_bb);
-         LLVMValueRef i_phi = LLVMBuildPhi(builder, LLVMInt32Type(), "i");
+      LLVMPositionBuilderAtEnd(builder, test_bb);
+      LLVMValueRef i_phi = LLVMBuildPhi(builder, LLVMInt32Type(), "i");
 
-         LLVMValueRef cmp =
-            LLVMBuildICmp(builder, LLVMIntSLT, i_phi, llvm_int32(length), "");
-         LLVMBuildCondBr(builder, cmp, body_bb, exit_bb);
+      LLVMValueRef cmp =
+          LLVMBuildICmp(builder, LLVMIntSLT, i_phi, llvm_int32(length), "");
+      LLVMBuildCondBr(builder, cmp, body_bb, exit_bb);
 
-         LLVMPositionBuilderAtEnd(builder, body_bb);
+      LLVMPositionBuilderAtEnd(builder, body_bb);
 
-         LLVMValueRef indexes[] = {
-            llvm_int32(0),
-            llvm_zext_to_intptr(i_phi)
-         };
-         LLVMValueRef ptr = LLVMBuildGEP(builder, global, indexes, 2, "");
-         LLVMBuildStore(builder, ctx->regs[arg0], ptr);
+      LLVMValueRef indexes[] = {llvm_int32(0), llvm_zext_to_intptr(i_phi)};
+      LLVMValueRef ptr = LLVMBuildGEP(builder, global, indexes, 2, "");
+      LLVMBuildStore(builder, ctx->regs[arg0], ptr);
 
-         LLVMValueRef i_inc = LLVMBuildAdd(builder, i_phi, llvm_int32(1), "");
+      LLVMValueRef i_inc = LLVMBuildAdd(builder, i_phi, llvm_int32(1), "");
 
-         LLVMValueRef i_phi_in[] = { llvm_int32(0), i_inc };
-         LLVMBasicBlockRef i_phi_bbs[] = { entry_bb, body_bb };
-         LLVMAddIncoming(i_phi, i_phi_in, i_phi_bbs, 2);
+      LLVMValueRef i_phi_in[] = {llvm_int32(0), i_inc};
+      LLVMBasicBlockRef i_phi_bbs[] = {entry_bb, body_bb};
+      LLVMAddIncoming(i_phi, i_phi_in, i_phi_bbs, 2);
 
-         LLVMBuildBr(builder, test_bb);
+      LLVMBuildBr(builder, test_bb);
 
-         LLVMPositionBuilderAtEnd(builder, exit_bb);
-         LLVMBuildRetVoid(builder);
+      LLVMPositionBuilderAtEnd(builder, exit_bb);
+      LLVMBuildRetVoid(builder);
 
-         LLVMPositionBuilderAtEnd(builder, orig_bb);
+      LLVMPositionBuilderAtEnd(builder, orig_bb);
 
-         cgen_append_ctor(initfn);
-      }
-
-      ctx->regs[result] = global;
+      cgen_append_ctor(initfn);
    }
+
+   ctx->regs[result] = cgen_array_pointer(global);
 }
 
 static void cgen_op_cmp(int op, cgen_ctx_t *ctx)

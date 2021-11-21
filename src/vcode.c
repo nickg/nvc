@@ -380,6 +380,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_CONST:
    case VCODE_OP_CONST_REAL:
    case VCODE_OP_CONST_ARRAY:
+   case VCODE_OP_CONST_REP:
    case VCODE_OP_NULL:
    case VCODE_OP_UNDEFINED:
    case VCODE_OP_ADDRESS_OF:
@@ -623,7 +624,7 @@ bool vcode_reg_const(vcode_reg_t reg, int64_t *value)
       "integer register r%d has non-integer bounds", reg);
 
    if (bounds->low == bounds->high) {
-      *value = bounds->low;
+      if (value) *value = bounds->low;
       return true;
    }
    else
@@ -3189,6 +3190,9 @@ vcode_reg_t emit_const_rep(vcode_type_t type, vcode_reg_t value, int rep)
    op->value = rep;
    vcode_add_arg(op, value);
 
+   VCODE_ASSERT(vcode_reg_const(value, NULL)
+                || vcode_reg_kind(value) == VCODE_TYPE_REAL,
+                "constant array must have constant values");
    VCODE_ASSERT(vtype_kind(type) == VCODE_TYPE_CARRAY,
                 "constant array must have constrained array type");
 
