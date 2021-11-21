@@ -258,6 +258,7 @@ vcode_type_t vtype_field(vcode_type_t type, int field);
 vcode_type_t vtype_base(vcode_type_t type);
 ident_t vtype_name(vcode_type_t type);
 vcode_type_t vtype_real(void);
+
 vcode_unit_t vcode_find_unit(ident_t name);
 vcode_unit_t vcode_unit_next(vcode_unit_t unit);
 vcode_unit_t vcode_unit_child(vcode_unit_t unit);

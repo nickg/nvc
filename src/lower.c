@@ -4933,9 +4933,15 @@ static void lower_var_decl(tree_t decl)
    const bool is_const = tree_kind(decl) == T_CONST_DECL;
    ident_t name = is_global ? tree_ident2(decl) : tree_ident(decl);
 
+   bool skip_copy = false;
    if (is_const && !tree_has_value(decl)) {
       // Deferred constant in package
       return;
+   }
+   else if (is_const && type_is_array(type)
+            && !lower_const_bounds(type)  // TODO: remove this restriction
+            && lower_is_const(tree_value(decl))) {
+      skip_copy = true;   // Will be allocated in constant data
    }
 
    vcode_var_flags_t flags = 0;
@@ -4994,13 +5000,23 @@ static void lower_var_decl(tree_t decl)
       hint = emit_storage_hint(dest_reg, count_reg);
    }
 
-   vcode_reg_t value_reg = lower_expr(tree_value(decl), EXPR_RVALUE);
+   vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
 
    if (hint != VCODE_INVALID_HINT)
       vcode_clear_storage_hint(hint);
 
    if (type_is_array(type)) {
-      if (type_is_unconstrained(type)) {
+      if (is_const && skip_copy) {
+         assert(vcode_reg_kind(value_reg) == VCODE_TYPE_POINTER);
+
+         if (type_is_unconstrained(type)) {
+            vcode_reg_t wrapped_reg = lower_wrap(value_type, value_reg);
+            emit_store(wrapped_reg, var);
+         }
+         else
+            assert(false);   // TODO: this needs vtype adjusted above
+      }
+      else if (type_is_unconstrained(type)) {
          count_reg = lower_array_total_len(value_type, value_reg);
 
          type_t scalar_elem = lower_elem_recur(type);
