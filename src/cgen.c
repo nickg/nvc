@@ -642,18 +642,7 @@ static unsigned cgen_fixed_offset(void)
 
 static unsigned cgen_var_offset(vcode_var_t var)
 {
-   unsigned base = cgen_fixed_offset();
-
-   const vunit_kind_t kind = vcode_unit_kind();
-   if (kind == VCODE_UNIT_PROCEDURE || kind == VCODE_UNIT_FUNCTION)
-      base += vcode_count_params();
-
-   return base + var;
-}
-
-static unsigned cgen_param_offset(vcode_reg_t param)
-{
-   return cgen_fixed_offset() + param;
+   return cgen_fixed_offset() + var;
 }
 
 static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
@@ -3689,14 +3678,6 @@ static void cgen_locals(cgen_ctx_t *ctx)
 
       LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
       LLVMBuildStore(builder, ctx->display, context_ptr);
-
-      const int p0 = cgen_is_procedure() ? 2 : 1;
-      const int nparams = vcode_count_params();
-      for (int i = 0; i < nparams; i++) {
-         const int offset = cgen_param_offset(i);
-         LLVMValueRef ptr = LLVMBuildStructGEP(builder, ctx->state, offset, "");
-         LLVMBuildStore(builder, LLVMGetParam(ctx->fn, p0 + i), ptr);
-      }
    }
    else {
       const int nvars = vcode_count_vars();
@@ -3764,15 +3745,12 @@ static LLVMTypeRef cgen_state_type(vcode_unit_t unit)
       opaque = LLVMStructCreateNamed(LLVMGetGlobalContext(), name);
 
    const vunit_kind_t kind = vcode_unit_kind();
-   const bool is_procedure = cgen_is_procedure();
-   const bool has_fsm = (kind == VCODE_UNIT_PROCESS || is_procedure);
-   const bool has_params = (kind == VCODE_UNIT_FUNCTION || is_procedure);
+   const bool has_fsm = (kind == VCODE_UNIT_PROCESS || cgen_is_procedure());
 
    vcode_unit_t context = vcode_unit_context();
 
-   const int nparams = has_params ? vcode_count_params() : 0;
    const int nvars   = vcode_count_vars();
-   const int nfields = nvars + nparams + (has_fsm ? 2 : 0) + !!context;
+   const int nfields = nvars + (has_fsm ? 2 : 0) + !!context;
 
    int next_field = 0;
    LLVMTypeRef fields[nfields];
@@ -3783,11 +3761,6 @@ static LLVMTypeRef cgen_state_type(vcode_unit_t unit)
    if (has_fsm) {
       fields[next_field++] = LLVMInt32Type();
       fields[next_field++] = llvm_void_ptr();
-   }
-
-   if (has_params) {
-      for (int i = 0; i < nparams; i++)
-         fields[next_field++] = cgen_type(vcode_param_type(i));
    }
 
    const int var_base = next_field;
@@ -3899,12 +3872,6 @@ static void cgen_procedure(LLVMTypeRef display_type)
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, new_state, 1, "");
    LLVMBuildStore(builder, llvm_int32(0), state_ptr);
 
-   for (int i = 0; i < nparams; i++) {
-      LLVMValueRef param_ptr =
-         LLVMBuildStructGEP(builder, new_state, cgen_param_offset(i), "");
-      LLVMBuildStore(builder, ctx.regs[vcode_param_reg(i)], param_ptr);
-   }
-
    LLVMBuildBr(builder, jump_bb);
 
    LLVMPositionBuilderAtEnd(builder, jump_bb);
@@ -3917,12 +3884,6 @@ static void cgen_procedure(LLVMTypeRef display_type)
 
    LLVMValueRef new_display_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
    ctx.display = LLVMBuildLoad(builder, new_display_ptr, "display");
-
-   for (int i = 0; i < nparams; i++) {
-      LLVMValueRef param_ptr =
-         LLVMBuildStructGEP(builder, ctx.state, cgen_param_offset(i), "");
-      ctx.regs[vcode_param_reg(i)] = LLVMBuildLoad(builder, param_ptr, "");
-   }
 
    cgen_jump_table(&ctx);
    cgen_code(&ctx);

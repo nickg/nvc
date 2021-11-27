@@ -1183,7 +1183,7 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
             vcode_select_unit(vcode_unit_context());
          }
 
-         obj &= 0x3fffffff;
+         obj &= 0x1fffffff;
          ident_t var_name = vcode_var_name((vcode_var_t)obj);
 
          vcode_state_restore(&state);
@@ -2229,6 +2229,8 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
       obj != VCODE_INVALID_VAR && !!(obj & 0x80000000);
    const bool is_generic =
       obj != VCODE_INVALID_VAR && !!(obj & 0x40000000);
+   const bool is_proc_var =
+      obj != VCODE_INVALID_VAR && !!(obj & 0x20000000);
 
    if (is_entity_port) {
       if (ctx != EXPR_LVALUE && tree_subkind(decl) == PORT_INOUT) {
@@ -2280,7 +2282,11 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
    }
    else if (hops > 0) {
       // Reference to parameter in parent subprogram
-      return emit_load_indirect(emit_var_upref(hops, obj));
+      return emit_load_indirect(emit_var_upref(hops, obj & 0x1fffffff));
+   }
+   else if (is_proc_var) {
+      vcode_var_t var = obj & 0x1fffffff;
+      return emit_load(var);
    }
    else {
       vcode_reg_t reg = obj;
@@ -5535,7 +5541,7 @@ static bool lower_has_subprograms(tree_t scope)
    return false;
 }
 
-static void lower_subprogram_ports(tree_t body, bool has_subprograms)
+static void lower_subprogram_ports(tree_t body, bool params_as_vars)
 {
    const int nports = tree_ports(body);
    for (int i = 0; i < nports; i++) {
@@ -5585,10 +5591,10 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
       }
 
       vcode_reg_t preg = emit_param(vtype, vbounds, tree_ident(p));
-      if (has_subprograms) {
+      if (params_as_vars) {
          vcode_var_t var = emit_var(vtype, vbounds, tree_ident(p), 0);
          emit_store(preg, var);
-         lower_put_vcode_obj(p, var, top_scope);
+         lower_put_vcode_obj(p, var | 0x20000000, top_scope);
       }
       else
          lower_put_vcode_obj(p, preg, top_scope);
@@ -5633,7 +5639,7 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
    emit_debug_info(tree_loc(body));
 
    const bool has_subprograms = lower_has_subprograms(body);
-   lower_subprogram_ports(body, has_subprograms);
+   lower_subprogram_ports(body, has_subprograms || !never_waits);
 
    lower_decls(body, vu);
 

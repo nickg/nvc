@@ -1567,6 +1567,7 @@ START_TEST(test_proc3)
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
+         { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_CONST, .value = 10000000 },
          { VCODE_OP_WAIT, .delay = true, .target = 1 }
       };
@@ -1575,6 +1576,7 @@ START_TEST(test_proc3)
 
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_LOAD, .name = "X" },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_CONST, .value = 5000000 },
          { VCODE_OP_WAIT, .delay = true, .target = 2 }
@@ -1931,6 +1933,7 @@ START_TEST(test_proc7)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_UARRAY_LEFT },
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },
@@ -3398,6 +3401,7 @@ START_TEST(test_vital1)
         .func = "WORK.VITAL_TIMING.PROC(22WORK.VITAL_TIMING.LINEI)" },
       { VCODE_OP_LOAD, .name = "tmp_mark" },
       { VCODE_OP_TEMP_STACK_RESTORE },
+      { VCODE_OP_LOAD, .name = "TESTSIGNAL" },
       { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_CONST, .value = 1 },
