@@ -700,7 +700,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_ENDFILE:
          case VCODE_OP_RANGE_NULL:
          case VCODE_OP_RESOLUTION_WRAPPER:
-         case VCODE_OP_PARAM_UPREF:
          case VCODE_OP_CLOSURE:
          case VCODE_OP_PROTECTED_INIT:
          case VCODE_OP_CONTEXT_UPREF:

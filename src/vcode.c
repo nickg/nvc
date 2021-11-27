@@ -62,8 +62,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_UARRAY_LEFT || x == VCODE_OP_UARRAY_RIGHT             \
     || x == VCODE_OP_UARRAY_DIR || x == VCODE_OP_UARRAY_LEN)
 #define OP_HAS_HOPS(x)                                                  \
-   (x == VCODE_OP_PARAM_UPREF || x == VCODE_OP_VAR_UPREF                \
-    || x == VCODE_OP_CONTEXT_UPREF)
+   (x == VCODE_OP_VAR_UPREF || x == VCODE_OP_CONTEXT_UPREF)
 #define OP_HAS_FIELD(x)                                                 \
    (x == VCODE_OP_RECORD_REF)
 #define OP_HAS_CMP(x)                                                   \
@@ -486,7 +485,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_UARRAY_RIGHT:
    case VCODE_OP_UARRAY_DIR:
    case VCODE_OP_LAST_EVENT:
-   case VCODE_OP_PARAM_UPREF:
    case VCODE_OP_NEG:
    case VCODE_OP_EXP:
    case VCODE_OP_ABS:
@@ -950,7 +948,7 @@ const char *vcode_op_string(vcode_op_t op)
       "cast", "load indirect", "store indirect", "return",
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
       "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
-      "uarray right", "uarray dir", "unwrap", "not", "and", "param upref",
+      "uarray right", "uarray dir", "unwrap", "not", "and",
       "event", "active", "const record", "record ref", "copy", "sched event",
       "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor", "memset",
       "case", "endfile", "file open", "file write", "file close",
@@ -1735,16 +1733,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_PARAM_UPREF:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s %d, ", vcode_op_string(op->kind),
-                             op->hops);
                col += vcode_dump_reg(op->args.items[0]);
                vcode_dump_result_type(col, op);
             }
@@ -4181,36 +4169,6 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
    vcode_add_arg(op, dir);
 
    return (op->result = vcode_add_reg(vtype_bool()));
-}
-
-vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg)
-{
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_PARAM_UPREF) {
-      if (other->hops == hops && other->args.items[0] == reg)
-         return other->result;
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_PARAM_UPREF);
-   op->hops = hops;
-   vcode_add_arg(op, reg);
-
-   VCODE_ASSERT(hops > 0, "invalid hop count");
-
-   vcode_unit_t vu = active_unit;
-   for (int i = 0; i < hops; i++)
-      vu = vu->context;
-
-   VCODE_ASSERT(vu->kind != VCODE_UNIT_CONTEXT,
-                "upref context is not a subprogram or process");
-   VCODE_ASSERT(reg < vu->params.count, "upref register is not a parameter");
-
-   param_t *p = &(vu->params.items[reg]);
-   op->result = vcode_add_reg(p->type);
-
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = p->bounds;
-
-   return op->result;
 }
 
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var)

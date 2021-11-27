@@ -2086,28 +2086,6 @@ static void cgen_op_uarray_len(int op, cgen_ctx_t *ctx)
                                        length, cgen_reg_name(result));
 }
 
-static void cgen_op_param_upref(int op, cgen_ctx_t *ctx)
-{
-   const int hops = vcode_get_hops(op);
-   vcode_reg_t arg = vcode_get_arg(op, 0);
-
-   vcode_state_t state;
-   vcode_state_save(&state);
-
-   for (int i = 0; i < hops; i++)
-      vcode_select_unit(vcode_unit_context());
-
-   const int offset = cgen_param_offset(arg);
-
-   vcode_state_restore(&state);
-
-   vcode_reg_t result = vcode_get_result(op);
-
-   LLVMValueRef display = cgen_display_upref(hops, ctx);
-   LLVMValueRef ptr = LLVMBuildStructGEP(builder, display, offset, "");
-   ctx->regs[result] = LLVMBuildLoad(builder, ptr, cgen_reg_name(result));
-}
-
 static void cgen_op_var_upref(int op, cgen_ctx_t *ctx)
 {
    const int hops = vcode_get_hops(op);
@@ -3465,9 +3443,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_MOD:
       cgen_op_mod(i, ctx);
-      break;
-   case VCODE_OP_PARAM_UPREF:
-      cgen_op_param_upref(i, ctx);
       break;
    case VCODE_OP_VAR_UPREF:
       cgen_op_var_upref(i, ctx);

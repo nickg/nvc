@@ -272,14 +272,12 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
                fail("expect op %d in block %d to have address %s"
                     " but has %s", i, bb, e->name, istr(actual));
             }
-         }
-         // Fall-through
 
-      case VCODE_OP_PARAM_UPREF:
-         if (vcode_get_hops(i) != e->hops) {
-            vcode_dump_with_mark(i, NULL, NULL);
-            fail("expect op %d in block %d to have hop count %d"
-                 " but has %d", i, bb, e->hops, vcode_get_hops(i));
+            if (vcode_get_hops(i) != e->hops) {
+               vcode_dump_with_mark(i, NULL, NULL);
+               fail("expect op %d in block %d to have hop count %d"
+                    " but has %d", i, bb, e->hops, vcode_get_hops(i));
+            }
          }
          break;
 
@@ -1118,6 +1116,7 @@ START_TEST(test_nest1)
                        ":nest1$WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I"));
 
       EXPECT_BB(0) = {
+         { VCODE_OP_STORE, .name = "Y" },
          { VCODE_OP_FCALL,
            .func = ":nest1$WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I.DO_IT()I" },
          { VCODE_OP_RETURN }
@@ -1139,7 +1138,8 @@ START_TEST(test_nest1)
       EXPECT_BB(0) = {
          { VCODE_OP_VAR_UPREF, .hops = 2, .name = "X" },
          { VCODE_OP_LOAD_INDIRECT },
-         { VCODE_OP_PARAM_UPREF, .hops = 1 },
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "Y" },
+         { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_ADD },
          { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
          { VCODE_OP_RETURN }
@@ -2082,6 +2082,7 @@ START_TEST(test_issue122)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_FCALL,
         .func = ":issue122$WORK.ISSUE122(TEST).FUNC(I)I.NESTED()I" },
       { VCODE_OP_STORE, .name = "V" },

@@ -956,18 +956,6 @@ static void eval_op_fcall(int op, eval_state_t *state)
    eval_free_context(context);
 }
 
-static void eval_op_param_upref(int op, eval_state_t *state)
-{
-   context_t *where = state->context;
-   const int hops = vcode_get_hops(op);
-   for (int i = 0; i < hops; i++)
-      where = where->parent;
-
-   value_t *src = &(where->regs[vcode_get_arg(op, 0)]);
-   value_t *dst = eval_get_reg(vcode_get_result(op), state);
-   *dst = *src;
-}
-
 static void eval_op_var_upref(int op, eval_state_t *state)
 {
    context_t *where = state->context;
@@ -2231,10 +2219,6 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_BIT_VEC_OP:
          eval_op_bitvec_op(state->op, state);
-         break;
-
-      case VCODE_OP_PARAM_UPREF:
-         eval_op_param_upref(state->op, state);
          break;
 
       case VCODE_OP_VAR_UPREF:

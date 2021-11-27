@@ -77,7 +77,6 @@ typedef enum {
    VCODE_OP_UNWRAP,
    VCODE_OP_NOT,
    VCODE_OP_AND,
-   VCODE_OP_PARAM_UPREF,
    VCODE_OP_EVENT,
    VCODE_OP_ACTIVE,
    VCODE_OP_CONST_RECORD,
@@ -414,7 +413,6 @@ vcode_reg_t emit_uarray_len(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_unwrap(vcode_reg_t array);
 vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_not(vcode_reg_t arg);
-vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg);
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var);
 void emit_init_signal(vcode_reg_t signal, vcode_reg_t value, vcode_reg_t count,
                       vcode_reg_t size, vcode_reg_t resolution);

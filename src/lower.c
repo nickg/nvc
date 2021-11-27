@@ -2278,6 +2278,10 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
       else
          return emit_load(var);
    }
+   else if (hops > 0) {
+      // Reference to parameter in parent subprogram
+      return emit_load_indirect(emit_var_upref(hops, obj));
+   }
    else {
       vcode_reg_t reg = obj;
       const bool undefined_in_thunk =
@@ -2320,10 +2324,7 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
                      istr(tree_ident(decl)));
       }
 
-      if (hops > 0)
-         return emit_param_upref(hops, reg);
-      else
-         return reg;
+      return reg;
    }
 }
 
@@ -5583,8 +5584,14 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
                      class_str(tree_class(p)));
       }
 
-      vcode_reg_t reg = emit_param(vtype, vbounds, tree_ident(p));
-      lower_put_vcode_obj(p, reg, top_scope);
+      vcode_reg_t preg = emit_param(vtype, vbounds, tree_ident(p));
+      if (has_subprograms) {
+         vcode_var_t var = emit_var(vtype, vbounds, tree_ident(p), 0);
+         emit_store(preg, var);
+         lower_put_vcode_obj(p, var, top_scope);
+      }
+      else
+         lower_put_vcode_obj(p, preg, top_scope);
    }
 }
 
