@@ -106,7 +106,6 @@ static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type);
 static void lower_decls(tree_t scope, vcode_unit_t context);
 static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg);
 static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx);
-static vcode_reg_t lower_image_map(type_t type);
 static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
                                    type_t type, unsigned dim);
 static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
@@ -1873,28 +1872,30 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
    case S_MUL_RP:
    case S_MUL_RI:
       {
-         vcode_type_t vreal  = vtype_real();
-         vcode_type_t rtype  = lower_type(tree_type(fcall));
-         return emit_cast(rtype, rtype, emit_mul(r0, emit_cast(vreal, vreal, r1)));
+         vcode_type_t vreal = vtype_real();
+         vcode_type_t rtype = lower_type(tree_type(fcall));
+         return emit_cast(rtype, rtype,
+                          emit_mul(r0, emit_cast(vreal, vreal, r1)));
       }
    case S_MUL_PR:
    case S_MUL_IR:
       {
-         vcode_type_t vreal  = vtype_real();
-         vcode_type_t rtype  = lower_type(tree_type(fcall));
-         return emit_cast(rtype, rtype, emit_mul(emit_cast(vreal, vreal, r0), r1));
+         vcode_type_t vreal = vtype_real();
+         vcode_type_t rtype = lower_type(tree_type(fcall));
+         return emit_cast(rtype, rtype,
+                          emit_mul(emit_cast(vreal, vreal, r0), r1));
       }
    case S_DIV_PR:
       {
-         vcode_type_t vreal  = vtype_real();
-         vcode_type_t rtype  = lower_type(tree_type(fcall));
+         vcode_type_t vreal = vtype_real();
+         vcode_type_t rtype = lower_type(tree_type(fcall));
          return emit_cast(rtype, rtype,
                           emit_div(emit_cast(vreal, vreal, r0), r1));
       }
    case S_DIV_RI:
       {
-         vcode_type_t vreal  = vtype_real();
-         vcode_type_t rtype  = lower_type(tree_type(fcall));
+         vcode_type_t vreal = vtype_real();
+         vcode_type_t rtype = lower_type(tree_type(fcall));
          return emit_cast(rtype, rtype,
                           emit_div(r0, emit_cast(vreal, vreal, r1)));
       }
@@ -1902,8 +1903,11 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
       if (type_is_array(r0_type))
          return lower_array_to_string(fcall, r0);
       else {
-         vcode_reg_t map = lower_image_map(r0_type);
-         return emit_image(r0, map);
+         type_t base = type_base_recur(r0_type);
+         ident_t func = ident_prefix(type_ident(base), ident_new("image"), '$');
+         vcode_type_t rtype = lower_type(tree_type(fcall));
+         vcode_reg_t args[] = { r0 };
+         return emit_fcall(func, rtype, rtype, VCODE_CC_VHDL, args, 1);
       }
    default:
       fatal_at(tree_loc(fcall), "cannot lower builtin %d", builtin);
@@ -3392,54 +3396,6 @@ static const int lower_get_attr_dimension(tree_t expr)
       return assume_int(tree_value(tree_param(expr, 0))) - 1;
    else
       return 0;
-}
-
-static vcode_reg_t lower_image_map(type_t type)
-{
-   type_t base = type_base_recur(type);
-
-   vcode_reg_t result = VCODE_INVALID_REG;
-   switch (type_kind(base)) {
-   case T_INTEGER:
-   case T_REAL:
-      break;
-
-   case T_ENUM:
-      {
-         const int nlits = type_enum_literals(base);
-         ident_t *map LOCAL = xmalloc_array(sizeof(ident_t), nlits);
-         for (int i = 0; i < nlits; i++) {
-            // LRM specifies result is lowercase for enumerated types when
-            // the value is a basic identifier
-            const ident_t id = tree_ident(type_enum_literal(base, i));
-            if (ident_char(id, 0) == '\'')
-               map[i] = id;
-            else
-               map[i] = ident_downcase(id);
-         }
-         result = emit_enum_map(type_ident(base), nlits, map);
-      }
-      break;
-
-   case T_PHYSICAL:
-      {
-         const int nunits = type_units(base);
-         ident_t *map LOCAL = xmalloc_array(sizeof(ident_t), nunits);
-         int64_t *values LOCAL = xmalloc_array(sizeof(int64_t), nunits);
-         for (int i = 0; i < nunits; i++) {
-            tree_t unit = type_unit(base, i);
-            map[i] = tree_ident(unit);
-            values[i] = assume_int(tree_value(unit));
-         }
-         result = emit_physical_map(type_ident(base), nunits, map, values);
-      }
-      break;
-
-   default:
-      fatal_trace("cannot generate image map for %s", type_pp(type));
-   }
-
-   return result;
 }
 
 static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
