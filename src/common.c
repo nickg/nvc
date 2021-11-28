@@ -1161,6 +1161,9 @@ tree_t find_mangled_decl(tree_t container, ident_t name)
       tree_t d = tree_decl(container, i);
       if (is_subprogram(d) && tree_has_ident2(d) && tree_ident2(d) == name)
          return d;
+      else if (tree_kind(d) == T_TYPE_DECL
+               && type_ident(tree_type(d)) == ident_until(name, '$'))
+         return d;
       else if (is_container(d) && (d = find_mangled_decl(d, name)))
          return d;
    }

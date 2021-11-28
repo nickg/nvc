@@ -3598,10 +3598,18 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
       {
          type_t name_type = tree_type(name);
          tree_t value = tree_value(tree_param(expr, 0));
-         vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
-         vcode_reg_t map = lower_image_map(name_type);
-         vcode_reg_t len = lower_array_len(tree_type(value), 0, arg);
-         vcode_reg_t reg = emit_value(lower_array_data(arg), len, map);
+         type_t value_type = tree_type(value);
+
+         vcode_reg_t arg_reg = lower_param(value, NULL, PORT_IN);
+         if (lower_const_bounds(value_type))
+            arg_reg = lower_wrap(value_type, arg_reg);
+
+         type_t base = type_base_recur(name_type);
+         ident_t func = ident_prefix(type_ident(base), ident_new("value"), '$');
+         vcode_reg_t args[] = { arg_reg };
+         vcode_reg_t reg = emit_fcall(func, lower_type(base),
+                                      lower_bounds(base),
+                                      VCODE_CC_VHDL, args, 1);
          lower_check_scalar_bounds(reg, name_type, expr, NULL);
          return emit_cast(lower_type(name_type), lower_bounds(name_type), reg);
       }
@@ -5540,6 +5548,331 @@ static void lower_image_helper(tree_t decl)
    vcode_state_restore(&state);
 }
 
+static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
+{
+   const int nlits = type_enum_literals(type);
+   assert(nlits >= 1);
+
+   vcode_reg_t arg_len_reg  = emit_uarray_len(preg, 0);
+   vcode_reg_t arg_data_reg = emit_unwrap(preg);
+
+   vcode_type_t voffset = vtype_offset();
+   vcode_type_t vchar = vtype_char();
+   vcode_type_t strtype = vtype_uarray(1, vchar, vchar);
+
+   vcode_reg_t args[] = { arg_data_reg, arg_len_reg };
+   vcode_reg_t canon_reg = emit_fcall(ident_new("_canon_value"),
+                                      strtype, strtype, VCODE_CC_FOREIGN,
+                                      args, 2);
+
+   vcode_reg_t canon_data_reg = emit_unwrap(canon_reg);
+   vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
+
+   size_t stride = 0;
+   vcode_reg_t *len_regs LOCAL = xmalloc_array(nlits, sizeof(vcode_reg_t));
+   for (int i = 0; i < nlits; i++) {
+      size_t len = ident_len(tree_ident(type_enum_literal(type, i)));
+      len_regs[i] = emit_const(voffset, len);
+      stride = MAX(stride, len);
+   }
+
+   vcode_type_t len_array_type = vtype_carray(nlits, voffset, voffset);
+   vcode_reg_t len_array_reg =
+      emit_const_array(len_array_type, len_regs, nlits);
+   vcode_reg_t len_array_ptr = emit_address_of(len_array_reg);
+
+   const size_t nchars = nlits * stride;
+   vcode_reg_t *char_regs LOCAL = xmalloc_array(nchars, sizeof(vcode_reg_t));
+   for (int i = 0; i < nlits; i++) {
+      const char *str = istr(tree_ident(type_enum_literal(type, i)));
+      size_t pos = 0;
+      for (const char *p = str; *p; p++, pos++)
+         char_regs[(i * stride) + pos] = emit_const(vchar, *p);
+      for (; pos < stride; pos++)
+         char_regs[(i * stride) + pos] = emit_const(voffset, 0);
+   }
+
+   vcode_type_t char_array_type = vtype_carray(nlits, vchar, vchar);
+   vcode_reg_t char_array_reg =
+      emit_const_array(char_array_type, char_regs, nchars);
+   vcode_reg_t char_array_ptr = emit_address_of(char_array_reg);
+
+   vcode_var_t i_var = emit_var(voffset, voffset, ident_new("i"), 0);
+   emit_store(emit_const(voffset, 0), i_var);
+
+   vcode_block_t head_bb = emit_block();
+   vcode_block_t fail_bb = emit_block();
+   emit_jump(head_bb);
+
+   const loc_t *loc = vcode_last_loc();
+
+   vcode_select_block(head_bb);
+
+   vcode_reg_t i_reg = emit_load(i_var);
+
+   vcode_block_t memcmp_bb = emit_block();
+   vcode_block_t skip_bb   = emit_block();
+   vcode_block_t match_bb  = emit_block();
+
+   vcode_reg_t len_ptr = emit_add(len_array_ptr, i_reg);
+   vcode_reg_t len_reg = emit_load_indirect(len_ptr);
+   vcode_reg_t len_eq  = emit_cmp(VCODE_CMP_EQ, len_reg, canon_len_reg);
+   emit_cond(len_eq, memcmp_bb, skip_bb);
+
+   vcode_select_block(memcmp_bb);
+   vcode_reg_t char_off = emit_mul(i_reg, emit_const(voffset, stride));
+   vcode_reg_t char_ptr = emit_add(char_array_ptr, char_off);
+   vcode_reg_t eq_reg   = emit_memcmp(canon_data_reg, char_ptr, len_reg);
+   emit_cond(eq_reg, match_bb, skip_bb);
+
+   vcode_select_block(skip_bb);
+
+   vcode_reg_t i_next = emit_add(i_reg, emit_const(voffset, 1));
+   emit_store(i_next, i_var);
+
+   vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, i_next,
+                                   emit_const(voffset, nlits));
+   emit_cond(done_reg, fail_bb, head_bb);
+
+   vcode_select_block(fail_bb);
+   emit_debug_info(loc);
+
+   vcode_type_t vseverity = vtype_int(0, SEVERITY_FAILURE - 1);
+   vcode_reg_t failure_reg = emit_const(vseverity, SEVERITY_FAILURE);
+
+   vcode_reg_t const_str_reg =
+      lower_wrap_string("\" is not a valid enumeration value");
+   vcode_reg_t const_str_len = emit_uarray_len(const_str_reg, 0);
+   vcode_reg_t extra_len = emit_add(const_str_len, emit_const(voffset, 1));
+   vcode_reg_t msg_len = emit_add(arg_len_reg, extra_len);
+   vcode_reg_t mem_reg = emit_alloca(vchar, vchar, msg_len);
+
+   emit_store_indirect(emit_const(vchar, '\"'), mem_reg);
+
+   vcode_reg_t ptr1_reg = emit_add(mem_reg, emit_const(voffset, 1));
+   emit_copy(ptr1_reg, arg_data_reg, arg_len_reg);
+
+   vcode_reg_t ptr2_reg = emit_add(ptr1_reg, arg_len_reg);
+   emit_copy(ptr2_reg, emit_unwrap(const_str_reg), const_str_len);
+
+   emit_report(mem_reg, msg_len, failure_reg);
+   emit_return(emit_const(lower_type(type), 0));
+
+   vcode_select_block(match_bb);
+
+   return i_reg;
+}
+
+static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
+{
+   vcode_reg_t arg_len_reg  = emit_uarray_len(preg, 0);
+   vcode_reg_t arg_data_reg = emit_unwrap(preg);
+
+   vcode_type_t voffset = vtype_offset();
+   vcode_type_t vchar = vtype_char();
+   vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+   vcode_type_t strtype = vtype_uarray(1, vchar, vchar);
+
+   vcode_var_t tail_var = emit_var(vtype_pointer(vchar), vchar,
+                                   ident_new("tail"), 0);
+   vcode_reg_t tail_ptr = emit_index(tail_var, VCODE_INVALID_REG);
+
+   vcode_reg_t args1[] = { arg_data_reg, arg_len_reg, tail_ptr };
+   vcode_reg_t int_reg = emit_fcall(ident_new("_string_to_int"),
+                                    vint64, vint64, VCODE_CC_FOREIGN, args1, 3);
+
+   vcode_reg_t tail_reg = emit_load_indirect(tail_ptr);
+   vcode_reg_t consumed_reg = emit_sub(tail_reg, arg_data_reg);
+   vcode_reg_t tail_len = emit_sub(arg_len_reg, consumed_reg);
+
+   vcode_reg_t args2[] = { tail_reg, tail_len };
+   vcode_reg_t canon_reg = emit_fcall(ident_new("_canon_value"),
+                                      strtype, strtype, VCODE_CC_FOREIGN,
+                                      args2, 2);
+
+   vcode_reg_t canon_data_reg = emit_unwrap(canon_reg);
+   vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
+
+   const int nunits = type_units(type);
+   assert(nunits >= 1);
+
+   size_t stride = 0;
+   vcode_reg_t *len_regs LOCAL = xmalloc_array(nunits, sizeof(vcode_reg_t));
+   vcode_reg_t *mul_regs LOCAL = xmalloc_array(nunits, sizeof(vcode_reg_t));
+   for (int i = 0; i < nunits; i++) {
+      tree_t unit = type_unit(type, i);
+      size_t len = ident_len(tree_ident(unit));
+      len_regs[i] = emit_const(voffset, len);
+      stride = MAX(stride, len);
+
+      vcode_reg_t value_reg = lower_expr(tree_value(unit), EXPR_RVALUE);
+      mul_regs[i] = emit_cast(vint64, vint64, value_reg);
+   }
+
+   vcode_type_t len_array_type = vtype_carray(nunits, voffset, voffset);
+   vcode_reg_t len_array_reg =
+      emit_const_array(len_array_type, len_regs, nunits);
+   vcode_reg_t len_array_ptr = emit_address_of(len_array_reg);
+
+   vcode_type_t mul_array_type = vtype_carray(nunits, vint64, vint64);
+   vcode_reg_t mul_array_reg =
+      emit_const_array(mul_array_type, mul_regs, nunits);
+   vcode_reg_t mul_array_ptr = emit_address_of(mul_array_reg);
+
+   const size_t nchars = nunits * stride;
+   vcode_reg_t *char_regs LOCAL = xmalloc_array(nchars, sizeof(vcode_reg_t));
+   for (int i = 0; i < nunits; i++) {
+      const char *str = istr(tree_ident(type_unit(type, i)));
+      size_t pos = 0;
+      for (const char *p = str; *p; p++, pos++)
+         char_regs[(i * stride) + pos] = emit_const(vchar, *p);
+      for (; pos < stride; pos++)
+         char_regs[(i * stride) + pos] = emit_const(voffset, 0);
+   }
+
+   vcode_type_t char_array_type = vtype_carray(nunits, vchar, vchar);
+   vcode_reg_t char_array_reg =
+      emit_const_array(char_array_type, char_regs, nchars);
+   vcode_reg_t char_array_ptr = emit_address_of(char_array_reg);
+
+   vcode_var_t i_var = emit_var(voffset, voffset, ident_new("i"), 0);
+   emit_store(emit_const(voffset, 0), i_var);
+
+   vcode_block_t head_bb = emit_block();
+   vcode_block_t fail_bb = emit_block();
+   emit_jump(head_bb);
+
+   const loc_t *loc = vcode_last_loc();
+
+   vcode_select_block(head_bb);
+
+   vcode_reg_t i_reg = emit_load(i_var);
+
+   vcode_block_t memcmp_bb = emit_block();
+   vcode_block_t skip_bb   = emit_block();
+   vcode_block_t match_bb  = emit_block();
+
+   vcode_reg_t len_ptr = emit_add(len_array_ptr, i_reg);
+   vcode_reg_t len_reg = emit_load_indirect(len_ptr);
+   vcode_reg_t len_eq  = emit_cmp(VCODE_CMP_EQ, len_reg, canon_len_reg);
+   emit_cond(len_eq, memcmp_bb, skip_bb);
+
+   vcode_select_block(memcmp_bb);
+   vcode_reg_t char_off = emit_mul(i_reg, emit_const(voffset, stride));
+   vcode_reg_t char_ptr = emit_add(char_array_ptr, char_off);
+   vcode_reg_t eq_reg   = emit_memcmp(canon_data_reg, char_ptr, len_reg);
+   emit_cond(eq_reg, match_bb, skip_bb);
+
+   vcode_select_block(skip_bb);
+
+   vcode_reg_t i_next = emit_add(i_reg, emit_const(voffset, 1));
+   emit_store(i_next, i_var);
+
+   vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, i_next,
+                                   emit_const(voffset, nunits));
+   emit_cond(done_reg, fail_bb, head_bb);
+
+   vcode_select_block(fail_bb);
+   emit_debug_info(loc);
+
+   vcode_type_t vseverity = vtype_int(0, SEVERITY_FAILURE - 1);
+   vcode_reg_t failure_reg = emit_const(vseverity, SEVERITY_FAILURE);
+
+   vcode_reg_t const_str_reg = lower_wrap_string("\" is not a valid unit name");
+   vcode_reg_t const_str_len = emit_uarray_len(const_str_reg, 0);
+   vcode_reg_t extra_len = emit_add(const_str_len, emit_const(voffset, 1));
+   vcode_reg_t msg_len = emit_add(tail_len, extra_len);
+   vcode_reg_t mem_reg = emit_alloca(vchar, vchar, msg_len);
+
+   emit_store_indirect(emit_const(vchar, '\"'), mem_reg);
+
+   vcode_reg_t ptr1_reg = emit_add(mem_reg, emit_const(voffset, 1));
+   emit_copy(ptr1_reg, tail_reg, tail_len);
+
+   vcode_reg_t ptr2_reg = emit_add(ptr1_reg, tail_len);
+   emit_copy(ptr2_reg, emit_unwrap(const_str_reg), const_str_len);
+
+   emit_report(mem_reg, msg_len, failure_reg);
+   emit_return(emit_const(lower_type(type), 0));
+
+   vcode_select_block(match_bb);
+
+   vcode_reg_t mul_ptr = emit_add(mul_array_ptr, i_reg);
+   vcode_reg_t mul_reg = emit_load_indirect(mul_ptr);
+   return emit_mul(int_reg, mul_reg);
+}
+
+static vcode_reg_t lower_numeric_value_helper(type_t type, vcode_reg_t preg)
+{
+   vcode_type_t vchar = vtype_char();
+   vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+   vcode_type_t vreal  = vtype_real();
+
+   vcode_reg_t len_reg  = emit_uarray_len(preg, 0);
+   vcode_reg_t data_reg = emit_unwrap(preg);
+   vcode_reg_t null_reg = emit_null(vtype_pointer(vtype_pointer(vchar)));
+
+   vcode_reg_t args[] = { data_reg, len_reg, null_reg };
+
+   if (type_is_real(type))
+      return emit_fcall(ident_new("_string_to_real"),
+                        vreal, vreal, VCODE_CC_FOREIGN, args, 3);
+   else
+      return emit_fcall(ident_new("_string_to_int"),
+                        vint64, vint64, VCODE_CC_FOREIGN, args, 3);
+}
+
+static void lower_value_helper(tree_t decl)
+{
+   type_t type = tree_type(decl);
+   const type_kind_t kind = type_kind(type);
+
+   if (kind == T_SUBTYPE)
+      return;   // Delegated to base type
+   else if (!type_is_scalar(type))
+      return;
+
+   ident_t func = ident_prefix(type_ident(type), ident_new("value"), '$');
+
+   vcode_unit_t vu = vcode_find_unit(func);
+   if (vu != NULL)
+      return;
+
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   emit_function(func, tree_loc(decl), vcode_active_unit());
+   emit_debug_info(tree_loc(decl));
+
+   vcode_set_result(lower_type(type));
+
+   vcode_type_t ctype = vtype_char();
+   vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+   vcode_reg_t preg = emit_param(strtype, strtype, ident_new("VAL"));
+
+   vcode_reg_t result = VCODE_INVALID_REG;
+   switch (kind) {
+   case T_ENUM:
+      result = lower_enum_value_helper(type, preg);
+      break;
+   case T_INTEGER:
+   case T_REAL:
+      result = lower_numeric_value_helper(type, preg);
+      break;
+   case T_PHYSICAL:
+      result = lower_physical_value_helper(type, preg);
+      break;
+   default:
+      fatal_trace("cannot lower value helper for type %s", type_kind_str(kind));
+   }
+
+   lower_check_scalar_bounds(result, type, decl, NULL);;
+   emit_return(emit_cast(lower_type(type), lower_bounds(type), result));
+
+   lower_finished();
+   vcode_state_restore(&state);
+}
+
 static void lower_decl(tree_t decl)
 {
    PUSH_DEBUG_INFO(decl);
@@ -5568,6 +5901,7 @@ static void lower_decl(tree_t decl)
 
    case T_TYPE_DECL:
       lower_image_helper(decl);
+      lower_value_helper(decl);
       break;
 
    case T_FUNC_DECL:

@@ -3595,7 +3595,10 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
    vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
 
    reg_t *rr = vcode_reg_data(reg);
-   if (bl->kind == VCODE_TYPE_POINTER || bl->kind == VCODE_TYPE_SIGNAL)
+   if (vcode_reg_kind(lhs) == VCODE_TYPE_POINTER
+       && vcode_reg_kind(rhs) == VCODE_TYPE_POINTER)
+      rr->type = rr->bounds = vtype_offset();
+   else if (bl->kind == VCODE_TYPE_POINTER || bl->kind == VCODE_TYPE_SIGNAL)
       rr->bounds = vcode_reg_data(lhs)->bounds;
    else if (bl->kind != VCODE_TYPE_REAL) {
       // XXX: this is wrong - see TO_UNSIGNED
@@ -3627,7 +3630,8 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
                 "type argument to bounds must be integer or real");
 
    const vtype_kind_t rkind = vcode_reg_kind(reg);
-   VCODE_ASSERT(rkind == VCODE_TYPE_INT || tkind == VCODE_TYPE_REAL,
+   VCODE_ASSERT(rkind == VCODE_TYPE_INT || tkind == VCODE_TYPE_REAL
+                || rkind == VCODE_TYPE_OFFSET,
                 "reg argument to bounds must be integer or real");
 
    VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),

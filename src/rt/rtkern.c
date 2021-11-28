@@ -459,6 +459,36 @@ static tree_t rt_find_enclosing_decl(ident_t unit_name, const char *symbol)
    return enclosing;
 }
 
+static void rt_fmt_enclosing(text_buf_t *tb, tree_t enclosing,
+                             const char *symbol, const char *prefix)
+{
+   switch (tree_kind(enclosing)) {
+   case T_PROCESS:
+      tb_printf(tb, "\r\t%sProcess %s", prefix,
+                istr(e_path(active_proc->source)));
+      break;
+   case T_FUNC_BODY:
+   case T_FUNC_DECL:
+      tb_printf(tb, "\r\t%sFunction %s", prefix, type_pp(tree_type(enclosing)));
+      break;
+   case T_PROC_BODY:
+   case T_PROC_DECL:
+      tb_printf(tb, "\r\t%sProcedure %s", prefix,
+                type_pp(tree_type(enclosing)));
+      break;
+   case T_TYPE_DECL:
+      if (strstr(symbol, "$value"))
+         tb_printf(tb, "\r\t%sAttribute %s'VALUE",
+                   prefix, istr(tree_ident(enclosing)));
+      else
+         tb_printf(tb, "\r\t%sType %s", prefix, istr(tree_ident(enclosing)));
+      break;
+   default:
+      tb_printf(tb, "\r\t%s%s", prefix, istr(tree_ident(enclosing)));
+      break;
+   }
+}
+
 static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
 {
    debug_info_t *di = debug_capture();
@@ -481,10 +511,7 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
          // Processes should never be inlined
          assert(tree_kind(enclosing) != T_PROCESS);
 
-         type_t type = tree_type(enclosing);
-         tb_printf(tb, "\r\tInlined %s %s",
-                   type_kind(type) == T_FUNC ? "function" : "procedure",
-                   type_pp(type));
+         rt_fmt_enclosing(tb, enclosing, inl->symbol, "Inlined ");
          tb_printf(tb, "\r\t    File %s, Line %u", inl->srcfile, inl->lineno);
       }
 
@@ -506,15 +533,7 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
          srcfile = loc_file_str(loc);
       }
 
-      if (tree_kind(enclosing) == T_PROCESS)
-         tb_printf(tb, "\r\tProcess %s", istr(e_path(active_proc->source)));
-      else if (is_subprogram(enclosing)) {
-         type_t type = tree_type(enclosing);
-         tb_printf(tb, "\r\t%s %s",
-                   type_kind(type) == T_FUNC ? "Function" : "Procedure",
-                   type_pp(type));
-      }
-
+      rt_fmt_enclosing(tb, enclosing, f->symbol, "");
       tb_printf(tb, "\r\t    File %s, Line %u", srcfile, lineno);
    }
 
@@ -922,6 +941,110 @@ void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
              value, max, min);
       break;
    }
+}
+
+DLLEXPORT
+void _canon_value(const uint8_t *raw_str, int32_t str_len, uarray_t *u)
+{
+   char *buf = rt_tmp_alloc(str_len), *p = buf;
+   int pos = 0;
+
+   for (; pos < str_len && isspace((int)raw_str[pos]); pos++)
+      ;
+
+   bool upcase = true;
+   for (; pos < str_len && !isspace((int)raw_str[pos]); pos++) {
+      if (raw_str[pos] == '\'')
+         upcase = !upcase;
+
+      *p++ = upcase ? toupper((int)raw_str[pos]) : raw_str[pos];
+   }
+
+   for (; pos < str_len; pos++) {
+      if (!isspace((int)raw_str[pos])) {
+         rt_msg(NULL, fatal, "found invalid characters \"%.*s\" after value "
+                "\"%.*s\"", (int)(str_len - pos), raw_str + pos, str_len,
+                (const char *)raw_str);
+      }
+   }
+
+   *u = wrap_str(buf, p - buf);
+}
+
+DLLEXPORT
+int64_t _string_to_int(const uint8_t *raw_str, int32_t str_len, uint8_t **tail)
+{
+   const char *p = (const char *)raw_str;
+   const char *endp = p + str_len;
+
+   while (p < endp && isspace((int)*p))
+      ++p;
+
+   const bool is_negative = p < endp && *p == '-';
+   if (is_negative) p++;
+
+   int64_t value = INT64_MIN;
+   int num_digits = 0;
+   while (p < endp && (isdigit((int)*p) || *p == '_')) {
+      if (*p != '_') {
+         value *= 10;
+         value += (*p - '0');
+         num_digits++;
+      }
+      ++p;
+   }
+
+   if (is_negative) value = -value;
+
+   if (num_digits == 0)
+      rt_msg(NULL, fatal, "invalid integer value "
+             "\"%.*s\"", str_len, (const char *)raw_str);
+
+   if (tail != NULL)
+      *tail = (uint8_t *)p;
+   else {
+      for (; p < endp && *p != '\0'; p++) {
+         if (!isspace((int)*p)) {
+            rt_msg(NULL, fatal, "found invalid characters \"%.*s\" after value "
+                   "\"%.*s\"", (int)(endp - p), p, str_len,
+                   (const char *)raw_str);
+         }
+      }
+   }
+
+   return value;
+}
+
+DLLEXPORT
+double _string_to_real(const uint8_t *raw_str, int32_t str_len, uint8_t **tail)
+{
+   char *null LOCAL = xmalloc(str_len + 1);
+   memcpy(null, raw_str, str_len);
+   null[str_len] = '\0';
+
+   char *p = null;
+   for (; p < p + str_len && isspace((int)*p); p++)
+      ;
+
+   double value = strtod(p, &p);
+
+   if (*p != '\0' && !isspace((int)*p))
+      rt_msg(NULL, fatal, "invalid real value "
+             "\"%.*s\"", str_len, (const char *)raw_str);
+
+   if (tail != NULL)
+      *tail = (uint8_t *)p;
+   else {
+      for (; p < null + str_len && *p != '\0'; p++) {
+         if (!isspace((int)*p)) {
+            rt_msg(NULL, fatal, "found invalid characters \"%.*s\" after value "
+                   "\"%.*s\"", (int)(null + str_len - p), p, str_len,
+                   (const char *)raw_str);
+         }
+      }
+   }
+
+   return value;
 }
 
 DLLEXPORT

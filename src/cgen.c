@@ -1404,6 +1404,11 @@ static void cgen_op_sub(int op, cgen_ctx_t *ctx)
    if (vcode_reg_kind(result) == VCODE_TYPE_REAL)
       ctx->regs[result] = LLVMBuildFSub(builder, lhs, rhs,
                                         cgen_reg_name(result));
+   else if (LLVMGetTypeKind(LLVMTypeOf(rhs)) == LLVMPointerTypeKind) {
+      LLVMValueRef diff = LLVMBuildPtrDiff(builder, lhs, rhs, "");
+      ctx->regs[result] = LLVMBuildTrunc(builder, diff, LLVMInt32Type(),
+                                         cgen_reg_name(result));
+   }
    else
       ctx->regs[result] = LLVMBuildSub(builder, lhs, rhs,
                                        cgen_reg_name(result));
