@@ -104,7 +104,6 @@ typedef enum {
    VCODE_OP_ALL,
    VCODE_OP_BIT_VEC_OP,
    VCODE_OP_CONST_REAL,
-   VCODE_OP_VALUE,
    VCODE_OP_LAST_EVENT,
    VCODE_OP_DYNAMIC_BOUNDS,
    VCODE_OP_ARRAY_SIZE,
@@ -444,7 +443,6 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
                             vcode_reg_t lhs_len, vcode_reg_t lhs_dir,
                             vcode_reg_t rhs_data, vcode_reg_t rhs_len,
                             vcode_reg_t rhs_dir, vcode_type_t result);
-vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, vcode_reg_t map);
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);
 vcode_reg_t emit_last_active(vcode_reg_t signal, vcode_reg_t len);
 vcode_reg_t emit_driving_flag(vcode_reg_t signal, vcode_reg_t len);

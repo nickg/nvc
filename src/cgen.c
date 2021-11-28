@@ -2914,41 +2914,6 @@ static void cgen_op_const_real(int op, cgen_ctx_t *ctx)
                                      vcode_get_real(op));
 }
 
-static void cgen_op_value(int op, cgen_ctx_t *ctx)
-{
-   vcode_reg_t result = vcode_get_result(op);
-
-   LLVMTypeRef alloca_type = NULL;
-   LLVMValueRef image_map;
-   if (vcode_count_args(op) > 2)
-      image_map = cgen_get_arg(op, 2, ctx);
-   else {
-      alloca_type = llvm_image_map();
-      image_map = cgen_scoped_alloca(alloca_type, ctx);
-      llvm_lifetime_start(image_map, alloca_type);
-      const bool real = vcode_reg_kind(result) == VCODE_TYPE_REAL;
-      LLVMBuildStore(
-         builder,
-         LLVMBuildInsertValue(builder,
-                              LLVMGetUndef(alloca_type),
-                              llvm_int32(real ? IMAGE_REAL : IMAGE_INTEGER),
-                              0, ""),
-         image_map);
-   }
-
-   LLVMValueRef args[] = {
-      cgen_get_arg(op, 0, ctx),
-      cgen_get_arg(op, 1, ctx),
-      image_map,
-      cgen_location(op, ctx)
-   };
-   ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_value_attr"),
-                                      args, ARRAY_LEN(args), "value");
-
-   if (alloca_type != NULL)
-      llvm_lifetime_end(image_map, alloca_type);
-}
-
 static void cgen_op_bit_shift(int op, cgen_ctx_t *ctx)
 {
    LLVMTypeRef utype = llvm_uarray_type(LLVMInt1Type(), 1);
@@ -3524,9 +3489,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_CONST_REAL:
       cgen_op_const_real(i, ctx);
-      break;
-   case VCODE_OP_VALUE:
-      cgen_op_value(i, ctx);
       break;
    case VCODE_OP_LAST_EVENT:
       cgen_op_last_event(i, ctx);

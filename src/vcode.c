@@ -478,7 +478,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_EVENT:
    case VCODE_OP_ACTIVE:
    case VCODE_OP_BIT_VEC_OP:
-   case VCODE_OP_VALUE:
    case VCODE_OP_STORAGE_HINT:
    case VCODE_OP_UARRAY_LEN:
    case VCODE_OP_UARRAY_LEFT:
@@ -953,7 +952,7 @@ const char *vcode_op_string(vcode_op_t op)
       "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor", "memset",
       "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
-      "bit vec op", "const real", "value", "last event",
+      "bit vec op", "const real", "last event",
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "cover stmt", "cover cond",
       "uarray len", "temp stack mark", "temp stack restore",
@@ -1974,7 +1973,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_VALUE:
          case VCODE_OP_LAST_EVENT:
          case VCODE_OP_LAST_ACTIVE:
          case VCODE_OP_DRIVING_VALUE:
@@ -1985,10 +1983,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                if (op->args.count > 1) {
                   col += printf(" length ");
                   col += vcode_dump_reg(op->args.items[1]);
-               }
-               if (op->args.count > 2) {
-                  col += printf(" map ");
-                  col += vcode_dump_reg(op->args.items[2]);
                }
                vcode_dump_result_type(col, op);
             }
@@ -4709,22 +4703,6 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
                 "result of bit vec op must be uarray");
 
    return (op->result = vcode_add_reg(result));
-}
-
-vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, vcode_reg_t map)
-{
-   op_t *op = vcode_add_op(VCODE_OP_VALUE);
-   vcode_add_arg(op, string);
-   vcode_add_arg(op, len);
-   if (map != VCODE_INVALID_REG)
-      vcode_add_arg(op, map);
-
-   VCODE_ASSERT(vcode_reg_kind(string) == VCODE_TYPE_POINTER,
-                "string argument to value must be a pointer");
-   VCODE_ASSERT(vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
-                "length argument to value must be an offset");
-
-   return (op->result = vcode_add_reg(vtype_int(INT64_MIN, INT64_MAX)));
 }
 
 static vcode_reg_t emit_signal_data_op(vcode_op_t kind, vcode_reg_t sig)
