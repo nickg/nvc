@@ -77,8 +77,6 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_TARGET(x)                                                \
    (x == VCODE_OP_WAIT || x == VCODE_OP_JUMP || x == VCODE_OP_COND      \
     || x == VCODE_OP_PCALL || x == VCODE_OP_CASE)
-#define OP_HAS_IMAGE_MAP(x)                                             \
-   (x == VCODE_OP_IMAGE_MAP)
 
 typedef struct {
    vcode_op_t          kind;
@@ -105,7 +103,6 @@ typedef struct {
       unsigned         field;         // OP_HAS_FIELD
       char            *hint;          // OP_HAS_HINT
       uint32_t         tag;           // OP_HAS_TAG
-      image_map_t     *image_map;     // OP_HAS_IMAGE_MAP
    };
 } op_t;
 
@@ -433,10 +430,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
       // Must have been safety checked by definition
       break;
 
-   case VCODE_OP_IMAGE:
-      // Runtime allocates from temporary stack
-      break;
-
    case VCODE_OP_RECORD_REF:
       vcode_heap_allocate(defn->args.items[0]);
       break;
@@ -551,11 +544,6 @@ void vcode_unit_unref(vcode_unit_t unit)
             free(o->comment);
          if (OP_HAS_HINT(o->kind))
             free(o->hint);
-         if (OP_HAS_IMAGE_MAP(o->kind)) {
-            free(o->image_map->elems);
-            free(o->image_map->values);
-            free(o->image_map);
-         }
          free(o->args.items);
       }
       free(b->ops.items);
@@ -800,14 +788,6 @@ ident_t vcode_get_ident(int op)
    return o->ident;
 }
 
-void vcode_get_image_map(int op, image_map_t *map)
-{
-   op_t *o = vcode_op_data(op);
-   assert(OP_HAS_IMAGE_MAP(o->kind));
-
-   *map = *(o->image_map);
-}
-
 unsigned vcode_get_subkind(int op)
 {
    op_t *o = vcode_op_data(op);
@@ -956,7 +936,7 @@ const char *vcode_op_string(vcode_op_t op)
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "cover stmt", "cover cond",
       "uarray len", "temp stack mark", "temp stack restore",
-      "undefined", "image map", "range null", "var upref", "link signal",
+      "undefined", "range null", "var upref", "link signal",
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
@@ -1072,10 +1052,6 @@ static int vcode_dump_one_type(vcode_type_t type)
       col += printf("F<");
       col += vcode_dump_one_type(vt->base);
       col += printf(">");
-      break;
-
-   case VCODE_TYPE_IMAGE_MAP:
-      col += printf("I<>");
       break;
 
    case VCODE_TYPE_OPAQUE:
@@ -1669,19 +1645,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_IMAGE:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
-               if (op->args.count == 2) {
-                  col += printf(" map ");
-                  col += vcode_dump_reg(op->args.items[1]);
-               }
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
          case VCODE_OP_SELECT:
             {
                col += vcode_dump_reg(op->result);
@@ -2102,24 +2065,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_IMAGE_MAP:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s", vcode_op_string(op->kind));
-               col += color_printf(" $magenta$%s$$ [",
-                                   istr(op->image_map->name));
-               for (size_t j = 0; j < op->image_map->nelems; j++) {
-                  col += printf(" %s", istr(op->image_map->elems[j]));
-                  if (op->image_map->kind == IMAGE_PHYSICAL)
-                     col += printf("=>%"PRIi64, op->image_map->values[j]);
-                  if (col >= 80)
-                     col = printf("\n   ") - 1;
-               }
-               col += printf(" ] ");
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
          case VCODE_OP_LINK_SIGNAL:
             {
                col += vcode_dump_reg(op->result);
@@ -2192,8 +2137,6 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       case VCODE_TYPE_RECORD:
       case VCODE_TYPE_CONTEXT:
          return at->name == bt->name;
-      case VCODE_TYPE_IMAGE_MAP:
-         return false;
       }
 
       return false;
@@ -2225,7 +2168,6 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    case VCODE_TYPE_FILE:
    case VCODE_TYPE_RESOLUTION:
    case VCODE_TYPE_CLOSURE:
-   case VCODE_TYPE_IMAGE_MAP:
    case VCODE_TYPE_OPAQUE:
    case VCODE_TYPE_CONTEXT:
       return false;
@@ -2469,16 +2411,6 @@ vcode_type_t vtype_opaque(void)
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_OPAQUE;
-
-   return vtype_new(n);
-}
-
-vcode_type_t vtype_image_map(void)
-{
-   assert(active_unit != NULL);
-
-   vtype_t *n = vtype_array_alloc(&(active_unit->types));
-   n->kind  = VCODE_TYPE_IMAGE_MAP;
 
    return vtype_new(n);
 }
@@ -3831,23 +3763,6 @@ vcode_reg_t emit_abs(vcode_reg_t lhs)
    return op->result;
 }
 
-vcode_reg_t emit_image(vcode_reg_t value, vcode_reg_t map)
-{
-   VCODE_ASSERT(map == VCODE_INVALID_REG
-                || vcode_reg_kind(map) == VCODE_TYPE_IMAGE_MAP,
-                "map argument to image is not an image map");
-
-   op_t *op = vcode_add_op(VCODE_OP_IMAGE);
-   vcode_add_arg(op, value);
-   if (map != VCODE_INVALID_REG)
-      vcode_add_arg(op, map);
-
-   op->result = vcode_add_reg(
-      vtype_uarray(1, vtype_char(), vtype_int(0, 127)));
-
-   return op->result;
-}
-
 void emit_comment(const char *fmt, ...)
 {
    va_list ap;
@@ -4995,8 +4910,7 @@ void emit_temp_stack_restore(vcode_reg_t reg)
       if (other->kind == VCODE_OP_ALLOCA
           || other->kind == VCODE_OP_PCALL
           || other->kind == VCODE_OP_FCALL
-          || other->kind == VCODE_OP_RESUME
-          || other->kind == VCODE_OP_IMAGE)
+          || other->kind == VCODE_OP_RESUME)
          break;
       else if (other->kind == VCODE_OP_TEMP_STACK_MARK)
          return;   // No use of temp stack between mark and restore
@@ -5015,57 +4929,6 @@ vcode_reg_t emit_undefined(vcode_type_t type)
 
    op_t *op = vcode_add_op(VCODE_OP_UNDEFINED);
    return (op->result = vcode_add_reg(type));
-}
-
-vcode_reg_t emit_enum_map(ident_t name, size_t nelems, const ident_t *elems)
-{
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_IMAGE_MAP) {
-      if (other->image_map->name == name)
-         return other->result;
-   }
-
-   image_map_t *img = xmalloc(sizeof(image_map_t));
-   img->name   = name;
-   img->kind   = IMAGE_ENUM;
-   img->nelems = nelems;
-   img->values = NULL;
-   img->elems  = xmalloc_array(nelems, sizeof(ident_t));
-   for (size_t i = 0; i < nelems; i++)
-      img->elems[i] = elems[i];
-
-   op_t *op = vcode_add_op(VCODE_OP_IMAGE_MAP);
-   op->image_map = img;
-   return (op->result = vcode_add_reg(vtype_image_map()));
-}
-
-vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
-                              const ident_t *elems, const int64_t *values)
-{
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_IMAGE_MAP) {
-      if (other->image_map->name == name)
-         return other->result;
-   }
-
-   image_map_t *img = xmalloc(sizeof(image_map_t));
-   img->name   = name;
-   img->kind   = IMAGE_PHYSICAL;
-   img->nelems = nelems;
-   img->values = NULL;
-   img->elems  = xmalloc(nelems * sizeof(ident_t));
-   if (values != NULL)
-      img->values = xmalloc(nelems * sizeof(int64_t));
-   else
-      img->values = NULL;
-
-   for (size_t i = 0; i < nelems; i++) {
-      img->elems[i] = elems[i];
-      if (values != NULL)
-         img->values[i] = values[i];
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_IMAGE_MAP);
-   op->image_map = img;
-   return (op->result = vcode_add_reg(vtype_image_map()));
 }
 
 void emit_debug_info(const loc_t *loc)
@@ -5174,22 +5037,6 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
          }
          if (OP_HAS_TAG(op->kind))
             write_u32(op->tag, f);
-         if (OP_HAS_IMAGE_MAP(op->kind)) {
-            ident_write(op->image_map->name, ident_wr_ctx);
-            write_u16(op->image_map->kind, f);
-
-            write_u16(op->image_map->nelems, f);
-            for (size_t i = 0; i < op->image_map->nelems; i++)
-               ident_write(op->image_map->elems[i], ident_wr_ctx);
-
-            if (op->image_map->values != NULL) {
-               write_u8(1, f);
-               for (size_t i = 0; i < op->image_map->nelems; i++)
-                  write_u64(op->image_map->values[i], f);
-            }
-            else
-               write_u8(0, f);
-         }
       }
    }
 
@@ -5236,7 +5083,6 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
          write_u32(t->base, f);
          break;
 
-      case VCODE_TYPE_IMAGE_MAP:
       case VCODE_TYPE_OPAQUE:
          break;
 
@@ -5374,27 +5220,6 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
          }
          if (OP_HAS_TAG(op->kind))
             op->tag = read_u32(f);
-         if (OP_HAS_IMAGE_MAP(op->kind)) {
-            op->image_map = xmalloc(sizeof(image_map_t));
-            op->image_map->name = ident_read(ident_rd_ctx);
-            op->image_map->kind = read_u16(f);
-
-            op->image_map->nelems = read_u16(f);
-            op->image_map->elems =
-               xmalloc_array(op->image_map->nelems, sizeof(uint64_t));
-            for (size_t i = 0; i < op->image_map->nelems; i++)
-               op->image_map->elems[i] = ident_read(ident_rd_ctx);
-
-            const bool has_values = read_u8(f);
-            if (has_values) {
-               op->image_map->values =
-                  xmalloc_array(op->image_map->nelems, sizeof(uint64_t));
-               for (size_t i = 0; i < op->image_map->nelems; i++)
-                  op->image_map->values[i] = read_u64(f);
-            }
-            else
-               op->image_map->values = NULL;
-         }
       }
    }
 
@@ -5440,7 +5265,6 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
          t->base = read_u32(f);
          break;
 
-      case VCODE_TYPE_IMAGE_MAP:
       case VCODE_TYPE_OPAQUE:
          break;
 

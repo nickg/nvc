@@ -672,7 +672,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_MOD:
          case VCODE_OP_ALLOCA:
          case VCODE_OP_INDEX:
-         case VCODE_OP_IMAGE:
          case VCODE_OP_AND:
          case VCODE_OP_OR:
          case VCODE_OP_XOR:
@@ -686,7 +685,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_ADDRESS_OF:
          case VCODE_OP_NULL:
          case VCODE_OP_BIT_SHIFT:
-         case VCODE_OP_IMAGE_MAP:
          case VCODE_OP_DIV:
          case VCODE_OP_NEW:
          case VCODE_OP_DRIVING_VALUE:

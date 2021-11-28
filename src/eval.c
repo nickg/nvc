@@ -40,7 +40,6 @@ typedef enum {
    VALUE_CARRAY,
    VALUE_RECORD,
    VALUE_HEAP_PROXY,
-   VALUE_IMAGE_MAP,
    VALUE_ACCESS
 } value_kind_t;
 
@@ -61,12 +60,11 @@ struct value {
    value_kind_t kind;
    uint32_t     length;
    union {
-      double       real;
-      int64_t      integer;
-      value_t     *pointer;
-      uarray_t    *uarray;
-      value_t     *fields;
-      image_map_t *image_map;
+      double    real;
+      int64_t   integer;
+      value_t  *pointer;
+      uarray_t *uarray;
+      value_t  *fields;
    };
 };
 
@@ -1545,80 +1543,6 @@ static void eval_op_index_check(int op, eval_state_t *state)
       state->failed = true;
 }
 
-static void eval_op_image_map(int op, eval_state_t *state)
-{
-   image_map_t *map = eval_alloc(sizeof(image_map_t), state);
-   if (map == NULL)
-      return;
-
-   vcode_get_image_map(op, map);
-
-   value_t *result = eval_get_reg(vcode_get_result(op), state);
-   result->kind = VALUE_IMAGE_MAP;
-   result->image_map = map;
-}
-
-static void eval_op_image(int op, eval_state_t *state)
-{
-   value_t *object = eval_get_reg(vcode_get_arg(op, 0), state);
-   char *buf LOCAL = NULL;
-
-   if (vcode_count_args(op) == 1) {
-      // No image map
-      switch (object->kind) {
-      case VALUE_INTEGER:
-         buf = xasprintf("%"PRIi64, object->integer);
-         break;
-
-      case VALUE_REAL:
-         buf = xasprintf("%.*g", DBL_DIG + 3, object->real);
-         break;
-
-      default:
-         fatal_trace("bad value type for image operation");
-      }
-   }
-   else {
-      value_t *map = eval_get_reg(vcode_get_arg(op, 1), state);
-      EVAL_ASSERT_VALUE(op, map, VALUE_IMAGE_MAP);
-
-      switch (map->image_map->kind) {
-      case IMAGE_ENUM:
-         if (object->integer < 0 || object->integer >= map->image_map->nelems)
-            fatal_trace("invalid enum value %"PRIi64, object->integer);
-         buf = xasprintf("%s", istr(map->image_map->elems[object->integer]));
-         break;
-
-      case IMAGE_PHYSICAL:
-         buf = xasprintf("%"PRIi64" %s", object->integer,
-                         istr(map->image_map->elems[0]));
-         break;
-
-      default:
-         fatal_trace("unexpected image map kind %d", map->image_map->kind);
-      }
-   }
-
-   size_t len = strlen(buf);
-   value_t *dst = eval_get_reg(vcode_get_result(op), state);
-   dst->kind = VALUE_UARRAY;
-   if ((dst->uarray = eval_alloc(sizeof(uarray_t), state)) == NULL)
-      return;
-   if ((dst->uarray->data = eval_alloc(sizeof(value_t) * len, state)) == NULL)
-      return;
-
-   dst->uarray->ndims = 1;
-   dst->uarray->dim[0].left  = 1;
-   dst->uarray->dim[0].right = len;
-   dst->uarray->dim[0].dir   = RANGE_TO;
-
-   for (size_t i = 0; i < len; i++) {
-      value_t *ch = &(dst->uarray->data[i]);
-      ch->kind = VALUE_INTEGER;
-      ch->integer = buf[i];
-   }
-}
-
 static void eval_op_uarray_left(int op, eval_state_t *state)
 {
    value_t *array = eval_get_reg(vcode_get_arg(op, 0), state);
@@ -2141,10 +2065,6 @@ static void eval_vcode(eval_state_t *state)
          eval_op_abs(state->op, state);
          break;
 
-      case VCODE_OP_IMAGE:
-         eval_op_image(state->op, state);
-         break;
-
       case VCODE_OP_TEMP_STACK_MARK:
       case VCODE_OP_TEMP_STACK_RESTORE:
          break;
@@ -2187,10 +2107,6 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_ARRAY_SIZE:
          eval_op_array_size(state->op, state);
-         break;
-
-      case VCODE_OP_IMAGE_MAP:
-         eval_op_image_map(state->op, state);
          break;
 
       case VCODE_OP_NULL:

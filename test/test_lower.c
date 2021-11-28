@@ -119,7 +119,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ASSERT:
       case VCODE_OP_REPORT:
       case VCODE_OP_RETURN:
-      case VCODE_OP_IMAGE:
       case VCODE_OP_UNWRAP:
       case VCODE_OP_ARRAY_SIZE:
       case VCODE_OP_NULL:
@@ -320,18 +319,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have cover tag %d but has %d",
                  i, bb, e->tag, vcode_get_tag(i));
-         }
-         break;
-
-      case VCODE_OP_IMAGE_MAP:
-         {
-            image_map_t map;
-            vcode_get_image_map(i, &map);
-            if (!icmp(map.name, e->name)) {
-               vcode_dump_with_mark(i, NULL, NULL);
-               fail("expected op %d in block %d to have image map name %s but "
-                    "has %s", i, bb, e->name, istr(map.name));
-            }
          }
          break;
 

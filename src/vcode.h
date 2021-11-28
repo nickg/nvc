@@ -66,7 +66,6 @@ typedef enum {
    VCODE_OP_ABS,
    VCODE_OP_MOD,
    VCODE_OP_REM,
-   VCODE_OP_IMAGE,
    VCODE_OP_ALLOCA,
    VCODE_OP_SELECT,
    VCODE_OP_OR,
@@ -117,7 +116,6 @@ typedef enum {
    VCODE_OP_TEMP_STACK_MARK,
    VCODE_OP_TEMP_STACK_RESTORE,
    VCODE_OP_UNDEFINED,
-   VCODE_OP_IMAGE_MAP,
    VCODE_OP_RANGE_NULL,
    VCODE_OP_VAR_UPREF,
    VCODE_OP_LINK_SIGNAL,
@@ -150,7 +148,6 @@ typedef enum {
    VCODE_TYPE_FILE,
    VCODE_TYPE_ACCESS,
    VCODE_TYPE_REAL,
-   VCODE_TYPE_IMAGE_MAP,
    VCODE_TYPE_OPAQUE,
    VCODE_TYPE_RESOLUTION,
    VCODE_TYPE_CLOSURE,
@@ -190,14 +187,6 @@ typedef struct {
    vcode_block_t block;
 } vcode_state_t;
 
-typedef struct {
-   ident_t      name;
-   image_kind_t kind;
-   ident_t     *elems;
-   int64_t     *values;
-   size_t       nelems;
-} image_map_t;
-
 typedef enum {
    VAR_EXTERN  = (1 << 0),
    VAR_HEAP    = (1 << 2),
@@ -232,7 +221,6 @@ vcode_type_t vtype_signal(vcode_type_t base);
 vcode_type_t vtype_offset(void);
 vcode_type_t vtype_time(void);
 vcode_type_t vtype_char(void);
-vcode_type_t vtype_image_map(void);
 vcode_type_t vtype_opaque(void);
 vcode_type_t vtype_find_named_record(ident_t name);
 vcode_type_t vtype_named_record(ident_t name, const vcode_type_t *field_types,
@@ -323,7 +311,6 @@ int vcode_get_hops(int op);
 int vcode_get_field(int op);
 unsigned vcode_get_subkind(int op);
 uint32_t vcode_get_tag(int op);
-void vcode_get_image_map(int op, image_map_t *map);
 void vcode_clear_storage_hint(uint32_t tag);
 
 int vcode_count_vars(void);
@@ -394,7 +381,6 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse);
 vcode_reg_t emit_neg(vcode_reg_t lhs);
 vcode_reg_t emit_abs(vcode_reg_t lhs);
-vcode_reg_t emit_image(vcode_reg_t value, vcode_reg_t map);
 void emit_comment(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
                         vcode_reg_t rfalse);
@@ -459,9 +445,6 @@ void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub);
 vcode_reg_t emit_temp_stack_mark(void);
 void emit_temp_stack_restore(vcode_reg_t reg);
 vcode_reg_t emit_undefined(vcode_type_t type);
-vcode_reg_t emit_enum_map(ident_t name, size_t nelems, const ident_t *elems);
-vcode_reg_t emit_physical_map(ident_t name, size_t nelems,
-                              const ident_t *elems, const int64_t *values);
 void emit_debug_info(const loc_t *loc);
 vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
                             vcode_reg_t dir);

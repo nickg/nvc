@@ -972,13 +972,31 @@ void _canon_value(const uint8_t *raw_str, int32_t str_len, uarray_t *u)
 }
 
 DLLEXPORT
+void _int_to_string(int64_t value, uarray_t *u)
+{
+   char *buf = rt_tmp_alloc(20);
+   size_t len = checked_sprintf(buf, 20, "%"PRIi64, value);
+
+   *u = wrap_str(buf, len);
+}
+
+DLLEXPORT
+void _real_to_string(double value, uarray_t *u)
+{
+   char *buf = rt_tmp_alloc(32);
+   size_t len = checked_sprintf(buf, 32, "%.*g", 17, value);
+
+   *u = wrap_str(buf, len);
+}
+
+DLLEXPORT
 int64_t _string_to_int(const uint8_t *raw_str, int32_t str_len, uint8_t **tail)
 {
    const char *p = (const char *)raw_str;
    const char *endp = p + str_len;
 
-   while (p < endp && isspace((int)*p))
-      ++p;
+   for (; p < endp && isspace((int)*p); p++)
+      ;
 
    const bool is_negative = p < endp && *p == '-';
    if (is_negative) p++;
@@ -1165,45 +1183,6 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
       notef("%s called", finish ? "FINISH" : "STOP");
 
    exit(status);
-}
-
-DLLEXPORT
-void _image(int64_t val, image_map_t *map, uarray_t *u)
-{
-   char *buf = NULL;
-   size_t len = 0;
-
-   switch (map->kind) {
-   case IMAGE_INTEGER:
-      buf = rt_tmp_alloc(20);
-      len = checked_sprintf(buf, 20, "%"PRIi64, val);
-      break;
-
-   case IMAGE_ENUM:
-      buf = rt_tmp_alloc(map->stride);
-      strncpy(buf, map->elems + (val * map->stride), map->stride);
-      len = strlen(buf);
-      break;
-
-   case IMAGE_REAL:
-      {
-         union {
-            double  d;
-            int64_t i;
-         } u = { .i = val };
-         buf = rt_tmp_alloc(32);
-         len = checked_sprintf(buf, 32, "%.*g", 17, u.d);
-      }
-      break;
-
-   case IMAGE_PHYSICAL:
-      buf = rt_tmp_alloc(20 + map->stride);
-      len = checked_sprintf(buf, 20 + map->stride, "%"PRIi64" %s",
-                            val, map->elems + (0 * map->stride));
-      break;
-   }
-
-   *u = wrap_str(buf, len);
 }
 
 DLLEXPORT

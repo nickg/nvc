@@ -165,18 +165,6 @@ static LLVMTypeRef llvm_rt_loc(void)
    return LLVMStructType(fields, ARRAY_LEN(fields), false);
 }
 
-static LLVMTypeRef llvm_image_map(void)
-{
-   LLVMTypeRef field_types[] = {
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMPointerType(LLVMInt8Type(), 0),
-      LLVMPointerType(LLVMInt64Type(), 0),
-      LLVMInt32Type()
-   };
-   return LLVMStructType(field_types, ARRAY_LEN(field_types), false);
-}
-
 static LLVMTypeRef llvm_ctor_type(void)
 {
    LLVMTypeRef fntype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
@@ -1737,130 +1725,6 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, pass_bb);
 }
 
-static void cgen_op_image_map(int op, cgen_ctx_t *ctx)
-{
-   image_map_t map;
-   vcode_get_image_map(op, &map);
-
-   size_t max_len = 0;
-   for (size_t i = 0; i < map.nelems; i++) {
-      const size_t len = ident_len(map.elems[i]);
-      max_len = MAX(max_len, len);
-   }
-
-   ident_t elems_name = ident_prefix(map.name, ident_new("elems"), '.');
-   LLVMValueRef elems_glob = LLVMGetNamedGlobal(module, istr(elems_name));
-   if (elems_glob == NULL) {
-      const size_t total_chars = map.nelems * (max_len + 1);
-      LLVMTypeRef array_type = LLVMArrayType(LLVMInt8Type(), total_chars);
-
-      elems_glob = LLVMAddGlobal(module, array_type, istr(elems_name));
-      LLVMSetGlobalConstant(elems_glob, true);
-      LLVMSetLinkage(elems_glob, LLVMLinkOnceAnyLinkage);
-
-      char *strings LOCAL = xmalloc(total_chars);
-      for (size_t i = 0; i < map.nelems; i++) {
-         const size_t tlen = ident_len(map.elems[i]);
-         bool quoted = false;
-         for (size_t j = 0; j < max_len + 1; j++) {
-            const size_t off = (i * (max_len + 1)) + j;
-            char ch = ident_char(map.elems[i], tlen - j - 1);
-            quoted |= ch == '\'';
-            if (j < tlen)
-               strings[off] = quoted ? ch : tolower(ch);
-            else
-               strings[off] = '\0';
-         }
-      }
-
-      LLVMValueRef init = LLVMConstString(strings, total_chars, true);
-      LLVMSetInitializer(elems_glob, init);
-   }
-
-   LLVMValueRef elems_ptr = cgen_array_pointer(elems_glob);
-
-   LLVMValueRef values_ptr = NULL;
-   if (map.values != NULL) {
-      ident_t values_name = ident_prefix(map.name, ident_new("values"), '.');
-      LLVMValueRef values_glob = LLVMGetNamedGlobal(module, istr(values_name));
-      if (values_glob == NULL) {
-         LLVMTypeRef elem_type = LLVMInt64Type();
-         LLVMTypeRef array_type = LLVMArrayType(elem_type, map.nelems);
-         values_glob = LLVMAddGlobal(module, array_type, istr(values_name));
-         LLVMSetGlobalConstant(values_glob, true);
-         LLVMSetLinkage(values_glob, LLVMLinkOnceAnyLinkage);
-
-         LLVMValueRef *lvalues LOCAL =
-            xmalloc_array(sizeof(LLVMValueRef), map.nelems);
-         for (size_t i = 0; i < map.nelems; i++)
-            lvalues[i] = LLVMConstInt(elem_type, map.values[i], false);
-
-         LLVMValueRef init = LLVMConstArray(elem_type, lvalues, map.nelems);
-         LLVMSetInitializer(values_glob, init);
-      }
-
-      values_ptr = cgen_array_pointer(values_glob);
-   }
-   else
-      values_ptr = LLVMConstNull(LLVMPointerType(LLVMInt64Type(), 0));
-
-   LLVMValueRef lmap = LLVMGetUndef(llvm_image_map());
-   lmap = LLVMBuildInsertValue(builder, lmap, llvm_int32(map.kind), 0, "");
-   lmap = LLVMBuildInsertValue(builder, lmap, llvm_int32(max_len + 1), 1, "");
-   lmap = LLVMBuildInsertValue(builder, lmap, elems_ptr, 2, "");
-   lmap = LLVMBuildInsertValue(builder, lmap, values_ptr, 3, "");
-   lmap = LLVMBuildInsertValue(builder, lmap, llvm_int32(map.nelems), 4, "");
-
-   vcode_reg_t result = vcode_get_result(op);
-   LLVMValueRef tmp = cgen_scoped_alloca(llvm_image_map(), ctx);
-   LLVMBuildStore(builder, lmap, tmp);
-   ctx->regs[result] = tmp;
-}
-
-static void cgen_op_image(int op, cgen_ctx_t *ctx)
-{
-   vcode_reg_t arg = vcode_get_arg(op, 0);
-   vcode_type_t arg_type = vcode_reg_type(arg);
-   vtype_kind_t arg_kind = vtype_kind(arg_type);
-
-   const bool is_signed = arg_kind == VCODE_TYPE_INT && vtype_low(arg_type) < 0;
-   const bool real = (arg_kind == VCODE_TYPE_REAL);
-
-   LLVMTypeRef alloca_type = NULL;
-   LLVMValueRef image_map;
-   if (vcode_count_args(op) > 1)
-      image_map = cgen_get_arg(op, 1, ctx);
-   else {
-      alloca_type = llvm_image_map();
-      image_map = cgen_scoped_alloca(alloca_type, ctx);
-      llvm_lifetime_start(image_map, alloca_type);
-      LLVMBuildStore(
-         builder,
-         LLVMBuildInsertValue(builder, LLVMGetUndef(alloca_type),
-                              llvm_int32(real ? IMAGE_REAL : IMAGE_INTEGER),
-                              0, ""),
-         image_map);
-   }
-
-   LLVMOpcode cop = real ? LLVMBitCast : (is_signed ? LLVMSExt : LLVMZExt);
-   LLVMTypeRef utype = llvm_uarray_type(LLVMInt8Type(), 1);
-   LLVMValueRef res = cgen_scoped_alloca(utype, ctx);
-   llvm_lifetime_start(res, utype);
-   LLVMValueRef iargs[] = {
-      LLVMBuildCast(builder, cop, ctx->regs[arg], LLVMInt64Type(), ""),
-      image_map,
-      res
-   };
-   LLVMBuildCall(builder, llvm_fn("_image"), iargs, ARRAY_LEN(iargs), "");
-
-   vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildLoad(builder, res, cgen_reg_name(result));
-
-   if (alloca_type != NULL)
-      llvm_lifetime_end(image_map, alloca_type);
-   llvm_lifetime_end(res, utype);
-}
-
 static void cgen_op_cast(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t arg    = vcode_get_arg(op, 0);
@@ -3346,9 +3210,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_BOUNDS:
       cgen_op_bounds(i, ctx);
       break;
-   case VCODE_OP_IMAGE:
-      cgen_op_image(i, ctx);
-      break;
    case VCODE_OP_CAST:
       cgen_op_cast(i, ctx);
       break;
@@ -3540,9 +3401,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_NOR:
       cgen_op_nor(i, ctx);
-      break;
-   case VCODE_OP_IMAGE_MAP:
-      cgen_op_image_map(i, ctx);
       break;
    case VCODE_OP_RANGE_NULL:
       cgen_op_range_null(i, ctx);
@@ -4245,17 +4103,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 5);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
    }
-   else if (strcmp(name, "_image") == 0) {
-      LLVMTypeRef args[] = {
-         LLVMInt64Type(),
-         LLVMPointerType(llvm_image_map(), 0),
-         LLVMPointerType(llvm_uarray_type(LLVMInt8Type(), 1), 0)
-      };
-      fn = LLVMAddFunction(module, "_image",
-                           LLVMFunctionType(LLVMVoidType(),
-                                            args, ARRAY_LEN(args), false));
-      cgen_add_func_attr(fn, FUNC_ATTR_WRITEONLY, 3);
-   }
    else if (strcmp(name, "_debug_out") == 0) {
       LLVMTypeRef args[] = {
          LLVMInt32Type(),
@@ -4515,17 +4362,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       };
       fn = LLVMAddFunction(module, "_convert_signal",
                            LLVMFunctionType(LLVMVoidType(),
-                                            args, ARRAY_LEN(args), false));
-   }
-   else if (strcmp(name, "_value_attr") == 0) {
-      LLVMTypeRef args[] = {
-         llvm_void_ptr(),
-         LLVMInt32Type(),
-         LLVMPointerType(llvm_image_map(), 0),
-         LLVMPointerType(llvm_rt_loc(), 0)
-      };
-      fn = LLVMAddFunction(module, "_value_attr",
-                           LLVMFunctionType(LLVMInt64Type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_private_stack") == 0) {
