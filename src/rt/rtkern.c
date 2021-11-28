@@ -1135,8 +1135,8 @@ void _image(int64_t val, image_map_t *map, uarray_t *u)
 
    switch (map->kind) {
    case IMAGE_INTEGER:
-      buf = rt_tmp_alloc(16);
-      len = checked_sprintf(buf, 16, "%"PRIi64, val);
+      buf = rt_tmp_alloc(20);
+      len = checked_sprintf(buf, 20, "%"PRIi64, val);
       break;
 
    case IMAGE_ENUM:

@@ -1721,7 +1721,7 @@ START_TEST(test_memset)
    lower_unit(e, NULL);
 
    {
-      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 2));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1744,7 +1744,7 @@ START_TEST(test_memset)
    }
 
    {
-      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 2));
+      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 3));
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1892,7 +1892,7 @@ START_TEST(test_record6)
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
-   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 2));
    vcode_select_unit(v0);
 
    fail_unless(vcode_var_flags(0) & VAR_HEAP);
@@ -2114,7 +2114,7 @@ START_TEST(test_issue124)
    EXPECT_BB(0) = {
       { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER(18WORK.PACK.UNSIGNED)I",
         .args = 1},
-      { VCODE_OP_IMAGE },
+      { VCODE_OP_FCALL, .func = "STD.STANDARD.INTEGER$image" },
       { VCODE_OP_RETURN }
    };
 
@@ -2133,9 +2133,8 @@ START_TEST(test_issue135)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_IMAGE },
-      { VCODE_OP_IMAGE_MAP, .name = "STD.STANDARD.TIME" },
-      { VCODE_OP_IMAGE },
+      { VCODE_OP_FCALL, .func = "STD.STANDARD.INTEGER$image" },
+      { VCODE_OP_FCALL, .func = "STD.STANDARD.TIME$image" },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_ADD },
@@ -2199,7 +2198,7 @@ START_TEST(test_issue136)
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
-   vcode_unit_t v0 = find_unit_for(tree_decl(tree_decl(tree_stmt(e, 0), 1), 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_decl(tree_stmt(e, 0), 3), 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -3173,7 +3172,7 @@ START_TEST(test_access1)
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
-   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 1));
+   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 4));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {

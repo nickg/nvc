@@ -490,8 +490,8 @@ START_TEST(test_issue315)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t d2 = tree_decl(tree_stmt(top, 0), 2);
-   fail_unless(icmp(tree_ident(d2), "INFO"));
+   tree_t d2 = search_decls(tree_stmt(top, 0), ident_new("INFO"), 0);
+   fail_if(d2 == NULL);
    fail_unless(tree_kind(tree_value(d2)) == T_AGGREGATE);
 
    fail_if_errors();
@@ -518,7 +518,7 @@ START_TEST(test_issue328)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t d2 = tree_decl(tree_stmt(top, 0), 2);
+   tree_t d2 = tree_decl(tree_stmt(top, 0), 4);
    fail_unless(tree_kind(d2) == T_CONST_DECL);
    fail_unless(icmp(tree_ident(d2), "VEC_RANGE"));
 
@@ -545,7 +545,7 @@ START_TEST(test_issue330)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t d2 = tree_decl(tree_stmt(top, 0), 2);
+   tree_t d2 = tree_decl(tree_stmt(top, 0), 4);
    fail_unless(tree_kind(d2) == T_CONST_DECL);
    fail_unless(icmp(tree_ident(d2), "VEC_RANGE"));
 

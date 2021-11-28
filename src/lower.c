@@ -117,6 +117,7 @@ static int lower_search_vcode_obj(void *key, lower_scope_t *scope, int *hops);
 static void lower_link_signal(tree_t decl, bool from_package);
 static void lower_link_var(tree_t decl);
 static type_t lower_elem_recur(type_t type);
+static void lower_finished(void);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -3585,8 +3586,12 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
    case ATTR_IMAGE:
       {
          tree_t value = tree_value(tree_param(expr, 0));
-         vcode_reg_t map = lower_image_map(tree_type(value));
-         return emit_image(lower_param(value, NULL, PORT_IN), map);
+         type_t base = type_base_recur(tree_type(value));
+         ident_t func = ident_prefix(type_ident(base), ident_new("image"), '$');
+         vcode_type_t ctype = vtype_char();
+         vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+         vcode_reg_t args[] = { lower_param(value, NULL, PORT_IN) };
+         return emit_fcall(func, strtype, strtype, VCODE_CC_VHDL, args, 1);
       }
 
    case ATTR_VALUE:
@@ -5421,6 +5426,120 @@ static void lower_alias_decl(tree_t decl)
    emit_store(lower_wrap(type, data_reg), var);
 }
 
+static void lower_enum_image_helper(type_t type, vcode_reg_t preg)
+{
+   const int nlits = type_enum_literals(type);
+   assert(nlits >= 1);
+
+   vcode_block_t *blocks LOCAL = xmalloc_array(nlits, sizeof(vcode_block_t));
+   vcode_reg_t *cases LOCAL = xmalloc_array(nlits, sizeof(vcode_reg_t));
+
+   vcode_type_t vtype = lower_type(type);
+
+   for (int i = 0; i < nlits; i++) {
+      cases[i]  = emit_const(vtype, i);
+      blocks[i] = emit_block();
+   }
+
+   emit_case(preg, blocks[0], cases, blocks, nlits);
+
+   for (int i = 0; i < nlits; i++) {
+      // LRM specifies result is lowercase for enumerated types when
+      // the value is a basic identifier
+      ident_t id = tree_ident(type_enum_literal(type, i));
+      if (ident_char(id, 0) != '\'')
+         id = ident_downcase(id);
+
+      vcode_select_block(blocks[i]);
+      vcode_reg_t str = lower_wrap_string(istr(id));
+      emit_return(str);
+   }
+}
+
+static void lower_physical_image_helper(type_t type, vcode_reg_t preg)
+{
+   vcode_reg_t num_reg = emit_image(preg, VCODE_INVALID_REG);
+   vcode_reg_t num_len = emit_uarray_len(num_reg, 0);
+
+   const char *unit0 = istr(ident_downcase(tree_ident(type_unit(type, 0))));
+
+   vcode_reg_t append_len = emit_const(vtype_offset(), strlen(unit0) + 1);
+   vcode_reg_t total_len = emit_add(num_len, append_len);
+
+   vcode_type_t ctype = vtype_char();
+   vcode_reg_t mem_reg = emit_alloca(ctype, ctype, total_len);
+   emit_copy(mem_reg, emit_unwrap(num_reg), num_len);
+
+   vcode_reg_t ptr0_reg = emit_add(mem_reg, num_len);
+   emit_store_indirect(emit_const(ctype, ' '), ptr0_reg);
+
+   vcode_reg_t unit_reg = lower_wrap_string(unit0);
+   vcode_reg_t ptr1_reg = emit_add(ptr0_reg, emit_const(vtype_offset(), 1));
+   emit_copy(ptr1_reg, emit_unwrap(unit_reg),
+             emit_const(vtype_offset(), strlen(unit0)));
+
+   vcode_dim_t dims[] = {
+      { .left  = emit_const(vtype_offset(), 1),
+        .right = total_len,
+        .dir   = emit_const(vtype_bool(), RANGE_TO)
+      }
+   };
+   emit_return(emit_wrap(mem_reg, dims, 1));
+}
+
+static void lower_numeric_image_helper(type_t type, vcode_reg_t preg)
+{
+   emit_return(emit_image(preg, VCODE_INVALID_REG));
+}
+
+static void lower_image_helper(tree_t decl)
+{
+   type_t type = tree_type(decl);
+   const type_kind_t kind = type_kind(type);
+
+   if (kind == T_SUBTYPE)
+      return;   // Delegated to base type
+   else if (!type_is_scalar(type))
+      return;
+
+   ident_t func = ident_prefix(type_ident(type), ident_new("image"), '$');
+
+   vcode_unit_t vu = vcode_find_unit(func);
+   if (vu != NULL)
+      return;
+
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   emit_function(func, tree_loc(decl), vcode_active_unit());
+   emit_debug_info(tree_loc(decl));
+
+   vcode_type_t ctype = vtype_char();
+   vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
+   vcode_set_result(strtype);
+
+   vcode_reg_t preg = emit_param(lower_type(type), lower_bounds(type),
+                                 ident_new("VAL"));
+
+   switch (kind) {
+   case T_ENUM:
+      lower_enum_image_helper(type, preg);
+      break;
+   case T_INTEGER:
+   case T_REAL:
+      lower_numeric_image_helper(type, preg);
+      break;
+   case T_PHYSICAL:
+      lower_physical_image_helper(type, preg);
+      break;
+   default:
+      fatal_trace("cannot lower image helper for type %s", type_kind_str(kind));
+   }
+
+   lower_finished();
+   vcode_state_restore(&state);
+}
+
 static void lower_decl(tree_t decl)
 {
    PUSH_DEBUG_INFO(decl);
@@ -5448,6 +5567,9 @@ static void lower_decl(tree_t decl)
       break;
 
    case T_TYPE_DECL:
+      lower_image_helper(decl);
+      break;
+
    case T_FUNC_DECL:
    case T_PROC_DECL:
    case T_ATTR_SPEC:

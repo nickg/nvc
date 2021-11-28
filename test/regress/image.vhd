@@ -24,16 +24,24 @@ use work.p.all;
 
 architecture test of image is
     type enum2 is (C, D);
+    type my_int is range 1 to 4;
+    type my_phys is range 1 to 100
+        units
+            UNIT_1;
+            UNIT_2 = 10 UNIT_1;
+        end units;
 begin
 
     process is
         variable i : integer;
+        variable j : my_int;
         variable e1 : enum1;
         variable e2 : enum2;
     begin
         report integer'image(4);
         report integer'image(-42);
         i := 73;
+        j := 3;
         report integer'image(i);
         report "i=" & integer'image(i) & " units";
         report character'image('c');
@@ -46,6 +54,8 @@ begin
         report enum1'image(e1);
         report enum2'image(e2);
         print_enum1(e1);
+        report my_int'image(j);
+        report my_phys'image(2 UNIT_2);
         wait;
     end process;
 

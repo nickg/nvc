@@ -494,8 +494,8 @@ START_TEST(test_issue331)
 
    tree_t test_ng = tree_stmt(top, 0);
 
-   fail_unless(tree_decls(test_ng) == 4);
-   tree_t d2 = tree_decl(test_ng, 2);
+   fail_unless(tree_decls(test_ng) == 6);
+   tree_t d2 = tree_decl(test_ng, 4);
    fail_unless(tree_ident(d2) == ident_new("VEC_RANGE"));
    tree_t agg = tree_value(d2);
    fail_unless(tree_kind(agg) == T_AGGREGATE);
@@ -878,7 +878,7 @@ START_TEST(test_static1)
    fail_unless(tree_ident(addr_p) == ident_new("ADDR"));
    fail_unless(folded_i(tree_left(range_of(tree_type(addr_p), 0)), 9));
 
-   tree_t addr_r = tree_decl(uut, 1);
+   tree_t addr_r = tree_decl(uut, 2);
    fail_unless(tree_kind(addr_r) == T_SIGNAL_DECL);
    fail_unless(tree_ident(addr_r) == ident_new("ADDR_R"));
    fail_unless(folded_i(tree_left(range_of(tree_type(addr_r), 0)), 9));

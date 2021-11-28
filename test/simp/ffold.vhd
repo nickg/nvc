@@ -288,7 +288,7 @@ begin
         signal s15 : boolean := get_string(5) = "5";
         signal s16 : boolean := get_string(2.5) = "2.5";
         signal s17 : boolean := get_string('F') = "'F'";
-        signal s18 : boolean := get_string(1 fs) = "1 FS";
+        signal s18 : boolean := get_string(1 fs) = "1 fs";
         signal s19 : integer := needs_heap(40);
         signal s20 : integer := sum_left_right("101010");
         signal s21 : integer := call_proc(1);
