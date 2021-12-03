@@ -4409,8 +4409,10 @@ static void cgen_link_arg(const char *fmt, ...)
 }
 
 #ifdef IMPLIB_REQUIRED
-static void cgen_find_dll_deps(ident_t unit_name, ident_list_t **deps)
+static void cgen_find_dll_deps(ident_t unit_name, void *__ctx)
 {
+   ident_list_t **deps = __ctx;
+
    tree_t unit = lib_get_qualified(unit_name);
    if (unit == NULL)
       return;
@@ -4441,14 +4443,7 @@ static void cgen_find_dll_deps(ident_t unit_name, ident_list_t **deps)
       break;
    }
 
-   const int ncontext = tree_contexts(unit);
-   for (int i = 0; i < ncontext; i++) {
-      tree_t c = tree_context(unit, i);
-      if (tree_kind(c) != T_USE)
-         continue;
-
-      cgen_find_dll_deps(tree_ident(c), deps);
-   }
+   tree_walk_deps(unit, cgen_find_dll_deps, deps);
 }
 #endif  // IMPLIB_REQUIRED
 

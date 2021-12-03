@@ -110,10 +110,13 @@ void range_bounds(tree_t r, int64_t *low, int64_t *high)
 
 tree_t call_builtin(subprogram_kind_t builtin, type_t type, ...)
 {
+   extern object_arena_t *global_arena;
+
    struct decl_cache {
       struct decl_cache *next;
-      subprogram_kind_t bname;
-      tree_t  decl;
+      subprogram_kind_t  bname;
+      tree_t             decl;
+      object_arena_t    *arena;
    };
 
    char *name LOCAL = xasprintf("NVC.BUILTIN.%d", builtin);
@@ -125,30 +128,35 @@ tree_t call_builtin(subprogram_kind_t builtin, type_t type, ...)
    ident_t name_i = ident_new(name);
 
    struct decl_cache *it;
-   tree_t decl = NULL;
    for (it = cache; it != NULL; it = it->next) {
-      if (it->bname == builtin) {
-         decl = it->decl;
+      if (it->bname == builtin)
          break;
-      }
    }
 
-   if (decl == NULL) {
+   tree_t decl;
+   if (it != NULL && it->arena == global_arena)
+      decl = it->decl;
+   else {
       decl = tree_new(T_FUNC_DECL);
       tree_set_ident(decl, name_i);
       tree_set_subkind(decl, builtin);
    }
 
-   struct decl_cache *c = xmalloc(sizeof(struct decl_cache));
-   c->next  = cache;
-   c->bname = builtin;
-   c->decl  = decl;
+   if (it == NULL) {
+      struct decl_cache *c = xmalloc(sizeof(struct decl_cache));
+      c->next  = cache;
+      c->bname = builtin;
+      c->decl  = decl;
+      c->arena = global_arena;
 
-   // XXX: this is horrible
-   extern void object_add_global_root(object_t **object);
-   object_add_global_root((object_t **)&(c->decl));
+      // XXX: this is horrible
+      extern void object_add_global_root(object_t **object);
+      object_add_global_root((object_t **)&(c->decl));
 
-   cache = c;
+      cache = c;
+   }
+   else
+      it->decl = decl;
 
    tree_t call = tree_new(T_FCALL);
    tree_set_ident(call, name_i);
@@ -1133,20 +1141,51 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
    }
 }
 
-type_t std_type(tree_t standard, const char *name)
+type_t std_type(tree_t std, std_type_t which)
 {
-   if (standard == NULL) {
-      lib_t std = lib_find(std_i, true);
-      standard = lib_get(std, std_standard_i);
+   static type_t cache[STD_SEVERITY_LEVEL + 1] = {};
+   assert(which < ARRAY_LEN(cache));
+
+   if (cache[which] == NULL) {
+      static tree_t standard_cache[STD_08 + 1] = {};
+
+      if (std == NULL) {
+         const vhdl_standard_t curr = standard();
+         assert(curr < ARRAY_LEN(standard_cache));
+
+         if (standard_cache[curr] == NULL) {
+            lib_t std = lib_find(std_i, true);
+            standard_cache[curr] = lib_get(std, std_standard_i);
+            assert(standard_cache[curr] != NULL);
+         }
+
+         std = standard_cache[curr];
+      }
+
+      const char *names[] = {
+         "universal_integer",
+         "universal_real",
+         "INTEGER",
+         "REAL",
+         "BOOLEAN",
+         "STRING",
+         "TIME",
+         "BIT",
+         "FILE_OPEN_KIND",
+         "FILE_OPEN_STATUS",
+         "NATURAL",
+         "BIT_VECTOR",
+         "SEVERITY_LEVEL",
+      };
+
+      tree_t d = search_decls(std, ident_new(names[which]), 0);
+      if (d == NULL)
+         fatal_trace("cannot find standard type %s", names[which]);
+
+      return (cache[which] = tree_type(d));
    }
    else
-      assert(tree_kind(standard) == T_PACKAGE);
-
-   tree_t d = search_decls(standard, ident_new(name), 0);
-   if (d != NULL)
-      return tree_type(d);
-
-   fatal("cannot find standard type %s", name);
+      return cache[which];
 }
 
 bool is_builtin(subprogram_kind_t kind)

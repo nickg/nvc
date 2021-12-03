@@ -145,7 +145,7 @@ START_TEST(test_scope)
       { 160, "no visible subprogram declaration for FUNC2" },
       { 167, "object NOT_HERE not found in unit WORK.PACK5" },
       { 189, "no visible declaration for MY_INT1" },
-      { 236, "missing library clause for FOO" },
+      { 236, "no visible declaration for FOO" },
       { 306, "name X not found in L1" },
       { -1, NULL }
    };

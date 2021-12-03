@@ -871,6 +871,14 @@ void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context)
       (*fn)(lib, it->name, it->kind, context);
 }
 
+void lib_for_all(lib_walk_fn_t fn, void *ctx)
+{
+   for (lib_list_t *it = loaded; it != NULL; it = it->next) {
+      if (!(*fn)(it->item, ctx))
+         break;
+   }
+}
+
 unsigned lib_index_size(lib_t lib)
 {
    assert(lib != NULL);

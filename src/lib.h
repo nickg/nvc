@@ -49,6 +49,9 @@ bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt);
 void lib_add_map(const char *name, const char *path);
 void lib_delete(lib_t lib, const char *name);
 
+typedef bool (*lib_walk_fn_t)(lib_t, void *);
+void lib_for_all(lib_walk_fn_t fn, void *ctx);
+
 lib_t lib_work(void);
 void lib_set_work(lib_t lib);
 

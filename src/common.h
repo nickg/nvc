@@ -61,7 +61,6 @@ bool package_needs_body(tree_t pack);
 bool is_subprogram(tree_t t);
 bool is_container(tree_t t);
 tree_t search_decls(tree_t container, ident_t name, int nth);
-type_t std_type(tree_t standard, const char *name);
 bool is_builtin(subprogram_kind_t kind);
 tree_t find_mangled_decl(tree_t container, ident_t name);
 tree_t name_to_ref(tree_t name);
@@ -94,6 +93,28 @@ typedef enum {
 vhdl_standard_t standard(void);
 void set_standard(vhdl_standard_t s);
 const char *standard_text(vhdl_standard_t s);
+
+//
+// Standard types
+//
+
+typedef enum {
+   STD_UNIVERSAL_INTEGER,
+   STD_UNIVERSAL_REAL,
+   STD_INTEGER,
+   STD_REAL,
+   STD_BOOLEAN,
+   STD_STRING,
+   STD_TIME,
+   STD_BIT,
+   STD_FILE_OPEN_KIND,
+   STD_FILE_OPEN_STATUS,
+   STD_NATURAL,
+   STD_BIT_VECTOR,
+   STD_SEVERITY_LEVEL,
+} std_type_t;
+
+type_t std_type(tree_t std, std_type_t which);
 
 //
 // Disable some pedantic rule checks

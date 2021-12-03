@@ -634,34 +634,41 @@ static void eopt_package(tree_t pack, e_node_t cursor)
    }
 }
 
-static void eopt_context(tree_t unit)
+static void eopt_deps_cb(ident_t name, void *__ctx)
 {
-   const int nctx = tree_contexts(unit);
-   for (int i = 0; i < nctx; i++) {
-      tree_t c = tree_context(unit, i);
-      if (tree_kind(c) != T_USE)
-         continue;
+   ident_t exclude = __ctx;
+   if (name == exclude)
+      return;
 
-      ident_t name = tree_ident(c);
-      bool have = false;
-      const int ndeps = e_deps(root);
-      for (int i = 0; !have && i < ndeps; i++) {
-         if (e_dep(root, i) == name)
-            have = true;
+   const int ndeps = e_deps(root);
+   for (int i = 0; i < ndeps; i++) {
+      if (e_dep(root, i) == name)
+         return;
+   }
+
+   tree_t unit = lib_get_qualified(name);
+   if (unit == NULL)
+      fatal_trace("cannot find unit %s", istr(name));
+
+   tree_walk_deps(unit, eopt_deps_cb, NULL);
+
+   switch (tree_kind(unit)) {
+   case T_PACKAGE:
+      {
+         ident_t body_i = ident_prefix(name, ident_new("body"), '-');
+         tree_t body = lib_get_qualified(body_i);
+         if (body != NULL)
+            tree_walk_deps(body, eopt_deps_cb, name);
+
+         e_add_dep(root, name);
+         eopt_package(unit, root);
       }
-
-      if (have) continue;
-
+      break;
+   case T_PACK_BODY:
+      break;    // Dependency tracked from package header
+   default:
       e_add_dep(root, name);
-
-      tree_t dep = lib_get_qualified(name);
-      if (dep == NULL)
-         fatal_at(tree_loc(c), "cannot find unit %s", istr(name));
-
-      if (tree_kind(dep) == T_PACKAGE) {
-         eopt_context(dep);
-         eopt_package(dep, root);
-      }
+      break;
    }
 }
 
@@ -850,7 +857,8 @@ e_node_t eopt_build(tree_t elab)
 
    cprop_vars = cprop_vars_new();
 
-   eopt_context(elab);
+   tree_walk_deps(elab, eopt_deps_cb, NULL);
+
    eopt_stmts(elab, e);
    eopt_post_process_nexus(e);
    eopt_post_process_scopes(e);

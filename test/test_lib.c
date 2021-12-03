@@ -35,6 +35,37 @@ static void teardown(void)
    }
 }
 
+static type_t my_int_type(void)
+{
+   static type_t type = NULL;
+
+   if (type == NULL) {
+      tree_t min = tree_new(T_LITERAL);
+      tree_set_subkind(min, L_INT);
+      tree_set_ival(min, INT64_MIN);
+
+      tree_t max = tree_new(T_LITERAL);
+      tree_set_subkind(max, L_INT);
+      tree_set_ival(max, INT64_MAX);
+
+      type = type_new(T_INTEGER);
+      type_set_ident(type, ident_new("my_int_type"));
+
+      tree_t r = tree_new(T_RANGE);
+      tree_set_subkind(r, RANGE_TO);
+      tree_set_left(r, min);
+      tree_set_right(r, max);
+      tree_set_type(r, type);
+
+      type_add_dim(type, r);
+
+      tree_set_type(min, type);
+      tree_set_type(max, type);
+   }
+
+   return type;
+}
+
 static tree_t str_to_agg(const char *p, const char *end)
 {
    tree_t t = tree_new(T_AGGREGATE);
@@ -65,7 +96,7 @@ static tree_t str_to_agg(const char *p, const char *end)
 
    type_t type = type_new(T_CARRAY);
    type_set_ident(type, ident_new("string"));
-   type_set_elem(type, type_universal_int());
+   type_set_elem(type, my_int_type());
    tree_t r = tree_new(T_RANGE);
    tree_set_subkind(r, RANGE_DOWNTO);
    tree_set_left(r, left);
@@ -129,7 +160,7 @@ START_TEST(test_lib_save)
       tree_t p1 = tree_new(T_PORT_DECL);
       tree_set_ident(p1, ident_new("foo"));
       tree_set_subkind(p1, PORT_OUT);
-      tree_set_type(p1, type_universal_int());
+      tree_set_type(p1, my_int_type());
       tree_add_port(ent, p1);
 
       tree_t p2 = tree_new(T_PORT_DECL);

@@ -260,4 +260,8 @@ void object_arena_freeze(object_arena_t *arena);
 
 void object_add_global_root(object_t **object);
 
+typedef void (*object_arena_deps_fn_t)(ident_t, void *);
+void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
+                            void *context);
+
 #endif   // _OBJECT_H

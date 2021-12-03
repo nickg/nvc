@@ -70,8 +70,6 @@ begin
     end process;
 end MODEL;
 
-library ieee;
-use     ieee.std_logic_1164.all;
 library WORK;
 use     WORK.SYNC.all;
 entity  TEST_NG is

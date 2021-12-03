@@ -215,7 +215,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_POS | I_NAME | I_RANGES | I_SUBKIND),
 
    // T_USE
-   (I_IDENT | I_IDENT2),
+   (I_IDENT | I_IDENT2 | I_REF),
 
    // T_HIER
    (I_IDENT | I_SUBKIND | I_IDENT2),
@@ -1165,4 +1165,9 @@ void make_new_arena(void)
 object_arena_t *tree_arena(tree_t t)
 {
    return object_arena(&(t->object));
+}
+
+void tree_walk_deps(tree_t t, tree_deps_fn_t fn, void *ctx)
+{
+   object_arena_walk_deps(object_arena(&(t->object)), fn, ctx);
 }

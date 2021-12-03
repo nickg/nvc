@@ -892,7 +892,7 @@ START_TEST(test_issue427)
    e_node_t e = run_eopt();
 
    fail_unless(e_nexuses(e) == 7);
-   fail_unless(e_scopes(e) == 4);
+   fail_unless(e_scopes(e) == 3);
 
    e_node_t n0 = e_nexus(e, 0);
    fail_unless(e_ident(n0) == ident_new(":test_ng:sync"));
@@ -903,7 +903,7 @@ START_TEST(test_issue427)
    fail_unless(e_ident(e_nexus(n0p0, 0)) ==
                ident_new(":test_ng:plug(1):driver:sync"));
 
-   e_node_t top = e_scope(e, 3);
+   e_node_t top = e_scope(e, 2);
    fail_unless(e_instance(top) == ident_new(":test_ng(model)"));
    fail_unless(e_signals(top) == 3);
 

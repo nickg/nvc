@@ -301,78 +301,15 @@ void type_set_elem(type_t t, type_t e)
    object_write_barrier(&(t->object), &(e->object));
 }
 
-static type_t type_make_universal(type_kind_t kind, const char *name,
-                                  tree_t min, tree_t max)
-{
-   type_t t = type_new(kind);
-   type_set_ident(t, ident_new(name));
-
-   tree_t r = tree_new(T_RANGE);
-   tree_set_subkind(r, RANGE_TO);
-   tree_set_left(r, min);
-   tree_set_right(r, max);
-   tree_set_type(r, t);
-
-   type_add_dim(t, r);
-
-   tree_set_type(min, t);
-   tree_set_type(max, t);
-
-   return t;
-}
-
-type_t type_universal_int(void)
-{
-   static type_t t = NULL;
-
-   if (t == NULL) {
-      tree_t min = tree_new(T_LITERAL);
-      tree_set_subkind(min, L_INT);
-      tree_set_ival(min, INT64_MIN);
-
-      tree_t max = tree_new(T_LITERAL);
-      tree_set_subkind(max, L_INT);
-      tree_set_ival(max, INT64_MAX);
-
-      t = type_make_universal(T_INTEGER, "universal_integer", min, max);
-
-      object_add_global_root((object_t **)&t);
-   }
-
-   return t;
-}
-
-type_t type_universal_real(void)
-{
-   static type_t t = NULL;
-
-   if (t == NULL) {
-      tree_t min = tree_new(T_LITERAL);
-      tree_set_subkind(min, L_REAL);
-      tree_set_dval(min, DBL_MIN);
-
-      tree_t max = tree_new(T_LITERAL);
-      tree_set_subkind(max, L_REAL);
-      tree_set_dval(max, DBL_MAX);
-
-      t = type_make_universal(T_REAL, "universal_real", min, max);
-
-      object_add_global_root((object_t **)&t);
-   }
-
-   return t;
-}
-
 bool type_is_universal(type_t t)
 {
    assert(t != NULL);
 
-   item_t *item = lookup_item(&type_object, t, I_IDENT);
    switch (t->object.kind) {
    case T_INTEGER:
-      return item->ident == type_ident(type_universal_int());
+      return t == std_type(NULL, STD_UNIVERSAL_INTEGER);
    case T_REAL:
-      return item->ident == type_ident(type_universal_real());
+      return t == std_type(NULL, STD_UNIVERSAL_REAL);
    default:
       return false;
    }

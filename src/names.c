@@ -1122,70 +1122,61 @@ static void insert_lib_unit(lib_t lib, ident_t name, int kind, void *context)
 void insert_names_from_use(nametab_t *tab, tree_t use)
 {
    assert(tree_kind(use) == T_USE);
+   assert(tree_has_ref(use));
 
+   tree_t unit = tree_ref(use);
    ident_t unit_name = tree_ident(use);
-   ident_t lib_name  = ident_until(unit_name, '.');
 
-   tree_t lib_def = scope_find(tab->top_scope, lib_name, NULL, NULL, 0);
-   if (lib_def == (tree_t)-1)
-      return;
-   else if (lib_def == NULL) {
-      error_at(tree_loc(use), "missing library clause for %s", istr(lib_name));
-      return;
-   }
-   else if (tree_kind(lib_def) != T_LIBRARY) {
-      error_at(tree_loc(use), "%s is not a library", istr(lib_name));
-      return;
-   }
+   const bool lib_import = tree_kind(unit) == T_LIBRARY;
 
-   lib_t lib = lib_find(lib_name, true);
-
-   if (lib_name == unit_name) {
-      lib_walk_index(lib, insert_lib_unit, tab);
-   }
-   else {
-      tree_t unit = lib_get_check_stale(lib, unit_name);
-      if (unit == NULL) {
+   if (lib_import) {
+      ident_t lib_name = tree_ident(unit);
+      lib_t lib = lib_find(lib_name, true);
+      if (lib_name == unit_name) {
+         lib_walk_index(lib, insert_lib_unit, tab);
+         return;
+      }
+      else if ((unit = lib_get_check_stale(lib, unit_name)) == NULL) {
          error_at(tree_loc(use), "unit %s not found in library %s",
                   istr(unit_name), istr(ident_until(unit_name, '.')));
          return;
       }
+   }
 
-      ident_t tag = unit_name;
-      if (tree_has_ident2(use))
-         tag = ident_prefix(tag, tree_ident2(use), '.');
+   ident_t tag = unit_name;
+   if (tree_has_ident2(use))
+      tag = ident_prefix(tag, tree_ident2(use), '.');
 
-      if (already_imported(tab, tag))
-         return;
+   if (already_imported(tab, tag))
+      return;
 
-      if (tree_has_ident2(use)) {
-         ident_t what = tree_ident2(use);
-         scope_t *s = chain_scope(tab, tag);
-         if (what == all_i) {
-            int ndecls = tree_decls(unit);
-            for (int i = 0; i < ndecls; i++) {
-               tree_t d = tree_decl(unit, i);
-               insert_name_at(s, tree_ident(d), d);
-            }
-         }
-         else {
-            int nth = 0;
-            tree_t decl;
-            while ((decl = search_decls(unit, what, nth++)))
-               insert_name_at(s, tree_ident(decl), decl);
-
-            if (nth == 1) {
-               error_at(tree_loc(use), "object %s not found in unit %s",
-                        istr(what), istr(tree_ident(unit)));
-            }
+   if (tree_has_ident2(use)) {
+      ident_t what = tree_ident2(use);
+      scope_t *s = chain_scope(tab, tag);
+      if (what == all_i) {
+         int ndecls = tree_decls(unit);
+         for (int i = 0; i < ndecls; i++) {
+            tree_t d = tree_decl(unit, i);
+            insert_name_at(s, tree_ident(d), d);
          }
       }
+      else {
+         int nth = 0;
+         tree_t decl;
+         while ((decl = search_decls(unit, what, nth++)))
+            insert_name_at(s, tree_ident(decl), decl);
 
-      if (unit_name == tag || !already_imported(tab, unit_name)) {
-         ident_t bare_name = ident_rfrom(unit_name, '.');
-         scope_t *s = chain_scope(tab, unit_name);
-         insert_name_at(s, bare_name, unit);
+         if (nth == 1) {
+            error_at(tree_loc(use), "object %s not found in unit %s",
+                     istr(what), istr(tree_ident(unit)));
+         }
       }
+   }
+
+   if (lib_import && (unit_name == tag || !already_imported(tab, unit_name))) {
+      scope_t *s = chain_scope(tab, unit_name);
+      ident_t bare_name = ident_rfrom(unit_name, '.');
+      insert_name_at(s, bare_name, unit);
    }
 }
 
@@ -2539,7 +2530,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
          type_set_add(tab, prefix_type);
          break;
       case ATTR_VALUE:
-         type_set_add(tab, std_type(find_std(tab), "STRING"));
+         type_set_add(tab, std_type(NULL, STD_STRING));
          break;
       }
 
@@ -2550,7 +2541,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    type_t type = NULL;
    switch (tree_subkind(aref)) {
    case ATTR_LENGTH:
-      type = std_type(find_std(tab), "INTEGER");
+      type = std_type(NULL, STD_INTEGER);
       break;
 
    case ATTR_LEFT:
@@ -2575,7 +2566,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
 
    case ATTR_LAST_EVENT:
    case ATTR_LAST_ACTIVE:
-      type = std_type(find_std(tab), "TIME");
+      type = std_type(NULL, STD_TIME);
       break;
 
    case ATTR_ASCENDING:
@@ -2584,7 +2575,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    case ATTR_STABLE:
    case ATTR_QUIET:
    case ATTR_DRIVING:
-      type = std_type(find_std(tab), "BOOLEAN");
+      type = std_type(NULL, STD_BOOLEAN);
       break;
 
    case ATTR_LEFTOF:
@@ -2603,15 +2594,15 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    case ATTR_INSTANCE_NAME:
    case ATTR_SIMPLE_NAME:
    case ATTR_IMAGE:
-      type = std_type(find_std(tab), "STRING");
+      type = std_type(NULL, STD_STRING);
       break;
 
    case ATTR_TRANSACTION:
-      type = std_type(find_std(tab), "BIT");
+      type = std_type(NULL, STD_BIT);
       break;
 
    case ATTR_POS:
-      type = type_universal_int();
+      type = std_type(NULL, STD_UNIVERSAL_INTEGER);
       break;
 
    case ATTR_BASE:

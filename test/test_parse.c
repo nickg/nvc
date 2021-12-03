@@ -3246,7 +3246,7 @@ START_TEST(test_names)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
 
-   type_t std_int = std_type(NULL, "INTEGER");
+   type_t std_int = std_type(NULL, STD_INTEGER);
 
    tree_t p = tree_stmt(a, 0);
    tree_t s = tree_stmt(p, 0);
@@ -3258,7 +3258,7 @@ START_TEST(test_names)
    fail_unless(tree_loc(d)->first_line == 5);
    t = tree_value(tree_param(t, 0));
    fail_unless(tree_kind(t) == T_LITERAL);
-   fail_unless(type_eq(tree_type(t), type_universal_int()));
+   fail_unless(type_eq(tree_type(t), std_type(NULL, STD_UNIVERSAL_INTEGER)));
 
    p = tree_stmt(a, 4);
    d = search_decls(p, ident_new("TABLE"), 0);

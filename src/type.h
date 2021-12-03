@@ -113,10 +113,6 @@ tree_t type_resolution(type_t t);
 const char *type_pp(type_t t);
 const char *type_pp2(type_t t, type_t other);
 
-// Predefined types
-type_t type_universal_int(void);
-type_t type_universal_real(void);
-
 // Type predicates that recurse to base of subtypes
 bool type_is_array(type_t t);
 bool type_is_record(type_t t);

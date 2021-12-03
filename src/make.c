@@ -56,6 +56,8 @@ struct rule {
 
 static hash_t *rule_map = NULL;
 
+static void make_rule(tree_t t, rule_t **rules);
+
 static lib_t make_get_lib(ident_t name)
 {
    return lib_find(ident_until(name, '.'), true);
@@ -189,6 +191,24 @@ static char *make_elab_name(tree_t t)
    return name;
 }
 
+static void make_add_inputs_cb(ident_t name, void *__ctx)
+{
+   rule_t *r = __ctx;
+
+   tree_t unit = lib_get_qualified(name);
+   if (unit != NULL)
+      make_rule_add_input(r, make_product(unit, MAKE_TREE));
+}
+
+static void make_dep_rules_cb(ident_t name, void *__ctx)
+{
+   rule_t **rules = __ctx;
+
+   tree_t unit = lib_get_qualified(name);
+   if (unit != NULL)
+      make_rule(unit, rules);
+}
+
 static void make_rule(tree_t t, rule_t **rules)
 {
    if (hash_get(rule_map, t))
@@ -240,49 +260,12 @@ static void make_rule(tree_t t, rule_t **rules)
       fatal("cannot get products for %s", tree_kind_str(tree_kind(t)));
    }
 
-   const int nctx = tree_contexts(t);
-   tree_t *deps = xmalloc_array(nctx, sizeof(tree_t));
-
-   const bool deps_only = opt_get_int("make-deps-only");
-
-   for (int i = 0; i < nctx; i++) {
-      tree_t c = tree_context(t, i);
-      if (tree_kind(c) != T_USE) {
-         deps[i] = NULL;
-         continue;
-      }
-
-      ident_t name = tree_ident(c);
-      lib_t lib = make_get_lib(name);
-
-      deps[i] = lib_get(lib, name);
-      if (deps[i] == NULL) {
-         warnf("cannot find unit %s", istr(name));
-         continue;
-      }
-
-      make_rule_add_input(r, make_product(deps[i], MAKE_TREE));
-
-      if ((lib != work) && deps_only)
-         deps[i] = NULL;
-   }
-
-   lib_t std = lib_find(std_i, false);
-   if (std != NULL) {
-      tree_t standard = lib_get(std, std_standard_i);
-      if (standard)
-         make_rule_add_input(r, make_product(standard, MAKE_TREE));
-   }
+   tree_walk_deps(t, make_add_inputs_cb, r);
 
    if (tree_kind(t) == T_ARCH)
       tree_visit_only(t, make_instance_deps, r, T_INSTANCE);
 
-   for (int i = 0; i < nctx; i++) {
-      if (deps[i] != NULL)
-         make_rule(deps[i], rules);
-   }
-
-   free(deps);
+   tree_walk_deps(t, make_dep_rules_cb, rules);
 }
 
 static void make_header(tree_t *targets, int count, FILE *out)

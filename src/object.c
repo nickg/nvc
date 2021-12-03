@@ -811,13 +811,13 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
       arena_key_t dkey = read_u16(f);
       ident_t dep = ident_read(ident_ctx);
 
-      object_arena_t *arena = NULL;
-      for (unsigned j = 1; arena == NULL && j < all_arenas.count; j++) {
+      object_arena_t *a = NULL;
+      for (unsigned j = 1; a == NULL && j < all_arenas.count; j++) {
          if (dep == object_arena_name(all_arenas.items[j]))
-            arena = all_arenas.items[j];
+            a = all_arenas.items[j];
       }
 
-      if (arena == NULL) {
+      if (a == NULL) {
          object_t *droot = NULL;
          if (loader_fn) droot = (*loader_fn)(dep);
 
@@ -825,13 +825,13 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
             fatal("%s depends on %s which cannot be found",
 		  fbuf_file_name(f), istr(dep));
 
-         arena = __object_arena(droot);
+         a = __object_arena(droot);
       }
 
-      APUSH(arena->deps, arena);
+      APUSH(arena->deps, a);
 
       assert(dkey <= max_key);
-      key_map[dkey] = arena->key;
+      key_map[dkey] = a->key;
    }
 
    for (;;) {
@@ -1107,6 +1107,13 @@ void check_frozen_object_fault(void *addr)
 void object_add_global_root(object_t **object)
 {
    APUSH(global_roots, object);
+}
+
+void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
+                            void *context)
+{
+   for (unsigned i = 0; i < arena->deps.count; i++)
+      (*fn)(object_arena_name(arena->deps.items[i]), context);
 }
 
 #if __SANITIZE_ADDRESS__

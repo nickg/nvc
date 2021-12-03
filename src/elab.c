@@ -54,6 +54,7 @@ typedef struct {
 typedef struct {
    lib_t    lib;
    ident_t  name;
+   tree_t   comp;
    tree_t  *tree;
 } lib_search_params_t;
 
@@ -70,7 +71,6 @@ static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
-static void elab_copy_context(tree_t src, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, const elab_ctx_t *ctx);
 static void elab_pop_scope(const elab_ctx_t *ctx);
 
@@ -163,7 +163,7 @@ static tree_t pick_arch(const loc_t *loc, ident_t name, lib_t *new_lib,
    tree_t arch = lib_get_check_stale(lib, search_name);
    if ((arch == NULL) || (tree_kind(arch) != T_ARCH)) {
       arch = NULL;
-      lib_search_params_t params = { lib, search_name, &arch };
+      lib_search_params_t params = { lib, search_name, NULL, &arch };
       lib_walk_index(lib, find_arch, &params);
 
       if (arch == NULL)
@@ -222,121 +222,6 @@ static tree_t rewrite_refs(tree_t t, void *context)
    }
 
    return t;
-}
-
-static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
-{
-   ident_t cname = tree_ident(t);
-   ident_t lname = ident_until(cname, '.');
-
-   lib_t lib = elab_find_lib(lname, ctx);
-
-   tree_t unit = lib_get(lib, cname);
-   if (unit == NULL)
-      fatal_at(tree_loc(t), "cannot find unit %s", istr(cname));
-
-   // Always use real library name rather than WORK alias
-   tree_t new = tree_new(T_USE);
-   tree_set_loc(new, tree_loc(t));
-   tree_set_ident(new, tree_ident(unit));
-   tree_set_ident2(new, all_i);
-
-   if (tree_kind(unit) == T_PACKAGE) {
-      elab_copy_context(unit, ctx);
-
-      ident_t name = tree_ident(unit);
-
-      ident_t body_i = ident_prefix(name, ident_new("body"), '-');
-      tree_t body = lib_get(lib, body_i);
-      if (body != NULL)
-         elab_copy_context(body, ctx);
-
-      tree_add_context(ctx->root, new);
-   }
-   else
-     tree_add_context(ctx->root, new);
-}
-
-static bool elab_have_context(tree_t unit, ident_t name)
-{
-   const int ndest = tree_contexts(unit);
-   for (int i = 0; i < ndest; i++) {
-      tree_t c2 = tree_context(unit, i);
-      if (tree_ident(c2) == name)
-         return true;
-   }
-
-   return false;
-}
-
-static void elab_context_walk_fn(lib_t lib, ident_t name, int kind, void *context)
-{
-   if (kind == T_PACKAGE) {
-      const elab_ctx_t *ctx = (elab_ctx_t *)context;
-
-      if (!elab_have_context(ctx->root, name)) {
-         tree_t c = tree_new(T_USE);
-         tree_set_ident(c, name);
-         tree_set_ident2(c, all_i);
-
-         elab_add_context(c, ctx);
-      }
-   }
-}
-
-static void elab_use_clause(tree_t use, const elab_ctx_t *ctx)
-{
-   ident_t name = tree_ident(use);
-   ident_t lname = ident_until(name, '.');
-
-   elab_ctx_t new_ctx = *ctx;
-   new_ctx.library = elab_find_lib(lname, ctx);
-
-   if (name == lname)
-      lib_walk_index(new_ctx.library, elab_context_walk_fn, &new_ctx);
-   else if (!elab_have_context(ctx->root, name))
-      elab_add_context(use, &new_ctx);
-}
-
-static void elab_copy_context(tree_t src, const elab_ctx_t *ctx)
-{
-   const int nsrc = tree_contexts(src);
-   for (int i = 0; i < nsrc; i++) {
-      tree_t c = tree_context(src, i);
-      switch (tree_kind(c)) {
-      case T_USE:
-         elab_use_clause(c, ctx);
-         break;
-      case T_LIBRARY:
-         if (!elab_have_context(ctx->root, tree_ident(c)))
-            tree_add_context(ctx->root, c);
-         break;
-      default:
-         break;
-      }
-   }
-}
-
-static void elab_pseudo_context(tree_t out, tree_t src)
-{
-   // Add a pseudo use clause for an entity or architecture so the
-   // makefile generator can find the dependencies
-
-   ident_t name = tree_ident(src);
-
-   const int nctx = tree_contexts(out);
-   for (int i = 0; i < nctx; i++) {
-      tree_t c = tree_context(out, i);
-      if (tree_kind(c) != T_USE)
-         continue;
-      else if (tree_ident(c) == name)
-         return;
-   }
-
-   tree_t c = tree_new(T_USE);
-   tree_set_ident(c, name);
-
-   tree_add_context(out, c);
 }
 
 static bool elab_should_copy(tree_t t, void *__ctx)
@@ -476,14 +361,24 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
    return true;
 }
 
-static void find_entity(lib_t lib, ident_t name, int kind, void *context)
+static void elab_find_entity_cb(lib_t lib, ident_t name, int kind, void *__ctx)
 {
-   lib_search_params_t *params = context;
+   lib_search_params_t *params = __ctx;
 
-   if (kind == T_ENTITY) {
-      if (params->name == name)
-         *(params->tree) = lib_get_check_stale(params->lib, name);
-   }
+   if (kind == T_ENTITY && params->name == name)
+      *(params->tree) = lib_get_check_stale(params->lib, name);
+}
+
+static bool elab_synth_binding_cb(lib_t lib, void *__ctx)
+{
+   lib_search_params_t *params = __ctx;
+
+   params->lib  = lib;
+   params->name = ident_prefix(lib_name(lib), tree_ident(params->comp), '.');
+
+   lib_walk_index(lib, elab_find_entity_cb, params);
+
+   return *(params->tree) == NULL;
 }
 
 static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
@@ -497,13 +392,13 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
    ident_t lib_i = ident_until(full_i, '.');
 
    lib_t lib = NULL;
-   bool search_others = true;
+   bool synth_binding = true;
    if (lib_i == full_i) {
       lib    = ctx->library;
       full_i = ident_prefix(lib_name(lib), full_i, '.');
    }
    else {
-      search_others = false;
+      synth_binding = false;
       lib = elab_find_lib(lib_i, ctx);
 
       // Strip out the component package name, if any
@@ -511,32 +406,19 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
    }
 
    tree_t entity = NULL;
-   lib_search_params_t params = { lib, full_i, &entity };
-   lib_walk_index(params.lib, find_entity, &params);
+   lib_search_params_t params = { lib, full_i, comp, &entity };
+   lib_walk_index(params.lib, elab_find_entity_cb, &params);
+
+   if (entity == NULL && synth_binding) {
+      // This is not correct according to the LRM but matches the
+      // behaviour of many synthesis tools
+      lib_for_all(elab_synth_binding_cb, &params);
+   }
 
    if (entity == NULL) {
-      if (search_others) {
-         const int ncontext = tree_contexts(ctx->root);
-         for (int i = 0; entity == NULL && i < ncontext; i++) {
-            tree_t c = tree_context(ctx->root, i);
-
-            if (tree_kind(c) != T_LIBRARY)
-               continue;
-
-            lib_t lib = elab_find_lib(tree_ident(c), ctx);
-            full_i = ident_prefix(lib_name(lib), tree_ident(comp), '.');
-            if (lib != NULL) {
-               lib_search_params_t params = { lib, full_i, &entity };
-               lib_walk_index(params.lib, find_entity, &params);
-            }
-         }
-      }
-
-      if (entity == NULL) {
-         error_at(tree_loc(inst), "cannot find entity for component %s "
-                  "without binding indication", istr(tree_ident(comp)));
-         return NULL;
-      }
+      error_at(tree_loc(inst), "cannot find entity for component %s "
+               "without binding indication", istr(tree_ident(comp)));
+      return NULL;
    }
 
    tree_t arch = elab_copy(pick_arch(tree_loc(comp),
@@ -1017,7 +899,6 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    elab_remangle_subprogram_names(entity, ctx->path);
    elab_push_scope(arch, &new_ctx);
-   elab_copy_context(entity, &new_ctx);
    elab_generics(entity, comp, t, &new_ctx);
    elab_fold_generics(entity, &new_ctx);
    elab_ports(entity, comp, t, &new_ctx);
@@ -1059,9 +940,6 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PROT_BODY:
       case T_TYPE_DECL:
          tree_add_decl(ctx->out, d);
-         break;
-      case T_USE:
-         elab_use_clause(d, ctx);
          break;
       default:
          break;
@@ -1222,11 +1100,8 @@ static void elab_arch(tree_t t, const elab_ctx_t *ctx)
 {
    tree_t entity = tree_primary(t);
    elab_stmts(entity, ctx);
-   elab_copy_context(t, ctx);
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
-   elab_pseudo_context(ctx->root, t);
-   elab_pseudo_context(ctx->root, entity);
 }
 
 static void elab_top_level_ports(tree_t entity, const elab_ctx_t *ctx)
@@ -1350,7 +1225,6 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
 
    elab_push_scope(arch, &new_ctx);
    elab_remangle_subprogram_names(entity, npath);
-   elab_copy_context(entity, &new_ctx);
    elab_top_level_generics(arch, &new_ctx);
    elab_rewrite_later(entity, b, &new_ctx);
    elab_rewrite_later(arch, b, &new_ctx);

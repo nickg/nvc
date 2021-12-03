@@ -34,6 +34,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <float.h>
 
 typedef struct {
    token_t  token;
@@ -730,7 +731,7 @@ static tree_t get_time(int64_t fs, const loc_t *loc)
    tree_set_subkind(lit, L_INT);
    tree_set_ival(lit, fs);
    tree_set_loc(lit, loc);
-   tree_set_type(lit, std_type(find_std(nametab), "TIME"));
+   tree_set_type(lit, std_type(NULL, STD_TIME));
 
    return lit;
 }
@@ -749,7 +750,7 @@ static void set_delay_mechanism(tree_t t, tree_t reject)
    }
    else {
       tree_set_reject(t, reject);
-      solve_types(nametab, reject, std_type(find_std(nametab), "TIME"));
+      solve_types(nametab, reject, std_type(NULL, STD_TIME));
    }
 }
 
@@ -876,6 +877,20 @@ static bool is_bit_or_std_ulogic(type_t type)
    return name == bit_i || name == ulogic_i;
 }
 
+static bool is_bootstrap_universal(tree_t std, type_t type)
+{
+   if (!bootstrapping)
+      return false;
+
+   const type_kind_t kind = type_kind(type);
+   if (kind == T_INTEGER && type == std_type(std, STD_UNIVERSAL_INTEGER))
+      return true;
+   else if (kind == T_REAL && type == std_type(std, STD_UNIVERSAL_REAL))
+      return true;
+
+   return false;
+}
+
 static void declare_predefined_ops(tree_t container, type_t t)
 {
    // Prefined operators are defined in LRM 93 section 7.2
@@ -908,11 +923,10 @@ static void declare_predefined_ops(tree_t container, type_t t)
 
    tree_t std = find_std(nametab);
 
-   type_t std_bool = std_type(std, "BOOLEAN");
+   type_t std_bool = std_type(std, STD_BOOLEAN);
    type_t std_int  = NULL;
    type_t std_real = NULL;
-
-   const bool universal = (bootstrapping && type_is_universal(t));
+   type_t std_uint = NULL;
 
    type_kind_t kind = type_kind(t);
 
@@ -945,7 +959,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
 
             if (type_is_enum(elem) && all_character_literals(elem))
                declare_unary(container, ident_new("TO_STRING"), t,
-                             std_type(std, "STRING"), S_TO_STRING);
+                             std_type(std, STD_STRING), S_TO_STRING);
          }
       }
       break;
@@ -957,8 +971,9 @@ static void declare_predefined_ops(tree_t container, type_t t)
       break;
 
    case T_PHYSICAL:
-      std_int  = std_type(std, "INTEGER");
-      std_real = std_type(std, "REAL");
+      std_int  = std_type(std, STD_INTEGER);
+      std_real = std_type(std, STD_REAL);
+      std_uint = std_type(std, STD_UNIVERSAL_INTEGER);
 
       // Multiplication
       declare_binary(container, mult, t, std_int, t, S_MUL);
@@ -969,7 +984,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
       // Division
       declare_binary(container, div, t, std_int, t, S_DIV);
       declare_binary(container, div, t, std_real, t, S_DIV_PR);
-      declare_binary(container, div, t, t, type_universal_int(), S_DIV);
+      declare_binary(container, div, t, t, std_uint, S_DIV);
 
       // Addition
       declare_binary(container, plus, t, t, t, S_ADD);
@@ -1027,8 +1042,8 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_unary(container, minus, t, t, S_NEGATE);
 
       // Exponentiation
-      if (!universal) {
-         std_int = std_type(std, "INTEGER");
+      if (!is_bootstrap_universal(std, t)) {
+         std_int = std_type(std, STD_INTEGER);
          declare_binary(container, ident_new("\"**\""), t, std_int, t, S_EXP);
       }
 
@@ -1054,7 +1069,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
 
       if (standard() >= STD_08 && !bootstrapping) {
          declare_unary(container, ident_new("TO_STRING"), t,
-                       std_type(std, "STRING"), S_TO_STRING);
+                       std_type(NULL, STD_STRING), S_TO_STRING);
       }
 
       break;
@@ -1064,16 +1079,15 @@ static void declare_predefined_ops(tree_t container, type_t t)
    // that are not valid for regular integer and real types
    // See LRM 93 section 7.5
 
-   if (universal && t == type_universal_real()) {
-      type_t uint  = type_universal_int();
-      type_t ureal = type_universal_real();
+   if (bootstrapping && type_kind(t) == T_REAL && t == std_type(std, STD_UNIVERSAL_REAL)) {
+      type_t uint = std_type(std, STD_UNIVERSAL_INTEGER);
 
       ident_t mult = ident_new("\"*\"");
       ident_t div  = ident_new("\"/\"");
 
-      declare_binary(container, mult, ureal, uint, ureal, S_MUL_RI);
-      declare_binary(container, mult, uint, ureal, ureal, S_MUL_IR);
-      declare_binary(container, div, ureal, uint, ureal, S_DIV_RI);
+      declare_binary(container, mult, t, uint, t, S_MUL_RI);
+      declare_binary(container, mult, uint, t, t, S_MUL_IR);
+      declare_binary(container, div, t, uint, t, S_DIV_RI);
    }
 
    // Matching comparison for BIT and STD_ULOGIC
@@ -1100,7 +1114,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
 
    // Logical operators
 
-   if (bootstrapping && (t == std_bool || t == std_type(std, "BIT"))) {
+   if (bootstrapping && (t == std_bool || t == std_type(std, STD_BIT))) {
       declare_binary(container, ident_new("\"and\""), t, t, t, S_SCALAR_AND);
       declare_binary(container, ident_new("\"or\""), t, t, t, S_SCALAR_OR);
       declare_binary(container, ident_new("\"xor\""), t, t, t, S_SCALAR_XOR);
@@ -1113,11 +1127,11 @@ static void declare_predefined_ops(tree_t container, type_t t)
    bool vec_logical = false;
    if (kind == T_CARRAY || kind == T_UARRAY) {
       type_t base = type_elem(t);
-      vec_logical = (base == std_bool || base == std_type(std, "BIT"));
+      vec_logical = (base == std_bool || base == std_type(NULL, STD_BIT));
    }
 
    if (vec_logical) {
-      std_int = std_type(std, "INTEGER");
+      std_int = std_type(NULL, STD_INTEGER);
 
       ident_t and  = ident_new("\"and\"");
       ident_t or   = ident_new("\"or\"");
@@ -1182,9 +1196,9 @@ static void declare_predefined_ops(tree_t container, type_t t)
          ident_t write_i      = ident_new("WRITE");
          ident_t endfile_i    = ident_new("ENDFILE");
 
-         type_t open_kind   = std_type(std, "FILE_OPEN_KIND");
-         type_t open_status = std_type(std, "FILE_OPEN_STATUS");
-         type_t std_string  = std_type(std, "STRING");
+         type_t open_kind   = std_type(NULL, STD_FILE_OPEN_KIND);
+         type_t open_status = std_type(NULL, STD_FILE_OPEN_STATUS);
+         type_t std_string  = std_type(NULL, STD_STRING);
 
          tree_t file_open1 = builtin_proc(file_open_i, S_FILE_OPEN1);
          add_port(file_open1, "F", t, PORT_INOUT, NULL);
@@ -1214,7 +1228,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
          add_port(read, "F", t, PORT_INOUT, NULL);
          add_port(read, "VALUE", of, PORT_OUT, NULL);
          if (type_is_array(of) && type_is_unconstrained(of))
-            add_port(read, "LENGTH", std_type(std, "NATURAL"), PORT_OUT, NULL);
+            add_port(read, "LENGTH", std_type(NULL, STD_NATURAL), PORT_OUT, NULL);
          insert_name(nametab, read, read_i, 0);
          tree_add_decl(container, read);
 
@@ -1246,7 +1260,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
    if (bootstrapping && standard() >= STD_08) {
       // Special predefined operators only declared in STANDARD
       type_t std_bit = NULL;
-      if (t == std_bool || t == (std_bit = std_type(std, "BIT"))) {
+      if (t == std_bool || t == (std_bit = std_type(NULL, STD_BIT))) {
          tree_t d1 = builtin_fn(ident_new("RISING_EDGE"), std_bool,
                                 S_RISING_EDGE, "S", t, NULL);
          tree_set_class(tree_port(d1, 0), C_SIGNAL);
@@ -1282,11 +1296,11 @@ static void declare_standard_to_string(tree_t unit)
    assert(bootstrapping);
 
    ident_t to_string   = ident_new("TO_STRING");
-   type_t  std_string  = std_type(unit, "STRING");
-   type_t  std_time    = std_type(unit, "TIME");
-   type_t  std_real    = std_type(unit, "REAL");
-   type_t  std_natural = std_type(unit, "NATURAL");
-   type_t  std_bit_vec = std_type(unit, "BIT_VECTOR");
+   type_t  std_string  = std_type(unit, STD_STRING);
+   type_t  std_time    = std_type(unit, STD_TIME);
+   type_t  std_real    = std_type(unit, STD_REAL);
+   type_t  std_natural = std_type(unit, STD_NATURAL);
+   type_t  std_bit_vec = std_type(unit, STD_BIT_VECTOR);
 
    const int ndecls = tree_decls(unit);
    for (int i = 0; i < ndecls; i++) {
@@ -1588,6 +1602,66 @@ static bool is_implicit_block(tree_t t)
       || kind == T_FOR_GENERATE;
 }
 
+static void make_universal_type(tree_t container, type_kind_t kind,
+                                const char *name, tree_t min, tree_t max)
+{
+   assert(bootstrapping);
+   ident_t name_i = ident_new(name);
+
+   type_t type = type_new(kind);
+   type_set_ident(type, name_i);
+
+   tree_t r = tree_new(T_RANGE);
+   tree_set_subkind(r, RANGE_TO);
+   tree_set_left(r, min);
+   tree_set_right(r, max);
+   tree_set_type(r, type);
+
+   type_add_dim(type, r);
+
+   tree_set_type(min, type);
+   tree_set_type(max, type);
+
+   tree_t decl = tree_new(T_TYPE_DECL);
+   tree_set_loc(decl, CURRENT_LOC);
+   tree_set_ident(decl, name_i);
+   tree_set_type(decl, type);
+
+   tree_add_decl(container, decl);
+
+   int dpos = tree_decls(container);
+   declare_predefined_ops(container, type);
+
+   for (; dpos < tree_decls(container); dpos++)
+      tree_set_flag(tree_decl(container, dpos), TREE_F_UNIVERSAL);
+}
+
+static void make_universal_int(tree_t container)
+{
+   tree_t min = tree_new(T_LITERAL);
+   tree_set_subkind(min, L_INT);
+   tree_set_ival(min, INT64_MIN);
+
+   tree_t max = tree_new(T_LITERAL);
+   tree_set_subkind(max, L_INT);
+   tree_set_ival(max, INT64_MAX);
+
+   make_universal_type(container, T_INTEGER, "universal_integer", min, max);
+}
+
+static void make_universal_real(tree_t container)
+{
+   tree_t min = tree_new(T_LITERAL);
+   tree_set_subkind(min, L_REAL);
+   tree_set_dval(min, -DBL_MAX);
+
+   tree_t max = tree_new(T_LITERAL);
+   tree_set_subkind(max, L_REAL);
+   tree_set_dval(max, DBL_MAX);
+
+   make_universal_type(container, T_REAL, "universal_real", min, max);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -1777,8 +1851,6 @@ static void p_use_clause(tree_t unit, add_func_t addf)
 {
    // use selected_name { , selected_name } ;
 
-   // TODO: the structure of this is a hangover from the old Bison parser
-
    BEGIN("use clause");
 
    consume(tUSE);
@@ -1787,6 +1859,7 @@ static void p_use_clause(tree_t unit, add_func_t addf)
       tree_t u = tree_new(T_USE);
 
       ident_t i1 = p_identifier();
+      tree_t head = resolve_name(nametab, CURRENT_LOC, i1);
       consume(tDOT);
 
       switch (peek()) {
@@ -1826,7 +1899,17 @@ static void p_use_clause(tree_t unit, add_func_t addf)
 
       tree_set_loc(u, CURRENT_LOC);
       (*addf)(unit, u);
-      insert_names_from_use(nametab, u);
+
+      if (head != NULL) {
+         const tree_kind_t kind = tree_kind(head);
+         if (kind == T_LIBRARY || (kind == T_PACKAGE && standard() >= STD_08)) {
+            tree_set_ref(u, head);
+            insert_names_from_use(nametab, u);
+         }
+         else
+            parse_error(CURRENT_LOC, "%s is not a library%s", istr(i1),
+                        standard() >= STD_08 ? " or instantiated package" : "");
+      }
    } while (optional(tCOMMA));
 
    consume(tSEMI);
@@ -2062,8 +2145,8 @@ static tree_t p_constrained_discrete_range(type_t index_type)
 
    type_t type = solve_types(nametab, r, index_type);
 
-   if (type_eq(type, type_universal_int()))
-      tree_set_type(r, std_type(find_std(nametab), "INTEGER"));
+   if (type_eq(type, std_type(NULL, STD_UNIVERSAL_INTEGER)))
+      tree_set_type(r, std_type(NULL, STD_INTEGER));
 
    return r;
 }
@@ -2412,16 +2495,8 @@ static tree_t p_selected_name(tree_t prefix)
             tree_set_type(dummy, type_new(T_NONE));
             return dummy;
          }
-
-         // Ensure there is a use clause for this unit
-         // XXX: this is a kludge that should be rethought
-         tree_t use = tree_new(T_USE);
-         tree_set_ident(use, unit_name);
-         tree_set_loc(use, CURRENT_LOC);
-
-         tree_add_context(scope_unit(nametab), use);
-
-         return unit;
+         else
+            return unit;
       }
 
    case T_PACKAGE:
@@ -2795,13 +2870,13 @@ static tree_t p_abstract_literal(void)
    case tINT:
       tree_set_subkind(t, L_INT);
       tree_set_ival(t, last_lval.n);
-      tree_set_type(t, type_universal_int());
+      tree_set_type(t, std_type(NULL, STD_UNIVERSAL_INTEGER));
       break;
 
    case tREAL:
       tree_set_subkind(t, L_REAL);
       tree_set_dval(t, last_lval.d);
-      tree_set_type(t, type_universal_real());
+      tree_set_type(t, std_type(NULL, STD_UNIVERSAL_REAL));
       break;
    }
 
@@ -4206,7 +4281,7 @@ static type_t p_constrained_array_definition(ident_t id)
 
    consume(tLPAREN);
    do {
-      type_t index_type = std_type(find_std(nametab), "INTEGER");
+      type_t index_type = std_type(NULL, STD_INTEGER);
       type_add_dim(t, p_constrained_discrete_range(index_type));
    } while (optional(tCOMMA));
    consume(tRPAREN);
@@ -4440,15 +4515,10 @@ static void p_type_declaration(tree_t container)
       // Insert univeral_integer and universal_real predefined functions
       // before STD.INTEGER and STD.REAL respectively
       if (bootstrapping) {
-         int dpos = tree_decls(container);
-
          if (id == ident_new("INTEGER"))
-            declare_predefined_ops(container, type_universal_int());
+            make_universal_int(container);
          else if (id == ident_new("REAL"))
-            declare_predefined_ops(container, type_universal_real());
-
-         for (; dpos < tree_decls(container); dpos++)
-            tree_set_flag(tree_decl(container, dpos), TREE_F_UNIVERSAL);
+            make_universal_real(container);
       }
 
       tree_t t = tree_new(T_TYPE_DECL);
@@ -4552,7 +4622,7 @@ static tree_t p_condition(void)
 {
    BEGIN("condition");
 
-   type_t boolean = std_type(find_std(nametab), "BOOLEAN");
+   type_t boolean = std_type(NULL, STD_BOOLEAN);
 
    tree_t value = p_expression();
    type_t type = solve_condition(nametab, value, boolean);
@@ -4581,23 +4651,23 @@ static tree_t p_assertion(void)
 
    consume(tASSERT);
 
-   tree_t std = find_std(nametab);
-
    tree_set_value(s, p_condition());
 
    if (optional(tREPORT)) {
       tree_t message = p_expression();
-      solve_types(nametab, message, std_type(std, "STRING"));
+      solve_types(nametab, message, std_type(NULL, STD_STRING));
       tree_set_message(s, message);
    }
 
    tree_t severity;
    if (optional(tSEVERITY))
       severity = p_expression();
-   else
+   else {
+      tree_t std = find_std(nametab);
       severity = make_ref(search_decls(std, ident_new("ERROR"), 0));
+   }
 
-   solve_types(nametab, severity, std_type(std, "SEVERITY_LEVEL"));
+   solve_types(nametab, severity, std_type(NULL, STD_SEVERITY_LEVEL));
    tree_set_severity(s, severity);
 
    tree_set_loc(s, CURRENT_LOC);
@@ -4895,11 +4965,9 @@ static void p_file_open_information(tree_t *mode, tree_t *name)
 
    BEGIN("file open information");
 
-   tree_t std = find_std(nametab);
-
    if (optional(tOPEN)) {
       *mode = p_expression();
-      solve_types(nametab, *mode, std_type(std, "FILE_OPEN_KIND"));
+      solve_types(nametab, *mode, std_type(NULL, STD_FILE_OPEN_KIND));
    }
    else
       *mode = NULL;
@@ -4915,10 +4983,10 @@ static void p_file_open_information(tree_t *mode, tree_t *name)
       }
 
       *name = p_expression();
-      solve_types(nametab, *name, std_type(std, "STRING"));
+      solve_types(nametab, *name, std_type(NULL, STD_STRING));
 
       if (*mode == NULL) {
-         tree_t decl = search_decls(std, mode_name, 0);
+         tree_t decl = search_decls(find_std(nametab), mode_name, 0);
          *mode = make_ref(decl);
       }
    }
@@ -6336,7 +6404,7 @@ static tree_t p_waveform_element(type_t constraint)
    if (optional(tAFTER)) {
       tree_t delay = p_expression();
       tree_set_delay(w, delay);
-      solve_types(nametab, delay, std_type(find_std(nametab), "TIME"));
+      solve_types(nametab, delay, std_type(NULL, STD_TIME));
    }
 
    tree_set_loc(w, CURRENT_LOC);
@@ -6450,7 +6518,7 @@ static void p_timeout_clause(tree_t wait)
 
    tree_t delay = p_expression();
    tree_set_delay(wait, delay);
-   solve_types(nametab, delay, std_type(find_std(nametab), "TIME"));
+   solve_types(nametab, delay, std_type(NULL, STD_TIME));
 }
 
 static tree_t p_wait_statement(ident_t label)
@@ -6502,20 +6570,20 @@ static tree_t p_report_statement(ident_t label)
 
    consume(tREPORT);
 
-   tree_t std = find_std(nametab);
-
    tree_t m = p_expression();
    tree_set_message(t, m);
-   solve_types(nametab, m, std_type(std, "STRING"));
+   solve_types(nametab, m, std_type(NULL, STD_STRING));
 
    tree_t s;
    if (optional(tSEVERITY))
       s = p_expression();
-   else
+   else {
+      tree_t std = find_std(nametab);
       s = make_ref(search_decls(std, ident_new("NOTE"), 0));
+   }
 
    tree_set_severity(t, s);
-   solve_types(nametab, s, std_type(std, "SEVERITY_LEVEL"));
+   solve_types(nametab, s, std_type(NULL, STD_SEVERITY_LEVEL));
 
    consume(tSEMI);
 
@@ -7044,7 +7112,7 @@ static void p_conditional_waveforms(tree_t stmt, type_t constraint)
       if (optional(tWHEN)) {
          tree_t when = p_expression();
          tree_set_value(c, when);
-         solve_types(nametab, when, std_type(find_std(nametab), "BOOLEAN"));
+         solve_types(nametab, when, std_type(NULL, STD_BOOLEAN));
 
          if (!optional(tELSE))
             break;
@@ -7316,7 +7384,7 @@ static tree_t p_generation_scheme(void)
          tree_t g = tree_new(T_IF_GENERATE);
          tree_t expr = p_expression();
          tree_set_value(g, expr);
-         solve_types(nametab, expr, std_type(find_std(nametab), "BOOLEAN"));
+         solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
          return g;
       }
 
@@ -7757,6 +7825,7 @@ static tree_t p_design_unit(void)
       tree_t u = tree_new(T_USE);
       tree_set_ident(u, std_standard_i);
       tree_set_ident2(u, all_i);
+      tree_set_ref(u, std);
 
       tree_add_context(unit, u);
       insert_names_from_use(nametab, u);

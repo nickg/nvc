@@ -1626,9 +1626,10 @@ static bool sem_check_var_assign(tree_t t)
 
 static bool sem_check_waveforms(tree_t t, type_t expect)
 {
-   type_t std_time = std_type(NULL, "TIME");
+   type_t std_time = std_type(NULL, STD_TIME);
 
-   for (unsigned i = 0; i < tree_waveforms(t); i++) {
+   const int nwaves = tree_waveforms(t);
+   for (int i = 0; i < nwaves; i++) {
       tree_t waveform = tree_waveform(t, i);
       tree_t value = tree_value(waveform);
 
@@ -1744,9 +1745,9 @@ static bool sem_check_reject(tree_t t)
    if (!sem_check(t))
       return false;
 
-   type_t std_time = std_type(NULL, "TIME");
-   if (!type_eq(tree_type(t), std_time))
-      sem_error(t, "reject interval must have type TIME");
+   if (!type_eq(tree_type(t), std_type(NULL, STD_TIME)))
+      sem_error(t, "reject interval must have type TIME but have %s",
+                type_pp(tree_type(t)));
 
    return true;
 }
@@ -1780,7 +1781,7 @@ static bool sem_check_cassign(tree_t t)
    if (!sem_check_signal_target(target))
       return false;
 
-   type_t std_bool = std_type(NULL, "BOOLEAN");
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
 
    const int nconds = tree_conds(t);
    for (int i = 0; i < nconds; i++) {
@@ -2167,7 +2168,7 @@ static bool sem_check_pcall(tree_t t)
 static bool sem_check_wait(tree_t t)
 {
    if (tree_has_delay(t)) {
-      type_t std_time = std_type(NULL, "TIME");
+      type_t std_time = std_type(NULL, STD_TIME);
       tree_t delay = tree_delay(t);
 
       if (!sem_check(delay))
@@ -2179,7 +2180,7 @@ static bool sem_check_wait(tree_t t)
    }
 
    if (tree_has_value(t)) {
-      type_t std_bool = std_type(NULL, "BOOLEAN");
+      type_t std_bool = std_type(NULL, STD_BOOLEAN);
       tree_t value = tree_value(t);
 
       if (!sem_check(value))
@@ -2208,9 +2209,9 @@ static bool sem_check_assert(tree_t t)
 {
    // Rules for asserion statements are in LRM 93 section 8.2
 
-   type_t std_bool     = std_type(NULL, "BOOLEAN");
-   type_t std_string   = std_type(NULL, "STRING");
-   type_t std_severity = std_type(NULL, "SEVERITY_LEVEL");
+   type_t std_bool     = std_type(NULL, STD_BOOLEAN);
+   type_t std_string   = std_type(NULL, STD_STRING);
+   type_t std_severity = std_type(NULL, STD_SEVERITY_LEVEL);
 
    tree_t value    = tree_has_value(t) ? tree_value(t) : NULL;
    tree_t severity = tree_severity(t);
@@ -2316,7 +2317,7 @@ static bool sem_check_string_literal(tree_t t)
       // is determined by the number of elements
 
       tree_t left = NULL, right = NULL;
-      type_t std_int = std_type(NULL, "INTEGER");
+      type_t std_int = std_type(NULL, STD_INTEGER);
 
       if (indexk == T_ENUM)
          left = make_ref(type_enum_literal(index_type, 0));
@@ -2523,7 +2524,7 @@ static bool sem_check_array_aggregate(tree_t t)
             right = make_ref(type_enum_literal(index_type, nassocs - 1));
          }
          else {
-            type_t std_int = std_type(NULL, "INTEGER");
+            type_t std_int = std_type(NULL, STD_INTEGER);
             left = tree_left(range_of(index_type, 0));
             right = call_builtin(S_ADD, index_type,
                                  sem_int_lit(std_int, nassocs - 1),
@@ -2981,7 +2982,7 @@ static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max)
 
 static bool sem_check_dimension_attr(tree_t t)
 {
-   if (!sem_check_attr_param(t, std_type(NULL, "INTEGER"), 0, 1))
+   if (!sem_check_attr_param(t, std_type(NULL, STD_INTEGER), 0, 1))
       return false;
 
    if (tree_params(t) > 0) {
@@ -3169,7 +3170,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
          if (!sem_check_valid_implicit_signal(t))
             return false;
 
-         type_t std_time = std_type(NULL, "TIME");
+         type_t std_time = std_type(NULL, STD_TIME);
          if (tree_params(t) > 0) {
             tree_t value = tree_value(tree_param(t, 0));
 
@@ -3209,7 +3210,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
             sem_error(t, "cannot use attribute %s with non-scalar type %s",
                       type_pp(name_type), istr(attr));
 
-         type_t std_string = std_type(NULL, "STRING");
+         type_t std_string = std_type(NULL, STD_STRING);
          type_t arg_type = predef == ATTR_IMAGE ? name_type : std_string;
          if (!sem_check_attr_param(t, arg_type, 1, 1))
             return false;
@@ -3233,7 +3234,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
             sem_error(t, "prefix of attribute %s must be a discrete or "
                       "physical type", istr(attr));
 
-         type_t std_int = std_type(NULL, "INTEGER");
+         type_t std_int = std_type(NULL, STD_INTEGER);
          type_t arg_type = predef == ATTR_VAL ? std_int : name_type;
 
          if (!sem_check_attr_param(t, arg_type, 1, 1))
@@ -3603,7 +3604,7 @@ static bool sem_check_instance(tree_t t)
 
 static bool sem_check_if(tree_t t)
 {
-   type_t std_bool = std_type(NULL, "BOOLEAN");
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
 
    tree_t value = tree_value(t);
    if (!sem_check(value))
@@ -3678,10 +3679,8 @@ static bool sem_locally_static(tree_t t)
 
    // Any literal other than of type time
    if (kind == T_LITERAL) {
-      if (tree_subkind(t) == L_PHYSICAL) {
-         type_t std_time = std_type(NULL, "TIME");
-         return !type_eq(type, std_time);
-      }
+      if (tree_subkind(t) == L_PHYSICAL)
+         return !type_eq(type, std_type(NULL, STD_TIME));
       else
          return true;
    }
@@ -3897,8 +3896,7 @@ static bool sem_globally_static(tree_t t)
 
    if ((kind == T_REF && tree_kind(tree_ref(t)) == T_UNIT_DECL)
        || (kind == T_LITERAL && tree_subkind(t) == L_PHYSICAL)) {
-      type_t std_time = std_type(NULL, "TIME");
-      if (type_eq(type, std_time))
+      if (type_eq(type, std_type(NULL, STD_TIME)))
          return true;
    }
 
@@ -4151,7 +4149,7 @@ static bool sem_check_return(tree_t t)
 
 static bool sem_check_while(tree_t t)
 {
-   type_t std_bool = std_type(NULL, "BOOLEAN");
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
 
    tree_t value = tree_value(t);
    if (!sem_check(value))
@@ -4250,7 +4248,7 @@ static bool sem_check_loop_control(tree_t t)
       if (!sem_check(value))
          return false;
 
-      type_t std_bool = std_type(NULL, "BOOLEAN");
+      type_t std_bool = std_type(NULL, STD_BOOLEAN);
       if (!type_eq(tree_type(value), std_bool))
          sem_error(value, "type of %s condition must be %s but is %s",
                    (tree_kind(t) == T_EXIT) ? "exit" : "next",
@@ -4288,7 +4286,7 @@ static bool sem_check_attr_spec(tree_t t)
 
 static bool sem_check_if_generate(tree_t t)
 {
-   type_t std_bool = std_type(NULL, "BOOLEAN");
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
    tree_t value = tree_value(t);
 
    if (!sem_check(value))
@@ -4368,20 +4366,18 @@ static bool sem_check_file_decl(tree_t t)
       sem_error(t, "file declarations must have file type");
 
    if (tree_has_value(t)) {
-      type_t string = std_type(NULL, "STRING");
       tree_t value = tree_value(t);
       if (!sem_check(value))
          return false;
 
-      if (!sem_check_type(value, string))
+      if (!sem_check_type(value, std_type(NULL, STD_STRING)))
          sem_error(value, "file name must have type STRING");
 
-      type_t open_kind = std_type(NULL, "FILE_OPEN_KIND");
       tree_t mode = tree_file_mode(t);
       if (!sem_check(mode))
          return false;
 
-      if (!sem_check_type(mode, open_kind))
+      if (!sem_check_type(mode, std_type(NULL, STD_FILE_OPEN_KIND)))
          sem_error(mode, "open mode must have type FILE_OPEN_KIND");
    }
 
