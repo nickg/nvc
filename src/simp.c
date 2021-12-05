@@ -178,6 +178,8 @@ static tree_t simp_record_ref(tree_t t)
          tree_t decl = tree_ref(value);
          if (tree_kind(decl) != T_CONST_DECL)
             return t;
+         else if (!tree_has_value(decl))
+            return t;
 
          agg = tree_value(decl);
          if (tree_kind(agg) != T_AGGREGATE)

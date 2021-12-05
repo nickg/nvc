@@ -184,14 +184,19 @@ void *xmalloc(size_t size)
    return p;
 }
 
-void *xmalloc_array(size_t nelems, size_t size)
+void *xmalloc_flex(size_t fixed, size_t nelems, size_t size)
 {
    size_t bytes;
    if (__builtin_mul_overflow(nelems, size, &bytes))
       fatal_trace("array size overflow: requested %zd * %zd bytes",
                   nelems, size);
 
-   return xmalloc(bytes);
+   return xmalloc(fixed + bytes);
+}
+
+void *xmalloc_array(size_t nelems, size_t size)
+{
+   return xmalloc_flex(0, nelems, size);
 }
 
 void *xcalloc(size_t size)
@@ -202,14 +207,19 @@ void *xcalloc(size_t size)
    return p;
 }
 
-void *xcalloc_array(size_t nelems, size_t size)
+void *xcalloc_flex(size_t fixed, size_t nelems, size_t size)
 {
    size_t bytes;
    if (__builtin_mul_overflow(nelems, size, &bytes))
       fatal_trace("array size overflow: requested %zd * %zd bytes",
                   nelems, size);
 
-   return xcalloc(bytes);
+   return xcalloc(fixed + bytes);
+}
+
+void *xcalloc_array(size_t nelems, size_t size)
+{
+   return xcalloc_flex(0, nelems, size);
 }
 
 void *xrealloc(void *ptr, size_t size)

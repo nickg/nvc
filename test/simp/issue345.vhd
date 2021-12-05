@@ -42,10 +42,10 @@ architecture a of bug is
 begin
   main : process
   begin
-    assert func("") = 0;
-    assert func("abc") = 3;
-    assert func2(10) = 10;
-    assert func3(5) = 7;
+    s1: assert func("") = 0;
+    s2: assert func("abc") = 3;
+    s3: assert func2(10) = 10;
+    s4: assert func3(5) = 7;
     wait;
   end process;
 end;

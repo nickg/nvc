@@ -926,7 +926,7 @@ const char *vcode_op_string(vcode_op_t op)
       "mul", "add", "bounds", "comment", "const array", "index", "sub",
       "cast", "load indirect", "store indirect", "return",
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
-      "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
+      "rem", "alloca", "select", "or", "wrap", "uarray left",
       "uarray right", "uarray dir", "unwrap", "not", "and",
       "event", "active", "const record", "record ref", "copy", "sched event",
       "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor", "memset",

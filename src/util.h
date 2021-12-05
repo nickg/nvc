@@ -80,8 +80,10 @@
 
 void *xmalloc(size_t size) RETURNS_NONNULL;
 void *xmalloc_array(size_t nelems, size_t size) RETURNS_NONNULL;
+void *xmalloc_flex(size_t fixed, size_t nelems, size_t size) RETURNS_NONNULL;
 void *xcalloc(size_t size) RETURNS_NONNULL;
 void *xcalloc_array(size_t nelems, size_t size) RETURNS_NONNULL;
+void *xcalloc_flex(size_t fixed, size_t nelems, size_t size) RETURNS_NONNULL;
 void *xrealloc(void *ptr, size_t size) RETURNS_NONNULL;
 void *xrealloc_array(void *ptr, size_t nelems, size_t size) RETURNS_NONNULL;
 char *xstrdup(const char *str) RETURNS_NONNULL;

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,25 +15,25 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _PRIM_H
-#define _PRIM_H
+#ifndef _EXEC_H
+#define _EXEC_H
 
-#include <stdint.h>
-#include <stddef.h>
+#include "prim.h"
+#include "phase.h"
 
-typedef struct _object object_t;
-typedef struct _object_arena object_arena_t;
-typedef struct trie *ident_t;
-typedef struct _tree *tree_t;
-typedef struct _type *type_t;
-typedef struct _e_node *e_node_t;
-typedef struct loc loc_t;
-typedef struct _fbuf fbuf_t;
-typedef struct hash hash_t;
-typedef struct _exec exec_t;
+typedef struct _eval_frame eval_frame_t;
 
-typedef struct vcode_unit *vcode_unit_t;
+typedef union {
+   int64_t integer;
+   double  real;
+} eval_scalar_t;
 
-typedef struct _cover_tagging cover_tagging_t;
+exec_t *exec_new(eval_flags_t flags);
+void exec_free(exec_t *ex);
+eval_frame_t *exec_link(exec_t *ex, ident_t ident);
+eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
+                        const char *fmt, ...);
+tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk);
+eval_scalar_t exec_get_var(exec_t *ex, eval_frame_t *frame, unsigned nth);
 
-#endif  // _PRIM_H
+#endif  // _EXEC_H

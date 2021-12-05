@@ -61,6 +61,7 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(json);
    nfail += RUN_TESTS(debug);
    nfail += RUN_TESTS(eopt);
+   nfail += RUN_TESTS(exec);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
