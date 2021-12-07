@@ -69,26 +69,6 @@ int64_t assume_int(tree_t t)
          }
       }
 
-   case T_TYPE_CONV:
-   case T_QUALIFIED:
-   case T_FCALL:
-      {
-         const eval_flags_t flags =
-            EVAL_FCALL | EVAL_BOUNDS | EVAL_WARN | EVAL_REPORT | EVAL_LOWER;
-         tree_t new = eval(t, flags);
-         const tree_kind_t new_kind = tree_kind(new);
-         switch (new_kind) {
-         case T_LITERAL:
-         case T_REF:
-         case T_TYPE_CONV:
-         case T_QUALIFIED:
-            return assume_int(new);
-         default:
-            break;
-         }
-      }
-      break;
-
    default:
       break;
    }
