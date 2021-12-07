@@ -124,6 +124,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_NULL:
       case VCODE_OP_RANGE_NULL:
       case VCODE_OP_NULL_CHECK:
+      case VCODE_OP_FILE_WRITE:
          break;
 
       case VCODE_OP_UARRAY_LEFT:
@@ -179,12 +180,13 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_LINK_SIGNAL:
+      case VCODE_OP_LINK_VAR:
          {
             ident_t name = vcode_get_ident(i);
             if (name != ident_new(e->name)) {
                vcode_dump_with_mark(i, NULL, NULL);
-               fail("expected op %d in block %d to have signal name %s but "
-                    "has %s", i, bb, e->name, istr(name));
+               fail("expected op %d in block %d to have name %s but has %s",
+                    i, bb, e->name, istr(name));
             }
          }
          break;
@@ -2396,12 +2398,31 @@ START_TEST(test_issue203)
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
-   vcode_unit_t v0 = find_unit("WORK.ISSUE203");
+   vcode_unit_t v0 = find_unit(":issue203$WORK.ISSUE203(A).MAIN.PROC");
    vcode_select_unit(v0);
 
-   fail_unless(vcode_count_vars() == 1);
-   fail_unless(icmp(vcode_var_name(0), "STD.TEXTIO.OUTPUT"));
-   fail_unless(vcode_var_flags(0) & VAR_EXTERN);
+   EXPECT_BB(0) = {
+      { VCODE_OP_TEMP_STACK_MARK },
+      { VCODE_OP_LINK_VAR, .name = "STD.TEXTIO.OUTPUT" },
+      { VCODE_OP_CONST, .value = 104 },
+      { VCODE_OP_CONST, .value = 101 },
+      { VCODE_OP_CONST, .value = 108 },
+      { VCODE_OP_CONST, .value = 111 },
+      { VCODE_OP_CONST_ARRAY, .length = 5 },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_CONST, .value = 10 },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_CONST, .value = 6 },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_COPY },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_FILE_WRITE },
+      { VCODE_OP_TEMP_STACK_RESTORE },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
 }
 END_TEST
 
@@ -2519,7 +2540,7 @@ START_TEST(test_tag)
 
       EXPECT_BB(0) = {
          { VCODE_OP_LINK_SIGNAL, .name = "S" },
-         { VCODE_OP_STORE, .name = "S" },
+         { VCODE_OP_STORE, .name = "WORK.P.S" },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_INIT_SIGNAL },
@@ -3147,7 +3168,7 @@ START_TEST(test_signal11)
 
    vcode_select_unit(vpack);
    fail_unless(vcode_count_vars() == 1);
-   fail_unless(vcode_var_name(0) == ident_new("X"));
+   fail_unless(vcode_var_name(0) == ident_new("WORK.PACK.X"));
    fail_unless(vcode_var_flags(0) & VAR_SIGNAL);
 }
 END_TEST
@@ -3513,7 +3534,6 @@ START_TEST(test_const1)
       vcode_select_unit(v1);
 
       fail_unless(vcode_count_vars() == 1);
-      fail_if(vcode_var_flags(0) & VAR_EXTERN);
 
       EXPECT_BB(0) = {
          { VCODE_OP_CONST, .value = 1 },
@@ -3542,7 +3562,7 @@ START_TEST(test_const2)
    vcode_unit_t vu = find_unit("WORK.CONST2");
    vcode_select_unit(vu);
 
-   fail_unless(vcode_count_vars() == 2);
+   fail_unless(vcode_count_vars() == 1);
 
    vcode_type_t v0_type = vcode_var_type(0);
    fail_unless(vtype_kind(v0_type) == VCODE_TYPE_SIGNAL);

@@ -746,30 +746,15 @@ DLLEXPORT
 sig_shared_t *_link_signal(const char *name)
 {
    ident_t id = ident_new(name);
-   rt_scope_t *search_scope = active_scope;
 
-   const bool is_path = name[0] == ':';
-
-   if (is_path) {
-      ident_t scope_path = ident_runtil(id, ':');
-      for (unsigned i = 0; i < n_scopes; i++) {
-         if (e_path(scopes[i].enode) == scope_path) {
-            search_scope = &(scopes[i]);
-            break;
-         }
-      }
-   }
-
-   for (unsigned i = 0; i < search_scope->n_signals; i++) {
-      rt_signal_t *signal = &(search_scope->signals[i]);
+   for (unsigned i = 0; i < active_scope->n_signals; i++) {
+      rt_signal_t *signal = &(active_scope->signals[i]);
       if (e_ident(signal->enode) == id)
-         return &(signal->shared);
-      else if (is_path && e_path(signal->enode) == id)
          return &(signal->shared);
    }
 
    fatal("failed to link signal %s in scope %s", name,
-         istr(e_instance(search_scope->enode)));
+         istr(e_instance(active_scope->enode)));
 }
 
 DLLEXPORT

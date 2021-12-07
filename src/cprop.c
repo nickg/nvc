@@ -204,6 +204,7 @@ static void cprop_store_var(cprop_vars_t *vars, int op, cprop_state_t *regs)
       if (signal == NULL)
          return;
 
+      map.kind   = VM_SIGNAL;
       map.signal = signal;
       map.offset = offset;
    }

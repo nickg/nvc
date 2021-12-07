@@ -131,28 +131,13 @@ static e_node_t eopt_find_signal_cb(ident_t name, int hops, void *__ctx)
 {
    e_node_t scope = __ctx;
 
-   ident_t scope_path = ident_runtil(name, ':');
-   if (scope_path == name) {
-      while (hops--)
-         scope = e_parent(scope);
-   }
-   else {
-      const int nscopes = e_scopes(root);
-      for (int i = 0; i < nscopes; i++) {
-         e_node_t s = e_scope(root, i);
-         if (e_path(s) == scope_path) {
-            scope = s;
-            break;
-         }
-      }
-   }
+   while (hops--)
+      scope = e_parent(scope);
 
    const int nsignals = e_signals(scope);
    for (int i = 0; i < nsignals; i++) {
       e_node_t s = e_signal(scope, i);
       if (e_ident(s) == name)
-         return s;
-      else if (scope_path != name && e_path(s) == name)
          return s;
    }
 

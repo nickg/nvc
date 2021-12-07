@@ -36,6 +36,7 @@ end package;
 package body pack2 is
 
     constant x : bit_vector(1 downto 0) := q(1 downto 0);
+    constant gv : bit_vector(6 downto 0) := get_v;
 
     function foo return integer is
     begin

@@ -188,7 +188,7 @@ typedef struct {
 } vcode_state_t;
 
 typedef enum {
-   VAR_EXTERN  = (1 << 0),
+   // Unused   = (1 << 0),
    VAR_HEAP    = (1 << 2),
    VAR_CONST   = (1 << 3),
    VAR_SIGNAL  = (1 << 4),

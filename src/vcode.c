@@ -380,6 +380,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_NULL:
    case VCODE_OP_UNDEFINED:
    case VCODE_OP_ADDRESS_OF:
+   case VCODE_OP_LINK_VAR:
       break;
 
    case VCODE_OP_ALLOCA:
@@ -1186,8 +1187,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
       int col = printf("  ");
       col += color_printf("$magenta$%s$$", istr(v->name));
       vcode_dump_type(col, v->type, v->bounds);
-      if (v->flags & VAR_EXTERN)
-         col += printf(", extern");
       if (v->flags & VAR_SIGNAL)
          col += printf(", signal");
       if (v->flags & VAR_HEAP)
@@ -4950,6 +4949,11 @@ vcode_reg_t emit_link_signal(ident_t name, vcode_type_t type)
 
 vcode_reg_t emit_link_var(ident_t name, vcode_type_t type)
 {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_LINK_VAR) {
+      if (other->ident == name)
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_LINK_VAR);
    op->ident = name;
 

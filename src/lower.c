@@ -113,8 +113,6 @@ static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
 static vcode_type_t lower_alias_type(tree_t alias);
 static bool lower_const_bounds(type_t type);
 static int lower_search_vcode_obj(void *key, lower_scope_t *scope, int *hops);
-static void lower_link_signal(tree_t decl, bool from_package);
-static void lower_link_var(tree_t decl);
 static type_t lower_elem_recur(type_t type);
 static void lower_finished(void);
 
@@ -2119,6 +2117,22 @@ static vcode_var_t lower_get_var(tree_t decl, int *hops)
    return lower_search_vcode_obj(decl, top_scope, hops);
 }
 
+static vcode_reg_t lower_link_var(tree_t decl)
+{
+   type_t type = tree_type(decl);
+   ident_t name = tree_ident2(decl);
+
+   vcode_type_t vtype;
+   if (class_of(decl) == C_SIGNAL)
+      vtype = lower_signal_type(type);
+   else if (type_is_array(type) && lower_const_bounds(type))
+      vtype = lower_type(lower_elem_recur(type));
+   else
+      vtype = lower_type(type);
+
+   return emit_link_var(name, vtype);
+}
+
 static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
 {
    type_t type = tree_type(decl);
@@ -2150,26 +2164,8 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
       }
       else {
          // External variable
-         lower_link_var(decl);
-         var = lower_get_var(decl, &hops);
-         assert(var != VCODE_INVALID_VAR);
+         ptr_reg = lower_link_var(decl);
       }
-   }
-
-   vcode_state_t state;
-   vcode_state_save(&state);
-
-   for (int i = 0; i < hops; i++)
-      vcode_select_unit(vcode_unit_context());
-
-   vcode_var_flags_t flags = vcode_var_flags(var);
-   vcode_state_restore(&state);
-
-   if (flags & VAR_EXTERN) {
-      if (hops == 0)
-         ptr_reg = emit_load(var);
-      else
-         ptr_reg = emit_load_indirect(emit_var_upref(hops, var));
    }
    else if (hops > 0)
       ptr_reg = emit_var_upref(hops, var);
@@ -2205,15 +2201,12 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(decl, top_scope, &hops);
 
+   vcode_reg_t sig_reg;
    if (var == VCODE_INVALID_VAR) {
       // Link to external package signal
-      lower_link_signal(decl, true);
-      var = lower_search_vcode_obj(decl, top_scope, &hops);
-      assert(var != VCODE_INVALID_VAR);
+      sig_reg = emit_load_indirect(lower_link_var(decl));
    }
-
-   vcode_reg_t sig_reg;
-   if (hops == 0)
+   else if (hops == 0)
       sig_reg = emit_load(var);
    else
       sig_reg = emit_load_indirect(emit_var_upref(hops, var));
@@ -2353,9 +2346,7 @@ static vcode_reg_t lower_alias_ref(tree_t alias, expr_ctx_t ctx)
          return emit_undefined(lower_type(type));
       else {
          // External alias variable
-         lower_link_var(alias);
-         var = lower_get_var(alias, &hops);
-         assert(var != VCODE_INVALID_VAR);
+         return emit_load_indirect(lower_link_var(alias));
       }
    }
 
@@ -2365,19 +2356,9 @@ static vcode_reg_t lower_alias_ref(tree_t alias, expr_ctx_t ctx)
    for (int i = 0; i < hops; i++)
       vcode_select_unit(vcode_unit_context());
 
-   vcode_var_flags_t flags = vcode_var_flags(var);
    vcode_state_restore(&state);
 
-   if (flags & VAR_EXTERN) {
-      vcode_reg_t ptr_reg;
-      if (hops == 0)
-         ptr_reg = emit_load(var);
-      else
-         ptr_reg = emit_load_indirect(emit_var_upref(hops, var));
-
-      return emit_load_indirect(ptr_reg);
-   }
-   else if (hops == 0)
+   if (hops == 0)
       return emit_load(var);
    else
       return emit_load_indirect(emit_var_upref(hops, var));
@@ -5202,99 +5183,20 @@ static void lower_sub_signals(type_t type, tree_t where, vcode_reg_t subsig,
       fatal_trace("unhandled type %s in lower_sub_signals", type_pp(type));
 }
 
-static bool lower_unit_is_global_scope(void)
-{
-   const vunit_kind_t kind = vcode_unit_kind();
-   return kind == VCODE_UNIT_INSTANCE || kind == VCODE_UNIT_PACKAGE;
-}
-
-static void lower_link_var(tree_t decl)
-{
-   vcode_state_t state;
-   vcode_state_save(&state);
-
-   lower_scope_t *insert_scope = top_scope;
-   while (!lower_unit_is_global_scope()) {
-      vcode_select_unit(vcode_unit_context());
-      vcode_select_block(vcode_count_blocks() - 1);
-      insert_scope = insert_scope->down;
-   }
-
-   type_t type = tree_type(decl);
-   ident_t name = tree_ident2(decl);
-
-   vcode_var_flags_t flags = VAR_EXTERN;
-   if (tree_kind(decl) == T_CONST_DECL) flags |= VAR_CONST;
-
-   vcode_type_t vtype;
-   if (class_of(decl) == C_SIGNAL) {
-      // Alias to signal
-      vtype = lower_signal_type(type);
-      flags |= VAR_SIGNAL;
-   }
-   else if (type_is_array(type) && lower_const_bounds(type))
-      vtype = lower_type(lower_elem_recur(type));
-   else
-      vtype = lower_type(type);
-
-   vcode_var_t var =
-      emit_var(vtype_pointer(vtype), lower_bounds(type), name, flags);
-   lower_put_vcode_obj(decl, var, insert_scope);
-
-   vcode_reg_t ptr_reg = emit_link_var(name, vtype);
-   emit_store(ptr_reg, var);
-
-   vcode_state_restore(&state);
-}
-
-static void lower_link_signal(tree_t decl, bool from_package)
-{
-   vcode_state_t state;
-   vcode_state_save(&state);
-
-   lower_scope_t *insert_scope = top_scope;
-   while (!lower_unit_is_global_scope()) {
-      vcode_select_unit(vcode_unit_context());
-      vcode_select_block(vcode_count_blocks() - 1);
-      insert_scope = insert_scope->down;
-   }
-
-   type_t type = tree_type(decl);
-
-   ident_t var_name, link_name;
-   if (from_package) {
-      var_name  = tree_ident2(decl);
-      link_name = ident_new(package_signal_path_name(var_name));
-   }
-   else
-      var_name = link_name = tree_ident(decl);
-
-   vcode_type_t signal_type = lower_signal_type(type);
-   vcode_var_t var =
-      emit_var(signal_type, lower_bounds(type), var_name, VAR_SIGNAL);
-   lower_put_vcode_obj(decl, var, insert_scope);
-
-   vcode_reg_t shared, wrapped;
-   if (vtype_kind(signal_type) == VCODE_TYPE_UARRAY) {
-      shared = emit_link_signal(link_name, vtype_elem(signal_type));
-      wrapped = lower_wrap(type, shared);
-   }
-   else
-      shared = wrapped = emit_link_signal(link_name, signal_type);
-
-   emit_store(wrapped, var);
-
-   vcode_state_restore(&state);
-}
-
 static void lower_signal_decl(tree_t decl)
 {
    ident_t name = tree_ident(decl);
    type_t type = tree_type(decl);
 
    vcode_type_t signal_type = lower_signal_type(type);
-   vcode_var_t var =
-      emit_var(signal_type, lower_bounds(type), name, VAR_SIGNAL);
+   vcode_var_t var;
+   if (top_scope->flags & SCOPE_GLOBAL) {
+      // This signal may be accessed with the "link var" opcode
+      var = emit_var(signal_type, lower_bounds(type), tree_ident2(decl),
+                     VAR_SIGNAL | VAR_GLOBAL);
+   }
+   else
+      var = emit_var(signal_type, lower_bounds(type), name, VAR_SIGNAL);
    lower_put_vcode_obj(decl, var, top_scope);
 
    vcode_reg_t shared, wrapped;
@@ -6576,8 +6478,8 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
    lower_ports(block);
    lower_decls(block, vu);
 
-   vcode_state_t state;
-   vcode_state_save(&state);
+   emit_return(VCODE_INVALID_REG);
+   lower_finished();
 
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
@@ -6594,11 +6496,6 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
                      tree_kind_str(tree_kind(s)));
       }
    }
-
-   // Lowering processes may have emitted calls to link external signals
-   vcode_state_restore(&state);
-   emit_return(VCODE_INVALID_REG);
-   lower_finished();
 
    lower_pop_scope();
    return vu;
