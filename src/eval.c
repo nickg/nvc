@@ -197,40 +197,25 @@ static bool eval_can_represent_type(type_t type)
       return false;
 }
 
-tree_t eval(tree_t expr, eval_flags_t flags)
+tree_t eval(tree_t expr, exec_t *ex)
 {
-   static int verbose_env = -1;
-   if (verbose_env == -1)
-      verbose_env = getenv("NVC_EVAL_VERBOSE") != NULL;
-   if (verbose_env)
-      flags |= EVAL_VERBOSE;
-
-   if (flags & EVAL_VERBOSE)
-      flags |= EVAL_WARN | EVAL_BOUNDS;
-
    const tree_kind_t kind = tree_kind(expr);
 
    type_t type = tree_type(expr);
-   if (type_is_array(type))
-      return expr;   // TODO: eval for array results
+   if (!type_is_scalar(type))
+      return expr;
    else if (!eval_can_represent_type(type))
       return expr;
    else if (kind == T_FCALL && (tree_flags(tree_ref(expr)) & TREE_F_IMPURE))
       return expr;
-   else if (!eval_possible(expr, flags, true))
+   else if (!eval_possible(expr, exec_get_flags(ex), true))
       return expr;
 
    vcode_unit_t thunk = lower_thunk(expr);
    if (thunk == NULL)
       return expr;
 
-   if (flags & EVAL_VERBOSE)
-      note_at(tree_loc(expr), "evaluate thunk for %s",
-              kind == T_FCALL ? istr(tree_ident(expr)) : tree_kind_str(kind));
-
-   exec_t *ex = exec_new(flags);
    tree_t tree = exec_fold(ex, expr, thunk);
-   exec_free(ex);
 
    vcode_unit_unref(thunk);
    thunk = NULL;

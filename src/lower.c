@@ -6445,8 +6445,10 @@ static void lower_generics(tree_t block)
       if (is_array && mem_reg != VCODE_INVALID_REG)
          lower_check_array_sizes(g, type, tree_type(value),
                                  VCODE_INVALID_REG, value_reg);
-      else if (type_is_scalar(type))
+      else if (type_is_scalar(type)) {
+         value_reg = lower_reify(value_reg);
          lower_check_scalar_bounds(value_reg, type, g, value);
+      }
 
       if (mem_reg != VCODE_INVALID_REG)
          emit_copy(mem_reg, lower_array_data(value_reg), count_reg);

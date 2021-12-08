@@ -254,6 +254,16 @@ static value_t *eval_alloc(int count, eval_state_t *state)
    return new->mem;
 }
 
+static void eval_make_pointer_to(value_t *dst, value_t *src)
+{
+   dst->kind = VALUE_POINTER;
+
+   if (src->kind == VALUE_CARRAY || src->kind == VALUE_RECORD)
+      dst->pointer = src + 1;   // Array or record data follows header
+   else
+      dst->pointer = src;
+}
+
 static int eval_slots_for_type(vcode_type_t vtype)
 {
    switch (vtype_kind(vtype)) {
@@ -500,16 +510,6 @@ static void eval_branch(int op, vcode_block_t target, eval_state_t *state)
 
    vcode_select_block(target);
    state->op = 0;
-}
-
-static void eval_make_pointer_to(value_t *dst, value_t *src)
-{
-   dst->kind = VALUE_POINTER;
-
-   if (src->kind == VALUE_CARRAY || src->kind == VALUE_RECORD)
-      dst->pointer = src + 1;   // Array or record data follows header
-   else
-      dst->pointer = src;
 }
 
 static void eval_op_const(int op, eval_state_t *state)
@@ -2287,6 +2287,15 @@ static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
 
 exec_t *exec_new(eval_flags_t flags)
 {
+   static int verbose_env = -1;
+   if (verbose_env == -1)
+      verbose_env = getenv("NVC_EVAL_VERBOSE") != NULL;
+   if (verbose_env)
+      flags |= EVAL_VERBOSE;
+
+   if (flags & EVAL_VERBOSE)
+      flags |= EVAL_WARN | EVAL_BOUNDS;
+
    exec_t *ex = xcalloc(sizeof(exec_t));
    ex->link_map = hash_new(128, true);
    ex->flags    = flags;
@@ -2447,6 +2456,11 @@ tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk)
    vcode_select_block(0);
    assert(vcode_unit_kind() == VCODE_UNIT_THUNK);
 
+   const tree_kind_t kind = tree_kind(expr);
+   if (ex->flags & EVAL_VERBOSE)
+      note_at(tree_loc(expr), "evaluate thunk for %s",
+              kind == T_FCALL ? istr(tree_ident(expr)) : tree_kind_str(kind));
+
    eval_state_t state = {
       .result = -1,
       .hint   = expr,
@@ -2469,7 +2483,6 @@ tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk)
    value_t *result = eval_get_reg(state.result, &state);
 
    if (ex->flags & EVAL_VERBOSE) {
-      const tree_kind_t kind = tree_kind(expr);
       const char *name = kind == T_FCALL
          ? istr(tree_ident(expr)) : tree_kind_str(kind);
       LOCAL_TEXT_BUF tb = tb_new();
@@ -2481,4 +2494,9 @@ tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk)
    tree_t tree = eval_value_to_tree(result, type, tree_loc(expr));
    eval_cleanup_state(&state);
    return tree;
+}
+
+eval_flags_t exec_get_flags(exec_t *ex)
+{
+   return ex->flags;
 }

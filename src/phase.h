@@ -41,7 +41,7 @@ void simplify(tree_t top, eval_flags_t flags);
 void bounds_check(tree_t top);
 
 // Evaluate a function call at compile time
-tree_t eval(tree_t fcall, eval_flags_t flags);
+tree_t eval(tree_t fcall, exec_t *ex);
 
 // Elaborate a top level entity
 tree_t elab(tree_t top);

@@ -499,24 +499,9 @@ START_TEST(test_issue331)
    fail_unless(tree_decls(test_ng) == 6);
    tree_t d2 = tree_decl(test_ng, 4);
    fail_unless(tree_ident(d2) == ident_new("VEC_RANGE"));
-   tree_t agg = tree_value(d2);
-   fail_unless(tree_kind(agg) == T_AGGREGATE);
-   tree_t info_0 = tree_value(tree_assoc(agg, 2));
-   fail_unless(tree_kind(info_0) == T_AGGREGATE);
-   tree_t info_1 = tree_value(tree_assoc(agg, 3));
-   fail_unless(tree_kind(info_1) == T_AGGREGATE);
-   tree_t info_0_data_lo = tree_value(tree_assoc(info_0, 0));
-   fail_unless(tree_kind(info_0_data_lo) == T_LITERAL);
-   fail_unless(tree_ival(info_0_data_lo) == 0);
-   tree_t info_0_data_hi = tree_value(tree_assoc(info_0, 1));
-   fail_unless(tree_kind(info_0_data_hi) == T_LITERAL);
-   fail_unless(tree_ival(info_0_data_hi) == 0);
-   tree_t info_1_data_lo = tree_value(tree_assoc(info_1, 0));
-   fail_unless(tree_kind(info_1_data_lo) == T_LITERAL);
-   fail_unless(tree_ival(info_1_data_lo) == 1);
-   tree_t info_1_data_hi = tree_value(tree_assoc(info_1, 1));
-   fail_unless(tree_kind(info_1_data_hi) == T_LITERAL);
-   fail_unless(tree_ival(info_1_data_hi) == 1);
+
+   // Earlier versions of nvc folded this to a T_AGGREGATE
+   fail_unless(tree_kind(tree_value(d2)) == T_FCALL);
 }
 END_TEST
 
@@ -850,8 +835,8 @@ START_TEST(test_issue425)
    fail_unless(tree_kind(init) == T_CONST_DECL);
    fail_unless(tree_ident(init) == ident_new("INIT_SIGNALS"));
 
-   tree_t value = tree_value(init);
-   fail_unless(tree_kind(value) == T_AGGREGATE);
+   // Earlier versions of nvc folded this to a T_AGGREGATE
+   fail_unless(tree_kind(tree_value(init)) == T_FCALL);
 }
 END_TEST
 

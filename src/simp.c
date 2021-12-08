@@ -19,6 +19,7 @@
 #include "util.h"
 #include "common.h"
 #include "loc.h"
+#include "exec.h"
 
 #include <assert.h>
 #include <string.h>
@@ -40,7 +41,7 @@ typedef struct {
    imp_signal_t *imp_signals;
    tree_t        top;
    ident_t       prefix;
-   eval_flags_t  eval_flags;
+   exec_t       *exec;
 } simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
@@ -152,12 +153,12 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
    if (tree_subkind(tree_ref(t)) == S_CONCAT)
       t = simp_flatten_concat(t);
 
-   return eval(simp_call_args(t), EVAL_FCALL | EVAL_FOLDING | ctx->eval_flags);
+   return eval(simp_call_args(t), ctx->exec);
 }
 
 static tree_t simp_type_conv(tree_t t, simp_ctx_t *ctx)
 {
-   return eval(t, EVAL_FOLDING | ctx->eval_flags);
+   return eval(t, ctx->exec);
 }
 
 static tree_t simp_pcall(tree_t t)
@@ -1416,10 +1417,12 @@ void simplify(tree_t top, eval_flags_t flags)
       .imp_signals = NULL,
       .top         = top,
       .prefix      = ident_runtil(tree_ident(top), '-'),
-      .eval_flags  = flags
+      .exec        = exec_new(flags | EVAL_FCALL | EVAL_FOLDING)
    };
 
    tree_rewrite(top, simp_tree, &ctx);
+
+   exec_free(ctx.exec);
 
    while (ctx.imp_signals != NULL) {
       tree_add_decl(top, ctx.imp_signals->signal);
