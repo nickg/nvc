@@ -213,19 +213,14 @@ static int eval_dump(text_buf_t *tb, value_t *value)
    }
 }
 
-__attribute__((unused))
-static void eval_dump_frame(eval_frame_t *frame)
+static void eval_dump_frame(text_buf_t *tb, eval_frame_t *frame)
 {
    assert(frame->nvars == vcode_count_vars());
 
-   LOCAL_TEXT_BUF tb = tb_new();
    for (unsigned i = 0; i < frame->nvars; i++) {
-      tb_rewind(tb);
+      tb_printf(tb, "\n%-20s : ", istr(vcode_var_name(i)));
       eval_dump(tb, frame->vars[i]);
-      printf("%-20s : %s\n", istr(vcode_var_name(i)), tb_get(tb));
    }
-
-   printf("\n");
 }
 
 __attribute__((noreturn))
@@ -2321,6 +2316,8 @@ eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
    vcode_unit_t unit = eval_find_unit(func, EVAL_VERBOSE);
    assert(unit);
 
+   assert(ex->flags & EVAL_FCALL);
+
    vcode_select_unit(unit);
    vcode_select_block(0);
 
@@ -2328,7 +2325,7 @@ eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
       .result = -1,
       .hint   = NULL,
       .failed = false,
-      .flags  = ex->flags | EVAL_FCALL | EVAL_BOUNDS,
+      .flags  = ex->flags,
       .exec   = ex,
    };
 
@@ -2387,7 +2384,8 @@ eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
 
    eval_vcode(&state);
 
-   assert(!state.failed);
+   if (state.failed)
+      fatal_trace("call to %s failed", istr(func));
 
    eval_scalar_t result = eval_get_scalar(eval_get_reg(state.result, &state));
    eval_cleanup_state(&state);
@@ -2400,6 +2398,8 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
    eval_frame_t *ctx = hash_get(ex->link_map, ident);
    if (ctx != NULL)
       return ctx;
+
+   assert(ex->flags & EVAL_FCALL);
 
    vcode_unit_t unit = eval_find_unit(ident, EVAL_VERBOSE);
    assert(unit);
@@ -2414,7 +2414,7 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
       .result = -1,
       .hint   = NULL,
       .failed = false,
-      .flags  = ex->flags | EVAL_FCALL | EVAL_BOUNDS,
+      .flags  = ex->flags | EVAL_BOUNDS,
       .exec   = ex,
    };
 
@@ -2433,10 +2433,12 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
 
    eval_cleanup_state(&state);
 
-#if 0
-   printf("------< LINK %s >------\n", istr(vcode_unit_name()));
-   eval_dump_frame(frame);
-#endif
+   if (ex->flags & EVAL_VERBOSE) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_printf(tb, "linked unit %s", istr(vcode_unit_name()));
+      eval_dump_frame(tb, frame);
+      notef("%s", tb_get(tb));
+   }
 
    vcode_state_restore(&vcode_state);
 

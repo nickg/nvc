@@ -880,7 +880,17 @@ START_TEST(test_static)
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   tree_t p1 = tree_stmt(a, 5);
+   fail_unless(tree_kind(p1) == T_PROCESS);
+   fail_unless(tree_ident(p1) == ident_new("P1"));
+
+   tree_t tvalue = tree_value(tree_decl(p1, 0));
+   fail_unless(type_eq(tree_type(tvalue), std_type(NULL, STD_TIME)));
+   fail_unless(tree_kind(tvalue) == T_FCALL);
+   fail_if(tree_flags(tvalue) & TREE_F_LOCALLY_STATIC);
+   fail_unless(tree_flags(tvalue) & TREE_F_GLOBALLY_STATIC);
 
    check_expected_errors();
 }

@@ -16,6 +16,7 @@ begin
 
     process is
         variable b : boolean;
+        variable d : time;
     begin
         x <= c / 2;
         y <= t'high;
@@ -41,6 +42,7 @@ begin
         x <= a4(2);
         x <= a5(4);
         x <= 2 ** 4;
+        d := -5 ns;
     end process;
 
     process is

@@ -20,22 +20,15 @@
 
 #include "tree.h"
 
-typedef enum {
-   EVAL_BOUNDS  = (1 << 0),
-   EVAL_FCALL   = (1 << 1),
-   EVAL_WARN    = (1 << 2),
-   EVAL_VERBOSE = (1 << 4),
-   EVAL_REPORT  = (1 << 5),
-   EVAL_FOLDING = (1 << 6),
-   EVAL_LOWER   = (1 << 7)
-} eval_flags_t;
-
 // Annotate types and perform other semantics checks on a tree.
 // Returns false on error.
 bool sem_check(tree_t t);
 
-// Rewrite to simpler forms
-void simplify(tree_t top, eval_flags_t flags);
+// Rewrite to simpler forms folding locally static expressions
+void simplify_local(tree_t top);
+
+// Rewrite to simpler forms folding globally static expressions
+void simplify_global(tree_t top);
 
 // Perform static bounds checking
 void bounds_check(tree_t top);

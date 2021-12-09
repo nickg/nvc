@@ -95,4 +95,9 @@ begin
     begin
     end process;
 
+    p1: process is
+        constant t : time := -5 ns;         -- OK, globally static
+    begin
+    end process;
+
 end architecture;

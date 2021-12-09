@@ -42,6 +42,7 @@ typedef struct {
    tree_t        top;
    ident_t       prefix;
    exec_t       *exec;
+   tree_flags_t  eval_mask;
 } simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
@@ -69,8 +70,10 @@ static tree_t simp_call_args(tree_t t)
       tree_set_ref(new, tree_ref(t));
 
       tree_kind_t kind = tree_kind(t);
-      if (kind == T_FCALL || kind == T_ATTR_REF || kind == T_PROT_FCALL)
+      if (kind == T_FCALL || kind == T_PROT_FCALL) {
          tree_set_type(new, tree_type(t));
+         tree_set_flag(new, tree_flags(t));
+      }
       else if (kind == T_CPCALL)
          tree_set_ident2(new, tree_ident2(t));
 
@@ -153,7 +156,12 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
    if (tree_subkind(tree_ref(t)) == S_CONCAT)
       t = simp_flatten_concat(t);
 
-   return eval(simp_call_args(t), ctx->exec);
+   t = simp_call_args(t);
+
+   if (tree_flags(t) & ctx->eval_mask)
+      return eval(t, ctx->exec);
+
+   return t;
 }
 
 static tree_t simp_type_conv(tree_t t, simp_ctx_t *ctx)
@@ -1411,13 +1419,14 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    }
 }
 
-void simplify(tree_t top, eval_flags_t flags)
+void simplify_local(tree_t top)
 {
    simp_ctx_t ctx = {
       .imp_signals = NULL,
       .top         = top,
       .prefix      = ident_runtil(tree_ident(top), '-'),
-      .exec        = exec_new(flags | EVAL_FCALL | EVAL_FOLDING)
+      .exec        = exec_new(EVAL_FOLDING),
+      .eval_mask   = TREE_F_LOCALLY_STATIC,
    };
 
    tree_rewrite(top, simp_tree, &ctx);
@@ -1432,4 +1441,21 @@ void simplify(tree_t top, eval_flags_t flags)
       free(ctx.imp_signals);
       ctx.imp_signals = tmp;
    }
+}
+
+void simplify_global(tree_t top)
+{
+   simp_ctx_t ctx = {
+      .imp_signals = NULL,
+      .top         = top,
+      .prefix      = ident_runtil(tree_ident(top), '-'),
+      .exec        = exec_new(EVAL_LOWER | EVAL_FCALL | EVAL_FOLDING),
+      .eval_mask   = TREE_F_GLOBALLY_STATIC | TREE_F_LOCALLY_STATIC,
+   };
+
+   tree_rewrite(top, simp_tree, &ctx);
+
+   exec_free(ctx.exec);
+
+   assert(ctx.imp_signals == NULL);
 }

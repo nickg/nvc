@@ -25,8 +25,9 @@
 #include <ctype.h>
 #include <inttypes.h>
 
-#define DUMP_TYPE_HINT 0
-#define DUMP_ADDRESS   0
+#define DUMP_TYPE_HINT  0
+#define DUMP_ADDRESS    0
+#define DUMP_STATICNESS 0
 
 LCOV_EXCL_START
 
@@ -193,6 +194,12 @@ static void dump_expr(tree_t t)
       else
          printf("%s", istr(tree_ident(t)));
       dump_params(t, tree_param, tree_params(t), NULL);
+#if DUMP_STATICNESS
+      if (tree_flags(t) & TREE_F_LOCALLY_STATIC)
+         color_printf("$red$/* locally static */$$");
+      else if (tree_flags(t) & TREE_F_GLOBALLY_STATIC)
+         color_printf("$red$/* globally static */$$");
+#endif
       break;
 
    case T_LITERAL:

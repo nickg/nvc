@@ -845,7 +845,7 @@ START_TEST(test_pack1)
       sem_check(t);
       fail_if(error_count() > 0);
 
-      simplify(t, 0);
+      simplify_local(t);
 
       if (tree_kind(t) == T_PACK_BODY)
          body = t;
@@ -2271,7 +2271,7 @@ START_TEST(test_issue158)
    input_from_file(TESTDIR "/lower/issue158.vhd");
 
    tree_t p = parse_and_check(T_PACKAGE, T_PACK_BODY);
-   simplify(p, 0);
+   simplify_local(p);
    lower_unit(p, NULL);
 }
 END_TEST

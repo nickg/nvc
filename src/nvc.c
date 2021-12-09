@@ -182,7 +182,7 @@ static int analyse(int argc, char **argv)
             char *vcode LOCAL = vcode_file_name(tree_ident(unit));
             lib_delete(lib_work(), vcode);
 
-            simplify(unit, 0);
+            simplify_local(unit);
             bounds_check(unit);
          }
       }

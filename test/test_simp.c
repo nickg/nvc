@@ -62,7 +62,7 @@ START_TEST(test_cfold)
 
    fail_if_errors();
 
-   simplify(a, 0);
+   simplify_local(a);
 
    fail_unless(folded_i(tree_value(tree_decl(a, 0)), -10));
 
@@ -102,6 +102,9 @@ START_TEST(test_cfold)
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 21), 0)), 4));
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 22), 0)), -1));
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 23), 0)), 16));
+
+   // Expressions involving TIME are not locally static
+   fail_if(tree_kind(tree_value(tree_stmt(p, 24))) == T_LITERAL);
 
    p = tree_stmt(a, 1);
    fail_unless(tree_stmts(p) == 3);
@@ -176,7 +179,7 @@ START_TEST(test_proc)
 
    fail_if_errors();
 
-   simplify(a, 0);
+   simplify_local(a);
 
    ////////
 
@@ -255,7 +258,7 @@ START_TEST(test_args)
 
    fail_if_errors();
 
-   simplify(a, 0);
+   simplify_local(a);
 
    ////////
 
@@ -294,6 +297,9 @@ START_TEST(test_ffold)
 
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
+
+   simplify_global(b);
+   fail_if_errors();
 
    fail_unless(folded_i(tree_value(tree_decl(b, 0)), 6));
    fail_unless(folded_i(tree_value(tree_decl(b, 2)), 4));
@@ -340,6 +346,9 @@ START_TEST(test_ffold2)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
+   simplify_global(b);
+   fail_if_errors();
+
    fail_unless(folded_i(tree_value(tree_decl(b, 0)), 3));
 }
 END_TEST
@@ -351,7 +360,7 @@ START_TEST(test_issue49)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_if_errors();
 
-   simplify(a, 0);
+   simplify_local(a);
 }
 END_TEST
 
@@ -362,7 +371,7 @@ START_TEST(test_issue155)
    tree_t p = parse_and_check(T_PACKAGE);
    fail_if_errors();
 
-   simplify(p, 0);
+   simplify_global(p);
 
    tree_t ar = range_of(tree_type(tree_decl(p, 4)), 0);
    fail_unless(folded_i(tree_left(ar), 7));
@@ -400,7 +409,7 @@ START_TEST(test_context)
 
    fail_unless(tree_contexts(e) == 5);
 
-   simplify(e, 0);
+   simplify_local(e);
 
    fail_unless(tree_contexts(e) == 7);
    fail_unless(tree_kind(tree_context(e, 5)) == T_LIBRARY);
@@ -457,7 +466,7 @@ START_TEST(test_issue320)
    input_from_file(TESTDIR "/simp/issue320.vhd");
 
    tree_t a = parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
-   simplify(a, EVAL_LOWER);
+   simplify_global(a);
 
    fail_unless(tree_decls(a) == 2);
    tree_t d = tree_decl(a, 1);
@@ -584,7 +593,7 @@ START_TEST(test_constarr)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    fail_if(p == NULL);
 
-   simplify(p, EVAL_LOWER);
+   simplify_global(p);
 
    tree_t c1 = tree_value(tree_decl(p, 1));
    fail_unless(tree_ident(c1) == ident_new("'1'"));
@@ -890,6 +899,30 @@ START_TEST(test_use)
 }
 END_TEST
 
+START_TEST(test_predef)
+{
+   input_from_file(TESTDIR "/simp/predef.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   fail_if(p == NULL);
+
+   tree_t c1 = tree_decl(p, 1);
+   fail_unless(tree_kind(c1) == T_CONST_DECL);
+   fail_unless(tree_ident(c1) == ident_new("C1"));
+   fail_unless(folded_i(tree_value(c1), 3));
+
+   tree_t c2 = tree_decl(p, 2);
+   fail_unless(tree_kind(c2) == T_CONST_DECL);
+   fail_unless(tree_ident(c2) == ident_new("C2"));
+   fail_unless(folded_b(tree_value(c2), true));
+
+   tree_t c3 = tree_decl(p, 3);
+   fail_unless(tree_kind(c3) == T_CONST_DECL);
+   fail_unless(tree_ident(c3) == ident_new("C3"));
+   fail_unless(tree_kind(tree_value(c3)) == T_FCALL);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -922,6 +955,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue425);
    tcase_add_test(tc_core, test_static1);
    tcase_add_test(tc_core, test_use);
+   tcase_add_test(tc_core, test_predef);
    suite_add_tcase(s, tc_core);
 
    return s;

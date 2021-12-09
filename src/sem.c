@@ -2088,7 +2088,7 @@ static bool sem_check_fcall(tree_t t)
       return false;
 
    if (sem_locally_static(t))
-      tree_set_flag(t, TREE_F_LOCALLY_STATIC);
+      tree_set_flag(t, TREE_F_LOCALLY_STATIC | TREE_F_GLOBALLY_STATIC);
    else if (sem_globally_static(t))
       tree_set_flag(t, TREE_F_GLOBALLY_STATIC);
 

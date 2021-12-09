@@ -118,7 +118,7 @@ tree_t run_elab(void)
       sem_check(t);
       fail_if(error_count() > 0);
 
-      simplify(t, 0);
+      simplify_local(t);
       bounds_check(t);
       fail_if(error_count() > 0);
 
@@ -155,7 +155,7 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
       const bool sem_ok = sem_check(last);
       if (simp) {
          ck_assert_msg(sem_ok, "semantic check failed");
-         simplify(last, 0);
+         simplify_local(last);
       }
 
       if (lower && ((kind == T_PACKAGE && !package_needs_body(last))

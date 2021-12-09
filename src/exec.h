@@ -28,6 +28,16 @@ typedef union {
    double  real;
 } eval_scalar_t;
 
+typedef enum {
+   EVAL_BOUNDS  = (1 << 0),
+   EVAL_FCALL   = (1 << 1),
+   EVAL_WARN    = (1 << 2),
+   EVAL_FOLDING = (1 << 3),
+   EVAL_VERBOSE = (1 << 4),
+   EVAL_REPORT  = (1 << 5),
+   EVAL_LOWER   = (1 << 7)
+} eval_flags_t;
+
 exec_t *exec_new(eval_flags_t flags);
 void exec_free(exec_t *ex);
 eval_frame_t *exec_link(exec_t *ex, ident_t ident);

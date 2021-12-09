@@ -141,6 +141,7 @@ tree_t call_builtin(subprogram_kind_t builtin, type_t type, ...)
    tree_t call = tree_new(T_FCALL);
    tree_set_ident(call, name_i);
    tree_set_ref(call, decl);
+   tree_set_flag(call, TREE_F_LOCALLY_STATIC | TREE_F_GLOBALLY_STATIC);
    if (type != NULL)
       tree_set_type(call, type);
 

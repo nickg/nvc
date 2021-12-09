@@ -29,8 +29,6 @@
 #include <math.h>
 #include <float.h>
 
-static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level);
-
 static void eval_load_vcode(lib_t lib, tree_t unit, eval_flags_t flags)
 {
    ident_t unit_name = tree_ident(unit);
@@ -97,31 +95,39 @@ static bool eval_have_lowered(tree_t func, eval_flags_t flags)
       return true;
 }
 
-static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level)
+static bool eval_not_possible(tree_t t, eval_flags_t flags, const char *why)
+{
+   if (flags & EVAL_WARN)
+      warn_at(tree_loc(t), "%s prevents constant folding", why);
+
+   return false;
+}
+
+static bool eval_possible(tree_t t, eval_flags_t flags)
 {
    switch (tree_kind(t)) {
    case T_FCALL:
       {
-         if (!(flags & EVAL_FCALL))
-            return false;
-         else if (tree_flags(tree_ref(t)) & TREE_F_IMPURE) {
-            if (flags & EVAL_WARN)
-               warn_at(tree_loc(t),
-                       "impure function call prevents constant folding");
-            return false;
-         }
+         tree_t decl = tree_ref(t);
+         const subprogram_kind_t kind = tree_subkind(decl);
+         if (kind == S_USER && !(flags & EVAL_FCALL))
+            return eval_not_possible(t, flags, "call to user defined function");
+         else if (kind == S_FOREIGN)
+            return eval_not_possible(t, flags, "call to foreign function");
+         else if (tree_flags(decl) & TREE_F_IMPURE)
+            return eval_not_possible(t, flags, "call to impure function");
+         else if (!(tree_flags(t) & TREE_F_GLOBALLY_STATIC))
+            return eval_not_possible(t, flags, "non-static expression");
 
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
             tree_t p = tree_value(tree_param(t, i));
-            const bool is_fcall = tree_kind(p) == T_FCALL;
-            if (top_level && (flags & EVAL_FOLDING) && is_fcall
-                && type_is_scalar(tree_type(p)))
-               return false;   // Would have been folded already if possible
-            else if (is_fcall && !(flags & EVAL_FCALL))
+            if (!eval_possible(p, flags))
                return false;
-            else if (!eval_possible(p, flags, false))
-               return false;
+            else if ((flags & EVAL_FOLDING)
+                     && tree_kind(p) == T_FCALL
+                     && type_is_scalar(tree_type(p)))
+               return false;  // Would have been folded already if possible
          }
 
          // This can actually lower the function on demand so only call
@@ -133,10 +139,10 @@ static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level)
       return true;
 
    case T_TYPE_CONV:
-      return eval_possible(tree_value(t), flags, false);
+      return eval_possible(tree_value(t), flags);
 
    case T_QUALIFIED:
-      return eval_possible(tree_value(t), flags, false);
+      return eval_possible(tree_value(t), flags);
 
    case T_REF:
       {
@@ -147,35 +153,32 @@ static bool eval_possible(tree_t t, eval_flags_t flags, bool top_level)
             return true;
 
          case T_CONST_DECL:
-            return tree_has_value(decl) &&
-               eval_possible(tree_value(decl), flags, false);
+            if (tree_has_value(decl))
+               return eval_possible(tree_value(decl), flags);
+            else
+               return eval_not_possible(t, flags, "deferred constant");
 
          default:
-            if (flags & EVAL_WARN)
-               warn_at(tree_loc(t), "reference to %s prevents constant folding",
-                       istr(tree_ident(t)));
-            return false;
+            return eval_not_possible(t, flags, "reference");
          }
       }
 
    case T_RECORD_REF:
-      return eval_possible(tree_value(t), flags, false);
+      return eval_possible(tree_value(t), flags);
 
    case T_AGGREGATE:
       {
          const int nassocs = tree_assocs(t);
          for (int i = 0; i < nassocs; i++) {
-            if (!eval_possible(tree_value(tree_assoc(t, i)), flags, false))
-                return false;
+            if (!eval_possible(tree_value(tree_assoc(t, i)), flags))
+               return false;
          }
 
          return true;
       }
 
    default:
-      if (flags & EVAL_WARN)
-         warn_at(tree_loc(t), "expression prevents constant folding");
-      return false;
+      return eval_not_possible(t, flags, "aggregate");
    }
 }
 
@@ -199,16 +202,12 @@ static bool eval_can_represent_type(type_t type)
 
 tree_t eval(tree_t expr, exec_t *ex)
 {
-   const tree_kind_t kind = tree_kind(expr);
-
    type_t type = tree_type(expr);
    if (!type_is_scalar(type))
       return expr;
    else if (!eval_can_represent_type(type))
       return expr;
-   else if (kind == T_FCALL && (tree_flags(tree_ref(expr)) & TREE_F_IMPURE))
-      return expr;
-   else if (!eval_possible(expr, exec_get_flags(ex), true))
+   else if (!eval_possible(expr, exec_get_flags(ex)))
       return expr;
 
    vcode_unit_t thunk = lower_thunk(expr);

@@ -908,10 +908,10 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_fold_generics(arch, &new_ctx);
 
    if (error_count() == 0) {
-      simplify(b, EVAL_LOWER);
+      simplify_global(b);
       bounds_check(b);
       set_hint_fn(elab_hint_fn, t);
-      simplify(arch, EVAL_LOWER);
+      simplify_global(arch);
       bounds_check(arch);
       clear_hint();
    }
@@ -990,7 +990,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .count = 1
       };
       tree_rewrite(copy, rewrite_refs, &params);
-      simplify(copy, EVAL_LOWER);
+      simplify_global(copy);
       bounds_check(copy);
 
       if (error_count() > 0)
@@ -1234,7 +1234,7 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
 
    elab_remangle_subprogram_names(arch, npath);
 
-   simplify(arch, EVAL_LOWER);
+   simplify_global(arch);
    bounds_check(arch);
 
    if (error_count() == 0)

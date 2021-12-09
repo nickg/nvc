@@ -61,7 +61,7 @@ START_TEST(test_bounds)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify(a, 0);
+   simplify_global(a);   // Global to fold TIME expressions
    bounds_check(a);
 
    check_expected_errors();
@@ -102,7 +102,7 @@ START_TEST(test_bounds2)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify(a, 0);
+   simplify_global(a);   // Global to fold TIME expressions
    bounds_check(a);
 
    check_expected_errors();
@@ -137,7 +137,7 @@ START_TEST(test_case)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify(a, 0);
+   simplify_local(a);
    bounds_check(a);
 
    check_expected_errors();
@@ -151,7 +151,7 @@ START_TEST(test_issue36)
    tree_t e = parse_and_check(T_ENTITY);
    fail_unless(error_count() == 0);
 
-   simplify(e, 0);
+   simplify_local(e);
    bounds_check(e);
 
    fail_if_errors();
@@ -172,7 +172,7 @@ START_TEST(test_issue54)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify(a, 0);
+   simplify_local(a);
    bounds_check(a);
 
    check_expected_errors();
@@ -193,7 +193,7 @@ START_TEST(test_issue99)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify(a, 0);
+   simplify_local(a);
    bounds_check(a);
 
    check_expected_errors();
@@ -213,7 +213,7 @@ START_TEST(test_issue150)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify(a, 0);
+   simplify_local(a);
    bounds_check(a);
 
    check_expected_errors();
@@ -227,7 +227,7 @@ START_TEST(test_issue200)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify(a, 0);
+   simplify_local(a);
    bounds_check(a);
 
    fail_if_errors();
@@ -247,7 +247,7 @@ START_TEST(test_issue208)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify(a, 0);
+   simplify_local(a);
    bounds_check(a);
 
    check_expected_errors();
@@ -266,7 +266,7 @@ START_TEST(test_issue247)
    tree_t a = parse_and_check(T_PACKAGE);
    fail_unless(error_count() == 0);
 
-   simplify(a, 0);
+   simplify_local(a);
    bounds_check(a);
 
    check_expected_errors();
@@ -285,7 +285,7 @@ START_TEST(test_issue269)
    tree_t a = parse_and_check(T_PACKAGE);
    fail_unless(error_count() == 0);
 
-   simplify(a, 0);
+   simplify_local(a);
    bounds_check(a);
 
    check_expected_errors();
