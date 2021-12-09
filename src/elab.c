@@ -515,7 +515,7 @@ static void elab_remangle_subprogram_names(tree_t container, ident_t path)
       case T_FUNC_DECL:
       case T_PROC_DECL:
          if (!is_builtin(tree_subkind(d)))
-            tree_set_ident2(d, ident_prefix(path, tree_ident2(d), '$'));;
+            tree_set_ident2(d, ident_prefix(tree_ident2(d), path, '$'));
          break;
 
       default:
