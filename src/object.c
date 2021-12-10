@@ -53,7 +53,7 @@ static const char *item_text_map[] = {
    "I_DVAL",     "I_SPEC",      "I_SCOPES",   "I_INDEXCON",   "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_PARENT",
-   "????",       "I_PTYPES",    "I_CHARS",    "I_CONSTR",     "I_FLAGS",
+   "I_GUARD",    "I_PTYPES",    "I_CHARS",    "I_CONSTR",     "I_FLAGS",
    "I_SIGNALS",  "I_LEFT",      "I_RIGHT",    "I_PROCS",      "I_NEXUS",
    "I_PATH",     "I_DEPS",      "I_SIZE",     "I_VCODE",      "I_PRIMARY",
    "I_SOURCES",  "I_OUTPUTS",

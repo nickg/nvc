@@ -1662,6 +1662,34 @@ static void make_universal_real(tree_t container)
    make_universal_type(container, T_REAL, "universal_real", min, max);
 }
 
+static void make_implicit_guard_signal(tree_t block, tree_t expr)
+{
+   tree_t guard = tree_new(T_SIGNAL_DECL);
+   tree_set_ident(guard, ident_new("guard"));
+   tree_set_loc(guard, tree_loc(expr));
+   tree_set_type(guard, std_type(NULL, STD_BOOLEAN));
+
+   tree_t update = tree_new(T_CASSIGN);
+   tree_set_loc(update, tree_loc(expr));
+   tree_set_ident(update, ident_new("update_guard"));
+   tree_set_target(update, make_ref(guard));
+
+   tree_t wave = tree_new(T_WAVEFORM);
+   tree_set_loc(wave, tree_loc(expr));
+   tree_set_value(wave, expr);
+
+   tree_t cond = tree_new(T_COND);
+   tree_set_loc(cond, tree_loc(expr));
+   tree_add_waveform(cond, wave);
+
+   tree_add_cond(update, cond);
+
+   tree_add_decl(block, guard);
+   tree_add_stmt(block, update);
+
+   insert_name(nametab, guard, NULL, 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -7087,16 +7115,22 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
    return t;
 }
 
-static tree_t p_options(tree_t stmt)
+static void p_options(tree_t *reject, tree_t *guard)
 {
    // [ guarded ] [ delay_mechanism ]
 
    BEGIN("options");
 
-   if (optional(tGUARDED))
-      tree_set_flag(stmt, TREE_F_GUARDED);
+   if (optional(tGUARDED)) {
+      tree_t decl = query_name(nametab, ident_new("guard"));
+      if (decl == NULL || tree_kind(decl) != T_SIGNAL_DECL)
+         parse_error(CURRENT_LOC, "guarded assignment has no visible "
+                     "guard signal");
+      else
+         *guard = make_ref(decl);
+   }
 
-   return p_delay_mechanism();
+   *reject = p_delay_mechanism();
 }
 
 static void p_conditional_waveforms(tree_t stmt, type_t constraint)
@@ -7137,7 +7171,11 @@ static tree_t p_conditional_signal_assignment(tree_t name)
 
    consume(tLE);
 
-   tree_t reject = p_options(t);
+   tree_t reject = NULL, guard = NULL;
+   p_options(&reject, &guard);
+
+   if (guard != NULL)
+      tree_set_guard(t, guard);
 
    type_t target_type = NULL;
    const bool aggregate = tree_kind(target) == T_AGGREGATE;
@@ -7147,8 +7185,10 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    p_conditional_waveforms(t, target_type);
 
    const int nconds = tree_conds(t);
-   for (int i = 0; i < nconds; i++)
-      set_delay_mechanism(tree_cond(t, i), reject);
+   for (int i = 0; i < nconds; i++) {
+      tree_t c = tree_cond(t, i);
+      set_delay_mechanism(c, reject);
+   }
 
    consume(tSEMI);
 
@@ -7209,7 +7249,13 @@ static tree_t p_selected_signal_assignment(void)
       target_type = solve_types(nametab, target, NULL);
 
    consume(tLE);
-   tree_t reject = p_options(t);
+
+   tree_t reject = NULL, guard = NULL;
+   p_options(&reject, &guard);
+
+   if (guard != NULL)
+      tree_set_guard(t, guard);
+
    p_selected_waveforms(t, target_type);
    consume(tSEMI);
 
@@ -7355,6 +7401,17 @@ static tree_t p_block_statement(ident_t label)
       tree_set_loc(b, CURRENT_LOC);
       insert_name(nametab, b, NULL, 1);
       scope_set_prefix(nametab, label);
+   }
+
+   if (peek() == tLPAREN) {
+      consume(tLPAREN);
+
+      tree_t expr = p_expression();
+      solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
+
+      make_implicit_guard_signal(b, expr);
+
+      consume(tRPAREN);
    }
 
    optional(tIS);

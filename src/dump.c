@@ -797,6 +797,20 @@ static void dump_decl(tree_t t, int indent)
    printf(";\n");
 }
 
+static void dump_waveforms(tree_t t)
+{
+   const int nwaves = tree_waveforms(t);
+   for (int i = 0; i < nwaves; i++) {
+      if (i > 0) printf(", ");
+      tree_t w = tree_waveform(t, i);
+      dump_expr(tree_value(w));
+      if (tree_has_delay(w)) {
+         syntax(" #after ");
+         dump_expr(tree_delay(w));
+      }
+   }
+}
+
 static void dump_stmt(tree_t t, int indent)
 {
    tab(indent);
@@ -837,16 +851,7 @@ static void dump_stmt(tree_t t, int indent)
       else
          printf("0 ps");
       syntax(" #inertial ");
-      for (unsigned i = 0; i < tree_waveforms(t); i++) {
-         if (i > 0)
-            printf(", ");
-         tree_t w = tree_waveform(t, i);
-         dump_expr(tree_value(w));
-         if (tree_has_delay(w)) {
-            syntax(" #after ");
-            dump_expr(tree_delay(w));
-         }
-      }
+      dump_waveforms(t);
       break;
 
    case T_VAR_ASSIGN:
@@ -1065,6 +1070,19 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_NULL:
       syntax("#null");
+      break;
+
+   case T_CASSIGN:
+      dump_expr(tree_target(t));
+      printf(" <= ");
+      if (tree_has_guard(t)) syntax("#guarded ");
+      color_printf("$red$/* TODO: T_CASSIGN */$$");
+      break;
+
+   case T_SELECT:
+      printf(" <= ");
+      if (tree_has_guard(t)) syntax("#guarded ");
+      color_printf("$red$/* TODO: T_SELECT */$$");
       break;
 
    default:

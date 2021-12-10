@@ -79,7 +79,7 @@ typedef uint64_t imask_t;
 #define I_DIMS       ONE_HOT(42)
 #define I_FIELDS     ONE_HOT(43)
 #define I_PARENT     ONE_HOT(44)
-// Unused            ONE_HOT(45)
+#define I_GUARD      ONE_HOT(45)
 #define I_PTYPES     ONE_HOT(46)
 #define I_CHARS      ONE_HOT(47)
 #define I_CONSTR     ONE_HOT(48)
@@ -103,7 +103,7 @@ typedef uint64_t imask_t;
                           | I_NAME | I_SPEC | I_RESOLUTION | I_CONSTR   \
                           | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
                           | I_ACCESS | I_RESULT | I_FILE | I_PARENT     \
-                          | I_EOPT | I_PRIMARY)
+                          | I_EOPT | I_PRIMARY | I_GUARD)
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_ELSES    \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \

@@ -921,6 +921,37 @@ START_TEST(test_predef)
 }
 END_TEST
 
+START_TEST(test_guard)
+{
+   input_from_file(TESTDIR "/simp/guard.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_if(a == NULL);
+
+   tree_t b0 = tree_stmt(a, 0);
+   fail_unless(tree_kind(b0) == T_BLOCK);
+
+   tree_t p1 = tree_stmt(b0, 1);
+   fail_unless(tree_kind(p1) == T_PROCESS);
+   fail_unless(tree_stmts(p1) == 2);
+
+   tree_t g_if1 = tree_stmt(p1, 0);
+   fail_unless(tree_kind(g_if1) == T_IF);
+   fail_unless(tree_ident(g_if1) == ident_new("guard_if"));
+   fail_unless(tree_stmts(g_if1) == 1);
+
+   tree_t p2 = tree_stmt(b0, 2);
+   fail_unless(tree_kind(p2) == T_PROCESS);
+   fail_unless(tree_stmts(p2) == 2);
+
+   tree_t g_if2 = tree_stmt(p2, 0);
+   fail_unless(tree_kind(g_if2) == T_IF);
+   fail_unless(tree_ident(g_if2) == ident_new("guard_if"));
+   fail_unless(tree_stmts(g_if2) == 1);
+   fail_unless(tree_kind(tree_stmt(g_if2, 0)) == T_CASE);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -954,6 +985,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_static1);
    tcase_add_test(tc_core, test_use);
    tcase_add_test(tc_core, test_predef);
+   tcase_add_test(tc_core, test_guard);
    suite_add_tcase(s, tc_core);
 
    return s;

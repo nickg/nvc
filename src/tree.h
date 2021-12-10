@@ -301,7 +301,7 @@ typedef enum {
    TREE_F_POSTPONED       = (1 << 5),
    TREE_F_SHARED          = (1 << 6),
    // Unused              = (1 << 7),
-   TREE_F_GUARDED         = (1 << 8),
+   // Unused              = (1 << 8),
    TREE_F_ELIDE_BOUNDS    = (1 << 9),
    TREE_F_ELAB_COPY       = (1 << 10),
    TREE_F_FORMAL_NAME     = (1 << 11),
@@ -446,6 +446,10 @@ void tree_set_class(tree_t t, class_t c);
 tree_t tree_reject(tree_t t);
 void tree_set_reject(tree_t t, tree_t r);
 bool tree_has_reject(tree_t t);
+
+tree_t tree_guard(tree_t t);
+void tree_set_guard(tree_t t, tree_t g);
+bool tree_has_guard(tree_t t);
 
 tree_t tree_name(tree_t t);
 void tree_set_name(tree_t t, tree_t n);

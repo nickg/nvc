@@ -118,7 +118,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_CASSIGN
-   (I_IDENT | I_TARGET | I_CONDS | I_FLAGS),
+   (I_IDENT | I_TARGET | I_CONDS | I_GUARD),
 
    // T_WHILE
    (I_IDENT | I_VALUE | I_STMTS),
@@ -164,7 +164,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_TYPE | I_FLAGS),
 
    // T_SELECT
-   (I_IDENT | I_VALUE | I_ASSOCS | I_FLAGS),
+   (I_IDENT | I_VALUE | I_ASSOCS | I_GUARD),
 
    // T_COMPONENT
    (I_IDENT | I_PORTS | I_GENERICS),
@@ -1033,6 +1033,25 @@ void tree_set_reject(tree_t t, tree_t r)
 bool tree_has_reject(tree_t t)
 {
    return lookup_item(&tree_object, t, I_REJECT)->object != NULL;
+}
+
+tree_t tree_guard(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_GUARD);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _tree, object);
+}
+
+void tree_set_guard(tree_t t, tree_t g)
+{
+   assert(g->object.kind == T_REF);
+   lookup_item(&tree_object, t, I_GUARD)->object = &(g->object);
+   object_write_barrier(&(t->object), &(g->object));
+}
+
+bool tree_has_guard(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_GUARD)->object != NULL;
 }
 
 tree_t tree_name(tree_t t)

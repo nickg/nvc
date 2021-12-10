@@ -1016,6 +1016,23 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
    }
 }
 
+static tree_t simp_guard(tree_t t, tree_t wait)
+{
+   // See LRM 93 section 9.3
+
+   tree_t g_if = tree_new(T_IF);
+   tree_set_ident(g_if, ident_new("guard_if"));
+   tree_set_loc(g_if, tree_loc(t));
+
+   tree_t guard_ref = tree_guard(t);
+   tree_set_value(g_if, guard_ref);
+   tree_add_trigger(wait, guard_ref);
+
+   // TODO: else should assign null transaction so no longer driving?
+
+   return g_if;
+}
+
 static tree_t simp_cassign(tree_t t)
 {
    // Replace concurrent assignments with a process
@@ -1030,6 +1047,11 @@ static tree_t simp_cassign(tree_t t)
 
    tree_t container = p;  // Where to add new statements
    void (*add_stmt)(tree_t, tree_t) = tree_add_stmt;
+
+   if (tree_has_guard(t)) {
+      container = simp_guard(t, w);
+      tree_add_stmt(p, container);
+   }
 
    tree_t target = tree_target(t);
 
@@ -1088,6 +1110,12 @@ static tree_t simp_select(tree_t t)
    tree_set_ident(w, ident_new("select_wait"));
    tree_set_flag(w, TREE_F_STATIC_WAIT);
 
+   tree_t container = p;
+   if (tree_has_guard(t)) {
+      container = simp_guard(t, w);
+      tree_add_stmt(p, container);
+   }
+
    tree_t c = tree_new(T_CASE);
    tree_set_ident(c, ident_new("select_case"));
    tree_set_loc(c, tree_loc(t));
@@ -1110,7 +1138,7 @@ static tree_t simp_select(tree_t t)
          simp_build_wait(w, tree_waveform(value, j), false);
    }
 
-   tree_add_stmt(p, c);
+   tree_add_stmt(container, c);
    tree_add_stmt(p, w);
    return p;
 }
