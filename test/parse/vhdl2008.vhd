@@ -61,4 +61,8 @@ begin
         assert b nor '1';               -- OK
     end process;
 
+    /* This is a comment */
+
+    /* Comments /* do not nest */
+
 end architecture;

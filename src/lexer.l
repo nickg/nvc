@@ -42,14 +42,30 @@
 
 #define TOKEN(t) return (last_token = (t))
 
-#define TOKEN_LRM(t, lrm)                                       \
-   if (standard() < lrm) {                                      \
-      warn_at(&yylloc, "%s is a reserved word in VHDL-%s",      \
-              yytext, standard_text(lrm));                      \
-      return parse_id(yytext);                                  \
-   }                                                            \
-   else                                                         \
-      return (last_token = (t));
+#define TOKEN_LRM(t, lrm) do {                                          \
+      static bool warned = false;                                       \
+      if (!warned && standard() < lrm) {                                \
+         warn_at(&yylloc, "%s is a reserved word in VHDL-%s",           \
+                 yytext, standard_text(lrm));                           \
+         note_at(&yylloc, "pass $bold$--std=%s$$ to enable this "       \
+                 "feature", standard_text(lrm));                         \
+         warned = true;                                                 \
+         return parse_id(yytext);                                       \
+      }                                                                 \
+      else                                                              \
+         return (last_token = (t));                                     \
+   } while (0)
+
+#define MIN_STD(lrm, what) do {                                         \
+      static bool warned = false;                                       \
+      if (!warned && standard() < lrm) {                                \
+         warn_at(&yylloc, "%s are a VHDL-%s feature",                   \
+                 what, standard_text(lrm));                             \
+         note_at(&yylloc, "pass $bold$--std=%s$$ to enable this "       \
+                 "feature", standard_text(lrm));                        \
+         warned = true;                                                 \
+      }                                                                 \
+   } while (0)
 
 #define TOKEN_00(t) TOKEN_LRM(t, STD_00)
 #define TOKEN_08(t) TOKEN_LRM(t, STD_08)
@@ -88,6 +104,8 @@ TICK            \'
 PRAGMA          --[ \t]*
 SYNTH_OFF       {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_off).*
 SYNTH_ON        {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_on).*
+
+%x C_COMMENT
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -196,6 +214,11 @@ WARNING       ?i:warning
 {SYNTH_ON}      { TOKEN(tSYNTHON); }
 
 {COMMENT}       { }
+
+"/*"            { MIN_STD(STD_08, "delimited comments"); BEGIN(C_COMMENT); }
+<C_COMMENT>"*/" { BEGIN(INITIAL); }
+<C_COMMENT>\n   { }
+<C_COMMENT>.    { }
 
 {ENTITY}        { TOKEN(tENTITY); }
 {IS}            { TOKEN(tIS); }

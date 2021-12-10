@@ -1,5 +1,5 @@
 ## master
-- Library build is now reproducible when running `make -j`
+- Library build is now reproducible when running `make -j`.
 - Fix a constant folding crash with nested records.
 - The `--relax=impure` option allows pure functions to call impure
   functions.
@@ -33,7 +33,7 @@
   condition conversion.
 - VHDL-2008 IEEE standard libraries are now built and installed in
   addition to the VHDL-1993 libraries.
-- Variable assignment now support aggregate targets.
+- Variable assignment now supports aggregate targets.
 - Fix a crash when using 'VALUE with enumeration subtypes (#419).
 - The `--codegen` command, which has been deprecated since 1.3, was
   removed.
@@ -51,6 +51,7 @@
 - Added a new option `--ieee-warnings=off` to disable warning messages
   from the standard IEEE packages.
 - Support for configurations has been significantly improved (#372).
+- Added support for VHDL-2008 delimited comments.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed
