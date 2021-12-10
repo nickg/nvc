@@ -1664,29 +1664,13 @@ static void make_universal_real(tree_t container)
 
 static void make_implicit_guard_signal(tree_t block, tree_t expr)
 {
-   tree_t guard = tree_new(T_SIGNAL_DECL);
-   tree_set_ident(guard, ident_new("guard"));
+   tree_t guard = tree_new(T_IMPLICIT_DECL);
+   tree_set_ident(guard, ident_new("GUARD"));
    tree_set_loc(guard, tree_loc(expr));
    tree_set_type(guard, std_type(NULL, STD_BOOLEAN));
-
-   tree_t update = tree_new(T_CASSIGN);
-   tree_set_loc(update, tree_loc(expr));
-   tree_set_ident(update, ident_new("update_guard"));
-   tree_set_target(update, make_ref(guard));
-
-   tree_t wave = tree_new(T_WAVEFORM);
-   tree_set_loc(wave, tree_loc(expr));
-   tree_set_value(wave, expr);
-
-   tree_t cond = tree_new(T_COND);
-   tree_set_loc(cond, tree_loc(expr));
-   tree_add_waveform(cond, wave);
-
-   tree_add_cond(update, cond);
+   tree_set_value(guard, expr);
 
    tree_add_decl(block, guard);
-   tree_add_stmt(block, update);
-
    insert_name(nametab, guard, NULL, 0);
 }
 
@@ -7122,12 +7106,14 @@ static void p_options(tree_t *reject, tree_t *guard)
    BEGIN("options");
 
    if (optional(tGUARDED)) {
-      tree_t decl = query_name(nametab, ident_new("guard"));
-      if (decl == NULL || tree_kind(decl) != T_SIGNAL_DECL)
+      tree_t decl = query_name(nametab, ident_new("GUARD"));
+      if (decl == NULL)
          parse_error(CURRENT_LOC, "guarded assignment has no visible "
                      "guard signal");
-      else
+      else {
          *guard = make_ref(decl);
+         tree_set_loc(*guard, CURRENT_LOC);
+      }
    }
 
    *reject = p_delay_mechanism();

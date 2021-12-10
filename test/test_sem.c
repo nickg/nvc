@@ -857,6 +857,10 @@ START_TEST(test_signal)
       { 30, "aggregate element must be locally static name" },
       { 40, "signal X is not a formal parameter and procedure PROC1 [BIT] "
         "is not contained within a process statement" },
+      { 48, "implicit signal may not be assigned" },
+      { 54, "guard signal must have BOOLEAN type but found INTEGER" },
+      { 57, "guard expression must have type BOOLEAN but found BIT_VECTOR" },
+      { 64, "assignment guard must be a signal" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -210,6 +210,10 @@ typedef enum {
    ATTR_SIMPLE_NAME,
 } attr_kind_t;
 
+typedef enum {
+   IMPLICIT_GUARD,
+} implicit_kind_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_ARCH,
@@ -288,6 +292,7 @@ typedef enum tree_kind {
    T_PROT_FCALL,
    T_PROT_PCALL,
    T_RANGE,
+   T_IMPLICIT_DECL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

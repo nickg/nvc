@@ -1531,6 +1531,7 @@ static tree_t sem_check_lvalue(tree_t t)
    case T_SIGNAL_DECL:
    case T_PORT_DECL:
    case T_CONST_DECL:
+   case T_IMPLICIT_DECL:
       return t;
    default:
       return NULL;
@@ -1719,6 +1720,9 @@ static bool sem_check_signal_target(tree_t target)
          }
          break;
 
+      case T_IMPLICIT_DECL:
+         sem_error(target, "implicit signal may not be assigned");
+
       case T_PORT_DECL:
          if (tree_subkind(decl) == PORT_IN)
             sem_error(target, "cannot assign to input port %s",
@@ -1771,6 +1775,30 @@ static bool sem_check_signal_assign(tree_t t)
    return true;
 }
 
+static bool sem_check_guard(tree_t t)
+{
+   assert(tree_kind(t) == T_REF);
+
+   if (!sem_check_type(t, std_type(NULL, STD_BOOLEAN)))
+      sem_error(t, "guard signal must have BOOLEAN type but found %s",
+                type_pp(tree_type(t)));
+
+   tree_t decl = tree_ref(t);
+   switch (tree_kind(decl)) {
+   case T_SIGNAL_DECL:
+   case T_IMPLICIT_DECL:
+      break;
+   case T_PORT_DECL:
+      if (tree_class(decl) == C_SIGNAL)
+         break;
+      // Fall-through
+   default:
+      sem_error(t, "assignment guard must be a signal");
+   }
+
+   return true;
+}
+
 static bool sem_check_cassign(tree_t t)
 {
    tree_t target = tree_target(t);
@@ -1779,6 +1807,9 @@ static bool sem_check_cassign(tree_t t)
       return false;
 
    if (!sem_check_signal_target(target))
+      return false;
+
+   if (tree_has_guard(t) && !sem_check_guard(tree_guard(t)))
       return false;
 
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
@@ -2806,6 +2837,7 @@ static bool sem_check_ref(tree_t t)
    case T_GENVAR:
    case T_FUNC_DECL:
    case T_FUNC_BODY:
+   case T_IMPLICIT_DECL:
       break;
 
    default:
@@ -3004,7 +3036,9 @@ static bool sem_is_named_entity(tree_t t)
    if (tree_kind(t) != T_REF)
       return false;
 
-   switch (tree_kind(tree_ref(t))) {
+   tree_t decl = tree_ref(t);
+
+   switch (tree_kind(decl)) {
    case T_SIGNAL_DECL:  case T_VAR_DECL:    case T_PORT_DECL:
    case T_ALIAS:        case T_ENTITY:      case T_ARCH:
    case T_PACKAGE:      case T_PACK_BODY:   case T_BLOCK:
@@ -3012,6 +3046,8 @@ static bool sem_is_named_entity(tree_t t)
    case T_FUNC_BODY:    case T_PROC_DECL:   case T_PROC_BODY:
    case T_PROCESS:
       return true;
+   case T_IMPLICIT_DECL:
+      return tree_subkind(decl) == IMPLICIT_GUARD;   // See LRM 93 section 4.3
    default:
       return false;
    }
@@ -4125,6 +4161,14 @@ static bool sem_check_case(tree_t t)
    return ok;
 }
 
+static bool sem_check_select_assign(tree_t t)
+{
+   if (tree_has_guard(t) && !sem_check_guard(tree_guard(t)))
+      return false;
+
+   return sem_check_case(t);
+}
+
 static bool sem_check_return(tree_t t)
 {
    if (top_scope->subprog == NULL)
@@ -4526,6 +4570,26 @@ static bool sem_check_prot_body(tree_t t)
    return ok;
 }
 
+static bool sem_check_implicit_decl(tree_t t)
+{
+   tree_t value = tree_value(t);
+   type_t type  = tree_type(t);
+
+   if (!sem_check(value))
+      return false;
+
+   switch (tree_subkind(t)) {
+   case IMPLICIT_GUARD:
+      if (!sem_check_type(value, type))
+         sem_error(value, "guard expression must have type %s but "
+                   "found %s", type_pp2(type, tree_type(value)),
+                   type_pp2(tree_type(value), type));
+      break;
+   }
+
+   return true;
+}
+
 static bool sem_check_context_decl(tree_t t)
 {
    // Context declarations are in LRM 08 section 13.3
@@ -4628,8 +4692,9 @@ bool sem_check(tree_t t)
    case T_BLOCK:
       return sem_check_block(t);
    case T_CASE:
-   case T_SELECT:
       return sem_check_case(t);
+   case T_SELECT:
+      return sem_check_select_assign(t);
    case T_EXIT:
    case T_NEXT:
       return sem_check_loop_control(t);
@@ -4681,6 +4746,8 @@ bool sem_check(tree_t t)
       return sem_check_context_ref(t);
    case T_BLOCK_CONFIG:
       return sem_check_block_config(t);
+   case T_IMPLICIT_DECL:
+      return sem_check_implicit_decl(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

@@ -2958,7 +2958,7 @@ START_TEST(test_guarded)
    tree_t a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 3);
+   fail_unless(tree_stmts(a) == 4);
 
    tree_t b = tree_stmt(a, 2);
    fail_unless(tree_kind(b) == T_BLOCK);
@@ -2966,20 +2966,20 @@ START_TEST(test_guarded)
    fail_unless(tree_decls(b) == 1);
 
    tree_t g = tree_decl(b, 0);
-   fail_unless(tree_kind(g) == T_SIGNAL_DECL);
-   fail_unless(tree_ident(g) == ident_new("guard"));
+   fail_unless(tree_kind(g) == T_IMPLICIT_DECL);
+   fail_unless(tree_ident(g) == ident_new("GUARD"));
 
-   tree_t s1 = tree_stmt(b, 1);
-   fail_unless(tree_kind(s1) == T_CASSIGN);
-   fail_unless(tree_has_guard(s1));
+   tree_t s0 = tree_stmt(b, 0);
+   fail_unless(tree_kind(s0) == T_CASSIGN);
+   fail_unless(tree_has_guard(s0));
 
-   tree_t gref = tree_guard(s1);
+   tree_t gref = tree_guard(s0);
    fail_unless(tree_kind(gref) == T_REF);
    fail_unless(tree_ref(gref) == g);
 
-   tree_t s2 = tree_stmt(b, 2);
-   fail_unless(tree_kind(s2) == T_SELECT);
-   fail_unless(tree_has_guard(s2));
+   tree_t s1 = tree_stmt(b, 1);
+   fail_unless(tree_kind(s1) == T_SELECT);
+   fail_unless(tree_has_guard(s1));
 
    fail_unless(parse() == NULL);
    check_expected_errors();

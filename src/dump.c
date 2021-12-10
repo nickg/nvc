@@ -67,6 +67,10 @@ static void syntax(const char *fmt, ...)
          }
          if (*p != '~' && *p != '#')
             tb_append(tb, *p);
+         if (p > fmt && *p == '/' && *(p - 1) == '*') {
+            tb_printf(tb, "$$");
+            comment = false;
+         }
       }
       else if (*p == '#') {
          tb_printf(tb, "$bold$$cyan$");
@@ -76,8 +80,9 @@ static void syntax(const char *fmt, ...)
          tb_printf(tb, "$yellow$");
          highlighting = true;
       }
-      else if (*p == '-' && *(p + 1) == '-') {
-         tb_printf(tb, "$red$-");
+      else if ((*p == '-' && *(p + 1) == '-')
+               || (*p == '/' && *(p + 1) == '*')) {
+         tb_printf(tb, "$red$%c", *p);
          comment = true;
       }
       else if (!isalnum((int)*p) && *p != '_' && *p != '%' && highlighting) {
@@ -618,6 +623,9 @@ static void dump_decl(tree_t t, int indent)
    if (tree_kind(t) != T_HIER) dump_address(t);
 
    switch (tree_kind(t)) {
+   case T_IMPLICIT_DECL:
+      syntax("/* implicit */ ");
+      // Fall-through
    case T_SIGNAL_DECL:
       syntax("#signal %s : ", istr(tree_ident(t)));
       break;
@@ -892,6 +900,7 @@ static void dump_stmt(tree_t t, int indent)
       syntax("#end #block;\n");
       return;
 
+   case T_CASSERT:
    case T_ASSERT:
       if (tree_has_value(t)) {
          syntax("#assert ");

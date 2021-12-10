@@ -43,5 +43,25 @@ begin
     begin
     end block;
 
+    b2: block (true) is
+    begin
+        guard <= false;                 -- Error
+    end block;
+
+    b3: block is
+        signal guard : integer;
+    begin
+        x <= guarded not x;             -- Error
+    end block;
+
+    b4: block (v) is                    -- Error
+    begin
+    end block;
+
+    b5: block is
+        constant guard : boolean := false;
+    begin
+        x <= guarded not x;             -- Error
+    end block;
 
 end architecture;

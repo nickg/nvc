@@ -931,7 +931,7 @@ START_TEST(test_guard)
    tree_t b0 = tree_stmt(a, 0);
    fail_unless(tree_kind(b0) == T_BLOCK);
 
-   tree_t p1 = tree_stmt(b0, 1);
+   tree_t p1 = tree_stmt(b0, 0);
    fail_unless(tree_kind(p1) == T_PROCESS);
    fail_unless(tree_stmts(p1) == 2);
 
@@ -940,7 +940,7 @@ START_TEST(test_guard)
    fail_unless(tree_ident(g_if1) == ident_new("guard_if"));
    fail_unless(tree_stmts(g_if1) == 1);
 
-   tree_t p2 = tree_stmt(b0, 2);
+   tree_t p2 = tree_stmt(b0, 1);
    fail_unless(tree_kind(p2) == T_PROCESS);
    fail_unless(tree_stmts(p2) == 2);
 

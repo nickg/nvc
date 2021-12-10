@@ -15,6 +15,18 @@ begin
 
         with b select z <= guarded q when others;  -- OK
 
+        assert guard;                   -- OK
+
+    end block;
+
+    b2: block is
+        signal guard : boolean := true;  -- OK
+    begin
+
+        x <= guarded y;                     -- OK
+
+        with b select z <= guarded q when others;  -- OK
+
     end block;
 
 end architecture;

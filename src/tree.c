@@ -258,6 +258,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_RANGE
    (I_SUBKIND | I_VALUE | I_LEFT | I_RIGHT | I_TYPE),
+
+   // T_IMPLICIT_DECL
+   (I_IDENT | I_TYPE | I_SUBKIND | I_VALUE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -280,7 +283,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_SPEC",          "T_BINDING",       "T_LIBRARY",      "T_DESIGN_UNIT",
    "T_CONFIGURATION", "T_PROT_BODY",     "T_CONTEXT",      "T_CTXREF",
    "T_CONSTRAINT",    "T_BLOCK_CONFIG",  "T_PROT_FCALL",   "T_PROT_PCALL",
-   "T_RANGE",
+   "T_RANGE",         "T_IMPLICIT_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -343,12 +346,12 @@ static tree_kind_t expr_kinds[] = {
 };
 
 static tree_kind_t decl_kinds[] = {
-   T_PORT_DECL,  T_SIGNAL_DECL, T_VAR_DECL,   T_TYPE_DECL,
-   T_CONST_DECL, T_FUNC_DECL,   T_FUNC_BODY,  T_ALIAS,
-   T_ATTR_DECL,  T_ATTR_SPEC,   T_PROC_DECL,  T_PROC_BODY,
-   T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL, T_UNIT_DECL,
-   T_GENVAR,     T_HIER,        T_SPEC,       T_BINDING,
-   T_USE,        T_PROT_BODY,   T_BLOCK_CONFIG
+   T_PORT_DECL,  T_SIGNAL_DECL, T_VAR_DECL,     T_TYPE_DECL,
+   T_CONST_DECL, T_FUNC_DECL,   T_FUNC_BODY,    T_ALIAS,
+   T_ATTR_DECL,  T_ATTR_SPEC,   T_PROC_DECL,    T_PROC_BODY,
+   T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL,   T_UNIT_DECL,
+   T_GENVAR,     T_HIER,        T_SPEC,         T_BINDING,
+   T_USE,        T_PROT_BODY,   T_BLOCK_CONFIG, T_IMPLICIT_DECL
 };
 
 object_class_t tree_object = {
