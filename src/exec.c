@@ -2471,7 +2471,7 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
 
    assert(ex->flags & EVAL_FCALL);
 
-   vcode_unit_t unit = eval_find_unit(ident, EVAL_VERBOSE);
+   vcode_unit_t unit = eval_find_unit(ident, ex->flags | EVAL_WARN);
    assert(unit);
 
    vcode_state_t vcode_state;

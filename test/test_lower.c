@@ -2639,25 +2639,41 @@ START_TEST(test_thunk)
 
    tree_t arch = parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH);
 
-   vcode_unit_t t0 = lower_thunk(tree_value(tree_decl(arch, 0)));
-   fail_if(t0 == NULL);
-   vcode_select_unit(t0);
+   {
+      vcode_unit_t t0 = lower_thunk(tree_value(tree_decl(arch, 0)));
+      fail_if(t0 == NULL);
+      vcode_select_unit(t0);
 
-   EXPECT_BB(0) = {
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_CONST_ARRAY, .length = 4 },
-      { VCODE_OP_ADDRESS_OF },
-      { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_ADD },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_NOT },
-      { VCODE_OP_RETURN },
-   };
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST_ARRAY, .length = 4 },
+         { VCODE_OP_ADDRESS_OF },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_ADD },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_NOT },
+         { VCODE_OP_RETURN },
+      };
 
-   CHECK_BB(0);
+      CHECK_BB(0);
+   }
 
-   vcode_unit_t t1 = lower_thunk(tree_value(tree_decl(arch, 1)));
-   fail_unless(t1 == NULL);
+   {
+      vcode_unit_t t1 = lower_thunk(tree_value(tree_decl(arch, 1)));
+      fail_if(t1 == NULL);
+      vcode_select_unit(t1);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_LINK_VAR, .name = "WORK.PACK.D" },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_RECORD_REF, .field = 0 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_ADD },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
 }
 END_TEST
 

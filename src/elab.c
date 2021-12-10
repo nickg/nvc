@@ -281,10 +281,7 @@ static void elab_config_instance(tree_t block, tree_t spec)
          || tree_ident(s) == match
          || (match == NULL && !tree_has_spec(s));
 
-      if (apply) {
-         assert(!tree_has_spec(s));   // TODO: how to handle this?
-         tree_set_spec(s, spec);
-      }
+      if (apply) tree_set_spec(s, spec);
    }
 }
 

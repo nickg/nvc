@@ -2142,13 +2142,17 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
    vcode_var_t var = lower_get_var(decl, &hops);
    if (var == VCODE_INVALID_VAR) {
       if (mode == LOWER_THUNK) {
-         if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl)) {
-            tree_t value = tree_value(decl);
-            vcode_reg_t reg = lower_expr(value, ctx);
-            if (type_is_array(type))
-               return lower_coerce_arrays(tree_type(value), type, reg);
+         if (tree_kind(decl) == T_CONST_DECL) {
+            if (tree_has_value(decl)) {
+               tree_t value = tree_value(decl);
+               vcode_reg_t reg = lower_expr(value, ctx);
+               if (type_is_array(type))
+                  return lower_coerce_arrays(tree_type(value), type, reg);
+               else
+                  return reg;
+            }
             else
-               return reg;
+               ptr_reg = lower_link_var(decl);  // External constant
          }
          else {
             emit_comment("Cannot resolve variable %s", istr(tree_ident(decl)));
@@ -2162,10 +2166,8 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
                return emit_undefined(vtype);
          }
       }
-      else {
-         // External variable
-         ptr_reg = lower_link_var(decl);
-      }
+      else
+         ptr_reg = lower_link_var(decl);   // External variable
    }
    else if (hops > 0)
       ptr_reg = emit_var_upref(hops, var);

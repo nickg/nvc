@@ -234,7 +234,7 @@ static tree_t simp_ref(tree_t t)
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
-      if (type_is_array(tree_type(decl)))
+      if (!type_is_scalar(tree_type(decl)))
          return t;
       else if (tree_has_value(decl)) {
          tree_t value = tree_value(decl);

@@ -155,8 +155,10 @@ static bool eval_possible(tree_t t, eval_flags_t flags)
          case T_CONST_DECL:
             if (tree_has_value(decl))
                return eval_possible(tree_value(decl), flags);
-            else
+            else if (!(flags & EVAL_FCALL))
                return eval_not_possible(t, flags, "deferred constant");
+            else
+               return true;
 
          default:
             return eval_not_possible(t, flags, "reference");
