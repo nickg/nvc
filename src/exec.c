@@ -559,6 +559,7 @@ static void eval_op_add(int op, eval_state_t *state)
          vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
          const int stride = eval_slots_for_type(vtype);
          eval_make_pointer_to(dst, lhs->pointer + rhs->integer * stride);
+         EVAL_ASSERT_VALID(op, dst->pointer);
       }
       break;
 
@@ -1174,11 +1175,13 @@ static void eval_op_wrap(int op, eval_state_t *state)
       const range_kind_t dir =
          eval_get_reg(vcode_get_arg(op, (i * 3) + 3), state)->integer;
 
+      const int64_t diff = dir == RANGE_DOWNTO ? left - right : right - left;
+      const int64_t length = diff < 0 ? 0 : diff + 1;
+
       dst[1 + i*2 + 0].kind = VALUE_INTEGER;
       dst[1 + i*2 + 0].integer = left;
       dst[1 + i*2 + 1].kind = VALUE_INTEGER;
-      dst[1 + i*2 + 1].integer =
-         dir == RANGE_DOWNTO ? (left - right + 1) : (right - left + 1);
+      dst[1 + i*2 + 1].integer = (dir == RANGE_DOWNTO ? -length : length);
    }
 }
 
