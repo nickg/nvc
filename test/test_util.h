@@ -10,6 +10,11 @@
 #define ck_assert_ptr_nonnull(p) ck_assert_ptr_ne(p, NULL)
 #endif
 
+#ifndef ck_assert_double_eq_tol
+#include <math.h>
+#define ck_assert_double_eq_tol(x, y, t) ck_assert(fabs((x) - (y)) < (t))
+#endif
+
 #undef fail
 #define fail(...) ck_abort_msg(__VA_ARGS__)
 

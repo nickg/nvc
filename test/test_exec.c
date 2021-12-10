@@ -92,7 +92,7 @@ START_TEST(test_context1)
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
-   exec_t *ex = exec_new(EVAL_FCALL);
+   exec_t *ex = exec_new(EVAL_FCALL | EVAL_WARN);
 
    void *ctx = exec_link(ex, ident_new("WORK.PACK"));
    fail_if(ctx == NULL);
@@ -100,12 +100,12 @@ START_TEST(test_context1)
    ck_assert_int_eq(exec_get_var(ex, ctx, 1).integer, 42);
 
    ident_t fn1 = ident_new("WORK.PACK.GET_ELT(7NATURAL)I");
-   ck_assert_int_eq(exec_call(ex, fn1, ctx, "I", 1).integer, 10);
-   ck_assert_int_eq(exec_call(ex, fn1, ctx, "I", 2).integer, 20);
+   ck_assert_int_eq(exec_call(ex, fn1, ctx, "i", 1).integer, 10);
+   ck_assert_int_eq(exec_call(ex, fn1, ctx, "i", 2).integer, 20);
 
    ident_t fn2 = ident_new("WORK.PACK.NESTED_GET_ELT(7NATURAL)I");
-   ck_assert_int_eq(exec_call(ex, fn2, ctx, "I", 1).integer, 10);
-   ck_assert_int_eq(exec_call(ex, fn2, ctx, "I", 5).integer, 50);
+   ck_assert_int_eq(exec_call(ex, fn2, ctx, "i", 1).integer, 10);
+   ck_assert_int_eq(exec_call(ex, fn2, ctx, "i", 5).integer, 50);
 
    exec_free(ex);
 }

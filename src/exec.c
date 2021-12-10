@@ -1444,10 +1444,13 @@ static void eval_op_alloca(int op, eval_state_t *state)
    }
 
    vcode_type_t vtype = vcode_get_type(op);
-   length *= eval_slots_for_type(vtype);
+   const int slots = length * eval_slots_for_type(vtype);
 
-   value_t *new = eval_alloc(length, state);
-   eval_setup_var(vtype, new);
+   value_t *new = eval_alloc(slots, state);
+
+   unsigned off = 0;
+   for (int i = 0; i < length; i++)
+      off += eval_setup_var(vtype, new + off);
 
    eval_make_pointer_to(result, new);
 }

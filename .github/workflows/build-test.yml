@@ -10,6 +10,9 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 1
+      - name: Get version
+        id: version
+        run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
       - name: Install dependencies
         run: sudo apt-get install automake flex llvm-dev check lcov libdw-dev
       - name: Generate configure script
@@ -29,6 +32,28 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: ./coverage/nvc.info
+      - name: Dist clean
+        run: make distclean
+      - name: Configure for release
+        run: >-
+          ./configure --enable-vhpi --with-llvm=/usr/bin/llvm-config \
+             --prefix=/opt/nvc-${{ steps.version.outputs.version }}
+      - name: Build release
+        run: make
+      - name: Install release
+        if: github.event_name != 'pull_request'
+        run: sudo make install
+      - name: Archive
+        if: github.event_name != 'pull_request'
+        run: >-
+          tar -czf nvc-${{ steps.version.outputs.version }}.tar.gz \
+            /opt/nvc-${{ steps.version.outputs.version }}
+      - name: 'Upload artifact'
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v2
+        with:
+          name: nvc-${{ steps.version.outputs.version }}
+          path: nvc-${{ steps.version.outputs.version }}.tar.gz
 
   build-mac:
     name: Mac OS
@@ -80,45 +105,11 @@ jobs:
       - name: Test
         run: make check
 
-  release:
-    name: Release
-    if: github.event_name != 'pull_request'
-    needs: [ build-ubuntu ]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-        with:
-          fetch-depth: 1
-      - name: Get version
-        id: version
-        run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
-      - name: Install dependencies
-        run: sudo apt-get install automake flex llvm-dev lcov libdw-dev
-      - name: Generate configure script
-        run: ./autogen.sh
-      - name: Configure
-        run: >-
-          ./configure --enable-vhpi --with-llvm=/usr/bin/llvm-config \
-             --prefix=/opt/nvc-${{ steps.version.outputs.version }}
-      - name: Build
-        run: make
-      - name: Install
-        run: sudo make install
-      - name: Archive
-        run: >-
-          tar -czf nvc-${{ steps.version.outputs.version }}.tar.gz \
-            /opt/nvc-${{ steps.version.outputs.version }}
-      - name: 'Upload artifact'
-        uses: actions/upload-artifact@v2
-        with:
-          name: nvc-${{ steps.version.outputs.version }}
-          path: nvc-${{ steps.version.outputs.version }}.tar.gz
-
   vests:
     name: VESTs
     if: github.event_name != 'pull_request'
-    needs: [ release ]
-    runs-on: ubuntu-latest
+    needs: [ build-ubuntu ]
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
         with:
@@ -151,8 +142,8 @@ jobs:
   projects:
     name: External Projects
     if: github.event_name != 'pull_request'
-    needs: [ release ]
-    runs-on: ubuntu-latest
+    needs: [ build-ubuntu ]
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
         with:
