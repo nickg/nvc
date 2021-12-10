@@ -177,6 +177,32 @@ START_TEST(test_record3)
 }
 END_TEST
 
+START_TEST(test_ieee_warnings)
+{
+   input_from_file(TESTDIR "/exec/ieeewarn.vhd");
+
+   tree_t b = parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   // This should not fold the call to IEEE_WARNINGS
+   simplify_global(b);
+
+   fail_unless(tree_decls(b) == 1);
+   tree_t d0 = tree_decl(b, 0);
+   fail_unless(tree_kind(d0) == T_CONST_DECL);
+   fail_unless(tree_ident(d0) == ident_new("ENABLED"));
+   fail_unless(tree_kind(tree_value(d0)) == T_FCALL);
+
+   exec_t *ex = exec_new(EVAL_FCALL | EVAL_WARN);
+
+   eval_frame_t *pkg = exec_link(ex, ident_new("WORK.IEEEWARN"));
+   fail_if(pkg == NULL);
+
+   ck_assert_int_eq(exec_get_var(ex, pkg, 0).integer, 1);
+
+   exec_free(ex);
+}
+END_TEST
+
 Suite *get_exec_tests(void)
 {
    Suite *s = suite_create("exec");
@@ -189,6 +215,7 @@ Suite *get_exec_tests(void)
    tcase_add_test(tc, test_record1);
    tcase_add_test(tc, test_record2);
    tcase_add_test(tc, test_record3);
+   tcase_add_test(tc, test_ieee_warnings);
    suite_add_tcase(s, tc);
 
    return s;

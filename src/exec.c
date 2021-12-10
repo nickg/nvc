@@ -843,11 +843,75 @@ static void eval_copy_value(value_t *dst, value_t *src)
    }
 }
 
+static void eval_int_to_string(value_t *dst, value_t *src, eval_state_t *state)
+{
+   char *buf LOCAL = xasprintf("%"PRIi64, src->integer);
+   const size_t len = strlen(buf);
+
+   value_t *slots = eval_alloc(len, state);
+   for (size_t i = 0; i < len; i++) {
+      slots[i].kind    = VALUE_INTEGER;
+      slots[i].integer = (int64_t)buf[i];
+   }
+
+   dst[0].kind    = VALUE_UARRAY;
+   dst[0].pointer = slots;
+   dst[0].length  = 1;
+   dst[1].kind    = VALUE_INTEGER;
+   dst[1].integer = 1;
+   dst[2].kind    = VALUE_INTEGER;
+   dst[2].integer = len;
+}
+
+static void eval_real_to_string(value_t *dst, value_t *src, eval_state_t *state)
+{
+   char *buf LOCAL = xasprintf("%g", src->real);
+   const size_t len = strlen(buf);
+
+   value_t *slots = eval_alloc(len, state);
+   for (size_t i = 0; i < len; i++) {
+      slots[i].kind    = VALUE_INTEGER;
+      slots[i].integer = (int64_t)buf[i];
+   }
+
+   dst[0].kind    = VALUE_UARRAY;
+   dst[0].pointer = slots;
+   dst[0].length  = 1;
+   dst[1].kind    = VALUE_INTEGER;
+   dst[1].integer = 1;
+   dst[2].kind    = VALUE_INTEGER;
+   dst[2].integer = len;
+}
+
 static void eval_op_fcall(int op, eval_state_t *state)
 {
    ident_t func_name = vcode_get_func(op);
 
-   if (vcode_get_subkind(op) != VCODE_CC_VHDL) {
+   const vcode_cc_t cc = vcode_get_subkind(op);
+   if (cc == VCODE_CC_FOREIGN && func_name == ident_new("_nvc_ieee_warnings")) {
+      // Emulate warnings always enabled
+      value_t *dst = eval_get_reg(vcode_get_result(op), state);
+      dst->kind    = VALUE_INTEGER;
+      dst->integer = 1;
+      return;
+   }
+   else if (cc == VCODE_CC_FOREIGN
+            && func_name == ident_new("_int_to_string")) {
+      value_t *dst = eval_get_reg(vcode_get_result(op), state);
+      value_t *src = eval_get_reg(vcode_get_arg(op, 0), state);
+      EVAL_ASSERT_VALUE(op, src, VALUE_INTEGER);
+      eval_int_to_string(dst, src, state);
+      return;
+   }
+   else if (cc == VCODE_CC_FOREIGN
+            && func_name == ident_new("_real_to_string")) {
+      value_t *dst = eval_get_reg(vcode_get_result(op), state);
+      value_t *src = eval_get_reg(vcode_get_arg(op, 0), state);
+      EVAL_ASSERT_VALUE(op, src, VALUE_REAL);
+      eval_real_to_string(dst, src, state);
+      return;
+   }
+   else if (cc != VCODE_CC_VHDL) {
       EVAL_WARN(state, op, "function call to foreign or protected "
                 "function %s prevents constant folding", istr(func_name));
       state->failed = true;
