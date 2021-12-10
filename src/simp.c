@@ -315,16 +315,11 @@ static tree_t simp_attr_delayed_transaction(tree_t t, attr_kind_t predef,
       {
          tree_set_value(s, make_default_value(tree_type(s), tree_loc(s)));
 
-         tree_t standard = lib_get_qualified(std_standard_i);
-         assert(standard != NULL);
-
-         ident_t not_i = ident_new("\"not\"");
-         tree_t not_decl = search_decls(standard, not_i, 0);
+         tree_t not_decl = std_func(ident_new("STD.STANDARD.\"not\"(B)B"));
          assert(not_decl != NULL);
-         assert(tree_kind(not_decl) == T_FUNC_DECL);
 
          tree_t not = tree_new(T_FCALL);
-         tree_set_ident(not, not_i);
+         tree_set_ident(not, ident_new("\"not\""));
          tree_set_ref(not, not_decl);
          tree_set_type(not, type_result(tree_type(not_decl)));
          add_param(not, r, P_POS, NULL);

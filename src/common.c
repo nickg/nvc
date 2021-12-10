@@ -1123,26 +1123,29 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
    }
 }
 
+static tree_t cached_std(void)
+{
+   static tree_t standard_cache[STD_08 + 1] = {};
+
+   const vhdl_standard_t curr = standard();
+   assert(curr < ARRAY_LEN(standard_cache));
+
+   if (standard_cache[curr] == NULL) {
+      lib_t std = lib_find(std_i, true);
+      standard_cache[curr] = lib_get(std, std_standard_i);
+      assert(standard_cache[curr] != NULL);
+   }
+
+   return standard_cache[curr];
+}
+
 type_t std_type(tree_t std, std_type_t which)
 {
    static type_t cache[STD_SEVERITY_LEVEL + 1] = {};
    assert(which < ARRAY_LEN(cache));
 
    if (cache[which] == NULL) {
-      static tree_t standard_cache[STD_08 + 1] = {};
-
-      if (std == NULL) {
-         const vhdl_standard_t curr = standard();
-         assert(curr < ARRAY_LEN(standard_cache));
-
-         if (standard_cache[curr] == NULL) {
-            lib_t std = lib_find(std_i, true);
-            standard_cache[curr] = lib_get(std, std_standard_i);
-            assert(standard_cache[curr] != NULL);
-         }
-
-         std = standard_cache[curr];
-      }
+      if (std == NULL) std = cached_std();
 
       const char *names[] = {
          "universal_integer",
@@ -1208,6 +1211,11 @@ tree_t find_mangled_decl(tree_t container, ident_t name)
    }
 
    return NULL;
+}
+
+tree_t std_func(ident_t mangled)
+{
+   return find_mangled_decl(cached_std(), mangled);
 }
 
 tree_t name_to_ref(tree_t name)

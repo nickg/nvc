@@ -840,6 +840,7 @@ static void declare_binary(tree_t container, ident_t name, type_t lhs,
                            type_t rhs, type_t result, subprogram_kind_t kind)
 {
    tree_t d = builtin_fn(name, result, kind, "L", lhs, "R", rhs, NULL);
+   mangle_func(nametab, d);
    insert_name(nametab, d, NULL, 0);
    tree_add_decl(container, d);
 }
@@ -848,6 +849,7 @@ static void declare_unary(tree_t container, ident_t name, type_t operand,
                           type_t result, subprogram_kind_t kind)
 {
    tree_t d = builtin_fn(name, result, kind, "VALUE", operand, NULL);
+   mangle_func(nametab, d);
    insert_name(nametab, d, NULL, 0);
    tree_add_decl(container, d);
 }

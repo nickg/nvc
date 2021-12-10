@@ -115,6 +115,7 @@ typedef enum {
 } std_type_t;
 
 type_t std_type(tree_t std, std_type_t which);
+tree_t std_func(ident_t mangled);
 
 //
 // Disable some pedantic rule checks
