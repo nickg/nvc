@@ -941,6 +941,7 @@ const char *vcode_op_string(vcode_op_t op)
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
+      "implicit signal",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1065,13 +1066,13 @@ static int vcode_dump_one_type(vcode_type_t type)
       break;
 
    case VCODE_TYPE_CLOSURE:
-      col += printf("~<");
+      col += printf("C<");
       col += vcode_dump_one_type(vt->base);
       col += printf(">");
       break;
 
    case VCODE_TYPE_CONTEXT:
-      col += printf("C<%s>", istr(vt->name));
+      col += printf("P<%s>", istr(vt->name));
       break;
    }
 
@@ -1348,6 +1349,19 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   printf(" resolution ");
                   vcode_dump_reg(op->args.items[4]);
                }
+            }
+            break;
+
+         case VCODE_OP_IMPLICIT_SIGNAL:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" count ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" kind ");
+               vcode_dump_reg(op->args.items[2]);
+               printf(" closure ");
+               vcode_dump_reg(op->args.items[3]);
             }
             break;
 
@@ -4135,6 +4149,25 @@ void emit_init_signal(vcode_reg_t signal, vcode_reg_t value, vcode_reg_t count,
    VCODE_ASSERT(resolution == VCODE_INVALID_REG
                 || vcode_reg_kind(resolution) == VCODE_TYPE_RESOLUTION,
                 "resolution wrapper argument has wrong type");
+}
+
+void emit_implicit_signal(vcode_reg_t signal, vcode_reg_t count,
+                          vcode_reg_t kind, vcode_reg_t closure)
+{
+   op_t *op = vcode_add_op(VCODE_OP_IMPLICIT_SIGNAL);
+   vcode_add_arg(op, signal);
+   vcode_add_arg(op, count);
+   vcode_add_arg(op, kind);
+   vcode_add_arg(op, closure);
+
+   VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
+                "argument to implicit signal is not a signal");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "count argument to implicit signal is not offset");
+   VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
+                "kind argument to implicit signal is not offset");
+   VCODE_ASSERT(vcode_reg_kind(closure) == VCODE_TYPE_CLOSURE,
+                "closure argument to implicit signal is not a closure");
 }
 
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,

@@ -36,6 +36,7 @@ typedef void (*eopt_nexus_fn_t)(e_node_t, void *);
 static void eopt_stmts(tree_t container, e_node_t cursor);
 static void eopt_ports(tree_t block, e_node_t cursor);
 static bool eopt_decls(tree_t container, e_node_t cursor);
+static void eopt_do_cprop(e_node_t e);
 
 static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
                               unsigned stride, eopt_nexus_fn_t callback,
@@ -105,7 +106,6 @@ static void eopt_nexus_add_driver_cb(e_node_t nexus, void *__ctx)
 static void eopt_add_static_trigger_cb(e_node_t nexus, void *__ctx)
 {
    e_node_t cursor = __ctx;
-   assert(e_kind(cursor) == E_PROCESS);
 
    bool have = false;
    const int np = e_triggers(cursor);
@@ -288,6 +288,36 @@ static void eopt_init_signal_cb(int op, cprop_state_t *regs, void *__ctx)
                      (void *)(uintptr_t)size);
 }
 
+static void eopt_implicit_signal_cb(int op, cprop_state_t *regs, void *__ctx)
+{
+   vcode_reg_t arg0 = vcode_get_arg(op, 0);
+   vcode_reg_t arg1 = vcode_get_arg(op, 1);
+   vcode_reg_t arg2 = vcode_get_arg(op, 2);
+   vcode_reg_t arg3 = vcode_get_arg(op, 3);
+
+   if (regs[arg1].tag != CP_CONST || regs[arg2].tag != CP_CONST) {
+      cprop_dump(op, regs);
+      fatal_trace("implicit signal count or kind is not constant");
+   }
+   else if (regs[arg3].tag != CP_CLOSURE) {
+      cprop_dump(op, regs);
+      fatal_trace("implicit signal closure not valid");
+   }
+
+   unsigned offset = 0, stride = 0, count = 0;
+   e_node_t signal = NULL;
+
+   cprop_get_signal(arg0, arg1, regs, &offset, &stride, &count, &signal);
+
+   if (signal == NULL || e_kind(signal) != E_IMPLICIT) {
+      cprop_dump(op, regs);
+      fatal_trace("implicit signal target is not an implicit signal");
+   }
+
+   e_set_vcode(signal, regs[arg3].func);
+   eopt_do_cprop(signal);
+}
+
 static void eopt_driver_cb(int op, cprop_state_t *regs, void *__ctx)
 {
    e_node_t cursor = __ctx;
@@ -458,12 +488,14 @@ static void eopt_do_cprop(e_node_t e)
    vcode_select_unit(unit);
 
    cprop_req_t req = {
-      .find_signal = eopt_find_signal_cb,
-      .map_signal  = eopt_map_signal_cb,
-      .init_signal = eopt_init_signal_cb,
-      .vars        = cprop_vars,
-      .context     = e,
-      .flags       = CPROP_BOUNDS
+      .find_signal     = eopt_find_signal_cb,
+      .map_signal      = eopt_map_signal_cb,
+      .init_signal     = eopt_init_signal_cb,
+      .implicit_signal = eopt_implicit_signal_cb,
+      .sched_static    = eopt_sched_static_cb,
+      .vars            = cprop_vars,
+      .context         = e,
+      .flags           = CPROP_BOUNDS
    };
    cprop(&req);
 
@@ -571,12 +603,12 @@ static void eopt_ports(tree_t block, e_node_t cursor)
    }
 }
 
-static void eopt_signal_decl(tree_t decl, e_node_t cursor)
+static void eopt_signal_decl(tree_t decl, e_node_t cursor, e_kind_t kind)
 {
    ident_t name = tree_ident(decl);
    type_t type = tree_type(decl);
 
-   e_node_t e = e_new(E_SIGNAL);
+   e_node_t e = e_new(kind);
    e_set_ident(e, name);
    e_set_width(e, type_width(type));
    e_set_type(e, type);
@@ -597,9 +629,13 @@ static bool eopt_decls(tree_t container, e_node_t cursor)
       tree_t d = tree_decl(container, i);
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
-      case T_IMPLICIT_DECL:
-         eopt_signal_decl(d, cursor);
+         eopt_signal_decl(d, cursor, E_SIGNAL);
          need_cprop = true;
+         break;
+      case T_IMPLICIT_DECL:
+         eopt_signal_decl(d, cursor, E_IMPLICIT);
+         need_cprop = true;
+         break;
       case T_CONST_DECL:
          if (type_is_scalar(tree_type(d)))
             need_cprop = true;

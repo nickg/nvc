@@ -2135,6 +2135,9 @@ static void cgen_op_resolution_wrapper(int op, cgen_ctx_t *ctx)
 
 static ffi_type_t cgen_ffi_type(vcode_type_t type)
 {
+   if (type == VCODE_INVALID_TYPE)
+      return FFI_VOID;
+
    switch (vtype_kind(type)) {
    case VCODE_TYPE_INT:
       switch (bits_for_range(vtype_low(type), vtype_high(type))) {
@@ -3057,6 +3060,24 @@ static void cgen_op_init_signal(int op, cgen_ctx_t *ctx)
       llvm_lifetime_end(initval, alloca_type);
 }
 
+static void cgen_op_implicit_signal(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+
+   LLVMTypeRef alloca_type = NULL;
+   LLVMValueRef closure = cgen_pointer_to_arg_data(op, 3, &alloca_type, ctx);
+
+   LLVMValueRef args[] = {
+      LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
+      cgen_get_arg(op, 2, ctx),
+      closure,
+   };
+   LLVMBuildCall(builder, llvm_fn("_implicit_signal"),
+                 args, ARRAY_LEN(args), "");
+
+   llvm_lifetime_end(closure, alloca_type);
+}
+
 static void cgen_op_link_signal(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -3407,6 +3428,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_INIT_SIGNAL:
       cgen_op_init_signal(i, ctx);
+      break;
+   case VCODE_OP_IMPLICIT_SIGNAL:
+      cgen_op_implicit_signal(i, ctx);
       break;
    case VCODE_OP_LINK_SIGNAL:
       cgen_op_link_signal(i, ctx);
@@ -4360,6 +4384,16 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(llvm_closure_type(), 0),
       };
       fn = LLVMAddFunction(module, "_convert_signal",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_implicit_signal") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         LLVMInt32Type(),
+         LLVMPointerType(llvm_closure_type(), 0),
+      };
+      fn = LLVMAddFunction(module, "_implicit_signal",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
    }

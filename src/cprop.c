@@ -103,6 +103,8 @@ static int cprop_dump_fn(vcode_dump_reason_t why, int what, void *context)
    switch (regs[what].tag) {
    case CP_NONE:
       return color_printf("$!red$(!)$$");
+   case CP_CLOSURE:
+      return color_printf("$!magenta$(%s)$$", istr(regs[what].func));
    case CP_CONST:
    case CP_SIGNAL:
    case CP_SCALE:
@@ -509,6 +511,11 @@ void cprop(cprop_req_t *req)
                (*req->init_signal)(op, regs, req->context);
             break;
 
+         case VCODE_OP_IMPLICIT_SIGNAL:
+            if (req->implicit_signal)
+               (*req->implicit_signal)(op, regs, req->context);
+            break;
+
          case VCODE_OP_DRIVE_SIGNAL:
             if (req->drive_signal)
                (*req->drive_signal)(op, regs, req->context);
@@ -641,6 +648,16 @@ void cprop(cprop_req_t *req)
             }
             break;
 
+         case VCODE_OP_CLOSURE:
+            {
+               vcode_reg_t result = vcode_get_result(op);
+               assert(result != VCODE_INVALID_REG);
+
+               regs[result].tag  = CP_CLOSURE;
+               regs[result].func = vcode_get_func(op);
+            }
+            break;
+
          case VCODE_OP_RETURN:
          case VCODE_OP_COMMENT:
          case VCODE_OP_WAIT:
@@ -703,7 +720,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_ENDFILE:
          case VCODE_OP_RANGE_NULL:
          case VCODE_OP_RESOLUTION_WRAPPER:
-         case VCODE_OP_CLOSURE:
          case VCODE_OP_PROTECTED_INIT:
          case VCODE_OP_CONTEXT_UPREF:
          case VCODE_OP_CONST_REP:

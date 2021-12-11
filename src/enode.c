@@ -43,10 +43,15 @@ static const imask_t has_map[E_LAST_NODE_KIND] = {
 
    // E_PORT
    (I_IDENT | I_NEXUS | I_FLAGS),
+
+   // E_IMPLICIT
+   (I_IDENT | I_NEXUS | I_IVAL | I_IDENT2 | I_PATH | I_FLAGS | I_TYPE
+    | I_PARENT | I_TRIGGERS | I_VCODE),
 };
 
 static const char *kind_text_map[E_LAST_NODE_KIND] = {
-   "E_ROOT", "E_SCOPE", "E_SIGNAL", "E_PROCESS", "E_NEXUS", "E_PORT"
+   "E_ROOT", "E_SCOPE", "E_SIGNAL", "E_PROCESS", "E_NEXUS", "E_PORT",
+   "E_IMPLICIT",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -615,7 +620,8 @@ static void _e_dump(e_node_t e, int indent)
 {
    e_dump_indent(indent);
 
-   switch (e_kind(e)) {
+   const e_kind_t kind = e_kind(e);
+   switch (kind) {
    case E_ROOT:
       {
          color_printf("$cyan$root$$ %s\n", istr(e_ident(e)));
@@ -682,9 +688,11 @@ static void _e_dump(e_node_t e, int indent)
       }
       break;
 
+   case E_IMPLICIT:
    case E_SIGNAL:
       {
-         color_printf("$cyan$signal$$ %s $cyan$width$$ %u",
+         color_printf("$cyan$%ssignal$$ %s $cyan$width$$ %u",
+                      kind == E_IMPLICIT ? "implicit " : "",
                       istr(e_ident(e)), e_width(e));
 
          const e_flags_t flags = e_flags(e);
@@ -706,6 +714,18 @@ static void _e_dump(e_node_t e, int indent)
                             e_width(n), e_size(n));
             }
             printf("\n");
+         }
+
+         if (kind == E_IMPLICIT) {
+            e_dump_indent(indent + 2);
+            color_printf("$cyan$vcode$$ %s\n", istr(e_vcode(e)));
+
+            const int ntriggers = e_triggers(e);
+            for (int i = 0; i < ntriggers; i++) {
+               e_node_t t = e_trigger(e, i);
+               e_dump_indent(indent + 2);
+               color_printf("$cyan$triggered by$$ %s\n", istr(e_ident(t)));
+            }
          }
       }
       break;

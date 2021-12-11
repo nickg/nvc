@@ -5220,6 +5220,11 @@ static void lower_signal_decl(tree_t decl)
    lower_sub_signals(type, decl, shared, init_reg, VCODE_INVALID_REG);
 }
 
+static void lower_guard_refs_cb(tree_t ref, void *__ctx)
+{
+   lower_sched_event(ref, true);
+}
+
 static ident_t lower_guard_func(ident_t prefix, tree_t expr)
 {
    ident_t qual = ident_prefix(vcode_unit_name(), prefix, '.');
@@ -5228,11 +5233,16 @@ static ident_t lower_guard_func(ident_t prefix, tree_t expr)
    vcode_state_t state;
    vcode_state_save(&state);
 
-   emit_function(func, tree_loc(expr), vcode_unit_context());
+   emit_function(func, tree_loc(expr), vcode_active_unit());
    vcode_set_result(lower_type(tree_type(expr)));
+
+   lower_push_scope(NULL);
+
+   tree_visit_only(expr, lower_guard_refs_cb, NULL, T_REF);
 
    emit_return(lower_reify_expr(expr));
 
+   lower_pop_scope();
    lower_finished();
    vcode_state_restore(&state);
 
@@ -5245,6 +5255,7 @@ static void lower_implicit_decl(tree_t decl)
    type_t type = tree_type(decl);
 
    vcode_type_t signal_type = lower_signal_type(type);
+   vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
    vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
    lower_put_vcode_obj(decl, var, top_scope);
@@ -5259,11 +5270,15 @@ static void lower_implicit_decl(tree_t decl)
       break;
    }
 
-   vcode_reg_t init_reg = emit_fcall(func, lower_type(type), vbounds,
+   vcode_reg_t init_reg = emit_fcall(func, vtype, vbounds,
                                      VCODE_CC_VHDL, NULL, 0);
 
    vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
    emit_init_signal(shared, init_reg, one_reg, one_reg, VCODE_INVALID_REG);
+
+   vcode_reg_t closure = emit_closure(func, VCODE_INVALID_TYPE, vtype);
+   vcode_reg_t kind_reg = emit_const(vtype_offset(), IMPLICIT_GUARD);
+   emit_implicit_signal(shared, one_reg, kind_reg, closure);
 }
 
 static void lower_file_decl(tree_t decl)

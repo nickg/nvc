@@ -57,23 +57,24 @@
 #define TRACE_PENDING 0
 #define RT_DEBUG      0
 
-typedef struct event       event_t;
-typedef struct waveform    waveform_t;
-typedef struct sens_list   sens_list_t;
-typedef struct value       value_t;
-typedef struct callback    callback_t;
-typedef struct image_map   image_map_t;
-typedef struct rt_loc      rt_loc_t;
-typedef struct rt_nexus_s  rt_nexus_t;
-typedef struct rt_scope_s  rt_scope_t;
-typedef struct uarray      uarray_t;
-typedef struct rt_source_s rt_source_t;
+typedef struct event         event_t;
+typedef struct waveform      waveform_t;
+typedef struct sens_list     sens_list_t;
+typedef struct value         value_t;
+typedef struct callback      callback_t;
+typedef struct image_map     image_map_t;
+typedef struct rt_loc        rt_loc_t;
+typedef struct rt_nexus_s    rt_nexus_t;
+typedef struct rt_scope_s    rt_scope_t;
+typedef struct uarray        uarray_t;
+typedef struct rt_source_s   rt_source_t;
+typedef struct rt_implicit_s rt_implicit_t;
 
 typedef void *(*proc_fn_t)(void *, rt_scope_t *);
 typedef uint64_t (*resolution_fn_t)(void *, void *, int32_t, int32_t);
 
 typedef enum {
-   W_PROC, W_WATCH
+   W_PROC, W_WATCH, W_IMPLICIT
 } wakeable_kind_t;
 
 typedef struct {
@@ -218,6 +219,13 @@ typedef struct rt_signal_s {
    rt_nexus_t     **nexus;      // TODO: flatten this
 } rt_signal_t;
 
+typedef struct rt_implicit_s {
+   rt_wakeable_t  wakeable;
+   rt_signal_t   *signal;
+   ffi_closure_t *closure;
+   rt_implicit_t *chain;
+} rt_implicit_t;
+
 typedef struct rt_scope_s {
    rt_signal_t *signals;
    unsigned     n_signals;
@@ -330,6 +338,7 @@ static rt_profile_t     profile;
 static rt_nexus_t      *nexuses = NULL;
 static cover_tagging_t *cover = NULL;
 static unsigned         highest_rank;
+static rt_implicit_t   *implicit_signals = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -789,6 +798,31 @@ void _init_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
       values += n->width * n->size;
       RT_ASSERT(count >= 0);
    }
+}
+
+DLLEXPORT
+void _implicit_signal(sig_shared_t *ss, uint32_t kind, ffi_closure_t *closure)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("_implicit_signal %s kind=%d fn=%p context=%p",
+         istr(e_path(s->enode)), kind, closure->fn, closure->context);
+
+   ffi_closure_t *copy = xmalloc(sizeof(ffi_closure_t));
+   *copy = *closure;
+   copy->refcnt = 1;
+
+   bool r;
+   ffi_call(closure, NULL, 0, &r, sizeof(r));
+
+   rt_implicit_t *imp = xcalloc(sizeof(rt_implicit_t));
+   imp->chain   = implicit_signals;
+   imp->closure = copy;
+   imp->signal  = s;
+
+   imp->wakeable.kind = W_IMPLICIT;
+
+   implicit_signals = imp;
 }
 
 DLLEXPORT
@@ -2407,6 +2441,11 @@ static void rt_trace_wakeup(rt_wakeable_t *obj)
                obj->postponed ? "postponed " : "",
                container_of(obj, rt_watch_t, wakeable)->fn);
          break;
+
+      case W_IMPLICIT:
+         TRACE("wakeup implicit signal %s",
+               istr(e_path(container_of(obj, rt_implicit_t, wakeable)
+                           ->signal->enode)));
       }
    }
 }
@@ -2797,6 +2836,9 @@ static void rt_cycle(int stop_delta)
       rt_free(event_stack, event);
    }
 
+   //for (rt_implicit_t *it = implicit_signals; it != NULL; it = it->chain)
+   //   rt_update_implicit_signal(it);
+
    while ((event = rt_pop_run_queue(&driverq))) {
       rt_update_driver(event->nexus, event->source);
       rt_free(event_stack, event);
@@ -2932,6 +2974,13 @@ static void rt_cleanup(e_node_t top)
       rt_watch_t *next = watches->chain_all;
       rt_free(watch_stack, watches);
       watches = next;
+   }
+
+   while (implicit_signals != NULL) {
+      rt_implicit_t *next = implicit_signals->chain;
+      ffi_unref_closure(implicit_signals->closure);
+      free(implicit_signals);
+      implicit_signals = next;
    }
 
    for (int i = 0; i < RT_LAST_EVENT; i++) {

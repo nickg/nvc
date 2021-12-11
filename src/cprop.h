@@ -22,7 +22,14 @@
 #include "vcode.h"
 
 typedef enum {
-   CP_NONE, CP_SIGNAL, CP_CONST, CP_SCALE, CP_OFFSET, CP_FIELD, CP_UNKNOWN
+   CP_NONE,
+   CP_SIGNAL,
+   CP_CONST,
+   CP_SCALE,
+   CP_OFFSET,
+   CP_FIELD,
+   CP_CLOSURE,
+   CP_UNKNOWN
 } cprop_tag_t;
 
 typedef struct {
@@ -43,6 +50,7 @@ typedef struct {
       cprop_signal_t signal;
       vcode_reg_t    scale;
       cprop_offset_t offset;
+      ident_t        func;
    };
 } cprop_state_t;
 
@@ -68,6 +76,7 @@ typedef struct {
    cprop_callback_t      drive_signal;
    cprop_callback_t      last_value;
    cprop_callback_t      signal_flag;
+   cprop_callback_t      implicit_signal;
    cprop_find_signal_t   find_signal;
    cprop_vars_t         *vars;
    unsigned              hop_bias;

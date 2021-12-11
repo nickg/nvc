@@ -29,6 +29,7 @@ typedef enum {
    E_PROCESS,
    E_NEXUS,
    E_PORT,
+   E_IMPLICIT,
 
    E_LAST_NODE_KIND
 } e_kind_t;

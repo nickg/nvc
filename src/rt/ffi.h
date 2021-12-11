@@ -31,6 +31,7 @@ typedef enum {
    FFI_FLOAT,
    FFI_POINTER,
    FFI_UARRAY,
+   FFI_VOID,
 } ffi_type_t;
 
 typedef union {

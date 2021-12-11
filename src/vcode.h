@@ -136,6 +136,7 @@ typedef enum {
    VCODE_OP_CONST_REP,
    VCODE_OP_PROTECTED_FREE,
    VCODE_OP_SCHED_STATIC,
+   VCODE_OP_IMPLICIT_SIGNAL,
 } vcode_op_t;
 
 typedef enum {
@@ -402,6 +403,8 @@ vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var);
 void emit_init_signal(vcode_reg_t signal, vcode_reg_t value, vcode_reg_t count,
                       vcode_reg_t size, vcode_reg_t resolution);
+void emit_implicit_signal(vcode_reg_t signal, vcode_reg_t count,
+                          vcode_reg_t kind, vcode_reg_t closure);
 vcode_reg_t emit_resolved(vcode_reg_t sig);
 vcode_reg_t emit_last_value(vcode_reg_t sig);
 vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len);

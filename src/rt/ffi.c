@@ -95,6 +95,11 @@ void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
       const int64_t r = (*fn)(c->context, input);
       ffi_store_int(c->spec.rtype, r, output, outsz);
    }
+   else if (c->spec.atype == FFI_VOID && ffi_is_integral(c->spec.rtype)) {
+      int64_t (*fn)(void *) = c->fn;
+      const int64_t r = (*fn)(c->context);
+      ffi_store_int(c->spec.rtype, r, output, outsz);
+   }
    else
       fatal_trace("unhandled FFI function argument combination");
 }
