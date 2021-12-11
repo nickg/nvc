@@ -131,6 +131,7 @@ IN            ?i:in
 OUT           ?i:out
 BUFFER        ?i:buffer
 BUS           ?i:bus
+REGISTER      ?i:register
 UNAFFECTED    ?i:unaffected
 SIGNAL        ?i:signal
 PROCESS       ?i:process

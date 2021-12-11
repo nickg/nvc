@@ -62,6 +62,12 @@ begin
         constant guard : boolean := false;
     begin
         x <= guarded not x;             -- Error
+        x <= null;                      -- Error
+    end block;
+
+    b6: block is
+        signal q : integer bus;         -- Error
+    begin
     end block;
 
 end architecture;

@@ -651,7 +651,8 @@ static void bounds_check_signal_assign(tree_t t)
    for (int i = 0; i < nwaves; i++) {
       tree_t w = tree_waveform(t, i);
 
-      bounds_check_assignment(target, tree_value(w));
+      if (tree_has_value(w))
+         bounds_check_assignment(target, tree_value(w));
 
       int64_t delay = 0;
       bool delay_is_known = true;

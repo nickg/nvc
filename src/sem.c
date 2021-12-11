@@ -772,6 +772,8 @@ static bool sem_check_decl(tree_t t)
    case T_SIGNAL_DECL:
       if (!sem_no_access_file_or_protected(t, type, "signals"))
          return false;
+      else if (is_guarded_signal(t) && !type_is_resolved(type))
+         sem_error(t, "guarded signal must have resolved subtype");
       break;
    default:
       break;
@@ -1625,27 +1627,37 @@ static bool sem_check_var_assign(tree_t t)
    return true;
 }
 
-static bool sem_check_waveforms(tree_t t, type_t expect)
+static bool sem_check_waveforms(tree_t t, tree_t target)
 {
    type_t std_time = std_type(NULL, STD_TIME);
+   type_t expect = tree_type(target);
 
    const int nwaves = tree_waveforms(t);
    for (int i = 0; i < nwaves; i++) {
       tree_t waveform = tree_waveform(t, i);
-      tree_t value = tree_value(waveform);
 
-      if (!sem_check(value))
-         return false;
+      if (tree_has_value(waveform)) {
+         tree_t value = tree_value(waveform);
 
-      if (!sem_readable(value))
-         return false;
+         if (!sem_check(value))
+            return false;
 
-      type_t value_type = tree_type(value);
+         if (!sem_readable(value))
+            return false;
 
-      if (!sem_check_type(value, expect))
-         sem_error(t, "type of value %s does not match type of target %s",
-                   type_pp2(value_type, expect),
-                   type_pp2(expect, value_type));
+         type_t value_type = tree_type(value);
+
+         if (!sem_check_type(value, expect))
+            sem_error(t, "type of value %s does not match type of target %s",
+                      type_pp2(value_type, expect),
+                      type_pp2(expect, value_type));
+      }
+      else {
+         tree_t decl = sem_check_lvalue(target);
+         if (decl != NULL && !is_guarded_signal(decl))
+            sem_error(waveform, "a null waveform element is only valid when "
+                      "the target is a guarded signal");
+      }
 
       if (tree_has_delay(waveform)) {
          tree_t delay = tree_delay(waveform);
@@ -1766,7 +1778,7 @@ static bool sem_check_signal_assign(tree_t t)
    if (!sem_check_signal_target(target))
       return false;
 
-   if (!sem_check_waveforms(t, tree_type(target)))
+   if (!sem_check_waveforms(t, target))
       return false;
 
    if (tree_has_reject(t) && !sem_check_reject(tree_reject(t)))
@@ -1831,7 +1843,7 @@ static bool sem_check_cassign(tree_t t)
       if (tree_has_reject(c) && !sem_check_reject(tree_reject(c)))
          return false;
 
-      if (!sem_check_waveforms(c, tree_type(target)))
+      if (!sem_check_waveforms(c, target))
          return false;
    }
 

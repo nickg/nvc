@@ -752,3 +752,11 @@ bool type_is_homogeneous(type_t t)
    else
       return false;
 }
+
+bool type_is_resolved(type_t t)
+{
+   if (t->object.kind == T_SUBTYPE)
+      return type_has_resolution(t) || type_is_resolved(type_base(t));
+   else
+      return false;
+}

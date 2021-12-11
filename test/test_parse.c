@@ -299,7 +299,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 18);
+   fail_unless(tree_stmts(a) == 19);
 
    fail_if_errors();
 
@@ -629,6 +629,16 @@ START_TEST(test_seq)
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_VAR_ASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_AGGREGATE);
+
+   // Signal assignment with null transaction
+
+   p = tree_stmt(a, 18);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   fail_unless(tree_waveforms(s) == 2);
+   fail_unless(tree_has_delay(tree_waveform(s, 1)));
+   fail_if(tree_has_value(tree_waveform(s, 1)));
 
    a = parse();
    fail_unless(a == NULL);

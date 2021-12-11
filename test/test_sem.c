@@ -861,6 +861,8 @@ START_TEST(test_signal)
       { 54, "guard signal must have BOOLEAN type but found INTEGER" },
       { 57, "guard expression must have type BOOLEAN but found BIT_VECTOR" },
       { 64, "assignment guard must be a signal" },
+      { 65, "null waveform element is only valid when the target is" },
+      { 69, "guarded signal must have resolved subtype" },
       { -1, NULL }
    };
    expect_errors(expect);

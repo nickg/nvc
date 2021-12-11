@@ -634,6 +634,11 @@ bool is_container(tree_t t)
    }
 }
 
+bool is_guarded_signal(tree_t decl)
+{
+   return !!(tree_flags(decl) & (TREE_F_BUS | TREE_F_REGISTER));
+}
+
 tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name)
 {
    tree_t p = tree_new(T_PARAM);

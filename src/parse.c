@@ -4835,6 +4835,22 @@ static void p_variable_declaration(tree_t parent)
    }
 }
 
+static tree_flags_t p_signal_kind(void)
+{
+   // register | bus
+
+   switch (peek()) {
+   case tBUS:
+      consume(tBUS);
+      return TREE_F_BUS;
+   case tREGISTER:
+      consume(tREGISTER);
+      return TREE_F_REGISTER;
+   default:
+      return 0;
+   }
+}
+
 static void p_signal_declaration(tree_t parent)
 {
    // signal identifier_list : subtype_indication [ signal_kind ]
@@ -4849,8 +4865,7 @@ static void p_signal_declaration(tree_t parent)
    consume(tCOLON);
 
    type_t type = p_subtype_indication();
-
-   // [ signal_kind ]
+   tree_flags_t flags = p_signal_kind();
 
    tree_t init = NULL;
    if (optional(tASSIGN)) {
@@ -4868,6 +4883,7 @@ static void p_signal_declaration(tree_t parent)
       tree_set_ident(t, it->ident);
       tree_set_type(t, type);
       tree_set_value(t, init);
+      tree_set_flag(t, flags);
 
       tree_add_decl(parent, t);
 
@@ -6413,10 +6429,12 @@ static tree_t p_waveform_element(type_t constraint)
    BEGIN("waveform element");
 
    tree_t w = tree_new(T_WAVEFORM);
-   tree_t value = p_expression();
-   tree_set_value(w, value);
 
-   solve_types(nametab, value, constraint);
+   if (!optional(tNULL)) {
+      tree_t value = p_expression();
+      tree_set_value(w, value);
+      solve_types(nametab, value, constraint);
+   }
 
    if (optional(tAFTER)) {
       tree_t delay = p_expression();

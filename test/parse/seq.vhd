@@ -190,4 +190,10 @@ begin
         (a, b) := v;                    -- OK
     end process;
 
+    -- Signal assignment with null transaction
+    process is
+    begin
+        x <= 1, null after 2 ns;        -- OK
+    end process;
+
 end architecture;

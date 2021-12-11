@@ -60,6 +60,7 @@ bool unit_needs_cgen(tree_t t);
 bool package_needs_body(tree_t pack);
 bool is_subprogram(tree_t t);
 bool is_container(tree_t t);
+bool is_guarded_signal(tree_t decl);
 tree_t search_decls(tree_t container, ident_t name, int nth);
 bool is_builtin(subprogram_kind_t kind);
 tree_t find_mangled_decl(tree_t container, ident_t name);
