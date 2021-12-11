@@ -73,17 +73,27 @@ typedef struct rt_source_s rt_source_t;
 typedef void *(*proc_fn_t)(void *, rt_scope_t *);
 typedef uint64_t (*resolution_fn_t)(void *, void *, int32_t, int32_t);
 
+typedef enum {
+   W_PROC,
+} wakeable_kind_t;
+
 typedef struct {
-   e_node_t    source;
-   proc_fn_t   proc_fn;
-   uint32_t    wakeup_gen;
-   void       *tmp_stack;
-   uint32_t    tmp_alloc;
-   bool        postponed;
-   bool        pending;
-   uint64_t    usage;
-   rt_scope_t *scope;
-   void       *privdata;
+   uint32_t        wakeup_gen;
+   wakeable_kind_t kind : 8;
+   bool            pending;
+   bool            postponed;
+} rt_wakeable_t;
+
+STATIC_ASSERT(sizeof(rt_wakeable_t) == 8);
+
+typedef struct {
+   rt_wakeable_t  wakeable;
+   e_node_t       source;
+   proc_fn_t      proc_fn;
+   void          *tmp_stack;
+   uint32_t       tmp_alloc;
+   rt_scope_t    *scope;
+   void          *privdata;
 } rt_proc_t;
 
 typedef enum {
@@ -111,10 +121,10 @@ struct waveform {
 };
 
 struct sens_list {
-   rt_proc_t    *proc;
-   sens_list_t  *next;
-   sens_list_t **reenq;
-   uint32_t      wakeup_gen;
+   rt_wakeable_t *wake;
+   sens_list_t   *next;
+   sens_list_t  **reenq;
+   uint32_t       wakeup_gen;
 };
 
 typedef struct rt_source_s {
@@ -202,6 +212,7 @@ typedef enum {
 
 typedef struct rt_signal_s {
    sig_shared_t     shared;
+   rt_wakeable_t    wakeable;
    e_node_t         enode;
    uint32_t         width;
    uint32_t         size;
@@ -343,7 +354,7 @@ static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
                                  rt_source_t *source);
 static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
                             uint64_t reject, value_t *values);
-static void rt_sched_event(sens_list_t **list, rt_proc_t *proc, bool is_static);
+static void rt_sched_event(sens_list_t **list, rt_wakeable_t *proc, bool recur);
 static void *rt_tmp_alloc(size_t sz);
 static value_t *rt_alloc_value(rt_nexus_t *n);
 static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
@@ -663,7 +674,7 @@ void _sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
          istr(e_path(s->enode)), offset, scalar, fmt_time(after),
          fmt_time(reject));
 
-   if (unlikely(active_proc->postponed && (after == 0)))
+   if (unlikely(active_proc->wakeable.postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
             istr(e_path(active_proc->source)));
 
@@ -685,7 +696,7 @@ void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
          istr(e_path(s->enode)), offset, fmt_values(s, values, offset, len),
          len, fmt_time(after), fmt_time(reject));
 
-   if (unlikely(active_proc->postponed && (after == 0)))
+   if (unlikely(active_proc->wakeable.postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
             istr(e_path(active_proc->source)));
 
@@ -719,7 +730,8 @@ void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
    while (count > 0) {
       RT_ASSERT(index < s->n_nexus);
       rt_nexus_t *n = s->nexus[index++];
-      rt_sched_event(&(n->pending), active_proc, !!(flags & SCHED_STATIC));
+      rt_sched_event(&(n->pending), &(active_proc->wakeable),
+                     !!(flags & SCHED_STATIC));
 
       count -= n->width;
       RT_ASSERT(count >= 0);
@@ -1599,7 +1611,7 @@ static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake)
    e->when       = now + delta;
    e->kind       = EVENT_PROCESS;
    e->proc       = wake;
-   e->wakeup_gen = wake->wakeup_gen;
+   e->wakeup_gen = wake->wakeable.wakeup_gen;
 
    deltaq_insert(e);
 }
@@ -1629,7 +1641,7 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
       break;
    case EVENT_PROCESS:
       fprintf(stderr, "process\t %s%s\n", istr(e_path(e->proc->source)),
-              (e->wakeup_gen == e->proc->wakeup_gen) ? "" : " (stale)");
+              (e->wakeup_gen == e->proc->wakeable.wakeup_gen) ? "" : " (stale)");
       break;
    case EVENT_TIMEOUT:
       fprintf(stderr, "timeout\t %p %p\n", e->timeout_fn, e->timeout_user);
@@ -1645,7 +1657,7 @@ static void deltaq_dump(void)
    for (event_t *e = delta_proc; e != NULL; e = e->delta_chain)
       fprintf(stderr, "delta\tprocess\t %s%s\n",
               istr(e_path(e->proc->source)),
-              (e->wakeup_gen == e->proc->wakeup_gen) ? "" : " (stale)");
+              (e->wakeup_gen == e->proc->wakeable.wakeup_gen) ? "" : " (stale)");
 
    heap_walk(eventq_heap, deltaq_walk, NULL);
 }
@@ -1752,24 +1764,23 @@ static void *rt_tmp_alloc(size_t sz)
    return ptr;
 }
 
-static void rt_sched_event(sens_list_t **list, rt_proc_t *proc, bool is_static)
+static void rt_sched_event(sens_list_t **list, rt_wakeable_t *proc, bool recur)
 {
    // See if there is already a stale entry in the pending
    // list for this process
    sens_list_t *it = *list;
    int count = 0;
    for (; it != NULL; it = it->next, ++count) {
-      if ((it->proc == proc)
-          && (it->wakeup_gen != proc->wakeup_gen))
+      if ((it->wake == proc) && (it->wakeup_gen != proc->wakeup_gen))
          break;
    }
 
    if (it == NULL) {
       sens_list_t *node = rt_alloc(sens_list_stack);
-      node->proc       = proc;
+      node->wake       = proc;
       node->wakeup_gen = proc->wakeup_gen;
       node->next       = *list;
-      node->reenq      = (is_static ? list : NULL);
+      node->reenq      = (recur ? list : NULL);
 
       *list = node;
    }
@@ -1923,13 +1934,14 @@ static void rt_setup_scopes_recur(e_node_t e, rt_scope_t *parent,
          rt_proc_t *r = &(scope->procs[i]);
          r->source     = p;
          r->proc_fn    = jit_find_symbol(istr(e_vcode(p)), true);
-         r->wakeup_gen = 0;
-         r->postponed  = !!(e_flags(p) & E_F_POSTPONED);
          r->tmp_stack  = NULL;
          r->tmp_alloc  = 0;
-         r->pending    = false;
-         r->usage      = 0;
          r->scope      = scope;
+
+         r->wakeable.kind       = W_PROC;
+         r->wakeable.wakeup_gen = 0;
+         r->wakeable.pending    = false;
+         r->wakeable.postponed  = !!(e_flags(p) & E_F_POSTPONED);
 
          const int nnexus = e_nexuses(p);
          for (int j = 0; j < nnexus; j++) {
@@ -2412,12 +2424,13 @@ static void rt_wakeup(sens_list_t *sl)
    // generation: these correspond to stale "wait on" statements that
    // have already resumed.
 
-   if (sl->wakeup_gen == sl->proc->wakeup_gen || sl->reenq != NULL) {
-      TRACE("wakeup process %s%s", istr(e_path(sl->proc->source)),
-            sl->proc->postponed ? " [postponed]" : "");
-      ++(sl->proc->wakeup_gen);
+   if (sl->wakeup_gen == sl->wake->wakeup_gen || sl->reenq != NULL) {
+      rt_proc_t *proc = container_of(sl->wake, rt_proc_t, wakeable);
+      TRACE("wakeup process %s%s", istr(e_path(proc->source)),
+            sl->wake->postponed ? " [postponed]" : "");
+      ++(sl->wake->wakeup_gen);
 
-      if (unlikely(sl->proc->postponed)) {
+      if (unlikely(sl->wake->postponed)) {
          sl->next  = postponed;
          postponed = sl;
       }
@@ -2426,7 +2439,7 @@ static void rt_wakeup(sens_list_t *sl)
          resume = sl;
       }
 
-      sl->proc->pending = true;
+      sl->wake->pending = true;
    }
    else
       rt_free(sens_list_stack, sl);
@@ -2611,7 +2624,8 @@ static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
 
 static bool rt_stale_event(event_t *e)
 {
-   return (e->kind == EVENT_PROCESS) && (e->wakeup_gen != e->proc->wakeup_gen);
+   return (e->kind == EVENT_PROCESS)
+      && (e->wakeup_gen != e->proc->wakeable.wakeup_gen);
 }
 
 static void rt_push_run_queue(rt_run_queue_t *q, event_t *e)
@@ -2632,7 +2646,7 @@ static void rt_push_run_queue(rt_run_queue_t *q, event_t *e)
    else {
       q->queue[(q->wr)++] = e;
       if (e->kind == EVENT_PROCESS)
-         ++(e->proc->wakeup_gen);
+         ++(e->proc->wakeable.wakeup_gen);
    }
 }
 
@@ -2655,9 +2669,12 @@ static void rt_iteration_limit(void)
              opt_get_int("stop-delta"));
 
    for (sens_list_t *it = resume; it != NULL; it = it->next) {
-      const loc_t *l = e_loc(it->proc->source);
-      tb_printf(buf, "  %-30s %s line %d\n", istr(e_path(it->proc->source)),
-                loc_file_str(l), l->first_line);
+      if (it->wake->kind == W_PROC) {
+         rt_proc_t *proc = container_of(it->wake, rt_proc_t, wakeable);
+         const loc_t *l = e_loc(proc->source);
+         tb_printf(buf, "  %-30s %s line %d\n", istr(e_path(proc->source)),
+                   loc_file_str(l), l->first_line);
+      }
    }
 
    tb_printf(buf, "You can increase this limit with --stop-delta");
@@ -2669,9 +2686,11 @@ static void rt_resume_processes(sens_list_t **list)
 {
    sens_list_t *it = *list;
    while (it != NULL) {
-      if (it->proc->pending) {
-         rt_run(it->proc);
-         it->proc->pending = false;
+      if (it->wake->pending) {
+         RT_ASSERT(it->wake->kind == W_PROC);
+         rt_proc_t *proc = container_of(it->wake, rt_proc_t, wakeable);
+         rt_run(proc);
+         it->wake->pending = false;
       }
 
       sens_list_t *next = it->next;
