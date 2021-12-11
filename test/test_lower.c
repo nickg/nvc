@@ -290,7 +290,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          break;
 
-      case VCODE_OP_SCHED_EVENT:
       case VCODE_OP_ALLOCA:
       case VCODE_OP_INDEX_CHECK:
          if (vcode_get_subkind(i) != e->subkind) {
@@ -298,6 +297,10 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             fail("expected op %d in block %d to have subkind %x but "
                  "has %x", i, bb, e->subkind, vcode_get_subkind(i));
          }
+         break;
+
+      case VCODE_OP_SCHED_EVENT:
+      case VCODE_OP_SCHED_STATIC:
          break;
 
       case VCODE_OP_RESUME:
@@ -1381,7 +1384,7 @@ START_TEST(test_staticwait)
       { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_SCHED_EVENT, .subkind = 2 },
+      { VCODE_OP_SCHED_STATIC },
       { VCODE_OP_RETURN }
    };
 
@@ -1972,7 +1975,7 @@ START_TEST(test_issue116)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
       { VCODE_OP_CONST, .value = 7 },
-      { VCODE_OP_SCHED_EVENT, .subkind = 2 },
+      { VCODE_OP_SCHED_STATIC },
       { VCODE_OP_RETURN }
    };
 

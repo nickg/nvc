@@ -59,6 +59,7 @@ typedef struct {
    cprop_flags_t         flags;
    cprop_callback_t      sched_waveform;
    cprop_callback_t      sched_event;
+   cprop_callback_t      sched_static;
    cprop_callback_t      map_signal;
    cprop_callback_t      init_signal;
    cprop_callback_t      if_generate;

@@ -41,8 +41,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
 #define OP_HAS_SUBKIND(x)                                               \
-   (x == VCODE_OP_SCHED_EVENT || x == VCODE_OP_BOUNDS                   \
-    || x == VCODE_OP_BIT_VEC_OP                                         \
+   (x == VCODE_OP_BOUNDS || x == VCODE_OP_BIT_VEC_OP                    \
     || x == VCODE_OP_INDEX_CHECK || x == VCODE_OP_BIT_SHIFT             \
     || x == VCODE_OP_ALLOCA || x == VCODE_OP_COVER_COND                 \
     || x == VCODE_OP_ARRAY_SIZE || x == VCODE_OP_PCALL                  \
@@ -941,7 +940,7 @@ const char *vcode_op_string(vcode_op_t op)
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
-      "context upref", "const rep", "protected free"
+      "context upref", "const rep", "protected free", "sched static",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1753,12 +1752,12 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_SCHED_EVENT:
+         case VCODE_OP_SCHED_STATIC:
             {
                printf("%s on ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
                printf(" count ");
                vcode_dump_reg(op->args.items[1]);
-               printf(" flags %x", op->subkind);
             }
             break;
 
@@ -4358,12 +4357,21 @@ void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
    op->type = vtype_pointed(dtype);
 }
 
-void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags)
+void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems)
 {
    op_t *op = vcode_add_op(VCODE_OP_SCHED_EVENT);
    vcode_add_arg(op, nets);
    vcode_add_arg(op, n_elems);
-   op->subkind = flags;
+
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "nets argument to sched event must be signal");
+}
+
+void emit_sched_static(vcode_reg_t nets, vcode_reg_t n_elems)
+{
+   op_t *op = vcode_add_op(VCODE_OP_SCHED_STATIC);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, n_elems);
 
    VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
                 "nets argument to sched event must be signal");

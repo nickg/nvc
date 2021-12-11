@@ -293,10 +293,7 @@ static void eopt_driver_cb(int op, cprop_state_t *regs, void *__ctx)
    e_node_t cursor = __ctx;
 
    vcode_reg_t target = vcode_get_arg(op, 0);
-   assert(target != VCODE_INVALID_REG);
-
    vcode_reg_t count = vcode_get_arg(op, 1);
-   assert(count != VCODE_INVALID_REG);
 
    eopt_add_driver(op, target, count, regs, cursor, eopt_nexus_add_driver_cb);
 }
@@ -306,14 +303,19 @@ static void eopt_sched_event_cb(int op, cprop_state_t *regs, void *__ctx)
    e_node_t cursor = __ctx;
 
    vcode_reg_t target = vcode_get_arg(op, 0);
-   assert(target != VCODE_INVALID_REG);
-
    vcode_reg_t count = vcode_get_arg(op, 1);
-   assert(count != VCODE_INVALID_REG);
 
-   eopt_nexus_fn_t fn =
-      vcode_get_subkind(op) & SCHED_STATIC ? eopt_add_static_trigger_cb : NULL;
-   eopt_add_driver(op, target, count, regs, cursor, fn);
+   eopt_add_driver(op, target, count, regs, cursor, NULL);
+}
+
+static void eopt_sched_static_cb(int op, cprop_state_t *regs, void *__ctx)
+{
+   e_node_t cursor = __ctx;
+
+   vcode_reg_t target = vcode_get_arg(op, 0);
+   vcode_reg_t count = vcode_get_arg(op, 1);
+
+   eopt_add_driver(op, target, count, regs, cursor, eopt_add_static_trigger_cb);
 }
 
 static void eopt_signal_flag_cb(int op, cprop_state_t *regs, void *__ctx)
@@ -400,6 +402,7 @@ static void eopt_drivers(vcode_unit_t unit, e_node_t cursor)
       .find_signal    = eopt_find_signal_cb,
       .sched_waveform = eopt_driver_cb,
       .sched_event    = eopt_sched_event_cb,
+      .sched_static   = eopt_sched_static_cb,
       .drive_signal   = eopt_driver_cb,
       .pcall          = eopt_pcall_cb,
       .fcall          = eopt_pcall_cb,

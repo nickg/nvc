@@ -304,6 +304,11 @@ void cprop(cprop_req_t *req)
                (*req->sched_event)(op, regs, req->context);
             break;
 
+         case VCODE_OP_SCHED_STATIC:
+            if (req->sched_static)
+               (*req->sched_static)(op, regs, req->context);
+            break;
+
          case VCODE_OP_CONST:
             {
                vcode_reg_t result = vcode_get_result(op);

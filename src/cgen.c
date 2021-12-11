@@ -2341,16 +2341,12 @@ static void cgen_op_record_ref(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
 {
-   if (vcode_get_subkind(op) & SCHED_STATIC)
-      return;   // Handled by eopt data
-
    LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
 
    LLVMValueRef args[] = {
       LLVMBuildExtractValue(builder, sigptr, 0, "sid"),
       LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
       cgen_get_arg(op, 1, ctx),
-      llvm_int32(vcode_get_subkind(op)),
    };
    LLVMBuildCall(builder, llvm_fn("_sched_event"), args, ARRAY_LEN(args), "");
 }
@@ -3176,6 +3172,7 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_COMMENT:
    case VCODE_OP_DRIVE_SIGNAL:
+   case VCODE_OP_SCHED_STATIC:
       break;
    case VCODE_OP_MAP_SIGNAL:
       cgen_op_map_signal(i, ctx);
@@ -4051,7 +4048,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
    else if (strcmp(name, "_sched_event") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMInt32Type()
       };

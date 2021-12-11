@@ -3836,9 +3836,10 @@ static void lower_sched_event(tree_t on, bool is_static)
          n_elems = emit_const(vtype_offset(),1);
    }
 
-   const int flags = (is_static ? SCHED_STATIC : 0);
-
-   emit_sched_event(nets, n_elems, flags);
+   if (is_static)
+      emit_sched_static(nets, n_elems);
+   else
+      emit_sched_event(nets, n_elems);
 }
 
 static void lower_wait(tree_t wait)
@@ -6101,8 +6102,8 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    // If the last statement in the process is a static wait then this
    // process is always sensitive to the same set of signals and we can
    // emit a single _sched_event call in the reset block
-   const int nstmts = tree_stmts(proc);
    tree_t wait = NULL;
+   const int nstmts = tree_stmts(proc);
    if (nstmts > 0
        && tree_kind((wait = tree_stmt(proc, nstmts - 1))) == T_WAIT
        && (tree_flags(wait) & TREE_F_STATIC_WAIT)) {

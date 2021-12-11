@@ -706,20 +706,18 @@ void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
 }
 
 DLLEXPORT
-void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count,
-                  int32_t flags)
+void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("_sched_event %s+%d count=%d flags=%d proc %s", istr(e_path(s->enode)),
-         offset, count, flags, istr(e_path(active_proc->source)));
+   TRACE("_sched_event %s+%d count=%d proc %s", istr(e_path(s->enode)),
+         offset, count, istr(e_path(active_proc->source)));
 
    unsigned index = rt_signal_nexus_index(s, offset);
    while (count > 0) {
       RT_ASSERT(index < s->n_nexus);
       rt_nexus_t *n = s->nexus[index++];
-      rt_sched_event(&(n->pending), &(active_proc->wakeable),
-                     !!(flags & SCHED_STATIC));
+      rt_sched_event(&(n->pending), &(active_proc->wakeable), false);
 
       count -= n->width;
       RT_ASSERT(count >= 0);
