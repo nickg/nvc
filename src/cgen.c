@@ -2341,6 +2341,9 @@ static void cgen_op_record_ref(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
 {
+   if (vcode_get_subkind(op) & SCHED_STATIC)
+      return;   // Handled by eopt data
+
    LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
 
    LLVMValueRef args[] = {

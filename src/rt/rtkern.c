@@ -1940,6 +1940,12 @@ static void rt_setup_scopes_recur(e_node_t e, rt_scope_t *parent,
             }
          }
 
+         const int ntriggers = e_triggers(p);
+         for (int j = 0; j < ntriggers; j++) {
+            rt_nexus_t *n = &(nexuses[e_pos(e_trigger(p, j))]);
+            rt_sched_event(&(n->pending), &(r->wakeable), true);
+         }
+
          profile.n_procs++;
       }
 

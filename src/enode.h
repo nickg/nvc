@@ -100,6 +100,10 @@ unsigned e_signals(e_node_t e);
 e_node_t e_signal(e_node_t e, unsigned n);
 void e_add_signal(e_node_t e, e_node_t s);
 
+unsigned e_triggers(e_node_t e);
+e_node_t e_trigger(e_node_t e, unsigned n);
+void e_add_trigger(e_node_t e, e_node_t t);
+
 unsigned e_nexuses(e_node_t e);
 e_node_t e_nexus(e_node_t e, unsigned n);
 void e_add_nexus(e_node_t e, e_node_t n);

@@ -34,10 +34,12 @@ static const imask_t has_map[E_LAST_NODE_KIND] = {
     | I_PARENT),
 
    // E_PROCESS
-   (I_IDENT | I_IDENT2 | I_PATH | I_NEXUS | I_VCODE | I_PARENT | I_FLAGS),
+   (I_IDENT | I_IDENT2 | I_PATH | I_NEXUS | I_VCODE | I_PARENT | I_FLAGS
+    | I_TRIGGERS),
 
    // E_NEXUS
-   (I_IDENT | I_IVAL | I_SIGNALS | I_POS | I_SIZE | I_SOURCES | I_OUTPUTS),
+   (I_IDENT | I_IVAL | I_SIGNALS | I_POS | I_SIZE | I_SOURCES | I_OUTPUTS
+    | I_TRIGGERS),
 
    // E_PORT
    (I_IDENT | I_NEXUS | I_FLAGS),
@@ -322,6 +324,24 @@ void e_add_signal(e_node_t e, e_node_t s)
    object_write_barrier(&(e->object), &(s->object));
 }
 
+unsigned e_triggers(e_node_t e)
+{
+   return lookup_item(&e_node_object, e, I_TRIGGERS)->obj_array.count;
+}
+
+e_node_t e_trigger(e_node_t e, unsigned n)
+{
+   item_t *item = lookup_item(&e_node_object, e, I_TRIGGERS);
+   return e_array_nth(item, n);
+}
+
+void e_add_trigger(e_node_t e, e_node_t t)
+{
+   item_t *item = lookup_item(&e_node_object, e, I_TRIGGERS);
+   e_array_add(item, t);
+   object_write_barrier(&(e->object), &(t->object));
+}
+
 unsigned e_nexuses(e_node_t e)
 {
    return lookup_item(&e_node_object, e, I_NEXUS)->obj_array.count;
@@ -446,6 +466,13 @@ e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)
       e_array_insert(lookup_item(&e_node_object, s, I_NEXUS), orig, new);
    }
 
+   const int ntriggers = e_triggers(orig);
+   for (int i = 0; i < ntriggers; i++) {
+      e_node_t t = e_trigger(orig, i);
+      e_add_trigger(new, t);
+      e_array_insert(lookup_item(&e_node_object, t, I_TRIGGERS), orig, new);
+   }
+
    e_set_width(orig, width);
 
    const int nsources = e_sources(orig);
@@ -511,6 +538,19 @@ void e_collapse_port(e_node_t root, unsigned pos, e_node_t old, e_node_t port)
 
       obj_array_t *nexus_array =
          &(lookup_item(&e_node_object, s, I_NEXUS)->obj_array);
+      for (unsigned i = 0; i < nexus_array->count; i++) {
+         if (nexus_array->items[i] == &(old->object))
+            nexus_array->items[i] = &(new->object);
+      }
+   }
+
+   const int ntriggers = e_triggers(old);
+   for (int i = 0; i < ntriggers; i++) {
+      e_node_t t = e_trigger(old, i);
+      e_add_trigger(new, t);
+
+      obj_array_t *nexus_array =
+         &(lookup_item(&e_node_object, t, I_TRIGGERS)->obj_array);
       for (unsigned i = 0; i < nexus_array->count; i++) {
          if (nexus_array->items[i] == &(old->object))
             nexus_array->items[i] = &(new->object);
@@ -632,6 +672,13 @@ static void _e_dump(e_node_t e, int indent)
                color_printf(" $cyan$id$$ %u", e_pos(n));
             color_printf(" $cyan$width$$ %u\n", e_width(n));
          }
+
+         const int ntriggers = e_triggers(e);
+         for (int i = 0; i < ntriggers; i++) {
+            e_node_t t = e_trigger(e, i);
+            e_dump_indent(indent + 2);
+            color_printf("$cyan$triggered by$$ %s\n", istr(e_ident(t)));
+         }
       }
       break;
 
@@ -701,6 +748,12 @@ static void _e_dump(e_node_t e, int indent)
 
             e_node_t o = e_nexus(s, 1);
             color_printf("    $cyan$sources$$ %s\n", istr(e_ident(o)));
+         }
+
+         const int ntriggers = e_triggers(e);
+         for (int i = 0; i < ntriggers; i++) {
+            e_node_t t = e_trigger(e, i);
+            color_printf("    $cyan$triggers$$ %s\n", istr(e_path(t)));
          }
       }
       break;

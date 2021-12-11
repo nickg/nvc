@@ -79,7 +79,6 @@ typedef enum {
 } res_flags_t;
 
 typedef enum {
-   SCHED_SEQUENTIAL = (1 << 0),
    SCHED_STATIC     = (1 << 1)
 } sched_flags_t;
 

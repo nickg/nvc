@@ -102,8 +102,25 @@ static void eopt_nexus_add_driver_cb(e_node_t nexus, void *__ctx)
    }
 }
 
+static void eopt_add_static_trigger_cb(e_node_t nexus, void *__ctx)
+{
+   e_node_t cursor = __ctx;
+   assert(e_kind(cursor) == E_PROCESS);
+
+   bool have = false;
+   const int np = e_triggers(cursor);
+   for (int j = 0; !have && j < np; j++)
+      have = e_trigger(cursor, j) == nexus;
+
+   if (!have) {
+      e_add_trigger(cursor, nexus);
+      e_add_trigger(nexus, cursor);
+   }
+}
+
 static void eopt_add_driver(int op, vcode_reg_t target, vcode_reg_t count_reg,
-                            cprop_state_t *regs, e_node_t cursor, bool driven)
+                            cprop_state_t *regs, e_node_t cursor,
+                            eopt_nexus_fn_t callback)
 {
    unsigned offset = 0, stride = 0, count = 0;
    e_node_t signal = NULL;
@@ -123,8 +140,7 @@ static void eopt_add_driver(int op, vcode_reg_t target, vcode_reg_t count_reg,
       }
    }
 
-   eopt_nexus_fn_t fn = driven ? eopt_nexus_add_driver_cb : NULL;
-   eopt_split_signal(signal, offset, count, stride, fn, cursor);
+   eopt_split_signal(signal, offset, count, stride, callback, cursor);
 }
 
 static e_node_t eopt_find_signal_cb(ident_t name, int hops, void *__ctx)
@@ -282,8 +298,22 @@ static void eopt_driver_cb(int op, cprop_state_t *regs, void *__ctx)
    vcode_reg_t count = vcode_get_arg(op, 1);
    assert(count != VCODE_INVALID_REG);
 
-   const bool driven = vcode_get_op(op) != VCODE_OP_SCHED_EVENT;
-   eopt_add_driver(op, target, count, regs, cursor, driven);
+   eopt_add_driver(op, target, count, regs, cursor, eopt_nexus_add_driver_cb);
+}
+
+static void eopt_sched_event_cb(int op, cprop_state_t *regs, void *__ctx)
+{
+   e_node_t cursor = __ctx;
+
+   vcode_reg_t target = vcode_get_arg(op, 0);
+   assert(target != VCODE_INVALID_REG);
+
+   vcode_reg_t count = vcode_get_arg(op, 1);
+   assert(count != VCODE_INVALID_REG);
+
+   eopt_nexus_fn_t fn =
+      vcode_get_subkind(op) & SCHED_STATIC ? eopt_add_static_trigger_cb : NULL;
+   eopt_add_driver(op, target, count, regs, cursor, fn);
 }
 
 static void eopt_signal_flag_cb(int op, cprop_state_t *regs, void *__ctx)
@@ -369,7 +399,7 @@ static void eopt_drivers(vcode_unit_t unit, e_node_t cursor)
    cprop_req_t req = {
       .find_signal    = eopt_find_signal_cb,
       .sched_waveform = eopt_driver_cb,
-      .sched_event    = eopt_driver_cb,
+      .sched_event    = eopt_sched_event_cb,
       .drive_signal   = eopt_driver_cb,
       .pcall          = eopt_pcall_cb,
       .fcall          = eopt_pcall_cb,

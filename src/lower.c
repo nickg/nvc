@@ -3797,7 +3797,6 @@ static void lower_sched_event(tree_t on, bool is_static)
    const bool array = type_is_array(type);
 
    vcode_reg_t n_elems = VCODE_INVALID_REG, nets = VCODE_INVALID_REG;
-   bool sequential = false;
    if (tree_kind(on) == T_REF) {
       switch (tree_kind(decl)) {
       case T_SIGNAL_DECL:
@@ -3837,9 +3836,7 @@ static void lower_sched_event(tree_t on, bool is_static)
          n_elems = emit_const(vtype_offset(),1);
    }
 
-   const int flags =
-      (sequential ? SCHED_SEQUENTIAL : 0)
-      | (is_static ? SCHED_STATIC : 0);
+   const int flags = (is_static ? SCHED_STATIC : 0);
 
    emit_sched_event(nets, n_elems, flags);
 }
