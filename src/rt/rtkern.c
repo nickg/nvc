@@ -216,7 +216,7 @@ typedef struct rt_signal_s {
    uint32_t         nmap_param;
    net_flags_t      flags;
    uint32_t         n_nexus;
-   rt_nexus_t     **nexus;      // TODO: flatten this
+   rt_nexus_t      *nexus[0];
 } rt_signal_t;
 
 typedef struct rt_implicit_s {
@@ -227,13 +227,13 @@ typedef struct rt_implicit_s {
 } rt_implicit_t;
 
 typedef struct rt_scope_s {
-   rt_signal_t *signals;
-   unsigned     n_signals;
-   rt_proc_t   *procs;
-   unsigned     n_procs;
-   e_node_t     enode;
-   void        *privdata;
-   rt_scope_t  *parent;
+   rt_signal_t **signals;
+   unsigned      n_signals;
+   rt_proc_t    *procs;
+   unsigned      n_procs;
+   e_node_t      enode;
+   void         *privdata;
+   rt_scope_t   *parent;
 } rt_scope_t;
 
 // The code generator knows the layout of this struct
@@ -755,7 +755,7 @@ sig_shared_t *_link_signal(const char *name)
    ident_t id = ident_new(name);
 
    for (unsigned i = 0; i < active_scope->n_signals; i++) {
-      rt_signal_t *signal = &(active_scope->signals[i]);
+      rt_signal_t *signal = active_scope->signals[i];
       if (e_ident(signal->enode) == id)
          return &(signal->shared);
    }
@@ -1845,15 +1845,17 @@ static unsigned rt_count_scopes(e_node_t e)
    return sum;
 }
 
-static void rt_setup_signal(e_node_t e, rt_signal_t *s, unsigned *total_mem)
+static rt_signal_t *rt_setup_signal(e_node_t e, unsigned *total_mem)
 {
+   const int nnexus = e_nexuses(e);
+   rt_signal_t *s = xcalloc_flex(sizeof(rt_signal_t),
+                                 nnexus, sizeof(rt_nexus_t *));
+   *total_mem += sizeof(rt_signal_t) + nnexus * sizeof(rt_nexus_t *);
+
    s->enode   = e;
    s->width   = e_width(e);
-   s->n_nexus = e_nexuses(e);
-   s->nexus   = xmalloc_array(s->n_nexus, sizeof(rt_nexus_t*));
+   s->n_nexus = nnexus;
    s->flags   = 0;
-
-   *total_mem += s->n_nexus * sizeof(rt_nexus_t*);
 
    const e_flags_t flags = e_flags(e);
 
@@ -1924,6 +1926,8 @@ static void rt_setup_signal(e_node_t e, rt_signal_t *s, unsigned *total_mem)
       s->shared.last_value = xcalloc(s->size);
       s->flags |= NET_F_LAST_VALUE;
    }
+
+   return s;
 }
 
 static void rt_setup_scopes_recur(e_node_t e, rt_scope_t *parent,
@@ -1942,11 +1946,11 @@ static void rt_setup_scopes_recur(e_node_t e, rt_scope_t *parent,
 
       scope->n_procs = nprocs;
       scope->procs = xcalloc_array(nprocs, sizeof(rt_proc_t));
+      *total_mem += nprocs * sizeof(rt_proc_t);
 
       scope->n_signals = nsignals;
-      scope->signals = xcalloc_array(nsignals, sizeof(rt_signal_t));
-
-      *total_mem += nsignals * sizeof(rt_signal_t) + nprocs * sizeof(rt_proc_t);
+      scope->signals = xcalloc_array(nsignals, sizeof(rt_signal_t *));
+      *total_mem += nsignals * sizeof(rt_signal_t *);
 
       for (int i = 0; i < nprocs; i++) {
          e_node_t p = e_proc(e, i);
@@ -1982,7 +1986,7 @@ static void rt_setup_scopes_recur(e_node_t e, rt_scope_t *parent,
       }
 
       for (int i = 0; i < nsignals; i++)
-         rt_setup_signal(e_signal(e, i), &(scope->signals[i]), total_mem);
+         scope->signals[i] = rt_setup_signal(e_signal(e, i), total_mem);
    }
 
    const int nscopes = e_scopes(e);
@@ -2926,7 +2930,7 @@ static void rt_cleanup_signal(rt_signal_t *s)
    if (s->flags & NET_F_LAST_VALUE)
       free(s->shared.last_value);
 
-   free(s->nexus);
+   free(s);
 }
 
 static void rt_cleanup_scope(rt_scope_t *scope)
@@ -2935,7 +2939,7 @@ static void rt_cleanup_scope(rt_scope_t *scope)
       free(scope->procs[i].privdata);
 
    for (unsigned i = 0; i < scope->n_signals; i++)
-      rt_cleanup_signal(&(scope->signals[i]));
+      rt_cleanup_signal(scope->signals[i]);
 
    free(scope->privdata);
    free(scope->procs);
@@ -3321,8 +3325,8 @@ rt_signal_t *rt_find_signal(e_node_t esignal)
 
    for (unsigned i = 0; i < n_scopes; i++) {
       for (unsigned j = 0; j < scopes[i].n_signals; j++) {
-         if (scopes[i].signals[j].enode == esignal)
-            return &(scopes[i].signals[j]);
+         if (scopes[i].signals[j]->enode == esignal)
+            return scopes[i].signals[j];
       }
    }
 
