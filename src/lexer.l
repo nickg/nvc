@@ -245,6 +245,7 @@ WARNING       ?i:warning
 {OUT}           { TOKEN(tOUT); }
 {BUFFER}        { TOKEN(tBUFFER); }
 {BUS}           { TOKEN(tBUS); }
+{REGISTER}      { TOKEN(tREGISTER); }
 {UNAFFECTED}    { TOKEN(tUNAFFECTED); }
 {SIGNAL}        { TOKEN(tSIGNAL); }
 {PROCESS}       { TOKEN(tPROCESS); }

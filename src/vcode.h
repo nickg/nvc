@@ -137,6 +137,7 @@ typedef enum {
    VCODE_OP_PROTECTED_FREE,
    VCODE_OP_SCHED_STATIC,
    VCODE_OP_IMPLICIT_SIGNAL,
+   VCODE_OP_DISCONNECT,
 } vcode_op_t;
 
 typedef enum {
@@ -380,6 +381,8 @@ void emit_return(vcode_reg_t reg);
 void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
                          vcode_reg_t values, vcode_reg_t reject,
                          vcode_reg_t after);
+void emit_disconnect(vcode_reg_t nets, vcode_reg_t nnets, vcode_reg_t reject,
+                     vcode_reg_t after);
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse);
 vcode_reg_t emit_neg(vcode_reg_t lhs);
 vcode_reg_t emit_abs(vcode_reg_t lhs);

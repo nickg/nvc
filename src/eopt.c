@@ -572,6 +572,12 @@ static void eopt_nexus_for_type(e_node_t signal, type_t type, ident_t field)
    }
 }
 
+static void eopt_guarded_signal(e_node_t e, tree_t decl)
+{
+   if (tree_flags(decl) & TREE_F_REGISTER)
+      e_set_flag(e, E_F_REGISTER);
+}
+
 static void eopt_port_decl(tree_t port, ident_t suffix, e_node_t cursor)
 {
    type_t type = tree_type(port);
@@ -585,6 +591,7 @@ static void eopt_port_decl(tree_t port, ident_t suffix, e_node_t cursor)
    e_set_loc(e, tree_loc(port));
    eopt_path_from_cursor(e, name, cursor);
    eopt_nexus_for_type(e, type, NULL);
+   eopt_guarded_signal(e, port);
 
    e_add_signal(cursor, e);
 }
@@ -616,6 +623,7 @@ static void eopt_signal_decl(tree_t decl, e_node_t cursor, e_kind_t kind)
    e_set_loc(e, tree_loc(decl));
    eopt_path_from_cursor(e, name, cursor);
    eopt_nexus_for_type(e, type, NULL);
+   eopt_guarded_signal(e, decl);
 
    e_add_signal(cursor, e);
 }

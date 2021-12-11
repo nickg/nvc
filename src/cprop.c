@@ -297,6 +297,7 @@ void cprop(cprop_req_t *req)
          const vcode_op_t kind = vcode_get_op(op);
          switch (kind) {
          case VCODE_OP_SCHED_WAVEFORM:
+         case VCODE_OP_DISCONNECT:
             if (req->sched_waveform)
                (*req->sched_waveform)(op, regs, req->context);
             break;

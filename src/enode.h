@@ -40,6 +40,7 @@ typedef enum {
    E_F_POSTPONED  = (1 << 2),
    E_F_RESOLVED   = (1 << 3),
    E_F_CONV_FUNC  = (1 << 4),
+   E_F_REGISTER   = (1 << 5),
 } e_flags_t;
 
 #define NEXUS_POS_INVALID ~0u

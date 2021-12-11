@@ -941,7 +941,7 @@ const char *vcode_op_string(vcode_op_t op)
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
-      "implicit signal",
+      "implicit signal", "disconnect"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1642,6 +1642,19 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[3]);
                printf(" after ");
                vcode_dump_reg(op->args.items[4]);
+            }
+            break;
+
+         case VCODE_OP_DISCONNECT:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" count ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" reject ");
+               vcode_dump_reg(op->args.items[2]);
+               printf(" after ");
+               vcode_dump_reg(op->args.items[3]);
             }
             break;
 
@@ -3736,6 +3749,21 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
                 "sched_waveform net count is not offset type");
    VCODE_ASSERT(vcode_reg_kind(values) != VCODE_TYPE_SIGNAL,
                 "signal cannot be values argument for sched_waveform");
+}
+
+void emit_disconnect(vcode_reg_t nets, vcode_reg_t nnets, vcode_reg_t reject,
+                     vcode_reg_t after)
+{
+   op_t *op = vcode_add_op(VCODE_OP_DISCONNECT);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, nnets);
+   vcode_add_arg(op, reject);
+   vcode_add_arg(op, after);
+
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "disconnect target is not signal");
+   VCODE_ASSERT(vcode_reg_kind(nnets) == VCODE_TYPE_OFFSET,
+                "disconnect net count is not offset type");
 }
 
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse)

@@ -429,3 +429,4 @@ protected6      normal,2000
 vests20         normal
 vests21         normal
 guard1          normal
+guard2          normal

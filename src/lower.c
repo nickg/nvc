@@ -4222,6 +4222,35 @@ static void lower_signal_assign_target(target_part_t **ptr, tree_t where,
    }
 }
 
+static void lower_disconnect_target(target_part_t **ptr, vcode_reg_t reject,
+                                    vcode_reg_t after)
+{
+   for (const target_part_t *p = (*ptr)++; p->kind != PART_POP; p = (*ptr)++) {
+      if (p->kind == PART_PUSH_FIELD || p->kind == PART_PUSH_ELEM) {
+         lower_disconnect_target(ptr, reject, after);
+         continue;
+      }
+      else if (p->reg == VCODE_INVALID_REG)
+         continue;
+
+      vcode_reg_t nets_raw = lower_array_data(p->reg);
+
+      if (type_is_array(p->type)) {
+         vcode_reg_t count_reg = lower_scalar_sub_elements(p->type, p->reg);
+         emit_disconnect(nets_raw, count_reg, reject, after);
+      }
+      else if (type_is_record(p->type)) {
+         const int width = type_width(p->type);
+         emit_disconnect(nets_raw, emit_const(vtype_offset(), width),
+                         reject, after);
+      }
+      else {
+         emit_disconnect(nets_raw, emit_const(vtype_offset(), 1),
+                         reject, after);
+      }
+   }
+}
+
 static void lower_signal_assign(tree_t stmt)
 {
    const int saved_mark = emit_temp_stack_mark();
@@ -4244,10 +4273,6 @@ static void lower_signal_assign(tree_t stmt)
    const int nwaveforms = tree_waveforms(stmt);
    for (int i = 0; i < nwaveforms; i++) {
       tree_t w = tree_waveform(stmt, i);
-      tree_t wvalue = tree_value(w);
-      type_t wtype = tree_type(wvalue);
-
-      vcode_reg_t rhs = lower_expr(wvalue, EXPR_RVALUE);
 
       vcode_reg_t after;
       if (tree_has_delay(w))
@@ -4256,7 +4281,14 @@ static void lower_signal_assign(tree_t stmt)
          after = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
 
       target_part_t *ptr = parts;
-      lower_signal_assign_target(&ptr, wvalue, rhs, wtype, reject, after);
+      if (tree_has_value(w)) {
+         tree_t wvalue = tree_value(w);
+         type_t wtype = tree_type(wvalue);
+         vcode_reg_t rhs = lower_expr(wvalue, EXPR_RVALUE);
+         lower_signal_assign_target(&ptr, wvalue, rhs, wtype, reject, after);
+      }
+      else
+         lower_disconnect_target(&ptr, reject, after);
       assert(ptr == parts + nparts);
 
       // All but the first waveform have zero reject time

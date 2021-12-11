@@ -700,6 +700,8 @@ static void _e_dump(e_node_t e, int indent)
             color_printf(" $cyan$last-value$$");
          if (!(flags & E_F_CONTIGUOUS))
             color_printf(" $cyan$non-contiguous$$");
+         if (flags & E_F_REGISTER)
+            color_printf(" $cyan$register$$");
 
          const int nnexus = e_nexuses(e);
          fputc(nnexus == 1 && flags == 0 ? ' ' : '\n', stdout);

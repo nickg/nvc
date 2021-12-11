@@ -811,7 +811,10 @@ static void dump_waveforms(tree_t t)
    for (int i = 0; i < nwaves; i++) {
       if (i > 0) printf(", ");
       tree_t w = tree_waveform(t, i);
-      dump_expr(tree_value(w));
+      if (tree_has_value(w))
+         dump_expr(tree_value(w));
+      else
+         syntax("#null");
       if (tree_has_delay(w)) {
          syntax(" #after ");
          dump_expr(tree_delay(w));

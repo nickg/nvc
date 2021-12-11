@@ -2091,6 +2091,22 @@ static void cgen_op_sched_waveform(int op, cgen_ctx_t *ctx)
    }
 }
 
+static void cgen_op_disconnect(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef sid    = LLVMBuildExtractValue(builder, sigptr, 0, "sid");
+   LLVMValueRef offset = LLVMBuildExtractValue(builder, sigptr, 1, "offset");
+
+   LLVMValueRef args[] = {
+      sid,
+      offset,
+      cgen_get_arg(op, 1, ctx),
+      cgen_get_arg(op, 3, ctx),
+      cgen_get_arg(op, 2, ctx)
+   };
+   LLVMBuildCall(builder, llvm_fn("_disconnect"), args, ARRAY_LEN(args), "");
+}
+
 static void cgen_op_resolution_wrapper(int op, cgen_ctx_t *ctx)
 {
    // Resolution functions are in LRM 93 section 2.4
@@ -3297,6 +3313,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_SCHED_WAVEFORM:
       cgen_op_sched_waveform(i, ctx);
       break;
+   case VCODE_OP_DISCONNECT:
+      cgen_op_disconnect(i, ctx);
+      break;
    case VCODE_OP_ACTIVE:
       cgen_op_active(i, ctx);
       break;
@@ -4080,6 +4099,18 @@ static LLVMValueRef cgen_support_fn(const char *name)
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
       cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 1);
+   }
+   else if (strcmp(name, "_disconnect") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMInt64Type(),
+         LLVMInt64Type()
+      };
+      fn = LLVMAddFunction(module, "_disconnect",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_init_signal") == 0) {
       LLVMTypeRef args[] = {
