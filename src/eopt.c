@@ -564,6 +564,7 @@ static bool eopt_decls(tree_t container, e_node_t cursor)
       tree_t d = tree_decl(container, i);
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
+      case T_IMPLICIT_DECL:
          eopt_signal_decl(d, cursor);
          need_cprop = true;
       case T_CONST_DECL:

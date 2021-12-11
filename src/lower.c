@@ -2396,6 +2396,7 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
       return lower_param_ref(decl, ctx);
 
    case T_SIGNAL_DECL:
+   case T_IMPLICIT_DECL:
       return lower_signal_ref(decl, ctx);
 
    case T_TYPE_DECL:
@@ -5221,6 +5222,52 @@ static void lower_signal_decl(tree_t decl)
    lower_sub_signals(type, decl, shared, init_reg, VCODE_INVALID_REG);
 }
 
+static ident_t lower_guard_func(ident_t prefix, tree_t expr)
+{
+   ident_t qual = ident_prefix(vcode_unit_name(), prefix, '.');
+   ident_t func = ident_prefix(qual, ident_new("guard"), '$');
+
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   emit_function(func, tree_loc(expr), vcode_unit_context());
+   vcode_set_result(lower_type(tree_type(expr)));
+
+   emit_return(lower_reify_expr(expr));
+
+   lower_finished();
+   vcode_state_restore(&state);
+
+   return func;
+}
+
+static void lower_implicit_decl(tree_t decl)
+{
+   ident_t name = tree_ident(decl);
+   type_t type = tree_type(decl);
+
+   vcode_type_t signal_type = lower_signal_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+   vcode_var_t var = emit_var(signal_type, vbounds, name, VAR_SIGNAL);
+   lower_put_vcode_obj(decl, var, top_scope);
+
+   vcode_reg_t shared = emit_link_signal(name, signal_type);
+   emit_store(shared, var);
+
+   ident_t func = NULL;
+   switch (tree_subkind(decl)) {
+   case IMPLICIT_GUARD:
+      func = lower_guard_func(tree_ident(decl), tree_value(decl));
+      break;
+   }
+
+   vcode_reg_t init_reg = emit_fcall(func, lower_type(type), vbounds,
+                                     VCODE_CC_VHDL, NULL, 0);
+
+   vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
+   emit_init_signal(shared, init_reg, one_reg, one_reg, VCODE_INVALID_REG);
+}
+
 static void lower_file_decl(tree_t decl)
 {
    type_t type = tree_type(decl);
@@ -5768,6 +5815,10 @@ static void lower_decl(tree_t decl)
 
    case T_SIGNAL_DECL:
       lower_signal_decl(decl);
+      break;
+
+   case T_IMPLICIT_DECL:
+      lower_implicit_decl(decl);
       break;
 
    case T_FILE_DECL:

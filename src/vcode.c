@@ -2716,6 +2716,7 @@ vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context)
 
    active_unit = vu;
    vcode_select_block(emit_block());
+   emit_debug_info(loc);
 
    vcode_registry_add(vu);
 
@@ -2738,6 +2739,7 @@ vcode_unit_t emit_procedure(ident_t name, const loc_t *loc,
 
    active_unit = vu;
    vcode_select_block(emit_block());
+   emit_debug_info(loc);
 
    vcode_registry_add(vu);
 
@@ -2761,6 +2763,7 @@ vcode_unit_t emit_process(ident_t name, const loc_t *loc, vcode_unit_t context)
 
    active_unit = vu;
    vcode_select_block(emit_block());
+   emit_debug_info(loc);
 
    vcode_registry_add(vu);
 
@@ -2785,6 +2788,7 @@ vcode_unit_t emit_instance(ident_t name, const loc_t *loc, vcode_unit_t context)
 
    active_unit = vu;
    vcode_select_block(emit_block());
+   emit_debug_info(loc);
 
    vcode_registry_add(vu);
 
@@ -2803,6 +2807,7 @@ vcode_unit_t emit_package(ident_t name, const loc_t *loc)
 
    active_unit = vu;
    vcode_select_block(emit_block());
+   emit_debug_info(loc);
 
    vcode_registry_add(vu);
 
@@ -2826,6 +2831,7 @@ vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
 
    active_unit = vu;
    vcode_select_block(emit_block());
+   emit_debug_info(loc);
 
    vcode_registry_add(vu);
 
