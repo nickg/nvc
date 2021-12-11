@@ -38,7 +38,7 @@ static char     *tmpfst;
 
 typedef struct fst_data fst_data_t;
 
-typedef void (*fst_fmt_fn_t)(watch_t *, fst_data_t *);
+typedef void (*fst_fmt_fn_t)(rt_watch_t *, fst_data_t *);
 
 typedef struct {
    int64_t  mult;
@@ -56,7 +56,7 @@ struct fst_data {
    range_kind_t  dir;
    fst_type_t    type;
    size_t        size;
-   watch_t      *watch;
+   rt_watch_t   *watch;
    tree_t        decl;
    rt_signal_t  *signal;
 };
@@ -96,7 +96,7 @@ static void fst_close(void)
    }
 }
 
-static void fst_fmt_int(watch_t *w, fst_data_t *data)
+static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
    rt_watch_value(w, &val, 1);
@@ -109,7 +109,7 @@ static void fst_fmt_int(watch_t *w, fst_data_t *data)
    fstWriterEmitValueChange(fst_ctx, data->handle, buf);
 }
 
-static void fst_fmt_physical(watch_t *w, fst_data_t *data)
+static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
    rt_watch_value(w, &val, 1);
@@ -126,7 +126,7 @@ static void fst_fmt_physical(watch_t *w, fst_data_t *data)
       fst_ctx, data->handle, buf, strlen(buf));
 }
 
-static void fst_fmt_chars(watch_t *w, fst_data_t *data)
+static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
 {
    const int nvals = data->size;
    char buf[nvals + 1];
@@ -138,7 +138,7 @@ static void fst_fmt_chars(watch_t *w, fst_data_t *data)
          fst_ctx, data->handle, buf, data->size);
 }
 
-static void fst_fmt_enum(watch_t *w, fst_data_t *data)
+static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
    rt_watch_value(w, &val, 1);
@@ -150,7 +150,8 @@ static void fst_fmt_enum(watch_t *w, fst_data_t *data)
       fst_ctx, data->handle, str, strlen(str));
 }
 
-static void fst_event_cb(uint64_t now, rt_signal_t *s, watch_t *w, void *user)
+static void fst_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
+                         void *user)
 {
    if (now != last_time) {
       fstWriterEmitTimeChange(fst_ctx, now);

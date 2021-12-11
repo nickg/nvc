@@ -452,7 +452,7 @@ static void vhpi_timeout_cb(uint64_t now, void *user)
 }
 
 static void vhpi_signal_event_cb(uint64_t now, rt_signal_t *signal,
-                                 watch_t *watch, void *user)
+                                 rt_watch_t *watch, void *user)
 {
    if (vhpi_validate_handle(user, VHPI_CALLBACK))
       vhpi_fire_event((vhpiHandleT)user);

@@ -61,7 +61,6 @@ typedef struct event       event_t;
 typedef struct waveform    waveform_t;
 typedef struct sens_list   sens_list_t;
 typedef struct value       value_t;
-typedef struct watch_list  watch_list_t;
 typedef struct callback    callback_t;
 typedef struct image_map   image_map_t;
 typedef struct rt_loc      rt_loc_t;
@@ -74,7 +73,7 @@ typedef void *(*proc_fn_t)(void *, rt_scope_t *);
 typedef uint64_t (*resolution_fn_t)(void *, void *, int32_t, int32_t);
 
 typedef enum {
-   W_PROC,
+   W_PROC, W_WATCH
 } wakeable_kind_t;
 
 typedef struct {
@@ -83,8 +82,6 @@ typedef struct {
    bool            pending;
    bool            postponed;
 } rt_wakeable_t;
-
-STATIC_ASSERT(sizeof(rt_wakeable_t) == 8);
 
 typedef struct {
    rt_wakeable_t  wakeable;
@@ -178,7 +175,6 @@ typedef struct rt_nexus_s {
    int32_t       event_delta;
    int32_t       active_delta;
    sens_list_t  *pending;
-   watch_list_t *watching;
    value_t      *forcing;
    res_memo_t   *resolution;
    net_flags_t   flags;
@@ -212,7 +208,6 @@ typedef enum {
 
 typedef struct rt_signal_s {
    sig_shared_t     shared;
-   rt_wakeable_t    wakeable;
    e_node_t         enode;
    uint32_t         width;
    uint32_t         size;
@@ -248,21 +243,13 @@ typedef struct {
    size_t    alloc;
 } rt_run_queue_t;
 
-struct watch {
+typedef struct rt_watch_s {
+   rt_wakeable_t   wakeable;
    rt_signal_t    *signal;
    sig_event_fn_t  fn;
-   bool            pending;
-   watch_t        *chain_all;
-   watch_t        *chain_pending;
+   rt_watch_t     *chain_all;
    void           *user_data;
-   size_t          length;
-   bool            postponed;
-};
-
-struct watch_list {
-   watch_t      *watch;
-   watch_list_t *next;
-};
+} rt_watch_t;
 
 typedef enum {
    SIDE_EFFECT_ALLOW,
@@ -324,8 +311,9 @@ static jmp_buf          fatal_jmp;
 static bool             aborted = false;
 static sens_list_t     *resume = NULL;
 static sens_list_t     *postponed = NULL;
-static watch_t         *watches = NULL;
-static watch_t         *callbacks = NULL;
+static sens_list_t     *resume_watch = NULL;
+static sens_list_t     *postponed_watch = NULL;
+static rt_watch_t      *watches = NULL;
 static event_t         *delta_proc = NULL;
 static event_t         *delta_driver = NULL;
 static void            *global_tmp_stack = NULL;
@@ -1764,21 +1752,21 @@ static void *rt_tmp_alloc(size_t sz)
    return ptr;
 }
 
-static void rt_sched_event(sens_list_t **list, rt_wakeable_t *proc, bool recur)
+static void rt_sched_event(sens_list_t **list, rt_wakeable_t *obj, bool recur)
 {
-   // See if there is already a stale entry in the pending
-   // list for this process
+   // See if there is already a stale entry in the pending list for this
+   // object
    sens_list_t *it = *list;
    int count = 0;
    for (; it != NULL; it = it->next, ++count) {
-      if ((it->wake == proc) && (it->wakeup_gen != proc->wakeup_gen))
+      if ((it->wake == obj) && (it->wakeup_gen != obj->wakeup_gen))
          break;
    }
 
    if (it == NULL) {
       sens_list_t *node = rt_alloc(sens_list_stack);
-      node->wake       = proc;
-      node->wakeup_gen = proc->wakeup_gen;
+      node->wake       = obj;
+      node->wakeup_gen = obj->wakeup_gen;
       node->next       = *list;
       node->reenq      = (recur ? list : NULL);
 
@@ -1787,7 +1775,7 @@ static void rt_sched_event(sens_list_t **list, rt_wakeable_t *proc, bool recur)
    else {
       // Reuse the stale entry
       RT_ASSERT(!is_static);
-      it->wakeup_gen = proc->wakeup_gen;
+      it->wakeup_gen = obj->wakeup_gen;
    }
 }
 
@@ -2401,16 +2389,21 @@ static void rt_initial(e_node_t top)
    TRACE("used %d bytes of global temporary stack", global_tmp_alloc);
 }
 
-static void rt_watch_signal(watch_t *w)
+static void rt_trace_wakeup(rt_wakeable_t *obj)
 {
-   for (unsigned i = 0; i < w->signal->n_nexus; i++) {
-      rt_nexus_t *n = w->signal->nexus[i];
+   if (unlikely(trace_on)) {
+      switch (obj->kind) {
+      case W_PROC:
+         TRACE("wakeup %sprocess %s", obj->postponed ? "postponed " : "",
+               istr(e_path(container_of(obj, rt_proc_t, wakeable)->source)));
+         break;
 
-      watch_list_t *link = xmalloc(sizeof(watch_list_t));
-      link->next  = n->watching;
-      link->watch = w;
-
-      n->watching = link;
+      case W_WATCH:
+         TRACE("wakeup %svalue change callback %p",
+               obj->postponed ? "postponed " : "",
+               container_of(obj, rt_watch_t, wakeable)->fn);
+         break;
+      }
    }
 }
 
@@ -2425,20 +2418,26 @@ static void rt_wakeup(sens_list_t *sl)
    // have already resumed.
 
    if (sl->wakeup_gen == sl->wake->wakeup_gen || sl->reenq != NULL) {
-      rt_proc_t *proc = container_of(sl->wake, rt_proc_t, wakeable);
-      TRACE("wakeup process %s%s", istr(e_path(proc->source)),
-            sl->wake->postponed ? " [postponed]" : "");
-      ++(sl->wake->wakeup_gen);
+      rt_trace_wakeup(sl->wake);
 
-      if (unlikely(sl->wake->postponed)) {
-         sl->next  = postponed;
-         postponed = sl;
+      sens_list_t **enq = NULL;
+      if (sl->wake->postponed) {
+         switch (sl->wake->kind) {
+         case W_PROC: enq = &postponed; break;
+         case W_WATCH: enq = &postponed_watch; break;
+         }
       }
       else {
-         sl->next = resume;
-         resume = sl;
+         switch (sl->wake->kind) {
+         case W_PROC: enq = &resume; break;
+         case W_WATCH: enq = &resume_watch; break;
+         }
       }
 
+      sl->next = *enq;
+      *enq = sl;
+
+      ++(sl->wake->wakeup_gen);
       sl->wake->pending = true;
    }
    else
@@ -2533,15 +2532,6 @@ static void rt_notify_event(rt_nexus_t *nexus)
       rt_source_t *o = &(nexus->sources[i]);
       if (o->proc == NULL)
          rt_notify_event(o->input);
-   }
-
-   // Schedule any callbacks to run
-   for (watch_list_t *wl = nexus->watching; wl != NULL; wl = wl->next) {
-      if (!wl->watch->pending) {
-         wl->watch->chain_pending = callbacks;
-         wl->watch->pending = true;
-         callbacks = wl->watch;
-      }
    }
 }
 
@@ -2682,14 +2672,25 @@ static void rt_iteration_limit(void)
    fatal("%s", tb_get(buf));
 }
 
-static void rt_resume_processes(sens_list_t **list)
+static void rt_resume(sens_list_t **list)
 {
    sens_list_t *it = *list;
    while (it != NULL) {
       if (it->wake->pending) {
-         RT_ASSERT(it->wake->kind == W_PROC);
-         rt_proc_t *proc = container_of(it->wake, rt_proc_t, wakeable);
-         rt_run(proc);
+         switch (it->wake->kind) {
+         case W_PROC:
+            {
+               rt_proc_t *proc = container_of(it->wake, rt_proc_t, wakeable);
+               rt_run(proc);
+            }
+            break;
+         case W_WATCH:
+            {
+               rt_watch_t *w = container_of(it->wake, rt_watch_t, wakeable);
+               (*w->fn)(now, w->signal, w, w->user_data);
+            }
+            break;
+         }
          it->wake->pending = false;
       }
 
@@ -2706,24 +2707,6 @@ static void rt_resume_processes(sens_list_t **list)
    }
 
    *list = NULL;
-}
-
-static void rt_event_callback(bool postponed)
-{
-   watch_t **last = &callbacks;
-   watch_t *next = NULL, *it;
-   for (it = callbacks; it != NULL; it = next) {
-      next = it->chain_pending;
-      if (it->postponed == postponed) {
-         (*it->fn)(now, it->signal, it, it->user_data);
-         it->pending = false;
-
-         *last = it->chain_pending;
-         it->chain_pending = NULL;
-      }
-      else
-         last = &(it->chain_pending);
-   }
 }
 
 static inline bool rt_next_cycle_is_delta(void)
@@ -2830,10 +2813,10 @@ static void rt_cycle(int stop_delta)
       rt_iteration_limit();
 
    // Run all non-postponed event callbacks
-   rt_event_callback(false);
+   rt_resume(&resume_watch);
 
    // Run all processes that resumed because of signal events
-   rt_resume_processes(&resume);
+   rt_resume(&resume);
    rt_global_event(RT_END_OF_PROCESSES);
 
    if (!rt_next_cycle_is_delta()) {
@@ -2841,10 +2824,10 @@ static void rt_cycle(int stop_delta)
       rt_global_event(RT_LAST_KNOWN_DELTA_CYCLE);
 
       // Run any postponed processes
-      rt_resume_processes(&postponed);
+      rt_resume(&postponed);
 
       // Execute all postponed event callbacks
-      rt_event_callback(true);
+      rt_resume(&postponed_watch);
 
       can_create_delta = true;
    }
@@ -2886,12 +2869,6 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
       sens_list_t *next = n->pending->next;
       rt_free(sens_list_stack, n->pending);
       n->pending = next;
-   }
-
-   while (n->watching != NULL) {
-      watch_list_t *next = n->watching->next;
-      free(n->watching);
-      n->watching = next;
    }
 }
 
@@ -2948,7 +2925,7 @@ static void rt_cleanup(e_node_t top)
    scopes = NULL;
 
    while (watches != NULL) {
-      watch_t *next = watches->chain_all;
+      rt_watch_t *next = watches->chain_all;
       rt_free(watch_stack, watches);
       watches = next;
    }
@@ -3096,7 +3073,7 @@ void rt_start_of_tool(tree_t top, e_node_t e)
    event_stack     = rt_alloc_stack_new(sizeof(event_t), "event");
    waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t), "waveform");
    sens_list_stack = rt_alloc_stack_new(sizeof(sens_list_t), "sens_list");
-   watch_stack     = rt_alloc_stack_new(sizeof(watch_t), "watch");
+   watch_stack     = rt_alloc_stack_new(sizeof(rt_watch_t), "watch");
    callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
 
    global_tmp_stack = mmap_guarded(GLOBAL_TMP_STACK_SZ, "global temp stack");
@@ -3175,14 +3152,14 @@ void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user)
    deltaq_insert(e);
 }
 
-watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
-                         bool postponed)
+rt_watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
+                            bool postponed)
 {
    if (fn == NULL) {
       // Find the first entry in the watch list and disable it
-      for (watch_t *it = watches; it != NULL; it = it->chain_all) {
+      for (rt_watch_t *it = watches; it != NULL; it = it->chain_all) {
          if ((it->signal == s) && (it->user_data == user)) {
-            it->pending = true;   // TODO: not a good way of doing this
+            it->wakeable.pending = true;   // TODO: not a good way of doing this
             break;
          }
       }
@@ -3190,20 +3167,25 @@ watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
       return NULL;
    }
    else {
-      watch_t *w = rt_alloc(watch_stack);
+      rt_watch_t *w = rt_alloc(watch_stack);
       RT_ASSERT(w != NULL);
       w->signal        = s;
       w->fn            = fn;
       w->chain_all     = watches;
-      w->chain_pending = NULL;
-      w->pending       = false;
       w->user_data     = user;
-      w->length        = 0;
-      w->postponed     = postponed;
+
+      w->wakeable.kind       = W_WATCH;
+      w->wakeable.postponed  = postponed;
+      w->wakeable.pending    = false;
+      w->wakeable.wakeup_gen = 0;
 
       watches = w;
 
-      rt_watch_signal(w);
+      for (unsigned i = 0; i < w->signal->n_nexus; i++) {
+         rt_nexus_t *n = w->signal->nexus[i];
+         rt_sched_event(&(n->pending), &(w->wakeable), true);
+      }
+
       return w;
    }
 }
@@ -3220,12 +3202,12 @@ void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user)
    global_cbs[event] = cb;
 }
 
-size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max)
+size_t rt_watch_value(rt_watch_t *w, uint64_t *buf, size_t max)
 {
    return rt_signal_value(w->signal, buf, max);
 }
 
-size_t rt_watch_string(watch_t *w, const char *map, char *buf, size_t max)
+size_t rt_watch_string(rt_watch_t *w, const char *map, char *buf, size_t max)
 {
    return rt_signal_string(w->signal, map, buf, max);
 }

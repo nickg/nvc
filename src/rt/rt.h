@@ -26,11 +26,11 @@
 
 #define RT_ABI_VERSION 3
 
-typedef struct watch       watch_t;
+typedef struct rt_watch_s  rt_watch_t;
 typedef struct rt_signal_s rt_signal_t;
 
-typedef void (*sig_event_fn_t)(uint64_t now, rt_signal_t *signal, watch_t *watch,
-                               void *user);
+typedef void (*sig_event_fn_t)(uint64_t now, rt_signal_t *signal,
+                               rt_watch_t *watch, void *user);
 typedef void (*timeout_fn_t)(uint64_t now, void *user);
 typedef void (*rt_event_fn_t)(void *user);
 
@@ -111,11 +111,11 @@ void rt_run_sim(uint64_t stop_time);
 void rt_run_interactive(uint64_t stop_time);
 void rt_restart(e_node_t top);
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user);
-watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
+rt_watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
                          bool postponed);
 void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user);
-size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max);
-size_t rt_watch_string(watch_t *w, const char *map, char *buf, size_t max);
+size_t rt_watch_value(rt_watch_t *w, uint64_t *buf, size_t max);
+size_t rt_watch_string(rt_watch_t *w, const char *map, char *buf, size_t max);
 size_t rt_signal_value(rt_signal_t *s, uint64_t *buf, size_t max);
 size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max);
 bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count,
