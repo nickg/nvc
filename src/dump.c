@@ -623,7 +623,7 @@ static void dump_decl(tree_t t, int indent)
    if (tree_kind(t) != T_HIER) dump_address(t);
 
    switch (tree_kind(t)) {
-   case T_IMPLICIT_DECL:
+   case T_IMPLICIT_SIGNAL:
       syntax("/* implicit */ ");
       // Fall-through
    case T_SIGNAL_DECL:

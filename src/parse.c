@@ -1666,7 +1666,7 @@ static void make_universal_real(tree_t container)
 
 static void make_implicit_guard_signal(tree_t block, tree_t expr)
 {
-   tree_t guard = tree_new(T_IMPLICIT_DECL);
+   tree_t guard = tree_new(T_IMPLICIT_SIGNAL);
    tree_set_ident(guard, ident_new("GUARD"));
    tree_set_loc(guard, tree_loc(expr));
    tree_set_type(guard, std_type(NULL, STD_BOOLEAN));

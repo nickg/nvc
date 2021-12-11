@@ -522,7 +522,7 @@ class_t class_of(tree_t t)
    case T_VAR_DECL:
       return C_VARIABLE;
    case T_SIGNAL_DECL:
-   case T_IMPLICIT_DECL:
+   case T_IMPLICIT_SIGNAL:
       return C_SIGNAL;
    case T_CONST_DECL:
       return C_CONSTANT;

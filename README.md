@@ -180,7 +180,6 @@ VHDL-1993 equivalents.
 Mostly supported with a few exceptions:
 * Configurations have several bugs and are missing features.
 * No support for `buffer` ports.
-* No guard expressions on blocks.
 * `bus` and `register` signal kinds are not supported.
 
 Please raise bugs for any missing or incorrectly implemented features

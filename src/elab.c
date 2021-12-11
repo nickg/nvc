@@ -928,7 +928,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
-      case T_IMPLICIT_DECL:
+      case T_IMPLICIT_SIGNAL:
       case T_ALIAS:
       case T_FILE_DECL:
       case T_VAR_DECL:

@@ -1531,7 +1531,7 @@ static tree_t sem_check_lvalue(tree_t t)
    case T_SIGNAL_DECL:
    case T_PORT_DECL:
    case T_CONST_DECL:
-   case T_IMPLICIT_DECL:
+   case T_IMPLICIT_SIGNAL:
       return t;
    default:
       return NULL;
@@ -1720,7 +1720,7 @@ static bool sem_check_signal_target(tree_t target)
          }
          break;
 
-      case T_IMPLICIT_DECL:
+      case T_IMPLICIT_SIGNAL:
          sem_error(target, "implicit signal may not be assigned");
 
       case T_PORT_DECL:
@@ -1786,7 +1786,7 @@ static bool sem_check_guard(tree_t t)
    tree_t decl = tree_ref(t);
    switch (tree_kind(decl)) {
    case T_SIGNAL_DECL:
-   case T_IMPLICIT_DECL:
+   case T_IMPLICIT_SIGNAL:
       break;
    case T_PORT_DECL:
       if (tree_class(decl) == C_SIGNAL)
@@ -2837,7 +2837,7 @@ static bool sem_check_ref(tree_t t)
    case T_GENVAR:
    case T_FUNC_DECL:
    case T_FUNC_BODY:
-   case T_IMPLICIT_DECL:
+   case T_IMPLICIT_SIGNAL:
       break;
 
    default:
@@ -3046,7 +3046,7 @@ static bool sem_is_named_entity(tree_t t)
    case T_FUNC_BODY:    case T_PROC_DECL:   case T_PROC_BODY:
    case T_PROCESS:
       return true;
-   case T_IMPLICIT_DECL:
+   case T_IMPLICIT_SIGNAL:
       return tree_subkind(decl) == IMPLICIT_GUARD;   // See LRM 93 section 4.3
    default:
       return false;
@@ -4570,7 +4570,7 @@ static bool sem_check_prot_body(tree_t t)
    return ok;
 }
 
-static bool sem_check_implicit_decl(tree_t t)
+static bool sem_check_implicit_signal(tree_t t)
 {
    tree_t value = tree_value(t);
    type_t type  = tree_type(t);
@@ -4746,8 +4746,8 @@ bool sem_check(tree_t t)
       return sem_check_context_ref(t);
    case T_BLOCK_CONFIG:
       return sem_check_block_config(t);
-   case T_IMPLICIT_DECL:
-      return sem_check_implicit_decl(t);
+   case T_IMPLICIT_SIGNAL:
+      return sem_check_implicit_signal(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

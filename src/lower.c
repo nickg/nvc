@@ -2396,7 +2396,7 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
       return lower_param_ref(decl, ctx);
 
    case T_SIGNAL_DECL:
-   case T_IMPLICIT_DECL:
+   case T_IMPLICIT_SIGNAL:
       return lower_signal_ref(decl, ctx);
 
    case T_TYPE_DECL:
@@ -5830,7 +5830,7 @@ static void lower_decl(tree_t decl)
       lower_signal_decl(decl);
       break;
 
-   case T_IMPLICIT_DECL:
+   case T_IMPLICIT_SIGNAL:
       lower_implicit_decl(decl);
       break;
 

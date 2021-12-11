@@ -164,6 +164,7 @@ typedef enum {
    NET_F_OWNS_MEM   = (1 << 1),
    NET_F_LAST_VALUE = (1 << 2),
    NET_F_PENDING    = (1 << 3),
+   NET_F_IMPLICIT   = (1 << 4),
 } net_flags_t;
 
 typedef struct rt_nexus_s {
@@ -221,9 +222,8 @@ typedef struct rt_signal_s {
 
 typedef struct rt_implicit_s {
    rt_wakeable_t  wakeable;
-   rt_signal_t   *signal;
    ffi_closure_t *closure;
-   rt_implicit_t *chain;
+   rt_signal_t    signal;   // Has a flexible member
 } rt_implicit_t;
 
 typedef struct rt_scope_s {
@@ -321,6 +321,7 @@ static sens_list_t     *resume = NULL;
 static sens_list_t     *postponed = NULL;
 static sens_list_t     *resume_watch = NULL;
 static sens_list_t     *postponed_watch = NULL;
+static sens_list_t     *implicit = NULL;
 static rt_watch_t      *watches = NULL;
 static event_t         *delta_proc = NULL;
 static event_t         *delta_driver = NULL;
@@ -338,7 +339,6 @@ static rt_profile_t     profile;
 static rt_nexus_t      *nexuses = NULL;
 static cover_tagging_t *cover = NULL;
 static unsigned         highest_rank;
-static rt_implicit_t   *implicit_signals = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -812,17 +812,10 @@ void _implicit_signal(sig_shared_t *ss, uint32_t kind, ffi_closure_t *closure)
    *copy = *closure;
    copy->refcnt = 1;
 
-   bool r;
-   ffi_call(closure, NULL, 0, &r, sizeof(r));
+   assert(s->flags & NET_F_IMPLICIT);
 
-   rt_implicit_t *imp = xcalloc(sizeof(rt_implicit_t));
-   imp->chain   = implicit_signals;
+   rt_implicit_t *imp = container_of(s, rt_implicit_t, signal);
    imp->closure = copy;
-   imp->signal  = s;
-
-   imp->wakeable.kind = W_IMPLICIT;
-
-   implicit_signals = imp;
 }
 
 DLLEXPORT
@@ -1848,14 +1841,32 @@ static unsigned rt_count_scopes(e_node_t e)
 static rt_signal_t *rt_setup_signal(e_node_t e, unsigned *total_mem)
 {
    const int nnexus = e_nexuses(e);
-   rt_signal_t *s = xcalloc_flex(sizeof(rt_signal_t),
-                                 nnexus, sizeof(rt_nexus_t *));
-   *total_mem += sizeof(rt_signal_t) + nnexus * sizeof(rt_nexus_t *);
+   rt_signal_t *s = NULL;
+
+   if (e_kind(e) == E_IMPLICIT) {
+      rt_implicit_t *imp = xcalloc_flex(sizeof(rt_implicit_t),
+                                        nnexus, sizeof(rt_nexus_t *));
+      *total_mem += sizeof(rt_implicit_t) + nnexus * sizeof(rt_nexus_t *);
+
+      imp->wakeable.kind = W_IMPLICIT;
+
+      const int ntriggers = e_triggers(e);
+      for (int j = 0; j < ntriggers; j++) {
+         rt_nexus_t *n = &(nexuses[e_pos(e_trigger(e, j))]);
+         rt_sched_event(&(n->pending), &(imp->wakeable), true);
+      }
+
+      s = &(imp->signal);
+      s->flags = NET_F_IMPLICIT;
+   }
+   else {
+      s = xcalloc_flex(sizeof(rt_signal_t), nnexus, sizeof(rt_nexus_t *));
+      *total_mem += sizeof(rt_signal_t) + nnexus * sizeof(rt_nexus_t *);
+   }
 
    s->enode   = e;
    s->width   = e_width(e);
    s->n_nexus = nnexus;
-   s->flags   = 0;
 
    const e_flags_t flags = e_flags(e);
 
@@ -2449,7 +2460,7 @@ static void rt_trace_wakeup(rt_wakeable_t *obj)
       case W_IMPLICIT:
          TRACE("wakeup implicit signal %s",
                istr(e_path(container_of(obj, rt_implicit_t, wakeable)
-                           ->signal->enode)));
+                           ->signal.enode)));
       }
    }
 }
@@ -2472,12 +2483,14 @@ static void rt_wakeup(sens_list_t *sl)
          switch (sl->wake->kind) {
          case W_PROC: enq = &postponed; break;
          case W_WATCH: enq = &postponed_watch; break;
+         case W_IMPLICIT: assert(false); break;
          }
       }
       else {
          switch (sl->wake->kind) {
          case W_PROC: enq = &resume; break;
          case W_WATCH: enq = &resume_watch; break;
+         case W_IMPLICIT: enq = &implicit; break;
          }
       }
 
@@ -2659,6 +2672,28 @@ static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
       rt_push_active_nexus(nexus);
 }
 
+static void rt_update_implicit_signal(rt_implicit_t *imp)
+{
+   int8_t r;
+   ffi_call(imp->closure, NULL, 0, &r, sizeof(r));
+
+   TRACE("implicit signal %s guard expression %d",
+         istr(e_path(imp->signal.enode)), r);
+
+   RT_ASSERT(imp->signal.nnexus == 1);
+   rt_nexus_t *n0 = imp->signal.nexus[0];
+
+   // Implicit signals have no sources
+   RT_ASSERT(!(n0->flags & NET_F_PENDING));
+
+   if (*(int8_t *)n0->resolved != r) {
+      rt_propagate_nexus(n0, &r);
+      rt_notify_event(n0);
+   }
+   else
+      rt_notify_active(n0);
+}
+
 static bool rt_stale_event(event_t *e)
 {
    return (e->kind == EVENT_PROCESS)
@@ -2737,6 +2772,12 @@ static void rt_resume(sens_list_t **list)
                (*w->fn)(now, w->signal, w, w->user_data);
             }
             break;
+         case W_IMPLICIT:
+            {
+               rt_implicit_t *imp =
+                  container_of(it->wake, rt_implicit_t, wakeable);
+               rt_update_implicit_signal(imp);
+            }
          }
          it->wake->pending = false;
       }
@@ -2840,9 +2881,6 @@ static void rt_cycle(int stop_delta)
       rt_free(event_stack, event);
    }
 
-   //for (rt_implicit_t *it = implicit_signals; it != NULL; it = it->chain)
-   //   rt_update_implicit_signal(it);
-
    while ((event = rt_pop_run_queue(&driverq))) {
       rt_update_driver(event->nexus, event->source);
       rt_free(event_stack, event);
@@ -2853,6 +2891,8 @@ static void rt_cycle(int stop_delta)
       rt_update_inputs(n);
       rt_update_nexus(n);
    }
+
+   rt_resume(&implicit);
 
    while ((event = rt_pop_run_queue(&procq))) {
       rt_run(event->proc);
@@ -2930,7 +2970,13 @@ static void rt_cleanup_signal(rt_signal_t *s)
    if (s->flags & NET_F_LAST_VALUE)
       free(s->shared.last_value);
 
-   free(s);
+   if (s->flags & NET_F_IMPLICIT) {
+      rt_implicit_t *imp = container_of(s, rt_implicit_t, signal);
+      ffi_unref_closure(imp->closure);
+      free(imp);
+   }
+   else
+      free(s);
 }
 
 static void rt_cleanup_scope(rt_scope_t *scope)
@@ -2978,13 +3024,6 @@ static void rt_cleanup(e_node_t top)
       rt_watch_t *next = watches->chain_all;
       rt_free(watch_stack, watches);
       watches = next;
-   }
-
-   while (implicit_signals != NULL) {
-      rt_implicit_t *next = implicit_signals->chain;
-      ffi_unref_closure(implicit_signals->closure);
-      free(implicit_signals);
-      implicit_signals = next;
    }
 
    for (int i = 0; i < RT_LAST_EVENT; i++) {

@@ -52,6 +52,7 @@
   from the standard IEEE packages.
 - Support for configurations has been significantly improved (#372).
 - Added support for VHDL-2008 delimited comments.
+- Added support for guard expressions on blocks.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

@@ -259,31 +259,31 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_RANGE
    (I_SUBKIND | I_VALUE | I_LEFT | I_RIGHT | I_TYPE),
 
-   // T_IMPLICIT_DECL
+   // T_IMPLICIT_SIGNAL
    (I_IDENT | I_TYPE | I_SUBKIND | I_VALUE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
-   "T_ENTITY",        "T_ARCH",          "T_PORT_DECL",    "T_FCALL",
-   "T_LITERAL",       "T_SIGNAL_DECL",   "T_VAR_DECL",     "T_PROCESS",
-   "T_REF",           "T_WAIT",          "T_TYPE_DECL",    "T_VAR_ASSIGN",
-   "T_PACKAGE",       "T_SIGNAL_ASSIGN", "T_QUALIFIED",    "T_ENUM_LIT",
-   "T_CONST_DECL",    "T_FUNC_DECL",     "T_ELAB",         "T_AGGREGATE",
-   "T_ASSERT",        "T_ATTR_REF",      "T_ARRAY_REF",    "T_ARRAY_SLICE",
-   "T_INSTANCE",      "T_IF",            "T_NULL",         "T_PACK_BODY",
-   "T_FUNC_BODY",     "T_RETURN",        "T_CASSIGN",      "T_WHILE",
-   "T_WAVEFORM",      "T_ALIAS",         "T_FOR",          "T_ATTR_DECL",
-   "T_ATTR_SPEC",     "T_PROC_DECL",     "T_PROC_BODY",    "T_EXIT",
-   "T_PCALL",         "T_CASE",          "T_BLOCK",        "T_COND",
-   "T_TYPE_CONV",     "T_SELECT",        "T_COMPONENT",    "T_IF_GENERATE",
-   "T_FOR_GENERATE",  "T_FILE_DECL",     "T_OPEN",         "T_FIELD_DECL",
-   "T_RECORD_REF",    "T_ALL",           "T_NEW",          "T_CASSERT",
-   "T_CPCALL",        "T_UNIT_DECL",     "T_NEXT",         "T_GENVAR",
-   "T_PARAM",         "T_ASSOC",         "T_USE",          "T_HIER",
-   "T_SPEC",          "T_BINDING",       "T_LIBRARY",      "T_DESIGN_UNIT",
-   "T_CONFIGURATION", "T_PROT_BODY",     "T_CONTEXT",      "T_CTXREF",
-   "T_CONSTRAINT",    "T_BLOCK_CONFIG",  "T_PROT_FCALL",   "T_PROT_PCALL",
-   "T_RANGE",         "T_IMPLICIT_DECL",
+   "T_ENTITY",        "T_ARCH",            "T_PORT_DECL",    "T_FCALL",
+   "T_LITERAL",       "T_SIGNAL_DECL",     "T_VAR_DECL",     "T_PROCESS",
+   "T_REF",           "T_WAIT",            "T_TYPE_DECL",    "T_VAR_ASSIGN",
+   "T_PACKAGE",       "T_SIGNAL_ASSIGN",   "T_QUALIFIED",    "T_ENUM_LIT",
+   "T_CONST_DECL",    "T_FUNC_DECL",       "T_ELAB",         "T_AGGREGATE",
+   "T_ASSERT",        "T_ATTR_REF",        "T_ARRAY_REF",    "T_ARRAY_SLICE",
+   "T_INSTANCE",      "T_IF",              "T_NULL",         "T_PACK_BODY",
+   "T_FUNC_BODY",     "T_RETURN",          "T_CASSIGN",      "T_WHILE",
+   "T_WAVEFORM",      "T_ALIAS",           "T_FOR",          "T_ATTR_DECL",
+   "T_ATTR_SPEC",     "T_PROC_DECL",       "T_PROC_BODY",    "T_EXIT",
+   "T_PCALL",         "T_CASE",            "T_BLOCK",        "T_COND",
+   "T_TYPE_CONV",     "T_SELECT",          "T_COMPONENT",    "T_IF_GENERATE",
+   "T_FOR_GENERATE",  "T_FILE_DECL",       "T_OPEN",         "T_FIELD_DECL",
+   "T_RECORD_REF",    "T_ALL",             "T_NEW",          "T_CASSERT",
+   "T_CPCALL",        "T_UNIT_DECL",       "T_NEXT",         "T_GENVAR",
+   "T_PARAM",         "T_ASSOC",           "T_USE",          "T_HIER",
+   "T_SPEC",          "T_BINDING",         "T_LIBRARY",      "T_DESIGN_UNIT",
+   "T_CONFIGURATION", "T_PROT_BODY",       "T_CONTEXT",      "T_CTXREF",
+   "T_CONSTRAINT",    "T_BLOCK_CONFIG",    "T_PROT_FCALL",   "T_PROT_PCALL",
+   "T_RANGE",         "T_IMPLICIT_SIGNAL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -351,7 +351,7 @@ static tree_kind_t decl_kinds[] = {
    T_ATTR_DECL,  T_ATTR_SPEC,   T_PROC_DECL,    T_PROC_BODY,
    T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL,   T_UNIT_DECL,
    T_GENVAR,     T_HIER,        T_SPEC,         T_BINDING,
-   T_USE,        T_PROT_BODY,   T_BLOCK_CONFIG, T_IMPLICIT_DECL
+   T_USE,        T_PROT_BODY,   T_BLOCK_CONFIG, T_IMPLICIT_SIGNAL
 };
 
 object_class_t tree_object = {

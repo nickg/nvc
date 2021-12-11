@@ -2966,7 +2966,7 @@ START_TEST(test_guarded)
    fail_unless(tree_decls(b) == 1);
 
    tree_t g = tree_decl(b, 0);
-   fail_unless(tree_kind(g) == T_IMPLICIT_DECL);
+   fail_unless(tree_kind(g) == T_IMPLICIT_SIGNAL);
    fail_unless(tree_ident(g) == ident_new("GUARD"));
 
    tree_t s0 = tree_stmt(b, 0);

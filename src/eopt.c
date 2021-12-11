@@ -632,7 +632,7 @@ static bool eopt_decls(tree_t container, e_node_t cursor)
          eopt_signal_decl(d, cursor, E_SIGNAL);
          need_cprop = true;
          break;
-      case T_IMPLICIT_DECL:
+      case T_IMPLICIT_SIGNAL:
          eopt_signal_decl(d, cursor, E_IMPLICIT);
          need_cprop = true;
          break;
