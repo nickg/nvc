@@ -4792,6 +4792,9 @@ bool sem_check(tree_t t)
       return sem_check_implicit_signal(t);
    case T_DISCONNECT:
       return sem_check_disconnect(t);
+   case T_GROUP:
+   case T_GROUP_TEMPLATE:
+      return true;
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

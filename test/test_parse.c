@@ -3507,6 +3507,26 @@ START_TEST(test_homograph)
 }
 END_TEST
 
+START_TEST(test_group)
+{
+   input_from_file(TESTDIR "/parse/group.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(tree_decls(a) == 3);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3563,6 +3583,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_explicit_93);
    tcase_add_test(tc_core, test_explicit_08);
    tcase_add_test(tc_core, test_homograph);
+   tcase_add_test(tc_core, test_group);
    suite_add_tcase(s, tc_core);
 
    return s;

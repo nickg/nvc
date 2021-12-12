@@ -5892,6 +5892,8 @@ static void lower_decl(tree_t decl)
    case T_COMPONENT:
    case T_USE:
    case T_SPEC:
+   case T_GROUP:
+   case T_GROUP_TEMPLATE:
       break;
 
    default:

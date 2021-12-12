@@ -294,6 +294,8 @@ typedef enum tree_kind {
    T_RANGE,
    T_IMPLICIT_SIGNAL,
    T_DISCONNECT,
+   T_GROUP_TEMPLATE,
+   T_GROUP,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

@@ -5093,6 +5093,86 @@ static void p_disconnection_specification(tree_t container)
    }
 }
 
+static void p_entity_class_entry_list(tree_t group)
+{
+   // entity_class [ <> ] { , entity_class [ <> ] }
+
+   BEGIN("entity class entry list");
+
+   do {
+      p_entity_class();
+      optional(tBOX);
+   } while (optional(tCOMMA));
+}
+
+static tree_t p_group_template_declaration(void)
+{
+   // group identifier is ( entity_class_entry_list ) ;
+
+   BEGIN("group template declaration");
+
+   consume(tGROUP);
+
+   tree_t g = tree_new(T_GROUP_TEMPLATE);
+   tree_set_ident(g, p_identifier());
+
+   consume(tIS);
+   consume(tLPAREN);
+   p_entity_class_entry_list(g);
+   consume(tRPAREN);
+   consume(tSEMI);
+
+   tree_set_loc(g, CURRENT_LOC);
+   insert_name(nametab, g, NULL, 0);
+
+   return g;
+}
+
+static void p_group_constituent_list(tree_t group)
+{
+   // group_constituent_list ::= group_constituent { , group_constituent }
+
+   BEGIN("group constituent list");
+
+   do {
+      (void)p_name();   // Do nothing with groups currently
+   } while (optional(tCOMMA));
+}
+
+static tree_t p_group_declaration(void)
+{
+   // group identifier : group_template_name ( group_constituent_list ) ;
+
+   BEGIN("group declaration");
+
+   consume(tGROUP);
+
+   tree_t g = tree_new(T_GROUP);
+   tree_set_ident(g, p_identifier());
+
+   consume(tCOLON);
+
+   ident_t template_name = p_identifier();
+   tree_t template = resolve_name(nametab, CURRENT_LOC, template_name);
+   if (template != NULL && tree_kind(template) != T_GROUP_TEMPLATE) {
+      parse_error(CURRENT_LOC, "%s does not name a group template",
+                  istr(template_name));
+      template = NULL;
+   }
+
+   tree_set_ref(g, template);
+
+   consume(tLPAREN);
+   p_group_constituent_list(g);
+   consume(tRPAREN);
+   consume(tSEMI);
+
+   tree_set_loc(g, CURRENT_LOC);
+   insert_name(nametab, g, NULL, 0);
+
+   return g;
+}
+
 static void p_protected_type_body_declarative_item(tree_t body)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -5155,9 +5235,16 @@ static void p_protected_type_body_declarative_item(tree_t body)
       p_file_declaration(body);
       break;
 
+   case tGROUP:
+      if (peek_nth(3) == tIS)
+         tree_add_decl(body, p_group_template_declaration());
+      else
+         tree_add_decl(body, p_group_declaration());
+      break;
+
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tALIAS, tVARIABLE, tUSE, tFILE);
+             tIMPURE, tPURE, tALIAS, tVARIABLE, tUSE, tFILE, tGROUP);
    }
 }
 
@@ -5278,9 +5365,16 @@ static void p_entity_declarative_item(tree_t entity)
       p_disconnection_specification(entity);
       break;
 
+   case tGROUP:
+      if (peek_nth(3) == tIS)
+         tree_add_decl(entity, p_group_template_declaration());
+      else
+         tree_add_decl(entity, p_group_declaration());
+      break;
+
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tALIAS, tUSE, tDISCONNECT);
+             tIMPURE, tPURE, tALIAS, tUSE, tDISCONNECT, tGROUP);
    }
 }
 
@@ -5356,9 +5450,16 @@ static void p_subprogram_declarative_item(tree_t sub)
       p_file_declaration(sub);
       break;
 
+   case tGROUP:
+      if (peek_nth(3) == tIS)
+         tree_add_decl(sub, p_group_template_declaration());
+      else
+         tree_add_decl(sub, p_group_declaration());
+      break;
+
    default:
       expect(tVARIABLE, tTYPE, tALIAS, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tATTRIBUTE, tSUBTYPE, tUSE, tFILE);
+             tIMPURE, tPURE, tATTRIBUTE, tSUBTYPE, tUSE, tFILE, tGROUP);
    }
 }
 
@@ -5523,9 +5624,16 @@ static void p_process_declarative_item(tree_t proc)
       p_file_declaration(proc);
       break;
 
+   case tGROUP:
+      if (peek_nth(3) == tIS)
+         tree_add_decl(proc, p_group_template_declaration());
+      else
+         tree_add_decl(proc, p_group_declaration());
+      break;
+
    default:
       expect(tVARIABLE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tATTRIBUTE, tUSE, tALIAS, tFILE);
+             tIMPURE, tPURE, tATTRIBUTE, tUSE, tALIAS, tFILE, tGROUP);
    }
 }
 
@@ -5813,10 +5921,17 @@ static void p_package_declarative_item(tree_t pack)
       p_disconnection_specification(pack);
       break;
 
+   case tGROUP:
+      if (peek_nth(3) == tIS)
+         tree_add_decl(pack, p_group_template_declaration());
+      else
+         tree_add_decl(pack, p_group_declaration());
+      break;
+
    default:
       expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
              tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED, tALIAS, tUSE,
-             tDISCONNECT);
+             tDISCONNECT, tGROUP);
    }
 }
 
@@ -6068,8 +6183,15 @@ static void p_configuration_declarative_part(tree_t unit)
       p_attribute_specification(unit, tree_add_decl);
       break;
 
+   case tGROUP:
+      if (peek_nth(3) == tIS)
+         tree_add_decl(unit, p_group_template_declaration());
+      else
+         tree_add_decl(unit, p_group_declaration());
+      break;
+
    default:
-      expect(tUSE, tATTRIBUTE);
+      expect(tUSE, tATTRIBUTE, tGROUP);
    }
 }
 
@@ -6412,10 +6534,17 @@ static void p_block_declarative_item(tree_t parent)
       p_disconnection_specification(parent);
       break;
 
+   case tGROUP:
+      if (peek_nth(3) == tIS)
+         tree_add_decl(parent, p_group_template_declaration());
+      else
+         tree_add_decl(parent, p_group_declaration());
+      break;
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
              tPURE, tPROCEDURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE,
-             tSHARED, tDISCONNECT);
+             tSHARED, tDISCONNECT, tGROUP);
    }
 }
 
@@ -7784,9 +7913,16 @@ static void p_package_body_declarative_item(tree_t parent)
       p_use_clause(parent, tree_add_decl);
       break;
 
+   case tGROUP:
+      if (peek_nth(3) == tIS)
+         tree_add_decl(parent, p_group_template_declaration());
+      else
+         tree_add_decl(parent, p_group_declaration());
+      break;
+
    default:
       expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE, tATTRIBUTE, tTYPE,
-             tCONSTANT, tSUBTYPE, tFILE, tALIAS, tUSE);
+             tCONSTANT, tSUBTYPE, tFILE, tALIAS, tUSE, tGROUP);
    }
 }
 
