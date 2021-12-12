@@ -293,6 +293,7 @@ typedef enum tree_kind {
    T_PROT_PCALL,
    T_RANGE,
    T_IMPLICIT_SIGNAL,
+   T_DISCONNECT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

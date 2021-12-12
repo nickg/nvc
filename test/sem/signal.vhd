@@ -70,4 +70,18 @@ begin
     begin
     end block;
 
+    b7: block is
+        function resolved (x : bit_vector) return bit;
+        subtype rbit is resolved bit;
+        signal s : rbit bus;            -- OK
+        disconnect s : rbit after 1 ns;  -- OK
+        disconnect 'x' : character after 1 ns;  -- Error
+        disconnect v : bit_vector after 1 ns;  -- Error
+        disconnect s : bit_vector after 2 ns;  -- Error
+        disconnect s : rbit after s;    -- Error
+        signal i : integer;
+        disconnect s : rbit after i * ns;  -- Error
+    begin
+    end block;
+
 end architecture;

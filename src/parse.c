@@ -191,7 +191,7 @@ static const char *token_str(token_t tok)
       "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
       "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
-      "?<=", "?>", "?>="
+      "?<=", "?>", "?>=", "register", "disconnect"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -5060,6 +5060,39 @@ static void p_file_declaration(tree_t parent)
    }
 }
 
+static void p_disconnection_specification(tree_t container)
+{
+   // disconnect guarded_signal_specification after time_expression ;
+
+   BEGIN("disconnection specification");
+
+   consume(tDISCONNECT);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_type_mark(NULL);
+
+   consume(tAFTER);
+
+   tree_t delay = p_expression();
+   solve_types(nametab, delay, std_type(NULL, STD_TIME));
+
+   consume(tSEMI);
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t d = tree_new(T_DISCONNECT);
+      tree_set_loc(d, CURRENT_LOC);
+      tree_set_ident(d, it->ident);
+      tree_set_type(d, type);
+      tree_set_delay(d, delay);
+      tree_set_ref(d, resolve_name(nametab, CURRENT_LOC, it->ident));
+
+      tree_add_decl(container, d);
+   }
+}
+
 static void p_protected_type_body_declarative_item(tree_t body)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -5241,9 +5274,13 @@ static void p_entity_declarative_item(tree_t entity)
       p_use_clause(entity, tree_add_decl);
       break;
 
+   case tDISCONNECT:
+      p_disconnection_specification(entity);
+      break;
+
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tALIAS, tUSE);
+             tIMPURE, tPURE, tALIAS, tUSE, tDISCONNECT);
    }
 }
 
@@ -5772,9 +5809,14 @@ static void p_package_declarative_item(tree_t pack)
       p_use_clause(pack, tree_add_decl);
       break;
 
+   case tDISCONNECT:
+      p_disconnection_specification(pack);
+      break;
+
    default:
       expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
-             tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED, tALIAS, tUSE);
+             tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED, tALIAS, tUSE,
+             tDISCONNECT);
    }
 }
 
@@ -6366,10 +6408,14 @@ static void p_block_declarative_item(tree_t parent)
       p_variable_declaration(parent);
       break;
 
+   case tDISCONNECT:
+      p_disconnection_specification(parent);
+      break;
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
              tPURE, tPROCEDURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE,
-             tSHARED);
+             tSHARED, tDISCONNECT);
    }
 }
 

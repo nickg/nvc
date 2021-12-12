@@ -208,6 +208,7 @@ PROTECTED     ?i:protected
 CONTEXT       ?i:context
 ERROR         ?i:error
 WARNING       ?i:warning
+DISCONNECT    ?i:disconnect
 
 %%
 
@@ -317,6 +318,7 @@ WARNING       ?i:warning
 {GROUP}         { TOKEN(tGROUP); }
 {LABEL}         { TOKEN(tLABEL); }
 {GUARDED}       { TOKEN(tGUARDED); }
+{DISCONNECT}    { TOKEN(tDISCONNECT); }
 {REVRANGE}      { TOKEN(tREVRANGE); }
 {PROTECTED}     { TOKEN_00(tPROTECTED); }
 {CONTEXT}       { TOKEN_08(tCONTEXT); }

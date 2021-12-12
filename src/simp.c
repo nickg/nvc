@@ -1023,7 +1023,7 @@ static tree_t simp_guard(tree_t t, tree_t wait)
    tree_set_value(g_if, guard_ref);
    tree_add_trigger(wait, guard_ref);
 
-   // TODO: else should assign null transaction so no longer driving?
+   // TODO: handle disconnection specifications here
 
    return g_if;
 }

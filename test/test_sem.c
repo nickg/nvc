@@ -863,6 +863,11 @@ START_TEST(test_signal)
       { 64, "assignment guard must be a signal" },
       { 65, "null waveform element is only valid when the target is" },
       { 69, "guarded signal must have resolved subtype" },
+      { 78, "disconnection specification must denote a guarded signal" },
+      { 79, "disconnection specification must denote a guarded signal" },
+      { 80, "type of declared signal RBIT does not match type BIT_VECTOR in" },
+      { 81, "disconnection specification must have type TIME but found RBIT" },
+      { 83, "time expression in disconnection specificiation must be static" },
       { -1, NULL }
    };
    expect_errors(expect);

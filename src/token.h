@@ -171,7 +171,8 @@ typedef enum {
    tMLE,
    tMGT,
    tMGE,
-   tREGISTER
+   tREGISTER,
+   tDISCONNECT,
 } token_t;
 
 #endif

@@ -4630,6 +4630,36 @@ static bool sem_check_context_ref(tree_t t)
    return true;
 }
 
+static bool sem_check_disconnect(tree_t t)
+{
+   if (!tree_has_ref(t))
+      return false;
+
+   tree_t decl = tree_ref(t);
+   if (tree_kind(decl) != T_SIGNAL_DECL || !is_guarded_signal(decl))
+      sem_error(t, "signal name %s in disconnection specification must denote "
+                "a guarded signal", istr(tree_ident(t)));
+
+   type_t type = tree_type(t);
+   if (!type_eq(tree_type(decl), type))
+      sem_error(t, "type of declared signal %s does not match type %s in "
+                "disconnection specification", type_pp(tree_type(decl)),
+                type_pp(type));
+
+   tree_t delay = tree_delay(t);
+   type_t std_time = std_type(NULL, STD_TIME);
+   if (!sem_check_type(delay, std_time))
+      sem_error(delay, "time expression in disconnection specification must "
+                "have type %s but found %s", type_pp(std_time),
+                type_pp(tree_type(delay)));
+
+   if (!sem_globally_static(delay))
+      sem_error(delay, "time expression in disconnection specificiation "
+                "must be static");
+
+   return true;
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -4760,6 +4790,8 @@ bool sem_check(tree_t t)
       return sem_check_block_config(t);
    case T_IMPLICIT_SIGNAL:
       return sem_check_implicit_signal(t);
+   case T_DISCONNECT:
+      return sem_check_disconnect(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

@@ -178,9 +178,7 @@ VHDL-1993 equivalents.
 ##### VHDL-1993
 
 Mostly supported with a few exceptions:
-* Configurations have several bugs and are missing features.
 * No support for `buffer` ports.
-* `bus` and `register` signal kinds are not supported.
 
 Please raise bugs for any missing or incorrectly implemented features
 you encounter.

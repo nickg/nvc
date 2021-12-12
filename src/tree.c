@@ -261,6 +261,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_IMPLICIT_SIGNAL
    (I_IDENT | I_TYPE | I_SUBKIND | I_VALUE | I_FLAGS),
+
+   // T_DISCONNECT
+   (I_IDENT | I_REF | I_TYPE | I_DELAY),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -283,7 +286,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_SPEC",          "T_BINDING",         "T_LIBRARY",      "T_DESIGN_UNIT",
    "T_CONFIGURATION", "T_PROT_BODY",       "T_CONTEXT",      "T_CTXREF",
    "T_CONSTRAINT",    "T_BLOCK_CONFIG",    "T_PROT_FCALL",   "T_PROT_PCALL",
-   "T_RANGE",         "T_IMPLICIT_SIGNAL",
+   "T_RANGE",         "T_IMPLICIT_SIGNAL", "T_DISCONNECT",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -351,7 +354,8 @@ static tree_kind_t decl_kinds[] = {
    T_ATTR_DECL,  T_ATTR_SPEC,   T_PROC_DECL,    T_PROC_BODY,
    T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL,   T_UNIT_DECL,
    T_GENVAR,     T_HIER,        T_SPEC,         T_BINDING,
-   T_USE,        T_PROT_BODY,   T_BLOCK_CONFIG, T_IMPLICIT_SIGNAL
+   T_USE,        T_PROT_BODY,   T_BLOCK_CONFIG, T_IMPLICIT_SIGNAL,
+   T_DISCONNECT,
 };
 
 object_class_t tree_object = {

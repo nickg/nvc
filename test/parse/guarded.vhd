@@ -21,6 +21,8 @@ begin
 
     b2: block is
         signal guard : boolean := true;  -- OK
+        signal q : bit;
+        disconnect q : bit after 0 ns;  -- OK (sem failure)
     begin
 
         x <= guarded y;                     -- OK
