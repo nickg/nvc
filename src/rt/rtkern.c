@@ -2423,14 +2423,37 @@ static void rt_update_inputs(rt_nexus_t *nexus)
          memcpy(s->waveforms->values->data, s->input->resolved, valuesz);
       }
       else {
-         TRACE("call conversion function %p", s->conv_func->fn);
+         rt_signal_t *i0 = s->input->signals[0];
+         rt_signal_t *o0 = s->output->signals[0];
 
          const size_t outsz = s->output->size * s->output->width;
-         const size_t insz  = s->input->size * s->input->width;
 
-         rt_signal_t *s0 = s->input->signals[0];
-         ffi_call(s->conv_func, s0->shared.resolved, insz,
-                  s->waveforms->values->data, outsz);
+         TRACE("call conversion function %p insz=%d outsz=%zu",
+               s->conv_func->fn, i0->size, outsz);
+
+         if (o0->size != outsz) {
+            // This corner case occurs with output conversions from
+            // aggregate to scalar types
+
+            uint8_t *buf LOCAL = xmalloc(o0->size);
+            ffi_call(s->conv_func, i0->shared.resolved, i0->size,
+                     buf, o0->size);
+
+            unsigned o = 0;
+            for (unsigned i = 0; i < o0->n_nexus; i++) {
+               if (o0->nexus[i] == nexus)
+                  break;
+               else
+                  o += o0->nexus[i]->width * o0->nexus[i]->size;
+            }
+            assert(o + outsz <= o0->size);
+
+            memcpy(s->waveforms->values->data, buf + o, outsz);
+         }
+         else {
+            ffi_call(s->conv_func, i0->shared.resolved, i0->size,
+                     s->waveforms->values->data, outsz);
+         }
       }
    }
 }

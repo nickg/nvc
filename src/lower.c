@@ -335,6 +335,8 @@ static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg)
 
 static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
 {
+   assert(type_is_array(type));
+
    if (type_is_unconstrained(type)) {
       assert(reg != VCODE_INVALID_REG);
       return emit_uarray_len(reg, dim);
@@ -6312,6 +6314,22 @@ static void lower_port_map(tree_t block, tree_t map)
    vcode_reg_t in_conv = VCODE_INVALID_REG;
    tree_t value = tree_value(map);
 
+   tree_t value_conv = NULL;
+   const tree_kind_t value_kind = tree_kind(value);
+   if (value_kind == T_FCALL) {
+      // See if this is a conversion function
+      if (tree_params(value) == 1) {
+         tree_t p0 = tree_value(tree_param(value, 0));
+         if (lower_is_signal_ref(p0))
+            value_conv = p0;
+      }
+   }
+   else if (value_kind == T_TYPE_CONV) {
+      tree_t p0 = tree_value(value);
+      if (lower_is_signal_ref(p0))
+         value_conv = p0;
+   }
+
    switch (tree_subkind(map)) {
    case P_POS:
       {
@@ -6340,7 +6358,8 @@ static void lower_port_map(tree_t block, tree_t map)
             type_t rtype = tree_type(name);
             vcode_type_t vatype = VCODE_INVALID_TYPE;
             vcode_type_t vrtype = VCODE_INVALID_TYPE;
-            ident_t func = lower_converter(name, atype, rtype, tree_type(value),
+            ident_t func = lower_converter(name, atype, rtype,
+                                           tree_type(value_conv ?: value),
                                            &vatype, &vrtype);
             out_conv = emit_closure(func, vatype, vrtype);
             name = p0;
@@ -6351,7 +6370,8 @@ static void lower_port_map(tree_t block, tree_t map)
             type_t atype = tree_type(value);
             vcode_type_t vatype = VCODE_INVALID_TYPE;
             vcode_type_t vrtype = VCODE_INVALID_TYPE;
-            ident_t func = lower_converter(name, atype, rtype, tree_type(value),
+            ident_t func = lower_converter(name, atype, rtype,
+                                           tree_type(value_conv ?: value),
                                            &vatype, &vrtype);
             if (func != NULL)
                out_conv = emit_closure(func, vatype, vrtype);
@@ -6373,38 +6393,32 @@ static void lower_port_map(tree_t block, tree_t map)
    if (vcode_reg_kind(port_reg) == VCODE_TYPE_UARRAY)
       port_reg = lower_array_data(port_reg);
 
-   const tree_kind_t kind = tree_kind(value);
-   if (kind == T_OPEN)
+   if (value_kind == T_OPEN)
       value = tree_value(port);
-   else if (kind == T_FCALL) {
-      // See if this is a conversion function
-      if (tree_params(value) == 1) {
-         tree_t p0 = tree_value(tree_param(value, 0));
-         if (lower_is_signal_ref(p0)) {
-            type_t atype = tree_type(p0);
-            type_t rtype = tree_type(value);
-            vcode_type_t vatype = VCODE_INVALID_TYPE;
-            vcode_type_t vrtype = VCODE_INVALID_TYPE;
-            ident_t func = lower_converter(value, atype, rtype, name_type,
-                                           &vatype, &vrtype);
-            value = p0;
-            in_conv = emit_closure(func, vatype, vrtype);
-         }
+   else if (value_conv != NULL) {
+      // Value has conversion function
+      type_t atype = tree_type(value_conv);
+      type_t rtype = tree_type(value);
+      vcode_type_t vatype = VCODE_INVALID_TYPE;
+      vcode_type_t vrtype = VCODE_INVALID_TYPE;
+      ident_t func = NULL;
+
+      switch (value_kind) {
+      case T_FCALL:
+         func = lower_converter(value, atype, rtype, name_type,
+                                &vatype, &vrtype);
+         break;
+      case T_TYPE_CONV:
+         func = lower_converter(value, atype, rtype, name_type,
+                                &vatype, &vrtype);
+         break;
+      default:
+         assert(false);
       }
-   }
-   else if (kind == T_TYPE_CONV) {
-      tree_t p0 = tree_value(value);
-      if (lower_is_signal_ref(p0)) {
-         type_t atype = tree_type(p0);
-         type_t rtype = tree_type(value);
-         vcode_type_t vatype = VCODE_INVALID_TYPE;
-         vcode_type_t vrtype = VCODE_INVALID_TYPE;
-         ident_t func = lower_converter(value, atype, rtype, name_type,
-                                        &vatype, &vrtype);
-         if (func != NULL)
-            in_conv = emit_closure(func, vatype, vrtype);
-         value = p0;
-      }
+
+      if (func != NULL)
+         in_conv = emit_closure(func, vatype, vrtype);
+      value = value_conv;
    }
 
    if (lower_is_signal_ref(value)) {
