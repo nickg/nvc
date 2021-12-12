@@ -2731,7 +2731,7 @@ END_TEST
 
 START_TEST(test_config)
 {
-   tree_t e, c, s, b, a;
+   tree_t e, c, s, b, a, p;
 
    input_from_file(TESTDIR "/parse/config.vhd");
 
@@ -2791,6 +2791,18 @@ START_TEST(test_config)
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
+
+   c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONFIGURATION);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
 
    c = parse();
    fail_if(c == NULL);

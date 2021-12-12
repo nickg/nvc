@@ -55,3 +55,22 @@ configuration bad3 of ent is
         for p : comp use configuration work.conf; end for;  -- Error
     end for;
 end configuration;
+
+package pack is
+    component pack_comp is
+    end component;
+end package;
+
+use work.pack.all;
+
+architecture use_pack of ent is
+begin
+    sub: component pack_comp;
+end architecture;
+
+configuration use_pack_ent of ent is
+    for use_pack
+        for all : pack_comp use entity work.foo;
+        end for;
+    end for;
+end configuration;

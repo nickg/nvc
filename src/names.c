@@ -1246,6 +1246,17 @@ void insert_protected_decls(nametab_t *tab, type_t type)
 
 void insert_names_for_config(nametab_t *tab, tree_t unit)
 {
+   switch (tree_kind(unit)) {
+   case T_ARCH:
+      insert_names_from_context(tab, tree_primary(unit));
+      // Fall-through
+   case T_ENTITY:
+      insert_names_from_context(tab, unit);
+      break;
+   default:
+      break;
+   }
+
    const int ndecls = tree_decls(unit);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(unit, i);
@@ -1254,8 +1265,10 @@ void insert_names_for_config(nametab_t *tab, tree_t unit)
    }
 
    const int nstmts = tree_stmts(unit);
-   for (int i = 0; i < nstmts; i++)
-      insert_name(tab, tree_stmt(unit, i), NULL, 0);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(unit, i);
+      insert_name(tab, s, NULL, 0);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
