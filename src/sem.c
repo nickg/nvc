@@ -51,7 +51,6 @@ struct scope {
    tree_t         unit;
 
    // For design unit scopes
-   ident_t        prefix;
    scope_flags_t  flags;
 };
 
@@ -94,10 +93,9 @@ static loop_stack_t *loop_stack = NULL;
       return false;                                   \
    } while (0)
 
-static void scope_push(ident_t prefix)
+static void scope_push(void)
 {
    scope_t *s = xmalloc(sizeof(scope_t));
-   s->prefix     = prefix;
    s->down       = top_scope;
    s->subprog    = (top_scope ? top_scope->subprog : NULL) ;
    s->flags      = (top_scope ? top_scope->flags : 0);
@@ -703,7 +701,7 @@ static bool sem_check_type_decl(tree_t t)
    case T_PROTECTED:
       // Rules for protected types are in LRM 02 section 3.5
       {
-         scope_push(tree_ident(t));
+         scope_push();
          top_scope->flags |= SCOPE_PROTECTED;
 
          bool ok = true;
@@ -1010,9 +1008,9 @@ static bool sem_check_func_body(tree_t t)
    if (!sem_check_func_result(t))
       return false;
 
-   scope_push(NULL);
+   scope_push();
 
-   scope_push(NULL);
+   scope_push();
    top_scope->subprog = t;
 
    bool ok = true;
@@ -1086,9 +1084,9 @@ static bool sem_check_proc_body(tree_t t)
    if (!sem_check_proc_ports(t))
       return false;
 
-   scope_push(NULL);
+   scope_push();
 
-   scope_push(NULL);
+   scope_push();
    top_scope->subprog = t;
 
    // Cleared by wait statement or pcall
@@ -1208,8 +1206,7 @@ static void sem_check_static_elab(tree_t t)
 
 static bool sem_check_process(tree_t t)
 {
-   const bool synthetic_name = !!(tree_flags(t) & TREE_F_SYNTHETIC_NAME);
-   scope_push(synthetic_name ? NULL : tree_ident(t));
+   scope_push();
 
    top_scope->flags |= SCOPE_COPY_SUBS | SCOPE_PROCESS;
 
@@ -1243,14 +1240,14 @@ static bool sem_check_process(tree_t t)
 static bool sem_check_package(tree_t t)
 {
    assert(top_scope == NULL);
-   scope_push(NULL);
+   scope_push();
    top_scope->unit = t;
 
    const int ndecls = tree_decls(t);
 
    bool ok = sem_check_context_clause(t);
    if (ok) {
-      scope_push(NULL);
+      scope_push();
 
       // Allow constant declarations without initial values
       top_scope->flags |= SCOPE_PACKAGE;
@@ -1328,12 +1325,12 @@ static bool sem_check_pack_body(tree_t t)
    tree_t pack = tree_primary(t);
 
    assert(top_scope == NULL);
-   scope_push(NULL);
+   scope_push();
    top_scope->unit = t;
 
    bool ok = sem_check_context_clause(pack) && sem_check_context_clause(t);
 
-   scope_push(NULL);
+   scope_push();
 
    if (ok) {
       const int ndecls = tree_decls(t);
@@ -1427,7 +1424,7 @@ static bool sem_check_ports(tree_t t)
 
 static bool sem_check_component(tree_t t)
 {
-   scope_push(NULL);
+   scope_push();
 
    bool ok = sem_check_generics(t) && sem_check_ports(t);
 
@@ -1439,12 +1436,12 @@ static bool sem_check_component(tree_t t)
 static bool sem_check_entity(tree_t t)
 {
    assert(top_scope == NULL);
-   scope_push(NULL);
+   scope_push();
    top_scope->unit = t;
 
    bool ok = sem_check_context_clause(t);
 
-   scope_push(NULL);
+   scope_push();
    top_scope->flags |= SCOPE_COPY_SUBS;
 
    ok = ok && sem_check_generics(t) && sem_check_ports(t);
@@ -1479,16 +1476,16 @@ static bool sem_check_arch(tree_t t)
    tree_t e = tree_primary(t);
 
    assert(top_scope == NULL);
-   scope_push(NULL);
+   scope_push();
    top_scope->unit = t;
 
    // Make all port and generic declarations available in this scope
 
    bool ok = sem_check_context_clause(e) && sem_check_context_clause(t);
 
-   scope_push(NULL);
+   scope_push();
 
-   scope_push(NULL);
+   scope_push();
    top_scope->flags |= SCOPE_COPY_SUBS;
 
    // Now check the architecture itself
@@ -3544,7 +3541,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
          continue;
 
       if (!has_named) {
-         scope_push(NULL);
+         scope_push();
          top_scope->flags |= SCOPE_FORMAL;
 
          has_named = true;
@@ -4234,7 +4231,7 @@ static bool sem_check_for(tree_t t)
    if (!sem_check_subtype(idecl, tree_type(idecl)))
       return false;
 
-   scope_push(tree_ident(t));
+   scope_push();
    loop_push(tree_ident(t));
 
    const bool ok = sem_check_stmts(t, tree_stmt, tree_stmts(t));
@@ -4246,7 +4243,7 @@ static bool sem_check_for(tree_t t)
 
 static bool sem_check_block(tree_t t)
 {
-   scope_push(tree_ident(t));
+   scope_push();
 
    if (!sem_check_generics(t))
       return false;
@@ -4354,7 +4351,7 @@ static bool sem_check_if_generate(tree_t t)
    if (!sem_globally_static(value))
       sem_error(value, "condition of generate statement must be static");
 
-   scope_push(NULL);
+   scope_push();
 
    bool ok = true;
 
@@ -4388,7 +4385,7 @@ static bool sem_check_for_generate(tree_t t)
    if (!sem_check_subtype(idecl, tree_type(idecl)))
       return false;
 
-   scope_push(NULL);
+   scope_push();
 
    bool ok = true;
 
@@ -4522,7 +4519,7 @@ static bool sem_check_binding(tree_t t)
 
 static bool sem_check_block_config(tree_t t)
 {
-   scope_push(tree_ident(t));
+   scope_push();
 
    bool ok = true;
    const int ndecls = tree_decls(t);
@@ -4543,10 +4540,10 @@ static bool sem_check_spec(tree_t t)
 
 static bool sem_check_configuration(tree_t t)
 {
-   scope_push(NULL);
+   scope_push();
    top_scope->unit = t;
 
-   scope_push(NULL);
+   scope_push();
 
    bool ok = true;
 
@@ -4564,13 +4561,11 @@ static bool sem_check_prot_body(tree_t t)
 {
    // Rules for protected type bodies are in LRM 00 section 3.5.2
 
-   ident_t name = tree_ident(t);
    type_t type = tree_type(t);
-
    if (type_is_none(type))
       return false;
 
-   scope_push(ident_prefix(top_scope->prefix, name, '.'));
+   scope_push();
    top_scope->flags |= SCOPE_PROTECTED;
 
    bool ok = true;
@@ -4607,7 +4602,7 @@ static bool sem_check_context_decl(tree_t t)
    // Context declarations are in LRM 08 section 13.3
 
    assert(top_scope == NULL);
-   scope_push(NULL);
+   scope_push();
 
    top_scope->flags |= SCOPE_CONTEXT;
 
