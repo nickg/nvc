@@ -1175,76 +1175,6 @@ static bool lower_trivial_expression(tree_t expr)
    }
 }
 
-static vcode_reg_t lower_array_to_string(tree_t fcall, vcode_reg_t array_reg)
-{
-   type_t arg_type    = tree_type(tree_value(tree_param(fcall, 0)));
-   type_t result_type = tree_type(fcall);
-   type_t arg_elem    = type_base_recur(type_elem(arg_type));
-   type_t result_elem = type_base_recur(type_elem(result_type));
-
-   vcode_type_t elem_vtype = lower_type(result_elem);
-
-   const int nlits = type_enum_literals(arg_elem);
-   vcode_reg_t *map LOCAL = xmalloc_array(nlits, sizeof(vcode_reg_t));
-   for (int i = 0; i < nlits; i++) {
-      const ident_t id = tree_ident(type_enum_literal(arg_elem, i));
-      assert(ident_char(id, 0) == '\'');
-      map[i] = emit_const(elem_vtype, ident_char(id, 1));
-   }
-
-   vcode_type_t map_vtype = vtype_carray(nlits, elem_vtype, elem_vtype);
-   vcode_reg_t map_reg = emit_const_array(map_vtype, map, nlits);
-
-   vcode_reg_t len_reg = lower_array_len(arg_type, 0, array_reg);
-   vcode_reg_t mem_reg = emit_alloca(elem_vtype, elem_vtype, len_reg);
-
-   type_t std_string = tree_type(fcall);
-   vcode_type_t index_vtype = lower_type(index_type_of(std_string, 0));
-
-   vcode_reg_t left_reg  = lower_array_left(arg_type, 0, array_reg);
-   vcode_reg_t right_reg = lower_array_right(arg_type, 0, array_reg);
-   vcode_reg_t dir_reg   = lower_array_dir(arg_type, 0, array_reg);
-
-   ident_t i_name = ident_uniq("to_string_i");
-   vcode_var_t i_var = emit_var(vtype_offset(), vtype_offset(), i_name, 0);
-   emit_store(emit_const(vtype_offset(), 0), i_var);
-
-   vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, dir_reg);
-
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
-   emit_cond(null_reg, exit_bb, body_bb);
-
-   vcode_select_block(body_bb);
-
-   vcode_reg_t i_reg    = emit_load(i_var);
-   vcode_reg_t sptr_reg = emit_add(lower_array_data(array_reg), i_reg);
-   vcode_reg_t src_reg  = emit_load_indirect(sptr_reg);
-   vcode_reg_t off_reg  = emit_cast(vtype_offset(), vtype_offset(), src_reg);
-   vcode_reg_t lptr_reg = emit_add(emit_address_of(map_reg), off_reg);
-   vcode_reg_t dptr_reg = emit_add(lower_array_data(mem_reg), i_reg);
-   emit_store_indirect(emit_load_indirect(lptr_reg), dptr_reg);
-
-   vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
-   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
-   emit_store(next_reg, i_var);
-   emit_cond(cmp_reg, exit_bb, body_bb);
-
-   vcode_select_block(exit_bb);
-
-   vcode_dim_t dims[] = {
-      {
-         .left  = emit_const(index_vtype, 1),
-         .right = emit_cast(index_vtype, index_vtype, len_reg),
-         .dir   = emit_const(vtype_bool(), RANGE_TO)
-      }
-   };
-   vcode_reg_t result_reg = emit_wrap(mem_reg, dims, 1);
-
-   return result_reg;
-}
-
 static vcode_reg_t lower_falling_rising_edge(tree_t fcall,
                                              subprogram_kind_t kind)
 {
@@ -1712,16 +1642,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
          vcode_type_t rtype = lower_type(tree_type(fcall));
          return emit_cast(rtype, rtype,
                           emit_div(r0, emit_cast(vreal, vreal, r1)));
-      }
-   case S_TO_STRING:
-      if (type_is_array(r0_type))
-         return lower_array_to_string(fcall, r0);
-      else {
-         type_t base = type_base_recur(r0_type);
-         ident_t func = ident_prefix(type_ident(base), ident_new("image"), '$');
-         vcode_type_t rtype = lower_type(tree_type(fcall));
-         vcode_reg_t args[] = { r0 };
-         return emit_fcall(func, rtype, rtype, VCODE_CC_PREDEF, args, 1);
       }
    default:
       fatal_at(tree_loc(fcall), "cannot lower builtin %d", builtin);
@@ -6106,6 +6026,99 @@ static void lower_predef_record_eq(tree_t decl, vcode_unit_t context)
    emit_return(emit_const(vtype_bool(), 0));
 }
 
+static void lower_predef_scalar_to_string(type_t arg_type, type_t std_string,
+                                          vcode_unit_t context)
+{
+   ident_t func = ident_prefix(type_ident(arg_type), ident_new("image"), '$');
+   vcode_type_t rtype = lower_type(std_string);
+   vcode_type_t rbounds = lower_bounds(std_string);
+   vcode_reg_t r0 = 0;
+   vcode_reg_t args[] = { r0 };
+   emit_return(emit_fcall(func, rtype, rbounds, VCODE_CC_PREDEF, args, 1));
+}
+
+static void lower_predef_array_to_string(type_t arg_type, type_t std_string,
+                                         vcode_unit_t context)
+{
+
+   type_t arg_elem    = type_base_recur(type_elem(arg_type));
+   type_t result_elem = type_base_recur(type_elem(std_string));
+
+   vcode_type_t elem_vtype = lower_type(result_elem);
+
+   const int nlits = type_enum_literals(arg_elem);
+   vcode_reg_t *map LOCAL = xmalloc_array(nlits, sizeof(vcode_reg_t));
+   for (int i = 0; i < nlits; i++) {
+      const ident_t id = tree_ident(type_enum_literal(arg_elem, i));
+      assert(ident_char(id, 0) == '\'');
+      map[i] = emit_const(elem_vtype, ident_char(id, 1));
+   }
+
+   vcode_reg_t array_reg = 0;
+
+   vcode_type_t map_vtype = vtype_carray(nlits, elem_vtype, elem_vtype);
+   vcode_reg_t map_reg = emit_const_array(map_vtype, map, nlits);
+
+   vcode_reg_t len_reg = lower_array_len(arg_type, 0, array_reg);
+   vcode_reg_t mem_reg = emit_alloca(elem_vtype, elem_vtype, len_reg);
+
+   vcode_type_t index_vtype = lower_type(index_type_of(std_string, 0));
+
+   vcode_reg_t left_reg  = lower_array_left(arg_type, 0, array_reg);
+   vcode_reg_t right_reg = lower_array_right(arg_type, 0, array_reg);
+   vcode_reg_t dir_reg   = lower_array_dir(arg_type, 0, array_reg);
+
+   ident_t i_name = ident_uniq("to_string_i");
+   vcode_var_t i_var = emit_var(vtype_offset(), vtype_offset(), i_name, 0);
+   emit_store(emit_const(vtype_offset(), 0), i_var);
+
+   vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, dir_reg);
+
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   emit_cond(null_reg, exit_bb, body_bb);
+
+   vcode_select_block(body_bb);
+
+   vcode_reg_t i_reg    = emit_load(i_var);
+   vcode_reg_t sptr_reg = emit_add(lower_array_data(array_reg), i_reg);
+   vcode_reg_t src_reg  = emit_load_indirect(sptr_reg);
+   vcode_reg_t off_reg  = emit_cast(vtype_offset(), vtype_offset(), src_reg);
+   vcode_reg_t lptr_reg = emit_add(emit_address_of(map_reg), off_reg);
+   vcode_reg_t dptr_reg = emit_add(lower_array_data(mem_reg), i_reg);
+   emit_store_indirect(emit_load_indirect(lptr_reg), dptr_reg);
+
+   vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
+   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
+   emit_store(next_reg, i_var);
+   emit_cond(cmp_reg, exit_bb, body_bb);
+
+   vcode_select_block(exit_bb);
+
+   vcode_dim_t dims[] = {
+      {
+         .left  = emit_const(index_vtype, 1),
+         .right = emit_cast(index_vtype, index_vtype, len_reg),
+         .dir   = emit_const(vtype_bool(), RANGE_TO)
+      }
+   };
+   emit_return(emit_wrap(mem_reg, dims, 1));
+}
+
+static void lower_predef_to_string(tree_t decl, vcode_unit_t context)
+{
+   type_t arg_type = tree_type(tree_port(decl, 0));
+   type_t result_type = type_result(tree_type(decl));
+
+   if (type_is_scalar(arg_type))
+      lower_predef_scalar_to_string(arg_type, result_type, context);
+   else if (type_is_array(arg_type))
+      lower_predef_array_to_string(arg_type, result_type, context);
+   else
+      fatal_trace("cannot generate TO_STRING for %s", type_pp(arg_type));
+}
+
 static void lower_predef_negate(tree_t decl, vcode_unit_t context,
                                 const char *op)
 {
@@ -6159,6 +6172,9 @@ static void lower_predef(tree_t decl, vcode_unit_t context)
    case S_ARRAY_NEQ:
    case S_RECORD_NEQ:
       lower_predef_negate(decl, context, "=");
+      break;
+   case S_TO_STRING:
+      lower_predef_to_string(decl, context);
       break;
    default:
       break;

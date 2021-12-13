@@ -1207,6 +1207,7 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_ARRAY_GE:
    case S_RECORD_EQ:
    case S_RECORD_NEQ:
+   case S_TO_STRING:
       return false;
    default:
       return true;

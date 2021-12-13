@@ -1069,19 +1069,22 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_binary(container, eq, t, t, std_bool, S_SCALAR_EQ);
       declare_binary(container, neq, t, t, std_bool, S_SCALAR_NEQ);
 
-      if (standard() >= STD_08 && !bootstrapping) {
-         declare_unary(container, ident_new("TO_STRING"), t,
-                       std_type(NULL, STD_STRING), S_TO_STRING);
-      }
-
       break;
+   }
+
+   if (standard() >= STD_08 && !bootstrapping && type_is_scalar(t)) {
+      // The TO_STRING operators in STD.STANDARD are declared at
+      // the end of the package according to LRM 08 section 5.2.6
+      declare_unary(container, ident_new("TO_STRING"), t,
+                    std_type(NULL, STD_STRING), S_TO_STRING);
    }
 
    // Universal integers and reals have some additional overloaded operators
    // that are not valid for regular integer and real types
    // See LRM 93 section 7.5
 
-   if (bootstrapping && type_kind(t) == T_REAL && t == std_type(std, STD_UNIVERSAL_REAL)) {
+   if (bootstrapping && type_kind(t) == T_REAL
+       && t == std_type(std, STD_UNIVERSAL_REAL)) {
       type_t uint = std_type(std, STD_UNIVERSAL_INTEGER);
 
       ident_t mult = ident_new("\"*\"");

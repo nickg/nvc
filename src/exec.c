@@ -139,7 +139,8 @@ static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
       }
 
       vcode = vcode_find_unit(func_name);
-      assert(vcode);
+      if (vcode == NULL)
+         fatal_trace("failed to load vcode for %s", istr(func_name));
    }
 
    return vcode;

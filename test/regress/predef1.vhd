@@ -10,6 +10,11 @@ architecture test of predef1 is
     type int_vector is array (natural range <>) of integer;
     type my_char is ('a', 'b', 'c');
     type char_vector is array (natural range <>) of my_char;
+    type my_phs is range 0 to 1000
+        units
+            u_foo;
+            u_bar = 10 u_foo;
+        end units;
 
     signal sa : bit := '0';
     signal sb : boolean := true;
@@ -78,6 +83,8 @@ begin
         assert to_string(c) = "bca";
         assert to_string(bit_vector'("110")) = "110";
         assert to_string(bit_vector'("110")) & "..." = "110...";
+        assert to_string(1 ns) = "1000000 fs";
+        report to_string(1 u_bar);
 
         -----------------------------------------------------------------------
         -- TO_BSTRING
