@@ -144,6 +144,7 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: [ build-ubuntu ]
     runs-on: ubuntu-20.04
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v2
         with:

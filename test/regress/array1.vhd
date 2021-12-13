@@ -21,6 +21,10 @@ begin
         assert m(3, 1) = 7;
         report integer'image(c(1, 0));
         assert c(1, 0) = 3;
+
+        assert c = ( (1, 2), (3, 4) );
+        assert c /= ( (1, 2), (3, 5) );
+
         wait;
     end process;
 

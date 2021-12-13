@@ -928,7 +928,7 @@ const char *vcode_op_string(vcode_op_t op)
       "rem", "alloca", "select", "or", "wrap", "uarray left",
       "uarray right", "uarray dir", "unwrap", "not", "and",
       "event", "active", "const record", "record ref", "copy", "sched event",
-      "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor", "memset",
+      "pcall", "resume", "xor", "xnor", "nand", "nor", "memset",
       "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
       "bit vec op", "const real", "last event",

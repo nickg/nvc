@@ -5935,8 +5935,20 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
    assert(pred == VCODE_CMP_EQ || pred == VCODE_CMP_LT
           || pred == VCODE_CMP_LEQ);
 
-   vcode_reg_t left_len  = lower_array_len(left_type, 0, lhs_array);
+   const int ndims = dimension_of(left_type);
+   assert(dimension_of(right_type) == ndims);
+
+   vcode_reg_t left_len = lower_array_len(left_type, 0, lhs_array);
+   for (int i = 1; i < ndims; i++) {
+      vcode_reg_t dim_len = lower_array_len(left_type, i, lhs_array);
+      left_len = emit_mul(dim_len, left_len);
+   }
+
    vcode_reg_t right_len = lower_array_len(right_type, 0, rhs_array);
+   for (int i = 1; i < ndims; i++) {
+      vcode_reg_t dim_len = lower_array_len(right_type, i, rhs_array);
+      right_len = emit_mul(dim_len, right_len);
+   }
 
    vcode_type_t voffset = vtype_offset();
    vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
