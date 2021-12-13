@@ -1276,42 +1276,6 @@ void insert_names_for_config(nametab_t *tab, tree_t unit)
 ////////////////////////////////////////////////////////////////////////////////
 // Name mangling
 
-static void mangle_one_type(text_buf_t *buf, type_t type)
-{
-   ident_t ident = type_ident(type);
-
-   if (icmp(ident, "STD.STANDARD.INTEGER"))
-      tb_printf(buf, "I");
-   else if (icmp(ident, "STD.STANDARD.STRING"))
-      tb_printf(buf, "S");
-   else if (icmp(ident, "STD.STANDARD.REAL"))
-      tb_printf(buf, "R");
-   else if (icmp(ident, "STD.STANDARD.BOOLEAN"))
-      tb_printf(buf, "B");
-   else if (icmp(ident, "STD.STANDARD.CHARACTER"))
-      tb_printf(buf, "C");
-   else if (icmp(ident, "STD.STANDARD.TIME"))
-      tb_printf(buf, "T");
-   else if (icmp(ident, "STD.STANDARD.NATURAL"))
-      tb_printf(buf, "N");
-   else if (icmp(ident, "STD.STANDARD.POSITIVE"))
-      tb_printf(buf, "P");
-   else if (icmp(ident, "STD.STANDARD.BIT"))
-      tb_printf(buf, "J");
-   else if (icmp(ident, "STD.STANDARD.BIT_VECTOR"))
-      tb_printf(buf, "Q");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC"))
-      tb_printf(buf, "L");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_ULOGIC"))
-      tb_printf(buf, "U");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR"))
-      tb_printf(buf, "V");
-   else {
-      const char *ident_str = istr(ident);
-      tb_printf(buf, "%d%s", (int)strlen(ident_str), ident_str);
-   }
-}
-
 void mangle_func(nametab_t *tab, tree_t decl)
 {
    if (tree_has_ident2(decl))

@@ -1237,10 +1237,16 @@ START_TEST(test_assign3)
       { VCODE_OP_CONST, .value = 8 },
       { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_COPY },
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_MEMCMP },
-      { VCODE_OP_NOT },
+      { VCODE_OP_CONST, .value = 7 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_FCALL, .func = "STD.STANDARD.\"/=\"(QQ)B" },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 },
    };
 

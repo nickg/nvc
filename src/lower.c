@@ -1765,10 +1765,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
       return lower_logical(fcall, emit_xnor(r0, r1));
    case S_SCALAR_NAND:
       return lower_logical(fcall, emit_nand(r0, r1));
-   case S_ARRAY_EQ:
-      return lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_EQ);
-   case S_ARRAY_NEQ:
-      return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_EQ));
    case S_ARRAY_LT:
       return lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LT);
    case S_ARRAY_LE:
@@ -1777,10 +1773,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
       return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LEQ));
    case S_ARRAY_GE:
       return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LT));
-   case S_RECORD_EQ:
-      return lower_logical(fcall, lower_record_eq(r0, r1, r0_type));
-   case S_RECORD_NEQ:
-      return lower_logical(fcall, emit_not(lower_record_eq(r0, r1, r0_type)));
    case S_ENDFILE:
       return emit_endfile(r0);
    case S_FILE_OPEN1:
@@ -6079,39 +6071,49 @@ static vcode_unit_t lower_find_subprogram(ident_t name, vcode_unit_t context)
    return same_context ? vu : NULL;
 }
 
+static ident_t lower_predef_func_name(type_t type, const char *op)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "%s.\"%s\"(", istr(ident_runtil(type_ident(type), '.')), op);
+   mangle_one_type(tb, type);
+   mangle_one_type(tb, type);
+   tb_cat(tb, ")");
+   mangle_one_type(tb, std_type(NULL, STD_BOOLEAN));
+
+   return ident_new(tb_get(tb));
+}
+
 static void lower_predef_array_cmp(tree_t decl, vcode_unit_t context,
                                    vcode_cmp_t pred)
 {
-   ident_t name = tree_ident2(decl);
-   if (vcode_find_unit(name) != NULL)
-      return;
+   type_t ltype = tree_type(tree_port(decl, 0));
+   type_t rtype = tree_type(tree_port(decl, 1));
 
-   type_t type = tree_type(decl);
-
-   emit_function(name, tree_loc(decl), context);
-   vcode_set_result(lower_type(type_result(type)));
-
-   lower_push_scope(NULL);
-
-   vcode_reg_t pregs[2];
-   type_t ptypes[2];
-   for (int i = 0; i < 2; i++) {
-      tree_t p = tree_port(decl, i);
-      ptypes[i] = tree_type(p);
-      pregs[i] = emit_param(lower_type(ptypes[i]), lower_bounds(ptypes[i]),
-                            tree_ident(p));
-   }
-
-   vcode_reg_t result = lower_array_cmp(pregs[0], pregs[1], ptypes[0],
-                                        ptypes[1], pred);
-   emit_return(result);
-
-   lower_finished();
-   lower_pop_scope();
+   emit_return(lower_array_cmp(0, 1, ltype, rtype, pred));
 }
 
-static void lower_predef_record_cmp(tree_t decl, vcode_unit_t context)
+static void lower_predef_record_eq(tree_t decl, vcode_unit_t context)
 {
+   emit_return(lower_record_eq(0, 1, tree_type(tree_port(decl, 0))));
+}
+
+static void lower_predef_neq(tree_t decl, vcode_unit_t context)
+{
+   type_t type = tree_type(tree_port(decl, 0));
+   vcode_type_t vbool = vtype_bool();
+   vcode_reg_t args[] = { 0, 1 };
+   vcode_reg_t eq_reg = emit_fcall(lower_predef_func_name(type, "="),
+                                   vbool, vbool, VCODE_CC_PREDEF, args, 2);
+
+   emit_return(emit_not(eq_reg));
+}
+
+static void lower_predef(tree_t decl, vcode_unit_t context)
+{
+   const subprogram_kind_t kind = tree_subkind(decl);
+   if (kind == S_USER || kind == S_FOREIGN || is_open_coded_builtin(kind))
+      return;
+
    ident_t name = tree_ident2(decl);
    if (vcode_find_unit(name) != NULL)
       return;
@@ -6125,25 +6127,23 @@ static void lower_predef_record_cmp(tree_t decl, vcode_unit_t context)
 
    lower_subprogram_ports(decl, false);
 
-   vcode_reg_t result = lower_record_eq(0, 1, tree_type(tree_port(decl, 0)));
-   emit_return(result);
-
-   lower_finished();
-   lower_pop_scope();
-}
-
-static void lower_predef(tree_t decl, vcode_unit_t context)
-{
    switch (tree_subkind(decl)) {
    case S_ARRAY_EQ:
       lower_predef_array_cmp(decl, context, VCODE_CMP_EQ);
       break;
    case S_RECORD_EQ:
-      lower_predef_record_cmp(decl, context);
+      lower_predef_record_eq(decl, context);
+      break;
+   case S_ARRAY_NEQ:
+   case S_RECORD_NEQ:
+      lower_predef_neq(decl, context);
       break;
    default:
       break;
    }
+
+   lower_finished();
+   lower_pop_scope();
 }
 
 static void lower_proc_body(tree_t body, vcode_unit_t context)
