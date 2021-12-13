@@ -116,6 +116,7 @@ static int lower_search_vcode_obj(void *key, lower_scope_t *scope, int *hops);
 static type_t lower_elem_recur(type_t type);
 static void lower_finished(void);
 static void lower_predef(tree_t decl, vcode_unit_t context);
+static ident_t lower_predef_func_name(type_t type, const char *op);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -957,21 +958,34 @@ static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type)
       vcode_reg_t cmp = VCODE_INVALID_REG;
       type_t ftype = tree_type(type_field(type, i));
       if (type_is_array(ftype)) {
+         vcode_reg_t args[2];
          if (!lower_const_bounds(ftype)) {
             // Have pointers to uarrays
-            lfield = emit_load_indirect(lfield);
-            rfield = emit_load_indirect(rfield);
+            args[0] = emit_load_indirect(lfield);
+            args[1] = emit_load_indirect(rfield);
          }
-         cmp = lower_array_cmp(lfield, rfield, ftype, ftype, VCODE_CMP_EQ);
+         else {
+            args[0] = lower_wrap(ftype, lfield);
+            args[1] = lower_wrap(ftype, rfield);
+         }
+
+         ident_t func = lower_predef_func_name(ftype, "=");
+         vcode_type_t vbool = vtype_bool();
+         cmp = emit_fcall(func, vbool, vbool, VCODE_CC_PREDEF, args, 2);
       }
-      else if (type_is_record(ftype))
-         cmp = lower_record_eq(lfield, rfield, ftype);
+      else if (type_is_record(ftype)) {
+         ident_t func = lower_predef_func_name(ftype, "=");
+         vcode_reg_t args[] = { lfield, rfield };
+         vcode_type_t vbool = vtype_bool();
+         cmp = emit_fcall(func, vbool, vbool, VCODE_CC_PREDEF, args, 2);
+      }
       else {
          vcode_reg_t lload = emit_load_indirect(lfield);
          vcode_reg_t rload = emit_load_indirect(rfield);
          cmp = emit_cmp(VCODE_CMP_EQ, lload, rload);
       }
 
+      // TODO: short circuit return here
       result = emit_and(result, cmp);
    }
 
@@ -6073,10 +6087,12 @@ static vcode_unit_t lower_find_subprogram(ident_t name, vcode_unit_t context)
 
 static ident_t lower_predef_func_name(type_t type, const char *op)
 {
+   type_t base = type_base_recur(type);
+
    LOCAL_TEXT_BUF tb = tb_new();
-   tb_printf(tb, "%s.\"%s\"(", istr(ident_runtil(type_ident(type), '.')), op);
-   mangle_one_type(tb, type);
-   mangle_one_type(tb, type);
+   tb_printf(tb, "%s.\"%s\"(", istr(ident_runtil(type_ident(base), '.')), op);
+   mangle_one_type(tb, base);
+   mangle_one_type(tb, base);
    tb_cat(tb, ")");
    mangle_one_type(tb, std_type(NULL, STD_BOOLEAN));
 
