@@ -432,3 +432,4 @@ guard1          normal
 guard2          normal
 vests22         normal
 vests23         normal
+func18          normal

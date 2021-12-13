@@ -3472,16 +3472,25 @@ static void cgen_locals(cgen_ctx_t *ctx)
 {
    LLVMPositionBuilderAtEnd(builder, ctx->blocks[0]);
 
+   const int nvars = vcode_count_vars();
    vcode_unit_t unit = vcode_active_unit();
    if (vcode_unit_child(unit) != NULL) {
+      bool on_stack = true;
+      for (int i = 0; i < nvars; i++) {
+         if (vcode_var_flags(i) & VAR_HEAP)
+            on_stack = false;
+      }
+
       LLVMTypeRef state_type = cgen_state_type(unit);
-      ctx->state = LLVMBuildAlloca(builder, state_type, "state");
+      if (on_stack)
+         ctx->state = LLVMBuildAlloca(builder, state_type, "state");
+      else
+         ctx->state = cgen_tmp_alloc(llvm_sizeof(state_type), state_type);
 
       LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
       LLVMBuildStore(builder, ctx->display, context_ptr);
    }
    else {
-      const int nvars = vcode_count_vars();
       for (int i = 0; i < nvars; i++) {
          LLVMTypeRef lltype = cgen_type(vcode_var_type(i));
          const char *name = istr(vcode_var_name(i));
