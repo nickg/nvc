@@ -2485,72 +2485,6 @@ static void cgen_op_resume(int op, cgen_ctx_t *ctx)
    cgen_pcall_suspend(new_state, after_bb, ctx);
 }
 
-static void cgen_op_memcmp(int op, cgen_ctx_t *ctx)
-{
-   // Prologue
-
-   vcode_reg_t result = vcode_get_result(op);
-
-   LLVMValueRef lhs_data = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef rhs_data = cgen_get_arg(op, 1, ctx);
-   LLVMValueRef length   = cgen_get_arg(op, 2, ctx);
-
-   LLVMBasicBlockRef entry_bb = LLVMGetInsertBlock(builder);
-
-   LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(ctx->fn, "memcmp_test");
-   LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(ctx->fn, "memcmp_body");
-   LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "memcmp_exit");
-
-   LLVMBuildBr(builder, test_bb);
-
-   // Loop test
-
-   LLVMPositionBuilderAtEnd(builder, test_bb);
-
-   LLVMValueRef i_test = LLVMBuildPhi(builder, LLVMInt32Type(), "i");
-   LLVMValueRef len_ge = LLVMBuildICmp(builder, LLVMIntUGE, i_test,
-                                       length, "len_ge");
-   LLVMBuildCondBr(builder, len_ge, exit_bb, body_bb);
-
-   // Loop body
-
-   LLVMPositionBuilderAtEnd(builder, body_bb);
-
-   LLVMValueRef index[] = { llvm_zext_to_intptr(i_test) };
-   LLVMValueRef l_ptr = LLVMBuildInBoundsGEP(builder, lhs_data, index, 1, "");
-   LLVMValueRef r_ptr = LLVMBuildInBoundsGEP(builder, rhs_data, index, 1, "");
-
-   LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
-   LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
-
-   LLVMValueRef eq;
-   if (LLVMGetTypeKind(LLVMTypeOf(l_val)) == LLVMDoubleTypeKind)
-      eq = LLVMBuildFCmp(builder, LLVMRealUEQ, l_val, r_val, "eq");
-   else
-      eq = LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
-
-   LLVMValueRef inc = LLVMBuildAdd(builder, i_test, llvm_int32(1), "inc");
-
-   LLVMValueRef i_test_in_vals[]    = { llvm_int32(0), inc     };
-   LLVMBasicBlockRef i_test_in_bb[] = { entry_bb,      body_bb };
-   LLVMAddIncoming(i_test, i_test_in_vals, i_test_in_bb, 2);
-
-   LLVMBuildCondBr(builder, eq, test_bb, exit_bb);
-
-   // Epilogue
-
-   LLVMPositionBuilderAtEnd(builder, exit_bb);
-
-   LLVMValueRef phi = LLVMBuildPhi(builder, LLVMInt1Type(),
-                                   cgen_reg_name(result));
-
-   LLVMValueRef      values[] = { eq,      len_ge  };
-   LLVMBasicBlockRef bbs[]    = { body_bb, test_bb };
-   LLVMAddIncoming(phi, values, bbs, 2);
-
-   ctx->regs[result] = phi;
-}
-
 static void cgen_op_memset(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef ptr    = cgen_get_arg(op, 0, ctx);
@@ -3344,9 +3278,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_RESUME:
       cgen_op_resume(i, ctx);
-      break;
-   case VCODE_OP_MEMCMP:
-      cgen_op_memcmp(i, ctx);
       break;
    case VCODE_OP_XNOR:
       cgen_op_xnor(i, ctx);

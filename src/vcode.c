@@ -483,7 +483,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_MOD:
    case VCODE_OP_REM:
    case VCODE_OP_ENDFILE:
-   case VCODE_OP_MEMCMP:
       // Result cannot reference pointer
       break;
 
@@ -1805,19 +1804,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
                             istr(op->func));
-            }
-            break;
-
-         case VCODE_OP_MEMCMP:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
-               col += printf(" == " );
-               col += vcode_dump_reg(op->args.items[1]);
-               col += printf(" length ");
-               col += vcode_dump_reg(op->args.items[2]);
-               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -4445,23 +4431,6 @@ void emit_resume(ident_t func)
 
    block_t *b = &(active_unit->blocks.items[active_block]);
    VCODE_ASSERT(b->ops.count == 1, "resume must be first op in a block");
-}
-
-vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len)
-{
-   op_t *op = vcode_add_op(VCODE_OP_MEMCMP);
-   vcode_add_arg(op, lhs);
-   vcode_add_arg(op, rhs);
-   vcode_add_arg(op, len);
-
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(lhs)) == VCODE_TYPE_POINTER,
-                "LHS of memcmp must have pointer type");
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(rhs)) == VCODE_TYPE_POINTER,
-                "RHS of memcmp must have pointer type");
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(len)) == VCODE_TYPE_OFFSET,
-                "length of memcmp must have offset type");
-
-   return (op->result = vcode_add_reg(vtype_bool()));
 }
 
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len)

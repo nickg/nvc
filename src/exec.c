@@ -1243,27 +1243,6 @@ static void eval_op_uarray_dir(int op, eval_state_t *state)
    dst->integer = src[1 + dim*2 + 1].integer < 0 ? RANGE_DOWNTO : RANGE_TO;
 }
 
-static void eval_op_memcmp(int op, eval_state_t *state)
-{
-   value_t *dst = eval_get_reg(vcode_get_result(op), state);
-   value_t *lhs = eval_get_reg(vcode_get_arg(op, 0), state);
-   value_t *rhs = eval_get_reg(vcode_get_arg(op, 1), state);
-   value_t *len = eval_get_reg(vcode_get_arg(op, 2), state);
-
-   dst->kind    = VALUE_INTEGER;
-   dst->integer = 1;
-
-   EVAL_ASSERT_VALUE(op, lhs, VALUE_POINTER);
-   EVAL_ASSERT_VALUE(op, rhs, VALUE_POINTER);
-
-   for (int i = 0; i < len->integer; i++) {
-      if (eval_value_cmp(&(lhs->pointer[i]), &(rhs->pointer[i]))) {
-         dst->integer = 0;
-         return;
-      }
-   }
-}
-
 static void eval_op_and(int op, eval_state_t *state)
 {
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
@@ -2034,10 +2013,6 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_UARRAY_LEN:
          eval_op_uarray_len(state->op, state);
-         break;
-
-      case VCODE_OP_MEMCMP:
-         eval_op_memcmp(state->op, state);
          break;
 
       case VCODE_OP_AND:

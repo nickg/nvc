@@ -84,7 +84,6 @@ typedef enum {
    VCODE_OP_SCHED_EVENT,
    VCODE_OP_PCALL,
    VCODE_OP_RESUME,
-   VCODE_OP_MEMCMP,
    VCODE_OP_XOR,
    VCODE_OP_XNOR,
    VCODE_OP_NAND,
@@ -418,7 +417,6 @@ void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems);
 void emit_sched_static(vcode_reg_t nets, vcode_reg_t n_elems);
 void emit_resume(ident_t func);
-vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
                const vcode_block_t *blocks, int ncases);

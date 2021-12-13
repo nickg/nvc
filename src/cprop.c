@@ -689,7 +689,6 @@ void cprop(cprop_req_t *req)
 
          case VCODE_OP_RESOLVED:
          case VCODE_OP_CONST_ARRAY:
-         case VCODE_OP_MEMCMP:
          case VCODE_OP_TEMP_STACK_MARK:
          case VCODE_OP_UARRAY_LEFT:
          case VCODE_OP_UARRAY_RIGHT:

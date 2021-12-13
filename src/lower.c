@@ -5358,8 +5358,6 @@ static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
    vcode_reg_t canon_reg = emit_fcall(ident_new("_canon_value"),
                                       strtype, strtype, VCODE_CC_FOREIGN,
                                       args, 2);
-
-   vcode_reg_t canon_data_reg = emit_unwrap(canon_reg);
    vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
 
    size_t stride = 0;
@@ -5416,7 +5414,21 @@ static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
    vcode_select_block(memcmp_bb);
    vcode_reg_t char_off = emit_mul(i_reg, emit_const(voffset, stride));
    vcode_reg_t char_ptr = emit_add(char_array_ptr, char_off);
-   vcode_reg_t eq_reg   = emit_memcmp(canon_data_reg, char_ptr, len_reg);
+
+   vcode_dim_t dims[] = {
+      { .left  = emit_const(vtype_offset(), 1),
+        .right = len_reg,
+        .dir   = emit_const(vtype_bool(), RANGE_TO)
+      }
+   };
+   vcode_reg_t str_reg = emit_wrap(char_ptr, dims, 1);
+
+   type_t std_string = std_type(NULL, STD_STRING);
+   ident_t func = lower_predef_func_name(std_string, "=");
+
+   vcode_reg_t str_cmp_args[] = { str_reg, canon_reg };
+   vcode_reg_t eq_reg = emit_fcall(func, vtype_bool(), vtype_bool(),
+                                   VCODE_CC_PREDEF, str_cmp_args, 2);
    emit_cond(eq_reg, match_bb, skip_bb);
 
    vcode_select_block(skip_bb);
@@ -5483,8 +5495,6 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
    vcode_reg_t canon_reg = emit_fcall(ident_new("_canon_value"),
                                       strtype, strtype, VCODE_CC_FOREIGN,
                                       args2, 2);
-
-   vcode_reg_t canon_data_reg = emit_unwrap(canon_reg);
    vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
 
    const int nunits = type_units(type);
@@ -5554,7 +5564,21 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
    vcode_select_block(memcmp_bb);
    vcode_reg_t char_off = emit_mul(i_reg, emit_const(voffset, stride));
    vcode_reg_t char_ptr = emit_add(char_array_ptr, char_off);
-   vcode_reg_t eq_reg   = emit_memcmp(canon_data_reg, char_ptr, len_reg);
+
+   vcode_dim_t dims[] = {
+      { .left  = emit_const(vtype_offset(), 1),
+        .right = len_reg,
+        .dir   = emit_const(vtype_bool(), RANGE_TO)
+      }
+   };
+   vcode_reg_t str_reg = emit_wrap(char_ptr, dims, 1);
+
+   type_t std_string = std_type(NULL, STD_STRING);
+   ident_t func = lower_predef_func_name(std_string, "=");
+
+   vcode_reg_t str_cmp_args[] = { str_reg, canon_reg };
+   vcode_reg_t eq_reg = emit_fcall(func, vtype_bool(), vtype_bool(),
+                                   VCODE_CC_PREDEF, str_cmp_args, 2);
    emit_cond(eq_reg, match_bb, skip_bb);
 
    vcode_select_block(skip_bb);
@@ -5636,8 +5660,6 @@ static void lower_value_helper(tree_t decl)
    vcode_state_save(&state);
 
    emit_function(func, tree_loc(decl), vcode_active_unit());
-   emit_debug_info(tree_loc(decl));
-
    vcode_set_result(lower_type(type));
 
    vcode_type_t ctype = vtype_char();

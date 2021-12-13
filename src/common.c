@@ -1128,7 +1128,7 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
    }
 }
 
-static tree_t cached_std(void)
+static tree_t cached_std(tree_t hint)
 {
    static tree_t standard_cache[STD_08 + 1] = {};
 
@@ -1136,11 +1136,16 @@ static tree_t cached_std(void)
    assert(curr < ARRAY_LEN(standard_cache));
 
    if (standard_cache[curr] == NULL) {
-      lib_t std = lib_find(std_i, true);
-      standard_cache[curr] = lib_get(std, std_standard_i);
-      assert(standard_cache[curr] != NULL);
+      if (hint != NULL)
+         standard_cache[curr] = hint;
+      else {
+         lib_t std = lib_find(std_i, true);
+         standard_cache[curr] = lib_get(std, std_standard_i);
+         assert(standard_cache[curr] != NULL);
+      }
    }
 
+   assert(hint == NULL || hint == standard_cache[curr]);
    return standard_cache[curr];
 }
 
@@ -1150,8 +1155,6 @@ type_t std_type(tree_t std, std_type_t which)
    assert(which < ARRAY_LEN(cache));
 
    if (cache[which] == NULL) {
-      if (std == NULL) std = cached_std();
-
       const char *names[] = {
          "universal_integer",
          "universal_real",
@@ -1168,11 +1171,19 @@ type_t std_type(tree_t std, std_type_t which)
          "SEVERITY_LEVEL",
       };
 
-      tree_t d = search_decls(std, ident_new(names[which]), 0);
+      tree_t d = search_decls(cached_std(std), ident_new(names[which]), 0);
       if (d == NULL)
          fatal_trace("cannot find standard type %s", names[which]);
 
-      return (cache[which] = tree_type(d));
+      // Do not cache standard types while bootstrapping as the GC will
+      // move the objects after parsing
+      static int can_cache = -1;
+      if (can_cache == -1) can_cache = !opt_get_int("bootstrap");
+
+      if (can_cache)
+         return (cache[which] = tree_type(d));
+      else
+         return tree_type(d);
    }
    else
       return cache[which];
@@ -1239,7 +1250,7 @@ tree_t find_mangled_decl(tree_t container, ident_t name)
 
 tree_t std_func(ident_t mangled)
 {
-   return find_mangled_decl(cached_std(), mangled);
+   return find_mangled_decl(cached_std(NULL), mangled);
 }
 
 tree_t name_to_ref(tree_t name)

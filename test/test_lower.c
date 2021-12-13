@@ -214,7 +214,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ACTIVE:
       case VCODE_OP_CONST_RECORD:
       case VCODE_OP_COPY:
-      case VCODE_OP_MEMCMP:
       case VCODE_OP_MEMSET:
       case VCODE_OP_WRAP:
       case VCODE_OP_DYNAMIC_BOUNDS:
