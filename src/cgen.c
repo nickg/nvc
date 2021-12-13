@@ -672,9 +672,9 @@ static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
    LLVMValueRef alloc_next =
       LLVMBuildAnd(builder,
                    LLVMBuildAdd(builder, alloc,
-                                LLVMBuildAdd(builder, bytes, llvm_int32(3), ""),
+                                LLVMBuildAdd(builder, bytes, llvm_int32(7), ""),
                                 "alloc_align_max"),
-                   llvm_int32(~3),
+                   llvm_int32(~7),
                    "alloc_next");
 
    LLVMBuildStore(builder, alloc_next, _tmp_alloc_ptr);
