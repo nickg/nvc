@@ -1309,7 +1309,7 @@ static void declare_standard_to_string(tree_t unit)
       tree_t d = tree_decl(unit, i);
       if (tree_kind(d) == T_TYPE_DECL) {
          type_t type = tree_type(d);
-         if (type_is_scalar(type))
+         if (type_kind(type) != T_SUBTYPE && type_is_scalar(type))
             declare_unary(unit, to_string, type, std_string, S_TO_STRING);
       }
    }

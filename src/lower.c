@@ -115,6 +115,7 @@ static bool lower_const_bounds(type_t type);
 static int lower_search_vcode_obj(void *key, lower_scope_t *scope, int *hops);
 static type_t lower_elem_recur(type_t type);
 static void lower_finished(void);
+static void lower_predef(tree_t decl, vcode_unit_t context);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -761,7 +762,7 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
    }
 
    tree_t port = NULL;
-   if (!is_builtin(tree_subkind(decl)))
+   if (!is_open_coded_builtin(tree_subkind(decl)))
       port = tree_port(decl, nth);
 
    vcode_reg_t preg = lower_param(value, port, mode);
@@ -955,8 +956,14 @@ static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type)
 
       vcode_reg_t cmp = VCODE_INVALID_REG;
       type_t ftype = tree_type(type_field(type, i));
-      if (type_is_array(ftype))
+      if (type_is_array(ftype)) {
+         if (!lower_const_bounds(ftype)) {
+            // Have pointers to uarrays
+            lfield = emit_load_indirect(lfield);
+            rfield = emit_load_indirect(rfield);
+         }
          cmp = lower_array_cmp(lfield, rfield, ftype, ftype, VCODE_CMP_EQ);
+      }
       else if (type_is_record(ftype))
          cmp = lower_record_eq(lfield, rfield, ftype);
       else {
@@ -1671,11 +1678,11 @@ static vcode_reg_t lower_match_op(subprogram_kind_t kind, vcode_reg_t r0,
    else {
       vcode_reg_t args[2] = { r0, r1 };
       ident_t func = cmp == VCODE_CMP_LT
-         ? ident_new("IEEE.STD_LOGIC_1164.\"?<\"(UU)U")
-         : ident_new("IEEE.STD_LOGIC_1164.\"?=\"(UU)U");
+         ? ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_LT(UU)U")
+         : ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_EQ(UU)U");
 
       vcode_type_t rtype = lower_type(r0_type);
-      result = emit_fcall(func, rtype, rtype, VCODE_CC_VHDL, args, 2);
+      result = emit_fcall(func, rtype, rtype, VCODE_CC_PREDEF, args, 2);
    }
 
    if (invert && is_bit)
@@ -1684,7 +1691,7 @@ static vcode_reg_t lower_match_op(subprogram_kind_t kind, vcode_reg_t r0,
       vcode_reg_t args[1] = { result };
       vcode_type_t rtype = vcode_reg_type(result);
       return emit_fcall(ident_new("IEEE.STD_LOGIC_1164.\"not\"(U)4UX01"),
-                        rtype, rtype, VCODE_CC_VHDL, args, 1);
+                        rtype, rtype, VCODE_CC_PREDEF, args, 1);
    }
    else
       return result;
@@ -1907,7 +1914,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
          ident_t func = ident_prefix(type_ident(base), ident_new("image"), '$');
          vcode_type_t rtype = lower_type(tree_type(fcall));
          vcode_reg_t args[] = { r0 };
-         return emit_fcall(func, rtype, rtype, VCODE_CC_VHDL, args, 1);
+         return emit_fcall(func, rtype, rtype, VCODE_CC_PREDEF, args, 1);
       }
    default:
       fatal_at(tree_loc(fcall), "cannot lower builtin %d", builtin);
@@ -1928,14 +1935,17 @@ static vcode_type_t lower_func_result_type(type_t result)
 static vcode_cc_t lower_cc_for_call(tree_t call)
 {
    tree_t decl = tree_ref(call);
-   const tree_kind_t kind = tree_kind(call);
+   const tree_kind_t tkind = tree_kind(call);
+   const subprogram_kind_t skind = tree_subkind(decl);
 
-   if (tree_subkind(decl) == S_FOREIGN)
+   if (skind == S_FOREIGN)
       return VCODE_CC_FOREIGN;
    else if (tree_flags(decl) & TREE_F_FOREIGN)
       return VCODE_CC_FOREIGN;
-   else if (kind == T_PROT_FCALL || kind == T_PROT_PCALL)
+   else if (tkind == T_PROT_FCALL || tkind == T_PROT_PCALL)
       return VCODE_CC_PROTECTED;
+   else if (is_builtin(skind))
+      return VCODE_CC_PREDEF;
    else
       return VCODE_CC_VHDL;
 }
@@ -1974,7 +1984,7 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    tree_t decl = tree_ref(fcall);
 
    const subprogram_kind_t kind = tree_subkind(decl);
-   if (is_builtin(kind))
+   if (is_open_coded_builtin(kind))
       return lower_builtin(fcall, kind);
 
    const bool protected = tree_kind(fcall) == T_PROT_FCALL;
@@ -5948,7 +5958,8 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
       const tree_kind_t kind = tree_kind(d);
-      if (kind != T_FUNC_BODY && kind != T_PROC_BODY && kind != T_PROT_BODY)
+      if (kind != T_FUNC_BODY && kind != T_PROC_BODY && kind != T_PROT_BODY
+          && kind != T_FUNC_DECL)
          continue;
 
       vcode_block_t bb = vcode_active_block();
@@ -5960,6 +5971,7 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
       case T_FUNC_BODY: lower_func_body(d, context); break;
       case T_PROC_BODY: lower_proc_body(d, context); break;
       case T_PROT_BODY: lower_protected_body(d, context); break;
+      case T_FUNC_DECL: lower_predef(d, context); break;
       default: break;
       }
 
@@ -5972,9 +5984,19 @@ static bool lower_has_subprograms(tree_t scope)
 {
    const int ndecls = tree_decls(scope);
    for (int i = 0; i < ndecls; i++) {
-      const tree_kind_t kind = tree_kind(tree_decl(scope, i));
+      tree_t d = tree_decl(scope, i);
+      const tree_kind_t kind = tree_kind(d);
       if (kind == T_FUNC_BODY || kind == T_PROC_BODY)
          return true;
+      else if (kind == T_TYPE_DECL) {
+         // Predefined operators for certain types may reference the
+         // parameters: e.g. an array with non-static length
+         type_t type = tree_type(d);
+         if (type_kind(type) == T_SUBTYPE)
+            continue;
+         else if (type_is_record(type) || type_is_array(type))
+            return true;
+      }
    }
 
    return false;
@@ -6055,6 +6077,73 @@ static vcode_unit_t lower_find_subprogram(ident_t name, vcode_unit_t context)
 
    vcode_state_restore(&state);
    return same_context ? vu : NULL;
+}
+
+static void lower_predef_array_cmp(tree_t decl, vcode_unit_t context,
+                                   vcode_cmp_t pred)
+{
+   ident_t name = tree_ident2(decl);
+   if (vcode_find_unit(name) != NULL)
+      return;
+
+   type_t type = tree_type(decl);
+
+   emit_function(name, tree_loc(decl), context);
+   vcode_set_result(lower_type(type_result(type)));
+
+   lower_push_scope(NULL);
+
+   vcode_reg_t pregs[2];
+   type_t ptypes[2];
+   for (int i = 0; i < 2; i++) {
+      tree_t p = tree_port(decl, i);
+      ptypes[i] = tree_type(p);
+      pregs[i] = emit_param(lower_type(ptypes[i]), lower_bounds(ptypes[i]),
+                            tree_ident(p));
+   }
+
+   vcode_reg_t result = lower_array_cmp(pregs[0], pregs[1], ptypes[0],
+                                        ptypes[1], pred);
+   emit_return(result);
+
+   lower_finished();
+   lower_pop_scope();
+}
+
+static void lower_predef_record_cmp(tree_t decl, vcode_unit_t context)
+{
+   ident_t name = tree_ident2(decl);
+   if (vcode_find_unit(name) != NULL)
+      return;
+
+   type_t type = tree_type(decl);
+
+   emit_function(name, tree_loc(decl), context);
+   vcode_set_result(lower_func_result_type(type_result(type)));
+
+   lower_push_scope(NULL);
+
+   lower_subprogram_ports(decl, false);
+
+   vcode_reg_t result = lower_record_eq(0, 1, tree_type(tree_port(decl, 0)));
+   emit_return(result);
+
+   lower_finished();
+   lower_pop_scope();
+}
+
+static void lower_predef(tree_t decl, vcode_unit_t context)
+{
+   switch (tree_subkind(decl)) {
+   case S_ARRAY_EQ:
+      lower_predef_array_cmp(decl, context, VCODE_CMP_EQ);
+      break;
+   case S_RECORD_EQ:
+      lower_predef_record_cmp(decl, context);
+      break;
+   default:
+      break;
+   }
 }
 
 static void lower_proc_body(tree_t body, vcode_unit_t context)

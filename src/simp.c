@@ -1378,6 +1378,18 @@ static tree_t simp_range(tree_t t)
    }
 }
 
+static tree_t simp_subprogram_decl(tree_t decl)
+{
+   // Remove predefined operators which are hidden by explicitly defined
+   // operators in the same region
+
+   const tree_flags_t flags = tree_flags(decl);
+   if ((flags & TREE_F_PREDEFINED) && (flags & TREE_F_HIDDEN))
+      return NULL;
+
+   return decl;
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -1437,6 +1449,9 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_literal(t);
    case T_RANGE:
       return simp_range(t);
+   case T_FUNC_DECL:
+   case T_PROC_DECL:
+      return simp_subprogram_decl(t);
    default:
       return t;
    }

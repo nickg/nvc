@@ -581,6 +581,8 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
                      && (tree_flags(existing) & TREE_F_PREDEFINED)) {
                // Allow pre-defined operators be to hidden by
                // user-defined subprograms in the same region
+               assert(!(tree_flags(decl) & TREE_F_PREDEFINED));
+               tree_set_flag(existing, TREE_F_HIDDEN);
                continue;
             }
             else if (!type_is_none(tree_type(decl))) {

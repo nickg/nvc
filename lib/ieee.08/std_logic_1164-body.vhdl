@@ -1592,7 +1592,7 @@ package body std_logic_1164 is
       ( 'U', 'X', '0', '1', 'X', 'X', '0', '1', '1' ),
       ( '1', '1', '1', '1', '1', '1', '1', '1', '1' ) );
 
-  function "?=" (l, r : std_ulogic) return std_ulogic is
+  function nvc_rel_match_eq (l, r : std_ulogic) return std_ulogic is
   begin
       assert l /= '-' and r /= '-'
           report "STD_LOGIC_1164: '-' operand for matching ordering operator"
@@ -1611,7 +1611,7 @@ package body std_logic_1164 is
       ( 'U', 'X', '0', '0', 'X', 'X', '0', '0', 'X' ),
       ( 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X' ) );
 
-  function "?<" (l, r : std_ulogic) return std_ulogic is
+  function nvc_rel_match_lt (l, r : std_ulogic) return std_ulogic is
   begin
       assert l /= '-' and r /= '-'
           report "STD_LOGIC_1164: '-' operand for matching ordering operator"

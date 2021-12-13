@@ -939,6 +939,11 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_TYPE_DECL:
          tree_add_decl(ctx->out, d);
          break;
+      case T_FUNC_DECL:
+      case T_PROC_DECL:
+         if (!is_open_coded_builtin(tree_subkind(d)))
+            tree_add_decl(ctx->out, d);
+         break;
       default:
          break;
       }

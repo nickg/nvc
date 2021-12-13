@@ -520,12 +520,14 @@ START_TEST(test_issue328)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t d2 = tree_decl(tree_stmt(top, 0), 4);
-   fail_unless(tree_kind(d2) == T_CONST_DECL);
-   fail_unless(icmp(tree_ident(d2), "VEC_RANGE"));
+   tree_t b0 = tree_stmt(top, 0);
+
+   tree_t vec_range = search_decls(b0, ident_new("VEC_RANGE"), 0);
+   fail_if(vec_range == NULL);
+   fail_unless(tree_kind(vec_range) == T_CONST_DECL);
 
    // Earlier versions of nvc folded this to a T_AGGREGATE
-   fail_unless(tree_kind(tree_value(d2)) == T_FCALL);
+   fail_unless(tree_kind(tree_value(vec_range)) == T_FCALL);
 
    fail_if_errors();
 }
@@ -538,12 +540,14 @@ START_TEST(test_issue330)
    tree_t top = run_elab();
    fail_if(top == NULL);
 
-   tree_t d2 = tree_decl(tree_stmt(top, 0), 4);
-   fail_unless(tree_kind(d2) == T_CONST_DECL);
-   fail_unless(icmp(tree_ident(d2), "VEC_RANGE"));
+   tree_t b0 = tree_stmt(top, 0);
+
+   tree_t vec_range = search_decls(b0, ident_new("VEC_RANGE"), 0);
+   fail_if(vec_range == NULL);
+   fail_unless(tree_kind(vec_range) == T_CONST_DECL);
 
    // Earlier versions of nvc folded this to a T_AGGREGATE
-   fail_unless(tree_kind(tree_value(d2)) == T_FCALL);
+   fail_unless(tree_kind(tree_value(vec_range)) == T_FCALL);
 
    fail_if_errors();
 }

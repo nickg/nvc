@@ -1025,7 +1025,8 @@ static void cgen_op_fcall(int op, cgen_ctx_t *ctx)
    if (result != VCODE_INVALID_REG)
       rtype = vcode_reg_type(result);
 
-   const vcode_cc_t cc = vcode_get_subkind(op);
+   vcode_cc_t cc = vcode_get_subkind(op);
+   if (cc == VCODE_CC_PREDEF) cc = VCODE_CC_VHDL;  // Hack
    ident_t func = vcode_get_func(op);
    const bool has_state_arg =
       result == VCODE_INVALID_REG && cc != VCODE_CC_FOREIGN;
@@ -2399,6 +2400,7 @@ static void cgen_op_pcall(int op, cgen_ctx_t *ctx)
    ident_t func = vcode_get_func(op);
    const int nargs = vcode_count_args(op);
    vcode_cc_t cc = vcode_get_subkind(op);   // HACK: should be const
+   if (cc == VCODE_CC_PREDEF) cc = VCODE_CC_VHDL;
    // HACK: remove this once all VCODE_CC_VHDL take a context param
    const bool has_explict_context =
       nargs > 0 && vcode_reg_kind(vcode_get_arg(op, 0)) == VCODE_TYPE_CONTEXT;

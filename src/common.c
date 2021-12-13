@@ -1183,6 +1183,19 @@ bool is_builtin(subprogram_kind_t kind)
    return kind != S_USER && kind != S_FOREIGN;
 }
 
+bool is_open_coded_builtin(subprogram_kind_t kind)
+{
+   switch (kind) {
+   case S_USER:
+   case S_FOREIGN:
+   case S_ARRAY_EQ:
+   case S_RECORD_EQ:
+      return false;
+   default:
+      return true;
+   }
+}
+
 tree_t find_mangled_decl(tree_t container, ident_t name)
 {
    const int ndecls = tree_decls(container);

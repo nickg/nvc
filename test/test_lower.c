@@ -1031,33 +1031,16 @@ START_TEST(test_array1)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
       { VCODE_OP_ADDRESS_OF },
-      { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_UNWRAP },
-      { VCODE_OP_UARRAY_LEN },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_ALLOCA },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_COND, .target = 2, .target_else = 3 }
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_FCALL, .func = "STD.STANDARD.\"=\"(QQ)B" },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
+      { VCODE_OP_WAIT, .target = 2 },
    };
 
    CHECK_BB(1);
-
-   EXPECT_BB(2) = {
-      { VCODE_OP_MEMCMP },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_JUMP, .target = 3 }
-   };
-
-   CHECK_BB(2);
-
-   EXPECT_BB(3) = {
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
-      { VCODE_OP_WAIT, .target = 4 }
-   };
-
-   CHECK_BB(3);
 }
 END_TEST
 
@@ -1309,17 +1292,10 @@ START_TEST(test_record1)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_RECORD_REF, .field = 0 },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_RECORD_REF, .field = 1 },
-      { VCODE_OP_RECORD_REF, .field = 1 },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_AND },
+      { VCODE_OP_TEMP_STACK_MARK },
+      { VCODE_OP_FCALL, .func = "*WORK.RECORD1(TEST).\"=\"(" },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
@@ -1638,11 +1614,6 @@ START_TEST(test_slice1)
 {
    input_from_file(TESTDIR "/lower/slice1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
@@ -1659,6 +1630,7 @@ START_TEST(test_slice1)
       { VCODE_OP_CONST_ARRAY, .length = 4 },
       { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_COPY },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
       { VCODE_OP_CONST, .value = 2 },
@@ -1667,17 +1639,25 @@ START_TEST(test_slice1)
       { VCODE_OP_CONST_ARRAY, .length = 2 },
       { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_COPY },
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ADD },
+      { VCODE_OP_WRAP },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
       { VCODE_OP_ADDRESS_OF },
-      { VCODE_OP_MEMCMP },
+      { VCODE_OP_CONST, .value = -2147483648 },
+      { VCODE_OP_CONST, .value = -2147483647 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_FCALL, .func="*WORK.SLICE1(TEST).\"=\"" },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_WAIT, .target = 2 },
    };
 
    CHECK_BB(1);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1704,16 +1684,16 @@ START_TEST(test_memset)
 {
    input_from_file(TESTDIR "/lower/memset.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
+   tree_t b0 = tree_stmt(e, 0);
+
    {
-      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 2));
+      tree_t f = search_decls(b0, ident_new("FOO"), 0);
+      fail_if(f == NULL);
+
+      vcode_unit_t v0 = find_unit_for(f);
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1736,7 +1716,10 @@ START_TEST(test_memset)
    }
 
    {
-      vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 3));
+      tree_t f = search_decls(b0, ident_new("BAR"), 0);
+      fail_if(f == NULL);
+
+      vcode_unit_t v0 = find_unit_for(f);
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
@@ -1760,6 +1743,8 @@ START_TEST(test_memset)
 
       CHECK_BB(0);
    }
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1884,7 +1869,11 @@ START_TEST(test_record6)
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
-   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 2));
+   tree_t f = search_decls(tree_stmt(e, 0), ident_new("MAKE_REC"), 0);
+   fail_if(f == NULL);
+   fail_unless(tree_kind(f) == T_FUNC_BODY);
+
+   vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
 
    fail_unless(vcode_var_flags(0) & VAR_HEAP);
@@ -2190,7 +2179,12 @@ START_TEST(test_issue136)
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
-   vcode_unit_t v0 = find_unit_for(tree_decl(tree_decl(tree_stmt(e, 0), 3), 1));
+   tree_t body = search_decls(tree_stmt(e, 0),
+                              ident_new("RECORD_RETURNER_T"), 1);
+   fail_if(body == NULL);
+   fail_unless(tree_kind(body) == T_PROT_BODY);
+
+   vcode_unit_t v0 = find_unit_for(tree_decl(body, 1));
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2940,31 +2934,15 @@ START_TEST(test_issue338b)
    EXPECT_BB(0) = {
       { VCODE_OP_CONST_ARRAY, .length = 0 },
       { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_UNWRAP },
-      { VCODE_OP_UARRAY_LEN },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_ALLOCA },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_COND, .target = 1, .target_else = 2 }
-   };
-
-   CHECK_BB(0);
-
-   EXPECT_BB(1) = {
-      { VCODE_OP_MEMCMP },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_JUMP, .target = 2 }
-   };
-
-   CHECK_BB(1);
-
-   EXPECT_BB(2) = {
-      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_FCALL, .func = "STD.STANDARD.\"=\"(SS)B" },
       { VCODE_OP_RETURN }
    };
 
-   CHECK_BB(2);
+   CHECK_BB(0);
 }
 END_TEST
 
@@ -3000,14 +2978,19 @@ START_TEST(test_hintbug)
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_WRAP },
       { VCODE_OP_LOAD, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ALLOCA },
+      { VCODE_OP_WRAP },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_MEMCMP },
+      { VCODE_OP_FCALL , .func="STD.STANDARD.\"=\"(QQ)B" },
       { VCODE_OP_ASSERT },
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 }
@@ -3199,7 +3182,10 @@ START_TEST(test_access1)
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
-   vcode_unit_t v0 = find_unit_for(tree_decl(tree_stmt(e, 0), 4));
+   tree_t d = search_decls(tree_stmt(e, 0), ident_new("LIST_ADD"), 0);
+   fail_if(d == NULL);
+
+   vcode_unit_t v0 = find_unit_for(d);
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {

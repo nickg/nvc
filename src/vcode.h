@@ -175,6 +175,7 @@ typedef enum {
 
 typedef enum {
    VCODE_CC_VHDL,
+   VCODE_CC_PREDEF,
    VCODE_CC_FOREIGN,
    VCODE_CC_PROTECTED,   // TODO: temporary
 } vcode_cc_t;

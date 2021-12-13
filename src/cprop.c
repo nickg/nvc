@@ -530,6 +530,7 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_LAST_VALUE:
             if (req->last_value)
                (*req->last_value)(op, regs, req->context);
+            regs[vcode_get_result(op)].tag = CP_UNKNOWN;
             break;
 
          case VCODE_OP_EVENT:

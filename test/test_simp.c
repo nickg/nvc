@@ -503,12 +503,12 @@ START_TEST(test_issue331)
 
    tree_t test_ng = tree_stmt(top, 0);
 
-   fail_unless(tree_decls(test_ng) == 6);
-   tree_t d2 = tree_decl(test_ng, 4);
-   fail_unless(tree_ident(d2) == ident_new("VEC_RANGE"));
+   tree_t vec_range = search_decls(test_ng, ident_new("VEC_RANGE"), 0);
+   fail_if(vec_range == NULL);
+   fail_unless(tree_kind(vec_range) == T_CONST_DECL);
 
    // Earlier versions of nvc folded this to a T_AGGREGATE
-   fail_unless(tree_kind(tree_value(d2)) == T_FCALL);
+   fail_unless(tree_kind(tree_value(vec_range)) == T_FCALL);
 }
 END_TEST
 
@@ -872,9 +872,9 @@ START_TEST(test_static1)
    fail_unless(tree_ident(addr_p) == ident_new("ADDR"));
    fail_unless(folded_i(tree_left(range_of(tree_type(addr_p), 0)), 9));
 
-   tree_t addr_r = tree_decl(uut, 2);
+   tree_t addr_r = search_decls(uut, ident_new("ADDR_R"), 0);
+   fail_if(addr_r == NULL);
    fail_unless(tree_kind(addr_r) == T_SIGNAL_DECL);
-   fail_unless(tree_ident(addr_r) == ident_new("ADDR_R"));
    fail_unless(folded_i(tree_left(range_of(tree_type(addr_r), 0)), 9));
 }
 END_TEST

@@ -912,6 +912,12 @@ static void eval_op_fcall(int op, eval_state_t *state)
       eval_real_to_string(dst, src, state);
       return;
    }
+   else if (cc == VCODE_CC_PREDEF) {
+      // Always evaluate predefined operators
+   }
+   else if (!(state->flags & EVAL_FCALL)) {
+      state->failed = true;
+   }
    else if (cc != VCODE_CC_VHDL) {
       EVAL_WARN(state, op, "function call to foreign or protected "
                 "function %s prevents constant folding", istr(func_name));
@@ -1999,10 +2005,7 @@ static void eval_vcode(eval_state_t *state)
          break;
 
       case VCODE_OP_FCALL:
-         if (state->flags & EVAL_FCALL)
-            eval_op_fcall(state->op, state);
-         else
-            state->failed = true;
+         eval_op_fcall(state->op, state);
          break;
 
       case VCODE_OP_BOUNDS:
@@ -2469,9 +2472,9 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
    if (ctx != NULL)
       return ctx;
 
-   assert(ex->flags & EVAL_FCALL);
+   eval_flags_t flags = ex->flags | EVAL_WARN | EVAL_FCALL | EVAL_BOUNDS;
 
-   vcode_unit_t unit = eval_find_unit(ident, ex->flags | EVAL_WARN);
+   vcode_unit_t unit = eval_find_unit(ident, flags);
    assert(unit);
 
    vcode_state_t vcode_state;
@@ -2484,7 +2487,7 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
       .result = -1,
       .hint   = NULL,
       .failed = false,
-      .flags  = ex->flags | EVAL_BOUNDS,
+      .flags  = flags,
       .exec   = ex,
    };
 
