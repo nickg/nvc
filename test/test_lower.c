@@ -955,56 +955,22 @@ START_TEST(test_arrayop1)
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_INDEX, .name = "X" },
+      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_WRAP },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
       { VCODE_OP_ADDRESS_OF },
-      { VCODE_OP_ALLOCA },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_ALLOCA },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_JUMP, .target = 2 }
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_FCALL, .func = "STD.STANDARD.\"<\"(QQ)B" },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_TEMP_STACK_RESTORE },
+      { VCODE_OP_WAIT, .target = 2 }
    };
 
    CHECK_BB(1);
-
-   EXPECT_BB(2) = {
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_GEQ },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_COND, .target = 4, .target_else = 3 }
-   };
-
-   CHECK_BB(2);
-
-   EXPECT_BB(3) = {
-      { VCODE_OP_ADD },
-      { VCODE_OP_ADD },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_ADD },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_NOT },
-      { VCODE_OP_OR },
-      { VCODE_OP_COND, .target = 4, .target_else = 2 }
-   };
-
-   CHECK_BB(3);
-
-   EXPECT_BB(4) = {
-      { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
-      { VCODE_OP_WAIT, .target = 5 }
-   };
-
-   CHECK_BB(4);
 }
 END_TEST
 

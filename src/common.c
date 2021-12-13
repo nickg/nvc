@@ -1190,6 +1190,10 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_FOREIGN:
    case S_ARRAY_EQ:
    case S_ARRAY_NEQ:
+   case S_ARRAY_LT:
+   case S_ARRAY_LE:
+   case S_ARRAY_GT:
+   case S_ARRAY_GE:
    case S_RECORD_EQ:
    case S_RECORD_NEQ:
       return false;
