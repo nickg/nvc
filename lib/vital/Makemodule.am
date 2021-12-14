@@ -7,12 +7,15 @@ vital_DATA = \
 	lib/ieee/IEEE.VITAL_PRIMITIVES \
 	lib/ieee/IEEE.VITAL_PRIMITIVES-body \
 	lib/ieee/IEEE.VITAL_MEMORY \
+	lib/ieee/IEEE.VITAL_MEMORY-body \
 	lib/ieee/_IEEE.VITAL_TIMING.vcode \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.vcode
+	lib/ieee/_IEEE.VITAL_PRIMITIVES.vcode \
+	lib/ieee/_IEEE.VITAL_MEMORY.vcode
 
 vital_so = \
 	lib/ieee/_IEEE.VITAL_TIMING.$(DLL_EXT) \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.$(DLL_EXT)
+	lib/ieee/_IEEE.VITAL_PRIMITIVES.$(DLL_EXT) \
+	lib/ieee/_IEEE.VITAL_MEMORY.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
 

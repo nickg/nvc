@@ -3304,9 +3304,9 @@ START_TEST(test_synopsys1)
       { VCODE_OP_ALLOCA },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "M" },
+      { VCODE_OP_UNWRAP },
       { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
       { VCODE_OP_ARRAY_SIZE },
-      { VCODE_OP_UNWRAP },
       { VCODE_OP_COPY },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_COND, .target = 2, .target_else = 1 }
@@ -3717,6 +3717,55 @@ START_TEST(test_instance1)
 }
 END_TEST
 
+START_TEST(test_sig2var)
+{
+   input_from_file(TESTDIR "/lower/sig2var.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   {
+      vcode_unit_t vfoo = find_unit("WORK.SIG2VAR(TEST).FOO(sQ)Q$:sig2var");
+      vcode_select_unit(vfoo);
+
+      fail_unless(vcode_count_vars() == 1);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 8 },
+         { VCODE_OP_INDEX, .name = "V" },
+         { VCODE_OP_UNWRAP },
+         { VCODE_OP_RESOLVED },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 8 },
+         { VCODE_OP_UARRAY_LEN },
+         { VCODE_OP_ARRAY_SIZE },
+         { VCODE_OP_COPY },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t vbar = find_unit("WORK.SIG2VAR(TEST).BAR(sJ)J$:sig2var");
+      vcode_select_unit(vbar);
+
+      fail_unless(vcode_count_vars() == 1);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_RESOLVED },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_STORE, .name = "V" },
+         { VCODE_OP_RETURN },
+      };
+
+      CHECK_BB(0);
+   }
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3805,6 +3854,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_resfn1);
    tcase_add_test(tc, test_issue426);
    tcase_add_test(tc, test_instance1);
+   tcase_add_test(tc, test_sig2var);
    suite_add_tcase(s, tc);
 
    return s;

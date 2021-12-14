@@ -801,6 +801,21 @@ static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
    return (*fn)(nets, length);
 }
 
+static vcode_reg_t lower_last_value(tree_t ref)
+{
+   vcode_reg_t nets = lower_expr(ref, EXPR_LVALUE);
+
+   type_t type = tree_type(ref);
+   if (type_is_array(type) && !lower_const_bounds(type)) {
+      assert(vcode_reg_kind(nets) == VCODE_TYPE_UARRAY);
+      vcode_reg_t last_reg = emit_last_value(emit_unwrap(nets));
+      return lower_wrap_with_new_bounds(type, nets, last_reg);
+   }
+   else
+      return emit_last_value(nets);
+}
+
+
 static type_t lower_arg_type(tree_t fcall, int nth)
 {
    if (nth >= tree_params(fcall))
@@ -3152,8 +3167,10 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          type_t name_type = tree_type(name);
          vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE);
          vcode_reg_t len_reg = VCODE_INVALID_REG;
-         if (type_is_array(name_type))
+         if (type_is_array(name_type)) {
             len_reg = lower_array_total_len(name_type, name_reg);
+            name_reg = lower_array_data(name_reg);
+         }
 
          if (predef == ATTR_LAST_EVENT)
             return emit_last_event(name_reg, len_reg);
@@ -3192,7 +3209,7 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
       return lower_signal_flag(name, emit_driving_flag);
 
    case ATTR_LAST_VALUE:
-     return emit_last_value(lower_expr(name, EXPR_LVALUE));
+      return lower_last_value(name);
 
    case ATTR_INSTANCE_NAME:
    case ATTR_PATH_NAME:
@@ -4716,11 +4733,13 @@ static void lower_var_decl(tree_t decl)
       vcode_clear_storage_hint(hint);
 
    if (type_is_array(type)) {
-      if (is_const && skip_copy) {
-         assert(vcode_reg_kind(value_reg) == VCODE_TYPE_POINTER);
+      vcode_reg_t data_reg = lower_array_data(value_reg);
+      if (lower_have_signal(data_reg))
+         data_reg = emit_resolved(data_reg);
 
+      if (is_const && skip_copy) {
          if (type_is_unconstrained(type)) {
-            vcode_reg_t wrapped_reg = lower_wrap(value_type, value_reg);
+            vcode_reg_t wrapped_reg = lower_wrap(value_type, data_reg);
             emit_store(wrapped_reg, var);
          }
          else
@@ -4733,7 +4752,7 @@ static void lower_var_decl(tree_t decl)
          dest_reg = emit_alloca(lower_type(scalar_elem),
                                 lower_bounds(scalar_elem),
                                 count_reg);
-         emit_copy(dest_reg, lower_array_data(value_reg), count_reg);
+         emit_copy(dest_reg, data_reg, count_reg);
          vcode_reg_t wrapped_reg =
             lower_wrap_with_new_bounds(value_type, value_reg, dest_reg);
          emit_store(wrapped_reg, var);
@@ -4745,7 +4764,7 @@ static void lower_var_decl(tree_t decl)
          lower_check_indexes(type, value_reg, decl);
          lower_check_array_sizes(decl, type, value_type,
                                  VCODE_INVALID_REG, value_reg);
-         emit_copy(dest_reg, lower_array_data(value_reg), count_reg);
+         emit_copy(dest_reg, data_reg, count_reg);
       }
    }
    else if (type_is_record(type)) {
