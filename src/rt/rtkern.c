@@ -1225,47 +1225,6 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 }
 
 DLLEXPORT
-void _bit_shift(int32_t kind, const uint8_t *data, int32_t len,
-                int8_t dir, int32_t shift, uarray_t *u)
-{
-   if (shift < 0) {
-      kind  = kind ^ 1;
-      shift = -shift;
-   }
-
-   shift %= len;
-
-   uint8_t *buf = rt_tmp_alloc(len);
-
-   for (int i = 0; i < len; i++) {
-      switch (kind) {
-      case BIT_SHIFT_SLL:
-         buf[i] = (i < len - shift) ? data[i + shift] : 0;
-         break;
-      case BIT_SHIFT_SRL:
-         buf[i] = (i >= shift) ? data[i - shift] : 0;
-         break;
-      case BIT_SHIFT_SLA:
-         buf[i] = (i < len - shift) ? data[i + shift] : data[len - 1];
-         break;
-      case BIT_SHIFT_SRA:
-         buf[i] = (i >= shift) ? data[i - shift] : data[0];
-         break;
-      case BIT_SHIFT_ROL:
-         buf[i] = (i < len - shift) ? data[i + shift] : data[(i + shift) % len];
-         break;
-      case BIT_SHIFT_ROR:
-         buf[i] = (i >= shift) ? data[i - shift] : data[len + i - shift];
-         break;
-      }
-   }
-
-   u->ptr = buf;
-   u->dims[0].left = (dir == RANGE_TO) ? 0 : len - 1;
-   u->dims[0].length = (dir == RANGE_TO) ? len : -len;
-}
-
-DLLEXPORT
 void _bit_vec_op(int32_t kind, const uint8_t *left, int32_t left_len,
                  int8_t left_dir, const uint8_t *right, int32_t right_len,
                  int8_t right_dir, uarray_t *u)

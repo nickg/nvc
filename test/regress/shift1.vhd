@@ -7,9 +7,12 @@ begin
     process is
         variable b : bit_vector(3 downto 0);
         variable c : bit_vector(0 to 3);
+        variable d : bit_vector(0 to -1);
     begin
         b := "1011";
         c := "1011";
+
+        wait for 1 ns;
 
         assert (b sll 1) = "0110";
         assert (c sll 1) = "0110";
@@ -36,6 +39,8 @@ begin
         assert (c ror -2) = "1110";
         assert (b rol -1) = "1101";
         assert (c rol -1) = "1101";
+
+        assert (d sll 1) = d;           -- Null array
 
         wait;
     end process;

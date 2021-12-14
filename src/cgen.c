@@ -2734,32 +2734,6 @@ static void cgen_op_const_real(int op, cgen_ctx_t *ctx)
                                      vcode_get_real(op));
 }
 
-static void cgen_op_bit_shift(int op, cgen_ctx_t *ctx)
-{
-   LLVMTypeRef utype = llvm_uarray_type(LLVMInt1Type(), 1);
-   LLVMValueRef tmp = cgen_scoped_alloca(utype, ctx);
-   llvm_lifetime_start(tmp, utype);
-
-   LLVMValueRef data  = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef len   = cgen_get_arg(op, 1, ctx);
-   LLVMValueRef dir   = cgen_get_arg(op, 2, ctx);
-   LLVMValueRef shift = cgen_get_arg(op, 3, ctx);
-
-   LLVMValueRef args[] = {
-      llvm_int32(vcode_get_subkind(op)),
-      data,
-      len,
-      dir,
-      shift,
-      tmp
-   };
-   LLVMBuildCall(builder, llvm_fn("_bit_shift"), args, ARRAY_LEN(args), "");
-
-   vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildLoad(builder, tmp, cgen_reg_name(result));
-   llvm_lifetime_end(tmp, utype);
-}
-
 static void cgen_op_bit_vec_op(int op, cgen_ctx_t *ctx)
 {
    LLVMTypeRef utype = llvm_uarray_type(LLVMInt1Type(), 1);
@@ -3349,9 +3323,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_INDEX_CHECK:
       cgen_op_index_check(i, ctx);
-      break;
-   case VCODE_OP_BIT_SHIFT:
-      cgen_op_bit_shift(i, ctx);
       break;
    case VCODE_OP_DEBUG_OUT:
       cgen_op_debug_out(i, ctx);
@@ -4263,19 +4234,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
-   }
-   else if (strcmp(name, "_bit_shift") == 0) {
-      LLVMTypeRef args[] = {
-         LLVMInt32Type(),
-         LLVMPointerType(LLVMInt1Type(), 0),
-         LLVMInt32Type(),
-         LLVMInt1Type(),
-         LLVMInt32Type(),
-         LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
-      };
-      fn = LLVMAddFunction(module, "_bit_shift",
-                           LLVMFunctionType(LLVMVoidType(),
-                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_bit_vec_op") == 0) {
       LLVMTypeRef args[] = {

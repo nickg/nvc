@@ -1115,21 +1115,6 @@ static vcode_reg_t lower_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t r0,
                           r1_dir, lower_type(tree_type(fcall)));
 }
 
-static vcode_reg_t lower_bit_shift(bit_shift_kind_t kind, vcode_reg_t array,
-                                   type_t type, vcode_reg_t shift)
-{
-   type_t elem = type_elem(type);
-   vcode_type_t vtype = vtype_uarray(1, lower_type(elem), lower_bounds(elem));
-
-   vcode_reg_t data_reg = lower_array_data(array);
-   vcode_reg_t len_reg  = lower_array_len(type, 0, array);
-   vcode_reg_t dir_reg  = lower_array_dir(type, 0, array);
-
-   vcode_reg_t shift_reg = emit_cast(vtype_offset(), VCODE_INVALID_TYPE, shift);
-
-   return emit_bit_shift(kind, data_reg, len_reg, dir_reg, shift_reg, vtype);
-}
-
 static void lower_cond_coverage(tree_t test, vcode_reg_t value)
 {
    int32_t cover_tag, sub_cond;
@@ -1601,18 +1586,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
    case S_MATCH_GT:
    case S_MATCH_GE:
       return lower_match_op(builtin, r0, r0_type, r1);
-   case S_SLL:
-      return lower_bit_shift(BIT_SHIFT_SLL, r0, r0_type, r1);
-   case S_SRL:
-      return lower_bit_shift(BIT_SHIFT_SRL, r0, r0_type, r1);
-   case S_SLA:
-      return lower_bit_shift(BIT_SHIFT_SLA, r0, r0_type, r1);
-   case S_SRA:
-      return lower_bit_shift(BIT_SHIFT_SRA, r0, r0_type, r1);
-   case S_ROL:
-      return lower_bit_shift(BIT_SHIFT_ROL, r0, r0_type, r1);
-   case S_ROR:
-      return lower_bit_shift(BIT_SHIFT_ROR, r0, r0_type, r1);
    case S_MUL_RP:
    case S_MUL_RI:
       {
@@ -6119,6 +6092,153 @@ static void lower_predef_to_string(tree_t decl, vcode_unit_t context)
       fatal_trace("cannot generate TO_STRING for %s", type_pp(arg_type));
 }
 
+static void lower_predef_bit_shift(tree_t decl, vcode_unit_t context,
+                                   subprogram_kind_t kind)
+{
+   type_t type = tree_type(tree_port(decl, 0));
+   type_t elem = type_elem(type);
+
+   vcode_type_t vtype = lower_type(elem);
+   vcode_type_t vbounds = lower_bounds(elem);
+   vcode_type_t voffset = vtype_offset();
+
+   vcode_reg_t r0 = 0, r1 = 1;
+
+   vcode_reg_t data_reg = lower_array_data(r0);
+   vcode_reg_t len_reg  = lower_array_len(type, 0, r0);
+
+   vcode_block_t null_bb = emit_block();
+   vcode_block_t non_null_bb = emit_block();
+
+   vcode_reg_t is_null_reg =
+      emit_cmp(VCODE_CMP_EQ, len_reg, emit_const(voffset, 0));
+   emit_cond(is_null_reg, null_bb, non_null_bb);
+
+   vcode_select_block(null_bb);
+   emit_return(r0);
+
+   vcode_select_block(non_null_bb);
+
+   vcode_reg_t shift_reg = emit_cast(vtype_offset(), VCODE_INVALID_TYPE, r1);
+   shift_reg = emit_rem(shift_reg, len_reg);
+
+   vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len_reg);
+
+   vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+   emit_store(emit_const(voffset, 0), i_var);
+
+   vcode_block_t cmp_bb  = emit_block();
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   vcode_reg_t def_reg = VCODE_INVALID_REG;
+   switch (kind) {
+   case S_SLL: case S_SRL: case S_ROL: case S_ROR:
+      def_reg = emit_const(vtype, 0);
+      break;
+   case S_SRA:
+      {
+         vcode_reg_t last_ptr =
+            emit_add(data_reg, emit_sub(len_reg, emit_const(voffset, 1)));
+         def_reg = emit_load_indirect(last_ptr);
+      }
+      break;
+   case S_SLA:
+      def_reg = emit_load_indirect(data_reg);
+      break;
+   default:
+      break;
+   }
+
+   vcode_reg_t shift_is_neg =
+      emit_cmp(VCODE_CMP_LT, shift_reg, emit_const(voffset, 0));
+
+   emit_jump(cmp_bb);
+
+   vcode_select_block(cmp_bb);
+
+   vcode_reg_t i_reg  = emit_load(i_var);
+   vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, i_reg, len_reg);
+   emit_cond(eq_reg, exit_bb, body_bb);
+
+   vcode_select_block(body_bb);
+
+   vcode_reg_t cmp_reg = VCODE_INVALID_REG;
+   switch (kind) {
+   case S_SRL: case S_SRA:
+      {
+         vcode_reg_t neg_reg =
+            emit_cmp(VCODE_CMP_LT, i_reg, emit_add(len_reg, shift_reg));
+         vcode_reg_t pos_reg =
+            emit_cmp(VCODE_CMP_GEQ, i_reg, shift_reg);
+         cmp_reg = emit_select(shift_is_neg, neg_reg, pos_reg);
+      }
+      break;
+   case S_SLL: case S_SLA:
+      {
+         vcode_reg_t neg_reg =
+            emit_cmp(VCODE_CMP_GEQ, i_reg, emit_neg(shift_reg));
+         vcode_reg_t pos_reg =
+            emit_cmp(VCODE_CMP_LT, i_reg, emit_sub(len_reg, shift_reg));
+         cmp_reg = emit_select(shift_is_neg, neg_reg, pos_reg);
+      }
+      break;
+   case S_ROL: case S_ROR:
+      cmp_reg = emit_const(vtype_bool(), 1);
+   default:
+      break;
+   }
+
+   vcode_reg_t dst_ptr = emit_add(mem_reg, i_reg);
+
+   vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
+   emit_store(next_reg, i_var);
+
+   vcode_block_t true_bb = emit_block();
+   vcode_block_t false_bb = emit_block();
+
+   emit_cond(cmp_reg, true_bb, false_bb);
+
+   vcode_select_block(true_bb);
+
+   vcode_reg_t src_reg;
+   switch (kind) {
+   case S_SLL: case S_SLA:
+      src_reg = emit_add(i_reg, shift_reg);
+      break;
+   case S_SRL: case S_SRA:
+      src_reg = emit_sub(i_reg, shift_reg);
+      break;
+   case S_ROL:
+      src_reg = emit_mod(emit_add(i_reg, emit_add(len_reg, shift_reg)),
+                         len_reg);
+      break;
+   case S_ROR:
+      src_reg = emit_mod(emit_add(i_reg, emit_sub(len_reg, shift_reg)),
+                         len_reg);
+      break;
+   default:
+      break;
+   }
+
+   vcode_reg_t load_reg = emit_load_indirect(emit_add(data_reg, src_reg));
+   emit_store_indirect(load_reg, dst_ptr);
+   emit_jump(cmp_bb);
+
+   vcode_select_block(false_bb);
+   emit_store_indirect(def_reg, dst_ptr);
+   emit_jump(cmp_bb);
+
+   vcode_select_block(exit_bb);
+
+   vcode_reg_t left_reg  = emit_uarray_left(r0, 0);
+   vcode_reg_t right_reg = emit_uarray_right(r0, 0);
+   vcode_reg_t dir_reg   = emit_uarray_dir(r0, 0);
+
+   vcode_dim_t dims[] = { { left_reg, right_reg, dir_reg } };
+   emit_return(emit_wrap(mem_reg, dims, 1));
+}
+
 static void lower_predef_negate(tree_t decl, vcode_unit_t context,
                                 const char *op)
 {
@@ -6175,6 +6295,14 @@ static void lower_predef(tree_t decl, vcode_unit_t context)
       break;
    case S_TO_STRING:
       lower_predef_to_string(decl, context);
+      break;
+   case S_SLL:
+   case S_SRL:
+   case S_SLA:
+   case S_SRA:
+   case S_ROL:
+   case S_ROR:
+      lower_predef_bit_shift(decl, context, kind);
       break;
    default:
       break;

@@ -708,7 +708,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_CONST_RECORD:
          case VCODE_OP_ADDRESS_OF:
          case VCODE_OP_NULL:
-         case VCODE_OP_BIT_SHIFT:
          case VCODE_OP_DIV:
          case VCODE_OP_NEW:
          case VCODE_OP_DRIVING_VALUE:

@@ -1653,74 +1653,6 @@ static void eval_op_memset(int op, eval_state_t *state)
       dst->pointer[i] = *fill;
 }
 
-static void eval_op_bit_shift(int op, eval_state_t *state)
-{
-   value_t *data = eval_get_reg(vcode_get_arg(op, 0), state);
-   value_t *length = eval_get_reg(vcode_get_arg(op, 1), state);
-   value_t *dir = eval_get_reg(vcode_get_arg(op, 2), state);
-   value_t *shift = eval_get_reg(vcode_get_arg(op, 3), state);
-   value_t *dst = eval_get_reg(vcode_get_result(op), state);
-
-   bit_shift_kind_t kind = vcode_get_subkind(op);
-
-   EVAL_ASSERT_VALUE(op, data, VALUE_POINTER);
-   EVAL_ASSERT_VALUE(op, length, VALUE_INTEGER);
-   EVAL_ASSERT_VALUE(op, dir, VALUE_INTEGER);
-   EVAL_ASSERT_VALUE(op, shift, VALUE_INTEGER);
-
-   int shift_i = shift->integer;
-   if (shift_i < 0) {
-      kind = kind ^ 1;
-      shift_i = -shift_i;
-   }
-
-   shift_i %= length->integer;
-
-   value_t *buf = eval_alloc(length->integer, state);
-
-   for (int i = 0; i < length->integer; i++) {
-      buf[i].kind = VALUE_INTEGER;
-      switch (kind) {
-      case BIT_SHIFT_SLL:
-         buf[i].integer = (i < length->integer - shift_i)
-            ? data->pointer[i + shift_i].integer : 0;
-         break;
-      case BIT_SHIFT_SRL:
-         buf[i].integer = (i >= shift_i)
-            ? data->pointer[i - shift_i].integer : 0;
-         break;
-      case BIT_SHIFT_SLA:
-         buf[i].integer = (i < length->integer - shift_i)
-            ? data->pointer[i + shift_i].integer
-            : data->pointer[length->integer - 1].integer;
-         break;
-      case BIT_SHIFT_SRA:
-         buf[i].integer = (i >= shift_i)
-            ? data->pointer[i - shift_i].integer : data->pointer[0].integer;
-         break;
-      case BIT_SHIFT_ROL:
-         buf[i].integer = (i < length->integer - shift_i)
-            ? data->pointer[i + shift_i].integer
-            : data->pointer[(i + shift_i) % length->integer].integer;
-         break;
-      case BIT_SHIFT_ROR:
-         buf[i].integer = (i >= shift_i)
-            ? data->pointer[i - shift_i].integer
-            : data->pointer[length->integer + i - shift_i].integer;
-         break;
-      }
-   }
-
-   dst[0].kind    = VALUE_UARRAY;
-   dst[0].length  = 1;
-   dst[0].pointer = buf;
-   dst[1].kind    = VALUE_INTEGER;
-   dst[1].integer = (dir->integer == RANGE_TO) ? 0 : length->integer - 1;
-   dst[2].kind    = VALUE_INTEGER;
-   dst[2].integer =
-      (dir->integer == RANGE_TO) ? length->integer : -length->integer;
-}
-
 static void eval_op_array_size(int op, eval_state_t *state)
 {
    value_t *llen = eval_get_reg(vcode_get_arg(op, 0), state);
@@ -2146,10 +2078,6 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_MEMSET:
          eval_op_memset(state->op, state);
-         break;
-
-      case VCODE_OP_BIT_SHIFT:
-         eval_op_bit_shift(state->op, state);
          break;
 
       case VCODE_OP_ARRAY_SIZE:

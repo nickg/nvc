@@ -47,15 +47,6 @@ typedef enum {
 } bounds_kind_t;
 
 typedef enum {
-   BIT_SHIFT_SLL,
-   BIT_SHIFT_SRL,
-   BIT_SHIFT_SLA,
-   BIT_SHIFT_SRA,
-   BIT_SHIFT_ROL,
-   BIT_SHIFT_ROR,
-} bit_shift_kind_t;
-
-typedef enum {
    BIT_VEC_NOT,
    BIT_VEC_AND,
    BIT_VEC_OR,

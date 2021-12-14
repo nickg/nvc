@@ -106,7 +106,6 @@ typedef enum {
    VCODE_OP_DYNAMIC_BOUNDS,
    VCODE_OP_ARRAY_SIZE,
    VCODE_OP_INDEX_CHECK,
-   VCODE_OP_BIT_SHIFT,
    VCODE_OP_STORAGE_HINT,
    VCODE_OP_DEBUG_OUT,
    VCODE_OP_COVER_STMT,
@@ -401,7 +400,6 @@ vcode_reg_t emit_uarray_right(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_uarray_len(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_unwrap(vcode_reg_t array);
-vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var);
 void emit_init_signal(vcode_reg_t signal, vcode_reg_t value, vcode_reg_t count,
@@ -442,9 +440,6 @@ vcode_reg_t emit_driving_flag(vcode_reg_t signal, vcode_reg_t len);
 vcode_reg_t emit_driving_value(vcode_reg_t signal, vcode_reg_t len);
 void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, bounds_kind_t kind,
                      const char *hint);
-vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
-                           vcode_reg_t len, vcode_reg_t dir, vcode_reg_t shift,
-                           vcode_type_t result);
 uint32_t emit_storage_hint(vcode_reg_t mem, vcode_reg_t length);
 void emit_debug_out(vcode_reg_t reg);
 void emit_cover_stmt(uint32_t tag);

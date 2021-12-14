@@ -1208,6 +1208,12 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_RECORD_EQ:
    case S_RECORD_NEQ:
    case S_TO_STRING:
+   case S_SLL:
+   case S_SRL:
+   case S_SLA:
+   case S_SRA:
+   case S_ROL:
+   case S_ROR:
       return false;
    default:
       return true;

@@ -1130,7 +1130,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
    }
 
    bool vec_logical = false;
-   if (kind == T_CARRAY || kind == T_UARRAY) {
+   if ((kind == T_CARRAY || kind == T_UARRAY) && dimension_of(t) == 1) {
       type_t base = type_elem(t);
       vec_logical = (base == std_bool || base == std_type(NULL, STD_BIT));
    }
