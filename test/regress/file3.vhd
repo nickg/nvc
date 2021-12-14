@@ -1,30 +1,36 @@
 entity file3 is
 end entity;
 
-architecture test of file3 is
-    type natural_vector is array (natural range <>) of natural;
-    subtype natural5 is natural_vector(1 to 5);
-    type ft is file of natural5;
+architecture a of file3 is
 begin
+  main : process
+    constant file_name : string := "output.raw";
+    type binary_file is file of character;
+    file fptr : binary_file;
+    variable fstatus : file_open_status;
+    variable tmp, tmp2 : character;
+  begin
+    assert character'pos(character'low) = 0;
+    assert character'pos(character'high) = 255;
 
-    process is
-        file f     : ft;
-        variable v : natural5;
-    begin
-        file_open(f, "test.bin", WRITE_MODE);
-        v := (1, 2, 3, 4, 5);
-        write(f, v);
-        file_close(f);
+    file_open(fstatus, fptr, file_name, write_mode);
+    assert fstatus = open_ok;
+    for i in 0 to 255 loop
+      write(fptr, character'val(i));
+    end loop;
+    file_close(fptr);
 
-        v := (others => 0);
+    file_open(fstatus, fptr, file_name, read_mode);
+    assert fstatus = open_ok;
 
-        file_open(f, "test.bin", READ_MODE);
-        read(f, v);
-        file_close(f);
+    for i in 0 to 255 loop
+      read(fptr, tmp);
+      assert character'pos(tmp) = i;
+    end loop;
+    assert endfile(fptr);
+    file_close(fptr);
 
-        assert v = (1, 2, 3, 4, 5);
-
-        wait;
-    end process;
-
-end architecture;
+    report "Success";
+    wait;
+  end process;
+end;

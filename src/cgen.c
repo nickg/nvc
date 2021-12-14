@@ -2639,13 +2639,15 @@ static void cgen_op_file_read(int op, cgen_ctx_t *ctx)
    LLVMValueRef ptr  = cgen_get_arg(op, 1, ctx);
 
    LLVMTypeRef value_type = LLVMGetElementType(LLVMTypeOf(ptr));
-   LLVMValueRef bytes = LLVMBuildIntCast(builder,
-                                         LLVMSizeOf(value_type),
-                                         LLVMInt32Type(), "");
+   LLVMValueRef size = LLVMBuildIntCast(builder,
+                                        LLVMSizeOf(value_type),
+                                        LLVMInt32Type(), "");
 
-   LLVMValueRef inlen = bytes;
+   LLVMValueRef count;
    if (vcode_count_args(op) >= 3)
-      inlen = LLVMBuildMul(builder, cgen_get_arg(op, 2, ctx), bytes, "");
+      count = cgen_get_arg(op, 2, ctx);
+   else
+      count = llvm_int32(1);
 
    LLVMValueRef outlen;
    if (vcode_count_args(op) >= 4)
@@ -2653,7 +2655,7 @@ static void cgen_op_file_read(int op, cgen_ctx_t *ctx)
    else
       outlen = LLVMConstNull(LLVMPointerType(LLVMInt32Type(), 0));
 
-   LLVMValueRef args[] = { file, llvm_void_cast(ptr), inlen, outlen };
+   LLVMValueRef args[] = { file, llvm_void_cast(ptr), size, count, outlen };
    LLVMBuildCall(builder, llvm_fn("_file_read"), args, ARRAY_LEN(args), "");
 }
 
@@ -4203,6 +4205,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_void_ptr(), 0),
          llvm_void_ptr(),
+         LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt32Type(), 0)
       };

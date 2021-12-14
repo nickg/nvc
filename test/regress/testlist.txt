@@ -328,7 +328,7 @@ protected4      normal,2000
 textio4         normal
 issue327        normal
 issue335        normal
-binary_files    normal
+file3           normal
 issue338        normal
 issue338b       normal
 textio2008      normal,2008,gold
@@ -421,7 +421,7 @@ elab27          normal
 conf1           normal,gold
 conf2           normal,gold
 vests16         normal
-file3           normal
+file4           normal
 vests17         normal
 vests18         normal
 vests19         normal
@@ -433,3 +433,4 @@ guard2          normal
 vests22         normal
 vests23         normal
 func18          normal
+file5           normal

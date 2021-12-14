@@ -1574,14 +1574,15 @@ void _file_write(void **_fp, uint8_t *data, int32_t len)
 }
 
 DLLEXPORT
-void _file_read(void **_fp, uint8_t *data, int32_t len, int32_t *out)
+void _file_read(void **_fp, uint8_t *data, int32_t size, int32_t count,
+                int32_t *out)
 {
    FILE **fp = (FILE **)_fp;
 
    if (*fp == NULL)
       fatal("read from closed file");
 
-   size_t n = fread(data, 1, len, *fp);
+   size_t n = fread(data, size, count, *fp);
    if (out != NULL)
       *out = n;
 }
