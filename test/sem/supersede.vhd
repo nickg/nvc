@@ -13,7 +13,7 @@ architecture foo of portlisttest is
     signal b:       bit;
 begin
 DUT:
-    entity work.portlisttest(fum)
+    entity work.portlisttest --(fum)
         port map (
             a => a,
             b => b

@@ -68,6 +68,7 @@ tree_t find_mangled_decl(tree_t container, ident_t name);
 tree_t name_to_ref(tree_t name);
 const char *port_mode_str(port_mode_t mode);
 void mangle_one_type(text_buf_t *buf, type_t type);
+tree_t primary_unit_of(tree_t unit);
 
 int fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

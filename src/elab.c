@@ -73,6 +73,7 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, const elab_ctx_t *ctx);
 static void elab_pop_scope(const elab_ctx_t *ctx);
+static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -267,7 +268,8 @@ static tree_t elab_copy(tree_t t)
    return tree_copy(t, elab_should_copy, NULL);
 }
 
-static void elab_config_instance(tree_t block, tree_t spec)
+static void elab_config_instance(tree_t block, tree_t spec,
+                                 const elab_ctx_t *ctx)
 {
    ident_t match = tree_has_ident(spec) ? tree_ident(spec) : NULL;
 
@@ -283,6 +285,10 @@ static void elab_config_instance(tree_t block, tree_t spec)
 
       if (apply) tree_set_spec(s, spec);
    }
+
+   const int ndecls = tree_decls(spec);
+   for (int i = 0; i < ndecls; i++)
+      elab_block_config(tree_decl(spec, i), ctx);
 }
 
 static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx)
@@ -296,7 +302,7 @@ static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx)
       tree_t d = tree_decl(config, i);
       switch (tree_kind(d)) {
       case T_SPEC:
-         elab_config_instance(what, d);
+         elab_config_instance(what, d, ctx);
          break;
       case T_BLOCK_CONFIG:
          elab_block_config(d, ctx);
@@ -442,19 +448,32 @@ static tree_t elab_binding(tree_t inst, tree_t spec, lib_t *new_lib,
    tree_t bind = tree_value(spec);
    assert(tree_kind(bind) == T_BINDING);
 
-   tree_t unit = tree_ref(bind);
-   switch (tree_kind(unit)) {
-   case T_ENTITY:
-      return elab_copy(pick_arch(tree_loc(inst), tree_ident(unit),
-                                 new_lib, ctx));
-   case T_CONFIGURATION:
-      {
-         tree_t copy = elab_copy(unit);
-         return elab_block_config(tree_decl(copy, 0), ctx);
+   const int ndecls = tree_decls(spec);
+   if (ndecls == 0) {
+      tree_t unit = tree_ref(bind);
+      switch (tree_kind(unit)) {
+      case T_ENTITY:
+         return elab_copy(pick_arch(tree_loc(inst), tree_ident(unit),
+                                    new_lib, ctx));
+      case T_CONFIGURATION:
+         {
+            tree_t copy = elab_copy(unit);
+            return elab_block_config(tree_decl(copy, 0), ctx);
+         }
+      case T_ARCH:
+         return unit;
+      default:
+         fatal_at(tree_loc(bind), "sorry, this form of binding indication is "
+                  "not supported yet");
       }
-   default:
-      fatal_at(tree_loc(bind), "sorry, this form of binding indication is not"
-               " supported yet");
+   }
+   else {
+      assert(ndecls == 1);
+
+      tree_t config = tree_decl(spec, 0);
+      assert(tree_kind(config) == T_BLOCK_CONFIG);
+
+      return tree_ref(config);
    }
 }
 
@@ -892,7 +911,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    };
 
    tree_t entity = tree_primary(arch);
-   tree_t comp = tree_ref(t);
+   tree_t comp = primary_unit_of(tree_ref(t));
 
    elab_remangle_subprogram_names(entity, ctx->path);
    elab_push_scope(arch, &new_ctx);

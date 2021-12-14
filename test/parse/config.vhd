@@ -29,7 +29,7 @@ configuration conf of ent is
     attribute x of 'A' : literal is 5;
     for arch
         for all : comp
-            use entity work.foo(x);
+            use entity work.foo(arch);
         end for;
         for blah : moo use configuration work.conf2; end for;
     end for;

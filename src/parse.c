@@ -620,6 +620,8 @@ static tree_t find_binding(tree_t inst)
    tree_t unit;
    if (tree_kind(inst) == T_BINDING) {
       name = tree_ident(inst);
+      if (tree_has_ident2(inst))
+         name = ident_prefix(name, tree_ident2(inst), '-');
       unit = query_name(nametab, name);
    }
    else {
@@ -635,12 +637,10 @@ static tree_t find_binding(tree_t inst)
       }
    }
    else {
-      ident_t ename = ident_until(name, '-');
-
-      unit = find_unit(tree_loc(inst), ename, "entity");
+      unit = find_unit(tree_loc(inst), name, NULL);
       if (unit != NULL) {
          tree_kind_t kind = tree_kind(unit);
-         if (kind != T_ENTITY && kind != T_CONFIGURATION) {
+         if (kind != T_ENTITY && kind != T_CONFIGURATION && kind != T_ARCH) {
             parse_error(tree_loc(inst), "unit %s cannot be instantiated",
                         istr(name));
             unit = NULL;
@@ -6097,6 +6097,8 @@ static tree_t p_binding_indication(tree_t comp)
       if ((bind = p_entity_aspect())) {
          unit = find_binding(bind);
          tree_set_ref(bind, unit);
+
+         if (unit != NULL) unit = primary_unit_of(unit);
       }
    }
    else
@@ -6220,6 +6222,12 @@ static void p_component_configuration(tree_t unit)
    tree_t bind = p_binding_indication(comp);
    consume(tSEMI);
 
+   tree_t bcfg = NULL;
+   if (peek() == tFOR) {
+      tree_t of = tree_has_ref(bind) ? tree_ref(bind) : NULL;
+      bcfg = p_block_configuration(of);
+   }
+
    const loc_t *loc = CURRENT_LOC;
 
    if (ids != NULL) {
@@ -6230,6 +6238,7 @@ static void p_component_configuration(tree_t unit)
          tree_set_ident2(t, comp_name);
          tree_set_value(t, bind);
          tree_set_ref(t, comp);
+         if (bcfg != NULL) tree_add_decl(t, bcfg);
 
          tree_add_decl(unit, t);
       }
@@ -6241,18 +6250,17 @@ static void p_component_configuration(tree_t unit)
       tree_set_ident2(t, comp_name);
       tree_set_value(t, bind);
       tree_set_ref(t, comp);
+      if (bcfg != NULL) tree_add_decl(t, bcfg);
 
       tree_add_decl(unit, t);
    }
-
-   // TODO: optional block_configuration
 
    consume(tEND);
    consume(tFOR);
    consume(tSEMI);
 }
 
-static void p_configuration_item(tree_t unit, tree_t of)
+static void p_configuration_item(tree_t unit)
 {
    // block_configuration | component_configuration
 
@@ -6262,7 +6270,7 @@ static void p_configuration_item(tree_t unit, tree_t of)
    if ((third == tCOLON) || (third == tCOMMA))
       p_component_configuration(unit);
    else
-      tree_add_decl(unit, p_block_configuration(of));
+      tree_add_decl(unit, p_block_configuration(NULL));
 }
 
 static void p_index_specification(void)
@@ -6316,13 +6324,32 @@ static tree_t p_block_configuration(tree_t of)
 
    tree_t sub = NULL;
    if (of != NULL) {
-      if (tree_kind(of) == T_ENTITY) {
-         ident_t qual = ident_prefix(tree_ident(of), tree_ident(b), '-');
-         sub = find_unit(CURRENT_LOC, qual, NULL);
+      switch (tree_kind(of)) {
+      case T_ENTITY:
+         {
+            ident_t qual = ident_prefix(tree_ident(of), tree_ident(b), '-');
+            sub = find_unit(CURRENT_LOC, qual, NULL);
+         }
+         break;
+      case T_ARCH:
+         {
+            ident_t expect = ident_rfrom(tree_ident(of), '-');
+            if (tree_ident(b) != expect)
+               parse_error(CURRENT_LOC, "block specification label %s does not "
+                           "match architecture name %s", istr(tree_ident(b)),
+                           istr(expect));
+            else
+               sub = of;
+         }
+         break;
+      default:
+         fatal_trace("unexpected unit type %s in block configuration",
+                     tree_kind_str(tree_kind(of)));
+         break;
       }
-      else
-         sub = resolve_name(nametab, CURRENT_LOC, tree_ident(b));
    }
+   else
+      sub = resolve_name(nametab, CURRENT_LOC, tree_ident(b));
 
    if (sub != NULL && !is_implicit_block(sub)) {
       parse_error(CURRENT_LOC, "%s is not a block that can be configured",
@@ -6338,7 +6365,7 @@ static tree_t p_block_configuration(tree_t of)
       suppress_errors(nametab);
 
    while (not_at_token(tEND))
-      p_configuration_item(b, sub);
+      p_configuration_item(b);
 
    if (sub != NULL) resolve_specs(nametab, b, false);
 
@@ -7278,11 +7305,13 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
    tree_t ref = find_binding(t);
    tree_set_ref(t, ref);
 
+   tree_t entity = ref ? primary_unit_of(ref) : NULL;
+
    if (peek() == tGENERIC)
-      p_generic_map_aspect(t, ref);
+      p_generic_map_aspect(t, entity);
 
    if (peek() == tPORT)
-      p_port_map_aspect(t, ref);
+      p_port_map_aspect(t, entity);
 
    consume(tSEMI);
 

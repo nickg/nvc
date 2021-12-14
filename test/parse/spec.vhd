@@ -24,9 +24,9 @@ architecture a of b is
 
     for x1, x2 : y use entity work.foo;
 
-    for x3 : y use entity work.foo(bar);
+    for x3 : y use entity work.foo(arch);
 
-    for x4 : y use entity work.foo(bar)
+    for x4 : y use entity work.foo(arch)
         generic map ( a => 1 )
         port map ( b => 6 );
 

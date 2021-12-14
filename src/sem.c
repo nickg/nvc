@@ -3616,10 +3616,7 @@ static bool sem_check_instance(tree_t t)
    if (!tree_has_ref(t))
       return false;
 
-   tree_t unit = tree_ref(t);
-
-   if (tree_class(t) == C_CONFIGURATION)
-      unit = tree_primary(unit);
+   tree_t unit = primary_unit_of(tree_ref(t));
 
    if (tree_has_spec(t)) {
       tree_t spec = tree_spec(t);
@@ -4503,7 +4500,7 @@ static bool sem_check_binding(tree_t t)
    if (!tree_has_ref(t))
       return false;
 
-   tree_t unit = tree_ref(t);
+   tree_t unit = primary_unit_of(tree_ref(t));
    if (tree_kind(unit) == T_ENTITY) {
       if (!sem_check_map(t, unit, tree_generics, tree_generic,
                          tree_genmaps, tree_genmap, MAP_GENERIC))

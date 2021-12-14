@@ -2507,7 +2507,7 @@ START_TEST(test_spec)
    fail_unless(tree_kind(b) == T_BINDING);
    fail_unless(tree_class(b) == C_ENTITY);
    fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
-   fail_unless(tree_ident2(b) == ident_new("BAR"));
+   fail_unless(tree_ident2(b) == ident_new("ARCH"));
 
    d = tree_decl(a, 6);
    fail_unless(tree_kind(d) == T_SPEC);
@@ -2517,7 +2517,7 @@ START_TEST(test_spec)
    fail_unless(tree_kind(b) == T_BINDING);
    fail_unless(tree_class(b) == C_ENTITY);
    fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
-   fail_unless(tree_ident2(b) == ident_new("BAR"));
+   fail_unless(tree_ident2(b) == ident_new("ARCH"));
    fail_unless(tree_genmaps(b) == 1);
    fail_unless(tree_params(b) == 1);
 
@@ -2738,6 +2738,7 @@ START_TEST(test_config)
    const error_t expect[] = {
       { 29, "no visible declaration for X" },
       { 38, "CONF does not name an entity in library WORK" },
+      { 39, "no visible declaration for ARCH" },
       { 45, "cannot find unit WORK.ENT-BAD" },
       { 52, "P is not a block that can be configured" },
       { 55, "object P is not an instance" },
@@ -3176,6 +3177,7 @@ START_TEST(test_vests1)
    tree_t b2 = tree_decl(b, 0);
    fail_unless(tree_kind(b2) == T_BLOCK_CONFIG);
    fail_unless(tree_decls(b2) == 3);
+   fail_unless(tree_has_ref(b2));
    fail_unless(tree_ref(b2) == tree_stmt(a1, 0));
 
    tree_t b3 = tree_decl(b2, 2);

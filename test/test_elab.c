@@ -838,6 +838,31 @@ START_TEST(test_tc2881)
 }
 END_TEST
 
+START_TEST(test_tc846)
+{
+   input_from_file(TESTDIR "/elab/tc846.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b0 = tree_stmt(e, 0);
+   fail_unless(tree_ident(b0) == ident_new("C01S03B01X00P08N01I00846ENT"));
+   fail_unless(tree_stmts(b0) == 2);
+
+   tree_t a1 = tree_stmt(b0, 0);
+   fail_unless(tree_ident(a1) == ident_new("A1"));
+   fail_unless(tree_stmts(a1) == 1);
+
+   tree_t c1 = tree_stmt(a1, 0);
+   fail_unless(tree_ident(c1) == ident_new("C1"));
+   fail_unless(tree_stmts(c1) == 0);
+   fail_unless(tree_decls(c1) == 2);
+   fail_unless(tree_ident(tree_decl(c1, 1)) == ident_new("X"));
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -891,6 +916,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_comp3);
    tcase_add_test(tc, test_tc3138);
    tcase_add_test(tc, test_tc2881);
+   tcase_add_test(tc, test_tc846);
    suite_add_tcase(s, tc);
 
    return s;

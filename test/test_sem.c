@@ -83,7 +83,7 @@ START_TEST(test_ports)
       { 42,  "cannot assign to input port I" },
       { 92,  "WORK.FOO has no port named CAKE" },
       { 10,  "entity WORK.FOO has ports O, I" },
-      { 94,  "missing declaration for entity WORK.BAD" },
+      { 94,  "cannot find unit WORK.BAD" },
       { 116, "object X is not a component declaration" },
       { 155, "BAR has no port named Q" },
       { 64,  "BAR has ports I, O" },
@@ -828,6 +828,7 @@ START_TEST(test_entity)
    input_from_file(TESTDIR "/sem/entity.vhd");
 
    const error_t expect[] = {
+      { 23, "cannot find unit WORK.E-INVALID" },
       { 26, "unit WORK.PACK cannot be instantiated" },
       { 30, "unit WORK.PACK is not an entity" },
       { -1, NULL }
@@ -977,7 +978,7 @@ START_TEST(test_spec)
 
    const error_t expect[] = {
       { 24, "E does not name a component" },
-      { 34, "missing declaration for entity WORK.NOT_HERE" },
+      { 34, "cannot find unit WORK.NOT_HERE" },
       { 36, "unit WORK.P cannot be instantiated" },
       { 28, "instance BAD not found" },
       { 32, "instance I1 is already bound by a specification" },

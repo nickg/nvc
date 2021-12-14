@@ -653,6 +653,7 @@ static void dump_decl(tree_t t, int indent)
       printf("\n");
       tab(indent + 2);
       dump_binding(tree_value(t), indent + 2);
+      dump_decls(t, indent + 2);
       tab(indent);
       syntax("#end #for;\n");
       return;

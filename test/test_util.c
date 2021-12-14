@@ -126,7 +126,7 @@ tree_t run_elab(void)
       if ((kind == T_PACKAGE && !package_needs_body(t)) || kind == T_PACK_BODY)
          lower_unit(t, NULL);
 
-      if (tree_kind(t) == T_ENTITY)
+      if (kind == T_ENTITY || kind == T_CONFIGURATION)
          last_ent = t;
    }
 

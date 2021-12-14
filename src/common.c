@@ -1316,3 +1316,20 @@ void mangle_one_type(text_buf_t *buf, type_t type)
       tb_printf(buf, "%d%s", (int)strlen(ident_str), ident_str);
    }
 }
+
+tree_t primary_unit_of(tree_t unit)
+{
+   switch (tree_kind(unit)) {
+   case T_ENTITY:
+   case T_COMPONENT:
+   case T_PACKAGE:
+      return unit;
+   case T_ARCH:
+   case T_CONFIGURATION:
+   case T_PACK_BODY:
+      return tree_primary(unit);
+   default:
+      fatal_trace("invalid kind %s in primary_unit_of",
+                  tree_kind_str(tree_kind(unit)));
+   }
+}
