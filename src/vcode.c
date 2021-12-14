@@ -41,8 +41,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
 #define OP_HAS_SUBKIND(x)                                               \
-   (x == VCODE_OP_BOUNDS || x == VCODE_OP_BIT_VEC_OP                    \
-    || x == VCODE_OP_INDEX_CHECK                                        \
+   (x == VCODE_OP_BOUNDS || x == VCODE_OP_INDEX_CHECK                   \
     || x == VCODE_OP_ALLOCA || x == VCODE_OP_COVER_COND                 \
     || x == VCODE_OP_ARRAY_SIZE || x == VCODE_OP_PCALL                  \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
@@ -470,7 +469,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_XNOR:
    case VCODE_OP_EVENT:
    case VCODE_OP_ACTIVE:
-   case VCODE_OP_BIT_VEC_OP:
    case VCODE_OP_STORAGE_HINT:
    case VCODE_OP_UARRAY_LEN:
    case VCODE_OP_UARRAY_LEFT:
@@ -931,9 +929,8 @@ const char *vcode_op_string(vcode_op_t op)
       "pcall", "resume", "xor", "xnor", "nand", "nor", "memset",
       "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
-      "bit vec op", "const real", "last event",
-      "dynamic bounds", "array size", "index check",
-      "storage hint", "debug out", "cover stmt", "cover cond",
+      "const real", "last event", "dynamic bounds", "array size",
+      "index check", "storage hint", "debug out", "cover stmt", "cover cond",
       "uarray len", "temp stack mark", "temp stack restore",
       "undefined", "range null", "var upref", "link signal",
       "resolved", "last value", "init signal", "map signal", "drive signal",
@@ -1921,28 +1918,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_BIT_VEC_OP:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s %d lhs ", vcode_op_string(op->kind),
-                             op->subkind);
-               col += vcode_dump_reg(op->args.items[0]);
-               col += printf(" length ");
-               col += vcode_dump_reg(op->args.items[1]);
-               col += printf(" dir ");
-               col += vcode_dump_reg(op->args.items[2]);
-               if (op->args.count > 2) {
-                  col += printf(" rhs ");
-                  col += vcode_dump_reg(op->args.items[3]);
-                  col += printf(" length ");
-                  col += vcode_dump_reg(op->args.items[4]);
-                  col += printf(" dir ");
-                  col += vcode_dump_reg(op->args.items[5]);
-               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -4613,38 +4588,6 @@ vcode_reg_t emit_all(vcode_reg_t reg)
                 "cannot dereference opaque type");
 
    return op->result;
-}
-
-vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
-                            vcode_reg_t lhs_len, vcode_reg_t lhs_dir,
-                            vcode_reg_t rhs_data, vcode_reg_t rhs_len,
-                            vcode_reg_t rhs_dir, vcode_type_t result)
-{
-   op_t *op = vcode_add_op(VCODE_OP_BIT_VEC_OP);
-   op->subkind = kind;
-   vcode_add_arg(op, lhs_data);
-   vcode_add_arg(op, lhs_len);
-   vcode_add_arg(op, lhs_dir);
-   if (rhs_data != VCODE_INVALID_REG) {
-      vcode_add_arg(op, rhs_data);
-      vcode_add_arg(op, rhs_len);
-      vcode_add_arg(op, rhs_dir);
-   }
-
-   VCODE_ASSERT(vcode_reg_kind(lhs_data) == VCODE_TYPE_POINTER,
-                "LHS to bit vec op must be pointer");
-   VCODE_ASSERT(vcode_reg_kind(lhs_len) == VCODE_TYPE_OFFSET,
-                "LHS length to bit vec op must be offset");
-   if (rhs_data != VCODE_INVALID_REG) {
-      VCODE_ASSERT(vcode_reg_kind(rhs_data) == VCODE_TYPE_POINTER,
-                   "RHS to bit vec op must be pointer");
-      VCODE_ASSERT(vcode_reg_kind(rhs_len) == VCODE_TYPE_OFFSET,
-                   "RHS length to bit vec op must be offset");
-   }
-   VCODE_ASSERT(vtype_kind(result) == VCODE_TYPE_UARRAY,
-                "result of bit vec op must be uarray");
-
-   return (op->result = vcode_add_reg(result));
 }
 
 static vcode_reg_t emit_signal_data_op(vcode_op_t kind, vcode_reg_t sig)

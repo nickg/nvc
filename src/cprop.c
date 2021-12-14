@@ -711,7 +711,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_DIV:
          case VCODE_OP_NEW:
          case VCODE_OP_DRIVING_VALUE:
-         case VCODE_OP_BIT_VEC_OP:
          case VCODE_OP_NEG:
          case VCODE_OP_EXP:
          case VCODE_OP_ABS:

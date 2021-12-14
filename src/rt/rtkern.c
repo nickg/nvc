@@ -1225,58 +1225,6 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 }
 
 DLLEXPORT
-void _bit_vec_op(int32_t kind, const uint8_t *left, int32_t left_len,
-                 int8_t left_dir, const uint8_t *right, int32_t right_len,
-                 int8_t right_dir, uarray_t *u)
-{
-   if ((kind != BIT_VEC_NOT) && (left_len != right_len))
-      fatal("arguments to bit vector operation are not the same length");
-
-   uint8_t *buf = rt_tmp_alloc(left_len);
-
-   switch (kind) {
-   case BIT_VEC_NOT:
-      for (int i = 0; i < left_len; i++)
-         buf[i] = !left[i];
-      break;
-
-   case BIT_VEC_AND:
-      for (int i = 0; i < left_len; i++)
-         buf[i] = left[i] && right[i];
-      break;
-
-   case BIT_VEC_OR:
-      for (int i = 0; i < left_len; i++)
-         buf[i] = left[i] || right[i];
-      break;
-
-   case BIT_VEC_XOR:
-      for (int i = 0; i < left_len; i++)
-         buf[i] = left[i] ^ right[i];
-      break;
-
-   case BIT_VEC_XNOR:
-      for (int i = 0; i < left_len; i++)
-         buf[i] = !(left[i] ^ right[i]);
-      break;
-
-   case BIT_VEC_NAND:
-      for (int i = 0; i < left_len; i++)
-         buf[i] = !(left[i] && right[i]);
-      break;
-
-   case BIT_VEC_NOR:
-      for (int i = 0; i < left_len; i++)
-         buf[i] = !(left[i] || right[i]);
-      break;
-   }
-
-   u->ptr = buf;
-   u->dims[0].left = (left_dir == RANGE_TO) ? 0 : left_len - 1;
-   u->dims[0].length = (left_dir == RANGE_TO) ? left_len : -left_len;
-}
-
-DLLEXPORT
 void _debug_out(int32_t val, int32_t reg)
 {
    printf("DEBUG: r%d val=%"PRIx32"\n", reg, val);

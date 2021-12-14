@@ -1093,28 +1093,6 @@ static vcode_reg_t lower_arith(tree_t fcall, arith_fn_t fn, vcode_reg_t r0,
    return lower_narrow(tree_type(fcall), (*fn)(r0, r1));
 }
 
-static vcode_reg_t lower_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t r0,
-                                    vcode_reg_t r1, tree_t fcall)
-{
-   type_t r0_type = lower_arg_type(fcall, 0);
-   vcode_reg_t r0_len  = lower_array_len(r0_type, 0, r0);
-   vcode_reg_t r0_data = lower_array_data(r0);
-   vcode_reg_t r0_dir  = lower_array_dir(r0_type, 0, r0);
-
-   type_t r1_type = lower_arg_type(fcall, 1);
-   vcode_reg_t r1_len  = VCODE_INVALID_REG;
-   vcode_reg_t r1_data = VCODE_INVALID_REG;
-   vcode_reg_t r1_dir  = VCODE_INVALID_REG;
-   if (r1 != VCODE_INVALID_REG) {
-      r1_len  = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
-      r1_data = lower_array_data(r1);
-      r1_dir  = lower_array_dir(r1_type, 0, r1);
-   }
-
-   return emit_bit_vec_op(kind, r0_data, r0_len, r0_dir, r1_data, r1_len,
-                          r1_dir, lower_type(tree_type(fcall)));
-}
-
 static void lower_cond_coverage(tree_t test, vcode_reg_t value)
 {
    int32_t cover_tag, sub_cond;
@@ -1551,20 +1529,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
    case S_DEALLOCATE:
       emit_deallocate(r0);
       return VCODE_INVALID_REG;
-   case S_ARRAY_NOT:
-      return lower_bit_vec_op(BIT_VEC_NOT, r0, r1, fcall);
-   case S_ARRAY_AND:
-      return lower_bit_vec_op(BIT_VEC_AND, r0, r1, fcall);
-   case S_ARRAY_OR:
-      return lower_bit_vec_op(BIT_VEC_OR, r0, r1, fcall);
-   case S_ARRAY_XOR:
-      return lower_bit_vec_op(BIT_VEC_XOR, r0, r1, fcall);
-   case S_ARRAY_XNOR:
-      return lower_bit_vec_op(BIT_VEC_XNOR, r0, r1, fcall);
-   case S_ARRAY_NAND:
-      return lower_bit_vec_op(BIT_VEC_NAND, r0, r1, fcall);
-   case S_ARRAY_NOR:
-      return lower_bit_vec_op(BIT_VEC_NOR, r0, r1, fcall);
    case S_MIXED_AND:
    case S_MIXED_OR:
    case S_MIXED_XOR:
@@ -6239,6 +6203,105 @@ static void lower_predef_bit_shift(tree_t decl, vcode_unit_t context,
    emit_return(emit_wrap(mem_reg, dims, 1));
 }
 
+static void lower_predef_bit_vec_op(tree_t decl, vcode_unit_t context,
+                                    subprogram_kind_t kind)
+{
+   type_t type = tree_type(tree_port(decl, 0));
+   type_t elem = type_elem(type);
+
+   vcode_type_t vtype = lower_type(elem);
+   vcode_type_t vbounds = lower_bounds(elem);
+   vcode_type_t voffset = vtype_offset();
+
+   vcode_reg_t r0 = 0, r1 = 1;
+
+   vcode_reg_t data0_reg = lower_array_data(r0);
+   vcode_reg_t data1_reg = VCODE_INVALID_REG;
+   if (kind != S_ARRAY_NOT)
+      data1_reg = lower_array_data(r1);
+
+   vcode_reg_t len0_reg = lower_array_len(type, 0, r0);
+   vcode_reg_t len1_reg = VCODE_INVALID_REG;
+   if (kind != S_ARRAY_NOT) {
+      len1_reg = lower_array_len(type, 0, r1);
+
+      vcode_block_t fail_bb = emit_block();
+      vcode_block_t cont_bb = emit_block();
+
+      vcode_reg_t len_eq = emit_cmp(VCODE_CMP_EQ, len0_reg, len1_reg);
+      emit_cond(len_eq, cont_bb, fail_bb);
+
+      vcode_select_block(fail_bb);
+
+      vcode_type_t vseverity = vtype_int(0, SEVERITY_FAILURE - 1);
+      vcode_reg_t failure_reg = emit_const(vseverity, SEVERITY_FAILURE);
+
+      vcode_reg_t msg_reg =
+         lower_wrap_string("argument have different lengths");
+      vcode_reg_t msg_len = emit_uarray_len(msg_reg, 0);
+
+      emit_debug_info(tree_loc(decl));
+      emit_report(emit_unwrap(msg_reg), msg_len, failure_reg);
+      emit_return(r0);
+
+      vcode_select_block(cont_bb);
+   }
+
+   vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len0_reg);
+
+   vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+   emit_store(emit_const(voffset, 0), i_var);
+
+   vcode_block_t cmp_bb  = emit_block();
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   emit_jump(cmp_bb);
+
+   vcode_select_block(cmp_bb);
+
+   vcode_reg_t i_reg  = emit_load(i_var);
+   vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, i_reg, len0_reg);
+   emit_cond(eq_reg, exit_bb, body_bb);
+
+   vcode_select_block(body_bb);
+
+   vcode_reg_t dst_ptr = emit_add(mem_reg, i_reg);
+
+   vcode_reg_t src0_reg = emit_load_indirect(emit_add(data0_reg, i_reg));
+   vcode_reg_t src1_reg = VCODE_INVALID_REG;
+   if (kind != S_ARRAY_NOT)
+      src1_reg = emit_load_indirect(emit_add(data1_reg, i_reg));
+
+   vcode_reg_t op_reg;
+   switch (kind) {
+   case S_ARRAY_NOT:  op_reg = emit_not(src0_reg); break;
+   case S_ARRAY_AND:  op_reg = emit_and(src0_reg, src1_reg); break;
+   case S_ARRAY_OR:   op_reg = emit_or(src0_reg, src1_reg); break;
+   case S_ARRAY_XOR:  op_reg = emit_xor(src0_reg, src1_reg); break;
+   case S_ARRAY_XNOR: op_reg = emit_xnor(src0_reg, src1_reg); break;
+   case S_ARRAY_NAND: op_reg = emit_nand(src0_reg, src1_reg); break;
+   case S_ARRAY_NOR:  op_reg = emit_nor(src0_reg, src1_reg); break;
+   default:
+      fatal_trace("unhandled bitvec operator kind %d", kind);
+   }
+
+   emit_store_indirect(op_reg, dst_ptr);
+
+   vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
+   emit_store(next_reg, i_var);
+   emit_jump(cmp_bb);
+
+   vcode_select_block(exit_bb);
+
+   vcode_reg_t left_reg  = emit_uarray_left(r0, 0);
+   vcode_reg_t right_reg = emit_uarray_right(r0, 0);
+   vcode_reg_t dir_reg   = emit_uarray_dir(r0, 0);
+
+   vcode_dim_t dims[] = { { left_reg, right_reg, dir_reg } };
+   emit_return(emit_wrap(mem_reg, dims, 1));
+}
+
 static void lower_predef_negate(tree_t decl, vcode_unit_t context,
                                 const char *op)
 {
@@ -6303,6 +6366,15 @@ static void lower_predef(tree_t decl, vcode_unit_t context)
    case S_ROL:
    case S_ROR:
       lower_predef_bit_shift(decl, context, kind);
+      break;
+   case S_ARRAY_NOT:
+   case S_ARRAY_AND:
+   case S_ARRAY_OR:
+   case S_ARRAY_XOR:
+   case S_ARRAY_XNOR:
+   case S_ARRAY_NAND:
+   case S_ARRAY_NOR:
+      lower_predef_bit_vec_op(decl, context, kind);
       break;
    default:
       break;

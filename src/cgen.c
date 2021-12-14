@@ -2734,45 +2734,6 @@ static void cgen_op_const_real(int op, cgen_ctx_t *ctx)
                                      vcode_get_real(op));
 }
 
-static void cgen_op_bit_vec_op(int op, cgen_ctx_t *ctx)
-{
-   LLVMTypeRef utype = llvm_uarray_type(LLVMInt1Type(), 1);
-   LLVMValueRef tmp = cgen_scoped_alloca(utype, ctx);
-   llvm_lifetime_start(tmp, utype);
-
-   LLVMValueRef left_data = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef left_len  = cgen_get_arg(op, 1, ctx);
-   LLVMValueRef left_dir  = cgen_get_arg(op, 2, ctx);
-
-   LLVMValueRef right_data = NULL, right_len = NULL, right_dir = NULL;
-   if (vcode_count_args(op) == 6) {
-      right_data = cgen_get_arg(op, 3, ctx);
-      right_len  = cgen_get_arg(op, 4, ctx);
-      right_dir  = cgen_get_arg(op, 5, ctx);
-   }
-   else {
-      right_data = LLVMConstNull(LLVMPointerType(LLVMInt1Type(), 0));
-      right_len  = llvm_int32(0);
-      right_dir  = llvm_int1(0);
-   }
-
-   LLVMValueRef args[] = {
-      llvm_int32(vcode_get_subkind(op)),
-      left_data,
-      left_len,
-      left_dir,
-      right_data,
-      right_len,
-      right_dir,
-      tmp
-   };
-   LLVMBuildCall(builder, llvm_fn("_bit_vec_op"), args, ARRAY_LEN(args), "");
-
-   vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildLoad(builder, tmp, cgen_reg_name(result));
-   llvm_lifetime_end(tmp, utype);
-}
-
 static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef llen = cgen_get_arg(op, 0, ctx);
@@ -3311,9 +3272,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_DRIVING_VALUE:
       cgen_op_driving_value(i, ctx);
-      break;
-   case VCODE_OP_BIT_VEC_OP:
-      cgen_op_bit_vec_op(i, ctx);
       break;
    case VCODE_OP_DYNAMIC_BOUNDS:
       cgen_op_dynamic_bounds(i, ctx);
@@ -4234,21 +4192,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
-   }
-   else if (strcmp(name, "_bit_vec_op") == 0) {
-      LLVMTypeRef args[] = {
-         LLVMInt32Type(),
-         LLVMPointerType(LLVMInt1Type(), 0),
-         LLVMInt32Type(),
-         LLVMInt1Type(),
-         LLVMPointerType(LLVMInt1Type(), 0),
-         LLVMInt32Type(),
-         LLVMInt1Type(),
-         LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
-      };
-      fn = LLVMAddFunction(module, "_bit_vec_op",
-                           LLVMFunctionType(LLVMVoidType(),
-                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_test_net_event") == 0) {
       LLVMTypeRef args[] = {

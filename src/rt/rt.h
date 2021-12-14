@@ -47,16 +47,6 @@ typedef enum {
 } bounds_kind_t;
 
 typedef enum {
-   BIT_VEC_NOT,
-   BIT_VEC_AND,
-   BIT_VEC_OR,
-   BIT_VEC_XOR,
-   BIT_VEC_XNOR,
-   BIT_VEC_NAND,
-   BIT_VEC_NOR
-} bit_vec_op_kind_t;
-
-typedef enum {
    IMAGE_INTEGER,
    IMAGE_REAL,
    IMAGE_ENUM,

@@ -1214,6 +1214,13 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_SRA:
    case S_ROL:
    case S_ROR:
+   case S_ARRAY_NOT:
+   case S_ARRAY_AND:
+   case S_ARRAY_OR:
+   case S_ARRAY_XOR:
+   case S_ARRAY_XNOR:
+   case S_ARRAY_NAND:
+   case S_ARRAY_NOR:
       return false;
    default:
       return true;
