@@ -74,6 +74,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, const elab_ctx_t *ctx);
 static void elab_pop_scope(const elab_ctx_t *ctx);
 static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx);
+static tree_t elab_copy(tree_t t);
 
 static generic_list_t *generic_override = NULL;
 
@@ -117,7 +118,7 @@ static lib_t elab_find_lib(ident_t name, const elab_ctx_t *ctx)
       return lib_find(lib_name, true);
 }
 
-static void find_arch(lib_t lib, ident_t name, int kind, void *context)
+static void elab_find_arch_cb(lib_t lib, ident_t name, int kind, void *context)
 {
    lib_search_params_t *params = context;
 
@@ -151,30 +152,28 @@ static void find_arch(lib_t lib, ident_t name, int kind, void *context)
    }
 }
 
-static tree_t pick_arch(const loc_t *loc, ident_t name, lib_t *new_lib,
-                        const elab_ctx_t *ctx)
+static tree_t elab_pick_arch(const loc_t *loc, tree_t entity, lib_t *new_lib,
+                             const elab_ctx_t *ctx)
 {
    // When an explicit architecture name is not given select the most
    // recently analysed architecture of this entity
 
+   ident_t name = tree_ident(entity);
    lib_t lib = elab_find_lib(name, ctx);
    ident_t search_name =
       ident_prefix(lib_name(lib), ident_rfrom(name, '.'), '.');
 
-   tree_t arch = lib_get_check_stale(lib, search_name);
-   if ((arch == NULL) || (tree_kind(arch) != T_ARCH)) {
-      arch = NULL;
-      lib_search_params_t params = { lib, search_name, NULL, &arch };
-      lib_walk_index(lib, find_arch, &params);
+   tree_t arch = NULL;
+   lib_search_params_t params = { lib, search_name, NULL, &arch };
+   lib_walk_index(lib, elab_find_arch_cb, &params);
 
-      if (arch == NULL)
-         fatal_at(loc, "no suitable architecture for %s", istr(search_name));
-   }
+   if (arch == NULL)
+      fatal_at(loc, "no suitable architecture for %s", istr(search_name));
 
    if (new_lib != NULL)
       *new_lib = lib;
 
-   return arch;
+   return elab_copy(arch);
 }
 
 static tree_t rewrite_refs(tree_t t, void *context)
@@ -424,8 +423,7 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
       return NULL;
    }
 
-   tree_t arch = elab_copy(pick_arch(tree_loc(comp),
-                                     tree_ident(entity), new_lib, ctx));
+   tree_t arch = elab_pick_arch(tree_loc(comp), entity, new_lib, ctx);
 
    // Check entity is compatible with component declaration
 
@@ -453,8 +451,7 @@ static tree_t elab_binding(tree_t inst, tree_t spec, lib_t *new_lib,
       tree_t unit = tree_ref(bind);
       switch (tree_kind(unit)) {
       case T_ENTITY:
-         return elab_copy(pick_arch(tree_loc(inst), tree_ident(unit),
-                                    new_lib, ctx));
+         return elab_pick_arch(tree_loc(inst), unit, new_lib, ctx);
       case T_CONFIGURATION:
          {
             tree_t copy = elab_copy(unit);
@@ -863,28 +860,36 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
    lib_t new_lib = NULL;
    tree_t arch = NULL;
-   switch (tree_class(t)) {
-   case C_ENTITY:
-      arch = elab_copy(pick_arch(tree_loc(t), tree_ident2(t), &new_lib, ctx));
+
+   tree_t ref = tree_ref(t);
+   switch (tree_kind(ref)) {
+   case T_ENTITY:
+      arch = elab_pick_arch(tree_loc(t), ref, &new_lib, ctx);
       break;
 
-   case C_COMPONENT:
+   case T_ARCH:
+      arch = ref;
+      new_lib = lib_find(ident_until(tree_ident(ref), '.'), true);
+      break;
+
+   case T_COMPONENT:
       if (tree_has_spec(t))
          arch = elab_binding(t, tree_spec(t), &new_lib, ctx);
       else
          arch = elab_default_binding(t, &new_lib, ctx);
       break;
 
-   case C_CONFIGURATION:
+   case T_CONFIGURATION:
       {
-         tree_t unit = elab_copy(tree_ref(t));
-         arch = elab_block_config(tree_decl(unit, 0), ctx);
-         new_lib = lib_find(ident_until(tree_ident(unit), '.'), true);
+         tree_t copy = elab_copy(ref);
+         arch = elab_block_config(tree_decl(copy, 0), ctx);
+         new_lib = lib_find(ident_until(tree_ident(copy), '.'), true);
       }
       break;
 
    default:
-      assert(false);
+      fatal_trace("unexpected tree kind %s in elab_instance",
+                  tree_kind_str(tree_kind(ref)));
    }
 
    if (arch == NULL)
@@ -1304,7 +1309,7 @@ tree_t elab(tree_t top)
    switch (tree_kind(top)) {
    case T_ENTITY:
       {
-         tree_t arch = elab_copy(pick_arch(NULL, tree_ident(top), NULL, &ctx));
+         tree_t arch = elab_pick_arch(tree_loc(top), top, NULL, &ctx);
          elab_top_level(arch, &ctx);
       }
       break;
