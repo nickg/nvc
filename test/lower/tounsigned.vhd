@@ -10,7 +10,7 @@ package body p is
     variable I_VAL: NATURAL := ARG;
   begin
     mainloop: for I in 0 to RESULT'LEFT loop
-      if (I_VAL mod 2) = 0 then
+      if (I_VAL mod 2) = 0 then   -- Mod should be replaced with rem
         RESULT(I) := '0';
       else RESULT(I) := '1';
       end if;

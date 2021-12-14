@@ -3050,7 +3050,7 @@ START_TEST(test_tounsigned)
    EXPECT_BB(3) = {
       { VCODE_OP_LOAD, .name = "I_VAL" },
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_MOD },
+      { VCODE_OP_REM },    // Optimised from mod
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COND, .target = 4, .target_else = 5 }

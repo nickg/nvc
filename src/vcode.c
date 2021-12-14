@@ -3434,7 +3434,21 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
        && lconst > 0 && rconst > 0)
       return emit_const(vcode_reg_type(lhs), lconst % rconst);
 
-   return emit_arith(VCODE_OP_MOD, lhs, rhs);
+   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
+   vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
+
+   if (bl->low >= 0 && br->low >= 0) {
+      // If both arguments are non-negative then rem is equivalent and
+      // cheaper to compute
+      vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs);
+
+      reg_t *rr = vcode_reg_data(reg);
+      rr->bounds = vtype_int(0, br->high - 1);
+
+      return reg;
+   }
+   else
+      return emit_arith(VCODE_OP_MOD, lhs, rhs);
 }
 
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -3444,7 +3458,17 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
        && lconst > 0 && rconst > 0)
       return emit_const(vcode_reg_type(lhs), lconst % rconst);
 
-   return emit_arith(VCODE_OP_REM, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs);
+
+   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
+   vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
+
+   if (bl->low >= 0 && br->low >= 0) {
+      reg_t *rr = vcode_reg_data(reg);
+      rr->bounds = vtype_int(0, br->high - 1);
+   }
+
+   return reg;
 }
 
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
