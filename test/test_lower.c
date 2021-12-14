@@ -10,22 +10,22 @@
 typedef struct {
    vcode_op_t    op;
    const char   *func;
+   const char   *name;
    int64_t       value;
+   double        real;
+   int64_t       low;
+   int64_t       high;
    vcode_cmp_t   cmp;
    vcode_block_t target;
    vcode_block_t target_else;
-   const char   *name;
-   bool          delay;
-   int64_t       low;
-   int64_t       high;
-   int           length;
-   int           args;
-   int           dim;
-   int           hops;
-   int           field;
-   int           subkind;
    uint32_t      tag;
-   double        real;
+   int           length;
+   bool          delay;
+   uint8_t       args;
+   uint8_t       dim;
+   uint8_t       hops;
+   uint8_t       field;
+   uint8_t       subkind;
 } check_bb_t;
 
 #define CAT(x, y) x##y
