@@ -4465,6 +4465,9 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
 
    run_program((const char * const *)link_args.items, link_args.count);
 
+   if (unlink(obj_path) != 0)
+      fatal_errno("unlink: %s", obj_path);
+
    progress("linking shared library");
 
    for (size_t i = 0; i < link_args.count; i++)
