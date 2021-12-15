@@ -1,4 +1,6 @@
 vitaldir = $(pkglibdir)/ieee
+
+if ENABLE_VITAL
 vital_DATA = \
 	lib/ieee/_NVC_LIB \
 	lib/ieee/_index \
@@ -28,6 +30,7 @@ else
 vital_DATA += $(vital_so)
 
 endif  # IMPLIB_REQUIRED
+endif  # ENABLE_VITAL
 
 EXTRA_DIST += \
 	lib/vital/timing_b.vhdl \
@@ -37,13 +40,19 @@ EXTRA_DIST += \
 	lib/vital/memory_b.vhdl \
 	lib/vital/prmtvs_p.vhdl
 
+if ENABLE_VITAL
 BOOTSTRAPLIBS += $(vital_DATA)
+endif
 
 lib/ieee/_NVC_LIB:
 
 lib/ieee/_index:
 
+if ENABLE_VITAL
 libs-vital: $(vital_DATA) $(vital_SCRIPTS)
+else
+libs-vital:
+endif
 
 lib/ieee/IEEE.VITAL_TIMING: $(srcdir)/lib/vital/timing_p.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/timing_p.vhdl

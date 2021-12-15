@@ -66,7 +66,10 @@ and so are also licensed under Apache 2.0.
 The VITAL libraries are distributed under `lib/vital`.  These were
 derived from draft copies of the packages freely available on the
 internet.  The license status of these is unclear as the final text is
-part of the VITAL standard which must be purchased from the IEEE.
+part of the VITAL standard which must be purchased from the IEEE.  If
+you are packaging this program for a distribution with strict free
+software requirements you should strip these files from the tarball and
+configure with `--disable-vital`.
 
 ### Installing
 
