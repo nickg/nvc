@@ -2,7 +2,6 @@
 #include "phase.h"
 #include "vcode.h"
 #include "common.h"
-#include "casefsm.h"
 #include "rt/cover.h"
 
 #include <inttypes.h>
@@ -31,6 +30,14 @@ typedef struct {
 #define CAT(x, y) x##y
 #define CHECK_BB(n) check_bb(n, CAT(bb, n), ARRAY_LEN(CAT(bb, n)))
 #define EXPECT_BB(n) const check_bb_t CAT(bb, n)[]
+
+static bool fuzzy_cmp(ident_t id, const char *str)
+{
+   if (*str == '*')
+      return strstr(istr(id), str + 1) != NULL;
+   else
+      return ident_new(str) == id;
+}
 
 static void check_bb(int bb, const check_bb_t *expect, int len)
 {
@@ -65,13 +72,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          // Fall-through
       case VCODE_OP_FCALL:
          if (e->func != NULL) {
-            bool bad;
-            if (e->func[0] == '*')
-               bad = strstr(istr(vcode_get_func(i)), e->func + 1) == NULL;
-            else
-               bad = !icmp(vcode_get_func(i), e->func);
-
-            if (bad) {
+            if (!fuzzy_cmp(vcode_get_func(i), e->func)) {
                vcode_dump_with_mark(i, NULL, NULL);
                fail("expected op %d in block %d to call %s but calls %s",
                     i, bb, e->func, istr(vcode_get_func(i)));
@@ -171,7 +172,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_INDEX:
          {
             ident_t name = vcode_var_name(vcode_get_address(i));
-            if (name != ident_new(e->name)) {
+            if (!fuzzy_cmp(name, e->name)) {
                vcode_dump_with_mark(i, NULL, NULL);
                fail("expected op %d in block %d to have address name %s but "
                     "has %s", i, bb, e->name, istr(name));
@@ -3412,35 +3413,34 @@ START_TEST(test_case1)
    tree_t s = tree_stmt(tree_stmt(tree_stmt(e, 0), 0), 0);
    fail_unless(tree_kind(s) == T_CASE);
 
-   case_fsm_t *fsm = case_fsm_new(s);
-   fail_unless(case_fsm_count_states(fsm) == 10);
 
-   case_state_t *root = case_fsm_root(fsm);
-   fail_unless(root->id == 0);
-   fail_unless(root->depth == 0);
-   fail_unless(root->narcs == 1);
-   fail_unless(root->arcs[0].nvalues == 2);
-   fail_unless(root->arcs[0].u.values[0] == 0);
-   fail_unless(root->arcs[0].u.values[1] == 0);
+   vcode_unit_t v0 = find_unit("WORK.CASE7.TESTP");
+   vcode_select_unit(v0);
 
-   case_state_t *d2 = root->arcs[0].next;
-   fail_unless(d2->id == 1);
-   fail_unless(d2->depth == 2);
-   fail_unless(d2->narcs == 2);
-   fail_unless(d2->arcs[0].nvalues == 1);
-   fail_unless(d2->arcs[0].u.value == 0);
-   fail_unless(d2->arcs[1].u.value == 1);
+   fail_unless(vcode_count_vars() == 2);
 
-   case_state_t *d3 = d2->arcs[1].next;
-   fail_unless(d3->id == 8);
-   fail_unless(d3->depth == 3);
-   fail_unless(d3->narcs == 1);
-   fail_unless(d3->arcs[0].nvalues == 5);
-   fail_unless(d3->arcs[0].u.values[0] == 0);
-   fail_unless(d3->arcs[0].u.values[3] == 1);
-   fail_unless(d3->arcs[0].u.values[4] == 0);
+   EXPECT_BB(1) = {
+      { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_STORE, .name = "enc" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_STORE, .name = "*i" },
+      { VCODE_OP_JUMP, .target = 3 },
+   };
 
-   case_fsm_free(fsm);
+   CHECK_BB(1);
+
+   EXPECT_BB(4) = {
+      { VCODE_OP_LOAD, .name = "enc" },
+      { VCODE_OP_CONST, .value = 0x10 },
+      { VCODE_OP_CONST, .value = 0x18 },
+      { VCODE_OP_CONST, .value = 0x22 },
+      { VCODE_OP_CASE },
+   };
+
+   CHECK_BB(4);
 }
 END_TEST
 

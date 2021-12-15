@@ -1346,3 +1346,102 @@ tree_t primary_unit_of(tree_t unit)
                   tree_kind_str(tree_kind(unit)));
    }
 }
+
+static unsigned encode_case_choice_at_depth(tree_t value, int depth)
+{
+   switch (tree_kind(value)) {
+   case T_LITERAL:
+      {
+         assert(tree_subkind(value) == L_STRING);
+         tree_t ch = tree_char(value, depth);
+         return tree_pos(tree_ref(ch));
+      }
+      break;
+
+   case T_AGGREGATE:
+      {
+         const int nassocs = tree_assocs(value);
+         type_t type = tree_type(value);
+
+         for (int i = 0; i < nassocs; i++) {
+            tree_t a = tree_assoc(value, i);
+            switch (tree_subkind(a)) {
+            case A_NAMED:
+               if (rebase_index(type, 0, assume_int(tree_name(a))) == depth)
+                  return assume_int(tree_value(a));
+               break;
+
+            case A_POS:
+               if (tree_pos(a) == (unsigned)depth)
+                  return assume_int(tree_value(a));
+               break;
+
+            case A_OTHERS:
+               return assume_int(tree_value(a));
+            }
+         }
+      }
+      break;
+
+   case T_REF:
+      {
+         tree_t decl = tree_ref(value);
+         assert(tree_kind(decl) == T_CONST_DECL);
+         assert(tree_has_value(decl));
+         return encode_case_choice_at_depth(tree_value(decl), depth);
+      }
+      break;
+
+   case T_ARRAY_SLICE:
+      {
+         tree_t base = tree_value(value);
+         tree_t r = tree_range(value, 0);
+         const int64_t rleft = assume_int(tree_left(r));
+         const int64_t offset = rebase_index(tree_type(base), 0, rleft);
+         return encode_case_choice_at_depth(base, depth + offset);
+      }
+
+   case T_FCALL:
+      if (tree_subkind(tree_ref(value)) == S_CONCAT) {
+         const int nparams = tree_params(value);
+         for (int i = 0; i < nparams; i++) {
+            tree_t left = tree_value(tree_param(value, i));
+
+            tree_t lr = range_of(tree_type(left), 0);
+            int64_t left_len;
+            if (!folded_length(lr, &left_len))
+               fatal_at(tree_loc(left), "cannot determine length of left hand "
+                        "side of concatenation");
+
+            if (depth < left_len || i + 1 == nparams)
+               return encode_case_choice_at_depth(left, depth);
+
+            depth -= left_len;
+         }
+      }
+      // Fall-through
+
+   default:
+      fatal_at(tree_loc(value), "unsupported tree type %s in case choice",
+               tree_kind_str(tree_kind(value)));
+   }
+
+   fatal_at(tree_loc(value), "cannot find element %d in choice", depth);
+}
+
+int64_t encode_case_choice(tree_t value, int length, int bits)
+{
+   uint64_t enc = 0;
+   for (int i = 0; i < length; i++) {
+      if (bits > 0) {
+         enc <<= bits;
+         enc |= encode_case_choice_at_depth(value, i);
+      }
+      else {
+         enc *= 0x27d4eb2d;
+         enc += encode_case_choice_at_depth(value, i);
+      }
+   }
+
+   return enc;
+}

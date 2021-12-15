@@ -48,8 +48,6 @@ lib_libnvc_a_SOURCES = \
 	src/eopt.c \
 	src/cprop.h \
 	src/cprop.c \
-	src/casefsm.h \
-	src/casefsm.c \
 	src/exec.h \
 	src/exec.c
 

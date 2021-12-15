@@ -39,7 +39,7 @@ architecture test of case2 is
             when others => return -1;
         end case;
     end function;
-    
+
 begin
 
     process is
@@ -52,7 +52,6 @@ begin
         assert toint3(X"5") = 5;
         assert toint3(X"c") = -1;
         wait;
-    end process;        
-    
-end architecture;
+    end process;
 
+end architecture;

@@ -434,3 +434,4 @@ vests22         normal
 vests23         normal
 func18          normal
 file5           normal
+case8           normal

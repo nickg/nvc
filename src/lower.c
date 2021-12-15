@@ -23,7 +23,6 @@
 #include "rt/cover.h"
 #include "hash.h"
 #include "array.h"
-#include "casefsm.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -4430,99 +4429,183 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
 
 static void lower_case_array(tree_t stmt, loop_stack_t *loops)
 {
-   // Case staments on arrays are implemented by building a decision tree
-   // where each state is mapped to a basic block
+   vcode_block_t def_bb   = VCODE_INVALID_BLOCK;
+   vcode_block_t exit_bb  = emit_block();
+   vcode_block_t hit_bb   = VCODE_INVALID_BLOCK;
+   vcode_block_t start_bb = vcode_active_block();
 
-   vcode_block_t exit_bb   = emit_block();
-   vcode_block_t others_bb = exit_bb;
+   tree_t value = tree_value(stmt);
+   type_t type = tree_type(value);
+   vcode_reg_t val_reg = lower_expr(tree_value(stmt), EXPR_RVALUE);
+   vcode_reg_t data_ptr = lower_array_data(val_reg);
 
-   vcode_reg_t val = lower_expr(tree_value(stmt), EXPR_RVALUE);
+   vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+   vcode_type_t voffset = vtype_offset();
 
-   case_fsm_t *fsm   = case_fsm_new(stmt);
-   const int nstates = case_fsm_count_states(fsm);
-   const int depth   = case_fsm_max_depth(fsm);
-   const int maxarcs = case_fsm_max_arcs(fsm);
+   int64_t length;
+   if (!folded_length(range_of(type, 0), &length))
+      fatal_at(tree_loc(value), "array length is not known at compile time");
 
-   vcode_block_t *blocks LOCAL = xmalloc_array(nstates, sizeof(vcode_block_t));
-   for (int i = 0; i < nstates; i++)
-      blocks[i] = emit_block();
+   type_t base = type_base_recur(type_elem(type));
+   assert(type_kind(base) == T_ENUM);
 
-   vcode_reg_t data_ptr = lower_array_data(val);
-   vcode_reg_t *elems LOCAL = xmalloc_array(depth, sizeof(vcode_reg_t));
-   for (int i = 0; i < depth; i++) {
-      vcode_reg_t depth_reg = emit_const(vtype_offset(), i);
-      vcode_reg_t ptr_reg = emit_add(data_ptr, depth_reg);
-      elems[i] = lower_reify(ptr_reg);
+   const int nbits = ilog2(type_enum_literals(base));
+   const bool exact_map = length * nbits <= 64;
+
+   // Limit the number of cases branches we generate so it can be
+   // efficiently implemented with a jump table
+   static const int max_cases = 256;
+
+   if (!exact_map) {
+      // Hash function may have collisions so need to emit calls to
+      // comparison function
+      if (vcode_reg_kind(val_reg) != VCODE_TYPE_UARRAY)
+         val_reg = lower_wrap(type, val_reg);
    }
 
-   tree_t others_stmt = NULL;
-   const int nassocs = tree_assocs(stmt);
-   if (nassocs > 0) {
-      tree_t last_a = tree_assoc(stmt, nassocs - 1);
-      if (tree_subkind(last_a) == A_OTHERS) {
-         others_stmt = tree_value(last_a);
-         others_bb = emit_block();
+   vcode_type_t enc_type = VCODE_INVALID_TYPE;
+   vcode_reg_t enc_reg = VCODE_INVALID_REG;
+   if (exact_map && length <= 4) {
+      // Unroll the encoding calculation
+      enc_type = voffset;
+      enc_reg = emit_const(enc_type, 0);
+      for (int64_t i = 0; i < length; i++) {
+         vcode_reg_t ptr_reg  = emit_add(data_ptr, emit_const(voffset, i));
+         vcode_reg_t byte_reg = emit_load_indirect(ptr_reg);
+         enc_reg = emit_mul(enc_reg, emit_const(enc_type, 1 << nbits));
+         enc_reg = emit_add(enc_reg, emit_cast(enc_type, enc_type, byte_reg));
       }
    }
+   else {
+      enc_type = vint64;
+      vcode_var_t enc_var = emit_var(enc_type, enc_type, ident_uniq("enc"), 0);
+      emit_store(emit_const(enc_type, 0), enc_var);
 
-   emit_jump(blocks[0]);
+      vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+      emit_store(emit_const(voffset, 0), i_var);
 
-   vcode_block_t *targets LOCAL = xmalloc_array(maxarcs, sizeof(vcode_block_t));
-   vcode_reg_t *cases LOCAL = xmalloc_array(maxarcs, sizeof(vcode_reg_t));
+      vcode_block_t body_bb = emit_block();
+      vcode_block_t exit_bb = start_bb = emit_block();
 
-   for (case_state_t *state = case_fsm_root(fsm); state; state = state->next) {
-      vcode_select_block(blocks[state->id]);
-      emit_comment("Case state %d depth %d", state->id, state->depth);
+      emit_jump(body_bb);
 
-      if (state->stmts != NULL) {
-         assert(state->narcs == 0);
-         lower_stmt(state->stmts, loops);
+      vcode_select_block(body_bb);
+
+      vcode_reg_t i_reg = emit_load(i_var);
+      vcode_reg_t ptr_reg  = emit_add(data_ptr, i_reg);
+      vcode_reg_t byte_reg = emit_load_indirect(ptr_reg);
+      vcode_reg_t tmp_reg = emit_load(enc_var);
+      if (exact_map)
+         tmp_reg = emit_mul(tmp_reg, emit_const(enc_type, 1 << nbits));
+      else
+         tmp_reg = emit_mul(tmp_reg, emit_const(enc_type, 0x27d4eb2d));
+      tmp_reg = emit_add(tmp_reg, emit_cast(enc_type, enc_type, byte_reg));
+      emit_store(tmp_reg, enc_var);
+
+      vcode_reg_t i_next = emit_add(i_reg, emit_const(voffset, 1));
+      emit_store(i_next, i_var);
+
+      vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, i_next,
+                                      emit_const(voffset, length));
+      emit_cond(done_reg, exit_bb, body_bb);
+
+      vcode_select_block(exit_bb);
+
+      enc_reg = emit_load(enc_var);
+
+      if (!exact_map)
+         enc_reg = emit_rem(enc_reg, emit_const(enc_type, max_cases));
+   }
+
+   const int nassocs = tree_assocs(stmt);
+   vcode_reg_t *cases LOCAL = xcalloc_array(nassocs, sizeof(vcode_reg_t));
+   vcode_block_t *blocks LOCAL = xcalloc_array(nassocs, sizeof(vcode_block_t));
+   int64_t *encoding LOCAL = xcalloc_array(nassocs, sizeof(int64_t));
+
+   tree_t last = NULL;
+   ident_t cmp_func = NULL;
+   vcode_type_t vbool = vtype_bool();
+   vcode_block_t fallthrough_bb = VCODE_INVALID_BLOCK;
+
+   if (!exact_map) {
+      fallthrough_bb = emit_block();
+      cmp_func = lower_predef_func_name(tree_type(value), "=");
+   }
+
+   int ndups = 0;
+   int cptr = 0;
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(stmt, i);
+      const assoc_kind_t kind = tree_subkind(a);
+      assert(kind != A_RANGE);
+
+      tree_t block = tree_value(a);
+      if (block != last) hit_bb = emit_block();
+
+      if (kind == A_OTHERS)
+         def_bb = hit_bb;
+      else {
+         tree_t name = tree_name(a);
+         int64_t enc = encode_case_choice(name, length, exact_map ? nbits : 0);
+         if (!exact_map) enc %= max_cases;
+
+         vcode_block_t entry_bb = hit_bb;
+         bool have_dup = false;
+         if (!exact_map) {
+            // There may be collisions in the hash function
+            vcode_block_t chain_bb = fallthrough_bb;
+            for (int j = 0; j < cptr; j++) {
+               if (encoding[j] == enc) {
+                  ndups++;
+                  chain_bb  = blocks[j];
+                  blocks[j] = hit_bb;
+                  have_dup  = true;
+                  break;
+               }
+            }
+
+            vcode_select_block(hit_bb);
+            hit_bb = emit_block();
+
+            vcode_reg_t name_reg = lower_expr(name, EXPR_RVALUE);
+            if (vcode_reg_kind(name_reg) != VCODE_TYPE_UARRAY)
+               name_reg = lower_wrap(type, name_reg);
+
+            vcode_reg_t args[] = { name_reg, val_reg };
+            vcode_reg_t eq_reg = emit_fcall(cmp_func, vbool, vbool,
+                                            VCODE_CC_PREDEF, args, 2);
+            emit_cond(eq_reg, hit_bb, chain_bb);
+         }
+
+         if (!have_dup) {
+            vcode_select_block(start_bb);
+            cases[cptr]    = emit_const(enc_type, enc);
+            blocks[cptr]   = entry_bb;
+            encoding[cptr] = enc;
+            cptr++;
+         }
+      }
+
+      if (block != last) {
+         vcode_select_block(hit_bb);
+         lower_stmt(block, loops);
          if (!vcode_block_finished())
             emit_jump(exit_bb);
       }
-      else if (state->narcs == 1) {
-         vcode_type_t etype = vcode_reg_type(elems[state->depth]);
-         vcode_reg_t cond_reg = VCODE_INVALID_REG;
 
-         if (state->arcs[0].nvalues == 1) {
-            vcode_reg_t const_reg = emit_const(etype, state->arcs[0].u.value);
-            cond_reg = emit_cmp(VCODE_CMP_EQ, elems[state->depth], const_reg);
-         }
-         else {
-            cond_reg = emit_const(vtype_bool(), 1);
-            for (int j = 0; j < state->arcs[0].nvalues; j++) {
-               vcode_reg_t const_reg =
-                  emit_const(etype, state->arcs[0].u.values[j]);
-               vcode_reg_t cmp_reg =
-                  emit_cmp(VCODE_CMP_EQ, elems[state->depth + j], const_reg);
-               cond_reg = emit_and(cond_reg, cmp_reg);
-            }
-         }
-
-         emit_cond(cond_reg, blocks[state->arcs[0].next->id], others_bb);
-      }
-      else {
-         vcode_type_t etype = vcode_reg_type(elems[state->depth]);
-
-         for (int i = 0; i < state->narcs; i++) {
-            assert(state->arcs[i].nvalues == 1);
-            targets[i] = blocks[state->arcs[i].next->id];
-            cases[i]   = emit_const(etype, state->arcs[i].u.value);
-         }
-
-         emit_case(elems[state->depth], others_bb, cases, targets,
-                   state->narcs);
-      }
+      last = block;
    }
 
-   case_fsm_free(fsm);
+   if (def_bb == VCODE_INVALID_BLOCK)
+      def_bb = exit_bb;
 
-   if (others_stmt != NULL) {
-      vcode_select_block(others_bb);
-      lower_stmt(others_stmt, loops);
-      if (!vcode_block_finished())
-         emit_jump(exit_bb);
+   if (fallthrough_bb != VCODE_INVALID_BLOCK) {
+      vcode_select_block(fallthrough_bb);
+      emit_jump(def_bb);
    }
+
+   vcode_select_block(start_bb);
+   emit_case(enc_reg, def_bb, cases, blocks, cptr);
 
    vcode_select_block(exit_bb);
 }
