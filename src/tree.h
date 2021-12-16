@@ -491,8 +491,10 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 typedef tree_t (*tree_rewrite_fn_t)(tree_t t, void *context);
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context);
 
-typedef bool (*tree_copy_fn_t)(tree_t t, void *context);
-tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context);
+typedef bool (*tree_copy_pred_t)(tree_t, void *);
+typedef void (*tree_copy_fn_t)(tree_t, void *);
+tree_t tree_copy(tree_t t, tree_copy_pred_t pred,
+                 tree_copy_fn_t callback, void *context);
 
 typedef tree_t (*tree_load_fn_t)(ident_t);
 

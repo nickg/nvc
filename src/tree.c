@@ -1170,13 +1170,16 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
    return container_of(result, struct _tree, object);
 }
 
-tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context)
+tree_t tree_copy(tree_t t, tree_copy_pred_t pred,
+                 tree_copy_fn_t callback, void *context)
 {
    object_copy_ctx_t ctx = {
-      .generation = object_next_generation(),
-      .callback   = fn,
-      .context    = context,
-      .arena      = global_arena,
+      .generation  = object_next_generation(),
+      .should_copy = (object_copy_pred_t)pred,
+      .callback    = (object_copy_fn_t)callback,
+      .context     = context,
+      .arena       = global_arena,
+      .tag         = OBJECT_TAG_TREE
    };
 
    return (tree_t)object_copy(&(t->object), &ctx);

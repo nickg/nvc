@@ -74,7 +74,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, const elab_ctx_t *ctx);
 static void elab_pop_scope(const elab_ctx_t *ctx);
 static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx);
-static tree_t elab_copy(tree_t t);
+static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -173,7 +173,7 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity, lib_t *new_lib,
    if (new_lib != NULL)
       *new_lib = lib;
 
-   return elab_copy(arch);
+   return elab_copy(arch, ctx);
 }
 
 static tree_t rewrite_refs(tree_t t, void *context)
@@ -262,9 +262,20 @@ static bool elab_should_copy(tree_t t, void *__ctx)
    }
 }
 
-static tree_t elab_copy(tree_t t)
+static void elab_copy_cb(tree_t t, void *__ctx)
 {
-   return tree_copy(t, elab_should_copy, NULL);
+   const elab_ctx_t *ctx = __ctx;
+
+   if (is_subprogram(t) && tree_subkind(t) == S_USER) {
+      // Change the name of the subprogram so that copies in different
+      // instances do not collide
+      tree_set_ident2(t, ident_prefix(tree_ident2(t), ctx->path, '$'));
+   }
+}
+
+static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
+{
+   return tree_copy(t, elab_should_copy, elab_copy_cb, (void *)ctx);
 }
 
 static void elab_config_instance(tree_t block, tree_t spec,
@@ -454,7 +465,7 @@ static tree_t elab_binding(tree_t inst, tree_t spec, lib_t *new_lib,
          return elab_pick_arch(tree_loc(inst), unit, new_lib, ctx);
       case T_CONFIGURATION:
          {
-            tree_t copy = elab_copy(unit);
+            tree_t copy = elab_copy(unit, ctx);
             return elab_block_config(tree_decl(copy, 0), ctx);
          }
       case T_ARCH:
@@ -512,45 +523,6 @@ static void elab_hint_fn(void *arg)
    }
 
    note_at(tree_loc(t), "%s", tb_get(tb));
-}
-
-static void elab_remangle_subprogram_names(tree_t container, ident_t path)
-{
-   const int ndecls = tree_decls(container);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(container, i);
-
-      switch (tree_kind(d)) {
-      case T_FUNC_BODY:
-      case T_PROC_BODY:
-         elab_remangle_subprogram_names(d, path);
-         // Fall-through
-      case T_FUNC_DECL:
-      case T_PROC_DECL:
-         if (!is_builtin(tree_subkind(d)))
-            tree_set_ident2(d, ident_prefix(tree_ident2(d), path, '$'));
-         break;
-
-      default:
-         break;
-      }
-   }
-
-   const int nstmts = tree_stmts(container);
-   for (int i = 0; i < nstmts; i++) {
-      tree_t s = tree_stmt(container, i);
-
-      switch (tree_kind(s)) {
-      case T_PROCESS:
-      case T_BLOCK:
-      case T_FOR_GENERATE:
-      case T_IF_GENERATE:
-         elab_remangle_subprogram_names(s, path);
-         break;
-      default:
-         break;
-      }
-   }
 }
 
 static void elab_rewrite_later(tree_t formal, tree_t actual, elab_ctx_t *ctx)
@@ -881,7 +853,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    case T_CONFIGURATION:
       {
-         tree_t copy = elab_copy(ref);
+         tree_t copy = elab_copy(ref, ctx);
          arch = elab_block_config(tree_decl(copy, 0), ctx);
          new_lib = lib_find(ident_until(tree_ident(copy), '.'), true);
       }
@@ -904,8 +876,6 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
                           simple_name(istr(tree_ident2(arch))),
                           simple_name(istr(tree_ident(arch))));
 
-   elab_remangle_subprogram_names(arch, ctx->path);
-
    elab_ctx_t new_ctx = {
       .out      = b,
       .root     = ctx->root,
@@ -918,7 +888,6 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    tree_t entity = tree_primary(arch);
    tree_t comp = primary_unit_of(tree_ref(t));
 
-   elab_remangle_subprogram_names(entity, ctx->path);
    elab_push_scope(arch, &new_ctx);
    elab_generics(entity, comp, t, &new_ctx);
    elab_fold_generics(entity, &new_ctx);
@@ -990,9 +959,17 @@ static void elab_pop_scope(const elab_ctx_t *ctx)
 {
 }
 
-static bool elab_is_genvar(tree_t t, void *__ctx)
+static void elab_rewrite_genvar_cb(tree_t t, void *__ctx)
 {
-   return tree_kind(t) == T_GENVAR;
+   tree_t *pair = __ctx;
+   if (tree_kind(t) == T_REF && tree_ref(t) == pair[0])
+      tree_set_ref(t, pair[1]);
+}
+
+static bool elab_copy_genvar_cb(tree_t t, void *__ctx)
+{
+   tree_t *pair = __ctx;
+   return tree_kind(t) == T_REF && tree_ref(t) == pair[0];
 }
 
 static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
@@ -1000,37 +977,41 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    int64_t low, high;
    range_bounds(tree_range(t, 0), &low, &high);
 
+   tree_t genvar = tree_decl(t, 0);
+   assert(tree_kind(genvar) == T_GENVAR);
+
+   tree_t g = tree_new(T_PORT_DECL);
+   tree_set_ident(g, tree_ident(genvar));
+   tree_set_type(g, tree_type(genvar));
+   tree_set_class(g, C_CONSTANT);
+   tree_set_subkind(g, PORT_IN);
+   tree_set_loc(g, tree_loc(g));
+
    for (int64_t i = low; i <= high; i++) {
-      tree_t copy = tree_copy(t, elab_is_genvar, NULL);
-
-      tree_t genvar = tree_decl(copy, 0);
-      assert(tree_kind(genvar) == T_GENVAR);
-
-      rewrite_item_t rwitems[1] = {
-         { .formal = genvar,
-           .actual = get_int_lit(genvar, i)
-         }
-      };
-
-      rewrite_params_t params = {
-         .items = rwitems,
-         .count = 1
-      };
-      tree_rewrite(copy, rewrite_refs, &params);
-      simplify_global(copy);
-      bounds_check(copy);
-
-      if (error_count() > 0)
-         break;
-
-      ident_t npath = hpathf(ctx->path, '\0', "(%"PRIi64")", i);
-      ident_t ninst = hpathf(ctx->inst, '\0', "(%"PRIi64")", i);
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_cat(tb, istr(tree_ident(t)));
+      tb_printf(tb, "(%"PRIi64")", i);
 
       tree_t b = tree_new(T_BLOCK);
       tree_set_loc(b, tree_loc(t));
-      tree_set_ident(b, hpathf(tree_ident(t), '\0', "[%"PRIi64"]", i));
+      tree_set_ident(b, ident_new(tb_get(tb)));
 
       tree_add_stmt(ctx->out, b);
+
+      tree_t map = tree_new(T_PARAM);
+      tree_set_subkind(map, P_POS);
+      tree_set_loc(map, tree_loc(genvar));
+      tree_set_value(map, get_int_lit(genvar, i));
+
+      tree_add_generic(b, g);
+      tree_add_genmap(b, map);
+
+      tree_t pair[] = { genvar, g };
+      tree_t copy = tree_copy(t, elab_copy_genvar_cb,
+                              elab_rewrite_genvar_cb, pair);
+
+      ident_t npath = hpathf(ctx->path, '\0', "(%"PRIi64")", i);
+      ident_t ninst = hpathf(ctx->inst, '\0', "(%"PRIi64")", i);
 
       elab_ctx_t new_ctx = {
          .out      = b,
@@ -1042,9 +1023,20 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       };
 
       elab_push_scope(copy, &new_ctx);
-      elab_decls(copy, &new_ctx);
-      elab_stmts(copy, &new_ctx);
+      elab_rewrite_later(g, tree_value(map), &new_ctx);
+      elab_rewrite_later(t, b, &new_ctx);
+      elab_fold_generics(copy, &new_ctx);
+
+      simplify_global(copy);
+      bounds_check(copy);
+
+      if (error_count() == 0) {
+         elab_decls(copy, &new_ctx);
+         elab_stmts(copy, &new_ctx);
+      }
+
       elab_pop_scope(&new_ctx);
+      ACLEAR(new_ctx.rwlist);
    }
 }
 
@@ -1251,15 +1243,12 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    };
 
    elab_push_scope(arch, &new_ctx);
-   elab_remangle_subprogram_names(entity, npath);
    elab_top_level_generics(arch, &new_ctx);
    elab_rewrite_later(entity, b, &new_ctx);
    elab_rewrite_later(arch, b, &new_ctx);
    elab_fold_generics(arch, &new_ctx);
    elab_top_level_ports(entity, &new_ctx);
    elab_decls(entity, &new_ctx);
-
-   elab_remangle_subprogram_names(arch, npath);
 
    simplify_global(arch);
    bounds_check(arch);
@@ -1318,7 +1307,7 @@ tree_t elab(tree_t top)
       break;
    case T_CONFIGURATION:
       {
-         tree_t copy = elab_copy(top);
+         tree_t copy = elab_copy(top, &ctx);
          tree_t arch = elab_block_config(tree_decl(copy, 0), &ctx);
          elab_top_level(arch, &ctx);
       }

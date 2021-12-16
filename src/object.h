@@ -179,12 +179,17 @@ struct _object {
 
 STATIC_ASSERT(sizeof(object_t) == 16);
 
+typedef bool (*object_copy_pred_t)(object_t *, void *);
+typedef bool (*object_copy_fn_t)(object_t *, void *);
+
 typedef struct {
-   generation_t     generation;
-   tree_copy_fn_t   callback;
-   void            *context;
-   object_arena_t  *arena;
-   hash_t          *copy_map;
+   generation_t       generation;
+   object_copy_pred_t should_copy;
+   object_copy_fn_t   callback;
+   void              *context;
+   object_arena_t    *arena;
+   hash_t            *copy_map;
+   unsigned           tag;
 } object_copy_ctx_t;
 
 typedef object_t *(*object_rewrite_fn_t)(object_t *, void *);

@@ -913,8 +913,8 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
    const object_class_t *class = classes[object->tag];
 
    bool marked = false;
-   if (object->tag == OBJECT_TAG_TREE)
-      marked = (*ctx->callback)((tree_t)object, ctx->context);
+   if (object->tag == ctx->tag)
+      marked = (*ctx->should_copy)(object, ctx->context);
 
    object_t *copy = NULL;
    if (marked) {
@@ -989,8 +989,8 @@ object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
    unsigned ncopied = 0;
    const void *key;
    void *value;
-   hash_iter_t it = HASH_BEGIN;
-   while (hash_iter(ctx->copy_map, &it, &key, &value)) {
+   for (hash_iter_t it = HASH_BEGIN;
+	hash_iter(ctx->copy_map, &it, &key, &value); ) {
       const object_t *object = key;
       object_t *copy = value;
       ncopied++;
@@ -1029,6 +1029,14 @@ object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
                item_without_type(mask);
             n++;
          }
+      }
+   }
+
+   if (ctx->callback != NULL) {
+      for (hash_iter_t it = HASH_BEGIN;
+	   hash_iter(ctx->copy_map, &it, &key, &value); ) {
+	 object_t *copy = value;
+	 (*ctx->callback)(copy, ctx->context);
       }
    }
 
