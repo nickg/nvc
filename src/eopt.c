@@ -926,7 +926,7 @@ e_node_t eopt_build(tree_t elab)
    eopt_post_process_nexus(e);
    eopt_post_process_scopes(e);
 
-   const char *verbose = getenv("NVC_ELAB_VERBOSE");
+   const char *verbose = getenv("NVC_EOPT_VERBOSE");
    if (verbose && *verbose != '\0')
       e_dump(e);
 
