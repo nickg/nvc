@@ -227,7 +227,6 @@ static tree_t rewrite_refs(tree_t t, void *context)
 static bool elab_should_copy(tree_t t, void *__ctx)
 {
    switch (tree_kind(t)) {
-   case T_GENVAR:
    case T_INSTANCE:
       return true;
    case T_FUNC_DECL:

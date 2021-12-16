@@ -922,7 +922,6 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
       hash_put(ctx->copy_map, object, copy);
    }
 
-   int type_item = -1;
    const imask_t has = class->has_map[object->kind];
    const int nitems = class->object_nitems[object->kind];
    imask_t mask = 1;
@@ -932,10 +931,7 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
             ;
          else if (ITEM_OBJECT & mask) {
             object_t *o = object->items[n].object;
-            if (o != NULL && o->tag == OBJECT_TAG_TYPE)
-               type_item = n;
-            else
-               marked |= object_copy_mark(o, ctx);
+	    marked |= object_copy_mark(o, ctx);
          }
          else if (ITEM_DOUBLE & mask)
             ;
@@ -954,10 +950,6 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
          n++;
       }
    }
-
-   // Check type last as it may contain a circular reference
-   if (type_item != -1)
-      marked |= object_copy_mark(object->items[type_item].object, ctx);
 
    if (marked && copy == NULL) {
       copy = object_new(ctx->arena, class, object->kind);
