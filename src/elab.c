@@ -47,7 +47,6 @@ typedef struct {
    ident_t   path;    // Current 'PATH_NAME
    ident_t   inst;    // Current 'INSTANCE_NAME
    lib_t     library;
-   tree_t    arch;
    rw_list_t rwlist;
 } elab_ctx_t;
 
@@ -881,7 +880,6 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       .path     = ctx->path,
       .inst     = ninst,
       .library  = new_lib,
-      .arch     = arch
    };
 
    tree_t entity = tree_primary(arch);
@@ -1018,7 +1016,6 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .path     = npath,
          .inst     = ninst,
          .library  = ctx->library,
-         .arch     = ctx->arch
       };
 
       elab_push_scope(copy, &new_ctx);
@@ -1063,7 +1060,6 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          .path     = npath,
          .inst     = ninst,
          .library  = ctx->library,
-         .arch     = ctx->arch
       };
 
       switch (tree_kind(s)) {
@@ -1100,7 +1096,6 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
       .path     = ctx->path,
       .inst     = ctx->inst,
       .library  = ctx->library,
-      .arch     = ctx->arch
    };
 
    elab_push_scope(t, &new_ctx);
@@ -1238,7 +1233,6 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
       .path     = npath,
       .inst     = ninst,
       .library  = ctx->library,
-      .arch     = arch
    };
 
    elab_push_scope(arch, &new_ctx);
