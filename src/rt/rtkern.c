@@ -1147,9 +1147,16 @@ void _std_to_string_time(int64_t value, int64_t unit, uarray_t *u)
 
    size_t max_len = 16 + strlen(unit_str) + 1;
    char *buf = rt_tmp_alloc(max_len);
-   size_t len = checked_sprintf(buf, max_len, "%"PRIi64" %s",
-                                value / unit, unit_str);
 
+   size_t len;
+   if (value % unit == 0)
+      len = checked_sprintf(buf, max_len, "%"PRIi64" %s",
+                            value / unit, unit_str);
+   else
+      len = checked_sprintf(buf, max_len, "%g %s",
+                            (double)value / (double)unit, unit_str);
+
+   TRACE("result=%s", buf);
    *u = wrap_str(buf, len);
 }
 

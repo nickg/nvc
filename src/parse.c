@@ -5971,6 +5971,10 @@ static void p_package_declaration(tree_t unit)
 
    push_scope(nametab);
    p_package_declarative_part(unit);
+
+   if (bootstrapping && standard() >= STD_08)
+      declare_standard_to_string(unit);
+
    pop_scope(nametab);
 
    consume(tEND);
@@ -8113,9 +8117,6 @@ static tree_t p_design_unit(void)
 
    p_context_clause(unit);
    p_library_unit(unit);
-
-   if (bootstrapping && standard() >= STD_08)
-      declare_standard_to_string(unit);
 
    pop_scope(nametab);
 

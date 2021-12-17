@@ -5877,12 +5877,49 @@ static void lower_predef_record_eq(tree_t decl, vcode_unit_t context)
 static void lower_predef_scalar_to_string(type_t arg_type, type_t std_string,
                                           vcode_unit_t context)
 {
+   // LRM 08 section 5.7 on string representations
+
    ident_t func = ident_prefix(type_ident(arg_type), ident_new("image"), '$');
    vcode_type_t rtype = lower_type(std_string);
    vcode_type_t rbounds = lower_bounds(std_string);
    vcode_reg_t r0 = 0;
    vcode_reg_t args[] = { r0 };
-   emit_return(emit_fcall(func, rtype, rbounds, VCODE_CC_PREDEF, args, 1));
+   vcode_reg_t str_reg =
+      emit_fcall(func, rtype, rbounds, VCODE_CC_PREDEF, args, 1);
+
+   if (type_is_enum(arg_type)) {
+      // If the result is a character literal return just the character
+      // without the quotes
+      vcode_reg_t quote_reg = emit_const(vtype_char(), '\'');
+      vcode_reg_t data_reg  = lower_array_data(str_reg);
+      vcode_reg_t char0_reg = emit_load_indirect(data_reg);
+      vcode_reg_t is_quote  = emit_cmp(VCODE_CMP_EQ, char0_reg, quote_reg);
+
+      vcode_block_t char_bb  = emit_block();
+      vcode_block_t other_bb = emit_block();
+
+      emit_cond(is_quote, char_bb, other_bb);
+
+      vcode_select_block(char_bb);
+
+      vcode_reg_t char1_ptr = emit_add(data_reg, emit_const(vtype_offset(), 1));
+      vcode_reg_t left_reg  = emit_uarray_left(str_reg, 0);
+      vcode_reg_t dir_reg   = emit_uarray_dir(str_reg, 0);
+
+      vcode_dim_t dims[] = {
+         { .left  = left_reg,
+           .right = left_reg,
+           .dir   = dir_reg
+         }
+      };
+      emit_return(emit_wrap(char1_ptr, dims, 1));
+
+      vcode_select_block(other_bb);
+
+      emit_return(str_reg);
+   }
+   else
+      emit_return(str_reg);
 }
 
 static void lower_predef_array_to_string(type_t arg_type, type_t std_string,

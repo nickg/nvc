@@ -68,8 +68,10 @@ begin
         assert to_string(now) = "2000000 fs";
         report to_string(now, ns);
         assert to_string(now, ns) = "2 ns";
-        assert to_string(value => now, unit => hr) = "0 hr";
+        assert to_string(50 ns, unit => us) = "0.05 us";
+        assert to_string(value => 1 min, unit => hr) = "0.0166667 hr";
 
+        assert to_string(r)(1 to 7) = "1.23456";
         report to_string(r, 2);
         assert to_string(r, 2) = "1.23";
         report to_string(r, 0);
@@ -78,13 +80,18 @@ begin
         report to_string(r, "%1.1f");
         assert to_string(r, "%1.1f") = "1.2";
 
+        r := 0.0000000005;
+        report to_string(value => r, digits => 9);
+
         report to_string(char_vector'("abc"));
         assert to_string(char_vector'("abc")) = "abc";
         assert to_string(c) = "bca";
         assert to_string(bit_vector'("110")) = "110";
         assert to_string(bit_vector'("110")) & "..." = "110...";
         assert to_string(1 ns) = "1000000 fs";
-        report to_string(1 u_bar);
+        assert to_string(1 u_bar) = "10 u_foo";
+        assert to_string(bit'( '1' )) = "1";
+        assert to_string(character'( 'X' )) = "X";
 
         -----------------------------------------------------------------------
         -- TO_BSTRING
