@@ -393,39 +393,144 @@ package body textio is
     procedure sread (l      : inout line;
                      value  : out   string;
                      strlen : out   natural) is
+        variable pos : integer := 1;
+        alias avalue : string(1 to value'length) is value;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        skip_whitespace(l);
+        while pos <= l'right and pos <= avalue'right loop
+            exit when is_whitespace(l.all(pos));
+            avalue(pos) := l.all(pos);
+            pos := pos + 1;
+        end loop;
+        consume(l, pos - 1);
+        strlen := pos - 1;
     end procedure;
 
     procedure oread (l     : inout line;
                      value : out   bit_vector;
                      good  : out   boolean) is
+        variable digits     : string(1 to (value'length + 2) / 3);
+        variable ipos       : integer := 1;
+        variable opos       : integer := 1;
+        variable char       : character;
+        variable bits       : bit_vector(1 to 3);
+        variable underscore : boolean := false;
+        alias avalue        : bit_vector(1 to value'length) is value;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        good := false;
+        skip_whitespace(l);
+        while ipos <= l'right and opos <= digits'right loop
+            char := l.all(ipos);
+            ipos := ipos + 1;
+            if char = '_' and underscore then
+                underscore := false;
+                next;
+            elsif char >= '0' and char <= '7' then
+                digits(opos) := char;
+                underscore := true;
+                opos := opos + 1;
+            else
+                exit;
+            end if;
+        end loop;
+        consume(l, ipos - 1);
+        if opos /= digits'right + 1 then
+            return;
+        end if;
+        opos := 1;
+        for i in digits'range loop
+            case digits(i) is
+                when '0' => bits := "000";
+                when '1' => bits := "001";
+                when '2' => bits := "010";
+                when '3' => bits := "011";
+                when '4' => bits := "100";
+                when '5' => bits := "101";
+                when '6' => bits := "110";
+                when '7' => bits := "111";
+                when others => assert false;
+            end case;
+            avalue(opos to opos + 2) := bits;
+            opos := opos + 3;
+        end loop;
+        good := true;
     end procedure;
 
     procedure oread (l     : inout line;
                      value : out   bit_vector) is
+        variable good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        oread(l, value, good);
+        assert good report "oread failed";
     end procedure;
 
     procedure hread (l     : inout line;
                      value : out   bit_vector;
                      good  : out   boolean) is
+        variable digits     : string(1 to (value'length + 3) / 4);
+        variable ipos       : integer := 1;
+        variable opos       : integer := 1;
+        variable char       : character;
+        variable bits       : bit_vector(1 to 4);
+        variable underscore : boolean := false;
+        alias avalue        : bit_vector(1 to value'length) is value;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        good := false;
+        skip_whitespace(l);
+        while ipos <= l'right and opos <= digits'right loop
+            char := l.all(ipos);
+            ipos := ipos + 1;
+            if char = '_' and underscore then
+                underscore := false;
+                next;
+            elsif (char >= '0' and char <= '9')
+                or (char >= 'a' and char <= 'f')
+                or (char >= 'A' and char <= 'F')
+            then
+                digits(opos) := char;
+                underscore := true;
+                opos := opos + 1;
+            else
+                exit;
+            end if;
+        end loop;
+        consume(l, ipos - 1);
+        if opos /= digits'right + 1 then
+            return;
+        end if;
+        opos := 1;
+        for i in digits'range loop
+            case digits(i) is
+                when '0' => bits := "0000";
+                when '1' => bits := "0001";
+                when '2' => bits := "0010";
+                when '3' => bits := "0011";
+                when '4' => bits := "0100";
+                when '5' => bits := "0101";
+                when '6' => bits := "0110";
+                when '7' => bits := "0111";
+                when '8' => bits := "1000";
+                when '9' => bits := "1001";
+                when 'a' | 'A' => bits := "1010";
+                when 'b' | 'B' => bits := "1011";
+                when 'c' | 'C' => bits := "1100";
+                when 'd' | 'D' => bits := "1101";
+                when 'e' | 'E' => bits := "1110";
+                when 'f' | 'F' => bits := "1111";
+                when others => assert false;
+            end case;
+            avalue(opos to opos + 3) := bits;
+            opos := opos + 4;
+        end loop;
+        good := true;
     end procedure;
 
     procedure hread (l     : inout line;
                      value : out   bit_vector) is
+        variable good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        hread(l, value, good);
+        assert good report "hread failed";
     end procedure;
 
     constant LINE_BUFFER_SIZE : positive := 128;

@@ -1,9 +1,9 @@
-entity textio2008 is
+entity textio5 is
 end entity;
 
 use std.textio.all;
 
-architecture test of textio2008 is
+architecture test of textio5 is
 begin
 
     process is

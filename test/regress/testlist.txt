@@ -331,7 +331,7 @@ issue335        normal
 file3           normal
 issue338        normal
 issue338b       normal
-textio2008      normal,2008,gold
+textio5         normal,2008,gold
 issue349        normal
 signal14        normal
 issue352        normal
@@ -435,3 +435,4 @@ vests23         normal
 func18          normal
 file5           normal
 case8           normal
+textio6         normal,2008
