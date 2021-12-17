@@ -1233,6 +1233,12 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_REDUCE_NOR:
    case S_REDUCE_XOR:
    case S_REDUCE_XNOR:
+   case S_MATCH_EQ:
+   case S_MATCH_NEQ:
+   case S_MATCH_LT:
+   case S_MATCH_LE:
+   case S_MATCH_GT:
+   case S_MATCH_GE:
       return false;
    default:
       return true;
@@ -1336,6 +1342,8 @@ void mangle_one_type(text_buf_t *buf, type_t type)
       tb_printf(buf, "U");
    else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR"))
       tb_printf(buf, "V");
+   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_ULOGIC_VECTOR"))
+      tb_printf(buf, "Y");
    else {
       const char *ident_str = istr(ident);
       tb_printf(buf, "%d%s", (int)strlen(ident_str), ident_str);

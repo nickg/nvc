@@ -1098,22 +1098,22 @@ static void declare_predefined_ops(tree_t container, type_t t)
    // Matching comparison for BIT and STD_ULOGIC
 
    if (standard() >= STD_08) {
-      type_t m = NULL;
       if (kind == T_CARRAY || kind == T_UARRAY) {
          type_t elem = type_elem(t);
-         if (is_bit_or_std_ulogic(elem))
-            m = elem;
+         if (is_bit_or_std_ulogic(elem)) {
+            declare_binary(container, ident_new("\"?=\""),
+                           t, t, elem, S_MATCH_EQ);
+            declare_binary(container, ident_new("\"?/=\""),
+                           t, t, elem, S_MATCH_NEQ);
+         }
       }
-      else if (is_bit_or_std_ulogic(t))
-         m = t;
-
-      if (m != NULL) {
-         declare_binary(container, ident_new("\"?=\""), t, t, m, S_MATCH_EQ);
-         declare_binary(container, ident_new("\"?/=\""), t, t, m, S_MATCH_NEQ);
-         declare_binary(container, ident_new("\"?<\""), t, t, m, S_MATCH_LT);
-         declare_binary(container, ident_new("\"?<=\""), t, t, m, S_MATCH_LE);
-         declare_binary(container, ident_new("\"?>\""), t, t, m, S_MATCH_GT);
-         declare_binary(container, ident_new("\"?>=\""), t, t, m, S_MATCH_GE);
+      else if (is_bit_or_std_ulogic(t)) {
+         declare_binary(container, ident_new("\"?=\""), t, t, t, S_MATCH_EQ);
+         declare_binary(container, ident_new("\"?/=\""), t, t, t, S_MATCH_NEQ);
+         declare_binary(container, ident_new("\"?<\""), t, t, t, S_MATCH_LT);
+         declare_binary(container, ident_new("\"?<=\""), t, t, t, S_MATCH_LE);
+         declare_binary(container, ident_new("\"?>\""), t, t, t, S_MATCH_GT);
+         declare_binary(container, ident_new("\"?>=\""), t, t, t, S_MATCH_GE);
       }
    }
 

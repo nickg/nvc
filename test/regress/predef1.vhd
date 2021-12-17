@@ -142,6 +142,13 @@ begin
         assert (sl ?>= '1') = '1';
         assert (sl ?= 'Z') = 'X';
         assert (sl ?< 'H') = '0';
+        assert ('0' ?<= sl) = '1';
+
+        sv <= "111";
+        wait for 0 ns;
+        assert (sv ?= "111") = '1';
+        assert (sv ?= "011") = '0';
+        assert (sv ?/= "000") = '1';
 
         -----------------------------------------------------------------------
         -- Mixed array/scalar bit_vector operations

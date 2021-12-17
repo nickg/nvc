@@ -1237,67 +1237,6 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
    return lower_logical(fcall, result);
 }
 
-static vcode_reg_t lower_match_op(subprogram_kind_t kind, vcode_reg_t r0,
-                                  type_t r0_type, vcode_reg_t r1)
-{
-   vcode_cmp_t cmp;
-   bool invert = false;
-   switch (kind) {
-   case S_MATCH_NEQ:
-      invert = true;
-   case S_MATCH_EQ:
-      cmp = VCODE_CMP_EQ;
-      break;
-   case S_MATCH_GE:
-      invert = true;
-   case S_MATCH_LT:
-      cmp = VCODE_CMP_LT;
-      break;
-   case S_MATCH_GT:
-      invert = true;
-   case S_MATCH_LE:
-      cmp = VCODE_CMP_LEQ;
-      break;
-   default:
-      fatal_trace("invalid match operator %d", kind);
-   }
-
-   bool is_array = false, is_bit = false;
-   if (type_is_array(r0_type)) {
-      is_array = true;
-      is_bit = type_ident(type_elem(r0_type)) == std_bit_i;
-   }
-   else
-      is_bit = type_ident(r0_type) == std_bit_i;
-
-   vcode_reg_t result = VCODE_INVALID_REG;
-   if (is_array) {
-      fatal_trace("sorry, array matching operators not implemented yet");
-   }
-   else if (type_ident(r0_type) == std_bit_i)
-      result = emit_cmp(cmp, r0, r1);
-   else {
-      vcode_reg_t args[2] = { r0, r1 };
-      ident_t func = cmp == VCODE_CMP_LT
-         ? ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_LT(UU)U")
-         : ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_EQ(UU)U");
-
-      vcode_type_t rtype = lower_type(r0_type);
-      result = emit_fcall(func, rtype, rtype, VCODE_CC_PREDEF, args, 2);
-   }
-
-   if (invert && is_bit)
-      return emit_not(result);
-   else if (invert) {
-      vcode_reg_t args[1] = { result };
-      vcode_type_t rtype = vcode_reg_type(result);
-      return emit_fcall(ident_new("IEEE.STD_LOGIC_1164.\"not\"(U)4UX01"),
-                        rtype, rtype, VCODE_CC_PREDEF, args, 1);
-   }
-   else
-      return result;
-}
-
 static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
 {
    if (builtin == S_MAXIMUM)
@@ -1414,13 +1353,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
    case S_DEALLOCATE:
       emit_deallocate(r0);
       return VCODE_INVALID_REG;
-   case S_MATCH_EQ:
-   case S_MATCH_NEQ:
-   case S_MATCH_LT:
-   case S_MATCH_LE:
-   case S_MATCH_GT:
-   case S_MATCH_GE:
-      return lower_match_op(builtin, r0, r0_type, r1);
    case S_MUL_RP:
    case S_MUL_RI:
       {
@@ -6419,6 +6351,171 @@ static void lower_predef_reduction_op(tree_t decl, vcode_unit_t context,
       emit_return(emit_load(result_var));
 }
 
+static void lower_predef_match_op(tree_t decl, vcode_unit_t context,
+                                  subprogram_kind_t kind)
+{
+   vcode_reg_t r0 = 0, r1 = 1;
+
+   type_t r0_type = tree_type(tree_port(decl, 0));
+   type_t r1_type = tree_type(tree_port(decl, 1));
+
+   vcode_cmp_t cmp;
+   bool invert = false;
+   switch (kind) {
+   case S_MATCH_NEQ:
+      invert = true;
+   case S_MATCH_EQ:
+      cmp = VCODE_CMP_EQ;
+      break;
+   case S_MATCH_GE:
+      invert = true;
+   case S_MATCH_LT:
+      cmp = VCODE_CMP_LT;
+      break;
+   case S_MATCH_GT:
+      invert = true;
+   case S_MATCH_LE:
+      cmp = VCODE_CMP_LEQ;
+      break;
+   default:
+      fatal_trace("invalid match operator %d", kind);
+   }
+
+   bool is_array = false, is_bit = false;
+   if (type_is_array(r0_type)) {
+      is_array = true;
+      is_bit = type_ident(type_elem(r0_type)) == std_bit_i;
+   }
+   else
+      is_bit = type_ident(r0_type) == std_bit_i;
+
+   vcode_reg_t result = VCODE_INVALID_REG;
+   if (is_array) {
+      assert(kind == S_MATCH_EQ || kind == S_MATCH_NEQ);
+
+      vcode_reg_t len0_reg = lower_array_len(r0_type, 0, r0);
+      vcode_reg_t len1_reg = lower_array_len(r1_type, 0, r1);
+
+      vcode_block_t fail_bb = emit_block();
+      vcode_block_t cont_bb = emit_block();
+
+      vcode_reg_t len_eq = emit_cmp(VCODE_CMP_EQ, len0_reg, len1_reg);
+      emit_cond(len_eq, cont_bb, fail_bb);
+
+      vcode_select_block(fail_bb);
+
+      vcode_type_t vseverity = vtype_int(0, SEVERITY_FAILURE - 1);
+      vcode_reg_t failure_reg = emit_const(vseverity, SEVERITY_FAILURE);
+
+      vcode_reg_t msg_reg =
+         lower_wrap_string("arguments have different lengths");
+      vcode_reg_t msg_len = emit_uarray_len(msg_reg, 0);
+
+      emit_debug_info(tree_loc(decl));
+      emit_report(emit_unwrap(msg_reg), msg_len, failure_reg);
+      emit_jump(cont_bb);
+
+      vcode_select_block(cont_bb);
+
+      vcode_type_t vtype = lower_type(type_elem(r0_type));
+      vcode_type_t vbounds = lower_bounds(type_elem(r0_type));
+      vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len0_reg);
+
+      vcode_var_t result_var =
+         emit_var(vtype, vbounds, ident_uniq("result"), 0);
+      emit_store(emit_const(vtype, 0), result_var);
+
+      vcode_type_t voffset = vtype_offset();
+      vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+      emit_store(emit_const(vtype_offset(), 0), i_var);
+
+      vcode_reg_t left_reg  = lower_array_left(r0_type, 0, r0);
+      vcode_reg_t right_reg = lower_array_right(r0_type, 0, r0);
+      vcode_reg_t dir_reg   = lower_array_dir(r0_type, 0, r0);
+      vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
+
+      vcode_reg_t r0_ptr = lower_array_data(r0);
+      vcode_reg_t r1_ptr = lower_array_data(r1);
+
+      vcode_block_t body_bb = emit_block();
+      vcode_block_t exit_bb = emit_block();
+
+      emit_cond(null_reg, exit_bb, body_bb);
+
+      vcode_select_block(body_bb);
+
+      vcode_reg_t i_reg = emit_load(i_var);
+
+      vcode_reg_t r0_src_reg = emit_load_indirect(emit_add(r0_ptr, i_reg));
+      vcode_reg_t r1_src_reg = emit_load_indirect(emit_add(r1_ptr, i_reg));
+
+      vcode_reg_t tmp;
+      if (is_bit)
+         tmp = emit_cmp(cmp, r0_src_reg, r1_src_reg);
+      else {
+         vcode_reg_t args[2] = { r0_src_reg, r1_src_reg };
+         ident_t func = ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_EQ(UU)U");
+         tmp = emit_fcall(func, vtype, vbounds, VCODE_CC_PREDEF, args, 2);
+      }
+      emit_store_indirect(tmp, emit_add(mem_reg, i_reg));
+
+      vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
+      vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len0_reg);
+      emit_store(next_reg, i_var);
+      emit_cond(cmp_reg, exit_bb, body_bb);
+
+      vcode_select_block(exit_bb);
+
+      vcode_dim_t dims[1] = {
+         {
+            .left  = left_reg,
+            .right = right_reg,
+            .dir   = dir_reg
+         }
+      };
+      vcode_reg_t wrap_reg = emit_wrap(mem_reg, dims, 1);
+
+      ident_t func = is_bit
+         ? ident_new("STD.STANDARD.\"and\"(Q)J")
+         : ident_new("IEEE.STD_LOGIC_1164.\"and\"(Y)U");
+      vcode_reg_t args[] = { wrap_reg };
+      result = emit_fcall(func, vtype, vbounds, VCODE_CC_PREDEF, args, 1);
+   }
+   else if (is_bit)
+      result = emit_cmp(cmp, r0, r1);
+   else {
+      vcode_reg_t args[2] = { r0, r1 };
+      ident_t func = NULL;
+      switch (cmp) {
+      case VCODE_CMP_LT:
+         func = ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_LT(UU)U");
+         break;
+      case VCODE_CMP_LEQ:
+         func = ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_LEQ(UU)U");
+         break;
+      case VCODE_CMP_EQ:
+         func = ident_new("IEEE.STD_LOGIC_1164.NVC_REL_MATCH_EQ(UU)U");
+         break;
+      default:
+         fatal_trace("unexpected comparison operator %d", cmp);
+      }
+
+      vcode_type_t rtype = lower_type(r0_type);
+      result = emit_fcall(func, rtype, rtype, VCODE_CC_PREDEF, args, 2);
+   }
+
+   if (invert && is_bit)
+      emit_return(emit_not(result));
+   else if (invert) {
+      vcode_reg_t args[1] = { result };
+      vcode_type_t rtype = vcode_reg_type(result);
+      emit_return(emit_fcall(ident_new("IEEE.STD_LOGIC_1164.\"not\"(U)4UX01"),
+                             rtype, rtype, VCODE_CC_PREDEF, args, 1));
+   }
+   else
+      emit_return(result);
+}
+
 static void lower_predef_negate(tree_t decl, vcode_unit_t context,
                                 const char *op)
 {
@@ -6508,6 +6605,14 @@ static void lower_predef(tree_t decl, vcode_unit_t context)
    case S_REDUCE_XOR:
    case S_REDUCE_XNOR:
       lower_predef_reduction_op(decl, context, kind);
+      break;
+   case S_MATCH_EQ:
+   case S_MATCH_NEQ:
+   case S_MATCH_LT:
+   case S_MATCH_LE:
+   case S_MATCH_GT:
+   case S_MATCH_GE:
+      lower_predef_match_op(decl, context, kind);
       break;
    default:
       break;

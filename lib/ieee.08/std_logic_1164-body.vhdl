@@ -1594,9 +1594,6 @@ package body std_logic_1164 is
 
   function nvc_rel_match_eq (l, r : std_ulogic) return std_ulogic is
   begin
-      assert l /= '-' and r /= '-'
-          report "STD_LOGIC_1164: '-' operand for matching ordering operator"
-          severity ERROR;
       return match_eq_table(l, r);
   end function;
 
@@ -1617,6 +1614,14 @@ package body std_logic_1164 is
           report "STD_LOGIC_1164: '-' operand for matching ordering operator"
           severity ERROR;
       return match_lt_table(l, r);
+  end function;
+
+  function nvc_rel_match_leq (l, r : std_ulogic) return std_ulogic is
+  begin
+      assert l /= '-' and r /= '-'
+          report "STD_LOGIC_1164: '-' operand for matching ordering operator"
+          severity ERROR;
+      return match_lt_table(l, r) or match_eq_table(l, r);
   end function;
 
 end package body std_logic_1164;
