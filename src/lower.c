@@ -1237,135 +1237,6 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
    return lower_logical(fcall, result);
 }
 
-static vcode_reg_t lower_reduction_op(subprogram_kind_t kind, vcode_reg_t r0,
-                                      type_t r0_type)
-{
-   ident_t result_name = ident_uniq("reduce_result");
-   vcode_var_t result_var =
-      emit_var(vtype_bool(), vtype_bool(), result_name, 0);
-   vcode_reg_t init_reg =
-      emit_const(vtype_bool(), kind == S_REDUCE_NAND || kind == S_REDUCE_AND);
-   emit_store(init_reg, result_var);
-
-   ident_t i_name = ident_uniq("reduce_i");
-   vcode_var_t i_var = emit_var(vtype_offset(), vtype_offset(), i_name, 0);
-   emit_store(emit_const(vtype_offset(), 0), i_var);
-
-   vcode_reg_t len_reg   = lower_array_len(r0_type, 0, r0);
-   vcode_reg_t data_reg  = lower_array_data(r0);
-   vcode_reg_t left_reg  = lower_array_left(r0_type, 0, r0);
-   vcode_reg_t right_reg = lower_array_right(r0_type, 0, r0);
-   vcode_reg_t dir_reg   = lower_array_dir(r0_type, 0, r0);
-   vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
-
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
-   emit_cond(null_reg, exit_bb, body_bb);
-
-   vcode_select_block(body_bb);
-
-   vcode_reg_t i_reg   = emit_load(i_var);
-   vcode_reg_t src_reg = emit_load_indirect(emit_add(data_reg, i_reg));
-   vcode_reg_t cur_reg = emit_load(result_var);
-
-   vcode_reg_t result_reg = VCODE_INVALID_REG;
-   switch (kind) {
-   case S_REDUCE_OR:
-   case S_REDUCE_NOR:
-      result_reg = emit_or(cur_reg, src_reg);
-      break;
-   case S_REDUCE_AND:
-   case S_REDUCE_NAND:
-      result_reg = emit_and(cur_reg, src_reg);
-      break;
-   case S_REDUCE_XOR:
-   case S_REDUCE_XNOR:
-      result_reg = emit_xor(cur_reg, src_reg);
-      break;
-   default:
-      break;
-   }
-
-   emit_store(result_reg, result_var);
-
-   vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
-   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
-   emit_store(next_reg, i_var);
-   emit_cond(cmp_reg, exit_bb, body_bb);
-
-   vcode_select_block(exit_bb);
-
-   if (kind == S_REDUCE_NOR || kind == S_REDUCE_NAND || kind == S_REDUCE_XNOR)
-      return emit_not(emit_load(result_var));
-   else
-      return emit_load(result_var);
-}
-
-static vcode_reg_t lower_bit_vec_op2(subprogram_kind_t kind, vcode_reg_t r0,
-                                     type_t r0_type, vcode_reg_t r1,
-                                     type_t r1_type)
-{
-   ident_t i_name = ident_uniq("bit_vec_i");
-   vcode_var_t i_var = emit_var(vtype_offset(), vtype_offset(), i_name, 0);
-   emit_store(emit_const(vtype_offset(), 0), i_var);
-
-   const bool r0_is_array = type_is_array(r0_type);
-   //const bool r1_is_array = type_is_array(r1_type);
-
-   type_t array_type = r0_is_array ? r0_type : r1_type;
-   vcode_reg_t array_reg = r0_is_array ? r0 : r1;
-
-   vcode_reg_t len_reg   = lower_array_len(array_type, 0, array_reg);
-   vcode_reg_t data_reg  = lower_array_data(array_reg);
-   vcode_reg_t left_reg  = lower_array_left(array_type, 0, array_reg);
-   vcode_reg_t right_reg = lower_array_right(array_type, 0, array_reg);
-   vcode_reg_t dir_reg   = lower_array_dir(array_type, 0, array_reg);
-   vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
-
-   vcode_reg_t mem_reg = emit_alloca(vtype_bool(), vtype_bool(), len_reg);
-
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
-   emit_cond(null_reg, exit_bb, body_bb);
-
-   vcode_select_block(body_bb);
-
-   vcode_reg_t i_reg = emit_load(i_var);
-   vcode_reg_t l_reg = emit_load_indirect(emit_add(data_reg, i_reg));
-   vcode_reg_t r_reg = r0_is_array ? r1 : r0;
-
-   vcode_reg_t result_reg = VCODE_INVALID_REG;
-   switch (kind) {
-   case S_MIXED_AND:  result_reg = emit_and(l_reg, r_reg);  break;
-   case S_MIXED_OR:   result_reg = emit_or(l_reg, r_reg);   break;
-   case S_MIXED_NAND: result_reg = emit_nand(l_reg, r_reg); break;
-   case S_MIXED_NOR:  result_reg = emit_nor(l_reg, r_reg);  break;
-   case S_MIXED_XOR:  result_reg = emit_xor(l_reg, r_reg);  break;
-   case S_MIXED_XNOR: result_reg = emit_xnor(l_reg, r_reg); break;
-   default: break;
-   }
-
-   emit_store_indirect(result_reg, emit_add(mem_reg, i_reg));
-
-   vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
-   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
-   emit_store(next_reg, i_var);
-   emit_cond(cmp_reg, exit_bb, body_bb);
-
-   vcode_select_block(exit_bb);
-
-   vcode_dim_t dims[1] = {
-      {
-         .left  = left_reg,
-         .right = right_reg,
-         .dir   = dir_reg
-      }
-   };
-   return emit_wrap(mem_reg, dims, 1);
-}
-
 static vcode_reg_t lower_match_op(subprogram_kind_t kind, vcode_reg_t r0,
                                   type_t r0_type, vcode_reg_t r1)
 {
@@ -1543,20 +1414,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
    case S_DEALLOCATE:
       emit_deallocate(r0);
       return VCODE_INVALID_REG;
-   case S_MIXED_AND:
-   case S_MIXED_OR:
-   case S_MIXED_XOR:
-   case S_MIXED_XNOR:
-   case S_MIXED_NAND:
-   case S_MIXED_NOR:
-      return lower_bit_vec_op2(builtin, r0, r0_type, r1, r1_type);
-   case S_REDUCE_OR:
-   case S_REDUCE_AND:
-   case S_REDUCE_NAND:
-   case S_REDUCE_NOR:
-   case S_REDUCE_XOR:
-   case S_REDUCE_XNOR:
-      return lower_reduction_op(builtin, r0, r0_type);
    case S_MATCH_EQ:
    case S_MATCH_NEQ:
    case S_MATCH_LT:
@@ -6424,6 +6281,144 @@ static void lower_predef_bit_vec_op(tree_t decl, vcode_unit_t context,
    emit_return(emit_wrap(mem_reg, dims, 1));
 }
 
+static void lower_predef_mixed_bit_vec_op(tree_t decl, vcode_unit_t context,
+                                          subprogram_kind_t kind)
+{
+   // Mixed scalar/array bit vector operations
+
+   vcode_reg_t r0 = 0, r1 = 1;
+
+   type_t r0_type = tree_type(tree_port(decl, 0));
+   type_t r1_type = tree_type(tree_port(decl, 1));
+
+   vcode_type_t voffset = vtype_offset();
+
+   vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+   emit_store(emit_const(vtype_offset(), 0), i_var);
+
+   const bool r0_is_array = type_is_array(r0_type);
+
+   type_t array_type = r0_is_array ? r0_type : r1_type;
+   vcode_reg_t array_reg = r0_is_array ? r0 : r1;
+
+   vcode_reg_t len_reg   = lower_array_len(array_type, 0, array_reg);
+   vcode_reg_t data_reg  = lower_array_data(array_reg);
+   vcode_reg_t left_reg  = lower_array_left(array_type, 0, array_reg);
+   vcode_reg_t right_reg = lower_array_right(array_type, 0, array_reg);
+   vcode_reg_t dir_reg   = lower_array_dir(array_type, 0, array_reg);
+   vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
+
+   vcode_reg_t mem_reg = emit_alloca(vtype_bool(), vtype_bool(), len_reg);
+
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   emit_cond(null_reg, exit_bb, body_bb);
+
+   vcode_select_block(body_bb);
+
+   vcode_reg_t i_reg = emit_load(i_var);
+   vcode_reg_t l_reg = emit_load_indirect(emit_add(data_reg, i_reg));
+   vcode_reg_t r_reg = r0_is_array ? r1 : r0;
+
+   vcode_reg_t result_reg = VCODE_INVALID_REG;
+   switch (kind) {
+   case S_MIXED_AND:  result_reg = emit_and(l_reg, r_reg);  break;
+   case S_MIXED_OR:   result_reg = emit_or(l_reg, r_reg);   break;
+   case S_MIXED_NAND: result_reg = emit_nand(l_reg, r_reg); break;
+   case S_MIXED_NOR:  result_reg = emit_nor(l_reg, r_reg);  break;
+   case S_MIXED_XOR:  result_reg = emit_xor(l_reg, r_reg);  break;
+   case S_MIXED_XNOR: result_reg = emit_xnor(l_reg, r_reg); break;
+   default: break;
+   }
+
+   emit_store_indirect(result_reg, emit_add(mem_reg, i_reg));
+
+   vcode_reg_t next_reg = emit_add(i_reg, emit_const(voffset, 1));
+   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
+   emit_store(next_reg, i_var);
+   emit_cond(cmp_reg, exit_bb, body_bb);
+
+   vcode_select_block(exit_bb);
+
+   vcode_dim_t dims[1] = {
+      {
+         .left  = left_reg,
+         .right = right_reg,
+         .dir   = dir_reg
+      }
+   };
+   emit_return(emit_wrap(mem_reg, dims, 1));
+}
+
+static void lower_predef_reduction_op(tree_t decl, vcode_unit_t context,
+                                      subprogram_kind_t kind)
+{
+   vcode_reg_t r0 = 0;
+   type_t r0_type = tree_type(tree_port(decl, 0));
+
+   vcode_type_t vbool = vtype_bool();
+   vcode_type_t voffset = vtype_offset();
+
+   vcode_var_t result_var = emit_var(vbool, vbool, ident_uniq("result"), 0);
+   vcode_reg_t init_reg =
+      emit_const(vbool, kind == S_REDUCE_NAND || kind == S_REDUCE_AND);
+   emit_store(init_reg, result_var);
+
+   vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+   emit_store(emit_const(vtype_offset(), 0), i_var);
+
+   vcode_reg_t len_reg   = lower_array_len(r0_type, 0, r0);
+   vcode_reg_t data_reg  = lower_array_data(r0);
+   vcode_reg_t left_reg  = lower_array_left(r0_type, 0, r0);
+   vcode_reg_t right_reg = lower_array_right(r0_type, 0, r0);
+   vcode_reg_t dir_reg   = lower_array_dir(r0_type, 0, r0);
+   vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
+
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   emit_cond(null_reg, exit_bb, body_bb);
+
+   vcode_select_block(body_bb);
+
+   vcode_reg_t i_reg   = emit_load(i_var);
+   vcode_reg_t src_reg = emit_load_indirect(emit_add(data_reg, i_reg));
+   vcode_reg_t cur_reg = emit_load(result_var);
+
+   vcode_reg_t result_reg = VCODE_INVALID_REG;
+   switch (kind) {
+   case S_REDUCE_OR:
+   case S_REDUCE_NOR:
+      result_reg = emit_or(cur_reg, src_reg);
+      break;
+   case S_REDUCE_AND:
+   case S_REDUCE_NAND:
+      result_reg = emit_and(cur_reg, src_reg);
+      break;
+   case S_REDUCE_XOR:
+   case S_REDUCE_XNOR:
+      result_reg = emit_xor(cur_reg, src_reg);
+      break;
+   default:
+      break;
+   }
+
+   emit_store(result_reg, result_var);
+
+   vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
+   vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
+   emit_store(next_reg, i_var);
+   emit_cond(cmp_reg, exit_bb, body_bb);
+
+   vcode_select_block(exit_bb);
+
+   if (kind == S_REDUCE_NOR || kind == S_REDUCE_NAND || kind == S_REDUCE_XNOR)
+      emit_return(emit_not(emit_load(result_var)));
+   else
+      emit_return(emit_load(result_var));
+}
+
 static void lower_predef_negate(tree_t decl, vcode_unit_t context,
                                 const char *op)
 {
@@ -6497,6 +6492,22 @@ static void lower_predef(tree_t decl, vcode_unit_t context)
    case S_ARRAY_NAND:
    case S_ARRAY_NOR:
       lower_predef_bit_vec_op(decl, context, kind);
+      break;
+   case S_MIXED_AND:
+   case S_MIXED_OR:
+   case S_MIXED_XOR:
+   case S_MIXED_XNOR:
+   case S_MIXED_NAND:
+   case S_MIXED_NOR:
+      lower_predef_mixed_bit_vec_op(decl, context, kind);
+      break;
+   case S_REDUCE_OR:
+   case S_REDUCE_AND:
+   case S_REDUCE_NAND:
+   case S_REDUCE_NOR:
+   case S_REDUCE_XOR:
+   case S_REDUCE_XNOR:
+      lower_predef_reduction_op(decl, context, kind);
       break;
    default:
       break;

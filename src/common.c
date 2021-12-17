@@ -1221,6 +1221,18 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_ARRAY_XNOR:
    case S_ARRAY_NAND:
    case S_ARRAY_NOR:
+   case S_MIXED_AND:
+   case S_MIXED_OR:
+   case S_MIXED_XOR:
+   case S_MIXED_XNOR:
+   case S_MIXED_NAND:
+   case S_MIXED_NOR:
+   case S_REDUCE_OR:
+   case S_REDUCE_AND:
+   case S_REDUCE_NAND:
+   case S_REDUCE_NOR:
+   case S_REDUCE_XOR:
+   case S_REDUCE_XNOR:
       return false;
    default:
       return true;
