@@ -1155,11 +1155,13 @@ tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn)
    return container_of(o, struct _tree, object);
 }
 
-tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
+tree_t tree_rewrite(tree_t t, tree_rewrite_pre_fn_t pre_fn,
+                    tree_rewrite_post_fn_t post_fn, void *context)
 {
    object_rewrite_ctx_t ctx = {
       .generation = object_next_generation(),
-      .fn         = (object_rewrite_fn_t)fn,
+      .pre_fn     = (object_rewrite_pre_fn_t)pre_fn,
+      .post_fn    = (object_rewrite_post_fn_t)post_fn,
       .context    = context,
       .arena      = global_arena,
       .tag        = OBJECT_TAG_TREE

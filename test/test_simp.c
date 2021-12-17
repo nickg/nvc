@@ -298,7 +298,7 @@ START_TEST(test_ffold)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   simplify_global(b);
+   simplify_global(b, NULL);
    fail_if_errors();
 
    fail_unless(folded_i(tree_value(tree_decl(b, 0)), 6));
@@ -344,7 +344,7 @@ START_TEST(test_ffold2)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   simplify_global(b);
+   simplify_global(b, NULL);
    fail_if_errors();
 
    fail_unless(folded_i(tree_value(tree_decl(b, 0)), 3));
@@ -369,7 +369,7 @@ START_TEST(test_issue155)
    tree_t p = parse_and_check(T_PACKAGE);
    fail_if_errors();
 
-   simplify_global(p);
+   simplify_global(p, NULL);
 
    tree_t ar = range_of(tree_type(tree_decl(p, 4)), 0);
    fail_unless(folded_i(tree_left(ar), 7));
@@ -464,7 +464,7 @@ START_TEST(test_issue320)
    input_from_file(TESTDIR "/simp/issue320.vhd");
 
    tree_t a = parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
-   simplify_global(a);
+   simplify_global(a, NULL);
 
    fail_unless(tree_decls(a) == 2);
    tree_t d = tree_decl(a, 1);
@@ -591,7 +591,7 @@ START_TEST(test_constarr)
    tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
    fail_if(p == NULL);
 
-   simplify_global(p);
+   simplify_global(p, NULL);
 
    tree_t c1 = tree_value(tree_decl(p, 1));
    fail_unless(tree_ident(c1) == ident_new("'1'"));

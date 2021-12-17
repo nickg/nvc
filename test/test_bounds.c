@@ -61,7 +61,7 @@ START_TEST(test_bounds)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify_global(a);   // Global to fold TIME expressions
+   simplify_global(a, NULL);   // Global to fold TIME expressions
    bounds_check(a);
 
    check_expected_errors();
@@ -102,7 +102,7 @@ START_TEST(test_bounds2)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify_global(a);   // Global to fold TIME expressions
+   simplify_global(a, NULL);   // Global to fold TIME expressions
    bounds_check(a);
 
    check_expected_errors();

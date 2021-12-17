@@ -20,6 +20,7 @@
 #include "common.h"
 #include "loc.h"
 #include "exec.h"
+#include "hash.h"
 
 #include <assert.h>
 #include <string.h>
@@ -43,6 +44,7 @@ typedef struct {
    ident_t       prefix;
    exec_t       *exec;
    tree_flags_t  eval_mask;
+   hash_t       *generics;
 } simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
@@ -225,7 +227,7 @@ static tree_t simp_record_ref(tree_t t)
    return t;
 }
 
-static tree_t simp_ref(tree_t t)
+static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
 {
    if (tree_flags(t) & TREE_F_FORMAL_NAME)
       return t;
@@ -256,6 +258,34 @@ static tree_t simp_ref(tree_t t)
 
    case T_UNIT_DECL:
       return tree_value(decl);
+
+   case T_PORT_DECL:
+      if (ctx->generics != NULL) {
+         tree_t map = hash_get(ctx->generics, decl);
+         if (map != NULL) {
+            switch (tree_kind(map)) {
+            case T_LITERAL:
+            case T_AGGREGATE:
+            case T_ARRAY_SLICE:
+            case T_ARRAY_REF:
+            case T_FCALL:
+            case T_RECORD_REF:
+            case T_OPEN:
+            case T_QUALIFIED:
+               // Do not rewrite references to non-references if they appear
+               // as formal names
+               if (tree_flags(t) & TREE_F_FORMAL_NAME)
+                  break;
+               // Fall-through
+            case T_REF:
+               return map;
+            default:
+               fatal_trace("cannot rewrite generic %s to tree kind %s",
+                           istr(tree_ident(t)), tree_kind_str(tree_kind(map)));
+            }
+         }
+      }
+      return t;
 
    default:
       return t;
@@ -1410,7 +1440,7 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_PROT_PCALL:
       return simp_pcall(t);
    case T_REF:
-      return simp_ref(t);
+      return simp_ref(t, ctx);
    case T_IF:
       return simp_if(t);
    case T_CASE:
@@ -1457,6 +1487,64 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    }
 }
 
+static void simp_generics(tree_t t, simp_ctx_t *ctx)
+{
+   const int ngenerics = tree_generics(t);
+   const int ngenmaps = tree_genmaps(t);
+
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t g = tree_generic(t, i);
+      unsigned pos = i;
+      tree_t map = NULL;
+
+      if (pos < ngenmaps) {
+         tree_t m = tree_genmap(t, pos);
+         if (tree_subkind(m) == P_POS)
+            map = tree_value(m);
+      }
+
+      if (map == NULL) {
+         for (int j = 0; j < ngenmaps; j++) {
+            tree_t m = tree_genmap(t, j);
+            if (tree_subkind(m) == P_NAMED) {
+               tree_t name = tree_name(m);
+               assert(tree_kind(name) == T_REF);
+
+               if (tree_ident(name) == tree_ident(g)) {
+                  map = tree_value(m);
+                  break;
+               }
+            }
+         }
+      }
+
+      if (map == NULL && tree_has_value(g))
+         map = tree_value(g);
+
+      if (map == NULL)
+         continue;
+
+      if (ctx->generics == NULL)
+         ctx->generics = hash_new(128, true);
+
+      hash_put(ctx->generics, g, map);
+   }
+}
+
+static void simp_pre_cb(tree_t t, void *__ctx)
+{
+   simp_ctx_t *ctx = __ctx;
+
+   switch (tree_kind(t)) {
+   case T_BLOCK:
+      if (tree_genmaps(t) > 0)
+         simp_generics(t, ctx);
+      break;
+   default:
+      break;
+   }
+}
+
 void simplify_local(tree_t top)
 {
    simp_ctx_t ctx = {
@@ -1467,9 +1555,12 @@ void simplify_local(tree_t top)
       .eval_mask   = TREE_F_LOCALLY_STATIC,
    };
 
-   tree_rewrite(top, simp_tree, &ctx);
+   tree_rewrite(top, simp_pre_cb, simp_tree, &ctx);
 
    exec_free(ctx.exec);
+
+   if (ctx.generics)
+      hash_free(ctx.generics);
 
    while (ctx.imp_signals != NULL) {
       tree_add_decl(top, ctx.imp_signals->signal);
@@ -1481,7 +1572,7 @@ void simplify_local(tree_t top)
    }
 }
 
-void simplify_global(tree_t top)
+void simplify_global(tree_t top, hash_t *generics)
 {
    simp_ctx_t ctx = {
       .imp_signals = NULL,
@@ -1489,11 +1580,15 @@ void simplify_global(tree_t top)
       .prefix      = ident_runtil(tree_ident(top), '-'),
       .exec        = exec_new(EVAL_LOWER | EVAL_FCALL | EVAL_FOLDING),
       .eval_mask   = TREE_F_GLOBALLY_STATIC | TREE_F_LOCALLY_STATIC,
+      .generics    = generics,
    };
 
-   tree_rewrite(top, simp_tree, &ctx);
+   tree_rewrite(top, simp_pre_cb, simp_tree, &ctx);
 
    exec_free(ctx.exec);
+
+   if (generics == NULL && ctx.generics != NULL)
+      hash_free(ctx.generics);
 
    assert(ctx.imp_signals == NULL);
 }

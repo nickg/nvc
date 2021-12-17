@@ -28,7 +28,7 @@ bool sem_check(tree_t t);
 void simplify_local(tree_t top);
 
 // Rewrite to simpler forms folding globally static expressions
-void simplify_global(tree_t top);
+void simplify_global(tree_t top, hash_t *generics);
 
 // Perform static bounds checking
 void bounds_check(tree_t top);

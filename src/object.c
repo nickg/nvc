@@ -575,7 +575,9 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          // Found a circular reference: eagerly rewrite the object now
          // and break the cycle
          if (object->tag == ctx->tag) {
-            object_t *new = (object_t *)(*ctx->fn)(object, ctx->context);
+	    if (ctx->pre_fn != NULL)
+	       (*ctx->pre_fn)(object, ctx->context);
+            object_t *new = (object_t *)(*ctx->post_fn)(object, ctx->context);
             object_write_barrier(object, new);
             return (ctx->cache[index] = new);
          }
@@ -589,6 +591,9 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    }
 
    ctx->cache[index] = (object_t *)-1;  // Rewrite in progress marker
+
+   if (ctx->pre_fn != NULL)
+      (*ctx->pre_fn)(object, ctx->context);
 
    const imask_t skip_mask = I_REF;
 
@@ -634,7 +639,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       // The cache was already updated due to a circular reference
    }
    else if (object->tag == ctx->tag) {
-      object_t *new = (object_t *)(*ctx->fn)(object, ctx->context);
+      object_t *new = (object_t *)(*ctx->post_fn)(object, ctx->context);
       object_write_barrier(object, new);
       ctx->cache[index] = new;
    }

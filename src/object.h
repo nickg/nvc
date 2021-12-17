@@ -192,15 +192,17 @@ typedef struct {
    unsigned           tag;
 } object_copy_ctx_t;
 
-typedef object_t *(*object_rewrite_fn_t)(object_t *, void *);
+typedef void (*object_rewrite_pre_fn_t)(object_t *, void *);
+typedef object_t *(*object_rewrite_post_fn_t)(object_t *, void *);
 
 typedef struct {
-   object_t            **cache;
-   generation_t          generation;
-   object_rewrite_fn_t   fn;
-   void                 *context;
-   object_arena_t       *arena;
-   unsigned              tag;
+   object_t                 **cache;
+   generation_t               generation;
+   object_rewrite_pre_fn_t    pre_fn;
+   object_rewrite_post_fn_t   post_fn;
+   void                      *context;
+   object_arena_t            *arena;
+   unsigned                   tag;
 } object_rewrite_ctx_t;
 
 typedef struct {

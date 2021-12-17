@@ -184,7 +184,7 @@ START_TEST(test_ieee_warnings)
    tree_t b = parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
    // This should not fold the call to IEEE_WARNINGS
-   simplify_global(b);
+   simplify_global(b, NULL);
 
    fail_unless(tree_decls(b) == 1);
    tree_t d0 = tree_decl(b, 0);

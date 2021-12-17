@@ -20,6 +20,7 @@
 #include "common.h"
 #include "loc.h"
 #include "array.h"
+#include "hash.h"
 #include "rt/cover.h"
 
 #include <ctype.h>
@@ -42,12 +43,13 @@ typedef struct {
 typedef A(rewrite_item_t) rw_list_t;
 
 typedef struct {
-   tree_t    out;
-   tree_t    root;
-   ident_t   path;    // Current 'PATH_NAME
-   ident_t   inst;    // Current 'INSTANCE_NAME
-   lib_t     library;
-   rw_list_t rwlist;
+   tree_t     out;
+   tree_t     root;
+   ident_t    path;             // Current 'PATH_NAME
+   ident_t    inst;             // Current 'INSTANCE_NAME
+   lib_t      library;
+   rw_list_t  rwlist;
+   hash_t    *generics;
 } elab_ctx_t;
 
 typedef struct {
@@ -720,6 +722,9 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       binding_ngenmaps = tree_genmaps(binding);
    }
 
+   if (ctx->generics == NULL && ngenerics > 0)
+      ctx->generics = hash_new(ngenerics * 2, true);
+
    for (int i = 0; i < ngenerics; i++) {
       tree_t eg = tree_generic(entity, i), cg = eg;
       unsigned pos = i;
@@ -810,8 +815,8 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       tree_add_genmap(ctx->out, map);
 
       tree_t value = tree_value(map);
-      elab_rewrite_later(eg, value, ctx);
-      if (eg != cg) elab_rewrite_later(cg, value, ctx);
+      hash_put(ctx->generics, eg, value);
+      if (eg != cg) hash_put(ctx->generics, cg, value);
    }
 }
 
@@ -822,7 +827,7 @@ static void elab_fold_generics(tree_t t, const elab_ctx_t *ctx)
          .items = ctx->rwlist.items,
          .count = ctx->rwlist.count
       };
-      tree_rewrite(t, rewrite_refs, &params);
+      tree_rewrite(t, NULL, rewrite_refs, &params);
    }
 }
 
@@ -887,7 +892,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    elab_push_scope(arch, &new_ctx);
    elab_generics(entity, comp, t, &new_ctx);
-   elab_fold_generics(entity, &new_ctx);
+   simplify_global(entity, new_ctx.generics);
    elab_ports(entity, comp, t, &new_ctx);
    elab_decls(entity, &new_ctx);
    elab_rewrite_later(entity, b, &new_ctx);
@@ -895,10 +900,9 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_fold_generics(arch, &new_ctx);
 
    if (error_count() == 0) {
-      simplify_global(b);
       bounds_check(b);
       set_hint_fn(elab_hint_fn, t);
-      simplify_global(arch);
+      simplify_global(arch, new_ctx.generics);
       bounds_check(arch);
       clear_hint();
    }
@@ -954,6 +958,8 @@ static void elab_push_scope(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_pop_scope(const elab_ctx_t *ctx)
 {
+   if (ctx->generics != NULL)
+      hash_free(ctx->generics);
 }
 
 static void elab_rewrite_genvar_cb(tree_t t, void *__ctx)
@@ -1016,14 +1022,15 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .path     = npath,
          .inst     = ninst,
          .library  = ctx->library,
+         .generics = hash_new(16, true),
       };
 
       elab_push_scope(copy, &new_ctx);
-      elab_rewrite_later(g, tree_value(map), &new_ctx);
+      hash_put(new_ctx.generics, g, tree_value(map));
       elab_rewrite_later(t, b, &new_ctx);
       elab_fold_generics(copy, &new_ctx);
 
-      simplify_global(copy);
+      simplify_global(copy, new_ctx.generics);
       bounds_check(copy);
 
       if (error_count() == 0) {
@@ -1101,7 +1108,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    elab_push_scope(t, &new_ctx);
    elab_generics(t, t, t, &new_ctx);
    elab_rewrite_later(t, b, &new_ctx);
-   elab_fold_generics(t, &new_ctx);
+   elab_fold_generics(t, &new_ctx);   // XXX: only necessary for attribute names
    elab_ports(t, t, t, &new_ctx);
    elab_decls(t, &new_ctx);
    elab_stmts(t, &new_ctx);
@@ -1173,8 +1180,11 @@ static tree_t elab_generic_parse(tree_t generic, const char *str)
 static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
 {
    tree_t ent = tree_primary(arch);
-
    const int ngenerics = tree_generics(ent);
+
+   if (ctx->generics == NULL && ngenerics > 0)
+      ctx->generics = hash_new(ngenerics * 2, true);
+
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(ent, i);
       ident_t name = tree_ident(g);
@@ -1208,7 +1218,7 @@ static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
       tree_add_generic(ctx->out, g);
       tree_add_genmap(ctx->out, map);
 
-      elab_rewrite_later(g, value, ctx);
+      hash_put(ctx->generics, g, value);
    }
 }
 
@@ -1243,7 +1253,7 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    elab_top_level_ports(entity, &new_ctx);
    elab_decls(entity, &new_ctx);
 
-   simplify_global(arch);
+   simplify_global(arch, new_ctx.generics);
    bounds_check(arch);
 
    if (error_count() == 0)
