@@ -56,6 +56,8 @@
 - Added support for guarded signals.
 - New configure option `--disable-vital` disables building the VITAL
   packages whose license status is unclear.
+- Added support for HREAD, HWRITE, and other TEXTIO additions in
+  VHDL-2008.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

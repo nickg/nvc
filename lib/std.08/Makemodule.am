@@ -47,19 +47,19 @@ lib/std.08/STD.STANDARD: $(srcdir)/lib/std.08/standard.vhd @ifGNUmake@ | $(DRIVE
 		$(srcdir)/lib/std.08/standard.vhd
 
 lib/std.08/STD.TEXTIO: $(srcdir)/lib/std.08/textio.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std.08/textio.vhd
+	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a $(srcdir)/lib/std.08/textio.vhd
 
 lib/std.08/STD.TEXTIO-body: $(srcdir)/lib/std/textio-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std/textio-body.vhd
+	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a $(srcdir)/lib/std/textio-body.vhd
 
 lib/std.08/STD.ENV: $(srcdir)/lib/std.08/env.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std.08/env.vhd
+	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a $(srcdir)/lib/std.08/env.vhd
 
 lib/std.08/STD.ENV-body: $(srcdir)/lib/std.08/env-body.vhd @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 --work=lib/std.08 -a $(srcdir)/lib/std.08/env-body.vhd
+	$(nvc) --std=2008 -L lib/ --work=lib/std.08 -a $(srcdir)/lib/std.08/env-body.vhd
 
 gen-deps-std-08:
-	$(nvc) --std=2008 --work=lib/std.08 --make --posix --deps-only | \
+	$(nvc) --std=2008 -L lib/ --work=lib/std.08 --make --posix --deps-only | \
 		$(deps_pp) > $(srcdir)/lib/std.08/deps.mk
 
 include lib/std.08/deps.mk

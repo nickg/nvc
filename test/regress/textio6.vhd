@@ -78,4 +78,18 @@ begin
         wait;
     end process;
 
+    test_ohwrite: process is
+        variable l : line;
+    begin
+        hwrite(l, "1010", field => 5);
+        assert l.all = "    A";
+        deallocate(l);
+        hwrite(l, X"abc", field => 5, justified => left);
+        assert l.all = "ABC  ";
+        deallocate(l);
+        owrite(l, o"77");
+        assert l.all = "77";
+        wait;
+    end process;
+
 end architecture;

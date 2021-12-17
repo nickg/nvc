@@ -3,10 +3,14 @@ nvc_DATA = \
 	lib/nvc/_NVC_LIB \
 	lib/nvc/_index \
 	lib/nvc/NVC.SIM_PKG \
-	lib/nvc/_NVC.SIM_PKG.vcode
+	lib/nvc/NVC.POLYFILL \
+	lib/nvc/NVC.POLYFILL-body \
+	lib/nvc/_NVC.SIM_PKG.vcode \
+	lib/nvc/_NVC.POLYFILL.vcode
 
 nvc_so = \
-	lib/nvc/_NVC.SIM_PKG.$(DLL_EXT)
+	lib/nvc/_NVC.SIM_PKG.$(DLL_EXT) \
+	lib/nvc/_NVC.POLYFILL.$(DLL_EXT)
 
 if IMPLIB_REQUIRED
 
@@ -20,7 +24,11 @@ nvc_DATA += $(nvc_so)
 
 endif  # IMPLIB_REQUIRED
 
-EXTRA_DIST += lib/nvc/sim_pkg.vhd
+EXTRA_DIST += \
+	lib/nvc/sim_pkg.vhd \
+	lib/nvc/polyfill.vhd \
+	lib/nvc/polyfill-body.vhd
+
 BOOTSTRAPLIBS += $(nvc_DATA)
 
 libs-nvc: $(nvc_DATA)
@@ -31,6 +39,12 @@ lib/nvc/_index:
 
 lib/nvc/NVC.SIM_PKG: $(srcdir)/lib/nvc/sim_pkg.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/sim_pkg.vhd
+
+lib/nvc/NVC.POLYFILL: $(srcdir)/lib/nvc/polyfill.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill.vhd
+
+lib/nvc/NVC.POLYFILL-body: $(srcdir)/lib/nvc/polyfill-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) -L lib/ --work=lib/nvc -a $(srcdir)/lib/nvc/polyfill-body.vhd
 
 gen-deps-nvc:
 	$(nvc) -L lib/ --work=lib/nvc --make --posix --deps-only | \
