@@ -39,8 +39,14 @@ begin
         assert (c ror -2) = "1110";
         assert (b rol -1) = "1101";
         assert (c rol -1) = "1101";
+        assert (c rol -5) = "1101";
 
         assert (d sll 1) = d;           -- Null array
+
+        b := "0001";
+        wait for 1 ns;
+
+        assert (b sll -4) = "0000";
 
         wait;
     end process;

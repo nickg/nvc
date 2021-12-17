@@ -5995,8 +5995,6 @@ static void lower_predef_bit_shift(tree_t decl, vcode_unit_t context,
    vcode_select_block(non_null_bb);
 
    vcode_reg_t shift_reg = emit_cast(vtype_offset(), VCODE_INVALID_TYPE, r1);
-   shift_reg = emit_rem(shift_reg, len_reg);
-
    vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len_reg);
 
    vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
