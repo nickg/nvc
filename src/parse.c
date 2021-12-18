@@ -1858,7 +1858,16 @@ static void p_library_clause(tree_t unit)
 
       tree_add_context(unit, l);
 
-      (void)lib_find(it->ident, false);
+      lib_t lib = lib_find(it->ident);
+      if (lib == NULL) {
+         LOCAL_TEXT_BUF tb = tb_new();
+         lib_print_search_paths(tb);
+
+         parse_error(CURRENT_LOC, "library %s not found in:%s",
+                     istr(it->ident), tb_get(tb));
+      }
+      else
+         tree_set_ident2(l, lib_name(lib));
 
       insert_name(nametab, l, NULL, 0);
    }
@@ -1917,7 +1926,7 @@ static void p_use_clause(tree_t unit, add_func_t addf)
       tree_set_loc(u, CURRENT_LOC);
       (*addf)(unit, u);
 
-      if (head != NULL) {
+      if (head != NULL && tree_has_ident2(head)) {
          const tree_kind_t kind = tree_kind(head);
          if (kind == T_LIBRARY || (kind == T_PACKAGE && standard() >= STD_08)) {
             tree_set_ref(u, head);
@@ -8095,11 +8104,14 @@ static tree_t p_design_unit(void)
 
    tree_t std = tree_new(T_LIBRARY);
    tree_set_ident(std, std_i);
+   tree_set_ident2(std, std_i);
    tree_add_context(unit, std);
    insert_name(nametab, std, std_i, 0);
 
+   ident_t work_name = lib_name(lib_work());
    tree_t work = tree_new(T_LIBRARY);
-   tree_set_ident(work, lib_name(lib_work()));
+   tree_set_ident(work, work_name);
+   tree_set_ident2(work, work_name);
    tree_add_context(unit, work);
    insert_name(nametab, work, work_i, 0);
    insert_name(nametab, work, NULL, 0);

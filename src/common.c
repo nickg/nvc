@@ -1078,7 +1078,7 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
    type_t type;
    tree_kind_t kind = tree_kind(container);
    if (kind == T_LIBRARY) {
-      lib_t lib = lib_find(tree_ident(container), true);
+      lib_t lib = lib_require(tree_ident(container));
       return lib_get(lib, name);
    }
    else if ((kind == T_VAR_DECL || kind == T_PORT_DECL)
@@ -1139,7 +1139,7 @@ static tree_t cached_std(tree_t hint)
       if (hint != NULL)
          standard_cache[curr] = hint;
       else {
-         lib_t std = lib_find(std_i, true);
+         lib_t std = lib_require(std_i);
          standard_cache[curr] = lib_get(std, std_standard_i);
          assert(standard_cache[curr] != NULL);
       }

@@ -1133,7 +1133,7 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
 
    if (lib_import) {
       ident_t lib_name = tree_ident(unit);
-      lib_t lib = lib_find(lib_name, true);
+      lib_t lib = lib_require(lib_name);
       if (lib_name == unit_name) {
          lib_walk_index(lib, insert_lib_unit, tab);
          return;
@@ -1215,7 +1215,7 @@ void insert_names_from_context(nametab_t *tab, tree_t unit)
       tree_t c = tree_context(unit, i);
       switch (tree_kind(c)) {
       case T_LIBRARY:
-         lib_find(tree_ident(c), true);
+         lib_require(tree_ident(c));
          insert_name(tab, c, NULL, 0);
          break;
       case T_USE:

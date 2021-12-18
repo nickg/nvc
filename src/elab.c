@@ -116,7 +116,7 @@ static lib_t elab_find_lib(ident_t name, const elab_ctx_t *ctx)
    if (lib_name == work_i)
       return ctx->library;
    else
-      return lib_find(lib_name, true);
+      return lib_require(lib_name);
 }
 
 static void elab_find_arch_cb(lib_t lib, ident_t name, int kind, void *context)
@@ -844,7 +844,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    case T_ARCH:
       arch = ref;
-      new_lib = lib_find(ident_until(tree_ident(ref), '.'), true);
+      new_lib = lib_require(ident_until(tree_ident(ref), '.'));
       break;
 
    case T_COMPONENT:
@@ -858,7 +858,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       {
          tree_t copy = elab_copy(ref, ctx);
          arch = elab_block_config(tree_decl(copy, 0), ctx);
-         new_lib = lib_find(ident_until(tree_ident(copy), '.'), true);
+         new_lib = lib_require(ident_until(tree_ident(copy), '.'));
       }
       break;
 

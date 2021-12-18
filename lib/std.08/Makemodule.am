@@ -63,3 +63,6 @@ gen-deps-std-08:
 		$(deps_pp) > $(srcdir)/lib/std.08/deps.mk
 
 include lib/std.08/deps.mk
+
+# There is a use clause for this package but no references are stored to it
+lib/std.08/STD.TEXTIO-body: lib/nvc.08/NVC.POLYFILL

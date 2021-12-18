@@ -1254,16 +1254,16 @@ static tree_t simp_context_ref(tree_t t, simp_ctx_t *ctx)
 
 static tree_t simp_use(tree_t t)
 {
-   ident_t qual = tree_ident(t);
-   ident_t lname = ident_until(qual, '.');
+   tree_t lib_decl = tree_ref(t);
+   assert(tree_kind(lib_decl) == T_LIBRARY);
 
-   if (lname == work_i) {
-      lib_t lib = lib_find(lname, true);
-      ident_t canon = lib_name(lib);
-      if (canon != lname) {
-         ident_t rest = ident_from(qual, '.');
-         tree_set_ident(t, ident_prefix(canon, rest, '.'));
-      }
+   ident_t qual = tree_ident(t);
+   ident_t lalias = ident_until(qual, '.');
+   ident_t lname = tree_ident2(lib_decl);
+
+   if (lalias != lname) {
+      ident_t rest = ident_from(qual, '.');
+      tree_set_ident(t, ident_prefix(lname, rest, '.'));
    }
 
    return t;

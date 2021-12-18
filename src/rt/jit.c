@@ -110,7 +110,7 @@ void *jit_find_symbol(const char *name, bool required)
 
 static void jit_load_module(ident_t name)
 {
-   lib_t lib = lib_find(ident_until(name, '.'), true);
+   lib_t lib = lib_require(ident_until(name, '.'));
 
    char *so_fname LOCAL = xasprintf("_%s." DLL_EXT, istr(name));
 

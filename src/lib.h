@@ -27,7 +27,8 @@
 
 typedef uint64_t lib_mtime_t;
 
-lib_t lib_find(ident_t name, bool required);
+lib_t lib_find(ident_t name);
+lib_t lib_require(ident_t name) RETURNS_NONNULL;
 lib_t lib_loaded(ident_t name);
 lib_t lib_new(const char *name, const char *path);
 lib_t lib_tmp(const char *name);
@@ -41,11 +42,11 @@ void lib_destroy(lib_t lib);
 ident_t lib_name(lib_t lib);
 void lib_save(lib_t lib);
 void lib_mkdir(lib_t lib, const char *name);
-const char *lib_enum_search_paths(void **token);
 void lib_add_search_path(const char *path);
 bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt);
 void lib_add_map(const char *name, const char *path);
 void lib_delete(lib_t lib, const char *name);
+void lib_print_search_paths(text_buf_t *tb);
 
 typedef bool (*lib_walk_fn_t)(lib_t, void *);
 void lib_for_all(lib_walk_fn_t fn, void *ctx);

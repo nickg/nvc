@@ -443,23 +443,6 @@ static void lib_default_search_paths(void)
    }
 }
 
-const char *lib_enum_search_paths(void **token)
-{
-   if (*token == NULL) {
-      lib_default_search_paths();
-      *token = search_paths;
-   }
-
-   if (*token == (void *)-1)
-      return NULL;
-   else {
-      search_path_t *old = *token;
-      if ((*token = old->next) == NULL)
-         *token = (void *)-1;
-      return old->path;
-   }
-}
-
 void lib_add_search_path(const char *path)
 {
    lib_default_search_paths();
@@ -473,7 +456,15 @@ void lib_add_map(const char *name, const char *path)
       warnf("library %s not found at %s", name, path);
 }
 
-lib_t lib_find(ident_t name_i, bool required)
+void lib_print_search_paths(text_buf_t *tb)
+{
+   lib_default_search_paths();
+
+   for (search_path_t *it = search_paths; it != NULL; it = it->next)
+      tb_printf(tb, "\n  %s", it->path);
+}
+
+lib_t lib_find(ident_t name_i)
 {
    lib_t lib = lib_loaded(name_i);
    if (lib != NULL)
@@ -487,15 +478,18 @@ lib_t lib_find(ident_t name_i, bool required)
          break;
    }
 
+   return lib;
+}
+
+lib_t lib_require(ident_t name)
+{
+   lib_t lib = lib_find(name);
+
    if (lib == NULL) {
       LOCAL_TEXT_BUF tb = tb_new();
-      tb_printf(tb, "library %s not found in:", name_str);
-      for (search_path_t *it = search_paths; it != NULL; it = it->next)
-         tb_printf(tb, "\n  %s", it->path);
-      if (required)
-         fatal("%s", tb_get(tb));
-      else
-         error_at(NULL, "%s", tb_get(tb));
+      lib_print_search_paths(tb);
+      show_stacktrace();
+      fatal("required library %s not found in:%s", istr(name), tb_get(tb));
    }
 
    return lib;
@@ -778,7 +772,7 @@ tree_t lib_get_qualified(ident_t qual)
    if (lname == NULL)
       return NULL;
 
-   lib_t lib = lib_find(lname, false);
+   lib_t lib = lib_find(lname);
    if (lib == NULL)
       return NULL;
 

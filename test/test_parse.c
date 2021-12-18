@@ -1157,7 +1157,7 @@ START_TEST(test_package)
 
    const error_t expect[] = {
       { 28, "package body may not contain attribute declarations" },
-      { LINE_INVALID, "library FOO not found in:" },
+      { 34, "library FOO not found in:" },
       { -1, NULL }
    };
    expect_errors(expect);

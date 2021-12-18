@@ -366,9 +366,6 @@ static bool sem_check_library_clause(tree_t t)
                 "logical library name WORK");
    }
 
-   if (lib_find(name, false) == NULL)
-      return false;
-
    return true;
 }
 

@@ -127,7 +127,7 @@ static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
       if (unit_name == lib_name)
          unit_name = func_name;
 
-      lib_t lib = lib_find(lib_name, true);
+      lib_t lib = lib_require(lib_name);
 
       if (flags & EVAL_VERBOSE)
          notef("loading vcode for %s", istr(unit_name));

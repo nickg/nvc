@@ -4436,7 +4436,7 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
       if (it->ident == name)
          continue;
 
-      lib_t lib = lib_find(ident_until(it->ident, '.'), true);
+      lib_t lib = lib_require(ident_until(it->ident, '.'));
 
       char *dll_name LOCAL = xasprintf("_%s." DLL_EXT, istr(it->ident));
       char dll_path[PATH_MAX];

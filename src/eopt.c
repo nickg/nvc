@@ -468,8 +468,8 @@ static vcode_unit_t eopt_find_vcode(e_node_t e)
    ident_t name = e_vcode(e);
    vcode_unit_t unit = vcode_find_unit(name);
    if (unit == NULL) {
-      lib_t lib = lib_find(ident_until(name, '.'), true);
-      if (lib != NULL && lib_load_vcode(lib, name))
+      lib_t lib = lib_require(ident_until(name, '.'));
+      if (lib_load_vcode(lib, name))
          unit = vcode_find_unit(name);
    }
 

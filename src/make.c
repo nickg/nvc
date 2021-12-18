@@ -60,7 +60,7 @@ static void make_rule(tree_t t, rule_t **rules);
 
 static lib_t make_get_lib(ident_t name)
 {
-   return lib_find(ident_until(name, '.'), true);
+   return lib_require(ident_until(name, '.'));
 }
 
 static const char *make_product(tree_t t, make_product_t product)

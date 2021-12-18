@@ -806,11 +806,9 @@ static void usage(void)
           PACKAGE,
           opt_get_int("stop-delta"));
 
-   printf("Library search paths:\n");
-   void *token = NULL;
-   const char *path;
-   while ((path = lib_enum_search_paths(&token)) != NULL)
-      printf("  %s\n", path);
+   LOCAL_TEXT_BUF tb = tb_new();
+   lib_print_search_paths(tb);
+   printf("Library search paths:%s\n", tb_get(tb));
 
    printf("\nReport bugs to %s\n", PACKAGE_BUGREPORT);
 }

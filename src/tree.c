@@ -227,7 +227,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_PARAMS | I_GENMAPS | I_IDENT | I_IDENT2 | I_CLASS | I_REF),
 
    // T_LIBRARY
-   (I_IDENT),
+   (I_IDENT | I_IDENT2),
 
    // T_DESIGN_UNIT
    (I_CONTEXT),

@@ -123,7 +123,7 @@ START_TEST(test_lib_fopen)
    lib_free(work);
 
    lib_add_search_path(tmp);
-   work = lib_find(ident_new("test_lib"), false);
+   work = lib_find(ident_new("test_lib"));
    fail_if(work == NULL);
 
    f = lib_fopen(work, "_test", "r");
@@ -224,7 +224,7 @@ START_TEST(test_lib_save)
    lib_free(work);
 
    lib_add_search_path(tmp);
-   work = lib_find(ident_new("test_lib"), false);
+   work = lib_find(ident_new("test_lib"));
    fail_if(work == NULL);
 
    {

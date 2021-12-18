@@ -51,7 +51,7 @@ static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
       ident_t lib_name = ident_until(strip_type_suffix, '.');
 
       lib_t lib;
-      if (lib_name != unit_name && (lib = lib_find(lib_name, false)) != NULL) {
+      if (lib_name != unit_name && (lib = lib_find(lib_name)) != NULL) {
          tree_t unit = lib_get(lib, unit_name);
          if (unit != NULL) {
             eval_load_vcode(lib, unit, flags);
