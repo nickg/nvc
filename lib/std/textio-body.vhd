@@ -69,7 +69,8 @@ package body textio is
 
     function is_whitespace (x : character) return boolean is
     begin
-        return x = ' ' or x = CR or x = LF or x = HT;
+        return x = ' ' or x = CR or x = LF or x = HT
+            or x = character'val(160);  -- NBSP
     end function;
 
     procedure skip_whitespace (l : inout line) is
@@ -406,12 +407,14 @@ package body textio is
         variable digits     : string(1 to (value'length + 2) / 3);
         variable ipos       : integer := 1;
         variable opos       : integer := 1;
+        variable remainder  : integer;
         variable char       : character;
         variable bits       : bit_vector(1 to 3);
         variable underscore : boolean := false;
         alias avalue        : bit_vector(1 to value'length) is value;
     begin
         good := false;
+        avalue := (others => '0');
         skip_whitespace(l);
         while ipos <= l'right and opos <= digits'right loop
             char := l.all(ipos);
@@ -432,6 +435,7 @@ package body textio is
             return;
         end if;
         opos := 1;
+        remainder := avalue'length rem 3;
         for i in digits'range loop
             case digits(i) is
                 when '0' => bits := "000";
@@ -444,8 +448,19 @@ package body textio is
                 when '7' => bits := "111";
                 when others => assert false;
             end case;
-            avalue(opos to opos + 2) := bits;
-            opos := opos + 3;
+            if i = digits'left and remainder /= 0 then
+                -- Partial copy of first digit
+                avalue(1 to remainder) := bits(4 - remainder to 3);
+                opos := opos + remainder;
+                for j in 1 to 3 - remainder loop
+                    if bits(j) /= '0' then
+                        return;
+                    end if;
+                end loop;
+            else
+                avalue(opos to opos + 2) := bits;
+                opos := opos + 3;
+            end if;
         end loop;
         good := true;
     end procedure;
@@ -464,12 +479,14 @@ package body textio is
         variable digits     : string(1 to (value'length + 3) / 4);
         variable ipos       : integer := 1;
         variable opos       : integer := 1;
+        variable remainder  : integer;
         variable char       : character;
         variable bits       : bit_vector(1 to 4);
         variable underscore : boolean := false;
         alias avalue        : bit_vector(1 to value'length) is value;
     begin
         good := false;
+        avalue := (others => '0');
         skip_whitespace(l);
         while ipos <= l'right and opos <= digits'right loop
             char := l.all(ipos);
@@ -493,6 +510,7 @@ package body textio is
             return;
         end if;
         opos := 1;
+        remainder := avalue'length rem 4;
         for i in digits'range loop
             case digits(i) is
                 when '0' => bits := "0000";
@@ -513,8 +531,19 @@ package body textio is
                 when 'f' | 'F' => bits := "1111";
                 when others => assert false;
             end case;
-            avalue(opos to opos + 3) := bits;
-            opos := opos + 4;
+            if i = digits'left and remainder /= 0 then
+                -- Partial copy of first digit
+                avalue(1 to remainder) := bits(5 - remainder to 4);
+                opos := opos + remainder;
+                for j in 1 to 4 - remainder loop
+                    if bits(j) /= '0' then
+                        return;
+                    end if;
+                end loop;
+            else
+                avalue(opos to opos + 3) := bits;
+                opos := opos + 4;
+            end if;
         end loop;
         good := true;
     end procedure;

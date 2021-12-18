@@ -40,6 +40,8 @@ begin
     test_hread: process is
         variable l    : line;
         variable b    : bit_vector(1 to 16);
+        variable bv4  : bit_vector(12 downto 0);
+        variable bv7  : bit_vector(10 downto 0);
         variable good : boolean;
     begin
         l := new string'("  1 2 ab23 12_34 dead 12 1__2");
@@ -57,6 +59,19 @@ begin
         assert not good;
         hread(l, b(1 to 8), good);
         assert not good;
+        deallocate(l);
+
+        l := new string'("0ABC");
+        hread (L, bv4, good);
+        assert (good and bv4 = "0101010111100")
+            report "h) short std.textio.hread " & to_string (bv4) severity error;
+        deallocate (l);
+
+        deallocate (L);
+        L := new string'("821");            -- one bit too many
+        hread (L, bv7, good);
+        assert (not good)
+            report "l) std.textio.hread reported good read" severity error;
 
         wait;
     end process;
