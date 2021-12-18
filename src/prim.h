@@ -21,6 +21,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+
+typedef struct _lib *lib_t;
 typedef struct _object object_t;
 typedef struct _object_arena object_arena_t;
 typedef struct trie *ident_t;

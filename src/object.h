@@ -262,7 +262,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader);
 
 void __object_write_barrier(object_t *lhs, object_t *rhs);
 
-object_arena_t *object_arena_new(size_t size);
+object_arena_t *object_arena_new(size_t size, unsigned std);
 void object_arena_freeze(object_arena_t *arena);
 
 void object_add_global_root(object_t **object);

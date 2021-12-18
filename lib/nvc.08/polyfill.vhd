@@ -16,20 +16,12 @@
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
--- This package provides VHDL-1993 compatibility wrappers for future standard
+-- This package provides VHDL-2008 compatibility wrappers for future standard
 -- revisions.
 -------------------------------------------------------------------------------
 
 package polyfill is
 
-    function to_string (value : real; spec : string) return string;
-
-    function to_hstring (value : bit_vector) return string;
-
-    function to_ostring (value : bit_vector) return string;
-
-    function maximum (x, y : integer) return integer;
-
-    function minimum (x, y : integer) return integer;
+    -- Empty
 
 end package;

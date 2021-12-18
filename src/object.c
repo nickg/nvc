@@ -31,16 +31,17 @@ typedef A(object_t **) object_ptr_array_t;
 typedef enum { OBJ_DISK, OBJ_FRESH } obj_src_t;
 
 typedef struct _object_arena {
-   void          *base;
-   void          *alloc;
-   void          *limit;
-   bool           frozen;
-   mark_mask_t   *mark_bits;
-   size_t         mark_sz;
-   generation_t   generation;
-   arena_key_t    key;
-   arena_array_t  deps;
-   obj_src_t      source;
+   void           *base;
+   void           *alloc;
+   void           *limit;
+   bool            frozen;
+   mark_mask_t    *mark_bits;
+   size_t          mark_sz;
+   generation_t    generation;
+   arena_key_t     key;
+   arena_array_t   deps;
+   obj_src_t       source;
+   vhdl_standard_t std;
 } object_arena_t;
 
 static const char *item_text_map[] = {
@@ -292,7 +293,7 @@ void object_one_time_init(void)
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the object items table
-      const uint32_t format_fudge = 21;
+      const uint32_t format_fudge = 22;
 
       format_digest += format_fudge * UINT32_C(2654435761);
 
@@ -575,8 +576,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          // Found a circular reference: eagerly rewrite the object now
          // and break the cycle
          if (object->tag == ctx->tag) {
-	    if (ctx->pre_fn != NULL)
-	       (*ctx->pre_fn)(object, ctx->context);
+            if (ctx->pre_fn != NULL)
+               (*ctx->pre_fn)(object, ctx->context);
             object_t *new = (object_t *)(*ctx->post_fn)(object, ctx->context);
             object_write_barrier(object, new);
             return (ctx->cache[index] = new);
@@ -625,8 +626,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
             ;
          else if (ITEM_DOUBLE & mask)
             ;
-	 else if (ITEM_IDENT_ARRAY & mask)
-	    ;
+         else if (ITEM_IDENT_ARRAY & mask)
+            ;
          else
             item_without_type(mask);
       }
@@ -693,6 +694,7 @@ void object_write(object_t *root, fbuf_t *f)
    write_u16(arena->deps.count, f);
    for (unsigned i = 0; i < arena->deps.count; i++) {
       write_u16(arena->deps.items[i]->key, f);
+      write_u8(arena->deps.items[i]->std, f);
       ident_write(object_arena_name(arena->deps.items[i]), ident_ctx);
    }
 
@@ -799,7 +801,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
    loc_rd_ctx_t *loc_ctx = loc_read_begin(f);
 
-   object_arena_t *arena = object_arena_new(size);
+   object_arena_t *arena = object_arena_new(size, std);
    arena->source = OBJ_DISK;
 
    arena_key_t key = read_u16(f);
@@ -814,6 +816,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
    const int ndeps = read_u16(f);
    for (int i = 0; i < ndeps; i++) {
       arena_key_t dkey = read_u16(f);
+      vhdl_standard_t dstd = read_u8(f);
       ident_t dep = ident_read(ident_ctx);
 
       object_arena_t *a = NULL;
@@ -828,10 +831,15 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
 
          if (droot == NULL)
             fatal("%s depends on %s which cannot be found",
-		  fbuf_file_name(f), istr(dep));
+                  fbuf_file_name(f), istr(dep));
 
          a = __object_arena(droot);
       }
+
+      if (a->std != dstd)
+	 fatal("%s: design unit depends on %s version of %s but conflicting "
+	       "%s version has been loaded", fbuf_file_name(f),
+	       standard_text(dstd), istr(dep), standard_text(a->std));
 
       APUSH(arena->deps, a);
 
@@ -936,7 +944,7 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
             ;
          else if (ITEM_OBJECT & mask) {
             object_t *o = object->items[n].object;
-	    marked |= object_copy_mark(o, ctx);
+            marked |= object_copy_mark(o, ctx);
          }
          else if (ITEM_DOUBLE & mask)
             ;
@@ -987,7 +995,7 @@ object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
    const void *key;
    void *value;
    for (hash_iter_t it = HASH_BEGIN;
-	hash_iter(ctx->copy_map, &it, &key, &value); ) {
+        hash_iter(ctx->copy_map, &it, &key, &value); ) {
       const object_t *object = key;
       object_t *copy = value;
       ncopied++;
@@ -1031,9 +1039,9 @@ object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
 
    if (ctx->callback != NULL) {
       for (hash_iter_t it = HASH_BEGIN;
-	   hash_iter(ctx->copy_map, &it, &key, &value); ) {
-	 object_t *copy = value;
-	 (*ctx->callback)(copy, ctx->context);
+           hash_iter(ctx->copy_map, &it, &key, &value); ) {
+         object_t *copy = value;
+         (*ctx->callback)(copy, ctx->context);
       }
    }
 
@@ -1045,7 +1053,7 @@ object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
    return result;
 }
 
-object_arena_t *object_arena_new(size_t size)
+object_arena_t *object_arena_new(size_t size, unsigned std)
 {
    if (all_arenas.count == 0)
       APUSH(all_arenas, NULL);   // Dummy null arena
@@ -1056,6 +1064,7 @@ object_arena_t *object_arena_new(size_t size)
    arena->limit  = (char *)arena->base + size;
    arena->key    = all_arenas.count;
    arena->source = OBJ_FRESH;
+   arena->std    = std;
 
    APUSH(all_arenas, arena);
 

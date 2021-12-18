@@ -1,0 +1,47 @@
+nvc_08dir = $(pkglibdir)/nvc.08
+nvc_08_DATA = \
+	lib/nvc.08/_NVC_LIB \
+	lib/nvc.08/_index \
+	lib/nvc.08/NVC.SIM_PKG \
+	lib/nvc.08/NVC.POLYFILL \
+	lib/nvc.08/_NVC.SIM_PKG.vcode \
+	lib/nvc.08/_NVC.POLYFILL.vcode
+
+nvc_08_so = \
+	lib/nvc.08/_NVC.SIM_PKG.$(DLL_EXT) \
+	lib/nvc.08/_NVC.POLYFILL.$(DLL_EXT)
+
+if IMPLIB_REQUIRED
+
+# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
+nvc_08_SCRIPTS = $(nvc_08_so)
+
+$(nvc_08_SCRIPTS) : $(nvc_08_DATA)
+else
+
+nvc_08_DATA += $(nvc_08_so)
+
+endif  # IMPLIB_REQUIRED
+
+EXTRA_DIST += \
+	lib/nvc.08/polyfill.vhd
+
+BOOTSTRAPLIBS += $(nvc_08_DATA)
+
+libs-nvc-08: $(nvc_08_DATA)
+
+lib/nvc.08/_NVC_LIB:
+
+lib/nvc.08/_index:
+
+lib/nvc.08/NVC.SIM_PKG: $(srcdir)/lib/nvc/sim_pkg.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc/sim_pkg.vhd
+
+lib/nvc.08/NVC.POLYFILL: $(srcdir)/lib/nvc.08/polyfill.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/polyfill.vhd
+
+gen-deps-nvc-08:
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 --make --posix --deps-only | \
+		$(deps_pp) > $(srcdir)/lib/nvc.08/deps.mk
+
+include lib/nvc.08/deps.mk

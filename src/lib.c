@@ -38,31 +38,29 @@
 #include <sys/types.h>
 #include <sys/time.h>
 
-typedef struct search_path search_path_t;
-typedef struct lib_unit    lib_unit_t;
-typedef struct lib_index   lib_index_t;
-typedef struct lib_list    lib_list_t;
-typedef struct lib_map     lib_map_t;
+typedef struct _search_path search_path_t;
+typedef struct _lib_index   lib_index_t;
+typedef struct _lib_list    lib_list_t;
 
-struct lib_unit {
+typedef struct {
    tree_t        top;
    tree_kind_t   kind;
    bool          dirty;
    lib_mtime_t   mtime;
-};
+} lib_unit_t;
 
-struct lib_index {
+typedef A(lib_unit_t) unit_array_t;
+
+struct _lib_index {
    ident_t      name;
    tree_kind_t  kind;
    lib_index_t *next;
 };
 
-struct lib {
-   char          path[PATH_MAX];
+struct _lib {
+   char         *path;
    ident_t       name;
-   unsigned      n_units;
-   unsigned      units_alloc;
-   lib_unit_t   *units;
+   unit_array_t  units;
    lib_index_t  *index;
    lib_mtime_t   index_mtime;
    off_t         index_size;
@@ -70,13 +68,13 @@ struct lib {
    bool          readonly;
 };
 
-struct lib_list {
+struct _lib_list {
    lib_t            item;
    lib_list_t      *next;
    vhdl_standard_t  standard;
 };
 
-struct search_path {
+struct _search_path {
    search_path_t *next;
    const char    *path;
 };
@@ -190,18 +188,19 @@ static void lib_read_index(lib_t lib)
 
 static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
 {
-   struct lib *l = xcalloc(sizeof(struct lib));
-   l->n_units  = 0;
-   l->units    = NULL;
+   lib_t l = xcalloc(sizeof(struct _lib));
    l->name     = upcase_name(name);
    l->index    = NULL;
    l->lock_fd  = lock_fd;
    l->readonly = false;
 
+   char abspath[PATH_MAX];
    if (rpath == NULL)
-      l->path[0] = '\0';
-   else if (realpath(rpath, l->path) == NULL)
-      checked_sprintf(l->path, PATH_MAX, "%s", rpath);
+      l->path = NULL;
+   else if (realpath(rpath, abspath) == NULL)
+      l->path = xstrdup(rpath);
+   else
+      l->path = xstrdup(abspath);
 
    lib_list_t *el = xcalloc(sizeof(lib_list_t));
    el->item     = l;
@@ -258,23 +257,15 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty,
    lib_unit_t *where = NULL;
    ident_t name = tree_ident(unit);
 
-   for (unsigned i = 0; (where == NULL) && (i < lib->n_units); i++) {
-      if (tree_ident(lib->units[i].top) == tree_ident(unit))
-         where = &(lib->units[i]);
+   for (unsigned i = 0; i < lib->units.count; i++) {
+      if (tree_ident(lib->units.items[i].top) == tree_ident(unit))
+         where = &(lib->units.items[i]);
    }
 
    if (where == NULL) {
-      if (lib->n_units == 0) {
-         lib->units_alloc = 16;
-         lib->units = xmalloc_array(sizeof(lib_unit_t), lib->units_alloc);
-      }
-      else if (lib->n_units == lib->units_alloc) {
-         lib->units_alloc *= 2;
-         lib->units = xrealloc_array(lib->units,
-                                     sizeof(lib_unit_t), lib->units_alloc);
-      }
-
-      where = &(lib->units[lib->n_units++]);
+      lib_unit_t new = {};
+      APUSH(lib->units, new);
+      where = &(lib->units.items[lib->units.count - 1]);
    }
 
    where->top      = unit;
@@ -520,8 +511,8 @@ FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
 fbuf_t *lib_fbuf_open(lib_t lib, const char *name, fbuf_mode_t mode)
 {
    assert(lib != NULL);
-   if (lib->path[0] == '\0')
-      return NULL;
+   if (lib->path == NULL)
+      return NULL;   // Temporary library for unit test
    else {
       LOCAL_TEXT_BUF path = lib_file_path(lib, name);
       return fbuf_open(tb_get(path), mode);
@@ -551,9 +542,9 @@ void lib_free(lib_t lib)
       lib->index = tmp;
    }
 
-   if (lib->units != NULL)
-      free(lib->units);
+   ACLEAR(lib->units);
 
+   free(lib->path);
    free(lib);
 }
 
@@ -645,12 +636,12 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
       ident = ident_prefix(lib->name, uname, '.');
 
    // Search in the list of already loaded units
-   for (unsigned n = 0; n < lib->n_units; n++) {
-      if (tree_ident(lib->units[n].top) == ident)
-         return &(lib->units[n]);
+   for (unsigned n = 0; n < lib->units.count; n++) {
+      if (tree_ident(lib->units.items[n].top) == ident)
+         return &(lib->units.items[n]);
    }
 
-   if (*(lib->path) == '\0')   // Temporary library
+   if (lib->path == NULL)   // Temporary library
       return NULL;
 
    assert(lib->lock_fd != -1);   // Should not be called in unit tests
@@ -808,16 +799,16 @@ void lib_save(lib_t lib)
    lib_ensure_writable(lib);
    file_write_lock(lib->lock_fd);
 
-   for (unsigned n = 0; n < lib->n_units; n++) {
-      if (lib->units[n].dirty) {
-         const char *name = istr(tree_ident(lib->units[n].top));
+   for (unsigned n = 0; n < lib->units.count; n++) {
+      if (lib->units.items[n].dirty) {
+         const char *name = istr(tree_ident(lib->units.items[n].top));
          fbuf_t *f = lib_fbuf_open(lib, name, FBUF_OUT);
          if (f == NULL)
             fatal("failed to create %s in library %s", name, istr(lib->name));
-         tree_write(lib->units[n].top, f);
+         tree_write(lib->units.items[n].top, f);
          fbuf_close(f);
 
-         lib->units[n].dirty = false;
+         lib->units.items[n].dirty = false;
       }
    }
 

@@ -81,15 +81,6 @@ package body textio is
         consume(l, skip);
     end procedure;
 
-    function max (a, b : integer) return integer is
-    begin
-        if a > b then
-            return a;
-        else
-            return b;
-        end if;
-    end function;
-
     function tolower (x : character) return character is
         constant offset : natural := character'pos('a') - character'pos('A');
     begin
@@ -602,7 +593,7 @@ package body textio is
         variable orig  : natural;
         variable width : natural;
     begin
-        width := max(value'length, field);
+        width := maximum(value'length, field);
         grow(l, width, orig);
         if justified = left then
             l(orig + 1 to orig + value'length) := value;
@@ -766,18 +757,12 @@ package body textio is
                       justified : side  := right;
                       field     : width := 0) return string
     is
-        variable width  : natural := max(value'length, field);
-        variable result : string(1 to width);
+        variable width  : natural := maximum(value'length, field);
+        variable result : string(1 to width) := (others => ' ');
     begin
         if justified = left then
             result(1 to value'length) := value;
-            for i in value'length + 1 to width loop
-                result(i) := ' ';
-            end loop;
         else
-            for i in 1 to width - value'length loop
-                result(i) := ' ';
-            end loop;
             result(1 + width - value'length to width) := value;
         end if;
         return result;

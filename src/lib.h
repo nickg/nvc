@@ -25,8 +25,6 @@
 #include "fbuf.h"
 #include "prim.h"
 
-typedef struct lib *lib_t;
-
 typedef uint64_t lib_mtime_t;
 
 lib_t lib_find(ident_t name, bool required);

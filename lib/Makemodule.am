@@ -10,12 +10,12 @@ deps_pp = sed \
 	-e 's|$(abs_top_builddir)/||g'
 
 gen-deps: gen-deps-std gen-deps-std-08 gen-deps-ieee gen-deps-synopsys
-gen-deps: gen-deps-vital gen-deps-ieee-08 gen-deps-nvc
+gen-deps: gen-deps-vital gen-deps-ieee-08 gen-deps-nvc gen-deps-nvc-08
 
 bootstrap:
 	rm -f $(BOOTSTRAPLIBS)
 	$(MAKE) libs-std libs-std-08 libs-ieee libs-ieee-08 libs-synopsys \
-	  libs-vital libs-nvc
+	  libs-vital libs-nvc libs-nvc-08
 
 CLEANFILES += $(BOOTSTRAPLIBS)
 
