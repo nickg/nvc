@@ -24,6 +24,11 @@ package body polyfill is
         return impl(value, spec);
     end function;
 
+    function to_string (value : integer) return string is
+    begin
+        return integer'image(value);
+    end function;
+
     function to_hstring (value : bit_vector) return string is
         function impl (value : bit_vector) return string;
         attribute foreign of impl : function is "_std_to_hstring_bit_vec";

@@ -149,7 +149,7 @@ package body textio is
 
         outer: for i in value'range loop
             loop
-                if l.all'length < consumed then
+                if l.all'length <= consumed then
                     good := false;
                     exit outer;
                 end if;

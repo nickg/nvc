@@ -24,6 +24,8 @@ package polyfill is
 
     function to_string (value : real; spec : string) return string;
 
+    function to_string (value : integer) return string;
+
     function to_hstring (value : bit_vector) return string;
 
     function to_ostring (value : bit_vector) return string;
