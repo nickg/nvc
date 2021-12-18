@@ -76,10 +76,12 @@ package body textio is
     procedure skip_whitespace (l : inout line) is
         variable skip : natural := 0;
     begin
-        while skip < l'length and is_whitespace(l.all(1 + skip)) loop
-            skip := skip + 1;
-        end loop;
-        consume(l, skip);
+        if l /= null then
+            while skip < l'length and is_whitespace(l.all(1 + skip)) loop
+                skip := skip + 1;
+            end loop;
+            consume(l, skip);
+        end if;
     end procedure;
 
     function tolower (x : character) return character is
@@ -112,7 +114,7 @@ package body textio is
     begin
         good := false;
         skip_whitespace(l);
-        if l.all'length > 0 then
+        if l /= null and l.all'length > 0 then
             case l.all(l'left) is
                 when '0' =>
                     value := '0';
@@ -209,7 +211,7 @@ package body textio is
                     value : out character;
                     good  : out boolean ) is
     begin
-        if l'length > 0 then
+        if l /= null and l'length > 0 then
             value := l.all(1);
             consume(l, 1);
             good := true;
@@ -315,7 +317,7 @@ package body textio is
                     value : out string;
                     good  : out boolean ) is
     begin
-        if value'length <= l'length then
+        if l /= null and value'length <= l'length then
             value := l.all(1 to value'length);
             consume(l, value'length);
             good := true;
