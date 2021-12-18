@@ -921,6 +921,12 @@ static void declare_predefined_ops(tree_t container, type_t t)
    ident_t eq     = ident_new("\"=\"");
    ident_t neq    = ident_new("\"/=\"");
 
+   ident_t min_i = NULL, max_i = NULL;
+   if (standard() >= STD_08) {
+      min_i = ident_new("MINIMUM");
+      max_i = ident_new("MAXIMUM");
+   }
+
    // Predefined operators
 
    tree_t std = find_std(nametab);
@@ -955,9 +961,14 @@ static void declare_predefined_ops(tree_t container, type_t t)
          declare_binary(container, concat, elem, t, t, S_CONCAT);
          declare_binary(container, concat, elem, elem, t, S_CONCAT);
 
-         if (standard() >= STD_08 && type_is_scalar(elem)) {
-            declare_unary(container, ident_new("MINIMUM"), t, elem, S_MINIMUM);
-            declare_unary(container, ident_new("MAXIMUM"), t, elem, S_MAXIMUM);
+         if (standard() >= STD_08) {
+            declare_binary(container, min_i, t, t, t, S_MINIMUM);
+            declare_binary(container, max_i, t, t, t, S_MAXIMUM);
+
+            if (type_is_scalar(elem)) {
+               declare_unary(container, min_i, t, elem, S_MINIMUM);
+               declare_unary(container, max_i, t, elem, S_MAXIMUM);
+            }
 
             if (type_is_enum(elem) && all_character_literals(elem))
                declare_unary(container, ident_new("TO_STRING"), t,
@@ -1012,8 +1023,8 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_unary(container, ident_new("\"abs\""), t, t, S_ABS);
 
       if (standard() >= STD_08) {
-         declare_binary(container, ident_new("MINIMUM"), t, t, t, S_MINIMUM);
-         declare_binary(container, ident_new("MAXIMUM"), t, t, t, S_MAXIMUM);
+         declare_binary(container, min_i, t, t, t, S_MINIMUM);
+         declare_binary(container, max_i, t, t, t, S_MAXIMUM);
       }
 
       break;
@@ -1060,8 +1071,8 @@ static void declare_predefined_ops(tree_t container, type_t t)
       declare_binary(container, cmp_ge, t, t, std_bool, S_SCALAR_GE);
 
       if (standard() >= STD_08) {
-         declare_binary(container, ident_new("MINIMUM"), t, t, t, S_MINIMUM);
-         declare_binary(container, ident_new("MAXIMUM"), t, t, t, S_MAXIMUM);
+         declare_binary(container, min_i, t, t, t, S_MINIMUM);
+         declare_binary(container, max_i, t, t, t, S_MAXIMUM);
       }
 
       // Fall-through

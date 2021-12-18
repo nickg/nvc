@@ -436,3 +436,4 @@ func18          normal
 file5           normal
 case8           normal
 textio6         normal,2008
+predef2         normal,2008

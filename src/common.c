@@ -1239,6 +1239,8 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    case S_MATCH_LE:
    case S_MATCH_GT:
    case S_MATCH_GE:
+   case S_MINIMUM:
+   case S_MAXIMUM:
       return false;
    default:
       return true;

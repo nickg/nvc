@@ -2572,8 +2572,8 @@ static bool sem_check_array_aggregate(tree_t t)
          // The left and right bounds are determined by the smallest and
          // largest choices
 
-         tree_t low  = call_builtin(S_MINIMUM, index_type, NULL);
-         tree_t high = call_builtin(S_MAXIMUM, index_type, NULL);
+         tree_t low  = call_builtin(S_INDEX_MIN, index_type, NULL);
+         tree_t high = call_builtin(S_INDEX_MAX, index_type, NULL);
 
          tree_set_loc(low, tree_loc(t));
          tree_set_loc(high, tree_loc(t));

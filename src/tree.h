@@ -173,6 +173,8 @@ typedef enum {
    S_MATCH_GE,
    S_MATCH_EQ,
    S_MATCH_NEQ,
+   S_INDEX_MIN,   // TODO: these two should be removed
+   S_INDEX_MAX,
 } subprogram_kind_t;
 
 typedef enum {
