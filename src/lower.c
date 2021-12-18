@@ -6520,13 +6520,10 @@ static void lower_predef_min_max(tree_t decl, vcode_unit_t context,
 
       vcode_reg_t left_reg  = lower_array_left(type, 0, array_reg);
       vcode_reg_t right_reg = lower_array_right(type, 0, array_reg);
+      vcode_reg_t len_reg   = lower_array_len(type, 0, array_reg);
       vcode_reg_t kind_reg  = lower_array_dir(type, 0, array_reg);
       vcode_reg_t data_reg  = lower_array_data(array_reg);
-
-      vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, kind_reg);
-      vcode_reg_t step_reg = emit_select(kind_reg,
-                                         emit_const(vtype_offset(), -1),
-                                         emit_const(vtype_offset(), 1));
+      vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, kind_reg);
 
       vcode_block_t body_bb = emit_block();
       vcode_block_t exit_bb = emit_block();
@@ -6540,12 +6537,12 @@ static void lower_predef_min_max(tree_t decl, vcode_unit_t context,
       vcode_reg_t cur_reg  = emit_load(result_var);
       vcode_reg_t cmp_reg  = emit_cmp(cmp, elem_reg, cur_reg);
       vcode_reg_t next_reg = emit_select(cmp_reg, elem_reg, cur_reg);
-
       emit_store(next_reg, result_var);
-      emit_store(emit_add(i_reg, step_reg), i_var);
 
-      vcode_reg_t stop_reg = lower_array_off(right_reg, array_reg, type, 0);
-      vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, i_reg, stop_reg);
+      vcode_reg_t i_next = emit_add(i_reg, emit_const(voffset, 1));
+      emit_store(i_next, i_var);
+
+      vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, i_next, len_reg);
       emit_cond(done_reg, exit_bb, body_bb);
 
       vcode_select_block(exit_bb);
