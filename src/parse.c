@@ -191,7 +191,7 @@ static const char *token_str(token_t tok)
       "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
       "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
-      "?<=", "?>", "?>=", "register", "disconnect"
+      "?<=", "?>", "?>=", "register", "disconnect", "??"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -3510,8 +3510,17 @@ static tree_t p_expression(void)
    // relation { and relation } | relation { or relation }
    //   | relation { xor relation } | relation [ nand relation ]
    //   | relation [ nor relation ] | relation { xnor relation }
+   //   | 2008: condition_operator primary
 
    BEGIN("expression");
+
+   if (optional(tCCONV)) {
+      // VHDL-2008 condition conversion
+      tree_t expr = tree_new(T_FCALL);
+      tree_set_ident(expr, ident_new("\"??\""));
+      unary_op(expr, p_primary);
+      return expr;
+   }
 
    tree_t expr = p_relation();
 

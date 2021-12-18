@@ -582,8 +582,9 @@ START_TEST(test_procedure)
    const error_t expect[] = {
       {   5, "subprogram body is not allowed in package specification" },
       { 180, "invalid procedure call statement" },
+      { 186, "?? is a reserved word in VHDL-2008" },
+      { 186, "pass --std=2008 to enable this feature" },
       { 186, "unexpected error while parsing primary" },
-      { 186, "no visible subprogram declaration for X" },
       {  28, "cannot return a value from a procedure" },
       {  45, "type of default value universal_integer does not match" },
       {  63, "missing actual for formal X without default value" },

@@ -59,6 +59,7 @@ begin
         next when b or '1';             -- OK
         wait until b xor '0';           -- OK
         assert b nor '1';               -- OK
+        assert ?? 1;                    -- OK
     end process;
 
     /* This is a comment */

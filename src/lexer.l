@@ -48,9 +48,9 @@
          warn_at(&yylloc, "%s is a reserved word in VHDL-%s",           \
                  yytext, standard_text(lrm));                           \
          note_at(&yylloc, "pass $bold$--std=%s$$ to enable this "       \
-                 "feature", standard_text(lrm));                         \
+                 "feature", standard_text(lrm));                        \
          warned = true;                                                 \
-         return parse_id(yytext);                                       \
+         return isalnum(yytext[0]) ? parse_id(yytext) : tERROR;         \
       }                                                                 \
       else                                                              \
          return (last_token = (t));                                     \
@@ -345,6 +345,7 @@ DISCONNECT    ?i:disconnect
 "?<="             { TOKEN_08(tMLE); }
 "?>"              { TOKEN_08(tMGT); }
 "?>="             { TOKEN_08(tMGE); }
+"??"              { TOKEN_08(tCCONV); }
 "=>"              { TOKEN(tASSOC); }
 "+"               { TOKEN(tPLUS); }
 "-"               { TOKEN(tMINUS); }
