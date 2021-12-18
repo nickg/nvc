@@ -1532,6 +1532,12 @@ int8_t _endfile(void *_f)
    }
 }
 
+DLLEXPORT
+void __nvc_flush(FILE *f)
+{
+   fflush(f);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Simulation kernel
 

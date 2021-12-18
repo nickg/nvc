@@ -1211,6 +1211,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
          ident_t read_i       = ident_new("READ");
          ident_t write_i      = ident_new("WRITE");
          ident_t endfile_i    = ident_new("ENDFILE");
+         ident_t flush_i      = ident_new("FLUSH");
 
          type_t open_kind   = std_type(NULL, STD_FILE_OPEN_KIND);
          type_t open_status = std_type(NULL, STD_FILE_OPEN_STATUS);
@@ -1237,6 +1238,13 @@ static void declare_predefined_ops(tree_t container, type_t t)
          add_port(file_close, "F", t, PORT_INOUT, NULL);
          insert_name(nametab, file_close, file_close_i, 0);
          tree_add_decl(container, file_close);
+
+         if (standard() >= STD_08) {
+            tree_t flush = builtin_proc(flush_i, S_FILE_FLUSH);
+            add_port(flush, "F", t, PORT_IN, NULL);
+            insert_name(nametab, flush, flush_i, 0);
+            tree_add_decl(container, flush);
+         }
 
          type_t of = type_file(t);
 

@@ -1289,6 +1289,14 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
          emit_file_read(r0, r1, inlen, outlen);
          return VCODE_INVALID_REG;
       }
+   case S_FILE_FLUSH:
+      {
+         ident_t func = ident_new("__nvc_flush");
+         vcode_reg_t args[] = { r0 };
+         emit_fcall(func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
+                    VCODE_CC_FOREIGN, args, 1);
+         return VCODE_INVALID_REG;
+      }
    case S_DEALLOCATE:
       emit_deallocate(r0);
       return VCODE_INVALID_REG;
