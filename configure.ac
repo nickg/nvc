@@ -44,8 +44,10 @@ AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=
 
-AX_CHECK_LINK_FLAG([-rdynamic],
-                   [EXTRA_LDFLAGS="$EXTRA_LDFLAGS -rdynamic"])
+CHECK_DYNAMIC_LIST(
+  [EXPORT_LDFLAGS="-Wl,--dynamic-list=$srcdir/src/symbols.txt"],
+  [AX_CHECK_LINK_FLAG([-rdynamic], [EXPORT_LDFLAGS="-rdynamic"])])
+AC_SUBST(EXPORT_LDFLAGS)
 
 AX_CHECK_COMPILE_FLAG([-fPIC],
   [PIC_FLAG="-fPIC"],
