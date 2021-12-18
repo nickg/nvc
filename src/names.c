@@ -1388,6 +1388,7 @@ static void begin_overload_resolution(overload_t *o)
    }
    else {
       unsigned unit_break = 0, scope_break = 0;
+      bool saw_alias = false;
       scope_t *last = NULL;
       for (int k = 0; ; k++) {
          scope_t *where;
@@ -1402,6 +1403,7 @@ static void begin_overload_resolution(overload_t *o)
                continue;
 
             next = tree_ref(value);
+            saw_alias = true;
          }
 
          if (!is_subprogram(next))
@@ -1444,6 +1446,20 @@ static void begin_overload_resolution(overload_t *o)
             overload_add_candidate(o, next);
 
          last = where;
+      }
+
+      // Remove any duplicates from aliases
+      if (o->candidates.count > 1 && saw_alias) {
+         unsigned wptr = 0;
+         for (unsigned i = 0; i < o->candidates.count; i++) {
+            bool is_dup = false;
+            for (unsigned j = 0; !is_dup && j < i; j++)
+               is_dup = (o->candidates.items[i] == o->candidates.items[j]);
+
+            if (!is_dup)
+               o->candidates.items[wptr++] = o->candidates.items[i];
+         }
+         ATRIM(o->candidates, wptr);
       }
    }
 
