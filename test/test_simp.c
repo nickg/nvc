@@ -588,7 +588,7 @@ START_TEST(test_constarr)
 {
    input_from_file(TESTDIR "/simp/constarr.vhd");
 
-   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   tree_t p = parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
    fail_if(p == NULL);
 
    simplify_global(p, NULL);

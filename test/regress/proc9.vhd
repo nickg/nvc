@@ -6,7 +6,7 @@ architecture test of proc9 is
     procedure foo (x : in integer; y : out bit_vector) is
         constant c : bit_vector(1 to x) := (others => '1');
     begin
-        wait;
+        wait for 1 ns;
         y := c;
     end procedure;
 

@@ -51,7 +51,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_RESOLUTION_WRAPPER || x == VCODE_OP_CLOSURE        \
     || x == VCODE_OP_PROTECTED_INIT)
 #define OP_HAS_IDENT(x)                                                 \
-   (x == VCODE_OP_LINK_SIGNAL || x == VCODE_OP_LINK_VAR)
+   (x == VCODE_OP_LINK_SIGNAL || x == VCODE_OP_LINK_VAR                 \
+    || x == VCODE_OP_LINK_PACKAGE)
 #define OP_HAS_REAL(x)                                                  \
    (x == VCODE_OP_CONST_REAL)
 #define OP_HAS_VALUE(x)                                                 \
@@ -379,6 +380,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_UNDEFINED:
    case VCODE_OP_ADDRESS_OF:
    case VCODE_OP_LINK_VAR:
+   case VCODE_OP_LINK_PACKAGE:
       break;
 
    case VCODE_OP_ALLOCA:
@@ -937,7 +939,7 @@ const char *vcode_op_string(vcode_op_t op)
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
-      "implicit signal", "disconnect"
+      "implicit signal", "disconnect", "link package",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1364,10 +1366,12 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_RESOLUTION_WRAPPER:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$ ileft ",
+               col += color_printf(" := %s $magenta$%s$$ context ",
                                    vcode_op_string(op->kind),
                                    istr(op->func));
                col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" ileft ");
+               col += vcode_dump_reg(op->args.items[1]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -1376,8 +1380,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_PROTECTED_INIT:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$",
+               col += color_printf(" := %s $magenta$%s$$ context ",
                                    vcode_op_string(op->kind), istr(op->func));
+               col += vcode_dump_reg(op->args.items[0]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2045,6 +2050,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_LINK_VAR:
+         case VCODE_OP_LINK_PACKAGE:
             {
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s $magenta$%s$$",
@@ -2937,7 +2943,12 @@ static vcode_reg_t emit_fcall_op(vcode_op_t op, ident_t func, vcode_type_t type,
       vcode_block_array_add(&(o->targets), resume_bb);
 
    for (int i = 0; i < nargs; i++)
-      VCODE_ASSERT(args[i] != VCODE_INVALID_REG, "invalid argument to function");
+      VCODE_ASSERT(args[i] != VCODE_INVALID_REG,
+                   "invalid argument to function");
+
+   if (cc != VCODE_CC_FOREIGN)
+      VCODE_ASSERT(nargs > 0 && vcode_reg_kind(args[0]) == VCODE_TYPE_CONTEXT,
+                   "first argument to VHDL function must be context pointer");
 
    if (type == VCODE_INVALID_TYPE)
       return (o->result = VCODE_INVALID_REG);
@@ -4206,15 +4217,18 @@ void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)
 }
 
 vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
-                                    vcode_reg_t ileft, vcode_reg_t nlits)
+                                    vcode_reg_t context, vcode_reg_t ileft,
+                                    vcode_reg_t nlits)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_RESOLUTION_WRAPPER) {
       if (other->func == func && other->subkind == VCODE_CC_VHDL
-          && other->args.items[0] == ileft)
+          && other->args.items[0] == context
+          && other->args.items[1] == ileft)
          return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_RESOLUTION_WRAPPER);
+   vcode_add_arg(op, context);
    vcode_add_arg(op, ileft);
    vcode_add_arg(op, nlits);
    op->func    = func;
@@ -4223,29 +4237,38 @@ vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
    return (op->result = vcode_add_reg(vtype_resolution(type)));
 }
 
-vcode_reg_t emit_closure(ident_t func, vcode_type_t atype, vcode_type_t rtype)
+vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
+                         vcode_type_t rtype)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CLOSURE) {
-      if (other->func == func && other->subkind == VCODE_CC_VHDL)
+      if (other->func == func && other->subkind == VCODE_CC_VHDL
+          && other->args.items[0] == context)
          return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CLOSURE);
+   vcode_add_arg(op, context);
    op->func    = func;
    op->subkind = VCODE_CC_VHDL;
    op->type    = atype;
 
+   VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
+                "invalid closure context argument");
+
    return (op->result = vcode_add_reg(vtype_closure(rtype)));
 }
 
-vcode_reg_t emit_protected_init(vcode_type_t type)
+vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context)
 {
    op_t *op = vcode_add_op(VCODE_OP_PROTECTED_INIT);
+   vcode_add_arg(op, context);
    op->func    = vtype_name(type);
    op->subkind = VCODE_CC_VHDL;
 
    VCODE_ASSERT(vtype_kind(type) == VCODE_TYPE_CONTEXT,
                 "protected init type must be context");
+   VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
+                "invalid protected init context argument");
 
    return (op->result = vcode_add_reg(type));
 }
@@ -4939,6 +4962,21 @@ vcode_reg_t emit_link_var(ident_t name, vcode_type_t type)
    return op->result;
 }
 
+vcode_reg_t emit_link_package(ident_t name)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_LINK_PACKAGE) {
+      if (other->ident == name)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_LINK_PACKAGE);
+   op->ident = name;
+
+   VCODE_ASSERT(name != active_unit->name, "cannot link the current unit");
+
+   return (op->result = vcode_add_reg(vtype_context(name)));
+}
+
 static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
                              ident_wr_ctx_t ident_wr_ctx,
                              loc_wr_ctx_t *loc_wr_ctx)
@@ -5136,7 +5174,7 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
                istr(context_name));
    }
    else
-      unit->context = unit;
+      unit->context = NULL;
 
    block_array_resize(&(unit->blocks), read_u32(f), 0);
    for (unsigned i = 0; i < unit->blocks.count; i++) {

@@ -50,7 +50,8 @@ typedef enum {
    VALUE_UARRAY,
    VALUE_CARRAY,
    VALUE_RECORD,
-   VALUE_ACCESS
+   VALUE_ACCESS,
+   VALUE_CONTEXT
 } value_kind_t;
 
 typedef struct _value value_t;
@@ -60,9 +61,10 @@ struct _value {
    value_kind_t kind;
    uint32_t     length;
    union {
-      double    real;
-      int64_t   integer;
-      value_t  *pointer;
+      double        real;
+      int64_t       integer;
+      value_t      *pointer;
+      eval_frame_t *context;
    };
 };
 
@@ -208,6 +210,9 @@ static int eval_dump(text_buf_t *tb, value_t *value)
          tb_printf(tb, "}");
          return offset;
       }
+   case VALUE_CONTEXT:
+      tb_printf(tb, "<CONTEXT>");
+      return 1;
    default:
       tb_printf(tb, "<INVALID>");
       return 1;
@@ -834,6 +839,7 @@ static void eval_copy_value(value_t *dst, value_t *src)
    case VALUE_REAL:
    case VALUE_INTEGER:
    case VALUE_ACCESS:
+   case VALUE_CONTEXT:
       *dst = *src;
       break;
    case VALUE_UARRAY:
@@ -938,7 +944,8 @@ static void eval_op_fcall(int op, eval_state_t *state)
       return;
    }
 
-   vcode_unit_t caller = vcode_active_unit();
+   value_t *arg0 = eval_get_reg(vcode_get_arg(op, 0), state);
+   EVAL_ASSERT_VALUE(op, arg0, VALUE_CONTEXT);
 
    vcode_select_unit(vcode);
    vcode_select_block(0);
@@ -951,21 +958,7 @@ static void eval_op_fcall(int op, eval_state_t *state)
       .exec    = state->exec,
    };
 
-   vcode_unit_t vcontext = vcode_unit_context();
-
-   eval_frame_t *context = NULL;
-   if (vcontext == caller)   // Nested
-      context = state->frame;
-   else {
-      vcode_select_unit(vcontext);
-      if (vcode_unit_kind() == VCODE_UNIT_PACKAGE)
-         context = exec_link(state->exec, vcode_unit_name());
-      else
-         context = state->frame->context;
-      vcode_select_unit(vcode);
-   }
-
-   eval_setup_state(&new, context);
+   eval_setup_state(&new, arg0->context);
 
    vcode_state_restore(&vcode_state);
 
@@ -1042,6 +1035,18 @@ static void eval_op_var_upref(int op, eval_state_t *state)
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
 
    eval_make_pointer_to(dst, src);
+}
+
+static void eval_op_context_upref(int op, eval_state_t *state)
+{
+   eval_frame_t *where = state->frame;
+   for (int hops = vcode_get_hops(op); hops > 0;
+        hops--, where = where->context)
+      assert(where != NULL);
+
+   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+   dst->kind = VALUE_CONTEXT;
+   dst->context = where;
 }
 
 static void eval_op_bounds(int op, eval_state_t *state)
@@ -1756,16 +1761,30 @@ static void eval_op_link_var(int op, eval_state_t *state)
    ident_t unit_name = ident_runtil(var_name, '.');
 
    eval_frame_t *ctx = exec_link(state->exec, unit_name);
-   assert(ctx->names != NULL);
+   if (ctx == NULL)
+      state->failed = true;
+   else {
+      assert(ctx->names != NULL);
 
-   for (unsigned i = 0; i < ctx->nvars; i++) {
-      if (ctx->names[i] == var_name) {
-         eval_make_pointer_to(result, ctx->vars[i]);
-         return;
+      for (unsigned i = 0; i < ctx->nvars; i++) {
+         if (ctx->names[i] == var_name) {
+            eval_make_pointer_to(result, ctx->vars[i]);
+            return;
+         }
       }
-   }
 
-   fatal_trace("variable %s not found in %s", istr(var_name), istr(unit_name));
+      fatal_trace("variable %s not found in %s", istr(var_name),
+                  istr(unit_name));
+   }
+}
+
+static void eval_op_link_package(int op, eval_state_t *state)
+{
+   value_t *result = eval_get_reg(vcode_get_result(op), state);
+   result->kind = VALUE_CONTEXT;
+   result->context = exec_link(state->exec, vcode_get_ident(op));
+
+   state->failed = (result->context == NULL);
 }
 
 static void eval_op_debug_out(int op, eval_state_t *state)
@@ -2040,6 +2059,10 @@ static void eval_vcode(eval_state_t *state)
          eval_op_var_upref(state->op, state);
          break;
 
+      case VCODE_OP_CONTEXT_UPREF:
+         eval_op_context_upref(state->op, state);
+         break;
+
       case VCODE_OP_RANGE_NULL:
          eval_op_range_null(state->op, state);
          break;
@@ -2068,6 +2091,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_FILE_CLOSE:
          eval_op_file_close(state->op, state);
+         break;
+
+      case VCODE_OP_LINK_PACKAGE:
+         eval_op_link_package(state->op, state);
          break;
 
       default:
@@ -2232,12 +2259,16 @@ eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
 
    eval_setup_state(&state, context);
 
+   value_t *p0 = eval_get_reg(0, &state);
+   p0->kind = VALUE_CONTEXT;
+   p0->context = context;
+
    va_list ap;
    va_start(ap, fmt);
 
    const int nparams = vcode_count_params();
 
-   for (int nth = 0; *fmt; fmt++) {
+   for (int nth = 1; *fmt; fmt++) {
       if (nth >= nparams)
          fatal_trace("too many parameters for %s (expect %d)",
                      istr(func), nparams);
@@ -2303,7 +2334,8 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
    eval_flags_t flags = ex->flags | EVAL_WARN | EVAL_FCALL | EVAL_BOUNDS;
 
    vcode_unit_t unit = eval_find_unit(ident, flags);
-   assert(unit);
+   if (unit == NULL)
+      return NULL;
 
    vcode_state_t vcode_state;
    vcode_state_save(&vcode_state);
@@ -2323,8 +2355,10 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
 
    eval_vcode(&state);
 
+   vcode_state_restore(&vcode_state);
+
    if (state.failed)
-      fatal("failed to link unit %s", istr(ident));
+      return NULL;
 
    // Move the frame with the local variables out of the state
    eval_frame_t *frame = state.frame;
@@ -2336,12 +2370,10 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
 
    if (ex->flags & EVAL_VERBOSE) {
       LOCAL_TEXT_BUF tb = tb_new();
-      tb_printf(tb, "linked unit %s", istr(vcode_unit_name()));
+      tb_printf(tb, "linked unit %s", istr(ident));
       eval_dump_frame(tb, frame);
       notef("%s", tb_get(tb));
    }
-
-   vcode_state_restore(&vcode_state);
 
    hash_put(ex->link_map, ident, frame);
    return frame;

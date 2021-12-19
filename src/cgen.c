@@ -620,11 +620,9 @@ static bool cgen_is_procedure(void)
 
 static unsigned cgen_fixed_offset(void)
 {
-   unsigned base = 0;
-   if (vcode_unit_context() != 0)
-      base += 1;
+   unsigned base = 1;  // First field is always parent context
    if (cgen_is_procedure() || vcode_unit_kind() == VCODE_UNIT_PROCESS)
-      base += 2;
+      base += 2;   // State machine and saved pcall state
    return base;
 }
 
@@ -811,8 +809,8 @@ static LLVMValueRef cgen_hint_str(int op)
 }
 
 static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
-                                   vcode_cc_t cc, LLVMTypeRef display_type,
-                                   const vcode_type_t *vparams, size_t nparams)
+                                   vcode_cc_t cc, const vcode_type_t *vparams,
+                                   size_t nparams)
 {
    const char *safe_name = safe_symbol(istr(name));
    LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
@@ -827,19 +825,14 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
       cc == VCODE_CC_FOREIGN && result != VCODE_INVALID_REG
       && vtype_kind(result) == VCODE_TYPE_UARRAY;
 
-   const int nextra = !!display_type + has_state_arg + foreign_uarray_result;
+   const int nextra = has_state_arg + foreign_uarray_result;
    LLVMTypeRef params[nparams + nextra];
    LLVMTypeRef *p = params;
-
-   if (display_type != NULL)
-      *p++ = LLVMPointerType(display_type, 0);
-   else if (cc == VCODE_CC_PROTECTED)
-      *p++ = cgen_type(vparams[0]);
 
    if (has_state_arg)
       *p++ = llvm_void_ptr();
 
-   for (size_t i = (cc == VCODE_CC_PROTECTED ? 1 : 0); i < nparams; i++)
+   for (size_t i = 0; i < nparams; i++)
       *p++ = cgen_type(vparams[i]);
 
    if (foreign_uarray_result)
@@ -865,114 +858,6 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
    }
 
    return fn;
-}
-
-static LLVMTypeRef cgen_display_type_for_unit(ident_t unit_name)
-{
-   ident_t scope_name = NULL;
-
-   vcode_unit_t unit = vcode_find_unit(unit_name);
-   if (unit != NULL) {
-      vcode_state_t state;
-      vcode_state_save(&state);
-
-      vcode_select_unit(unit);
-      vcode_select_unit(vcode_unit_context());
-
-      scope_name = vcode_unit_name();
-
-      vcode_state_restore(&state);
-   }
-
-   if (scope_name == NULL) {
-      scope_name = ident_runtil(ident_runtil(unit_name, '('), '.');
-      assert(scope_name != NULL);
-   }
-
-   const char *type_name LOCAL = xasprintf("%s.state", istr(scope_name));
-
-   LLVMTypeRef opaque = LLVMGetTypeByName(module, type_name);
-   if (opaque == NULL)
-      opaque = LLVMStructCreateNamed(LLVMGetGlobalContext(), type_name);
-
-   return opaque;
-}
-
-static LLVMTypeRef cgen_display_type_for_call(int op, cgen_ctx_t *ctx)
-{
-   const vcode_cc_t cc = vcode_get_subkind(op);
-   if (cc == VCODE_CC_FOREIGN || cc == VCODE_CC_PROTECTED)
-      return NULL;
-
-   return cgen_display_type_for_unit(vcode_get_func(op));
-}
-
-static LLVMValueRef cgen_display_for_call(int op, cgen_ctx_t *ctx)
-{
-   const vcode_cc_t cc = vcode_get_subkind(op);
-   if (cc == VCODE_CC_FOREIGN || cc == VCODE_CC_PROTECTED)
-      return NULL;
-
-   ident_t subprog = vcode_get_func(op);
-   ident_t scope_name = NULL;
-
-   vcode_unit_t unit = vcode_find_unit(subprog);
-   if (unit != NULL) {
-      vcode_state_t state;
-      vcode_state_save(&state);
-
-      vcode_select_unit(unit);
-
-      vcode_unit_t context = vcode_unit_context();
-      vcode_select_unit(context);
-
-      const vunit_kind_t kind = vcode_unit_kind();
-      scope_name = vcode_unit_name();
-
-      vcode_state_restore(&state);
-
-      if (context == vcode_active_unit())
-         return ctx->state;
-      else if (context == vcode_unit_context())
-         return ctx->display;
-      else if (kind == VCODE_UNIT_PACKAGE) {
-         // Handled below
-      }
-      else {
-         vcode_state_save(&state);
-         vcode_select_unit(vcode_unit_context());
-
-         LLVMValueRef display = ctx->display;
-         while (vcode_active_unit() != context)  {
-            vcode_select_unit(vcode_unit_context());
-            LLVMValueRef ptr = LLVMBuildStructGEP(builder, display, 0, "");
-            display = LLVMBuildLoad(builder, ptr, "");
-         }
-
-         vcode_state_restore(&state);
-         return display;
-      }
-   }
-
-   if (scope_name == NULL) {
-      scope_name = ident_runtil(ident_runtil(subprog, '('), '.');
-      assert(scope_name != NULL);
-
-      ident_t next = ident_runtil(scope_name, '.');
-      while (ident_runtil(next, '.') != next) {
-         scope_name = next;
-         next = ident_runtil(scope_name, '.');
-      }
-   }
-
-   const char *var_name = istr(scope_name);
-   LLVMValueRef global = LLVMGetNamedGlobal(module, var_name);
-   if (global == NULL) {
-      LLVMTypeRef opaque = cgen_display_type_for_call(op, ctx);
-      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0), var_name);
-   }
-
-   return LLVMBuildLoad(builder, global, "");
 }
 
 static void cgen_op_return(int op, cgen_ctx_t *ctx)
@@ -1025,8 +910,7 @@ static void cgen_op_fcall(int op, cgen_ctx_t *ctx)
    if (result != VCODE_INVALID_REG)
       rtype = vcode_reg_type(result);
 
-   vcode_cc_t cc = vcode_get_subkind(op);
-   if (cc == VCODE_CC_PREDEF) cc = VCODE_CC_VHDL;  // Hack
+   const vcode_cc_t cc = vcode_get_subkind(op);
    ident_t func = vcode_get_func(op);
    const bool has_state_arg =
       result == VCODE_INVALID_REG && cc != VCODE_CC_FOREIGN;
@@ -1034,32 +918,23 @@ static void cgen_op_fcall(int op, cgen_ctx_t *ctx)
       cc == VCODE_CC_FOREIGN && result != VCODE_INVALID_REG
       && vtype_kind(rtype) == VCODE_TYPE_UARRAY;
    const int nargs = vcode_count_args(op);
-   const int total_args =
-      nargs + (cc == VCODE_CC_VHDL) + has_state_arg + foreign_uarray_result;
+   const int total_args = nargs + has_state_arg + foreign_uarray_result;
 
    LLVMValueRef fn =
-      cgen_signature(func, VCODE_INVALID_TYPE, cc, NULL, NULL, 0);
+      cgen_signature(func, VCODE_INVALID_TYPE, cc, NULL, 0);
    if (fn == NULL) {
       vcode_type_t atypes[nargs];
       for (int i = 0; i < nargs; i++)
          atypes[i] = vcode_reg_type(vcode_get_arg(op, i));
 
-      LLVMTypeRef display_type = cgen_display_type_for_call(op, ctx);
-      fn = cgen_signature(func, rtype, cc, display_type, atypes, nargs);
+      fn = cgen_signature(func, rtype, cc, atypes, nargs);
    }
 
    LLVMValueRef args[total_args];
    LLVMValueRef *pa = args;
-   if (cc == VCODE_CC_PROTECTED) {
-      assert(nargs > 0
-             && vcode_reg_kind(vcode_get_arg(op, 0)) == VCODE_TYPE_CONTEXT);
-      *pa++ = cgen_get_arg(op, 0, ctx);
-   }
-   else if (cc != VCODE_CC_FOREIGN)
-      *pa++ = cgen_display_for_call(op, ctx);
    if (has_state_arg)
       *pa++ = LLVMConstNull(llvm_void_ptr());
-   for (int i = (cc == VCODE_CC_PROTECTED ? 1 : 0); i < nargs; i++)
+   for (int i = 0; i < nargs; i++)
       *pa++ = cgen_get_arg(op, i, ctx);
 
    if (foreign_uarray_result) {
@@ -2117,7 +1992,7 @@ static void cgen_op_resolution_wrapper(int op, cgen_ctx_t *ctx)
    vcode_type_t type = vtype_base(vcode_reg_type(result));
 
    LLVMValueRef rfn = cgen_signature(func, VCODE_INVALID_TYPE, VCODE_CC_VHDL,
-                                     NULL, NULL, 0);
+                                     NULL, 0);
    if (rfn == NULL) {
       // The resolution function is not visible yet e.g. because it
       // is declared in another package
@@ -2126,19 +2001,19 @@ static void cgen_op_resolution_wrapper(int op, cgen_ctx_t *ctx)
       vcode_type_t elem = is_carray ? vtype_elem(type) : type;
       vcode_type_t rtype = is_record || is_carray ? vtype_pointer(elem) : type;
       vcode_type_t args[] = {
+         vcode_reg_type(vcode_get_arg(op, 0)),   // Context type
          vtype_uarray(1, elem, vtype_int(0, INT32_MAX))
       };
-      LLVMTypeRef display_type = cgen_display_type_for_call(op, ctx);
-      rfn = cgen_signature(func, rtype, VCODE_CC_VHDL, display_type, args, 1);
+      rfn = cgen_signature(func, rtype, VCODE_CC_VHDL, args, ARRAY_LEN(args));
    }
 
    uint32_t flags = 0;
    if (vtype_is_composite(type))
       flags |= R_COMPOSITE;
 
-   LLVMValueRef display = cgen_display_for_call(op, ctx);
-   LLVMValueRef ileft   = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef nlits   = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef display = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef ileft   = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef nlits   = cgen_get_arg(op, 2, ctx);
 
    LLVMValueRef rdata = LLVMGetUndef(llvm_resolution_type());
    rdata = LLVMBuildInsertValue(builder, rdata, llvm_void_cast(rfn), 0, "");
@@ -2187,13 +2062,15 @@ static void cgen_op_closure(int op, cgen_ctx_t *ctx)
    vcode_type_t atype = vcode_get_type(op);
 
    LLVMValueRef fn = cgen_signature(func, VCODE_INVALID_TYPE, VCODE_CC_VHDL,
-                                    NULL, NULL, 0);
+                                    NULL, 0);
    if (fn == NULL) {
       // The function is not visible yet e.g. because it is declared in
       // another package
-      vcode_type_t args[] = { atype };
-      LLVMTypeRef display_type = cgen_display_type_for_call(op, ctx);
-      fn = cgen_signature(func, rtype, VCODE_CC_VHDL, display_type, args, 1);
+      vcode_type_t args[] = {
+         vcode_reg_type(vcode_get_arg(op, 0)),   // Context type
+         atype
+      };
+      fn = cgen_signature(func, rtype, VCODE_CC_VHDL, args, 1);
    }
 
    ffi_spec_t spec = {
@@ -2201,7 +2078,7 @@ static void cgen_op_closure(int op, cgen_ctx_t *ctx)
       .rtype = cgen_ffi_type(rtype)
    };
 
-   LLVMValueRef display = cgen_display_for_call(op, ctx);
+   LLVMValueRef display = cgen_get_arg(op, 0, ctx);
 
    LLVMValueRef cdata = LLVMGetUndef(llvm_closure_type());
    cdata = LLVMBuildInsertValue(builder, cdata, llvm_void_cast(fn), 0, "");
@@ -2222,13 +2099,13 @@ static void cgen_op_protected_init(int op, cgen_ctx_t *ctx)
    LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
    if (fn == NULL) {
       LLVMTypeRef atypes[] = {
-         LLVMPointerType(cgen_display_type_for_call(op, ctx), 0)
+         cgen_type(vcode_reg_type(vcode_get_arg(op, 0)))   // Context type
       };
       LLVMTypeRef fntype = LLVMFunctionType(llvm_void_ptr(), atypes, 1, false);
       fn = LLVMAddFunction(module, safe_name, fntype);
    }
 
-   LLVMValueRef args[] = { cgen_display_for_call(op, ctx) };
+   LLVMValueRef args[] = { cgen_get_arg(op, 0, ctx) };
    LLVMValueRef ptr = LLVMBuildCall(builder, fn, args, ARRAY_LEN(args),
                                     cgen_reg_name(result));
 
@@ -2399,39 +2276,22 @@ static void cgen_op_pcall(int op, cgen_ctx_t *ctx)
 {
    ident_t func = vcode_get_func(op);
    const int nargs = vcode_count_args(op);
-   vcode_cc_t cc = vcode_get_subkind(op);   // HACK: should be const
-   if (cc == VCODE_CC_PREDEF) cc = VCODE_CC_VHDL;
-   // HACK: remove this once all VCODE_CC_VHDL take a context param
-   const bool has_explict_context =
-      nargs > 0 && vcode_reg_kind(vcode_get_arg(op, 0)) == VCODE_TYPE_CONTEXT;
-   if (has_explict_context)
-      cc = VCODE_CC_PROTECTED;
-   const int total_args = nargs + (cc == VCODE_CC_VHDL ? 1 : 0) + 1;
+   const vcode_cc_t cc = vcode_get_subkind(op);
+   const int total_args = nargs + 1;
 
-   LLVMValueRef fn =
-      cgen_signature(func, VCODE_INVALID_TYPE, cc, NULL, NULL, 0);
+   LLVMValueRef fn = cgen_signature(func, VCODE_INVALID_TYPE, cc, NULL, 0);
    if (fn == NULL) {
       vcode_type_t atypes[nargs];
       for (int i = 0; i < nargs; i++)
          atypes[i] = vcode_reg_type(vcode_get_arg(op, i));
 
-      LLVMTypeRef display_type = cgen_display_type_for_call(op, ctx);
-      if (cc == VCODE_CC_PROTECTED) display_type = NULL;   // HACK
-      fn = cgen_signature(func, VCODE_INVALID_TYPE, cc,
-                          display_type, atypes, nargs);
+      fn = cgen_signature(func, VCODE_INVALID_TYPE, cc, atypes, nargs);
    }
 
    LLVMValueRef args[total_args];
    LLVMValueRef *ap = args;
-   if (cc == VCODE_CC_PROTECTED) {
-      assert(nargs > 0
-             && vcode_reg_kind(vcode_get_arg(op, 0)) == VCODE_TYPE_CONTEXT);
-      *ap++ = cgen_get_arg(op, 0, ctx);
-   }
-   else if (cc != VCODE_CC_FOREIGN)
-      *ap++ = cgen_display_for_call(op, ctx);
    *ap++ = LLVMConstNull(llvm_void_ptr());
-   for (int i = (cc == VCODE_CC_PROTECTED ? 1 : 0); i < nargs; i++)
+   for (int i = 0; i < nargs; i++)
       *ap++ = cgen_get_arg(op, i, ctx);
 
    LLVMValueRef suspend = LLVMBuildCall(builder, fn, args, total_args, "");
@@ -2473,9 +2333,8 @@ static void cgen_op_resume(int op, cgen_ctx_t *ctx)
    LLVMGetParamTypes(fn_type, param_types);
 
    LLVMValueRef args[nparams];
-   args[0] = LLVMConstNull(param_types[0]);
-   args[1] = pcall_state;
-   for (int i = 2; i < nparams; i++)
+   args[0] = pcall_state;
+   for (int i = 1; i < nparams; i++)
       args[i] = LLVMGetUndef(param_types[i]);
 
    LLVMValueRef new_state = LLVMBuildCall(builder, fn, args, nparams, "");
@@ -3028,6 +2887,27 @@ static void cgen_op_link_var(int op, cgen_ctx_t *ctx)
                                             cgen_reg_name(result));
 }
 
+static void cgen_op_link_package(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   ident_t unit_name = vcode_get_ident(op);
+
+   const char *unit_name_s = istr(unit_name);
+   LLVMValueRef global = LLVMGetNamedGlobal(module, unit_name_s);
+   if (global == NULL) {
+      const char *type_name LOCAL = xasprintf("%s.state", istr(unit_name));
+
+      LLVMTypeRef opaque = LLVMGetTypeByName(module, type_name);
+      if (opaque == NULL)
+         opaque = LLVMStructCreateNamed(LLVMGetGlobalContext(), type_name);
+
+      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0), unit_name_s);
+   }
+
+   ctx->regs[result] = LLVMBuildLoad(builder, global, cgen_reg_name(result));
+}
+
 static void cgen_op_map_signal(int op, cgen_ctx_t *ctx)
 {
    if (vcode_count_args(op) < 5)
@@ -3321,6 +3201,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_LINK_VAR:
       cgen_op_link_var(i, ctx);
       break;
+   case VCODE_OP_LINK_PACKAGE:
+      cgen_op_link_package(i, ctx);
+      break;
    case VCODE_OP_RESOLUTION_WRAPPER:
       cgen_op_resolution_wrapper(i, ctx);
       break;
@@ -3393,7 +3276,7 @@ static void cgen_code(cgen_ctx_t *ctx)
 
 static void cgen_params(cgen_ctx_t *ctx)
 {
-   const int p0 = cgen_is_procedure() ? 2 : 1;
+   const int p0 = cgen_is_procedure() ? 1 : 0;
    const int nparams = vcode_count_params();
    for (int i = 0; i < nparams; i++)
       ctx->regs[vcode_param_reg(i)] = LLVMGetParam(ctx->fn, p0 + i);
@@ -3437,7 +3320,7 @@ static void cgen_locals(cgen_ctx_t *ctx)
    }
 }
 
-static void cgen_function(LLVMTypeRef display_type)
+static void cgen_function(void)
 {
    assert(vcode_unit_kind() == VCODE_UNIT_FUNCTION);
 
@@ -3447,16 +3330,20 @@ static void cgen_function(LLVMTypeRef display_type)
       params[i] = vcode_param_type(i);
 
    LLVMValueRef fn = cgen_signature(vcode_unit_name(), vcode_unit_result(),
-                                    VCODE_CC_VHDL, display_type,
-                                    params, nparams);
+                                    VCODE_CC_VHDL, params, nparams);
    cgen_add_func_attr(fn, FUNC_ATTR_UWTABLE, -1);
+
+   // Make sure the display type is not an opaque struct
+   cgen_state_type(vcode_active_unit());
 
    // Do not add FUNC_ATTR_READONLY here: it can result in unexpected
    // optimisations, such as removing assertions.
 
+   const int display_arg = vcode_unit_result() == VCODE_INVALID_TYPE ? 1 : 0;
+
    cgen_ctx_t ctx = {
       .fn = fn,
-      .display = LLVMGetParam(fn, 0)
+      .display = LLVMGetParam(fn, display_arg)
    };
    cgen_debug_push_func(&ctx);
    cgen_alloc_context(&ctx);
@@ -3488,20 +3375,22 @@ static LLVMTypeRef cgen_state_type(vcode_unit_t unit)
    const vunit_kind_t kind = vcode_unit_kind();
    const bool has_fsm = (kind == VCODE_UNIT_PROCESS || cgen_is_procedure());
 
-   vcode_unit_t context = vcode_unit_context();
-
    const int nvars   = vcode_count_vars();
-   const int nfields = nvars + (has_fsm ? 2 : 0) + !!context;
+   const int nfields = nvars + (has_fsm ? 3 : 1);
 
    int next_field = 0;
    LLVMTypeRef fields[nfields];
 
+   vcode_unit_t context = vcode_unit_context();
+   assert(context != unit);
    if (context != NULL)
       fields[next_field++] = LLVMPointerType(cgen_state_type(context), 0);
+   else
+      fields[next_field++] = llvm_void_ptr();
 
    if (has_fsm) {
-      fields[next_field++] = LLVMInt32Type();
-      fields[next_field++] = llvm_void_ptr();
+      fields[next_field++] = LLVMInt32Type();   // Current FSM state
+      fields[next_field++] = llvm_void_ptr();   // Suspended pcall state
    }
 
    const int var_base = next_field;
@@ -3566,7 +3455,7 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
    }
 }
 
-static void cgen_procedure(LLVMTypeRef display_type)
+static void cgen_procedure(void)
 {
    assert(vcode_unit_kind() == VCODE_UNIT_PROCEDURE);
 
@@ -3576,9 +3465,11 @@ static void cgen_procedure(LLVMTypeRef display_type)
       params[i] = vcode_param_type(i);
 
    LLVMValueRef fn = cgen_signature(vcode_unit_name(), VCODE_INVALID_TYPE,
-                                    VCODE_CC_VHDL, display_type,
-                                    params, nparams);
+                                    VCODE_CC_VHDL, params, nparams);
    cgen_add_func_attr(fn, FUNC_ATTR_UWTABLE, -1);
+
+   // Make sure the display type is not an opaque struct
+   cgen_state_type(vcode_active_unit());
 
    cgen_ctx_t ctx = {
       .fn = fn,
@@ -3597,7 +3488,7 @@ static void cgen_procedure(LLVMTypeRef display_type)
    LLVMTypeRef state_type = cgen_state_type(vcode_active_unit());
    LLVMTypeRef pointer_type = LLVMPointerType(state_type, 0);
    LLVMValueRef old_state =
-      LLVMBuildPointerCast(builder, LLVMGetParam(fn, 1),
+      LLVMBuildPointerCast(builder, LLVMGetParam(fn, 0),
                            pointer_type, "old_state");
 
    LLVMValueRef is_null = LLVMBuildIsNull(builder, old_state, "");
@@ -3608,7 +3499,7 @@ static void cgen_procedure(LLVMTypeRef display_type)
    LLVMValueRef new_state = LLVMBuildMalloc(builder, state_type, "new_state");
 
    LLVMValueRef display_ptr = LLVMBuildStructGEP(builder, new_state, 0, "");
-   LLVMBuildStore(builder, LLVMGetParam(fn, 0), display_ptr);
+   LLVMBuildStore(builder, LLVMGetParam(fn, 1), display_ptr);
 
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, new_state, 1, "");
    LLVMBuildStore(builder, llvm_int32(0), state_ptr);
@@ -3715,16 +3606,13 @@ static void cgen_reset_function(void)
    };
 
    if (ctx.fn == NULL) {
-      LLVMTypeRef ftype;
-      if (context != NULL) {
-         LLVMTypeRef args[] = {
-            LLVMPointerType(cgen_state_type(context), 0)
-         };
-         ftype = LLVMFunctionType(llvm_void_ptr(), args, 1, false);
-      }
+      LLVMTypeRef args[1];
+      if (context != NULL)
+         args[0] = LLVMPointerType(cgen_state_type(context), 0);
       else
-         ftype = LLVMFunctionType(llvm_void_ptr(), NULL, 0, false);
+         args[0] = llvm_void_ptr();
 
+      LLVMTypeRef ftype = LLVMFunctionType(llvm_void_ptr(), args, 1, false);
       ctx.fn = LLVMAddFunction(module, name, ftype);
    }
 
@@ -3742,11 +3630,9 @@ static void cgen_reset_function(void)
 
    ctx.state = LLVMBuildMalloc(builder, state_type, "privdata");
 
-   if (context != NULL) {
-      ctx.display = LLVMGetParam(ctx.fn, 0);
-      LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
-      LLVMBuildStore(builder, ctx.display, context_ptr);
-   }
+   ctx.display = LLVMGetParam(ctx.fn, 0);
+   LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
+   LLVMBuildStore(builder, ctx.display, context_ptr);
 
    if (vcode_unit_kind() == VCODE_UNIT_PACKAGE) {
       LLVMValueRef global = LLVMAddGlobal(module,
@@ -3790,33 +3676,26 @@ static void cgen_children(vcode_unit_t vcode)
 {
    vcode_select_unit(vcode);
 
-   LLVMTypeRef display = NULL;
    for (vcode_unit_t it = vcode_unit_child(vcode);
         it != NULL;
         it = vcode_unit_next(it)) {
 
       vcode_select_unit(it);
+      cgen_children(it);
+      vcode_select_unit(it);
 
       switch (vcode_unit_kind()) {
       case VCODE_UNIT_PROCEDURE:
+         cgen_procedure();
+         break;
       case VCODE_UNIT_FUNCTION:
-         cgen_children(it);
-         if (display == NULL)
-            display = cgen_state_type(vcode);
-         vcode_select_unit(it);
-         if (vcode_unit_kind() == VCODE_UNIT_FUNCTION)
-            cgen_function(display);
-         else
-            cgen_procedure(display);
+         cgen_function();
          break;
       case VCODE_UNIT_PROCESS:
-         cgen_children(it);
          cgen_process(it);
          break;
       case VCODE_UNIT_INSTANCE:
       case VCODE_UNIT_PROTECTED:
-         cgen_children(it);
-         vcode_select_unit(it);
          cgen_reset_function();
          break;
       default:

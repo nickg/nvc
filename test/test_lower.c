@@ -70,12 +70,10 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          // Fall-through
       case VCODE_OP_FCALL:
-         if (e->func != NULL) {
-            if (!fuzzy_cmp(vcode_get_func(i), e->func)) {
-               vcode_dump_with_mark(i, NULL, NULL);
-               fail("expected op %d in block %d to call %s but calls %s",
-                    i, bb, e->func, istr(vcode_get_func(i)));
-            }
+         if (!fuzzy_cmp(vcode_get_func(i), e->func)) {
+            vcode_dump_with_mark(i, NULL, NULL);
+            fail("expected op %d in block %d to call %s but calls %s",
+                 i, bb, e->func, istr(vcode_get_func(i)));
          }
          break;
 
@@ -176,6 +174,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_LINK_SIGNAL:
       case VCODE_OP_LINK_VAR:
+      case VCODE_OP_LINK_PACKAGE:
          {
             ident_t name = vcode_get_ident(i);
             if (name != ident_new(e->name)) {
@@ -267,12 +266,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
                fail("expect op %d in block %d to have address %s"
                     " but has %s", i, bb, e->name, istr(actual));
             }
+         }
+         // Fall-through
 
-            if (vcode_get_hops(i) != e->hops) {
-               vcode_dump_with_mark(i, NULL, NULL);
-               fail("expect op %d in block %d to have hop count %d"
-                    " but has %d", i, bb, e->hops, vcode_get_hops(i));
-            }
+      case VCODE_OP_CONTEXT_UPREF:
+         if (vcode_get_hops(i) != e->hops) {
+            vcode_dump_with_mark(i, NULL, NULL);
+            fail("expect op %d in block %d to have hop count %d"
+                 " but has %d", i, bb, e->hops, vcode_get_hops(i));
          }
          break;
 
@@ -895,6 +896,7 @@ START_TEST(test_func1)
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_TEMP_STACK_MARK },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_FCALL, .func = "WORK.FUNC1.ADD1(I)I" },
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_TEMP_STACK_RESTORE },
@@ -948,6 +950,7 @@ START_TEST(test_arrayop1)
    EXPECT_BB(1) = {
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 3 },
@@ -986,7 +989,9 @@ START_TEST(test_array1)
    EXPECT_BB(1) = {
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_FCALL, .name = ":array1:func" },
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
+      { VCODE_OP_FCALL, .func = "WORK.ARRAY1.FUNC()Q" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
@@ -1026,6 +1031,7 @@ START_TEST(test_nest1)
       EXPECT_BB(1) = {
          { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_FCALL, .func = "WORK.NEST1.LINE_7.ADD_TO_X(I)I" },
          { VCODE_OP_CONST, .value = 7 },
@@ -1049,6 +1055,7 @@ START_TEST(test_nest1)
 
       EXPECT_BB(0) = {
          { VCODE_OP_STORE, .name = "Y" },
+         { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
          { VCODE_OP_FCALL, .func = "WORK.NEST1.LINE_7.ADD_TO_X(I)I.DO_IT()I" },
          { VCODE_OP_RETURN }
       };
@@ -1195,6 +1202,7 @@ START_TEST(test_assign3)
       { VCODE_OP_COPY },
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
@@ -1255,6 +1263,7 @@ START_TEST(test_record1)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_ASSERT },
       { VCODE_OP_TEMP_STACK_MARK },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_FCALL, .func = "*WORK.RECORD1-TEST.\"=\"(" },
       { VCODE_OP_ASSERT },
       { VCODE_OP_TEMP_STACK_RESTORE },
@@ -1360,6 +1369,7 @@ START_TEST(test_proc1)
 
       EXPECT_BB(1) = {
          { VCODE_OP_TEMP_STACK_MARK },
+         { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
          { VCODE_OP_FCALL, .func = "WORK.PROC1.ADD1(II)" },
@@ -1519,6 +1529,7 @@ START_TEST(test_proc3)
 
       EXPECT_BB(1) = {
          { VCODE_OP_TEMP_STACK_MARK },
+         { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
          { VCODE_OP_INDEX, .name = "X" },
          { VCODE_OP_STORE, .name = "tmp_mark" },
          { VCODE_OP_PCALL, .func = "WORK.PROC3.P1(I)", .target = 2 }
@@ -1600,6 +1611,7 @@ START_TEST(test_slice1)
       { VCODE_OP_COPY },
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_ADD },
       { VCODE_OP_WRAP },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
@@ -1755,6 +1767,7 @@ START_TEST(test_func5)
       EXPECT_BB(1) = {
          { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
          { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_FCALL, .func = "WORK.FUNC5.ADD_ONE_S(sI)I" },
@@ -2024,6 +2037,7 @@ START_TEST(test_issue122)
 
    EXPECT_BB(0) = {
       { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
       { VCODE_OP_FCALL, .func = "WORK.ISSUE122.FUNC(I)I.NESTED()I" },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_RETURN }
@@ -2049,6 +2063,8 @@ START_TEST(test_issue124)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
       { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER(18WORK.PACK.UNSIGNED)I" },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.INTEGER$image" },
       { VCODE_OP_RETURN }
@@ -2069,6 +2085,7 @@ START_TEST(test_issue135)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.INTEGER$image" },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.TIME$image" },
       { VCODE_OP_UARRAY_LEN },
@@ -2247,7 +2264,7 @@ START_TEST(test_issue167)
    fail_unless(icmp(p1_name, "WORK.PKG.P1"));
 
    // This used to get mangled with @<address>
-   ident_t p2_name = vtype_name(1);
+   ident_t p2_name = vtype_name(2);
    fail_unless(icmp(p2_name, "WORK.E-A.P2"));
 }
 END_TEST
@@ -2650,6 +2667,7 @@ START_TEST(test_dealloc)
 
    EXPECT_BB(0) = {
       { VCODE_OP_TEMP_STACK_MARK },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_FCALL, .func = "WORK.PACK.ANOTHER_PROC(13WORK.PACK.PTR)" },
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_RETURN }
@@ -2694,8 +2712,9 @@ START_TEST(test_issue333)
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_STORE, .name = "L" },
       { VCODE_OP_TEMP_STACK_MARK },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_INDEX, .name = "L" },
-      { VCODE_OP_FCALL, .name = ":issue333:proc(vuLINE;" },
+      { VCODE_OP_FCALL, .func = "*WORK.ISSUE333.PROC(" },
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 50 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
@@ -2740,6 +2759,7 @@ START_TEST(test_issue338)
       CHECK_BB(0);
 
       EXPECT_BB(1) = {
+         { VCODE_OP_LINK_PACKAGE, .name = "WORK.P" },
          { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
          { VCODE_OP_AND },
          { VCODE_OP_STORE_INDIRECT },
@@ -2805,6 +2825,7 @@ START_TEST(test_issue338)
       EXPECT_BB(0) = {
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_STORE, .name = "Y" },
+         { VCODE_OP_LINK_PACKAGE, .name = "WORK.P" },
          { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
          { VCODE_OP_NOT },
          { VCODE_OP_RETURN }
@@ -2827,6 +2848,7 @@ START_TEST(test_issue338)
       CHECK_BB(0);
 
       EXPECT_BB(1) = {
+         { VCODE_OP_LINK_PACKAGE, .name = "WORK.P" },
          { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
          { VCODE_OP_OR },
          { VCODE_OP_STORE_INDIRECT },
@@ -2858,6 +2880,7 @@ START_TEST(test_issue338)
       CHECK_BB(0);
 
       EXPECT_BB(1) = {
+         { VCODE_OP_LINK_PACKAGE, .name = "WORK.P" },
          { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
          { VCODE_OP_NOR },
          { VCODE_OP_STORE_INDIRECT },
@@ -2887,6 +2910,7 @@ START_TEST(test_issue338b)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONST_ARRAY, .length = 0 },
       { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 1 },
@@ -2924,6 +2948,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_LOAD, .name = "X" },
       { VCODE_OP_FCALL, .func = "WORK.HINTBUG.FUNC(J)Q" },
       { VCODE_OP_UNWRAP },
@@ -2933,6 +2958,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
@@ -3635,6 +3661,7 @@ START_TEST(test_resfn1)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
       { VCODE_OP_RESOLUTION_WRAPPER },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_INIT_SIGNAL },

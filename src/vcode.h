@@ -135,6 +135,7 @@ typedef enum {
    VCODE_OP_SCHED_STATIC,
    VCODE_OP_IMPLICIT_SIGNAL,
    VCODE_OP_DISCONNECT,
+   VCODE_OP_LINK_PACKAGE,
 } vcode_op_t;
 
 typedef enum {
@@ -174,7 +175,6 @@ typedef enum {
    VCODE_CC_VHDL,
    VCODE_CC_PREDEF,
    VCODE_CC_FOREIGN,
-   VCODE_CC_PROTECTED,   // TODO: temporary
 } vcode_cc_t;
 
 typedef struct {
@@ -447,13 +447,16 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
                             vcode_reg_t dir);
 vcode_reg_t emit_link_signal(ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_var(ident_t name, vcode_type_t type);
+vcode_reg_t emit_link_package(ident_t name);
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
                      vcode_reg_t dst_count, vcode_reg_t conv);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
 vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
-                                    vcode_reg_t ileft, vcode_reg_t nlits);
-vcode_reg_t emit_closure(ident_t func, vcode_type_t atype, vcode_type_t rtype);
-vcode_reg_t emit_protected_init(vcode_type_t type);
+                                    vcode_reg_t context, vcode_reg_t ileft,
+                                    vcode_reg_t nlits);
+vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
+                         vcode_type_t rtype);
+vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context);
 void emit_protected_free(vcode_reg_t obj);
 vcode_reg_t emit_context_upref(int hops);
 
