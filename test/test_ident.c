@@ -321,6 +321,14 @@ START_TEST(test_walk_selected)
 }
 END_TEST
 
+START_TEST(test_starts_with)
+{
+   fail_unless(ident_starts_with(ident_new("ABCdef"), ident_new("ABC")));
+   fail_if(ident_starts_with(ident_new("abcdef"), ident_new("ABC")));
+   fail_unless(ident_starts_with(ident_new("foo(x).bar"), ident_new("foo(x)")));
+}
+END_TEST
+
 Suite *get_ident_tests(void)
 {
    Suite *s = suite_create("ident");
@@ -346,6 +354,7 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_downcase);
    tcase_add_test(tc_core, test_compare);
    tcase_add_test(tc_core, test_walk_selected);
+   tcase_add_test(tc_core, test_starts_with);
    suite_add_tcase(s, tc_core);
 
    return s;

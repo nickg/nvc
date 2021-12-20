@@ -7882,8 +7882,7 @@ static void p_architecture_body(tree_t unit)
       e = NULL;
    }
 
-   char *LOCAL prefix = xasprintf("%s(%s)", istr(qual), istr(arch_name));
-   scope_set_prefix(nametab, ident_new(prefix));
+   scope_set_prefix(nametab, ident_prefix(qual, arch_name, '-'));
 
    insert_name(nametab, unit, NULL, 0);
 

@@ -391,6 +391,14 @@ ident_t ident_strip(ident_t a, ident_t b)
    return (b->value == '\0' ? a : NULL);
 }
 
+bool ident_starts_with(ident_t a, ident_t b)
+{
+   while (a != b && a->value != '\0')
+      a = a->up;
+
+   return a == b;
+}
+
 char ident_char(ident_t i, unsigned n)
 {
    if (i == NULL)

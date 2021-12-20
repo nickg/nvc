@@ -135,7 +135,7 @@ START_TEST(test_scope)
       {  31, "WORK.PACK1.MY_INT1 does not match type"
          " of target WORK.PACK2.MY_INT1" },
       {  44, "WORK.PACK1.MY_INT1 does not match type of target "
-         "WORK.NO_USE_CLAUSE(A).MY_INT1" },
+         "WORK.NO_USE_CLAUSE-A.MY_INT1" },
       {  63, "G already declared in this region" },
       {  54, "previous declaration of G was here" },
       {  71, "P already declared in this region" },
@@ -204,44 +204,44 @@ START_TEST(test_ambiguous)
    s = tree_stmt(p, 0);
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(tree_waveform(s, 0)));
-   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).FOO"));
-   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).FOO"));
+   fail_unless(type_ident(lhs) == ident_new("WORK.E-A.FOO"));
+   fail_unless(type_ident(rhs) == ident_new("WORK.E-A.FOO"));
    s = tree_stmt(p, 1);
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(tree_waveform(s, 0)));
-   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).BAR"));
-   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).BAR"));
+   fail_unless(type_ident(lhs) == ident_new("WORK.E-A.BAR"));
+   fail_unless(type_ident(rhs) == ident_new("WORK.E-A.BAR"));
 
    p = tree_stmt(a, 1);
    fail_unless(tree_stmts(p) == 2);
    s = tree_stmt(p, 0);
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(tree_waveform(s, 0)));
-   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).FOO"));
-   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).FOO"));
+   fail_unless(type_ident(lhs) == ident_new("WORK.E-A.FOO"));
+   fail_unless(type_ident(rhs) == ident_new("WORK.E-A.FOO"));
    s = tree_stmt(p, 1);
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(tree_waveform(s, 0)));
-   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).BAR"));
-   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).BAR"));
+   fail_unless(type_ident(lhs) == ident_new("WORK.E-A.BAR"));
+   fail_unless(type_ident(rhs) == ident_new("WORK.E-A.BAR"));
 
    p = tree_stmt(a, 2);
    fail_unless(tree_stmts(p) == 3);
    s = tree_stmt(p, 0);
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(s));
-   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).P3.BAZ"));
-   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).P3.BAZ"));
+   fail_unless(type_ident(lhs) == ident_new("WORK.E-A.P3.BAZ"));
+   fail_unless(type_ident(rhs) == ident_new("WORK.E-A.P3.BAZ"));
    s = tree_stmt(p, 1);
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(s));
-   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).P3.BAZ"));
-   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).P3.BAZ"));
+   fail_unless(type_ident(lhs) == ident_new("WORK.E-A.P3.BAZ"));
+   fail_unless(type_ident(rhs) == ident_new("WORK.E-A.P3.BAZ"));
    s = tree_stmt(p, 2);
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(tree_waveform(s, 0)));
-   fail_unless(type_ident(lhs) == ident_new("WORK.E(A).FOO"));
-   fail_unless(type_ident(rhs) == ident_new("WORK.E(A).FOO"));
+   fail_unless(type_ident(lhs) == ident_new("WORK.E-A.FOO"));
+   fail_unless(type_ident(rhs) == ident_new("WORK.E-A.FOO"));
 
    parse_and_check(T_PACKAGE, T_PACKAGE, T_ARCH, T_ARCH, T_ARCH,
                    T_ARCH, T_ARCH);

@@ -20,7 +20,6 @@ typedef struct {
    uint32_t      tag;
    int           length;
    bool          delay;
-   uint8_t       args;
    uint8_t       dim;
    uint8_t       hops;
    uint8_t       field;
@@ -77,11 +76,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
                fail("expected op %d in block %d to call %s but calls %s",
                     i, bb, e->func, istr(vcode_get_func(i)));
             }
-         }
-         else if (e->args != vcode_count_args(i)) {
-            vcode_dump_with_mark(i, NULL, NULL);
-            fail("expected op %d in block %d to have %d arguments but has %d",
-                 i, bb, e->args, vcode_count_args(i));
          }
          break;
 
@@ -901,7 +895,7 @@ START_TEST(test_func1)
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_TEMP_STACK_MARK },
-      { VCODE_OP_FCALL, .func = "WORK.FUNC1(TEST).ADD1(I)I", .args = 1 },
+      { VCODE_OP_FCALL, .func = "WORK.FUNC1.ADD1(I)I" },
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 }
@@ -1033,9 +1027,7 @@ START_TEST(test_nest1)
          { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_FCALL,
-           .func = "WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I",
-           .args = 1 },
+         { VCODE_OP_FCALL, .func = "WORK.NEST1.LINE_7.ADD_TO_X(I)I" },
          { VCODE_OP_CONST, .value = 7 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
@@ -1053,13 +1045,11 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = find_unit_for(f1);
       vcode_select_unit(v0);
 
-      fail_unless(icmp(vcode_unit_name(),
-                       "WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I"));
+      fail_unless(icmp(vcode_unit_name(), "WORK.NEST1.LINE_7.ADD_TO_X(I)I"));
 
       EXPECT_BB(0) = {
          { VCODE_OP_STORE, .name = "Y" },
-         { VCODE_OP_FCALL,
-           .func = "WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I.DO_IT()I" },
+         { VCODE_OP_FCALL, .func = "WORK.NEST1.LINE_7.ADD_TO_X(I)I.DO_IT()I" },
          { VCODE_OP_RETURN }
       };
 
@@ -1074,7 +1064,7 @@ START_TEST(test_nest1)
       vcode_select_unit(v0);
 
       fail_unless(icmp(vcode_unit_name(),
-                       "WORK.NEST1(TEST).LINE_7.ADD_TO_X(I)I.DO_IT()I"));
+                       "WORK.NEST1.LINE_7.ADD_TO_X(I)I.DO_IT()I"));
 
       EXPECT_BB(0) = {
          { VCODE_OP_VAR_UPREF, .hops = 2, .name = "X" },
@@ -1265,7 +1255,7 @@ START_TEST(test_record1)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_ASSERT },
       { VCODE_OP_TEMP_STACK_MARK },
-      { VCODE_OP_FCALL, .func = "*WORK.RECORD1(TEST).\"=\"(" },
+      { VCODE_OP_FCALL, .func = "*WORK.RECORD1-TEST.\"=\"(" },
       { VCODE_OP_ASSERT },
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 }
@@ -1372,7 +1362,7 @@ START_TEST(test_proc1)
          { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
-         { VCODE_OP_FCALL, .func = "WORK.PROC1(TEST).ADD1(II)", .args = 2 },
+         { VCODE_OP_FCALL, .func = "WORK.PROC1.ADD1(II)" },
          { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD, .name = "B" },
@@ -1381,7 +1371,7 @@ START_TEST(test_proc1)
          { VCODE_OP_ASSERT },
          { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_FCALL, .func = "WORK.PROC1(TEST).ADD1(II)", .args = 2 },
+         { VCODE_OP_FCALL, .func = "WORK.PROC1.ADD1(II)" },
          { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 6 },
@@ -1531,14 +1521,13 @@ START_TEST(test_proc3)
          { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_INDEX, .name = "X" },
          { VCODE_OP_STORE, .name = "tmp_mark" },
-         { VCODE_OP_PCALL, .func = "WORK.PROC3(TEST).P1(I)",
-           .target = 2, .args = 1 }
+         { VCODE_OP_PCALL, .func = "WORK.PROC3.P1(I)", .target = 2 }
       };
 
       CHECK_BB(1);
 
       EXPECT_BB(2) = {
-         { VCODE_OP_RESUME, .func = "WORK.PROC3(TEST).P1(I)" },
+         { VCODE_OP_RESUME, .func = "WORK.PROC3.P1(I)" },
          { VCODE_OP_LOAD, .name = "tmp_mark" },
          { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_WAIT, .target = 3 }
@@ -1618,7 +1607,7 @@ START_TEST(test_slice1)
       { VCODE_OP_CONST, .value = -2147483648 },
       { VCODE_OP_CONST, .value = -2147483647 },
       { VCODE_OP_WRAP },
-      { VCODE_OP_FCALL, .func="*WORK.SLICE1(TEST).\"=\"" },
+      { VCODE_OP_FCALL, .func="*WORK.SLICE1-TEST.\"=\"" },
       { VCODE_OP_ASSERT },
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 1000000 },
@@ -1768,15 +1757,14 @@ START_TEST(test_func5)
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
          { VCODE_OP_LOAD_INDIRECT },
-         { VCODE_OP_FCALL, .func = "WORK.FUNC5(TEST).ADD_ONE_S(sI)I",
-           .args = 1 },
+         { VCODE_OP_FCALL, .func = "WORK.FUNC5.ADD_ONE_S(sI)I" },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
          { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_LOAD_INDIRECT },
-         { VCODE_OP_FCALL, .func = "WORK.FUNC5(TEST).EVENT(sI)B", .args = 1 },
+         { VCODE_OP_FCALL, .func = "WORK.FUNC5.EVENT(sI)B" },
          { VCODE_OP_ASSERT },
          { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_WAIT, .target = 2 }
@@ -2036,7 +2024,7 @@ START_TEST(test_issue122)
 
    EXPECT_BB(0) = {
       { VCODE_OP_STORE, .name = "X" },
-      { VCODE_OP_FCALL, .func = "WORK.ISSUE122(TEST).FUNC(I)I.NESTED()I" },
+      { VCODE_OP_FCALL, .func = "WORK.ISSUE122.FUNC(I)I.NESTED()I" },
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_RETURN }
    };
@@ -2061,8 +2049,7 @@ START_TEST(test_issue124)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER(18WORK.PACK.UNSIGNED)I",
-        .args = 1},
+      { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER(18WORK.PACK.UNSIGNED)I" },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.INTEGER$image" },
       { VCODE_OP_RETURN }
    };
@@ -2261,7 +2248,7 @@ START_TEST(test_issue167)
 
    // This used to get mangled with @<address>
    ident_t p2_name = vtype_name(1);
-   fail_unless(icmp(p2_name, "WORK.E(A).P2"));
+   fail_unless(icmp(p2_name, "WORK.E-A.P2"));
 }
 END_TEST
 
@@ -2363,7 +2350,7 @@ START_TEST(test_issue203)
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
-   vcode_unit_t v0 = find_unit("WORK.ISSUE203(A).MAIN.PROC");
+   vcode_unit_t v0 = find_unit("WORK.ISSUE203.MAIN.PROC");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -2708,7 +2695,7 @@ START_TEST(test_issue333)
       { VCODE_OP_STORE, .name = "L" },
       { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_INDEX, .name = "L" },
-      { VCODE_OP_FCALL, .name = ":issue333:proc(vuLINE;", .args = 1 },
+      { VCODE_OP_FCALL, .name = ":issue333:proc(vuLINE;" },
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 50 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
@@ -2938,7 +2925,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LOAD, .name = "X" },
-      { VCODE_OP_FCALL, .func = "WORK.HINTBUG(TEST).FUNC(J)Q" },
+      { VCODE_OP_FCALL, .func = "WORK.HINTBUG.FUNC(J)Q" },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_ARRAY_SIZE },
@@ -2982,7 +2969,7 @@ START_TEST(test_issue351)
       { VCODE_OP_CAST },
       { VCODE_OP_ADD },
       { VCODE_OP_WRAP },
-      { VCODE_OP_FCALL, .func = "*WORK.ISSUE351(RTL).DUMP_WORDS" },
+      { VCODE_OP_FCALL, .func = "*WORK.ISSUE351.DUMP_WORDS" },
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_LOAD, .name = "I.LOOP1" },
@@ -3721,7 +3708,7 @@ START_TEST(test_sig2var)
    lower_unit(e, NULL);
 
    {
-      vcode_unit_t vfoo = find_unit("WORK.SIG2VAR(TEST).FOO(sQ)Q");
+      vcode_unit_t vfoo = find_unit("WORK.SIG2VAR.FOO(sQ)Q");
       vcode_select_unit(vfoo);
 
       fail_unless(vcode_count_vars() == 1);
@@ -3745,7 +3732,7 @@ START_TEST(test_sig2var)
    }
 
    {
-      vcode_unit_t vbar = find_unit("WORK.SIG2VAR(TEST).BAR(sJ)J");
+      vcode_unit_t vbar = find_unit("WORK.SIG2VAR.BAR(sJ)J");
       vcode_select_unit(vbar);
 
       fail_unless(vcode_count_vars() == 1);

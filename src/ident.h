@@ -41,6 +41,9 @@ ident_t ident_prefix(ident_t a, ident_t b, char sep);
 // is not possible.
 ident_t ident_strip(ident_t a, ident_t b);
 
+// True if identifier a starts with b
+bool ident_starts_with(ident_t a, ident_t b);
+
 // Return the Nth character of an identifier counting from the end.
 char ident_char(ident_t i, unsigned n);
 

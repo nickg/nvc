@@ -707,7 +707,7 @@ START_TEST(test_types)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_PHYSICAL);
-   fail_unless(type_ident(type_base(t)) == ident_new("WORK.B(A).RESISTANCE"));
+   fail_unless(type_ident(type_base(t)) == ident_new("WORK.B-A.RESISTANCE"));
 
    d = search_decls(a, ident_new("MY_SMALL_INT"), 0);
    fail_if(d == NULL);
@@ -715,7 +715,7 @@ START_TEST(test_types)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_INTEGER);
-   fail_unless(type_ident(type_base(t)) == ident_new("WORK.B(A).MY_INT"));
+   fail_unless(type_ident(type_base(t)) == ident_new("WORK.B-A.MY_INT"));
 
    d = search_decls(a, ident_new("FOO"), 0);
    fail_if(d == NULL);
@@ -723,7 +723,7 @@ START_TEST(test_types)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_INTEGER);
-   fail_unless(type_ident(type_base(t)) == ident_new("WORK.B(A).MY_INT"));
+   fail_unless(type_ident(type_base(t)) == ident_new("WORK.B-A.MY_INT"));
    r = tree_range(type_constraint(t), 0);
    fail_unless(tree_kind(tree_left(r)) == T_LITERAL);
    fail_unless(tree_kind(tree_right(r)) == T_ATTR_REF);
@@ -746,7 +746,7 @@ START_TEST(test_types)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_ACCESS);
    fail_unless(type_kind(type_access(t)) == T_INTEGER);
-   fail_unless(type_ident(type_access(t)) == ident_new("WORK.B(A).MY_INT"));
+   fail_unless(type_ident(type_access(t)) == ident_new("WORK.B-A.MY_INT"));
 
    d = search_decls(a, ident_new("F"), 0);
    fail_if(d == NULL);
@@ -754,7 +754,7 @@ START_TEST(test_types)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_FILE);
    fail_unless(type_kind(type_file(t)) == T_INTEGER);
-   fail_unless(type_ident(type_file(t)) == ident_new("WORK.B(A).MY_INT"));
+   fail_unless(type_ident(type_file(t)) == ident_new("WORK.B-A.MY_INT"));
 
    d = search_decls(a, ident_new("F1"), 0);
    fail_if(d == NULL);
@@ -1302,7 +1302,7 @@ START_TEST(test_qual)
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    q = tree_value(tree_waveform(s, 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
-   fail_unless(tree_ident(q) == ident_new("WORK.BAR(FOO).FOO"));
+   fail_unless(tree_ident(q) == ident_new("WORK.BAR-FOO.FOO"));
    e = tree_value(q);
    fail_unless(tree_kind(e) == T_REF);
    fail_unless(tree_ident(e) == ident_new("B"));
@@ -1311,7 +1311,7 @@ START_TEST(test_qual)
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    q = tree_value(tree_waveform(s, 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
-   fail_unless(tree_ident(q) == ident_new("WORK.BAR(FOO).FOO"));
+   fail_unless(tree_ident(q) == ident_new("WORK.BAR-FOO.FOO"));
    e = tree_value(q);
    fail_unless(tree_kind(e) == T_REF);
    fail_unless(tree_ident(e) == ident_new("'c'"));
