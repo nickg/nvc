@@ -1080,8 +1080,24 @@ static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
 {
    const int64_t value = assume_int(tree_value(t));
    if (value != 0) {
-      elab_decls(t, ctx);
-      elab_stmts(t, ctx);
+      tree_t b = tree_new(T_BLOCK);
+      tree_set_loc(b, tree_loc(t));
+      tree_set_ident(b, tree_ident(t));
+
+      tree_add_stmt(ctx->out, b);
+
+      elab_ctx_t new_ctx = {
+         .out      = b,
+         .path     = ctx->path,
+         .inst     = ctx->inst,
+         .dotted   = ctx->dotted,
+         .library  = ctx->library,
+      };
+
+      elab_push_scope(t, &new_ctx);
+      elab_decls(t, &new_ctx);
+      elab_stmts(t, &new_ctx);
+      elab_pop_scope(&new_ctx);
    }
 }
 

@@ -7722,6 +7722,7 @@ static tree_t p_generate_statement(ident_t label)
    EXTEND("generate statement");
 
    push_scope(nametab);
+   scope_set_prefix(nametab, label);
 
    tree_t g = p_generation_scheme();
    tree_set_ident(g, label);
