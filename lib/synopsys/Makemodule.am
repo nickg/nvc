@@ -69,6 +69,8 @@ libs-synopsys: $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA) $(synopsys_DATA)
 
 lib/synopsys/_NVC_LIB:
 
+lib/synopsys/_index:
+
 lib/ieee/IEEE.STD_LOGIC_ARITH: $(srcdir)/lib/synopsys/std_logic_arith.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_arith.vhd
 

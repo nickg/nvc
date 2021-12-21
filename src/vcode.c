@@ -206,7 +206,7 @@ struct vcode_unit {
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
 #define VCODE_MAGIC        0x76636f64
-#define VCODE_VERSION      7
+#define VCODE_VERSION      8
 #define VCODE_CHECK_UNIONS 0
 
 static vcode_unit_t    active_unit = NULL;
@@ -4994,80 +4994,80 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
       vcode_close();
    }
 
-   write_u32(unit->blocks.count, f);
+   fbuf_put_uint(f, unit->blocks.count);
    for (unsigned i = 0; i < unit->blocks.count; i++) {
       const block_t *b = &(unit->blocks.items[i]);
-      write_u32(b->ops.count, f);
+      fbuf_put_uint(f, b->ops.count);
 
       for (unsigned j = 0; j < b->ops.count; j++) {
          const op_t *op = &(b->ops.items[j]);
 
-         write_u8(op->kind, f);
-         write_u32(op->result, f);
+         fbuf_put_uint(f, op->kind);
+         fbuf_put_uint(f, op->result);
          loc_write(&(op->loc), loc_wr_ctx);
 
-         write_u32(op->args.count, f);
+         fbuf_put_uint(f, op->args.count);
          for (unsigned k = 0; k < op->args.count; k++)
-            write_u32(op->args.items[k], f);
+            fbuf_put_uint(f, op->args.items[k]);
 
          if (OP_HAS_TARGET(op->kind)) {
-            write_u32(op->targets.count, f);
+            fbuf_put_uint(f, op->targets.count);
             for (unsigned k = 0; k < op->targets.count; k++)
-               write_u32(op->targets.items[k], f);
+               fbuf_put_uint(f, op->targets.items[k]);
          }
 
          if (OP_HAS_TYPE(op->kind))
-            write_u32(op->type, f);
+            fbuf_put_uint(f, op->type);
          if (OP_HAS_ADDRESS(op->kind))
-            write_u32(op->address, f);
+            fbuf_put_uint(f, op->address);
          if (OP_HAS_FUNC(op->kind) || OP_HAS_IDENT(op->kind))
             ident_write(op->func, ident_wr_ctx);
          if (OP_HAS_SUBKIND(op->kind))
-            write_u8(op->subkind, f);
+            fbuf_put_uint(f, op->subkind);
          if (OP_HAS_CMP(op->kind))
-            write_u8(op->cmp, f);
+            fbuf_put_uint(f, op->cmp);
          if (OP_HAS_VALUE(op->kind))
-            write_u64(op->value, f);
+            fbuf_put_int(f, op->value);
          if (OP_HAS_REAL(op->kind))
             write_double(op->real, f);
          if (OP_HAS_COMMENT(op->kind))
             ;   // Do not save comments
          if (OP_HAS_DIM(op->kind))
-            write_u32(op->dim, f);
+            fbuf_put_uint(f, op->dim);
          if (OP_HAS_HOPS(op->kind))
-            write_u32(op->hops, f);
+            fbuf_put_uint(f, op->hops);
          if (OP_HAS_FIELD(op->kind))
-            write_u32(op->field, f);
+            fbuf_put_uint(f, op->field);
          if (OP_HAS_HINT(op->kind)) {
             if (op->hint == NULL)
-               write_u16(0, f);
+               fbuf_put_uint(f, 0);
             else {
                const size_t len = strlen(op->hint);
-               write_u16(len, f);
+               fbuf_put_uint(f, len);
                write_raw(op->hint, len, f);
             }
          }
          if (OP_HAS_TAG(op->kind))
-            write_u32(op->tag, f);
+            fbuf_put_uint(f, op->tag);
       }
    }
 
-   write_u32(unit->regs.count, f);
+   fbuf_put_uint(f, unit->regs.count);
    for (unsigned i = 0; i < unit->regs.count; i++) {
       const reg_t *r = &(unit->regs.items[i]);
-      write_u32(r->type, f);
-      write_u32(r->bounds, f);
+      fbuf_put_uint(f, r->type);
+      fbuf_put_uint(f, r->bounds);
    }
 
-   write_u32(unit->types.count, f);
+   fbuf_put_uint(f, unit->types.count);
    for (unsigned i = 0; i < unit->types.count; i++) {
       const vtype_t *t = &(unit->types.items[i]);
-      write_u8(t->kind, f);
+      fbuf_put_uint(f, t->kind);
       switch (t->kind) {
       case VCODE_TYPE_INT:
       case VCODE_TYPE_OFFSET:
-         write_u64(t->low, f);
-         write_u64(t->high, f);
+         fbuf_put_int(f, t->low);
+         fbuf_put_int(f, t->high);
          break;
 
       case VCODE_TYPE_REAL:
@@ -5077,22 +5077,22 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
 
       case VCODE_TYPE_CARRAY:
       case VCODE_TYPE_UARRAY:
-         write_u8(t->dims, f);
-         write_u32(t->size, f);
-         write_u32(t->elem, f);
-         write_u32(t->bounds, f);
+         fbuf_put_uint(f, t->dims);
+         fbuf_put_uint(f, t->size);
+         fbuf_put_uint(f, t->elem);
+         fbuf_put_uint(f, t->bounds);
          break;
 
       case VCODE_TYPE_ACCESS:
       case VCODE_TYPE_POINTER:
-         write_u32(t->pointed, f);
+         fbuf_put_uint(f, t->pointed);
          break;
 
       case VCODE_TYPE_FILE:
       case VCODE_TYPE_SIGNAL:
       case VCODE_TYPE_RESOLUTION:
       case VCODE_TYPE_CLOSURE:
-         write_u32(t->base, f);
+         fbuf_put_uint(f, t->base);
          break;
 
       case VCODE_TYPE_OPAQUE:
@@ -5104,29 +5104,29 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
 
       case VCODE_TYPE_RECORD:
          ident_write(t->name, ident_wr_ctx);
-         write_u32(t->fields.count, f);
+         fbuf_put_uint(f, t->fields.count);
          for (unsigned j = 0; j < t->fields.count; j++)
-            write_u32(t->fields.items[j], f);
+            fbuf_put_uint(f, t->fields.items[j]);
          break;
       }
    }
 
-   write_u32(unit->vars.count, f);
+   fbuf_put_uint(f, unit->vars.count);
    for (unsigned i = 0; i < unit->vars.count; i++) {
       const var_t *v = &(unit->vars.items[i]);
-      write_u32(v->type, f);
-      write_u32(v->bounds, f);
+      fbuf_put_uint(f, v->type);
+      fbuf_put_uint(f, v->bounds);
       ident_write(v->name, ident_wr_ctx);
-      write_u32(v->flags, f);
+      fbuf_put_uint(f, v->flags);
    }
 
-   write_u32(unit->params.count, f);
+   fbuf_put_uint(f, unit->params.count);
    for (unsigned i = 0; i < unit->params.count; i++) {
       const param_t *p = &(unit->params.items[i]);
-      write_u32(p->type, f);
-      write_u32(p->bounds, f);
+      fbuf_put_uint(f, p->type);
+      fbuf_put_uint(f, p->bounds);
       ident_write(p->name, ident_wr_ctx);
-      write_u32(p->reg, f);
+      fbuf_put_uint(f, p->reg);
    }
 
    if (unit->next != NULL)
@@ -5176,52 +5176,52 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
    else
       unit->context = NULL;
 
-   block_array_resize(&(unit->blocks), read_u32(f), 0);
+   block_array_resize(&(unit->blocks), fbuf_get_uint(f), 0);
    for (unsigned i = 0; i < unit->blocks.count; i++) {
       block_t *b = &(unit->blocks.items[i]);
-      op_array_resize(&(b->ops), read_u32(f), 0);
+      op_array_resize(&(b->ops), fbuf_get_uint(f), 0);
 
       for (unsigned j = 0; j < b->ops.count; j++) {
          op_t *op = &(b->ops.items[j]);
 
-         op->kind = read_u8(f);
-         op->result = read_u32(f);
+         op->kind = fbuf_get_uint(f);
+         op->result = fbuf_get_uint(f);
          loc_read(&(op->loc), loc_rd_ctx);
 
-         vcode_reg_array_resize(&(op->args), read_u32(f), 0);
+         vcode_reg_array_resize(&(op->args), fbuf_get_uint(f), 0);
          for (unsigned k = 0; k < op->args.count; k++)
-            op->args.items[k] = read_u32(f);
+            op->args.items[k] = fbuf_get_uint(f);
 
          if (OP_HAS_TARGET(op->kind)) {
-            vcode_block_array_resize(&(op->targets), read_u32(f), 0);
+            vcode_block_array_resize(&(op->targets), fbuf_get_uint(f), 0);
             for (unsigned k = 0; k < op->targets.count; k++)
-               op->targets.items[k] = read_u32(f);
+               op->targets.items[k] = fbuf_get_uint(f);
          }
 
          if (OP_HAS_TYPE(op->kind))
-            op->type = read_u32(f);
+            op->type = fbuf_get_uint(f);
          if (OP_HAS_ADDRESS(op->kind))
-            op->address = read_u32(f);
+            op->address = fbuf_get_uint(f);
          if (OP_HAS_FUNC(op->kind) || OP_HAS_IDENT(op->kind))
             op->func = ident_read(ident_rd_ctx);
          if (OP_HAS_SUBKIND(op->kind))
-            op->subkind = read_u8(f);
+            op->subkind = fbuf_get_uint(f);
          if (OP_HAS_CMP(op->kind))
-            op->cmp = read_u8(f);
+            op->cmp = fbuf_get_uint(f);
          if (OP_HAS_VALUE(op->kind))
-            op->value = read_u64(f);
+            op->value = fbuf_get_int(f);
          if (OP_HAS_REAL(op->kind))
             op->real = read_double(f);
          if (OP_HAS_COMMENT(op->kind))
             op->comment = NULL;
          if (OP_HAS_DIM(op->kind))
-            op->dim = read_u32(f);
+            op->dim = fbuf_get_uint(f);
          if (OP_HAS_HOPS(op->kind))
-            op->hops = read_u32(f);
+            op->hops = fbuf_get_uint(f);
          if (OP_HAS_FIELD(op->kind))
-            op->field = read_u32(f);
+            op->field = fbuf_get_uint(f);
          if (OP_HAS_HINT(op->kind)) {
-            const size_t len = read_u16(f);
+            const size_t len = fbuf_get_uint(f);
             if (len == 0)
                op->hint = NULL;
             else {
@@ -5231,25 +5231,25 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
             }
          }
          if (OP_HAS_TAG(op->kind))
-            op->tag = read_u32(f);
+            op->tag = fbuf_get_uint(f);
       }
    }
 
-   reg_array_resize(&(unit->regs), read_u32(f), 0);
+   reg_array_resize(&(unit->regs), fbuf_get_uint(f), 0);
    for (unsigned i = 0; i < unit->regs.count; i++) {
       reg_t *r = &(unit->regs.items[i]);
-      r->type = read_u32(f);
-      r->bounds = read_u32(f);
+      r->type = fbuf_get_uint(f);
+      r->bounds = fbuf_get_uint(f);
    }
 
-   vtype_array_resize(&(unit->types), read_u32(f), 0);
+   vtype_array_resize(&(unit->types), fbuf_get_uint(f), 0);
    for (unsigned i = 0; i < unit->types.count; i++) {
       vtype_t *t = &(unit->types.items[i]);
-      switch ((t->kind = read_u8(f))) {
+      switch ((t->kind = fbuf_get_uint(f))) {
       case VCODE_TYPE_INT:
       case VCODE_TYPE_OFFSET:
-         t->low = read_u64(f);
-         t->high = read_u64(f);
+         t->low = fbuf_get_int(f);
+         t->high = fbuf_get_int(f);
          break;
 
       case VCODE_TYPE_REAL:
@@ -5259,22 +5259,22 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
 
       case VCODE_TYPE_CARRAY:
       case VCODE_TYPE_UARRAY:
-         t->dims = read_u8(f);
-         t->size = read_u32(f);
-         t->elem = read_u32(f);
-         t->bounds = read_u32(f);
+         t->dims = fbuf_get_uint(f);
+         t->size = fbuf_get_uint(f);
+         t->elem = fbuf_get_uint(f);
+         t->bounds = fbuf_get_uint(f);
          break;
 
       case VCODE_TYPE_POINTER:
       case VCODE_TYPE_ACCESS:
-         t->base = read_u32(f);
+         t->base = fbuf_get_uint(f);
          break;
 
       case VCODE_TYPE_FILE:
       case VCODE_TYPE_SIGNAL:
       case VCODE_TYPE_RESOLUTION:
       case VCODE_TYPE_CLOSURE:
-         t->base = read_u32(f);
+         t->base = fbuf_get_uint(f);
          break;
 
       case VCODE_TYPE_OPAQUE:
@@ -5287,30 +5287,30 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
       case VCODE_TYPE_RECORD:
          {
             t->name = ident_read(ident_rd_ctx);
-            vcode_type_array_resize(&(t->fields), read_u32(f), 0);
+            vcode_type_array_resize(&(t->fields), fbuf_get_uint(f), 0);
             for (unsigned j = 0; j < t->fields.count; j++)
-               t->fields.items[j] = read_u32(f);
+               t->fields.items[j] = fbuf_get_uint(f);
             break;
          }
       }
    }
 
-   var_array_resize(&(unit->vars), read_u32(f), 0);
+   var_array_resize(&(unit->vars), fbuf_get_uint(f), 0);
    for (unsigned i = 0; i < unit->vars.count; i++) {
       var_t *v = &(unit->vars.items[i]);
-      v->type = read_u32(f);
-      v->bounds = read_u32(f);
+      v->type = fbuf_get_uint(f);
+      v->bounds = fbuf_get_uint(f);
       v->name = ident_read(ident_rd_ctx);
-      v->flags = read_u32(f);
+      v->flags = fbuf_get_uint(f);
    }
 
-   param_array_resize(&(unit->params), read_u32(f), 0);
+   param_array_resize(&(unit->params), fbuf_get_uint(f), 0);
    for (unsigned i = 0; i < unit->params.count; i++) {
       param_t *p = &(unit->params.items[i]);
-      p->type = read_u32(f);
-      p->bounds = read_u32(f);
+      p->type = fbuf_get_uint(f);
+      p->bounds = fbuf_get_uint(f);
       p->name = ident_read(ident_rd_ctx);
-      p->reg = read_u32(f);
+      p->reg = fbuf_get_uint(f);
    }
 
    vcode_registry_add(unit);
