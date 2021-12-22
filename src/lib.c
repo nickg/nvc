@@ -42,6 +42,8 @@ typedef struct _search_path search_path_t;
 typedef struct _lib_index   lib_index_t;
 typedef struct _lib_list    lib_list_t;
 
+#define INDEX_FILE_MAGIC 0x55225511
+
 typedef struct {
    tree_t        top;
    tree_kind_t   kind;
@@ -150,6 +152,13 @@ static void lib_read_index(lib_t lib)
       struct stat st;
       if (stat(fbuf_file_name(f), &st) < 0)
          fatal_errno("%s", fbuf_file_name(f));
+
+      const uint32_t magic = read_u32(f);
+      if (magic != INDEX_FILE_MAGIC) {
+         warnf("ignoring library index %s from an old version of " PACKAGE,
+               fbuf_file_name(f));
+         return;
+      }
 
       lib->index_mtime = lib_stat_mtime(&st);
       lib->index_size  = st.st_size;
@@ -823,6 +832,8 @@ void lib_save(lib_t lib)
    fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_OUT);
    if (f == NULL)
       fatal_errno("failed to create library %s index", istr(lib->name));
+
+   write_u32(INDEX_FILE_MAGIC, f);
 
    ident_wr_ctx_t ictx = ident_write_begin(f);
 
