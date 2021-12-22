@@ -455,8 +455,7 @@ static vcode_type_t lower_type(type_t type)
       else
          return lower_type(type_base(type));
 
-   case T_UARRAY:
-   case T_CARRAY:
+   case T_ARRAY:
          return lower_array_type(type);
 
    case T_PHYSICAL:
@@ -1779,7 +1778,8 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
 
 static vcode_reg_t lower_alias_ref(tree_t alias, expr_ctx_t ctx)
 {
-   type_t type = tree_type(alias);
+   tree_t value = tree_value(alias);
+   type_t type = tree_type(value);
 
    if (!type_is_array(type))
       return lower_expr(tree_value(alias), ctx);
@@ -2159,8 +2159,7 @@ static int lower_bit_width(type_t type)
    case T_ENUM:
       return bits_for_range(0, type_enum_literals(type) - 1);
 
-   case T_CARRAY:
-   case T_UARRAY:
+   case T_ARRAY:
       return lower_bit_width(type_elem(type));
 
    default:
@@ -4657,7 +4656,7 @@ static vcode_reg_t lower_resolution_func(type_t type)
    vcode_type_t rtype = lower_type(type);
 
    type_t uarray_param = type_param(tree_type(rdecl), 0);
-   assert(type_kind(uarray_param) == T_UARRAY);
+   assert(type_kind(uarray_param) == T_ARRAY);
    tree_t r = range_of(type_index_constr(uarray_param, 0), 0);
 
    vcode_reg_t ileft_reg = emit_const(vtype_offset(), assume_int(tree_left(r)));
@@ -4888,7 +4887,10 @@ static void lower_file_decl(tree_t decl)
 
 static vcode_type_t lower_alias_type(tree_t alias)
 {
-   type_t type = tree_type(alias);
+   type_t type = tree_has_type(alias)
+      ? tree_type(alias)
+      : tree_type(tree_value(alias));
+
    if (!type_is_array(type))
       return VCODE_INVALID_TYPE;
 
@@ -4910,8 +4912,8 @@ static void lower_alias_decl(tree_t decl)
    if (vtype == VCODE_INVALID_TYPE)
       return;
 
-   type_t type = tree_type(decl);
    tree_t value = tree_value(decl);
+   type_t type = tree_has_type(decl) ? tree_type(decl) : tree_type(value);
 
    vcode_var_flags_t flags = 0;
    if (!!(top_scope->flags & SCOPE_GLOBAL))

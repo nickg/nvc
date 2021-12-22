@@ -511,7 +511,7 @@ static void dump_type_decl(tree_t t, int indent)
    type_t type = tree_type(t);
    const type_kind_t kind = type_kind(type);
 
-   if (kind == T_SUBTYPE) {
+   if (kind == T_SUBTYPE && type_has_ident(type)) {
       syntax("#subtype %s #is ", istr(tree_ident(t)));
       if (type_has_resolution(type)) {
          dump_expr(type_resolution(type));
@@ -559,7 +559,7 @@ static void dump_type_decl(tree_t t, int indent)
    else if (type_is_array(type)) {
       syntax("#array ");
       printf("(");
-      if (kind == T_UARRAY) {
+      if (kind == T_ARRAY) {
          const int nindex = type_index_constrs(type);
          for (int i = 0; i < nindex; i++) {
             if (i > 0) printf(", ");

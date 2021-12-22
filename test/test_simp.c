@@ -610,7 +610,7 @@ START_TEST(test_table)
    tree_t table = search_decls(p, ident_new("RESOLUTION_TABLE"), 0);
    fail_if(table == NULL);
 
-   tree_t r0 = type_dim(tree_type(table), 0);
+   tree_t r0 = tree_range(type_constraint(tree_type(table)), 0);
    fail_unless(tree_subkind(r0) == RANGE_TO);
    fail_unless(assume_int(tree_left(r0)) == 0);
    fail_unless(assume_int(tree_right(r0)) == 8);

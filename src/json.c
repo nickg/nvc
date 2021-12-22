@@ -351,7 +351,7 @@ static JsonNode *dump_decl(tree_t t)
             json_append_member(decl, "units", units);
          }
          else if (type_is_array(type)) {
-            if (kind == T_UARRAY) {
+            if (kind == T_ARRAY) {
                JsonNode *ua_types = json_mkarray();
                const int nindex = type_index_constrs(type);
                for (int i = 0; i < nindex; i++) {

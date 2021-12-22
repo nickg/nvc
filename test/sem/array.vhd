@@ -243,7 +243,7 @@ begin
 
     process is
         constant c : integer := -1;
-        type bad_range is array (-1 to -5) of integer;  -- Error
+        type bad_range is array (-1 to -5) of integer;  -- OK
         type ok_range is array(c to -5) of integer;  -- OK
     begin
     end process;

@@ -1385,7 +1385,7 @@ START_TEST(test_array)
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("INT_ARRAY"));
    t = tree_type(d);
-   fail_unless(type_kind(t) == T_UARRAY);
+   fail_unless(type_kind(t) == T_ARRAY);
    fail_unless(type_index_constrs(t) == 1);
    i = type_index_constr(t, 0);
    fail_unless(type_kind(i) == T_INTEGER);
@@ -1399,17 +1399,19 @@ START_TEST(test_array)
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("TEN_INTS"));
    t = tree_type(d);
-   fail_unless(type_kind(t) == T_CARRAY);
-   fail_unless(type_dims(t) == 1);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_if(type_has_ident(t));
+   fail_unless(tree_ranges(type_constraint(t)) == 1);
+   fail_unless(type_kind(type_base(t)) == T_ARRAY);
 
    d = search_decls(p, ident_new("CHAR_COUNTS"), 0);
    fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("CHAR_COUNTS"));
    t = tree_type(d);
-   fail_unless(type_kind(t) == T_CARRAY);
-   fail_unless(type_dims(t) == 1);
-   r = type_dim(t, 0);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(tree_ranges(type_constraint(t)) == 1);
+   r = tree_range(type_constraint(t), 0);
    fail_unless(tree_subkind(r) == RANGE_EXPR);
    fail_unless(tree_kind(tree_value(r)) == T_ATTR_REF);
    fail_unless(tree_ident(tree_value(r)) == ident_new("RANGE"));
@@ -1422,12 +1424,13 @@ START_TEST(test_array)
    fail_unless(tree_kind(d) == T_TYPE_DECL);
    fail_unless(tree_ident(d) == ident_new("TWO_D"));
    t = tree_type(d);
-   fail_unless(type_kind(t) == T_CARRAY);
-   fail_unless(type_dims(t) == 2);
-   r = type_dim(t, 0);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(tree_ranges(type_constraint(t)) == 2);
+   fail_unless(type_index_constrs(type_base(t)) == 2);
+   r = tree_range(type_constraint(t), 0);
    fail_unless(tree_ival(tree_left(r)) == 1);
    fail_unless(tree_ival(tree_right(r)) == 3);
-   r = type_dim(t, 1);
+   r = tree_range(type_constraint(t), 1);
    fail_unless(tree_ival(tree_left(r)) == 4);
    fail_unless(tree_ival(tree_right(r)) == 6);
 
@@ -1454,7 +1457,7 @@ START_TEST(test_array)
    fail_if(d == NULL);
    fail_unless(tree_ident(d) == ident_new("Y"));
    t = tree_type(d);
-   fail_unless(type_kind(t) == T_CARRAY);
+   fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_ident(t) == ident_new("WORK.P.TEN_INTS"));
 
    d = search_decls(a, ident_new("Z"), 0);
@@ -1756,7 +1759,7 @@ START_TEST(test_alias)
    fail_unless(tree_kind(d) == T_ALIAS);
    fail_unless(tree_ident(d) == ident_new("FOO"));
    fail_unless(tree_kind(tree_value(d)) == T_REF);
-   fail_unless(tree_has_type(d));
+   fail_if(tree_has_type(d));
 
    d = tree_decl(a, 7);
    fail_unless(tree_kind(d) == T_ALIAS);

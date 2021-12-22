@@ -94,16 +94,25 @@ static tree_t str_to_agg(const char *p, const char *end)
    tree_set_subkind(right, L_INT);
    tree_set_ival(right, len - 1);
 
-   type_t type = type_new(T_CARRAY);
+   type_t type = type_new(T_ARRAY);
    type_set_ident(type, ident_new("string"));
    type_set_elem(type, my_int_type());
+   type_add_index_constr(type, my_int_type());
+
    tree_t r = tree_new(T_RANGE);
    tree_set_subkind(r, RANGE_DOWNTO);
    tree_set_left(r, left);
    tree_set_right(r, right);
-   type_add_dim(type, r);
 
-   tree_set_type(t, type);
+   tree_t cons = tree_new(T_CONSTRAINT);
+   tree_set_subkind(cons, C_INDEX);
+   tree_add_range(cons, r);
+
+   type_t sub = type_new(T_SUBTYPE);
+   type_set_base(sub, type);
+   type_set_constraint(sub, cons);
+
+   tree_set_type(t, sub);
 
    return t;
 }

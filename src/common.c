@@ -664,11 +664,12 @@ type_t array_aggregate_type(type_t array, int from_dim)
 {
    if (type_is_none(array))
       return type_new(T_NONE);
-   else if (type_is_unconstrained(array)) {
+
+   if (type_is_unconstrained(array)) {
       const int nindex = type_index_constrs(array);
       assert(from_dim < nindex);
 
-      type_t type = type_new(T_UARRAY);
+      type_t type = type_new(T_ARRAY);
       type_set_ident(type, type_ident(array));
       type_set_elem(type, type_elem(array));
 
@@ -681,14 +682,24 @@ type_t array_aggregate_type(type_t array, int from_dim)
       const int ndims = dimension_of(array);
       assert(from_dim < ndims);
 
-      type_t type = type_new(T_CARRAY);
-      type_set_ident(type, type_ident(array));
-      type_set_elem(type, type_elem(array));
+      type_t base = type_new(T_ARRAY);
+      type_set_ident(base, type_ident(array));
+      type_set_elem(base, type_elem(array));
 
-      for (int i = from_dim; i < ndims; i++)
-         type_add_dim(type, range_of(array, i));
+      tree_t constraint = tree_new(T_CONSTRAINT);
+      tree_set_subkind(constraint, C_INDEX);
 
-      return type;
+      type_t sub = type_new(T_SUBTYPE);
+      type_set_base(sub, base);
+      type_set_constraint(sub, constraint);
+
+      for (int i = from_dim; i < ndims; i++) {
+         tree_t r = range_of(array, i);
+         type_add_index_constr(base, tree_type(r));
+         tree_add_range(constraint, r);
+      }
+
+      return sub;
    }
 }
 
@@ -697,17 +708,12 @@ tree_t make_default_value(type_t type, const loc_t *loc)
    type_t base = type_base_recur(type);
 
    switch (type_kind(base)) {
-   case T_UARRAY:
-      if (type_kind(type) != T_SUBTYPE)
-         return NULL;
-
-      // Fall-through
-   case T_CARRAY:
-      {
+   case T_ARRAY:
+      if (type_kind(type) == T_SUBTYPE) {
          tree_t def = NULL;
          const int ndims = dimension_of(type);
          for (int i = ndims - 1; i >= 0; i--) {
-            tree_t val = (def ? def : make_default_value(type_elem(base), loc));
+            tree_t val = (def ? def : make_default_value(type_elem(type), loc));
             def = tree_new(T_AGGREGATE);
             tree_set_type(def, array_aggregate_type(type, i));
 
@@ -721,6 +727,8 @@ tree_t make_default_value(type_t type, const loc_t *loc)
          tree_set_loc(def, loc);
          return def;
       }
+      else
+         return NULL;
 
    case T_INTEGER:
    case T_PHYSICAL:
@@ -857,13 +865,12 @@ unsigned dimension_of(type_t type)
          return tree_ranges(type_constraint(type));
       else
          return dimension_of(type_base(type));
-   case T_UARRAY:
+   case T_ARRAY:
       return type_index_constrs(type);
    case T_NONE:
    case T_ACCESS:
    case T_RECORD:
       return 0;
-   case T_CARRAY:
    case T_INTEGER:
    case T_REAL:
    case T_PHYSICAL:
@@ -886,7 +893,6 @@ tree_t range_of(type_t type, unsigned dim)
    case T_INTEGER:
    case T_REAL:
    case T_PHYSICAL:
-   case T_CARRAY:
    case T_ENUM:
       return type_dim(type, dim);
    default:
@@ -903,7 +909,6 @@ range_kind_t direction_of(type_t type, unsigned dim)
    case T_INTEGER:
    case T_REAL:
    case T_PHYSICAL:
-   case T_CARRAY:
    case T_SUBTYPE:
       {
          tree_t r = range_of(type, dim);
@@ -939,7 +944,7 @@ type_t index_type_of(type_t type, unsigned dim)
 
    type_t base = type_base_recur(type);
    type_kind_t base_kind = type_kind(base);
-   if (base_kind == T_UARRAY)
+   if (base_kind == T_ARRAY)
       return type_index_constr(base, dim);
    else if (base_kind == T_ENUM || base_kind == T_NONE)
       return type;

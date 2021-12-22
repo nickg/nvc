@@ -897,19 +897,6 @@ static void declare_predefined_ops(tree_t container, type_t t)
 {
    // Prefined operators are defined in LRM 93 section 7.2
 
-   if (type_kind(t) == T_CARRAY) {
-      // Construct an unconstrained array type for parameters
-      type_t u = type_new(T_UARRAY);
-      type_set_ident(u, type_ident(t));
-      type_set_elem(u, type_elem(t));
-
-      const int ndims = type_dims(t);
-      for (int i = 0; i < ndims; i++)
-         type_add_index_constr(u, tree_type(type_dim(t, i)));
-
-      t = u;
-   }
-
    ident_t mult   = ident_new("\"*\"");
    ident_t div    = ident_new("\"/\"");
    ident_t plus   = ident_new("\"+\"");
@@ -943,8 +930,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
       // Use operators of base type
       break;
 
-   case T_CARRAY:
-   case T_UARRAY:
+   case T_ARRAY:
       // Operators on arrays
       declare_binary(container, eq, t, t, std_bool, S_ARRAY_EQ);
       declare_binary(container, neq, t, t, std_bool, S_ARRAY_NEQ);
@@ -1109,7 +1095,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
    // Matching comparison for BIT and STD_ULOGIC
 
    if (standard() >= STD_08) {
-      if (kind == T_CARRAY || kind == T_UARRAY) {
+      if (kind == T_ARRAY) {
          type_t elem = type_elem(t);
          if (is_bit_or_std_ulogic(elem)) {
             declare_binary(container, ident_new("\"?=\""),
@@ -1141,7 +1127,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
    }
 
    bool vec_logical = false;
-   if ((kind == T_CARRAY || kind == T_UARRAY) && dimension_of(t) == 1) {
+   if (kind == T_ARRAY && dimension_of(t) == 1) {
       type_t base = type_elem(t);
       vec_logical = (base == std_bool || base == std_type(NULL, STD_BIT));
    }
@@ -2696,7 +2682,7 @@ static tree_t p_name(void)
 
    if (decl != NULL) {
       type_t type = NULL;
-      if (class_has_type(class_of(decl)))
+      if (class_has_type(class_of(decl)) && tree_has_type(decl))
          type = tree_type(decl);
 
       tree_t type_decl;
@@ -4309,7 +4295,7 @@ static type_t p_unconstrained_array_definition(ident_t id)
    consume(tARRAY);
    consume(tLPAREN);
 
-   type_t t = type_new(T_UARRAY);
+   type_t t = type_new(T_ARRAY);
    type_set_ident(t, id);
    do {
       type_add_index_constr(t, p_index_subtype_definition());
@@ -4330,20 +4316,29 @@ static type_t p_constrained_array_definition(ident_t id)
 
    consume(tARRAY);
 
-   type_t t = type_new(T_CARRAY);
-   type_set_ident(t, id);
+   type_t base = type_new(T_ARRAY);
+   type_set_ident(base, id);
+
+   tree_t constraint = tree_new(T_CONSTRAINT);
+   tree_set_subkind(constraint, C_INDEX);
+
+   type_t sub = type_new(T_SUBTYPE);
+   type_set_base(sub, base);
+   type_set_constraint(sub, constraint);
 
    consume(tLPAREN);
    do {
       type_t index_type = std_type(NULL, STD_INTEGER);
-      type_add_dim(t, p_constrained_discrete_range(index_type));
+      tree_t r = p_constrained_discrete_range(index_type);
+      tree_add_range(constraint, r);
+      type_add_index_constr(base, tree_type(r));
    } while (optional(tCOMMA));
    consume(tRPAREN);
 
    consume(tOF);
 
-   type_set_elem(t, p_subtype_indication());
-   return t;
+   type_set_elem(base, p_subtype_indication());
+   return sub;
 }
 
 static type_t p_array_type_definition(ident_t id)
@@ -4594,7 +4589,7 @@ static void p_type_declaration(tree_t container)
       const type_kind_t kind = type_kind(type);
 
       if (kind != T_INCOMPLETE)
-         declare_predefined_ops(container, type);
+         declare_predefined_ops(container, type_base_recur(type));
 
       if (kind == T_PHYSICAL) {
          const int nunits = type_units(type);
@@ -5006,11 +5001,8 @@ static tree_t p_alias_declaration(void)
       }
       tree_set_type(t, type);
    }
-   else {
-      type_t value_type = solve_types(nametab, value, NULL);
-      if (!has_subtype_indication)
-         tree_set_type(t, value_type);
-   }
+   else
+      solve_types(nametab, value, NULL);
 
    const bool type_alias =
       tree_kind(value) == T_REF
@@ -6953,7 +6945,6 @@ static void p_parameter_specification(tree_t loop)
    tree_add_range(constraint, r);
 
    type_t sub = type_new(T_SUBTYPE);
-   type_set_ident(sub, type_ident(base));
    type_set_base(sub, base);
    type_set_constraint(sub, constraint);
 

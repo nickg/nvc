@@ -1086,6 +1086,8 @@ static void eval_op_bounds(int op, eval_state_t *state)
                               vcode_get_subkind(op), __func__);
                }
             }
+            EVAL_WARN(state, op, "bounds check failure prevents "
+                      "constant folding");
             state->failed = true;
          }
       }

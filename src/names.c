@@ -282,7 +282,7 @@ static scope_t *scope_containing(nametab_t *tab, tree_t decl)
 static bool can_overload(tree_t t)
 {
    const tree_kind_t kind = tree_kind(t);
-   if (kind == T_ALIAS) {
+   if (kind == T_ALIAS && tree_has_type(t)) {
       type_t type = tree_type(t);
       return type_is_subprogram(type) || type_is_none(type);
    }
@@ -1309,8 +1309,12 @@ void mangle_func(nametab_t *tab, tree_t decl)
 
 void mangle_type(nametab_t *tab, type_t type)
 {
-   ident_t id = ident_prefix(tab->top_scope->prefix, type_ident(type), '.');
-   type_set_ident(type, id);
+   if (type_has_ident(type)) {
+      ident_t id = ident_prefix(tab->top_scope->prefix, type_ident(type), '.');
+      type_set_ident(type, id);
+   }
+   else
+      mangle_type(tab, type_base(type));
 }
 
 void mangle_decl(nametab_t *tab, tree_t decl)
@@ -2415,7 +2419,10 @@ static type_t solve_ref(nametab_t *tab, tree_t ref)
    else {
       check_pure_ref(tab, ref, decl);
       tree_set_ref(ref, decl);
-      tree_set_type(ref, (type = tree_type(decl)));
+      if (tree_kind(decl) == T_ALIAS && !tree_has_type(decl))
+         tree_set_type(ref, (type = tree_type(tree_value(decl))));
+      else
+         tree_set_type(ref, (type = tree_type(decl)));
    }
 
    return type;
@@ -2480,7 +2487,6 @@ static type_t solve_array_slice(nametab_t *tab, tree_t slice)
    tree_add_range(constraint, r);
 
    type_t slice_type = type_new(T_SUBTYPE);
-   type_set_ident(slice_type, type_ident(base_type));
    type_set_base(slice_type, base_type);
    type_set_constraint(slice_type, constraint);
 

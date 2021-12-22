@@ -391,7 +391,7 @@ static void bounds_check_aggregate(tree_t t)
    if (!type_is_array(type))
       return;
 
-   assert(type_kind(type) != T_UARRAY);
+   assert(type_kind(type) != T_ARRAY);
 
    // Find the tightest bounds for the index
 
@@ -405,7 +405,7 @@ static void bounds_check_aggregate(tree_t t)
    if (unconstrained) {
       // Aggregate of unconstrained array type
       type_t base = type_base_recur(type);
-      assert(type_kind(base) == T_UARRAY);
+      assert(type_kind(base) == T_ARRAY);
 
       type_t index = type_index_constr(base, 0);
 

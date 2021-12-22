@@ -181,7 +181,7 @@ static bool sem_check_resolution(type_t type, tree_t res)
       sem_error(res, "resolution function must have a single argument");
 
    type_t param = type_param(ftype, 0);
-   if (type_kind(param) != T_UARRAY)
+   if (type_kind(param) != T_ARRAY)
       sem_error(res, "parameter of resolution function must be "
                 "an unconstrained array type");
 
@@ -225,8 +225,11 @@ static bool sem_check_subtype(tree_t decl, type_t type)
          sem_error(constraint, "index constraint cannot be used with "
                    "non-array type %s", type_pp(base));
 
-      if (type_kind(base) == T_CARRAY)
-         sem_error(decl, "may not change constraints of a constrained array");
+      if (type_is_array(base)) {
+         if (type_kind(base) == T_SUBTYPE && type_has_constraint(base))
+            sem_error(decl, "may not change constraints of constrained array "
+                      "type %s", type_pp(base));
+      }
 
       if (type_is_record(base))
          sem_error(decl, "record subtype may not have constraints");
@@ -513,12 +516,24 @@ static bool sem_check_type_decl(tree_t t)
 
    type_kind_t kind = type_kind(type);
 
+   if (kind == T_SUBTYPE && !type_has_ident(type)) {
+      // Implicitly created subtype for a constrained array defintion
+      if (!sem_check_subtype(t, type)) {
+         // Prevent cascading errors
+         // TODO: can we do this check in the parser and set T_NONE earlier?
+         type_set_base(type, type_new(T_NONE));
+         return false;
+      }
+
+      type = type_base(type);
+      kind = type_kind(type);
+      assert(kind == T_ARRAY);
+   }
+
    switch (kind) {
-   case T_CARRAY:
-   case T_UARRAY:
+   case T_ARRAY:
       {
          type_t elem_type = type_elem(type);
-
          if (!sem_check_subtype(t, elem_type))
             return false;
 
@@ -533,24 +548,7 @@ static bool sem_check_type_decl(tree_t t)
          if (type_is_protected(elem_type))
             sem_error(t, "array %s cannot have element of protected type",
                       istr(tree_ident(t)));
-      }
-      break;
 
-   default:
-      break;
-   }
-
-   switch (kind) {
-   case T_CARRAY:
-      {
-         if (!sem_check_array_dims(type, NULL))
-            return false;
-
-         return true;
-      }
-
-   case T_UARRAY:
-      {
          const int nindex = type_index_constrs(type);
          for (int i = 0; i < nindex; i++) {
             type_t index_type = type_index_constr(type, i);
@@ -848,16 +846,15 @@ static bool sem_check_alias(tree_t t)
    // Rules for aliases are given in LRM 93 section 4.3.3
 
    tree_t value = tree_value(t);
-   type_t type = tree_type(t);
+   type_t type = tree_has_type(t) ? tree_type(t) : NULL;
 
-   if (type_is_none(type))
-      return false;
-   else if (type_is_subprogram(type)) {
+   if (type != NULL && type_is_subprogram(type)) {
       // Alias of subprogram or enumeration literal
       // Rules for matching signatures are in LRM 93 section 2.3.2
       assert(tree_kind(value) == T_REF);
    }
    else if (tree_kind(value) == T_REF
+            && tree_has_ref(value)
             && tree_kind(tree_ref(value)) == T_TYPE_DECL) {
       // Alias of type
    }
@@ -869,13 +866,17 @@ static bool sem_check_alias(tree_t t)
       if (!sem_static_name(value, sem_globally_static))
          sem_error(value, "aliased name is not static");
 
-      if (!sem_check_subtype(t, type))
-         return false;
+      if (type != NULL) {
+         // Alias declaration had optional subtype indication
 
-      if (!sem_check_type(value, type))
-         sem_error(t, "type of aliased object %s does not match expected "
-                   "type %s", type_pp2(tree_type(value), type),
-                   type_pp2(type, tree_type(value)));
+         if (!sem_check_subtype(t, type))
+            return false;
+
+         if (!sem_check_type(value, type))
+            sem_error(t, "type of aliased object %s does not match expected "
+                      "type %s", type_pp2(tree_type(value), type),
+                      type_pp2(type, tree_type(value)));
+      }
    }
 
    return true;
@@ -1874,10 +1875,7 @@ static bool sem_check_conversion(tree_t t)
    if (from_num && to_num)
       return true;
 
-   const bool from_array = (from_k == T_CARRAY || from_k == T_UARRAY);
-   const bool to_array   = (to_k == T_CARRAY || to_k == T_UARRAY);
-
-   if (from_array && to_array) {
+   if (from_k == T_ARRAY && to_k == T_ARRAY) {
       // Types must have same dimensionality
       bool same_dim = (dimension_of(from) == dimension_of(to));
 
@@ -2554,9 +2552,11 @@ static bool sem_check_array_aggregate(tree_t t)
          if (type_kind(index_type) == T_ENUM) {
             const unsigned nlits = type_enum_literals(index_type);
 
-            if (nassocs > nlits) {
-               sem_error(t, "too many elements in array");
-            }
+            if (nassocs > nlits)
+               sem_error(t, "index type %s has %d literals but found %d "
+                         "elements in aggregate", type_pp(index_type),
+                         nlits, nassocs);
+
             left = make_ref(type_enum_literal(index_type, 0));
             right = make_ref(type_enum_literal(index_type, nassocs - 1));
          }
@@ -3681,7 +3681,6 @@ static bool sem_subtype_locally_static(type_t type)
    }
 
    switch (type_kind(type)) {
-   case T_CARRAY:
    case T_SUBTYPE:
       {
          const int ndims = dimension_of(type);

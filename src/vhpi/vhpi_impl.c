@@ -1090,8 +1090,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       format = vhpiIntVal;
       break;
 
-   case T_UARRAY:
-   case T_CARRAY:
+   case T_ARRAY:
       {
          type_t elem = type_elem(base);
          switch (type_kind(elem)) {

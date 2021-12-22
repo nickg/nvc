@@ -45,9 +45,6 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_PHYSICAL
    (I_IDENT | I_UNITS | I_DIMS),
 
-   // T_CARRAY
-   (I_IDENT | I_ELEM | I_DIMS),
-
    // T_UARRAY
    (I_IDENT | I_INDEXCON | I_ELEM),
 
@@ -77,10 +74,10 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 };
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
-   "T_SUBTYPE",    "T_INTEGER",  "T_REAL",     "T_ENUM",
-   "T_PHYSICAL",   "T_CARRAY",   "T_UARRAY",   "T_RECORD",
-   "T_FILE",       "T_ACCESS",   "T_FUNC",     "T_INCOMPLETE",
-   "T_PROC",       "T_NONE",     "T_PROTECTED"
+   "T_SUBTYPE",    "T_INTEGER",  "T_REAL",       "T_ENUM",
+   "T_PHYSICAL",   "T_UARRAY",   "T_RECORD",     "T_FILE",
+   "T_ACCESS",     "T_FUNC",     "T_INCOMPLETE", "T_PROC",
+   "T_NONE",       "T_PROTECTED"
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -170,11 +167,7 @@ static bool _type_eq(type_t a, type_t b, bool strict)
 
    const imask_t has = has_map[a->object.kind];
 
-   const bool compare_c_u_arrays =
-      (kind_a == T_CARRAY && kind_b == T_UARRAY)
-      || (kind_a == T_UARRAY && kind_b == T_CARRAY);
-
-   if (kind_a != kind_b && (!compare_c_u_arrays || strict))
+   if (kind_a != kind_b)
       return false;
 
    if (has & I_ELEM)
@@ -570,8 +563,7 @@ type_kind_t type_base_kind(type_t t)
 
 bool type_is_array(type_t t)
 {
-   const type_kind_t base = type_base_kind(t);
-   return base == T_CARRAY || base == T_UARRAY;
+   return type_base_kind(t) == T_ARRAY;
 }
 
 bool type_is_record(type_t t)
@@ -614,7 +606,7 @@ bool type_is_unconstrained(type_t t)
          return false;
    }
    else
-      return (t->object.kind == T_UARRAY);
+      return (t->object.kind == T_ARRAY);
 }
 
 bool type_is_enum(type_t t)
@@ -740,7 +732,7 @@ bool type_is_convertible(type_t from, type_t to)
 bool type_is_composite(type_t t)
 {
    const type_kind_t base = type_base_kind(t);
-   return base == T_CARRAY || base == T_UARRAY || base == T_RECORD;
+   return base == T_ARRAY || base == T_RECORD;
 }
 
 bool type_is_homogeneous(type_t t)
