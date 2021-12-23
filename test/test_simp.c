@@ -952,6 +952,33 @@ START_TEST(test_guard)
 }
 END_TEST
 
+START_TEST(test_copysub)
+{
+   input_from_file(TESTDIR "/simp/copysub.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   tree_t sub1 = tree_stmt(tree_stmt(top, 0), 0);
+   fail_unless(tree_kind(sub1) == T_BLOCK);
+   fail_unless(tree_ident(sub1) == ident_new("SUB_1"));
+
+   tree_t sub1_x = search_decls(sub1, ident_new("X"), 0);
+   fail_if(sub1_x == NULL);
+   fail_unless(tree_kind(sub1_x) == T_CONST_DECL);
+   fail_unless(folded_i(tree_value(sub1_x), 5));
+
+   tree_t sub2 = tree_stmt(tree_stmt(top, 0), 1);
+   fail_unless(tree_kind(sub2) == T_BLOCK);
+   fail_unless(tree_ident(sub2) == ident_new("SUB_2"));
+
+   tree_t sub2_x = search_decls(sub2, ident_new("X"), 0);
+   fail_if(sub2_x == NULL);
+   fail_unless(tree_kind(sub2_x) == T_CONST_DECL);
+   fail_unless(folded_i(tree_value(sub2_x), 10));
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -986,6 +1013,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_use);
    tcase_add_test(tc_core, test_predef);
    tcase_add_test(tc_core, test_guard);
+   tcase_add_test(tc_core, test_copysub);
    suite_add_tcase(s, tc_core);
 
    return s;
