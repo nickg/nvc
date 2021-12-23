@@ -96,6 +96,8 @@ jobs:
             mingw-w64-x86_64-gcc
             unzip
             git
+            autoconf
+            automake-wrapper
       - name: Generate configure script
         run: bash autogen.sh
       - name: Configure
