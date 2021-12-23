@@ -41,16 +41,18 @@ typedef struct {
 } rewrite_params_t;
 
 typedef A(rewrite_item_t) rw_list_t;
+typedef A(tree_t) tree_list_t;
 
 typedef struct {
-   tree_t     out;
-   ident_t    path;         // Current 'PATH_NAME
-   ident_t    inst;         // Current 'INSTANCE_NAME
-   ident_t    dotted;
-   ident_t    prefix[2];
-   lib_t      library;
-   rw_list_t  rwlist;
-   hash_t    *generics;
+   tree_t       out;
+   ident_t      path;           // Current 'PATH_NAME
+   ident_t      inst;           // Current 'INSTANCE_NAME
+   ident_t      dotted;
+   ident_t      prefix[2];
+   lib_t        library;
+   rw_list_t    rwlist;
+   hash_t      *generics;
+   tree_list_t  copied_subs;
 } elab_ctx_t;
 
 typedef struct {
@@ -73,10 +75,10 @@ static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
-static void elab_push_scope(tree_t t, const elab_ctx_t *ctx);
-static void elab_pop_scope(const elab_ctx_t *ctx);
+static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
+static void elab_pop_scope(elab_ctx_t *ctx);
 static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx);
-static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx);
+static tree_t elab_copy(tree_t t, elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -263,30 +265,36 @@ static bool elab_should_copy(tree_t t, void *__ctx)
    }
 }
 
-static void elab_copy_cb(tree_t t, void *__ctx)
+static void elab_tree_copy_cb(tree_t t, void *__ctx)
 {
-   const elab_ctx_t *ctx = __ctx;
+   elab_ctx_t *ctx = __ctx;
 
-   if (is_subprogram(t) && tree_subkind(t) == S_USER) {
-      // Change the name of the subprogram so that copies in different
-      // instances do not collide
+   if (is_subprogram(t))
+      APUSH(ctx->copied_subs, t);
+}
 
-      ident_t orig = tree_ident2(t);
+static void elab_type_copy_cb(type_t type, void *__ctx)
+{
+   elab_ctx_t *ctx = __ctx;
+
+   if (type_has_ident(type)) {
+      ident_t orig = type_ident(type);
       for (unsigned i = 0; i < ARRAY_LEN(ctx->prefix); i++) {
          if (ident_starts_with(orig, ctx->prefix[i])) {
             LOCAL_TEXT_BUF tb = tb_new();
             tb_cat(tb, istr(ctx->dotted));
             tb_cat(tb, istr(orig) + ident_len(ctx->prefix[i]));
 
-            tree_set_ident2(t, ident_new(tb_get(tb)));
+            type_set_ident(type, ident_new(tb_get(tb)));
          }
       }
    }
 }
 
-static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
+static tree_t elab_copy(tree_t t, elab_ctx_t *ctx)
 {
-   return tree_copy(t, elab_should_copy, elab_copy_cb, (void *)ctx);
+   return tree_copy(t, elab_should_copy, elab_tree_copy_cb,
+                    elab_type_copy_cb, (void *)ctx);
 }
 
 static void elab_subprogram_prefix(tree_t arch, elab_ctx_t *ctx)
@@ -471,7 +479,7 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
 }
 
 static tree_t elab_binding(tree_t inst, tree_t spec, lib_t *new_lib,
-                           const elab_ctx_t *ctx)
+                           elab_ctx_t *ctx)
 {
    if (!tree_has_value(spec))
       return NULL;
@@ -853,7 +861,7 @@ static void elab_fold_generics(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
-static void elab_instance(tree_t t, const elab_ctx_t *ctx)
+static void elab_instance(tree_t t, elab_ctx_t *ctx)
 {
    lib_t new_lib = NULL;
    tree_t arch = NULL, config = NULL;
@@ -976,7 +984,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
-static void elab_push_scope(tree_t t, const elab_ctx_t *ctx)
+static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
 {
    tree_t h = tree_new(T_HIER);
    tree_set_loc(h, tree_loc(t));
@@ -988,8 +996,46 @@ static void elab_push_scope(tree_t t, const elab_ctx_t *ctx)
    tree_add_decl(ctx->out, h);
 }
 
-static void elab_pop_scope(const elab_ctx_t *ctx)
+static void elab_pop_scope(elab_ctx_t *ctx)
 {
+   // Change the mangled name of copied subprograms so that copies in
+   // different instances do not collide
+   for (unsigned i = 0; i < ctx->copied_subs.count; i++) {
+      tree_t decl = ctx->copied_subs.items[i];
+      ident_t orig = tree_ident2(decl);
+      for (unsigned i = 0; i < ARRAY_LEN(ctx->prefix); i++) {
+         if (ident_starts_with(orig, ctx->prefix[i])) {
+            ident_t prefix = ident_runtil(orig, '(');
+
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_cat(tb, istr(ctx->dotted));
+            tb_cat(tb, istr(prefix) + ident_len(ctx->prefix[i]));
+
+            const tree_kind_t kind = tree_kind(decl);
+            const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
+            const int nports = tree_ports(decl);
+            if (nports > 0 || is_func)
+               tb_append(tb, '(');
+
+            for (int i = 0; i < nports; i++) {
+               tree_t p = tree_port(decl, i);
+               if (tree_class(p) == C_SIGNAL)
+                  tb_printf(tb, "s");
+               mangle_one_type(tb, tree_type(p));
+            }
+
+            if (nports > 0 || is_func)
+               tb_printf(tb, ")");
+
+            if (is_func)
+               mangle_one_type(tb, type_result(tree_type(decl)));
+
+            tree_set_ident2(decl, ident_new(tb_get(tb)));
+         }
+      }
+   }
+   ACLEAR(ctx->copied_subs);
+
    if (ctx->generics != NULL)
       hash_free(ctx->generics);
 }
@@ -1043,7 +1089,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
 
       tree_t pair[] = { genvar, g };
       tree_t copy = tree_copy(t, elab_copy_genvar_cb,
-                              elab_rewrite_genvar_cb, pair);
+                              elab_rewrite_genvar_cb, NULL, pair);
 
       ident_t npath = hpathf(ctx->path, '\0', "(%"PRIi64")", i);
       ident_t ninst = hpathf(ctx->inst, '\0', "(%"PRIi64")", i);

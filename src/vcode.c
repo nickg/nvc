@@ -4555,8 +4555,8 @@ vcode_reg_t emit_null(vcode_type_t type)
 
    vtype_kind_t kind = vtype_kind(type);
    VCODE_ASSERT(kind == VCODE_TYPE_POINTER || kind == VCODE_TYPE_FILE
-                || kind == VCODE_TYPE_ACCESS,
-                "null type must be file, access, or pointer");
+                || kind == VCODE_TYPE_ACCESS || kind == VCODE_TYPE_CONTEXT,
+                "null type must be file, access, context, or pointer");
 
    return (op->result = vcode_add_reg(type));
 }

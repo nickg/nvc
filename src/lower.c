@@ -1400,7 +1400,12 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
       }
       else if (context == NULL) {
          vcode_state_restore(&state);
-         return emit_link_package(scope_name);
+         if (ident_until(scope_name, '-') != scope_name) {
+            // Call to function defined in architecture
+            return emit_null(vtype_context(scope_name));
+         }
+         else
+            return emit_link_package(scope_name);
       }
       else
          vcode_select_unit(context);

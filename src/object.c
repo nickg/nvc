@@ -1038,12 +1038,11 @@ object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
       }
    }
 
-   if (ctx->callback != NULL) {
-      for (hash_iter_t it = HASH_BEGIN;
-           hash_iter(ctx->copy_map, &it, &key, &value); ) {
-         object_t *copy = value;
-         (*ctx->callback)(copy, ctx->context);
-      }
+   for (hash_iter_t it = HASH_BEGIN;
+	hash_iter(ctx->copy_map, &it, &key, &value); ) {
+      object_t *copy = value;
+      if (ctx->callback[copy->tag] != NULL)
+	 (*ctx->callback[copy->tag])(copy, ctx->context);
    }
 
    if (getenv("NVC_GC_VERBOSE") != NULL)

@@ -1173,16 +1173,20 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_pre_fn_t pre_fn,
 }
 
 tree_t tree_copy(tree_t t, tree_copy_pred_t pred,
-                 tree_copy_fn_t callback, void *context)
+                 tree_copy_fn_t tree_callback,
+                 type_copy_fn_t type_callback,
+                 void *context)
 {
    object_copy_ctx_t ctx = {
       .generation  = object_next_generation(),
       .should_copy = (object_copy_pred_t)pred,
-      .callback    = (object_copy_fn_t)callback,
       .context     = context,
       .arena       = global_arena,
       .tag         = OBJECT_TAG_TREE
    };
+
+   ctx.callback[OBJECT_TAG_TREE] = (object_copy_fn_t)tree_callback;
+   ctx.callback[OBJECT_TAG_TYPE] = (object_copy_fn_t)type_callback;
 
    return (tree_t)object_copy(&(t->object), &ctx);
 }

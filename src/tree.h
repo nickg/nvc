@@ -498,8 +498,11 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_pre_fn_t pre_fn,
 
 typedef bool (*tree_copy_pred_t)(tree_t, void *);
 typedef void (*tree_copy_fn_t)(tree_t, void *);
+typedef void (*type_copy_fn_t)(type_t, void *);
 tree_t tree_copy(tree_t t, tree_copy_pred_t pred,
-                 tree_copy_fn_t callback, void *context);
+                 tree_copy_fn_t tree_callback,
+                 type_copy_fn_t type_callback,
+                 void *context);
 
 typedef tree_t (*tree_load_fn_t)(ident_t);
 

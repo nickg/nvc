@@ -185,7 +185,7 @@ typedef bool (*object_copy_fn_t)(object_t *, void *);
 typedef struct {
    generation_t       generation;
    object_copy_pred_t should_copy;
-   object_copy_fn_t   callback;
+   object_copy_fn_t   callback[OBJECT_TAG_COUNT];
    void              *context;
    object_arena_t    *arena;
    hash_t            *copy_map;
