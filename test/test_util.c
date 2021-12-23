@@ -3,6 +3,7 @@
 #include "phase.h"
 #include "common.h"
 #include "loc.h"
+#include "vcode.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -11,7 +12,6 @@
 static const error_t *error_lines = NULL;
 static lib_t          test_lib = NULL;
 static unsigned       errors_seen = 0;
-static bool           no_fork_mode = false;
 
 static void test_error_fn(const char *msg, const loc_t *loc)
 {
@@ -50,13 +50,6 @@ static void setup(void)
    opt_set_int("synthesis", 0);
    opt_set_int("error-limit", -1);
    intern_strings();
-
-#ifdef __MINGW32__
-   no_fork_mode = true;
-#else
-   const char *ck_fork = getenv("CK_FORK");
-   no_fork_mode = ck_fork != NULL && strcmp(ck_fork, "no") == 0;
-#endif
 }
 
 static void setup_per_test(void)
@@ -74,6 +67,8 @@ static void setup_per_test(void)
 
    error_lines = NULL;
    set_error_fn(NULL);
+
+   vcode_drop_cache();
 }
 
 static void teardown_per_test(void)

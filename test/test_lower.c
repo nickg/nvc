@@ -3433,7 +3433,7 @@ START_TEST(test_case1)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_RESOLVED },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE, .name = "enc" },
+      { VCODE_OP_STORE, .name = "*enc" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE, .name = "*i" },
       { VCODE_OP_JUMP, .target = 3 },
@@ -3442,7 +3442,7 @@ START_TEST(test_case1)
    CHECK_BB(1);
 
    EXPECT_BB(4) = {
-      { VCODE_OP_LOAD, .name = "enc" },
+      { VCODE_OP_LOAD, .name = "*enc" },
       { VCODE_OP_CONST, .value = 0x10 },
       { VCODE_OP_CONST, .value = 0x18 },
       { VCODE_OP_CONST, .value = 0x22 },
