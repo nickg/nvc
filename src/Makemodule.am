@@ -13,7 +13,6 @@ lib_libnvc_a_SOURCES = \
 	src/elab.c \
 	src/simp.c \
 	src/dump.c \
-	src/eval.c \
 	src/common.c \
 	src/fbuf.c \
 	src/hash.c \

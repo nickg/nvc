@@ -21,6 +21,7 @@
 #include "loc.h"
 #include "exec.h"
 #include "hash.h"
+#include "vcode.h"
 
 #include <assert.h>
 #include <string.h>
@@ -153,6 +154,181 @@ static tree_t simp_flatten_concat(tree_t fcall)
    return fcall;
 }
 
+static void eval_load_vcode(lib_t lib, tree_t unit, eval_flags_t flags)
+{
+   ident_t unit_name = tree_ident(unit);
+
+   if (flags & EVAL_VERBOSE)
+      notef("loading vcode for %s", istr(unit_name));
+
+   if (!lib_load_vcode(lib, unit_name)) {
+      if (flags & EVAL_WARN)
+         warnf("cannot load vcode for %s", istr(unit_name));
+   }
+}
+
+static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
+{
+   vcode_unit_t vcode = vcode_find_unit(func_name);
+   if (vcode == NULL) {
+      ident_t strip_type_suffix = ident_until(func_name, "("[0]);
+      ident_t unit_name = ident_runtil(strip_type_suffix, '.');
+      ident_t lib_name = ident_until(strip_type_suffix, '.');
+
+      lib_t lib;
+      if (lib_name != unit_name && (lib = lib_find(lib_name)) != NULL) {
+         tree_t unit = lib_get(lib, unit_name);
+         if (unit != NULL) {
+            eval_load_vcode(lib, unit, flags);
+
+            if (tree_kind(unit) == T_PACKAGE) {
+               ident_t body_name =
+                  ident_prefix(unit_name, ident_new("body"), '-');
+               tree_t body = lib_get(lib, body_name);
+               if (body != NULL)
+                  eval_load_vcode(lib, body, flags);
+            }
+
+            vcode = vcode_find_unit(func_name);
+         }
+      }
+   }
+
+   if (vcode == NULL && (flags & EVAL_VERBOSE))
+      warnf("could not find vcode for unit %s", istr(func_name));
+
+   return vcode;
+}
+
+static bool eval_have_lowered(tree_t func, eval_flags_t flags)
+{
+   if (is_builtin(tree_subkind(func)))
+      return true;
+   else if (!tree_has_ident2(func))
+      return false;
+
+   ident_t mangled = tree_ident2(func);
+   if (eval_find_unit(mangled, flags) == NULL) {
+      if (!(flags & EVAL_LOWER))
+         return false;
+      else if (tree_kind(func) != T_FUNC_BODY)
+         return false;
+
+      return lower_func(func) != NULL;
+   }
+   else
+      return true;
+}
+
+static bool fold_not_possible(tree_t t, eval_flags_t flags, const char *why)
+{
+   if (flags & EVAL_WARN)
+      warn_at(tree_loc(t), "%s prevents constant folding", why);
+
+   return false;
+}
+
+static bool fold_possible(tree_t t, eval_flags_t flags)
+{
+   switch (tree_kind(t)) {
+   case T_FCALL:
+      {
+         tree_t decl = tree_ref(t);
+         const subprogram_kind_t kind = tree_subkind(decl);
+         if (kind == S_USER && !(flags & EVAL_FCALL))
+            return fold_not_possible(t, flags, "call to user defined function");
+         else if (kind == S_FOREIGN)
+            return fold_not_possible(t, flags, "call to foreign function");
+         else if (tree_flags(decl) & TREE_F_IMPURE)
+            return fold_not_possible(t, flags, "call to impure function");
+         else if (!(tree_flags(t) & TREE_F_GLOBALLY_STATIC))
+            return fold_not_possible(t, flags, "non-static expression");
+
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            tree_t p = tree_value(tree_param(t, i));
+            if (!fold_possible(p, flags))
+               return false;
+            else if ((flags & EVAL_FOLDING)
+                     && tree_kind(p) == T_FCALL
+                     && type_is_scalar(tree_type(p)))
+               return false;  // Would have been folded already if possible
+         }
+
+         // This can actually lower the function on demand so only call
+         // it if we know all the parameters can be evaluated now
+         return eval_have_lowered(tree_ref(t), flags);
+      }
+
+   case T_LITERAL:
+      return true;
+
+   case T_TYPE_CONV:
+      return fold_possible(tree_value(t), flags);
+
+   case T_QUALIFIED:
+      return fold_possible(tree_value(t), flags);
+
+   case T_REF:
+      {
+         tree_t decl = tree_ref(t);
+         switch (tree_kind(decl)) {
+         case T_UNIT_DECL:
+         case T_ENUM_LIT:
+            return true;
+
+         case T_CONST_DECL:
+            if (tree_has_value(decl))
+               return fold_possible(tree_value(decl), flags);
+            else if (!(flags & EVAL_FCALL))
+               return fold_not_possible(t, flags, "deferred constant");
+            else
+               return true;
+
+         default:
+            return fold_not_possible(t, flags, "reference");
+         }
+      }
+
+   case T_RECORD_REF:
+      return fold_possible(tree_value(t), flags);
+
+   case T_AGGREGATE:
+      {
+         const int nassocs = tree_assocs(t);
+         for (int i = 0; i < nassocs; i++) {
+            if (!fold_possible(tree_value(tree_assoc(t, i)), flags))
+               return false;
+         }
+
+         return true;
+      }
+
+   default:
+      return fold_not_possible(t, flags, "aggregate");
+   }
+}
+
+static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
+{
+   type_t type = tree_type(t);
+   if (!type_is_scalar(type))
+      return t;
+   else if (!fold_possible(t, exec_get_flags(ctx->exec)))
+      return t;
+
+   vcode_unit_t thunk = lower_thunk(t);
+   if (thunk == NULL)
+      return t;
+
+   tree_t folded = exec_fold(ctx->exec, t, thunk);
+
+   vcode_unit_unref(thunk);
+   thunk = NULL;
+
+   return folded;
+}
+
 static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 {
    if (tree_subkind(tree_ref(t)) == S_CONCAT)
@@ -161,14 +337,14 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
    t = simp_call_args(t);
 
    if (tree_flags(t) & ctx->eval_mask)
-      return eval(t, ctx->exec);
+      return simp_fold(t, ctx);
 
    return t;
 }
 
 static tree_t simp_type_conv(tree_t t, simp_ctx_t *ctx)
 {
-   return eval(t, ctx->exec);
+   return simp_fold(t, ctx);
 }
 
 static tree_t simp_pcall(tree_t t)

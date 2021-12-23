@@ -36,9 +36,6 @@ void simplify_global(tree_t top, hash_t *generics);
 // Perform static bounds checking
 void bounds_check(tree_t top);
 
-// Evaluate a function call at compile time
-tree_t eval(tree_t fcall, exec_t *ex);
-
 // Elaborate a top level entity
 tree_t elab(tree_t top);
 
