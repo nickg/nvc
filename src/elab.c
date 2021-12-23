@@ -956,6 +956,7 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
 
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, tree_ident(t));
+   tree_set_loc(b, tree_loc(t));
 
    tree_add_stmt(ctx->out, b);
 
@@ -1091,6 +1092,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       tree_t b = tree_new(T_BLOCK);
       tree_set_loc(b, tree_loc(t));
       tree_set_ident(b, ident_new(tb_get(tb)));
+      tree_set_loc(b, tree_loc(t));
 
       tree_add_stmt(ctx->out, b);
 
@@ -1204,7 +1206,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
 {
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, tree_ident(t));
-   tree_set_loc(b, tree_loc(b));
+   tree_set_loc(b, tree_loc(t));
 
    tree_add_stmt(ctx->out, b);
 

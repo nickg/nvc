@@ -851,6 +851,7 @@ static tree_t simp_if(tree_t t)
             return tree_stmt(t, 0);
          else {
             tree_t b = tree_new(T_BLOCK);
+            tree_set_loc(b, tree_loc(t));
             tree_set_ident(b, tree_ident(t));
             for (unsigned i = 0; i < tree_stmts(t); i++)
                tree_add_stmt(b, tree_stmt(t, i));
@@ -865,6 +866,7 @@ static tree_t simp_if(tree_t t)
             return NULL;   // Delete it
          else {
             tree_t b = tree_new(T_BLOCK);
+            tree_set_loc(b, tree_loc(t));
             tree_set_ident(b, tree_ident(t));
             for (unsigned i = 0; i < tree_else_stmts(t); i++)
                tree_add_stmt(b, tree_else_stmt(t, i));
