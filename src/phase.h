@@ -66,9 +66,6 @@ vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover);
 // Generate vcode for an isolated function call
 vcode_unit_t lower_thunk(tree_t fcall);
 
-// Lower an isolated function body
-vcode_unit_t lower_func(tree_t body);
-
 // Build and optimise elaboration database
 e_node_t eopt_build(tree_t elab);
 

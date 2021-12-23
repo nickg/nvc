@@ -206,7 +206,7 @@ struct vcode_unit {
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
 #define VCODE_MAGIC        0x76636f64
-#define VCODE_VERSION      8
+#define VCODE_VERSION      9
 #define VCODE_CHECK_UNIONS 0
 
 static vcode_unit_t    active_unit = NULL;
@@ -516,7 +516,7 @@ void vcode_unit_unref(vcode_unit_t unit)
 
    assert(unit->children == NULL);
 
-   if (unit->kind != VCODE_UNIT_CONTEXT) {
+   if (unit->context != NULL) {
       if (unit == unit->context->children)
          unit->context->children = unit->next;
       else {
@@ -532,7 +532,8 @@ void vcode_unit_unref(vcode_unit_t unit)
       vcode_unit_unref(unit->context);
    }
 
-   hash_put(registry, unit->name, NULL);
+   if (unit->name != NULL)
+      hash_put(registry, unit->name, NULL);
 
    for (unsigned i = 0; i < unit->blocks.count; i++) {
       block_t *b = &(unit->blocks.items[i]);
@@ -1143,11 +1144,11 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    vcode_block_t old_block = active_block;
 
    printf("\n");
-   color_printf("Name       $cyan$%s$$\n", istr(vu->name));
+   if (vu->name != NULL)
+      color_printf("Name       $cyan$%s$$\n", istr(vu->name));
    color_printf("Kind       $cyan$");
    switch (vu->kind) {
    case VCODE_UNIT_PROCESS:   printf("process"); break;
-   case VCODE_UNIT_CONTEXT:   printf("context"); break;
    case VCODE_UNIT_FUNCTION:  printf("function"); break;
    case VCODE_UNIT_PROCEDURE: printf("procedure"); break;
    case VCODE_UNIT_INSTANCE:  printf("instance"); break;
@@ -1203,7 +1204,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    }
 
    if (vu->kind == VCODE_UNIT_FUNCTION
-       || vu->kind == VCODE_UNIT_PROCEDURE) {
+       || vu->kind == VCODE_UNIT_PROCEDURE
+       || (vu->kind == VCODE_UNIT_THUNK && vu->params.count > 0)) {
 
       printf("Parameters %d\n", vu->params.count);
 
@@ -2612,7 +2614,8 @@ void vcode_set_result(vcode_type_t type)
 vcode_type_t vcode_unit_result(void)
 {
    assert(active_unit != NULL);
-   assert(active_unit->kind == VCODE_UNIT_FUNCTION);
+   assert(active_unit->kind == VCODE_UNIT_FUNCTION
+          || active_unit->kind == VCODE_UNIT_THUNK);
    return active_unit->result;
 }
 
@@ -2815,37 +2818,20 @@ vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
    return vu;
 }
 
-vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context)
+vcode_unit_t emit_thunk(ident_t name)
 {
    vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
    vu->kind     = VCODE_UNIT_THUNK;
    vu->name     = name;
-   vu->context  = context;
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->refcount = 1;
 
-   vcode_add_child(context, vu);
-
    active_unit = vu;
    vcode_select_block(emit_block());
 
-   return vu;
-}
-
-vcode_unit_t emit_context(ident_t name)
-{
-   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
-   vu->kind     = VCODE_UNIT_CONTEXT;
-   vu->name     = name;
-   vu->context  = NULL;
-   vu->result   = VCODE_INVALID_TYPE;
-   vu->refcount = 1;
-
-   active_unit = vu;
-   vcode_select_block(emit_block());
-
-   vcode_registry_add(vu);
+   if (name != NULL)
+      vcode_registry_add(vu);
 
    return vu;
 }
@@ -5138,7 +5124,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
 
 void vcode_write(vcode_unit_t unit, fbuf_t *f)
 {
-   assert(unit->kind == VCODE_UNIT_CONTEXT || unit->kind == VCODE_UNIT_PACKAGE);
+   assert(unit->kind == VCODE_UNIT_PACKAGE);
 
    write_u32(VCODE_MAGIC, f);
    write_u8(VCODE_VERSION, f);
@@ -5166,7 +5152,7 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
    unit->depth    = read_u32(f);
    unit->refcount = 1;
 
-   if (unit->kind != VCODE_UNIT_CONTEXT && unit->kind != VCODE_UNIT_PACKAGE) {
+   if (unit->kind != VCODE_UNIT_PACKAGE) {
       ident_t context_name = ident_read(ident_rd_ctx);
       unit->context = vcode_find_unit(context_name);
       if (unit->context == NULL)

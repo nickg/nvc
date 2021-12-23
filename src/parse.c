@@ -1528,6 +1528,7 @@ static void apply_foreign_attribute(tree_t decl, tree_t value)
    ident_t name = ident_new(buf);
    tree_set_ident2(decl, name);
 
+   tree_set_subkind(decl, S_FOREIGN);
    tree_set_flag(decl, TREE_F_FOREIGN | TREE_F_NEVER_WAITS);
 }
 

@@ -32,11 +32,11 @@ typedef enum {
    EVAL_BOUNDS  = (1 << 0),
    EVAL_FCALL   = (1 << 1),
    EVAL_WARN    = (1 << 2),
-   EVAL_FOLDING = (1 << 3),
-   EVAL_VERBOSE = (1 << 4),
-   EVAL_REPORT  = (1 << 5),
-   EVAL_LOWER   = (1 << 7)
+   EVAL_VERBOSE = (1 << 3),
+   EVAL_REPORT  = (1 << 4)
 } eval_flags_t;
+
+typedef vcode_unit_t (*lower_fn_t)(ident_t, void *);
 
 exec_t *exec_new(eval_flags_t flags);
 void exec_free(exec_t *ex);
@@ -46,5 +46,6 @@ eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
 tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk);
 eval_scalar_t exec_get_var(exec_t *ex, eval_frame_t *frame, unsigned nth);
 eval_flags_t exec_get_flags(exec_t *ex);
+void exec_set_lower_fn(exec_t *ex, lower_fn_t fn, void *ctx);
 
 #endif  // _EXEC_H

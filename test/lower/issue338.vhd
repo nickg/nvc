@@ -2,7 +2,7 @@ entity e is
 end entity;
 
 package p is
-    function f return boolean;
+    function f(x : boolean) return boolean;
 end package;
 
 use work.p.all;
@@ -10,7 +10,7 @@ use work.p.all;
 architecture test of e is
     function f1(x : boolean) return boolean is
     begin
-        return x and f;
+        return x and f(x);
     end function;
 
     function f2(x, y : boolean) return boolean is
@@ -27,24 +27,24 @@ architecture test of e is
         variable y : boolean;
     begin
         y := false;
-        return y and f;
+        return y and f(x);
     end function;
 
     function f5(x : boolean) return boolean is
         variable y : boolean;
     begin
         y := false;
-        return y nor f;
+        return y nor f(x);
     end function;
 
     function f6(x : boolean) return boolean is
     begin
-        return x or f;
+        return x or f(x);
     end function;
 
     function f7(x : boolean) return boolean is
     begin
-        return x nor f;
+        return x nor f(x);
     end function;
 begin
 

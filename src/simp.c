@@ -46,6 +46,7 @@ typedef struct {
    exec_t       *exec;
    tree_flags_t  eval_mask;
    hash_t       *generics;
+   hash_t       *subprograms;
 } simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
@@ -154,72 +155,6 @@ static tree_t simp_flatten_concat(tree_t fcall)
    return fcall;
 }
 
-static void eval_load_vcode(lib_t lib, tree_t unit, eval_flags_t flags)
-{
-   ident_t unit_name = tree_ident(unit);
-
-   if (flags & EVAL_VERBOSE)
-      notef("loading vcode for %s", istr(unit_name));
-
-   if (!lib_load_vcode(lib, unit_name)) {
-      if (flags & EVAL_WARN)
-         warnf("cannot load vcode for %s", istr(unit_name));
-   }
-}
-
-static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
-{
-   vcode_unit_t vcode = vcode_find_unit(func_name);
-   if (vcode == NULL) {
-      ident_t strip_type_suffix = ident_until(func_name, "("[0]);
-      ident_t unit_name = ident_runtil(strip_type_suffix, '.');
-      ident_t lib_name = ident_until(strip_type_suffix, '.');
-
-      lib_t lib;
-      if (lib_name != unit_name && (lib = lib_find(lib_name)) != NULL) {
-         tree_t unit = lib_get(lib, unit_name);
-         if (unit != NULL) {
-            eval_load_vcode(lib, unit, flags);
-
-            if (tree_kind(unit) == T_PACKAGE) {
-               ident_t body_name =
-                  ident_prefix(unit_name, ident_new("body"), '-');
-               tree_t body = lib_get(lib, body_name);
-               if (body != NULL)
-                  eval_load_vcode(lib, body, flags);
-            }
-
-            vcode = vcode_find_unit(func_name);
-         }
-      }
-   }
-
-   if (vcode == NULL && (flags & EVAL_VERBOSE))
-      warnf("could not find vcode for unit %s", istr(func_name));
-
-   return vcode;
-}
-
-static bool eval_have_lowered(tree_t func, eval_flags_t flags)
-{
-   if (is_builtin(tree_subkind(func)))
-      return true;
-   else if (!tree_has_ident2(func))
-      return false;
-
-   ident_t mangled = tree_ident2(func);
-   if (eval_find_unit(mangled, flags) == NULL) {
-      if (!(flags & EVAL_LOWER))
-         return false;
-      else if (tree_kind(func) != T_FUNC_BODY)
-         return false;
-
-      return lower_func(func) != NULL;
-   }
-   else
-      return true;
-}
-
 static bool fold_not_possible(tree_t t, eval_flags_t flags, const char *why)
 {
    if (flags & EVAL_WARN)
@@ -249,15 +184,11 @@ static bool fold_possible(tree_t t, eval_flags_t flags)
             tree_t p = tree_value(tree_param(t, i));
             if (!fold_possible(p, flags))
                return false;
-            else if ((flags & EVAL_FOLDING)
-                     && tree_kind(p) == T_FCALL
-                     && type_is_scalar(tree_type(p)))
+            else if (tree_kind(p) == T_FCALL && type_is_scalar(tree_type(p)))
                return false;  // Would have been folded already if possible
          }
 
-         // This can actually lower the function on demand so only call
-         // it if we know all the parameters can be evaluated now
-         return eval_have_lowered(tree_ref(t), flags);
+         return is_builtin(tree_subkind(decl)) || tree_has_ident2(decl);
       }
 
    case T_LITERAL:
@@ -327,6 +258,17 @@ static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
    thunk = NULL;
 
    return folded;
+}
+
+static vcode_unit_t simp_lower_cb(ident_t func, void *__ctx)
+{
+   simp_ctx_t *ctx = __ctx;
+
+   tree_t decl = hash_get(ctx->subprograms, func);
+   if (decl == NULL)
+      return NULL;
+
+   return lower_thunk(decl);
 }
 
 static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
@@ -1584,7 +1526,7 @@ static tree_t simp_range(tree_t t)
    }
 }
 
-static tree_t simp_subprogram_decl(tree_t decl)
+static tree_t simp_subprogram_decl(tree_t decl, simp_ctx_t *ctx)
 {
    // Remove predefined operators which are hidden by explicitly defined
    // operators in the same region
@@ -1593,7 +1535,18 @@ static tree_t simp_subprogram_decl(tree_t decl)
    if ((flags & TREE_F_PREDEFINED) && (flags & TREE_F_HIDDEN))
       return NULL;
 
+   if (ctx->subprograms != NULL && tree_subkind(decl) != S_USER)
+      hash_put(ctx->subprograms, tree_ident2(decl), decl);
+
    return decl;
+}
+
+static tree_t simp_subprogram_body(tree_t body, simp_ctx_t *ctx)
+{
+   if (ctx->subprograms != NULL)
+      hash_put(ctx->subprograms, tree_ident2(body), body);
+
+   return body;
 }
 
 static tree_t simp_tree(tree_t t, void *_ctx)
@@ -1657,7 +1610,10 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_range(t);
    case T_FUNC_DECL:
    case T_PROC_DECL:
-      return simp_subprogram_decl(t);
+      return simp_subprogram_decl(t, ctx);
+   case T_FUNC_BODY:
+   case T_PROC_BODY:
+      return simp_subprogram_body(t, ctx);
    default:
       return t;
    }
@@ -1727,7 +1683,7 @@ void simplify_local(tree_t top)
       .imp_signals = NULL,
       .top         = top,
       .prefix      = ident_runtil(tree_ident(top), '-'),
-      .exec        = exec_new(EVAL_FOLDING),
+      .exec        = exec_new(0),
       .eval_mask   = TREE_F_LOCALLY_STATIC,
    };
 
@@ -1754,10 +1710,13 @@ void simplify_global(tree_t top, hash_t *generics)
       .imp_signals = NULL,
       .top         = top,
       .prefix      = ident_runtil(tree_ident(top), '-'),
-      .exec        = exec_new(EVAL_LOWER | EVAL_FCALL | EVAL_FOLDING),
+      .exec        = exec_new(EVAL_FCALL),
       .eval_mask   = TREE_F_GLOBALLY_STATIC | TREE_F_LOCALLY_STATIC,
       .generics    = generics,
+      .subprograms = hash_new(256, true)
    };
+
+   exec_set_lower_fn(ctx.exec, simp_lower_cb, &ctx);
 
    tree_rewrite(top, simp_pre_cb, simp_tree, &ctx);
 
@@ -1765,6 +1724,8 @@ void simplify_global(tree_t top, hash_t *generics)
 
    if (generics == NULL && ctx.generics != NULL)
       hash_free(ctx.generics);
+
+   hash_free(ctx.subprograms);
 
    assert(ctx.imp_signals == NULL);
 }

@@ -2760,7 +2760,7 @@ START_TEST(test_issue338)
 
       EXPECT_BB(1) = {
          { VCODE_OP_LINK_PACKAGE, .name = "WORK.P" },
-         { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
+         { VCODE_OP_FCALL, .func = "WORK.P.F(B)B" },
          { VCODE_OP_AND },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_JUMP, .target = 2 },
@@ -2826,7 +2826,7 @@ START_TEST(test_issue338)
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_STORE, .name = "Y" },
          { VCODE_OP_LINK_PACKAGE, .name = "WORK.P" },
-         { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
+         { VCODE_OP_FCALL, .func = "WORK.P.F(B)B" },
          { VCODE_OP_NOT },
          { VCODE_OP_RETURN }
       };
@@ -2849,7 +2849,7 @@ START_TEST(test_issue338)
 
       EXPECT_BB(1) = {
          { VCODE_OP_LINK_PACKAGE, .name = "WORK.P" },
-         { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
+         { VCODE_OP_FCALL, .func = "WORK.P.F(B)B" },
          { VCODE_OP_OR },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_JUMP, .target = 2 },
@@ -2881,7 +2881,7 @@ START_TEST(test_issue338)
 
       EXPECT_BB(1) = {
          { VCODE_OP_LINK_PACKAGE, .name = "WORK.P" },
-         { VCODE_OP_FCALL, .func = "WORK.P.F()B" },
+         { VCODE_OP_FCALL, .func = "WORK.P.F(B)B" },
          { VCODE_OP_NOR },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_JUMP, .target = 2 },

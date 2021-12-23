@@ -35,6 +35,8 @@
 struct _exec {
    eval_flags_t  flags;
    hash_t       *link_map;
+   lower_fn_t    lower_fn;
+   void         *lower_ctx;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -932,20 +934,27 @@ static void eval_op_fcall(int op, eval_state_t *state)
       return;
    }
 
+   value_t *arg0 = eval_get_reg(vcode_get_arg(op, 0), state);
+   EVAL_ASSERT_VALUE(op, arg0, VALUE_CONTEXT);
+
    vcode_state_t vcode_state;
    vcode_state_save(&vcode_state);
 
-   vcode_unit_t vcode = eval_find_unit(func_name, state->flags);
+   vcode_unit_t vcode = vcode_find_unit(func_name);
+
+   if (vcode == NULL)
+      vcode = vcode_find_unit(ident_prefix(func_name, ident_new("thunk"), '$'));
+
+   if (vcode == NULL && state->exec->lower_fn != NULL)
+      vcode = (*state->exec->lower_fn)(func_name, state->exec->lower_ctx);
+
    if (vcode == NULL) {
+      vcode_state_restore(&vcode_state);
       EVAL_WARN(state, op, "function call to %s prevents "
                 "constant folding", istr(func_name));
       state->failed = true;
-      vcode_state_restore(&vcode_state);
       return;
    }
-
-   value_t *arg0 = eval_get_reg(vcode_get_arg(op, 0), state);
-   EVAL_ASSERT_VALUE(op, arg0, VALUE_CONTEXT);
 
    vcode_select_unit(vcode);
    vcode_select_block(0);
@@ -1677,8 +1686,14 @@ static void eval_op_array_size(int op, eval_state_t *state)
 
 static void eval_op_null(int op, eval_state_t *state)
 {
-   value_t *dst = eval_get_reg(vcode_get_result(op), state);
-   dst->kind    = VALUE_ACCESS;
+   vcode_reg_t result = vcode_get_result(op);
+   value_t *dst = eval_get_reg(result, state);
+
+   if (vcode_reg_kind(result) == VCODE_TYPE_CONTEXT)
+      dst->kind = VALUE_CONTEXT;
+   else
+      dst->kind = VALUE_ACCESS;
+
    dst->pointer = NULL;
 }
 
@@ -1810,6 +1825,13 @@ static void eval_op_file_close(int op, eval_state_t *state)
    value_t *arg0 = eval_get_reg(vcode_get_arg(op, 0), state);
    EVAL_ASSERT_VALUE(op, arg0, VALUE_POINTER);
    // No-op
+}
+
+static void eval_op_temp_stack_mark(int op, eval_state_t *state)
+{
+   value_t *result = eval_get_reg(vcode_get_result(op), state);
+   result->kind = VALUE_INTEGER;
+   result->integer = 0;
 }
 
 static void eval_vcode(eval_state_t *state)
@@ -1994,6 +2016,9 @@ static void eval_vcode(eval_state_t *state)
          break;
 
       case VCODE_OP_TEMP_STACK_MARK:
+         eval_op_temp_stack_mark(state->op, state);
+         break;
+
       case VCODE_OP_TEMP_STACK_RESTORE:
          break;
 
@@ -2443,4 +2468,10 @@ tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk)
 eval_flags_t exec_get_flags(exec_t *ex)
 {
    return ex->flags;
+}
+
+void exec_set_lower_fn(exec_t *ex, lower_fn_t fn, void *ctx)
+{
+   ex->lower_fn = fn;
+   ex->lower_ctx = ctx;
 }
