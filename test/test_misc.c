@@ -121,13 +121,10 @@ END_TEST;
 START_TEST(test_safe_symbol)
 {
   const char *orig = "foo[]()+*\"=bar";
-  char *enc = safe_symbol(orig);
-  char *dec = unsafe_symbol(enc);
+  LOCAL_TEXT_BUF enc = safe_symbol_str(orig);
+  LOCAL_TEXT_BUF dec = unsafe_symbol(tb_get(enc));
 
-  ck_assert_str_eq(orig, dec);
-
-  if (enc != orig) free(enc);
-  if (dec != orig) free(dec);
+  ck_assert_str_eq(orig, tb_get(dec));
 }
 END_TEST
 

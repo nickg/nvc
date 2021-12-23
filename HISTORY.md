@@ -58,6 +58,8 @@
   packages whose license status is unclear.
 - Added support for HREAD, HWRITE, and other TEXTIO additions in
   VHDL-2008.
+- Code generation now happens in parallel when LLVM is built with
+  multi-threading enabled.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

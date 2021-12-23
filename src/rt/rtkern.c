@@ -3124,12 +3124,16 @@ static void rt_emit_coverage(tree_t top)
 
 static void rt_interrupt(void)
 {
+#ifdef __SANITIZE_THREAD__
+   _Exit(1);
+#else
    if (active_proc != NULL)
       rt_msg(NULL, fatal,
              "interrupted in process %s at %s+%d",
              istr(e_path(active_proc->source)), fmt_time(now), iteration);
    else
       fatal("interrupted");
+#endif
 }
 
 #ifdef __MINGW32__

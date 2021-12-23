@@ -1,0 +1,2 @@
+# This happens inside LLVM, appears benign
+race:getValueTypeList

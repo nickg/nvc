@@ -65,30 +65,31 @@ void *jit_find_symbol(const char *name, bool required)
       name++;   // Remove leading underscore on 32-bit Windows
 #endif
 
-   name = safe_symbol(name);
+   LOCAL_TEXT_BUF tb = safe_symbol_str(name);
+   const char *symbol_name = tb_get(tb);
 
 #ifdef __MINGW32__
 
 #ifdef _WIN64
-   if (strcmp(name, "___chkstk_ms") == 0)
+   if (strcmp(symbol_name, "___chkstk_ms") == 0)
       return (void *)(uintptr_t)___chkstk_ms;
 #else
-   if (strcmp(name, "_alloca") == 0)
+   if (strcmp(symbol_name, "_alloca") == 0)
       return (void *)(uintptr_t)_alloca;
 #endif
 
-   if (strcmp(name, "exp2") == 0)
+   if (strcmp(symbol_name, "exp2") == 0)
       return (void *)(uintptr_t)exp2;
 
    for (size_t i = 0; i < search_modules.count; i++) {
       HMODULE h = search_modules.items[i];
-      void *ptr = (void *)(uintptr_t)GetProcAddress(h, name);
+      void *ptr = (void *)(uintptr_t)GetProcAddress(h, symbol_name);
       if (ptr != NULL)
          return ptr;
    }
 
    if (required)
-      fatal("cannot find symbol %s", name);
+      fatal("cannot find symbol %s", symbol_name);
 
    return NULL;
 
@@ -96,13 +97,13 @@ void *jit_find_symbol(const char *name, bool required)
 
    dlerror();   // Clear any previous error
 
-   void *sym = dlsym(NULL, name);
+   void *sym = dlsym(NULL, symbol_name);
    const char *error = dlerror();
    if (error != NULL) {
-      sym = dlsym(RTLD_DEFAULT, name);
+      sym = dlsym(RTLD_DEFAULT, symbol_name);
       error = dlerror();
       if ((error != NULL) && required)
-         fatal("%s: %s", name, error);
+         fatal("%s: %s", symbol_name, error);
    }
    return sym;
 #endif

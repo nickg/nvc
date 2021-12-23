@@ -786,6 +786,7 @@ void show_stacktrace(void)
 #endif
 }
 
+#ifndef __SANITIZE_THREAD__
 static bool check_guard_page(uintptr_t addr)
 {
    for (guard_t *it = guards; it != NULL; it = it->next) {
@@ -797,6 +798,7 @@ static bool check_guard_page(uintptr_t addr)
 
    return false;
 }
+#endif
 
 #ifdef __MINGW32__
 
@@ -866,7 +868,7 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
   return EXCEPTION_EXECUTE_HANDLER;
 }
 
-#else  // __MINGW32__
+#elif !defined __SANITIZE_THREAD__
 
 static const char *signame(int sig)
 {
@@ -920,7 +922,6 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
    if (sig != SIGUSR1)
       _exit(2);
 }
-#endif  // !__MINGW32__
 
 #if defined __linux__
 static bool scan_file_for_token(const char *file, const char *token)
@@ -938,7 +939,8 @@ static bool scan_file_for_token(const char *file, const char *token)
 
    return found;
 }
-#endif
+#endif  // __linux__
+#endif  // !__SANITIZE_THREAD__
 
 bool is_debugger_running(void)
 {
@@ -946,7 +948,9 @@ bool is_debugger_running(void)
    if (cached != -1)
       return cached;
 
-#if defined __APPLE__
+#if defined  __SANITIZE_THREAD__
+   return false;
+#elif defined __APPLE__
 
    struct kinfo_proc info;
    info.kp_proc.p_flag = 0;
@@ -1022,7 +1026,7 @@ void register_signal_handlers(void)
 {
 #if defined __MINGW32__
    SetUnhandledExceptionFilter(win32_exception_handler);
-#else
+#elif !defined __SANITIZE_THREAD__
    (void)is_debugger_running();    // Caches the result
 
    struct sigaction sa;
@@ -1036,7 +1040,7 @@ void register_signal_handlers(void)
    sigaction(SIGBUS, &sa, NULL);
    sigaction(SIGILL, &sa, NULL);
    sigaction(SIGABRT, &sa, NULL);
-#endif  // !__MINGW32__
+#endif  // !__SANITIZE_THREAD__
 }
 
 void term_init(void)
@@ -1694,15 +1698,9 @@ static struct {
    { '+', "_plus_" },
    { '=', "_eq_"   }
 };
-#endif
 
-char *safe_symbol(const char *text)
+static text_buf_t *safe_symbol_win32(const char *text)
 {
-   // Return a string that is safe to use as a symbol name on this platform
-#if defined _WIN32 || defined __CYGWIN__
-   if (strpbrk(text, "()\"[]*+=") == NULL)
-      return (char *)text;
-
    text_buf_t *tb = tb_new();
 
    for (const char *p = text; *p != '\0' && p - text < 240; p++) {
@@ -1719,18 +1717,50 @@ char *safe_symbol(const char *text)
          tb_append(tb, *p);
    }
 
-   return tb_claim(tb);
+   return tb;
+}
+
+#endif
+
+text_buf_t *safe_symbol(ident_t id)
+{
+   // Return a string that is safe to use as a symbol name on this platform
+
+   text_buf_t *tb = tb_new();
+   ident_str(id, tb);
+
+#if defined _WIN32 || defined __CYGWIN__
+   if (strpbrk(tb_get(tb), "()\"[]*+=") == NULL)
+      return tb;
+   else {
+      text_buf_t *new = safe_symbol_win32(tb_get(tb));
+      tb_free(tb);
+      return new;
+   }
 #else
-   return (char *)text;
+   return tb;
 #endif
 }
 
-char *unsafe_symbol(const char *text)
+text_buf_t *safe_symbol_str(const char *text)
+{
+#if defined _WIN32 || defined __CYGWIN__
+   if (strpbrk(text, "()\"[]*+=") != NULL)
+      return safe_symbol_win32(text);
+#endif
+
+   text_buf_t *tb = tb_new();
+   tb_cat(tb, text);
+   return tb;
+}
+
+text_buf_t *unsafe_symbol(const char *text)
 {
    // Restore original symbol from safe_symbol
-#if defined _WIN32 || defined __CYGWIN__
+
    text_buf_t *tb = tb_new();
 
+#if defined _WIN32 || defined __CYGWIN__
    const char *p = text;
    while (*p) {
       bool replaced = false;
@@ -1748,10 +1778,12 @@ char *unsafe_symbol(const char *text)
          tb_append(tb, *p++);
    }
 
-   return tb_claim(tb);
+   return tb;
 #else
-   return (char *)text;
+   tb_cat(tb, text);
 #endif
+
+   return tb;
 }
 
 void __cleanup_array(void *ptr)

@@ -169,10 +169,9 @@ void *mmap_guarded(size_t sz, const char *tag);
 
 void run_program(const char *const *args, size_t n_args);
 
-char *safe_symbol(const char *text);
-char *unsafe_symbol(const char *text);
-
-typedef struct text_buf text_buf_t;
+text_buf_t *safe_symbol(ident_t id);
+text_buf_t *safe_symbol_str(const char *text);
+text_buf_t *unsafe_symbol(const char *text);
 
 #define LOCAL_TEXT_BUF __attribute__((cleanup(_tb_cleanup))) text_buf_t *
 

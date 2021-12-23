@@ -718,7 +718,8 @@ static void debug_walk_frames(debug_info_t *di)
 
          DWORD64 disp;
          if (SymFromAddr(hProcess, stk.AddrPC.Offset, &disp, psym)) {
-            frame->symbol = unsafe_symbol(psym->Name);
+            text_buf_t *tb = unsafe_symbol(psym->Name);
+            frame->symbol = tb_claim(tb);
             frame->disp   = disp;
          }
 

@@ -208,8 +208,9 @@ struct vcode_unit {
 #define VCODE_VERSION      9
 #define VCODE_CHECK_UNIONS 0
 
-static vcode_unit_t    active_unit = NULL;
-static vcode_block_t   active_block = VCODE_INVALID_BLOCK;
+static __thread vcode_unit_t  active_unit = NULL;
+static __thread vcode_block_t active_block = VCODE_INVALID_BLOCK;
+
 static hash_t         *registry = NULL;
 static vcode_dump_fn_t dump_callback = NULL;
 static void           *dump_arg = NULL;

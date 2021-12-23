@@ -49,6 +49,7 @@
 
 #define DEBUG_METADATA_VERSION 3
 #define CONST_REP_ARRAY_LIMIT  32
+#define UNITS_PER_JOB          25
 
 #define DUMP_ASSEMBLY 0
 #define DUMP_BITCODE  0
@@ -80,69 +81,127 @@ typedef enum {
    FUNC_ATTR_DLLEXPORT,
 } func_attr_t;
 
-static LLVMModuleRef    module = NULL;
-static LLVMBuilderRef   builder = NULL;
-static LLVMDIBuilderRef debuginfo = NULL;
+typedef A(vcode_unit_t) unit_list_t;
+
+typedef struct {
+   unit_list_t  units;
+   char        *obj_path;
+   char        *module_name;
+   unsigned     index;
+} cgen_job_t;
 
 typedef A(LLVMValueRef) llvm_value_list_t;
+typedef A(cgen_job_t) job_list_t;
 
-static A(char *)           link_args;
-static hash_t             *string_pool = NULL;
-static A(LLVMMetadataRef)  debug_scopes;
-static llvm_value_list_t   ctors;
+typedef struct {
+   job_list_t      *jobs;
+   nvc_mutex_t     *lock;
+   cover_tagging_t *cover;
+   tree_t           top;
+} cgen_thread_params_t;
+
+static __thread LLVMModuleRef       module = NULL;
+static __thread LLVMBuilderRef      builder = NULL;
+static __thread LLVMDIBuilderRef    debuginfo = NULL;
+static __thread shash_t            *string_pool = NULL;
+static __thread A(LLVMMetadataRef)  debug_scopes;
+static __thread LLVMContextRef      thread_context = NULL;
+static __thread llvm_value_list_t   ctors;
+
+static A(char *) link_args;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMTypeRef cgen_state_type(vcode_unit_t unit);
 
+static inline LLVMContextRef llvm_context(void)
+{
+   return thread_context;
+}
+
+static LLVMTypeRef llvm_void_type(void)
+{
+   return LLVMVoidTypeInContext(llvm_context());
+}
+
+static LLVMTypeRef llvm_int1_type(void)
+{
+   return LLVMInt1TypeInContext(llvm_context());
+}
+
+static LLVMTypeRef llvm_int8_type(void)
+{
+   return LLVMInt8TypeInContext(llvm_context());
+}
+
+static LLVMTypeRef llvm_int16_type(void)
+{
+   return LLVMInt8TypeInContext(llvm_context());
+}
+
+static LLVMTypeRef llvm_int32_type(void)
+{
+   return LLVMInt32TypeInContext(llvm_context());
+}
+
+static LLVMTypeRef llvm_int64_type(void)
+{
+   return LLVMInt64TypeInContext(llvm_context());
+}
+
+static LLVMTypeRef llvm_double_type(void)
+{
+   return LLVMDoubleTypeInContext(llvm_context());
+}
+
 static LLVMValueRef llvm_int1(bool b)
 {
-   return LLVMConstInt(LLVMInt1Type(), b, false);
+   return LLVMConstInt(llvm_int1_type(), b, false);
 }
 
 static LLVMValueRef llvm_int8(int8_t i)
 {
-   return LLVMConstInt(LLVMInt8Type(), i, false);
+   return LLVMConstInt(llvm_int8_type(), i, false);
 }
 
 static LLVMValueRef llvm_int16(int16_t i)
 {
-   return LLVMConstInt(LLVMInt16Type(), i, false);
+   return LLVMConstInt(llvm_int16_type(), i, false);
 }
 
 static LLVMValueRef llvm_int32(int32_t i)
 {
-   return LLVMConstInt(LLVMInt32Type(), i, false);
+   return LLVMConstInt(llvm_int32_type(), i, false);
 }
 
 static LLVMValueRef llvm_int64(int64_t i)
 {
-   return LLVMConstInt(LLVMInt64Type(), i, false);
+   return LLVMConstInt(llvm_int64_type(), i, false);
 }
 
 #if 0
 static LLVMValueRef llvm_real(double r)
 {
-   return LLVMConstReal(LLVMDoubleType(), r);
+   return LLVMConstReal(llvm_double_type(), r);
 }
 #endif
 
 static LLVMTypeRef llvm_void_ptr(void)
 {
-   return LLVMPointerType(LLVMInt8Type(), 0);
+   return LLVMPointerType(LLVMInt8TypeInContext(llvm_context()), 0);
 }
 
 static LLVMTypeRef llvm_char_ptr(void)
 {
-   return LLVMPointerType(LLVMInt8Type(), 0);
+   return LLVMPointerType(llvm_int8_type(), 0);
 }
 
 static LLVMValueRef llvm_ensure_int_bits(LLVMValueRef value, int bits)
 {
    const int value_bits = LLVMGetIntTypeWidth(LLVMTypeOf(value));
    if (value_bits < bits)
-      return LLVMBuildZExt(builder, value, LLVMInt32Type(), "");
+      return LLVMBuildZExt(builder, value, llvm_int32_type(), "");
    else if (value_bits > bits) {
-      return LLVMBuildTrunc(builder, value, LLVMInt32Type(), "");
+      return LLVMBuildTrunc(builder, value, llvm_int32_type(), "");
    }
    else
       return value;
@@ -150,31 +209,34 @@ static LLVMValueRef llvm_ensure_int_bits(LLVMValueRef value, int bits)
 
 static LLVMValueRef llvm_zext_to_intptr(LLVMValueRef value)
 {
-   return LLVMBuildZExt(builder, value, LLVMIntType(sizeof(void *) * 8), "");
+   LLVMTypeRef type = LLVMIntTypeInContext(llvm_context(), sizeof(void *) * 8);
+   return LLVMBuildZExt(builder, value, type, "");
 }
 
 static LLVMTypeRef llvm_rt_loc(void)
 {
    LLVMTypeRef fields[] = {
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMInt16Type(),
-      LLVMInt16Type(),
+      llvm_int32_type(),
+      llvm_int32_type(),
+      llvm_int16_type(),
+      llvm_int16_type(),
       llvm_char_ptr()
    };
-   return LLVMStructType(fields, ARRAY_LEN(fields), false);
+   return LLVMStructTypeInContext(llvm_context(), fields,
+                                  ARRAY_LEN(fields), false);
 }
 
 static LLVMTypeRef llvm_ctor_type(void)
 {
-   LLVMTypeRef fntype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
+   LLVMTypeRef fntype = LLVMFunctionType(llvm_void_type(), NULL, 0, false);
 
    LLVMTypeRef field_types[] = {
-      LLVMInt32Type(),
+      llvm_int32_type(),
       LLVMPointerType(fntype, 0),
-      LLVMPointerType(LLVMInt8Type(), 0)
+      LLVMPointerType(llvm_int8_type(), 0)
    };
-   return LLVMStructType(field_types, ARRAY_LEN(field_types), false);
+   return LLVMStructTypeInContext(llvm_context(), field_types,
+                                  ARRAY_LEN(field_types), false);
 }
 
 static LLVMValueRef llvm_void_cast(LLVMValueRef ptr)
@@ -203,14 +265,14 @@ static LLVMTypeRef llvm_signal_shared_struct(void)
       return exist;
 
    LLVMTypeRef fields[] = {
-      LLVMInt32Type(),     // Signal ID
-      LLVMInt32Type(),     // Pad
+      llvm_int32_type(),   // Signal ID
+      llvm_int32_type(),   // Pad
       llvm_void_ptr(),     // Resolved pointer
       llvm_void_ptr()      // Last value pointer
    };
 
    LLVMTypeRef new =
-      LLVMStructCreateNamed(LLVMGetGlobalContext(), "sig_shared");
+      LLVMStructCreateNamed(llvm_context(), "sig_shared");
    LLVMStructSetBody(new, fields, ARRAY_LEN(fields), false);
    return new;
 }
@@ -223,11 +285,11 @@ static LLVMTypeRef llvm_signal_type(void)
 
    LLVMTypeRef fields[] = {
       LLVMPointerType(llvm_signal_shared_struct(), 0),
-      LLVMInt32Type()    // Offset
+      llvm_int32_type()    // Offset
    };
 
    LLVMTypeRef new =
-      LLVMStructCreateNamed(LLVMGetGlobalContext(), "signal");
+      LLVMStructCreateNamed(llvm_context(), "signal");
    LLVMStructSetBody(new, fields, ARRAY_LEN(fields), false);
    return new;
 }
@@ -274,19 +336,20 @@ static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
       return exist;
 
    LLVMTypeRef dim_fields[] = {
-      LLVMInt32Type(),      // Left
-      LLVMInt32Type(),      // Length
+      llvm_int32_type(),    // Left
+      llvm_int32_type(),    // Length
    };
 
    LLVMTypeRef dim_struct =
-      LLVMStructType(dim_fields, ARRAY_LEN(dim_fields), false);
+      LLVMStructTypeInContext(llvm_context(), dim_fields,
+                              ARRAY_LEN(dim_fields), false);
 
    LLVMTypeRef fields[] = {
       is_signal ? base : LLVMPointerType(base, 0),
       LLVMArrayType(dim_struct, dims)
    };
 
-   LLVMTypeRef new = LLVMStructCreateNamed(LLVMGetGlobalContext(), struct_name);
+   LLVMTypeRef new = LLVMStructCreateNamed(llvm_context(), struct_name);
    LLVMStructSetBody(new, fields, ARRAY_LEN(fields), false);
    return new;
 }
@@ -296,20 +359,22 @@ static LLVMTypeRef llvm_closure_type(void)
    LLVMTypeRef struct_elems[] = {
       llvm_void_ptr(),     // Function pointer
       llvm_void_ptr(),     // Context pointer
-      LLVMInt32Type(),     // FFI spec
+      llvm_int32_type(),   // FFI spec
    };
-   return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
+   return LLVMStructTypeInContext(llvm_context(), struct_elems,
+                                  ARRAY_LEN(struct_elems), false);
 }
 
 static LLVMTypeRef llvm_resolution_type(void)
 {
    LLVMTypeRef struct_elems[] = {
       llvm_closure_type(),   // Closure
-      LLVMInt32Type(),       // Flags
-      LLVMInt32Type(),       // Left index
-      LLVMInt32Type()        // Number of enumeration literals
+      llvm_int32_type(),     // Flags
+      llvm_int32_type(),     // Left index
+      llvm_int32_type(),     // Number of enumeration literals
    };
-   return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
+   return LLVMStructTypeInContext(llvm_context(), struct_elems,
+                                  ARRAY_LEN(struct_elems), false);
 }
 
 static void llvm_add_module_flag(const char *key, int value)
@@ -339,6 +404,11 @@ static void llvm_lifetime_end(LLVMValueRef ptr, LLVMTypeRef type)
       llvm_void_cast(ptr)
    };
    LLVMBuildCall(builder, fn, args, ARRAY_LEN(args), "");
+}
+
+static LLVMBasicBlockRef llvm_append_block(LLVMValueRef fn, const char *name)
+{
+   return LLVMAppendBasicBlockInContext(llvm_context(), fn, name);
 }
 
 __attribute__((unused))
@@ -375,7 +445,7 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
       return;
    }
    else if (attr == FUNC_ATTR_PRESERVE_FP) {
-      ref = LLVMCreateStringAttribute(LLVMGetGlobalContext(),
+      ref = LLVMCreateStringAttribute(llvm_context(),
                                       "frame-pointer", 13, "all", 3);
    }
    else {
@@ -390,7 +460,7 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
       if (kind == 0)
          fatal_trace("Cannot get LLVM attribute for %s", names[attr]);
 
-      ref = LLVMCreateEnumAttribute(LLVMGetGlobalContext(), kind, 0);
+      ref = LLVMCreateEnumAttribute(llvm_context(), kind, 0);
    }
 
    LLVMAddAttributeAtIndex(fn, param, ref);
@@ -400,10 +470,13 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
 {
    switch (vtype_kind(type)) {
    case VCODE_TYPE_INT:
-      return LLVMIntType(bits_for_range(vtype_low(type), vtype_high(type)));
+      {
+         const int bits = bits_for_range(vtype_low(type), vtype_high(type));
+         return LLVMIntTypeInContext(llvm_context(), bits);
+      }
 
    case VCODE_TYPE_REAL:
-      return LLVMDoubleType();
+      return LLVMDoubleTypeInContext(llvm_context());
 
    case VCODE_TYPE_CARRAY:
       return LLVMArrayType(cgen_type(vtype_elem(type)), vtype_size(type));
@@ -412,7 +485,7 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
       return llvm_uarray_type(cgen_type(vtype_elem(type)), vtype_dims(type));
 
    case VCODE_TYPE_OFFSET:
-      return LLVMInt32Type();
+      return llvm_int32_type();
 
    case VCODE_TYPE_POINTER:
    case VCODE_TYPE_ACCESS:
@@ -426,12 +499,15 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
 
    case VCODE_TYPE_RECORD:
       {
-         const char *name = istr(vtype_name(type));
+         LOCAL_TEXT_BUF tb = tb_new();
+         ident_str(vtype_name(type), tb);
+         const char *name = tb_get(tb);
+
          LLVMTypeRef lltype = LLVMGetTypeByName(module, name);
          if (lltype != NULL && !LLVMIsOpaqueStruct(lltype))
             return lltype;
          else if (lltype == NULL) {
-            lltype = LLVMStructCreateNamed(LLVMGetGlobalContext(), name);
+            lltype = LLVMStructCreateNamed(llvm_context(), name);
             if (lltype == NULL)
                fatal("failed to add record type %s", name);
          }
@@ -451,12 +527,15 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
 
    case VCODE_TYPE_CONTEXT:
       {
-         const char *type_name LOCAL =
-            xasprintf("%s.state", istr(vtype_name(type)));
+         LOCAL_TEXT_BUF tb = tb_new();
+         ident_str(vtype_name(type), tb);
+         tb_cat(tb, ".state");
+
+         const char *type_name = tb_get(tb);
 
          LLVMTypeRef opaque = LLVMGetTypeByName(module, type_name);
          if (opaque == NULL)
-            opaque = LLVMStructCreateNamed(LLVMGetGlobalContext(), type_name);
+            opaque = LLVMStructCreateNamed(llvm_context(), type_name);
 
          return LLVMPointerType(opaque, 0);
       }
@@ -468,7 +547,7 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
       return llvm_void_ptr();
 
    case VCODE_TYPE_OPAQUE:
-      return LLVMVoidType();
+      return llvm_void_type();
 
    case VCODE_TYPE_RESOLUTION:
       return llvm_resolution_type();
@@ -483,14 +562,14 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
 
 static const char *cgen_reg_name(vcode_reg_t r)
 {
-   static char buf[32];
+   static __thread char buf[32];
    checked_sprintf(buf, sizeof(buf), "r%d", r);
    return buf;
 }
 
 static const char *cgen_memcpy_name(const char *kind, int width)
 {
-   static char name[64];
+   static __thread char name[64];
    checked_sprintf(name, sizeof(name),
                    "llvm.%s.p0i%d.p0i%d.i32", kind, width, width);
    return name;
@@ -514,8 +593,8 @@ static LLVMMetadataRef cgen_top_debug_scope(void)
 
 static LLVMMetadataRef cgen_debug_file(const loc_t *loc, bool allow_cached)
 {
-   static LLVMMetadataRef last = NULL;
-   static loc_file_ref_t last_ref = FILE_INVALID;
+   static __thread LLVMMetadataRef last = NULL;
+   static __thread loc_file_ref_t last_ref = FILE_INVALID;
 
    if (loc->file_ref == last_ref && allow_cached)
       return last;
@@ -541,18 +620,18 @@ static LLVMMetadataRef cgen_debug_file(const loc_t *loc, bool allow_cached)
 
 static void cgen_debug_loc(cgen_ctx_t *ctx, const loc_t *loc, bool force)
 {
-   static loc_t last_loc = LOC_INVALID;
+   static __thread loc_t last_loc = LOC_INVALID;
 
    if (loc_eq(loc, &last_loc) && !force)
       return;
 
    LLVMMetadataRef dloc = LLVMDIBuilderCreateDebugLocation(
-      LLVMGetGlobalContext(), loc->first_line, loc->first_column,
+      llvm_context(), loc->first_line, loc->first_column,
       cgen_top_debug_scope(), NULL);
 #ifdef LLVM_HAVE_SET_CURRENT_DEBUG_LOCATION_2
    LLVMSetCurrentDebugLocation2(builder, dloc);
 #else
-   LLVMValueRef md = LLVMMetadataAsValue(LLVMGetGlobalContext(), dloc);
+   LLVMValueRef md = LLVMMetadataAsValue(llvm_context(), dloc);
    LLVMSetCurrentDebugLocation(builder, md);
 #endif
 }
@@ -561,16 +640,15 @@ static void cgen_debug_push_func(cgen_ctx_t *ctx)
 {
    LLVMMetadataRef scope = cgen_top_debug_scope();
 
-   const char *name   = istr(vcode_unit_name());
-   const char *symbol = safe_symbol(name);
+   LOCAL_TEXT_BUF symbol = safe_symbol(vcode_unit_name());
 
    const loc_t *loc = vcode_unit_loc();
    LLVMMetadataRef file_ref = cgen_debug_file(loc, true);
    LLVMMetadataRef dtype = LLVMDIBuilderCreateSubroutineType(
       debuginfo, file_ref, NULL, 0, 0);
    LLVMMetadataRef sp = LLVMDIBuilderCreateFunction(
-      debuginfo, scope, name, strlen(name),
-      symbol, strlen(symbol), file_ref,
+      debuginfo, scope, tb_get(symbol), tb_len(symbol),
+      tb_get(symbol), tb_len(symbol), file_ref,
       loc->first_line, dtype, true, true,
       1, 0, opt_get_int("optimise"));
    LLVMSetSubprogram(ctx->fn, sp);
@@ -634,9 +712,11 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
 {
    LLVMValueRef value = NULL;
    if (ctx->state != NULL) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      ident_str(vcode_var_name(var), tb);
+
       value = LLVMBuildStructGEP(builder, ctx->state,
-                                 cgen_var_offset(var),
-                                 istr(vcode_var_name(var)));
+                                 cgen_var_offset(var), tb_get(tb));
    }
    else {
       assert(ctx->locals != NULL);
@@ -710,19 +790,20 @@ static void cgen_sched_process(LLVMValueRef after)
 
 static LLVMValueRef cgen_const_string(const char *str)
 {
-   ident_t key = ident_new(str);
-   LLVMValueRef ref = hash_get(string_pool, key);
+   LLVMValueRef ref = shash_get(string_pool, str);
    if (ref == NULL) {
       const size_t len = strlen(str);
+      LLVMValueRef init =
+         LLVMConstStringInContext(llvm_context(), str, len, false);
       ref = LLVMAddGlobal(module,
-                          LLVMArrayType(LLVMInt8Type(), len + 1),
+                          LLVMArrayType(llvm_int8_type(), len + 1),
                           "const_string");
       LLVMSetGlobalConstant(ref, true);
-      LLVMSetInitializer(ref, LLVMConstString(str, len, false));
+      LLVMSetInitializer(ref, init);
       LLVMSetLinkage(ref, LLVMPrivateLinkage);
       LLVMSetUnnamedAddr(ref, true);
 
-      hash_put(string_pool, key, ref);
+      shash_put(string_pool, str, ref);
    }
 
    return cgen_array_pointer(ref);
@@ -788,20 +869,21 @@ static LLVMValueRef cgen_hint_str(int op)
    if (hint == NULL)
       return LLVMConstNull(llvm_char_ptr());
 
-   ident_t hint_id = ident_new(hint);
-   LLVMValueRef glob = hash_get(string_pool, hint_id);
-
+   LLVMValueRef glob = shash_get(string_pool, hint);
    if (glob == NULL) {
       const size_t len = strlen(hint);
-      LLVMTypeRef type = LLVMArrayType(LLVMInt8Type(), len + 1);
+      LLVMTypeRef type = LLVMArrayType(llvm_int8_type(), len + 1);
+
+      LLVMValueRef init =
+         LLVMConstStringInContext(llvm_context(), hint, len, false);
 
       glob = LLVMAddGlobal(module, type, "");
       LLVMSetGlobalConstant(glob, true);
       LLVMSetLinkage(glob, LLVMPrivateLinkage);
-      LLVMSetInitializer(glob, LLVMConstString(hint, len, false));
+      LLVMSetInitializer(glob, init);
       LLVMSetUnnamedAddr(glob, true);
 
-      hash_put(string_pool, hint_id, glob);
+      shash_put(string_pool, hint, glob);
    }
 
    return cgen_array_pointer(glob);
@@ -811,8 +893,8 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
                                    vcode_cc_t cc, const vcode_type_t *vparams,
                                    size_t nparams)
 {
-   const char *safe_name = safe_symbol(istr(name));
-   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
+   LOCAL_TEXT_BUF safe_name = safe_symbol(name);
+   LLVMValueRef fn = LLVMGetNamedFunction(module, tb_get(safe_name));
    if (fn != NULL)
       return fn;
    else if (vparams == NULL)
@@ -841,12 +923,12 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
    if (result == VCODE_INVALID_TYPE)
       type = LLVMFunctionType(llvm_void_ptr(), params, nparams + nextra, false);
    else if (foreign_uarray_result)
-      type = LLVMFunctionType(LLVMVoidType(), params, nparams + nextra, false);
+      type = LLVMFunctionType(llvm_void_type(), params, nparams + nextra, false);
    else
       type = LLVMFunctionType(cgen_type(result), params,
                               nparams + nextra, false);
 
-   fn = LLVMAddFunction(module, safe_name, type);
+   fn = LLVMAddFunction(module, tb_get(safe_name), type);
 
    cgen_add_func_attr(fn, FUNC_ATTR_DLLEXPORT, -1);
    cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND, -1);
@@ -992,10 +1074,12 @@ static void cgen_op_const_rep(int op, cgen_ctx_t *ctx)
    const int length = vcode_get_value(op);
    vcode_reg_t arg0 = vcode_get_arg(op, 0);
 
-   char *name LOCAL = xasprintf("%s_rep_r%d", istr(vcode_unit_name()), result);
+   LOCAL_TEXT_BUF name = tb_new();
+   ident_str(vcode_unit_name(), name);
+   tb_printf(name, "_rep_r%d", result);
 
    LLVMTypeRef lltype = LLVMArrayType(cgen_type(elem_type), length);
-   LLVMValueRef global = LLVMAddGlobal(module, lltype, name);
+   LLVMValueRef global = LLVMAddGlobal(module, lltype, tb_get(name));
    LLVMSetLinkage(global, LLVMPrivateLinkage);
 
    int64_t init;
@@ -1019,22 +1103,24 @@ static void cgen_op_const_rep(int op, cgen_ctx_t *ctx)
    else {
       LLVMSetInitializer(global, LLVMGetUndef(lltype));
 
-      char *fnname LOCAL =
-          xasprintf("%s_init_rep_r%d", istr(vcode_unit_name()), result);
-      LLVMTypeRef fntype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
-      LLVMValueRef initfn = LLVMAddFunction(module, fnname, fntype);
+      LOCAL_TEXT_BUF fname = tb_new();
+      ident_str(vcode_unit_name(), fname);
+      tb_printf(name, "_init_rep_r%d", result);
+
+      LLVMTypeRef fntype = LLVMFunctionType(llvm_void_type(), NULL, 0, false);
+      LLVMValueRef initfn = LLVMAddFunction(module, tb_get(fname), fntype);
 
       LLVMBasicBlockRef orig_bb = LLVMGetInsertBlock(builder);
-      LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(initfn, "");
-      LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(initfn, "test");
-      LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(initfn, "body");
-      LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(initfn, "exit");
+      LLVMBasicBlockRef entry_bb = llvm_append_block(initfn, "");
+      LLVMBasicBlockRef test_bb = llvm_append_block(initfn, "test");
+      LLVMBasicBlockRef body_bb = llvm_append_block(initfn, "body");
+      LLVMBasicBlockRef exit_bb = llvm_append_block(initfn, "exit");
 
       LLVMPositionBuilderAtEnd(builder, entry_bb);
       LLVMBuildBr(builder, test_bb);
 
       LLVMPositionBuilderAtEnd(builder, test_bb);
-      LLVMValueRef i_phi = LLVMBuildPhi(builder, LLVMInt32Type(), "i");
+      LLVMValueRef i_phi = LLVMBuildPhi(builder, llvm_int32_type(), "i");
 
       LLVMValueRef cmp =
           LLVMBuildICmp(builder, LLVMIntSLT, i_phi, llvm_int32(length), "");
@@ -1127,8 +1213,8 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef test = ctx->regs[vcode_get_arg(op, 0)];
 
-   LLVMBasicBlockRef thenbb = LLVMAppendBasicBlock(ctx->fn, "assert_fail");
-   LLVMBasicBlockRef elsebb = LLVMAppendBasicBlock(ctx->fn, "assert_pass");
+   LLVMBasicBlockRef thenbb = llvm_append_block(ctx->fn, "assert_fail");
+   LLVMBasicBlockRef elsebb = llvm_append_block(ctx->fn, "assert_pass");
 
    LLVMBuildCondBr(builder, test, elsebb, thenbb);
 
@@ -1143,7 +1229,8 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
 
       LLVMValueRef global = LLVMGetNamedGlobal(module, "default_message");
       if (global == NULL) {
-         LLVMValueRef init = LLVMConstString(def_str, def_len, true);
+         LLVMValueRef init =
+            LLVMConstStringInContext(llvm_context(), def_str, def_len, true);
 
          global = LLVMAddGlobal(module, LLVMTypeOf(init), "default_message");
          LLVMSetInitializer(global, init);
@@ -1244,7 +1331,7 @@ static void cgen_op_add(int op, cgen_ctx_t *ctx)
       LLVMValueRef index[] = { rhs };
       LLVMValueRef gep = LLVMBuildInBoundsGEP(builder, null, index, 1, "");
       LLVMValueRef scaled =
-         LLVMBuildPtrToInt(builder, gep, LLVMInt32Type(), "");
+         LLVMBuildPtrToInt(builder, gep, llvm_int32_type(), "");
       LLVMValueRef add = LLVMBuildAdd(builder, base, scaled, "");
       ctx->regs[result] = LLVMBuildInsertValue(builder, lhs,
                                                add, 1, cgen_reg_name(result));
@@ -1269,7 +1356,7 @@ static void cgen_op_sub(int op, cgen_ctx_t *ctx)
                                         cgen_reg_name(result));
    else if (LLVMGetTypeKind(LLVMTypeOf(rhs)) == LLVMPointerTypeKind) {
       LLVMValueRef diff = LLVMBuildPtrDiff(builder, lhs, rhs, "");
-      ctx->regs[result] = LLVMBuildTrunc(builder, diff, LLVMInt32Type(),
+      ctx->regs[result] = LLVMBuildTrunc(builder, diff, llvm_int32_type(),
                                          cgen_reg_name(result));
    }
    else
@@ -1374,8 +1461,8 @@ static void cgen_op_div(int op, cgen_ctx_t *ctx)
                                         cgen_get_arg(op, 1, ctx),
                                         cgen_reg_name(result));
    else {
-      LLVMBasicBlockRef zero_bb = LLVMAppendBasicBlock(ctx->fn, "div_zero");
-      LLVMBasicBlockRef ok_bb   = LLVMAppendBasicBlock(ctx->fn, "div_ok");
+      LLVMBasicBlockRef zero_bb = llvm_append_block(ctx->fn, "div_zero");
+      LLVMBasicBlockRef ok_bb   = llvm_append_block(ctx->fn, "div_ok");
 
       LLVMValueRef denom = cgen_get_arg(op, 1, ctx);
 
@@ -1445,8 +1532,8 @@ static void cgen_op_exp(int op, cgen_ctx_t *ctx)
 
    // TODO: implement this without the cast
    LLVMValueRef cast[] = {
-      LLVMBuildUIToFP(builder, cgen_get_arg(op, 0, ctx), LLVMDoubleType(), ""),
-      LLVMBuildUIToFP(builder, cgen_get_arg(op, 1, ctx), LLVMDoubleType(), "")
+      LLVMBuildUIToFP(builder, cgen_get_arg(op, 0, ctx), llvm_double_type(), ""),
+      LLVMBuildUIToFP(builder, cgen_get_arg(op, 1, ctx), llvm_double_type(), "")
    };
    ctx->regs[result] = LLVMBuildFPToUI(
       builder,
@@ -1474,7 +1561,7 @@ static void cgen_op_abs(int op, cgen_ctx_t *ctx)
    const bool real = (vcode_reg_kind(result) == VCODE_TYPE_REAL);
 
    LLVMValueRef zero = real
-      ? LLVMConstReal(LLVMDoubleType(), 0.0)
+      ? LLVMConstReal(llvm_double_type(), 0.0)
       : LLVMConstInt(LLVMTypeOf(arg), 0, false);
 
    LLVMValueRef negative = real
@@ -1501,7 +1588,7 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
    const int value_bits = LLVMGetIntTypeWidth(value_type);
    LLVMValueRef value = NULL, min = NULL, max = NULL;
    if (value_bits < 32) {
-      value = LLVMBuildZExt(builder, value_raw, LLVMInt32Type(), "");
+      value = LLVMBuildZExt(builder, value_raw, llvm_int32_type(), "");
       min   = llvm_int32(vtype_low(vtype));
       max   = llvm_int32(vtype_high(vtype));
    }
@@ -1518,8 +1605,8 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef in = LLVMBuildAnd(builder, above, below, "in");
 
-   LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
-   LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
+   LLVMBasicBlockRef pass_bb  = llvm_append_block(ctx->fn, "bounds_pass");
+   LLVMBasicBlockRef fail_bb  = llvm_append_block(ctx->fn, "bounds_fail");
 
    LLVMBuildCondBr(builder, in, pass_bb, fail_bb);
 
@@ -1549,7 +1636,7 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
    const int value_bits = LLVMGetIntTypeWidth(value_type);
    LLVMValueRef value = NULL, min = NULL, max = NULL;
    if (value_bits < 32) {
-      LLVMTypeRef ll_int32 = LLVMInt32Type();
+      LLVMTypeRef ll_int32 = llvm_int32_type();
       value = LLVMBuildZExt(builder, value_raw, ll_int32, "");
       min   = LLVMBuildZExt(builder, cgen_get_arg(op, 1, ctx), ll_int32, "");
       max   = LLVMBuildZExt(builder, cgen_get_arg(op, 2, ctx), ll_int32, "");
@@ -1569,8 +1656,8 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef in = LLVMBuildAnd(builder, above, below, "in");
 
-   LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
-   LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
+   LLVMBasicBlockRef pass_bb  = llvm_append_block(ctx->fn, "bounds_pass");
+   LLVMBasicBlockRef fail_bb  = llvm_append_block(ctx->fn, "bounds_fail");
 
    LLVMBuildCondBr(builder, in, pass_bb, fail_bb);
 
@@ -1578,7 +1665,7 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
 
    if (value_bits > 32) {
       // TODO: we should probably pass all the arguments as 64-bit here
-      LLVMTypeRef ll_int32 = LLVMInt32Type();
+      LLVMTypeRef ll_int32 = llvm_int32_type();
       value = LLVMBuildTrunc(builder, value, ll_int32, "");
       min   = LLVMBuildTrunc(builder, min, ll_int32, "");
       max   = LLVMBuildTrunc(builder, max, ll_int32, "");
@@ -1931,9 +2018,9 @@ static void cgen_op_sched_waveform(int op, cgen_ctx_t *ctx)
    LLVMValueRef valptr = NULL, scalar = NULL;
    const vtype_kind_t kind = vcode_reg_kind(vcode_get_arg(op, 2));
    if (kind == VCODE_TYPE_INT)
-      scalar = LLVMBuildZExt(builder, value, LLVMInt64Type(), "");
+      scalar = LLVMBuildZExt(builder, value, llvm_int64_type(), "");
    else if (kind == VCODE_TYPE_REAL)
-      scalar = LLVMBuildBitCast(builder, value, LLVMInt64Type(), "");
+      scalar = LLVMBuildBitCast(builder, value, llvm_int64_type(), "");
    else
       valptr = llvm_void_cast(value);
 
@@ -2075,15 +2162,15 @@ static void cgen_op_protected_init(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
 
    char *resetfn LOCAL = xasprintf("%s_reset", istr(func));
-   const char *safe_name = safe_symbol(resetfn);
+   LOCAL_TEXT_BUF symbol = safe_symbol_str(resetfn);
 
-   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
+   LLVMValueRef fn = LLVMGetNamedFunction(module, tb_get(symbol));
    if (fn == NULL) {
       LLVMTypeRef atypes[] = {
          cgen_type(vcode_reg_type(vcode_get_arg(op, 0)))   // Context type
       };
       LLVMTypeRef fntype = LLVMFunctionType(llvm_void_ptr(), atypes, 1, false);
-      fn = LLVMAddFunction(module, safe_name, fntype);
+      fn = LLVMAddFunction(module, tb_get(symbol), fntype);
    }
 
    LLVMValueRef args[] = { cgen_get_arg(op, 0, ctx) };
@@ -2145,13 +2232,14 @@ static void cgen_op_address_of(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
-   char *name LOCAL = xasprintf("%s_const_r%d",
-                                istr(vcode_unit_name()), result);
+   LOCAL_TEXT_BUF tb = tb_new();
+   ident_str(vcode_unit_name(), tb);
+   tb_printf(tb, "_const_r%d", result);
 
    LLVMValueRef init = cgen_get_arg(op, 0, ctx);
    LLVMTypeRef type = LLVMTypeOf(init);
 
-   LLVMValueRef global = LLVMAddGlobal(module, type, name);
+   LLVMValueRef global = LLVMAddGlobal(module, type, tb_get(tb));
    LLVMSetLinkage(global, LLVMPrivateLinkage);
    LLVMSetGlobalConstant(global, true);
    LLVMSetUnnamedAddr(global, true);
@@ -2200,7 +2288,7 @@ static void cgen_op_record_ref(int op, cgen_ctx_t *ctx)
       LLVMValueRef field =
          LLVMBuildStructGEP(builder, null, vcode_get_field(op), "");
       LLVMValueRef scale =
-         LLVMBuildPtrToInt(builder, field, LLVMInt32Type(), "");
+         LLVMBuildPtrToInt(builder, field, llvm_int32_type(), "");
       LLVMValueRef add = LLVMBuildAdd(builder, base, scale, "");
       ctx->regs[result] = LLVMBuildInsertValue(builder, signal,
                                                add, 1, cgen_reg_name(result));
@@ -2232,7 +2320,7 @@ static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
 static void cgen_pcall_suspend(LLVMValueRef state, LLVMBasicBlockRef cont_bb,
                                cgen_ctx_t *ctx)
 {
-   LLVMBasicBlockRef suspend_bb = LLVMAppendBasicBlock(ctx->fn, "suspend");
+   LLVMBasicBlockRef suspend_bb = llvm_append_block(ctx->fn, "suspend");
 
    LLVMValueRef is_null = LLVMBuildIsNull(builder, state, "");
    LLVMBuildCondBr(builder, is_null, cont_bb, suspend_bb);
@@ -2289,8 +2377,8 @@ static void cgen_op_pcall(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_resume(int op, cgen_ctx_t *ctx)
 {
-   LLVMBasicBlockRef after_bb = LLVMAppendBasicBlock(ctx->fn, "resume_after");
-   LLVMBasicBlockRef call_bb  = LLVMAppendBasicBlock(ctx->fn, "resume_call");
+   LLVMBasicBlockRef after_bb = llvm_append_block(ctx->fn, "resume_after");
+   LLVMBasicBlockRef call_bb  = llvm_append_block(ctx->fn, "resume_call");
 
    assert(ctx->state);
    LLVMValueRef pcall_ptr = LLVMBuildStructGEP(builder, ctx->state, 2, "");
@@ -2301,8 +2389,8 @@ static void cgen_op_resume(int op, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, call_bb);
 
-   const char *safe_name = safe_symbol(istr(vcode_get_func(op)));
-   LLVMValueRef fn = LLVMGetNamedFunction(module, safe_name);
+   LOCAL_TEXT_BUF symbol = safe_symbol(vcode_get_func(op));
+   LLVMValueRef fn = LLVMGetNamedFunction(module, tb_get(symbol));
    assert(fn != NULL);
 
    LLVMTypeRef fn_type = LLVMGetElementType(LLVMTypeOf(fn));
@@ -2333,7 +2421,7 @@ static void cgen_op_memset(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef args[] = {
       llvm_void_cast(ptr),
-      LLVMBuildZExt(builder, value, LLVMInt8Type(), ""),
+      LLVMBuildZExt(builder, value, llvm_int8_type(), ""),
       length,
       llvm_int1(false)
    };
@@ -2481,7 +2569,7 @@ static void cgen_op_file_read(int op, cgen_ctx_t *ctx)
    LLVMTypeRef value_type = LLVMGetElementType(LLVMTypeOf(ptr));
    LLVMValueRef size = LLVMBuildIntCast(builder,
                                         LLVMSizeOf(value_type),
-                                        LLVMInt32Type(), "");
+                                        llvm_int32_type(), "");
 
    LLVMValueRef count;
    if (vcode_count_args(op) >= 3)
@@ -2493,7 +2581,7 @@ static void cgen_op_file_read(int op, cgen_ctx_t *ctx)
    if (vcode_count_args(op) >= 4)
       outlen = cgen_get_arg(op, 3, ctx);
    else
-      outlen = LLVMConstNull(LLVMPointerType(LLVMInt32Type(), 0));
+      outlen = LLVMConstNull(LLVMPointerType(llvm_int32_type(), 0));
 
    LLVMValueRef args[] = { file, llvm_void_cast(ptr), size, count, outlen };
    LLVMBuildCall(builder, llvm_fn("_file_read"), args, ARRAY_LEN(args), "");
@@ -2543,8 +2631,8 @@ static void cgen_op_null_check(int op, cgen_ctx_t *ctx)
    LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntEQ, ptr,
                                      LLVMConstNull(LLVMTypeOf(ptr)), "null");
 
-   LLVMBasicBlockRef null_bb = LLVMAppendBasicBlock(ctx->fn, "all_null");
-   LLVMBasicBlockRef ok_bb   = LLVMAppendBasicBlock(ctx->fn, "all_ok");
+   LLVMBasicBlockRef null_bb = llvm_append_block(ctx->fn, "all_null");
+   LLVMBasicBlockRef ok_bb   = llvm_append_block(ctx->fn, "all_ok");
 
    LLVMBuildCondBr(builder, null, null_bb, ok_bb);
 
@@ -2581,8 +2669,8 @@ static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef ok = LLVMBuildICmp(builder, LLVMIntEQ, llen, rlen, "ok");
 
-   LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
-   LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
+   LLVMBasicBlockRef pass_bb  = llvm_append_block(ctx->fn, "bounds_pass");
+   LLVMBasicBlockRef fail_bb  = llvm_append_block(ctx->fn, "bounds_fail");
 
    LLVMBuildCondBr(builder, ok, pass_bb, fail_bb);
 
@@ -2606,7 +2694,7 @@ static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
 {
-   LLVMTypeRef int32 = LLVMInt32Type();
+   LLVMTypeRef int32 = llvm_int32_type();
 
    LLVMValueRef min, max;
    if (vcode_count_args(op) == 2) {
@@ -2637,8 +2725,8 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
          LLVMBuildOr(builder, LLVMBuildAnd(builder, above, below, ""),
                      null, "in");
 
-      LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
-      LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
+      LLVMBasicBlockRef pass_bb  = llvm_append_block(ctx->fn, "bounds_pass");
+      LLVMBasicBlockRef fail_bb  = llvm_append_block(ctx->fn, "bounds_fail");
 
       LLVMBuildCondBr(builder, in, pass_bb, fail_bb);
 
@@ -2676,7 +2764,7 @@ static void cgen_op_debug_out(int op, cgen_ctx_t *ctx)
    }
    else {
       LLVMValueRef args[] = {
-         LLVMBuildZExt(builder, arg0, LLVMInt32Type(), ""),
+         LLVMBuildZExt(builder, arg0, llvm_int32_type(), ""),
          llvm_int32(vcode_get_arg(op, 0))
       };
       LLVMBuildCall(builder, llvm_fn("_debug_out"),
@@ -2811,8 +2899,11 @@ static void cgen_op_link_signal(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
+   LOCAL_TEXT_BUF tb = tb_new();
+   ident_str(vcode_get_ident(op), tb);
+
    LLVMValueRef args[] = {
-      cgen_const_string(istr(vcode_get_ident(op)))
+      cgen_const_string(tb_get(tb))
    };
    LLVMValueRef shared = LLVMBuildCall(builder, llvm_fn("_link_signal"),
                                        args, ARRAY_LEN(args), "");
@@ -2830,25 +2921,29 @@ static void cgen_op_link_var(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
 
    ident_t var_name = vcode_get_ident(op);
-   ident_t unit_name = ident_runtil(var_name, '.');
 
-   const char *unit_name_s = istr(unit_name);
-   LLVMValueRef global = LLVMGetNamedGlobal(module, unit_name_s);
+   LOCAL_TEXT_BUF unit_name = tb_new();
+   ident_str(ident_runtil(var_name, '.'), unit_name);
+
+   LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(unit_name));
    if (global == NULL) {
-      const char *type_name LOCAL = xasprintf("%s.state", istr(unit_name));
+      LOCAL_TEXT_BUF type_name = tb_new();
+      tb_cat(type_name, tb_get(unit_name));
+      tb_cat(type_name, ".state");
 
-      LLVMTypeRef opaque = LLVMGetTypeByName(module, type_name);
+      LLVMTypeRef opaque = LLVMGetTypeByName(module, tb_get(type_name));
       if (opaque == NULL)
-         opaque = LLVMStructCreateNamed(LLVMGetGlobalContext(), type_name);
+         opaque = LLVMStructCreateNamed(llvm_context(), tb_get(type_name));
 
-      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0), unit_name_s);
+      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0),
+                             tb_get(unit_name));
    }
 
-   char *offset_name LOCAL =
-      xasprintf("__offset_%s", safe_symbol(istr(var_name)));
+   LOCAL_TEXT_BUF symbol = safe_symbol(var_name);
+   char *offset_name LOCAL = xasprintf("__offset_%s", tb_get(symbol));
    LLVMValueRef offset = LLVMGetNamedGlobal(module, offset_name);
    if (offset == NULL) {
-      offset = LLVMAddGlobal(module, LLVMInt32Type(), offset_name);
+      offset = LLVMAddGlobal(module, llvm_int32_type(), offset_name);
       LLVMSetLinkage(offset, LLVMExternalLinkage);
       LLVMSetGlobalConstant(offset, true);
 #ifdef IMPLIB_REQUIRED
@@ -2872,18 +2967,21 @@ static void cgen_op_link_package(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
-   ident_t unit_name = vcode_get_ident(op);
+   LOCAL_TEXT_BUF unit_name = tb_new();
+   ident_str(vcode_get_ident(op), unit_name);
 
-   const char *unit_name_s = istr(unit_name);
-   LLVMValueRef global = LLVMGetNamedGlobal(module, unit_name_s);
+   LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(unit_name));
    if (global == NULL) {
-      const char *type_name LOCAL = xasprintf("%s.state", istr(unit_name));
+      LOCAL_TEXT_BUF type_name = tb_new();
+      tb_cat(type_name, tb_get(unit_name));
+      tb_cat(type_name, ".state");
 
-      LLVMTypeRef opaque = LLVMGetTypeByName(module, type_name);
+      LLVMTypeRef opaque = LLVMGetTypeByName(module, tb_get(type_name));
       if (opaque == NULL)
-         opaque = LLVMStructCreateNamed(LLVMGetGlobalContext(), type_name);
+         opaque = LLVMStructCreateNamed(llvm_context(), tb_get(type_name));
 
-      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0), unit_name_s);
+      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0),
+                             tb_get(unit_name));
    }
 
    ctx->regs[result] = LLVMBuildLoad(builder, global, cgen_reg_name(result));
@@ -3237,7 +3335,7 @@ static void cgen_alloc_context(cgen_ctx_t *ctx)
    for (int i = 0; i < nblocks; i++) {
       char name[32];
       checked_sprintf(name, sizeof(name), "vcode_block_%d", i);
-      ctx->blocks[i] = LLVMAppendBasicBlock(ctx->fn, name);
+      ctx->blocks[i] = llvm_append_block(ctx->fn, name);
    }
 }
 
@@ -3288,13 +3386,15 @@ static void cgen_locals(cgen_ctx_t *ctx)
    else {
       for (int i = 0; i < nvars; i++) {
          LLVMTypeRef lltype = cgen_type(vcode_var_type(i));
-         const char *name = istr(vcode_var_name(i));
 
          LLVMValueRef mem;
          if (vcode_var_flags(i) & VAR_HEAP)
             mem = cgen_tmp_alloc(llvm_sizeof(lltype), lltype);
-         else
-            mem = LLVMBuildAlloca(builder, lltype, name);
+         else {
+            LOCAL_TEXT_BUF name = tb_new();
+            ident_str(vcode_var_name(i), name);
+            mem = LLVMBuildAlloca(builder, lltype, tb_get(name));
+         }
 
          ctx->locals[i] = mem;
       }
@@ -3343,7 +3443,11 @@ static LLVMTypeRef cgen_state_type(vcode_unit_t unit)
 
    vcode_select_unit(unit);
 
-   char *LOCAL name = xasprintf("%s.state", istr(vcode_unit_name()));
+   LOCAL_TEXT_BUF tb = tb_new();
+   ident_str(vcode_unit_name(), tb);
+   tb_cat(tb, ".state");
+
+   const char *name = tb_get(tb);
 
    LLVMTypeRef opaque = LLVMGetTypeByName(module, name);
    if (opaque != NULL && !LLVMIsOpaqueStruct(opaque)) {
@@ -3351,7 +3455,7 @@ static LLVMTypeRef cgen_state_type(vcode_unit_t unit)
       return opaque;
    }
    else if (opaque == NULL)
-      opaque = LLVMStructCreateNamed(LLVMGetGlobalContext(), name);
+      opaque = LLVMStructCreateNamed(llvm_context(), name);
 
    const vunit_kind_t kind = vcode_unit_kind();
    const bool has_fsm = (kind == VCODE_UNIT_PROCESS || cgen_is_procedure());
@@ -3370,35 +3474,42 @@ static LLVMTypeRef cgen_state_type(vcode_unit_t unit)
       fields[next_field++] = llvm_void_ptr();
 
    if (has_fsm) {
-      fields[next_field++] = LLVMInt32Type();   // Current FSM state
+      fields[next_field++] = llvm_int32_type();   // Current FSM state
       fields[next_field++] = llvm_void_ptr();   // Suspended pcall state
    }
 
-   const int var_base = next_field;
    for (int i = 0; i < nvars; i++)
       fields[next_field++] = cgen_type(vcode_var_type(i));
 
    assert(next_field == nfields);
    LLVMStructSetBody(opaque, fields, nfields, false);
 
+   vcode_state_restore(&state);
+   return opaque;
+}
+
+static void cgen_global_offsets(LLVMTypeRef state_type)
+{
+   // Generate constants containing the offests of each global field in
+   // the state type
+
+   const int nvars = vcode_count_vars();
    for (int i = 0; i < nvars; i++) {
       if (vcode_var_flags(i) & VAR_GLOBAL) {
-         char *name LOCAL =
-            xasprintf("__offset_%s", safe_symbol(istr(vcode_var_name(i))));
-         LLVMValueRef global = LLVMAddGlobal(module, LLVMInt32Type(), name);
+         LOCAL_TEXT_BUF symbol = safe_symbol(vcode_var_name(i));
+         char *name LOCAL = xasprintf("__offset_%s", tb_get(symbol));
+         LLVMValueRef global = LLVMAddGlobal(module, llvm_int32_type(), name);
 #ifdef IMPLIB_REQUIRED
          LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
 #endif
          LLVMTargetDataRef td = LLVMGetModuleDataLayout(module);
-         const size_t offset = LLVMOffsetOfElement(td, opaque, var_base + i);
+         const size_t offset =
+            LLVMOffsetOfElement(td, state_type, cgen_var_offset(i));
          LLVMSetInitializer(global, llvm_int32(offset));
          LLVMSetGlobalConstant(global, true);
          LLVMSetUnnamedAddr(global, true);
       }
    }
-
-   vcode_state_restore(&state);
-   return opaque;
 }
 
 static void cgen_jump_table(cgen_ctx_t *ctx)
@@ -3456,9 +3567,9 @@ static void cgen_procedure(void)
       .fn = fn,
    };
 
-   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
-   LLVMBasicBlockRef alloc_bb = LLVMAppendBasicBlock(fn, "alloc");
-   LLVMBasicBlockRef jump_bb  = LLVMAppendBasicBlock(fn, "jump_table");
+   LLVMBasicBlockRef entry_bb = llvm_append_block(fn, "entry");
+   LLVMBasicBlockRef alloc_bb = llvm_append_block(fn, "alloc");
+   LLVMBasicBlockRef jump_bb  = llvm_append_block(fn, "jump_table");
 
    cgen_debug_push_func(&ctx);
    cgen_alloc_context(&ctx);
@@ -3504,9 +3615,8 @@ static void cgen_procedure(void)
    cgen_pop_debug_scope();
 }
 
-static void cgen_process(vcode_unit_t code)
+static void cgen_process(void)
 {
-   vcode_select_unit(code);
    assert(vcode_unit_kind() == VCODE_UNIT_PROCESS);
 
    cgen_ctx_t ctx = {};
@@ -3519,15 +3629,15 @@ static void cgen_process(vcode_unit_t code)
       LLVMPointerType(display_type, 0)
    };
    LLVMTypeRef ftype = LLVMFunctionType(llvm_void_ptr(), pargs, 2, false);
-   const char *name = safe_symbol(istr(vcode_unit_name()));
-   ctx.fn = LLVMAddFunction(module, name, ftype);
+   LOCAL_TEXT_BUF symbol = safe_symbol(vcode_unit_name());
+   ctx.fn = LLVMAddFunction(module, tb_get(symbol), ftype);
    cgen_add_func_attr(ctx.fn, FUNC_ATTR_NOUNWIND, -1);
    cgen_add_func_attr(ctx.fn, FUNC_ATTR_DLLEXPORT, -1);
    cgen_add_func_attr(ctx.fn, FUNC_ATTR_UWTABLE, -1);
 
-   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(ctx.fn, "entry");
-   LLVMBasicBlockRef reset_bb = LLVMAppendBasicBlock(ctx.fn, "reset");
-   LLVMBasicBlockRef jump_bb  = LLVMAppendBasicBlock(ctx.fn, "jump_table");
+   LLVMBasicBlockRef entry_bb = llvm_append_block(ctx.fn, "entry");
+   LLVMBasicBlockRef reset_bb = llvm_append_block(ctx.fn, "reset");
+   LLVMBasicBlockRef jump_bb  = llvm_append_block(ctx.fn, "jump_table");
 
    ctx.state   = LLVMGetParam(ctx.fn, 0);
    ctx.display = LLVMGetParam(ctx.fn, 1);
@@ -3577,8 +3687,11 @@ static void cgen_reset_function(void)
 {
    LLVMTypeRef state_type = cgen_state_type(vcode_active_unit());
 
-   ident_t unit_name = vcode_unit_name();
-   char *name LOCAL = xasprintf("%s_reset", safe_symbol(istr(unit_name)));
+   if (vcode_unit_kind() == VCODE_UNIT_PACKAGE)
+      cgen_global_offsets(state_type);
+
+   LOCAL_TEXT_BUF symbol = safe_symbol(vcode_unit_name());
+   char *name LOCAL = xasprintf("%s_reset", tb_get(symbol));
 
    vcode_unit_t context = vcode_unit_context();
 
@@ -3603,7 +3716,7 @@ static void cgen_reset_function(void)
    cgen_add_func_attr(ctx.fn, FUNC_ATTR_NOINLINE, -1);
    cgen_add_func_attr(ctx.fn, FUNC_ATTR_COLD, -1);
 
-   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(ctx.fn, "entry");
+   LLVMBasicBlockRef entry_bb = llvm_append_block(ctx.fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
    cgen_debug_push_func(&ctx);
@@ -3616,9 +3729,12 @@ static void cgen_reset_function(void)
    LLVMBuildStore(builder, ctx.display, context_ptr);
 
    if (vcode_unit_kind() == VCODE_UNIT_PACKAGE) {
+      LOCAL_TEXT_BUF name = tb_new();
+      ident_str(vcode_unit_name(), name);
+
       LLVMValueRef global = LLVMAddGlobal(module,
                                           LLVMPointerType(state_type, 0),
-                                          istr(vcode_unit_name()));
+                                          tb_get(name));
       LLVMSetInitializer(global, LLVMGetUndef(LLVMPointerType(state_type, 0)));
 #ifdef IMPLIB_REQUIRED
       LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
@@ -3633,59 +3749,36 @@ static void cgen_reset_function(void)
    cgen_pop_debug_scope();
 }
 
-static void cgen_coverage_state(tree_t t, cover_tagging_t *tagging)
+static void cgen_coverage_state(tree_t t, cover_tagging_t *tagging,
+                                bool external)
 {
    int32_t stmt_tags, cond_tags;
    cover_count_tags(tagging, &stmt_tags, &cond_tags);
 
    if (stmt_tags > 0) {
-      LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
+      LLVMTypeRef type = LLVMArrayType(llvm_int32_type(), stmt_tags);
       LLVMValueRef var = LLVMAddGlobal(module, type, "cover_stmts");
-      LLVMSetInitializer(var, LLVMGetUndef(type));
-      cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT, -1);
+      if (external)
+         LLVMSetLinkage(var, LLVMExternalLinkage);
+      else {
+         LLVMSetInitializer(var, LLVMGetUndef(type));
+         cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT, -1);
+      }
    }
 
    if (cond_tags > 0) {
-      LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
+      LLVMTypeRef type = LLVMArrayType(llvm_int32_type(), stmt_tags);
       LLVMValueRef var = LLVMAddGlobal(module, type, "cover_conds");
-      LLVMSetInitializer(var, LLVMGetUndef(type));
-      cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT, -1);
-   }
-}
-
-static void cgen_children(vcode_unit_t vcode)
-{
-   vcode_select_unit(vcode);
-
-   for (vcode_unit_t it = vcode_unit_child(vcode);
-        it != NULL;
-        it = vcode_unit_next(it)) {
-
-      vcode_select_unit(it);
-      cgen_children(it);
-      vcode_select_unit(it);
-
-      switch (vcode_unit_kind()) {
-      case VCODE_UNIT_PROCEDURE:
-         cgen_procedure();
-         break;
-      case VCODE_UNIT_FUNCTION:
-         cgen_function();
-         break;
-      case VCODE_UNIT_PROCESS:
-         cgen_process(it);
-         break;
-      case VCODE_UNIT_INSTANCE:
-      case VCODE_UNIT_PROTECTED:
-         cgen_reset_function();
-         break;
-      default:
-         break;
+      if (external)
+         LLVMSetLinkage(var, LLVMExternalLinkage);
+      else {
+         LLVMSetInitializer(var, LLVMGetUndef(type));
+         cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT, -1);
       }
    }
 }
 
-static void cgen_module_debug_info(void)
+static void cgen_module_debug_info(tree_t top)
 {
    llvm_add_module_flag("Debug Info Version", DEBUG_METADATA_VERSION);
 #ifdef __APPLE__
@@ -3712,24 +3805,51 @@ static void cgen_module_debug_info(void)
 
    cgen_push_debug_scope(cu);
 
-   size_t name_len;
-   const char *module_name = LLVMGetModuleIdentifier(module, &name_len);
+   LOCAL_TEXT_BUF tb = tb_new();
+   ident_str(tree_ident(top), tb);
+
    LLVMMetadataRef mod = LLVMDIBuilderCreateModule(
-      debuginfo, cu, module_name, name_len, "", 0, "", 0, "", 0);
+      debuginfo, cu, tb_get(tb), tb_len(tb), "", 0, "", 0, "", 0);
 
    cgen_push_debug_scope(mod);
 }
 
-static void cgen_top(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
+static void cgen_find_units(vcode_unit_t root, unit_list_t *units)
 {
-   vcode_select_unit(vcode);
+   vcode_select_unit(root);
 
-   cgen_module_debug_info();
-   cgen_coverage_state(top, cover);
-   cgen_reset_function();
-   cgen_children(vcode);
-   cgen_pop_debug_scope();
-   cgen_pop_debug_scope();
+   for (vcode_unit_t it = vcode_unit_child(root);
+        it != NULL;
+        it = vcode_unit_next(it)) {
+      cgen_find_units(it, units);
+   }
+
+   APUSH(*units, root);
+}
+
+static void cgen_partition_jobs(unit_list_t *units, job_list_t *jobs,
+                                const char *base_name, int units_per_job)
+{
+   int counter = 0;
+
+   for (unsigned i = 0; i < units->count; i += units_per_job, counter++) {
+      char *module_name = xasprintf("%s.%d", base_name, counter);
+      char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT, module_name);
+
+      char obj_path[PATH_MAX];
+      lib_realpath(lib_work(), obj_name, obj_path, sizeof(obj_path));
+
+      cgen_job_t job = {
+         .module_name = module_name,
+         .obj_path    = xstrdup(obj_path),
+         .index       = counter,
+      };
+
+      for (unsigned j = i; j < units->count && j < i + units_per_job; j++)
+         APUSH(job.units, units->items[j]);
+
+      APUSH(*jobs, job);
+   }
 }
 
 static void cgen_dump_module(const char *tag)
@@ -3775,34 +3895,30 @@ static void cgen_optimise(void)
    LLVMFinalizeFunctionPassManager(fpm);
    LLVMDisposePassManager(fpm);
 
-   progress("running function pass manager");
-
    LLVMRunPassManager(mpm, module);
    LLVMDisposePassManager(mpm);
-
-   progress("running module pass manager");
 }
 
 static LLVMValueRef cgen_support_fn(const char *name)
 {
    LLVMValueRef fn = NULL;
    if (strcmp(name, "_sched_process") == 0) {
-      LLVMTypeRef args[] = { LLVMInt64Type() };
+      LLVMTypeRef args[] = { llvm_int64_type() };
       fn = LLVMAddFunction(module, "_sched_process",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_sched_waveform") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
+         llvm_int32_type(),
          llvm_void_ptr(),
-         LLVMInt32Type(),
-         LLVMInt64Type(),
-         LLVMInt64Type()
+         llvm_int32_type(),
+         llvm_int64_type(),
+         llvm_int64_type()
       };
       fn = LLVMAddFunction(module, "_sched_waveform",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 3);
@@ -3811,24 +3927,24 @@ static LLVMValueRef cgen_support_fn(const char *name)
    else if (strcmp(name, "_sched_waveform_s") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt64Type(),
-         LLVMInt64Type(),
-         LLVMInt64Type()
+         llvm_int32_type(),
+         llvm_int64_type(),
+         llvm_int64_type(),
+         llvm_int64_type()
       };
       fn = LLVMAddFunction(module, "_sched_waveform_s",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
    }
    else if (strcmp(name, "_sched_event") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type()
+         llvm_int32_type(),
+         llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_sched_event",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
       cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 1);
@@ -3836,26 +3952,26 @@ static LLVMValueRef cgen_support_fn(const char *name)
    else if (strcmp(name, "_disconnect") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type(),
-         LLVMInt64Type(),
-         LLVMInt64Type()
+         llvm_int32_type(),
+         llvm_int32_type(),
+         llvm_int64_type(),
+         llvm_int64_type()
       };
       fn = LLVMAddFunction(module, "_disconnect",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_init_signal") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type(),
-         LLVMInt32Type(),
+         llvm_int32_type(),
+         llvm_int32_type(),
+         llvm_int32_type(),
          llvm_void_ptr(),
          LLVMPointerType(llvm_resolution_type(), 0)
       };
       fn = LLVMAddFunction(module, "_init_signal",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 5);
@@ -3865,7 +3981,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
    }
    else if (strcmp(name, "_link_signal") == 0) {
       LLVMTypeRef args[] = {
-         LLVMPointerType(LLVMInt8Type(), 0)
+         LLVMPointerType(llvm_int8_type(), 0)
       };
       LLVMTypeRef result_type = LLVMPointerType(llvm_signal_shared_struct(), 0);
       fn = LLVMAddFunction(module, "_link_signal",
@@ -3877,14 +3993,14 @@ static LLVMValueRef cgen_support_fn(const char *name)
    }
    else if (strcmp(name, "_assert_fail") == 0) {
       LLVMTypeRef args[] = {
-         LLVMPointerType(LLVMInt8Type(), 0),
-         LLVMInt32Type(),
-         LLVMInt8Type(),
-         LLVMInt8Type(),
+         LLVMPointerType(llvm_int8_type(), 0),
+         llvm_int32_type(),
+         llvm_int8_type(),
+         llvm_int8_type(),
          LLVMPointerType(llvm_rt_loc(), 0)
       };
       fn = LLVMAddFunction(module, "_assert_fail",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 5);
@@ -3892,48 +4008,48 @@ static LLVMValueRef cgen_support_fn(const char *name)
    }
    else if (strcmp(name, "_debug_out") == 0) {
       LLVMTypeRef args[] = {
-         LLVMInt32Type(),
-         LLVMInt32Type()
+         llvm_int32_type(),
+         llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_debug_out",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_debug_dump") == 0) {
       LLVMTypeRef args[] = {
          llvm_void_ptr(),
-         LLVMInt32Type()
+         llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_debug_dump",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "llvm.pow.f64") == 0) {
       LLVMTypeRef args[] = {
-         LLVMDoubleType(),
-         LLVMDoubleType()
+         llvm_double_type(),
+         llvm_double_type()
       };
       fn = LLVMAddFunction(module, "llvm.pow.f64",
-                           LLVMFunctionType(LLVMDoubleType(),
+                           LLVMFunctionType(llvm_double_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "llvm.round.f64") == 0) {
       LLVMTypeRef args[] = {
-         LLVMDoubleType()
+         llvm_double_type()
       };
       fn = LLVMAddFunction(module, "llvm.round.f64",
-                           LLVMFunctionType(LLVMDoubleType(),
+                           LLVMFunctionType(llvm_double_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "llvm.memset.p0i8.i32") == 0) {
       LLVMTypeRef args[] = {
-         LLVMPointerType(LLVMInt8Type(), 0),
-         LLVMInt8Type(),
-         LLVMInt32Type(),
-         LLVMInt1Type()
+         LLVMPointerType(llvm_int8_type(), 0),
+         llvm_int8_type(),
+         llvm_int32_type(),
+         llvm_int1_type()
       };
       fn = LLVMAddFunction(module, "llvm.memset.p0i8.i32",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strncmp(name, "llvm.mem", 8) == 0) {
@@ -3943,63 +4059,63 @@ static LLVMValueRef cgen_support_fn(const char *name)
          fatal("invalid memcpy intrinsic %s", name);
 
       LLVMTypeRef args[] = {
-         LLVMPointerType(LLVMIntType(width), 0),
-         LLVMPointerType(LLVMIntType(width), 0),
-         LLVMInt32Type(),
-         LLVMInt1Type()
+         LLVMPointerType(LLVMIntTypeInContext(llvm_context(), width), 0),
+         LLVMPointerType(LLVMIntTypeInContext(llvm_context(), width), 0),
+         llvm_int32_type(),
+         llvm_int1_type()
       };
       fn = LLVMAddFunction(module, cgen_memcpy_name(kind, width),
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "llvm.lifetime.start.p0i8") == 0) {
       LLVMTypeRef args[] = {
-         LLVMInt64Type(),
+         llvm_int64_type(),
          llvm_void_ptr()
       };
       fn = LLVMAddFunction(module, "llvm.lifetime.start.p0i8",
-                           LLVMFunctionType(LLVMVoidType(), args, 2, false));
+                           LLVMFunctionType(llvm_void_type(), args, 2, false));
    }
    else if (strcmp(name, "llvm.lifetime.end.p0i8") == 0) {
       LLVMTypeRef args[] = {
-         LLVMInt64Type(),
+         llvm_int64_type(),
          llvm_void_ptr()
       };
       fn = LLVMAddFunction(module, "llvm.lifetime.end.p0i8",
-                           LLVMFunctionType(LLVMVoidType(), args, 2, false));
+                           LLVMFunctionType(llvm_void_type(), args, 2, false));
    }
    else if (strcmp(name, "_file_open") == 0) {
       LLVMTypeRef args[] = {
-         LLVMPointerType(LLVMInt8Type(), 0),
+         LLVMPointerType(llvm_int8_type(), 0),
          LLVMPointerType(llvm_void_ptr(), 0),
-         LLVMPointerType(LLVMInt8Type(), 0),
-         LLVMInt32Type(),
-         LLVMInt8Type()
+         LLVMPointerType(llvm_int8_type(), 0),
+         llvm_int32_type(),
+         llvm_int8_type()
       };
       fn = LLVMAddFunction(module, "_file_open",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_file_write") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_void_ptr(), 0),
          llvm_void_ptr(),
-         LLVMInt32Type()
+         llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_file_write",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_file_read") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_void_ptr(), 0),
          llvm_void_ptr(),
-         LLVMInt32Type(),
-         LLVMInt32Type(),
-         LLVMPointerType(LLVMInt32Type(), 0)
+         llvm_int32_type(),
+         llvm_int32_type(),
+         LLVMPointerType(llvm_int32_type(), 0)
       };
       fn = LLVMAddFunction(module, "_file_read",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_file_close") == 0) {
@@ -4007,7 +4123,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(llvm_void_ptr(), 0)
       };
       fn = LLVMAddFunction(module, "_file_close",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_endfile") == 0) {
@@ -4015,20 +4131,20 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_void_ptr()
       };
       fn = LLVMAddFunction(module, "_endfile",
-                           LLVMFunctionType(LLVMInt1Type(),
+                           LLVMFunctionType(llvm_int1_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_bounds_fail") == 0) {
       LLVMTypeRef args[] = {
-         LLVMInt32Type(),
-         LLVMInt32Type(),
-         LLVMInt32Type(),
-         LLVMInt32Type(),
+         llvm_int32_type(),
+         llvm_int32_type(),
+         llvm_int32_type(),
+         llvm_int32_type(),
          LLVMPointerType(llvm_rt_loc(), 0),
          llvm_char_ptr()
       };
       fn = LLVMAddFunction(module, "_bounds_fail",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
@@ -4038,7 +4154,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(llvm_rt_loc(), 0)
       };
       fn = LLVMAddFunction(module, "_div_zero",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
@@ -4048,7 +4164,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(llvm_rt_loc(), 0)
       };
       fn = LLVMAddFunction(module, "_null_deref",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
@@ -4056,58 +4172,58 @@ static LLVMValueRef cgen_support_fn(const char *name)
    else if (strcmp(name, "_test_net_event") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type()
+         llvm_int32_type(),
+         llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_test_net_event",
-                           LLVMFunctionType(LLVMInt1Type(),
+                           LLVMFunctionType(llvm_int1_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_test_net_active") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type()
+         llvm_int32_type(),
+         llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_test_net_active",
-                           LLVMFunctionType(LLVMInt1Type(),
+                           LLVMFunctionType(llvm_int1_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_last_event") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type()
+         llvm_int32_type(),
+         llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_last_event",
-                           LLVMFunctionType(LLVMInt64Type(),
+                           LLVMFunctionType(llvm_int64_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_last_active") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type()
+         llvm_int32_type(),
+         llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_last_active",
-                           LLVMFunctionType(LLVMInt64Type(),
+                           LLVMFunctionType(llvm_int64_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_driving") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type()
+         llvm_int32_type(),
+         llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_driving",
-                           LLVMFunctionType(LLVMInt1Type(),
+                           LLVMFunctionType(llvm_int1_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_driving_value") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type()
+         llvm_int32_type(),
+         llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_driving_value",
                            LLVMFunctionType(llvm_void_ptr(),
@@ -4116,27 +4232,27 @@ static LLVMValueRef cgen_support_fn(const char *name)
    else if (strcmp(name, "_convert_signal") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type(),
+         llvm_int32_type(),
+         llvm_int32_type(),
          LLVMPointerType(llvm_closure_type(), 0),
       };
       fn = LLVMAddFunction(module, "_convert_signal",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_implicit_signal") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
-         LLVMInt32Type(),
+         llvm_int32_type(),
          LLVMPointerType(llvm_closure_type(), 0),
       };
       fn = LLVMAddFunction(module, "_implicit_signal",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_private_stack") == 0) {
       fn = LLVMAddFunction(module, "_private_stack",
-                           LLVMFunctionType(LLVMVoidType(),
+                           LLVMFunctionType(llvm_void_type(),
                                             NULL, 0, false));
    }
 
@@ -4153,14 +4269,14 @@ static void cgen_tmp_stack(void)
    LLVMSetLinkage(_tmp_stack, LLVMExternalLinkage);
 
    LLVMValueRef _tmp_alloc =
-      LLVMAddGlobal(module, LLVMInt32Type(), "_tmp_alloc");
+      LLVMAddGlobal(module, llvm_int32_type(), "_tmp_alloc");
    LLVMSetLinkage(_tmp_alloc, LLVMExternalLinkage);
 }
 
 static void cgen_abi_version(void)
 {
    LLVMValueRef global =
-      LLVMAddGlobal(module, LLVMInt32Type(), "__nvc_abi_version");
+      LLVMAddGlobal(module, llvm_int32_type(), "__nvc_abi_version");
    LLVMSetInitializer(global, llvm_int32(RT_ABI_VERSION));
    LLVMSetGlobalConstant(global, true);
 #ifdef IMPLIB_REQUIRED
@@ -4217,21 +4333,12 @@ static void cgen_find_dll_deps(ident_t unit_name, void *__ctx)
 }
 #endif  // IMPLIB_REQUIRED
 
-static void cgen_native(LLVMTargetMachineRef tm_ref)
+static void cgen_native(LLVMTargetMachineRef tm_ref, char *obj_path)
 {
-   size_t name_len;
-   const char *module_name = LLVMGetModuleIdentifier(module, &name_len);
-   char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT, module_name);
-
-   char obj_path[PATH_MAX];
-   lib_realpath(lib_work(), obj_name, obj_path, sizeof(obj_path));
-
    char *error;
    if (LLVMTargetMachineEmitToFile(tm_ref, module, obj_path,
                                    LLVMObjectFile, &error))
       fatal("Failed to write object file: %s", error);
-
-   progress("generating native code");
 
 #if DUMP_ASSEMBLY
    char *asm_name LOCAL = xasprintf("_%s.s", module_name);
@@ -4242,8 +4349,6 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
     if (LLVMTargetMachineEmitToFile(tm_ref, module, asm_path,
                                    LLVMAssemblyFile, &error))
       fatal("Failed to write assembly file: %s", error);
-
-    progress("writing assembly");
 #endif
 
 #if DUMP_BITCODE
@@ -4254,11 +4359,11 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
 
     if (LLVMWriteBitcodeToFile(module, bc_path))
        fatal("Failed to write bitcode to file");
-
-    progress("writing bitcode");
 #endif
+}
 
-
+static void cgen_link(const char *module_name, char **objs, int nobjs)
+{
 #ifdef LINKER_PATH
    cgen_link_arg("%s", LINKER_PATH);
    cgen_link_arg("--eh-frame-hdr");
@@ -4281,7 +4386,9 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
 
    cgen_link_arg("-o");
    cgen_link_arg("%s", so_path);
-   cgen_link_arg("%s", obj_path);
+
+   for (int i = 0; i < nobjs; i++)
+      cgen_link_arg("%s", objs[i]);
 
 #if IMPLIB_REQUIRED
    // Windows needs all symbols to be resolved when linking a DLL
@@ -4325,8 +4432,10 @@ static void cgen_native(LLVMTargetMachineRef tm_ref)
 
    run_program((const char * const *)link_args.items, link_args.count);
 
-   if (unlink(obj_path) != 0)
-      fatal_errno("unlink: %s", obj_path);
+   for (int i = 0; i < nobjs ; i++) {
+      if (unlink(objs[i]) != 0)
+         fatal_errno("unlink: %s", objs[i]);
+   }
 
    progress("linking shared library");
 
@@ -4351,20 +4460,98 @@ static void cgen_global_ctors(void)
    ACLEAR(ctors);
 }
 
-void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
+static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
+                       const char *module_name, LLVMTargetMachineRef tm_ref,
+                       char *obj_path, bool primary)
 {
-   vcode_select_unit(vcode);
-
-   ident_t name = tree_ident(top);
-   if (tree_kind(top) == T_PACK_BODY)
-      name = tree_ident(tree_primary(top));
-
-   module = LLVMModuleCreateWithName(istr(name));
-   builder = LLVMCreateBuilder();
+   module = LLVMModuleCreateWithNameInContext(module_name, llvm_context());
+   builder = LLVMCreateBuilderInContext(llvm_context());
    debuginfo = LLVMCreateDIBuilderDisallowUnresolved(module);
 
-   LLVMInitializeNativeTarget();
-   LLVMInitializeNativeAsmPrinter();
+   char *triple = LLVMGetTargetMachineTriple(tm_ref);
+   LLVMSetTarget(module, triple);
+   LLVMDisposeMessage(triple);
+
+   LLVMTargetDataRef data_ref = LLVMCreateTargetDataLayout(tm_ref);
+   LLVMSetModuleDataLayout(module, data_ref);
+
+   string_pool = shash_new(128);
+
+   assert(units->count > 0);
+   vcode_select_unit(units->items[0]);
+
+   cgen_tmp_stack();
+   cgen_module_debug_info(top);
+
+   if (primary) {
+      cgen_abi_version();
+      cgen_coverage_state(top, cover, false);
+   }
+   else
+      cgen_coverage_state(top, cover, true);
+
+   for (unsigned i = 0; i < units->count; i++) {
+      vcode_select_unit(units->items[i]);
+
+      switch (vcode_unit_kind()) {
+      case VCODE_UNIT_PROCEDURE:
+         cgen_procedure();
+         break;
+      case VCODE_UNIT_FUNCTION:
+         cgen_function();
+         break;
+      case VCODE_UNIT_PROCESS:
+         cgen_process();
+         break;
+      case VCODE_UNIT_INSTANCE:
+      case VCODE_UNIT_PROTECTED:
+      case VCODE_UNIT_PACKAGE:
+         cgen_reset_function();
+         break;
+      default:
+         break;
+      }
+   }
+
+   cgen_pop_debug_scope();
+   cgen_pop_debug_scope();
+
+   cgen_global_ctors();
+
+   LLVMDIBuilderFinalize(debuginfo);
+
+   const bool dump_ir = opt_get_int("dump-llvm");
+   if (dump_ir) cgen_dump_module("initial");
+
+   if (getenv("NVC_CGEN_VERBOSE") != NULL)
+      LLVMDumpModule(module);
+
+   if (LLVMVerifyModule(module, LLVMPrintMessageAction, NULL))
+      fatal("LLVM verification failed");
+
+   cgen_optimise();
+   cgen_native(tm_ref, obj_path);
+
+   if (dump_ir) cgen_dump_module("final");
+
+   assert(debug_scopes.count == 0);
+
+   shash_free(string_pool);
+   string_pool = NULL;
+
+   vcode_close();
+
+   LLVMDisposeModule(module);
+   LLVMDisposeBuilder(builder);
+   LLVMDisposeDIBuilder(debuginfo);
+   LLVMDisposeTargetData(data_ref);
+}
+
+static void *cgen_worker_thread(void *__arg)
+{
+   cgen_thread_params_t *params = __arg;
+
+   thread_context = LLVMContextCreate();
 
    char *def_triple = LLVMGetDefaultTargetTriple();
    char *error;
@@ -4386,49 +4573,85 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
                               LLVMRelocPIC,
                               LLVMCodeModelDefault);
 
-   LLVMSetTarget(module, def_triple);
+   for (;;) {
+      cgen_job_t job;
+      {
+         SCOPED_LOCK(params->lock);
 
-   LLVMTargetDataRef data_ref = LLVMCreateTargetDataLayout(tm_ref);
-   LLVMSetModuleDataLayout(module, data_ref);
+         if (params->jobs->count == 0)
+            break;
 
-   string_pool = hash_new(128, true);
+         job = APOP(*(params->jobs));
+      }
 
-   cgen_abi_version();
-   cgen_tmp_stack();
+      cgen_units(&(job.units), params->top, params->cover,
+                 job.module_name, tm_ref, job.obj_path, job.index == 0);
 
-   cgen_top(top, vcode, cover);
+      ACLEAR(job.units);
+      free(job.module_name);
+   }
 
-   cgen_global_ctors();
-
-   LLVMDIBuilderFinalize(debuginfo);
-
-   progress("generating LLVM IR");
-
-   const bool dump_ir = opt_get_int("dump-llvm");
-   if (dump_ir) cgen_dump_module("initial");
-
-   if (getenv("NVC_CGEN_VERBOSE") != NULL)
-      LLVMDumpModule(module);
-
-   if (LLVMVerifyModule(module, LLVMPrintMessageAction, NULL))
-      fatal("LLVM verification failed");
-
-   progress("verifying module");
-
-   vcode_select_unit(vcode);
-
-   cgen_optimise();
-   cgen_native(tm_ref);
-
-   if (dump_ir) cgen_dump_module("final");
-
-   assert(debug_scopes.count == 0);
-   hash_free(string_pool);
-
-   LLVMDisposeModule(module);
-   LLVMDisposeBuilder(builder);
-   LLVMDisposeDIBuilder(debuginfo);
    LLVMDisposeTargetMachine(tm_ref);
-   LLVMDisposeTargetData(data_ref);
    LLVMDisposeMessage(def_triple);
+
+   LLVMContextDispose(thread_context);
+   thread_context = NULL;
+
+   return NULL;
+}
+
+void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
+{
+   ident_t name = tree_ident(top);
+   if (tree_kind(top) == T_PACK_BODY)
+      name = tree_ident(tree_primary(top));
+
+   unit_list_t units = AINIT;
+   cgen_find_units(vcode, &units);
+
+   job_list_t jobs = AINIT;
+   cgen_partition_jobs(&units, &jobs, istr(name), UNITS_PER_JOB);
+
+   LLVMInitializeNativeTarget();
+   LLVMInitializeNativeAsmPrinter();
+
+   SCOPED_A(char *) objs = AINIT;
+   for (unsigned i = 0; i < jobs.count; i++)
+      APUSH(objs, jobs.items[i].obj_path);
+
+   cgen_thread_params_t params = {
+      .jobs   = &jobs,
+      .lock   = mutex_create(),
+      .top    = top,
+      .cover  = cover,
+   };
+
+   const int njobs = jobs.count;
+
+   int nprocs = 1;
+   if (LLVMIsMultithreaded())
+      nprocs = MIN(MAX(nvc_nprocs() - 1, 1), njobs);
+
+   nvc_thread_t *worker[nprocs];
+   for (int i = 0; i < nprocs; i++)
+      worker[i] = thread_create(cgen_worker_thread, &params, "cgen worker");
+
+   for (int i = 0; i < nprocs; i++)
+      thread_join(worker[i]);
+
+   assert(jobs.count == 0);
+   ACLEAR(jobs);
+
+   mutex_destroy(params.lock);
+
+   progress("code generation for %d units using %d threads",
+            units.count, nprocs);
+
+   cgen_link(istr(name), objs.items, objs.count);
+
+   for (unsigned i = 0; i < objs.count; i++)
+      free(objs.items[i]);
+   ACLEAR(objs);
+
+   ACLEAR(units);
 }
