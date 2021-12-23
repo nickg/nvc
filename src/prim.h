@@ -33,6 +33,7 @@ typedef struct loc loc_t;
 typedef struct _fbuf fbuf_t;
 typedef struct hash hash_t;
 typedef struct _exec exec_t;
+typedef struct _eval_frame eval_frame_t;
 
 typedef struct vcode_unit *vcode_unit_t;
 

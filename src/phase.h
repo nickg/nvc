@@ -18,7 +18,10 @@
 #ifndef _PHASE_H
 #define _PHASE_H
 
-#include "tree.h"
+#include "prim.h"
+
+#include <stdbool.h>
+#include <stdio.h>
 
 // Annotate types and perform other semantics checks on a tree.
 // Returns false on error.

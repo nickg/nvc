@@ -2233,8 +2233,10 @@ void exec_free(exec_t *ex)
    const void *key;
    void *value;
    hash_iter_t it = HASH_BEGIN;
-   while (hash_iter(ex->link_map, &it, &key, &value))
-      eval_free_frame((eval_frame_t *)value);
+   while (hash_iter(ex->link_map, &it, &key, &value)) {
+      if (value != (void *)-1)
+         eval_free_frame((eval_frame_t *)value);
+   }
 
    hash_free(ex->link_map);
    free(ex);
@@ -2330,8 +2332,13 @@ eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
 eval_frame_t *exec_link(exec_t *ex, ident_t ident)
 {
    eval_frame_t *ctx = hash_get(ex->link_map, ident);
-   if (ctx != NULL)
+   if (ctx == (eval_frame_t *)-1)
+      return NULL;
+   else if (ctx != NULL)
       return ctx;
+
+   // Poison value to detect recursive linking
+   hash_put(ex->link_map, ident, (void *)-1);
 
    eval_flags_t flags = ex->flags | EVAL_WARN | EVAL_FCALL | EVAL_BOUNDS;
 
@@ -2357,6 +2364,13 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
 
    eval_vcode(&state);
 
+   if (!state.failed && (ex->flags & EVAL_VERBOSE)) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_printf(tb, "linked unit %s", istr(ident));
+      eval_dump_frame(tb, state.frame);
+      notef("%s", tb_get(tb));
+   }
+
    vcode_state_restore(&vcode_state);
 
    if (state.failed)
@@ -2369,13 +2383,6 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
    state.allocs = NULL;
 
    eval_cleanup_state(&state);
-
-   if (ex->flags & EVAL_VERBOSE) {
-      LOCAL_TEXT_BUF tb = tb_new();
-      tb_printf(tb, "linked unit %s", istr(ident));
-      eval_dump_frame(tb, frame);
-      notef("%s", tb_get(tb));
-   }
 
    hash_put(ex->link_map, ident, frame);
    return frame;

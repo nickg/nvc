@@ -1387,8 +1387,6 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
          }
       }
    }
-   else
-      scope_name = ident_runtil(scope_name, '-');
 
    vcode_state_restore(&state);
 
@@ -7245,8 +7243,8 @@ static void lower_generics(tree_t block)
       type_t type = tree_type(g);
 
       vcode_type_t vtype = lower_type(type);
-      // TODO: bounds here could be narrower if integer
-      vcode_var_t var = emit_var(vtype, vtype, tree_ident(g), VAR_CONST);
+      vcode_type_t vbounds = lower_bounds(type);
+      vcode_var_t var = emit_var(vtype, vbounds, tree_ident(g), VAR_CONST);
 
       vcode_reg_t mem_reg = VCODE_INVALID_REG, count_reg = VCODE_INVALID_REG;
       uint32_t hint = VCODE_INVALID_HINT;
