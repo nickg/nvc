@@ -4650,7 +4650,7 @@ static vcode_reg_t lower_resolution_func(type_t type)
 
    tree_t rdecl = tree_ref(rname);
    ident_t rfunc = tree_ident2(rdecl);
-   vcode_type_t rtype = lower_type(type);
+   vcode_type_t vtype = lower_type(type);
 
    type_t uarray_param = type_param(tree_type(rdecl), 0);
    assert(type_kind(uarray_param) == T_ARRAY);
@@ -4672,9 +4672,14 @@ static vcode_reg_t lower_resolution_func(type_t type)
    else
       nlits_reg = emit_const(vtype_offset(), 0);
 
+   const bool is_carray = vtype_kind(vtype) == VCODE_TYPE_CARRAY;
+   vcode_type_t elem = is_carray ? vtype_elem(vtype) : vtype;
+   vcode_type_t rtype = vtype_is_composite(vtype) ? vtype_pointer(elem) : vtype;
+   vcode_type_t atype = vtype_uarray(1, elem, vtype_int(0, INT32_MAX));
+
    vcode_reg_t context_reg = lower_context_for_call(rfunc);
-   return emit_resolution_wrapper(rfunc, rtype, context_reg,
-                                  ileft_reg, nlits_reg);
+   vcode_reg_t closure_reg = emit_closure(rfunc, context_reg, atype, rtype);
+   return emit_resolution_wrapper(rtype, closure_reg, ileft_reg, nlits_reg);
 }
 
 static void lower_sub_signals(type_t type, tree_t where, vcode_reg_t subsig,

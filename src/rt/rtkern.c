@@ -143,8 +143,7 @@ struct value {
 
 // The code generator knows the layout of this struct
 typedef struct {
-   resolution_fn_t  fn;
-   void            *context;
+   ffi_closure_t    closure;
    uint32_t         flags;
    int32_t          ileft;
    int32_t          nlits;
@@ -1634,13 +1633,13 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
 {
    // Optimise some common resolution functions by memoising them
 
-   res_memo_t *memo = hash_get(res_memo_hash, resolution->fn);
+   res_memo_t *memo = hash_get(res_memo_hash, resolution->closure.fn);
    if (memo != NULL)
       return memo;
 
    memo = xmalloc(sizeof(res_memo_t));
-   memo->fn      = resolution->fn;
-   memo->context = resolution->context;
+   memo->fn      = resolution->closure.fn;
+   memo->context = resolution->closure.context;
    memo->flags   = resolution->flags;
    memo->ileft   = resolution->ileft;
 
@@ -1678,7 +1677,7 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
    }
 
    TRACE("memoised resolution function %p for type %s",
-         resolution->fn, type_pp(e_type(signal->enode)));
+         resolution->closure.fn, type_pp(e_type(signal->enode)));
 
    return memo;
 }

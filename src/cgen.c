@@ -291,24 +291,23 @@ static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
    return new;
 }
 
-static LLVMTypeRef llvm_resolution_type(void)
-{
-   LLVMTypeRef struct_elems[] = {
-      llvm_void_ptr(),     // Function pointer
-      llvm_void_ptr(),     // Context pointer
-      LLVMInt32Type(),     // Flags
-      LLVMInt32Type(),     // Left index
-      LLVMInt32Type()      // Number of enumeration literals
-   };
-   return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
-}
-
 static LLVMTypeRef llvm_closure_type(void)
 {
    LLVMTypeRef struct_elems[] = {
       llvm_void_ptr(),     // Function pointer
       llvm_void_ptr(),     // Context pointer
       LLVMInt32Type(),     // FFI spec
+   };
+   return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
+}
+
+static LLVMTypeRef llvm_resolution_type(void)
+{
+   LLVMTypeRef struct_elems[] = {
+      llvm_closure_type(),   // Closure
+      LLVMInt32Type(),       // Flags
+      LLVMInt32Type(),       // Left index
+      LLVMInt32Type()        // Number of enumeration literals
    };
    return LLVMStructType(struct_elems, ARRAY_LEN(struct_elems), false);
 }
@@ -1987,40 +1986,22 @@ static void cgen_op_resolution_wrapper(int op, cgen_ctx_t *ctx)
 {
    // Resolution functions are in LRM 93 section 2.4
 
-   ident_t func = vcode_get_func(op);
    vcode_reg_t result = vcode_get_result(op);
    vcode_type_t type = vtype_base(vcode_reg_type(result));
 
-   LLVMValueRef rfn = cgen_signature(func, VCODE_INVALID_TYPE, VCODE_CC_VHDL,
-                                     NULL, 0);
-   if (rfn == NULL) {
-      // The resolution function is not visible yet e.g. because it
-      // is declared in another package
-      const bool is_record = vtype_kind(type) == VCODE_TYPE_RECORD;
-      const bool is_carray = vtype_kind(type) == VCODE_TYPE_CARRAY;
-      vcode_type_t elem = is_carray ? vtype_elem(type) : type;
-      vcode_type_t rtype = is_record || is_carray ? vtype_pointer(elem) : type;
-      vcode_type_t args[] = {
-         vcode_reg_type(vcode_get_arg(op, 0)),   // Context type
-         vtype_uarray(1, elem, vtype_int(0, INT32_MAX))
-      };
-      rfn = cgen_signature(func, rtype, VCODE_CC_VHDL, args, ARRAY_LEN(args));
-   }
-
    uint32_t flags = 0;
-   if (vtype_is_composite(type))
+   if (vtype_kind(type) == VCODE_TYPE_POINTER)
       flags |= R_COMPOSITE;
 
-   LLVMValueRef display = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef closure = cgen_get_arg(op, 0, ctx);
    LLVMValueRef ileft   = cgen_get_arg(op, 1, ctx);
    LLVMValueRef nlits   = cgen_get_arg(op, 2, ctx);
 
    LLVMValueRef rdata = LLVMGetUndef(llvm_resolution_type());
-   rdata = LLVMBuildInsertValue(builder, rdata, llvm_void_cast(rfn), 0, "");
-   rdata = LLVMBuildInsertValue(builder, rdata, llvm_void_cast(display), 1, "");
-   rdata = LLVMBuildInsertValue(builder, rdata, llvm_int32(flags), 2, "");
-   rdata = LLVMBuildInsertValue(builder, rdata, ileft, 3, "");
-   rdata = LLVMBuildInsertValue(builder, rdata, nlits, 4, "");
+   rdata = LLVMBuildInsertValue(builder, rdata, closure, 0, "");
+   rdata = LLVMBuildInsertValue(builder, rdata, llvm_int32(flags), 1, "");
+   rdata = LLVMBuildInsertValue(builder, rdata, ileft, 2, "");
+   rdata = LLVMBuildInsertValue(builder, rdata, nlits, 3, "");
 
    ctx->regs[result] = rdata;
 }
@@ -2070,7 +2051,7 @@ static void cgen_op_closure(int op, cgen_ctx_t *ctx)
          vcode_reg_type(vcode_get_arg(op, 0)),   // Context type
          atype
       };
-      fn = cgen_signature(func, rtype, VCODE_CC_VHDL, args, 1);
+      fn = cgen_signature(func, rtype, VCODE_CC_VHDL, args, 2);
    }
 
    ffi_spec_t spec = {

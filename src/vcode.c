@@ -48,8 +48,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT)
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
-    || x == VCODE_OP_RESOLUTION_WRAPPER || x == VCODE_OP_CLOSURE        \
-    || x == VCODE_OP_PROTECTED_INIT)
+    || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_SIGNAL || x == VCODE_OP_LINK_VAR                 \
     || x == VCODE_OP_LINK_PACKAGE)
@@ -1368,12 +1367,12 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_RESOLUTION_WRAPPER:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$ context ",
-                                   vcode_op_string(op->kind),
-                                   istr(op->func));
+               col += color_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" ileft ");
                col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" nlits ");
+               col += vcode_dump_reg(op->args.items[2]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -4221,22 +4220,23 @@ void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)
                 "count argument type to drive signal is not offset");
 }
 
-vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
-                                    vcode_reg_t context, vcode_reg_t ileft,
-                                    vcode_reg_t nlits)
+vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
+                                    vcode_reg_t ileft, vcode_reg_t nlits)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_RESOLUTION_WRAPPER) {
-      if (other->func == func && other->subkind == VCODE_CC_VHDL
-          && other->args.items[0] == context
-          && other->args.items[1] == ileft)
+      if (other->args.items[0] == closure
+          && other->args.items[1] == ileft
+          && other->args.items[2] == nlits)
          return other->result;
    }
 
+   VCODE_ASSERT(vcode_reg_kind(closure) == VCODE_TYPE_CLOSURE,
+                "first argument to resolution wrapper must be closure");
+
    op_t *op = vcode_add_op(VCODE_OP_RESOLUTION_WRAPPER);
-   vcode_add_arg(op, context);
+   vcode_add_arg(op, closure);
    vcode_add_arg(op, ileft);
    vcode_add_arg(op, nlits);
-   op->func    = func;
    op->subkind = VCODE_CC_VHDL;
 
    return (op->result = vcode_add_reg(vtype_resolution(type)));

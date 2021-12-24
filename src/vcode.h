@@ -450,9 +450,8 @@ vcode_reg_t emit_link_package(ident_t name);
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
                      vcode_reg_t dst_count, vcode_reg_t conv);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
-vcode_reg_t emit_resolution_wrapper(ident_t func, vcode_type_t type,
-                                    vcode_reg_t context, vcode_reg_t ileft,
-                                    vcode_reg_t nlits);
+vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
+                                    vcode_reg_t ileft, vcode_reg_t nlits);
 vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
                          vcode_type_t rtype);
 vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context);
