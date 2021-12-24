@@ -72,6 +72,52 @@ START_TEST(test_hash_replace)
 }
 END_TEST;
 
+START_TEST(test_shash_basic)
+{
+   shash_t *h = shash_new(8);
+
+   shash_put(h, "hello", VOIDP(6));
+   shash_put(h, "world", VOIDP(4));
+   shash_put(h, "hell", VOIDP(1));
+
+   fail_unless(shash_get(h, "hello") == VOIDP(6));
+   fail_unless(shash_get(h, "world") == VOIDP(4));
+   fail_unless(shash_get(h, "hell") == VOIDP(1));
+
+   char *tmp LOCAL = xstrdup("hello");
+   fail_unless(shash_get(h, tmp) == VOIDP(6));
+
+   shash_free(h);
+}
+END_TEST;
+
+START_TEST(test_shash_rand)
+{
+   shash_t *h = shash_new(8);
+
+   static const int N = 1000;
+   char *strs[N];
+
+   for (int i = 0; i < N; i++) {
+      size_t len = 5 + rand() % 40;
+      strs[i] = xmalloc(len + 1);
+
+      for (size_t j = checked_sprintf(strs[i], len, "%d", i); j < len; j++)
+         strs[i][j] = ' ' + rand() % 80;
+      strs[i][len] = '\0';
+
+      shash_put(h, strs[i], VOIDP(i));
+   }
+
+   for (int i = 0; i < N; i++) {
+      fail_unless(shash_get(h, strs[i]) == VOIDP(i));
+      free(strs[i]);
+   }
+
+   shash_free(h);
+}
+END_TEST;
+
 START_TEST(test_safe_symbol)
 {
   const char *orig = "foo[]()+*\"=bar";
@@ -196,6 +242,8 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_hash, test_hash_basic);
    tcase_add_test(tc_hash, test_hash_rand);
    tcase_add_test(tc_hash, test_hash_replace);
+   tcase_add_test(tc_hash, test_shash_basic);
+   tcase_add_test(tc_hash, test_shash_rand);
    suite_add_tcase(s, tc_hash);
 
    TCase *tc_sym = tcase_create("safe_symbol");

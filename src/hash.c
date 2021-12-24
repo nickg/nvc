@@ -21,7 +21,10 @@
 #include <string.h>
 #include <assert.h>
 
-struct hash {
+////////////////////////////////////////////////////////////////////////////////
+// Hash table of pointers to pointers
+
+struct _hash {
    unsigned     size;
    unsigned     members;
    bool         replace;
@@ -53,7 +56,7 @@ static inline int hash_slot(hash_t *h, const void *key)
 
 hash_t *hash_new(int size, bool replace)
 {
-   struct hash *h = xmalloc(sizeof(struct hash));
+   hash_t *h = xmalloc(sizeof(hash_t));
    h->size    = next_power_of_2(size);
    h->members = 0;
    h->replace = replace;
@@ -157,4 +160,112 @@ bool hash_iter(hash_t *h, hash_iter_t *now, const void **key, void **value)
 unsigned hash_members(hash_t *h)
 {
    return h->members;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Hash table of strings to pointers
+
+struct _shash {
+   unsigned   size;
+   unsigned   members;
+   void     **values;
+   char     **keys;
+};
+
+static inline int shash_slot(shash_t *h, const char *key)
+{
+   assert(key != NULL);
+
+   // DJB2 hash function from here:
+   //   http://www.cse.yorku.ca/~oz/hash.html
+
+   unsigned long hash = 5381;
+   int c;
+
+   while ((c = *key++))
+      hash = ((hash << 5) + hash) + c;
+
+   return hash & (h->size - 1);
+}
+
+shash_t *shash_new(int size)
+{
+   shash_t *h = xmalloc(sizeof(shash_t));
+   h->size    = next_power_of_2(size);
+   h->members = 0;
+
+   char *mem = xcalloc(h->size * 2 * sizeof(void *));
+   h->values = (void **)mem;
+   h->keys   = (char **)(mem + (h->size * sizeof(void *)));
+
+   return h;
+}
+
+void shash_free(shash_t *h)
+{
+   for (unsigned i = 0; i < h->size; i++) {
+      if (h->keys[i] != NULL)
+         free(h->keys[i]);
+   }
+
+   free(h->values);
+   free(h);
+}
+
+static void shash_put_copy(shash_t *h, char *key, void *value)
+{
+   int slot = shash_slot(h, key);
+
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
+      if (h->keys[slot] == NULL) {
+         h->values[slot] = value;
+         h->keys[slot] = key;
+         h->members++;
+         break;
+      }
+      else if (strcmp(h->keys[slot], key) == 0) {
+         h->values[slot] = value;
+         return;
+      }
+   }
+}
+
+void shash_put(shash_t *h, const char *key, void *value)
+{
+   if (unlikely(h->members >= h->size / 2)) {
+      // Rebuild the hash table with a larger size
+
+      const int old_size = h->size;
+      h->size *= 2;
+
+      char **old_keys = h->keys;
+      void **old_values = h->values;
+
+      char *mem = xcalloc(h->size * 2 * sizeof(void *));
+      h->values = (void **)mem;
+      h->keys   = (char **)(mem + (h->size * sizeof(void *)));
+
+      h->members = 0;
+
+      for (int i = 0; i < old_size; i++) {
+         if (old_keys[i] != NULL)
+            shash_put_copy(h, old_keys[i], old_values[i]);
+      }
+
+      free(old_values);
+   }
+
+   shash_put_copy(h, xstrdup(key), value);
+}
+
+void *shash_get(shash_t *h, const char *key)
+{
+   int slot = shash_slot(h, key);
+
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
+      if (h->keys[slot] == NULL)
+         return NULL;
+      else if (strcmp(h->keys[slot], key) == 0)
+         return h->values[slot];
+   }
 }

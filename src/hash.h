@@ -36,4 +36,9 @@ void *hash_get_nth(hash_t *h, const void *key, int *n);
 bool hash_iter(hash_t *h, hash_iter_t *now, const void **key, void **value);
 unsigned hash_members(hash_t *h);
 
+shash_t *shash_new(int size);
+void shash_free(shash_t *h);
+void shash_put(shash_t *h, const char *key, void *value);
+void *shash_get(shash_t *h, const char *key);
+
 #endif  // _HASH_H
