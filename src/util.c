@@ -1910,3 +1910,22 @@ void __scoped_unlock(nvc_mutex_t **pmtx)
 {
    mutex_unlock(*pmtx);
 }
+
+unsigned nvc_nprocs(void)
+{
+#if defined _WIN32
+   SYSTEM_INFO sysinfo;
+   GetSystemInfo(&sysinfo);
+
+   return sysinfo.dwNumberOfProcessors;
+#elif defined _SC_NPROCESSORS_ONLN
+   long count = sysconf(_SC_NPROCESSORS_ONLN);
+   if (count == -1)
+      fatal_errno("sysconf(_SC_NPROCESSORS_ONLN)");
+
+   return count;
+#else
+#warning Cannot detect number of processors on this platform
+   return 1;
+#endif
+}

@@ -218,6 +218,7 @@ typedef struct {
 void nvc_rusage(nvc_rusage_t *ru);
 
 uint64_t get_timestamp_us();
+unsigned nvc_nprocs(void);
 
 void progress(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
