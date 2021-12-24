@@ -1416,13 +1416,33 @@ void tb_cat(text_buf_t *tb, const char *str)
 void tb_repeat(text_buf_t *tb, char ch, size_t count)
 {
    if (tb->len + count + 1 >= tb->alloc) {
-      tb->alloc = next_power_of_2(tb->alloc + count);
+      tb->alloc = next_power_of_2(tb->alloc + count + 1);
       tb->buf = xrealloc(tb->buf, tb->alloc);
    }
 
    memset(tb->buf + tb->len, ch, count);
    tb->len += count;
    tb->buf[tb->len] = '\0';
+}
+
+char *tb_reserve(text_buf_t *tb, size_t size)
+{
+   if (tb->len + size + 1 >= tb->alloc) {
+      tb->alloc = next_power_of_2(tb->alloc + size + 1);
+      tb->buf = xrealloc(tb->buf, tb->alloc);
+   }
+
+   char *start = tb->buf + tb->len;
+
+   tb->len += size;
+   tb->buf[tb->len] = '\0';
+
+   return start;
+}
+
+size_t tb_len(text_buf_t *tb)
+{
+   return tb->len;
 }
 
 char *tb_claim(text_buf_t *tb)

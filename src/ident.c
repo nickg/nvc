@@ -222,6 +222,15 @@ const char *istr(ident_t ident)
    return p;
 }
 
+void ident_str(ident_t ident, text_buf_t *tb)
+{
+   char *p = tb_reserve(tb, ident->depth - 1) + ident->depth - 2;
+
+   trie_t *it;
+   for (it = ident; it->value != '\0'; it = it->up)
+      *(p--) = it->value < 128 ? it->value : '?';
+}
+
 ident_wr_ctx_t ident_write_begin(fbuf_t *f)
 {
    static uint16_t ident_wr_gen = 1;

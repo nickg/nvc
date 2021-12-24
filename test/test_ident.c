@@ -329,6 +329,20 @@ START_TEST(test_starts_with)
 }
 END_TEST
 
+START_TEST(test_ident_str)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+
+   ident_str(ident_new("frob"), tb);
+   ck_assert_str_eq(tb_get(tb), "frob");
+
+   tb_rewind(tb);
+
+   ident_str(ident_new("FrOB"), tb);
+   ck_assert_str_eq(tb_get(tb), "FrOB");
+}
+END_TEST
+
 Suite *get_ident_tests(void)
 {
    Suite *s = suite_create("ident");
@@ -355,6 +369,7 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_compare);
    tcase_add_test(tc_core, test_walk_selected);
    tcase_add_test(tc_core, test_starts_with);
+   tcase_add_test(tc_core, test_ident_str);
    suite_add_tcase(s, tc_core);
 
    return s;

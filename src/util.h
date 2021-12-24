@@ -187,8 +187,10 @@ void tb_catn(text_buf_t *tb, const char *str, size_t nchars);
 void tb_repeat(text_buf_t *tb, char ch, size_t count);
 const char *tb_get(text_buf_t *tb);
 char *tb_claim(text_buf_t *tb);
+char *tb_reserve(text_buf_t *tb, size_t size);
 void tb_rewind(text_buf_t *tb);
 void tb_backup(text_buf_t *tb, unsigned n);
+size_t tb_len(text_buf_t *tb);
 
 #define LOCAL __attribute__((cleanup(_local_free)))
 
