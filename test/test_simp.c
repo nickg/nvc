@@ -979,6 +979,32 @@ START_TEST(test_copysub)
 }
 END_TEST
 
+START_TEST(test_recrange)
+{
+   input_from_file(TESTDIR "/simp/recrange.vhd");
+
+   tree_t a = parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH);
+
+   tree_t p1 = tree_stmt(a, 0);
+   fail_unless(tree_kind(p1) == T_PROCESS);
+
+   tree_t s0 = tree_stmt(p1, 0);
+   fail_unless(tree_kind(s0) == T_ASSERT);
+
+   tree_t slice = tree_value(tree_param(tree_value(s0), 0));
+   fail_unless(tree_kind(slice) == T_ARRAY_SLICE);
+
+   // Simplify pass should rewite the 'RANGE expression as the field
+   // bounds are known
+   tree_t r = tree_range(slice, 0);
+   fail_unless(folded_i(tree_left(r), 1));
+   fail_unless(folded_i(tree_right(r), 8));
+
+   tree_t rref = tree_value(slice);
+   fail_unless(tree_kind(rref) == T_RECORD_REF);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1014,6 +1040,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_predef);
    tcase_add_test(tc_core, test_guard);
    tcase_add_test(tc_core, test_copysub);
+   tcase_add_test(tc_core, test_recrange);
    suite_add_tcase(s, tc_core);
 
    return s;

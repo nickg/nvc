@@ -1483,50 +1483,35 @@ static tree_t simp_range(tree_t t)
    assert(attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE);
 
    tree_t name = tree_name(value);
-   if (tree_kind(name) != T_REF)
+
+   type_t type = tree_type(name);
+   if (type_is_unconstrained(type))
       return t;
 
-   tree_t decl = tree_ref(name);
-   switch (tree_kind(decl)) {
-   case T_TYPE_DECL:
-   case T_CONST_DECL:
-   case T_VAR_DECL:
-   case T_SIGNAL_DECL:
-   case T_PORT_DECL:
-   case T_ALIAS:
-      {
-         type_t type = tree_type(decl);
-         if (type_is_unconstrained(type))
-            return t;
-
-         int dim = 0;
-         if (tree_params(value) > 0) {
-            int64_t ival;
-            if (!folded_int(tree_value(tree_param(value, 0)), &ival))
-               return t;
-            dim = ival - 1;
-         }
-
-         if (attr == ATTR_REVERSE_RANGE) {
-            tree_t base_r = range_of(tree_type(decl), dim);
-            const range_kind_t base_kind = tree_subkind(base_r);
-            assert(base_kind == RANGE_TO || base_kind == RANGE_DOWNTO);
-
-            tree_t rev = tree_new(T_RANGE);
-            tree_set_subkind(rev, base_kind ^ 1);
-            tree_set_loc(rev, tree_loc(t));
-            tree_set_type(rev, tree_type(t));
-            tree_set_left(rev, tree_right(base_r));
-            tree_set_right(rev, tree_left(base_r));
-
-            return rev;
-         }
-         else
-            return range_of(tree_type(decl), dim);
-      }
-   default:
-      return t;
+   int dim = 0;
+   if (tree_params(value) > 0) {
+      int64_t ival;
+      if (!folded_int(tree_value(tree_param(value, 0)), &ival))
+         return t;
+      dim = ival - 1;
    }
+
+   if (attr == ATTR_REVERSE_RANGE) {
+      tree_t base_r = range_of(type, dim);
+      const range_kind_t base_kind = tree_subkind(base_r);
+      assert(base_kind == RANGE_TO || base_kind == RANGE_DOWNTO);
+
+      tree_t rev = tree_new(T_RANGE);
+      tree_set_subkind(rev, base_kind ^ 1);
+      tree_set_loc(rev, tree_loc(t));
+      tree_set_type(rev, tree_type(t));
+      tree_set_left(rev, tree_right(base_r));
+      tree_set_right(rev, tree_left(base_r));
+
+      return rev;
+   }
+   else
+      return range_of(type, dim);
 }
 
 static tree_t simp_subprogram_decl(tree_t decl, simp_ctx_t *ctx)
