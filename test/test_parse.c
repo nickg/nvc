@@ -3570,6 +3570,39 @@ START_TEST(test_alias2)
 }
 END_TEST
 
+START_TEST(test_badprimary)
+{
+   input_from_file(TESTDIR "/parse/badprimary.vhd");
+
+   const error_t expect[] = {
+      { 17, "missing declaration for entity WORK.NOT_HERE" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t top = parse();
+   fail_if(top == NULL);
+   fail_unless(tree_kind(top) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   tree_t bad = parse();
+   fail_if(bad == NULL);
+   fail_unless(tree_kind(bad) == T_ARCH);
+   fail_if(tree_has_primary(bad));
+
+   tree_t cfg = parse();
+   fail_if(cfg == NULL);
+   fail_unless(tree_kind(cfg) == T_CONFIGURATION);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3628,6 +3661,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_homograph);
    tcase_add_test(tc_core, test_group);
    tcase_add_test(tc_core, test_alias2);
+   tcase_add_test(tc_core, test_badprimary);
    suite_add_tcase(s, tc_core);
 
    return s;
