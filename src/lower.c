@@ -5487,7 +5487,9 @@ static void lower_finished(void)
    vcode_opt();
 
    if (verbose != NULL) {
-      if (*verbose == '\0' || strstr(istr(vcode_unit_name()), verbose) != NULL)
+      ident_t unit_name = vcode_unit_name();
+      if (*verbose == '\0'
+          || (unit_name != NULL && strstr(istr(unit_name), verbose) != NULL))
          vcode_dump();
    }
 }
