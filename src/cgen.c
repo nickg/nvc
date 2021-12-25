@@ -3832,6 +3832,11 @@ static void cgen_partition_jobs(unit_list_t *units, job_list_t *jobs,
 {
    int counter = 0;
 
+   // Adjust units_per_job to ensure that each job has a roughly equal
+   // number of units
+   const int njobs = (units->count + units_per_job - 1) / units_per_job;
+   units_per_job = (units->count + njobs - 1) / njobs;
+
    for (unsigned i = 0; i < units->count; i += units_per_job, counter++) {
       char *module_name = xasprintf("%s.%d", base_name, counter);
       char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT, module_name);
@@ -3850,6 +3855,8 @@ static void cgen_partition_jobs(unit_list_t *units, job_list_t *jobs,
 
       APUSH(*jobs, job);
    }
+
+   assert(jobs->count == njobs);
 }
 
 static void cgen_dump_module(const char *tag)
