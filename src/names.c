@@ -2184,11 +2184,27 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
    }
 }
 
-static bool can_call_no_args(tree_t decl)
+static bool can_call_no_args(nametab_t *tab, tree_t decl)
 {
-   return tree_kind(decl) == T_ALIAS
-      ? type_params(tree_type(decl)) == 0
-      : tree_ports(decl) == 0 || tree_has_value(tree_port(decl, 0));
+   if (tree_kind(decl) == T_ALIAS)
+      return type_params(tree_type(decl)) == 0;
+   else if (tree_ports(decl) == 0 || tree_has_value(tree_port(decl, 0)))
+      return true;
+
+   // The declaration may be overloaded and one of the overloads permits
+   // calling with no arguments
+
+   iter_state_t iter;
+   begin_iter(tab, tree_ident(decl), &iter);
+
+   while ((decl = iter_name(&iter)) && decl != (tree_t)-1) {
+      if (!is_subprogram(decl))
+         continue;
+      else if (tree_ports(decl) == 0 || tree_has_value(tree_port(decl, 0)))
+         return true;
+   }
+
+   return false;
 }
 
 static type_t solve_fcall(nametab_t *tab, tree_t fcall)
@@ -2236,7 +2252,7 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
              && type_set_uniq(tab, &context)
              && !type_eq(context, type)
              && type_eq(context, type_elem(type))
-             && can_call_no_args(decl)) {
+             && can_call_no_args(tab, decl)) {
 
             tree_t new = tree_new(T_FCALL);
             tree_set_ref(new, decl);
@@ -2405,7 +2421,7 @@ static type_t solve_ref(nametab_t *tab, tree_t ref)
       const bool want_ref =
          type_set_uniq(tab, &constraint) && type_is_subprogram(constraint);
 
-      if (!can_call_no_args(decl) || want_ref) {
+      if (!can_call_no_args(tab, decl) || want_ref) {
          // We want a reference to the subprogram not a call to it with
          // no arguments
          tree_set_ref(ref, decl);

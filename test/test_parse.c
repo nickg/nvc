@@ -3628,6 +3628,40 @@ START_TEST(test_error3)
 }
 END_TEST
 
+START_TEST(test_protected2)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/protected2.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+
+   tree_t pb = search_decls(b, ident_new("RANDOMPTYPE"), 0);
+   fail_if(pb == NULL);
+   fail_unless(tree_kind(pb) == T_PROT_BODY);
+
+   tree_t f = search_decls(pb, ident_new("LOCALUNIFORM"), 0);
+   fail_if(f == NULL);
+   fail_unless(tree_kind(f) == T_FUNC_BODY);
+
+   tree_t s0 = tree_stmt(f, 0);
+   fail_unless(tree_kind(s0) == T_RETURN);
+
+   tree_t call = tree_value(tree_param(tree_value(s0), 0));
+   fail_unless(tree_kind(call) == T_PROT_FCALL);
+   fail_unless(tree_params(call) == 0);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3688,6 +3722,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_alias2);
    tcase_add_test(tc_core, test_badprimary);
    tcase_add_test(tc_core, test_error3);
+   tcase_add_test(tc_core, test_protected2);
    suite_add_tcase(s, tc_core);
 
    return s;
