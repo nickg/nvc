@@ -1536,9 +1536,6 @@ static int lower_search_vcode_obj(void *key, lower_scope_t *scope, int *hops)
       const int obj = (uintptr_t)ptr - 1;
       if (obj != VCODE_INVALID_REG)
          return obj;
-      else if (scope->container != NULL
-               && tree_kind(scope->container) == T_PROT_BODY)
-         continue;
       (*hops)++;
    }
 
@@ -2251,7 +2248,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       if (bits <= 8)
          emit_memset(mem_reg, lower_reify_expr(tree_value(agg0)), len_reg);
       else {
-         vcode_reg_t byte_reg  = emit_const(vtype_int(0, 255), byte);
+         vcode_reg_t byte_reg = emit_const(vtype_int(0, 255), byte);
          emit_memset(mem_reg, byte_reg,
                      emit_mul(len_reg,
                               emit_const(offset_type, (bits + 7) / 8)));

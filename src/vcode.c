@@ -2872,6 +2872,11 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(value), vtype_bool()),
                 "value parameter to assert is not bool");
+   VCODE_ASSERT(message == VCODE_INVALID_REG
+                || vcode_reg_kind(message) == VCODE_TYPE_POINTER,
+                "message parameter to assert is not a pointer");
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(value), vtype_bool()),
+                "value parameter to assert is not bool");
    VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()), "assert needs debug info");
 }
 
@@ -2881,6 +2886,12 @@ void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity)
    vcode_add_arg(op, severity);
    vcode_add_arg(op, message);
    vcode_add_arg(op, length);
+
+   VCODE_ASSERT(vcode_reg_kind(message) == VCODE_TYPE_POINTER,
+                "message parameter to report is not a pointer");
+   VCODE_ASSERT(vtype_eq(vtype_pointed(vcode_reg_type(message)), vtype_char()),
+                "message parameter to report is not a character pointer");
+   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()), "report needs debug info");
 }
 
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)

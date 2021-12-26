@@ -3778,6 +3778,34 @@ START_TEST(test_sig2var)
 }
 END_TEST
 
+START_TEST(test_protupref)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/protupref.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   vcode_unit_t vu = find_unit(
+      "WORK.ALERTLOGPKG.ALERTLOGSTRUCTPTYPE.ALERT"
+      "(14ALERTLOGIDTYPES26WORK.ALERTLOGPKG.ALERTTYPE)");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_VAR_UPREF, .name = "WORK.ALERTLOGPKG.ALERT_NAME", .hops = 2 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CONST, .value = 7 },
+      { VCODE_OP_MUL },
+      { VCODE_OP_ADD },
+      { VCODE_OP_REPORT },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3867,6 +3895,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue426);
    tcase_add_test(tc, test_instance1);
    tcase_add_test(tc, test_sig2var);
+   tcase_add_test(tc, test_protupref);
    suite_add_tcase(s, tc);
 
    return s;
