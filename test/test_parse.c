@@ -3614,6 +3614,7 @@ START_TEST(test_error3)
       { 15, "pass --std=2000 to enable this feature" },
       { 15, "unexpected identifier while parsing type definition" },
       { 26, "unexpected identifier while parsing library unit" },
+      { 26, "unexpected ; while parsing library unit, expecting one" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3621,6 +3622,8 @@ START_TEST(test_error3)
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+
+   fail_unless(parse() == NULL);
 
    fail_unless(parse() == NULL);
 

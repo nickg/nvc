@@ -68,3 +68,9 @@ package body AlertLogPkg is
   end protected body AlertLogStructPType ;
 
 end package body AlertLogPkg ;
+
+-------------------------------------------------------------------------------
+
+-- "GC removed all objects from arena ???" crash here
+entity e is
+end entity;

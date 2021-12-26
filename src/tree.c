@@ -373,8 +373,8 @@ object_class_t tree_object = {
    .tag            = OBJECT_TAG_TREE,
    .last_kind      = T_LAST_TREE_KIND,
    .gc_roots       = { T_ARCH, T_ENTITY, T_PACKAGE, T_ELAB, T_PACK_BODY,
-                       T_CONTEXT, T_CONFIGURATION },
-   .gc_num_roots   = 7
+                       T_CONTEXT, T_CONFIGURATION, T_DESIGN_UNIT },
+   .gc_num_roots   = 8
 };
 
 object_arena_t *global_arena = NULL;
