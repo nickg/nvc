@@ -3603,6 +3603,31 @@ START_TEST(test_badprimary)
 }
 END_TEST
 
+START_TEST(test_error3)
+{
+   set_standard(STD_93);
+
+   input_from_file(TESTDIR "/parse/error3.vhd");
+
+   const error_t expect[] = {
+      { 15, "protected is a reserved word in VHDL-2000" },
+      { 15, "pass --std=2000 to enable this feature" },
+      { 15, "unexpected identifier while parsing type definition" },
+      { 26, "unexpected identifier while parsing library unit" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3662,6 +3687,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_group);
    tcase_add_test(tc_core, test_alias2);
    tcase_add_test(tc_core, test_badprimary);
+   tcase_add_test(tc_core, test_error3);
    suite_add_tcase(s, tc_core);
 
    return s;
