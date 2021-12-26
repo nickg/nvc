@@ -1124,7 +1124,9 @@ static void insert_lib_unit(lib_t lib, ident_t name, int kind, void *context)
 void insert_names_from_use(nametab_t *tab, tree_t use)
 {
    assert(tree_kind(use) == T_USE);
-   assert(tree_has_ref(use));
+
+   if (!tree_has_ref(use))
+      return;   // Was earlier error
 
    tree_t unit = tree_ref(use);
    ident_t unit_name = tree_ident(use);

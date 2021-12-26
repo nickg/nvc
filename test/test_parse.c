@@ -3665,6 +3665,32 @@ START_TEST(test_protected2)
 }
 END_TEST
 
+START_TEST(test_error4)
+{
+   set_standard(STD_93);
+
+   input_from_file(TESTDIR "/parse/error4.vhd");
+
+   const error_t expect[] = {
+      {  2, "no visible declaration for IEEE" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3726,6 +3752,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_badprimary);
    tcase_add_test(tc_core, test_error3);
    tcase_add_test(tc_core, test_protected2);
+   tcase_add_test(tc_core, test_error4);
    suite_add_tcase(s, tc_core);
 
    return s;
