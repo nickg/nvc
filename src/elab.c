@@ -837,7 +837,9 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                   continue;
 
                tree_t value = tree_value(m);
-               if (tree_kind(value) == T_REF) {
+               if (tree_kind(value) == T_OPEN)
+                  break;
+               else if (tree_kind(value) == T_REF) {
                   cg = tree_ref(value);
                   assert(tree_kind(cg) == T_PORT_DECL);
                }
