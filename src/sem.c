@@ -310,6 +310,16 @@ static bool sem_check_range(tree_t r, type_t expect)
 
 static bool sem_check_discrete_range(tree_t r, type_t expect)
 {
+   if (!sem_check_range(r, expect ?: tree_type(r)))
+      return false;
+
+   type_t type = tree_type(r);
+   if (type_is_none(type))
+      return false;
+
+   if (!type_is_discrete(type))
+      sem_error(r, "type of range bounds %s is not discrete", type_pp(type));
+
    // See LRM 93 section 3.2.1.1: universal integer bound must be a
    // numeric literal or attribute. Later LRMs relax the wording here.
    if (standard() < STD_00 && tree_subkind(r) != RANGE_EXPR) {
@@ -333,16 +343,6 @@ static bool sem_check_discrete_range(tree_t r, type_t expect)
                       " literal or attribute");
       }
    }
-
-   if (!sem_check_range(r, expect ?: tree_type(r)))
-      return false;
-
-   type_t type = tree_type(r);
-   if (type_is_none(type))
-      return false;
-
-   if (!type_is_discrete(type))
-      sem_error(r, "type of range bounds %s is not discrete", type_pp(type));
 
    return true;
 }

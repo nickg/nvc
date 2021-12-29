@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2021  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -344,7 +344,13 @@ static void bounds_check_array_slice(tree_t t)
       right_error = ((bkind == RANGE_TO) && (r_right > b_right))
          || ((bkind == RANGE_DOWNTO) && (r_right < b_right));
 
-   if (left_error || right_error) {
+   bool is_null;
+   if (bkind == RANGE_TO)
+      is_null = b_left > b_right || r_left > r_right;
+   else
+      is_null = b_left < b_right || r_left < r_right;
+
+   if ((left_error || right_error) && !is_null) {
       const char *name = (tree_kind(value) == T_REF)
          ? istr(tree_ident(value)) : NULL;
       bounds_error(t, "%s%sslice %s index %"PRIi64" out of bounds "
