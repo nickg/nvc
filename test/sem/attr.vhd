@@ -242,3 +242,17 @@ begin
   end process testing;
 
 end;
+
+ARCHITECTURE c07s04b01x00p08n01i02565arch OF e IS
+  SUBTYPE s10 IS STRING (1 TO 4);
+  ATTRIBUTE attr1 : INTEGER;
+  ATTRIBUTE attr1 OF s10 : SUBTYPE IS 4;  -- OK
+begin
+  TESTING: PROCESS
+    VARIABLE v : s10;
+  BEGIN
+    v := (1 | s10'attr1 => 'a', OTHERS => 'b' );  -- OK
+    wait for 5 ns;
+    wait;
+  END PROCESS TESTING;
+END c07s04b01x00p08n01i02565arch;

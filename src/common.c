@@ -548,7 +548,13 @@ class_t class_of(tree_t t)
    case T_ENTITY:
       return C_ENTITY;
    case T_TYPE_DECL:
-      return C_TYPE;
+      {
+         type_t type = tree_type(t);
+         if (type_kind(type) == T_SUBTYPE && type_has_ident(type))
+            return C_SUBTYPE;
+         else
+            return C_TYPE;
+      }
    case T_FILE_DECL:
       return C_FILE;
    case T_PROCESS:
