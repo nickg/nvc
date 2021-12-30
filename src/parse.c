@@ -1938,15 +1938,16 @@ static void p_use_clause(tree_t unit, add_func_t addf)
       tree_set_loc(u, CURRENT_LOC);
       (*addf)(unit, u);
 
-      if (head != NULL && tree_has_ident2(head)) {
+      if (head != NULL) {
          const tree_kind_t kind = tree_kind(head);
-         if (kind == T_LIBRARY || (kind == T_PACKAGE && standard() >= STD_08)) {
+         if ((kind == T_LIBRARY && tree_has_ident2(head))
+             || kind == T_PACKAGE) {
             tree_set_ref(u, head);
             insert_names_from_use(nametab, u);
          }
          else
-            parse_error(CURRENT_LOC, "%s is not a library%s", istr(i1),
-                        standard() >= STD_08 ? " or instantiated package" : "");
+            parse_error(CURRENT_LOC, "%s is not a library or %spackage",
+                        istr(i1), standard() >= STD_08 ? "instantiated " : "");
       }
    } while (optional(tCOMMA));
 

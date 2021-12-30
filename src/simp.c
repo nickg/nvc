@@ -1376,7 +1376,8 @@ static tree_t simp_context_ref(tree_t t, simp_ctx_t *ctx)
 static tree_t simp_use(tree_t t)
 {
    tree_t lib_decl = tree_ref(t);
-   assert(tree_kind(lib_decl) == T_LIBRARY);
+   if (tree_kind(lib_decl) != T_LIBRARY)
+      return t;
 
    ident_t qual = tree_ident(t);
    ident_t lalias = ident_until(qual, '.');
