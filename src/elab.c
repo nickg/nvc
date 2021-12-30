@@ -840,10 +840,14 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                if (tree_kind(value) == T_OPEN)
                   break;
                else if (tree_kind(value) == T_REF) {
-                  cg = tree_ref(value);
-                  assert(tree_kind(cg) == T_PORT_DECL);
+                  tree_t decl = tree_ref(value);
+                  if (tree_kind(decl) == T_PORT_DECL) {
+                     cg = tree_ref(value);
+                     break;
+                  }
                }
-               else if (tree_subkind(m) == P_POS)
+
+               if (tree_subkind(m) == P_POS)
                   map = m;
                else {
                   map = tree_new(T_PARAM);
