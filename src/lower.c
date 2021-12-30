@@ -4894,7 +4894,7 @@ static vcode_type_t lower_alias_type(tree_t alias)
       return VCODE_INVALID_TYPE;
 
    tree_t ref = name_to_ref(tree_value(alias));
-   if (ref == NULL || tree_kind(tree_ref(ref)) == T_TYPE_DECL)
+   if (ref == NULL || is_type_decl(tree_ref(ref)))
       return VCODE_INVALID_TYPE;
 
    vcode_type_t velem = lower_type(lower_elem_recur(type));
@@ -5024,11 +5024,7 @@ static void lower_numeric_image_helper(type_t type, vcode_reg_t preg)
 static void lower_image_helper(tree_t decl)
 {
    type_t type = tree_type(decl);
-   const type_kind_t kind = type_kind(type);
-
-   if (kind == T_SUBTYPE)
-      return;   // Delegated to base type
-   else if (!type_is_scalar(type))
+   if (!type_is_scalar(type))
       return;
 
    ident_t func = ident_prefix(type_ident(type), ident_new("image"), '$');
@@ -5055,7 +5051,7 @@ static void lower_image_helper(tree_t decl)
    vcode_reg_t preg = emit_param(lower_type(type), lower_bounds(type),
                                  ident_new("VAL"));
 
-   switch (kind) {
+   switch (type_kind(type)) {
    case T_ENUM:
       lower_enum_image_helper(type, preg);
       break;
@@ -5067,7 +5063,8 @@ static void lower_image_helper(tree_t decl)
       lower_physical_image_helper(type, preg);
       break;
    default:
-      fatal_trace("cannot lower image helper for type %s", type_kind_str(kind));
+      fatal_trace("cannot lower image helper for type %s",
+                  type_kind_str(type_kind(type)));
    }
 
    lower_finished();
@@ -5472,6 +5469,7 @@ static void lower_decl(tree_t decl)
    case T_SPEC:
    case T_GROUP:
    case T_GROUP_TEMPLATE:
+   case T_SUBTYPE_DECL:
       break;
 
    default:

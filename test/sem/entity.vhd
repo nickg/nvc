@@ -30,3 +30,15 @@ end architecture;
 architecture a of pack is               -- Error
 begin
 end architecture;
+
+-------------------------------------------------------------------------------
+
+entity edecls is
+    generic ( N : positive );
+    subtype my_int is integer range 1 to N + 1;  -- OK, globally static
+end entity;
+
+architecture test of edecls is
+    signal x : my_int;                  -- OK
+begin
+end architecture;

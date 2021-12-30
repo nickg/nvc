@@ -835,7 +835,7 @@ START_TEST(test_entity)
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_PACKAGE, T_ARCH, T_ARCH);
+   parse_and_check(T_ENTITY, T_PACKAGE, T_ARCH, T_ARCH, T_ENTITY, T_ARCH);
 
    check_expected_errors();
 }

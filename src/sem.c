@@ -199,10 +199,52 @@ static bool sem_check_resolution(type_t type, tree_t res)
    return true;
 }
 
+static bool sem_check_constraint(tree_t constraint, type_t base)
+{
+   if (type_is_access(base))
+      base = type_access(base);
+
+   const constraint_kind_t consk = tree_subkind(constraint);
+   if (consk == C_RANGE && !type_is_scalar(base))
+      sem_error(constraint, "range constraint cannot be used with "
+                "non-scalar type %s", type_pp(base));
+   else if (consk == C_INDEX && !type_is_array(base))
+      sem_error(constraint, "index constraint cannot be used with "
+                "non-array type %s", type_pp(base));
+
+   if (type_is_array(base)) {
+      if (type_kind(base) == T_SUBTYPE && type_has_constraint(base))
+         sem_error(constraint, "may not change constraints of constrained "
+                   "array type %s", type_pp(base));
+   }
+
+   if (type_is_record(base))
+      sem_error(constraint, "record subtype may not have constraints");
+
+   const int ndims_base = type_is_array(base) ? dimension_of(base) : 1;
+   const int ndims = tree_ranges(constraint);
+
+   if (ndims != ndims_base)
+      sem_error(constraint, "expected %d constraints for type %s but found %d",
+                ndims_base, type_pp(base), ndims);
+
+   for (int i = 0; i < ndims; i++) {
+      tree_t r = tree_range(constraint, i);
+      if (!sem_check_range(r, index_type_of(base, i)))
+         return false;
+   }
+
+   return true;
+}
+
 static bool sem_check_subtype(tree_t decl, type_t type)
 {
+   // Check an anonymous subtype at the point of use
+
    if (type_kind(type) != T_SUBTYPE)
       return true;
+   else if (type_has_ident(type))
+      return true;   // Explicitly declared subtype
 
    type_t base = type_base(type);
    if (type_is_none(base))
@@ -212,40 +254,8 @@ static bool sem_check_subtype(tree_t decl, type_t type)
       sem_error(decl, "subtypes may not have protected base types");
 
    if (type_has_constraint(type)) {
-      tree_t constraint = type_constraint(type);
-
-      if (type_is_access(base))
-         base = type_access(base);
-
-      const constraint_kind_t consk = tree_subkind(constraint);
-      if (consk == C_RANGE && !type_is_scalar(base))
-         sem_error(constraint, "range constraint cannot be used with "
-                   "non-scalar type %s", type_pp(base));
-      else if (consk == C_INDEX && !type_is_array(base))
-         sem_error(constraint, "index constraint cannot be used with "
-                   "non-array type %s", type_pp(base));
-
-      if (type_is_array(base)) {
-         if (type_kind(base) == T_SUBTYPE && type_has_constraint(base))
-            sem_error(decl, "may not change constraints of constrained array "
-                      "type %s", type_pp(base));
-      }
-
-      if (type_is_record(base))
-         sem_error(decl, "record subtype may not have constraints");
-
-      const int ndims_base = type_is_array(base) ? dimension_of(base) : 1;
-      const int ndims = tree_ranges(constraint);
-
-      if (ndims != ndims_base)
-         sem_error(decl, "expected %d constraints for type %s but found %d",
-                   ndims_base, type_pp(base), ndims);
-
-      for (int i = 0; i < ndims; i++) {
-         tree_t r = tree_range(constraint, i);
-         if (!sem_check_range(r, index_type_of(base, i)))
-            return false;
-      }
+      if (!sem_check_constraint(type_constraint(type), base))
+         return false;
    }
 
    if (type_has_resolution(type)) {
@@ -715,6 +725,32 @@ static bool sem_check_type_decl(tree_t t)
    }
 }
 
+static bool sem_check_subtype_decl(tree_t t)
+{
+   type_t type = tree_type(t);
+   assert(type_kind(type) == T_SUBTYPE);
+   assert(type_has_ident(type));
+
+   type_t base = type_base(type);
+   if (type_is_none(base))
+      return false;
+
+   if (type_is_protected(base))
+      sem_error(t, "subtypes may not have protected base types");
+
+   if (type_has_constraint(type)) {
+      if (!sem_check_constraint(type_constraint(type), base))
+         return false;
+   }
+
+   if (type_has_resolution(type)) {
+      if (!sem_check_resolution(type_base(type), type_resolution(type)))
+         return false;
+   }
+
+   return true;
+}
+
 static bool sem_no_access_file_or_protected(tree_t t, type_t type, const char *what)
 {
    // constants, signals, attributes, generics, ports
@@ -855,7 +891,7 @@ static bool sem_check_alias(tree_t t)
    }
    else if (tree_kind(value) == T_REF
             && tree_has_ref(value)
-            && tree_kind(tree_ref(value)) == T_TYPE_DECL) {
+            && is_type_decl(tree_ref(value))) {
       // Alias of type
    }
    else {
@@ -3074,7 +3110,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       decl = tree_ref(name);
       has_type = class_has_type(class_of(decl));
 
-      if (tree_kind(decl) == T_TYPE_DECL)
+      if (is_type_decl(decl))
          named_type = tree_type(decl);
 
       break;
@@ -3087,7 +3123,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
             if (!tree_has_ref(base))
                return false;
 
-            if (tree_kind(tree_ref(base)) == T_TYPE_DECL) {
+            if (is_type_decl(tree_ref(base))) {
                named_type = tree_type(base);
                break;
             }
@@ -3115,16 +3151,16 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
             sem_error(t, "range expression not allowed here");
 
          type_t name_type = tree_has_type(name) ? tree_type(name) : NULL;
-         const bool is_type_decl = decl != NULL && tree_kind(decl) == T_TYPE_DECL;
+         const bool is_type = decl != NULL && is_type_decl(decl);
          const bool is_discrete =
             name_type != NULL && type_is_discrete(name_type);
          const bool invalid =
             name_type == NULL
-            || (!(is_discrete && is_type_decl) && !type_is_array(name_type));
+            || (!(is_discrete && is_type) && !type_is_array(name_type));
 
          if (invalid) {
             if (decl != NULL && class_has_type(class_of(decl))) {
-               if (is_type_decl)
+               if (is_type)
                   sem_error(t, "type %s does not have a range",
                             type_pp(tree_type(decl)));
                else
@@ -3135,8 +3171,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
                sem_error(t, "prefix does not have a range");
          }
 
-         if (decl != NULL && tree_kind(decl) == T_TYPE_DECL
-             && type_is_unconstrained(name_type))
+         if (is_type && type_is_unconstrained(name_type))
             sem_error(t, "cannot use attribute %s with unconstrained array "
                       "type %s", istr(attr), type_pp(name_type));
 
@@ -3873,6 +3908,7 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          case T_CONST_DECL:
          case T_PORT_DECL:
          case T_TYPE_DECL:
+         case T_SUBTYPE_DECL:
          case T_ENTITY:
          case T_ARCH:
          case T_PACK_BODY:
@@ -4033,7 +4069,8 @@ static bool sem_globally_static(tree_t t)
                      || !type_is_unconstrained(tree_type(decl));
                else
                   return dkind == T_CONST_DECL || dkind == T_SIGNAL_DECL
-                     || dkind == T_TYPE_DECL || dkind == T_VAR_DECL;
+                     || dkind == T_TYPE_DECL || dkind == T_VAR_DECL
+                     || dkind == T_SUBTYPE_DECL;
             }
          case T_FCALL:
             return sem_globally_static(name);
@@ -4659,6 +4696,8 @@ bool sem_check(tree_t t)
       return sem_check_entity(t);
    case T_TYPE_DECL:
       return sem_check_type_decl(t);
+   case T_SUBTYPE_DECL:
+      return sem_check_subtype_decl(t);
    case T_PORT_DECL:
       return sem_check_port_decl(t);
    case T_SIGNAL_DECL:

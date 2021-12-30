@@ -703,7 +703,7 @@ START_TEST(test_types)
 
    d = search_decls(a, ident_new("BIG_R"), 0);
    fail_if(d == NULL);
-   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_PHYSICAL);
@@ -711,7 +711,7 @@ START_TEST(test_types)
 
    d = search_decls(a, ident_new("MY_SMALL_INT"), 0);
    fail_if(d == NULL);
-   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_INTEGER);
@@ -719,7 +719,7 @@ START_TEST(test_types)
 
    d = search_decls(a, ident_new("FOO"), 0);
    fail_if(d == NULL);
-   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_INTEGER);
@@ -732,7 +732,7 @@ START_TEST(test_types)
 
    d = search_decls(a, ident_new("RINT"), 0);
    fail_if(d == NULL);
-   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_has_resolution(t));

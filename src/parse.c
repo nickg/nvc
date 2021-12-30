@@ -1322,7 +1322,7 @@ static void declare_standard_to_string(tree_t unit)
       tree_t d = tree_decl(unit, i);
       if (tree_kind(d) == T_TYPE_DECL) {
          type_t type = tree_type(d);
-         if (type_kind(type) != T_SUBTYPE && type_is_scalar(type))
+         if (type_is_scalar(type))
             declare_unary(unit, to_string, type, std_string, S_TO_STRING);
       }
    }
@@ -1439,10 +1439,10 @@ static bool is_range_expr(tree_t t)
    switch (tree_kind(t)) {
    case T_REF:
       if (tree_has_ref(t))
-         return tree_kind(tree_ref(t)) == T_TYPE_DECL;
+         return is_type_decl(tree_ref(t));
       else {
          tree_t decl = query_name(nametab, tree_ident(t));
-         return decl != NULL && tree_kind(decl) == T_TYPE_DECL;
+         return decl != NULL && is_type_decl(decl);
       }
 
    case T_ATTR_REF:
@@ -1467,6 +1467,7 @@ static tree_t aliased_type_decl(tree_t decl) {
             return NULL;
       }
    case T_TYPE_DECL:
+   case T_SUBTYPE_DECL:
       return decl;
    default:
       return NULL;
@@ -1583,7 +1584,7 @@ static tree_t could_be_slice_name(tree_t fcall)
       return fcall;
 
    tree_t decl = tree_ref(value);
-   if (tree_kind(decl) != T_TYPE_DECL)
+   if (!is_type_decl(decl))
       return fcall;
 
    tree_t new = tree_new(T_FCALL);
@@ -2132,12 +2133,12 @@ static tree_t p_discrete_range(tree_t head)
       {
          type_t constraint = solve_types(nametab, expr1, NULL);
 
-         const bool is_type_decl =
+         const bool is_type =
             tree_kind(expr1) == T_REF
             && tree_has_ref(expr1)
-            && tree_kind(tree_ref(expr1)) == T_TYPE_DECL;
+            && is_type_decl(tree_ref(expr1));
 
-         if (!is_type_decl && !type_is_none(constraint)) {
+         if (!is_type && !type_is_none(constraint)) {
             parse_error(tree_loc(expr1), "expected type mark while parsing "
                         "discrete range");
             constraint = type_new(T_NONE);
@@ -2641,7 +2642,7 @@ static tree_t p_type_conversion(tree_t tdecl)
 
    consume(tLPAREN);
 
-   assert(tree_kind(tdecl) == T_TYPE_DECL);
+   assert(is_type_decl(tdecl));
 
    tree_t conv = tree_new(T_TYPE_CONV);
    tree_set_type(conv, tree_type(tdecl));
@@ -3033,7 +3034,7 @@ static void p_choice(tree_t parent, type_t constraint)
       if (scan(tDOWNTO, tTO, tRANGE, tREVRANGE))
          is_range = true;
       else if (name_kind == T_REF && tree_has_ref(name))
-         is_range = tree_kind(tree_ref(name)) == T_TYPE_DECL;
+         is_range = is_type_decl(tree_ref(name));
       else if (name_kind == T_ATTR_REF) {
          const attr_kind_t attr = tree_subkind(name);
          is_range = attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE;
@@ -4627,7 +4628,7 @@ static tree_t p_subtype_declaration(void)
    }
    type_set_ident(sub, id);
 
-   tree_t t = tree_new(T_TYPE_DECL);
+   tree_t t = tree_new(T_SUBTYPE_DECL);
    tree_set_ident(t, id);
    tree_set_type(t, sub);
    tree_set_loc(t, CURRENT_LOC);
@@ -5013,7 +5014,7 @@ static tree_t p_alias_declaration(void)
    const bool type_alias =
       tree_kind(value) == T_REF
       && tree_has_ref(value)
-      && tree_kind(tree_ref(value)) == T_TYPE_DECL;
+      && is_type_decl(tree_ref(value));
 
    if (type_alias && has_subtype_indication)
       parse_error(CURRENT_LOC, "non-object alias may not have "

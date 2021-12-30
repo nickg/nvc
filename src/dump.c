@@ -511,19 +511,6 @@ static void dump_type_decl(tree_t t, int indent)
    type_t type = tree_type(t);
    const type_kind_t kind = type_kind(type);
 
-   if (kind == T_SUBTYPE && type_has_ident(type)) {
-      syntax("#subtype %s #is ", istr(tree_ident(t)));
-      if (type_has_resolution(type)) {
-         dump_expr(type_resolution(type));
-         printf(" ");
-      }
-      printf("%s", type_pp(type_base(type)));
-      if (type_has_constraint(type))
-         dump_constraint(type_constraint(type));
-      printf(";\n");
-      return;
-   }
-
    syntax("#type %s", istr(tree_ident(t)));
 
    if (kind == T_INCOMPLETE) {
@@ -617,6 +604,21 @@ static void dump_type_decl(tree_t t, int indent)
    printf(";\n");
 }
 
+static void dump_subtype_decl(tree_t t, int indent)
+{
+   type_t type = tree_type(t);
+
+   syntax("#subtype %s #is ", istr(tree_ident(t)));
+   if (type_has_resolution(type)) {
+      dump_expr(type_resolution(type));
+      printf(" ");
+   }
+   printf("%s", type_pp(type_base(type)));
+   if (type_has_constraint(type))
+      dump_constraint(type_constraint(type));
+   printf(";\n");
+}
+
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
@@ -644,6 +646,10 @@ static void dump_decl(tree_t t, int indent)
 
    case T_TYPE_DECL:
       dump_type_decl(t, indent);
+      return;
+
+   case T_SUBTYPE_DECL:
+      dump_subtype_decl(t, indent);
       return;
 
    case T_SPEC:

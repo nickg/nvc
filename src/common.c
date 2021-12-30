@@ -547,14 +547,10 @@ class_t class_of(tree_t t)
       return C_PROCEDURE;
    case T_ENTITY:
       return C_ENTITY;
+   case T_SUBTYPE_DECL:
+      return C_SUBTYPE;
    case T_TYPE_DECL:
-      {
-         type_t type = tree_type(t);
-         if (type_kind(type) == T_SUBTYPE && type_has_ident(type))
-            return C_SUBTYPE;
-         else
-            return C_TYPE;
-      }
+      return C_TYPE;
    case T_FILE_DECL:
       return C_FILE;
    case T_PROCESS:
@@ -643,6 +639,17 @@ bool is_container(tree_t t)
 bool is_guarded_signal(tree_t decl)
 {
    return !!(tree_flags(decl) & (TREE_F_BUS | TREE_F_REGISTER));
+}
+
+bool is_type_decl(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_TYPE_DECL:
+   case T_SUBTYPE_DECL:
+      return true;
+   default:
+      return false;
+   }
 }
 
 tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name)
@@ -931,7 +938,7 @@ range_kind_t direction_of(type_t type, unsigned dim)
             assert(tree_kind(name) == T_REF);
 
             tree_t decl = tree_ref(name);
-            if (tree_kind(decl) == T_TYPE_DECL)
+            if (is_type_decl(decl))
                return direction_of(tree_type(decl), 0);
          }
 

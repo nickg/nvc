@@ -299,6 +299,7 @@ typedef enum tree_kind {
    T_DISCONNECT,
    T_GROUP_TEMPLATE,
    T_GROUP,
+   T_SUBTYPE_DECL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
