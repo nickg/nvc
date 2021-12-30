@@ -3566,17 +3566,22 @@ static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
 
    BEGIN("interface constant declaration");
 
-   optional(tCONSTANT);
+   const bool explicit_constant = optional(tCONSTANT);
 
    LOCAL_IDENT_LIST ids = p_identifier_list();
 
    consume(tCOLON);
 
-   // The grammar only allows IN here but we are more leniant to allow the
-   // semantic checker to generate a more helpful error message
+   // The grammar only allows IN here but we are more leniant to avoid
+   // having disambiguate constant and variable interface declarations
+   // See LRM 93 section 2.1.1 for default class
    port_mode_t mode = PORT_IN;
    if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
       mode = p_mode();
+
+   class_t class = C_CONSTANT;
+   if ((mode == PORT_OUT || mode == PORT_INOUT) && !explicit_constant)
+      class = C_VARIABLE;
 
    type_t type = p_subtype_indication();
 
@@ -3594,7 +3599,7 @@ static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
       tree_set_loc(d, loc);
       tree_set_subkind(d, mode);
       tree_set_type(d, type);
-      tree_set_class(d, C_CONSTANT);
+      tree_set_class(d, class);
 
       if (init != NULL)
          tree_set_value(d, init);
@@ -3645,15 +3650,13 @@ static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
    }
 }
 
-static void p_interface_variable_declaration(tree_t parent, class_t def_class,
-                                             add_func_t addf)
+static void p_interface_variable_declaration(tree_t parent, add_func_t addf)
 {
    // [variable] identifier_list : [ mode ] subtype_indication [ := expression ]
 
    BEGIN("interface variable declaration");
 
-   if (optional(tVARIABLE))
-      def_class = C_VARIABLE;
+   optional(tVARIABLE);
 
    LOCAL_IDENT_LIST ids = p_identifier_list();
    consume(tCOLON);
@@ -3661,10 +3664,6 @@ static void p_interface_variable_declaration(tree_t parent, class_t def_class,
    port_mode_t mode = PORT_IN;
    if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
       mode = p_mode();
-
-   // See LRM 93 section 2.1.1 for default class
-   if ((mode == PORT_OUT || mode == PORT_INOUT) && def_class == C_DEFAULT)
-      def_class = C_VARIABLE;
 
    type_t type = p_subtype_indication();
 
@@ -3682,7 +3681,7 @@ static void p_interface_variable_declaration(tree_t parent, class_t def_class,
       tree_set_loc(d, loc);
       tree_set_subkind(d, mode);
       tree_set_type(d, type);
-      tree_set_class(d, def_class);
+      tree_set_class(d, C_VARIABLE);
 
       if (init != NULL)
          tree_set_value(d, init);
@@ -3737,7 +3736,7 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
       break;
 
    case tVARIABLE:
-      p_interface_variable_declaration(parent, C_VARIABLE, addf);
+      p_interface_variable_declaration(parent, addf);
       break;
 
    case tFILE:
@@ -3755,13 +3754,8 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
             p_interface_signal_declaration(parent, addf);
             break;
 
-         case C_VARIABLE:
-         case C_DEFAULT:
-            p_interface_variable_declaration(parent, def_class, addf);
-            break;
-
          default:
-            assert(false);
+            fatal_trace("unexpected default class %s", class_str(def_class));
          }
       }
       break;
@@ -4812,7 +4806,7 @@ static tree_t p_subprogram_specification(void)
       tree_set_flag(t, TREE_F_IMPURE);
 
    if (optional(tLPAREN)) {
-      p_interface_list(C_DEFAULT, t, tree_add_port);
+      p_interface_list(C_CONSTANT, t, tree_add_port);
       consume(tRPAREN);
 
       const int nports = tree_ports(t);

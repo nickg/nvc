@@ -829,9 +829,6 @@ static bool sem_check_decl(tree_t t)
                    type_pp2(type, tree_type(value)));
    }
 
-   if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)
-      tree_set_class(t, C_SIGNAL);
-
    // From VHDL-2000 onwards shared variables must be protected types
    if (standard() >= STD_00 && (tree_flags(t) & TREE_F_SHARED)) {
       if (type_kind(type) != T_PROTECTED)
@@ -1405,21 +1402,14 @@ static bool sem_check_generics(tree_t t)
    for (int n = 0; n < ngenerics; n++) {
       tree_t g = tree_generic(t, n);
 
-      switch (tree_class(g)) {
-      case C_DEFAULT:
-         tree_set_class(g, C_CONSTANT);
-         break;
-      case C_CONSTANT:
-         break;
-      default:
+      if (tree_class(g) != C_CONSTANT)
          sem_error(g, "invalid object class for generic");
-      }
 
       tree_set_flag(g, TREE_F_ELAB_COPY);
 
-      ok = sem_check(g) && ok;
+      ok &= sem_check(g);
 
-      ok = sem_no_access_file_or_protected(g, tree_type(g), "generics") && ok;
+      ok &= sem_no_access_file_or_protected(g, tree_type(g), "generics");
    }
 
    return ok;
@@ -1433,15 +1423,8 @@ static bool sem_check_ports(tree_t t)
    for (int n = 0; n < nports; n++) {
       tree_t p = tree_port(t, n);
 
-      switch (tree_class(p)) {
-      case C_DEFAULT:
-         tree_set_class(p, C_SIGNAL);
-         break;
-      case C_SIGNAL:
-         break;
-      default:
+      if (tree_class(p) != C_SIGNAL)
          sem_error(p, "invalid object class for port");
-      }
 
       tree_set_flag(p, TREE_F_ELAB_COPY);
 
@@ -2106,7 +2089,7 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
                sem_error(value, "cannot read parameter %s with mode IN",
                          istr(tree_ident(decl)));
             else if ((mode == PORT_OUT || mode == PORT_INOUT)
-                     && (class == C_CONSTANT || class == C_DEFAULT))
+                     && class == C_CONSTANT)
                sem_error(value, "object %s has class CONSTANT and "
                          "cannot be associated with OUT or INOUT parameters",
                          istr(tree_ident(decl)));
