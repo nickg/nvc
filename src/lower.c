@@ -3598,6 +3598,9 @@ static void lower_var_assign(tree_t stmt)
       if (lower_assign_can_use_storage_hint(stmt))
          hint = emit_storage_hint(target_reg, VCODE_INVALID_REG);
 
+      if (lower_have_signal(value_reg))
+         value_reg = emit_resolved(value_reg);
+
       emit_copy(target_reg, value_reg, VCODE_INVALID_REG);
    }
 
