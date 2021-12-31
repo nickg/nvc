@@ -676,8 +676,11 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_ALIAS:
-      syntax("#alias %s : ", istr(tree_ident(t)));
-      dump_type(tree_type(t));
+      syntax("#alias %s ", istr(tree_ident(t)));
+      if (tree_has_type(t)) {
+         printf(": ");
+         dump_type(tree_type(t));
+      }
       syntax(" #is ");
       dump_expr(tree_value(t));
       printf(";\n");
