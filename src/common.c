@@ -19,8 +19,6 @@
 
 #include "util.h"
 #include "common.h"
-#include "phase.h"
-#include "loc.h"
 
 #include <assert.h>
 #include <ctype.h>

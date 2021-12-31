@@ -21,11 +21,9 @@
 #include "loc.h"
 #include "array.h"
 #include "hash.h"
-#include "rt/cover.h"
 
 #include <ctype.h>
 #include <assert.h>
-#include <string.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <inttypes.h>

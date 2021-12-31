@@ -19,7 +19,6 @@
 #include "array.h"
 #include "phase.h"
 #include "common.h"
-#include "vcode.h"
 #include "rt/rt.h"
 #include "rt/cover.h"
 

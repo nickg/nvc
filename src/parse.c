@@ -20,7 +20,6 @@
 #include "token.h"
 #include "common.h"
 #include "loc.h"
-#include "hash.h"
 #include "names.h"
 
 #include <sys/types.h>

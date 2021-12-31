@@ -22,7 +22,6 @@
 #include "loc.h"
 #include "vcode.h"
 #include "array.h"
-#include "enode.h"
 
 #include <assert.h>
 #include <limits.h>

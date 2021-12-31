@@ -18,17 +18,10 @@
 #include "phase.h"
 #include "util.h"
 #include "common.h"
-#include "hash.h"
-#include "loc.h"
 
 #include <assert.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
-#include <ctype.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 
 typedef struct scope       scope_t;
 typedef struct loop_stack  loop_stack_t;

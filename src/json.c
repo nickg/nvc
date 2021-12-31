@@ -18,7 +18,6 @@
 
 #include "phase.h"
 #include "util.h"
-#include "hash.h"
 #include "common.h"
 #include "json.h"
 #include "loc.h"
