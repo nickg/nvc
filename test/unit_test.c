@@ -106,6 +106,9 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(native);
 #endif
    nfail += RUN_TESTS(psl);
+#ifdef ENABLE_VERILOG
+   nfail += RUN_TESTS(vlog);
+#endif
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

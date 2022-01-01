@@ -92,7 +92,7 @@ static nametab_t     *nametab = NULL;
 static bool           bootstrapping = false;
 static tree_list_t    pragmas = AINIT;
 
-loc_t yylloc;
+extern loc_t yylloc;
 
 #define scan(...) _scan(1, __VA_ARGS__, -1)
 #define expect(...) _expect(1, __VA_ARGS__, -1)
@@ -147,7 +147,6 @@ static tree_t p_subprogram_specification(void);
 static tree_t p_name(name_mask_t stop_mask);
 static tree_t p_block_configuration(tree_t of);
 static tree_t p_protected_type_body(ident_t id);
-static bool p_cond_analysis_expr(void);
 static type_t p_signature(void);
 static type_t p_type_mark(void);
 static tree_t p_function_call(ident_t id, tree_t prefix);
@@ -323,7 +322,7 @@ static void drop_tokens_until(token_t tok)
    token_t next = tEOF;
    do {
       if (next == tID || next == tSTRING)
-         free(last_lval.s);
+         free(last_lval.str);
       next = peek();
       drop_token();
    } while ((tok != next) && (next != tEOF));
@@ -773,24 +772,6 @@ static void set_delay_mechanism(tree_t t, tree_t reject)
       tree_set_reject(t, reject);
       solve_types(nametab, reject, std_type(NULL, STD_TIME));
    }
-}
-
-static const char *get_cond_analysis_identifier(const char *name)
-{
-   if (strcmp(name, "VHDL_VERSION") == 0)
-      return standard_text(standard());
-   else if (strcmp(name, "TOOL_TYPE") == 0)
-      return "SIMULATION";
-   else if (strcmp(name, "TOOL_VENDOR") == 0)
-      return PACKAGE_URL;
-   else if (strcmp(name, "TOOL_NAME") == 0)
-      return PACKAGE_NAME;
-   else if (strcmp(name, "TOOL_EDITION") == 0)
-      return "";
-   else if (strcmp(name, "TOOL_VERSION") == 0)
-      return PACKAGE_VERSION;
-   else
-      return NULL;
 }
 
 static tree_t add_port(tree_t d, const char *name, type_t type,
@@ -2280,115 +2261,12 @@ static void implicit_signal_attribute(tree_t aref)
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
-static bool p_cond_analysis_relation(void)
-{
-   // ( conditional_analysis_expression )
-   //   | not ( conditional_analysis_expression )
-   //   | conditional_analysis_identifier = string_literal
-   //   | conditional_analysis_identifier /= string_literal
-   //   | conditional_analysis_identifier < string_literal
-   //   | conditional_analysis_identifier <= string_literal
-   //   | conditional_analysis_identifier > string_literal
-   //   | conditional_analysis_identifier >= string_literal
-
-   BEGIN("conditional analysis relation");
-
-   bool result = false;
-   switch (one_of(tLPAREN, tNOT, tID)) {
-   case tLPAREN:
-      result = p_cond_analysis_expr();
-      consume(tRPAREN);
-      break;
-
-   case tNOT:
-      result = !p_cond_analysis_expr();
-      break;
-
-   case tID:
-      {
-         char *name = last_lval.s;
-         token_t rel = one_of(tEQ, tNEQ, tLT, tLE, tGT, tGE);
-
-         if (consume(tSTRING)) {
-            const char *value = get_cond_analysis_identifier(name);
-            if (value == NULL)
-               parse_error(CURRENT_LOC, "undefined conditional analysis "
-                           "identifier %s", name);
-            else {
-               char *cmp = last_lval.s + 1;
-               cmp[strlen(cmp) - 1] = '\0';
-
-               switch (rel) {
-               case tEQ:
-                  result = strcmp(value, cmp) == 0;
-                  break;
-               case tNEQ:
-                  result = strcmp(value, cmp) != 0;
-                  break;
-               case tLT:
-                  result = strcmp(value, cmp) < 0;
-                  break;
-               case tLE:
-                  result = strcmp(value, cmp) <= 0;
-                  break;
-               case tGT:
-                  result = strcmp(value, cmp) > 0;
-                  break;
-               case tGE:
-                  result = strcmp(value, cmp) >= 0;
-                  break;
-               default:
-                  break;
-               }
-            }
-
-            free(last_lval.s);
-         }
-
-         free(name);
-      }
-      break;
-   }
-
-   return result;
-}
-
-static bool p_cond_analysis_expr(void)
-{
-   // conditional_analysis_relation
-   //   | conditional_analysis_relation { and conditional_analysis_relation }
-   //   | conditional_analysis_relation { or conditional_analysis_relation }
-   //   | conditional_analysis_relation { xor conditional_analysis_relation }
-   //   | conditioanl_analysis_relation { xnor conditional_analysis_relation }
-
-   BEGIN("conditional analysis expression");
-
-   const bool lhs = p_cond_analysis_relation();
-
-   switch (peek()) {
-   case tAND:
-      consume(tAND);
-      return p_cond_analysis_relation() && lhs;
-   case tOR:
-      consume(tOR);
-      return p_cond_analysis_relation() || lhs;
-   case tXOR:
-      consume(tXOR);
-      return p_cond_analysis_relation() ^ lhs;
-   case tXNOR:
-      consume(tXNOR);
-      return !(p_cond_analysis_relation() ^ lhs);
-   default:
-      return lhs;
-   }
-}
-
 static ident_t p_identifier(void)
 {
    // basic_identifier | extended_identifier
 
    if (consume(tID)) {
-      char *s = last_lval.s;
+      char *s = last_lval.str;
       ident_t i = ident_new(s);
       free(s);
       return i;
@@ -2428,7 +2306,7 @@ static ident_t p_operator_symbol(void)
 
    consume(tSTRING);
 
-   char *s = last_lval.s;
+   char *s = last_lval.str;
    for (char *p = s; *p != '\0'; p++)
       *p = tolower((int)*p);
    ident_t id = ident_new(s);
@@ -3911,13 +3789,13 @@ static tree_t p_abstract_literal(void)
    switch (one_of(tINT, tREAL)) {
    case tINT:
       tree_set_subkind(t, L_INT);
-      tree_set_ival(t, last_lval.n);
+      tree_set_ival(t, last_lval.i64);
       tree_set_type(t, std_type(NULL, STD_UNIVERSAL_INTEGER));
       break;
 
    case tREAL:
       tree_set_subkind(t, L_REAL);
-      tree_set_dval(t, last_lval.d);
+      tree_set_dval(t, last_lval.real);
       tree_set_type(t, std_type(NULL, STD_UNIVERSAL_REAL));
       break;
    }
@@ -3970,7 +3848,7 @@ static tree_t p_string_literal(void)
 
    consume(tSTRING);
 
-   char *p = last_lval.s;
+   char *p = last_lval.str;
    size_t len = strlen(p);
    tree_t t = str_to_literal(p + 1, p + len - 1, NULL);
    free(p);
@@ -4008,8 +3886,8 @@ static tree_t p_literal(void)
       {
          consume(tBITSTRING);
 
-         tree_t t = bit_str_to_literal(last_lval.s, CURRENT_LOC);
-         free(last_lval.s);
+         tree_t t = bit_str_to_literal(last_lval.str, CURRENT_LOC);
+         free(last_lval.str);
          return t;
       }
 
@@ -6079,7 +5957,7 @@ static tree_t p_psl_condition(void)
 {
    BEGIN("condition");
 
-   scan_as_hdl();
+   scan_as_vhdl();
 
    tree_t value = p_expression();
    solve_psl_condition(nametab, value);
@@ -10113,7 +9991,7 @@ static psl_node_t p_psl_fl_property(void)
          psl_set_subkind(p, tok == tNEXT1 ? PSL_STRONG : PSL_WEAK);
 
          if (optional(tLSQUARE)) {
-            scan_as_hdl();
+            scan_as_vhdl();
             (void)p_expression();
             scan_as_psl();
 
@@ -10134,7 +10012,7 @@ static psl_node_t p_psl_fl_property(void)
 
          consume(tLSQUARE);
 
-         scan_as_hdl();
+         scan_as_vhdl();
          (void)p_discrete_range(NULL);
          scan_as_psl();
 
@@ -10154,7 +10032,7 @@ static psl_node_t p_psl_fl_property(void)
 
          consume(tLSQUARE);
 
-         scan_as_hdl();
+         scan_as_vhdl();
          (void)p_discrete_range(NULL);
          scan_as_psl();
 
@@ -10177,7 +10055,7 @@ static psl_node_t p_psl_fl_property(void)
          consume(tRPAREN);
 
          if (optional(tLSQUARE)) {
-            scan_as_hdl();
+            scan_as_vhdl();
             (void)p_expression();
             scan_as_psl();
 
@@ -10201,7 +10079,7 @@ static psl_node_t p_psl_fl_property(void)
             .depth    = 1
          };
 
-         scan_as_hdl();
+         scan_as_vhdl();
          const bool is_psl = look_for(&lookp);
          scan_as_psl();
 
@@ -10309,7 +10187,7 @@ static tree_t p_psl_directive(void)
    psl_node_t p = p_psl_verification_directive();
    tree_set_psl(t, p);
 
-   scan_as_hdl();
+   scan_as_vhdl();
 
    tree_set_loc(t, CURRENT_LOC);
    ensure_labelled(t, label);
@@ -10331,7 +10209,7 @@ static tree_t p_psl_clock_declaration(void)
 
    consume(tIS);
 
-   scan_as_hdl();
+   scan_as_vhdl();
 
    tree_t expr = p_expression();
    solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
@@ -10387,7 +10265,7 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
       tree_set_psl(s, a);
       tree_set_ident(s, label);
 
-      scan_as_hdl();
+      scan_as_vhdl();
 
       consume(tSEMI);
 
@@ -10399,7 +10277,7 @@ static tree_t p_psl_or_concurrent_assert(ident_t label)
       return s;
    }
    else {
-      scan_as_hdl();
+      scan_as_vhdl();
       return p_concurrent_assertion_statement(label);
    }
 }

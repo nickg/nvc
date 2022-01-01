@@ -33,6 +33,7 @@
 #include "scan.h"
 #include "thread.h"
 #include "vhpi/vhpi-util.h"
+#include "vlog/vlog-phase.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -170,20 +171,44 @@ static int analyse(int argc, char **argv)
    for (int i = optind; i < next_cmd; i++) {
       input_from_file(argv[i]);
 
-      int base_errors = 0;
-      tree_t unit;
-      while (base_errors = error_count(), (unit = parse())) {
-         if (error_count() == base_errors) {
-            lib_put(work, unit);
+      switch (source_kind()) {
+      case SOURCE_VERILOG:
+         {
+#ifdef ENABLE_VERILOG
+            vlog_node_t module;
+            while ((module = vlog_parse())) {
+               if (error_count() == 0) {
+                  vlog_check(module);
 
-            simplify_local(unit, eval);
-            bounds_check(unit);
+                  vlog_dump(module);
 
-            if (error_count() == base_errors && unit_needs_cgen(unit))
-               lower_standalone_unit(unit);
+                  if (error_count() == 0)
+                     lib_put_vlog(work, module);
+               }
+            }
+#else
+            fatal("Verilog is not currently supported");
+#endif
          }
-         else
-            lib_put_error(work, unit);
+         break;
+
+      case SOURCE_VHDL:
+         {
+            int base_errors = 0;
+            tree_t unit;
+            while (base_errors = error_count(), (unit = parse())) {
+               if (error_count() == base_errors) {
+                  lib_put(work, unit);
+
+                  simplify_local(unit, eval);
+                  bounds_check(unit);
+
+                  if (error_count() == base_errors && unit_needs_cgen(unit))
+                     lower_standalone_unit(unit);
+               }
+            }
+         }
+         break;
       }
    }
 

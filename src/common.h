@@ -204,6 +204,8 @@ typedef enum {
    W_NUMERIC_BIT_UNSIGNED,
    W_NVC,
    W_DEFAULT_CLOCK,
+   W_DOLLAR_DISPLAY,
+   W_DOLLAR_FINISH,
 
    NUM_WELL_KNOWN
 } well_known_t;

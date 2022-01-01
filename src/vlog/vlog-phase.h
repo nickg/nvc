@@ -21,6 +21,7 @@
 #include "prim.h"
 
 vlog_node_t vlog_parse(void);
+void vlog_check(vlog_node_t v);
 void vlog_dump(vlog_node_t v);
 
 #endif  // _VLOG_PHASE_H

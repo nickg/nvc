@@ -73,5 +73,6 @@ void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu);
 vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit);
 
 void lib_put_jit(lib_t lib, tree_t unit, jit_pack_t *jp);
+void lib_put_vlog(lib_t lib, vlog_node_t module);
 
 #endif // _LIB_H

@@ -84,16 +84,16 @@ static int last_token = -1;
 static int comment_caller = 0;
 
 extern loc_t yylloc;
-
-yylval_t yylval;
+extern yylval_t yylval;
 %}
 
 ID              ?i:[a-z][a-z_0-9]*
 EXID            \\([^\\]|\\\\)*\\
+VLOG_ID         [a-zA-Z_]([a-zA-Z0-9_$])*
+SYSTASK         \$[a-zA-Z_$]([a-zA-Z0-9_$])*
 STRING          (\"([^\"]|\"\")*\")|(\%([^\"\%]|\%\%)*\%)
 BIT_STRING      [0-9]*[usUS]?(?i:[boxd]\"[^\"]+\")|(?i:[boxd]\%[^\%]+\%)
 CHAR            '.'
-COMMENT         --
 INTEGER         [0-9][0-9_]*
 EXPONENT        [Ee][+-]?{INTEGER}
 DECIMAL_LITERAL {INTEGER}(\.{INTEGER})?{EXPONENT}?
@@ -109,7 +109,7 @@ COVERAGE_ON     {PRAGMA}(?i:coverage)[ \t]+(?i:on).*
 PSL_COMMENT     {PRAGMA}(?i:psl)[ \t]+
 PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 
-%x COMMENT C_COMMENT PSL
+%x COMMENT C_COMMENT PSL VLOG
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -227,240 +227,256 @@ NEXT_EVENT    ?i:next_event
 
 %%
 
-{SYNTH_OFF}          { TOKEN(tSYNTHOFF); }
-{SYNTH_ON}           { TOKEN(tSYNTHON); }
-{COVERAGE_OFF}       { TOKEN(tCOVERAGEOFF); }
-{COVERAGE_ON}        { TOKEN(tCOVERAGEON); }
+{SYNTH_OFF}              { TOKEN(tSYNTHOFF); }
+{SYNTH_ON}               { TOKEN(tSYNTHON); }
+{COVERAGE_OFF}           { TOKEN(tCOVERAGEOFF); }
+{COVERAGE_ON}            { TOKEN(tCOVERAGEON); }
 
-{COMMENT}            { comment_caller = YY_START; BEGIN(COMMENT); }
-{PSL_COMMENT}        { if (begin_psl_comment()) {
-                          BEGIN(PSL);
-                          TOKEN(tSTARTPSL);
-                       }
-                       else {
-                          comment_caller = YY_START;
-                          BEGIN(COMMENT);
-                       }
-                     }
-
-<COMMENT>\n          { BEGIN(comment_caller); }
-<COMMENT>.*          { }
-
-"/*"                 { MIN_STD(STD_08, "delimited comments");
-                       comment_caller = YY_START;
-                       BEGIN(C_COMMENT);
-                     }
-<C_COMMENT>.*"*/"    { BEGIN(comment_caller); }
-<C_COMMENT>\n        { /* Must match a single character */ }
-<C_COMMENT>.*        { }
-
-<PSL>;               { BEGIN(INITIAL); TOKEN(tSEMI); }
-<PSL>{PSL_CONT}      { /* Multi-line PSL comment */ }
-<PSL>{COMMENT}       { comment_caller = YY_START; BEGIN(COMMENT); }
-
-{ENTITY}             { TOKEN(tENTITY); }
-{IS}                 { TOKEN(tIS); }
-{END}                { TOKEN(tEND); }
-{GENERIC}            { TOKEN(tGENERIC); }
-{PORT}               { TOKEN(tPORT); }
-{CONSTANT}           { TOKEN(tCONSTANT); }
-{COMPONENT}          { TOKEN(tCOMPONENT); }
-{CONFIGURATION}      { TOKEN(tCONFIGURATION); }
-{ARCHITECTURE}       { TOKEN(tARCHITECTURE); }
-{OF}                 { TOKEN(tOF); }
-{BEGIN}              { TOKEN(tBEGIN); }
-{IN}                 { TOKEN(tIN); }
-{OUT}                { TOKEN(tOUT); }
-{BUFFER}             { TOKEN(tBUFFER); }
-{BUS}                { TOKEN(tBUS); }
-{REGISTER}           { TOKEN(tREGISTER); }
-{UNAFFECTED}         { TOKEN(tUNAFFECTED); }
-{SIGNAL}             { TOKEN(tSIGNAL); }
-{PROCESS}            { TOKEN(tPROCESS); }
-{WAIT}               { TOKEN(tWAIT); }
-{REPORT}             { TOKEN(tREPORT); }
-{INOUT}              { TOKEN(tINOUT); }
-{LINKAGE}            { TOKEN(tLINKAGE); }
-{VARIABLE}           { TOKEN(tVARIABLE); }
-{FOR}                { TOKEN(tFOR); }
-{TYPE}               { TOKEN(tTYPE); }
-{SUBTYPE}            { TOKEN(tSUBTYPE); }
-{UNITS}              { TOKEN(tUNITS); }
-{PACKAGE}            { TOKEN(tPACKAGE); }
-{LIBRARY}            { TOKEN(tLIBRARY); }
-{USE}                { TOKEN(tUSE); }
-{FUNCTION}           { TOKEN(tFUNCTION); }
-{IMPURE}             { TOKEN(tIMPURE); }
-{PURE}               { TOKEN(tPURE); }
-{RETURN}             { TOKEN(tRETURN); }
-{ARRAY}              { TOKEN(tARRAY); }
-{OTHERS}             { TOKEN(tOTHERS); }
-{ASSERT}             { TOKEN(tASSERT); }
-{SEVERITY}           { TOKEN(tSEVERITY); }
-{ON}                 { TOKEN(tON); }
-{MAP}                { TOKEN(tMAP); }
-{IF}                 { TOKEN(tIF); }
-{THEN}               { TOKEN(tTHEN); }
-{ELSE}               { TOKEN(tELSE); }
-{ELSIF}              { TOKEN(tELSIF); }
-{BODY}               { TOKEN(tBODY); }
-{WHILE}              { TOKEN(tWHILE); }
-{LOOP}               { TOKEN(tLOOP); }
-{AFTER}              { TOKEN(tAFTER); }
-{ALIAS}              { TOKEN(tALIAS); }
-{ATTRIBUTE}          { TOKEN(tATTRIBUTE); }
-{PROCEDURE}          { TOKEN(tPROCEDURE); }
-{POSTPONED}          { TOKEN(tPOSTPONED); }
-{EXIT}               { TOKEN(tEXIT); }
-{WHEN}               { TOKEN(tWHEN); }
-{CASE}               { TOKEN(tCASE); }
-{TRANSPORT}          { TOKEN(tTRANSPORT); }
-{REJECT}             { TOKEN(tREJECT); }
-{INERTIAL}           { TOKEN(tINERTIAL); }
-{BLOCK}              { TOKEN(tBLOCK); }
-{WITH}               { TOKEN(tWITH); }
-{SELECT}             { TOKEN(tSELECT); }
-{GENERATE}           { TOKEN(tGENERATE); }
-{ACCESS}             { TOKEN(tACCESS); }
-{FILE}               { TOKEN(tFILE); }
-{OPEN}               { TOKEN(tOPEN); }
-{UNTIL}              { TOKEN(tUNTIL); }
-{RECORD}             { TOKEN(tRECORD); }
-{NEW}                { TOKEN(tNEW); }
-{SHARED}             { TOKEN(tSHARED); }
-{NEXT}               { TOKEN(tNEXT); }
-{LITERAL}            { TOKEN(tLITERAL); }
-{GROUP}              { TOKEN(tGROUP); }
-{LABEL}              { TOKEN(tLABEL); }
-{GUARDED}            { TOKEN(tGUARDED); }
-{DISCONNECT}         { TOKEN(tDISCONNECT); }
-{REVRANGE}           { TOKEN(tREVRANGE); }
-{PROTECTED}          { TOKEN_00(tPROTECTED); }
-{CONTEXT}            { TOKEN_08(tCONTEXT); }
-{FORCE}              { TOKEN_08(tFORCE); }
-{RELEASE}            { TOKEN_08(tRELEASE); }
-{PARAMETER}          { TOKEN_08(tPARAMETER); }
-{DEFAULT}            { TOKEN_08(tDEFAULT); }
-
-`{IF}                { TOKEN(tCONDIF); }
-`{ELSE}              { TOKEN(tCONDELSE); }
-`{ELSIF}             { TOKEN(tCONDELSIF); }
-`{END}               { TOKEN(tCONDEND); }
-`{ERROR}             { TOKEN(tCONDERROR); }
-`{WARNING}           { TOKEN(tCONDWARN); }
-
-<*>{AND}             { TOKEN(tAND); }
-<*>{OR}              { TOKEN(tOR); }
-<*>{XOR}             { TOKEN(tXOR); }
-<*>{XNOR}            { TOKEN(tXNOR); }
-<*>{NAND}            { TOKEN(tNAND); }
-<*>{NOR}             { TOKEN(tNOR); }
-<*>{ABS}             { TOKEN(tABS); }
-<*>{NOT}             { TOKEN(tNOT); }
-<*>{ALL}             { TOKEN(tALL); }
-<*>{TICK}            { TOKEN(tTICK); }
-<*>{SLL}             { TOKEN(tSLL); }
-<*>{SRL}             { TOKEN(tSRL); }
-<*>{SLA}             { TOKEN(tSLA); }
-<*>{SRA}             { TOKEN(tSRA); }
-<*>{ROL}             { TOKEN(tROL); }
-<*>{ROR}             { TOKEN(tROR); }
-<*>{REM}             { TOKEN(tREM); }
-<*>{MOD}             { TOKEN(tMOD); }
-<*>{NULL}            { TOKEN(tNULL); }
-<*>{RANGE}           { TOKEN(tRANGE); }
-<*>{TO}              { TOKEN(tTO); }
-<*>{DOWNTO}          { TOKEN(tDOWNTO); }
-
-<*>"("               { TOKEN(tLPAREN); }
-<*>")"               { TOKEN(tRPAREN); }
-<*>";"               { TOKEN(tSEMI); }
-<*>":="              { TOKEN(tASSIGN); }
-<*>":"               { TOKEN(tCOLON); }
-<*>"**"              { TOKEN(tPOWER); }
-<*>","               { TOKEN(tCOMMA); }
-<*>"<>"              { TOKEN(tBOX); }
-<*>"<"               { TOKEN(tLT); }
-<*>"<="              { TOKEN(tLE); }
-<*>">"               { TOKEN(tGT); }
-<*>">="              { TOKEN(tGE); }
-<*>"?<"              { TOKEN_08(tMLT); }
-<*>"?<="             { TOKEN_08(tMLE); }
-<*>"?>"              { TOKEN_08(tMGT); }
-<*>"?>="             { TOKEN_08(tMGE); }
-<*>"??"              { TOKEN_08(tCCONV); }
-<*>"=>"              { TOKEN(tASSOC); }
-<*>"+"               { TOKEN(tPLUS); }
-<*>"-"               { TOKEN(tMINUS); }
-<*>"*"               { TOKEN(tTIMES); }
-<*>"/="              { TOKEN(tNEQ); }
-<*>"="               { TOKEN(tEQ); }
-<*>"?/="             { TOKEN_08(tMNEQ); }
-<*>"?="              { TOKEN_08(tMEQ); }
-<*>"/"               { TOKEN(tOVER); }
-<*>"."               { TOKEN(tDOT); }
-<*>"&"               { TOKEN(tAMP); }
-<*>"|"               { TOKEN(tBAR); }
-<*>"!"               { TOKEN(tBAR); }
-<*>"["               { TOKEN(tLSQUARE); }
-<*>"]"               { TOKEN(tRSQUARE); }
-<*>"<<"              { TOKEN(tLTLT); }
-<*>">>"              { TOKEN(tGTGT); }
-<*>"^"               { TOKEN(tCARET); }
-<*>"@"               { TOKEN(tAT); }
-<*>"?"               { TOKEN(tQUESTION); }
-<*>"{"               { TOKEN(tLBRACE); }
-<*>"}"               { TOKEN(tRBRACE); }
-
-<PSL>{ASSERT}          { TOKEN(tASSERT); }
-<PSL>{ALWAYS}          { TOKEN(tALWAYS); }
-<PSL>{DEFAULT}         { TOKEN(tDEFAULT); }
-<PSL>{CLOCK}           { TOKEN(tCLOCK); }
-<PSL>{IS}              { TOKEN(tIS); }
-<PSL>"->"              { TOKEN(tIFIMPL); }
-<PSL>"<->"             { TOKEN(tIFFIMPL); }
-<PSL>"("               { TOKEN(tLPAREN); }
-<PSL>")"               { TOKEN(tRPAREN); }
-<PSL>"["               { TOKEN(tLSQUARE); }
-<PSL>"]"               { TOKEN(tRSQUARE); }
-<PSL>"{"               { TOKEN(tLBRACE); }
-<PSL>"}"               { TOKEN(tRBRACE); }
-<PSL>{NEXT}            { TOKEN(tNEXT); }
-<PSL>{NEXT}!           { TOKEN(tNEXT1); }
-<PSL>{NEVER}           { TOKEN(tNEVER); }
-<PSL>{EVENTUALLY}!     { TOKEN(tEVENTUALLY); }
-<PSL>{NEXT_A}          { TOKEN(tNEXTA); }
-<PSL>{NEXT_A}!         { TOKEN(tNEXTA1); }
-<PSL>{NEXT_E}          { TOKEN(tNEXTE); }
-<PSL>{NEXT_E}!         { TOKEN(tNEXTE1); }
-<PSL>{NEXT_EVENT}      { TOKEN(tNEXTEVENT); }
-<PSL>{NEXT_EVENT}!     { TOKEN(tNEXTEVENT1); }
-
-<*>{DECIMAL_LITERAL}   { return parse_decimal_literal(yytext); }
-<*>{BASED_LITERAL}     { return parse_based_literal(yytext); }
-<*>{BIT_STRING}        { return parse_bit_string(yytext); }
-<*>{STRING}            { return parse_string(yytext); }
-<*>{CHAR}              { if (resolve_ir1045()) {
-                            yylval.s = xstrdup(yytext);
-                            TOKEN(tID);
+<PSL,INITIAL>"--"        { comment_caller = YY_START; BEGIN(COMMENT); }
+<VLOG>"//"               { comment_caller = YY_START; BEGIN(COMMENT); }
+{PSL_COMMENT}            { if (begin_psl_comment()) {
+                              BEGIN(PSL);
+                              TOKEN(tSTARTPSL);
+                           }
+                           else {
+                              comment_caller = YY_START;
+                              BEGIN(COMMENT);
+                           }
                          }
-                         REJECT;
-                       }
+
+<COMMENT>\n              { BEGIN(comment_caller); }
+<COMMENT>.*              { }
+
+"/*"                     { MIN_STD(STD_08, "delimited comments");
+                           comment_caller = YY_START;
+                           BEGIN(C_COMMENT);
+                         }
+<VLOG>"/*"               { comment_caller = YY_START; BEGIN(C_COMMENT); }
+<C_COMMENT>"*/"          { BEGIN(comment_caller); }
+<C_COMMENT>\n            { /* Must match a single character */ }
+<C_COMMENT>.             { }
+
+<PSL>;                   { BEGIN(INITIAL); TOKEN(tSEMI); }
+<PSL>{PSL_CONT}          { /* Multi-line PSL comment */ }
+<PSL>"--"                { comment_caller = YY_START; BEGIN(COMMENT); }
+
+{ENTITY}                 { TOKEN(tENTITY); }
+{IS}                     { TOKEN(tIS); }
+{END}                    { TOKEN(tEND); }
+{GENERIC}                { TOKEN(tGENERIC); }
+{PORT}                   { TOKEN(tPORT); }
+{CONSTANT}               { TOKEN(tCONSTANT); }
+{COMPONENT}              { TOKEN(tCOMPONENT); }
+{CONFIGURATION}          { TOKEN(tCONFIGURATION); }
+{ARCHITECTURE}           { TOKEN(tARCHITECTURE); }
+{OF}                     { TOKEN(tOF); }
+{BEGIN}                  { TOKEN(tBEGIN); }
+{IN}                     { TOKEN(tIN); }
+{OUT}                    { TOKEN(tOUT); }
+{BUFFER}                 { TOKEN(tBUFFER); }
+{BUS}                    { TOKEN(tBUS); }
+{REGISTER}               { TOKEN(tREGISTER); }
+{UNAFFECTED}             { TOKEN(tUNAFFECTED); }
+{SIGNAL}                 { TOKEN(tSIGNAL); }
+{PROCESS}                { TOKEN(tPROCESS); }
+{WAIT}                   { TOKEN(tWAIT); }
+{REPORT}                 { TOKEN(tREPORT); }
+{INOUT}                  { TOKEN(tINOUT); }
+{LINKAGE}                { TOKEN(tLINKAGE); }
+{VARIABLE}               { TOKEN(tVARIABLE); }
+{FOR}                    { TOKEN(tFOR); }
+{TYPE}                   { TOKEN(tTYPE); }
+{SUBTYPE}                { TOKEN(tSUBTYPE); }
+{UNITS}                  { TOKEN(tUNITS); }
+{PACKAGE}                { TOKEN(tPACKAGE); }
+{LIBRARY}                { TOKEN(tLIBRARY); }
+{USE}                    { TOKEN(tUSE); }
+{FUNCTION}               { TOKEN(tFUNCTION); }
+{IMPURE}                 { TOKEN(tIMPURE); }
+{PURE}                   { TOKEN(tPURE); }
+{RETURN}                 { TOKEN(tRETURN); }
+{ARRAY}                  { TOKEN(tARRAY); }
+{OTHERS}                 { TOKEN(tOTHERS); }
+{ASSERT}                 { TOKEN(tASSERT); }
+{SEVERITY}               { TOKEN(tSEVERITY); }
+{ON}                     { TOKEN(tON); }
+{MAP}                    { TOKEN(tMAP); }
+{IF}                     { TOKEN(tIF); }
+{THEN}                   { TOKEN(tTHEN); }
+{ELSE}                   { TOKEN(tELSE); }
+{ELSIF}                  { TOKEN(tELSIF); }
+{BODY}                   { TOKEN(tBODY); }
+{WHILE}                  { TOKEN(tWHILE); }
+{LOOP}                   { TOKEN(tLOOP); }
+{AFTER}                  { TOKEN(tAFTER); }
+{ALIAS}                  { TOKEN(tALIAS); }
+{ATTRIBUTE}              { TOKEN(tATTRIBUTE); }
+{PROCEDURE}              { TOKEN(tPROCEDURE); }
+{POSTPONED}              { TOKEN(tPOSTPONED); }
+{EXIT}                   { TOKEN(tEXIT); }
+{WHEN}                   { TOKEN(tWHEN); }
+{CASE}                   { TOKEN(tCASE); }
+{TRANSPORT}              { TOKEN(tTRANSPORT); }
+{REJECT}                 { TOKEN(tREJECT); }
+{INERTIAL}               { TOKEN(tINERTIAL); }
+{BLOCK}                  { TOKEN(tBLOCK); }
+{WITH}                   { TOKEN(tWITH); }
+{SELECT}                 { TOKEN(tSELECT); }
+{GENERATE}               { TOKEN(tGENERATE); }
+{ACCESS}                 { TOKEN(tACCESS); }
+{FILE}                   { TOKEN(tFILE); }
+{OPEN}                   { TOKEN(tOPEN); }
+{UNTIL}                  { TOKEN(tUNTIL); }
+{RECORD}                 { TOKEN(tRECORD); }
+{NEW}                    { TOKEN(tNEW); }
+{SHARED}                 { TOKEN(tSHARED); }
+{NEXT}                   { TOKEN(tNEXT); }
+{LITERAL}                { TOKEN(tLITERAL); }
+{GROUP}                  { TOKEN(tGROUP); }
+{LABEL}                  { TOKEN(tLABEL); }
+{GUARDED}                { TOKEN(tGUARDED); }
+{DISCONNECT}             { TOKEN(tDISCONNECT); }
+{REVRANGE}               { TOKEN(tREVRANGE); }
+{PROTECTED}              { TOKEN_00(tPROTECTED); }
+{CONTEXT}                { TOKEN_08(tCONTEXT); }
+{FORCE}                  { TOKEN_08(tFORCE); }
+{RELEASE}                { TOKEN_08(tRELEASE); }
+{PARAMETER}              { TOKEN_08(tPARAMETER); }
+{DEFAULT}                { TOKEN_08(tDEFAULT); }
+
+`{IF}                    { TOKEN(tCONDIF); }
+`{ELSE}                  { TOKEN(tCONDELSE); }
+`{ELSIF}                 { TOKEN(tCONDELSIF); }
+`{END}                   { TOKEN(tCONDEND); }
+`{ERROR}                 { TOKEN(tCONDERROR); }
+`{WARNING}               { TOKEN(tCONDWARN); }
+
+<INITIAL,PSL>{AND}       { TOKEN(tAND); }
+<INITIAL,PSL>{OR}        { TOKEN(tOR); }
+<INITIAL,PSL>{XOR}       { TOKEN(tXOR); }
+<INITIAL,PSL>{XNOR}      { TOKEN(tXNOR); }
+<INITIAL,PSL>{NAND}      { TOKEN(tNAND); }
+<INITIAL,PSL>{NOR}       { TOKEN(tNOR); }
+<INITIAL,PSL>{ABS}       { TOKEN(tABS); }
+<INITIAL,PSL>{NOT}       { TOKEN(tNOT); }
+<INITIAL,PSL>{ALL}       { TOKEN(tALL); }
+<INITIAL,PSL>{TICK}      { TOKEN(tTICK); }
+<INITIAL,PSL>{SLL}       { TOKEN(tSLL); }
+<INITIAL,PSL>{SRL}       { TOKEN(tSRL); }
+<INITIAL,PSL>{SLA}       { TOKEN(tSLA); }
+<INITIAL,PSL>{SRA}       { TOKEN(tSRA); }
+<INITIAL,PSL>{ROL}       { TOKEN(tROL); }
+<INITIAL,PSL>{ROR}       { TOKEN(tROR); }
+<INITIAL,PSL>{REM}       { TOKEN(tREM); }
+<INITIAL,PSL>{MOD}       { TOKEN(tMOD); }
+<INITIAL,PSL>{NULL}      { TOKEN(tNULL); }
+<INITIAL,PSL>{RANGE}     { TOKEN(tRANGE); }
+<INITIAL,PSL>{TO}        { TOKEN(tTO); }
+<INITIAL,PSL>{DOWNTO}    { TOKEN(tDOWNTO); }
+
+<*>"("                   { TOKEN(tLPAREN); }
+<*>")"                   { TOKEN(tRPAREN); }
+<*>"["                   { TOKEN(tLSQUARE); }
+<*>"]"                   { TOKEN(tRSQUARE); }
+<*>"{"                   { TOKEN(tLBRACE); }
+<*>"}"                   { TOKEN(tRBRACE); }
+<*>","                   { TOKEN(tCOMMA); }
+<*>";"                   { TOKEN(tSEMI); }
+<*>":"                   { TOKEN(tCOLON); }
+<*>"<"                   { TOKEN(tLT); }
+<*>">"                   { TOKEN(tGT); }
+<*>"+"                   { TOKEN(tPLUS); }
+<*>"-"                   { TOKEN(tMINUS); }
+<*>"*"                   { TOKEN(tTIMES); }
+<*>"@"                   { TOKEN(tAT); }
+<*>"?"                   { TOKEN(tQUESTION); }
+<*>"{"                   { TOKEN(tLBRACE); }
+<*>"}"                   { TOKEN(tRBRACE); }
+<*>"/"                   { TOKEN(tOVER); }
+<*>"."                   { TOKEN(tDOT); }
+<*>"&"                   { TOKEN(tAMP); }
+<*>"|"                   { TOKEN(tBAR); }
+<*>"!"                   { TOKEN(tBAR); }
+<*>"["                   { TOKEN(tLSQUARE); }
+<*>"]"                   { TOKEN(tRSQUARE); }
+
+<INITIAL,PSL>"**"        { TOKEN(tPOWER); }
+<INITIAL,PSL>":="        { TOKEN(tASSIGN); }
+<INITIAL,PSL>"<>"        { TOKEN(tBOX); }
+<INITIAL,PSL>"?<"        { TOKEN_08(tMLT); }
+<INITIAL,PSL>"?<="       { TOKEN_08(tMLE); }
+<INITIAL,PSL>"?>"        { TOKEN_08(tMGT); }
+<INITIAL,PSL>"?>="       { TOKEN_08(tMGE); }
+<INITIAL,PSL>"??"        { TOKEN_08(tCCONV); }
+<INITIAL,PSL>"=>"        { TOKEN(tASSOC); }
+<INITIAL,PSL>"/="        { TOKEN(tNEQ); }
+<INITIAL,PSL>"="         { TOKEN(tEQ); }
+<INITIAL,PSL>"?/="       { TOKEN_08(tMNEQ); }
+<INITIAL,PSL>"?="        { TOKEN_08(tMEQ); }
+<INITIAL,PSL>"<<"        { TOKEN(tLTLT); }
+<INITIAL,PSL>">>"        { TOKEN(tGTGT); }
+<INITIAL,PSL>"^"         { TOKEN(tCARET); }
+
+<INITIAL,PSL,VLOG>"<="   { TOKEN(tLE); }
+<INITIAL,PSL,VLOG>">="   { TOKEN(tGE); }
+
+<PSL>{ASSERT}            { TOKEN(tASSERT); }
+<PSL>{ALWAYS}            { TOKEN(tALWAYS); }
+<PSL>{DEFAULT}           { TOKEN(tDEFAULT); }
+<PSL>{CLOCK}             { TOKEN(tCLOCK); }
+<PSL>{IS}                { TOKEN(tIS); }
+<PSL>"->"                { TOKEN(tIFIMPL); }
+<PSL>"<->"               { TOKEN(tIFFIMPL); }
+<PSL>{NEXT}              { TOKEN(tNEXT); }
+<PSL>{NEXT}!             { TOKEN(tNEXT1); }
+<PSL>{NEVER}             { TOKEN(tNEVER); }
+<PSL>{EVENTUALLY}!       { TOKEN(tEVENTUALLY); }
+<PSL>{NEXT_A}            { TOKEN(tNEXTA); }
+<PSL>{NEXT_A}!           { TOKEN(tNEXTA1); }
+<PSL>{NEXT_E}            { TOKEN(tNEXTE); }
+<PSL>{NEXT_E}!           { TOKEN(tNEXTE1); }
+<PSL>{NEXT_EVENT}        { TOKEN(tNEXTEVENT); }
+<PSL>{NEXT_EVENT}!       { TOKEN(tNEXTEVENT1); }
+
+<VLOG>"module"           { return tMODULE; }
+<VLOG>"endmodule"        { return tENDMODULE; }
+<VLOG>"input"            { return tINPUT; }
+<VLOG>"output"           { return tOUTPUT; }
+<VLOG>"reg"              { return tREG; }
+<VLOG>"always"           { return tALWAYS; }
+<VLOG>"posedge"          { return tPOSEDGE; }
+<VLOG>"negedge"          { return tNEGEDGE; }
+<VLOG>"initial"          { return tINITIAL; }
+<VLOG>"begin"            { return tBEGIN; }
+<VLOG>"end"              { return tEND; }
+
+<VLOG>{VLOG_ID}          { yylval.str = xstrdup(yytext); return tID; }
+
+<*>{DECIMAL_LITERAL}     { return parse_decimal_literal(yytext); }
+<*>{BASED_LITERAL}       { return parse_based_literal(yytext); }
+<*>{BIT_STRING}          { return parse_bit_string(yytext); }
+<*>{STRING}              { return parse_string(yytext); }
+<*>{CHAR}                { if (resolve_ir1045()) {
+                              yylval.str = xstrdup(yytext);
+                              TOKEN(tID);
+                           }
+                           REJECT;
+                         }
 
 % /* These PSL tokens must be scanned in VHDL mode for look-ahead */
-"->"                   { TOKEN(tIFIMPL); }
-"<->"                  { TOKEN(tIFFIMPL); }
+"->"                     { TOKEN(tIFIMPL); }
+"<->"                    { TOKEN(tIFFIMPL); }
 
 % /* These VHDL tokens must be scanned in PSL mode for look-ahead */
-<PSL>{SEVERITY}        { TOKEN(tSEVERITY); }
-<PSL>{REPORT}          { TOKEN(tREPORT); }
+<PSL>{SEVERITY}          { TOKEN(tSEVERITY); }
+<PSL>{REPORT}            { TOKEN(tREPORT); }
 
-<INITIAL,PSL>{ID}      { return parse_id(yytext); }
-{EXID}                 { return parse_ex_id(yytext); }
-<INITIAL,PSL>{SPACE}   { }
-<*>"\n"                { /* Must match a single character */ }
-<*><<EOF>>             { return 0; }
-<*>.                   { TOKEN(tERROR); }
+<INITIAL,PSL>{ID}        { return parse_id(yytext); }
+{EXID}                   { return parse_ex_id(yytext); }
+<*>{SPACE}               { }
+<*>"\n"                  { /* Must match a single character */ }
+<*><<EOF>>               { return 0; }
+<*>.                     { TOKEN(tERROR); }
 
 %%
 
@@ -501,7 +517,7 @@ static bool begin_psl_comment(void)
 
 static int parse_id(const char *str)
 {
-   char *p = (yylval.s = xmalloc(strlen(str) + 1));
+   char *p = (yylval.str = xmalloc(strlen(str) + 1));
    while (*str) {
       *p++ = toupper((int)*str);
       str++;
@@ -513,7 +529,7 @@ static int parse_id(const char *str)
 
 static int parse_ex_id(const char *str)
 {
-   char *p = (yylval.s = xmalloc(strlen(str) + 1));
+   char *p = (yylval.str = xmalloc(strlen(str) + 1));
 
    // Replacing double '\\' character by single '\\'
    *p++ = *str++;
@@ -552,14 +568,14 @@ static int parse_decimal_literal(const char *str)
       char *exp  = strtok(NULL, "eE");
 
       errno = 0;
-      yylval.n = strtoll(val, NULL, 10);
+      yylval.i64 = strtoll(val, NULL, 10);
       bool overflow = (errno == ERANGE);
 
       long long int e = (exp ? atoll(exp) : 0);
 
       if (e >= 0) {  // Minus sign forbidden for an integer literal
          for (; e > 0; e--) {
-            if (__builtin_mul_overflow(yylval.n, INT64_C(10), &yylval.n))
+            if (__builtin_mul_overflow(yylval.i64, INT64_C(10), &yylval.i64))
                overflow = true;
          }
          tok = (sign == NULL) ? tINT : tERROR;
@@ -570,7 +586,7 @@ static int parse_decimal_literal(const char *str)
                   "of universal_integer", str);
    }
    else {
-      yylval.d = strtod(tmp, NULL);
+      yylval.real = strtod(tmp, NULL);
       tok = tREAL;
    }
 
@@ -597,12 +613,12 @@ static int parse_based_literal (const char *str)
    if ((2 <= atoi(base)) && (atoi(base) <= 16)) {
       if (dot == NULL) {
          char *eptr;
-         yylval.n = strtoll(val, &eptr, atoi(base));
+         yylval.i64 = strtoll(val, &eptr, atoi(base));
 
          long long int e = (exp ? atoll(exp) : 0);
 
          if (e >= 0) {  // Minus sign forbidden for an integer literal
-            for (; e > 0; e--) yylval.n *= atoi(base);
+            for (; e > 0; e--) yylval.i64 *= atoi(base);
             tok = ((*eptr == '\0') && (sign == NULL)) ? tINT : tERROR;
          }
       }
@@ -611,17 +627,17 @@ static int parse_based_literal (const char *str)
          char *integer  = strtok(val, ".");
          char *rational = strtok(NULL, ".");
 
-         yylval.d = (double)strtoll(integer, &eptr_integer, atoi(base));
+         yylval.real = (double)strtoll(integer, &eptr_integer, atoi(base));
 
          double tmp = (double)strtoll(rational, &eptr_rational, atoi(base));
          tmp *= pow((double)atoi(base), (double)((long)(0 - strlen(rational))));
 
-         yylval.d += tmp;
+         yylval.real += tmp;
 
          long long int e = (exp ? atoll(exp) : 0);
 
          if (e != 0)
-            yylval.d *= pow((double) atoi(base), (double) e);
+            yylval.real *= pow((double) atoi(base), (double) e);
 
          if (*eptr_integer == '\0' && *eptr_rational == '\0')
             tok = tREAL;
@@ -640,7 +656,7 @@ static int parse_string(const char *str)
    // enclosed senquence of characters should not contain quotation
    // marks!
 
-   char *s = (yylval.s = xstrdup(str));
+   char *s = (yylval.str = xstrdup(str));
 
    // Replacing double '\"' character by single '\"' or double '%'
    // character by single '%'
@@ -648,7 +664,7 @@ static int parse_string(const char *str)
    s++;
    char *p = s;
    while (*p) {
-      if ((*p == *(yylval.s)) && (*(p+1) == *(yylval.s))) p++;
+      if ((*p == *(yylval.str)) && (*(p+1) == *(yylval.str))) p++;
       *s++ = *p++;
    }
    *s = *p;
@@ -661,7 +677,7 @@ static int parse_bit_string(const char *str)
    // Copy input, remove all '_' characters and replace all '\%'
    // characters by '\"'.
 
-   char *p = (yylval.s = xstrdup(str));
+   char *p = (yylval.str = xstrdup(str));
 
    strip_underscores(p);
 
@@ -691,7 +707,7 @@ static void warn_lrm(vhdl_standard_t std, const char *fmt, ...)
    va_end(ap);
 }
 
-void reset_vhdl_scanner(void)
+void reset_scanner(void)
 {
    YY_FLUSH_BUFFER;
    BEGIN(INITIAL);
@@ -702,7 +718,12 @@ void scan_as_psl(void)
    BEGIN(PSL);
 }
 
-void scan_as_hdl(void)
+void scan_as_vhdl(void)
 {
    BEGIN(INITIAL);
+}
+
+void scan_as_verilog(void)
+{
+   BEGIN(VLOG);
 }

@@ -3,3 +3,11 @@ lib_libnvc_a_SOURCES += \
 	src/vlog/vlog-node.c \
 	src/vlog/vlog-phase.h \
 	src/vlog/vlog-dump.c
+
+if ENABLE_VERILOG
+lib_libnvc_a_SOURCES += \
+	src/vlog/vlog-parse.y \
+	src/vlog/vlog-sem.c
+endif
+
+AM_YFLAGS = --locations # -Wcounterexamples

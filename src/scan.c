@@ -53,7 +53,14 @@ extern int yylex(void);
 extern yylval_t yylval;
 extern loc_t yylloc;
 
+extern void reset_scanner(void);
+
 static bool pp_cond_analysis_expr(void);
+
+#ifndef ENABLE_VERILOG
+yylval_t yylval;
+loc_t yylloc;
+#endif
 
 void input_from_file(const char *file)
 {
@@ -102,14 +109,17 @@ void input_from_file(const char *file)
 
    close(fd);
 
+   reset_scanner();
+
    size_t len = strlen(file);
    if (len > 2 && file[len - 2] == '.' && file[len - 1] == 'v') {
       src_kind = SOURCE_VERILOG;
-      fatal("sorry, Verilog is not currently supported");
+#ifdef ENABLE_VERILOG
+      reset_verilog_parser();
+#endif
    }
    else {
       src_kind = SOURCE_VHDL;
-      reset_vhdl_scanner();
       reset_vhdl_parser();
    }
 
@@ -158,37 +168,45 @@ void begin_token(char *tok, int length)
    yylloc = get_loc(lineno, first_col, lineno, last_col, file_ref);
 }
 
-const char *token_str(int tok)
+const char *token_str(token_t tok)
 {
-   static const char *token_strs[] = {
-      "end of file", "identifier", "entity", "is", "end", "generic", "port",
-      "constant", "component", "configuration", "architecture", "of", "begin",
-      "for", "type", "to", "all", "in", "out", "buffer", "bus", "unaffected",
-      "signal", "downto", "process", "postponed", "wait", "report", "(", ")",
-      ";", ":=", ":", ",", "integer", "string", "error", "inout", "linkage",
-      "variable", "if", "range", "subtype", "units", "package", "library",
-      "use", ".", "null", "'", "function", "impure", "return", "pure", "array",
-      "<>", "=>", "others", "assert", "severity", "on", "map", "then", "else",
-      "elsif", "body", "while", "loop", "after", "alias", "attribute",
-      "procedure", "exit", "next", "when", "case", "label", "group", "literal",
-      "|", "[", "]", "inertial", "transport", "reject", "bit string", "block",
-      "with", "select", "generate", "access", "file", "open", "real", "until",
-      "record", "new", "shared", "and", "or", "nand", "nor", "xor", "xnor",
-      "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl",
-      "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
-      "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
-      "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
-      "?<=", "?>", "?>=", "register", "disconnect", "??", "<<", ">>", "force",
-      "release", "^", "@", "?", "parameter", "coverage on", "coverage off",
-      "PSL directive", "always", "->", "<->", "default", "clock", "next!",
-      "never", "eventually!", "next_a", "next_a!", "next_e", "next_e!",
-      "next_event", "next_event!", "{", "}",
-   };
+   if (tok == tEOF)
+      return "end of file";
+   else if (tok < 100) {
+      static char buf[2];
+      buf[0] = tok;
+      return buf;
+   }
+   else {
+      static const char *token_strs[] = {
+         "identifier", "entity", "is", "end", "generic", "port", "constant",
+         "component", "configuration", "architecture", "of", "begin", "for",
+         "type", "to", "all", "in", "out", "buffer", "bus", "unaffected",
+         "signal", "downto", "process", "postponed", "wait", "report", ":=",
+         "integer", "string", "error", "inout", "linkage", "variable", "if",
+         "range", "subtype", "units", "package", "library", "use", "null",
+         "function", "impure", "return", "pure", "array", "<>", "=>", "others",
+         "assert", "severity", "on", "map", "then", "else", "elsif", "body",
+         "while", "loop", "after", "alias", "attribute", "procedure", "exit",
+         "next", "when", "case", "label", "group", "literal", "inertial",
+         "transport", "reject", "bit string", "block", "with", "select",
+         "generate", "access", "file", "open", "real", "until", "record",
+         "new", "shared", "and", "or", "nand", "nor", "xor", "xnor", "/=",
+         "<=", ">=", "**", "sll", "srl", "sla", "sra", "rol", "ror", "mod",
+         "rem", "abs", "not", "guarded", "reverse_range", "protected",
+         "context", "`if", "`else", "`elsif", "`end", "`error", "`warning",
+         "translate_off", "translate_on", "?=", "?/=", "?<", "?<=", "?>",
+         "?>=", "register", "disconnect", "??", "<<", ">>", "force", "release",
+         "parameter", "coverage on", "coverage off", "PSL directive", "always",
+         "->", "<->", "default", "clock", "next!", "never", "eventually!",
+         "next_a", "next_a!", "next_e", "next_e!", "next_event", "next_event!",
+      };
 
-   if (tok < 0 || tok >= ARRAY_LEN(token_strs))
-      return "???";
-   else
-      return token_strs[tok];
+      if (tok > 0 && tok - 200 < ARRAY_LEN(token_strs))
+         return token_strs[tok - 200];
+   }
+
+   return "???";
 }
 
 static const char *get_cond_analysis_identifier(const char *name)
@@ -271,7 +289,7 @@ static bool pp_cond_analysis_relation(void)
 
    case tID:
       {
-         char *name = yylval.s;
+         char *name = yylval.str;
          token_t rel = pp_yylex();
 
          if (pp_expect(tSTRING)) {
@@ -279,7 +297,7 @@ static bool pp_cond_analysis_relation(void)
             if (value == NULL)
                pp_error("undefined conditional analysis identifier %s", name);
             else {
-               char *cmp = yylval.s + 1;
+               char *cmp = yylval.str + 1;
                cmp[strlen(cmp) - 1] = '\0';
 
                switch (rel) {
@@ -308,7 +326,7 @@ static bool pp_cond_analysis_relation(void)
                }
             }
 
-            free(yylval.s);
+            free(yylval.str);
          }
 
          free(name);
@@ -351,7 +369,7 @@ static bool pp_cond_analysis_expr(void)
    return lhs;
 }
 
-int processed_yylex(void)
+token_t processed_yylex(void)
 {
    assert(lookahead == -1);
 
@@ -440,11 +458,11 @@ int processed_yylex(void)
                   const diag_level_t level =
                      token == tCONDWARN ? DIAG_WARN : DIAG_ERROR;
                   diag_t *d = diag_new(level, &loc);
-                  diag_printf(d, "%s", yylval.s);
+                  diag_printf(d, "%s", yylval.str);
                   diag_emit(d);
                }
 
-               free(yylval.s);
+               free(yylval.str);
             }
          }
          break;

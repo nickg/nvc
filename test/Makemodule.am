@@ -26,6 +26,10 @@ bin_unit_test_SOURCES = \
 	test/test_model.c \
 	test/test_psl.c
 
+if ENABLE_VERILOG
+bin_unit_test_SOURCES += test/test_vlog.c
+endif
+
 if ARCH_X86_64
 bin_unit_test_SOURCES += test/test_native.c
 endif

@@ -370,7 +370,7 @@ void object_one_time_init(void)
 {
    extern object_class_t tree_object;
    extern object_class_t type_object;
-   extern object_class_t vlog_node_object;
+   extern object_class_t vlog_object;
    extern object_class_t psl_object;
 
    static bool done = false;
@@ -378,7 +378,7 @@ void object_one_time_init(void)
    if (unlikely(!done)) {
       object_init(&tree_object);
       object_init(&type_object);
-      object_init(&vlog_node_object);
+      object_init(&vlog_object);
       object_init(&psl_object);
 
       // Increment this each time a incompatible change is made to the

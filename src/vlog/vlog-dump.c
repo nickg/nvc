@@ -25,10 +25,9 @@
 
 static void vlog_dump_tab(vlog_node_t v, int indent);
 
-static void tab(int indent)
+static inline void tab(int indent)
 {
-   while (indent--)
-      fputc(' ', stdout);
+   print_syntax("%*s", indent, "");
 }
 
 static void vlog_dump_module(vlog_node_t v, int indent)
@@ -37,15 +36,15 @@ static void vlog_dump_module(vlog_node_t v, int indent)
 
    const int nports = vlog_ports(v);
    if (nports > 0) {
-      printf(" (");
+      print_syntax(" (");
       for (int i = 0; i < nports; i++) {
-         if (i > 0) printf(", ");
+         if (i > 0) print_syntax(", ");
          vlog_dump(vlog_port(v, i));
       }
-      printf(")");
+      print_syntax(")");
    }
 
-   printf(";\n");
+   print_syntax(";\n");
 
    const int ndecls = vlog_decls(v);
    for (int i = 0; i < ndecls; i++)
@@ -69,7 +68,7 @@ static void vlog_dump_port_decl(vlog_node_t v, int indent)
    case V_PORT_OUTPUT_REG: print_syntax("#output #reg"); break;
    }
 
-   printf(" %s;\n", istr(vlog_ident(v)));
+   print_syntax(" %s;\n", istr(vlog_ident(v)));
 }
 
 static void vlog_dump_always(vlog_node_t v, int indent)
@@ -102,14 +101,14 @@ static void vlog_dump_seq_block(vlog_node_t v, int indent)
 
 static void vlog_dump_timing(vlog_node_t v, int indent)
 {
-   printf("@(");
+   print_syntax("@(");
    vlog_dump(vlog_value(v));
-   printf(")\n");
+   print_syntax(")\n");
 
    if (vlog_stmts(v) > 0)
       vlog_dump_tab(vlog_stmt(v, 0), indent + 2);
    else
-      printf(";\n");
+      print_syntax(";\n");
 }
 
 static void vlog_dump_event(vlog_node_t v)
@@ -134,16 +133,16 @@ static void vlog_dump_nbassign(vlog_node_t v, int indent)
 static void vlog_dump_systask_enable(vlog_node_t v, int indent)
 {
    tab(indent);
-   printf("%s", istr(vlog_ident(v)));
+   print_syntax("%s", istr(vlog_ident(v)));
 
    const int nparams = vlog_params(v);
    if (nparams > 0) {
-      printf("(");
+      print_syntax("(");
       for (int i = 0; i < nparams; i++) {
-         if (i > 0) printf(", ");
+         if (i > 0) print_syntax(", ");
          vlog_dump(vlog_param(v, i));
       }
-      printf(")");
+      print_syntax(")");
    }
 
    print_syntax(";\n");
@@ -151,12 +150,12 @@ static void vlog_dump_systask_enable(vlog_node_t v, int indent)
 
 static void vlog_dump_string(vlog_node_t v)
 {
-   //printf("\"%s\"", vlog_text(v));
+   //print_syntax("\"%s\"", vlog_text(v));
 }
 
 static void vlog_dump_number(vlog_node_t v)
 {
-   //printf("'b%s", vlog_text(v));
+   //print_syntax("'b%s", vlog_text(v));
 }
 
 static void vlog_dump_tab(vlog_node_t v, int indent)
@@ -166,7 +165,7 @@ static void vlog_dump_tab(vlog_node_t v, int indent)
       vlog_dump_module(v, indent);
       break;
    case V_REF:
-      printf("%s", istr(vlog_ident(v)));
+      print_syntax("%s", istr(vlog_ident(v)));
       break;
    case V_PORT_DECL:
       vlog_dump_port_decl(v, indent);

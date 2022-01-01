@@ -276,10 +276,13 @@ static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
    tree_kind_t kind = T_LAST_TREE_KIND;
    ident_t name;
    tree_t tree;
+   vlog_node_t vlog;
    if ((tree = tree_from_object(object))) {
       name = tree_ident(tree);
       kind = tree_kind(tree);
    }
+   else if ((vlog = vlog_from_object(object)))
+      name = vlog_ident2(vlog);
    else
       fatal_trace("unexpected object class in lib_put_aux");
 
@@ -735,6 +738,13 @@ void lib_put_generic(lib_t lib, object_t *obj)
 void lib_put(lib_t lib, tree_t unit)
 {
    object_t *obj = tree_to_object(unit);
+   lib_put_generic(lib, obj);
+}
+
+void lib_put_vlog(lib_t lib, vlog_node_t module)
+{
+   assert(vlog_kind(module) == V_MODULE);
+   object_t *obj = vlog_to_object(module);
    lib_put_generic(lib, obj);
 }
 

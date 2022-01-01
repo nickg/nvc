@@ -708,6 +708,9 @@ static bool run_test(test_t *test)
 #else
    if (force_jit) skip |= (test->flags & F_SLOW);
 #endif
+#ifndef ENABLE_VERILOG
+   skip |= (test->flags & F_VERILOG) || (test->flags & F_MIXED);
+#endif
 
    if (skip) {
       set_attr(ANSI_FG_CYAN);
