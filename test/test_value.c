@@ -16,9 +16,10 @@
 //
 
 #include "test_util.h"
-#include "type.h"
 #include "common.h"
+#include "object.h"
 #include "tree.h"
+#include "type.h"
 
 #include <stdlib.h>
 #include <stdio.h>

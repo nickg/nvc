@@ -256,8 +256,13 @@ static void dump_expr(tree_t t)
       {
          printf("\"");
          const int nchars = tree_chars(t);
-         for (int i = 0; i < nchars; i++)
-            printf("%c", ident_char(tree_ident(tree_char(t, i)), 1));
+         for (int i = 0; i < nchars; i++) {
+            ident_t rune = tree_ident(tree_char(t, i));
+            if (ident_char(rune, 0) == '\'')
+               printf("%c", ident_char(rune, 1));
+            else
+               printf("\" & %s & \"", istr(rune));
+         }
          printf("\"");
       }
       break;

@@ -23,6 +23,7 @@
 #include "jit/jit-priv.h"
 #include "jit/jit.h"
 #include "mask.h"
+#include "object.h"
 #include "opt.h"
 #include "phase.h"
 #include "scan.h"

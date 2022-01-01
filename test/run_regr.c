@@ -67,6 +67,8 @@
 #define F_SHELL   (1 << 12)
 #define F_2002    (1 << 13)
 #define F_SLOW    (1 << 14)
+#define F_VERILOG (1 << 15)
+#define F_MIXED   (1 << 16)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -335,6 +337,10 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_SLOW;
          else if (strcmp(opt, "!windows") == 0)
             test->flags |= F_NOTWIN;
+         else if (strcmp(opt, "mixed") == 0)
+            test->flags |= F_MIXED;
+         else if (strcmp(opt, "verilog") == 0)
+            test->flags |= F_VERILOG;
          else if (strncmp(opt, "O", 1) == 0) {
             if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
@@ -668,8 +674,14 @@ static bool run_test(test_t *test)
          push_arg(&args, "-H%s", test->heapsz);
 
       push_arg(&args, "-a");
-      push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.vhd",
-               test_dir, test->name);
+
+      if (!(test->flags & F_VERILOG))
+         push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.vhd",
+                  test_dir, test->name);
+
+      if (test->flags & (F_MIXED | F_VERILOG))
+         push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.v",
+                  test_dir, test->name);
 
       if (test->flags & F_RELAX)
          push_arg(&args, "--relax=%s", test->relax);

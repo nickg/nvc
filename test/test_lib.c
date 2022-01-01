@@ -18,6 +18,7 @@
 #include "test_util.h"
 #include "common.h"
 #include "lib.h"
+#include "object.h"
 #include "tree.h"
 #include "type.h"
 #include "util.h"

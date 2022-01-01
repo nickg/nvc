@@ -6,11 +6,12 @@ man_MANS = nvc.1
 
 AM_CPPFLAGS = -I$(top_srcdir)/thirdparty -I$(top_srcdir)/src
 AM_CFLAGS   = -Wall $(EXTRA_CFLAGS) $(LTO_FLAG)
+AM_CXXFLAGS = -Wall $(EXTRA_CFLAGS) $(LTO_FLAG)
 AM_LDFLAGS  = $(EXTRA_LDFLAGS) $(LLVM_LDFLAGS)
 
 AM_CC       = $(PTHREAD_CC)
-AM_CFLAGS  += $(PTHREAD_CFLAGS)
-AM_LDFLAGS += $(PTHREAD_LIBS)
+AM_CFLAGS   += $(PTHREAD_CFLAGS)
+AM_LDFLAGS  += $(PTHREAD_LIBS)
 
 AM_CFLAGS += $(check_CFLAGS) $(libdw_CFLAGS) $(libffi_CFLAGS)
 
@@ -36,6 +37,7 @@ include src/Makemodule.am
 include src/rt/Makemodule.am
 include src/jit/Makemodule.am
 include src/vhpi/Makemodule.am
+include src/vlog/Makemodule.am
 include test/Makemodule.am
 include test/vhpi/Makemodule.am
 include lib/Makemodule.am
@@ -55,7 +57,8 @@ include contrib/Makemodule.am
 
 compile-commands:
 	$(MAKE) -C $(top_builddir) clean
-	bear -- $(MAKE) -j -C $(top_builddir) $(bin_PROGRAMS) $(check_PROGRAMS) $(EXTRA_PROGRAMS)
+	bear -- $(MAKE) -j -C $(top_builddir) $(bin_PROGRAMS) \
+	  $(check_PROGRAMS) $(EXTRA_PROGRAMS) $(pkglibexec_PROGRAMS)
 
 clean-local: clean-test clean-libs
 

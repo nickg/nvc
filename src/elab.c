@@ -22,6 +22,7 @@
 #include "eval.h"
 #include "hash.h"
 #include "lib.h"
+#include "object.h"
 #include "opt.h"
 #include "phase.h"
 #include "type.h"
@@ -1777,7 +1778,7 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    elab_decls(entity, &new_ctx);
 
    simplify_global(arch_copy, new_ctx.generics, ctx->eval);
-   bounds_check(arch);
+   bounds_check(arch);   // XXX: should be arch_copy
 
    if (error_count() == 0)
       elab_arch(arch_copy, &new_ctx);

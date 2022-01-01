@@ -130,7 +130,8 @@ static inline void type_array_add(item_t *item, type_t t)
 
 type_t type_new(type_kind_t kind)
 {
-   return (type_t)object_new(global_arena, &type_object, kind);
+   object_t *o = object_new(NULL, &type_object, kind);
+   return container_of(o, struct _type, object);
 }
 
 type_kind_t type_kind(type_t t)

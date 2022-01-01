@@ -48,7 +48,7 @@
 #define GCC_VERSION 0
 #endif
 
-#if GCC_VERSION > 40600
+#if GCC_VERSION > 40600 && !defined __cplusplus
 #define STATIC_ASSERT(x) _Static_assert((x), "Static assertion failed");
 #else
 #define STATIC_ASSERT(x)

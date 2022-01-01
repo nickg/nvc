@@ -1,0 +1,5 @@
+lib_libnvc_a_SOURCES += \
+	src/vlog/vlog-node.h \
+	src/vlog/vlog-node.c \
+	src/vlog/vlog-phase.h \
+	src/vlog/vlog-dump.c

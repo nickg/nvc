@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "hash.h"
 #include "lib.h"
+#include "object.h"
 #include "opt.h"
 #include "phase.h"
 #include "rt/cover.h"

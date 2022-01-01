@@ -32,7 +32,7 @@ typedef enum port_mode {
    PORT_LINKAGE
 } port_mode_t;
 
-typedef enum class {
+typedef enum {
    C_DEFAULT,
    C_SIGNAL,
    C_VARIABLE,
@@ -368,9 +368,6 @@ tree_kind_t tree_kind(tree_t t);
 void tree_change_kind(tree_t t, tree_kind_t kind);
 const char *tree_kind_str(tree_kind_t t);
 
-void make_new_arena(void);
-void freeze_global_arena(void);
-
 const loc_t *tree_loc(tree_t t);
 void tree_set_loc(tree_t t, const loc_t *loc);
 
@@ -548,12 +545,6 @@ void tree_copy(tree_t *roots, unsigned nroots,
                void *context);
 
 typedef tree_t (*tree_load_fn_t)(ident_t);
-
-void tree_write(tree_t t, fbuf_t *f, ident_wr_ctx_t ident_ctx,
-                loc_wr_ctx_t *loc_ctx);
-tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn,
-                 ident_rd_ctx_t ident_ctx, loc_rd_ctx_t *loc_ctx);
-
 typedef void (*tree_deps_fn_t)(ident_t, void *);
 
 object_arena_t *tree_arena(tree_t t);

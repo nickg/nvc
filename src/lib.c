@@ -24,6 +24,7 @@
 #include "opt.h"
 #include "tree.h"
 #include "vcode.h"
+#include "vlog/vlog-node.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -47,7 +48,8 @@ typedef struct _lib_unit    lib_unit_t;
 #define INDEX_FILE_MAGIC 0x55225511
 
 struct _lib_unit {
-   tree_t        top;
+   object_t     *object;
+   ident_t       name;
    tree_kind_t   kind;
    bool          dirty;
    bool          error;
@@ -174,7 +176,7 @@ static void lib_read_index(lib_t lib)
       for (int i = 0; i < entries; i++) {
          ident_t name = ident_read(ictx);
          tree_kind_t kind = read_u16(f);
-         assert(kind < T_LAST_TREE_KIND);
+         assert(kind <= T_LAST_TREE_KIND);
 
          while (*insert && ident_compare((*insert)->name, name) < 0)
             insert = &((*insert)->next);
@@ -262,13 +264,21 @@ static lib_index_t *lib_find_in_index(lib_t lib, ident_t name)
    return it;
 }
 
-static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty, bool error,
-                               lib_mtime_t mtime, vcode_unit_t vu)
+static lib_unit_t *lib_put_aux(lib_t lib, object_t *object, bool dirty,
+                               bool error, lib_mtime_t mtime, vcode_unit_t vu)
 {
    assert(lib != NULL);
-   assert(unit != NULL);
 
-   ident_t name = tree_ident(unit);
+   tree_kind_t kind = T_LAST_TREE_KIND;
+   ident_t name;
+   tree_t tree;
+   if ((tree = tree_from_object(object))) {
+      name = tree_ident(tree);
+      kind = tree_kind(tree);
+   }
+   else
+      fatal_trace("unexpected object class in lib_put_aux");
+
    assert(ident_until(name, '.') == lib->name);
 
    bool fresh = false;
@@ -278,7 +288,7 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty, bool error,
       fresh = true;
    }
    else {
-      hash_delete(lib->lookup, where->top);
+      hash_delete(lib->lookup, object);
 
       if (where->vcode != NULL) {
          vcode_unit_unref(where->vcode);
@@ -286,26 +296,27 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty, bool error,
       }
    }
 
-   where->top   = unit;
-   where->dirty = dirty;
-   where->error = error;
-   where->mtime = mtime;
-   where->kind  = tree_kind(unit);
-   where->vcode = vu;
+   where->object = object;
+   where->name   = name;
+   where->dirty  = dirty;
+   where->error  = error;
+   where->mtime  = mtime;
+   where->kind   = kind;
+   where->vcode  = vu;
 
    if (fresh) {
       lib_unit_t **it;
       for (it = &(lib->units); *it; it = &(*it)->next) {
-         assert((*it)->top != unit);
-         assert(tree_ident((*it)->top) != name);
+         assert((*it)->object != object);
+         assert((*it)->name != name);
       }
       *it = where;
    }
 
-   lib_add_to_index(lib, name, tree_kind(unit));
+   lib_add_to_index(lib, name, where->kind);
 
    hash_put(lib->lookup, name, where);
-   hash_put(lib->lookup, unit, where);
+   hash_put(lib->lookup, object, where);
 
    return where;
 }
@@ -683,14 +694,21 @@ static lib_mtime_t lib_mtime_now(void)
    return ((lib_mtime_t)tv.tv_sec * 1000000) + tv.tv_usec;
 }
 
+void lib_put_generic(lib_t lib, object_t *obj)
+{
+   lib_put_aux(lib, obj, true, false, lib_mtime_now(), NULL);
+}
+
 void lib_put(lib_t lib, tree_t unit)
 {
-   lib_put_aux(lib, unit, true, false, lib_mtime_now(), NULL);
+   object_t *obj = tree_to_object(unit);
+   lib_put_generic(lib, obj);
 }
 
 void lib_put_error(lib_t lib, tree_t unit)
 {
-   lib_put_aux(lib, unit, true, true, lib_mtime_now(), NULL);
+   object_t *obj = tree_to_object(unit);
+   lib_put_aux(lib, obj, true, true, lib_mtime_now(), NULL);
 }
 
 static lib_unit_t *lib_find_unit(lib_t lib, tree_t unit)
@@ -748,13 +766,14 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
    loc_rd_ctx_t *loc_ctx = loc_read_begin(f);
 
    vcode_unit_t vu = NULL;
-   tree_t top = NULL;
+   object_t *obj = NULL;
 
    char tag;
    while ((tag = read_u8(f))) {
       switch (tag) {
       case 'T':
-         top = tree_read(f, lib_get_qualified, ident_ctx, loc_ctx);
+         obj = object_read(f, (object_load_fn_t)lib_get_qualified,
+                           ident_ctx, loc_ctx);
          break;
       case 'V':
          vu = vcode_read(f, ident_ctx, loc_ctx);
@@ -770,10 +789,10 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
    uint32_t checksum;
    fbuf_close(f, &checksum);
 
-   if (top == NULL)
-      fatal_trace("%s did not contain tree", fname);
+   if (obj == NULL)
+      fatal_trace("%s did not HDL design unit", fname);
 
-   arena_set_checksum(tree_arena(top), checksum);
+   arena_set_checksum(object_arena(obj), checksum);
 
    LOCAL_TEXT_BUF path = lib_file_path(lib, fname);
 
@@ -782,8 +801,7 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
       fatal_errno("%s", fname);
 
    lib_mtime_t mt = lib_stat_mtime(&st);
-
-   return lib_put_aux(lib, top, false, false, mt, vu);
+   return lib_put_aux(lib, obj, false, false, mt, vu);
 }
 
 static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
@@ -829,18 +847,16 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
             "on disk", istr(lib->name), istr(ident));
 
    if (lu != NULL && !opt_get_int(OPT_IGNORE_TIME)) {
-      const loc_t *loc = tree_loc(lu->top);
-
       bool stale = false;
+      const char *file = loc_file_str(&(lu->object->loc));
       struct stat st;
-      if (stat(loc_file_str(loc), &st) == 0)
+      if (stat(file, &st) == 0)
          stale = (lu->mtime < lib_stat_mtime(&st));
 
       if (stale) {
          diag_t *d = diag_new(DIAG_WARN, NULL);
          diag_printf(d, "design unit %s is older than its source file "
-                     "%s and should be reanalysed",
-                     istr(ident), loc_file_str(loc));
+                     "%s and should be reanalysed", istr(ident), file);
          diag_hint(d, NULL, "you can use the $bold$--ignore-time$$ option "
                    "to skip this check");
          diag_emit(d);
@@ -881,10 +897,15 @@ tree_t lib_get(lib_t lib, ident_t ident)
    lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
       if (lu->error)
-         fatal_at(tree_loc(lu->top), "design unit %s was analysed with errors",
-                  istr(tree_ident(lu->top)));
-      else
-         return lu->top;
+         fatal_at(&lu->object->loc, "design unit %s was analysed with errors",
+                  istr(lu->name));
+      else {
+         tree_t tree = tree_from_object(lu->object);
+         if (tree == NULL)
+            fatal_at(&lu->object->loc, "%s is not a VHDL design unit",
+                     istr(lu->name));
+         return tree;
+      }
    }
    else
       return NULL;
@@ -895,7 +916,12 @@ tree_t lib_get_allow_error(lib_t lib, ident_t ident, bool *error)
    lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
       *error = lu->error;
-      return lu->top;
+
+      tree_t tree = tree_from_object(lu->object);
+      if (tree == NULL)
+         fatal_at(&lu->object->loc, "%s is not a VHDL design unit",
+                  istr(lu->name));
+      return tree;
    }
    else {
       *error = false;
@@ -924,17 +950,19 @@ ident_t lib_name(lib_t lib)
 
 static void lib_save_unit(lib_t lib, lib_unit_t *unit)
 {
-   const char *name = istr(tree_ident(unit->top));
-   fbuf_t *f = lib_fbuf_open(lib, name, FBUF_OUT, FBUF_CS_ADLER32);
+   fbuf_t *f = lib_fbuf_open(lib, istr(unit->name), FBUF_OUT, FBUF_CS_ADLER32);
    if (f == NULL)
-      fatal("failed to create %s in library %s", name, istr(lib->name));
+      fatal("failed to create %s in library %s", istr(unit->name),
+            istr(lib->name));
 
    write_u8('T', f);
 
    ident_wr_ctx_t ident_ctx = ident_write_begin(f);
    loc_wr_ctx_t *loc_ctx = loc_write_begin(f);
 
-   tree_write(unit->top, f, ident_ctx, loc_ctx);
+   object_arena_t *arena = object_arena(unit->object);
+
+   object_write(unit->object, f, ident_ctx, loc_ctx);
 
    if (unit->vcode != NULL) {
       write_u8('V', f);
@@ -949,7 +977,7 @@ static void lib_save_unit(lib_t lib, lib_unit_t *unit)
    uint32_t checksum;
    fbuf_close(f, &checksum);
 
-   arena_set_checksum(tree_arena(unit->top), checksum);
+   arena_set_checksum(arena, checksum);
 
    assert(unit->dirty);
    unit->dirty = false;
@@ -963,11 +991,13 @@ void lib_save(lib_t lib)
    lib_ensure_writable(lib);
    file_write_lock(lib->lock_fd);
 
+   freeze_global_arena();
+
    for (lib_unit_t *lu = lib->units; lu; lu = lu->next) {
       if (lu->dirty) {
          if (lu->error)
             fatal_trace("attempting to save unit %s with errors",
-                        istr(tree_ident(lu->top)));
+                        istr(lu->name));
          else
             lib_save_unit(lib, lu);
       }
@@ -1004,6 +1034,7 @@ void lib_save(lib_t lib)
 
    if (stat(tb_get(index_path), &st) != 0)
       fatal_errno("stat: %s", tb_get(index_path));
+
    lib->index_mtime = lib_stat_mtime(&st);
    lib->index_size  = st.st_size;
 

@@ -87,10 +87,11 @@ static const char *item_text_map[] = {
    "????",       "????",        "????",       "????",         "I_PRIMARY",
 };
 
-static object_class_t   *classes[4];
-static uint32_t          format_digest;
-static generation_t      next_generation = 1;
-static arena_array_t     all_arenas;
+static object_class_t *classes[4];
+static uint32_t        format_digest;
+static generation_t    next_generation = 1;
+static arena_array_t   all_arenas;
+static object_arena_t *global_arena = NULL;
 
 static inline bool object_in_arena_p(object_arena_t *arena, object_t *object)
 {
@@ -345,12 +346,14 @@ void object_one_time_init(void)
 {
    extern object_class_t tree_object;
    extern object_class_t type_object;
+   extern object_class_t vlog_node_object;
 
    static bool done = false;
 
    if (unlikely(!done)) {
       object_init(&tree_object);
       object_init(&type_object);
+      object_init(&vlog_node_object);
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the object items table
@@ -369,6 +372,9 @@ object_t *object_new(object_arena_t *arena,
       fatal_trace("invalid kind %d for %s object", kind, class->name);
 
    object_one_time_init();
+
+   if (arena == NULL)
+      arena = global_arena;
 
    if (unlikely(arena == NULL))
       fatal_trace("allocating object without active arena");
@@ -565,16 +571,16 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
    else if (object_marked_p(object, ctx->generation))
       return;
 
+   const object_class_t *class = classes[object->tag];
+
    const bool visit =
-      (object->tag == OBJECT_TAG_TREE && object->kind == ctx->kind)
-      || ctx->kind == T_LAST_TREE_KIND;
+      (object->tag == ctx->tag && object->kind == ctx->kind)
+      || ctx->kind == class->last_kind;
 
    if (visit && ctx->preorder != NULL)
-      (*ctx->preorder)((tree_t)object, ctx->context);
+      (*ctx->preorder)(object, ctx->context);
 
    const imask_t deep_mask = I_TYPE | I_REF;
-
-   const object_class_t *class = classes[object->tag];
 
    const imask_t has = class->has_map[object->kind];
    const int nitems = class->object_nitems[object->kind];
@@ -608,7 +614,7 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
 
    if (visit) {
       if (ctx->postorder != NULL)
-         (*ctx->postorder)((tree_t)object, ctx->context);
+         (*ctx->postorder)(object, ctx->context);
       ctx->count++;
    }
 }
@@ -1026,7 +1032,7 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
 
    object_t *copy = NULL;
    if (marked) {
-      copy = object_new(ctx->arena, class, object->kind);
+      copy = object_new(global_arena, class, object->kind);
       hash_put(ctx->copy_map, object, copy);
    }
 
@@ -1061,7 +1067,7 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
    }
 
    if (marked && copy == NULL) {
-      copy = object_new(ctx->arena, class, object->kind);
+      copy = object_new(global_arena, class, object->kind);
       hash_put(ctx->copy_map, object, copy);
    }
 
@@ -1145,7 +1151,7 @@ void object_copy(object_copy_ctx_t *ctx)
 
    if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL))
       notef("copied %d objects into arena %s", ncopied,
-            istr(object_arena_name(ctx->arena)));
+            istr(object_arena_name(global_arena)));
 
    for (unsigned i = 0; i < ctx->nroots; i++) {
       object_t *copy = hash_get(ctx->copy_map, ctx->roots[i]);
@@ -1284,4 +1290,18 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
                   istr(module), offset);
 
    return obj;
+}
+
+void freeze_global_arena(void)
+{
+   if (global_arena != NULL) {
+      object_arena_freeze(global_arena);
+      global_arena = NULL;
+   }
+}
+
+void make_new_arena(void)
+{
+   freeze_global_arena();
+   global_arena = object_arena_new(object_arena_default_size(), standard());
 }

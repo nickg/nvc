@@ -434,8 +434,6 @@ object_class_t tree_object = {
    .gc_num_roots   = 9
 };
 
-object_arena_t *global_arena = NULL;
-
 static void tree_assert_kind(tree_t t, const tree_kind_t *list, size_t len,
                              const char *what)
 {
@@ -477,7 +475,8 @@ static inline void tree_array_add(item_t *item, tree_t t)
 
 tree_t tree_new(tree_kind_t kind)
 {
-   return (tree_t)object_new(global_arena, &tree_object, kind);
+   object_t *o = object_new(NULL, &tree_object, kind);
+   return container_of(o, struct _tree, object);
 }
 
 const loc_t *tree_loc(tree_t t)
@@ -1150,21 +1149,7 @@ void tree_set_file_mode(tree_t t, tree_t m)
 
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
 {
-   assert(t != NULL);
-
-   object_visit_ctx_t ctx = {
-      .count      = 0,
-      .postorder  = fn,
-      .preorder   = NULL,
-      .context    = context,
-      .kind       = T_LAST_TREE_KIND,
-      .generation = object_next_generation(),
-      .deep       = false,
-   };
-
-   object_visit(&(t->object), &ctx);
-
-   return ctx.count;
+   return tree_visit_only(t, fn, context, T_LAST_TREE_KIND);
 }
 
 unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
@@ -1174,10 +1159,11 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 
    object_visit_ctx_t ctx = {
       .count      = 0,
-      .postorder  = fn,
+      .postorder  = (object_visit_fn_t)fn,
       .preorder   = NULL,
       .context    = context,
       .kind       = kind,
+      .tag        = OBJECT_TAG_TREE,
       .generation = object_next_generation(),
       .deep       = false
    };
@@ -1187,37 +1173,19 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
    return ctx.count;
 }
 
-void tree_write(tree_t t, fbuf_t *f, ident_wr_ctx_t ident_ctx,
-                loc_wr_ctx_t *loc_ctx)
-{
-   if (global_arena != NULL) {
-      object_arena_freeze(global_arena);
-      global_arena = NULL;
-   }
-
-   object_write(&(t->object), f, ident_ctx, loc_ctx);
-}
-
-tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn,
-                 ident_rd_ctx_t ident_ctx, loc_rd_ctx_t *loc_ctx)
-{
-   object_t *o = object_read(f, (object_load_fn_t)find_deps_fn,
-                             ident_ctx, loc_ctx);
-   assert(o->tag == OBJECT_TAG_TREE);
-   return container_of(o, struct _tree, object);
-}
-
 tree_t tree_rewrite(tree_t t, tree_rewrite_pre_fn_t pre_fn,
                     tree_rewrite_post_fn_t tree_post_fn,
                     type_rewrite_post_fn_t type_post_fn,
                     void *context)
 {
-   assert(global_arena != NULL);
+   object_arena_t *arena = object_arena(&(t->object));
+   if (arena_frozen(arena))
+      return t;
 
    object_rewrite_ctx_t ctx = {
       .generation = object_next_generation(),
       .context    = context,
-      .arena      = global_arena,
+      .arena      = arena,
    };
 
    ctx.pre_fn[OBJECT_TAG_TREE] = (object_rewrite_pre_fn_t)pre_fn;
@@ -1242,7 +1210,6 @@ void tree_copy(tree_t *roots, unsigned nroots,
 
    ctx->generation = object_next_generation();
    ctx->context    = context;
-   ctx->arena      = global_arena;
    ctx->nroots     = nroots;
 
    for (unsigned i = 0; i < nroots; i++)
@@ -1263,20 +1230,6 @@ void tree_copy(tree_t *roots, unsigned nroots,
 const char *tree_kind_str(tree_kind_t t)
 {
    return kind_text_map[t];
-}
-
-void freeze_global_arena(void)
-{
-   if (global_arena != NULL) {
-      object_arena_freeze(global_arena);
-      global_arena = NULL;
-   }
-}
-
-void make_new_arena(void)
-{
-   freeze_global_arena();
-   global_arena = object_arena_new(object_arena_default_size(), standard());
 }
 
 object_arena_t *tree_arena(tree_t t)
@@ -1336,6 +1289,9 @@ object_t *tree_to_object(tree_t t)
 
 tree_t tree_from_object(object_t *obj)
 {
-   assert(obj->tag == OBJECT_TAG_TREE);
-   return container_of(obj, struct _tree, object);
+   assert(obj != NULL);
+   if (obj->tag == OBJECT_TAG_TREE)
+      return container_of(obj, struct _tree, object);
+   else
+      return NULL;
 }

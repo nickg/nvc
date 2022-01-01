@@ -96,8 +96,9 @@ typedef uint64_t imask_t;
 #define I_PRIMARY    ONE_HOT(59)
 
 enum {
-   OBJECT_TAG_TREE   = 0,
-   OBJECT_TAG_TYPE   = 1,
+   OBJECT_TAG_TREE = 0,
+   OBJECT_TAG_TYPE = 1,
+   OBJECT_TAG_VLOG = 2,
 
    OBJECT_TAG_COUNT
 };
@@ -176,7 +177,6 @@ typedef struct {
    object_copy_pred_t should_copy[OBJECT_TAG_COUNT];
    object_copy_fn_t   callback[OBJECT_TAG_COUNT];
    void              *context;
-   object_arena_t    *arena;
    hash_t            *copy_map;
    unsigned           nroots;
    object_t          *roots[0];
@@ -195,14 +195,17 @@ typedef struct {
    object_arena_t            *arena;
 } object_rewrite_ctx_t;
 
+typedef void (*object_visit_fn_t)(object_t *, void *);
+
 typedef struct {
-   unsigned         count;
-   tree_visit_fn_t  preorder;
-   tree_visit_fn_t  postorder;
-   void            *context;
-   tree_kind_t      kind;
-   unsigned         generation;
-   bool             deep;
+   unsigned           count;
+   object_visit_fn_t  preorder;
+   object_visit_fn_t  postorder;
+   void              *context;
+   int                kind;
+   int                tag;
+   unsigned           generation;
+   bool               deep;
 } object_visit_ctx_t;
 
 typedef int change_allowed_t[2];
@@ -264,5 +267,8 @@ void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
 void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset);
 object_t *object_from_locus(ident_t module, ptrdiff_t offset,
                             object_load_fn_t loader);
+
+void make_new_arena(void);
+void freeze_global_arena(void);
 
 #endif   // _OBJECT_H
