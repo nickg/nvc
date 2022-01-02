@@ -118,6 +118,22 @@ bool hash_put(hash_t *h, const void *key, void *value)
    return false;
 }
 
+void hash_delete(hash_t *h, const void *key)
+{
+   assert(h->replace);
+
+   int slot = hash_slot(h, key);
+
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
+      if (h->keys[slot] == key) {
+         h->values[slot] = NULL;
+         return;
+      }
+      else if (h->keys[slot] == NULL)
+         return;
+   }
+}
+
 void *hash_get_nth(hash_t *h, const void *key, int *n)
 {
    int slot = hash_slot(h, key);

@@ -72,6 +72,23 @@ START_TEST(test_hash_replace)
 }
 END_TEST;
 
+START_TEST(test_hash_delete)
+{
+   hash_t *h = hash_new(8, true);
+
+   hash_put(h, VOIDP(10), VOIDP(6));
+   hash_put(h, VOIDP(11), VOIDP(4));
+   hash_put(h, VOIDP(2), VOIDP(1));
+
+   fail_unless(hash_get(h, VOIDP(10)) == VOIDP(6));
+   hash_delete(h, VOIDP(10));
+   fail_unless(hash_get(h, VOIDP(10)) == NULL);
+   fail_unless(hash_get(h, VOIDP(11)) == VOIDP(4));
+
+   hash_free(h);
+}
+END_TEST
+
 START_TEST(test_shash_basic)
 {
    shash_t *h = shash_new(8);
@@ -270,6 +287,7 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_hash, test_hash_basic);
    tcase_add_test(tc_hash, test_hash_rand);
    tcase_add_test(tc_hash, test_hash_replace);
+   tcase_add_test(tc_hash, test_hash_delete);
    tcase_add_test(tc_hash, test_shash_basic);
    tcase_add_test(tc_hash, test_shash_rand);
    suite_add_tcase(s, tc_hash);

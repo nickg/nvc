@@ -180,7 +180,6 @@ struct vcode_unit {
    unit_flags_t   flags;
    vcode_unit_t   children;
    vcode_unit_t   next;
-   unsigned       refcount;
    loc_t          loc;
 };
 
@@ -505,34 +504,23 @@ void vcode_state_restore(const vcode_state_t *state)
 void vcode_unit_unref(vcode_unit_t unit)
 {
    assert(unit != NULL);
-   assert(unit->refcount > 0);
 
    if (unit == active_unit)
       vcode_close();
 
-   if (--(unit->refcount) > 0)
-      return;
-
-   assert(unit->children == NULL);
+   while (unit->children)
+      vcode_unit_unref(unit->children);
 
    if (unit->context != NULL) {
-      if (unit == unit->context->children)
-         unit->context->children = unit->next;
-      else {
-         vcode_unit_t it;
-         for (it = unit->context->children;
-              it != NULL && it->next != unit;
-              it = it->next)
-            ;
-         assert(it != NULL);
-         it->next = it->next->next;
-      }
-
-      vcode_unit_unref(unit->context);
+      vcode_unit_t *it = &(unit->context->children);
+      for (; *it != NULL && *it != unit; it = &((*it)->next))
+         ;
+      assert(*it != NULL);
+      *it = (*it)->next;
    }
 
    if (unit->name != NULL)
-      hash_put(registry, unit->name, NULL);
+      hash_delete(registry, unit->name);
 
    for (unsigned i = 0; i < unit->blocks.count; i++) {
       block_t *b = &(unit->blocks.items[i]);
@@ -2649,7 +2637,6 @@ static void vcode_registry_add(vcode_unit_t vu)
    if (registry == NULL)
       registry = hash_new(512, true);
 
-   assert(vu->refcount > 0);
    hash_put(registry, vu->name, vu);
 }
 
@@ -2657,18 +2644,12 @@ vcode_unit_t vcode_find_unit(ident_t name)
 {
    if (registry == NULL)
       return NULL;
-   else {
-      vcode_unit_t vu = hash_get(registry, name);
-      assert(vu == NULL || vu->refcount > 0);
-      return vu;
-   }
+   else
+      return hash_get(registry, name);
 }
 
 static void vcode_add_child(vcode_unit_t context, vcode_unit_t child)
 {
-   assert(context->refcount > 0);
-   context->refcount++;
-
    child->next = NULL;
    if (context->children == NULL)
       context->children = child;
@@ -2689,7 +2670,6 @@ vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context)
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->loc      = *loc;
-   vu->refcount = 1;
 
    vcode_add_child(context, vu);
 
@@ -2712,7 +2692,6 @@ vcode_unit_t emit_procedure(ident_t name, const loc_t *loc,
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->loc      = *loc;
-   vu->refcount = 1;
 
    vcode_add_child(context, vu);
 
@@ -2736,7 +2715,6 @@ vcode_unit_t emit_process(ident_t name, const loc_t *loc, vcode_unit_t context)
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
    vu->loc      = *loc;
-   vu->refcount = 1;
 
    vcode_add_child(context, vu);
 
@@ -2760,7 +2738,6 @@ vcode_unit_t emit_instance(ident_t name, const loc_t *loc, vcode_unit_t context)
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
    vu->loc      = *loc;
-   vu->refcount = 1;
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -2782,7 +2759,6 @@ vcode_unit_t emit_package(ident_t name, const loc_t *loc)
    vu->context  = NULL;
    vu->result   = VCODE_INVALID_TYPE;
    vu->loc      = *loc;
-   vu->refcount = 1;
 
    active_unit = vu;
    vcode_select_block(emit_block());
@@ -2803,7 +2779,6 @@ vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
    vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
    vu->loc      = *loc;
-   vu->refcount = 1;
 
    if (context != NULL)
       vcode_add_child(context, vu);
@@ -2824,7 +2799,6 @@ vcode_unit_t emit_thunk(ident_t name)
    vu->name     = name;
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
-   vu->refcount = 1;
 
    active_unit = vu;
    vcode_select_block(emit_block());
@@ -5157,7 +5131,6 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
    unit->result   = read_u32(f);
    unit->flags    = read_u32(f);
    unit->depth    = read_u32(f);
-   unit->refcount = 1;
 
    if (unit->kind != VCODE_UNIT_PACKAGE) {
       ident_t context_name = ident_read(ident_rd_ctx);

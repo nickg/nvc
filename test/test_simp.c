@@ -1005,6 +1005,20 @@ START_TEST(test_recrange)
 }
 END_TEST
 
+START_TEST(test_order1)
+{
+   input_from_file(TESTDIR "/simp/order1.vhd");
+
+   tree_t p = parse_check_simplify_and_lower(T_PACKAGE, T_PACKAGE);
+
+   tree_t x = search_decls(p, ident_new("X"), 0);
+   fail_if(x == NULL);
+   fail_unless(tree_kind(tree_value(x)) == T_FCALL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1041,6 +1055,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_guard);
    tcase_add_test(tc_core, test_copysub);
    tcase_add_test(tc_core, test_recrange);
+   tcase_add_test(tc_core, test_order1);
    suite_add_tcase(s, tc_core);
 
    return s;

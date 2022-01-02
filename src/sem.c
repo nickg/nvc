@@ -19,6 +19,7 @@
 #include "util.h"
 #include "common.h"
 #include "type.h"
+#include "loc.h"
 
 #include <assert.h>
 #include <stdlib.h>

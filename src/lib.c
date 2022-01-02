@@ -279,6 +279,10 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty,
       APUSH(lib->units, new);
       where = &(lib->units.items[lib->units.count - 1]);
    }
+   else if (where->vcode != NULL) {
+      vcode_unit_unref(where->vcode);
+      where->vcode = NULL;
+   }
 
    where->top   = unit;
    where->dirty = dirty;
