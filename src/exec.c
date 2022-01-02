@@ -2271,7 +2271,7 @@ eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
                         const char *fmt, ...)
 {
    vcode_unit_t unit = eval_find_unit(func, EVAL_VERBOSE);
-   assert(unit);
+   assert(unit != NULL);
 
    assert(ex->flags & EVAL_FCALL);
 

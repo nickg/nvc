@@ -191,20 +191,21 @@ static int analyse(int argc, char **argv)
       dump_json(units.items, units.count, opt_get_str("dump-json"));
    }
 
-   for (int i = 0; i < units.count; i++) {
+   SCOPED_A(tree_t) cgen_units = AINIT;
+
+   for (unsigned i = 0; i < units.count; i++) {
       if (unit_needs_cgen(units.items[i])) {
          vcode_unit_t vu = lower_unit(units.items[i], NULL);
          lib_put_vcode(lib_work(), units.items[i], vu);
+         APUSH(cgen_units, units.items[i]);
       }
    }
 
    lib_save(lib_work());
 
-   for (int i = 0; i < units.count; i++) {
-      if (unit_needs_cgen(units.items[i])) {
-         vcode_unit_t vu = lib_get_vcode(lib_work(), units.items[i]);
-         cgen(units.items[i], vu, NULL);
-      }
+   for (unsigned i = 0; i < cgen_units.count; i++) {
+      vcode_unit_t vu = lib_get_vcode(lib_work(), cgen_units.items[i]);
+      cgen(cgen_units.items[i], vu, NULL);
    }
 
    argc -= next_cmd - 1;

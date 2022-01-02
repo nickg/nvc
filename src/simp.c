@@ -179,6 +179,9 @@ static bool fold_possible(tree_t t, eval_flags_t flags)
             return fold_not_possible(t, flags, "call to impure function");
          else if (!(tree_flags(t) & TREE_F_GLOBALLY_STATIC))
             return fold_not_possible(t, flags, "non-static expression");
+         else if (kind != S_USER && !is_open_coded_builtin(kind)
+                  && vcode_find_unit(tree_ident2(decl)) == NULL)
+            return fold_not_possible(t, flags, "not yet lowered predef");
 
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
@@ -189,7 +192,7 @@ static bool fold_possible(tree_t t, eval_flags_t flags)
                return false;  // Would have been folded already if possible
          }
 
-         return is_builtin(tree_subkind(decl)) || tree_has_ident2(decl);
+         return true;
       }
 
    case T_LITERAL:
