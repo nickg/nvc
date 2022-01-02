@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2021  Nick Gasson
+//  Copyright (C) 2014-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -204,7 +204,6 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_MAGIC        0x76636f64
 #define VCODE_VERSION      9
 #define VCODE_CHECK_UNIONS 0
 
@@ -5153,19 +5152,15 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
       vcode_write_unit(unit->children, f, ident_wr_ctx, loc_wr_ctx);
 }
 
-void vcode_write(vcode_unit_t unit, fbuf_t *f)
+void vcode_write(vcode_unit_t unit, fbuf_t *f, ident_wr_ctx_t ident_ctx,
+                 loc_wr_ctx_t *loc_ctx)
 {
    assert(unit->kind == VCODE_UNIT_PACKAGE);
 
-   write_u32(VCODE_MAGIC, f);
    write_u8(VCODE_VERSION, f);
 
-   ident_wr_ctx_t ident_wr_ctx = ident_write_begin(f);
-   loc_wr_ctx_t *loc_wr_ctx = loc_write_begin(f);
-   vcode_write_unit(unit, f, ident_wr_ctx, loc_wr_ctx);
+   vcode_write_unit(unit, f, ident_ctx, loc_ctx);
    write_u8(0xff, f);  // End marker
-   ident_write_end(ident_wr_ctx);
-   loc_write_end(loc_wr_ctx);
 }
 
 static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
@@ -5335,27 +5330,19 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
    return unit;
 }
 
-vcode_unit_t vcode_read(fbuf_t *f)
+vcode_unit_t vcode_read(fbuf_t *f, ident_rd_ctx_t ident_ctx,
+                        loc_rd_ctx_t *loc_ctx)
 {
-   if (read_u32(f) != VCODE_MAGIC)
-      fatal("%s has invalid vcode header", fbuf_file_name(f));
-
    const uint8_t version = read_u8(f);
    if (version != VCODE_VERSION)
       fatal("%s was created with vcode format version %d (expected %d)",
             fbuf_file_name(f), version, VCODE_VERSION);
 
-   ident_rd_ctx_t ident_rd_ctx = ident_read_begin(f);
-   loc_rd_ctx_t *loc_rd_ctx = loc_read_begin(f);
-
    vcode_unit_t vu, root = NULL;
-   while ((vu = vcode_read_unit(f, ident_rd_ctx, loc_rd_ctx))) {
+   while ((vu = vcode_read_unit(f, ident_ctx, loc_ctx))) {
       if (root == NULL)
          root = vu;
    }
-
-   ident_read_end(ident_rd_ctx);
-   loc_read_end(loc_rd_ctx);
 
    return root;
 }

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,6 +35,7 @@ typedef struct {
 
 struct loc_wr_ctx {
    fbuf_t *fbuf;
+   bool    have_index;
 };
 
 struct loc_rd_ctx {
@@ -42,6 +43,7 @@ struct loc_rd_ctx {
    char           **file_map;
    loc_file_ref_t  *ref_map;
    size_t           n_files;
+   bool             have_index;
 };
 
 static A(loc_file_t) loc_files;
@@ -208,15 +210,7 @@ loc_wr_ctx_t *loc_write_begin(fbuf_t *f)
 {
    loc_wr_ctx_t *ctx = xmalloc(sizeof(loc_wr_ctx_t));
    ctx->fbuf = f;
-
-   write_u16(LOC_MAGIC, f);
-   write_u16(loc_files.count, f);
-
-   for (unsigned i = 0; i < loc_files.count; i++) {
-      size_t len = strlen(loc_files.items[i].name_str) + 1;
-      write_u16(len, f);
-      write_raw(loc_files.items[i].name_str, len, f);
-   }
+   ctx->have_index = false;
 
    return ctx;
 }
@@ -228,6 +222,19 @@ void loc_write_end(loc_wr_ctx_t *ctx)
 
 void loc_write(const loc_t *loc, loc_wr_ctx_t *ctx)
 {
+   if (!ctx->have_index) {
+      write_u16(LOC_MAGIC, ctx->fbuf);
+      fbuf_put_uint(ctx->fbuf, loc_files.count);
+
+      for (unsigned i = 0; i < loc_files.count; i++) {
+         size_t len = strlen(loc_files.items[i].name_str) + 1;
+         fbuf_put_uint(ctx->fbuf, len);
+         write_raw(loc_files.items[i].name_str, len, ctx->fbuf);
+      }
+
+      ctx->have_index = true;
+   }
+
    const uint64_t merged =
       ((uint64_t)loc->first_line << 44)
       | ((uint64_t)loc->first_column << 32)
@@ -240,25 +247,8 @@ void loc_write(const loc_t *loc, loc_wr_ctx_t *ctx)
 
 loc_rd_ctx_t *loc_read_begin(fbuf_t *f)
 {
-   uint16_t magic = read_u16(f);
-   if (magic != LOC_MAGIC)
-      fatal("corrupt location header in %s", fbuf_file_name(f));
-
-   loc_rd_ctx_t *ctx = xmalloc(sizeof(loc_rd_ctx_t));
-   ctx->fbuf    = f;
-   ctx->n_files = read_u16(f);
-
-   ctx->file_map = xcalloc(sizeof(ident_t) * ctx->n_files);
-   ctx->ref_map  = xcalloc(sizeof(loc_file_ref_t) * ctx->n_files);
-
-   for (size_t i = 0; i < ctx->n_files; i++) {
-      size_t len = read_u16(f);
-      char *buf = xmalloc(len + 1);
-      read_raw(buf, len, f);
-      buf[len] = '\0';
-      ctx->file_map[i] = buf;
-      ctx->ref_map[i]  = FILE_INVALID;
-   }
+   loc_rd_ctx_t *ctx = xcalloc(sizeof(loc_rd_ctx_t));
+   ctx->fbuf = f;
 
    return ctx;
 }
@@ -275,6 +265,28 @@ void loc_read_end(loc_rd_ctx_t *ctx)
 
 void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 {
+   if (!ctx->have_index) {
+      uint16_t magic = read_u16(ctx->fbuf);
+      if (magic != LOC_MAGIC)
+         fatal("corrupt location header in %s", fbuf_file_name(ctx->fbuf));
+
+      ctx->n_files = fbuf_get_uint(ctx->fbuf);
+
+      ctx->file_map = xcalloc_array(ctx->n_files, sizeof(ident_t));
+      ctx->ref_map  = xcalloc_array(ctx->n_files, sizeof(loc_file_ref_t));
+
+      for (size_t i = 0; i < ctx->n_files; i++) {
+         size_t len = fbuf_get_uint(ctx->fbuf);
+         char *buf = xmalloc(len + 1);
+         read_raw(buf, len, ctx->fbuf);
+         buf[len] = '\0';
+         ctx->file_map[i] = buf;
+         ctx->ref_map[i]  = FILE_INVALID;
+      }
+
+      ctx->have_index = true;
+   }
+
    const uint64_t merged = read_u64(ctx->fbuf);
 
    uint16_t old_ref = merged & 0xffff;

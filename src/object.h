@@ -250,8 +250,10 @@ unsigned object_next_generation(void);
 object_t *object_copy(object_t *object, object_copy_ctx_t *ctx);
 object_arena_t *object_arena(object_t *object);
 
-void object_write(object_t *object, fbuf_t *f);
-object_t *object_read(fbuf_t *f, object_load_fn_t loader);
+void object_write(object_t *object, fbuf_t *f, ident_wr_ctx_t ident_ctx,
+                  loc_wr_ctx_t *loc_ctx);
+object_t *object_read(fbuf_t *f, object_load_fn_t loader,
+                      ident_rd_ctx_t ident_ctx, loc_rd_ctx_t *loc_ctx);
 
 #define object_write_barrier(lhs, rhs) do {                     \
       uintptr_t __lp = (uintptr_t)(lhs) & ~OBJECT_PAGE_MASK;    \

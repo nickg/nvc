@@ -41,4 +41,7 @@ typedef struct vcode_unit *vcode_unit_t;
 
 typedef struct _cover_tagging cover_tagging_t;
 
+typedef struct loc_wr_ctx loc_wr_ctx_t;
+typedef struct loc_rd_ctx loc_rd_ctx_t;
+
 #endif  // _PRIM_H

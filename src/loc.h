@@ -26,9 +26,6 @@
 
 typedef uint16_t loc_file_ref_t;
 
-typedef struct loc_wr_ctx loc_wr_ctx_t;
-typedef struct loc_rd_ctx loc_rd_ctx_t;
-
 struct loc {
    unsigned first_line : 20;
    unsigned first_column : 12;

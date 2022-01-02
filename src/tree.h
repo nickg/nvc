@@ -507,8 +507,10 @@ tree_t tree_copy(tree_t t, tree_copy_pred_t pred,
 
 typedef tree_t (*tree_load_fn_t)(ident_t);
 
-void tree_write(tree_t t, fbuf_t *f);
-tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn);
+void tree_write(tree_t t, fbuf_t *f, ident_wr_ctx_t ident_ctx,
+                loc_wr_ctx_t *loc_ctx);
+tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn,
+                 ident_rd_ctx_t ident_ctx, loc_rd_ctx_t *loc_ctx);
 
 typedef void (*tree_deps_fn_t)(ident_t, void *);
 

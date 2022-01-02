@@ -664,16 +664,14 @@ static void object_write_ref(object_t *object, fbuf_t *f)
    }
 }
 
-void object_write(object_t *root, fbuf_t *f)
+void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
+                  loc_wr_ctx_t *loc_ctx)
 {
    object_arena_t *arena = __object_arena(root);
 
    write_u32(format_digest, f);
    fbuf_put_uint(f, standard());
    fbuf_put_uint(f, arena->limit - arena->base);
-
-   ident_wr_ctx_t ident_ctx = ident_write_begin(f);
-   loc_wr_ctx_t *loc_ctx = loc_write_begin(f);
 
    if (root != arena->base)
       fatal_trace("must write root object first");
@@ -748,9 +746,6 @@ void object_write(object_t *root, fbuf_t *f)
    }
 
    fbuf_put_uint(f, UINT16_MAX);   // End of objects marker
-
-   ident_write_end(ident_ctx);
-   loc_write_end(loc_ctx);
 }
 
 static object_t *object_read_ref(fbuf_t *f, const arena_key_t *key_map)
@@ -774,7 +769,8 @@ static object_t *object_read_ref(fbuf_t *f, const arena_key_t *key_map)
    return (object_t *)((char *)arena->base + offset);
 }
 
-object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
+object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
+		      ident_rd_ctx_t ident_ctx, loc_rd_ctx_t *loc_ctx)
 {
    object_one_time_init();
 
@@ -797,9 +793,6 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
             fbuf_file_name(f), size, OBJECT_ARENA_SZ);
    else if (size & OBJECT_PAGE_MASK)
       fatal("%s: arena size %x bad alignment", fbuf_file_name(f), size);
-
-   ident_rd_ctx_t ident_ctx = ident_read_begin(f);
-   loc_rd_ctx_t *loc_ctx = loc_read_begin(f);
 
    object_arena_t *arena = object_arena_new(size, std);
    arena->source = OBJ_DISK;
@@ -902,9 +895,6 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn)
    }
 
    object_arena_freeze(arena);
-   ident_read_end(ident_ctx);
-   loc_read_end(loc_ctx);
-
    return (object_t *)arena->base;
 }
 

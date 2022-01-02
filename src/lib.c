@@ -665,16 +665,19 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 {
    fbuf_t *f = lib_fbuf_open(lib, fname, FBUF_IN);
 
+   ident_rd_ctx_t ident_ctx = ident_read_begin(f);
+   loc_rd_ctx_t *loc_ctx = loc_read_begin(f);
+
    vcode_unit_t vu = NULL;
    tree_t top = NULL;
    char tag;
    while ((tag = read_u8(f))) {
       switch (tag) {
       case 'T':
-         top = tree_read(f, lib_get_qualified);
+         top = tree_read(f, lib_get_qualified, ident_ctx, loc_ctx);
          break;
       case 'V':
-         vu = vcode_read(f);
+         vu = vcode_read(f, ident_ctx, loc_ctx);
          break;
       default:
          // TODO: uncomment this error after 1.6 release
@@ -684,6 +687,8 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
       }
    }
 
+   loc_read_end(loc_ctx);
+   ident_read_end(ident_ctx);
    fbuf_close(f);
 
    if (top == NULL)
@@ -830,14 +835,21 @@ static void lib_save_unit(lib_t lib, lib_unit_t *unit)
       fatal("failed to create %s in library %s", name, istr(lib->name));
 
    write_u8('T', f);
-   tree_write(unit->top, f);
+
+   ident_wr_ctx_t ident_ctx = ident_write_begin(f);
+   loc_wr_ctx_t *loc_ctx = loc_write_begin(f);
+
+   tree_write(unit->top, f, ident_ctx, loc_ctx);
 
    if (unit->vcode != NULL) {
       write_u8('V', f);
-      vcode_write(unit->vcode, f);
+      vcode_write(unit->vcode, f, ident_ctx, loc_ctx);
    }
 
    write_u8('\0', f);
+
+   loc_write_end(loc_ctx);
+   ident_write_end(ident_ctx);
    fbuf_close(f);
 
    assert(unit->dirty);
