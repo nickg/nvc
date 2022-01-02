@@ -169,6 +169,9 @@ static int analyse(int argc, char **argv)
    }
 
    SCOPED_A(tree_t) units = AINIT;
+   SCOPED_A(tree_t) cgen_units = AINIT;
+
+   lib_t work = lib_work();
 
    for (int i = optind; i < next_cmd; i++) {
       input_from_file(argv[i]);
@@ -180,6 +183,12 @@ static int analyse(int argc, char **argv)
 
             simplify_local(unit);
             bounds_check(unit);
+
+            if (error_count() == 0 && unit_needs_cgen(unit)) {
+               vcode_unit_t vu = lower_unit(unit, NULL);
+               lib_put_vcode(work, unit, vu);
+               APUSH(cgen_units, unit);
+            }
          }
       }
    }
@@ -187,25 +196,18 @@ static int analyse(int argc, char **argv)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   if (opt_get_str("dump-json")) {
+   if (opt_get_str("dump-json"))
       dump_json(units.items, units.count, opt_get_str("dump-json"));
-   }
 
-   SCOPED_A(tree_t) cgen_units = AINIT;
-
-   for (unsigned i = 0; i < units.count; i++) {
-      if (unit_needs_cgen(units.items[i])) {
-         vcode_unit_t vu = lower_unit(units.items[i], NULL);
-         lib_put_vcode(lib_work(), units.items[i], vu);
-         APUSH(cgen_units, units.items[i]);
-      }
-   }
-
-   lib_save(lib_work());
+   lib_save(work);
 
    for (unsigned i = 0; i < cgen_units.count; i++) {
-      vcode_unit_t vu = lib_get_vcode(lib_work(), cgen_units.items[i]);
-      cgen(cgen_units.items[i], vu, NULL);
+      // The unit could have been obsoleted by a later design unit in
+      // the same file so check it is still present in the library
+      if (lib_contains(work, cgen_units.items[i])) {
+         vcode_unit_t vu = lib_get_vcode(work, cgen_units.items[i]);
+         cgen(cgen_units.items[i], vu, NULL);
+      }
    }
 
    argc -= next_cmd - 1;

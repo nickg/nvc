@@ -638,6 +638,16 @@ static lib_unit_t *lib_find_unit(lib_t lib, tree_t unit)
                istr(lib->name));
 }
 
+bool lib_contains(lib_t lib, tree_t unit)
+{
+   for (unsigned n = 0; n < lib->units.count; n++) {
+      if (lib->units.items[n].top == unit)
+         return true;
+   }
+
+   return false;
+}
+
 void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu)
 {
    lib_unit_t *where = lib_find_unit(lib, unit);
