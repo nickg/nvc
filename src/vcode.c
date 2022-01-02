@@ -5168,8 +5168,8 @@ void vcode_write(vcode_unit_t unit, fbuf_t *f)
    loc_write_end(loc_wr_ctx);
 }
 
-static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
-                            loc_rd_ctx_t *loc_rd_ctx)
+static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
+                                    loc_rd_ctx_t *loc_rd_ctx)
 {
    const uint8_t marker = read_u8(f);
    if (marker == 0xff)
@@ -5332,10 +5332,10 @@ static bool vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
 
    vcode_registry_add(unit);
 
-   return true;
+   return unit;
 }
 
-void vcode_read(fbuf_t *f)
+vcode_unit_t vcode_read(fbuf_t *f)
 {
    if (read_u32(f) != VCODE_MAGIC)
       fatal("%s has invalid vcode header", fbuf_file_name(f));
@@ -5348,11 +5348,16 @@ void vcode_read(fbuf_t *f)
    ident_rd_ctx_t ident_rd_ctx = ident_read_begin(f);
    loc_rd_ctx_t *loc_rd_ctx = loc_read_begin(f);
 
-   while (vcode_read_unit(f, ident_rd_ctx, loc_rd_ctx))
-      ;
+   vcode_unit_t vu, root = NULL;
+   while ((vu = vcode_read_unit(f, ident_rd_ctx, loc_rd_ctx))) {
+      if (root == NULL)
+         root = vu;
+   }
 
    ident_read_end(ident_rd_ctx);
    loc_read_end(loc_rd_ctx);
+
+   return root;
 }
 
 #if VCODE_CHECK_UNIONS

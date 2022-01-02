@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#include "lib.h"
 #include "util.h"
 #include "array.h"
 #include "phase.h"
@@ -30,7 +31,7 @@
 #include <assert.h>
 
 const char *copy_string =
-   "Copyright (C) 2011-2021  Nick Gasson\n"
+   "Copyright (C) 2011-2022  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
@@ -177,10 +178,6 @@ static int analyse(int argc, char **argv)
          if (sem_check(unit) && error_count() == 0) {
             APUSH(units, unit);
 
-            // Delete any stale vcode to prevent problems in constant folding
-            char *vcode LOCAL = vcode_file_name(tree_ident(unit));
-            lib_delete(lib_work(), vcode);
-
             simplify_local(unit);
             bounds_check(unit);
          }
@@ -194,12 +191,18 @@ static int analyse(int argc, char **argv)
       dump_json(units.items, units.count, opt_get_str("dump-json"));
    }
 
+   for (int i = 0; i < units.count; i++) {
+      if (unit_needs_cgen(units.items[i])) {
+         vcode_unit_t vu = lower_unit(units.items[i], NULL);
+         lib_put_vcode(lib_work(), units.items[i], vu);
+      }
+   }
+
    lib_save(lib_work());
 
    for (int i = 0; i < units.count; i++) {
       if (unit_needs_cgen(units.items[i])) {
-         vcode_unit_t vu = lower_unit(units.items[i], NULL);
-         lib_save_vcode(lib_work(), vu, tree_ident(units.items[i]));
+         vcode_unit_t vu = lib_get_vcode(lib_work(), units.items[i]);
          cgen(units.items[i], vu, NULL);
       }
    }

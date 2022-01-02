@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -65,7 +65,7 @@ int lib_index_kind(lib_t lib, ident_t ident);
 typedef void (*lib_index_fn_t)(lib_t lib, ident_t ident, int kind, void *ctx);
 void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context);
 
-bool lib_load_vcode(lib_t lib, ident_t unit_name);
-void lib_save_vcode(lib_t lib, vcode_unit_t vu, ident_t unit_name);
+void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu);
+vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit);
 
 #endif // _LIB_H

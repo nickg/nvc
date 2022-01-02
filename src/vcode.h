@@ -276,7 +276,7 @@ const loc_t *vcode_unit_loc(void);
 void vcode_set_result(vcode_type_t type);
 
 void vcode_write(vcode_unit_t unit, fbuf_t *fbuf);
-void vcode_read(fbuf_t *fbuf);
+vcode_unit_t vcode_read(fbuf_t *fbuf);
 
 void vcode_state_save(vcode_state_t *state);
 void vcode_state_restore(const vcode_state_t *state);

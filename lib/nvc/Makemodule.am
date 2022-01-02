@@ -4,9 +4,7 @@ nvc_DATA = \
 	lib/nvc/_index \
 	lib/nvc/NVC.SIM_PKG \
 	lib/nvc/NVC.POLYFILL \
-	lib/nvc/NVC.POLYFILL-body \
-	lib/nvc/_NVC.SIM_PKG.vcode \
-	lib/nvc/_NVC.POLYFILL.vcode
+	lib/nvc/NVC.POLYFILL-body
 
 nvc_so = \
 	lib/nvc/_NVC.SIM_PKG.$(DLL_EXT) \

@@ -466,15 +466,10 @@ static ident_t eopt_vcode_unit_name(tree_t t, e_node_t cursor)
 static vcode_unit_t eopt_find_vcode(e_node_t e)
 {
    ident_t name = e_vcode(e);
-   vcode_unit_t unit = vcode_find_unit(name);
-   if (unit == NULL) {
-      lib_t lib = lib_require(ident_until(name, '.'));
-      if (lib_load_vcode(lib, name))
-         unit = vcode_find_unit(name);
-   }
 
+   vcode_unit_t unit = vcode_find_unit(name);
    if (unit == NULL)
-      fatal("cannot find vcode unit %s", istr(name));
+      fatal_at(e_loc(e), "cannot find vcode unit %s", istr(name));
 
    return unit;
 }

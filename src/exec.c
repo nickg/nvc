@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#include "lib.h"
 #include "prim.h"
 #include "exec.h"
 #include "util.h"
@@ -131,20 +132,18 @@ static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
       if (unit_name == lib_name)
          unit_name = func_name;
 
-      lib_t lib = lib_require(lib_name);
-
       if (flags & EVAL_VERBOSE)
          notef("loading vcode for %s", istr(unit_name));
 
-      if (!lib_load_vcode(lib, unit_name)) {
-         if (flags & EVAL_WARN)
-            warnf("cannot load vcode for %s", istr(unit_name));
-         return NULL;
+      tree_t unit = lib_get_qualified(unit_name);
+      if (unit != NULL && tree_kind(unit) == T_PACKAGE) {
+         ident_t body_name = ident_prefix(unit_name, ident_new("body"), '-');
+         (void)lib_get_qualified(body_name);
       }
 
       vcode = vcode_find_unit(func_name);
       if (vcode == NULL)
-         fatal_trace("failed to load vcode for %s", istr(func_name));
+         fatal("failed to load vcode for %s", istr(func_name));
    }
 
    return vcode;

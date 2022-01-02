@@ -1007,12 +1007,6 @@ tree_t str_to_literal(const char *start, const char *end, type_t type)
    return t;
 }
 
-char *vcode_file_name(ident_t unit_name)
-{
-   ident_t base = ident_strip(unit_name, ident_new("-body")) ?: unit_name;
-   return xasprintf("_%s.vcode", istr(base));
-}
-
 void intern_strings(void)
 {
    std_standard_i   = ident_new("STD.STANDARD");

@@ -6,10 +6,7 @@ std_08_DATA = \
 	lib/std.08/STD.TEXTIO \
 	lib/std.08/STD.TEXTIO-body \
 	lib/std.08/STD.ENV \
-	lib/std.08/STD.ENV-body \
-	lib/std.08/_STD.STANDARD.vcode \
-	lib/std.08/_STD.TEXTIO.vcode \
-	lib/std.08/_STD.ENV.vcode
+	lib/std.08/STD.ENV-body
 
 std_08_so = \
 	lib/std.08/_STD.STANDARD.$(DLL_EXT) \

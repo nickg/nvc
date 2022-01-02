@@ -13,22 +13,14 @@ synopsys_ieee_DATA = \
 	lib/ieee/IEEE.STD_LOGIC_TEXTIO \
 	lib/ieee/IEEE.STD_LOGIC_TEXTIO-body \
 	lib/ieee/IEEE.STD_LOGIC_MISC \
-	lib/ieee/IEEE.STD_LOGIC_MISC-body \
-	lib/ieee/_IEEE.STD_LOGIC_ARITH.vcode \
-	lib/ieee/_IEEE.STD_LOGIC_SIGNED.vcode \
-	lib/ieee/_IEEE.STD_LOGIC_UNSIGNED.vcode \
-	lib/ieee/_IEEE.STD_LOGIC_TEXTIO.vcode \
-	lib/ieee/_IEEE.STD_LOGIC_MISC.vcode
+	lib/ieee/IEEE.STD_LOGIC_MISC-body
 synopsys_ieee_08_DATA = \
 	lib/ieee.08/IEEE.STD_LOGIC_ARITH \
 	lib/ieee.08/IEEE.STD_LOGIC_ARITH-body \
 	lib/ieee.08/IEEE.STD_LOGIC_SIGNED \
 	lib/ieee.08/IEEE.STD_LOGIC_SIGNED-body \
 	lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED \
-	lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED-body \
-	lib/ieee.08/_IEEE.STD_LOGIC_ARITH.vcode \
-	lib/ieee.08/_IEEE.STD_LOGIC_SIGNED.vcode \
-	lib/ieee.08/_IEEE.STD_LOGIC_UNSIGNED.vcode
+	lib/ieee.08/IEEE.STD_LOGIC_UNSIGNED-body
 synopsys_DATA = \
 	lib/synopsys/_NVC_LIB \
 	lib/synopsys/_index \

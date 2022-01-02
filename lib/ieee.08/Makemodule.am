@@ -16,13 +16,7 @@ ieee_08_DATA = \
 	lib/ieee.08/IEEE.MATH_REAL \
 	lib/ieee.08/IEEE.MATH_REAL-body \
 	lib/ieee.08/IEEE.MATH_COMPLEX \
-	lib/ieee.08/IEEE.MATH_COMPLEX-body \
-	lib/ieee.08/_IEEE.NUMERIC_BIT.vcode \
-	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED.vcode \
-	lib/ieee.08/_IEEE.NUMERIC_STD.vcode \
-	lib/ieee.08/_IEEE.STD_LOGIC_1164.vcode \
-	lib/ieee.08/_IEEE.MATH_REAL.vcode \
-	lib/ieee.08/_IEEE.MATH_COMPLEX.vcode
+	lib/ieee.08/IEEE.MATH_COMPLEX-body
 
 ieee_08_so = \
 	lib/ieee.08/_IEEE.NUMERIC_STD.$(DLL_EXT) \

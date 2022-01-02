@@ -4,9 +4,7 @@ std_DATA = \
 	lib/std/_index \
 	lib/std/STD.STANDARD \
 	lib/std/STD.TEXTIO \
-	lib/std/STD.TEXTIO-body \
-	lib/std/_STD.STANDARD.vcode \
-	lib/std/_STD.TEXTIO.vcode
+	lib/std/STD.TEXTIO-body
 
 std_so = \
 	lib/std/_STD.STANDARD.$(DLL_EXT) \

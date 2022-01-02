@@ -48,6 +48,7 @@ typedef struct {
    tree_kind_t   kind;
    bool          dirty;
    lib_mtime_t   mtime;
+   vcode_unit_t  vcode;
 } lib_unit_t;
 
 typedef A(lib_unit_t) unit_array_t;
@@ -257,7 +258,7 @@ static lib_index_t *lib_find_in_index(lib_t lib, ident_t name)
 }
 
 static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty,
-                               lib_mtime_t mtime)
+                               lib_mtime_t mtime, vcode_unit_t vu)
 {
    assert(lib != NULL);
    assert(unit != NULL);
@@ -276,10 +277,11 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty,
       where = &(lib->units.items[lib->units.count - 1]);
    }
 
-   where->top      = unit;
-   where->dirty    = dirty;
-   where->mtime    = mtime;
-   where->kind     = tree_kind(unit);
+   where->top   = unit;
+   where->dirty = dirty;
+   where->mtime = mtime;
+   where->kind  = tree_kind(unit);
+   where->vcode = vu;
 
    lib_add_to_index(lib, name, tree_kind(unit));
 
@@ -614,7 +616,38 @@ void lib_put(lib_t lib, tree_t unit)
       fatal_errno("gettimeofday");
 
    lib_mtime_t usecs = ((lib_mtime_t)tv.tv_sec * 1000000) + tv.tv_usec;
-   lib_put_aux(lib, unit, true, usecs);
+   lib_put_aux(lib, unit, true, usecs, NULL);
+}
+
+static lib_unit_t *lib_find_unit(lib_t lib, tree_t unit)
+{
+   for (unsigned n = 0; n < lib->units.count; n++) {
+      if (lib->units.items[n].top == unit)
+         return &(lib->units.items[n]);
+   }
+
+   fatal_trace("unit %s not stored in library %s", istr(tree_ident(unit)),
+               istr(lib->name));
+}
+
+void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu)
+{
+   lib_unit_t *where = lib_find_unit(lib, unit);
+
+   if (where->vcode != NULL)
+      fatal_trace("vcode already stored for %s", istr(tree_ident(unit)));
+
+   where->vcode = vu;
+}
+
+vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit)
+{
+   lib_unit_t *where = lib_find_unit(lib, unit);
+
+   if (where->vcode == NULL)
+      fatal_trace("vcode not stored for %s", istr(tree_ident(unit)));
+
+   return where->vcode;
 }
 
 static lib_mtime_t lib_stat_mtime(struct stat *st)
@@ -626,6 +659,45 @@ static lib_mtime_t lib_stat_mtime(struct stat *st)
    mt += st->st_mtim.tv_nsec / 1000;
 #endif
    return mt;
+}
+
+static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
+{
+   fbuf_t *f = lib_fbuf_open(lib, fname, FBUF_IN);
+
+   vcode_unit_t vu = NULL;
+   tree_t top = NULL;
+   char tag;
+   while ((tag = read_u8(f))) {
+      switch (tag) {
+      case 'T':
+         top = tree_read(f, lib_get_qualified);
+         break;
+      case 'V':
+         vu = vcode_read(f);
+         break;
+      default:
+         // TODO: uncomment this error after 1.6 release
+         //fatal_trace("unhandled tag %c in %s", tag, fname);
+         fatal("design unit %s is from an earlier version of " PACKAGE
+               " and needs to be reanalysed", fname);
+      }
+   }
+
+   fbuf_close(f);
+
+   if (top == NULL)
+      fatal_trace("%s did not contain tree", fname);
+
+   LOCAL_TEXT_BUF path = lib_file_path(lib, fname);
+
+   struct stat st;
+   if (stat(tb_get(path), &st) < 0)
+      fatal_errno("%s", fname);
+
+   lib_mtime_t mt = lib_stat_mtime(&st);
+
+   return lib_put_aux(lib, top, false, mt, vu);
 }
 
 static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
@@ -661,19 +733,7 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    struct dirent *e;
    while ((e = readdir(d))) {
       if (strcmp(e->d_name, search) == 0) {
-         fbuf_t *f = lib_fbuf_open(lib, e->d_name, FBUF_IN);
-         tree_t top = tree_read(f, lib_get_qualified);
-         fbuf_close(f);
-
-         LOCAL_TEXT_BUF path = lib_file_path(lib, e->d_name);
-
-         struct stat st;
-         if (stat(tb_get(path), &st) < 0)
-            fatal_errno("%s", e->d_name);
-
-         lib_mtime_t mt = lib_stat_mtime(&st);
-
-         unit = lib_put_aux(lib, top, false, mt);
+         unit = lib_read_unit(lib, e->d_name);
          break;
       }
    }
@@ -692,39 +752,6 @@ static void lib_ensure_writable(lib_t lib)
 {
    if (lib->readonly)
       fatal("cannot write to read-only library %s", istr(lib->name));
-}
-
-bool lib_load_vcode(lib_t lib, ident_t unit_name)
-{
-   if (lib->lock_fd != -1)
-      file_read_lock(lib->lock_fd);
-
-   char *name LOCAL = vcode_file_name(unit_name);
-   fbuf_t *f = lib_fbuf_open(lib, name, FBUF_IN);
-   if (f != NULL) {
-      vcode_read(f);
-      fbuf_close(f);
-   }
-
-   if (lib->lock_fd != -1)
-      file_unlock(lib->lock_fd);
-   return f != NULL;
-}
-
-void lib_save_vcode(lib_t lib, vcode_unit_t vu, ident_t unit_name)
-{
-   lib_ensure_writable(lib);
-
-   if (lib->lock_fd != -1)
-      file_write_lock(lib->lock_fd);
-
-   char *name LOCAL = vcode_file_name(unit_name);
-   fbuf_t *fbuf = lib_fbuf_open(lib, name, FBUF_OUT);
-   vcode_write(vu, fbuf);
-   fbuf_close(fbuf);
-
-   if (lib->lock_fd != -1)
-      file_unlock(lib->lock_fd);
 }
 
 lib_mtime_t lib_mtime(lib_t lib, ident_t ident)
@@ -795,6 +822,28 @@ ident_t lib_name(lib_t lib)
    return lib->name;
 }
 
+static void lib_save_unit(lib_t lib, lib_unit_t *unit)
+{
+   const char *name = istr(tree_ident(unit->top));
+   fbuf_t *f = lib_fbuf_open(lib, name, FBUF_OUT);
+   if (f == NULL)
+      fatal("failed to create %s in library %s", name, istr(lib->name));
+
+   write_u8('T', f);
+   tree_write(unit->top, f);
+
+   if (unit->vcode != NULL) {
+      write_u8('V', f);
+      vcode_write(unit->vcode, f);
+   }
+
+   write_u8('\0', f);
+   fbuf_close(f);
+
+   assert(unit->dirty);
+   unit->dirty = false;
+}
+
 void lib_save(lib_t lib)
 {
    assert(lib != NULL);
@@ -804,16 +853,8 @@ void lib_save(lib_t lib)
    file_write_lock(lib->lock_fd);
 
    for (unsigned n = 0; n < lib->units.count; n++) {
-      if (lib->units.items[n].dirty) {
-         const char *name = istr(tree_ident(lib->units.items[n].top));
-         fbuf_t *f = lib_fbuf_open(lib, name, FBUF_OUT);
-         if (f == NULL)
-            fatal("failed to create %s in library %s", name, istr(lib->name));
-         tree_write(lib->units.items[n].top, f);
-         fbuf_close(f);
-
-         lib->units.items[n].dirty = false;
-      }
+      if (lib->units.items[n].dirty)
+         lib_save_unit(lib, &(lib->units.items[n]));
    }
 
    LOCAL_TEXT_BUF index_path = lib_file_path(lib, "_index");

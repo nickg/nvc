@@ -4,5 +4,3 @@ lib/synopsys/SYNOPSYS.ATTRIBUTES: lib/std/STD.STANDARD $(top_srcdir)/lib/synopsy
 
 lib/synopsys/_SYNOPSYS.ATTRIBUTES.so: lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/attributes.vhd
 
-lib/synopsys/_SYNOPSYS.ATTRIBUTES.vcode: lib/std/STD.STANDARD $(top_srcdir)/lib/synopsys/attributes.vhd
-

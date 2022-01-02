@@ -35,8 +35,7 @@ typedef enum {
    MAKE_TREE,
    MAKE_LIB,
    MAKE_SO,
-   MAKE_FINAL_SO,
-   MAKE_VCODE,
+   MAKE_FINAL_SO
 } make_product_t;
 
 typedef struct rule rule_t;
@@ -76,10 +75,6 @@ static const char *make_product(tree_t t, make_product_t product)
    switch (product) {
    case MAKE_TREE:
       checked_sprintf(buf, PATH_MAX, "%s/%s", path, istr(name));
-      break;
-
-   case MAKE_VCODE:
-      checked_sprintf(buf, PATH_MAX, "%s/_%s.vcode", path, istr(base));
       break;
 
    case MAKE_SO:
@@ -246,7 +241,6 @@ static void make_rule(tree_t t, rule_t **rules)
    case T_PACKAGE:
       if (!package_needs_body(t)) {
       case T_PACK_BODY:
-         make_rule_add_output(r, make_product(t, MAKE_VCODE));
          make_rule_add_output(r, make_product(t, MAKE_SO));
       }
       // Fall-through

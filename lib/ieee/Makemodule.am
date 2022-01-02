@@ -11,12 +11,7 @@ ieee_DATA = \
 	lib/ieee/IEEE.MATH_REAL \
 	lib/ieee/IEEE.MATH_REAL-body \
 	lib/ieee/IEEE.MATH_COMPLEX \
-	lib/ieee/IEEE.MATH_COMPLEX-body \
-	lib/ieee/_IEEE.NUMERIC_BIT.vcode \
-	lib/ieee/_IEEE.NUMERIC_STD.vcode \
-	lib/ieee/_IEEE.STD_LOGIC_1164.vcode \
-	lib/ieee/_IEEE.MATH_REAL.vcode \
-	lib/ieee/_IEEE.MATH_COMPLEX.vcode
+	lib/ieee/IEEE.MATH_COMPLEX-body
 
 ieee_so = \
 	lib/ieee/_IEEE.NUMERIC_STD.$(DLL_EXT) \
