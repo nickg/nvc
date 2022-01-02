@@ -67,8 +67,6 @@ static void setup_per_test(void)
 
    error_lines = NULL;
    set_error_fn(NULL);
-
-   vcode_drop_cache();
 }
 
 static void teardown_per_test(void)

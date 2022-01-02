@@ -251,7 +251,6 @@ vcode_unit_t vcode_find_unit(ident_t name);
 vcode_unit_t vcode_unit_next(vcode_unit_t unit);
 vcode_unit_t vcode_unit_child(vcode_unit_t unit);
 void vcode_unit_unref(vcode_unit_t unit);
-void vcode_drop_cache(void);
 
 void vcode_opt(void);
 void vcode_close(void);

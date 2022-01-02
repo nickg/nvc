@@ -2653,25 +2653,6 @@ static void vcode_registry_add(vcode_unit_t vu)
    hash_put(registry, vu->name, vu);
 }
 
-void vcode_drop_cache(void)
-{
-   if (registry == NULL)
-      return;
-
-#if 0
-   const void *key;
-   void *value;
-   hash_iter_t it = HASH_BEGIN;
-   while (hash_iter(registry, &it, &key, &value)) {
-      if (value != NULL)
-         vcode_unit_unref(value);
-   }
-#endif
-
-   hash_free(registry);
-   registry = NULL;
-}
-
 vcode_unit_t vcode_find_unit(ident_t name)
 {
    if (registry == NULL)

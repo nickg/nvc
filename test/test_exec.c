@@ -120,7 +120,7 @@ START_TEST(test_record1)
 
    exec_t *ex = exec_new(EVAL_FCALL);
 
-   eval_frame_t *pack1 = exec_link(ex, ident_new("WORK.PACK"));
+   eval_frame_t *pack1 = exec_link(ex, ident_new("WORK.PACK1"));
    fail_if(pack1 == NULL);
 
    eval_frame_t *pack2 = exec_link(ex, ident_new("WORK.PACK2"));
@@ -142,14 +142,14 @@ START_TEST(test_record2)
 
    exec_t *ex = exec_new(EVAL_FCALL);
 
-   eval_frame_t *pack1 = exec_link(ex, ident_new("WORK.PACK"));
-   fail_if(pack1 == NULL);
+   eval_frame_t *pack3 = exec_link(ex, ident_new("WORK.PACK3"));
+   fail_if(pack3 == NULL);
 
-   eval_frame_t *pack2 = exec_link(ex, ident_new("WORK.PACK2"));
-   fail_if(pack2 == NULL);
+   eval_frame_t *pack4 = exec_link(ex, ident_new("WORK.PACK4"));
+   fail_if(pack4 == NULL);
 
-   ident_t fn = ident_new("WORK.PACK2.SUM_FIELDS()I");
-   ck_assert_int_eq(exec_call(ex, fn, pack2, "").integer, 21);
+   ident_t fn = ident_new("WORK.PACK4.SUM_FIELDS()I");
+   ck_assert_int_eq(exec_call(ex, fn, pack4, "").integer, 21);
 
    exec_free(ex);
 }
@@ -164,14 +164,14 @@ START_TEST(test_record3)
 
    exec_t *ex = exec_new(EVAL_FCALL);
 
-   eval_frame_t *pack1 = exec_link(ex, ident_new("WORK.PACK"));
-   fail_if(pack1 == NULL);
+   eval_frame_t *pack5 = exec_link(ex, ident_new("WORK.PACK5"));
+   fail_if(pack5 == NULL);
 
-   eval_frame_t *pack2 = exec_link(ex, ident_new("WORK.PACK2"));
-   fail_if(pack2 == NULL);
+   eval_frame_t *pack6 = exec_link(ex, ident_new("WORK.PACK6"));
+   fail_if(pack6 == NULL);
 
-   ident_t fn = ident_new("WORK.PACK2.SUM_FIELDS()I");
-   ck_assert_int_eq(exec_call(ex, fn, pack2, "").integer, 55);
+   ident_t fn = ident_new("WORK.PACK6.SUM_FIELDS()I");
+   ck_assert_int_eq(exec_call(ex, fn, pack6, "").integer, 55);
 
    exec_free(ex);
 }

@@ -1,4 +1,4 @@
-package pack is
+package pack5 is
     type int_vector is array (natural range <>) of integer;
 
     type pair is record
@@ -19,19 +19,19 @@ package pack is
     constant r : rec;
 end package;
 
-package body pack is
+package body pack5 is
     constant r : rec := (1, 2, (3, 4, 5), ((6, 7), (8, 9)), 10);
 end package body;
 
 -------------------------------------------------------------------------------
 
-package pack2 is
+package pack6 is
     function sum_fields return integer;
 end package;
 
-use work.pack.all;
+use work.pack5.all;
 
-package body pack2 is
+package body pack6 is
     function sum_fields return integer is
         variable sum : integer := r.x + r.y + r.z;
     begin
