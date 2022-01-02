@@ -22,6 +22,7 @@
 #include "hash.h"
 #include "fbuf.h"
 #include "array.h"
+#include "type.h"
 
 #include <assert.h>
 #include <stdlib.h>

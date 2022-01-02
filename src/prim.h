@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2013-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@
 
 #include <stdint.h>
 #include <stddef.h>
-
 
 typedef struct _lib *lib_t;
 typedef struct _object object_t;
@@ -43,5 +42,8 @@ typedef struct _cover_tagging cover_tagging_t;
 
 typedef struct loc_wr_ctx loc_wr_ctx_t;
 typedef struct loc_rd_ctx loc_rd_ctx_t;
+
+typedef struct ident_wr_ctx *ident_wr_ctx_t;
+typedef struct ident_rd_ctx *ident_rd_ctx_t;
 
 #endif  // _PRIM_H

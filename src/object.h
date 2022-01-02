@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2013-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -63,7 +63,7 @@ typedef uint64_t imask_t;
 #define I_CLASS      ONE_HOT(26)
 #define I_RANGES     ONE_HOT(27)
 #define I_NAME       ONE_HOT(28)
-#define I_EOPT       ONE_HOT(29)
+// Unused            ONE_HOT(29)
 #define I_DVAL       ONE_HOT(30)
 #define I_SPEC       ONE_HOT(31)
 #define I_SCOPES     ONE_HOT(32)
@@ -103,7 +103,7 @@ typedef uint64_t imask_t;
                           | I_NAME | I_SPEC | I_RESOLUTION | I_CONSTR   \
                           | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
                           | I_ACCESS | I_RESULT | I_FILE | I_PARENT     \
-                          | I_EOPT | I_PRIMARY | I_GUARD)
+                          | I_PRIMARY | I_GUARD)
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_ELSES    \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \

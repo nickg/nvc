@@ -499,7 +499,7 @@ static int run(int argc, char **argv)
    if (top == NULL)
       fatal("%s not elaborated", istr(top_level));
 
-   e_node_t e = tree_eopt(top);
+   e_node_t e = lib_get_eopt(lib_work(), top);
 
    if (wave_fname != NULL) {
       const char *name_map[] = { "FST", "VCD" };

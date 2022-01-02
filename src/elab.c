@@ -21,6 +21,7 @@
 #include "loc.h"
 #include "array.h"
 #include "hash.h"
+#include "type.h"
 
 #include <ctype.h>
 #include <assert.h>

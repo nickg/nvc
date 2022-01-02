@@ -21,6 +21,7 @@
 #include "common.h"
 #include "json.h"
 #include "loc.h"
+#include "type.h"
 
 #include <assert.h>
 #include <string.h>

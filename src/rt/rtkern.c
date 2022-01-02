@@ -27,6 +27,7 @@
 #include "debug.h"
 #include "enode.h"
 #include "ffi.h"
+#include "type.h"
 
 #include <assert.h>
 #include <stdint.h>

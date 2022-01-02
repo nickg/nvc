@@ -68,4 +68,7 @@ void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context);
 void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu);
 vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit);
 
+void lib_put_eopt(lib_t lib, tree_t unit, e_node_t e);
+e_node_t lib_get_eopt(lib_t lib, tree_t unit);
+
 #endif // _LIB_H

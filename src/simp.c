@@ -22,6 +22,7 @@
 #include "exec.h"
 #include "hash.h"
 #include "vcode.h"
+#include "type.h"
 
 #include <assert.h>
 #include <string.h>

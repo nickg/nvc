@@ -19,6 +19,8 @@
 #include "enode.h"
 #include "util.h"
 #include "phase.h"
+#include "ident.h"
+#include "type.h"
 #include "common.h"
 
 #include <stdio.h>

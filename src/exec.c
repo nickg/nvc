@@ -23,6 +23,7 @@
 #include "hash.h"
 #include "vcode.h"
 #include "tree.h"
+#include "type.h"
 #include "phase.h"
 
 #include <assert.h>

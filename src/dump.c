@@ -19,6 +19,8 @@
 #include "util.h"
 #include "hash.h"
 #include "common.h"
+#include "ident.h"
+#include "type.h"
 
 #include <assert.h>
 #include <string.h>

@@ -22,6 +22,7 @@
 #include "common.h"
 #include "array.h"
 #include "loc.h"
+#include "type.h"
 
 #include <assert.h>
 #include <stdlib.h>

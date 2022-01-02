@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "common.h"
 #include "loc.h"
 #include "vcode.h"
+#include "enode.h"
 #include "array.h"
 
 #include <assert.h>
@@ -49,6 +50,7 @@ typedef struct {
    bool          dirty;
    lib_mtime_t   mtime;
    vcode_unit_t  vcode;
+   e_node_t      enode;
 } lib_unit_t;
 
 typedef A(lib_unit_t) unit_array_t;
@@ -258,7 +260,8 @@ static lib_index_t *lib_find_in_index(lib_t lib, ident_t name)
 }
 
 static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty,
-                               lib_mtime_t mtime, vcode_unit_t vu)
+                               lib_mtime_t mtime, vcode_unit_t vu,
+                               e_node_t enode)
 {
    assert(lib != NULL);
    assert(unit != NULL);
@@ -282,6 +285,7 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty,
    where->mtime = mtime;
    where->kind  = tree_kind(unit);
    where->vcode = vu;
+   where->enode = enode;
 
    lib_add_to_index(lib, name, tree_kind(unit));
 
@@ -616,7 +620,7 @@ void lib_put(lib_t lib, tree_t unit)
       fatal_errno("gettimeofday");
 
    lib_mtime_t usecs = ((lib_mtime_t)tv.tv_sec * 1000000) + tv.tv_usec;
-   lib_put_aux(lib, unit, true, usecs, NULL);
+   lib_put_aux(lib, unit, true, usecs, NULL, NULL);
 }
 
 static lib_unit_t *lib_find_unit(lib_t lib, tree_t unit)
@@ -638,6 +642,7 @@ void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu)
       fatal_trace("vcode already stored for %s", istr(tree_ident(unit)));
 
    where->vcode = vu;
+   where->dirty = true;
 }
 
 vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit)
@@ -648,6 +653,27 @@ vcode_unit_t lib_get_vcode(lib_t lib, tree_t unit)
       fatal_trace("vcode not stored for %s", istr(tree_ident(unit)));
 
    return where->vcode;
+}
+
+void lib_put_eopt(lib_t lib, tree_t unit, e_node_t e)
+{
+   lib_unit_t *where = lib_find_unit(lib, unit);
+
+   if (where->enode != NULL)
+      fatal_trace("eopt data already stored for %s", istr(tree_ident(unit)));
+
+   where->enode = e;
+   where->dirty = true;
+}
+
+e_node_t lib_get_eopt(lib_t lib, tree_t unit)
+{
+   lib_unit_t *where = lib_find_unit(lib, unit);
+
+   if (where->enode == NULL)
+      fatal_trace("eopt data not stored for %s", istr(tree_ident(unit)));
+
+   return where->enode;
 }
 
 static lib_mtime_t lib_stat_mtime(struct stat *st)
@@ -670,6 +696,8 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 
    vcode_unit_t vu = NULL;
    tree_t top = NULL;
+   e_node_t enode = NULL;
+
    char tag;
    while ((tag = read_u8(f))) {
       switch (tag) {
@@ -678,6 +706,9 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
          break;
       case 'V':
          vu = vcode_read(f, ident_ctx, loc_ctx);
+         break;
+      case 'E':
+         enode = e_read(f, ident_ctx, loc_ctx);
          break;
       default:
          // TODO: uncomment this error after 1.6 release
@@ -702,7 +733,7 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 
    lib_mtime_t mt = lib_stat_mtime(&st);
 
-   return lib_put_aux(lib, top, false, mt, vu);
+   return lib_put_aux(lib, top, false, mt, vu, enode);
 }
 
 static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
@@ -844,6 +875,11 @@ static void lib_save_unit(lib_t lib, lib_unit_t *unit)
    if (unit->vcode != NULL) {
       write_u8('V', f);
       vcode_write(unit->vcode, f, ident_ctx, loc_ctx);
+   }
+
+   if (unit->enode != NULL) {
+      write_u8('E', f);
+      e_write(unit->enode, f, ident_ctx, loc_ctx);
    }
 
    write_u8('\0', f);

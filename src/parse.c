@@ -21,6 +21,7 @@
 #include "common.h"
 #include "loc.h"
 #include "names.h"
+#include "type.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

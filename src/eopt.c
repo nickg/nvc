@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021  Nick Gasson
+//  Copyright (C) 2021-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 #include "cprop.h"
 #include "common.h"
 #include "hash.h"
+#include "type.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -910,6 +911,9 @@ e_node_t eopt_build(tree_t elab)
    assert(tree_kind(elab) == T_ELAB);
    assert(root == NULL);
 
+   freeze_global_arena();
+   e_make_arena();
+
    e_node_t e = root = e_new(E_ROOT);
    e_set_ident(e, tree_ident(elab));
 
@@ -928,7 +932,7 @@ e_node_t eopt_build(tree_t elab)
    cprop_vars_free(cprop_vars);
    cprop_vars = NULL;
 
-   tree_set_eopt(elab, e);
+   lib_put_eopt(lib_work(), elab, e);
 
    root = NULL;
    return e;

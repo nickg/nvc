@@ -2,6 +2,7 @@
 #include "tree.h"
 #include "util.h"
 #include "common.h"
+#include "type.h"
 
 #include <check.h>
 #include <stdlib.h>

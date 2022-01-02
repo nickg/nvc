@@ -81,7 +81,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PORTS | I_TYPE | I_FLAGS | I_IDENT2 | I_SUBKIND),
 
    // T_ELAB
-   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_EOPT),
+   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT),
 
    // T_AGGREGATE
    (I_TYPE | I_ASSOCS | I_FLAGS),
@@ -644,19 +644,6 @@ void tree_clear_flag(tree_t t, tree_flags_t mask)
    lookup_item(&tree_object, t, I_FLAGS)->ival &= ~mask;
 }
 
-e_node_t tree_eopt(tree_t t)
-{
-   item_t *item = lookup_item(&tree_object, t, I_EOPT);
-   assert(item->object != NULL);
-   return container_of(item->object, struct _e_node, object);
-}
-
-void tree_set_eopt(tree_t t, e_node_t e)
-{
-   lookup_item(&tree_object, t, I_EOPT)->object = &(e->object);
-   object_write_barrier(&(t->object), &(e->object));
-}
-
 tree_t tree_primary(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_PRIMARY);
@@ -1202,11 +1189,17 @@ const char *tree_kind_str(tree_kind_t t)
    return kind_text_map[t];
 }
 
+void freeze_global_arena(void)
+{
+   if (global_arena != NULL) {
+      object_arena_freeze(global_arena);
+      global_arena = NULL;
+   }
+}
+
 void make_new_arena(void)
 {
-   if (global_arena != NULL)
-      object_arena_freeze(global_arena);
-
+   freeze_global_arena();
    global_arena = object_arena_new(OBJECT_ARENA_SZ, standard());
 }
 

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021  Nick Gasson
+//  Copyright (C) 2021-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 
 #include "enode.h"
 #include "object.h"
+#include "common.h"
 
 #include <string.h>
 #include <inttypes.h>
@@ -69,7 +70,7 @@ object_class_t e_node_object = {
    .gc_num_roots   = 1
 };
 
-extern object_arena_t *global_arena;
+static object_arena_t *e_node_arena;
 
 struct _e_node {
    object_t object;
@@ -111,7 +112,7 @@ static inline void e_array_insert(item_t *item, e_node_t after, e_node_t new)
 
 e_node_t e_new(e_kind_t kind)
 {
-   return (e_node_t)object_new(global_arena, &e_node_object, kind);
+   return (e_node_t)object_new(e_node_arena, &e_node_object, kind);
 }
 
 e_kind_t e_kind(e_node_t e)
@@ -789,4 +790,30 @@ void e_dump(e_node_t e)
 {
    _e_dump(e, 0);
    printf("\n");
+}
+
+void e_make_arena(void)
+{
+   if (e_node_arena != NULL)
+      object_arena_freeze(e_node_arena);
+
+   e_node_arena = object_arena_new(OBJECT_ARENA_SZ, standard());
+}
+
+void e_write(e_node_t e, fbuf_t *fbuf, ident_wr_ctx_t ident_ctx,
+             loc_wr_ctx_t *loc_ctx)
+{
+   if (e_node_arena != NULL) {
+      object_arena_freeze(e_node_arena);
+      e_node_arena = NULL;
+   }
+
+   object_write(&(e->object), fbuf, ident_ctx, loc_ctx);
+}
+
+e_node_t e_read(fbuf_t *fbuf, ident_rd_ctx_t ident_ctx, loc_rd_ctx_t *loc_ctx)
+{
+   object_t *o = object_read(fbuf, NULL, ident_ctx, loc_ctx);
+   assert(o->tag == OBJECT_TAG_E_NODE);
+   return container_of(o, struct _e_node, object);
 }

@@ -21,6 +21,7 @@
 #include "common.h"
 #include "fstapi.h"
 #include "enode.h"
+#include "type.h"
 
 #include <assert.h>
 #include <unistd.h>
@@ -428,7 +429,7 @@ void fst_restart(void)
    if (fst_ctx == NULL)
       return;
 
-   e_node_t e_root = tree_eopt(fst_top);
+   e_node_t e_root = lib_get_eopt(lib_work(), fst_top);
    fst_walk_design(tree_stmt(fst_top, 0),
                    e_scope(e_root, e_scopes(e_root) - 1));
 

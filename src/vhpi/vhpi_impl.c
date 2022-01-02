@@ -37,6 +37,7 @@
 #include "common.h"
 #include "ctype.h"
 #include "enode.h"
+#include "type.h"
 #include "rt/rt.h"
 
 #include <string.h>
@@ -1498,7 +1499,7 @@ int vhpi_is_printable(char ch)
 void vhpi_load_plugins(tree_t top, const char *plugins)
 {
    top_level = top;
-   e_root    = tree_eopt(top);
+   e_root    = lib_get_eopt(lib_work(), top);
 
    if (handle_hash != NULL)
       hash_free(handle_hash);

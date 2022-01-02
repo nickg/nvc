@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021  Nick Gasson
+//  Copyright (C) 2021-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -49,9 +49,13 @@ e_node_t e_new(e_kind_t kind);
 e_kind_t e_kind(e_node_t e);
 const char *e_kind_str(e_kind_t t);
 void e_dump(e_node_t e);
+
+void e_make_arena(void);
+void e_write(e_node_t e, fbuf_t *fbuf, ident_wr_ctx_t ident_ctx,
+             loc_wr_ctx_t *loc_ctx);
+e_node_t e_read(fbuf_t *fbuf, ident_rd_ctx_t ident_ctx, loc_rd_ctx_t *loc_ctx);
+
 e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width);
-void e_write(e_node_t e, fbuf_t *fbuf);
-e_node_t e_read(fbuf_t *fbuf);
 void e_clean_nexus_array(e_node_t root);
 void e_collapse_port(e_node_t root, unsigned pos, e_node_t old, e_node_t port);
 

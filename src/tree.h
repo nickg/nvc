@@ -18,12 +18,10 @@
 #ifndef _TREE_H
 #define _TREE_H
 
-#include "lib.h"
-#include "ident.h"
 #include "prim.h"
-#include "type.h"
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum port_mode {
    PORT_INVALID,
@@ -338,6 +336,7 @@ void tree_change_kind(tree_t t, tree_kind_t kind);
 const char *tree_kind_str(tree_kind_t t);
 
 void make_new_arena(void);
+void freeze_global_arena(void);
 
 const loc_t *tree_loc(tree_t t);
 void tree_set_loc(tree_t t, const loc_t *loc);
@@ -479,9 +478,6 @@ void tree_add_char(tree_t t, tree_t ref);
 tree_flags_t tree_flags(tree_t t);
 void tree_set_flag(tree_t t, tree_flags_t mask);
 void tree_clear_flag(tree_t t, tree_flags_t mask);
-
-e_node_t tree_eopt(tree_t t);
-void tree_set_eopt(tree_t t, e_node_t e);
 
 tree_t tree_primary(tree_t t);
 bool tree_has_primary(tree_t t);

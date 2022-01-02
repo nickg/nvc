@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2020  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,9 +20,6 @@
 
 #include "lib.h"
 #include "prim.h"
-
-typedef struct ident_wr_ctx *ident_wr_ctx_t;
-typedef struct ident_rd_ctx *ident_rd_ctx_t;
 
 // Intern a string as an identifier.
 ident_t ident_new(const char *str);
