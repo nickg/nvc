@@ -57,4 +57,11 @@ begin
         b := my_int2'cake;              -- Error
     end process;
 
+    process is
+        type bad is range 1 to 2.0;     -- Error
+        type x is array (boolean) of boolean;
+        type bad2 is range x'range;  -- Error
+    begin
+    end process;
+
 end architecture;

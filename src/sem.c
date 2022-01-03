@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -76,7 +76,7 @@ static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_same_type(tree_t left, tree_t right);
 static bool sem_check_type(tree_t t, type_t expect);
 static bool sem_static_name(tree_t t, static_fn_t check_fn);
-static bool sem_check_range(tree_t r, type_t context);
+static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind);
 static bool sem_check_attr_ref(tree_t t, bool allow_range);
 static bool sem_check_array_dims(type_t type, type_t constraint);
 
@@ -225,7 +225,7 @@ static bool sem_check_constraint(tree_t constraint, type_t base)
 
    for (int i = 0; i < ndims; i++) {
       tree_t r = tree_range(constraint, i);
-      if (!sem_check_range(r, index_type_of(base, i)))
+      if (!sem_check_range(r, index_type_of(base, i), T_LAST_TYPE_KIND))
          return false;
    }
 
@@ -261,7 +261,7 @@ static bool sem_check_subtype(tree_t decl, type_t type)
    return true;
 }
 
-static bool sem_check_range(tree_t r, type_t expect)
+static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind)
 {
    assert(expect == NULL || !type_is_universal(expect));
 
@@ -277,6 +277,14 @@ static bool sem_check_range(tree_t r, type_t expect)
          if (expect && !sem_check_type(expr, expect))
             sem_error(expr, "expected type of range bound to be %s but is %s",
                       type_pp(expect), type_pp(tree_type(expr)));
+
+         if (kind != T_LAST_TYPE_KIND) {
+            assert(kind == T_INTEGER || kind == T_REAL);
+            if (type_base_kind(tree_type(expr)) != kind)
+               sem_error(expr, "type of range bounds must be of some %s type "
+                         "but have %s", kind == T_INTEGER ? "integer" : "real",
+                         type_pp(tree_type(expr)));
+         }
       }
       break;
 
@@ -291,11 +299,12 @@ static bool sem_check_range(tree_t r, type_t expect)
          if (!sem_check(right))
             return false;
 
-         if (!sem_check_same_type(left, right))
-            sem_error(right, "type mismatch in range: left is %s, right is %s",
-                      type_pp(tree_type(left)), type_pp(tree_type(right)));
-
          if (expect != NULL) {
+            if (!sem_check_same_type(left, right))
+               sem_error(right, "type mismatch in range: left is %s,"
+                         " right is %s", type_pp(tree_type(left)),
+                         type_pp(tree_type(right)));
+
             if (!sem_check_type(left, expect))
                sem_error(r, "expected type of range bounds to be %s but"
                          " have %s", type_pp(expect), type_pp(tree_type(left)));
@@ -306,6 +315,21 @@ static bool sem_check_range(tree_t r, type_t expect)
             sem_check_type(right, expect);
             sem_check_type(r, expect);
          }
+
+         if (kind != T_LAST_TYPE_KIND) {
+            // See LRM 93 section 3.1.2: Each bound of a range
+            // constraint that must be of some integer type, but the two
+            // bounds need not have the same integer type.
+            assert(kind == T_INTEGER || kind == T_REAL);
+            if (type_base_kind(tree_type(left)) != kind)
+               sem_error(left, "type of left bound must be of some %s type "
+                         "but have %s", kind == T_INTEGER ? "integer" : "real",
+                         type_pp(tree_type(left)));
+            else if (type_base_kind(tree_type(right)) != kind)
+               sem_error(right, "type of right bound must be of some %s type "
+                         "but have %s", kind == T_INTEGER ? "integer" : "real",
+                         type_pp(tree_type(right)));
+         }
       }
       break;
    }
@@ -315,7 +339,7 @@ static bool sem_check_range(tree_t r, type_t expect)
 
 static bool sem_check_discrete_range(tree_t r, type_t expect)
 {
-   if (!sem_check_range(r, expect ?: tree_type(r)))
+   if (!sem_check_range(r, expect ?: tree_type(r), T_LAST_TYPE_KIND))
       return false;
 
    type_t type = tree_type(r);
@@ -597,7 +621,7 @@ static bool sem_check_type_decl(tree_t t)
       {
          tree_t r = type_dim(type, 0);
 
-         if (!sem_check_range(r, NULL))
+         if (!sem_check_range(r, NULL, kind == T_PHYSICAL ? T_INTEGER : kind))
             return false;
 
          // Standard specifies type of 'LEFT and 'RIGHT are same

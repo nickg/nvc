@@ -24,6 +24,8 @@ START_TEST(test_integer)
       { 57, "MY_INT2 has no attribute CAKE" },
       { 20, "MY_INT1 does not match type of target MY_INT2" },
       { 30, "MY_INT1 does not match type of target MY_INT2_SUB" },
+      { 61, "right bound must be of some integer type but have universal" },
+      { 63, "range bounds must be of some integer type but have BOOLEAN" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -52,7 +54,7 @@ START_TEST(test_integer)
    t = tree_type(e);
    fail_unless(type_kind(t) == T_INTEGER);
 
-   fail_unless(tree_stmts(a) == 6);
+   fail_unless(tree_stmts(a) == 7);
 
    // Process 1
 
@@ -812,7 +814,7 @@ START_TEST(test_real)
    const error_t expect[] = {
       { 16, "type of value MY_REAL does not match type of target" },
       { 25, "conversion only allowed between closely related types" },
-      { 38, "type mismatch in range: left is INTEGER, right is REAL" },
+      { 38, "type of left bound must be of some real type but have INTEGER" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2364,6 +2366,16 @@ START_TEST(test_error1)
 }
 END_TEST
 
+START_TEST(test_tc251)
+{
+   input_from_file(TESTDIR "/sem/tc251.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2480,6 +2492,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_murax);
    tcase_add_test(tc_core, test_driving);
    tcase_add_test(tc_core, test_error1);
+   tcase_add_test(tc_core, test_tc251);
    suite_add_tcase(s, tc_core);
 
    return s;
