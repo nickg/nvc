@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
---  Copyright (C) 2012-2021  Nick Gasson
+--  Copyright (C) 2012-2022  Nick Gasson
 --
 --  This program is free software; you can redistribute it and/or modify
 --  it under the terms of the GNU Lesser General Public License as
@@ -239,9 +239,15 @@ package body textio is
     begin
         skip_whitespace(l);
 
-        if pos <= l.all'right and l.all(pos) = '-' then
-          pos := pos + 1;
-          is_negative := true;
+        if pos <= l.all'right then
+            case l.all(pos) is
+                when '-' =>
+                    pos := pos + 1;
+                    is_negative := true;
+                when '+' =>
+                    pos := pos + 1;
+                when others =>
+            end case;
         end if;
 
         while pos <= l.all'right loop
@@ -276,19 +282,26 @@ package body textio is
     procedure read (l     : inout line;
                     value : out real;
                     good  : out boolean ) is
-        variable prefix : integer;
-        variable result : real;
-        variable pgood : boolean;
-        variable digit : integer;
-        variable shift : real := 0.1;
-        variable pos : integer := 2;
+        variable whole    : integer;
+        variable exponent : integer;
+        variable result   : real;
+        variable digit    : integer;
+        variable shift    : real    := 0.1;
+        variable pos      : integer := 2;
+        variable sign     : character;
+        variable rgood    : boolean;
     begin
-        read(l, prefix, pgood);
-        if not pgood then
+        skip_whitespace(l);
+        if l.all'length > 0 and (l.all(1) = '-' or l.all(1) = '+') then
+            sign := l.all(1);
+            consume(l, 1);
+        end if;
+        read(l, whole, rgood);
+        if not rgood then
             good := false;
             return;
         end if;
-        result := real(prefix);
+        result := real(whole);
         good := true;
         if l.all'length > 0 and l.all(1) = '.' then
             while pos <= l.all'right loop
@@ -301,7 +314,21 @@ package body textio is
             good := pos > 2;
             consume(l, pos - 1);
         end if;
-        value := result;
+        if l.all'length > 0 and (l.all(1) = 'e' or l.all(1) = 'E') then
+            consume(l, 1);
+            read(l, exponent, rgood);
+            report integer'image(exponent);
+            if not rgood then
+                good := false;
+                return;
+            end if;
+            result := result * (10.0 ** exponent);
+        end if;
+        if sign = '-' then
+            value := -result;
+        else
+            value := result;
+        end if;
     end procedure;
 
     procedure read (l     : inout line;
