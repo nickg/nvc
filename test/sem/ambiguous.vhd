@@ -215,4 +215,12 @@ begin
     x <= '1' when y = z else '0';       -- OK
 end architecture;
 
+architecture expect_fail of e is
+    type t is (C, B, A);
+    type t_vec is array (1 to 2) of t;
+    -- Type of aggregate must be determinable from the context
+    constant x : boolean := (A, A) < (C, C);  -- Error
+begin
+end architecture;
+
 -- -*- coding: latin-1; -*-

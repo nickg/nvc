@@ -3025,7 +3025,6 @@ type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
    return type;
 }
 
-
 type_t solve_condition(nametab_t *tab, tree_t expr, type_t constraint)
 {
    type_set_push(tab);

@@ -187,6 +187,8 @@ START_TEST(test_ambiguous)
       { 141, "ambiguous use of operator \"<\"" },
       { 127, "candidate \"<\" [MY_INT, MY_INT return BOOLEAN]" },
       { 121, "candidate \"<\" [MY_INT, MY_INT return BOOLEAN]" },
+      { 222, "type of aggregate is ambiguous (T_VEC, STRING, BIT_VECTOR)" },
+      { 222, "type of aggregate is ambiguous (T_VEC, STRING, BIT_VECTOR)" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -246,7 +248,7 @@ START_TEST(test_ambiguous)
    fail_unless(type_ident(rhs) == ident_new("WORK.E-A.FOO"));
 
    parse_and_check(T_PACKAGE, T_PACKAGE, T_ARCH, T_ARCH, T_ARCH,
-                   T_ARCH, T_ARCH);
+                   T_ARCH, T_ARCH, T_ARCH);
 
    check_expected_errors();
 }
