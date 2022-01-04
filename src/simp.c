@@ -1025,7 +1025,8 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
    case T_QUALIFIED:
    case T_TYPE_CONV:
    case T_ASSERT:
-      simp_build_wait(wait, tree_value(expr), all);
+      if (tree_has_value(expr))
+         simp_build_wait(wait, tree_value(expr), all);
       break;
 
    case T_ARRAY_REF:
@@ -1054,7 +1055,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
          }
 
          const tree_kind_t kind = tree_kind(decl);
-         if (all && (kind == T_FUNC_BODY || kind == T_PROC_BODY))
+         if (all && kind == T_PROC_BODY)
             simp_build_wait(wait, decl, all);
       }
       break;
@@ -1099,7 +1100,6 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
    case T_PROCESS:
    case T_BLOCK:
    case T_PROC_BODY:
-   case T_FUNC_BODY:
       {
          const int nstmts = tree_stmts(expr);
          for (int i = 0; i < nstmts; i++)
