@@ -508,7 +508,6 @@ lib_t lib_require(ident_t name)
    if (lib == NULL) {
       LOCAL_TEXT_BUF tb = tb_new();
       lib_print_search_paths(tb);
-      show_stacktrace();
       fatal("required library %s not found in:%s", istr(name), tb_get(tb));
    }
 

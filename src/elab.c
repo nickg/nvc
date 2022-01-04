@@ -160,7 +160,7 @@ static void elab_find_arch_cb(lib_t lib, ident_t name, int kind, void *context)
    }
 }
 
-static tree_t elab_pick_arch(const loc_t *loc, tree_t entity, lib_t *new_lib,
+static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
                              const elab_ctx_t *ctx)
 {
    // When an explicit architecture name is not given select the most
@@ -177,9 +177,6 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity, lib_t *new_lib,
 
    if (arch == NULL)
       fatal_at(loc, "no suitable architecture for %s", istr(search_name));
-
-   if (new_lib != NULL)
-      *new_lib = lib;
 
    return arch;
 }
@@ -476,8 +473,7 @@ static bool elab_synth_binding_cb(lib_t lib, void *__ctx)
    return *(params->tree) == NULL;
 }
 
-static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
-                                   const elab_ctx_t *ctx)
+static tree_t elab_default_binding(tree_t inst, const elab_ctx_t *ctx)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
 
@@ -516,7 +512,7 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
       return NULL;
    }
 
-   tree_t arch = elab_pick_arch(tree_loc(comp), entity, new_lib, ctx);
+   tree_t arch = elab_pick_arch(tree_loc(comp), entity, ctx);
 
    // Check entity is compatible with component declaration
 
@@ -530,8 +526,7 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
    return arch;
 }
 
-static tree_t elab_binding(tree_t inst, tree_t spec, lib_t *new_lib,
-                           elab_ctx_t *ctx)
+static tree_t elab_binding(tree_t inst, tree_t spec, elab_ctx_t *ctx)
 {
    if (!tree_has_value(spec))
       return NULL;
@@ -544,7 +539,7 @@ static tree_t elab_binding(tree_t inst, tree_t spec, lib_t *new_lib,
       tree_t unit = tree_ref(bind);
       switch (tree_kind(unit)) {
       case T_ENTITY:
-         return elab_pick_arch(tree_loc(inst), unit, new_lib, ctx);
+         return elab_pick_arch(tree_loc(inst), unit, ctx);
       case T_CONFIGURATION:
          {
             tree_t copy = elab_copy(unit, ctx);
@@ -929,25 +924,23 @@ static void elab_fold_generics(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_instance(tree_t t, elab_ctx_t *ctx)
 {
-   lib_t new_lib = NULL;
    tree_t arch = NULL, config = NULL;
 
    tree_t ref = tree_ref(t);
    switch (tree_kind(ref)) {
    case T_ENTITY:
-      arch = elab_pick_arch(tree_loc(t), ref, &new_lib, ctx);
+      arch = elab_pick_arch(tree_loc(t), ref, ctx);
       break;
 
    case T_ARCH:
       arch = ref;
-      new_lib = lib_require(ident_until(tree_ident(ref), '.'));
       break;
 
    case T_COMPONENT:
       if (tree_has_spec(t))
-         arch = elab_binding(t, tree_spec(t), &new_lib, ctx);
+         arch = elab_binding(t, tree_spec(t), ctx);
       else
-         arch = elab_default_binding(t, &new_lib, ctx);
+         arch = elab_default_binding(t, ctx);
       break;
 
    case T_CONFIGURATION:
@@ -955,7 +948,6 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
          config = tree_decl(ref, 0);
          assert(tree_kind(config) == T_BLOCK_CONFIG);
          arch = tree_ref(config);
-         new_lib = lib_require(ident_until(tree_ident(ref), '.'));
       }
       break;
 
@@ -976,6 +968,8 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
    ident_t ninst = hpathf(ctx->inst, '@', "%s(%s)",
                           simple_name(istr(tree_ident2(arch))),
                           simple_name(istr(tree_ident(arch))));
+
+   lib_t new_lib = lib_require(ident_until(tree_ident(arch), '.'));
 
    elab_ctx_t new_ctx = {
       .out      = b,
@@ -1431,7 +1425,7 @@ tree_t elab(tree_t top)
    switch (tree_kind(top)) {
    case T_ENTITY:
       {
-         tree_t arch = elab_pick_arch(tree_loc(top), top, NULL, &ctx);
+         tree_t arch = elab_pick_arch(tree_loc(top), top, &ctx);
          elab_top_level(arch, &ctx);
       }
       break;
