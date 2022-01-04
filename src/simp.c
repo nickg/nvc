@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -995,8 +995,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
    case T_REF:
       {
          tree_t decl = tree_ref(expr);
-         tree_kind_t kind = tree_kind(decl);
-         if (kind == T_SIGNAL_DECL || kind == T_PORT_DECL || kind == T_ALIAS) {
+         if (class_of(decl) == C_SIGNAL) {
             // Check for duplicates
             const int ntriggers = tree_triggers(wait);
             for (int i = 0; i < ntriggers; i++) {
@@ -1011,11 +1010,13 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       break;
 
    case T_ARRAY_SLICE:
-      if (simp_longest_static_prefix(expr) == expr)
-         tree_add_trigger(wait, expr);
-      else {
-         simp_build_wait(wait, tree_value(expr), all);
-         simp_build_wait_for_target(wait, expr, all);
+      if (class_of(expr) == C_SIGNAL) {
+         if (simp_longest_static_prefix(expr) == expr)
+            tree_add_trigger(wait, expr);
+         else {
+            simp_build_wait(wait, tree_value(expr), all);
+            simp_build_wait_for_target(wait, expr, all);
+         }
       }
       break;
 
@@ -1028,11 +1029,13 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       break;
 
    case T_ARRAY_REF:
-      if (simp_longest_static_prefix(expr) == expr)
-         tree_add_trigger(wait, expr);
-      else {
-         simp_build_wait(wait, tree_value(expr), all);
-         simp_build_wait_for_target(wait, expr, all);
+      if (class_of(expr) == C_SIGNAL) {
+         if (simp_longest_static_prefix(expr) == expr)
+            tree_add_trigger(wait, expr);
+         else {
+            simp_build_wait(wait, tree_value(expr), all);
+            simp_build_wait_for_target(wait, expr, all);
+         }
       }
       break;
 
