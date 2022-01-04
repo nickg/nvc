@@ -431,7 +431,7 @@ static void dump_generics(tree_t t, int indent)
       syntax("#generic (");
       if (ngenerics > 1) {
          printf("\n");
-         for (unsigned i = 0; i < ngenerics; i++) {
+         for (int i = 0; i < ngenerics; i++) {
             if (i > 0) printf(";\n");
             dump_port(tree_generic(t, i), indent + 2);
          }
@@ -763,7 +763,7 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_COMPONENT:
-      syntax("#component %s is\n", istr(tree_ident(t)));
+      syntax("#component %s #is\n", istr(tree_ident(t)));
       dump_generics(t, indent + 2);
       if (tree_ports(t) > 0) {
          syntax("    #port (\n");
@@ -1139,6 +1139,11 @@ static void dump_port(tree_t t, int indent)
    }
    syntax("#%s %s : #%s ", class, istr(tree_ident(t)), dir);
    dump_type(tree_type(t));
+
+   if (tree_has_value(t)) {
+      printf(" := ");
+      dump_expr(tree_value(t));
+   }
 }
 
 static void dump_context(tree_t t)

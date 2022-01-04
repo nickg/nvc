@@ -43,7 +43,6 @@ struct imp_signal {
 typedef struct {
    imp_signal_t *imp_signals;
    tree_t        top;
-   ident_t       prefix;
    exec_t       *exec;
    tree_flags_t  eval_mask;
    hash_t       *generics;
@@ -1675,7 +1674,6 @@ void simplify_local(tree_t top)
    simp_ctx_t ctx = {
       .imp_signals = NULL,
       .top         = top,
-      .prefix      = ident_runtil(tree_ident(top), '-'),
       .exec        = exec_new(0),
       .eval_mask   = TREE_F_LOCALLY_STATIC,
    };
@@ -1702,7 +1700,6 @@ void simplify_global(tree_t top, hash_t *generics)
    simp_ctx_t ctx = {
       .imp_signals = NULL,
       .top         = top,
-      .prefix      = ident_runtil(tree_ident(top), '-'),
       .exec        = exec_new(EVAL_FCALL),
       .eval_mask   = TREE_F_GLOBALLY_STATIC | TREE_F_LOCALLY_STATIC,
       .generics    = generics,

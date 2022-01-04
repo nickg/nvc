@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -810,7 +810,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
    for (int i = 0; i < ngenerics; i++) {
       tree_t eg = tree_generic(entity, i), cg = eg;
       unsigned pos = i;
-      tree_t map = NULL;
+      tree_t map = NULL, bind_expr = NULL;
 
       if (entity != comp) {
          const int ngenerics_comp = tree_generics(comp);
@@ -846,15 +846,8 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                   }
                }
 
-               if (tree_subkind(m) == P_POS)
-                  map = m;
-               else {
-                  map = tree_new(T_PARAM);
-                  tree_set_loc(map, tree_loc(m));
-                  tree_set_subkind(map, P_POS);
-                  tree_set_pos(map, i);
-                  tree_set_value(map, value);
-               }
+               bind_expr = value;
+               break;
             }
          }
       }
@@ -892,6 +885,21 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          tree_set_subkind(map, P_POS);
          tree_set_pos(map, i);
          tree_set_value(map, tree_value(cg));
+      }
+
+      if (map == NULL && bind_expr != NULL) {
+         map = tree_new(T_PARAM);
+         tree_set_loc(map, tree_loc(cg));
+         tree_set_subkind(map, P_POS);
+         tree_set_pos(map, i);
+         tree_set_value(map, bind_expr);
+      }
+      else if (bind_expr != NULL) {
+         // The binding expression may contain references to component
+         // generics that need to be folded
+         hash_put(ctx->generics, cg, tree_value(map));
+         tree_set_value(map, bind_expr);
+         simplify_global(map, ctx->generics);
       }
 
       if (map == NULL) {
