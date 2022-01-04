@@ -886,11 +886,12 @@ START_TEST(test_static)
    input_from_file(TESTDIR "/sem/static.vhd");
 
    const error_t expect[] = {
-      { 36, "case choice must be locally static" },
-      { 42, "case choice must be locally static" },
-      { 65, "with port X of mode IN must be a globally static" },
-      { 85, "formal name must be locally static" },
-      { -1, NULL }
+      {  36, "case choice must be locally static" },
+      {  42, "case choice must be locally static" },
+      { 104, "no visible subprogram declaration for BAD_FUNC" },
+      {  65, "with port X of mode IN must be a globally static" },
+      {  85, "formal name must be locally static" },
+      {  -1, NULL }
    };
    expect_errors(expect);
 

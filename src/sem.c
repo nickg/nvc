@@ -3809,7 +3809,9 @@ static bool sem_locally_static(tree_t t)
 
    // A function call of an implicit operator with locally static actuals
    if (kind == T_FCALL) {
-      if (!is_builtin(tree_subkind(tree_ref(t))))
+      if (!tree_has_ref(t))
+         return true;  // Suppress further errors
+      else if (!is_builtin(tree_subkind(tree_ref(t))))
          return false;
 
       bool all_static = true;

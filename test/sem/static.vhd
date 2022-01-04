@@ -100,4 +100,10 @@ begin
     begin
     end process;
 
+    p2: process is
+        constant n : integer := bad_func(2);    -- Error
+        subtype t is integer range 0 to n - 1;  -- Crash in sem_locally_static
+    begin
+    end process;
+
 end architecture;
