@@ -7,9 +7,9 @@ Status](https://github.com/nickg/nvc/workflows/Build%20and%20test/badge.svg?bran
 NVC is a [VHDL](https://en.wikipedia.org/wiki/VHDL) compiler and
 simulator.
 
-NVC is currently under active development but VHDL-2002 support is
-largely complete and it has been successfully used to simulate several
-real-world designs.
+NVC supports almost all of VHDL-2002 and it has been successfully used
+to simulate several real-world designs.  Experimental support for
+VHDL-2008 is under development.
 
 NVC has a particular emphasis on simulation performance and uses
 [LLVM](https://llvm.org/) to compile VHDL to native machine code.
@@ -173,27 +173,9 @@ default standard in NVC is VHDL-93 as this remains the most widely used
 in the industry.  The default can be changed with the `--std` argument.
 For example `--std=2008` selects the VHDL-2008 standard.
 
-##### VHDL-1987
-
-Not supported.  Although it is trivial to replace legacy constructs with
-VHDL-1993 equivalents.
-
-##### VHDL-1993
-
-Mostly supported with a few exceptions:
-* No support for `buffer` ports.
-
+The 1993, 2000, and 2002 revisions of the standard are fully supported.
 Please raise bugs for any missing or incorrectly implemented features
 you encounter.
-
-##### VHDL-2000
-
-This revision added protected types which are fully supported.
-
-##### VHDL-2002
-
-The only significant change in VHDL-2002 was to the behaviour of
-`buffer` ports which are currently not implemented.
 
 ##### VHDL-2008
 

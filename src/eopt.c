@@ -589,6 +589,9 @@ static void eopt_port_decl(tree_t port, ident_t suffix, e_node_t cursor)
    eopt_nexus_for_type(e, type, NULL);
    eopt_guarded_signal(e, port);
 
+   if (tree_subkind(port) == PORT_BUFFER)
+      e_set_flag(e, E_F_BUFFER);
+
    e_add_signal(cursor, e);
 }
 
@@ -823,8 +826,14 @@ static void eopt_post_process_nexus(e_node_t root)
          const int nsignals = e_signals(n);
          for (int i = 0; i < nsignals; i++) {
             e_node_t s = e_signal(n, i);
-            if (!(e_flags(s) & E_F_RESOLVED)) {
+            const e_flags_t flags = e_flags(s);
+            if (!(flags & E_F_RESOLVED)) {
                eopt_report_multiple_sources(n);
+               break;
+            }
+            else if (flags & E_F_BUFFER) {
+               error_at(e_loc(s), "buffer port %s may have at most one source "
+                        "but found %d", istr(e_ident(s)), nunique);
                break;
             }
          }

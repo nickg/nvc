@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021  Nick Gasson
+//  Copyright (C) 2021-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -965,6 +965,22 @@ START_TEST(test_pcall2)
 }
 END_TEST
 
+START_TEST(test_buffer1)
+{
+   input_from_file(TESTDIR "/eopt/buffer1.vhd");
+
+   const error_t expect[] = {
+      {  9, "buffer port X may have at most one source but found 2" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   run_eopt();
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_eopt_tests(void)
 {
    Suite *s = suite_create("eopt");
@@ -996,6 +1012,7 @@ Suite *get_eopt_tests(void)
    tcase_add_test(tc, test_source1);
    tcase_add_test(tc, test_issue427);
    tcase_add_test(tc, test_pcall2);
+   tcase_add_test(tc, test_buffer1);
    suite_add_tcase(s, tc);
 
    return s;
