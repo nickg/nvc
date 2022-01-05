@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2021  Nick Gasson
+//  Copyright (C) 2014-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -3126,7 +3126,7 @@ static vcode_reg_t lower_default_value(type_t type, bool nested)
    if (type_is_scalar(type))
       return lower_range_left(range_of(type, 0));
    else if (type_is_array(type)) {
-      vcode_reg_t elem_reg = lower_default_value(type_elem(type), true);
+      vcode_reg_t elem_reg = lower_default_value(lower_elem_recur(type), true);
       if (lower_const_bounds(type)) {
          const int size = lower_array_const_size(type);
          vcode_reg_t *values LOCAL = xmalloc_array(size, sizeof(vcode_reg_t));
@@ -4733,7 +4733,7 @@ static void lower_sub_signals(type_t type, tree_t where, vcode_reg_t subsig,
       vcode_select_block(body_bb);
 
       vcode_reg_t ptr_reg = emit_add(subsig, i_reg);
-      vcode_reg_t data_reg = lower_array_data(init_reg);
+      vcode_reg_t data_reg = emit_add(lower_array_data(init_reg), i_reg);
       lower_sub_signals(type_elem(type), where, ptr_reg, data_reg, resolution);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);

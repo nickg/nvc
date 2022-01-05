@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021  Nick Gasson
+//  Copyright (C) 2021-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -685,6 +685,7 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_COVER_COND:
          case VCODE_OP_COVER_STMT:
          case VCODE_OP_PROTECTED_FREE:
+         case VCODE_OP_DEBUG_OUT:
             break;
 
          case VCODE_OP_RESOLVED:

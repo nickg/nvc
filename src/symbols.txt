@@ -9,6 +9,7 @@
   _canon_value;
   _convert_signal;
   _debug_dump;
+  _debug_out;
   _disconnect;
   _div_zero;
   _driving;
