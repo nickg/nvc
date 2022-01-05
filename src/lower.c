@@ -1267,7 +1267,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
          vcode_reg_t length = VCODE_INVALID_REG;
          vcode_reg_t data   = r1;
          if (type_is_array(r1_type)) {
-            length = lower_array_len(r1_type, 0, r1);
+            length = lower_array_total_len(r1_type, r1);
             data   = lower_array_data(r1);
          }
          emit_file_write(r0, data, length);
@@ -1280,7 +1280,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
       {
          vcode_reg_t inlen = VCODE_INVALID_REG;
          if (type_is_array(r1_type))
-            inlen = lower_array_len(r1_type, 0, r1);
+            inlen = lower_array_total_len(r1_type, r1);
 
          vcode_reg_t outlen = VCODE_INVALID_REG;
          if (tree_params(fcall) == 3)
