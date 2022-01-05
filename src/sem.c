@@ -1181,6 +1181,7 @@ static bool sem_check_sensitivity(tree_t t)
       switch (tree_kind(decl)) {
       case T_SIGNAL_DECL:
       case T_PORT_DECL:
+      case T_IMPLICIT_SIGNAL:
          break;
       default:
          sem_error(r, "name %s in sensitivity list is not a signal",
@@ -3924,6 +3925,7 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          case T_PROCESS:
          case T_BLOCK:
          case T_ENUM_LIT:
+         case T_IMPLICIT_SIGNAL:
             return true;
          case T_ALIAS:
             return sem_static_name(tree_value(decl), check_fn);
