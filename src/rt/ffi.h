@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021  Nick Gasson
+//  Copyright (C) 2021-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -53,6 +53,22 @@ typedef struct {
 } ffi_closure_t;
 
 STATIC_ASSERT(sizeof(ffi_closure_t) == 24);
+
+// The code generator knows the layout of this struct
+typedef struct {
+   void *ptr;
+   struct {
+      int32_t left;
+      int32_t length;
+   } dims[1];
+} ffi_uarray_t;
+
+STATIC_ASSERT(sizeof(ffi_uarray_t) == 16);
+
+// Macro to generate the correct calling convention for LLVM by-value
+// uarray aggregates
+#define EXPLODED_UARRAY(name) \
+   void *name##_ptr, int32_t name##_left, int32_t name##_length
 
 void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
               void *output, size_t outsz);

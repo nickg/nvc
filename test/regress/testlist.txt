@@ -450,3 +450,4 @@ textio7         normal
 vests28         normal
 vests29         normal
 vests30         normal
+vests31         normal

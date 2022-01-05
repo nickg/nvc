@@ -67,9 +67,8 @@ void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
       }
       else if (c->spec.rtype == FFI_FLOAT) {
          double (*fn)(void *, int64_t) = c->fn;
-         const double r = (*fn)(c->context, arg);
          assert(outsz == sizeof(double));
-         *(double *)output = r;
+         *(double *)output = (*fn)(c->context, arg);
       }
       else if (c->spec.rtype == FFI_POINTER) {
          void *(*fn)(void *, int64_t) = c->fn;
@@ -86,9 +85,9 @@ void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
    }
    else if (c->spec.atype == FFI_FLOAT && c->spec.rtype == FFI_FLOAT) {
       double (*fn)(void *, double) = c->fn;
-      const double r = (*fn)(c->context, *(double *)input);
+      assert(insz == sizeof(double));
       assert(outsz == sizeof(double));
-      memcpy(output, &r, outsz);
+      *(double *)output = (*fn)(c->context, *(double *)input);
    }
    else if (c->spec.atype == FFI_POINTER && ffi_is_integral(c->spec.rtype)) {
       int64_t (*fn)(void *, const void *) = c->fn;
@@ -99,6 +98,29 @@ void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
       int64_t (*fn)(void *) = c->fn;
       const int64_t r = (*fn)(c->context);
       ffi_store_int(c->spec.rtype, r, output, outsz);
+   }
+   else if (c->spec.atype == FFI_UARRAY && ffi_is_integral(c->spec.rtype)) {
+      int64_t (*fn)(void *, EXPLODED_UARRAY(arg)) = c->fn;
+      assert(insz == sizeof(ffi_uarray_t));
+      const ffi_uarray_t *u = input;
+      const int64_t r = (*fn)(c->context, u->ptr, u->dims[0].left,
+                              u->dims[0].length);
+      ffi_store_int(c->spec.rtype, r, output, outsz);
+   }
+   else if (c->spec.atype == FFI_UARRAY && c->spec.rtype == FFI_FLOAT) {
+      double (*fn)(void *, EXPLODED_UARRAY(arg)) = c->fn;
+      assert(insz == sizeof(ffi_uarray_t));
+      assert(outsz == sizeof(double));
+      const ffi_uarray_t *u = input;
+      *(double *)output = (*fn)(c->context, u->ptr, u->dims[0].left,
+                                u->dims[0].length);
+   }
+   else if (c->spec.atype == FFI_UARRAY && c->spec.rtype == FFI_POINTER) {
+      void *(*fn)(void *, EXPLODED_UARRAY(arg)) = c->fn;
+      assert(insz == sizeof(ffi_uarray_t));
+      const ffi_uarray_t *u = input;
+      void *r = (*fn)(c->context, u->ptr, u->dims[0].left, u->dims[0].length);
+      memcpy(output, r, outsz);
    }
    else
       fatal_trace("unhandled FFI function argument combination");

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -67,12 +67,10 @@ typedef struct image_map     image_map_t;
 typedef struct rt_loc        rt_loc_t;
 typedef struct rt_nexus_s    rt_nexus_t;
 typedef struct rt_scope_s    rt_scope_t;
-typedef struct uarray        uarray_t;
 typedef struct rt_source_s   rt_source_t;
 typedef struct rt_implicit_s rt_implicit_t;
 
 typedef void *(*proc_fn_t)(void *, rt_scope_t *);
-typedef uint64_t (*resolution_fn_t)(void *, void *, int32_t, int32_t);
 
 typedef enum {
    W_PROC, W_WATCH, W_IMPLICIT
@@ -151,12 +149,11 @@ typedef struct {
 } rt_resolution_t;
 
 typedef struct {
-   resolution_fn_t  fn;
-   void            *context;
-   res_flags_t      flags;
-   int32_t          ileft;
-   int8_t           tab2[16][16];
-   int8_t           tab1[16];
+   ffi_closure_t closure;
+   res_flags_t   flags;
+   int32_t       ileft;
+   int8_t        tab2[16][16];
+   int8_t        tab1[16];
 } res_memo_t;
 
 typedef enum {
@@ -237,15 +234,6 @@ typedef struct rt_scope_s {
    void         *privdata;
    rt_scope_t   *parent;
 } rt_scope_t;
-
-// The code generator knows the layout of this struct
-typedef struct uarray {
-   void *ptr;
-   struct {
-      int32_t left;
-      int32_t length;
-   } dims[1];
-} uarray_t;
 
 typedef struct {
    event_t **queue;
@@ -370,11 +358,6 @@ static void _tracef(const char *fmt, ...);
 #else
 #define RT_ASSERT(x)
 #endif
-
-// Macro to generate the correct calling convention for LLVM by-value
-// uarray aggregates
-#define EXPLODED_UARRAY(name) \
-   void *name##_ptr, int32_t name##_left, int32_t name##_length
 
 #define TRACE(...) do {                                 \
       if (unlikely(trace_on)) _tracef(__VA_ARGS__);     \
@@ -574,21 +557,21 @@ static void rt_msg(const rt_loc_t *where, rt_msg_fn_t fn, const char *fmt, ...)
    (*fn)("%s%s", buf, tb_get(trace));
 }
 
-static size_t uarray_len(const uarray_t *u)
+static size_t uarray_len(const ffi_uarray_t *u)
 {
    return abs(u->dims[0].length);
 }
 
-static uarray_t wrap_str(char *buf, size_t len)
+static ffi_uarray_t wrap_str(char *buf, size_t len)
 {
-   uarray_t u = {
+   ffi_uarray_t u = {
       .ptr = buf,
       .dims = { [0] = { .left = 1, .length = len } }
    };
    return u;
 }
 
-static uarray_t bit_vec_to_string(const uarray_t *vec, int log_base)
+static ffi_uarray_t bit_vec_to_string(const ffi_uarray_t *vec, int log_base)
 {
    const size_t vec_len = uarray_len(vec);
    const size_t result_len = (vec_len + log_base - 1) / log_base;
@@ -983,7 +966,7 @@ void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
 }
 
 DLLEXPORT
-void _canon_value(const uint8_t *raw_str, int32_t str_len, uarray_t *u)
+void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
 {
    char *buf = rt_tmp_alloc(str_len), *p = buf;
    int pos = 0;
@@ -1011,7 +994,7 @@ void _canon_value(const uint8_t *raw_str, int32_t str_len, uarray_t *u)
 }
 
 DLLEXPORT
-void _int_to_string(int64_t value, uarray_t *u)
+void _int_to_string(int64_t value, ffi_uarray_t *u)
 {
    char *buf = rt_tmp_alloc(20);
    size_t len = checked_sprintf(buf, 20, "%"PRIi64, value);
@@ -1020,7 +1003,7 @@ void _int_to_string(int64_t value, uarray_t *u)
 }
 
 DLLEXPORT
-void _real_to_string(double value, uarray_t *u)
+void _real_to_string(double value, ffi_uarray_t *u)
 {
    char *buf = rt_tmp_alloc(32);
    size_t len = checked_sprintf(buf, 32, "%.*g", 17, value);
@@ -1129,7 +1112,7 @@ int64_t _std_standard_now(void)
 }
 
 DLLEXPORT
-void _std_to_string_time(int64_t value, int64_t unit, uarray_t *u)
+void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
 {
    const char *unit_str = "";
    switch (unit) {
@@ -1161,7 +1144,7 @@ void _std_to_string_time(int64_t value, int64_t unit, uarray_t *u)
 }
 
 DLLEXPORT
-void _std_to_string_real_digits(double value, int32_t digits, uarray_t *u)
+void _std_to_string_real_digits(double value, int32_t digits, ffi_uarray_t *u)
 {
    size_t max_len = 32;
    char *buf = rt_tmp_alloc(max_len);
@@ -1176,7 +1159,7 @@ void _std_to_string_real_digits(double value, int32_t digits, uarray_t *u)
 }
 
 DLLEXPORT
-void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt), uarray_t *u)
+void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt), ffi_uarray_t *u)
 {
    char *LOCAL fmt_cstr = xmalloc(fmt_length + 1);
    memcpy(fmt_cstr, fmt_ptr, fmt_length);
@@ -1207,16 +1190,16 @@ void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt), uarray_t *u)
 }
 
 DLLEXPORT
-void _std_to_hstring_bit_vec(EXPLODED_UARRAY(vec), uarray_t *u)
+void _std_to_hstring_bit_vec(EXPLODED_UARRAY(vec), ffi_uarray_t *u)
 {
-   const uarray_t vec = { vec_ptr, { { vec_left, vec_length } } };
+   const ffi_uarray_t vec = { vec_ptr, { { vec_left, vec_length } } };
    *u = bit_vec_to_string(&vec, 4);
 }
 
 DLLEXPORT
-void _std_to_ostring_bit_vec(EXPLODED_UARRAY(vec), uarray_t *u)
+void _std_to_ostring_bit_vec(EXPLODED_UARRAY(vec), ffi_uarray_t *u)
 {
-   const uarray_t vec = { vec_ptr, { { vec_left, vec_length } } };
+   const ffi_uarray_t vec = { vec_ptr, { { vec_left, vec_length } } };
    *u = bit_vec_to_string(&vec, 3);
 }
 
@@ -1639,12 +1622,11 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
       return memo;
 
    memo = xmalloc(sizeof(res_memo_t));
-   memo->fn      = resolution->closure.fn;
-   memo->context = resolution->closure.context;
+   memo->closure = resolution->closure;
    memo->flags   = resolution->flags;
    memo->ileft   = resolution->ileft;
 
-   hash_put(res_memo_hash, memo->fn, memo);
+   hash_put(res_memo_hash, memo->closure.fn, memo);
 
    if (resolution->nlits == 0 || resolution->nlits > 16)
       return memo;
@@ -1656,7 +1638,8 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
    for (int i = 0; i < resolution->nlits; i++) {
       for (int j = 0; j < resolution->nlits; j++) {
          int8_t args[2] = { i, j };
-         memo->tab2[i][j] = (*memo->fn)(memo->context, args, memo->ileft, 2);
+         ffi_uarray_t u = { args, { { memo->ileft, 2 } } };
+         ffi_call(&(memo->closure), &u, sizeof(u), &(memo->tab2[i][j]), 1);
          RT_ASSERT(memo->tab2[i][j] < resolution->nlits);
       }
    }
@@ -1667,7 +1650,8 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
    bool identity = true;
    for (int i = 0; i < resolution->nlits; i++) {
       int8_t args[1] = { i };
-      memo->tab1[i] = (*memo->fn)(memo->context, args, memo->ileft, 1);
+      ffi_uarray_t u = { args, { { memo->ileft, 1 } } };
+      ffi_call(&(memo->closure), &u, sizeof(u), &(memo->tab1[i]), 1);
       identity = identity && (memo->tab1[i] == i);
    }
 
@@ -2198,7 +2182,8 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
       // Call resolution function of composite type
 
       rt_signal_t *s0 = nexus->signals[0];
-      uint8_t *inputs = rt_resolution_buffer(nonnull * s0->size);
+      uint8_t *inputs LOCAL = xmalloc(nonnull * s0->size);
+      void *resolved = rt_resolution_buffer(s0->size);
 
       size_t offset = 0, result_offset = 0;
       for (unsigned i = 0; i < s0->n_nexus; i++) {
@@ -2225,10 +2210,11 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
       }
 
       const int32_t left = nexus->resolution->ileft;
-      void *priv = nexus->resolution->context;
-      uint8_t *result =
-         (uint8_t *)(*nexus->resolution->fn)(priv, inputs, left, nonnull);
-      return result + result_offset;
+      ffi_uarray_t u = { inputs, { { left, nonnull } } };
+      ffi_call(&(nexus->resolution->closure), &u, sizeof(u),
+               resolved, s0->size);
+
+      return resolved + result_offset;
    }
    else {
       void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
@@ -2244,8 +2230,9 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
             }                                                           \
             type *r = (type *)resolved;                                 \
             const int32_t left = nexus->resolution->ileft;              \
-            void *priv = nexus->resolution->context;                    \
-            r[j] = (*nexus->resolution->fn)(priv, vals, left, nonnull); \
+            ffi_uarray_t u = { vals, { { left, nonnull } } };           \
+            ffi_call(&(nexus->resolution->closure), &u, sizeof(u),      \
+                     &(r[j]), sizeof(r[j]));                            \
          } while (0)
 
          FOR_ALL_SIZES(nexus->size, CALL_RESOLUTION_FN);
