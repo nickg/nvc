@@ -416,19 +416,23 @@ static bool sem_check_context_clause(tree_t t)
 
 static bool sem_readable(tree_t t)
 {
-   // Outputs may be read in LRM 08
-   if (standard() >= STD_08)
-      return true;
-
    switch (tree_kind(t)) {
    case T_REF:
       {
          tree_t decl = tree_ref(t);
-         if ((tree_kind(decl) == T_PORT_DECL)
-             && (tree_subkind(decl) == PORT_OUT)
-             && !(top_scope->flags & SCOPE_FORMAL))
-            sem_error(t, "cannot read output port %s",
-                      istr(tree_ident(t)));
+         if (tree_kind(decl) == T_PORT_DECL) {
+            if (top_scope->flags & SCOPE_FORMAL)
+               return true;   // Port name appearing in formal
+
+            const port_mode_t mode = tree_subkind(decl);
+            if (mode == PORT_OUT && standard() < STD_08)
+               sem_error(t, "cannot read output port %s",
+                         istr(tree_ident(t)));
+            else if (mode == PORT_LINKAGE)
+               sem_error(t, "linkage port %s may not be read except as "
+                         "an actual corresponding to an interface of mode "
+                         "linkage", istr(tree_ident(t)));
+         }
 
          return true;
       }
@@ -870,8 +874,7 @@ static bool sem_check_port_decl(tree_t t)
       if (!sem_check(value))
          return false;
 
-      port_mode_t mode = tree_subkind(t);
-      if (mode == PORT_LINKAGE)
+      if (tree_subkind(t) == PORT_LINKAGE)
          sem_error(t, "port with mode LINKAGE cannot have a default value");
 
       if (!sem_check_type(value, type))
@@ -1770,11 +1773,18 @@ static bool sem_check_signal_target(tree_t target)
          sem_error(target, "implicit signal may not be assigned");
 
       case T_PORT_DECL:
-         if (tree_subkind(decl) == PORT_IN)
-            sem_error(target, "cannot assign to input port %s",
-                      istr(tree_ident(decl)));
-         else if (tree_class(decl) != C_SIGNAL)
-            sem_error(target, "target of signal assignment is not a signal");
+         {
+            const port_mode_t mode = tree_subkind(decl);
+            if (mode == PORT_IN)
+               sem_error(target, "cannot assign to input port %s",
+                         istr(tree_ident(decl)));
+            else if (mode == PORT_LINKAGE)
+               sem_error(target, "linkage port %s may not be updated except as "
+                         "an actual corresponding to an interface of mode "
+                         "linkage", istr(tree_ident(decl)));
+            else if (tree_class(decl) != C_SIGNAL)
+               sem_error(target, "target of signal assignment is not a signal");
+         }
          break;
 
       case T_VAR_DECL:

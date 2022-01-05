@@ -2379,6 +2379,23 @@ START_TEST(test_tc251)
 }
 END_TEST
 
+START_TEST(test_linkage)
+{
+   input_from_file(TESTDIR "/sem/linkage.vhd");
+
+   const error_t expect[] = {
+      {  8, "linkage port X may not be updated except" },
+      {  9, "linkage port X may not be read except" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2496,6 +2513,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_driving);
    tcase_add_test(tc_core, test_error1);
    tcase_add_test(tc_core, test_tc251);
+   tcase_add_test(tc_core, test_linkage);
    suite_add_tcase(s, tc_core);
 
    return s;
