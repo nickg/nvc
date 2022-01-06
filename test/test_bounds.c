@@ -16,7 +16,8 @@ START_TEST(test_bounds)
       {  31, "array S index -52 out of bounds 1 to 10" },
       {  32, "slice right index 11 out of bounds 1 to 10" },
       {  33, "slice left index 0 out of bounds 1 to 10" },
-      {  37, "aggregate index 0 out of bounds 1 to 2147483647" },
+      {  37, "aggregate choice index 0 outside of POSITIVE range "
+         "1 to 2147483647" },
       {  46, "actual length 4 does not match formal length 8 for parameter X" },
       {  47, "actual length 4 does not match formal length 8 for parameter X" },
       {  50, "actual length 4 for dimension 2 does not" },
@@ -26,13 +27,13 @@ START_TEST(test_bounds)
       {  60, "length of value 10 does not match length of target 3" },
       {  66, "array S index 11 out of bounds 1 to 10" },
       {  67, "array S index -1 out of bounds 1 to 10" },
-      {  74, "aggregate index 5 out of bounds 1 to 3" },
-      {  74, "aggregate index 0 out of bounds 1 to 3" },
+      {  74, "aggregate choice index 5 outside of POSITIVE range 1 to 3" },
+      {  74, "aggregate choice index 0 outside of POSITIVE range 1 to 3" },
       {  83, "value '1' out of target bounds 'a' to 'z'" },
       {  84, "value 0 out of target bounds 1 to 2147483647" },
       {  89, "invalid dimension 5 for type MY_VEC1" },
       {  94, "value -1 out of bounds 0 to 2147483647 for parameter X" },
-      { 107, "aggregate index 5 out of bounds 1 to 3" },
+      { 107, "aggregate choice index 5 outside of POSITIVE range 1 to 3" },
       { 116, "length of sub-aggregate 2 does not match expected length 4" },
       { 137, "array index 14 out of bounds 0 to 2" },
       { 155, "value 2.000000 out of bounds 0.000000 to 1.000000 for parameter"},
@@ -43,9 +44,9 @@ START_TEST(test_bounds)
       { 176, "value FOUR out of bounds THREE downto TWO for parameter ARG2"},
       { 177, "value ONE out of bounds TWO to FOUR for parameter ARG1"},
       { 178, "value FIVE out of bounds TWO to FOUR for parameter ARG1"},
-      { 188, "aggregate index ONE out of bounds TWO to FOUR"},
-      { 190, "aggregate index ONE out of bounds TWO to FOUR"},
-      { 190, "aggregate index FIVE out of bounds TWO to FOUR"},
+      { 188, "aggregate choice index ONE outside of E range TWO to FOUR"},
+      { 190, "aggregate choice index ONE outside of E range TWO to FOUR"},
+      { 190, "aggregate choice index FIVE outside of E range TWO to FOUR"},
       { 198, "length of sub-aggregate 3 does not match expected length 4" },
       { 206, "left index ONE violates constraint SE" },
       { 206, "right index FOUR violates constraint SE" },
@@ -120,7 +121,7 @@ START_TEST(test_case)
       {  44, "2147483647" },
       {  51, "value 50 is already covered" },
       {  53, "range 60 to 64 is already covered" },
-      {  59, "case choice index -1 out of bounds 0 to 2147483647" },
+      {  59, "case choice index -1 outside of NATURAL range 0 to 2147483647" },
       {  79, "choices cover only 2 of 8 possible values" },
       {  84, "missing choice for element 3 of BIT_VECTOR with index type "
          "NATURAL range 1 to 3" },
@@ -131,7 +132,7 @@ START_TEST(test_case)
       {  95, "choices cover only 2 of 65536 possible values" },
       { 101, "choices cover only 2 of 121 possible values" },
       { 113, "missing choices for elements 3 downto 1 of type MY_INT" },
-      { 117, "case choice index 11 out of bounds 10 downto 1" },
+      { 117, "case choice index 11 outside of MY_INT range 10 downto 1" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -165,12 +166,12 @@ END_TEST
 START_TEST(test_issue54)
 {
    const error_t expect[] = {
-      { 10, "aggregate index 7 out of bounds 3 downto 0" },
-      { 10, "aggregate index 4 out of bounds 3 downto 0" },
-      { 11, "aggregate index 3 out of bounds 7 downto 4" },
-      { 11, "aggregate index 0 out of bounds 7 downto 4" },
-      { 12, "aggregate index 3 out of bounds 7 downto 4" },
-      { 12, "aggregate index 0 out of bounds 7 downto 4" },
+      { 10, "index 7 outside of NATURAL range 3 downto 0" },
+      { 10, "index 4 outside of NATURAL range 3 downto 0" },
+      { 11, "index 3 outside of NATURAL range 7 downto 4" },
+      { 11, "index 0 outside of NATURAL range 7 downto 4" },
+      { 12, "index 3 outside of NATURAL range 7 downto 4" },
+      { 12, "index 0 outside of NATURAL range 7 downto 4" },
       { -1, NULL }
    };
    expect_errors(expect);

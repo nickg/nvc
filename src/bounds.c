@@ -412,18 +412,41 @@ static void bounds_check_array_slice(tree_t t)
    }
 }
 
-static bool bounds_within(tree_t i, range_kind_t kind, const char *what,
-                          int64_t low, int64_t high)
+static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,
+                                  int64_t low, int64_t high)
+{
+   if (type_is_integer(type)) {
+      if (dir == RANGE_DOWNTO)
+         tb_printf(tb, "%"PRIi64" downto %"PRIi64, high, low);
+      else
+         tb_printf(tb, "%"PRIi64" to %"PRIi64, low, high);
+   }
+   else if (type_is_enum(type)) {
+      type_t base = type_base_recur(type);
+      if (dir == RANGE_DOWNTO)
+         tb_printf(tb, "%s downto %s",
+                   istr(tree_ident(type_enum_literal(base, high))),
+                   istr(tree_ident(type_enum_literal(base, low))));
+      else
+         tb_printf(tb, "%s to %s",
+                   istr(tree_ident(type_enum_literal(base, low))),
+                   istr(tree_ident(type_enum_literal(base, high))));
+   }
+}
+
+static bool bounds_within(tree_t i, type_t type, range_kind_t kind,
+                          const char *what, int64_t low, int64_t high)
 {
    int64_t folded;
    unsigned folded_u;
    if (folded_int(i, &folded)) {
       if (folded < low || folded > high) {
-         bounds_error(i, "%s index %"PRIi64" out of bounds %"PRIi64
-                      " %s %"PRIi64, what, folded,
-                      (kind == RANGE_TO) ? low : high,
-                      (kind == RANGE_TO) ? "to" : "downto",
-                      (kind == RANGE_TO) ? high : low);
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_printf(tb, "%s index %"PRIi64" outside of %s range ",
+                   what, folded, type_pp(type));
+         bounds_fmt_type_range(tb, type, kind, low, high);
+
+         bounds_error(i, "%s", tb_get(tb));
          return false;
       }
    }
@@ -431,14 +454,13 @@ static bool bounds_within(tree_t i, range_kind_t kind, const char *what,
       if (folded_u < low || folded_u > high) {
          type_t base = type_base_recur(tree_type(i));
          tree_t value_lit = type_enum_literal(base, folded_u);
-         tree_t left_lit  = type_enum_literal(base, (kind == RANGE_TO) ? low : high);
-         tree_t right_lit = type_enum_literal(base, (kind == RANGE_TO) ? high : low);
 
-         bounds_error(i, "%s index %s out of bounds %s %s %s", what,
-                      istr(tree_ident(value_lit)),
-                      istr(tree_ident(left_lit)),
-                      (kind == RANGE_TO) ? "to" : "downto",
-                      istr(tree_ident(right_lit)));
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_printf(tb, "%s index %s outside of %s range ",
+                   what, istr(tree_ident(value_lit)), type_pp(type));
+         bounds_fmt_type_range(tb, type, kind, low, high);
+
+         bounds_error(i, "%s", tb_get(tb));
          return false;
       }
    }
@@ -499,28 +521,6 @@ static void bounds_cover_choice(interval_t **isp, tree_t t, type_t type,
    else {
       new->next = prev->next;
       prev->next = new;
-   }
-}
-
-static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,
-                                  int64_t low, int64_t high)
-{
-   if (type_is_integer(type)) {
-      if (dir == RANGE_DOWNTO)
-         tb_printf(tb, "%"PRIi64" downto %"PRIi64, high, low);
-      else
-         tb_printf(tb, "%"PRIi64" to %"PRIi64, low, high);
-   }
-   else if (type_is_enum(type)) {
-      type_t base = type_base_recur(type);
-      if (dir == RANGE_DOWNTO)
-         tb_printf(tb, "%s downto %s",
-                   istr(tree_ident(type_enum_literal(base, high))),
-                   istr(tree_ident(type_enum_literal(base, low))));
-      else
-         tb_printf(tb, "%s to %s",
-                   istr(tree_ident(type_enum_literal(base, low))),
-                   istr(tree_ident(type_enum_literal(base, high))));
    }
 }
 
@@ -654,7 +654,8 @@ static void bounds_check_aggregate(tree_t t)
       case A_NAMED:
          {
             tree_t name = tree_name(a);
-            if (!bounds_within(name, dir, "aggregate", low, high))
+            if (!bounds_within(name, index_type, dir,
+                               "aggregate choice", low, high))
                known_elem_count = false;
             if (folded_int(name, &ilow))
                ihigh = ilow;
@@ -672,9 +673,11 @@ static void bounds_check_aggregate(tree_t t)
             if (rkind == RANGE_TO || rkind == RANGE_DOWNTO) {
                tree_t left = tree_left(r), right = tree_right(r);
 
-               if (!bounds_within(left, rkind, "aggregate", low, high))
+               if (!bounds_within(left, index_type, rkind,
+                                  "aggregate choice", low, high))
                   known_elem_count = false;
-               if (!bounds_within(right, rkind, "aggregate", low, high))
+               if (!bounds_within(right, index_type, rkind,
+                                  "aggregate choice", low, high))
                   known_elem_count = false;
 
                int64_t ileft, iright;
@@ -1060,7 +1063,7 @@ static void bounds_check_case(tree_t t)
          case A_NAMED:
             {
                tree_t name = tree_name(a);
-               if (!bounds_within(name, tdir, "case choice", tlow, thigh))
+               if (!bounds_within(name, type, tdir, "case choice", tlow, thigh))
                   have_others = true;
                else
                   low = high = assume_int(tree_name(a));
@@ -1078,9 +1081,9 @@ static void bounds_check_case(tree_t t)
                tree_t left = tree_left(r);
                tree_t right = tree_right(r);
 
-               if (!bounds_within(left, dir, "case choice", tlow, thigh))
+               if (!bounds_within(left, type, dir, "case choice", tlow, thigh))
                   have_others = true;
-               if (!bounds_within(right, dir, "case choice", tlow, thigh))
+               if (!bounds_within(right, type, dir, "case choice", tlow, thigh))
                   have_others = true;
 
                low = assume_int(dir == RANGE_TO ? left : right);
