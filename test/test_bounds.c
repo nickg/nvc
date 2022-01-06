@@ -113,15 +113,14 @@ END_TEST
 START_TEST(test_case)
 {
    const error_t expect[] = {
-      {  13, "missing choice C in case statement" },
-      {  19, "missing choice B in case statement" },
+      {  13, "missing choice for element C of type LETTER" },
+      {  19, "missing choice for element B of type AB" },
       {  30, "10 to 19" },
       {  36, "4 to 2147483647" },
       {  44, "2147483647" },
       {  51, "value 50 is already covered" },
       {  53, "range 60 to 64 is already covered" },
-      {  59, "value -1 outside NATURAL bounds" },
-      {  58, "0 to 2147483647" },
+      {  59, "case choice index -1 out of bounds 0 to 2147483647" },
       {  79, "choices cover only 2 of 8 possible values" },
       {  84, "missing choice for element 3 of BIT_VECTOR with index type "
          "NATURAL range 1 to 3" },
@@ -131,6 +130,8 @@ START_TEST(test_case)
       {  90, "expected 3 elements in string literal but have 4" },
       {  95, "choices cover only 2 of 65536 possible values" },
       { 101, "choices cover only 2 of 121 possible values" },
+      { 113, "missing choices for elements 3 downto 1 of type MY_INT" },
+      { 117, "case choice index 11 out of bounds 10 downto 1" },
       { -1, NULL }
    };
    expect_errors(expect);

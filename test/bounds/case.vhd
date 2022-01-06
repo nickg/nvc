@@ -106,4 +106,17 @@ begin
         end case;                       -- Missing 98 values
     end process;
 
+    process is
+        type my_int is range 10 downto 1;
+        variable x : my_int;
+    begin
+        case x is
+            when 10 downto 4 => null;
+        end case;                       -- Error
+        case x is
+            when 11 downto 3 => null;   -- Error
+            when 2 downto 1 => null;
+        end case;
+    end process;
+
 end architecture;
