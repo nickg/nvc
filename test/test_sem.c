@@ -2395,6 +2395,23 @@ START_TEST(test_linkage)
 }
 END_TEST
 
+START_TEST(test_error2)
+{
+   input_from_file(TESTDIR "/sem/error2.vhd");
+
+   const error_t expect[] = {
+      {  2, "unexpected to while parsing primary, expecting one of ** or )" },
+      {  2, "invalid expression in range constraint" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2513,6 +2530,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_error1);
    tcase_add_test(tc_core, test_tc251);
    tcase_add_test(tc_core, test_linkage);
+   tcase_add_test(tc_core, test_error2);
    suite_add_tcase(s, tc_core);
 
    return s;

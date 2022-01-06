@@ -624,7 +624,9 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 static tree_t simp_extract_string_literal(tree_t literal, int64_t index,
                                           tree_t def)
 {
-   type_t type = index_type_of(tree_type(literal), 0);
+   type_t type = tree_type(literal);
+   if (type_is_unconstrained(type))
+      return def;
 
    tree_t bounds = range_of(type, 0);
    int64_t low, high;
@@ -641,6 +643,10 @@ static tree_t simp_extract_string_literal(tree_t literal, int64_t index,
 
 static tree_t simp_extract_aggregate(tree_t agg, int64_t index, tree_t def)
 {
+   type_t type = tree_type(agg);
+   if (type_is_unconstrained(type))
+      return def;
+
    tree_t bounds = range_of(tree_type(agg), 0);
    int64_t low, high;
    range_bounds(bounds, &low, &high);

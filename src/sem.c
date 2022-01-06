@@ -269,7 +269,9 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind)
    case RANGE_EXPR:
       {
          tree_t expr = tree_value(r);
-         assert(tree_kind(expr) == T_ATTR_REF);
+
+         if (tree_kind(expr) != T_ATTR_REF)
+            sem_error(expr, "invalid expression in range constraint");
 
          if (!sem_check_attr_ref(expr, true))
             return false;

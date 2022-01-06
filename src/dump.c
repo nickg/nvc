@@ -1306,6 +1306,7 @@ void dump(tree_t t)
    case T_PROCESS:
    case T_CASE:
    case T_FOR:
+   case T_SIGNAL_ASSIGN:
       dump_stmt(t, 0);
       break;
    case T_CONST_DECL:
