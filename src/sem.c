@@ -2484,7 +2484,6 @@ static bool sem_check_array_aggregate(tree_t t)
 
    bool have_named = false;
    bool have_pos = false;
-   bool have_others = false;
 
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
@@ -2525,7 +2524,6 @@ static bool sem_check_array_aggregate(tree_t t)
          if (unconstrained)
             sem_error(a, "index range of array aggregate with others choice "
                       "cannot be determined from the context");
-         have_others = true;
          break;
       }
 
@@ -2564,147 +2562,6 @@ static bool sem_check_array_aggregate(tree_t t)
                       " only if the array aggregate contains a single element"
                       " association");
       }
-   }
-
-   // If there is no others choice or the base type is unconstrained then
-   // construct a new array subtype using the rules in LRM 93 7.3.2.2
-
-   if ((have_named || unconstrained) && !have_others) {
-      type_t tmp = type_new(T_SUBTYPE);
-      type_set_ident(tmp, type_ident(base_type));
-      type_set_base(tmp, base_type);
-
-      const int ndims = dimension_of(composite_type);
-
-      type_t index_type = index_type_of(composite_type, 0);
-
-      range_kind_t dir;
-      if (unconstrained) {
-         // The direction is determined by the index type
-         dir = direction_of(index_type, 0);
-      }
-      else {
-         // The direction is determined by the context
-         dir = direction_of(composite_type, 0);
-      }
-
-      assert(dir == RANGE_TO || dir == RANGE_DOWNTO);
-
-      tree_t left = NULL, right = NULL;
-
-      if (have_pos || !have_named) {
-         // The left bound is the left of the index type and the right bound
-         // is determined by the number of elements
-
-         assert(unconstrained);
-
-         if (type_kind(index_type) == T_ENUM) {
-            const unsigned nlits = type_enum_literals(index_type);
-
-            if (nassocs > nlits)
-               sem_error(t, "index type %s has %d literals but found %d "
-                         "elements in aggregate", type_pp(index_type),
-                         nlits, nassocs);
-
-            left = make_ref(type_enum_literal(index_type, 0));
-            right = make_ref(type_enum_literal(index_type, nassocs - 1));
-         }
-         else {
-            type_t std_int = std_type(NULL, STD_INTEGER);
-            left = tree_left(range_of(index_type, 0));
-            right = call_builtin(S_ADD, index_type,
-                                 sem_int_lit(std_int, nassocs - 1),
-                                 left, NULL);
-         }
-      }
-      else {
-         // The left and right bounds are determined by the smallest and
-         // largest choices
-
-         tree_t low  = call_builtin(S_INDEX_MIN, index_type, NULL);
-         tree_t high = call_builtin(S_INDEX_MAX, index_type, NULL);
-
-         tree_set_loc(low, tree_loc(t));
-         tree_set_loc(high, tree_loc(t));
-
-         for (int i = 0; i < nassocs; i++) {
-            tree_t a = tree_assoc(t, i);
-            switch (tree_subkind(a)) {
-            case A_NAMED:
-               {
-                  tree_t name = tree_name(a);
-                  add_param(low, name, P_POS, NULL);
-                  add_param(high, name, P_POS, NULL);
-               }
-               break;
-
-            case A_RANGE:
-               {
-                  tree_t r = tree_range(a, 0);
-                  switch (tree_subkind(r)) {
-                  case RANGE_TO:
-                     add_param(low, tree_left(r), P_POS, NULL);
-                     add_param(high, tree_right(r), P_POS, NULL);
-                     break;
-
-                  case RANGE_DOWNTO:
-                     add_param(low, tree_right(r), P_POS, NULL);
-                     add_param(high, tree_left(r), P_POS, NULL);
-                     break;
-
-                  case RANGE_EXPR:
-                     {
-                        tree_t name = tree_name(tree_value(r));
-
-                        tree_t rlow = tree_new(T_ATTR_REF);
-                        tree_set_ident(rlow, ident_new("LOW"));
-                        tree_set_name(rlow, name);
-                        tree_set_subkind(rlow, ATTR_LOW);
-                        tree_set_type(rlow, tree_type(r));
-
-                        tree_t rhigh = tree_new(T_ATTR_REF);
-                        tree_set_ident(rhigh, ident_new("HIGH"));
-                        tree_set_name(rhigh, name);
-                        tree_set_subkind(rhigh, ATTR_HIGH);
-                        tree_set_type(rhigh, tree_type(r));
-
-                        add_param(low, rlow, P_POS, NULL);
-                        add_param(high, rhigh, P_POS, NULL);
-                     }
-                     break;
-                  }
-               }
-               break;
-            }
-         }
-
-         left  = (dir == RANGE_TO ? low : high);
-         right = (dir == RANGE_TO ? high : low);
-      }
-
-      tree_t constraint = tree_new(T_CONSTRAINT);
-      tree_set_subkind(constraint, C_INDEX);
-
-      tree_t r = tree_new(T_RANGE);
-      tree_set_subkind(r, dir);
-      tree_set_left(r, left);
-      tree_set_right(r, right);
-      tree_set_loc(r, tree_loc(t));
-      tree_set_type(r, tree_type(left));
-
-      tree_add_range(constraint, r);
-
-      for (int i = 1; i < ndims; i++) {
-         tree_t dim;
-         if (unconstrained)
-            dim = range_of(tree_type(tree_value(tree_assoc(t, 0))), i - 1);
-         else
-            dim = range_of(composite_type, i);
-         tree_add_range(constraint, dim);
-      }
-
-      type_set_constraint(tmp, constraint);
-      tree_set_type(t, tmp);
    }
 
    if (unconstrained)
@@ -4029,7 +3886,9 @@ static bool sem_globally_static(tree_t t)
    // Aggregates must have globally static range and all elements
    // must have globally static values
    if (kind == T_AGGREGATE) {
-      if (type_is_array(type) && !sem_globally_static(range_of(type, 0)))
+      if (type_is_array(type)
+          && !type_is_unconstrained(type)
+          && !sem_globally_static(range_of(type, 0)))
          return false;
 
       const int nassocs = tree_assocs(t);

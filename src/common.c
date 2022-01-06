@@ -303,9 +303,9 @@ bool folded_bool(tree_t t, bool *b)
    return false;
 }
 
-tree_t get_enum_lit(tree_t t, int pos)
+tree_t get_enum_lit(tree_t t, type_t type, int pos)
 {
-   type_t enum_type = type_base_recur(tree_type(t));
+   type_t enum_type = type_base_recur(type ?: tree_type(t));
    tree_t lit = type_enum_literal(enum_type, pos);
 
    tree_t b = tree_new(T_REF);
@@ -317,24 +317,24 @@ tree_t get_enum_lit(tree_t t, int pos)
    return b;
 }
 
-tree_t get_int_lit(tree_t t, int64_t i)
+tree_t get_int_lit(tree_t t, type_t type, int64_t i)
 {
    tree_t f = tree_new(T_LITERAL);
    tree_set_subkind(f, L_INT);
    tree_set_ival(f, i);
    tree_set_loc(f, tree_loc(t));
-   tree_set_type(f, tree_type(t));
+   tree_set_type(f, type ?: tree_type(t));
 
    return f;
 }
 
-tree_t get_real_lit(tree_t t, double r)
+tree_t get_real_lit(tree_t t, type_t type, double r)
 {
    tree_t f = tree_new(T_LITERAL);
    tree_set_loc(f, tree_loc(t));
    tree_set_subkind(f, L_REAL);
    tree_set_dval(f, r);
-   tree_set_type(f, tree_type(t));
+   tree_set_type(f, type ?: tree_type(t));
 
    return f;
 }

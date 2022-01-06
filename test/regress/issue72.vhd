@@ -13,7 +13,7 @@ begin
     s1(1)<=par1(1 downto 0);
     s1(0)<=par1(3 downto 2);
 
-    s2(1 downto 1) <= ( 0 => par1(3 downto 2) );
+    s2(1 downto 1) <= ( 1 => par1(3 downto 2) );
     s2(0 downto 0) <= ( 0 => par1(1 downto 0) );
 
     process is

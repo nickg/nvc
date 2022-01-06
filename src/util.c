@@ -1365,7 +1365,8 @@ void tb_free(text_buf_t *tb)
 
 void _tb_cleanup(text_buf_t **tb)
 {
-    tb_free(*tb);
+   if (*tb != NULL)
+      tb_free(*tb);
 }
 
 void tb_printf(text_buf_t *tb, const char *fmt, ...)

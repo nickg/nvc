@@ -520,7 +520,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
       {
          int64_t arg;
          if (folded_int(tree_value(tree_param(t, 0)), &arg))
-            return get_int_lit(t, arg);
+            return get_int_lit(t, NULL, arg);
          else
             return t;
       }
@@ -554,7 +554,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
             case ATTR_HIGH:
                return make_ref(type_enum_literal(type, nlits - 1));
             case ATTR_ASCENDING:
-               return get_enum_lit(t, true);
+               return get_enum_lit(t, NULL, true);
             default:
                fatal_trace("invalid enumeration attribute %d", predef);
             }
@@ -596,7 +596,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
                 && tree_kind(tree_right(r)) == T_LITERAL) {
                int64_t low, high;
                range_bounds(r, &low, &high);
-               return get_int_lit(t, (high < low) ? 0 : high - low + 1);
+               return get_int_lit(t, NULL, (high < low) ? 0 : high - low + 1);
             }
             else
                return t;
@@ -610,7 +610,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
          case ATTR_RIGHT:
             return tree_right(r);
          case ATTR_ASCENDING:
-            return get_enum_lit(t, (rkind == RANGE_TO));
+            return get_enum_lit(t, NULL, (rkind == RANGE_TO));
          default:
             return t;
          }

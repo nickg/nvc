@@ -1106,7 +1106,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       tree_t map = tree_new(T_PARAM);
       tree_set_subkind(map, P_POS);
       tree_set_loc(map, tree_loc(genvar));
-      tree_set_value(map, get_int_lit(genvar, i));
+      tree_set_value(map, get_int_lit(genvar, NULL, i));
 
       tree_add_generic(b, g);
       tree_add_genmap(b, map);

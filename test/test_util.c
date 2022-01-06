@@ -153,6 +153,7 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
 
       if (lower && ((kind == T_PACKAGE && !package_needs_body(last))
                     || kind == T_PACK_BODY)) {
+         bounds_check(last);
          vcode_unit_t vu = lower_unit(last, NULL);
          lib_put_vcode(lib_work(), last, vu);
       }

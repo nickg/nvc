@@ -449,7 +449,6 @@ START_TEST(test_array)
       { 343, "invalid character 'f' in string literal of type BIT_VECTOR" },
       { 365, "may not change constraints of constrained array type TEN_INTS" },
       { 366, "may not change constraints of constrained array type TEN_INTS" },
-      { 373, "index type E has 3 literals but found 4 elements in aggregate" },
       { 379, "array T_FILE_ARRAY cannot have element of file type" },
       { 391, "index type REAL is not discrete" },
       { 392, "index type BIT_VECTOR is not discrete" },

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -363,18 +363,20 @@ static void bounds_check_array_slice(tree_t t)
    }
 }
 
-static void bounds_within(tree_t i, range_kind_t kind, const char *what,
+static bool bounds_within(tree_t i, range_kind_t kind, const char *what,
                           int64_t low, int64_t high)
 {
    int64_t folded;
    unsigned folded_u;
    if (folded_int(i, &folded)) {
-      if (folded < low || folded > high)
+      if (folded < low || folded > high) {
          bounds_error(i, "%s index %"PRIi64" out of bounds %"PRIi64
                       " %s %"PRIi64, what, folded,
                       (kind == RANGE_TO) ? low : high,
                       (kind == RANGE_TO) ? "to" : "downto",
                       (kind == RANGE_TO) ? high : low);
+         return false;
+      }
    }
    else if (folded_enum(i, &folded_u)) {
       if (folded_u < low || folded_u > high) {
@@ -388,8 +390,175 @@ static void bounds_within(tree_t i, range_kind_t kind, const char *what,
                       istr(tree_ident(left_lit)),
                       (kind == RANGE_TO) ? "to" : "downto",
                       istr(tree_ident(right_lit)));
+         return false;
       }
    }
+
+   return true;
+}
+
+static void bounds_cover_choice(interval_t **isp, tree_t t, type_t type,
+                                int64_t low, int64_t high)
+{
+   interval_t *it, *prev;
+   for (it = *isp, prev = NULL;
+        (it != NULL) && (it->low <= high);
+        prev = it, it = it->next) {
+
+      if ((low <= it->high) && (it->low <= high)) {
+         const int64_t rlow  = MAX(low, it->low);
+         const int64_t rhigh = MIN(high, it->high);
+         if (type_is_integer(type)) {
+            if (rlow == rhigh)
+               bounds_error(t, "value %"PRIi64" is already covered", rlow);
+            else
+               bounds_error(t, "range %"PRIi64" to %"PRIi64" is already covered",
+                            rlow, rhigh);
+         }
+         else if (type_is_enum(type)) {
+            type_t base = type_base_recur(type);
+            if (rlow == rhigh)
+               bounds_error(t, "duplicate choice for %s",
+                            istr(tree_ident(type_enum_literal(base, rlow))));
+            else
+               bounds_error(t, "duplicate choices for range %s to %s",
+                            istr(tree_ident(type_enum_literal(base, rlow))),
+                            istr(tree_ident(type_enum_literal(base, rhigh))));
+         }
+         it->low = MIN(low, it->low);
+         it->high = MAX(high, it->high);
+         return;
+      }
+      else if (high == it->low - 1) {
+         it->low = low;
+         return;
+      }
+      else if (low == it->high + 1) {
+         it->high = high;
+         return;
+      }
+   }
+
+   interval_t *new = xmalloc(sizeof(interval_t));
+   new->low  = low;
+   new->high = high;
+
+   if ((*isp == NULL) || (prev == NULL)) {
+      new->next = *isp;
+      *isp = new;
+   }
+   else {
+      new->next = prev->next;
+      prev->next = new;
+   }
+}
+
+static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,
+                                  int64_t low, int64_t high)
+{
+   if (type_is_integer(type)) {
+      if (dir == RANGE_DOWNTO)
+         tb_printf(tb, "%"PRIi64" downto %"PRIi64, high, low);
+      else
+         tb_printf(tb, "%"PRIi64" to %"PRIi64, low, high);
+   }
+   else if (type_is_enum(type)) {
+      type_t base = type_base_recur(type);
+      if (dir == RANGE_DOWNTO)
+         tb_printf(tb, "%s downto %s",
+                   istr(tree_ident(type_enum_literal(base, high))),
+                   istr(tree_ident(type_enum_literal(base, low))));
+      else
+         tb_printf(tb, "%s to %s",
+                   istr(tree_ident(type_enum_literal(base, low))),
+                   istr(tree_ident(type_enum_literal(base, high))));
+   }
+}
+
+static void bounds_fmt_interval(text_buf_t *tb, type_t type, range_kind_t dir,
+                                int64_t low, int64_t high)
+{
+   if (low == high) {
+      if (type_is_integer(type))
+         tb_printf(tb, "%"PRIi64, low);
+      else if (type_is_enum(type)) {
+         type_t base = type_base_recur(type);
+         tb_cat(tb, istr(tree_ident(type_enum_literal(base, low))));
+      }
+   }
+   else
+      bounds_fmt_type_range(tb, type, dir, low, high);
+}
+
+static void bounds_check_missing_choices(tree_t t, type_t type,
+                                         type_t index_type, range_kind_t dir,
+                                         int64_t tlow, int64_t thigh,
+                                         interval_t *covered)
+{
+   int missing = 0;
+   interval_t *it;
+   int64_t walk;
+
+   for (it = covered, walk = tlow; it != NULL; it = it->next) {
+      if (it->low != walk)
+         missing += it->low - walk;
+      walk = it->high + 1;
+   }
+
+   if (walk != thigh + 1)
+      missing += (thigh + 1 - walk);
+
+   if (missing == 0)
+      return;
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "missing choice%s for element%s ",
+             missing > 1 ? "s" : "", missing > 1 ? "s" : "");
+
+   int printed = 0;
+   for (it = covered, walk = tlow; it != NULL; it = it->next) {
+      if (it->low != walk) {
+         if (printed++) tb_cat(tb, ", ");
+         bounds_fmt_interval(tb, index_type ?: type, dir, walk, it->low - 1);
+      }
+
+      walk = it->high + 1;
+   }
+
+   if (walk != thigh + 1) {
+      if (printed++) tb_cat(tb, ", ");
+      bounds_fmt_interval(tb, index_type ?: type, dir, walk, thigh);
+   }
+
+   if (index_type == NULL)
+      tb_printf(tb, " of type %s", type_pp(type));
+   else
+      tb_printf(tb, " of %s with index type %s", type_pp(type),
+                type_pp(index_type));
+
+   type_t base = index_type ?: type;
+   while (type_kind(base) == T_SUBTYPE && !type_has_ident(base))
+      base = type_base(base);
+
+   int64_t rlow, rhigh;
+   if (!folded_bounds(range_of(index_type ?: type, 0), &rlow, &rhigh))
+      return;
+
+   if (rlow != tlow || rhigh != thigh || !type_has_ident(index_type ?: type)) {
+      tb_cat(tb, " range ");
+      bounds_fmt_interval(tb, index_type ?: type, dir, tlow, thigh);
+   }
+
+   bounds_error(t, "%s", tb_get(tb));
+}
+
+static void bounds_free_intervals(interval_t **list)
+{
+   for (interval_t *it = *list, *tmp; it != NULL; it = tmp) {
+      tmp = it->next;
+      free(it);
+   }
+   *list = NULL;
 }
 
 static void bounds_check_aggregate(tree_t t)
@@ -398,47 +567,53 @@ static void bounds_check_aggregate(tree_t t)
    if (!type_is_array(type))
       return;
 
-   assert(type_kind(type) != T_ARRAY);
-
    // Find the tightest bounds for the index
 
-   int64_t low, high;
-   bool have_bounds = false;
+   int64_t low, high, clow = 0, chigh = 0;
+   type_t index_type = index_type_of(type, 0);
+   range_kind_t dir;
 
-   tree_t type_r = range_of(type, 0);
-
-   const bool unconstrained = tree_flags(t) & TREE_F_UNCONSTRAINED;
+   const bool unconstrained = type_is_unconstrained(type);
 
    if (unconstrained) {
       // Aggregate of unconstrained array type
-      type_t base = type_base_recur(type);
-      assert(type_kind(base) == T_ARRAY);
+      tree_t base_r = range_of(index_type, 0);
+      if (!folded_bounds(base_r, &low, &high))
+         return;
 
-      type_t index = type_index_constr(base, 0);
-
-      tree_t base_r = range_of(index, 0);
-
-      have_bounds = folded_bounds(base_r, &low, &high);
+      clow = high; chigh = low;  // Actual bounds computed below
+      dir = tree_subkind(base_r);
    }
-   else
-      have_bounds = folded_bounds(type_r, &low, &high);
+   else {
+      tree_t type_r = range_of(type, 0);
+      if (!folded_bounds(type_r, &low, &high))
+         return;
 
-   if (!have_bounds)
-      return;
+      clow = low, chigh = high;
+      dir = tree_subkind(type_r);
+   }
 
-   // Check for out of bounds indexes
-
+   interval_t *covered = NULL;
    bool known_elem_count = true;
-   int nelems = 0;
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
+      int64_t ilow = 0, ihigh = 0;
+      unsigned uval;
 
       switch (tree_subkind(a)) {
       case A_NAMED:
-         bounds_within(tree_name(a), tree_subkind(type_r),
-                       "aggregate", low, high);
-         nelems++;
+         {
+            tree_t name = tree_name(a);
+            if (!bounds_within(name, dir, "aggregate", low, high))
+               known_elem_count = false;
+            if (folded_int(name, &ilow))
+               ihigh = ilow;
+            else if (folded_enum(name, &uval))
+               ihigh = ilow = uval;
+            else
+               known_elem_count = false;
+         }
          break;
 
       case A_RANGE:
@@ -446,13 +621,27 @@ static void bounds_check_aggregate(tree_t t)
             tree_t r = tree_range(a, 0);
             const range_kind_t rkind = tree_subkind(r);
             if (rkind == RANGE_TO || rkind == RANGE_DOWNTO) {
-               bounds_within(tree_left(r), rkind, "aggregate", low, high);
-               bounds_within(tree_right(r), rkind, "aggregate", low, high);
-            }
+               tree_t left = tree_left(r), right = tree_right(r);
 
-            int64_t length;
-            if (folded_length(r, &length))
-               nelems += length;
+               if (!bounds_within(left, rkind, "aggregate", low, high))
+                  known_elem_count = false;
+               if (!bounds_within(right, rkind, "aggregate", low, high))
+                  known_elem_count = false;
+
+               int64_t ileft, iright;
+               unsigned pleft, pright;
+               if (folded_int(left, &ileft) && folded_int(right, &iright)) {
+                  ilow = (rkind == RANGE_TO ? ileft : iright);
+                  ihigh = (rkind == RANGE_TO ? iright : ileft);
+               }
+               else if (folded_enum(left, &pleft)
+                        && folded_enum(right, &pright)) {
+                  ilow = (rkind == RANGE_TO ? pleft : pright);
+                  ihigh = (rkind == RANGE_TO ? pright : pleft);
+               }
+               else
+                  known_elem_count = false;
+            }
             else
                known_elem_count = false;
          }
@@ -462,27 +651,48 @@ static void bounds_check_aggregate(tree_t t)
          known_elem_count = false;
          break;
 
-      default:
-         nelems++;
+      case A_POS:
+         if (dir == RANGE_TO)
+            ilow = ihigh = low + tree_pos(a);
+         else
+            ilow = ihigh = high - tree_pos(a);
+
+         if ((ilow < low || ihigh > high) && known_elem_count) {
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_printf(tb, "expected at most %"PRIi64" positional associations "
+                      "in %s aggregate with index type %s range ",
+                      MAX(0, high - low + 1), type_pp(type),
+                      type_pp(index_type));
+            bounds_fmt_type_range(tb, index_type, dir, low, high);
+
+            bounds_error(t, "%s", tb_get(tb));
+            known_elem_count = false;
+         }
+
          break;
       }
+
+      if (unconstrained) {
+         clow = MIN(clow, ilow);
+         chigh = MAX(chigh, ihigh);
+      }
+
+      if (known_elem_count)
+         bounds_cover_choice(&covered, a, index_type, ilow, ihigh);
    }
 
-   // Check the actual against the expected element count
+   if (known_elem_count)
+      bounds_check_missing_choices(t, type, index_type, dir, clow, chigh,
+                                   covered);
 
-   const int ndims = dimension_of(type);
-
-   if (known_elem_count) {
-      int64_t expect;
-      if (folded_length(range_of(type, 0), &expect) && expect != nelems)
-         bounds_error(t, "expected %"PRIi64" elements in aggregate but have %d",
-                      expect, nelems);
-   }
+   bounds_free_intervals(&covered);
 
    // Check each sub-aggregate has the same length for an unconstrained
    // array aggregate
 
-   if ((ndims > 1) && unconstrained) {
+   const int ndims = dimension_of(type);
+
+   if (ndims > 1 && unconstrained) {
       int64_t length = -1;
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(t, i);
@@ -499,6 +709,79 @@ static void bounds_check_aggregate(tree_t t)
                          "expected length %"PRIi64,
                          this_length, length);
       }
+   }
+
+   if (unconstrained) {
+      // Construct a new array subtype using the rules in LRM 93 7.3.2.2
+
+      type_t tmp = type_new(T_SUBTYPE);
+      type_set_base(tmp, type);
+
+      tree_t constraint = tree_new(T_CONSTRAINT);
+      tree_set_subkind(constraint, C_INDEX);
+
+      tree_t left = NULL, right = NULL, r = NULL;
+
+      if (known_elem_count) {
+         const int64_t ileft = dir == RANGE_TO ? clow : chigh;
+         const int64_t iright = dir == RANGE_TO ? chigh : clow;
+
+         if (type_is_enum(index_type)) {
+            left = get_enum_lit(t, index_type, ileft);
+            right = get_enum_lit(t, index_type, iright);
+         }
+         else if (type_is_integer(index_type)) {
+            left = get_int_lit(t, index_type, ileft);
+            right = get_int_lit(t, index_type, iright);
+         }
+         else
+            fatal_trace("cannot handle aggregate index type %s",
+                        type_pp(index_type));
+      }
+      else {
+         // Must have a single association
+         assert(nassocs == 1);
+         tree_t a0 = tree_assoc(t, 0);
+         switch (tree_subkind(a0)) {
+         case A_NAMED:
+            left = right = tree_name(a0);
+            break;
+         case A_RANGE:
+            {
+               tree_t a0r = tree_range(a0, 0);
+               if (tree_subkind(a0r) == RANGE_EXPR)
+                  r = a0r;
+               else {
+                  left = tree_left(a0r);
+                  right = tree_right(a0r);
+                  dir = tree_subkind(a0r);
+               }
+            }
+            break;
+         default:
+            fatal_trace("unexpected association kind %d in unconstrained "
+                        "aggregate", tree_subkind(a0));
+         }
+      }
+
+      if (r == NULL) {
+         r = tree_new(T_RANGE);
+         tree_set_subkind(r, dir);
+         tree_set_left(r, left);
+         tree_set_right(r, right);
+         tree_set_loc(r, tree_loc(t));
+         tree_set_type(r, tree_type(left));
+      }
+
+      tree_add_range(constraint, r);
+
+      for (int i = 1; i < ndims; i++) {
+         tree_t dim = range_of(tree_type(tree_value(tree_assoc(t, 0))), i - 1);
+         tree_add_range(constraint, dim);
+      }
+
+      type_set_constraint(tmp, constraint);
+      tree_set_type(t, tmp);
    }
 }
 
@@ -697,56 +980,6 @@ static void bounds_check_var_assign(tree_t t)
    bounds_check_assignment(tree_target(t), tree_value(t));
 }
 
-static void bounds_case_cover(interval_t **isp, tree_t t,
-                              int64_t low, int64_t high)
-{
-   interval_t *it, *prev;
-   for (it = *isp, prev = NULL;
-        (it != NULL) && (it->low <= high);
-        prev = it, it = it->next) {
-
-      if ((low <= it->high) && (it->low <= high)) {
-         const int64_t rlow  = MAX(low, it->low);
-         const int64_t rhigh = MIN(high, it->high);
-         if (rlow == rhigh)
-            bounds_error(t, "value %"PRIi64" is already covered", rlow);
-         else
-            bounds_error(t, "range %"PRIi64" to %"PRIi64" is already covered",
-                         rlow, rhigh);
-         return;
-      }
-      else if (high == it->low - 1) {
-         it->low = low;
-         return;
-      }
-      else if (low == it->high + 1) {
-         it->high = high;
-         return;
-      }
-   }
-
-   interval_t *new = xmalloc(sizeof(interval_t));
-   new->low  = low;
-   new->high = high;
-
-   if ((*isp == NULL) || (prev == NULL)) {
-      new->next = *isp;
-      *isp = new;
-   }
-   else {
-      new->next = prev->next;
-      prev->next = new;
-   }
-}
-
-static void bounds_fmt_case_missing(text_buf_t *tb, int64_t low, int64_t high)
-{
-   if (low == high)
-      tb_printf(tb, "\n    %"PRIi64, low);
-   else
-      tb_printf(tb, "\n    %"PRIi64" to %"PRIi64, low, high);
-}
-
 static void bounds_check_case(tree_t t)
 {
    type_t type = tree_type(tree_value(t));
@@ -859,37 +1092,14 @@ static void bounds_check_case(tree_t t)
                          " to %"PRIi64, (low < tlow) ? low : high,
                          type_pp(type), tlow, thigh);
          else
-            bounds_case_cover(&covered, a, low, high);
+            bounds_cover_choice(&covered, a, type, low, high);
       }
 
-      if (!have_others) {
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_printf(tb, "case choices do not cover the following "
-                   "values of %s:", type_pp(type));
+      if (!have_others)
+         bounds_check_missing_choices(t, type, NULL, direction_of(type, 0),
+                                      tlow, thigh, covered);
 
-         bool missing = false;
-         int64_t walk = tlow;
-         interval_t *it, *tmp;
-         for (it = covered, tmp = NULL; it != NULL; it = tmp) {
-            if (it->low != walk) {
-               bounds_fmt_case_missing(tb, walk, it->low - 1);
-               missing = true;
-            }
-
-            walk = it->high + 1;
-
-            tmp = it->next;
-            free(it);
-         }
-
-         if (walk != thigh + 1) {
-            bounds_fmt_case_missing(tb, walk, thigh);
-            missing = true;
-         }
-
-         if (missing)
-            bounds_error(t, "%s", tb_get(tb));
-      }
+      bounds_free_intervals(&covered);
    }
    else if (type_is_array(type)) {
       // Calculate how many values each element has

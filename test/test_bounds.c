@@ -22,12 +22,12 @@ START_TEST(test_bounds)
       {  50, "actual length 4 for dimension 2 does not" },
       {  53, "value 9 does not match length of target 10 for signal S" },
       {  54, "value 2 does not match length of target 0 for signal N" },
-      {  55, "expected 0 elements in aggregate but have 3" },
+      {  55, "expected at most 0 positional associations in MY_VEC1 " },
       {  60, "length of value 10 does not match length of target 3" },
       {  66, "array S index 11 out of bounds 1 to 10" },
       {  67, "array S index -1 out of bounds 1 to 10" },
-      {  74, "expected 6 elements in aggregate but have 3" },
-      {  74, "length of value 6 does not match length of target 3" },
+      {  74, "aggregate index 5 out of bounds 1 to 3" },
+      {  74, "aggregate index 0 out of bounds 1 to 3" },
       {  83, "value '1' out of target bounds 'a' to 'z'" },
       {  84, "value 0 out of target bounds 1 to 2147483647" },
       {  89, "invalid dimension 5 for type MY_VEC1" },
@@ -36,8 +36,9 @@ START_TEST(test_bounds)
       { 116, "length of sub-aggregate 2 does not match expected length 4" },
       { 137, "array index 14 out of bounds 0 to 2" },
       { 155, "value 2.000000 out of bounds 0.000000 to 1.000000 for parameter"},
-      { 164, "expected 3 elements in aggregate but have 2"},
-      { 165, "expected 3 elements in aggregate but have 4"},
+      { 164, "missing choice for element FOUR of T_ARR with index type SE"},
+      { 165, "expected at most 3 positional associations in T_ARR aggregate "
+        "with index type SE range TWO to FOUR"},
       { 175, "value ONE out of bounds THREE downto TWO for parameter ARG2"},
       { 176, "value FOUR out of bounds THREE downto TWO for parameter ARG2"},
       { 177, "value ONE out of bounds TWO to FOUR for parameter ARG1"},
@@ -122,8 +123,10 @@ START_TEST(test_case)
       {  59, "value -1 outside NATURAL bounds" },
       {  58, "0 to 2147483647" },
       {  79, "choices cover only 2 of 8 possible values" },
-      {  84, "expected 3 elements in aggregate but have 2" },
-      {  86, "expected 3 elements in aggregate but have 4" },
+      {  84, "missing choice for element 3 of BIT_VECTOR with index type "
+         "NATURAL range 1 to 3" },
+      {  86, "expected at most 3 positional associations in BIT_VECTOR "
+         "aggregate with index type NATURAL range 1 to 3" },
       {  88, "expected 3 elements in string literal but have 2" },
       {  90, "expected 3 elements in string literal but have 4" },
       {  95, "choices cover only 2 of 65536 possible values" },
@@ -161,6 +164,10 @@ END_TEST
 START_TEST(test_issue54)
 {
    const error_t expect[] = {
+      { 10, "aggregate index 7 out of bounds 3 downto 0" },
+      { 10, "aggregate index 4 out of bounds 3 downto 0" },
+      { 11, "aggregate index 3 out of bounds 7 downto 4" },
+      { 11, "aggregate index 0 out of bounds 7 downto 4" },
       { 12, "aggregate index 3 out of bounds 7 downto 4" },
       { 12, "aggregate index 0 out of bounds 7 downto 4" },
       { -1, NULL }
@@ -203,7 +210,8 @@ END_TEST
 START_TEST(test_issue150)
 {
    const error_t expect[] = {
-      {  7, "expected 8 elements in aggregate but have 6" },
+      {  7, "missing choices for elements 6 to 7 of T_LUT8X8 with index "
+         "type INTEGER range 0 to 7" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -237,7 +245,7 @@ END_TEST
 START_TEST(test_issue208)
 {
    const error_t expect[] = {
-      { 20, "case choices do not cover the following values of " },
+      { 20, "missing choice for element 1 of type NATURAL range 1 downto 0" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -347,6 +355,27 @@ START_TEST(test_tc1147)
 }
 END_TEST
 
+START_TEST(test_aggregate)
+{
+   input_from_file(TESTDIR "/bounds/aggregate.vhd");
+
+   const error_t expect[] = {
+      {  8, "duplicate choice for A" },
+      {  8, "for element B of MY_ENUM_MAP with index type MY_ENUM" },
+      {  9, "for element C of MY_ENUM_MAP with index type MY_ENUM" },
+      { 10, "duplicate choice for B" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_unless(error_count() == 0);
+
+   bounds_check(a);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -367,6 +396,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue356);
    tcase_add_test(tc_core, test_issue98);
    tcase_add_test(tc_core, test_tc1147);
+   tcase_add_test(tc_core, test_aggregate);
    suite_add_tcase(s, tc_core);
 
    return s;
