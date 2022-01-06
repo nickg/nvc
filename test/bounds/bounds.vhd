@@ -229,4 +229,12 @@ begin
         t := 0 ns;              -- OK
     end process;
 
+    process is
+        type char_map is array (character range 'a' to 'z') of integer;
+        variable m : char_map;
+    begin
+        m('A') := 1;                    -- Error
+        m('1' to '3') := (others => 3);  -- Error
+    end process;
+
 end architecture;

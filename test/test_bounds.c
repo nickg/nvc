@@ -13,9 +13,9 @@ START_TEST(test_bounds)
    const error_t expect[] = {
       {  26, "left index 0 violates constraint POSITIVE" },
       {  27, "right index 60 violates constraint FOO" },
-      {  31, "array S index -52 out of bounds 1 to 10" },
-      {  32, "slice right index 11 out of bounds 1 to 10" },
-      {  33, "slice left index 0 out of bounds 1 to 10" },
+      {  31, "array S index -52 outside of POSITIVE range 1 to 10" },
+      {  32, "array S index 11 outside of POSITIVE range 1 to 10" },
+      {  33, "array S index 0 outside of POSITIVE range 1 to 10" },
       {  37, "aggregate choice index 0 outside of POSITIVE range "
          "1 to 2147483647" },
       {  46, "actual length 4 does not match formal length 8 for parameter X" },
@@ -25,8 +25,8 @@ START_TEST(test_bounds)
       {  54, "value 2 does not match length of target 0 for signal N" },
       {  55, "expected at most 0 positional associations in MY_VEC1 " },
       {  60, "length of value 10 does not match length of target 3" },
-      {  66, "array S index 11 out of bounds 1 to 10" },
-      {  67, "array S index -1 out of bounds 1 to 10" },
+      {  66, "array S index 11 outside of POSITIVE range 1 to 10" },
+      {  67, "array S index -1 outside of POSITIVE range 1 to 10" },
       {  74, "aggregate choice index 5 outside of POSITIVE range 1 to 3" },
       {  74, "aggregate choice index 0 outside of POSITIVE range 1 to 3" },
       {  83, "value '1' out of target bounds 'a' to 'z'" },
@@ -35,7 +35,7 @@ START_TEST(test_bounds)
       {  94, "value -1 out of bounds 0 to 2147483647 for parameter X" },
       { 107, "aggregate choice index 5 outside of POSITIVE range 1 to 3" },
       { 116, "length of sub-aggregate 2 does not match expected length 4" },
-      { 137, "array index 14 out of bounds 0 to 2" },
+      { 137, "array index 14 outside of NATURAL range 0 to 2" },
       { 155, "value 2.000000 out of bounds 0.000000 to 1.000000 for parameter"},
       { 164, "missing choice for element FOUR of T_ARR with index type SE"},
       { 165, "expected at most 3 positional associations in T_ARR aggregate "
@@ -54,6 +54,9 @@ START_TEST(test_bounds)
       { 221, "value 5 NS out of bounds 10 SEC downto 20 US for parameter A"},
       { 227, "value 200 NS out of target bounds -10 NS to 10 NS"},
       { 228, "value -200 NS out of target bounds -10 NS to 10 NS"},
+      { 236, "array M index 'A' outside of CHARACTER range 'a' to 'z'" },
+      { 237, "array M index '1' outside of CHARACTER range 'a' to 'z'" },
+      { 237, "array M index '3' outside of CHARACTER range 'a' to 'z'" },
       { -1, NULL }
    };
    expect_errors(expect);

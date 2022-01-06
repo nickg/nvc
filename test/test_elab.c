@@ -265,8 +265,8 @@ START_TEST(test_issue153)
    input_from_file(TESTDIR "/elab/issue153.vhd");
 
    const error_t expect[] = {
-      {  9, "array S index -1 out of bounds 7 downto 0" },
-      { 13, "array T index -1 out of bounds 7 downto 0" },
+      {  9, "array S index -1 outside of NATURAL range 7 downto 0" },
+      { 13, "array T index -1 outside of NATURAL range 7 downto 0" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -388,8 +388,8 @@ START_TEST(test_issue251)
    input_from_file(TESTDIR "/elab/issue251.vhd");
 
    const error_t expect[] = {
-      { 24, "array X index -1 out of bounds 3 downto 0" },
-      { 30, "array A index -1 out of bounds 3 downto 0" },
+      { 24, "array X index -1 outside of NATURAL range 3 downto 0" },
+      { 30, "array A index -1 outside of NATURAL range 3 downto 0" },
       { -1, NULL }
    };
    expect_errors(expect);

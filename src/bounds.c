@@ -293,6 +293,69 @@ static tree_t bounds_check_call_args(tree_t t)
    return t;
 }
 
+static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,
+                                  int64_t low, int64_t high)
+{
+   if (type_is_integer(type)) {
+      if (dir == RANGE_DOWNTO)
+         tb_printf(tb, "%"PRIi64" downto %"PRIi64, high, low);
+      else
+         tb_printf(tb, "%"PRIi64" to %"PRIi64, low, high);
+   }
+   else if (type_is_enum(type)) {
+      type_t base = type_base_recur(type);
+      if (dir == RANGE_DOWNTO)
+         tb_printf(tb, "%s downto %s",
+                   istr(tree_ident(type_enum_literal(base, high))),
+                   istr(tree_ident(type_enum_literal(base, low))));
+      else
+         tb_printf(tb, "%s to %s",
+                   istr(tree_ident(type_enum_literal(base, low))),
+                   istr(tree_ident(type_enum_literal(base, high))));
+   }
+}
+
+static bool bounds_within(tree_t index, tree_t ref, type_t type,
+                          range_kind_t kind, const char *what,
+                          int64_t low, int64_t high)
+{
+   int64_t folded;
+   unsigned folded_u;
+   if (folded_int(index, &folded)) {
+      if (folded < low || folded > high) {
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_cat(tb, what);
+         if (ref != NULL && tree_kind(ref) == T_REF)
+            tb_printf(tb, " %s", istr(tree_ident(ref)));
+         tb_printf(tb, " index %"PRIi64" outside of %s range ",
+                   folded, type_pp(type));
+         bounds_fmt_type_range(tb, type, kind, low, high);
+
+         bounds_error(index, "%s", tb_get(tb));
+         return false;
+      }
+   }
+   else if (folded_enum(index, &folded_u)) {
+      if (folded_u < low || folded_u > high) {
+         type_t base = type_base_recur(tree_type(index));
+         tree_t value_lit = type_enum_literal(base, folded_u);
+
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_cat(tb, what);
+         if (ref != NULL && tree_kind(ref) == T_REF)
+            tb_printf(tb, " %s", istr(tree_ident(ref)));
+         tb_printf(tb, " index %s outside of %s range ",
+                   istr(tree_ident(value_lit)), type_pp(type));
+         bounds_fmt_type_range(tb, type, kind, low, high);
+
+         bounds_error(index, "%s", tb_get(tb));
+         return false;
+      }
+   }
+
+   return true;
+}
+
 static void bounds_check_array_ref(tree_t t)
 {
    tree_t value = tree_value(t);
@@ -316,14 +379,16 @@ static void bounds_check_array_ref(tree_t t)
 
       if (!unconstrained) {
          tree_t r = range_of(value_type, i);
-         if (is_out_of_range(pvalue, r, &checked)) {
-            const char *name = value_is_ref ? istr(tree_ident(value)) : NULL;
-            bounds_error(t, "array %s%sindex %s out of bounds %s %s %s",
-                         name ? name : "", name ? " " : "",
-                         value_str(pvalue), value_str(tree_left(r)),
-                         (tree_subkind(r) == RANGE_TO) ? "to" : "downto",
-                         value_str(tree_right(r)));
-         }
+         type_t index_type = index_type_of(value_type, i);
+         const range_kind_t dir = tree_subkind(r);
+
+         int64_t ivalue;
+         checked = folded_int(pvalue, &ivalue);
+
+         int64_t low, high;
+         if (folded_bounds(r, &low, &high))
+            checked &= bounds_within(pvalue, value, index_type, dir,
+                                     "array", low, high);
       }
 
       if (value_is_ref && tree_kind(pvalue) == T_REF) {
@@ -373,99 +438,22 @@ static void bounds_check_array_slice(tree_t t)
    tree_t b = range_of(value_type, 0);
    tree_t r = tree_range(t, 0);
 
-   const range_kind_t bkind = tree_subkind(b);
-   const range_kind_t rkind = tree_subkind(r);
-
-   if ((bkind != RANGE_TO) && (bkind != RANGE_DOWNTO))
-      return;
-   else if ((rkind != RANGE_TO) && (rkind != RANGE_DOWNTO))
+   int64_t blow, bhigh;
+   if (!folded_bounds(b, &blow, &bhigh))
       return;
 
-   int64_t b_left, r_left;
-   bool left_error = false;
-   if (folded_int(tree_left(b), &b_left) && folded_int(tree_left(r), &r_left))
-      left_error = ((bkind == RANGE_TO) && (r_left < b_left))
-         || ((bkind == RANGE_DOWNTO) && (r_left > b_left));
+   int64_t rlow, rhigh;
+   if (!folded_bounds(r, &rlow, &rhigh))
+      return;
 
-   int64_t b_right, r_right;
-   bool right_error = false;
-   if (folded_int(tree_right(b), &b_right)
-       && folded_int(tree_right(r), &r_right))
-      right_error = ((bkind == RANGE_TO) && (r_right > b_right))
-         || ((bkind == RANGE_DOWNTO) && (r_right < b_right));
+   if (rlow > rhigh)
+      return;  // Null range
 
-   bool is_null;
-   if (bkind == RANGE_TO)
-      is_null = b_left > b_right || r_left > r_right;
-   else
-      is_null = b_left < b_right || r_left < r_right;
+   type_t index_type = index_type_of(value_type, 0);
+   const range_kind_t dir = tree_subkind(b);
 
-   if ((left_error || right_error) && !is_null) {
-      const char *name = (tree_kind(value) == T_REF)
-         ? istr(tree_ident(value)) : NULL;
-      bounds_error(t, "%s%sslice %s index %"PRIi64" out of bounds "
-                   "%"PRIi64" %s %"PRIi64,
-                   name ? name : "", name ? " " : "",
-                   left_error ? "left" : "right",
-                   left_error ? r_left : r_right, b_left,
-                   (bkind == RANGE_TO) ? "to" : "downto", b_right);
-   }
-}
-
-static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,
-                                  int64_t low, int64_t high)
-{
-   if (type_is_integer(type)) {
-      if (dir == RANGE_DOWNTO)
-         tb_printf(tb, "%"PRIi64" downto %"PRIi64, high, low);
-      else
-         tb_printf(tb, "%"PRIi64" to %"PRIi64, low, high);
-   }
-   else if (type_is_enum(type)) {
-      type_t base = type_base_recur(type);
-      if (dir == RANGE_DOWNTO)
-         tb_printf(tb, "%s downto %s",
-                   istr(tree_ident(type_enum_literal(base, high))),
-                   istr(tree_ident(type_enum_literal(base, low))));
-      else
-         tb_printf(tb, "%s to %s",
-                   istr(tree_ident(type_enum_literal(base, low))),
-                   istr(tree_ident(type_enum_literal(base, high))));
-   }
-}
-
-static bool bounds_within(tree_t i, type_t type, range_kind_t kind,
-                          const char *what, int64_t low, int64_t high)
-{
-   int64_t folded;
-   unsigned folded_u;
-   if (folded_int(i, &folded)) {
-      if (folded < low || folded > high) {
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_printf(tb, "%s index %"PRIi64" outside of %s range ",
-                   what, folded, type_pp(type));
-         bounds_fmt_type_range(tb, type, kind, low, high);
-
-         bounds_error(i, "%s", tb_get(tb));
-         return false;
-      }
-   }
-   else if (folded_enum(i, &folded_u)) {
-      if (folded_u < low || folded_u > high) {
-         type_t base = type_base_recur(tree_type(i));
-         tree_t value_lit = type_enum_literal(base, folded_u);
-
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_printf(tb, "%s index %s outside of %s range ",
-                   what, istr(tree_ident(value_lit)), type_pp(type));
-         bounds_fmt_type_range(tb, type, kind, low, high);
-
-         bounds_error(i, "%s", tb_get(tb));
-         return false;
-      }
-   }
-
-   return true;
+   bounds_within(tree_left(r), value, index_type, dir, "array", blow, bhigh);
+   bounds_within(tree_right(r), value, index_type, dir, "array", blow, bhigh);
 }
 
 static void bounds_cover_choice(interval_t **isp, tree_t t, type_t type,
@@ -654,7 +642,7 @@ static void bounds_check_aggregate(tree_t t)
       case A_NAMED:
          {
             tree_t name = tree_name(a);
-            if (!bounds_within(name, index_type, dir,
+            if (!bounds_within(name, NULL, index_type, dir,
                                "aggregate choice", low, high))
                known_elem_count = false;
             if (folded_int(name, &ilow))
@@ -673,10 +661,10 @@ static void bounds_check_aggregate(tree_t t)
             if (rkind == RANGE_TO || rkind == RANGE_DOWNTO) {
                tree_t left = tree_left(r), right = tree_right(r);
 
-               if (!bounds_within(left, index_type, rkind,
+               if (!bounds_within(left, NULL, index_type, rkind,
                                   "aggregate choice", low, high))
                   known_elem_count = false;
-               if (!bounds_within(right, index_type, rkind,
+               if (!bounds_within(right, NULL, index_type, rkind,
                                   "aggregate choice", low, high))
                   known_elem_count = false;
 
@@ -1063,7 +1051,8 @@ static void bounds_check_case(tree_t t)
          case A_NAMED:
             {
                tree_t name = tree_name(a);
-               if (!bounds_within(name, type, tdir, "case choice", tlow, thigh))
+               if (!bounds_within(name, NULL, type, tdir, "case choice",
+                                  tlow, thigh))
                   have_others = true;
                else
                   low = high = assume_int(tree_name(a));
@@ -1081,9 +1070,11 @@ static void bounds_check_case(tree_t t)
                tree_t left = tree_left(r);
                tree_t right = tree_right(r);
 
-               if (!bounds_within(left, type, dir, "case choice", tlow, thigh))
+               if (!bounds_within(left, NULL, type, dir, "case choice",
+                                  tlow, thigh))
                   have_others = true;
-               if (!bounds_within(right, type, dir, "case choice", tlow, thigh))
+               if (!bounds_within(right, NULL, type, dir, "case choice",
+                                  tlow, thigh))
                   have_others = true;
 
                low = assume_int(dir == RANGE_TO ? left : right);
