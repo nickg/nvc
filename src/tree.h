@@ -77,7 +77,6 @@ typedef enum literal_kind {
 typedef enum constraint_kind {
    C_RANGE,
    C_INDEX,
-   C_COMPUTED
 } constraint_kind_t;
 
 typedef enum {
@@ -305,7 +304,7 @@ typedef enum tree_kind {
 typedef enum {
    TREE_F_LOCALLY_STATIC  = (1 << 0),
    TREE_F_GLOBALLY_STATIC = (1 << 1),
-   TREE_F_UNCONSTRAINED   = (1 << 2),
+   // Unused              = (1 << 2),
    TREE_F_IMPURE          = (1 << 3),
    TREE_F_CONVERSION      = (1 << 4),
    TREE_F_POSTPONED       = (1 << 5),

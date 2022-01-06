@@ -2383,55 +2383,6 @@ static bool sem_check_string_literal(tree_t t)
                    istr(ch_i), type_pp(type));
    }
 
-   if (type_is_unconstrained(type)) {
-      // Construct a new array type: the direction and bounds are the same
-      // as those for a positional array aggregate
-
-      type_t tmp = type_new(T_SUBTYPE);
-      type_set_ident(tmp, type_ident(type));
-      type_set_base(tmp, type);
-
-      type_t index_type = index_type_of(type, 0);
-      const type_kind_t indexk = type_kind(index_type);
-
-      // The direction is determined by the index type
-      range_kind_t dir = direction_of(index_type, 0);
-
-      // The left bound is the left of the index type and the right bound
-      // is determined by the number of elements
-
-      tree_t left = NULL, right = NULL;
-      type_t std_int = std_type(NULL, STD_INTEGER);
-
-      if (indexk == T_ENUM)
-         left = make_ref(type_enum_literal(index_type, 0));
-      else
-         left = tree_left(range_of(index_type, 0));
-
-      right = call_builtin(S_ADD, index_type,
-                           sem_int_lit(std_int, nchars - 1),
-                           left, NULL);
-
-      // TODO: should this happen in type solver?
-      tree_t r = tree_new(T_RANGE);
-      tree_set_subkind(r, dir);
-      tree_set_left(r, left);
-      tree_set_right(r, right);
-      tree_set_loc(r, tree_loc(t));
-
-      tree_t c = tree_new(T_CONSTRAINT);
-      tree_set_subkind(c, C_COMPUTED);
-      tree_add_range(c, r);
-      tree_set_loc(c, tree_loc(t));
-
-      type_set_constraint(tmp, c);
-
-      tree_set_type(t, tmp);
-      tree_set_flag(t, TREE_F_UNCONSTRAINED);
-   }
-   else
-      tree_set_type(t, type);
-
    return true;
 }
 
@@ -2563,9 +2514,6 @@ static bool sem_check_array_aggregate(tree_t t)
                       " association");
       }
    }
-
-   if (unconstrained)
-      tree_set_flag(t, TREE_F_UNCONSTRAINED);
 
    return true;
 }
@@ -3601,18 +3549,6 @@ static bool sem_subtype_locally_static(type_t type)
    }
 }
 
-static bool sem_unconstrained_value(tree_t expr)
-{
-   switch (tree_kind(expr)) {
-   case T_AGGREGATE:
-   case T_LITERAL:
-      return !!(tree_flags(expr) & TREE_F_UNCONSTRAINED);
-
-   default:
-      return false;
-   }
-}
-
 static bool sem_locally_static(tree_t t)
 {
    // Rules for locally static expressions are in LRM 93 7.4.1
@@ -3644,8 +3580,7 @@ static bool sem_locally_static(tree_t t)
 
          tree_t value = tree_value(decl);
          return sem_subtype_locally_static(tree_type(decl))
-            && sem_locally_static(value)
-            && !sem_unconstrained_value(value);
+            && sem_locally_static(value);
       }
       else if ((standard() >= STD_08 || (relax_rules() & RELAX_LOCALLY_STATIC))
                && dkind == T_PORT_DECL) {
@@ -3730,11 +3665,12 @@ static bool sem_locally_static(tree_t t)
    // Aggregates must have locally static range and all elements
    // must have locally static values
    if (kind == T_AGGREGATE) {
-      if (sem_unconstrained_value(t))
-         return false;
-
-      if (type_is_array(type) && !sem_locally_static(range_of(type, 0)))
-         return false;
+      if (type_is_array(type)) {
+         if (type_is_unconstrained(type))
+            return false;
+         else if (!sem_locally_static(range_of(type, 0)))
+            return false;
+      }
 
       const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {
