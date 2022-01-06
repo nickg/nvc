@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -170,8 +170,6 @@ typedef enum {
    S_MATCH_GE,
    S_MATCH_EQ,
    S_MATCH_NEQ,
-   S_INDEX_MIN,   // TODO: these two should be removed
-   S_INDEX_MAX,   //  "
    S_FILE_FLUSH,
 } subprogram_kind_t;
 

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2013-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -86,81 +86,6 @@ void range_bounds(tree_t r, int64_t *low, int64_t *high)
 
    *low  = tree_subkind(r) == RANGE_TO ? left : right;
    *high = tree_subkind(r) == RANGE_TO ? right : left;
-}
-
-tree_t call_builtin(subprogram_kind_t builtin, type_t type, ...)
-{
-   extern object_arena_t *global_arena;
-
-   struct decl_cache {
-      struct decl_cache *next;
-      subprogram_kind_t  bname;
-      tree_t             decl;
-      object_arena_t    *arena;
-   };
-
-   char *name LOCAL = xasprintf("NVC.BUILTIN.%d", builtin);
-   for (char *p = name; *p != '\0'; p++)
-      *p = toupper((int)*p);
-
-   static struct decl_cache *cache = NULL;
-
-   ident_t name_i = ident_new(name);
-
-   struct decl_cache *it;
-   for (it = cache; it != NULL; it = it->next) {
-      if (it->bname == builtin)
-         break;
-   }
-
-   tree_t decl;
-   if (it != NULL && it->arena == global_arena)
-      decl = it->decl;
-   else {
-      decl = tree_new(T_FUNC_DECL);
-      tree_set_ident(decl, name_i);
-      tree_set_subkind(decl, builtin);
-   }
-
-   if (it == NULL) {
-      struct decl_cache *c = xmalloc(sizeof(struct decl_cache));
-      c->next  = cache;
-      c->bname = builtin;
-      c->decl  = decl;
-      c->arena = global_arena;
-
-      // XXX: this is horrible
-      extern void object_add_global_root(object_t **object);
-      object_add_global_root((object_t **)&(c->decl));
-
-      cache = c;
-   }
-   else
-      it->decl = decl;
-
-   tree_t call = tree_new(T_FCALL);
-   tree_set_ident(call, name_i);
-   tree_set_ref(call, decl);
-   tree_set_flag(call, TREE_F_LOCALLY_STATIC | TREE_F_GLOBALLY_STATIC);
-   if (type != NULL)
-      tree_set_type(call, type);
-
-   va_list ap;
-   va_start(ap, type);
-   tree_t arg;
-   int pos = 0;
-   while ((arg = va_arg(ap, tree_t))) {
-      tree_t p = tree_new(T_PARAM);
-      tree_set_value(p, arg);
-      tree_set_loc(p, tree_loc(arg));
-      tree_set_subkind(p, P_POS);
-      tree_set_pos(p, pos++);
-
-      tree_add_param(call, p);
-   }
-   va_end(ap);
-
-   return call;
 }
 
 bool folded_int(tree_t t, int64_t *l)

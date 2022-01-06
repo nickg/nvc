@@ -823,24 +823,6 @@ static type_t lower_arg_type(tree_t fcall, int nth)
       return tree_type(tree_value(tree_param(fcall, nth)));
 }
 
-static vcode_reg_t lower_min_max(vcode_cmp_t cmp, tree_t fcall)
-{
-   vcode_reg_t result = VCODE_INVALID_REG;
-
-   const int nparams = tree_params(fcall);
-   for (int i = 0; i < nparams; i++) {
-      vcode_reg_t value = lower_subprogram_arg(fcall, i);
-      if (result == VCODE_INVALID_REG)
-         result = value;
-      else {
-         vcode_reg_t test = emit_cmp(cmp, value, result);
-         result = emit_select(test, value, result);
-      }
-   }
-
-   return result;
-}
-
 static vcode_reg_t lower_wrap_string(const char *str)
 {
    const size_t len = strlen(str);
@@ -1178,11 +1160,7 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
 
 static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
 {
-   if (builtin == S_INDEX_MAX)
-      return lower_min_max(VCODE_CMP_GT, fcall);
-   else if (builtin == S_INDEX_MIN)
-      return lower_min_max(VCODE_CMP_LT, fcall);
-   else if (builtin == S_SCALAR_AND)
+   if (builtin == S_SCALAR_AND)
       return lower_short_circuit(fcall, SHORT_CIRCUIT_AND);
    else if (builtin == S_SCALAR_OR)
       return lower_short_circuit(fcall, SHORT_CIRCUIT_OR);

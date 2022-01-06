@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2013-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -26,7 +26,6 @@
 
 int64_t assume_int(tree_t t);
 void range_bounds(tree_t r, int64_t *low, int64_t *high);
-tree_t call_builtin(subprogram_kind_t kind, type_t type, ...);
 bool folded_int(tree_t t, int64_t *i);
 bool folded_real(tree_t t, double *d);
 bool folded_bool(tree_t t, bool *b);
