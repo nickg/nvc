@@ -7123,8 +7123,10 @@ static void lower_port_map(tree_t block, tree_t map)
       emit_map_signal(src_reg, dst_reg, src_count, dst_count, conv_func);
 
       // If this is an inout port create the mapping between input and output
-      if (inout_reg != VCODE_INVALID_REG)
+      if (inout_reg != VCODE_INVALID_REG) {
+         value_reg = lower_expr(value, EXPR_INPUT_ASPECT);
          emit_map_signal(value_reg, inout_reg, dst_count, src_count, in_conv);
+      }
    }
    else {
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
