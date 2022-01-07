@@ -297,6 +297,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_SCHED_EVENT:
       case VCODE_OP_SCHED_STATIC:
+      case VCODE_OP_FILE_OPEN:
+      case VCODE_OP_FILE_CLOSE:
          break;
 
       case VCODE_OP_RESUME:
@@ -3810,6 +3812,42 @@ START_TEST(test_protupref)
 }
 END_TEST
 
+START_TEST(test_closefile)
+{
+   input_from_file(TESTDIR "/lower/closefile.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   vcode_unit_t vu = find_unit(
+      "WORK.FILEPACK.TEST");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_NULL },
+      { VCODE_OP_STORE, .name = "F" },
+      { VCODE_OP_CONST, .value = 'f' },
+      { VCODE_OP_CONST_ARRAY, .length = 1 },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_INDEX, .name = "F" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_FILE_OPEN },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 2, .target_else = 1 },
+   };
+
+   CHECK_BB(0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_FILE_CLOSE },
+      { VCODE_OP_JUMP, .target = 2 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3900,6 +3938,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_instance1);
    tcase_add_test(tc, test_sig2var);
    tcase_add_test(tc, test_protupref);
+   tcase_add_test(tc, test_closefile);
    suite_add_tcase(s, tc);
 
    return s;

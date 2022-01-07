@@ -3830,26 +3830,51 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
       vcode_select_block(bmerge);
 }
 
-static void lower_cleanup_protected(void)
+static void lower_leave_subprogram(void)
 {
-   if (!(top_scope->flags & SCOPE_HAS_PROTECTED))
-      return;
-   else if (!is_subprogram(top_scope->container))
-      return;
+   // Release resources for protected and file variables
 
    const int ndecls = tree_decls(top_scope->container);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(top_scope->container, i);
-      if (!type_is_protected(tree_type(d)))
-         continue;
+      switch (tree_kind(d)) {
+      case T_VAR_DECL:
+         if (type_is_protected(tree_type(d))) {
+            vcode_reg_t obj_reg = lower_reify(lower_var_ref(d, EXPR_RVALUE));
+            emit_protected_free(obj_reg);
+         }
+         break;
 
-      vcode_reg_t obj_reg = lower_reify(lower_var_ref(d, EXPR_RVALUE));
-      emit_protected_free(obj_reg);
+      case T_FILE_DECL:
+         {
+            vcode_block_t open_bb = emit_block();
+            vcode_block_t closed_bb = emit_block();
+
+            vcode_reg_t ptr_reg  = lower_var_ref(d, EXPR_LVALUE);
+            vcode_reg_t file_reg = emit_load_indirect(ptr_reg);
+            vcode_reg_t null_reg = emit_null(lower_type(tree_type(d)));
+            vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, file_reg, null_reg);
+            emit_cond(cmp_reg, closed_bb, open_bb);
+
+            vcode_select_block(open_bb);
+            emit_file_close(ptr_reg);
+            emit_jump(closed_bb);
+
+            vcode_select_block(closed_bb);
+         }
+         break;
+
+      default:
+         break;
+      }
    }
 }
 
 static void lower_return(tree_t stmt)
 {
+   if (is_subprogram(top_scope->container))
+      lower_leave_subprogram();
+
    if (tree_has_value(stmt)) {
       tree_t value = tree_value(stmt);
 
@@ -6780,7 +6805,7 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
       lower_stmt(tree_stmt(body, i), NULL);
 
    if (!vcode_block_finished()) {
-      lower_cleanup_protected();
+      lower_leave_subprogram();
       emit_return(VCODE_INVALID_REG);
    }
 
