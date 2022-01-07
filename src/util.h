@@ -119,6 +119,8 @@ void fatal_trace(const char *fmt, ...)
 void fatal_errno(const char *fmt, ...)
    __attribute__((format(printf, 1, 2), noreturn));
 
+const char *last_os_error(void);
+
 #define likely(x) __builtin_expect(x, 1)
 #define unlikely(x) __builtin_expect(x, 0)
 

@@ -555,6 +555,7 @@ bool is_container(tree_t t)
    case T_PACK_BODY:
    case T_CONFIGURATION:
    case T_BLOCK:
+   case T_PROT_BODY:
       return true;
    default:
       return false;

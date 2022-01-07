@@ -438,15 +438,14 @@ static tree_t rt_find_enclosing_decl(ident_t unit_name, const char *symbol)
          unit = body;
    }
 
-   static hash_t *cache = NULL;
+   static shash_t *cache = NULL;
    if (cache == NULL)
-      cache = hash_new(256, true);
+      cache = shash_new(256);
 
-   ident_t key = ident_new(symbol);
-   tree_t enclosing = hash_get(cache, key);
+   tree_t enclosing = shash_get(cache, symbol);
    if (enclosing == NULL) {
-      if ((enclosing = find_mangled_decl(unit, key)))
-         hash_put(cache, key, enclosing);
+      if ((enclosing = find_mangled_decl(unit, ident_new(symbol))))
+         shash_put(cache, symbol, enclosing);
    }
 
    return enclosing;
@@ -1412,13 +1411,14 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
          *status = 1;   // STATUS_ERROR
          return;
       }
-      else
+      else {
          // This is to support closing a file implicitly when the
          // design is reset
          fclose(*fp);
+      }
    }
 
-   char *fname = xmalloc(name_len + 1);
+   char *fname LOCAL = xmalloc(name_len + 1);
    memcpy(fname, name_bytes, name_len);
    fname[name_len] = '\0';
 
@@ -1441,7 +1441,7 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
 
    if (*fp == NULL) {
       if (status == NULL)
-         fatal_errno("failed to open %s", fname);
+         rt_msg(NULL, fatal, "failed to open %s: %s", fname, last_os_error());
       else {
          switch (errno) {
          case ENOENT:
@@ -1451,12 +1451,10 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
             *status = 3;   // MODE_ERROR
             break;
          default:
-            fatal_errno("%s", fname);
+            rt_msg(NULL, fatal, "%s: %s", fname, last_os_error());
          }
       }
    }
-
-   free(fname);
 }
 
 DLLEXPORT
@@ -1465,7 +1463,7 @@ void _file_write(void **_fp, uint8_t *data, int32_t len)
    FILE **fp = (FILE **)_fp;
 
    if (*fp == NULL)
-      fatal("write to closed file");
+      rt_msg(NULL, fatal, "write to closed file");
 
    fwrite(data, 1, len, *fp);
 }
@@ -1477,7 +1475,7 @@ void _file_read(void **_fp, uint8_t *data, int32_t size, int32_t count,
    FILE **fp = (FILE **)_fp;
 
    if (*fp == NULL)
-      fatal("read from closed file");
+      rt_msg(NULL, fatal, "read from closed file");
 
    size_t n = fread(data, size, count, *fp);
    if (out != NULL)
@@ -1492,7 +1490,7 @@ void _file_close(void **_fp)
    TRACE("_file_close fp=%p", fp);
 
    if (*fp == NULL)
-      fatal("attempt to close already closed file");
+      rt_msg(NULL, fatal, "attempt to close already closed file");
 
    fclose(*fp);
    *fp = NULL;
@@ -1504,7 +1502,7 @@ int8_t _endfile(void *_f)
    FILE *f = _f;
 
    if (f == NULL)
-      fatal("ENDFILE called on closed file");
+      rt_msg(NULL, fatal, "ENDFILE called on closed file");
 
    int c = fgetc(f);
    if (c == EOF)
@@ -1518,6 +1516,9 @@ int8_t _endfile(void *_f)
 DLLEXPORT
 void __nvc_flush(FILE *f)
 {
+   if (f == NULL)
+      rt_msg(NULL, fatal, "FLUSH called on closed file");
+
    fflush(f);
 }
 

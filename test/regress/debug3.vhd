@@ -15,6 +15,7 @@ package body broken_module is
     begin
         file_open(fwrite, "tmp", WRITE_MODE);
         file_close(fwrite);
+        file_close(fwrite);             -- Closed twice
     end procedure;
 
     procedure proc is
@@ -27,12 +28,12 @@ end package body;
 
 -------------------------------------------------------------------------------
 
-entity issue91 is
+entity debug3 is
 end entity;
 
 use work.broken_module.all;
 
-architecture test of issue91 is
+architecture test of debug3 is
     shared variable p : prot_t;
 begin
 

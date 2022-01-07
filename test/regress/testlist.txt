@@ -462,3 +462,5 @@ vests36         normal
 issue433        normal,gold
 vests37         normal
 vests38         normal
+debug3          fail,2000,gold,O0
+file8           fail,gold

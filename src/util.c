@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -691,8 +691,24 @@ void fatal_trace(const char *fmt, ...)
 
 void fatal_errno(const char *fmt, ...)
 {
+   char *fmt_err LOCAL = xasprintf("%s: %s", fmt, last_os_error());
+
+   va_list ap;
+   va_start(ap, fmt);
+   fmt_color(ANSI_FG_RED, "Fatal", fmt_err, ap);
+   va_end(ap);
+
+   exit(EXIT_FAILURE);
+}
+
+const char *last_os_error(void)
+{
 #ifdef __MINGW32__
-   LPSTR mbuf = NULL;
+   static __thread LPSTR mbuf = NULL;
+
+   if (mbuf != NULL)
+      LocalFree(mbuf);
+
    FormatMessage(
       FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM
       | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -701,19 +717,10 @@ void fatal_errno(const char *fmt, ...)
       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
       (LPSTR)&mbuf, 0, NULL);
 
-   char *fmt_err LOCAL = xasprintf("%s: %s", fmt, mbuf);
-
-   LocalFree(mbuf);
+   return mbuf;
 #else
-   char *fmt_err LOCAL = xasprintf("%s: %s", fmt, strerror(errno));
+   return strerror(errno);
 #endif
-
-   va_list ap;
-   va_start(ap, fmt);
-   fmt_color(ANSI_FG_RED, "Fatal", fmt_err, ap);
-   va_end(ap);
-
-   exit(EXIT_FAILURE);
 }
 
 static void trace_one_frame(uintptr_t pc, const char *module,
