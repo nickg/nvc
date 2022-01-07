@@ -170,6 +170,7 @@ static const char *value_str(tree_t value)
          int64_t ival;
          const bool is_folded = folded_int(value, &ival);
          assert(is_folded);
+         (void)is_folded;
          snprintf(buf, BUF_SZ, "%"PRIi64, ival);
       }
       break;
@@ -178,6 +179,7 @@ static const char *value_str(tree_t value)
          int64_t ival, max_unit_value = 0;
          const bool is_folded = folded_int(value, &ival);
          assert(is_folded);
+         (void)is_folded;
          const unsigned  nunits = type_units(vtype);
          tree_t max_unit = NULL;
 
@@ -186,6 +188,7 @@ static const char *value_str(tree_t value)
             tree_t unit = type_unit(vtype, u);
             int64_t unit_value;
             const bool is_folded = folded_int(tree_value(unit), &unit_value);
+            (void)is_folded;
             assert(is_folded);
             if ((ival % unit_value == 0) && (unit_value > max_unit_value))
             {
@@ -202,6 +205,7 @@ static const char *value_str(tree_t value)
       {
          double rval;
          const bool is_folded = folded_real(value, &rval);
+         (void)is_folded;
          assert(is_folded);
          snprintf(buf, BUF_SZ, "%lf", rval);
       }
@@ -210,6 +214,7 @@ static const char *value_str(tree_t value)
       {
          unsigned uval;
          const bool is_folded = folded_enum(value, &uval);
+         (void)is_folded;
          assert(is_folded);
          type_t base = type_base_recur(vtype);
          return istr(tree_ident(type_enum_literal(base, uval)));
@@ -1179,6 +1184,7 @@ static void bounds_check_attr_ref(tree_t t)
 
             int64_t dim;
             const bool f = folded_int(dim_tree, &dim);
+            (void)f;
             assert(f);
 
             if (dim < 1 || dim > dimension_of(type))

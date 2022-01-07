@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -66,6 +66,12 @@
 
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
+
+#ifdef NDEBUG
+#define DEBUG_ONLY(x)
+#else
+#define DEBUG_ONLY(x) x
+#endif
 
 #define LCOV_EXCL_LINE
 #define LCOV_EXCL_START

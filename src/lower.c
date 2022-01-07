@@ -198,8 +198,7 @@ static vcode_reg_t lower_range_expr(tree_t r)
    // where A is an array with non-static bounds
 
    tree_t array = tree_name(tree_value(r));
-   type_t type = tree_type(array);
-   assert(!lower_const_bounds(type));
+   assert(!lower_const_bounds(tree_type(array)));
    return lower_expr(array, EXPR_RVALUE);
 }
 
@@ -1944,9 +1943,11 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
    if (array == VCODE_INVALID_REG)
       return array;
 
-   const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(array));
-   assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY
-          || vtkind == VCODE_TYPE_SIGNAL);
+   DEBUG_ONLY({
+         const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(array));
+         assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY
+                || vtkind == VCODE_TYPE_SIGNAL);
+      });
 
    vcode_reg_t offset_reg = lower_array_ref_offset(ref, array);
    vcode_reg_t data_reg   = lower_array_data(array);

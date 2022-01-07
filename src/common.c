@@ -856,8 +856,10 @@ range_kind_t direction_of(type_t type, unsigned dim)
             tree_t value = tree_value(r);
             assert(tree_kind(value) == T_ATTR_REF);
 
-            const attr_kind_t attr = tree_subkind(value);
-            assert(attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE);
+            DEBUG_ONLY({
+                  const attr_kind_t attr = tree_subkind(value);
+                  assert(attr == ATTR_RANGE || attr == ATTR_REVERSE_RANGE);
+               });
 
             tree_t name = tree_name(value);
             assert(tree_kind(name) == T_REF);

@@ -36,7 +36,7 @@ const char *copy_string =
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
 const char *version_string =
-   PACKAGE_STRING " (Using LLVM " LLVM_VERSION ")";
+   PACKAGE_STRING " (Using LLVM " LLVM_VERSION ")" DEBUG_ONLY(" [debug]");
 
 static ident_t top_level = NULL;
 static char *top_level_orig = NULL;

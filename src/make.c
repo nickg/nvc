@@ -247,6 +247,7 @@ static void make_rule(tree_t t, rule_t **rules)
 
    case T_ENTITY:
    case T_ARCH:
+   case T_CONFIGURATION:
       make_rule_add_output(r, make_product(t, MAKE_TREE));
       break;
 
@@ -382,7 +383,7 @@ void make(tree_t *targets, int count, FILE *out)
    make_print_rules(rules, out);
    make_free_rules(rules);
 
-   if (!opt_get_int("make-deps-only")) {
+   if (!opt_get_int("make-deps-only") && count > 0) {
       make_clean(targets[0], out);
       make_run(targets, count, out);
    }

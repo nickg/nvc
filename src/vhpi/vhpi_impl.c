@@ -478,7 +478,8 @@ static const char *vhpi_map_str_for_type(type_t type)
    else if (type_name == std_bit_i)
       return "01";
    else
-      assert(false);
+      fatal_trace("vhpi_map_type_for_str not supported for %s",
+                  type_pp(type));
 }
 
 static rt_event_t vhpi_get_rt_event(int reason)
@@ -498,7 +499,7 @@ static rt_event_t vhpi_get_rt_event(int reason)
    case vhpiCbLastKnownDeltaCycle:
       return RT_LAST_KNOWN_DELTA_CYCLE;
    default:
-      assert(false);
+      fatal_trace("unhandled value %d in vhpi_get_rt_event", reason);
    }
 }
 
@@ -1164,7 +1165,9 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          return 0;
 
       default:
-         assert(false);
+         vhpi_error(vhpiError, tree_loc(expr->tree), "unsupported format %d",
+                    value_p->format);
+         return -1;
       }
    }
    else {
@@ -1197,7 +1200,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
             value_p->value.smallenumvs[i] = values[i];
             break;
          default:
-            assert(false);
+            vhpi_error(vhpiError, tree_loc(expr->tree), "unsupported format %d",
+                       format);
          }
       }
 
@@ -1456,7 +1460,8 @@ int vhpi_release_handle(vhpiHandleT handle)
       return 0;
 
    default:
-      assert(false);
+      vhpi_error(vhpiFailure, NULL, "invalid handle");
+      return -1;
    }
 }
 

@@ -562,8 +562,10 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 
          if (type_is_array(type)) {
             if (tree_params(t) > 0) {
-               const bool f = folded_int(tree_value(tree_param(t, 0)), &dim_i);
-               assert(f);
+               tree_t value = tree_value(tree_param(t, 0));
+               if (!folded_int(value, &dim_i))
+                  fatal_at(tree_loc(value), "locally static dimension "
+                           "expression was not folded");
             }
 
             if (name_kind == T_REF

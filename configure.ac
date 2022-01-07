@@ -277,6 +277,16 @@ AC_ARG_ENABLE([tsan],
      EXTRA_LDFLAGS="$EXTRA_LDFLAGS -fsanitize=thread"
    fi])
 
+AC_ARG_ENABLE([debug],
+  [AS_HELP_STRING([--enable-debug],
+                  [Enable extra debugging checks for development])],
+  [enable_debug=$enableval],
+  [enable_debug=no])
+if test x$enable_debug != xyes ; then
+  AC_DEFINE_UNQUOTED([NDEBUG], [1],
+    [Disable extra debugging checks for development])
+fi
+
 case $host_os in
   msys*|mingw32*)
     LIBS="$LIBS -lDbgHelp"    # For StackTrace64

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2021  Nick Gasson
+//  Copyright (C) 2014-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -318,8 +318,7 @@ object_t *object_new(object_arena_t *arena,
 
    const size_t size = ALIGN_UP(class->object_size[kind], OBJECT_ALIGN);
 
-   const uintptr_t alloc_addr = (uintptr_t)arena->alloc;
-   assert((alloc_addr & (OBJECT_ALIGN - 1)) == 0);
+   assert(((uintptr_t)arena->alloc & (OBJECT_ALIGN - 1)) == 0);
 
    if (unlikely(arena->limit - arena->alloc < size))
       fatal_trace("out of space in arena %s", istr(object_arena_name(arena)));
