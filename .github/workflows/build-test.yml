@@ -20,7 +20,7 @@ jobs:
       - name: Configure
         run: |
           ./configure --enable-gcov --enable-vhpi --enable-asan \
-               --with-llvm=/usr/bin/llvm-config
+               --with-llvm=/usr/bin/llvm-config --enable-debug
       - name: Build
         run: ASAN_OPTIONS=detect_leaks=0 make
       - name: Test
@@ -37,7 +37,8 @@ jobs:
       - name: Configure for release
         run: >-
           ./configure --enable-vhpi --with-llvm=/usr/bin/llvm-config \
-             --prefix=/opt/nvc-${{ steps.version.outputs.version }}
+             --prefix=/opt/nvc-${{ steps.version.outputs.version }} \
+             --disable-debug
       - name: Build release
         run: make
       - name: Install release
@@ -67,7 +68,9 @@ jobs:
       - name: Generate configure script
         run: ./autogen.sh
       - name: Configure
-        run: ./configure --enable-vhpi --with-llvm=$(brew --prefix llvm)/bin/llvm-config
+        run: |
+          ./configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
+               --enable-debug --enable-vhpi
       - name: Build
         run: make
       - name: Test
@@ -101,7 +104,7 @@ jobs:
       - name: Generate configure script
         run: bash autogen.sh
       - name: Configure
-        run: bash configure --enable-vhpi
+        run: bash configure --enable-vhpi --enable-debug
       - name: Build
         run: make
       - name: Test
