@@ -2610,32 +2610,47 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
 
    vcode_reg_t var_reg = VCODE_INVALID_REG;
    if (type_is_unconstrained(type)) {
+      type_t index_type = index_type_of(type, 0);
+      vcode_type_t itype = lower_type(index_type);
+      vcode_type_t ibounds = lower_bounds(index_type);
+
       vcode_reg_t len   = emit_const(vtype_offset(), 0);
-      vcode_reg_t right = emit_const(vtype_offset(), 0);
+      vcode_reg_t elems = emit_const(vtype_offset(), -1);
+      vcode_reg_t dir   = VCODE_INVALID_REG;
+      vcode_reg_t left  = VCODE_INVALID_REG;
       for (unsigned i = 0; i < args.count; i++) {
          concat_param_t *p = &(args.items[i]);
-         vcode_reg_t len_i, right_i;
+         vcode_reg_t len_i;
          if (type_is_array(p->type) && type_eq(p->type, type)) {
-            len_i   = lower_array_total_len(p->type, p->reg);
-            right_i = lower_array_len(args.items[i].type, 0, p->reg);
+            if (i == 0) {
+               left = lower_array_left(p->type, 0, p->reg);
+               dir = lower_array_dir(p->type, 0, p->reg);
+            }
+            elems = emit_add(elems, lower_array_len(p->type, 0, p->reg));
+            len_i = lower_array_total_len(p->type, p->reg);
          }
-         else
-            len_i = right_i = emit_const(vtype_offset(), 1);
+         else {
+            if (i == 0) {
+               tree_t r = range_of(index_type, 0);
+               left = lower_range_left(r);
+               dir = lower_range_dir(r);
+            }
+            len_i = emit_const(vtype_offset(), 1);
+            elems = emit_add(elems, len_i);
+         }
 
          len = emit_add(len, len_i);
-         right = emit_add(right, right_i);
       }
 
       vcode_reg_t data = emit_alloca(lower_type(scalar_elem),
                                      lower_bounds(scalar_elem), len);
 
-      vcode_dim_t dims[1] = {
-         {
-            .left  = emit_const(vtype_offset(), 1),
-            .right = right,
-            .dir   = emit_const(vtype_bool(), RANGE_TO)
-         }
-      };
+      vcode_reg_t cast_reg   = emit_cast(itype, ibounds, elems);
+      vcode_reg_t right_to   = emit_add(left, cast_reg);
+      vcode_reg_t right_down = emit_sub(left, cast_reg);
+      vcode_reg_t right      = emit_select(dir, right_down, right_to);
+
+      vcode_dim_t dims[1] = { { left, right, dir } };
       var_reg = emit_wrap(data, dims, 1);
    }
    else
