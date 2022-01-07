@@ -3476,6 +3476,9 @@ static void lower_var_assign_target(target_part_t **ptr, tree_t where,
       else if (p->reg == VCODE_INVALID_REG)
          continue;
 
+      if (p->kind == PART_ELEM)
+         src_type = type_elem(src_type);
+
       if (type_is_array(p->type))
          lower_check_array_sizes(where, p->type, src_type, p->reg, src_reg);
 
@@ -3611,6 +3614,9 @@ static void lower_signal_assign_target(target_part_t **ptr, tree_t where,
       }
       else if (p->reg == VCODE_INVALID_REG)
          continue;
+
+      if (p->kind == PART_ELEM)
+         src_type = type_elem(src_type);
 
       if (type_is_array(p->type))
          lower_check_array_sizes(where, p->type, src_type, p->reg, src_reg);
