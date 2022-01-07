@@ -1,0 +1,2 @@
+0ms+0: Assertion Note: TEST_NG:U2():OK
+0ms+0: Assertion Note: TEST_NG:U1():OK

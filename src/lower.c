@@ -86,6 +86,14 @@ typedef struct {
    type_t      type;
 } target_part_t;
 
+typedef struct {
+   tree_t      value;
+   type_t      type;
+   vcode_reg_t reg;
+} concat_param_t;
+
+typedef A(concat_param_t) concat_list_t;
+
 static const char      *verbose = NULL;
 static lower_mode_t     mode = LOWER_NORMAL;
 static lower_scope_t   *top_scope = NULL;
@@ -2575,21 +2583,25 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
       return emit_record_ref(record, index);
 }
 
+static void lower_flatten_concat(tree_t arg, concat_list_t *list)
+{
+   if (tree_kind(arg) == T_FCALL && tree_subkind(tree_ref(arg)) == S_CONCAT) {
+      assert(tree_params(arg) == 2);
+      lower_flatten_concat(tree_value(tree_param(arg, 0)), list);
+      lower_flatten_concat(tree_value(tree_param(arg, 1)), list);
+   }
+   else {
+      vcode_reg_t reg = lower_expr(arg, EXPR_RVALUE);
+      APUSH(*list, ((concat_param_t){ arg, tree_type(arg), reg }));
+   }
+}
+
 static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
 {
-   const int nparams = tree_params(expr);
+   assert(tree_params(expr) == 2);
 
-   struct {
-      tree_t      value;
-      type_t      type;
-      vcode_reg_t reg;
-   } args[nparams];
-
-   for (int i = 0; i < nparams; i++) {
-      args[i].value = tree_value(tree_param(expr, i));
-      args[i].type  = tree_type(args[i].value);
-      args[i].reg   = lower_expr(args[i].value, ctx);
-   }
+   concat_list_t args = AINIT;
+   lower_flatten_concat(expr, &args);
 
    type_t type = tree_type(expr);
    type_t elem = type_elem(type);
@@ -2600,11 +2612,12 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
    if (type_is_unconstrained(type)) {
       vcode_reg_t len   = emit_const(vtype_offset(), 0);
       vcode_reg_t right = emit_const(vtype_offset(), 0);
-      for (int i = 0; i < nparams; i++) {
+      for (unsigned i = 0; i < args.count; i++) {
+         concat_param_t *p = &(args.items[i]);
          vcode_reg_t len_i, right_i;
-         if (type_is_array(args[i].type) && type_eq(args[i].type, type)) {
-            len_i   = lower_array_total_len(args[i].type, args[i].reg);
-            right_i = lower_array_len(args[i].type, 0, args[i].reg);
+         if (type_is_array(p->type) && type_eq(p->type, type)) {
+            len_i   = lower_array_total_len(p->type, p->reg);
+            right_i = lower_array_len(args.items[i].type, 0, p->reg);
          }
          else
             len_i = right_i = emit_const(vtype_offset(), 1);
@@ -2613,7 +2626,8 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
          right = emit_add(right, right_i);
       }
 
-      vcode_reg_t data = emit_alloca(lower_type(scalar_elem), lower_bounds(scalar_elem), len);
+      vcode_reg_t data = emit_alloca(lower_type(scalar_elem),
+                                     lower_bounds(scalar_elem), len);
 
       vcode_dim_t dims[1] = {
          {
@@ -2631,32 +2645,34 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
 
    vcode_reg_t ptr = lower_array_data(var_reg);
 
-   for (int i = 0; i < nparams; i++) {
-      if (type_is_array(args[i].type)) {
-         vcode_reg_t src_len =
-            lower_array_total_len(args[i].type, args[i].reg);
+   for (unsigned i = 0; i < args.count; i++) {
+      concat_param_t *p = &(args.items[i]);
+      if (type_is_array(p->type)) {
+         vcode_reg_t src_len = lower_array_total_len(p->type, p->reg);
 
-         if (lower_have_signal(args[i].reg)) {
-            vcode_reg_t data = lower_array_data(args[i].reg);
-            args[i].reg = emit_resolved(data);
-         }
+         vcode_reg_t data_reg;
+         if (lower_have_signal(p->reg))
+            data_reg = emit_resolved(lower_array_data(p->reg));
+         else
+            data_reg = lower_array_data(p->reg);
 
-         emit_copy(ptr, lower_array_data(args[i].reg), src_len);
-         if (i + 1 < nparams)
+         emit_copy(ptr, data_reg, src_len);
+         if (i + 1 < args.count)
             ptr = emit_add(ptr, src_len);
       }
-      else if (type_is_record(args[i].type)) {
-         emit_copy(ptr, args[i].reg, VCODE_INVALID_REG);
-         if (i + 1 < nparams)
+      else if (type_is_record(p->type)) {
+         emit_copy(ptr, p->reg, VCODE_INVALID_REG);
+         if (i + 1 < args.count)
             ptr = emit_add(ptr, emit_const(vtype_offset(), 1));
       }
       else {
-         emit_store_indirect(lower_reify(args[i].reg), ptr);
-         if (i + 1 < nparams)
+         emit_store_indirect(lower_reify(p->reg), ptr);
+         if (i + 1 < args.count)
             ptr = emit_add(ptr, emit_const(vtype_offset(), 1));
       }
    }
 
+   ACLEAR(args);
    return var_reg;
 }
 

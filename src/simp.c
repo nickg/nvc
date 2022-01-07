@@ -126,35 +126,6 @@ static tree_t simp_call_args(tree_t t)
    return t;
 }
 
-static tree_t simp_flatten_concat(tree_t fcall)
-{
-   // Flatten nested concatenations to make efficient code generation easier
-   tree_t p0 = tree_value(tree_param(fcall, 0));
-   const bool nested_concat =
-      tree_kind(p0) == T_FCALL
-      && tree_subkind(tree_ref(p0)) == S_CONCAT;
-
-   if (nested_concat) {
-      tree_t flat = tree_new(T_FCALL);
-      tree_set_ref(flat, tree_ref(fcall));
-      tree_set_loc(flat, tree_loc(fcall));
-      tree_set_type(flat, tree_type(fcall));
-      tree_set_ident(flat, tree_ident(fcall));
-
-      assert(tree_params(fcall) == 2);
-
-      const int np0 = tree_params(p0);
-      for (int i = 0; i < np0; i++)
-         tree_add_param(flat, tree_param(p0, i));
-
-      tree_add_param(flat, tree_param(fcall, 1));
-
-      return flat;
-   }
-
-   return fcall;
-}
-
 static bool fold_not_possible(tree_t t, eval_flags_t flags, const char *why)
 {
    if (flags & EVAL_WARN)
@@ -276,9 +247,6 @@ static vcode_unit_t simp_lower_cb(ident_t func, void *__ctx)
 
 static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 {
-   if (tree_subkind(tree_ref(t)) == S_CONCAT)
-      t = simp_flatten_concat(t);
-
    t = simp_call_args(t);
 
    if (tree_flags(t) & ctx->eval_mask)
