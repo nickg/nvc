@@ -60,6 +60,8 @@
   VHDL-2008.
 - Code generation now happens in parallel when LLVM is built with
   multi-threading enabled.
+- Link time optimisation (LTO) is now enabled for release builds where
+  supported.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

@@ -282,10 +282,25 @@ AC_ARG_ENABLE([debug],
                   [Enable extra debugging checks for development])],
   [enable_debug=$enableval],
   [enable_debug=no])
+
+AC_ARG_ENABLE([lto],
+  [AS_HELP_STRING([--enable-lto], [Enable link time optimisation])],
+  [enable_lto=$enableval],
+  [enable_lto=yes])
+
+LTO_FLAG=
 if test x$enable_debug != xyes ; then
   AC_DEFINE_UNQUOTED([NDEBUG], [1],
-    [Disable extra debugging checks for development])
+                     [Disable extra debugging checks for development])
+
+  if test x$enable_lto = xyes; then
+    AX_CHECK_COMPILE_FLAG(
+      [-flto],
+      AX_CHECK_LINK_FLAG([-flto], [LTO_FLAG="-flto"], [], [-Werror])
+      [], [-Werror])
+  fi
 fi
+AC_SUBST(LTO_FLAG)
 
 case $host_os in
   msys*|mingw32*)

@@ -71,7 +71,7 @@ if ENABLE_VHPI
 bin_nvc_LDADD += lib/libvhpi.a
 endif
 
-bin_nvc_LDFLAGS = $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
+bin_nvc_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
 if IMPLIB_REQUIRED
 
