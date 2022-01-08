@@ -1,0 +1,32 @@
+image: openbsd/latest
+packages:
+  - automake-1.15.1
+  - autoconf-2.71
+  - llvm
+  - libdwarf
+  - check
+sources:
+  - https://git.sr.ht/~nickg/nvc
+tasks:
+  - setup: |
+      uname -a
+      cd nvc
+      export AUTOCONF_VERSION=2.71
+      export AUTOMAKE_VERSION=1.15
+      ./autogen.sh
+      export CPPFLAGS="-I/usr/local/include"
+      export LDFLAGS="-L/usr/local/lib"
+      ./configure --enable-vhpi --enable-debug
+  - build: |
+      cd nvc
+      make
+  - test: |
+      cd nvc
+      make check
+  - release: |
+      cd nvc
+      make distclean
+      export CPPFLAGS="-I/usr/local/include"
+      export LDFLAGS="-L/usr/local/lib"
+      ./configure --enable-vhpi --disable-debug
+      make
