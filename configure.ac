@@ -30,7 +30,6 @@ AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_MKDIR_P
 AC_PROG_LEX([noyywrap])
-AC_PROG_RANLIB
 AC_EXEEXT
 
 AC_C_INLINE
@@ -283,22 +282,32 @@ AC_ARG_ENABLE([debug],
   [enable_debug=$enableval],
   [enable_debug=no])
 
-AC_ARG_ENABLE([lto],
-  [AS_HELP_STRING([--enable-lto], [Enable link time optimisation])],
-  [enable_lto=$enableval],
-  [enable_lto=yes])
-
-LTO_FLAG=
 if test x$enable_debug != xyes ; then
   AC_DEFINE_UNQUOTED([NDEBUG], [1],
                      [Disable extra debugging checks for development])
+fi
 
-  if test x$enable_lto = xyes; then
-    AX_CHECK_COMPILE_FLAG(
-      [-flto],
-      AX_CHECK_LINK_FLAG([-flto], [LTO_FLAG="-flto"], [], [-Werror])
-      [], [-Werror])
-  fi
+AC_ARG_ENABLE([lto],
+  [AS_HELP_STRING([--enable-lto], [Enable link time optimisation])],
+  [enable_lto=$enableval],
+  [AS_IF([test x$enable_debug = xyes],
+         [enable_lto=no],   # LTO off by default in debug builds
+         [enable_lto=yes])])
+
+LTO_FLAG=
+if test x$enable_lto = xyes; then
+  AX_CHECK_COMPILE_FLAG([-flto], [LTO_FLAG="-flto"], [], [-Werror])
+  AX_CHECK_LINK_FLAG([-flto], [], [LTO_FLAG=], [-Werror])
+
+  AX_COMPILER_VENDOR
+  AS_CASE([$ax_cv_c_compiler_vendor],
+          [gnu], [AC_CHECK_TOOLS([AR], [gcc-ar ar])
+                  AC_CHECK_TOOLS([RANLIB], [gcc-ranlib ranlib])],
+          [clang], [AC_CHECK_TOOLS([AR], [llvm-ar ar])
+                    AC_CHECK_TOOLS([RANLIB], [llvm-ranlib ranlib])])
+else
+  AC_CHECK_TOOL([AR], [ar])
+  AC_PROG_RANLIB
 fi
 AC_SUBST(LTO_FLAG)
 

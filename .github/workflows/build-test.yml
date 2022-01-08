@@ -75,6 +75,14 @@ jobs:
         run: make
       - name: Test
         run: make check
+      - name: Dist clean
+        run: make distclean
+      - name: Configure for release
+        run: |
+          ./configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
+               --disable-debug --enable-vhpi
+      - name: Build release
+        run: make
 
   build-windows:
     name: Windows MSYS2
@@ -109,6 +117,13 @@ jobs:
         run: make
       - name: Test
         run: make check
+      - name: Dist clean
+        run: make distclean
+      - name: Configure for release
+        run: >-
+          ./configure --enable-vhpi --disable-debug
+      - name: Build release
+        run: make
 
   vests:
     name: VESTs
