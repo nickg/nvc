@@ -845,6 +845,8 @@ range_kind_t direction_of(type_t type, unsigned dim)
    switch (type_kind(type)) {
    case T_ENUM:
       return RANGE_TO;
+   case T_NONE:
+      return RANGE_ERROR;
    case T_INTEGER:
    case T_REAL:
    case T_PHYSICAL:

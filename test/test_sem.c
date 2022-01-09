@@ -2412,6 +2412,22 @@ START_TEST(test_error2)
 }
 END_TEST
 
+START_TEST(test_error3)
+{
+   input_from_file(TESTDIR "/sem/error3.vhd");
+
+   const error_t expect[] = {
+      {  7, "unexpected integer while parsing type definition" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2531,6 +2547,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_tc251);
    tcase_add_test(tc_core, test_linkage);
    tcase_add_test(tc_core, test_error2);
+   tcase_add_test(tc_core, test_error3);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -587,7 +587,9 @@ static bool sem_check_type_decl(tree_t t)
          const int nindex = type_index_constrs(type);
          for (int i = 0; i < nindex; i++) {
             type_t index_type = type_index_constr(type, i);
-            if (!type_is_discrete(index_type))
+            if (type_is_none(index_type))
+               return false;
+            else if (!type_is_discrete(index_type))
                sem_error(t, "index type %s is not discrete",
                          type_pp(index_type));
          }
@@ -2979,7 +2981,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
             || (!(is_discrete && is_type) && !type_is_array(name_type));
 
          if (invalid) {
-            if (decl != NULL && class_has_type(class_of(decl))) {
+            if (name_type != NULL && type_is_none(name_type))
+               return false;
+            else if (decl != NULL && class_has_type(class_of(decl))) {
                if (is_type)
                   sem_error(t, "type %s does not have a range",
                             type_pp(tree_type(decl)));
