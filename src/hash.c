@@ -285,3 +285,112 @@ void *shash_get(shash_t *h, const char *key)
          return h->values[slot];
    }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// Hash of unsigned integers to pointers
+
+struct _ihash {
+   unsigned   size;
+   unsigned   members;
+   void     **values;
+   uint64_t  *keys;
+   uint64_t  *mask;
+};
+
+static inline int ihash_slot(ihash_t *h, uint64_t key)
+{
+   key = (key ^ (key >> 30)) * UINT64_C(0xbf58476d1ce4e5b9);
+   key = (key ^ (key >> 27)) * UINT64_C(0x94d049bb133111eb);
+   key = key ^ (key >> 31);
+
+   return key & (h->size - 1);
+}
+
+ihash_t *ihash_new(int size)
+{
+   ihash_t *h = xmalloc(sizeof(ihash_t));
+   h->size    = next_power_of_2(size);
+   h->members = 0;
+
+   const size_t bytes =
+      h->size * sizeof(void *) +
+      h->size * sizeof(uint64_t) +
+      (h->size + 63 / 64) * sizeof(uint64_t);
+
+   char *mem = xcalloc(bytes);
+   h->values = (void **)mem;
+   h->keys   = (uint64_t *)(mem + (h->size * sizeof(void *)));
+   h->mask   = (uint64_t *)(mem + (h->size * sizeof(void *))
+                            + (h->size * sizeof(uint64_t)));
+
+   return h;
+}
+
+void ihash_free(ihash_t *h)
+{
+   free(h->values);
+   free(h);
+}
+
+void ihash_put(ihash_t *h, uint64_t key, void *value)
+{
+   if (unlikely(h->members >= h->size / 2)) {
+      // Rebuild the hash table with a larger size
+
+      const int old_size = h->size;
+      h->size *= 2;
+
+      uint64_t *old_keys = h->keys;
+      uint64_t *old_mask = h->mask;
+      void **old_values = h->values;
+
+      const size_t bytes =
+         h->size * sizeof(void *) +
+         h->size * sizeof(uint64_t) +
+         (h->size + 63 / 64) * sizeof(uint64_t);
+
+      char *mem = xcalloc(bytes);
+      h->values = (void **)mem;
+      h->keys   = (uint64_t *)(mem + (h->size * sizeof(void *)));
+      h->mask   = (uint64_t *)(mem + (h->size * sizeof(void *))
+                               + (h->size * sizeof(uint64_t)));
+
+      h->members = 0;
+
+      for (int i = 0; i < old_size; i++) {
+         if (old_mask[i / 64] & (UINT64_C(1) << (i % 64)))
+            ihash_put(h, old_keys[i], old_values[i]);
+      }
+
+      free(old_values);
+   }
+
+   int slot = ihash_slot(h, key);
+
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
+      if (!(h->mask[slot / 64] & (UINT64_C(1) << (slot % 64)))) {
+         h->values[slot] = value;
+         h->keys[slot] = key;
+         h->mask[slot / 64] |= (UINT64_C(1) << (slot % 64));
+         h->members++;
+         break;
+      }
+      else if (h->keys[slot] == key) {
+         h->values[slot] = value;
+         assert(h->mask[slot / 64] & (UINT64_C(1) << (slot % 64)));
+         return;
+      }
+   }
+}
+
+void *ihash_get(ihash_t *h, uint64_t key)
+{
+   int slot = ihash_slot(h, key);
+
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
+      if (!(h->mask[slot / 64] & (UINT64_C(1) << (slot % 64))))
+         return NULL;
+      else if (h->keys[slot] == key)
+         return h->values[slot];
+   }
+}

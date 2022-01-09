@@ -42,4 +42,9 @@ void shash_free(shash_t *h);
 void shash_put(shash_t *h, const char *key, void *value);
 void *shash_get(shash_t *h, const char *key);
 
+ihash_t *ihash_new(int size);
+void ihash_free(ihash_t *h);
+void ihash_put(ihash_t *h, uint64_t key, void *value);
+void *ihash_get(ihash_t *h, uint64_t key);
+
 #endif  // _HASH_H

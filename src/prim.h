@@ -31,6 +31,7 @@ typedef struct loc loc_t;
 typedef struct _fbuf fbuf_t;
 typedef struct _hash hash_t;
 typedef struct _shash shash_t;
+typedef struct _ihash ihash_t;
 typedef struct _exec exec_t;
 typedef struct _eval_frame eval_frame_t;
 typedef struct text_buf text_buf_t;
