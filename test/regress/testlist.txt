@@ -460,7 +460,8 @@ vests35         normal
 issue432        normal
 vests36         normal
 issue433        normal,gold
-vests37         normal
+# Removed vests37: bogus test
 vests38         normal
 debug3          fail,2000,gold,O0
 file8           fail,gold
+concat6         normal

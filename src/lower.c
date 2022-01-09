@@ -2611,35 +2611,26 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
    vcode_reg_t var_reg = VCODE_INVALID_REG;
    if (type_is_unconstrained(type)) {
       type_t index_type = index_type_of(type, 0);
+      tree_t index_r = range_of(index_type, 0);
       vcode_type_t itype = lower_type(index_type);
       vcode_type_t ibounds = lower_bounds(index_type);
 
       vcode_reg_t len   = emit_const(vtype_offset(), 0);
       vcode_reg_t elems = emit_const(vtype_offset(), -1);
-      vcode_reg_t dir   = VCODE_INVALID_REG;
-      vcode_reg_t left  = VCODE_INVALID_REG;
+      vcode_reg_t dir   = lower_range_dir(index_r);
+      vcode_reg_t left  = lower_range_left(index_r);
+
       for (unsigned i = 0; i < args.count; i++) {
          concat_param_t *p = &(args.items[i]);
-         vcode_reg_t len_i;
          if (type_is_array(p->type) && type_eq(p->type, type)) {
-            if (i == 0) {
-               left = lower_array_left(p->type, 0, p->reg);
-               dir = lower_array_dir(p->type, 0, p->reg);
-            }
             elems = emit_add(elems, lower_array_len(p->type, 0, p->reg));
-            len_i = lower_array_total_len(p->type, p->reg);
+            len   = emit_add(len, lower_array_total_len(p->type, p->reg));
          }
          else {
-            if (i == 0) {
-               tree_t r = range_of(index_type, 0);
-               left = lower_range_left(r);
-               dir = lower_range_dir(r);
-            }
-            len_i = emit_const(vtype_offset(), 1);
-            elems = emit_add(elems, len_i);
+            vcode_reg_t one_reg = emit_const(vtype_offset(), 1);
+            elems = emit_add(elems, one_reg);
+            len   = emit_add(len, one_reg);
          }
-
-         len = emit_add(len, len_i);
       }
 
       vcode_reg_t data = emit_alloca(lower_type(scalar_elem),
