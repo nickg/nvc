@@ -903,7 +903,8 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       }
       else if (conflict != NULL && tree_kind(conflict) == T_PROT_BODY)
          ;
-      else if (conflict != NULL && iter.where->import && !first->import)
+      else if (conflict != NULL && iter.where != NULL && iter.where->import
+               && !first->import)
          ;   // Second declaration was potentially visible homograph
       else if (conflict != NULL && conflict != decl) {
          error_at(loc, "multiple conflicting visible declarations of %s",

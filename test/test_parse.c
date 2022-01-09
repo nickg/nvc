@@ -3691,6 +3691,31 @@ START_TEST(test_error4)
 }
 END_TEST
 
+START_TEST(test_tc1012)
+{
+   input_from_file(TESTDIR "/parse/tc1012.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   tree_t s0 = tree_stmt(a, 0);
+   fail_unless(tree_kind(s0) == T_PROCESS);
+   fail_unless(tree_triggers(s0) == 2);
+   fail_unless(tree_kind(tree_trigger(s0, 0)) == T_REF);
+   fail_unless(tree_ident(tree_trigger(s0, 0)) ==
+               ident_new("WORK.C06S03B00X00P10N01I01012ENT.P"));
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3753,6 +3778,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_error3);
    tcase_add_test(tc_core, test_protected2);
    tcase_add_test(tc_core, test_error4);
+   tcase_add_test(tc_core, test_tc1012);
    suite_add_tcase(s, tc_core);
 
    return s;

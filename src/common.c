@@ -1033,41 +1033,48 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
       }
       return NULL;
    }
-   else {
-      // TODO: how to improve this?
-      const int ndecls = tree_decls(container);
-      tree_t best = NULL;
+   else if (kind == T_ENTITY) {
+      const int nports = tree_ports(container);
+      for (int i = 0; i < nports; i++) {
+         tree_t p = tree_port(container, i);
+         if (tree_ident(p) == name)
+            return p;
+      }
+   }
 
-      for (int i = 0; i < ndecls; i++) {
-         tree_t d = tree_decl(container, i);
-         if (tree_ident(d) == name) {
-            if (tree_kind(d) == T_TYPE_DECL
-                && type_kind(tree_type(d)) == T_INCOMPLETE)
+   // TODO: how to improve this?
+   const int ndecls = tree_decls(container);
+   tree_t best = NULL;
+
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(container, i);
+      if (tree_ident(d) == name) {
+         if (tree_kind(d) == T_TYPE_DECL
+             && type_kind(tree_type(d)) == T_INCOMPLETE)
                best = d;
-            else if (nth-- == 0)
-               return d;
-         }
-         else if (tree_kind(d) == T_TYPE_DECL) {
-            type_t type = tree_type(d);
-            switch (type_kind(type)) {
-            case T_ENUM:
-               {
-                  const int nlits = type_enum_literals(type);
-                  for (int j = 0; j < nlits; j++) {
-                     tree_t lit = type_enum_literal(type, j);
-                     if (tree_ident(lit) == name && nth-- == 0)
-                        return lit;
-                  }
+         else if (nth-- == 0)
+            return d;
+      }
+      else if (tree_kind(d) == T_TYPE_DECL) {
+         type_t type = tree_type(d);
+         switch (type_kind(type)) {
+         case T_ENUM:
+            {
+               const int nlits = type_enum_literals(type);
+               for (int j = 0; j < nlits; j++) {
+                  tree_t lit = type_enum_literal(type, j);
+                  if (tree_ident(lit) == name && nth-- == 0)
+                     return lit;
                }
-               break;
-            default:
-               break;
             }
+            break;
+         default:
+            break;
          }
       }
-
-      return best;
    }
+
+   return best;
 }
 
 static tree_t cached_std(tree_t hint)
