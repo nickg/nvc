@@ -99,16 +99,30 @@ typedef enum {
    EVENT_PROCESS
 } event_kind_t;
 
-struct event {
-   uint64_t      when;
-   event_kind_t  kind;
-   uint32_t      wakeup_gen;
-   event_t      *delta_chain;
-   rt_proc_t    *proc;
+typedef struct {
+   timeout_fn_t  fn;
+   void         *user;
+} event_timeout_t;
+
+typedef struct {
    rt_nexus_t   *nexus;
    rt_source_t  *source;
-   timeout_fn_t  timeout_fn;
-   void         *timeout_user;
+} event_driver_t;
+
+typedef struct {
+   rt_proc_t *proc;
+   uint32_t   wakeup_gen;
+} event_proc_t;
+
+struct event {
+   uint64_t            when;
+   event_kind_t        kind;
+   event_t            *delta_chain;
+   union {
+      event_timeout_t  timeout;
+      event_driver_t   driver;
+      event_proc_t     proc;
+   };
 };
 
 struct waveform {
@@ -1558,10 +1572,10 @@ static void deltaq_insert(event_t *e)
 static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake)
 {
    event_t *e = rt_alloc(event_stack);
-   e->when       = now + delta;
-   e->kind       = EVENT_PROCESS;
-   e->proc       = wake;
-   e->wakeup_gen = wake->wakeable.wakeup_gen;
+   e->when            = now + delta;
+   e->kind            = EVENT_PROCESS;
+   e->proc.wakeup_gen = wake->wakeable.wakeup_gen;
+   e->proc.proc       = wake;
 
    deltaq_insert(e);
 }
@@ -1570,11 +1584,10 @@ static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
                                  rt_source_t *source)
 {
    event_t *e = rt_alloc(event_stack);
-   e->when       = now + delta;
-   e->kind       = EVENT_DRIVER;
-   e->nexus      = nexus;
-   e->source     = source;
-   e->wakeup_gen = UINT32_MAX;
+   e->when          = now + delta;
+   e->kind          = EVENT_DRIVER;
+   e->driver.nexus  = nexus;
+   e->driver.source = source;
 
    deltaq_insert(e);
 }
@@ -1587,14 +1600,15 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
    fprintf(stderr, "%s\t", fmt_time(e->when));
    switch (e->kind) {
    case EVENT_DRIVER:
-      fprintf(stderr, "driver\t %s\n", istr(e_ident(e->nexus->enode)));
+      fprintf(stderr, "driver\t %s\n", istr(e_ident(e->driver.nexus->enode)));
       break;
    case EVENT_PROCESS:
-      fprintf(stderr, "process\t %s%s\n", istr(e_path(e->proc->source)),
-              (e->wakeup_gen == e->proc->wakeable.wakeup_gen) ? "" : " (stale)");
+      fprintf(stderr, "process\t %s%s\n", istr(e_path(e->proc.proc->source)),
+              (e->proc.wakeup_gen == e->proc.proc->wakeable.wakeup_gen)
+              ? "" : " (stale)");
       break;
    case EVENT_TIMEOUT:
-      fprintf(stderr, "timeout\t %p %p\n", e->timeout_fn, e->timeout_user);
+      fprintf(stderr, "timeout\t %p %p\n", e->timeout.fn, e->timeout.user);
       break;
    }
 }
@@ -1602,12 +1616,14 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
 static void deltaq_dump(void)
 {
    for (event_t *e = delta_driver; e != NULL; e = e->delta_chain)
-      fprintf(stderr, "delta\tdriver\t %s\n", istr(e_ident(e->nexus->enode)));
+      fprintf(stderr, "delta\tdriver\t %s\n",
+              istr(e_ident(e->driver.nexus->enode)));
 
    for (event_t *e = delta_proc; e != NULL; e = e->delta_chain)
       fprintf(stderr, "delta\tprocess\t %s%s\n",
-              istr(e_path(e->proc->source)),
-              (e->wakeup_gen == e->proc->wakeable.wakeup_gen) ? "" : " (stale)");
+              istr(e_path(e->proc.proc->source)),
+              (e->proc.wakeup_gen == e->proc.proc->wakeable.wakeup_gen)
+              ? "" : " (stale)");
 
    heap_walk(eventq_heap, deltaq_walk, NULL);
 }
@@ -2693,7 +2709,7 @@ static void rt_update_implicit_signal(rt_implicit_t *imp)
 static bool rt_stale_event(event_t *e)
 {
    return (e->kind == EVENT_PROCESS)
-      && (e->wakeup_gen != e->proc->wakeable.wakeup_gen);
+      && (e->proc.wakeup_gen != e->proc.proc->wakeable.wakeup_gen);
 }
 
 static void rt_push_run_queue(rt_run_queue_t *q, event_t *e)
@@ -2714,7 +2730,7 @@ static void rt_push_run_queue(rt_run_queue_t *q, event_t *e)
    else {
       q->queue[(q->wr)++] = e;
       if (e->kind == EVENT_PROCESS)
-         ++(e->proc->wakeable.wakeup_gen);
+         ++(e->proc.proc->wakeable.wakeup_gen);
    }
 }
 
@@ -2873,12 +2889,12 @@ static void rt_cycle(int stop_delta)
    event_t *event;
 
    while ((event = rt_pop_run_queue(&timeoutq))) {
-      (*event->timeout_fn)(now, event->timeout_user);
+      (*event->timeout.fn)(now, event->timeout.user);
       rt_free(event_stack, event);
    }
 
    while ((event = rt_pop_run_queue(&driverq))) {
-      rt_update_driver(event->nexus, event->source);
+      rt_update_driver(event->driver.nexus, event->driver.source);
       rt_free(event_stack, event);
    }
 
@@ -2891,7 +2907,7 @@ static void rt_cycle(int stop_delta)
    rt_resume(&implicit);
 
    while ((event = rt_pop_run_queue(&procq))) {
-      rt_run(event->proc);
+      rt_run(event->proc.proc);
       rt_free(event_stack, event);
    }
 
@@ -3240,11 +3256,8 @@ void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user)
    event_t *e = rt_alloc(event_stack);
    e->when         = now + when;
    e->kind         = EVENT_TIMEOUT;
-   e->nexus        = NULL;
-   e->proc         = NULL;
-   e->timeout_fn   = fn;
-   e->timeout_user = user;
-   e->wakeup_gen   = UINT32_MAX;
+   e->timeout.fn   = fn;
+   e->timeout.user = user;
 
    deltaq_insert(e);
 }
