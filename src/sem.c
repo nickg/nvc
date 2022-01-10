@@ -4478,7 +4478,7 @@ static bool sem_check_disconnect(tree_t t)
       return false;
 
    tree_t decl = tree_ref(t);
-   if (tree_kind(decl) != T_SIGNAL_DECL || !is_guarded_signal(decl))
+   if (class_of(decl) != C_SIGNAL || !is_guarded_signal(decl))
       sem_error(t, "signal name %s in disconnection specification must denote "
                 "a guarded signal", istr(tree_ident(t)));
 

@@ -3626,7 +3626,9 @@ static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
 
    type_t type = p_subtype_indication();
 
-   optional(tBUS);
+   tree_flags_t flags = 0;
+   if (optional(tBUS))
+      flags |= TREE_F_BUS;
 
    tree_t init = NULL;
    if (optional(tASSIGN)) {
@@ -3643,6 +3645,7 @@ static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
       tree_set_subkind(d, mode);
       tree_set_type(d, type);
       tree_set_class(d, C_SIGNAL);
+      tree_set_flag(d, flags);
 
       if (init != NULL)
          tree_set_value(d, init);

@@ -2428,6 +2428,17 @@ START_TEST(test_error3)
 }
 END_TEST
 
+START_TEST(test_tc792)
+{
+   input_from_file(TESTDIR "/sem/tc792.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_ENTITY, T_ENTITY, T_ENTITY,
+                   T_ENTITY, T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2548,6 +2559,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_linkage);
    tcase_add_test(tc_core, test_error2);
    tcase_add_test(tc_core, test_error3);
+   tcase_add_test(tc_core, test_tc792);
    suite_add_tcase(s, tc_core);
 
    return s;
