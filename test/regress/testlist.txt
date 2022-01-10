@@ -465,3 +465,4 @@ vests38         normal
 debug3          fail,2000,gold,O0
 file8           fail,gold
 concat6         normal
+issue434        normal

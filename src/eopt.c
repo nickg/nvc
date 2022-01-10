@@ -46,6 +46,10 @@ static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
    const unsigned total_length = stride > 0 ? e_width(signal) : 0;
    unsigned o = 0, nnexus = e_nexuses(signal), pos = 0;
    do {
+      // Walk backwards to find the correct place to start splitting
+      while (o > offset)
+         o -= e_width(e_nexus(signal, --pos));
+
       unsigned remain = count, search = offset;
       for (; remain > 0 && pos < nnexus; pos++) {
          e_node_t n = e_nexus(signal, pos), drive = NULL;
@@ -59,7 +63,8 @@ static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
             }
             dwidth = length;
             drive = n;
-         } else if (search > o && search < o + length) {
+         }
+         else if (search > o && search < o + length) {
             drive = e_split_nexus(root, n, search - o);
             nnexus++;
             dwidth = length - search + o;
@@ -69,7 +74,8 @@ static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
                nnexus++;
                dwidth = remain;
             }
-         } else if (search + length < o)
+         }
+         else if (search + length < o)
             break;
 
          o += length;
