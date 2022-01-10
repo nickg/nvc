@@ -4383,6 +4383,10 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
    cgen_link_arg("-flat_namespace");
    cgen_link_arg("-undefined");
    cgen_link_arg("dynamic_lookup");
+#elif defined __OpenBSD__
+   cgen_link_arg("-Bdynamic");
+   cgen_link_arg("-shared");
+   cgen_link_arg("/usr/lib/crtbeginS.o");
 #else
    cgen_link_arg("-shared");
 #endif
@@ -4396,6 +4400,13 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
 
    for (int i = 0; i < nobjs; i++)
       cgen_link_arg("%s", objs[i]);
+
+#if defined LINKER_PATH && defined __OpenBSD__
+   // Extra linker arguments to make constructors work on OpenBSD
+   cgen_link_arg("-L/usr/lib");
+   cgen_link_arg("-lcompiler_rt");
+   cgen_link_arg("/usr/lib/crtendS.o");
+#endif
 
 #if IMPLIB_REQUIRED
    // Windows needs all symbols to be resolved when linking a DLL
