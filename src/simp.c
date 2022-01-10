@@ -1600,13 +1600,40 @@ static tree_t simp_generic_map(tree_t t, tree_t unit)
          assert(tree_subkind(mj) == P_NAMED);
 
          tree_t name = tree_name(mj);
-         if (tree_kind(name) != T_REF)
+         tree_t ref = name_to_ref(name);
+         if (ref == NULL || tree_ident(ref) != ident)
+            continue;
+
+         switch (tree_kind(name)) {
+         case T_REF:
+            assert(value == NULL);
+            value = tree_value(mj);
+            break;
+
+         case T_ARRAY_REF:
+            {
+               tree_t a = tree_new(T_ASSOC);
+               tree_set_loc(a, tree_loc(mj));
+               tree_set_subkind(a, A_NAMED);
+               tree_set_name(a, tree_value(tree_param(name, 0)));
+               tree_set_value(a, tree_value(mj));
+
+               if (value == NULL) {
+                  value = tree_new(T_AGGREGATE);
+                  tree_set_loc(value, tree_loc(mj));
+                  tree_set_type(value, tree_type(g));
+               }
+               else
+                  assert(tree_kind(value) == T_AGGREGATE);
+
+               tree_add_assoc(value, a);
+            }
+            break;
+
+         default:
             fatal_at(tree_loc(name), "sorry, this form of generic map is not "
                      "yet supported");
-
-         if (tree_ident(name) == ident) {
-            assert(value == NULL);  // TODO
-            value = tree_value(mj);
+            break;
          }
       }
 

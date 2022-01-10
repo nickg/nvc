@@ -1032,8 +1032,13 @@ START_TEST(test_genmap)
    fail_unless(tree_subkind(tree_genmap(u1, 1)) == P_POS);
    fail_unless(tree_kind(tree_value((tree_genmap(u1, 1)))) == T_AGGREGATE);
 
-   tree_t u2 = tree_stmt(a, 0);
+   tree_t u2 = tree_stmt(a, 1);
    fail_unless(tree_genmaps(u2) == 2);
+
+   tree_t u3 = tree_stmt(a, 2);
+   fail_unless(tree_genmaps(u3) == 2);
+   fail_unless(tree_kind(tree_value(tree_genmap(u3, 1))) == T_AGGREGATE);
+   fail_unless(tree_assocs(tree_value(tree_genmap(u3, 1))) == 3);
 
    fail_if_errors();
 }

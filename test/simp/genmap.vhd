@@ -16,8 +16,8 @@ begin
     u2: entity work.sub1
         generic map ( y => "101" );
 
-    -- u3: entity work.sub1
-    --     generic map (
-    --         0, y(1) => '1', y(2) => '0', y(3) => '1' );
+    u3: entity work.sub1
+        generic map (
+            0, y(1) => '1', y(2) => '0', y(3) => '1' );
 
 end architecture;
