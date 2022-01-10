@@ -1023,7 +1023,8 @@ START_TEST(test_genmap)
 {
    input_from_file(TESTDIR "/simp/genmap.vhd");
 
-   tree_t a = parse_check_simplify_and_lower(T_ENTITY, T_ENTITY, T_ARCH);
+   tree_t a = parse_check_simplify_and_lower(T_ENTITY, T_PACKAGE, T_ENTITY,
+                                             T_ENTITY, T_ARCH);
 
    tree_t u1 = tree_stmt(a, 0);
    fail_unless(tree_genmaps(u1) == 2);
@@ -1039,6 +1040,11 @@ START_TEST(test_genmap)
    fail_unless(tree_genmaps(u3) == 2);
    fail_unless(tree_kind(tree_value(tree_genmap(u3, 1))) == T_AGGREGATE);
    fail_unless(tree_assocs(tree_value(tree_genmap(u3, 1))) == 3);
+
+   tree_t u4 = tree_stmt(a, 3);
+   fail_unless(tree_genmaps(u4) == 1);
+   fail_unless(tree_kind(tree_value(tree_genmap(u4, 0))) == T_AGGREGATE);
+   fail_unless(tree_assocs(tree_value(tree_genmap(u4, 0))) == 2);
 
    fail_if_errors();
 }

@@ -1611,12 +1611,17 @@ static tree_t simp_generic_map(tree_t t, tree_t unit)
             break;
 
          case T_ARRAY_REF:
+         case T_RECORD_REF:
             {
                tree_t a = tree_new(T_ASSOC);
                tree_set_loc(a, tree_loc(mj));
                tree_set_subkind(a, A_NAMED);
-               tree_set_name(a, tree_value(tree_param(name, 0)));
                tree_set_value(a, tree_value(mj));
+
+               if (tree_kind(name) == T_ARRAY_REF)
+                  tree_set_name(a, tree_value(tree_param(name, 0)));
+               else
+                  tree_set_name(a, make_ref(find_record_field(name)));
 
                if (value == NULL) {
                   value = tree_new(T_AGGREGATE);
