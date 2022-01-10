@@ -821,13 +821,8 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          if (binding_ngenmaps > 0) {
             for (int j = 0; j < binding_ngenmaps; j++) {
                tree_t m = tree_genmap(binding, j);
-               if (tree_subkind(m) == P_NAMED) {
-                  tree_t name = tree_name(m);
-                  assert(tree_kind(name) == T_REF);
-                  if (tree_ident(name) != tree_ident(cg))
-                     continue;
-               }
-               else if (tree_pos(m) != pos)
+               assert(tree_subkind(m) == P_POS);
+               if (tree_pos(m) != pos)
                   continue;
 
                tree_t value = tree_value(m);
@@ -855,25 +850,6 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
             map = m;
       }
 
-      if (map == NULL) {
-         for (int j = 0; j < ngenmaps; j++) {
-            tree_t m = tree_genmap(inst, j);
-            if (tree_subkind(m) == P_NAMED) {
-               tree_t name = tree_name(m);
-               assert(tree_kind(name) == T_REF);
-
-               if (tree_ident(name) == tree_ident(cg)) {
-                  map = tree_new(T_PARAM);
-                  tree_set_loc(map, tree_loc(m));
-                  tree_set_subkind(map, P_POS);
-                  tree_set_pos(map, i);
-                  tree_set_value(map, tree_value(m));
-                  break;
-               }
-            }
-         }
-      }
-
       if (map == NULL && tree_has_value(cg)) {
          map = tree_new(T_PARAM);
          tree_set_loc(map, tree_loc(cg));
@@ -882,19 +858,21 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          tree_set_value(map, tree_value(cg));
       }
 
-      if (map == NULL && bind_expr != NULL) {
-         map = tree_new(T_PARAM);
-         tree_set_loc(map, tree_loc(cg));
-         tree_set_subkind(map, P_POS);
-         tree_set_pos(map, i);
-         tree_set_value(map, bind_expr);
-      }
-      else if (bind_expr != NULL) {
+      if (bind_expr != NULL) {
+         tree_t m = tree_new(T_PARAM);
+         tree_set_loc(m, tree_loc(cg));
+         tree_set_subkind(m, P_POS);
+         tree_set_pos(m, i);
+         tree_set_value(m, bind_expr);
+
          // The binding expression may contain references to component
          // generics that need to be folded
-         hash_put(ctx->generics, cg, tree_value(map));
-         tree_set_value(map, bind_expr);
-         simplify_global(map, ctx->generics);
+         if (map != NULL) {
+            hash_put(ctx->generics, cg, tree_value(map));
+            simplify_global(m, ctx->generics);
+         }
+
+         map = m;
       }
 
       if (map == NULL) {

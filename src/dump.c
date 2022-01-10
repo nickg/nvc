@@ -1070,17 +1070,10 @@ static void dump_stmt(tree_t t, int indent)
             tb_printf(tb, "(%s)", istr(tree_ident2(bind)));
          syntax("  -- bound to %s\n", tb_get(tb));
       }
-      else
+      else if (tree_params(t) > 0 || tree_genmaps(t) > 0)
          printf("\n");
-      if (tree_genmaps(t) > 0) {
-         tab(indent + 4);
-         dump_params(t, tree_genmap, tree_genmaps(t), "#generic #map");
-         printf("\n");
-      }
-      if (tree_params(t) > 0) {
-         tab(indent + 4);
-         dump_params(t, tree_param, tree_params(t), "#port #map");
-      }
+      dump_generic_map(t, indent + 4, tree_params(t) > 0 ? "\n" : "");
+      dump_port_map(t, indent + 4, "");
       printf(";\n\n");
       return;
 

@@ -1019,6 +1019,26 @@ START_TEST(test_order1)
 }
 END_TEST
 
+START_TEST(test_genmap)
+{
+   input_from_file(TESTDIR "/simp/genmap.vhd");
+
+   tree_t a = parse_check_simplify_and_lower(T_ENTITY, T_ENTITY, T_ARCH);
+
+   tree_t u1 = tree_stmt(a, 0);
+   fail_unless(tree_genmaps(u1) == 2);
+   fail_unless(tree_subkind(tree_genmap(u1, 0)) == P_POS);
+   fail_unless(tree_kind(tree_value((tree_genmap(u1, 0)))) == T_LITERAL);
+   fail_unless(tree_subkind(tree_genmap(u1, 1)) == P_POS);
+   fail_unless(tree_kind(tree_value((tree_genmap(u1, 1)))) == T_AGGREGATE);
+
+   tree_t u2 = tree_stmt(a, 0);
+   fail_unless(tree_genmaps(u2) == 2);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1056,6 +1076,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_copysub);
    tcase_add_test(tc_core, test_recrange);
    tcase_add_test(tc_core, test_order1);
+   tcase_add_test(tc_core, test_genmap);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -1520,6 +1520,118 @@ static tree_t simp_subprogram_body(tree_t body, simp_ctx_t *ctx)
    return body;
 }
 
+static tree_t simp_generic_map(tree_t t, tree_t unit)
+{
+   switch (tree_kind(unit)) {
+   case T_CONFIGURATION:
+   case T_ARCH:
+      unit = tree_primary(unit);
+      break;
+   default:
+      break;
+   }
+
+   const int ngenmaps = tree_genmaps(t);
+   const int ngenerics = tree_generics(unit);
+
+   int last_pos = 0;
+   for (; last_pos < ngenmaps; last_pos++) {
+      if (tree_subkind(tree_genmap(t, last_pos)) != P_POS)
+         break;
+   }
+
+   if (last_pos == ngenmaps && ngenmaps == ngenerics)
+      return t;
+
+   const tree_kind_t kind = tree_kind(t);
+   tree_t new = tree_new(kind);
+   tree_set_loc(new, tree_loc(t));
+   tree_set_ident(new, tree_ident(t));
+
+   for (int i = 0; i < last_pos; i++)
+      tree_add_genmap(new, tree_genmap(t, i));
+
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++)
+      tree_add_param(new, tree_param(t, i));
+
+   switch (kind) {
+   case T_INSTANCE:
+      if (tree_has_spec(t))
+         tree_set_spec(new, tree_spec(t));
+      // Fall-through
+   case T_BINDING:
+      tree_set_ref(new, tree_ref(t));
+      tree_set_class(new, tree_class(t));
+      if (tree_has_ident2(t))
+         tree_set_ident2(new, tree_ident2(t));
+      break;
+
+   case T_BLOCK:
+      {
+         const int nports = tree_ports(t);
+         for (int j = 0; j < nports; j++)
+            tree_add_port(new, tree_port(t, j));
+
+         for (int j = 0; j < ngenerics; j++)
+            tree_add_generic(new, tree_generic(t, j));
+
+         const int ndecls = tree_decls(t);
+         for (int j = 0; j < ndecls; j++)
+            tree_add_decl(new, tree_decl(t, j));
+
+         const int nstmts = tree_stmts(t);
+         for (int j = 0; j < nstmts; j++)
+            tree_add_stmt(new, tree_stmt(t, j));
+      }
+      break;
+
+   default:
+      fatal_trace("cannot clone tree kind %s in simp_generic_map",
+                  tree_kind_str(kind));
+   }
+
+   for (int i = last_pos; i < ngenerics; i++) {
+      tree_t g = tree_generic(unit, i), value = NULL;
+      ident_t ident = tree_ident(g);
+
+      for (int j = last_pos; j < ngenmaps; j++) {
+         tree_t mj = tree_genmap(t, j);
+         assert(tree_subkind(mj) == P_NAMED);
+
+         tree_t name = tree_name(mj);
+         if (tree_kind(name) != T_REF)
+            fatal_at(tree_loc(name), "sorry, this form of generic map is not "
+                     "yet supported");
+
+         if (tree_ident(name) == ident) {
+            assert(value == NULL);  // TODO
+            value = tree_value(mj);
+         }
+      }
+
+      if (value == NULL && tree_has_value(g))
+         value = tree_value(g);
+      else if (value == NULL && kind == T_BINDING) {
+         value = tree_new(T_OPEN);
+         tree_set_loc(value, tree_loc(t));
+         tree_set_type(value, tree_type(g));
+      }
+      else if (value == NULL)
+         fatal_trace("missing value for generic %s", istr(ident));
+
+      tree_t m = tree_new(T_PARAM);
+      tree_set_loc(m, tree_loc(value));
+      tree_set_subkind(m, P_POS);
+      tree_set_pos(m, i);
+      tree_set_value(m, value);
+
+      tree_add_genmap(new, m);
+   }
+
+   return new;
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -1585,6 +1697,11 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_FUNC_BODY:
    case T_PROC_BODY:
       return simp_subprogram_body(t, ctx);
+   case T_INSTANCE:
+   case T_BINDING:
+      return simp_generic_map(t, tree_ref(t));
+   case T_BLOCK:
+      return simp_generic_map(t, t);
    default:
       return t;
    }
