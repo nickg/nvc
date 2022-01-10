@@ -17,6 +17,7 @@ Makefile.in
 *.gcno
 *.exe
 *.exe.stackdump
+*.so
 *~
 TAGS
 logs
@@ -60,8 +61,11 @@ lib/std/STD.*
 lib/std/_STD.*
 lib/nvc/_NVC.*
 lib/nvc/NVC.*
+lib/nvc.08/NVC.*
+lib/nvc.08/_NVC.*
 lib/std.08/STD.*
 lib/std.08/_STD.*
 lib/synopsys/SYNOPSYS.*
+lib/synopsys/_SYNOPSYS.*
 _index
 _NVC_LIB

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021  Nick Gasson
+//  Copyright (C) 2021-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -373,13 +373,12 @@ static bool libdwarf_die_has_pc(Dwarf_Die die, Dwarf_Addr pc)
 
 static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
 {
-   static hash_t *hash = NULL;
+   static shash_t *hash = NULL;
 
    if (hash == NULL)
-      hash = hash_new(64, true);
+      hash = shash_new(64);
 
-   ident_t key = ident_new(fname);
-   libdwarf_handle_t *handle = hash_get(hash, key);
+   libdwarf_handle_t *handle = shash_get(hash, fname);
 
    if (handle == (void *)-1)
       return NULL;
@@ -397,7 +396,7 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
 
       if (fd == -1) {
          warnf("open: %s: %s", fname, strerror(errno));
-         hash_put(hash, fname, (void *)-1);
+         shash_put(hash, fname, (void *)-1);
          return NULL;
       }
 
@@ -405,7 +404,7 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
       Dwarf_Error err;
       if (dwarf_init(fd, DW_DLC_READ, NULL, NULL, &debug, &err) != DW_DLV_OK) {
          warnf("dwarf_init: %s: %s", fname, dwarf_errmsg(err));
-         hash_put(hash, fname, (void *)-1);
+         shash_put(hash, fname, (void *)-1);
          return NULL;
       }
 
@@ -413,7 +412,7 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
       handle->fd    = fd;
       handle->debug = debug;
 
-      hash_put(hash, key, handle);
+      shash_put(hash, fname, handle);
    }
 
    return handle;
@@ -440,7 +439,8 @@ static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
    }
 
    do {
-      dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
+      if (prev != NULL)
+         dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
       prev = child;
 
       if (dwarf_tag(child, &tag, NULL) != DW_DLV_OK)
@@ -467,7 +467,8 @@ static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
    } while (dwarf_siblingof(handle->debug, child, &child, NULL) == DW_DLV_OK);
 
  out_dealloc:
-   dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
+   if (prev != NULL)
+      dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
 }
 
 static void libdwarf_get_srcline(libdwarf_handle_t *handle, Dwarf_Die die,
@@ -606,7 +607,16 @@ static void libdwarf_fill_frame(uintptr_t ip, debug_frame_t *frame)
    frame->module = xstrdup(dli.dli_fname);
    frame->disp   = ip - (uintptr_t)dli.dli_saddr;
 
+#ifdef __FreeBSD__
+   // FreeBSD has non-standard libdwarf
+   Dwarf_Addr rel_addr;
+   if (frame->kind == FRAME_PROG)
+      rel_addr = ip;
+   else
+      rel_addr = ip - (uintptr_t)dli.dli_fbase;
+#else
    Dwarf_Addr rel_addr = ip - (uintptr_t)dli.dli_fbase;
+#endif
 
    libdwarf_handle_t *handle = libdwarf_handle_for_file(dli.dli_fname);
    if (handle == NULL)
