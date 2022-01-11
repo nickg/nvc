@@ -203,7 +203,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      9
+#define VCODE_VERSION      10
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -340,27 +340,6 @@ static var_t *vcode_var_data(vcode_var_t var)
    return var_array_nth_ptr(&(active_unit->vars), var);
 }
 
-void vcode_clear_storage_hint(uint32_t tag)
-{
-   VCODE_ASSERT(tag != VCODE_INVALID_HINT, "passed invalid hint");
-
-   const int op = tag & 0xfffff;
-   const int block = tag >> 20;
-
-   block_t *b = &(active_unit->blocks.items[block]);
-   op_t *o = op_array_nth_ptr(&(b->ops), op);
-
-   if (o->kind == VCODE_OP_COMMENT)
-      return;
-
-   VCODE_ASSERT(o->kind == VCODE_OP_STORAGE_HINT,
-                "operation %d is not a storage hint", op);
-
-   o->comment = xasprintf("Unused storage hint for r%d", o->args.items[0]);
-   o->kind = VCODE_OP_COMMENT;
-   vcode_reg_array_resize(&(o->args), 0, VCODE_INVALID_REG);
-}
-
 void vcode_heap_allocate(vcode_reg_t reg)
 {
    op_t *defn = vcode_find_definition(reg);
@@ -469,7 +448,6 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_XNOR:
    case VCODE_OP_EVENT:
    case VCODE_OP_ACTIVE:
-   case VCODE_OP_STORAGE_HINT:
    case VCODE_OP_UARRAY_LEN:
    case VCODE_OP_UARRAY_LEFT:
    case VCODE_OP_UARRAY_RIGHT:
@@ -664,12 +642,6 @@ void vcode_opt(void)
                   pruned++;
                }
                uses[o->result] = -1;
-               break;
-
-            case VCODE_OP_STORAGE_HINT:
-               vcode_dump_with_mark(j, NULL, NULL);
-               fatal("Unused storage hint for r%d was not removed",
-                     o->args.items[0]);
                break;
 
             default:
@@ -925,7 +897,7 @@ const char *vcode_op_string(vcode_op_t op)
       "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
       "const real", "last event", "dynamic bounds", "array size",
-      "index check", "storage hint", "debug out", "cover stmt", "cover cond",
+      "index check", "debug out", "cover stmt", "cover cond",
       "uarray len", "temp stack mark", "temp stack restore",
       "undefined", "range null", "var upref", "link signal",
       "resolved", "last value", "init signal", "map signal", "drive signal",
@@ -1966,18 +1938,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_STORAGE_HINT:
-            {
-               col += printf("%s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args.items[0]);
-               if (op->args.count > 1) {
-                  col += printf(" length ");
-                  col += vcode_dump_reg(op->args.items[1]);
-               }
-               vcode_dump_type(col, op->type, op->type);
-            }
-            break;
-
          case VCODE_OP_DEBUG_OUT:
             {
                col += printf("%s ", vcode_op_string(op->kind));
@@ -2955,18 +2915,6 @@ void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
                         vcode_reg_t count)
 {
-   // Search backwards for a storage hint with this type and count
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_STORAGE_HINT) {
-      if (vtype_eq(other->type, type)
-          && ((other->args.count == 1 && count == VCODE_INVALID_REG)
-              || other->args.items[1] == count)) {
-         other->comment = xasprintf("Used storage hint for r%d",
-                                    other->args.items[0]);
-         other->kind = VCODE_OP_COMMENT;
-         return other->args.items[0];
-      }
-   }
-
    op_t *op = vcode_add_op(VCODE_OP_ALLOCA);
    op->type    = type;
    op->result  = vcode_add_reg(vtype_pointer(type));
@@ -4828,23 +4776,6 @@ void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
 
    VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),
                 "dynamic index check needs debug info");
-}
-
-uint32_t emit_storage_hint(vcode_reg_t mem, vcode_reg_t length)
-{
-   op_t *op = vcode_add_op(VCODE_OP_STORAGE_HINT);
-   vcode_add_arg(op, mem);
-   if (length != VCODE_INVALID_REG)
-      vcode_add_arg(op, length);
-
-   VCODE_ASSERT(vcode_reg_kind(mem) == VCODE_TYPE_POINTER,
-                "storage hint mem must be pointer");
-   VCODE_ASSERT(length == VCODE_INVALID_REG
-                || vcode_reg_kind(length) == VCODE_TYPE_OFFSET,
-                "storage hint length must be offset");
-
-   op->type = vtype_pointed(vcode_reg_type(mem));
-   return (active_block << 20) | (vcode_block_data()->ops.count - 1);
 }
 
 void emit_debug_out(vcode_reg_t reg)

@@ -105,7 +105,6 @@ typedef enum {
    VCODE_OP_DYNAMIC_BOUNDS,
    VCODE_OP_ARRAY_SIZE,
    VCODE_OP_INDEX_CHECK,
-   VCODE_OP_STORAGE_HINT,
    VCODE_OP_DEBUG_OUT,
    VCODE_OP_COVER_STMT,
    VCODE_OP_COVER_COND,
@@ -313,7 +312,6 @@ int vcode_get_hops(int op);
 int vcode_get_field(int op);
 unsigned vcode_get_subkind(int op);
 uint32_t vcode_get_tag(int op);
-void vcode_clear_storage_hint(uint32_t tag);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);
@@ -436,7 +434,6 @@ vcode_reg_t emit_driving_flag(vcode_reg_t signal, vcode_reg_t len);
 vcode_reg_t emit_driving_value(vcode_reg_t signal, vcode_reg_t len);
 void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, bounds_kind_t kind,
                      const char *hint);
-uint32_t emit_storage_hint(vcode_reg_t mem, vcode_reg_t length);
 void emit_debug_out(vcode_reg_t reg);
 void emit_cover_stmt(uint32_t tag);
 void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub);

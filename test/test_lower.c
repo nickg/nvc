@@ -538,9 +538,9 @@ START_TEST(test_assign2)
 
    CHECK_BB(0);
 
-   fail_unless(vcode_get_op(5) == VCODE_OP_CONST_ARRAY);
+   fail_unless(vcode_get_op(4) == VCODE_OP_CONST_ARRAY);
    for (int i = 0; i < 8; i++)
-      fail_unless(vcode_get_arg(5, i) == vcode_get_result((i == 6) ? 3 : 4));
+      fail_unless(vcode_get_arg(4, i) == vcode_get_result((i == 6) ? 2 : 3));
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
