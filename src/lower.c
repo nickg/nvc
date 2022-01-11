@@ -3522,6 +3522,10 @@ static bool lower_can_hint_aggregate(tree_t target, tree_t value)
    if (tree_kind(value) != T_AGGREGATE)
       return false;
 
+   type_t type = tree_type(target);
+   if (type_is_array(type) && type_is_unconstrained(type))
+      return false;
+
    tree_t ref = name_to_ref(target);
    if (ref == NULL)
       return false;
@@ -3687,9 +3691,6 @@ static void lower_var_assign(tree_t stmt)
       assert(ptr == parts + nparts);
    }
    else if (type_is_array(type)) {
-      while (tree_kind(value) == T_QUALIFIED)
-         value = tree_value(value);
-
       vcode_reg_t target_reg  = lower_expr(target, EXPR_LVALUE);
       vcode_reg_t count_reg   = lower_array_total_len(type, target_reg);
       vcode_reg_t target_data = lower_array_data(target_reg);
@@ -3710,9 +3711,6 @@ static void lower_var_assign(tree_t stmt)
       emit_copy(target_data, src_data, count_reg);
    }
    else {
-      while (tree_kind(value) == T_QUALIFIED)
-         value = tree_value(value);
-
       vcode_reg_t target_reg = lower_expr(target, EXPR_LVALUE);
 
       vcode_reg_t value_reg;

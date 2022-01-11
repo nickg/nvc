@@ -467,3 +467,4 @@ file8           fail,gold
 concat6         normal
 issue434        normal
 bounds24        fail,gold
+bounds25        fail,gold
