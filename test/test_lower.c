@@ -3865,6 +3865,117 @@ START_TEST(test_record2)
 }
 END_TEST
 
+START_TEST(test_array2)
+{
+   input_from_file(TESTDIR "/lower/array2.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ARRAY2.P1");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_INDEX, .name = "V" },
+         { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ADD },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ARRAY2.P2");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_INDEX, .name = "V" },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 8 },
+         { VCODE_OP_MEMSET },
+         { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ARRAY2.P3");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_INDEX, .name = "V" },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_ADD },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_ADD },
+         { VCODE_OP_LOAD, .name = "Y" },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_ADD },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ARRAY2.P4");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_TEMP_STACK_MARK },
+         { VCODE_OP_INDEX, .name = "V" },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONST, .value = 4 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_STORE, .name = "*i" },
+         { VCODE_OP_JUMP, .target = 2 },
+      };
+
+      CHECK_BB(1);
+
+      EXPECT_BB(2) = {
+         { VCODE_OP_LOAD, .name = "*i" },
+         { VCODE_OP_ADD },
+         { VCODE_OP_STORE, .name = "*i" },
+         { VCODE_OP_ADD },
+         { VCODE_OP_LOAD, .name = "Y" },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ADD },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_COND, .target = 3, .target_else = 2 },
+      };
+
+      CHECK_BB(2);
+
+      EXPECT_BB(3) = {
+         { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ADD },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_TEMP_STACK_RESTORE },
+         { VCODE_OP_WAIT, .target = 4 },
+      };
+
+      CHECK_BB(3);
+   }
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -3957,6 +4068,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_protupref);
    tcase_add_test(tc, test_closefile);
    tcase_add_test(tc, test_record2);
+   tcase_add_test(tc, test_array2);
    suite_add_tcase(s, tc);
 
    return s;

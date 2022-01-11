@@ -112,6 +112,7 @@ static void lower_proc_body(tree_t body, vcode_unit_t context);
 static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest, bool is_const,
                                           vcode_reg_t hint);
+static vcode_reg_t lower_aggregate(tree_t expr, vcode_reg_t hint);
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_type_t lower_type(type_t type);
 static void lower_decls(tree_t scope, vcode_unit_t context);
@@ -2481,7 +2482,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
          vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
          emit_store(emit_const(voffset, 0), i_var);
 
-         // TODO: this is hack to work around the lack of a block
+         // TODO: this is a hack to work around the lack of a block
          // ordering pass in vcode
          vcode_reg_t def_reg = VCODE_INVALID_REG;
          if (type_is_scalar(elem_type) && !multidim)
@@ -2501,8 +2502,12 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
          vcode_reg_t ptr_reg = emit_add(mem_reg, i_reg);
 
-         if (def_reg == VCODE_INVALID_REG)
-            def_reg = lower_expr(def_value, EXPR_RVALUE);
+         if (def_reg == VCODE_INVALID_REG) {
+            if (tree_kind(def_value) == T_AGGREGATE)
+               def_reg = lower_aggregate(def_value, ptr_reg);
+            else
+               def_reg = lower_expr(def_value, EXPR_RVALUE);
+         }
 
          if (type_is_array(elem_type) || multidim) {
             assert(stride != VCODE_INVALID_REG);
@@ -2524,8 +2529,11 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
+      tree_t value = tree_value(a);
 
-      vcode_reg_t value_reg = lower_expr(tree_value(a), EXPR_RVALUE);
+      vcode_reg_t value_reg = VCODE_INVALID_REG;
+      if (tree_kind(value) != T_AGGREGATE)
+         value_reg = lower_expr(tree_value(a), EXPR_RVALUE);
 
       vcode_reg_t loop_bb = VCODE_INVALID_BLOCK;
       vcode_reg_t exit_bb = VCODE_INVALID_BLOCK;
@@ -2582,6 +2590,12 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
          off_reg = emit_mul(off_reg, stride);
 
       vcode_reg_t ptr_reg = emit_add(mem_reg, off_reg);
+
+      if (value_reg == VCODE_INVALID_REG) {
+         // Prefer generating aggregates in-place
+         assert(tree_kind(value) == T_AGGREGATE);
+         value_reg = lower_aggregate(value, ptr_reg);
+      }
 
       if (type_is_array(elem_type) || multidim) {
          assert(stride != VCODE_INVALID_REG);
