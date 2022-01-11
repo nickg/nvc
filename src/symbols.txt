@@ -4,6 +4,7 @@
 {
   # Exported from src/rt/rtkern.c
   __nvc_flush;
+  __nvc_index_fail;
   _assert_fail;
   _bounds_fail;
   _canon_value;

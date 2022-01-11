@@ -918,6 +918,14 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
 }
 
 DLLEXPORT
+void __nvc_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
+                      rt_loc_t *where)
+{
+   rt_msg(where, fatal, "index %d outside of range %d %s %d",
+          value, left, dir == RANGE_TO ? "to" : "downto", right);
+}
+
+DLLEXPORT
 void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
                   rt_loc_t *where, const char *hint)
 {

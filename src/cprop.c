@@ -675,6 +675,7 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_NULL_CHECK:
          case VCODE_OP_DYNAMIC_BOUNDS:
          case VCODE_OP_INDEX_CHECK:
+         case VCODE_OP_INDEX_CHECK2:
          case VCODE_OP_RESUME:
          case VCODE_OP_FILE_OPEN:
          case VCODE_OP_FILE_READ:

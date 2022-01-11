@@ -38,4 +38,12 @@ begin
         wait;
     end process;
 
+    p5: process is
+        variable v : int_vec(1 to 3);
+        variable x : integer;
+    begin
+        v := (1 => 1, 2 => x, 3 => 3);
+        wait;
+    end process;
+
 end architecture;

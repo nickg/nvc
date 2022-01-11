@@ -143,14 +143,36 @@ static bool lower_is_const(tree_t t)
    switch (tree_kind(t)) {
    case T_AGGREGATE:
       {
-         bool is_const = true;
          type_t type = tree_type(t);
-         if (type_is_array(type))
-            is_const = lower_const_bounds(tree_type(t));
+         if (type_is_array(type) && !lower_const_bounds(tree_type(t)))
+            return false;
+
          const int nassocs = tree_assocs(t);
-         for (int i = 0; i < nassocs; i++)
-            is_const = is_const && lower_is_const(tree_value(tree_assoc(t, i)));
-         return is_const;
+         for (int i = 0; i < nassocs; i++) {
+            tree_t a = tree_assoc(t, i);
+            switch (tree_subkind(a)) {
+            case A_NAMED:
+               if (!lower_is_const(tree_name(a)))
+                  return false;
+               break;
+            case A_RANGE:
+               {
+                  tree_t r = tree_range(a, 0);
+                  if (tree_subkind(r) == RANGE_EXPR)
+                     return false;
+                  else if (!lower_is_const(tree_left(r)))
+                     return false;
+                  else if (!lower_is_const(tree_right(r)))
+                     return false;
+               }
+               break;
+            }
+
+            if (!lower_is_const(tree_value(tree_assoc(t, i))))
+               return false;
+         }
+
+         return true;
       }
 
    case T_REF:
@@ -160,7 +182,7 @@ static bool lower_is_const(tree_t t)
          if (decl_kind == T_CONST_DECL && type_is_scalar(tree_type(t)))
             return !tree_has_value(decl) || lower_is_const(tree_value(decl));
          else
-            return decl_kind == T_ENUM_LIT;
+            return decl_kind == T_ENUM_LIT || decl_kind == T_FIELD_DECL;
       }
 
    case T_LITERAL:
@@ -2378,6 +2400,8 @@ static bool lower_can_use_const_rep(tree_t expr, int *length, tree_t *elem)
 
 static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 {
+   emit_debug_info(tree_loc(expr));
+
    type_t type = tree_type(expr);
 
    if (lower_const_bounds(type) && lower_is_const(expr)) {
@@ -2548,6 +2572,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
       case A_NAMED:
          {
             vcode_reg_t name_reg = lower_reify_expr(tree_name(a));
+            emit_index_check2(name_reg, left_reg, right_reg, dir_reg);
             off_reg = lower_array_off(name_reg, mem_reg, type, 0);
          }
          break;
@@ -2560,21 +2585,25 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
             tree_t r = tree_range(a, 0);
             type_t rtype = tree_type(r);
 
-            vcode_reg_t left_reg  = lower_range_left(r);
-            vcode_reg_t right_reg = lower_range_right(r);
-            vcode_reg_t dir_reg   = lower_range_dir(r);
+            vcode_reg_t r_left_reg  = lower_range_left(r);
+            vcode_reg_t r_right_reg = lower_range_right(r);
+            vcode_reg_t r_dir_reg   = lower_range_dir(r);
+
+            emit_index_check2(r_left_reg, left_reg, right_reg, dir_reg);
+            emit_index_check2(r_right_reg, left_reg, right_reg, dir_reg);
 
             vcode_type_t vtype   = lower_type(rtype);
             vcode_type_t vbounds = lower_bounds(rtype);
 
             tmp_var = lower_temp_var("i", vtype, vbounds);
-            emit_store(left_reg, tmp_var);
+            emit_store(r_left_reg, tmp_var);
 
             vcode_reg_t null_reg =
-               emit_range_null(left_reg, right_reg, dir_reg);
+               emit_range_null(r_left_reg, r_right_reg, r_dir_reg);
             emit_cond(null_reg, exit_bb, loop_bb);
 
             vcode_select_block(loop_bb);
+            emit_debug_info(tree_loc(a));
 
             vcode_reg_t i_reg = emit_load(tmp_var);
             off_reg = lower_array_off(i_reg, mem_reg, type, 0);
@@ -2613,16 +2642,16 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
          vcode_type_t vtype = lower_type(tree_type(r));
 
-         vcode_reg_t dir_reg   = lower_range_dir(r);
+         vcode_reg_t r_dir_reg = lower_range_dir(r);
          vcode_reg_t step_down = emit_const(vtype, -1);
          vcode_reg_t step_up   = emit_const(vtype, 1);
-         vcode_reg_t step_reg  = emit_select(dir_reg, step_down, step_up);
+         vcode_reg_t step_reg  = emit_select(r_dir_reg, step_down, step_up);
          vcode_reg_t i_reg     = emit_load(tmp_var);
          vcode_reg_t next_reg  = emit_add(i_reg, step_reg);
          emit_store(next_reg, tmp_var);
 
-         vcode_reg_t right_reg = lower_range_right(r);
-         vcode_reg_t done_reg  = emit_cmp(VCODE_CMP_EQ, i_reg, right_reg);
+         vcode_reg_t r_right_reg = lower_range_right(r);
+         vcode_reg_t done_reg    = emit_cmp(VCODE_CMP_EQ, i_reg, r_right_reg);
          emit_cond(done_reg, exit_bb, loop_bb);
 
          vcode_select_block(exit_bb);

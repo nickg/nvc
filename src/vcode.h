@@ -135,6 +135,7 @@ typedef enum {
    VCODE_OP_IMPLICIT_SIGNAL,
    VCODE_OP_DISCONNECT,
    VCODE_OP_LINK_PACKAGE,
+   VCODE_OP_INDEX_CHECK2,
 } vcode_op_t;
 
 typedef enum {
@@ -198,9 +199,6 @@ typedef enum {
 #define VCODE_INVALID_BLOCK  -1
 #define VCODE_INVALID_VAR    -1
 #define VCODE_INVALID_TYPE   -1
-#define VCODE_INVALID_IMAGE  -1
-
-#define VCODE_INVALID_HINT 0xffffffff
 
 typedef enum {
    VCODE_DUMP_OP,
@@ -372,6 +370,8 @@ void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
 void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
                               vcode_reg_t blow, vcode_reg_t bhigh,
                               bounds_kind_t kind);
+void emit_index_check2(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
+                       vcode_reg_t dir);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t bounds, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);

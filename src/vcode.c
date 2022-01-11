@@ -905,7 +905,7 @@ const char *vcode_op_string(vcode_op_t op)
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
-      "implicit signal", "disconnect", "link package",
+      "implicit signal", "disconnect", "link package", "index check (2)"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1918,6 +1918,19 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->args.items[1]);
                vcode_dump_comment(col);
                vcode_dump_loc(&(op->loc));
+            }
+            break;
+
+         case VCODE_OP_INDEX_CHECK2:
+            {
+               col += printf("%s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" left ");
+               col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" right ");
+               col += vcode_dump_reg(op->args.items[2]);
+               col += printf(" dir ");
+               col += vcode_dump_reg(op->args.items[3]);
             }
             break;
 
@@ -4777,6 +4790,48 @@ void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
 
    VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),
                 "dynamic index check needs debug info");
+}
+
+void emit_index_check2(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
+                       vcode_reg_t dir)
+{
+   if (reg == left || reg == right) {
+      emit_comment("Elided trivial index check for r%d", reg);
+      return;
+   }
+
+   int64_t dconst;
+   if (vcode_reg_const(dir, &dconst)) {
+      int64_t lconst, rconst;
+      if (vcode_reg_const(left, &lconst) && vcode_reg_const(right, &rconst)) {
+         const bool is_null = (dconst == RANGE_TO && lconst > rconst)
+            || (dconst == RANGE_DOWNTO && rconst > lconst);
+
+         if (is_null) {
+            emit_comment("Elided index check for null range");
+            return;
+         }
+
+         vtype_t *bounds = vcode_type_data(vcode_reg_bounds(reg));
+
+         const bool ok_static =
+            (dconst == RANGE_TO
+             && bounds->low >= lconst && bounds->high <= rconst)
+            || (dconst == RANGE_DOWNTO
+                && bounds->low >= rconst && bounds->high <= lconst);
+
+         if (ok_static) {
+            emit_comment("Elided index check for r%d", reg);
+            return;
+         }
+      }
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_INDEX_CHECK2);
+   vcode_add_arg(op, reg);
+   vcode_add_arg(op, left);
+   vcode_add_arg(op, right);
+   vcode_add_arg(op, dir);
 }
 
 void emit_debug_out(vcode_reg_t reg)

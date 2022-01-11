@@ -1520,6 +1520,25 @@ static void eval_op_alloca(int op, eval_state_t *state)
    eval_make_pointer_to(result, new);
 }
 
+static void eval_op_index_check2(int op, eval_state_t *state)
+{
+   value_t *value = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *left  = eval_get_reg(vcode_get_arg(op, 1), state);
+   value_t *right = eval_get_reg(vcode_get_arg(op, 2), state);
+   value_t *dir   = eval_get_reg(vcode_get_arg(op, 3), state);
+
+   const int64_t low =
+      dir->integer == RANGE_DOWNTO ? right->integer : left->integer;
+   const int64_t high =
+      dir->integer == RANGE_DOWNTO ? left->integer : right->integer;
+
+   if (low > high)
+      return;   // Null range
+
+   if (value->integer < low || value->integer > high)
+      state->failed = true;    // TODO: report error here if EVAL_BOUNDS
+}
+
 static void eval_op_index_check(int op, eval_state_t *state)
 {
    value_t *low = eval_get_reg(vcode_get_arg(op, 0), state);
@@ -2005,6 +2024,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_INDEX_CHECK:
          eval_op_index_check(state->op, state);
+         break;
+
+      case VCODE_OP_INDEX_CHECK2:
+         eval_op_index_check2(state->op, state);
          break;
 
       case VCODE_OP_ABS:
