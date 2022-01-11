@@ -1087,16 +1087,25 @@ static bool lower_side_effect_free(tree_t expr)
 static vcode_var_t lower_temp_var(const char *prefix, vcode_type_t vtype,
                                   vcode_type_t vbounds)
 {
-   for (unsigned i = 0; i < top_scope->free_temps.count; i++) {
-      vcode_var_t tmp = top_scope->free_temps.items[i];
+   vcode_var_t tmp = VCODE_INVALID_VAR;
+   unsigned pos = 0;
+   for (; pos < top_scope->free_temps.count; pos++) {
+      tmp = top_scope->free_temps.items[pos];
       if (vtype_eq(vcode_var_type(tmp), vtype)
-          && vtype_eq(vcode_var_bounds(tmp), vbounds)) {
-         emit_comment("Reusing temp var %s", istr(vcode_var_name(tmp)));
-         return tmp;
-      }
+          && vtype_eq(vcode_var_bounds(tmp), vbounds))
+         break;
    }
 
-   return emit_var(vtype, vbounds, ident_uniq(prefix), VAR_TEMP);
+   if (pos == top_scope->free_temps.count)
+      return emit_var(vtype, vbounds, ident_uniq(prefix), VAR_TEMP);
+
+   emit_comment("Reusing temp var %s", istr(vcode_var_name(tmp)));
+
+   for (; pos < top_scope->free_temps.count - 1; pos++)
+      top_scope->free_temps.items[pos] = top_scope->free_temps.items[pos + 1];
+   APOP(top_scope->free_temps);
+
+   return tmp;
 }
 
 static void lower_release_temp(vcode_var_t tmp)
@@ -1901,11 +1910,23 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    }
    else {
       tree_t r = range_of(type, dim);
-      vcode_reg_t left = lower_reify_expr(tree_left(r));
-      if (tree_subkind(r) == RANGE_TO)
+      vcode_reg_t left = lower_range_left(r);
+      switch (tree_subkind(r)) {
+      case RANGE_TO:
          zeroed = emit_sub(off, left);
-      else
+         break;
+      case RANGE_DOWNTO:
          zeroed = emit_sub(left, off);
+         break;
+      case RANGE_EXPR:
+         {
+            vcode_reg_t dir = lower_range_dir(r);
+            vcode_reg_t to = emit_sub(off, left);
+            vcode_reg_t downto = emit_sub(left, off);
+            zeroed = emit_select(dir, downto, to);
+         }
+         break;
+      }
    }
 
    return emit_cast(vtype_offset(), VCODE_INVALID_TYPE, zeroed);
@@ -2214,225 +2235,6 @@ static bool lower_memset_bit_pattern(tree_t value, unsigned bits, uint8_t *byte)
    return true;
 }
 
-static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type,
-                                       vcode_reg_t hint)
-{
-   type_t agg_type = tree_type(agg);
-   type_t elem_type = type_elem(type);
-
-   emit_comment("Begin dynamic aggregrate line %d", tree_loc(agg)->first_line);
-
-   vcode_reg_t def_reg = VCODE_INVALID_REG;
-   tree_t def_value = NULL;
-   const int nassocs = tree_assocs(agg);
-   for (int i = 0; def_value == NULL && i < nassocs; i++) {
-      tree_t a = tree_assoc(agg, i);
-      if (tree_subkind(a) == A_OTHERS) {
-         def_value = tree_value(a);
-         if (type_is_scalar(tree_type(def_value)))
-            def_reg = lower_reify_expr(def_value);
-      }
-   }
-
-   assert(!type_is_unconstrained(agg_type));
-
-   vcode_reg_t dir_reg   = lower_array_dir(agg_type, 0, VCODE_INVALID_REG);
-   vcode_reg_t left_reg  = lower_array_left(agg_type, 0, VCODE_INVALID_REG);
-   vcode_reg_t right_reg = lower_array_right(agg_type, 0, VCODE_INVALID_REG);
-   vcode_reg_t len_reg   = lower_array_total_len(agg_type, VCODE_INVALID_REG);
-
-   type_t scalar_elem_type = lower_elem_recur(elem_type);
-
-   const bool multidim =
-      type_is_array(agg_type) && dimension_of(agg_type) > 1;
-
-   vcode_reg_t mem_reg = hint;
-   if (mem_reg == VCODE_INVALID_REG)
-      mem_reg = emit_alloca(lower_type(scalar_elem_type),
-                            lower_bounds(scalar_elem_type), len_reg);
-
-   vcode_type_t offset_type = vtype_offset();
-
-   vcode_dim_t dim0 = {
-      .left  = left_reg,
-      .right = right_reg,
-      .dir   = dir_reg
-   };
-
-   tree_t agg0 = tree_assoc(agg, 0);
-
-   uint8_t byte = 0;
-   unsigned bits = 0;
-   const bool can_use_memset =
-      (type_is_integer(elem_type) || type_is_enum(elem_type))
-      && tree_assocs(agg) == 1
-      && tree_subkind(agg0) == A_OTHERS
-      && !multidim
-      && ((bits = lower_bit_width(elem_type)) <= 8
-          || lower_memset_bit_pattern(tree_value(agg0), bits, &byte));
-
-   if (can_use_memset) {
-      if (bits <= 8)
-         emit_memset(mem_reg, lower_reify_expr(tree_value(agg0)), len_reg);
-      else {
-         vcode_reg_t byte_reg = emit_const(vtype_int(0, 255), byte);
-         emit_memset(mem_reg, byte_reg,
-                     emit_mul(len_reg,
-                              emit_const(offset_type, (bits + 7) / 8)));
-      }
-
-      return emit_wrap(mem_reg, &dim0, 1);
-   }
-
-   vcode_var_t i_var = lower_temp_var("i", offset_type, offset_type);
-   emit_store(emit_const(offset_type, 0), i_var);
-
-   vcode_reg_t stride = VCODE_INVALID_REG;
-   if (type_is_array(elem_type)) {
-      stride = lower_array_total_len(elem_type, VCODE_INVALID_REG);
-      emit_comment("Array of array stride is r%d", stride);
-   }
-
-   if (multidim) {
-      if (stride == VCODE_INVALID_REG)
-         stride = emit_const(vtype_offset(), 1);
-
-      const int dims = dimension_of(agg_type);
-      for (int i = 1; i < dims; i++)
-         stride = emit_mul(stride,
-                           lower_array_len(agg_type, i, VCODE_INVALID_REG));
-      emit_comment("Multidimensional array stride is r%d", stride);
-   }
-
-
-   vcode_reg_t len0_reg = len_reg;
-   if (type_is_array(elem_type) || multidim)
-      len0_reg = lower_array_len(agg_type, 0, VCODE_INVALID_REG);
-
-   vcode_block_t test_bb = emit_block();
-   vcode_block_t body_bb = emit_block();
-   vcode_block_t exit_bb = emit_block();
-
-   emit_jump(test_bb);
-
-   // Loop test
-   vcode_select_block(test_bb);
-   vcode_reg_t i_loaded = emit_load(i_var);
-   vcode_reg_t ge = emit_cmp(VCODE_CMP_GEQ, i_loaded, len0_reg);
-   emit_cond(ge, exit_bb, body_bb);
-
-   // Loop body
-   vcode_select_block(body_bb);
-
-   // Regenerate non-scalar default values on each iteration
-   if (def_reg == VCODE_INVALID_REG && def_value != NULL)
-      def_reg = lower_expr(def_value, EXPR_RVALUE);
-
-   vcode_reg_t what = def_reg;
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(agg, i);
-
-      assoc_kind_t kind = tree_subkind(a);
-      vcode_reg_t value_reg = VCODE_INVALID_REG;
-      if (kind != A_OTHERS) {
-         tree_t value = tree_value(a);
-         value_reg = lower_expr(value, EXPR_RVALUE);
-
-         type_t value_type = tree_type(value);
-         if (type_is_scalar(value_type))
-            value_reg = lower_reify(value_reg);
-         else if (type_is_array(value_type)) {
-            if (!lower_const_bounds(value_type)) {
-               lower_check_array_sizes(value, elem_type, value_type,
-                                       VCODE_INVALID_REG, value_reg);
-            }
-            value_reg = lower_array_data(value_reg);
-         }
-      }
-
-      if (what == VCODE_INVALID_REG) {
-         what = value_reg;
-         continue;
-      }
-
-      switch (kind) {
-      case A_POS:
-         {
-            vcode_reg_t eq = emit_cmp(VCODE_CMP_EQ, i_loaded,
-                                      emit_const(offset_type, tree_pos(a)));
-            what = emit_select(eq, value_reg, what);
-         }
-         break;
-
-      case A_NAMED:
-         {
-            vcode_reg_t name_reg   = lower_reify_expr(tree_name(a));
-            vcode_reg_t downto_reg = emit_sub(left_reg, name_reg);
-            vcode_reg_t upto_reg   = emit_sub(name_reg, left_reg);
-
-            vcode_reg_t off_reg  = emit_select(dir_reg, downto_reg, upto_reg);
-            vcode_reg_t cast_reg = emit_cast(vtype_offset(),
-                                             VCODE_INVALID_TYPE, off_reg);
-
-            vcode_reg_t eq = emit_cmp(VCODE_CMP_EQ, i_loaded, cast_reg);
-            what = emit_select(eq, value_reg, what);
-         }
-         break;
-
-      case A_RANGE:
-         {
-            tree_t r = tree_range(a, 0);
-            const range_kind_t rkind = tree_subkind(r);
-
-            vcode_cmp_t lpred =
-               (rkind == RANGE_TO ? VCODE_CMP_GEQ : VCODE_CMP_LEQ);
-            vcode_cmp_t rpred =
-               (rkind == RANGE_TO ? VCODE_CMP_LEQ : VCODE_CMP_GEQ);
-
-            vcode_reg_t lcmp_reg =
-               emit_cmp(lpred, i_loaded,
-                        emit_cast(offset_type, VCODE_INVALID_TYPE,
-                                  lower_reify_expr(tree_left(r))));
-            vcode_reg_t rcmp_reg =
-               emit_cmp(rpred, i_loaded,
-                        emit_cast(offset_type, VCODE_INVALID_TYPE,
-                                  lower_reify_expr(tree_right(r))));
-
-            vcode_reg_t in_reg = emit_or(lcmp_reg, rcmp_reg);
-            what = emit_select(in_reg, value_reg, what);
-         }
-         break;
-
-      case A_OTHERS:
-         break;
-      }
-   }
-
-   vcode_reg_t i_stride = i_loaded;
-   if (stride != VCODE_INVALID_REG)
-      i_stride = emit_mul(i_loaded, stride);
-
-   vcode_reg_t ptr_reg = emit_add(mem_reg, i_stride);
-   if (type_is_array(elem_type) || multidim) {
-      vcode_reg_t src_reg = lower_array_data(what);
-      emit_copy(ptr_reg, src_reg, stride);
-   }
-   else if (type_is_record(elem_type))
-      emit_copy(ptr_reg, what, VCODE_INVALID_REG);
-   else
-      emit_store_indirect(lower_reify(what), ptr_reg);
-
-   emit_store(emit_add(i_loaded, emit_const(vtype_offset(), 1)), i_var);
-   emit_jump(test_bb);
-
-   // Epilogue
-   vcode_select_block(exit_bb);
-   emit_comment("End dynamic aggregrate line %d", tree_loc(agg)->first_line);
-
-   lower_release_temp(i_var);
-   return emit_wrap(mem_reg, &dim0, 1);
-}
-
 static vcode_reg_t lower_record_sub_aggregate(tree_t value, type_t type,
                                               bool is_const)
 {
@@ -2573,14 +2375,9 @@ static bool lower_can_use_const_rep(tree_t expr, int *length, tree_t *elem)
    return true;
 }
 
-static vcode_reg_t lower_aggregate(tree_t expr, vcode_reg_t hint)
+static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 {
    type_t type = tree_type(expr);
-
-   if (type_is_record(type))
-      return lower_record_aggregate(expr, false, lower_is_const(expr), hint);
-
-   assert(type_is_array(type));
 
    if (lower_const_bounds(type) && lower_is_const(expr)) {
       int rep_size = -1;
@@ -2598,8 +2395,251 @@ static vcode_reg_t lower_aggregate(tree_t expr, vcode_reg_t hint)
          return emit_address_of(array);
       }
    }
+
+   tree_t def_value = NULL;
+   const int nassocs = tree_assocs(expr);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(expr, i);
+      if (tree_subkind(a) == A_OTHERS) {
+         def_value = tree_value(a);
+         break;
+      }
+   }
+
+   assert(!type_is_unconstrained(type));
+
+   emit_comment("Begin array aggregrate line %d", tree_loc(expr)->first_line);
+
+   vcode_reg_t dir_reg   = lower_array_dir(type, 0, VCODE_INVALID_REG);
+   vcode_reg_t left_reg  = lower_array_left(type, 0, VCODE_INVALID_REG);
+   vcode_reg_t right_reg = lower_array_right(type, 0, VCODE_INVALID_REG);
+
+   vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, dir_reg);
+
+   type_t elem_type = type_elem(type);
+   type_t scalar_elem_type = lower_elem_recur(type);
+
+   int64_t null_const;
+   if (vcode_reg_const(null_reg, &null_const) && null_const)
+      return emit_null(lower_type(scalar_elem_type));
+
+   vcode_reg_t len_reg = lower_array_total_len(type, VCODE_INVALID_REG);
+
+   const bool multidim =
+      type_is_array(type) && dimension_of(type) > 1;
+
+   vcode_type_t voffset = vtype_offset();
+
+   vcode_reg_t mem_reg = hint;
+   if (mem_reg == VCODE_INVALID_REG)
+      mem_reg = emit_alloca(lower_type(scalar_elem_type),
+                            lower_bounds(scalar_elem_type), len_reg);
+
+   vcode_reg_t stride = VCODE_INVALID_REG;
+   if (type_is_array(elem_type)) {
+      stride = lower_array_total_len(elem_type, VCODE_INVALID_REG);
+      emit_comment("Array of array stride is r%d", stride);
+   }
+
+   if (multidim) {
+      if (stride == VCODE_INVALID_REG)
+         stride = emit_const(vtype_offset(), 1);
+
+      const int dims = dimension_of(type);
+      for (int i = 1; i < dims; i++)
+         stride = emit_mul(stride, lower_array_len(type, i, VCODE_INVALID_REG));
+      emit_comment("Multidimensional array stride is r%d", stride);
+   }
+
+   if (def_value != NULL) {
+      // Initialise the array with the default value
+      uint8_t byte = 0;
+      unsigned bits = 0;
+      const bool can_use_memset =
+         (type_is_integer(elem_type) || type_is_enum(elem_type))
+         && !multidim
+         && ((bits = lower_bit_width(scalar_elem_type)) <= 8
+             || lower_memset_bit_pattern(def_value, bits, &byte));
+
+      if (can_use_memset) {
+         if (bits <= 8) {
+            vcode_reg_t def_reg = lower_expr(def_value, EXPR_RVALUE);
+            if (lower_have_signal(def_reg))
+               def_reg = emit_resolved(def_reg);
+            emit_memset(mem_reg, lower_reify(def_reg), len_reg);
+         }
+         else {
+            vcode_reg_t byte_reg = emit_const(vtype_int(0, 255), byte);
+            emit_memset(mem_reg, byte_reg,
+                        emit_mul(len_reg, emit_const(voffset, (bits + 7) / 8)));
+         }
+      }
+      else {
+         vcode_block_t loop_bb = emit_block();
+         vcode_block_t exit_bb = emit_block();
+
+         vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
+         emit_store(emit_const(voffset, 0), i_var);
+
+         // TODO: this is hack to work around the lack of a block
+         // ordering pass in vcode
+         vcode_reg_t def_reg = VCODE_INVALID_REG;
+         if (type_is_scalar(elem_type) && !multidim)
+            def_reg = lower_expr(def_value, EXPR_RVALUE);
+
+         emit_cond(null_reg, exit_bb, loop_bb);
+
+         vcode_select_block(loop_bb);
+
+         vcode_reg_t inc_reg = stride;
+         if (inc_reg == VCODE_INVALID_REG)
+            inc_reg = emit_const(voffset, 1);
+
+         vcode_reg_t i_reg = emit_load(i_var);
+         vcode_reg_t next_reg = emit_add(i_reg, inc_reg);
+         emit_store(next_reg, i_var);
+
+         vcode_reg_t ptr_reg = emit_add(mem_reg, i_reg);
+
+         if (def_reg == VCODE_INVALID_REG)
+            def_reg = lower_expr(def_value, EXPR_RVALUE);
+
+         if (type_is_array(elem_type) || multidim) {
+            assert(stride != VCODE_INVALID_REG);
+            vcode_reg_t src_reg = lower_array_data(def_reg);
+            emit_copy(ptr_reg, src_reg, stride);
+         }
+         else if (type_is_record(elem_type))
+            emit_copy(ptr_reg, def_reg, VCODE_INVALID_REG);
+         else
+            emit_store_indirect(lower_reify(def_reg), ptr_reg);
+
+         vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
+         emit_cond(done_reg, exit_bb, loop_bb);
+
+         vcode_select_block(exit_bb);
+         lower_release_temp(i_var);
+      }
+   }
+
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(expr, i);
+
+      vcode_reg_t value_reg = lower_expr(tree_value(a), EXPR_RVALUE);
+
+      vcode_reg_t loop_bb = VCODE_INVALID_BLOCK;
+      vcode_reg_t exit_bb = VCODE_INVALID_BLOCK;
+
+      vcode_var_t tmp_var = VCODE_INVALID_VAR;
+      vcode_reg_t off_reg = VCODE_INVALID_REG;
+      switch (tree_subkind(a)) {
+      case A_POS:
+         off_reg = emit_const(voffset, tree_pos(a));
+         break;
+
+      case A_NAMED:
+         {
+            vcode_reg_t name_reg = lower_reify_expr(tree_name(a));
+            off_reg = lower_array_off(name_reg, mem_reg, type, 0);
+         }
+         break;
+
+      case A_RANGE:
+         {
+            loop_bb = emit_block();
+            exit_bb = emit_block();
+
+            tree_t r = tree_range(a, 0);
+            type_t rtype = tree_type(r);
+
+            vcode_reg_t left_reg  = lower_range_left(r);
+            vcode_reg_t right_reg = lower_range_right(r);
+            vcode_reg_t dir_reg   = lower_range_dir(r);
+
+            vcode_type_t vtype   = lower_type(rtype);
+            vcode_type_t vbounds = lower_bounds(rtype);
+
+            tmp_var = lower_temp_var("i", vtype, vbounds);
+            emit_store(left_reg, tmp_var);
+
+            vcode_reg_t null_reg =
+               emit_range_null(left_reg, right_reg, dir_reg);
+            emit_cond(null_reg, exit_bb, loop_bb);
+
+            vcode_select_block(loop_bb);
+
+            vcode_reg_t i_reg = emit_load(tmp_var);
+            off_reg = lower_array_off(i_reg, mem_reg, type, 0);
+         }
+         break;
+
+      case A_OTHERS:
+         // Handled above
+         continue;
+      }
+
+      if (stride != VCODE_INVALID_REG)
+         off_reg = emit_mul(off_reg, stride);
+
+      vcode_reg_t ptr_reg = emit_add(mem_reg, off_reg);
+
+      if (type_is_array(elem_type) || multidim) {
+         assert(stride != VCODE_INVALID_REG);
+         vcode_reg_t src_reg = lower_array_data(value_reg);
+         emit_copy(ptr_reg, src_reg, stride);
+      }
+      else if (type_is_record(elem_type))
+         emit_copy(ptr_reg, value_reg, VCODE_INVALID_REG);
+      else
+         emit_store_indirect(lower_reify(value_reg), ptr_reg);
+
+      if (loop_bb != VCODE_INVALID_BLOCK) {
+         assert(tree_subkind(a) == A_RANGE);
+         tree_t r = tree_range(a, 0);
+
+         vcode_type_t vtype = lower_type(tree_type(r));
+
+         vcode_reg_t dir_reg   = lower_range_dir(r);
+         vcode_reg_t step_down = emit_const(vtype, -1);
+         vcode_reg_t step_up   = emit_const(vtype, 1);
+         vcode_reg_t step_reg  = emit_select(dir_reg, step_down, step_up);
+         vcode_reg_t i_reg     = emit_load(tmp_var);
+         vcode_reg_t next_reg  = emit_add(i_reg, step_reg);
+         emit_store(next_reg, tmp_var);
+
+         vcode_reg_t right_reg = lower_range_right(r);
+         vcode_reg_t done_reg  = emit_cmp(VCODE_CMP_EQ, i_reg, right_reg);
+         emit_cond(done_reg, exit_bb, loop_bb);
+
+         vcode_select_block(exit_bb);
+      }
+
+      if (tmp_var != VCODE_INVALID_VAR)
+         lower_release_temp(tmp_var);
+   }
+
+   if (lower_const_bounds(type))
+      return mem_reg;
+   else {
+      vcode_dim_t dim0 = {
+         .left  = left_reg,
+         .right = right_reg,
+         .dir   = dir_reg
+      };
+      return emit_wrap(mem_reg, &dim0, 1);
+   }
+}
+
+static vcode_reg_t lower_aggregate(tree_t expr, vcode_reg_t hint)
+{
+   type_t type = tree_type(expr);
+
+   if (type_is_record(type))
+      return lower_record_aggregate(expr, false, lower_is_const(expr), hint);
+   else if (type_is_array(type))
+      return lower_array_aggregate(expr, hint);
    else
-      return lower_dyn_aggregate(expr, type, hint);
+      fatal_trace("invalid type %s in lower_aggregate", type_pp(type));
 }
 
 static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)

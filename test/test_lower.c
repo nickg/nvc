@@ -3042,11 +3042,11 @@ START_TEST(test_tounsigned)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "RESULT" },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_MEMSET },
       { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
       { VCODE_OP_STORE, .name = "I_VAL" },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_COND, .target = 2, .target_else = 1 },
    };
 
@@ -3317,6 +3317,7 @@ START_TEST(test_synopsys1)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "S" },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_MEMSET },
       { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
@@ -3327,7 +3328,6 @@ START_TEST(test_synopsys1)
       { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
       { VCODE_OP_ARRAY_SIZE },
       { VCODE_OP_COPY },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_COND, .target = 2, .target_else = 1 }
    };
 
@@ -3353,7 +3353,6 @@ START_TEST(test_access2)
    // TODO: eliminate the intermediate alloca here
 
    EXPECT_BB(0) = {
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_UARRAY_LEFT },
       { VCODE_OP_CAST },
@@ -3361,6 +3360,7 @@ START_TEST(test_access2)
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_ALLOCA },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_MEMSET },
       { VCODE_OP_NEW },
       { VCODE_OP_ALL },
@@ -3588,15 +3588,16 @@ START_TEST(test_vital2)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_UNWRAP },
+      { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_UARRAY_LEFT },
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },
       { VCODE_OP_CAST },
+      { VCODE_OP_RANGE_NULL },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_ALLOCA },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE, .name = "*i" },
-      { VCODE_OP_JUMP, .target = 1 },
+      { VCODE_OP_COND, .target = 2, .target_else = 1 },
    };
 
    CHECK_BB(0);

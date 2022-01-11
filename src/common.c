@@ -654,6 +654,7 @@ tree_t make_default_value(type_t type, const loc_t *loc)
          for (int i = ndims - 1; i >= 0; i--) {
             tree_t val = (def ? def : make_default_value(type_elem(type), loc));
             def = tree_new(T_AGGREGATE);
+            tree_set_loc(def, loc);
             tree_set_type(def, array_aggregate_type(type, i));
 
             tree_t a = tree_new(T_ASSOC);
