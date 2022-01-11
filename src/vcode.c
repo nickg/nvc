@@ -3729,10 +3729,12 @@ vcode_reg_t emit_abs(vcode_reg_t lhs)
 
 void emit_comment(const char *fmt, ...)
 {
+#ifndef NDEBUG
    va_list ap;
    va_start(ap, fmt);
    vcode_add_op(VCODE_OP_COMMENT)->comment = xvasprintf(fmt, ap);
    va_end(ap);
+#endif
 }
 
 vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,

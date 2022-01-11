@@ -44,9 +44,6 @@
 #include <llvm-c/Transforms/PassManagerBuilder.h>
 #include <llvm-c/TargetMachine.h>
 
-#undef NDEBUG
-#include <assert.h>
-
 #define DEBUG_METADATA_VERSION 3
 #define CONST_REP_ARRAY_LIMIT  32
 #define UNITS_PER_JOB          25
@@ -760,14 +757,9 @@ static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
                                LLVMPointerType(type, 0), "tmp_buf");
 }
 
-static bool cgen_is_uarray_struct(LLVMValueRef meta)
-{
-   return LLVMGetTypeKind(LLVMTypeOf(meta)) == LLVMStructTypeKind;
-}
-
 static LLVMValueRef cgen_uarray_dim(LLVMValueRef meta, int dim)
 {
-   assert(cgen_is_uarray_struct(meta));
+   assert(LLVMGetTypeKind(LLVMTypeOf(meta)) == LLVMStructTypeKind);
    LLVMValueRef dim_array =
       LLVMBuildExtractValue(builder, meta, 1, "dim_array");
    return LLVMBuildExtractValue(builder, dim_array, dim, "dim");
