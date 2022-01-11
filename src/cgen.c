@@ -1747,13 +1747,10 @@ static void cgen_op_alloca(int op, cgen_ctx_t *ctx)
    LLVMTypeRef type   = cgen_type(vcode_get_type(op));
 
    if (vcode_get_subkind(op) == VCODE_ALLOCA_HEAP) {
-      LLVMValueRef bytes = llvm_sizeof(type);
-      if (vcode_count_args(op) > 0)
-         bytes = LLVMBuildMul(builder, bytes, cgen_get_arg(op, 0, ctx), "");
+      LLVMValueRef bytes = LLVMBuildMul(builder, llvm_sizeof(type),
+                                        cgen_get_arg(op, 0, ctx), "");
       ctx->regs[result] = cgen_tmp_alloc(bytes, type);
    }
-   else if (vcode_count_args(op) == 0)
-      ctx->regs[result] = LLVMBuildAlloca(builder, type, cgen_reg_name(result));
    else {
       LLVMValueRef count = cgen_get_arg(op, 0, ctx);
       ctx->regs[result] = LLVMBuildArrayAlloca(builder, type, count,

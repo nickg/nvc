@@ -1505,20 +1505,16 @@ static void eval_op_alloca(int op, eval_state_t *state)
 {
    value_t *result = eval_get_reg(vcode_get_result(op), state);
 
-   int length = 1;
-   if (vcode_count_args(op) > 0) {
-      value_t *length_reg = eval_get_reg(vcode_get_arg(op, 0), state);
-      assert(length_reg->kind == VALUE_INTEGER);
-      length = length_reg->integer;
-   }
+   value_t *length = eval_get_reg(vcode_get_arg(op, 0), state);
+   assert(length->kind == VALUE_INTEGER);
 
    vcode_type_t vtype = vcode_get_type(op);
-   const int slots = length * eval_slots_for_type(vtype);
+   const int slots = length->integer * eval_slots_for_type(vtype);
 
    value_t *new = eval_alloc(slots, state);
 
    unsigned off = 0;
-   for (int i = 0; i < length; i++)
+   for (int i = 0; i < length->integer; i++)
       off += eval_setup_var(vtype, new + off);
 
    eval_make_pointer_to(result, new);

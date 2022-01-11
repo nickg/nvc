@@ -1271,8 +1271,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += printf(" := %s ", vcode_op_string(op->kind));
                if (op->subkind == VCODE_ALLOCA_HEAP)
                   col += printf("heap ");
-               if (op->args.count > 0)
-                  col += vcode_dump_reg(op->args.items[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2972,13 +2971,13 @@ vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
    op->type    = type;
    op->result  = vcode_add_reg(vtype_pointer(type));
    op->subkind = VCODE_ALLOCA_STACK;
-
-   if (count != VCODE_INVALID_REG)
-      vcode_add_arg(op, count);
+   vcode_add_arg(op, count);
 
    const vtype_kind_t tkind = vtype_kind(type);
    VCODE_ASSERT(tkind != VCODE_TYPE_CARRAY && tkind != VCODE_TYPE_UARRAY,
                 "alloca element type cannot be array");
+   VCODE_ASSERT(count != VCODE_INVALID_REG,
+                "alloca must have valid count argument");
 
    reg_t *r = vcode_reg_data(op->result);
    r->bounds = bounds;

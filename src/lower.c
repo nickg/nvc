@@ -2504,18 +2504,12 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
 
    if (is_const) {
       vcode_reg_t reg = emit_const_record(lower_type(type), vals, nfields);
-      if (!nest) {
-         vcode_type_t vtype = lower_type(type);
-         vcode_reg_t mem_reg = emit_alloca(vtype, vtype, VCODE_INVALID_REG);
-         emit_copy(mem_reg, emit_address_of(reg), VCODE_INVALID_REG);
-         return mem_reg;
-      }
-      else
-         return reg;
+      return nest ? reg : emit_address_of(reg);
    }
    else {
       vcode_type_t vtype = lower_type(type);
-      vcode_reg_t mem_reg = emit_alloca(vtype, vtype, VCODE_INVALID_REG);
+      vcode_var_t tmp_var = lower_temp_var("record", vtype, vtype);
+      vcode_reg_t mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
 
       for (int i = 0; i < nfields; i++) {
          type_t ftype = tree_type(type_field(type, i));
