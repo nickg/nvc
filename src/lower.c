@@ -110,8 +110,8 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops);
 static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context);
 static void lower_proc_body(tree_t body, vcode_unit_t context);
 static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx);
-static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
-                                          bool is_const, expr_ctx_t ctx);
+static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest, bool is_const,
+                                          vcode_reg_t hint);
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_type_t lower_type(type_t type);
 static void lower_decls(tree_t scope, vcode_unit_t context);
@@ -2102,7 +2102,8 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
             sub = lower_const_array_aggregate(value, sub_type, 0, &nsub);
          else if (type_is_record(sub_type))
             *sub = lower_record_aggregate(value, true,
-                                          lower_is_const(value), EXPR_RVALUE);
+                                          lower_is_const(value),
+                                          VCODE_INVALID_VAR);
          else
             assert(false);
       }
@@ -2213,7 +2214,8 @@ static bool lower_memset_bit_pattern(tree_t value, unsigned bits, uint8_t *byte)
    return true;
 }
 
-static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
+static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type,
+                                       vcode_reg_t hint)
 {
    type_t agg_type = tree_type(agg);
    type_t elem_type = type_elem(type);
@@ -2430,7 +2432,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
 }
 
 static vcode_reg_t lower_record_sub_aggregate(tree_t value, type_t type,
-                                              bool is_const, expr_ctx_t ctx)
+                                              bool is_const)
 {
    if (type_is_array(type) && is_const) {
       if (tree_kind(value) == T_LITERAL)
@@ -2445,15 +2447,15 @@ static vcode_reg_t lower_record_sub_aggregate(tree_t value, type_t type,
       }
    }
    else if (type_is_record(type) && is_const)
-      return lower_record_aggregate(value, true, true, ctx);
+      return lower_record_aggregate(value, true, true, EXPR_RVALUE);
    else if (type_is_scalar(type))
       return lower_reify_expr(value);
    else
-      return lower_expr(value, ctx);
+      return lower_expr(value, EXPR_RVALUE);
 }
 
 static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
-                                          bool is_const, expr_ctx_t ctx)
+                                          bool is_const, vcode_reg_t hint)
 {
    type_t type = tree_type(expr);
    const int nfields = type_fields(type);
@@ -2472,7 +2474,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
       switch (tree_subkind(a)) {
       case A_POS:
          vals[tree_pos(a)] =
-            lower_record_sub_aggregate(value, value_type, is_const, ctx);
+            lower_record_sub_aggregate(value, value_type, is_const);
          break;
 
       case A_NAMED:
@@ -2480,7 +2482,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
             unsigned index = tree_pos(tree_ref(tree_name(a)));
             assert(index < nfields);
             vals[index] =
-               lower_record_sub_aggregate(value, value_type, is_const, ctx);
+               lower_record_sub_aggregate(value, value_type, is_const);
          }
          break;
 
@@ -2488,8 +2490,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
          for (int j = 0; j < nfields; j++) {
             if (vals[j] == VCODE_INVALID_REG) {
                type_t ftype = tree_type(type_field(type, j));
-               vals[j] = lower_record_sub_aggregate(value, ftype,
-                                                    is_const, ctx);
+               vals[j] = lower_record_sub_aggregate(value, ftype, is_const);
             }
          }
          break;
@@ -2508,8 +2509,11 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
    }
    else {
       vcode_type_t vtype = lower_type(type);
-      vcode_var_t tmp_var = lower_temp_var("record", vtype, vtype);
-      vcode_reg_t mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
+      vcode_reg_t mem_reg = hint;
+      if (mem_reg == VCODE_INVALID_REG) {
+         vcode_var_t tmp_var = lower_temp_var("record", vtype, vtype);
+         mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
+      }
 
       for (int i = 0; i < nfields; i++) {
          type_t ftype = tree_type(type_field(type, i));
@@ -2567,12 +2571,12 @@ static bool lower_can_use_const_rep(tree_t expr, int *length, tree_t *elem)
    return true;
 }
 
-static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
+static vcode_reg_t lower_aggregate(tree_t expr, vcode_reg_t hint)
 {
    type_t type = tree_type(expr);
 
    if (type_is_record(type))
-      return lower_record_aggregate(expr, false, lower_is_const(expr), ctx);
+      return lower_record_aggregate(expr, false, lower_is_const(expr), hint);
 
    assert(type_is_array(type));
 
@@ -2593,7 +2597,7 @@ static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
       }
    }
    else
-      return lower_dyn_aggregate(expr, type);
+      return lower_dyn_aggregate(expr, type, hint);
 }
 
 static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
@@ -3127,7 +3131,7 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
    case T_REF:
       return lower_ref(expr, ctx);
    case T_AGGREGATE:
-      return lower_aggregate(expr, ctx);
+      return lower_aggregate(expr, VCODE_INVALID_VAR);
    case T_ARRAY_REF:
       return lower_array_ref(expr, ctx);
    case T_ARRAY_SLICE:
@@ -3627,11 +3631,16 @@ static void lower_var_assign(tree_t stmt)
       emit_copy(target_data, src_data, count_reg);
    }
    else {
-      vcode_reg_t value_reg  = lower_expr(value, EXPR_RVALUE);
+      while (tree_kind(value) == T_QUALIFIED)
+         value = tree_value(value);
+
       vcode_reg_t target_reg = lower_expr(target, EXPR_LVALUE);
 
-      if (lower_assign_can_use_storage_hint(stmt))
-         hint = emit_storage_hint(target_reg, VCODE_INVALID_REG);
+      vcode_reg_t value_reg;
+      if (tree_kind(value) == T_AGGREGATE && tree_kind(target) == T_REF)
+         value_reg = lower_aggregate(value, target_reg);
+      else
+         value_reg = lower_expr(value, EXPR_RVALUE);
 
       if (lower_have_signal(value_reg))
          value_reg = emit_resolved(value_reg);

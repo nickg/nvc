@@ -3811,8 +3811,7 @@ START_TEST(test_closefile)
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
-   vcode_unit_t vu = find_unit(
-      "WORK.FILEPACK.TEST");
+   vcode_unit_t vu = find_unit("WORK.FILEPACK.TEST");
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
@@ -3835,6 +3834,30 @@ START_TEST(test_closefile)
    EXPECT_BB(1) = {
       { VCODE_OP_FILE_CLOSE },
       { VCODE_OP_JUMP, .target = 2 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
+START_TEST(test_record2)
+{
+   input_from_file(TESTDIR "/lower/record2.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.RECORD2.P1");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_INDEX, .name = "R" },
+      { VCODE_OP_LOAD, .name = "X" },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RECORD_REF, .field = 1 },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_WAIT, .target = 2 },
    };
 
    CHECK_BB(1);
@@ -3932,6 +3955,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_sig2var);
    tcase_add_test(tc, test_protupref);
    tcase_add_test(tc, test_closefile);
+   tcase_add_test(tc, test_record2);
    suite_add_tcase(s, tc);
 
    return s;
