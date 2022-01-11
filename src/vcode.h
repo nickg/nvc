@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2021  Nick Gasson
+//  Copyright (C) 2014-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -188,7 +188,7 @@ typedef struct {
 } vcode_state_t;
 
 typedef enum {
-   // Unused   = (1 << 0),
+   VAR_TEMP    = (1 << 1),
    VAR_HEAP    = (1 << 2),
    VAR_CONST   = (1 << 3),
    VAR_SIGNAL  = (1 << 4),
@@ -319,6 +319,7 @@ int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);
 ident_t vcode_var_name(vcode_var_t var);
 vcode_type_t vcode_var_type(vcode_var_t var);
+vcode_type_t vcode_var_bounds(vcode_var_t var);
 vcode_var_flags_t vcode_var_flags(vcode_var_t var);
 
 vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context);

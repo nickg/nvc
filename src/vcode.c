@@ -751,6 +751,11 @@ vcode_type_t vcode_var_type(vcode_var_t var)
    return vcode_var_data(var)->type;
 }
 
+vcode_type_t vcode_var_bounds(vcode_var_t var)
+{
+   return vcode_var_data(var)->bounds;
+}
+
 vcode_var_flags_t vcode_var_flags(vcode_var_t var)
 {
    return vcode_var_data(var)->flags;
@@ -1181,6 +1186,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          col += printf(", constant");
       if (v->flags & VAR_GLOBAL)
          col += printf(", global");
+      if (v->flags & VAR_TEMP)
+         col += printf(", temp");
       color_printf("$$\n");
    }
 

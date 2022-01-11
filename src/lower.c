@@ -55,7 +55,8 @@ typedef enum {
 typedef enum {
    SHORT_CIRCUIT_AND,
    SHORT_CIRCUIT_OR,
-   SHORT_CIRCUIT_NOR
+   SHORT_CIRCUIT_NOR,
+   SHORT_CIRCUIT_NAND,
 } short_circuit_op_t;
 
 typedef enum {
@@ -63,12 +64,15 @@ typedef enum {
    SCOPE_HAS_PROTECTED = (1 << 1),
 } scope_flags_t;
 
+typedef A(vcode_var_t) var_list_t;
+
 struct lower_scope {
    hash_t        *objects;
    lower_scope_t *down;
    scope_flags_t  flags;
    tree_t         hier;
    tree_t         container;
+   var_list_t     free_temps;
 };
 
 typedef enum {
@@ -1054,7 +1058,7 @@ static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result)
    return result;
 }
 
-static bool lower_trivial_expression(tree_t expr)
+static bool lower_side_effect_free(tree_t expr)
 {
    // True if expression is side-effect free with no function calls
    switch (tree_kind(expr)) {
@@ -1068,7 +1072,7 @@ static bool lower_trivial_expression(tree_t expr)
 
          const int nparams = tree_params(expr);
          for (int i = 0; i < nparams; i++) {
-            if (!lower_trivial_expression(tree_value(tree_param(expr, i))))
+            if (!lower_side_effect_free(tree_value(tree_param(expr, i))))
                return false;
          }
 
@@ -1078,6 +1082,27 @@ static bool lower_trivial_expression(tree_t expr)
    default:
       return false;
    }
+}
+
+static vcode_var_t lower_temp_var(const char *prefix, vcode_type_t vtype,
+                                  vcode_type_t vbounds)
+{
+   for (unsigned i = 0; i < top_scope->free_temps.count; i++) {
+      vcode_var_t tmp = top_scope->free_temps.items[i];
+      if (vtype_eq(vcode_var_type(tmp), vtype)
+          && vtype_eq(vcode_var_bounds(tmp), vbounds)) {
+         emit_comment("Reusing temp var %s", istr(vcode_var_name(tmp)));
+         return tmp;
+      }
+   }
+
+   return emit_var(vtype, vbounds, ident_uniq(prefix), VAR_TEMP);
+}
+
+static void lower_release_temp(vcode_var_t tmp)
+{
+   assert(vcode_var_flags(tmp) & VAR_TEMP);
+   APUSH(top_scope->free_temps, tmp);
 }
 
 static vcode_reg_t lower_falling_rising_edge(tree_t fcall,
@@ -1114,17 +1139,21 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
       case SHORT_CIRCUIT_NOR:
          result = emit_not(value ? r0 : lower_subprogram_arg(fcall, 1));
          break;
+      case SHORT_CIRCUIT_NAND:
+         result = emit_not(value ? lower_subprogram_arg(fcall, 1) : r0);
+         break;
       }
 
       return lower_logical(fcall, result);
    }
 
-   if (lower_trivial_expression(tree_value(tree_param(fcall, 1)))) {
+   if (lower_side_effect_free(tree_value(tree_param(fcall, 1)))) {
       vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
       switch (op) {
       case SHORT_CIRCUIT_AND: return lower_logical(fcall, emit_and(r0, r1));
       case SHORT_CIRCUIT_OR: return lower_logical(fcall, emit_or(r0, r1));
       case SHORT_CIRCUIT_NOR: return lower_logical(fcall, emit_nor(r0, r1));
+      case SHORT_CIRCUIT_NAND: return lower_logical(fcall, emit_nand(r0, r1));
       }
    }
 
@@ -1132,13 +1161,14 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
    vcode_block_t after_bb = emit_block();
 
    vcode_type_t vbool = vtype_bool();
-   vcode_reg_t result_reg = emit_alloca(vbool, vbool, VCODE_INVALID_REG);
-   if (op == SHORT_CIRCUIT_NOR)
-      emit_store_indirect(emit_not(r0), result_reg);
-   else
-      emit_store_indirect(r0, result_reg);
+   vcode_var_t tmp_var = lower_temp_var("shortcircuit", vbool, vbool);
 
-   if (op == SHORT_CIRCUIT_AND)
+   if (op == SHORT_CIRCUIT_NOR || op == SHORT_CIRCUIT_NAND)
+      emit_store(emit_not(r0), tmp_var);
+   else
+      emit_store(r0, tmp_var);
+
+   if (op == SHORT_CIRCUIT_AND || op == SHORT_CIRCUIT_NAND)
       emit_cond(r0, arg1_bb, after_bb);
    else
       emit_cond(r0, after_bb, arg1_bb);
@@ -1148,20 +1178,24 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
 
    switch (op) {
    case SHORT_CIRCUIT_AND:
-      emit_store_indirect(emit_and(r0, r1), result_reg);
+      emit_store(emit_and(r0, r1), tmp_var);
       break;
    case SHORT_CIRCUIT_OR:
-      emit_store_indirect(emit_or(r0, r1), result_reg);
+      emit_store(emit_or(r0, r1), tmp_var);
       break;
    case SHORT_CIRCUIT_NOR:
-      emit_store_indirect(emit_nor(r0, r1), result_reg);
+      emit_store(emit_nor(r0, r1), tmp_var);
+      break;
+   case SHORT_CIRCUIT_NAND:
+      emit_store(emit_nand(r0, r1), tmp_var);
       break;
    }
 
    emit_jump(after_bb);
 
    vcode_select_block(after_bb);
-   vcode_reg_t result = emit_load_indirect(result_reg);
+   vcode_reg_t result = emit_load(tmp_var);
+   lower_release_temp(tmp_var);
    return lower_logical(fcall, result);
 }
 
@@ -1173,6 +1207,8 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
       return lower_short_circuit(fcall, SHORT_CIRCUIT_OR);
    else if (builtin == S_SCALAR_NOR)
       return lower_short_circuit(fcall, SHORT_CIRCUIT_NOR);
+   else if (builtin == S_SCALAR_NAND)
+      return lower_short_circuit(fcall, SHORT_CIRCUIT_NAND);
    else if (builtin == S_CONCAT)
       return lower_concat(fcall, EXPR_RVALUE);
    else if (builtin == S_RISING_EDGE || builtin == S_FALLING_EDGE)
@@ -1227,8 +1263,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
       return lower_logical(fcall, emit_xor(r0, r1));
    case S_SCALAR_XNOR:
       return lower_logical(fcall, emit_xnor(r0, r1));
-   case S_SCALAR_NAND:
-      return lower_logical(fcall, emit_nand(r0, r1));
    case S_ENDFILE:
       return emit_endfile(r0);
    case S_FILE_OPEN1:
@@ -1511,6 +1545,7 @@ static void lower_pop_scope(void)
    lower_scope_t *tmp = top_scope;
    top_scope = tmp->down;
    hash_free(tmp->objects);
+   ACLEAR(tmp->free_temps);
    free(tmp);
 }
 

@@ -5,6 +5,7 @@ architecture test of logical2 is
     signal x    : bit;
     signal one  : bit := '1';
     signal zero : bit := '0';
+    signal vec  : bit_vector(0 to 1) := ('0', '1');
 begin
 
     process is
@@ -47,6 +48,37 @@ begin
         v := v xor v; assert not v;
         v := v xnor v; assert v;
         v := v xnor v; assert v;
+
+        -- This tests short circuiting
+        x <= '0';
+        wait for 1 ns;
+        assert (x and vec(0)) = zero;
+        assert (x and vec(1)) = zero;
+        assert (x or vec(0)) = zero;
+        assert (x or vec(1)) = one;
+        assert (x xor vec(0)) = zero;
+        assert (x xor vec(1)) = one;
+        assert (x xnor vec(0)) = one;
+        assert (x xnor vec(1)) = zero;
+        assert (x nand vec(0)) = one;
+        assert (x nand vec(1)) = one;
+        assert (x nor vec(0)) = one;
+        assert (x nor vec(1)) = zero;
+
+        x <= '1';
+        wait for 1 ns;
+        assert (x and vec(0)) = zero;
+        assert (x and vec(1)) = one;
+        assert (x or vec(0)) = one;
+        assert (x or vec(1)) = one;
+        assert (x xor vec(0)) = one;
+        assert (x xor vec(1)) = zero;
+        assert (x xnor vec(0)) = zero;
+        assert (x xnor vec(1)) = one;
+        assert (x nand vec(0)) = one;
+        assert (x nand vec(1)) = zero;
+        assert (x nor vec(0)) = zero;
+        assert (x nor vec(1)) = zero;
 
         wait;
     end process;
