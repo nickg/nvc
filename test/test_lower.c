@@ -3594,9 +3594,8 @@ START_TEST(test_vital2)
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_ALLOCA },
-      { VCODE_OP_ALLOCA },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_STORE, .name = "*i" },
       { VCODE_OP_JUMP, .target = 1 },
    };
 

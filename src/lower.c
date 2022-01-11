@@ -2280,8 +2280,8 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       return emit_wrap(mem_reg, &dim0, 1);
    }
 
-   vcode_reg_t ivar = emit_alloca(offset_type, offset_type, VCODE_INVALID_REG);
-   emit_store_indirect(emit_const(offset_type, 0), ivar);
+   vcode_var_t i_var = lower_temp_var("i", offset_type, offset_type);
+   emit_store(emit_const(offset_type, 0), i_var);
 
    vcode_reg_t stride = VCODE_INVALID_REG;
    if (type_is_array(elem_type)) {
@@ -2313,7 +2313,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
 
    // Loop test
    vcode_select_block(test_bb);
-   vcode_reg_t i_loaded = emit_load_indirect(ivar);
+   vcode_reg_t i_loaded = emit_load(i_var);
    vcode_reg_t ge = emit_cmp(VCODE_CMP_GEQ, i_loaded, len0_reg);
    emit_cond(ge, exit_bb, body_bb);
 
@@ -2418,13 +2418,14 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    else
       emit_store_indirect(lower_reify(what), ptr_reg);
 
-   emit_store_indirect(emit_add(i_loaded, emit_const(vtype_offset(), 1)), ivar);
+   emit_store(emit_add(i_loaded, emit_const(vtype_offset(), 1)), i_var);
    emit_jump(test_bb);
 
    // Epilogue
    vcode_select_block(exit_bb);
    emit_comment("End dynamic aggregrate line %d", tree_loc(agg)->first_line);
 
+   lower_release_temp(i_var);
    return emit_wrap(mem_reg, &dim0, 1);
 }
 
@@ -4298,10 +4299,10 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
    }
    else {
       enc_type = vint64;
-      vcode_var_t enc_var = emit_var(enc_type, enc_type, ident_uniq("enc"), 0);
+      vcode_var_t enc_var = lower_temp_var("enc", enc_type, enc_type);
       emit_store(emit_const(enc_type, 0), enc_var);
 
-      vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+      vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
       emit_store(emit_const(voffset, 0), i_var);
 
       vcode_block_t body_bb = emit_block();
@@ -4335,6 +4336,9 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
 
       if (!exact_map)
          enc_reg = emit_rem(enc_reg, emit_const(enc_type, max_cases));
+
+      lower_release_temp(i_var);
+      lower_release_temp(enc_var);
    }
 
    const int nassocs = tree_assocs(stmt);
@@ -4782,7 +4786,7 @@ static void lower_sub_signals(type_t type, tree_t where, vcode_reg_t subsig,
          len_reg = emit_mul(lower_array_len(type, i, init_reg), len_reg);
 
       vcode_type_t voffset = vtype_offset();
-      vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+      vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
       emit_store(emit_const(voffset, 0), i_var);
 
       vcode_block_t cmp_bb  = emit_block();
@@ -4808,6 +4812,7 @@ static void lower_sub_signals(type_t type, tree_t where, vcode_reg_t subsig,
       emit_jump(cmp_bb);
 
       vcode_select_block(exit_bb);
+      lower_release_temp(i_var);
    }
    else if (type_is_record(type)) {
       const int nfields = type_fields(type);
@@ -5189,7 +5194,7 @@ static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
       emit_const_array(char_array_type, char_regs, nchars);
    vcode_reg_t char_array_ptr = emit_address_of(char_array_reg);
 
-   vcode_var_t i_var = emit_var(voffset, voffset, ident_new("i"), 0);
+   vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
    emit_store(emit_const(voffset, 0), i_var);
 
    vcode_block_t head_bb = emit_block();
@@ -5280,8 +5285,7 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    vcode_type_t strtype = vtype_uarray(1, vchar, vchar);
 
-   vcode_var_t tail_var = emit_var(vtype_pointer(vchar), vchar,
-                                   ident_new("tail"), 0);
+   vcode_var_t tail_var = lower_temp_var("tail", vtype_pointer(vchar), vchar);
    vcode_reg_t tail_ptr = emit_index(tail_var, VCODE_INVALID_REG);
 
    vcode_reg_t args1[] = { arg_data_reg, arg_len_reg, tail_ptr };
@@ -5340,7 +5344,7 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
       emit_const_array(char_array_type, char_regs, nchars);
    vcode_reg_t char_array_ptr = emit_address_of(char_array_reg);
 
-   vcode_var_t i_var = emit_var(voffset, voffset, ident_new("i"), 0);
+   vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
    emit_store(emit_const(voffset, 0), i_var);
 
    vcode_block_t head_bb = emit_block();
@@ -5746,7 +5750,7 @@ static void lower_array_cmp_inner(vcode_reg_t lhs_data,
    }
 
    vcode_type_t voffset = vtype_offset();
-   vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+   vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
    emit_store(emit_const(voffset, 0), i_var);
 
    vcode_block_t test_bb = emit_block();
@@ -6002,8 +6006,7 @@ static void lower_predef_array_to_string(type_t arg_type, type_t std_string,
    vcode_reg_t right_reg = lower_array_right(arg_type, 0, array_reg);
    vcode_reg_t dir_reg   = lower_array_dir(arg_type, 0, array_reg);
 
-   ident_t i_name = ident_uniq("to_string_i");
-   vcode_var_t i_var = emit_var(vtype_offset(), vtype_offset(), i_name, 0);
+   vcode_var_t i_var = lower_temp_var("i", vtype_offset(), vtype_offset());
    emit_store(emit_const(vtype_offset(), 0), i_var);
 
    vcode_reg_t null_reg = emit_range_null(left_reg, right_reg, dir_reg);
@@ -6083,7 +6086,7 @@ static void lower_predef_bit_shift(tree_t decl, vcode_unit_t context,
    vcode_reg_t shift_reg = emit_cast(vtype_offset(), VCODE_INVALID_TYPE, r1);
    vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len_reg);
 
-   vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+   vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
    emit_store(emit_const(voffset, 0), i_var);
 
    vcode_block_t cmp_bb  = emit_block();
@@ -6244,7 +6247,7 @@ static void lower_predef_bit_vec_op(tree_t decl, vcode_unit_t context,
 
    vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len0_reg);
 
-   vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+   vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
    emit_store(emit_const(voffset, 0), i_var);
 
    vcode_block_t cmp_bb  = emit_block();
@@ -6309,7 +6312,7 @@ static void lower_predef_mixed_bit_vec_op(tree_t decl, vcode_unit_t context,
 
    vcode_type_t voffset = vtype_offset();
 
-   vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+   vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
    emit_store(emit_const(vtype_offset(), 0), i_var);
 
    const bool r0_is_array = type_is_array(r0_type);
@@ -6376,12 +6379,12 @@ static void lower_predef_reduction_op(tree_t decl, vcode_unit_t context,
    vcode_type_t vbool = vtype_bool();
    vcode_type_t voffset = vtype_offset();
 
-   vcode_var_t result_var = emit_var(vbool, vbool, ident_uniq("result"), 0);
+   vcode_var_t result_var = lower_temp_var("result", vbool, vbool);
    vcode_reg_t init_reg =
       emit_const(vbool, kind == S_REDUCE_NAND || kind == S_REDUCE_AND);
    emit_store(init_reg, result_var);
 
-   vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+   vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
    emit_store(emit_const(vtype_offset(), 0), i_var);
 
    vcode_reg_t len_reg   = lower_array_len(r0_type, 0, r0);
@@ -6505,12 +6508,11 @@ static void lower_predef_match_op(tree_t decl, vcode_unit_t context,
       vcode_type_t vbounds = lower_bounds(type_elem(r0_type));
       vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len0_reg);
 
-      vcode_var_t result_var =
-         emit_var(vtype, vbounds, ident_uniq("result"), 0);
+      vcode_var_t result_var = lower_temp_var("result", vtype, vbounds);
       emit_store(emit_const(vtype, 0), result_var);
 
       vcode_type_t voffset = vtype_offset();
-      vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+      vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
       emit_store(emit_const(vtype_offset(), 0), i_var);
 
       vcode_reg_t left_reg  = lower_array_left(r0_type, 0, r0);
@@ -6617,12 +6619,11 @@ static void lower_predef_min_max(tree_t decl, vcode_unit_t context,
       vcode_reg_t array_reg = 1;
       vcode_type_t voffset = vtype_offset();
 
-      vcode_var_t i_var = emit_var(voffset, voffset, ident_uniq("i"), 0);
+      vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
       emit_store(emit_const(voffset, 0), i_var);
 
       vcode_type_t elem_vtype = lower_type(elem);
-      vcode_var_t result_var =
-         emit_var(elem_vtype, elem_vtype, ident_uniq("result"), 0);
+      vcode_var_t result_var = lower_temp_var("result", elem_vtype, elem_vtype);
 
       tree_t elem_r = range_of(elem, 0);
       vcode_reg_t def_reg =
