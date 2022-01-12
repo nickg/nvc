@@ -4067,7 +4067,18 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
 
    int64_t dir_const;
    if (vcode_reg_const(dir, &dir_const)) {
-      if (dir_const == RANGE_TO)
+      vtype_t *lbounds = vcode_type_data(vcode_reg_bounds(left));
+      vtype_t *rbounds = vcode_type_data(vcode_reg_bounds(right));
+
+      if (dir_const == RANGE_TO && lbounds->low > rbounds->high)
+         return emit_const(vtype_bool(), 1);
+      else if (dir_const == RANGE_TO && lbounds->high <= rbounds->low)
+         return emit_const(vtype_bool(), 0);
+      else if (dir_const == RANGE_DOWNTO && rbounds->low > lbounds->high)
+         return emit_const(vtype_bool(), 1);
+      else if (dir_const == RANGE_DOWNTO && rbounds->high <= lbounds->low)
+         return emit_const(vtype_bool(), 0);
+      else if (dir_const == RANGE_TO)
          return emit_cmp(VCODE_CMP_GT, left, right);
       else
          return emit_cmp(VCODE_CMP_GT, right, left);

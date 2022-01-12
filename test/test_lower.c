@@ -3006,12 +3006,15 @@ START_TEST(test_issue351)
    vcode_unit_t v0 = find_unit("WORK.ISSUE351.P1");
    vcode_select_unit(v0);
 
-   EXPECT_BB(6) = {
-      { VCODE_OP_CAST },
-      { VCODE_OP_ADD },
+   EXPECT_BB(4) = {
+      { VCODE_OP_TEMP_STACK_MARK },
+      { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_LOAD, .name = "I.LOOP1" },
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_INDEX, .name = "CURR_QUEUE" },
+      { VCODE_OP_CAST },
+      { VCODE_OP_ADD },
       { VCODE_OP_WRAP },
       { VCODE_OP_FCALL, .func = "*WORK.ISSUE351.DUMP_WORDS" },
       { VCODE_OP_TEMP_STACK_RESTORE },
@@ -3023,7 +3026,7 @@ START_TEST(test_issue351)
       { VCODE_OP_COND, .target = 3, .target_else = 4 },
    };
 
-   CHECK_BB(6);
+   CHECK_BB(4);
 }
 END_TEST
 
