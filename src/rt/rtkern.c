@@ -3235,7 +3235,7 @@ static BOOL rt_win_ctrl_handler(DWORD fdwCtrlType)
 
 void rt_start_of_tool(tree_t top, e_node_t e)
 {
-   jit_init(e);
+   jit_init(top, e);
 
 #if RT_DEBUG
    warnf("runtime debug checks enabled");

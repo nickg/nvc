@@ -1121,8 +1121,10 @@ void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset)
 object_t *object_from_locus(ident_t module, ptrdiff_t offset,
                             object_load_fn_t loader, unsigned tag)
 {
+   // Search backwards to ensure we find the most recent arena with the
+   // given name
    object_arena_t *arena = NULL;
-   for (unsigned j = 1; j < all_arenas.count; j++) {
+   for (int j = all_arenas.count - 1; j > 0 ; j--) {
       if (module == object_arena_name(all_arenas.items[j])) {
 	 arena = all_arenas.items[j];
 	 break;

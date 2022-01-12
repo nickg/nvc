@@ -930,7 +930,9 @@ e_node_t eopt_build(tree_t elab)
    e_make_arena();
 
    e_node_t e = root = e_new(E_ROOT);
-   e_set_ident(e, tree_ident(elab));
+
+   ident_t base = ident_runtil(tree_ident(elab), '.');
+   e_set_ident(e, ident_prefix(base, ident_new("eopt"), '.'));
 
    cprop_vars = cprop_vars_new();
 

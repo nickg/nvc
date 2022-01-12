@@ -155,7 +155,7 @@ static void jit_load_module(ident_t name)
             so_path, abi_version, RT_ABI_VERSION);
 }
 
-void jit_init(e_node_t top)
+void jit_init(tree_t top, e_node_t e)
 {
 #ifdef __MINGW32__
    ACLEAR(search_modules);
@@ -163,11 +163,11 @@ void jit_init(e_node_t top)
    APUSH(search_modules, GetModuleHandle("MSVCRT.DLL"));
 #endif
 
-   const int ndeps = e_deps(top);
+   const int ndeps = e_deps(e);
    for (int i = 0; i < ndeps; i++)
-      jit_load_module(e_dep(top, i));
+      jit_load_module(e_dep(e, i));
 
-   jit_load_module(e_ident(top));
+   jit_load_module(tree_ident(top));
 }
 
 void jit_shutdown(void)

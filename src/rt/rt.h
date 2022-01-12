@@ -102,7 +102,7 @@ uint64_t rt_now(unsigned *deltas);
 void rt_stop(void);
 void rt_set_exit_severity(rt_severity_t severity);
 
-void jit_init(e_node_t top);
+void jit_init(tree_t top, e_node_t e);
 void jit_shutdown(void);
 void *jit_find_symbol(const char *name, bool required);
 
