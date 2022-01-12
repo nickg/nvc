@@ -1,1 +1,1 @@
-length of target 4 does not match length of value 8
+value length 8 does not match signal A length 4

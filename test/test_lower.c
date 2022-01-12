@@ -114,7 +114,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_REPORT:
       case VCODE_OP_RETURN:
       case VCODE_OP_UNWRAP:
-      case VCODE_OP_ARRAY_SIZE:
+      case VCODE_OP_LENGTH_CHECK:
       case VCODE_OP_NULL:
       case VCODE_OP_RANGE_NULL:
       case VCODE_OP_NULL_CHECK:
@@ -2361,9 +2361,10 @@ START_TEST(test_sigvar)
 
       EXPECT_BB(0) = {
          { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_UARRAY_LEN },
-         { VCODE_OP_ARRAY_SIZE },
+         { VCODE_OP_LENGTH_CHECK },
          { VCODE_OP_UNWRAP },
          { VCODE_OP_RESOLVED },
          { VCODE_OP_UNWRAP },
@@ -2985,8 +2986,9 @@ START_TEST(test_hintbug)
       { VCODE_OP_LOAD, .name = "X" },
       { VCODE_OP_FCALL, .func = "WORK.HINTBUG.FUNC(J)Q" },
       { VCODE_OP_UNWRAP },
+      { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_UARRAY_LEN },
-      { VCODE_OP_ARRAY_SIZE },
+      { VCODE_OP_LENGTH_CHECK },
       { VCODE_OP_COPY },
       { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_TEMP_STACK_MARK },
@@ -3818,8 +3820,9 @@ START_TEST(test_sig2var)
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 8 },
+         { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_UARRAY_LEN },
-         { VCODE_OP_ARRAY_SIZE },
+         { VCODE_OP_LENGTH_CHECK },
          { VCODE_OP_COPY },
          { VCODE_OP_WRAP },
          { VCODE_OP_RETURN },

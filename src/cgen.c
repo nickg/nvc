@@ -2661,30 +2661,30 @@ static void cgen_op_const_real(int op, cgen_ctx_t *ctx)
                                      vcode_get_real(op));
 }
 
-static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
+static void cgen_op_length_check(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef llen = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef rlen = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef llen  = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef rlen  = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef locus = cgen_get_arg(op, 2, ctx);
+
+   LLVMValueRef dim;
+   if (vcode_count_args(op) > 3)
+      dim = cgen_get_arg(op, 3, ctx);
+   else
+      dim = llvm_int32(0);
 
    LLVMValueRef ok = LLVMBuildICmp(builder, LLVMIntEQ, llen, rlen, "ok");
 
-   LLVMBasicBlockRef pass_bb  = llvm_append_block(ctx->fn, "bounds_pass");
-   LLVMBasicBlockRef fail_bb  = llvm_append_block(ctx->fn, "bounds_fail");
+   LLVMBasicBlockRef pass_bb  = llvm_append_block(ctx->fn, "pass");
+   LLVMBasicBlockRef fail_bb  = llvm_append_block(ctx->fn, "fail");
 
    LLVMBuildCondBr(builder, ok, pass_bb, fail_bb);
 
    LLVMPositionBuilderAtEnd(builder, fail_bb);
 
-   LLVMValueRef args[] = {
-      llvm_int32(0),
-      llen,
-      rlen,
-      llvm_int32(vcode_get_subkind(op)),
-      cgen_location(op, ctx),
-      cgen_hint_str(op),
-   };
-
-   LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
+   LLVMValueRef args[] = { llen, rlen, dim, locus };
+   LLVMBuildCall(builder, llvm_fn("__nvc_length_fail"),
+                 args, ARRAY_LEN(args), "");
 
    LLVMBuildUnreachable(builder);
 
@@ -3229,8 +3229,8 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_DYNAMIC_BOUNDS:
       cgen_op_dynamic_bounds(i, ctx);
       break;
-   case VCODE_OP_ARRAY_SIZE:
-      cgen_op_array_size(i, ctx);
+   case VCODE_OP_LENGTH_CHECK:
+      cgen_op_length_check(i, ctx);
       break;
    case VCODE_OP_INDEX_CHECK:
       cgen_op_index_check(i, ctx);
@@ -4162,6 +4162,19 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_debug_locus_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_index_fail",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
+      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
+   }
+   else if (strcmp(name, "__nvc_length_fail") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_int32_type(),
+         llvm_int32_type(),
+         llvm_int32_type(),
+         llvm_debug_locus_type(),
+      };
+      fn = LLVMAddFunction(module, "__nvc_length_fail",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);

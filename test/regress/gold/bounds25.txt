@@ -1,1 +1,1 @@
-length of target 2 does not match length of value 19
+value length 19 does not match variable X length 2

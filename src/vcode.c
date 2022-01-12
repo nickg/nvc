@@ -41,8 +41,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_VAR_UPREF)
 #define OP_HAS_SUBKIND(x)                                               \
    (x == VCODE_OP_BOUNDS || x == VCODE_OP_ALLOCA                        \
-    || x == VCODE_OP_COVER_COND                                         \
-    || x == VCODE_OP_ARRAY_SIZE || x == VCODE_OP_PCALL                  \
+    || x == VCODE_OP_COVER_COND || x == VCODE_OP_PCALL                  \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT)
 #define OP_HAS_FUNC(x)                                                  \
@@ -70,8 +69,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_HINT(x)                                                  \
-   (x == VCODE_OP_BOUNDS || x == VCODE_OP_DYNAMIC_BOUNDS                \
-    || x == VCODE_OP_ARRAY_SIZE)
+   (x == VCODE_OP_BOUNDS || x == VCODE_OP_DYNAMIC_BOUNDS)
 #define OP_HAS_TARGET(x)                                                \
    (x == VCODE_OP_WAIT || x == VCODE_OP_JUMP || x == VCODE_OP_COND      \
     || x == VCODE_OP_PCALL || x == VCODE_OP_CASE)
@@ -203,7 +201,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      11
+#define VCODE_VERSION      12
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -900,7 +898,7 @@ const char *vcode_op_string(vcode_op_t op)
       "pcall", "resume", "xor", "xnor", "nand", "nor", "memset",
       "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
-      "const real", "last event", "dynamic bounds", "array size",
+      "const real", "last event", "dynamic bounds",
       "debug out", "cover stmt", "cover cond",
       "uarray len", "temp stack mark", "temp stack restore",
       "undefined", "range null", "var upref", "link signal",
@@ -909,7 +907,7 @@ const char *vcode_op_string(vcode_op_t op)
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
       "implicit signal", "disconnect", "link package", "index check",
-      "debug locus",
+      "debug locus", "length check"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1918,14 +1916,18 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_ARRAY_SIZE:
+         case VCODE_OP_LENGTH_CHECK:
             {
                col += printf("%s left ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" == right ");
                col += vcode_dump_reg(op->args.items[1]);
-               vcode_dump_comment(col);
-               vcode_dump_loc(&(op->loc));
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[2]);
+               if (op->args.count > 3) {
+                  col += printf(" dim ");
+                  col += vcode_dump_reg(op->args.items[3]);
+               }
             }
             break;
 
@@ -4756,17 +4758,21 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
                 "bounds check needs debug info");
 }
 
-void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, bounds_kind_t kind,
-                     const char *hint)
+void emit_length_check(vcode_reg_t llen, vcode_reg_t rlen, vcode_reg_t locus,
+                       vcode_reg_t dim)
 {
    if (rlen == llen)
       return;
 
-   op_t *op = vcode_add_op(VCODE_OP_ARRAY_SIZE);
+   op_t *op = vcode_add_op(VCODE_OP_LENGTH_CHECK);
    vcode_add_arg(op, llen);
    vcode_add_arg(op, rlen);
-   op->subkind = kind;
-   op->hint    = hint ? xstrdup(hint) : NULL;
+   vcode_add_arg(op, locus);
+   if (dim != VCODE_INVALID_REG)
+      vcode_add_arg(op, dim);
+
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to length check must be a debug locus");
 }
 
 void emit_index_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,

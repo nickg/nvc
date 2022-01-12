@@ -1,1 +1,1 @@
-length of target 5 does not match length of value 6
+value length 6 does not match target length 5

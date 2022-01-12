@@ -87,7 +87,7 @@ typedef enum {
 typedef struct {
    part_kind_t kind;
    vcode_reg_t reg;
-   type_t      type;
+   tree_t      target;
 } target_part_t;
 
 typedef struct {
@@ -773,7 +773,7 @@ static vcode_reg_t lower_param(tree_t value, tree_t port, port_mode_t mode)
    }
 
    if (type_is_array(value_type)) {
-      if (!type_is_unconstrained(port_type))
+      if (port != NULL && !type_is_unconstrained(port_type))
          lower_check_array_sizes(port, port_type, value_type,
                                  VCODE_INVALID_REG, reg);
       return lower_coerce_arrays(value_type, port_type, reg);
@@ -2010,9 +2010,6 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
       vcode_reg_t index_reg = lower_reify_expr(index);
 
       if (!elide_bounds) {
-         //lower_check_array_bounds(value_type, i, array, offset,
-         //                          tree_value(p), NULL);
-
          vcode_reg_t left_reg  = lower_array_left(value_type, i, array);
          vcode_reg_t right_reg = lower_array_right(value_type, i, array);
          vcode_reg_t dir_reg   = lower_array_dir(value_type, i, array);
@@ -3097,15 +3094,19 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          tree_t value = tree_value(tree_param(expr, 0));
          type_t value_type = tree_type(value);
 
-         vcode_reg_t arg_reg = lower_param(value, NULL, PORT_IN);
+         vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
+
+         if (lower_have_signal(value_reg))
+            value_reg = emit_resolved(value_reg);
+
          if (lower_const_bounds(value_type))
-            arg_reg = lower_wrap(value_type, arg_reg);
+            value_reg = lower_wrap(value_type, value_reg);
 
          type_t base = type_base_recur(name_type);
          ident_t func = ident_prefix(type_ident(base), ident_new("value"), '$');
          vcode_reg_t args[] = {
             lower_context_for_call(func),
-            arg_reg
+            value_reg
          };
          vcode_reg_t reg = emit_fcall(func, lower_type(base),
                                       lower_bounds(base),
@@ -3483,23 +3484,18 @@ static void lower_wait(tree_t wait)
 static void lower_check_array_sizes(tree_t where, type_t ltype, type_t rtype,
                                     vcode_reg_t lval, vcode_reg_t rval)
 {
+   vcode_reg_t locus = lower_debug_locus(where);
+
    const int ndims = dimension_of(ltype);
    for (int i = 0; i < ndims; i++) {
       vcode_reg_t llen_reg = lower_array_len(ltype, i, lval);
       vcode_reg_t rlen_reg = lower_array_len(rtype, i, rval);
 
-      bounds_kind_t kind = BOUNDS_ARRAY_SIZE;
-      char *hint_str LOCAL = NULL;
+      vcode_reg_t dim_reg = VCODE_INVALID_REG;
+      if (ndims > 1)
+         dim_reg = emit_const(vtype_offset(), i + 1);
 
-      if (where != NULL) {
-         char *prefix LOCAL =
-            ndims > 1 ? xasprintf(" for dimension %d", i + 1) : NULL;
-         hint_str = lower_get_hint_string(where, prefix);
-         if (tree_kind(where) == T_PORT_DECL)
-            kind = BOUNDS_PARAM_SIZE;
-      }
-
-      emit_array_size(llen_reg, rlen_reg, kind, hint_str);
+      emit_length_check(llen_reg, rlen_reg, locus, dim_reg);
    }
 }
 
@@ -3552,9 +3548,9 @@ static void lower_fill_target_parts(tree_t target, part_kind_t kind,
       part_kind_t newkind = is_record ? PART_FIELD : PART_ELEM;
 
       if (kind != PART_ALL) {
-         (*ptr)->reg  = VCODE_INVALID_REG;
-         (*ptr)->type = NULL;
-         (*ptr)->kind = kind == PART_FIELD ? PART_PUSH_FIELD : PART_PUSH_ELEM;
+         (*ptr)->reg    = VCODE_INVALID_REG;
+         (*ptr)->target = NULL;
+         (*ptr)->kind   = kind == PART_FIELD ? PART_PUSH_FIELD : PART_PUSH_ELEM;
          ++(*ptr);
       }
 
@@ -3564,21 +3560,21 @@ static void lower_fill_target_parts(tree_t target, part_kind_t kind,
          lower_fill_target_parts(value, newkind, ptr);
       }
 
-      (*ptr)->reg  = VCODE_INVALID_REG;
-      (*ptr)->type = NULL;
-      (*ptr)->kind = PART_POP;
+      (*ptr)->reg    = VCODE_INVALID_REG;
+      (*ptr)->target = NULL;
+      (*ptr)->kind   = PART_POP;
       ++(*ptr);
    }
    else {
-      (*ptr)->reg  = lower_expr(target, EXPR_LVALUE);
-      (*ptr)->type = tree_type(target);
-      (*ptr)->kind = kind;
+      (*ptr)->reg    = lower_expr(target, EXPR_LVALUE);
+      (*ptr)->target = target;
+      (*ptr)->kind   = kind;
       ++(*ptr);
 
       if (kind == PART_ALL) {
-         (*ptr)->reg  = VCODE_INVALID_REG;
-         (*ptr)->type = NULL;
-         (*ptr)->kind = PART_POP;
+         (*ptr)->reg    = VCODE_INVALID_REG;
+         (*ptr)->target = NULL;
+         (*ptr)->kind   = PART_POP;
          ++(*ptr);
       }
    }
@@ -3608,25 +3604,27 @@ static void lower_var_assign_target(target_part_t **ptr, tree_t where,
       if (p->kind == PART_ELEM)
          src_type = type_elem(src_type);
 
-      if (type_is_array(p->type))
-         lower_check_array_sizes(where, p->type, src_type, p->reg, src_reg);
+      type_t type = tree_type(p->target);
+
+      if (type_is_array(type))
+         lower_check_array_sizes(p->target, type, src_type, p->reg, src_reg);
 
       if (p->kind == PART_ELEM)
          src_reg = lower_array_data(src_reg);
 
-      if (type_is_scalar(p->type))
-         lower_check_scalar_bounds(lower_reify(src_reg), p->type, where, NULL);
+      if (type_is_scalar(type))
+         lower_check_scalar_bounds(lower_reify(src_reg), type, where, NULL);
 
       if (lower_have_signal(src_reg))
          src_reg = emit_resolved(lower_array_data(rhs));
 
-      if (type_is_array(p->type)) {
+      if (type_is_array(type)) {
          vcode_reg_t data_reg = lower_array_data(src_reg);
-         vcode_reg_t count_reg = lower_array_total_len(p->type, p->reg);
+         vcode_reg_t count_reg = lower_array_total_len(type, p->reg);
 
          emit_copy(p->reg, data_reg, count_reg);
       }
-      else if (type_is_record(p->type))
+      else if (type_is_record(type))
          emit_copy(p->reg, src_reg, VCODE_INVALID_REG);
       else
          emit_store_indirect(lower_reify(src_reg), p->reg);
@@ -3695,7 +3693,7 @@ static void lower_var_assign(tree_t stmt)
          value_reg = lower_expr(value, EXPR_RVALUE);
 
       vcode_reg_t src_data = lower_array_data(value_reg);
-      lower_check_array_sizes(stmt, type, tree_type(value),
+      lower_check_array_sizes(target, type, tree_type(value),
                               target_reg, value_reg);
 
       if (lower_have_signal(src_data))
@@ -3747,28 +3745,30 @@ static void lower_signal_assign_target(target_part_t **ptr, tree_t where,
       if (p->kind == PART_ELEM)
          src_type = type_elem(src_type);
 
-      if (type_is_array(p->type))
-         lower_check_array_sizes(where, p->type, src_type, p->reg, src_reg);
+      type_t type = tree_type(p->target);
+
+      if (type_is_array(type))
+         lower_check_array_sizes(p->target, type, src_type, p->reg, src_reg);
 
       if (p->kind == PART_ELEM)
          src_reg = lower_array_data(src_reg);
 
-      if (type_is_scalar(p->type))
-         lower_check_scalar_bounds(lower_reify(src_reg), p->type, where, NULL);
+      if (type_is_scalar(type))
+         lower_check_scalar_bounds(lower_reify(src_reg), type, where, NULL);
 
       if (lower_have_signal(src_reg))
          src_reg = emit_resolved(lower_array_data(rhs));
 
       vcode_reg_t nets_raw = lower_array_data(p->reg);
 
-      if (type_is_array(p->type)) {
+      if (type_is_array(type)) {
          vcode_reg_t data_reg = lower_array_data(src_reg);
-         vcode_reg_t count_reg = lower_scalar_sub_elements(p->type, p->reg);
+         vcode_reg_t count_reg = lower_scalar_sub_elements(type, p->reg);
 
          emit_sched_waveform(nets_raw, count_reg, data_reg, reject, after);
       }
-      else if (type_is_record(p->type)) {
-         const int width = type_width(p->type);
+      else if (type_is_record(type)) {
+         const int width = type_width(type);
          emit_sched_waveform(nets_raw, emit_const(vtype_offset(), width),
                              src_reg, reject, after);
       }
@@ -3797,12 +3797,14 @@ static void lower_disconnect_target(target_part_t **ptr, vcode_reg_t reject,
 
       vcode_reg_t nets_raw = lower_array_data(p->reg);
 
-      if (type_is_array(p->type)) {
-         vcode_reg_t count_reg = lower_scalar_sub_elements(p->type, p->reg);
+      type_t type = tree_type(p->target);
+
+      if (type_is_array(type)) {
+         vcode_reg_t count_reg = lower_scalar_sub_elements(type, p->reg);
          emit_disconnect(nets_raw, count_reg, reject, after);
       }
-      else if (type_is_record(p->type)) {
-         const int width = type_width(p->type);
+      else if (type_is_record(type)) {
+         const int width = type_width(type);
          emit_disconnect(nets_raw, emit_const(vtype_offset(), width),
                          reject, after);
       }

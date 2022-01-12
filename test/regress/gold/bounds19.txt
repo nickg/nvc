@@ -1,4 +1,4 @@
-** Fatal: actual length 2 for dimension 2 does not match formal length 3
-for parameter X
+actual length 2 for dimension 2 does not match formal parameter
+X length 3
 	Procedure PROC [POSITIVE, POSITIVE]
 	Process :bounds19:line_21

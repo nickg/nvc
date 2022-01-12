@@ -959,6 +959,43 @@ void __nvc_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
 }
 
 DLLEXPORT
+void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
+                       DEBUG_LOCUS(locus))
+{
+   tree_t t = rt_locus_to_tree(locus_unit, locus_offset);
+   const rt_loc_t where = rt_translate_loc(tree_loc(t));
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "%s length %d",
+             tree_kind(t) == T_PORT_DECL ? "actual" : "value", right);
+   if (dim > 0)
+      tb_printf(tb, " for dimension %d", dim);
+   tb_cat(tb, " does not match ");
+
+   switch (tree_kind(t)) {
+   case T_PORT_DECL:
+      tb_printf(tb, "formal parameter %s", istr(tree_ident(t)));
+      break;
+   case T_VAR_DECL:
+      tb_printf(tb, "variable %s", istr(tree_ident(t)));
+      break;
+   case T_SIGNAL_DECL:
+      tb_printf(tb, "signal %s", istr(tree_ident(t)));
+      break;
+   case T_REF:
+      tb_printf(tb, "%s %s", class_str(class_of(t)), istr(tree_ident(t)));
+      break;
+   default:
+      tb_cat(tb, "target");
+      break;
+   }
+
+   tb_printf(tb, " length %d", left);
+
+   rt_msg(&where, fatal, "%s", tb_get(tb));
+}
+
+DLLEXPORT
 void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
                   rt_loc_t *where, const char *hint)
 {

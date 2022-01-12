@@ -611,7 +611,7 @@ void cprop(cprop_req_t *req)
             }
             break;
 
-         case VCODE_OP_ARRAY_SIZE:
+         case VCODE_OP_LENGTH_CHECK:
             {
                vcode_reg_t arg0 = vcode_get_arg(op, 0);
                vcode_reg_t arg1 = vcode_get_arg(op, 1);

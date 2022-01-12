@@ -103,7 +103,6 @@ typedef enum {
    VCODE_OP_CONST_REAL,
    VCODE_OP_LAST_EVENT,
    VCODE_OP_DYNAMIC_BOUNDS,
-   VCODE_OP_ARRAY_SIZE,
    VCODE_OP_DEBUG_OUT,
    VCODE_OP_COVER_STMT,
    VCODE_OP_COVER_COND,
@@ -136,6 +135,7 @@ typedef enum {
    VCODE_OP_LINK_PACKAGE,
    VCODE_OP_INDEX_CHECK,
    VCODE_OP_DEBUG_LOCUS,
+   VCODE_OP_LENGTH_CHECK,
 } vcode_op_t;
 
 typedef enum {
@@ -429,8 +429,8 @@ vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);
 vcode_reg_t emit_last_active(vcode_reg_t signal, vcode_reg_t len);
 vcode_reg_t emit_driving_flag(vcode_reg_t signal, vcode_reg_t len);
 vcode_reg_t emit_driving_value(vcode_reg_t signal, vcode_reg_t len);
-void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, bounds_kind_t kind,
-                     const char *hint);
+void emit_length_check(vcode_reg_t llen, vcode_reg_t rlen, vcode_reg_t locus,
+                       vcode_reg_t dim);
 void emit_debug_out(vcode_reg_t reg);
 void emit_cover_stmt(uint32_t tag);
 void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub);

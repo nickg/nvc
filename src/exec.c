@@ -1685,13 +1685,14 @@ static void eval_op_memset(int op, eval_state_t *state)
       dst->pointer[i] = *fill;
 }
 
-static void eval_op_array_size(int op, eval_state_t *state)
+static void eval_op_length_check(int op, eval_state_t *state)
 {
    value_t *llen = eval_get_reg(vcode_get_arg(op, 0), state);
    value_t *rlen = eval_get_reg(vcode_get_arg(op, 1), state);
 
    if (rlen->integer != llen->integer) {
       if (state->flags & EVAL_BOUNDS) {
+         // TODO: improve this to use the same message format as rtkern
          error_at(vcode_get_loc(op), "length of target %"PRIi64" does not "
                   "match length of value %"PRIi64,
                   llen->integer, rlen->integer);
@@ -2080,8 +2081,8 @@ static void eval_vcode(eval_state_t *state)
          eval_op_memset(state->op, state);
          break;
 
-      case VCODE_OP_ARRAY_SIZE:
-         eval_op_array_size(state->op, state);
+      case VCODE_OP_LENGTH_CHECK:
+         eval_op_length_check(state->op, state);
          break;
 
       case VCODE_OP_NULL:

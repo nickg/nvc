@@ -1212,6 +1212,7 @@ object_arena_t *tree_arena(tree_t t)
 
 void tree_locus(tree_t t, ident_t *unit, ptrdiff_t *offset)
 {
+   assert(t != NULL);
    object_locus(&(t->object), unit, offset);
 }
 
