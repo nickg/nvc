@@ -1,8 +1,7 @@
-package constarr is
-    function bit_to_char (b : bit) return character;
-end package;
+entity constarr is
+end entity;
 
-package body constarr is
+architecture a of constarr is
 
     function bit_to_char (b : bit) return character is
         type table_t is array (bit) of character;
@@ -15,4 +14,5 @@ package body constarr is
     constant c1 : character := bit_to_char('1');
     constant c2 : character := bit_to_char('0');
 
-end package body;
+begin
+end architecture;

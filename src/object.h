@@ -271,4 +271,8 @@ typedef void (*object_arena_deps_fn_t)(ident_t, void *);
 void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
                             void *context);
 
+void object_locus(object_t *object, ident_t *module, unsigned *offset);
+object_t *object_from_locus(ident_t module, unsigned offset,
+                            object_load_fn_t loader, unsigned tag);
+
 #endif   // _OBJECT_H

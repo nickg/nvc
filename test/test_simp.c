@@ -588,15 +588,13 @@ START_TEST(test_constarr)
 {
    input_from_file(TESTDIR "/simp/constarr.vhd");
 
-   tree_t p = parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
-   fail_if(p == NULL);
+   tree_t top = run_elab();
+   tree_t b0 = tree_stmt(top, 0);
 
-   simplify_global(p, NULL);
-
-   tree_t c1 = tree_value(tree_decl(p, 1));
-   fail_unless(tree_ident(c1) == ident_new("'1'"));
-   tree_t c2 = tree_value(tree_decl(p, 2));
-   fail_unless(tree_ident(c2) == ident_new("'0'"));
+   tree_t c1 = search_decls(b0, ident_new("C1"), 0);
+   fail_unless(tree_ident(tree_value(c1)) == ident_new("'1'"));
+   tree_t c2 = search_decls(b0, ident_new("C2"), 0);
+   fail_unless(tree_ident(tree_value(c2)) == ident_new("'0'"));
 }
 END_TEST
 

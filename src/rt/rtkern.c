@@ -373,6 +373,10 @@ static void _tracef(const char *fmt, ...);
 #define RT_ASSERT(x)
 #endif
 
+// Helper macro for passing debug loci from LLVM
+#define DEBUG_LOCUS(name) \
+   const char *name##_unit, uint32_t name##_offset
+
 #define TRACE(...) do {                                 \
       if (unlikely(trace_on)) _tracef(__VA_ARGS__);     \
    } while (0)
@@ -653,6 +657,23 @@ static inline void rt_check_postponed(int64_t after)
             istr(e_path(active_proc->source)));
 }
 
+static inline tree_t rt_locus_to_tree(const char *unit, unsigned offset)
+{
+   return tree_from_locus(ident_new(unit), offset, lib_get_qualified);
+}
+
+static rt_loc_t rt_translate_loc(const loc_t *loc)
+{
+   // This is just temporary while we phase out rt_loc_t
+   return (rt_loc_t){
+      .first_line   = loc->first_line,
+      .last_line    = loc->first_line + loc->line_delta,
+      .first_column = loc->first_column,
+      .last_column  = loc->first_column + loc->column_delta,
+      .file         = loc_file_str(loc)
+   };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -919,10 +940,22 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
 
 DLLEXPORT
 void __nvc_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
-                      rt_loc_t *where)
+                      DEBUG_LOCUS(locus))
 {
-   rt_msg(where, fatal, "index %d outside of range %d %s %d",
-          value, left, dir == RANGE_TO ? "to" : "downto", right);
+   tree_t t = rt_locus_to_tree(locus_unit, locus_offset);
+   const rt_loc_t where = rt_translate_loc(tree_loc(t));
+
+   type_t type = tree_type(t);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_cat(tb, "index ");
+   to_string(tb, type, value);
+   tb_printf(tb, " outside of %s range ", type_pp(type));
+   to_string(tb, type, left);
+   tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
+   to_string(tb, type, right);
+
+   rt_msg(&where, fatal, "%s", tb_get(tb));
 }
 
 DLLEXPORT

@@ -600,6 +600,15 @@ static vcode_reg_t lower_reify_expr(tree_t expr)
    return lower_reify(lower_expr(expr, EXPR_RVALUE));
 }
 
+static vcode_reg_t lower_debug_locus(tree_t t)
+{
+   ident_t unit;
+   unsigned offset;
+   tree_locus(t, &unit, &offset);
+
+   return emit_debug_locus(unit, offset);
+}
+
 static vcode_reg_t lower_wrap_with_new_bounds(type_t type, vcode_reg_t array,
                                               vcode_reg_t data)
 {
@@ -2571,8 +2580,10 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
       case A_NAMED:
          {
-            vcode_reg_t name_reg = lower_reify_expr(tree_name(a));
-            emit_index_check2(name_reg, left_reg, right_reg, dir_reg);
+            tree_t name = tree_name(a);
+            vcode_reg_t name_reg = lower_reify_expr(name);
+            vcode_reg_t locus = lower_debug_locus(name);
+            emit_index_check2(name_reg, left_reg, right_reg, dir_reg, locus);
             off_reg = lower_array_off(name_reg, mem_reg, type, 0);
          }
          break;
@@ -2589,8 +2600,9 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
             vcode_reg_t r_right_reg = lower_range_right(r);
             vcode_reg_t r_dir_reg   = lower_range_dir(r);
 
-            emit_index_check2(r_left_reg, left_reg, right_reg, dir_reg);
-            emit_index_check2(r_right_reg, left_reg, right_reg, dir_reg);
+            vcode_reg_t locus = lower_debug_locus(r);
+            emit_index_check2(r_left_reg, left_reg, right_reg, dir_reg, locus);
+            emit_index_check2(r_right_reg, left_reg, right_reg, dir_reg, locus);
 
             vcode_type_t vtype   = lower_type(rtype);
             vcode_type_t vbounds = lower_bounds(rtype);
@@ -7507,6 +7519,8 @@ vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover)
 {
    assert(top_scope == NULL);
    lower_set_verbose();
+
+   freeze_global_arena();
 
    cover_tags = cover;
    mode = LOWER_NORMAL;

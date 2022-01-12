@@ -1107,6 +1107,51 @@ void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
       (*fn)(object_arena_name(arena->deps.items[i]), context);
 }
 
+void object_locus(object_t *object, ident_t *module, unsigned *offset)
+{
+   object_arena_t *arena = __object_arena(object);
+   *module = object_arena_name(arena);
+
+   if (!arena->frozen)
+      fatal_trace("calling object_locus on non-frozen arena %s", istr(*module));
+
+   *offset = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
+}
+
+object_t *object_from_locus(ident_t module, unsigned offset,
+                            object_load_fn_t loader, unsigned tag)
+{
+   object_arena_t *arena = NULL;
+   for (unsigned j = 1; j < all_arenas.count; j++) {
+      if (module == object_arena_name(all_arenas.items[j])) {
+	 arena = all_arenas.items[j];
+	 break;
+      }
+   }
+
+   if (arena == NULL) {
+      object_t *droot = NULL;
+      if (loader) droot = (*loader)(module);
+
+      if (droot == NULL)
+	 fatal("cannot find object locus %s+%u", istr(module), offset);
+
+      arena = __object_arena(droot);
+   }
+
+   void *ptr = (char *)arena->base + (offset << OBJECT_ALIGN_BITS);
+
+   if (ptr > arena->limit)
+      fatal_trace("invalid object locus %s+%u", istr(module), offset);
+
+   object_t *obj = ptr;
+   if (obj->tag != tag)
+      fatal_trace("incorrect tag %d for object locus %s+%u", obj->tag,
+		  istr(module), offset);
+
+   return obj;
+}
+
 #if __SANITIZE_ADDRESS__
 static void object_arena_purge(object_arena_t *arena)
 {

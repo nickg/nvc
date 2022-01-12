@@ -181,16 +181,15 @@ START_TEST(test_ieee_warnings)
 {
    input_from_file(TESTDIR "/exec/ieeewarn.vhd");
 
-   tree_t b = parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
-
    // This should not fold the call to IEEE_WARNINGS
-   simplify_global(b, NULL);
+   tree_t top = run_elab();
+   tree_t b = tree_stmt(top, 0);
 
-   fail_unless(tree_decls(b) == 1);
-   tree_t d0 = tree_decl(b, 0);
-   fail_unless(tree_kind(d0) == T_CONST_DECL);
-   fail_unless(tree_ident(d0) == ident_new("ENABLED"));
-   fail_unless(tree_kind(tree_value(d0)) == T_FCALL);
+   fail_unless(tree_decls(b) == 2);
+   tree_t d1 = tree_decl(b, 1);
+   fail_unless(tree_kind(d1) == T_CONST_DECL);
+   fail_unless(tree_ident(d1) == ident_new("E"));
+   fail_unless(tree_kind(tree_value(d1)) == T_REF);
 
    exec_t *ex = exec_new(EVAL_FCALL | EVAL_WARN);
 

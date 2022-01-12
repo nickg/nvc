@@ -508,6 +508,9 @@ tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn,
 typedef void (*tree_deps_fn_t)(ident_t, void *);
 
 object_arena_t *tree_arena(tree_t t);
+void tree_locus(tree_t t, ident_t *unit, unsigned *offset);
+tree_t tree_from_locus(ident_t unit, unsigned offset,
+                       tree_load_fn_t find_deps_fn);
 void tree_walk_deps(tree_t t, tree_deps_fn_t fn, void *ctx);
 
 #endif  // _TREE_H

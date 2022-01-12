@@ -374,6 +374,16 @@ static LLVMTypeRef llvm_resolution_type(void)
                                   ARRAY_LEN(struct_elems), false);
 }
 
+static LLVMTypeRef llvm_debug_locus_type(void)
+{
+  LLVMTypeRef struct_elems[] = {
+     LLVMPointerType(llvm_int8_type(), 0),   // Unit name
+     llvm_int32_type(),                      // Offset
+   };
+   return LLVMStructTypeInContext(llvm_context(), struct_elems,
+                                  ARRAY_LEN(struct_elems), false);
+}
+
 static void llvm_add_module_flag(const char *key, int value)
 {
    LLVMAddModuleFlag(module, LLVMModuleFlagBehaviorWarning,
@@ -2742,9 +2752,10 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
 static void cgen_op_index_check2(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef value = llvm_ensure_int_bits(cgen_get_arg(op, 0, ctx), 32);
-   LLVMValueRef left  = cgen_get_arg(op, 1, ctx);
-   LLVMValueRef right = cgen_get_arg(op, 2, ctx);
+   LLVMValueRef left  = llvm_ensure_int_bits(cgen_get_arg(op, 1, ctx), 32);
+   LLVMValueRef right = llvm_ensure_int_bits(cgen_get_arg(op, 2, ctx), 32);
    LLVMValueRef dir   = cgen_get_arg(op, 3, ctx);
+   LLVMValueRef locus = cgen_get_arg(op, 4, ctx);
 
    LLVMValueRef low  = LLVMBuildSelect(builder, dir, right, left, "low");
    LLVMValueRef high = LLVMBuildSelect(builder, dir, left, right, "high");
@@ -2770,7 +2781,7 @@ static void cgen_op_index_check2(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, fail_bb);
 
    LLVMValueRef args[] = {
-      value, left, right, dir, cgen_location(op, ctx),
+      value, left, right, dir, locus,
    };
    LLVMBuildCall(builder, llvm_fn("__nvc_index_fail"), args,
                  ARRAY_LEN(args), "");
@@ -2778,6 +2789,21 @@ static void cgen_op_index_check2(int op, cgen_ctx_t *ctx)
    LLVMBuildUnreachable(builder);
 
    LLVMPositionBuilderAtEnd(builder, pass_bb);
+}
+
+static void cgen_op_debug_locus(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef unit = cgen_const_string(istr(vcode_get_ident(op)));
+   LLVMValueRef offset = llvm_int32(vcode_get_tag(op));
+
+   LLVMValueRef r = LLVMGetUndef(llvm_debug_locus_type());
+   r = LLVMBuildInsertValue(builder, r, unit, 0, "");
+   r = LLVMBuildInsertValue(builder, r, offset, 1,
+                            cgen_reg_name(result));
+
+   ctx->regs[result] = r;
 }
 
 static void cgen_op_debug_out(int op, cgen_ctx_t *ctx)
@@ -3273,6 +3299,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_INDEX_CHECK2:
       cgen_op_index_check2(i, ctx);
+      break;
+   case VCODE_OP_DEBUG_LOCUS:
+      cgen_op_debug_locus(i, ctx);
       break;
    case VCODE_OP_DEBUG_OUT:
       cgen_op_debug_out(i, ctx);
@@ -4195,7 +4224,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_int32_type(),
          llvm_int32_type(),
          llvm_int1_type(),
-         LLVMPointerType(llvm_rt_loc(), 0)
+         llvm_debug_locus_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_index_fail",
                            LLVMFunctionType(llvm_void_type(),

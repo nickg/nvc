@@ -1,1 +1,1 @@
-index 1000 outside of range 1 to 3
+index 1000 outside of NATURAL range 1 to 3

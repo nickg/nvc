@@ -69,6 +69,7 @@ const char *port_mode_str(port_mode_t mode);
 void mangle_one_type(text_buf_t *buf, type_t type);
 tree_t primary_unit_of(tree_t unit);
 int64_t encode_case_choice(tree_t value, int length, int bits);
+void to_string(text_buf_t *tb, type_t type, int64_t value);
 
 int fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

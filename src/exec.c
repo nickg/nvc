@@ -1819,6 +1819,11 @@ static void eval_op_link_package(int op, eval_state_t *state)
    state->failed = (result->context == NULL);
 }
 
+static void eval_op_debug_locus(int op, eval_state_t *state)
+{
+   // No-op for now
+}
+
 static void eval_op_debug_out(int op, eval_state_t *state)
 {
    vcode_reg_t reg = vcode_get_arg(op, 0);
@@ -2141,6 +2146,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_LINK_PACKAGE:
          eval_op_link_package(state->op, state);
+         break;
+
+      case VCODE_OP_DEBUG_LOCUS:
+         eval_op_debug_locus(state->op, state);
          break;
 
       default:

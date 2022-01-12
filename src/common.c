@@ -1417,3 +1417,16 @@ int64_t encode_case_choice(tree_t value, int length, int bits)
 
    return enc;
 }
+
+void to_string(text_buf_t *tb, type_t type, int64_t value)
+{
+   if (type_is_integer(type))
+      tb_printf(tb, "%"PRIi64, value);
+   else if (type_is_enum(type)) {
+      type_t base = type_base_recur(type);
+      if (value < 0 || value >= type_enum_literals(base))
+         tb_cat(tb, "INVALID");
+      else
+         tb_cat(tb, istr(tree_ident(type_enum_literal(base, value))));
+   }
+}

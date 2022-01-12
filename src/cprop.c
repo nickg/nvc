@@ -725,6 +725,7 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_CONTEXT_UPREF:
          case VCODE_OP_CONST_REP:
          case VCODE_OP_LINK_PACKAGE:
+         case VCODE_OP_DEBUG_LOCUS:
             {
                vcode_reg_t result = vcode_get_result(op);
                if (result != VCODE_INVALID_REG)

@@ -1,0 +1,1 @@
+index DEL outside of CHARACTER range 'a' to 'c'

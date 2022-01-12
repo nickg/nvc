@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1151,6 +1151,8 @@ tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn,
 tree_t tree_rewrite(tree_t t, tree_rewrite_pre_fn_t pre_fn,
                     tree_rewrite_post_fn_t post_fn, void *context)
 {
+   assert(global_arena != NULL);
+
    object_rewrite_ctx_t ctx = {
       .generation = object_next_generation(),
       .pre_fn     = (object_rewrite_pre_fn_t)pre_fn,
@@ -1206,6 +1208,21 @@ void make_new_arena(void)
 object_arena_t *tree_arena(tree_t t)
 {
    return object_arena(&(t->object));
+}
+
+void tree_locus(tree_t t, ident_t *unit, unsigned *offset)
+{
+   object_locus(&(t->object), unit, offset);
+}
+
+tree_t tree_from_locus(ident_t unit, unsigned offset,
+                       tree_load_fn_t find_deps_fn)
+{
+   object_t *o = object_from_locus(unit, offset,
+                                   (object_load_fn_t)find_deps_fn,
+                                   OBJECT_TAG_TREE);
+   assert(o->tag == OBJECT_TAG_TREE);
+   return container_of(o, struct _tree, object);
 }
 
 void tree_walk_deps(tree_t t, tree_deps_fn_t fn, void *ctx)

@@ -136,6 +136,7 @@ typedef enum {
    VCODE_OP_DISCONNECT,
    VCODE_OP_LINK_PACKAGE,
    VCODE_OP_INDEX_CHECK2,
+   VCODE_OP_DEBUG_LOCUS,
 } vcode_op_t;
 
 typedef enum {
@@ -153,6 +154,7 @@ typedef enum {
    VCODE_TYPE_RESOLUTION,
    VCODE_TYPE_CLOSURE,
    VCODE_TYPE_CONTEXT,
+   VCODE_TYPE_DEBUG_LOCUS,
 } vtype_kind_t;
 
 typedef enum {
@@ -226,6 +228,7 @@ vcode_type_t vtype_file(vcode_type_t base);
 vcode_type_t vtype_resolution(vcode_type_t base);
 vcode_type_t vtype_closure(vcode_type_t result);
 vcode_type_t vtype_context(ident_t name);
+vcode_type_t vtype_debug_locus(void);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
@@ -371,7 +374,7 @@ void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
                               vcode_reg_t blow, vcode_reg_t bhigh,
                               bounds_kind_t kind);
 void emit_index_check2(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
-                       vcode_reg_t dir);
+                       vcode_reg_t dir, vcode_reg_t locus);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t bounds, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);
@@ -456,5 +459,6 @@ vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
 vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context);
 void emit_protected_free(vcode_reg_t obj);
 vcode_reg_t emit_context_upref(int hops);
+vcode_reg_t emit_debug_locus(ident_t unit, unsigned offset);
 
 #endif  // _VCODE_H

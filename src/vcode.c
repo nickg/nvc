@@ -51,7 +51,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_SIGNAL || x == VCODE_OP_LINK_VAR                 \
-    || x == VCODE_OP_LINK_PACKAGE)
+    || x == VCODE_OP_LINK_PACKAGE || x == VCODE_OP_DEBUG_LOCUS)
 #define OP_HAS_REAL(x)                                                  \
    (x == VCODE_OP_CONST_REAL)
 #define OP_HAS_VALUE(x)                                                 \
@@ -66,7 +66,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_CMP(x)                                                   \
    (x == VCODE_OP_CMP)
 #define OP_HAS_TAG(x)                                                   \
-   (x == VCODE_OP_COVER_STMT || x == VCODE_OP_COVER_COND)
+   (x == VCODE_OP_COVER_STMT || x == VCODE_OP_COVER_COND                \
+    || x == VCODE_OP_DEBUG_LOCUS)
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_HINT(x)                                                  \
@@ -625,6 +626,7 @@ void vcode_opt(void)
             case VCODE_OP_NULL:
             case VCODE_OP_ADDRESS_OF:
             case VCODE_OP_RANGE_NULL:
+            case VCODE_OP_DEBUG_LOCUS:
                if (uses[o->result] == -1) {
                   vcode_dump_with_mark(j, NULL, NULL);
                   fatal("defintion of r%d does not dominate all uses",
@@ -905,7 +907,8 @@ const char *vcode_op_string(vcode_op_t op)
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
-      "implicit signal", "disconnect", "link package", "index check (2)"
+      "implicit signal", "disconnect", "link package", "index check (2)",
+      "debug locus",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1037,6 +1040,10 @@ static int vcode_dump_one_type(vcode_type_t type)
 
    case VCODE_TYPE_CONTEXT:
       col += printf("P<%s>", istr(vt->name));
+      break;
+
+   case VCODE_TYPE_DEBUG_LOCUS:
+      col += printf("D<>");
       break;
    }
 
@@ -1931,6 +1938,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->args.items[2]);
                col += printf(" dir ");
                col += vcode_dump_reg(op->args.items[3]);
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[4]);
             }
             break;
 
@@ -2027,6 +2036,16 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_result_type(col, op);
             }
             break;
+
+         case VCODE_OP_DEBUG_LOCUS:
+            {
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s $magenta$%s$$+%u",
+                                   vcode_op_string(op->kind),
+                                   istr(op->ident), op->tag);
+               vcode_dump_result_type(col, op);
+            }
+            break;
          }
 
          if (j == mark_op && i == old_block)
@@ -2073,6 +2092,7 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       case VCODE_TYPE_OFFSET:
       case VCODE_TYPE_REAL:
       case VCODE_TYPE_OPAQUE:
+      case VCODE_TYPE_DEBUG_LOCUS:
          return true;
       case VCODE_TYPE_RESOLUTION:
       case VCODE_TYPE_CLOSURE:
@@ -2115,6 +2135,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    case VCODE_TYPE_CLOSURE:
    case VCODE_TYPE_OPAQUE:
    case VCODE_TYPE_CONTEXT:
+   case VCODE_TYPE_DEBUG_LOCUS:
       return false;
 
    case VCODE_TYPE_REAL:
@@ -2356,6 +2377,16 @@ vcode_type_t vtype_opaque(void)
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_OPAQUE;
+
+   return vtype_new(n);
+}
+
+vcode_type_t vtype_debug_locus(void)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind = VCODE_TYPE_DEBUG_LOCUS;
 
    return vtype_new(n);
 }
@@ -4795,7 +4826,7 @@ void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
 }
 
 void emit_index_check2(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
-                       vcode_reg_t dir)
+                       vcode_reg_t dir, vcode_reg_t locus)
 {
    if (reg == left || reg == right) {
       emit_comment("Elided trivial index check for r%d", reg);
@@ -4834,6 +4865,24 @@ void emit_index_check2(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
    vcode_add_arg(op, left);
    vcode_add_arg(op, right);
    vcode_add_arg(op, dir);
+   vcode_add_arg(op, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to index check must be a debug locus");
+}
+
+vcode_reg_t emit_debug_locus(ident_t unit, unsigned offset)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_DEBUG_LOCUS) {
+      if (other->ident == unit && other->tag == offset)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_DEBUG_LOCUS);
+   op->ident = unit;
+   op->tag   = offset;
+
+   return (op->result = vcode_add_reg(vtype_debug_locus()));
 }
 
 void emit_debug_out(vcode_reg_t reg)
@@ -5062,6 +5111,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
          break;
 
       case VCODE_TYPE_OPAQUE:
+      case VCODE_TYPE_DEBUG_LOCUS:
          break;
 
       case VCODE_TYPE_CONTEXT:
@@ -5239,6 +5289,7 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
          break;
 
       case VCODE_TYPE_OPAQUE:
+      case VCODE_TYPE_DEBUG_LOCUS:
          break;
 
       case VCODE_TYPE_CONTEXT:
