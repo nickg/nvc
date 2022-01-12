@@ -1964,29 +1964,6 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    return emit_cast(vtype_offset(), VCODE_INVALID_TYPE, zeroed);
 }
 
-static void lower_check_array_bounds(type_t type, int dim, vcode_reg_t array,
-                                     vcode_reg_t value, tree_t where,
-                                     tree_t hint)
-{
-   PUSH_DEBUG_INFO(tree_kind(where) == T_PORT_DECL ? hint : where);
-
-   vcode_reg_t left_reg  = lower_array_left(type, dim, array);
-   vcode_reg_t right_reg = lower_array_right(type, dim, array);
-   vcode_reg_t dir_reg   = lower_array_dir(type, dim, array);
-
-   vcode_reg_t min_reg = emit_select(dir_reg, right_reg, left_reg);
-   vcode_reg_t max_reg = emit_select(dir_reg, left_reg, right_reg);
-
-   vcode_type_t kind_type = vtype_offset();
-   vcode_reg_t to_reg = emit_const(kind_type, BOUNDS_ARRAY_TO);
-   vcode_reg_t downto_reg = emit_const(kind_type, BOUNDS_ARRAY_DOWNTO);
-   vcode_reg_t kind_reg = emit_select(dir_reg, downto_reg, to_reg);
-
-   char *hint_str LOCAL = lower_get_hint_string(where, NULL);
-
-   emit_dynamic_bounds(value, min_reg, max_reg, kind_reg, hint_str);
-}
-
 static vcode_reg_t lower_array_stride(vcode_reg_t array, type_t type)
 {
    type_t elem = type_elem(type);
@@ -2078,16 +2055,13 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
       vcode_select_block(not_null_bb);
    }
 
-   tree_t left, right;
-   if (tree_subkind(r) == RANGE_EXPR)
-      left = right = r;
-   else {
-      left  = tree_left(r);
-      right = tree_right(r);
-   }
+   vcode_reg_t aleft_reg  = lower_array_left(type, 0, array_reg);
+   vcode_reg_t aright_reg = lower_array_right(type, 0, array_reg);
+   vcode_reg_t adir_reg   = lower_array_dir(type, 0, array_reg);
 
-   lower_check_array_bounds(type, 0, array_reg, left_reg, left, NULL);
-   lower_check_array_bounds(type, 0, array_reg, right_reg, right, NULL);
+   vcode_reg_t locus = lower_debug_locus(r);
+   emit_index_check2(left_reg, aleft_reg, aright_reg, adir_reg, locus);
+   emit_index_check2(right_reg, aleft_reg, aright_reg, adir_reg, locus);
 
    if (!known_not_null) {
       emit_jump(after_bounds_bb);
@@ -2103,9 +2077,7 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    vcode_reg_t off_reg  = lower_array_off(left_reg, array_reg, type, 0);
    vcode_reg_t ptr_reg  = emit_add(data_reg, emit_mul(off_reg, stride_reg));
 
-   const bool unwrap = lower_is_const(left) && lower_is_const(right);
-
-   if (unwrap)
+   if (lower_const_bounds(type))
       return ptr_reg;
    else {
       vcode_dim_t dim0 = {

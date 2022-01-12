@@ -3009,6 +3009,9 @@ START_TEST(test_issue351)
    EXPECT_BB(6) = {
       { VCODE_OP_CAST },
       { VCODE_OP_ADD },
+      { VCODE_OP_LOAD, .name = "I.LOOP1" },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_WRAP },
       { VCODE_OP_FCALL, .func = "*WORK.ISSUE351.DUMP_WORDS" },
       { VCODE_OP_TEMP_STACK_RESTORE },
@@ -3016,7 +3019,6 @@ START_TEST(test_issue351)
       { VCODE_OP_LOAD, .name = "I.LOOP1" },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE, .name = "I.LOOP1" },
-      { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COND, .target = 3, .target_else = 4 },
    };

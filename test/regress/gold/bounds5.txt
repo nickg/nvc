@@ -1,1 +1,1 @@
-array index 9 outside bounds 8 downto 0
+index 9 outside of INTEGER range 8 downto 0
