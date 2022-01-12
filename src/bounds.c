@@ -301,22 +301,15 @@ static tree_t bounds_check_call_args(tree_t t)
 static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,
                                   int64_t low, int64_t high)
 {
-   if (type_is_integer(type)) {
-      if (dir == RANGE_DOWNTO)
-         tb_printf(tb, "%"PRIi64" downto %"PRIi64, high, low);
-      else
-         tb_printf(tb, "%"PRIi64" to %"PRIi64, low, high);
+   if (dir == RANGE_DOWNTO) {
+      to_string(tb, type, high);
+      tb_cat(tb, " downto ");
+      to_string(tb, type, low);
    }
-   else if (type_is_enum(type)) {
-      type_t base = type_base_recur(type);
-      if (dir == RANGE_DOWNTO)
-         tb_printf(tb, "%s downto %s",
-                   istr(tree_ident(type_enum_literal(base, high))),
-                   istr(tree_ident(type_enum_literal(base, low))));
-      else
-         tb_printf(tb, "%s to %s",
-                   istr(tree_ident(type_enum_literal(base, low))),
-                   istr(tree_ident(type_enum_literal(base, high))));
+   else {
+      to_string(tb, type, low);
+      tb_cat(tb, " to ");
+      to_string(tb, type, high);
    }
 }
 
