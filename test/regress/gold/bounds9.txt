@@ -1,1 +1,1 @@
-index 0 violates constraint bounds 1 to 2147483647
+index 0 outside of NATURAL range 1 to 2147483647

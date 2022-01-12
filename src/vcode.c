@@ -627,6 +627,8 @@ void vcode_opt(void)
             case VCODE_OP_ADDRESS_OF:
             case VCODE_OP_RANGE_NULL:
             case VCODE_OP_DEBUG_LOCUS:
+            case VCODE_OP_SELECT:
+            case VCODE_OP_CAST:
                if (uses[o->result] == -1) {
                   vcode_dump_with_mark(j, NULL, NULL);
                   fatal("defintion of r%d does not dominate all uses",
@@ -2547,7 +2549,11 @@ vcode_block_t emit_block(void)
 
    block_t *bptr = block_array_alloc(&(active_unit->blocks));
    memset(bptr, '\0', sizeof(block_t));
-   bptr->last_loc = LOC_INVALID;
+
+   if (active_block != VCODE_INVALID_BLOCK)
+      bptr->last_loc = active_unit->blocks.items[active_block].last_loc;
+   else
+      bptr->last_loc = LOC_INVALID;
 
    return bnum;
 }

@@ -2760,18 +2760,12 @@ static void cgen_op_index_check2(int op, cgen_ctx_t *ctx)
    LLVMValueRef low  = LLVMBuildSelect(builder, dir, right, left, "low");
    LLVMValueRef high = LLVMBuildSelect(builder, dir, left, right, "high");
 
-   LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntSLT, high, low, "null");
-
    LLVMValueRef above =
       LLVMBuildICmp(builder, LLVMIntSGT, value, high, "above");
    LLVMValueRef below =
       LLVMBuildICmp(builder, LLVMIntSLT, value, low, "below");
 
-   LLVMValueRef fail =
-      LLVMBuildAnd(builder,
-                   LLVMBuildNot(builder, null, ""),
-                   LLVMBuildOr(builder, above, below, ""),
-                   "fail");
+   LLVMValueRef fail = LLVMBuildOr(builder, above, below, "fail");
 
    LLVMBasicBlockRef fail_bb = llvm_append_block(ctx->fn, "fail");
    LLVMBasicBlockRef pass_bb = llvm_append_block(ctx->fn, "pass");

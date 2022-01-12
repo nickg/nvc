@@ -227,16 +227,6 @@ static bool lower_const_bounds(type_t type)
    }
 }
 
-static vcode_reg_t lower_range_expr(tree_t r)
-{
-   // The simplify pass should remove all RANGE_EXPR except A'RANGE
-   // where A is an array with non-static bounds
-
-   tree_t array = tree_name(tree_value(r));
-   assert(!lower_const_bounds(tree_type(array)));
-   return lower_expr(array, EXPR_RVALUE);
-}
-
 static bool lower_is_reverse_range(tree_t r)
 {
    tree_t value = tree_value(r);
@@ -249,14 +239,19 @@ static vcode_reg_t lower_range_left(tree_t r)
    assert(tree_kind(r) == T_RANGE);
 
    if (tree_subkind(r) == RANGE_EXPR) {
-      vcode_reg_t array_reg = lower_range_expr(r), left_reg;
+      tree_t array = tree_name(tree_value(r));
+      assert(!lower_const_bounds(tree_type(array)));
+
+      vcode_reg_t array_reg = lower_expr(array, EXPR_RVALUE), left_reg;
       if (lower_is_reverse_range(r))
          left_reg = emit_uarray_right(array_reg, 0);
       else
          left_reg = emit_uarray_left(array_reg, 0);
 
-      vcode_type_t vtype = lower_type(tree_type(r));
-      return emit_cast(vtype, vtype, left_reg);
+      type_t index_type = index_type_of(tree_type(array), 0);
+      vcode_type_t vtype = lower_type(index_type);
+      vcode_type_t vbounds = lower_bounds(index_type);
+      return emit_cast(vtype, vbounds, left_reg);
    }
    else
       return lower_reify_expr(tree_left(r));
@@ -267,14 +262,19 @@ static vcode_reg_t lower_range_right(tree_t r)
    assert(tree_kind(r) == T_RANGE);
 
    if (tree_subkind(r) == RANGE_EXPR) {
-      vcode_reg_t array_reg = lower_range_expr(r), right_reg;
+      tree_t array = tree_name(tree_value(r));
+      assert(!lower_const_bounds(tree_type(array)));
+
+      vcode_reg_t array_reg = lower_expr(array, EXPR_RVALUE), right_reg;
       if (lower_is_reverse_range(r))
          right_reg = emit_uarray_left(array_reg, 0);
       else
          right_reg = emit_uarray_right(array_reg, 0);
 
-      vcode_type_t vtype = lower_type(tree_type(r));
-      return emit_cast(vtype, vtype, right_reg);
+      type_t index_type = index_type_of(tree_type(array), 0);
+      vcode_type_t vtype = lower_type(index_type);
+      vcode_type_t vbounds = lower_bounds(index_type);
+      return emit_cast(vtype, vbounds, right_reg);
    }
    else
       return lower_reify_expr(tree_right(r));
@@ -291,15 +291,15 @@ static vcode_reg_t lower_range_dir(tree_t r)
 
    case RANGE_EXPR:
       {
-         vcode_reg_t reg = lower_range_expr(r);
+         tree_t array = tree_name(tree_value(r));
+         assert(!lower_const_bounds(tree_type(array)));
 
-         tree_t value = tree_value(r);
-         assert(tree_kind(value) == T_ATTR_REF);
+         vcode_reg_t array_reg = lower_expr(array, EXPR_RVALUE);
 
-         if (tree_subkind(value) == ATTR_REVERSE_RANGE)
-            return emit_not(emit_uarray_dir(reg, 0));
+         if (lower_is_reverse_range(r))
+            return emit_not(emit_uarray_dir(array_reg, 0));
          else
-            return emit_uarray_dir(reg, 0);
+            return emit_uarray_dir(array_reg, 0);
       }
 
    case RANGE_ERROR:
@@ -389,7 +389,13 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
       vcode_reg_t diff = VCODE_INVALID_REG;
       switch (tree_subkind(r)) {
       case RANGE_EXPR:
-         return emit_uarray_len(lower_range_expr(r), 0);
+         {
+            // The simplify pass should remove all RANGE_EXPR except A'RANGE
+            // where A is an array with non-static bounds
+            tree_t array = tree_name(tree_value(r));
+            assert(!lower_const_bounds(tree_type(array)));
+            return emit_uarray_len(lower_expr(array, EXPR_RVALUE), 0);
+         }
 
       case RANGE_TO:
          diff = emit_sub(right_reg, left_reg);
@@ -4565,59 +4571,44 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
    }
 }
 
-static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
+static void lower_check_indexes(type_t type, vcode_reg_t array)
 {
-   PUSH_DEBUG_INFO(hint);
-
    const int ndims = dimension_of(type);
    for (int i = 0; i < ndims; i++) {
       type_t index = index_type_of(type, i);
+      tree_t r = range_of(index, 0);
 
-      vcode_type_t vbounds = lower_bounds(index);
+      vcode_reg_t ileft_reg  = lower_range_left(r);
+      vcode_reg_t iright_reg = lower_range_right(r);
+      vcode_reg_t idir_reg   = lower_range_dir(r);
 
-      vcode_reg_t left_reg  = lower_array_left(type, i, array);
-      vcode_reg_t right_reg = lower_array_right(type, i, array);
+      vcode_reg_t aleft_reg  = lower_array_left(type, i, array);
+      vcode_reg_t aright_reg = lower_array_right(type, i, array);
+      vcode_reg_t adir_reg   = lower_array_dir(type, i, array);
 
-      if (type_is_enum(index))
-         emit_index_check(left_reg, right_reg, vbounds, BOUNDS_INDEX_TO);
+      vcode_reg_t null_reg = emit_range_null(aleft_reg, aright_reg, adir_reg);
+
+      vcode_block_t after_bb = VCODE_INVALID_BLOCK;
+
+      int64_t null_const;
+      if (vcode_reg_const(null_reg, &null_const)) {
+         if (null_const == 1)
+            continue;   // Array range is statically known to be null
+      }
       else {
-         tree_t rindex = range_of(index, 0);
-         bounds_kind_t bkind  = tree_subkind(rindex) == RANGE_TO
-            ? BOUNDS_INDEX_TO : BOUNDS_INDEX_DOWNTO;
+         vcode_block_t check_bb = emit_block();
+         after_bb = emit_block();
+         emit_cond(null_reg, after_bb, check_bb);
+         vcode_select_block(check_bb);
+      }
 
-         vcode_reg_t rlow_reg, rhigh_reg;
-         if (lower_const_bounds(type)) {
-            tree_t r = range_of(type, i);
-            if (tree_subkind(r) == RANGE_TO) {
-               rlow_reg  = left_reg;
-               rhigh_reg = right_reg;
-            }
-            else {
-               rlow_reg  = right_reg;
-               rhigh_reg = left_reg;
-            }
-         }
-         else {
-            vcode_reg_t dir_reg = lower_array_dir(type, i, array);
-            rlow_reg  = emit_select(dir_reg, right_reg, left_reg);
-            rhigh_reg = emit_select(dir_reg, left_reg, right_reg);
-         }
+      vcode_reg_t locus = lower_debug_locus(range_of(type, i));
+      emit_index_check2(aleft_reg, ileft_reg, iright_reg, idir_reg, locus);
+      emit_index_check2(aright_reg, ileft_reg, iright_reg, idir_reg, locus);
 
-         tree_t rindex_left = tree_left(rindex);
-         tree_t rindex_right = tree_right(rindex);
-
-         if (lower_is_const(rindex_left) && lower_is_const(rindex_right)) {
-            emit_index_check(rlow_reg, rhigh_reg, vbounds, bkind);
-         }
-         else {
-            vcode_reg_t bleft  = lower_reify_expr(rindex_left);
-            vcode_reg_t bright = lower_reify_expr(rindex_right);
-
-            vcode_reg_t bmin = bkind == BOUNDS_INDEX_TO ? bleft : bright;
-            vcode_reg_t bmax = bkind == BOUNDS_INDEX_TO ? bright : bleft;
-
-            emit_dynamic_index_check(rlow_reg, rhigh_reg, bmin, bmax, bkind);
-         }
+      if (after_bb != VCODE_INVALID_BLOCK) {
+         emit_jump(after_bb);
+         vcode_select_block(after_bb);
       }
    }
 }
@@ -4729,7 +4720,7 @@ static void lower_var_decl(tree_t decl)
             vcode_heap_allocate(dest_reg);
       }
       else {
-         lower_check_indexes(type, value_reg, decl);
+         lower_check_indexes(type, value_reg);
          lower_check_array_sizes(decl, type, value_type,
                                  VCODE_INVALID_REG, value_reg);
          emit_copy(dest_reg, data_reg, count_reg);
