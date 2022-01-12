@@ -267,8 +267,6 @@ void __object_write_barrier(object_t *lhs, object_t *rhs);
 object_arena_t *object_arena_new(size_t size, unsigned std);
 void object_arena_freeze(object_arena_t *arena);
 
-void object_add_global_root(object_t **object);
-
 typedef void (*object_arena_deps_fn_t)(ident_t, void *);
 void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
                             void *context);

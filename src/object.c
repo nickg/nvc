@@ -65,7 +65,6 @@ static object_class_t     *classes[4];
 static uint32_t            format_digest;
 static generation_t        next_generation = 1;
 static arena_array_t       all_arenas;
-static object_ptr_array_t  global_roots;
 
 #if __SANITIZE_ADDRESS__
 static void object_purge_at_exit(void);
@@ -424,9 +423,6 @@ void object_arena_gc(object_arena_t *arena)
       p = (char *)p + size;
    }
 
-   for (unsigned i = 0; i < global_roots.count; i++)
-      gc_mark_from_root(*(global_roots.items[i]), generation);
-
    // Calculate forwarding addresses
    const size_t fwdsz = (arena->alloc - arena->base) / OBJECT_ALIGN;
    uint32_t *forward LOCAL = xmalloc_array(fwdsz, sizeof(uint32_t));
@@ -483,9 +479,6 @@ void object_arena_gc(object_arena_t *arena)
 
       rptr = (char *)rptr + size;
    }
-
-   for (unsigned i = 0; i < global_roots.count; i++)
-      gc_forward_one_pointer(global_roots.items[i], arena, forward);
 
    arena->alloc = (char *)arena->base + woffset;
 
@@ -1105,11 +1098,6 @@ void check_frozen_object_fault(void *addr)
       fatal_trace("Write to object in frozen arena %s [address=%p]",
                   istr(object_arena_name(arena)), addr);
    }
-}
-
-void object_add_global_root(object_t **object)
-{
-   APUSH(global_roots, object);
 }
 
 void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
