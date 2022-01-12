@@ -55,7 +55,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_REAL(x)                                                  \
    (x == VCODE_OP_CONST_REAL)
 #define OP_HAS_VALUE(x)                                                 \
-   (x == VCODE_OP_CONST || x == VCODE_OP_CONST_REP)
+   (x == VCODE_OP_CONST || x == VCODE_OP_CONST_REP                      \
+    || x == VCODE_OP_DEBUG_LOCUS)
 #define OP_HAS_DIM(x)                                                   \
    (x == VCODE_OP_UARRAY_LEFT || x == VCODE_OP_UARRAY_RIGHT             \
     || x == VCODE_OP_UARRAY_DIR || x == VCODE_OP_UARRAY_LEN)
@@ -66,8 +67,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_CMP(x)                                                   \
    (x == VCODE_OP_CMP)
 #define OP_HAS_TAG(x)                                                   \
-   (x == VCODE_OP_COVER_STMT || x == VCODE_OP_COVER_COND                \
-    || x == VCODE_OP_DEBUG_LOCUS)
+   (x == VCODE_OP_COVER_STMT || x == VCODE_OP_COVER_COND)
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_HINT(x)                                                  \
@@ -2040,9 +2040,9 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          case VCODE_OP_DEBUG_LOCUS:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$+%u",
+               col += color_printf(" := %s $magenta$%s$$%+"PRIi64,
                                    vcode_op_string(op->kind),
-                                   istr(op->ident), op->tag);
+                                   istr(op->ident), op->value);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -4871,7 +4871,7 @@ void emit_index_check2(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
                 "locus argument to index check must be a debug locus");
 }
 
-vcode_reg_t emit_debug_locus(ident_t unit, unsigned offset)
+vcode_reg_t emit_debug_locus(ident_t unit, ptrdiff_t offset)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_DEBUG_LOCUS) {
       if (other->ident == unit && other->tag == offset)
@@ -4880,7 +4880,7 @@ vcode_reg_t emit_debug_locus(ident_t unit, unsigned offset)
 
    op_t *op = vcode_add_op(VCODE_OP_DEBUG_LOCUS);
    op->ident = unit;
-   op->tag   = offset;
+   op->value = offset;
 
    return (op->result = vcode_add_reg(vtype_debug_locus()));
 }

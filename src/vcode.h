@@ -459,6 +459,6 @@ vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
 vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context);
 void emit_protected_free(vcode_reg_t obj);
 vcode_reg_t emit_context_upref(int hops);
-vcode_reg_t emit_debug_locus(ident_t unit, unsigned offset);
+vcode_reg_t emit_debug_locus(ident_t unit, ptrdiff_t offset);
 
 #endif  // _VCODE_H

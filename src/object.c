@@ -1107,18 +1107,18 @@ void object_arena_walk_deps(object_arena_t *arena, object_arena_deps_fn_t fn,
       (*fn)(object_arena_name(arena->deps.items[i]), context);
 }
 
-void object_locus(object_t *object, ident_t *module, unsigned *offset)
+void object_locus(object_t *object, ident_t *module, ptrdiff_t *offset)
 {
    object_arena_t *arena = __object_arena(object);
    *module = object_arena_name(arena);
 
-   if (!arena->frozen)
-      fatal_trace("calling object_locus on non-frozen arena %s", istr(*module));
-
    *offset = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
+
+   if (!arena->frozen)
+      *offset = -*offset;
 }
 
-object_t *object_from_locus(ident_t module, unsigned offset,
+object_t *object_from_locus(ident_t module, ptrdiff_t offset,
                             object_load_fn_t loader, unsigned tag)
 {
    object_arena_t *arena = NULL;
@@ -1134,19 +1134,25 @@ object_t *object_from_locus(ident_t module, unsigned offset,
       if (loader) droot = (*loader)(module);
 
       if (droot == NULL)
-	 fatal("cannot find object locus %s+%u", istr(module), offset);
+	 fatal("cannot find object locus %s%+"PRIiPTR, istr(module), offset);
 
       arena = __object_arena(droot);
    }
 
+   if (offset < 0 && arena->frozen)
+      fatal_trace("locus %s%+"PRIiPTR" was created before arena was frozen",
+		  istr(module), offset);
+   else if (offset < 0)
+      offset = -offset;
+
    void *ptr = (char *)arena->base + (offset << OBJECT_ALIGN_BITS);
 
    if (ptr > arena->limit)
-      fatal_trace("invalid object locus %s+%u", istr(module), offset);
+      fatal_trace("invalid object locus %s%+"PRIiPTR, istr(module), offset);
 
    object_t *obj = ptr;
    if (obj->tag != tag)
-      fatal_trace("incorrect tag %d for object locus %s+%u", obj->tag,
+      fatal_trace("incorrect tag %d for object locus %s%+"PRIiPTR, obj->tag,
 		  istr(module), offset);
 
    return obj;

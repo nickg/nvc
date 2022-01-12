@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2013-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include "tree.h"
 #include "type.h"
 #include "phase.h"
+#include "common.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -55,7 +56,8 @@ typedef enum {
    VALUE_CARRAY,
    VALUE_RECORD,
    VALUE_ACCESS,
-   VALUE_CONTEXT
+   VALUE_CONTEXT,
+   VALUE_DEBUG_LOCUS,
 } value_kind_t;
 
 typedef struct _value value_t;
@@ -69,6 +71,7 @@ struct _value {
       int64_t       integer;
       value_t      *pointer;
       eval_frame_t *context;
+      tree_t        debug;
    };
 };
 
@@ -1526,6 +1529,7 @@ static void eval_op_index_check2(int op, eval_state_t *state)
    value_t *left  = eval_get_reg(vcode_get_arg(op, 1), state);
    value_t *right = eval_get_reg(vcode_get_arg(op, 2), state);
    value_t *dir   = eval_get_reg(vcode_get_arg(op, 3), state);
+   value_t *locus = eval_get_reg(vcode_get_arg(op, 4), state);
 
    const int64_t low =
       dir->integer == RANGE_DOWNTO ? right->integer : left->integer;
@@ -1534,9 +1538,30 @@ static void eval_op_index_check2(int op, eval_state_t *state)
 
    if (low > high)
       return;   // Null range
+   else if (value->integer >= low && value->integer <= high)
+      return;   // In bounds
 
-   if (value->integer < low || value->integer > high)
-      state->failed = true;    // TODO: report error here if EVAL_BOUNDS
+   if (state->flags & EVAL_BOUNDS) {
+      EVAL_ASSERT_VALUE(op, locus, VALUE_DEBUG_LOCUS);
+
+      type_t type = tree_type(locus->debug);
+
+      if (state->hint != NULL && tree_kind(state->hint) == T_FCALL)
+         hint_at(tree_loc(state->hint), "while evaluating call to %s",
+                 istr(tree_ident(state->hint)));
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_cat(tb, "index ");
+      to_string(tb, type, value->integer);
+      tb_printf(tb, " outside of %s range ", type_pp(type));
+      to_string(tb, type, left->integer);
+      tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
+      to_string(tb, type, right->integer);
+
+      error_at(tree_loc(locus->debug), "%s", tb_get(tb));
+   }
+
+   state->failed = true;
 }
 
 static void eval_op_index_check(int op, eval_state_t *state)
@@ -1821,7 +1846,12 @@ static void eval_op_link_package(int op, eval_state_t *state)
 
 static void eval_op_debug_locus(int op, eval_state_t *state)
 {
-   // No-op for now
+   ident_t unit = vcode_get_ident(op);
+   const ptrdiff_t offset = vcode_get_value(op);
+
+   value_t *result = eval_get_reg(vcode_get_result(op), state);
+   result->kind = VALUE_DEBUG_LOCUS;
+   result->debug = tree_from_locus(unit, offset, lib_get_qualified);
 }
 
 static void eval_op_debug_out(int op, eval_state_t *state)

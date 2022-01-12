@@ -603,7 +603,7 @@ static vcode_reg_t lower_reify_expr(tree_t expr)
 static vcode_reg_t lower_debug_locus(tree_t t)
 {
    ident_t unit;
-   unsigned offset;
+   ptrdiff_t offset;
    tree_locus(t, &unit, &offset);
 
    return emit_debug_locus(unit, offset);
@@ -1999,38 +1999,6 @@ static vcode_reg_t lower_array_stride(vcode_reg_t array, type_t type)
       return emit_const(vtype_offset(), 1);
 }
 
-static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
-{
-   tree_t value = tree_value(ref);
-   type_t value_type = tree_type(value);
-
-   const bool elide_bounds = tree_flags(ref) & TREE_F_ELIDE_BOUNDS;
-
-   vcode_reg_t idx = emit_const(vtype_offset(), 0);
-   const int nparams = tree_params(ref);
-   for (int i = 0; i < nparams; i++) {
-      tree_t p = tree_param(ref, i);
-      assert(tree_subkind(p) == P_POS);
-
-      vcode_reg_t offset = lower_reify_expr(tree_value(p));
-
-      if (!elide_bounds)
-         lower_check_array_bounds(value_type, i, array, offset,
-                                  tree_value(p), NULL);
-
-      if (i > 0) {
-         vcode_reg_t stride = lower_array_len(value_type, i, array);
-         idx = emit_mul(idx, stride);
-      }
-
-      idx = emit_add(idx, lower_array_off(offset, array, value_type, i));
-   }
-
-   idx = emit_mul(idx, lower_array_stride(array, value_type));
-
-   return idx;
-}
-
 static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
 {
    tree_t value = tree_value(ref);
@@ -2045,7 +2013,42 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
                 || vtkind == VCODE_TYPE_SIGNAL);
       });
 
-   vcode_reg_t offset_reg = lower_array_ref_offset(ref, array);
+   type_t value_type = tree_type(value);
+
+   const bool elide_bounds = tree_flags(ref) & TREE_F_ELIDE_BOUNDS;
+
+   vcode_reg_t offset_reg = emit_const(vtype_offset(), 0);
+   const int nparams = tree_params(ref);
+   for (int i = 0; i < nparams; i++) {
+      tree_t p = tree_param(ref, i);
+      assert(tree_subkind(p) == P_POS);
+
+      tree_t index = tree_value(p);
+      vcode_reg_t index_reg = lower_reify_expr(index);
+
+      if (!elide_bounds) {
+         //lower_check_array_bounds(value_type, i, array, offset,
+         //                          tree_value(p), NULL);
+
+         vcode_reg_t left_reg  = lower_array_left(value_type, i, array);
+         vcode_reg_t right_reg = lower_array_right(value_type, i, array);
+         vcode_reg_t dir_reg   = lower_array_dir(value_type, i, array);
+
+         vcode_reg_t locus = lower_debug_locus(index);
+         emit_index_check2(index_reg, left_reg, right_reg, dir_reg, locus);
+      }
+
+      if (i > 0) {
+         vcode_reg_t stride = lower_array_len(value_type, i, array);
+         offset_reg = emit_mul(offset_reg, stride);
+      }
+
+      vcode_reg_t zerored = lower_array_off(index_reg, array, value_type, i);
+      offset_reg = emit_add(offset_reg, zerored);
+   }
+
+   offset_reg = emit_mul(offset_reg, lower_array_stride(array, value_type));
+
    vcode_reg_t data_reg   = lower_array_data(array);
    return emit_add(data_reg, offset_reg);
 }

@@ -1210,12 +1210,12 @@ object_arena_t *tree_arena(tree_t t)
    return object_arena(&(t->object));
 }
 
-void tree_locus(tree_t t, ident_t *unit, unsigned *offset)
+void tree_locus(tree_t t, ident_t *unit, ptrdiff_t *offset)
 {
    object_locus(&(t->object), unit, offset);
 }
 
-tree_t tree_from_locus(ident_t unit, unsigned offset,
+tree_t tree_from_locus(ident_t unit, ptrdiff_t offset,
                        tree_load_fn_t find_deps_fn)
 {
    object_t *o = object_from_locus(unit, offset,

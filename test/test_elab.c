@@ -425,7 +425,7 @@ START_TEST(test_eval1)
    input_from_file(TESTDIR "/elab/eval1.vhd");
 
    const error_t expect[] = {
-      { 12, "array index -1 outside bounds 7 downto 0" },
+      { 12, "index -1 outside of INTEGER range 7 downto 0" },
       { 16, "while evaluating call to FUNC" },
       { 30, "while elaborating instance SUB_I" },
       { -1, NULL }

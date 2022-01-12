@@ -2795,12 +2795,14 @@ static void cgen_op_debug_locus(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
+   ptrdiff_t offset = vcode_get_value(op);
+   assert(offset >= 0);   // Should only write frozen offsets
+
    LLVMValueRef unit = cgen_const_string(istr(vcode_get_ident(op)));
-   LLVMValueRef offset = llvm_int32(vcode_get_tag(op));
 
    LLVMValueRef r = LLVMGetUndef(llvm_debug_locus_type());
    r = LLVMBuildInsertValue(builder, r, unit, 0, "");
-   r = LLVMBuildInsertValue(builder, r, offset, 1,
+   r = LLVMBuildInsertValue(builder, r, llvm_int32(offset), 1,
                             cgen_reg_name(result));
 
    ctx->regs[result] = r;

@@ -1,2 +1,2 @@
-array index -2147483648 outside bounds 5 to 7
+index -2147483648 outside of INTEGER range 5 to 7
 

@@ -1,1 +1,1 @@
-array index 51761 outside bounds 1 to 10
+index 51761 outside of INTEGER range 1 to 10
