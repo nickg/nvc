@@ -3,6 +3,7 @@
 #include "phase.h"
 #include "test_util.h"
 #include "common.h"
+#include "hash.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -298,7 +299,7 @@ START_TEST(test_ffold)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   simplify_global(b, NULL);
+   simplify_global(b, NULL, NULL);
    fail_if_errors();
 
    fail_unless(folded_i(tree_value(tree_decl(b, 0)), 6));
@@ -344,7 +345,7 @@ START_TEST(test_ffold2)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   simplify_global(b, NULL);
+   simplify_global(b, NULL, NULL);
    fail_if_errors();
 
    fail_unless(folded_i(tree_value(tree_decl(b, 0)), 3));
@@ -369,7 +370,7 @@ START_TEST(test_issue155)
    tree_t p = parse_and_check(T_PACKAGE);
    fail_if_errors();
 
-   simplify_global(p, NULL);
+   simplify_global(p, NULL, NULL);
 
    tree_t ar = range_of(tree_type(tree_decl(p, 4)), 0);
    fail_unless(folded_i(tree_left(ar), 7));
@@ -463,11 +464,12 @@ START_TEST(test_issue320)
 {
    input_from_file(TESTDIR "/simp/issue320.vhd");
 
-   tree_t a = parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
-   simplify_global(a, NULL);
+   tree_t top = run_elab();
 
-   fail_unless(tree_decls(a) == 2);
-   tree_t d = tree_decl(a, 1);
+   tree_t b0 = tree_stmt(top, 0);
+
+   tree_t d = search_decls(b0, ident_new("INIT_VALUE"), 0);
+   fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
    fail_unless(tree_subkind(tree_value(d)) == L_INT);

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ bool sem_check(tree_t t);
 void simplify_local(tree_t top);
 
 // Rewrite to simpler forms folding globally static expressions
-void simplify_global(tree_t top, hash_t *generics);
+void simplify_global(tree_t top, hash_t *generics, hash_t *subprograms);
 
 // Perform static bounds checking
 void bounds_check(tree_t top);

@@ -52,6 +52,7 @@ typedef struct {
    lib_t        library;
    rw_list_t    rwlist;
    hash_t      *generics;
+   hash_t      *subprograms;
 } elab_ctx_t;
 
 typedef struct {
@@ -300,6 +301,7 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
             tb_cat(tb, istr(orig) + ident_len(ctx->prefix[j]));
 
             type_set_ident(type, ident_new(tb_get(tb)));
+            break;
          }
       }
    }
@@ -324,8 +326,8 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
             if (nports > 0 || is_func)
                tb_append(tb, '(');
 
-            for (int i = 0; i < nports; i++) {
-               tree_t p = tree_port(decl, i);
+            for (int k = 0; k < nports; k++) {
+               tree_t p = tree_port(decl, k);
                if (tree_class(p) == C_SIGNAL)
                   tb_printf(tb, "s");
                mangle_one_type(tb, tree_type(p));
@@ -337,7 +339,19 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
             if (is_func)
                mangle_one_type(tb, type_result(tree_type(decl)));
 
-            tree_set_ident2(decl, ident_new(tb_get(tb)));
+            ident_t mangled = ident_new(tb_get(tb));
+            tree_set_ident2(decl, mangled);
+
+            // Save a reference to this subprogram so we can find it
+            // later if we need to lower on-demand during simplification
+            const bool may_need_to_lower =
+               kind == T_FUNC_BODY || kind == T_PROC_BODY
+               || (kind == T_FUNC_DECL && tree_subkind(decl) != S_USER);
+
+            if (may_need_to_lower)
+               hash_put(ctx->subprograms, mangled, decl);
+
+            break;
          }
       }
    }
@@ -353,8 +367,10 @@ static void elab_subprogram_prefix(tree_t arch, elab_ctx_t *ctx)
 
    assert(tree_kind(arch) == T_ARCH);
 
-   ctx->prefix[0] = tree_ident(tree_primary(arch));
-   ctx->prefix[1] = tree_ident(arch);
+   // The order is important here because the architecture name is
+   // prefixed with the entity
+   ctx->prefix[0] = tree_ident(arch);
+   ctx->prefix[1] = tree_ident(tree_primary(arch));
 }
 
 static void elab_config_instance(tree_t block, tree_t spec,
@@ -869,7 +885,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          // generics that need to be folded
          if (map != NULL) {
             hash_put(ctx->generics, cg, tree_value(map));
-            simplify_global(m, ctx->generics);
+            simplify_global(m, ctx->generics, ctx->subprograms);
          }
 
          map = m;
@@ -950,11 +966,12 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
    lib_t new_lib = lib_require(ident_until(tree_ident(arch), '.'));
 
    elab_ctx_t new_ctx = {
-      .out      = b,
-      .path     = ctx->path,
-      .inst     = ninst,
-      .dotted   = ctx->dotted,
-      .library  = new_lib,
+      .out         = b,
+      .path        = ctx->path,
+      .inst        = ninst,
+      .dotted      = ctx->dotted,
+      .library     = new_lib,
+      .subprograms = ctx->subprograms,
    };
    elab_subprogram_prefix(arch, &new_ctx);
 
@@ -971,7 +988,7 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
 
    elab_push_scope(arch_copy, &new_ctx);
    elab_generics(entity, comp, t, &new_ctx);
-   simplify_global(entity, new_ctx.generics);
+   simplify_global(entity, new_ctx.generics, new_ctx.subprograms);
    elab_ports(entity, comp, t, &new_ctx);
    elab_decls(entity, &new_ctx);
    elab_rewrite_later(entity, b, &new_ctx);
@@ -981,7 +998,7 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
    if (error_count() == 0) {
       bounds_check(b);
       set_hint_fn(elab_hint_fn, t);
-      simplify_global(arch_copy, new_ctx.generics);
+      simplify_global(arch_copy, new_ctx.generics, new_ctx.subprograms);
       bounds_check(arch_copy);
       clear_hint();
    }
@@ -1098,12 +1115,13 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       ident_t ndotted = hpathf(ctx->dotted, '\0', "(%"PRIi64")", i);
 
       elab_ctx_t new_ctx = {
-         .out      = b,
-         .path     = npath,
-         .inst     = ninst,
-         .dotted   = ndotted,
-         .library  = ctx->library,
-         .generics = hash_new(16, true),
+         .out         = b,
+         .path        = npath,
+         .inst        = ninst,
+         .dotted      = ndotted,
+         .library     = ctx->library,
+         .generics    = hash_new(16, true),
+         .subprograms = ctx->subprograms,
       };
 
       elab_push_scope(copy, &new_ctx);
@@ -1111,7 +1129,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       elab_rewrite_later(t, b, &new_ctx);
       elab_fold_generics(copy, &new_ctx);
 
-      simplify_global(copy, new_ctx.generics);
+      simplify_global(copy, new_ctx.generics, new_ctx.subprograms);
       bounds_check(copy);
 
       if (error_count() == 0) {
@@ -1135,11 +1153,12 @@ static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
       tree_add_stmt(ctx->out, b);
 
       elab_ctx_t new_ctx = {
-         .out      = b,
-         .path     = ctx->path,
-         .inst     = ctx->inst,
-         .dotted   = ctx->dotted,
-         .library  = ctx->library,
+         .out         = b,
+         .path        = ctx->path,
+         .inst        = ctx->inst,
+         .dotted      = ctx->dotted,
+         .library     = ctx->library,
+         .subprograms = ctx->subprograms,
       };
 
       elab_push_scope(t, &new_ctx);
@@ -1160,11 +1179,12 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
       ident_t ndotted = ident_prefix(ctx->dotted, tree_ident(s), '.');
 
       elab_ctx_t new_ctx = {
-         .out      = ctx->out,
-         .path     = npath,
-         .inst     = ninst,
-         .library  = ctx->library,
-         .dotted   = ndotted,
+         .out         = ctx->out,
+         .path        = npath,
+         .inst        = ninst,
+         .library     = ctx->library,
+         .dotted      = ndotted,
+         .subprograms = ctx->subprograms,
       };
 
       switch (tree_kind(s)) {
@@ -1196,11 +1216,12 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, b);
 
    elab_ctx_t new_ctx = {
-      .out      = b,
-      .path     = ctx->path,
-      .inst     = ctx->inst,
-      .library  = ctx->library,
-      .dotted   = ctx->dotted,
+      .out         = b,
+      .path        = ctx->path,
+      .inst        = ctx->inst,
+      .library     = ctx->library,
+      .dotted      = ctx->dotted,
+      .subprograms = ctx->subprograms,
    };
 
    elab_push_scope(t, &new_ctx);
@@ -1337,11 +1358,12 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, b);
 
    elab_ctx_t new_ctx = {
-      .out      = b,
-      .path     = npath,
-      .inst     = ninst,
-      .dotted   = ndotted,
-      .library  = ctx->library,
+      .out         = b,
+      .path        = npath,
+      .inst        = ninst,
+      .dotted      = ndotted,
+      .library     = ctx->library,
+      .subprograms = ctx->subprograms
    };
    elab_subprogram_prefix(arch, &new_ctx);
 
@@ -1356,7 +1378,7 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    elab_top_level_ports(entity, &new_ctx);
    elab_decls(entity, &new_ctx);
 
-   simplify_global(arch_copy, new_ctx.generics);
+   simplify_global(arch_copy, new_ctx.generics, new_ctx.subprograms);
    bounds_check(arch);
 
    if (error_count() == 0)
@@ -1397,8 +1419,10 @@ tree_t elab(tree_t top)
       .out      = e,
       .path     = NULL,
       .inst     = NULL,
-      .library  = lib_work()
+      .library  = lib_work(),
    };
+
+   ctx.subprograms = hash_new(256, true);
 
    switch (tree_kind(top)) {
    case T_ENTITY:
@@ -1420,6 +1444,8 @@ tree_t elab(tree_t top)
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
+
+   hash_free(ctx.subprograms);
 
    if (error_count() > 0)
       return NULL;

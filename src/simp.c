@@ -237,6 +237,7 @@ static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
 static vcode_unit_t simp_lower_cb(ident_t func, void *__ctx)
 {
    simp_ctx_t *ctx = __ctx;
+   assert(ctx->subprograms != NULL);
 
    tree_t decl = hash_get(ctx->subprograms, func);
    if (decl == NULL)
@@ -1506,18 +1507,7 @@ static tree_t simp_subprogram_decl(tree_t decl, simp_ctx_t *ctx)
    if ((flags & TREE_F_PREDEFINED) && (flags & TREE_F_HIDDEN))
       return NULL;
 
-   if (ctx->subprograms != NULL && tree_subkind(decl) != S_USER)
-      hash_put(ctx->subprograms, tree_ident2(decl), decl);
-
    return decl;
-}
-
-static tree_t simp_subprogram_body(tree_t body, simp_ctx_t *ctx)
-{
-   if (ctx->subprograms != NULL)
-      hash_put(ctx->subprograms, tree_ident2(body), body);
-
-   return body;
 }
 
 static tree_t simp_generic_map(tree_t t, tree_t unit)
@@ -1726,9 +1716,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_FUNC_DECL:
    case T_PROC_DECL:
       return simp_subprogram_decl(t, ctx);
-   case T_FUNC_BODY:
-   case T_PROC_BODY:
-      return simp_subprogram_body(t, ctx);
    case T_INSTANCE:
    case T_BINDING:
       return simp_generic_map(t, tree_ref(t));
@@ -1823,7 +1810,7 @@ void simplify_local(tree_t top)
    }
 }
 
-void simplify_global(tree_t top, hash_t *generics)
+void simplify_global(tree_t top, hash_t *generics, hash_t *subprograms)
 {
    simp_ctx_t ctx = {
       .imp_signals = NULL,
@@ -1831,7 +1818,7 @@ void simplify_global(tree_t top, hash_t *generics)
       .exec        = exec_new(EVAL_FCALL),
       .eval_mask   = TREE_F_GLOBALLY_STATIC | TREE_F_LOCALLY_STATIC,
       .generics    = generics,
-      .subprograms = hash_new(256, true)
+      .subprograms = subprograms,
    };
 
    exec_set_lower_fn(ctx.exec, simp_lower_cb, &ctx);
@@ -1842,8 +1829,6 @@ void simplify_global(tree_t top, hash_t *generics)
 
    if (generics == NULL && ctx.generics != NULL)
       hash_free(ctx.generics);
-
-   hash_free(ctx.subprograms);
 
    assert(ctx.imp_signals == NULL);
 }

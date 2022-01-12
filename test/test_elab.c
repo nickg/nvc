@@ -863,6 +863,29 @@ START_TEST(test_tc846)
 }
 END_TEST
 
+START_TEST(test_issue435)
+{
+   input_from_file(TESTDIR "/elab/issue435.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b0 = tree_stmt(e, 0);
+   fail_unless(tree_ident(b0) == ident_new("ISSUE435"));
+   fail_unless(tree_stmts(b0) == 1);
+
+   tree_t q = tree_stmt(b0, 0);
+   fail_unless(tree_ident(q) == ident_new("Q"));
+   fail_unless(tree_stmts(q) == 1);
+
+   tree_t ifgen = tree_stmt(q, 0);
+   fail_unless(tree_ident(ifgen) == ident_new("QUEUE_SIZE_VALID"));
+   fail_unless(tree_stmts(ifgen) == 0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -917,6 +940,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_tc3138);
    tcase_add_test(tc, test_tc2881);
    tcase_add_test(tc, test_tc846);
+   tcase_add_test(tc, test_issue435);
    suite_add_tcase(s, tc);
 
    return s;
