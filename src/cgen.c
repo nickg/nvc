@@ -2693,64 +2693,6 @@ static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
 {
-   LLVMTypeRef int32 = llvm_int32_type();
-
-   LLVMValueRef min, max;
-   if (vcode_count_args(op) == 2) {
-      vcode_type_t bounds = vcode_get_type(op);
-      min = llvm_int32(vtype_low(bounds));
-      max = llvm_int32(vtype_high(bounds));
-   }
-   else {
-      min = LLVMBuildZExt(builder, cgen_get_arg(op, 2, ctx), int32, "");
-      max = LLVMBuildZExt(builder, cgen_get_arg(op, 3, ctx), int32, "");
-   }
-
-   LLVMValueRef low  = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef high = cgen_get_arg(op, 1, ctx);
-
-   LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntSLT, high, low, "null");
-
-   for (int i = 0; i < 2; i++) {
-      LLVMValueRef value =
-         LLVMBuildZExt(builder, cgen_get_arg(op, i, ctx), int32, "");
-
-      LLVMValueRef above =
-         LLVMBuildICmp(builder, LLVMIntSGE, value, min, "above");
-      LLVMValueRef below =
-         LLVMBuildICmp(builder, LLVMIntSLE, value, max, "below");
-
-      LLVMValueRef in =
-         LLVMBuildOr(builder, LLVMBuildAnd(builder, above, below, ""),
-                     null, "in");
-
-      LLVMBasicBlockRef pass_bb  = llvm_append_block(ctx->fn, "bounds_pass");
-      LLVMBasicBlockRef fail_bb  = llvm_append_block(ctx->fn, "bounds_fail");
-
-      LLVMBuildCondBr(builder, in, pass_bb, fail_bb);
-
-      LLVMPositionBuilderAtEnd(builder, fail_bb);
-
-      LLVMValueRef args[] = {
-         value,
-         min,
-         max,
-         llvm_int32(vcode_get_subkind(op)),
-         cgen_location(op, ctx),
-         LLVMConstNull(llvm_char_ptr())
-      };
-
-      LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args,
-                    ARRAY_LEN(args), "");
-
-      LLVMBuildUnreachable(builder);
-
-      LLVMPositionBuilderAtEnd(builder, pass_bb);
-   }
-}
-
-static void cgen_op_index_check2(int op, cgen_ctx_t *ctx)
-{
    LLVMValueRef value = llvm_ensure_int_bits(cgen_get_arg(op, 0, ctx), 32);
    LLVMValueRef left  = llvm_ensure_int_bits(cgen_get_arg(op, 1, ctx), 32);
    LLVMValueRef right = llvm_ensure_int_bits(cgen_get_arg(op, 2, ctx), 32);
@@ -3292,9 +3234,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_INDEX_CHECK:
       cgen_op_index_check(i, ctx);
-      break;
-   case VCODE_OP_INDEX_CHECK2:
-      cgen_op_index_check2(i, ctx);
       break;
    case VCODE_OP_DEBUG_LOCUS:
       cgen_op_debug_locus(i, ctx);

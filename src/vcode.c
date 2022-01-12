@@ -34,15 +34,14 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 
 #define OP_HAS_TYPE(x)                                                  \
    (x == VCODE_OP_BOUNDS || x == VCODE_OP_ALLOCA  || x == VCODE_OP_COPY \
-    || x == VCODE_OP_INDEX_CHECK || x == VCODE_OP_CONST                 \
-    || x == VCODE_OP_CAST || x == VCODE_OP_CONST_RECORD                 \
-    || x == VCODE_OP_CLOSURE)
+    || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
+    || x == VCODE_OP_CONST_RECORD || x == VCODE_OP_CLOSURE)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
 #define OP_HAS_SUBKIND(x)                                               \
-   (x == VCODE_OP_BOUNDS || x == VCODE_OP_INDEX_CHECK                   \
-    || x == VCODE_OP_ALLOCA || x == VCODE_OP_COVER_COND                 \
+   (x == VCODE_OP_BOUNDS || x == VCODE_OP_ALLOCA                        \
+    || x == VCODE_OP_COVER_COND                                         \
     || x == VCODE_OP_ARRAY_SIZE || x == VCODE_OP_PCALL                  \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT)
@@ -204,7 +203,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      10
+#define VCODE_VERSION      11
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -902,14 +901,14 @@ const char *vcode_op_string(vcode_op_t op)
       "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
       "const real", "last event", "dynamic bounds", "array size",
-      "index check", "debug out", "cover stmt", "cover cond",
+      "debug out", "cover stmt", "cover cond",
       "uarray len", "temp stack mark", "temp stack restore",
       "undefined", "range null", "var upref", "link signal",
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
-      "implicit signal", "disconnect", "link package", "index check (2)",
+      "implicit signal", "disconnect", "link package", "index check",
       "debug locus",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
@@ -1930,7 +1929,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_INDEX_CHECK2:
+         case VCODE_OP_INDEX_CHECK:
             {
                col += printf("%s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
@@ -1942,24 +1941,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->args.items[3]);
                col += printf(" locus ");
                col += vcode_dump_reg(op->args.items[4]);
-            }
-            break;
-
-         case VCODE_OP_INDEX_CHECK:
-            {
-               printf("%s low ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
-               printf(" high ");
-               vcode_dump_reg(op->args.items[1]);
-               printf(" in ");
-               if (op->args.count == 2)
-                  vcode_dump_one_type(op->type);
-               else {
-                  vcode_dump_reg(op->args.items[2]);
-                  printf(" .. ");
-                  vcode_dump_reg(op->args.items[3]);
-               }
-               printf(" subkind %d", op->subkind);
             }
             break;
 
@@ -4788,62 +4769,8 @@ void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, bounds_kind_t kind,
    op->hint    = hint ? xstrdup(hint) : NULL;
 }
 
-static op_t *emit_index_check_null(vcode_reg_t rlow, vcode_reg_t rhigh,
-                                   bounds_kind_t kind)
-{
-   int64_t rlow_const, rhigh_const;
-   const bool null =
-      vcode_reg_const(rlow, &rlow_const)
-       && vcode_reg_const(rhigh, &rhigh_const)
-      && rhigh_const < rlow_const;
-
-   if (null) {
-      emit_comment("Index check on null range for r%d and r%d", rlow, rhigh);
-      return NULL;
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_INDEX_CHECK);
-   vcode_add_arg(op, rlow);
-   vcode_add_arg(op, rhigh);
-   op->subkind  = kind;
-   op->type     = VCODE_INVALID_TYPE;
-
-   return op;
-}
-
-void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
-                      bounds_kind_t kind)
-{
-   if (vtype_includes(bounds, vcode_reg_data(rlow)->bounds)
-       && vtype_includes(bounds, vcode_reg_data(rhigh)->bounds)) {
-      emit_comment("Elided index check for r%d and r%d", rlow, rhigh);
-      return;
-   }
-
-   op_t *op = emit_index_check_null(rlow, rhigh, kind);
-   if (op != NULL)
-      op->type = bounds;
-
-   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),
-                "index check needs debug info");
-}
-
-void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
-                              vcode_reg_t blow, vcode_reg_t bhigh,
-                              bounds_kind_t kind)
-{
-   op_t *op = emit_index_check_null(rlow, rhigh, kind);
-   if (op != NULL) {
-      vcode_add_arg(op, blow);
-      vcode_add_arg(op, bhigh);
-   }
-
-   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),
-                "dynamic index check needs debug info");
-}
-
-void emit_index_check2(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
-                       vcode_reg_t dir, vcode_reg_t locus)
+void emit_index_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
+                      vcode_reg_t dir, vcode_reg_t locus)
 {
    if (reg == left || reg == right) {
       emit_comment("Elided trivial index check for r%d", reg);
@@ -4877,7 +4804,7 @@ void emit_index_check2(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
       }
    }
 
-   op_t *op = vcode_add_op(VCODE_OP_INDEX_CHECK2);
+   op_t *op = vcode_add_op(VCODE_OP_INDEX_CHECK);
    vcode_add_arg(op, reg);
    vcode_add_arg(op, left);
    vcode_add_arg(op, right);

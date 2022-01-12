@@ -104,7 +104,6 @@ typedef enum {
    VCODE_OP_LAST_EVENT,
    VCODE_OP_DYNAMIC_BOUNDS,
    VCODE_OP_ARRAY_SIZE,
-   VCODE_OP_INDEX_CHECK,
    VCODE_OP_DEBUG_OUT,
    VCODE_OP_COVER_STMT,
    VCODE_OP_COVER_COND,
@@ -135,7 +134,7 @@ typedef enum {
    VCODE_OP_IMPLICIT_SIGNAL,
    VCODE_OP_DISCONNECT,
    VCODE_OP_LINK_PACKAGE,
-   VCODE_OP_INDEX_CHECK2,
+   VCODE_OP_INDEX_CHECK,
    VCODE_OP_DEBUG_LOCUS,
 } vcode_op_t;
 
@@ -368,13 +367,8 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
                  const char *hint);
 void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
                          vcode_reg_t kind, const char *hint);
-void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
-                      bounds_kind_t kind);
-void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
-                              vcode_reg_t blow, vcode_reg_t bhigh,
-                              bounds_kind_t kind);
-void emit_index_check2(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
-                       vcode_reg_t dir, vcode_reg_t locus);
+void emit_index_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
+                      vcode_reg_t dir, vcode_reg_t locus);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t bounds, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);

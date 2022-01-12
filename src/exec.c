@@ -1523,7 +1523,7 @@ static void eval_op_alloca(int op, eval_state_t *state)
    eval_make_pointer_to(result, new);
 }
 
-static void eval_op_index_check2(int op, eval_state_t *state)
+static void eval_op_index_check(int op, eval_state_t *state)
 {
    value_t *value = eval_get_reg(vcode_get_arg(op, 0), state);
    value_t *left  = eval_get_reg(vcode_get_arg(op, 1), state);
@@ -1562,30 +1562,6 @@ static void eval_op_index_check2(int op, eval_state_t *state)
    }
 
    state->failed = true;
-}
-
-static void eval_op_index_check(int op, eval_state_t *state)
-{
-   value_t *low = eval_get_reg(vcode_get_arg(op, 0), state);
-   value_t *high = eval_get_reg(vcode_get_arg(op, 1), state);
-
-   int64_t min, max;
-   if (vcode_count_args(op) == 2) {
-      vcode_type_t bounds = vcode_get_type(op);
-      min = vtype_low(bounds);
-      max = vtype_high(bounds);
-   }
-   else {
-      min = eval_get_reg(vcode_get_arg(op, 2), state)->integer;
-      max = eval_get_reg(vcode_get_arg(op, 3), state)->integer;
-   }
-
-   if (high->integer < low->integer)
-      return;
-   else if (low->integer < min)
-      state->failed = true;    // TODO: report error here if EVAL_BOUNDS
-   else if (high->integer > max)
-      state->failed = true;
 }
 
 static void eval_op_uarray_left(int op, eval_state_t *state)
@@ -2059,10 +2035,6 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_INDEX_CHECK:
          eval_op_index_check(state->op, state);
-         break;
-
-      case VCODE_OP_INDEX_CHECK2:
-         eval_op_index_check2(state->op, state);
          break;
 
       case VCODE_OP_ABS:

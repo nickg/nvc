@@ -287,7 +287,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_ALLOCA:
-      case VCODE_OP_INDEX_CHECK:
          if (vcode_get_subkind(i) != e->subkind) {
             vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have subkind %x but "
@@ -299,7 +298,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_SCHED_STATIC:
       case VCODE_OP_FILE_OPEN:
       case VCODE_OP_FILE_CLOSE:
-      case VCODE_OP_INDEX_CHECK2:
+      case VCODE_OP_INDEX_CHECK:
       case VCODE_OP_DEBUG_LOCUS:
          break;
 
@@ -1823,7 +1822,7 @@ START_TEST(test_bounds1)
       { VCODE_OP_ASSERT },
       { VCODE_OP_ADD },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_INDEX_CHECK2 },
+      { VCODE_OP_INDEX_CHECK },
       { VCODE_OP_CAST },
       { VCODE_OP_ADD },
       { VCODE_OP_LOAD_INDIRECT },
@@ -3083,7 +3082,7 @@ START_TEST(test_tounsigned)
 
    EXPECT_BB(1) = {
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_INDEX_CHECK2 },
+      { VCODE_OP_INDEX_CHECK },
       { VCODE_OP_JUMP, .target = 2 }
    };
 
@@ -3134,7 +3133,7 @@ START_TEST(test_tounsigned)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_INDEX_CHECK2 },
+      { VCODE_OP_INDEX_CHECK },
       { VCODE_OP_SUB },
       { VCODE_OP_SUB },
       { VCODE_OP_UARRAY_DIR },
@@ -3156,7 +3155,7 @@ START_TEST(test_tounsigned)
       { VCODE_OP_SUB },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_INDEX_CHECK2 },
+      { VCODE_OP_INDEX_CHECK },
       { VCODE_OP_SUB },
       { VCODE_OP_SUB },
       { VCODE_OP_UARRAY_DIR },
@@ -3377,7 +3376,7 @@ START_TEST(test_synopsys1)
 
    EXPECT_BB(1) = {
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_INDEX_CHECK2 },
+      { VCODE_OP_INDEX_CHECK },
       { VCODE_OP_JUMP, .target = 2 },
    };
 
@@ -3700,7 +3699,7 @@ START_TEST(test_conv1)
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_INDEX_CHECK2 },
+      { VCODE_OP_INDEX_CHECK },
       { VCODE_OP_CAST },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_ADD },
