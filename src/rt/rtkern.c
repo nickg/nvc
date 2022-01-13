@@ -889,9 +889,16 @@ void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
 
    RT_ASSERT(severity <= SEVERITY_FAILURE);
 
-   const char *levels[] = {
+   static const char *levels[] = {
       "Note", "Warning", "Error", "Failure"
    };
+
+   static const uint8_t def_str[] = "Assertion violation.";
+
+   if (msg == NULL) {
+      msg = def_str;
+      msg_len = sizeof(def_str) - 1;
+   }
 
    if (init_side_effect != SIDE_EFFECT_ALLOW) {
       init_side_effect = SIDE_EFFECT_OCCURRED;

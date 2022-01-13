@@ -1151,24 +1151,8 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef message, length;
    if (mreg == VCODE_INVALID_REG) {
-      const char def_str[] = "Assertion violation.";
-      const size_t def_len = sizeof(def_str) - 1;
-
-      LLVMValueRef global = LLVMGetNamedGlobal(module, "default_message");
-      if (global == NULL) {
-         LLVMValueRef init =
-            LLVMConstStringInContext(llvm_context(), def_str, def_len, true);
-
-         global = LLVMAddGlobal(module, LLVMTypeOf(init), "default_message");
-         LLVMSetInitializer(global, init);
-         LLVMSetLinkage(global, LLVMPrivateLinkage);
-         LLVMSetGlobalConstant(global, true);
-         LLVMSetUnnamedAddr(global, true);
-      }
-
-      length = llvm_int32(def_len);
-
-      message = cgen_array_pointer(global);
+      message = LLVMConstNull(LLVMPointerType(llvm_int8_type(), 0));
+      length  = llvm_int32(0);
    }
    else {
       message = cgen_get_arg(op, 2, ctx);
