@@ -150,10 +150,12 @@ static LLVMValueRef llvm_int1(bool b)
    return LLVMConstInt(llvm_int1_type(), b, false);
 }
 
+#if 0
 static LLVMValueRef llvm_int8(int8_t i)
 {
    return LLVMConstInt(llvm_int8_type(), i, false);
 }
+#endif
 
 static LLVMValueRef llvm_int32(int32_t i)
 {
@@ -1125,14 +1127,8 @@ static void cgen_op_report(int op, cgen_ctx_t *ctx)
    LLVMValueRef length   = cgen_get_arg(op, 2, ctx);
    LLVMValueRef locus    = cgen_get_arg(op, 3, ctx);
 
-   LLVMValueRef args[] = {
-      message,
-      length,
-      severity,
-      llvm_int8(1),
-      locus,
-   };
-   LLVMBuildCall(builder, llvm_fn("__nvc_assert_fail"), args,
+   LLVMValueRef args[] = { message, length, severity, locus };
+   LLVMBuildCall(builder, llvm_fn("__nvc_report"), args,
                  ARRAY_LEN(args), "");
 }
 
@@ -1166,7 +1162,6 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
       message,
       length,
       severity,
-      llvm_int8(0),
       locus
    };
    LLVMBuildCall(builder, llvm_fn("__nvc_assert_fail"), args,
@@ -3833,7 +3828,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(llvm_int8_type(), 0),
          llvm_int32_type(),
          llvm_int8_type(),
-         llvm_int8_type(),
          llvm_debug_locus_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_assert_fail",
@@ -3841,6 +3835,19 @@ static LLVMValueRef cgen_support_fn(const char *name)
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
+   }
+
+   else if (strcmp(name, "__nvc_report") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_int8_type(), 0),
+         llvm_int32_type(),
+         llvm_int8_type(),
+         llvm_debug_locus_type(),
+      };
+      fn = LLVMAddFunction(module, "__nvc_report",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
    }
    else if (strcmp(name, "_debug_out") == 0) {
       LLVMTypeRef args[] = {

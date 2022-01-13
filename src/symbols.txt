@@ -10,6 +10,7 @@
   __nvc_length_fail;
   __nvc_null_deref;
   __nvc_range_fail;
+  __nvc_report;
   _assert_fail;
   _canon_value;
   _convert_signal;

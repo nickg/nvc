@@ -878,7 +878,7 @@ void _convert_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
 
 DLLEXPORT
 void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
-                       int8_t is_report, DEBUG_LOCUS(locus))
+                       DEBUG_LOCUS(locus))
 {
    // LRM 93 section 8.2
    // The error message consists of at least
@@ -922,9 +922,44 @@ void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
 
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
-   rt_msg(tree_loc(where), fn, "%s: %s %s: %.*s",
-          tmbuf, (is_report ? "Report" : "Assertion"),
-          levels[severity], msg_len, msg);
+   rt_msg(tree_loc(where), fn, "%s: Assertion %s: %.*s",
+          tmbuf, levels[severity], msg_len, msg);
+}
+
+DLLEXPORT
+void __nvc_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
+                  DEBUG_LOCUS(locus))
+{
+   RT_ASSERT(severity <= SEVERITY_FAILURE);
+
+   static const char *levels[] = {
+      "Note", "Warning", "Error", "Failure"
+   };
+
+   if (init_side_effect != SIDE_EFFECT_ALLOW) {
+      init_side_effect = SIDE_EFFECT_OCCURRED;
+      return;
+   }
+
+   void (*fn)(const char *fmt, ...) = fatal;
+
+   switch (severity) {
+   case SEVERITY_NOTE:    fn = notef; break;
+   case SEVERITY_WARNING: fn = warnf; break;
+   case SEVERITY_ERROR:
+   case SEVERITY_FAILURE: fn = errorf; break;
+   }
+
+   if (severity >= exit_severity)
+      fn = fatal;
+
+   char tmbuf[64];
+   rt_fmt_now(tmbuf, sizeof(tmbuf));
+
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   rt_msg(tree_loc(where), fn, "%s: Report %s: %.*s",
+          tmbuf, levels[severity], msg_len, msg);
 }
 
 DLLEXPORT
