@@ -1050,6 +1050,37 @@ START_TEST(test_genmap)
 }
 END_TEST
 
+START_TEST(test_issue436)
+{
+   input_from_file(TESTDIR "/simp/issue436.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   tree_t b0 = tree_stmt(top, 0);
+
+   tree_t vec_range = search_decls(b0, ident_new("VEC_RANGE"), 0);
+   fail_if(vec_range == NULL);
+   fail_unless(tree_kind(vec_range) == T_CONST_DECL);
+   fail_unless(tree_kind(tree_value(vec_range)) == T_FCALL);
+
+   tree_t data = search_decls(b0, ident_new("DATA"), 0);
+   fail_if(data == NULL);
+   fail_unless(tree_kind(data) == T_SIGNAL_DECL);
+   fail_unless(folded_i(tree_left(range_of(tree_type(data), 0)), 31));
+
+   tree_t c2 = search_decls(b0, ident_new("C2"), 0);
+   fail_if(c2 == NULL);
+   fail_unless(tree_kind(c2) == T_CONST_DECL);
+   fail_unless(tree_kind(tree_value(c2)) == T_FCALL);
+
+   tree_t data2 = search_decls(b0, ident_new("DATA2"), 0);
+   fail_if(data2 == NULL);
+   fail_unless(tree_kind(data2) == T_SIGNAL_DECL);
+   fail_unless(folded_i(tree_left(range_of(tree_type(data2), 0)), 2));
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1088,6 +1119,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_recrange);
    tcase_add_test(tc_core, test_order1);
    tcase_add_test(tc_core, test_genmap);
+   tcase_add_test(tc_core, test_issue436);
    suite_add_tcase(s, tc_core);
 
    return s;

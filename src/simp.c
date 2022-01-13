@@ -198,6 +198,17 @@ static bool fold_possible(tree_t t, eval_flags_t flags)
    case T_RECORD_REF:
       return fold_possible(tree_value(t), flags);
 
+   case T_ARRAY_REF:
+      {
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            if (!fold_possible(tree_value(tree_param(t, i)), flags))
+               return false;
+         }
+
+         return fold_possible(tree_value(t), flags);
+      }
+
    case T_AGGREGATE:
       {
          const int nassocs = tree_assocs(t);
@@ -210,7 +221,7 @@ static bool fold_possible(tree_t t, eval_flags_t flags)
       }
 
    default:
-      return fold_not_possible(t, flags, "aggregate");
+      return fold_not_possible(t, flags, tree_kind_str(tree_kind(t)));
    }
 }
 
@@ -266,52 +277,34 @@ static tree_t simp_pcall(tree_t t)
    return simp_call_args(t);
 }
 
-static tree_t simp_record_ref(tree_t t)
+static tree_t simp_record_ref(tree_t t, simp_ctx_t *ctx)
 {
-   tree_t value = tree_value(t), agg = NULL;
-   switch (tree_kind(value)) {
-   case T_AGGREGATE:
-      agg = value;
-      break;
+   tree_t value = tree_value(t);
+   if (tree_kind(value) == T_AGGREGATE) {
+      ident_t field = tree_ident(t);
+      type_t type = tree_type(value);
 
-   case T_REF:
-      {
-         tree_t decl = tree_ref(value);
-         if (tree_kind(decl) != T_CONST_DECL)
-            return t;
-         else if (!tree_has_value(decl))
-            return t;
+      const int nassocs = tree_assocs(value);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(value, i);
+         switch (tree_subkind(a)) {
+         case A_POS:
+            if (tree_ident(type_field(type, tree_pos(a))) == field)
+               return tree_value(a);
+            break;
 
-         agg = tree_value(decl);
-         if (tree_kind(agg) != T_AGGREGATE)
-            return t;
+         case A_NAMED:
+            if (tree_ident(tree_name(a)) == field)
+               return tree_value(a);
+            break;
+         }
       }
-      break;
-
-   case T_OPEN:
-      return value;
-
-   default:
-      return t;
    }
 
-   ident_t field = tree_ident(t);
-   type_t type = tree_type(agg);
-
-   const int nassocs = tree_assocs(agg);
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(agg, i);
-      switch (tree_subkind(a)) {
-      case A_POS:
-         if (tree_ident(type_field(type, tree_pos(a))) == field)
-            return tree_value(a);
-         break;
-
-      case A_NAMED:
-         if (tree_ident(tree_name(a)) == field)
-            return tree_value(a);
-         break;
-      }
+   if (ctx->eval_mask & TREE_F_GLOBALLY_STATIC) {
+      tree_t ref = name_to_ref(value);
+      if (ref != NULL && tree_kind(tree_ref(ref)) == T_CONST_DECL)
+         return simp_fold(t, ctx);
    }
 
    return t;
@@ -672,7 +665,7 @@ static tree_t simp_array_slice(tree_t t)
    return t;
 }
 
-static tree_t simp_array_ref(tree_t t)
+static tree_t simp_array_ref(tree_t t, simp_ctx_t *ctx)
 {
    tree_t value = tree_value(t);
 
@@ -681,50 +674,48 @@ static tree_t simp_array_ref(tree_t t)
 
    const int nparams = tree_params(t);
 
-   int64_t indexes[nparams];
+   int64_t index0;
    bool can_fold = true;
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
       assert(tree_subkind(p) == P_POS);
-      can_fold = can_fold && folded_int(tree_value(p), &indexes[i]);
+      can_fold = can_fold && folded_int(tree_value(p), &index0);
    }
 
    if (!can_fold)
       return t;
 
-   if (!tree_has_type(value))
-      return t;
+   switch (tree_kind(value)) {
+   case T_AGGREGATE:
+      if (nparams == 1)
+         return simp_extract_aggregate(value, index0, t);
+      break;
 
-   const tree_kind_t value_kind = tree_kind(value);
-   if (value_kind == T_AGGREGATE)
-      return simp_extract_aggregate(value, indexes[0], t);
-   else if (value_kind == T_LITERAL)
-      return simp_extract_string_literal(value, indexes[0], t);
-   else if (value_kind != T_REF)
-      return t;   // Cannot fold nested array references
+   case T_LITERAL:
+      return simp_extract_string_literal(value, index0, t);
 
-   tree_t decl = tree_ref(value);
-
-   if (nparams > 1)
-      return t;  // Cannot constant fold multi-dimensional arrays
-
-   assert(nparams == 1);
-
-   switch (tree_kind(decl)) {
-   case T_CONST_DECL:
-      {
-         if (!tree_has_value(decl))
-            return t;
-
-         tree_t v = tree_value(decl);
-         if (tree_kind(v) != T_AGGREGATE)
-            return t;
-
-         return simp_extract_aggregate(v, indexes[0], t);
+   case T_REF:
+      if (nparams == 1) {
+         tree_t decl = tree_ref(value);
+         if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl)) {
+            tree_t cval = tree_value(decl);
+            if (tree_kind(cval) == T_AGGREGATE)
+               return simp_extract_aggregate(cval, index0, t);
+         }
       }
+      break;
+
    default:
-      return t;
+      break;
    }
+
+   if (ctx->eval_mask & TREE_F_GLOBALLY_STATIC) {
+      tree_t ref = name_to_ref(value);
+      if (ref != NULL && tree_kind(tree_ref(ref)) == T_CONST_DECL)
+         return simp_fold(t, ctx);
+   }
+
+   return t;
 }
 
 static tree_t simp_process(tree_t t)
@@ -1662,7 +1653,7 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_PROCESS:
       return simp_process(t);
    case T_ARRAY_REF:
-      return simp_array_ref(t);
+      return simp_array_ref(t, ctx);
    case T_ARRAY_SLICE:
       return simp_array_slice(t);
    case T_ATTR_REF:
@@ -1694,7 +1685,7 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_CASSERT:
       return simp_cassert(t);
    case T_RECORD_REF:
-      return simp_record_ref(t);
+      return simp_record_ref(t, ctx);
    case T_CTXREF:
       return simp_context_ref(t, ctx);
    case T_USE:

@@ -1007,7 +1007,7 @@ static void eval_op_fcall(int op, eval_state_t *state)
       if (state->flags & EVAL_VERBOSE) {
          LOCAL_TEXT_BUF tb = tb_new();
          tb_printf(tb, "%s", istr(vcode_get_func(op)));
-         if (state->hint)
+         if (state->hint && tree_kind(state->hint) == T_FCALL)
             tb_printf(tb, " (in %s)", istr(tree_ident(state->hint)));
          tb_printf(tb, " returned ");
          eval_dump(tb, new.regs[new.result]);

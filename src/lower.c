@@ -1071,15 +1071,16 @@ static vcode_var_t lower_temp_var(const char *prefix, vcode_type_t vtype,
                                   vcode_type_t vbounds)
 {
    vcode_var_t tmp = VCODE_INVALID_VAR;
+   const unsigned count = top_scope ? top_scope->free_temps.count : 0;
    unsigned pos = 0;
-   for (; pos < top_scope->free_temps.count; pos++) {
+   for (; pos < count; pos++) {
       tmp = top_scope->free_temps.items[pos];
       if (vtype_eq(vcode_var_type(tmp), vtype)
           && vtype_eq(vcode_var_bounds(tmp), vbounds))
          break;
    }
 
-   if (pos == top_scope->free_temps.count)
+   if (pos == count)
       return emit_var(vtype, vbounds, ident_uniq(prefix), VAR_TEMP);
 
    emit_comment("Reusing temp var %s", istr(vcode_var_name(tmp)));
@@ -7582,7 +7583,7 @@ vcode_unit_t lower_thunk(tree_t t)
 
       vcode_reg_t result_reg = lower_expr(t, EXPR_RVALUE);
       if (type_is_scalar(tree_type(t)))
-         emit_return(emit_cast(vtype, vtype, result_reg));
+         emit_return(emit_cast(vtype, vtype, lower_reify(result_reg)));
       else
          emit_return(result_reg);
    }
