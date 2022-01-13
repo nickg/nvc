@@ -4713,6 +4713,13 @@ static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
       return;
    }
 
+   VCODE_FOR_EACH_MATCHING_OP(other, kind) {
+      if (other->args.items[0] == reg && other->args.items[1] == left
+          && other->args.items[2] == right && other->args.items[3] == dir
+          && other->args.items[4] == locus && other->args.items[5] == hint)
+         return;
+   }
+
    int64_t dconst;
    if (vcode_reg_const(dir, &dconst)) {
       int64_t lconst, rconst;
