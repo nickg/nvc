@@ -67,6 +67,9 @@
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
+#define FLOAT_BITS(f) \
+   (((union { double __d; int64_t __i; }){.__d = (f)}).__i)
+
 #ifdef NDEBUG
 #define DEBUG_ONLY(x)
 #else
