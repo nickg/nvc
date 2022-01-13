@@ -6,8 +6,8 @@
   __nvc_flush;
   __nvc_index_fail;
   __nvc_length_fail;
+  __nvc_range_fail;
   _assert_fail;
-  _bounds_fail;
   _canon_value;
   _convert_signal;
   _debug_dump;

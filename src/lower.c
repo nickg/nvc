@@ -30,6 +30,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <ctype.h>
+#include <float.h>
 
 typedef enum {
    EXPR_LVALUE,
@@ -548,7 +549,7 @@ static vcode_type_t lower_type(type_t type)
       }
 
    case T_REAL:
-      return vtype_real();
+      return vtype_real(-DBL_MAX, DBL_MAX);
 
    case T_INCOMPLETE:
       return vtype_opaque();
@@ -636,82 +637,22 @@ static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
    return lower_wrap_with_new_bounds(type, data, data);
 }
 
-static bounds_kind_t lower_type_bounds_kind(type_t type)
-{
-   if (type_is_enum(type))
-      return BOUNDS_ENUM;
-   else
-      return direction_of(type, 0) == RANGE_TO
-         ? BOUNDS_TYPE_TO : BOUNDS_TYPE_DOWNTO;
-}
-
-static bool lower_scalar_has_static_bounds(type_t type, vcode_reg_t *low_reg,
-                                           vcode_reg_t *high_reg)
-{
-   if (type_is_real(type))
-      return true;  // TODO
-
-   switch (type_kind(type)) {
-   case T_INTEGER:
-   case T_SUBTYPE:
-      {
-         tree_t r = range_of(type, 0);
-         int64_t low, high;
-         if (!folded_bounds(r, &low, &high)) {
-            vcode_reg_t dir_reg   = lower_range_dir(r);
-            vcode_reg_t left_reg  = lower_range_left(r);
-            vcode_reg_t right_reg = lower_range_right(r);
-
-            *low_reg  = emit_select(dir_reg, right_reg, left_reg);
-            *high_reg = emit_select(dir_reg, left_reg, right_reg);
-            return false;
-         }
-      }
-      break;
-
-   case T_ENUM:
-   case T_PHYSICAL:
-      break;
-
-   default:
-      fatal_trace("invalid type kind %s in lower_scalar_has_static_bounds",
-                  type_kind_str(type_kind(type)));
-   }
-
-   *low_reg = *high_reg = VCODE_INVALID_TYPE;
-   return true;
-}
-
-static char *lower_get_hint_string(tree_t where, const char *prefix)
-{
-   switch (tree_kind(where)) {
-   case T_PORT_DECL:
-      return xasprintf("%s|for parameter %s",
-                       prefix ?: "", istr(tree_ident(where)));
-   case T_VAR_DECL:
-      return xasprintf("%s|for variable %s",
-                       prefix ?: "", istr(tree_ident(where)));
-   default:
-      return prefix ? xstrdup(prefix) : NULL;
-   }
-}
-
 static void lower_check_scalar_bounds(vcode_reg_t value, type_t type,
                                       tree_t where, tree_t hint)
 {
-   PUSH_DEBUG_INFO(tree_kind(where) == T_PORT_DECL ? hint : where);
+   tree_t r = range_of(type, 0);
 
-   const bounds_kind_t kind = lower_type_bounds_kind(type);
-   const char *prefix = kind == BOUNDS_ENUM ? type_pp(type) : NULL;
-   char *hint_str LOCAL = lower_get_hint_string(where, prefix);
+   vcode_reg_t left_reg  = lower_range_left(r);
+   vcode_reg_t right_reg = lower_range_right(r);
+   vcode_reg_t dir_reg   = lower_range_dir(r);
 
-   vcode_reg_t low_reg, high_reg;
-   if (lower_scalar_has_static_bounds(type, &low_reg, &high_reg))
-      emit_bounds(value, lower_bounds(type), kind, hint_str);
-   else {
-      vcode_reg_t kind_reg = emit_const(vtype_offset(), kind);
-      emit_dynamic_bounds(value, low_reg, high_reg, kind_reg, hint_str);
-   }
+   vcode_reg_t locus = lower_debug_locus(where);
+
+   vcode_reg_t hint_locus = locus;
+   if (hint != NULL && hint != where)
+      hint_locus = lower_debug_locus(hint);
+
+   emit_range_check(value, left_reg, right_reg, dir_reg, locus, hint_locus);
 }
 
 static bool lower_have_signal(vcode_reg_t reg)
@@ -783,7 +724,7 @@ static vcode_reg_t lower_param(tree_t value, tree_t port, port_mode_t mode)
    else {
       vcode_reg_t final = must_reify ? lower_reify(reg) : reg;
       if (mode != PORT_OUT && port != NULL && type_is_scalar(port_type))
-         lower_check_scalar_bounds(lower_reify(final), port_type, port, value);
+         lower_check_scalar_bounds(lower_reify(final), port_type, value, port);
       return final;
    }
 }
@@ -1369,7 +1310,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
    case S_MUL_RP:
    case S_MUL_RI:
       {
-         vcode_type_t vreal = vtype_real();
+         vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
          return emit_cast(rtype, rtype,
                           emit_mul(r0, emit_cast(vreal, vreal, r1)));
@@ -1377,21 +1318,21 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
    case S_MUL_PR:
    case S_MUL_IR:
       {
-         vcode_type_t vreal = vtype_real();
+         vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
          return emit_cast(rtype, rtype,
                           emit_mul(emit_cast(vreal, vreal, r0), r1));
       }
    case S_DIV_PR:
       {
-         vcode_type_t vreal = vtype_real();
+         vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
          return emit_cast(rtype, rtype,
                           emit_div(emit_cast(vreal, vreal, r0), r1));
       }
    case S_DIV_RI:
       {
-         vcode_type_t vreal = vtype_real();
+         vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
          return emit_cast(rtype, rtype,
                           emit_div(r0, emit_cast(vreal, vreal, r1)));
@@ -3613,7 +3554,7 @@ static void lower_var_assign_target(target_part_t **ptr, tree_t where,
          src_reg = lower_array_data(src_reg);
 
       if (type_is_scalar(type))
-         lower_check_scalar_bounds(lower_reify(src_reg), type, where, NULL);
+         lower_check_scalar_bounds(lower_reify(src_reg) /* XXX */, type, where, p->target);
 
       if (lower_have_signal(src_reg))
          src_reg = emit_resolved(lower_array_data(rhs));
@@ -3655,7 +3596,7 @@ static void lower_var_assign(tree_t stmt)
       vcode_var_t var = VCODE_INVALID_VAR;
       int hops = 0;
       if (is_scalar)
-         lower_check_scalar_bounds(loaded_value, type, stmt, NULL);
+         lower_check_scalar_bounds(loaded_value, type, value, target);
       else
          loaded_value = lower_incomplete_access(loaded_value,
                                                 type_access(type));
@@ -3754,7 +3695,7 @@ static void lower_signal_assign_target(target_part_t **ptr, tree_t where,
          src_reg = lower_array_data(src_reg);
 
       if (type_is_scalar(type))
-         lower_check_scalar_bounds(lower_reify(src_reg), type, where, NULL);
+         lower_check_scalar_bounds(lower_reify(src_reg) /* XXX */, type, where, p->target);
 
       if (lower_have_signal(src_reg))
          src_reg = emit_resolved(lower_array_data(rhs));
@@ -4733,7 +4674,7 @@ static void lower_var_decl(tree_t decl)
    }
    else if (type_is_scalar(type)) {
       value_reg = lower_reify(value_reg);
-      lower_check_scalar_bounds(value_reg, type, decl, NULL);
+      lower_check_scalar_bounds(value_reg, type, value, decl);
       emit_store(value_reg, var);
    }
    else if (type_is_access(type))
@@ -5483,7 +5424,7 @@ static vcode_reg_t lower_numeric_value_helper(type_t type, vcode_reg_t preg)
 {
    vcode_type_t vchar = vtype_char();
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-   vcode_type_t vreal  = vtype_real();
+   vcode_type_t vreal  = vtype_real(-DBL_MAX, DBL_MAX);
 
    vcode_reg_t len_reg  = emit_uarray_len(preg, 0);
    vcode_reg_t data_reg = emit_unwrap(preg);
@@ -7375,7 +7316,7 @@ static void lower_generics(tree_t block)
                                  VCODE_INVALID_REG, value_reg);
       else if (type_is_scalar(type)) {
          value_reg = lower_reify(value_reg);
-         lower_check_scalar_bounds(value_reg, type, g, value);
+         lower_check_scalar_bounds(value_reg, type, value, g);
       }
 
       if (mem_reg != VCODE_INVALID_REG)

@@ -959,6 +959,46 @@ void __nvc_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
 }
 
 DLLEXPORT
+void __nvc_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
+                      DEBUG_LOCUS(locus), DEBUG_LOCUS(hint))
+{
+   tree_t t = rt_locus_to_tree(locus_unit, locus_offset);
+   tree_t hint = rt_locus_to_tree(hint_unit, hint_offset);
+
+   const rt_loc_t where = rt_translate_loc(tree_loc(t));
+
+   type_t type = tree_type(hint);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_cat(tb, "value ");
+   to_string(tb, type, value);
+   tb_printf(tb, " outside of %s range ", type_pp(type));
+   to_string(tb, type, left);
+   tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
+   to_string(tb, type, right);
+
+   switch (tree_kind(hint)) {
+   case T_SIGNAL_DECL:
+   case T_CONST_DECL:
+   case T_VAR_DECL:
+   case T_REF:
+      tb_printf(tb, " for %s %s", class_str(class_of(hint)),
+                istr(tree_ident(hint)));
+      break;
+   case T_PORT_DECL:
+      tb_printf(tb, " for parameter %s", istr(tree_ident(hint)));
+      break;
+   case T_ATTR_REF:
+      tb_printf(tb, " for attribute '%s", istr(tree_ident(hint)));
+      break;
+   default:
+      break;
+   }
+
+   rt_msg(&where, fatal, "%s", tb_get(tb));
+}
+
+DLLEXPORT
 void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
                        DEBUG_LOCUS(locus))
 {
@@ -993,67 +1033,6 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
    tb_printf(tb, " length %d", left);
 
    rt_msg(&where, fatal, "%s", tb_get(tb));
-}
-
-DLLEXPORT
-void _bounds_fail(int32_t value, int32_t min, int32_t max, int32_t kind,
-                  rt_loc_t *where, const char *hint)
-{
-   char *copy LOCAL = xstrdup(hint ?: "");
-   const char *prefix = copy, *suffix = copy;
-   char *sep = strchr(copy, '|');
-   if (sep != NULL) {
-      suffix = sep + 1;
-      *sep = '\0';
-   }
-
-   const char *spacer = hint ? " " : "";
-
-   switch ((bounds_kind_t)kind) {
-   case BOUNDS_ARRAY_TO:
-      rt_msg(where, fatal, "array index %d outside bounds %d to %d%s%s",
-             value, min, max, spacer, suffix);
-      break;
-   case BOUNDS_ARRAY_DOWNTO:
-      rt_msg(where, fatal, "array index %d outside bounds %d downto %d%s%s",
-             value, max, min, spacer, suffix);
-      break;
-
-   case BOUNDS_ENUM:
-      rt_msg(where, fatal, "value %d outside %s bounds %d to %d%s%s",
-             value, prefix, min, max, spacer, suffix);
-      break;
-
-   case BOUNDS_TYPE_TO:
-      rt_msg(where, fatal, "value %d outside bounds %d to %d%s%s",
-             value, min, max, spacer, suffix);
-      break;
-
-   case BOUNDS_TYPE_DOWNTO:
-      rt_msg(where, fatal, "value %d outside bounds %d downto %d%s%s",
-             value, max, min, spacer, suffix);
-      break;
-
-   case BOUNDS_ARRAY_SIZE:
-      rt_msg(where, fatal, "length of target %d%s does not match length of "
-             "value %d%s%s", min, prefix, max, spacer, suffix);
-      break;
-
-   case BOUNDS_PARAM_SIZE:
-      rt_msg(where, fatal, "actual length %d%s does not match formal length "
-             "%d%s%s", max, prefix, min, spacer, suffix);
-      break;
-
-   case BOUNDS_INDEX_TO:
-      rt_msg(where, fatal, "index %d violates constraint bounds %d to %d",
-             value, min, max);
-      break;
-
-   case BOUNDS_INDEX_DOWNTO:
-      rt_msg(where, fatal, "index %d violates constraint bounds %d downto %d",
-             value, max, min);
-      break;
-   }
 }
 
 DLLEXPORT

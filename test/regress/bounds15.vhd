@@ -14,7 +14,7 @@ architecture test of bounds15 is
 
 begin
 
-    process is
+    p1: process is
         variable x : integer;
     begin
         x := 5;

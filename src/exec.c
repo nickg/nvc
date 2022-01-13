@@ -1061,82 +1061,6 @@ static void eval_op_context_upref(int op, eval_state_t *state)
    dst->context = where;
 }
 
-static void eval_op_bounds(int op, eval_state_t *state)
-{
-   value_t *reg = eval_get_reg(vcode_get_arg(op, 0), state);
-   vcode_type_t bounds = vcode_get_type(op);
-
-   switch (reg->kind) {
-   case VALUE_INTEGER:
-      {
-         const int64_t low  = vtype_low(bounds);
-         const int64_t high = vtype_high(bounds);
-         if (low > high)
-            break;
-         else if (reg->integer < low || reg->integer > high) {
-            if (state->flags & EVAL_BOUNDS) {
-               if (state->hint != NULL && tree_kind(state->hint) == T_FCALL)
-                  hint_at(tree_loc(state->hint), "while evaluating call to %s",
-                          istr(tree_ident(state->hint)));
-
-               switch ((bounds_kind_t)vcode_get_subkind(op)) {
-               case BOUNDS_ARRAY_TO:
-                  error_at(vcode_get_loc(op), "array index %"PRIi64" outside "
-                           "bounds %"PRIi64" to %"PRIi64,
-                           reg->integer, low, high);
-                  break;
-
-               case BOUNDS_ARRAY_DOWNTO:
-                  error_at(vcode_get_loc(op), "array index %"PRIi64" outside "
-                           "bounds %"PRIi64" downto %"PRIi64,
-                           reg->integer, high, low);
-                  break;
-
-               default:
-                  vcode_dump_with_mark(op, NULL, NULL);
-                  fatal_trace("unhandled bounds kind %d in %s",
-                              vcode_get_subkind(op), __func__);
-               }
-            }
-            EVAL_WARN(state, op, "bounds check failure prevents "
-                      "constant folding");
-            state->failed = true;
-         }
-      }
-      break;
-
-   case VALUE_REAL:
-      break;
-
-   default:
-      fatal_trace("invalid value type in %s", __func__);
-   }
-}
-
-static void eval_op_dynamic_bounds(int op, eval_state_t *state)
-{
-   value_t *reg = eval_get_reg(vcode_get_arg(op, 0), state);
-   value_t *low = eval_get_reg(vcode_get_arg(op, 1), state);
-   value_t *high = eval_get_reg(vcode_get_arg(op, 2), state);
-
-   switch (reg->kind) {
-   case VALUE_INTEGER:
-      {
-         if (low->integer > high->integer)
-            break;
-         else if (reg->integer < low->integer || reg->integer > high->integer)
-            state->failed = true;
-      }
-      break;
-
-   case VALUE_REAL:
-      break;
-
-   default:
-      fatal_trace("invalid value type in %s", __func__);
-   }
-}
-
 static void eval_op_const_array(int op, eval_state_t *state)
 {
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
@@ -1564,6 +1488,50 @@ static void eval_op_index_check(int op, eval_state_t *state)
    state->failed = true;
 }
 
+static void eval_op_range_check(int op, eval_state_t *state)
+{
+   value_t *value = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *left  = eval_get_reg(vcode_get_arg(op, 1), state);
+   value_t *right = eval_get_reg(vcode_get_arg(op, 2), state);
+   value_t *dir   = eval_get_reg(vcode_get_arg(op, 3), state);
+   value_t *locus = eval_get_reg(vcode_get_arg(op, 4), state);
+
+   if (value->kind == VALUE_REAL)
+      return;   // TODO: range checks for reals
+
+   const int64_t low =
+      dir->integer == RANGE_DOWNTO ? right->integer : left->integer;
+   const int64_t high =
+      dir->integer == RANGE_DOWNTO ? left->integer : right->integer;
+
+   if (low > high)
+      return;   // Null range
+   else if (value->integer >= low && value->integer <= high)
+      return;   // In bounds
+
+   if (state->flags & EVAL_BOUNDS) {
+      EVAL_ASSERT_VALUE(op, locus, VALUE_DEBUG_LOCUS);
+
+      type_t type = tree_type(locus->debug);
+
+      if (state->hint != NULL && tree_kind(state->hint) == T_FCALL)
+         hint_at(tree_loc(state->hint), "while evaluating call to %s",
+                 istr(tree_ident(state->hint)));
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_cat(tb, "value ");
+      to_string(tb, type, value->integer);
+      tb_printf(tb, " outside of %s range ", type_pp(type));
+      to_string(tb, type, left->integer);
+      tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
+      to_string(tb, type, right->integer);
+
+      error_at(tree_loc(locus->debug), "%s", tb_get(tb));
+   }
+
+   state->failed = true;
+}
+
 static void eval_op_uarray_left(int op, eval_state_t *state)
 {
    value_t *array = eval_get_reg(vcode_get_arg(op, 0), state);
@@ -1918,10 +1886,6 @@ static void eval_vcode(eval_state_t *state)
          eval_op_fcall(state->op, state);
          break;
 
-      case VCODE_OP_BOUNDS:
-         eval_op_bounds(state->op, state);
-         break;
-
       case VCODE_OP_CONST_ARRAY:
          eval_op_const_array(state->op, state);
          break;
@@ -1998,10 +1962,6 @@ static void eval_vcode(eval_state_t *state)
          eval_op_rem(state->op, state);
          break;
 
-      case VCODE_OP_DYNAMIC_BOUNDS:
-         eval_op_dynamic_bounds(state->op, state);
-         break;
-
       case VCODE_OP_INDEX:
          eval_op_index(state->op, state);
          break;
@@ -2036,6 +1996,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_INDEX_CHECK:
          eval_op_index_check(state->op, state);
+         break;
+
+      case VCODE_OP_RANGE_CHECK:
+         eval_op_range_check(state->op, state);
          break;
 
       case VCODE_OP_ABS:

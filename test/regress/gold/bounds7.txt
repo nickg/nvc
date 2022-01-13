@@ -1,1 +1,1 @@
-value 11 outside bounds 1 to 10
+value 11 outside of MY_INT range 1 to 10 for variable X

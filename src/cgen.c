@@ -192,18 +192,6 @@ static LLVMTypeRef llvm_char_ptr(void)
    return LLVMPointerType(llvm_int8_type(), 0);
 }
 
-static LLVMValueRef llvm_ensure_int_bits(LLVMValueRef value, int bits)
-{
-   const int value_bits = LLVMGetIntTypeWidth(LLVMTypeOf(value));
-   if (value_bits < bits)
-      return LLVMBuildZExt(builder, value, llvm_int32_type(), "");
-   else if (value_bits > bits) {
-      return LLVMBuildTrunc(builder, value, llvm_int32_type(), "");
-   }
-   else
-      return value;
-}
-
 static LLVMValueRef llvm_zext_to_intptr(LLVMValueRef value)
 {
    LLVMTypeRef type = LLVMIntTypeInContext(llvm_context(), sizeof(void *) * 8);
@@ -672,6 +660,28 @@ static LLVMValueRef cgen_get_arg(int op, int arg, cgen_ctx_t *ctx)
    return ctx->regs[r];
 }
 
+static LLVMValueRef cgen_sign_extend(int op, int arg, int bits, cgen_ctx_t *ctx)
+{
+   LLVMValueRef value = cgen_get_arg(op, arg, ctx);
+
+   const int value_bits = LLVMGetIntTypeWidth(LLVMTypeOf(value));
+
+   if (value_bits == bits)
+      return value;
+
+   LLVMTypeRef type = LLVMIntTypeInContext(llvm_context(), bits);
+
+   if (value_bits < bits) {
+      const int64_t low = vtype_low(vcode_reg_type(vcode_get_arg(op, arg)));
+      if (low < 0)
+         return LLVMBuildSExt(builder, value, type, "");
+      else
+         return LLVMBuildZExt(builder, value, type, "");
+   }
+   else
+      return LLVMBuildTrunc(builder, value, type, "");
+}
+
 static LLVMValueRef cgen_display_upref(int hops, cgen_ctx_t *ctx)
 {
    if (hops == 0) {
@@ -863,32 +873,6 @@ static LLVMValueRef cgen_location(int op, cgen_ctx_t *ctx)
    LLVMSetUnnamedAddr(global, true);
 
    return global;
-}
-
-static LLVMValueRef cgen_hint_str(int op)
-{
-   const char *hint = vcode_get_hint(op);
-   if (hint == NULL)
-      return LLVMConstNull(llvm_char_ptr());
-
-   LLVMValueRef glob = shash_get(string_pool, hint);
-   if (glob == NULL) {
-      const size_t len = strlen(hint);
-      LLVMTypeRef type = LLVMArrayType(llvm_int8_type(), len + 1);
-
-      LLVMValueRef init =
-         LLVMConstStringInContext(llvm_context(), hint, len, false);
-
-      glob = LLVMAddGlobal(module, type, "");
-      LLVMSetGlobalConstant(glob, true);
-      LLVMSetLinkage(glob, LLVMPrivateLinkage);
-      LLVMSetInitializer(glob, init);
-      LLVMSetUnnamedAddr(glob, true);
-
-      shash_put(string_pool, hint, glob);
-   }
-
-   return cgen_array_pointer(glob);
 }
 
 static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
@@ -1578,117 +1562,6 @@ static void cgen_op_abs(int op, cgen_ctx_t *ctx)
       cgen_reg_name(result));
 }
 
-static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
-{
-   vcode_type_t vtype = vcode_get_type(op);
-   if (vtype_kind(vtype) == VCODE_TYPE_REAL)
-      return;  // TODO
-
-   LLVMValueRef value_raw = cgen_get_arg(op, 0, ctx);
-   LLVMTypeRef value_type = LLVMTypeOf(value_raw);
-
-   const int value_bits = LLVMGetIntTypeWidth(value_type);
-   LLVMValueRef value = NULL, min = NULL, max = NULL;
-   if (value_bits < 32) {
-      value = LLVMBuildZExt(builder, value_raw, llvm_int32_type(), "");
-      min   = llvm_int32(vtype_low(vtype));
-      max   = llvm_int32(vtype_high(vtype));
-   }
-   else {
-      value = value_raw;
-      min   = LLVMConstInt(value_type, vtype_low(vtype), false);
-      max   = LLVMConstInt(value_type, vtype_high(vtype), false);
-   }
-
-   LLVMValueRef above =
-      LLVMBuildICmp(builder, LLVMIntSGE, value, min, "above");
-   LLVMValueRef below =
-      LLVMBuildICmp(builder, LLVMIntSLE, value, max, "below");
-
-   LLVMValueRef in = LLVMBuildAnd(builder, above, below, "in");
-
-   LLVMBasicBlockRef pass_bb  = llvm_append_block(ctx->fn, "bounds_pass");
-   LLVMBasicBlockRef fail_bb  = llvm_append_block(ctx->fn, "bounds_fail");
-
-   LLVMBuildCondBr(builder, in, pass_bb, fail_bb);
-
-   LLVMPositionBuilderAtEnd(builder, fail_bb);
-
-   LLVMValueRef args[] = {
-      llvm_ensure_int_bits(value, 32),
-      llvm_ensure_int_bits(min, 32),
-      llvm_ensure_int_bits(max, 32),
-      llvm_int32(vcode_get_subkind(op)),
-      cgen_location(op, ctx),
-      cgen_hint_str(op),
-   };
-
-   LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
-
-   LLVMBuildUnreachable(builder);
-
-   LLVMPositionBuilderAtEnd(builder, pass_bb);
-}
-
-static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
-{
-   LLVMValueRef value_raw = cgen_get_arg(op, 0, ctx);
-   LLVMTypeRef value_type = LLVMTypeOf(value_raw);
-
-   const int value_bits = LLVMGetIntTypeWidth(value_type);
-   LLVMValueRef value = NULL, min = NULL, max = NULL;
-   if (value_bits < 32) {
-      LLVMTypeRef ll_int32 = llvm_int32_type();
-      value = LLVMBuildZExt(builder, value_raw, ll_int32, "");
-      min   = LLVMBuildZExt(builder, cgen_get_arg(op, 1, ctx), ll_int32, "");
-      max   = LLVMBuildZExt(builder, cgen_get_arg(op, 2, ctx), ll_int32, "");
-   }
-   else {
-      value = value_raw;
-      min   = cgen_get_arg(op, 1, ctx);
-      max   = cgen_get_arg(op, 2, ctx);
-   }
-
-   LLVMValueRef kind = cgen_get_arg(op, 3, ctx);
-
-   LLVMValueRef above =
-      LLVMBuildICmp(builder, LLVMIntSGE, value, min, "above");
-   LLVMValueRef below =
-      LLVMBuildICmp(builder, LLVMIntSLE, value, max, "below");
-
-   LLVMValueRef in = LLVMBuildAnd(builder, above, below, "in");
-
-   LLVMBasicBlockRef pass_bb  = llvm_append_block(ctx->fn, "bounds_pass");
-   LLVMBasicBlockRef fail_bb  = llvm_append_block(ctx->fn, "bounds_fail");
-
-   LLVMBuildCondBr(builder, in, pass_bb, fail_bb);
-
-   LLVMPositionBuilderAtEnd(builder, fail_bb);
-
-   if (value_bits > 32) {
-      // TODO: we should probably pass all the arguments as 64-bit here
-      LLVMTypeRef ll_int32 = llvm_int32_type();
-      value = LLVMBuildTrunc(builder, value, ll_int32, "");
-      min   = LLVMBuildTrunc(builder, min, ll_int32, "");
-      max   = LLVMBuildTrunc(builder, max, ll_int32, "");
-   }
-
-   LLVMValueRef args[] = {
-      value,
-      min,
-      max,
-      kind,
-      cgen_location(op, ctx),
-      cgen_hint_str(op),
-   };
-
-   LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
-
-   LLVMBuildUnreachable(builder);
-
-   LLVMPositionBuilderAtEnd(builder, pass_bb);
-}
-
 static void cgen_op_cast(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t arg    = vcode_get_arg(op, 0);
@@ -1784,12 +1657,9 @@ static void cgen_op_wrap(int op, cgen_ctx_t *ctx)
    LLVMValueRef dim_array = LLVMGetUndef(field_types[1]);
 
    for (int i = 0; i < dims; i++) {
-      LLVMValueRef left  = cgen_get_arg(op, (i * 3) + 1, ctx);
-      LLVMValueRef right = cgen_get_arg(op, (i * 3) + 2, ctx);
+      LLVMValueRef left  = cgen_sign_extend(op, (i * 3) + 1, 32, ctx);
+      LLVMValueRef right = cgen_sign_extend(op, (i * 3) + 2, 32, ctx);
       LLVMValueRef dir   = cgen_get_arg(op, (i * 3) + 3, ctx);
-
-      left  = llvm_ensure_int_bits(left, 32);
-      right = llvm_ensure_int_bits(right, 32);
 
       LLVMValueRef diff_up   = LLVMBuildSub(builder, right, left, "");
       LLVMValueRef diff_down = LLVMBuildSub(builder, left, right, "");
@@ -2693,9 +2563,9 @@ static void cgen_op_length_check(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef value = llvm_ensure_int_bits(cgen_get_arg(op, 0, ctx), 32);
-   LLVMValueRef left  = llvm_ensure_int_bits(cgen_get_arg(op, 1, ctx), 32);
-   LLVMValueRef right = llvm_ensure_int_bits(cgen_get_arg(op, 2, ctx), 32);
+   LLVMValueRef value = cgen_sign_extend(op, 0, 32, ctx);
+   LLVMValueRef left  = cgen_sign_extend(op, 1, 32, ctx);
+   LLVMValueRef right = cgen_sign_extend(op, 2, 32, ctx);
    LLVMValueRef dir   = cgen_get_arg(op, 3, ctx);
    LLVMValueRef locus = cgen_get_arg(op, 4, ctx);
 
@@ -2720,6 +2590,43 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
       value, left, right, dir, locus,
    };
    LLVMBuildCall(builder, llvm_fn("__nvc_index_fail"), args,
+                 ARRAY_LEN(args), "");
+
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, pass_bb);
+}
+
+static void cgen_op_range_check(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef value = cgen_sign_extend(op, 0, 64, ctx);
+   LLVMValueRef left  = cgen_sign_extend(op, 1, 64, ctx);
+   LLVMValueRef right = cgen_sign_extend(op, 2, 64, ctx);
+   LLVMValueRef dir   = cgen_get_arg(op, 3, ctx);
+   LLVMValueRef locus = cgen_get_arg(op, 4, ctx);
+   LLVMValueRef hint  = cgen_get_arg(op, 5, ctx);
+
+   LLVMValueRef low  = LLVMBuildSelect(builder, dir, right, left, "low");
+   LLVMValueRef high = LLVMBuildSelect(builder, dir, left, right, "high");
+
+   LLVMValueRef above =
+      LLVMBuildICmp(builder, LLVMIntSGT, value, high, "above");
+   LLVMValueRef below =
+      LLVMBuildICmp(builder, LLVMIntSLT, value, low, "below");
+
+   LLVMValueRef fail = LLVMBuildOr(builder, above, below, "fail");
+
+   LLVMBasicBlockRef fail_bb = llvm_append_block(ctx->fn, "fail");
+   LLVMBasicBlockRef pass_bb = llvm_append_block(ctx->fn, "pass");
+
+   LLVMBuildCondBr(builder, fail, fail_bb, pass_bb);
+
+   LLVMPositionBuilderAtEnd(builder, fail_bb);
+
+   LLVMValueRef args[] = {
+      value, left, right, dir, locus, hint,
+   };
+   LLVMBuildCall(builder, llvm_fn("__nvc_range_fail"), args,
                  ARRAY_LEN(args), "");
 
    LLVMBuildUnreachable(builder);
@@ -3070,9 +2977,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_MUL:
       cgen_op_mul(i, ctx);
       break;
-   case VCODE_OP_BOUNDS:
-      cgen_op_bounds(i, ctx);
-      break;
    case VCODE_OP_CAST:
       cgen_op_cast(i, ctx);
       break;
@@ -3226,14 +3130,14 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_DRIVING_VALUE:
       cgen_op_driving_value(i, ctx);
       break;
-   case VCODE_OP_DYNAMIC_BOUNDS:
-      cgen_op_dynamic_bounds(i, ctx);
-      break;
    case VCODE_OP_LENGTH_CHECK:
       cgen_op_length_check(i, ctx);
       break;
    case VCODE_OP_INDEX_CHECK:
       cgen_op_index_check(i, ctx);
+      break;
+   case VCODE_OP_RANGE_CHECK:
+      cgen_op_range_check(i, ctx);
       break;
    case VCODE_OP_DEBUG_LOCUS:
       cgen_op_debug_locus(i, ctx);
@@ -4138,21 +4042,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(llvm_int1_type(),
                                             args, ARRAY_LEN(args), false));
    }
-   else if (strcmp(name, "_bounds_fail") == 0) {
-      LLVMTypeRef args[] = {
-         llvm_int32_type(),
-         llvm_int32_type(),
-         llvm_int32_type(),
-         llvm_int32_type(),
-         LLVMPointerType(llvm_rt_loc(), 0),
-         llvm_char_ptr()
-      };
-      fn = LLVMAddFunction(module, "_bounds_fail",
-                           LLVMFunctionType(llvm_void_type(),
-                                            args, ARRAY_LEN(args), false));
-      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
-      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
-   }
    else if (strcmp(name, "__nvc_index_fail") == 0) {
       LLVMTypeRef args[] = {
          llvm_int32_type(),
@@ -4162,6 +4051,21 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_debug_locus_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_index_fail",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
+      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
+   }
+   else if (strcmp(name, "__nvc_range_fail") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_int64_type(),
+         llvm_int64_type(),
+         llvm_int64_type(),
+         llvm_int1_type(),
+         llvm_debug_locus_type(),
+         llvm_debug_locus_type(),
+      };
+      fn = LLVMAddFunction(module, "__nvc_range_fail",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);

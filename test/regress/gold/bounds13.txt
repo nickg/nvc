@@ -1,1 +1,3 @@
-value 4 outside bounds 1 to 3
+value 4 outside of MYINT range 1 to 3
+Attribute MYINT'VALUE
+Line 8

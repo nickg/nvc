@@ -48,7 +48,6 @@ typedef enum {
    VCODE_OP_STORE,
    VCODE_OP_MUL,
    VCODE_OP_ADD,
-   VCODE_OP_BOUNDS,
    VCODE_OP_COMMENT,
    VCODE_OP_CONST_ARRAY,
    VCODE_OP_INDEX,
@@ -102,7 +101,6 @@ typedef enum {
    VCODE_OP_ALL,
    VCODE_OP_CONST_REAL,
    VCODE_OP_LAST_EVENT,
-   VCODE_OP_DYNAMIC_BOUNDS,
    VCODE_OP_DEBUG_OUT,
    VCODE_OP_COVER_STMT,
    VCODE_OP_COVER_COND,
@@ -136,6 +134,7 @@ typedef enum {
    VCODE_OP_INDEX_CHECK,
    VCODE_OP_DEBUG_LOCUS,
    VCODE_OP_LENGTH_CHECK,
+   VCODE_OP_RANGE_CHECK,
 } vcode_op_t;
 
 typedef enum {
@@ -244,7 +243,7 @@ int vtype_fields(vcode_type_t type);
 vcode_type_t vtype_field(vcode_type_t type, int field);
 vcode_type_t vtype_base(vcode_type_t type);
 ident_t vtype_name(vcode_type_t type);
-vcode_type_t vtype_real(void);
+vcode_type_t vtype_real(double low, double high);
 
 vcode_unit_t vcode_find_unit(ident_t name);
 vcode_unit_t vcode_unit_next(vcode_unit_t unit);
@@ -299,7 +298,6 @@ int64_t vcode_get_value(int op);
 double vcode_get_real(int op);
 vcode_cmp_t vcode_get_cmp(int op);
 const loc_t *vcode_get_loc(int op);
-const char *vcode_get_hint(int op);
 vcode_block_t vcode_get_target(int op, int nth);
 vcode_var_t vcode_get_address(int op);
 ident_t vcode_get_ident(int op);
@@ -363,10 +361,8 @@ vcode_reg_t emit_load(vcode_var_t var);
 vcode_reg_t emit_load_indirect(vcode_reg_t reg);
 void emit_store(vcode_reg_t reg, vcode_var_t var);
 void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr);
-void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
-                 const char *hint);
-void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
-                         vcode_reg_t kind, const char *hint);
+void emit_range_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
+                      vcode_reg_t dir, vcode_reg_t locus, vcode_reg_t hint);
 void emit_index_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
                       vcode_reg_t dir, vcode_reg_t locus);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);

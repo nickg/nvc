@@ -24,7 +24,7 @@
 
 #include <stdint.h>
 
-#define RT_ABI_VERSION 4
+#define RT_ABI_VERSION 5
 
 typedef struct rt_watch_s  rt_watch_t;
 typedef struct rt_signal_s rt_signal_t;
@@ -33,18 +33,6 @@ typedef void (*sig_event_fn_t)(uint64_t now, rt_signal_t *signal,
                                rt_watch_t *watch, void *user);
 typedef void (*timeout_fn_t)(uint64_t now, void *user);
 typedef void (*rt_event_fn_t)(void *user);
-
-typedef enum {
-   BOUNDS_ARRAY_TO,
-   BOUNDS_ARRAY_DOWNTO,
-   BOUNDS_ENUM,
-   BOUNDS_TYPE_TO,
-   BOUNDS_TYPE_DOWNTO,
-   BOUNDS_ARRAY_SIZE,
-   BOUNDS_INDEX_TO,
-   BOUNDS_INDEX_DOWNTO,
-   BOUNDS_PARAM_SIZE,
-} bounds_kind_t;
 
 typedef enum {
    IMAGE_INTEGER,

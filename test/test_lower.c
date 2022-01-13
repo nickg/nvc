@@ -12,8 +12,6 @@ typedef struct {
    const char   *name;
    int64_t       value;
    double        real;
-   int64_t       low;
-   int64_t       high;
    vcode_cmp_t   cmp;
    vcode_block_t target;
    vcode_block_t target_else;
@@ -211,7 +209,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_COPY:
       case VCODE_OP_MEMSET:
       case VCODE_OP_WRAP:
-      case VCODE_OP_DYNAMIC_BOUNDS:
       case VCODE_OP_NEW:
       case VCODE_OP_ALL:
       case VCODE_OP_DEALLOCATE:
@@ -228,24 +225,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             vcode_dump_with_mark(i, NULL, NULL);
             fail("expected op %d in block %d to have %d array elements but "
                  "has %d", i, bb, e->length, vcode_count_args(i));
-         }
-         break;
-
-      case VCODE_OP_BOUNDS:
-         {
-            vcode_type_t bounds = vcode_get_type(i);
-            if (vtype_kind(bounds) == VCODE_TYPE_INT) {
-               if (e->low != vtype_low(bounds)) {
-                  vcode_dump_with_mark(i, NULL, NULL);
-                  fail("expect op %d in block %d to have low bound %"PRIi64
-                       " but has %"PRIi64, i, bb, e->low, vtype_low(bounds));
-               }
-               else if (e->high != vtype_high(bounds)) {
-                  vcode_dump_with_mark(i, NULL, NULL);
-                  fail("expect op %d in block %d to have high bound %"PRIi64
-                       " but has %"PRIi64, i, bb, e->high, vtype_high(bounds));
-               }
-            }
          }
          break;
 
@@ -299,6 +278,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_FILE_OPEN:
       case VCODE_OP_FILE_CLOSE:
       case VCODE_OP_INDEX_CHECK:
+      case VCODE_OP_RANGE_CHECK:
       case VCODE_OP_DEBUG_LOCUS:
          break;
 
@@ -471,7 +451,12 @@ START_TEST(test_assign1)
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_MUL },
-      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+      { VCODE_OP_CONST, .value = INT32_MIN },
+      { VCODE_OP_CONST, .value = INT32_MAX },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_CHECK },
       { VCODE_OP_CONST,  .value = -8 },
       { VCODE_OP_CMP },
       { VCODE_OP_ASSERT },
@@ -865,7 +850,11 @@ START_TEST(test_pack1)
    EXPECT_BB(0) = {
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
-      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+      { VCODE_OP_CONST, .value = INT32_MIN },
+      { VCODE_OP_CONST, .value = INT32_MAX },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_CHECK },
       { VCODE_OP_RETURN }
    };
 
@@ -1083,7 +1072,11 @@ START_TEST(test_nest1)
          { VCODE_OP_VAR_UPREF, .hops = 1, .name = "Y" },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_ADD },
-         { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+         { VCODE_OP_CONST, .value = INT32_MIN },
+         { VCODE_OP_CONST, .value = INT32_MAX },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_RANGE_CHECK },
          { VCODE_OP_RETURN }
       };
 
@@ -1404,7 +1397,12 @@ START_TEST(test_proc1)
       EXPECT_BB(0) = {
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_ADD },
-         { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+         { VCODE_OP_CONST, .value = INT32_MIN },
+         { VCODE_OP_CONST, .value = INT32_MAX },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_RANGE_CHECK },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_RETURN }
       };
@@ -1417,11 +1415,6 @@ END_TEST
 START_TEST(test_while1)
 {
    input_from_file(TESTDIR "/lower/while1.vhd");
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    tree_t e = run_elab();
    lower_unit(e, NULL);
@@ -1442,23 +1435,25 @@ START_TEST(test_while1)
       { VCODE_OP_LOAD, .name = "N" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SUB },
-      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+      { VCODE_OP_CONST, .value = INT32_MIN },
+      { VCODE_OP_CONST, .value = INT32_MAX },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_CHECK },
       { VCODE_OP_STORE, .name = "N" },
       { VCODE_OP_JUMP, .target = 2 }
    };
 
    CHECK_BB(3);
+
+   fail_if_errors();
 }
 END_TEST
 
 START_TEST(test_loop1)
 {
    input_from_file(TESTDIR "/lower/loop1.vhd");
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    tree_t e = run_elab();
    lower_unit(e, NULL);
@@ -1479,7 +1474,12 @@ START_TEST(test_loop1)
       { VCODE_OP_LOAD, .name = "A" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
-      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+      { VCODE_OP_CONST, .value = INT32_MIN },
+      { VCODE_OP_CONST, .value = INT32_MAX },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_CHECK },
       { VCODE_OP_STORE, .name = "A" },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_MOD },
@@ -1489,6 +1489,8 @@ START_TEST(test_loop1)
    };
 
    CHECK_BB(8);
+
+   fail_if_errors();
 }
 END_TEST
 
@@ -1744,7 +1746,11 @@ START_TEST(test_func5)
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_ADD },
-         { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+         { VCODE_OP_CONST, .value = INT32_MIN },
+         { VCODE_OP_CONST, .value = INT32_MAX },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_RANGE_CHECK },
          { VCODE_OP_RETURN }
       };
 
@@ -2246,9 +2252,11 @@ START_TEST(test_issue149)
       { VCODE_OP_CAST },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SUB },
-      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = -1 },
-      { VCODE_OP_DYNAMIC_BOUNDS },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_CHECK },
       { VCODE_OP_STORE, .name = "I" },
       { VCODE_OP_RETURN }
    };
@@ -2984,6 +2992,8 @@ START_TEST(test_hintbug)
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_LOAD, .name = "X" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_FCALL, .func = "WORK.HINTBUG.FUNC(J)Q" },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_DEBUG_LOCUS },
@@ -2996,10 +3006,8 @@ START_TEST(test_hintbug)
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_WRAP },
       { VCODE_OP_LOAD, .name = "X" },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ALLOCA },
       { VCODE_OP_WRAP },
@@ -3128,12 +3136,12 @@ START_TEST(test_tounsigned)
 
    EXPECT_BB(6) = {
       { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_LOAD, .name = "RESULT" },
       { VCODE_OP_LOAD, .name = "I.MAINLOOP" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SUB },
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_INDEX_CHECK },
       { VCODE_OP_SUB },
@@ -3297,7 +3305,12 @@ START_TEST(test_sum)
       { VCODE_OP_ADD },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_ADD },
-      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+      { VCODE_OP_CONST, .value = INT32_MIN },
+      { VCODE_OP_CONST, .value = INT32_MAX },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_RANGE_CHECK },
       { VCODE_OP_STORE, .name = "RESULT" },
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_CONST, .value = 1 },
@@ -3782,10 +3795,10 @@ START_TEST(test_instance1)
 
    EXPECT_BB(0) = {
       { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE, .name = "WIDTH" },
       { VCODE_OP_LINK_SIGNAL, .name = "X" },
       { VCODE_OP_STORE, .name = "X" },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 5 },
       { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 1 },

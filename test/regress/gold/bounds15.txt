@@ -1,1 +1,4 @@
-value -1 outside bounds 0 to 2147483647 for parameter N
+value -1 outside of NATURAL range 0 to 2147483647 for parameter
+N
+Process :bounds15:p1
+Line 25

@@ -6,6 +6,6 @@ architecture test of bounds11 is
     signal i : my_int;
 begin
 
-    i <= i + 1 after 10 ns;
+    p1: i <= i + 1 after 10 ns;
 
 end architecture;

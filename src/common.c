@@ -1425,8 +1425,28 @@ void to_string(text_buf_t *tb, type_t type, int64_t value)
    else if (type_is_enum(type)) {
       type_t base = type_base_recur(type);
       if (value < 0 || value >= type_enum_literals(base))
-         tb_cat(tb, "INVALID");
+         tb_printf(tb, "%"PRIi64, value);
       else
          tb_cat(tb, istr(tree_ident(type_enum_literal(base, value))));
+   }
+   else if (type_is_physical(type)) {
+      type_t base = type_base_recur(type);
+      const unsigned nunits = type_units(base);
+      tree_t max_unit = NULL;
+      int64_t max_unit_value = 0;
+
+      // Find the largest unit that evenly divides the given value
+      for (unsigned u = 0; u < nunits; u++) {
+         tree_t unit = type_unit(base, u);
+         const int64_t unit_value = assume_int(tree_value(unit));
+         if ((unit_value > max_unit_value) && (value % unit_value == 0)) {
+            max_unit = unit;
+            max_unit_value = unit_value;
+         }
+      }
+      assert(max_unit);
+
+      tb_printf(tb, "%"PRIi64" %s", value / max_unit_value,
+                istr(tree_ident(max_unit)));
    }
 }
