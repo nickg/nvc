@@ -1394,6 +1394,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                }
                printf(" severity ");
                vcode_dump_reg(op->args.items[1]);
+               printf(" locus ");
+               vcode_dump_reg(op->args.items[4]);
             }
             break;
 
@@ -1405,6 +1407,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[2]);
                printf(" severity ");
                vcode_dump_reg(op->args.items[0]);
+               printf(" locus ");
+               vcode_dump_reg(op->args.items[3]);
             }
             break;
 
@@ -1489,6 +1493,10 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                default: break;
                }
                col += vcode_dump_reg(op->args.items[1]);
+               if (op->args.count == 3) {
+                  col += printf(" locus ");
+                  col += vcode_dump_reg(op->args.items[2]);
+               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -1831,12 +1839,18 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_NULL_CHECK:
+            {
+               col += printf("%s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[1]);
+            }
+            break;
+
          case VCODE_OP_DEALLOCATE:
             {
                col += printf("%s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               vcode_dump_comment(col);
-               vcode_dump_loc(&(op->loc));
             }
             break;
 
@@ -2763,7 +2777,7 @@ vcode_unit_t emit_thunk(ident_t name)
 }
 
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
-                 vcode_reg_t severity)
+                 vcode_reg_t severity, vcode_reg_t locus)
 {
    int64_t value_const;
    if (vcode_reg_const(value, &value_const) && value_const != 0) {
@@ -2776,6 +2790,7 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
    vcode_add_arg(op, severity);
    vcode_add_arg(op, message);
    vcode_add_arg(op, length);
+   vcode_add_arg(op, locus);
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(value), vtype_bool()),
                 "value parameter to assert is not bool");
@@ -2784,21 +2799,25 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                 "message parameter to assert is not a pointer");
    VCODE_ASSERT(vtype_eq(vcode_reg_type(value), vtype_bool()),
                 "value parameter to assert is not bool");
-   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()), "assert needs debug info");
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to report must be a debug locus");
 }
 
-void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity)
+void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity,
+                 vcode_reg_t locus)
 {
    op_t *op = vcode_add_op(VCODE_OP_REPORT);
    vcode_add_arg(op, severity);
    vcode_add_arg(op, message);
    vcode_add_arg(op, length);
+   vcode_add_arg(op, locus);
 
    VCODE_ASSERT(vcode_reg_kind(message) == VCODE_TYPE_POINTER,
                 "message parameter to report is not a pointer");
    VCODE_ASSERT(vtype_eq(vtype_pointed(vcode_reg_type(message)), vtype_char()),
                 "message parameter to report is not a character pointer");
-   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()), "report needs debug info");
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to report must be a debug locus");
 }
 
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
@@ -3254,7 +3273,8 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
    VCODE_ASSERT(vtype_is_scalar(r->type), "cannot store non-scalar type");
 }
 
-static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
+static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs,
+                              vcode_reg_t locus)
 {
    // Reuse any previous operation in this block with the same arguments
    VCODE_FOR_EACH_MATCHING_OP(other, kind) {
@@ -3266,6 +3286,9 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
    op_t *op = vcode_add_op(kind);
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
+   if (locus != VCODE_INVALID_REG)
+      vcode_add_arg(op, locus);
+
    op->result = vcode_add_reg(vcode_reg_type(lhs));
 
    vcode_type_t lhs_type = vcode_reg_type(lhs);
@@ -3299,7 +3322,7 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
    else if ((r_is_const && rconst == 0) || (l_is_const && lconst == 0))
       return emit_const(vcode_reg_type(lhs), 0);
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_MUL, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_MUL, lhs, rhs, VCODE_INVALID_REG);
 
    vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
    vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
@@ -3321,7 +3344,7 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
    return reg;
 }
 
-vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
+vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus)
 {
    int64_t lconst, rconst;
    const bool l_is_const = vcode_reg_const(lhs, &lconst);
@@ -3331,9 +3354,12 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
    else if (r_is_const && rconst == 1)
       return lhs;
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_DIV, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_DIV, lhs, rhs, locus);
 
    vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
+
+   VCODE_ASSERT(locus != VCODE_INVALID_REG || bl->kind == VCODE_TYPE_REAL,
+                "must pass debug locus for integer division");
 
    if (bl->kind == VCODE_TYPE_INT && r_is_const) {
       reg_t *rr = vcode_reg_data(reg);
@@ -3350,7 +3376,7 @@ vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)
        && rconst >= 0)
       return emit_const(vcode_reg_type(lhs), ipow(lconst, rconst));
 
-   return emit_arith(VCODE_OP_EXP, lhs, rhs);
+   return emit_arith(VCODE_OP_EXP, lhs, rhs, VCODE_INVALID_REG);
 }
 
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -3366,7 +3392,7 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
    if (bl->low >= 0 && br->low >= 0) {
       // If both arguments are non-negative then rem is equivalent and
       // cheaper to compute
-      vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs);
+      vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
 
       reg_t *rr = vcode_reg_data(reg);
       rr->bounds = vtype_int(0, br->high - 1);
@@ -3374,7 +3400,7 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
       return reg;
    }
    else
-      return emit_arith(VCODE_OP_MOD, lhs, rhs);
+      return emit_arith(VCODE_OP_MOD, lhs, rhs, VCODE_INVALID_REG);
 }
 
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -3384,7 +3410,7 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
        && lconst > 0 && rconst > 0)
       return emit_const(vcode_reg_type(lhs), lconst % rconst);
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
 
    vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
    vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
@@ -3413,7 +3439,7 @@ vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
    else if (l_is_const && lconst == 0)
       return rhs;
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs, VCODE_INVALID_REG);
 
    reg_t *rr = vcode_reg_data(reg);
    if (is_pointer)
@@ -3441,7 +3467,7 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
    else if (l_is_const && lconst == 0)
       return rhs;
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs, VCODE_INVALID_REG);
 
    vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
    vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
@@ -3769,7 +3795,7 @@ static vcode_reg_t emit_logical(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs)
       }
    }
 
-   vcode_reg_t result = emit_arith(op, lhs, rhs);
+   vcode_reg_t result = emit_arith(op, lhs, rhs, VCODE_INVALID_REG);
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(lhs), vtbool)
                 && vtype_eq(vcode_reg_type(rhs), vtbool),
@@ -4481,7 +4507,7 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
    return op->result;
 }
 
-void emit_null_check(vcode_reg_t ptr)
+void emit_null_check(vcode_reg_t ptr, vcode_reg_t locus)
 {
    VCODE_FOR_EACH_OP(other) {
       if (other->kind == VCODE_OP_NULL_CHECK && other->args.items[0] == ptr)
@@ -4492,11 +4518,12 @@ void emit_null_check(vcode_reg_t ptr)
 
    op_t *op = vcode_add_op(VCODE_OP_NULL_CHECK);
    vcode_add_arg(op, ptr);
+   vcode_add_arg(op, locus);
 
    VCODE_ASSERT(vtype_kind(vcode_reg_type(ptr)) == VCODE_TYPE_ACCESS,
                 "null check argument must be an access");
-   VCODE_ASSERT(!loc_invalid_p(vcode_last_loc()),
-                "null check needs debug info");
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to null check must be a debug locus");
 }
 
 void emit_deallocate(vcode_reg_t ptr)

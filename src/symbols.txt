@@ -3,9 +3,12 @@
 #
 {
   # Exported from src/rt/rtkern.c
+  __nvc_assert_fail;
+  __nvc_div_zero;
   __nvc_flush;
   __nvc_index_fail;
   __nvc_length_fail;
+  __nvc_null_deref;
   __nvc_range_fail;
   _assert_fail;
   _canon_value;
@@ -13,7 +16,6 @@
   _debug_dump;
   _debug_out;
   _disconnect;
-  _div_zero;
   _driving;
   _driving_value;
   _endfile;

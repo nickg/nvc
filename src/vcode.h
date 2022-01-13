@@ -343,13 +343,14 @@ vcode_reg_t emit_address_of(vcode_reg_t value);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
-vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus);
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
-                 vcode_reg_t severity);
-void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity);
+                 vcode_reg_t severity, vcode_reg_t locus);
+void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity,
+                 vcode_reg_t locus);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
                        vcode_cc_t cc, const vcode_reg_t *args, int nargs);
@@ -418,7 +419,7 @@ void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
                     vcode_reg_t inlen, vcode_reg_t outlen);
 vcode_reg_t emit_null(vcode_type_t type);
 vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length);
-void emit_null_check(vcode_reg_t ptr);
+void emit_null_check(vcode_reg_t ptr, vcode_reg_t locus);
 void emit_deallocate(vcode_reg_t ptr);
 vcode_reg_t emit_all(vcode_reg_t reg);
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);

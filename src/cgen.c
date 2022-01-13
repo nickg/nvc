@@ -130,11 +130,6 @@ static LLVMTypeRef llvm_int8_type(void)
    return LLVMInt8TypeInContext(llvm_context());
 }
 
-static LLVMTypeRef llvm_int16_type(void)
-{
-   return LLVMInt8TypeInContext(llvm_context());
-}
-
 static LLVMTypeRef llvm_int32_type(void)
 {
    return LLVMInt32TypeInContext(llvm_context());
@@ -158,11 +153,6 @@ static LLVMValueRef llvm_int1(bool b)
 static LLVMValueRef llvm_int8(int8_t i)
 {
    return LLVMConstInt(llvm_int8_type(), i, false);
-}
-
-static LLVMValueRef llvm_int16(int16_t i)
-{
-   return LLVMConstInt(llvm_int16_type(), i, false);
 }
 
 static LLVMValueRef llvm_int32(int32_t i)
@@ -196,19 +186,6 @@ static LLVMValueRef llvm_zext_to_intptr(LLVMValueRef value)
 {
    LLVMTypeRef type = LLVMIntTypeInContext(llvm_context(), sizeof(void *) * 8);
    return LLVMBuildZExt(builder, value, type, "");
-}
-
-static LLVMTypeRef llvm_rt_loc(void)
-{
-   LLVMTypeRef fields[] = {
-      llvm_int32_type(),
-      llvm_int32_type(),
-      llvm_int16_type(),
-      llvm_int16_type(),
-      llvm_char_ptr()
-   };
-   return LLVMStructTypeInContext(llvm_context(), fields,
-                                  ARRAY_LEN(fields), false);
 }
 
 static LLVMTypeRef llvm_ctor_type(void)
@@ -837,44 +814,6 @@ static LLVMValueRef cgen_scoped_alloca(LLVMTypeRef type, cgen_ctx_t *ctx)
    return ptr;
 }
 
-static LLVMValueRef cgen_location(int op, cgen_ctx_t *ctx)
-{
-   const loc_t *loc = vcode_get_loc(op);
-   assert(!loc_invalid_p(loc));
-
-   unsigned last_line = loc->first_line + loc->line_delta;
-   unsigned last_column = loc->first_column + loc->column_delta;
-
-   char *buf LOCAL = xasprintf("loc.%d.%d.%d.%d.%d", loc->file_ref,
-                               loc->first_line, last_line,
-                               loc->first_column, last_column);
-
-   LLVMValueRef global = LLVMGetNamedGlobal(module, buf);
-   if (global != NULL)
-      return global;
-
-   LLVMValueRef file_name = cgen_const_string(loc_file_str(loc));
-
-   LLVMTypeRef rt_loc = llvm_rt_loc();
-
-   LLVMValueRef init = LLVMGetUndef(rt_loc);
-   init = LLVMBuildInsertValue(builder, init,
-                               llvm_int32(loc->first_line), 0, "");
-   init = LLVMBuildInsertValue(builder, init, llvm_int32(last_line), 1, "");
-   init = LLVMBuildInsertValue(builder, init,
-                               llvm_int16(loc->first_column), 2, "");
-   init = LLVMBuildInsertValue(builder, init, llvm_int16(last_column), 3, "");
-   init = LLVMBuildInsertValue(builder, init, file_name, 4, "");
-
-   global = LLVMAddGlobal(module, rt_loc, buf);
-   LLVMSetGlobalConstant(global, true);
-   LLVMSetInitializer(global, init);
-   LLVMSetLinkage(global, LLVMPrivateLinkage);
-   LLVMSetUnnamedAddr(global, true);
-
-   return global;
-}
-
 static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
                                    vcode_cc_t cc, const vcode_type_t *vparams,
                                    size_t nparams)
@@ -1184,15 +1123,17 @@ static void cgen_op_report(int op, cgen_ctx_t *ctx)
    LLVMValueRef severity = cgen_get_arg(op, 0, ctx);
    LLVMValueRef message  = cgen_get_arg(op, 1, ctx);
    LLVMValueRef length   = cgen_get_arg(op, 2, ctx);
+   LLVMValueRef locus    = cgen_get_arg(op, 3, ctx);
 
    LLVMValueRef args[] = {
       message,
       length,
       severity,
       llvm_int8(1),
-      cgen_location(op, ctx)
+      locus,
    };
-   LLVMBuildCall(builder, llvm_fn("_assert_fail"), args, ARRAY_LEN(args), "");
+   LLVMBuildCall(builder, llvm_fn("__nvc_assert_fail"), args,
+                 ARRAY_LEN(args), "");
 }
 
 static void cgen_op_assert(int op, cgen_ctx_t *ctx)
@@ -1234,16 +1175,18 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
       length  = cgen_get_arg(op, 3, ctx);
    }
 
-   LLVMValueRef severity = ctx->regs[vcode_get_arg(op, 1)];
+   LLVMValueRef severity = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef locus    = cgen_get_arg(op, 4, ctx);
 
    LLVMValueRef args[] = {
       message,
       length,
       severity,
       llvm_int8(0),
-      cgen_location(op, ctx)
+      locus
    };
-   LLVMBuildCall(builder, llvm_fn("_assert_fail"), args, ARRAY_LEN(args), "");
+   LLVMBuildCall(builder, llvm_fn("__nvc_assert_fail"), args,
+                 ARRAY_LEN(args), "");
 
    LLVMBuildBr(builder, elsebb);
    LLVMPositionBuilderAtEnd(builder, elsebb);
@@ -1450,7 +1393,9 @@ static void cgen_op_div(int op, cgen_ctx_t *ctx)
       LLVMBasicBlockRef zero_bb = llvm_append_block(ctx->fn, "div_zero");
       LLVMBasicBlockRef ok_bb   = llvm_append_block(ctx->fn, "div_ok");
 
+      assert(vcode_count_args(op) == 3);
       LLVMValueRef denom = cgen_get_arg(op, 1, ctx);
+      LLVMValueRef locus = cgen_get_arg(op, 2, ctx);
 
       LLVMValueRef zero = LLVMConstInt(LLVMTypeOf(denom), 0, false);
       LLVMValueRef div_by_zero =
@@ -1460,10 +1405,9 @@ static void cgen_op_div(int op, cgen_ctx_t *ctx)
 
       LLVMPositionBuilderAtEnd(builder, zero_bb);
 
-      LLVMValueRef args[] = {
-         cgen_location(op, ctx)
-      };
-      LLVMBuildCall(builder, llvm_fn("_div_zero"), args, ARRAY_LEN(args), "");
+      LLVMValueRef args[] = { locus };
+      LLVMBuildCall(builder, llvm_fn("__nvc_div_zero"), args,
+                    ARRAY_LEN(args), "");
       LLVMBuildUnreachable(builder);
 
       LLVMPositionBuilderAtEnd(builder, ok_bb);
@@ -2497,6 +2441,8 @@ static void cgen_op_all(int op, cgen_ctx_t *ctx)
 static void cgen_op_null_check(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef ptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef locus = cgen_get_arg(op, 1, ctx);
+
    LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntEQ, ptr,
                                      LLVMConstNull(LLVMTypeOf(ptr)), "null");
 
@@ -2507,10 +2453,9 @@ static void cgen_op_null_check(int op, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, null_bb);
 
-   LLVMValueRef args[] = {
-      cgen_location(op, ctx)
-   };
-   LLVMBuildCall(builder, llvm_fn("_null_deref"), args, ARRAY_LEN(args), "");
+   LLVMValueRef args[] = { locus };
+   LLVMBuildCall(builder, llvm_fn("__nvc_null_deref"), args,
+                 ARRAY_LEN(args), "");
    LLVMBuildUnreachable(builder);
 
    LLVMPositionBuilderAtEnd(builder, ok_bb);
@@ -3899,19 +3844,18 @@ static LLVMValueRef cgen_support_fn(const char *name)
       cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 1);
       cgen_add_func_attr(fn, FUNC_ATTR_NONNULL, 0);
    }
-   else if (strcmp(name, "_assert_fail") == 0) {
+   else if (strcmp(name, "__nvc_assert_fail") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_int8_type(), 0),
          llvm_int32_type(),
          llvm_int8_type(),
          llvm_int8_type(),
-         LLVMPointerType(llvm_rt_loc(), 0)
+         llvm_debug_locus_type(),
       };
-      fn = LLVMAddFunction(module, "_assert_fail",
+      fn = LLVMAddFunction(module, "__nvc_assert_fail",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
-      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 5);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
    }
    else if (strcmp(name, "_debug_out") == 0) {
@@ -4084,21 +4028,21 @@ static LLVMValueRef cgen_support_fn(const char *name)
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
    }
-   else if (strcmp(name, "_div_zero") == 0) {
+   else if (strcmp(name, "__nvc_div_zero") == 0) {
       LLVMTypeRef args[] = {
-         LLVMPointerType(llvm_rt_loc(), 0)
+         llvm_debug_locus_type(),
       };
-      fn = LLVMAddFunction(module, "_div_zero",
+      fn = LLVMAddFunction(module, "__nvc_div_zero",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
    }
-   else if (strcmp(name, "_null_deref") == 0) {
+   else if (strcmp(name, "__nvc_null_deref") == 0) {
       LLVMTypeRef args[] = {
-         LLVMPointerType(llvm_rt_loc(), 0)
+         llvm_debug_locus_type(),
       };
-      fn = LLVMAddFunction(module, "_null_deref",
+      fn = LLVMAddFunction(module, "__nvc_null_deref",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);

@@ -1228,9 +1228,13 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
    case S_SUB:
       return lower_arith(fcall, emit_sub, r0, r1);
    case S_DIV:
-      if (!type_eq(r0_type, r1_type))
-         r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
-      return lower_narrow(tree_type(fcall), emit_div(r0, r1));
+      {
+         if (!type_eq(r0_type, r1_type))
+            r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
+
+         vcode_reg_t locus = lower_debug_locus(fcall);
+         return lower_narrow(tree_type(fcall), emit_div(r0, r1, locus));
+      }
    case S_EXP:
       if (!type_eq(r0_type, r1_type))
          r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
@@ -1328,14 +1332,16 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
          vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
          return emit_cast(rtype, rtype,
-                          emit_div(emit_cast(vreal, vreal, r0), r1));
+                          emit_div(emit_cast(vreal, vreal, r0), r1,
+                                   VCODE_INVALID_REG));
       }
    case S_DIV_RI:
       {
          vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
+         vcode_reg_t locus = lower_debug_locus(fcall);
          return emit_cast(rtype, rtype,
-                          emit_div(r0, emit_cast(vreal, vreal, r1)));
+                          emit_div(r0, emit_cast(vreal, vreal, r1), locus));
       }
    default:
       fatal_at(tree_loc(fcall), "cannot lower builtin %d", builtin);
@@ -2810,7 +2816,7 @@ static vcode_reg_t lower_all(tree_t all, expr_ctx_t ctx)
 {
    type_t type = tree_type(all);
    vcode_reg_t access_reg = lower_reify_expr(tree_value(all));
-   emit_null_check(access_reg);
+   emit_null_check(access_reg, lower_debug_locus(all));
    access_reg = lower_incomplete_access(access_reg, tree_type(all));
    vcode_reg_t all_reg = emit_all(access_reg);
 
@@ -3246,10 +3252,11 @@ static void lower_assert(tree_t stmt)
       length  = lower_array_len(tree_type(m), 0, message_wrapped);
    }
 
+   vcode_reg_t locus = lower_debug_locus(stmt);
    if (is_report)
-      emit_report(message, length, severity);
+      emit_report(message, length, severity, locus);
    else
-      emit_assert(value, message, length, severity);
+      emit_assert(value, message, length, severity, locus);
 
    if (exit_bb != VCODE_INVALID_BLOCK) {
       emit_jump(exit_bb);
@@ -5261,7 +5268,8 @@ static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
    vcode_reg_t ptr2_reg = emit_add(ptr1_reg, arg_len_reg);
    emit_copy(ptr2_reg, emit_unwrap(const_str_reg), const_str_len);
 
-   emit_report(mem_reg, msg_len, failure_reg);
+   vcode_reg_t locus = lower_debug_locus(type_enum_literal(type, 0));
+   emit_report(mem_reg, msg_len, failure_reg, locus);
    emit_return(emit_const(lower_type(type), 0));
 
    vcode_select_block(match_bb);
@@ -5410,7 +5418,8 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
    vcode_reg_t ptr2_reg = emit_add(ptr1_reg, tail_len);
    emit_copy(ptr2_reg, emit_unwrap(const_str_reg), const_str_len);
 
-   emit_report(mem_reg, msg_len, failure_reg);
+   vcode_reg_t locus = lower_debug_locus(type_unit(type, 0));
+   emit_report(mem_reg, msg_len, failure_reg, locus);
    emit_return(emit_const(lower_type(type), 0));
 
    vcode_select_block(match_bb);
@@ -6232,8 +6241,8 @@ static void lower_predef_bit_vec_op(tree_t decl, vcode_unit_t context,
          lower_wrap_string("arguments have different lengths");
       vcode_reg_t msg_len = emit_uarray_len(msg_reg, 0);
 
-      emit_debug_info(tree_loc(decl));
-      emit_report(emit_unwrap(msg_reg), msg_len, failure_reg);
+      vcode_reg_t locus = lower_debug_locus(decl);
+      emit_report(emit_unwrap(msg_reg), msg_len, failure_reg, locus);
       emit_return(r0);
 
       vcode_select_block(cont_bb);
@@ -6492,8 +6501,8 @@ static void lower_predef_match_op(tree_t decl, vcode_unit_t context,
          lower_wrap_string("arguments have different lengths");
       vcode_reg_t msg_len = emit_uarray_len(msg_reg, 0);
 
-      emit_debug_info(tree_loc(decl));
-      emit_report(emit_unwrap(msg_reg), msg_len, failure_reg);
+      vcode_reg_t locus = lower_debug_locus(decl);
+      emit_report(emit_unwrap(msg_reg), msg_len, failure_reg, locus);
       emit_jump(cont_bb);
 
       vcode_select_block(cont_bb);

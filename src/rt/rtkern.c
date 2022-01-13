@@ -64,7 +64,6 @@ typedef struct sens_list     sens_list_t;
 typedef struct value         value_t;
 typedef struct callback      callback_t;
 typedef struct image_map     image_map_t;
-typedef struct rt_loc        rt_loc_t;
 typedef struct rt_nexus_s    rt_nexus_t;
 typedef struct rt_scope_s    rt_scope_t;
 typedef struct rt_source_s   rt_source_t;
@@ -283,14 +282,6 @@ struct image_map {
    int32_t        count;
 };
 
-struct rt_loc {
-   int32_t     first_line;
-   int32_t     last_line;
-   int16_t     first_column;
-   int16_t     last_column;
-   const char *file;
-};
-
 typedef struct {
    uint32_t n_signals;
    uint32_t n_contig;
@@ -499,7 +490,7 @@ static void rt_fmt_enclosing(text_buf_t *tb, tree_t enclosing,
    }
 }
 
-static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
+static text_buf_t *rt_fmt_trace(const loc_t *fixed)
 {
    debug_info_t *di = debug_capture();
    text_buf_t *tb = tb_new();
@@ -533,7 +524,7 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
       const char *srcfile = f->srcfile;
       if (fixed != NULL && !found_fixed) {
          lineno = fixed->first_line;
-         srcfile = fixed->file;
+         srcfile = loc_file_str(fixed);
          found_fixed = true;
       }
       else if (f->lineno == 0) {
@@ -551,7 +542,8 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
       const char *pname = active_proc == NULL
          ? "(init)" : istr(e_path(active_proc->source));
       tb_printf(tb, "\r\tProcess %s", pname);
-      tb_printf(tb, "\r\t    File %s, Line %u", fixed->file, fixed->first_line);
+      tb_printf(tb, "\r\t    File %s, Line %u", loc_file_str(fixed),
+                fixed->first_line);
    }
 
    debug_free(di);
@@ -561,7 +553,7 @@ static text_buf_t *rt_fmt_trace(const rt_loc_t *fixed)
 typedef void (*rt_msg_fn_t)(const char *, ...);
 
 __attribute__((format(printf, 3, 4)))
-static void rt_msg(const rt_loc_t *where, rt_msg_fn_t fn, const char *fmt, ...)
+static void rt_msg(const loc_t *where, rt_msg_fn_t fn, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
@@ -660,18 +652,6 @@ static inline void rt_check_postponed(int64_t after)
 static inline tree_t rt_locus_to_tree(const char *unit, unsigned offset)
 {
    return tree_from_locus(ident_new(unit), offset, lib_get_qualified);
-}
-
-static rt_loc_t rt_translate_loc(const loc_t *loc)
-{
-   // This is just temporary while we phase out rt_loc_t
-   return (rt_loc_t){
-      .first_line   = loc->first_line,
-      .last_line    = loc->first_line + loc->line_delta,
-      .first_column = loc->first_column,
-      .last_column  = loc->first_column + loc->column_delta,
-      .file         = loc_file_str(loc)
-   };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -897,8 +877,8 @@ void _convert_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
 }
 
 DLLEXPORT
-void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
-                  int8_t is_report, const rt_loc_t *where)
+void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
+                       int8_t is_report, DEBUG_LOCUS(locus))
 {
    // LRM 93 section 8.2
    // The error message consists of at least
@@ -933,7 +913,9 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    char tmbuf[64];
    rt_fmt_now(tmbuf, sizeof(tmbuf));
 
-   rt_msg(where, fn, "%s: %s %s: %.*s",
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   rt_msg(tree_loc(where), fn, "%s: %s %s: %.*s",
           tmbuf, (is_report ? "Report" : "Assertion"),
           levels[severity], msg_len, msg);
 }
@@ -942,10 +924,8 @@ DLLEXPORT
 void __nvc_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
                       DEBUG_LOCUS(locus))
 {
-   tree_t t = rt_locus_to_tree(locus_unit, locus_offset);
-   const rt_loc_t where = rt_translate_loc(tree_loc(t));
-
-   type_t type = tree_type(t);
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+   type_t type = tree_type(where);
 
    LOCAL_TEXT_BUF tb = tb_new();
    tb_cat(tb, "index ");
@@ -955,17 +935,15 @@ void __nvc_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
    tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
    to_string(tb, type, right);
 
-   rt_msg(&where, fatal, "%s", tb_get(tb));
+   rt_msg(tree_loc(where), fatal, "%s", tb_get(tb));
 }
 
 DLLEXPORT
 void __nvc_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
                       DEBUG_LOCUS(locus), DEBUG_LOCUS(hint))
 {
-   tree_t t = rt_locus_to_tree(locus_unit, locus_offset);
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
    tree_t hint = rt_locus_to_tree(hint_unit, hint_offset);
-
-   const rt_loc_t where = rt_translate_loc(tree_loc(t));
 
    type_t type = tree_type(hint);
 
@@ -995,35 +973,35 @@ void __nvc_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
       break;
    }
 
-   rt_msg(&where, fatal, "%s", tb_get(tb));
+   rt_msg(tree_loc(where), fatal, "%s", tb_get(tb));
 }
 
 DLLEXPORT
 void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
                        DEBUG_LOCUS(locus))
 {
-   tree_t t = rt_locus_to_tree(locus_unit, locus_offset);
-   const rt_loc_t where = rt_translate_loc(tree_loc(t));
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
    LOCAL_TEXT_BUF tb = tb_new();
    tb_printf(tb, "%s length %d",
-             tree_kind(t) == T_PORT_DECL ? "actual" : "value", right);
+             tree_kind(where) == T_PORT_DECL ? "actual" : "value", right);
    if (dim > 0)
       tb_printf(tb, " for dimension %d", dim);
    tb_cat(tb, " does not match ");
 
-   switch (tree_kind(t)) {
+   switch (tree_kind(where)) {
    case T_PORT_DECL:
-      tb_printf(tb, "formal parameter %s", istr(tree_ident(t)));
+      tb_printf(tb, "formal parameter %s", istr(tree_ident(where)));
       break;
    case T_VAR_DECL:
-      tb_printf(tb, "variable %s", istr(tree_ident(t)));
+      tb_printf(tb, "variable %s", istr(tree_ident(where)));
       break;
    case T_SIGNAL_DECL:
-      tb_printf(tb, "signal %s", istr(tree_ident(t)));
+      tb_printf(tb, "signal %s", istr(tree_ident(where)));
       break;
    case T_REF:
-      tb_printf(tb, "%s %s", class_str(class_of(t)), istr(tree_ident(t)));
+      tb_printf(tb, "%s %s", class_str(class_of(where)),
+                istr(tree_ident(where)));
       break;
    default:
       tb_cat(tb, "target");
@@ -1032,7 +1010,7 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
 
    tb_printf(tb, " length %d", left);
 
-   rt_msg(&where, fatal, "%s", tb_get(tb));
+   rt_msg(tree_loc(where), fatal, "%s", tb_get(tb));
 }
 
 DLLEXPORT
@@ -1158,15 +1136,17 @@ double _string_to_real(const uint8_t *raw_str, int32_t str_len, uint8_t **tail)
 }
 
 DLLEXPORT
-void _div_zero(const rt_loc_t *where)
+void __nvc_div_zero(DEBUG_LOCUS(locus))
 {
-   rt_msg(where, fatal, "division by zero");
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+   rt_msg(tree_loc(where), fatal, "division by zero");
 }
 
 DLLEXPORT
-void _null_deref(const rt_loc_t *where)
+void __nvc_null_deref(DEBUG_LOCUS(locus))
 {
-   rt_msg(where, fatal, "null access dereference");
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+   rt_msg(tree_loc(where), fatal, "null access dereference");
 }
 
 DLLEXPORT
