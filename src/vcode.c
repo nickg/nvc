@@ -1046,13 +1046,6 @@ static void vcode_dump_tab(int col, int to_col)
    }
 }
 
-static void vcode_dump_loc(const loc_t *loc)
-{
-   if (!loc_invalid_p(loc)) {
-      color_printf("%s:%d", loc_file_str(loc), loc->first_line);
-   }
-}
-
 static void vcode_dump_comment(int col)
 {
    vcode_dump_tab(col, 40);
@@ -1396,6 +1389,12 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[1]);
                printf(" locus ");
                vcode_dump_reg(op->args.items[4]);
+               if (op->args.count > 5) {
+                  printf(" hint ");
+                  vcode_dump_reg(op->args.items[5]);
+                  printf(" ");
+                  vcode_dump_reg(op->args.items[6]);
+               }
             }
             break;
 
@@ -2777,7 +2776,8 @@ vcode_unit_t emit_thunk(ident_t name)
 }
 
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
-                 vcode_reg_t severity, vcode_reg_t locus)
+                 vcode_reg_t severity, vcode_reg_t locus, vcode_reg_t hint_left,
+                 vcode_reg_t hint_right)
 {
    int64_t value_const;
    if (vcode_reg_const(value, &value_const) && value_const != 0) {
@@ -2791,6 +2791,16 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
    vcode_add_arg(op, message);
    vcode_add_arg(op, length);
    vcode_add_arg(op, locus);
+
+   if (hint_left != VCODE_INVALID_REG) {
+      vcode_add_arg(op, hint_left);
+      vcode_add_arg(op, hint_right);
+
+      VCODE_ASSERT(vtype_is_scalar(vcode_reg_type(hint_left)),
+                   "left hint must be scalar");
+      VCODE_ASSERT(vtype_is_scalar(vcode_reg_type(hint_right)),
+                   "right hint must be scalar");
+   }
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(value), vtype_bool()),
                 "value parameter to assert is not bool");
@@ -3361,7 +3371,7 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus)
    VCODE_ASSERT(locus != VCODE_INVALID_REG || bl->kind == VCODE_TYPE_REAL,
                 "must pass debug locus for integer division");
 
-   if (bl->kind == VCODE_TYPE_INT && r_is_const) {
+   if (bl->kind == VCODE_TYPE_INT && r_is_const && rconst != 0) {
       reg_t *rr = vcode_reg_data(reg);
       rr->bounds = vtype_int(bl->low / rconst, bl->high / rconst);
    }

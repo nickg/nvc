@@ -62,6 +62,8 @@
   multi-threading enabled.
 - Link time optimisation (LTO) is now enabled for release builds where
   supported.
+- The default assertion failure message for certain simple scalar
+  comparisons now shows the values of the left and right hand sides.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

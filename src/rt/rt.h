@@ -35,13 +35,6 @@ typedef void (*timeout_fn_t)(uint64_t now, void *user);
 typedef void (*rt_event_fn_t)(void *user);
 
 typedef enum {
-   IMAGE_INTEGER,
-   IMAGE_REAL,
-   IMAGE_ENUM,
-   IMAGE_PHYSICAL,
-} image_kind_t;
-
-typedef enum {
    R_MEMO      = (1 << 0),
    R_IDENT     = (1 << 1),
    R_COMPOSITE = (1 << 2),

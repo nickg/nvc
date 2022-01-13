@@ -348,7 +348,8 @@ vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
-                 vcode_reg_t severity, vcode_reg_t locus);
+                 vcode_reg_t severity, vcode_reg_t locus, vcode_reg_t hint_left,
+                 vcode_reg_t hint_right);
 void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity,
                  vcode_reg_t locus);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);

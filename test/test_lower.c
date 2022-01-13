@@ -3066,7 +3066,7 @@ START_TEST(test_hintbug)
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_FCALL , .func="STD.STANDARD.\"=\"(QQ)B" },
+      { VCODE_OP_FCALL , .func = "STD.STANDARD.\"=\"(QQ)B" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_TEMP_STACK_RESTORE },

@@ -1449,4 +1449,14 @@ void to_string(text_buf_t *tb, type_t type, int64_t value)
       tb_printf(tb, "%"PRIi64" %s", value / max_unit_value,
                 istr(tree_ident(max_unit)));
    }
+   else if (type_is_real(type)) {
+      union { int64_t i; double r; } u = { .i = value };
+      tb_printf(tb, "%g", u.r);
+   }
+   else if (type_is_access(type)) {
+      if (value == 0)
+         tb_cat(tb, "NULL");
+      else
+         tb_printf(tb, "%p", (void *)value);
+   }
 }

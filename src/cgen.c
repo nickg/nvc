@@ -642,23 +642,43 @@ static LLVMValueRef cgen_get_arg(int op, int arg, cgen_ctx_t *ctx)
 static LLVMValueRef cgen_sign_extend(int op, int arg, int bits, cgen_ctx_t *ctx)
 {
    LLVMValueRef value = cgen_get_arg(op, arg, ctx);
+   LLVMTypeRef type = LLVMTypeOf(value);
 
-   const int value_bits = LLVMGetIntTypeWidth(LLVMTypeOf(value));
+   switch (LLVMGetTypeKind(type)) {
+   case LLVMIntegerTypeKind:
+      {
+         const int value_bits = LLVMGetIntTypeWidth(type);
+         if (value_bits == bits)
+            return value;
 
-   if (value_bits == bits)
-      return value;
+         LLVMTypeRef type = LLVMIntTypeInContext(llvm_context(), bits);
 
-   LLVMTypeRef type = LLVMIntTypeInContext(llvm_context(), bits);
+         if (value_bits < bits) {
+            if (vtype_low(vcode_reg_type(vcode_get_arg(op, arg))) < 0)
+               return LLVMBuildSExt(builder, value, type, "");
+            else
+               return LLVMBuildZExt(builder, value, type, "");
+         }
+         else
+            return LLVMBuildTrunc(builder, value, type, "");
+      }
 
-   if (value_bits < bits) {
-      const int64_t low = vtype_low(vcode_reg_type(vcode_get_arg(op, arg)));
-      if (low < 0)
-         return LLVMBuildSExt(builder, value, type, "");
-      else
-         return LLVMBuildZExt(builder, value, type, "");
+   case LLVMDoubleTypeKind:
+      {
+         LLVMTypeRef type = LLVMIntTypeInContext(llvm_context(), bits);
+         return LLVMBuildBitCast(builder, value, type, "");
+      }
+
+   case LLVMPointerTypeKind:
+      {
+         LLVMTypeRef type = LLVMIntTypeInContext(llvm_context(), bits);
+         return LLVMBuildPtrToInt(builder, value, type, "");
+      }
+
+   default:
+      vcode_dump_with_mark(op, NULL, NULL);
+      fatal_trace("illegal LLVM type in cgen_sign_extend");
    }
-   else
-      return LLVMBuildTrunc(builder, value, type, "");
 }
 
 static LLVMValueRef cgen_display_upref(int hops, cgen_ctx_t *ctx)
@@ -1158,11 +1178,25 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
    LLVMValueRef severity = cgen_get_arg(op, 1, ctx);
    LLVMValueRef locus    = cgen_get_arg(op, 4, ctx);
 
+   LLVMValueRef hint_left, hint_right, hint_valid;
+   if (vcode_count_args(op) > 5) {
+      hint_left  = cgen_sign_extend(op, 5, 64, ctx);
+      hint_right = cgen_sign_extend(op, 6, 64, ctx);
+      hint_valid = llvm_int1(true);
+   }
+   else {
+      hint_left = hint_right = llvm_int64(0);
+      hint_valid = llvm_int1(false);
+   }
+
    LLVMValueRef args[] = {
       message,
       length,
       severity,
-      locus
+      hint_left,
+      hint_right,
+      hint_valid,
+      locus,
    };
    LLVMBuildCall(builder, llvm_fn("__nvc_assert_fail"), args,
                  ARRAY_LEN(args), "");
@@ -3828,6 +3862,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(llvm_int8_type(), 0),
          llvm_int32_type(),
          llvm_int8_type(),
+         llvm_int64_type(),
+         llvm_int64_type(),
+         llvm_int1_type(),
          llvm_debug_locus_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_assert_fail",

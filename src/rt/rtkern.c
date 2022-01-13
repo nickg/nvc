@@ -878,6 +878,7 @@ void _convert_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
 
 DLLEXPORT
 void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
+                       int64_t hint_left, int64_t hint_right, int8_t hint_valid,
                        DEBUG_LOCUS(locus))
 {
    // LRM 93 section 8.2
@@ -917,10 +918,33 @@ void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    if (severity >= exit_severity)
       fn = fatal;
 
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   if (hint_valid) {
+      assert(tree_kind(where) == T_FCALL);
+      type_t p0_type = tree_type(tree_value(tree_param(where, 0)));
+      type_t p1_type = tree_type(tree_value(tree_param(where, 1)));
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_cat(tb, "condition ");
+      to_string(tb, p0_type, hint_left);
+      switch (tree_subkind(tree_ref(where))) {
+      case S_SCALAR_EQ:  tb_cat(tb, " = "); break;
+      case S_SCALAR_NEQ: tb_cat(tb, " /= "); break;
+      case S_SCALAR_LT:  tb_cat(tb, " < "); break;
+      case S_SCALAR_GT:  tb_cat(tb, " > "); break;
+      case S_SCALAR_LE:  tb_cat(tb, " <= "); break;
+      case S_SCALAR_GE:  tb_cat(tb, " >= "); break;
+      default: tb_cat(tb, " <?> "); break;
+      }
+      to_string(tb, p1_type, hint_right);
+      tb_cat(tb, " is false");
+
+      hint_at(tree_loc(where), "%s", tb_get(tb));
+   }
+
    char tmbuf[64];
    rt_fmt_now(tmbuf, sizeof(tmbuf));
-
-   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
    rt_msg(tree_loc(where), fn, "%s: Assertion %s: %.*s",
           tmbuf, levels[severity], msg_len, msg);

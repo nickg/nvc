@@ -344,6 +344,7 @@ void errorf(const char *fmt, ...)
    va_start(ap, fmt);
    fmt_color(ANSI_FG_RED, "Error", fmt, ap);
    va_end(ap);
+   show_hint();
 }
 
 void warnf(const char *fmt, ...)
@@ -352,6 +353,7 @@ void warnf(const char *fmt, ...)
    va_start(ap, fmt);
    fmt_color(ANSI_FG_YELLOW, "Warning", fmt, ap);
    va_end(ap);
+   show_hint();
 }
 
 void notef(const char *fmt, ...)
@@ -360,6 +362,7 @@ void notef(const char *fmt, ...)
    va_start(ap, fmt);
    fmt_color(ANSI_RESET, "Note", fmt, ap);
    va_end(ap);
+   show_hint();
 }
 
 static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)

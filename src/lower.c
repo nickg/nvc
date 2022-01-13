@@ -1046,7 +1046,11 @@ static bool lower_side_effect_free(tree_t expr)
       return true;
    case T_FCALL:
       {
-         if (!is_builtin(tree_subkind(tree_ref(expr))))
+         const subprogram_kind_t kind = tree_subkind(tree_ref(expr));
+         if (kind == S_DIV || kind == S_DIV_PR || kind == S_DIV_RI
+             || kind == S_REM || kind == S_MOD)
+            return false;
+         else if (!is_builtin(kind))
             return false;
 
          const int nparams = tree_params(expr);
@@ -1187,7 +1191,8 @@ static vcode_reg_t lower_short_circuit(tree_t fcall, short_circuit_op_t op)
    return lower_logical(fcall, result);
 }
 
-static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
+static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
+                                 vcode_reg_t *out_r0, vcode_reg_t *out_r1)
 {
    if (builtin == S_SCALAR_AND)
       return lower_short_circuit(fcall, SHORT_CIRCUIT_AND);
@@ -1204,6 +1209,9 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin)
 
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
+
+   if (out_r0 != NULL) *out_r0 = r0;
+   if (out_r1 != NULL) *out_r1 = r1;
 
    type_t r0_type = lower_arg_type(fcall, 0);
    type_t r1_type = lower_arg_type(fcall, 1);
@@ -1430,7 +1438,7 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
 
    const subprogram_kind_t kind = tree_subkind(decl);
    if (is_open_coded_builtin(kind))
-      return lower_builtin(fcall, kind);
+      return lower_builtin(fcall, kind, NULL, NULL);
 
    const int nparams = tree_params(fcall);
    SCOPED_A(vcode_reg_t) args = AINIT;
@@ -3214,21 +3222,72 @@ static vcode_reg_t lower_default_value(type_t type, bool nested)
                   type_pp(type));
 }
 
-static void lower_assert(tree_t stmt)
+static void lower_report(tree_t stmt)
 {
-   const int is_report = !tree_has_value(stmt);
+   assert(!tree_has_value(stmt));
    const int saved_mark = emit_temp_stack_mark();
 
    vcode_reg_t severity = lower_reify_expr(tree_severity(stmt));
 
-   vcode_reg_t value = VCODE_INVALID_REG;
-   if (!is_report) {
-      value = lower_reify_expr(tree_value(stmt));
+   vcode_reg_t message = VCODE_INVALID_REG, length = VCODE_INVALID_REG;
+   if (tree_has_message(stmt)) {
+      tree_t m = tree_message(stmt);
 
-      int64_t value_const;
-      if (vcode_reg_const(value, &value_const) && value_const)
-         return;
+      vcode_reg_t message_wrapped = lower_expr(m, EXPR_RVALUE);
+      message = lower_array_data(message_wrapped);
+      length  = lower_array_len(tree_type(m), 0, message_wrapped);
    }
+
+   vcode_reg_t locus = lower_debug_locus(stmt);
+   emit_report(message, length, severity, locus);
+
+   emit_temp_stack_restore(saved_mark);
+}
+
+static bool lower_can_hint_assert(tree_t expr)
+{
+   if (tree_kind(expr) != T_FCALL)
+      return false;
+
+   switch (tree_subkind(tree_ref(expr))) {
+   case S_SCALAR_EQ:
+   case S_SCALAR_NEQ:
+   case S_SCALAR_LT:
+   case S_SCALAR_LE:
+   case S_SCALAR_GT:
+   case S_SCALAR_GE:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static void lower_assert(tree_t stmt)
+{
+   if (!tree_has_value(stmt)) {
+      lower_report(stmt);
+      return;
+   }
+
+   const int saved_mark = emit_temp_stack_mark();
+
+   vcode_reg_t severity_reg = lower_reify_expr(tree_severity(stmt));
+
+   tree_t value = tree_value(stmt);
+
+   vcode_reg_t value_reg,
+      hint_left_reg = VCODE_INVALID_REG,
+      hint_right_reg = VCODE_INVALID_REG;
+
+   if (!tree_has_message(stmt) && lower_can_hint_assert(value))
+      value_reg = lower_builtin(value, tree_subkind(tree_ref(value)),
+                                &hint_left_reg, &hint_right_reg);
+   else
+      value_reg = lower_reify_expr(value);
+
+   int64_t value_const;
+   if (vcode_reg_const(value_reg, &value_const) && value_const)
+      return;
 
    vcode_block_t message_bb = VCODE_INVALID_BLOCK;
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
@@ -3238,12 +3297,10 @@ static void lower_assert(tree_t stmt)
       tree_t m = tree_message(stmt);
 
       // If the message can have side effects then branch to a new block
-      const tree_kind_t kind = tree_kind(m);
-      const bool side_effects = kind != T_LITERAL;
-      if (side_effects && !is_report) {
+      if (!lower_side_effect_free(m)) {
          message_bb = emit_block();
          exit_bb    = emit_block();
-         emit_cond(value, exit_bb, message_bb);
+         emit_cond(value_reg, exit_bb, message_bb);
          vcode_select_block(message_bb);
       }
 
@@ -3252,11 +3309,9 @@ static void lower_assert(tree_t stmt)
       length  = lower_array_len(tree_type(m), 0, message_wrapped);
    }
 
-   vcode_reg_t locus = lower_debug_locus(stmt);
-   if (is_report)
-      emit_report(message, length, severity, locus);
-   else
-      emit_assert(value, message, length, severity, locus);
+   vcode_reg_t locus = lower_debug_locus(value);
+   emit_assert(value_reg, message, length, severity_reg, locus,
+               hint_left_reg, hint_right_reg);
 
    if (exit_bb != VCODE_INVALID_BLOCK) {
       emit_jump(exit_bb);
@@ -3958,7 +4013,7 @@ static void lower_pcall(tree_t pcall)
 
    const subprogram_kind_t kind = tree_subkind(decl);
    if (is_builtin(kind)) {
-      lower_builtin(pcall, kind);
+      lower_builtin(pcall, kind, NULL, NULL);
       emit_temp_stack_restore(saved_mark);
       return;
    }
