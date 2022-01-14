@@ -1,13 +1,13 @@
 -- test_ng.vhd
 library ieee;
 use     ieee.std_logic_1164.all;
-entity  TEST_NG is
+entity  ISSUE438 is
     generic(
         INFO_SIZE  : integer := 1;
         INFO_BITS  : integer := 8
    );
 end entity;
-architecture MODEL of TEST_NG is
+architecture MODEL of ISSUE438 is
     type      INFO_RANGE_TYPE is record
               VAL_POS           : integer;
               DATA_LO           : integer;

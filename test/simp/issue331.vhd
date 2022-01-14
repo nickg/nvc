@@ -1,5 +1,5 @@
--- test_ng.vhd
-entity  TEST_NG is
+-- issue331.vhd
+entity  ISSUE331 is
     generic (
         INFO_BITS  : integer :=  1;
         INFO_1_VAL : integer :=  0
@@ -10,8 +10,8 @@ entity  TEST_NG is
         O_INFO_0   : out bit_vector(INFO_BITS-1 downto 0);
         O_INFO_1   : out bit_vector(INFO_BITS-1 downto 0)
     );
-end     TEST_NG;
-architecture MODEL of TEST_NG is
+end     ISSUE331;
+architecture MODEL of ISSUE331 is
     type      INFO_RANGE_TYPE is record
               DATA_LO           : integer;
               DATA_HI           : integer;

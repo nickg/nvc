@@ -7,9 +7,9 @@ package TEST_PACKAGE is
 end     TEST_PACKAGE;
 
 use     WORK.TEST_PACKAGE.all;
-entity  TEST_NG is
-end     TEST_NG;
-architecture MODEL of TEST_NG is
+entity  ISSUE320 is
+end     ISSUE320;
+architecture MODEL of ISSUE320 is
     function  GEN_INIT_VALUE(CHANNEL: CHANNEL_TYPE) return integer is
         variable  value : integer;
     begin

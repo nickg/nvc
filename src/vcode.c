@@ -5123,6 +5123,8 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
       if (unit->context == NULL)
          fatal("%s references nonexistent context %s", fbuf_file_name(f),
                istr(context_name));
+
+      vcode_add_child(unit->context, unit);
    }
    else
       unit->context = NULL;
