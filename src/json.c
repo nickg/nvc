@@ -642,6 +642,7 @@ static JsonNode *dump_stmt(tree_t t)
          json_append_member(cond, "stmts", stmts);
          for (unsigned j = 0; j < tree_stmts(c); j++)
             json_append_element(stmts, dump_stmt(tree_stmt(c, i)));
+         json_append_element(conds, cond);
       }
       break;
 
@@ -980,28 +981,6 @@ JsonNode *trees_to_json(tree_t *elements, unsigned int n_elements)
          break;
       case T_CONFIGURATION:
          json_append_element(base_node, dump_configuration(t));
-         break;
-      case T_FCALL:
-      case T_LITERAL:
-      case T_AGGREGATE:
-      case T_REF:
-      case T_ARRAY_REF:
-      case T_ARRAY_SLICE:
-      case T_TYPE_CONV:
-      case T_RECORD_REF:
-         dump_expr(t);
-         break;
-      case T_FOR_GENERATE:
-      case T_BLOCK:
-      case T_PROCESS:
-      case T_CASE:
-      case T_FOR:
-         dump_stmt(t);
-         break;
-      case T_CONST_DECL:
-      case T_VAR_DECL:
-      case T_SIGNAL_DECL:
-         dump_decl(t);
          break;
       default:
          cannot_dump(t, "tree");

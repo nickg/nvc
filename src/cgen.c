@@ -4476,6 +4476,7 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
    if (dump_ir) cgen_dump_module("final");
 
    assert(debug_scopes.count == 0);
+   ACLEAR(debug_scopes);
 
    shash_free(string_pool);
    string_pool = NULL;

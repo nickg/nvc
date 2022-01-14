@@ -502,6 +502,8 @@ void vcode_unit_unref(vcode_unit_t unit)
          op_t *o = &(b->ops.items[j]);
          if (OP_HAS_COMMENT(o->kind))
             free(o->comment);
+         if (OP_HAS_TARGET(o->kind))
+            free(o->targets.items);
          free(o->args.items);
       }
       free(b->ops.items);

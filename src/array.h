@@ -60,6 +60,11 @@
             memset(a->items + a->count, fill,                  \
                    (n - a->count) * sizeof(what##_t));         \
       }                                                        \
+      else {                                                   \
+         free(a->items);                                       \
+         a->items = NULL;                                      \
+         a->count = 0;                                         \
+      }                                                        \
       a->count = n;                                            \
    }                                                           \
 

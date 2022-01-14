@@ -2728,6 +2728,8 @@ START_TEST(test_thunk)
       };
 
       CHECK_BB(0);
+
+      vcode_unit_unref(t0);
    }
 
    {
@@ -2747,6 +2749,8 @@ START_TEST(test_thunk)
       };
 
       CHECK_BB(0);
+
+      vcode_unit_unref(t1);
    }
 }
 END_TEST
