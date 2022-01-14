@@ -1255,30 +1255,11 @@ static void cgen_op_load_indirect(int op, cgen_ctx_t *ctx)
 static void cgen_op_add(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   vtype_kind_t kind = vtype_kind(vcode_reg_type(result));
 
    LLVMValueRef lhs = cgen_get_arg(op, 0, ctx);
    LLVMValueRef rhs = cgen_get_arg(op, 1, ctx);
 
-   if (kind == VCODE_TYPE_POINTER) {
-      LLVMValueRef index[] = { rhs };
-      ctx->regs[result] = LLVMBuildInBoundsGEP(builder, lhs,
-                                               index, ARRAY_LEN(index),
-                                               cgen_reg_name(result));
-   }
-   else if (kind == VCODE_TYPE_SIGNAL) {
-      LLVMValueRef base = LLVMBuildExtractValue(builder, lhs, 1, "base");
-      vcode_type_t vtype = vtype_base(vcode_reg_type(vcode_get_arg(op, 0)));
-      LLVMValueRef null = LLVMConstNull(LLVMPointerType(cgen_type(vtype), 0));
-      LLVMValueRef index[] = { rhs };
-      LLVMValueRef gep = LLVMBuildInBoundsGEP(builder, null, index, 1, "");
-      LLVMValueRef scaled =
-         LLVMBuildPtrToInt(builder, gep, llvm_int32_type(), "");
-      LLVMValueRef add = LLVMBuildAdd(builder, base, scaled, "");
-      ctx->regs[result] = LLVMBuildInsertValue(builder, lhs,
-                                               add, 1, cgen_reg_name(result));
-   }
-   else if (vcode_reg_kind(result) == VCODE_TYPE_REAL)
+   if (vcode_reg_kind(result) == VCODE_TYPE_REAL)
       ctx->regs[result] = LLVMBuildFAdd(builder, lhs, rhs,
                                         cgen_reg_name(result));
    else
@@ -2099,6 +2080,45 @@ static void cgen_op_copy(int op, cgen_ctx_t *ctx)
    };
    LLVMBuildCall(builder, llvm_fn(cgen_memcpy_name("memmove", 8)),
                  memcpy_args, ARRAY_LEN(memcpy_args), "");
+}
+
+static void cgen_op_array_ref(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef lhs = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef rhs = cgen_get_arg(op, 1, ctx);
+
+   switch (vcode_reg_kind(result)) {
+   case VCODE_TYPE_POINTER:
+      {
+         LLVMValueRef index[] = { rhs };
+         ctx->regs[result] = LLVMBuildInBoundsGEP(builder, lhs,
+                                                  index, ARRAY_LEN(index),
+                                                  cgen_reg_name(result));
+      }
+      break;
+
+   case VCODE_TYPE_SIGNAL:
+      {
+         LLVMValueRef base = LLVMBuildExtractValue(builder, lhs, 1, "base");
+         vcode_type_t vtype = vtype_base(vcode_reg_type(vcode_get_arg(op, 0)));
+         LLVMValueRef null =
+            LLVMConstNull(LLVMPointerType(cgen_type(vtype), 0));
+         LLVMValueRef index[] = { rhs };
+         LLVMValueRef gep = LLVMBuildInBoundsGEP(builder, null, index, 1, "");
+         LLVMValueRef scaled =
+            LLVMBuildPtrToInt(builder, gep, llvm_int32_type(), "");
+         LLVMValueRef add = LLVMBuildAdd(builder, base, scaled, "");
+         ctx->regs[result] = LLVMBuildInsertValue(builder, lhs,
+                                                  add, 1, cgen_reg_name(result));
+      }
+      break;
+
+   default:
+      vcode_dump_with_mark(op, NULL, NULL);
+      fatal_trace("unexpected array ref result kind");
+   }
 }
 
 static void cgen_op_record_ref(int op, cgen_ctx_t *ctx)
@@ -3021,6 +3041,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_RECORD_REF:
       cgen_op_record_ref(i, ctx);
+      break;
+   case VCODE_OP_ARRAY_REF:
+      cgen_op_array_ref(i, ctx);
       break;
    case VCODE_OP_SCHED_EVENT:
       cgen_op_sched_event(i, ctx);

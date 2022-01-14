@@ -367,8 +367,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
       // TODO: check this
       break;
 
-   case VCODE_OP_ADD:
-      // When adding pointers only the first argument is a pointer
+   case VCODE_OP_ARRAY_REF:
       vcode_heap_allocate(defn->args.items[0]);
       break;
 
@@ -454,6 +453,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_MOD:
    case VCODE_OP_REM:
    case VCODE_OP_ENDFILE:
+   case VCODE_OP_ADD:
       // Result cannot reference pointer
       break;
 
@@ -602,6 +602,7 @@ void vcode_opt(void)
             case VCODE_OP_LOAD:
             case VCODE_OP_LOAD_INDIRECT:
             case VCODE_OP_ADD:
+            case VCODE_OP_ARRAY_REF:
             case VCODE_OP_SUB:
             case VCODE_OP_MUL:
             case VCODE_OP_CMP:
@@ -894,7 +895,7 @@ const char *vcode_op_string(vcode_op_t op)
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
       "implicit signal", "disconnect", "link package", "index check",
-      "debug locus", "length check", "range check"
+      "debug locus", "length check", "range check", "array ref",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1692,6 +1693,17 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" field %d", op->field);
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_ARRAY_REF:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" offset ");
+               col += vcode_dump_reg(op->args.items[1]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -3312,16 +3324,8 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs,
    vcode_type_t lhs_type = vcode_reg_type(lhs);
    vcode_type_t rhs_type = vcode_reg_type(rhs);
 
-   const vtype_kind_t ltypek = vtype_kind(vcode_reg_type(lhs));
-   const bool is_pointer =
-      ltypek == VCODE_TYPE_POINTER || ltypek == VCODE_TYPE_SIGNAL;
-
-   if (is_pointer && vtype_kind(rhs_type) == VCODE_TYPE_OFFSET)
-      ;
-   else
-      VCODE_ASSERT(vtype_eq(lhs_type, rhs_type),
-                   "arguments to %s are not the same type",
-                   vcode_op_string(kind));
+   VCODE_ASSERT(vtype_eq(lhs_type, rhs_type),
+                "arguments to %s are not the same type", vcode_op_string(kind));
 
    return op->result;
 }
@@ -3443,10 +3447,6 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
 
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
 {
-   const vtype_kind_t ltypek = vtype_kind(vcode_reg_type(lhs));
-   const bool is_pointer =
-      ltypek == VCODE_TYPE_POINTER || ltypek == VCODE_TYPE_SIGNAL;
-
    int64_t lconst, rconst;
    const bool l_is_const = vcode_reg_const(lhs, &lconst);
    const bool r_is_const = vcode_reg_const(rhs, &rconst);
@@ -3460,9 +3460,7 @@ vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
    vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs, VCODE_INVALID_REG);
 
    reg_t *rr = vcode_reg_data(reg);
-   if (is_pointer)
-      rr->bounds = vcode_reg_data(lhs)->bounds;
-   else if (ltypek != VCODE_TYPE_REAL) {
+   if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
       vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
       vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
 
@@ -4318,6 +4316,32 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
 
    reg_t *rr = vcode_reg_data(op->result);
    rr->bounds = bounds_type;
+
+   return op->result;
+}
+
+vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_ARRAY_REF) {
+      if (other->args.items[0] == array && other->args.items[1] == offset)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_ARRAY_REF);
+   vcode_add_arg(op, array);
+   vcode_add_arg(op, offset);
+
+   vcode_type_t rtype = vcode_reg_type(array);
+   VCODE_ASSERT(vtype_kind(rtype) == VCODE_TYPE_POINTER
+                || vtype_kind(rtype) == VCODE_TYPE_SIGNAL,
+                "argument to array ref must a pointer or signal");
+   VCODE_ASSERT(vcode_reg_kind(offset) == VCODE_TYPE_OFFSET,
+                "array ref offset argument must have offset type");
+
+   op->result = vcode_add_reg(rtype);
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->bounds = vcode_reg_bounds(array);
 
    return op->result;
 }

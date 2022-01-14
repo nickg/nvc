@@ -564,16 +564,6 @@ static void eval_op_add(int op, eval_state_t *state)
       dst->real = lhs->real + rhs->real;
       break;
 
-   case VALUE_POINTER:
-      {
-         EVAL_ASSERT_VALUE(op, rhs, VALUE_INTEGER);
-         vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
-         const int stride = eval_slots_for_type(vtype);
-         eval_make_pointer_to(dst, lhs->pointer + rhs->integer * stride);
-         EVAL_ASSERT_VALID(op, dst->pointer);
-      }
-      break;
-
    default:
       fatal_trace("invalid value type in %s", __func__);
    }
@@ -1639,6 +1629,22 @@ static void eval_op_record_ref(int op, eval_state_t *state)
    eval_make_pointer_to(dst, field);
 }
 
+static void eval_op_array_ref(int op, eval_state_t *state)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   value_t *ptr = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *offset = eval_get_reg(vcode_get_arg(op, 1), state);
+   value_t *dst = eval_get_reg(result, state);
+
+   EVAL_ASSERT_VALUE(op, ptr, VALUE_POINTER);
+   EVAL_ASSERT_VALUE(op, offset, VALUE_INTEGER);
+
+   vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
+   const int stride = eval_slots_for_type(vtype);
+   eval_make_pointer_to(dst, ptr->pointer + offset->integer * stride);
+   EVAL_ASSERT_VALID(op, dst->pointer);
+}
+
 static void eval_op_memset(int op, eval_state_t *state)
 {
    value_t *dst = eval_get_reg(vcode_get_arg(op, 0), state);
@@ -2039,6 +2045,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_RECORD_REF:
          eval_op_record_ref(state->op, state);
+         break;
+
+      case VCODE_OP_ARRAY_REF:
+         eval_op_array_ref(state->op, state);
          break;
 
       case VCODE_OP_MEMSET:

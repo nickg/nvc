@@ -353,8 +353,20 @@ void cprop(cprop_req_t *req)
                   regs[result].base  = arg0;
                   regs[result].scale = arg1;
                }
-               else if (kind == VCODE_OP_ADD
-                        && vcode_reg_kind(result) == VCODE_TYPE_SIGNAL) {
+               else
+                  regs[result].tag = CP_UNKNOWN;
+            }
+            break;
+
+         case VCODE_OP_ARRAY_REF:
+            {
+               vcode_reg_t arg0 = vcode_get_arg(op, 0);
+               vcode_reg_t arg1 = vcode_get_arg(op, 1);
+
+               vcode_reg_t result = vcode_get_result(op);
+               assert(result != VCODE_INVALID_REG);
+
+               if (vcode_reg_kind(result) == VCODE_TYPE_SIGNAL) {
                   const unsigned stride =
                      cprop_count_subsignals(vtype_base(vcode_reg_type(arg0)));
                   regs[result].tag           = CP_OFFSET;

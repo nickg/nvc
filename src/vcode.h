@@ -135,6 +135,7 @@ typedef enum {
    VCODE_OP_DEBUG_LOCUS,
    VCODE_OP_LENGTH_CHECK,
    VCODE_OP_RANGE_CHECK,
+   VCODE_OP_ARRAY_REF,
 } vcode_op_t;
 
 typedef enum {
@@ -404,6 +405,7 @@ vcode_reg_t emit_last_value(vcode_reg_t sig);
 vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);
+vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset);
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems);
 void emit_sched_static(vcode_reg_t nets, vcode_reg_t n_elems);

@@ -1994,8 +1994,8 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
 
    offset_reg = emit_mul(offset_reg, lower_array_stride(array, value_type));
 
-   vcode_reg_t data_reg   = lower_array_data(array);
-   return emit_add(data_reg, offset_reg);
+   vcode_reg_t data_reg = lower_array_data(array);
+   return emit_array_ref(data_reg, offset_reg);
 }
 
 static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
@@ -2042,8 +2042,9 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    vcode_reg_t stride_reg = lower_array_stride(array_reg, type);
 
    vcode_reg_t data_reg = lower_array_data(array_reg);
-   vcode_reg_t off_reg  = lower_array_off(left_reg, array_reg, type, 0);
-   vcode_reg_t ptr_reg  = emit_add(data_reg, emit_mul(off_reg, stride_reg));
+   vcode_reg_t off_reg = lower_array_off(left_reg, array_reg, type, 0);
+   vcode_reg_t ptr_reg =
+      emit_array_ref(data_reg, emit_mul(off_reg, stride_reg));
 
    if (lower_const_bounds(type))
       return ptr_reg;
@@ -2476,7 +2477,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
          vcode_reg_t next_reg = emit_add(i_reg, inc_reg);
          emit_store(next_reg, i_var);
 
-         vcode_reg_t ptr_reg = emit_add(mem_reg, i_reg);
+         vcode_reg_t ptr_reg = emit_array_ref(mem_reg, i_reg);
 
          if (def_reg == VCODE_INVALID_REG) {
             if (tree_kind(def_value) == T_AGGREGATE)
@@ -2573,7 +2574,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
       if (stride != VCODE_INVALID_REG)
          off_reg = emit_mul(off_reg, stride);
 
-      vcode_reg_t ptr_reg = emit_add(mem_reg, off_reg);
+      vcode_reg_t ptr_reg = emit_array_ref(mem_reg, off_reg);
 
       if (value_reg == VCODE_INVALID_REG) {
          // Prefer generating aggregates in-place
@@ -2738,17 +2739,17 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
 
          emit_copy(ptr, data_reg, src_len);
          if (i + 1 < args.count)
-            ptr = emit_add(ptr, src_len);
+            ptr = emit_array_ref(ptr, src_len);
       }
       else if (type_is_record(p->type)) {
          emit_copy(ptr, p->reg, VCODE_INVALID_REG);
          if (i + 1 < args.count)
-            ptr = emit_add(ptr, emit_const(vtype_offset(), 1));
+            ptr = emit_array_ref(ptr, emit_const(vtype_offset(), 1));
       }
       else {
          emit_store_indirect(lower_reify(p->reg), ptr);
          if (i + 1 < args.count)
-            ptr = emit_add(ptr, emit_const(vtype_offset(), 1));
+            ptr = emit_array_ref(ptr, emit_const(vtype_offset(), 1));
       }
    }
 
@@ -3644,7 +3645,7 @@ static void lower_var_assign_target(target_part_t **ptr, tree_t where,
 
       if (p->kind == PART_ELEM) {
          assert(vcode_reg_kind(src_reg) == VCODE_TYPE_POINTER);
-         rhs = emit_add(src_reg, emit_const(vtype_offset(), 1));
+         rhs = emit_array_ref(src_reg, emit_const(vtype_offset(), 1));
       }
    }
 }
@@ -3792,7 +3793,7 @@ static void lower_signal_assign_target(target_part_t **ptr, tree_t where,
 
       if (p->kind == PART_ELEM) {
          assert(vcode_reg_kind(src_reg) == VCODE_TYPE_POINTER);
-         rhs = emit_add(src_reg, emit_const(vtype_offset(), 1));
+         rhs = emit_array_ref(src_reg, emit_const(vtype_offset(), 1));
       }
    }
 }
@@ -4364,7 +4365,7 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
       enc_type = voffset;
       enc_reg = emit_const(enc_type, 0);
       for (int64_t i = 0; i < length; i++) {
-         vcode_reg_t ptr_reg  = emit_add(data_ptr, emit_const(voffset, i));
+         vcode_reg_t ptr_reg  = emit_array_ref(data_ptr, emit_const(voffset, i));
          vcode_reg_t byte_reg = emit_load_indirect(ptr_reg);
          enc_reg = emit_mul(enc_reg, emit_const(enc_type, 1 << nbits));
          enc_reg = emit_add(enc_reg, emit_cast(enc_type, enc_type, byte_reg));
@@ -4385,10 +4386,11 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
 
       vcode_select_block(body_bb);
 
-      vcode_reg_t i_reg = emit_load(i_var);
-      vcode_reg_t ptr_reg  = emit_add(data_ptr, i_reg);
+      vcode_reg_t i_reg    = emit_load(i_var);
+      vcode_reg_t ptr_reg  = emit_array_ref(data_ptr, i_reg);
       vcode_reg_t byte_reg = emit_load_indirect(ptr_reg);
-      vcode_reg_t tmp_reg = emit_load(enc_var);
+      vcode_reg_t tmp_reg  = emit_load(enc_var);
+
       if (exact_map)
          tmp_reg = emit_mul(tmp_reg, emit_const(enc_type, 1 << nbits));
       else
@@ -4857,8 +4859,8 @@ static void lower_sub_signals(type_t type, tree_t where, vcode_reg_t subsig,
 
       vcode_select_block(body_bb);
 
-      vcode_reg_t ptr_reg = emit_add(subsig, i_reg);
-      vcode_reg_t data_reg = emit_add(lower_array_data(init_reg), i_reg);
+      vcode_reg_t ptr_reg = emit_array_ref(subsig, i_reg);
+      vcode_reg_t data_reg = emit_array_ref(lower_array_data(init_reg), i_reg);
       lower_sub_signals(type_elem(type), where, ptr_reg, data_reg, resolution);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
@@ -5113,11 +5115,12 @@ static void lower_physical_image_helper(type_t type, vcode_reg_t preg)
    vcode_reg_t mem_reg = emit_alloca(ctype, ctype, total_len);
    emit_copy(mem_reg, emit_unwrap(num_reg), num_len);
 
-   vcode_reg_t ptr0_reg = emit_add(mem_reg, num_len);
+   vcode_reg_t ptr0_reg = emit_array_ref(mem_reg, num_len);
    emit_store_indirect(emit_const(ctype, ' '), ptr0_reg);
 
    vcode_reg_t unit_reg = lower_wrap_string(unit0);
-   vcode_reg_t ptr1_reg = emit_add(ptr0_reg, emit_const(vtype_offset(), 1));
+   vcode_reg_t ptr1_reg =
+      emit_array_ref(ptr0_reg, emit_const(vtype_offset(), 1));
    emit_copy(ptr1_reg, emit_unwrap(unit_reg),
              emit_const(vtype_offset(), strlen(unit0)));
 
@@ -5265,14 +5268,14 @@ static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
    vcode_block_t skip_bb   = emit_block();
    vcode_block_t match_bb  = emit_block();
 
-   vcode_reg_t len_ptr = emit_add(len_array_ptr, i_reg);
+   vcode_reg_t len_ptr = emit_array_ref(len_array_ptr, i_reg);
    vcode_reg_t len_reg = emit_load_indirect(len_ptr);
    vcode_reg_t len_eq  = emit_cmp(VCODE_CMP_EQ, len_reg, canon_len_reg);
    emit_cond(len_eq, memcmp_bb, skip_bb);
 
    vcode_select_block(memcmp_bb);
    vcode_reg_t char_off = emit_mul(i_reg, emit_const(voffset, stride));
-   vcode_reg_t char_ptr = emit_add(char_array_ptr, char_off);
+   vcode_reg_t char_ptr = emit_array_ref(char_array_ptr, char_off);
 
    vcode_dim_t dims[] = {
       { .left  = emit_const(vtype_offset(), 1),
@@ -5315,10 +5318,10 @@ static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
 
    emit_store_indirect(emit_const(vchar, '\"'), mem_reg);
 
-   vcode_reg_t ptr1_reg = emit_add(mem_reg, emit_const(voffset, 1));
+   vcode_reg_t ptr1_reg = emit_array_ref(mem_reg, emit_const(voffset, 1));
    emit_copy(ptr1_reg, arg_data_reg, arg_len_reg);
 
-   vcode_reg_t ptr2_reg = emit_add(ptr1_reg, arg_len_reg);
+   vcode_reg_t ptr2_reg = emit_array_ref(ptr1_reg, arg_len_reg);
    emit_copy(ptr2_reg, emit_unwrap(const_str_reg), const_str_len);
 
    vcode_reg_t locus = lower_debug_locus(type_enum_literal(type, 0));
@@ -5416,14 +5419,14 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
    vcode_block_t skip_bb   = emit_block();
    vcode_block_t match_bb  = emit_block();
 
-   vcode_reg_t len_ptr = emit_add(len_array_ptr, i_reg);
+   vcode_reg_t len_ptr = emit_array_ref(len_array_ptr, i_reg);
    vcode_reg_t len_reg = emit_load_indirect(len_ptr);
    vcode_reg_t len_eq  = emit_cmp(VCODE_CMP_EQ, len_reg, canon_len_reg);
    emit_cond(len_eq, memcmp_bb, skip_bb);
 
    vcode_select_block(memcmp_bb);
    vcode_reg_t char_off = emit_mul(i_reg, emit_const(voffset, stride));
-   vcode_reg_t char_ptr = emit_add(char_array_ptr, char_off);
+   vcode_reg_t char_ptr = emit_array_ref(char_array_ptr, char_off);
 
    vcode_dim_t dims[] = {
       { .left  = emit_const(vtype_offset(), 1),
@@ -5465,10 +5468,10 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
 
    emit_store_indirect(emit_const(vchar, '\"'), mem_reg);
 
-   vcode_reg_t ptr1_reg = emit_add(mem_reg, emit_const(voffset, 1));
+   vcode_reg_t ptr1_reg = emit_array_ref(mem_reg, emit_const(voffset, 1));
    emit_copy(ptr1_reg, tail_reg, tail_len);
 
-   vcode_reg_t ptr2_reg = emit_add(ptr1_reg, tail_len);
+   vcode_reg_t ptr2_reg = emit_array_ref(ptr1_reg, tail_len);
    emit_copy(ptr2_reg, emit_unwrap(const_str_reg), const_str_len);
 
    vcode_reg_t locus = lower_debug_locus(type_unit(type, 0));
@@ -5477,7 +5480,7 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
 
    vcode_select_block(match_bb);
 
-   vcode_reg_t mul_ptr = emit_add(mul_array_ptr, i_reg);
+   vcode_reg_t mul_ptr = emit_array_ref(mul_array_ptr, i_reg);
    vcode_reg_t mul_reg = emit_load_indirect(mul_ptr);
    return emit_mul(int_reg, mul_reg);
 }
@@ -5864,8 +5867,8 @@ static void lower_array_cmp_inner(vcode_reg_t lhs_data,
 
    vcode_reg_t i_eq_len = emit_cmp(VCODE_CMP_EQ, inc, left_len);
 
-   vcode_reg_t l_ptr = emit_add(lhs_data, ptr_inc);
-   vcode_reg_t r_ptr = emit_add(rhs_data, ptr_inc);
+   vcode_reg_t l_ptr = emit_array_ref(lhs_data, ptr_inc);
+   vcode_reg_t r_ptr = emit_array_ref(rhs_data, ptr_inc);
 
    if (type_is_array(elem_type)) {
       lower_array_cmp_inner(l_ptr, r_ptr,
@@ -6014,7 +6017,8 @@ static void lower_predef_scalar_to_string(type_t arg_type, type_t std_string,
 
       vcode_select_block(char_bb);
 
-      vcode_reg_t char1_ptr = emit_add(data_reg, emit_const(vtype_offset(), 1));
+      vcode_reg_t one_reg   = emit_const(vtype_offset(), 1);
+      vcode_reg_t char1_ptr = emit_array_ref(data_reg, one_reg);
       vcode_reg_t left_reg  = emit_uarray_left(str_reg, 0);
       vcode_reg_t dir_reg   = emit_uarray_dir(str_reg, 0);
 
@@ -6078,11 +6082,11 @@ static void lower_predef_array_to_string(type_t arg_type, type_t std_string,
    vcode_select_block(body_bb);
 
    vcode_reg_t i_reg    = emit_load(i_var);
-   vcode_reg_t sptr_reg = emit_add(lower_array_data(array_reg), i_reg);
+   vcode_reg_t sptr_reg = emit_array_ref(lower_array_data(array_reg), i_reg);
    vcode_reg_t src_reg  = emit_load_indirect(sptr_reg);
    vcode_reg_t off_reg  = emit_cast(vtype_offset(), vtype_offset(), src_reg);
-   vcode_reg_t lptr_reg = emit_add(emit_address_of(map_reg), off_reg);
-   vcode_reg_t dptr_reg = emit_add(lower_array_data(mem_reg), i_reg);
+   vcode_reg_t lptr_reg = emit_array_ref(emit_address_of(map_reg), off_reg);
+   vcode_reg_t dptr_reg = emit_array_ref(lower_array_data(mem_reg), i_reg);
    emit_store_indirect(emit_load_indirect(lptr_reg), dptr_reg);
 
    vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
@@ -6159,8 +6163,8 @@ static void lower_predef_bit_shift(tree_t decl, vcode_unit_t context,
       break;
    case S_SRA:
       {
-         vcode_reg_t last_ptr =
-            emit_add(data_reg, emit_sub(len_reg, emit_const(voffset, 1)));
+         vcode_reg_t len_minus_1 = emit_sub(len_reg, emit_const(voffset, 1));
+         vcode_reg_t last_ptr = emit_array_ref(data_reg, len_minus_1);
          def_reg = emit_load_indirect(last_ptr);
       }
       break;
@@ -6210,7 +6214,7 @@ static void lower_predef_bit_shift(tree_t decl, vcode_unit_t context,
       break;
    }
 
-   vcode_reg_t dst_ptr = emit_add(mem_reg, i_reg);
+   vcode_reg_t dst_ptr = emit_array_ref(mem_reg, i_reg);
 
    vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
    emit_store(next_reg, i_var);
@@ -6242,7 +6246,7 @@ static void lower_predef_bit_shift(tree_t decl, vcode_unit_t context,
       break;
    }
 
-   vcode_reg_t load_reg = emit_load_indirect(emit_add(data_reg, src_reg));
+   vcode_reg_t load_reg = emit_load_indirect(emit_array_ref(data_reg, src_reg));
    emit_store_indirect(load_reg, dst_ptr);
    emit_jump(cmp_bb);
 
@@ -6323,12 +6327,12 @@ static void lower_predef_bit_vec_op(tree_t decl, vcode_unit_t context,
 
    vcode_select_block(body_bb);
 
-   vcode_reg_t dst_ptr = emit_add(mem_reg, i_reg);
+   vcode_reg_t dst_ptr = emit_array_ref(mem_reg, i_reg);
 
-   vcode_reg_t src0_reg = emit_load_indirect(emit_add(data0_reg, i_reg));
+   vcode_reg_t src0_reg = emit_load_indirect(emit_array_ref(data0_reg, i_reg));
    vcode_reg_t src1_reg = VCODE_INVALID_REG;
    if (kind != S_ARRAY_NOT)
-      src1_reg = emit_load_indirect(emit_add(data1_reg, i_reg));
+      src1_reg = emit_load_indirect(emit_array_ref(data1_reg, i_reg));
 
    vcode_reg_t op_reg;
    switch (kind) {
@@ -6396,7 +6400,7 @@ static void lower_predef_mixed_bit_vec_op(tree_t decl, vcode_unit_t context,
    vcode_select_block(body_bb);
 
    vcode_reg_t i_reg = emit_load(i_var);
-   vcode_reg_t l_reg = emit_load_indirect(emit_add(data_reg, i_reg));
+   vcode_reg_t l_reg = emit_load_indirect(emit_array_ref(data_reg, i_reg));
    vcode_reg_t r_reg = r0_is_array ? r1 : r0;
 
    vcode_reg_t result_reg = VCODE_INVALID_REG;
@@ -6410,7 +6414,7 @@ static void lower_predef_mixed_bit_vec_op(tree_t decl, vcode_unit_t context,
    default: break;
    }
 
-   emit_store_indirect(result_reg, emit_add(mem_reg, i_reg));
+   emit_store_indirect(result_reg, emit_array_ref(mem_reg, i_reg));
 
    vcode_reg_t next_reg = emit_add(i_reg, emit_const(voffset, 1));
    vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len_reg);
@@ -6461,7 +6465,7 @@ static void lower_predef_reduction_op(tree_t decl, vcode_unit_t context,
    vcode_select_block(body_bb);
 
    vcode_reg_t i_reg   = emit_load(i_var);
-   vcode_reg_t src_reg = emit_load_indirect(emit_add(data_reg, i_reg));
+   vcode_reg_t src_reg = emit_load_indirect(emit_array_ref(data_reg, i_reg));
    vcode_reg_t cur_reg = emit_load(result_var);
 
    vcode_reg_t result_reg = VCODE_INVALID_REG;
@@ -6591,8 +6595,11 @@ static void lower_predef_match_op(tree_t decl, vcode_unit_t context,
 
       vcode_reg_t i_reg = emit_load(i_var);
 
-      vcode_reg_t r0_src_reg = emit_load_indirect(emit_add(r0_ptr, i_reg));
-      vcode_reg_t r1_src_reg = emit_load_indirect(emit_add(r1_ptr, i_reg));
+      vcode_reg_t i0_ptr = emit_array_ref(r0_ptr, i_reg);
+      vcode_reg_t i1_ptr = emit_array_ref(r1_ptr, i_reg);
+
+      vcode_reg_t r0_src_reg = emit_load_indirect(i0_ptr);
+      vcode_reg_t r1_src_reg = emit_load_indirect(i1_ptr);
 
       vcode_reg_t tmp;
       if (is_bit)
@@ -6603,7 +6610,7 @@ static void lower_predef_match_op(tree_t decl, vcode_unit_t context,
          vcode_reg_t args[] = { context_reg, r0_src_reg, r1_src_reg };
          tmp = emit_fcall(func, vtype, vbounds, VCODE_CC_PREDEF, args, 3);
       }
-      emit_store_indirect(tmp, emit_add(mem_reg, i_reg));
+      emit_store_indirect(tmp, emit_array_ref(mem_reg, i_reg));
 
       vcode_reg_t next_reg = emit_add(i_reg, emit_const(vtype_offset(), 1));
       vcode_reg_t cmp_reg  = emit_cmp(VCODE_CMP_EQ, next_reg, len0_reg);
@@ -6708,7 +6715,8 @@ static void lower_predef_min_max(tree_t decl, vcode_unit_t context,
       vcode_select_block(body_bb);
 
       vcode_reg_t i_reg    = emit_load(i_var);
-      vcode_reg_t elem_reg = emit_load_indirect(emit_add(data_reg, i_reg));
+      vcode_reg_t elem_ptr = emit_array_ref(data_reg, i_reg);
+      vcode_reg_t elem_reg = emit_load_indirect(elem_ptr);
       vcode_reg_t cur_reg  = emit_load(result_var);
       vcode_reg_t cmp_reg  = emit_cmp(cmp, elem_reg, cur_reg);
       vcode_reg_t next_reg = emit_select(cmp_reg, elem_reg, cur_reg);
