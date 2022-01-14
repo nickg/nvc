@@ -3691,6 +3691,8 @@ void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse)
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(test), vtype_bool()),
                 "cond test is not a bool");
+   VCODE_ASSERT(btrue != VCODE_INVALID_BLOCK && bfalse != VCODE_INVALID_BLOCK,
+                "invalid cond targets");
 }
 
 vcode_reg_t emit_neg(vcode_reg_t lhs)

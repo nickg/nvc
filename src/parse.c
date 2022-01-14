@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2021  Nick Gasson
+//  Copyright (C) 2014-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -6881,31 +6881,36 @@ static tree_t p_if_statement(ident_t label)
 
    consume(tIF);
 
-   tree_set_value(t, p_condition());
+   tree_t c0 = tree_new(T_COND);
+   tree_set_value(c0, p_condition());
+   tree_add_cond(t, c0);
 
    consume(tTHEN);
 
-   p_sequence_of_statements(t, tree_add_stmt);
+   p_sequence_of_statements(c0, tree_add_stmt);
 
-   tree_t tail = t;
+   tree_set_loc(c0, CURRENT_LOC);
 
    while (optional(tELSIF)) {
-      tree_t elsif = tree_new(T_IF);
-      tree_set_ident(elsif, ident_uniq("elsif"));
-      tree_set_value(elsif, p_condition());
+      tree_t c = tree_new(T_COND);
+      tree_set_value(c, p_condition());
+      tree_add_cond(t, c);
 
       consume(tTHEN);
 
-      p_sequence_of_statements(elsif, tree_add_stmt);
+      p_sequence_of_statements(c, tree_add_stmt);
 
-      tree_set_loc(elsif, CURRENT_LOC);
-
-      tree_add_else_stmt(tail, elsif);
-      tail = elsif;
+      tree_set_loc(c, CURRENT_LOC);
    }
 
-   if (optional(tELSE))
-      p_sequence_of_statements(tail, tree_add_else_stmt);
+   if (optional(tELSE)) {
+      tree_t c = tree_new(T_COND);
+      tree_add_cond(t, c);
+
+      p_sequence_of_statements(c, tree_add_stmt);
+
+      tree_set_loc(c, CURRENT_LOC);
+   }
 
    consume(tEND);
    consume(tIF);

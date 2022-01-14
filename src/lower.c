@@ -3887,59 +3887,47 @@ static vcode_reg_t lower_test_expr(tree_t value)
 
 static void lower_if(tree_t stmt, loop_stack_t *loops)
 {
-   vcode_reg_t test = lower_test_expr(tree_value(stmt));
+   vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
 
-   const int nelses = tree_else_stmts(stmt);
-   const int nstmts = tree_stmts(stmt);
+   const int nconds = tree_conds(stmt);
+   for (int i = 0; i < nconds; i++) {
+      tree_t c = tree_cond(stmt, i);
 
-   int64_t cval;
-   if (vcode_reg_const(test, &cval)) {
-      emit_comment("Condition of if statement line %d is always %s",
-                   tree_loc(stmt)->first_line, cval ? "true" : "false");
-      if (cval) {
-         for (int i = 0; i < nstmts; i++)
-            lower_stmt(tree_stmt(stmt, i), loops);
+      vcode_block_t next_bb = VCODE_INVALID_BLOCK;
+      if (tree_has_value(c)) {
+         vcode_reg_t test = lower_test_expr(tree_value(c));
+         vcode_block_t btrue = emit_block();
+
+         if (i == nconds - 1) {
+            if (exit_bb == VCODE_INVALID_BLOCK)
+               exit_bb = emit_block();
+            next_bb = exit_bb;
+         }
+         else
+            next_bb = emit_block();
+
+         emit_cond(test, btrue, next_bb);
+         vcode_select_block(btrue);
       }
-      else {
-         for (int i = 0; i < nelses; i++)
-            lower_stmt(tree_else_stmt(stmt, i), loops);
-      }
 
-      return;
-   }
-
-   vcode_block_t btrue = emit_block();
-   vcode_block_t bfalse = nelses > 0 ? emit_block() : VCODE_INVALID_BLOCK;
-   vcode_block_t bmerge = nelses > 0 ? VCODE_INVALID_BLOCK : emit_block();
-
-   emit_cond(test, btrue, nelses > 0 ? bfalse : bmerge);
-
-   vcode_select_block(btrue);
-
-   for (int i = 0; i < nstmts; i++)
-      lower_stmt(tree_stmt(stmt, i), loops);
-
-   if (!vcode_block_finished()) {
-      if (bmerge == VCODE_INVALID_BLOCK)
-         bmerge = emit_block();
-      emit_jump(bmerge);
-   }
-
-   if (nelses > 0) {
-      vcode_select_block(bfalse);
-
-      for (int i = 0; i < nelses; i++)
-         lower_stmt(tree_else_stmt(stmt, i), loops);
+      const int nstmts = tree_stmts(c);
+      for (int i = 0; i < nstmts; i++)
+         lower_stmt(tree_stmt(c, i), loops);
 
       if (!vcode_block_finished()) {
-         if (bmerge == VCODE_INVALID_BLOCK)
-            bmerge = emit_block();
-         emit_jump(bmerge);
+         if (exit_bb == VCODE_INVALID_BLOCK)
+            exit_bb = emit_block();
+         emit_jump(exit_bb);
       }
+
+      if (next_bb == VCODE_INVALID_BLOCK)
+         break;
+      else
+         vcode_select_block(next_bb);
    }
 
-   if (bmerge != VCODE_INVALID_BLOCK)
-      vcode_select_block(bmerge);
+   if (exit_bb != VCODE_INVALID_BLOCK)
+      vcode_select_block(exit_bb);
 }
 
 static void lower_leave_subprogram(void)

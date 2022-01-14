@@ -395,10 +395,6 @@ unsigned tree_stmts(tree_t t);
 tree_t tree_stmt(tree_t t, unsigned n);
 void tree_add_stmt(tree_t t, tree_t d);
 
-unsigned tree_else_stmts(tree_t t);
-tree_t tree_else_stmt(tree_t t, unsigned n);
-void tree_add_else_stmt(tree_t t, tree_t d);
-
 unsigned tree_conds(tree_t t);
 tree_t tree_cond(tree_t t, unsigned n);
 void tree_add_cond(tree_t t, tree_t d);

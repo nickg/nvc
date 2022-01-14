@@ -3506,23 +3506,39 @@ static bool sem_check_instance(tree_t t)
    return true;
 }
 
+static bool sem_check_cond(tree_t t)
+{
+   if (tree_has_value(t)) {
+      type_t std_bool = std_type(NULL, STD_BOOLEAN);
+
+      tree_t value = tree_value(t);
+      if (!sem_check(value))
+         return false;
+
+      if (!sem_check_type(value, std_bool))
+         sem_error(value, "type of condition must be %s but is %s",
+                   type_pp(std_bool), type_pp(tree_type(value)));
+
+      if (!sem_readable(value))
+         return false;
+   }
+
+   bool ok = true;
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      ok &= sem_check(tree_stmt(t, i));
+
+   return ok;
+}
+
 static bool sem_check_if(tree_t t)
 {
-   type_t std_bool = std_type(NULL, STD_BOOLEAN);
+   bool ok = true;
+   const int nconds = tree_conds(t);
+   for (int i = 0; i < nconds; i++)
+      ok &= sem_check_cond(tree_cond(t, i));
 
-   tree_t value = tree_value(t);
-   if (!sem_check(value))
-      return false;
-
-   if (!sem_check_type(value, std_bool))
-      sem_error(value, "type of condition must be %s but is %s",
-                type_pp(std_bool), type_pp(tree_type(value)));
-
-   if (!sem_readable(value))
-      return false;
-
-   return sem_check_stmts(t, tree_stmt, tree_stmts(t))
-      && sem_check_stmts(t, tree_else_stmt, tree_else_stmts(t));
+   return ok;
 }
 
 static bool sem_subtype_locally_static(type_t type)

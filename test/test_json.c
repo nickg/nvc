@@ -36,12 +36,33 @@ START_TEST(test_basic)
 }
 END_TEST
 
+START_TEST(test_seq)
+{
+   input_from_file(TESTDIR "/json/seq.vhd");
+
+   tree_t arch = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   ck_assert_ptr_nonnull(arch);
+
+   JsonNode *json = trees_to_json(&arch, 1);
+   ck_assert_ptr_nonnull(json);
+
+   JsonNode *jarch = json_find_element(json, 0);
+   ck_assert_ptr_nonnull(jarch);
+
+   JsonNode *jproc = json_find_element(json_find_member(jarch, "stmts"), 0);
+   ck_assert_ptr_nonnull(jproc);
+
+   json_delete(json);
+}
+END_TEST
+
 Suite *get_json_tests(void)
 {
    Suite *s = suite_create("json");
 
    TCase *tc_core = nvc_unit_test();
    tcase_add_test(tc_core, test_basic);
+   tcase_add_test(tc_core, test_seq);
    suite_add_tcase(s, tc_core);
 
    return s;

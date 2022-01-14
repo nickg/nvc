@@ -59,7 +59,7 @@ typedef uint64_t imask_t;
 #define I_ASSOCS     ONE_HOT(22)
 #define I_CONTEXT    ONE_HOT(23)
 #define I_TRIGGERS   ONE_HOT(24)
-#define I_ELSES      ONE_HOT(25)
+// Unused            ONE_HOT(25)
 #define I_CLASS      ONE_HOT(26)
 #define I_RANGES     ONE_HOT(27)
 #define I_NAME       ONE_HOT(28)
@@ -105,7 +105,7 @@ typedef uint64_t imask_t;
                           | I_ACCESS | I_RESULT | I_FILE | I_PARENT     \
                           | I_PRIMARY | I_GUARD)
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
-                          | I_WAVES | I_CONDS | I_TRIGGERS | I_ELSES    \
+                          | I_WAVES | I_CONDS | I_TRIGGERS              \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
                           | I_LITERALS | I_FIELDS | I_OUTPUTS           \
                           | I_UNITS | I_CHARS | I_DIMS | I_RANGES       \

@@ -224,8 +224,7 @@ START_TEST(test_proc)
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_IF);
-   fail_unless(tree_stmts(s) == 1);
-   fail_unless(tree_else_stmts(s) == 1);
+   fail_unless(tree_conds(s) == 3);
 
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_WAIT);
@@ -938,7 +937,7 @@ START_TEST(test_guard)
    tree_t g_if1 = tree_stmt(p1, 0);
    fail_unless(tree_kind(g_if1) == T_IF);
    fail_unless(tree_ident(g_if1) == ident_new("guard_if"));
-   fail_unless(tree_stmts(g_if1) == 1);
+   fail_unless(tree_conds(g_if1) == 1);
 
    tree_t p2 = tree_stmt(b0, 1);
    fail_unless(tree_kind(p2) == T_PROCESS);
@@ -947,8 +946,8 @@ START_TEST(test_guard)
    tree_t g_if2 = tree_stmt(p2, 0);
    fail_unless(tree_kind(g_if2) == T_IF);
    fail_unless(tree_ident(g_if2) == ident_new("guard_if"));
-   fail_unless(tree_stmts(g_if2) == 1);
-   fail_unless(tree_kind(tree_stmt(g_if2, 0)) == T_CASE);
+   fail_unless(tree_conds(g_if2) == 1);
+   fail_unless(tree_kind(tree_stmt(tree_cond(g_if2, 0), 0)) == T_CASE);
 }
 END_TEST
 

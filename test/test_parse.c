@@ -286,7 +286,7 @@ END_TEST
 
 START_TEST(test_seq)
 {
-   tree_t a, p, s, e, b;
+   tree_t a, p, s, e, b, c;
 
    set_standard(STD_08);
 
@@ -446,29 +446,23 @@ START_TEST(test_seq)
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_IF);
-   e = tree_value(s);
+   fail_unless(tree_conds(s) == 1);
+   c = tree_cond(s, 0);
+   fail_unless(tree_has_value(c));
+   e = tree_value(c);
    fail_unless(tree_kind(e) == T_REF);
    fail_unless(tree_ident(e) == ident_new("TRUE"));
-   fail_unless(tree_stmts(s) == 1);
+   fail_unless(tree_stmts(c) == 1);
 
    s = tree_stmt(p, 2);
    fail_unless(tree_kind(s) == T_IF);
-   fail_unless(tree_stmts(s) == 1);
-   fail_unless(tree_else_stmts(s) == 1);
+   fail_unless(tree_conds(s) == 2);
+   fail_if(tree_has_value(tree_cond(s, 1)));
 
    s = tree_stmt(p, 3);
    fail_unless(tree_kind(s) == T_IF);
-   fail_unless(tree_stmts(s) == 1);
-   fail_unless(tree_else_stmts(s) == 1);
-   s = tree_else_stmt(s, 0);
-   fail_unless(tree_kind(s) == T_IF);
-   fail_unless(tree_stmts(s) == 1);
-   fail_unless(tree_else_stmts(s) == 1);
-   s = tree_else_stmt(s, 0);
-   fail_unless(tree_kind(s) == T_IF);
-   fail_unless(tree_stmts(s) == 1);
-   fail_unless(tree_else_stmts(s) == 1);
-   s = tree_else_stmt(s, 0);
+   fail_unless(tree_conds(s) == 4);
+   s = tree_stmt(tree_cond(s, 3), 0);
    fail_unless(tree_kind(s) == T_VAR_ASSIGN);
 
    // Null statements

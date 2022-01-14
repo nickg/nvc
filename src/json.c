@@ -630,16 +630,18 @@ static JsonNode *dump_stmt(tree_t t)
 
    case T_IF:
       json_append_member(statement, "cls", json_mkstring("if"));
-      json_append_member(statement, "cond", dump_expr(tree_value(t)));
-      JsonNode *then_node = json_mkarray();
-      json_append_member(statement, "then", then_node);
-      JsonNode *else_node = json_mkarray();
-      json_append_member(statement, "else", else_node);
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         json_append_element(then_node, dump_stmt(tree_stmt(t, i)));
-      if (tree_else_stmts(t) > 0) {
-         for (unsigned i = 0; i < tree_else_stmts(t); i++)
-            json_append_element(else_node, dump_stmt(tree_else_stmt(t, i)));
+      JsonNode *conds = json_mkarray();
+      json_append_member(statement, "conds", conds);
+      for (unsigned i = 0; i < tree_conds(t); i++) {
+         tree_t c = tree_cond(t, i);
+         JsonNode *cond = json_mkobject();
+         json_append_member(cond, "cls", json_mkstring("cond"));
+         if (tree_has_value(c))
+            json_append_member(cond, "value", dump_expr(tree_value(c)));
+         JsonNode *stmts = json_mkarray();
+         json_append_member(cond, "stmts", stmts);
+         for (unsigned j = 0; j < tree_stmts(c); j++)
+            json_append_element(stmts, dump_stmt(tree_stmt(c, i)));
       }
       break;
 

@@ -102,7 +102,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF | I_CLASS | I_SPEC),
 
    // T_IF
-   (I_IDENT | I_VALUE | I_STMTS | I_ELSES),
+   (I_IDENT | I_CONDS),
 
    // T_NULL
    (I_IDENT),
@@ -761,24 +761,6 @@ void tree_add_waveform(tree_t t, tree_t w)
    assert(w->object.kind == T_WAVEFORM);
    tree_array_add(lookup_item(&tree_object, t, I_WAVES), w);
    object_write_barrier(&(t->object), &(w->object));
-}
-
-unsigned tree_else_stmts(tree_t t)
-{
-   return lookup_item(&tree_object, t, I_ELSES)->obj_array.count;
-}
-
-tree_t tree_else_stmt(tree_t t, unsigned n)
-{
-   item_t *item = lookup_item(&tree_object, t, I_ELSES);
-   return tree_array_nth(item, n);
-}
-
-void tree_add_else_stmt(tree_t t, tree_t s)
-{
-   tree_assert_stmt(s);
-   tree_array_add(lookup_item(&tree_object, t, I_ELSES), s);
-   object_write_barrier(&(t->object), &(s->object));
 }
 
 unsigned tree_conds(tree_t t)

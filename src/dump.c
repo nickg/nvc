@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -946,15 +946,22 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_IF:
       syntax("#if ");
-      dump_expr(tree_value(t));
-      syntax(" #then\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 2);
-      if (tree_else_stmts(t) > 0) {
-         tab(indent);
-         syntax("#else\n");
-         for (unsigned i = 0; i < tree_else_stmts(t); i++)
-            dump_stmt(tree_else_stmt(t, i), indent + 2);
+      for (unsigned i = 0; i < tree_conds(t); i++) {
+         tree_t c = tree_cond(t, i);
+         if (tree_has_value(c)) {
+            if (i > 0) {
+               tab(indent);
+               syntax("#elsif ");
+            }
+            dump_expr(tree_value(c));
+            syntax(" #then\n");
+         }
+         else {
+            tab(indent);
+            syntax("#else\n");
+         }
+         for (unsigned i = 0; i < tree_stmts(c); i++)
+            dump_stmt(tree_stmt(c, i), indent + 2);
       }
       tab(indent);
       syntax("#end #if");
@@ -1300,6 +1307,7 @@ void dump(tree_t t)
    case T_CASE:
    case T_FOR:
    case T_SIGNAL_ASSIGN:
+   case T_IF:
       dump_stmt(t, 0);
       break;
    case T_CONST_DECL:

@@ -813,41 +813,49 @@ static tree_t simp_case(tree_t t)
    return t;
 }
 
-static tree_t simp_if(tree_t t)
+static tree_t simp_cond(tree_t t)
 {
-   bool value_b;
-   if (folded_bool(tree_value(t), &value_b)) {
-      if (value_b) {
-         // If statement always executes so replace with then part
-         if (tree_stmts(t) == 1)
-            return tree_stmt(t, 0);
-         else {
-            tree_t b = tree_new(T_BLOCK);
-            tree_set_loc(b, tree_loc(t));
-            tree_set_ident(b, tree_ident(t));
-            for (unsigned i = 0; i < tree_stmts(t); i++)
-               tree_add_stmt(b, tree_stmt(t, i));
-            return b;
+   if (tree_has_value(t)) {
+      bool value_b;
+      if (folded_bool(tree_value(t), &value_b)) {
+         if (value_b) {
+            // Always true, remove the test
+            tree_set_value(t, NULL);
+            return t;
          }
-      }
-      else {
-         // If statement never executes so replace with else part
-         if (tree_else_stmts(t) == 1)
-            return tree_else_stmt(t, 0);
-         else if (tree_else_stmts(t) == 0)
-            return NULL;   // Delete it
          else {
-            tree_t b = tree_new(T_BLOCK);
-            tree_set_loc(b, tree_loc(t));
-            tree_set_ident(b, tree_ident(t));
-            for (unsigned i = 0; i < tree_else_stmts(t); i++)
-               tree_add_stmt(b, tree_else_stmt(t, i));
-            return b;
+            // Always false, delete the condition
+            return NULL;
          }
       }
    }
-   else
-      return t;
+
+   return t;
+}
+
+static tree_t simp_if(tree_t t)
+{
+   if (tree_conds(t) == 0)
+      return NULL;   // All conditions were false
+
+   tree_t c0 = tree_cond(t, 0);
+   if (!tree_has_value(c0)) {
+      // If statement always executes so replace with then part
+      if (tree_stmts(c0) == 1)
+         return tree_stmt(c0, 0);
+      else {
+         tree_t b = tree_new(T_BLOCK);
+         tree_set_loc(b, tree_loc(t));
+         tree_set_ident(b, tree_ident(t));
+
+         const int nstmts = tree_stmts(c0);
+         for (int i = 0; i < nstmts; i++)
+            tree_add_stmt(b, tree_stmt(c0, i));
+         return b;
+      }
+   }
+
+   return t;
 }
 
 static tree_t simp_while(tree_t t)
@@ -1054,15 +1062,20 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
 
    case T_IF:
       {
-         simp_build_wait(wait, tree_value(expr), all);
+         const int nconds = tree_conds(expr);
+         for (int i = 0; i < nconds; i++)
+            simp_build_wait(wait, tree_cond(expr, i), all);
+      }
+      break;
+
+   case T_COND:
+      {
+         if (tree_has_value(expr))
+            simp_build_wait(wait, tree_value(expr), all);
 
          const int nstmts = tree_stmts(expr);
          for (int i = 0; i < nstmts; i++)
             simp_build_wait(wait, tree_stmt(expr, i), all);
-
-         const int nelses = tree_else_stmts(expr);
-         for (int i = 0; i < nelses; i++)
-            simp_build_wait(wait, tree_else_stmt(expr, i), all);
       }
       break;
 
@@ -1136,7 +1149,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
    }
 }
 
-static tree_t simp_guard(tree_t t, tree_t wait)
+static tree_t simp_guard(tree_t container, tree_t t, tree_t wait)
 {
    // See LRM 93 section 9.3
 
@@ -1144,13 +1157,17 @@ static tree_t simp_guard(tree_t t, tree_t wait)
    tree_set_ident(g_if, ident_new("guard_if"));
    tree_set_loc(g_if, tree_loc(t));
 
+   tree_t c0 = tree_new(T_COND);
+   tree_add_cond(g_if, c0);
+
    tree_t guard_ref = tree_guard(t);
-   tree_set_value(g_if, guard_ref);
+   tree_set_value(c0, guard_ref);
    tree_add_trigger(wait, guard_ref);
 
    // TODO: handle disconnection specifications here
 
-   return g_if;
+   tree_add_stmt(container, g_if);
+   return c0;
 }
 
 static tree_t simp_cassign(tree_t t)
@@ -1166,50 +1183,46 @@ static tree_t simp_cassign(tree_t t)
    tree_set_flag(w, TREE_F_STATIC_WAIT);
 
    tree_t container = p;  // Where to add new statements
-   void (*add_stmt)(tree_t, tree_t) = tree_add_stmt;
 
-   if (tree_has_guard(t)) {
-      container = simp_guard(t, w);
-      tree_add_stmt(p, container);
-   }
-
-   tree_t target = tree_target(t);
+   if (tree_has_guard(t))
+      container = simp_guard(container, t, w);
 
    const int nconds = tree_conds(t);
-   for (int i = 0; i < nconds; i++) {
-      tree_t c = tree_cond(t, i);
+   tree_t c0 = tree_cond(t, 0);
 
-      if (tree_has_value(c)) {
-         // Replace this with an if statement
-         tree_t i = tree_new(T_IF);
-         tree_set_value(i, tree_value(c));
-         tree_set_ident(i, ident_uniq("cond"));
+   if (nconds == 1 && !tree_has_value(c0)) {
+      tree_t a = tree_stmt(c0, 0);
+      tree_set_ident(a, tree_ident(t));
 
-         simp_build_wait(w, tree_value(c), false);
-
-         (*add_stmt)(container, i);
-
-         container = i;
-         add_stmt  = tree_add_stmt;
-      }
-
-      assert(tree_stmts(c) == 1);
-      tree_t s = tree_stmt(c, 0);
-      assert(tree_kind(s) == T_SIGNAL_ASSIGN);
-
-      tree_set_ident(s, tree_ident(t));
-
-      const int nwaves = tree_waveforms(s);
+      const int nwaves = tree_waveforms(a);
       for (int i = 0; i < nwaves; i++) {
-         tree_t wave = tree_waveform(s, i);
+         tree_t wave = tree_waveform(a, i);
          simp_build_wait(w, wave, false);
       }
 
-      (*add_stmt)(container, s);
+      tree_add_stmt(container, a);
+   }
+   else {
+      tree_t s = tree_new(T_IF);
+      tree_set_loc(s, tree_loc(t));
+      tree_add_stmt(container, s);
 
-      if (tree_has_value(c)) {
-         // Add subsequent statements to the else part
-         add_stmt = tree_add_else_stmt;
+      for (int i = 0; i < nconds; i++) {
+         tree_t c = tree_cond(t, i);
+
+         if (tree_has_value(c))
+            simp_build_wait(w, tree_value(c), false);
+
+         tree_t a = tree_stmt(c, 0);
+         tree_set_ident(a, tree_ident(t));
+
+         const int nwaves = tree_waveforms(a);
+         for (int i = 0; i < nwaves; i++) {
+            tree_t wave = tree_waveform(a, i);
+            simp_build_wait(w, wave, false);
+         }
+
+         tree_add_cond(s, c);
       }
    }
 
@@ -1230,10 +1243,8 @@ static tree_t simp_select(tree_t t)
    tree_set_flag(w, TREE_F_STATIC_WAIT);
 
    tree_t container = p;
-   if (tree_has_guard(t)) {
-      container = simp_guard(t, w);
-      tree_add_stmt(p, container);
-   }
+   if (tree_has_guard(t))
+      container = simp_guard(container, t, w);
 
    tree_t c = tree_new(T_CASE);
    tree_set_ident(c, ident_new("select_case"));
@@ -1711,6 +1722,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_generic_map(t, tree_ref(t));
    case T_BLOCK:
       return simp_generic_map(t, t);
+   case T_COND:
+      return simp_cond(t);
    default:
       return t;
    }

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2013-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -136,19 +136,6 @@ static void cover_tag_conditions(tree_t t, cover_tagging_t *ctx, int branch)
    }
 }
 
-static bool cover_has_conditions(tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_IF:
-   case T_WHILE:
-   case T_NEXT:
-   case T_EXIT:
-      return tree_has_value(t);
-   default:
-      return false;
-   }
-}
-
 static bool cover_is_stmt(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -180,9 +167,27 @@ static void cover_tag_visit_fn(tree_t t, void *context)
       enc |= 1;
       hash_put(ctx->tree_hash, t, (void *)enc);
 
-      if (cover_has_conditions(t)) {
-         ctx->next_sub_cond = 0;
+      ctx->next_sub_cond = 0;
+      switch (tree_kind(t)) {
+      case T_IF:
+         {
+            const int nconds = tree_conds(t);
+            for (int i = 0; i < nconds; i++) {
+               tree_t c = tree_cond(t, i);
+               if (tree_has_value(c))
+                  cover_tag_conditions(tree_value(c), ctx, -1);
+            }
+         }
+         break;
+
+      case T_WHILE:
+      case T_NEXT:
+      case T_EXIT:
          cover_tag_conditions(tree_value(t), ctx, -1);
+         break;
+
+      default:
+         break;
       }
    }
 }
