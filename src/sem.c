@@ -1632,6 +1632,59 @@ static bool sem_check_variable_target(tree_t target)
       if (!suitable)
          sem_error(target, "target of variable assignment must be a variable "
                    "name or aggregate");
+
+      if (type_is_protected(tree_type(target)))
+         sem_error(target, "may not assign to variable of a protected type");
+   }
+
+   return true;
+}
+
+static bool sem_check_cond_var_assign(tree_t t)
+{
+   tree_t target = tree_target(t);
+
+   if (!sem_check(target))
+      return false;
+
+   if (!sem_check_variable_target(target))
+      return false;
+
+   type_t target_type = tree_type(target);
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
+
+   const int nconds = tree_conds(t);
+   for (int i = 0; i < nconds; i++) {
+      tree_t c = tree_cond(t, i);
+
+      if (tree_has_value(c)) {
+         tree_t test = tree_value(c);
+
+         if (!sem_check(test))
+            return false;
+
+         if (!type_eq(tree_type(test), std_bool))
+            sem_error(test, "type of condition must be BOOLEAN but have %s",
+                      type_pp(tree_type(test)));
+      }
+
+      tree_t a = tree_stmt(c, 0);
+      assert(tree_kind(a) == T_VAR_ASSIGN);
+
+      tree_t value = tree_value(a);
+
+      if (!sem_check(value))
+         return false;
+
+      if (!sem_readable(value))
+         return false;
+
+      type_t value_type  = tree_type(value);
+
+      if (!sem_check_same_type(value, target))
+         sem_error(t, "type of value %s does not match type of target %s",
+                   type_pp2(value_type, target_type),
+                   type_pp2(target_type, value_type));
    }
 
    return true;
@@ -1654,16 +1707,13 @@ static bool sem_check_var_assign(tree_t t)
    if (!sem_check_variable_target(target))
       return false;
 
-   type_t target_type = tree_type(target);
-   type_t value_type  = tree_type(value);
-
-   if (type_is_protected(target_type))
-      sem_error(t, "may not assign to variable of a protected type");
-
-   if (!sem_check_same_type(value, target))
+   if (!sem_check_same_type(value, target)) {
+      type_t target_type = tree_type(target);
+      type_t value_type  = tree_type(value);
       sem_error(t, "type of value %s does not match type of target %s",
                 type_pp2(value_type, target_type),
                 type_pp2(target_type, value_type));
+   }
 
    return true;
 }
@@ -4661,6 +4711,8 @@ bool sem_check(tree_t t)
    case T_GROUP:
    case T_GROUP_TEMPLATE:
       return true;
+   case T_COND_VAR_ASSIGN:
+      return sem_check_cond_var_assign(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

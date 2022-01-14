@@ -2439,6 +2439,24 @@ START_TEST(test_tc792)
 }
 END_TEST
 
+START_TEST(test_vhdl2008)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/vhdl2008.vhd");
+
+   const error_t expect[] = {
+      { 11, "type of condition must be BOOLEAN but have INTEGER" },
+      { 12, "type of value BOOLEAN does not match type of target INTEGER" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2560,6 +2578,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_error2);
    tcase_add_test(tc_core, test_error3);
    tcase_add_test(tc_core, test_tc792);
+   tcase_add_test(tc_core, test_vhdl2008);
    suite_add_tcase(s, tc_core);
 
    return s;

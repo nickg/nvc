@@ -1375,6 +1375,19 @@ static tree_t simp_use(tree_t t)
    return t;
 }
 
+static tree_t simp_cond_var_assign(tree_t t)
+{
+   tree_t new = tree_new(T_IF);
+   tree_set_loc(new, tree_loc(t));
+   tree_set_ident(new, tree_ident(t));
+
+   const int nconds = tree_conds(t);
+   for (int i = 0; i < nconds; i++)
+      tree_add_cond(new, tree_cond(t, i));
+
+   return new;
+}
+
 static tree_t simp_assert(tree_t t)
 {
    bool value_b;
@@ -1724,6 +1737,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_generic_map(t, t);
    case T_COND:
       return simp_cond(t);
+   case T_COND_VAR_ASSIGN:
+      return simp_cond_var_assign(t);
    default:
       return t;
    }

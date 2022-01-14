@@ -6632,16 +6632,75 @@ static tree_t p_target(tree_t name)
       return name;
 }
 
+static void p_conditional_expressions(tree_t stmt, tree_t value0)
+{
+   // 2008: expression when condition { else expression when condition }
+   //       [ else expression ]
+
+   BEGIN("conditional expressions");
+
+   tree_t target = tree_target(stmt);
+   type_t constraint = tree_has_type(target) ? tree_type(target) : NULL;
+
+   for (;;) {
+      tree_t value = value0 ?: p_expression();
+      value0 = NULL;
+
+      solve_types(nametab, value, constraint);
+
+      tree_t a = tree_new(T_VAR_ASSIGN);
+      tree_set_target(a, target);
+      tree_set_value(a, value);
+      tree_set_loc(a, CURRENT_LOC);
+
+      tree_t c = tree_new(T_COND);
+      tree_set_loc(c, CURRENT_LOC);
+
+      tree_add_stmt(c, a);
+      tree_add_cond(stmt, c);
+
+      if (optional(tWHEN)) {
+         tree_t when = p_expression();
+         tree_set_value(c, when);
+         solve_types(nametab, when, std_type(NULL, STD_BOOLEAN));
+
+         if (!optional(tELSE))
+            break;
+      }
+      else
+         break;
+   }
+
+}
+
+static tree_t p_conditional_variable_assignment(ident_t label, tree_t target,
+                                                tree_t value)
+{
+   // 2008: target := conditional_expressions ;
+
+   EXTEND("conditional variable assignment");
+
+   tree_t t = tree_new(T_COND_VAR_ASSIGN);
+   tree_set_target(t, target);
+
+   p_conditional_expressions(t, value);
+
+   consume(tSEMI);
+
+   tree_set_loc(t, CURRENT_LOC);
+   ensure_labelled(t, label);
+
+   return t;
+}
+
 static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
 {
    // [ label : ] target := expression ;
 
    EXTEND("variable assignment statement");
 
-   tree_t t = tree_new(T_VAR_ASSIGN);
-
    tree_t target = p_target(name);
-   tree_set_target(t, target);
+   //   tree_set_target(t, target);
 
    consume(tASSIGN);
 
@@ -6651,18 +6710,25 @@ static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
       target_type = solve_types(nametab, target, NULL);
 
    tree_t value = p_expression();
-   tree_set_value(t, value);
    type_t value_type = solve_types(nametab, value, target_type);
 
    if (aggregate)
       solve_types(nametab, target, value_type);
 
-   consume(tSEMI);
+   if (standard() >= STD_08 && peek() == tWHEN)
+      return p_conditional_variable_assignment(label, target, value);
+   else {
+      tree_t t = tree_new(T_VAR_ASSIGN);
+      tree_set_target(t, target);
+      tree_set_value(t, value);
 
-   tree_set_loc(t, CURRENT_LOC);
-   ensure_labelled(t, label);
+      consume(tSEMI);
 
-   return t;
+      tree_set_loc(t, CURRENT_LOC);
+      ensure_labelled(t, label);
+
+      return t;
+   }
 }
 
 static tree_t p_waveform_element(type_t constraint)

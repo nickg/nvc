@@ -295,6 +295,7 @@ typedef enum tree_kind {
    T_GROUP_TEMPLATE,
    T_GROUP,
    T_SUBTYPE_DECL,
+   T_COND_VAR_ASSIGN,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
