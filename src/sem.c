@@ -1888,10 +1888,16 @@ static bool sem_check_cassign(tree_t t)
             sem_error(test, "type of condition must be BOOLEAN");
       }
 
-      if (tree_has_reject(c) && !sem_check_reject(tree_reject(c)))
+      assert(tree_stmts(c) == 1);
+      tree_t a = tree_stmt(c, 0);
+
+      assert(tree_kind(a) == T_SIGNAL_ASSIGN);
+      assert(tree_target(a) == target);
+
+      if (tree_has_reject(a) && !sem_check_reject(tree_reject(a)))
          return false;
 
-      if (!sem_check_waveforms(c, target))
+      if (!sem_check_waveforms(a, target))
          return false;
    }
 

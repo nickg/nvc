@@ -7383,17 +7383,26 @@ static void p_options(tree_t *reject, tree_t *guard)
    *reject = p_delay_mechanism();
 }
 
-static void p_conditional_waveforms(tree_t stmt, type_t constraint)
+static void p_conditional_waveforms(tree_t stmt, tree_t target)
 {
    // { waveform when condition else } waveform [ when condition ]
 
    BEGIN("conditional waveforms");
 
+   type_t constraint = tree_has_type(target) ? tree_type(target) : NULL;
+
    for (;;) {
       tree_t c = tree_new(T_COND);
-      p_waveform(c, constraint);
+
+      tree_t a = tree_new(T_SIGNAL_ASSIGN);
+      tree_set_target(a, target);
+
+      p_waveform(a, constraint);
+
+      tree_set_loc(a, CURRENT_LOC);
       tree_set_loc(c, CURRENT_LOC);
 
+      tree_add_stmt(c, a);
       tree_add_cond(stmt, c);
 
       if (optional(tWHEN)) {
@@ -7427,23 +7436,24 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    if (guard != NULL)
       tree_set_guard(t, guard);
 
-   type_t target_type = NULL;
    const bool aggregate = tree_kind(target) == T_AGGREGATE;
    if (!aggregate)
-      target_type = solve_types(nametab, target, NULL);
+      solve_types(nametab, target, NULL);
 
-   p_conditional_waveforms(t, target_type);
+   p_conditional_waveforms(t, target);
 
    const int nconds = tree_conds(t);
    for (int i = 0; i < nconds; i++) {
       tree_t c = tree_cond(t, i);
-      set_delay_mechanism(c, reject);
+      assert(tree_stmts(c) == 1);
+      set_delay_mechanism(tree_stmt(c, 0), reject);
    }
 
    consume(tSEMI);
 
    if (aggregate) {
-      type_t type = tree_type(tree_value(tree_waveform(tree_cond(t, 0), 0)));
+      tree_t s0 = tree_stmt(tree_cond(t, 0), 0);
+      type_t type = tree_type(tree_value(tree_waveform(s0, 0)));
       solve_types(nametab, target, type);
    }
 

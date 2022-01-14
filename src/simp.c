@@ -1193,17 +1193,15 @@ static tree_t simp_cassign(tree_t t)
          add_stmt  = tree_add_stmt;
       }
 
-      tree_t s = tree_new(T_SIGNAL_ASSIGN);
-      tree_set_loc(s, tree_loc(t));
-      tree_set_target(s, target);
-      tree_set_ident(s, tree_ident(t));
-      if (tree_has_reject(c))
-         tree_set_reject(s, tree_reject(c));
+      assert(tree_stmts(c) == 1);
+      tree_t s = tree_stmt(c, 0);
+      assert(tree_kind(s) == T_SIGNAL_ASSIGN);
 
-      const int nwaves = tree_waveforms(c);
+      tree_set_ident(s, tree_ident(t));
+
+      const int nwaves = tree_waveforms(s);
       for (int i = 0; i < nwaves; i++) {
-         tree_t wave = tree_waveform(c, i);
-         tree_add_waveform(s, wave);
+         tree_t wave = tree_waveform(s, i);
          simp_build_wait(w, wave, false);
       }
 

@@ -1672,7 +1672,7 @@ END_TEST
 
 START_TEST(test_conc)
 {
-   tree_t e, a, s, c;
+   tree_t e, a, s, c, s0;
 
    input_from_file(TESTDIR "/parse/conc.vhd");
 
@@ -1691,9 +1691,12 @@ START_TEST(test_conc)
    fail_unless(tree_conds(s) == 1);
    c = tree_cond(s, 0);
    fail_unless(tree_kind(c) == T_COND);
-   fail_unless(tree_waveforms(c) == 1);
+   fail_unless(tree_stmts(c) == 1);
+   s0 = tree_stmt(c, 0);
+   fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
+   fail_unless(tree_waveforms(s0) == 1);
    fail_if(tree_has_value(c));
-   fail_unless(tree_kind(tree_value(tree_waveform(c, 0))) == T_FCALL);
+   fail_unless(tree_kind(tree_value(tree_waveform(s0, 0))) == T_FCALL);
 
    s = tree_stmt(a, 1);
    fail_unless(tree_kind(s) == T_CASSIGN);
@@ -1701,9 +1704,11 @@ START_TEST(test_conc)
    fail_unless(tree_conds(s) == 3);
    c = tree_cond(s, 0);
    fail_unless(tree_kind(c) == T_COND);
-   fail_unless(tree_waveforms(c) == 1);
+   s0 = tree_stmt(c, 0);
+   fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
+   fail_unless(tree_waveforms(s0) == 1);
    fail_unless(tree_has_value(c));
-   fail_unless(tree_kind(tree_value(tree_waveform(c, 0))) == T_LITERAL);
+   fail_unless(tree_kind(tree_value(tree_waveform(s0, 0))) == T_LITERAL);
 
    s = tree_stmt(a, 2);
    fail_unless(tree_kind(s) == T_SELECT);
@@ -1923,7 +1928,7 @@ START_TEST(test_ir1045)
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
    c = tree_cond(s, 0);
-   q = tree_value(tree_waveform(c, 0));
+   q = tree_value(tree_waveform(tree_stmt(c, 0), 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
    v = tree_value(q);
    fail_unless(tree_kind(v) == T_AGGREGATE);
@@ -1931,7 +1936,7 @@ START_TEST(test_ir1045)
    s = tree_stmt(a, 1);
    fail_unless(tree_kind(s) == T_CASSIGN);
    c = tree_cond(s, 0);
-   q = tree_value(tree_waveform(c, 0));
+   q = tree_value(tree_waveform(tree_stmt(c, 0), 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
    v = tree_value(q);
    fail_unless(tree_kind(v) == T_REF);
@@ -1946,7 +1951,7 @@ END_TEST
 
 START_TEST(test_concat)
 {
-   tree_t a, s, e;
+   tree_t a, s, e, s0;
 
    input_from_file(TESTDIR "/parse/concat.vhd");
 
@@ -1959,7 +1964,11 @@ START_TEST(test_concat)
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
-   e = tree_value(tree_waveform(tree_cond(s, 0), 0));
+
+   s0 = tree_stmt(tree_cond(s, 0), 0);
+   fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
+
+   e = tree_value(tree_waveform(s0, 0));
    fail_unless(tree_kind(e) == T_FCALL);
    fail_unless(tree_params(e) == 2);
 
