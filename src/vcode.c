@@ -630,14 +630,14 @@ void vcode_opt(void)
                         o->result);
                }
                else if (uses[o->result] == 0) {
-                  if (o->kind == VCODE_OP_CONST)
-                     o->kind = (vcode_op_t)-1;
-                  else {
+                  if (false DEBUG_ONLY(|| o->kind != VCODE_OP_CONST)) {
                      o->comment = xasprintf("Dead %s definition of r%d",
                                             vcode_op_string(o->kind),
                                             o->result);
                      o->kind = VCODE_OP_COMMENT;
                   }
+                  else
+                     o->kind = (vcode_op_t)-1;
                   vcode_reg_array_resize(&(o->args), 0, VCODE_INVALID_REG);
                   pruned++;
                }
