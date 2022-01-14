@@ -1081,6 +1081,23 @@ START_TEST(test_issue436)
 }
 END_TEST
 
+START_TEST(test_issue437)
+{
+   input_from_file(TESTDIR "/simp/issue437.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   tree_t b0 = tree_stmt(top, 0);
+
+   tree_t u = tree_stmt(b0, 0);
+   fail_unless(tree_kind(u) == T_BLOCK);
+   fail_unless(tree_ident(u) == ident_new("U"));
+   fail_unless(tree_genmaps(u) == 1);
+   fail_unless(folded_i(tree_value(tree_genmap(u, 0)), 9));
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1120,6 +1137,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_order1);
    tcase_add_test(tc_core, test_genmap);
    tcase_add_test(tc_core, test_issue436);
+   tcase_add_test(tc_core, test_issue437);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -2616,6 +2616,9 @@ vcode_unit_t vcode_find_unit(ident_t name)
 
 static void vcode_add_child(vcode_unit_t context, vcode_unit_t child)
 {
+   if (context->kind == VCODE_UNIT_THUNK && child->kind != VCODE_UNIT_THUNK)
+      fatal_trace("thunk may not have non-thunk children");
+
    child->next = NULL;
    if (context->children == NULL)
       context->children = child;
@@ -2758,13 +2761,18 @@ vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
    return vu;
 }
 
-vcode_unit_t emit_thunk(ident_t name)
+vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context)
 {
    vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
    vu->kind     = VCODE_UNIT_THUNK;
    vu->name     = name;
+   vu->context  = context;
+   vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
    vu->depth    = vcode_unit_calc_depth(vu);
+
+   if (context != NULL)
+      vcode_add_child(context, vu);
 
    active_unit = vu;
    vcode_select_block(emit_block());

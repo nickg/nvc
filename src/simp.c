@@ -360,6 +360,7 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
                if (tree_flags(t) & TREE_F_FORMAL_NAME)
                   break;
                // Fall-through
+            case T_ATTR_REF:
             case T_REF:
                return map;
             default:

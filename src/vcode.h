@@ -327,7 +327,7 @@ vcode_unit_t emit_instance(ident_t name, const loc_t *loc,
 vcode_unit_t emit_package(ident_t name, const loc_t *loc);
 vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
                             vcode_unit_t context);
-vcode_unit_t emit_thunk(ident_t name);
+vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
                      vcode_var_flags_t flags);

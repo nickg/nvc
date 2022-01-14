@@ -130,6 +130,7 @@ static type_t lower_elem_recur(type_t type);
 static void lower_finished(void);
 static void lower_predef(tree_t decl, vcode_unit_t context);
 static ident_t lower_predef_func_name(type_t type, const char *op);
+static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -1392,8 +1393,6 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
       tree_t pack = lib_get_qualified(scope_name);
       if (pack != NULL && tree_kind(pack) == T_PACKAGE)
          return emit_link_package(scope_name);
-      else
-         return emit_null(vtype_context(scope_name));
    }
 
    vcode_state_t state;
@@ -1402,9 +1401,17 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
    vcode_unit_t vu = vcode_find_unit(unit_name);
    if (vu != NULL) {
       vcode_select_unit(vu);
-      if (vcode_unit_kind() != VCODE_UNIT_THUNK) {
-         vcode_select_unit(vcode_unit_context());
-         if (vcode_unit_kind() != VCODE_UNIT_THUNK) {
+      vcode_select_unit(vcode_unit_context());
+      scope_name = vcode_unit_name();
+   }
+
+   if (vcode_unit_kind() == VCODE_UNIT_THUNK) {
+      unit_name = ident_prefix(unit_name, thunk_i, '$');
+      vu = vcode_find_unit(unit_name);
+      if (vu != NULL) {
+         vcode_select_unit(vu);
+         if (vcode_unit_context() != NULL) {
+            vcode_select_unit(vcode_unit_context());
             scope_name = vcode_unit_name();
          }
       }
@@ -1417,7 +1424,9 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
       vcode_unit_t context = vcode_unit_context();
       if (context == NULL) {
          vcode_state_restore(&state);
-         if (ident_until(scope_name, '-') != scope_name) {
+         if (vcode_unit_kind() == VCODE_UNIT_THUNK)
+            return emit_null(vtype_context(scope_name));
+         else if (ident_until(scope_name, '-') != scope_name) {
             // Call to function defined in architecture
             return emit_null(vtype_context(scope_name));
          }
@@ -5666,15 +5675,18 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
 
       vcode_block_t bb = vcode_active_block();
 
-      if (kind == T_PROT_BODY && mode == LOWER_THUNK)
-         continue;
-
-      switch (kind) {
-      case T_FUNC_BODY: lower_func_body(d, context); break;
-      case T_PROC_BODY: lower_proc_body(d, context); break;
-      case T_PROT_BODY: lower_protected_body(d, context); break;
-      case T_FUNC_DECL: lower_predef(d, context); break;
-      default: break;
+      if (mode == LOWER_THUNK) {
+         if (kind == T_FUNC_BODY || kind == T_PROC_BODY)
+            lower_subprogram_for_thunk(d, context);
+      }
+      else {
+         switch (kind) {
+         case T_FUNC_BODY: lower_func_body(d, context); break;
+         case T_PROC_BODY: lower_proc_body(d, context); break;
+         case T_PROT_BODY: lower_protected_body(d, context); break;
+         case T_FUNC_DECL: lower_predef(d, context); break;
+         default: break;
+         }
       }
 
       vcode_select_unit(context);
@@ -7520,9 +7532,52 @@ vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover)
    return root;
 }
 
+static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context)
+{
+   vcode_select_unit(context);
+   assert(context == NULL || vcode_unit_kind() == VCODE_UNIT_THUNK);
+   assert(mode == LOWER_THUNK);
+
+   ident_t name = ident_prefix(tree_ident2(body), thunk_i, '$');
+
+   vcode_unit_t vu = vcode_find_unit(name);
+   if (vu != NULL)
+      return;
+
+   vcode_unit_t thunk = emit_thunk(name, context);
+
+   if (tree_kind(body) == T_FUNC_BODY)
+      vcode_set_result(lower_func_result_type(type_result(tree_type(body))));
+
+   emit_debug_info(tree_loc(body));
+
+   vcode_type_t vcontext = vtype_context(ident_new("dummy"));
+   emit_param(vcontext, vcontext, ident_new("context"));
+
+   lower_push_scope(body);
+
+   lower_subprogram_ports(body, lower_has_subprograms(body));
+
+   lower_decls(body, thunk);
+
+   const int nstmts = tree_stmts(body);
+   for (int i = 0; i < nstmts; i++)
+      lower_stmt(tree_stmt(body, i), NULL);
+
+   if (!vcode_block_finished()) {
+      lower_leave_subprogram();
+      emit_return(VCODE_INVALID_REG);
+   }
+
+   lower_pop_scope();
+   lower_finished();
+
+   if (vcode_unit_has_undefined())
+      vcode_unit_unref(thunk);
+}
+
 vcode_unit_t lower_thunk(tree_t t)
 {
-   assert(top_scope == NULL);
    lower_set_verbose();
 
    mode = LOWER_THUNK;
@@ -7530,63 +7585,32 @@ vcode_unit_t lower_thunk(tree_t t)
    const tree_kind_t kind = tree_kind(t);
 
    ident_t name = NULL;
-   if (kind == T_FUNC_BODY) {
-      name = ident_prefix(tree_ident2(t), thunk_i, '$');
+   if (kind == T_FUNC_BODY || kind == T_PROC_BODY) {
+      lower_subprogram_for_thunk(t, NULL);
+      return vcode_find_unit(ident_prefix(tree_ident2(t), thunk_i, '$'));
+   }
+   else
+      assert(top_scope == NULL);
 
-      vcode_unit_t vu = vcode_find_unit(name);
-      if (vu != NULL)
-         return vu;
+   vcode_unit_t thunk = emit_thunk(name, NULL);
+
+   vcode_type_t vtype = VCODE_INVALID_TYPE;
+   if (tree_kind(t) == T_FCALL) {
+      tree_t decl = tree_ref(t);
+      if (tree_has_type(decl))
+         vtype = lower_func_result_type(type_result(tree_type(decl)));
    }
 
-   vcode_unit_t thunk = emit_thunk(name);
+   if (vtype == VCODE_INVALID_TYPE)
+      vtype = lower_type(tree_type(t));
 
-   if (kind == T_FUNC_BODY) {
-      vcode_set_result(lower_func_result_type(type_result(tree_type(t))));
-      emit_debug_info(tree_loc(t));
+   vcode_set_result(vtype);
 
-      vcode_type_t vcontext = vtype_context(ident_new("dummy"));
-      emit_param(vcontext, vcontext, ident_new("context"));
-
-      lower_push_scope(t);
-
-      const bool has_subprograms = lower_has_subprograms(t);
-      if (has_subprograms) {
-         // This doesn't work yet as the name of nested subprograms
-         // won't be mangled with $thunk
-         lower_pop_scope();
-         vcode_unit_unref(thunk);
-         return NULL;
-      }
-
-      lower_subprogram_ports(t, has_subprograms);
-
-      lower_decls(t, thunk);
-
-      const int nstmts = tree_stmts(t);
-      for (int i = 0; i < nstmts; i++)
-         lower_stmt(tree_stmt(t, i), NULL);
-
-      lower_pop_scope();
-   }
-   else {
-      vcode_type_t vtype = VCODE_INVALID_TYPE;
-      if (tree_kind(t) == T_FCALL) {
-         tree_t decl = tree_ref(t);
-         if (tree_has_type(decl))
-            vtype = lower_func_result_type(type_result(tree_type(decl)));
-      }
-
-      if (vtype == VCODE_INVALID_TYPE)
-         vtype = lower_type(tree_type(t));
-
-      vcode_set_result(vtype);
-
-      vcode_reg_t result_reg = lower_expr(t, EXPR_RVALUE);
-      if (type_is_scalar(tree_type(t)))
-         emit_return(emit_cast(vtype, vtype, lower_reify(result_reg)));
-      else
-         emit_return(result_reg);
-   }
+   vcode_reg_t result_reg = lower_expr(t, EXPR_RVALUE);
+   if (type_is_scalar(tree_type(t)))
+      emit_return(emit_cast(vtype, vtype, lower_reify(result_reg)));
+   else
+      emit_return(result_reg);
 
    lower_finished();
 
