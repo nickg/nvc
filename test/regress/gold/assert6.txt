@@ -11,7 +11,7 @@ condition 512 <= 2 is false
 2ns+0: Assertion Warning: Assertion violation.
 condition 512 >= 2000 is false
 2ns+0: Assertion Warning: Assertion violation.
-condition 3.142 = 4.56 is false
+condition 3.1419999999999999 = 4.5599999999999996 is false
 2ns+0: Assertion Warning: Assertion violation.
 2ns+0: Assertion Warning: Assertion violation.
  = NULL is false

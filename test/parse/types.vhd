@@ -49,6 +49,9 @@ architecture a of b is
         x : integer;
     end record r2;
 
+    subtype my_real is real;
+    subtype my_real2 is real range 0.0 to 10.0;
+
 begin
 
 end architecture;

@@ -1451,7 +1451,7 @@ void to_string(text_buf_t *tb, type_t type, int64_t value)
    }
    else if (type_is_real(type)) {
       union { int64_t i; double r; } u = { .i = value };
-      tb_printf(tb, "%g", u.r);
+      tb_printf(tb, "%.17g", u.r);
    }
    else if (type_is_access(type)) {
       if (value == 0)

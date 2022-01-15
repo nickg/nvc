@@ -494,7 +494,7 @@ static vcode_type_t lower_type(type_t type)
          return lower_type(type_base(type));
 
    case T_ARRAY:
-         return lower_array_type(type);
+      return lower_array_type(type);
 
    case T_PHYSICAL:
    case T_INTEGER:
@@ -545,7 +545,15 @@ static vcode_type_t lower_type(type_t type)
       }
 
    case T_REAL:
-      return vtype_real(-DBL_MAX, DBL_MAX);
+      {
+         tree_t r = type_dim(type, 0);
+         double low, high;
+         const bool folded = folded_bounds_real(r, &low, &high);
+         if (folded)
+            return vtype_real(low, high);
+         else
+            return vtype_real(-DBL_MAX, DBL_MAX);
+      }
 
    case T_INCOMPLETE:
       return vtype_opaque();
@@ -557,14 +565,22 @@ static vcode_type_t lower_type(type_t type)
 
 static vcode_type_t lower_bounds(type_t type)
 {
-   if (type_kind(type) == T_SUBTYPE
-       && (type_is_integer(type) || type_is_enum(type))) {
-      tree_t r = range_of(type, 0);
-      int64_t low, high;
-      if (folded_bounds(r, &low, &high))
-         return vtype_int(low, high);
+   if (type_kind(type) == T_SUBTYPE) {
+      if (type_is_integer(type) || type_is_enum(type)) {
+         tree_t r = range_of(type, 0);
+         int64_t low, high;
+         if (folded_bounds(r, &low, &high))
+            return vtype_int(low, high);
+      }
+      else if (type_is_real(type)) {
+         tree_t r = range_of(type, 0);
+         double low, high;
+         if (folded_bounds_real(r, &low, &high))
+            return vtype_real(low, high);
+      }
    }
-   else if (type_is_array(type))
+
+   if (type_is_array(type))
       return lower_bounds(type_elem(type));
 
    return lower_type(type);
@@ -1529,7 +1545,7 @@ static vcode_reg_t lower_literal(tree_t lit, expr_ctx_t ctx)
       return emit_null(lower_type(tree_type(lit)));
 
    case L_REAL:
-      return emit_const_real(tree_dval(lit));
+      return emit_const_real(lower_type(tree_type(lit)), tree_dval(lit));
 
    default:
       fatal_at(tree_loc(lit), "cannot lower literal kind %d",
@@ -2861,7 +2877,8 @@ static vcode_reg_t lower_conversion(vcode_reg_t value_reg, tree_t where,
       // Need to wrap in metadata
       return lower_wrap(from, value_reg);
    }
-   else if (from_k == T_INTEGER && to_k == T_INTEGER) {
+   else if ((from_k == T_INTEGER && to_k == T_INTEGER)
+            || (from_k == T_REAL && to_k == T_REAL)) {
       // Possibly change width
       value_reg = lower_reify(value_reg);
       lower_check_scalar_bounds(value_reg, to, where, NULL);

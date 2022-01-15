@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <float.h>
 
 START_TEST(test_entity)
 {
@@ -655,7 +656,7 @@ START_TEST(test_types)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 78);  // Includes predefined
+   fail_unless(tree_decls(a) == 80);  // Includes predefined
 
    d = search_decls(a, ident_new("MY_INT"), 0);
    fail_if(d == NULL);
@@ -803,6 +804,32 @@ START_TEST(test_types)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_RECORD);
    fail_unless(type_fields(t) == 1);
+
+   d = search_decls(a, ident_new("MY_REAL"), 0);
+   fail_if(d == NULL);
+   fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(type_has_ident(t));
+   t = type_base(t);
+   fail_unless(t == std_type(NULL, STD_REAL));
+   r = type_dim(t, 0);
+   fail_unless(tree_kind(tree_left(r)) == T_LITERAL);
+   fail_unless(tree_subkind(tree_left(r)) == L_REAL);
+   fail_unless(tree_dval(tree_left(r)) == -DBL_MAX);
+   fail_unless(tree_kind(tree_right(r)) == T_LITERAL);
+   fail_unless(tree_subkind(tree_right(r)) == L_REAL);
+   fail_unless(tree_dval(tree_right(r)) == DBL_MAX);
+
+   d = search_decls(a, ident_new("MY_REAL2"), 0);
+   fail_if(d == NULL);
+   fail_unless(tree_kind(d) == T_SUBTYPE_DECL);
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(type_has_ident(t));
+   r = tree_range(type_constraint(t), 0);
+   ck_assert_double_eq_tol(tree_dval(tree_left(r)), 0.0, DBL_EPSILON);
+   ck_assert_double_eq_tol(tree_dval(tree_right(r)), 10.0, DBL_EPSILON);
 
    a = parse();
    fail_unless(a == NULL);

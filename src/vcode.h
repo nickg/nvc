@@ -339,7 +339,7 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_const_rep(vcode_type_t type, vcode_reg_t value, int rep);
 vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num);
-vcode_reg_t emit_const_real(double value);
+vcode_reg_t emit_const_real(vcode_type_t type, double value);
 vcode_reg_t emit_address_of(vcode_reg_t value);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);

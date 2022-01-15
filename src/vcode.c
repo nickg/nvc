@@ -951,7 +951,12 @@ static int vcode_dump_one_type(vcode_type_t type)
       break;
 
    case VCODE_TYPE_REAL:
-      col += printf("%%");
+      if (vt->rlow == -DBL_MAX && vt->rhigh == DBL_MAX)
+         col += printf("%%");
+      else if (vt->rlow == vt->rhigh)
+         col += printf("%f", vt->rlow);
+      else
+         col += printf("%f..%f", vt->rlow, vt->rhigh);
       break;
 
    case VCODE_TYPE_CARRAY:
@@ -2047,6 +2052,8 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       switch (at->kind) {
       case VCODE_TYPE_INT:
          return (at->low == bt->low) && (at->high == bt->high);
+      case VCODE_TYPE_REAL:
+         return (at->rlow == bt->rlow) && (at->rhigh == bt->rhigh);
       case VCODE_TYPE_CARRAY:
          return at->size == bt->size && vtype_eq(at->elem, bt->elem);
       case VCODE_TYPE_UARRAY:
@@ -2055,7 +2062,6 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       case VCODE_TYPE_ACCESS:
          return vtype_eq(at->pointed, bt->pointed);
       case VCODE_TYPE_OFFSET:
-      case VCODE_TYPE_REAL:
       case VCODE_TYPE_OPAQUE:
       case VCODE_TYPE_DEBUG_LOCUS:
          return true;
@@ -2995,19 +3001,16 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
    return op->result;
 }
 
-vcode_reg_t emit_const_real(double value)
+vcode_reg_t emit_const_real(vcode_type_t type, double value)
 {
-   // TODO: this should take the type as an argument
-   vcode_type_t real = vtype_real(-DBL_MAX, DBL_MAX);
-
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONST_REAL) {
-      if (other->real == value && other->type == real)
+      if (other->real == value && other->type == type)
          return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CONST_REAL);
    op->real   = value;
-   op->type   = real;
+   op->type   = type;
    op->result = vcode_add_reg(op->type);
 
    reg_t *r = vcode_reg_data(op->result);
@@ -3597,6 +3600,7 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
       { VCODE_TYPE_INT,    VCODE_TYPE_INT     },
       { VCODE_TYPE_INT,    VCODE_TYPE_REAL    },
       { VCODE_TYPE_REAL,   VCODE_TYPE_INT     },
+      { VCODE_TYPE_REAL,   VCODE_TYPE_REAL    },
       { VCODE_TYPE_ACCESS, VCODE_TYPE_ACCESS  },
    };
 

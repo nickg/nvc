@@ -2584,13 +2584,25 @@ static void cgen_op_range_check(int op, cgen_ctx_t *ctx)
    LLVMValueRef locus = cgen_get_arg(op, 4, ctx);
    LLVMValueRef hint  = cgen_get_arg(op, 5, ctx);
 
-   LLVMValueRef low  = LLVMBuildSelect(builder, dir, right, left, "low");
-   LLVMValueRef high = LLVMBuildSelect(builder, dir, left, right, "high");
+   LLVMValueRef above, below;
+   if (vcode_reg_kind(vcode_get_arg(op, 0)) == VCODE_TYPE_REAL) {
+      LLVMValueRef fvalue = cgen_get_arg(op, 0, ctx);
+      LLVMValueRef fleft  = cgen_get_arg(op, 1, ctx);
+      LLVMValueRef fright = cgen_get_arg(op, 2, ctx);
 
-   LLVMValueRef above =
-      LLVMBuildICmp(builder, LLVMIntSGT, value, high, "above");
-   LLVMValueRef below =
-      LLVMBuildICmp(builder, LLVMIntSLT, value, low, "below");
+      LLVMValueRef flow  = LLVMBuildSelect(builder, dir, fright, fleft, "");
+      LLVMValueRef fhigh = LLVMBuildSelect(builder, dir, fleft, fright, "");
+
+      above = LLVMBuildFCmp(builder, LLVMRealUGT, fvalue, fhigh, "above");
+      below = LLVMBuildFCmp(builder, LLVMRealULT, fvalue, flow, "below");
+   }
+   else {
+      LLVMValueRef low  = LLVMBuildSelect(builder, dir, right, left, "");
+      LLVMValueRef high = LLVMBuildSelect(builder, dir, left, right, "");
+
+      above = LLVMBuildICmp(builder, LLVMIntSGT, value, high, "above");
+      below = LLVMBuildICmp(builder, LLVMIntSLT, value, low, "below");
+   }
 
    LLVMValueRef fail = LLVMBuildOr(builder, above, below, "fail");
 
