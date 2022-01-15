@@ -3593,7 +3593,6 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
 
    static const vcode_type_t allowed[][2] = {
       { VCODE_TYPE_INT,    VCODE_TYPE_OFFSET  },
-      { VCODE_TYPE_CARRAY, VCODE_TYPE_POINTER },
       { VCODE_TYPE_OFFSET, VCODE_TYPE_INT     },
       { VCODE_TYPE_INT,    VCODE_TYPE_INT     },
       { VCODE_TYPE_INT,    VCODE_TYPE_REAL    },

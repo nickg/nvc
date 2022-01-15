@@ -322,11 +322,6 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
    case VCODE_TYPE_SIGNAL:
       return reg;
 
-   case VCODE_TYPE_CARRAY:
-      // TODO: not needed?
-      return emit_cast(vtype_pointer(vtype_elem(type)),
-                       VCODE_INVALID_TYPE, reg);
-
    default:
       vcode_dump();
       fatal_trace("invalid type in lower_array_data r%d", reg);
@@ -3626,13 +3621,15 @@ static void lower_var_assign_target(target_part_t **ptr, tree_t where,
       if (p->kind == PART_ELEM)
          src_reg = lower_array_data(src_reg);
 
-      if (type_is_scalar(type))
-         lower_check_scalar_bounds(lower_reify(src_reg) /* XXX */, type, where, p->target);
-
       if (lower_have_signal(src_reg))
          src_reg = emit_resolved(lower_array_data(rhs));
 
-      if (type_is_array(type)) {
+      if (type_is_scalar(type)) {
+         vcode_reg_t scalar_reg = lower_reify(src_reg);
+         lower_check_scalar_bounds(scalar_reg, type, where, p->target);
+         emit_store_indirect(scalar_reg, p->reg);
+      }
+      else if (type_is_array(type)) {
          vcode_reg_t data_reg = lower_array_data(src_reg);
          vcode_reg_t count_reg = lower_array_total_len(type, p->reg);
 
