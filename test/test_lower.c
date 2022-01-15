@@ -4201,6 +4201,44 @@ START_TEST(test_concat)
 
       CHECK_BB(1);
    }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.CONCAT.P2");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_VAR_UPREF, .name = "S", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 3 },
+         { VCODE_OP_INDEX, .name = "*concat" },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONST_ARRAY, .length = 2 },
+         { VCODE_OP_ADDRESS_OF },
+         { VCODE_OP_CONST, .value = 3 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_COPY },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_SCHED_WAVEFORM },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 4 },
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_CONST, .value = 6 },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_SCHED_WAVEFORM },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
 }
 END_TEST
 

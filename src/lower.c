@@ -3559,6 +3559,9 @@ static bool lower_can_hint_concat(tree_t target, tree_t value)
    if (tree_subkind(fdecl) != S_CONCAT)
       return false;
 
+   if (type_is_unconstrained(tree_type(target)))
+      return false;
+
    tree_t ref = name_to_ref(target);
    if (ref == NULL)
       return false;
@@ -3894,11 +3897,30 @@ static void lower_signal_assign(tree_t stmt)
       else
          after = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
 
+      vcode_var_t tmp_var = VCODE_INVALID_VAR;
+
       target_part_t *ptr = parts;
       if (tree_has_value(w)) {
          tree_t wvalue = tree_value(w);
          type_t wtype = tree_type(wvalue);
-         vcode_reg_t rhs = lower_expr(wvalue, EXPR_RVALUE);
+         vcode_reg_t rhs = VCODE_INVALID_REG;
+         if (ptr->kind == PART_ALL) {
+            if (lower_can_hint_concat(ptr->target, wvalue)) {
+               type_t ptype = tree_type(ptr->target);
+
+               vcode_type_t vtype = lower_type(ptype);
+               vcode_type_t vbounds = lower_bounds(ptype);
+               tmp_var = lower_temp_var("concat", vtype, vbounds);
+
+               vcode_reg_t count_reg = lower_array_total_len(ptype, ptr->reg);
+               vcode_reg_t hint_reg  = emit_index(tmp_var, VCODE_INVALID_REG);
+               rhs = lower_concat(wvalue, hint_reg, count_reg);
+            }
+         }
+
+         if (rhs == VCODE_INVALID_REG)
+            rhs = lower_expr(wvalue, EXPR_RVALUE);
+
          lower_signal_assign_target(&ptr, wvalue, rhs, wtype, reject, after);
       }
       else
@@ -3908,6 +3930,9 @@ static void lower_signal_assign(tree_t stmt)
       // All but the first waveform have zero reject time
       if (nwaveforms > 1 && tree_has_reject(stmt))
          reject = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
+
+      if (tmp_var != VCODE_INVALID_VAR)
+         lower_release_temp(tmp_var);
    }
 
    emit_temp_stack_restore(saved_mark);
