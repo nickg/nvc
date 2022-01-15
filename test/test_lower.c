@@ -2165,6 +2165,7 @@ START_TEST(test_issue135)
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.INTEGER$image" },
       { VCODE_OP_FCALL, .func = "STD.STANDARD.TIME$image" },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
@@ -2185,6 +2186,7 @@ START_TEST(test_issue135)
       { VCODE_OP_CAST },
       { VCODE_OP_ADD },
       { VCODE_OP_WRAP },
+      { VCODE_OP_ARRAY_REF },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_COPY },
       { VCODE_OP_ARRAY_REF },
@@ -2483,9 +2485,11 @@ START_TEST(test_issue203)
       { VCODE_OP_CONST_ARRAY, .length = 5 },
       { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_CONST, .value = 10 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_CONST, .value = 6 },
       { VCODE_OP_ALLOCA },
+      { VCODE_OP_ARRAY_REF },
       { VCODE_OP_COPY },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_STORE_INDIRECT },
@@ -3072,9 +3076,11 @@ START_TEST(test_hintbug)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_WRAP },
       { VCODE_OP_LOAD, .name = "X" },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ALLOCA },
       { VCODE_OP_WRAP },
+      { VCODE_OP_ARRAY_REF },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_STORE_INDIRECT },
@@ -4166,6 +4172,38 @@ START_TEST(test_array2)
 }
 END_TEST
 
+START_TEST(test_concat)
+{
+   input_from_file(TESTDIR "/lower/concat.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   {
+      vcode_unit_t vu = find_unit("WORK.CONCAT.P1");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_INDEX, .name = "V" },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONST_ARRAY, .length = 2 },
+         { VCODE_OP_ADDRESS_OF },
+         { VCODE_OP_CONST, .value = 3 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_COPY },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4259,6 +4297,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_closefile);
    tcase_add_test(tc, test_record2);
    tcase_add_test(tc, test_array2);
+   tcase_add_test(tc, test_concat);
    suite_add_tcase(s, tc);
 
    return s;
