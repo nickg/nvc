@@ -3538,7 +3538,7 @@ static bool lower_can_hint_aggregate(tree_t target, tree_t value)
       return false;
 
    type_t type = tree_type(target);
-   if (type_is_array(type) && type_is_unconstrained(type))
+   if (type_is_array(type) && !lower_const_bounds(type))
       return false;
 
    tree_t ref = name_to_ref(target);
@@ -3559,7 +3559,7 @@ static bool lower_can_hint_concat(tree_t target, tree_t value)
    if (tree_subkind(fdecl) != S_CONCAT)
       return false;
 
-   if (type_is_unconstrained(tree_type(target)))
+   if (!lower_const_bounds(tree_type(target)))
       return false;
 
    tree_t ref = name_to_ref(target);
@@ -3910,11 +3910,21 @@ static void lower_signal_assign(tree_t stmt)
 
                vcode_type_t vtype = lower_type(ptype);
                vcode_type_t vbounds = lower_bounds(ptype);
-               tmp_var = lower_temp_var("concat", vtype, vbounds);
+               tmp_var = lower_temp_var("tmp", vtype, vbounds);
 
                vcode_reg_t count_reg = lower_array_total_len(ptype, ptr->reg);
                vcode_reg_t hint_reg  = emit_index(tmp_var, VCODE_INVALID_REG);
                rhs = lower_concat(wvalue, hint_reg, count_reg);
+            }
+            else if (lower_can_hint_aggregate(ptr->target, wvalue)) {
+               type_t ptype = tree_type(ptr->target);
+
+               vcode_type_t vtype = lower_type(ptype);
+               vcode_type_t vbounds = lower_bounds(ptype);
+               tmp_var = lower_temp_var("tmp", vtype, vbounds);
+
+               vcode_reg_t hint_reg  = emit_index(tmp_var, VCODE_INVALID_REG);
+               rhs = lower_aggregate(wvalue, hint_reg);
             }
          }
 

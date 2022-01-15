@@ -4169,6 +4169,30 @@ START_TEST(test_array2)
 
       CHECK_BB(1);
    }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ARRAY2.P6");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_VAR_UPREF, .name = "S", .hops = 1 },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_INDEX, .name = "*tmp" },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_SCHED_WAVEFORM },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
 }
 END_TEST
 
@@ -4211,7 +4235,7 @@ START_TEST(test_concat)
          { VCODE_OP_VAR_UPREF, .name = "S", .hops = 1 },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 3 },
-         { VCODE_OP_INDEX, .name = "*concat" },
+         { VCODE_OP_INDEX, .name = "*tmp" },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST_ARRAY, .length = 2 },

@@ -4,6 +4,7 @@ end entity;
 architecture test of array2 is
     type int_vec is array (natural range <>) of integer;
     type int_vec2x2 is array (natural range <>, natural range <>) of integer;
+    signal s : int_vec(1 to 2);
 begin
 
     p1: process is
@@ -43,6 +44,13 @@ begin
         variable x : integer;
     begin
         v := (1 => 1, 2 => x, 3 => 3);
+        wait;
+    end process;
+
+    p6: process is
+        variable x : integer;
+    begin
+        s <= (x, x);
         wait;
     end process;
 
