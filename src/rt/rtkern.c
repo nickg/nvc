@@ -2220,18 +2220,26 @@ static void rt_setup(e_node_t top)
    res_memo_hash = hash_new(128, true);
 }
 
+static void rt_reset(rt_proc_t *proc)
+{
+  TRACE("reset process %s", istr(e_path(proc->source)));
+
+  _tmp_stack = global_tmp_stack;
+  _tmp_alloc = global_tmp_alloc;
+
+   active_proc = proc;
+   active_scope = proc->scope;
+
+   proc->privdata = (*proc->proc_fn)(NULL, proc->scope->privdata);
+   global_tmp_alloc = _tmp_alloc;
+}
+
 static void rt_run(rt_proc_t *proc)
 {
-   TRACE("%s process %s", proc->privdata ? "run" : "reset",
+   TRACE("run %sprocess %s", proc->privdata ? "" :  "stateless ",
          istr(e_path(proc->source)));
 
-   const bool reset = (proc->privdata == NULL);
-
-   if (reset) {
-      _tmp_stack = global_tmp_stack;
-      _tmp_alloc = global_tmp_alloc;
-   }
-   else if (proc->tmp_stack != NULL) {
+   if (proc->tmp_stack != NULL) {
       TRACE("using private stack at %p %d", proc->tmp_stack, proc->tmp_alloc);
       _tmp_stack = proc->tmp_stack;
       _tmp_alloc = proc->tmp_alloc;
@@ -2248,13 +2256,11 @@ static void rt_run(rt_proc_t *proc)
    active_proc = proc;
    active_scope = proc->scope;
 
-   if (unlikely(reset)) {
-      proc->privdata = (*proc->proc_fn)(NULL, proc->scope->privdata);
-      global_tmp_alloc = _tmp_alloc;
-      RT_ASSERT(proc->privdata);
-   }
-   else
-      (*proc->proc_fn)(proc->privdata, proc->scope->privdata);
+   // Stateless processes have NULL privdata so pass a dummy pointer
+   // value in so it can be distinguished from a reset
+   void *state = proc->privdata ?: (void *)-1;
+
+   (*proc->proc_fn)(state, proc->scope->privdata);
 }
 
 static void *rt_call_module_reset(ident_t name, void *arg)
@@ -2540,7 +2546,7 @@ static void rt_initial(e_node_t top)
 
    for (unsigned i = 0; i < n_scopes; i++) {
       for (unsigned j = 0; j < scopes[i].n_procs; j++)
-         rt_run(&(scopes[i].procs[j]));
+         rt_reset(&(scopes[i].procs[j]));
    }
 
    TRACE("calculate initial driver values");

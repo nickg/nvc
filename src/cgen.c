@@ -897,12 +897,14 @@ static void cgen_op_return(int op, cgen_ctx_t *ctx)
       break;
 
    case VCODE_UNIT_PROCESS:
-      {
+      if (ctx->state != NULL) {
          LLVMValueRef fsm_state_ptr =
             LLVMBuildStructGEP(builder, ctx->state, 1, "");
          LLVMBuildStore(builder, llvm_int32(1), fsm_state_ptr);
          LLVMBuildRet(builder, llvm_void_cast(ctx->state));
       }
+      else
+         LLVMBuildRet(builder, LLVMConstNull(llvm_void_ptr()));
       break;
 
    case VCODE_UNIT_INSTANCE:
@@ -1211,11 +1213,13 @@ static void cgen_op_wait(int op, cgen_ctx_t *ctx)
    if (after != VCODE_INVALID_REG)
       cgen_sched_process(ctx->regs[after]);
 
-   assert(ctx->state != NULL);
-   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
-   LLVMBuildStore(builder, llvm_int32(vcode_get_target(op, 0)), state_ptr);
+   if (ctx->state != NULL) {
+      LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
+      LLVMBuildStore(builder, llvm_int32(vcode_get_target(op, 0)), state_ptr);
+   }
 
    if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
+      assert(ctx->state != NULL);
       LLVMBuildCall(builder, llvm_fn("_private_stack"), NULL, 0, "");
       LLVMBuildRet(builder, llvm_void_cast(ctx->state));
    }
@@ -2631,7 +2635,10 @@ static void cgen_op_debug_locus(int op, cgen_ctx_t *ctx)
    ptrdiff_t offset = vcode_get_value(op);
    assert(offset >= 0);   // Should only write frozen offsets
 
-   LLVMValueRef unit = cgen_const_string(istr(vcode_get_ident(op)));
+   LOCAL_TEXT_BUF tb = tb_new();
+   ident_str(vcode_get_ident(op), tb);
+
+   LLVMValueRef unit = cgen_const_string(tb_get(tb));
 
    LLVMValueRef r = LLVMGetUndef(llvm_debug_locus_type());
    r = LLVMBuildInsertValue(builder, r, unit, 0, "");
@@ -3257,8 +3264,6 @@ static void cgen_params(cgen_ctx_t *ctx)
 
 static void cgen_locals(cgen_ctx_t *ctx)
 {
-   LLVMPositionBuilderAtEnd(builder, ctx->blocks[0]);
-
    const int nvars = vcode_count_vars();
    vcode_unit_t unit = vcode_active_unit();
    if (vcode_unit_child(unit) != NULL) {
@@ -3322,6 +3327,8 @@ static void cgen_function(void)
    };
    cgen_debug_push_func(&ctx);
    cgen_alloc_context(&ctx);
+
+   LLVMPositionBuilderAtEnd(builder, ctx.blocks[0]);
 
    cgen_params(&ctx);
    cgen_locals(&ctx);
@@ -3509,6 +3516,95 @@ static void cgen_procedure(void)
    cgen_pop_debug_scope();
 }
 
+static bool cgen_process_is_stateless(void)
+{
+   // A process is stateless if it has no non-temporary variables and
+   // all wait statements resume at the initial block
+
+   assert(vcode_unit_kind() == VCODE_UNIT_PROCESS);
+
+   if (vcode_unit_child(vcode_active_unit()) != NULL)
+      return false;
+
+   const int nvars = vcode_count_vars();
+   for (int i = 0; i < nvars; i++) {
+      if (!(vcode_var_flags(i) & VAR_TEMP))
+         return false;
+   }
+
+   const int nblocks = vcode_count_blocks();
+   for (int i = 0; i < nblocks; i++) {
+      vcode_select_block(i);
+
+      const int last_op = vcode_count_ops() - 1;
+      if (vcode_get_op(last_op) != VCODE_OP_WAIT)
+         continue;
+
+      if (vcode_get_target(last_op, 0) != 1) {
+         // This a kludge: remove it when vcode optimises better
+         vcode_select_block(vcode_get_target(last_op, 0));
+         if (vcode_count_ops() != 1)
+            return false;
+         else if (vcode_get_op(0) != VCODE_OP_JUMP)
+            return false;
+         else if (vcode_get_target(0, 0) != 1)
+            return false;
+      }
+   }
+
+   return true;
+}
+
+static void cgen_stateless_process(void)
+{
+   assert(vcode_unit_kind() == VCODE_UNIT_PROCESS);
+
+   cgen_ctx_t ctx = {};
+
+   LLVMTypeRef display_type = cgen_state_type(vcode_unit_context());
+
+   LLVMTypeRef pargs[] = {
+      llvm_void_ptr(),
+      LLVMPointerType(display_type, 0)
+   };
+   LLVMTypeRef ftype = LLVMFunctionType(llvm_void_ptr(), pargs, 2, false);
+   LOCAL_TEXT_BUF symbol = safe_symbol(vcode_unit_name());
+   ctx.fn = LLVMAddFunction(module, tb_get(symbol), ftype);
+   cgen_add_func_attr(ctx.fn, FUNC_ATTR_NOUNWIND, -1);
+   cgen_add_func_attr(ctx.fn, FUNC_ATTR_DLLEXPORT, -1);
+   cgen_add_func_attr(ctx.fn, FUNC_ATTR_UWTABLE, -1);
+
+   LLVMBasicBlockRef entry_bb = llvm_append_block(ctx.fn, "entry");
+   LLVMBasicBlockRef reset_bb = llvm_append_block(ctx.fn, "reset");
+
+   LLVMValueRef state_arg   = LLVMGetParam(ctx.fn, 0);
+   LLVMValueRef display_arg = LLVMGetParam(ctx.fn, 1);
+
+   cgen_debug_push_func(&ctx);
+   cgen_alloc_context(&ctx);
+
+   LLVMPositionBuilderAtEnd(builder, entry_bb);
+   cgen_locals(&ctx);
+
+   // If the parameter is non-zero jump to the init block
+
+   LLVMValueRef reset = LLVMBuildIsNull(builder, state_arg, "reset");
+   LLVMBuildCondBr(builder, reset, reset_bb, ctx.blocks[1]);
+
+   LLVMPositionBuilderAtEnd(builder, reset_bb);
+
+   // Schedule the process to run immediately
+   cgen_sched_process(llvm_int64(0));
+
+   LLVMBuildBr(builder, ctx.blocks[0]);
+
+   ctx.display = display_arg;
+
+   cgen_code(&ctx);
+   cgen_free_context(&ctx);
+   cgen_pop_debug_scope();
+}
+
 static void cgen_process(void)
 {
    assert(vcode_unit_kind() == VCODE_UNIT_PROCESS);
@@ -3516,7 +3612,7 @@ static void cgen_process(void)
    cgen_ctx_t ctx = {};
 
    LLVMTypeRef display_type = cgen_state_type(vcode_unit_context());
-   LLVMTypeRef state_type = cgen_state_type(vcode_active_unit());
+   LLVMTypeRef state_type   = cgen_state_type(vcode_active_unit());
 
    LLVMTypeRef pargs[] = {
       LLVMPointerType(state_type, 0),
@@ -3533,8 +3629,8 @@ static void cgen_process(void)
    LLVMBasicBlockRef reset_bb = llvm_append_block(ctx.fn, "reset");
    LLVMBasicBlockRef jump_bb  = llvm_append_block(ctx.fn, "jump_table");
 
-   ctx.state   = LLVMGetParam(ctx.fn, 0);
-   ctx.display = LLVMGetParam(ctx.fn, 1);
+   LLVMValueRef state_arg   = LLVMGetParam(ctx.fn, 0);
+   LLVMValueRef display_arg = LLVMGetParam(ctx.fn, 1);
 
    cgen_debug_push_func(&ctx);
    cgen_alloc_context(&ctx);
@@ -3542,7 +3638,8 @@ static void cgen_process(void)
    // If the parameter is non-zero jump to the init block
 
    LLVMPositionBuilderAtEnd(builder, entry_bb);
-   LLVMValueRef reset = LLVMBuildIsNull(builder, ctx.state, "reset");
+
+   LLVMValueRef reset = LLVMBuildIsNull(builder, state_arg, "reset");
    LLVMBuildCondBr(builder, reset, reset_bb, jump_bb);
 
    LLVMPositionBuilderAtEnd(builder, reset_bb);
@@ -3550,7 +3647,7 @@ static void cgen_process(void)
    LLVMValueRef priv_ptr = LLVMBuildMalloc(builder, state_type, "privdata");
 
    LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, priv_ptr, 0, "");
-   LLVMBuildStore(builder, ctx.display, context_ptr);
+   LLVMBuildStore(builder, display_arg, context_ptr);
 
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, priv_ptr, 1, "");
    LLVMBuildStore(builder, llvm_int32(0), state_ptr);
@@ -3561,17 +3658,19 @@ static void cgen_process(void)
    // Schedule the process to run immediately
    cgen_sched_process(llvm_int64(0));
 
-   LLVMBuildBr(builder, jump_bb);
+   LLVMBuildBr(builder, jump_bb ?: ctx.blocks[0]);
 
    LLVMPositionBuilderAtEnd(builder, jump_bb);
 
-   ctx.state = LLVMBuildPhi(builder, LLVMPointerType(state_type, 0), "state");
+   ctx.display = display_arg;
+   ctx.state   = LLVMBuildPhi(builder, LLVMPointerType(state_type, 0), "");
 
-   LLVMValueRef phi_values[]   = { LLVMGetParam(ctx.fn, 0), priv_ptr };
-   LLVMBasicBlockRef phi_bbs[] = { entry_bb,                reset_bb };
+   LLVMValueRef phi_values[]   = { state_arg, priv_ptr };
+   LLVMBasicBlockRef phi_bbs[] = { entry_bb,  reset_bb };
    LLVMAddIncoming(ctx.state, phi_values, phi_bbs, 2);
 
    cgen_jump_table(&ctx);
+
    cgen_code(&ctx);
    cgen_free_context(&ctx);
    cgen_pop_debug_scope();
@@ -4454,7 +4553,10 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
          cgen_function();
          break;
       case VCODE_UNIT_PROCESS:
-         cgen_process();
+         if (cgen_process_is_stateless())
+            cgen_stateless_process();
+         else
+            cgen_process();
          break;
       case VCODE_UNIT_INSTANCE:
       case VCODE_UNIT_PROTECTED:
