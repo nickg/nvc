@@ -1679,8 +1679,7 @@ static bool sem_check_cond_var_assign(tree_t t)
       if (!sem_readable(value))
          return false;
 
-      type_t value_type  = tree_type(value);
-
+      type_t value_type = tree_type(value);
       if (!sem_check_same_type(value, target))
          sem_error(t, "type of value %s does not match type of target %s",
                    type_pp2(value_type, target_type),
@@ -1909,7 +1908,7 @@ static bool sem_check_guard(tree_t t)
    return true;
 }
 
-static bool sem_check_cassign(tree_t t)
+static bool sem_check_cond_assign(tree_t t)
 {
    tree_t target = tree_target(t);
 
@@ -4648,8 +4647,8 @@ bool sem_check(tree_t t)
       return sem_check_func_body(t);
    case T_RETURN:
       return sem_check_return(t);
-   case T_CASSIGN:
-      return sem_check_cassign(t);
+   case T_COND_ASSIGN:
+      return sem_check_cond_assign(t);
    case T_WHILE:
       return sem_check_while(t);
    case T_ALIAS:

@@ -243,7 +243,7 @@ typedef enum tree_kind {
    T_PACK_BODY,
    T_FUNC_BODY,
    T_RETURN,
-   T_CASSIGN,
+   T_COND_ASSIGN,
    T_WHILE,
    T_WAVEFORM,
    T_ALIAS,

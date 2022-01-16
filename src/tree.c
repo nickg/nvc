@@ -117,7 +117,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_RETURN
    (I_IDENT | I_VALUE),
 
-   // T_CASSIGN
+   // T_COND_SIGNAL_ASSIGN
    (I_IDENT | I_TARGET | I_CONDS),
 
    // T_WHILE
@@ -289,7 +289,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ATTR_REF",        "T_ARRAY_REF",       "T_ARRAY_SLICE",
    "T_INSTANCE",        "T_IF",              "T_NULL",
    "T_PACK_BODY",       "T_FUNC_BODY",       "T_RETURN",
-   "T_CASSIGN",         "T_WHILE",           "T_WAVEFORM",
+   "T_COND_ASSIGN",     "T_WHILE",           "T_WAVEFORM",
    "T_ALIAS",           "T_FOR",             "T_ATTR_DECL",
    "T_ATTR_SPEC",       "T_PROC_DECL",       "T_PROC_BODY",
    "T_EXIT",            "T_PCALL",           "T_CASE",
@@ -306,7 +306,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_PROT_FCALL",      "T_PROT_PCALL",      "T_RANGE",
    "T_IMPLICIT_SIGNAL", "T_DISCONNECT",      "T_GROUP_TEMPLATE",
    "T_GROUP",           "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN",
-   "T_CONV_FUNC",      "T_CONCURRENT",
+   "T_CONV_FUNC",       "T_CONCURRENT",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -351,7 +351,7 @@ struct _e_node {
 static const tree_kind_t stmt_kinds[] = {
    T_PROCESS,    T_WAIT,            T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
    T_ASSERT,     T_INSTANCE,        T_IF,           T_NULL,
-   T_RETURN,     T_CASSIGN,         T_WHILE,        T_FOR,
+   T_RETURN,     T_COND_ASSIGN,     T_WHILE,        T_FOR,
    T_EXIT,       T_PCALL,           T_CASE,         T_BLOCK,
    T_SELECT,     T_IF_GENERATE,     T_FOR_GENERATE, T_NEXT,
    T_PROT_PCALL, T_COND_VAR_ASSIGN, T_CONCURRENT,

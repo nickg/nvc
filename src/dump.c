@@ -1110,11 +1110,11 @@ static void dump_stmt(tree_t t, int indent)
       syntax("#null");
       break;
 
-   case T_CASSIGN:
+   case T_COND_ASSIGN:
       dump_expr(tree_target(t));
       printf(" <= ");
       if (tree_has_guard(t)) syntax("#guarded ");
-      color_printf("$red$/* TODO: T_CASSIGN */$$");
+      color_printf("$red$/* TODO: T_COND_ASSIGN */$$");
       break;
 
    case T_SELECT:

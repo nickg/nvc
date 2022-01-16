@@ -1179,7 +1179,7 @@ START_TEST(test_extended)
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CONCURRENT);
    s = tree_stmt(s, 0);
-   fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_kind(s) == T_COND_ASSIGN);
    fail_unless(tree_ident(tree_target(s)) == ident_new("\\foo.bar.baz\\"));
 
    a = parse();
@@ -1728,7 +1728,7 @@ START_TEST(test_conc)
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CONCURRENT);
    s = tree_stmt(s, 0);
-   fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_kind(s) == T_COND_ASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_REF);
    fail_unless(tree_conds(s) == 1);
    c = tree_cond(s, 0);
@@ -1743,7 +1743,7 @@ START_TEST(test_conc)
    s = tree_stmt(a, 1);
    fail_unless(tree_kind(s) == T_CONCURRENT);
    s = tree_stmt(s, 0);
-   fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_kind(s) == T_COND_ASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_REF);
    fail_unless(tree_conds(s) == 3);
    c = tree_cond(s, 0);
@@ -1775,7 +1775,7 @@ START_TEST(test_conc)
    fail_unless(tree_kind(s) == T_CONCURRENT);
    fail_unless(tree_has_ident(s));
    s = tree_stmt(s, 0);
-   fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_kind(s) == T_COND_ASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_AGGREGATE);
 
    s = tree_stmt(a, 6);
@@ -1984,7 +1984,7 @@ START_TEST(test_ir1045)
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CONCURRENT);
    s = tree_stmt(s, 0);
-   fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_kind(s) == T_COND_ASSIGN);
    c = tree_cond(s, 0);
    q = tree_value(tree_waveform(tree_stmt(c, 0), 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
@@ -1994,7 +1994,7 @@ START_TEST(test_ir1045)
    s = tree_stmt(a, 1);
    fail_unless(tree_kind(s) == T_CONCURRENT);
    s = tree_stmt(s, 0);
-   fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_kind(s) == T_COND_ASSIGN);
    c = tree_cond(s, 0);
    q = tree_value(tree_waveform(tree_stmt(c, 0), 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
@@ -2025,7 +2025,7 @@ START_TEST(test_concat)
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CONCURRENT);
    s = tree_stmt(s, 0);
-   fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_kind(s) == T_COND_ASSIGN);
 
    s0 = tree_stmt(tree_cond(s, 0), 0);
    fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);

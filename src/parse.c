@@ -861,7 +861,7 @@ static void set_delay_mechanism(tree_t t, tree_t reject)
       // Inertial delay with same value as waveform
       // LRM 93 section 8.4 the rejection limit in this case is
       // specified by the time expression of the first waveform
-      tree_t w = (tree_kind(t) == T_CASSIGN
+      tree_t w = (tree_kind(t) == T_COND_ASSIGN
                   ? tree_waveform(tree_cond(t, 0), 0)
                   : tree_waveform(t, 0));
       if (tree_has_delay(w))
@@ -7659,7 +7659,7 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    BEGIN("conditional signal assignment");
 
    tree_t conc = tree_new(T_CONCURRENT);
-   tree_t stmt = tree_new(T_CASSIGN);
+   tree_t stmt = tree_new(T_COND_ASSIGN);
    tree_add_stmt(conc, stmt);
 
    tree_t target = p_target(name);
