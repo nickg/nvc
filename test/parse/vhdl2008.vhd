@@ -72,4 +72,28 @@ begin
         x := 1 when y > 2 else 5;       -- OK
     end process;
 
+    process is
+        variable x : bit_vector(7 downto 0);
+    begin
+        x := 8x"0";                     -- OK
+        x := 6x"a";                     -- OK
+        x := 4x"4";                     -- OK
+        x := 2x"4";                     -- Error
+        x := 0x"5";                     -- Error
+        x := 18x"383fe";                -- OK
+        x := 0b"0000";                  -- OK
+        x := d"5";                      -- OK
+        x := 5d"25";                    -- OK
+        x := 120d"83298148949012041209428481024019511";  -- Error
+        x := uo"5";                     -- OK
+        x := 5sb"11";                   -- OK
+        x := 2sb"1111110";              -- OK
+        x := 2sb"10110101";             -- Error
+        x := 4x"0f";                    -- OK
+        x := Uo"2C";                    -- OK
+        x := d"C4";                     -- Error
+        x := 8x"-";                     -- OK
+        x := 12d"13";                   -- OK
+    end process;
+
 end architecture;

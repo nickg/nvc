@@ -1,3 +1,20 @@
+//
+//  Copyright (C) 2011-2022  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
 #include "type.h"
 #include "util.h"
 #include "tree.h"
@@ -3429,6 +3446,11 @@ START_TEST(test_vhdl2008)
 
    const error_t expect[] = {
       { 57, "no matching operator \"??\" [TIME return BOOLEAN]" },
+      { 81, "excess non-zero digits in bit string literal" },
+      { 82, "excess non-zero digits in bit string literal" },
+      { 87, "sorry, decimal values greater than 6" },
+      { 91, "excess significant digits in bit string literal" },
+      { 94, "invalid digit 'C' in bit string" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3448,6 +3470,16 @@ START_TEST(test_vhdl2008)
    fail_unless(type_has_resolution(type));
    tree_t r = type_resolution(type);
    fail_unless(tree_kind(r) == T_AGGREGATE);
+
+   tree_t p4 = tree_stmt(a, 4);
+   fail_unless(tree_chars(tree_value(tree_stmt(p4, 0))) == 8);
+   fail_unless(tree_chars(tree_value(tree_stmt(p4, 1))) == 6);
+   fail_unless(tree_chars(tree_value(tree_stmt(p4, 2))) == 4);
+   fail_unless(tree_chars(tree_value(tree_stmt(p4, 3))) == 0);
+   fail_unless(tree_chars(tree_value(tree_stmt(p4, 4))) == 0);
+   fail_unless(tree_chars(tree_value(tree_stmt(p4, 5))) == 18);
+   fail_unless(tree_chars(tree_value(tree_stmt(p4, 6))) == 0);
+   fail_unless(tree_chars(tree_value(tree_stmt(p4, 7))) == 3);
 
    fail_unless(parse() == NULL);
 

@@ -64,7 +64,9 @@
   supported.
 - The default assertion failure message for certain simple scalar
   comparisons now shows the values of the left and right hand sides.
-- Added support for VHDL-2008 conditional variable assignment statements.
+- Added support for VHDL-2008 conditional variable assignment
+  statements.
+- Added support for VHDL-2008 extended bit string literals.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

@@ -686,22 +686,57 @@ static void set_label_and_loc(tree_t t, ident_t label, const loc_t *loc)
    tree_set_ident(t, label);
 }
 
+static void require_std(vhdl_standard_t which, const char *feature)
+{
+   static bool warned = false;
+
+   if (standard() < which && !warned) {
+      warned = true;
+
+      if (n_correct >= RECOVER_THRESH) {
+         error_at(CURRENT_LOC, "%s are not supported in VHDL-%s",
+                  feature, standard_text(standard()));
+         hint_at(CURRENT_LOC, "pass $bold$--std=%s$$ to enable this feature",
+                 standard_text(which));
+      }
+   }
+}
+
 static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
 {
    tree_t t = tree_new(T_LITERAL);
    tree_set_loc(t, loc);
    tree_set_subkind(t, L_STRING);
 
-   char base_ch = str[0];
+   const char *p = str;
+   int length = -1;
+
+   if (isdigit((int)*p)) {
+      require_std(STD_08, "bit string literals with length specifier");
+      length = strtoul(p, (char **)&p, 10);
+   }
+
+   enum { UNSIGNED, SIGNED } mode = UNSIGNED;
+
+   switch (*p) {
+   case 'U': case 'u': mode = UNSIGNED; ++p; break;
+   case 'S': case 's': mode = SIGNED; ++p; break;
+   }
+
+   char base_ch = *p++;
    int base;
    switch (base_ch) {
    case 'X': case 'x': base = 16; break;
    case 'O': case 'o': base = 8;  break;
    case 'B': case 'b': base = 2;  break;
+   case 'D': case 'd': base = 10; break;
    default:
       parse_error(loc, "invalid base '%c' for bit string", base_ch);
       return t;
    }
+
+   if (base == 10)
+      require_std(STD_08, "decimal bit string literals");
 
    tree_t one = tree_new(T_REF);
    tree_set_ident(one, ident_new("'1'"));
@@ -711,20 +746,99 @@ static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
    tree_set_ident(zero, ident_new("'0'"));
    tree_set_loc(zero, loc);
 
-   for (const char *p = str + 2; *p != '\"'; p++) {
+   tree_t *bits LOCAL = NULL;
+   if (length >= 0)
+      bits = xmalloc_array(length, sizeof(tree_t));
+
+   tree_t pad = mode == UNSIGNED ? zero : NULL;
+   int nbits = 0;
+   int64_t decimal = 0;
+   for (++p; *p != '\"'; p++) {
       if (*p == '_')
          continue;
 
+      const bool extended = (isdigit((int)*p) && *p < '0' + base)
+         || (base > 10 && *p >= 'A' && *p < 'A' + base - 10)
+         || (base > 10 && *p >= 'a' && *p < 'a' + base - 10);
+
       int n = (isdigit((int)*p) ? (*p - '0')
                : 10 + (isupper((int)*p) ? (*p - 'A') : (*p - 'a')));
+      tree_t digit = NULL;
 
-      if (n >= base) {
-         parse_error(loc, "invalid digit '%c' in bit string", *p);
-         return t;
+      if (!extended) {
+         if (standard() < STD_08 || base == 10 || !isprint((int)*p)) {
+            parse_error(loc, "invalid digit '%c' in bit string", *p);
+            return t;
+         }
+         else {
+            const char rune[] = { '\'', *p, '\'', '\0' };
+            digit = tree_new(T_REF);
+            tree_set_ident(digit, ident_new(rune));
+            tree_set_loc(digit, loc);
+         }
+      }
+      else if (base == 10) {
+         decimal *= 10;
+         if (decimal < 0) {
+            parse_error(loc, "sorry, decimal values greater than 64 bits "
+                        "are not supported");
+            return t;
+         }
+         decimal += n;
+         continue;
       }
 
-      for (int d = (base >> 1); d > 0; n = n % d, d >>= 1)
-         tree_add_char(t, (n / d) ? one : zero);
+      for (int d = (base >> 1); d > 0; n = n % d, d >>= 1) {
+         tree_t bit = extended ? ((n / d) ? one : zero) : digit;
+         if (pad == NULL) pad = bit;
+         if (length >= 0) {
+            tree_t left = nbits == 0 ? bit : bits[0];
+            if (nbits < length)
+               bits[nbits++] = bit;
+            else if (left != pad && tree_ident(left) != tree_ident(pad)) {
+               parse_error(CURRENT_LOC, "excess %s digits in bit "
+                           "string literal",
+                           mode == SIGNED ? "significant" : "non-zero");
+               return t;
+            }
+            else if (length > 0) {
+               for (int i = 0; i < length - 1; i++)
+                  bits[i] = bits[i + 1];
+               bits[length - 1] = bit;
+            }
+         }
+         else
+            tree_add_char(t, bit);
+      }
+   }
+
+   if (base == 10) {
+      nbits = ilog2(decimal);
+
+      if (length == -1) {
+         length = nbits;
+         bits = xmalloc_array(length, sizeof(tree_t));
+      }
+
+      int pos = nbits - 1;
+      for (; decimal > 0; decimal >>= 1) {
+         if (pos < 0 && (decimal & 1)) {
+            parse_error(CURRENT_LOC, "excess non-zero digits in "
+                        "bit string literal");
+            return t;
+         }
+         else if (pos >= 0)
+            bits[pos--] = (decimal & 1) ? one : zero;
+      }
+   }
+
+   if (length >= 0) {
+      // Left-pad with sign bit or zero
+      int pos = 0;
+      for (; pos < length - nbits; pos++)
+         tree_add_char(t, pad);
+      for (int i = 0; pos < length; pos++, i++)
+         tree_add_char(t, bits[i]);
    }
 
    return t;
