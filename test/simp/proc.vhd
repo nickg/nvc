@@ -16,7 +16,7 @@ begin
 
     -- Test rewrite of concurrent assignments
     x <= y + 4;
-    x <= y + 4 when y < 2 else x + 1 when x < 2 else 0;
+    postponed x <= y + 4 when y < 2 else x + 1 when x < 2 else 0;
 
     -- Concurrent procedure call to process
     proc(n => 4);

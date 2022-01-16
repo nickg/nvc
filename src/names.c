@@ -2283,7 +2283,7 @@ static type_t solve_pcall(nametab_t *tab, tree_t pcall)
    const tree_kind_t kind = tree_kind(pcall);
 
    overload_t o = {
-      .name     = kind == T_CPCALL ? tree_ident2(pcall) : tree_ident(pcall),
+      .name     = tree_ident(pcall),
       .tree     = pcall,
       .state    = O_IDLE,
       .nametab  = tab,
@@ -2977,7 +2977,6 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
    case T_PROT_FCALL:
       return solve_fcall(tab, expr);
    case T_PCALL:
-   case T_CPCALL:
    case T_PROT_PCALL:
       return solve_pcall(tab, expr);
    case T_LITERAL:

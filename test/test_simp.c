@@ -224,6 +224,7 @@ START_TEST(test_proc)
    p = tree_stmt(a, 1);
    fail_unless(tree_kind(p) == T_PROCESS);
    fail_unless(tree_stmts(p) == 2);
+   fail_if(tree_flags(p) & TREE_F_POSTPONED);
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
@@ -238,6 +239,7 @@ START_TEST(test_proc)
    p = tree_stmt(a, 2);
    fail_unless(tree_kind(p) == T_PROCESS);
    fail_unless(tree_stmts(p) == 2);
+   fail_unless(tree_flags(p) & TREE_F_POSTPONED);
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_IF);

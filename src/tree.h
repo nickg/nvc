@@ -268,8 +268,6 @@ typedef enum tree_kind {
    T_RECORD_REF,
    T_ALL,
    T_NEW,
-   T_CASSERT,
-   T_CPCALL,
    T_UNIT_DECL,
    T_NEXT,
    T_GENVAR,
@@ -297,6 +295,7 @@ typedef enum tree_kind {
    T_SUBTYPE_DECL,
    T_COND_VAR_ASSIGN,
    T_CONV_FUNC,
+   T_CONCURRENT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

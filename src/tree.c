@@ -118,7 +118,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_CASSIGN
-   (I_IDENT | I_TARGET | I_CONDS | I_GUARD),
+   (I_IDENT | I_TARGET | I_CONDS),
 
    // T_WHILE
    (I_IDENT | I_VALUE | I_STMTS),
@@ -164,7 +164,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_TYPE | I_FLAGS),
 
    // T_SELECT
-   (I_IDENT | I_VALUE | I_ASSOCS | I_GUARD),
+   (I_IDENT | I_VALUE | I_ASSOCS),
 
    // T_COMPONENT
    (I_IDENT | I_PORTS | I_GENERICS),
@@ -192,12 +192,6 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_NEW
    (I_VALUE | I_TYPE),
-
-   // T_CASSERT
-   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE | I_FLAGS),
-
-   // T_CPCALL
-   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF),
 
    // T_UNIT_DECL
    (I_IDENT | I_VALUE | I_TYPE),
@@ -279,37 +273,40 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_CONV_FUNC
    (I_IDENT | I_REF | I_VALUE | I_TYPE),
+
+   // T_CONCURRENT
+   (I_IDENT | I_STMTS | I_GUARD | I_FLAGS),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
-   "T_ENTITY",        "T_ARCH",            "T_PORT_DECL",
-   "T_FCALL",         "T_LITERAL",         "T_SIGNAL_DECL",
-   "T_VAR_DECL",      "T_PROCESS",         "T_REF",
-   "T_WAIT",          "T_TYPE_DECL",       "T_VAR_ASSIGN",
-   "T_PACKAGE",       "T_SIGNAL_ASSIGN",   "T_QUALIFIED",
-   "T_ENUM_LIT",      "T_CONST_DECL",      "T_FUNC_DECL",
-   "T_ELAB",          "T_AGGREGATE",       "T_ASSERT",
-   "T_ATTR_REF",      "T_ARRAY_REF",       "T_ARRAY_SLICE",
-   "T_INSTANCE",      "T_IF",              "T_NULL",
-   "T_PACK_BODY",     "T_FUNC_BODY",       "T_RETURN",
-   "T_CASSIGN",       "T_WHILE",           "T_WAVEFORM",
-   "T_ALIAS",         "T_FOR",             "T_ATTR_DECL",
-   "T_ATTR_SPEC",     "T_PROC_DECL",       "T_PROC_BODY",
-   "T_EXIT",          "T_PCALL",           "T_CASE",
-   "T_BLOCK",         "T_COND",            "T_TYPE_CONV",
-   "T_SELECT",        "T_COMPONENT",       "T_IF_GENERATE",
-   "T_FOR_GENERATE",  "T_FILE_DECL",       "T_OPEN",
-   "T_FIELD_DECL",    "T_RECORD_REF",      "T_ALL",
-   "T_NEW",           "T_CASSERT",         "T_CPCALL",
-   "T_UNIT_DECL",     "T_NEXT",            "T_GENVAR",
-   "T_PARAM",         "T_ASSOC",           "T_USE",
-   "T_HIER",          "T_SPEC",            "T_BINDING",
-   "T_LIBRARY",       "T_DESIGN_UNIT",     "T_CONFIGURATION",
-   "T_PROT_BODY",     "T_CONTEXT",         "T_CTXREF",
-   "T_CONSTRAINT",    "T_BLOCK_CONFIG",    "T_PROT_FCALL",
-   "T_PROT_PCALL",    "T_RANGE",           "T_IMPLICIT_SIGNAL",
-   "T_DISCONNECT",    "T_GROUP_TEMPLATE",  "T_GROUP",
-   "T_SUBTYPE_DECL",  "T_COND_VAR_ASSIGN", "T_CONV_FUNC",
+   "T_ENTITY",          "T_ARCH",            "T_PORT_DECL",
+   "T_FCALL",           "T_LITERAL",         "T_SIGNAL_DECL",
+   "T_VAR_DECL",        "T_PROCESS",         "T_REF",
+   "T_WAIT",            "T_TYPE_DECL",       "T_VAR_ASSIGN",
+   "T_PACKAGE",         "T_SIGNAL_ASSIGN",   "T_QUALIFIED",
+   "T_ENUM_LIT",        "T_CONST_DECL",      "T_FUNC_DECL",
+   "T_ELAB",            "T_AGGREGATE",       "T_ASSERT",
+   "T_ATTR_REF",        "T_ARRAY_REF",       "T_ARRAY_SLICE",
+   "T_INSTANCE",        "T_IF",              "T_NULL",
+   "T_PACK_BODY",       "T_FUNC_BODY",       "T_RETURN",
+   "T_CASSIGN",         "T_WHILE",           "T_WAVEFORM",
+   "T_ALIAS",           "T_FOR",             "T_ATTR_DECL",
+   "T_ATTR_SPEC",       "T_PROC_DECL",       "T_PROC_BODY",
+   "T_EXIT",            "T_PCALL",           "T_CASE",
+   "T_BLOCK",           "T_COND",            "T_TYPE_CONV",
+   "T_SELECT",          "T_COMPONENT",       "T_IF_GENERATE",
+   "T_FOR_GENERATE",    "T_FILE_DECL",       "T_OPEN",
+   "T_FIELD_DECL",      "T_RECORD_REF",      "T_ALL",
+   "T_NEW",             "T_UNIT_DECL",       "T_NEXT",
+   "T_GENVAR",          "T_PARAM",           "T_ASSOC",
+   "T_USE",             "T_HIER",            "T_SPEC",
+   "T_BINDING",         "T_LIBRARY",         "T_DESIGN_UNIT",
+   "T_CONFIGURATION",   "T_PROT_BODY",       "T_CONTEXT",
+   "T_CTXREF",          "T_CONSTRAINT",      "T_BLOCK_CONFIG",
+   "T_PROT_FCALL",      "T_PROT_PCALL",      "T_RANGE",
+   "T_IMPLICIT_SIGNAL", "T_DISCONNECT",      "T_GROUP_TEMPLATE",
+   "T_GROUP",           "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN",
+   "T_CONV_FUNC",      "T_CONCURRENT",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -323,7 +320,6 @@ static const change_allowed_t change_allowed[] = {
    { T_REF,         T_RECORD_REF    },
    { T_REF,         T_QUALIFIED     },
    { T_ARRAY_REF,   T_ARRAY_SLICE   },
-   { T_ASSERT,      T_CASSERT       },
    { T_DESIGN_UNIT, T_ENTITY        },
    { T_DESIGN_UNIT, T_PACKAGE       },
    { T_DESIGN_UNIT, T_PACK_BODY     },
@@ -333,9 +329,6 @@ static const change_allowed_t change_allowed[] = {
    { T_FUNC_DECL,   T_FUNC_BODY     },
    { T_PROC_DECL,   T_PROC_BODY     },
    { T_REF,         T_ARRAY_SLICE   },
-   { T_FCALL,       T_CPCALL        },
-   { T_PCALL,       T_CPCALL        },
-   { T_REF,         T_CPCALL        },
    { T_ATTR_REF,    T_ARRAY_REF     },
    { T_PROT_FCALL,  T_PROT_PCALL    },
    { T_FCALL,       T_PROT_FCALL    },
@@ -356,12 +349,12 @@ struct _e_node {
 };
 
 static const tree_kind_t stmt_kinds[] = {
-   T_PROCESS, T_WAIT,        T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
-   T_ASSERT,  T_INSTANCE,    T_IF,           T_NULL,
-   T_RETURN,  T_CASSIGN,     T_WHILE,        T_FOR,
-   T_EXIT,    T_PCALL,       T_CASE,         T_BLOCK,
-   T_SELECT,  T_IF_GENERATE, T_FOR_GENERATE, T_CPCALL,
-   T_CASSERT, T_NEXT,        T_PROT_PCALL,   T_COND_VAR_ASSIGN,
+   T_PROCESS,    T_WAIT,            T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
+   T_ASSERT,     T_INSTANCE,        T_IF,           T_NULL,
+   T_RETURN,     T_CASSIGN,         T_WHILE,        T_FOR,
+   T_EXIT,       T_PCALL,           T_CASE,         T_BLOCK,
+   T_SELECT,     T_IF_GENERATE,     T_FOR_GENERATE, T_NEXT,
+   T_PROT_PCALL, T_COND_VAR_ASSIGN, T_CONCURRENT,
 };
 
 static tree_kind_t expr_kinds[] = {

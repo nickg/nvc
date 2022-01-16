@@ -860,6 +860,8 @@ static void dump_stmt(tree_t t, int indent)
    switch (tree_kind(t)) {
    case T_PROCESS:
       dump_address(t);
+      if (tree_flags(t) & TREE_F_POSTPONED)
+         syntax("#postponed ");
       syntax("#process ");
       if (tree_triggers(t) > 0) {
          printf("(");
@@ -928,7 +930,6 @@ static void dump_stmt(tree_t t, int indent)
       syntax("#end #block;\n");
       return;
 
-   case T_CASSERT:
    case T_ASSERT:
       if (tree_has_value(t)) {
          syntax("#assert ");

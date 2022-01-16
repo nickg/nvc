@@ -11,7 +11,7 @@ begin
 
     x <= a or b;
 
-    x <= 1 when foo
+    postponed x <= 1 when foo
          else 2 when bar
          else 3;
 

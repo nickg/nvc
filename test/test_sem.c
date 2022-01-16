@@ -2133,7 +2133,10 @@ START_TEST(test_issue377)
    tree_t a1 = parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH, -1);
 
    {
-      tree_t fcall = tree_value(tree_stmt(a1, 0));
+      tree_t s0 = tree_stmt(a1, 0);
+      fail_unless(tree_kind(s0) == T_CONCURRENT);
+
+      tree_t fcall = tree_value(tree_stmt(s0, 0));
       fail_unless(tree_kind(fcall) == T_FCALL);
 
       tree_t decl = tree_ref(fcall);
@@ -2144,7 +2147,10 @@ START_TEST(test_issue377)
    tree_t a2 = parse_and_check(T_ARCH);
 
    {
-      tree_t fcall = tree_value(tree_stmt(a2, 0));
+      tree_t s0 = tree_stmt(a2, 0);
+      fail_unless(tree_kind(s0) == T_CONCURRENT);
+
+      tree_t fcall = tree_value(tree_stmt(s0, 0));
       fail_unless(tree_kind(fcall) == T_FCALL);
 
       tree_t decl = tree_ref(fcall);
@@ -2238,7 +2244,10 @@ START_TEST(test_issue407)
 
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
 
-   tree_t w = tree_waveform(tree_value(tree_assoc(tree_stmt(a, 0), 0)), 0);
+   tree_t s0 = tree_stmt(a, 0);
+   fail_unless(tree_kind(s0) == T_CONCURRENT);
+
+   tree_t w = tree_waveform(tree_value(tree_assoc(tree_stmt(s0, 0), 0)), 0);
    tree_t assoc = tree_assoc(tree_value(w), 0);
    fail_unless(tree_kind(assoc) == T_ASSOC);
    fail_unless(tree_subkind(assoc) == A_RANGE);

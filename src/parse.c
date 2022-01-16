@@ -4895,21 +4895,23 @@ static tree_t p_concurrent_assertion_statement(ident_t label)
 
    BEGIN("concurrent assertion statement");
 
-   const bool postponed = optional(tPOSTPONED);
+   tree_t conc = tree_new(T_CONCURRENT);
+
+   if (optional(tPOSTPONED))
+      tree_set_flag(conc, TREE_F_POSTPONED);
 
    tree_t s = p_assertion();
-   tree_change_kind(s, T_CASSERT);
+   tree_add_stmt(conc, s);
 
    consume(tSEMI);
 
    tree_set_loc(s, CURRENT_LOC);
-   ensure_labelled(s, label);
+   tree_set_loc(conc, CURRENT_LOC);
 
-   if (postponed)
-      tree_set_flag(s, TREE_F_POSTPONED);
+   ensure_labelled(conc, label);
 
-   insert_name(nametab, s, NULL, 0);
-   return s;
+   insert_name(nametab, conc, NULL, 0);
+   return conc;
 }
 
 static ident_t p_designator(void)
@@ -7656,9 +7658,12 @@ static tree_t p_conditional_signal_assignment(tree_t name)
 
    BEGIN("conditional signal assignment");
 
-   tree_t t = tree_new(T_CASSIGN);
+   tree_t conc = tree_new(T_CONCURRENT);
+   tree_t stmt = tree_new(T_CASSIGN);
+   tree_add_stmt(conc, stmt);
+
    tree_t target = p_target(name);
-   tree_set_target(t, target);
+   tree_set_target(stmt, target);
 
    consume(tLE);
 
@@ -7666,17 +7671,17 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    p_options(&reject, &guard);
 
    if (guard != NULL)
-      tree_set_guard(t, guard);
+      tree_set_guard(conc, guard);
 
    const bool aggregate = tree_kind(target) == T_AGGREGATE;
    if (!aggregate)
       solve_types(nametab, target, NULL);
 
-   p_conditional_waveforms(t, target);
+   p_conditional_waveforms(stmt, target);
 
-   const int nconds = tree_conds(t);
+   const int nconds = tree_conds(stmt);
    for (int i = 0; i < nconds; i++) {
-      tree_t c = tree_cond(t, i);
+      tree_t c = tree_cond(stmt, i);
       assert(tree_stmts(c) == 1);
       set_delay_mechanism(tree_stmt(c, 0), reject);
    }
@@ -7684,13 +7689,14 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    consume(tSEMI);
 
    if (aggregate) {
-      tree_t s0 = tree_stmt(tree_cond(t, 0), 0);
+      tree_t s0 = tree_stmt(tree_cond(stmt, 0), 0);
       type_t type = tree_type(tree_value(tree_waveform(s0, 0)));
       solve_types(nametab, target, type);
    }
 
-   tree_set_loc(t, CURRENT_LOC);
-   return t;
+   tree_set_loc(stmt, CURRENT_LOC);
+   tree_set_loc(conc, CURRENT_LOC);
+   return conc;
 }
 
 static void p_selected_waveforms(tree_t stmt, type_t constraint)
@@ -7726,10 +7732,12 @@ static tree_t p_selected_signal_assignment(void)
 
    consume(tWITH);
 
-   tree_t t = tree_new(T_SELECT);
+   tree_t conc = tree_new(T_CONCURRENT);
+   tree_t stmt = tree_new(T_SELECT);
+   tree_add_stmt(conc, stmt);
 
    tree_t value = p_expression();
-   tree_set_value(t, value);
+   tree_set_value(stmt, value);
    solve_types(nametab, value, NULL);
 
    consume(tSELECT);
@@ -7746,25 +7754,27 @@ static tree_t p_selected_signal_assignment(void)
    p_options(&reject, &guard);
 
    if (guard != NULL)
-      tree_set_guard(t, guard);
+      tree_set_guard(conc, guard);
 
-   p_selected_waveforms(t, target_type);
+   p_selected_waveforms(stmt, target_type);
    consume(tSEMI);
 
-   const int nassocs = tree_assocs(t);
+   const int nassocs = tree_assocs(stmt);
    for (int i = 0; i < nassocs; i++) {
-      tree_t s = tree_value(tree_assoc(t, i));
+      tree_t s = tree_value(tree_assoc(stmt, i));
       tree_set_target(s, target);
       set_delay_mechanism(s, reject);
    }
 
    if (aggregate) {
-      type_t type = tree_type(tree_value(tree_waveform(tree_assoc(t, 0), 0)));
+      tree_t w0 = tree_waveform(tree_assoc(stmt, 0), 0);
+      type_t type = tree_type(tree_value(w0));
       solve_types(nametab, target, type);
    }
 
-   tree_set_loc(t, CURRENT_LOC);
-   return t;
+   tree_set_loc(stmt, CURRENT_LOC);
+   tree_set_loc(conc, CURRENT_LOC);
+   return conc;
 }
 
 static tree_t p_concurrent_signal_assignment_statement(ident_t label,
@@ -7775,7 +7785,7 @@ static tree_t p_concurrent_signal_assignment_statement(ident_t label,
 
    EXTEND("concurrent signal assignment statement");
 
-   const bool postponed = optional(tPOSTPONED);
+   const bool postponed = name == NULL && optional(tPOSTPONED);
 
    tree_t t;
    if (peek() == tWITH) {
@@ -7801,32 +7811,34 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
 
    EXTEND("concurrent procedure call statement");
 
-   const bool postponed = optional(tPOSTPONED);
+   const bool postponed = name == NULL && optional(tPOSTPONED);
 
-   tree_t t = name;
+   tree_t conc = tree_new(T_CONCURRENT);
 
-   const tree_kind_t kind = tree_kind(t);
+   const tree_kind_t kind = tree_kind(name);
    if (kind != T_REF && kind != T_FCALL && kind != T_PCALL) {
       // This can only happen due to some earlier parsing error
       assert(error_count() > 0);
       consume(tSEMI);
-      return ensure_labelled(tree_new(T_CPCALL), label);
+      tree_add_stmt(conc, tree_new(T_NULL));
+      return ensure_labelled(conc, label);
    }
 
-   tree_change_kind(t, T_CPCALL);
-   tree_set_ident2(t, tree_ident(t));
+   tree_change_kind(name, T_PCALL);
+   tree_add_stmt(conc, name);
 
    consume(tSEMI);
 
    if (postponed)
-      tree_set_flag(t, TREE_F_POSTPONED);
+      tree_set_flag(conc, TREE_F_POSTPONED);
 
-   tree_set_loc(t, CURRENT_LOC);
-   ensure_labelled(t, label);
+   tree_set_loc(name, CURRENT_LOC);
+   tree_set_loc(conc, CURRENT_LOC);
+   ensure_labelled(conc, label);
 
-   insert_name(nametab, t, NULL, 0);
-   solve_types(nametab, t, NULL);
-   return t;
+   insert_name(nametab, conc, NULL, 0);
+   solve_types(nametab, name, NULL);
+   return conc;
 }
 
 static void p_block_statement_part(tree_t arch)
@@ -8007,14 +8019,15 @@ static tree_t p_concurrent_statement(void)
       consume(tCOLON);
    }
 
-   if (peek() == tID) {
+   if (peek() == tID || (peek() == tPOSTPONED && peek_nth(2) == tID)) {
       const token_t p2 = peek_nth(2);
       if ((label != NULL && p2 == tSEMI) || p2 == tGENERIC || p2 == tPORT)
          return p_component_instantiation_statement(label, NULL);
       else {
-         tree_t name = p_name();
+         const bool postponed = optional(tPOSTPONED);
+         tree_t name = p_name(), conc;
          if (peek() == tLE)
-            return p_concurrent_signal_assignment_statement(label, name);
+            conc = p_concurrent_signal_assignment_statement(label, name);
          else if (tree_kind(name) == T_REF
                   && tree_has_ref(name)
                   && tree_kind(tree_ref(name)) == T_COMPONENT)
@@ -8022,7 +8035,11 @@ static tree_t p_concurrent_statement(void)
          else if (scan(tGENERIC, tPORT))
             return p_component_instantiation_statement(label, name);
          else
-            return p_concurrent_procedure_call_statement(label, name);
+            conc = p_concurrent_procedure_call_statement(label, name);
+
+         if (postponed)
+            tree_set_flag(conc, TREE_F_POSTPONED);
+         return conc;
       }
    }
    else {

@@ -78,8 +78,6 @@ static tree_t simp_call_args(tree_t t)
          tree_set_type(new, tree_type(t));
          tree_set_flag(new, tree_flags(t));
       }
-      else if (kind == T_CPCALL)
-         tree_set_ident2(new, tree_ident2(t));
 
       if ((kind == T_PROT_PCALL || kind == T_PROT_FCALL) && tree_has_name(t))
          tree_set_name(new, tree_name(t));
@@ -1055,7 +1053,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
          for (int i = 0; i < nparams; i++) {
             port_mode_t mode = PORT_IN;
             if (i < nports)
-               mode = tree_subkind(tree_port(decl, i));
+               mode = tree_subkind(tree_port(decl, i));  /// XXXXX
             if (mode == PORT_IN || mode == PORT_INOUT)
                simp_build_wait(wait, tree_value(tree_param(expr, i)), all);
          }
@@ -1199,16 +1197,19 @@ static tree_t simp_guard(tree_t container, tree_t t, tree_t wait)
    return c0;
 }
 
-static tree_t simp_cassign(tree_t t)
+static tree_t simp_concurrent(tree_t t)
 {
-   // Replace concurrent assignments with a process
+   if (tree_stmts(t) == 0)
+      return NULL;   // Body was optimised out
+
+   // Replace concurrent statements with a process
 
    tree_t p = tree_new(T_PROCESS);
    tree_set_ident(p, tree_ident(t));
    tree_set_loc(p, tree_loc(t));
+   tree_set_flag(p, tree_flags(t));
 
    tree_t w = tree_new(T_WAIT);
-   tree_set_ident(w, ident_new("cassign"));
    tree_set_flag(w, TREE_F_STATIC_WAIT);
 
    tree_t container = p;  // Where to add new statements
@@ -1216,163 +1217,46 @@ static tree_t simp_cassign(tree_t t)
    if (tree_has_guard(t))
       container = simp_guard(container, t, w);
 
-   const int nconds = tree_conds(t);
-   tree_t c0 = tree_cond(t, 0);
+   tree_t s0 = tree_stmt(t, 0);
+   tree_add_stmt(container, s0);
 
-   if (nconds == 1 && !tree_has_value(c0)) {
-      tree_t a = tree_stmt(c0, 0);
-      tree_set_ident(a, tree_ident(t));
-
-      const int nwaves = tree_waveforms(a);
-      for (int i = 0; i < nwaves; i++) {
-         tree_t wave = tree_waveform(a, i);
-         simp_build_wait(w, wave, false);
-      }
-
-      tree_add_stmt(container, a);
-   }
-   else {
-      tree_t s = tree_new(T_IF);
-      tree_set_loc(s, tree_loc(t));
-      tree_add_stmt(container, s);
-
-      for (int i = 0; i < nconds; i++) {
-         tree_t c = tree_cond(t, i);
-
-         if (tree_has_value(c))
-            simp_build_wait(w, tree_value(c), false);
-
-         tree_t a = tree_stmt(c, 0);
-         tree_set_ident(a, tree_ident(t));
-
-         const int nwaves = tree_waveforms(a);
-         for (int i = 0; i < nwaves; i++) {
-            tree_t wave = tree_waveform(a, i);
-            simp_build_wait(w, wave, false);
-         }
-
-         tree_add_cond(s, c);
-      }
-   }
+   simp_build_wait(w, s0, false);
 
    tree_add_stmt(p, w);
    return p;
+}
+
+static tree_t simp_cassign(tree_t t)
+{
+   const int nconds = tree_conds(t);
+   tree_t c0 = tree_cond(t, 0);
+
+   if (nconds == 1 && !tree_has_value(c0))
+      return tree_stmt(c0, 0);
+   else {
+      tree_t s = tree_new(T_IF);
+      tree_set_loc(s, tree_loc(t));
+
+      for (int i = 0; i < nconds; i++)
+         tree_add_cond(s, tree_cond(t, i));
+
+      return s;
+   }
 }
 
 static tree_t simp_select(tree_t t)
 {
-   // Replace a select statement with a case inside a process
-
-   tree_t p = tree_new(T_PROCESS);
-   tree_set_ident(p, tree_ident(t));
-   tree_set_loc(p, tree_loc(t));
-
-   tree_t w = tree_new(T_WAIT);
-   tree_set_ident(w, ident_new("select_wait"));
-   tree_set_flag(w, TREE_F_STATIC_WAIT);
-
-   tree_t container = p;
-   if (tree_has_guard(t))
-      container = simp_guard(container, t, w);
+   // Replace a select statement with a case statement
 
    tree_t c = tree_new(T_CASE);
-   tree_set_ident(c, ident_new("select_case"));
    tree_set_loc(c, tree_loc(t));
    tree_set_value(c, tree_value(t));
 
-   simp_build_wait(w, tree_value(t), false);
-
    const int nassocs = tree_assocs(t);
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(t, i);
-      tree_add_assoc(c, a);
+   for (int i = 0; i < nassocs; i++)
+      tree_add_assoc(c, tree_assoc(t, i));
 
-      if (tree_subkind(a) == A_NAMED)
-         simp_build_wait(w, tree_name(a), false);
-
-      tree_t value = tree_value(a);
-
-      const int nwaveforms = tree_waveforms(value);
-      for (int j = 0; j < nwaveforms; j++)
-         simp_build_wait(w, tree_waveform(value, j), false);
-   }
-
-   tree_add_stmt(container, c);
-   tree_add_stmt(p, w);
-   return p;
-}
-
-static tree_t simp_cpcall(tree_t t)
-{
-   t = simp_call_args(t);
-
-   tree_t process = tree_new(T_PROCESS);
-   tree_set_ident(process, tree_ident(t));
-   tree_set_loc(process, tree_loc(t));
-
-   tree_t wait = tree_new(T_WAIT);
-   tree_set_ident(wait, ident_new("pcall_wait"));
-
-   tree_t pcall = tree_new(T_PCALL);
-   tree_set_ident(pcall, ident_new("pcall"));
-   tree_set_ident2(pcall, tree_ident2(t));
-   tree_set_loc(pcall, tree_loc(t));
-   tree_set_ref(pcall, tree_ref(t));
-
-   const int nparams = tree_params(t);
-   for (int i = 0; i < nparams; i++) {
-      tree_t p = tree_param(t, i);
-      assert(tree_subkind(p) == P_POS);
-
-      // Only add IN and INOUT parameters to sensitivity list
-      tree_t port = tree_port(tree_ref(t), i);
-      port_mode_t mode = tree_subkind(port);
-      if (mode == PORT_IN || mode == PORT_INOUT)
-         simp_build_wait(wait, tree_value(p), false);
-
-      tree_add_param(pcall, p);
-   }
-
-   tree_add_stmt(process, pcall);
-   tree_add_stmt(process, wait);
-
-   return process;
-}
-
-static tree_t simp_cassert(tree_t t)
-{
-   tree_t value = tree_value(t);
-   bool value_b;
-   if (folded_bool(value, &value_b) && value_b) {
-      // Assertion always passes
-      return NULL;
-   }
-
-   tree_t process = tree_new(T_PROCESS);
-   tree_set_ident(process, tree_ident(t));
-   tree_set_loc(process, tree_loc(t));
-
-   if (tree_flags(t) & TREE_F_POSTPONED)
-      tree_set_flag(process, TREE_F_POSTPONED);
-
-   tree_t wait = tree_new(T_WAIT);
-   tree_set_ident(wait, ident_new("assert_wait"));
-   tree_set_flag(wait, TREE_F_STATIC_WAIT);
-
-   tree_t a = tree_new(T_ASSERT);
-   tree_set_ident(a, ident_new("assert_wrap"));
-   tree_set_loc(a, tree_loc(t));
-   tree_set_value(a, value);
-   tree_set_severity(a, tree_severity(t));
-   if (tree_has_message(t))
-      tree_set_message(a, tree_message(t));
-
-   simp_build_wait(wait, tree_value(t), false);
-
-   tree_add_stmt(process, a);
-   tree_add_stmt(process, wait);
-
-   return process;
+   return c;
 }
 
 static tree_t simp_context_ref(tree_t t, simp_ctx_t *ctx)
@@ -1791,6 +1675,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_case(t);
    case T_WHILE:
       return simp_while(t);
+   case T_CONCURRENT:
+      return simp_concurrent(t);
    case T_CASSIGN:
       return simp_cassign(t);
    case T_SELECT:
@@ -1799,10 +1685,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_wait(t);
    case T_NULL:
       return NULL;   // Delete it
-   case T_CPCALL:
-      return simp_cpcall(t);
-   case T_CASSERT:
-      return simp_cassert(t);
    case T_RECORD_REF:
       return simp_record_ref(t, ctx);
    case T_CTXREF:

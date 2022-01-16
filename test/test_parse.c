@@ -167,8 +167,8 @@ START_TEST(test_entity)
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
    fail_unless(tree_stmts(e) == 2);
-   fail_unless(tree_kind(tree_stmt(e, 0)) == T_CASSERT);
-   fail_unless(tree_kind(tree_stmt(e, 1)) == T_CASSERT);
+   fail_unless(tree_kind(tree_stmt(tree_stmt(e, 0), 0)) == T_ASSERT);
+   fail_unless(tree_kind(tree_stmt(tree_stmt(e, 1), 0)) == T_ASSERT);
 
    e = parse();
    fail_if(e == NULL);
@@ -292,7 +292,7 @@ START_TEST(test_process)
    fail_unless(tree_flags(p) & TREE_F_POSTPONED);
 
    p = tree_stmt(a, 4);
-   fail_unless(tree_kind(p) == T_CASSERT);
+   fail_unless(tree_kind(p) == T_CONCURRENT);
    fail_unless(tree_flags(p) & TREE_F_POSTPONED);
 
    a = parse();
@@ -1177,8 +1177,10 @@ START_TEST(test_extended)
 
    fail_unless(tree_stmts(a) == 1);
    s = tree_stmt(a, 0);
-   fail_unless(tree_ident(tree_target(s)) == ident_new("\\foo.bar.baz\\"));
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_ident(tree_target(s)) == ident_new("\\foo.bar.baz\\"));
 
    a = parse();
    fail_unless(a == NULL);
@@ -1724,6 +1726,8 @@ START_TEST(test_conc)
    fail_unless(tree_stmts(a) == 8);
 
    s = tree_stmt(a, 0);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_REF);
    fail_unless(tree_conds(s) == 1);
@@ -1737,6 +1741,8 @@ START_TEST(test_conc)
    fail_unless(tree_kind(tree_value(tree_waveform(s0, 0))) == T_FCALL);
 
    s = tree_stmt(a, 1);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_REF);
    fail_unless(tree_conds(s) == 3);
@@ -1749,23 +1755,33 @@ START_TEST(test_conc)
    fail_unless(tree_kind(tree_value(tree_waveform(s0, 0))) == T_LITERAL);
 
    s = tree_stmt(a, 2);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
    fail_unless(tree_kind(s) == T_SELECT);
    fail_unless(tree_assocs(s) == 3);
 
    s = tree_stmt(a, 3);
-   fail_unless(tree_kind(s) == T_CPCALL);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
+   fail_unless(tree_kind(s) == T_PCALL);
    fail_unless(tree_params(s) == 2);
 
    s = tree_stmt(a, 4);
-   fail_unless(tree_kind(s) == T_CASSERT);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
+   fail_unless(tree_kind(s) == T_ASSERT);
 
    s = tree_stmt(a, 5);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   fail_unless(tree_has_ident(s));
+   s = tree_stmt(s, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_AGGREGATE);
-   fail_unless(tree_has_ident(s));
 
    s = tree_stmt(a, 6);
-   fail_unless(tree_kind(s) == T_CPCALL);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
+   fail_unless(tree_kind(s) == T_PCALL);
    fail_unless(tree_has_ident(s));
 
    s = tree_stmt(a, 7);
@@ -1882,7 +1898,9 @@ START_TEST(test_attr)
    fail_unless(tree_class(d) == C_TYPE);
 
    s = tree_stmt(a, 0);
-   fail_unless(tree_kind(s) == T_CASSERT);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
+   fail_unless(tree_kind(s) == T_ASSERT);
    r = tree_value(s);
    fail_unless(tree_kind(r) == T_ARRAY_REF);
    fail_unless(tree_params(r) == 1);
@@ -1964,6 +1982,8 @@ START_TEST(test_ir1045)
    fail_unless(tree_kind(a) == T_ARCH);
 
    s = tree_stmt(a, 0);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
    c = tree_cond(s, 0);
    q = tree_value(tree_waveform(tree_stmt(c, 0), 0));
@@ -1972,6 +1992,8 @@ START_TEST(test_ir1045)
    fail_unless(tree_kind(v) == T_AGGREGATE);
 
    s = tree_stmt(a, 1);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
    c = tree_cond(s, 0);
    q = tree_value(tree_waveform(tree_stmt(c, 0), 0));
@@ -2001,6 +2023,8 @@ START_TEST(test_concat)
    fail_unless(tree_kind(a) == T_ARCH);
 
    s = tree_stmt(a, 0);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
 
    s0 = tree_stmt(tree_cond(s, 0), 0);
@@ -2608,7 +2632,9 @@ START_TEST(test_loc)
    fail_if(a == NULL);
 
    s = tree_stmt(a, 0);
-   fail_unless(tree_kind(s) == T_CPCALL);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
+   fail_unless(tree_kind(s) == T_PCALL);
    l = tree_loc(s);
    fail_unless(l->first_line == 7);
    fail_unless(l->line_delta == 0);
@@ -2630,7 +2656,9 @@ START_TEST(test_loc)
    fail_unless(l->column_delta == 4);
 
    s = tree_stmt(a, 1);
-   fail_unless(tree_kind(s) == T_CASSERT);
+   fail_unless(tree_kind(s) == T_CONCURRENT);
+   s = tree_stmt(s, 0);
+   fail_unless(tree_kind(s) == T_ASSERT);
    l = tree_loc(s);
    fail_unless(l->first_line == 8);
    fail_unless(l->line_delta == 0);
@@ -2742,10 +2770,10 @@ START_TEST(test_error)
 
    const error_t expect[] = {
       {  7, "unexpected identifier while parsing concurrent procedure call "
-         "statement, expecting one of postponed or ;" },
+         "statement, expecting ;" },
       {  7, "no visible subprogram declaration for BAD" },
       { 11, "unexpected identifier while parsing concurrent procedure call "
-         "statement, expecting one of postponed or ;" },
+         "statement, expecting ;" },
       { 11, "no visible subprogram declaration for SOME" },
       { 11, "no visible subprogram declaration for BAD" },
       { 17, "unexpected ; while parsing process statement, expecting process" },
@@ -3043,7 +3071,7 @@ START_TEST(test_guarded)
    fail_unless(tree_ident(g) == ident_new("GUARD"));
 
    tree_t s0 = tree_stmt(b2, 0);
-   fail_unless(tree_kind(s0) == T_CASSIGN);
+   fail_unless(tree_kind(s0) == T_CONCURRENT);
    fail_unless(tree_has_guard(s0));
 
    tree_t gref = tree_guard(s0);
@@ -3051,7 +3079,8 @@ START_TEST(test_guarded)
    fail_unless(tree_ref(gref) == g);
 
    tree_t s1 = tree_stmt(b2, 1);
-   fail_unless(tree_kind(s1) == T_SELECT);
+   fail_unless(tree_kind(s1) == T_CONCURRENT);
+   fail_unless(tree_kind(tree_stmt(s1, 0)) == T_SELECT);
    fail_unless(tree_has_guard(s1));
 
    tree_t b3 = tree_stmt(a, 3);

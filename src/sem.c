@@ -1919,9 +1919,6 @@ static bool sem_check_cassign(tree_t t)
    if (!sem_check_signal_target(target))
       return false;
 
-   if (tree_has_guard(t) && !sem_check_guard(tree_guard(t)))
-      return false;
-
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
 
    const int nconds = tree_conds(t);
@@ -4092,14 +4089,6 @@ static bool sem_check_case(tree_t t)
    return ok;
 }
 
-static bool sem_check_select_assign(tree_t t)
-{
-   if (tree_has_guard(t) && !sem_check_guard(tree_guard(t)))
-      return false;
-
-   return sem_check_case(t);
-}
-
 static bool sem_check_return(tree_t t)
 {
    if (top_scope->subprog == NULL)
@@ -4590,6 +4579,15 @@ static bool sem_check_conv_func(tree_t t)
    return true;
 }
 
+static bool sem_check_concurrent(tree_t t)
+{
+   if (tree_has_guard(t) && !sem_check_guard(tree_guard(t)))
+      return false;
+
+   assert(tree_stmts(t) == 1);
+   return sem_check(tree_stmt(t, 0));
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -4625,7 +4623,6 @@ bool sem_check(tree_t t)
    case T_WAIT:
       return sem_check_wait(t);
    case T_ASSERT:
-   case T_CASSERT:
       return sem_check_assert(t);
    case T_QUALIFIED:
       return sem_check_qualified(t);
@@ -4666,14 +4663,12 @@ bool sem_check(tree_t t)
    case T_BLOCK:
       return sem_check_block(t);
    case T_CASE:
-      return sem_check_case(t);
    case T_SELECT:
-      return sem_check_select_assign(t);
+      return sem_check_case(t);
    case T_EXIT:
    case T_NEXT:
       return sem_check_loop_control(t);
    case T_PCALL:
-   case T_CPCALL:
    case T_PROT_PCALL:
       return sem_check_pcall(t);
    case T_ATTR_SPEC:
@@ -4731,6 +4726,8 @@ bool sem_check(tree_t t)
       return sem_check_cond_var_assign(t);
    case T_CONV_FUNC:
       return sem_check_conv_func(t);
+   case T_CONCURRENT:
+      return sem_check_concurrent(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
