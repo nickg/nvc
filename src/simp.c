@@ -1568,7 +1568,7 @@ static void simp_port_map(tree_t t, simp_ctx_t *ctx)
       else if (tree_flags(value) & TREE_F_GLOBALLY_STATIC)
          continue;
 
-      char *signame LOCAL = xasprintf("%s.actual.%d", istr(tree_ident(t)), i);
+      char *signame LOCAL = xasprintf("%s_actual_%d", istr(tree_ident(t)), i);
 
       tree_t s = tree_new(T_SIGNAL_DECL);
       tree_set_loc(s, tree_loc(value));
