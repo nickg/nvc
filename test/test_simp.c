@@ -1,3 +1,20 @@
+//
+//  Copyright (C) 2011-2022  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
 #include "type.h"
 #include "util.h"
 #include "phase.h"
@@ -1140,6 +1157,25 @@ START_TEST(test_issue438)
 }
 END_TEST
 
+START_TEST(test_ports2008)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/simp/ports2008.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ENTITY, T_ARCH);
+
+   tree_t b = tree_stmt(a, 0);
+   fail_unless(tree_kind(b) == T_BLOCK);
+
+   fail_unless(tree_decls(b) == 2);
+   fail_unless(tree_stmts(b) == 2);
+
+   tree_t inst = tree_stmt(b, 0);
+   fail_unless(tree_kind(inst) == T_INSTANCE);
+   fail_unless(tree_kind(tree_value(tree_param(inst, 0))) == T_REF);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1182,6 +1218,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue437);
    tcase_add_test(tc_core, test_condvar);
    tcase_add_test(tc_core, test_issue438);
+   tcase_add_test(tc_core, test_ports2008);
    suite_add_tcase(s, tc_core);
 
    return s;

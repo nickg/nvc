@@ -3409,17 +3409,19 @@ static bool sem_check_actual(formal_map_t *formals, int nformals,
       sem_error(value, "actual associated with generic %s must be "
                 "a globally static expression", istr(tree_ident(decl)));
    }
-   if (what == MAP_PORT && mode == PORT_IN && !sem_globally_static(actual)
-       && !sem_static_name(actual, sem_globally_static)) {
-      sem_error(value, "actual associated with port %s of mode IN must be "
+   if (what == MAP_PORT && standard() < STD_08) {
+      if (mode == PORT_IN && !sem_globally_static(actual)
+          && !sem_static_name(actual, sem_globally_static)) {
+         sem_error(value, "actual associated with port %s of mode IN must be "
                 "a globally static expression or static name",
-                istr(tree_ident(decl)));
-   }
-   else if (what == MAP_PORT && mode != PORT_IN && tree_kind(actual) != T_OPEN
-            && !sem_static_signal_name(actual)) {
-      sem_error(value, "actual associated with port %s of mode %s must be "
-                "a static signal name or OPEN",
-                istr(tree_ident(decl)), port_mode_str(tree_subkind(decl)));
+                   istr(tree_ident(decl)));
+      }
+      else if (mode != PORT_IN && tree_kind(actual) != T_OPEN
+               && !sem_static_signal_name(actual)) {
+         sem_error(value, "actual associated with port %s of mode %s must be "
+                   "a static signal name or OPEN",
+                   istr(tree_ident(decl)), port_mode_str(tree_subkind(decl)));
+      }
    }
 
    return true;

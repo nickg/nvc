@@ -1553,6 +1553,61 @@ static tree_t simp_subprogram_decl(tree_t decl, simp_ctx_t *ctx)
    return decl;
 }
 
+static void simp_port_map(tree_t t, simp_ctx_t *ctx)
+{
+   // Replace any non-globally-static actuals with tempoary signals
+   assert(standard() >= STD_08);
+
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++) {
+      tree_t m = tree_param(t, i);
+
+      tree_t value = tree_value(m);
+      if (tree_kind(value) != T_FCALL)
+         continue;
+      else if (tree_flags(value) & TREE_F_GLOBALLY_STATIC)
+         continue;
+
+      char *signame LOCAL = xasprintf("%s.actual.%d", istr(tree_ident(t)), i);
+
+      tree_t s = tree_new(T_SIGNAL_DECL);
+      tree_set_loc(s, tree_loc(value));
+      tree_set_ident(s, ident_uniq(signame));
+      tree_set_type(s, tree_type(value));
+      tree_set_value(s, make_default_value(tree_type(value), tree_loc(value)));
+
+      tree_t p = tree_new(T_PROCESS);
+      tree_set_loc(p, tree_loc(t));
+      tree_set_ident(p, ident_prefix(tree_ident(s), ident_new("p"), '_'));
+
+      tree_t r = make_ref(s);
+
+      tree_t a = tree_new(T_SIGNAL_ASSIGN);
+      tree_set_ident(a, ident_new("assign"));
+      tree_set_target(a, r);
+      tree_add_stmt(p, a);
+
+      tree_t wave = tree_new(T_WAVEFORM);
+      tree_set_value(wave, value);
+      tree_add_waveform(a, wave);
+
+      tree_t wait = tree_new(T_WAIT);
+      tree_set_ident(wait, ident_new("wait"));
+      tree_set_flag(wait, TREE_F_STATIC_WAIT);
+      simp_build_wait(wait, value, false);
+      tree_add_stmt(p, wait);
+
+      tree_set_value(m, r);
+
+      imp_signal_t *imp = xmalloc(sizeof(imp_signal_t));
+      imp->next    = ctx->imp_signals;
+      imp->signal  = s;
+      imp->process = p;
+
+      ctx->imp_signals = imp;
+   }
+}
+
 static tree_t simp_generic_map(tree_t t, tree_t unit)
 {
    switch (tree_kind(unit)) {
@@ -1697,6 +1752,18 @@ static tree_t simp_generic_map(tree_t t, tree_t unit)
    return new;
 }
 
+static void simp_add_implicit_signals(tree_t t, simp_ctx_t *ctx)
+{
+   while (ctx->imp_signals != NULL) {
+      tree_add_decl(t, ctx->imp_signals->signal);
+      tree_add_stmt(t, ctx->imp_signals->process);
+
+      imp_signal_t *tmp = ctx->imp_signals->next;
+      free(ctx->imp_signals);
+      ctx->imp_signals = tmp;
+   }
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -1760,10 +1827,17 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_PROC_DECL:
       return simp_subprogram_decl(t, ctx);
    case T_INSTANCE:
+      if (standard() >= STD_08)
+         simp_port_map(t, ctx);
+      // Fall-through
    case T_BINDING:
       return simp_generic_map(t, tree_ref(t));
    case T_BLOCK:
+      simp_add_implicit_signals(t, ctx);
       return simp_generic_map(t, t);
+   case T_ARCH:
+      simp_add_implicit_signals(t, ctx);
+      return t;
    case T_COND:
       return simp_cond(t);
    case T_COND_VAR_ASSIGN:
@@ -1847,14 +1921,7 @@ void simplify_local(tree_t top)
    if (ctx.generics)
       hash_free(ctx.generics);
 
-   while (ctx.imp_signals != NULL) {
-      tree_add_decl(top, ctx.imp_signals->signal);
-      tree_add_stmt(top, ctx.imp_signals->process);
-
-      imp_signal_t *tmp = ctx.imp_signals->next;
-      free(ctx.imp_signals);
-      ctx.imp_signals = tmp;
-   }
+   assert(ctx.imp_signals == NULL);
 }
 
 void simplify_global(tree_t top, hash_t *generics, hash_t *subprograms)

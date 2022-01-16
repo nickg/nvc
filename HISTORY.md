@@ -67,6 +67,7 @@
 - Added support for VHDL-2008 conditional variable assignment
   statements.
 - Added support for VHDL-2008 extended bit string literals.
+- Non-globally-static actuals allowed in port maps in VHDL-2008 mode.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed
