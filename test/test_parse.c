@@ -3702,7 +3702,7 @@ START_TEST(test_error3)
 
    const error_t expect[] = {
       { 15, "protected is a reserved word in VHDL-2000" },
-      { 15, "pass --std=2000 to enable this feature" },
+      { LINE_INVALID, "pass --std=2000 to enable this feature" },
       { 15, "unexpected identifier while parsing type definition" },
       { 26, "unexpected identifier while parsing library unit" },
       { 26, "unexpected ; while parsing library unit, expecting one" },

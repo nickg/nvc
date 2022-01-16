@@ -1252,8 +1252,7 @@ static void dump_arch(tree_t t)
           istr(tree_ident(t)), istr(tree_ident2(t)));
    dump_decls(t, 2);
    syntax("#begin\n");
-   for (unsigned i = 0; i < tree_stmts(t); i++)
-      dump_stmt(tree_stmt(t, i), 2);
+   dump_stmts(t, 2);
    syntax("#end #architecture;\n\n");
 }
 

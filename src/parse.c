@@ -144,6 +144,7 @@ static type_t p_type_mark(ident_t name);
 static tree_t p_function_call(ident_t id, tree_t prefix);
 static tree_t p_resolution_indication(void);
 static tree_t p_type_conversion(tree_t tdecl);
+static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -696,7 +697,7 @@ static void require_std(vhdl_standard_t which, const char *feature)
       if (n_correct >= RECOVER_THRESH) {
          error_at(CURRENT_LOC, "%s are not supported in VHDL-%s",
                   feature, standard_text(standard()));
-         hint_at(CURRENT_LOC, "pass $bold$--std=%s$$ to enable this feature",
+         note_at(NULL, "pass $bold$--std=%s$$ to enable this feature",
                  standard_text(which));
       }
    }
@@ -6863,7 +6864,6 @@ static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
    EXTEND("variable assignment statement");
 
    tree_t target = p_target(name);
-   //   tree_set_target(t, target);
 
    consume(tASSIGN);
 
@@ -6984,12 +6984,31 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
 
    p_waveform(t, target_type);
 
-   consume(tSEMI);
-
    if (aggregate)
       solve_types(nametab, target, tree_type(tree_value(tree_waveform(t, 0))));
 
-   set_delay_mechanism(t, reject);
+   if (peek() == tWHEN) {
+      require_std(STD_08, "conditional signal assignment statements");
+
+      tree_t stmt = tree_new(T_COND_ASSIGN);
+      tree_set_target(stmt, target);
+
+      p_conditional_waveforms(stmt, target, t);
+
+      const int nconds = tree_conds(stmt);
+      for (int i = 0; i < nconds; i++) {
+         tree_t c = tree_cond(stmt, i);
+         assert(tree_stmts(c) == 1);
+         set_delay_mechanism(tree_stmt(c, 0), reject);
+      }
+
+      t = stmt;
+   }
+   else
+      set_delay_mechanism(t, reject);
+
+   consume(tSEMI);
+
    set_label_and_loc(t, label, CURRENT_LOC);
    return t;
 }
@@ -7617,7 +7636,7 @@ static void p_options(tree_t *reject, tree_t *guard)
    *reject = p_delay_mechanism();
 }
 
-static void p_conditional_waveforms(tree_t stmt, tree_t target)
+static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
 {
    // { waveform when condition else } waveform [ when condition ]
 
@@ -7628,10 +7647,15 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target)
    for (;;) {
       tree_t c = tree_new(T_COND);
 
-      tree_t a = tree_new(T_SIGNAL_ASSIGN);
-      tree_set_target(a, target);
+      tree_t a = s0;
+      if (a == NULL) {
+         a = tree_new(T_SIGNAL_ASSIGN);
+         tree_set_target(a, target);
 
-      p_waveform(a, constraint);
+         p_waveform(a, constraint);
+      }
+      else
+         s0 = NULL;
 
       tree_set_loc(a, CURRENT_LOC);
       tree_set_loc(c, CURRENT_LOC);
@@ -7677,7 +7701,7 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    if (!aggregate)
       solve_types(nametab, target, NULL);
 
-   p_conditional_waveforms(stmt, target);
+   p_conditional_waveforms(stmt, target, NULL);
 
    const int nconds = tree_conds(stmt);
    for (int i = 0; i < nconds; i++) {

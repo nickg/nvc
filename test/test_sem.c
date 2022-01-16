@@ -588,7 +588,7 @@ START_TEST(test_procedure)
       {   5, "subprogram body is not allowed in package specification" },
       { 180, "invalid procedure call statement" },
       { 186, "?? is a reserved word in VHDL-2008" },
-      { 186, "pass --std=2008 to enable this feature" },
+      { LINE_INVALID, "pass --std=2008 to enable this feature" },
       { 186, "unexpected error while parsing primary" },
       {  28, "cannot return a value from a procedure" },
       {  45, "type of default value universal_integer does not match" },

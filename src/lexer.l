@@ -47,8 +47,8 @@
       if (!warned && standard() < lrm) {                                \
          warn_at(&yylloc, "%s is a reserved word in VHDL-%s",           \
                  yytext, standard_text(lrm));                           \
-         note_at(&yylloc, "pass $bold$--std=%s$$ to enable this "       \
-                 "feature", standard_text(lrm));                        \
+         note_at(NULL, "pass $bold$--std=%s$$ to enable this feature",  \
+               standard_text(lrm));                                     \
          warned = true;                                                 \
          return isalnum(yytext[0]) ? parse_id(yytext) : tERROR;         \
       }                                                                 \

@@ -96,4 +96,15 @@ begin
         x := 12d"13";                   -- OK
     end process;
 
+    b2: block is
+        signal s : integer;
+    begin
+
+        process is
+        begin
+            s <= 1 when s < 0 else 5;   -- OK
+        end process;
+
+    end block;
+
 end architecture;
