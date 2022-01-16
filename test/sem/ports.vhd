@@ -351,6 +351,7 @@ architecture actual_func of top is
     end component;
     signal s : integer;
     function "not"(x : integer) return integer;
+    function foo(x : integer; y : integer := 2) return integer;
 begin
 
     c1: component comp
@@ -360,5 +361,17 @@ begin
     c2: component comp
         port map (
             i => not s );               -- Error, not treated as conversion func
+
+    c3: component comp
+        port map (
+            i => foo(s) );              -- Error, not treated as conversion func
+
+    c4: component comp
+        port map (
+            i => "not"(1) );            -- OK (not a conversion function)
+
+    c5: component comp
+        port map (
+            "not"(5) => s );            -- Error
 
 end architecture;

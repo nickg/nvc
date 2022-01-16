@@ -116,7 +116,10 @@ START_TEST(test_ports)
       { 319, "cannot read output port Y" },
       { 339, "cannot read parameter X with mode IN" },
       { 353, "missing body for function \"not\" [INTEGER return INTEGER]" },
-      { 362, "associated with port I of mode IN must be a globally static" },
+      { 354, "missing body for function FOO" },
+      { 363, "associated with port I of mode IN must be a globally static" },
+      { 367, "actual associated with port I of mode IN must be a globally " },
+      { 375, "invalid output conversion \"not\"" },
       { -1, NULL }
    };
    expect_errors(expect);

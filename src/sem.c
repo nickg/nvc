@@ -3282,33 +3282,29 @@ static bool sem_check_actual(formal_map_t *formals, int nformals,
    case P_NAMED:
       {
          tree_t name = tree_name(param);
-         tree_kind_t kind = tree_kind(name);
          tree_t ref = name;
          tree_t conv = NULL;
 
-         if (kind == T_FCALL) {
+         switch (tree_kind(name)) {
+         case T_FCALL:
             if (tree_params(name) != 1)
                sem_error(name, "output conversion function must have "
                          "exactly one parameter");
 
-            ref = tree_value(tree_param(name, 0));
+            // The parser would have replaced any other valid conversion
+            // function with T_CONV_FUNC
+            sem_error(name, "invalid output conversion %s",
+                      istr(tree_ident(name)));
+            break;
 
-            conv = tree_new(T_CONV_FUNC);
-            tree_set_loc(conv, tree_loc(name));
-            tree_set_value(conv, ref);
-            tree_set_ident(conv, tree_ident(name));
-            tree_set_ref(conv, tree_ref(name));
-            tree_set_type(conv, tree_type(name));
-
-            tree_set_name(param, conv);
-
-            name = ref;
-            kind = tree_kind(ref);
-         }
-         else if (kind == T_TYPE_CONV) {
+         case T_CONV_FUNC:
+         case T_TYPE_CONV:
             conv = name;
             name = ref = tree_value(name);
-            kind = tree_kind(ref);
+            break;
+
+         default:
+            break;
          }
 
          ref = name_to_ref(ref);
@@ -3386,25 +3382,10 @@ static bool sem_check_actual(formal_map_t *formals, int nformals,
    tree_t actual = NULL;
 
    if (tree_class(decl) != C_CONSTANT) {
-      if (tree_kind(value) == T_TYPE_CONV)
-         actual = tree_value(value);
-      else if (tree_kind(value) == T_FCALL) {
+      const tree_kind_t kind = tree_kind(value);
+      if (kind == T_TYPE_CONV || kind == T_CONV_FUNC) {
          // Conversion functions are in LRM 93 section 4.3.2.2
-
-         tree_t func = tree_ref(value);
-         if (tree_ports(func) == 1 && tree_params(value) == 1
-             && (tree_flags(value) & TREE_F_CONVERSION)) {
-            actual = tree_value(tree_param(value, 0));
-
-            tree_t conv = tree_new(T_CONV_FUNC);
-            tree_set_loc(conv, tree_loc(value));
-            tree_set_ident(conv, tree_ident(value));
-            tree_set_value(conv, actual);
-            tree_set_ref(conv, func);
-            tree_set_type(conv, tree_type(value));
-
-            tree_set_value(param, (value = conv));
-         }
+         actual = tree_value(value);
       }
    }
 
@@ -4594,6 +4575,19 @@ static bool sem_check_disconnect(tree_t t)
    return true;
 }
 
+static bool sem_check_conv_func(tree_t t)
+{
+   if (type_is_none(tree_type(t)))
+      return false;
+   else if (!tree_has_ref(t))
+      return false;
+
+   if (!sem_check(tree_value(t)))
+      return false;
+
+   return true;
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -4733,6 +4727,8 @@ bool sem_check(tree_t t)
       return true;
    case T_COND_VAR_ASSIGN:
       return sem_check_cond_var_assign(t);
+   case T_CONV_FUNC:
+      return sem_check_conv_func(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

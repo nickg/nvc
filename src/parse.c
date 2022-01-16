@@ -1805,6 +1805,36 @@ static void make_implicit_guard_signal(tree_t block, tree_t expr)
    insert_name(nametab, guard, NULL, 0);
 }
 
+static tree_t fcall_to_conv_func(tree_t value)
+{
+   assert(tree_kind(value) == T_FCALL);
+
+   if (!(tree_flags(value) & TREE_F_CONVERSION))
+      return value;
+
+   if (!tree_has_ref(value))
+      return value;
+
+   tree_t decl = tree_ref(value);
+   if (tree_ports(decl) != 1)
+      return value;
+
+   tree_t p0 = tree_value(tree_param(value, 0));
+
+   tree_t ref = name_to_ref(p0);
+   if (ref == NULL || class_of(ref) != C_SIGNAL)
+      return value;
+
+   tree_t conv = tree_new(T_CONV_FUNC);
+   tree_set_loc(conv, tree_loc(value));
+   tree_set_value(conv, p0);
+   tree_set_ident(conv, tree_ident(value));
+   tree_set_type(conv, tree_type(value));
+   tree_set_ref(conv, decl);
+
+   return conv;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -2342,7 +2372,16 @@ static tree_t p_formal_part(void)
 
    BEGIN("formal part");
 
-   return p_name();
+   tree_t name = p_name();
+
+   const bool could_be_conversion =
+      tree_kind(name) == T_FCALL
+      && tree_params(name) == 1;
+
+   if (could_be_conversion)
+      tree_set_flag(name, TREE_F_CONVERSION);
+
+   return name;
 }
 
 static tree_t p_actual_part(void)
@@ -2405,10 +2444,14 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
       scope_set_formal_kind(nametab, unit, kind);
 
       tree_t name = p_formal_part();
-      tree_set_name(p, name);
 
       if (kind == F_GENERIC_MAP || kind == F_PORT_MAP)
          type = solve_types(nametab, name, NULL);
+
+      if (kind == F_PORT_MAP && tree_kind(name) == T_FCALL)
+         name = fcall_to_conv_func(name);
+
+      tree_set_name(p, name);
 
       pop_scope(nametab);
 
@@ -2421,11 +2464,15 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
    }
 
    tree_t value = p_actual_part();
-   tree_set_value(p, value);
-   tree_set_loc(p, CURRENT_LOC);
 
    if (kind == F_GENERIC_MAP || kind == F_PORT_MAP)
       solve_types(nametab, value, type);
+
+   if (kind == F_PORT_MAP && tree_kind(value) == T_FCALL)
+      value = fcall_to_conv_func(value);
+
+   tree_set_value(p, value);
+   tree_set_loc(p, CURRENT_LOC);
 
    switch (kind) {
    case F_GENERIC_MAP:
