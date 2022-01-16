@@ -7085,7 +7085,7 @@ static ident_t lower_converter(tree_t expr, type_t atype, type_t rtype,
                                vcode_type_t *vrtype)
 {
    const tree_kind_t kind = tree_kind(expr);
-   tree_t fdecl = kind == T_FCALL ? tree_ref(expr) : NULL;
+   tree_t fdecl = kind == T_CONV_FUNC ? tree_ref(expr) : NULL;
    bool p0_uarray = false, r_uarray = false;
 
    // Detect some trivial cases and avoid generating a conversion function
@@ -7095,7 +7095,7 @@ static ident_t lower_converter(tree_t expr, type_t atype, type_t rtype,
    }
    else if (kind == T_TYPE_CONV && type_is_enum(atype) && type_is_enum(rtype))
       return NULL;
-   else if (kind == T_FCALL) {
+   else if (kind == T_CONV_FUNC) {
       type_t p0_type = tree_type(tree_port(fdecl, 0));
       p0_uarray = type_is_array(p0_type) && !lower_const_bounds(p0_type);
       r_uarray = type_is_array(rtype) && !lower_const_bounds(rtype);
@@ -7112,7 +7112,7 @@ static ident_t lower_converter(tree_t expr, type_t atype, type_t rtype,
    if (kind == T_TYPE_CONV)
       tb_printf(tb, "convert_%s_%s", type_pp(atype), type_pp(rtype));
    else {
-      tree_t p0 = tree_value(tree_param(expr, 0));
+      tree_t p0 = tree_value(expr);
       ident_t signame = tree_ident(name_to_ref(p0));
       tb_printf(tb, "wrap_%s.%s", istr(tree_ident2(fdecl)), istr(signame));
    }
@@ -7208,13 +7208,10 @@ static void lower_port_map(tree_t block, tree_t map)
 
    tree_t value_conv = NULL;
    const tree_kind_t value_kind = tree_kind(value);
-   if (value_kind == T_FCALL) {
-      // See if this is a conversion function
-      if (tree_params(value) == 1) {
-         tree_t p0 = tree_value(tree_param(value, 0));
-         if (lower_is_signal_ref(p0))
-            value_conv = p0;
-      }
+   if (value_kind == T_CONV_FUNC) {
+      tree_t p0 = tree_value(value);
+      if (lower_is_signal_ref(p0))
+         value_conv = p0;
    }
    else if (value_kind == T_TYPE_CONV) {
       tree_t p0 = tree_value(value);
@@ -7244,8 +7241,8 @@ static void lower_port_map(tree_t block, tree_t map)
       {
          tree_t name = tree_name(map);
          const tree_kind_t kind = tree_kind(name);
-         if (kind == T_FCALL) {
-            tree_t p0 = tree_value(tree_param(name, 0));
+         if (kind == T_CONV_FUNC) {
+            tree_t p0 = tree_value(name);
             type_t atype = tree_type(p0);
             type_t rtype = tree_type(name);
             vcode_type_t vatype = VCODE_INVALID_TYPE;
@@ -7299,7 +7296,7 @@ static void lower_port_map(tree_t block, tree_t map)
       ident_t func = NULL;
 
       switch (value_kind) {
-      case T_FCALL:
+      case T_CONV_FUNC:
          func = lower_converter(value, atype, rtype, name_type,
                                 &vatype, &vrtype);
          break;

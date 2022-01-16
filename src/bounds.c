@@ -1138,7 +1138,7 @@ static void bounds_check_block(tree_t t)
 
          // Skip output conversions
          const tree_kind_t kind = tree_kind(name);
-         if (kind == T_TYPE_CONV || kind == T_FCALL) return;
+         if (kind == T_TYPE_CONV || kind == T_CONV_FUNC) return;
 
          port = tree_ref(name_to_ref(name));
          ftype = tree_type(name);

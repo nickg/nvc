@@ -209,6 +209,19 @@ static void dump_expr(tree_t t)
 #endif
       break;
 
+   case T_CONV_FUNC:
+      if (tree_has_ref(t)) {
+         tree_t decl = tree_ref(t);
+         dump_address(decl);
+         printf("%s", istr(tree_ident(decl)));
+      }
+      else
+         printf("%s", istr(tree_ident(t)));
+      printf("(");
+      dump_expr(tree_value(t));
+      printf(")");
+      break;
+
    case T_LITERAL:
       switch (tree_subkind(t)) {
       case L_INT:
@@ -1297,6 +1310,7 @@ void dump(tree_t t)
    case T_TYPE_CONV:
    case T_RECORD_REF:
    case T_ATTR_REF:
+   case T_CONV_FUNC:
       dump_expr(t);
       printf("\n");
       break;

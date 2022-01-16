@@ -701,12 +701,9 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
 
                switch (tree_kind(name)) {
                case T_TYPE_CONV:
+               case T_CONV_FUNC:
                   is_conv = true;
                   name = tree_value(name);
-                  break;
-               case T_FCALL:
-                  is_conv = true;
-                  name = tree_value(tree_param(name, 0));
                   break;
                default:
                   break;

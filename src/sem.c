@@ -3291,8 +3291,18 @@ static bool sem_check_actual(formal_map_t *formals, int nformals,
                sem_error(name, "output conversion function must have "
                          "exactly one parameter");
 
-            conv = name;
-            name = ref = tree_value(tree_param(name, 0));
+            ref = tree_value(tree_param(name, 0));
+
+            conv = tree_new(T_CONV_FUNC);
+            tree_set_loc(conv, tree_loc(name));
+            tree_set_value(conv, ref);
+            tree_set_ident(conv, tree_ident(name));
+            tree_set_ref(conv, tree_ref(name));
+            tree_set_type(conv, tree_type(name));
+
+            tree_set_name(param, conv);
+
+            name = ref;
             kind = tree_kind(ref);
          }
          else if (kind == T_TYPE_CONV) {
@@ -3383,8 +3393,18 @@ static bool sem_check_actual(formal_map_t *formals, int nformals,
 
          tree_t func = tree_ref(value);
          if (tree_ports(func) == 1 && tree_params(value) == 1
-             && (tree_flags(value) & TREE_F_CONVERSION))
+             && (tree_flags(value) & TREE_F_CONVERSION)) {
             actual = tree_value(tree_param(value, 0));
+
+            tree_t conv = tree_new(T_CONV_FUNC);
+            tree_set_loc(conv, tree_loc(value));
+            tree_set_ident(conv, tree_ident(value));
+            tree_set_value(conv, actual);
+            tree_set_ref(conv, func);
+            tree_set_type(conv, tree_type(value));
+
+            tree_set_value(param, (value = conv));
+         }
       }
    }
 
