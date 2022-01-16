@@ -1,0 +1,4 @@
+# -*- mode: yaml -*-
+Diagnostics:
+  ClangTidy:
+    Remove: bugprone-sizeof-expression
