@@ -124,7 +124,6 @@ enum {
    OBJECT_TAG_COUNT
 };
 
-#define OBJECT_ARENA_SZ      (1 << 24)
 #define OBJECT_PAGE_SZ       (1 << 16)
 #define OBJECT_PAGE_MASK     (OBJECT_PAGE_SZ - 1)
 #define OBJECT_ALIGN_BITS    4
@@ -249,6 +248,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 unsigned object_next_generation(void);
 object_t *object_copy(object_t *object, object_copy_ctx_t *ctx);
 object_arena_t *object_arena(object_t *object);
+size_t object_arena_default_size(void);
 
 void object_write(object_t *object, fbuf_t *f, ident_wr_ctx_t ident_ctx,
                   loc_wr_ctx_t *loc_ctx);

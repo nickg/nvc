@@ -563,7 +563,7 @@ void hint_at(const loc_t *loc, const char *fmt, ...)
    h->func = default_hint_fn;
    h->str = color_vasprintf(fmt, ap, false);
    h->context = h;
-   h->loc = *loc;
+   h->loc = loc ? *loc : LOC_INVALID;
    h->next = hints;
 
    va_end(ap);

@@ -82,21 +82,31 @@ elaborate command.
 .It Fl -force-init
 Initialise a library work directory even if it already exists and is
 non-empty.
-.\"
+.\" --help
 .It Fl h , -help
 Display usage summary.
-.\"
+.\" --ignore-time
 .It Fl -ignore-time
 Do not check the timestamps of source files when the corresponding
 design unit is loaded from a library.
-.\"
+.\" -L
 .It Fl L Ar path
 Add
 .Ar path
 to the list of directories to search for libraries.  See the
 .Sx LIBRARIES
 section below for details.
-.\"
+.\" -M
+.It Fl M Ar size
+Set the maximum amount of memory in bytes used for the internal
+representations of design units.  The default is 16 megabytes but this
+may be insufficient when elaborating a large design.  The
+.Ar size
+parameter takes an optional k, m, or g suffix to indicate kilobytes,
+megabytes, and gigabytes respectively.  For example
+.Fl M64m
+for 64 megabytes.
+.\" --map
 .It Fl -map Ns = Ns Ar name Ns : Ns Ar path
 Specify exactly the location of the logical library
 .Ar name .
@@ -106,7 +116,7 @@ Libraries mapped in this way will not use the normal search path.
 Select the format used for printing error and informational messages.
 The default full message format is designed for readability whereas the
 compact messages can be easily parsed by tools.
-.\"
+.\" --std
 .It Fl -std Ns = Ns Ar rev
 Select the VHDL standard revision to use.  VHDL standard revisions are
 commonly referred to by the year they were published.  For example IEEE
@@ -114,7 +124,7 @@ commonly referred to by the year they were published.  For example IEEE
 1993 or just the last two digits such as 93.  The accepted revisions are
 1993, 2000, 2002, and 2008.  Note there is very limited supported for
 any features beyond those in VHDL-2002.  VHDL-87 is not supported.
-.\"
+.\" --version
 .It Fl v , -version
 Display version and copyright information.
 .\"

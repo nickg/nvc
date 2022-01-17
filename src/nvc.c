@@ -740,6 +740,7 @@ static void set_default_opts(void)
    opt_set_int("missing-body", 1);
    opt_set_int("error-limit", -1);
    opt_set_int("ieee-warnings", 1);
+   opt_set_int("arena-size", 1 << 24);
 }
 
 static void usage(void)
@@ -760,6 +761,7 @@ static void usage(void)
           " -h, --help\t\tDisplay this message and exit\n"
           "     --ignore-time\tSkip source file timestamp check\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
+          " -M SIZE\t\tDesign unit heap space limit in bytes\n"
           "     --map=LIB:PATH\tMap library LIB to PATH\n"
           "     --messages=STYLE\tSelect full or compact message format\n"
           "     --native\t\tGenerate native code shared library\n"
@@ -855,6 +857,26 @@ static message_style_t parse_message_style(const char *str)
    fatal("invalid message style '%s' (allowed are 'full' and 'compact')", str);
 }
 
+static size_t parse_size(const char *str)
+{
+   char *eptr;
+   const long size = strtol(str, &eptr, 0);
+
+   if (size <= 0)
+      fatal("invalid size '%s' (must be positive)", str);
+   else if (*eptr == '\0')
+      return size;
+   else if (strcasecmp(eptr, "k") == 0)
+      return size * 1024;
+   else if (strcasecmp(eptr, "m") == 0)
+      return size * 1024 * 1024;
+   else if (strcasecmp(eptr, "g") == 0)
+      return size * 1024 * 1024 * 1024;
+
+   fatal("invalid size '%s' (expected a number with optional k, m, "
+         "or g suffix)", str);
+}
+
 static void parse_library_map(char *str)
 {
    char *split = strchr(str, ':');
@@ -938,7 +960,7 @@ int main(int argc, char **argv)
       { "version",     no_argument,       0, 'v' },
       { "work",        required_argument, 0, 'w' },
       { "std",         required_argument, 0, 's' },
-      { "messages",    required_argument, 0, 'M' },
+      { "messages",    required_argument, 0, 'I' },
       { "native",      no_argument,       0, 'n' },   // DEPRECATED
       { "map",         required_argument, 0, 'p' },
       { "ignore-time", no_argument,       0, 'i' },
@@ -954,7 +976,7 @@ int main(int argc, char **argv)
 
    const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
-   const char *spec = "aehrvL:";
+   const char *spec = "aehrvL:M:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -975,7 +997,7 @@ int main(int argc, char **argv)
       case 's':
          set_standard(parse_standard(optarg));
          break;
-      case 'M':
+      case 'I':
          set_message_style(parse_message_style(optarg));
          break;
       case 'p':
@@ -989,6 +1011,9 @@ int main(int argc, char **argv)
          break;
       case 'n':
          warnf("the --native option is deprecated and has no effect");
+         break;
+      case 'M':
+         opt_set_int("arena-size", parse_size(optarg));
          break;
       case '?':
          bad_option("global", argv);

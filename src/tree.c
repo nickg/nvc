@@ -1190,7 +1190,7 @@ void freeze_global_arena(void)
 void make_new_arena(void)
 {
    freeze_global_arena();
-   global_arena = object_arena_new(OBJECT_ARENA_SZ, standard());
+   global_arena = object_arena_new(object_arena_default_size(), standard());
 }
 
 object_arena_t *tree_arena(tree_t t)

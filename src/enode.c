@@ -797,7 +797,7 @@ void e_make_arena(void)
    if (e_node_arena != NULL)
       object_arena_freeze(e_node_arena);
 
-   e_node_arena = object_arena_new(OBJECT_ARENA_SZ, standard());
+   e_node_arena = object_arena_new(object_arena_default_size(), standard());
 }
 
 void e_write(e_node_t e, fbuf_t *fbuf, ident_wr_ctx_t ident_ctx,

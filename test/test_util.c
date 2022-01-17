@@ -49,6 +49,7 @@ static void setup(void)
    opt_set_int("verbose", 0);
    opt_set_int("synthesis", 0);
    opt_set_int("error-limit", -1);
+   opt_set_int("arena-size", 1 << 20);
    intern_strings();
 }
 

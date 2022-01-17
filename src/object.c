@@ -319,8 +319,13 @@ object_t *object_new(object_arena_t *arena,
 
    assert(((uintptr_t)arena->alloc & (OBJECT_ALIGN - 1)) == 0);
 
-   if (unlikely(arena->limit - arena->alloc < size))
-      fatal_trace("out of space in arena %s", istr(object_arena_name(arena)));
+   if (unlikely(arena->limit - arena->alloc < size)) {
+      hint_at(NULL, "The current limit is %zu bytes which you can increase "
+	      "with the $bold$-M$$ option, for example $bold$-M 32m$$",
+	      object_arena_default_size());
+      fatal("memory exhausted while creating unit %s",
+	    istr(object_arena_name(arena)));
+   }
 
    object_t *object = arena->alloc;
    arena->alloc = (char *)arena->alloc + size;
@@ -780,10 +785,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
             fbuf_file_name(f), standard_text(std), standard_text(standard()));
 
    const unsigned size = fbuf_get_uint(f);
-   if (size > OBJECT_ARENA_SZ)
-      fatal("%s: arena size %u is greater than current maximum %u",
-            fbuf_file_name(f), size, OBJECT_ARENA_SZ);
-   else if (size & OBJECT_PAGE_MASK)
+   if (size & OBJECT_PAGE_MASK)
       fatal("%s: arena size %x bad alignment", fbuf_file_name(f), size);
 
    object_arena_t *arena = object_arena_new(size, std);
@@ -1033,6 +1035,16 @@ object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
 
    hash_free(ctx->copy_map);
    return result;
+}
+
+size_t object_arena_default_size(void)
+{
+   static size_t cached = 0;
+
+   if (cached == 0)
+      cached = ALIGN_UP(opt_get_int("arena-size"), OBJECT_PAGE_SZ);
+
+   return cached;
 }
 
 object_arena_t *object_arena_new(size_t size, unsigned std)
