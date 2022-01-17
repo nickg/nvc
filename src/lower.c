@@ -1536,9 +1536,14 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
          vcode_state_restore(&state);
          if (vcode_unit_kind() == VCODE_UNIT_THUNK)
             return emit_null(vtype_context(scope_name));
-         else if (ident_until(scope_name, '-') != scope_name) {
+         else if (ident_until(scope_name, '-') != scope_name
+                  || ident_until(unit_name, '-') != unit_name) {
             // Call to function defined in architecture
-            return emit_null(vtype_context(scope_name));
+            tree_t pack = lib_get_qualified(scope_name);
+            if (pack != NULL && tree_kind(pack) == T_PACKAGE)
+               return emit_link_package(scope_name);
+            else
+               return emit_null(vtype_context(scope_name));
          }
          else
             return emit_link_package(scope_name);
