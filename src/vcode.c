@@ -198,7 +198,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      13
+#define VCODE_VERSION      14
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -4955,6 +4955,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
    write_u32(unit->result, f);
    write_u32(unit->flags, f);
    write_u32(unit->depth, f);
+   loc_write(&(unit->loc), loc_wr_ctx);
 
    if (unit->context != NULL) {
       vcode_select_unit(unit);
@@ -5121,6 +5122,8 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
    unit->result   = read_u32(f);
    unit->flags    = read_u32(f);
    unit->depth    = read_u32(f);
+
+   loc_read(&(unit->loc), loc_rd_ctx);
 
    if (unit->kind != VCODE_UNIT_PACKAGE) {
       ident_t context_name = ident_read(ident_rd_ctx);
