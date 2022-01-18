@@ -296,6 +296,7 @@ typedef enum tree_kind {
    T_COND_VAR_ASSIGN,
    T_CONV_FUNC,
    T_CONCURRENT,
+   T_SEQUENCE,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

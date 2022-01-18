@@ -1005,10 +1005,15 @@ static void dump_stmt(tree_t t, int indent)
          case A_OTHERS:
             syntax("#when #others =>\n");
             break;
+         case A_RANGE:
+            syntax("#when ");
+            dump_range(tree_range(a, 0));
+            printf(" => ");
+            break;
          default:
             assert(false);
          }
-         dump_stmt(tree_value(a), indent + 4);
+         dump_stmts(tree_value(a), indent + 4);
       }
       tab(indent);
       syntax("#end #case");

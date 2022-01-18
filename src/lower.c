@@ -4266,7 +4266,7 @@ static void lower_while(tree_t stmt, loop_stack_t *loops)
    vcode_select_block(exit_bb);
 }
 
-static void lower_block(tree_t block, loop_stack_t *loops)
+static void lower_sequence(tree_t block, loop_stack_t *loops)
 {
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++)
@@ -4636,8 +4636,8 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
    case T_FOR:
       lower_for(stmt, loops);
       break;
-   case T_BLOCK:
-      lower_block(stmt, loops);
+   case T_SEQUENCE:
+      lower_sequence(stmt, loops);
       break;
    case T_EXIT:
    case T_NEXT:

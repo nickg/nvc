@@ -276,6 +276,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_CONCURRENT
    (I_IDENT | I_STMTS | I_GUARD | I_FLAGS),
+
+   // T_SEQUENCE
+   (I_IDENT | I_STMTS | I_DECLS),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -306,7 +309,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_PROT_FCALL",      "T_PROT_PCALL",      "T_RANGE",
    "T_IMPLICIT_SIGNAL", "T_DISCONNECT",      "T_GROUP_TEMPLATE",
    "T_GROUP",           "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN",
-   "T_CONV_FUNC",       "T_CONCURRENT",
+   "T_CONV_FUNC",       "T_CONCURRENT",      "T_SEQUENCE",
 };
 
 static const change_allowed_t change_allowed[] = {

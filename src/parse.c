@@ -7387,7 +7387,7 @@ static void p_case_statement_alternative(tree_t stmt)
 
    consume(tASSOC);
 
-   tree_t b = tree_new(T_BLOCK);
+   tree_t b = tree_new(T_SEQUENCE);
    tree_set_ident(b, loc_to_ident(CURRENT_LOC));
    p_sequence_of_statements(b);
 

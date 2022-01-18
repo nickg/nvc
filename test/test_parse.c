@@ -595,7 +595,7 @@ START_TEST(test_seq)
    fail_unless(tree_subkind(tree_assoc(s, 0)) == A_NAMED);
    fail_unless(tree_subkind(tree_assoc(s, 4)) == A_OTHERS);
    b = tree_value(tree_assoc(s, 0));
-   fail_unless(tree_kind(b) == T_BLOCK);
+   fail_unless(tree_kind(b) == T_SEQUENCE);
    fail_unless(tree_stmts(b) == 1);
    fail_unless(tree_kind(tree_stmt(b, 0)) == T_NULL);
 

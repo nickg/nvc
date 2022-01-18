@@ -871,7 +871,7 @@ static tree_t simp_if(tree_t t)
       if (tree_stmts(c0) == 1)
          return tree_stmt(c0, 0);
       else {
-         tree_t b = tree_new(T_BLOCK);
+         tree_t b = tree_new(T_SEQUENCE);
          tree_set_loc(b, tree_loc(t));
          tree_set_ident(b, tree_ident(t));
 
@@ -1107,7 +1107,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       break;
 
    case T_PROCESS:
-   case T_BLOCK:
+   case T_SEQUENCE:
    case T_PROC_BODY:
       {
          const int nstmts = tree_stmts(expr);

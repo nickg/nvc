@@ -132,7 +132,7 @@ START_TEST(test_cfold)
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    s = tree_stmt(p, 2);
-   fail_unless(tree_kind(s) == T_BLOCK);
+   fail_unless(tree_kind(s) == T_SEQUENCE);
    fail_unless(tree_stmts(s) == 2);
 
    p = tree_stmt(a, 2);
@@ -150,7 +150,7 @@ START_TEST(test_cfold)
 
    p = tree_stmt(a, 5);
    s = tree_stmt(p, 0);
-   fail_unless(tree_kind(s) == T_BLOCK);
+   fail_unless(tree_kind(s) == T_SEQUENCE);
    fail_unless(tree_stmts(s) == 0);
 
    p = tree_stmt(a, 6);

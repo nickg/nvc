@@ -4599,6 +4599,21 @@ static bool sem_check_concurrent(tree_t t)
    return sem_check(tree_stmt(t, 0));
 }
 
+static bool sem_check_sequence(tree_t t)
+{
+   bool ok = true;
+
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++)
+      ok &= sem_check(tree_decl(t, i));
+
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      ok &= sem_check(tree_stmt(t, i));
+
+   return ok;
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -4739,6 +4754,8 @@ bool sem_check(tree_t t)
       return sem_check_conv_func(t);
    case T_CONCURRENT:
       return sem_check_concurrent(t);
+   case T_SEQUENCE:
+      return sem_check_sequence(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
