@@ -5674,14 +5674,14 @@ static void p_subprogram_declarative_part(tree_t sub)
       p_subprogram_declarative_item(sub);
 }
 
-static void p_sequence_of_statements(tree_t parent, add_func_t addf)
+static void p_sequence_of_statements(tree_t parent)
 {
    // { sequential_statement }
 
    BEGIN("sequence of statements");
 
    while (not_at_token(tEND, tELSE, tELSIF, tWHEN))
-      (*addf)(parent, p_sequential_statement());
+      tree_add_stmt(parent, p_sequential_statement());
 }
 
 static void p_trailing_label(ident_t label)
@@ -5723,7 +5723,7 @@ static tree_t p_subprogram_body(tree_t spec)
 
    consume(tBEGIN);
 
-   p_sequence_of_statements(spec, tree_add_stmt);
+   p_sequence_of_statements(spec);
 
    consume(tEND);
 
@@ -5854,7 +5854,7 @@ static void p_process_statement_part(tree_t proc)
 
    BEGIN("process statement part");
 
-   p_sequence_of_statements(proc, tree_add_stmt);
+   p_sequence_of_statements(proc);
 }
 
 static void p_process_sensitivity_list(tree_t proc)
@@ -7135,7 +7135,7 @@ static tree_t p_if_statement(ident_t label)
 
    consume(tTHEN);
 
-   p_sequence_of_statements(c0, tree_add_stmt);
+   p_sequence_of_statements(c0);
 
    tree_set_loc(c0, CURRENT_LOC);
 
@@ -7146,7 +7146,7 @@ static tree_t p_if_statement(ident_t label)
 
       consume(tTHEN);
 
-      p_sequence_of_statements(c, tree_add_stmt);
+      p_sequence_of_statements(c);
 
       tree_set_loc(c, CURRENT_LOC);
    }
@@ -7155,7 +7155,7 @@ static tree_t p_if_statement(ident_t label)
       tree_t c = tree_new(T_COND);
       tree_add_cond(t, c);
 
-      p_sequence_of_statements(c, tree_add_stmt);
+      p_sequence_of_statements(c);
 
       tree_set_loc(c, CURRENT_LOC);
    }
@@ -7259,7 +7259,7 @@ static tree_t p_loop_statement(ident_t label)
       insert_name(nametab, t, NULL, 0);
    }
 
-   p_sequence_of_statements(t, tree_add_stmt);
+   p_sequence_of_statements(t);
 
    consume(tEND);
    consume(tLOOP);
@@ -7389,7 +7389,7 @@ static void p_case_statement_alternative(tree_t stmt)
 
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, loc_to_ident(CURRENT_LOC));
-   p_sequence_of_statements(b, tree_add_stmt);
+   p_sequence_of_statements(b);
 
    const int nassocs = tree_assocs(stmt);
    for (int i = nstart; i < nassocs; i++) {

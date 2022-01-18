@@ -1030,16 +1030,6 @@ static bool sem_check_func_result(tree_t t)
    return true;
 }
 
-static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
-                            int nstmts)
-{
-   bool ok = true;
-   for (int i = 0; i < nstmts; i++)
-      ok = sem_check(get_stmt(t, i)) && ok;
-
-   return ok;
-}
-
 static bool sem_check_func_decl(tree_t t)
 {
    if (tree_flags(t) & TREE_F_PREDEFINED)
@@ -1080,7 +1070,9 @@ static bool sem_check_func_body(tree_t t)
          tree_add_context(top_scope->unit, d);
    }
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      ok &= sem_check(tree_stmt(t, i));
 
    scope_pop();
    scope_pop();
@@ -1159,7 +1151,9 @@ static bool sem_check_proc_body(tree_t t)
          tree_add_context(top_scope->unit, d);
    }
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      ok &= sem_check(tree_stmt(t, i));
 
    scope_pop();
    scope_pop();
@@ -1281,7 +1275,9 @@ static bool sem_check_process(tree_t t)
          tree_add_context(top_scope->unit, d);
    }
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      ok &= sem_check(tree_stmt(t, i));
 
    scope_pop();
 
@@ -1492,8 +1488,6 @@ static bool sem_check_entity(tree_t t)
 
    if (ok) {
       const int ndecls = tree_decls(t);
-      const int nstmts = tree_stmts(t);
-
       for (int n = 0; n < ndecls; n++) {
          tree_t d = tree_decl(t, n);
          ok = sem_check(d) && ok;
@@ -1502,7 +1496,9 @@ static bool sem_check_entity(tree_t t)
             tree_add_context(top_scope->unit, d);
       }
 
-      ok = ok && sem_check_stmts(t, tree_stmt, nstmts);
+      const int nstmts = tree_stmts(t);
+      for (int i = 0; i < nstmts; i++)
+         ok &= sem_check(tree_stmt(t, i));
    }
 
    scope_pop();
@@ -1546,9 +1542,13 @@ static bool sem_check_arch(tree_t t)
       }
    }
 
-   ok = ok && sem_check_missing_body(t, t);
+   ok &= sem_check_missing_body(t, t);
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   if (ok) {
+      const int nstmts = tree_stmts(t);
+      for (int i = 0; i < nstmts; i++)
+         ok &= sem_check(tree_stmt(t, i));
+   }
 
    scope_pop();
    scope_pop();
@@ -4124,7 +4124,10 @@ static bool sem_check_while(tree_t t)
 
    loop_push(tree_ident(t));
 
-   const bool ok = sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   bool ok = true;
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      ok &= sem_check(tree_stmt(t, i));
 
    loop_pop();
 
@@ -4144,7 +4147,10 @@ static bool sem_check_for(tree_t t)
    scope_push();
    loop_push(tree_ident(t));
 
-   const bool ok = sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   bool ok = true;
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      ok &= sem_check(tree_stmt(t, i));
 
    loop_pop();
    scope_pop();
@@ -4182,7 +4188,9 @@ static bool sem_check_block(tree_t t)
          tree_add_context(top_scope->unit, d);
    }
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      ok &= sem_check(tree_stmt(t, i));
 
    scope_pop();
    return ok;
@@ -4274,7 +4282,9 @@ static bool sem_check_if_generate(tree_t t)
          tree_add_context(top_scope->unit, d);
    }
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      ok &= sem_check(tree_stmt(t, i));
 
    scope_pop();
    return ok;
@@ -4308,7 +4318,9 @@ static bool sem_check_for_generate(tree_t t)
          tree_add_context(top_scope->unit, d);
    }
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      ok &= sem_check(tree_stmt(t, i));
 
    scope_pop();
    return ok;
