@@ -10,23 +10,6 @@ vital_DATA = \
 	lib/ieee/IEEE.VITAL_PRIMITIVES-body \
 	lib/ieee/IEEE.VITAL_MEMORY \
 	lib/ieee/IEEE.VITAL_MEMORY-body
-
-vital_so = \
-	lib/ieee/_IEEE.VITAL_TIMING.$(DLL_EXT) \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES.$(DLL_EXT) \
-	lib/ieee/_IEEE.VITAL_MEMORY.$(DLL_EXT)
-
-if IMPLIB_REQUIRED
-
-# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
-vital_SCRIPTS = $(vital_so)
-
-$(vital_SCRIPTS) : $(vital_DATA)
-else
-
-vital_DATA += $(vital_so)
-
-endif  # IMPLIB_REQUIRED
 endif  # ENABLE_VITAL
 
 EXTRA_DIST += \

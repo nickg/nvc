@@ -617,6 +617,8 @@ static void cgen_debug_push_func(cgen_ctx_t *ctx)
    LOCAL_TEXT_BUF symbol = safe_symbol(vcode_unit_name());
 
    const loc_t *loc = vcode_unit_loc();
+   assert(!loc_invalid_p(loc));
+
    LLVMMetadataRef file_ref = cgen_debug_file(loc, true);
    LLVMMetadataRef dtype = LLVMDIBuilderCreateSubroutineType(
       debuginfo, file_ref, NULL, 0, 0);
@@ -2844,9 +2846,6 @@ static void cgen_op_link_var(int op, cgen_ctx_t *ctx)
       offset = LLVMAddGlobal(module, llvm_int32_type(), offset_name);
       LLVMSetLinkage(offset, LLVMExternalLinkage);
       LLVMSetGlobalConstant(offset, true);
-#ifdef IMPLIB_REQUIRED
-      LLVMSetDLLStorageClass(global, LLVMDLLImportStorageClass);
-#endif
    }
 
    LLVMValueRef base_ptr = llvm_void_cast(LLVMBuildLoad(builder, global, ""));
@@ -3399,7 +3398,13 @@ static void cgen_global_offsets(LLVMTypeRef state_type)
       if (vcode_var_flags(i) & VAR_GLOBAL) {
          LOCAL_TEXT_BUF symbol = safe_symbol(vcode_var_name(i));
          char *name LOCAL = xasprintf("__offset_%s", tb_get(symbol));
-         LLVMValueRef global = LLVMAddGlobal(module, llvm_int32_type(), name);
+
+         LLVMValueRef global = LLVMGetNamedGlobal(module, name);
+         if (global == NULL)
+            global = LLVMAddGlobal(module, llvm_int32_type(), name);
+         else
+            assert(LLVMGetInitializer(global) == NULL);
+
 #ifdef IMPLIB_REQUIRED
          LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
 #endif
@@ -3725,9 +3730,14 @@ static void cgen_reset_function(void)
       LOCAL_TEXT_BUF name = tb_new();
       ident_str(vcode_unit_name(), name);
 
-      LLVMValueRef global = LLVMAddGlobal(module,
-                                          LLVMPointerType(state_type, 0),
-                                          tb_get(name));
+      LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(name));
+      if (global == NULL)
+         global = LLVMAddGlobal(module,
+                                LLVMPointerType(state_type, 0),
+                                tb_get(name));
+      else
+         assert(LLVMGetInitializer(global) == NULL);
+
       LLVMSetInitializer(global, LLVMGetUndef(LLVMPointerType(state_type, 0)));
 #ifdef IMPLIB_REQUIRED
       LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
@@ -3771,7 +3781,7 @@ static void cgen_coverage_state(tree_t t, cover_tagging_t *tagging,
    }
 }
 
-static void cgen_module_debug_info(tree_t top)
+static void cgen_add_dwarf_flags(void)
 {
    llvm_add_module_flag("Debug Info Version", DEBUG_METADATA_VERSION);
 #ifdef __APPLE__
@@ -3779,7 +3789,10 @@ static void cgen_module_debug_info(tree_t top)
 #else
    llvm_add_module_flag("Dwarf Version", 4);
 #endif
+}
 
+static void cgen_module_debug_info(void)
+{
    const loc_t *loc = vcode_unit_loc();
    assert(!loc_invalid_p(loc));
 
@@ -3798,8 +3811,19 @@ static void cgen_module_debug_info(tree_t top)
 
    cgen_push_debug_scope(cu);
 
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   while (vcode_unit_context() != NULL)
+      vcode_select_unit(vcode_unit_context());
+
    LOCAL_TEXT_BUF tb = tb_new();
-   ident_str(tree_ident(top), tb);
+   ident_str(vcode_unit_name(), tb);
+
+   if (vcode_unit_kind() == VCODE_UNIT_INSTANCE)
+      tb_cat(tb, ".elab");
+
+   vcode_state_restore(&state);
 
    LLVMMetadataRef mod = LLVMDIBuilderCreateModule(
       debuginfo, cu, tb_get(tb), tb_len(tb), "", 0, "", 0, "", 0);
@@ -3807,17 +3831,80 @@ static void cgen_module_debug_info(tree_t top)
    cgen_push_debug_scope(mod);
 }
 
-static void cgen_find_units(vcode_unit_t root, unit_list_t *units)
+static void cgen_find_children(vcode_unit_t root, unit_list_t *units)
 {
    vcode_select_unit(root);
+
+   const vunit_kind_t kind = vcode_unit_kind();
+   if (kind != VCODE_UNIT_INSTANCE && kind != VCODE_UNIT_PROCESS)
+      return;
 
    for (vcode_unit_t it = vcode_unit_child(root);
         it != NULL;
         it = vcode_unit_next(it)) {
-      cgen_find_units(it, units);
+      cgen_find_children(it, units);
    }
 
    APUSH(*units, root);
+}
+
+static void cgen_add_dependency(ident_t name, unit_list_t *list)
+{
+   vcode_state_t state;
+   vcode_state_save(&state);
+
+   vcode_unit_t vu = vcode_find_unit(name);
+   assert(vu);
+
+   unsigned pos = 0;
+   for (; pos < list->count; pos++) {
+      if (list->items[pos] == vu)
+         break;
+   }
+
+   if (pos == list->count)
+      APUSH(*list, vu);
+
+   vcode_state_restore(&state);
+}
+
+static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)
+{
+   vcode_select_unit(unit);
+
+   const int nblocks = vcode_count_blocks();
+   for (int i = 0; i < nblocks; i++) {
+      vcode_select_block(i);
+
+      const int nops = vcode_count_ops();
+      for (int op = 0; op < nops; op++) {
+         switch (vcode_get_op(op)) {
+         case VCODE_OP_LINK_PACKAGE:
+            cgen_add_dependency(vcode_get_ident(op), list);
+            break;
+         case VCODE_OP_LINK_VAR:
+            cgen_add_dependency(ident_runtil(vcode_get_ident(op), '.'), list);
+            break;
+         case VCODE_OP_FCALL:
+         case VCODE_OP_PCALL:
+         case VCODE_OP_CLOSURE:
+         case VCODE_OP_PROTECTED_INIT:
+            if (vcode_get_subkind(op) != VCODE_CC_FOREIGN)
+               cgen_add_dependency(vcode_get_func(op), list);
+            break;
+         default:
+            break;
+         }
+      }
+   }
+}
+
+static void cgen_find_units(vcode_unit_t root, unit_list_t *units)
+{
+   cgen_find_children(root, units);
+
+   for (unsigned i = 0; i < units->count; i++)
+      cgen_find_dependencies(units->items[i], units);
 }
 
 static void cgen_partition_jobs(unit_list_t *units, job_list_t *jobs,
@@ -4335,45 +4422,6 @@ static void cgen_link_arg(const char *fmt, ...)
    APUSH(link_args, buf);
 }
 
-#ifdef IMPLIB_REQUIRED
-static void cgen_find_dll_deps(ident_t unit_name, void *__ctx)
-{
-   ident_list_t **deps = __ctx;
-
-   tree_t unit = lib_get_qualified(unit_name);
-   if (unit == NULL)
-      return;
-
-   unit_name = tree_ident(unit);
-
-   if (ident_list_find(*deps, unit_name))
-      return;
-
-   ident_list_push(deps, unit_name);
-
-   switch (tree_kind(unit)) {
-   case T_PACKAGE:
-      {
-         ident_t body_name = ident_prefix(unit_name, ident_new("body"), '-');
-         cgen_find_dll_deps(body_name, deps);
-      }
-      break;
-
-   case T_PACK_BODY:
-      {
-         ident_t pack_name = ident_until(unit_name, '-');
-         cgen_find_dll_deps(pack_name, deps);
-      }
-      break;
-
-   default:
-      break;
-   }
-
-   tree_walk_deps(unit, cgen_find_dll_deps, deps);
-}
-#endif  // IMPLIB_REQUIRED
-
 static void cgen_native(LLVMTargetMachineRef tm_ref, char *obj_path)
 {
    char *error;
@@ -4442,33 +4490,6 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
    cgen_link_arg("/usr/lib/crtendS.o");
 #endif
 
-#if IMPLIB_REQUIRED
-   // Windows needs all symbols to be resolved when linking a DLL
-
-   cgen_link_arg("-L%s", lib_path(lib_work()));
-
-   ident_t name = ident_new(module_name);
-   LOCAL_IDENT_LIST deps = NULL;
-   cgen_find_dll_deps(name, &deps);
-
-   for (const ident_list_t *it = deps; it != NULL; it = it->next) {
-      if (it->ident == name)
-         continue;
-
-      lib_t lib = lib_require(ident_until(it->ident, '.'));
-
-      char *dll_name LOCAL = xasprintf("_%s." DLL_EXT, istr(it->ident));
-      char dll_path[PATH_MAX];
-      lib_realpath(lib, dll_name, dll_path, PATH_MAX);
-
-      if (access(dll_path, F_OK) == 0) {
-         if (lib != lib_work())
-            cgen_link_arg("-L%s", lib_path(lib));
-         cgen_link_arg("-l_%s", istr(it->ident));
-      }
-   }
-#endif
-
    const char *obj = getenv("NVC_FOREIGN_OBJ");
    if (obj != NULL)
       cgen_link_arg(obj);
@@ -4533,7 +4554,7 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
    vcode_select_unit(units->items[0]);
 
    cgen_tmp_stack();
-   cgen_module_debug_info(top);
+   cgen_add_dwarf_flags();
 
    if (primary) {
       cgen_abi_version();
@@ -4544,6 +4565,8 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
 
    for (unsigned i = 0; i < units->count; i++) {
       vcode_select_unit(units->items[i]);
+
+      cgen_module_debug_info();
 
       switch (vcode_unit_kind()) {
       case VCODE_UNIT_PROCEDURE:
@@ -4566,10 +4589,10 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
       default:
          break;
       }
-   }
 
-   cgen_pop_debug_scope();
-   cgen_pop_debug_scope();
+      cgen_pop_debug_scope();
+      cgen_pop_debug_scope();
+   }
 
    cgen_global_ctors();
 

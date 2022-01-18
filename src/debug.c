@@ -140,6 +140,52 @@ static bool di_lru_get(uintptr_t pc, debug_frame_t **pframe)
    }
 }
 
+#if !defined HAVE_LIBDW && !defined HAVE_LIBDWARF
+static void guess_vhdl_symbol(debug_frame_t *frame)
+{
+   // Use some dodgy heuristics to determine if this a VHDL symbol when
+   // DWARF information is not available
+
+   const char *slash = strrchr(frame->module, DIR_SEP[0]);
+   char *file LOCAL = xstrdup(slash ? slash + 1 : frame->module);
+   if (file[0] != '_')
+      return;
+
+#if !defined __MINGW32__ && !defined __CYGWIN__
+   char *last_dot = strrchr(file, '.');
+   if (last_dot == NULL || strcmp(last_dot + 1, DLL_EXT) != 0)
+      return;
+
+   *last_dot = '\0';
+#endif
+
+   if (frame->symbol == NULL)
+      return;
+
+   char *dup LOCAL = xstrdup(frame->symbol);
+
+   char *dot1 = strchr(dup, '.');
+   if (dot1 == NULL)
+      return;
+
+   char *dot2 = strchr(dot1 + 1, '.');
+   if (dot2 == NULL)
+      return;
+
+   *dot2 = '\0';
+
+   const size_t duplen = strlen(dup);
+   if (strncmp(file + 1, dup, duplen) == 0 && file[duplen + 1] == '.') {
+      frame->kind = FRAME_VHDL;
+      frame->vhdl_unit = ident_new(file + 1);
+   }
+   else {
+      frame->kind = FRAME_VHDL;
+      frame->vhdl_unit = ident_new(dup);
+   }
+}
+#endif  // !HAVE_LIBDW && !HAVE_LIBDWARF
+
 ////////////////////////////////////////////////////////////////////////////////
 // Libdw backend
 
@@ -739,11 +785,8 @@ static void debug_walk_frames(debug_info_t *di)
          if (SymGetModuleInfo(hProcess, stk.AddrPC.Offset, &module)) {
             frame->module = xstrdup(module.ModuleName);
 
-            lib_t lib = lib_at(module.ImageName);
-            if (lib != NULL && module.ModuleName[0] == '_') {
-               frame->kind = FRAME_VHDL;
-               frame->vhdl_unit = ident_new(module.ModuleName + 1);
-            }
+            if (lib_at(module.ImageName) != NULL)
+               guess_vhdl_symbol(frame);
          }
       }
 
@@ -756,27 +799,6 @@ static void debug_walk_frames(debug_info_t *di)
 // Unwind backend
 
 #else
-
-static void unwind_parse_vhdl_symbol(debug_frame_t *frame)
-{
-   lib_t lib = lib_at(frame->module);
-   if (lib == NULL)
-      return;
-
-   const char *slash = strrchr(frame->module, DIR_SEP[0]);
-   char *file LOCAL = xstrdup(slash ? slash + 1 : frame->module);
-   if (file[0] != '_')
-      return;
-
-   char *last_dot = strrchr(file, '.');
-   if (last_dot == NULL || strcmp(last_dot + 1, DLL_EXT) != 0)
-      return;
-
-   *last_dot = '\0';
-
-   frame->kind = FRAME_VHDL;
-   frame->vhdl_unit = ident_new(file + 1);
-}
 
 static void unwind_fill_frame(uintptr_t ip, debug_frame_t *frame)
 {
@@ -798,7 +820,9 @@ static void unwind_fill_frame(uintptr_t ip, debug_frame_t *frame)
 
    if (dli.dli_sname) {
       frame->symbol = xstrdup(dli.dli_sname);
-      unwind_parse_vhdl_symbol(frame);
+
+      if (lib_at(frame->module) != NULL)
+         guess_vhdl_symbol(frame);
    }
 }
 

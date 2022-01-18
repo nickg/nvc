@@ -6,22 +6,6 @@ nvc_DATA = \
 	lib/nvc/NVC.POLYFILL \
 	lib/nvc/NVC.POLYFILL-body
 
-nvc_so = \
-	lib/nvc/_NVC.SIM_PKG.$(DLL_EXT) \
-	lib/nvc/_NVC.POLYFILL.$(DLL_EXT)
-
-if IMPLIB_REQUIRED
-
-# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
-nvc_SCRIPTS = $(nvc_so)
-
-$(nvc_SCRIPTS) : $(nvc_DATA)
-else
-
-nvc_DATA += $(nvc_so)
-
-endif  # IMPLIB_REQUIRED
-
 EXTRA_DIST += \
 	lib/nvc/sim_pkg.vhd \
 	lib/nvc/polyfill.vhd \

@@ -169,7 +169,6 @@ static int analyse(int argc, char **argv)
    }
 
    SCOPED_A(tree_t) units = AINIT;
-   SCOPED_A(tree_t) cgen_units = AINIT;
 
    lib_t work = lib_work();
 
@@ -187,7 +186,6 @@ static int analyse(int argc, char **argv)
             if (error_count() == 0 && unit_needs_cgen(unit)) {
                vcode_unit_t vu = lower_unit(unit, NULL);
                lib_put_vcode(work, unit, vu);
-               APUSH(cgen_units, unit);
             }
          }
       }
@@ -200,15 +198,6 @@ static int analyse(int argc, char **argv)
       dump_json(units.items, units.count, opt_get_str("dump-json"));
 
    lib_save(work);
-
-   for (unsigned i = 0; i < cgen_units.count; i++) {
-      // The unit could have been obsoleted by a later design unit in
-      // the same file so check it is still present in the library
-      if (lib_contains(work, cgen_units.items[i])) {
-         vcode_unit_t vu = lib_get_vcode(work, cgen_units.items[i]);
-         cgen(cgen_units.items[i], vu, NULL);
-      }
-   }
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

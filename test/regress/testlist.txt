@@ -383,7 +383,7 @@ issue423        normal
 driver6         normal
 driver7         fail,gold
 issue428        normal
-protected5      normal,2000,!windows
+protected5      normal,2000
 issue429        normal
 record18        normal
 issue98         normal

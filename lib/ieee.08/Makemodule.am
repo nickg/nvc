@@ -18,27 +18,6 @@ ieee_08_DATA = \
 	lib/ieee.08/IEEE.MATH_COMPLEX \
 	lib/ieee.08/IEEE.MATH_COMPLEX-body
 
-ieee_08_so = \
-	lib/ieee.08/_IEEE.NUMERIC_STD.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_STD_UNSIGNED.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_BIT.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.NUMERIC_BIT_UNSIGNED.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.STD_LOGIC_1164.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.MATH_REAL.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.MATH_COMPLEX.$(DLL_EXT)
-
-if IMPLIB_REQUIRED
-
-# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
-ieee_08_SCRIPTS = $(ieee_08_so)
-
-$(ieee_08_SCRIPTS) : $(ieee_08_DATA)
-else
-
-ieee_08_DATA += $(ieee_08_so)
-
-endif  # IMPLIB_REQUIRED
-
 EXTRA_DIST += \
 	lib/ieee.08/numeric_bit.vhdl \
 	lib/ieee.08/numeric_bit-body.vhdl \

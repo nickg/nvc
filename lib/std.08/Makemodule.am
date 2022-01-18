@@ -8,23 +8,6 @@ std_08_DATA = \
 	lib/std.08/STD.ENV \
 	lib/std.08/STD.ENV-body
 
-std_08_so = \
-	lib/std.08/_STD.STANDARD.$(DLL_EXT) \
-	lib/std.08/_STD.TEXTIO.$(DLL_EXT) \
-	lib/std.08/_STD.ENV.$(DLL_EXT)
-
-if IMPLIB_REQUIRED
-
-# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
-std_08_SCRIPTS = $(std_08_so)
-
-$(std_08_SCRIPTS) : $(std_08_DATA)
-else
-
-std_08_DATA += $(std_08_so)
-
-endif  # IMPLIB_REQUIRED
-
 EXTRA_DIST += \
 	lib/std.08/standard.vhd \
 	lib/std.08/env.vhd \

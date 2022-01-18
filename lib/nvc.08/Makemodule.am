@@ -5,22 +5,6 @@ nvc_08_DATA = \
 	lib/nvc.08/NVC.SIM_PKG \
 	lib/nvc.08/NVC.POLYFILL
 
-nvc_08_so = \
-	lib/nvc.08/_NVC.SIM_PKG.$(DLL_EXT) \
-	lib/nvc.08/_NVC.POLYFILL.$(DLL_EXT)
-
-if IMPLIB_REQUIRED
-
-# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
-nvc_08_SCRIPTS = $(nvc_08_so)
-
-$(nvc_08_SCRIPTS) : $(nvc_08_DATA)
-else
-
-nvc_08_DATA += $(nvc_08_so)
-
-endif  # IMPLIB_REQUIRED
-
 EXTRA_DIST += \
 	lib/nvc.08/polyfill.vhd
 

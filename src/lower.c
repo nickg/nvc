@@ -1470,10 +1470,9 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
 
 static vcode_type_t lower_func_result_type(type_t result)
 {
-   if (type_is_array(result) && lower_const_bounds(result)) {
+   if (type_is_array(result) && lower_const_bounds(result))
       return vtype_pointer(lower_type(lower_elem_recur(result)));
-   }
-   if (type_is_record(result))
+   else if (type_is_record(result))
       return vtype_pointer(lower_type(result));
    else
       return lower_type(result);
@@ -4878,7 +4877,7 @@ static vcode_reg_t lower_resolution_func(type_t type)
 
    const bool is_carray = vtype_kind(vtype) == VCODE_TYPE_CARRAY;
    vcode_type_t elem = is_carray ? vtype_elem(vtype) : vtype;
-   vcode_type_t rtype = vtype_is_composite(vtype) ? vtype_pointer(elem) : vtype;
+   vcode_type_t rtype = lower_func_result_type(type);
    vcode_type_t atype = vtype_uarray(1, elem, vtype_int(0, INT32_MAX));
 
    vcode_reg_t context_reg = lower_context_for_call(rfunc);
@@ -7107,7 +7106,7 @@ static ident_t lower_converter(tree_t expr, type_t atype, type_t rtype,
 
       if (!p0_uarray && !r_uarray) {
          *vatype = lower_type(atype);
-         *vrtype = lower_type(rtype);
+         *vrtype = lower_func_result_type(rtype);
          return tree_ident2(fdecl);
       }
    }
@@ -7154,7 +7153,7 @@ static ident_t lower_converter(tree_t expr, type_t atype, type_t rtype,
          vrbounds = lower_bounds(elem);
       }
       else {
-         *vrtype = lower_type(rtype);
+         *vrtype = lower_func_result_type(rtype);
          vrbounds = lower_bounds(rtype);
       }
    }

@@ -141,7 +141,7 @@ static void jit_load_module(ident_t name)
 #else
    void *handle = dlopen(so_path, RTLD_LAZY | RTLD_GLOBAL);
    if (handle == NULL)
-      fatal("%s: %s", so_path, dlerror());
+      fatal("%s", dlerror());
 
    uint32_t *p = dlsym(handle, "__nvc_abi_version");
    if (p == NULL)
@@ -162,10 +162,6 @@ void jit_init(tree_t top, e_node_t e)
    APUSH(search_modules, GetModuleHandle(NULL));
    APUSH(search_modules, GetModuleHandle("MSVCRT.DLL"));
 #endif
-
-   const int ndeps = e_deps(e);
-   for (int i = 0; i < ndeps; i++)
-      jit_load_module(e_dep(e, i));
 
    jit_load_module(tree_ident(top));
 }

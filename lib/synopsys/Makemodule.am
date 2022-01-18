@@ -26,30 +26,6 @@ synopsys_DATA = \
 	lib/synopsys/_index \
 	lib/synopsys/SYNOPSYS.ATTRIBUTES
 
-synopsys_ieee_so = \
-	lib/ieee/_IEEE.STD_LOGIC_ARITH.$(DLL_EXT) \
-	lib/ieee/_IEEE.STD_LOGIC_SIGNED.$(DLL_EXT) \
-	lib/ieee/_IEEE.STD_LOGIC_UNSIGNED.$(DLL_EXT) \
-	lib/ieee/_IEEE.STD_LOGIC_TEXTIO.$(DLL_EXT) \
-	lib/ieee/_IEEE.STD_LOGIC_MISC.$(DLL_EXT)
-
-synopsys_ieee_08_so = \
-	lib/ieee.08/_IEEE.STD_LOGIC_ARITH.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.STD_LOGIC_SIGNED.$(DLL_EXT) \
-	lib/ieee.08/_IEEE.STD_LOGIC_UNSIGNED.$(DLL_EXT)
-
-if IMPLIB_REQUIRED
-
-# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
-synopsys_ieee_SCRIPTS = $(synopsys_ieee_so) $(synopsys_ieee_08_so)
-
-$(synopsys_ieee_SCRIPTS) : $(synopsys_ieee_DATA) $(synopsys_ieee_08_DATA)
-else
-
-synopsys_ieee_DATA += $(synopsys_ieee_so) #$(synopsys_ieee_08_so)
-
-endif  # IMPLIB_REQUIRED
-
 EXTRA_DIST += lib/synopsys/std_logic_arith.vhd lib/synopsys/std_logic_misc.vhd \
 	lib/synopsys/std_logic_misc.vhd lib/synopsys/std_logic_signed.vhd \
 	lib/synopsys/std_logic_unsigned.vhd lib/synopsys/std_logic_textio.vhd \

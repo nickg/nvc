@@ -63,7 +63,6 @@ typedef struct waveform      waveform_t;
 typedef struct sens_list     sens_list_t;
 typedef struct value         value_t;
 typedef struct callback      callback_t;
-typedef struct image_map     image_map_t;
 typedef struct rt_nexus_s    rt_nexus_t;
 typedef struct rt_scope_s    rt_scope_t;
 typedef struct rt_source_s   rt_source_t;
@@ -272,14 +271,6 @@ struct callback {
    rt_event_fn_t  fn;
    void          *user;
    callback_t    *next;
-};
-
-struct image_map {
-   int32_t        kind;
-   int32_t        stride;
-   const char    *elems;
-   const int64_t *values;
-   int32_t        count;
 };
 
 typedef struct {
@@ -2274,8 +2265,6 @@ static void *rt_call_module_reset(ident_t name, void *arg)
    void *(*reset_fn)(void *) = jit_find_symbol(buf, false);
    if (reset_fn != NULL)
       result = (*reset_fn)(arg);
-   else
-      warnf("symbol %s not found", buf);
 
    global_tmp_alloc = _tmp_alloc;
    return result;

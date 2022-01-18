@@ -13,25 +13,6 @@ ieee_DATA = \
 	lib/ieee/IEEE.MATH_COMPLEX \
 	lib/ieee/IEEE.MATH_COMPLEX-body
 
-ieee_so = \
-	lib/ieee/_IEEE.NUMERIC_STD.$(DLL_EXT) \
-	lib/ieee/_IEEE.NUMERIC_BIT.$(DLL_EXT) \
-	lib/ieee/_IEEE.STD_LOGIC_1164.$(DLL_EXT) \
-	lib/ieee/_IEEE.MATH_REAL.$(DLL_EXT) \
-	lib/ieee/_IEEE.MATH_COMPLEX.$(DLL_EXT)
-
-if IMPLIB_REQUIRED
-
-# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
-ieee_SCRIPTS = $(ieee_so)
-
-$(ieee_SCRIPTS) : $(ieee_DATA)
-else
-
-ieee_DATA += $(ieee_so)
-
-endif  # IMPLIB_REQUIRED
-
 EXTRA_DIST += \
 	lib/ieee/numeric_bit.vhdl \
 	lib/ieee/math_complex-body.vhdl \
