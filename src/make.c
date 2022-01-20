@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2013-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -34,7 +34,6 @@
 typedef enum {
    MAKE_TREE,
    MAKE_LIB,
-   MAKE_SO,
    MAKE_FINAL_SO
 } make_product_t;
 
@@ -67,7 +66,6 @@ static const char *make_product(tree_t t, make_product_t product)
    char *buf = get_fmt_buf(PATH_MAX);
 
    ident_t name = tree_ident(t);
-   ident_t base = ident_strip(name, ident_new("-body")) ?: name;
    lib_t lib = make_get_lib(name);
 
    const char *path = lib_path(lib);
@@ -75,10 +73,6 @@ static const char *make_product(tree_t t, make_product_t product)
    switch (product) {
    case MAKE_TREE:
       checked_sprintf(buf, PATH_MAX, "%s/%s", path, istr(name));
-      break;
-
-   case MAKE_SO:
-      checked_sprintf(buf, PATH_MAX, "%s/_%s.so", path, istr(base));
       break;
 
    case MAKE_FINAL_SO:
@@ -239,12 +233,7 @@ static void make_rule(tree_t t, rule_t **rules)
       break;
 
    case T_PACKAGE:
-      if (!package_needs_body(t)) {
-      case T_PACK_BODY:
-         make_rule_add_output(r, make_product(t, MAKE_SO));
-      }
-      // Fall-through
-
+   case T_PACK_BODY:
    case T_ENTITY:
    case T_ARCH:
    case T_CONFIGURATION:

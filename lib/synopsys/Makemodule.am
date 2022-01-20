@@ -71,9 +71,3 @@ gen-deps-synopsys:
 		$(deps_pp) > $(srcdir)/lib/synopsys/deps.mk
 
 include lib/synopsys/deps.mk
-
-# Extra dependencies required for linking on Windows
-
-@IMPLIB_REQUIRED_TRUE@lib/ieee/IEEE.STD_LOGIC_ARITH: lib/ieee/IEEE.STD_LOGIC_1164-body
-
-@IMPLIB_REQUIRED_TRUE@lib/ieee.08/IEEE.STD_LOGIC_ARITH: lib/ieee.08/IEEE.STD_LOGIC_1164-body

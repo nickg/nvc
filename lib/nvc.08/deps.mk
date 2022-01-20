@@ -2,9 +2,5 @@
 
 lib/nvc.08/NVC.POLYFILL: $(top_srcdir)/lib/nvc.08/polyfill.vhd
 
-lib/nvc.08/_NVC.POLYFILL.so: $(top_srcdir)/lib/nvc.08/polyfill.vhd
-
 lib/nvc.08/NVC.SIM_PKG: lib/std.08/STD.STANDARD $(top_srcdir)/lib/nvc/sim_pkg.vhd
-
-lib/nvc.08/_NVC.SIM_PKG.so: lib/std.08/STD.STANDARD $(top_srcdir)/lib/nvc/sim_pkg.vhd
 
