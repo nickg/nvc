@@ -1,3 +1,20 @@
+//
+//  Copyright (C) 2014-2022  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
 #include "test_util.h"
 #include "phase.h"
 #include "vcode.h"
@@ -4266,6 +4283,32 @@ START_TEST(test_concat)
 }
 END_TEST
 
+START_TEST(test_nullarray)
+{
+   input_from_file(TESTDIR "/lower/nullarray.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.NULLARRAY");
+   vcode_select_unit(vu);
+
+     EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST_ARRAY, .length = 3 },
+         { VCODE_OP_ADDRESS_OF },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "A" },
+         { VCODE_OP_RETURN },
+     };
+
+     CHECK_BB(0);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4360,6 +4403,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_record2);
    tcase_add_test(tc, test_array2);
    tcase_add_test(tc, test_concat);
+   tcase_add_test(tc, test_nullarray);
    suite_add_tcase(s, tc);
 
    return s;

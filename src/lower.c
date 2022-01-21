@@ -2514,7 +2514,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
    int64_t null_const;
    if (vcode_reg_const(null_reg, &null_const) && null_const)
-      return emit_null(lower_type(scalar_elem_type));
+      return emit_address_of(emit_const_array(lower_type(type), NULL, 0));
 
    vcode_reg_t len_reg = lower_array_total_len(type, VCODE_INVALID_REG);
 

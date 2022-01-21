@@ -4530,13 +4530,14 @@ vcode_reg_t emit_null(vcode_type_t type)
    }
 
    op_t *op = vcode_add_op(VCODE_OP_NULL);
+   op->result = vcode_add_reg(type);
 
    vtype_kind_t kind = vtype_kind(type);
    VCODE_ASSERT(kind == VCODE_TYPE_POINTER || kind == VCODE_TYPE_FILE
                 || kind == VCODE_TYPE_ACCESS || kind == VCODE_TYPE_CONTEXT,
                 "null type must be file, access, context, or pointer");
 
-   return (op->result = vcode_add_reg(type));
+   return op->result;
 }
 
 vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
