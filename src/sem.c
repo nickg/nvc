@@ -32,7 +32,6 @@ typedef bool (*static_fn_t)(tree_t t);
 
 typedef enum {
    SCOPE_PACKAGE   = (1 << 0),
-   SCOPE_FORMAL    = (1 << 1),
    SCOPE_PROTECTED = (1 << 2),
    SCOPE_CONTEXT   = (1 << 3),
    SCOPE_COPY_SUBS = (1 << 4),
@@ -428,7 +427,7 @@ static bool sem_readable(tree_t t)
       {
          tree_t decl = tree_ref(t);
          if (tree_kind(decl) == T_PORT_DECL) {
-            if (top_scope->flags & SCOPE_FORMAL)
+            if (tree_flags(t) & TREE_F_FORMAL_NAME)
                return true;   // Port name appearing in formal
 
             const port_mode_t mode = tree_subkind(decl);
@@ -3482,19 +3481,10 @@ static bool sem_check_map(tree_t t, tree_t unit,
       formals[i].partial = false;
    }
 
-   bool has_named = false;
-
    for (int i = 0; i < nactuals; i++) {
       tree_t p = tree_A(t, i);
       if (tree_subkind(p) != P_NAMED)
          continue;
-
-      if (!has_named) {
-         scope_push();
-         top_scope->flags |= SCOPE_FORMAL;
-
-         has_named = true;
-      }
 
       tree_t name = tree_name(p);
 
@@ -3507,9 +3497,6 @@ static bool sem_check_map(tree_t t, tree_t unit,
                   "associated with OPEN");
       }
    }
-
-   if (has_named)
-      scope_pop();
 
    if (!ok)
       return false;
