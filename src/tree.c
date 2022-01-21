@@ -284,7 +284,13 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_REF | I_DECLS | I_CONTEXT | I_GENERICS | I_GENMAPS),
 
    // T_GENERIC_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_CLASS | I_SUBKIND | I_FLAGS),
+   (I_IDENT | I_VALUE | I_TYPE | I_CLASS | I_SUBKIND | I_FLAGS | I_PORTS),
+
+   // T_TYPE_REF
+   (I_IDENT | I_TYPE),
+
+   // T_BOX
+   (I_TYPE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -316,7 +322,8 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_IMPLICIT_SIGNAL", "T_DISCONNECT",      "T_GROUP_TEMPLATE",
    "T_GROUP",           "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN",
    "T_CONV_FUNC",       "T_CONCURRENT",      "T_SEQUENCE",
-   "T_PACK_INST",       "T_GENERIC_DECL",
+   "T_PACK_INST",       "T_GENERIC_DECL",    "T_TYPE_REF",
+   "T_BOX",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -372,7 +379,8 @@ static tree_kind_t expr_kinds[] = {
    T_FCALL,     T_LITERAL,    T_REF,        T_QUALIFIED,
    T_AGGREGATE, T_ATTR_REF,   T_ARRAY_REF,  T_ARRAY_SLICE,
    T_TYPE_CONV, T_OPEN,       T_RECORD_REF, T_ALL,
-   T_NEW,       T_PROT_FCALL, T_CONV_FUNC,
+   T_NEW,       T_PROT_FCALL, T_CONV_FUNC,  T_TYPE_REF,
+   T_BOX,
 };
 
 static tree_kind_t decl_kinds[] = {
@@ -1147,36 +1155,42 @@ tree_t tree_read(fbuf_t *f, tree_load_fn_t find_deps_fn,
 }
 
 tree_t tree_rewrite(tree_t t, tree_rewrite_pre_fn_t pre_fn,
-                    tree_rewrite_post_fn_t post_fn, void *context)
+                    tree_rewrite_post_fn_t tree_post_fn,
+                    type_rewrite_post_fn_t type_post_fn,
+                    void *context)
 {
    assert(global_arena != NULL);
 
    object_rewrite_ctx_t ctx = {
       .generation = object_next_generation(),
-      .pre_fn     = (object_rewrite_pre_fn_t)pre_fn,
-      .post_fn    = (object_rewrite_post_fn_t)post_fn,
       .context    = context,
       .arena      = global_arena,
-      .tag        = OBJECT_TAG_TREE
    };
+
+   ctx.pre_fn[OBJECT_TAG_TREE] = (object_rewrite_pre_fn_t)pre_fn;
+
+   ctx.post_fn[OBJECT_TAG_TREE] = (object_rewrite_post_fn_t)tree_post_fn;
+   ctx.post_fn[OBJECT_TAG_TYPE] = (object_rewrite_post_fn_t)type_post_fn;
 
    object_t *result = object_rewrite(&(t->object), &ctx);
    free(ctx.cache);
    return container_of(result, struct _tree, object);
 }
 
-tree_t tree_copy(tree_t t, tree_copy_pred_t pred,
+tree_t tree_copy(tree_t t, tree_copy_pred_t tree_pred,
+                 type_copy_pred_t type_pred,
                  tree_copy_fn_t tree_callback,
                  type_copy_fn_t type_callback,
                  void *context)
 {
    object_copy_ctx_t ctx = {
       .generation  = object_next_generation(),
-      .should_copy = (object_copy_pred_t)pred,
       .context     = context,
       .arena       = global_arena,
-      .tag         = OBJECT_TAG_TREE
    };
+
+   ctx.should_copy[OBJECT_TAG_TREE] = (object_copy_pred_t)tree_pred;
+   ctx.should_copy[OBJECT_TAG_TYPE] = (object_copy_pred_t)type_pred;
 
    ctx.callback[OBJECT_TAG_TREE] = (object_copy_fn_t)tree_callback;
    ctx.callback[OBJECT_TAG_TYPE] = (object_copy_fn_t)type_callback;

@@ -183,12 +183,11 @@ typedef bool (*object_copy_fn_t)(object_t *, void *);
 
 typedef struct {
    generation_t       generation;
-   object_copy_pred_t should_copy;
+   object_copy_pred_t should_copy[OBJECT_TAG_COUNT];
    object_copy_fn_t   callback[OBJECT_TAG_COUNT];
    void              *context;
    object_arena_t    *arena;
    hash_t            *copy_map;
-   unsigned           tag;
 } object_copy_ctx_t;
 
 typedef void (*object_rewrite_pre_fn_t)(object_t *, void *);
@@ -197,11 +196,10 @@ typedef object_t *(*object_rewrite_post_fn_t)(object_t *, void *);
 typedef struct {
    object_t                 **cache;
    generation_t               generation;
-   object_rewrite_pre_fn_t    pre_fn;
-   object_rewrite_post_fn_t   post_fn;
+   object_rewrite_pre_fn_t    pre_fn[OBJECT_TAG_COUNT];
+   object_rewrite_post_fn_t   post_fn[OBJECT_TAG_COUNT];
    void                      *context;
    object_arena_t            *arena;
-   unsigned                   tag;
 } object_rewrite_ctx_t;
 
 typedef struct {

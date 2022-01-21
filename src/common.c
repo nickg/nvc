@@ -542,6 +542,11 @@ bool is_subprogram(tree_t t)
    case T_PROC_DECL:
    case T_PROC_BODY:
       return true;
+   case T_GENERIC_DECL:
+      {
+         const class_t class = tree_class(t);
+         return class == C_FUNCTION || class == C_PROCEDURE;
+      }
    default:
       return false;
    }
@@ -580,6 +585,7 @@ bool is_design_unit(tree_t t)
    case T_PACK_BODY:
    case T_CONFIGURATION:
    case T_CONTEXT:
+   case T_PACK_INST:
       return true;
    default:
       return false;

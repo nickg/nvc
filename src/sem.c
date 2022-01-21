@@ -824,10 +824,18 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
 
    if (!sem_check_subtype(t, type, tab))
       return false;
+   else if (type_is_none(type))
+      return false;
 
-   if (tree_class(t) != C_CONSTANT)
+   const class_t class = tree_class(t);
+   switch (class) {
+   case C_CONSTANT:  case C_TYPE: case C_FUNCTION:
+   case C_PROCEDURE: case C_PACKAGE:
+      break;
+   default:
       sem_error(t, "invalid object class %s for generic %s",
                 class_str(tree_class(t)), istr(tree_ident(t)));
+   }
 
    if (!sem_no_access_file_or_protected(t, type, "generics"))
       return false;
@@ -841,6 +849,14 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
          sem_error(value, "type of default value %s does not match type "
                    "of declaration %s", type_pp(tree_type(value)),
                    type_pp(type));
+   }
+
+   if (class == C_PACKAGE) {
+      ident_t name = type_ident(tree_type(t));
+      tree_t pack = lib_get_qualified(name);
+      if (pack == NULL || !is_uninstantiated_package(pack))
+         sem_error(t, "name %s does not denote an uninstantiated package",
+                   istr(name));
    }
 
    tree_set_flag(t, TREE_F_ELAB_COPY);
@@ -2561,6 +2577,8 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_GENVAR:
    case T_FUNC_DECL:
    case T_FUNC_BODY:
+   case T_PROC_DECL:
+   case T_PROC_BODY:
    case T_IMPLICIT_SIGNAL:
    case T_GENERIC_DECL:
       break;
@@ -2760,7 +2778,8 @@ static bool sem_check_dimension_attr(tree_t t, nametab_t *tab)
 
 static bool sem_is_named_entity(tree_t t)
 {
-   if (tree_kind(t) != T_REF)
+   const tree_kind_t kind = tree_kind(t);
+   if (kind != T_REF)
       return false;
 
    tree_t decl = tree_ref(t);
@@ -3162,7 +3181,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
    type_t value_type = tree_type(value);
 
-   if (!sem_check_type(value, type))
+   if (!sem_check_type(value, get_mapped_type(tab, type)))
       sem_error(value, "type of actual %s does not match type %s of formal "
                 "port %s", type_pp(value_type), type_pp(type),
                 istr(tree_ident(decl)));
@@ -3251,7 +3270,7 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
 
       tree_t name = tree_name(p);
 
-      ok = sem_check(name, tab) && ok;
+      ok &= sem_check(name, tab);
 
       const tree_kind_t name_kind = tree_kind(name);
       if ((name_kind == T_ARRAY_REF || name_kind == T_ARRAY_SLICE)
@@ -3300,9 +3319,9 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
 static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                                      tree_t param, tree_t unit, nametab_t *tab)
 {
-   tree_t value = tree_value(param);
-   tree_t decl = NULL;
+   tree_t value = tree_value(param), decl = NULL;
    type_t type = NULL;
+   class_t class = C_DEFAULT;
 
    switch (tree_subkind(param)) {
    case P_POS:
@@ -3317,7 +3336,10 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                       istr(tree_ident(formals[pos].decl)));
          formals[pos].have = true;
          decl = formals[pos].decl;
-         type = tree_type(decl);
+         class = tree_class(decl);
+
+         if (class_has_type(class))
+            type = tree_type(decl);
       }
       break;
 
@@ -3337,6 +3359,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                formals[i].have    = true;
                formals[i].partial = (tree_kind(name) != T_REF);
                decl = formals[i].decl;
+               class = tree_class(decl);
                tree_set_flag(ref, TREE_F_FORMAL_NAME);
                break;
             }
@@ -3349,24 +3372,77 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
          if (!sem_static_name(name, sem_locally_static))
             sem_error(name, "formal name must be locally static");
 
-         type = tree_type(name);
+         if (class_has_type(class))
+            type = tree_type(name);
+
          break;
       }
    }
 
-   assert(type != NULL);
+   assert(type != NULL || !class_has_type(class));
 
-   if (!sem_check(value, tab))
-      return false;
+   switch (tree_class(decl)) {
+   case C_TYPE:
+      // The parser already called map_generic_type
+      assert(tree_kind(value) == T_TYPE_REF);
+      assert(type_kind(type) == T_GENERIC);
+      break;
 
-   if (!sem_check_type(value, type))
-      sem_error(value, "type of actual %s does not match type %s of formal "
-                "generic %s", type_pp(tree_type(value)), type_pp(type),
-                istr(tree_ident(decl)));
+   case C_PACKAGE:
+      {
+         tree_t pack = NULL;
+         if (tree_kind(value) == T_REF)
+            pack = tree_ref(value);
 
-   if (!sem_globally_static(value))
-      sem_error(value, "actual associated with generic %s must be "
-                "a globally static expression", istr(tree_ident(decl)));
+         if (pack == NULL || tree_kind(pack) != T_PACK_INST)
+            sem_error(value, "actual for generic %s is not an "
+                      "instantiated package name", istr(tree_ident(decl)));
+         else if (!tree_has_ref(pack))
+            return false;   // Was parse error
+
+         tree_t base = tree_ref(pack);
+         ident_t expect = type_ident(tree_type(decl));
+
+         if (tree_ident(base) != expect)
+            sem_error(value, "expected an instance of package %s but have "
+                      "instance of %s for generic %s", istr(expect),
+                      istr(tree_ident(base)), istr(tree_ident(decl)));
+
+         map_generic_package(tab, pack);
+      }
+      break;
+
+   case C_FUNCTION:
+   case C_PROCEDURE:
+      if (!sem_check(value, tab))
+         return false;
+
+      if (!type_eq_map(tree_type(value), type, get_generic_map(tab)))
+         sem_error(value, "type of actual %s does not match type %s of formal "
+                   "generic %s", type_pp(tree_type(value)), type_pp(type),
+                   istr(tree_ident(decl)));
+
+      break;
+
+   case C_CONSTANT:
+      if (!sem_check(value, tab))
+         return false;
+
+      if (!sem_check_type(value, get_mapped_type(tab, type)))
+         sem_error(value, "type of actual %s does not match type %s of formal "
+                   "generic %s", type_pp(tree_type(value)), type_pp(type),
+                   istr(tree_ident(decl)));
+
+      if (!sem_globally_static(value))
+         sem_error(value, "actual associated with generic %s must be "
+                   "a globally static expression", istr(tree_ident(decl)));
+
+      break;
+
+   default:
+      // Was an earlier error
+      break;
+   }
 
    return true;
 }
@@ -3412,9 +3488,19 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
       return ok;
 
    for (int i = 0; i < nformals; i++) {
-      if (!formals[i].have && !tree_has_value(formals[i].decl))
+      if (formals[i].have)
+         continue;
+      else if (!tree_has_value(formals[i].decl))
          error_at(tree_loc(t), "missing actual for generic %s without a "
                   "default expression", istr(tree_ident(formals[i].decl)));
+      else {
+         tree_t value = tree_value(formals[i].decl);
+         if (tree_kind(value) == T_BOX) {
+            // Need to look up the matching subprogram now while we still
+            // have the symbol table
+            map_generic_box(tab, t, formals[i].decl);
+         }
+      }
    }
 
    return ok;
@@ -4498,6 +4584,7 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_disconnect(t);
    case T_GROUP:
    case T_GROUP_TEMPLATE:
+   case T_BOX:
       return true;
    case T_COND_VAR_ASSIGN:
       return sem_check_cond_var_assign(t, tab);

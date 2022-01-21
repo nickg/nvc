@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@ typedef enum type_kind {
    T_PROC,
    T_NONE,
    T_PROTECTED,
+   T_GENERIC,
 
    T_LAST_TYPE_KIND
 } type_kind_t;
@@ -49,6 +50,7 @@ const char *type_kind_str(type_kind_t t);
 
 bool type_eq(type_t a, type_t b);
 bool type_strict_eq(type_t a, type_t b);
+bool type_eq_map(type_t a, type_t b, hash_t *map);
 
 // See `has_map' in type.c for definition of which fields each type
 // kind contains

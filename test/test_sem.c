@@ -2491,12 +2491,48 @@ START_TEST(test_genpack)
       { 46, "unit STD.STANDARD is not an uninstantiated package" },
       { 47, "missing declaration for package WORK.NOT_HERE" },
       { 48, "missing actual for generic FRAC without a default expression" },
+      { 76, "name STD.STANDARD does not denote an uninstantiated package" },
+      { 86, "expected an instance of package WORK.MYFIXED but have instance "
+        "of WORK.MYFLOAT for generic FIXED_PKG" },
+      { 89, "actual for generic FIXED_PKG is not an instantiated package" },
+      { 92, "expected an instance of package STD.STANDARD but" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_INST,
-                   T_ENTITY, T_ARCH);
+                   T_ENTITY, T_ARCH, T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_gentype)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/gentype.vhd");
+
+   const error_t expect[] = {
+      { 10, "range constraint cannot be used with non-scalar type T" },
+      { 64, "type of actual universal_real does not match type T of" },
+      { 70, "unexpected integer while parsing type mark" },
+      { 69, "no visible subprogram \"=\" matches signature [T, T return B" },
+      { 69, "no visible subprogram \"/=\" matches signature [T, T return B" },
+      { 79, "no visible subprogram MY_FUNC matches signature [T return T]" },
+      { 78, "missing actual for generic T without a default expression" },
+      { 78, "no visible subprogram \"=\" matches signature [T, T return B" },
+      { 78, "no visible subprogram \"/=\" matches signature [T, T return B" },
+      { 78, "no visible subprogram PROC1 matches signature [T]" },
+      { 82, "no visible subprogram MY_FUNC matches signature [T return T]" },
+      { 81, "no visible subprogram PROC1 matches signature [T]" },
+      { 88, "type mark MY_FUNC does not refer to a type" },
+      { 87, "no visible subprogram \"=\" matches signature [T, T return B" },
+      { 87, "no visible subprogram \"/=\" matches signature [T, T return B" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
 
    check_expected_errors();
 }
@@ -2625,6 +2661,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_tc792);
    tcase_add_test(tc_core, test_vhdl2008);
    tcase_add_test(tc_core, test_genpack);
+   tcase_add_test(tc_core, test_gentype);
    suite_add_tcase(s, tc_core);
 
    return s;

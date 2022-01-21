@@ -565,10 +565,11 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       if (ctx->cache[index] == (object_t *)-1) {
          // Found a circular reference: eagerly rewrite the object now
          // and break the cycle
-         if (object->tag == ctx->tag) {
-            if (ctx->pre_fn != NULL)
-               (*ctx->pre_fn)(object, ctx->context);
-            object_t *new = (object_t *)(*ctx->post_fn)(object, ctx->context);
+         if (ctx->post_fn[object->tag] != NULL) {
+            if (ctx->pre_fn[object->tag] != NULL)
+               (*ctx->pre_fn[object->tag])(object, ctx->context);
+            object_t *new =
+	       (object_t *)(*ctx->post_fn[object->tag])(object, ctx->context);
             object_write_barrier(object, new);
             return (ctx->cache[index] = new);
          }
@@ -583,8 +584,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
 
    ctx->cache[index] = (object_t *)-1;  // Rewrite in progress marker
 
-   if (ctx->pre_fn != NULL)
-      (*ctx->pre_fn)(object, ctx->context);
+   if (ctx->pre_fn[object->tag] != NULL)
+      (*ctx->pre_fn[object->tag])(object, ctx->context);
 
    const imask_t skip_mask = I_REF;
 
@@ -629,8 +630,9 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    if (ctx->cache[index] != (object_t *)-1) {
       // The cache was already updated due to a circular reference
    }
-   else if (object->tag == ctx->tag) {
-      object_t *new = (object_t *)(*ctx->post_fn)(object, ctx->context);
+   else if (ctx->post_fn[object->tag] != NULL) {
+      object_t *new =
+	 (object_t *)(*ctx->post_fn[object->tag])(object, ctx->context);
       object_write_barrier(object, new);
       ctx->cache[index] = new;
    }
@@ -904,8 +906,8 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
    const object_class_t *class = classes[object->tag];
 
    bool marked = false;
-   if (object->tag == ctx->tag)
-      marked = (*ctx->should_copy)(object, ctx->context);
+   if (ctx->should_copy[object->tag] != NULL)
+      marked = (*ctx->should_copy[object->tag])(object, ctx->context);
 
    object_t *copy = NULL;
    if (marked) {

@@ -1172,6 +1172,18 @@ START_TEST(test_ports2008)
 }
 END_TEST
 
+START_TEST(test_gentype)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/simp/gentype.vhd");
+
+   tree_t top = run_elab();
+
+   tree_t b0 = tree_stmt(top, 0);
+   fail_unless(tree_stmts(b0) == 0);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1215,6 +1227,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_condvar);
    tcase_add_test(tc_core, test_issue438);
    tcase_add_test(tc_core, test_ports2008);
+   tcase_add_test(tc_core, test_gentype);
    suite_add_tcase(s, tc_core);
 
    return s;

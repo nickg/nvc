@@ -702,10 +702,13 @@ static void eopt_package(tree_t pack, e_node_t cursor)
    e_set_vcode(e, vcode);
 
    ident_t path = ident_new(package_signal_path_name(tree_ident(pack)));
+   if (cursor != root)
+      path = ident_prefix(e_path(cursor), path, '\0');
+
    e_set_instance(e, path);
    e_set_path(e, path);
 
-   e_add_scope(root, e);
+   e_add_scope(cursor, e);
 
    if (eopt_decls(pack, e)) {
       // Cannot optimise out LAST_VALUE for package signals

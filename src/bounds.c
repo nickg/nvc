@@ -1244,5 +1244,5 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
 
 void bounds_check(tree_t top)
 {
-   tree_rewrite(top, NULL, bounds_visit_fn, NULL);
+   tree_rewrite(top, NULL, bounds_visit_fn, NULL, NULL);
 }

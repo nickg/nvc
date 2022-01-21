@@ -270,6 +270,10 @@ static void dump_expr(tree_t t)
          syntax("#all");
       break;
 
+   case T_TYPE_REF:
+      dump_type(tree_type(t));
+      break;
+
    case T_AGGREGATE:
       printf("(");
       for (unsigned i = 0; i < tree_assocs(t); i++) {
@@ -350,6 +354,10 @@ static void dump_expr(tree_t t)
 
    case T_OPEN:
       syntax("#open");
+      break;
+
+   case T_BOX:
+      printf("<>");
       break;
 
    default:
@@ -1174,11 +1182,15 @@ static void dump_port(tree_t t, int indent)
    dump_address(t);
    const char *class = NULL, *dir = NULL;
    switch (tree_class(t)) {
-   case C_SIGNAL:   class = "signal";   break;
-   case C_VARIABLE: class = "variable"; break;
-   case C_DEFAULT:  class = "";         break;
-   case C_CONSTANT: class = "constant"; break;
-   case C_FILE:     class = "file";     break;
+   case C_SIGNAL:    class = "signal";    break;
+   case C_VARIABLE:  class = "variable";  break;
+   case C_DEFAULT:   class = "";          break;
+   case C_CONSTANT:  class = "constant";  break;
+   case C_FILE:      class = "file";      break;
+   case C_TYPE:      class = "type";      break;
+   case C_FUNCTION:  class = "function";  break;
+   case C_PROCEDURE: class = "procedure"; break;
+   case C_PACKAGE:   class = "package";   break;
    default:
       assert(false);
    }
@@ -1308,7 +1320,7 @@ static void dump_package(tree_t t, int indent)
 {
    dump_context(t, indent);
    syntax("#package %s #is\n", istr(tree_ident(t)));
-   if (tree_kind(t) == T_PACK_INST) {
+   if (tree_kind(t) == T_PACK_INST && tree_has_ref(t)) {
       tab(indent);
       syntax("  -- Instantiated from %s\n", istr(tree_ident(tree_ref(t))));
    }
@@ -1405,6 +1417,7 @@ void dump(tree_t t)
       dump_decl(t, 0);
       break;
    case T_PORT_DECL:
+   case T_GENERIC_DECL:
       dump_port(t, 0);
       printf("\n");
       break;

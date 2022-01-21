@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2020-2021  Nick Gasson
+//  Copyright (C) 2020-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -63,6 +63,7 @@ struct _spec {
 struct scope {
    scope_t       *parent;
    hash_t        *members;
+   hash_t        *gmap;
    spec_t        *specs;
    overload_t    *overload;
    ident_t        import;
@@ -292,7 +293,7 @@ static scope_t *scope_containing(nametab_t *tab, tree_t decl)
 static bool can_overload(tree_t t)
 {
    const tree_kind_t kind = tree_kind(t);
-   if (kind == T_ALIAS && tree_has_type(t)) {
+   if ((kind == T_ALIAS || kind == T_GENERIC_DECL) && tree_has_type(t)) {
       type_t type = tree_type(t);
       return type_is_subprogram(type) || type_is_none(type);
    }
@@ -352,6 +353,9 @@ void pop_scope(nametab_t *tab)
       free(it);
    }
 
+   if (tab->top_scope->gmap != NULL)
+      hash_free(tab->top_scope->gmap);
+
    free(tab->top_scope);
    tab->top_scope = tmp;
 }
@@ -359,6 +363,43 @@ void pop_scope(nametab_t *tab)
 void suppress_errors(nametab_t *tab)
 {
    tab->top_scope->suppress = true;
+}
+
+void map_generic_type(nametab_t *tab, type_t generic, type_t actual)
+{
+   assert(type_kind(generic) == T_GENERIC);
+
+   if (tab->top_scope->gmap == NULL)
+      tab->top_scope->gmap = hash_new(128, true);
+
+   hash_put(tab->top_scope->gmap, generic, actual);
+}
+
+void map_generic_package(nametab_t *tab, tree_t inst)
+{
+   assert(tree_kind(inst) == T_PACK_INST);
+
+   if (tab->top_scope->gmap == NULL)
+      tab->top_scope->gmap = hash_new(128, true);
+
+   tree_t pack = tree_ref(inst);
+
+   const int ndecls = tree_decls(pack);
+   for (int i = 0; i < ndecls; i++)
+      hash_put(tab->top_scope->gmap, tree_decl(pack, i), tree_decl(inst, i));
+}
+
+hash_t *get_generic_map(nametab_t *tab)
+{
+   return tab->top_scope->gmap;
+}
+
+type_t get_mapped_type(nametab_t *tab, type_t type)
+{
+   if (tab->top_scope->gmap != NULL)
+      return hash_get(tab->top_scope->gmap, type) ?: type;
+   else
+      return type;
 }
 
 static scope_t *chain_scope(nametab_t *tab, ident_t tag)
@@ -413,6 +454,11 @@ static tree_t scope_find_enclosing(scope_t *s, scope_kind_t what)
 void scope_set_prefix(nametab_t *tab, ident_t prefix)
 {
    tab->top_scope->prefix = ident_prefix(tab->top_scope->prefix, prefix, '.');
+}
+
+ident_t scope_prefix(nametab_t *tab)
+{
+   return tab->top_scope->prefix;
 }
 
 void scope_set_container(nametab_t *tab, tree_t container)
@@ -636,7 +682,8 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
    insert_name_at(s, name, decl);
 }
 
-void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind, ident_t ident)
+void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
+                 ident_t ident, int depth)
 {
    spec_t *s = xmalloc(sizeof(spec_t));
    s->next    = NULL;
@@ -645,8 +692,13 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind, ident_t ident)
    s->tree    = spec;
    s->matches = 0;
 
+   scope_t *scope;
+   for (scope = tab->top_scope; depth > 0; depth--, scope = scope->parent)
+      ;
+   assert(scope != NULL);
+
    spec_t **p;
-   for (p = &(tab->top_scope->specs); *p != NULL; p = &((*p)->next)) {
+   for (p = &(scope->specs); *p != NULL; p = &((*p)->next)) {
       if (kind == SPEC_EXACT && (*p)->ident == ident) {
          error_at(tree_loc(spec), "duplicate specification for instance %s",
                   istr(ident));
@@ -1034,8 +1086,10 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
       bool match = false;
       tree_t decl = NULL;
       while (!match && (decl = iter_name(&iter)) && decl != (tree_t)-1) {
-         if (is_subprogram(decl))
-            match = type_eq(constraint, tree_type(decl));
+         if (is_subprogram(decl)) {
+            type_t signature = tree_type(decl);
+            match = type_eq_map(constraint, signature, tab->top_scope->gmap);
+         }
          else if (allow_enum && tree_kind(decl) == T_ENUM_LIT)
             match = type_eq(type_result(constraint), tree_type(decl));
       }
@@ -1139,6 +1193,15 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
    tree_t unit = tree_ref(use);
    ident_t unit_name = tree_ident(use);
 
+   if (tree_kind(unit) == T_GENERIC_DECL) {
+      assert(tree_class(unit) == C_PACKAGE);
+
+      if ((unit = lib_get_qualified(type_ident(tree_type(unit)))) == NULL)
+         return;
+
+      assert(is_uninstantiated_package(unit));
+   }
+
    const bool lib_import = tree_kind(unit) == T_LIBRARY;
 
    if (lib_import) {
@@ -1166,10 +1229,18 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
       ident_t what = tree_ident2(use);
       scope_t *s = chain_scope(tab, tag);
       if (what == well_known(W_ALL)) {
-         int ndecls = tree_decls(unit);
+         const int ndecls = tree_decls(unit);
          for (int i = 0; i < ndecls; i++) {
             tree_t d = tree_decl(unit, i);
             insert_name_at(s, tree_ident(d), d);
+         }
+
+         if (standard() >= STD_08) {
+            const int ngenerics = tree_generics(unit);
+            for (int i = 0; i < ngenerics; i++) {
+               tree_t g = tree_generic(unit, i);
+               insert_name_at(s, tree_ident(g), g);
+            }
          }
       }
       else {
@@ -1213,9 +1284,20 @@ void insert_ports(nametab_t *tab, tree_t container)
 
 void insert_generics(nametab_t *tab, tree_t container)
 {
+   const bool have_type_generics = standard() >= STD_08;
+
    const int ngenerics = tree_generics(container);
-   for (int i = 0; i < ngenerics; i++)
-      insert_name(tab, tree_generic(container, i), NULL, 0);
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t g = tree_generic(container, i);
+      if (have_type_generics && tree_class(g) == C_TYPE) {
+         // Type generics are inserted eagerly
+         ident_t id = tree_ident(g);
+         if (scope_find(tab->top_scope, id, tab->top_scope, NULL, 0) == g)
+            continue;
+      }
+
+      insert_name(tab, g, NULL, 0);
+   }
 }
 
 void insert_names_from_context(nametab_t *tab, tree_t unit)
@@ -1936,6 +2018,27 @@ static void overload_restrict_argument(overload_t *o, tree_t p,
    }
 }
 
+void map_generic_box(nametab_t *tab, tree_t inst, tree_t g)
+{
+   // Find the actual for the <> "box" default generic subprogram
+
+   assert(tree_kind(g) == T_GENERIC_DECL);
+   type_t type = tree_type(g);
+
+   tree_t ref = tree_new(T_REF);
+   tree_set_loc(ref, tree_loc(inst));
+   tree_set_ident(ref, type_ident(type));
+   tree_set_type(ref, solve_types(tab, ref, type));
+
+   tree_t map = tree_new(T_PARAM);
+   tree_set_loc(ref, tree_loc(inst));
+   tree_set_subkind(map,  P_NAMED);
+   tree_set_name(map, make_ref(g));
+   tree_set_value(map, ref);
+
+   tree_add_genmap(inst, map);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Scope checks
 //
@@ -2428,8 +2531,8 @@ static type_t solve_ref(nametab_t *tab, tree_t ref)
    if (decl == NULL)
       tree_set_type(ref, (type = type_new(T_NONE)));
    else if (!class_has_type(class_of(decl))) {
-      error_at(tree_loc(ref), "invalid use of %s %s", class_str(class_of(decl)),
-               istr(tree_ident(ref)));
+      error_at(tree_loc(ref), "invalid use of %s %s",
+               class_str(class_of(decl)), istr(tree_ident(ref)));
       tree_set_ref(ref, NULL);
       tree_set_type(ref, (type = type_new(T_NONE)));
    }
@@ -3022,6 +3125,8 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_all(tab, expr);
    case T_RANGE:
       return solve_range(tab, expr);
+   case T_TYPE_REF:
+      return tree_type(expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }

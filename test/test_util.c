@@ -138,10 +138,10 @@ tree_t run_elab(void)
       bounds_check(t);
       fail_if(error_count() > 0);
 
-      const tree_kind_t kind = tree_kind(t);
-      if ((kind == T_PACKAGE && !package_needs_body(t)) || kind == T_PACK_BODY)
+      if (unit_needs_cgen(t))
          lower_unit(t, NULL);
 
+      const tree_kind_t kind = tree_kind(t);
       if (kind == T_ENTITY || kind == T_CONFIGURATION)
          last_ent = t;
    }

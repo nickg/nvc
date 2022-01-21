@@ -2747,6 +2747,7 @@ vcode_unit_t emit_package(ident_t name, const loc_t *loc, vcode_unit_t context)
    vu->kind     = VCODE_UNIT_PACKAGE;
    vu->name     = name;
    vu->context  = context;
+   vu->depth    = vcode_unit_calc_depth(vu);
    vu->result   = VCODE_INVALID_TYPE;
    vu->loc      = *loc;
 

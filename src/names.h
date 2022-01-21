@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2020-2021  Nick Gasson
+//  Copyright (C) 2020-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -50,12 +50,19 @@ void push_scope(nametab_t *tab);
 void pop_scope(nametab_t *tab);
 void scope_set_formal_kind(nametab_t *tab, tree_t formal, formal_kind_t kind);
 void scope_set_prefix(nametab_t *tab, ident_t prefix);
+ident_t scope_prefix(nametab_t *tab);
 formal_kind_t scope_formal_kind(nametab_t *tab);
 void scope_set_container(nametab_t *tab, tree_t container);
 void scope_set_subprogram(nametab_t *tab, tree_t subprog);
 tree_t find_enclosing(nametab_t *tab, scope_kind_t kind);
 bool name_is_formal(nametab_t *tab, ident_t id);
 void suppress_errors(nametab_t *tab);
+
+void map_generic_type(nametab_t *tab, type_t generic, type_t actual);
+void map_generic_package(nametab_t *tab, tree_t inst);
+void map_generic_box(nametab_t *tab, tree_t inst, tree_t g);
+hash_t *get_generic_map(nametab_t *tab);
+type_t get_mapped_type(nametab_t *tab, type_t type);
 
 void mangle_func(nametab_t *tab, tree_t decl);
 void mangle_type(nametab_t *tab, type_t type);
@@ -70,7 +77,8 @@ void insert_ports(nametab_t *tab, tree_t container);
 void insert_generics(nametab_t *tab, tree_t container);
 void insert_protected_decls(nametab_t *tab, type_t type);
 void insert_names_for_config(nametab_t *tab, tree_t unit);
-void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind, ident_t ident);
+void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
+                 ident_t ident, int depth);
 
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name);
 type_t resolve_type(nametab_t *tab, type_t incomplete);

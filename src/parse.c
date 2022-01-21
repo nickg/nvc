@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "hash.h"
 #include "loc.h"
 #include "names.h"
 #include "opt.h"
@@ -66,6 +67,7 @@ typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
 typedef struct {
+   ident_t     prefix;
    tree_list_t copied_subs;
    type_list_t copied_types;
 } package_copy_ctx_t;
@@ -157,6 +159,9 @@ static tree_t p_resolution_indication(void);
 static tree_t p_type_conversion(tree_t tdecl);
 static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0);
 static void p_generic_map_aspect(tree_t inst, tree_t unit);
+static ident_t p_designator(void);
+static void p_interface_list(class_t class, tree_t parent, tree_kind_t kind);
+static type_t p_subtype_indication(void);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -1596,25 +1601,11 @@ static tree_t aliased_type_decl(tree_t decl) {
    case T_TYPE_DECL:
    case T_SUBTYPE_DECL:
       return decl;
-   default:
-      return NULL;
-   }
-}
-
-static type_t positional_actual_type(tree_t unit, unsigned pos,
-                                     formal_kind_t kind)
-{
-   switch (kind) {
-   case F_GENERIC_MAP:
-      if (unit == NULL || pos >= tree_generics(unit))
-         return NULL;
+   case T_GENERIC_DECL:
+      if (tree_class(decl) == C_TYPE)
+         return decl;
       else
-         return tree_type(tree_generic(unit, pos));
-   case F_PORT_MAP:
-      if (unit == NULL || pos >= tree_ports(unit))
          return NULL;
-      else
-         return tree_type(tree_port(unit, pos));
    default:
       return NULL;
    }
@@ -1869,17 +1860,33 @@ static tree_t fcall_to_conv_func(tree_t value)
    return conv;
 }
 
-static bool package_should_copy(tree_t t, void *__ctx)
+static bool package_should_copy_type(type_t type, void *__ctx)
 {
+   return type_kind(type) == T_GENERIC;
+}
+
+static bool package_should_copy_tree(tree_t t, void *__ctx)
+{
+   package_copy_ctx_t *ctx = __ctx;
+
    switch (tree_kind(t)) {
    case T_FUNC_DECL:
    case T_FUNC_BODY:
    case T_PROC_DECL:
    case T_PROC_BODY:
-      return !!(tree_flags(t) & TREE_F_ELAB_COPY);
+      return (tree_flags(t) & TREE_F_ELAB_COPY)
+         && tree_has_ident2(t)
+         && ident_starts_with(tree_ident2(t), ctx->prefix);
    case T_FCALL:
       // Globally static expressions should be copied and folded
-      return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC);
+      if (!!(tree_flags(t) & TREE_F_GLOBALLY_STATIC))
+         return true;
+      // Fall-through
+   case T_PROT_FCALL:
+   case T_PROT_PCALL:
+   case T_PCALL:
+      if (tree_flags(tree_ref(t)) & TREE_F_ELAB_COPY)
+         return true;
    case T_REF:
       {
          tree_t decl = tree_ref(t);
@@ -1916,21 +1923,27 @@ static void package_type_copy_cb(type_t type, void *__ctx)
 
 static void instantiate_package(tree_t new, tree_t pack, tree_t body)
 {
-   package_copy_ctx_t copy_ctx = {};
+   package_copy_ctx_t copy_ctx = {
+      .prefix = tree_ident(pack)
+   };
 
    tree_t pack_copy = NULL, body_copy = NULL;
    if (body == NULL)
-      pack_copy = tree_copy(pack, package_should_copy, package_tree_copy_cb,
-                            package_type_copy_cb, &copy_ctx);
+      pack_copy = tree_copy(pack, package_should_copy_tree,
+                            package_should_copy_type,
+                            package_tree_copy_cb, package_type_copy_cb,
+                            &copy_ctx);
    else {
       assert(tree_primary(body) == pack);
-      body_copy = tree_copy(body, package_should_copy, package_tree_copy_cb,
-                            package_type_copy_cb, &copy_ctx);
+      body_copy = tree_copy(body, package_should_copy_tree,
+                            package_should_copy_type,
+                            package_tree_copy_cb, package_type_copy_cb,
+                            &copy_ctx);
       pack_copy = tree_primary(body_copy);
    }
 
-   ident_t prefixes[] = { tree_ident(pack) };
-   ident_t dotted = ident_prefix(lib_name(lib_work()), tree_ident(new), '.');
+   ident_t prefixes[] = { copy_ctx.prefix };
+   ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
 
    // Change the name of any copied types to reflect the new hiearchy
    for (unsigned i = 0; i < copy_ctx.copied_types.count; i++) {
@@ -1943,6 +1956,7 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
             tb_cat(tb, istr(orig) + ident_len(prefixes[j]));
 
             type_set_ident(type, ident_new(tb_get(tb)));
+            break;
          }
       }
    }
@@ -1952,6 +1966,9 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
    // different instances do not collide
    for (unsigned i = 0; i < copy_ctx.copied_subs.count; i++) {
       tree_t decl = copy_ctx.copied_subs.items[i];
+      if (tree_kind(decl) == T_GENERIC_DECL)
+         continue;   // Does not yet have mangled name
+
       ident_t orig = tree_ident2(decl);
       for (unsigned j = 0; j < ARRAY_LEN(prefixes); j++) {
          if (ident_starts_with(orig, prefixes[j])) {
@@ -1981,6 +1998,7 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
                mangle_one_type(tb, type_result(tree_type(decl)));
 
             tree_set_ident2(decl, ident_new(tb_get(tb)));
+            break;
          }
       }
    }
@@ -2006,6 +2024,39 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
       for (int i = 0; i < ndecls; i++)
          tree_add_decl(new, tree_decl(body_copy, i));
    }
+}
+
+static type_t rewrite_generic_types_cb(type_t type, void *__ctx)
+{
+   hash_t *map = __ctx;
+
+   if (type_kind(type) == T_GENERIC)
+      return hash_get(map, type) ?: type;
+   else
+      return type;
+}
+
+static tree_t rewrite_generic_refs_cb(tree_t t, void *__ctx)
+{
+   hash_t *map = __ctx;
+
+   switch (tree_kind(t)) {
+   case T_FCALL:
+   case T_PCALL:
+   case T_PROT_FCALL:
+   case T_PROT_PCALL:
+      {
+         tree_t new = hash_get(map, tree_ref(t));
+         if (new != NULL)
+            tree_set_ref(t, new);
+      }
+      break;
+
+   default:
+      break;
+   }
+
+   return t;
 }
 
 static void add_interface(tree_t container, tree_t decl, tree_kind_t kind)
@@ -2269,7 +2320,9 @@ static void p_use_clause(tree_t unit, add_func_t addf)
             // Library declaration had an error
          }
          else if (kind == T_LIBRARY || kind == T_PACKAGE
-                  || kind == T_PACK_INST) {
+                  || kind == T_PACK_INST
+                  || (kind == T_GENERIC_DECL
+                      && tree_class(head) == C_PACKAGE)) {
             tree_set_ref(u, head);
             insert_names_from_use(nametab, u);
          }
@@ -2568,7 +2621,7 @@ static tree_t p_formal_part(void)
    return name;
 }
 
-static tree_t p_actual_part(void)
+static tree_t p_actual_part(class_t class)
 {
    // actual_designator
    //   | name ( actual_designator )
@@ -2580,6 +2633,18 @@ static tree_t p_actual_part(void)
       tree_t t = tree_new(T_OPEN);
       tree_set_loc(t, CURRENT_LOC);
       return t;
+   }
+
+   if (class == C_FUNCTION || class == C_PROCEDURE || class == C_PACKAGE)
+      return p_name();
+   else if (class == C_TYPE) {
+      type_t type = p_subtype_indication();
+
+      tree_t ref = tree_new(T_TYPE_REF);
+      tree_set_ident(ref, type_ident(type));
+      tree_set_type(ref, type);
+      tree_set_loc(ref, CURRENT_LOC);
+      return ref;
    }
 
    // If the actual part takes either the second or third form above then the
@@ -2620,6 +2685,7 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
       .depth    = 0
    };
 
+   class_t class = C_DEFAULT;
    type_t type = NULL;
    if (look_for(&lookp)) {
       tree_set_subkind(p, P_NAMED);
@@ -2629,11 +2695,24 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
 
       tree_t name = p_formal_part();
 
-      if (kind == F_GENERIC_MAP || kind == F_PORT_MAP)
+      tree_t ref = NULL;
+      if (kind == F_GENERIC_MAP && tree_kind(name) == T_REF) {
+         ref = name;
+         if (tree_has_ref(name)) {
+            tree_t decl = tree_ref((ref = name));
+            if (tree_kind(decl) == T_GENERIC_DECL)
+               class = tree_class(decl);
+         }
+      }
+
+      if (class != C_PACKAGE && (kind == F_GENERIC_MAP || kind == F_PORT_MAP))
          type = solve_types(nametab, name, NULL);
 
       if (kind == F_PORT_MAP && tree_kind(name) == T_FCALL)
          name = fcall_to_conv_func(name);
+
+      if (class == C_DEFAULT && (ref = name_to_ref(name)))
+          class = class_of(ref);
 
       tree_set_name(p, name);
 
@@ -2644,13 +2723,39 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
    else {
       tree_set_subkind(p, P_POS);
       tree_set_pos(p, pos);
-      type = positional_actual_type(unit, pos, kind);
+
+      tree_t formal = NULL;
+      switch (kind) {
+      case F_GENERIC_MAP:
+         if (unit != NULL && pos < tree_generics(unit))
+            formal = tree_generic(unit, pos);
+         break;
+      case F_PORT_MAP:
+         if (unit != NULL && pos < tree_ports(unit))
+            formal = tree_port(unit, pos);
+         break;
+      default:
+         break;
+      }
+
+      if (formal != NULL) {
+         type = tree_type(formal);
+         class = tree_class(formal);
+      }
    }
 
-   tree_t value = p_actual_part();
+   tree_t value = p_actual_part(class);
 
-   if (kind == F_GENERIC_MAP || kind == F_PORT_MAP)
+   if (kind == F_PORT_MAP)
       solve_types(nametab, value, type);
+   else if (kind == F_GENERIC_MAP && class != C_PACKAGE) {
+      type_t value_type = solve_types(nametab, value, type);
+
+      // Make the mapped type available immediately as it may be used in
+      // later actuals
+      if (class == C_TYPE && type != NULL)
+         map_generic_type(nametab, type, value_type);
+   }
 
    if (kind == F_PORT_MAP && tree_kind(value) == T_FCALL)
       value = fcall_to_conv_func(value);
@@ -4073,11 +4178,253 @@ static void p_interface_file_declaration(tree_t parent, tree_kind_t kind)
    }
 }
 
+static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
+{
+   // 2008: type identifier
+
+   BEGIN("interface type declaration");
+
+   consume(tTYPE);
+
+   ident_t id = p_identifier();
+
+   require_std(STD_08, "interface type declarations");
+
+   type_t type = type_new(T_GENERIC);
+   type_set_ident(type, id);
+
+   tree_t d = tree_new(kind);
+   tree_set_ident(d, id);
+   tree_set_loc(d, CURRENT_LOC);
+   tree_set_type(d, type);
+   tree_set_class(d, C_TYPE);
+   tree_set_subkind(d, PORT_IN);
+
+   add_interface(parent, d, kind);
+   sem_check(d, nametab);
+
+   // LRM 08 section 6.5.3: the predefined equality and inequality
+   // operators are implicitly declared as formal generic subprograms
+   // immediately following the interface type declaration in the
+   // enclosing interface list
+
+   const char *predef[] = { "\"=\"", "\"/=\"" };
+
+   type_t std_bool = std_type(NULL, STD_BOOLEAN);
+
+   for (unsigned i = 0; i < ARRAY_LEN(predef); i++) {
+      ident_t id = ident_new(predef[i]);
+
+      type_t ftype = type_new(T_FUNC);
+      type_set_ident(ftype, id);
+      type_set_result(ftype, std_bool);
+      type_add_param(ftype, type);
+      type_add_param(ftype, type);
+
+      tree_t p = tree_new(T_GENERIC_DECL);
+      tree_set_class(p, C_FUNCTION);
+      tree_set_ident(p, id);
+      tree_set_type(p, ftype);
+      tree_set_subkind(p, PORT_IN);
+      tree_set_loc(p, CURRENT_LOC);
+
+      for (int j = 0; j < 2; j++) {
+         tree_t arg = tree_new(T_PORT_DECL);
+         tree_set_ident(arg, ident_new(j == 0 ? "L" : "R"));
+         tree_set_type(arg, type);
+         tree_set_subkind(arg, PORT_IN);
+         tree_set_class(arg, C_CONSTANT);
+         tree_set_loc(arg, CURRENT_LOC);
+
+         tree_add_port(p, arg);
+      }
+
+      tree_t box = tree_new(T_BOX);
+      tree_set_loc(box, CURRENT_LOC);
+      tree_set_type(box, ftype);
+
+      tree_set_value(p, box);
+
+      add_interface(parent, p, kind);
+   }
+
+   // Type generics are immediately visible
+   insert_name(nametab, d, NULL, 0);
+}
+
+static tree_t p_interface_function_specification(void)
+{
+   // [ pure | impure ] function designator
+   //    [ [ parameter ] ( formal_parameter_list ) ] return type_mark
+
+   BEGIN("interface function specification");
+
+   consume(tFUNCTION);
+
+   ident_t id = p_designator();
+
+   type_t type = type_new(T_FUNC);
+   type_set_ident(type, id);
+
+   tree_t d = tree_new(T_GENERIC_DECL);
+   tree_set_class(d, C_FUNCTION);
+   tree_set_ident(d, id);
+   tree_set_type(d, type);
+   tree_set_subkind(d, PORT_IN);
+
+   if (optional(tLPAREN)) {
+      p_interface_list(C_CONSTANT, d, T_PORT_DECL);
+      consume(tRPAREN);
+
+      const int nports = tree_ports(d);
+      for (int i = 0; i < nports; i++)
+         type_add_param(type, tree_type(tree_port(d, i)));
+   }
+
+   consume(tRETURN);
+   type_set_result(type, p_type_mark(NULL));
+
+   tree_set_loc(d, CURRENT_LOC);
+   return d;
+}
+
+static tree_t p_interface_procedure_specification(void)
+{
+   // procedure designator [ [ parameter ] ( formal_parameter_list ) ]
+
+   BEGIN("interface procedure specification");
+
+   consume(tPROCEDURE);
+
+   ident_t id = p_designator();
+
+   type_t type = type_new(T_PROC);
+   type_set_ident(type, id);
+
+   tree_t d = tree_new(T_GENERIC_DECL);
+   tree_set_class(d, C_PROCEDURE);
+   tree_set_ident(d, id);
+   tree_set_type(d, type);
+   tree_set_subkind(d, PORT_IN);
+
+   if (optional(tLPAREN)) {
+      p_interface_list(C_CONSTANT, d, T_PORT_DECL);
+      consume(tRPAREN);
+
+      const int nports = tree_ports(d);
+      for (int i = 0; i < nports; i++)
+         type_add_param(type, tree_type(tree_port(d, i)));
+   }
+
+   tree_set_loc(d, CURRENT_LOC);
+   return d;
+}
+
+static void p_interface_subprogram_declaration(tree_t parent, tree_kind_t kind)
+{
+   // interface_subprogram_specification [ is interface_subprogram_default ]
+
+   BEGIN("interface subprogram declaration");
+
+   tree_t d = NULL;
+
+   require_std(STD_08, "interface subprogram declarations");
+
+   switch (peek()) {
+   case tFUNCTION:
+   case tPURE:
+   case tIMPURE:
+      d = p_interface_function_specification();
+      break;
+
+   case tPROCEDURE:
+      d = p_interface_procedure_specification();
+      break;
+
+   default:
+      one_of(tFUNCTION, tPROCEDURE, tPURE, tIMPURE);
+      return;
+   }
+
+   if (optional(tIS)) {
+      switch (peek()) {
+      case tID:
+         p_identifier();
+         break;
+      case tBOX:
+         {
+            consume(tBOX);
+
+            tree_t box = tree_new(T_BOX);
+            tree_set_loc(box, CURRENT_LOC);
+            tree_set_type(box, tree_type(d));
+
+            tree_set_value(d, box);
+         }
+         break;
+      default:
+         expect(tID, tBOX);
+      }
+   }
+
+   add_interface(parent, d, kind);
+   sem_check(d, nametab);
+}
+
+static void p_interface_package_generic_map_aspect(type_t type)
+{
+   // generic_map_aspect | generic map ( <> ) | generic map ( default )
+
+   BEGIN("interface generic map aspect");
+
+   // TODO: only the second form is supported
+
+   consume(tGENERIC);
+   consume(tMAP);
+   consume(tLPAREN);
+   consume(tBOX);
+   consume(tRPAREN);
+}
+
+static void p_interface_package_declaration(tree_t parent, tree_kind_t kind)
+{
+   // package identifier is new uninstantiated_package_name
+   //    interface_package_generic_map_aspect
+
+   BEGIN("interface package declaration");
+
+   consume(tPACKAGE);
+
+   require_std(STD_08, "interface package declarations");
+
+   tree_t d = tree_new(T_GENERIC_DECL);
+   tree_set_class(d, C_PACKAGE);
+   tree_set_ident(d, p_identifier());
+   tree_set_subkind(d, PORT_IN);
+
+   consume(tIS);
+   consume(tNEW);
+
+   type_t type = type_new(T_GENERIC);
+   type_set_ident(type, p_selected_identifier());
+
+   p_interface_package_generic_map_aspect(type);
+
+   tree_set_type(d, type);
+   tree_set_loc(d, CURRENT_LOC);
+
+   add_interface(parent, d, kind);
+   sem_check(d, nametab);
+}
+
 static void p_interface_declaration(class_t def_class, tree_t parent,
                                     tree_kind_t kind)
 {
    // interface_constant_declaration | interface_signal_declaration
    //   | interface_variable_declaration | interface_file_declaration
+   //   | 2008: interface_type_declaration
+   //   | 2008: interface_subprogram_declaration
+   //   | 2008: interface_package_declaration
 
    BEGIN("interface declaration");
 
@@ -4099,6 +4446,19 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
       p_interface_file_declaration(parent, kind);
       break;
 
+   case tTYPE:
+      p_interface_type_declaration(parent, kind);
+      break;
+
+   case tFUNCTION:
+   case tPROCEDURE:
+      p_interface_subprogram_declaration(parent, kind);
+      break;
+
+   case tPACKAGE:
+      p_interface_package_declaration(parent, kind);
+      break;
+
    case tID:
       {
          switch (def_class) {
@@ -4117,7 +4477,7 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
       break;
 
    default:
-      expect(tCONSTANT, tSIGNAL, tVARIABLE, tFILE, tID);
+      expect(tCONSTANT, tSIGNAL, tVARIABLE, tFILE, tID, tTYPE);
    }
 }
 
@@ -5740,11 +6100,15 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
       assert(tree_kind(unit) == T_DESIGN_UNIT);
       tree_change_kind(unit, T_PACK_INST);
       new = unit;
-   }
-   else
-      new = tree_new(T_PACK_INST);
 
-   tree_set_ident(new, id);
+      ident_t qual = ident_prefix(lib_name(lib_work()), id, '.');
+      tree_set_ident(new, qual);
+   }
+   else {
+      new = tree_new(T_PACK_INST);
+      tree_set_ident(new, id);
+   }
+
    tree_set_ref(new, pack);
 
    tree_t body = NULL;
@@ -5769,6 +6133,12 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
    insert_name(nametab, new, NULL, 0);
 
    sem_check(new, nametab);
+
+   hash_t *map = get_generic_map(nametab);
+   if (map != NULL)
+      tree_rewrite(new, NULL, rewrite_generic_refs_cb,
+                   rewrite_generic_types_cb, map);
+
    return new;
 }
 
@@ -6284,6 +6654,8 @@ static void p_entity_declaration(tree_t unit)
 
    tree_set_loc(unit, CURRENT_LOC);
    sem_check(unit, nametab);
+
+   tree_set_ident(unit, qual);
 }
 
 static tree_t p_component_declaration(void)
@@ -6489,6 +6861,8 @@ static void p_package_declaration(tree_t unit)
 
    tree_set_loc(unit, CURRENT_LOC);
    sem_check(unit, nametab);
+
+   tree_set_ident(unit, qual);
 }
 
 static ident_list_t *p_instantiation_list(void)
@@ -6614,7 +6988,6 @@ static tree_t p_binding_indication(tree_t comp)
    else
       bind = tree_new(T_BINDING);
 
-   push_scope(nametab);
    if (comp) {
       insert_generics(nametab, comp);
       insert_ports(nametab, comp);
@@ -6633,7 +7006,6 @@ static tree_t p_binding_indication(tree_t comp)
    if (bind != NULL)
       tree_set_loc(bind, CURRENT_LOC);
 
-   pop_scope(nametab);
    return bind;
 }
 
@@ -6654,6 +7026,8 @@ static void p_configuration_specification(tree_t parent)
       comp = NULL;
    }
 
+   push_scope(nametab);
+
    tree_t bind = p_binding_indication(comp);
    consume(tSEMI);
 
@@ -6672,7 +7046,7 @@ static void p_configuration_specification(tree_t parent)
             it->ident == well_known(W_ALL) ? SPEC_ALL : SPEC_EXACT;
 
          tree_add_decl(parent, t);
-         insert_spec(nametab, t, kind, it->ident);
+         insert_spec(nametab, t, kind, it->ident, 1);
          sem_check(t, nametab);
       }
    }
@@ -6685,9 +7059,11 @@ static void p_configuration_specification(tree_t parent)
       tree_set_ref(t, comp);
 
       tree_add_decl(parent, t);
-      insert_spec(nametab, t, SPEC_OTHERS, NULL);
+      insert_spec(nametab, t, SPEC_OTHERS, NULL, 1);
       sem_check(t, nametab);
    }
+
+   pop_scope(nametab);
 }
 
 static void p_configuration_declarative_part(tree_t unit)
@@ -6735,6 +7111,8 @@ static void p_component_configuration(tree_t unit)
       comp = NULL;
    }
 
+   push_scope(nametab);
+
    // TODO: should be optional
    tree_t bind = p_binding_indication(comp);
    consume(tSEMI);
@@ -6762,7 +7140,7 @@ static void p_component_configuration(tree_t unit)
 
          tree_add_decl(unit, t);
          sem_check(t, nametab);
-         insert_spec(nametab, t, kind, it->ident);
+         insert_spec(nametab, t, kind, it->ident, 1);
       }
    }
    else {
@@ -6776,8 +7154,10 @@ static void p_component_configuration(tree_t unit)
 
       tree_add_decl(unit, t);
       sem_check(t, nametab);
-      insert_spec(nametab, t, SPEC_OTHERS, NULL);
+      insert_spec(nametab, t, SPEC_OTHERS, NULL, 1);
    }
+
+   pop_scope(nametab);
 
    consume(tEND);
    consume(tFOR);
@@ -6922,25 +7302,27 @@ static void p_configuration_declaration(tree_t unit)
    consume(tCONFIGURATION);
 
    tree_change_kind(unit, T_CONFIGURATION);
-   tree_set_ident(unit, p_identifier());
+
+   ident_t id = p_identifier();
+   tree_set_ident(unit, id);
 
    push_scope(nametab);
 
    consume(tOF);
 
-   ident_t id = p_identifier();
-   ident_t qual = ident_prefix(lib_name(lib_work()), id, '.');
+   ident_t ename = p_identifier();
+   ident_t qual = ident_prefix(lib_name(lib_work()), ename, '.');
    tree_set_ident2(unit, qual);
 
    tree_t of = find_unit(CURRENT_LOC, qual, "entity");
    if (of != NULL && tree_kind(of) != T_ENTITY) {
       parse_error(CURRENT_LOC, "%s does not name an entity in library %s",
-                  istr(id), istr(lib_name(lib_work())));
+                  istr(ename), istr(lib_name(lib_work())));
       of = NULL;
    }
    else if (of != NULL) {
       tree_set_primary(unit, of);
-      insert_name(nametab, of, id, 0);
+      insert_name(nametab, of, ename, 0);
       insert_decls(nametab, of);
    }
 
@@ -6953,13 +7335,15 @@ static void p_configuration_declaration(tree_t unit)
 
    consume(tEND);
    optional(tCONFIGURATION);
-   p_trailing_label(tree_ident(unit));
+   p_trailing_label(id);
    consume(tSEMI);
 
    pop_scope(nametab);
 
    tree_set_loc(unit, CURRENT_LOC);
    sem_check(unit, nametab);
+
+   tree_set_ident(unit, ident_prefix(lib_name(lib_work()), id, '.'));
 }
 
 static void p_context_declaration(tree_t unit)
@@ -6972,7 +7356,9 @@ static void p_context_declaration(tree_t unit)
    consume(tCONTEXT);
 
    tree_change_kind(unit, T_CONTEXT);
-   tree_set_ident(unit, p_identifier());
+
+   ident_t id = p_identifier();
+   tree_set_ident(unit, ident_prefix(lib_name(lib_work()), id, '.'));
 
    consume(tIS);
 
@@ -6985,7 +7371,7 @@ static void p_context_declaration(tree_t unit)
 
    consume(tEND);
    optional(tCONTEXT);
-   p_trailing_label(tree_ident(unit));
+   p_trailing_label(id);
    consume(tSEMI);
 
    tree_set_loc(unit, CURRENT_LOC);
@@ -7984,6 +8370,12 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
 
    tree_t entity = ref ? primary_unit_of(ref) : NULL;
 
+   tree_t spec = query_spec(nametab, t);
+   if (spec != NULL)
+      tree_set_spec(t, spec);
+
+   push_scope(nametab);
+
    if (peek() == tGENERIC)
       p_generic_map_aspect(t, entity);
 
@@ -7998,13 +8390,11 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
       parse_error(CURRENT_LOC, "component instantiation statement must "
                   "have a label");
    else
-      insert_name(nametab, t, NULL, 0);
-
-   tree_t spec = query_spec(nametab, t);
-   if (spec != NULL)
-      tree_set_spec(t, spec);
+      insert_name(nametab, t, NULL, 1);
 
    sem_check(t, nametab);
+   pop_scope(nametab);
+
    return t;
 }
 
@@ -8532,17 +8922,21 @@ static void p_architecture_body(tree_t unit)
    tree_change_kind(unit, T_ARCH);
 
    consume(tARCHITECTURE);
+
    ident_t arch_name = p_identifier();
    tree_set_ident(unit, arch_name);
+
    consume(tOF);
+
    ident_t entity_name = p_identifier();
    tree_set_ident2(unit, entity_name);
+
    consume(tIS);
 
    push_scope(nametab);
 
-   ident_t qual = ident_prefix(lib_name(lib_work()), entity_name, '.');
-   tree_t e = find_unit(CURRENT_LOC, qual, "entity");
+   ident_t ename = ident_prefix(lib_name(lib_work()), entity_name, '.');
+   tree_t e = find_unit(CURRENT_LOC, ename, "entity");
    if (e != NULL && tree_kind(e) == T_ENTITY) {
       tree_set_primary(unit, e);
 
@@ -8552,11 +8946,12 @@ static void p_architecture_body(tree_t unit)
          insert_name(nametab, e, entity_name, 0);
    }
    else if (e != NULL) {
-      parse_error(CURRENT_LOC, "unit %s is not an entity", istr(qual));
+      parse_error(CURRENT_LOC, "unit %s is not an entity", istr(ename));
       e = NULL;
    }
 
-   scope_set_prefix(nametab, ident_prefix(qual, arch_name, '-'));
+   ident_t qual = ident_prefix(ename, arch_name, '-');
+   scope_set_prefix(nametab, qual);
 
    insert_name(nametab, unit, NULL, 0);
 
@@ -8576,16 +8971,15 @@ static void p_architecture_body(tree_t unit)
 
    consume(tEND);
    optional(tARCHITECTURE);
-   p_trailing_label(tree_ident(unit));
+   p_trailing_label(arch_name);
    consume(tSEMI);
 
    tree_set_loc(unit, CURRENT_LOC);
 
-   // Prefix the architecture with the entity name
-   tree_set_ident(unit, ident_prefix(tree_ident2(unit),
-                                     tree_ident(unit), '-'));
-
    sem_check(unit, nametab);
+
+   // Set the architecture name to the fully qualified identifier
+   tree_set_ident(unit, qual);
 
    pop_scope(nametab);
    pop_scope(nametab);
@@ -8695,7 +9089,6 @@ static void p_package_body(tree_t unit)
    ident_t name = p_identifier();
 
    tree_change_kind(unit, T_PACK_BODY);
-   tree_set_ident(unit, ident_prefix(name, ident_new("body"), '-'));
 
    push_scope(nametab);
 
@@ -8709,6 +9102,8 @@ static void p_package_body(tree_t unit)
       tree_set_primary(unit, pack);
       insert_names_from_context(nametab, pack);
    }
+
+   tree_set_ident(unit, ident_prefix(qual, ident_new("body"), '-'));
 
    scope_set_prefix(nametab, qual);
    insert_name(nametab, unit, name, 0);
@@ -8944,9 +9339,6 @@ tree_t parse(void)
    if (tree_kind(unit) == T_DESIGN_UNIT)
       return NULL;
 
-   ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(unit), '.');
-   tree_set_ident(unit, qual);
    lib_put(lib_work(), unit);
-
    return unit;
 }

@@ -31,10 +31,10 @@ end package body;
 
 -------------------------------------------------------------------------------
 
-entity pack1 is
+entity genpack1 is
 end entity;
 
-architecture test of pack1 is
+architecture test of genpack1 is
     package myfixed_2_4 is new work.myfixed generic map (2, 4);
     use myfixed_2_4.all;
 
@@ -49,6 +49,8 @@ begin
         v := "110000";
         v := v + d;
         assert v = "110000";
+        assert whole = 2;
+        assert frac = 4;
         wait;
     end process;
 

@@ -7562,6 +7562,9 @@ static void lower_generics(tree_t block)
       tree_t m = tree_genmap(block, i);
       assert(tree_subkind(m) == P_POS);
 
+      if (tree_class(g) != C_CONSTANT)
+         continue;   // Skip type generics, etc.
+
       type_t type = tree_type(g);
 
       vcode_type_t vtype = lower_type(type);

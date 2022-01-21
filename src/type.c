@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -70,14 +70,17 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT),
 
    // T_PROTECTED
-   (I_IDENT | I_DECLS)
+   (I_IDENT | I_DECLS),
+
+   // T_GENERIC
+   (I_IDENT),
 };
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
-   "T_SUBTYPE",    "T_INTEGER",  "T_REAL",       "T_ENUM",
-   "T_PHYSICAL",   "T_UARRAY",   "T_RECORD",     "T_FILE",
-   "T_ACCESS",     "T_FUNC",     "T_INCOMPLETE", "T_PROC",
-   "T_NONE",       "T_PROTECTED"
+   "T_SUBTYPE",    "T_INTEGER",   "T_REAL",       "T_ENUM",
+   "T_PHYSICAL",   "T_UARRAY",    "T_RECORD",     "T_FILE",
+   "T_ACCESS",     "T_FUNC",      "T_INCOMPLETE", "T_PROC",
+   "T_NONE",       "T_PROTECTED", "T_GENERIC",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -134,7 +137,7 @@ type_kind_t type_kind(type_t t)
    return t->object.kind;
 }
 
-static bool _type_eq(type_t a, type_t b, bool strict)
+static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
 {
    assert(a != NULL);
    assert(b != NULL);
@@ -144,6 +147,21 @@ static bool _type_eq(type_t a, type_t b, bool strict)
 
    type_kind_t kind_a = a->object.kind;
    type_kind_t kind_b = b->object.kind;
+
+   if (map != NULL) {
+      if (kind_a == T_GENERIC) {
+         a = hash_get(map, a) ?: a;
+         kind_a = a->object.kind;
+      }
+
+      if (kind_b == T_GENERIC) {
+         b = hash_get(map, b) ?: b;
+         kind_b = b->object.kind;
+      }
+
+      if (a == b)
+         return true;
+   }
 
    if (!strict) {
       // Subtypes are convertible to the base type
@@ -156,31 +174,33 @@ static bool _type_eq(type_t a, type_t b, bool strict)
          return true;
    }
 
-   ident_t ai = lookup_item(&type_object, a, I_IDENT)->ident;
-   ident_t bi = lookup_item(&type_object, b, I_IDENT)->ident;
+   const imask_t has = has_map[a->object.kind];
 
-   if (ai != bi)
-      return false;
+   if (!(has & I_PTYPES)) {
+      ident_t ai = lookup_item(&type_object, a, I_IDENT)->ident;
+      ident_t bi = lookup_item(&type_object, b, I_IDENT)->ident;
+
+      if (ai != bi)
+         return false;
+   }
 
    if (kind_a == T_INCOMPLETE || kind_b == T_INCOMPLETE)
       return true;
-
-   const imask_t has = has_map[a->object.kind];
 
    if (kind_a != kind_b)
       return false;
 
    if (has & I_ELEM)
-      return _type_eq(type_elem(a), type_elem(b), strict);
+      return _type_eq(type_elem(a), type_elem(b), strict, map);
 
    if (kind_a == T_ACCESS)
-      return _type_eq(type_access(a), type_access(b), strict);
+      return _type_eq(type_access(a), type_access(b), strict, map);
 
    if ((has & I_DIMS) && (type_dims(a) != type_dims(b)))
       return false;
 
-   if (type_kind(a) == T_FUNC) {
-      if (!_type_eq(type_result(a), type_result(b), strict))
+   if (kind_a == T_FUNC) {
+      if (!_type_eq(type_result(a), type_result(b), strict, map))
          return false;
    }
 
@@ -191,7 +211,7 @@ static bool _type_eq(type_t a, type_t b, bool strict)
          return false;
 
       for (int i = 0; i < nparams; i++) {
-         if (!_type_eq(type_param(a, i), type_param(b, i), strict))
+         if (!_type_eq(type_param(a, i), type_param(b, i), strict, map))
              return false;
       }
    }
@@ -201,12 +221,17 @@ static bool _type_eq(type_t a, type_t b, bool strict)
 
 bool type_strict_eq(type_t a, type_t b)
 {
-   return _type_eq(a, b, true);
+   return _type_eq(a, b, true, NULL);
 }
 
 bool type_eq(type_t a, type_t b)
 {
-   return _type_eq(a, b, false);
+   return _type_eq(a, b, false, NULL);
+}
+
+bool type_eq_map(type_t a, type_t b, hash_t *map)
+{
+   return _type_eq(a, b, false, map);
 }
 
 ident_t type_ident(type_t t)

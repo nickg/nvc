@@ -256,8 +256,27 @@ static vcode_unit_t simp_lower_cb(ident_t func, void *__ctx)
    return lower_thunk(decl);
 }
 
+static void simp_generic_subprogram(tree_t t, simp_ctx_t *ctx)
+{
+   tree_t decl = tree_ref(t);
+   if (tree_kind(decl) == T_GENERIC_DECL) {
+      tree_t map = hash_get(ctx->generics, tree_ref(t));
+      if (map == NULL)
+         return;
+
+      if (tree_kind(map) == T_REF)
+         map = tree_ref(map);
+
+      assert(is_subprogram(map));
+      tree_set_ref(t, map);
+   }
+}
+
 static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 {
+   if (standard() >= STD_08 && ctx->generics != NULL)
+      simp_generic_subprogram(t, ctx);
+
    t = simp_call_args(t);
 
    if (tree_flags(t) & ctx->eval_mask)
@@ -271,8 +290,11 @@ static tree_t simp_type_conv(tree_t t, simp_ctx_t *ctx)
    return simp_fold(t, ctx);
 }
 
-static tree_t simp_pcall(tree_t t)
+static tree_t simp_pcall(tree_t t, simp_ctx_t *ctx)
 {
+   if (standard() >= STD_08 && ctx->generics != NULL)
+      simp_generic_subprogram(t, ctx);
+
    return simp_call_args(t);
 }
 
@@ -357,6 +379,7 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
                // Fall-through
             case T_ATTR_REF:
             case T_REF:
+            case T_TYPE_REF:
                // Do not rewrite references to non-references if they appear
                // as formal names
                if (tree_flags(t) & TREE_F_FORMAL_NAME)
@@ -1557,15 +1580,13 @@ static void simp_generic_map(tree_t t, tree_t unit)
       }
 
       if (value == NULL) {
-         if (kind == T_BINDING) {
+         if (kind == T_BINDING || !tree_has_value(g)) {
             value = tree_new(T_OPEN);
             tree_set_loc(value, tree_loc(t));
             tree_set_type(value, tree_type(g));
          }
-         else if (tree_has_value(g))
-            value = tree_value(g);
          else
-            fatal_trace("missing value for generic %s", istr(ident));
+            value = tree_value(g);
       }
 
       APUSH(values, value);
@@ -1622,7 +1643,7 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_fcall(t, ctx);
    case T_PCALL:
    case T_PROT_PCALL:
-      return simp_pcall(t);
+      return simp_pcall(t, ctx);
    case T_REF:
       return simp_ref(t, ctx);
    case T_IF:
@@ -1691,6 +1712,22 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    default:
       return t;
    }
+}
+
+static type_t simp_type(type_t type, void *__ctx)
+{
+   simp_ctx_t *ctx = __ctx;
+
+   // Replace generic types with the concrete type from the generic map
+
+   if (type_kind(type) != T_GENERIC)
+      return type;
+
+   type_t map = NULL;
+   if (ctx->generics != NULL)
+      map = hash_get(ctx->generics, type);
+
+   return map ?: type;
 }
 
 static void simp_generics(tree_t t, simp_ctx_t *ctx)
@@ -1762,7 +1799,7 @@ void simplify_local(tree_t top)
       .eval_mask   = TREE_F_LOCALLY_STATIC,
    };
 
-   tree_rewrite(top, simp_pre_cb, simp_tree, &ctx);
+   tree_rewrite(top, simp_pre_cb, simp_tree, NULL, &ctx);
 
    exec_free(ctx.exec);
 
@@ -1785,7 +1822,11 @@ void simplify_global(tree_t top, hash_t *generics, hash_t *subprograms)
 
    exec_set_lower_fn(ctx.exec, simp_lower_cb, &ctx);
 
-   tree_rewrite(top, simp_pre_cb, simp_tree, &ctx);
+   type_rewrite_post_fn_t type_cb = NULL;
+   if (standard() >= STD_08)
+      type_cb = simp_type;
+
+   tree_rewrite(top, simp_pre_cb, simp_tree, type_cb, &ctx);
 
    exec_free(ctx.exec);
 

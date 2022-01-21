@@ -171,7 +171,7 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
    return arch;
 }
 
-static bool elab_should_copy(tree_t t, void *__ctx)
+static bool elab_should_copy_tree(tree_t t, void *__ctx)
 {
    switch (tree_kind(t)) {
    case T_INSTANCE:
@@ -209,6 +209,11 @@ static bool elab_should_copy(tree_t t, void *__ctx)
    }
 }
 
+static bool elab_should_copy_type(type_t type, void *__ctx)
+{
+   return type_kind(type) == T_GENERIC;
+}
+
 static void elab_tree_copy_cb(tree_t t, void *__ctx)
 {
    elab_copy_ctx_t *ctx = __ctx;
@@ -229,8 +234,12 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
 {
    elab_copy_ctx_t copy_ctx = {};
 
-   tree_t copy = tree_copy(t, elab_should_copy, elab_tree_copy_cb,
-                           elab_type_copy_cb, &copy_ctx);
+   type_copy_pred_t type_pred = NULL;
+   if (standard() >= STD_08)
+      type_pred = elab_should_copy_type;
+
+   tree_t copy = tree_copy(t, elab_should_copy_tree, type_pred,
+                           elab_tree_copy_cb, elab_type_copy_cb, &copy_ctx);
 
    // Change the name of any copied types to reflect the new hiearchy
    for (unsigned i = 0; i < copy_ctx.copied_types.count; i++) {
@@ -253,6 +262,9 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
    // different instances do not collide
    for (unsigned i = 0; i < copy_ctx.copied_subs.count; i++) {
       tree_t decl = copy_ctx.copied_subs.items[i];
+      if (tree_kind(decl) == T_GENERIC_DECL)
+         continue;   // Does not yet have mangled name
+
       ident_t orig = tree_ident2(decl);
       for (unsigned j = 0; j < ARRAY_LEN(ctx->prefix); j++) {
          if (ident_starts_with(orig, ctx->prefix[j])) {
@@ -833,6 +845,9 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       tree_t value = tree_value(map);
       hash_put(ctx->generics, eg, value);
       if (eg != cg) hash_put(ctx->generics, cg, value);
+
+      if (tree_class(eg) == C_TYPE)
+         hash_put(ctx->generics, tree_type(eg), tree_type(value));
    }
 }
 
@@ -1027,7 +1042,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       tree_add_genmap(b, map);
 
       tree_t pair[] = { genvar, g };
-      tree_t copy = tree_copy(t, elab_copy_genvar_cb,
+      tree_t copy = tree_copy(t, elab_copy_genvar_cb, NULL,
                               elab_rewrite_genvar_cb, NULL, pair);
 
       ident_t npath = hpathf(ctx->path, '\0', "(%"PRIi64")", i);

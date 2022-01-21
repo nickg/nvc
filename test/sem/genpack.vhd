@@ -52,3 +52,43 @@ architecture test of ent is
 begin
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+package myfloat is
+    generic ( package fixed_pkg is new work.myfixed generic map (<>) );  --  OK
+end package;
+
+package body myfloat is
+    use fixed_pkg.all;                  -- OK
+    constant k : natural := whole;      -- OK
+
+    function add(a, b : fixed_t) return fixed_t is
+    begin
+        return a + b;                   -- OK
+    end function;
+
+end package body;
+
+-------------------------------------------------------------------------------
+
+package bad is
+    generic ( package bad_std is new std.standard generic map (<>) );  -- Error
+end package;
+
+-------------------------------------------------------------------------------
+
+architecture test2 of ent is
+    package p1 is new work.myfloat
+                      generic map ( fixed_pkg => work.myfixed_4_8 );  -- OK
+
+    package p2 is new work.myfloat
+                      generic map ( fixed_pkg => p1 );  -- Error
+
+    package p3 is new work.myfloat
+                      generic map ( fixed_pkg => std.standard );  -- Error
+
+    package p4 is new work.bad
+          generic map ( bad_std => work.myfixed_4_8 );  -- Error
+begin
+end architecture;
