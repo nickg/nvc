@@ -614,8 +614,14 @@ tree_t tree_genmap(tree_t t, unsigned n)
 
 void tree_add_genmap(tree_t t, tree_t e)
 {
-   tree_assert_expr(tree_value(e));
    tree_array_add(lookup_item(&tree_object, t, I_GENMAPS), e);
+}
+
+void tree_trim_genmaps(tree_t t, unsigned n)
+{
+   item_t *item = lookup_item(&tree_object, t, I_GENMAPS);
+   assert(n < item->obj_array.count);
+   ATRIM(item->obj_array, n);
 }
 
 int64_t tree_ival(tree_t t)

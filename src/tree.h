@@ -369,6 +369,7 @@ void tree_add_generic(tree_t t, tree_t d);
 unsigned tree_genmaps(tree_t t);
 tree_t tree_genmap(tree_t t, unsigned n);
 void tree_add_genmap(tree_t t, tree_t e);
+void tree_trim_genmaps(tree_t t, unsigned n);
 
 unsigned tree_params(tree_t t);
 tree_t tree_param(tree_t t, unsigned n);

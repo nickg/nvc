@@ -23,6 +23,7 @@
 #include "hash.h"
 #include "vcode.h"
 #include "type.h"
+#include "array.h"
 
 #include <assert.h>
 #include <string.h>
@@ -1479,7 +1480,7 @@ static void simp_port_map(tree_t t, simp_ctx_t *ctx)
    }
 }
 
-static tree_t simp_generic_map(tree_t t, tree_t unit)
+static void simp_generic_map(tree_t t, tree_t unit)
 {
    switch (tree_kind(unit)) {
    case T_CONFIGURATION:
@@ -1500,55 +1501,11 @@ static tree_t simp_generic_map(tree_t t, tree_t unit)
    }
 
    if (last_pos == ngenmaps && ngenmaps == ngenerics)
-      return t;
+      return;
 
    const tree_kind_t kind = tree_kind(t);
-   tree_t new = tree_new(kind);
-   tree_set_loc(new, tree_loc(t));
-   tree_set_ident(new, tree_ident(t));
 
-   for (int i = 0; i < last_pos; i++)
-      tree_add_genmap(new, tree_genmap(t, i));
-
-   const int nparams = tree_params(t);
-   for (int i = 0; i < nparams; i++)
-      tree_add_param(new, tree_param(t, i));
-
-   switch (kind) {
-   case T_INSTANCE:
-      if (tree_has_spec(t))
-         tree_set_spec(new, tree_spec(t));
-      // Fall-through
-   case T_BINDING:
-      tree_set_ref(new, tree_ref(t));
-      tree_set_class(new, tree_class(t));
-      if (tree_has_ident2(t))
-         tree_set_ident2(new, tree_ident2(t));
-      break;
-
-   case T_BLOCK:
-      {
-         const int nports = tree_ports(t);
-         for (int j = 0; j < nports; j++)
-            tree_add_port(new, tree_port(t, j));
-
-         for (int j = 0; j < ngenerics; j++)
-            tree_add_generic(new, tree_generic(t, j));
-
-         const int ndecls = tree_decls(t);
-         for (int j = 0; j < ndecls; j++)
-            tree_add_decl(new, tree_decl(t, j));
-
-         const int nstmts = tree_stmts(t);
-         for (int j = 0; j < nstmts; j++)
-            tree_add_stmt(new, tree_stmt(t, j));
-      }
-      break;
-
-   default:
-      fatal_trace("cannot clone tree kind %s in simp_generic_map",
-                  tree_kind_str(kind));
-   }
+   SCOPED_A(tree_t) values = AINIT;
 
    for (int i = last_pos; i < ngenerics; i++) {
       tree_t g = tree_generic(unit, i), value = NULL;
@@ -1611,16 +1568,28 @@ static tree_t simp_generic_map(tree_t t, tree_t unit)
       else if (value == NULL)
          fatal_trace("missing value for generic %s", istr(ident));
 
-      tree_t m = tree_new(T_PARAM);
-      tree_set_loc(m, tree_loc(value));
-      tree_set_subkind(m, P_POS);
-      tree_set_pos(m, i);
-      tree_set_value(m, value);
-
-      tree_add_genmap(new, m);
+      APUSH(values, value);
    }
 
-   return new;
+   for (int i = 0; i < values.count; i++) {
+      tree_t m;
+      if (last_pos + i < ngenmaps) {
+         m = tree_genmap(t, last_pos + i);
+         assert(tree_subkind(m) == P_NAMED);
+      }
+      else {
+         m = tree_new(T_PARAM);
+         tree_add_genmap(t, m);
+      }
+
+      tree_set_subkind(m, P_POS);
+      tree_set_pos(m, last_pos + i);
+      tree_set_value(m, values.items[i]);
+      tree_set_loc(m, tree_loc(values.items[i]));
+   }
+
+   if (last_pos + values.count < ngenmaps)
+      tree_trim_genmaps(t, last_pos + values.count);
 }
 
 static void simp_add_implicit_signals(tree_t t, simp_ctx_t *ctx)
@@ -1701,10 +1670,12 @@ static tree_t simp_tree(tree_t t, void *_ctx)
          simp_port_map(t, ctx);
       // Fall-through
    case T_BINDING:
-      return simp_generic_map(t, tree_ref(t));
+      simp_generic_map(t, tree_ref(t));
+      return t;
    case T_BLOCK:
       simp_add_implicit_signals(t, ctx);
-      return simp_generic_map(t, t);
+      simp_generic_map(t, t);
+      return t;
    case T_ARCH:
       simp_add_implicit_signals(t, ctx);
       return t;
