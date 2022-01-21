@@ -3525,34 +3525,28 @@ static bool sem_check_map(tree_t t, tree_t unit,
    if (tree_kind(t) == T_BINDING)
       return ok;
 
-   const tree_kind_t kind = tree_kind(unit);
-   if (kind != T_COMPONENT) {
-      // Component and configuration instantiations must be checked at
-      // elaboration time
+   for (int i = 0; i < nformals; i++) {
+      if (!formals[i].have) {
+         port_mode_t mode = tree_subkind(formals[i].decl);
 
-      for (int i = 0; i < nformals; i++) {
-         if (!formals[i].have) {
-            port_mode_t mode = tree_subkind(formals[i].decl);
-
-            if (mode == PORT_IN && !tree_has_value(formals[i].decl)) {
-               if (what == MAP_GENERIC) {
-                  error_at(tree_loc(t), "missing actual for generic %s "
-                           "without a default expression",
-                           istr(tree_ident(formals[i].decl)));
-               }
-               else {
-                  error_at(tree_loc(t), "missing actual for port %s of "
-                           "mode IN without a default expression",
-                           istr(tree_ident(formals[i].decl)));
-               }
-            }
-
-            type_t ftype = tree_type(formals[i].decl);
-            if (mode != PORT_IN && type_is_unconstrained(ftype)) {
-               error_at(tree_loc(t), "missing actual for port %s with "
-                        "unconstrained array type",
+         if (mode == PORT_IN && !tree_has_value(formals[i].decl)) {
+            if (what == MAP_GENERIC) {
+               error_at(tree_loc(t), "missing actual for generic %s "
+                        "without a default expression",
                         istr(tree_ident(formals[i].decl)));
             }
+            else {
+               error_at(tree_loc(t), "missing actual for port %s of "
+                        "mode IN without a default expression",
+                        istr(tree_ident(formals[i].decl)));
+            }
+         }
+
+         type_t ftype = tree_type(formals[i].decl);
+         if (mode != PORT_IN && type_is_unconstrained(ftype)) {
+            error_at(tree_loc(t), "missing actual for port %s with "
+                     "unconstrained array type",
+                     istr(tree_ident(formals[i].decl)));
          }
       }
    }

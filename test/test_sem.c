@@ -120,6 +120,7 @@ START_TEST(test_ports)
       { 363, "associated with port I of mode IN must be a globally static" },
       { 367, "actual associated with port I of mode IN must be a globally " },
       { 375, "invalid output conversion \"not\"" },
+      { 373, "missing actual for port I of mode IN without a default " },
       { -1, NULL }
    };
    expect_errors(expect);
