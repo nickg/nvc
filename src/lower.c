@@ -2776,7 +2776,9 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
 static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
 {
    tree_t value = tree_value(expr);
-   type_t value_type = tree_type(value);
+   assert(tree_kind(value) == T_QUALIFIED);
+
+   type_t value_type = tree_type(tree_value(value));
 
    if (type_is_array(value_type)) {
       vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);

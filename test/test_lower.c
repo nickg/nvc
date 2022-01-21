@@ -4309,6 +4309,42 @@ START_TEST(test_nullarray)
 }
 END_TEST
 
+START_TEST(test_osvvm2)
+{
+   input_from_file(TESTDIR "/lower/osvvm2.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.OSVVM2.TEST(7NATURAL)");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_SUB },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_COPY },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_STORE, .name = "FIELDNAME" },
+      { VCODE_OP_TEMP_STACK_RESTORE },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(2);
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4404,6 +4440,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_array2);
    tcase_add_test(tc, test_concat);
    tcase_add_test(tc, test_nullarray);
+   tcase_add_test(tc, test_osvvm2);
    suite_add_tcase(s, tc);
 
    return s;
