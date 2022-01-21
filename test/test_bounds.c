@@ -1,7 +1,25 @@
+//
+//  Copyright (C) 2013-2022  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
 #include "type.h"
 #include "util.h"
 #include "phase.h"
 #include "test_util.h"
+#include "common.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -382,6 +400,22 @@ START_TEST(test_aggregate)
 }
 END_TEST
 
+START_TEST(test_osvvm1)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/bounds/osvvm1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, -1);
+   bounds_check(p);
+
+   tree_t b = parse_check_and_simplify(T_PACK_BODY);
+   fail_unless(error_count() == 0);
+
+   bounds_check(b);
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -403,6 +437,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_issue98);
    tcase_add_test(tc_core, test_tc1147);
    tcase_add_test(tc_core, test_aggregate);
+   tcase_add_test(tc_core, test_osvvm1);
    suite_add_tcase(s, tc_core);
 
    return s;

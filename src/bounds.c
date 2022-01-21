@@ -528,6 +528,9 @@ static void bounds_free_intervals(interval_t **list)
 
 static void bounds_check_aggregate(tree_t t)
 {
+   if (!tree_has_type(t))
+      return;   // VHDL-2008 aggregate resolution in subtype declaration
+
    type_t type = tree_type(t);
    if (!type_is_array(type))
       return;
@@ -1180,7 +1183,7 @@ static void bounds_check_block(tree_t t)
    }
 }
 
-static void bounds_visit_fn(tree_t t, void *context)
+static tree_t bounds_visit_fn(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
    case T_PCALL:
@@ -1229,9 +1232,11 @@ static void bounds_visit_fn(tree_t t, void *context)
    default:
       break;
    }
+
+   return t;
 }
 
 void bounds_check(tree_t top)
 {
-   tree_visit(top, bounds_visit_fn, NULL);
+   tree_rewrite(top, NULL, bounds_visit_fn, NULL);
 }
