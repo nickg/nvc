@@ -33,7 +33,7 @@
 
 static tree_t    fst_top;
 static void     *fst_ctx;
-static uint64_t  last_time;
+static uint64_t  last_time = UINT64_MAX;
 static FILE     *vcdfile;
 static char     *tmpfst;
 
@@ -353,6 +353,8 @@ static void fst_process_signal(tree_t d, e_node_t e)
    data->decl   = d;
    data->signal = rt_find_signal(e);
    data->watch  = rt_set_event_cb(data->signal, fst_event_cb, data, true);
+
+   fst_event_cb(0, data->signal, data->watch, data);
 }
 
 static void fst_process_hier(tree_t h, tree_t block)
@@ -429,11 +431,11 @@ void fst_restart(void)
    if (fst_ctx == NULL)
       return;
 
+   last_time = UINT64_MAX;
+
    e_node_t e_root = lib_get_eopt(lib_work(), fst_top);
    fst_walk_design(tree_stmt(fst_top, 0),
                    e_scope(e_root, e_scopes(e_root) - 1));
-
-   last_time = UINT64_MAX;
 }
 
 void fst_init(const char *file, tree_t top, fst_output_t output)

@@ -6,7 +6,7 @@ use ieee.std_logic_1164.all;
 
 architecture test of wave1 is
     signal x : std_logic;
-    signal y : std_logic_vector(1 to 3);
+    signal y : std_logic_vector(1 to 3) := "ZZZ";
 begin
 
     main: process is
