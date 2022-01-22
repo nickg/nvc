@@ -61,6 +61,7 @@ struct fst_data {
    tree_t        decl;
    rt_signal_t  *signal;
    range_kind_t  dir;
+   unsigned      offset;
    unsigned      size;
    unsigned      count;
    fstHandle     handle[];
@@ -113,7 +114,7 @@ static void fst_close(void)
 static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_expand(data->signal, &val, 1);
+   rt_signal_expand(data->signal, data->offset, &val, 1);
 
    char buf[data->size + 1];
    for (size_t i = 0; i < data->size; i++)
@@ -126,7 +127,7 @@ static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_expand(data->signal, &val, 1);
+   rt_signal_expand(data->signal, data->offset, &val, 1);
 
    fst_unit_t *unit = data->type.units;
    while ((val % unit->mult) != 0)
@@ -142,7 +143,7 @@ static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
 
 static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
 {
-   const uint8_t *p = rt_signal_value(data->signal);
+   const uint8_t *p = rt_signal_value(data->signal, data->offset);
    for (int i = 0; i < data->count; i++, p += data->size) {
       if (likely(data->type.map != NULL)) {
          char buf[data->size];
@@ -159,7 +160,7 @@ static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
 static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_expand(data->signal, &val, 1);
+   rt_signal_expand(data->signal, data->offset, &val, 1);
 
    tree_t lit = type_enum_literal(tree_type(data->decl), val);
    const char *str = istr(tree_ident(lit));
@@ -233,7 +234,8 @@ static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
       return false;
 }
 
-static void fst_create_array_var(tree_t d, e_node_t e, type_t type)
+static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
+                                 unsigned offset)
 {
    fst_data_t *data = NULL;
 
@@ -300,7 +302,7 @@ static void fst_create_array_var(tree_t d, e_node_t e, type_t type)
 
       for (int i = 0; i < length; i++) {
          LOCAL_TEXT_BUF tb = tb_new();
-         ident_str(e_ident(e), tb);
+         ident_str(tree_ident(d), tb);
          tb_printf(tb, "[%"PRIi64"][%d:%d]", low + i, msb, lsb);
 
          data->handle[i] = fstWriterCreateVar2(
@@ -341,7 +343,7 @@ static void fst_create_array_var(tree_t d, e_node_t e, type_t type)
       const int lsb = assume_int(tree_right(r));
 
       LOCAL_TEXT_BUF tb = tb_new();
-      ident_str(e_ident(e), tb);
+      ident_str(tree_ident(d), tb);
       tb_printf(tb, "[%d:%d]", msb, lsb);
 
       data->handle[0] = fstWriterCreateVar2(
@@ -358,13 +360,15 @@ static void fst_create_array_var(tree_t d, e_node_t e, type_t type)
    }
 
    data->decl   = d;
-   data->signal = rt_find_signal(e);
+   data->signal = s;
    data->watch  = rt_set_event_cb(data->signal, fst_event_cb, data, true);
+   data->offset = offset;
 
    fst_event_cb(0, data->signal, data->watch, data);
 }
 
-static void fst_create_scalar_var(tree_t d, e_node_t e, type_t type)
+static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type,
+                                  unsigned offset)
 {
    type_t base = type_base_recur(type);
 
@@ -445,17 +449,41 @@ static void fst_create_scalar_var(tree_t d, e_node_t e, type_t type)
       vt,
       dir,
       data->size,
-      istr(e_ident(e)),
+      istr(tree_ident(d)),
       0,
       type_pp(type),
       FST_SVT_VHDL_SIGNAL,
       sdt);
 
    data->decl   = d;
-   data->signal = rt_find_signal(e);
+   data->signal = s;
    data->watch  = rt_set_event_cb(data->signal, fst_event_cb, data, true);
+   data->offset = offset;
 
    fst_event_cb(0, data->signal, data->watch, data);
+}
+
+static void fst_create_record_var(tree_t d, rt_signal_t *s, type_t type,
+                                  unsigned offset)
+{
+   fstWriterSetScope(fst_ctx, FST_ST_VHDL_RECORD, istr(tree_ident(d)), NULL);
+
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      tree_t f = type_field(type, i);
+      type_t ftype = tree_type(f);
+
+      if (type_is_array(ftype))
+         fst_create_array_var(f, s, ftype, offset);
+      else if (type_is_record(ftype))
+         fst_create_record_var(f, s, ftype, offset);
+      else
+         fst_create_scalar_var(f, s, ftype, offset);
+
+      offset += type_width(ftype);
+   }
+
+   fstWriterSetUpscope(fst_ctx);
 }
 
 static void fst_process_signal(tree_t d, e_node_t e)
@@ -463,11 +491,14 @@ static void fst_process_signal(tree_t d, e_node_t e)
    assert(tree_ident(d) == e_ident(e));
 
    type_t type = tree_type(d);
+   rt_signal_t *s = rt_find_signal(e);
 
    if (type_is_array(type))
-      fst_create_array_var(d, e, type);
+      fst_create_array_var(d, s, type, 0);
+   else if (type_is_record(type))
+      fst_create_record_var(d, s, type, 0);
    else
-      fst_create_scalar_var(d, e, type);
+      fst_create_scalar_var(d, s, type, 0);
 }
 
 static void fst_process_hier(tree_t h, tree_t block)

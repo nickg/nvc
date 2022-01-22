@@ -3414,11 +3414,15 @@ size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
    return offset + 1;
 }
 
-size_t rt_signal_expand(rt_signal_t *s, uint64_t *buf, size_t max)
+size_t rt_signal_expand(rt_signal_t *s, int offset, uint64_t *buf, size_t max)
 {
-   int offset = 0;
-   for (unsigned i = 0; i < s->n_nexus && offset < max; i++) {
-      rt_nexus_t *n = s->nexus[i];
+   int index = 0;
+   while (offset > 0)
+      offset -= s->nexus[index++]->width;
+   assert(offset == 0);
+
+   for (; index < s->n_nexus && offset < max; index++) {
+      rt_nexus_t *n = s->nexus[index];
 
 #define SIGNAL_READ_EXPAND_U64(type) do {                               \
          const type *sp = (type *)n->resolved;                          \
@@ -3434,9 +3438,18 @@ size_t rt_signal_expand(rt_signal_t *s, uint64_t *buf, size_t max)
    return offset;
 }
 
-const void *rt_signal_value(rt_signal_t *s)
+const void *rt_signal_value(rt_signal_t *s, int offset)
 {
-   return s->shared.resolved;
+   int index = 0;
+   const uint8_t *ptr = s->shared.resolved;
+   while (offset > 0) {
+      rt_nexus_t *n = s->nexus[index++];
+      ptr += n->width * n->size;
+      offset -= n->width;
+   }
+   assert(offset == 0);
+
+   return ptr;
 }
 
 rt_signal_t *rt_find_signal(e_node_t esignal)

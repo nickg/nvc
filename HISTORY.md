@@ -74,6 +74,7 @@
 - Nested arrays can now be included in the waveform dump but only if the
   `--dump-arrays` option is passed. This is disabled my default due the
   significant performance and memory overhead.
+- Added support for record types in waveform dump (#216).
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed
