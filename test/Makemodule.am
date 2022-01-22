@@ -2,7 +2,7 @@ TESTS = \
 	bin/unit_test \
 	bin/run_regr    # Must always be last
 
-check_PROGRAMS += $(TESTS)
+check_PROGRAMS += $(TESTS) bin/fstdump
 
 bin_unit_test_SOURCES = \
 	test/test_util.c \
@@ -27,6 +27,10 @@ bin_unit_test_LDADD = lib/libnvc.a lib/librt.a lib/libfastlz.a \
 	$(check_LIBS) $(POW_LIB) $(libdw_LIBS) lib/libjson.a
 
 bin_run_regr_SOURCES = test/run_regr.c
+
+bin_fstdump_SOURCES = test/fstdump.c
+
+bin_fstdump_LDADD = lib/libfst.a lib/libfastlz.a
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \

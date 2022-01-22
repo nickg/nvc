@@ -19,6 +19,7 @@ noinst_LIBRARIES =
 include_HEADERS =
 check_PROGRAMS =
 check_LIBRARIES =
+noinst_PROGRAMS =
 pkgdata_DATA =
 CLEANFILES =
 BOOTSTRAPLIBS =
