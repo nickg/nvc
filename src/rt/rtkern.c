@@ -722,7 +722,6 @@ void _disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
       RT_ASSERT(index < s->n_nexus);
       rt_nexus_t *n = s->nexus[index++];
       count -= n->width;
-      RT_ASSERT(len >= 0);
 
       rt_sched_driver(n, after, reject, NULL);
       n->flags |= NET_F_DISCONNECTED;
@@ -1847,7 +1846,6 @@ static void rt_sched_event(sens_list_t **list, rt_wakeable_t *obj, bool recur)
    }
    else {
       // Reuse the stale entry
-      RT_ASSERT(!is_static);
       it->wakeup_gen = obj->wakeup_gen;
    }
 }
@@ -2788,7 +2786,7 @@ static void rt_update_implicit_signal(rt_implicit_t *imp)
    TRACE("implicit signal %s guard expression %d",
          istr(e_path(imp->signal.enode)), r);
 
-   RT_ASSERT(imp->signal.nnexus == 1);
+   RT_ASSERT(imp->signal.n_nexus == 1);
    rt_nexus_t *n0 = imp->signal.nexus[0];
 
    // Implicit signals have no sources
@@ -3386,16 +3384,6 @@ void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user)
    global_cbs[event] = cb;
 }
 
-size_t rt_watch_value(rt_watch_t *w, uint64_t *buf, size_t max)
-{
-   return rt_signal_value(w->signal, buf, max);
-}
-
-size_t rt_watch_string(rt_watch_t *w, const char *map, char *buf, size_t max)
-{
-   return rt_signal_string(w->signal, map, buf, max);
-}
-
 size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
 {
    char *endp = buf + max;
@@ -3426,7 +3414,7 @@ size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
    return offset + 1;
 }
 
-size_t rt_signal_value(rt_signal_t *s, uint64_t *buf, size_t max)
+size_t rt_signal_expand(rt_signal_t *s, uint64_t *buf, size_t max)
 {
    int offset = 0;
    for (unsigned i = 0; i < s->n_nexus && offset < max; i++) {
@@ -3444,6 +3432,11 @@ size_t rt_signal_value(rt_signal_t *s, uint64_t *buf, size_t max)
    }
 
    return offset;
+}
+
+const void *rt_signal_value(rt_signal_t *s)
+{
+   return s->shared.resolved;
 }
 
 rt_signal_t *rt_find_signal(e_node_t esignal)

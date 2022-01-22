@@ -70,9 +70,8 @@ void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user);
 rt_watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
                          bool postponed);
 void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user);
-size_t rt_watch_value(rt_watch_t *w, uint64_t *buf, size_t max);
-size_t rt_watch_string(rt_watch_t *w, const char *map, char *buf, size_t max);
-size_t rt_signal_value(rt_signal_t *s, uint64_t *buf, size_t max);
+size_t rt_signal_expand(rt_signal_t *s, uint64_t *buf, size_t max);
+const void *rt_signal_value(rt_signal_t *s);
 size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max);
 bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count,
                      bool propagate);

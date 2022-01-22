@@ -403,6 +403,7 @@ static int run(int argc, char **argv)
       { "ieee-warnings", required_argument, 0, 'I' },
       { "exclude",       required_argument, 0, 'e' },
       { "exit-severity", required_argument, 0, 'x' },
+      { "dump-arrays",   no_argument,       0, 'a' },
 #if ENABLE_VHPI
       { "load",          required_argument, 0, 'l' },
       { "vhpi-trace",    no_argument,       0, 'T' },
@@ -477,8 +478,11 @@ static int run(int argc, char **argv)
          rt_set_exit_severity(parse_severity(optarg));
          break;
       case 'I':
-        opt_set_int("ieee-warnings", parse_on_off(optarg));
-        break;
+         opt_set_int("ieee-warnings", parse_on_off(optarg));
+         break;
+      case 'a':
+         opt_set_int("dump-arrays", 1);
+         break;
       default:
          abort();
       }
@@ -730,6 +734,7 @@ static void set_default_opts(void)
    opt_set_int("error-limit", -1);
    opt_set_int("ieee-warnings", 1);
    opt_set_int("arena-size", 1 << 24);
+   opt_set_int("dump-arrays", 0);
 }
 
 static void usage(void)
@@ -772,6 +777,7 @@ static void usage(void)
           " -V, --verbose\t\tPrint resource usage at each step\n"
           "\n"
           "Run options:\n"
+          "     --dump-arrays\tInclude nested arrays in waveform dump\n"
           "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
           "     --exit-severity=S\tExit after assertion failure of severity S\n"
           "     --format=FMT\tWaveform format is either fst or vcd\n"

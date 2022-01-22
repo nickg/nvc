@@ -99,38 +99,9 @@ AC_SEARCH_LIBS([pow], [m], [], [
 
 AC_CHECK_LIB([z], [deflate], [], [AC_MSG_ERROR(zlib not found)])
 
-AC_ARG_ENABLE([fst_debug],
-  [AS_HELP_STRING([--enable-fst-debug],
-    [Enable FST debugging (for development only)])],
-  [enable_fst_debug=$enableval],
-  [enable_fst_debug=no])
-if test x$enable_fst_debug = xyes ; then
-  AC_DEFINE_UNQUOTED([FST_DEBUG], [1],
-    [Enable FST debugging (for development only)])
-fi
-
-AC_ARG_ENABLE([fst_glitch_removal],
-  [AS_HELP_STRING([--enable-fst-glitch-removal],
-    [Enable FST glitch removal (has performance impact)])],
-  [enable_fst_glitch_removal=$enableval],
-  [enable_fst_glitch_removal=no])
-if test x$enable_fst_glitch_removal = xyes ; then
-  AC_DEFINE_UNQUOTED([FST_REMOVE_DUPLICATE_VC], [1],
-    [Enable FST glitch removal (has performance impact)])
-fi
+AC_DEFINE_UNQUOTED([FST_REMOVE_DUPLICATE_VC], [1], [Enable FST glitch removal])
 
 AX_PTHREAD([], [AC_MSG_ERROR([pthread not found])])
-
-# thirdparty/fstapi.c can use Judy instead of builtin Jenkins if _WAVE_HAVE_JUDY is defined.
-AC_ARG_ENABLE([fst_judy],
-  [AS_HELP_STRING([--enable-fst-judy],
-    [Use Judy instead of builtin Jenkins for FST])],
-  [enable_fst_judy=$enableval],
-  [enable_fst_judy=no])
-if test x$enable_fst_judy = xyes ; then
-  AC_CHECK_LIB([Judy], [JudyHSIns], [], [AC_MSG_ERROR(Judy not found)])
-  AC_DEFINE_UNQUOTED([_WAVE_HAVE_JUDY], [1], [Internal definition of GTKWave for Judy])
-fi
 
 AX_LLVM_C([engine passes ipo linker native])
 

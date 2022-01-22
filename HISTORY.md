@@ -71,6 +71,9 @@
 - Added support for VHDL-2008 sequential conditional signal assignment
   statements.
 - Added basic support for package generics and package instantiation.
+- Nested arrays can now be included in the waveform dump but only if the
+  `--dump-arrays` option is passed. This is disabled my default due the
+  significant performance and memory overhead.
 
 ## 1.5 - 2020-07-19
 - IEEE library sources are now distributed

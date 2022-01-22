@@ -995,7 +995,7 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
          }
 
          uint64_t value;
-         rt_signal_value(vhpi_get_signal(handle), &value, 1);
+         rt_signal_expand(vhpi_get_signal(handle), &value, 1);
 
          const vhpiPhysT result = {
             .low  = value & 0xffffffff,
@@ -1148,7 +1148,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    }
    else if (type_is_scalar(type)) {
       uint64_t value;
-      rt_signal_value(vhpi_get_signal(expr), &value, 1);
+      rt_signal_expand(vhpi_get_signal(expr), &value, 1);
 
       switch (format) {
       case vhpiLogicVal:
@@ -1186,7 +1186,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
       const int max = value_p->bufSize / elemsz;
       uint64_t *values LOCAL = xmalloc_array(max, sizeof(uint64_t));
-      value_p->numElems = rt_signal_value(vhpi_get_signal(expr), values, max);
+      value_p->numElems = rt_signal_expand(vhpi_get_signal(expr), values, max);
 
       const int copy = MIN(value_p->numElems, max);
 

@@ -202,6 +202,11 @@ Prints resource usage information after each elaboration step.
 .\" ------------------------------------------------------------
 .Ss Runtime options
 .Bl -tag -width Ds
+.\" --dump-arrays
+.It Fl -dump-arrays
+Include memories and nested arrays in the waveform data.  This is
+disabled by default as it can have significant performance, memory, and
+disk space overhead.
 .\" --exit-severity
 .It Fl -exit-severity Ns = Ns Ar level
 Terminate the simulation after an assertion failures of severity greater

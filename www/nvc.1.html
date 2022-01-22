@@ -191,6 +191,10 @@
 <h2 class="Ss" id="Runtime_options"><a class="permalink" href="#Runtime_options">Runtime
   options</a></h2>
 <dl class="Bl-tag">
+  <dt id="dump-arrays"><a class="permalink" href="#dump-arrays"><code class="Fl">--dump-arrays</code></a></dt>
+  <dd>Include memories and nested arrays in the waveform data. This is disabled
+      by default as it can have significant performance, memory, and disk space
+      overhead.</dd>
   <dt id="exit-severity"><a class="permalink" href="#exit-severity"><code class="Fl">--exit-severity</code></a>=<var class="Ar">level</var></dt>
   <dd>Terminate the simulation after an assertion failures of severity greater
       than or equal to <var class="Ar">level</var>. Valid levels are
@@ -430,7 +434,7 @@ $ nvc -r --load my_plugin.so my_tb</pre>
 </div>
 <table class="foot">
   <tr>
-    <td class="foot-date">January 17, 2022</td>
+    <td class="foot-date">January 22, 2022</td>
     <td class="foot-os">Debian</td>
   </tr>
 </table>
