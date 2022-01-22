@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -94,7 +94,7 @@ void fst_restart(void);
 void wave_include_glob(const char *glob);
 void wave_exclude_glob(const char *glob);
 void wave_include_file(const char *base);
-bool wave_should_dump(tree_t decl);
+bool wave_should_dump(ident_t name);
 
 #ifdef ENABLE_VHPI
 void vhpi_load_plugins(tree_t top, const char *plugins);

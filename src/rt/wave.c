@@ -102,10 +102,8 @@ void wave_include_file(const char *base)
    wave_process_file(buf, false);
 }
 
-bool wave_should_dump(tree_t decl)
+bool wave_should_dump(ident_t name)
 {
-   ident_t name = tree_ident(decl);
-
    for (int i = 0; i < n_excl; i++) {
       if (ident_glob(name, excl[i].text, excl[i].len))
          return false;

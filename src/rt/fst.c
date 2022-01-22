@@ -393,7 +393,7 @@ static void fst_walk_design(tree_t block, e_node_t scope)
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(block, i);
       e_node_t e = e_signal(scope, nsignal++);
-      if (wave_should_dump(p))
+      if (wave_should_dump(e_path(e)))
          fst_process_signal(p, e);
    }
 
@@ -402,7 +402,7 @@ static void fst_walk_design(tree_t block, e_node_t scope)
       tree_t d = tree_decl(block, i);
       if (tree_kind(d) == T_SIGNAL_DECL) {
          e_node_t e = e_signal(scope, nsignal++);
-         if (wave_should_dump(d))
+         if (wave_should_dump(e_path(e)))
             fst_process_signal(d, e);
       }
    }
