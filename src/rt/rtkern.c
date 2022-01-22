@@ -473,6 +473,9 @@ static void rt_fmt_enclosing(text_buf_t *tb, tree_t enclosing,
       else
          tb_printf(tb, "\r\t%sType %s", prefix, istr(tree_ident(enclosing)));
       break;
+   case T_BLOCK:
+      tb_printf(tb, "\r\t%sProcess (init)", prefix);
+      break;
    default:
       tb_printf(tb, "\r\t%s%s", prefix, istr(tree_ident(enclosing)));
       break;
