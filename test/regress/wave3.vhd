@@ -29,7 +29,7 @@ end package;
 
 -------------------------------------------------------------------------------
 
-entity wave_test is
+entity wave3 is
 end entity;
 
 library ieee;
@@ -37,7 +37,7 @@ use ieee.std_logic_1164.all;
 
 use work.p.all;
 
-architecture test of wave_test is
+architecture test of wave3 is
     signal x : std_logic_vector(7 downto 0) := X"AA";
     signal y : std_logic_vector(7 downto 0);
     signal z : std_logic := 'U';

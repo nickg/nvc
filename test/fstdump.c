@@ -86,14 +86,12 @@ static void extractVarNames(void *xc)
          snum = fst_scope_name_len ? (intptr_t)fstReaderGetCurrentScopeUserInfo(xc) : 0;
          break;
       case FST_HT_VAR:
-         if(!h->u.var.is_alias)
-            {
-               scope_idx[h->u.var.handle] = snum;
-
-               s = fac_names[h->u.var.handle] = malloc(h->u.var.name_length + 1);
-               memcpy(s, h->u.var.name, h->u.var.name_length);
-               s[h->u.var.name_length] = '\0';
-            }
+         if (!h->u.var.is_alias) {
+            scope_idx[h->u.var.handle] = snum;
+            s = fac_names[h->u.var.handle] = malloc(h->u.var.name_length + 1);
+            memcpy(s, h->u.var.name, h->u.var.name_length);
+            s[h->u.var.name_length] = '\0';
+         }
       }
    }
 }
@@ -121,7 +119,7 @@ static void fst_callback2(void *ctx, uint64_t pnt_time, fstHandle pnt_facidx,
    char *fn;
    fn = get_facname(ctx, pnt_facidx);
 
-   printf("#%"PRIu64" %s %s\n", pnt_time, fn, pnt_value);
+   printf("#%"PRIu64" %s %.*s\n", pnt_time, fn, plen, pnt_value);
 }
 
 static void fst_callback(void *ctx, uint64_t pnt_time, fstHandle pnt_facidx,

@@ -480,3 +480,4 @@ pack1           normal,2008
 ieee7           normal,2008
 wave1           shell
 wave2           shell
+wave3           shell
