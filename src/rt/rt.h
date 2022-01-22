@@ -58,9 +58,9 @@ typedef enum {
 } rt_severity_t;
 
 typedef enum {
-   FST_OUTPUT_FST,
-   FST_OUTPUT_VCD
-} fst_output_t;
+   WAVE_OUTPUT_FST,
+   WAVE_OUTPUT_VCD
+} wave_output_t;
 
 void rt_start_of_tool(tree_t top, e_node_t e);
 void rt_end_of_tool(tree_t top, e_node_t e);
@@ -88,8 +88,8 @@ void *jit_find_symbol(const char *name, bool required);
 
 text_buf_t *pprint(tree_t t, const uint64_t *values, size_t len);
 
-void fst_init(const char *file, tree_t top, fst_output_t output);
-void fst_restart(void);
+void wave_init(const char *file, tree_t top, wave_output_t output);
+void wave_restart(void);
 
 void wave_include_glob(const char *glob);
 void wave_exclude_glob(const char *glob);

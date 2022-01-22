@@ -6,7 +6,6 @@ lib_librt_a_SOURCES = \
 	src/rt/heap.c \
 	src/rt/pprint.c \
 	src/rt/cover.c \
-	src/rt/fst.c \
 	src/rt/wave.c \
 	src/rt/rt.h \
 	src/rt/cover.h \

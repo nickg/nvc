@@ -3310,7 +3310,7 @@ void rt_run_sim(uint64_t stop_time)
 {
    const int stop_delta = opt_get_int("stop-delta");
 
-   fst_restart();
+   wave_restart();
 
    rt_global_event(RT_START_OF_SIMULATION);
    while (!rt_stop_now(stop_time))

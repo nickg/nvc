@@ -410,7 +410,7 @@ static int run(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
-   fst_output_t  wave_fmt = FST_OUTPUT_FST;
+   wave_output_t wave_fmt = WAVE_OUTPUT_FST;
    uint64_t      stop_time = UINT64_MAX;
    const char   *wave_fname = NULL;
    const char   *vhpi_plugins = NULL;
@@ -446,9 +446,9 @@ static int run(int argc, char **argv)
          break;
       case 'f':
          if (strcmp(optarg, "vcd") == 0)
-            wave_fmt = FST_OUTPUT_VCD;
+            wave_fmt = WAVE_OUTPUT_VCD;
          else if (strcmp(optarg, "fst") == 0)
-            wave_fmt = FST_OUTPUT_FST;
+            wave_fmt = WAVE_OUTPUT_FST;
          else
             fatal("invalid waveform format: %s", optarg);
          break;
@@ -505,7 +505,7 @@ static int run(int argc, char **argv)
       }
 
       wave_include_file(argv[optind]);
-      fst_init(wave_fname, top, wave_fmt);
+      wave_init(wave_fname, top, wave_fmt);
    }
 
    rt_start_of_tool(top, e);
