@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2013-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 #include "rt.h"
 #include "util.h"
 #include "tree.h"
+#include "array.h"
 
 #include <string.h>
 
@@ -26,37 +27,19 @@ typedef struct {
    size_t len;
 } glob_t;
 
-static int     n_incl = 0;
-static int     incl_sz = 0;
-static int     n_excl = 0;
-static int     excl_sz = 0;
-static glob_t *incl;
-static glob_t *excl;
+typedef A(glob_t) glob_array_t;
+
+static glob_array_t incl;
+static glob_array_t excl;
 
 void wave_include_glob(const char *glob)
 {
-   if (n_incl == incl_sz) {
-      incl_sz = MAX(incl_sz * 2, 256);
-      incl = xrealloc(incl, incl_sz * sizeof(glob_t));
-   }
-
-   incl[n_incl].text = strdup(glob);
-   incl[n_incl].len  = strlen(glob);
-
-   n_incl++;
+   APUSH(incl, ((glob_t){ .text = strdup(glob), .len = strlen(glob) }));
 }
 
 void wave_exclude_glob(const char *glob)
 {
-   if (n_excl == excl_sz) {
-      excl_sz = MAX(excl_sz * 2, 256);
-      excl = xrealloc(excl, excl_sz * sizeof(glob_t));
-   }
-
-   excl[n_excl].text = strdup(glob);
-   excl[n_excl].len  = strlen(glob);
-
-   n_excl++;
+   APUSH(excl, ((glob_t){ .text = strdup(glob), .len = strlen(glob) }));
 }
 
 static void wave_process_file(const char *fname, bool include)
@@ -93,26 +76,24 @@ static void wave_process_file(const char *fname, bool include)
 
 void wave_include_file(const char *base)
 {
-   char buf[256];
+   char *inclf LOCAL = xasprintf("%s.include", base);
+   wave_process_file(inclf, true);
 
-   checked_sprintf(buf, sizeof(buf), "%s.include", base);
-   wave_process_file(buf, true);
-
-   checked_sprintf(buf, sizeof(buf), "%s.exclude", base);
-   wave_process_file(buf, false);
+   char *exclf LOCAL = xasprintf("%s.exclude", base);
+   wave_process_file(exclf, false);
 }
 
 bool wave_should_dump(ident_t name)
 {
-   for (int i = 0; i < n_excl; i++) {
-      if (ident_glob(name, excl[i].text, excl[i].len))
+   for (int i = 0; i < excl.count; i++) {
+      if (ident_glob(name, excl.items[i].text, excl.items[i].len))
          return false;
    }
 
-   for (int i = 0; i < n_incl; i++) {
-      if (ident_glob(name, incl[i].text, incl[i].len))
+   for (int i = 0; i < incl.count; i++) {
+      if (ident_glob(name, incl.items[i].text, incl.items[i].len))
          return true;
    }
 
-   return (n_incl == 0);
+   return (incl.count == 0);
 }
