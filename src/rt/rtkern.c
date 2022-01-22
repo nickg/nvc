@@ -35,7 +35,6 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
-#include <setjmp.h>
 #include <math.h>
 #include <errno.h>
 #include <signal.h>
@@ -301,7 +300,6 @@ static uint64_t         now = 0;
 static int              iteration = -1;
 static bool             trace_on = false;
 static nvc_rusage_t     ready_rusage;
-static jmp_buf          fatal_jmp;
 static bool             aborted = false;
 static sens_list_t     *resume = NULL;
 static sens_list_t     *postponed = NULL;
@@ -3318,28 +3316,6 @@ void rt_run_sim(uint64_t stop_time)
    while (!rt_stop_now(stop_time))
       rt_cycle(stop_delta);
    rt_global_event(RT_END_OF_SIMULATION);
-}
-
-static void rt_interactive_fatal(void)
-{
-   aborted = true;
-   longjmp(fatal_jmp, 1);
-}
-
-void rt_run_interactive(uint64_t stop_time)
-{
-   if (aborted)
-      errorf("simulation has aborted and must be restarted");
-   else if ((heap_size(eventq_heap) == 0) && (delta_proc == NULL))
-      warnf("no future simulation events");
-   else {
-      set_fatal_fn(rt_interactive_fatal);
-
-      if (setjmp(fatal_jmp) == 0)
-         rt_run_sim(stop_time);
-
-      set_fatal_fn(NULL);
-   }
 }
 
 void rt_restart(e_node_t top)

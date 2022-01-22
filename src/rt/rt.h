@@ -65,7 +65,6 @@ typedef enum {
 void rt_start_of_tool(tree_t top, e_node_t e);
 void rt_end_of_tool(tree_t top, e_node_t e);
 void rt_run_sim(uint64_t stop_time);
-void rt_run_interactive(uint64_t stop_time);
 void rt_restart(e_node_t top);
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user);
 rt_watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
