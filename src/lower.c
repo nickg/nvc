@@ -869,15 +869,34 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
       }
 
    case T_BLOCK:
+   case T_ENTITY:
+   case T_ARCH:
       {
-         tree_t d0 = tree_decl(decl, 0);
-         assert(tree_kind(d0) == T_HIER);
+         ident_t dname = tree_ident(decl);
+         lower_scope_t *it;
+         for (it = top_scope; it != NULL; it = it->down) {
+            if (it->hier == NULL)
+               continue;
+
+            tree_t unit = tree_ref(it->hier);
+            if (unit == decl || tree_ident(unit) == dname)
+               break;
+            else if (tree_kind(unit) == T_ARCH) {
+               tree_t entity = tree_primary(unit);
+               if (tree_ident(entity) == dname)
+                  break;
+            }
+         }
+
+         if (it == NULL)
+            fatal_trace("cannot find %s %s", tree_kind_str(tree_kind(decl)),
+                        istr(tree_ident(decl)));
 
          ident_t prefix;
          if (which == ATTR_PATH_NAME)
-            prefix = tree_ident(d0);
+            prefix = tree_ident(it->hier);
          else
-            prefix = tree_ident2(d0);
+            prefix = tree_ident2(it->hier);
 
          ident_t full = ident_prefix(prefix, ident_new(":"), '\0');
          return lower_wrap_string(istr(full));

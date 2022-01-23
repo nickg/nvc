@@ -29,17 +29,6 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
-typedef struct {
-   tree_t formal;
-   tree_t actual;
-} rewrite_item_t;
-
-typedef struct {
-   rewrite_item_t *items;
-   int count;
-} rewrite_params_t;
-
-typedef A(rewrite_item_t) rw_list_t;
 typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
@@ -50,7 +39,6 @@ typedef struct {
    ident_t      dotted;
    ident_t      prefix[2];
    lib_t        library;
-   rw_list_t    rwlist;
    hash_t      *generics;
    hash_t      *subprograms;
 } elab_ctx_t;
@@ -180,54 +168,6 @@ static tree_t elab_pick_arch(const loc_t *loc, tree_t entity,
       fatal_at(loc, "no suitable architecture for %s", istr(search_name));
 
    return arch;
-}
-
-static tree_t rewrite_refs(tree_t t, void *context)
-{
-   rewrite_params_t *params = context;
-
-   if (tree_kind(t) != T_REF)
-      return t;
-
-   tree_t decl = tree_ref(t);
-
-   for (int i = 0; i < params->count; i++) {
-      if (decl != params->items[i].formal)
-         continue;
-
-      switch (tree_kind(params->items[i].actual)) {
-      case T_SIGNAL_DECL:
-      case T_PORT_DECL:
-      case T_ENUM_LIT:
-         tree_set_ref(t, params->items[i].actual);
-         tree_set_type(t, tree_type(params->items[i].actual));
-         return t;
-      case T_BLOCK:
-         tree_set_ref(t, params->items[i].actual);
-         return t;
-      case T_LITERAL:
-      case T_AGGREGATE:
-      case T_ARRAY_SLICE:
-      case T_ARRAY_REF:
-      case T_FCALL:
-      case T_RECORD_REF:
-      case T_OPEN:
-      case T_QUALIFIED:
-         // Do not rewrite references to non-references if they appear
-         // as formal names
-         if (tree_flags(t) & TREE_F_FORMAL_NAME)
-            break;
-         // Fall-through
-      case T_REF:
-         return params->items[i].actual;
-      default:
-         fatal_at(tree_loc(params->items[i].actual),
-                  "cannot handle tree kind %s in rewrite_refs",
-                  tree_kind_str(tree_kind(params->items[i].actual)));
-      }
-   }
-
-   return t;
 }
 
 static bool elab_should_copy(tree_t t, void *__ctx)
@@ -618,15 +558,6 @@ static void elab_hint_fn(void *arg)
    note_at(tree_loc(t), "%s", tb_get(tb));
 }
 
-static void elab_rewrite_later(tree_t formal, tree_t actual, elab_ctx_t *ctx)
-{
-   rewrite_item_t item = {
-      .formal = formal,
-      .actual = actual
-   };
-   APUSH(ctx->rwlist, item);
-}
-
 static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
 {
    const int nports = tree_ports(entity);
@@ -790,7 +721,11 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
          tree_set_type(p2, tree_type(tree_value(map)));
          tree_set_class(p2, tree_class(p));
 
-         elab_rewrite_later(p, p2, ctx);
+         // Abusing the generic rewriting mechanism to replace all
+         // references to the unconstrained port
+         if (ctx->generics == NULL)
+            ctx->generics = hash_new(64, true);
+         hash_put(ctx->generics, p, p2);
 
          tree_add_port(ctx->out, p2);
       }
@@ -902,17 +837,6 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
    }
 }
 
-static void elab_fold_generics(tree_t t, const elab_ctx_t *ctx)
-{
-   if (ctx->rwlist.count > 0) {
-      rewrite_params_t params = {
-         .items = ctx->rwlist.items,
-         .count = ctx->rwlist.count
-      };
-      tree_rewrite(t, NULL, rewrite_refs, &params);
-   }
-}
-
 static void elab_instance(tree_t t, elab_ctx_t *ctx)
 {
    tree_t arch = NULL, config = NULL;
@@ -983,14 +907,11 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
    tree_t entity = tree_primary(arch_copy);
    tree_t comp = primary_unit_of(tree_ref(t));
 
-   elab_push_scope(arch_copy, &new_ctx);
+   elab_push_scope(arch, &new_ctx);
    elab_generics(entity, comp, t, &new_ctx);
    simplify_global(entity, new_ctx.generics, new_ctx.subprograms);
    elab_ports(entity, comp, t, &new_ctx);
    elab_decls(entity, &new_ctx);
-   elab_rewrite_later(entity, b, &new_ctx);
-   elab_rewrite_later(arch_copy, b, &new_ctx);
-   elab_fold_generics(arch_copy, &new_ctx);
 
    if (error_count() == 0) {
       bounds_check(b);
@@ -1004,7 +925,6 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
       elab_arch(arch_copy, &new_ctx);
 
    elab_pop_scope(&new_ctx);
-   ACLEAR(new_ctx.rwlist);
 }
 
 static void elab_decls(tree_t t, const elab_ctx_t *ctx)
@@ -1045,6 +965,7 @@ static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
    tree_t h = tree_new(T_HIER);
    tree_set_loc(h, tree_loc(t));
    tree_set_subkind(h, tree_kind(t));
+   tree_set_ref(h, t);
 
    tree_set_ident(h, ctx->path);
    tree_set_ident2(h, ctx->inst);
@@ -1124,10 +1045,8 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .subprograms = ctx->subprograms,
       };
 
-      elab_push_scope(copy, &new_ctx);
+      elab_push_scope(t, &new_ctx);
       hash_put(new_ctx.generics, g, tree_value(map));
-      elab_rewrite_later(t, b, &new_ctx);
-      elab_fold_generics(copy, &new_ctx);
 
       simplify_global(copy, new_ctx.generics, new_ctx.subprograms);
       bounds_check(copy);
@@ -1138,7 +1057,6 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       }
 
       elab_pop_scope(&new_ctx);
-      ACLEAR(new_ctx.rwlist);
    }
 }
 
@@ -1226,13 +1144,10 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
 
    elab_push_scope(t, &new_ctx);
    elab_generics(t, t, t, &new_ctx);
-   elab_rewrite_later(t, b, &new_ctx);
-   elab_fold_generics(t, &new_ctx);   // XXX: only necessary for attribute names
    elab_ports(t, t, t, &new_ctx);
    elab_decls(t, &new_ctx);
    elab_stmts(t, &new_ctx);
    elab_pop_scope(&new_ctx);
-   ACLEAR(new_ctx.rwlist);
 }
 
 static void elab_arch(tree_t t, const elab_ctx_t *ctx)
@@ -1370,11 +1285,8 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    tree_t arch_copy = elab_copy(arch, &new_ctx);
    tree_t entity = tree_primary(arch_copy);
 
-   elab_push_scope(arch_copy, &new_ctx);
+   elab_push_scope(arch, &new_ctx);
    elab_top_level_generics(arch_copy, &new_ctx);
-   elab_rewrite_later(entity, b, &new_ctx);
-   elab_rewrite_later(arch_copy, b, &new_ctx);
-   elab_fold_generics(arch_copy, &new_ctx);
    elab_top_level_ports(entity, &new_ctx);
    elab_decls(entity, &new_ctx);
 
@@ -1385,7 +1297,6 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
       elab_arch(arch_copy, &new_ctx);
 
    elab_pop_scope(&new_ctx);
-   ACLEAR(new_ctx.rwlist);
 }
 
 void elab_set_generic(const char *name, const char *value)

@@ -311,14 +311,13 @@ static tree_t simp_record_ref(tree_t t, simp_ctx_t *ctx)
 
 static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
 {
-   if (tree_flags(t) & TREE_F_FORMAL_NAME)
-      return t;
-
    tree_t decl = tree_ref(t);
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
-      if (!type_is_scalar(tree_type(decl)))
+      if (tree_flags(t) & TREE_F_FORMAL_NAME)
+         return t;
+      else if (!type_is_scalar(tree_type(decl)))
          return t;
       else if (tree_has_value(decl)) {
          tree_t value = tree_value(decl);
@@ -362,6 +361,10 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
             case T_ATTR_REF:
             case T_REF:
                return map;
+            case T_PORT_DECL:
+               tree_set_ref(t, map);
+               tree_set_type(t, tree_type(map));
+               return t;
             default:
                fatal_trace("cannot rewrite generic %s to tree kind %s",
                            istr(tree_ident(t)), tree_kind_str(tree_kind(map)));
