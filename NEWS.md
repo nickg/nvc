@@ -11,9 +11,8 @@
 - Added support for ports and generics in block statements.
 - Added support for the 'BASE attribute.
 - Type name now allowed in element association choice (#407).
-- Implement textio READ procedure for BIT, TIME, and REAL (#408).
+- Implement textio READ procedure for REAL.
 - LLVM 6.0 or later required to build.
-- Fixed a crash when a long running procedure suspends in a loop (#412).
 - Fixed a stack overflow when a subprogram with unconstrained array
   arguments is called repeatedly in a loop (#414).
 - Compiled VHDL code now includes DWARF debug information which is used
@@ -34,7 +33,6 @@
 - VHDL-2008 IEEE standard libraries are now built and installed in
   addition to the VHDL-1993 libraries.
 - Variable assignment now supports aggregate targets.
-- Fix a crash when using 'VALUE with enumeration subtypes (#419).
 - The `--codegen` command, which has been deprecated since 1.3, was
   removed.
 - The `--profile` option now prints internal simulation statistics
@@ -78,6 +76,43 @@
 - There is now a project website at
   [https://www.nickg.me.uk/nvc/](https://www.nickg.me.uk/nvc/). Please
   link to this in preference to the GitHub project page.
+
+## Version 1.5.3 - 2021-11-13
+- Handle access(2) returning EPERM in macOS sandbox (#421).
+- Fix race when multiple processes concurrently update a library.
+- Fix `--syntax` command when file contains multiple design units.
+- Allow constant folding of nand/nor/xor/xnor.
+- Fix potential out of memory condition when evaluating complex assert
+  expressions.
+- Fix incorrect result of `mod` operator with negative operands.
+- Fixed intermittent crash when evaluating nested constant records
+  (#425).
+- Buffer too small for printing TIME'HIGH (#98).
+
+## Version 1.5.2 - 2021-07-28
+- Link libexecinfo on FreeBSD.
+- Implement textio READ procedure for BIT and TIME (#408).
+- Fixed a crash when a long running procedure suspends in a loop (#412).
+- Fix static linking with LLVM 12.0.
+- Fix crash when assigning to a signal declared in a package.
+- Fix incorrect recording of dependencies which caused a failure to load
+  generated DLLs on Windows.
+- Fix file locking error when a library is located on NFS (#417).
+- Optimise loading large library index from disk.
+- Fix a crash when using 'VALUE with enumeration subtypes (#419).
+- Fix a crash when a signal with more than 256 elements is declared in a
+  package (#420).
+
+## Version 1.5.1 - 2021-04-09
+- Fix a compiler warning in vcode.c.
+- Disable VHDL backtrace on non-Linux systems as the symbol names cannot
+  be parsed reliably (#385).
+- Update to latest `pc_from_uncontext.m4` for Apple M1 support.
+- Fix incorrect application of LRM rules for building an equivalent wait
+  statement for concurrent statements.
+- Library build is now reproducible when running `make -j` (#409).
+- Fix assertion failure with nested record type (#404).
+- Use Pandoc to generate the manual page.
 
 ## Version 1.5 - 2020-07-19
 - IEEE library sources are now distributed

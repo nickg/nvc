@@ -35,9 +35,8 @@
 <li>Added support for ports and generics in block statements.</li>
 <li>Added support for the ’BASE attribute.</li>
 <li>Type name now allowed in element association choice (#407).</li>
-<li>Implement textio READ procedure for BIT, TIME, and REAL (#408).</li>
+<li>Implement textio READ procedure for REAL.</li>
 <li>LLVM 6.0 or later required to build.</li>
-<li>Fixed a crash when a long running procedure suspends in a loop (#412).</li>
 <li>Fixed a stack overflow when a subprogram with unconstrained array arguments is called repeatedly in a loop (#414).</li>
 <li>Compiled VHDL code now includes DWARF debug information which is used for runtime stack trace if libdw or libdwarf is installed.</li>
 <li>Added support for MINIMUM, MAXIMUM, and TO_STRING predefined operators in VHDL-2008.</li>
@@ -49,7 +48,6 @@
 <li>Added support for VHDL-2008 reduction operators, match operators, and condition conversion.</li>
 <li>VHDL-2008 IEEE standard libraries are now built and installed in addition to the VHDL-1993 libraries.</li>
 <li>Variable assignment now supports aggregate targets.</li>
-<li>Fix a crash when using ’VALUE with enumeration subtypes (#419).</li>
 <li>The <code>--codegen</code> command, which has been deprecated since 1.3, was removed.</li>
 <li>The <code>--profile</code> option now prints internal simulation statistics instead of the top processes by CPU time.</li>
 <li>The elaboration phase was largely written which fixes a number of long-standing issues and significantly improves elaboration speed.</li>
@@ -76,6 +74,40 @@
 <li>Nested arrays can now be included in the waveform dump but only if the <code>--dump-arrays</code> option is passed. This is disabled my default due the significant performance and memory overhead.</li>
 <li>Added support for record types in waveform dump (#216).</li>
 <li>There is now a project website at <a href="https://www.nickg.me.uk/nvc/">https://www.nickg.me.uk/nvc/</a>. Please link to this in preference to the GitHub project page.</li>
+</ul>
+<h2 id="version-1.5.3---2021-11-13">Version 1.5.3 - 2021-11-13</h2>
+<ul>
+<li>Handle access(2) returning EPERM in macOS sandbox (#421).</li>
+<li>Fix race when multiple processes concurrently update a library.</li>
+<li>Fix <code>--syntax</code> command when file contains multiple design units.</li>
+<li>Allow constant folding of nand/nor/xor/xnor.</li>
+<li>Fix potential out of memory condition when evaluating complex assert expressions.</li>
+<li>Fix incorrect result of <code>mod</code> operator with negative operands.</li>
+<li>Fixed intermittent crash when evaluating nested constant records (#425).</li>
+<li>Buffer too small for printing TIME’HIGH (#98).</li>
+</ul>
+<h2 id="version-1.5.2---2021-07-28">Version 1.5.2 - 2021-07-28</h2>
+<ul>
+<li>Link libexecinfo on FreeBSD.</li>
+<li>Implement textio READ procedure for BIT and TIME (#408).</li>
+<li>Fixed a crash when a long running procedure suspends in a loop (#412).</li>
+<li>Fix static linking with LLVM 12.0.</li>
+<li>Fix crash when assigning to a signal declared in a package.</li>
+<li>Fix incorrect recording of dependencies which caused a failure to load generated DLLs on Windows.</li>
+<li>Fix file locking error when a library is located on NFS (#417).</li>
+<li>Optimise loading large library index from disk.</li>
+<li>Fix a crash when using ’VALUE with enumeration subtypes (#419).</li>
+<li>Fix a crash when a signal with more than 256 elements is declared in a package (#420).</li>
+</ul>
+<h2 id="version-1.5.1---2021-04-09">Version 1.5.1 - 2021-04-09</h2>
+<ul>
+<li>Fix a compiler warning in vcode.c.</li>
+<li>Disable VHDL backtrace on non-Linux systems as the symbol names cannot be parsed reliably (#385).</li>
+<li>Update to latest <code>pc_from_uncontext.m4</code> for Apple M1 support.</li>
+<li>Fix incorrect application of LRM rules for building an equivalent wait statement for concurrent statements.</li>
+<li>Library build is now reproducible when running <code>make -j</code> (#409).</li>
+<li>Fix assertion failure with nested record type (#404).</li>
+<li>Use Pandoc to generate the manual page.</li>
 </ul>
 <h2 id="version-1.5---2020-07-19">Version 1.5 - 2020-07-19</h2>
 <ul>
