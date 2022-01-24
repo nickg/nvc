@@ -19,6 +19,7 @@ begin
         assert p.all(4) = 4;
         assert p'length = 10;
         assert p.all'low = 1;
+        deallocate(p);
         wait;
     end process;
 

@@ -18,6 +18,7 @@ begin
         writeline(tmp, l);
         write(l, string'("second"));
         writeline(tmp, l);
+        deallocate(l);
         file_close(tmp);
 
         file_open(tmp, "tmp.txt", READ_MODE);
@@ -29,6 +30,7 @@ begin
         assert str = ", wor";
         read(l, str, good);
         assert not good;                -- Fewer than 5 chars
+        deallocate(l);
 
         readline(tmp, l);
         read(l, str);
@@ -37,6 +39,7 @@ begin
         assert ch = 'd';
         read(l, ch, good);
         assert not good;
+        deallocate(l);
 
         file_close(tmp);
         wait;

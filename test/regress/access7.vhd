@@ -28,11 +28,15 @@ begin
         assert pp.all = null;
         pp.all := new integer'(4);
         assert pp.all.all = 4;
+        deallocate(pp.all);
+        deallocate(pp);
 
         alloc_ptr_array(pa);
         assert pa.all = (null, null, null);
         pa(1) := new integer'(6);
         assert pa(1).all = 6;
+        deallocate(pa(1));
+        deallocate(pa);
         wait;
     end process;
 

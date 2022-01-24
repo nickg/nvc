@@ -14,13 +14,17 @@ begin
     begin
         i := new integer;
         assert i.all = integer'left;
+        deallocate(i);
         i := new integer'(3);
         assert i.all = 3;
+        deallocate(i);
         s := new string'("");
         assert s.all = "";
         assert s'length = 0;
+        deallocate(s);
         s := new string'("hello");
         assert s.all = "hello";
+        deallocate(s);
         wait;
     end process;
 

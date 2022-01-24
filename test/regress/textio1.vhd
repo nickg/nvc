@@ -45,6 +45,7 @@ begin
         write(l, 1.234567, digits => 4);
         writeline(output, l);
 
+        deallocate(l);
         wait;
     end process;
 

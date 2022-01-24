@@ -13,6 +13,8 @@ begin
         a.all := (1, 2, 3);
         b := new int_array'(a.all);
         assert b.all = (1, 2, 3);
+        deallocate(a);
+        deallocate(b);
         wait;
     end process;
 

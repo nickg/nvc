@@ -28,6 +28,8 @@ begin
         assert justify("hello", right, 7) = "  hello";
         assert justify("hello", left, 0) = "hello";
         assert justify("hello", left, 6) = "hello ";
+
+        deallocate(l);
         wait;
     end process;
 

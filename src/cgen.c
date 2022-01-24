@@ -2504,6 +2504,29 @@ static void cgen_op_deallocate(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef ptr = cgen_get_arg(op, 0, ctx);
    LLVMValueRef access = LLVMBuildLoad(builder, ptr, "");
+
+   vcode_type_t vtype = vtype_pointed(vcode_reg_type(vcode_get_arg(op, 0)));
+   assert(vtype_kind(vtype) == VCODE_TYPE_ACCESS);
+
+   vcode_type_t pointee = vtype_pointed(vtype);
+   if (vtype_kind(pointee) == VCODE_TYPE_UARRAY) {
+      LLVMBasicBlockRef not_null_bb = llvm_append_block(ctx->fn, "");
+      LLVMBasicBlockRef null_bb = llvm_append_block(ctx->fn, "");
+
+      LLVMValueRef not_null = LLVMBuildIsNotNull(builder, access, "");
+      LLVMBuildCondBr(builder, not_null, not_null_bb, null_bb);
+
+      LLVMPositionBuilderAtEnd(builder, not_null_bb);
+
+      LLVMValueRef uarray = LLVMBuildLoad(builder, access, "");
+      LLVMValueRef data = LLVMBuildExtractValue(builder, uarray, 0, "");
+      LLVMBuildFree(builder, data);
+
+      LLVMBuildBr(builder, null_bb);
+
+      LLVMPositionBuilderAtEnd(builder, null_bb);
+   }
+
    LLVMBuildFree(builder, access);
    LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(access)), ptr);
 }

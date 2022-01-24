@@ -813,6 +813,8 @@ int main(int argc, char **argv)
    setenv("TESTDIR", test_dir, 1);
 #endif
 
+   free(newpath);
+
    int fails = 0;
    for (test_t *it = test_list; it != NULL; it = it->next) {
       if (!run_test(it))

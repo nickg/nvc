@@ -34,6 +34,7 @@ begin
         assert s(1 to n) = "end";
         sread(l, s, n);
         assert n = 0;
+        deallocate(l);
         wait;
     end process;
 
@@ -67,11 +68,11 @@ begin
             report "h) short std.textio.hread " & to_string (bv4) severity error;
         deallocate (l);
 
-        deallocate (L);
         L := new string'("821");            -- one bit too many
         hread (L, bv7, good);
         assert (not good)
             report "l) std.textio.hread reported good read" severity error;
+        deallocate(l);
 
         wait;
     end process;
@@ -89,7 +90,7 @@ begin
         oread(l, b(1 to 6));
         report to_string(b(1 to 6));
         assert b(1 to 6) = "101010";
-
+        deallocate(l);
         wait;
     end process;
 
@@ -104,6 +105,7 @@ begin
         deallocate(l);
         owrite(l, o"77");
         assert l.all = "77";
+        deallocate(l);
         wait;
     end process;
 

@@ -16,6 +16,7 @@ architecture test of textio3 is
         read(l, str, good);
         assert good;
         assert str = expect;
+        deallocate(l);
     end procedure;
 
 begin
@@ -39,6 +40,7 @@ begin
 
         check_content("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
 
+        deallocate(l);
         wait;
     end process;
 
