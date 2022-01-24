@@ -64,8 +64,9 @@ Commands can be chained together.  For example to analyse a file
 .Ar foo.vhd
 and then elaborate and run a top-level entity
 .Ar bar :
-.Pp
-.Dl $ nvc -a foo.vhd -e bar -r
+.Bd -literal -offset indent
+$ nvc -a foo.vhd -e bar -r
+.Ed
 .Pp
 Note that the
 .Ar unit

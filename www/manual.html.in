@@ -1,0 +1,5 @@
+define(__title, `Manual')dnl
+include(`defs.m4')dnl
+include(`header.html.in')dnl
+include(`nvc.1.html')dnl
+include(`footer.html.in')dnl

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+      News -       NVC - VHDL Compiler and Simulator
+    </title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+  </head>
+
+  <body>
+    <div class="header">
+      <h1>NVC - VHDL Compiler and Simulator</h1>
+    </div>
+
+    <div class="sidebar">
+      <ul>
+        <li><a href="index.html">About</a></li>
+        <li><a href="news.html">News</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="readme.html">README</a></li>
+        <li><a href="manual.html">Manual</a></li>
+      </ul>
+    </div>
+    
+    <div class="content">
+<h2 id="unreleased-changes">Unreleased changes</h2>
+<ul>
+<li>Library build is now reproducible when running <code>make -j</code>.</li>
+<li>Fix a constant folding crash with nested records.</li>
+<li>The <code>--relax=impure</code> option allows pure functions to call impure functions.</li>
+<li>Name resolution and overload resolution has been completely rewritten which should fix a number of long-standing issues.</li>
+<li>Fixed a crash when a record aggregate contains an “others” association and the fields have array types with different lengths.</li>
+<li>Added support for VHDL-2008 “all” sensitised processes.</li>
+<li>Added support for ports and generics in block statements.</li>
+<li>Added support for the ’BASE attribute.</li>
+<li>Type name now allowed in element association choice (#407).</li>
+<li>Implement textio READ procedure for BIT, TIME, and REAL (#408).</li>
+<li>LLVM 6.0 or later required to build.</li>
+<li>Fixed a crash when a long running procedure suspends in a loop (#412).</li>
+<li>Fixed a stack overflow when a subprogram with unconstrained array arguments is called repeatedly in a loop (#414).</li>
+<li>Compiled VHDL code now includes DWARF debug information which is used for runtime stack trace if libdw or libdwarf is installed.</li>
+<li>Added support for MINIMUM, MAXIMUM, and TO_STRING predefined operators in VHDL-2008.</li>
+<li>Support for the LXT wave output format, which was deprecated in version 1.5, has been removed. Use the default FST format instead.</li>
+<li>VCD files are now generated from FST data in a similar manner to <code>fst2vcd(1)</code>. This should improve compatibility with other tools.</li>
+<li>The <code>fetch-ieee.sh</code> script which did nothing since the last release has been removed.</li>
+<li>Added support for VHDL-2008 element resolution.</li>
+<li>The VHDL-1993 standard libraries are now derived from the Apache 2.0 licensed sources from VHDL-2019.</li>
+<li>Added support for VHDL-2008 reduction operators, match operators, and condition conversion.</li>
+<li>VHDL-2008 IEEE standard libraries are now built and installed in addition to the VHDL-1993 libraries.</li>
+<li>Variable assignment now supports aggregate targets.</li>
+<li>Fix a crash when using ’VALUE with enumeration subtypes (#419).</li>
+<li>The <code>--codegen</code> command, which has been deprecated since 1.3, was removed.</li>
+<li>The <code>--profile</code> option now prints internal simulation statistics instead of the top processes by CPU time.</li>
+<li>The elaboration phase was largely written which fixes a number of long-standing issues and significantly improves elaboration speed.</li>
+<li>Added support for ’LAST_ACTIVE attribute (#423).</li>
+<li>Added support for ’DRIVING and ’DRIVING_VALUE attributes.</li>
+<li>Fixed intermittent crash when evaluating nested constant records (#425).</li>
+<li>Fixed missing import libraries on Windows (#424).</li>
+<li>Standard libraries are now installed under <code>$prefix/lib/nvc/</code> instead of <code>$prefix/share/nvc</code>.</li>
+<li>Added a new option <code>--ieee-warnings=off</code> to disable warning messages from the standard IEEE packages.</li>
+<li>Support for configurations has been significantly improved (#372).</li>
+<li>Added support for VHDL-2008 delimited comments.</li>
+<li>Added support for guard expressions on blocks.</li>
+<li>Added support for guarded signals.</li>
+<li>New configure option <code>--disable-vital</code> disables building the VITAL packages whose license status is unclear.</li>
+<li>Added support for HREAD, HWRITE, and other TEXTIO additions in VHDL-2008.</li>
+<li>Code generation now happens in parallel when LLVM is built with multi-threading enabled.</li>
+<li>Link time optimisation (LTO) is now enabled for release builds where supported.</li>
+<li>The default assertion failure message for certain simple scalar comparisons now shows the values of the left and right hand sides.</li>
+<li>Added support for VHDL-2008 conditional variable assignment statements.</li>
+<li>Added support for VHDL-2008 extended bit string literals.</li>
+<li>Non-globally-static actuals allowed in port maps in VHDL-2008 mode.</li>
+<li>Added support for VHDL-2008 sequential conditional signal assignment statements.</li>
+<li>Added basic support for package generics and package instantiation.</li>
+<li>Nested arrays can now be included in the waveform dump but only if the <code>--dump-arrays</code> option is passed. This is disabled my default due the significant performance and memory overhead.</li>
+<li>Added support for record types in waveform dump (#216).</li>
+<li>There is now a project website at <a href="https://www.nickg.me.uk/nvc/">https://www.nickg.me.uk/nvc/</a>. Please link to this in preference to the GitHub project page.</li>
+</ul>
+<h2 id="version-1.5---2020-07-19">Version 1.5 - 2020-07-19</h2>
+<ul>
+<li>IEEE library sources are now distributed</li>
+<li>Updated FST library to match GtkWave 3.3.79</li>
+<li>The LXT wave output format is deprecated, use FST instead</li>
+<li>Fix incorrect file name in assertion message</li>
+<li>Fix crash while recovering from parse error</li>
+<li>Add <code>--dump-json</code> command to print AST as JSON (from Sebastien Van Cauwenberghe)</li>
+<li>Fix crash when using LLVM 7 and later</li>
+<li>Fix spurious assertion failure in <code>std.textio.readline</code></li>
+<li>Reals are now rounded to the nearest integer as specified by the LRM</li>
+<li>Fix crash when constant folding uses too much memory</li>
+<li>Improved memory management in evaluator (thanks to Frank Mori Hess)</li>
+<li>Various other minor fixes and improvements</li>
+</ul>
+<h2 id="version-1.4---2018-07-16">Version 1.4 - 2018-07-16</h2>
+<ul>
+<li>Windows with MSYS2 is now fully supported</li>
+<li>Continuous integration for OS X and Windows using Travis and AppVeyor</li>
+<li>Record resolution functions are now supported</li>
+<li>The <code>--relax=prefer-explicit</code> option now works correctly</li>
+</ul>
+<h2 id="version-1.3---2017-12-31">Version 1.3 - 2017-12-31</h2>
+<ul>
+<li>Native code is always generated on platforms that support it</li>
+<li>Initial support for VHDL-2017 conditional compilation blocks</li>
+<li>The TCL shell has been removed</li>
+<li>Various code generation and constant folding fixes</li>
+<li>Fix crash when build IEEE library from non-clean tree</li>
+<li>ORC is used for JIT if LLVM version is 3.9 or later</li>
+<li>LLVM 3.8 or later is now required</li>
+<li>Added <code>-O0</code> to <code>-O3</code> options to control LLVM optimisation level</li>
+<li>The <code>--disable-opt</code> option is deprecated, use <code>-O0</code> instead</li>
+<li>The elaborate <code>--native</code> option is now a global option and should be placed before the <code>-e</code> command</li>
+<li>The <code>--codegen</code> command is deprecated, use <code>--native</code> when analysing to generate native shared libraries for packages</li>
+</ul>
+<h2 id="version-1.2---2017-05-04">Version 1.2 - 2017-05-04</h2>
+<ul>
+<li>Compile time evaluation now uses vcode</li>
+<li>Record aggregates can now be constant folded (#305)</li>
+<li>The TCL shell is deprecated and will be removed in the next release</li>
+<li>Compatible with LLVM 4.0</li>
+<li>Functions returning records can now be constant folded (#315)</li>
+<li>LLVM 3.4 or later is now required</li>
+</ul>
+<h2 id="version-1.1---2016-11-05">Version 1.1 - 2016-11-05</h2>
+<ul>
+<li>Improvements to based literal parsing</li>
+<li>Improved stack traces on Linux when <code>libdw-dev</code> installed</li>
+<li>Fixed elaboration of subprograms in entity declarations</li>
+<li>Improved elaboration performance when design contains many signals</li>
+<li>Fixed various bugs involving record signals</li>
+<li>Fixed sensitivity list generation for concurrent procedure calls</li>
+<li>Improvements to simulation performance</li>
+<li>Implemented <code>vhpi_get_phys</code></li>
+<li>Added command <code>--list</code> to print all units in a library</li>
+<li>Rewrote the <code>run_regr</code> program in C so <code>make check</code> no longer requires Ruby</li>
+<li>The <code>--relax=generic-static</code> option is now renamed to <code>--relax=locally-static</code> and applies in wider range of contexts</li>
+</ul>
+<h2 id="version-1.0---2016-05-01">Version 1.0 - 2016-05-01</h2>
+<ul>
+<li>First stable release</li>
+</ul>
+</div>
+</body>
+</html>

@@ -1,0 +1,30 @@
+define(__title, `')dnl
+include(`defs.m4')dnl
+include(`header.html.in')dnl
+<h1>About</h1>
+<p>
+  NVC is a free
+  software <a href="https://en.wikipedia.org/wiki/VHDL">VHDL</a>
+  compiler and simulator implementing almost all
+  of <a href="https://standards.ieee.org/standard/1076-2002.html">IEEE
+  1076-2002</a>.
+</p>
+<p>
+  Find out more in the <a href="readme.html">README</a> or read
+  the <a href="manual.html">manual</a> online.
+</p>
+<p>
+  The project is hosted on both <a href="__github_url">GitHub</a> and
+  <a href="__sourcehut_url">SourceHut</a>.
+</p>
+<p>
+  The most recent version is <a href="download.html">__version</a>,
+  released on __release_date
+  (<a href="__release_notes">release notes</a>).
+</p>
+
+<h1>Contact</h1>
+<p>
+  Send any questions
+  to <a href="mailto:nick@nickg.me.uk">nick@nickg.me.uk</a>.
+</p>

@@ -1,0 +1,49 @@
+define(__title, `Download')dnl
+include(`defs.m4')dnl
+include(`header.html.in')dnl
+
+<h1>Download</h1>
+<p>
+  The most recent version is __version, released on __release_date
+  (<a href="__release_notes">release notes</a>).
+</p>
+<p>
+  <a href="__download_url">__download_file</a>
+</p>
+<p>
+  Releases are signed
+  using <a href="https://www.nickg.me.uk/files/NickGasson.asc">PGP
+  key</a> <code>BCDB295F74319F1A</code>.
+  Download <a href="__download_url`.sig'">__download_file`.sig'</a> and
+  verify with:
+</p>
+<pre>
+gpg --keyserver pgp.mit.edu --recv-keys BCDB295F74319F1A
+gpg --verify nvc-1.5.3.tar.gz
+</pre>
+<p>
+  Refer to the <a href="readme.html#installing">README</a> for
+  instructions on how to build and install the software.
+</p>
+
+<h1>Development version</h1>
+<p>
+  The latest source code can be fetched using Git:
+</p>
+<pre>git clone https://git.nickg.me.uk/nvc.git</pre>
+<p>
+  Alternatively there are mirrors
+  on <a href="__github_url">GitHub</a> and
+  <a href="__sourcehut_url">SourceHut</a>.
+</p>
+
+<h1>Packages</h1>
+<p>
+  NVC is currently packaged for the following systems:
+</p>
+<a href="https://repology.org/project/nvc/versions">
+  <img src="https://repology.org/badge/vertical-allrepos/nvc.svg"
+       alt="Packaging status">
+</a>
+
+include(`footer.html.in')dnl

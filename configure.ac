@@ -25,6 +25,11 @@ AM_SILENT_RULES([yes])
 
 AC_CONFIG_MACRO_DIR([m4])
 
+AS_IF([test -d ${srcdir}/.git],
+      [enable_maintainer_mode="yes"],
+      [enable_maintainer_mode="no"])
+AM_MAINTAINER_MODE
+
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_INSTALL
@@ -315,8 +320,12 @@ AM_CONDITIONAL([ENABLE_GCOV], [test x$enable_gcov = xyes])
 AC_SUBST(EXTRA_CFLAGS)
 AC_SUBST(EXTRA_LDFLAGS)
 
-AC_PATH_PROG([MANDOC], [mandoc])
+AS_IF([test x$enable_maintainer_mode = xyes ],
+      [AC_PATH_PROG([MANDOC], [mandoc])
+       AC_PATH_PROG([PANDOC], [pandoc])])
+
 AM_CONDITIONAL([HAVE_MANDOC], [test -n "$MANDOC"])
+AM_CONDITIONAL([HAVE_PANDOC], [test -n "$PANDOC"])
 
 # Work around automake setting ARFLAGS=cru by default which produces a
 # warning on modern systems

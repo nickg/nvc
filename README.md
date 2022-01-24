@@ -38,7 +38,7 @@ Or more succinctly, as a single command:
 Where `my_tb` is the name of the top-level test-bench entity.
 
 The full manual can be read after installation using `man nvc` or
-[online](https://www.nickg.me.uk/nvc/nvc.1.html).
+[online](https://www.nickg.me.uk/nvc/manual.html).
 
 ### License
 
@@ -182,6 +182,7 @@ you encounter.
 VHDL-2008 was a large change to the standard with many new features.
 Support for these is currently in development.  Notable omissions
 include:
+
 * Enhanced generics on packages and subprograms are not supported.
 * PSL is not supported.
 * Hierarchical references are not supported.
@@ -200,15 +201,16 @@ The VHDL standard contains a comprehensive API called VHPI for
 interfacing with foreign code written in C or another language.  There
 is very limited support for this which can be enabled with the
 `--enable-vhpi` option when configuring.  Refer to the
-[manual](https://www.nickg.me.uk/nvc/nvc.1.html#VHPI) for more
+[manual](https://www.nickg.me.uk/nvc/manual.html#VHPI) for more
 information.
 
 ### Vendor Libraries
 
 NVC provides scripts to compile the simulation libraries of common FPGA vendors.
- * For Xilinx ISE use `./tools/build-xilinx-ise.rb`
- * For Xilinx Vivado use `./tools/build-xilinx-vivado.rb`
- * For Altera Quartus use `./tools/build-altera.rb`
- * For Lattice iCEcube2 use `./tools/build-lattice.rb`
+
+* For Xilinx ISE use `./tools/build-xilinx-ise.rb`
+* For Xilinx Vivado use `./tools/build-xilinx-vivado.rb`
+* For Altera Quartus use `./tools/build-altera.rb`
+* For Lattice iCEcube2 use `./tools/build-lattice.rb`
 
 The libraries will be installed under `~/.nvc/lib`.

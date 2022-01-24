@@ -1,12 +1,29 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link rel="stylesheet" href="mandoc.css" type="text/css" media="all"/>
-  <title>NVC(1)</title>
-</head>
-<body>
+  <head>
+    <title>
+      Manual -       NVC - VHDL Compiler and Simulator
+    </title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+  </head>
+
+  <body>
+    <div class="header">
+      <h1>NVC - VHDL Compiler and Simulator</h1>
+    </div>
+
+    <div class="sidebar">
+      <ul>
+        <li><a href="index.html">About</a></li>
+        <li><a href="news.html">News</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="readme.html">README</a></li>
+        <li><a href="manual.html">Manual</a></li>
+      </ul>
+    </div>
+    
+    <div class="content">
 <table class="head">
   <tr>
     <td class="head-ltitle">NVC(1)</td>
@@ -82,9 +99,9 @@
 <p class="Pp">Commands can be chained together. For example to analyse a file
     <var class="Ar">foo.vhd</var> and then elaborate and run a top-level entity
     <var class="Ar">bar</var>:</p>
-<p class="Pp"></p>
-<div class="Bd Bd-indent"><code class="Li">$ nvc -a foo.vhd -e bar
-  -r</code></div>
+<div class="Bd Pp Bd-indent Li">
+<pre>$ nvc -a foo.vhd -e bar -r</pre>
+</div>
 <p class="Pp">Note that the <var class="Ar">unit</var> argument for the
     <code class="Fl">-r</code> run command is taken from the earlier
     <code class="Fl">-e</code> elaborate command.</p>
@@ -434,9 +451,10 @@ $ nvc -r --load my_plugin.so my_tb</pre>
 </div>
 <table class="foot">
   <tr>
-    <td class="foot-date">January 22, 2022</td>
+    <td class="foot-date">January 24, 2022</td>
     <td class="foot-os">Debian</td>
   </tr>
 </table>
+</div>
 </body>
 </html>

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+      ifelse(__title, `', `', __title` - ')dnl
+      NVC - VHDL Compiler and Simulator
+    </title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+  </head>
+
+  <body>
+    <div class="header">
+      <h1>NVC - VHDL Compiler and Simulator</h1>
+    </div>
+
+    <div class="sidebar">
+      <ul>
+        <li><a href="index.html">About</a></li>
+        <li><a href="news.html">News</a></li>
+        <li><a href="download.html">Download</a></li>
+        <li><a href="readme.html">README</a></li>
+        <li><a href="manual.html">Manual</a></li>
+      </ul>
+    </div>
+    
+    <div class="content">

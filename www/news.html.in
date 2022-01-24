@@ -1,0 +1,5 @@
+define(__title, `News')dnl
+include(`defs.m4')dnl
+include(`header.html.in')dnl
+include(`NEWS.html')dnl
+include(`footer.html.in')dnl

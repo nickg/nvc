@@ -1,4 +1,4 @@
-## master
+## Unreleased changes
 - Library build is now reproducible when running `make -j`.
 - Fix a constant folding crash with nested records.
 - The `--relax=impure` option allows pure functions to call impure
@@ -75,8 +75,11 @@
   `--dump-arrays` option is passed. This is disabled my default due the
   significant performance and memory overhead.
 - Added support for record types in waveform dump (#216).
+- There is now a project website at
+  [https://www.nickg.me.uk/nvc/](https://www.nickg.me.uk/nvc/). Please
+  link to this in preference to the GitHub project page.
 
-## 1.5 - 2020-07-19
+## Version 1.5 - 2020-07-19
 - IEEE library sources are now distributed
 - Updated FST library to match GtkWave 3.3.79
 - The LXT wave output format is deprecated, use FST instead
@@ -91,13 +94,13 @@
 - Improved memory management in evaluator (thanks to Frank Mori Hess)
 - Various other minor fixes and improvements
 
-## 1.4 - 2018-07-16
+## Version 1.4 - 2018-07-16
 - Windows with MSYS2 is now fully supported
 - Continuous integration for OS X and Windows using Travis and AppVeyor
 - Record resolution functions are now supported
 - The `--relax=prefer-explicit` option now works correctly
 
-## 1.3 - 2017-12-31
+## Version 1.3 - 2017-12-31
 - Native code is always generated on platforms that support it
 - Initial support for VHDL-2017 conditional compilation blocks
 - The TCL shell has been removed
@@ -112,7 +115,7 @@
 - The `--codegen` command is deprecated, use `--native` when analysing
   to generate native shared libraries for packages
 
-## 1.2 - 2017-05-04
+## Version 1.2 - 2017-05-04
 - Compile time evaluation now uses vcode
 - Record aggregates can now be constant folded (#305)
 - The TCL shell is deprecated and will be removed in the next release
@@ -120,7 +123,7 @@
 - Functions returning records can now be constant folded (#315)
 - LLVM 3.4 or later is now required
 
-## 1.1 - 2016-11-05
+## Version 1.1 - 2016-11-05
 - Improvements to based literal parsing
 - Improved stack traces on Linux when `libdw-dev` installed
 - Fixed elaboration of subprograms in entity declarations
@@ -134,5 +137,5 @@
 - The `--relax=generic-static` option is now renamed to `--relax=locally-static` and
   applies in wider range of contexts
 
-## 1.0 - 2016-05-01
+## Version 1.0 - 2016-05-01
 - First stable release

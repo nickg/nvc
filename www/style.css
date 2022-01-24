@@ -1,0 +1,137 @@
+body {
+    margin: 0pt;
+    padding: 0pt;
+}
+
+div.header {
+    margin: 0pt;
+    padding: 0pt;
+    width: 100%;
+    background-color: #EEE;
+    border-bottom: 2pt solid #999;
+    border-top: 0pt;
+}
+
+div.header h1 {
+    font-size: x-large;
+    font-weight: bold;
+    text-align: center;
+    padding: 5pt;
+    margin: 0pt;
+}
+
+div.content {
+    padding: 5pt;
+    vertical-align: top;
+    width: 70%;
+    margin-left: 20%;
+}
+
+div.content h1, h2, h3 {
+    font-size: large;
+    font-weight: bold;
+}
+
+div.content h4 {
+    font-size: normal;
+    font-weight: bold;
+}
+
+div.sidebar {
+    float: left;
+    width: 15%;
+    padding: 2pt;
+    vertical-align: top;
+    overflow: auto;
+}
+
+div.sidebar li {
+    display: list-item;
+    list-style: none;
+    font-size: large;
+    padding: 0.2em;
+}
+
+div.sidebar ul {
+    padding: 0pt 0pt 0pt 1em;
+}
+
+pre, kbd, :not(pre) > code {
+    background-color: #f5f2f0;
+    padding: 1px 4px 1px 4px;
+    border-radius: 5px;
+
+    font-family: Monospace;
+    font-size: 1.2em;
+
+    color: #333;
+}
+
+pre {
+    padding: 10px 20px 10px 20px;
+}
+
+/*
+ * Mandoc styles
+ */
+
+div.manual-text code {
+    font-family: Monospace;
+    font-size: 1.2em;
+    border-radius: 0px;
+    padding: 0px;
+    background-color: transparent;
+    color: #000;
+}
+
+div.manual-text br {
+    display: none;
+}
+
+div.manual-text table {
+    padding: 0px;
+    margin: 0px;
+}
+
+div.manual-text td {
+    vertical-align: top;
+    padding-left: 0.2em;
+    padding-right: 0.2em;
+    border-color: inherit;
+}
+
+div.manual-text ul, div.manual-text ol, div.manual-text dl {
+    margin-top: 0em;
+    margin-bottom: 0em;
+}
+
+div.manual-text li, div.manual-text dt {
+    margin-top: 1em;
+}
+
+div.manual-text .permalink {
+    border-bottom: thin dotted;
+    color: inherit;
+    font: inherit;
+    text-decoration: inherit;
+}
+
+table.head {
+    width: 100%;
+    border-bottom: 1px dotted #808080;
+    margin-bottom: 1em;
+    font-size: smaller;
+}
+
+td.head-vol { text-align: center; }
+
+td.head-rtitle { text-align: right; }
+
+td.foot-os { text-align: right; }
+
+table.foot {
+    width: 100%;
+    border-top: 1px dotted #808080;
+    margin-top: 1em;
+    font-size: smaller;
+}
