@@ -29,7 +29,15 @@ EXTRA_DIST += \
 	lib/ieee.08/std_logic_1164-body.vhdl \
 	lib/ieee.08/std_logic_1164.vhdl \
 	lib/ieee.08/numeric_std-body.vhdl \
-	lib/ieee.08/std_logic_textio.vhdl
+	lib/ieee.08/std_logic_textio.vhdl \
+	lib/ieee.08/numeric_bit_unsigned.vhdl \
+	lib/ieee.08/numeric_bit_unsigned-body.vhdl \
+	lib/ieee.08/numeric_std_unsigned.vhdl \
+	lib/ieee.08/numeric_std_unsigned-body.vhdl \
+	lib/ieee.08/fixed_float_types.vhdl \
+	lib/ieee.08/fixed_generic_pkg.vhdl \
+	lib/ieee.08/fixed_generic_pkg-body.vhdl \
+	lib/ieee.08/fixed_pkg.vhdl
 
 BOOTSTRAPLIBS += $(ieee_08_DATA)
 

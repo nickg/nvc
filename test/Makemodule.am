@@ -70,14 +70,16 @@ cov-report: cov-generate
 
 endif
 
+if MAINTAINER_MODE
 update-test-dist:
 	$(AM_V_GEN)( \
 	  echo "# Generated automatically, do not edit." ; \
 	  echo "EXTRA_DIST += \\" ; \
 	  cd $(top_srcdir) ; \
-	  git ls-files -- 'test/*.vhd' 'test/*.txt' | \
+	  git ls-files -- 'test/*.vhd' 'test/*.txt' 'test/*.sh' 'test/*.dump' | \
 	    sort | sed -e 's/^/\t/' -e '$$ ! s/$$/ \\/' ; \
 	) > $(top_srcdir)/test/dist.mk
+endif
 
 .PHONY: update-test-dist
 

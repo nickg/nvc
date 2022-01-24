@@ -81,6 +81,8 @@ lib_LIBRARIES += lib/libnvcimp.a
 
 lib/libnvcimp.a: bin/nvc$(EXEEXT)
 
+lib_libnvcimp_a_SOURCES =
+
 endif
 
 if LLVM_STATIC
@@ -93,3 +95,4 @@ bin_nvc_LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(bin_nvc_LDFLAGS) -o $@
 AM_V_bin_nvc_LINK = $(AM_V_CCLD)
 endif
 
+EXTRA_DIST += src/symbols.txt
