@@ -3372,87 +3372,23 @@ static void lower_assert(tree_t stmt)
 
 static void lower_sched_event(tree_t on, bool is_static)
 {
-   tree_t ref = on, decl = NULL;
-   while (decl == NULL) {
-      switch (tree_kind(ref)) {
-      case T_REF:
-         decl = tree_ref(ref);
-         break;
+   type_t type = tree_type(on);
 
-      case T_ARRAY_REF:
-      case T_ARRAY_SLICE:
-         ref = tree_value(ref);
-         break;
+   vcode_reg_t nets_reg = lower_expr(on, EXPR_LVALUE);
+   assert(nets_reg != VCODE_INVALID_REG);
 
-      default:
-         // It is possible for constant folding to replace a signal with
-         // a constant which will then appear in a sensitivity list so
-         // just ignore it
-         return;
-      }
+   vcode_reg_t count_reg;
+   if (type_is_array(type)) {
+      count_reg = lower_scalar_sub_elements(type, nets_reg);
+      nets_reg = lower_array_data(nets_reg);
    }
-
-   tree_kind_t kind = tree_kind(decl);
-   if (kind == T_ALIAS) {
-      lower_sched_event(tree_value(decl), is_static);
-      return;
-   }
-   else if (kind != T_SIGNAL_DECL && kind != T_PORT_DECL) {
-      // As above, a port could have been rewritten to reference a
-      // constant declaration or enumeration literal, in which case
-      // just ignore it too
-      return;
-   }
-
-   type_t type = tree_type(decl);
-   type_t expr_type = tree_type(on);
-
-   const bool array = type_is_array(type);
-
-   vcode_reg_t n_elems = VCODE_INVALID_REG, nets = VCODE_INVALID_REG;
-   if (tree_kind(on) == T_REF) {
-      switch (tree_kind(decl)) {
-      case T_SIGNAL_DECL:
-         nets = lower_signal_ref(decl, EXPR_LVALUE);
-         break;
-      case T_PORT_DECL:
-         if (tree_class(decl) != C_SIGNAL)
-            return;
-         nets = lower_param_ref(decl, EXPR_LVALUE);
-         break;
-      default:
-         assert(false);
-      }
-
-      if (array) {
-         type_t elem = type_elem(type);
-         n_elems = lower_array_total_len(type, nets);
-         if (type_is_record(elem))
-            n_elems = emit_mul(n_elems,
-                               emit_const(vtype_offset(), type_width(elem)));
-      }
-      else
-         n_elems = emit_const(vtype_offset(), type_width(type));
-
-      if (array && !lower_const_bounds(type)) {
-         // Unwrap the meta-data to get nets array
-         nets = emit_unwrap(nets);
-      }
-   }
-   else {
-      assert(array);
-      nets = lower_expr(on, EXPR_LVALUE);
-
-      if (type_is_array(expr_type))
-         n_elems = lower_array_total_len(expr_type, VCODE_INVALID_REG);
-      else
-         n_elems = emit_const(vtype_offset(),1);
-   }
+   else
+      count_reg = emit_const(vtype_offset(), type_width(type));
 
    if (is_static)
-      emit_sched_static(nets, n_elems);
+      emit_sched_static(nets_reg, count_reg);
    else
-      emit_sched_event(nets, n_elems);
+      emit_sched_event(nets_reg, count_reg);
 }
 
 static void lower_wait(tree_t wait)
@@ -5018,7 +4954,8 @@ static void lower_signal_decl(tree_t decl)
 
 static void lower_guard_refs_cb(tree_t ref, void *__ctx)
 {
-   lower_sched_event(ref, true);
+   if (class_of(ref) == C_SIGNAL)
+      lower_sched_event(ref, true);
 }
 
 static ident_t lower_guard_func(ident_t prefix, tree_t expr)
