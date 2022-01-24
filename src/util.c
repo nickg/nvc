@@ -1251,14 +1251,15 @@ static void *nvc_mmap(size_t sz)
 {
    sz = ALIGN_UP(sz, nvc_page_size());
 
-#if (defined __APPLE__ || defined __OpenBSD__)
-   const int flags = MAP_SHARED | MAP_ANON;
-#elif !(defined __MINGW32__)
-   const int flags = MAP_SHARED | MAP_ANONYMOUS;
-#endif
+#if __SANITIZE_ADDRESS__
+   void *ptr;
+   if (posix_memalign(&ptr, nvc_page_size(), sz) != 0)
+      fatal_errno("posix_memalign");
 
-#ifndef __MINGW32__
-   void *ptr = mmap(NULL, sz, PROT_READ | PROT_WRITE, flags, -1, 0);
+   return ptr;
+#elif !defined __MINGW32__
+   void *ptr = mmap(NULL, sz, PROT_READ | PROT_WRITE,
+                    MAP_SHARED | MAP_ANON, -1, 0);
    if (ptr == MAP_FAILED)
       fatal_errno("mmap");
 #else
@@ -1272,7 +1273,9 @@ static void *nvc_mmap(size_t sz)
 
 void nvc_munmap(void *ptr, size_t length)
 {
-#ifndef __MINGW32__
+#if __SANITIZE_ADDRESS__
+   // Ignore it
+#elif !defined __MINGW32__
    if (munmap(ptr, length) != 0)
       fatal_errno("munmap");
 #else
@@ -1283,6 +1286,13 @@ void nvc_munmap(void *ptr, size_t length)
 
 void *nvc_memalign(size_t align, size_t sz)
 {
+#if __SANITIZE_ADDRESS__
+   void *ptr;
+   if (posix_memalign(&ptr, align, sz) != 0)
+      fatal_errno("posix_memalign");
+
+   return ptr;
+#else
    assert((align & (align - 1)) == 0);
    const size_t mapsz = ALIGN_UP(sz + align - 1, align);
    void *ptr = nvc_mmap(mapsz);
@@ -1298,11 +1308,14 @@ void *nvc_memalign(size_t align, size_t sz)
    if (high_waste > 0) nvc_munmap(limit, high_waste);
 
    return aligned;
+#endif
 }
 
 void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
 {
-#ifndef __MINGW32__
+#if __SANITIZE_ADDRESS__
+   // Ignore it
+#elif !defined __MINGW32__
    static const int map[] = {
       PROT_NONE, PROT_READ, PROT_READ | PROT_WRITE
    };

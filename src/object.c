@@ -60,15 +60,10 @@ static const char *item_text_map[] = {
    "I_SOURCES",  "I_OUTPUTS",
 };
 
-
-static object_class_t     *classes[4];
-static uint32_t            format_digest;
-static generation_t        next_generation = 1;
-static arena_array_t       all_arenas;
-
-#if __SANITIZE_ADDRESS__
-static void object_purge_at_exit(void);
-#endif
+static object_class_t   *classes[4];
+static uint32_t          format_digest;
+static generation_t      next_generation = 1;
+static arena_array_t     all_arenas;
 
 static inline bool object_in_arena_p(object_arena_t *arena, object_t *object)
 {
@@ -295,10 +290,6 @@ void object_one_time_init(void)
       const uint32_t format_fudge = 23;
 
       format_digest += format_fudge * UINT32_C(2654435761);
-
-#if __SANITIZE_ADDRESS__
-      atexit(object_purge_at_exit);
-#endif
 
       done = true;
    }
@@ -1171,28 +1162,3 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
 
    return obj;
 }
-
-#if __SANITIZE_ADDRESS__
-static void object_arena_purge(object_arena_t *arena)
-{
-   nvc_memprotect(arena->base, arena->limit - arena->base, MEM_RW);
-
-   for (void *p = arena->base; p != arena->alloc; ) {
-      object_t *object = p;
-      object_class_t *class = classes[object->tag];
-      gc_free_external(object);
-      p = (char *)p + ALIGN_UP(class->object_size[object->kind], OBJECT_ALIGN);
-   }
-
-   nvc_munmap(arena->base, arena->limit - arena->base);
-}
-
-static void object_purge_at_exit(void)
-{
-   // Address sanitizer cannot track addresses from user-mmaped regions
-   // so manually free up all malloc-ed memory accessible from objects
-
-   for (unsigned i = 1; i < all_arenas.count; i++)
-      object_arena_purge(AGET(all_arenas, i));
-}
-#endif  // __SANITIZE_ADDRESS__
