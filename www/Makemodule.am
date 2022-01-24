@@ -1,8 +1,5 @@
 PAGES = $(srcdir)/www/index.html \
-	$(srcdir)/www/download.html \
-	$(srcdir)/www/readme.html \
-	$(srcdir)/www/news.html \
-	$(srcdir)/www/manual.html
+	$(srcdir)/www/download.html
 
 TEMPLATES = \
 	www/defs.m4 \
@@ -10,8 +7,6 @@ TEMPLATES = \
 	www/footer.html.in
 
 if MAINTAINER_MODE
-
-all-local: $(PAGES)
 
 $(srcdir)/www/download.html: www/download.html.in $(TEMPLATES)
 
@@ -29,6 +24,8 @@ $(srcdir)/www/manual.html: www/manual.html.in nvc.1.html $(TEMPLATES)
 
 .1.1.html:
 	$(AM_V_GEN)mandoc -T html -O fragment $< > $@
+
+PAGES += $(srcdir)/www/manual.html
 endif
 
 if HAVE_PANDOC
@@ -38,6 +35,10 @@ $(srcdir)/www/readme.html: www/readme.html.in README.html $(TEMPLATES)
 
 .md.html:
 	$(AM_V_GEN)pandoc -t html -o $@ $<
+
+PAGES += $(srcdir)/www/readme.html $(srcdir)/www/news.html
 endif
+
+all-local: $(PAGES)
 
 endif  # MAINTAINER_MODE
