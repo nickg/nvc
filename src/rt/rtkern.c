@@ -1355,7 +1355,7 @@ int64_t _last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
       RT_ASSERT(index < s->n_nexus);
       rt_nexus_t *n = s->nexus[index++];
 
-      if (n->last_event < now)
+      if (n->last_event <= now)
          last = MIN(last, now - n->last_event);
 
       count -= n->width;
@@ -1380,7 +1380,7 @@ int64_t _last_active(sig_shared_t *ss, uint32_t offset, int32_t count)
       RT_ASSERT(index < s->n_nexus);
       rt_nexus_t *n = s->nexus[index++];
 
-      if (n->last_active < now)
+      if (n->last_active <= now)
          last = MIN(last, now - n->last_active);
 
       count -= n->width;
@@ -2509,16 +2509,13 @@ static void rt_driver_initial(rt_nexus_t *nexus)
    rt_update_inputs(nexus);
 
    void *resolved;
-   if (nexus->n_sources > 0) {
+   if (nexus->n_sources > 0)
       resolved = rt_resolve_nexus_fast(nexus);
-      nexus->event_delta = nexus->active_delta = -1;
-      nexus->last_event = nexus->last_active = now;
-   }
-   else {
+   else
       resolved = nexus->resolved;
-      nexus->event_delta = nexus->active_delta = -1;
-      nexus->last_event = nexus->last_active = INT64_MAX;    // TIME'HIGH
-   }
+
+   nexus->event_delta = nexus->active_delta = -1;
+   nexus->last_event = nexus->last_active = INT64_MAX;    // TIME'HIGH
 
    TRACE("%s initial value %s", istr(e_ident(nexus->enode)),
          fmt_nexus(nexus, resolved));

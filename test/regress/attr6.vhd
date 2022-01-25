@@ -4,11 +4,13 @@ end entity;
 architecture test of attr6 is
     signal x : integer := 5;
     signal y : bit_vector(0 to 3);
+    signal z : bit;                     -- No drivers
 begin
 
     process is
     begin
         assert x'last_event = time'high;
+        assert z'last_event = time'high;
         x <= 0;
         assert x'last_value = x;
         assert x'last_value = 5;
