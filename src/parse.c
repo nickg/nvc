@@ -1648,20 +1648,39 @@ static tree_t external_reference(tree_t t)
 
 static void apply_foreign_attribute(tree_t decl, tree_t value)
 {
-   if (tree_kind(value) != T_LITERAL)
-      fatal_at(tree_loc(decl), "foreign attribute must have string "
+   // See LRM 08 section 20.2.4.3
+
+   if (tree_kind(value) != T_LITERAL) {
+      error_at(tree_loc(value), "foreign attribute must have string "
                "literal value");
+      return;
+   }
 
    const int nchars = tree_chars(value);
-   char buf[nchars + 1];
+   char *buf LOCAL = xmalloc(nchars + 1);
    for (int i = 0; i < nchars; i++)
       buf[i] = tree_pos(tree_ref(tree_char(value, i)));
    buf[nchars] = '\0';
 
-   ident_t name = ident_new(buf);
+   subprogram_kind_t skind = S_FOREIGN;
+
+   char *p = strtok(buf, " ");
+   if (strcmp(p, "VHPIDIRECT") == 0) {
+      p = strtok(NULL, " ");
+      if (p != NULL) {
+         // The object library specifier is silently ignored
+         char *p2 = strtok(NULL, " ");
+         if (p2 != NULL) p = p2;
+      }
+      skind = S_VHPIDIRECT;
+   }
+   else if (strtok(NULL, " ") != NULL)
+      error_at(tree_loc(value), "failed to parse foregin attribute");
+
+   ident_t name = ident_new(p);
    tree_set_ident2(decl, name);
 
-   tree_set_subkind(decl, S_FOREIGN);
+   tree_set_subkind(decl, skind);
    tree_set_flag(decl, TREE_F_FOREIGN | TREE_F_NEVER_WAITS);
 }
 

@@ -76,6 +76,7 @@
 - There is now a project website at
   [https://www.nickg.me.uk/nvc/](https://www.nickg.me.uk/nvc/). Please
   link to this in preference to the GitHub project page.
+- Added support for foreign subprograms using the VHPIDIRECT protocol.
 
 ## Version 1.5.3 - 2021-11-13
 - Handle access(2) returning EPERM in macOS sandbox (#421).

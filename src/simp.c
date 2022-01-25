@@ -142,7 +142,7 @@ static bool fold_possible(tree_t t, eval_flags_t flags)
          const subprogram_kind_t kind = tree_subkind(decl);
          if (kind == S_USER && !(flags & EVAL_FCALL))
             return fold_not_possible(t, flags, "call to user defined function");
-         else if (kind == S_FOREIGN)
+         else if (kind == S_FOREIGN || kind == S_VHPIDIRECT)
             return fold_not_possible(t, flags, "call to foreign function");
          else if (tree_flags(decl) & TREE_F_IMPURE)
             return fold_not_possible(t, flags, "call to impure function");

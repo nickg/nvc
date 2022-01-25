@@ -1153,7 +1153,7 @@ type_t std_type(tree_t std, std_type_t which)
 
 bool is_builtin(subprogram_kind_t kind)
 {
-   return kind != S_USER && kind != S_FOREIGN;
+   return kind != S_USER && kind != S_FOREIGN && kind != S_VHPIDIRECT;
 }
 
 bool is_open_coded_builtin(subprogram_kind_t kind)
@@ -1161,6 +1161,7 @@ bool is_open_coded_builtin(subprogram_kind_t kind)
    switch (kind) {
    case S_USER:
    case S_FOREIGN:
+   case S_VHPIDIRECT:
    case S_ARRAY_EQ:
    case S_ARRAY_NEQ:
    case S_ARRAY_LT:

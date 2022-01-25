@@ -417,6 +417,87 @@ $ nvc -r --load my_plugin.so my_tb</pre>
    NULL
 };</pre>
 </div>
+<p class="Pp">Functions defined in VHPI plugin libraries may be called from VHDL
+    using the VHPIDIRECT protocol. The VHDL function should be declared with the
+    &#x2018;<code class="Li">FOREIGN</code>&#x2019; attribute giving the name of
+    the function symbol exported from the plugin. For example:</p>
+<div class="Bd Pp Bd-indent Li">
+<pre>function my_func (x : integer; y : bit_vector; z : std_logic) return integer;
+attribute foreign of my_func : function is &quot;VHPIDIRECT my_func&quot;;</pre>
+</div>
+<p class="Pp">Where &#x2018;<code class="Li">my_func</code>&#x2019; is a global
+    function defined in the plugin library as follows.</p>
+<div class="Bd Pp Bd-indent Li">
+<pre>int32_t my_func(int32_t x, const uint8_t *y, uint8_t z) { ... }</pre>
+</div>
+<p class="Pp">Foreign procedures may be defined similarly:</p>
+<div class="Bd Pp Bd-indent Li">
+<pre>function my_proc (x : out integer; y : out bit_vector; z : std_logic);
+attribute foreign of my_proc : function is &quot;VHPIDIRECT my_proc&quot;;
+
+void my_proc(int32_t *x, uint8_t *y, uint8_t z) { ... }</pre>
+</div>
+<p class="Pp">Note that scalar &#x2018;<code class="Li">out</code>&#x2019;
+    parameters are passed by pointer.</p>
+<p class="Pp">There is a simple mapping between VHDL and C types.</p>
+<dl class="Bl-tag">
+  <dt>Integers</dt>
+  <dd>The smallest C integer type that holds the full range of the VHDL
+    type.</dd>
+  <dt>Reals</dt>
+  <dd>C <var class="Vt">double</var> regardless of the range of the VHDL
+    type.</dd>
+  <dt>Enumerated types</dt>
+  <dd>The smallest unsigned integer type that holds the full range of the VHDL
+      type.</dd>
+  <dt>Constrained arrays</dt>
+  <dd>Pointer to the element type.</dd>
+  <dt>Unconstrained arrays</dt>
+  <dd>Pointer to the element type. Note that the length and bounds are not
+      available and must be passed explicitly as separate arguments.</dd>
+  <dt>Records</dt>
+  <dd>Not yet supported.</dd>
+</dl>
+<p class="Pp">Here are several examples for common types:</p>
+<table class="Bl-column Bd-indent">
+  <tr id="VHDL">
+    <td><a class="permalink" href="#VHDL"><b class="Sy">VHDL type</b></a></td>
+    <td><a class="permalink" href="#C"><b class="Sy" id="C">C type</b></a></td>
+  </tr>
+  <tr id="INTEGER">
+    <td><a class="permalink" href="#INTEGER"><code class="Li">INTEGER</code></a></td>
+    <td><var class="Vt">int32_t</var></td>
+  </tr>
+  <tr>
+    <td><code class="Li">INTEGER range 1 to 5</code></td>
+    <td><var class="Vt">int8_t</var></td>
+  </tr>
+  <tr id="REAL">
+    <td><a class="permalink" href="#REAL"><code class="Li">REAL</code></a></td>
+    <td><var class="Vt">double</var></td>
+  </tr>
+  <tr id="BOOLEAN">
+    <td><a class="permalink" href="#BOOLEAN"><code class="Li">BOOLEAN</code></a></td>
+    <td><var class="Vt">uint8_t</var></td>
+  </tr>
+  <tr id="BIT_VECTOR(1">
+    <td><a class="permalink" href="#BIT_VECTOR(1"><code class="Li">BIT_VECTOR(1
+      to 3)</code></a></td>
+    <td><var class="Vt">uint8_t *</var></td>
+  </tr>
+  <tr id="STD_LOGIC">
+    <td><a class="permalink" href="#STD_LOGIC"><code class="Li">STD_LOGIC</code></a></td>
+    <td>uint8_t</td>
+  </tr>
+  <tr id="STD_LOGIC_VECTOR">
+    <td><a class="permalink" href="#STD_LOGIC_VECTOR"><code class="Li">STD_LOGIC_VECTOR</code></a></td>
+    <td><var class="Vt">uint8_t *</var></td>
+  </tr>
+</table>
+<p class="Pp">Foreign functions should not modify arrays passed as
+    &#x2018;<code class="Li">in</code>&#x2019; arguments, although this is not
+    enforced. Additionally foreign subprograms should not retain any pointers
+    passed as arguments after the subprogram returns.</p>
 </section>
 <section class="Sh">
 <h1 class="Sh" id="ENVIRONMENT"><a class="permalink" href="#ENVIRONMENT">ENVIRONMENT</a></h1>
@@ -451,7 +532,7 @@ $ nvc -r --load my_plugin.so my_tb</pre>
 </div>
 <table class="foot">
   <tr>
-    <td class="foot-date">January 24, 2022</td>
+    <td class="foot-date">January 25, 2022</td>
     <td class="foot-os">Debian</td>
   </tr>
 </table>

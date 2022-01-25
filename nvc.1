@@ -487,6 +487,74 @@ void (*vhpi_startup_routines[])() = {
    NULL
 };
 .Ed
+.Pp
+Functions defined in VHPI plugin libraries may be called from VHDL using
+the VHPIDIRECT protocol.  The VHDL function should be declared with the
+.Ql FOREIGN
+attribute giving the name of the function symbol exported from the
+plugin.  For example:
+.Bd -literal -offset indent
+function my_func (x : integer; y : bit_vector; z : std_logic) return integer;
+attribute foreign of my_func : function is "VHPIDIRECT my_func";
+.Ed
+.Pp
+Where
+.Ql my_func
+is a global function defined in the plugin library as follows.
+.Bd -literal -offset indent
+int32_t my_func(int32_t x, const uint8_t *y, uint8_t z) { ... }
+.Ed
+.Pp
+Foreign procedures may be defined similarly:
+.Pp
+.Bd -literal -offset indent
+function my_proc (x : out integer; y : out bit_vector; z : std_logic);
+attribute foreign of my_proc : function is "VHPIDIRECT my_proc";
+
+void my_proc(int32_t *x, uint8_t *y, uint8_t z) { ... }
+.Ed
+.Pp
+Note that scalar
+.Ql out
+parameters are passed by pointer.
+.Pp
+There is a simple mapping between VHDL and C types.
+.Bl -tag -width "Unconstrained arrays"
+.It Integers
+The smallest C integer type that holds the full range of the VHDL type.
+.It Reals
+C
+.Vt double
+regardless of the range of the VHDL type.
+.It Enumerated types
+The smallest unsigned integer type that holds the full range of the VHDL
+type.
+.It Constrained arrays
+Pointer to the element type.
+.It Unconstrained arrays
+Pointer to the element type.  Note that the length and bounds are not
+available and must be passed explicitly as separate arguments.
+.It Records
+Not yet supported.
+.El
+.Pp
+Here are several examples for common types:
+.Bl -column "INTEGER range 1 to 5" -offset indent
+.It Sy "VHDL type" Ta Sy "C type"
+.It Li "INTEGER" Ta Vt int32_t
+.It Li "INTEGER range 1 to 5" Ta Vt int8_t
+.It Li REAL Ta Vt double
+.It Li BOOLEAN Ta Vt uint8_t
+.It Li "BIT_VECTOR(1 to 3)" Ta Vt "uint8_t *"
+.It Li STD_LOGIC Ta uint8_t
+.It Li STD_LOGIC_VECTOR Ta Vt "uint8_t *"
+.El
+.Pp
+Foreign functions should not modify arrays passed as
+.Ql in
+arguments, although this is not enforced.  Additionally foreign
+subprograms should not retain any pointers passed as arguments after the
+subprogram returns.
 .Sh ENVIRONMENT
 .Bl -tag -width "NVC_COLORS"
 .It Ev NVC_COLORS

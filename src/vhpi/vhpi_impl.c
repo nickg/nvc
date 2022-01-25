@@ -1534,31 +1534,18 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
 
       void (**startup_funcs)() =
          (void (**)())GetProcAddress(hModule, "vhpi_startup_routines");
-
-      if (startup_funcs == NULL) {
-         warnf("could not find vhpi_startup_routines in %s", tok);
-         CloseHandle(hModule);
-         continue;
-      }
 #else
-      void *handle = dlopen(tok, RTLD_LAZY);
+      void *handle = dlopen(tok, RTLD_LAZY | RTLD_GLOBAL);
       if (handle == NULL)
          fatal("%s", dlerror());
 
-      (void)dlerror();
       void (**startup_funcs)() = dlsym(handle, "vhpi_startup_routines");
-
-      const char *error = dlerror();
-      if (error != NULL) {
-         warnf("%s", error);
-         dlclose(handle);
-         continue;
-      }
 #endif
 
-      while (*startup_funcs)
-         (*startup_funcs++)();
-
+      if (startup_funcs != NULL) {
+         while (*startup_funcs)
+            (*startup_funcs++)();
+      }
    } while ((tok = strtok(NULL, ",")));
 
    atexit(vhpi_check_for_leaks);

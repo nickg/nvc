@@ -762,8 +762,9 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
       class = tree_class(port);
    }
 
+   const subprogram_kind_t skind = tree_subkind(decl);
    tree_t port = NULL;
-   if (!is_open_coded_builtin(tree_subkind(decl)))
+   if (!is_open_coded_builtin(skind))
       port = tree_port(decl, nth);
 
    vcode_reg_t preg = lower_param(value, port, mode);
@@ -781,6 +782,12 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
 
       vcode_reg_t count_reg = emit_const(vtype_offset(), type_width(type));
       emit_drive_signal(nets_reg, count_reg);
+   }
+
+   if (skind == S_VHPIDIRECT) {
+      // Do not pass wrapped arrays into VHPIDIRECT functions
+      if (vcode_reg_kind(preg) == VCODE_TYPE_UARRAY)
+         preg = emit_unwrap(preg);
    }
 
    return preg;
@@ -1503,7 +1510,7 @@ static vcode_cc_t lower_cc_for_call(tree_t call)
    tree_t decl = tree_ref(call);
    const subprogram_kind_t skind = tree_subkind(decl);
 
-   if (skind == S_FOREIGN)
+   if (skind == S_FOREIGN || skind == S_VHPIDIRECT)
       return VCODE_CC_FOREIGN;
    else if (tree_flags(decl) & TREE_F_FOREIGN)
       return VCODE_CC_FOREIGN;
@@ -6825,7 +6832,9 @@ static void lower_predef_negate(tree_t decl, vcode_unit_t context,
 static void lower_predef(tree_t decl, vcode_unit_t context)
 {
    const subprogram_kind_t kind = tree_subkind(decl);
-   if (kind == S_USER || kind == S_FOREIGN || is_open_coded_builtin(kind))
+   if (kind == S_USER || kind == S_FOREIGN || kind == S_VHPIDIRECT)
+      return;
+   else if (is_open_coded_builtin(kind))
       return;
 
    ident_t name = tree_ident2(decl);
