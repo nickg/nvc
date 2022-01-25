@@ -237,6 +237,7 @@ static void make_rule(tree_t t, rule_t **rules)
    case T_ENTITY:
    case T_ARCH:
    case T_CONFIGURATION:
+   case T_PACK_INST:
       make_rule_add_output(r, make_product(t, MAKE_TREE));
       break;
 
