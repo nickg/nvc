@@ -78,17 +78,17 @@ Windows under MSYS2.
 
 On macOS NVC can be installed with `brew install nvc`.  NVC is also
 packaged for [FreeBSD](https://www.freshports.org/cad/nvc), [GNU
-Guix](https://www.freshports.org/cad/nvc), and Arch Linux
-[AUR](https://www.freshports.org/cad/nvc).  Users of other systems
+Guix](https://guix.gnu.org/packages/nvc-1.5.3/), and Arch Linux
+[AUR](https://aur.archlinux.org/packages/nvc).  Users of other systems
 should build from source.
 
 NVC has both a release branch and a development master branch. The
 master branch should be stable enough for day-to-day use and has
 comprehensive regression tests, but the release branch is more suitable
 for third party packaging.  The latest released version is
-[1.5.1](https://github.com/nickg/nvc/releases/download/r1.5.1/nvc-1.5.1.tar.gz).
+[1.6.0](https://github.com/nickg/nvc/releases/download/r1.6.0/nvc-1.6.0.tar.gz).
 Significant changes since the last release are detailed in
-[HISTORY.md](HISTORY.md).
+[NEWS.md](NEWS.md).
 
 To build from a Git clone:
 

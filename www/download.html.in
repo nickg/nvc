@@ -19,7 +19,7 @@ include(`header.html.in')dnl
 </p>
 <pre>
 gpg --keyserver pgp.mit.edu --recv-keys BCDB295F74319F1A
-gpg --verify nvc-1.5.3.tar.gz
+gpg --verify `nvc-'__version`.tar.gz'
 </pre>
 <p>
   Refer to the <a href="readme.html#installing">README</a> for

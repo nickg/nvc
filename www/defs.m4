@@ -1,6 +1,6 @@
-define(__version, `1.5.3')dnl
-define(__release_date, `13th November 2021')dnl
-define(__release_date_short, `2021-11-13')dnl
+define(__version, `1.6.0')dnl
+define(__release_date, `25th January 2022')dnl
+define(__release_date_short, `2022-01-25')dnl
 define(__release_notes, `news.html#version-'__version`---'__release_date_short)dnl
 define(__github_url, `https://github.com/nickg/nvc')dnl
 define(__sourcehut_url, `https://git.sr.ht/~nickg/nvc')dnl

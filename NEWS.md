@@ -1,59 +1,41 @@
-## Unreleased changes
-- Library build is now reproducible when running `make -j`.
-- Fix a constant folding crash with nested records.
-- The `--relax=impure` option allows pure functions to call impure
-  functions.
+## Version 1.6.0 - 2022-01-25
 - Name resolution and overload resolution has been completely rewritten
   which should fix a number of long-standing issues.
-- Fixed a crash when a record aggregate contains an "others" association
-  and the fields have array types with different lengths.
+- The elaboration phase was largely written which fixes a number of
+  long-standing issues and significantly improves elaboration speed.
+- VHDL-2008 IEEE standard libraries are now built and installed in
+  addition to the VHDL-1993 libraries.
+- The VHDL-1993 standard libraries are now derived from the Apache 2.0
+  licensed sources from VHDL-2019.
+- There is now a project website at
+  [https://www.nickg.me.uk/nvc/](https://www.nickg.me.uk/nvc/). Please
+  link to this in preference to the GitHub project page.
+- Compiled VHDL code now includes DWARF debug information which is used
+  for runtime stack trace if libdw or libdwarf is installed.
+- Added support for VHDL-2008 reduction operators, match operators, and
+  condition conversion.
+- Added support for VHDL-2008 element resolution.
+- Variable assignment now supports aggregate targets.
+- The `--relax=impure` option allows pure functions to call impure
+  functions.
 - Added support for VHDL-2008 "all" sensitised processes.
 - Added support for ports and generics in block statements.
 - Added support for the 'BASE attribute.
 - Type name now allowed in element association choice (#407).
 - Implement textio READ procedure for REAL.
-- LLVM 6.0 or later required to build.
-- Fixed a stack overflow when a subprogram with unconstrained array
-  arguments is called repeatedly in a loop (#414).
-- Compiled VHDL code now includes DWARF debug information which is used
-  for runtime stack trace if libdw or libdwarf is installed.
+- LLVM 6.0 or later is now required to build.
 - Added support for MINIMUM, MAXIMUM, and TO_STRING predefined operators
   in VHDL-2008.
-- Support for the LXT wave output format, which was deprecated in
-  version 1.5, has been removed. Use the default FST format instead.
 - VCD files are now generated from FST data in a similar manner to
   `fst2vcd(1)`. This should improve compatibility with other tools.
-- The `fetch-ieee.sh` script which did nothing since the last release
-  has been removed.
-- Added support for VHDL-2008 element resolution.
-- The VHDL-1993 standard libraries are now derived from the Apache 2.0
-  licensed sources from VHDL-2019.
-- Added support for VHDL-2008 reduction operators, match operators, and
-  condition conversion.
-- VHDL-2008 IEEE standard libraries are now built and installed in
-  addition to the VHDL-1993 libraries.
-- Variable assignment now supports aggregate targets.
-- The `--codegen` command, which has been deprecated since 1.3, was
-  removed.
-- The `--profile` option now prints internal simulation statistics
-  instead of the top processes by CPU time.
-- The elaboration phase was largely written which fixes a number of
-  long-standing issues and significantly improves elaboration speed.
 - Added support for 'LAST_ACTIVE attribute (#423).
 - Added support for 'DRIVING and 'DRIVING_VALUE attributes.
-- Fixed intermittent crash when evaluating nested constant records
-  (#425).
-- Fixed missing import libraries on Windows (#424).
-- Standard libraries are now installed under `$prefix/lib/nvc/` instead
-  of `$prefix/share/nvc`.
 - Added a new option `--ieee-warnings=off` to disable warning messages
   from the standard IEEE packages.
 - Support for configurations has been significantly improved (#372).
 - Added support for VHDL-2008 delimited comments.
 - Added support for guard expressions on blocks.
 - Added support for guarded signals.
-- New configure option `--disable-vital` disables building the VITAL
-  packages whose license status is unclear.
 - Added support for HREAD, HWRITE, and other TEXTIO additions in
   VHDL-2008.
 - Code generation now happens in parallel when LLVM is built with
@@ -73,10 +55,28 @@
   `--dump-arrays` option is passed. This is disabled my default due the
   significant performance and memory overhead.
 - Added support for record types in waveform dump (#216).
-- There is now a project website at
-  [https://www.nickg.me.uk/nvc/](https://www.nickg.me.uk/nvc/). Please
-  link to this in preference to the GitHub project page.
 - Added support for foreign subprograms using the VHPIDIRECT protocol.
+- Library build is now reproducible when running `make -j`.
+- Fix a constant folding crash with nested records.
+- Fixed a crash when a record aggregate contains an "others" association
+  and the fields have array types with different lengths.
+- Fixed a stack overflow when a subprogram with unconstrained array
+  arguments is called repeatedly in a loop (#414).
+- Fixed intermittent crash when evaluating nested constant records
+  (#425).
+- Fixed missing import libraries on Windows (#424).
+- Standard libraries are now installed under `$prefix/lib/nvc/` instead
+  of `$prefix/share/nvc`.
+- New configure option `--disable-vital` disables building the VITAL
+  packages whose license status is unclear.
+- Support for the LXT wave output format, which was deprecated in
+  version 1.5, has been removed. Use the default FST format instead.
+- The `fetch-ieee.sh` script which did nothing since the last release
+  has been removed.
+- The `--codegen` command, which has been deprecated since 1.3, was
+  removed.
+- The `--profile` option now prints internal simulation statistics
+  instead of the top processes by CPU time.
 
 ## Version 1.5.3 - 2021-11-13
 - Handle access(2) returning EPERM in macOS sandbox (#421).

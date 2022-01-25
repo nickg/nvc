@@ -310,6 +310,7 @@ EXTRA_DIST += \
 	test/regress/attr11.vhd \
 	test/regress/attr12.vhd \
 	test/regress/attr13.vhd \
+	test/regress/attr14.vhd \
 	test/regress/attr1.vhd \
 	test/regress/attr2.vhd \
 	test/regress/attr3.vhd \
@@ -738,6 +739,7 @@ EXTRA_DIST += \
 	test/regress/record18.vhd \
 	test/regress/record19.vhd \
 	test/regress/record1.vhd \
+	test/regress/record20.vhd \
 	test/regress/record2.vhd \
 	test/regress/record3.vhd \
 	test/regress/record4.vhd \
@@ -827,6 +829,7 @@ EXTRA_DIST += \
 	test/regress/vhpi1.vhd \
 	test/regress/vhpi2.vhd \
 	test/regress/vhpi3.vhd \
+	test/regress/vhpi4.vhd \
 	test/regress/wait10.vhd \
 	test/regress/wait11.vhd \
 	test/regress/wait12.vhd \
