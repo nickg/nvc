@@ -2214,8 +2214,10 @@ static void rt_reset(rt_proc_t *proc)
 {
   TRACE("reset process %s", istr(e_path(proc->source)));
 
-  _tmp_stack = global_tmp_stack;
-  _tmp_alloc = global_tmp_alloc;
+  assert(proc->tmp_stack == NULL);
+
+  _tmp_stack = proc_tmp_stack;
+  _tmp_alloc = 0;
 
    active_proc = proc;
    active_scope = proc->scope;
