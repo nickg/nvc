@@ -22,4 +22,4 @@ CLEANFILES += $(BOOTSTRAPLIBS)
 DRIVER = bin/nvc$(EXEEXT)
 
 # For compatibility with BSD make
-@ifnGNUmake@.ORDER: $(DRIVER) lib/std/STD.STANDARD lib/std.08/STD.STANDARD
+@ifnGNUmake@.ORDER: $(DRIVER) lib/std/STD.STANDARD lib/std.08/STD.STANDARD lib/nvc.08/NVC.POLYFILL
