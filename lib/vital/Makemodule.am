@@ -56,3 +56,5 @@ gen-deps-vital:
 	true
 
 include lib/vital/deps.mk
+
+lib/ieee/IEEE.VITAL_MEMORY: lib/ieee/IEEE.VITAL_PRIMITIVES

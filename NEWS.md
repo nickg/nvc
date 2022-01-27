@@ -1,3 +1,6 @@
+## Unreleased changes
+- Fix compatibility with BSD make (#440).
+
 ## Version 1.6.0 - 2022-01-25
 - Name resolution and overload resolution has been completely rewritten
   which should fix a number of long-standing issues.
