@@ -886,6 +886,31 @@ START_TEST(test_issue435)
 }
 END_TEST
 
+START_TEST(test_issue442)
+{
+   input_from_file(TESTDIR "/elab/issue442.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b0 = tree_stmt(e, 0);
+   fail_unless(tree_ident(b0) == ident_new("ISSUE442"));
+   fail_unless(tree_stmts(b0) == 1);
+
+   tree_t dut = tree_stmt(b0, 0);
+   fail_unless(tree_ident(dut) == ident_new("DUT"));
+   fail_unless(tree_kind(dut) == T_BLOCK);
+   fail_unless(tree_stmts(dut) == 0);
+   fail_unless(tree_genmaps(dut) == 2);
+
+   tree_t m1 = tree_value(tree_genmap(dut, 1));
+   fail_unless(tree_kind(m1) == T_LITERAL);
+   fail_unless(tree_ival(m1) == 4);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -941,6 +966,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_tc2881);
    tcase_add_test(tc, test_tc846);
    tcase_add_test(tc, test_issue435);
+   tcase_add_test(tc, test_issue442);
    suite_add_tcase(s, tc);
 
    return s;

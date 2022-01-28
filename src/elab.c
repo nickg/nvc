@@ -792,13 +792,11 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
 
       tree_add_generic(ctx->out, eg);
 
-      if (map == NULL && pos < ngenmaps) {
-         tree_t m = tree_genmap(inst, pos);
-         if (tree_subkind(m) == P_POS)
-            map = m;
+      if (pos < ngenmaps) {
+         map = tree_genmap(inst, pos);
+         assert(tree_subkind(map) == P_POS);
       }
-
-      if (map == NULL && tree_has_value(cg)) {
+      else if (tree_has_value(cg)) {
          map = tree_new(T_PARAM);
          tree_set_loc(map, tree_loc(cg));
          tree_set_subkind(map, P_POS);
