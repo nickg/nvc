@@ -759,8 +759,7 @@ void _private_stack(void)
    if (active_proc->tmp_stack == NULL && _tmp_alloc > 0) {
       active_proc->tmp_stack = _tmp_stack;
 
-      proc_tmp_stack = mmap_guarded(PROC_TMP_STACK_SZ,
-                                    istr(e_path(active_proc->source)));
+      proc_tmp_stack = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
    }
 
    active_proc->tmp_alloc = _tmp_alloc;
@@ -2223,7 +2222,13 @@ static void rt_reset(rt_proc_t *proc)
    active_scope = proc->scope;
 
    proc->privdata = (*proc->proc_fn)(NULL, proc->scope->privdata);
-   global_tmp_alloc = _tmp_alloc;
+
+   if (_tmp_alloc > 0) {
+      active_proc->tmp_stack = _tmp_stack;
+      active_proc->tmp_alloc = _tmp_alloc;
+
+      proc_tmp_stack = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
+   }
 }
 
 static void rt_run(rt_proc_t *proc)

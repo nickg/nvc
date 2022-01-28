@@ -486,3 +486,4 @@ wave5           shell
 record20        normal
 attr14          normal
 vhpi4           normal,vhpi,!windows
+wait16          normal
