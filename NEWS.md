@@ -2,6 +2,8 @@
 - Fix compatibility with BSD make (#440).
 - Fix an out-of-memory condition when initialising processes (#441).
 - Fix incorrect generic value in binding specification (#442).
+- Fix spurious error in overload resolution if required arguments follow
+  optional arguments (#443).
 
 ## Version 1.6.0 - 2022-01-25
 - Name resolution and overload resolution has been completely rewritten
