@@ -3831,6 +3831,37 @@ START_TEST(test_tc1012)
 }
 END_TEST
 
+START_TEST(test_issue443)
+{
+   input_from_file(TESTDIR "/parse/issue443.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   tree_t d = tree_decl(a, 1);
+   fail_unless(tree_kind(d) == T_CONST_DECL);
+   fail_unless(tree_ident(d) == ident_new("PARAM"));
+
+   tree_t f = tree_ref(tree_value(d));
+   fail_unless(tree_kind(f) == T_FUNC_DECL);
+   fail_unless(tree_ports(f) == 3);
+   fail_unless(tree_loc(f)->first_line == 28);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3894,6 +3925,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_protected2);
    tcase_add_test(tc_core, test_error4);
    tcase_add_test(tc_core, test_tc1012);
+   tcase_add_test(tc_core, test_issue443);
    suite_add_tcase(s, tc_core);
 
    return s;

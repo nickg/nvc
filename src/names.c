@@ -1551,8 +1551,14 @@ static tree_t finish_overload_resolution(overload_t *o)
       unsigned wptr = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          tree_t d = o->candidates.items[i];
+         int nrequired = 0;
          const int nports = tree_ports(d);
-         if (nactual < nports && !tree_has_value(tree_port(d, nactual)))
+         for (int i = 0; i < nports; i++) {
+            if (!tree_has_value(tree_port(d, i)))
+               nrequired++;
+         }
+
+         if (nactual < nrequired)
             overload_prune_candidate(o, i);
          else
             o->candidates.items[wptr++] = d;
