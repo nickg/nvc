@@ -343,7 +343,7 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
 static inline unsigned rt_signal_nexus_index(rt_signal_t *s, unsigned offset);
 static void _tracef(const char *fmt, ...);
 
-#define GLOBAL_TMP_STACK_SZ (1024 * 1024)
+#define GLOBAL_TMP_STACK_SZ (8 * 1024 * 1024)
 #define PROC_TMP_STACK_SZ   (64 * 1024)
 #define FMT_VALUES_SZ       128
 
@@ -2215,20 +2215,14 @@ static void rt_reset(rt_proc_t *proc)
 
   assert(proc->tmp_stack == NULL);
 
-  _tmp_stack = proc_tmp_stack;
-  _tmp_alloc = 0;
+  _tmp_stack = global_tmp_stack;
+  _tmp_alloc = global_tmp_alloc;
 
    active_proc = proc;
    active_scope = proc->scope;
 
    proc->privdata = (*proc->proc_fn)(NULL, proc->scope->privdata);
-
-   if (_tmp_alloc > 0) {
-      active_proc->tmp_stack = _tmp_stack;
-      active_proc->tmp_alloc = _tmp_alloc;
-
-      proc_tmp_stack = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
-   }
+   global_tmp_alloc = _tmp_alloc;
 }
 
 static void rt_run(rt_proc_t *proc)
