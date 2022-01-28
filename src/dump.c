@@ -484,7 +484,7 @@ static void dump_binding(tree_t t, int indent)
    if (tree_has_ident2(t))
       printf("(%s)", istr(tree_ident2(t)));
    printf("\n");
-   dump_generic_map(t, indent + 2, "\n");
+   dump_generic_map(t, indent + 2, tree_params(t) > 0 ? "\n" : "");
    dump_port_map(t, indent + 2, "");
    printf(";\n");
 }
@@ -1105,12 +1105,15 @@ static void dump_stmt(tree_t t, int indent)
       }
       printf("%s", istr(tree_ident2(t)));
       if (tree_has_spec(t)) {
-         tree_t bind = tree_value(tree_spec(t));
-         LOCAL_TEXT_BUF tb = tb_new();
-         tb_cat(tb, istr(tree_ident(bind)));
-         if (tree_has_ident2(bind))
-            tb_printf(tb, "(%s)", istr(tree_ident2(bind)));
-         syntax("  -- bound to %s\n", tb_get(tb));
+         tree_t spec = tree_spec(t);
+         if (tree_has_value(spec)) {
+            tree_t bind = tree_value(spec);
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_cat(tb, istr(tree_ident(bind)));
+            if (tree_has_ident2(bind))
+               tb_printf(tb, "(%s)", istr(tree_ident2(bind)));
+            syntax("  -- bound to %s\n", tb_get(tb));
+         }
       }
       else if (tree_params(t) > 0 || tree_genmaps(t) > 0)
          printf("\n");

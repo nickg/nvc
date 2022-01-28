@@ -1561,15 +1561,17 @@ static void simp_generic_map(tree_t t, tree_t unit)
          }
       }
 
-      if (value == NULL && tree_has_value(g))
-         value = tree_value(g);
-      else if (value == NULL && kind == T_BINDING) {
-         value = tree_new(T_OPEN);
-         tree_set_loc(value, tree_loc(t));
-         tree_set_type(value, tree_type(g));
+      if (value == NULL) {
+         if (kind == T_BINDING) {
+            value = tree_new(T_OPEN);
+            tree_set_loc(value, tree_loc(t));
+            tree_set_type(value, tree_type(g));
+         }
+         else if (tree_has_value(g))
+            value = tree_value(g);
+         else
+            fatal_trace("missing value for generic %s", istr(ident));
       }
-      else if (value == NULL)
-         fatal_trace("missing value for generic %s", istr(ident));
 
       APUSH(values, value);
    }
