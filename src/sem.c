@@ -15,11 +15,12 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "phase.h"
 #include "util.h"
 #include "common.h"
-#include "type.h"
 #include "loc.h"
+#include "opt.h"
+#include "phase.h"
+#include "type.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -1390,7 +1391,7 @@ static bool sem_check_missing_body(tree_t body, tree_t spec)
          if (!found && !(dkind != T_TYPE_DECL
                          && ((tree_flags(d) & TREE_F_PREDEFINED)
                              || (tree_flags(d) & TREE_F_FOREIGN)))
-             && opt_get_int("missing-body")) {
+             && opt_get_int(OPT_MISSING_BODY)) {
             warn_at(tree_loc(d), "missing body for %s %s",
                     (dkind == T_TYPE_DECL) ? "protected type"
                     : (dkind == T_PROC_DECL ? "procedure" : "function"),

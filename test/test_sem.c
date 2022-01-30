@@ -1,9 +1,27 @@
-#include "type.h"
-#include "phase.h"
+//
+//  Copyright (C) 2011-2022  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
 #include "util.h"
 #include "common.h"
-#include "test_util.h"
 #include "loc.h"
+#include "opt.h"
+#include "phase.h"
+#include "test_util.h"
+#include "type.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -76,7 +94,7 @@ END_TEST
 
 START_TEST(test_ports)
 {
-   opt_set_int("missing-body", 1);
+   opt_set_int(OPT_MISSING_BODY, 1);
 
    input_from_file(TESTDIR "/sem/ports.vhd");
 
@@ -491,7 +509,7 @@ END_TEST
 
 START_TEST(test_generics)
 {
-   opt_set_int("missing-body", 1);
+   opt_set_int(OPT_MISSING_BODY, 1);
    input_from_file(TESTDIR "/sem/generics.vhd");
 
    const error_t expect[] = {
@@ -1071,7 +1089,7 @@ END_TEST
 
 START_TEST(test_protected)
 {
-   opt_set_int("missing-body", 1);
+   opt_set_int(OPT_MISSING_BODY, 1);
    set_standard(STD_00);
 
    input_from_file(TESTDIR "/sem/protected.vhd");

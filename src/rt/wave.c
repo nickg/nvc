@@ -15,13 +15,14 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "rt.h"
 #include "util.h"
-#include "tree.h"
 #include "array.h"
 #include "common.h"
-#include "fstapi.h"
 #include "enode.h"
+#include "fstapi.h"
+#include "opt.h"
+#include "rt.h"
+#include "tree.h"
 #include "type.h"
 
 #include <assert.h>
@@ -267,7 +268,7 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
    type_t elem = type_elem(type);
    if (type_is_array(elem)) {
       // Dumping memories and nested arrays can be slow
-      if (!opt_get_int("dump-arrays"))
+      if (!opt_get_int(OPT_DUMP_ARRAYS))
          return;
 
       const int length = MAX(high - low + 1, 0);

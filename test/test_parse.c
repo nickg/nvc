@@ -15,15 +15,15 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "type.h"
 #include "util.h"
-#include "tree.h"
-#include "phase.h"
 #include "common.h"
-#include "test_util.h"
 #include "loc.h"
+#include "opt.h"
+#include "phase.h"
+#include "test_util.h"
+#include "tree.h"
+#include "type.h"
 
-#include <check.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -3273,7 +3273,7 @@ END_TEST;
 
 START_TEST(test_synth)
 {
-   opt_set_int("synthesis", 1);
+   opt_set_int(OPT_SYNTHESIS, 1);
 
    input_from_file(TESTDIR "/parse/synth.vhd");
 
@@ -3432,7 +3432,7 @@ END_TEST
 
 START_TEST(test_implicit)
 {
-   opt_set_int("missing-body", 1);
+   opt_set_int(OPT_MISSING_BODY, 1);
    input_from_file(TESTDIR "/parse/names.vhd");
 
    fail_if_errors();

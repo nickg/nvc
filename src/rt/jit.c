@@ -16,12 +16,13 @@
 //
 
 #include "util.h"
-#include "rt.h"
-#include "lib.h"
-#include "tree.h"
-#include "common.h"
 #include "array.h"
+#include "common.h"
 #include "enode.h"
+#include "lib.h"
+#include "opt.h"
+#include "rt.h"
+#include "tree.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -121,7 +122,7 @@ static void jit_load_module(ident_t name)
    if (access(so_path, F_OK) != 0)
       return;
 
-   if (opt_get_int("rt_trace_en"))
+   if (opt_get_int(OPT_RT_TRACE))
       fprintf(stderr, "TRACE (init): load %s from %s\n", istr(name), so_path);
 
    uint32_t abi_version = 0;

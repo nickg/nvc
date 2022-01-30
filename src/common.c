@@ -20,6 +20,7 @@
 #include "util.h"
 #include "common.h"
 #include "ident.h"
+#include "opt.h"
 #include "type.h"
 
 #include <assert.h>
@@ -1140,7 +1141,7 @@ type_t std_type(tree_t std, std_type_t which)
       // Do not cache standard types while bootstrapping as the GC will
       // move the objects after parsing
       static int can_cache = -1;
-      if (can_cache == -1) can_cache = !opt_get_int("bootstrap");
+      if (can_cache == -1) can_cache = !opt_get_int(OPT_BOOTSTRAP);
 
       if (can_cache)
          return (cache[which] = tree_type(d));

@@ -25,10 +25,10 @@
 #endif
 
 #include "util.h"
-#include "ident.h"
-#include "loc.h"
-#include "debug.h"
 #include "array.h"
+#include "debug.h"
+#include "loc.h"
+#include "opt.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -105,25 +105,7 @@ static void show_hint(void);
 static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain);
 
 typedef struct guard guard_t;
-typedef struct option option_t;
 typedef struct hint hint_t;
-
-typedef enum {
-   OPTION_INT,
-   OPTION_STRING
-} option_kind_t;
-
-typedef union {
-   int   i;
-   char *s;
-} optval_t;
-
-struct option {
-   option_t      *next;
-   option_kind_t  kind;
-   ident_t        key;
-   optval_t       value;
-};
 
 struct hint {
    hint_fn_t func;
@@ -170,7 +152,6 @@ struct _nvc_mutex {
 static error_fn_t      error_fn = NULL;
 static fatal_fn_t      fatal_fn = NULL;
 static bool            want_color = false;
-static option_t       *options = NULL;
 static guard_t        *guards;
 static message_style_t message_style = MESSAGE_FULL;
 static hint_t         *hints = NULL;
@@ -587,7 +568,7 @@ void error_at(const loc_t *loc, const char *fmt, ...)
 
    va_end(ap);
 
-   if (n_errors == opt_get_int("error-limit"))
+   if (n_errors == opt_get_int(OPT_ERROR_LIMIT))
       fatal("too many errors, giving up");
 }
 
@@ -605,7 +586,7 @@ void warn_at(const loc_t *loc, const char *fmt, ...)
    show_hint();
    va_end(ap);
 
-   if (opt_get_int("unit-test"))
+   if (opt_get_int(OPT_UNIT_TEST))
       n_errors++;
 }
 
@@ -623,7 +604,7 @@ void note_at(const loc_t *loc, const char *fmt, ...)
    show_hint();
    va_end(ap);
 
-   if (opt_get_int("unit-test"))
+   if (opt_get_int(OPT_UNIT_TEST))
       n_errors++;
 }
 
@@ -1109,67 +1090,6 @@ void term_init(void)
          want_color = false;
    }
 #endif
-}
-
-static void opt_set_generic(const char *name, option_kind_t kind,
-                            optval_t value)
-{
-   ident_t name_i = ident_new(name);
-   struct option *it;
-   for (it = options; (it != NULL) && (it->key != name_i); it = it->next)
-      ;
-
-   if (it != NULL) {
-      if (it->kind == OPTION_STRING)
-         free(it->value.s);
-      it->value = value;
-   }
-   else {
-      it = xmalloc(sizeof(struct option));
-      it->key   = ident_new(name);
-      it->value = value;
-      it->next  = options;
-      it->kind  = kind;
-
-      options = it;
-   }
-}
-
-static optval_t opt_get_generic(const char *name, option_kind_t kind)
-{
-   ident_t name_i = ident_new(name);
-   struct option *it;
-   for (it = options; (it != NULL) && (it->key != name_i); it = it->next)
-      ;
-
-   if (it != NULL) {
-      if (it->kind == kind)
-         return it->value;
-      else
-         fatal_trace("wrong option kind for %s", name);
-   }
-   else
-      fatal_trace("invalid option %s", name);
-}
-
-void opt_set_int(const char *name, int val)
-{
-   opt_set_generic(name, OPTION_INT, (optval_t)val);
-}
-
-int opt_get_int(const char *name)
-{
-   return opt_get_generic(name, OPTION_INT).i;
-}
-
-void opt_set_str(const char *name, const char *val)
-{
-   opt_set_generic(name, OPTION_STRING, (optval_t)(val ? strdup(val) : NULL));
-}
-
-const char *opt_get_str(const char *name)
-{
-   return opt_get_generic(name, OPTION_STRING).s;
 }
 
 char *get_fmt_buf(size_t len)
@@ -1866,7 +1786,7 @@ char *search_path(const char *name)
 
 void progress(const char *fmt, ...)
 {
-   if (opt_get_int("verbose")) {
+   if (opt_get_int(OPT_VERBOSE)) {
       va_list ap;
       va_start(ap, fmt);
       char *msg LOCAL = xvasprintf(fmt, ap);

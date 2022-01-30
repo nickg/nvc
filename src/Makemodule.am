@@ -48,7 +48,9 @@ lib_libnvc_a_SOURCES = \
 	src/cprop.h \
 	src/cprop.c \
 	src/exec.h \
-	src/exec.c
+	src/exec.c \
+	src/opt.h \
+	src/opt.c
 
 lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

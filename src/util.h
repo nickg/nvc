@@ -155,11 +155,6 @@ bool is_debugger_running(void);
 
 void term_init(void);
 
-void opt_set_int(const char *name, int val);
-void opt_set_str(const char *name, const char *val);
-int opt_get_int(const char *name);
-const char *opt_get_str(const char *name);
-
 char *get_fmt_buf(size_t len);
 
 int checked_sprintf(char *buf, int len, const char *fmt, ...)

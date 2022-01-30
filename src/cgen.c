@@ -16,15 +16,16 @@
 //
 
 #include "util.h"
-#include "phase.h"
-#include "lib.h"
-#include "common.h"
-#include "vcode.h"
 #include "array.h"
+#include "common.h"
 #include "hash.h"
-#include "rt/rt.h"
+#include "lib.h"
+#include "opt.h"
+#include "phase.h"
 #include "rt/cover.h"
 #include "rt/ffi.h"
+#include "rt/rt.h"
+#include "vcode.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -626,7 +627,7 @@ static void cgen_debug_push_func(cgen_ctx_t *ctx)
       debuginfo, scope, tb_get(symbol), tb_len(symbol),
       tb_get(symbol), tb_len(symbol), file_ref,
       loc->first_line, dtype, true, true,
-      1, 0, opt_get_int("optimise"));
+      1, 0, opt_get_int(OPT_OPTIMISE));
    LLVMSetSubprogram(ctx->fn, sp);
 
    cgen_push_debug_scope(sp);
@@ -3824,7 +3825,7 @@ static void cgen_module_debug_info(void)
    LLVMMetadataRef cu = LLVMDIBuilderCreateCompileUnit(
       debuginfo, LLVMDWARFSourceLanguageAda83,
       file_ref, PACKAGE, sizeof(PACKAGE) - 1,
-      opt_get_int("optimise"), "", 0,
+      opt_get_int(OPT_OPTIMISE), "", 0,
       0, "", 0,
       LLVMDWARFEmissionFull, 0, false, false
 #if LLVM_CREATE_CU_HAS_SYSROOT
@@ -3983,7 +3984,7 @@ static void cgen_optimise(void)
    LLVMPassManagerRef fpm = LLVMCreateFunctionPassManagerForModule(module);
    LLVMPassManagerRef mpm = LLVMCreatePassManager();
 
-   const int olevel = opt_get_int("optimise");
+   const int olevel = opt_get_int(OPT_OPTIMISE);
 
    LLVMPassManagerBuilderRef builder = LLVMPassManagerBuilderCreate();
    LLVMPassManagerBuilderSetOptLevel(builder, olevel);
@@ -4621,7 +4622,7 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
 
    LLVMDIBuilderFinalize(debuginfo);
 
-   const bool dump_ir = opt_get_int("dump-llvm");
+   const bool dump_ir = opt_get_int(OPT_DUMP_LLVM);
    if (dump_ir) cgen_dump_module("initial");
 
    if (getenv("NVC_CGEN_VERBOSE") != NULL)
@@ -4662,7 +4663,7 @@ static void *cgen_worker_thread(void *__arg)
       fatal("failed to get LLVM target for %s: %s", def_triple, error);
 
    LLVMCodeGenOptLevel code_gen_level;
-   switch (opt_get_int("optimise")) {
+   switch (opt_get_int(OPT_OPTIMISE)) {
    case 0: code_gen_level = LLVMCodeGenLevelNone; break;
    case 1: code_gen_level = LLVMCodeGenLevelLess; break;
    case 3: code_gen_level = LLVMCodeGenLevelAggressive; break;

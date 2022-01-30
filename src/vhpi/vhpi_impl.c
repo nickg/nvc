@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2021  Nick Gasson
+//  Copyright (C) 2014-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,15 +35,16 @@
 #include "hash.h"
 #include "tree.h"
 #include "common.h"
-#include "ctype.h"
 #include "enode.h"
 #include "type.h"
+#include "opt.h"
 #include "rt/rt.h"
 
 #include <string.h>
 #include <assert.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #ifdef __MINGW32__
 #define WIN32_LEAN_AND_MEAN
@@ -1512,7 +1513,7 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
 
    handle_hash = hash_new(1024, true);
 
-   trace_on = opt_get_int("vhpi_trace_en");
+   trace_on = opt_get_int(OPT_VHPI_TRACE);
 
    const char *verbose = getenv("NVC_VHPI_VERBOSE");
    if (verbose && *verbose != '\0')

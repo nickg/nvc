@@ -15,15 +15,16 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "tree.h"
 #include "util.h"
-#include "phase.h"
-#include "token.h"
+#include "array.h"
 #include "common.h"
 #include "loc.h"
 #include "names.h"
+#include "opt.h"
+#include "phase.h"
+#include "token.h"
+#include "tree.h"
 #include "type.h"
-#include "array.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -302,7 +303,7 @@ static token_t conditional_yylex(void)
       {
          BEGIN("synthesis translate_off");
 
-         if (opt_get_int("synthesis"))
+         if (opt_get_int(OPT_SYNTHESIS))
             translate_on = false;
 
          return conditional_yylex();
@@ -8787,7 +8788,7 @@ void input_from_file(const char *file)
    n_row              = 0;
    n_token_next_start = 0;
    translate_on       = true;
-   bootstrapping      = opt_get_int("bootstrap");
+   bootstrapping      = opt_get_int(OPT_BOOTSTRAP);
 
    if (tokenq == NULL) {
       tokenq_sz = 128;

@@ -16,13 +16,14 @@
 //
 
 #include "util.h"
-#include "lib.h"
-#include "tree.h"
-#include "common.h"
-#include "loc.h"
-#include "vcode.h"
-#include "enode.h"
 #include "array.h"
+#include "common.h"
+#include "enode.h"
+#include "lib.h"
+#include "loc.h"
+#include "opt.h"
+#include "tree.h"
+#include "vcode.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -377,7 +378,7 @@ lib_t lib_new(const char *name, const char *path)
    if (stat(path, &buf) == 0) {
       if (S_ISDIR(buf.st_mode)) {
          struct stat sb;
-         if (stat(lockf, &sb) != 0 && !opt_get_int("force-init"))
+         if (stat(lockf, &sb) != 0 && !opt_get_int(OPT_FORCE_INIT))
             fatal("directory %s already exists and is not an NVC library "
                   "(use --force-init to override this check)", path);
       }
@@ -836,7 +837,7 @@ tree_t lib_get_check_stale(lib_t lib, ident_t ident)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
-      if (!opt_get_int("ignore-time")) {
+      if (!opt_get_int(OPT_IGNORE_TIME)) {
          const loc_t *loc = tree_loc(lu->top);
 
          struct stat st;

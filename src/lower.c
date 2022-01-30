@@ -16,14 +16,15 @@
 //
 
 #include "util.h"
-#include "phase.h"
-#include "vcode.h"
-#include "common.h"
-#include "rt/rt.h"
-#include "rt/cover.h"
-#include "hash.h"
 #include "array.h"
+#include "common.h"
+#include "hash.h"
+#include "opt.h"
+#include "phase.h"
+#include "rt/cover.h"
+#include "rt/rt.h"
 #include "type.h"
+#include "vcode.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -7564,7 +7565,7 @@ static void lower_set_verbose(void)
       if (venv != NULL && venv[0] != '\0')
          verbose = isalpha((int)venv[0]) || venv[0] == ':' ? venv : "";
       else
-         verbose = opt_get_str("dump-vcode");
+         verbose = opt_get_str(OPT_DUMP_VCODE);
    }
 }
 

@@ -15,18 +15,19 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "rt.h"
-#include "tree.h"
-#include "lib.h"
 #include "util.h"
 #include "alloc.h"
-#include "heap.h"
 #include "common.h"
 #include "cover.h"
-#include "hash.h"
 #include "debug.h"
 #include "enode.h"
 #include "ffi.h"
+#include "hash.h"
+#include "heap.h"
+#include "lib.h"
+#include "opt.h"
+#include "rt.h"
+#include "tree.h"
 #include "type.h"
 
 #include <assert.h>
@@ -1208,7 +1209,7 @@ void __nvc_null_deref(DEBUG_LOCUS(locus))
 DLLEXPORT
 bool _nvc_ieee_warnings(void)
 {
-   return opt_get_int("ieee-warnings");
+   return opt_get_int(OPT_IEEE_WARNINGS);
 }
 
 DLLEXPORT
@@ -2845,7 +2846,7 @@ static void rt_iteration_limit(void)
    text_buf_t *buf = tb_new();
    tb_printf(buf, "Iteration limit of %d delta cycles reached. "
              "The following processes are active:\n",
-             opt_get_int("stop-delta"));
+             opt_get_int(OPT_STOP_DELTA));
 
    for (sens_list_t *it = resume; it != NULL; it = it->next) {
       if (it->wake->kind == W_PROC) {
@@ -3270,8 +3271,8 @@ void rt_start_of_tool(tree_t top, e_node_t e)
       fatal_trace("SetConsoleCtrlHandler");
 #endif
 
-   trace_on = opt_get_int("rt_trace_en");
-   profiling = opt_get_int("rt_profile");
+   trace_on = opt_get_int(OPT_RT_TRACE);
+   profiling = opt_get_int(OPT_RT_PROFILE);
 
    if (profiling) {
       memset(&profile, '\0', sizeof(profile));
@@ -3301,13 +3302,13 @@ void rt_end_of_tool(tree_t top, e_node_t e)
 
    jit_shutdown();
 
-   if (opt_get_int("rt-stats") || profiling)
+   if (opt_get_int(OPT_RT_STATS) || profiling)
       rt_stats_print();
 }
 
 void rt_run_sim(uint64_t stop_time)
 {
-   const int stop_delta = opt_get_int("stop-delta");
+   const int stop_delta = opt_get_int(OPT_STOP_DELTA);
 
    wave_restart();
 

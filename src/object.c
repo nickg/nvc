@@ -15,9 +15,11 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "object.h"
+#include "util.h"
 #include "common.h"
 #include "hash.h"
+#include "object.h"
+#include "opt.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -1030,12 +1032,7 @@ object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
 
 size_t object_arena_default_size(void)
 {
-   static size_t cached = 0;
-
-   if (cached == 0)
-      cached = ALIGN_UP(opt_get_int("arena-size"), OBJECT_PAGE_SZ);
-
-   return cached;
+   return ALIGN_UP(opt_get_int(OPT_ARENA_SIZE), OBJECT_PAGE_SZ);
 }
 
 object_arena_t *object_arena_new(size_t size, unsigned std)

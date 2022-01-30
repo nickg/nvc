@@ -16,12 +16,13 @@
 //
 
 #include "util.h"
-#include "cover.h"
-#include "loc.h"
-#include "common.h"
-#include "hash.h"
-#include "fbuf.h"
 #include "array.h"
+#include "common.h"
+#include "cover.h"
+#include "fbuf.h"
+#include "hash.h"
+#include "loc.h"
+#include "opt.h"
 #include "type.h"
 
 #include <assert.h>
@@ -199,7 +200,7 @@ cover_tagging_t *cover_tag(tree_t top)
 
    tree_visit(top, cover_tag_visit_fn, ctx);
 
-   if (opt_get_int("unit-test"))
+   if (opt_get_int(OPT_UNIT_TEST))
       return ctx;
 
    char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));

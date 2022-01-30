@@ -15,13 +15,14 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "lib.h"
 #include "util.h"
 #include "array.h"
-#include "phase.h"
 #include "common.h"
-#include "rt/rt.h"
+#include "lib.h"
+#include "opt.h"
+#include "phase.h"
 #include "rt/cover.h"
+#include "rt/rt.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -131,7 +132,7 @@ static int analyse(int argc, char **argv)
    int c, index = 0;
    const char *spec = "";
 
-   opt_set_int("error-limit", 20);
+   opt_set_int(OPT_ERROR_LIMIT, 20);
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -141,16 +142,16 @@ static int analyse(int argc, char **argv)
       case '?':
          bad_option("analyse", argv);
       case 'b':
-         opt_set_int("bootstrap", 1);
+         opt_set_int(OPT_BOOTSTRAP, 1);
          break;
       case 'D':
-         opt_set_int("dump-llvm", 1);
+         opt_set_int(OPT_DUMP_LLVM, 1);
          break;
       case 'v':
-         opt_set_str("dump-vcode", optarg ?: "");
+         opt_set_str(OPT_DUMP_VCODE, optarg ?: "");
          break;
       case 'j':
-         opt_set_str("dump-json", optarg ?: "");
+         opt_set_str(OPT_DUMP_JSON, optarg ?: "");
          break;
       case 'p':
          warnf("the --prefer-explict option is deprecated: use "
@@ -161,7 +162,7 @@ static int analyse(int argc, char **argv)
          set_relax_rules(parse_relax(optarg));
          break;
       case 'l':
-         opt_set_int("error-limit", parse_int(optarg));
+         opt_set_int(OPT_ERROR_LIMIT, parse_int(optarg));
          break;
       default:
          abort();
@@ -194,8 +195,8 @@ static int analyse(int argc, char **argv)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   if (opt_get_str("dump-json"))
-      dump_json(units.items, units.count, opt_get_str("dump-json"));
+   if (opt_get_str(OPT_DUMP_JSON))
+      dump_json(units.items, units.count, opt_get_str(OPT_DUMP_JSON));
 
    lib_save(work);
 
@@ -253,7 +254,7 @@ static int elaborate(int argc, char **argv)
       switch (c) {
       case 'o':
          warnf("The '--disable-opt' option is deprecated: use '-O0' instead");
-         opt_set_int("optimise", 0);
+         opt_set_int(OPT_OPTIMISE, 0);
          break;
       case 'O':
          {
@@ -261,23 +262,23 @@ static int elaborate(int argc, char **argv)
             const int level = strtoul(optarg, &eptr, 10);
             if (level > 3)
                fatal("Invalid optimisation level %s", optarg);
-            opt_set_int("optimise", level);
+            opt_set_int(OPT_OPTIMISE, level);
          }
          break;
       case 'd':
-         opt_set_int("dump-llvm", 1);
+         opt_set_int(OPT_DUMP_LLVM, 1);
          break;
       case 'v':
-         opt_set_str("dump-vcode", optarg ?: "");
+         opt_set_str(OPT_DUMP_VCODE, optarg ?: "");
          break;
       case 'n':
          warnf("--native is now a global option: place before the -e command");
          break;
       case 'c':
-         opt_set_int("cover", 1);
+         opt_set_int(OPT_COVER, 1);
          break;
       case 'V':
-         opt_set_int("verbose", 1);
+         opt_set_int(OPT_VERBOSE, 1);
          break;
       case 'g':
          parse_generic(optarg);
@@ -310,7 +311,7 @@ static int elaborate(int argc, char **argv)
    progress("elaborating design");
 
    cover_tagging_t *cover = NULL;
-   if (opt_get_int("cover")) {
+   if (opt_get_int(OPT_COVER)) {
       cover = cover_tag(top);
       progress("generating coverage information");
    }
@@ -434,13 +435,13 @@ static int run(int argc, char **argv)
       case '?':
          bad_option("run", argv);
       case 't':
-         opt_set_int("rt_trace_en", 1);
+         opt_set_int(OPT_RT_TRACE, 1);
          break;
       case 'p':
-         opt_set_int("rt_profile", 1);
+         opt_set_int(OPT_RT_PROFILE, 1);
          break;
       case 'T':
-         opt_set_int("vhpi_trace_en", 1);
+         opt_set_int(OPT_VHPI_TRACE, 1);
          break;
       case 's':
          stop_time = parse_time(optarg);
@@ -454,7 +455,7 @@ static int run(int argc, char **argv)
             fatal("invalid waveform format: %s", optarg);
          break;
       case 'S':
-         opt_set_int("rt-stats", 1);
+         opt_set_int(OPT_RT_STATS, 1);
          break;
       case 'w':
          if (optarg == NULL)
@@ -463,7 +464,7 @@ static int run(int argc, char **argv)
             wave_fname = optarg;
          break;
       case 'd':
-         opt_set_int("stop-delta", parse_int(optarg));
+         opt_set_int(OPT_STOP_DELTA, parse_int(optarg));
          break;
       case 'i':
          wave_include_glob(optarg);
@@ -478,10 +479,10 @@ static int run(int argc, char **argv)
          rt_set_exit_severity(parse_severity(optarg));
          break;
       case 'I':
-         opt_set_int("ieee-warnings", parse_on_off(optarg));
+         opt_set_int(OPT_IEEE_WARNINGS, parse_on_off(optarg));
          break;
       case 'a':
-         opt_set_int("dump-arrays", 1);
+         opt_set_int(OPT_DUMP_ARRAYS, 1);
          break;
       default:
          abort();
@@ -546,10 +547,10 @@ static int make_cmd(int argc, char **argv)
       case '?':
          bad_option("make", argv);
       case 'd':
-         opt_set_int("make-deps-only", 1);
+         opt_set_int(OPT_MAKE_DEPS_ONLY, 1);
          break;
       case 'p':
-         opt_set_int("make-posix", 1);
+         opt_set_int(OPT_MAKE_POSIX, 1);
          break;
       default:
          abort();
@@ -711,30 +712,30 @@ static int dump_cmd(int argc, char **argv)
 
 static void set_default_opts(void)
 {
-   opt_set_int("rt-stats", 0);
-   opt_set_int("rt_trace_en", 0);
-   opt_set_int("vhpi_trace_en", 0);
-   opt_set_int("dump-llvm", 0);
-   opt_set_int("optimise", 2);
-   opt_set_int("bootstrap", 0);
-   opt_set_str("dump-json", NULL);
-   opt_set_int("cover", 0);
-   opt_set_int("stop-delta", 1000);
-   opt_set_int("unit-test", 0);
-   opt_set_int("make-deps-only", 0);
-   opt_set_int("make-posix", 0);
-   opt_set_str("dump-vcode", NULL);
-   opt_set_int("relax", 0);
-   opt_set_int("ignore-time", 0);
-   opt_set_int("force-init", 0);
-   opt_set_int("verbose", 0);
-   opt_set_int("rt_profile", 0);
-   opt_set_int("synthesis", 0);
-   opt_set_int("missing-body", 1);
-   opt_set_int("error-limit", -1);
-   opt_set_int("ieee-warnings", 1);
-   opt_set_int("arena-size", 1 << 24);
-   opt_set_int("dump-arrays", 0);
+   opt_set_int(OPT_RT_STATS, 0);
+   opt_set_int(OPT_RT_TRACE, 0);
+   opt_set_int(OPT_VHPI_TRACE, 0);
+   opt_set_int(OPT_DUMP_LLVM, 0);
+   opt_set_int(OPT_OPTIMISE, 2);
+   opt_set_int(OPT_BOOTSTRAP, 0);
+   opt_set_str(OPT_DUMP_JSON, NULL);
+   opt_set_int(OPT_COVER, 0);
+   opt_set_int(OPT_STOP_DELTA, 1000);
+   opt_set_int(OPT_UNIT_TEST, 0);
+   opt_set_int(OPT_MAKE_DEPS_ONLY, 0);
+   opt_set_int(OPT_MAKE_POSIX, 0);
+   opt_set_str(OPT_DUMP_VCODE, NULL);
+   opt_set_int(OPT_RELAX, 0);
+   opt_set_int(OPT_IGNORE_TIME, 0);
+   opt_set_int(OPT_FORCE_INIT, 0);
+   opt_set_int(OPT_VERBOSE, 0);
+   opt_set_int(OPT_RT_PROFILE, 0);
+   opt_set_int(OPT_SYNTHESIS, 0);
+   opt_set_int(OPT_MISSING_BODY, 1);
+   opt_set_int(OPT_ERROR_LIMIT, -1);
+   opt_set_int(OPT_IEEE_WARNINGS, 1);
+   opt_set_int(OPT_ARENA_SIZE, 1 << 24);
+   opt_set_int(OPT_DUMP_ARRAYS, 0);
 }
 
 static void usage(void)
@@ -806,7 +807,7 @@ static void usage(void)
           "     --posix\t\tStrictly POSIX compliant makefile\n"
           "\n",
           PACKAGE,
-          opt_get_int("stop-delta"));
+          opt_get_int(OPT_STOP_DELTA));
 
    LOCAL_TEXT_BUF tb = tb_new();
    lib_print_search_paths(tb);
@@ -999,16 +1000,16 @@ int main(int argc, char **argv)
          parse_library_map(optarg);
          break;
       case 'i':
-         opt_set_int("ignore-time", 1);
+         opt_set_int(OPT_IGNORE_TIME, 1);
          break;
       case 'f':
-         opt_set_int("force-init", 1);
+         opt_set_int(OPT_FORCE_INIT, 1);
          break;
       case 'n':
          warnf("the --native option is deprecated and has no effect");
          break;
       case 'M':
-         opt_set_int("arena-size", parse_size(optarg));
+         opt_set_int(OPT_ARENA_SIZE, parse_size(optarg));
          break;
       case '?':
          bad_option("global", argv);

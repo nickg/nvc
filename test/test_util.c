@@ -1,9 +1,27 @@
+//
+//  Copyright (C) 2014-2022  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
 #include "test_util.h"
 #include "lib.h"
 #include "phase.h"
 #include "common.h"
 #include "loc.h"
 #include "vcode.h"
+#include "opt.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -41,15 +59,15 @@ static void setup(void)
    if (lib_dir)
       lib_add_search_path(lib_dir);
 
-   opt_set_int("bootstrap", 0);
-   opt_set_int("cover", 0);
-   opt_set_int("unit-test", 1);
-   opt_set_str("dump-vcode", NULL);
-   opt_set_int("ignore-time", 0);
-   opt_set_int("verbose", 0);
-   opt_set_int("synthesis", 0);
-   opt_set_int("error-limit", -1);
-   opt_set_int("arena-size", 1 << 20);
+   opt_set_int(OPT_BOOTSTRAP, 0);
+   opt_set_int(OPT_COVER, 0);
+   opt_set_int(OPT_UNIT_TEST, 1);
+   opt_set_str(OPT_DUMP_VCODE, NULL);
+   opt_set_int(OPT_IGNORE_TIME, 0);
+   opt_set_int(OPT_VERBOSE, 0);
+   opt_set_int(OPT_SYNTHESIS, 0);
+   opt_set_int(OPT_ERROR_LIMIT, -1);
+   opt_set_int(OPT_ARENA_SIZE, 1 << 20);
    intern_strings();
 }
 
@@ -58,8 +76,8 @@ static void setup_per_test(void)
    test_lib = lib_tmp("work");
    lib_set_work(test_lib);
 
-   opt_set_int("cover", 0);
-   opt_set_int("missing-body", 0);
+   opt_set_int(OPT_COVER, 0);
+   opt_set_int(OPT_MISSING_BODY, 0);
 
    reset_error_count();
 
