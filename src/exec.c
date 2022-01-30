@@ -15,17 +15,18 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "lib.h"
-#include "prim.h"
-#include "exec.h"
 #include "util.h"
-#include "ident.h"
+#include "common.h"
+#include "exec.h"
 #include "hash.h"
-#include "vcode.h"
+#include "ident.h"
+#include "lib.h"
+#include "opt.h"
+#include "phase.h"
+#include "prim.h"
 #include "tree.h"
 #include "type.h"
-#include "phase.h"
-#include "common.h"
+#include "vcode.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -2242,10 +2243,7 @@ static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
 
 exec_t *exec_new(eval_flags_t flags)
 {
-   static int verbose_env = -1;
-   if (verbose_env == -1)
-      verbose_env = getenv("NVC_EVAL_VERBOSE") != NULL;
-   if (verbose_env)
+   if (opt_get_verbose(OPT_EVAL_VERBOSE, NULL))
       flags |= EVAL_VERBOSE;
 
    if (flags & EVAL_VERBOSE)

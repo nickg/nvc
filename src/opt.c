@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <ctype.h>
 
 typedef enum {
    OPT_KIND_UNDEF,
@@ -81,4 +82,15 @@ void opt_set_str(opt_name_t name, const char *val)
 const char *opt_get_str(opt_name_t name)
 {
    return opt_get_generic(name, OPT_KIND_STRING).s;
+}
+
+bool opt_get_verbose(opt_name_t name, const char *filter)
+{
+   const char *value = opt_get_str(name);
+   if (value == NULL || *value == '\0')
+      return false;
+   else if (!isdigit((int)*value))
+      return strstr(filter, value) != NULL;
+   else
+      return true;
 }

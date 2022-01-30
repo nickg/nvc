@@ -16,11 +16,12 @@
 //
 
 #include "util.h"
-#include "phase.h"
-#include "enode.h"
-#include "cprop.h"
 #include "common.h"
+#include "cprop.h"
+#include "enode.h"
 #include "hash.h"
+#include "opt.h"
+#include "phase.h"
 #include "type.h"
 
 #include <assert.h>
@@ -958,8 +959,7 @@ e_node_t eopt_build(tree_t elab)
    eopt_post_process_nexus(e);
    eopt_post_process_scopes(e);
 
-   const char *verbose = getenv("NVC_EOPT_VERBOSE");
-   if (verbose && *verbose != '\0')
+   if (opt_get_verbose(OPT_EOPT_VERBOSE, NULL))
       e_dump(e);
 
    cprop_vars_free(cprop_vars);

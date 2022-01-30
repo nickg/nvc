@@ -15,10 +15,12 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#include "util.h"
+#include "array.h"
 #include "cprop.h"
 #include "enode.h"
+#include "opt.h"
 #include "phase.h"
-#include "array.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -751,8 +753,7 @@ void cprop(cprop_req_t *req)
       }
    }
 
-   const char *verbose = getenv("NVC_CPROP_VERBOSE");
-   if (verbose && *verbose != '\0')
+   if (opt_get_verbose(OPT_CPROP_VERBOSE, NULL))
       vcode_dump_with_mark(-1, cprop_dump_fn, regs);
 }
 

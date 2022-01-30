@@ -100,7 +100,6 @@ typedef struct {
 
 typedef A(concat_param_t) concat_list_t;
 
-static const char      *verbose = NULL;
 static lower_mode_t     mode = LOWER_NORMAL;
 static lower_scope_t   *top_scope = NULL;
 static cover_tagging_t *cover_tags = NULL;
@@ -5684,12 +5683,8 @@ static void lower_finished(void)
 {
    vcode_opt();
 
-   if (verbose != NULL) {
-      ident_t unit_name = vcode_unit_name();
-      if (*verbose == '\0'
-          || (unit_name != NULL && strstr(istr(unit_name), verbose) != NULL))
-         vcode_dump();
-   }
+   if (opt_get_verbose(OPT_DUMP_VCODE, istr(vcode_unit_name())))
+      vcode_dump();
 }
 
 static void lower_protected_body(tree_t body, vcode_unit_t context)
@@ -7557,22 +7552,9 @@ static vcode_unit_t lower_package(tree_t unit)
    return context;
 }
 
-static void lower_set_verbose(void)
-{
-   static bool set = false;
-   if (!set) {
-      const char *venv = getenv("NVC_LOWER_VERBOSE");
-      if (venv != NULL && venv[0] != '\0')
-         verbose = isalpha((int)venv[0]) || venv[0] == ':' ? venv : "";
-      else
-         verbose = opt_get_str(OPT_DUMP_VCODE);
-   }
-}
-
 vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover)
 {
    assert(top_scope == NULL);
-   lower_set_verbose();
 
    freeze_global_arena();
 
@@ -7648,8 +7630,6 @@ static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context)
 
 vcode_unit_t lower_thunk(tree_t t)
 {
-   lower_set_verbose();
-
    mode = LOWER_THUNK;
 
    const tree_kind_t kind = tree_kind(t);

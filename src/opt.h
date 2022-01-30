@@ -20,6 +20,8 @@
 
 #include "prim.h"
 
+#include <stdbool.h>
+
 typedef enum {
    OPT_ERROR_LIMIT,
    OPT_RT_STATS,
@@ -45,6 +47,11 @@ typedef enum {
    OPT_ARENA_SIZE,
    OPT_DUMP_ARRAYS,
    OPT_FORCE_INIT,
+   OPT_GC_VERBOSE,
+   OPT_CPROP_VERBOSE,
+   OPT_EVAL_VERBOSE,
+   OPT_ELAB_VERBOSE,
+   OPT_EOPT_VERBOSE,
 
    OPT_LAST_NAME
 } opt_name_t;
@@ -53,5 +60,6 @@ void opt_set_int(opt_name_t name, int val);
 void opt_set_str(opt_name_t name, const char *val);
 int opt_get_int(opt_name_t name);
 const char *opt_get_str(opt_name_t name);
+bool opt_get_verbose(opt_name_t name, const char *filter);
 
 #endif  // _OPT_H

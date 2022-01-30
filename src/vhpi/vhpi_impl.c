@@ -1513,11 +1513,7 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
 
    handle_hash = hash_new(1024, true);
 
-   trace_on = opt_get_int(OPT_VHPI_TRACE);
-
-   const char *verbose = getenv("NVC_VHPI_VERBOSE");
-   if (verbose && *verbose != '\0')
-      trace_on = true;
+   trace_on = opt_get_verbose(OPT_VHPI_TRACE, NULL);
 
    vhpi_clear_error();
 

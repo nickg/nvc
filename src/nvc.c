@@ -441,7 +441,7 @@ static int run(int argc, char **argv)
          opt_set_int(OPT_RT_PROFILE, 1);
          break;
       case 'T':
-         opt_set_int(OPT_VHPI_TRACE, 1);
+         opt_set_str(OPT_VHPI_TRACE, "1");
          break;
       case 's':
          stop_time = parse_time(optarg);
@@ -714,7 +714,7 @@ static void set_default_opts(void)
 {
    opt_set_int(OPT_RT_STATS, 0);
    opt_set_int(OPT_RT_TRACE, 0);
-   opt_set_int(OPT_VHPI_TRACE, 0);
+   opt_set_str(OPT_VHPI_TRACE, getenv("NVC_VHPI_VERBOSE"));
    opt_set_int(OPT_DUMP_LLVM, 0);
    opt_set_int(OPT_OPTIMISE, 2);
    opt_set_int(OPT_BOOTSTRAP, 0);
@@ -724,7 +724,7 @@ static void set_default_opts(void)
    opt_set_int(OPT_UNIT_TEST, 0);
    opt_set_int(OPT_MAKE_DEPS_ONLY, 0);
    opt_set_int(OPT_MAKE_POSIX, 0);
-   opt_set_str(OPT_DUMP_VCODE, NULL);
+   opt_set_str(OPT_DUMP_VCODE, getenv("NVC_LOWER_VERBOSE"));
    opt_set_int(OPT_RELAX, 0);
    opt_set_int(OPT_IGNORE_TIME, 0);
    opt_set_int(OPT_FORCE_INIT, 0);
@@ -736,6 +736,11 @@ static void set_default_opts(void)
    opt_set_int(OPT_IEEE_WARNINGS, 1);
    opt_set_int(OPT_ARENA_SIZE, 1 << 24);
    opt_set_int(OPT_DUMP_ARRAYS, 0);
+   opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE"));
+   opt_set_str(OPT_CPROP_VERBOSE, getenv("NVC_CPROP_VERBOSE"));
+   opt_set_str(OPT_EVAL_VERBOSE, getenv("NVC_EVAL_VERBOSE"));
+   opt_set_str(OPT_ELAB_VERBOSE, getenv("NVC_ELAB_VERBOSE"));
+   opt_set_str(OPT_EOPT_VERBOSE, getenv("NVC_EOPT_VERBOSE"));
 }
 
 static void usage(void)
