@@ -835,7 +835,7 @@ static JsonNode *dump_context(tree_t t)
 
       switch (tree_kind(c)) {
       case T_LIBRARY:
-         if (tree_ident(c) != std_i && tree_ident(c) != work_i) {
+         if (tree_ident(c) != well_known(W_STD) && tree_ident(c) != well_known(W_WORK)) {
             JsonNode *library = json_mkobject();
             add_lineno(library, c);
             json_append_member(library, "cls", json_mkstring("library"));

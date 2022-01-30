@@ -132,7 +132,7 @@ static void cover_tag_conditions(tree_t t, cover_tagging_t *ctx, int branch)
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
       tree_t value = tree_value(tree_param(t, i));
-      if (type_ident(tree_type(value)) == std_bool_i)
+      if (type_ident(tree_type(value)) == well_known(W_STD_BOOL))
          cover_tag_conditions(value, ctx, tag);
    }
 }

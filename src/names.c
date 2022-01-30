@@ -998,7 +998,7 @@ void resolve_specs(nametab_t *tab, tree_t container, bool bind)
 
       if (iname == NULL)
          kind = OTHERS;
-      else if (iname == all_i)
+      else if (iname == well_known(W_ALL))
          kind = ALL;
       else
          kind = NAMED;
@@ -1159,7 +1159,7 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
    if (tree_has_ident2(use)) {
       ident_t what = tree_ident2(use);
       scope_t *s = chain_scope(tab, tag);
-      if (what == all_i) {
+      if (what == well_known(W_ALL)) {
          int ndecls = tree_decls(unit);
          for (int i = 0; i < ndecls; i++) {
             tree_t d = tree_decl(unit, i);

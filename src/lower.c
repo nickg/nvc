@@ -1542,7 +1542,7 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
    }
 
    if (vcode_unit_kind() == VCODE_UNIT_THUNK) {
-      unit_name = ident_prefix(unit_name, thunk_i, '$');
+      unit_name = ident_prefix(unit_name, well_known(W_THUNK), '$');
       vu = vcode_find_unit(unit_name);
       if (vu != NULL) {
          vcode_select_unit(vu);
@@ -5480,7 +5480,7 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
    type_t std_string = std_type(NULL, STD_STRING);
    ident_t func = lower_predef_func_name(std_string, "=");
 
-   vcode_reg_t std_reg = emit_link_package(std_standard_i);
+   vcode_reg_t std_reg = emit_link_package(well_known(W_STD_STANDARD));
    vcode_reg_t str_cmp_args[] = { std_reg, str_reg, canon_reg };
    vcode_reg_t eq_reg = emit_fcall(func, vtype_bool(), vtype_bool(),
                                    VCODE_CC_PREDEF, str_cmp_args, 3);
@@ -6598,10 +6598,10 @@ static void lower_predef_match_op(tree_t decl, vcode_unit_t context,
    bool is_array = false, is_bit = false;
    if (type_is_array(r0_type)) {
       is_array = true;
-      is_bit = type_ident(type_elem(r0_type)) == std_bit_i;
+      is_bit = type_ident(type_elem(r0_type)) == well_known(W_STD_BIT);
    }
    else
-      is_bit = type_ident(r0_type) == std_bit_i;
+      is_bit = type_ident(r0_type) == well_known(W_STD_BIT);
 
    vcode_reg_t result = VCODE_INVALID_REG;
    if (is_array) {
@@ -7590,7 +7590,7 @@ static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context)
    assert(context == NULL || vcode_unit_kind() == VCODE_UNIT_THUNK);
    assert(mode == LOWER_THUNK);
 
-   ident_t name = ident_prefix(tree_ident2(body), thunk_i, '$');
+   ident_t name = ident_prefix(tree_ident2(body), well_known(W_THUNK), '$');
 
    vcode_unit_t vu = vcode_find_unit(name);
    if (vu != NULL)
@@ -7637,6 +7637,7 @@ vcode_unit_t lower_thunk(tree_t t)
    ident_t name = NULL;
    if (kind == T_FUNC_BODY || kind == T_PROC_BODY) {
       lower_subprogram_for_thunk(t, NULL);
+      ident_t thunk_i = well_known(W_THUNK);
       return vcode_find_unit(ident_prefix(tree_ident2(t), thunk_i, '$'));
    }
    else

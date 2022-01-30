@@ -1191,8 +1191,13 @@ static void dump_context(tree_t t, int indent)
       tree_t c = tree_context(t, i);
       switch (tree_kind(c)) {
       case T_LIBRARY:
-         if (tree_ident(c) != std_i && tree_ident(c) != work_i)
+         switch (is_well_known(tree_ident(c))) {
+         case W_STD:
+         case W_WORK:
+            break;
+         default:
             syntax("#library %s;\n", istr(tree_ident(c)));
+         }
          break;
 
       case T_USE:

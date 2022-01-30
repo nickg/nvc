@@ -204,9 +204,10 @@ static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
                               enum fstSupplementalDataType *sdt)
 {
    type_t base = type_base_recur(type);
-   ident_t name = type_ident(base);
-   if (name == std_ulogic_i) {
-      if (type_ident(type) == std_logic_i)
+
+   switch (is_well_known(type_ident(base))) {
+   case W_STD_ULOGIC:
+      if (type_ident(type) == well_known(W_STD_LOGIC))
          *sdt = (data->size > 1) ?
             FST_SDT_VHDL_STD_LOGIC_VECTOR : FST_SDT_VHDL_STD_LOGIC;
       else
@@ -216,23 +217,28 @@ static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
       data->fmt = fst_fmt_chars;
       data->type.map = "UX01ZWLH-";
       return true;
-   }
-   else if (name == std_bit_i) {
+
+   case W_STD_BIT:
       *sdt = FST_SDT_VHDL_BIT;
       *vt  = FST_VT_SV_LOGIC;
       data->fmt = fst_fmt_chars;
       data->type.map = "01";
       return true;
-   }
-   else if ((name == std_char_i) && (data->size > 0)) {
-      *sdt = FST_SDT_VHDL_STRING;
-      *vt  = FST_VT_GEN_STRING;
-      data->fmt = fst_fmt_chars;
-      data->type.map = NULL;
-      return true;
-   }
-   else
+
+   case W_STD_CHAR:
+      if (data->size > 0) {
+         *sdt = FST_SDT_VHDL_STRING;
+         *vt  = FST_VT_GEN_STRING;
+         data->fmt = fst_fmt_chars;
+         data->type.map = NULL;
+         return true;
+      }
+      else
+         return false;
+
+   default:
       return false;
+   }
 }
 
 static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
@@ -291,11 +297,11 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
          return;
       }
       else {
-         ident_t ident = type_ident(type_base_recur(elem));
-         if (ident == unsigned_i)
-            sdt = FST_SDT_VHDL_UNSIGNED;
-         else if (ident == signed_i)
-            sdt = FST_SDT_VHDL_SIGNED;
+         switch (is_well_known(type_ident(type_base_recur(elem)))) {
+         case W_IEEE_UNSIGNED: sdt = FST_SDT_VHDL_UNSIGNED; break;
+         case W_IEEE_SIGNED:   sdt = FST_SDT_VHDL_SIGNED; break;
+         default: break;
+         }
       }
 
       const int msb = assume_int(tree_left(elem_r));
@@ -333,11 +339,11 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
          return;
       }
       else {
-         ident_t ident = type_ident(type_base_recur(type));
-         if (ident == unsigned_i)
-            sdt = FST_SDT_VHDL_UNSIGNED;
-         else if (ident == signed_i)
-            sdt = FST_SDT_VHDL_SIGNED;
+         switch (is_well_known(type_ident(type_base_recur(type)))) {
+         case W_IEEE_UNSIGNED: sdt = FST_SDT_VHDL_UNSIGNED; break;
+         case W_IEEE_SIGNED:   sdt = FST_SDT_VHDL_SIGNED; break;
+         default: break;
+         }
       }
 
       const int msb = assume_int(tree_left(r));
@@ -382,13 +388,11 @@ static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type,
    switch (type_kind(base)) {
    case T_INTEGER:
       {
-         ident_t ident = type_ident(type);
-         if (ident == natural_i)
-            sdt = FST_SDT_VHDL_NATURAL;
-         else if (ident == positive_i)
-            sdt = FST_SDT_VHDL_POSITIVE;
-         else
-            sdt = FST_SDT_VHDL_INTEGER;
+         switch (is_well_known(type_ident(type))) {
+         case W_STD_NATURAL:  sdt = FST_SDT_VHDL_NATURAL; break;
+         case W_STD_POSITIVE: sdt = FST_SDT_VHDL_POSITIVE; break;
+         default:             sdt = FST_SDT_VHDL_INTEGER; break;
+         }
 
          int64_t low, high;
          range_bounds(range_of(type, 0), &low, &high);
@@ -401,13 +405,11 @@ static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type,
 
    case T_ENUM:
       if (!fst_can_fmt_chars(type, data, &vt, &sdt)) {
-         ident_t ident = type_ident(base);
-         if (ident == std_bool_i)
-            sdt = FST_SDT_VHDL_BOOLEAN;
-         else if (ident == std_char_i)
-            sdt = FST_SDT_VHDL_CHARACTER;
-         else
-            sdt = FST_SDT_NONE;
+         switch (is_well_known(type_ident(base))) {
+         case W_STD_BOOL: sdt = FST_SDT_VHDL_BOOLEAN; break;
+         case W_STD_CHAR: sdt = FST_SDT_VHDL_CHARACTER; break;
+         default:         sdt = FST_SDT_NONE; break;
+         }
 
          vt = FST_VT_GEN_STRING;
          data->size = 0;

@@ -2232,7 +2232,7 @@ static void p_use_clause(tree_t unit, add_func_t addf)
 
             case tALL:
                consume(tALL);
-               tree_set_ident2(u, all_i);
+               tree_set_ident2(u, well_known(W_ALL));
                break;
 
             default:
@@ -2244,7 +2244,7 @@ static void p_use_clause(tree_t unit, add_func_t addf)
       case tALL:
          consume(tALL);
          tree_set_ident(u, i1);
-         tree_set_ident2(u, all_i);
+         tree_set_ident2(u, well_known(W_ALL));
          break;
 
       default:
@@ -4329,7 +4329,7 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
                         istr(it->ident), class_str(class_of(d)),
                         class_str(class));
 
-         if (d != NULL && head == foreign_i)
+         if (d != NULL && head == well_known(W_FOREIGN))
             apply_foreign_attribute(d, value);
       }
 
@@ -6462,7 +6462,7 @@ static ident_list_t *p_instantiation_list(void)
          consume(tALL);
 
          ident_list_t *result = NULL;
-         ident_list_add(&result, all_i);
+         ident_list_add(&result, well_known(W_ALL));
          return result;
       }
 
@@ -8686,6 +8686,8 @@ static tree_t p_design_unit(void)
    tree_t unit = tree_new(T_DESIGN_UNIT);
    scope_set_unit(nametab, unit);
 
+   ident_t std_i = well_known(W_STD);
+
    tree_t std = tree_new(T_LIBRARY);
    tree_set_ident(std, std_i);
    tree_set_ident2(std, std_i);
@@ -8697,14 +8699,14 @@ static tree_t p_design_unit(void)
    tree_set_ident(work, work_name);
    tree_set_ident2(work, work_name);
    tree_add_context(unit, work);
-   insert_name(nametab, work, work_i, 0);
+   insert_name(nametab, work, well_known(W_WORK), 0);
    insert_name(nametab, work, NULL, 0);
 
    // The std.standard package is implicit unless we are bootstrapping
    if (!bootstrapping) {
       tree_t u = tree_new(T_USE);
-      tree_set_ident(u, std_standard_i);
-      tree_set_ident2(u, all_i);
+      tree_set_ident(u, well_known(W_STD_STANDARD));
+      tree_set_ident2(u, well_known(W_ALL));
       tree_set_ref(u, std);
 
       tree_add_context(unit, u);

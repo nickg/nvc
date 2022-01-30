@@ -474,13 +474,16 @@ static const char *vhpi_map_str_for_type(type_t type)
    else
       type_name = type_ident(type);
 
-   if ((type_name == std_logic_i) || (type_name == std_ulogic_i))
+   switch (is_well_known(type_name)) {
+   case W_STD_LOGIC:
+   case W_STD_ULOGIC:
       return "UX01ZWLH-";
-   else if (type_name == std_bit_i)
+   case W_STD_BIT:
       return "01";
-   else
+   default:
       fatal_trace("vhpi_map_type_for_str not supported for %s",
                   type_pp(type));
+   }
 }
 
 static rt_event_t vhpi_get_rt_event(int reason)
@@ -1076,17 +1079,22 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    vhpiFormatT format;
    switch (type_kind(base)) {
    case T_ENUM:
-      if ((type_name == std_logic_i) || (type_name == std_ulogic_i)
-          || (type_name == std_bit_i)) {
+      switch (is_well_known(type_name)) {
+      case W_STD_LOGIC:
+      case W_STD_ULOGIC:
+      case W_STD_BIT:
          if (value_p->format == vhpiBinStrVal)
             format = value_p->format;
          else
             format = vhpiLogicVal;
+         break;
+      default:
+         if (type_enum_literals(base) <= 256)
+            format = vhpiSmallEnumVal;
+         else
+            format = vhpiEnumVal;
+         break;
       }
-      else if (type_enum_literals(base) <= 256)
-         format = vhpiSmallEnumVal;
-      else
-         format = vhpiEnumVal;
       break;
 
    case T_INTEGER:
@@ -1099,18 +1107,22 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          switch (type_kind(elem)) {
          case T_ENUM:
             {
-               ident_t elem_name = type_ident(elem);
-               if ((elem_name == std_logic_i) || (elem_name == std_ulogic_i)
-                   || (elem_name == std_bit_i)) {
+               switch (is_well_known(type_ident(elem))) {
+               case W_STD_LOGIC:
+               case W_STD_ULOGIC:
+               case W_STD_BIT:
                   if (value_p->format == vhpiBinStrVal)
                      format = value_p->format;
                   else
                      format = vhpiLogicVecVal;
+                  break;
+               default:
+                  if (type_enum_literals(elem) <= 256)
+                     format = vhpiSmallEnumVecVal;
+                  else
+                     format = vhpiEnumVecVal;
+                  break;
                }
-               else if (type_enum_literals(elem) <= 256)
-                  format = vhpiSmallEnumVecVal;
-               else
-                  format = vhpiEnumVecVal;
                break;
             }
 

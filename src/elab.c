@@ -110,7 +110,7 @@ static const char *simple_name(const char *full)
 static lib_t elab_find_lib(ident_t name, const elab_ctx_t *ctx)
 {
    ident_t lib_name = ident_until(name, '.');
-   if (lib_name == work_i)
+   if (lib_name == well_known(W_WORK))
       return ctx->library;
    else
       return lib_require(lib_name);
@@ -325,7 +325,7 @@ static void elab_config_instance(tree_t block, tree_t spec,
       if (tree_kind(s) != T_INSTANCE)
          continue;
 
-      const bool apply = match == all_i
+      const bool apply = match == well_known(W_ALL)
          || tree_ident(s) == match
          || (match == NULL && !tree_has_spec(s));
 

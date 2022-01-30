@@ -15,8 +15,6 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#define COMMON_IMPL
-
 #include "util.h"
 #include "common.h"
 #include "ident.h"
@@ -30,7 +28,8 @@
 #include <inttypes.h>
 
 static vhdl_standard_t current_std = STD_93;
-static int relax = 0;
+static int             relax = 0;
+static ident_t         id_cache[NUM_WELL_KNOWN];
 
 int64_t assume_int(tree_t t)
 {
@@ -220,7 +219,7 @@ bool folded_bool(tree_t t, bool *b)
    if (tree_kind(t) == T_REF) {
       tree_t decl = tree_ref(t);
       if (tree_kind(decl) == T_ENUM_LIT
-          && type_ident(tree_type(decl)) == std_bool_i) {
+          && type_ident(tree_type(decl)) == well_known(W_STD_BOOL)) {
          *b = (tree_pos(decl) == 1);
          return true;
       }
@@ -942,23 +941,40 @@ tree_t str_to_literal(const char *start, const char *end, type_t type)
    return t;
 }
 
+ident_t well_known(well_known_t id)
+{
+   assert(id < NUM_WELL_KNOWN);
+   return id_cache[id];
+}
+
+well_known_t is_well_known(ident_t ident)
+{
+   well_known_t pos = 0;
+   for (; pos < NUM_WELL_KNOWN; pos++) {
+      if (id_cache[pos] == ident)
+         break;
+   }
+
+   return pos;
+}
+
 void intern_strings(void)
 {
-   std_standard_i   = ident_new("STD.STANDARD");
-   all_i            = ident_new("all");
-   std_logic_i      = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
-   std_ulogic_i     = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
-   std_bit_i        = ident_new("STD.STANDARD.BIT");
-   std_bool_i       = ident_new("STD.STANDARD.BOOLEAN");
-   std_char_i       = ident_new("STD.STANDARD.CHARACTER");
-   natural_i        = ident_new("STD.STANDARD.NATURAL");
-   positive_i       = ident_new("STD.STANDARD.POSITIVE");
-   signed_i         = ident_new("IEEE.NUMERIC_STD.SIGNED");
-   unsigned_i       = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
-   foreign_i        = ident_new("FOREIGN");
-   work_i           = ident_new("WORK");
-   std_i            = ident_new("STD");
-   thunk_i          = ident_new("thunk");
+   id_cache[W_STD_STANDARD]  = ident_new("STD.STANDARD");
+   id_cache[W_ALL]           = ident_new("all");
+   id_cache[W_STD_LOGIC]     = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
+   id_cache[W_STD_ULOGIC]    = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
+   id_cache[W_STD_BIT]       = ident_new("STD.STANDARD.BIT");
+   id_cache[W_STD_BOOL]      = ident_new("STD.STANDARD.BOOLEAN");
+   id_cache[W_STD_CHAR]      = ident_new("STD.STANDARD.CHARACTER");
+   id_cache[W_STD_NATURAL]   = ident_new("STD.STANDARD.NATURAL");
+   id_cache[W_STD_POSITIVE]  = ident_new("STD.STANDARD.POSITIVE");
+   id_cache[W_IEEE_SIGNED]   = ident_new("IEEE.NUMERIC_STD.SIGNED");
+   id_cache[W_IEEE_UNSIGNED] = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
+   id_cache[W_FOREIGN]       = ident_new("FOREIGN");
+   id_cache[W_WORK]          = ident_new("WORK");
+   id_cache[W_STD]           = ident_new("STD");
+   id_cache[W_THUNK]         = ident_new("thunk");
 }
 
 bool is_uninstantiated_package(tree_t pack)
@@ -1102,8 +1118,8 @@ static tree_t cached_std(tree_t hint)
       if (hint != NULL)
          standard_cache[curr] = hint;
       else {
-         lib_t std = lib_require(std_i);
-         standard_cache[curr] = lib_get(std, std_standard_i);
+         lib_t std = lib_require(well_known(W_STD));
+         standard_cache[curr] = lib_get(std, well_known(W_STD_STANDARD));
          assert(standard_cache[curr] != NULL);
       }
    }

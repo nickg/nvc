@@ -388,7 +388,7 @@ static bool sem_check_use_clause(tree_t c)
    if (top_scope->flags & SCOPE_CONTEXT) {
       // LRM 08 section 13.3
       ident_t prefix = ident_until(tree_ident(c), '.');
-      if (prefix == work_i)
+      if (prefix == well_known(W_WORK))
          sem_error(c, "selected name in context declaration use clause may not "
                    "have WORK as a prefix");
    }
@@ -399,7 +399,7 @@ static bool sem_check_use_clause(tree_t c)
 static bool sem_check_library_clause(tree_t t)
 {
    ident_t name = tree_ident(t);
-   if (name == work_i && (top_scope->flags & SCOPE_CONTEXT)) {
+   if (name == well_known(W_WORK) && (top_scope->flags & SCOPE_CONTEXT)) {
       // LRM 08 section 13.3
       sem_error(t, "library clause in a context declaration may not have "
                 "logical library name WORK");
@@ -4559,7 +4559,7 @@ static bool sem_check_context_ref(tree_t t)
    if (top_scope->flags & SCOPE_CONTEXT) {
       // LRM 08 section 13.3
       ident_t prefix = ident_until(tree_ident(t), '.');
-      if (prefix == work_i)
+      if (prefix == well_known(W_WORK))
          sem_error(t, "selected name in context declaration context reference "
                    "may not have WORK as a prefix");
    }
