@@ -4174,8 +4174,6 @@ static void p_generic_clause(tree_t parent)
 
    p_generic_list(parent);
 
-   insert_generics(nametab, parent);
-
    consume(tRPAREN);
    consume(tSEMI);
 }
@@ -4186,8 +4184,10 @@ static void p_entity_header(tree_t entity)
 
    BEGIN("entity header");
 
-   if (scan(tGENERIC))
+   if (scan(tGENERIC)) {
       p_generic_clause(entity);
+      insert_generics(nametab, entity);
+   }
 
    if (scan(tPORT))
       p_port_clause(entity);
@@ -6261,8 +6261,10 @@ static tree_t p_component_declaration(void)
 
    push_scope(nametab);
 
-   if (peek() == tGENERIC)
+   if (peek() == tGENERIC) {
       p_generic_clause(c);
+      insert_generics(nametab, c);
+   }
 
    if (peek() == tPORT)
       p_port_clause(c);
@@ -6400,6 +6402,8 @@ static void p_package_header(tree_t unit)
          p_generic_map_aspect(unit, unit);
          consume(tSEMI);
       }
+
+      insert_generics(nametab, unit);
    }
 }
 
@@ -8172,6 +8176,8 @@ static void p_block_header(tree_t block)
          p_generic_map_aspect(block, block);
          consume(tSEMI);
       }
+
+      insert_generics(nametab, block);
    }
 
    if (peek() == tPORT) {

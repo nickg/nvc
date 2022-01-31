@@ -353,13 +353,13 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
             case T_RECORD_REF:
             case T_OPEN:
             case T_QUALIFIED:
+               // Fall-through
+            case T_ATTR_REF:
+            case T_REF:
                // Do not rewrite references to non-references if they appear
                // as formal names
                if (tree_flags(t) & TREE_F_FORMAL_NAME)
                   break;
-               // Fall-through
-            case T_ATTR_REF:
-            case T_REF:
                return map;
             case T_PORT_DECL:
                tree_set_ref(t, map);

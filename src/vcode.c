@@ -4149,8 +4149,6 @@ void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
                 "src count argument type to map signal is not offset");
    VCODE_ASSERT(vcode_reg_kind(dst_count) == VCODE_TYPE_OFFSET,
                 "dst count argument type to map signal is not offset");
-   VCODE_ASSERT(conv != VCODE_INVALID_REG || dst_count == src_count ,
-                "dst count must equal src count without conversion");
    VCODE_ASSERT(conv == VCODE_INVALID_REG
                 || vcode_reg_kind(conv) == VCODE_TYPE_CLOSURE,
                 "conv argument type to map signal is not closure");

@@ -1144,7 +1144,6 @@ static void dump_stmt(tree_t t, int indent)
    case T_COND_ASSIGN:
       dump_expr(tree_target(t));
       printf(" <= ");
-      if (tree_has_guard(t)) syntax("#guarded ");
       color_printf("$red$/* TODO: T_COND_ASSIGN */$$");
       break;
 
@@ -1152,6 +1151,14 @@ static void dump_stmt(tree_t t, int indent)
       printf(" <= ");
       if (tree_has_guard(t)) syntax("#guarded ");
       color_printf("$red$/* TODO: T_SELECT */$$");
+      break;
+
+   case T_CONCURRENT:
+      if (tree_flags(t) & TREE_F_POSTPONED)
+         syntax("#postponed ");
+      if (tree_has_guard(t))
+         syntax("#guarded ");
+      dump_stmt(tree_stmt(t, 0), 0);
       break;
 
    default:
