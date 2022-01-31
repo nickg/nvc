@@ -111,7 +111,7 @@ START_TEST(test_ports)
       { 64,  "component BAR has ports I, O" },
       { 185, "no visible subprogram declaration for HELLO" },
       { 81,  "missing actual for port I of mode IN without a default " },
-      { 85,  "formal I already has an actual" },
+      { 85,  "formal port I already has an actual" },
       { 89,  "at least 3 positional actuals but WORK.FOO has only 2 ports" },
       { 103, "unconnected port I with mode IN must have a default value" },
       { 148, "port O of mode OUT must be a static signal name or OPEN" },
@@ -518,8 +518,11 @@ START_TEST(test_generics)
       {  48, "no visible declaration for X" },
       {  58, "invalid object class for generic" },
       {  68, "no visible declaration for Y" },
+      { 115, "unexpected integer while parsing name" },
       {  86, "missing body for function F [BIT_VECTOR return INTEGER]" },
       { 109, "with generic X must be a globally static expression" },
+      { 118, "invalid name in generic map" },
+      { 117, "missing actual for generic X without a default expression" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1039,8 +1042,8 @@ START_TEST(test_supersede)
    input_from_file(TESTDIR "/sem/supersede.vhd");
 
    const error_t expect[] = {
-      { 18, "WORK.PORTLISTTEST has no formal A" },
-      { 19, "WORK.PORTLISTTEST has no formal B" },
+      { 18, "WORK.PORTLISTTEST has no port named A" },
+      { 19, "WORK.PORTLISTTEST has no port named B" },
       { -1, NULL }
    };
    expect_errors(expect);

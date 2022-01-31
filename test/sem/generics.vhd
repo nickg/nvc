@@ -111,4 +111,10 @@ begin
     i4: component d
         generic map ( t => 100 ns );    -- OK
 
+    i5: component c
+        generic map ( 6 => 1 );         -- Error
+
+    i6: component c
+        generic map ( "not"(x) => "101" );  -- Error
+
 end architecture;
