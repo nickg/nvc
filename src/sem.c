@@ -842,6 +842,7 @@ static bool sem_check_decl(tree_t t)
 
    const bool needs_default_value =
       !tree_has_value(t) && (kind != T_PORT_DECL) && (kind != T_CONST_DECL)
+      && kind != T_SIGNAL_DECL
       && (type_kind(type) != T_PROTECTED);
 
    if (needs_default_value)

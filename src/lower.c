@@ -4949,12 +4949,18 @@ static void lower_signal_decl(tree_t decl)
 
    emit_store(wrapped, var);
 
-   tree_t value = tree_value(decl);
-   vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
-   if (type_is_array(tree_type(value))) {
-      lower_check_array_sizes(decl, type, tree_type(value), wrapped, init_reg);
-      init_reg = lower_array_data(init_reg);
+   vcode_reg_t init_reg;
+   if (tree_has_value(decl)) {
+      tree_t value = tree_value(decl);
+      type_t value_type = tree_type(value);
+      init_reg = lower_expr(value, EXPR_RVALUE);
+      if (type_is_array(value_type)) {
+         lower_check_array_sizes(decl, type, value_type, wrapped, init_reg);
+         init_reg = lower_array_data(init_reg);
+      }
    }
+   else
+      init_reg = lower_default_value(type, false);
 
    lower_sub_signals(type, decl, shared, init_reg, VCODE_INVALID_REG);
 }
