@@ -946,6 +946,13 @@ static void dump_stmt(tree_t t, int indent)
       syntax("#end #block;\n");
       return;
 
+   case T_SEQUENCE:
+      syntax("#block #is\n");
+      dump_block(t, indent);
+      tab(indent);
+      syntax("#end #block;\n");
+      return;
+
    case T_ASSERT:
       if (tree_has_value(t)) {
          syntax("#assert ");
@@ -1029,7 +1036,7 @@ static void dump_stmt(tree_t t, int indent)
          default:
             assert(false);
          }
-         dump_stmts(tree_value(a), indent + 4);
+         dump_stmt(tree_value(a), indent + 4);
       }
       tab(indent);
       syntax("#end #case");

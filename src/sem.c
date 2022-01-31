@@ -1489,12 +1489,9 @@ static bool sem_check_ports(tree_t t)
 
       tree_set_flag(p, TREE_F_ELAB_COPY);
 
-      ok = sem_check(p) && ok;
+      ok &= sem_check(p);
 
-      ok = sem_no_access_file_or_protected(p, tree_type(p), "ports") && ok;
-
-      if (ok && !tree_has_value(p) && tree_subkind(p) != PORT_IN)
-         tree_set_value(p, make_default_value(tree_type(p), tree_loc(p)));
+      ok &= sem_no_access_file_or_protected(p, tree_type(p), "ports");
    }
 
    return ok;

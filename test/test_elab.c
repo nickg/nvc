@@ -624,8 +624,7 @@ START_TEST(test_opencase)
    tree_t py = tree_param(uut, 1);
    fail_unless(tree_subkind(py) == P_POS);
    fail_unless(tree_pos(py) == 1);
-   fail_unless(tree_kind(tree_value(py)) == T_LITERAL);
-   fail_unless(tree_ival(tree_value(py)) == -2147483648);
+   fail_unless(tree_kind(tree_value(py)) == T_OPEN);
 
    fail_if_errors();
 }
