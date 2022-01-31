@@ -414,8 +414,6 @@ static tree_t simp_attr_delayed_transaction(tree_t t, attr_kind_t predef,
       {
          if (tree_has_value(decl))
             tree_set_value(s, tree_value(decl));
-         else
-            tree_set_value(s, make_default_value(tree_type(t), tree_loc(t)));
 
          tree_t delay = tree_value(tree_param(t, 0));
 
@@ -429,8 +427,6 @@ static tree_t simp_attr_delayed_transaction(tree_t t, attr_kind_t predef,
 
    case ATTR_TRANSACTION:
       {
-         tree_set_value(s, make_default_value(tree_type(s), tree_loc(s)));
-
          tree_t not_decl = std_func(ident_new("STD.STANDARD.\"not\"(B)B"));
          assert(not_decl != NULL);
 
@@ -1449,7 +1445,6 @@ static void simp_port_map(tree_t t, simp_ctx_t *ctx)
       tree_set_loc(s, tree_loc(value));
       tree_set_ident(s, ident_uniq(signame));
       tree_set_type(s, tree_type(value));
-      tree_set_value(s, make_default_value(tree_type(value), tree_loc(value)));
 
       tree_t p = tree_new(T_PROCESS);
       tree_set_loc(p, tree_loc(t));
