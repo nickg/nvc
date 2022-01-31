@@ -769,9 +769,7 @@ START_TEST(test_record)
    fail_if(d == NULL);
    d = tree_decl(d, 0);
    fail_unless(tree_kind(d) == T_VAR_DECL);
-   tree_t v = tree_value(d);
-   fail_unless(tree_kind(v) == T_AGGREGATE);
-   fail_if(type_is_universal(tree_type(tree_value(tree_assoc(v, 0)))));
+   fail_if(tree_has_value(d));
 }
 END_TEST
 

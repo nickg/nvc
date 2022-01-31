@@ -1654,7 +1654,6 @@ static void eval_op_memset(int op, eval_state_t *state)
 
    EVAL_ASSERT_VALUE(op, dst, VALUE_POINTER);
    EVAL_ASSERT_VALUE(op, length, VALUE_INTEGER);
-   EVAL_ASSERT_VALUE(op, fill, VALUE_INTEGER);
 
    for (int i = 0; i < length->integer; i++)
       dst->pointer[i] = *fill;

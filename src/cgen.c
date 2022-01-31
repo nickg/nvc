@@ -2268,19 +2268,47 @@ static void cgen_op_resume(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_memset(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef ptr    = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef base   = cgen_get_arg(op, 0, ctx);
    LLVMValueRef value  = cgen_get_arg(op, 1, ctx);
    LLVMValueRef length = cgen_get_arg(op, 2, ctx);
 
-   LLVMValueRef args[] = {
-      llvm_void_cast(ptr),
-      LLVMBuildZExt(builder, value, llvm_int8_type(), ""),
-      length,
-      llvm_int1(false)
-   };
+   LLVMTypeRef type = LLVMTypeOf(value);
+   const bool can_use_intrinsic =
+      LLVMGetTypeKind(type) == LLVMIntegerTypeKind
+      && LLVMGetIntTypeWidth(type) <= 8;
 
-   LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
-                 args, ARRAY_LEN(args), "");
+   if (can_use_intrinsic) {
+      LLVMValueRef zext = LLVMBuildZExt(builder, value, llvm_int8_type(), "");
+      LLVMBuildMemSet(builder, base, zext, length, 8);
+   }
+   else {
+      LLVMBasicBlockRef entry_bb = LLVMGetInsertBlock(builder);
+      LLVMBasicBlockRef body_bb = llvm_append_block(ctx->fn, "memset_body");
+      LLVMBasicBlockRef exit_bb = llvm_append_block(ctx->fn, "memset_exit");
+
+      LLVMValueRef null =
+         LLVMBuildICmp(builder, LLVMIntEQ, length, llvm_int32(0), "");
+      LLVMBuildCondBr(builder, null, exit_bb, body_bb);
+
+      LLVMPositionBuilderAtEnd(builder, body_bb);
+
+      LLVMValueRef i_phi = LLVMBuildPhi(builder, llvm_int32_type(), "i");
+
+      LLVMValueRef indexes[] = { llvm_zext_to_intptr(i_phi) };
+      LLVMValueRef ptr = LLVMBuildInBoundsGEP(builder, base, indexes, 1, "");
+      LLVMBuildStore(builder, value, ptr);
+
+      LLVMValueRef i_inc = LLVMBuildAdd(builder, i_phi, llvm_int32(1), "");
+
+      LLVMValueRef i_phi_in[] = { llvm_int32(0), i_inc };
+      LLVMBasicBlockRef i_phi_bbs[] = { entry_bb, body_bb };
+      LLVMAddIncoming(i_phi, i_phi_in, i_phi_bbs, 2);
+
+      LLVMValueRef cmp = LLVMBuildICmp(builder, LLVMIntEQ, i_inc, length, "");
+      LLVMBuildCondBr(builder, cmp, exit_bb, body_bb);
+
+      LLVMPositionBuilderAtEnd(builder, exit_bb);
+   }
 }
 
 static void cgen_op_last_event(int op, cgen_ctx_t *ctx)
@@ -4164,17 +4192,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       };
       fn = LLVMAddFunction(module, "llvm.round.f64",
                            LLVMFunctionType(llvm_double_type(),
-                                            args, ARRAY_LEN(args), false));
-   }
-   else if (strcmp(name, "llvm.memset.p0i8.i32") == 0) {
-      LLVMTypeRef args[] = {
-         LLVMPointerType(llvm_int8_type(), 0),
-         llvm_int8_type(),
-         llvm_int32_type(),
-         llvm_int1_type()
-      };
-      fn = LLVMAddFunction(module, "llvm.memset.p0i8.i32",
-                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strncmp(name, "llvm.mem", 8) == 0) {

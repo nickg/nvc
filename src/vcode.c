@@ -601,6 +601,7 @@ void vcode_opt(void)
             case VCODE_OP_CONST_REAL:
             case VCODE_OP_CONST_ARRAY:
             case VCODE_OP_CONST_RECORD:
+            case VCODE_OP_CONST_REP:
             case VCODE_OP_LOAD:
             case VCODE_OP_LOAD_INDIRECT:
             case VCODE_OP_ADD:
@@ -4426,12 +4427,10 @@ void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len)
 
    VCODE_ASSERT(vtype_kind(vcode_reg_type(ptr)) == VCODE_TYPE_POINTER,
                 "target of memset must have pointer type");
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(value)) == VCODE_TYPE_INT,
-                "value of memset must have integer type");
+   VCODE_ASSERT(vtype_is_scalar(vcode_reg_type(value)),
+                "value of memset must have scalar type");
    VCODE_ASSERT(vtype_kind(vcode_reg_type(len)) == VCODE_TYPE_OFFSET,
                 "length of memset must have offset type");
-   VCODE_ASSERT(vtype_high(vcode_reg_type(value)) <= UINT8_MAX,
-                "memset value must be max 8-bit");
 }
 
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,

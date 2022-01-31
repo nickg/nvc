@@ -1782,9 +1782,7 @@ START_TEST(test_memset)
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "V" },
-         { VCODE_OP_CONST, .value = 0xab },
-         { VCODE_OP_CONST, .value = 4 },
-         { VCODE_OP_MUL },
+         { VCODE_OP_CONST, .value = 2880154539 },
          { VCODE_OP_MEMSET },
          { VCODE_OP_RETURN }
       };
@@ -1983,9 +1981,9 @@ START_TEST(test_proc7)
       { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "Y" },
-      { VCODE_OP_RANGE_NULL },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_MEMSET },
+      { VCODE_OP_RANGE_NULL },
       { VCODE_OP_COND, .target = 2, .target_else = 1 },
    };
 
@@ -2412,9 +2410,9 @@ START_TEST(test_sigvar)
          { VCODE_OP_UARRAY_DIR },
          { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "Y" },
-         { VCODE_OP_RANGE_NULL },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_MEMSET },
+         { VCODE_OP_RANGE_NULL },
          { VCODE_OP_COND, .target = 2, .target_else = 1 },
       };
 
@@ -3169,10 +3167,10 @@ START_TEST(test_tounsigned)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "RESULT" },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_MEMSET },
       { VCODE_OP_CONST, .value = INT32_MAX },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_COND, .target = 2, .target_else = 1 },
    };
 
@@ -3470,10 +3468,10 @@ START_TEST(test_synopsys1)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "S" },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_MEMSET },
       { VCODE_OP_CONST, .value = INT32_MAX },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
       { VCODE_OP_COND, .target = 2, .target_else = 1 },
    };
 
@@ -3890,11 +3888,12 @@ START_TEST(test_instance1)
       { VCODE_OP_STORE, .name = "WIDTH" },
       { VCODE_OP_LINK_SIGNAL, .name = "X" },
       { VCODE_OP_STORE, .name = "X" },
-      { VCODE_OP_CONST_ARRAY, .length = 5 },
-      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_CONST_REP, .value = 5 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_INIT_SIGNAL },   // Redundant, could be optimised out
+      { VCODE_OP_CONST_ARRAY, .length = 5 },
+      { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_INIT_SIGNAL },
       { VCODE_OP_RETURN }
    };
@@ -4073,8 +4072,8 @@ START_TEST(test_array2)
 
       EXPECT_BB(1) = {
          { VCODE_OP_INDEX, .name = "V" },
+         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CONST, .value = 8 },
          { VCODE_OP_MEMSET },
          { VCODE_OP_LOAD, .name = "X" },
          { VCODE_OP_CONST, .value = 0 },
