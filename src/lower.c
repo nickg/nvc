@@ -7280,7 +7280,7 @@ static void lower_port_map(tree_t block, tree_t map)
    if (vcode_reg_kind(port_reg) == VCODE_TYPE_UARRAY)
       port_reg = lower_array_data(port_reg);
 
-   if (value_kind == T_OPEN)
+   if (value_kind == T_OPEN && tree_has_value(port))
       value = tree_value(port);
    else if (value_conv != NULL) {
       // Value has conversion function
@@ -7350,6 +7350,10 @@ static void lower_port_map(tree_t block, tree_t map)
    }
    else {
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
+
+      if (value_reg == VCODE_INVALID_REG)
+         value_reg = lower_default_value(name_type, false);
+
       lower_sub_signals(name_type, port, port_reg, value_reg,
                         VCODE_INVALID_REG);
 

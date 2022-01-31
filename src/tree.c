@@ -601,9 +601,7 @@ tree_t tree_param(tree_t t, unsigned n)
 
 void tree_add_param(tree_t t, tree_t e)
 {
-   assert(tree_kind(e) == T_PARAM);
-   tree_assert_expr(tree_value(e));
-
+   assert(e->object.kind == T_PARAM);
    tree_array_add(lookup_item(&tree_object, t, I_PARAMS), e);
    object_write_barrier(&(t->object), &(e->object));
 }

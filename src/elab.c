@@ -700,16 +700,8 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
             tree_set_pos(map, i);
          }
 
-         if (tree_has_value(p))
-            tree_set_value(map, tree_value(p));
-         else {
-            tree_set_value(map, make_default_value(tree_type(p), tree_loc(p)));
-
-            const port_mode_t mode = tree_subkind(p);
-            if (mode != PORT_OUT && mode != PORT_INOUT)
-               error_at(tree_loc(inst), "missing value for port %s with no "
-                        "default", istr(tree_ident(p)));
-         }
+         assert(tree_has_value(p));   // Checked earlier
+         tree_set_value(map, tree_value(p));
 
          tree_add_param(ctx->out, map);
       }
@@ -1170,8 +1162,13 @@ static void elab_top_level_ports(tree_t entity, const elab_ctx_t *ctx)
 
       if (tree_has_value(p))
          tree_set_value(m, tree_value(p));
-      else
-         tree_set_value(m, make_default_value(tree_type(p), tree_loc(p)));
+      else {
+         tree_t open = tree_new(T_OPEN);
+         tree_set_type(open, tree_type(p));
+         tree_set_loc(open, tree_loc(p));
+
+         tree_set_value(m, open);
+      }
 
       tree_add_param(ctx->out, m);
    }
