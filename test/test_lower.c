@@ -3525,21 +3525,17 @@ START_TEST(test_access2)
    vcode_unit_t v0 = find_unit_for(f);
    vcode_select_unit(v0);
 
-   // TODO: eliminate the intermediate alloca here
-
    EXPECT_BB(0) = {
-      { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_UARRAY_LEFT },
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_LEN },
-      { VCODE_OP_ALLOCA },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_MEMSET },
       { VCODE_OP_NEW },
       { VCODE_OP_ALL },
-      { VCODE_OP_COPY },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_WRAP },
       { VCODE_OP_NEW },
       { VCODE_OP_ALL },

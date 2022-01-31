@@ -3526,7 +3526,6 @@ static tree_t p_allocator(void)
       value = tree_new(T_QUALIFIED);
       tree_set_type(value, type);
       tree_set_loc(value, CURRENT_LOC);
-      tree_set_value(value, make_default_value(type, CURRENT_LOC));
    }
 
    tree_set_value(new, value);

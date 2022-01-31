@@ -131,6 +131,7 @@ static void lower_predef(tree_t decl, vcode_unit_t context);
 static ident_t lower_predef_func_name(type_t type, const char *op);
 static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context);
 static void lower_generics(tree_t block);
+static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -2773,22 +2774,35 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
    tree_t qual = tree_value(expr);
    assert(tree_kind(qual) == T_QUALIFIED);
 
-   tree_t value = tree_value(qual);
-   type_t value_type = tree_type(value);
+   type_t type = tree_type(qual);
 
-   if (type_is_array(value_type)) {
-      type_t elem_type = lower_elem_recur(value_type);
+   if (type_is_array(type)) {
+      type_t elem_type = lower_elem_recur(type), value_type;
 
       vcode_reg_t init_reg, mem_reg, length_reg;
-      if (tree_kind(value) == T_AGGREGATE && lower_const_bounds(value_type)) {
-         length_reg = lower_array_total_len(value_type, VCODE_INVALID_REG);
+      if (!tree_has_value(qual)) {
+         length_reg = lower_array_total_len(type, VCODE_INVALID_REG);
          mem_reg = emit_new(lower_type(elem_type), length_reg);
-         init_reg = lower_aggregate(value, emit_all(mem_reg));
+         init_reg = lower_default_value(type, emit_all(mem_reg));
+         value_type = type;
       }
       else {
-         init_reg = lower_expr(qual, EXPR_RVALUE);
-         length_reg = lower_array_total_len(value_type, init_reg);
-         mem_reg = emit_new(lower_type(elem_type), length_reg);
+         tree_t value = tree_value(qual);
+         value_type = tree_type(value);
+
+         const bool in_place_aggregate =
+            tree_kind(value) == T_AGGREGATE && lower_const_bounds(value_type);
+
+         if (in_place_aggregate) {
+            length_reg = lower_array_total_len(value_type, VCODE_INVALID_REG);
+            mem_reg = emit_new(lower_type(elem_type), length_reg);
+            init_reg = lower_aggregate(value, emit_all(mem_reg));
+         }
+         else {
+            init_reg = lower_expr(qual, EXPR_RVALUE);
+            length_reg = lower_array_total_len(value_type, init_reg);
+            mem_reg = emit_new(lower_type(elem_type), length_reg);
+         }
       }
 
       vcode_reg_t raw_reg = emit_all(mem_reg);
@@ -2807,29 +2821,36 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       else
          return mem_reg;
    }
-   else if (type_is_record(value_type)) {
+   else if (type_is_record(type)) {
       vcode_reg_t result_reg =
-         emit_new(lower_type(value_type), VCODE_INVALID_REG);
+         emit_new(lower_type(type), VCODE_INVALID_REG);
       vcode_reg_t all_reg = emit_all(result_reg);
 
       vcode_reg_t init_reg;
-      if (tree_kind(value) == T_AGGREGATE)
-         init_reg = lower_aggregate(value, all_reg);
-      else
-         init_reg = lower_expr(qual, EXPR_RVALUE);
+      if (!tree_has_value(qual))
+         init_reg = lower_default_value(type, all_reg);
+      else {
+         tree_t value = tree_value(qual);
+         if (tree_kind(value) == T_AGGREGATE)
+            init_reg = lower_aggregate(value, all_reg);
+         else
+            init_reg = lower_expr(qual, EXPR_RVALUE);
+      }
 
       emit_copy(all_reg, init_reg, VCODE_INVALID_REG);
-
       return result_reg;
    }
    else {
-      vcode_reg_t result_reg =
-         emit_new(lower_type(value_type), VCODE_INVALID_REG);
+      vcode_reg_t result_reg = emit_new(lower_type(type), VCODE_INVALID_REG);
       vcode_reg_t all_reg = emit_all(result_reg);
 
-      vcode_reg_t init_reg = lower_expr(qual, EXPR_RVALUE);
-      emit_store_indirect(lower_reify(init_reg), all_reg);
+      vcode_reg_t init_reg;
+      if (tree_has_value(qual))
+         init_reg = lower_expr(qual, EXPR_RVALUE);
+      else
+         init_reg = lower_default_value(type, VCODE_INVALID_REG);
 
+      emit_store_indirect(lower_reify(init_reg), all_reg);
       return result_reg;
    }
 }
