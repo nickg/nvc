@@ -7,6 +7,8 @@ architecture test of record2 is
         x, y : integer;
     end record;
 
+    type r1_ptr is access r1;
+
 begin
 
     p1: process is
@@ -14,6 +16,21 @@ begin
         variable x : integer;
     begin
         r := (x, x);
+        wait;
+    end process;
+
+    p2: process is
+        variable r : r1_ptr;
+    begin
+        r := new r1;
+        wait;
+    end process;
+
+    p3: process is
+        variable r : r1_ptr;
+        variable x : integer;
+    begin
+        r := new r1'(x, x);
         wait;
     end process;
 

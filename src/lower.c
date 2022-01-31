@@ -2770,19 +2770,28 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
 
 static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
 {
-   tree_t value = tree_value(expr);
-   assert(tree_kind(value) == T_QUALIFIED);
+   tree_t qual = tree_value(expr);
+   assert(tree_kind(qual) == T_QUALIFIED);
 
-   type_t value_type = tree_type(tree_value(value));
+   tree_t value = tree_value(qual);
+   type_t value_type = tree_type(value);
 
    if (type_is_array(value_type)) {
-      vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
-      vcode_reg_t length_reg = lower_array_total_len(value_type, init_reg);
-
       type_t elem_type = lower_elem_recur(value_type);
-      vcode_reg_t mem_reg = emit_new(lower_type(elem_type), length_reg);
-      vcode_reg_t raw_reg = emit_all(mem_reg);
 
+      vcode_reg_t init_reg, mem_reg, length_reg;
+      if (tree_kind(value) == T_AGGREGATE && lower_const_bounds(value_type)) {
+         length_reg = lower_array_total_len(value_type, VCODE_INVALID_REG);
+         mem_reg = emit_new(lower_type(elem_type), length_reg);
+         init_reg = lower_aggregate(value, emit_all(mem_reg));
+      }
+      else {
+         init_reg = lower_expr(qual, EXPR_RVALUE);
+         length_reg = lower_array_total_len(value_type, init_reg);
+         mem_reg = emit_new(lower_type(elem_type), length_reg);
+      }
+
+      vcode_reg_t raw_reg = emit_all(mem_reg);
       emit_copy(raw_reg, lower_array_data(init_reg), length_reg);
 
       type_t result_type = type_access(tree_type(expr));
@@ -2807,7 +2816,7 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       if (tree_kind(value) == T_AGGREGATE)
          init_reg = lower_aggregate(value, all_reg);
       else
-         init_reg = lower_expr(value, EXPR_RVALUE);
+         init_reg = lower_expr(qual, EXPR_RVALUE);
 
       emit_copy(all_reg, init_reg, VCODE_INVALID_REG);
 
@@ -2818,7 +2827,7 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
          emit_new(lower_type(value_type), VCODE_INVALID_REG);
       vcode_reg_t all_reg = emit_all(result_reg);
 
-      vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
+      vcode_reg_t init_reg = lower_expr(qual, EXPR_RVALUE);
       emit_store_indirect(lower_reify(init_reg), all_reg);
 
       return result_reg;

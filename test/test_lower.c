@@ -4023,20 +4023,59 @@ START_TEST(test_record2)
    tree_t e = run_elab();
    lower_unit(e, NULL);
 
-   vcode_unit_t vu = find_unit("WORK.RECORD2.P1");
-   vcode_select_unit(vu);
+   {
+      vcode_unit_t vu = find_unit("WORK.RECORD2.P1");
+      vcode_select_unit(vu);
 
-   EXPECT_BB(1) = {
-      { VCODE_OP_INDEX, .name = "R" },
-      { VCODE_OP_LOAD, .name = "X" },
-      { VCODE_OP_RECORD_REF, .field = 0 },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_RECORD_REF, .field = 1 },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_WAIT, .target = 2 },
-   };
+      EXPECT_BB(1) = {
+         { VCODE_OP_INDEX, .name = "R" },
+         { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_RECORD_REF, .field = 0 },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_RECORD_REF, .field = 1 },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
 
-   CHECK_BB(1);
+      CHECK_BB(1);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.RECORD2.P2");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_NEW },
+         { VCODE_OP_ALL },
+         { VCODE_OP_CONST, .value = INT32_MIN },
+         { VCODE_OP_CONST_RECORD },
+         { VCODE_OP_ADDRESS_OF },
+         { VCODE_OP_COPY },
+         { VCODE_OP_STORE, .name = "R" },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.RECORD2.P3");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_NEW },
+         { VCODE_OP_ALL },
+         { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_RECORD_REF, .field = 0 },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_RECORD_REF, .field = 1 },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_STORE, .name = "R" },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
 }
 END_TEST
 
@@ -4204,6 +4243,60 @@ START_TEST(test_array2)
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_SCHED_WAVEFORM },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ARRAY2.P7");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_CONST, .value = 3 },
+         { VCODE_OP_NEW },
+         { VCODE_OP_ALL },
+         { VCODE_OP_CONST, .value = INT32_MIN },
+         { VCODE_OP_CONST_REP, .value = 3 },
+         { VCODE_OP_COPY },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 3 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_NEW },
+         { VCODE_OP_ALL },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_STORE, .name = "P" },
+         { VCODE_OP_WAIT, .target = 2 },
+      };
+
+      CHECK_BB(1);
+   }
+
+   {
+      vcode_unit_t vu = find_unit("WORK.ARRAY2.P8");
+      vcode_select_unit(vu);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_NEW },
+         { VCODE_OP_ALL },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ARRAY_REF },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_NEW },
+         { VCODE_OP_ALL },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_STORE, .name = "P" },
          { VCODE_OP_WAIT, .target = 2 },
       };
 
