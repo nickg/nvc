@@ -299,35 +299,56 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty,
 
 static lib_t lib_find_at(const char *name, const char *path, bool exact)
 {
-   char dir[PATH_MAX];
-   char *p = dir + checked_sprintf(dir, sizeof(dir) - 4 - strlen(name),
-                                   "%s" DIR_SEP, path);
-   bool found = false;
+   LOCAL_TEXT_BUF dir = tb_new();
+   tb_cat(dir, path);
+   tb_cat(dir, DIR_SEP);
 
    if (!exact) {
-      // Append library name converting to lower case
-      for (const char *n = name; *n != '\0'; n++)
-         *p++ = tolower((int)*n);
-
-      // Try suffixing standard revision extensions first
-      for (vhdl_standard_t s = standard(); (s > STD_87) && !found; s--) {
-         checked_sprintf(p, 4, ".%s", standard_suffix(s));
-         found = (access(dir, F_OK) == 0);
-      }
-   }
-
-   if (!found) {
-      *p = '\0';
-      if (access(dir, F_OK) < 0)
+      DIR *d = opendir(path);
+      if (d == NULL)
          return NULL;
-   }
 
-   char marker[PATH_MAX];
-   checked_sprintf(marker, sizeof(marker), "%s" DIR_SEP "_NVC_LIB", dir);
+      char *best LOCAL = NULL;
+      const char *std_suffix = standard_suffix(standard());
+
+      struct dirent *e;
+      while ((e = readdir(d))) {
+         if (!isalpha(e->d_name[0]))
+            continue;
+
+         const char *dot = strchr(e->d_name, '.');
+         if (dot != NULL) {
+            if (strncasecmp(name, e->d_name, dot - e->d_name) != 0)
+               continue;
+            else if (strcmp(dot + 1, std_suffix) != 0)
+               continue;
+         }
+         else {
+            if (strcasecmp(name, e->d_name) != 0)
+               continue;
+            else if (best != NULL)
+               continue;
+         }
+
+         free(best);
+         best = xstrdup(e->d_name);
+      }
+
+      closedir(d);
+
+      if (best == NULL)
+         return NULL;
+
+      tb_cat(dir, best);
+   }
+   else if (access(path, F_OK) < 0)
+      return NULL;
+
+   char *marker LOCAL = xasprintf("%s" DIR_SEP "_NVC_LIB", tb_get(dir));
    if (access(marker, F_OK) < 0)
       return NULL;
 
-   return lib_init(name, dir, -1);
+   return lib_init(name, tb_get(dir), -1);
 }
 
 static text_buf_t *lib_file_path(lib_t lib, const char *name)
