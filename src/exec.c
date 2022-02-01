@@ -2379,6 +2379,8 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
    vcode_select_unit(unit);
    vcode_select_block(0);
 
+   assert(vcode_unit_kind() == VCODE_UNIT_PACKAGE);
+
    eval_state_t state = {
       .result = -1,
       .hint   = NULL,

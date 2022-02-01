@@ -3906,7 +3906,8 @@ static void cgen_add_dependency(ident_t name, unit_list_t *list)
    vcode_state_save(&state);
 
    vcode_unit_t vu = vcode_find_unit(name);
-   assert(vu);
+   if (vu == NULL)
+      fatal("missing vcode unit %s", istr(name));
 
    unsigned pos = 0;
    for (; pos < list->count; pos++) {

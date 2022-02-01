@@ -19,9 +19,9 @@ architecture a of e is                  -- Errors detected in decls
     component c2 is
     end component;
 
-    for i1: c2 use entity work.c1_ent1;   -- OK (in decls)
+    for i1: c2 use entity work.c1_ent1;   -- Error
 
-    for i1: e use entity work.c1_ent1;    -- OK (in decls)
+    for i1: e use entity work.c1_ent1;    -- Error
 
     for i8: c1 use entity work.c1_ent1;   -- OK
 

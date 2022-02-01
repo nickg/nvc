@@ -34,14 +34,14 @@ START_TEST(test_integer)
    type_t t;
 
    const error_t expect[] = {
+      { 20, "MY_INT1 does not match type of target MY_INT2" },
+      { 30, "MY_INT1 does not match type of target MY_INT2_SUB" },
       { 35, "no visible declaration for NOTHING" },
       { 48, "no matching operator \"+\" [ANOTHER_ONE, universal_integer "
         "return MY_INT1]" },
       { 48, "no matching operator \"+\" [MY_INT1, universal_integer "
         "return ANOTHER_ONE]" },
       { 57, "MY_INT2 has no attribute CAKE" },
-      { 20, "MY_INT1 does not match type of target MY_INT2" },
-      { 30, "MY_INT1 does not match type of target MY_INT2_SUB" },
       { 61, "right bound must be of some integer type but have universal" },
       { 63, "range bounds must be of some integer type but have BOOLEAN" },
       { -1, NULL }
@@ -53,7 +53,6 @@ START_TEST(test_integer)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
 
    a = parse();
    fail_if(a == NULL);
@@ -61,7 +60,6 @@ START_TEST(test_integer)
 
    fail_unless(parse() == NULL);
 
-   sem_check(a);
    check_expected_errors();
 
    d = search_decls(a, ident_new("X"), 0);
@@ -101,28 +99,24 @@ START_TEST(test_ports)
    const error_t expect[] = {
       { 31,  "cannot read output port O" },
       { 42,  "cannot assign to input port I" },
+      { 81,  "missing actual for port I of mode IN without a default " },
+      { 85,  "formal port I already has an actual" },
+      { 89,  "at least 3 positional actuals but WORK.FOO has only 2 ports" },
       { 92,  "WORK.FOO has no port named CAKE" },
       { 10,  "entity WORK.FOO has ports O, I" },
       { 94,  "cannot find unit WORK.BAD" },
+      { 103, "unconnected port I with mode IN must have a default value" },
       { 116, "object X is not a component declaration" },
+      { 148, "port O of mode OUT must be a static signal name or OPEN" },
       { 155, "BAR has no port named Q" },
       { 64,  "BAR has ports I, O" },
       { 163, "BAR has no port named U" },
       { 64,  "component BAR has ports I, O" },
-      { 185, "no visible subprogram declaration for HELLO" },
-      { 81,  "missing actual for port I of mode IN without a default " },
-      { 85,  "formal port I already has an actual" },
-      { 89,  "at least 3 positional actuals but WORK.FOO has only 2 ports" },
-      { 103, "unconnected port I with mode IN must have a default value" },
-      { 148, "port O of mode OUT must be a static signal name or OPEN" },
       { 168, "formal name must be locally static" },
       { 177, "formal name must be locally static" },
+      { 185, "no visible subprogram declaration for HELLO" },
       { 217, "port O of unconstrained type INT_VEC cannot be unconnected" },
       { 221, "type of actual universal_real does not match type INTEGER" },
-      { 256, "missing body for function FUNC1 [BIT return MY_INT1]" },
-      { 257, "missing body for function FUNC2 [BIT, INTEGER return MY_INT1]" },
-      { 258, "missing body for function FUNC3 [BIT return INTEGER]" },
-      { 259, "missing body for function FUNC4 [INTEGER return BIT]" },
       { 272, "result of conversion for unconstrained formal I must" },
       { 280, "port N of mode IN must be a globally static expression or " },
       { 284, "conversion not allowed for formal O with mode OUT" },
@@ -130,15 +124,19 @@ START_TEST(test_ports)
       { 298, "output conversion for formal B must not have OPEN actual" },
       { 304, "port B of mode INOUT must be a static signal name or OPEN" },
       { 307, "port B of mode INOUT must be a static signal name or OPEN" },
+      { 256, "missing body for function FUNC1 [BIT return MY_INT1]" },
+      { 257, "missing body for function FUNC2 [BIT, INTEGER return MY_INT1]" },
+      { 258, "missing body for function FUNC3 [BIT return INTEGER]" },
+      { 259, "missing body for function FUNC4 [INTEGER return BIT]" },
       { 318, "cannot assign to input port X" },
       { 319, "cannot read output port Y" },
       { 339, "cannot read parameter X with mode IN" },
-      { 353, "missing body for function \"not\" [INTEGER return INTEGER]" },
-      { 354, "missing body for function FOO" },
       { 363, "associated with port I of mode IN must be a globally static" },
       { 367, "actual associated with port I of mode IN must be a globally " },
       { 375, "invalid output conversion \"not\"" },
       { 373, "missing actual for port I of mode IN without a default " },
+      { 353, "missing body for function \"not\" [INTEGER return INTEGER]" },
+      { 354, "missing body for function FOO" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -194,6 +192,7 @@ START_TEST(test_ambiguous)
    input_from_file(TESTDIR "/sem/ambiguous.vhd");
 
    const error_t expect[] = {
+      {  35, "type of value BAR does not match type of target FOO" },
       {  56, "type of aggregate is ambiguous" },
       {  56, "type of aggregate is ambiguous" },
       {  86, "ambiguous use of enumeration literal FALSE" },
@@ -205,7 +204,6 @@ START_TEST(test_ambiguous)
       { 103, "ambiguous use of name FALSE (FALSE [return INTEGER], BOOLEAN)" },
       {  24, "visible declaration of FALSE as BOOLEAN" },
       {  98, "visible declaration of FALSE as FALSE [return INTEGER]" },
-      {  35, "type of value BAR does not match type of target FOO" },
       { 141, "ambiguous use of operator \"<\"" },
       { 127, "candidate \"<\" [MY_INT, MY_INT return BOOLEAN]" },
       { 121, "candidate \"<\" [MY_INT, MY_INT return BOOLEAN]" },
@@ -218,12 +216,10 @@ START_TEST(test_ambiguous)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
 
    p = tree_stmt(a, 0);
    fail_unless(tree_stmts(p) == 2);
@@ -304,7 +300,6 @@ START_TEST(test_const2)
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
 
    fail_unless(error_count() == 0);
 
@@ -318,7 +313,6 @@ START_TEST(test_const2)
    tree_t pb = parse();
    fail_if(pb == NULL);
    fail_unless(tree_kind(pb) == T_PACK_BODY);
-   sem_check(pb);
 
    fail_if_errors();
 }
@@ -339,9 +333,9 @@ START_TEST(test_wait)
    input_from_file(TESTDIR "/sem/wait.vhd");
 
    const error_t expect[] = {
-      { 35, "invalid use of entity A" },
       { 17, "type of delay must be TIME" },
       { 26, "name V in sensitivity list is not a signal" },
+      { 35, "invalid use of entity A" },
       { 40, "wait statement not allowed in process" },
       { 51, "type of condition must be BOOLEAN" },
       { 53, "type of delay must be TIME" },
@@ -353,12 +347,10 @@ START_TEST(test_wait)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
 
    tree_t a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
 
    tree_t p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
@@ -389,18 +381,17 @@ START_TEST(test_func)
    input_from_file(TESTDIR "/sem/func.vhd");
 
    const error_t expect[] = {
-      {  25, "no visible subprogram declaration for UENUM" },
       {   5, "function arguments must have mode IN" },
       {  19, "must be an unconstrained array type" },
       {  23, "resolution function must have a single argument" },
+      {  25, "no visible subprogram declaration for UENUM" },
       {  27, "type of default value universal_integer does not" },
       {  29, "subprogram body is not allowed in package specification" },
       {  36, "missing declaration for package WORK.BAD" },
-      {  62, "FOO [INTEGER, INTEGER, INTEGER return INTEGER] already " },
-      {  61, "previous declaration of FOO [INTEGER, INTEGER, INTEGER" },
       {  48, "expected return type INTEGER but have UENUM" },
       {  51, "function arguments must have mode IN" },
-      {  56, "function must contain a return statement" },
+      {  62, "FOO [INTEGER, INTEGER, INTEGER return INTEGER] already " },
+      {  61, "previous declaration of FOO [INTEGER, INTEGER, INTEGER" },
       { 114, "positional parameters must precede named parameters" },
       { 115, "duplicate parameter name X" },
       { 124, "function arguments may not have VARIABLE class" },
@@ -416,10 +407,10 @@ START_TEST(test_func)
       { 243, "parameter X was originally declared here" },
       { 271, "invalid reference to X inside pure function NESTED" },
       { 288, "no visible subprogram declaration for FNORK" },
+      { 293, "function CONSTPURE cannot be called as a procedure" },
       { 294, "procedure NOTDEF not allowed in an expression" },
       { 297, "no visible declaration for BAD_TYPE" },
       { 297, "no visible declaration for FOO" },
-      { 293, "function CONSTPURE cannot be called as a procedure" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -436,24 +427,19 @@ START_TEST(test_array)
    input_from_file(TESTDIR "/sem/array.vhd");
 
    const error_t expect[] = {
-      { 65,  "operator \"=\" [INT_ARRAY, TEN_INTS return BOOLEAN]" },
-      { 119, "aggregate has non-composite type INTEGER" },
-      { 272, "no matching operator \"<\" [INT2D, INT2D" },
-      { 277, "no visible declaration for NOT_HERE" },
-      { 424, "ambiguous call to function F" },
-      { 418, "candidate F [INTEGER return STRING]" },
-      { 419, "candidate F [return STRING]" },
       { 27,  "positional associations must appear first in aggregate" },
       { 33,  "named association must not follow others" },
       { 39,  "only a single others association allowed" },
       { 46,  "type of initial value universal_integer does not match" },
       { 55,  "type of value universal_integer does not match type of" },
       { 57,  "type of value INT_ARRAY does not match type" },
+      { 65,  "operator \"=\" [INT_ARRAY, TEN_INTS return BOOLEAN]" },
       { 88,  "array W has 2 dimensions but 1 indices given" },
       { 89,  "array W has 2 dimensions but 3 indices given" },
       { 98,  "type of index universal_integer does not match type" },
       { 102, "named and positional associations cannot be mixed in" },
       { 111, "a choice that is not locally static is allowed" },
+      { 119, "aggregate has non-composite type INTEGER" },
       { 119, "type of slice prefix is not an array" },
       { 120, "range direction of slice TO does not match prefix DOWNTO" },
       { 121, "index range of array aggregate with others choice cannot" },
@@ -465,6 +451,8 @@ START_TEST(test_array)
       { 234, "type of aliased object INT_ARRAY does not match" },
       { 241, "cannot index non-array type INTEGER" },
       { 252, "expected 1 constraints for type INT_ARRAY but found 2" },
+      { 272, "no matching operator \"<\" [INT2D, INT2D" },
+      { 277, "no visible declaration for NOT_HERE" },
       { 279, "type NUM_ARRAY is unconstrained" },
       { 285, "object K does not have a range" },
       { 295, "type of index universal_integer does not match" },
@@ -479,6 +467,9 @@ START_TEST(test_array)
       { 401, "expected type of range bounds to be INTEGER but have BOOLEAN" },
       { 403, "a choice that is not locally static is allowed" },
       { 404, "a choice that is not locally static is allowed" },
+      { 424, "ambiguous call to function F" },
+      { 418, "candidate F [INTEGER return STRING]" },
+      { 419, "candidate F [return STRING]" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -518,11 +509,11 @@ START_TEST(test_generics)
       {  48, "no visible declaration for X" },
       {  58, "invalid object class for generic" },
       {  68, "no visible declaration for Y" },
-      { 115, "unexpected integer while parsing name" },
-      {  86, "missing body for function F [BIT_VECTOR return INTEGER]" },
       { 109, "with generic X must be a globally static expression" },
+      { 115, "unexpected integer while parsing name" },
       { 118, "invalid name in generic map" },
       { 117, "missing actual for generic X without a default expression" },
+      {  86, "missing body for function F [BIT_VECTOR return INTEGER]" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -539,17 +530,14 @@ START_TEST(test_seq)
    input_from_file(TESTDIR "/sem/seq.vhd");
 
    const error_t expect[] = {
-      {  19, "no visible declaration for X" },
-      {  33, "no visible declaration for G" },
-      {  79, "no visible declaration for X" },
-      { 205, "DUP already declared in this region" },
-      { 204, "previous declaration of DUP was here" },
-      { 228, "expected type mark while parsing discrete range" },
       {  15, "type of condition must be BOOLEAN" },
+      {  19, "no visible declaration for X" },
       {  25, "type of value BOOLEAN does not match type of target INTEGER" },
+      {  33, "no visible declaration for G" },
       {  48, "return statement not allowed outside subprogram" },
       {  62, "return statement not allowed outside subprogram" },
       {  64, "type of loop condition must be BOOLEAN" },
+      {  79, "no visible declaration for X" },
       { 106, "others choice must appear last" },
       { 113, "case choice must be locally static" },
       { 126, "case choice must be locally static" },
@@ -561,10 +549,13 @@ START_TEST(test_seq)
       { 164, "type of exit condition must be BOOLEAN" },
       { 179, "actual for formal Y with class VARIABLE must be" },
       { 187, "type of next condition must be BOOLEAN" },
-      { 190, "cannot use next outside loop" },
-      { 192, "no nested loop with label FOO" },
+      { 190, "cannot use next statement outside loop" },
+      { 192, "no visible declaration for FOO" },
+      { 205, "DUP already declared in this region" },
+      { 204, "previous declaration of DUP was here" },
       { 214, "type REAL does not have a range" },
       { 222, "variable I is not a valid target of signal assignment" },
+      { 228, "expected type mark while parsing discrete range" },
       { 230, "range bounds to be INTEGER but have universal_real" },
       { 232, "type of range bounds REAL is not discrete" },
       { 243, "target of variable assignment must be a variable name" },
@@ -608,10 +599,6 @@ START_TEST(test_procedure)
 
    const error_t expect[] = {
       {   5, "subprogram body is not allowed in package specification" },
-      { 180, "invalid procedure call statement" },
-      { 186, "?? is a reserved word in VHDL-2008" },
-      { LINE_INVALID, "pass --std=2008 to enable this feature" },
-      { 186, "unexpected error while parsing primary" },
       {  28, "cannot return a value from a procedure" },
       {  45, "type of default value universal_integer does not match" },
       {  63, "missing actual for formal X without default value" },
@@ -632,6 +619,10 @@ START_TEST(test_procedure)
       { 162, "object ARG with type containing an access type must have class" },
       { 167, "object ARG with type containing an access type must have class" },
       { 172, "object ARG with type containing an access type must have class" },
+      { 180, "invalid procedure call statement" },
+      { 186, "?? is a reserved word in VHDL-2008" },
+      { LINE_INVALID, "pass --std=2008 to enable this feature" },
+      { 186, "unexpected error while parsing primary" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -684,15 +675,15 @@ START_TEST(test_attr)
    const error_t expect[] = {
       {  30, "Z has no attribute FOO" },
       {  54, "prefix of user defined attribute reference cannot denote" },
-      {  67, "no visible declaration for Q" },
-      {  68, "no visible declaration for YAH" },
       {  65, "expected attribute type INTEGER" },
       {  66, "expected attribute type STRING" },
+      {  67, "no visible declaration for Q" },
+      {  68, "no visible declaration for YAH" },
       {  85, "dimension of attribute LEFT must be locally static" },
       { 101, "prefix of SIMPLE_NAME attribute must be a named entity" },
       { 103, "prefix of PATH_NAME attribute must be a named entity" },
-      { 139, "class of object I is variable not signal" },
       { 133, "cannot index non-array type INTEGER" },
+      { 139, "class of object I is variable not signal" },
       { 146, "prefix of attribute LAST_EVENT must denote a signal" },
       { 158, "attribute RANGE with unconstrained array type BIT_VECTOR" },
       { 159, "object B does not have a range" },
@@ -716,8 +707,8 @@ START_TEST(test_generate)
    input_from_file(TESTDIR "/sem/generate.vhd");
 
    const error_t expect[] = {
-      { 26, "no visible declaration for Y" },
       { 15, "condition of generate statement must be BOOLEAN" },
+      { 26, "no visible declaration for Y" },
       { 45, "condition of generate statement must be static" },
       { 48, "range of generate statement must be static" },
       { -1, NULL }
@@ -738,27 +729,28 @@ START_TEST(test_record)
       {   9, "duplicate field name X" },
       {  15, "recursive record types are not allowed" },
       {  30, "field X with unconstrained array type is not allowed" },
-      {  43, "record type R1 has no field named Q" },
-      {  72, "record type R1 has no field named F" },
-      {  82, "record type R1_SUB has no field named Z" },
-      { 106, "record type R1 has no field named Z" },
-      { 124, "record type R8 has no field named ACK" },
-      { 170, "record type R1 has no field named Z" },
       {  39, "field Z does not have a value" },
       {  40, "does not match type INTEGER of field Y" },
       {  42, "field Y does not have a value" },
+      {  43, "record type R1 has no field named Q" },
       {  44, "type of value R1 does not match type INTEGER of" },
       {  47, "field X was already given a value by earlier named choice" },
       {  48, "field X was already given a value by earlier positional choice" },
       {  64, "type R1_VEC is unconstrained" },
+      {  72, "record type R1 has no field named F" },
+      {  82, "record type R1_SUB has no field named Z" },
       {  86, "index constraint cannot be used with non-array type R1" },
+      { 106, "record type R1 has no field named Z" },
       { 111, "record field A cannot be of file type" },
+      { 124, "record type R8 has no field named ACK" },
       { 153, "cannot index non-array type UNIT_SPEC_T" },
+      { 157, "cannot index non-array type UNIT_SPEC_T" },
       { 155, "cannot index non-array type UNIT_SPEC_T" },
       { 166, "association choice must be a field name" },
       { 167, "3 positional associations given but record type R1 only has 2" },
       { 168, "others association must represent at least one element" },
       { 169, "range association invalid in record aggregate" },
+      { 170, "record type R1 has no field named Z" },
       { 170, "range association invalid in record aggregate" },
       { -1, NULL }
    };
@@ -810,17 +802,17 @@ START_TEST(test_access)
 
    const error_t expect[] = {
       {  5, "no visible declaration for FOO" },
+      { 34, "null expression must have access type" },
       { 38, "unexpected integer while parsing type mark, expecting" },
       { 39, "type mark I does not refer to a type" },
-      { 56, "type mark S does not refer to a type" },
-      { 97, "cannot determine type of allocator expression from context" },
-      { 34, "null expression must have access type" },
       { 41, "does not match type of target INT_PTR" },
       { 47, "type of value REC does not match type of" },
       { 55, "type of allocator expresion INTEGER does not match" },
+      { 56, "type mark S does not refer to a type" },
       { 76, "unconstrained array type INT_PTR_ARRAY not allowed" },
       { 84, "index constraint cannot be used with non-array type INTEGER" },
       { 90, "type FOO is incomplete" },
+      { 97, "cannot determine type of allocator expression from context" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -874,15 +866,15 @@ START_TEST(test_signal)
    const error_t expect[] = {
       { 14, "has non-composite type BIT" },
       { 15, "type of string literal cannot be determined from context" },
-      { 22, "aggregate has non-composite type BIT" },
       { 16, "target of signal assignment must be a signal name" },
       { 17, "others association not allowed in aggregate signal target" },
       { 18, "cannot assign to input port P" },
+      { 22, "aggregate has non-composite type BIT" },
       { 23, "target of signal assignment must be a signal name" },
       { 24, "others association not allowed in aggregate signal target" },
       { 25, "cannot assign to input port P" },
       { 30, "aggregate element must be locally static name" },
-      { 40, "signal X is not a formal parameter and procedure PROC1 [BIT] "
+      { 40, "signal X is not a formal parameter and subprogram PROC1 [BIT] "
         "is not contained within a process statement" },
       { 48, "implicit signal may not be assigned" },
       { 54, "guard signal must have BOOLEAN type but found INTEGER" },
@@ -912,9 +904,9 @@ START_TEST(test_static)
    const error_t expect[] = {
       {  36, "case choice must be locally static" },
       {  42, "case choice must be locally static" },
-      { 104, "no visible subprogram declaration for BAD_FUNC" },
       {  65, "with port X of mode IN must be a globally static" },
       {  85, "formal name must be locally static" },
+      { 104, "no visible subprogram declaration for BAD_FUNC" },
       {  -1, NULL }
    };
    expect_errors(expect);
@@ -940,8 +932,8 @@ START_TEST(test_subtype)
    input_from_file(TESTDIR "/sem/subtype.vhd");
 
    const error_t expect[] = {
-      { 16, "no visible subprogram declaration for NOT_HERE" },
       {  9, "expected type of range bound to be INTEGER but is" },
+      { 16, "no visible subprogram declaration for NOT_HERE" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1005,17 +997,19 @@ START_TEST(test_spec)
 
    const error_t expect[] = {
       { 24, "E does not name a component" },
+      { 24, "duplicate specification for instance I1" },
+      { 22, "previous specification was here" },
+      { 32, "duplicate specification for instance I1" },
+      { 22, "previous specification was here" },
       { 34, "cannot find unit WORK.NOT_HERE" },
       { 36, "unit WORK.P cannot be instantiated" },
+      { 36, "duplicate specification for instance I3" },
+      { 34, "previous specification was here" },
+      { 22, "component mismatch for instance I1: expected C1" },
+      { 30, "specification may only be used with component instances" },
       { 28, "instance BAD not found" },
-      { 32, "instance I1 is already bound by a specification" },
-      { 22, "originally bound by specification here" },
-      { 36, "instance I3 is already bound by a specification" },
-      { 34, "originally bound by specification here" },
       { 40, "instance I5 not found" },
-      { 42, "instance I4 is already bound by a specification" },
-      { 38, "originally bound by specification here" },
-      { 79, "component mismatch for instance I1: expected C1" },
+      { 79, "component mismatch for instance I1: expected C1 but " },
       { 81, "specification may only be used with component instances" },
       { -1, NULL }
    };
@@ -1110,6 +1104,7 @@ START_TEST(test_protected)
       { 118, "no visible subprogram declaration for COUNTER" },
       { 119, "expected 1 argument for subprogram DECREMENT [INTEGER] but " },
       { 124, "object X with protected type must have class VARIABLE" },
+      { 126, "pure function GET_VALUE cannot call impure function VALUE" },
       { 135, "may not assign to variable of a protected type" },
       { 150, "missing body for protected type PROTECTED_T" },
       { -1, NULL }
@@ -1165,10 +1160,10 @@ START_TEST(test_alias)
       { 26, "visible declaration of '1' as BIT" },
       { 36, "visible declaration of '1' as CHARACTER" },
       { 41, "no visible subprogram declaration for FOO_INT" },
-      { 68, "unexpected identifier while parsing subtype declaration" },
       { 42, "type of actual CHARACTER does not match formal X type BIT" },
       { 43, "operand of qualified expression must have type CHARACTER" },
       { 50, "aliased name is not static" },
+      { 68, "unexpected identifier while parsing subtype declaration" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1597,8 +1592,8 @@ START_TEST(test_issue188)
    input_from_file(TESTDIR "/sem/issue188.vhd");
 
    const error_t expect[] = {
-      { 29, "invalid reference to F inside pure function FILE_FUNC2" },
       {  9, "cannot declare a file object in a pure function" },
+      { 29, "invalid reference to F inside pure function FILE_FUNC2" },
       { 46, "call procedure CALL_READ_B which references a file object" },
       { 66, "call procedure UPDATE_X which references a shared variable" },
       { -1, NULL }
@@ -1764,11 +1759,11 @@ START_TEST(test_issue264)
    input_from_file(TESTDIR "/sem/issue264.vhd");
 
    const error_t expect[] = {
+      { 19, "case expression must have locally static subtype" },
       { 23, "no matching operator \"&\" [INTEGER, INTEGER]" },
       { 26, "ambiguous use of operator \"&\"" },
       { 13, "candidate \"&\" [FOO, FOO return FOO_VEC1]" },
       { 14, "candidate \"&\" [FOO, FOO return FOO_VEC2]" },
-      { 19, "case expression must have locally static subtype" },
       { 35, "case expression must have a discrete type or one dimensional" },
       { -1, NULL }
    };
@@ -2116,16 +2111,10 @@ START_TEST(test_issue225)
 
    fail_if_errors();
 
-   fail_unless(tree_contexts(a) == 8);
-   fail_unless(tree_ident(tree_context(a, 3)) == ident_new("WORK.P2"));
-   fail_unless(tree_ident(tree_context(a, 4)) == ident_new("WORK.P3"));
-   fail_unless(tree_ident(tree_context(a, 5)) == ident_new("WORK.P4"));
-   fail_unless(tree_ident(tree_context(a, 6)) == ident_new("WORK.P5"));
-   fail_unless(tree_ident(tree_context(a, 7)) == ident_new("WORK.P6"));
+   fail_unless(tree_contexts(a) == 3);
 
    tree_t e = tree_primary(a);
-   fail_unless(tree_contexts(e) == 4);
-   fail_unless(tree_ident(tree_context(e, 3)) == ident_new("WORK.P1"));
+   fail_unless(tree_contexts(e) == 3);
 }
 END_TEST
 
@@ -2384,12 +2373,12 @@ START_TEST(test_error1)
    // There are probably too many errors generated here
    const error_t expect[] = {
       { 25, "unexpected ; while parsing port map aspect, expecting" },
+      { 23, "missing actual for port Y of mode IN without a default" },
       { 26, "unexpected , while parsing concurrent procedure call statement" },
       { 27, "no visible subprogram declaration for Y" },
       { 27, "unexpected , while parsing concurrent procedure call statement" },
       { 28, "no visible subprogram declaration for Z" },
       { 28, "no visible subprogram declaration for B" },
-      { 23, "missing actual for port Y of mode IN without a default" },
       { -1, NULL }
    };
    expect_errors(expect);

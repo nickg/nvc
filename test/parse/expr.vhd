@@ -25,9 +25,9 @@ begin
         q := q sra 1;
         q := q rol 1;
         q := q ror 1;
-        x := work.foo."and"(1, 2);
-        x(y'range) := y;
-        v := (1 => 1, x'range => 2);
+        q(1) := work.foo."and"(1, 2);
+        q(q'range) := q;
+        q := (1 => '1', v'range => '0');
     end process;
 
 end architecture;

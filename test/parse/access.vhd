@@ -14,7 +14,7 @@ begin
     begin
         x.all := 1;
         v := x.all + 5;
-        p := new int_ptr;
+        p := new integer;
         q := a.all(1 to 3);
         r := a.all(3);
     end process;

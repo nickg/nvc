@@ -36,6 +36,12 @@ START_TEST(test_entity)
 
    input_from_file(TESTDIR "/parse/entity.vhd");
 
+   const error_t expect[] = {
+      { 39, "invalid object class for generic" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -183,7 +189,7 @@ START_TEST(test_entity)
    e = parse();
    fail_unless(e == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -310,6 +316,20 @@ START_TEST(test_seq)
 
    input_from_file(TESTDIR "/parse/seq.vhd");
 
+   const error_t expect[] = {
+      {  15, "type of slice prefix is not an array" },
+      {  45, "target of variable assignment must be a variable name or" },
+      {  84, "return statement not allowed outside subprogram" },
+      { 125, "cannot use exit statement outside loop" },
+      { 126, "cannot use exit statement outside loop" },
+      { 136, "positional parameters must precede named parameters" },
+      { 157, "cannot use next statement outside loop" },
+      { 158, "cannot use next statement outside loop" },
+      { 197, "a null waveform element is only valid when the target" },
+      {  -1, NULL }
+   };
+   expect_errors(expect);
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -318,8 +338,6 @@ START_TEST(test_seq)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 19);
-
-   fail_if_errors();
 
    // Wait statements
 
@@ -655,7 +673,7 @@ START_TEST(test_seq)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -665,6 +683,13 @@ START_TEST(test_types)
    type_t t;
 
    input_from_file(TESTDIR "/parse/types.vhd");
+
+   const error_t expect[] = {
+      { 16, "expected type of range bounds to be RESISTANCE but have " },
+      { 41, "index constraint cannot be used with non-array type FOO" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
 
    b = parse();
    fail_if(b == NULL);
@@ -851,7 +876,7 @@ START_TEST(test_types)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -1416,6 +1441,13 @@ START_TEST(test_array)
 
    input_from_file(TESTDIR "/parse/array.vhd");
 
+   const error_t expect[] = {
+      { 26, "named and positional associations cannot be mixed in array" },
+      { 39, "cannot index non-array type INTEGER" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
@@ -1607,7 +1639,7 @@ START_TEST(test_array)
    p = parse();
    fail_unless(p == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -1618,6 +1650,8 @@ START_TEST(test_instance)
    input_from_file(TESTDIR "/parse/instance.vhd");
 
    const error_t expect[] = {
+      { 50, "WORK.FOO has no generic named X" },
+      { 56, "found at least 1 positional actuals but FOO has only 0" },
       { 60, "invalid instantiated unit name" },
       { -1, NULL }
    };
@@ -1752,7 +1786,7 @@ START_TEST(test_conc)
    fail_unless(tree_kind(s0) == T_SIGNAL_ASSIGN);
    fail_unless(tree_waveforms(s0) == 1);
    fail_unless(tree_has_value(c));
-   fail_unless(tree_kind(tree_value(tree_waveform(s0, 0))) == T_LITERAL);
+   fail_unless(tree_kind(tree_value(tree_waveform(s0, 0))) == T_REF);
 
    s = tree_stmt(a, 2);
    fail_unless(tree_kind(s) == T_CONCURRENT);
@@ -1902,9 +1936,9 @@ START_TEST(test_attr)
    s = tree_stmt(s, 0);
    fail_unless(tree_kind(s) == T_ASSERT);
    r = tree_value(s);
-   fail_unless(tree_kind(r) == T_ARRAY_REF);
-   fail_unless(tree_params(r) == 1);
-   v = tree_value(r);
+   fail_unless(tree_kind(r) == T_FCALL);
+   fail_unless(tree_params(r) == 2);
+   v = tree_value(tree_param(r, 0));
    fail_unless(tree_kind(v) == T_ATTR_REF);
    fail_unless(tree_params(v) == 0);
 
@@ -2780,6 +2814,8 @@ START_TEST(test_error)
       { 23, "expected trailing process statement label to match FOO" },
       { 27, "trailing label for process statement without label" },
       { 34, "expected trailing if statement label to match MY_IF" },
+      { 35, "signal X is not a formal parameter and subprogram" },
+      { 35, "signal X is not a formal parameter and subprogram" },
       { 36, "expected trailing subprogram body label to match \"+\"" },
       { 41, "P1 already declared in this region" },
       { 40, "previous declaration of P1 was here" },
@@ -2819,7 +2855,7 @@ START_TEST(test_config)
       { 39, "no visible declaration for ARCH" },
       { 45, "cannot find unit WORK.ENT-BAD" },
       { 52, "P is not a block that can be configured" },
-      { 55, "object P is not an instance" },
+      { 55, "instance P not found" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3048,6 +3084,7 @@ START_TEST(test_guarded)
    const error_t expect[] = {
       {  7, "guarded assignment has no visible guard signal" },
       {  9, "guarded assignment has no visible guard signal" },
+      { 25, "Q in disconnection specification must denote a guarded" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3393,7 +3430,7 @@ START_TEST(test_names)
    fail_unless(tree_loc(d)->first_line == 5);
    t = tree_value(tree_param(t, 0));
    fail_unless(tree_kind(t) == T_LITERAL);
-   fail_unless(type_eq(tree_type(t), std_type(NULL, STD_UNIVERSAL_INTEGER)));
+   fail_unless(type_eq(tree_type(t), std_type(NULL, STD_INTEGER)));
 
    p = tree_stmt(a, 4);
    d = search_decls(p, ident_new("TABLE"), 0);
@@ -3448,6 +3485,7 @@ START_TEST(test_error2)
    const error_t expect[] = {
       {  1, "missing declaration for package WORK.DUNNO" },
       {  2, "no visible declaration for BAR" },
+      {  3, "type mismatch in range: left is BIT, right is CHARACTER" },
       {  5, "no visible declaration for SDFF" },
       { 10, "no visible declaration for SGHBBX" },
       { 17, "cannot find unit STD.NOTHERE" },
@@ -3458,6 +3496,7 @@ START_TEST(test_error2)
       { 42, "unexpected function while parsing subprogram body" },
       { 44, "protected type declaration trailing label to match OTHER" },
       { 47, "unexpected integer while parsing subtype declaration" },
+      { 53, "cannot index non-array type FT" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3475,11 +3514,11 @@ START_TEST(test_vhdl2008)
 
    const error_t expect[] = {
       {  84, "no matching operator \"??\" [TIME return BOOLEAN]" },
-      { 108, "excess non-zero digits in bit string literal" },
-      { 109, "excess non-zero digits in bit string literal" },
-      { 114, "sorry, decimal values greater than 6" },
-      { 118, "excess significant digits in bit string literal" },
-      { 121, "invalid digit 'C' in bit string" },
+      { 110, "excess non-zero digits in bit string literal" },
+      { 111, "excess non-zero digits in bit string literal" },
+      { 116, "sorry, decimal values greater than 6" },
+      { 120, "excess significant digits in bit string literal" },
+      { 123, "invalid digit 'C' in bit string" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3492,7 +3531,7 @@ START_TEST(test_vhdl2008)
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_generics(p) == 2);
-   fail_unless(tree_genmaps(p) == 1);
+   fail_unless(tree_genmaps(p) == 2);
 
    tree_t p2 = parse();
    fail_if(p2 == NULL);

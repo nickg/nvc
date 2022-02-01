@@ -178,7 +178,7 @@ static int analyse(int argc, char **argv)
 
       tree_t unit;
       while ((unit = parse())) {
-         if (sem_check(unit) && error_count() == 0) {
+         if (error_count() == 0) {
             APUSH(units, unit);
 
             simplify_local(unit);

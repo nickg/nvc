@@ -48,6 +48,7 @@ begin
 
     -- If
     process is
+        variable x, y : integer;
     begin
         if true then
             x := 1;
@@ -170,7 +171,7 @@ begin
     begin
         case y is
             when 1 =>
-                for i in x'range loop
+                for i in integer'range loop
                 end loop;
         end case;
     end process;

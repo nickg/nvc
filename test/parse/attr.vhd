@@ -8,5 +8,5 @@ architecture a of e is
     attribute foo of '1' : literal is 6;
     attribute foo of integer : type is 4;
 begin
-    assert x'foo(5);
+    assert x'foo = 5;
 end architecture;

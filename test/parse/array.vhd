@@ -32,13 +32,14 @@ architecture a of e is
 begin
 
     process is
+        variable k : int_array(1 to 5);
     begin
         x(0) <= 1;
         y(2) <= n(2);
         y(3)(5) <= n(2)(1);
         x(1 to 3) <= z(1 to 3);
-        x := (x'range => 5);
-        x := (x'reverse_range => 3);
+        k := (x'range => 5);
+        k := (x'reverse_range => 3);
     end process;
 
 end architecture;

@@ -10,8 +10,9 @@ begin
     x <= y & '0';
 
     process is
+        variable c : bit_vector(1 to 4);
     begin
-        p := q & g & ('1', '1');
+        c := q & g & ('1', '1');
     end process;
 
 end architecture;

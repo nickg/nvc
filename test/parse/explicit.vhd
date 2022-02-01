@@ -20,7 +20,7 @@ architecture a of e is
 begin
 
     process is
-        variable x, y : my_vec;
+        variable x, y : my_vec(1 to 3);
     begin
         assert x <= y;                  -- OK (2008), Error (1993)
     end process;

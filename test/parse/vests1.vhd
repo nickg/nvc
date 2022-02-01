@@ -19,21 +19,21 @@ begin
   K:block
     component test
       port(
-        sigin1  : in  boolean ;
+        sigin1  : in  boolean := false;
         sigout1 : out boolean ;
-        sigin2  : in  bit ;
+        sigin2  : in  bit := '0';
         sigout2 : out bit ;
-        sigin4  : in  severity_level ;
+        sigin4  : in  severity_level := note ;
         sigout4 : out severity_level ;
-        sigin5  : in  integer ;
+        sigin5  : in  integer := 0 ;
         sigout5 : out integer ;
-        sigin6  : in  real ;
+        sigin6  : in  real := 0.0;
         sigout6 : out real ;
-        sigin7  : in  time ;
+        sigin7  : in  time := 0 fs;
         sigout7 : out time ;
-        sigin8  : in  natural ;
+        sigin8  : in  natural := 0 ;
         sigout8 : out natural ;
-        sigin9  : in  positive ;
+        sigin9  : in  positive := 0 ;
         sigout9 : out positive
         );
     end component;

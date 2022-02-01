@@ -21,38 +21,13 @@
 #include "opt.h"
 #include "phase.h"
 #include "type.h"
+#include "names.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct scope       scope_t;
-typedef struct loop_stack  loop_stack_t;
-
 typedef bool (*static_fn_t)(tree_t t);
-
-typedef enum {
-   SCOPE_PACKAGE   = (1 << 0),
-   SCOPE_PROTECTED = (1 << 2),
-   SCOPE_CONTEXT   = (1 << 3),
-   SCOPE_COPY_SUBS = (1 << 4),
-   SCOPE_PROCESS   = (1 << 5),
-} scope_flags_t;
-
-struct scope {
-   scope_t       *down;
-
-   tree_t         subprog;
-   tree_t         unit;
-
-   // For design unit scopes
-   scope_flags_t  flags;
-};
-
-struct loop_stack {
-   loop_stack_t *up;
-   ident_t       name;
-};
 
 typedef struct {
    tree_t decl;
@@ -60,63 +35,22 @@ typedef struct {
    bool   partial;
 } formal_map_t;
 
-static bool sem_check_array_ref(tree_t t);
+static bool sem_check_array_ref(tree_t t, nametab_t *tab);
 static bool sem_locally_static(tree_t t);
 static bool sem_globally_static(tree_t t);
 static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_same_type(tree_t left, tree_t right);
 static bool sem_check_type(tree_t t, type_t expect);
 static bool sem_static_name(tree_t t, static_fn_t check_fn);
-static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind);
-static bool sem_check_attr_ref(tree_t t, bool allow_range);
-static bool sem_check_array_dims(type_t type, type_t constraint);
+static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab);
 static bool sem_check_generics(tree_t t);
-static bool sem_check_generic_map(tree_t t, tree_t unit);
-static bool sem_check_port_map(tree_t t, tree_t unit);
-
-static scope_t      *top_scope = NULL;
-static loop_stack_t *loop_stack = NULL;
+static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab);
+static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab);
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
       return false;                                   \
    } while (0)
-
-static void scope_push(void)
-{
-   scope_t *s = xmalloc(sizeof(scope_t));
-   s->down       = top_scope;
-   s->subprog    = (top_scope ? top_scope->subprog : NULL) ;
-   s->flags      = (top_scope ? top_scope->flags : 0);
-   s->unit       = (top_scope ? top_scope->unit : NULL);
-
-   top_scope = s;
-}
-
-static void scope_pop(void)
-{
-   assert(top_scope != NULL);
-
-   scope_t *s = top_scope;
-   top_scope = s->down;
-   free(s);
-}
-
-static void loop_push(ident_t name)
-{
-   loop_stack_t *ls = xmalloc(sizeof(loop_stack_t));
-   ls->up   = loop_stack;
-   ls->name = name;
-
-   loop_stack = ls;
-}
-
-static void loop_pop(void)
-{
-   loop_stack_t *tmp = loop_stack->up;
-   free(loop_stack);
-   loop_stack = tmp;
-}
 
 static tree_t sem_int_lit(type_t type, int64_t i)
 {
@@ -188,74 +122,8 @@ static bool sem_check_resolution(type_t type, tree_t res)
    return true;
 }
 
-static bool sem_check_constraint(tree_t constraint, type_t base)
-{
-   if (type_is_access(base))
-      base = type_access(base);
-
-   const constraint_kind_t consk = tree_subkind(constraint);
-   if (consk == C_RANGE && !type_is_scalar(base))
-      sem_error(constraint, "range constraint cannot be used with "
-                "non-scalar type %s", type_pp(base));
-   else if (consk == C_INDEX && !type_is_array(base))
-      sem_error(constraint, "index constraint cannot be used with "
-                "non-array type %s", type_pp(base));
-
-   if (type_is_array(base)) {
-      if (type_kind(base) == T_SUBTYPE && type_has_constraint(base))
-         sem_error(constraint, "may not change constraints of constrained "
-                   "array type %s", type_pp(base));
-   }
-
-   if (type_is_record(base))
-      sem_error(constraint, "record subtype may not have constraints");
-
-   const int ndims_base = type_is_array(base) ? dimension_of(base) : 1;
-   const int ndims = tree_ranges(constraint);
-
-   if (ndims != ndims_base)
-      sem_error(constraint, "expected %d constraints for type %s but found %d",
-                ndims_base, type_pp(base), ndims);
-
-   for (int i = 0; i < ndims; i++) {
-      tree_t r = tree_range(constraint, i);
-      if (!sem_check_range(r, index_type_of(base, i), T_LAST_TYPE_KIND))
-         return false;
-   }
-
-   return true;
-}
-
-static bool sem_check_subtype(tree_t decl, type_t type)
-{
-   // Check an anonymous subtype at the point of use
-
-   if (type_kind(type) != T_SUBTYPE)
-      return true;
-   else if (type_has_ident(type))
-      return true;   // Explicitly declared subtype
-
-   type_t base = type_base(type);
-   if (type_is_none(base))
-      return false;
-
-   if (type_is_protected(base))
-      sem_error(decl, "subtypes may not have protected base types");
-
-   if (type_has_constraint(type)) {
-      if (!sem_check_constraint(type_constraint(type), base))
-         return false;
-   }
-
-   if (type_has_resolution(type)) {
-      if (!sem_check_resolution(type_base(type), type_resolution(type)))
-         return false;
-   }
-
-   return true;
-}
-
-static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind)
+static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
+                            nametab_t *tab)
 {
    assert(expect == NULL || !type_is_universal(expect));
 
@@ -267,7 +135,7 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind)
          if (tree_kind(expr) != T_ATTR_REF)
             sem_error(expr, "invalid expression in range constraint");
 
-         if (!sem_check_attr_ref(expr, true))
+         if (!sem_check_attr_ref(expr, true, tab))
             return false;
 
          if (expect && !sem_check_type(expr, expect))
@@ -288,11 +156,11 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind)
    case RANGE_DOWNTO:
       {
          tree_t left = tree_left(r);
-         if (!sem_check(left))
+         if (!sem_check(left, tab))
             return false;
 
          tree_t right = tree_right(r);
-         if (!sem_check(right))
+         if (!sem_check(right, tab))
             return false;
 
          if (expect != NULL) {
@@ -333,9 +201,9 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind)
    return true;
 }
 
-static bool sem_check_discrete_range(tree_t r, type_t expect)
+static bool sem_check_discrete_range(tree_t r, type_t expect, nametab_t *tab)
 {
-   if (!sem_check_range(r, expect ?: tree_type(r), T_LAST_TYPE_KIND))
+   if (!sem_check_range(r, expect ?: tree_type(r), T_LAST_TYPE_KIND, tab))
       return false;
 
    type_t type = tree_type(r);
@@ -372,32 +240,108 @@ static bool sem_check_discrete_range(tree_t r, type_t expect)
    return true;
 }
 
-static bool sem_check_use_clause(tree_t c)
+static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
 {
-   if (top_scope->flags & SCOPE_CONTEXT) {
-      // LRM 08 section 13.3
-      ident_t prefix = ident_until(tree_ident(c), '.');
-      if (prefix == well_known(W_WORK))
-         sem_error(c, "selected name in context declaration use clause may not "
-                   "have WORK as a prefix");
+   if (type_is_access(base))
+      base = type_access(base);
+
+   const constraint_kind_t consk = tree_subkind(constraint);
+   if (consk == C_RANGE && !type_is_scalar(base))
+      sem_error(constraint, "range constraint cannot be used with "
+                "non-scalar type %s", type_pp(base));
+   else if (consk == C_INDEX && !type_is_array(base))
+      sem_error(constraint, "index constraint cannot be used with "
+                "non-array type %s", type_pp(base));
+
+   if (type_is_array(base)) {
+      if (type_kind(base) == T_SUBTYPE && type_has_constraint(base))
+         sem_error(constraint, "may not change constraints of constrained "
+                   "array type %s", type_pp(base));
+   }
+
+   if (type_is_record(base))
+      sem_error(constraint, "record subtype may not have constraints");
+
+   const int ndims_base = type_is_array(base) ? dimension_of(base) : 1;
+   const int ndims = tree_ranges(constraint);
+
+   if (ndims != ndims_base)
+      sem_error(constraint, "expected %d constraints for type %s but found %d",
+                ndims_base, type_pp(base), ndims);
+
+   for (int i = 0; i < ndims; i++) {
+      tree_t r = tree_range(constraint, i);
+      if (!sem_check_range(r, index_type_of(base, i), T_LAST_TYPE_KIND, tab))
+         return false;
    }
 
    return true;
 }
 
-static bool sem_check_library_clause(tree_t t)
+static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
 {
-   ident_t name = tree_ident(t);
-   if (name == well_known(W_WORK) && (top_scope->flags & SCOPE_CONTEXT)) {
-      // LRM 08 section 13.3
-      sem_error(t, "library clause in a context declaration may not have "
-                "logical library name WORK");
+   // Check an anonymous subtype at the point of use
+
+   if (type_kind(type) != T_SUBTYPE)
+      return true;
+   else if (type_has_ident(type))
+      return true;   // Explicitly declared subtype
+
+   type_t base = type_base(type);
+   if (type_is_none(base))
+      return false;
+
+   if (type_is_protected(base))
+      sem_error(decl, "subtypes may not have protected base types");
+
+   if (type_has_constraint(type)) {
+      if (!sem_check_constraint(type_constraint(type), base, tab))
+         return false;
+   }
+
+   if (type_has_resolution(type)) {
+      if (!sem_check_resolution(type_base(type), type_resolution(type)))
+         return false;
    }
 
    return true;
 }
 
-static bool sem_check_context_clause(tree_t t)
+static bool sem_check_use_clause(tree_t c, nametab_t *tab)
+{
+   if (standard() >= STD_08) {
+      tree_t unit = find_enclosing(tab, S_DESIGN_UNIT);
+
+      if (unit != NULL && tree_kind(unit) == T_CONTEXT) {
+         // LRM 08 section 13.3
+         ident_t prefix = ident_until(tree_ident(c), '.');
+         if (prefix == well_known(W_WORK))
+            sem_error(c, "selected name in context declaration use clause "
+                      "may not have WORK as a prefix");
+      }
+   }
+
+   return true;
+}
+
+static bool sem_check_library_clause(tree_t t, nametab_t *tab)
+{
+   if (standard() >= STD_08) {
+      ident_t name = tree_ident(t);
+      tree_t unit = find_enclosing(tab, S_DESIGN_UNIT);
+
+      if (unit != NULL && tree_kind(unit) == T_CONTEXT) {
+         // LRM 08 section 13.3
+         if (name == well_known(W_WORK))
+            sem_error(t, "library clause in a context declaration may not have "
+                      "logical library name WORK");
+      }
+   }
+
+   return true;
+}
+
+static bool sem_check_context_clause(tree_t t, nametab_t *tab)
 {
    // Ignore the implicit WORK and STD with context declarations
    const int ignore = tree_kind(t) == T_CONTEXT ? 2 : 0;
@@ -405,7 +349,7 @@ static bool sem_check_context_clause(tree_t t)
    bool ok = true;
    const int ncontexts = tree_contexts(t);
    for (int n = ignore; n < ncontexts; n++)
-      ok = sem_check(tree_context(t, n)) && ok;
+      ok = sem_check(tree_context(t, n), tab) && ok;
 
    return ok;
 }
@@ -442,7 +386,7 @@ static bool sem_readable(tree_t t)
    }
 }
 
-static bool sem_check_array_dims(type_t type, type_t constraint)
+static bool sem_check_array_dims(type_t type, type_t constraint, nametab_t *tab)
 {
    const int ndims = dimension_of(type);
    for (int i = 0; i < ndims; i++) {
@@ -452,7 +396,7 @@ static bool sem_check_array_dims(type_t type, type_t constraint)
       if (constraint != NULL && i < dimension_of(constraint))
          index_type = index_type_of(constraint, i);
 
-      if (!sem_check_discrete_range(r, index_type))
+      if (!sem_check_discrete_range(r, index_type, tab))
          return false;
 
       if (index_type == NULL)
@@ -535,7 +479,7 @@ static bool sem_has_access(type_t t)
    return false;
 }
 
-static bool sem_check_type_decl(tree_t t)
+static bool sem_check_type_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
 
@@ -547,7 +491,7 @@ static bool sem_check_type_decl(tree_t t)
 
    if (kind == T_SUBTYPE && !type_has_ident(type)) {
       // Implicitly created subtype for a constrained array defintion
-      if (!sem_check_subtype(t, type)) {
+      if (!sem_check_subtype(t, type, tab)) {
          // Prevent cascading errors
          // TODO: can we do this check in the parser and set T_NONE earlier?
          type_set_base(type, type_new(T_NONE));
@@ -563,7 +507,7 @@ static bool sem_check_type_decl(tree_t t)
    case T_ARRAY:
       {
          type_t elem_type = type_elem(type);
-         if (!sem_check_subtype(t, elem_type))
+         if (!sem_check_subtype(t, elem_type, tab))
             return false;
 
          if (type_is_unconstrained(elem_type))
@@ -600,7 +544,7 @@ static bool sem_check_type_decl(tree_t t)
          for (int i = 0; i < nunits; i++) {
             tree_t u = type_unit(type, i);
             tree_set_type(u, type);
-            if (!sem_check(u))
+            if (!sem_check(u, tab))
                return false;
 
             tree_t value = tree_value(u);
@@ -623,7 +567,8 @@ static bool sem_check_type_decl(tree_t t)
       {
          tree_t r = type_dim(type, 0);
 
-         if (!sem_check_range(r, NULL, kind == T_PHYSICAL ? T_INTEGER : kind))
+         const type_kind_t check_kind = kind == T_PHYSICAL ? T_INTEGER : kind;
+         if (!sem_check_range(r, NULL, check_kind, tab))
             return false;
 
          // Standard specifies type of 'LEFT and 'RIGHT are same
@@ -644,7 +589,7 @@ static bool sem_check_type_decl(tree_t t)
       }
 
    case T_SUBTYPE:
-      return sem_check_subtype(t, type);
+      return sem_check_subtype(t, type, tab);
 
    case T_RECORD:
       {
@@ -652,7 +597,7 @@ static bool sem_check_type_decl(tree_t t)
          for (int i = 0; i < nfields; i++) {
             tree_t f = type_field(type, i);
 
-            if (!sem_check(f))
+            if (!sem_check(f, tab))
                return false;
 
             // Each field name must be distinct
@@ -664,7 +609,7 @@ static bool sem_check_type_decl(tree_t t)
 
             type_t f_type = tree_type(f);
 
-            if (!sem_check_subtype(f, f_type))
+            if (!sem_check_subtype(f, f_type, tab))
                return false;
 
             // Recursive record types are not allowed
@@ -727,17 +672,13 @@ static bool sem_check_type_decl(tree_t t)
    case T_PROTECTED:
       // Rules for protected types are in LRM 02 section 3.5
       {
-         scope_push();
-         top_scope->flags |= SCOPE_PROTECTED;
-
          bool ok = true;
          const int ndecls = type_decls(type);
          for (int i = 0; i < ndecls; i++) {
             tree_t d = type_decl(type, i);
-            ok = sem_check(d) && ok;
+            ok &= sem_check(d, tab);
          }
 
-         scope_pop();
          return ok;
       }
 
@@ -746,7 +687,7 @@ static bool sem_check_type_decl(tree_t t)
    }
 }
 
-static bool sem_check_subtype_decl(tree_t t)
+static bool sem_check_subtype_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
    assert(type_kind(type) == T_SUBTYPE);
@@ -760,7 +701,7 @@ static bool sem_check_subtype_decl(tree_t t)
       sem_error(t, "subtypes may not have protected base types");
 
    if (type_has_constraint(type)) {
-      if (!sem_check_constraint(type_constraint(type), base))
+      if (!sem_check_constraint(type_constraint(type), base, tab))
          return false;
    }
 
@@ -793,11 +734,11 @@ static bool sem_no_access_file_or_protected(tree_t t, type_t type, const char *w
    return true;
 }
 
-static bool sem_check_decl(tree_t t)
+static bool sem_check_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
 
-   if (!sem_check_subtype(t, type))
+   if (!sem_check_subtype(t, type, tab))
       return false;
    else if (type_is_none(type))
       return false;
@@ -805,7 +746,7 @@ static bool sem_check_decl(tree_t t)
    tree_kind_t kind = tree_kind(t);
 
    if (!tree_has_value(t) && kind == T_CONST_DECL
-       && !(top_scope->flags & SCOPE_PACKAGE))
+       && tree_kind(find_enclosing(tab, S_DESIGN_UNIT)) != T_PACKAGE)
       sem_error(t, "deferred constant declarations are only permitted "
                 "in packages");
 
@@ -835,7 +776,7 @@ static bool sem_check_decl(tree_t t)
                    "initial value", istr(tree_ident(t)));
 
       tree_t value = tree_value(t);
-      if (!sem_check(value))
+      if (!sem_check(value, tab))
          return false;
 
       if (!sem_check_type(value, type))
@@ -854,16 +795,16 @@ static bool sem_check_decl(tree_t t)
    return true;
 }
 
-static bool sem_check_port_decl(tree_t t)
+static bool sem_check_port_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
 
-   if (!sem_check_subtype(t, type))
+   if (!sem_check_subtype(t, type, tab))
       return false;
 
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);
-      if (!sem_check(value))
+      if (!sem_check(value, tab))
          return false;
 
       if (tree_subkind(t) == PORT_LINKAGE)
@@ -888,7 +829,7 @@ static bool sem_check_unit_decl(tree_t t)
    return true;
 }
 
-static bool sem_check_alias(tree_t t)
+static bool sem_check_alias(tree_t t, nametab_t *tab)
 {
    // Rules for aliases are given in LRM 93 section 4.3.3
 
@@ -907,7 +848,7 @@ static bool sem_check_alias(tree_t t)
    }
    else {
       // Alias of object
-      if (!sem_check(value))
+      if (!sem_check(value, tab))
          return false;
 
       if (!sem_static_name(value, sem_globally_static))
@@ -916,7 +857,7 @@ static bool sem_check_alias(tree_t t)
       if (type != NULL) {
          // Alias declaration had optional subtype indication
 
-         if (!sem_check_subtype(t, type))
+         if (!sem_check_subtype(t, type, tab))
             return false;
 
          if (!sem_check_type(value, type))
@@ -984,7 +925,7 @@ static bool sem_check_interface_class(tree_t port)
    return true;
 }
 
-static bool sem_check_func_ports(tree_t t)
+static bool sem_check_func_ports(tree_t t, nametab_t *tab)
 {
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
@@ -995,9 +936,6 @@ static bool sem_check_func_ports(tree_t t)
       // See LRM 93 section 2.1.1 for default class
       if (tree_class(p) == C_VARIABLE)
          sem_error(p, "function arguments may not have VARIABLE class");
-
-      if (!sem_check(p))
-         return false;
 
       if (!sem_check_interface_class(p))
          return false;
@@ -1018,64 +956,59 @@ static bool sem_check_func_result(tree_t t)
    return true;
 }
 
-static bool sem_check_func_decl(tree_t t)
+static void sem_maybe_copy_subprogram(tree_t t, nametab_t *tab)
+{
+   tree_t unit = find_enclosing(tab, S_DESIGN_UNIT);
+
+   switch (tree_kind(unit)) {
+   case T_PACKAGE:
+      if (is_uninstantiated_package(unit))
+         tree_set_flag(t, TREE_F_ELAB_COPY);
+      break;
+   case T_PACK_BODY:
+      if (tree_has_primary(unit)) {
+         tree_t pack = tree_primary(unit);
+         if (is_uninstantiated_package(pack))
+            tree_set_flag(t, TREE_F_ELAB_COPY);
+      }
+      break;
+   case T_ENTITY:
+   case T_ARCH:
+      tree_set_flag(t, TREE_F_ELAB_COPY);
+      break;
+   default:
+      break;
+   }
+}
+
+static bool sem_check_func_decl(tree_t t, nametab_t *tab)
 {
    if (tree_flags(t) & TREE_F_PREDEFINED)
       return true;
 
-   if (!sem_check_func_ports(t))
+   if (!sem_check_func_ports(t, tab))
       return false;
 
    if (!sem_check_func_result(t))
       return false;
 
-   if (top_scope->flags & SCOPE_COPY_SUBS)
-      tree_set_flag(t, TREE_F_ELAB_COPY);
-
+   sem_maybe_copy_subprogram(t, tab);
    return true;
 }
 
-static bool sem_check_func_body(tree_t t)
+static bool sem_check_func_body(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_func_ports(t))
+   if (!sem_check_func_ports(t, tab))
       return false;
 
    if (!sem_check_func_result(t))
       return false;
 
-   scope_push();
-
-   scope_push();
-   top_scope->subprog = t;
-
-   bool ok = true;
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(t, i);
-      ok &= sem_check(d);
-
-      if (tree_kind(d) == T_USE)
-         tree_add_context(top_scope->unit, d);
-   }
-
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      ok &= sem_check(tree_stmt(t, i));
-
-   scope_pop();
-   scope_pop();
-
-   if (top_scope->flags & SCOPE_COPY_SUBS)
-      tree_set_flag(t, TREE_F_ELAB_COPY);
-
-   unsigned nret = tree_visit_only(t, NULL, NULL, T_RETURN);
-   if (nret == 0)
-      sem_error(t, "function must contain a return statement");
-
-   return ok;
+   sem_maybe_copy_subprogram(t, tab);
+   return true;
 }
 
-static bool sem_check_proc_ports(tree_t t)
+static bool sem_check_proc_ports(tree_t t, nametab_t *tab)
 {
    const int nports = tree_ports(t);
    for (unsigned i = 0; i < nports; i++) {
@@ -1092,9 +1025,6 @@ static bool sem_check_proc_ports(tree_t t)
          break;
       }
 
-      if (!sem_check(p))
-         return false;
-
       if (!sem_check_interface_class(p))
          return false;
    }
@@ -1102,64 +1032,38 @@ static bool sem_check_proc_ports(tree_t t)
    return true;
 }
 
-static bool sem_check_proc_decl(tree_t t)
+static bool sem_check_proc_decl(tree_t t, nametab_t *tab)
 {
    if (tree_flags(t) & TREE_F_PREDEFINED)
       return true;
 
-   if (!sem_check_proc_ports(t))
+   if (!sem_check_proc_ports(t, tab))
       return false;
 
-   if (top_scope->flags & SCOPE_COPY_SUBS)
-      tree_set_flag(t, TREE_F_ELAB_COPY);
-
+   sem_maybe_copy_subprogram(t, tab);
    return true;
 }
 
-static bool sem_check_proc_body(tree_t t)
+static bool sem_check_proc_body(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_proc_ports(t))
+   if (!sem_check_proc_ports(t, tab))
       return false;
-
-   scope_push();
-
-   scope_push();
-   top_scope->subprog = t;
 
    // Cleared by wait statement or pcall
    tree_set_flag(t, TREE_F_NEVER_WAITS);
 
-   bool ok = true;
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(t, i);
-      ok &= sem_check(d);
-
-      if (tree_kind(d) == T_USE)
-         tree_add_context(top_scope->unit, d);
-   }
-
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      ok &= sem_check(tree_stmt(t, i));
-
-   scope_pop();
-   scope_pop();
-
-   if (top_scope->flags & SCOPE_COPY_SUBS)
-      tree_set_flag(t, TREE_F_ELAB_COPY);
-
-   return ok;
+   sem_maybe_copy_subprogram(t, tab);
+   return true;
 }
 
-static bool sem_check_sensitivity(tree_t t)
+static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
 {
    const int ntriggers = tree_triggers(t);
    for (int i = 0; i < ntriggers; i++) {
       tree_t r = tree_trigger(t, i);
       if (tree_kind(r) == T_ALL)
          continue;
-      else if (!sem_check(r) || !sem_readable(r))
+      else if (!sem_check(r, tab) || !sem_readable(r))
          return false;
 
       // Can only reference signals in sensitivity list
@@ -1244,30 +1148,15 @@ static void sem_check_static_elab(tree_t t)
    }
 }
 
-static bool sem_check_process(tree_t t)
+static bool sem_check_process(tree_t t, nametab_t *tab)
 {
-   scope_push();
-
-   top_scope->flags |= SCOPE_COPY_SUBS | SCOPE_PROCESS;
-
-   bool ok = sem_check_sensitivity(t);
+   bool ok = sem_check_sensitivity(t, tab);
 
    const int ndecls = tree_decls(t);
    for (int n = 0; n < ndecls; n++) {
       tree_t d = tree_decl(t, n);
-
-      if ((ok &= sem_check(d)))
-         sem_check_static_elab(d);
-
-      if (tree_kind(d) == T_USE)
-         tree_add_context(top_scope->unit, d);
+      sem_check_static_elab(d);
    }
-
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      ok &= sem_check(tree_stmt(t, i));
-
-   scope_pop();
 
    if (tree_triggers(t) > 0) {
       // No wait statements allowed in process with sensitivity list
@@ -1279,45 +1168,19 @@ static bool sem_check_process(tree_t t)
    return ok;
 }
 
-static bool sem_check_package(tree_t t)
+static bool sem_check_package(tree_t t, nametab_t *tab)
 {
-   const bool is_design_unit = top_scope == NULL;
+   if (!sem_check_context_clause(t, tab))
+      return false;
 
-   scope_push();
-   if (is_design_unit)
-      top_scope->unit = t;
+   if (!sem_check_generics(t))
+      return false;
 
-   const int ndecls = tree_decls(t);
-
-   bool ok = sem_check_context_clause(t);
-   if (ok) {
-      scope_push();
-
-      // Allow constant declarations without initial values
-      top_scope->flags |= SCOPE_PACKAGE;
-
-      const int ngenerics = tree_generics(t);
-      const int ngenmaps  = tree_genmaps(t);
-
-      if (ngenerics > 0 && ngenmaps == 0)
-         top_scope->flags |= SCOPE_COPY_SUBS;   // Uninstantiated package
-
-      ok &= sem_check_generics(t);
-
-      if (ok && tree_genmaps(t) > 0)
-         ok &= sem_check_generic_map(t, t);
-
-      for (int n = 0; n < ndecls; n++) {
-         tree_t decl = tree_decl(t, n);
-         if (!sem_check(decl))
-            ok = false;
-      }
-      scope_pop();
-   }
-
-   scope_pop();
+   if (tree_genmaps(t) > 0 && !sem_check_generic_map(t, t, tab))
+      return false;
 
    // Subprogram bodies are not allowed in package specification
+   const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
      tree_t d = tree_decl(t, i);
      tree_kind_t kind = tree_kind(d);
@@ -1325,22 +1188,20 @@ static bool sem_check_package(tree_t t)
        sem_error(d, "subprogram body is not allowed in package specification");
    }
 
-   return ok;
+   return true;
 }
 
-static bool sem_check_pack_inst(tree_t t)
+static bool sem_check_pack_inst(tree_t t, nametab_t *tab)
 {
    if (tree_generics(t) == 0)
       return false;   // Was a parse error
 
-   scope_push();
-
-   bool ok = sem_check_generic_map(t, t);
+   if (!sem_check_generic_map(t, t, tab))
+      return false;
 
    // Other declarations were checked on the uninstantiated package
 
-   scope_pop();
-   return ok;
+   return true;
 }
 
 static bool sem_check_missing_body(tree_t body, tree_t spec)
@@ -1387,36 +1248,24 @@ static bool sem_check_missing_body(tree_t body, tree_t spec)
    return ok;
 }
 
-static bool sem_check_pack_body(tree_t t)
+static bool sem_check_pack_body(tree_t t, nametab_t *tab)
 {
    if (!tree_has_primary(t))
       return false;
 
    tree_t pack = tree_primary(t);
 
-   assert(top_scope == NULL);
-   scope_push();
-   top_scope->unit = t;
+   if (!sem_check_context_clause(pack, tab))
+      return false;
 
-   bool ok = sem_check_context_clause(pack) && sem_check_context_clause(t);
+   if (!sem_check_context_clause(t, tab))
+      return false;
 
-   scope_push();
+   if (!sem_check_missing_body(t, pack))
+      return false;
 
-   if (tree_generics(pack) > 0 && tree_genmaps(pack) == 0)
-      top_scope->flags |= SCOPE_COPY_SUBS;   // Uninstantiated package
-
-   if (ok) {
-      const int ndecls = tree_decls(t);
-      for (int n = 0; n < ndecls; n++) {
-         tree_t decl = tree_decl(t, n);
-         ok = sem_check(decl) && ok;
-      }
-   }
-
-   ok = ok && sem_check_missing_body(t, pack) && sem_check_missing_body(t, t);
-
-   scope_pop();
-   scope_pop();
+   if (!sem_check_missing_body(t, t))
+      return false;
 
    // Check for any deferred constants which were not given values
    const int ndecls = tree_decls(pack);
@@ -1430,10 +1279,7 @@ static bool sem_check_pack_body(tree_t t)
       }
    }
 
-   if (!ok)
-      return false;
-
-   return ok;
+   return true;
 }
 
 static bool sem_check_generics(tree_t t)
@@ -1448,8 +1294,6 @@ static bool sem_check_generics(tree_t t)
          sem_error(g, "invalid object class for generic");
 
       tree_set_flag(g, TREE_F_ELAB_COPY);
-
-      ok &= sem_check(g);
 
       ok &= sem_no_access_file_or_protected(g, tree_type(g), "generics");
    }
@@ -1470,8 +1314,6 @@ static bool sem_check_ports(tree_t t)
 
       tree_set_flag(p, TREE_F_ELAB_COPY);
 
-      ok &= sem_check(p);
-
       ok &= sem_no_access_file_or_protected(p, tree_type(p), "ports");
    }
 
@@ -1480,99 +1322,47 @@ static bool sem_check_ports(tree_t t)
 
 static bool sem_check_component(tree_t t)
 {
-   scope_push();
+   if (!sem_check_generics(t))
+      return false;
 
-   bool ok = sem_check_generics(t) && sem_check_ports(t);
+   if (!sem_check_ports(t))
+      return false;
 
-   scope_pop();
-
-   return ok;
+   return true;
 }
 
-static bool sem_check_entity(tree_t t)
+static bool sem_check_entity(tree_t t, nametab_t *tab)
 {
-   assert(top_scope == NULL);
-   scope_push();
-   top_scope->unit = t;
+   if (!sem_check_context_clause(t, tab))
+      return false;
 
-   bool ok = sem_check_context_clause(t);
+   if (!sem_check_generics(t))
+      return false;
 
-   scope_push();
-   top_scope->flags |= SCOPE_COPY_SUBS;
+   if (!sem_check_ports(t))
+      return false;
 
-   ok = ok && sem_check_generics(t) && sem_check_ports(t);
-
-   if (ok) {
-      const int ndecls = tree_decls(t);
-      for (int n = 0; n < ndecls; n++) {
-         tree_t d = tree_decl(t, n);
-         ok = sem_check(d) && ok;
-
-         if (tree_kind(d) == T_USE)
-            tree_add_context(top_scope->unit, d);
-      }
-
-      const int nstmts = tree_stmts(t);
-      for (int i = 0; i < nstmts; i++)
-         ok &= sem_check(tree_stmt(t, i));
-   }
-
-   scope_pop();
-
-   scope_pop();
-
-   return ok;
+   return true;
 }
 
-static bool sem_check_arch(tree_t t)
+static bool sem_check_arch(tree_t t, nametab_t *tab)
 {
    if (!tree_has_primary(t))
       return false;
 
-   tree_t e = tree_primary(t);
+   if (!sem_check_context_clause(t, tab))
+      return false;
 
-   assert(top_scope == NULL);
-   scope_push();
-   top_scope->unit = t;
-
-   // Make all port and generic declarations available in this scope
-
-   bool ok = sem_check_context_clause(e) && sem_check_context_clause(t);
-
-   scope_push();
-
-   scope_push();
-   top_scope->flags |= SCOPE_COPY_SUBS;
-
-   // Now check the architecture itself
-
-   if (ok) {
-      const int ndecls = tree_decls(t);
-      for (int n = 0; n < ndecls; n++) {
-         tree_t d = tree_decl(t, n);
-         if ((ok = sem_check(d) && ok))
-            sem_check_static_elab(d);
-
-         if (tree_kind(d) == T_USE)
-            tree_add_context(t, d);
-      }
+   const int ndecls = tree_decls(t);
+   for (int n = 0; n < ndecls; n++) {
+      tree_t d = tree_decl(t, n);
+      sem_check_static_elab(d);
    }
 
-   ok &= sem_check_missing_body(t, t);
+   if (!sem_check_missing_body(t, t))
+      return false;
 
-   if (ok) {
-      const int nstmts = tree_stmts(t);
-      for (int i = 0; i < nstmts; i++)
-         ok &= sem_check(tree_stmt(t, i));
-   }
-
-   scope_pop();
-   scope_pop();
-   scope_pop();
-
-   lib_put(lib_work(), t);
-
-   return ok;
+   return true;
 }
 
 static tree_t sem_check_lvalue(tree_t t)
@@ -1656,11 +1446,11 @@ static bool sem_check_variable_target(tree_t target)
    return true;
 }
 
-static bool sem_check_cond_var_assign(tree_t t)
+static bool sem_check_cond_var_assign(tree_t t, nametab_t *tab)
 {
    tree_t target = tree_target(t);
 
-   if (!sem_check(target))
+   if (!sem_check(target, tab))
       return false;
 
    if (!sem_check_variable_target(target))
@@ -1676,7 +1466,7 @@ static bool sem_check_cond_var_assign(tree_t t)
       if (tree_has_value(c)) {
          tree_t test = tree_value(c);
 
-         if (!sem_check(test))
+         if (!sem_check(test, tab))
             return false;
 
          if (!type_eq(tree_type(test), std_bool))
@@ -1689,7 +1479,7 @@ static bool sem_check_cond_var_assign(tree_t t)
 
       tree_t value = tree_value(a);
 
-      if (!sem_check(value))
+      if (!sem_check(value, tab))
          return false;
 
       if (!sem_readable(value))
@@ -1705,15 +1495,15 @@ static bool sem_check_cond_var_assign(tree_t t)
    return true;
 }
 
-static bool sem_check_var_assign(tree_t t)
+static bool sem_check_var_assign(tree_t t, nametab_t *tab)
 {
    tree_t target = tree_target(t);
    tree_t value = tree_value(t);
 
-   if (!sem_check(target))
+   if (!sem_check(target, tab))
       return false;
 
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    if (!sem_readable(value))
@@ -1733,7 +1523,7 @@ static bool sem_check_var_assign(tree_t t)
    return true;
 }
 
-static bool sem_check_waveforms(tree_t t, tree_t target)
+static bool sem_check_waveforms(tree_t t, tree_t target, nametab_t *tab)
 {
    type_t std_time = std_type(NULL, STD_TIME);
    type_t expect = tree_type(target);
@@ -1745,7 +1535,7 @@ static bool sem_check_waveforms(tree_t t, tree_t target)
       if (tree_has_value(waveform)) {
          tree_t value = tree_value(waveform);
 
-         if (!sem_check(value))
+         if (!sem_check(value, tab))
             return false;
 
          if (!sem_readable(value))
@@ -1767,7 +1557,7 @@ static bool sem_check_waveforms(tree_t t, tree_t target)
 
       if (tree_has_delay(waveform)) {
          tree_t delay = tree_delay(waveform);
-         if (!sem_check(delay))
+         if (!sem_check(delay, tab))
             return false;
 
          if (!sem_check_type(delay, std_time))
@@ -1779,7 +1569,7 @@ static bool sem_check_waveforms(tree_t t, tree_t target)
    return true;
 }
 
-static bool sem_check_signal_target(tree_t target)
+static bool sem_check_signal_target(tree_t target, nametab_t *tab)
 {
    if (tree_kind(target) == T_AGGREGATE) {
       // Rules for aggregate signal targets in LRM 93 section 8.4
@@ -1793,7 +1583,7 @@ static bool sem_check_signal_target(tree_t target)
          tree_t a = tree_assoc(target, i);
          tree_t value = tree_value(a);
 
-         if (!sem_check_signal_target(value))
+         if (!sem_check_signal_target(value, tab))
             return false;
 
          if (tree_kind(value) != T_AGGREGATE) {
@@ -1827,14 +1617,17 @@ static bool sem_check_signal_target(tree_t target)
 
       switch (tree_kind(decl)) {
       case T_SIGNAL_DECL:
-         if (top_scope->subprog && !(top_scope->flags & SCOPE_PROCESS)) {
-            // LRM 08 section 10.5.2.2: if a signal assignment appears
-            // in a procedure not contained within a process then the
-            // target must be a formal parameter
-            sem_error(target, "signal %s is not a formal parameter and "
-                      "procedure %s is not contained within a process "
-                      "statement", istr(tree_ident(decl)),
-                      type_pp(tree_type(top_scope->subprog)));
+         {
+            tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+            if (sub != NULL && find_enclosing(tab, S_PROCESS) == NULL) {
+               // LRM 08 section 10.5.2.2: if a signal assignment appears
+               // in a procedure not contained within a process then the
+               // target must be a formal parameter
+               sem_error(target, "signal %s is not a formal parameter and "
+                         "subprogram %s is not contained within a process "
+                         "statement", istr(tree_ident(decl)),
+                         type_pp(tree_type(sub)));
+            }
          }
          break;
 
@@ -1869,9 +1662,9 @@ static bool sem_check_signal_target(tree_t target)
    }
 }
 
-static bool sem_check_reject(tree_t t)
+static bool sem_check_reject(tree_t t, nametab_t *tab)
 {
-   if (!sem_check(t))
+   if (!sem_check(t, tab))
       return false;
 
    if (!type_eq(tree_type(t), std_type(NULL, STD_TIME)))
@@ -1881,20 +1674,20 @@ static bool sem_check_reject(tree_t t)
    return true;
 }
 
-static bool sem_check_signal_assign(tree_t t)
+static bool sem_check_signal_assign(tree_t t, nametab_t *tab)
 {
    tree_t target = tree_target(t);
 
-   if (!sem_check(target))
+   if (!sem_check(target, tab))
       return false;
 
-   if (!sem_check_signal_target(target))
+   if (!sem_check_signal_target(target, tab))
       return false;
 
-   if (!sem_check_waveforms(t, target))
+   if (!sem_check_waveforms(t, target, tab))
       return false;
 
-   if (tree_has_reject(t) && !sem_check_reject(tree_reject(t)))
+   if (tree_has_reject(t) && !sem_check_reject(tree_reject(t), tab))
       return false;
 
    return true;
@@ -1924,14 +1717,14 @@ static bool sem_check_guard(tree_t t)
    return true;
 }
 
-static bool sem_check_cond_assign(tree_t t)
+static bool sem_check_cond_assign(tree_t t, nametab_t *tab)
 {
    tree_t target = tree_target(t);
 
-   if (!sem_check(target))
+   if (!sem_check(target, tab))
       return false;
 
-   if (!sem_check_signal_target(target))
+   if (!sem_check_signal_target(target, tab))
       return false;
 
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
@@ -1943,7 +1736,7 @@ static bool sem_check_cond_assign(tree_t t)
       if (tree_has_value(c)) {
          tree_t test = tree_value(c);
 
-         if (!sem_check(test))
+         if (!sem_check(test, tab))
             return false;
 
          if (!type_eq(tree_type(test), std_bool))
@@ -1956,24 +1749,22 @@ static bool sem_check_cond_assign(tree_t t)
       assert(tree_kind(a) == T_SIGNAL_ASSIGN);
       assert(tree_target(a) == target);
 
-      if (tree_has_reject(a) && !sem_check_reject(tree_reject(a)))
+      if (tree_has_reject(a) && !sem_check_reject(tree_reject(a), tab))
          return false;
 
-      if (!sem_check_waveforms(a, target))
+      if (!sem_check_waveforms(a, target, tab))
          return false;
    }
 
    return true;
 }
 
-static bool sem_check_conversion(tree_t t)
+static bool sem_check_conversion(tree_t t, nametab_t *tab)
 {
    // Type conversions are described in LRM 93 section 7.3.5
 
-   // Really we should push the set of types that are closely related
-   // to the one being converted to
    tree_t value = tree_value(t);
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    type_t from = tree_type(value);
@@ -2061,7 +1852,7 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
    return true;
 }
 
-static bool sem_check_params(tree_t t)
+static bool sem_check_params(tree_t t, nametab_t *tab)
 {
    bool have_named = false;
    const int nparams = tree_params(t);
@@ -2095,7 +1886,7 @@ static bool sem_check_params(tree_t t)
          break;
       }
 
-      if (!sem_check(tree_value(p)))
+      if (!sem_check(tree_value(p), tab))
          return false;
    }
 
@@ -2213,13 +2004,13 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
    return true;
 }
 
-static bool sem_check_fcall(tree_t t)
+static bool sem_check_fcall(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_params(t))
+   if (!sem_check_params(t, tab))
       return false;
 
    if (tree_kind(t) == T_PROT_FCALL && tree_has_name(t)
-       && !sem_check(tree_name(t)))
+       && !sem_check(tree_name(t), tab))
       return false;
 
    if (!tree_has_ref(t))
@@ -2228,7 +2019,7 @@ static bool sem_check_fcall(tree_t t)
    tree_t decl = tree_ref(t);
 
    // Pure function may not call an impure function
-   tree_t sub = top_scope->subprog;
+   tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
    if ((sub != NULL) && (tree_kind(sub) == T_FUNC_BODY)) {
       if (!(tree_flags(sub) & TREE_F_IMPURE)
           && (tree_flags(decl) & TREE_F_IMPURE)
@@ -2251,13 +2042,13 @@ static bool sem_check_fcall(tree_t t)
    return true;
 }
 
-static bool sem_check_pcall(tree_t t)
+static bool sem_check_pcall(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_params(t))
+   if (!sem_check_params(t, tab))
       return false;
 
    if (tree_kind(t) == T_PROT_PCALL && tree_has_name(t)
-       && !sem_check(tree_name(t)))
+       && !sem_check(tree_name(t), tab))
       return false;
 
    if (!tree_has_ref(t))
@@ -2287,47 +2078,47 @@ static bool sem_check_pcall(tree_t t)
 
    assert(!never_waits || !has_wait);
 
-   if (!never_waits && top_scope->subprog)
-      tree_clear_flag(top_scope->subprog, TREE_F_NEVER_WAITS);
+   tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+   if (sub != NULL) {
+      if (!never_waits)
+         tree_clear_flag(sub, TREE_F_NEVER_WAITS);
 
-   if (has_wait && top_scope->subprog)
-      tree_set_flag(top_scope->subprog, TREE_F_HAS_WAIT);
+      if (has_wait)
+         tree_set_flag(sub, TREE_F_HAS_WAIT);
 
-   if ((flags & TREE_F_IMPURE_FILE) && top_scope->subprog)
-      tree_set_flag(top_scope->subprog, TREE_F_IMPURE_FILE);
+      if (flags & TREE_F_IMPURE_FILE)
+         tree_set_flag(sub, TREE_F_IMPURE_FILE);
 
-   if ((flags & TREE_F_IMPURE_SHARED) && top_scope->subprog)
-      tree_set_flag(top_scope->subprog, TREE_F_IMPURE_SHARED);
+      if (flags & TREE_F_IMPURE_SHARED)
+         tree_set_flag(sub, TREE_F_IMPURE_SHARED);
 
-   const bool in_func = top_scope->subprog != NULL
-      && tree_kind(top_scope->subprog) == T_FUNC_BODY;
+      const bool in_func = tree_kind(sub) == T_FUNC_BODY;
+      const bool in_pure_func = in_func && !(tree_flags(sub) & TREE_F_IMPURE);
 
-   const bool in_pure_func =
-      in_func && !(tree_flags(top_scope->subprog) & TREE_F_IMPURE);
-
-   if (has_wait && in_func)
-      sem_error(t, "function %s cannot call procedure %s which contains "
-                "a wait statement", istr(tree_ident(top_scope->subprog)),
-                istr(tree_ident(decl)));
-   else if ((flags & TREE_F_IMPURE_FILE) && in_pure_func)
-      sem_error(t, "pure function %s cannot call procedure %s which references "
-                "a file object", istr(tree_ident(top_scope->subprog)),
-                istr(tree_ident(decl)));
-   else if ((flags & TREE_F_IMPURE_SHARED) && in_pure_func)
-      sem_error(t, "pure function %s cannot call procedure %s which references "
-                "a shared variable", istr(tree_ident(top_scope->subprog)),
-                istr(tree_ident(decl)));
+      if (has_wait && in_func)
+         sem_error(t, "function %s cannot call procedure %s which contains "
+                   "a wait statement", istr(tree_ident(sub)),
+                   istr(tree_ident(decl)));
+      else if ((flags & TREE_F_IMPURE_FILE) && in_pure_func)
+         sem_error(t, "pure function %s cannot call procedure %s which "
+                   "references a file object", istr(tree_ident(sub)),
+                   istr(tree_ident(decl)));
+      else if ((flags & TREE_F_IMPURE_SHARED) && in_pure_func)
+         sem_error(t, "pure function %s cannot call procedure %s which "
+                   "references a shared variable", istr(tree_ident(sub)),
+                   istr(tree_ident(decl)));
+   }
 
    return true;
 }
 
-static bool sem_check_wait(tree_t t)
+static bool sem_check_wait(tree_t t, nametab_t *tab)
 {
    if (tree_has_delay(t)) {
       type_t std_time = std_type(NULL, STD_TIME);
       tree_t delay = tree_delay(t);
 
-      if (!sem_check(delay))
+      if (!sem_check(delay, tab))
          return false;
 
       if (!sem_check_type(delay, std_time))
@@ -2339,7 +2130,7 @@ static bool sem_check_wait(tree_t t)
       type_t std_bool = std_type(NULL, STD_BOOLEAN);
       tree_t value = tree_value(t);
 
-      if (!sem_check(value))
+      if (!sem_check(value, tab))
          return false;
 
       if (!sem_check_type(value, std_bool))
@@ -2347,21 +2138,22 @@ static bool sem_check_wait(tree_t t)
                    type_pp(tree_type(value)));
    }
 
-   if (top_scope->flags & SCOPE_PROTECTED)
+   if (find_enclosing(tab, S_PROTECTED))
       sem_error(t, "wait statement not allowed in protected subprogram body");
-   else if (top_scope->subprog != NULL
-            && tree_kind(top_scope->subprog) == T_FUNC_BODY)
-      sem_error(t, "wait statement not allowed in function body");
 
-   if (top_scope->subprog != NULL) {
-      tree_clear_flag(top_scope->subprog, TREE_F_NEVER_WAITS);
-      tree_set_flag(top_scope->subprog, TREE_F_HAS_WAIT);
+   tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+   if (sub != NULL) {
+      if (tree_kind(sub) == T_FUNC_BODY)
+         sem_error(t, "wait statement not allowed in function body");
+
+      tree_clear_flag(sub, TREE_F_NEVER_WAITS);
+      tree_set_flag(sub, TREE_F_HAS_WAIT);
    }
 
-   return sem_check_sensitivity(t);
+   return sem_check_sensitivity(t, tab);
 }
 
-static bool sem_check_assert(tree_t t)
+static bool sem_check_assert(tree_t t, nametab_t *tab)
 {
    // Rules for asserion statements are in LRM 93 section 8.2
 
@@ -2373,13 +2165,13 @@ static bool sem_check_assert(tree_t t)
    tree_t severity = tree_severity(t);
    tree_t message  = tree_has_message(t) ? tree_message(t) : NULL;
 
-   if (value != NULL && !sem_check(value))
+   if (value != NULL && !sem_check(value, tab))
       return false;
 
-   if (!sem_check(severity))
+   if (!sem_check(severity, tab))
       return false;
 
-   if (message != NULL && !sem_check(message))
+   if (message != NULL && !sem_check(message, tab))
       return false;
 
    if (value != NULL && !sem_check_type(value, std_bool))
@@ -2481,7 +2273,7 @@ static bool sem_check_literal(tree_t t)
    return true;
 }
 
-static bool sem_check_array_aggregate(tree_t t)
+static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
 {
    type_t composite_type = tree_type(t);
    type_t base_type = type_base_recur(composite_type);
@@ -2498,7 +2290,7 @@ static bool sem_check_array_aggregate(tree_t t)
       elem_type = tree_type(tree_value(tree_assoc(t, 0)));
 
       if (!type_is_unconstrained(elem_type)) {
-         if (!sem_check_array_dims(elem_type, NULL))
+         if (!sem_check_array_dims(elem_type, NULL, tab))
             return false;
       }
    }
@@ -2516,7 +2308,7 @@ static bool sem_check_array_aggregate(tree_t t)
       case A_RANGE:
          {
             tree_t r = tree_range(a, 0);
-            if (!sem_check_discrete_range(r, index_type))
+            if (!sem_check_discrete_range(r, index_type, tab))
                return false;
 
             have_named = true;
@@ -2527,7 +2319,7 @@ static bool sem_check_array_aggregate(tree_t t)
          {
             tree_t name = tree_name(a);
 
-            if (!sem_check(name))
+            if (!sem_check(name, tab))
                return false;
 
             if (!sem_check_type(name, index_type))
@@ -2552,7 +2344,7 @@ static bool sem_check_array_aggregate(tree_t t)
 
       tree_t value = tree_value(a);
 
-      if (!sem_check(value))
+      if (!sem_check(value, tab))
          return false;
 
       if (!sem_check_type(value, elem_type))
@@ -2590,7 +2382,7 @@ static bool sem_check_array_aggregate(tree_t t)
    return true;
 }
 
-static bool sem_check_record_aggregate(tree_t t)
+static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
 {
    // Checks for record aggregates are given in LRM 93 section 7.3.2.1
 
@@ -2670,7 +2462,7 @@ static bool sem_check_record_aggregate(tree_t t)
 
          tree_t value = tree_value(a);
 
-         if (!sem_check(value))
+         if (!sem_check(value, tab))
             return false;
 
          if (!sem_check_type(value, field_type))
@@ -2699,7 +2491,7 @@ static bool sem_check_record_aggregate(tree_t t)
    return true;
 }
 
-static bool sem_check_aggregate(tree_t t)
+static bool sem_check_aggregate(tree_t t, nametab_t *tab)
 {
    // Rules for aggregates are in LRM 93 section 7.3.2
 
@@ -2743,12 +2535,12 @@ static bool sem_check_aggregate(tree_t t)
    }
 
    if (type_is_array(composite_type))
-      return sem_check_array_aggregate(t);
+      return sem_check_array_aggregate(t, tab);
    else
-      return sem_check_record_aggregate(t);
+      return sem_check_record_aggregate(t, tab);
 }
 
-static bool sem_check_ref(tree_t t)
+static bool sem_check_ref(tree_t t, nametab_t *tab)
 {
    if (!tree_has_ref(t))
       return false;
@@ -2777,20 +2569,21 @@ static bool sem_check_ref(tree_t t)
                 istr(tree_ident(t)));
    }
 
-   if (top_scope->subprog != NULL) {
+   tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+   if (sub != NULL) {
       if (kind == T_FILE_DECL)
-         tree_set_flag(top_scope->subprog, TREE_F_IMPURE_FILE);
+         tree_set_flag(sub, TREE_F_IMPURE_FILE);
       else if (kind == T_VAR_DECL && (tree_flags(decl) & TREE_F_SHARED))
-         tree_set_flag(top_scope->subprog, TREE_F_IMPURE_SHARED);
+         tree_set_flag(sub, TREE_F_IMPURE_SHARED);
    }
 
    return true;
 }
 
-static bool sem_check_record_ref(tree_t t)
+static bool sem_check_record_ref(tree_t t, nametab_t *tab)
 {
    tree_t value = tree_value(t);
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    type_t value_type = tree_type(value);
@@ -2803,10 +2596,10 @@ static bool sem_check_record_ref(tree_t t)
    return true;
 }
 
-static bool sem_check_array_ref(tree_t t)
+static bool sem_check_array_ref(tree_t t, nametab_t *tab)
 {
    tree_t value = tree_value(t);
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    type_t type = tree_type(tree_value(t));
@@ -2830,7 +2623,7 @@ static bool sem_check_array_ref(tree_t t)
       type_t expect = index_type_of(type, i);
       tree_t value = tree_value(p);
 
-      ok = sem_check(value) && ok;
+      ok = sem_check(value, tab) && ok;
 
       if (ok && !sem_check_type(value, expect))
          sem_error(value, "type of index %s does not match type of "
@@ -2842,9 +2635,9 @@ static bool sem_check_array_ref(tree_t t)
    return ok;
 }
 
-static bool sem_check_array_slice(tree_t t)
+static bool sem_check_array_slice(tree_t t, nametab_t *tab)
 {
-   if (!sem_check(tree_value(t)))
+   if (!sem_check(tree_value(t), tab))
       return false;
 
    type_t array_type = tree_type(tree_value(t));
@@ -2853,7 +2646,7 @@ static bool sem_check_array_slice(tree_t t)
       sem_error(t, "type of slice prefix is not an array");
 
    tree_t r = tree_range(t, 0);
-   if (!sem_check_discrete_range(r, index_type_of(array_type, 0)))
+   if (!sem_check_discrete_range(r, index_type_of(array_type, 0), tab))
       return false;
 
    const bool unconstrained = type_is_unconstrained(array_type);
@@ -2876,12 +2669,12 @@ static bool sem_check_array_slice(tree_t t)
    return true;
 }
 
-static bool sem_check_valid_implicit_signal(tree_t t)
+static bool sem_check_valid_implicit_signal(tree_t t, nametab_t *tab)
 {
    // Certain attributes are illegal inside a subprogram according to LRM
    // 93 section 2.1.1.2
 
-   if (top_scope->subprog != NULL)
+   if (find_enclosing(tab, S_SUBPROGRAM) != NULL)
       sem_error(t, "implicit signal %s cannot be used in a "
                 "subprogram body", istr(tree_ident(t)));
 
@@ -2922,7 +2715,8 @@ static bool sem_check_driving(tree_t t)
    return true;
 }
 
-static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max)
+static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max,
+                                 nametab_t *tab)
 {
    const int nparams = tree_params(t);
    if (nparams == 0 && min > 0)
@@ -2931,7 +2725,7 @@ static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max)
       sem_error(t, "too many parameters for attribute %s", istr(tree_ident(t)));
    else if (nparams == 1) {
       tree_t dim = tree_value(tree_param(t, 0));
-      if (!sem_check(dim))
+      if (!sem_check(dim, tab))
          return false;
 
       tree_t value = tree_value(tree_param(t, 0));
@@ -2944,9 +2738,9 @@ static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max)
    return true;
 }
 
-static bool sem_check_dimension_attr(tree_t t)
+static bool sem_check_dimension_attr(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_attr_param(t, std_type(NULL, STD_INTEGER), 0, 1))
+   if (!sem_check_attr_param(t, std_type(NULL, STD_INTEGER), 0, 1, tab))
       return false;
 
    if (tree_params(t) > 0) {
@@ -2985,7 +2779,7 @@ static bool sem_is_named_entity(tree_t t)
    }
 }
 
-static bool sem_check_attr_ref(tree_t t, bool allow_range)
+static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 {
    // Attribute names are in LRM 93 section 6.6
 
@@ -3025,7 +2819,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       // Fall-through
 
    default:
-      if (!sem_check(name))
+      if (!sem_check(name, tab))
          return false;
    }
 
@@ -3078,7 +2872,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
             sem_error(name, "prefix of attribute LENGTH must be an array but "
                       "have type %s", type_pp(tree_type(name)));
 
-         if (!sem_check_dimension_attr(t))
+         if (!sem_check_dimension_attr(t, tab))
             return false;
 
          return true;
@@ -3092,7 +2886,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       {
          type_t type = tree_type(name);
 
-         if (!sem_check_dimension_attr(t))
+         if (!sem_check_dimension_attr(t, tab))
             return false;
 
          if (!type_is_array(type) && !type_is_scalar(type))
@@ -3103,7 +2897,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
 
    case ATTR_LAST_EVENT:
    case ATTR_LAST_ACTIVE:
-      if (!sem_check_attr_param(t, NULL, 0, 0))
+      if (!sem_check_attr_param(t, NULL, 0, 0, tab))
          return false;
 
       if (!sem_check_signal_attr(t))
@@ -3136,14 +2930,14 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
          if (!sem_check_signal_attr(t))
             return false;
 
-         if (!sem_check_valid_implicit_signal(t))
+         if (!sem_check_valid_implicit_signal(t, tab))
             return false;
 
          type_t std_time = std_type(NULL, STD_TIME);
          if (tree_params(t) > 0) {
             tree_t value = tree_value(tree_param(t, 0));
 
-            if (!sem_check(value))
+            if (!sem_check(value, tab))
                return false;
 
             if (!sem_check_type(value, std_time))
@@ -3159,7 +2953,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       if (!sem_check_signal_attr(t))
          return false;
 
-      if (!sem_check_valid_implicit_signal(t))
+      if (!sem_check_valid_implicit_signal(t, tab))
          return false;
 
       return true;
@@ -3181,7 +2975,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
 
          type_t std_string = std_type(NULL, STD_STRING);
          type_t arg_type = predef == ATTR_IMAGE ? name_type : std_string;
-         if (!sem_check_attr_param(t, arg_type, 1, 1))
+         if (!sem_check_attr_param(t, arg_type, 1, 1, tab))
             return false;
 
          return true;
@@ -3206,7 +3000,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
          type_t std_int = std_type(NULL, STD_INTEGER);
          type_t arg_type = predef == ATTR_VAL ? std_int : name_type;
 
-         if (!sem_check_attr_param(t, arg_type, 1, 1))
+         if (!sem_check_attr_param(t, arg_type, 1, 1, tab))
             return false;
 
          return true;
@@ -3234,12 +3028,12 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    }
 }
 
-static bool sem_check_qualified(tree_t t)
+static bool sem_check_qualified(tree_t t, nametab_t *tab)
 {
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);
 
-      if (!sem_check(value))
+      if (!sem_check(value, tab))
          return false;
 
       // LRM 08 section 9.3.5 qualified expressions: the operand shall have
@@ -3266,7 +3060,7 @@ static bool sem_static_signal_name(tree_t t)
 }
 
 static bool sem_check_port_actual(formal_map_t *formals, int nformals,
-                                  tree_t param, tree_t unit)
+                                  tree_t param, tree_t unit, nametab_t *tab)
 {
    tree_t value = tree_value(param);
    tree_t decl = NULL;
@@ -3362,7 +3156,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
 
    assert(type != NULL);
 
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    type_t value_type = tree_type(value);
@@ -3431,7 +3225,7 @@ static bool sem_check_port_actual(formal_map_t *formals, int nformals,
    return true;
 }
 
-static bool sem_check_port_map(tree_t t, tree_t unit)
+static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab)
 {
    // Check there is an actual for each formal port generic
    // Rules for maps are described in LRM 93 section 5.2.1.2
@@ -3456,7 +3250,7 @@ static bool sem_check_port_map(tree_t t, tree_t unit)
 
       tree_t name = tree_name(p);
 
-      ok = sem_check(name) && ok;
+      ok = sem_check(name, tab) && ok;
 
       const tree_kind_t name_kind = tree_kind(name);
       if ((name_kind == T_ARRAY_REF || name_kind == T_ARRAY_SLICE)
@@ -3471,7 +3265,7 @@ static bool sem_check_port_map(tree_t t, tree_t unit)
 
    for (int i = 0; i < nactuals; i++) {
       tree_t actual = tree_param(t, i);
-      ok &= sem_check_port_actual(formals, nformals, actual, unit);
+      ok &= sem_check_port_actual(formals, nformals, actual, unit, tab);
 
       if (!ok && tree_subkind(actual) == P_POS && i >= nformals)
          break;   // Prevent useless repeated errors
@@ -3503,7 +3297,7 @@ static bool sem_check_port_map(tree_t t, tree_t unit)
 }
 
 static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
-                                     tree_t param, tree_t unit)
+                                     tree_t param, tree_t unit, nametab_t *tab)
 {
    tree_t value = tree_value(param);
    tree_t decl = NULL;
@@ -3561,7 +3355,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
 
    assert(type != NULL);
 
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    if (!sem_check_type(value, type))
@@ -3576,7 +3370,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
    return true;
 }
 
-static bool sem_check_generic_map(tree_t t, tree_t unit)
+static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
 {
    // Check there is an actual for each formal generic
    // Rules for maps are described in LRM 93 section 5.2.1.2
@@ -3599,7 +3393,7 @@ static bool sem_check_generic_map(tree_t t, tree_t unit)
       if (tree_subkind(p) != P_NAMED)
          continue;
 
-      ok &= sem_check(tree_name(p));
+      ok &= sem_check(tree_name(p), tab);
    }
 
    if (!ok)
@@ -3607,7 +3401,7 @@ static bool sem_check_generic_map(tree_t t, tree_t unit)
 
    for (int i = 0; i < nactuals; i++) {
       tree_t actual = tree_genmap(t, i);
-      ok &= sem_check_generic_actual(formals, nformals, actual, unit);
+      ok &= sem_check_generic_actual(formals, nformals, actual, unit, tab);
 
       if (!ok && tree_subkind(actual) == P_POS && i >= nformals)
          break;   // Prevent useless repeated errors
@@ -3625,7 +3419,7 @@ static bool sem_check_generic_map(tree_t t, tree_t unit)
    return ok;
 }
 
-static bool sem_check_instance(tree_t t)
+static bool sem_check_instance(tree_t t, nametab_t *tab)
 {
    if (!tree_has_ref(t))
       return false;
@@ -3647,22 +3441,22 @@ static bool sem_check_instance(tree_t t)
                    istr(tree_ident(unit)), istr(tree_ident(tree_ref(spec))));
    }
 
-   if (!sem_check_generic_map(t, unit))
+   if (!sem_check_generic_map(t, unit, tab))
       return false;
 
-   if (!sem_check_port_map(t, unit))
+   if (!sem_check_port_map(t, unit, tab))
       return false;
 
    return true;
 }
 
-static bool sem_check_cond(tree_t t)
+static bool sem_check_cond(tree_t t, nametab_t *tab)
 {
    if (tree_has_value(t)) {
       type_t std_bool = std_type(NULL, STD_BOOLEAN);
 
       tree_t value = tree_value(t);
-      if (!sem_check(value))
+      if (!sem_check(value, tab))
          return false;
 
       if (!sem_check_type(value, std_bool))
@@ -3673,20 +3467,15 @@ static bool sem_check_cond(tree_t t)
          return false;
    }
 
-   bool ok = true;
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      ok &= sem_check(tree_stmt(t, i));
-
-   return ok;
+   return true;
 }
 
-static bool sem_check_if(tree_t t)
+static bool sem_check_if(tree_t t, nametab_t *tab)
 {
    bool ok = true;
    const int nconds = tree_conds(t);
    for (int i = 0; i < nconds; i++)
-      ok &= sem_check_cond(tree_cond(t, i));
+      ok &= sem_check_cond(tree_cond(t, i), tab);
 
    return ok;
 }
@@ -4114,10 +3903,10 @@ static bool sem_globally_static(tree_t t)
    return false;
 }
 
-static bool sem_check_case(tree_t t)
+static bool sem_check_case(tree_t t, nametab_t *tab)
 {
    tree_t test = tree_value(t);
-   if (!sem_check(test))
+   if (!sem_check(test, tab))
       return false;
 
    type_t type = tree_type(test);
@@ -4138,7 +3927,6 @@ static bool sem_check_case(tree_t t)
    if (is_1d_character_array && !sem_subtype_locally_static(type))
       sem_error(test, "case expression must have locally static subtype");
 
-   tree_t last = NULL;
    bool ok = true;
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
@@ -4152,7 +3940,7 @@ static bool sem_check_case(tree_t t)
       case A_NAMED:
          {
             tree_t name = tree_name(a);
-            if ((ok = sem_check(name) && ok)) {
+            if ((ok = sem_check(name, tab) && ok)) {
                if (!sem_check_type(name, type))
                   sem_error(name, "case choice must have type %s but found %s",
                             type_pp(type), type_pp(tree_type(name)));
@@ -4165,7 +3953,7 @@ static bool sem_check_case(tree_t t)
       case A_RANGE:
          {
             tree_t r = tree_range(a, 0);
-            if ((ok = sem_check_discrete_range(r, type) && ok)) {
+            if ((ok = sem_check_discrete_range(r, type, tab) && ok)) {
                if (!sem_locally_static(tree_left(r)))
                   sem_error(tree_left(r), "left index of case choice range is "
                             "not locally static");
@@ -4179,28 +3967,24 @@ static bool sem_check_case(tree_t t)
       default:
          sem_error(a, "sorry, this form of choice is not supported");
       }
-
-      tree_t stmt = tree_value(a);
-      if (stmt != last)
-         ok = sem_check(stmt) && ok;
-      last = stmt;
    }
 
    return ok;
 }
 
-static bool sem_check_return(tree_t t)
+static bool sem_check_return(tree_t t, nametab_t *tab)
 {
-   if (top_scope->subprog == NULL)
+   tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+   if (sub == NULL)
       sem_error(t, "return statement not allowed outside subprogram");
 
    if (tree_has_value(t)) {
-      if (tree_kind(top_scope->subprog) == T_PROC_BODY)
+      if (tree_kind(sub) == T_PROC_BODY)
          sem_error(t, "cannot return a value from a procedure");
 
-      type_t expect = type_result(tree_type(top_scope->subprog));
+      type_t expect = type_result(tree_type(sub));
 
-      if (!sem_check(tree_value(t)))
+      if (!sem_check(tree_value(t), tab))
          return false;
 
       if (!sem_check_type(tree_value(t), expect))
@@ -4211,111 +3995,62 @@ static bool sem_check_return(tree_t t)
    return true;
 }
 
-static bool sem_check_while(tree_t t)
+static bool sem_check_while(tree_t t, nametab_t *tab)
 {
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
 
    tree_t value = tree_value(t);
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    if (!sem_check_type(value, std_bool))
       sem_error(value, "type of loop condition must be %s but is %s",
                 type_pp(std_bool), type_pp(tree_type(value)));
 
-   loop_push(tree_ident(t));
-
-   bool ok = true;
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      ok &= sem_check(tree_stmt(t, i));
-
-   loop_pop();
-
-   return ok;
+   return true;
 }
 
-static bool sem_check_for(tree_t t)
+static bool sem_check_for(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_discrete_range(tree_range(t, 0), NULL))
+   if (!sem_check_discrete_range(tree_range(t, 0), NULL, tab))
       return false;
 
    tree_t idecl = tree_decl(t, 0);
 
-   if (!sem_check_subtype(idecl, tree_type(idecl)))
+   if (!sem_check_subtype(idecl, tree_type(idecl), tab))
       return false;
 
-   scope_push();
-   loop_push(tree_ident(t));
-
-   bool ok = true;
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      ok &= sem_check(tree_stmt(t, i));
-
-   loop_pop();
-   scope_pop();
-   return ok;
+   return true;
 }
 
-static bool sem_check_block(tree_t t)
+static bool sem_check_block(tree_t t, nametab_t *tab)
 {
-   scope_push();
-
    if (!sem_check_generics(t))
       return false;
 
    if (!sem_check_ports(t))
       return false;
 
-   if (!sem_check_generic_map(t, t))
+   if (!sem_check_generic_map(t, t, tab))
       return false;
 
-   if (!sem_check_port_map(t, t))
+   if (!sem_check_port_map(t, t, tab))
       return false;
-
-   bool ok = true;
 
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
-
-      if ((ok = sem_check(d) && ok))
-         sem_check_static_elab(d);
-
-      if (tree_kind(d) == T_USE)
-         tree_add_context(top_scope->unit, d);
+      sem_check_static_elab(d);
    }
 
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      ok &= sem_check(tree_stmt(t, i));
-
-   scope_pop();
-   return ok;
+   return true;
 }
 
-static bool sem_check_loop_control(tree_t t)
+static bool sem_check_loop_control(tree_t t, nametab_t *tab)
 {
-   if (loop_stack == NULL)
-      sem_error(t, "cannot use %s outside loop",
-                (tree_kind(t) == T_EXIT) ? "exit" : "next");
-
-   if (tree_has_ident2(t)) {
-      ident_t label = tree_ident2(t);
-      loop_stack_t *it;
-      for (it = loop_stack; (it != NULL) && (it->name != label); it = it->up)
-         ;
-
-      if (it == NULL)
-         sem_error(t, "no nested loop with label %s", istr(label));
-   }
-   else
-      tree_set_ident2(t, loop_stack->name);
-
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);
-      if (!sem_check(value))
+      if (!sem_check(value, tab))
          return false;
 
       type_t std_bool = std_type(NULL, STD_BOOLEAN);
@@ -4336,7 +4071,7 @@ static bool sem_check_attr_decl(tree_t t)
    return true;
 }
 
-static bool sem_check_attr_spec(tree_t t)
+static bool sem_check_attr_spec(tree_t t, nametab_t *tab)
 {
    if (!tree_has_ref(t))
       return false;
@@ -4345,7 +4080,7 @@ static bool sem_check_attr_spec(tree_t t)
    type_t type = tree_type(attr_decl);
 
    tree_t value = tree_value(t);
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    if (!sem_check_type(value, type))
@@ -4354,45 +4089,27 @@ static bool sem_check_attr_spec(tree_t t)
    return true;
 }
 
-static bool sem_check_if_generate(tree_t t)
+static bool sem_check_if_generate(tree_t t, nametab_t *tab)
 {
    type_t std_bool = std_type(NULL, STD_BOOLEAN);
    tree_t value = tree_value(t);
 
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
-   if (!type_eq(tree_type(value), std_bool))
+   if (!sem_check_type(value, std_bool))
       sem_error(value, "condition of generate statement must be BOOLEAN");
 
    if (!sem_globally_static(value))
       sem_error(value, "condition of generate statement must be static");
 
-   scope_push();
-
-   bool ok = true;
-
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(t, i);
-      ok = sem_check(d) && ok;
-
-      if (tree_kind(d) == T_USE)
-         tree_add_context(top_scope->unit, d);
-   }
-
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      ok &= sem_check(tree_stmt(t, i));
-
-   scope_pop();
-   return ok;
+   return true;
 }
 
-static bool sem_check_for_generate(tree_t t)
+static bool sem_check_for_generate(tree_t t, nametab_t *tab)
 {
    tree_t r = tree_range(t, 0);
-   if (!sem_check_discrete_range(r, NULL))
+   if (!sem_check_discrete_range(r, NULL, tab))
       return false;
 
    if (!sem_globally_static(r))
@@ -4401,28 +4118,10 @@ static bool sem_check_for_generate(tree_t t)
    tree_t idecl = tree_decl(t, 0);
    assert(tree_kind(idecl) == T_GENVAR);
 
-   if (!sem_check_subtype(idecl, tree_type(idecl)))
+   if (!sem_check_subtype(idecl, tree_type(idecl), tab))
       return false;
 
-   scope_push();
-
-   bool ok = true;
-
-   const int ndecls = tree_decls(t);
-   for (int i = 1; i < ndecls; i++) {
-      tree_t d = tree_decl(t, i);
-      ok = sem_check(d) && ok;
-
-      if (tree_kind(d) == T_USE)
-         tree_add_context(top_scope->unit, d);
-   }
-
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      ok &= sem_check(tree_stmt(t, i));
-
-   scope_pop();
-   return ok;
+   return true;
 }
 
 static bool sem_check_open(tree_t t)
@@ -4430,7 +4129,7 @@ static bool sem_check_open(tree_t t)
    return true;
 }
 
-static bool sem_check_file_decl(tree_t t)
+static bool sem_check_file_decl(tree_t t, nametab_t *tab)
 {
    // Rules for file declarations are in LRM 93 section 4.3.1.4
 
@@ -4441,32 +4140,33 @@ static bool sem_check_file_decl(tree_t t)
 
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);
-      if (!sem_check(value))
+      if (!sem_check(value, tab))
          return false;
 
       if (!sem_check_type(value, std_type(NULL, STD_STRING)))
          sem_error(value, "file name must have type STRING");
 
       tree_t mode = tree_file_mode(t);
-      if (!sem_check(mode))
+      if (!sem_check(mode, tab))
          return false;
 
       if (!sem_check_type(mode, std_type(NULL, STD_FILE_OPEN_KIND)))
          sem_error(mode, "open mode must have type FILE_OPEN_KIND");
    }
 
-   const bool is_pure_func_body =
-      top_scope->subprog != NULL
-      && tree_kind(top_scope->subprog) == T_FUNC_BODY
-      && !(tree_flags(top_scope->subprog) & TREE_F_IMPURE);
+   tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+   if (sub != NULL) {
+      const bool is_pure_func_body =
+         tree_kind(sub) == T_FUNC_BODY && !(tree_flags(sub) & TREE_F_IMPURE);
 
-   if (is_pure_func_body & !(relax_rules() & RELAX_PURE_FILES))
-      sem_error(t, "cannot declare a file object in a pure function");
+      if (is_pure_func_body & !(relax_rules() & RELAX_PURE_FILES))
+         sem_error(t, "cannot declare a file object in a pure function");
+   }
 
    return true;
 }
 
-static bool sem_check_new(tree_t t)
+static bool sem_check_new(tree_t t, nametab_t *tab)
 {
    // Rules for allocators are in LRM 93 section 7.3.6
 
@@ -4479,7 +4179,7 @@ static bool sem_check_new(tree_t t)
    assert(type_is_access(access_type));
    assert(tree_kind(value) == T_QUALIFIED);
 
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    type_t type = tree_type(value);
@@ -4487,7 +4187,7 @@ static bool sem_check_new(tree_t t)
    if (type_is_none(type))
       return false;
 
-   if (!sem_check_subtype(value, type))
+   if (!sem_check_subtype(value, type, tab))
       return false;
 
    if (!tree_has_value(value) && type_is_unconstrained(type))
@@ -4502,10 +4202,10 @@ static bool sem_check_new(tree_t t)
    return true;
 }
 
-static bool sem_check_all(tree_t t)
+static bool sem_check_all(tree_t t, nametab_t *tab)
 {
    tree_t value = tree_value(t);
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    type_t value_type = tree_type(value);
@@ -4519,64 +4219,47 @@ static bool sem_check_all(tree_t t)
    return true;
 }
 
-static bool sem_check_binding(tree_t t)
+static bool sem_check_binding(tree_t t, nametab_t *tab)
 {
    if (!tree_has_ref(t))
       return false;
 
    tree_t unit = primary_unit_of(tree_ref(t));
    if (tree_kind(unit) == T_ENTITY) {
-      if (!sem_check_generic_map(t, unit))
+      if (!sem_check_generic_map(t, unit, tab))
          return false;
 
-      if (!sem_check_port_map(t, unit))
+      if (!sem_check_port_map(t, unit, tab))
          return false;
    }
 
    return true;
 }
 
-static bool sem_check_block_config(tree_t t)
+static bool sem_check_block_config(tree_t t, nametab_t *tab)
 {
-   scope_push();
-
    bool ok = true;
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++)
-      ok &= sem_check(tree_decl(t, i));
+      ok &= sem_check(tree_decl(t, i), tab);
 
-   scope_pop();
    return ok;
 }
 
-static bool sem_check_spec(tree_t t)
+static bool sem_check_spec(tree_t t, nametab_t *tab)
 {
    if (tree_has_value(t))
-      return sem_check(tree_value(t));
+      return sem_check(tree_value(t), tab);
    else
       return true;
 }
 
-static bool sem_check_configuration(tree_t t)
+static bool sem_check_configuration(tree_t t, nametab_t *tab)
 {
-   scope_push();
-   top_scope->unit = t;
-
-   scope_push();
-
-   bool ok = true;
-
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      ok &= sem_check(tree_decl(t, i));
-
-   scope_pop();
-   scope_pop();
-
-   return ok;
+   return true;
 }
 
-static bool sem_check_prot_body(tree_t t)
+static bool sem_check_prot_body(tree_t t, nametab_t *tab)
 {
    // Rules for protected type bodies are in LRM 00 section 3.5.2
 
@@ -4584,24 +4267,15 @@ static bool sem_check_prot_body(tree_t t)
    if (type_is_none(type))
       return false;
 
-   scope_push();
-   top_scope->flags |= SCOPE_PROTECTED;
-
-   bool ok = true;
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      ok &= sem_check(tree_decl(t, i));
-
-   scope_pop();
-   return ok;
+   return true;
 }
 
-static bool sem_check_implicit_signal(tree_t t)
+static bool sem_check_implicit_signal(tree_t t, nametab_t *tab)
 {
    tree_t value = tree_value(t);
    type_t type  = tree_type(t);
 
-   if (!sem_check(value))
+   if (!sem_check(value, tab))
       return false;
 
    switch (tree_subkind(t)) {
@@ -4616,29 +4290,28 @@ static bool sem_check_implicit_signal(tree_t t)
    return true;
 }
 
-static bool sem_check_context_decl(tree_t t)
+static bool sem_check_context_decl(tree_t t, nametab_t *tab)
 {
    // Context declarations are in LRM 08 section 13.3
 
-   assert(top_scope == NULL);
-   scope_push();
+   if (!sem_check_context_clause(t, tab))
+      return false;
 
-   top_scope->flags |= SCOPE_CONTEXT;
-
-   const bool ok = sem_check_context_clause(t);
-
-   scope_pop();
-   return ok;
+   return true;
 }
 
-static bool sem_check_context_ref(tree_t t)
+static bool sem_check_context_ref(tree_t t, nametab_t *tab)
 {
-   if (top_scope->flags & SCOPE_CONTEXT) {
-      // LRM 08 section 13.3
-      ident_t prefix = ident_until(tree_ident(t), '.');
-      if (prefix == well_known(W_WORK))
-         sem_error(t, "selected name in context declaration context reference "
-                   "may not have WORK as a prefix");
+   if (standard() >= STD_08) {
+      tree_t unit = find_enclosing(tab, S_DESIGN_UNIT);
+
+      if (unit != NULL && tree_kind(unit) == T_CONTEXT) {
+         // LRM 08 section 13.3
+         ident_t prefix = ident_until(tree_ident(t), '.');
+         if (prefix == well_known(W_WORK))
+            sem_error(t, "selected name in context declaration context "
+                      "reference may not have WORK as a prefix");
+      }
    }
 
    return true;
@@ -4674,187 +4347,170 @@ static bool sem_check_disconnect(tree_t t)
    return true;
 }
 
-static bool sem_check_conv_func(tree_t t)
+static bool sem_check_conv_func(tree_t t, nametab_t *tab)
 {
    if (type_is_none(tree_type(t)))
       return false;
    else if (!tree_has_ref(t))
       return false;
 
-   if (!sem_check(tree_value(t)))
+   if (!sem_check(tree_value(t), tab))
       return false;
 
    return true;
 }
 
-static bool sem_check_concurrent(tree_t t)
+static bool sem_check_concurrent(tree_t t, nametab_t *tab)
 {
    if (tree_has_guard(t) && !sem_check_guard(tree_guard(t)))
       return false;
 
    assert(tree_stmts(t) == 1);
-   return sem_check(tree_stmt(t, 0));
+   return sem_check(tree_stmt(t, 0), tab);
 }
 
-static bool sem_check_sequence(tree_t t)
-{
-   bool ok = true;
-
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      ok &= sem_check(tree_decl(t, i));
-
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++)
-      ok &= sem_check(tree_stmt(t, i));
-
-   return ok;
-}
-
-bool sem_check(tree_t t)
+bool sem_check(tree_t t, nametab_t *tab)
 {
    switch (tree_kind(t)) {
    case T_ARCH:
-      return sem_check_arch(t);
+      return sem_check_arch(t, tab);
    case T_PACKAGE:
-      return sem_check_package(t);
+      return sem_check_package(t, tab);
    case T_ENTITY:
-      return sem_check_entity(t);
+      return sem_check_entity(t, tab);
    case T_TYPE_DECL:
-      return sem_check_type_decl(t);
+      return sem_check_type_decl(t, tab);
    case T_SUBTYPE_DECL:
-      return sem_check_subtype_decl(t);
+      return sem_check_subtype_decl(t, tab);
    case T_PORT_DECL:
-      return sem_check_port_decl(t);
+      return sem_check_port_decl(t, tab);
    case T_SIGNAL_DECL:
    case T_VAR_DECL:
    case T_CONST_DECL:
-      return sem_check_decl(t);
+      return sem_check_decl(t, tab);
    case T_PROCESS:
-      return sem_check_process(t);
+      return sem_check_process(t, tab);
    case T_VAR_ASSIGN:
-      return sem_check_var_assign(t);
+      return sem_check_var_assign(t, tab);
    case T_SIGNAL_ASSIGN:
-      return sem_check_signal_assign(t);
+      return sem_check_signal_assign(t, tab);
    case T_FCALL:
    case T_PROT_FCALL:
-      return sem_check_fcall(t);
+      return sem_check_fcall(t, tab);
    case T_LITERAL:
       return sem_check_literal(t);
    case T_REF:
-      return sem_check_ref(t);
+      return sem_check_ref(t, tab);
    case T_WAIT:
-      return sem_check_wait(t);
+      return sem_check_wait(t, tab);
    case T_ASSERT:
-      return sem_check_assert(t);
+      return sem_check_assert(t, tab);
    case T_QUALIFIED:
-      return sem_check_qualified(t);
+      return sem_check_qualified(t, tab);
    case T_FUNC_DECL:
-      return sem_check_func_decl(t);
+      return sem_check_func_decl(t, tab);
    case T_AGGREGATE:
-      return sem_check_aggregate(t);
+      return sem_check_aggregate(t, tab);
    case T_ATTR_REF:
-      return sem_check_attr_ref(t, false);
+      return sem_check_attr_ref(t, false, tab);
    case T_ARRAY_REF:
-      return sem_check_array_ref(t);
+      return sem_check_array_ref(t, tab);
    case T_ARRAY_SLICE:
-      return sem_check_array_slice(t);
+      return sem_check_array_slice(t, tab);
    case T_INSTANCE:
-      return sem_check_instance(t);
+      return sem_check_instance(t, tab);
    case T_IF:
-      return sem_check_if(t);
+      return sem_check_if(t, tab);
    case T_NULL:
       return true;
    case T_PACK_BODY:
-      return sem_check_pack_body(t);
+      return sem_check_pack_body(t, tab);
    case T_FUNC_BODY:
-      return sem_check_func_body(t);
+      return sem_check_func_body(t, tab);
    case T_RETURN:
-      return sem_check_return(t);
+      return sem_check_return(t, tab);
    case T_COND_ASSIGN:
-      return sem_check_cond_assign(t);
+      return sem_check_cond_assign(t, tab);
    case T_WHILE:
-      return sem_check_while(t);
+      return sem_check_while(t, tab);
    case T_ALIAS:
-      return sem_check_alias(t);
+      return sem_check_alias(t, tab);
    case T_FOR:
-      return sem_check_for(t);
+      return sem_check_for(t, tab);
    case T_PROC_DECL:
-      return sem_check_proc_decl(t);
+      return sem_check_proc_decl(t, tab);
    case T_PROC_BODY:
-      return sem_check_proc_body(t);
+      return sem_check_proc_body(t, tab);
    case T_BLOCK:
-      return sem_check_block(t);
+      return sem_check_block(t, tab);
    case T_CASE:
    case T_SELECT:
-      return sem_check_case(t);
+      return sem_check_case(t, tab);
    case T_EXIT:
    case T_NEXT:
-      return sem_check_loop_control(t);
+      return sem_check_loop_control(t, tab);
    case T_PCALL:
    case T_PROT_PCALL:
-      return sem_check_pcall(t);
+      return sem_check_pcall(t, tab);
    case T_ATTR_SPEC:
-      return sem_check_attr_spec(t);
+      return sem_check_attr_spec(t, tab);
    case T_ATTR_DECL:
       return sem_check_attr_decl(t);
    case T_COMPONENT:
       return sem_check_component(t);
    case T_IF_GENERATE:
-      return sem_check_if_generate(t);
+      return sem_check_if_generate(t, tab);
    case T_FOR_GENERATE:
-      return sem_check_for_generate(t);
+      return sem_check_for_generate(t, tab);
    case T_OPEN:
       return sem_check_open(t);
    case T_FIELD_DECL:
       return sem_check_field_decl(t);
    case T_FILE_DECL:
-      return sem_check_file_decl(t);
+      return sem_check_file_decl(t, tab);
    case T_NEW:
-      return sem_check_new(t);
+      return sem_check_new(t, tab);
    case T_ALL:
-      return sem_check_all(t);
+      return sem_check_all(t, tab);
    case T_RECORD_REF:
-      return sem_check_record_ref(t);
+      return sem_check_record_ref(t, tab);
    case T_UNIT_DECL:
       return sem_check_unit_decl(t);
    case T_USE:
-      return sem_check_use_clause(t);
+      return sem_check_use_clause(t, tab);
    case T_TYPE_CONV:
-      return sem_check_conversion(t);
+      return sem_check_conversion(t, tab);
    case T_SPEC:
-      return sem_check_spec(t);
+      return sem_check_spec(t, tab);
    case T_BINDING:
-      return sem_check_binding(t);
+      return sem_check_binding(t, tab);
    case T_LIBRARY:
-      return sem_check_library_clause(t);
+      return sem_check_library_clause(t, tab);
    case T_CONFIGURATION:
-      return sem_check_configuration(t);
+      return sem_check_configuration(t, tab);
    case T_PROT_BODY:
-      return sem_check_prot_body(t);
+      return sem_check_prot_body(t, tab);
    case T_CONTEXT:
-      return sem_check_context_decl(t);
+      return sem_check_context_decl(t, tab);
    case T_CTXREF:
-      return sem_check_context_ref(t);
+      return sem_check_context_ref(t, tab);
    case T_BLOCK_CONFIG:
-      return sem_check_block_config(t);
+      return sem_check_block_config(t, tab);
    case T_IMPLICIT_SIGNAL:
-      return sem_check_implicit_signal(t);
+      return sem_check_implicit_signal(t, tab);
    case T_DISCONNECT:
       return sem_check_disconnect(t);
    case T_GROUP:
    case T_GROUP_TEMPLATE:
       return true;
    case T_COND_VAR_ASSIGN:
-      return sem_check_cond_var_assign(t);
+      return sem_check_cond_var_assign(t, tab);
    case T_CONV_FUNC:
-      return sem_check_conv_func(t);
+      return sem_check_conv_func(t, tab);
    case T_CONCURRENT:
-      return sem_check_concurrent(t);
-   case T_SEQUENCE:
-      return sem_check_sequence(t);
+      return sem_check_concurrent(t, tab);
    case T_PACK_INST:
-      return sem_check_pack_inst(t);
+      return sem_check_pack_inst(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

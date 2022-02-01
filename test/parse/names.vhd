@@ -156,7 +156,7 @@ begin
         begin
             return x(0) = '0';
         end function;
-        variable a, b : unsigned;
+        variable a, b : unsigned(1 to 3);
     begin
         assert a < b;                   -- OK (should be user-defined)
     end process;
@@ -187,7 +187,7 @@ begin
             return "11";
         end function;
 
-        variable x : bit_vector;
+        variable x : bit_vector(1 to 2);
         variable y : bit;
     begin
         x := foo;                       -- OK
@@ -268,7 +268,7 @@ begin
         procedure p19_proc(x : in integer; y : out integer);
         function p19_func(x : integer) return integer;
     begin
-        p19_proc(5, p19_func(y) => 4);  -- OK
+       -- p19_proc(5, p19_func(y) => 4);  -- OK (not supported by sem)
     end process;
 
     p20: process is

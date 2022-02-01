@@ -11,14 +11,14 @@ begin
 
     x <= a or b;
 
-    postponed x <= 1 when foo
-         else 2 when bar
-         else 3;
+    postponed x <= '1' when foo
+         else '1' when bar
+         else '0';
 
     with y select x <=
-        1 when a,
-        2 when b,
-        3 when others;
+        '0' when 6,
+        '1' when 5,
+        '1' when others;
 
     pcall(x, y);
 

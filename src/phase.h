@@ -25,7 +25,7 @@
 
 // Annotate types and perform other semantics checks on a tree.
 // Returns false on error.
-bool sem_check(tree_t t);
+bool sem_check(tree_t t, nametab_t *tab);
 
 // Rewrite to simpler forms folding locally static expressions
 void simplify_local(tree_t top);

@@ -16,7 +16,7 @@ ARCHITECTURE a OF e IS
   CONSTANT i : INTEGER := 1_2_3_4;
   CONSTANT j : REAL    := 5_6_7.12_3;
   type ptr is access integer;
-  CONSTANT k : ptr     := NULL;
+  shared variable k : ptr     := NULL;
   CONSTANT l : STRING  := "Setup time is too short";
   CONSTANT m : STRING  := "";
   CONSTANT n : STRING  := " ";

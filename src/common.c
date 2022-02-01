@@ -545,6 +545,12 @@ bool is_subprogram(tree_t t)
    }
 }
 
+bool is_loop_stmt(tree_t t)
+{
+   const tree_kind_t kind = tree_kind(t);
+   return kind == T_WHILE || kind == T_FOR;
+}
+
 bool is_container(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -557,6 +563,21 @@ bool is_container(tree_t t)
    case T_CONFIGURATION:
    case T_BLOCK:
    case T_PROT_BODY:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool is_design_unit(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_ENTITY:
+   case T_ARCH:
+   case T_PACKAGE:
+   case T_PACK_BODY:
+   case T_CONFIGURATION:
+   case T_CONTEXT:
       return true;
    default:
       return false;

@@ -2,7 +2,7 @@ package p is
 
     procedure foo(x : in integer; y : out integer);
 
-    type text is access string;
+    type text_file is file of string;
 
 end package;
 
@@ -14,7 +14,7 @@ package body p is
         y := x + 1;
     end procedure;
 
-    procedure bar(file x : text);
+    procedure bar(file x : text_file);
 
     procedure baz is
         variable y : integer;

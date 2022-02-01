@@ -880,7 +880,6 @@ START_TEST(test_pack1)
 
    tree_t t, body = NULL;
    while ((t = parse())) {
-      sem_check(t);
       fail_if(error_count() > 0);
 
       simplify_local(t);

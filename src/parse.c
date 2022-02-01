@@ -1836,6 +1836,7 @@ static void make_implicit_guard_signal(tree_t block, tree_t expr)
 
    tree_add_decl(block, guard);
    insert_name(nametab, guard, NULL, 0);
+   sem_check(guard, nametab);
 }
 
 static tree_t fcall_to_conv_func(tree_t value)
@@ -2923,7 +2924,8 @@ static tree_t p_selected_name(tree_t prefix)
       return prefix;
    }
    else if (tree_kind(prefix) == T_REF) {
-      if (tree_has_ref(prefix) && tree_ref(prefix) == scope_subprogram(nametab))
+      tree_t sub = find_enclosing(nametab, S_SUBPROGRAM);
+      if (tree_has_ref(prefix) && tree_ref(prefix) == sub)
          return select_decl(tree_ref(prefix), suffix);
       else {
          parse_error(tree_loc(prefix), "object %s with type %s cannot be "
@@ -3942,6 +3944,7 @@ static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
          tree_set_value(d, init);
 
       (*addf)(parent, d);
+      sem_check(d, nametab);
    }
 }
 
@@ -3987,6 +3990,7 @@ static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
          tree_set_value(d, init);
 
       (*addf)(parent, d);
+      sem_check(d, nametab);
    }
 }
 
@@ -4027,6 +4031,7 @@ static void p_interface_variable_declaration(tree_t parent, add_func_t addf)
          tree_set_value(d, init);
 
       (*addf)(parent, d);
+      sem_check(d, nametab);
    }
 }
 
@@ -4054,6 +4059,7 @@ static void p_interface_file_declaration(tree_t parent, add_func_t addf)
       tree_set_class(d, C_FILE);
 
       (*addf)(parent, d);
+      sem_check(d, nametab);
    }
 }
 
@@ -4208,6 +4214,7 @@ static tree_t p_attribute_declaration(void)
 
    tree_set_loc(t, CURRENT_LOC);
    insert_name(nametab, t, NULL, 0);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -4334,6 +4341,7 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
 
       insert_name(nametab, t, NULL, 0);
       (*addf)(parent, t);
+      sem_check(t, nametab);
    }
 }
 
@@ -4937,6 +4945,8 @@ static void p_type_declaration(tree_t container)
          for (int i = 0; i < nunits; i++)
             solve_types(nametab, tree_value(type_unit(type, i)), type);
       }
+
+      sem_check(t, nametab);
    }
 }
 
@@ -4968,6 +4978,7 @@ static tree_t p_subtype_declaration(void)
    tree_set_loc(t, CURRENT_LOC);
 
    insert_name(nametab, t, id, 0);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -5005,6 +5016,7 @@ static void p_constant_declaration(tree_t parent)
 
       mangle_decl(nametab, t);
       insert_name(nametab, t, it->ident, 0);
+      sem_check(t, nametab);
    }
 }
 
@@ -5086,6 +5098,7 @@ static tree_t p_concurrent_assertion_statement(ident_t label)
    ensure_labelled(conc, label);
 
    insert_name(nametab, conc, NULL, 0);
+   sem_check(conc, nametab);
    return conc;
 }
 
@@ -5210,6 +5223,8 @@ static void p_variable_declaration(tree_t parent)
 
       mangle_decl(nametab, t);
       insert_name(nametab, t, it->ident, 0);
+
+      sem_check(t, nametab);
    }
 }
 
@@ -5267,6 +5282,7 @@ static void p_signal_declaration(tree_t parent)
 
       mangle_decl(nametab, t);
       insert_name(nametab, t, it->ident, 0);
+      sem_check(t, nametab);
    }
 }
 
@@ -5361,6 +5377,7 @@ static tree_t p_alias_declaration(void)
    tree_set_loc(t, CURRENT_LOC);
    mangle_decl(nametab, t);
    insert_name(nametab, t, NULL, 0);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -5432,6 +5449,7 @@ static void p_file_declaration(tree_t parent)
 
       mangle_decl(nametab, t);
       insert_name(nametab, t, it->ident, 0);
+      sem_check(t, nametab);
    }
 }
 
@@ -5465,6 +5483,7 @@ static void p_disconnection_specification(tree_t container)
       tree_set_ref(d, resolve_name(nametab, CURRENT_LOC, it->ident));
 
       tree_add_decl(container, d);
+      sem_check(d, nametab);
    }
 }
 
@@ -5666,6 +5685,8 @@ static tree_t p_protected_type_body(ident_t id)
    tree_set_ident(body, id);
    tree_set_type(body, type ?: type_new(T_NONE));
 
+   scope_set_container(nametab, body);
+
    p_protected_type_body_declarative_part(body);
 
    pop_scope(nametab);
@@ -5679,6 +5700,7 @@ static tree_t p_protected_type_body(ident_t id)
                   "to match %s", istr(id));
 
    tree_set_loc(body, CURRENT_LOC);
+   sem_check(body, nametab);
    return body;
 }
 
@@ -5736,6 +5758,7 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
    tree_set_loc(new, CURRENT_LOC);
    insert_name(nametab, new, NULL, 0);
 
+   sem_check(new, nametab);
    return new;
 }
 
@@ -5950,6 +5973,8 @@ static tree_t p_subprogram_body(tree_t spec)
    insert_name(nametab, spec, NULL, 1);
    push_scope(nametab);
 
+   sem_check(spec, nametab);
+
    p_subprogram_declarative_part(spec);
 
    consume(tBEGIN);
@@ -5979,6 +6004,9 @@ static tree_t p_subprogram_declaration(tree_t spec)
    insert_name(nametab, spec, NULL, 1);
 
    consume(tSEMI);
+
+   tree_set_loc(spec, CURRENT_LOC);
+   sem_check(spec, nametab);
    return spec;
 }
 
@@ -6130,6 +6158,7 @@ static tree_t p_process_statement(ident_t label)
    optional(tIS);
 
    push_scope(nametab);
+   scope_set_container(nametab, t);
 
    if (label != NULL) {
       tree_set_ident(t, label);
@@ -6164,6 +6193,7 @@ static tree_t p_process_statement(ident_t label)
    if (postponed)
       tree_set_flag(t, TREE_F_POSTPONED);
 
+   sem_check(t, nametab);
    return t;
 }
 
@@ -6243,6 +6273,7 @@ static void p_entity_declaration(tree_t unit)
    consume(tSEMI);
 
    tree_set_loc(unit, CURRENT_LOC);
+   sem_check(unit, nametab);
 }
 
 static tree_t p_component_declaration(void)
@@ -6277,6 +6308,7 @@ static tree_t p_component_declaration(void)
 
    tree_set_loc(c, CURRENT_LOC);
    insert_name(nametab, c, NULL, 0);
+   sem_check(c, nametab);
    return c;
 }
 
@@ -6446,6 +6478,7 @@ static void p_package_declaration(tree_t unit)
    consume(tSEMI);
 
    tree_set_loc(unit, CURRENT_LOC);
+   sem_check(unit, nametab);
 }
 
 static ident_list_t *p_instantiation_list(void)
@@ -6625,7 +6658,12 @@ static void p_configuration_specification(tree_t parent)
          tree_set_value(t, bind);
          tree_set_ref(t, comp);
 
+         const spec_kind_t kind =
+            it->ident == well_known(W_ALL) ? SPEC_ALL : SPEC_EXACT;
+
          tree_add_decl(parent, t);
+         insert_spec(nametab, t, kind, it->ident);
+         sem_check(t, nametab);
       }
    }
    else {
@@ -6637,6 +6675,8 @@ static void p_configuration_specification(tree_t parent)
       tree_set_ref(t, comp);
 
       tree_add_decl(parent, t);
+      insert_spec(nametab, t, SPEC_OTHERS, NULL);
+      sem_check(t, nametab);
    }
 }
 
@@ -6707,7 +6747,12 @@ static void p_component_configuration(tree_t unit)
          tree_set_ref(t, comp);
          if (bcfg != NULL) tree_add_decl(t, bcfg);
 
+         const spec_kind_t kind =
+            it->ident == well_known(W_ALL) ? SPEC_ALL : SPEC_EXACT;
+
          tree_add_decl(unit, t);
+         sem_check(t, nametab);
+         insert_spec(nametab, t, kind, it->ident);
       }
    }
    else {
@@ -6720,6 +6765,8 @@ static void p_component_configuration(tree_t unit)
       if (bcfg != NULL) tree_add_decl(t, bcfg);
 
       tree_add_decl(unit, t);
+      sem_check(t, nametab);
+      insert_spec(nametab, t, SPEC_OTHERS, NULL);
    }
 
    consume(tEND);
@@ -6834,7 +6881,15 @@ static tree_t p_block_configuration(tree_t of)
    while (not_at_token(tEND))
       p_configuration_item(b);
 
-   if (sub != NULL) resolve_specs(nametab, b, false);
+   if (sub != NULL) {
+      const int nstmts = tree_stmts(sub);
+      for (int i = 0; i < nstmts; i++) {
+         tree_t s = tree_stmt(sub, i);
+         if (tree_kind(s) == T_INSTANCE)
+            query_spec(nametab, s);
+      }
+
+   }
 
    pop_scope(nametab);
 
@@ -6843,6 +6898,7 @@ static tree_t p_block_configuration(tree_t of)
    consume(tSEMI);
 
    tree_set_loc(b, CURRENT_LOC);
+   sem_check(b, nametab);
    return b;
 }
 
@@ -6893,6 +6949,7 @@ static void p_configuration_declaration(tree_t unit)
    pop_scope(nametab);
 
    tree_set_loc(unit, CURRENT_LOC);
+   sem_check(unit, nametab);
 }
 
 static void p_context_declaration(tree_t unit)
@@ -6922,6 +6979,7 @@ static void p_context_declaration(tree_t unit)
    consume(tSEMI);
 
    tree_set_loc(unit, CURRENT_LOC);
+   sem_check(unit, nametab);
 }
 
 static void p_primary_unit(tree_t unit)
@@ -7132,6 +7190,7 @@ static tree_t p_conditional_variable_assignment(ident_t label, tree_t target,
    tree_set_loc(t, CURRENT_LOC);
    ensure_labelled(t, label);
 
+   sem_check(t, nametab);
    return t;
 }
 
@@ -7168,6 +7227,7 @@ static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
       tree_set_loc(t, CURRENT_LOC);
       ensure_labelled(t, label);
 
+      sem_check(t, nametab);
       return t;
    }
 }
@@ -7288,6 +7348,7 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -7348,6 +7409,7 @@ static tree_t p_wait_statement(ident_t label)
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -7361,6 +7423,7 @@ static tree_t p_assertion_statement(ident_t label)
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -7392,6 +7455,7 @@ static tree_t p_report_statement(ident_t label)
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -7444,6 +7508,7 @@ static tree_t p_if_statement(ident_t label)
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -7532,10 +7597,12 @@ static tree_t p_loop_statement(ident_t label)
 
    consume(tLOOP);
 
-   if (label != NULL) {
-      set_label_and_loc(t, label, CURRENT_LOC);
+   set_label_and_loc(t, label, CURRENT_LOC);
+   scope_set_container(nametab, t);
+   if (label != NULL)
       insert_name(nametab, t, NULL, 0);
-   }
+
+   sem_check(t, nametab);
 
    p_sequence_of_statements(t);
 
@@ -7544,8 +7611,9 @@ static tree_t p_loop_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
-   set_label_and_loc(t, label, CURRENT_LOC);
    pop_scope(nametab);
+
+   tree_set_loc(t, CURRENT_LOC);
    return t;
 }
 
@@ -7561,7 +7629,7 @@ static tree_t p_return_statement(ident_t label)
 
    if (peek() != tSEMI) {
       type_t return_type = NULL;
-      tree_t subprog = scope_subprogram(nametab);
+      tree_t subprog = find_enclosing(nametab, S_SUBPROGRAM);
       if (subprog != NULL && tree_kind(subprog) == T_FUNC_BODY)
          return_type = type_result(tree_type(subprog));
 
@@ -7573,6 +7641,7 @@ static tree_t p_return_statement(ident_t label)
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -7586,8 +7655,21 @@ static tree_t p_exit_statement(ident_t label)
 
    tree_t t = tree_new(T_EXIT);
 
-   if (peek() == tID)
-      tree_set_ident2(t, p_identifier());
+   if (peek() == tID) {
+      ident_t id = p_identifier();
+      tree_set_ident2(t, id);
+
+      tree_t loop = resolve_name(nametab, CURRENT_LOC, id);
+      if (loop != NULL && !is_loop_stmt(loop))
+         parse_error(CURRENT_LOC, "%s is not a loop statement", istr(id));
+   }
+   else {
+      tree_t loop = find_enclosing(nametab, S_LOOP);
+      if (loop == NULL)
+         parse_error(CURRENT_LOC, "cannot use exit statement outside loop");
+      else
+         tree_set_ident2(t, tree_ident(loop));
+   }
 
    if (optional(tWHEN))
       tree_set_value(t, p_condition());
@@ -7595,6 +7677,7 @@ static tree_t p_exit_statement(ident_t label)
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -7608,8 +7691,21 @@ static tree_t p_next_statement(ident_t label)
 
    tree_t t = tree_new(T_NEXT);
 
-   if (peek() == tID)
-      tree_set_ident2(t, p_identifier());
+   if (peek() == tID) {
+      ident_t id = p_identifier();
+      tree_set_ident2(t, id);
+
+      tree_t loop = resolve_name(nametab, CURRENT_LOC, id);
+      if (loop != NULL && !is_loop_stmt(loop))
+         parse_error(CURRENT_LOC, "%s is not a loop statement", istr(id));
+   }
+   else {
+      tree_t loop = find_enclosing(nametab, S_LOOP);
+      if (loop == NULL)
+         parse_error(CURRENT_LOC, "cannot use next statement outside loop");
+      else
+         tree_set_ident2(t, tree_ident(loop));
+   }
 
    if (optional(tWHEN))
       tree_set_value(t, p_condition());
@@ -7617,6 +7713,7 @@ static tree_t p_next_statement(ident_t label)
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -7647,6 +7744,7 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
    }
 
    set_label_and_loc(name, label, CURRENT_LOC);
+   sem_check(name, nametab);
    return name;
 }
 
@@ -7712,6 +7810,7 @@ static tree_t p_case_statement(ident_t label)
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -7891,6 +7990,11 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
    else
       insert_name(nametab, t, NULL, 0);
 
+   tree_t spec = query_spec(nametab, t);
+   if (spec != NULL)
+      tree_set_spec(t, spec);
+
+   sem_check(t, nametab);
    return t;
 }
 
@@ -8001,16 +8105,21 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    return conc;
 }
 
-static void p_selected_waveforms(tree_t stmt, type_t constraint)
+static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
 {
    // { waveform when choices , } waveform when choices
 
    BEGIN("selected waveforms");
 
+   type_t constraint = tree_has_type(target) ? tree_type(target) : NULL;
    type_t with_type = tree_type(tree_value(stmt));
 
    do {
       tree_t a = tree_new(T_SIGNAL_ASSIGN);
+      tree_set_target(a, target);
+      if (reject != NULL)
+         tree_set_reject(a, reject);
+
       p_waveform(a, constraint);
 
       consume(tWHEN);
@@ -8023,6 +8132,7 @@ static void p_selected_waveforms(tree_t stmt, type_t constraint)
          tree_set_value(tree_assoc(stmt, i), a);
 
       tree_set_loc(a, CURRENT_LOC);
+      sem_check(a, nametab);
    } while (optional(tCOMMA));
 }
 
@@ -8045,10 +8155,9 @@ static tree_t p_selected_signal_assignment(void)
    consume(tSELECT);
    tree_t target = p_target(NULL);
 
-   type_t target_type = NULL;
    const bool aggregate = tree_kind(target) == T_AGGREGATE;
    if (!aggregate)
-      target_type = solve_types(nametab, target, NULL);
+      solve_types(nametab, target, NULL);
 
    consume(tLE);
 
@@ -8058,15 +8167,8 @@ static tree_t p_selected_signal_assignment(void)
    if (guard != NULL)
       tree_set_guard(conc, guard);
 
-   p_selected_waveforms(stmt, target_type);
+   p_selected_waveforms(stmt, target, reject);
    consume(tSEMI);
-
-   const int nassocs = tree_assocs(stmt);
-   for (int i = 0; i < nassocs; i++) {
-      tree_t s = tree_value(tree_assoc(stmt, i));
-      tree_set_target(s, target);
-      set_delay_mechanism(s, reject);
-   }
 
    if (aggregate) {
       tree_t w0 = tree_waveform(tree_assoc(stmt, 0), 0);
@@ -8104,6 +8206,7 @@ static tree_t p_concurrent_signal_assignment_statement(ident_t label,
       tree_set_flag(t, TREE_F_POSTPONED);
 
    insert_name(nametab, t, NULL, 0);
+   sem_check(t, nametab);
    return t;
 }
 
@@ -8140,6 +8243,7 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
 
    insert_name(nametab, conc, NULL, 0);
    solve_types(nametab, name, NULL);
+   sem_check(conc, nametab);
    return conc;
 }
 
@@ -8232,11 +8336,10 @@ static tree_t p_block_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
-   resolve_specs(nametab, b, true);
-
    pop_scope(nametab);
 
    tree_set_loc(b, CURRENT_LOC);
+   sem_check(b, nametab);
    return b;
 }
 
@@ -8305,6 +8408,7 @@ static tree_t p_generate_statement(ident_t label)
    pop_scope(nametab);
 
    tree_set_loc(g, CURRENT_LOC);
+   sem_check(g, nametab);
    return g;
 }
 
@@ -8465,16 +8569,16 @@ static void p_architecture_body(tree_t unit)
    p_trailing_label(tree_ident(unit));
    consume(tSEMI);
 
-   resolve_specs(nametab, unit, true);
-
-   pop_scope(nametab);
-   pop_scope(nametab);
-
    tree_set_loc(unit, CURRENT_LOC);
 
    // Prefix the architecture with the entity name
    tree_set_ident(unit, ident_prefix(tree_ident2(unit),
                                      tree_ident(unit), '-'));
+
+   sem_check(unit, nametab);
+
+   pop_scope(nametab);
+   pop_scope(nametab);
 }
 
 static void p_package_body_declarative_item(tree_t parent)
@@ -8622,6 +8726,7 @@ static void p_package_body(tree_t unit)
    consume(tSEMI);
 
    tree_set_loc(unit, CURRENT_LOC);
+   sem_check(unit, nametab);
 }
 
 static void p_secondary_unit(tree_t unit)
@@ -8689,7 +8794,7 @@ static tree_t p_design_unit(void)
    push_scope(nametab);
 
    tree_t unit = tree_new(T_DESIGN_UNIT);
-   scope_set_unit(nametab, unit);
+   scope_set_container(nametab, unit);
 
    ident_t std_i = well_known(W_STD);
 

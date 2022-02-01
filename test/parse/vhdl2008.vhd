@@ -7,7 +7,7 @@ end entity;
 
 package genpack is
     generic ( x : integer := 5; y : boolean );  -- OK
-    generic map ( x => 5 );             -- OK
+    generic map ( x => 5, y => false );         -- OK
 
     constant c : bit_vector(1 to x) := (1 to x => '1');
 end package;
@@ -82,8 +82,10 @@ begin
         while b and '1' loop end loop;  -- OK
         if i + 1 then end if;           -- OK
         if now + 1 ns then end if;      -- Error
-        exit when b or '1';             -- OK
-        next when b or '1';             -- OK
+        while true loop
+            exit when b or '1';         -- OK
+            next when b or '1';         -- OK
+        end loop;
         wait until b xor '0';           -- OK
         assert b nor '1';               -- OK
         assert ?? 1;                    -- OK
@@ -100,7 +102,7 @@ begin
     end process;
 
     process is
-        variable x : bit_vector(7 downto 0);
+        variable x : string(7 downto 0);
     begin
         x := 8x"0";                     -- OK
         x := 6x"a";                     -- OK

@@ -11,7 +11,7 @@ begin
         signal x : integer;
         signal y : real;
     begin
-        x <= y;
+        x <= integer(y);
     end block;
 
 end architecture;

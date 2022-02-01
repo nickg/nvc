@@ -21,8 +21,6 @@
 #include "util.h"
 #include "tree.h"
 
-typedef struct nametab nametab_t;
-
 typedef enum {
    F_NONE,
    F_GENERIC_MAP,
@@ -31,18 +29,31 @@ typedef enum {
    F_RECORD
 } formal_kind_t;
 
+typedef enum {
+   S_DESIGN_UNIT,
+   S_LOOP,
+   S_SUBPROGRAM,
+   S_PROCESS,
+   S_PROTECTED,
+} scope_kind_t;
+
+typedef enum {
+   SPEC_EXACT,
+   SPEC_ALL,
+   SPEC_OTHERS,
+} spec_kind_t;
+
 nametab_t *nametab_new(void);
 void nametab_finish(nametab_t *tab);
 
 void push_scope(nametab_t *tab);
 void pop_scope(nametab_t *tab);
 void scope_set_formal_kind(nametab_t *tab, tree_t formal, formal_kind_t kind);
-void scope_set_subprogram(nametab_t *tab, tree_t subprog);
-void scope_set_unit(nametab_t *tab, tree_t unit);
 void scope_set_prefix(nametab_t *tab, ident_t prefix);
 formal_kind_t scope_formal_kind(nametab_t *tab);
-tree_t scope_subprogram(nametab_t *tab);
-tree_t scope_unit(nametab_t *tab);
+void scope_set_container(nametab_t *tab, tree_t container);
+void scope_set_subprogram(nametab_t *tab, tree_t subprog);
+tree_t find_enclosing(nametab_t *tab, scope_kind_t kind);
 bool name_is_formal(nametab_t *tab, ident_t id);
 void suppress_errors(nametab_t *tab);
 
@@ -59,12 +70,13 @@ void insert_ports(nametab_t *tab, tree_t container);
 void insert_generics(nametab_t *tab, tree_t container);
 void insert_protected_decls(nametab_t *tab, type_t type);
 void insert_names_for_config(nametab_t *tab, tree_t unit);
+void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind, ident_t ident);
 
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name);
 type_t resolve_type(nametab_t *tab, type_t incomplete);
-void resolve_specs(nametab_t *tab, tree_t container, bool bind);
 void resolve_resolution(nametab_t *tab, tree_t rname, type_t type);
 tree_t query_name(nametab_t *tab, ident_t name);
+tree_t query_spec(nametab_t *tab, tree_t object);
 tree_t find_std(nametab_t *tab);
 
 type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint);

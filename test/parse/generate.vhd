@@ -1,8 +1,9 @@
 entity g is end entity;
 
 architecture a of g is
-    constant foo, bar : boolean;
-    signal x, g, f, h : integer;
+    constant foo, bar : boolean := false;
+    signal x, g, f : integer;
+    constant h : integer := 6;
 
     type text is file of string;
     file output : text open WRITE_MODE is "STD_OUTPUT";
@@ -15,7 +16,7 @@ begin
     end generate;
 
     g2: if bar generate
-        g2a: if x < 5 generate
+        g2a: if h < 5 generate
             g <= 7;
         end generate;
     end generate;
@@ -26,10 +27,10 @@ begin
         f <= h;
     end generate;
 
-    g4: for i in x'range generate
+    g4: for i in natural'range generate
     end generate;
 
-    g5: for i in x'range generate
+    g5: for i in integer'range generate
     begin
     end generate;
 

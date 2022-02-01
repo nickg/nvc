@@ -30,6 +30,7 @@
 
 typedef struct scope scope_t;
 typedef struct type_set type_set_t;
+typedef struct _spec spec_t;
 
 typedef enum {
    O_IDLE,
@@ -51,17 +52,25 @@ typedef struct {
    unsigned          initial;
 } overload_t;
 
+struct _spec {
+   spec_t      *next;
+   spec_kind_t  kind;
+   ident_t      ident;
+   tree_t       tree;
+   unsigned     matches;
+};
+
 struct scope {
    scope_t       *parent;
    hash_t        *members;
+   spec_t        *specs;
    overload_t    *overload;
    ident_t        import;
    scope_t       *chain;
    formal_kind_t  formal_kind;
    tree_t         formal;
-   tree_t         subprog;
    ident_t        prefix;
-   tree_t         unit;
+   tree_t         container;
    bool           suppress;
 };
 
@@ -316,9 +325,7 @@ void push_scope(nametab_t *tab)
    scope_t *s = xcalloc(sizeof(scope_t));
    s->members = hash_new(128, false);  // XXX: allocate this on-demand
    s->parent  = tab->top_scope;
-   s->subprog = tab->top_scope ? tab->top_scope->subprog : NULL;
    s->prefix  = tab->top_scope ? tab->top_scope->prefix : NULL;
-   s->unit    = tab->top_scope ? tab->top_scope->unit : NULL;
 
    tab->top_scope = s;
 }
@@ -334,6 +341,15 @@ void pop_scope(nametab_t *tab)
       hash_free(tab->top_scope->chain->members);
       free(tab->top_scope->chain);
       tab->top_scope->chain = tmp;
+   }
+
+   for (spec_t *it = tab->top_scope->specs, *next; it != NULL; it = next) {
+      if (it->kind == SPEC_EXACT && it->matches == 0
+          && !tab->top_scope->suppress)
+         error_at(tree_loc(it->tree), "instance %s not found", istr(it->ident));
+
+      next = it->next;
+      free(it);
    }
 
    free(tab->top_scope);
@@ -373,30 +389,49 @@ static scope_t *scope_formal_limit(nametab_t *tab)
       return NULL;
 }
 
-void scope_set_subprogram(nametab_t *tab, tree_t subprog)
+static tree_t scope_find_enclosing(scope_t *s, scope_kind_t what)
 {
-   tab->top_scope->subprog = subprog;
-   tab->top_scope->prefix  = tree_ident2(subprog);
-}
+   for (; s != NULL; s = s->parent) {
+      if (s->container == NULL)
+         continue;
 
-void scope_set_unit(nametab_t *tab, tree_t unit)
-{
-   tab->top_scope->unit = unit;
-}
+      if (what == S_LOOP && is_loop_stmt(s->container))
+         return s->container;
+      else if (what == S_SUBPROGRAM && is_subprogram(s->container))
+         return s->container;
+      else if (what == S_DESIGN_UNIT && is_design_unit(s->container))
+         return s->container;
+      else if (what == S_PROCESS && tree_kind(s->container) == T_PROCESS)
+         return s->container;
+      else if (what == S_PROTECTED && tree_kind(s->container) == T_PROT_BODY)
+         return s->container;
+   }
 
-tree_t scope_subprogram(nametab_t *tab)
-{
-   return tab->top_scope->subprog;
-}
-
-tree_t scope_unit(nametab_t *tab)
-{
-   return tab->top_scope->unit;
+   return NULL;
 }
 
 void scope_set_prefix(nametab_t *tab, ident_t prefix)
 {
    tab->top_scope->prefix = ident_prefix(tab->top_scope->prefix, prefix, '.');
+}
+
+void scope_set_container(nametab_t *tab, tree_t container)
+{
+   tab->top_scope->container = container;
+}
+
+void scope_set_subprogram(nametab_t *tab, tree_t subprog)
+{
+   tab->top_scope->container = subprog;
+   tab->top_scope->prefix    = tree_ident2(subprog);
+}
+
+tree_t find_enclosing(nametab_t *tab, scope_kind_t what)
+{
+   if (tab->top_scope)
+      return scope_find_enclosing(tab->top_scope, what);
+   else
+      return NULL;
 }
 
 void scope_set_formal_kind(nametab_t *tab, tree_t formal, formal_kind_t kind)
@@ -601,6 +636,27 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
    insert_name_at(s, name, decl);
 }
 
+void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind, ident_t ident)
+{
+   spec_t *s = xmalloc(sizeof(spec_t));
+   s->next    = NULL;
+   s->kind    = kind;
+   s->ident   = ident;
+   s->tree    = spec;
+   s->matches = 0;
+
+   spec_t **p;
+   for (p = &(tab->top_scope->specs); *p != NULL; p = &((*p)->next)) {
+      if (kind == SPEC_EXACT && (*p)->ident == ident) {
+         error_at(tree_loc(spec), "duplicate specification for instance %s",
+                  istr(ident));
+         note_at(tree_loc((*p)->tree), "previous specification was here");
+         return;
+      }
+   }
+   *p = s;
+}
+
 type_t resolve_type(nametab_t *tab, type_t incomplete)
 {
    assert(type_kind(incomplete) == T_INCOMPLETE);
@@ -662,6 +718,38 @@ tree_t query_name(nametab_t *tab, ident_t name)
    }
 
    return decl;
+}
+
+tree_t query_spec(nametab_t *tab, tree_t object)
+{
+   spec_t *others = NULL;
+   for (spec_t *it = tab->top_scope->specs; it != NULL; it = it->next) {
+      switch (it->kind) {
+      case SPEC_ALL:
+         if (tree_ident(tree_ref(object)) == tree_ident2(it->tree)) {
+            it->matches++;
+            return it->tree;
+         }
+         break;
+      case SPEC_OTHERS:
+         if (tree_ident(tree_ref(object)) == tree_ident2(it->tree))
+            others = it;
+         break;
+      case SPEC_EXACT:
+         if (it->ident == tree_ident(object)) {
+            it->matches++;
+            return it->tree;
+         }
+         break;
+      }
+   }
+
+   if (others != NULL) {
+      others->matches++;
+      return others->tree;
+   }
+
+   return NULL;
 }
 
 static void begin_iter(nametab_t *tab, ident_t name, iter_state_t *state)
@@ -965,88 +1053,6 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
    else {
       // Ordinary reference
       return resolve_name(tab, tree_loc(ref), tree_ident(ref));
-   }
-}
-
-static void bind_instance(tree_t inst, tree_t spec)
-{
-   if (tree_has_spec(inst)) {
-      tree_t exist = tree_spec(inst);
-      if (tree_has_ident(exist)) {  // Not an OTHERS specification
-         error_at(tree_loc(spec), "instance %s is already bound by a "
-                  "specification", istr(tree_ident(inst)));
-         note_at(tree_loc(exist), "originally bound by specification "
-                 "here");
-         return;
-      }
-   }
-
-   tree_set_spec(inst, spec);
-}
-
-void resolve_specs(nametab_t *tab, tree_t container, bool bind)
-{
-   const int ndecls = tree_decls(container);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(container, i);
-      if (tree_kind(d) != T_SPEC)
-         continue;
-
-      ident_t iname = tree_has_ident(d) ? tree_ident(d) : NULL;
-
-      enum { NAMED, ALL, OTHERS } kind;
-
-      if (iname == NULL)
-         kind = OTHERS;
-      else if (iname == well_known(W_ALL))
-         kind = ALL;
-      else
-         kind = NAMED;
-
-      if (!tree_has_ref(d))
-         continue;
-
-      tree_t comp = tree_ref(d);
-
-      if (kind == NAMED) {
-         // Only look for the instance in the innermost scope
-         scope_t *inner = tab->top_scope;
-         tree_t inst = scope_find(inner, iname, inner, NULL, 0);
-         if (inst == NULL) {
-            error_at(tree_loc(d), "instance %s not found", istr(iname));
-            continue;
-         }
-         else if (inst == (tree_t)-1)
-            continue;
-         else if (tree_kind(inst) != T_INSTANCE) {
-            error_at(tree_loc(d), "object %s is not an instance", istr(iname));
-            continue;
-         }
-
-         if (bind) bind_instance(inst, d);
-      }
-      else {
-         const void *key;
-         void *value;
-         hash_iter_t it = HASH_BEGIN;
-         while (hash_iter(tab->top_scope->members, &it, &key, &value)) {
-            tree_t obj = value;
-
-            if (obj == (tree_t)-1)
-               continue;   // Error marker
-            else if (tree_kind(obj) != T_INSTANCE)
-               continue;
-            else if (tree_class(obj) != C_COMPONENT)
-               continue;
-            else if (!tree_has_ref(obj))
-               continue;
-            else if (tree_ref(obj) != comp)
-               continue;
-            else if (kind == ALL || !tree_has_spec(obj)) {
-               if (bind) bind_instance(obj, d);
-            }
-         }
-      }
    }
 }
 
@@ -1938,10 +1944,12 @@ static void overload_restrict_argument(overload_t *o, tree_t p,
 
 static void check_pure_ref(nametab_t *tab, tree_t ref, tree_t decl)
 {
+   tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+
    const bool is_pure_func =
-      tab->top_scope->subprog != NULL
-      && tree_kind(tab->top_scope->subprog) == T_FUNC_BODY
-      && !(tree_flags(tab->top_scope->subprog) & TREE_F_IMPURE);
+      sub != NULL
+      && tree_kind(sub) == T_FUNC_BODY
+      && !(tree_flags(sub) & TREE_F_IMPURE);
 
    class_t class = class_of(decl);
    const bool maybe_impure =
@@ -1949,10 +1957,9 @@ static void check_pure_ref(nametab_t *tab, tree_t ref, tree_t decl)
 
    if (is_pure_func && maybe_impure) {
       scope_t *owner = scope_containing(tab, decl);
-      if (owner != NULL && owner->subprog != tab->top_scope->subprog) {
+      if (owner != NULL && scope_find_enclosing(owner, S_SUBPROGRAM) != sub) {
          error_at(tree_loc(ref), "invalid reference to %s inside pure "
-                  "function %s", istr(tree_ident(decl)),
-                   istr(tree_ident(tab->top_scope->subprog)));
+                  "function %s", istr(tree_ident(decl)), istr(tree_ident(sub)));
       }
    }
 }
@@ -2305,7 +2312,7 @@ static type_t solve_pcall(nametab_t *tab, tree_t pcall)
    if (decl != NULL) {
       tree_set_ref(pcall, decl);
       if ((tree_flags(decl) & TREE_F_PROTECTED) && kind == T_PCALL)
-         tree_change_kind(pcall, T_PROT_PCALL);  // XXX: CPCALL?
+         tree_change_kind(pcall, T_PROT_PCALL);
    }
 
    return NULL;  // Procedure call has no type

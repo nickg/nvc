@@ -123,7 +123,7 @@ begin
     process is
         function get_value (x : in sharedcounter ) return integer is  -- Error
         begin
-            return x.value;             -- OK
+            return x.value;             -- Error
         end function;
     begin
     end process;

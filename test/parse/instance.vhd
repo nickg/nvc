@@ -1,7 +1,7 @@
 entity instance is end entity;
 
 entity foo is
-    port ( a, b, c : in integer; x : out integer );
+    port ( a, b, c : in integer := 0; x : out integer );
 end entity;
 
 architecture goo of foo is

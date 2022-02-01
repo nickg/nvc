@@ -59,6 +59,8 @@ bool is_subprogram(tree_t t);
 bool is_container(tree_t t);
 bool is_guarded_signal(tree_t decl);
 bool is_type_decl(tree_t t);
+bool is_loop_stmt(tree_t t);
+bool is_design_unit(tree_t t);
 bool is_uninstantiated_package(tree_t pack);
 tree_t search_decls(tree_t container, ident_t name, int nth);
 bool is_builtin(subprogram_kind_t kind);

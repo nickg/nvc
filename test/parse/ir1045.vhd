@@ -8,7 +8,7 @@ begin
     -- Test corner case in lexer
     --   http://www.eda-stds.org/isac/IRs-VHDL-93/IR1045.txt
 
-    x <= bit_vector'('1','2','3');
+    x <= bit_vector'('1','0','1');
 
     y <= bit'('1');
 
