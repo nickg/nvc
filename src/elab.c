@@ -189,6 +189,7 @@ static bool elab_should_copy(tree_t t, void *__ctx)
          tree_t decl = tree_ref(t);
          switch (tree_kind(decl)) {
          case T_PORT_DECL:
+         case T_GENERIC_DECL:
             return !!(tree_flags(decl) & TREE_F_ELAB_COPY);
          case T_ENTITY:
          case T_ARCH:
@@ -778,7 +779,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                   break;
                else if (tree_kind(value) == T_REF) {
                   tree_t decl = tree_ref(value);
-                  if (tree_kind(decl) == T_PORT_DECL) {
+                  if (tree_kind(decl) == T_GENERIC_DECL) {
                      cg = tree_ref(value);
                      break;
                   }
@@ -998,7 +999,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    tree_t genvar = tree_decl(t, 0);
    assert(tree_kind(genvar) == T_GENVAR);
 
-   tree_t g = tree_new(T_PORT_DECL);
+   tree_t g = tree_new(T_GENERIC_DECL);
    tree_set_ident(g, tree_ident(genvar));
    tree_set_type(g, tree_type(genvar));
    tree_set_class(g, C_CONSTANT);

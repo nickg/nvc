@@ -452,6 +452,7 @@ class_t class_of(tree_t t)
    case T_CONST_DECL:
       return C_CONSTANT;
    case T_PORT_DECL:
+   case T_GENERIC_DECL:
       return tree_class(t);
    case T_ENUM_LIT:
    case T_LITERAL:

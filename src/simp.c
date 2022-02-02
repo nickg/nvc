@@ -341,6 +341,7 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
       return tree_value(decl);
 
    case T_PORT_DECL:
+   case T_GENERIC_DECL:
       if (ctx->generics != NULL) {
          tree_t map = hash_get(ctx->generics, decl);
          if (map != NULL) {
@@ -908,9 +909,8 @@ static bool simp_is_static(tree_t expr)
          case T_CONST_DECL:
          case T_UNIT_DECL:
          case T_ENUM_LIT:
+         case T_GENERIC_DECL:
             return true;
-         case T_PORT_DECL:
-            return tree_class(decl) == C_CONSTANT;
          case T_ALIAS:
             return simp_is_static(tree_value(decl));
          default:

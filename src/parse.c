@@ -1883,7 +1883,7 @@ static bool package_should_copy(tree_t t, void *__ctx)
    case T_REF:
       {
          tree_t decl = tree_ref(t);
-         if (tree_kind(decl) == T_PORT_DECL)
+         if (tree_kind(decl) == T_GENERIC_DECL)
             return !!(tree_flags(decl) & TREE_F_ELAB_COPY);
          else
             return false;
@@ -2006,6 +2006,14 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
       for (int i = 0; i < ndecls; i++)
          tree_add_decl(new, tree_decl(body_copy, i));
    }
+}
+
+static void add_interface(tree_t container, tree_t decl, tree_kind_t kind)
+{
+   if (kind == T_PORT_DECL)
+      tree_add_port(container, decl);
+   else
+      tree_add_generic(container, decl);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3899,7 +3907,7 @@ static tree_t p_expression(void)
    return expr;
 }
 
-static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
+static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
 {
    // [ constant ] identifier_list : [ in ] subtype_indication [ := expression ]
 
@@ -3933,7 +3941,7 @@ static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
    const loc_t *loc = CURRENT_LOC;
 
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t d = tree_new(T_PORT_DECL);
+      tree_t d = tree_new(kind);
       tree_set_ident(d, it->ident);
       tree_set_loc(d, loc);
       tree_set_subkind(d, mode);
@@ -3943,12 +3951,12 @@ static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
       if (init != NULL)
          tree_set_value(d, init);
 
-      (*addf)(parent, d);
+      add_interface(parent, d, kind);
       sem_check(d, nametab);
    }
 }
 
-static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
+static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind)
 {
    // [signal] identifier_list : [ mode ] subtype_indication [ bus ]
    //    [ := expression ]
@@ -3978,7 +3986,7 @@ static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
    const loc_t *loc = CURRENT_LOC;
 
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t d = tree_new(T_PORT_DECL);
+      tree_t d = tree_new(kind);
       tree_set_ident(d, it->ident);
       tree_set_loc(d, loc);
       tree_set_subkind(d, mode);
@@ -3989,12 +3997,12 @@ static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
       if (init != NULL)
          tree_set_value(d, init);
 
-      (*addf)(parent, d);
+      add_interface(parent, d, kind);
       sem_check(d, nametab);
    }
 }
 
-static void p_interface_variable_declaration(tree_t parent, add_func_t addf)
+static void p_interface_variable_declaration(tree_t parent, tree_kind_t kind)
 {
    // [variable] identifier_list : [ mode ] subtype_indication [ := expression ]
 
@@ -4020,22 +4028,22 @@ static void p_interface_variable_declaration(tree_t parent, add_func_t addf)
    const loc_t *loc = CURRENT_LOC;
 
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t d = tree_new(T_PORT_DECL);
+      tree_t d = tree_new(kind);
       tree_set_ident(d, it->ident);
       tree_set_loc(d, loc);
-      tree_set_subkind(d, mode);
       tree_set_type(d, type);
       tree_set_class(d, C_VARIABLE);
+      tree_set_subkind(d, mode);
 
       if (init != NULL)
          tree_set_value(d, init);
 
-      (*addf)(parent, d);
+      add_interface(parent, d, kind);
       sem_check(d, nametab);
    }
 }
 
-static void p_interface_file_declaration(tree_t parent, add_func_t addf)
+static void p_interface_file_declaration(tree_t parent, tree_kind_t kind)
 {
    // file identifier_list : subtype_indication
 
@@ -4051,20 +4059,20 @@ static void p_interface_file_declaration(tree_t parent, add_func_t addf)
 
    const loc_t *loc = CURRENT_LOC;
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t d = tree_new(T_PORT_DECL);
+      tree_t d = tree_new(kind);
       tree_set_ident(d, it->ident);
       tree_set_loc(d, loc);
       tree_set_subkind(d, PORT_IN);
       tree_set_type(d, type);
       tree_set_class(d, C_FILE);
 
-      (*addf)(parent, d);
+      add_interface(parent, d, kind);
       sem_check(d, nametab);
    }
 }
 
 static void p_interface_declaration(class_t def_class, tree_t parent,
-                                    add_func_t addf)
+                                    tree_kind_t kind)
 {
    // interface_constant_declaration | interface_signal_declaration
    //   | interface_variable_declaration | interface_file_declaration
@@ -4074,30 +4082,30 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
    const token_t p = peek();
    switch (p) {
    case tCONSTANT:
-      p_interface_constant_declaration(parent, addf);
+      p_interface_constant_declaration(parent, kind);
       break;
 
    case tSIGNAL:
-      p_interface_signal_declaration(parent, addf);
+      p_interface_signal_declaration(parent, kind);
       break;
 
    case tVARIABLE:
-      p_interface_variable_declaration(parent, addf);
+      p_interface_variable_declaration(parent, kind);
       break;
 
    case tFILE:
-      p_interface_file_declaration(parent, addf);
+      p_interface_file_declaration(parent, kind);
       break;
 
    case tID:
       {
          switch (def_class) {
          case C_CONSTANT:
-            p_interface_constant_declaration(parent, addf);
+            p_interface_constant_declaration(parent, kind);
             break;
 
          case C_SIGNAL:
-            p_interface_signal_declaration(parent, addf);
+            p_interface_signal_declaration(parent, kind);
             break;
 
          default:
@@ -4112,25 +4120,25 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
 }
 
 static void p_interface_element(class_t def_class, tree_t parent,
-                                add_func_t addf)
+                                tree_kind_t kind)
 {
    // interface_declaration
 
    BEGIN("interface element");
 
-   p_interface_declaration(def_class, parent, addf);
+   p_interface_declaration(def_class, parent, kind);
 }
 
-static void p_interface_list(class_t def_class, tree_t parent, add_func_t addf)
+static void p_interface_list(class_t def_class, tree_t parent, tree_kind_t kind)
 {
    // interface_element { ; interface_element }
 
    BEGIN("interface list");
 
-   p_interface_element(def_class, parent, addf);
+   p_interface_element(def_class, parent, kind);
 
    while (optional(tSEMI))
-      p_interface_element(def_class, parent, addf);
+      p_interface_element(def_class, parent, kind);
 }
 
 static void p_port_list(tree_t parent)
@@ -4139,7 +4147,7 @@ static void p_port_list(tree_t parent)
 
    BEGIN("port list");
 
-   p_interface_list(C_SIGNAL, parent, tree_add_port);
+   p_interface_list(C_SIGNAL, parent, T_PORT_DECL);
 }
 
 static void p_port_clause(tree_t parent)
@@ -4165,7 +4173,7 @@ static void p_generic_list(tree_t parent)
 
    BEGIN("generic list");
 
-   p_interface_list(C_CONSTANT, parent, tree_add_generic);
+   p_interface_list(C_CONSTANT, parent, T_GENERIC_DECL);
 }
 
 static void p_generic_clause(tree_t parent)
@@ -5161,7 +5169,7 @@ static tree_t p_subprogram_specification(void)
       tree_set_flag(t, TREE_F_IMPURE);
 
    if (optional(tLPAREN)) {
-      p_interface_list(C_CONSTANT, t, tree_add_port);
+      p_interface_list(C_CONSTANT, t, T_PORT_DECL);
       consume(tRPAREN);
 
       const int nports = tree_ports(t);

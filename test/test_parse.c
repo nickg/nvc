@@ -37,7 +37,7 @@ START_TEST(test_entity)
    input_from_file(TESTDIR "/parse/entity.vhd");
 
    const error_t expect[] = {
-      { 39, "invalid object class for generic" },
+      { 39, "invalid object class signal for generic X" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -122,7 +122,7 @@ START_TEST(test_entity)
    fail_unless(tree_generics(e) == 2);
 
    g = tree_generic(e, 0);
-   fail_unless(tree_kind(g) == T_PORT_DECL);
+   fail_unless(tree_kind(g) == T_GENERIC_DECL);
    fail_unless(tree_ident(g) == ident_new("X"));
    t = tree_type(g);
    fail_unless(type_kind(t) == T_ENUM);
@@ -130,7 +130,7 @@ START_TEST(test_entity)
    fail_if(tree_has_value(p));
 
    g = tree_generic(e, 1);
-   fail_unless(tree_kind(g) == T_PORT_DECL);
+   fail_unless(tree_kind(g) == T_GENERIC_DECL);
    fail_unless(tree_ident(g) == ident_new("Y"));
    t = tree_type(g);
    fail_unless(type_kind(t) == T_INTEGER);
@@ -183,7 +183,7 @@ START_TEST(test_entity)
    fail_unless(tree_generics(e) == 1);
 
    g = tree_generic(e, 0);
-   fail_unless(tree_kind(g) == T_PORT_DECL);
+   fail_unless(tree_kind(g) == T_GENERIC_DECL);
    fail_unless(tree_class(g) == C_SIGNAL);
 
    e = parse();

@@ -282,6 +282,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_PACK_INST
    (I_IDENT | I_REF | I_DECLS | I_CONTEXT | I_GENERICS | I_GENMAPS),
+
+   // T_GENERIC_DECL
+   (I_IDENT | I_VALUE | I_TYPE | I_CLASS | I_SUBKIND | I_FLAGS),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -313,7 +316,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_IMPLICIT_SIGNAL", "T_DISCONNECT",      "T_GROUP_TEMPLATE",
    "T_GROUP",           "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN",
    "T_CONV_FUNC",       "T_CONCURRENT",      "T_SEQUENCE",
-   "T_PACK_INST",
+   "T_PACK_INST",       "T_GENERIC_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -380,7 +383,7 @@ static tree_kind_t decl_kinds[] = {
    T_GENVAR,     T_HIER,           T_SPEC,         T_BINDING,
    T_USE,        T_PROT_BODY,      T_BLOCK_CONFIG, T_IMPLICIT_SIGNAL,
    T_DISCONNECT, T_GROUP_TEMPLATE, T_GROUP,        T_SUBTYPE_DECL,
-   T_PACKAGE,    T_PACK_BODY,      T_PACK_INST
+   T_PACKAGE,    T_PACK_BODY,      T_PACK_INST,    T_GENERIC_DECL,
 };
 
 object_class_t tree_object = {
@@ -398,37 +401,30 @@ object_class_t tree_object = {
 
 object_arena_t *global_arena = NULL;
 
-static bool tree_kind_in(tree_t t, const tree_kind_t *list, size_t len)
-{
-   for (size_t i = 0; i < len; i++) {
-      if (t->object.kind == list[i])
-         return true;
-   }
-
-   return false;
-}
-
 static void tree_assert_kind(tree_t t, const tree_kind_t *list, size_t len,
                              const char *what)
 {
-   LCOV_EXCL_START
-   if (unlikely(!tree_kind_in(t, list, len)))
-      fatal_trace("tree kind %s is not %s",
-                  tree_kind_str(t->object.kind), what);
-   LCOV_EXCL_STOP
+#ifndef NDEBUG
+   for (size_t i = 0; i < len; i++) {
+      if (t->object.kind == list[i])
+         return;
+   }
+
+   fatal_trace("tree kind %s is not %s", tree_kind_str(t->object.kind), what);
+#endif
 }
 
-static void tree_assert_stmt(tree_t t)
+static inline void tree_assert_stmt(tree_t t)
 {
    tree_assert_kind(t, stmt_kinds, ARRAY_LEN(stmt_kinds), "a statement");
 }
 
-static void tree_assert_expr(tree_t t)
+static inline void tree_assert_expr(tree_t t)
 {
    tree_assert_kind(t, expr_kinds, ARRAY_LEN(expr_kinds), "an expression");
 }
 
-static void tree_assert_decl(tree_t t)
+static inline void tree_assert_decl(tree_t t)
 {
    tree_assert_kind(t, decl_kinds, ARRAY_LEN(decl_kinds), "a declaration");
 }
@@ -565,7 +561,7 @@ tree_t tree_generic(tree_t t, unsigned n)
 
 void tree_add_generic(tree_t t, tree_t d)
 {
-   tree_assert_decl(d);
+   assert(d->object.kind == T_GENERIC_DECL);
    tree_array_add(lookup_item(&tree_object, t, I_GENERICS), d);
    object_write_barrier(&(t->object), &(d->object));
 }

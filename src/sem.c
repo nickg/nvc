@@ -43,7 +43,6 @@ static bool sem_check_same_type(tree_t left, tree_t right);
 static bool sem_check_type(tree_t t, type_t expect);
 static bool sem_static_name(tree_t t, static_fn_t check_fn);
 static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab);
-static bool sem_check_generics(tree_t t);
 static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab);
 static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab);
 
@@ -819,6 +818,35 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
+{
+   type_t type = tree_type(t);
+
+   if (!sem_check_subtype(t, type, tab))
+      return false;
+
+   if (tree_class(t) != C_CONSTANT)
+      sem_error(t, "invalid object class %s for generic %s",
+                class_str(tree_class(t)), istr(tree_ident(t)));
+
+   if (!sem_no_access_file_or_protected(t, type, "generics"))
+      return false;
+
+   if (tree_has_value(t)) {
+      tree_t value = tree_value(t);
+      if (!sem_check(value, tab))
+         return false;
+
+      if (!sem_check_type(value, type))
+         sem_error(value, "type of default value %s does not match type "
+                   "of declaration %s", type_pp(tree_type(value)),
+                   type_pp(type));
+   }
+
+   tree_set_flag(t, TREE_F_ELAB_COPY);
+   return true;
+}
+
 static bool sem_check_field_decl(tree_t t)
 {
    return true;
@@ -1173,9 +1201,6 @@ static bool sem_check_package(tree_t t, nametab_t *tab)
    if (!sem_check_context_clause(t, tab))
       return false;
 
-   if (!sem_check_generics(t))
-      return false;
-
    if (tree_genmaps(t) > 0 && !sem_check_generic_map(t, t, tab))
       return false;
 
@@ -1282,25 +1307,6 @@ static bool sem_check_pack_body(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_generics(tree_t t)
-{
-   bool ok = true;
-
-   const int ngenerics = tree_generics(t);
-   for (int n = 0; n < ngenerics; n++) {
-      tree_t g = tree_generic(t, n);
-
-      if (tree_class(g) != C_CONSTANT)
-         sem_error(g, "invalid object class for generic");
-
-      tree_set_flag(g, TREE_F_ELAB_COPY);
-
-      ok &= sem_no_access_file_or_protected(g, tree_type(g), "generics");
-   }
-
-   return ok;
-}
-
 static bool sem_check_ports(tree_t t)
 {
    bool ok = true;
@@ -1322,9 +1328,6 @@ static bool sem_check_ports(tree_t t)
 
 static bool sem_check_component(tree_t t)
 {
-   if (!sem_check_generics(t))
-      return false;
-
    if (!sem_check_ports(t))
       return false;
 
@@ -1334,9 +1337,6 @@ static bool sem_check_component(tree_t t)
 static bool sem_check_entity(tree_t t, nametab_t *tab)
 {
    if (!sem_check_context_clause(t, tab))
-      return false;
-
-   if (!sem_check_generics(t))
       return false;
 
    if (!sem_check_ports(t))
@@ -2562,6 +2562,7 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_FUNC_DECL:
    case T_FUNC_BODY:
    case T_IMPLICIT_SIGNAL:
+   case T_GENERIC_DECL:
       break;
 
    default:
@@ -2765,12 +2766,12 @@ static bool sem_is_named_entity(tree_t t)
    tree_t decl = tree_ref(t);
 
    switch (tree_kind(decl)) {
-   case T_SIGNAL_DECL:  case T_VAR_DECL:    case T_PORT_DECL:
-   case T_ALIAS:        case T_ENTITY:      case T_ARCH:
-   case T_PACKAGE:      case T_PACK_BODY:   case T_BLOCK:
-   case T_FILE_DECL:    case T_CONST_DECL:  case T_FUNC_DECL:
-   case T_FUNC_BODY:    case T_PROC_DECL:   case T_PROC_BODY:
-   case T_PROCESS:
+   case T_SIGNAL_DECL:  case T_VAR_DECL:     case T_PORT_DECL:
+   case T_ALIAS:        case T_ENTITY:       case T_ARCH:
+   case T_PACKAGE:      case T_PACK_BODY:    case T_BLOCK:
+   case T_FILE_DECL:    case T_CONST_DECL:   case T_FUNC_DECL:
+   case T_FUNC_BODY:    case T_PROC_DECL:    case T_PROC_BODY:
+   case T_PROCESS:      case T_GENERIC_DECL:
       return true;
    case T_IMPLICIT_SIGNAL:
       return tree_subkind(decl) == IMPLICIT_GUARD;   // See LRM 93 section 4.3
@@ -3550,10 +3551,9 @@ static bool sem_locally_static(tree_t t)
             && sem_locally_static(value);
       }
       else if ((standard() >= STD_08 || (relax_rules() & RELAX_LOCALLY_STATIC))
-               && dkind == T_PORT_DECL) {
+               && dkind == T_GENERIC_DECL) {
          // [2008] A generic reference with a locally static subtype
-         return tree_class(decl) == C_CONSTANT
-            && sem_subtype_locally_static(tree_type(decl));
+         return sem_subtype_locally_static(tree_type(decl));
       }
    }
 
@@ -3696,6 +3696,7 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          case T_BLOCK:
          case T_ENUM_LIT:
          case T_IMPLICIT_SIGNAL:
+         case T_GENERIC_DECL:
             return true;
          case T_ALIAS:
             return sem_static_name(tree_value(decl), check_fn);
@@ -3759,13 +3760,9 @@ static bool sem_globally_static(tree_t t)
 
    if (kind == T_REF) {
       tree_t decl = tree_ref(t);
-      tree_kind_t decl_kind = tree_kind(decl);
-      if ((decl_kind == T_PORT_DECL) && (tree_class(decl) == C_CONSTANT))
-         return true;
-      else if (decl_kind == T_GENVAR)
-         return true;
-      else if (decl_kind == T_CONST_DECL)
-         return true;
+      const tree_kind_t decl_kind = tree_kind(decl);
+      return decl_kind == T_GENERIC_DECL || decl_kind == T_GENVAR
+         || decl_kind == T_CONST_DECL;
    }
 
    // An alias whose aliased name is globally static
@@ -4025,9 +4022,6 @@ static bool sem_check_for(tree_t t, nametab_t *tab)
 
 static bool sem_check_block(tree_t t, nametab_t *tab)
 {
-   if (!sem_check_generics(t))
-      return false;
-
    if (!sem_check_ports(t))
       return false;
 
@@ -4384,6 +4378,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_subtype_decl(t, tab);
    case T_PORT_DECL:
       return sem_check_port_decl(t, tab);
+   case T_GENERIC_DECL:
+      return sem_check_generic_decl(t, tab);
    case T_SIGNAL_DECL:
    case T_VAR_DECL:
    case T_CONST_DECL:

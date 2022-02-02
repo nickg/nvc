@@ -971,6 +971,7 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
    case T_ALIAS:
    case T_PORT_DECL:
    case T_CONST_DECL:
+   case T_GENERIC_DECL:
       {
          int hops, obj = lower_search_vcode_obj(decl, top_scope, &hops);
          if (obj == -1)
@@ -990,7 +991,9 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
 
          vcode_state_restore(&state);
 
-         if (tree_kind(decl) != T_PORT_DECL && var_name == tree_ident2(decl))
+         const tree_kind_t dkind = tree_kind(decl);
+         if (dkind != T_PORT_DECL && dkind != T_GENERIC_DECL
+             && var_name == tree_ident2(decl))
             return lower_wrap_string(package_signal_path_name(var_name));
          else {
             ident_t suffix = ident_downcase(tree_ident(decl));
@@ -2013,6 +2016,7 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
       return lower_var_ref(decl, ctx);
 
    case T_PORT_DECL:
+   case T_GENERIC_DECL:
       return lower_param_ref(decl, ctx);
 
    case T_SIGNAL_DECL:

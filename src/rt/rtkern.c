@@ -1023,6 +1023,9 @@ void __nvc_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
    case T_PORT_DECL:
       tb_printf(tb, " for parameter %s", istr(tree_ident(hint)));
       break;
+   case T_GENERIC_DECL:
+      tb_printf(tb, " for generic %s", istr(tree_ident(hint)));
+      break;
    case T_ATTR_REF:
       tb_printf(tb, " for attribute '%s", istr(tree_ident(hint)));
       break;
@@ -1038,17 +1041,24 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
                        DEBUG_LOCUS(locus))
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+   const tree_kind_t kind = tree_kind(where);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   tb_printf(tb, "%s length %d",
-             tree_kind(where) == T_PORT_DECL ? "actual" : "value", right);
+   if (kind == T_PORT_DECL || kind == T_GENERIC_DECL)
+      tb_cat(tb, "actual");
+   else
+      tb_cat(tb, "value");
+   tb_printf(tb, " length %d", right);
    if (dim > 0)
       tb_printf(tb, " for dimension %d", dim);
    tb_cat(tb, " does not match ");
 
-   switch (tree_kind(where)) {
+   switch (kind) {
    case T_PORT_DECL:
       tb_printf(tb, "formal parameter %s", istr(tree_ident(where)));
+      break;
+   case T_GENERIC_DECL:
+      tb_printf(tb, "generic %s", istr(tree_ident(where)));
       break;
    case T_VAR_DECL:
       tb_printf(tb, "variable %s", istr(tree_ident(where)));
