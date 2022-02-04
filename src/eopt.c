@@ -29,6 +29,7 @@
 #include <ctype.h>
 
 #define COLLAPSE_PORTS 1
+#define BIG_ARRAY      100
 
 static e_node_t      root = NULL;
 static cprop_vars_t *cprop_vars = NULL;
@@ -45,8 +46,19 @@ static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
                               unsigned stride, eopt_nexus_fn_t callback,
                               void *context)
 {
-   const unsigned total_length = stride > 0 ? e_width(signal) : 0;
-   unsigned o = 0, nnexus = e_nexuses(signal), pos = 0;
+   unsigned nnexus = e_nexuses(signal), total = 0;
+   if (stride > 0) {
+      total = e_width(signal);
+
+      if (total / stride > BIG_ARRAY && nnexus == 1 && stride % count == 0) {
+         // Eagerly chunk up large arrays now to reduce time spent in
+         // the loop below
+         e_chunk_nexus(root, e_nexus(signal, 0), count);
+         nnexus = e_nexuses(signal);
+      }
+   }
+
+   unsigned o = 0, pos = 0;
    do {
       // Walk backwards to find the correct place to start splitting
       while (o > offset)
@@ -94,7 +106,7 @@ static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
       assert(search == o || remain == 0);
 
       offset += stride;
-   } while (offset < total_length);
+   } while (offset < total);
 }
 
 static void eopt_nexus_add_driver_cb(e_node_t nexus, void *__ctx)

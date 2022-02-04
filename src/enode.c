@@ -89,7 +89,8 @@ static inline void e_array_add(item_t *item, e_node_t e)
    APUSH(item->obj_array, &(e->object));
 }
 
-static inline void e_array_insert(item_t *item, e_node_t after, e_node_t new)
+static inline void e_array_insert_many(item_t *item, e_node_t after,
+                                       e_node_t *new, size_t count)
 {
    unsigned opos = 0;
    for (; opos < item->obj_array.count; opos++) {
@@ -98,15 +99,24 @@ static inline void e_array_insert(item_t *item, e_node_t after, e_node_t new)
    }
    assert(opos != item->obj_array.count);
 
-   if (opos + 1 == item->obj_array.count)
-      APUSH(item->obj_array, &(new->object));
-   else {
-      ARESIZE(item->obj_array, item->obj_array.count + 1);
-      memmove(item->obj_array.items + opos + 1,
-              item->obj_array.items + opos,
-              (item->obj_array.count - 1 - opos) * sizeof(object_t*));
-      item->obj_array.items[opos + 1] = &(new->object);
+   if (opos + 1 == item->obj_array.count) {
+      for (size_t i = 0; i < count; i++)
+         APUSH(item->obj_array, &(new[i]->object));
    }
+   else {
+      ARESIZE(item->obj_array, item->obj_array.count + count);
+      memmove(item->obj_array.items + opos + count,
+              item->obj_array.items + opos,
+              (item->obj_array.count - count - opos) * sizeof(object_t*));
+      for (size_t i = 0; i < count; i++)
+         item->obj_array.items[opos + i + 1] = &(new[i]->object);
+   }
+}
+
+static inline void e_array_insert(item_t *item, e_node_t after, e_node_t new)
+{
+   e_node_t list[] = { new };
+   e_array_insert_many(item, after, list, 1);
 }
 
 e_node_t e_new(e_kind_t kind)
@@ -430,38 +440,9 @@ static void e_clone_port(e_node_t p, e_node_t from, e_node_t to)
    e_add_output(from, p2);
 }
 
-e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)
+static void e_clone_nexus(e_node_t root, e_node_t orig, e_node_t new,
+                          unsigned width)
 {
-   assert(root->object.kind == E_ROOT);
-   assert(orig->object.kind == E_NEXUS);
-   assert(width > 0);
-
-   const unsigned owidth = e_width(orig);
-   assert(width < owidth);
-
-   e_node_t new = e_new(E_NEXUS);
-   e_set_ident(new, e_ident(orig));
-   e_set_width(new, owidth - width);
-   e_set_size(new, e_size(orig));
-
-   e_array_insert(lookup_item(&e_node_object, root, I_NEXUS), orig, new);
-
-   const int nsignals = e_signals(orig);
-   for (int i = 0; i < nsignals; i++) {
-      e_node_t s = e_signal(orig, i);
-      e_add_signal(new, s);
-      e_array_insert(lookup_item(&e_node_object, s, I_NEXUS), orig, new);
-   }
-
-   const int ntriggers = e_triggers(orig);
-   for (int i = 0; i < ntriggers; i++) {
-      e_node_t t = e_trigger(orig, i);
-      e_add_trigger(new, t);
-      e_array_insert(lookup_item(&e_node_object, t, I_TRIGGERS), orig, new);
-   }
-
-   e_set_width(orig, width);
-
    const int nsources = e_sources(orig);
    for (int i = 0; i < nsources; i++) {
       e_node_t p = e_source(orig, i);
@@ -505,6 +486,41 @@ e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)
       else
          assert(e_width(to) == width);  // Cycle breaking
    }
+}
+
+e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)
+{
+   assert(root->object.kind == E_ROOT);
+   assert(orig->object.kind == E_NEXUS);
+   assert(width > 0);
+
+   const unsigned owidth = e_width(orig);
+   assert(width < owidth);
+
+   e_node_t new = e_new(E_NEXUS);
+   e_set_ident(new, e_ident(orig));
+   e_set_width(new, owidth - width);
+   e_set_size(new, e_size(orig));
+
+   e_set_width(orig, width);
+
+   e_array_insert(lookup_item(&e_node_object, root, I_NEXUS), orig, new);
+
+   const int nsignals = e_signals(orig);
+   for (int i = 0; i < nsignals; i++) {
+      e_node_t s = e_signal(orig, i);
+      e_add_signal(new, s);
+      e_array_insert(lookup_item(&e_node_object, s, I_NEXUS), orig, new);
+   }
+
+   const int ntriggers = e_triggers(orig);
+   for (int i = 0; i < ntriggers; i++) {
+      e_node_t t = e_trigger(orig, i);
+      e_add_trigger(new, t);
+      e_array_insert(lookup_item(&e_node_object, t, I_TRIGGERS), orig, new);
+   }
+
+   e_clone_nexus(root, orig, new, width);
 
    return new;
 }
@@ -585,6 +601,60 @@ void e_add_driver(e_node_t proc, e_node_t nexus)
 
    e_add_nexus(proc, nexus);
    e_add_source(nexus, proc);
+}
+
+void e_chunk_nexus(e_node_t root, e_node_t nexus, unsigned count)
+{
+   assert(nexus->object.kind == E_NEXUS);
+
+   const int width = e_width(nexus);
+   assert(width >= count);
+
+   const int nchunks = (width + count - 1) / count;
+
+   e_set_width(nexus, count);
+
+   e_node_t *new LOCAL = xmalloc_array(nchunks - 1, sizeof(e_node_t));
+
+   const int nsignals = e_signals(nexus);
+   const int ntriggers = e_triggers(nexus);
+
+   e_node_t *signals LOCAL = xmalloc_array(nsignals, sizeof(e_node_t));
+   e_node_t *triggers LOCAL = xmalloc_array(ntriggers, sizeof(e_node_t));
+
+   for (int i = 0; i < nsignals; i++)
+      signals[i] = e_signal(nexus, i);
+
+   for (int i = 0; i < ntriggers; i++)
+      triggers[i] = e_trigger(nexus, i);
+
+   for (int i = 0; i < nchunks - 1; i++) {
+      new[i] = e_new(E_NEXUS);
+      e_set_ident(new[i], e_ident(nexus));
+      e_set_width(new[i], count);
+      e_set_size(new[i], e_size(nexus));
+
+      for (int j = 0; j < nsignals; j++)
+         e_add_signal(new[i], signals[j]);
+
+      for (int j = 0; j < ntriggers; j++)
+         e_add_trigger(new[i], triggers[j]);
+
+      e_clone_nexus(root, nexus, new[i], count);
+   }
+
+   item_t *item = lookup_item(&e_node_object, root, I_NEXUS);
+   e_array_insert_many(item, nexus, new, nchunks - 1);
+
+   for (int i = 0; i < nsignals; i++) {
+      item_t *item = lookup_item(&e_node_object, signals[i], I_NEXUS);
+      e_array_insert_many(item, nexus, new, nchunks - 1);
+   }
+
+   for (int i = 0; i < ntriggers; i++) {
+      item_t *item = lookup_item(&e_node_object, triggers[i], I_TRIGGERS);
+      e_array_insert_many(item, nexus, new, nchunks - 1);
+   }
 }
 
 void e_clean_nexus_array(e_node_t root)

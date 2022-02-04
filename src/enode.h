@@ -55,10 +55,11 @@ void e_write(e_node_t e, fbuf_t *fbuf, ident_wr_ctx_t ident_ctx,
 e_node_t e_read(fbuf_t *fbuf, ident_rd_ctx_t ident_ctx, loc_rd_ctx_t *loc_ctx);
 
 e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width);
-void e_add_driver(e_node_t e, e_node_t nexus);
+void e_add_driver(e_node_t proc, e_node_t nexus);
 void e_clean_nexus_array(e_node_t root);
 void e_collapse_port(e_node_t root, unsigned pos, e_node_t old, e_node_t port);
 bool e_contiguous(e_node_t root, e_node_t signal);
+void e_chunk_nexus(e_node_t root, e_node_t nexus, unsigned count);
 
 const loc_t *e_loc(e_node_t e);
 void e_set_loc(e_node_t e, const loc_t *loc);
