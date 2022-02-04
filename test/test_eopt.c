@@ -124,11 +124,6 @@ static int check_eopt(e_node_t e)
          nerrors++;
       }
 
-      if (e_pos(e) == NEXUS_POS_INVALID) {
-         printf("nexus with invalid id %s\n", istr(e_ident(e)));
-         nerrors++;
-      }
-
       const int nsignals = e_signals(e);
       for (int i = 0; i < nsignals; i++) {
          e_node_t s = e_signal(e, i);

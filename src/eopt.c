@@ -566,7 +566,6 @@ static void eopt_nexus_for_type(e_node_t signal, type_t type, ident_t field)
    }
    else {
       e_node_t n = e_new(E_NEXUS);
-      e_set_pos(n, NEXUS_POS_INVALID);
       e_set_ident(n, ident_prefix(e_path(signal), field, '.'));
       e_set_width(n, type_width(type));
       e_add_signal(n, signal);

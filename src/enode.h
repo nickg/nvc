@@ -44,8 +44,6 @@ typedef enum {
    E_F_BUFFER     = (1 << 6),
 } e_flags_t;
 
-#define NEXUS_POS_INVALID ~0u
-
 e_node_t e_new(e_kind_t kind);
 e_kind_t e_kind(e_node_t e);
 const char *e_kind_str(e_kind_t t);
@@ -66,10 +64,6 @@ void e_set_loc(e_node_t e, const loc_t *loc);
 
 ident_t e_ident(e_node_t e);
 void e_set_ident(e_node_t e, ident_t i);
-
-unsigned e_pos(e_node_t e);
-void e_set_pos(e_node_t e, unsigned pos);
-bool e_has_pos(e_node_t e);
 
 e_flags_t e_flags(e_node_t e);
 void e_set_flag(e_node_t e, e_flags_t mask);

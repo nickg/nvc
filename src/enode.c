@@ -39,8 +39,7 @@ static const imask_t has_map[E_LAST_NODE_KIND] = {
     | I_TRIGGERS),
 
    // E_NEXUS
-   (I_IDENT | I_IVAL | I_SIGNALS | I_POS | I_SIZE | I_SOURCES | I_OUTPUTS
-    | I_TRIGGERS),
+   (I_IDENT | I_IVAL | I_SIGNALS | I_SIZE | I_SOURCES | I_OUTPUTS | I_TRIGGERS),
 
    // E_PORT
    (I_IDENT | I_NEXUS | I_FLAGS),
@@ -189,23 +188,6 @@ void e_add_dep(e_node_t e, ident_t i)
 {
    item_t *item = lookup_item(&e_node_object, e, I_DEPS);
    APUSH(item->ident_array, i);
-}
-
-unsigned e_pos(e_node_t e)
-{
-   item_t *item = lookup_item(&e_node_object, e, I_POS);
-   assert(item->ival != NEXUS_POS_INVALID);
-   return item->ival;
-}
-
-void e_set_pos(e_node_t e, unsigned pos)
-{
-   lookup_item(&e_node_object, e, I_POS)->ival = pos;
-}
-
-bool e_has_pos(e_node_t e)
-{
-   return lookup_item(&e_node_object, e, I_POS)->ival != NEXUS_POS_INVALID;
 }
 
 e_flags_t e_flags(e_node_t e)
@@ -458,7 +440,6 @@ e_node_t e_split_nexus(e_node_t root, e_node_t orig, unsigned width)
    assert(width < owidth);
 
    e_node_t new = e_new(E_NEXUS);
-   e_set_pos(new, NEXUS_POS_INVALID);
    e_set_ident(new, e_ident(orig));
    e_set_width(new, owidth - width);
    e_set_size(new, e_size(orig));
@@ -598,14 +579,8 @@ void e_clean_nexus_array(e_node_t root)
    unsigned wptr = 0;
    for (unsigned i = 0; i < array->count; i++) {
       object_t *o = array->items[i];
-      if (o == NULL) continue;
-
-      e_node_t n = container_of(o, struct _e_node, object);
-      item_t *pos = lookup_item(&e_node_object, n, I_POS);
-      if (pos->ival == NEXUS_POS_INVALID) {
-         pos->ival = wptr;
+      if (o != NULL)
          array->items[wptr++] = o;
-      }
    }
 
    ATRIM(*array, wptr);
@@ -708,8 +683,6 @@ static void _e_dump(e_node_t e, int indent)
             e_node_t n = e_nexus(e, i);
             e_dump_indent(indent + 2);
             color_printf("$cyan$drives$$ %s", istr(e_ident(n)));
-            if (e_has_pos(n))
-               color_printf(" $cyan$id$$ %u", e_pos(n));
             color_printf(" $cyan$width$$ %u\n", e_width(n));
          }
 
@@ -743,12 +716,9 @@ static void _e_dump(e_node_t e, int indent)
             e_node_t n = e_nexus(e, i);
             if (nnexus != 1 || flags != 0) e_dump_indent(indent + 2);
             color_printf("$cyan$nexus$$ %s", istr(e_ident(n)));
-            if (nnexus != 1 || flags != 0 || e_width(n) != e_width(e)) {
-               if (e_kind(n) == E_NEXUS && e_has_pos(n))
-                  color_printf(" $cyan$id$$ %u", e_pos(n));
+            if (nnexus != 1 || flags != 0 || e_width(n) != e_width(e))
                color_printf(" $cyan$width$$ %u $cyan$size$$ %u",
                             e_width(n), e_size(n));
-            }
             printf("\n");
          }
 
@@ -769,8 +739,6 @@ static void _e_dump(e_node_t e, int indent)
    case E_NEXUS:
       {
          color_printf("$cyan$nexus$$ %s", istr(e_ident(e)));
-         if (e_has_pos(e))
-            color_printf(" $cyan$id$$ %u", e_pos(e));
          color_printf(" $cyan$width$$ %u $cyan$size$$ %u\n",
                       e_width(e), e_size(e));
 
