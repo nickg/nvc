@@ -5215,6 +5215,8 @@ static void lower_image_helper(tree_t decl)
    emit_function(func, tree_loc(decl), vcode_active_unit());
    emit_debug_info(tree_loc(decl));
 
+   lower_push_scope(NULL);
+
    vcode_type_t ctype = vtype_char();
    vcode_type_t strtype = vtype_uarray(1, ctype, ctype);
    vcode_set_result(strtype);
@@ -5242,6 +5244,7 @@ static void lower_image_helper(tree_t decl)
    }
 
    lower_finished();
+   lower_pop_scope();
    vcode_state_restore(&state);
 }
 
@@ -5570,6 +5573,8 @@ static void lower_value_helper(tree_t decl)
    emit_function(func, tree_loc(decl), vcode_active_unit());
    vcode_set_result(lower_type(type));
 
+   lower_push_scope(NULL);
+
    vcode_type_t vcontext = vtype_context(context_id);
    emit_param(vcontext, vcontext, ident_new("context"));
 
@@ -5597,6 +5602,7 @@ static void lower_value_helper(tree_t decl)
    emit_return(emit_cast(lower_type(type), lower_bounds(type), result));
 
    lower_finished();
+   lower_pop_scope();
    vcode_state_restore(&state);
 }
 

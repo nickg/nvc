@@ -4345,6 +4345,16 @@ START_TEST(test_osvvm2)
 }
 END_TEST
 
+START_TEST(test_issue444)
+{
+   input_from_file(TESTDIR "/lower/issue444.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4441,6 +4451,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_concat);
    tcase_add_test(tc, test_nullarray);
    tcase_add_test(tc, test_osvvm2);
+   tcase_add_test(tc, test_issue444);
    suite_add_tcase(s, tc);
 
    return s;
