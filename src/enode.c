@@ -611,6 +611,39 @@ void e_clean_nexus_array(e_node_t root)
    ATRIM(*array, wptr);
 }
 
+bool e_contiguous(e_node_t root, e_node_t signal)
+{
+   assert(root->object.kind == E_ROOT);
+   assert(signal->object.kind == E_SIGNAL || signal->object.kind == E_IMPLICIT);
+
+   obj_array_t *nexus =
+      &(lookup_item(&e_node_object, signal, I_NEXUS)->obj_array);
+
+   if (nexus->count == 0)
+      return false;  // Null signal not marked as contiguous
+   else if (nexus->count == 1)
+      return true;
+
+   obj_array_t *all =
+      &(lookup_item(&e_node_object, root, I_NEXUS)->obj_array);
+
+   object_t *first = nexus->items[0];
+
+   unsigned pos = 0;
+   for (; pos < all->count; pos++) {
+      if (all->items[pos] == first)
+         break;
+   }
+   assert(pos != all->count);
+
+   for (unsigned i = 1; i < nexus->count; i++) {
+      if (nexus->items[i] != all->items[pos + i])
+         return false;
+   }
+
+   return true;
+}
+
 static void e_dump_indent(int indent)
 {
   for (int i = 0; i < indent; i++)

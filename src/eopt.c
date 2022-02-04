@@ -908,29 +908,15 @@ static void eopt_post_process_nexus(e_node_t root)
    e_clean_nexus_array(root);
 }
 
-static void eopt_post_process_signal(e_node_t e)
-{
-   const int nnexus = e_nexuses(e);
-   bool contig = nnexus > 0;   // Null signal not marked as contiguous
-   if (nnexus > 1) {
-      unsigned last_pos = e_pos(e_nexus(e, 0));
-      for (int i = 1; contig && i < nnexus; i++) {
-         const unsigned pos = e_pos(e_nexus(e, i));
-         if (pos != last_pos + 1)
-            contig = false;
-         last_pos = pos;
-      }
-   }
-
-   if (contig) e_set_flag(e, E_F_CONTIGUOUS);
-}
-
 static void eopt_post_process_scopes(e_node_t e)
 {
    if (e_kind(e) == E_SCOPE) {
       const int nsignals = e_signals(e);
-      for (int i = 0; i < nsignals; i++)
-         eopt_post_process_signal(e_signal(e, i));
+      for (int i = 0; i < nsignals; i++) {
+         e_node_t s = e_signal(e, i);
+         if (e_contiguous(root, s))
+            e_set_flag(s, E_F_CONTIGUOUS);
+      }
    }
 
    const int nscopes = e_scopes(e);
