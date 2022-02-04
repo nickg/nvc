@@ -117,4 +117,13 @@ begin
     i6: component c
         generic map ( "not"(x) => "101" );  -- Error
 
+    i7: component c
+        generic map ( i6 );             -- Error
+
+    i8: component c
+        generic map ( a );              -- Error
+
+    i9: component c
+        generic map ( std.standard );   -- Error
+
 end architecture;

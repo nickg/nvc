@@ -2879,8 +2879,10 @@ static tree_t p_selected_name(tree_t prefix)
             tree_set_type(dummy, type_new(T_NONE));
             return dummy;
          }
-         else
+         else if (peek() == tDOT)
             return unit;
+         else
+            return external_reference(unit);
       }
 
    case T_PACKAGE:

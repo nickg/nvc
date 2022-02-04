@@ -482,6 +482,7 @@ class_t class_of(tree_t t)
    case T_PROCESS:
    case T_BLOCK:
    case T_FOR:
+   case T_INSTANCE:
       return C_LABEL;
    case T_COMPONENT:
       return C_COMPONENT;

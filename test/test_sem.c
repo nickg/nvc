@@ -513,6 +513,9 @@ START_TEST(test_generics)
       { 115, "unexpected integer while parsing name" },
       { 118, "invalid name in generic map" },
       { 117, "missing actual for generic X without a default expression" },
+      { 121, "invalid use of label I6" },
+      { 124, "invalid use of architecture A" },
+      { 127, "invalid use of package STD.STANDARD" },
       {  86, "missing body for function F [BIT_VECTOR return INTEGER]" },
       { -1, NULL }
    };
