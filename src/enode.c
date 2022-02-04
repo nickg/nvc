@@ -39,7 +39,7 @@ static const imask_t has_map[E_LAST_NODE_KIND] = {
     | I_TRIGGERS),
 
    // E_NEXUS
-   (I_IDENT | I_IVAL | I_SIGNALS | I_SIZE | I_SOURCES | I_OUTPUTS | I_TRIGGERS),
+   (I_IDENT | I_IVAL | I_SIGNALS | I_POS | I_SOURCES | I_OUTPUTS | I_TRIGGERS),
 
    // E_PORT
    (I_IDENT | I_NEXUS | I_FLAGS),
@@ -380,12 +380,12 @@ void e_set_width(e_node_t e, unsigned w)
 
 unsigned e_size(e_node_t e)
 {
-   return lookup_item(&e_node_object, e, I_SIZE)->ival;
+   return lookup_item(&e_node_object, e, I_POS)->ival;
 }
 
 void e_set_size(e_node_t e, unsigned s)
 {
-   lookup_item(&e_node_object, e, I_SIZE)->ival = s;
+   lookup_item(&e_node_object, e, I_POS)->ival = s;
 }
 
 bool e_has_vcode(e_node_t e)

@@ -91,7 +91,7 @@ typedef uint64_t imask_t;
 #define I_NEXUS      ONE_HOT(54)
 #define I_PATH       ONE_HOT(55)
 #define I_DEPS       ONE_HOT(56)
-#define I_SIZE       ONE_HOT(57)
+// Unused            ONE_HOT(57)
 #define I_VCODE      ONE_HOT(58)
 #define I_PRIMARY    ONE_HOT(59)
 #define I_SOURCES    ONE_HOT(60)
@@ -113,7 +113,7 @@ typedef uint64_t imask_t;
                           | I_NEXUS | I_SCOPES | I_SOURCES)
 #define ITEM_IDENT_ARRAY (I_DEPS)
 #define ITEM_INT64       (I_POS | I_IVAL)
-#define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS | I_SIZE)
+#define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
 #define ITEM_DOUBLE      (I_DVAL)
 
 enum {
