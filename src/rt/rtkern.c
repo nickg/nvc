@@ -296,7 +296,6 @@ static rt_run_queue_t   procq;
 static heap_t          *eventq_heap = NULL;
 static heap_t          *rankn_heap = NULL;
 static unsigned         n_scopes = 0;
-static unsigned         n_nexuses = 0;
 static uint64_t         now = 0;
 static int              iteration = -1;
 static bool             trace_on = false;
@@ -321,7 +320,7 @@ static callback_t      *global_cbs[RT_LAST_EVENT];
 static rt_severity_t    exit_severity = SEVERITY_ERROR;
 static bool             profiling = false;
 static rt_profile_t     profile;
-static rt_nexus_t      *nexuses = NULL;
+static hash_t          *nexuses = NULL;
 static cover_tagging_t *cover = NULL;
 static unsigned         highest_rank;
 
@@ -1911,7 +1910,7 @@ static rt_signal_t *rt_setup_signal(e_node_t e, unsigned *total_mem)
 
       const int ntriggers = e_triggers(e);
       for (int j = 0; j < ntriggers; j++) {
-         rt_nexus_t *n = &(nexuses[e_pos(e_trigger(e, j))]);
+         rt_nexus_t *n = hash_get(nexuses, e_trigger(e, j));
          rt_sched_event(&(n->pending), &(imp->wakeable), true);
       }
 
@@ -1931,7 +1930,7 @@ static rt_signal_t *rt_setup_signal(e_node_t e, unsigned *total_mem)
 
    unsigned offset = 0, nmdivide = 0;
    for (int j = 0; j < s->n_nexus; j++) {
-      rt_nexus_t *n = &(nexuses[e_pos(e_nexus(e, j))]);
+      rt_nexus_t *n = hash_get(nexuses, e_nexus(e, j));
       s->nexus[j] = n;
 
       unsigned o;
@@ -2042,7 +2041,7 @@ static void rt_setup_scopes_recur(e_node_t e, rt_scope_t *parent,
 
          const int nnexus = e_nexuses(p);
          for (int j = 0; j < nnexus; j++) {
-            rt_nexus_t *n = &(nexuses[e_pos(e_nexus(p, j))]);
+            rt_nexus_t *n = hash_get(nexuses, e_nexus(p, j));
             for (unsigned k = 0; k < n->n_sources; k++) {
                if (e_source(n->enode, k) == p)
                   n->sources[k].proc = r;
@@ -2051,7 +2050,7 @@ static void rt_setup_scopes_recur(e_node_t e, rt_scope_t *parent,
 
          const int ntriggers = e_triggers(p);
          for (int j = 0; j < ntriggers; j++) {
-            rt_nexus_t *n = &(nexuses[e_pos(e_trigger(p, j))]);
+            rt_nexus_t *n = hash_get(nexuses, e_trigger(p, j));
             rt_sched_event(&(n->pending), &(r->wakeable), true);
          }
 
@@ -2085,16 +2084,21 @@ static void rt_setup_nexus(e_node_t top)
 {
    assert(nexuses == NULL);
 
+   const unsigned n_nexuses = e_nexuses(top);
+   nexuses = hash_new(e_nexuses(top) * 2, true);
+
    // TODO: how to optimise this for cache locality?
 
-   n_nexuses = e_nexuses(top);
-   nexuses = xcalloc_array(n_nexuses, sizeof(rt_nexus_t));
+   rt_nexus_t *mem = xcalloc_array(n_nexuses, sizeof(rt_nexus_t));
    unsigned total_mem = n_nexuses * sizeof(rt_nexus_t);
 
    size_t resolved_size = 0;
    for (int i = 0; i < n_nexuses; i++) {
-      rt_nexus_t *n = &(nexuses[i]);
       e_node_t e = e_nexus(top, i);
+
+      rt_nexus_t *n = &(mem[i]);
+      hash_put(nexuses, e, n);
+
       n->enode     = e;
       n->width     = e_width(e);
       n->size      = e_size(e);
@@ -2145,7 +2149,7 @@ static void rt_setup_nexus(e_node_t top)
 
    uint8_t *nextp = resolved_mem;
    for (int i = 0; i < n_nexuses; i++) {
-      rt_nexus_t *n = &(nexuses[i]);
+      rt_nexus_t *n = &(mem[i]);
       if (i == 0) n->flags |= NET_F_OWNS_MEM;
       n->resolved = nextp;
       nextp += n->width * n->size;
@@ -2154,7 +2158,7 @@ static void rt_setup_nexus(e_node_t top)
       for (int j = 0; j < n->n_outputs; j++) {
          e_node_t p = e_output(n->enode, j);
          assert(e_nexus(p, 0) == n->enode);
-         rt_nexus_t *to = &(nexuses[e_pos(e_nexus(p, 1))]);
+         rt_nexus_t *to = hash_get(nexuses, e_nexus(p, 1));
 
          int to_src_id = 0;
          for (; to_src_id < to->n_sources; to_src_id++) {
@@ -2180,7 +2184,7 @@ static void rt_setup_nexus(e_node_t top)
       do {
          made_changes = false;
          for (int i = 0; i < n_nexuses; i++) {
-            rt_nexus_t *n = &(nexuses[i]);
+            rt_nexus_t *n = &(mem[i]);
             for (int j = 0; j < n->n_outputs; j++) {
                if (n->outputs[j]->output->rank <= n->rank) {
                   n->outputs[j]->output->rank = n->rank + 1;
@@ -2192,6 +2196,12 @@ static void rt_setup_nexus(e_node_t top)
       } while (made_changes);
 
       TRACE("highest rank is %u", highest_rank);
+   }
+
+   // Sort nexuses into initialisation order
+   for (int i = 0; i < n_nexuses; i++) {
+      rt_nexus_t *n = &(mem[i]);
+      heap_insert(rankn_heap, n->rank, n);
    }
 
    TRACE("allocated %u bytes for %d nexuses", total_mem, n_nexuses);
@@ -2550,11 +2560,9 @@ static void rt_initial(e_node_t top)
 
    init_side_effect = SIDE_EFFECT_ALLOW;
 
-   for (int rank = 0; rank <= highest_rank; rank++) {
-      for (unsigned i = 0; i < n_nexuses; i++) {
-         if (nexuses[i].rank == rank)
-            rt_driver_initial(&(nexuses[i]));
-      }
+   while (heap_size(rankn_heap) > 0) {
+      rt_nexus_t *n = heap_extract_min(rankn_heap);
+      rt_driver_initial(n);
    }
 
    TRACE("used %d bytes of global temporary stack", global_tmp_alloc);
@@ -3127,10 +3135,13 @@ static void rt_cleanup(e_node_t top)
    heap_free(rankn_heap);
    rankn_heap = NULL;
 
-   for (unsigned i = 0; i < n_nexuses; i++)
-      rt_cleanup_nexus(&(nexuses[i]));
+   hash_iter_t it = HASH_BEGIN;
+   const void *key;
+   void *value;
+   while (hash_iter(nexuses, &it, &key, &value))
+      rt_cleanup_nexus((rt_nexus_t *)value);
 
-   free(nexuses);
+   hash_free(nexuses);
    nexuses = NULL;
 
    for (unsigned i = 0; i < n_scopes; i++)
@@ -3178,18 +3189,19 @@ static bool rt_stop_now(uint64_t stop_time)
    }
 }
 
-static void rt_stats_print(void)
+static void rt_stats_print(e_node_t e)
 {
    nvc_rusage_t ru;
    nvc_rusage(&ru);
 
    if (profiling) {
+      const int nnexus = e_nexuses(e);
+
       LOCAL_TEXT_BUF tb = tb_new();
       tb_printf(tb, "Signals: %d  (%.1f%% contiguous)\n", profile.n_signals,
                 100.0f * ((float)profile.n_contig / profile.n_signals));
       tb_printf(tb, "Nexuses: %-5d      Simple signals: %d (1:%.1f)\n",
-                n_nexuses, profile.n_simple,
-                (double)profile.n_simple / n_nexuses);
+                nnexus, profile.n_simple, (double)profile.n_simple / nnexus);
       tb_printf(tb, "Mapping:  direct:%d search:%d divide:%d\n",
                 profile.nmap_direct, profile.nmap_search, profile.nmap_divide);
       tb_printf(tb, "Processes: %-5d    Scopes: %d\n",
@@ -3313,7 +3325,7 @@ void rt_end_of_tool(tree_t top, e_node_t e)
    jit_shutdown();
 
    if (opt_get_int(OPT_RT_STATS) || profiling)
-      rt_stats_print();
+      rt_stats_print(e);
 }
 
 void rt_run_sim(uint64_t stop_time)
