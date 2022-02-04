@@ -570,6 +570,23 @@ void e_collapse_port(e_node_t root, unsigned pos, e_node_t old, e_node_t port)
    lookup_item(&e_node_object, root, I_NEXUS)->obj_array.items[pos] = NULL;
 }
 
+void e_add_driver(e_node_t proc, e_node_t nexus)
+{
+   assert(proc->object.kind == E_PROCESS);
+   assert(nexus->object.kind == E_NEXUS);
+
+   obj_array_t *array =
+      &(lookup_item(&e_node_object, proc, I_NEXUS)->obj_array);
+
+   for (unsigned i = 0; i < array->count; i++) {
+      if (array->items[i] == &(nexus->object))
+         return;
+   }
+
+   e_add_nexus(proc, nexus);
+   e_add_source(nexus, proc);
+}
+
 void e_clean_nexus_array(e_node_t root)
 {
    assert(root->object.kind == E_ROOT);

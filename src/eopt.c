@@ -100,16 +100,7 @@ static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
 static void eopt_nexus_add_driver_cb(e_node_t nexus, void *__ctx)
 {
    e_node_t cursor = __ctx;
-
-   bool have = false;
-   const int np = e_nexuses(cursor);
-   for (int j = 0; !have && j < np; j++)
-      have = e_nexus(cursor, j) == nexus;
-
-   if (!have) {
-      e_add_nexus(cursor, nexus);
-      e_add_source(nexus, cursor);
-   }
+   e_add_driver(cursor, nexus);
 }
 
 static void eopt_add_static_trigger_cb(e_node_t nexus, void *__ctx)
