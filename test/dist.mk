@@ -52,6 +52,7 @@ EXTRA_DIST += \
 	test/elab/issue374.vhd \
 	test/elab/issue404.vhd \
 	test/elab/issue435.vhd \
+	test/elab/issue442.vhd \
 	test/elab/issue93.vhd \
 	test/elab/jcore1.vhd \
 	test/elab/libbind2.vhd \
@@ -160,6 +161,7 @@ EXTRA_DIST += \
 	test/lower/issue357.vhd \
 	test/lower/issue389.vhd \
 	test/lower/issue426.vhd \
+	test/lower/issue444.vhd \
 	test/lower/issue94.vhd \
 	test/lower/loop1.vhd \
 	test/lower/loop2.vhd \
@@ -242,6 +244,7 @@ EXTRA_DIST += \
 	test/parse/issue369.vhd \
 	test/parse/issue388.vhd \
 	test/parse/issue416.vhd \
+	test/parse/issue443.vhd \
 	test/parse/literal.vhd \
 	test/parse/loc.vhd \
 	test/parse/names.vhd \
@@ -836,6 +839,7 @@ EXTRA_DIST += \
 	test/regress/wait13.vhd \
 	test/regress/wait14.vhd \
 	test/regress/wait15.vhd \
+	test/regress/wait16.vhd \
 	test/regress/wait1.vhd \
 	test/regress/wait2.vhd \
 	test/regress/wait3.vhd \
