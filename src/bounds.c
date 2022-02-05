@@ -1208,8 +1208,11 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
    case T_CONST_DECL:
    case T_VAR_DECL:
    case T_PORT_DECL:
-   case T_GENERIC_DECL:
       bounds_check_decl(t);
+      break;
+   case T_GENERIC_DECL:
+      if (tree_class(t) == C_CONSTANT)
+         bounds_check_decl(t);
       break;
    case T_SIGNAL_ASSIGN:
       bounds_check_signal_assign(t);

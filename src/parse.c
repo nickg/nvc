@@ -1914,25 +1914,22 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
 {
    package_copy_ctx_t copy_ctx = {};
 
-   tree_t pack_copy = NULL, body_copy = NULL;
-   if (body == NULL) {
-      tree_t roots[] = { pack };
-      tree_copy(roots, 1, package_should_copy_tree,
-                package_should_copy_type,
-                package_tree_copy_cb, package_type_copy_cb,
-                &copy_ctx);
-      pack_copy = roots[0];
-   }
-   else {
+   SCOPED_A(tree_t) roots = AINIT;
+   APUSH(roots, pack);
+
+   if (body != NULL) {
       assert(tree_primary(body) == pack);
-      tree_t roots[] = { pack, body };
-      tree_copy(roots, 2, package_should_copy_tree,
-                package_should_copy_type,
-                package_tree_copy_cb, package_type_copy_cb,
-                &copy_ctx);
-      pack_copy = roots[0];
-      body_copy = roots[1];
+      APUSH(roots, body);
    }
+
+   tree_copy(roots.items, roots.count,
+             package_should_copy_tree,
+             package_should_copy_type,
+             package_tree_copy_cb, package_type_copy_cb,
+             &copy_ctx);
+
+   tree_t pack_copy = roots.items[0];
+   tree_t body_copy = body != NULL ? roots.items[1] : NULL;
 
    ident_t prefixes[] = { tree_ident(pack) };
    ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');

@@ -3651,7 +3651,11 @@ static bool sem_locally_static(tree_t t)
    if (kind == T_FCALL) {
       if (!tree_has_ref(t))
          return true;  // Suppress further errors
-      else if (!is_builtin(tree_subkind(tree_ref(t))))
+
+      tree_t decl = tree_ref(t);
+      if (tree_kind(decl) == T_GENERIC_DECL)
+         return false;   // Not known at this point
+      else  if (!is_builtin(tree_subkind(decl)))
          return false;
 
       bool all_static = true;

@@ -1922,17 +1922,23 @@ static vcode_reg_t lower_generic_ref(tree_t decl, expr_ctx_t ctx)
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(decl, top_scope, &hops);
 
-   if (var == VCODE_INVALID_VAR && vcode_unit_kind() == VCODE_UNIT_INSTANCE) {
-      // This can happen when a type contains a reference to a
-      // component generic. The elaborator does not currently rewrite
-      // it to point at the corresponding entity generic.
+   if (var == VCODE_INVALID_VAR) {
+      if (vcode_unit_kind() == VCODE_UNIT_INSTANCE) {
+         // This can happen when a type contains a reference to a
+         // component generic. The elaborator does not currently rewrite
+         // it to point at the corresponding entity generic.
 
-      var = vcode_find_var(tree_ident(decl));
-      assert(var != VCODE_INVALID_VAR);
-   }
-   else if (var == VCODE_INVALID_VAR) {
-      vcode_dump();
-      fatal_trace("missing variable for generic %s", istr(tree_ident(decl)));
+         var = vcode_find_var(tree_ident(decl));
+         assert(var != VCODE_INVALID_VAR);
+      }
+      else if (mode == LOWER_THUNK) {
+         emit_comment("Cannot resolve generic %s", istr(tree_ident(decl)));
+         return emit_undefined(lower_type(tree_type(decl)));
+      }
+      else {
+         vcode_dump();
+         fatal_trace("missing variable for generic %s", istr(tree_ident(decl)));
+      }
    }
 
    type_t type = tree_type(decl);
