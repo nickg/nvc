@@ -490,3 +490,4 @@ wait16          normal
 default2        normal
 vests39         normal
 libdir2         shell
+bounds29        fail,gold
