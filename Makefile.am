@@ -43,7 +43,6 @@ include lib/ieee.08/Makemodule.am
 include lib/vital/Makemodule.am
 include lib/synopsys/Makemodule.am
 include tools/Makemodule.am
-include www/Makemodule.am
 
 gtags:
 	find $(abs_srcdir) -name '*.[chl]' -print \
