@@ -1849,8 +1849,6 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
    // TODO: remove this....
    const bool is_entity_port =
       obj != VCODE_INVALID_VAR && !!(obj & 0x80000000);
-   const bool is_generic =
-      obj != VCODE_INVALID_VAR && !!(obj & 0x40000000);
    const bool is_proc_var =
       obj != VCODE_INVALID_VAR && !!(obj & 0x20000000);
 
@@ -1883,25 +1881,6 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
       else
          return sig_reg;
    }
-   else if (is_generic) {
-      type_t type = tree_type(decl);
-      vcode_var_t var = obj & 0x3fffffff;
-      if (hops > 0) {
-         vcode_reg_t ptr_reg = emit_var_upref(hops, var);
-         if (type_is_scalar(type))
-            return emit_load_indirect(ptr_reg);
-         else if (type_is_array(type) && !lower_const_bounds(type))
-            return emit_load_indirect(ptr_reg);
-         else
-            return ptr_reg;
-      }
-      else if (type_is_array(type) && lower_const_bounds(type))
-         return emit_index(var, VCODE_INVALID_REG);
-      else if (type_is_record(type) || type_is_protected(type))
-         return emit_index(var, VCODE_INVALID_REG);
-      else
-         return emit_load(var);
-   }
    else if (hops > 0) {
       // Reference to parameter in parent subprogram
       return emit_load_indirect(emit_var_upref(hops, obj & 0x1fffffff));
@@ -1928,24 +1907,6 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
                return emit_undefined(vtype);
          }
       }
-      else if (reg == VCODE_INVALID_REG
-               && vcode_unit_kind() == VCODE_UNIT_INSTANCE
-               && tree_class(decl) == C_CONSTANT) {
-         // This can happen when a type contains a reference to a
-         // component generic. The elaborator does not currently rewrite
-         // it to point at the corresponding entity generic.
-
-         vcode_var_t var = vcode_find_var(tree_ident(decl));
-         assert(var != VCODE_INVALID_VAR);
-
-         type_t type = tree_type(decl);
-         if (type_is_array(type) && lower_const_bounds(type))
-            return emit_index(var, VCODE_INVALID_REG);
-         else if (type_is_record(type) || type_is_protected(type))
-            return emit_index(var, VCODE_INVALID_REG);
-         else
-            return emit_load(var);
-      }
       else if (reg == VCODE_INVALID_REG) {
          vcode_dump();
          fatal_trace("missing register for parameter %s",
@@ -1954,6 +1915,42 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
 
       return reg;
    }
+}
+
+static vcode_reg_t lower_generic_ref(tree_t decl, expr_ctx_t ctx)
+{
+   int hops = 0;
+   vcode_var_t var = lower_search_vcode_obj(decl, top_scope, &hops);
+
+   if (var == VCODE_INVALID_VAR && vcode_unit_kind() == VCODE_UNIT_INSTANCE) {
+      // This can happen when a type contains a reference to a
+      // component generic. The elaborator does not currently rewrite
+      // it to point at the corresponding entity generic.
+
+      var = vcode_find_var(tree_ident(decl));
+      assert(var != VCODE_INVALID_VAR);
+   }
+   else if (var == VCODE_INVALID_VAR) {
+      vcode_dump();
+      fatal_trace("missing variable for generic %s", istr(tree_ident(decl)));
+   }
+
+   type_t type = tree_type(decl);
+   if (hops > 0) {
+      vcode_reg_t ptr_reg = emit_var_upref(hops, var);
+      if (type_is_scalar(type))
+         return emit_load_indirect(ptr_reg);
+      else if (type_is_array(type) && !lower_const_bounds(type))
+         return emit_load_indirect(ptr_reg);
+      else
+         return ptr_reg;
+   }
+   else if (type_is_array(type) && lower_const_bounds(type))
+      return emit_index(var, VCODE_INVALID_REG);
+   else if (type_is_record(type) || type_is_protected(type))
+      return emit_index(var, VCODE_INVALID_REG);
+   else
+      return emit_load(var);
 }
 
 static vcode_reg_t lower_alias_ref(tree_t alias, expr_ctx_t ctx)
@@ -2016,8 +2013,10 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
       return lower_var_ref(decl, ctx);
 
    case T_PORT_DECL:
-   case T_GENERIC_DECL:
       return lower_param_ref(decl, ctx);
+
+   case T_GENERIC_DECL:
+      return lower_generic_ref(decl, ctx);
 
    case T_SIGNAL_DECL:
    case T_IMPLICIT_SIGNAL:
@@ -7604,7 +7603,7 @@ static void lower_generics(tree_t block)
       else
          emit_store(value_reg, var);
 
-      lower_put_vcode_obj(g, var | 0x40000000, top_scope);
+      lower_put_vcode_obj(g, var, top_scope);
    }
 }
 

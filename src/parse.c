@@ -1881,8 +1881,7 @@ static bool package_should_copy_tree(tree_t t, void *__ctx)
    case T_PROT_FCALL:
    case T_PROT_PCALL:
    case T_PCALL:
-      if (tree_flags(tree_ref(t)) & TREE_F_ELAB_COPY)
-      return true;
+      return !!(tree_flags(tree_ref(t)) & TREE_F_ELAB_COPY);
    case T_REF:
       {
          tree_t decl = tree_ref(t);
