@@ -188,6 +188,8 @@ typedef struct {
    void              *context;
    object_arena_t    *arena;
    hash_t            *copy_map;
+   unsigned           nroots;
+   object_t          *roots[0];
 } object_copy_ctx_t;
 
 typedef void (*object_rewrite_pre_fn_t)(object_t *, void *);
@@ -244,7 +246,7 @@ void object_one_time_init(void);
 void object_visit(object_t *object, object_visit_ctx_t *ctx);
 object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 unsigned object_next_generation(void);
-object_t *object_copy(object_t *object, object_copy_ctx_t *ctx);
+void object_copy(object_copy_ctx_t *ctx);
 object_arena_t *object_arena(object_t *object);
 size_t object_arena_default_size(void);
 

@@ -498,3 +498,4 @@ gentype4        normal,2008
 genpack2        normal,2008
 genpack3        normal,2008
 genpack4        normal,2008
+genpack5        normal,2008

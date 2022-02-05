@@ -1177,25 +1177,34 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_pre_fn_t pre_fn,
    return container_of(result, struct _tree, object);
 }
 
-tree_t tree_copy(tree_t t, tree_copy_pred_t tree_pred,
-                 type_copy_pred_t type_pred,
-                 tree_copy_fn_t tree_callback,
-                 type_copy_fn_t type_callback,
-                 void *context)
+void tree_copy(tree_t *roots, unsigned nroots,
+               tree_copy_pred_t tree_pred,
+               type_copy_pred_t type_pred,
+               tree_copy_fn_t tree_callback,
+               type_copy_fn_t type_callback,
+               void *context)
 {
-   object_copy_ctx_t ctx = {
-      .generation  = object_next_generation(),
-      .context     = context,
-      .arena       = global_arena,
-   };
+   object_copy_ctx_t *ctx LOCAL = xcalloc_flex(sizeof(object_copy_ctx_t),
+                                               nroots, sizeof(object_t *));
 
-   ctx.should_copy[OBJECT_TAG_TREE] = (object_copy_pred_t)tree_pred;
-   ctx.should_copy[OBJECT_TAG_TYPE] = (object_copy_pred_t)type_pred;
+   ctx->generation = object_next_generation();
+   ctx->context    = context;
+   ctx->arena      = global_arena;
+   ctx->nroots     = nroots;
 
-   ctx.callback[OBJECT_TAG_TREE] = (object_copy_fn_t)tree_callback;
-   ctx.callback[OBJECT_TAG_TYPE] = (object_copy_fn_t)type_callback;
+   for (unsigned i = 0; i < nroots; i++)
+      ctx->roots[i] = &(roots[i]->object);
 
-   return (tree_t)object_copy(&(t->object), &ctx);
+   ctx->should_copy[OBJECT_TAG_TREE] = (object_copy_pred_t)tree_pred;
+   ctx->should_copy[OBJECT_TAG_TYPE] = (object_copy_pred_t)type_pred;
+
+   ctx->callback[OBJECT_TAG_TREE] = (object_copy_fn_t)tree_callback;
+   ctx->callback[OBJECT_TAG_TYPE] = (object_copy_fn_t)type_callback;
+
+   object_copy(ctx);
+
+   for (unsigned i = 0; i < nroots; i++)
+      roots[i] = container_of(ctx->roots[i], struct _tree, object);
 }
 
 const char *tree_kind_str(tree_kind_t t)

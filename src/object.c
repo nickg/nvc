@@ -897,6 +897,15 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
    if (object == NULL)
       return false;
 
+   unsigned pos = 0;
+   for (; pos < ctx->nroots; pos++) {
+      if (object->arena == ctx->roots[pos]->arena)
+	 break;
+   }
+
+   if (pos == ctx->nroots)
+      return false;
+
    if (ctx->copy_map == NULL)
       ctx->copy_map = hash_new(1024, true);
 
@@ -961,15 +970,10 @@ static object_t *object_copy_map(object_t *object, object_copy_ctx_t *ctx)
    return map ?: object;
 }
 
-object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
+void object_copy(object_copy_ctx_t *ctx)
 {
-   (void)object_copy_mark(root, ctx);
-
-   object_t *result = hash_get(ctx->copy_map, root);
-   if (result == NULL) {
-      hash_free(ctx->copy_map);
-      return root;
-   }
+   for (unsigned i = 0; i < ctx->nroots; i++)
+      (void)object_copy_mark(ctx->roots[i], ctx);
 
    unsigned ncopied = 0;
    const void *key;
@@ -1028,8 +1032,13 @@ object_t *object_copy(object_t *root, object_copy_ctx_t *ctx)
       notef("copied %d objects into arena %s", ncopied,
             istr(object_arena_name(ctx->arena)));
 
+   for (unsigned i = 0; i < ctx->nroots; i++) {
+      object_t *copy = hash_get(ctx->copy_map, ctx->roots[i]);
+      if (copy != NULL)
+	 ctx->roots[i] = copy;
+   }
+
    hash_free(ctx->copy_map);
-   return result;
 }
 
 size_t object_arena_default_size(void)

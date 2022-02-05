@@ -1002,26 +1002,11 @@ static bool sem_check_func_result(tree_t t)
 
 static void sem_maybe_copy_subprogram(tree_t t, nametab_t *tab)
 {
-   tree_t unit = find_enclosing(tab, S_DESIGN_UNIT);
+   if (standard() >= STD_08) {
+      tree_t unit = find_enclosing(tab, S_DESIGN_UNIT);
 
-   switch (tree_kind(unit)) {
-   case T_PACKAGE:
       if (is_uninstantiated_package(unit))
          tree_set_flag(t, TREE_F_ELAB_COPY);
-      break;
-   case T_PACK_BODY:
-      if (tree_has_primary(unit)) {
-         tree_t pack = tree_primary(unit);
-         if (is_uninstantiated_package(pack))
-            tree_set_flag(t, TREE_F_ELAB_COPY);
-      }
-      break;
-   case T_ENTITY:
-   case T_ARCH:
-      tree_set_flag(t, TREE_F_ELAB_COPY);
-      break;
-   default:
-      break;
    }
 }
 

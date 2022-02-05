@@ -67,7 +67,6 @@ typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
 typedef struct {
-   ident_t     prefix;
    tree_list_t copied_subs;
    type_list_t copied_types;
 } package_copy_ctx_t;
@@ -1867,16 +1866,13 @@ static bool package_should_copy_type(type_t type, void *__ctx)
 
 static bool package_should_copy_tree(tree_t t, void *__ctx)
 {
-   package_copy_ctx_t *ctx = __ctx;
-
    switch (tree_kind(t)) {
    case T_FUNC_DECL:
-   case T_FUNC_BODY:
    case T_PROC_DECL:
+      return !(tree_flags(t) & TREE_F_PREDEFINED);
+   case T_FUNC_BODY:
    case T_PROC_BODY:
-      return (tree_flags(t) & TREE_F_ELAB_COPY)
-         && tree_has_ident2(t)
-         && ident_starts_with(tree_ident2(t), ctx->prefix);
+      return true;
    case T_FCALL:
       // Globally static expressions should be copied and folded
       if (!!(tree_flags(t) & TREE_F_GLOBALLY_STATIC))
@@ -1886,7 +1882,7 @@ static bool package_should_copy_tree(tree_t t, void *__ctx)
    case T_PROT_PCALL:
    case T_PCALL:
       if (tree_flags(tree_ref(t)) & TREE_F_ELAB_COPY)
-         return true;
+      return true;
    case T_REF:
       {
          tree_t decl = tree_ref(t);
@@ -1923,26 +1919,29 @@ static void package_type_copy_cb(type_t type, void *__ctx)
 
 static void instantiate_package(tree_t new, tree_t pack, tree_t body)
 {
-   package_copy_ctx_t copy_ctx = {
-      .prefix = tree_ident(pack)
-   };
+   package_copy_ctx_t copy_ctx = {};
 
    tree_t pack_copy = NULL, body_copy = NULL;
-   if (body == NULL)
-      pack_copy = tree_copy(pack, package_should_copy_tree,
-                            package_should_copy_type,
-                            package_tree_copy_cb, package_type_copy_cb,
-                            &copy_ctx);
+   if (body == NULL) {
+      tree_t roots[] = { pack };
+      tree_copy(roots, 1, package_should_copy_tree,
+                package_should_copy_type,
+                package_tree_copy_cb, package_type_copy_cb,
+                &copy_ctx);
+      pack_copy = roots[0];
+   }
    else {
       assert(tree_primary(body) == pack);
-      body_copy = tree_copy(body, package_should_copy_tree,
-                            package_should_copy_type,
-                            package_tree_copy_cb, package_type_copy_cb,
-                            &copy_ctx);
-      pack_copy = tree_primary(body_copy);
+      tree_t roots[] = { pack, body };
+      tree_copy(roots, 2, package_should_copy_tree,
+                package_should_copy_type,
+                package_tree_copy_cb, package_type_copy_cb,
+                &copy_ctx);
+      pack_copy = roots[0];
+      body_copy = roots[1];
    }
 
-   ident_t prefixes[] = { copy_ctx.prefix };
+   ident_t prefixes[] = { tree_ident(pack) };
    ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
 
    // Change the name of any copied types to reflect the new hiearchy

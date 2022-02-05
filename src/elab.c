@@ -71,7 +71,7 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
-static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx);
+static void elab_block_config(tree_t config, const elab_ctx_t *ctx);
 static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
@@ -175,12 +175,14 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
 {
    switch (tree_kind(t)) {
    case T_INSTANCE:
+   case T_GENVAR:
       return true;
    case T_FUNC_DECL:
-   case T_FUNC_BODY:
    case T_PROC_DECL:
+      return !(tree_flags(t) & TREE_F_PREDEFINED);
+   case T_FUNC_BODY:
    case T_PROC_BODY:
-      return !!(tree_flags(t) & TREE_F_ELAB_COPY);
+      return true;
    case T_FCALL:
       // Globally static expressions should be copied and folded
       return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC);
@@ -230,6 +232,32 @@ static void elab_type_copy_cb(type_t type, void *__ctx)
       APUSH(ctx->copied_types, type);
 }
 
+static void elab_find_config_roots(tree_t t, tree_list_t *roots)
+{
+   switch (tree_kind(t)) {
+   case T_BLOCK_CONFIG:
+      {
+         tree_t what = tree_ref(t);
+         if (tree_kind(what) == T_ARCH) {
+            APUSH(*roots, what);
+            APUSH(*roots, tree_primary(what));
+         }
+      }
+      // Fall-through
+
+   case T_SPEC:
+      {
+         const int ndecls = tree_decls(t);
+         for (int i = 0; i < ndecls; i++)
+            elab_find_config_roots(tree_decl(t, i), roots);
+      }
+      break;
+
+   default:
+      break;
+   }
+}
+
 static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
 {
    elab_copy_ctx_t copy_ctx = {};
@@ -238,8 +266,26 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
    if (standard() >= STD_08)
       type_pred = elab_should_copy_type;
 
-   tree_t copy = tree_copy(t, elab_should_copy_tree, type_pred,
-                           elab_tree_copy_cb, elab_type_copy_cb, &copy_ctx);
+   tree_list_t roots = AINIT;
+   APUSH(roots, t);
+
+   switch (tree_kind(t)) {
+   case T_ARCH:
+      APUSH(roots, tree_primary(t));
+      break;
+   case T_CONFIGURATION:
+      elab_find_config_roots(tree_decl(t, 0), &roots);
+      break;
+   default:
+      fatal_trace("unexpected %s in elab_copy", tree_kind_str(tree_kind(t)));
+   }
+
+
+   tree_copy(roots.items, roots.count, elab_should_copy_tree, type_pred,
+             elab_tree_copy_cb, elab_type_copy_cb, &copy_ctx);
+
+   tree_t copy = roots.items[0];
+   ACLEAR(roots);
 
    // Change the name of any copied types to reflect the new hiearchy
    for (unsigned i = 0; i < copy_ctx.copied_types.count; i++) {
@@ -350,7 +396,7 @@ static void elab_config_instance(tree_t block, tree_t spec,
       elab_block_config(tree_decl(spec, i), ctx);
 }
 
-static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx)
+static void elab_block_config(tree_t config, const elab_ctx_t *ctx)
 {
    assert(tree_kind(config) == T_BLOCK_CONFIG);
 
@@ -371,8 +417,35 @@ static tree_t elab_block_config(tree_t config, const elab_ctx_t *ctx)
                      tree_kind_str(tree_kind(d)));
       }
    }
+}
 
-   return what;
+static tree_t elab_root_config(tree_t top, const elab_ctx_t *ctx)
+{
+   tree_t copy = elab_copy(top, ctx);
+
+   tree_t config = tree_decl(copy, 0);
+   assert(tree_kind(config) == T_BLOCK_CONFIG);
+
+   tree_t arch = tree_ref(config);
+   assert(tree_kind(arch) == T_ARCH);
+
+   const int ndecls = tree_decls(config);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(config, i);
+      switch (tree_kind(d)) {
+      case T_SPEC:
+         elab_config_instance(arch, d, ctx);
+         break;
+      case T_BLOCK_CONFIG:
+         elab_block_config(d, ctx);
+         break;
+      default:
+         fatal_trace("cannot handle block config item %s",
+                     tree_kind_str(tree_kind(d)));
+      }
+   }
+
+   return arch;
 }
 
 static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
@@ -511,10 +584,7 @@ static tree_t elab_binding(tree_t inst, tree_t spec, elab_ctx_t *ctx)
       case T_ENTITY:
          return elab_pick_arch(tree_loc(inst), unit, ctx);
       case T_CONFIGURATION:
-         {
-            tree_t copy = elab_copy(unit, ctx);
-            return elab_block_config(tree_decl(copy, 0), ctx);
-         }
+         return elab_root_config(unit, ctx);
       case T_ARCH:
          return unit;
       default:
@@ -874,9 +944,9 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
 
    case T_CONFIGURATION:
       {
-         config = tree_decl(ref, 0);
-         assert(tree_kind(config) == T_BLOCK_CONFIG);
-         arch = tree_ref(config);
+         config = ref;
+         arch = tree_ref(tree_decl(ref, 0));
+         assert(tree_kind(arch) == T_ARCH);
       }
       break;
 
@@ -911,10 +981,8 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
    elab_subprogram_prefix(arch, &new_ctx);
 
    tree_t arch_copy;
-   if (config != NULL) {
-      tree_t config_copy = elab_copy(config, &new_ctx);
-      arch_copy = elab_block_config(config_copy, &new_ctx);
-   }
+   if (config != NULL)
+      arch_copy = elab_root_config(config, &new_ctx);
    else
       arch_copy = elab_copy(arch, &new_ctx);
 
@@ -1041,9 +1109,12 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       tree_add_generic(b, g);
       tree_add_genmap(b, map);
 
+      tree_t roots[] = { t };
       tree_t pair[] = { genvar, g };
-      tree_t copy = tree_copy(t, elab_copy_genvar_cb, NULL,
-                              elab_rewrite_genvar_cb, NULL, pair);
+      tree_copy(roots, 1, elab_copy_genvar_cb, NULL,
+                elab_rewrite_genvar_cb, NULL, pair);
+
+      tree_t copy = roots[0];
 
       ident_t npath = hpathf(ctx->path, '\0', "(%"PRIi64")", i);
       ident_t ninst = hpathf(ctx->inst, '\0', "(%"PRIi64")", i);
@@ -1366,8 +1437,7 @@ tree_t elab(tree_t top)
       break;
    case T_CONFIGURATION:
       {
-         tree_t copy = elab_copy(top, &ctx);
-         tree_t arch = elab_block_config(tree_decl(copy, 0), &ctx);
+         tree_t arch = elab_root_config(top, &ctx);
          elab_top_level(arch, &ctx);
       }
       break;
