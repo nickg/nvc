@@ -22,6 +22,7 @@ Makefile.in
 TAGS
 logs
 Makefile
+!www/Makefile
 src/lexer.c
 .deps
 /config.h.in
@@ -42,6 +43,7 @@ GTAGS
 bin/
 .gtags.files
 compile_commands.json
+www/*.html
 
 # VI test suite also cannot be distributed
 test/vi_suite*
