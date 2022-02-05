@@ -346,6 +346,7 @@ static void _tracef(const char *fmt, ...);
 #define GLOBAL_TMP_STACK_SZ (8 * 1024 * 1024)
 #define PROC_TMP_STACK_SZ   (64 * 1024)
 #define FMT_VALUES_SZ       128
+#define EVENT_PREFETCH      10
 
 #if RT_DEBUG
 #define RT_ASSERT(x) assert((x))
@@ -2848,15 +2849,29 @@ static void rt_push_run_queue(rt_run_queue_t *q, event_t *e)
    }
 }
 
+static size_t rt_pop_run_queue_n(rt_run_queue_t *q, event_t **buf, size_t max)
+{
+   size_t n = 0;
+   while (n < max) {
+      if (q->wr == q->rd) {
+         q->wr = 0;
+         q->rd = 0;
+         return n;
+      }
+
+      buf[n++] = q->queue[(q->rd)++];
+   }
+
+   return n;
+}
+
 static event_t *rt_pop_run_queue(rt_run_queue_t *q)
 {
-   if (q->wr == q->rd) {
-      q->wr = 0;
-      q->rd = 0;
-      return NULL;
-   }
+   event_t *buf[1];
+   if (rt_pop_run_queue_n(q, buf, 1))
+      return buf[0];
    else
-      return q->queue[(q->rd)++];
+      return NULL;
 }
 
 static void rt_iteration_limit(void)
@@ -3007,9 +3022,21 @@ static void rt_cycle(int stop_delta)
       rt_free(event_stack, event);
    }
 
-   while ((event = rt_pop_run_queue(&driverq))) {
-      rt_update_driver(event->driver.nexus, event->driver.source);
-      rt_free(event_stack, event);
+   event_t *evbuf[EVENT_PREFETCH];
+   size_t nevents;
+   while ((nevents = rt_pop_run_queue_n(&driverq, evbuf, EVENT_PREFETCH))) {
+      // Prefetch the data we will need in rt_update driver to reduce
+      // cache misses
+      for (size_t i = 0; i < nevents; i++) {
+         __builtin_prefetch(evbuf[i]->driver.nexus);
+         if (evbuf[i]->driver.source != NULL)   // Will be NULL with VHPI
+            __builtin_prefetch(evbuf[i]->driver.source->waveforms->next);
+      }
+
+      for (size_t i = 0; i < nevents; i++) {
+         rt_update_driver(evbuf[i]->driver.nexus, evbuf[i]->driver.source);
+         rt_free(event_stack, evbuf[i]);
+      }
    }
 
    while (heap_size(rankn_heap) > 0) {
