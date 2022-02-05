@@ -859,7 +859,6 @@ static bool sem_check_generic_decl(tree_t t, nametab_t *tab)
                    istr(name));
    }
 
-   tree_set_flag(t, TREE_F_ELAB_COPY);
    return true;
 }
 

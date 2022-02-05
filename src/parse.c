@@ -1883,13 +1883,7 @@ static bool package_should_copy_tree(tree_t t, void *__ctx)
    case T_PCALL:
       return !!(tree_flags(tree_ref(t)) & TREE_F_ELAB_COPY);
    case T_REF:
-      {
-         tree_t decl = tree_ref(t);
-         if (tree_kind(decl) == T_GENERIC_DECL)
-            return !!(tree_flags(decl) & TREE_F_ELAB_COPY);
-         else
-            return false;
-      }
+      return tree_kind(tree_ref(t)) == T_GENERIC_DECL;
    case T_VAR_DECL:
       return !!(tree_flags(t) & TREE_F_SHARED);
    case T_PACKAGE:

@@ -190,8 +190,9 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
       {
          tree_t decl = tree_ref(t);
          switch (tree_kind(decl)) {
-         case T_PORT_DECL:
          case T_GENERIC_DECL:
+            return true;
+         case T_PORT_DECL:
             return !!(tree_flags(decl) & TREE_F_ELAB_COPY);
          case T_ENTITY:
          case T_ARCH:
