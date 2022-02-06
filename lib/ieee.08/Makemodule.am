@@ -22,9 +22,8 @@ ieee_08_DATA = \
 	lib/ieee.08/IEEE.FIXED_GENERIC_PKG-body \
 	lib/ieee.08/IEEE.FIXED_PKG \
 	lib/ieee.08/IEEE.FLOAT_GENERIC_PKG \
-	lib/ieee.08/IEEE.FLOAT_GENERIC_PKG-body
-
-#	lib/ieee.08/IEEE.FLOAT_PKG
+	lib/ieee.08/IEEE.FLOAT_GENERIC_PKG-body \
+	lib/ieee.08/IEEE.FLOAT_PKG
 
 EXTRA_DIST += \
 	lib/ieee.08/numeric_bit.vhdl \

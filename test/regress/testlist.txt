@@ -499,3 +499,6 @@ genpack2        normal,2008
 genpack3        normal,2008
 genpack4        normal,2008
 genpack5        normal,2008
+genpack6        normal,2008
+genpack7        normal,2008
+ieee8           normal,2008

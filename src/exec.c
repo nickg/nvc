@@ -1034,10 +1034,16 @@ static void eval_op_var_upref(int op, eval_state_t *state)
         hops--, where = where->context)
       assert(where != NULL);
 
-   value_t *src = eval_get_var(var, where);
-   value_t *dst = eval_get_reg(vcode_get_result(op), state);
+   if (where == NULL) {
+      EVAL_WARN(state, op, "missing context prevents constant folding");
+      state->failed = true;
+   }
+   else {
+      value_t *src = eval_get_var(var, where);
+      value_t *dst = eval_get_reg(vcode_get_result(op), state);
 
-   eval_make_pointer_to(dst, src);
+      eval_make_pointer_to(dst, src);
+   }
 }
 
 static void eval_op_context_upref(int op, eval_state_t *state)

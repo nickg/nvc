@@ -130,7 +130,7 @@ static void lower_finished(void);
 static void lower_predef(tree_t decl, vcode_unit_t context);
 static ident_t lower_predef_func_name(type_t type, const char *op);
 static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context);
-static void lower_generics(tree_t block);
+static void lower_generics(tree_t block, ident_t prefix);
 static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -5751,7 +5751,7 @@ static void lower_instantiated_package(tree_t decl, vcode_unit_t context)
    vcode_unit_t vu = emit_package(name, tree_loc(decl), context);
 
    lower_push_scope(decl);
-   lower_generics(decl);
+   lower_generics(decl, NULL);
    lower_decls(decl, vu);
 
    emit_return(VCODE_INVALID_REG);
@@ -7557,7 +7557,7 @@ static void lower_ports(tree_t block)
       lower_port_map(block, tree_param(block, i));
 }
 
-static void lower_generics(tree_t block)
+static void lower_generics(tree_t block, ident_t prefix)
 {
    const int ngenerics = tree_generics(block);
    assert(ngenerics == tree_genmaps(block));
@@ -7567,7 +7567,17 @@ static void lower_generics(tree_t block)
       tree_t m = tree_genmap(block, i);
       assert(tree_subkind(m) == P_POS);
 
-      if (tree_class(g) != C_CONSTANT)
+      const class_t class = tree_class(g);
+      if (class == C_PACKAGE) {
+         // Make generics in a package instance passed via a package
+         // interface generic available
+         tree_t inst = tree_ref(tree_value(m));
+         assert(tree_kind(inst) == T_PACK_INST);
+
+         lower_generics(inst, tree_ident(inst));
+      }
+
+      if (class != C_CONSTANT)
          continue;   // Skip type generics, etc.
 
       type_t type = tree_type(g);
@@ -7625,7 +7635,7 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
    emit_debug_info(loc);
 
    lower_push_scope(block);
-   lower_generics(block);
+   lower_generics(block, NULL);
    lower_ports(block);
    lower_decls(block, vu);
 
@@ -7689,7 +7699,7 @@ static vcode_unit_t lower_package(tree_t unit)
    lower_push_scope(unit);
    top_scope->flags |= SCOPE_GLOBAL;
 
-   lower_generics(unit);
+   lower_generics(unit, NULL);
    lower_decls(unit, context);
 
    emit_return(VCODE_INVALID_REG);

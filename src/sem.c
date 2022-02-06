@@ -1139,6 +1139,10 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
       const tree_kind_t bkind = bdef ? tree_kind(bdef) : T_LAST_TREE_KIND;
       const tree_kind_t dkind = ddef ? tree_kind(ddef) : T_LAST_TREE_KIND;
 
+      // Work around some mismatches caused by folding
+      if (bdef != NULL && ddef != NULL && bkind != dkind)
+         continue;
+
       if (dkind == bkind) {
          // This only covers a few simple cases
          switch (dkind) {
@@ -1183,12 +1187,6 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
             continue;
          }
       }
-
-      // Work around some mismatches caused by folding
-      if (dkind == T_LITERAL
-          && (bkind == T_FCALL || bkind == T_REF || bkind == T_ATTR_REF
-              || bkind == T_GENERIC_DECL))
-         continue;
 
       error_at(tree_loc(bport), "default value of parameter %s in subprogram "
                "body %s does not match declaration",
