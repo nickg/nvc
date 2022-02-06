@@ -1254,6 +1254,7 @@ static void dump_context(tree_t t, int indent)
 static void dump_elab(tree_t t)
 {
    dump_context(t, 0);
+   dump_address(t);
    syntax("#entity %s #is\n#end #entity;\n\n", istr(tree_ident(t)));
    syntax("#architecture #elab #of %s #is\n", istr(tree_ident(t)));
    dump_decls(t, 2);
@@ -1319,6 +1320,7 @@ static void dump_arch(tree_t t)
 static void dump_package(tree_t t, int indent)
 {
    dump_context(t, indent);
+   dump_address(t);
    syntax("#package %s #is\n", istr(tree_ident(t)));
    if (tree_kind(t) == T_PACK_INST && tree_has_ref(t)) {
       tab(indent);
@@ -1334,6 +1336,7 @@ static void dump_package(tree_t t, int indent)
 static void dump_package_body(tree_t t, int indent)
 {
    dump_context(t, indent);
+   dump_address(t);
    syntax("#package #body %s #is\n", istr(tree_ident(t)));
    dump_decls(t, indent + 2);
    tab(indent);
@@ -1342,6 +1345,7 @@ static void dump_package_body(tree_t t, int indent)
 
 static void dump_configuration(tree_t t)
 {
+   dump_address(t);
    syntax("#configuration %s #of %s #is\n",
           istr(tree_ident(t)), istr(tree_ident2(t)));
    dump_decls(t, 2);
@@ -1352,28 +1356,22 @@ void dump(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_ELAB:
-      dump_address(t);
       dump_elab(t);
       break;
    case T_ENTITY:
-      dump_address(t);
       dump_entity(t);
       break;
    case T_ARCH:
-      dump_address(t);
       dump_arch(t);
       break;
    case T_PACKAGE:
    case T_PACK_INST:
-      dump_address(t);
       dump_package(t, 0);
       break;
    case T_PACK_BODY:
-      dump_address(t);
       dump_package_body(t, 0);
       break;
    case T_CONFIGURATION:
-      dump_address(t);
       dump_configuration(t);
       break;
    case T_REF:
