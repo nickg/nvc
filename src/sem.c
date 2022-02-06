@@ -665,6 +665,9 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
    case T_ACCESS:
       // Rules for access types are in LRM 93 section 3.3
       {
+         if (!sem_check_subtype(t, type_access(type), tab))
+            return false;
+
          return true;
       }
 
