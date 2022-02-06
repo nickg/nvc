@@ -78,6 +78,10 @@ end package;
 
 -------------------------------------------------------------------------------
 
+package my_poly1 is new work.myfloat generic map ( fixed_pkg => not_here);  -- Error
+
+-------------------------------------------------------------------------------
+
 architecture test2 of ent is
     package p1 is new work.myfloat
                       generic map ( fixed_pkg => work.myfixed_4_8 );  -- OK

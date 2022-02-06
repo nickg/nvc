@@ -3375,7 +3375,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
    case C_PACKAGE:
       {
          tree_t pack = NULL;
-         if (tree_kind(value) == T_REF)
+         if (tree_kind(value) == T_REF && tree_has_ref(value))
             pack = tree_ref(value);
 
          if (pack == NULL || tree_kind(pack) != T_PACK_INST)
