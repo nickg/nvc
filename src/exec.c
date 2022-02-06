@@ -1768,6 +1768,28 @@ static void eval_op_range_null(int op, eval_state_t *state)
       result->integer = right->integer > left->integer;
 }
 
+static void eval_op_range_length(int op, eval_state_t *state)
+{
+   value_t *result = eval_get_reg(vcode_get_result(op), state);
+   value_t *left = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *right = eval_get_reg(vcode_get_arg(op, 1), state);
+   value_t *dir = eval_get_reg(vcode_get_arg(op, 2), state);
+
+   assert(left->kind == VALUE_INTEGER);
+   assert(right->kind == VALUE_INTEGER);
+   assert(dir->kind == VALUE_INTEGER);
+
+   result->kind = VALUE_INTEGER;
+
+   int64_t diff;
+   if (dir->integer == RANGE_TO)
+      diff = right->integer - left->integer;
+   else
+      diff = left->integer - right->integer;
+
+   result->integer = diff < 0 ? 0 : diff + 1;
+}
+
 static void eval_op_link_var(int op, eval_state_t *state)
 {
    value_t *result = eval_get_reg(vcode_get_result(op), state);
@@ -2099,6 +2121,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_RANGE_NULL:
          eval_op_range_null(state->op, state);
+         break;
+
+      case VCODE_OP_RANGE_LENGTH:
+         eval_op_range_length(state->op, state);
          break;
 
       case VCODE_OP_DEBUG_OUT:

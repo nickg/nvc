@@ -136,6 +136,7 @@ typedef enum {
    VCODE_OP_LENGTH_CHECK,
    VCODE_OP_RANGE_CHECK,
    VCODE_OP_ARRAY_REF,
+   VCODE_OP_RANGE_LENGTH,
 } vcode_op_t;
 
 typedef enum {
@@ -440,6 +441,8 @@ vcode_reg_t emit_undefined(vcode_type_t type);
 void emit_debug_info(const loc_t *loc);
 vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
                             vcode_reg_t dir);
+vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
+                              vcode_reg_t dir);
 vcode_reg_t emit_link_signal(ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_var(ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_package(ident_t name);

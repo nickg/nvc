@@ -2797,6 +2797,27 @@ static void cgen_op_range_null(int op, cgen_ctx_t *ctx)
       LLVMBuildSelect(builder, dir, cmp_downto, cmp_to, cgen_reg_name(result));
 }
 
+static void cgen_op_range_length(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef left  = cgen_sign_extend(op, 0, 32, ctx);
+   LLVMValueRef right = cgen_sign_extend(op, 1, 32, ctx);
+   LLVMValueRef dir   = cgen_get_arg(op, 2, ctx);
+
+   LLVMValueRef diff_up   = LLVMBuildSub(builder, right, left, "");
+   LLVMValueRef diff_down = LLVMBuildSub(builder, left, right, "");
+
+   LLVMValueRef diff = LLVMBuildSelect(builder, dir, diff_down, diff_up, "");
+   LLVMValueRef zero = llvm_int32(0);
+   LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntSLT, diff, zero, "");
+
+   LLVMValueRef length  = LLVMBuildAdd(builder, diff, llvm_int32(1), "");
+   LLVMValueRef clamped = LLVMBuildSelect(builder, null, zero, length, "");
+
+   ctx->regs[result] = clamped;
+}
+
 static void cgen_op_init_signal(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
@@ -3219,6 +3240,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_RANGE_NULL:
       cgen_op_range_null(i, ctx);
+      break;
+   case VCODE_OP_RANGE_LENGTH:
+      cgen_op_range_length(i, ctx);
       break;
    case VCODE_OP_INIT_SIGNAL:
       cgen_op_init_signal(i, ctx);

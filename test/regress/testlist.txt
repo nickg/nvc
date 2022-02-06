@@ -503,3 +503,4 @@ genpack6        normal,2008
 genpack7        normal,2008
 ieee8           normal,2008
 array5          normal
+vests40         normal

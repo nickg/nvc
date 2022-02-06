@@ -622,6 +622,7 @@ void vcode_opt(void)
             case VCODE_OP_NULL:
             case VCODE_OP_ADDRESS_OF:
             case VCODE_OP_RANGE_NULL:
+            case VCODE_OP_RANGE_LENGTH:
             case VCODE_OP_DEBUG_LOCUS:
             case VCODE_OP_SELECT:
             case VCODE_OP_CAST:
@@ -898,7 +899,7 @@ const char *vcode_op_string(vcode_op_t op)
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
       "implicit signal", "disconnect", "link package", "index check",
-      "debug locus", "length check", "range check", "array ref",
+      "debug locus", "length check", "range check", "array ref", "range length",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1976,6 +1977,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
+         case VCODE_OP_RANGE_LENGTH:
          case VCODE_OP_RANGE_NULL:
             {
                col += vcode_dump_reg(op->result);
@@ -4060,7 +4062,48 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
    vcode_add_arg(op, right);
    vcode_add_arg(op, dir);
 
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(left), vcode_reg_type(right)),
+                "range left and right have different types");
+   VCODE_ASSERT(vcode_reg_kind(dir) == VCODE_TYPE_INT,
+                "dir argument to range length is not int");
+
    return (op->result = vcode_add_reg(vtype_bool()));
+}
+
+vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
+                              vcode_reg_t dir)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_RANGE_LENGTH) {
+      if (other->args.items[0] == left
+          && other->args.items[1] == right
+          && other->args.items[2] == dir)
+         return other->result;
+   }
+
+   int64_t lconst, rconst, dconst;
+   if (vcode_reg_const(dir, &dconst) && vcode_reg_const(left, &lconst)
+       && vcode_reg_const(right, &rconst)) {
+
+      int64_t diff;
+      if (dconst == RANGE_TO)
+         diff = rconst - lconst;
+      else
+         diff = lconst - rconst;
+
+      return emit_const(vtype_offset(), diff < 0 ? 0 : diff + 1);
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_RANGE_LENGTH);
+   vcode_add_arg(op, left);
+   vcode_add_arg(op, right);
+   vcode_add_arg(op, dir);
+
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(left), vcode_reg_type(right)),
+                "range left and right have different types");
+   VCODE_ASSERT(vcode_reg_kind(dir) == VCODE_TYPE_INT,
+                "dir argument to range length is not int");
+
+   return (op->result = vcode_add_reg(vtype_offset()));
 }
 
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var)

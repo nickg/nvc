@@ -690,6 +690,29 @@ void cprop(cprop_req_t *req)
             }
             break;
 
+         case VCODE_OP_RANGE_LENGTH:
+            {
+               vcode_reg_t result = vcode_get_result(op);
+               assert(result != VCODE_INVALID_REG);
+
+               vcode_reg_t arg0 = vcode_get_arg(op, 0);
+               vcode_reg_t arg1 = vcode_get_arg(op, 1);
+               vcode_reg_t arg2 = vcode_get_arg(op, 2);
+
+               if (regs[arg0].tag == CP_CONST && regs[arg1].tag == CP_CONST
+                   && regs[arg2].tag == CP_CONST) {
+                  int64_t diff;
+                  if (regs[arg2].cval)
+                     diff = regs[arg0].cval - regs[arg1].cval;
+                  else
+                     diff = regs[arg1].cval - regs[arg0].cval;
+
+                  regs[result].tag = CP_CONST;
+                  regs[result].cval = diff < 0 ? 0 : diff + 1;
+               }
+            }
+            break;
+
          case VCODE_OP_RETURN:
          case VCODE_OP_COMMENT:
          case VCODE_OP_WAIT:

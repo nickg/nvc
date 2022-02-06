@@ -388,39 +388,15 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
       int64_t low, high;
       if (folded_bounds(r, &low, &high))
          return emit_const(vtype_offset(), MAX(high - low + 1, 0));
+      else if (reg != VCODE_INVALID_REG
+               && vcode_reg_kind(reg) == VCODE_TYPE_UARRAY)
+         return emit_uarray_len(reg, dim);
 
       vcode_reg_t left_reg  = lower_range_left(r);
       vcode_reg_t right_reg = lower_range_right(r);
+      vcode_reg_t dir_reg   = lower_range_dir(r);
 
-      vcode_reg_t diff = VCODE_INVALID_REG;
-      switch (tree_subkind(r)) {
-      case RANGE_EXPR:
-         {
-            // The simplify pass should remove all RANGE_EXPR except A'RANGE
-            // where A is an array with non-static bounds
-            tree_t array = tree_name(tree_value(r));
-            assert(!lower_const_bounds(tree_type(array)));
-            return emit_uarray_len(lower_expr(array, EXPR_RVALUE), 0);
-         }
-
-      case RANGE_TO:
-         diff = emit_sub(right_reg, left_reg);
-         break;
-
-      case RANGE_DOWNTO:
-         diff = emit_sub(left_reg, right_reg);
-         break;
-      }
-
-      vcode_reg_t inc_reg = emit_const(vcode_reg_type(diff), 1);
-      vcode_reg_t len_reg = emit_add(diff, inc_reg);
-      vcode_type_t offset_type = vtype_offset();
-      vcode_reg_t cast_reg =
-         emit_cast(offset_type, VCODE_INVALID_TYPE, len_reg);
-      vcode_reg_t zero_reg = emit_const(offset_type, 0);
-      vcode_reg_t neg_reg = emit_cmp(VCODE_CMP_LT, cast_reg, zero_reg);
-
-      return emit_select(neg_reg, zero_reg, cast_reg);
+      return emit_range_length(left_reg, right_reg, dir_reg);
    }
 }
 
