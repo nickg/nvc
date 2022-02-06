@@ -4137,6 +4137,8 @@ static void lower_return(tree_t stmt)
          lower_check_scalar_bounds(result, type, value, NULL);
          emit_return(result);
       }
+      else if (type_is_access(type))
+         emit_return(lower_reify_expr(value));
       else if (result_kind == VCODE_TYPE_UARRAY) {
          vcode_reg_t array = lower_expr(value, EXPR_RVALUE);
 
