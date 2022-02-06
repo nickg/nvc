@@ -109,3 +109,6 @@ gen-deps-ieee-08:
 		 | $(deps_pp) > $(srcdir)/lib/ieee.08/deps.mk
 
 include lib/ieee.08/deps.mk
+
+# Empty package does not depend on STD.STANDARD
+lib/nvc.08/NVC.POLYFILL: lib/std.08/STD.STANDARD

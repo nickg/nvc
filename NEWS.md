@@ -1,3 +1,6 @@
+## Unreleased changes
+- Fix `make -j` with GNU make (#440).
+
 ## Version 1.6.1 - 2022-02-05
 - Fix compatibility with BSD make (#440).
 - Fix an out-of-memory condition when initialising processes (#441).
