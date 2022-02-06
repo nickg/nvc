@@ -6339,10 +6339,10 @@ static tree_t p_subprogram_body(tree_t spec)
 
    scope_set_subprogram(nametab, spec);
 
+   sem_check(spec, nametab);
+
    insert_name(nametab, spec, NULL, 1);
    push_scope(nametab);
-
-   sem_check(spec, nametab);
 
    p_subprogram_declarative_part(spec);
 

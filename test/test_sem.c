@@ -411,6 +411,12 @@ START_TEST(test_func)
       { 294, "procedure NOTDEF not allowed in an expression" },
       { 297, "no visible declaration for BAD_TYPE" },
       { 297, "no visible declaration for FOO" },
+      { 303, "default value of parameter X in subprogram body FUNC1" },
+      { 301, "parameter X was originally declared here" },
+      { 310, "default value of parameter X in subprogram body FUNC2" },
+      { 308, "parameter X was originally declared here" },
+      { 317, "default value of parameter X in subprogram body FUNC3" },
+      { 315, "parameter X was originally declared here" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2007,11 +2013,12 @@ START_TEST(test_issue368)
       {  6, "parameter SIG_IN was originally declared here" },
       { 18, "parameter SIG_OUT of subprogram body IN_THROUGH_THE_OUT_DOOR" },
       {  7, "parameter SIG_OUT was originally declared here" },
-      { 23, "subprogram body FOO missing parameter X" },
+      { 23, "parameter name Y in subprogram FOO body does not match name "
+        "X in declaration" },
       { 10, "parameter X was originally declared here" },
       { 27, "class constant of subprogram body BAR" },
       { 11, "parameter X was originally declared here" },
-      { 31, "subprogram body BAZ missing parameter X" },
+      { 31, "parameter name Y in subprogram BAZ body does not match name X" },
       { 12, "parameter X was originally declared here" },
       { -1, NULL }
    };

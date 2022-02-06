@@ -86,6 +86,7 @@ void resolve_resolution(nametab_t *tab, tree_t rname, type_t type);
 tree_t query_name(nametab_t *tab, ident_t name);
 tree_t query_spec(nametab_t *tab, tree_t object);
 tree_t find_std(nametab_t *tab);
+tree_t find_forward_decl(nametab_t *tab, tree_t decl);
 
 type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint);
 type_t solve_condition(nametab_t *tab, tree_t expr, type_t constraint);

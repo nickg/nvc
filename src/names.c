@@ -107,8 +107,6 @@ typedef struct {
 } iter_state_t;
 
 static type_t _solve_types(nametab_t *tab, tree_t expr);
-static void check_subprogram_matches_spec(nametab_t *tab, tree_t proto,
-                                          tree_t subprog);
 static void check_deferred_constant(nametab_t *tab, tree_t first,
                                     tree_t second);
 static void begin_iter(nametab_t *tab, ident_t name, iter_state_t *state);
@@ -553,13 +551,8 @@ static bool is_forward_decl(nametab_t *tab, tree_t decl, tree_t existing)
       return type_kind(tree_type(existing)) == T_INCOMPLETE;
    else if ((tkind == T_FUNC_BODY && ekind == T_FUNC_DECL)
             || (tkind == T_PROC_BODY && ekind == T_PROC_DECL)) {
-      if (type_eq(tree_type(decl), tree_type(existing))
-          && !(tree_flags(existing) & TREE_F_PREDEFINED)){
-         check_subprogram_matches_spec(tab, existing, decl);
-         return true;
-      }
-      else
-         return false;
+      return type_eq(tree_type(decl), tree_type(existing))
+         && !(tree_flags(existing) & TREE_F_PREDEFINED);
    }
    else if (tkind == T_CONST_DECL && ekind == T_CONST_DECL)
       if (tree_has_value(decl) && !tree_has_value(existing)) {
@@ -570,6 +563,26 @@ static bool is_forward_decl(nametab_t *tab, tree_t decl, tree_t existing)
          return false;
    else
       return false;
+}
+
+tree_t find_forward_decl(nametab_t *tab, tree_t decl)
+{
+   scope_t *region = tab->top_scope;
+   if (region->container == decl)
+      region = region->parent;
+
+   ident_t name = tree_ident(decl);
+
+   for (int n = 0; ; ) {
+      scope_t *where;
+      tree_t d = scope_find(region, name, region, &where, n++);
+      if (d == (void *)-1)
+         continue;  // Error marker
+      else if (d == NULL)
+         return NULL;
+      else if (is_forward_decl(tab, decl, d))
+         return d;
+   }
 }
 
 void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
@@ -2063,72 +2076,6 @@ static void check_pure_ref(nametab_t *tab, tree_t ref, tree_t decl)
       if (owner != NULL && scope_find_enclosing(owner, S_SUBPROGRAM) != sub) {
          error_at(tree_loc(ref), "invalid reference to %s inside pure "
                   "function %s", istr(tree_ident(decl)), istr(tree_ident(sub)));
-      }
-   }
-}
-
-static void check_subprogram_matches_spec(nametab_t *tab, tree_t proto,
-                                          tree_t subprog)
-{
-   assert(tree_ports(proto) == tree_ports(subprog));
-
-   const int nports = tree_ports(proto);
-   for (int i = 0; i < nports; i++) {
-      tree_t proto_port = tree_port(proto, i);
-      ident_t proto_name = tree_ident(proto_port);
-      type_t proto_type = tree_type(proto_port);
-
-      tree_t matching_port = NULL;
-      for (int j = 0; j < nports && matching_port == NULL; j++) {
-         tree_t body_port = tree_port(subprog, j);
-         if (tree_ident(body_port) == proto_name)
-            matching_port = body_port;
-      }
-
-      if (matching_port == NULL) {
-         error_at(tree_loc(subprog), "subprogram body %s missing parameter %s "
-                  "with type %s", istr(tree_ident(subprog)), istr(proto_name),
-                  type_pp(proto_type));
-         note_at(tree_loc(proto_port), "parameter %s was originally "
-                 "declared here", istr(proto_name));
-         continue;
-      }
-
-      type_t body_type = tree_type(matching_port);
-
-      if (!type_strict_eq(body_type, proto_type)) {
-         error_at(tree_loc(matching_port), "type of parameter %s "
-                  "does not match type %s in specification",
-                  istr(proto_name), type_pp(proto_type));
-         note_at(tree_loc(proto_port), "parameter %s was originally "
-                 "declared here", istr(proto_name));
-         continue;
-      }
-
-      const port_mode_t proto_mode = tree_subkind(proto_port);
-      const port_mode_t body_mode = tree_subkind(matching_port);
-
-      if (proto_mode != body_mode) {
-         error_at(tree_loc(matching_port), "parameter %s of subprogram body "
-                  "%s with mode %s does not match mode %s in specification",
-                  istr(proto_name), istr(tree_ident(subprog)),
-                  port_mode_str(body_mode), port_mode_str(proto_mode));
-         note_at(tree_loc(proto_port), "parameter %s was originally "
-                 "declared here", istr(proto_name));
-         continue;
-      }
-
-      const class_t proto_class = tree_class(proto_port);
-      const class_t body_class = tree_class(matching_port);
-
-      if (proto_class != body_class) {
-         error_at(tree_loc(matching_port), "class %s of subprogram body %s "
-                  "parameter %s does not match class %s in specification",
-                  class_str(body_class), istr(tree_ident(subprog)),
-                  istr(proto_name), class_str(proto_class));
-         note_at(tree_loc(proto_port), "parameter %s was originally "
-                 "declared here", istr(proto_name));
-         continue;
       }
    }
 }

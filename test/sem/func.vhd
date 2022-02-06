@@ -298,4 +298,25 @@ package body func3 is
 
     function bad_param ( constant x : bad_type := bad_c ) return bad_type;  -- Error
 
+    function func1 (x : integer) return integer;
+
+    function func1 (x : integer := 2) return integer is  -- Error
+    begin
+        return 1;
+    end function;
+
+    function func2 (x : integer := 1) return integer;
+
+    function func2 (x : integer := 2) return integer is  -- Error
+    begin
+        return 1;
+    end function;
+
+    function func3 (x : bit := '1') return integer;
+
+    function func3 (x : bit := '0') return integer is  -- Error
+    begin
+        return 1;
+    end function;
+
 end package body;
