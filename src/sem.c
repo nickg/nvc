@@ -733,6 +733,44 @@ static bool sem_no_access_file_or_protected(tree_t t, type_t type, const char *w
    return true;
 }
 
+static bool sem_check_const_decl(tree_t t, nametab_t *tab)
+{
+   type_t type = tree_type(t);
+
+   if (!sem_check_subtype(t, type, tab))
+      return false;
+   else if (type_is_none(type))
+      return false;
+
+   if (type_is_incomplete(type))
+      sem_error(t, "type %s is incomplete", type_pp(type));
+
+   if (!sem_no_access_file_or_protected(t, type, "constants"))
+      return false;
+
+   if (tree_has_value(t)) {
+      tree_t value = tree_value(t);
+      if (!sem_check(value, tab))
+         return false;
+
+      if (!sem_check_type(value, type))
+         sem_error(value, "type of initial value %s does not match type "
+                   "of declaration %s", type_pp2(tree_type(value), type),
+                   type_pp2(type, tree_type(value)));
+   }
+   else if (tree_kind(find_enclosing(tab, S_DESIGN_UNIT)) != T_PACKAGE)
+      sem_error(t, "deferred constant declarations are only permitted "
+                "in packages");
+
+   tree_t fwd = find_forward_decl(tab, t);
+   if (fwd != NULL && !type_strict_eq(tree_type(fwd), type))
+      sem_error(t, "expected type %s for deferred constant %s but "
+                "found %s", type_pp2(tree_type(fwd), type),
+                istr(tree_ident(t)), type_pp2(type, tree_type(fwd)));
+
+   return true;
+}
+
 static bool sem_check_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
@@ -4598,8 +4636,9 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_generic_decl(t, tab);
    case T_SIGNAL_DECL:
    case T_VAR_DECL:
-   case T_CONST_DECL:
       return sem_check_decl(t, tab);
+   case T_CONST_DECL:
+      return sem_check_const_decl(t, tab);
    case T_PROCESS:
       return sem_check_process(t, tab);
    case T_VAR_ASSIGN:

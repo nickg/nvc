@@ -107,8 +107,6 @@ typedef struct {
 } iter_state_t;
 
 static type_t _solve_types(nametab_t *tab, tree_t expr);
-static void check_deferred_constant(nametab_t *tab, tree_t first,
-                                    tree_t second);
 static void begin_iter(nametab_t *tab, ident_t name, iter_state_t *state);
 static tree_t iter_name(iter_state_t *state);
 
@@ -555,12 +553,7 @@ static bool is_forward_decl(nametab_t *tab, tree_t decl, tree_t existing)
          && !(tree_flags(existing) & TREE_F_PREDEFINED);
    }
    else if (tkind == T_CONST_DECL && ekind == T_CONST_DECL)
-      if (tree_has_value(decl) && !tree_has_value(existing)) {
-         check_deferred_constant(tab, existing, decl);
-         return true;
-      }
-      else
-         return false;
+      return tree_has_value(decl) && !tree_has_value(existing);
    else
       return false;
 }
@@ -2077,19 +2070,6 @@ static void check_pure_ref(nametab_t *tab, tree_t ref, tree_t decl)
          error_at(tree_loc(ref), "invalid reference to %s inside pure "
                   "function %s", istr(tree_ident(decl)), istr(tree_ident(sub)));
       }
-   }
-}
-
-static void check_deferred_constant(nametab_t *tab, tree_t first, tree_t second)
-{
-   type_t first_type = tree_type(first);
-   type_t second_type = tree_type(second);
-
-   if (!type_eq(first_type, second_type)) {
-      error_at(tree_loc(second), "expected type %s for deferred constant %s but "
-               "found %s", type_pp2(first_type, second_type),
-               istr(tree_ident(first)),
-               type_pp2(second_type, first_type));
    }
 }
 
