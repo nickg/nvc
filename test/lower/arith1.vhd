@@ -31,6 +31,7 @@ begin
         assert (-5) rem x = -2;
         assert (-5) mod x = 2;
         assert x = +x;
+        assert 0 - x > 0;
         wait;
     end process;
 

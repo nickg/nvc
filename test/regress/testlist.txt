@@ -502,3 +502,4 @@ genpack5        normal,2008
 genpack6        normal,2008
 genpack7        normal,2008
 ieee8           normal,2008
+array5          normal

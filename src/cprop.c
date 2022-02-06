@@ -360,6 +360,22 @@ void cprop(cprop_req_t *req)
             }
             break;
 
+         case VCODE_OP_NEG:
+            {
+               vcode_reg_t arg0 = vcode_get_arg(op, 0);
+
+               vcode_reg_t result = vcode_get_result(op);
+               assert(result != VCODE_INVALID_REG);
+
+               if (regs[arg0].tag == CP_CONST) {
+                  regs[result].tag = CP_CONST;
+                  regs[result].cval = -regs[arg0].cval;
+               }
+               else
+                  regs[result].tag = CP_UNKNOWN;
+            }
+            break;
+
          case VCODE_OP_ARRAY_REF:
             {
                vcode_reg_t arg0 = vcode_get_arg(op, 0);
@@ -725,7 +741,6 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_DIV:
          case VCODE_OP_NEW:
          case VCODE_OP_DRIVING_VALUE:
-         case VCODE_OP_NEG:
          case VCODE_OP_EXP:
          case VCODE_OP_ABS:
          case VCODE_OP_REM:
