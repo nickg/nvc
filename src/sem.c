@@ -1842,11 +1842,6 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
             sem_error(call, "missing actual for formal %s without "
                       "default value", istr(name));
       }
-
-      // Constrain the type of any universal arguments
-      tree_t value = tree_value(found);
-      if (tree_has_type(value) && type_is_universal(tree_type(value)))
-         tree_set_type(value, tree_type(port));
    }
 
    return true;
