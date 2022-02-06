@@ -5507,16 +5507,16 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    vcode_type_t strtype = vtype_uarray(1, vchar, vchar);
 
-   vcode_var_t tail_var = lower_temp_var("tail", vtype_pointer(vchar), vchar);
-   vcode_reg_t tail_ptr = emit_index(tail_var, VCODE_INVALID_REG);
+   vcode_var_t used_var = lower_temp_var("used", voffset, voffset);
+   vcode_reg_t used_ptr = emit_index(used_var, VCODE_INVALID_REG);
 
-   vcode_reg_t args1[] = { arg_data_reg, arg_len_reg, tail_ptr };
+   vcode_reg_t args1[] = { arg_data_reg, arg_len_reg, used_ptr };
    vcode_reg_t int_reg = emit_fcall(ident_new("_string_to_int"),
                                     vint64, vint64, VCODE_CC_FOREIGN, args1, 3);
 
-   vcode_reg_t tail_reg = emit_load_indirect(tail_ptr);
-   vcode_reg_t consumed_reg = emit_sub(tail_reg, arg_data_reg);
-   vcode_reg_t tail_len = emit_sub(arg_len_reg, consumed_reg);
+   vcode_reg_t used_reg = emit_load_indirect(used_ptr);
+   vcode_reg_t tail_reg = emit_array_ref(arg_data_reg, used_reg);
+   vcode_reg_t tail_len = emit_sub(arg_len_reg, used_reg);
 
    vcode_reg_t args2[] = { tail_reg, tail_len };
    vcode_reg_t canon_reg = emit_fcall(ident_new("_canon_value"),
@@ -5651,13 +5651,12 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
 
 static vcode_reg_t lower_numeric_value_helper(type_t type, vcode_reg_t preg)
 {
-   vcode_type_t vchar = vtype_char();
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    vcode_type_t vreal  = vtype_real(-DBL_MAX, DBL_MAX);
 
    vcode_reg_t len_reg  = emit_uarray_len(preg, 0);
    vcode_reg_t data_reg = emit_unwrap(preg);
-   vcode_reg_t null_reg = emit_null(vtype_pointer(vtype_pointer(vchar)));
+   vcode_reg_t null_reg = emit_null(vtype_pointer(vtype_offset()));
 
    vcode_reg_t args[] = { data_reg, len_reg, null_reg };
 

@@ -1127,7 +1127,7 @@ void _real_to_string(double value, ffi_uarray_t *u)
 }
 
 DLLEXPORT
-int64_t _string_to_int(const uint8_t *raw_str, int32_t str_len, uint8_t **tail)
+int64_t _string_to_int(const uint8_t *raw_str, int32_t str_len, int32_t *used)
 {
    const char *p = (const char *)raw_str;
    const char *endp = p + str_len;
@@ -1155,8 +1155,8 @@ int64_t _string_to_int(const uint8_t *raw_str, int32_t str_len, uint8_t **tail)
       rt_msg(NULL, fatal, "invalid integer value "
              "\"%.*s\"", str_len, (const char *)raw_str);
 
-   if (tail != NULL)
-      *tail = (uint8_t *)p;
+   if (used != NULL)
+      *used = p - (const char *)raw_str;
    else {
       for (; p < endp && *p != '\0'; p++) {
          if (!isspace((int)*p)) {

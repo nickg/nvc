@@ -3497,16 +3497,11 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
 
    vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs, VCODE_INVALID_REG);
 
-   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-   vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
-
    reg_t *rr = vcode_reg_data(reg);
-   if (vcode_reg_kind(lhs) == VCODE_TYPE_POINTER
-       && vcode_reg_kind(rhs) == VCODE_TYPE_POINTER)
-      rr->type = rr->bounds = vtype_offset();
-   else if (bl->kind == VCODE_TYPE_POINTER || bl->kind == VCODE_TYPE_SIGNAL)
-      rr->bounds = vcode_reg_data(lhs)->bounds;
-   else if (bl->kind != VCODE_TYPE_REAL) {
+   if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
+      vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
+      vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
+
       // XXX: this is wrong - see TO_UNSIGNED
       rr->bounds = vtype_int(sadd64(bl->low, -br->high),
                              sadd64(bl->high, -br->low));
@@ -3537,6 +3532,7 @@ static void vcode_calculate_var_index_type(op_t *op, var_t *var)
    case VCODE_TYPE_POINTER:
    case VCODE_TYPE_SIGNAL:
    case VCODE_TYPE_CONTEXT:
+   case VCODE_TYPE_OFFSET:
       op->type = vtype_pointer(var->type);
       op->result = vcode_add_reg(op->type);
       vcode_reg_data(op->result)->bounds = var->bounds;
