@@ -1,5 +1,7 @@
 ## Unreleased changes
 - Fix `make -j` with GNU make (#440).
+- Subtraction from zero could return the wrong result in some
+  circumstances.
 
 ## Version 1.6.1 - 2022-02-05
 - Fix compatibility with BSD make (#440).

@@ -3489,7 +3489,7 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
    else if (r_is_const && rconst == 0)
       return lhs;
    else if (l_is_const && lconst == 0)
-      return rhs;
+      return emit_neg(rhs);
 
    vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs, VCODE_INVALID_REG);
 

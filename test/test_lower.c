@@ -3806,6 +3806,8 @@ START_TEST(test_conv1)
       { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_INDEX_CHECK },
+      { VCODE_OP_NEG },
+      { VCODE_OP_SELECT },
       { VCODE_OP_CAST },
       { VCODE_OP_UNWRAP },
       { VCODE_OP_ARRAY_REF },
