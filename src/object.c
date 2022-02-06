@@ -82,7 +82,7 @@ static inline object_arena_t *__object_arena(object_t *object)
 static ident_t object_arena_name(object_arena_t *arena)
 {
    if (arena->alloc > arena->base) {
-      object_t *root = (object_t *)arena->base;
+      object_t *root = arena_root(arena);
 
       const object_class_t *class = classes[root->tag];
       const imask_t has = class->has_map[root->kind];
@@ -122,6 +122,11 @@ static bool object_marked_p(object_t *object, generation_t generation)
    arena->mark_bits[word] |= mask;
 
    return marked;
+}
+
+object_t *arena_root(object_arena_t *arena)
+{
+   return (object_t *)arena->base;
 }
 
 object_arena_t *object_arena(object_t *object)

@@ -1231,6 +1231,13 @@ object_arena_t *tree_arena(tree_t t)
    return object_arena(&(t->object));
 }
 
+tree_t tree_container(tree_t t)
+{
+   object_t *o = arena_root(object_arena(&(t->object)));
+   assert(o->tag == OBJECT_TAG_TREE);
+   return container_of(o, struct _tree, object);
+}
+
 void tree_locus(tree_t t, ident_t *unit, ptrdiff_t *offset)
 {
    assert(t != NULL);

@@ -1919,10 +1919,14 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
 
 static vcode_reg_t lower_generic_ref(tree_t decl, expr_ctx_t ctx)
 {
+   type_t type = tree_type(decl);
+
    int hops = 0;
    vcode_var_t var = lower_search_vcode_obj(decl, top_scope, &hops);
+   vcode_reg_t ptr_reg = VCODE_INVALID_REG;
 
    if (var == VCODE_INVALID_VAR) {
+      tree_t unit;
       if (vcode_unit_kind() == VCODE_UNIT_INSTANCE) {
          // This can happen when a type contains a reference to a
          // component generic. The elaborator does not currently rewrite
@@ -1931,19 +1935,25 @@ static vcode_reg_t lower_generic_ref(tree_t decl, expr_ctx_t ctx)
          var = vcode_find_var(tree_ident(decl));
          assert(var != VCODE_INVALID_VAR);
       }
+      else if (tree_kind((unit = tree_container(decl))) == T_PACK_INST) {
+         ident_t name = ident_prefix(tree_ident(unit), tree_ident(decl), '.');
+         ptr_reg = emit_link_var(name, lower_type(type));
+      }
       else if (mode == LOWER_THUNK) {
          emit_comment("Cannot resolve generic %s", istr(tree_ident(decl)));
          return emit_undefined(lower_type(tree_type(decl)));
       }
       else {
          vcode_dump();
-         fatal_trace("missing variable for generic %s", istr(tree_ident(decl)));
+         fatal_trace("missing variable for generic %s in %s",
+                     istr(tree_ident(decl)), istr(tree_ident(unit)));
       }
    }
 
-   type_t type = tree_type(decl);
-   if (hops > 0) {
-      vcode_reg_t ptr_reg = emit_var_upref(hops, var);
+   if (hops > 0)
+      ptr_reg = emit_var_upref(hops, var);
+
+   if (ptr_reg != VCODE_INVALID_REG) {
       if (type_is_scalar(type))
          return emit_load_indirect(ptr_reg);
       else if (type_is_array(type) && !lower_const_bounds(type))
@@ -5749,8 +5759,9 @@ static void lower_instantiated_package(tree_t decl, vcode_unit_t context)
    ident_t name = ident_prefix(vcode_unit_name(), tree_ident(decl), '.');
 
    vcode_unit_t vu = emit_package(name, tree_loc(decl), context);
-
    lower_push_scope(decl);
+   top_scope->flags |= SCOPE_GLOBAL;
+
    lower_generics(decl, NULL);
    lower_decls(decl, vu);
 
@@ -7557,6 +7568,41 @@ static void lower_ports(tree_t block)
       lower_port_map(block, tree_param(block, i));
 }
 
+static void lower_pack_inst_generics(tree_t inst)
+{
+   ident_t iname = tree_ident(inst);
+   if (ident_runtil(iname, '.') == iname) {
+      vcode_state_t state;
+      vcode_state_save(&state);
+      vcode_select_unit(vcode_unit_context());
+      iname = ident_prefix(vcode_unit_name(), iname, '.');
+      vcode_state_restore(&state);
+   }
+
+   const int ngenerics = tree_generics(inst);
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t g = tree_generic(inst, i);
+      type_t type = tree_type(g);
+
+      if (tree_class(g) != C_CONSTANT)
+         continue;
+
+      vcode_type_t vtype = lower_type(type);
+      vcode_type_t vbounds = lower_bounds(type);
+
+      ident_t name = ident_prefix(iname, tree_ident(g), '.');
+      vcode_var_t var = emit_var(vtype, vbounds, name, VAR_CONST);
+
+      vcode_reg_t ptr_reg = emit_link_var(name, vtype);
+      emit_store(emit_load_indirect(ptr_reg), var);
+
+      lower_put_vcode_obj(g, var, top_scope);
+
+      tree_t g0 = tree_generic(tree_ref(inst), i);
+      lower_put_vcode_obj(g0, var, top_scope);
+   }
+}
+
 static void lower_generics(tree_t block, ident_t prefix)
 {
    const int ngenerics = tree_generics(block);
@@ -7574,7 +7620,7 @@ static void lower_generics(tree_t block, ident_t prefix)
          tree_t inst = tree_ref(tree_value(m));
          assert(tree_kind(inst) == T_PACK_INST);
 
-         lower_generics(inst, tree_ident(inst));
+         lower_pack_inst_generics(inst);
       }
 
       if (class != C_CONSTANT)
@@ -7582,9 +7628,16 @@ static void lower_generics(tree_t block, ident_t prefix)
 
       type_t type = tree_type(g);
 
+      ident_t name = tree_ident(g);
+      vcode_var_flags_t flags = VAR_CONST;
+      if (top_scope->flags & SCOPE_GLOBAL) {
+         flags |= VAR_GLOBAL;
+         name = ident_prefix(vcode_unit_name(), name, '.');
+      }
+
       vcode_type_t vtype = lower_type(type);
       vcode_type_t vbounds = lower_bounds(type);
-      vcode_var_t var = emit_var(vtype, vbounds, tree_ident(g), VAR_CONST);
+      vcode_var_t var = emit_var(vtype, vbounds, name, flags);
 
       vcode_reg_t mem_reg = VCODE_INVALID_REG, count_reg = VCODE_INVALID_REG;
 

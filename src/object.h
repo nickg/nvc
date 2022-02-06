@@ -249,6 +249,7 @@ unsigned object_next_generation(void);
 void object_copy(object_copy_ctx_t *ctx);
 object_arena_t *object_arena(object_t *object);
 size_t object_arena_default_size(void);
+object_t *arena_root(object_arena_t *arena);
 
 void object_write(object_t *object, fbuf_t *f, ident_wr_ctx_t ident_ctx,
                   loc_wr_ctx_t *loc_ctx);

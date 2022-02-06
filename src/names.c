@@ -383,6 +383,11 @@ void map_generic_package(nametab_t *tab, tree_t inst)
    const int ndecls = tree_decls(pack);
    for (int i = 0; i < ndecls; i++)
       hash_put(tab->top_scope->gmap, tree_decl(pack, i), tree_decl(inst, i));
+
+   const int ngenerics = tree_generics(pack);
+   for (int i = 0; i < ngenerics; i++)
+      hash_put(tab->top_scope->gmap, tree_generic(pack, i),
+               tree_generic(inst, i));
 }
 
 hash_t *get_generic_map(nametab_t *tab)

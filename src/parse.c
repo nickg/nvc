@@ -1883,11 +1883,13 @@ static bool package_should_copy_tree(tree_t t, void *__ctx)
    case T_PCALL:
       return !!(tree_flags(tree_ref(t)) & TREE_F_ELAB_COPY);
    case T_REF:
-      return tree_kind(tree_ref(t)) == T_GENERIC_DECL;
+      return tree_has_ref(t) && tree_kind(tree_ref(t)) == T_GENERIC_DECL;
    case T_VAR_DECL:
       return !!(tree_flags(t) & TREE_F_SHARED);
    case T_PACKAGE:
    case T_PACK_BODY:
+      return true;
+   case T_GENERIC_DECL:
       return true;
    default:
       return false;
@@ -2034,6 +2036,7 @@ static tree_t rewrite_generic_refs_cb(tree_t t, void *__ctx)
    case T_PCALL:
    case T_PROT_FCALL:
    case T_PROT_PCALL:
+   case T_REF:
       {
          tree_t new = hash_get(map, tree_ref(t));
          if (new != NULL)
@@ -6098,8 +6101,6 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
       tree_set_ident(new, id);
    }
 
-   tree_set_ref(new, pack);
-
    tree_t body = NULL;
    if (pack != NULL) {
       ident_t body_i = ident_new("body");
@@ -6112,6 +6113,8 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
 
       instantiate_package(new, pack, body);
    }
+
+   tree_set_ref(new, pack);
 
    if (peek() == tGENERIC)
       p_generic_map_aspect(new, new);
