@@ -4747,7 +4747,7 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_prot_body(t, tab);
    case T_CONTEXT:
       return sem_check_context_decl(t, tab);
-   case T_CTXREF:
+   case T_CONTEXT_REF:
       return sem_check_context_ref(t, tab);
    case T_BLOCK_CONFIG:
       return sem_check_block_config(t, tab);

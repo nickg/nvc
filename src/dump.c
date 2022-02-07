@@ -1234,7 +1234,7 @@ static void dump_context(tree_t t, int indent)
          printf(";\n");
          break;
 
-      case T_CTXREF:
+      case T_CONTEXT_REF:
          syntax("#context %s;\n", istr(tree_ident(t)));
          break;
 

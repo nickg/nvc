@@ -2338,7 +2338,7 @@ static void p_context_reference(tree_t unit)
    do {
       ident_t name = p_selected_identifier();
 
-      tree_t c = tree_new(T_CTXREF);
+      tree_t c = tree_new(T_CONTEXT_REF);
       tree_set_ident(c, name);
       tree_set_loc(c, CURRENT_LOC);
 
