@@ -2039,7 +2039,7 @@ static tree_t rewrite_generic_refs_cb(tree_t t, void *__ctx)
    case T_PROT_FCALL:
    case T_PROT_PCALL:
    case T_REF:
-      {
+      if (tree_has_ref(t)) {
          tree_t new = hash_get(map, tree_ref(t));
          if (new != NULL)
             tree_set_ref(t, new);

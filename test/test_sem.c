@@ -2435,6 +2435,7 @@ START_TEST(test_error2)
    const error_t expect[] = {
       {  2, "unexpected to while parsing primary, expecting one of ** or )" },
       {  2, "invalid expression in range constraint" },
+      {  5, "no visible subprogram declaration for IFELSE" },
       { -1, NULL }
    };
    expect_errors(expect);

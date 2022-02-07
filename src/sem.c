@@ -2187,14 +2187,14 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
 
 static bool sem_check_fcall(tree_t t, nametab_t *tab)
 {
+   if (!tree_has_ref(t))
+      return false;
+
    if (!sem_check_params(t, tab))
       return false;
 
    if (tree_kind(t) == T_PROT_FCALL && tree_has_name(t)
        && !sem_check(tree_name(t), tab))
-      return false;
-
-   if (!tree_has_ref(t))
       return false;
 
    tree_t decl = tree_ref(t);
@@ -2225,14 +2225,14 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
 
 static bool sem_check_pcall(tree_t t, nametab_t *tab)
 {
+   if (!tree_has_ref(t))
+      return false;
+
    if (!sem_check_params(t, tab))
       return false;
 
    if (tree_kind(t) == T_PROT_PCALL && tree_has_name(t)
        && !sem_check(tree_name(t), tab))
-      return false;
-
-   if (!tree_has_ref(t))
       return false;
 
    tree_t decl = tree_ref(t);
