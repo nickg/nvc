@@ -235,7 +235,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_CONTEXT
    (I_CONTEXT | I_IDENT),
 
-   // T_CTXREF
+   // T_CONTEXT_REF
    (I_IDENT | I_REF),
 
    // T_CONSTRAINT
@@ -308,7 +308,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_USE",             "T_HIER",            "T_SPEC",
    "T_BINDING",         "T_LIBRARY",         "T_DESIGN_UNIT",
    "T_CONFIGURATION",   "T_PROT_BODY",       "T_CONTEXT",
-   "T_CTXREF",          "T_CONSTRAINT",      "T_BLOCK_CONFIG",
+   "T_CONTEXT_REF",     "T_CONSTRAINT",      "T_BLOCK_CONFIG",
    "T_PROT_FCALL",      "T_PROT_PCALL",      "T_RANGE",
    "T_IMPLICIT_SIGNAL", "T_DISCONNECT",      "T_GROUP_TEMPLATE",
    "T_GROUP",           "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN",
@@ -903,7 +903,7 @@ tree_t tree_context(tree_t t, unsigned n)
 void tree_add_context(tree_t t, tree_t ctx)
 {
    assert(ctx->object.kind == T_USE || ctx->object.kind == T_LIBRARY
-          || ctx->object.kind == T_CTXREF);
+          || ctx->object.kind == T_CONTEXT_REF);
    tree_array_add(lookup_item(&tree_object, t, I_CONTEXT), ctx);
    object_write_barrier(&(t->object), &(ctx->object));
 }

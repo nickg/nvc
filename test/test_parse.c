@@ -3010,7 +3010,7 @@ START_TEST(test_context)
    fail_unless(tree_contexts(c2) == 5);
 
    tree_t r = tree_context(c2, 4);
-   fail_unless(tree_kind(r) == T_CTXREF);
+   fail_unless(tree_kind(r) == T_CONTEXT_REF);
    fail_unless(tree_ident(r) == ident_new("WIDGET_LIB.WIDGET_CONTEXT"));
 
    fail_if(parse() == NULL);

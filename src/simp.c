@@ -1649,7 +1649,7 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return NULL;   // Delete it
    case T_RECORD_REF:
       return simp_record_ref(t, ctx);
-   case T_CTXREF:
+   case T_CONTEXT_REF:
       return simp_context_ref(t, ctx);
    case T_USE:
       return simp_use(t);

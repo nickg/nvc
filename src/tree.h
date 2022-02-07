@@ -283,7 +283,7 @@ typedef enum tree_kind {
    T_CONFIGURATION,
    T_PROT_BODY,
    T_CONTEXT,
-   T_CTXREF,
+   T_CONTEXT_REF,
    T_CONSTRAINT,
    T_BLOCK_CONFIG,
    T_PROT_FCALL,
