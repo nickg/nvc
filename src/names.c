@@ -1147,6 +1147,8 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
                   istr(unit_name), istr(ident_until(unit_name, '.')));
          return;
       }
+
+      unit_name = tree_ident(unit);
    }
 
    ident_t tag = unit_name;

@@ -3888,6 +3888,32 @@ START_TEST(test_vunit5)
 }
 END_TEST
 
+START_TEST(test_vunit6)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/vunit6.vhd");
+
+   lib_t foo_lib = lib_tmp("foo");
+   lib_set_work(foo_lib);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   tree_t c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONTEXT);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3953,6 +3979,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_tc1012);
    tcase_add_test(tc_core, test_issue443);
    tcase_add_test(tc_core, test_vunit5);
+   tcase_add_test(tc_core, test_vunit6);
    suite_add_tcase(s, tc_core);
 
    return s;
