@@ -2349,7 +2349,7 @@ static vcode_reg_t lower_record_sub_aggregate(tree_t value, type_t type,
    }
    else if (type_is_record(type) && is_const)
       return lower_record_aggregate(value, true, true, EXPR_RVALUE);
-   else if (type_is_scalar(type))
+   else if (type_is_scalar(type) || type_is_access(type))
       return lower_reify_expr(value);
    else
       return lower_expr(value, EXPR_RVALUE);

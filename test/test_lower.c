@@ -4489,6 +4489,39 @@ START_TEST(test_vunit3)
 }
 END_TEST
 
+START_TEST(test_vunit4)
+{
+   input_from_file(TESTDIR "/lower/vunit4.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   vcode_unit_t vu = find_unit(
+      "WORK.VUNIT4.GET_REC(7NATURAL)15WORK.VUNIT4.REC");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "WORK.VUNIT4.V" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_INDEX_CHECK },
+      { VCODE_OP_SUB },
+      { VCODE_OP_CAST },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_INDEX, .name = "record" },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4589,6 +4622,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_vunit1);
    tcase_add_test(tc, test_vunit2);
    tcase_add_test(tc, test_vunit3);
+   tcase_add_test(tc, test_vunit4);
    suite_add_tcase(s, tc);
 
    return s;
