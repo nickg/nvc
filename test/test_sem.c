@@ -810,18 +810,19 @@ START_TEST(test_access)
    input_from_file(TESTDIR "/sem/access.vhd");
 
    const error_t expect[] = {
-      {  5, "no visible declaration for FOO" },
-      { 34, "null expression must have access type" },
-      { 38, "unexpected integer while parsing type mark, expecting" },
-      { 39, "type mark I does not refer to a type" },
-      { 41, "does not match type of target INT_PTR" },
-      { 47, "type of value REC does not match type of" },
-      { 55, "type of allocator expresion INTEGER does not match" },
-      { 56, "type mark S does not refer to a type" },
-      { 76, "unconstrained array type INT_PTR_ARRAY not allowed" },
-      { 84, "index constraint cannot be used with non-array type INTEGER" },
-      { 90, "type FOO is incomplete" },
-      { 97, "cannot determine type of allocator expression from context" },
+      {   5, "no visible declaration for FOO" },
+      {  34, "null expression must have access type" },
+      {  38, "unexpected integer while parsing type mark, expecting" },
+      {  39, "type mark I does not refer to a type" },
+      {  41, "does not match type of target INT_PTR" },
+      {  47, "type of value REC does not match type of" },
+      {  55, "type of allocator expresion INTEGER does not match" },
+      {  56, "type mark S does not refer to a type" },
+      {  76, "unconstrained array type INT_PTR_ARRAY not allowed" },
+      {  84, "index constraint cannot be used with non-array type INTEGER" },
+      {  90, "type FOO is incomplete" },
+      {  97, "cannot determine type of allocator expression from context" },
+      { 105, "incomplete type A found in allocator expression" },
       { -1, NULL }
    };
    expect_errors(expect);

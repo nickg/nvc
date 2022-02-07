@@ -3630,15 +3630,17 @@ void emit_return(vcode_reg_t reg)
    if (reg != VCODE_INVALID_REG) {
       vcode_add_arg(op, reg);
 
+      const vtype_kind_t rkind = vcode_reg_kind(reg);
+      if (rkind == VCODE_TYPE_POINTER || rkind == VCODE_TYPE_UARRAY)
+         vcode_heap_allocate(reg);
+
       VCODE_ASSERT(active_unit->kind == VCODE_UNIT_FUNCTION
                    || active_unit->kind == VCODE_UNIT_THUNK,
                    "returning value fron non-function unit");
-      VCODE_ASSERT(vtype_eq(active_unit->result, vcode_reg_type(reg)),
+      VCODE_ASSERT(vtype_eq(active_unit->result, vcode_reg_type(reg))
+                   || (vtype_kind(active_unit->result) == VCODE_TYPE_ACCESS
+                       && rkind == VCODE_TYPE_ACCESS),
                    "return value incorrect type");
-
-      vtype_kind_t rkind = vcode_reg_kind(reg);
-      if (rkind == VCODE_TYPE_POINTER || rkind == VCODE_TYPE_UARRAY)
-         vcode_heap_allocate(reg);
    }
 }
 

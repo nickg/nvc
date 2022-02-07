@@ -4464,6 +4464,31 @@ START_TEST(test_vunit2)
 }
 END_TEST
 
+START_TEST(test_vunit3)
+{
+   input_from_file(TESTDIR "/lower/vunit3.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   vcode_unit_t vu = find_unit("WORK.VUNIT3.ALLOC_REG()19WORK.VUNIT3.REC_PTR");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_NEW },
+      { VCODE_OP_ALL },
+      { VCODE_OP_CONST, .value = INT32_MIN },
+      { VCODE_OP_CONST_RECORD },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_COPY },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4563,6 +4588,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue444);
    tcase_add_test(tc, test_vunit1);
    tcase_add_test(tc, test_vunit2);
+   tcase_add_test(tc, test_vunit3);
    suite_add_tcase(s, tc);
 
    return s;
