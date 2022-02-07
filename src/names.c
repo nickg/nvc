@@ -1324,6 +1324,10 @@ void insert_names_from_context(nametab_t *tab, tree_t unit)
       case T_USE:
          insert_names_from_use(tab, c);
          break;
+      case T_CONTEXT_REF:
+         if (tree_has_ref(c))
+            insert_names_from_context(tab, tree_ref(c));
+         break;
       default:
          fatal_trace("nametab cannot handle context kind %s",
                      tree_kind_str(tree_kind(c)));
