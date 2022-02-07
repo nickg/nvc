@@ -4,6 +4,7 @@
   circumstances.
 - Fix incorrect code generation for access-to-array.
 - Fix assertion failure with nested context.
+- Generic declarations are now allowed to hide the entity name.
 
 ## Version 1.6.1 - 2022-02-05
 - Fix compatibility with BSD make (#440).

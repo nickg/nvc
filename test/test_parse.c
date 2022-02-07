@@ -3862,6 +3862,32 @@ START_TEST(test_issue443)
 }
 END_TEST
 
+START_TEST(test_vunit5)
+{
+   input_from_file(TESTDIR "/parse/vunit5.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   tree_t d = tree_decl(a, 0);
+   fail_unless(tree_kind(d) == T_SIGNAL_DECL);
+   fail_unless(tree_ident(d) == ident_new("X"));
+
+   tree_t r = tree_value(d);
+   fail_unless(tree_kind(r) == T_REF);
+   fail_unless(tree_kind(tree_ref(r)) == T_PORT_DECL);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -3926,6 +3952,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_error4);
    tcase_add_test(tc_core, test_tc1012);
    tcase_add_test(tc_core, test_issue443);
+   tcase_add_test(tc_core, test_vunit5);
    suite_add_tcase(s, tc_core);
 
    return s;
