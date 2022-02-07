@@ -1686,7 +1686,7 @@ static tree_t select_decl(tree_t prefix, ident_t suffix)
       parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
                   istr(tree_ident(prefix)));
    }
-   else if (is_subprogram(d) && peek() != tLSQUARE) {
+   else if (is_subprogram(d) && peek() == tLPAREN) {
       tree_t f = p_function_call(suffix, prefix);
       tree_set_ident(f, qual);
       return f;

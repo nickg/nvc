@@ -60,7 +60,7 @@ void suppress_errors(nametab_t *tab);
 
 void map_generic_type(nametab_t *tab, type_t generic, type_t actual);
 void map_generic_package(nametab_t *tab, tree_t inst);
-void map_generic_box(nametab_t *tab, tree_t inst, tree_t g);
+void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos);
 hash_t *get_generic_map(nametab_t *tab);
 type_t get_mapped_type(nametab_t *tab, type_t type);
 

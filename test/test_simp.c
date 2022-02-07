@@ -1184,6 +1184,16 @@ START_TEST(test_gentype)
 }
 END_TEST
 
+START_TEST(test_osvvm4)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/simp/osvvm4.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE, T_PACK_INST);
+   fail_unless(tree_genmaps(p) == 9);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1228,6 +1238,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_issue438);
    tcase_add_test(tc_core, test_ports2008);
    tcase_add_test(tc_core, test_gentype);
+   tcase_add_test(tc_core, test_osvvm4);
    suite_add_tcase(s, tc_core);
 
    return s;

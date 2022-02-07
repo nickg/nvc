@@ -1534,7 +1534,13 @@ static void simp_generic_map(tree_t t, tree_t unit)
 
       for (int j = last_pos; j < ngenmaps; j++) {
          tree_t mj = tree_genmap(t, j);
-         assert(tree_subkind(mj) == P_NAMED);
+
+         if (tree_subkind(mj) == P_POS) {
+            // This was added by the parser or checker
+            if (tree_pos(mj) == i)
+               value = tree_value(mj);
+            continue;
+         }
 
          tree_t name = tree_name(mj);
          tree_t ref = name_to_ref(name);
@@ -1594,10 +1600,8 @@ static void simp_generic_map(tree_t t, tree_t unit)
 
    for (int i = 0; i < values.count; i++) {
       tree_t m;
-      if (last_pos + i < ngenmaps) {
+      if (last_pos + i < ngenmaps)
          m = tree_genmap(t, last_pos + i);
-         assert(tree_subkind(m) == P_NAMED);
-      }
       else {
          m = tree_new(T_PARAM);
          tree_add_genmap(t, m);
@@ -1742,7 +1746,7 @@ static void simp_generics(tree_t t, simp_ctx_t *ctx)
 
       if (pos < ngenmaps) {
          tree_t m = tree_genmap(t, pos);
-         if (tree_subkind(m) == P_POS)
+         if (tree_subkind(m) == P_POS && tree_pos(m) == pos)
             map = tree_value(m);
       }
 

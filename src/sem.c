@@ -3663,7 +3663,7 @@ static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab)
          if (tree_kind(value) == T_BOX) {
             // Need to look up the matching subprogram now while we still
             // have the symbol table
-            map_generic_box(tab, t, formals[i].decl);
+            map_generic_box(tab, t, formals[i].decl, i);
          }
       }
    }

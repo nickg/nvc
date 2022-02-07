@@ -2036,7 +2036,7 @@ static void overload_restrict_argument(overload_t *o, tree_t p,
    }
 }
 
-void map_generic_box(nametab_t *tab, tree_t inst, tree_t g)
+void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
 {
    // Find the actual for the <> "box" default generic subprogram
 
@@ -2050,8 +2050,8 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g)
 
    tree_t map = tree_new(T_PARAM);
    tree_set_loc(ref, tree_loc(inst));
-   tree_set_subkind(map,  P_NAMED);
-   tree_set_name(map, make_ref(g));
+   tree_set_subkind(map,  P_POS);
+   tree_set_pos(map, pos);
    tree_set_value(map, ref);
 
    tree_add_genmap(inst, map);
