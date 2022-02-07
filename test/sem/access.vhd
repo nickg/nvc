@@ -97,4 +97,12 @@ package body p is
         v(1) := new integer'(5);        -- Error
     end procedure;
 
+    procedure test7 is
+        type a;
+        type a_ptr is access a;
+        variable p : a_ptr;
+    begin
+        p := new a;                     -- Error
+    end procedure;
+
 end package body;

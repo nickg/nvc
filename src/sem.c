@@ -4442,6 +4442,9 @@ static bool sem_check_new(tree_t t, nametab_t *tab)
    if (!tree_has_value(value) && type_is_unconstrained(type))
       sem_error(t, "unconstrained array type %s not allowed in allocator "
                 "expression", type_pp(type));
+   else if (type_is_incomplete(type))
+      sem_error(t, "incomplete type %s found in allocator expression",
+                type_pp(type));
 
    if (!type_eq(type, type_access(access_type)))
       sem_error(value, "type of allocator expresion %s does not match "
