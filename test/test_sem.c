@@ -2512,7 +2512,7 @@ START_TEST(test_genpack)
 
    parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_INST,
                    T_ENTITY, T_ARCH, T_PACKAGE, T_PACK_BODY, T_PACKAGE,
-                   T_PACK_INST, T_ARCH);
+                   T_PACK_INST, T_ARCH, T_PACKAGE, T_PACK_INST, T_ARCH);
 
    check_expected_errors();
 }

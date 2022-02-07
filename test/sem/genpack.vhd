@@ -96,3 +96,29 @@ architecture test2 of ent is
           generic map ( bad_std => work.myfixed_4_8 );  -- Error
 begin
 end architecture;
+
+-------------------------------------------------------------------------------
+
+package ptr_pkg is
+    generic ( type t );
+    type ptr is access t;
+end package;
+
+-------------------------------------------------------------------------------
+
+package int_ptr_pkg is new work.ptr_pkg
+    generic map ( t => integer );
+
+-------------------------------------------------------------------------------
+
+use work.int_ptr_pkg;
+
+architecture test3 of ent is
+    procedure p is
+        variable v : int_ptr_pkg.ptr;
+    begin
+        v := new integer;   -- OK
+        int_ptr_pkg.deallocate(v);      -- OK
+    end procedure;
+begin
+end architecture;

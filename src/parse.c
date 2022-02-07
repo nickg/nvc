@@ -1394,6 +1394,8 @@ static void declare_predefined_ops(tree_t container, type_t t)
 
          tree_t deallocate = builtin_proc(deallocate_i, S_DEALLOCATE);
          add_port(deallocate, "P", t, PORT_INOUT, NULL);
+
+         mangle_func(nametab, deallocate);
          insert_name(nametab, deallocate, deallocate_i, 0);
          tree_add_decl(container, deallocate);
       }
