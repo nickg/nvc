@@ -3,6 +3,7 @@
 - Subtraction from zero could return the wrong result in some
   circumstances.
 - Fix incorrect code generation for access-to-array.
+- Fix assertion failure with nested context.
 
 ## Version 1.6.1 - 2022-02-05
 - Fix compatibility with BSD make (#440).

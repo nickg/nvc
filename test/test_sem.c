@@ -1548,7 +1548,8 @@ START_TEST(test_context)
    parse_and_check(T_PACKAGE, T_CONTEXT, -1);
 
    lib_set_work(bar);
-   parse_and_check(T_ENTITY, T_ENTITY, T_PACKAGE, T_CONTEXT);
+   parse_and_check(T_ENTITY, T_ENTITY, T_PACKAGE, T_CONTEXT, T_CONTEXT,
+                   T_ENTITY);
 
    check_expected_errors();
 }

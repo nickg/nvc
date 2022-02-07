@@ -41,3 +41,17 @@ context work_context is
     use work.pack2;                     -- Error
     context work.blah;                  -- Error
 end context;
+
+-------------------------------------------------------------------------------
+
+context nested is
+    library foo;
+    context foo.test_context;
+end nested;
+
+context work.nested;
+
+entity foo is
+    port (
+        x : in my_int );                -- OK
+end entity;
