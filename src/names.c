@@ -631,9 +631,8 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
          const tree_kind_t ekind = tree_kind(existing);
          if (ekind == T_UNIT_DECL || ekind == T_LIBRARY)
             continue;
-         else if (ekind == T_TYPE_DECL
-                  && type_is_protected(tree_type(existing))
-                  && tkind == T_PROT_BODY)
+         else if (ekind == T_TYPE_DECL && tkind == T_PROT_BODY
+                  && type_is_protected(tree_type(existing)))
             continue;
          else if (is_forward_decl(tab, decl, existing)) {
             // Replace forward declaration in same region with full definition
@@ -1054,6 +1053,8 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       }
       else if (conflict != NULL && tree_kind(conflict) == T_PROT_BODY)
          ;
+      else if (conflict != NULL && tree_kind(decl) == T_PROT_BODY)
+         decl = conflict;
       else if (conflict != NULL && iter.where != NULL && iter.where->import
                && !first->import)
          ;   // Second declaration was potentially visible homograph
