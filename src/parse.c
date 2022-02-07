@@ -6630,6 +6630,8 @@ static void p_entity_declaration(tree_t unit)
    tree_set_loc(unit, CURRENT_LOC);
    insert_name(nametab, unit, id, 0);
 
+   push_scope(nametab);
+
    ident_t qual = ident_prefix(lib_name(lib_work()), id, '.');
    scope_set_prefix(nametab, qual);
 
@@ -6646,6 +6648,8 @@ static void p_entity_declaration(tree_t unit)
 
    tree_set_loc(unit, CURRENT_LOC);
    sem_check(unit, nametab);
+
+   pop_scope(nametab);
 
    tree_set_ident(unit, qual);
 }
