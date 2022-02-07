@@ -174,7 +174,7 @@ jobs:
           repository: nickg/vhdl-projects
           path: vhdl-projects
           fetch-depth: 1
-          ref: c1efe906cc7ad1
+          ref: c1efe906cc7ad1282b0c2484718068e2e5bcca6d
       - name: Get version
         id: version
         run: echo ::set-output name=version::$(echo $GITHUB_REF | cut -d / -f 3)
