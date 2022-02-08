@@ -646,6 +646,9 @@ void e_chunk_nexus(e_node_t root, e_node_t nexus, unsigned count)
    item_t *item = lookup_item(&e_node_object, root, I_NEXUS);
    e_array_insert_many(item, nexus, new, nchunks - 1);
 
+   assert(nsignals == e_signals(nexus));
+   assert(ntriggers == e_triggers(nexus));
+
    for (int i = 0; i < nsignals; i++) {
       item_t *item = lookup_item(&e_node_object, signals[i], I_NEXUS);
       e_array_insert_many(item, nexus, new, nchunks - 1);

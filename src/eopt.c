@@ -50,7 +50,9 @@ static void eopt_split_signal(e_node_t signal, unsigned offset, unsigned count,
    if (stride > 0) {
       total = e_width(signal);
 
-      if (total / stride > BIG_ARRAY && nnexus == 1 && stride % count == 0) {
+      if (total / stride > BIG_ARRAY && nnexus == 1 && count > 1
+          && stride % count == 0) {
+
          // Eagerly chunk up large arrays now to reduce time spent in
          // the loop below
          e_chunk_nexus(root, e_nexus(signal, 0), count);
