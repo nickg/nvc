@@ -87,6 +87,11 @@ AC_DEFUN([AX_LLVM_C], [
       AC_MSG_ERROR([LLVM version 7.0 or later required])
     fi
 
+    if test "$llvm_ver_num" -ge "80"; then
+      AC_DEFINE_UNQUOTED(LLVM_HAVE_BUILD_MEMSET, [1],
+                         [Have LLVMBuildMemSet])
+    fi
+
     if test "$llvm_ver_num" -ge "100"; then
       AC_DEFINE_UNQUOTED(LLVM_HAVE_DI_SCOPE_GET_FILE, [1],
                          [Have LLVMDIScopeGetFile])
