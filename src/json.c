@@ -360,6 +360,7 @@ static JsonNode *dump_decl(tree_t t)
                json_append_member(decl, "ua_types", ua_types);
             }
             else if (kind == T_SUBTYPE) {
+#if 0
                tree_t constraint = type_constraint(type);
                const int nranges = tree_ranges(constraint);
                JsonNode *st_constr = json_mkarray();
@@ -367,6 +368,7 @@ static JsonNode *dump_decl(tree_t t)
                   json_append_element(st_constr, dump_range(tree_range(constraint, i)));
                }
                json_append_member(decl, "st_constr", st_constr);
+#endif
             }
             else {
                JsonNode *dims = json_mkarray();

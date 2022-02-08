@@ -457,22 +457,22 @@ type_t type_index_constr(type_t t, unsigned n)
    return type_array_nth(item, n);
 }
 
-void type_set_constraint(type_t t, tree_t c)
+unsigned type_constraints(type_t t)
 {
-   lookup_item(&type_object, t, I_CONSTR)->object = &(c->object);
+   return lookup_item(&type_object, t, I_CONSTR)->obj_array.count;
+}
+
+void type_add_constraint(type_t t, tree_t c)
+{
+   assert(c->object.kind == T_CONSTRAINT);
+   tree_array_add(lookup_item(&type_object, t, I_CONSTR), c);
    object_write_barrier(&(t->object), &(c->object));
 }
 
-bool type_has_constraint(type_t t)
-{
-   return lookup_item(&type_object, t, I_CONSTR)->object != NULL;
-}
-
-tree_t type_constraint(type_t t)
+tree_t type_constraint(type_t t, unsigned n)
 {
    item_t *item = lookup_item(&type_object, t, I_CONSTR);
-   assert(item->object != NULL);
-   return container_of(item->object, struct _tree, object);
+   return tree_array_nth(item, n);
 }
 
 void type_set_resolution(type_t t, tree_t r)
@@ -625,7 +625,7 @@ bool type_is_unconstrained(type_t t)
 {
    assert(t != NULL);
    if (t->object.kind == T_SUBTYPE) {
-      if (!type_has_constraint(t))
+      if (type_constraints(t) == 0)
          return type_is_unconstrained(type_base(t));
       else
          return false;

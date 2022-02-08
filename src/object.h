@@ -100,12 +100,12 @@ typedef uint64_t imask_t;
 #define ITEM_IDENT       (I_IDENT | I_IDENT2 | I_PATH | I_VCODE)
 #define ITEM_OBJECT      (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET   \
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE    \
-                          | I_NAME | I_SPEC | I_RESOLUTION | I_CONSTR   \
+                          | I_NAME | I_SPEC | I_RESOLUTION              \
                           | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
                           | I_ACCESS | I_RESULT | I_FILE | I_PARENT     \
                           | I_PRIMARY | I_GUARD)
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
-                          | I_WAVES | I_CONDS | I_TRIGGERS              \
+                          | I_WAVES | I_CONDS | I_TRIGGERS | I_CONSTR   \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
                           | I_LITERALS | I_FIELDS | I_OUTPUTS           \
                           | I_UNITS | I_CHARS | I_DIMS | I_RANGES       \

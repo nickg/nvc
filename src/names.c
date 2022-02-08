@@ -2563,7 +2563,7 @@ static type_t solve_array_slice(nametab_t *tab, tree_t slice)
 
    type_t slice_type = type_new(T_SUBTYPE);
    type_set_base(slice_type, base_type);
-   type_set_constraint(slice_type, constraint);
+   type_add_constraint(slice_type, constraint);
 
    tree_set_type(slice, slice_type);
    return slice_type;

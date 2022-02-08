@@ -253,7 +253,7 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
                 "non-array type %s", type_pp(base));
 
    if (type_is_array(base)) {
-      if (type_kind(base) == T_SUBTYPE && type_has_constraint(base))
+      if (type_kind(base) == T_SUBTYPE && type_constraints(base) > 0)
          sem_error(constraint, "may not change constraints of constrained "
                    "array type %s", type_pp(base));
    }
@@ -293,10 +293,14 @@ static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
    if (type_is_protected(base))
       sem_error(decl, "subtypes may not have protected base types");
 
-   if (type_has_constraint(type)) {
-      if (!sem_check_constraint(type_constraint(type), base, tab))
+   const int ncon = type_constraints(type);
+   for (int i = 0; i < ncon; i++) {
+      if (!sem_check_constraint(type_constraint(type, i), base, tab))
          return false;
    }
+
+   if (ncon > 1)
+      sem_error(decl, "sorry, element constraints are not supported yet");
 
    if (type_has_resolution(type)) {
       if (!sem_check_resolution(type_base(type), type_resolution(type)))
@@ -509,9 +513,10 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
          if (!sem_check_subtype(t, elem_type, tab))
             return false;
 
-         if (type_is_unconstrained(elem_type))
-            sem_error(t, "array %s cannot have unconstrained element type",
-                      istr(tree_ident(t)));
+         if (standard() < STD_08 && type_is_unconstrained(elem_type))
+            sem_error(t, "array %s cannot have unconstrained element type "
+                      "in VHDL-%s", istr(tree_ident(t)),
+                      standard_text(standard()));
 
          if (type_is_file(elem_type))
             sem_error(t, "array %s cannot have element of file type",
@@ -702,8 +707,9 @@ static bool sem_check_subtype_decl(tree_t t, nametab_t *tab)
    if (type_is_protected(base))
       sem_error(t, "subtypes may not have protected base types");
 
-   if (type_has_constraint(type)) {
-      if (!sem_check_constraint(type_constraint(type), base, tab))
+   const int ncon = type_constraints(type);
+   for (int i = 0; i < ncon; i++) {
+      if (!sem_check_constraint(type_constraint(type, i), base, tab))
          return false;
    }
 

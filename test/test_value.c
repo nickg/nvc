@@ -116,7 +116,7 @@ START_TEST(test_subtype)
       tree_set_subkind(c, C_RANGE);
       tree_add_range(c, r);
 
-      type_set_constraint(s, c);
+      type_add_constraint(s, c);
    }
 
    fail_unless(parse_value(s, "A", &v));

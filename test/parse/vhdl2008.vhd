@@ -136,4 +136,12 @@ begin
 
     end block;
 
+    process is
+        type int_vec2 is array (natural range <>) of integer_vector;  -- OK
+        constant a : int_vec2(1 to 3)(1 to 2) := (  -- OK
+            (1, 2), (3, 4), (5, 6) );
+    begin
+        assert a(1)(1) = 1;             -- OK
+    end process;
+
 end architecture;

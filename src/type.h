@@ -94,9 +94,9 @@ unsigned type_index_constrs(type_t t);
 void type_add_index_constr(type_t t, type_t c);
 type_t type_index_constr(type_t t, unsigned n);
 
-void type_set_constraint(type_t t, tree_t c);
-tree_t type_constraint(type_t t);
-bool type_has_constraint(type_t t);
+unsigned type_constraints(type_t t);
+void type_add_constraint(type_t t, tree_t c);
+tree_t type_constraint(type_t t, unsigned n);
 
 unsigned type_fields(type_t t);
 tree_t type_field(type_t t, unsigned n);

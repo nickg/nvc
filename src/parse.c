@@ -3250,20 +3250,44 @@ static tree_t p_index_constraint(type_t base)
    return t;
 }
 
+static void p_array_constraint(type_t type, type_t base)
+{
+   // index_constraint [ array_element_constraint ]
+   //   | ( open ) [ array_element_constraint ]
+
+   BEGIN("array constraint");
+
+   if (peek_nth(2) == tOPEN)
+      parse_error(CURRENT_LOC, "sorry, this form of array constraint is "
+                  "not yet supported");
+   else {
+      type_add_constraint(type, p_index_constraint(base));
+
+      if (peek() == tLPAREN)
+         p_array_constraint(type, base);
+   }
+}
+
 static void p_constraint(type_t type)
 {
    // range_constraint | index_constraint
+   // 2008: range_constraint | array_constraint | record_constraint
+
+   BEGIN("constraint");
 
    assert(type_kind(type) == T_SUBTYPE);
    type_t base = type_base(type);
 
    switch (peek()) {
    case tRANGE:
-      type_set_constraint(type, p_range_constraint(base));
+      type_add_constraint(type, p_range_constraint(base));
       break;
 
    case tLPAREN:
-      type_set_constraint(type, p_index_constraint(base));
+      if (standard() < STD_08)
+         type_add_constraint(type, p_index_constraint(base));
+      else
+         p_array_constraint(type, base);
       break;
 
    default:
@@ -5037,7 +5061,7 @@ static type_t p_constrained_array_definition(ident_t id)
 
    type_t sub = type_new(T_SUBTYPE);
    type_set_base(sub, base);
-   type_set_constraint(sub, constraint);
+   type_add_constraint(sub, constraint);
 
    consume(tLPAREN);
    do {
@@ -7941,7 +7965,7 @@ static void p_parameter_specification(tree_t loop)
 
    type_t sub = type_new(T_SUBTYPE);
    type_set_base(sub, base);
-   type_set_constraint(sub, constraint);
+   type_add_constraint(sub, constraint);
 
    tree_kind_t kind = tree_kind(loop) == T_FOR_GENERATE ? T_GENVAR : T_VAR_DECL;
    tree_t var = tree_new(kind);

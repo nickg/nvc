@@ -391,8 +391,11 @@ static void dump_type(type_t type)
 {
    if (type_kind(type) == T_SUBTYPE) {
       printf("%s", type_pp(type));
-      if (type_ident(type) == type_ident(type_base(type)))
-         dump_constraint(type_constraint(type));
+      if (type_ident(type) == type_ident(type_base(type))) {
+         const int ncon = type_constraints(type);
+         for (int i = 0; i < ncon; i++)
+            dump_constraint(type_constraint(type, i));
+      }
    }
    else if (type_is_array(type) && !type_is_unconstrained(type)) {
       printf("%s(", type_pp(type));
@@ -567,31 +570,30 @@ static void dump_type_decl(tree_t t, int indent)
    }
    else if (type_is_array(type)) {
       syntax("#array ");
-      printf("(");
       if (kind == T_ARRAY) {
+         printf("(");
          const int nindex = type_index_constrs(type);
          for (int i = 0; i < nindex; i++) {
             if (i > 0) printf(", ");
             dump_type(type_index_constr(type, i));
             syntax(" #range <>");
          }
+         printf(")");
       }
       else if (kind == T_SUBTYPE) {
-         tree_t constraint = type_constraint(type);
-         const int nranges = tree_ranges(constraint);
-         for (int i = 0; i < nranges; i++) {
-            if (i > 0) printf(", ");
-            dump_range(tree_range(constraint, i));
-         }
+         const int ncon = type_constraints(type);
+         for (int i = 0; i < ncon; i++)
+            dump_constraint(type_constraint(type, i));
       }
       else {
+         printf("(");
          const int ndims = type_dims(type);
          for (int i = 0; i < ndims; i++) {
             if (i > 0) printf(", ");
             dump_range(type_dim(type, i));
          }
+         printf(")");
       }
-      printf(")");
       syntax(" #of ");
       dump_type(type_elem(type));
    }
@@ -636,8 +638,11 @@ static void dump_subtype_decl(tree_t t, int indent)
       printf(" ");
    }
    printf("%s", type_pp(type_base(type)));
-   if (type_has_constraint(type))
-      dump_constraint(type_constraint(type));
+
+   const int ncon = type_constraints(type);
+   for (int i = 0; i < ncon; i++)
+      dump_constraint(type_constraint(type, i));
+
    printf(";\n");
 }
 

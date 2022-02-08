@@ -89,7 +89,7 @@ static void bounds_check_string_literal(tree_t t)
       tree_add_range(c, r);
       tree_set_loc(c, tree_loc(t));
 
-      type_set_constraint(tmp, c);
+      type_add_constraint(tmp, c);
 
       tree_set_type(t, tmp);
    }
@@ -329,8 +329,8 @@ static void bounds_check_array_ref(tree_t t)
          //     y := a(x);  -- Always in bounds
 
          type_t ptype = tree_type(pvalue);
-         if (type_kind(ptype) == T_SUBTYPE && type_has_constraint(ptype)) {
-            tree_t c = type_constraint(ptype);
+         if (type_kind(ptype) == T_SUBTYPE && type_constraints(ptype) == 1) {
+            tree_t c = type_constraint(ptype, 0);
             if (tree_subkind(c) == C_RANGE) {
                tree_t r = tree_range(c, 0);
                if (tree_subkind(r) == RANGE_EXPR) {
@@ -754,7 +754,7 @@ static void bounds_check_aggregate(tree_t t)
          tree_add_range(constraint, dim);
       }
 
-      type_set_constraint(tmp, constraint);
+      type_add_constraint(tmp, constraint);
       tree_set_type(t, tmp);
    }
 }
