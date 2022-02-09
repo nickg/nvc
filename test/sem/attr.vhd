@@ -209,6 +209,7 @@ begin
         b := x'right = 5;               -- OK
         b := int2_vec'length = 2;       -- OK
         b := int2_vec'low = 66;         -- OK
+        report int2_vec'image(x);       -- Error
     end process;
 
     process is

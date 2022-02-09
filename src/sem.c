@@ -3162,7 +3162,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          type_t name_type = tree_type(name);
          if (!type_is_scalar(name_type))
             sem_error(t, "cannot use attribute %s with non-scalar type %s",
-                      type_pp(name_type), istr(attr));
+                      istr(attr), type_pp(name_type));
 
          type_t std_string = std_type(NULL, STD_STRING);
          type_t arg_type = predef == ATTR_IMAGE ? name_type : std_string;

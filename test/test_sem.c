@@ -698,8 +698,9 @@ START_TEST(test_attr)
       { 159, "object B does not have a range" },
       { 160, "prefix does not have a range" },
       { 204, "prefix does not have LENGTH attribute" },
-      { 220, "prefix of BASE attribute must be a type or subtype declaration" },
-      { 221, "BASE attribute is allowed only as the prefix of the name" },
+      { 212, "cannot use attribute IMAGE with non-scalar type INT2_VEC" },
+      { 221, "prefix of BASE attribute must be a type or subtype declaration" },
+      { 222, "BASE attribute is allowed only as the prefix of the name" },
       { -1, NULL }
    };
    expect_errors(expect);
