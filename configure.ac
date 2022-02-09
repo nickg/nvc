@@ -272,8 +272,8 @@ AC_ARG_ENABLE([lto],
 
 LTO_FLAG=
 if test x$enable_lto = xyes; then
-  AX_CHECK_COMPILE_FLAG([-flto], [LTO_FLAG="-flto"], [], [-Werror])
-  AX_CHECK_LINK_FLAG([-flto], [], [LTO_FLAG=], [-Werror])
+  AX_CHECK_COMPILE_FLAG([-flto=auto], [LTO_FLAG="-flto=auto"], [], [-Werror])
+  AX_CHECK_LINK_FLAG([$LTO_FLAG], [], [LTO_FLAG=], [-Werror])
 
   AX_COMPILER_VENDOR
   AS_CASE([$ax_cv_c_compiler_vendor],
