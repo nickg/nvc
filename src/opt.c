@@ -90,7 +90,7 @@ bool opt_get_verbose(opt_name_t name, const char *filter)
    if (value == NULL || *value == '\0')
       return false;
    else if (!isdigit((int)*value))
-      return strstr(filter, value) != NULL;
+      return filter != NULL && strstr(filter, value) != NULL;
    else
       return true;
 }
