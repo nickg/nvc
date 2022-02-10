@@ -2055,10 +2055,10 @@ static tree_t rewrite_generic_refs_cb(tree_t t, void *__ctx)
 
 static void add_interface(tree_t container, tree_t decl, tree_kind_t kind)
 {
-   if (kind == T_PORT_DECL)
-      tree_add_port(container, decl);
-   else
+   if (kind == T_GENERIC_DECL)
       tree_add_generic(container, decl);
+   else
+      tree_add_port(container, decl);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4291,7 +4291,7 @@ static tree_t p_interface_function_specification(void)
    tree_set_subkind(d, PORT_IN);
 
    if (optional(tLPAREN)) {
-      p_interface_list(C_CONSTANT, d, T_PORT_DECL);
+      p_interface_list(C_CONSTANT, d, T_PARAM_DECL);
       consume(tRPAREN);
 
       const int nports = tree_ports(d);
@@ -4326,7 +4326,7 @@ static tree_t p_interface_procedure_specification(void)
    tree_set_subkind(d, PORT_IN);
 
    if (optional(tLPAREN)) {
-      p_interface_list(C_CONSTANT, d, T_PORT_DECL);
+      p_interface_list(C_CONSTANT, d, T_PARAM_DECL);
       consume(tRPAREN);
 
       const int nports = tree_ports(d);
@@ -5549,7 +5549,7 @@ static tree_t p_subprogram_specification(void)
       tree_set_flag(t, TREE_F_IMPURE);
 
    if (optional(tLPAREN)) {
-      p_interface_list(C_CONSTANT, t, T_PORT_DECL);
+      p_interface_list(C_CONSTANT, t, T_PARAM_DECL);
       consume(tRPAREN);
 
       const int nports = tree_ports(t);

@@ -109,7 +109,7 @@ START_TEST(test_bounds2)
       {  56, "value 10 outside of R range 0 to 1 for constant C2"},
       {  59, "value 30 outside of SUBINT range 1 to 10 for parameter A"},
       {  63, "'c' outside of CHARACTER range 'a' to 'b' for parameter A" },
-      {  73, "value 2 outside of INTEGER range 0 to 1 for parameter P2"},
+      {  73, "value 2 outside of INTEGER range 0 to 1 for port P2"},
       {  70, "value 20 outside of INTEGER range 10 downto 0 for generic G2"},
       {  79, "value 5.0999999999999996 outside of REAL range 0 to 5"},
       {  95, "assignment delays must be in ascending time order"},

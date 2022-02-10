@@ -1020,6 +1020,9 @@ void __nvc_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
                 istr(tree_ident(hint)));
       break;
    case T_PORT_DECL:
+      tb_printf(tb, " for port %s", istr(tree_ident(hint)));
+      break;
+   case T_PARAM_DECL:
       tb_printf(tb, " for parameter %s", istr(tree_ident(hint)));
       break;
    case T_GENERIC_DECL:
@@ -1043,7 +1046,7 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
    const tree_kind_t kind = tree_kind(where);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   if (kind == T_PORT_DECL || kind == T_GENERIC_DECL)
+   if (kind == T_PORT_DECL || kind == T_GENERIC_DECL || kind == T_PARAM_DECL)
       tb_cat(tb, "actual");
    else
       tb_cat(tb, "value");
@@ -1054,7 +1057,10 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
 
    switch (kind) {
    case T_PORT_DECL:
-      tb_printf(tb, "formal parameter %s", istr(tree_ident(where)));
+      tb_printf(tb, "port %s", istr(tree_ident(where)));
+      break;
+   case T_PARAM_DECL:
+      tb_printf(tb, "parameter %s", istr(tree_ident(where)));
       break;
    case T_GENERIC_DECL:
       tb_printf(tb, "generic %s", istr(tree_ident(where)));

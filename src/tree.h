@@ -302,6 +302,7 @@ typedef enum tree_kind {
    T_GENERIC_DECL,
    T_TYPE_REF,
    T_BOX,
+   T_PARAM_DECL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

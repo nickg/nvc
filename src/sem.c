@@ -362,19 +362,32 @@ static bool sem_readable(tree_t t)
    switch (tree_kind(t)) {
    case T_REF:
       {
-         tree_t decl = tree_ref(t);
-         if (tree_kind(decl) == T_PORT_DECL) {
-            if (tree_flags(t) & TREE_F_FORMAL_NAME)
-               return true;   // Port name appearing in formal
+         if (tree_flags(t) & TREE_F_FORMAL_NAME)
+            return true;   // Name appearing in formal
 
-            const port_mode_t mode = tree_subkind(decl);
-            if (mode == PORT_OUT && standard() < STD_08)
-               sem_error(t, "cannot read output port %s",
+         tree_t decl = tree_ref(t);
+         switch (tree_kind(decl)) {
+         case T_PORT_DECL:
+            {
+               const port_mode_t mode = tree_subkind(decl);
+               if (mode == PORT_OUT && standard() < STD_08)
+                  sem_error(t, "cannot read output port %s",
+                            istr(tree_ident(t)));
+               else if (mode == PORT_LINKAGE)
+                  sem_error(t, "linkage port %s may not be read except as "
+                            "an actual corresponding to an interface of mode "
+                            "linkage", istr(tree_ident(t)));
+            }
+            break;
+
+         case T_PARAM_DECL:
+            if (tree_subkind(decl) == PORT_OUT && standard() < STD_08)
+               sem_error(t, "cannot read OUT parameter %s",
                          istr(tree_ident(t)));
-            else if (mode == PORT_LINKAGE)
-               sem_error(t, "linkage port %s may not be read except as "
-                         "an actual corresponding to an interface of mode "
-                         "linkage", istr(tree_ident(t)));
+            break;
+
+         default:
+            break;
          }
 
          return true;
@@ -1296,6 +1309,10 @@ static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
       case T_PORT_DECL:
       case T_IMPLICIT_SIGNAL:
          break;
+      case T_PARAM_DECL:
+         if (tree_class(decl) == C_SIGNAL)
+            break;
+         // Fall-through
       default:
          sem_error(r, "name %s in sensitivity list is not a signal",
                    istr(tree_ident(decl)));
@@ -1573,6 +1590,7 @@ static tree_t sem_check_lvalue(tree_t t)
    case T_PORT_DECL:
    case T_CONST_DECL:
    case T_IMPLICIT_SIGNAL:
+   case T_PARAM_DECL:
       return t;
    default:
       return NULL;
@@ -1624,7 +1642,7 @@ static bool sem_check_variable_target(tree_t target)
       if (decl != NULL) {
          const tree_kind_t kind = tree_kind(decl);
          suitable = kind == T_VAR_DECL
-            || (kind == T_PORT_DECL && tree_class(decl) == C_VARIABLE);
+            || (kind == T_PARAM_DECL && tree_class(decl) == C_VARIABLE);
       }
 
       if (!suitable)
@@ -1827,6 +1845,7 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
          sem_error(target, "implicit signal may not be assigned");
 
       case T_PORT_DECL:
+      case T_PARAM_DECL:
          {
             const port_mode_t mode = tree_subkind(decl);
             if (mode == PORT_IN)
@@ -2163,7 +2182,7 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
          else if (decl_kind == T_FILE_DECL)
             sem_error(value, "cannot associate file %s with parameter "
                       "class VARIABLE", istr(tree_ident(decl)));
-         else if (decl_kind == T_PORT_DECL) {
+         else if (decl_kind == T_PARAM_DECL || decl_kind == T_PORT_DECL) {
             const class_t class = tree_class(decl);
             if (mode == PORT_OUT && tree_subkind(decl) == PORT_IN)
                sem_error(value, "cannot read parameter %s with mode IN",
@@ -2752,6 +2771,7 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_PROC_BODY:
    case T_IMPLICIT_SIGNAL:
    case T_GENERIC_DECL:
+   case T_PARAM_DECL:
       break;
 
    default:
@@ -2961,7 +2981,7 @@ static bool sem_is_named_entity(tree_t t)
    case T_PACKAGE:      case T_PACK_BODY:    case T_BLOCK:
    case T_FILE_DECL:    case T_CONST_DECL:   case T_FUNC_DECL:
    case T_FUNC_BODY:    case T_PROC_DECL:    case T_PROC_BODY:
-   case T_PROCESS:      case T_GENERIC_DECL:
+   case T_PROCESS:      case T_GENERIC_DECL: case T_PARAM_DECL:
       return true;
    case T_IMPLICIT_SIGNAL:
       return tree_subkind(decl) == IMPLICIT_GUARD;   // See LRM 93 section 4.3
@@ -3958,6 +3978,7 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          case T_ENUM_LIT:
          case T_IMPLICIT_SIGNAL:
          case T_GENERIC_DECL:
+         case T_PARAM_DECL:
             return true;
          case T_ALIAS:
             return sem_static_name(tree_value(decl), check_fn);
@@ -4641,6 +4662,7 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_SUBTYPE_DECL:
       return sem_check_subtype_decl(t, tab);
    case T_PORT_DECL:
+   case T_PARAM_DECL:
       return sem_check_port_decl(t, tab);
    case T_GENERIC_DECL:
       return sem_check_generic_decl(t, tab);

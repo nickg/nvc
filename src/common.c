@@ -453,6 +453,7 @@ class_t class_of(tree_t t)
       return C_CONSTANT;
    case T_PORT_DECL:
    case T_GENERIC_DECL:
+   case T_PARAM_DECL:
       return tree_class(t);
    case T_ENUM_LIT:
    case T_LITERAL:
@@ -987,7 +988,7 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
       lib_t lib = lib_require(tree_ident(container));
       return lib_get(lib, name);
    }
-   else if ((kind == T_VAR_DECL || kind == T_PORT_DECL)
+   else if ((kind == T_VAR_DECL || kind == T_PARAM_DECL)
             && type_is_protected((type = tree_type(container)))) {
       const int ndecls = type_decls(type);
       for (int i = 0; i < ndecls; i++) {

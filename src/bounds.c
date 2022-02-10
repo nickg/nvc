@@ -161,23 +161,19 @@ static void bounds_check_scalar(tree_t value, type_t type, tree_t hint)
       bounds_fmt_type_range(tb, type, tree_subkind(r), low, high);
 
       if (hint != NULL) {
+         const char *what = "";
          switch (tree_kind(hint)) {
          case T_VAR_DECL:
          case T_SIGNAL_DECL:
          case T_CONST_DECL:
-         case T_REF:
-            tb_printf(tb, " for %s %s", class_str(class_of(hint)),
-                      istr(tree_ident(hint)));
-            break;
-         case T_PORT_DECL:
-            tb_printf(tb, " for parameter %s", istr(tree_ident(hint)));
-            break;
-         case T_GENERIC_DECL:
-            tb_printf(tb, " for generic %s", istr(tree_ident(hint)));
-            break;
-         default:
-            break;
+         case T_REF:          what = class_str(class_of(hint)); break;
+         case T_PARAM_DECL:   what = "parameter"; break;
+         case T_PORT_DECL:    what = "port"; break;
+         case T_GENERIC_DECL: what = "generic"; break;
+         default: break;
          }
+
+         tb_printf(tb, " for %s %s", what, istr(tree_ident(hint)));
       }
 
       bounds_error(value, "%s", tb_get(tb));
@@ -847,9 +843,9 @@ static char *bounds_get_hint_str(tree_t where)
 {
    switch (tree_kind(where)) {
    case T_PORT_DECL:
-      return xasprintf(" for %s %s",
-                       tree_class(where) == C_SIGNAL ? "signal" : "parameter",
-                       istr(tree_ident(where)));
+      return xasprintf(" for port %s", istr(tree_ident(where)));
+   case T_PARAM_DECL:
+      return xasprintf(" for parameter %s", istr(tree_ident(where)));
    case T_VAR_DECL:
       return xasprintf(" for variable %s", istr(tree_ident(where)));
    case T_GENERIC_DECL:
@@ -1208,6 +1204,7 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
    case T_CONST_DECL:
    case T_VAR_DECL:
    case T_PORT_DECL:
+   case T_PARAM_DECL:
       bounds_check_decl(t);
       break;
    case T_GENERIC_DECL:

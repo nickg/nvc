@@ -1405,7 +1405,7 @@ START_TEST(test_func)
    fail_unless(tree_ident(f) == ident_new("ADD"));
    fail_unless(tree_ports(f) == 3);
    a = tree_port(f, 0);
-   fail_unless(tree_kind(a) == T_PORT_DECL);
+   fail_unless(tree_kind(a) == T_PARAM_DECL);
    fail_unless(tree_ident(a) == ident_new("X"));
    fail_unless(tree_subkind(a) == PORT_IN);
    t = tree_type(f);

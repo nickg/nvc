@@ -291,6 +291,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_BOX
    (I_TYPE),
+
+   // T_PARAM_DECL
+   (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_FLAGS),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -323,7 +326,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_GROUP",           "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN",
    "T_CONV_FUNC",       "T_CONCURRENT",      "T_SEQUENCE",
    "T_PACK_INST",       "T_GENERIC_DECL",    "T_TYPE_REF",
-   "T_BOX",
+   "T_BOX",             "T_PARAM_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -392,6 +395,7 @@ static tree_kind_t decl_kinds[] = {
    T_USE,        T_PROT_BODY,      T_BLOCK_CONFIG, T_IMPLICIT_SIGNAL,
    T_DISCONNECT, T_GROUP_TEMPLATE, T_GROUP,        T_SUBTYPE_DECL,
    T_PACKAGE,    T_PACK_BODY,      T_PACK_INST,    T_GENERIC_DECL,
+   T_PARAM_DECL,
 };
 
 object_class_t tree_object = {

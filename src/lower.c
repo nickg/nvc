@@ -948,6 +948,7 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
    case T_PORT_DECL:
    case T_CONST_DECL:
    case T_GENERIC_DECL:
+   case T_PARAM_DECL:
       {
          int hops, obj = lower_search_vcode_obj(decl, top_scope, &hops);
          if (obj == -1)
@@ -969,7 +970,7 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
 
          const tree_kind_t dkind = tree_kind(decl);
          if (dkind != T_PORT_DECL && dkind != T_GENERIC_DECL
-             && var_name == tree_ident2(decl))
+             && dkind != T_PARAM_DECL && var_name == tree_ident2(decl))
             return lower_wrap_string(package_signal_path_name(var_name));
          else {
             ident_t suffix = ident_downcase(tree_ident(decl));
@@ -1817,18 +1818,12 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
       return sig_reg;
 }
 
-static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
+static vcode_reg_t lower_port_ref(tree_t decl, expr_ctx_t ctx)
 {
    int hops = 0;
    int obj = lower_search_vcode_obj(decl, top_scope, &hops);
 
-   // TODO: remove this....
-   const bool is_entity_port =
-      obj != VCODE_INVALID_VAR && !!(obj & 0x80000000);
-   const bool is_proc_var =
-      obj != VCODE_INVALID_VAR && !!(obj & 0x20000000);
-
-   if (is_entity_port) {
+   if (obj != VCODE_INVALID_VAR) {
       if (ctx != EXPR_LVALUE && tree_subkind(decl) == PORT_INOUT) {
          // Actually we wanted to get the input aspect ($in suffix)
          void *key = (void *)((uintptr_t)decl | 1);
@@ -1845,7 +1840,7 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
          fatal_trace("missing var for port %s", istr(tree_ident(decl)));
       }
 
-      vcode_var_t var = obj & 0x7fffffff;
+      vcode_var_t var = obj;
       vcode_reg_t sig_reg;
       if (hops == 0)
          sig_reg = emit_load(var);
@@ -1857,7 +1852,26 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
       else
          return sig_reg;
    }
-   else if (hops > 0) {
+   else if (mode == LOWER_THUNK) {
+      emit_comment("Cannot resolve reference to %s", istr(tree_ident(decl)));
+      return emit_undefined(lower_signal_type(tree_type(decl)));
+   }
+   else {
+      vcode_dump();
+      fatal_trace("missing register for port %s", istr(tree_ident(decl)));
+   }
+}
+
+static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
+{
+   int hops = 0;
+   int obj = lower_search_vcode_obj(decl, top_scope, &hops);
+
+   // TODO: remove this....
+   const bool is_proc_var =
+      obj != VCODE_INVALID_VAR && !!(obj & 0x20000000);
+
+   if (hops > 0) {
       // Reference to parameter in parent subprogram
       return emit_load_indirect(emit_var_upref(hops, obj & 0x1fffffff));
    }
@@ -2005,6 +2019,9 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
       return lower_var_ref(decl, ctx);
 
    case T_PORT_DECL:
+      return lower_port_ref(decl, ctx);
+
+   case T_PARAM_DECL:
       return lower_param_ref(decl, ctx);
 
    case T_GENERIC_DECL:
@@ -7518,7 +7535,7 @@ static void lower_port_decl(tree_t port, ident_t suffix)
    }
 
    void *key = suffix ? (void *)((uintptr_t)port | 1) : port;
-   lower_put_vcode_obj(key, var | 0x80000000, top_scope);
+   lower_put_vcode_obj(key, var, top_scope);
 
    vcode_reg_t init_reg;
    if (tree_has_value(port))
