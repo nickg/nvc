@@ -3298,8 +3298,10 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg)
 
       vcode_reg_t count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
       vcode_reg_t mem_reg = hint_reg;
-      if (mem_reg == VCODE_INVALID_REG)
+      if (mem_reg == VCODE_INVALID_REG) {
          mem_reg = emit_alloca(vtype, vbounds, count_reg);
+         vcode_heap_allocate(mem_reg);
+      }
 
       vcode_reg_t def_reg = lower_default_value(elem_type, VCODE_INVALID_REG);
 
