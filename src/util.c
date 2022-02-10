@@ -299,6 +299,8 @@ static void paginate_msg(text_buf_t *tb, const char *fmt, va_list ap,
             tb_repeat(tb, ' ', left);
             col = left;
          }
+         if ((*p == '\n' || *p == '\r') && isspace((int)*(p + 1)))
+            right = INT_MAX;    // Don't paginate after leading whitespace
          begin = ++p;
       }
       else {
