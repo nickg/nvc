@@ -1086,6 +1086,15 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
 }
 
 DLLEXPORT
+void __nvc_exponent_fail(int32_t value, DEBUG_LOCUS(locus))
+{
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   rt_msg(tree_loc(where), fatal, "negative exponent %d only "
+          "allowed for floating-point types", value);
+}
+
+DLLEXPORT
 void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
 {
    char *buf = rt_tmp_alloc(str_len), *p = buf;

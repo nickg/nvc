@@ -130,6 +130,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_RETURN:
       case VCODE_OP_UNWRAP:
       case VCODE_OP_LENGTH_CHECK:
+      case VCODE_OP_EXPONENT_CHECK:
       case VCODE_OP_NULL:
       case VCODE_OP_RANGE_NULL:
       case VCODE_OP_RANGE_LENGTH:
@@ -832,6 +833,8 @@ START_TEST(test_arith1)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_EXPONENT_CHECK },
       { VCODE_OP_EXP },
       { VCODE_OP_CONST, .value = 531441 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },

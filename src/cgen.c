@@ -1473,6 +1473,29 @@ static void cgen_op_exp(int op, cgen_ctx_t *ctx)
       "pow");
 }
 
+static void cgen_op_exponent_check(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef exp   = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef locus = cgen_get_arg(op, 1, ctx);
+
+   LLVMValueRef ok = LLVMBuildICmp(builder, LLVMIntSGE, exp, llvm_int32(0), "");
+
+   LLVMBasicBlockRef pass_bb  = llvm_append_block(ctx->fn, "pass");
+   LLVMBasicBlockRef fail_bb  = llvm_append_block(ctx->fn, "fail");
+
+   LLVMBuildCondBr(builder, ok, pass_bb, fail_bb);
+
+   LLVMPositionBuilderAtEnd(builder, fail_bb);
+
+   LLVMValueRef args[] = { exp, locus };
+   LLVMBuildCall(builder, llvm_fn("__nvc_exponent_fail"),
+                 args, ARRAY_LEN(args), "");
+
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, pass_bb);
+}
+
 static void cgen_op_neg(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -3103,6 +3126,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_EXP:
       cgen_op_exp(i, ctx);
       break;
+   case VCODE_OP_EXPONENT_CHECK:
+      cgen_op_exponent_check(i, ctx);
+      break;
    case VCODE_OP_ABS:
       cgen_op_abs(i, ctx);
       break;
@@ -4363,6 +4389,17 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_debug_locus_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_length_fail",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
+      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
+   }
+   else if (strcmp(name, "__nvc_exponent_fail") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_int32_type(),
+         llvm_debug_locus_type(),
+      };
+      fn = LLVMAddFunction(module, "__nvc_exponent_fail",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);

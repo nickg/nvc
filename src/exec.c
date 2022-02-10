@@ -695,6 +695,19 @@ static void eval_op_rem(int op, eval_state_t *state)
    }
 }
 
+static void eval_op_exponent_check(int op, eval_state_t *state)
+{
+   value_t *exp = eval_get_reg(vcode_get_arg(op, 0), state);
+   EVAL_ASSERT_VALUE(op, exp, VALUE_INTEGER);
+
+   if (exp->integer < 0) {
+      if (state->flags & EVAL_BOUNDS)
+         error_at(vcode_get_loc(op), "negative exponent %"PRIi64" only "
+                  "allowed for floating-point types", exp->integer);
+      state->failed = true;
+   }
+}
+
 static void eval_op_exp(int op, eval_state_t *state)
 {
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
@@ -704,12 +717,8 @@ static void eval_op_exp(int op, eval_state_t *state)
    switch (lhs->kind) {
    case VALUE_INTEGER:
       EVAL_ASSERT_VALUE(op, rhs, VALUE_INTEGER);
-      if (rhs->integer >= 0) {
-         dst->kind = VALUE_INTEGER;
-         dst->integer = ipow(lhs->integer, rhs->integer);
-      }
-      else
-         state->failed = true;
+      dst->kind = VALUE_INTEGER;
+      dst->integer = ipow(lhs->integer, rhs->integer);
       break;
    case VALUE_REAL:
       EVAL_ASSERT_VALUE(op, rhs, VALUE_REAL);
@@ -2057,6 +2066,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_UARRAY_DIR:
          eval_op_uarray_dir(state->op, state);
+         break;
+
+      case VCODE_OP_EXPONENT_CHECK:
+         eval_op_exponent_check(state->op, state);
          break;
 
       case VCODE_OP_EXP:

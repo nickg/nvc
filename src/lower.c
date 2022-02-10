@@ -1372,9 +1372,17 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
          return lower_narrow(tree_type(fcall), emit_div(r0, r1, locus));
       }
    case S_EXP:
-      if (!type_eq(r0_type, r1_type))
-         r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
-      return lower_arith(fcall, emit_exp, r0, r1);
+      {
+         if (type_is_integer(r0_type)) {
+            vcode_reg_t locus = lower_debug_locus(fcall);
+            emit_exponent_check(r1, locus);
+         }
+
+         if (!type_eq(r0_type, r1_type))
+            r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
+
+         return lower_arith(fcall, emit_exp, r0, r1);
+      }
    case S_MOD:
       return lower_arith(fcall, emit_mod, r0, r1);
    case S_REM:

@@ -505,3 +505,4 @@ ieee8           normal,2008
 array5          normal
 vests40         normal
 issue447        normal
+bounds30        fail,gold

@@ -5,6 +5,7 @@
   # Exported from src/rt/rtkern.c
   __nvc_assert_fail;
   __nvc_div_zero;
+  __nvc_exponent_fail;
   __nvc_flush;
   __nvc_index_fail;
   __nvc_length_fail;

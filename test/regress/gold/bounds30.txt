@@ -1,0 +1,1 @@
+negative exponent -1 only allowed for floating-point types

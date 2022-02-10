@@ -727,6 +727,7 @@ void cprop(cprop_req_t *req)
          case VCODE_OP_NULL_CHECK:
          case VCODE_OP_INDEX_CHECK:
          case VCODE_OP_RANGE_CHECK:
+         case VCODE_OP_EXPONENT_CHECK:
          case VCODE_OP_RESUME:
          case VCODE_OP_FILE_OPEN:
          case VCODE_OP_FILE_READ:

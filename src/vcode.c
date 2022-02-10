@@ -900,6 +900,7 @@ const char *vcode_op_string(vcode_op_t op)
       "context upref", "const rep", "protected free", "sched static",
       "implicit signal", "disconnect", "link package", "index check",
       "debug locus", "length check", "range check", "array ref", "range length",
+      "exponent check",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1910,6 +1911,15 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   col += printf(" dim ");
                   col += vcode_dump_reg(op->args.items[3]);
                }
+            }
+            break;
+
+         case VCODE_OP_EXPONENT_CHECK:
+            {
+               col += printf("%s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[1]);
             }
             break;
 
@@ -4783,6 +4793,28 @@ void emit_length_check(vcode_reg_t llen, vcode_reg_t rlen, vcode_reg_t locus,
 
    VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
                 "locus argument to length check must be a debug locus");
+}
+
+void emit_exponent_check(vcode_reg_t exp, vcode_reg_t locus)
+{
+   int64_t cval;
+   if (vcode_reg_const(exp, &cval) && cval >= 0)
+      return;
+
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_EXPONENT_CHECK) {
+      if (other->args.items[0] == exp && other->args.items[1] == locus)
+         return;
+   }
+
+
+   op_t *op = vcode_add_op(VCODE_OP_EXPONENT_CHECK);
+   vcode_add_arg(op, exp);
+   vcode_add_arg(op, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(exp) == VCODE_TYPE_INT,
+                "exp argument to exponent check must be a integer");
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to exponent check must be a debug locus");
 }
 
 static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
