@@ -7,6 +7,8 @@
 - Generic declarations are now allowed to hide the entity name.
 - Fix spurious error about duplicate declarations when using VHDL-2008
   context declarations.
+- Fix incorrect default generic value when component and entity specify
+  generics in different order (#448).
 
 ## Version 1.6.1 - 2022-02-05
 - Fix compatibility with BSD make (#440).
