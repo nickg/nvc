@@ -169,7 +169,7 @@ static int eval_dump(text_buf_t *tb, value_t *value)
       if (value->pointer == NULL)
          tb_printf(tb, "NULL");
       else
-         eval_dump(tb, value->pointer);
+         eval_dump(tb, &(value->pointer[-1]));
       return 1;
    case VALUE_CARRAY:
       {
@@ -684,7 +684,7 @@ static void eval_op_rem(int op, eval_state_t *state)
          state->failed = true;
       }
       else {
-         dst->kind    = VALUE_INTEGER;
+         dst->kind = VALUE_INTEGER;
          dst->integer =
             lhs->integer - (lhs->integer / rhs->integer) * rhs->integer;
       }
@@ -704,6 +704,8 @@ static void eval_op_exponent_check(int op, eval_state_t *state)
       if (state->flags & EVAL_BOUNDS)
          error_at(vcode_get_loc(op), "negative exponent %"PRIi64" only "
                   "allowed for floating-point types", exp->integer);
+      else
+         EVAL_WARN(state, state->op, "negative exponent prevents constant folding");
       state->failed = true;
    }
 }
@@ -1404,8 +1406,10 @@ static void eval_op_report(int op, eval_state_t *state)
 
    if (state->flags & EVAL_REPORT)
       eval_message(text, length, severity, vcode_get_loc(op), "Report");
-   else
+   else {
+      EVAL_WARN(state, op, "report statement prevents constant folding");
       state->failed = true;  // Cannot fold as would change runtime behaviour
+   }
 }
 
 static void eval_op_assert(int op, eval_state_t *state)
@@ -1418,7 +1422,8 @@ static void eval_op_assert(int op, eval_state_t *state)
    if (test->integer == 0) {
       if (state->flags & EVAL_REPORT)
          eval_message(text, length, severity, vcode_get_loc(op), "Assertion");
-      state->failed = severity->integer >= SEVERITY_ERROR;
+      if ((state->failed = severity->integer >= SEVERITY_ERROR))
+         EVAL_WARN(state, op, "assertion failure prevents constant folding");
    }
 }
 
@@ -1490,6 +1495,8 @@ static void eval_op_index_check(int op, eval_state_t *state)
 
       error_at(tree_loc(locus->debug), "%s", tb_get(tb));
    }
+   else
+      EVAL_WARN(state, op, "bounds check failure prevents constant folding");
 
    state->failed = true;
 }
@@ -1534,6 +1541,8 @@ static void eval_op_range_check(int op, eval_state_t *state)
 
       error_at(tree_loc(locus->debug), "%s", tb_get(tb));
    }
+   else
+      EVAL_WARN(state, op, "range check failure prevents constant folding");
 
    state->failed = true;
 }
@@ -1686,6 +1695,9 @@ static void eval_op_length_check(int op, eval_state_t *state)
                   "match length of value %"PRIi64,
                   llen->integer, rlen->integer);
       }
+      else
+         EVAL_WARN(state, op, "length check failure prevents constant folding");
+
       state->failed = true;
    }
 }
@@ -1754,6 +1766,8 @@ static void eval_op_null_check(int op, eval_state_t *state)
    if (access->pointer == NULL) {
       if (state->flags & EVAL_BOUNDS)
          error_at(vcode_get_loc(op), "null access dereference");
+      else
+         EVAL_WARN(state, op, "null dereference prevents constant folding");
       state->failed = true;
    }
 }
@@ -1806,8 +1820,11 @@ static void eval_op_link_var(int op, eval_state_t *state)
    ident_t unit_name = ident_runtil(var_name, '.');
 
    eval_frame_t *ctx = exec_link(state->exec, unit_name);
-   if (ctx == NULL)
+   if (ctx == NULL) {
+      EVAL_WARN(state, op, "missing %s prevents constant folding",
+                istr(unit_name));
       state->failed = true;
+   }
    else {
       assert(ctx->names != NULL);
 
@@ -1829,7 +1846,9 @@ static void eval_op_link_package(int op, eval_state_t *state)
    result->kind = VALUE_CONTEXT;
    result->context = exec_link(state->exec, vcode_get_ident(op));
 
-   state->failed = (result->context == NULL);
+   if ((state->failed = (result->context == NULL)))
+      EVAL_WARN(state, op, "missing package %s prevents constant folding",
+                istr(vcode_get_ident(op)));
 }
 
 static void eval_op_debug_locus(int op, eval_state_t *state)
@@ -2291,7 +2310,7 @@ exec_t *exec_new(eval_flags_t flags)
       flags |= EVAL_VERBOSE;
 
    if (flags & EVAL_VERBOSE)
-      flags |= EVAL_WARN | EVAL_BOUNDS;
+      flags |= EVAL_WARN;
 
    exec_t *ex = xcalloc(sizeof(exec_t));
    ex->link_map = hash_new(128, true);
