@@ -178,6 +178,14 @@ AC_ARG_WITH([system-cc],
             [system_cc="$cc_bare"])
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$system_cc"], [System compiler])
 
+AC_MSG_CHECKING([if $system_cc executable exists])
+AS_IF([test -x $system_cc],
+      [AC_MSG_RESULT([yes])],
+      [AC_MSG_RESULT([no])
+       AS_IF([type -p $system_cc >/dev/null],
+             [AC_MSG_ERROR([--with-system-cc argument should be full path])],
+             [AC_MSG_ERROR([system C compiler $system_cc not found])])])
+
 case $host_os in
   *cygwin*|msys*|mingw32*)
     implib_required=yes
