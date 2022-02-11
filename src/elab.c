@@ -605,6 +605,34 @@ static tree_t elab_binding(tree_t inst, tree_t spec, elab_ctx_t *ctx)
    }
 }
 
+static void elab_write_generic(text_buf_t *tb, tree_t value)
+{
+   switch (tree_kind(value)) {
+   case T_LITERAL:
+      switch (tree_subkind(value)) {
+      case L_INT:  tb_printf(tb, "%"PRIi64, tree_ival(value)); break;
+      case L_REAL: tb_printf(tb, "%lf", tree_dval(value)); break;
+      }
+      break;
+   case T_AGGREGATE:
+      {
+         tb_append(tb, '(');
+         const int nassocs = tree_assocs(value);
+         for (int i = 0; i < nassocs; i++) {
+            if (i > 0) tb_cat(tb, ", ");
+            elab_write_generic(tb, tree_value(tree_assoc(value, i)));
+         }
+         tb_append(tb, ')');
+      }
+      break;
+   case T_REF:
+      tb_printf(tb, "%s", istr(tree_ident(value)));
+      break;
+   default:
+      tb_printf(tb, "...");
+   }
+}
+
 static void elab_hint_fn(void *arg)
 {
    tree_t t = arg;
@@ -628,18 +656,7 @@ static void elab_hint_fn(void *arg)
       }
 
       tb_printf(tb, "\n\t%s => ", istr(name));
-
-      tree_t value = tree_value(p);
-      switch (tree_kind(value)) {
-      case T_LITERAL:
-         switch (tree_subkind(value)) {
-         case L_INT: tb_printf(tb, "%"PRIi64, tree_ival(value)); break;
-         case L_REAL: tb_printf(tb, "%lf", tree_dval(value)); break;
-         }
-         break;
-      default:
-         tb_printf(tb, "...");
-      }
+      elab_write_generic(tb, tree_value(p));
    }
 
    note_at(tree_loc(t), "%s", tb_get(tb));
