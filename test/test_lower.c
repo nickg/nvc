@@ -800,7 +800,6 @@ START_TEST(test_arith1)
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 12 },
-      { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_DIV },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -3263,7 +3262,6 @@ START_TEST(test_tounsigned)
    EXPECT_BB(8) = {
       { VCODE_OP_LOAD, .name = "I_VAL" },
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_DIV },
       { VCODE_OP_STORE, .name = "I_VAL" },
       { VCODE_OP_CONST, .value = 1 },

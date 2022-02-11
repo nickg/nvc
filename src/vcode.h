@@ -138,6 +138,7 @@ typedef enum {
    VCODE_OP_ARRAY_REF,
    VCODE_OP_RANGE_LENGTH,
    VCODE_OP_EXPONENT_CHECK,
+   VCODE_OP_ZERO_CHECK,
 } vcode_op_t;
 
 typedef enum {
@@ -346,7 +347,7 @@ vcode_reg_t emit_address_of(vcode_reg_t value);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
-vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus);
+vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);
@@ -434,6 +435,7 @@ vcode_reg_t emit_driving_value(vcode_reg_t signal, vcode_reg_t len);
 void emit_length_check(vcode_reg_t llen, vcode_reg_t rlen, vcode_reg_t locus,
                        vcode_reg_t dim);
 void emit_exponent_check(vcode_reg_t exp, vcode_reg_t locus);
+void emit_zero_check(vcode_reg_t denom, vcode_reg_t locus);
 void emit_debug_out(vcode_reg_t reg);
 void emit_cover_stmt(uint32_t tag);
 void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub);

@@ -1379,45 +1379,45 @@ static void cgen_op_mul(int op, cgen_ctx_t *ctx)
                                        cgen_reg_name(result));
 }
 
+static void cgen_op_zero_check(int op, cgen_ctx_t *ctx)
+{
+   LLVMBasicBlockRef zero_bb = llvm_append_block(ctx->fn, "div_zero");
+   LLVMBasicBlockRef ok_bb   = llvm_append_block(ctx->fn, "div_ok");
+
+   LLVMValueRef denom = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef locus = cgen_get_arg(op, 1, ctx);
+
+   LLVMValueRef zero = LLVMConstInt(LLVMTypeOf(denom), 0, false);
+   LLVMValueRef div_by_zero =
+      LLVMBuildICmp(builder, LLVMIntEQ, denom, zero, "div0");
+
+   LLVMBuildCondBr(builder, div_by_zero, zero_bb, ok_bb);
+
+   LLVMPositionBuilderAtEnd(builder, zero_bb);
+
+   LLVMValueRef args[] = { locus };
+   LLVMBuildCall(builder, llvm_fn("__nvc_div_zero"), args,
+                 ARRAY_LEN(args), "");
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, ok_bb);
+}
+
 static void cgen_op_div(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
    const bool is_real = vtype_kind(vcode_reg_type(result)) == VCODE_TYPE_REAL;
 
+   LLVMValueRef nom   = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef denom = cgen_get_arg(op, 1, ctx);
+
    if (is_real)
-      ctx->regs[result] = LLVMBuildFDiv(builder,
-                                        cgen_get_arg(op, 0, ctx),
-                                        cgen_get_arg(op, 1, ctx),
+      ctx->regs[result] = LLVMBuildFDiv(builder, nom, denom,
                                         cgen_reg_name(result));
-   else {
-      LLVMBasicBlockRef zero_bb = llvm_append_block(ctx->fn, "div_zero");
-      LLVMBasicBlockRef ok_bb   = llvm_append_block(ctx->fn, "div_ok");
-
-      assert(vcode_count_args(op) == 3);
-      LLVMValueRef denom = cgen_get_arg(op, 1, ctx);
-      LLVMValueRef locus = cgen_get_arg(op, 2, ctx);
-
-      LLVMValueRef zero = LLVMConstInt(LLVMTypeOf(denom), 0, false);
-      LLVMValueRef div_by_zero =
-         LLVMBuildICmp(builder, LLVMIntEQ, denom, zero, "div0");
-
-      LLVMBuildCondBr(builder, div_by_zero, zero_bb, ok_bb);
-
-      LLVMPositionBuilderAtEnd(builder, zero_bb);
-
-      LLVMValueRef args[] = { locus };
-      LLVMBuildCall(builder, llvm_fn("__nvc_div_zero"), args,
-                    ARRAY_LEN(args), "");
-      LLVMBuildUnreachable(builder);
-
-      LLVMPositionBuilderAtEnd(builder, ok_bb);
-
-      ctx->regs[result] = LLVMBuildSDiv(builder,
-                                        cgen_get_arg(op, 0, ctx),
-                                        denom,
+   else
+      ctx->regs[result] = LLVMBuildSDiv(builder, nom, denom,
                                         cgen_reg_name(result));
-   }
 }
 
 static void cgen_op_rem(int op, cgen_ctx_t *ctx)
@@ -3239,6 +3239,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_DRIVING_VALUE:
       cgen_op_driving_value(i, ctx);
+      break;
+   case VCODE_OP_ZERO_CHECK:
+      cgen_op_zero_check(i, ctx);
       break;
    case VCODE_OP_LENGTH_CHECK:
       cgen_op_length_check(i, ctx);

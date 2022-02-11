@@ -900,7 +900,7 @@ const char *vcode_op_string(vcode_op_t op)
       "context upref", "const rep", "protected free", "sched static",
       "implicit signal", "disconnect", "link package", "index check",
       "debug locus", "length check", "range check", "array ref", "range length",
-      "exponent check",
+      "exponent check", "zero check"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1503,10 +1503,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                default: break;
                }
                col += vcode_dump_reg(op->args.items[1]);
-               if (op->args.count == 3) {
-                  col += printf(" locus ");
-                  col += vcode_dump_reg(op->args.items[2]);
-               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -1915,6 +1911,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_EXPONENT_CHECK:
+         case VCODE_OP_ZERO_CHECK:
             {
                col += printf("%s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
@@ -3325,8 +3322,7 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
    VCODE_ASSERT(vtype_is_scalar(r->type), "cannot store non-scalar type");
 }
 
-static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs,
-                              vcode_reg_t locus)
+static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
 {
    // Reuse any previous operation in this block with the same arguments
    VCODE_FOR_EACH_MATCHING_OP(other, kind) {
@@ -3338,8 +3334,6 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs,
    op_t *op = vcode_add_op(kind);
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
-   if (locus != VCODE_INVALID_REG)
-      vcode_add_arg(op, locus);
 
    op->result = vcode_add_reg(vcode_reg_type(lhs));
 
@@ -3366,7 +3360,7 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
    else if ((r_is_const && rconst == 0) || (l_is_const && lconst == 0))
       return emit_const(vcode_reg_type(lhs), 0);
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_MUL, lhs, rhs, VCODE_INVALID_REG);
+   vcode_reg_t reg = emit_arith(VCODE_OP_MUL, lhs, rhs);
 
    vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
    vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
@@ -3388,7 +3382,7 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
    return reg;
 }
 
-vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus)
+vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
 {
    int64_t lconst, rconst;
    const bool l_is_const = vcode_reg_const(lhs, &lconst);
@@ -3398,12 +3392,9 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus)
    else if (r_is_const && rconst == 1)
       return lhs;
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_DIV, lhs, rhs, locus);
+   vcode_reg_t reg = emit_arith(VCODE_OP_DIV, lhs, rhs);
 
    vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-
-   VCODE_ASSERT(locus != VCODE_INVALID_REG || bl->kind == VCODE_TYPE_REAL,
-                "must pass debug locus for integer division");
 
    if (bl->kind == VCODE_TYPE_INT && r_is_const && rconst != 0) {
       reg_t *rr = vcode_reg_data(reg);
@@ -3420,7 +3411,7 @@ vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)
        && rconst >= 0)
       return emit_const(vcode_reg_type(lhs), ipow(lconst, rconst));
 
-   return emit_arith(VCODE_OP_EXP, lhs, rhs, VCODE_INVALID_REG);
+   return emit_arith(VCODE_OP_EXP, lhs, rhs);
 }
 
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -3436,7 +3427,7 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
    if (bl->low >= 0 && br->low >= 0) {
       // If both arguments are non-negative then rem is equivalent and
       // cheaper to compute
-      vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
+      vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs);
 
       reg_t *rr = vcode_reg_data(reg);
       rr->bounds = vtype_int(0, br->high - 1);
@@ -3444,7 +3435,7 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
       return reg;
    }
    else
-      return emit_arith(VCODE_OP_MOD, lhs, rhs, VCODE_INVALID_REG);
+      return emit_arith(VCODE_OP_MOD, lhs, rhs);
 }
 
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -3454,7 +3445,7 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
        && lconst > 0 && rconst > 0)
       return emit_const(vcode_reg_type(lhs), lconst % rconst);
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
+   vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs);
 
    vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
    vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
@@ -3479,7 +3470,7 @@ vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
    else if (l_is_const && lconst == 0)
       return rhs;
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs, VCODE_INVALID_REG);
+   vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs);
 
    reg_t *rr = vcode_reg_data(reg);
    if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
@@ -3505,7 +3496,7 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
    else if (l_is_const && lconst == 0)
       return emit_neg(rhs);
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs, VCODE_INVALID_REG);
+   vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs);
 
    reg_t *rr = vcode_reg_data(reg);
    if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
@@ -3833,7 +3824,7 @@ static vcode_reg_t emit_logical(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs)
       }
    }
 
-   vcode_reg_t result = emit_arith(op, lhs, rhs, VCODE_INVALID_REG);
+   vcode_reg_t result = emit_arith(op, lhs, rhs);
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(lhs), vtbool)
                 && vtype_eq(vcode_reg_type(rhs), vtbool),
@@ -4802,7 +4793,7 @@ void emit_exponent_check(vcode_reg_t exp, vcode_reg_t locus)
       return;
 
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_EXPONENT_CHECK) {
-      if (other->args.items[0] == exp && other->args.items[1] == locus)
+      if (other->args.items[0] == exp)
          return;
    }
 
@@ -4817,6 +4808,27 @@ void emit_exponent_check(vcode_reg_t exp, vcode_reg_t locus)
                 "locus argument to exponent check must be a debug locus");
 }
 
+void emit_zero_check(vcode_reg_t denom, vcode_reg_t locus)
+{
+   int64_t cval;
+   if (vcode_reg_const(denom, &cval) && cval != 0)
+      return;
+
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_ZERO_CHECK) {
+      if (other->args.items[0] == denom)
+         return;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_ZERO_CHECK);
+   vcode_add_arg(op, denom);
+   vcode_add_arg(op, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(denom) == VCODE_TYPE_INT,
+                "denom argument to zero check must be a integer");
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to zero check must be a debug locus");
+}
+
 static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
                               vcode_reg_t left, vcode_reg_t right,
                               vcode_reg_t dir, vcode_reg_t locus,
@@ -4829,8 +4841,7 @@ static void emit_bounds_check(vcode_op_t kind, vcode_reg_t reg,
 
    VCODE_FOR_EACH_MATCHING_OP(other, kind) {
       if (other->args.items[0] == reg && other->args.items[1] == left
-          && other->args.items[2] == right && other->args.items[3] == dir
-          && other->args.items[4] == locus && other->args.items[5] == hint)
+          && other->args.items[2] == right && other->args.items[3] == dir)
          return;
    }
 

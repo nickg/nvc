@@ -1365,11 +1365,15 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
       return lower_arith(fcall, emit_sub, r0, r1);
    case S_DIV:
       {
+         if (type_is_integer(r1_type)) {
+            vcode_reg_t locus = lower_debug_locus(fcall);
+            emit_zero_check(r1, locus);
+         }
+
          if (!type_eq(r0_type, r1_type))
             r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
 
-         vcode_reg_t locus = lower_debug_locus(fcall);
-         return lower_narrow(tree_type(fcall), emit_div(r0, r1, locus));
+         return lower_narrow(tree_type(fcall), emit_div(r0, r1));
       }
    case S_EXP:
       {
@@ -1476,16 +1480,16 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
          vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
          return emit_cast(rtype, rtype,
-                          emit_div(emit_cast(vreal, vreal, r0), r1,
-                                   VCODE_INVALID_REG));
+                          emit_div(emit_cast(vreal, vreal, r0), r1));
       }
    case S_DIV_RI:
       {
          vcode_type_t vreal = vtype_real(-DBL_MAX, DBL_MAX);
          vcode_type_t rtype = lower_type(tree_type(fcall));
          vcode_reg_t locus = lower_debug_locus(fcall);
+         emit_zero_check(r1, locus);
          return emit_cast(rtype, rtype,
-                          emit_div(r0, emit_cast(vreal, vreal, r1), locus));
+                          emit_div(r0, emit_cast(vreal, vreal, r1)));
       }
    default:
       fatal_at(tree_loc(fcall), "cannot lower builtin %d", builtin);

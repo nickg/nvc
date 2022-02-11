@@ -614,6 +614,18 @@ static void eval_op_mul(int op, eval_state_t *state)
    }
 }
 
+static void eval_op_zero_check(int op, eval_state_t *state)
+{
+   value_t *denom = eval_get_reg(vcode_get_arg(op, 0), state);
+
+   EVAL_ASSERT_VALUE(op, denom, VALUE_INTEGER);
+
+   if (denom->integer == 0) {
+      error_at(vcode_get_loc(op), "division by zero");
+      state->failed = true;
+   }
+}
+
 static void eval_op_div(int op, eval_state_t *state)
 {
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
@@ -622,14 +634,9 @@ static void eval_op_div(int op, eval_state_t *state)
 
    switch (lhs->kind) {
    case VALUE_INTEGER:
-      if (rhs->integer == 0) {
-         error_at(vcode_get_loc(op), "division by zero");
-         state->failed = true;
-      }
-      else {
-         dst->kind    = VALUE_INTEGER;
-         dst->integer = lhs->integer / rhs->integer;
-      }
+      assert(rhs->integer != 0);
+      dst->kind    = VALUE_INTEGER;
+      dst->integer = lhs->integer / rhs->integer;
       break;
 
    case VALUE_REAL:
@@ -1926,6 +1933,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_MUL:
          eval_op_mul(state->op, state);
+         break;
+
+      case VCODE_OP_ZERO_CHECK:
+         eval_op_zero_check(state->op, state);
          break;
 
       case VCODE_OP_DIV:

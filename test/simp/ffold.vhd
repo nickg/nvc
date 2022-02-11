@@ -54,6 +54,8 @@ package pack is
     function test_alloc_proc(a, b, c : string) return boolean;
 
     function test_logic(x, y : bit) return bit;
+
+    function test_div(x, y : integer) return integer;
 end package;
 
 package body pack is
@@ -256,6 +258,11 @@ package body pack is
             xor (x nor y) xor (x xnor y);
     end function;
 
+    function test_div(x, y : integer) return integer is
+    begin
+        return x / y;                   -- Need to evaluate zero check
+    end function;
+
 end package body;
 
 -------------------------------------------------------------------------------
@@ -298,6 +305,7 @@ begin
         signal s25 : boolean := test_alloc_proc("hello", "world", "helloworld");
         signal s26 : boolean := test_alloc_proc("hello", "moo", "hellomoowee");
         signal s27 : bit := test_logic('1', '0');
+        signal s28 : integer := test_div(5, 2);
     begin
     end block;
 
