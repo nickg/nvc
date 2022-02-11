@@ -31,7 +31,7 @@ bool sem_check(tree_t t, nametab_t *tab);
 void simplify_local(tree_t top);
 
 // Rewrite to simpler forms folding globally static expressions
-void simplify_global(tree_t top, hash_t *generics, hash_t *subprograms);
+void simplify_global(tree_t top, hash_t *generics, exec_t *ex);
 
 // Perform static bounds checking
 void bounds_check(tree_t top);

@@ -47,7 +47,6 @@ typedef struct {
    exec_t       *exec;
    tree_flags_t  eval_mask;
    hash_t       *generics;
-   hash_t       *subprograms;
 } simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
@@ -242,18 +241,6 @@ static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
    thunk = NULL;
 
    return folded;
-}
-
-static vcode_unit_t simp_lower_cb(ident_t func, void *__ctx)
-{
-   simp_ctx_t *ctx = __ctx;
-   assert(ctx->subprograms != NULL);
-
-   tree_t decl = hash_get(ctx->subprograms, func);
-   if (decl == NULL)
-      return NULL;
-
-   return lower_thunk(decl);
 }
 
 static void simp_generic_subprogram(tree_t t, simp_ctx_t *ctx)
@@ -1813,26 +1800,21 @@ void simplify_local(tree_t top)
    assert(ctx.imp_signals == NULL);
 }
 
-void simplify_global(tree_t top, hash_t *generics, hash_t *subprograms)
+void simplify_global(tree_t top, hash_t *generics, exec_t *ex)
 {
    simp_ctx_t ctx = {
       .imp_signals = NULL,
       .top         = top,
-      .exec        = exec_new(EVAL_FCALL),
+      .exec        = ex,
       .eval_mask   = TREE_F_GLOBALLY_STATIC | TREE_F_LOCALLY_STATIC,
       .generics    = generics,
-      .subprograms = subprograms,
    };
-
-   exec_set_lower_fn(ctx.exec, simp_lower_cb, &ctx);
 
    type_rewrite_post_fn_t type_cb = NULL;
    if (standard() >= STD_08)
       type_cb = simp_type;
 
    tree_rewrite(top, simp_pre_cb, simp_tree, type_cb, &ctx);
-
-   exec_free(ctx.exec);
 
    if (generics == NULL && ctx.generics != NULL)
       hash_free(ctx.generics);

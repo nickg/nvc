@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "exec.h"
 #include "hash.h"
 #include "loc.h"
 #include "opt.h"
@@ -42,6 +43,7 @@ typedef struct {
    lib_t        library;
    hash_t      *generics;
    hash_t      *subprograms;
+   exec_t      *exec;
 } elab_ctx_t;
 
 typedef struct {
@@ -899,7 +901,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          // generics that need to be folded
          if (map != NULL) {
             hash_put(ctx->generics, cg, tree_value(map));
-            simplify_global(m, ctx->generics, ctx->subprograms);
+            simplify_global(m, ctx->generics, ctx->exec);
          }
 
          map = m;
@@ -978,6 +980,7 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
       .dotted      = ctx->dotted,
       .library     = new_lib,
       .subprograms = ctx->subprograms,
+      .exec        = ctx->exec,
    };
    elab_subprogram_prefix(arch, &new_ctx);
 
@@ -992,14 +995,14 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
 
    elab_push_scope(arch, &new_ctx);
    elab_generics(entity, comp, t, &new_ctx);
-   simplify_global(entity, new_ctx.generics, new_ctx.subprograms);
+   simplify_global(entity, new_ctx.generics, ctx->exec);
    elab_ports(entity, comp, t, &new_ctx);
    elab_decls(entity, &new_ctx);
 
    if (error_count() == 0) {
       bounds_check(b);
       set_hint_fn(elab_hint_fn, t);
-      simplify_global(arch_copy, new_ctx.generics, new_ctx.subprograms);
+      simplify_global(arch_copy, new_ctx.generics, ctx->exec);
       bounds_check(arch_copy);
       clear_hint();
    }
@@ -1129,12 +1132,13 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .library     = ctx->library,
          .generics    = hash_new(16, true),
          .subprograms = ctx->subprograms,
+         .exec        = ctx->exec,
       };
 
       elab_push_scope(t, &new_ctx);
       hash_put(new_ctx.generics, g, tree_value(map));
 
-      simplify_global(copy, new_ctx.generics, new_ctx.subprograms);
+      simplify_global(copy, new_ctx.generics, new_ctx.exec);
       bounds_check(copy);
 
       if (error_count() == 0) {
@@ -1163,6 +1167,7 @@ static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
          .dotted      = ctx->dotted,
          .library     = ctx->library,
          .subprograms = ctx->subprograms,
+         .exec        = ctx->exec,
       };
 
       elab_push_scope(t, &new_ctx);
@@ -1189,6 +1194,7 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          .library     = ctx->library,
          .dotted      = ndotted,
          .subprograms = ctx->subprograms,
+         .exec        = ctx->exec,
       };
 
       switch (tree_kind(s)) {
@@ -1226,6 +1232,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
       .library     = ctx->library,
       .dotted      = ctx->dotted,
       .subprograms = ctx->subprograms,
+      .exec        = ctx->exec,
    };
 
    elab_push_scope(t, &new_ctx);
@@ -1369,7 +1376,8 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
       .inst        = ninst,
       .dotted      = ndotted,
       .library     = ctx->library,
-      .subprograms = ctx->subprograms
+      .subprograms = ctx->subprograms,
+      .exec        = ctx->exec,
    };
    elab_subprogram_prefix(arch, &new_ctx);
 
@@ -1381,13 +1389,24 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    elab_top_level_ports(entity, &new_ctx);
    elab_decls(entity, &new_ctx);
 
-   simplify_global(arch_copy, new_ctx.generics, new_ctx.subprograms);
+   simplify_global(arch_copy, new_ctx.generics, ctx->exec);
    bounds_check(arch);
 
    if (error_count() == 0)
       elab_arch(arch_copy, &new_ctx);
 
    elab_pop_scope(&new_ctx);
+}
+
+static vcode_unit_t elab_lower_cb(ident_t func, void *__ctx)
+{
+   hash_t *subprograms = __ctx;
+
+   tree_t decl = hash_get(subprograms, func);
+   if (decl == NULL)
+      return NULL;
+
+   return lower_thunk(decl);
 }
 
 void elab_set_generic(const char *name, const char *value)
@@ -1422,9 +1441,12 @@ tree_t elab(tree_t top)
       .path     = NULL,
       .inst     = NULL,
       .library  = lib_work(),
+      .exec     = exec_new(EVAL_FCALL),
    };
 
    ctx.subprograms = hash_new(256, true);
+
+   exec_set_lower_fn(ctx.exec, elab_lower_cb, ctx.subprograms);
 
    switch (tree_kind(top)) {
    case T_ENTITY:
@@ -1447,6 +1469,7 @@ tree_t elab(tree_t top)
    }
 
    hash_free(ctx.subprograms);
+   exec_free(ctx.exec);
 
    if (error_count() > 0)
       return NULL;

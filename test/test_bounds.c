@@ -15,11 +15,12 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "type.h"
 #include "util.h"
+#include "common.h"
+#include "exec.h"
 #include "phase.h"
 #include "test_util.h"
-#include "common.h"
+#include "type.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -85,7 +86,9 @@ START_TEST(test_bounds)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify_global(a, NULL, NULL);   // Global to fold TIME expressions
+   exec_t *ex = exec_new(EVAL_FCALL);
+   simplify_global(a, NULL, ex);   // Global to fold TIME expressions
+   exec_free(ex);
    bounds_check(a);
 
    check_expected_errors();
@@ -126,7 +129,9 @@ START_TEST(test_bounds2)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(error_count() == 0);
 
-   simplify_global(a, NULL, NULL);   // Global to fold TIME expressions
+   exec_t *ex = exec_new(EVAL_FCALL);
+   simplify_global(a, NULL, ex);   // Global to fold TIME expressions
+   exec_free(ex);
    bounds_check(a);
 
    check_expected_errors();
