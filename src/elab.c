@@ -859,6 +859,9 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       tree_t map = NULL, bind_expr = NULL;
 
       if (entity != comp) {
+         // Component generics may be in different order to entity
+         pos = UINT_MAX;
+
          const int ngenerics_comp = tree_generics(comp);
          for (int j = 0; j < ngenerics_comp; j++) {
             tree_t g = tree_generic(comp, j);
@@ -873,7 +876,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
             for (int j = 0; j < binding_ngenmaps; j++) {
                tree_t m = tree_genmap(binding, j);
                assert(tree_subkind(m) == P_POS);
-               if (tree_pos(m) != pos)
+               if (tree_pos(m) != i)
                   continue;
 
                tree_t value = tree_value(m);
@@ -883,6 +886,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                   tree_t decl = tree_ref(value);
                   if (tree_kind(decl) == T_GENERIC_DECL) {
                      cg = tree_ref(value);
+                     pos = i;
                      break;
                   }
                }
