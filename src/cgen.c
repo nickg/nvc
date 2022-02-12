@@ -141,6 +141,12 @@ static LLVMTypeRef llvm_int64_type(void)
    return LLVMInt64TypeInContext(llvm_context());
 }
 
+static LLVMTypeRef llvm_intptr_type(void)
+{
+   return LLVMIntPtrTypeInContext(llvm_context(),
+                                  LLVMGetModuleDataLayout(module));
+}
+
 static LLVMTypeRef llvm_double_type(void)
 {
    return LLVMDoubleTypeInContext(llvm_context());
@@ -397,7 +403,7 @@ static void llvm_dump(const char *tag, LLVMValueRef value)
 __attribute__((unused))
 static void debug_out(LLVMValueRef val)
 {
-   LLVMValueRef args[] = { val, llvm_int32(-1) };
+   LLVMValueRef args[] = { llvm_zext_to_intptr(val), llvm_int32(-1) };
    LLVMBuildCall(builder, llvm_fn("_debug_out"),
                  args, ARRAY_LEN(args), "");
 }
@@ -2751,7 +2757,7 @@ static void cgen_op_debug_out(int op, cgen_ctx_t *ctx)
    }
    else {
       LLVMValueRef args[] = {
-         LLVMBuildZExt(builder, arg0, llvm_int32_type(), ""),
+         llvm_zext_to_intptr(arg0),
          llvm_int32(vcode_get_arg(op, 0))
       };
       LLVMBuildCall(builder, llvm_fn("_debug_out"),
@@ -4227,7 +4233,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
    }
    else if (strcmp(name, "_debug_out") == 0) {
       LLVMTypeRef args[] = {
-         llvm_int32_type(),
+         llvm_intptr_type(),
          llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "_debug_out",

@@ -1346,9 +1346,10 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 }
 
 DLLEXPORT
-void _debug_out(int32_t val, int32_t reg)
+void _debug_out(intptr_t val, int32_t reg)
 {
-   printf("DEBUG: r%d val=%"PRIx32"\n", reg, val);
+   printf("DEBUG: r%d val=%"PRIxPTR"\n", reg, val);
+   fflush(stdout);
 }
 
 DLLEXPORT
@@ -1362,6 +1363,8 @@ void _debug_dump(const uint8_t *ptr, int32_t len)
       if (len % 8 != 0)
          printf("\n");
    }
+
+   fflush(stdout);
 }
 
 DLLEXPORT
