@@ -132,6 +132,7 @@ static ident_t lower_predef_func_name(type_t type, const char *op);
 static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context);
 static void lower_generics(tree_t block, ident_t prefix);
 static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg);
+static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -400,6 +401,38 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
    }
 }
 
+static vcode_reg_t lower_array_stride(type_t type)
+{
+   vcode_reg_t stride = emit_const(vtype_offset(), 1);
+
+   type_t elem = type_elem(type);
+   if (!type_is_array(elem))
+      return stride;
+
+   if (standard() >= STD_08 && type_kind(type) == T_SUBTYPE) {
+      // Handle VHDL-2008 element constraints
+      const int ncon = type_constraints(type);
+      for (int i = 1; i < ncon; i++) {
+         tree_t r = tree_range(type_constraint(type, i), 0);
+
+         vcode_reg_t left_reg  = lower_range_left(r);
+         vcode_reg_t right_reg = lower_range_right(r);
+         vcode_reg_t dir_reg   = lower_range_dir(r);
+
+         vcode_reg_t len_reg = emit_range_length(left_reg, right_reg, dir_reg);
+         stride = emit_mul(stride, len_reg);
+
+         elem = type_elem(elem);
+      }
+   }
+
+   if (type_is_array(elem))
+      stride = emit_mul(stride, lower_array_total_len(elem, VCODE_INVALID_REG));
+
+   emit_comment("Array of array stride is r%d", stride);
+   return stride;
+}
+
 static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg)
 {
    const int ndims = dimension_of(type);
@@ -415,7 +448,7 @@ static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg)
 
    type_t elem = type_elem(type);
    if (type_is_array(elem))
-      return emit_mul(total, lower_array_total_len(elem, VCODE_INVALID_REG));
+      return emit_mul(total, lower_array_stride(type));
    else
       return total;
 }
@@ -593,7 +626,7 @@ static vcode_reg_t lower_reify(vcode_reg_t reg)
    case VCODE_TYPE_POINTER:
       return emit_load_indirect(reg);
    case VCODE_TYPE_SIGNAL:
-     return emit_load_indirect(emit_resolved(reg));
+      return emit_load_indirect(emit_resolved(reg));
    default:
       return reg;
    }
@@ -2109,18 +2142,6 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    return emit_cast(vtype_offset(), VCODE_INVALID_TYPE, zeroed);
 }
 
-static vcode_reg_t lower_array_stride(vcode_reg_t array, type_t type)
-{
-   type_t elem = type_elem(type);
-   if (type_is_array(elem)) {
-      vcode_reg_t stride = lower_array_total_len(elem, VCODE_INVALID_REG);
-      emit_comment("Array of array stride is r%d", stride);
-      return stride;
-   }
-   else
-      return emit_const(vtype_offset(), 1);
-}
-
 static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
 {
    tree_t value = tree_value(ref);
@@ -2166,7 +2187,7 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
       offset_reg = emit_add(offset_reg, zerored);
    }
 
-   offset_reg = emit_mul(offset_reg, lower_array_stride(array, value_type));
+   offset_reg = emit_mul(offset_reg, lower_array_stride(value_type));
 
    vcode_reg_t data_reg = lower_array_data(array);
    return emit_array_ref(data_reg, offset_reg);
@@ -2213,7 +2234,7 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    if (array_reg == VCODE_INVALID_REG)
       return VCODE_INVALID_REG;
 
-   vcode_reg_t stride_reg = lower_array_stride(array_reg, type);
+   vcode_reg_t stride_reg = lower_array_stride(type);
 
    vcode_reg_t data_reg = lower_array_data(array_reg);
    vcode_reg_t off_reg = lower_array_off(left_reg, array_reg, type, 0);
@@ -2564,10 +2585,8 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
                             lower_bounds(scalar_elem_type), len_reg);
 
    vcode_reg_t stride = VCODE_INVALID_REG;
-   if (type_is_array(elem_type)) {
-      stride = lower_array_total_len(elem_type, VCODE_INVALID_REG);
-      emit_comment("Array of array stride is r%d", stride);
-   }
+   if (type_is_array(elem_type))
+      stride = lower_array_stride(type);
 
    if (multidim) {
       if (stride == VCODE_INVALID_REG)
