@@ -344,7 +344,7 @@ static inline unsigned rt_signal_nexus_index(rt_signal_t *s, unsigned offset);
 static void _tracef(const char *fmt, ...);
 
 #define GLOBAL_TMP_STACK_SZ (8 * 1024 * 1024)
-#define PROC_TMP_STACK_SZ   (128 * 1024)
+#define PROC_TMP_STACK_SZ   (64 * 1024)
 #define FMT_VALUES_SZ       128
 
 #if RT_DEBUG
