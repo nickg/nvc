@@ -296,15 +296,10 @@ static void libdw_fill_frame(uintptr_t ip, debug_frame_t *frame)
       cudie = dwfl_module_nextcu(mod, NULL, &mod_bias);
    }
 
-   Dwarf_Die *fundie = NULL, child;
+   Dwarf_Die *fundie = NULL, *module = NULL, child, child1;
    do {
       if (dwarf_child(cudie, &child) != 0)
          continue;
-
-      if (dwarf_tag(&child) == DW_TAG_module) {
-         if (dwarf_child(&child, &child) != 0)
-            continue;
-      }
 
       Dwarf_Die *iter = &child;
       do {
@@ -315,6 +310,23 @@ static void libdw_fill_frame(uintptr_t ip, debug_frame_t *frame)
                fundie = iter;
                goto found_die_with_ip;
             }
+            break;
+         case DW_TAG_module:
+            if (dwarf_child(&child, &child1) == 0) {
+               Dwarf_Die *iter1 = &child1;
+               do {
+                  switch (dwarf_tag(iter1)) {
+                  case DW_TAG_inlined_subroutine:
+                  case DW_TAG_subprogram:
+                     if (dwarf_haspc(iter1, ip - mod_bias)) {
+                        module = iter;
+                        fundie = iter1;
+                        goto found_die_with_ip;
+                     }
+                  }
+               } while (dwarf_siblingof(iter1, iter1) == 0);
+            }
+            break;
          }
       } while (dwarf_siblingof(iter, iter) == 0);
    } while ((cudie = dwfl_module_nextcu(mod, cudie, &mod_bias)));
@@ -327,14 +339,11 @@ static void libdw_fill_frame(uintptr_t ip, debug_frame_t *frame)
       dwarf_lineno(srcloc, (int *)&(frame->lineno));
       dwarf_linecol(srcloc, (int *)&(frame->colno));
 
-      if (dwarf_srclang(cudie) == DW_LANG_Ada83) {
-         frame->kind = FRAME_VHDL;
-
+      if (module != NULL) {
          // VHDL compilation units are wrapped in a DWARF module which
          // gives the unit name
-         Dwarf_Die ns;
-         if (dwarf_child(cudie, &ns) == 0 && dwarf_tag(&ns) == DW_TAG_module)
-            frame->vhdl_unit = ident_new(dwarf_diename(&ns));
+         frame->kind = FRAME_VHDL;
+         frame->vhdl_unit = ident_new(dwarf_diename(module));
       }
 
       if (srcfile != NULL)

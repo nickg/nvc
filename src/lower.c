@@ -5459,7 +5459,7 @@ static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
       for (const char *p = str; *p; p++, pos++)
          char_regs[(i * stride) + pos] = emit_const(vchar, *p);
       for (; pos < stride; pos++)
-         char_regs[(i * stride) + pos] = emit_const(voffset, 0);
+         char_regs[(i * stride) + pos] = emit_const(vchar, 0);
    }
 
    vcode_type_t char_array_type = vtype_carray(nlits, vchar, vchar);
@@ -5610,7 +5610,7 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
       for (const char *p = str; *p; p++, pos++)
          char_regs[(i * stride) + pos] = emit_const(vchar, *p);
       for (; pos < stride; pos++)
-         char_regs[(i * stride) + pos] = emit_const(voffset, 0);
+         char_regs[(i * stride) + pos] = emit_const(vchar, 0);
    }
 
    vcode_type_t char_array_type = vtype_carray(nunits, vchar, vchar);

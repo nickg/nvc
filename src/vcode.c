@@ -3062,6 +3062,13 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
    VCODE_ASSERT(kind == VCODE_TYPE_CARRAY,
                 "constant array must have constrained array type");
 
+#ifndef NDEBUG
+   vcode_type_t elem = vtype_elem(type);
+   for (int i = 0; i < num; i++)
+      VCODE_ASSERT(vtype_eq(vcode_reg_type(values[i]), elem),
+                   "wrong element type for item %d", i);
+#endif
+
    reg_t *r = vcode_reg_data(op->result);
    r->bounds = vtype_elem(type);
 

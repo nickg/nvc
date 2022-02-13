@@ -3914,26 +3914,8 @@ static void cgen_add_dwarf_flags(void)
 #endif
 }
 
-static void cgen_module_debug_info(void)
+static void cgen_module_debug_info(LLVMMetadataRef cu)
 {
-   const loc_t *loc = vcode_unit_loc();
-   assert(!loc_invalid_p(loc));
-
-   LLVMMetadataRef file_ref = cgen_debug_file(loc, false);
-
-   LLVMMetadataRef cu = LLVMDIBuilderCreateCompileUnit(
-      debuginfo, LLVMDWARFSourceLanguageAda83,
-      file_ref, PACKAGE, sizeof(PACKAGE) - 1,
-      opt_get_int(OPT_OPTIMISE), "", 0,
-      0, "", 0,
-      LLVMDWARFEmissionFull, 0, false, false
-#if LLVM_CREATE_CU_HAS_SYSROOT
-      , "/", 1, "", 0
-#endif
-   );
-
-   cgen_push_debug_scope(cu);
-
    vcode_state_t state;
    vcode_state_save(&state);
 
@@ -4700,10 +4682,25 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
    else
       cgen_coverage_state(top, cover, true);
 
+   LLVMMetadataRef file_ref = cgen_debug_file(tree_loc(top), false);
+
+   LLVMMetadataRef cu = LLVMDIBuilderCreateCompileUnit(
+      debuginfo, LLVMDWARFSourceLanguageAda83,
+      file_ref, PACKAGE, sizeof(PACKAGE) - 1,
+      opt_get_int(OPT_OPTIMISE), "", 0,
+      0, "", 0,
+      LLVMDWARFEmissionFull, 0, false, false
+#if LLVM_CREATE_CU_HAS_SYSROOT
+      , "/", 1, "", 0
+#endif
+   );
+
+   cgen_push_debug_scope(cu);
+
    for (unsigned i = 0; i < units->count; i++) {
       vcode_select_unit(units->items[i]);
 
-      cgen_module_debug_info();
+      cgen_module_debug_info(cu);
 
       switch (vcode_unit_kind()) {
       case VCODE_UNIT_PROCEDURE:
@@ -4728,10 +4725,11 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
       }
 
       cgen_pop_debug_scope();
-      cgen_pop_debug_scope();
    }
 
    cgen_global_ctors();
+
+   cgen_pop_debug_scope();
 
    LLVMDIBuilderFinalize(debuginfo);
 

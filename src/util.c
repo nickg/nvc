@@ -156,8 +156,7 @@ static guard_t        *guards;
 static message_style_t message_style = MESSAGE_FULL;
 static hint_t         *hints = NULL;
 static unsigned        n_errors = 0;
-
-static volatile sig_atomic_t crashing = 0;
+static sig_atomic_t    crashing = 0;
 
 static const struct color_escape escapes[] = {
    { "",        ANSI_RESET },
@@ -613,7 +612,7 @@ void note_at(const loc_t *loc, const char *fmt, ...)
 __attribute__((noreturn))
 static void fatal_exit(int status)
 {
-   if (crashing)
+   if (atomic_load(&crashing))
       _exit(status);
    else
       exit(status);
@@ -885,8 +884,10 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
    uintptr_t ip = 0;
 #endif
 
-   if (sig != SIGUSR1)
-      crashing = 1;
+   if (sig != SIGUSR1) {
+      while (!atomic_cas(&crashing, 0, 1))
+         sleep(1);
+   }
 
    extern void check_frozen_object_fault(void *addr);
 
