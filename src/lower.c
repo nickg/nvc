@@ -7890,7 +7890,7 @@ vcode_unit_t lower_thunk(tree_t t)
    }
 
    if (vtype == VCODE_INVALID_TYPE)
-      vtype = lower_type(tree_type(t));
+      vtype = lower_func_result_type(tree_type(t));
 
    vcode_set_result(vtype);
 

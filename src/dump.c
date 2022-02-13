@@ -1389,6 +1389,7 @@ void dump(tree_t t)
    case T_RECORD_REF:
    case T_ATTR_REF:
    case T_CONV_FUNC:
+   case T_QUALIFIED:
       dump_expr(t);
       printf("\n");
       break;

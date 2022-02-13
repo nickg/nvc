@@ -666,7 +666,8 @@ START_TEST(test_issue373)
    tree_t s0 = tree_stmt(p0, 0);
    fail_unless(tree_kind(s0) == T_ASSERT);
    tree_t m = tree_message(s0);
-   fail_unless(tree_kind(m) == T_QUALIFIED);
+   fail_unless(tree_kind(m) == T_LITERAL);
+   fail_unless(tree_subkind(m) == L_STRING);
 
    fail_if_errors();
 }
@@ -935,6 +936,58 @@ START_TEST(test_issue448)
 }
 END_TEST
 
+START_TEST(test_fold1)
+{
+   input_from_file(TESTDIR "/elab/fold1.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b0 = tree_stmt(e, 0);
+   fail_unless(tree_ident(b0) == ident_new("FOLD1"));
+   fail_unless(tree_stmts(b0) == 1);
+
+   tree_t u = tree_stmt(b0, 0);
+   fail_unless(tree_ident(u) == ident_new("U"));
+   fail_unless(tree_kind(u) == T_BLOCK);
+   fail_unless(tree_stmts(u) == 0);
+   fail_unless(tree_genmaps(u) == 1);
+   fail_unless(tree_decls(u) == 2);
+
+   tree_t k = tree_decl(u, 1);
+   fail_unless(tree_ident(k) == ident_new("K"));
+   fail_unless(tree_kind(tree_value(k)) == T_AGGREGATE);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_fold2)
+{
+   input_from_file(TESTDIR "/elab/fold2.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b0 = tree_stmt(e, 0);
+   fail_unless(tree_ident(b0) == ident_new("FOLD2"));
+   fail_unless(tree_stmts(b0) == 1);
+
+   tree_t u = tree_stmt(b0, 0);
+   fail_unless(tree_ident(u) == ident_new("U"));
+   fail_unless(tree_kind(u) == T_BLOCK);
+   fail_unless(tree_stmts(u) == 0);
+   fail_unless(tree_genmaps(u) == 1);
+   fail_unless(tree_decls(u) == 2);
+
+   tree_t k = tree_decl(u, 1);
+   fail_unless(tree_ident(k) == ident_new("K"));
+   fail_unless(tree_kind(tree_value(k)) == T_AGGREGATE);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -992,6 +1045,8 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue435);
    tcase_add_test(tc, test_issue442);
    tcase_add_test(tc, test_issue448);
+   tcase_add_test(tc, test_fold1);
+   tcase_add_test(tc, test_fold2);
    suite_add_tcase(s, tc);
 
    return s;

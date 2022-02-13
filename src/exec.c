@@ -125,6 +125,7 @@ typedef struct {
    } while (0)
 
 static void eval_vcode(eval_state_t *state);
+static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc);
 
 static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
 {
@@ -184,6 +185,7 @@ static int eval_dump(text_buf_t *tb, value_t *value)
       }
    case VALUE_UARRAY:
       {
+         tb_printf(tb, "#[");
          int total = 1;
          for (unsigned dim = 0; dim < value[0].length; dim++) {
             if (dim > 0) tb_printf(tb, ", ");
@@ -191,13 +193,13 @@ static int eval_dump(text_buf_t *tb, value_t *value)
             const int length = value[1 + dim*2 + 1].integer;
             const int right  =
                length < 0 ? left + length + 1 : left + length - 1;
-            tb_printf(tb, "#[");
             if (length < 0)
-               tb_printf(tb, "%d downto %d : ", left, right);
+               tb_printf(tb, "%d downto %d", left, right);
             else
-               tb_printf(tb, "%d to %d : ", left, right);
+               tb_printf(tb, "%d to %d", left, right);
             total *= abs(length);
          }
+         tb_printf(tb, " : ");
          for (int i = 0; i < total; i++) {
             if (i > 0) tb_printf(tb, ",");
             eval_dump(tb, &(value->pointer[i]));
@@ -2226,6 +2228,47 @@ static eval_scalar_t eval_get_scalar(value_t *value)
    }
 }
 
+static tree_t eval_array_to_tree(const loc_t *loc, value_t *wrap,
+                                 value_t *array, type_t type,
+                                 int dim, unsigned *offset)
+{
+   tree_t tree = tree_new(T_AGGREGATE);
+   tree_set_loc(tree, loc);
+
+   const int ndims = wrap != NULL ? wrap[0].length : dimension_of(type);
+
+   int64_t length = 0;
+   for (int d = ndims - 1; d >= dim; d--) {
+      if (wrap != NULL)
+         length = llabs(wrap[1 + d*2 + 1].integer);
+      else if (!folded_length(range_of(type, d), &length))
+         fatal_at(loc, "array bound is not a constant");
+   }
+
+   type_t elem = type_elem(type);
+   unsigned pos = 0;
+   while (pos < length) {
+      tree_t value;
+      if (dim + 1 == ndims) {
+         value = eval_value_to_tree(&(array[*offset]), elem, loc);
+         *offset += eval_next_field_offset(&(array[*offset]));
+      }
+      else {
+         value = eval_array_to_tree(loc, wrap, array, type, dim + 1, offset);
+         tree_set_type(value, array_aggregate_type(type, dim + 1));
+      }
+
+      tree_t assoc = tree_new(T_ASSOC);
+      tree_set_subkind(assoc, A_POS);
+      tree_set_pos(assoc, pos++);
+      tree_set_value(assoc, value);
+
+      tree_add_assoc(tree, assoc);
+   }
+
+   return tree;
+}
+
 static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
 {
    tree_t tree = NULL;
@@ -2265,6 +2308,11 @@ static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
          EVAL_ASSERT_VALUE(-1, rec, VALUE_RECORD);
          return eval_value_to_tree(rec, type, loc);
       }
+      else if (type_is_array(type)) {
+         value_t *arr = &(value->pointer[-1]);
+         EVAL_ASSERT_VALUE(-1, arr, VALUE_CARRAY);
+         return eval_value_to_tree(arr, type, loc);
+      }
       else
          fatal_trace("pointer cannot be converted to tree");
       break;
@@ -2288,19 +2336,55 @@ static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
       break;
    case VALUE_CARRAY:
       {
-         type_t elem = type_elem(type);
-         tree = tree_new(T_AGGREGATE);
-         unsigned offset = 1, pos = 0;
-         while (offset < value->length + 1) {
-            tree_t assoc = tree_new(T_ASSOC);
-            tree_set_subkind(assoc, A_POS);
-            tree_set_pos(assoc, pos++);
-            tree_set_value(assoc, eval_value_to_tree(&(value[offset]),
-                                                     elem, loc));
-            tree_add_assoc(tree, assoc);
+         unsigned offset = 0;
+         tree = eval_array_to_tree(loc, NULL, value + 1, type, 0, &offset);
+         assert(offset == value->length);
+      }
+      break;
+   case VALUE_UARRAY:
+      {
+         if (type_is_unconstrained(type)) {
+            tree_t constraint = tree_new(T_CONSTRAINT);
+            tree_set_subkind(constraint, C_INDEX);
 
-            offset += eval_next_field_offset(&(value[offset]));
+            for (unsigned dim = 0; dim < value[0].length; dim++) {
+               const int ileft   = value[1 + dim*2].integer;
+               const int ilength = value[1 + dim*2 + 1].integer;
+               const int iright  =
+                  ilength < 0 ? ileft + ilength + 1 : ileft + ilength - 1;
+               const range_kind_t dir = ilength < 0 ? RANGE_DOWNTO : RANGE_TO;
+
+               type_t index = index_type_of(type, dim);
+
+               tree_t left = tree_new(T_LITERAL);
+               tree_set_subkind(left, L_INT);
+               tree_set_type(left, index);
+               tree_set_ival(left, ileft);
+
+               tree_t right = tree_new(T_LITERAL);
+               tree_set_subkind(right, L_INT);
+               tree_set_type(right, index);
+               tree_set_ival(right, iright);
+
+               tree_t r = tree_new(T_RANGE);
+               tree_set_subkind(r, dir);
+               tree_set_left(r, left);
+               tree_set_right(r, right);
+               tree_set_type(r, index);
+
+               tree_add_range(constraint, r);
+            }
+
+            type_t sub = type_new(T_SUBTYPE);
+            type_set_base(sub, type);
+            type_add_constraint(sub, constraint);
+
+            type = sub;
          }
+
+         unsigned offset = 0;
+         tree = eval_array_to_tree(loc, value, value->pointer,
+                                   type, 0, &offset);
       }
       break;
    default:
