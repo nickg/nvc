@@ -283,14 +283,12 @@ void object_one_time_init(void)
 {
    extern object_class_t tree_object;
    extern object_class_t type_object;
-   extern object_class_t e_node_object;
 
    static bool done = false;
 
    if (unlikely(!done)) {
       object_init(&tree_object);
       object_init(&type_object);
-      object_init(&e_node_object);
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the object items table
@@ -703,7 +701,7 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
       STATIC_ASSERT(OBJECT_TAG_COUNT <= 4);
       fbuf_put_uint(f, object->tag | (object->kind << 2));
 
-      if (object->tag == OBJECT_TAG_TREE || object->tag == OBJECT_TAG_E_NODE)
+      if (object->tag == OBJECT_TAG_TREE)
          loc_write(&object->loc, loc_ctx);
 
       const imask_t has = class->has_map[object->kind];
@@ -847,7 +845,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
 
       object_t *object = object_new(arena, class, kind);
 
-      if (tag == OBJECT_TAG_TREE || tag == OBJECT_TAG_E_NODE)
+      if (tag == OBJECT_TAG_TREE)
          loc_read(&(object->loc), loc_ctx);
 
       const imask_t has = class->has_map[object->kind];

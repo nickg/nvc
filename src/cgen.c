@@ -236,10 +236,9 @@ static LLVMTypeRef llvm_signal_shared_struct(void)
       return exist;
 
    LLVMTypeRef fields[] = {
-      llvm_int32_type(),   // Signal ID
-      llvm_int32_type(),   // Pad
-      llvm_void_ptr(),     // Resolved pointer
-      llvm_void_ptr()      // Last value pointer
+      llvm_int32_type(),                    // Size
+      llvm_int32_type(),                    // Pad
+      LLVMArrayType(llvm_int8_type(), 0),   // Data
    };
 
    LLVMTypeRef new =
@@ -447,6 +446,21 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
    LLVMAddAttributeAtIndex(fn, param, ref);
 }
 
+static LLVMTypeRef cgen_signal_type(vcode_type_t type)
+{
+   switch (vtype_kind(type)) {
+   case VCODE_TYPE_INT:
+   case VCODE_TYPE_REAL:
+      return llvm_signal_type();
+
+   case VCODE_TYPE_CARRAY:
+      return cgen_signal_type(vtype_elem(type));
+
+   default:
+      fatal("invalid signal base type %d", vtype_kind(type));
+   }
+}
+
 static LLVMTypeRef cgen_type(vcode_type_t type)
 {
    switch (vtype_kind(type)) {
@@ -500,7 +514,7 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
             for (int i = 0; i < nfields; i++)
                fields[i] = cgen_type(vtype_field(type, i));
 
-            LLVMStructSetBody(lltype, fields, nfields, true);
+            LLVMStructSetBody(lltype, fields, nfields, false);
          }
 
          return lltype;
@@ -522,7 +536,7 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
       }
 
    case VCODE_TYPE_SIGNAL:
-      return llvm_signal_type();
+      return cgen_signal_type(vtype_base(type));
 
    case VCODE_TYPE_FILE:
       return llvm_void_ptr();
@@ -897,6 +911,27 @@ static LLVMValueRef cgen_signature(ident_t name, vcode_type_t result,
    return fn;
 }
 
+static LLVMValueRef cgen_pointer_to_arg_data(int op, int arg,
+                                             LLVMTypeRef *alloca_type,
+                                             cgen_ctx_t *ctx)
+{
+   const vtype_kind_t kind = vcode_reg_kind(vcode_get_arg(op, arg));
+   if (kind == VCODE_TYPE_INT || kind == VCODE_TYPE_REAL
+       || kind == VCODE_TYPE_RESOLUTION || kind == VCODE_TYPE_CLOSURE) {
+      // Need to get a pointer to the data
+      LLVMValueRef scalar = cgen_get_arg(op, arg, ctx);
+      *alloca_type = LLVMTypeOf(scalar);
+      LLVMValueRef mem = cgen_scoped_alloca(*alloca_type, ctx);
+      llvm_lifetime_start(mem, *alloca_type);
+      LLVMBuildStore(builder, scalar, mem);
+      return mem;
+   }
+   else {
+      *alloca_type = NULL;
+      return cgen_get_arg(op, arg, ctx);
+   }
+}
+
 static void cgen_op_return(int op, cgen_ctx_t *ctx)
 {
    switch (vcode_unit_kind()) {
@@ -1234,6 +1269,36 @@ static void cgen_op_wait(int op, cgen_ctx_t *ctx)
    }
    else
       LLVMBuildRet(builder, LLVMConstNull(llvm_void_ptr()));
+}
+
+static void cgen_op_drive_signal(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef shared = LLVMBuildExtractValue(builder, sigptr, 0, "");
+   LLVMValueRef offset = LLVMBuildExtractValue(builder, sigptr, 1, "");
+
+   LLVMValueRef args[] = {
+      shared,
+      offset,
+      cgen_get_arg(op, 1, ctx)
+   };
+   LLVMBuildCall(builder, llvm_fn("__nvc_drive_signal"),
+                 args, ARRAY_LEN(args), "");
+}
+
+static void cgen_op_resolve_signal(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef shared = LLVMBuildExtractValue(builder, sigptr, 0, "");
+
+   LLVMTypeRef alloca_type = NULL;
+   LLVMValueRef resfn = cgen_pointer_to_arg_data(op, 1, &alloca_type, ctx);
+
+   LLVMValueRef args[] = { shared, resfn };
+   LLVMBuildCall(builder, llvm_fn("__nvc_resolve_signal"),
+                 args, ARRAY_LEN(args), "");
+
+   llvm_lifetime_end(resfn, alloca_type);
 }
 
 static void cgen_op_store(int op, cgen_ctx_t *ctx)
@@ -1795,17 +1860,23 @@ static void cgen_op_resolved(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
    LLVMValueRef shared = LLVMBuildExtractValue(builder, sigptr, 0, "");
+   LLVMValueRef offset = LLVMBuildExtractValue(builder, sigptr, 1, "");
 
-   LLVMValueRef resolved = LLVMBuildStructGEP(builder, shared, 2, "resolved");
-   resolved = LLVMBuildLoad(builder, resolved, "");
-   LLVMValueRef index[] = {
-      llvm_zext_to_intptr(LLVMBuildExtractValue(builder, sigptr, 1, "offset")),
+   LLVMTypeRef data_type = cgen_type(vcode_reg_type(result));
+   LLVMValueRef array = LLVMBuildStructGEP(builder, shared, 2, "");
+
+   LLVMValueRef index1[] = { llvm_int32(0), llvm_int32(0) };
+   LLVMValueRef elem0 = LLVMBuildInBoundsGEP(builder, array, index1,
+                                            ARRAY_LEN(index1), "");
+
+   LLVMValueRef cast = LLVMBuildBitCast(builder, elem0, data_type, "");
+
+   LLVMValueRef index2[] = {
+      llvm_zext_to_intptr(offset),
    };
-   LLVMValueRef raw_ptr = LLVMBuildInBoundsGEP(builder, resolved, index,
-                                               ARRAY_LEN(index), "");
-   ctx->regs[result] = LLVMBuildBitCast(builder, raw_ptr,
-                                        cgen_type(vcode_reg_type(result)),
-                                        cgen_reg_name(result));
+   ctx->regs[result] = LLVMBuildInBoundsGEP(builder, cast, index2,
+                                            ARRAY_LEN(index2),
+                                            cgen_reg_name(result));
 }
 
 static void cgen_op_last_value(int op, cgen_ctx_t *ctx)
@@ -1815,43 +1886,28 @@ static void cgen_op_last_value(int op, cgen_ctx_t *ctx)
    LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
    LLVMValueRef shared = LLVMBuildExtractValue(builder, sigptr, 0, "");
 
-   LLVMTypeRef result_type = cgen_type(vcode_reg_type(result));
+   LLVMValueRef size_ptr = LLVMBuildStructGEP(builder, shared, 0, "");
+   LLVMValueRef size     = LLVMBuildLoad(builder, size_ptr, "size");
+   LLVMValueRef offset   = LLVMBuildExtractValue(builder, sigptr, 1, "offset");
 
-   LLVMValueRef resolved = LLVMBuildStructGEP(builder, shared, 3, "last_value");
-   LLVMValueRef cast = LLVMBuildBitCast(builder, resolved,
-                                        LLVMPointerType(result_type, 0), "");
+   LLVMTypeRef data_type = cgen_type(vcode_reg_type(result));
+   LLVMValueRef array = LLVMBuildStructGEP(builder, shared, 2, "");
 
-   LLVMValueRef deref = LLVMBuildLoad(builder, cast, cgen_reg_name(result));
+   LLVMValueRef index1[] = {
+      llvm_int32(0),
+      llvm_zext_to_intptr(size)
+   };
+   LLVMValueRef elem0 = LLVMBuildInBoundsGEP(builder, array, index1,
+                                            ARRAY_LEN(index1), "");
 
-   if (LLVMGetTypeKind(LLVMTypeOf(deref)) == LLVMPointerTypeKind) {
-      LLVMValueRef offset = LLVMBuildExtractValue(builder, sigptr, 1, "offset");
-      LLVMValueRef index[] = { llvm_zext_to_intptr(offset) };
-      ctx->regs[result] = LLVMBuildInBoundsGEP(builder, deref, index,
-                                               ARRAY_LEN(index), "");
-   }
-   else
-      ctx->regs[result] = deref;
-}
+   LLVMValueRef cast = LLVMBuildBitCast(builder, elem0, data_type, "");
 
-static LLVMValueRef cgen_pointer_to_arg_data(int op, int arg,
-                                             LLVMTypeRef *alloca_type,
-                                             cgen_ctx_t *ctx)
-{
-   const vtype_kind_t kind = vcode_reg_kind(vcode_get_arg(op, arg));
-   if (kind == VCODE_TYPE_INT || kind == VCODE_TYPE_REAL
-       || kind == VCODE_TYPE_RESOLUTION || kind == VCODE_TYPE_CLOSURE) {
-      // Need to get a pointer to the data
-      LLVMValueRef scalar = cgen_get_arg(op, arg, ctx);
-      *alloca_type = LLVMTypeOf(scalar);
-      LLVMValueRef mem = cgen_scoped_alloca(*alloca_type, ctx);
-      llvm_lifetime_start(mem, *alloca_type);
-      LLVMBuildStore(builder, scalar, mem);
-      return mem;
-   }
-   else {
-      *alloca_type = NULL;
-      return cgen_get_arg(op, arg, ctx);
-   }
+   LLVMValueRef index2[] = {
+      llvm_zext_to_intptr(offset),
+   };
+   ctx->regs[result] = LLVMBuildInBoundsGEP(builder, cast, index2,
+                                            ARRAY_LEN(index2),
+                                            cgen_reg_name(result));
 }
 
 static void cgen_op_sched_waveform(int op, cgen_ctx_t *ctx)
@@ -1981,7 +2037,8 @@ static void cgen_op_closure(int op, cgen_ctx_t *ctx)
          vcode_reg_type(vcode_get_arg(op, 0)),   // Context type
          atype
       };
-      fn = cgen_signature(func, rtype, VCODE_CC_VHDL, args, 2);
+      fn = cgen_signature(func, rtype, VCODE_CC_VHDL, args,
+                          atype == VCODE_INVALID_REG ? 1 : 2);
    }
 
    ffi_spec_t spec = {
@@ -2138,16 +2195,9 @@ static void cgen_op_array_ref(int op, cgen_ctx_t *ctx)
    case VCODE_TYPE_SIGNAL:
       {
          LLVMValueRef base = LLVMBuildExtractValue(builder, lhs, 1, "base");
-         vcode_type_t vtype = vtype_base(vcode_reg_type(vcode_get_arg(op, 0)));
-         LLVMValueRef null =
-            LLVMConstNull(LLVMPointerType(cgen_type(vtype), 0));
-         LLVMValueRef index[] = { rhs };
-         LLVMValueRef gep = LLVMBuildInBoundsGEP(builder, null, index, 1, "");
-         LLVMValueRef scaled =
-            LLVMBuildPtrToInt(builder, gep, llvm_int32_type(), "");
-         LLVMValueRef add = LLVMBuildAdd(builder, base, scaled, "");
-         ctx->regs[result] = LLVMBuildInsertValue(builder, lhs,
-                                                  add, 1, cgen_reg_name(result));
+         LLVMValueRef add = LLVMBuildAdd(builder, base, rhs, "");
+         ctx->regs[result] = LLVMBuildInsertValue(builder, lhs, add, 1,
+                                                  cgen_reg_name(result));
       }
       break;
 
@@ -2160,31 +2210,15 @@ static void cgen_op_array_ref(int op, cgen_ctx_t *ctx)
 static void cgen_op_record_ref(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   vtype_kind_t kind = vtype_kind(vcode_reg_type(result));
 
-   if (kind == VCODE_TYPE_SIGNAL) {
-      LLVMValueRef signal = cgen_get_arg(op, 0, ctx);
-      LLVMValueRef base = LLVMBuildExtractValue(builder, signal, 1, "base");
-      vcode_type_t rtype = vtype_base(vcode_reg_type(vcode_get_arg(op, 0)));
-      LLVMValueRef null = LLVMConstNull(LLVMPointerType(cgen_type(rtype), 0));
-      LLVMValueRef field =
-         LLVMBuildStructGEP(builder, null, vcode_get_field(op), "");
-      LLVMValueRef scale =
-         LLVMBuildPtrToInt(builder, field, llvm_int32_type(), "");
-      LLVMValueRef add = LLVMBuildAdd(builder, base, scale, "");
-      ctx->regs[result] = LLVMBuildInsertValue(builder, signal,
-                                               add, 1, cgen_reg_name(result));
-   }
-   else {
-      ctx->regs[result] = LLVMBuildStructGEP(builder, cgen_get_arg(op, 0, ctx),
-                                             vcode_get_field(op),
-                                             cgen_reg_name(result));
+   ctx->regs[result] = LLVMBuildStructGEP(builder, cgen_get_arg(op, 0, ctx),
+                                          vcode_get_field(op),
+                                          cgen_reg_name(result));
 
-      LLVMTypeRef field_type =
-         LLVMGetElementType(LLVMTypeOf(ctx->regs[result]));
-      if (LLVMGetTypeKind(field_type) == LLVMArrayTypeKind)
-         ctx->regs[result] = cgen_array_pointer(ctx->regs[result]);
-   }
+   LLVMTypeRef field_type =
+      LLVMGetElementType(LLVMTypeOf(ctx->regs[result]));
+   if (LLVMGetTypeKind(field_type) == LLVMArrayTypeKind)
+      ctx->regs[result] = cgen_array_pointer(ctx->regs[result]);
 }
 
 static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
@@ -2195,6 +2229,28 @@ static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
       LLVMBuildExtractValue(builder, sigptr, 0, "sid"),
       LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
       cgen_get_arg(op, 1, ctx),
+      llvm_int1(false),
+      LLVMConstNull(LLVMPointerType(llvm_signal_shared_struct(), 0)),
+   };
+   LLVMBuildCall(builder, llvm_fn("_sched_event"), args, ARRAY_LEN(args), "");
+}
+
+static void cgen_op_sched_static(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+
+   LLVMValueRef wakeptr;
+   if (vcode_count_args(op) > 2)
+      wakeptr = LLVMBuildExtractValue(builder, cgen_get_arg(op, 2, ctx), 0, "");
+   else
+      wakeptr = LLVMConstNull(LLVMPointerType(llvm_signal_shared_struct(), 0));
+
+   LLVMValueRef args[] = {
+      LLVMBuildExtractValue(builder, sigptr, 0, "sid"),
+      LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
+      cgen_get_arg(op, 1, ctx),
+      llvm_int1(true),
+      wakeptr
    };
    LLVMBuildCall(builder, llvm_fn("_sched_event"), args, ARRAY_LEN(args), "");
 }
@@ -2421,6 +2477,19 @@ static void cgen_op_driving_value(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMBuildCast(builder, LLVMBitCast, raw,
                                      cgen_type(vcode_reg_type(result)),
                                      cgen_reg_name(result));
+}
+
+static void cgen_op_set_signal_kind(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+
+   LLVMValueRef args[] = {
+      LLVMBuildExtractValue(builder, sigptr, 0, ""),
+      cgen_get_arg(op, 1, ctx),
+   };
+
+   LLVMBuildCall(builder, llvm_fn("__nvc_set_signal_kind"),
+                 args, ARRAY_LEN(args), "");
 }
 
 static void cgen_op_case(int op, cgen_ctx_t *ctx)
@@ -2723,6 +2792,21 @@ static void cgen_op_range_check(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, pass_bb);
 }
 
+static void cgen_op_push_scope(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef locus = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef size = llvm_sizeof(cgen_type(vcode_get_type(op)));
+
+   LLVMValueRef args[] = { locus, size };
+   LLVMBuildCall(builder, llvm_fn("__nvc_push_scope"), args,
+                 ARRAY_LEN(args), "");
+}
+
+static void cgen_op_pop_scope(int op, cgen_ctx_t *ctx)
+{
+   LLVMBuildCall(builder, llvm_fn("__nvc_pop_scope"), NULL, 0, "");
+}
+
 static void cgen_op_debug_locus(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -2861,65 +2945,55 @@ static void cgen_op_range_length(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_init_signal(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
-
-   const bool have_resolution = vcode_count_args(op) > 4;
-
-   LLVMTypeRef res_alloca_type = NULL;
-   LLVMValueRef resfn = NULL;
-   if (have_resolution)
-      resfn = cgen_pointer_to_arg_data(op, 4, &res_alloca_type, ctx);
-   else
-      resfn = LLVMConstNull(LLVMPointerType(llvm_resolution_type(), 0));
+   vcode_reg_t result = vcode_get_result(op);
 
    LLVMTypeRef alloca_type;
-   LLVMValueRef initval = cgen_pointer_to_arg_data(op, 1, &alloca_type, ctx);
+   LLVMValueRef initval = cgen_pointer_to_arg_data(op, 2, &alloca_type, ctx);
+
+   LLVMValueRef offset;
+   if (vcode_count_args(op) > 4) {
+      LLVMValueRef null = cgen_get_arg(op, 4, ctx);
+      offset = LLVMBuildPtrToInt(builder, null, llvm_int32_type(), "");
+   }
+   else
+      offset = llvm_int32(0);
 
    LLVMValueRef args[] = {
-      LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
-      LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
-      cgen_get_arg(op, 2, ctx),
-      cgen_get_arg(op, 3, ctx),
+      cgen_get_arg(op, 0, ctx),
+      cgen_get_arg(op, 1, ctx),
       llvm_void_cast(initval),
-      resfn
+      cgen_get_arg(op, 3, ctx),
+      offset
    };
-   LLVMBuildCall(builder, llvm_fn("_init_signal"), args, ARRAY_LEN(args), "");
+   LLVMValueRef shared = LLVMBuildCall(builder, llvm_fn("_init_signal"), args,
+                                       ARRAY_LEN(args), "");
 
-   if (res_alloca_type != NULL)
-      llvm_lifetime_end(resfn, res_alloca_type);
+   LLVMValueRef r = LLVMGetUndef(llvm_signal_type());
+   r = LLVMBuildInsertValue(builder, r, shared, 0, "");
+   r = LLVMBuildInsertValue(builder, r, llvm_int32(0), 1,
+                            cgen_reg_name(result));
+
+   ctx->regs[result] = r;
+
    if (alloca_type != NULL)
       llvm_lifetime_end(initval, alloca_type);
 }
 
 static void cgen_op_implicit_signal(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
-
-   LLVMTypeRef alloca_type = NULL;
-   LLVMValueRef closure = cgen_pointer_to_arg_data(op, 3, &alloca_type, ctx);
-
-   LLVMValueRef args[] = {
-      LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
-      cgen_get_arg(op, 2, ctx),
-      closure,
-   };
-   LLVMBuildCall(builder, llvm_fn("_implicit_signal"),
-                 args, ARRAY_LEN(args), "");
-
-   llvm_lifetime_end(closure, alloca_type);
-}
-
-static void cgen_op_link_signal(int op, cgen_ctx_t *ctx)
-{
    vcode_reg_t result = vcode_get_result(op);
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   ident_str(vcode_get_ident(op), tb);
+   LLVMTypeRef alloca_type = NULL;
+   LLVMValueRef closure = cgen_pointer_to_arg_data(op, 4, &alloca_type, ctx);
 
    LLVMValueRef args[] = {
-      cgen_const_string(tb_get(tb))
+      cgen_get_arg(op, 0, ctx),
+      cgen_get_arg(op, 1, ctx),
+      cgen_get_arg(op, 2, ctx),
+      cgen_get_arg(op, 3, ctx),
+      closure,
    };
-   LLVMValueRef shared = LLVMBuildCall(builder, llvm_fn("_link_signal"),
+   LLVMValueRef shared = LLVMBuildCall(builder, llvm_fn("_implicit_signal"),
                                        args, ARRAY_LEN(args), "");
 
    LLVMValueRef r = LLVMGetUndef(llvm_signal_type());
@@ -2928,6 +3002,8 @@ static void cgen_op_link_signal(int op, cgen_ctx_t *ctx)
                             cgen_reg_name(result));
 
    ctx->regs[result] = r;
+
+   llvm_lifetime_end(closure, alloca_type);
 }
 
 static void cgen_op_link_var(int op, cgen_ctx_t *ctx)
@@ -3000,24 +3076,50 @@ static void cgen_op_link_package(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_map_signal(int op, cgen_ctx_t *ctx)
 {
-   if (vcode_count_args(op) < 5)
-      return;
-
    LLVMTypeRef alloca_type = NULL;
-   LLVMValueRef closure = cgen_pointer_to_arg_data(op, 4, &alloca_type, ctx);
+   LLVMValueRef closure;
+   if (vcode_count_args(op) == 5)
+      closure = cgen_pointer_to_arg_data(op, 4, &alloca_type, ctx);
+   else
+      closure = LLVMConstNull(LLVMPointerType(llvm_closure_type(), 0));
 
-   LLVMValueRef sigptr = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef srcptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef dstptr = cgen_get_arg(op, 1, ctx);
 
    LLVMValueRef args[] = {
-      LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
-      LLVMBuildExtractValue(builder, sigptr, 1, "offset"),
+      LLVMBuildExtractValue(builder, srcptr, 0, "shared"),
+      LLVMBuildExtractValue(builder, srcptr, 1, "offset"),
+      LLVMBuildExtractValue(builder, dstptr, 0, "shared"),
+      LLVMBuildExtractValue(builder, dstptr, 1, "offset"),
+      cgen_get_arg(op, 2, ctx),
       cgen_get_arg(op, 3, ctx),
-      closure
+      closure,
    };
-   LLVMBuildCall(builder, llvm_fn("_convert_signal"),
+   LLVMBuildCall(builder, llvm_fn("__nvc_map_signal"),
                  args, ARRAY_LEN(args), "");
 
-   llvm_lifetime_end(closure, alloca_type);
+   if (alloca_type != NULL)
+      llvm_lifetime_end(closure, alloca_type);
+}
+
+static void cgen_op_map_const(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef dstptr = cgen_get_arg(op, 1, ctx);
+
+   LLVMTypeRef alloca_type;
+   LLVMValueRef initval = cgen_pointer_to_arg_data(op, 0, &alloca_type, ctx);
+
+   LLVMValueRef args[] = {
+      LLVMBuildExtractValue(builder, dstptr, 0, "shared"),
+      LLVMBuildExtractValue(builder, dstptr, 1, "offset"),
+      llvm_void_cast(initval),
+      cgen_get_arg(op, 2, ctx),
+   };
+   LLVMBuildCall(builder, llvm_fn("__nvc_map_const"),
+                 args, ARRAY_LEN(args), "");
+
+   if (alloca_type != NULL)
+      llvm_lifetime_end(initval, alloca_type);
 }
 
 static void cgen_op(int i, cgen_ctx_t *ctx)
@@ -3050,12 +3152,19 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_WAIT:
       cgen_op_wait(i, ctx);
       break;
-   case VCODE_OP_COMMENT:
    case VCODE_OP_DRIVE_SIGNAL:
-   case VCODE_OP_SCHED_STATIC:
+      cgen_op_drive_signal(i, ctx);
+      break;
+   case VCODE_OP_RESOLVE_SIGNAL:
+      cgen_op_resolve_signal(i, ctx);
+      break;
+   case VCODE_OP_COMMENT:
       break;
    case VCODE_OP_MAP_SIGNAL:
       cgen_op_map_signal(i, ctx);
+      break;
+   case VCODE_OP_MAP_CONST:
+      cgen_op_map_const(i, ctx);
       break;
    case VCODE_OP_CONST_ARRAY:
       cgen_op_const_array(i, ctx);
@@ -3183,6 +3292,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_SCHED_EVENT:
       cgen_op_sched_event(i, ctx);
       break;
+   case VCODE_OP_SCHED_STATIC:
+      cgen_op_sched_static(i, ctx);
+      break;
    case VCODE_OP_PCALL:
       cgen_op_pcall(i, ctx);
       break;
@@ -3246,6 +3358,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_DRIVING_VALUE:
       cgen_op_driving_value(i, ctx);
       break;
+   case VCODE_OP_SET_SIGNAL_KIND:
+      cgen_op_set_signal_kind(i, ctx);
+      break;
    case VCODE_OP_ZERO_CHECK:
       cgen_op_zero_check(i, ctx);
       break;
@@ -3297,9 +3412,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_IMPLICIT_SIGNAL:
       cgen_op_implicit_signal(i, ctx);
       break;
-   case VCODE_OP_LINK_SIGNAL:
-      cgen_op_link_signal(i, ctx);
-      break;
    case VCODE_OP_LINK_VAR:
       cgen_op_link_var(i, ctx);
       break;
@@ -3320,6 +3432,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_CONTEXT_UPREF:
       cgen_op_context_upref(i, ctx);
+      break;
+   case VCODE_OP_PUSH_SCOPE:
+      cgen_op_push_scope(i, ctx);
+      break;
+   case VCODE_OP_POP_SCOPE:
+      cgen_op_pop_scope(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -3974,6 +4092,16 @@ static void cgen_add_dependency(ident_t name, unit_list_t *list)
    vcode_state_restore(&state);
 }
 
+static void cgen_load_package(ident_t name)
+{
+   // Make sure vcode is loaded for package dependencies
+   tree_t unit = lib_get_qualified(name);
+   if (unit != NULL) {
+      ident_t body_i = ident_prefix(name, ident_new("body"), '-');
+      (void)lib_get_qualified(body_i);
+   }
+}
+
 static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)
 {
    vcode_select_unit(unit);
@@ -3986,10 +4114,18 @@ static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)
       for (int op = 0; op < nops; op++) {
          switch (vcode_get_op(op)) {
          case VCODE_OP_LINK_PACKAGE:
-            cgen_add_dependency(vcode_get_ident(op), list);
+            {
+               ident_t name = vcode_get_ident(op);
+               cgen_load_package(name);
+               cgen_add_dependency(name, list);
+            }
             break;
          case VCODE_OP_LINK_VAR:
-            cgen_add_dependency(ident_runtil(vcode_get_ident(op), '.'), list);
+            {
+               ident_t pack = ident_runtil(vcode_get_ident(op), '.');
+               cgen_load_package(pack);
+               cgen_add_dependency(pack, list);
+            }
             break;
          case VCODE_OP_FCALL:
          case VCODE_OP_PCALL:
@@ -4134,7 +4270,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
          llvm_int32_type(),
-         llvm_int32_type()
+         llvm_int32_type(),
+         llvm_int1_type(),
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
       };
       fn = LLVMAddFunction(module, "_sched_event",
                            LLVMFunctionType(llvm_void_type(),
@@ -4154,34 +4292,41 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
-   else if (strcmp(name, "_init_signal") == 0) {
+   else if (strcmp(name, "__nvc_drive_signal") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
          llvm_int32_type(),
          llvm_int32_type(),
-         llvm_int32_type(),
-         llvm_void_ptr(),
-         LLVMPointerType(llvm_resolution_type(), 0)
       };
-      fn = LLVMAddFunction(module, "_init_signal",
+      fn = LLVMAddFunction(module, "__nvc_drive_signal",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
-      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
-      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 5);
-      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 5);
-      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 6);
-      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 6);
    }
-   else if (strcmp(name, "_link_signal") == 0) {
+   else if (strcmp(name, "__nvc_resolve_signal") == 0) {
       LLVMTypeRef args[] = {
-         LLVMPointerType(llvm_int8_type(), 0)
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         LLVMPointerType(llvm_resolution_type(), 0),
+      };
+      fn = LLVMAddFunction(module, "__nvc_resolve_signal",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 2);
+      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 2);
+   }
+   else if (strcmp(name, "_init_signal") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_int32_type(),
+         llvm_int32_type(),
+         llvm_void_ptr(),
+         llvm_debug_locus_type(),
+         llvm_int32_type(),
       };
       LLVMTypeRef result_type = LLVMPointerType(llvm_signal_shared_struct(), 0);
-      fn = LLVMAddFunction(module, "_link_signal",
+      fn = LLVMAddFunction(module, "_init_signal",
                            LLVMFunctionType(result_type,
                                             args, ARRAY_LEN(args), false));
-      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
-      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 1);
+      cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 3);
+      cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 3);
       cgen_add_func_attr(fn, FUNC_ATTR_NONNULL, 0);
    }
    else if (strcmp(name, "__nvc_assert_fail") == 0) {
@@ -4200,7 +4345,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 1);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
    }
-
    else if (strcmp(name, "__nvc_report") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_int8_type(), 0),
@@ -4476,25 +4620,65 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(llvm_void_ptr(),
                                             args, ARRAY_LEN(args), false));
    }
-   else if (strcmp(name, "_convert_signal") == 0) {
+   else if (strcmp(name, "__nvc_set_signal_kind") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_signal_shared_struct(), 0),
+         llvm_int32_type()
+      };
+      fn = LLVMAddFunction(module, "__nvc_set_signal_kind",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "__nvc_push_scope") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_debug_locus_type(),
+         llvm_int32_type()
+      };
+      fn = LLVMAddFunction(module, "__nvc_push_scope",
+                           LLVMFunctionType(llvm_void_ptr(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "__nvc_pop_scope") == 0) {
+      fn = LLVMAddFunction(module, "__nvc_pop_scope",
+                           LLVMFunctionType(llvm_void_ptr(),
+                                            NULL, 0, false));
+   }
+   else if (strcmp(name, "__nvc_map_signal") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         llvm_int32_type(),
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         llvm_int32_type(),
          llvm_int32_type(),
          llvm_int32_type(),
          LLVMPointerType(llvm_closure_type(), 0),
       };
-      fn = LLVMAddFunction(module, "_convert_signal",
+      fn = LLVMAddFunction(module, "__nvc_map_signal",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "__nvc_map_const") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         llvm_int32_type(),
+         llvm_void_ptr(),
+         llvm_int32_type(),
+      };
+      fn = LLVMAddFunction(module, "__nvc_map_const",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_implicit_signal") == 0) {
       LLVMTypeRef args[] = {
-         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         llvm_int32_type(),
+         llvm_int32_type(),
+         llvm_debug_locus_type(),
          llvm_int32_type(),
          LLVMPointerType(llvm_closure_type(), 0),
       };
+      LLVMTypeRef result_type = LLVMPointerType(llvm_signal_shared_struct(), 0);
       fn = LLVMAddFunction(module, "_implicit_signal",
-                           LLVMFunctionType(llvm_void_type(),
+                           LLVMFunctionType(result_type,
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_private_stack") == 0) {

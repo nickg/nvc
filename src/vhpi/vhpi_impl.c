@@ -35,7 +35,6 @@
 #include "hash.h"
 #include "tree.h"
 #include "common.h"
-#include "enode.h"
 #include "type.h"
 #include "opt.h"
 #include "rt/rt.h"
@@ -87,8 +86,7 @@ struct vhpi_obj {
       type_t        type;
       void         *pointer;
    };
-   e_node_t         enode;
-   rt_signal_t     *signal;
+   void            *rtobj;
 };
 
 typedef struct {
@@ -99,7 +97,6 @@ typedef struct {
 
 static cb_list_t       cb_list;
 static tree_t          top_level;
-static e_node_t        e_root;
 static hash_t         *handle_hash;
 static vhpiErrorInfoT  last_error;
 static bool            trace_on = false;
@@ -354,8 +351,7 @@ static void vhpi_check_for_leaks(void)
    }
 }
 
-static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, e_node_t e, rt_signal_t *s,
-                                    vhpiClassKindT class)
+static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, void *rtobj, vhpiClassKindT class)
 {
    vhpi_obj_t *obj = hash_get(handle_hash, t);
    if (obj == NULL) {
@@ -365,8 +361,7 @@ static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, e_node_t e, rt_signal_t *s,
       obj->class  = class;
       obj->tree   = t;
       obj->refcnt = 1;
-      obj->enode  = e;
-      obj->signal = s;
+      obj->rtobj  = rtobj;
 
       hash_put(handle_hash, t, obj);
    }
@@ -420,13 +415,16 @@ static vhpi_obj_t *vhpi_range_to_obj(tree_t r)
 
 static rt_signal_t *vhpi_get_signal(vhpi_obj_t *obj)
 {
-   if (obj->signal == NULL)
-      obj->signal = rt_find_signal(obj->enode);
+   if (obj->rtobj == NULL) {
+      tree_t b0 = tree_stmt(top_level, 0);
+      obj->rtobj = rt_find_signal(rt_find_scope(b0), obj->tree);
+   }
 
-   if (obj->signal == NULL)
-      fatal("missing runtime signal object for %s", istr(e_path(obj->enode)));
+   if (obj->rtobj == NULL)
+      fatal("missing runtime signal object for %s",
+            istr(tree_ident(obj->tree)));
 
-   return obj->signal;
+   return obj->rtobj;
 }
 
 static void vhpi_fire_event(vhpi_obj_t *obj)
@@ -688,53 +686,23 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
       return NULL;
 
    tree_t container = scope->tree;
-   e_node_t escope  = scope->enode;
 
    if (tree_kind(container) == T_ELAB) {
       container = tree_stmt(container, 0);
       assert(tree_kind(container) == T_BLOCK);
-      escope = e_scope(escope, e_scopes(escope) - 1);
    }
 
-   ident_t search = ident_new(first);
-   tree_t decl = NULL;
-
-   if (tree_kind(container) == T_BLOCK) {
-      const int nports = tree_ports(container);
-      for (int i = 0; decl == NULL && i < nports; i++) {
-         tree_t p = tree_port(container, i);
-         if (tree_ident(p) == search)
-            decl = p;
-      }
-   }
-
-   const int ndecls = tree_decls(container);
-   for (int i = 0; decl == NULL && i < ndecls; i++) {
-      tree_t d = tree_decl(container, i);
-      if (tree_ident(d) == search)
-         decl = d;
-   }
-
+   tree_t decl = search_decls(container, ident_new(first), 0);
    if (decl == NULL) {
-      vhpi_error(vhpiError, NULL, "object %s not found", istr(search));
+      vhpi_error(vhpiError, NULL, "object %s not found", first);
       return NULL;
    }
 
-   e_node_t enode = NULL;
    rt_signal_t *signal = NULL;
-   const tree_kind_t kind = tree_kind(decl);
-   if (kind == T_SIGNAL_DECL || kind == T_PORT_DECL) {
-      const int nsignals = e_signals(escope);
-      for (int i = 0; enode == NULL && i < nsignals; i++) {
-         e_node_t e = e_signal(escope, i);
-         if (e_ident(e) == search) {
-            enode  = e;
-            signal = rt_find_signal(e);
-         }
-      }
-   }
+   if (scope->rtobj != NULL)
+      signal = rt_find_signal(scope->rtobj, decl);
 
-   return vhpi_tree_to_obj(decl, enode, signal, vhpiSigDeclK);
+   return vhpi_tree_to_obj(decl, signal, vhpiSigDeclK);
 }
 
 vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
@@ -777,7 +745,10 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
    switch (type) {
    case vhpiRootInst:
    case vhpiDesignUnit:
-      return vhpi_tree_to_obj(top_level, e_root, NULL, vhpiRootInstK);
+      {
+         rt_scope_t *scope = rt_find_scope(top_level);
+         return vhpi_tree_to_obj(top_level, scope, vhpiRootInstK);
+      }
 
    case vhpiBaseType:
    case vhpiType:
@@ -1518,7 +1489,6 @@ int vhpi_is_printable(char ch)
 void vhpi_load_plugins(tree_t top, const char *plugins)
 {
    top_level = top;
-   e_root    = lib_get_eopt(lib_work(), top);
 
    if (handle_hash != NULL)
       hash_free(handle_hash);

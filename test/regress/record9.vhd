@@ -9,7 +9,7 @@ architecture test of sub is
 
     constant c : rec := (x => 2);
 
-    signal s : rec := c;
+    signal ss : rec := c;
 
     function add1(x : integer) return integer is
     begin
@@ -21,7 +21,7 @@ begin
     process is
         variable r : rec := c;
     begin
-        r.x := add1(s.x);
+        r.x := add1(ss.x);
         assert r.x = 3;
         wait;
     end process;

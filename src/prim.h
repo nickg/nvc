@@ -27,7 +27,6 @@ typedef struct _object_arena object_arena_t;
 typedef struct trie *ident_t;
 typedef struct _tree *tree_t;
 typedef struct _type *type_t;
-typedef struct _e_node *e_node_t;
 typedef struct loc loc_t;
 typedef struct _fbuf fbuf_t;
 typedef struct _hash hash_t;

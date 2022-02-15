@@ -910,76 +910,6 @@ static tree_t simp_while(tree_t t)
       return t;
 }
 
-static bool simp_is_static(tree_t expr)
-{
-   switch (tree_kind(expr)) {
-   case T_REF:
-      {
-         tree_t decl = tree_ref(expr);
-         switch (tree_kind(decl)) {
-         case T_CONST_DECL:
-         case T_UNIT_DECL:
-         case T_ENUM_LIT:
-         case T_GENERIC_DECL:
-            return true;
-         case T_ALIAS:
-            return simp_is_static(tree_value(decl));
-         default:
-            return false;
-         }
-      }
-
-   case T_LITERAL:
-      return true;
-
-   default:
-      return false;
-   }
-}
-
-static tree_t simp_longest_static_prefix(tree_t expr)
-{
-   switch (tree_kind(expr)) {
-   case T_ARRAY_REF:
-      {
-         tree_t value = tree_value(expr);
-         tree_t prefix = simp_longest_static_prefix(tree_value(expr));
-
-         if (prefix != value)
-            return prefix;
-
-         const int nparams = tree_params(expr);
-         for (int i = 0; i < nparams; i++) {
-            if (!simp_is_static(tree_value(tree_param(expr, i))))
-               return prefix;
-         }
-
-         return expr;
-      }
-
-   case T_ARRAY_SLICE:
-      {
-         tree_t value = tree_value(expr);
-         tree_t prefix = simp_longest_static_prefix(tree_value(expr));
-
-         if (prefix != value)
-            return prefix;
-
-         const int nranges = tree_ranges(expr);
-         for (int i = 0; i < nranges; i++) {
-            tree_t r = tree_range(expr, i);
-            if (!simp_is_static(tree_left(r)) || !simp_is_static(tree_right(r)))
-               return prefix;
-         }
-
-         return expr;
-      }
-
-   default:
-      return expr;
-   }
-}
-
 static void simp_build_wait_for_target(tree_t wait, tree_t expr, bool all)
 {
    switch (tree_kind(expr)) {
@@ -1038,7 +968,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       {
          tree_t ref = name_to_ref(expr);
          if (ref != NULL && class_of(ref) == C_SIGNAL) {
-            if (simp_longest_static_prefix(expr) == expr)
+            if (longest_static_prefix(expr) == expr)
                tree_add_trigger(wait, expr);
             else {
                simp_build_wait(wait, tree_value(expr), all);

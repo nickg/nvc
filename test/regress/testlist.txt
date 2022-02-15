@@ -509,3 +509,13 @@ bounds30        fail,gold
 wait17          normal
 wait18          normal
 wait19          normal
+record21        normal
+record22        normal
+case9           normal
+vests41         normal
+conv7           normal
+conv8           normal
+driver9         fail,gold
+record23        normal
+vests42         normal
+wait20          normal

@@ -42,11 +42,6 @@ lib_libnvc_a_SOURCES = \
 	src/names.c \
 	src/debug.h \
 	src/debug.c \
-	src/enode.h \
-	src/enode.c \
-	src/eopt.c \
-	src/cprop.h \
-	src/cprop.c \
 	src/exec.h \
 	src/exec.c \
 	src/opt.h \

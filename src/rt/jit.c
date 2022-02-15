@@ -18,7 +18,6 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
-#include "enode.h"
 #include "lib.h"
 #include "opt.h"
 #include "rt.h"
@@ -156,7 +155,7 @@ static void jit_load_module(ident_t name)
             so_path, abi_version, RT_ABI_VERSION);
 }
 
-void jit_init(tree_t top, e_node_t e)
+void jit_init(tree_t top)
 {
 #ifdef __MINGW32__
    ACLEAR(search_modules);

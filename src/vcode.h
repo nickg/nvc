@@ -110,7 +110,6 @@ typedef enum {
    VCODE_OP_UNDEFINED,
    VCODE_OP_RANGE_NULL,
    VCODE_OP_VAR_UPREF,
-   VCODE_OP_LINK_SIGNAL,
    VCODE_OP_RESOLVED,
    VCODE_OP_LAST_VALUE,
    VCODE_OP_INIT_SIGNAL,
@@ -139,6 +138,11 @@ typedef enum {
    VCODE_OP_RANGE_LENGTH,
    VCODE_OP_EXPONENT_CHECK,
    VCODE_OP_ZERO_CHECK,
+   VCODE_OP_MAP_CONST,
+   VCODE_OP_RESOLVE_SIGNAL,
+   VCODE_OP_PUSH_SCOPE,
+   VCODE_OP_POP_SCOPE,
+   VCODE_OP_SET_SIGNAL_KIND,
 } vcode_op_t;
 
 typedef enum {
@@ -236,6 +240,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
 bool vtype_is_scalar(vcode_type_t type);
 bool vtype_is_composite(vcode_type_t type);
+bool vtype_is_signal(vcode_type_t type);
 int64_t vtype_low(vcode_type_t type);
 int64_t vtype_high(vcode_type_t type);
 vcode_type_t vtype_elem(vcode_type_t type);
@@ -399,10 +404,13 @@ vcode_reg_t emit_uarray_len(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_unwrap(vcode_reg_t array);
 vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var);
-void emit_init_signal(vcode_reg_t signal, vcode_reg_t value, vcode_reg_t count,
-                      vcode_reg_t size, vcode_reg_t resolution);
-void emit_implicit_signal(vcode_reg_t signal, vcode_reg_t count,
-                          vcode_reg_t kind, vcode_reg_t closure);
+vcode_reg_t emit_init_signal(vcode_type_t type, vcode_reg_t count,
+                             vcode_reg_t size, vcode_reg_t value,
+                             vcode_reg_t locus, vcode_reg_t offset);
+void emit_resolve_signal(vcode_reg_t signal, vcode_reg_t resolution);
+vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
+                                 vcode_reg_t size, vcode_reg_t locus,
+                                 vcode_reg_t kind, vcode_reg_t closure);
 vcode_reg_t emit_resolved(vcode_reg_t sig);
 vcode_reg_t emit_last_value(vcode_reg_t sig);
 vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len);
@@ -411,7 +419,7 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);
 vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset);
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems);
-void emit_sched_static(vcode_reg_t nets, vcode_reg_t n_elems);
+void emit_sched_static(vcode_reg_t nets, vcode_reg_t n_elems, vcode_reg_t wake);
 void emit_resume(ident_t func);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
@@ -447,11 +455,11 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
                             vcode_reg_t dir);
 vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
                               vcode_reg_t dir);
-vcode_reg_t emit_link_signal(ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_var(ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_package(ident_t name);
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
                      vcode_reg_t dst_count, vcode_reg_t conv);
+void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
 vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
                                     vcode_reg_t ileft, vcode_reg_t nlits);
@@ -461,5 +469,8 @@ vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context);
 void emit_protected_free(vcode_reg_t obj);
 vcode_reg_t emit_context_upref(int hops);
 vcode_reg_t emit_debug_locus(ident_t unit, ptrdiff_t offset);
+void emit_push_scope(vcode_reg_t locus, vcode_type_t type);
+void emit_pop_scope(void);
+void emit_set_signal_kind(vcode_reg_t signal, vcode_reg_t kind);
 
 #endif  // _VCODE_H

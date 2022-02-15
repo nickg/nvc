@@ -20,7 +20,6 @@ bin_unit_test_SOURCES = \
 	test/test_value.c \
 	test/test_json.c \
 	test/test_debug.c \
-	test/test_eopt.c \
 	test/test_exec.c
 
 bin_unit_test_LDADD = lib/libnvc.a lib/librt.a lib/libfastlz.a \

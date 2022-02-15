@@ -126,6 +126,13 @@ void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
       fatal_trace("unhandled FFI function argument combination");
 }
 
+ffi_closure_t *ffi_ref_closure(ffi_closure_t *c)
+{
+   assert(c->refcnt > 0);
+   c->refcnt++;
+   return c;
+}
+
 void ffi_unref_closure(ffi_closure_t *c)
 {
    assert(c->refcnt > 0);

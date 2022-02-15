@@ -30,6 +30,7 @@
 
 typedef struct rt_watch_s  rt_watch_t;
 typedef struct rt_signal_s rt_signal_t;
+typedef struct rt_scope_s  rt_scope_t;
 
 typedef void (*sig_event_fn_t)(uint64_t now, rt_signal_t *signal,
                                rt_watch_t *watch, void *user);
@@ -41,6 +42,11 @@ typedef enum {
    R_IDENT     = (1 << 1),
    R_COMPOSITE = (1 << 2),
 } res_flags_t;
+
+typedef enum {
+   SIGNAL_BUS,
+   SIGNAL_REGISTER
+} rt_signal_kind_t;
 
 typedef enum {
    RT_START_OF_SIMULATION,
@@ -64,10 +70,10 @@ typedef enum {
    WAVE_OUTPUT_VCD
 } wave_output_t;
 
-void rt_start_of_tool(tree_t top, e_node_t e);
-void rt_end_of_tool(tree_t top, e_node_t e);
+void rt_start_of_tool(tree_t top);
+void rt_end_of_tool(tree_t top);
 void rt_run_sim(uint64_t stop_time);
-void rt_restart(e_node_t top);
+void rt_restart(tree_t top);
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user);
 rt_watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
                             bool postponed);
@@ -77,13 +83,15 @@ const void *rt_signal_value(rt_signal_t *s, int offset);
 size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max);
 bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count,
                      bool propagate);
-rt_signal_t *rt_find_signal(e_node_t esignal);
+rt_signal_t *rt_find_signal(rt_scope_t *scope, tree_t decl);
+rt_scope_t *rt_find_scope(tree_t container);
+rt_scope_t *rt_child_scope(rt_scope_t *scope, tree_t decl);
 bool rt_can_create_delta(void);
 uint64_t rt_now(unsigned *deltas);
 void rt_stop(void);
 void rt_set_exit_severity(rt_severity_t severity);
 
-void jit_init(tree_t top, e_node_t e);
+void jit_init(tree_t top);
 void jit_shutdown(void);
 void *jit_find_symbol(const char *name, bool required);
 

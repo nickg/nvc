@@ -35,7 +35,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_TYPE(x)                                                  \
    (x == VCODE_OP_ALLOCA  || x == VCODE_OP_COPY                         \
     || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
-    || x == VCODE_OP_CONST_RECORD || x == VCODE_OP_CLOSURE)
+    || x == VCODE_OP_CONST_RECORD || x == VCODE_OP_CLOSURE              \
+    || x == VCODE_OP_PUSH_SCOPE)
 #define OP_HAS_ADDRESS(x)                                               \
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
@@ -48,8 +49,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT)
 #define OP_HAS_IDENT(x)                                                 \
-   (x == VCODE_OP_LINK_SIGNAL || x == VCODE_OP_LINK_VAR                 \
-    || x == VCODE_OP_LINK_PACKAGE || x == VCODE_OP_DEBUG_LOCUS)
+   (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
+    || x == VCODE_OP_DEBUG_LOCUS)
 #define OP_HAS_REAL(x)                                                  \
    (x == VCODE_OP_CONST_REAL)
 #define OP_HAS_VALUE(x)                                                 \
@@ -198,7 +199,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      14
+#define VCODE_VERSION      15
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -893,14 +894,15 @@ const char *vcode_op_string(vcode_op_t op)
       "file read", "null", "new", "null check", "deallocate", "all",
       "const real", "last event", "debug out", "cover stmt", "cover cond",
       "uarray len", "temp stack mark", "temp stack restore",
-      "undefined", "range null", "var upref", "link signal",
+      "undefined", "range null", "var upref",
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
       "implicit signal", "disconnect", "link package", "index check",
       "debug locus", "length check", "range check", "array ref", "range length",
-      "exponent check", "zero check"
+      "exponent check", "zero check", "map const", "resolve signal",
+      "push scope", "pop scope", "set signal kind"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1266,6 +1268,17 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
+         case VCODE_OP_MAP_CONST:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" to ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" count ");
+               vcode_dump_reg(op->args.items[2]);
+            }
+            break;
+
          case VCODE_OP_MAP_SIGNAL:
             {
                printf("%s ", vcode_op_string(op->kind));
@@ -1298,33 +1311,61 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_INIT_SIGNAL:
+         case VCODE_OP_RESOLVE_SIGNAL:
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
-               printf(" value ");
+               printf(" resolution ");
                vcode_dump_reg(op->args.items[1]);
-               printf(" count ");
-               vcode_dump_reg(op->args.items[2]);
-               printf(" size ");
-               vcode_dump_reg(op->args.items[3]);
+            }
+            break;
+
+         case VCODE_OP_PUSH_SCOPE:
+            {
+               printf("%s locus ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+            }
+            break;
+
+         case VCODE_OP_POP_SCOPE:
+            {
+               printf("%s", vcode_op_string(op->kind));
+            }
+            break;
+
+         case VCODE_OP_INIT_SIGNAL:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := ");
+               col += printf("%s count ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" size ");
+               col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" value ");
+               col += vcode_dump_reg(op->args.items[2]);
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[3]);
                if (op->args.count > 4) {
-                  printf(" resolution ");
-                  vcode_dump_reg(op->args.items[4]);
+                  col += printf(" offset ");
+                  col += vcode_dump_reg(op->args.items[4]);
                }
+               vcode_dump_result_type(col, op);
             }
             break;
 
          case VCODE_OP_IMPLICIT_SIGNAL:
             {
-               printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
-               printf(" count ");
-               vcode_dump_reg(op->args.items[1]);
-               printf(" kind ");
-               vcode_dump_reg(op->args.items[2]);
-               printf(" closure ");
-               vcode_dump_reg(op->args.items[3]);
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s count ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" size ");
+               col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[2]);
+               col += printf(" kind ");
+               col += vcode_dump_reg(op->args.items[3]);
+               col += printf(" closure ");
+               col += vcode_dump_reg(op->args.items[4]);
             }
             break;
 
@@ -1733,6 +1774,11 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[0]);
                printf(" count ");
                vcode_dump_reg(op->args.items[1]);
+               if (op->args.count > 2) {
+                  printf(" wake ");
+                  vcode_dump_reg(op->args.items[2]);
+               }
+
             }
             break;
 
@@ -1895,6 +1941,15 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
+         case VCODE_OP_SET_SIGNAL_KIND:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" kind ");
+               vcode_dump_reg(op->args.items[1]);
+            }
+            break;
+
          case VCODE_OP_LENGTH_CHECK:
             {
                col += printf("%s left ", vcode_op_string(op->kind));
@@ -1994,15 +2049,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[1]);
                col += printf(" dir ");
                vcode_dump_reg(op->args.items[2]);
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_LINK_SIGNAL:
-            {
-               col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $white$%s$$",
-                                   vcode_op_string(op->kind), istr(op->ident));
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2279,8 +2325,7 @@ vcode_type_t vtype_signal(vcode_type_t base)
    n->kind = VCODE_TYPE_SIGNAL;
    n->base = base;
 
-   VCODE_ASSERT(vtype_kind(base) != VCODE_TYPE_UARRAY,
-                "signal cannot have unconstrained array type");
+   VCODE_ASSERT(vtype_is_scalar(base), "signal base type must be scalar");
 
    return vtype_new(n);
 }
@@ -2489,6 +2534,28 @@ bool vtype_is_composite(vcode_type_t type)
 {
    const vtype_kind_t kind = vtype_kind(type);
    return kind == VCODE_TYPE_RECORD || kind == VCODE_TYPE_CARRAY;
+}
+
+bool vtype_is_signal(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   switch (vt->kind) {
+   case VCODE_TYPE_SIGNAL:
+      return true;
+   case VCODE_TYPE_POINTER:
+      return vtype_is_signal(vt->pointed);
+   case VCODE_TYPE_RECORD:
+      for (int i = 0; i < vt->fields.count; i++) {
+         if (vtype_is_signal(vt->fields.items[i]))
+            return true;
+      }
+      return false;
+   case VCODE_TYPE_UARRAY:
+   case VCODE_TYPE_CARRAY:
+      return vtype_is_signal(vt->elem);
+   default:
+      return false;
+   }
 }
 
 int vcode_count_params(void)
@@ -4138,46 +4205,65 @@ vcode_reg_t emit_var_upref(int hops, vcode_var_t var)
    return op->result;
 }
 
-void emit_init_signal(vcode_reg_t signal, vcode_reg_t value, vcode_reg_t count,
-                      vcode_reg_t size, vcode_reg_t resolution)
+vcode_reg_t emit_init_signal(vcode_type_t type, vcode_reg_t count,
+                             vcode_reg_t size, vcode_reg_t value,
+                             vcode_reg_t locus, vcode_reg_t offset)
 {
    op_t *op = vcode_add_op(VCODE_OP_INIT_SIGNAL);
-   vcode_add_arg(op, signal);
-   vcode_add_arg(op, value);
    vcode_add_arg(op, count);
    vcode_add_arg(op, size);
-   if (resolution != VCODE_INVALID_REG)
-      vcode_add_arg(op, resolution);
+   vcode_add_arg(op, value);
+   vcode_add_arg(op, locus);
+   if (offset != VCODE_INVALID_REG)
+      vcode_add_arg(op, offset);
 
-   vcode_type_t stype = vcode_reg_type(signal);
    vcode_type_t vtype = vcode_reg_type(value);
-   VCODE_ASSERT(vtype_kind(stype) == VCODE_TYPE_SIGNAL,
-                "argument to init signal is not a signal");
-   VCODE_ASSERT(vtype_eq(vtype, vtype_base(stype))
+   VCODE_ASSERT(vtype_is_scalar(type), "signal type must be scalar");
+   VCODE_ASSERT(vtype_eq(vtype, type)
                 || vtype_kind(vtype) == VCODE_TYPE_POINTER,
                 "init signal value type does not match signal type");
-   VCODE_ASSERT(resolution == VCODE_INVALID_REG
-                || vcode_reg_kind(resolution) == VCODE_TYPE_RESOLUTION,
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to init signal must be a debug locus");
+   VCODE_ASSERT(offset == VCODE_INVALID_REG
+                || vcode_reg_kind(offset) == VCODE_TYPE_POINTER,
+                "init signal offset argument must have pointer type");
+
+   return (op->result = vcode_add_reg(vtype_signal(type)));
+}
+
+void emit_resolve_signal(vcode_reg_t signal, vcode_reg_t resolution)
+{
+   op_t *op = vcode_add_op(VCODE_OP_RESOLVE_SIGNAL);
+   vcode_add_arg(op, signal);
+   vcode_add_arg(op, resolution);
+
+   VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
+                "signal argument has wrong type");
+   VCODE_ASSERT(vcode_reg_kind(resolution) == VCODE_TYPE_RESOLUTION,
                 "resolution wrapper argument has wrong type");
 }
 
-void emit_implicit_signal(vcode_reg_t signal, vcode_reg_t count,
-                          vcode_reg_t kind, vcode_reg_t closure)
+vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
+                                 vcode_reg_t size, vcode_reg_t locus,
+                                 vcode_reg_t kind, vcode_reg_t closure)
 {
    op_t *op = vcode_add_op(VCODE_OP_IMPLICIT_SIGNAL);
-   vcode_add_arg(op, signal);
    vcode_add_arg(op, count);
+   vcode_add_arg(op, size);
+   vcode_add_arg(op, locus);
    vcode_add_arg(op, kind);
    vcode_add_arg(op, closure);
 
-   VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
-                "argument to implicit signal is not a signal");
    VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
                 "count argument to implicit signal is not offset");
    VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
                 "kind argument to implicit signal is not offset");
    VCODE_ASSERT(vcode_reg_kind(closure) == VCODE_TYPE_CLOSURE,
                 "closure argument to implicit signal is not a closure");
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to implicit signal must be a debug locus");
+
+   return (op->result = vcode_add_reg(vtype_signal(type)));
 }
 
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
@@ -4202,6 +4288,19 @@ void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
    VCODE_ASSERT(conv == VCODE_INVALID_REG
                 || vcode_reg_kind(conv) == VCODE_TYPE_CLOSURE,
                 "conv argument type to map signal is not closure");
+}
+
+void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)
+{
+   op_t *op = vcode_add_op(VCODE_OP_MAP_CONST);
+   vcode_add_arg(op, src);
+   vcode_add_arg(op, dst);
+   vcode_add_arg(op, count);
+
+   VCODE_ASSERT(vcode_reg_kind(dst) == VCODE_TYPE_SIGNAL,
+                "dst argument to map const is not a signal");
+   VCODE_ASSERT(vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "count argument type to map const is not offset");
 }
 
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count)
@@ -4341,16 +4440,17 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
 
    vtype_t *rptype = vcode_type_data(vcode_reg_type(record));
 
-   VCODE_ASSERT(
-      rptype->kind == VCODE_TYPE_POINTER
-      || rptype->kind == VCODE_TYPE_ACCESS
-      || rptype->kind == VCODE_TYPE_SIGNAL,
-      "argument to record ref must be a pointer, signal, or access");
+   VCODE_ASSERT(rptype->kind == VCODE_TYPE_POINTER,
+                "argument to record ref must be a pointer");
 
    vtype_t *rtype = vcode_type_data(rptype->pointed);
 
+   const bool is_signal = rtype->kind == VCODE_TYPE_SIGNAL;
+   if (is_signal)
+      rtype = vcode_type_data(rtype->base);
+
    VCODE_ASSERT(rtype->kind == VCODE_TYPE_RECORD,
-                "argument must be pointer to record");
+                "argument must be pointer to record or record signal");
 
    VCODE_ASSERT(field < rtype->fields.count, "invalid field %d", field);
 
@@ -4366,10 +4466,10 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
       result_type = field_type;
    }
 
-   if (rptype->kind == VCODE_TYPE_SIGNAL)
-      op->result = vcode_add_reg(vtype_signal(result_type));
-   else
-      op->result = vcode_add_reg(vtype_pointer(result_type));
+   if (is_signal)
+      result_type = vtype_signal(result_type);
+
+   op->result = vcode_add_reg(vtype_pointer(result_type));
 
    reg_t *rr = vcode_reg_data(op->result);
    rr->bounds = bounds_type;
@@ -4447,14 +4547,19 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems)
                 "nets argument to sched event must be signal");
 }
 
-void emit_sched_static(vcode_reg_t nets, vcode_reg_t n_elems)
+void emit_sched_static(vcode_reg_t nets, vcode_reg_t n_elems, vcode_reg_t wake)
 {
    op_t *op = vcode_add_op(VCODE_OP_SCHED_STATIC);
    vcode_add_arg(op, nets);
    vcode_add_arg(op, n_elems);
+   if (wake != VCODE_INVALID_REG)
+      vcode_add_arg(op, wake);
 
    VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
-                "nets argument to sched event must be signal");
+                "nets argument to sched static must be signal");
+   VCODE_ASSERT(wake == VCODE_INVALID_REG
+                || vcode_reg_kind(wake) == VCODE_TYPE_SIGNAL,
+                "wake argument to sched static must be signal");
 }
 
 void emit_resume(ident_t func)
@@ -4688,6 +4793,9 @@ static vcode_reg_t emit_signal_data_op(vcode_op_t kind, vcode_reg_t sig)
    if (rkind == VCODE_TYPE_CARRAY || rkind == VCODE_TYPE_UARRAY)
       rtype = vtype_elem(rtype);
 
+   VCODE_ASSERT(vtype_is_scalar(rtype),
+                "resolved signal base type must be scalar");
+
    op->result = vcode_add_reg(vtype_pointer(rtype));
 
    reg_t *rr = vcode_reg_data(op->result);
@@ -4736,6 +4844,18 @@ vcode_reg_t emit_last_active(vcode_reg_t signal, vcode_reg_t len)
                 "length argument to last active must have offset type");
 
    return (op->result = vcode_add_reg(vtype_time()));
+}
+
+void emit_set_signal_kind(vcode_reg_t signal, vcode_reg_t kind)
+{
+   op_t *op = vcode_add_op(VCODE_OP_SET_SIGNAL_KIND);
+   vcode_add_arg(op, signal);
+   vcode_add_arg(op, kind);
+
+   VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
+                "signal argument must have signal type");
+   VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
+                "kind argument must have offset type");
 }
 
 vcode_reg_t emit_driving_flag(vcode_reg_t signal, vcode_reg_t len)
@@ -4918,6 +5038,21 @@ void emit_index_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
    emit_bounds_check(VCODE_OP_INDEX_CHECK, reg, left, right, dir, locus, locus);
 }
 
+void emit_push_scope(vcode_reg_t locus, vcode_type_t type)
+{
+   op_t *op = vcode_add_op(VCODE_OP_PUSH_SCOPE);
+   vcode_add_arg(op, locus);
+   op->type = type;
+
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument to push scope must be a debug locus");
+}
+
+void emit_pop_scope(void)
+{
+   vcode_add_op(VCODE_OP_POP_SCOPE);
+}
+
 vcode_reg_t emit_debug_locus(ident_t unit, ptrdiff_t offset)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_DEBUG_LOCUS) {
@@ -4989,17 +5124,6 @@ void emit_debug_info(const loc_t *loc)
 {
    if (!loc_invalid_p(loc))
       vcode_block_data()->last_loc = *loc;
-}
-
-vcode_reg_t emit_link_signal(ident_t name, vcode_type_t type)
-{
-   op_t *op = vcode_add_op(VCODE_OP_LINK_SIGNAL);
-   op->ident = name;
-
-   VCODE_ASSERT(vtype_kind(type) == VCODE_TYPE_SIGNAL,
-                "link signal type must be a signal");
-
-   return (op->result = vcode_add_reg(type));
 }
 
 vcode_reg_t emit_link_var(ident_t name, vcode_type_t type)

@@ -190,7 +190,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          break;
 
-      case VCODE_OP_LINK_SIGNAL:
       case VCODE_OP_LINK_VAR:
       case VCODE_OP_LINK_PACKAGE:
          {
@@ -236,8 +235,11 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_TEMP_STACK_MARK:
       case VCODE_OP_TEMP_STACK_RESTORE:
       case VCODE_OP_INIT_SIGNAL:
+      case VCODE_OP_DRIVE_SIGNAL:
+      case VCODE_OP_MAP_CONST:
       case VCODE_OP_RESOLVED:
       case VCODE_OP_RESOLUTION_WRAPPER:
+      case VCODE_OP_RESOLVE_SIGNAL:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -608,12 +610,12 @@ START_TEST(test_signal1)
 
    {
       EXPECT_BB(0) = {
-         { VCODE_OP_LINK_SIGNAL, .name = "X" },
-         { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_CONST, .value = 4 },
          { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_INIT_SIGNAL },
+         { VCODE_OP_STORE, .name = "X" },
          { VCODE_OP_RETURN }
       };
 
@@ -628,6 +630,10 @@ START_TEST(test_signal1)
 
    {
       EXPECT_BB(0) = {
+         { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_DRIVE_SIGNAL },
          { VCODE_OP_RETURN }
       };
 
@@ -1398,6 +1404,8 @@ START_TEST(test_staticwait)
       { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DRIVE_SIGNAL },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_SCHED_STATIC },
       { VCODE_OP_RETURN }
    };
@@ -2018,7 +2026,11 @@ START_TEST(test_issue116)
    EXPECT_BB(0) = {
       { VCODE_OP_VAR_UPREF, .name = "INTSTAT", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_DRIVE_SIGNAL },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_SCHED_STATIC },
@@ -2302,7 +2314,7 @@ START_TEST(test_rectype)
    fail_unless(strncmp(istr(r2_name), "WORK.E(A).R2", 3) == 0);
 
    ident_t r1_name = vtype_name(1);
-   fail_unless(icmp(r1_name, "WORK.RECTYPE.R1"));
+   fail_unless(icmp(r1_name, "WORK.RECTYPE.R1$"));
 }
 END_TEST
 
@@ -2425,10 +2437,10 @@ START_TEST(test_sigvar)
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_UNWRAP },
          { VCODE_OP_UNWRAP },
+         { VCODE_OP_RESOLVED },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_LENGTH_CHECK },
-         { VCODE_OP_RESOLVED },
          { VCODE_OP_COPY },
          { VCODE_OP_RETURN }
       };
@@ -2606,17 +2618,17 @@ START_TEST(test_tag)
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_LINK_SIGNAL, .name = "P" },
-         { VCODE_OP_STORE, .name = "P" },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_INIT_SIGNAL },
-         { VCODE_OP_LINK_SIGNAL, .name = "X" },
+         { VCODE_OP_STORE, .name = "P" },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_INIT_SIGNAL },
          { VCODE_OP_STORE, .name = "X" },
+         { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_INIT_SIGNAL },
-         { VCODE_OP_LINK_SIGNAL, .name = "Y" },
          { VCODE_OP_STORE, .name = "Y" },
-         { VCODE_OP_INIT_SIGNAL },
          { VCODE_OP_RETURN },
       };
 
@@ -2628,11 +2640,11 @@ START_TEST(test_tag)
       vcode_select_unit(v1);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_LINK_SIGNAL, .name = "S" },
-         { VCODE_OP_STORE, .name = "WORK.P.S" },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_INIT_SIGNAL },
+         { VCODE_OP_STORE, .name = "WORK.P.S" },
          { VCODE_OP_RETURN },
       };
 
@@ -3810,8 +3822,6 @@ START_TEST(test_resfn1)
 
    // Should only be one call to resolution wrapper
    EXPECT_BB(0) = {
-      { VCODE_OP_LINK_SIGNAL, .name = "X" },
-      { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 2 },
@@ -3819,10 +3829,14 @@ START_TEST(test_resfn1)
       { VCODE_OP_CLOSURE, .func = "WORK.RESFN1.RESOLVED(Q)J" },
       { VCODE_OP_RESOLUTION_WRAPPER },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_INIT_SIGNAL },
-      { VCODE_OP_LINK_SIGNAL, .name = "Y" },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_RESOLVE_SIGNAL },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_INIT_SIGNAL },
       { VCODE_OP_STORE, .name = "Y" },
-      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_RESOLVE_SIGNAL },
       { VCODE_OP_RETURN }
    };
 
@@ -3867,15 +3881,15 @@ START_TEST(test_instance1)
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE, .name = "WIDTH" },
-      { VCODE_OP_LINK_SIGNAL, .name = "X" },
-      { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_CONST_REP, .value = 5 },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_CONST, .value = 5 },
-      { VCODE_OP_INIT_SIGNAL },   // Redundant, could be optimised out
+      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_CONST_ARRAY, .length = 5 },
       { VCODE_OP_ADDRESS_OF },
-      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_MAP_CONST },
       { VCODE_OP_RETURN }
    };
 

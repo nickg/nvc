@@ -20,7 +20,6 @@
 #include "common.h"
 #include "cover.h"
 #include "debug.h"
-#include "enode.h"
 #include "ffi.h"
 #include "hash.h"
 #include "heap.h"
@@ -56,7 +55,8 @@
 
 #define TRACE_DELTAQ  1
 #define TRACE_PENDING 0
-#define RT_DEBUG      0
+#define TRACE_SIGNALS 1
+#define RT_DEBUG      1
 
 typedef struct event         event_t;
 typedef struct waveform      waveform_t;
@@ -64,9 +64,9 @@ typedef struct sens_list     sens_list_t;
 typedef struct value         value_t;
 typedef struct callback      callback_t;
 typedef struct rt_nexus_s    rt_nexus_t;
-typedef struct rt_scope_s    rt_scope_t;
 typedef struct rt_source_s   rt_source_t;
 typedef struct rt_implicit_s rt_implicit_t;
+typedef struct rt_proc_s     rt_proc_t;
 
 typedef void *(*proc_fn_t)(void *, rt_scope_t *);
 
@@ -81,13 +81,15 @@ typedef struct {
    bool            postponed;
 } rt_wakeable_t;
 
-typedef struct {
+typedef struct rt_proc_s {
    rt_wakeable_t  wakeable;
-   e_node_t       source;
+   tree_t         where;
+   ident_t        name;
    proc_fn_t      proc_fn;
    void          *tmp_stack;
    uint32_t       tmp_alloc;
    rt_scope_t    *scope;
+   rt_proc_t     *chain;
    void          *privdata;
 } rt_proc_t;
 
@@ -137,6 +139,7 @@ struct sens_list {
 };
 
 typedef struct rt_source_s {
+   rt_source_t   *chain;
    rt_proc_t     *proc;
    rt_nexus_t    *input;
    rt_nexus_t    *output;
@@ -179,9 +182,9 @@ typedef enum {
 } net_flags_t;
 
 typedef struct rt_nexus_s {
-   e_node_t      enode;
    uint32_t      width;
    uint32_t      size;
+   rt_nexus_t   *chain;
    value_t      *free_values;
    uint64_t      last_event;
    uint64_t      last_active;
@@ -193,42 +196,30 @@ typedef struct rt_nexus_s {
    net_flags_t   flags;
    unsigned      rank;
    unsigned      n_sources;
-   unsigned      n_signals;
    unsigned      n_outputs;
-   rt_source_t  *sources;
-   rt_signal_t **signals;
+   rt_source_t   sources;
+   rt_signal_t  *signal;
    rt_source_t **outputs;
    void         *resolved;
    void         *last_value;
-   unsigned     *offsets;
 } rt_nexus_t;
 
 // The code generator knows the layout of this struct
 typedef struct {
-   uint32_t  id;
-   uint32_t  __pad;
-   void     *resolved;
-   void     *last_value;
+   uint32_t size;
+   uint32_t offset;
+   uint8_t  data[0];
 } sig_shared_t;
 
-STATIC_ASSERT(sizeof(sig_shared_t) == 24);
-
-typedef enum {
-   NEXUS_MAP_SEARCH,
-   NEXUS_MAP_DIVIDE,
-   NEXUS_MAP_DIRECT
-} rt_nexus_map_t;
-
 typedef struct rt_signal_s {
-   sig_shared_t     shared;
-   e_node_t         enode;
-   uint32_t         width;
-   uint32_t         size;
-   rt_nexus_map_t   nmap_kind;
-   uint32_t         nmap_param;
-   net_flags_t      flags;
-   uint32_t         n_nexus;
-   rt_nexus_t      *nexus[0];
+   tree_t          where;
+   rt_signal_t    *chain;
+   rt_scope_t     *parent;
+   uint32_t        width;
+   net_flags_t     flags;
+   uint32_t        n_nexus;
+   rt_nexus_t      nexus;
+   sig_shared_t    shared;
 } rt_signal_t;
 
 typedef struct rt_implicit_s {
@@ -237,14 +228,24 @@ typedef struct rt_implicit_s {
    rt_signal_t    signal;   // Has a flexible member
 } rt_implicit_t;
 
+typedef enum {
+   SCOPE_ROOT,
+   SCOPE_INSTANCE,
+   SCOPE_PACKAGE,
+   SCOPE_SIGNAL,
+} rt_scope_kind_t;
+
 typedef struct rt_scope_s {
-   rt_signal_t **signals;
-   unsigned      n_signals;
-   rt_proc_t    *procs;
-   unsigned      n_procs;
-   e_node_t      enode;
-   void         *privdata;
-   rt_scope_t   *parent;
+   rt_signal_t     *signals;
+   rt_proc_t       *procs;
+   rt_scope_kind_t  kind;
+   unsigned         size;   // For signal scopes
+   ident_t          name;
+   tree_t           where;
+   void            *privdata;
+   rt_scope_t      *parent;
+   rt_scope_t      *child;
+   rt_scope_t      *chain;
 } rt_scope_t;
 
 typedef struct {
@@ -289,13 +290,13 @@ typedef struct {
 
 static rt_proc_t       *active_proc = NULL;
 static rt_scope_t      *active_scope = NULL;
-static rt_scope_t      *scopes = NULL;
+static rt_scope_t      *root = NULL;
+static hash_t          *scopes = NULL;
 static rt_run_queue_t   timeoutq;
 static rt_run_queue_t   driverq;
 static rt_run_queue_t   procq;
 static heap_t          *eventq_heap = NULL;
 static heap_t          *rankn_heap = NULL;
-static unsigned         n_scopes = 0;
 static uint64_t         now = 0;
 static int              iteration = -1;
 static bool             trace_on = false;
@@ -320,9 +321,10 @@ static callback_t      *global_cbs[RT_LAST_EVENT];
 static rt_severity_t    exit_severity = SEVERITY_ERROR;
 static bool             profiling = false;
 static rt_profile_t     profile;
-static hash_t          *nexuses = NULL;
+static rt_nexus_t      *nexuses = NULL;
+static rt_nexus_t     **nexus_tail = NULL;
 static cover_tagging_t *cover = NULL;
-static unsigned         highest_rank;
+static rt_signal_t    **signals_tail = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -340,12 +342,11 @@ static void *rt_tmp_alloc(size_t sz);
 static value_t *rt_alloc_value(rt_nexus_t *n);
 static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
                                          rt_resolution_t *resolution);
-static inline unsigned rt_signal_nexus_index(rt_signal_t *s, unsigned offset);
 static void _tracef(const char *fmt, ...);
 
 #define FMT_VALUES_SZ 128
 
-#if RT_DEBUG
+#if RT_DEBUG && !defined NDEBUG
 #define RT_ASSERT(x) assert((x))
 #else
 #define RT_ASSERT(x)
@@ -375,50 +376,31 @@ static void _tracef(const char *fmt, ...);
 ////////////////////////////////////////////////////////////////////////////////
 // Utilities
 
-static char *fmt_nexus_r(rt_nexus_t *n, const void *values,
-                         char *buf, size_t max)
+static char *fmt_values_r(const void *values, size_t len, char *buf, size_t max)
 {
    char *p = buf;
    const uint8_t *vptr = values;
 
-   for (unsigned i = 0; i < n->size * n->width; i++) {
+   for (unsigned i = 0; i < len; i++) {
       if (buf + max - p <= 5)
          return p + checked_sprintf(p, buf + max - p, "...");
       else
          p += checked_sprintf(p, buf + max - p, "%02x", *vptr++);
    }
 
-   return p;
+   return buf;
 }
 
 static const char *fmt_nexus(rt_nexus_t *n, const void *values)
 {
    static char buf[FMT_VALUES_SZ*2 + 2];
-   fmt_nexus_r(n, values, buf, sizeof(buf));
-   return buf;
+   return fmt_values_r(values, n->size * n->width, buf, sizeof(buf));
 }
 
-static const char *fmt_values(rt_signal_t *s, const void *values,
-                              unsigned offset, uint32_t len)
+static const char *fmt_values(const void *values, uint32_t len)
 {
    static char buf[FMT_VALUES_SZ*2 + 2];
-
-   char *p = buf;
-   const uint8_t *vptr = values;
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (len > 0 && buf + sizeof(buf) - p > 5)  {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-      len -= n->width;
-      RT_ASSERT(len >= 0);
-
-      if (p > buf) p += checked_sprintf(p, buf + sizeof(buf) - p, ",");
-
-      p = fmt_nexus_r(n, vptr, p, buf + sizeof(buf) - p);
-      vptr += n->size * n->width;
-   }
-
-   return buf;
+   return fmt_values_r(values, len, buf, sizeof(buf));
 }
 
 static tree_t rt_find_enclosing_decl(ident_t unit_name, const char *symbol)
@@ -452,8 +434,7 @@ static void rt_fmt_enclosing(text_buf_t *tb, tree_t enclosing,
 {
    switch (tree_kind(enclosing)) {
    case T_PROCESS:
-      tb_printf(tb, "\r\t%sProcess %s", prefix,
-                istr(e_path(active_proc->source)));
+      tb_printf(tb, "\r\t%sProcess %s", prefix, istr(active_proc->name));
       break;
    case T_FUNC_BODY:
    case T_FUNC_DECL:
@@ -530,7 +511,7 @@ static text_buf_t *rt_fmt_trace(const loc_t *fixed)
 
    if (fixed != NULL && (nframes == 0 || !found_fixed)) {
       const char *pname = active_proc == NULL
-         ? "(init)" : istr(e_path(active_proc->source));
+         ? "(init)" : istr(active_proc->name);
       tb_printf(tb, "\r\tProcess %s", pname);
       tb_printf(tb, "\r\t    File %s, Line %u", loc_file_str(fixed),
                 fixed->first_line);
@@ -593,33 +574,6 @@ static ffi_uarray_t bit_vec_to_string(const ffi_uarray_t *vec, int log_base)
    return wrap_str(buf, result_len);
 }
 
-static unsigned rt_signal_nexus_index(rt_signal_t *s, unsigned offset)
-{
-   unsigned nid = 0;
-
-   switch (s->nmap_kind) {
-   case NEXUS_MAP_SEARCH:
-      while (offset > 0) {
-         RT_ASSERT(nid < s->n_nexus);
-         rt_nexus_t *n = s->nexus[nid++];
-         offset -= n->width * n->size;
-      }
-      RT_ASSERT(offset == 0);
-      break;
-
-   case NEXUS_MAP_DIVIDE:
-      nid = offset / s->nmap_param;
-      break;
-
-   case NEXUS_MAP_DIRECT:
-      nid = offset;
-      break;
-   }
-
-   RT_ASSERT(nid < s->n_nexus);
-   return nid;
-}
-
 static int rt_fmt_now(char *buf, size_t len)
 {
    if (iteration < 0)
@@ -636,7 +590,7 @@ static inline void rt_check_postponed(int64_t after)
 {
    if (unlikely(active_proc->wakeable.postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
-            istr(e_path(active_proc->source)));
+            istr(active_proc->name));
 }
 
 static inline tree_t rt_locus_to_tree(const char *unit, unsigned offset)
@@ -665,6 +619,288 @@ static void *rt_map_secondary_stack(opt_name_t which)
                        (void *)(uintptr_t)which);
 }
 
+static void rt_dump_signals(rt_scope_t *scope)
+{
+   if (scope->signals == NULL && scope->child == NULL)
+      return;
+
+   if (scope->kind != SCOPE_SIGNAL && scope->kind != SCOPE_ROOT) {
+      const char *sname = istr(scope->name);
+      fprintf(stderr, "== %s ", sname);
+      for (int pad = 74 - strlen(sname); pad > 0; pad--)
+         fputc('=', stderr);
+      fputc('\n', stderr);
+
+      fprintf(stderr, "%-16s %5s %4s %7s %7s %7s %4s %s\n",
+              "Signal", "Width", "Size", "Sources", "Outputs",
+              "Pending", "Rank", "Value");
+   }
+
+   for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain) {
+      rt_nexus_t *n = &(s->nexus);
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      if (scope->kind == SCOPE_SIGNAL)
+         tb_printf(tb, "%s.", istr(scope->name));
+      tb_cat(tb, istr(tree_ident(s->where)));
+
+      for (int nth = 0; nth < s->n_nexus; nth++, n = n->chain) {
+         int pending = 0;
+         for (sens_list_t *p = n->pending; p != NULL; p = p->next)
+            pending++;
+
+         fprintf(stderr, "%-16s %-5d %-4d %-7d %-7d %-7d %-4d %s\n",
+                 nth == 0 ? tb_get(tb) : "+",
+                 n->width, n->size, n->n_sources, n->n_outputs, pending,
+                 n->rank,
+                 fmt_nexus(n, n->resolved));
+      }
+   }
+
+   for (rt_scope_t *c = scope->child; c != NULL; c = c->chain)
+      rt_dump_signals(c);
+}
+
+static rt_source_t *rt_add_source(rt_nexus_t *n)
+{
+   rt_source_t *src = NULL;
+   if (n->n_sources++ == 0)
+      src = &(n->sources);
+   else if (n->resolution == NULL && n->sources.conv_func == NULL)
+      rt_msg(tree_loc(n->signal->where), fatal,
+             "unresolved signal %s has multiple sources",
+             istr(tree_ident(n->signal->where)));
+   else {
+      rt_source_t **p;
+      for (p = &(n->sources.chain); *p; p = &((*p)->chain))
+         ;
+      *p = src = xmalloc(sizeof(rt_source_t));
+   }
+
+   src->proc      = NULL;
+   src->conv_func = NULL;
+   src->input     = NULL;
+   src->output    = n;
+   src->chain     = NULL;
+
+   waveform_t *w0 = &(src->waveforms);
+   w0->when   = 0;
+   w0->next   = NULL;
+   w0->values = rt_alloc_value(n);
+
+   return src;
+}
+
+static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
+{
+   RT_ASSERT(offset < old->width);
+
+   rt_nexus_t *new = xcalloc(sizeof(rt_nexus_t));
+   new->width        = old->width - offset;
+   new->size         = old->size;
+   new->resolution   = old->resolution;
+   new->n_outputs    = old->n_outputs;
+   new->signal       = old->signal;
+   new->resolved     = (uint8_t *)old->resolved + offset * old->size;
+   new->last_value   = (uint8_t *)old->last_value + offset * old->size;
+   new->chain        = old->chain;
+   new->flags        = old->flags;
+   new->rank         = old->rank;
+   new->last_active  = old->last_active;
+   new->last_event   = old->last_event;
+   new->active_delta = old->active_delta;
+   new->event_delta  = old->event_delta;
+
+   old->chain = new;
+   old->width = offset;
+   old->signal->n_nexus++;
+
+   // Old nexus may be holding large amounts of memory
+   for (value_t *v = old->free_values, *tmp; v; v = tmp) {
+      tmp = v->next;
+      free(v);
+   }
+   old->free_values = NULL;
+
+   if (new->chain == NULL)
+      nexus_tail = &(new->chain);
+
+   for (sens_list_t *l = old->pending; l; l = l->next) {
+      sens_list_t *lnew = rt_alloc(sens_list_stack);
+      lnew->wake       = l->wake;
+      lnew->wakeup_gen = l->wakeup_gen;
+      lnew->next       = new->pending;
+      lnew->reenq      = l->reenq ? &(new->pending) : NULL;
+
+      new->pending = lnew;
+   }
+
+   if (old->n_sources > 0) {
+      for (rt_source_t *it = &(old->sources); it != NULL; it = it->chain) {
+         rt_source_t *src = rt_add_source(new);
+         src->input = it->input;
+         src->proc  = it->proc;
+
+         if (it->conv_func != NULL)
+            src->conv_func = ffi_ref_closure(it->conv_func);
+         else if (it->input != NULL) {
+            if (it->input->width == offset)
+               src->input = it->input->chain;  // Cycle breaking
+            else
+               src->input = rt_clone_nexus(it->input, offset);
+            RT_ASSERT(src->input->width == new->width);
+         }
+
+         // Current transaction
+         waveform_t *w_new = &(src->waveforms), *w_old = &(it->waveforms);
+         w_new->when = w_old->when;
+
+         memcpy(w_new->values->data,
+                w_old->values->data + old->width * old->size,
+                new->width * new->size);
+
+         value_t *v_old = rt_alloc_value(old);
+         memcpy(v_old->data, w_old->values->data, old->width * old->size);
+         free(w_old->values);
+         w_old->values = v_old;
+
+         // Future transactions
+         for (w_old = w_old->next; w_old; w_old = w_old->next) {
+            w_new = (w_new->next = rt_alloc(waveform_stack));
+            w_new->values = rt_alloc_value(new);
+            w_new->next   = NULL;
+            w_new->when   = w_old->when;
+
+            memcpy(w_new->values->data,
+                   w_old->values->data + old->width * old->size,
+                   new->width * new->size);
+
+            RT_ASSERT(w_old->when >= now);
+            deltaq_insert_driver(w_new->when - now, new, src);
+         }
+      }
+   }
+
+   new->outputs = xcalloc_array(new->n_outputs, sizeof(rt_source_t *));
+
+   for (unsigned i = 0; i < new->n_outputs; i++) {
+      if (old->outputs[i]->conv_func != NULL)
+         new->outputs[i] = old->outputs[i];
+      else {
+         rt_nexus_t *out_n;
+         if (old->outputs[i]->output->width == offset)
+            out_n = old->outputs[i]->output->chain;   // Cycle breaking
+         else
+            out_n = rt_clone_nexus(old->outputs[i]->output, offset);
+
+         rt_source_t *s;
+         for (s = &(out_n->sources);
+              s->input != new && s->input != old;
+              s = s->chain)
+            ;
+
+         s->input = new;
+         new->outputs[i] = s;
+      }
+   }
+
+   return new;
+}
+
+static rt_nexus_t *rt_split_nexus(rt_signal_t *s, int offset, int count)
+{
+   rt_nexus_t *n0 = &(s->nexus);
+   if (likely(offset == 0 && n0->width == count))
+      return n0;
+
+   rt_nexus_t *result = NULL;
+   for (rt_nexus_t *it = &(s->nexus); count > 0; it = it->chain) {
+      if (offset >= it->width) {
+         offset -= it->width;
+         continue;
+      }
+      else if (offset > 0) {
+         rt_clone_nexus(it, offset);
+         offset = 0;
+         continue;
+      }
+      else {
+         if (it->width > count)
+            rt_clone_nexus(it, count);
+
+         count -= it->width;
+
+         if (result == NULL)
+            result = it;
+      }
+   }
+
+   return result;
+}
+
+static void rt_set_rank(rt_nexus_t *n, int rank)
+{
+   if (n->rank < rank) {
+      n->rank = rank;
+
+      for (int i = 0; i < n->n_outputs; i++)
+         rt_set_rank(n->outputs[i]->output, rank + 1);
+   }
+}
+
+static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
+                            unsigned size, unsigned offset)
+{
+   s->where         = where;
+   s->width         = count;
+   s->n_nexus       = 1;
+   s->shared.size   = count * size;
+   s->shared.offset = offset;
+   s->flags         = NET_F_OWNS_MEM | NET_F_LAST_VALUE;
+   s->parent        = active_scope;
+
+   *signals_tail = s;
+   signals_tail = &(s->chain);
+
+   s->nexus.width      = count;
+   s->nexus.size       = size;
+   s->nexus.n_sources  = 0;
+   s->nexus.n_outputs  = 0;
+   s->nexus.resolved   = s->shared.data;
+   s->nexus.last_value = s->shared.data + s->shared.size;
+   s->nexus.flags      = NET_F_LAST_VALUE;
+   s->nexus.signal     = s;
+
+   *nexus_tail = &(s->nexus);
+   nexus_tail = &(s->nexus.chain);
+}
+
+static void rt_copy_sub_signals(rt_scope_t *scope, void *buf)
+{
+   assert(scope->kind == SCOPE_SIGNAL);
+
+   for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain)
+      memcpy(buf + s->shared.offset, s->shared.data, s->shared.size);
+
+   for (rt_scope_t *s = scope->child; s != NULL; s = s->chain)
+      rt_copy_sub_signals(s, buf);
+}
+
+static void *rt_composite_signal(rt_signal_t *signal, size_t *psz)
+{
+   assert(signal->parent->kind == SCOPE_SIGNAL);
+
+   rt_scope_t *root = signal->parent;
+   while (root->parent->kind == SCOPE_SIGNAL)
+      root = root->parent;
+
+   *psz = root->size;
+
+   char *buf = xmalloc(root->size);
+   rt_copy_sub_signals(root, buf);
+   return buf;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -685,12 +921,12 @@ void _sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_sched_waveform_s %s+%d value=%"PRIi64" after=%s reject=%s",
-         istr(e_path(s->enode)), offset, scalar, fmt_time(after),
+         istr(tree_ident(s->where)), offset, scalar, fmt_time(after),
          fmt_time(reject));
 
    rt_check_postponed(after);
 
-   rt_nexus_t *n = s->nexus[rt_signal_nexus_index(s, offset)];
+   rt_nexus_t *n = rt_split_nexus(s, offset, 1);
 
    value_t *values_copy = rt_alloc_value(n);
    values_copy->qwords[0] = scalar;
@@ -700,23 +936,21 @@ void _sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
 
 DLLEXPORT
 void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
-                     int32_t len, int64_t after, int64_t reject)
+                     int32_t count, int64_t after, int64_t reject)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("_sched_waveform %s+%d value=%s len=%d after=%s reject=%s",
-         istr(e_path(s->enode)), offset, fmt_values(s, values, offset, len),
-         len, fmt_time(after), fmt_time(reject));
+   TRACE("_sched_waveform %s+%d value=%s count=%d after=%s reject=%s",
+         istr(tree_ident(s->where)), offset, fmt_values(values, count),
+         count, fmt_time(after), fmt_time(reject));
 
    rt_check_postponed(after);
 
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
    char *vptr = values;
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (len > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-      len -= n->width;
-      RT_ASSERT(len >= 0);
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      RT_ASSERT(count >= 0);
 
       const size_t valuesz = n->width * n->size;
       value_t *values_copy = rt_alloc_value(n);
@@ -734,16 +968,15 @@ void _disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_disconnect %s+%d len=%d after=%s reject=%s",
-         istr(e_path(s->enode)), offset, count, fmt_time(after),
+         istr(tree_ident(s->where)), offset, count, fmt_time(after),
          fmt_time(reject));
 
    rt_check_postponed(after);
 
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
       count -= n->width;
+      RT_ASSERT(count >= 0);
 
       rt_sched_driver(n, after, reject, NULL);
       n->flags |= NET_F_DISCONNECTED;
@@ -751,18 +984,24 @@ void _disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
 }
 
 DLLEXPORT
-void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count)
+void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count, bool recur,
+                  sig_shared_t *wake_ss)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("_sched_event %s+%d count=%d proc %s", istr(e_path(s->enode)),
-         offset, count, istr(e_path(active_proc->source)));
+   TRACE("_sched_event %s+%d count=%d recur=%d proc %s",
+         istr(tree_ident(s->where)), offset, count, recur,
+         wake_ss ? "(implicit)" : istr(active_proc->name));
 
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-      rt_sched_event(&(n->pending), &(active_proc->wakeable), false);
+   rt_wakeable_t *wake;
+   if (wake_ss != NULL)
+      wake = &(container_of(wake_ss, rt_implicit_t, signal.shared)->wakeable);
+   else
+      wake = &(active_proc->wakeable);
+
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
+      rt_sched_event(&(n->pending), wake, recur);
 
       count -= n->width;
       RT_ASSERT(count >= 0);
@@ -784,104 +1023,224 @@ void _private_stack(void)
 }
 
 DLLEXPORT
-sig_shared_t *_link_signal(const char *name)
-{
-   ident_t id = ident_new(name);
-
-   for (unsigned i = 0; i < active_scope->n_signals; i++) {
-      rt_signal_t *signal = active_scope->signals[i];
-      if (e_ident(signal->enode) == id)
-         return &(signal->shared);
-   }
-
-   fatal("failed to link signal %s in scope %s", name,
-         istr(e_instance(active_scope->enode)));
-}
-
-DLLEXPORT
-void _init_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
-                  uint32_t size, const uint8_t *values,
-                  rt_resolution_t *resolution)
+void __nvc_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("_init_signal %s+%d values=%s count=%d%s",
-         istr(e_path(s->enode)), offset, fmt_values(s, values, offset, count),
-         count, resolution ? " resolved" : "");
+   TRACE("drive signal %s+%d count=%d", istr(tree_ident(s->where)),
+         offset, count);
 
-   res_memo_t *memo = NULL;
-   if (resolution != NULL)
-      memo = rt_memo_resolution_fn(s, resolution);
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
+      rt_source_t *s;
+      for (s = &(n->sources); s && s->proc != active_proc; s = s->chain)
+         ;
 
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-      RT_ASSERT(n->size == size);
-
-      if (s == n->signals[0]) {
-         RT_ASSERT(n->resolution == NULL || n->resolution == memo);
-         n->resolution = memo;
-
-         memcpy(n->resolved, values, n->size * n->width);
-         if (n->flags & NET_F_LAST_VALUE)
-            memcpy(n->last_value, values, n->size * n->width);
+      if (s == NULL) {
+         s = rt_add_source(n);
+         s->proc = active_proc;
       }
 
       count -= n->width;
-      values += n->width * n->size;
       RT_ASSERT(count >= 0);
    }
 }
 
 DLLEXPORT
-void _implicit_signal(sig_shared_t *ss, uint32_t kind, ffi_closure_t *closure)
+void __nvc_set_signal_kind(sig_shared_t *ss, int32_t kind)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("_implicit_signal %s kind=%d fn=%p context=%p",
-         istr(e_path(s->enode)), kind, closure->fn, closure->context);
+   TRACE("set signal kind %s kind=%d", istr(tree_ident(s->where)), kind);
+
+   rt_nexus_t *n = &(s->nexus);
+   for (int i = 0; i < s->n_nexus; i++, n = n->chain) {
+      if (kind == SIGNAL_REGISTER)
+         n->flags |= NET_F_REGISTER;
+      else
+         n->flags &= ~NET_F_REGISTER;
+   }
+}
+
+DLLEXPORT
+void __nvc_resolve_signal(sig_shared_t *ss, rt_resolution_t *resolution)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("resolve signal %s", istr(tree_ident(s->where)));
+
+   res_memo_t *memo = rt_memo_resolution_fn(s, resolution);
+
+   rt_nexus_t *n = &(s->nexus);
+   for (int i = 0; i < s->n_nexus; i++, n = n->chain)
+      n->resolution = memo;
+}
+
+DLLEXPORT
+void __nvc_push_scope(DEBUG_LOCUS(locus), int32_t size)
+{
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   TRACE("push scope %s size=%d", istr(tree_ident(where)), size);
+
+   ident_t name = tree_ident(where);
+   if (active_scope->kind == SCOPE_SIGNAL)
+      name = ident_prefix(active_scope->name, name, '.');
+
+   rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
+   s->where  = where;
+   s->name   = name;
+   s->kind   = SCOPE_SIGNAL;
+   s->parent = active_scope;
+   s->chain  = active_scope->child;
+   s->size   = size;
+
+   active_scope->child = s;
+   active_scope = s;
+
+   signals_tail = &(s->signals);
+}
+
+DLLEXPORT
+void __nvc_pop_scope(void)
+{
+   TRACE("pop scope");
+
+   if (unlikely(active_scope->kind != SCOPE_SIGNAL))
+      fatal_trace("cannot pop non-signal scope");
+
+   active_scope = active_scope->parent;
+
+   for (signals_tail = &(active_scope->signals);
+        *signals_tail != NULL;
+        signals_tail = &((*signals_tail)->chain))
+      ;
+}
+
+DLLEXPORT
+sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
+                           DEBUG_LOCUS(locus), int32_t offset)
+{
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   TRACE("_init_signal %s count=%d size=%d values=%p offset=%d",
+         istr(tree_ident(where)), count, size, values, offset);
+
+   rt_signal_t *s = xcalloc_flex(sizeof(rt_signal_t), 2 * count, size);
+   rt_setup_signal(s, where, count, size, offset);
+
+   memcpy(s->shared.data, values, s->shared.size);
+
+   return &(s->shared);
+}
+
+DLLEXPORT
+sig_shared_t *_implicit_signal(uint32_t count, uint32_t size,
+                               DEBUG_LOCUS(locus), uint32_t kind,
+                               ffi_closure_t *closure)
+{
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   TRACE("_init_signal %s count=%d size=%d kind=%d",
+         istr(tree_ident(where)), count, size, kind);
+
+   rt_implicit_t *imp = xcalloc_flex(sizeof(rt_implicit_t), 2 * count, size);
+   rt_setup_signal(&(imp->signal), where, count, size, 0);
 
    ffi_closure_t *copy = xmalloc(sizeof(ffi_closure_t));
    *copy = *closure;
    copy->refcnt = 1;
 
-   assert(s->flags & NET_F_IMPLICIT);
-
-   rt_implicit_t *imp = container_of(s, rt_implicit_t, signal);
+   imp->signal.flags |= NET_F_IMPLICIT;
    imp->closure = copy;
+   imp->wakeable.kind = W_IMPLICIT;
+
+   int8_t r;
+   ffi_call(imp->closure, NULL, 0, &r, sizeof(r));
+
+   RT_ASSERT(size * count == 1);
+   memcpy(imp->signal.shared.data, &r, imp->signal.shared.size);
+
+   return &(imp->signal.shared);
 }
 
 DLLEXPORT
-void _convert_signal(sig_shared_t *ss, uint32_t offset, uint32_t count,
-                     ffi_closure_t *closure)
+void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
+                      sig_shared_t *dst_ss, uint32_t dst_offset,
+                      uint32_t src_count, uint32_t dst_count,
+                      ffi_closure_t *closure)
+{
+   rt_signal_t *src_s = container_of(src_ss, rt_signal_t, shared);
+   rt_signal_t *dst_s = container_of(dst_ss, rt_signal_t, shared);
+
+   TRACE("map signal %s+%d to %s+%d count %d/%d%s",
+         istr(tree_ident(src_s->where)), src_offset,
+         istr(tree_ident(dst_s->where)), dst_offset,
+         src_count, dst_count, closure ? " converted" : "");
+
+   assert(src_count == dst_count || closure != NULL);
+
+   ffi_closure_t *conv_func = NULL;
+   if (closure != NULL) {
+      conv_func = xmalloc(sizeof(ffi_closure_t));
+      *conv_func = *closure;
+      conv_func->refcnt = 1;
+   }
+
+   rt_nexus_t *src_n = rt_split_nexus(src_s, src_offset, src_count);
+   rt_nexus_t *dst_n = rt_split_nexus(dst_s, dst_offset, dst_count);
+
+   while (src_count > 0 && dst_count > 0) {
+      if (src_n->width > dst_n->width && closure == NULL)
+         rt_clone_nexus(src_n, dst_n->width);
+      else if (src_n->width < dst_n->width && closure == NULL)
+         rt_clone_nexus(dst_n, src_n->width);
+
+      assert(src_n->width == dst_n->width || closure != NULL);
+      assert(src_n->size == dst_n->size || closure != NULL);
+
+      rt_source_t *port = rt_add_source(dst_n);
+      port->input = src_n;
+
+      if (conv_func != NULL)
+         port->conv_func = ffi_ref_closure(conv_func);
+
+      rt_set_rank(dst_n, src_n->rank + 1);
+
+      src_n->outputs = xrealloc_array(src_n->outputs, src_n->n_outputs + 1,
+                                      sizeof(rt_source_t *));
+      src_n->outputs[src_n->n_outputs++] = port;
+
+      src_count -= src_n->width;
+      dst_count -= dst_n->width;
+      RT_ASSERT(src_count >= 0);
+      RT_ASSERT(dst_count >= 0);
+
+      src_n = src_n->chain;
+      dst_n = dst_n->chain;
+   }
+
+   if (conv_func != NULL)
+      ffi_unref_closure(conv_func);
+}
+
+DLLEXPORT
+void __nvc_map_const(sig_shared_t *ss, uint32_t offset,
+                     const uint8_t *values, uint32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
-   TRACE("_convert_signal %s+%d count=%d fn=%p context=%p",
-         istr(e_path(s->enode)), offset, count, closure->fn, closure->context);
+   TRACE("map const %s to %s+%d count %d", fmt_values(values, count),
+         istr(tree_ident(s->where)), offset, count);
 
-   ffi_closure_t *copy = xmalloc(sizeof(ffi_closure_t));
-   *copy = *closure;
-   copy->refcnt = 1;
-
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-
-      for (unsigned i = 0; i < n->n_sources; i++) {
-         if (n->sources[i].proc == NULL) {  // Is a port source
-            (copy->refcnt)++;
-            n->sources[i].conv_func = copy;
-         }
-      }
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
+      memcpy(n->resolved, values, n->width * n->size);
+      values += n->width * n->size;
 
       count -= n->width;
       RT_ASSERT(count >= 0);
    }
-
-   ffi_unref_closure(copy);
 }
 
 DLLEXPORT
@@ -1308,7 +1667,8 @@ void _std_to_string_real_digits(double value, int32_t digits, ffi_uarray_t *u)
 }
 
 DLLEXPORT
-void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt), ffi_uarray_t *u)
+void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
+                                ffi_uarray_t *u)
 {
    char *LOCAL fmt_cstr = xmalloc(fmt_length + 1);
    memcpy(fmt_cstr, fmt_ptr, fmt_length);
@@ -1391,15 +1751,12 @@ int64_t _last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_last_event %s offset=%d count=%d",
-         istr(e_path(s->enode)), offset, count);
+         istr(tree_ident(s->where)), offset, count);
 
    int64_t last = TIME_HIGH;
 
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
       if (n->last_event <= now)
          last = MIN(last, now - n->last_event);
 
@@ -1416,15 +1773,12 @@ int64_t _last_active(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_last_active %s offset=%d count=%d",
-         istr(e_path(s->enode)), offset, count);
+         istr(tree_ident(s->where)), offset, count);
 
    int64_t last = TIME_HIGH;
 
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
       if (n->last_active <= now)
          last = MIN(last, now - n->last_active);
 
@@ -1441,22 +1795,20 @@ bool _driving(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_driving %s offset=%d count=%d",
-         istr(e_path(s->enode)), offset, count);
+         istr(tree_ident(s->where)), offset, count);
 
    int ntotal = 0, ndriving = 0;
    bool found = false;
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-
-      int driver;
-      for (driver = 0; driver < n->n_sources; driver++) {
-         if (likely(n->sources[driver].proc == active_proc)) {
-            if (n->sources[driver].waveforms.values != NULL)
-               ndriving++;
-            found = true;
-            break;
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
+      if (n->n_sources > 0) {
+         for (rt_source_t *src = &(n->sources); src; src = src->chain) {
+            if (src->proc == active_proc) {
+               if (src->waveforms.values != NULL)
+                  ndriving++;
+               found = true;
+               break;
+            }
          }
       }
 
@@ -1467,7 +1819,7 @@ bool _driving(sig_shared_t *ss, uint32_t offset, int32_t count)
 
    if (!found)
       rt_msg(NULL, fatal, "process %s does not contain a driver for %s",
-             istr(e_path(active_proc->source)), istr(e_ident(s->enode)));
+             istr(active_proc->name), istr(tree_ident(s->where)));
 
    return ntotal == ndriving;
 }
@@ -1478,27 +1830,26 @@ void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_driving_value %s offset=%d count=%d",
-         istr(e_path(s->enode)), offset, count);
+         istr(tree_ident(s->where)), offset, count);
 
-   void *result = rt_tmp_alloc(s->size);
+   void *result = rt_tmp_alloc(s->shared.size);
 
    uint8_t *p = result;
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-
-      int driver;
-      for (driver = 0; driver < n->n_sources; driver++) {
-         if (likely(n->sources[driver].proc == active_proc))
-            break;
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
+      rt_source_t *src = NULL;
+      if (n->n_sources > 0) {
+         for (src = &(n->sources); src; src = src->chain) {
+            if (src->proc == active_proc)
+               break;
+         }
       }
 
-      if (driver == n->n_sources)
+      if (src == NULL)
          rt_msg(NULL, fatal, "process %s does not contain a driver for %s",
-                istr(e_path(active_proc->source)), istr(e_ident(s->enode)));
+                istr(active_proc->name), istr(tree_ident(s->where)));
 
-      memcpy(p, n->sources[driver].waveforms.values->data, n->width * n->size);
+      memcpy(p, src->waveforms.values->data, n->width * n->size);
       p += n->width * n->size;
 
       count -= n->width;
@@ -1514,13 +1865,10 @@ int32_t _test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_test_net_active %s offset=%d count=%d",
-         istr(e_path(s->enode)), offset, count);
+         istr(tree_ident(s->where)), offset, count);
 
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
       if (n->last_active == now && n->active_delta == iteration)
          return 1;
 
@@ -1537,13 +1885,10 @@ int32_t _test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
    TRACE("_test_net_event %s offset=%d count=%d",
-         istr(e_path(s->enode)), offset, count);
+         istr(tree_ident(s->where)), offset, count);
 
-   unsigned index = rt_signal_nexus_index(s, offset);
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
       if (n->last_event == now && n->event_delta == iteration)
          return 1;
 
@@ -1739,10 +2084,11 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
    fprintf(stderr, "%s\t", fmt_time(e->when));
    switch (e->kind) {
    case EVENT_DRIVER:
-      fprintf(stderr, "driver\t %s\n", istr(e_ident(e->driver.nexus->enode)));
+      fprintf(stderr, "driver\t %s\n",
+              istr(tree_ident(e->driver.nexus->signal->where)));
       break;
    case EVENT_PROCESS:
-      fprintf(stderr, "process\t %s%s\n", istr(e_path(e->proc.proc->source)),
+      fprintf(stderr, "process\t %s%s\n", istr(e->proc.proc->name),
               (e->proc.wakeup_gen == e->proc.proc->wakeable.wakeup_gen)
               ? "" : " (stale)");
       break;
@@ -1756,11 +2102,11 @@ static void deltaq_dump(void)
 {
    for (event_t *e = delta_driver; e != NULL; e = e->delta_chain)
       fprintf(stderr, "delta\tdriver\t %s\n",
-              istr(e_ident(e->driver.nexus->enode)));
+              istr(tree_ident(e->driver.nexus->signal->where)));
 
    for (event_t *e = delta_proc; e != NULL; e = e->delta_chain)
       fprintf(stderr, "delta\tprocess\t %s%s\n",
-              istr(e_path(e->proc.proc->source)),
+              istr(tree_ident(e->proc.proc->where)),
               (e->proc.wakeup_gen == e->proc.proc->wakeable.wakeup_gen)
               ? "" : " (stale)");
 
@@ -1818,7 +2164,7 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
    }
 
    TRACE("memoised resolution function %p for type %s",
-         resolution->closure.fn, type_pp(e_type(signal->enode)));
+         resolution->closure.fn, type_pp(tree_type(signal->where)));
 
    return memo;
 }
@@ -1918,331 +2264,124 @@ static void rt_free_delta_events(event_t *e)
    }
 }
 
-static unsigned rt_count_scopes(e_node_t e)
+static void rt_scope_deps_cb(ident_t unit_name, void *__ctx)
 {
-   unsigned sum = 0;
+   rt_scope_t ***tailp = __ctx;
 
-   if (e_kind(e) == E_SCOPE)
-      sum++;
+   tree_t unit = lib_get_qualified(unit_name);
+   if (unit == NULL) {
+      warnf("missing dependency %s", istr(unit_name));
+      return;
+   }
 
-   const int sub_scopes = e_scopes(e);
-   for (int i = 0; i < sub_scopes; i++)
-      sum += rt_count_scopes(e_scope(e, i));
+   if (hash_get(scopes, unit) != NULL)
+      return;
 
-   return sum;
+   const tree_kind_t kind = tree_kind(unit);
+   if (kind != T_PACKAGE && kind != T_PACK_INST) {
+      tree_walk_deps(unit, rt_scope_deps_cb, tailp);
+      return;
+   }
+
+   rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
+   s->where = unit;
+   s->name  = tree_ident(unit);
+   s->kind  = SCOPE_PACKAGE;
+
+   hash_put(scopes, unit, s);
+
+   tree_walk_deps(unit, rt_scope_deps_cb, tailp);
+
+   if (kind == T_PACKAGE) {
+      ident_t body_i = ident_prefix(unit_name, ident_new("body"), '-');
+      tree_t body = lib_get_qualified(body_i);
+      if (body != NULL)
+         tree_walk_deps(body, rt_scope_deps_cb, tailp);
+   }
+
+   **tailp = s;
+   *tailp = &(s->chain);
 }
 
-static rt_signal_t *rt_setup_signal(e_node_t e, unsigned *total_mem)
+static rt_scope_t *rt_scope_for_block(tree_t block, ident_t prefix)
 {
-   const int nnexus = e_nexuses(e);
-   rt_signal_t *s = NULL;
+   rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
+   s->where = block;
+   s->name  = ident_prefix(prefix, tree_ident(block), '.');
+   s->kind  = SCOPE_INSTANCE;
 
-   if (e_kind(e) == E_IMPLICIT) {
-      rt_implicit_t *imp = xcalloc_flex(sizeof(rt_implicit_t),
-                                        nnexus, sizeof(rt_nexus_t *));
-      *total_mem += sizeof(rt_implicit_t) + nnexus * sizeof(rt_nexus_t *);
+   hash_put(scopes, block, s);
 
-      imp->wakeable.kind = W_IMPLICIT;
+   rt_scope_t **childp = &(s->child);
+   rt_proc_t **procp = &(s->procs);
 
-      const int ntriggers = e_triggers(e);
-      for (int j = 0; j < ntriggers; j++) {
-         rt_nexus_t *n = hash_get(nexuses, e_trigger(e, j));
-         rt_sched_event(&(n->pending), &(imp->wakeable), true);
+   tree_t hier = tree_decl(block, 0);
+   assert(tree_kind(hier) == T_HIER);
+
+   ident_t path = tree_ident(hier);
+
+   const int ndecls = tree_decls(block);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(block, i);
+      if (tree_kind(d) == T_PACK_INST) {
+         rt_scope_t *p = xcalloc(sizeof(rt_scope_t));
+         p->where = d;
+         p->name  = ident_prefix(s->name, tree_ident(d), '.');
+         p->kind  = SCOPE_PACKAGE;
+
+         hash_put(scopes, d, p);
+
+         *childp = p;
+         childp = &(p->chain);
       }
-
-      s = &(imp->signal);
-      s->flags = NET_F_IMPLICIT;
-   }
-   else {
-      s = xcalloc_flex(sizeof(rt_signal_t), nnexus, sizeof(rt_nexus_t *));
-      *total_mem += sizeof(rt_signal_t) + nnexus * sizeof(rt_nexus_t *);
    }
 
-   s->enode   = e;
-   s->width   = e_width(e);
-   s->n_nexus = nnexus;
+   const int nstmts = tree_stmts(block);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t t = tree_stmt(block, i);
+      switch (tree_kind(t)) {
+      case T_BLOCK:
+         {
+            rt_scope_t *c = rt_scope_for_block(t, s->name);
+            c->parent = s;
 
-   const e_flags_t flags = e_flags(e);
+            *childp = c;
+            childp = &(c->chain);
+         }
+         break;
 
-   unsigned offset = 0, nmdivide = 0;
-   for (int j = 0; j < s->n_nexus; j++) {
-      rt_nexus_t *n = hash_get(nexuses, e_nexus(e, j));
-      s->nexus[j] = n;
+      case T_PROCESS:
+         {
+            ident_t name = tree_ident(t);
+            ident_t sym = ident_prefix(s->name, name, '.');
 
-      unsigned o;
-      for (o = 0; o < n->n_signals; o++) {
-         if (e_signal(n->enode, o) == e)
-            break;
+            rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
+            p->where     = t;
+            p->name      = ident_prefix(path, ident_downcase(name), ':');
+            p->proc_fn   = jit_find_symbol(istr(sym), true);
+            p->tmp_stack = NULL;
+            p->tmp_alloc = 0;
+            p->scope     = s;
+
+            p->wakeable.kind       = W_PROC;
+            p->wakeable.wakeup_gen = 0;
+            p->wakeable.pending    = false;
+            p->wakeable.postponed  = !!(tree_flags(t) & TREE_F_POSTPONED);
+
+            *procp = p;
+            procp = &(p->chain);
+         }
+         break;
+
+      default:
+         break;
       }
-
-      if (o == n->n_signals)
-         fatal_trace("signal %s missing in nexus %s", istr(e_path(e)),
-                     istr(e_ident(n->enode)));
-
-      assert(n->signals[o] == NULL);
-      n->signals[o] = s;
-      n->offsets[o] = offset;
-
-      const unsigned bytes = n->width * n->size;
-
-      if (j == 0)
-         nmdivide = bytes;
-      else if (nmdivide != bytes)
-         nmdivide = 0;
-
-      offset += bytes;
-
-      if (flags & E_F_LAST_VALUE) {
-         n->flags |= NET_F_LAST_VALUE;
-
-         if (n->last_value == NULL)
-            n->last_value = xcalloc_array(n->width, n->size);
-      }
-
-      if (flags & E_F_REGISTER)
-         n->flags |= NET_F_REGISTER;
-   }
-
-   if (s->n_nexus == 1 || nmdivide == 1) {
-      s->nmap_kind = NEXUS_MAP_DIRECT;
-      profile.nmap_direct++;
-   }
-   else if (nmdivide == 0) {
-      s->nmap_kind = NEXUS_MAP_SEARCH;
-      profile.nmap_search++;
-   }
-   else {
-      s->nmap_kind = NEXUS_MAP_DIVIDE;
-      s->nmap_param = nmdivide;
-      profile.nmap_divide++;
-   }
-
-   s->size = offset;
-
-   profile.n_signals++;
-
-   if (flags & E_F_CONTIGUOUS) {
-      s->shared.resolved = s->nexus[0]->resolved;
-      profile.n_contig++;
-   }
-   else {
-      s->shared.resolved = xcalloc(s->size);
-      s->flags |= NET_F_OWNS_MEM;
-   }
-
-   if (flags & E_F_LAST_VALUE) {
-      s->shared.last_value = xcalloc(s->size);
-      s->flags |= NET_F_LAST_VALUE;
    }
 
    return s;
 }
 
-static void rt_setup_scopes_recur(e_node_t e, rt_scope_t *parent,
-                                  unsigned *next_scope,
-                                  unsigned *total_mem)
-{
-   rt_scope_t *scope = NULL;
-
-   if (e_kind(e) == E_SCOPE) {
-      const int nsignals = e_signals(e);
-      const int nprocs = e_procs(e);
-
-      scope = &(scopes[(*next_scope)++]);
-      scope->enode = e;
-      scope->parent = parent;
-
-      scope->n_procs = nprocs;
-      scope->procs = xcalloc_array(nprocs, sizeof(rt_proc_t));
-      *total_mem += nprocs * sizeof(rt_proc_t);
-
-      scope->n_signals = nsignals;
-      scope->signals = xcalloc_array(nsignals, sizeof(rt_signal_t *));
-      *total_mem += nsignals * sizeof(rt_signal_t *);
-
-      for (int i = 0; i < nprocs; i++) {
-         e_node_t p = e_proc(e, i);
-
-         rt_proc_t *r = &(scope->procs[i]);
-         r->source     = p;
-         r->proc_fn    = jit_find_symbol(istr(e_vcode(p)), true);
-         r->tmp_stack  = NULL;
-         r->tmp_alloc  = 0;
-         r->scope      = scope;
-
-         r->wakeable.kind       = W_PROC;
-         r->wakeable.wakeup_gen = 0;
-         r->wakeable.pending    = false;
-         r->wakeable.postponed  = !!(e_flags(p) & E_F_POSTPONED);
-
-         const int nnexus = e_nexuses(p);
-         for (int j = 0; j < nnexus; j++) {
-            rt_nexus_t *n = hash_get(nexuses, e_nexus(p, j));
-            for (unsigned k = 0; k < n->n_sources; k++) {
-               if (e_source(n->enode, k) == p)
-                  n->sources[k].proc = r;
-            }
-         }
-
-         const int ntriggers = e_triggers(p);
-         for (int j = 0; j < ntriggers; j++) {
-            rt_nexus_t *n = hash_get(nexuses, e_trigger(p, j));
-            rt_sched_event(&(n->pending), &(r->wakeable), true);
-         }
-
-         profile.n_procs++;
-      }
-
-      for (int i = 0; i < nsignals; i++)
-         scope->signals[i] = rt_setup_signal(e_signal(e, i), total_mem);
-   }
-
-   const int nscopes = e_scopes(e);
-   for (int i = 0; i < nscopes; i++)
-      rt_setup_scopes_recur(e_scope(e, i), scope, next_scope, total_mem);
-}
-
-static void rt_setup_scopes(e_node_t e)
-{
-   n_scopes = rt_count_scopes(e);
-   scopes  = xcalloc_array(n_scopes, sizeof(rt_scope_t));
-
-   unsigned total_mem = n_scopes * sizeof(rt_scope_t);
-
-   unsigned next_scope = 0;
-   rt_setup_scopes_recur(e, NULL, &next_scope, &total_mem);
-   assert(next_scope == n_scopes);
-
-   TRACE("allocated %u bytes for %d scopes", total_mem, n_scopes);
-}
-
-static void rt_setup_nexus(e_node_t top)
-{
-   assert(nexuses == NULL);
-
-   const unsigned n_nexuses = e_nexuses(top);
-   nexuses = hash_new(e_nexuses(top) * 2, true);
-
-   // TODO: how to optimise this for cache locality?
-
-   rt_nexus_t *mem = xcalloc_array(n_nexuses, sizeof(rt_nexus_t));
-   unsigned total_mem = n_nexuses * sizeof(rt_nexus_t);
-
-   size_t resolved_size = 0;
-   for (int i = 0; i < n_nexuses; i++) {
-      e_node_t e = e_nexus(top, i);
-
-      rt_nexus_t *n = &(mem[i]);
-      hash_put(nexuses, e, n);
-
-      n->enode     = e;
-      n->width     = e_width(e);
-      n->size      = e_size(e);
-      n->n_sources = e_sources(e);
-      n->n_outputs = e_outputs(e);
-      n->n_signals = e_signals(e);
-
-      if (n->n_sources > 0) {
-         n->sources = xcalloc_array(n->n_sources, sizeof(rt_source_t));
-         total_mem += n->n_sources * sizeof(rt_source_t);
-      }
-
-      if (n->n_outputs > 0) {
-         n->outputs = xcalloc_array(n->n_outputs, sizeof(rt_source_t *));
-         total_mem += n->n_sources * sizeof(rt_source_t *);
-      }
-
-      for (unsigned i = 0; i < n->n_sources; i++) {
-         waveform_t *w0 = &(n->sources[i].waveforms);
-         w0->when   = 0;
-         w0->next   = NULL;
-         w0->values = rt_alloc_value(n);
-
-         n->sources[i].output = n;
-      }
-
-      if (n->n_signals > 0) {
-         n->signals = xcalloc_array(n->n_signals, sizeof(rt_signal_t *));
-         n->offsets = xcalloc_array(n->n_signals, sizeof(unsigned));
-
-         total_mem += n->n_signals * (sizeof(rt_signal_t *) + sizeof(unsigned));
-      }
-
-      resolved_size += n->width * n->size;
-      profile.n_simple += n->width;
-   }
-
-   // Allocate memory for all nexuses as one contiguous blob. This is
-   // important so that the common case of signals consisting only of
-   // contiguous nexuses do not need a private copy of the resolved
-   // value.
-   uint8_t *resolved_mem = NULL;
-   if (resolved_size > 0) resolved_mem = xcalloc(resolved_size);
-   total_mem += resolved_size;
-
-   highest_rank = 0;
-
-   uint8_t *nextp = resolved_mem;
-   for (int i = 0; i < n_nexuses; i++) {
-      rt_nexus_t *n = &(mem[i]);
-      if (i == 0) n->flags |= NET_F_OWNS_MEM;
-      n->resolved = nextp;
-      nextp += n->width * n->size;
-
-      // Attach port outputs to sources
-      for (int j = 0; j < n->n_outputs; j++) {
-         e_node_t p = e_output(n->enode, j);
-         assert(e_nexus(p, 0) == n->enode);
-         rt_nexus_t *to = hash_get(nexuses, e_nexus(p, 1));
-
-         int to_src_id = 0;
-         for (; to_src_id < to->n_sources; to_src_id++) {
-            if (e_source(to->enode, to_src_id) == p)
-               break;
-         }
-         assert(to_src_id != to->n_sources);
-
-         n->outputs[j] = &(to->sources[to_src_id]);
-         n->outputs[j]->input = n;
-
-         if (n->outputs[j]->output->rank <= n->rank) {
-            n->outputs[j]->output->rank = n->rank + 1;
-            highest_rank = MAX(n->rank + 1, highest_rank);
-         }
-      }
-   }
-
-   // Calculate the rank of each nexus so signals can be updated in the
-   // correct order
-   if (highest_rank > 0) {
-      bool made_changes;
-      do {
-         made_changes = false;
-         for (int i = 0; i < n_nexuses; i++) {
-            rt_nexus_t *n = &(mem[i]);
-            for (int j = 0; j < n->n_outputs; j++) {
-               if (n->outputs[j]->output->rank <= n->rank) {
-                  n->outputs[j]->output->rank = n->rank + 1;
-                  highest_rank = MAX(n->rank + 1, highest_rank);
-                  made_changes = true;
-               }
-            }
-         }
-      } while (made_changes);
-
-      TRACE("highest rank is %u", highest_rank);
-   }
-
-   // Sort nexuses into initialisation order
-   for (int i = 0; i < n_nexuses; i++) {
-      rt_nexus_t *n = &(mem[i]);
-      heap_insert(rankn_heap, n->rank, n);
-   }
-
-   TRACE("allocated %u bytes for %d nexuses", total_mem, n_nexuses);
-}
-
-static void rt_setup(e_node_t top)
+static void rt_setup(tree_t top)
 {
    now = 0;
    iteration = -1;
@@ -2250,6 +2389,7 @@ static void rt_setup(e_node_t top)
    active_scope = NULL;
    force_stop = false;
    can_create_delta = true;
+   nexus_tail = &nexuses;
 
    RT_ASSERT(resume == NULL);
 
@@ -2259,20 +2399,28 @@ static void rt_setup(e_node_t top)
    eventq_heap = heap_new(512);
    rankn_heap = heap_new(128);
 
-   rt_setup_nexus(top);
-   rt_setup_scopes(top);
+   scopes = hash_new(256, true);
+
+   root = xcalloc(sizeof(rt_scope_t));
+   root->kind  = SCOPE_ROOT;
+   root->where = top;
+
+   rt_scope_t **tailp = &(root->child);
+   tree_walk_deps(top, rt_scope_deps_cb, &tailp);
+
+   *tailp = rt_scope_for_block(tree_stmt(top, 0), lib_name(lib_work()));
 
    res_memo_hash = hash_new(128, true);
 }
 
 static void rt_reset(rt_proc_t *proc)
 {
-  TRACE("reset process %s", istr(e_path(proc->source)));
+   TRACE("reset process %s", istr(proc->name));
 
-  assert(proc->tmp_stack == NULL);
+   assert(proc->tmp_stack == NULL);
 
-  _tmp_stack = global_tmp_stack;
-  _tmp_alloc = global_tmp_alloc;
+   _tmp_stack = global_tmp_stack;
+   _tmp_alloc = global_tmp_alloc;
 
    active_proc = proc;
    active_scope = proc->scope;
@@ -2284,7 +2432,7 @@ static void rt_reset(rt_proc_t *proc)
 static void rt_run(rt_proc_t *proc)
 {
    TRACE("run %sprocess %s", proc->privdata ? "" :  "stateless ",
-         istr(e_path(proc->source)));
+         istr(proc->name));
 
    if (proc->tmp_stack != NULL) {
       TRACE("using private stack at %p %d", proc->tmp_stack, proc->tmp_alloc);
@@ -2341,8 +2489,8 @@ static inline void *rt_resolution_buffer(size_t required)
 static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
 {
    int nonnull = 0;
-   for (unsigned i = 0; i < nexus->n_sources; i++) {
-      if (nexus->sources[i].waveforms.values != NULL)
+   for (rt_source_t *s = &(nexus->sources); s; s = s->chain) {
+      if (s->waveforms.values != NULL)
          nonnull++;
    }
 
@@ -2352,40 +2500,43 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
    else if (nexus->resolution->flags & R_COMPOSITE) {
       // Call resolution function of composite type
 
-      rt_signal_t *s0 = nexus->signals[0];
-      uint8_t *inputs LOCAL = xmalloc(nonnull * s0->size);
-      void *resolved = rt_resolution_buffer(s0->size);
+      rt_scope_t *scope = nexus->signal->parent;
+      assert(scope->kind == SCOPE_SIGNAL);
 
-      size_t offset = 0, result_offset = 0;
-      for (unsigned i = 0; i < s0->n_nexus; i++) {
-         rt_nexus_t *n = s0->nexus[i];
+      TRACE("resolved composite signal needs %d bytes", scope->size);
 
-         unsigned o = 0;
-         for (unsigned j = 0; j < nexus->n_sources; j++) {
-            const void *src = NULL;
-            if (n->sources[j].waveforms.values == NULL)
-               continue;
-            else if (n == nexus) {
-               result_offset = offset;
-               src = n->sources[j].waveforms.values->data;
+      uint8_t *inputs LOCAL = xmalloc(nonnull * scope->size);
+      void *resolved = rt_resolution_buffer(scope->size);
+
+      for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain) {
+         rt_nexus_t *n = &(s->nexus);
+         for (unsigned i = 0; i < s->n_nexus; i++) {
+            unsigned o = 0;
+            for (rt_source_t *src = &(n->sources); src; src = src->chain) {
+               const void *data = NULL;
+               if (src->waveforms.values == NULL)
+                  continue;
+               else if (n == nexus)
+                  data = src->waveforms.values->data;
+               else
+                  data = n->resolved;
+
+               memcpy(inputs + s->shared.offset + (o * scope->size),
+                      data, n->size * n->width);
+               o++;
             }
-            else
-               src = n->resolved;
-
-            memcpy(inputs + offset + (o * s0->size), src, n->size * n->width);
-            o++;
+            assert(o == nonnull);
          }
-         assert(o == nonnull);
-
-         offset += n->size * n->width;
       }
 
       const int32_t left = nexus->resolution->ileft;
       ffi_uarray_t u = { inputs, { { left, nonnull } } };
       ffi_call(&(nexus->resolution->closure), &u, sizeof(u),
-               resolved, s0->size);
+               resolved, scope->size);
 
-      return resolved + result_offset;
+      const ptrdiff_t noff =
+         nexus->resolved - (void *)nexus->signal->shared.data;
+      return resolved + nexus->signal->shared.offset + noff;
    }
    else {
       void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
@@ -2394,8 +2545,8 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
 #define CALL_RESOLUTION_FN(type) do {                                   \
             type vals[nonnull];                                         \
             unsigned o = 0;                                             \
-            for (int i = 0; i < nexus->n_sources; i++) {                \
-               const value_t *v = nexus->sources[i].waveforms.values;   \
+            for (rt_source_t *s = &(nexus->sources); s; s = s->chain) { \
+               const value_t *v = s->waveforms.values;                  \
                if (v != NULL)                                           \
                   vals[o++] = ((const type *)v->data)[j];               \
             }                                                           \
@@ -2427,11 +2578,11 @@ static void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
       return nexus->resolved;
    }
    else if (nexus->resolution == NULL) {
-      return nexus->sources[0].waveforms.values->data;
+      return nexus->sources.waveforms.values->data;
    }
    else if ((nexus->resolution->flags & R_IDENT) && (nexus->n_sources == 1)) {
       // Resolution function behaves like identity for a single driver
-      return nexus->sources[0].waveforms.values->data;
+      return nexus->sources.waveforms.values->data;
    }
    else if ((nexus->resolution->flags & R_MEMO) && (nexus->n_sources == 1)) {
       // Resolution function has been memoised so do a table lookup
@@ -2439,7 +2590,7 @@ static void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
       void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
 
       for (int j = 0; j < nexus->width; j++) {
-         const int index = nexus->sources[0].waveforms.values->data[j];
+         const int index = nexus->sources.waveforms.values->data[j];
          const int8_t r = nexus->resolution->tab1[index];
          ((int8_t *)resolved)[j] = r;
       }
@@ -2451,8 +2602,8 @@ static void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
 
       void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
 
-      const char *p0 = nexus->sources[0].waveforms.values->data;
-      const char *p1 = nexus->sources[1].waveforms.values->data;
+      const char *p0 = nexus->sources.waveforms.values->data;
+      const char *p1 = nexus->sources.chain->waveforms.values->data;
 
       for (int j = 0; j < nexus->width; j++) {
          const int driving[2] = { p0[j], p1[j] };
@@ -2479,22 +2630,14 @@ static void rt_propagate_nexus(rt_nexus_t *nexus, const void *resolved)
       memcpy(nexus->last_value, nexus->resolved, valuesz);
    if (nexus->resolved != resolved)   // Can occur during startup
       memcpy(nexus->resolved, resolved, valuesz);
-
-   for (unsigned i = 0; i < nexus->n_signals; i++) {
-      rt_signal_t *s = nexus->signals[i];
-      if (s->flags & NET_F_LAST_VALUE)
-         memcpy(s->shared.last_value + nexus->offsets[i],
-                nexus->last_value, valuesz);
-      if (s->flags & NET_F_OWNS_MEM)
-         memcpy(s->shared.resolved + nexus->offsets[i],
-                nexus->resolved, valuesz);
-   }
 }
 
 static void rt_update_inputs(rt_nexus_t *nexus)
 {
-   for (unsigned i = 0; i < nexus->n_sources; i++) {
-      rt_source_t *s = &(nexus->sources[i]);
+   if (unlikely(nexus->n_sources == 0))
+      return;
+
+   for (rt_source_t *s = &(nexus->sources); s; s = s->chain) {
       if (s->proc != NULL)
          continue;
       else if (likely(s->conv_func == NULL)) {
@@ -2502,54 +2645,87 @@ static void rt_update_inputs(rt_nexus_t *nexus)
          memcpy(s->waveforms.values->data, s->input->resolved, valuesz);
       }
       else {
-         rt_signal_t *i0 = s->input->signals[0];
-         rt_signal_t *o0 = s->output->signals[0];
+         rt_signal_t *i0 = s->input->signal;
+         rt_signal_t *o0 = s->output->signal;
 
-         const size_t outsz = s->output->size * s->output->width;
+         const size_t copysz = nexus->width * nexus->size;
 
-         TRACE("call conversion function %p insz=%d outsz=%zu",
-               s->conv_func->fn, i0->size, outsz);
+         bool incopy = false;
+         void *indata;
+         size_t insz;
+         if (i0->parent->kind == SCOPE_SIGNAL) {
+            indata = rt_composite_signal(i0, &insz);
+            incopy = true;
+         }
+         else {
+            indata = i0->shared.data;
+            insz   = i0->shared.size;
+         }
 
-         if (o0->size != outsz) {
+         bool outcopy = true;
+         void *outdata;
+         size_t outsz;
+         if (o0->parent->kind == SCOPE_SIGNAL) {
+            rt_scope_t *root = o0->parent;
+            while (root->parent->kind == SCOPE_SIGNAL)
+               root = root->parent;
+            outdata = xmalloc(root->size);
+            outsz   = root->size;
+         }
+         else if (o0->shared.size == copysz) {
+            outdata = s->waveforms.values->data;
+            outsz   = copysz;
+            outcopy = false;
+         }
+         else {
+            outdata = xmalloc(o0->shared.size);
+            outsz   = o0->shared.size;
+         }
+
+         TRACE("call conversion function %p insz=%zu outsz=%zu",
+               s->conv_func->fn, insz, outsz);
+
+         if (outcopy) {
             // This corner case occurs with output conversions from
             // aggregate to scalar types
 
-            uint8_t *buf LOCAL = xmalloc(o0->size);
-            ffi_call(s->conv_func, i0->shared.resolved, i0->size,
-                     buf, o0->size);
+            ffi_call(s->conv_func, indata, insz, outdata, outsz);
 
-            unsigned o = 0;
-            for (unsigned i = 0; i < o0->n_nexus; i++) {
-               if (o0->nexus[i] == nexus)
-                  break;
-               else
-                  o += o0->nexus[i]->width * o0->nexus[i]->size;
-            }
-            assert(o + outsz <= o0->size);
+            unsigned o = o0->shared.offset;
+            for (rt_nexus_t *n = &(o0->nexus); n != nexus; n = n->chain)
+               o += n->width * n->size;
 
-            memcpy(s->waveforms.values->data, buf + o, outsz);
+            memcpy(s->waveforms.values->data, outdata + o, copysz);
          }
-         else {
-            ffi_call(s->conv_func, i0->shared.resolved, i0->size,
-                     s->waveforms.values->data, outsz);
-         }
+         else
+            ffi_call(s->conv_func, indata, insz, outdata, outsz);
+
+         if (incopy) free(indata);
+         if (outcopy) free(outdata);
       }
    }
 }
 
-static void rt_reset_scopes(e_node_t top)
+static void rt_reset_scope(rt_scope_t *s)
 {
-   for (unsigned i = 0; i < n_scopes; i++) {
-      rt_scope_t *s = &(scopes[i]);
-      TRACE("reset scope %s", istr(e_path(s->enode)));
+   if (s->kind == SCOPE_INSTANCE || s->kind == SCOPE_PACKAGE) {
+      TRACE("reset scope %s", istr(s->name));
 
       void *privdata = s->parent ? s->parent->privdata : NULL;
       active_scope = s;
+      signals_tail = &(s->signals);
 
-      s->privdata = rt_call_module_reset(e_vcode(s->enode), privdata);
+      s->privdata = rt_call_module_reset(s->name, privdata);
 
+      active_scope = NULL;
+      signals_tail = NULL;
    }
-   active_scope = NULL;
+
+   for (rt_scope_t *c = s->child; c != NULL; c = c->chain)
+      rt_reset_scope(c);
+
+   for (rt_proc_t *p = s->procs; p != NULL; p = p->chain)
+      rt_reset(p);
 }
 
 static void rt_driver_initial(rt_nexus_t *nexus)
@@ -2557,13 +2733,14 @@ static void rt_driver_initial(rt_nexus_t *nexus)
    const size_t valuesz = nexus->size * nexus->width;
 
    // Assign the initial value of the drivers
-   for (unsigned i = 0; i < nexus->n_sources; i++) {
-      rt_source_t *s = &(nexus->sources[i]);
-      if (s->proc != NULL)  // Driver not port source
-         memcpy(s->waveforms.values->data, nexus->resolved, valuesz);
-   }
+   if (nexus->n_sources > 0) {
+      for (rt_source_t *s = &(nexus->sources); s; s = s->chain) {
+         if (s->proc != NULL)  // Driver not port source
+            memcpy(s->waveforms.values->data, nexus->resolved, valuesz);
+      }
 
-   rt_update_inputs(nexus);
+      rt_update_inputs(nexus);
+   }
 
    void *resolved;
    if (nexus->n_sources > 0)
@@ -2574,24 +2751,27 @@ static void rt_driver_initial(rt_nexus_t *nexus)
    nexus->event_delta = nexus->active_delta = -1;
    nexus->last_event = nexus->last_active = TIME_HIGH;
 
-   TRACE("%s initial value %s", istr(e_ident(nexus->enode)),
+   TRACE("%s initial value %s", istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, resolved));
 
    rt_propagate_nexus(nexus, resolved);
 }
 
-static void rt_initial(e_node_t top)
+static void rt_initial(tree_t top)
 {
    // Initialisation is described in LRM 93 section 12.6.4
 
-   rt_reset_scopes(top);
+   rt_reset_scope(root);
 
-   for (unsigned i = 0; i < n_scopes; i++) {
-      for (unsigned j = 0; j < scopes[i].n_procs; j++)
-         rt_reset(&(scopes[i].procs[j]));
-   }
+#if TRACE_SIGNALS > 0
+   if (trace_on)
+      rt_dump_signals(root);
+#endif
 
    TRACE("calculate initial driver values");
+
+   for (rt_nexus_t *n = nexuses; n != NULL; n = n->chain)
+      heap_insert(rankn_heap, n->rank, n);
 
    init_side_effect = SIDE_EFFECT_ALLOW;
 
@@ -2609,7 +2789,7 @@ static void rt_trace_wakeup(rt_wakeable_t *obj)
       switch (obj->kind) {
       case W_PROC:
          TRACE("wakeup %sprocess %s", obj->postponed ? "postponed " : "",
-               istr(e_path(container_of(obj, rt_proc_t, wakeable)->source)));
+               istr(container_of(obj, rt_proc_t, wakeable)->name));
          break;
 
       case W_WATCH:
@@ -2620,8 +2800,8 @@ static void rt_trace_wakeup(rt_wakeable_t *obj)
 
       case W_IMPLICIT:
          TRACE("wakeup implicit signal %s",
-               istr(e_path(container_of(obj, rt_implicit_t, wakeable)
-                           ->signal.enode)));
+               istr(tree_ident(container_of(obj, rt_implicit_t, wakeable)
+                               ->signal.where)));
       }
    }
 }
@@ -2670,21 +2850,14 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
 {
    if (unlikely(reject > after))
       fatal("signal %s pulse reject limit %s is greater than "
-            "delay %s", istr(e_path(nexus->signals[0]->enode)),
+            "delay %s", istr(tree_ident(nexus->signal->where)),
             fmt_time(reject), fmt_time(after));
 
-   int driver = 0;
-   if (unlikely(nexus->n_sources != 1)) {
-      // Try to find this process in the list of existing drivers
-      for (driver = 0; driver < nexus->n_sources; driver++) {
-         if (likely(nexus->sources[driver].proc == active_proc))
-            break;
-      }
-
-      RT_ASSERT(driver != nexus->n_sources);
-   }
-
-   rt_source_t *d = &(nexus->sources[driver]);
+   // Try to find this process in the list of existing drivers
+   rt_source_t *d;
+   for (d = &(nexus->sources); d && d->proc != active_proc; d = d->chain)
+      ;
+   RT_ASSERT(d != NULL);
 
    const size_t valuesz = nexus->size * nexus->width;
 
@@ -2695,10 +2868,11 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
 
    waveform_t *last = &(d->waveforms);
    waveform_t *it   = last->next;
-   while ((it != NULL) && (it->when < w->when)) {
+   while (it != NULL && it->when < w->when) {
       // If the current transaction is within the pulse rejection interval
       // and the value is different to that of the new transaction then
       // delete the current transaction
+      RT_ASSERT(it->when >= now);
       if ((it->when >= w->when - reject)
           && (memcmp(it->values->data, w->values->data, valuesz) != 0)) {
          waveform_t *next = it->next;
@@ -2749,10 +2923,11 @@ static void rt_notify_event(rt_nexus_t *nexus)
       nexus->pending = next;
    }
 
-   for (unsigned i = 0; i < nexus->n_sources; i++) {
-      rt_source_t *o = &(nexus->sources[i]);
-      if (o->proc == NULL)
-         rt_notify_event(o->input);
+   if (nexus->n_sources > 0) {
+      for (rt_source_t *s = &(nexus->sources); s; s = s->chain) {
+         if (s->proc == NULL)
+            rt_notify_event(s->input);
+      }
    }
 }
 
@@ -2761,10 +2936,11 @@ static void rt_notify_active(rt_nexus_t *nexus)
    nexus->last_active = now;
    nexus->active_delta = iteration;
 
-   for (unsigned i = 0; i < nexus->n_sources; i++) {
-      rt_source_t *o = &(nexus->sources[i]);
-      if (o->proc == NULL)
-         rt_notify_active(o->input);
+   if (nexus->n_sources > 0) {
+      for (rt_source_t *s = &(nexus->sources); s; s = s->chain) {
+         if (s->proc == NULL)
+            rt_notify_active(s->input);
+      }
    }
 }
 
@@ -2779,7 +2955,8 @@ static void rt_update_nexus(rt_nexus_t *nexus)
    RT_ASSERT(nexus->flags & NET_F_PENDING);
    nexus->flags &= ~NET_F_PENDING;
 
-   TRACE("update nexus %s resolved=%s", istr(e_ident(nexus->enode)),
+   TRACE("update nexus %s resolved=%s",
+         istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, resolved));
 
    if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
@@ -2807,8 +2984,9 @@ static void rt_push_active_nexus(rt_nexus_t *nexus)
 
    for (unsigned i = 0; i < nexus->n_outputs; i++) {
       rt_source_t *o = nexus->outputs[i];
-      TRACE("active nexus %s sources nexus %s", istr(e_ident(nexus->enode)),
-            istr(e_ident(o->output->enode)));
+      TRACE("active nexus %s sources nexus %s",
+            istr(tree_ident(nexus->signal->where)),
+            istr(tree_ident(o->output->signal->where)));
       RT_ASSERT(nexus->rank < o->output->rank);
       rt_push_active_nexus(o->output);
    }
@@ -2839,10 +3017,10 @@ static void rt_update_implicit_signal(rt_implicit_t *imp)
    ffi_call(imp->closure, NULL, 0, &r, sizeof(r));
 
    TRACE("implicit signal %s guard expression %d",
-         istr(e_path(imp->signal.enode)), r);
+         istr(tree_ident(imp->signal.where)), r);
 
    RT_ASSERT(imp->signal.n_nexus == 1);
-   rt_nexus_t *n0 = imp->signal.nexus[0];
+   rt_nexus_t *n0 = &(imp->signal.nexus);
 
    // Implicit signals have no sources
    RT_ASSERT(!(n0->flags & NET_F_PENDING));
@@ -2904,8 +3082,8 @@ static void rt_iteration_limit(void)
    for (sens_list_t *it = resume; it != NULL; it = it->next) {
       if (it->wake->kind == W_PROC) {
          rt_proc_t *proc = container_of(it->wake, rt_proc_t, wakeable);
-         const loc_t *l = e_loc(proc->source);
-         tb_printf(buf, "  %-30s %s line %d\n", istr(e_path(proc->source)),
+         const loc_t *l = tree_loc(proc->where);
+         tb_printf(buf, "  %-30s %s line %d\n", istr(proc->name),
                    loc_file_str(l), l->first_line);
       }
    }
@@ -2987,6 +3165,10 @@ static void rt_cycle(int stop_delta)
 
    TRACE("begin cycle");
 
+#if TRACE_SIGNALS > 0
+   if (trace_on)
+      rt_dump_signals(root);
+#endif
 #if TRACE_DELTAQ > 0
    if (trace_on)
       deltaq_dump();
@@ -3086,33 +3268,29 @@ static void rt_cycle(int stop_delta)
 
 static void rt_cleanup_nexus(rt_nexus_t *n)
 {
-   if (n->flags & NET_F_OWNS_MEM)
-      free(n->resolved);
-   if (n->flags & NET_F_LAST_VALUE)
-      free(n->last_value);
-
    free(n->forcing);
 
-   for (int j = 0; j < n->n_sources; j++) {
-      if (n->sources[j].waveforms.values)
-         rt_free_value(n, n->sources[j].waveforms.values);
+   bool must_free = false;
+   for (rt_source_t *s = &(n->sources), *tmp; s; s = tmp, must_free = true) {
+      tmp = s->chain;
 
-      for (waveform_t *it = n->sources[j].waveforms.next, *next = NULL;
-           it != NULL; it = next) {
+      if (s->waveforms.values)
+         rt_free_value(n, s->waveforms.values);
+
+      for (waveform_t *it = s->waveforms.next, *next; it; it = next) {
          if (it->values)
             rt_free_value(n, it->values);
          next = it->next;
          rt_free(waveform_stack, it);
       }
 
-      if (n->sources[j].conv_func != NULL)
-         ffi_unref_closure(n->sources[j].conv_func);
+      if (s->conv_func != NULL)
+         ffi_unref_closure(s->conv_func);
+
+      if (must_free) free(s);
    }
-   free(n->sources);
 
    free(n->outputs);
-   free(n->signals);
-   free(n->offsets);
 
    while (n->free_values != NULL) {
       value_t *next = n->free_values->next;
@@ -3129,11 +3307,12 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
 
 static void rt_cleanup_signal(rt_signal_t *s)
 {
-   if (s->flags & NET_F_OWNS_MEM)
-      free(s->shared.resolved);
-
-   if (s->flags & NET_F_LAST_VALUE)
-      free(s->shared.last_value);
+   rt_nexus_t *n = &(s->nexus), *tmp;
+   for (int i = 0; i < s->n_nexus; i++, n = tmp) {
+      tmp = n->chain;
+      rt_cleanup_nexus(n);
+      if (i > 0) free(n);
+   }
 
    if (s->flags & NET_F_IMPLICIT) {
       rt_implicit_t *imp = container_of(s, rt_implicit_t, signal);
@@ -3146,18 +3325,27 @@ static void rt_cleanup_signal(rt_signal_t *s)
 
 static void rt_cleanup_scope(rt_scope_t *scope)
 {
-   for (unsigned i = 0; i < scope->n_procs; i++)
-      free(scope->procs[i].privdata);
+   for (rt_proc_t *it = scope->procs, *tmp; it; it = tmp) {
+      tmp = it->chain;
+      free(it->privdata);
+      free(it);
+   }
 
-   for (unsigned i = 0; i < scope->n_signals; i++)
-      rt_cleanup_signal(scope->signals[i]);
+   for (rt_signal_t *it = scope->signals, *tmp; it; it = tmp) {
+      tmp = it->chain;
+      rt_cleanup_signal(it);
+   }
+
+   for (rt_scope_t *it = scope->child, *tmp; it; it = tmp) {
+      tmp = it->chain;
+      rt_cleanup_scope(it);
+   }
 
    free(scope->privdata);
-   free(scope->procs);
-   free(scope->signals);
+   free(scope);
 }
 
-static void rt_cleanup(e_node_t top)
+static void rt_cleanup(void)
 {
    RT_ASSERT(resume == NULL);
 
@@ -3176,17 +3364,17 @@ static void rt_cleanup(e_node_t top)
    hash_iter_t it = HASH_BEGIN;
    const void *key;
    void *value;
-   while (hash_iter(nexuses, &it, &key, &value))
-      rt_cleanup_nexus((rt_nexus_t *)value);
+   while (hash_iter(res_memo_hash, &it, &key, &value))
+      free(value);
 
-   hash_free(nexuses);
+   hash_free(res_memo_hash);
+   res_memo_hash = NULL;
+
+   rt_cleanup_scope(root);
+   root = NULL;
+
    nexuses = NULL;
-
-   for (unsigned i = 0; i < n_scopes; i++)
-      rt_cleanup_scope(&(scopes[i]));
-
-   free(scopes);
-   scopes = NULL;
+   nexus_tail = NULL;
 
    while (watches != NULL) {
       rt_watch_t *next = watches->chain_all;
@@ -3207,8 +3395,6 @@ static void rt_cleanup(e_node_t top)
    rt_alloc_stack_destroy(sens_list_stack);
    rt_alloc_stack_destroy(watch_stack);
    rt_alloc_stack_destroy(callback_stack);
-
-   hash_free(res_memo_hash);
 }
 
 static bool rt_stop_now(uint64_t stop_time)
@@ -3225,23 +3411,21 @@ static bool rt_stop_now(uint64_t stop_time)
    }
 }
 
-static void rt_stats_print(e_node_t e)
+static void rt_stats_print(void)
 {
    nvc_rusage_t ru;
    nvc_rusage(&ru);
 
    if (profiling) {
-      const int nnexus = e_nexuses(e);
-
       LOCAL_TEXT_BUF tb = tb_new();
       tb_printf(tb, "Signals: %d  (%.1f%% contiguous)\n", profile.n_signals,
                 100.0f * ((float)profile.n_contig / profile.n_signals));
-      tb_printf(tb, "Nexuses: %-5d      Simple signals: %d (1:%.1f)\n",
-                nnexus, profile.n_simple, (double)profile.n_simple / nnexus);
+      //tb_printf(tb, "Nexuses: %-5d      Simple signals: %d (1:%.1f)\n",
+      //          nnexus, profile.n_simple, (double)profile.n_simple / nnexus);
       tb_printf(tb, "Mapping:  direct:%d search:%d divide:%d\n",
                 profile.nmap_direct, profile.nmap_search, profile.nmap_divide);
-      tb_printf(tb, "Processes: %-5d    Scopes: %d\n",
-                profile.n_procs, n_scopes);
+      //tb_printf(tb, "Processes: %-5d    Scopes: %d\n",
+      // profile.n_procs, n_scopes);
       tb_printf(tb, "Cycles: %"PRIu64"\n", profile.deltas);
       tb_printf(tb, "Run queue:   min:%d max:%d avg:%.2f\n",
                 profile.runq_min, profile.runq_max, profile.runq_mean);
@@ -3289,7 +3473,7 @@ static void rt_interrupt(void)
    if (active_proc != NULL)
       rt_msg(NULL, fatal,
              "interrupted in process %s at %s+%d",
-             istr(e_path(active_proc->source)), fmt_time(now), iteration);
+             istr(active_proc->name), fmt_time(now), iteration);
    else
       fatal("interrupted");
 #endif
@@ -3309,11 +3493,11 @@ static BOOL rt_win_ctrl_handler(DWORD fdwCtrlType)
 }
 #endif
 
-void rt_start_of_tool(tree_t top, e_node_t e)
+void rt_start_of_tool(tree_t top)
 {
-   jit_init(top, e);
+   jit_init(top);
 
-#if RT_DEBUG
+#if RT_DEBUG && !defined NDEBUG
    warnf("runtime debug checks enabled");
 #endif
 
@@ -3353,15 +3537,15 @@ void rt_start_of_tool(tree_t top, e_node_t e)
    nvc_rusage(&ready_rusage);
 }
 
-void rt_end_of_tool(tree_t top, e_node_t e)
+void rt_end_of_tool(tree_t top)
 {
-   rt_cleanup(e);
+   rt_cleanup();
    rt_emit_coverage(top);
 
    jit_shutdown();
 
    if (opt_get_int(OPT_RT_STATS) || profiling)
-      rt_stats_print(e);
+      rt_stats_print();
 }
 
 void rt_run_sim(uint64_t stop_time)
@@ -3376,7 +3560,7 @@ void rt_run_sim(uint64_t stop_time)
    rt_global_event(RT_END_OF_SIMULATION);
 }
 
-void rt_restart(e_node_t top)
+void rt_restart(tree_t top)
 {
    rt_setup(top);
    rt_initial(top);
@@ -3423,10 +3607,9 @@ rt_watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
 
       watches = w;
 
-      for (unsigned i = 0; i < w->signal->n_nexus; i++) {
-         rt_nexus_t *n = w->signal->nexus[i];
+      rt_nexus_t *n = &(w->signal->nexus);
+      for (int i = 0; i < s->n_nexus; i++, n = n->chain)
          rt_sched_event(&(n->pending), &(w->wakeable), true);
-      }
 
       return w;
    }
@@ -3448,9 +3631,8 @@ size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
 {
    char *endp = buf + max;
    int offset = 0;
-   for (unsigned i = 0; i < s->n_nexus; i++) {
-      rt_nexus_t *n = s->nexus[i];
-
+   rt_nexus_t *n = &(s->nexus);
+   for (unsigned i = 0; i < s->n_nexus; i++, n = n->chain) {
       const char *vals = n->resolved;
       if (likely(map != NULL)) {
          for (int j = 0; j < n->width; j++) {
@@ -3476,14 +3658,12 @@ size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max)
 
 size_t rt_signal_expand(rt_signal_t *s, int offset, uint64_t *buf, size_t max)
 {
-   int index = 0;
-   while (offset > 0)
-      offset -= s->nexus[index++]->width;
+   rt_nexus_t *n = &(s->nexus);
+   for (; offset > 0; n = n->chain)
+      offset -= n->width;
    assert(offset == 0);
 
-   for (; index < s->n_nexus && offset < max; index++) {
-      rt_nexus_t *n = s->nexus[index];
-
+   for (; n != NULL && offset < max; n = n->chain) {
 #define SIGNAL_READ_EXPAND_U64(type) do {                               \
          const type *sp = (type *)n->resolved;                          \
          for (int j = 0; (j < n->width) && (offset + j < max); j++)     \
@@ -3500,10 +3680,8 @@ size_t rt_signal_expand(rt_signal_t *s, int offset, uint64_t *buf, size_t max)
 
 const void *rt_signal_value(rt_signal_t *s, int offset)
 {
-   int index = 0;
-   const uint8_t *ptr = s->shared.resolved;
-   while (offset > 0) {
-      rt_nexus_t *n = s->nexus[index++];
+   const uint8_t *ptr = s->shared.data;
+   for (rt_nexus_t *n = &(s->nexus); offset > 0; n = n->chain) {
       ptr += n->width * n->size;
       offset -= n->width;
    }
@@ -3512,15 +3690,29 @@ const void *rt_signal_value(rt_signal_t *s, int offset)
    return ptr;
 }
 
-rt_signal_t *rt_find_signal(e_node_t esignal)
+rt_signal_t *rt_find_signal(rt_scope_t *scope, tree_t decl)
 {
-   assert(e_kind(esignal) == E_SIGNAL);
+   for (rt_signal_t *s = scope->signals; s; s = s->chain) {
+      if (s->where == decl)
+         return s;
+   }
 
-   for (unsigned i = 0; i < n_scopes; i++) {
-      for (unsigned j = 0; j < scopes[i].n_signals; j++) {
-         if (scopes[i].signals[j]->enode == esignal)
-            return scopes[i].signals[j];
-      }
+   return NULL;
+}
+
+rt_scope_t *rt_find_scope(tree_t container)
+{
+   if (scopes == NULL)
+      return NULL;
+   else
+      return hash_get(scopes, container);
+}
+
+rt_scope_t *rt_child_scope(rt_scope_t *scope, tree_t decl)
+{
+   for (rt_scope_t *s = scope->child; s != NULL; s = s->chain) {
+      if (s->where == decl)
+         return s;
    }
 
    return NULL;
@@ -3529,16 +3721,14 @@ rt_signal_t *rt_find_signal(e_node_t esignal)
 bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count,
                      bool propagate)
 {
-   TRACE("force signal %s to %"PRIu64"%s propagate=%d", istr(e_path(s->enode)),
-         buf[0], count > 1 ? "..." : "", propagate);
+   TRACE("force signal %s to %"PRIu64"%s propagate=%d",
+         istr(tree_ident(s->where)), buf[0], count > 1 ? "..." : "", propagate);
 
    RT_ASSERT(!propagate || can_create_delta);
 
-   int offset = 0, index = 0;
-   while (count > 0) {
-      RT_ASSERT(index < s->n_nexus);
-      rt_nexus_t *n = s->nexus[index++];
-
+   int offset = 0;
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
       n->flags |= NET_F_FORCED;
 
       if (n->forcing == NULL)

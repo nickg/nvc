@@ -73,5 +73,6 @@ STATIC_ASSERT(sizeof(ffi_uarray_t) == 16);
 void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
               void *output, size_t outsz);
 void ffi_unref_closure(ffi_closure_t *c);
+ffi_closure_t *ffi_ref_closure(ffi_closure_t *c);
 
 #endif  // _RT_FFI_H

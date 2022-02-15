@@ -998,7 +998,7 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
       }
       return NULL;
    }
-   else if (kind == T_ENTITY) {
+   else if (kind == T_ENTITY || kind == T_BLOCK) {
       const int nports = tree_ports(container);
       for (int i = 0; i < nports; i++) {
          tree_t p = tree_port(container, i);
@@ -1423,5 +1423,86 @@ void to_string(text_buf_t *tb, type_t type, int64_t value)
          tb_cat(tb, "NULL");
       else
          tb_printf(tb, "%p", (void *)value);
+   }
+}
+
+static bool is_static(tree_t expr)
+{
+   switch (tree_kind(expr)) {
+   case T_REF:
+      {
+         tree_t decl = tree_ref(expr);
+         switch (tree_kind(decl)) {
+         case T_CONST_DECL:
+         case T_UNIT_DECL:
+         case T_ENUM_LIT:
+         case T_GENERIC_DECL:
+            return true;
+         case T_ALIAS:
+            return is_static(tree_value(decl));
+         default:
+            return false;
+         }
+      }
+
+   case T_LITERAL:
+      return true;
+
+   default:
+      return false;
+   }
+}
+
+tree_t longest_static_prefix(tree_t expr)
+{
+   switch (tree_kind(expr)) {
+   case T_ARRAY_REF:
+      {
+         tree_t value = tree_value(expr);
+         tree_t prefix = longest_static_prefix(tree_value(expr));
+
+         if (prefix != value)
+            return prefix;
+
+         const int nparams = tree_params(expr);
+         for (int i = 0; i < nparams; i++) {
+            if (!is_static(tree_value(tree_param(expr, i))))
+               return prefix;
+         }
+
+         return expr;
+      }
+
+   case T_ARRAY_SLICE:
+      {
+         tree_t value = tree_value(expr);
+         tree_t prefix = longest_static_prefix(tree_value(expr));
+
+         if (prefix != value)
+            return prefix;
+
+         const int nranges = tree_ranges(expr);
+         for (int i = 0; i < nranges; i++) {
+            tree_t r = tree_range(expr, i);
+            if (!is_static(tree_left(r)) || !is_static(tree_right(r)))
+               return prefix;
+         }
+
+         return expr;
+      }
+
+   case T_RECORD_REF:
+      {
+         tree_t value = tree_value(expr);
+         tree_t prefix = longest_static_prefix(tree_value(expr));
+
+         if (prefix != value)
+            return prefix;
+
+         return expr;
+      }
+
+   default:
+      return expr;
    }
 }

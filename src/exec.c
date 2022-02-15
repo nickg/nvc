@@ -2180,7 +2180,6 @@ static void eval_vcode(eval_state_t *state)
          eval_op_link_var(state->op, state);
          break;
 
-      case VCODE_OP_LINK_SIGNAL:
       case VCODE_OP_PROTECTED_INIT:
       case VCODE_OP_FILE_READ:
       case VCODE_OP_FILE_WRITE:

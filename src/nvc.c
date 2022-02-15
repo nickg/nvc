@@ -319,9 +319,6 @@ static int elaborate(int argc, char **argv)
    vcode_unit_t vu = lower_unit(top, cover);
    progress("generating intermediate code");
 
-   eopt_build(top);
-   progress("optimising design");
-
    if (error_count() > 0)
       return EXIT_FAILURE;
 
@@ -496,8 +493,6 @@ static int run(int argc, char **argv)
    if (top == NULL)
       fatal("%s not elaborated", istr(top_level));
 
-   e_node_t e = lib_get_eopt(lib_work(), top);
-
    if (wave_fname != NULL) {
       const char *name_map[] = { "FST", "VCD" };
       const char *ext_map[]  = { "fst", "vcd" };
@@ -513,14 +508,14 @@ static int run(int argc, char **argv)
       wave_init(wave_fname, top, wave_fmt);
    }
 
-   rt_start_of_tool(top, e);
+   rt_start_of_tool(top);
 
    if (vhpi_plugins != NULL)
       vhpi_load_plugins(top, vhpi_plugins);
 
-   rt_restart(e);
+   rt_restart(top);
    rt_run_sim(stop_time);
-   rt_end_of_tool(top, e);
+   rt_end_of_tool(top);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

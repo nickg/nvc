@@ -1,18 +1,20 @@
-entity record13 is
+entity record21 is
 end entity;
 
-architecture test of record13 is
+architecture test of record21 is
 
     type rec is record
         t : character;
         -- Three bytes padding
         x, y : integer;
+        z : character;
+        -- Three bytes padding
     end record;
 
     type rec_array is array (positive range <>) of rec;
 
     function resolve(x : rec_array) return rec is
-        variable r : rec := ('0', 0, 0);
+        variable r : rec := ('0', 0, 0, 'q');
     begin
         assert x'left = 1;
         assert x'right = x'length;
@@ -29,12 +31,12 @@ architecture test of record13 is
 
     subtype resolved_rec is resolve rec;
 
-    signal sig : resolved_rec := ('0', 0, 0);
+    signal sig : resolved_rec := ('0', 0, 0, '0');
 begin
 
     p1: process is
     begin
-        sig <= ('a', 1, 2);
+        sig <= ('a', 1, 2, 'x');
         wait for 1 ns;
         sig.x <= 5;
         wait;
@@ -42,11 +44,11 @@ begin
 
     p2: process is
     begin
-        sig <= ('b', 4, 5);
+        sig <= ('b', 4, 5, 'y');
         wait for 1 ns;
-        assert sig = ('0', 5, 7);
+        assert sig = ('0', 5, 7, 'q');
         wait for 1 ns;
-        assert sig = ('0', 9, 7);
+        assert sig = ('0', 9, 7, 'q');
         wait;
     end process;
 

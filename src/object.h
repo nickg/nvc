@@ -119,7 +119,6 @@ typedef uint64_t imask_t;
 enum {
    OBJECT_TAG_TREE   = 0,
    OBJECT_TAG_TYPE   = 1,
-   OBJECT_TAG_E_NODE = 2,
 
    OBJECT_TAG_COUNT
 };
