@@ -1023,17 +1023,6 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       }
       break;
 
-   case T_ARRAY_SLICE:
-      if (class_of(expr) == C_SIGNAL) {
-         if (simp_longest_static_prefix(expr) == expr)
-            tree_add_trigger(wait, expr);
-         else {
-            simp_build_wait(wait, tree_value(expr), all);
-            simp_build_wait_for_target(wait, expr, all);
-         }
-      }
-      break;
-
    case T_WAVEFORM:
    case T_RECORD_REF:
    case T_QUALIFIED:
@@ -1044,13 +1033,19 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       break;
 
    case T_ARRAY_REF:
-      if (class_of(expr) == C_SIGNAL) {
-         if (simp_longest_static_prefix(expr) == expr)
-            tree_add_trigger(wait, expr);
-         else {
-            simp_build_wait(wait, tree_value(expr), all);
-            simp_build_wait_for_target(wait, expr, all);
+   case T_ARRAY_SLICE:
+      {
+         tree_t ref = name_to_ref(expr);
+         if (ref != NULL && class_of(ref) == C_SIGNAL) {
+            if (simp_longest_static_prefix(expr) == expr)
+               tree_add_trigger(wait, expr);
+            else {
+               simp_build_wait(wait, tree_value(expr), all);
+               simp_build_wait_for_target(wait, expr, all);
+            }
          }
+         else
+            simp_build_wait(wait, tree_value(expr), all);
       }
       break;
 
@@ -1059,11 +1054,8 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       {
          tree_t decl = tree_ref(expr);
          const int nparams = tree_params(expr);
-         const int nports = tree_ports(decl);
          for (int i = 0; i < nparams; i++) {
-            port_mode_t mode = PORT_IN;
-            if (i < nports)
-               mode = tree_subkind(tree_port(decl, i));  /// XXXXX
+            const port_mode_t mode = tree_subkind(tree_port(decl, i));
             if (mode == PORT_IN || mode == PORT_INOUT)
                simp_build_wait(wait, tree_value(tree_param(expr, i)), all);
          }

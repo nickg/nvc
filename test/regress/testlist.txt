@@ -506,3 +506,4 @@ array5          normal
 vests40         normal
 issue447        normal
 bounds30        fail,gold
+wait17          normal
