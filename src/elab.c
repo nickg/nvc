@@ -840,7 +840,15 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
 
 static tree_t elab_fold(tree_t value, elab_ctx_t *ctx)
 {
-   const tree_kind_t kind = tree_kind(value);
+   tree_kind_t kind = tree_kind(value);
+
+   if (kind == T_REF) {
+      tree_t decl = tree_ref(value);
+      if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl)) {
+         value = tree_value(decl);
+         kind  = tree_kind(value);
+      }
+   }
 
    if (kind == T_LITERAL || kind == T_AGGREGATE)
       return value;
