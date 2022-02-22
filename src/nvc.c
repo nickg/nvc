@@ -741,6 +741,8 @@ static void set_default_opts(void)
    opt_set_str(OPT_EVAL_VERBOSE, getenv("NVC_EVAL_VERBOSE"));
    opt_set_str(OPT_ELAB_VERBOSE, getenv("NVC_ELAB_VERBOSE"));
    opt_set_str(OPT_EOPT_VERBOSE, getenv("NVC_EOPT_VERBOSE"));
+   opt_set_int(OPT_GLOBAL_STACK, 8 * 1024 * 1024);
+   opt_set_int(OPT_PROC_STACK, 64 * 1024);
 }
 
 static void usage(void)
@@ -758,13 +760,15 @@ static void usage(void)
           "\n"
           "Global options may be placed before COMMAND:\n"
           "     --force-init\tCreate a library in an existing directory\n"
+          " -G SIZE\t\tLimit global secondary stack to SIZE bytes\n"
           " -h, --help\t\tDisplay this message and exit\n"
           "     --ignore-time\tSkip source file timestamp check\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
-          " -M SIZE\t\tDesign unit heap space limit in bytes\n"
+          " -M SIZE\t\tLimit design unit heap space to SIZE bytes\n"
           "     --map=LIB:PATH\tMap library LIB to PATH\n"
           "     --messages=STYLE\tSelect full or compact message format\n"
           "     --native\t\tGenerate native code shared library\n"
+          " -P SIZE\t\tLimit process secondary stack to SIZE bytes\n"
           "     --std=REV\t\tVHDL standard revision to use\n"
           " -v, --version\t\tDisplay version and copyright information\n"
           "     --work=NAME\tUse NAME as the work library\n"
@@ -977,7 +981,7 @@ int main(int argc, char **argv)
 
    const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
-   const char *spec = "aehrvL:M:";
+   const char *spec = "aehrvL:M:P:G:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -1015,6 +1019,12 @@ int main(int argc, char **argv)
          break;
       case 'M':
          opt_set_int(OPT_ARENA_SIZE, parse_size(optarg));
+         break;
+      case 'P':
+         opt_set_int(OPT_PROC_STACK, parse_size(optarg));
+         break;
+      case 'G':
+         opt_set_int(OPT_GLOBAL_STACK, parse_size(optarg));
          break;
       case '?':
          bad_option("global", argv);

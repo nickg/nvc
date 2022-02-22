@@ -121,10 +121,11 @@ struct color_escape {
 };
 
 struct guard {
-   const char *tag;
-   uintptr_t   base;
-   uintptr_t   limit;
-   guard_t    *next;
+   guard_fault_fn_t  fn;
+   void             *context;
+   uintptr_t         base;
+   uintptr_t         limit;
+   guard_t          *next;
 };
 
 struct text_buf {
@@ -783,8 +784,8 @@ static bool check_guard_page(uintptr_t addr)
 {
    for (guard_t *it = guards; it != NULL; it = it->next) {
       if ((addr >= it->base) && (addr < it->limit)) {
-         fatal_trace("accessed %d bytes beyond $cyan$%s$$ region",
-                     (int)(addr - it->base), it->tag);
+         (*it->fn)((void *)addr, it->context);
+         return true;
       }
    }
 
@@ -1254,7 +1255,7 @@ void nvc_memprotect(void *ptr, size_t length, mem_access_t prot)
 #endif
 }
 
-void *mmap_guarded(size_t sz, const char *tag)
+void *mmap_guarded(size_t sz, guard_fault_fn_t fn, void *ctx)
 {
    const long pagesz = nvc_page_size();
    sz = ALIGN_UP(sz, pagesz);
@@ -1265,10 +1266,11 @@ void *mmap_guarded(size_t sz, const char *tag)
    nvc_memprotect(guard_ptr, pagesz, MEM_NONE);
 
    guard_t *guard = xmalloc(sizeof(guard_t));
-   guard->next  = guards;
-   guard->tag   = tag;
-   guard->base  = (uintptr_t)guard_ptr;
-   guard->limit = guard->base + pagesz;
+   guard->next    = guards;
+   guard->fn      = fn;
+   guard->context = ctx;
+   guard->base    = (uintptr_t)guard_ptr;
+   guard->limit   = guard->base + pagesz;
 
    guards = guard;
 

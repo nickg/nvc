@@ -52,6 +52,8 @@ typedef enum {
    OPT_EVAL_VERBOSE,
    OPT_ELAB_VERBOSE,
    OPT_EOPT_VERBOSE,
+   OPT_GLOBAL_STACK,
+   OPT_PROC_STACK,
 
    OPT_LAST_NAME
 } opt_name_t;

@@ -343,9 +343,7 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
 static inline unsigned rt_signal_nexus_index(rt_signal_t *s, unsigned offset);
 static void _tracef(const char *fmt, ...);
 
-#define GLOBAL_TMP_STACK_SZ (8 * 1024 * 1024)
-#define PROC_TMP_STACK_SZ   (64 * 1024)
-#define FMT_VALUES_SZ       128
+#define FMT_VALUES_SZ 128
 
 #if RT_DEBUG
 #define RT_ASSERT(x) assert((x))
@@ -646,6 +644,27 @@ static inline tree_t rt_locus_to_tree(const char *unit, unsigned offset)
    return tree_from_locus(ident_new(unit), offset, lib_get_qualified);
 }
 
+static void rt_secondary_stack_fault(void *addr, void *__ctx)
+{
+   opt_name_t which = (uintptr_t)__ctx;
+
+   const unsigned curr = opt_get_int(which);
+   const char flag = which == OPT_GLOBAL_STACK ? 'G' : 'P';
+   hint_at(NULL, "the current limit is %u bytes which you can increase with "
+           "the $bold$-%c$$ option, for example $bold$-%c %uk$$",
+           curr, flag, flag, (curr * 2) / 1024);
+
+   LOCAL_TEXT_BUF trace = rt_fmt_trace(NULL);
+   fatal("%s secondary stack exhausted%s",
+         which == OPT_GLOBAL_STACK ? "global" : "process", tb_get(trace));
+}
+
+static void *rt_map_secondary_stack(opt_name_t which)
+{
+   return mmap_guarded(opt_get_int(which), rt_secondary_stack_fault,
+                       (void *)(uintptr_t)which);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -758,8 +777,7 @@ void _private_stack(void)
 
    if (active_proc->tmp_stack == NULL && _tmp_alloc > 0) {
       active_proc->tmp_stack = _tmp_stack;
-
-      proc_tmp_stack = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
+      proc_tmp_stack = rt_map_secondary_stack(OPT_PROC_STACK);
    }
 
    active_proc->tmp_alloc = _tmp_alloc;
@@ -3327,8 +3345,8 @@ void rt_start_of_tool(tree_t top, e_node_t e)
    watch_stack     = rt_alloc_stack_new(sizeof(rt_watch_t), "watch");
    callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
 
-   global_tmp_stack = mmap_guarded(GLOBAL_TMP_STACK_SZ, "global temp stack");
-   proc_tmp_stack   = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
+   global_tmp_stack = rt_map_secondary_stack(OPT_GLOBAL_STACK);
+   proc_tmp_stack   = rt_map_secondary_stack(OPT_PROC_STACK);
 
    global_tmp_alloc = 0;
 

@@ -168,10 +168,12 @@ typedef enum {
    MEM_NONE, MEM_RO, MEM_RW
 } mem_access_t;
 
+typedef void (*guard_fault_fn_t)(void *, void *);
+
 void *nvc_memalign(size_t align, size_t sz);
 void nvc_munmap(void *ptr, size_t length);
 void nvc_memprotect(void *ptr, size_t length, mem_access_t prot);
-void *mmap_guarded(size_t sz, const char *tag);
+void *mmap_guarded(size_t sz, guard_fault_fn_t fn, void *ctx);
 
 void run_program(const char *const *args, size_t n_args);
 
