@@ -9,6 +9,7 @@
   context declarations.
 - Fix incorrect default generic value when component and entity specify
   generics in different order (#448).
+- Postponed processes with sensitivity lists now work correctly.
 
 ## Version 1.6.1 - 2022-02-05
 - Fix compatibility with BSD make (#440).

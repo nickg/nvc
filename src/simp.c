@@ -762,6 +762,7 @@ static tree_t simp_process(tree_t t)
       tree_t p = tree_new(T_PROCESS);
       tree_set_ident(p, tree_ident(t));
       tree_set_loc(p, tree_loc(t));
+      tree_set_flag(p, tree_flags(t));
 
       const int ndecls = tree_decls(t);
       for (int i = 0; i < ndecls; i++)

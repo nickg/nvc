@@ -489,3 +489,4 @@ vhpi4           normal,vhpi,!windows
 wait16          normal
 bounds29        fail,gold
 array5          normal
+wait18          normal
