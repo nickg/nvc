@@ -480,26 +480,29 @@ static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
    if (dwarf_child(die, &child, NULL) != DW_DLV_OK)
       return;
 
-   Dwarf_Half tag;
-   if (dwarf_tag(child, &tag, NULL) == DW_DLV_OK && tag == DW_TAG_module) {
-      char *name;
-      if (dwarf_diename(child, &name, NULL) == DW_DLV_OK) {
-         frame->vhdl_unit = ident_new(name);
-         dwarf_dealloc(handle->debug, name, DW_DLA_STRING);
-      }
-
-      prev = child;
-      if (dwarf_child(prev, &child, NULL) != DW_DLV_OK)
-         goto out_dealloc;
-   }
-
    do {
       if (prev != NULL)
          dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
       prev = child;
 
+      Dwarf_Half tag;
       if (dwarf_tag(child, &tag, NULL) != DW_DLV_OK)
          continue;
+      else if (tag == DW_TAG_module) {
+         libdwarf_get_symbol(handle, child, rel_addr, frame);
+         if (frame->symbol == NULL)
+            continue;
+
+         char *name;
+         if (dwarf_diename(child, &name, NULL) == DW_DLV_OK) {
+            frame->vhdl_unit = ident_new(name);
+            frame->kind = FRAME_VHDL;
+            dwarf_dealloc(handle->debug, name, DW_DLA_STRING);
+            break;
+         }
+
+         continue;
+      }
       else if (tag != DW_TAG_subprogram && tag != DW_TAG_inlined_subroutine)
          continue;
       else if (!libdwarf_die_has_pc(child, rel_addr))
@@ -511,17 +514,9 @@ static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
          dwarf_dealloc(handle->debug, name, DW_DLA_STRING);
       }
 
-      Dwarf_Unsigned srclang;
-      if (dwarf_srclang(die, &srclang, NULL) == DW_DLV_OK) {
-         if (srclang == DW_LANG_Ada83) {
-            frame->kind = FRAME_VHDL;
-         }
-      }
-
       break;
    } while (dwarf_siblingof(handle->debug, child, &child, NULL) == DW_DLV_OK);
 
- out_dealloc:
    if (prev != NULL)
       dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
 }
