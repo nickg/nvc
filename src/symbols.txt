@@ -87,4 +87,7 @@
   vhpi_release_handle;
   vhpi_remove_cb;
   vhpi_vprintf;
+
+  # Unit test
+  global_func;
 };

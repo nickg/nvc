@@ -42,18 +42,14 @@ void global_func(void)
    ck_assert_str_eq(f0->symbol, "global_func");
    fail_if(f0->module == NULL);
    fail_unless(strstr(f0->module, "unit_test"));
-#if defined HAVE_LIBDW || defined HAVE_LIBDWARF
-   fail_unless(f0->lineno == capture_line);
-#endif
+   fail_unless(f0->lineno == capture_line || f0->lineno == 0);
    fail_unless(f0->pc >= (uintptr_t)global_func);
    fail_unless(f0->pc < (uintptr_t)global_func + 0x1000);
 
    const debug_frame_t *f1 = debug_get_frame(di, 1);
    fail_unless(f1->kind == FRAME_PROG);
    fail_unless(strstr(f1->module, "unit_test"));
-#if defined HAVE_LIBDW || defined HAVE_LIBDWARF
-   fail_unless(f1->lineno == call_line);
-#endif
+   fail_unless(f1->lineno == call_line || f0->lineno == 0);
 
    debug_free(di);
 }

@@ -26,6 +26,10 @@ bin_unit_test_SOURCES = \
 bin_unit_test_LDADD = lib/libnvc.a lib/librt.a lib/libfastlz.a \
 	$(check_LIBS) $(POW_LIB) $(libdw_LIBS) lib/libjson.a
 
+bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
+
+EXTRA_bin_unit_test_DEPENDENCIES = src/symbols.txt
+
 bin_run_regr_SOURCES = test/run_regr.c
 
 bin_fstdump_SOURCES = test/fstdump.c
