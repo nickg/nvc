@@ -413,7 +413,7 @@ static int run(int argc, char **argv)
    };
 
    wave_output_t wave_fmt = WAVE_OUTPUT_FST;
-   uint64_t      stop_time = UINT64_MAX;
+   uint64_t      stop_time = TIME_HIGH;
    const char   *wave_fname = NULL;
    const char   *vhpi_plugins = NULL;
 

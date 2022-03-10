@@ -26,6 +26,8 @@
 
 #define RT_ABI_VERSION 5
 
+#define TIME_HIGH INT64_MAX  // Value of TIME'HIGH
+
 typedef struct rt_watch_s  rt_watch_t;
 typedef struct rt_signal_s rt_signal_t;
 
