@@ -215,6 +215,7 @@ typedef struct rt_signal_s {
    tree_t          where;
    rt_signal_t    *chain;
    rt_scope_t     *parent;
+   ihash_t        *index;
    uint32_t        width;
    net_flags_t     flags;
    uint32_t        n_nexus;
@@ -344,7 +345,8 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
                                          rt_resolution_t *resolution);
 static void _tracef(const char *fmt, ...);
 
-#define FMT_VALUES_SZ 128
+#define FMT_VALUES_SZ   128
+#define NEXUS_INDEX_MIN 32
 
 #if RT_DEBUG && !defined NDEBUG
 #define RT_ASSERT(x) assert((x))
@@ -695,12 +697,15 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
 {
    RT_ASSERT(offset < old->width);
 
+   rt_signal_t *signal = old->signal;
+   signal->n_nexus++;
+
    rt_nexus_t *new = xcalloc(sizeof(rt_nexus_t));
    new->width        = old->width - offset;
    new->size         = old->size;
    new->resolution   = old->resolution;
    new->n_outputs    = old->n_outputs;
-   new->signal       = old->signal;
+   new->signal       = signal;
    new->resolved     = (uint8_t *)old->resolved + offset * old->size;
    new->last_value   = (uint8_t *)old->last_value + offset * old->size;
    new->chain        = old->chain;
@@ -713,7 +718,6 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
 
    old->chain = new;
    old->width = offset;
-   old->signal->n_nexus++;
 
    // Old nexus may be holding large amounts of memory
    for (value_t *v = old->free_values, *tmp; v; v = tmp) {
@@ -804,6 +808,18 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
       }
    }
 
+   if (signal->index == NULL && signal->n_nexus >= NEXUS_INDEX_MIN) {
+      const unsigned w = MIN(old->width, new->width);
+      TRACE("create index for signal %s", istr(tree_ident(signal->where)));
+      signal->index = ihash_new(MIN(MAX((signal->width / w) * 2, 16), 1024));
+   }
+
+   if (signal->index != NULL) {
+      const unsigned key =
+         (new->resolved - (void *)signal->shared.data) / new->size;
+      ihash_put(signal->index, key, new);
+   }
+
    return new;
 }
 
@@ -813,8 +829,15 @@ static rt_nexus_t *rt_split_nexus(rt_signal_t *s, int offset, int count)
    if (likely(offset == 0 && n0->width == count))
       return n0;
 
+   rt_nexus_t *map = NULL;
+   if (s->index != NULL && (map = ihash_get(s->index, offset))) {
+      if (likely(map->width == count))
+         return map;
+      offset = 0;
+   }
+
    rt_nexus_t *result = NULL;
-   for (rt_nexus_t *it = &(s->nexus); count > 0; it = it->chain) {
+   for (rt_nexus_t *it = map ?: &(s->nexus); count > 0; it = it->chain) {
       if (offset >= it->width) {
          offset -= it->width;
          continue;
@@ -3313,6 +3336,9 @@ static void rt_cleanup_signal(rt_signal_t *s)
       rt_cleanup_nexus(n);
       if (i > 0) free(n);
    }
+
+   if (s->index != NULL)
+      ihash_free(s->index);
 
    if (s->flags & NET_F_IMPLICIT) {
       rt_implicit_t *imp = container_of(s, rt_implicit_t, signal);
