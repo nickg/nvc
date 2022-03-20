@@ -2511,6 +2511,16 @@ static inline void *rt_resolution_buffer(size_t required)
    return (rbuf = xrealloc(rbuf, size));
 }
 
+static void *rt_source_data(rt_source_t *src)
+{
+   if (src->proc == NULL && src->conv_func == NULL)
+      return src->input->resolved;
+   else if (src->waveforms.values == NULL)
+      return NULL;
+   else
+      return src->waveforms.values->data;
+}
+
 static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
 {
    int nonnull = 0;
@@ -2538,13 +2548,9 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
          for (unsigned i = 0; i < s->n_nexus; i++) {
             unsigned o = 0;
             for (rt_source_t *src = &(n->sources); src; src = src->chain_input) {
-               const void *data = NULL;
-               if (src->waveforms.values == NULL)
+               const void *data = rt_source_data(src);
+               if (data == NULL)
                   continue;
-               else if (n == nexus)
-                  data = src->waveforms.values->data;
-               else
-                  data = n->resolved;
 
                memcpy(inputs + s->shared.offset + (o * scope->size),
                       data, n->size * n->width);
@@ -2572,9 +2578,9 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
             unsigned o = 0;                                             \
             for (rt_source_t *s = &(nexus->sources); s;                 \
                  s = s->chain_input) {                                  \
-               const value_t *v = s->waveforms.values;                  \
-               if (v != NULL)                                           \
-                  vals[o++] = ((const type *)v->data)[j];               \
+               const void *data = rt_source_data(s);                    \
+               if (data != NULL)                                        \
+                  vals[o++] = ((const type *)data)[j];                  \
             }                                                           \
             type *r = (type *)resolved;                                 \
             const int32_t left = nexus->resolution->ileft;              \
@@ -2604,19 +2610,20 @@ static void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
       return nexus->resolved;
    }
    else if (nexus->resolution == NULL) {
-      return nexus->sources.waveforms.values->data;
+      return rt_source_data(&(nexus->sources));
    }
    else if ((nexus->resolution->flags & R_IDENT) && (nexus->n_sources == 1)) {
       // Resolution function behaves like identity for a single driver
-      return nexus->sources.waveforms.values->data;
+      return rt_source_data(&(nexus->sources));
    }
    else if ((nexus->resolution->flags & R_MEMO) && (nexus->n_sources == 1)) {
       // Resolution function has been memoised so do a table lookup
 
       void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
+      void *data = rt_source_data(&(nexus->sources));
 
       for (int j = 0; j < nexus->width; j++) {
-         const int index = nexus->sources.waveforms.values->data[j];
+         const int index = ((uint8_t *)data)[j];
          const int8_t r = nexus->resolution->tab1[index];
          ((int8_t *)resolved)[j] = r;
       }
@@ -2628,8 +2635,8 @@ static void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
 
       void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
 
-      const char *p0 = nexus->sources.waveforms.values->data;
-      const char *p1 = nexus->sources.chain_input->waveforms.values->data;
+      const char *p0 = rt_source_data(&(nexus->sources));
+      const char *p1 = rt_source_data(nexus->sources.chain_input);
 
       for (int j = 0; j < nexus->width; j++) {
          const int driving[2] = { p0[j], p1[j] };
@@ -2666,11 +2673,7 @@ static void rt_update_inputs(rt_nexus_t *nexus)
    for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
       if (s->proc != NULL)
          continue;
-      else if (likely(s->conv_func == NULL)) {
-         const size_t valuesz = s->input->size * s->input->width;
-         memcpy(s->waveforms.values->data, s->input->resolved, valuesz);
-      }
-      else {
+      else if (unlikely(s->conv_func != NULL)) {
          rt_signal_t *i0 = s->input->signal;
          rt_signal_t *o0 = s->output->signal;
 
@@ -2941,13 +2944,11 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
 
 static void rt_notify_event(rt_nexus_t *nexus)
 {
-   sens_list_t *it = NULL, *next = NULL;
-
    nexus->last_event = nexus->last_active = now;
    nexus->event_delta = nexus->active_delta = iteration;
 
-   // First wakeup everything on the nexus specific pending list
-   for (it = nexus->pending; it != NULL; it = next) {
+   // Wake up everything on the pending list
+   for (sens_list_t *it = nexus->pending, *next; it != NULL; it = next) {
       next = it->next;
       rt_wakeup(it);
       nexus->pending = next;
