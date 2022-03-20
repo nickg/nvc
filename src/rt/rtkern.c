@@ -176,7 +176,6 @@ typedef enum {
    NET_F_FORCED       = (1 << 0),
    NET_F_OWNS_MEM     = (1 << 1),
    NET_F_LAST_VALUE   = (1 << 2),
-   NET_F_PENDING      = (1 << 3),
    NET_F_IMPLICIT     = (1 << 4),
    NET_F_REGISTER     = (1 << 5),
    NET_F_DISCONNECTED = (1 << 6),
@@ -298,7 +297,6 @@ static rt_run_queue_t   timeoutq;
 static rt_run_queue_t   driverq;
 static rt_run_queue_t   procq;
 static heap_t          *eventq_heap = NULL;
-static heap_t          *rankn_heap = NULL;
 static uint64_t         now = 0;
 static int              iteration = -1;
 static bool             trace_on = false;
@@ -900,6 +898,8 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
 
    *nexus_tail = &(s->nexus);
    nexus_tail = &(s->nexus.chain);
+
+   profile.n_signals++;
 }
 
 static void rt_copy_sub_signals(rt_scope_t *scope, void *buf)
@@ -2423,7 +2423,6 @@ static void rt_setup(tree_t top)
    rt_free_delta_events(delta_driver);
 
    eventq_heap = heap_new(512);
-   rankn_heap = heap_new(128);
 
    scopes = hash_new(256, true);
 
@@ -2797,15 +2796,19 @@ static void rt_initial(tree_t top)
 
    TRACE("calculate initial driver values");
 
+   heap_t *q = heap_new(MAX(profile.n_signals + 1, 128));
+
    for (rt_nexus_t *n = nexuses; n != NULL; n = n->chain)
-      heap_insert(rankn_heap, n->rank, n);
+      heap_insert(q, n->rank, n);
 
    init_side_effect = SIDE_EFFECT_ALLOW;
 
-   while (heap_size(rankn_heap) > 0) {
-      rt_nexus_t *n = heap_extract_min(rankn_heap);
+   while (heap_size(q) > 0) {
+      rt_nexus_t *n = heap_extract_min(q);
       rt_driver_initial(n);
    }
+
+   heap_free(q);
 
    TRACE("used %d bytes of global temporary stack", global_tmp_alloc);
 }
@@ -2973,14 +2976,11 @@ static void rt_notify_active(rt_nexus_t *nexus)
 
 static void rt_update_nexus(rt_nexus_t *nexus)
 {
+   if (nexus->rank > 0)
+      rt_update_inputs(nexus);
+
    void *resolved = rt_resolve_nexus_fast(nexus);
    const size_t valuesz = nexus->size * nexus->width;
-
-   nexus->last_active = now;
-   nexus->active_delta = iteration;
-
-   RT_ASSERT(nexus->flags & NET_F_PENDING);
-   nexus->flags &= ~NET_F_PENDING;
 
    TRACE("update nexus %s resolved=%s",
          istr(tree_ident(nexus->signal->where)),
@@ -2996,18 +2996,7 @@ static void rt_update_nexus(rt_nexus_t *nexus)
 
 static void rt_push_active_nexus(rt_nexus_t *nexus)
 {
-   if (nexus->flags & NET_F_PENDING)
-      return;   // Already scheduled
-
-   nexus->flags |= NET_F_PENDING;
-
-   if (nexus->rank == 0 && nexus->n_sources == 1) {
-      // This nexus does not depend on the values of any inputs or other
-      // drivers so we can eagerly update its value now
-      rt_update_nexus(nexus);
-   }
-   else
-      heap_insert(rankn_heap, nexus->rank, nexus);
+   rt_update_nexus(nexus);
 
    for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
       TRACE("active nexus %s sources nexus %s",
@@ -3047,9 +3036,6 @@ static void rt_update_implicit_signal(rt_implicit_t *imp)
 
    RT_ASSERT(imp->signal.n_nexus == 1);
    rt_nexus_t *n0 = &(imp->signal.nexus);
-
-   // Implicit signals have no sources
-   RT_ASSERT(!(n0->flags & NET_F_PENDING));
 
    if (*(int8_t *)n0->resolved != r) {
       rt_propagate_nexus(n0, &r);
@@ -3255,12 +3241,6 @@ static void rt_cycle(int stop_delta)
       rt_free(event_stack, event);
    }
 
-   while (heap_size(rankn_heap) > 0) {
-      rt_nexus_t *n = heap_extract_min(rankn_heap);
-      rt_update_inputs(n);
-      rt_update_nexus(n);
-   }
-
    rt_resume(&implicit);
 
    while ((event = rt_pop_run_queue(&procq))) {
@@ -3384,9 +3364,6 @@ static void rt_cleanup(void)
 
    heap_free(eventq_heap);
    eventq_heap = NULL;
-
-   heap_free(rankn_heap);
-   rankn_heap = NULL;
 
    hash_iter_t it = HASH_BEGIN;
    const void *key;
