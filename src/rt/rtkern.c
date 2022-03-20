@@ -196,7 +196,6 @@ typedef struct rt_nexus_s {
    net_flags_t   flags;
    unsigned      rank;
    unsigned      n_sources;
-   unsigned      n_outputs;
    rt_source_t   sources;
    rt_signal_t  *signal;
    rt_source_t  *outputs;
@@ -650,9 +649,13 @@ static void rt_dump_signals(rt_scope_t *scope)
          for (sens_list_t *p = n->pending; p != NULL; p = p->next)
             pending++;
 
+         int n_outputs = 0;
+         for (rt_source_t *s = n->outputs; s != NULL; s = s->chain_output)
+            n_outputs++;
+
          fprintf(stderr, "%-16s %-5d %-4d %-7d %-7d %-7d %-4d %s\n",
                  nth == 0 ? tb_get(tb) : "+",
-                 n->width, n->size, n->n_sources, n->n_outputs, pending,
+                 n->width, n->size, n->n_sources, n_outputs, pending,
                  n->rank,
                  fmt_nexus(n, n->resolved));
       }
@@ -704,7 +707,6 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
    new->width        = old->width - offset;
    new->size         = old->size;
    new->resolution   = old->resolution;
-   new->n_outputs    = old->n_outputs;
    new->signal       = signal;
    new->resolved     = (uint8_t *)old->resolved + offset * old->size;
    new->last_value   = (uint8_t *)old->last_value + offset * old->size;
@@ -890,7 +892,6 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
    s->nexus.width      = count;
    s->nexus.size       = size;
    s->nexus.n_sources  = 0;
-   s->nexus.n_outputs  = 0;
    s->nexus.resolved   = s->shared.data;
    s->nexus.last_value = s->shared.data + s->shared.size;
    s->nexus.flags      = NET_F_LAST_VALUE;

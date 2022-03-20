@@ -7976,16 +7976,15 @@ static void lower_port_map(tree_t block, tree_t map)
    }
 }
 
-static void lower_port_decl(tree_t port, ident_t suffix)
+static void lower_port_decl(tree_t port)
 {
-   ident_t pname = ident_prefix(tree_ident(port), suffix, '$');
    type_t type = tree_type(port);
+   const port_mode_t mode = tree_subkind(port);
 
    vcode_type_t vtype = lower_signal_type(type);
-   vcode_var_t var = emit_var(vtype, vtype, pname, VAR_SIGNAL);
+   vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
 
-   void *key = suffix ? (void *)((uintptr_t)port | 1) : port;
-   lower_put_vcode_obj(key, var, top_scope);
+   lower_put_vcode_obj(port, var, top_scope);
 
    type_t value_type = type;
    vcode_reg_t init_reg;
@@ -8003,20 +8002,25 @@ static void lower_port_decl(tree_t port, ident_t suffix)
 
    lower_sub_signals(type, port, value_type, var, VCODE_INVALID_REG, init_reg,
                      VCODE_INVALID_REG, VCODE_INVALID_REG, kind);
+
+   if (mode == PORT_INOUT) {
+      // Separate input aspect of inout port
+      ident_t pname = ident_prefix(tree_ident(port), ident_new("in"), '$');
+      vcode_var_t var = emit_var(vtype, vtype, pname, VAR_SIGNAL);
+
+      void *key = (void *)((uintptr_t)port | 1);
+      lower_put_vcode_obj(key, var, top_scope);
+
+      lower_sub_signals(type, port, value_type, var, VCODE_INVALID_REG,
+                        init_reg, VCODE_INVALID_REG, VCODE_INVALID_REG, kind);
+   }
 }
 
 static void lower_ports(tree_t block)
 {
    const int nports = tree_ports(block);
-   for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(block, i);
-      if (tree_subkind(p) == PORT_INOUT) {
-         lower_port_decl(p, NULL);
-         lower_port_decl(p, ident_new("in"));
-      }
-      else
-         lower_port_decl(p, NULL);
-   }
+   for (int i = 0; i < nports; i++)
+      lower_port_decl(tree_port(block, i));
 
    const int nparams = tree_params(block);
    for (int i = 0; i < nparams; i++)
