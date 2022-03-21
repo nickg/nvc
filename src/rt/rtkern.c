@@ -373,6 +373,7 @@ static void _tracef(const char *fmt, ...);
 
 #define FMT_VALUES_SZ   128
 #define NEXUS_INDEX_MIN 32
+#define MAX_NEXUS_WIDTH 4096
 
 #if RT_DEBUG && !defined NDEBUG
 #define RT_ASSERT(x) assert((x))
@@ -965,6 +966,33 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
 
    *nexus_tail = &(s->nexus);
    nexus_tail = &(s->nexus.chain);
+
+   if (s->nexus.width > MAX_NEXUS_WIDTH) {
+      // Chunk up large signals to avoid excessive memory allocation
+
+      const int stride = MAX_NEXUS_WIDTH;
+
+      if (count / stride >= NEXUS_INDEX_MIN)
+         s->index = ihash_new(MAX((count / stride) * 2, 16));
+
+      s->nexus.width = stride;
+
+      for (int p = stride; p < count; p += stride) {
+         rt_nexus_t *n = xcalloc(sizeof(rt_nexus_t));
+         n->width    = MIN(stride, count - p);
+         n->size     = size;
+         n->resolved = s->shared.data + p * size;
+         n->flags    = s->nexus.flags;
+         n->signal   = s;
+
+         s->n_nexus++;
+
+         *nexus_tail = n;
+         nexus_tail = &(n->chain);
+
+         if (s->index) ihash_put(s->index, p, n);
+      }
+   }
 
    profile.n_signals++;
 }
