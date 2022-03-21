@@ -217,15 +217,13 @@ typedef struct rt_nexus_s {
    int32_t       active_delta;
    sens_list_t  *pending;
    rt_value_t    forcing;
-   res_memo_t   *resolution;
    net_flags_t   flags;
-   unsigned      rank;
-   unsigned      n_sources;
+   uint16_t      rank;
+   uint16_t      n_sources;
    rt_source_t   sources;
    rt_signal_t  *signal;
    rt_source_t  *outputs;
    void         *resolved;
-   void         *last_value;
 } rt_nexus_t;
 
 // The code generator knows the layout of this struct
@@ -240,6 +238,7 @@ typedef struct rt_signal_s {
    rt_signal_t    *chain;
    rt_scope_t     *parent;
    ihash_t        *index;
+   res_memo_t     *resolution;
    uint32_t        width;
    net_flags_t     flags;
    uint32_t        n_nexus;
@@ -699,7 +698,7 @@ static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
    rt_source_t *src = NULL;
    if (n->n_sources++ == 0)
       src = &(n->sources);
-   else if (n->resolution == NULL
+   else if (n->signal->resolution == NULL
             && (n->sources.tag != SOURCE_PORT
                 || n->sources.u.port.conv_func == NULL))
       rt_msg(tree_loc(n->signal->where), fatal,
@@ -807,10 +806,8 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
    rt_nexus_t *new = xcalloc(sizeof(rt_nexus_t));
    new->width        = old->width - offset;
    new->size         = old->size;
-   new->resolution   = old->resolution;
    new->signal       = signal;
    new->resolved     = (uint8_t *)old->resolved + offset * old->size;
-   new->last_value   = (uint8_t *)old->last_value + offset * old->size;
    new->chain        = old->chain;
    new->flags        = old->flags;
    new->rank         = old->rank;
@@ -963,7 +960,6 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
    s->nexus.size       = size;
    s->nexus.n_sources  = 0;
    s->nexus.resolved   = s->shared.data;
-   s->nexus.last_value = s->shared.data + s->shared.size;
    s->nexus.flags      = NET_F_LAST_VALUE;
    s->nexus.signal     = s;
 
@@ -1193,11 +1189,7 @@ void __nvc_resolve_signal(sig_shared_t *ss, rt_resolution_t *resolution)
 
    TRACE("resolve signal %s", istr(tree_ident(s->where)));
 
-   res_memo_t *memo = rt_memo_resolution_fn(s, resolution);
-
-   rt_nexus_t *n = &(s->nexus);
-   for (int i = 0; i < s->n_nexus; i++, n = n->chain)
-      n->resolution = memo;
+   s->resolution = rt_memo_resolution_fn(s, resolution);
 }
 
 DLLEXPORT
@@ -2367,23 +2359,13 @@ static inline bool rt_cmp_values(rt_nexus_t *n, rt_value_t a, rt_value_t b)
 
 static void rt_free_value(rt_nexus_t *n, rt_value_t v)
 {
-#if 0
-   if (v != NULL) {
-      RT_ASSERT(v->next == NULL);
-      v->next = n->free_values;
-      n->free_values = v;
-   }
-#else
    const size_t valuesz = n->width * n->size;
    if (valuesz > sizeof(rt_value_t)) {
       if (n->free_value == NULL)
          n->free_value = v.ext;
-      else {
-         //printf("free a %zu byte value!\n", valuesz);
+      else
          free(v.ext);
-      }
    }
-#endif
 }
 
 static void *rt_tmp_alloc(size_t sz)
@@ -2713,10 +2695,13 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
          nonnull++;
    }
 
+   res_memo_t *r = nexus->signal->resolution;
+   RT_ASSERT(r != NULL);
+
    if (nonnull == 0 && (nexus->flags & NET_F_REGISTER)) {
       return nexus->resolved;
    }
-   else if (nexus->resolution->flags & R_COMPOSITE) {
+   else if (r->flags & R_COMPOSITE) {
       // Call resolution function of composite type
 
       rt_scope_t *scope = nexus->signal->parent;
@@ -2730,10 +2715,8 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
 
       rt_copy_sub_signal_sources(scope, inputs);
 
-      const int32_t left = nexus->resolution->ileft;
-      ffi_uarray_t u = { inputs, { { left, nonnull } } };
-      ffi_call(&(nexus->resolution->closure), &u, sizeof(u),
-               resolved, scope->size);
+      ffi_uarray_t u = { inputs, { { r->ileft, nonnull } } };
+      ffi_call(&(r->closure), &u, sizeof(u), resolved, scope->size);
 
       const ptrdiff_t noff =
          nexus->resolved - (void *)nexus->signal->shared.data;
@@ -2752,11 +2735,10 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
                if (data != NULL)                                        \
                   vals[o++] = ((const type *)data)[j];                  \
             }                                                           \
-            type *r = (type *)resolved;                                 \
-            const int32_t left = nexus->resolution->ileft;              \
-            ffi_uarray_t u = { vals, { { left, nonnull } } };           \
-            ffi_call(&(nexus->resolution->closure), &u, sizeof(u),      \
-                     &(r[j]), sizeof(r[j]));                            \
+            type *p = (type *)resolved;                                 \
+            ffi_uarray_t u = { vals, { { r->ileft, nonnull } } };       \
+            ffi_call(&(r->closure), &u, sizeof(u),                      \
+                     &(p[j]), sizeof(p[j]));                            \
          } while (0)
 
          FOR_ALL_SIZES(nexus->size, CALL_RESOLUTION_FN);
@@ -2768,6 +2750,8 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
 
 static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
 {
+   res_memo_t *r = nexus->signal->resolution;
+
    if (unlikely(nexus->flags & NET_F_FORCED)) {
       return rt_value_ptr(nexus, &(nexus->forcing));
    }
@@ -2775,18 +2759,18 @@ static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
       // Some drivers may have null transactions
       return rt_resolve_nexus_slow(nexus);
    }
-   else if (nexus->resolution == NULL && nexus->n_sources == 0) {
+   else if (r == NULL && nexus->n_sources == 0) {
       // Always maintains initial driver value
       return nexus->resolved;
    }
-   else if (nexus->resolution == NULL) {
+   else if (r == NULL) {
       return rt_source_data(nexus, &(nexus->sources));
    }
-   else if ((nexus->resolution->flags & R_IDENT) && (nexus->n_sources == 1)) {
+   else if ((r->flags & R_IDENT) && (nexus->n_sources == 1)) {
       // Resolution function behaves like identity for a single driver
       return rt_source_data(nexus, &(nexus->sources));
    }
-   else if ((nexus->resolution->flags & R_MEMO) && (nexus->n_sources == 1)) {
+   else if ((r->flags & R_MEMO) && (nexus->n_sources == 1)) {
       // Resolution function has been memoised so do a table lookup
 
       void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
@@ -2794,13 +2778,12 @@ static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
 
       for (int j = 0; j < nexus->width; j++) {
          const int index = ((uint8_t *)data)[j];
-         const int8_t r = nexus->resolution->tab1[index];
-         ((int8_t *)resolved)[j] = r;
+         ((int8_t *)resolved)[j] = r->tab1[index];
       }
 
       return resolved;
    }
-   else if ((nexus->resolution->flags & R_MEMO) && (nexus->n_sources == 2)) {
+   else if ((r->flags & R_MEMO) && (nexus->n_sources == 2)) {
       // Resolution function has been memoised so do a table lookup
 
       void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
@@ -2808,11 +2791,8 @@ static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
       const char *p0 = rt_source_data(nexus, &(nexus->sources));
       const char *p1 = rt_source_data(nexus, nexus->sources.chain_input);
 
-      for (int j = 0; j < nexus->width; j++) {
-         const int driving[2] = { p0[j], p1[j] };
-         const int8_t r = nexus->resolution->tab2[driving[0]][driving[1]];
-         ((int8_t *)resolved)[j] = r;
-      }
+      for (int j = 0; j < nexus->width; j++)
+         ((int8_t *)resolved)[j] = r->tab2[(int)p0[j]][(int)p1[j]];
 
       return resolved;
    }
@@ -2829,8 +2809,12 @@ static void rt_propagate_nexus(rt_nexus_t *nexus, const void *resolved)
    // LAST_VALUE is the same as the initial value when there have
    // been no events on the signal otherwise only update it when
    // there is an event
-   if (nexus->flags & NET_F_LAST_VALUE)
-      memcpy(nexus->last_value, nexus->resolved, valuesz);
+   if (nexus->flags & NET_F_LAST_VALUE) {
+      rt_signal_t *s = nexus->signal;
+      const ptrdiff_t off = (nexus->resolved - (void *)s->shared.data);
+      memcpy(s->shared.data + s->shared.size + off, nexus->resolved, valuesz);
+   }
+
    if (nexus->resolved != resolved)   // Can occur during startup
       memcpy(nexus->resolved, resolved, valuesz);
 }
