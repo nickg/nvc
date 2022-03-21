@@ -138,14 +138,37 @@ struct sens_list {
    uint32_t       wakeup_gen;
 };
 
+typedef enum {
+   SOURCE_DRIVER,
+   SOURCE_PORT,
+} rt_source_kind_t;
+
+typedef struct {
+   rt_proc_t  *proc;
+   waveform_t  waveforms;
+} rt_driver_t;
+
+typedef struct {
+   ffi_closure_t closure;
+   unsigned      refcnt;
+   size_t        bufsz;
+   uint8_t       buffer[0];
+} rt_conv_func_t;
+
+typedef struct {
+   rt_nexus_t     *input;
+   rt_nexus_t     *output;
+   rt_conv_func_t *conv_func;
+} rt_port_t;
+
 typedef struct rt_source_s {
-   rt_source_t   *chain_input;
-   rt_source_t   *chain_output;
-   rt_proc_t     *proc;
-   rt_nexus_t    *input;
-   rt_nexus_t    *output;
-   waveform_t     waveforms;
-   ffi_closure_t *conv_func;
+   rt_source_t      *chain_input;
+   rt_source_t      *chain_output;
+   rt_source_kind_t  tag;
+   union {
+      rt_port_t   port;
+      rt_driver_t driver;
+   } u;
 } rt_source_t;
 
 struct value {
@@ -339,6 +362,7 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
 static void rt_sched_event(sens_list_t **list, rt_wakeable_t *proc, bool recur);
 static void *rt_tmp_alloc(size_t sz);
 static value_t *rt_alloc_value(rt_nexus_t *n);
+static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset);
 static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
                                          rt_resolution_t *resolution);
 static void _tracef(const char *fmt, ...);
@@ -665,12 +689,14 @@ static void rt_dump_signals(rt_scope_t *scope)
       rt_dump_signals(c);
 }
 
-static rt_source_t *rt_add_source(rt_nexus_t *n)
+static rt_source_t *rt_add_source(rt_nexus_t *n, rt_source_kind_t kind)
 {
    rt_source_t *src = NULL;
    if (n->n_sources++ == 0)
       src = &(n->sources);
-   else if (n->resolution == NULL && n->sources.conv_func == NULL)
+   else if (n->resolution == NULL
+            && (n->sources.tag != SOURCE_PORT
+                || n->sources.u.port.conv_func == NULL))
       rt_msg(tree_loc(n->signal->where), fatal,
              "unresolved signal %s has multiple sources",
              istr(tree_ident(n->signal->where)));
@@ -681,19 +707,86 @@ static rt_source_t *rt_add_source(rt_nexus_t *n)
       *p = src = xmalloc(sizeof(rt_source_t));
    }
 
-   src->proc         = NULL;
-   src->conv_func    = NULL;
-   src->input        = NULL;
-   src->output       = n;
    src->chain_input  = NULL;
    src->chain_output = NULL;
+   src->tag          = kind;
 
-   waveform_t *w0 = &(src->waveforms);
-   w0->when   = 0;
-   w0->next   = NULL;
-   w0->values = rt_alloc_value(n);
+   switch (kind) {
+   case SOURCE_DRIVER:
+      {
+         src->u.driver.proc = NULL;
+
+         waveform_t *w0 = &(src->u.driver.waveforms);
+         w0->when   = 0;
+         w0->next   = NULL;
+         w0->values = rt_alloc_value(n);
+      }
+      break;
+
+   case SOURCE_PORT:
+      src->u.port.conv_func = NULL;
+      src->u.port.input     = NULL;
+      src->u.port.output    = n;
+      break;
+   }
 
    return src;
+}
+
+static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset)
+{
+   rt_source_t *new = rt_add_source(nexus, old->tag);
+
+   switch (old->tag) {
+   case SOURCE_PORT:
+      {
+         new->u.port.input = old->u.port.input;
+
+         if (old->u.port.conv_func != NULL) {
+            new->u.port.conv_func = old->u.port.conv_func;
+            new->u.port.conv_func->refcnt++;
+         }
+         else {
+            if (old->u.port.input->width == offset)
+               new->u.port.input = old->u.port.input->chain;  // Cycle breaking
+            else
+               new->u.port.input = rt_clone_nexus(old->u.port.input, offset);
+            // TODO: move this out one level
+            RT_ASSERT(new->u.port.input->width == nexus->width);
+         }
+      }
+      break;
+
+   case SOURCE_DRIVER:
+      {
+         new->u.driver.proc = old->u.driver.proc;
+
+         // Current transaction
+         waveform_t *w_new = &(new->u.driver.waveforms);
+         waveform_t *w_old = &(old->u.driver.waveforms);
+         w_new->when = w_old->when;
+
+         memcpy(w_new->values->data,
+                w_old->values->data + offset * nexus->size,
+                nexus->width * nexus->size);
+
+         // Future transactions
+         for (w_old = w_old->next; w_old; w_old = w_old->next) {
+            w_new = (w_new->next = rt_alloc(waveform_stack));
+            w_new->values = rt_alloc_value(nexus);
+            w_new->next   = NULL;
+            w_new->when   = w_old->when;
+
+            memcpy(w_new->values->data,
+                   w_old->values->data + offset * nexus->size,
+                   nexus->width * nexus->size);
+
+            RT_ASSERT(w_old->when >= now);
+            deltaq_insert_driver(w_new->when - now, nexus, new);
+         }
+      }
+      break;
+   }
 }
 
 static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
@@ -742,47 +835,16 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
    }
 
    if (old->n_sources > 0) {
-      for (rt_source_t *it = &(old->sources); it != NULL; it = it->chain_input) {
-         rt_source_t *src = rt_add_source(new);
-         src->input = it->input;
-         src->proc  = it->proc;
+      for (rt_source_t *it = &(old->sources); it; it = it->chain_input) {
+         rt_clone_source(new, it, offset);
 
-         if (it->conv_func != NULL)
-            src->conv_func = ffi_ref_closure(it->conv_func);
-         else if (it->input != NULL) {
-            if (it->input->width == offset)
-               src->input = it->input->chain;  // Cycle breaking
-            else
-               src->input = rt_clone_nexus(it->input, offset);
-            RT_ASSERT(src->input->width == new->width);
-         }
-
-         // Current transaction
-         waveform_t *w_new = &(src->waveforms), *w_old = &(it->waveforms);
-         w_new->when = w_old->when;
-
-         memcpy(w_new->values->data,
-                w_old->values->data + old->width * old->size,
-                new->width * new->size);
-
-         value_t *v_old = rt_alloc_value(old);
-         memcpy(v_old->data, w_old->values->data, old->width * old->size);
-         free(w_old->values);
-         w_old->values = v_old;
-
-         // Future transactions
-         for (w_old = w_old->next; w_old; w_old = w_old->next) {
-            w_new = (w_new->next = rt_alloc(waveform_stack));
-            w_new->values = rt_alloc_value(new);
-            w_new->next   = NULL;
-            w_new->when   = w_old->when;
-
-            memcpy(w_new->values->data,
-                   w_old->values->data + old->width * old->size,
-                   new->width * new->size);
-
-            RT_ASSERT(w_old->when >= now);
-            deltaq_insert_driver(w_new->when - now, new, src);
+         // Free up memory from old driver
+         if (it->tag == SOURCE_DRIVER) {
+            waveform_t *w_old = &(it->u.driver.waveforms);
+            value_t *v_old = rt_alloc_value(old);
+            memcpy(v_old->data, w_old->values->data, old->width * old->size);
+            free(w_old->values);
+            w_old->values = v_old;
          }
       }
    }
@@ -791,24 +853,27 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
    for (rt_source_t *old_o = old->outputs; old_o;
         old_o = old_o->chain_output, nth++) {
 
-      if (old_o->conv_func != NULL)
+      RT_ASSERT(old_o->tag == SOURCE_PORT);
+
+      if (old_o->u.port.conv_func != NULL)
          new->outputs = old_o;
       else {
          rt_nexus_t *out_n;
-         if (old_o->output->width == offset)
-            out_n = old_o->output->chain;   // Cycle breaking
+         if (old_o->u.port.output->width == offset)
+            out_n = old_o->u.port.output->chain;   // Cycle breaking
          else
-            out_n = rt_clone_nexus(old_o->output, offset);
+            out_n = rt_clone_nexus(old_o->u.port.output, offset);
 
-         rt_source_t *s;
-         for (s = &(out_n->sources);
-              s->input != new && s->input != old;
-              s = s->chain_input)
-            ;
-
-         s->input = new;
-         s->chain_output = new->outputs;
-         new->outputs = s;
+         for (rt_source_t *s = &(out_n->sources); s; s = s->chain_input) {
+            if (s->tag != SOURCE_PORT)
+               continue;
+            else if (s->u.port.input == new || s->u.port.input == old) {
+               s->u.port.input = new;
+               s->chain_output = new->outputs;
+               new->outputs = s;
+               break;
+            }
+         }
       }
    }
 
@@ -871,7 +936,7 @@ static void rt_set_rank(rt_nexus_t *n, int rank)
       n->rank = rank;
 
       for (rt_source_t *o = n->outputs; o; o = o->chain_output)
-         rt_set_rank(o->output, rank + 1);
+         rt_set_rank(o->u.port.output, rank + 1);
    }
 }
 
@@ -1061,12 +1126,14 @@ void __nvc_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
    rt_nexus_t *n = rt_split_nexus(s, offset, count);
    for (; count > 0; n = n->chain) {
       rt_source_t *s;
-      for (s = &(n->sources); s && s->proc != active_proc; s = s->chain_input)
-         ;
+      for (s = &(n->sources); s; s = s->chain_input) {
+         if (s->tag == SOURCE_DRIVER && s->u.driver.proc == active_proc)
+            break;
+      }
 
       if (s == NULL) {
-         s = rt_add_source(n);
-         s->proc = active_proc;
+         s = rt_add_source(n, SOURCE_DRIVER);
+         s->u.driver.proc = active_proc;
       }
 
       count -= n->width;
@@ -1208,11 +1275,22 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
 
    assert(src_count == dst_count || closure != NULL);
 
-   ffi_closure_t *conv_func = NULL;
+   rt_conv_func_t *conv_func = NULL;
    if (closure != NULL) {
-      conv_func = xmalloc(sizeof(ffi_closure_t));
-      *conv_func = *closure;
-      conv_func->refcnt = 1;
+      size_t bufsz = dst_s->shared.size;
+      if (dst_s->parent->kind == SCOPE_SIGNAL) {
+         rt_scope_t *root = dst_s->parent;
+         while (root->parent->kind == SCOPE_SIGNAL)
+            root = root->parent;
+         bufsz = root->size;
+      }
+
+      TRACE("need %zu bytes for conversion function buffer", bufsz);
+
+      conv_func = xmalloc_flex(sizeof(rt_conv_func_t), 1, bufsz);
+      conv_func->closure = *closure;
+      conv_func->refcnt  = 0;
+      conv_func->bufsz   = bufsz;
    }
 
    rt_nexus_t *src_n = rt_split_nexus(src_s, src_offset, src_count);
@@ -1227,11 +1305,13 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       assert(src_n->width == dst_n->width || closure != NULL);
       assert(src_n->size == dst_n->size || closure != NULL);
 
-      rt_source_t *port = rt_add_source(dst_n);
-      port->input = src_n;
+      rt_source_t *port = rt_add_source(dst_n, SOURCE_PORT);
+      port->u.port.input = src_n;
 
-      if (conv_func != NULL)
-         port->conv_func = ffi_ref_closure(conv_func);
+      if (conv_func != NULL) {
+         port->u.port.conv_func = conv_func;
+         conv_func->refcnt++;
+      }
 
       rt_set_rank(dst_n, src_n->rank + 1);
 
@@ -1246,9 +1326,6 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       src_n = src_n->chain;
       dst_n = dst_n->chain;
    }
-
-   if (conv_func != NULL)
-      ffi_unref_closure(conv_func);
 }
 
 DLLEXPORT
@@ -1830,8 +1907,8 @@ bool _driving(sig_shared_t *ss, uint32_t offset, int32_t count)
    for (; count > 0; n = n->chain) {
       if (n->n_sources > 0) {
          for (rt_source_t *src = &(n->sources); src; src = src->chain_input) {
-            if (src->proc == active_proc) {
-               if (src->waveforms.values != NULL)
+            if (src->tag == SOURCE_DRIVER && src->u.driver.proc == active_proc) {
+               if (src->u.driver.waveforms.values != NULL)
                   ndriving++;
                found = true;
                break;
@@ -1867,7 +1944,7 @@ void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
       rt_source_t *src = NULL;
       if (n->n_sources > 0) {
          for (src = &(n->sources); src; src = src->chain_input) {
-            if (src->proc == active_proc)
+            if (src->tag == SOURCE_DRIVER && src->u.driver.proc == active_proc)
                break;
          }
       }
@@ -1876,7 +1953,7 @@ void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
          rt_msg(NULL, fatal, "process %s does not contain a driver for %s",
                 istr(active_proc->name), istr(tree_ident(s->where)));
 
-      memcpy(p, src->waveforms.values->data, n->width * n->size);
+      memcpy(p, src->u.driver.waveforms.values->data, n->width * n->size);
       p += n->width * n->size;
 
       count -= n->width;
@@ -2514,19 +2591,52 @@ static inline void *rt_resolution_buffer(size_t required)
 
 static void *rt_source_data(rt_source_t *src)
 {
-   if (src->proc == NULL && src->conv_func == NULL)
-      return src->input->resolved;
-   else if (src->waveforms.values == NULL)
-      return NULL;
-   else
-      return src->waveforms.values->data;
+   switch (src->tag) {
+   case SOURCE_DRIVER:
+      if (unlikely(src->u.driver.waveforms.values == NULL))
+         return NULL;
+      else
+         return src->u.driver.waveforms.values->data;
+
+   case SOURCE_PORT:
+      if (likely(src->u.port.conv_func == NULL))
+         return src->u.port.input->resolved;
+      else {
+         rt_signal_t *i0 = src->u.port.input->signal;
+         rt_conv_func_t *cf = src->u.port.conv_func;
+
+         bool incopy = false;
+         void *indata;
+         size_t insz;
+         if (i0->parent->kind == SCOPE_SIGNAL) {
+            indata = rt_composite_signal(i0, &insz);
+            incopy = true;
+         }
+         else {
+            indata = i0->shared.data;
+            insz   = i0->shared.size;
+         }
+
+         TRACE("call conversion function %p insz=%zu outsz=%zu",
+               cf->closure.fn, insz, cf->bufsz);
+
+         ffi_call(&(cf->closure), indata, insz, cf->buffer, cf->bufsz);
+
+         if (incopy) free(indata);
+
+         const unsigned offset = src->u.port.output->signal->shared.offset;
+         return src->u.port.conv_func->buffer + offset;
+      }
+   }
+
+   return NULL;
 }
 
 static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
 {
    int nonnull = 0;
    for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-      if (s->waveforms.values != NULL)
+      if (s->tag == SOURCE_PORT || s->u.driver.waveforms.values != NULL)
          nonnull++;
    }
 
@@ -2666,76 +2776,6 @@ static void rt_propagate_nexus(rt_nexus_t *nexus, const void *resolved)
       memcpy(nexus->resolved, resolved, valuesz);
 }
 
-static void rt_update_inputs(rt_nexus_t *nexus)
-{
-   if (unlikely(nexus->n_sources == 0))
-      return;
-
-   for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-      if (s->proc != NULL)
-         continue;
-      else if (unlikely(s->conv_func != NULL)) {
-         rt_signal_t *i0 = s->input->signal;
-         rt_signal_t *o0 = s->output->signal;
-
-         const size_t copysz = nexus->width * nexus->size;
-
-         bool incopy = false;
-         void *indata;
-         size_t insz;
-         if (i0->parent->kind == SCOPE_SIGNAL) {
-            indata = rt_composite_signal(i0, &insz);
-            incopy = true;
-         }
-         else {
-            indata = i0->shared.data;
-            insz   = i0->shared.size;
-         }
-
-         bool outcopy = true;
-         void *outdata;
-         size_t outsz;
-         if (o0->parent->kind == SCOPE_SIGNAL) {
-            rt_scope_t *root = o0->parent;
-            while (root->parent->kind == SCOPE_SIGNAL)
-               root = root->parent;
-            outdata = xmalloc(root->size);
-            outsz   = root->size;
-         }
-         else if (o0->shared.size == copysz) {
-            outdata = s->waveforms.values->data;
-            outsz   = copysz;
-            outcopy = false;
-         }
-         else {
-            outdata = xmalloc(o0->shared.size);
-            outsz   = o0->shared.size;
-         }
-
-         TRACE("call conversion function %p insz=%zu outsz=%zu",
-               s->conv_func->fn, insz, outsz);
-
-         if (outcopy) {
-            // This corner case occurs with output conversions from
-            // aggregate to scalar types
-
-            ffi_call(s->conv_func, indata, insz, outdata, outsz);
-
-            unsigned o = o0->shared.offset;
-            for (rt_nexus_t *n = &(o0->nexus); n != nexus; n = n->chain)
-               o += n->width * n->size;
-
-            memcpy(s->waveforms.values->data, outdata + o, copysz);
-         }
-         else
-            ffi_call(s->conv_func, indata, insz, outdata, outsz);
-
-         if (incopy) free(indata);
-         if (outcopy) free(outdata);
-      }
-   }
-}
-
 static void rt_reset_scope(rt_scope_t *s)
 {
    if (s->kind == SCOPE_INSTANCE || s->kind == SCOPE_PACKAGE) {
@@ -2765,11 +2805,9 @@ static void rt_driver_initial(rt_nexus_t *nexus)
    // Assign the initial value of the drivers
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->proc != NULL)  // Driver not port source
-            memcpy(s->waveforms.values->data, nexus->resolved, valuesz);
+         if (s->tag == SOURCE_DRIVER)
+            memcpy(s->u.driver.waveforms.values->data, nexus->resolved, valuesz);
       }
-
-      rt_update_inputs(nexus);
    }
 
    void *resolved;
@@ -2889,8 +2927,10 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
 
    // Try to find this process in the list of existing drivers
    rt_source_t *d;
-   for (d = &(nexus->sources); d && d->proc != active_proc; d = d->chain_input)
-      ;
+   for (d = &(nexus->sources); d; d = d->chain_input) {
+      if (d->tag == SOURCE_DRIVER && d->u.driver.proc == active_proc)
+         break;
+   }
    RT_ASSERT(d != NULL);
 
    const size_t valuesz = nexus->size * nexus->width;
@@ -2900,7 +2940,7 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
    w->next   = NULL;
    w->values = values;
 
-   waveform_t *last = &(d->waveforms);
+   waveform_t *last = &(d->u.driver.waveforms);
    waveform_t *it   = last->next;
    while (it != NULL && it->when < w->when) {
       // If the current transaction is within the pulse rejection interval
@@ -2957,8 +2997,8 @@ static void rt_notify_event(rt_nexus_t *nexus)
 
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->proc == NULL)
-            rt_notify_event(s->input);
+         if (s->tag == SOURCE_PORT)
+            rt_notify_event(s->u.port.input);
       }
    }
 }
@@ -2970,17 +3010,14 @@ static void rt_notify_active(rt_nexus_t *nexus)
 
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->proc == NULL)
-            rt_notify_active(s->input);
+         if (s->tag == SOURCE_PORT)
+            rt_notify_active(s->u.port.input);
       }
    }
 }
 
 static void rt_update_nexus(rt_nexus_t *nexus)
 {
-   if (nexus->rank > 0)
-      rt_update_inputs(nexus);
-
    void *resolved = rt_resolve_nexus_fast(nexus);
    const size_t valuesz = nexus->size * nexus->width;
 
@@ -3001,23 +3038,25 @@ static void rt_push_active_nexus(rt_nexus_t *nexus)
    rt_update_nexus(nexus);
 
    for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
+      RT_ASSERT(o->tag == SOURCE_PORT);
       TRACE("active nexus %s sources nexus %s",
             istr(tree_ident(nexus->signal->where)),
-            istr(tree_ident(o->output->signal->where)));
-      RT_ASSERT(nexus->rank < o->output->rank);
-      rt_push_active_nexus(o->output);
+            istr(tree_ident(o->u.port.output->signal->where)));
+      RT_ASSERT(nexus->rank < o->u.port.output->rank);
+      rt_push_active_nexus(o->u.port.output);
    }
 }
 
 static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
 {
    if (likely(source != NULL)) {
-      waveform_t *w_now  = &(source->waveforms);
+      RT_ASSERT(source->tag == SOURCE_DRIVER);
+      waveform_t *w_now  = &(source->u.driver.waveforms);
       waveform_t *w_next = w_now->next;
 
       if (likely((w_next != NULL) && (w_next->when == now))) {
          rt_free_value(nexus, w_now->values);
-         source->waveforms = *w_next;
+         source->u.driver.waveforms = *w_next;
          rt_free(waveform_stack, w_next);
          rt_push_active_nexus(nexus);
       }
@@ -3282,18 +3321,28 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
    for (rt_source_t *s = &(n->sources), *tmp; s; s = tmp, must_free = true) {
       tmp = s->chain_input;
 
-      if (s->waveforms.values)
-         rt_free_value(n, s->waveforms.values);
+      switch (s->tag) {
+      case SOURCE_DRIVER:
+         if (s->u.driver.waveforms.values)
+            rt_free_value(n, s->u.driver.waveforms.values);
 
-      for (waveform_t *it = s->waveforms.next, *next; it; it = next) {
-         if (it->values)
-            rt_free_value(n, it->values);
-         next = it->next;
-         rt_free(waveform_stack, it);
+         for (waveform_t *it = s->u.driver.waveforms.next, *next;
+              it; it = next) {
+            if (it->values)
+               rt_free_value(n, it->values);
+            next = it->next;
+            rt_free(waveform_stack, it);
+         }
+         break;
+
+      case SOURCE_PORT:
+         if (s->u.port.conv_func != NULL) {
+            RT_ASSERT(s->u.port.conv_func->refcnt > 0);
+            if (--(s->u.port.conv_func->refcnt) == 0)
+               free(s->u.port.conv_func);
+         }
+         break;
       }
-
-      if (s->conv_func != NULL)
-         ffi_unref_closure(s->conv_func);
 
       if (must_free) free(s);
    }
