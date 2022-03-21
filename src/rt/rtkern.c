@@ -61,7 +61,6 @@
 typedef struct event         event_t;
 typedef struct waveform      waveform_t;
 typedef struct sens_list     sens_list_t;
-typedef struct value         value_t;
 typedef struct callback      callback_t;
 typedef struct rt_nexus_s    rt_nexus_t;
 typedef struct rt_source_s   rt_source_t;
@@ -125,11 +124,22 @@ struct event {
    };
 };
 
+typedef union {
+   uint8_t   bytes[8];
+   uint64_t  qword;
+   void     *ext;
+} rt_value_t;
+
+STATIC_ASSERT(sizeof(rt_value_t) == 8);
+
 struct waveform {
-   uint64_t    when;
+   uint64_t    when : 63;
+   unsigned    null : 1;
    waveform_t *next;
-   value_t    *values;
+   rt_value_t  value;
 };
+
+STATIC_ASSERT(sizeof(waveform_t) == 24);
 
 struct sens_list {
    rt_wakeable_t *wake;
@@ -141,7 +151,7 @@ struct sens_list {
 typedef enum {
    SOURCE_DRIVER,
    SOURCE_PORT,
-} rt_source_kind_t;
+} source_kind_t;
 
 typedef struct {
    rt_proc_t  *proc;
@@ -162,22 +172,14 @@ typedef struct {
 } rt_port_t;
 
 typedef struct rt_source_s {
-   rt_source_t      *chain_input;
-   rt_source_t      *chain_output;
-   rt_source_kind_t  tag;
+   rt_source_t    *chain_input;
+   rt_source_t    *chain_output;
+   source_kind_t   tag;
    union {
       rt_port_t   port;
       rt_driver_t driver;
    } u;
 } rt_source_t;
-
-struct value {
-   value_t *next;
-   union {
-      char     data[0];
-      uint64_t qwords[0];
-   };
-} __attribute__((aligned(8)));
 
 // The code generator knows the layout of this struct
 typedef struct {
@@ -208,13 +210,13 @@ typedef struct rt_nexus_s {
    uint32_t      width;
    uint32_t      size;
    rt_nexus_t   *chain;
-   value_t      *free_values;
+   void         *free_value;
    uint64_t      last_event;
    uint64_t      last_active;
    int32_t       event_delta;
    int32_t       active_delta;
    sens_list_t  *pending;
-   value_t      *forcing;
+   rt_value_t    forcing;
    res_memo_t   *resolution;
    net_flags_t   flags;
    unsigned      rank;
@@ -358,13 +360,16 @@ static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake);
 static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
                                  rt_source_t *source);
 static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
-                            uint64_t reject, value_t *values);
+                            uint64_t reject, rt_value_t value, bool null);
 static void rt_sched_event(sens_list_t **list, rt_wakeable_t *proc, bool recur);
 static void *rt_tmp_alloc(size_t sz);
-static value_t *rt_alloc_value(rt_nexus_t *n);
+static rt_value_t rt_alloc_value(rt_nexus_t *n);
+static void rt_copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p);
+static inline const uint8_t *rt_value_ptr(rt_nexus_t *n, rt_value_t *v);
 static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset);
 static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
                                          rt_resolution_t *resolution);
+static const void *rt_source_data(rt_nexus_t *nexus, rt_source_t *src);
 static void _tracef(const char *fmt, ...);
 
 #define FMT_VALUES_SZ   128
@@ -689,7 +694,7 @@ static void rt_dump_signals(rt_scope_t *scope)
       rt_dump_signals(c);
 }
 
-static rt_source_t *rt_add_source(rt_nexus_t *n, rt_source_kind_t kind)
+static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
 {
    rt_source_t *src = NULL;
    if (n->n_sources++ == 0)
@@ -717,9 +722,10 @@ static rt_source_t *rt_add_source(rt_nexus_t *n, rt_source_kind_t kind)
          src->u.driver.proc = NULL;
 
          waveform_t *w0 = &(src->u.driver.waveforms);
-         w0->when   = 0;
-         w0->next   = NULL;
-         w0->values = rt_alloc_value(n);
+         w0->when  = 0;
+         w0->null  = 0;
+         w0->next  = NULL;
+         w0->value = rt_alloc_value(n);
       }
       break;
 
@@ -751,7 +757,6 @@ static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset)
                new->u.port.input = old->u.port.input->chain;  // Cycle breaking
             else
                new->u.port.input = rt_clone_nexus(old->u.port.input, offset);
-            // TODO: move this out one level
             RT_ASSERT(new->u.port.input->width == nexus->width);
          }
       }
@@ -765,21 +770,22 @@ static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset)
          waveform_t *w_new = &(new->u.driver.waveforms);
          waveform_t *w_old = &(old->u.driver.waveforms);
          w_new->when = w_old->when;
+         w_new->null = w_old->null;
 
-         memcpy(w_new->values->data,
-                w_old->values->data + offset * nexus->size,
-                nexus->width * nexus->size);
+         const int split = offset * nexus->size;
+         rt_copy_value_ptr(nexus, &(w_new->value),
+                           rt_value_ptr(nexus, &(w_old->value)) + split);
 
          // Future transactions
          for (w_old = w_old->next; w_old; w_old = w_old->next) {
             w_new = (w_new->next = rt_alloc(waveform_stack));
-            w_new->values = rt_alloc_value(nexus);
-            w_new->next   = NULL;
-            w_new->when   = w_old->when;
+            w_new->value = rt_alloc_value(nexus);
+            w_new->next  = NULL;
+            w_new->when  = w_old->when;
+            w_new->null  = w_old->null;
 
-            memcpy(w_new->values->data,
-                   w_old->values->data + offset * nexus->size,
-                   nexus->width * nexus->size);
+            rt_copy_value_ptr(nexus, &(w_new->value),
+                              rt_value_ptr(nexus, &(w_old->value)) + split);
 
             RT_ASSERT(w_old->when >= now);
             deltaq_insert_driver(w_new->when - now, nexus, new);
@@ -795,6 +801,8 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
 
    rt_signal_t *signal = old->signal;
    signal->n_nexus++;
+
+   const size_t oldsz = old->width * old->size;
 
    rt_nexus_t *new = xcalloc(sizeof(rt_nexus_t));
    new->width        = old->width - offset;
@@ -815,11 +823,8 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
    old->width = offset;
 
    // Old nexus may be holding large amounts of memory
-   for (value_t *v = old->free_values, *tmp; v; v = tmp) {
-      tmp = v->next;
-      free(v);
-   }
-   old->free_values = NULL;
+   free(old->free_value);
+   old->free_value = NULL;
 
    if (new->chain == NULL)
       nexus_tail = &(new->chain);
@@ -839,12 +844,12 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
          rt_clone_source(new, it, offset);
 
          // Free up memory from old driver
-         if (it->tag == SOURCE_DRIVER) {
+         if (it->tag == SOURCE_DRIVER && oldsz > sizeof(rt_value_t)) {
             waveform_t *w_old = &(it->u.driver.waveforms);
-            value_t *v_old = rt_alloc_value(old);
-            memcpy(v_old->data, w_old->values->data, old->width * old->size);
-            free(w_old->values);
-            w_old->values = v_old;
+            rt_value_t v_old = rt_alloc_value(old);
+            rt_copy_value_ptr(old, &v_old, w_old->value.ext);
+            free(w_old->value.ext);
+            w_old->value = v_old;
          }
       }
    }
@@ -979,6 +984,29 @@ static void rt_copy_sub_signals(rt_scope_t *scope, void *buf)
       rt_copy_sub_signals(s, buf);
 }
 
+static void rt_copy_sub_signal_sources(rt_scope_t *scope, void *buf)
+{
+   assert(scope->kind == SCOPE_SIGNAL);
+
+   for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain) {
+      rt_nexus_t *n = &(s->nexus);
+      for (unsigned i = 0; i < s->n_nexus; i++) {
+         unsigned o = 0;
+         for (rt_source_t *src = &(n->sources); src; src = src->chain_input) {
+            const void *data = rt_source_data(n, src);
+            if (data == NULL)
+               continue;
+
+            memcpy(buf + s->shared.offset + (o++ * scope->size),
+                   data, n->size * n->width);
+         }
+      }
+   }
+
+   for (rt_scope_t *s = scope->child; s != NULL; s = s->chain)
+      rt_copy_sub_signal_sources(s, buf);
+}
+
 static void *rt_composite_signal(rt_signal_t *signal, size_t *psz)
 {
    assert(signal->parent->kind == SCOPE_SIGNAL);
@@ -1021,10 +1049,10 @@ void _sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
 
    rt_nexus_t *n = rt_split_nexus(s, offset, 1);
 
-   value_t *values_copy = rt_alloc_value(n);
-   values_copy->qwords[0] = scalar;
+   rt_value_t value = rt_alloc_value(n);
+   value.qword = scalar;
 
-   rt_sched_driver(n, after, reject, values_copy);
+   rt_sched_driver(n, after, reject, value, false);
 }
 
 DLLEXPORT
@@ -1046,11 +1074,11 @@ void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
       RT_ASSERT(count >= 0);
 
       const size_t valuesz = n->width * n->size;
-      value_t *values_copy = rt_alloc_value(n);
-      memcpy(values_copy->data, vptr, valuesz);
+      rt_value_t value = rt_alloc_value(n);
+      rt_copy_value_ptr(n, &value, vptr);
       vptr += valuesz;
 
-      rt_sched_driver(n, after, reject, values_copy);
+      rt_sched_driver(n, after, reject, value, false);
    }
 }
 
@@ -1071,7 +1099,8 @@ void _disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
       count -= n->width;
       RT_ASSERT(count >= 0);
 
-      rt_sched_driver(n, after, reject, NULL);
+      rt_value_t null = {};
+      rt_sched_driver(n, after, reject, null, true);
       n->flags |= NET_F_DISCONNECTED;
    }
 }
@@ -1221,7 +1250,8 @@ sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
    TRACE("_init_signal %s count=%d size=%d values=%p offset=%d",
          istr(tree_ident(where)), count, size, values, offset);
 
-   rt_signal_t *s = xcalloc_flex(sizeof(rt_signal_t), 2 * count, size);
+   const size_t datasz = MAX(2 * count * size, 8);
+   rt_signal_t *s = xcalloc_flex(sizeof(rt_signal_t), 1, datasz);
    rt_setup_signal(s, where, count, size, offset);
 
    memcpy(s->shared.data, values, s->shared.size);
@@ -1239,7 +1269,8 @@ sig_shared_t *_implicit_signal(uint32_t count, uint32_t size,
    TRACE("_init_signal %s count=%d size=%d kind=%d",
          istr(tree_ident(where)), count, size, kind);
 
-   rt_implicit_t *imp = xcalloc_flex(sizeof(rt_implicit_t), 2 * count, size);
+   const size_t datasz = MAX(2 * count * size, 8);
+   rt_implicit_t *imp = xcalloc_flex(sizeof(rt_implicit_t), 1, datasz);
    rt_setup_signal(&(imp->signal), where, count, size, 0);
 
    ffi_closure_t *copy = xmalloc(sizeof(ffi_closure_t));
@@ -1907,9 +1938,10 @@ bool _driving(sig_shared_t *ss, uint32_t offset, int32_t count)
    for (; count > 0; n = n->chain) {
       if (n->n_sources > 0) {
          for (rt_source_t *src = &(n->sources); src; src = src->chain_input) {
-            if (src->tag == SOURCE_DRIVER && src->u.driver.proc == active_proc) {
-               if (src->u.driver.waveforms.values != NULL)
-                  ndriving++;
+            if (src->tag != SOURCE_DRIVER)
+               continue;
+            else if (src->u.driver.proc == active_proc) {
+               if (!src->u.driver.waveforms.null) ndriving++;
                found = true;
                break;
             }
@@ -1953,7 +1985,8 @@ void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
          rt_msg(NULL, fatal, "process %s does not contain a driver for %s",
                 istr(active_proc->name), istr(tree_ident(s->where)));
 
-      memcpy(p, src->u.driver.waveforms.values->data, n->width * n->size);
+      memcpy(p, rt_value_ptr(n, &(src->u.driver.waveforms.value)),
+             n->width * n->size);
       p += n->width * n->size;
 
       count -= n->width;
@@ -2288,29 +2321,69 @@ static void rt_global_event(rt_event_t kind)
    }
 }
 
-static value_t *rt_alloc_value(rt_nexus_t *n)
+static rt_value_t rt_alloc_value(rt_nexus_t *n)
 {
-   if (n->free_values == NULL) {
-      const size_t size = MAX(sizeof(uint64_t), n->size * n->width);
-      value_t *v = xmalloc(sizeof(struct value) + size);
-      v->next = NULL;
-      return v;
+   rt_value_t result = {};
+
+   const size_t valuesz = n->size * n->width;
+   if (valuesz > sizeof(rt_value_t)) {
+      if (n->free_value != NULL) {
+         result.ext = n->free_value;
+         n->free_value = NULL;
+      }
+      else
+         result.ext = xmalloc(valuesz);
    }
-   else {
-      value_t *v = n->free_values;
-      n->free_values = v->next;
-      v->next = NULL;
-      return v;
-   }
+
+   return result;
 }
 
-static void rt_free_value(rt_nexus_t *n, value_t *v)
+static inline const uint8_t *rt_value_ptr(rt_nexus_t *n, rt_value_t *v)
 {
+   const size_t valuesz = n->width * n->size;
+   if (valuesz <= sizeof(rt_value_t))
+      return v->bytes;
+   else
+      return v->ext;
+}
+
+static void rt_copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p)
+{
+   const size_t valuesz = n->width * n->size;
+   if (valuesz <= sizeof(rt_value_t))
+      v->qword = *(uint64_t *)p;
+   else
+      memcpy(v->ext, p, valuesz);
+}
+
+static inline bool rt_cmp_values(rt_nexus_t *n, rt_value_t a, rt_value_t b)
+{
+   const size_t valuesz = n->width * n->size;
+   if (valuesz <= sizeof(rt_value_t))
+      return a.qword == b.qword;
+   else
+      return memcmp(a.ext, b.ext, valuesz) == 0;
+}
+
+static void rt_free_value(rt_nexus_t *n, rt_value_t v)
+{
+#if 0
    if (v != NULL) {
       RT_ASSERT(v->next == NULL);
       v->next = n->free_values;
       n->free_values = v;
    }
+#else
+   const size_t valuesz = n->width * n->size;
+   if (valuesz > sizeof(rt_value_t)) {
+      if (n->free_value == NULL)
+         n->free_value = v.ext;
+      else {
+         //printf("free a %zu byte value!\n", valuesz);
+         free(v.ext);
+      }
+   }
+#endif
 }
 
 static void *rt_tmp_alloc(size_t sz)
@@ -2589,14 +2662,14 @@ static inline void *rt_resolution_buffer(size_t required)
    return (rbuf = xrealloc(rbuf, size));
 }
 
-static void *rt_source_data(rt_source_t *src)
+static const void *rt_source_data(rt_nexus_t *nexus, rt_source_t *src)
 {
    switch (src->tag) {
    case SOURCE_DRIVER:
-      if (unlikely(src->u.driver.waveforms.values == NULL))
+      if (unlikely(src->u.driver.waveforms.null))
          return NULL;
       else
-         return src->u.driver.waveforms.values->data;
+         return rt_value_ptr(nexus, &(src->u.driver.waveforms.value));
 
    case SOURCE_PORT:
       if (likely(src->u.port.conv_func == NULL))
@@ -2636,7 +2709,7 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
 {
    int nonnull = 0;
    for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-      if (s->tag == SOURCE_PORT || s->u.driver.waveforms.values != NULL)
+      if (s->tag == SOURCE_PORT || !s->u.driver.waveforms.null)
          nonnull++;
    }
 
@@ -2647,29 +2720,15 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
       // Call resolution function of composite type
 
       rt_scope_t *scope = nexus->signal->parent;
-      assert(scope->kind == SCOPE_SIGNAL);
+      while (scope->parent->kind == SCOPE_SIGNAL)
+         scope = scope->parent;
 
       TRACE("resolved composite signal needs %d bytes", scope->size);
 
       uint8_t *inputs LOCAL = xmalloc(nonnull * scope->size);
       void *resolved = rt_resolution_buffer(scope->size);
 
-      for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain) {
-         rt_nexus_t *n = &(s->nexus);
-         for (unsigned i = 0; i < s->n_nexus; i++) {
-            unsigned o = 0;
-            for (rt_source_t *src = &(n->sources); src; src = src->chain_input) {
-               const void *data = rt_source_data(src);
-               if (data == NULL)
-                  continue;
-
-               memcpy(inputs + s->shared.offset + (o * scope->size),
-                      data, n->size * n->width);
-               o++;
-            }
-            assert(o == nonnull);
-         }
-      }
+      rt_copy_sub_signal_sources(scope, inputs);
 
       const int32_t left = nexus->resolution->ileft;
       ffi_uarray_t u = { inputs, { { left, nonnull } } };
@@ -2689,7 +2748,7 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
             unsigned o = 0;                                             \
             for (rt_source_t *s = &(nexus->sources); s;                 \
                  s = s->chain_input) {                                  \
-               const void *data = rt_source_data(s);                    \
+               const void *data = rt_source_data(nexus, s);             \
                if (data != NULL)                                        \
                   vals[o++] = ((const type *)data)[j];                  \
             }                                                           \
@@ -2707,10 +2766,10 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
    }
 }
 
-static void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
+static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
 {
    if (unlikely(nexus->flags & NET_F_FORCED)) {
-      return nexus->forcing->data;
+      return rt_value_ptr(nexus, &(nexus->forcing));
    }
    else if (unlikely(nexus->flags & NET_F_DISCONNECTED)) {
       // Some drivers may have null transactions
@@ -2721,17 +2780,17 @@ static void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
       return nexus->resolved;
    }
    else if (nexus->resolution == NULL) {
-      return rt_source_data(&(nexus->sources));
+      return rt_source_data(nexus, &(nexus->sources));
    }
    else if ((nexus->resolution->flags & R_IDENT) && (nexus->n_sources == 1)) {
       // Resolution function behaves like identity for a single driver
-      return rt_source_data(&(nexus->sources));
+      return rt_source_data(nexus, &(nexus->sources));
    }
    else if ((nexus->resolution->flags & R_MEMO) && (nexus->n_sources == 1)) {
       // Resolution function has been memoised so do a table lookup
 
       void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
-      void *data = rt_source_data(&(nexus->sources));
+      const void *data = rt_source_data(nexus, &(nexus->sources));
 
       for (int j = 0; j < nexus->width; j++) {
          const int index = ((uint8_t *)data)[j];
@@ -2746,8 +2805,8 @@ static void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
 
       void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
 
-      const char *p0 = rt_source_data(&(nexus->sources));
-      const char *p1 = rt_source_data(nexus->sources.chain_input);
+      const char *p0 = rt_source_data(nexus, &(nexus->sources));
+      const char *p1 = rt_source_data(nexus, nexus->sources.chain_input);
 
       for (int j = 0; j < nexus->width; j++) {
          const int driving[2] = { p0[j], p1[j] };
@@ -2800,17 +2859,16 @@ static void rt_reset_scope(rt_scope_t *s)
 
 static void rt_driver_initial(rt_nexus_t *nexus)
 {
-   const size_t valuesz = nexus->size * nexus->width;
-
    // Assign the initial value of the drivers
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
          if (s->tag == SOURCE_DRIVER)
-            memcpy(s->u.driver.waveforms.values->data, nexus->resolved, valuesz);
+            rt_copy_value_ptr(nexus, &(s->u.driver.waveforms.value),
+                              nexus->resolved);
       }
    }
 
-   void *resolved;
+   const void *resolved;
    if (nexus->n_sources > 0)
       resolved = rt_resolve_nexus_fast(nexus);
    else
@@ -2918,7 +2976,7 @@ static void rt_wakeup(sens_list_t *sl)
 }
 
 static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
-                            uint64_t reject, value_t *values)
+                            uint64_t reject, rt_value_t value, bool null)
 {
    if (unlikely(reject > after))
       fatal("signal %s pulse reject limit %s is greater than "
@@ -2933,12 +2991,11 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
    }
    RT_ASSERT(d != NULL);
 
-   const size_t valuesz = nexus->size * nexus->width;
-
    waveform_t *w = rt_alloc(waveform_stack);
-   w->when   = now + after;
-   w->next   = NULL;
-   w->values = values;
+   w->when  = now + after;
+   w->next  = NULL;
+   w->value = value;
+   w->null  = null;
 
    waveform_t *last = &(d->u.driver.waveforms);
    waveform_t *it   = last->next;
@@ -2948,10 +3005,10 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
       // delete the current transaction
       RT_ASSERT(it->when >= now);
       if ((it->when >= w->when - reject)
-          && (memcmp(it->values->data, w->values->data, valuesz) != 0)) {
+          && !rt_cmp_values(nexus, it->value, w->value)) {
          waveform_t *next = it->next;
          last->next = next;
-         rt_free_value(nexus, it->values);
+         rt_free_value(nexus, it->value);
          rt_free(waveform_stack, it);
          it = next;
       }
@@ -2969,7 +3026,7 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
    // up for the empty event
    bool already_scheduled = false;
    while (it != NULL) {
-      rt_free_value(nexus, it->values);
+      rt_free_value(nexus, it->value);
 
       if (it->when == w->when)
          already_scheduled = true;
@@ -3018,7 +3075,7 @@ static void rt_notify_active(rt_nexus_t *nexus)
 
 static void rt_update_nexus(rt_nexus_t *nexus)
 {
-   void *resolved = rt_resolve_nexus_fast(nexus);
+   const void *resolved = rt_resolve_nexus_fast(nexus);
    const size_t valuesz = nexus->size * nexus->width;
 
    TRACE("update nexus %s resolved=%s",
@@ -3055,8 +3112,8 @@ static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
       waveform_t *w_next = w_now->next;
 
       if (likely((w_next != NULL) && (w_next->when == now))) {
-         rt_free_value(nexus, w_now->values);
-         source->u.driver.waveforms = *w_next;
+         rt_free_value(nexus, w_now->value);
+         *w_now = *w_next;
          rt_free(waveform_stack, w_next);
          rt_push_active_nexus(nexus);
       }
@@ -3315,7 +3372,7 @@ static void rt_cycle(int stop_delta)
 
 static void rt_cleanup_nexus(rt_nexus_t *n)
 {
-   free(n->forcing);
+   rt_free_value(n, n->forcing);
 
    bool must_free = false;
    for (rt_source_t *s = &(n->sources), *tmp; s; s = tmp, must_free = true) {
@@ -3323,13 +3380,11 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
 
       switch (s->tag) {
       case SOURCE_DRIVER:
-         if (s->u.driver.waveforms.values)
-            rt_free_value(n, s->u.driver.waveforms.values);
+         rt_free_value(n, s->u.driver.waveforms.value);
 
          for (waveform_t *it = s->u.driver.waveforms.next, *next;
               it; it = next) {
-            if (it->values)
-               rt_free_value(n, it->values);
+            rt_free_value(n, it->value);
             next = it->next;
             rt_free(waveform_stack, it);
          }
@@ -3347,11 +3402,7 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
       if (must_free) free(s);
    }
 
-   while (n->free_values != NULL) {
-      value_t *next = n->free_values->next;
-      free(n->free_values);
-      n->free_values = next;
-   }
+   free(n->free_value);
 
    while (n->pending != NULL) {
       sens_list_t *next = n->pending->next;
@@ -3784,13 +3835,14 @@ bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count,
    int offset = 0;
    rt_nexus_t *n = rt_split_nexus(s, offset, count);
    for (; count > 0; n = n->chain) {
-      n->flags |= NET_F_FORCED;
+      if (n->flags & NET_F_FORCED)
+         rt_free_value(n, n->forcing);
 
-      if (n->forcing == NULL)
-         n->forcing = rt_alloc_value(n);
+      n->flags |= NET_F_FORCED;
+      n->forcing = rt_alloc_value(n);
 
 #define SIGNAL_FORCE_EXPAND_U64(type) do {                              \
-         type *dp = (type *)n->forcing->data;                           \
+         type *dp = (type *)rt_value_ptr(n, &(n->forcing));             \
          for (int i = 0; (i < n->width) && (offset + i < count); i++)   \
             dp[i] = buf[offset + i];                                    \
       } while (0)
