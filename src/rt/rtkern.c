@@ -202,6 +202,7 @@ typedef enum {
    NET_F_FORCED       = (1 << 0),
    NET_F_OWNS_MEM     = (1 << 1),
    NET_F_LAST_VALUE   = (1 << 2),
+   NET_F_R_IDENT      = (1 << 3),
    NET_F_IMPLICIT     = (1 << 4),
    NET_F_REGISTER     = (1 << 5),
    NET_F_DISCONNECTED = (1 << 6),
@@ -1252,6 +1253,16 @@ void __nvc_resolve_signal(sig_shared_t *ss, rt_resolution_t *resolution)
    TRACE("resolve signal %s", istr(tree_ident(s->where)));
 
    s->resolution = rt_memo_resolution_fn(s, resolution);
+
+   // Copy R_IDENT into the nexus flags to avoid rt_resolve_nexus_fast
+   // having to dereference the resolution pointer in the common case
+   if (s->resolution->flags & R_IDENT) {
+      s->flags |= NET_F_R_IDENT;
+
+      rt_nexus_t *n = &(s->nexus);
+      for (int i = 0; i < s->n_nexus; i++, n = n->chain)
+         n->flags |= NET_F_R_IDENT;
+   }
 }
 
 DLLEXPORT
@@ -2821,15 +2832,15 @@ static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
       // Some drivers may have null transactions
       return rt_resolve_nexus_slow(nexus);
    }
+   else if ((nexus->flags & NET_F_R_IDENT) && (nexus->n_sources == 1)) {
+      // Resolution function behaves like identity for a single driver
+      return rt_source_data(nexus, &(nexus->sources));
+   }
    else if (r == NULL && nexus->n_sources == 0) {
       // Always maintains initial driver value
       return nexus->resolved;
    }
    else if (r == NULL) {
-      return rt_source_data(nexus, &(nexus->sources));
-   }
-   else if ((r->flags & R_IDENT) && (nexus->n_sources == 1)) {
-      // Resolution function behaves like identity for a single driver
       return rt_source_data(nexus, &(nexus->sources));
    }
    else if ((r->flags & R_MEMO) && (nexus->n_sources == 1)) {
