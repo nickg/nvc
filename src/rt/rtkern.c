@@ -66,6 +66,7 @@ typedef struct rt_nexus_s    rt_nexus_t;
 typedef struct rt_source_s   rt_source_t;
 typedef struct rt_implicit_s rt_implicit_t;
 typedef struct rt_proc_s     rt_proc_t;
+typedef struct rt_alias_s    rt_alias_t;
 
 typedef void *(*proc_fn_t)(void *, rt_scope_t *);
 
@@ -252,6 +253,12 @@ typedef struct rt_implicit_s {
    rt_signal_t    signal;   // Has a flexible member
 } rt_implicit_t;
 
+typedef struct rt_alias_s {
+   rt_alias_t  *chain;
+   tree_t       where;
+   rt_signal_t *signal;
+} rt_alias_t;
+
 typedef enum {
    SCOPE_ROOT,
    SCOPE_INSTANCE,
@@ -262,6 +269,7 @@ typedef enum {
 typedef struct rt_scope_s {
    rt_signal_t     *signals;
    rt_proc_t       *procs;
+   rt_alias_t      *aliases;
    rt_scope_kind_t  kind;
    unsigned         size;   // For signal scopes
    ident_t          name;
@@ -648,6 +656,34 @@ static void *rt_map_secondary_stack(opt_name_t which)
                        (void *)(uintptr_t)which);
 }
 
+static void rt_dump_one_signal(rt_scope_t *scope, rt_signal_t *s, tree_t alias)
+{
+   rt_nexus_t *n = &(s->nexus);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   if (scope->kind == SCOPE_SIGNAL)
+      tb_printf(tb, "%s.", istr(scope->name));
+   tb_cat(tb, istr(tree_ident(alias ?: s->where)));
+   if (alias != NULL)
+      tb_append(tb, '*');
+
+   for (int nth = 0; nth < s->n_nexus; nth++, n = n->chain) {
+      int pending = 0;
+      for (sens_list_t *p = n->pending; p != NULL; p = p->next)
+         pending++;
+
+      int n_outputs = 0;
+      for (rt_source_t *s = n->outputs; s != NULL; s = s->chain_output)
+         n_outputs++;
+
+      fprintf(stderr, "%-16s %-5d %-4d %-7d %-7d %-7d %-4d %s\n",
+              nth == 0 ? tb_get(tb) : "+",
+              n->width, n->size, n->n_sources, n_outputs, pending,
+              n->rank,
+              fmt_nexus(n, n->resolved));
+   }
+}
+
 static void rt_dump_signals(rt_scope_t *scope)
 {
    if (scope->signals == NULL && scope->child == NULL)
@@ -665,30 +701,11 @@ static void rt_dump_signals(rt_scope_t *scope)
               "Pending", "Rank", "Value");
    }
 
-   for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain) {
-      rt_nexus_t *n = &(s->nexus);
+   for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain)
+      rt_dump_one_signal(scope, s, NULL);
 
-      LOCAL_TEXT_BUF tb = tb_new();
-      if (scope->kind == SCOPE_SIGNAL)
-         tb_printf(tb, "%s.", istr(scope->name));
-      tb_cat(tb, istr(tree_ident(s->where)));
-
-      for (int nth = 0; nth < s->n_nexus; nth++, n = n->chain) {
-         int pending = 0;
-         for (sens_list_t *p = n->pending; p != NULL; p = p->next)
-            pending++;
-
-         int n_outputs = 0;
-         for (rt_source_t *s = n->outputs; s != NULL; s = s->chain_output)
-            n_outputs++;
-
-         fprintf(stderr, "%-16s %-5d %-4d %-7d %-7d %-7d %-4d %s\n",
-                 nth == 0 ? tb_get(tb) : "+",
-                 n->width, n->size, n->n_sources, n_outputs, pending,
-                 n->rank,
-                 fmt_nexus(n, n->resolved));
-      }
-   }
+   for (rt_alias_t *a = scope->aliases; a != NULL; a = a->chain)
+      rt_dump_one_signal(scope, a->signal, a->where);
 
    for (rt_scope_t *c = scope->child; c != NULL; c = c->chain)
       rt_dump_signals(c);
@@ -1192,6 +1209,23 @@ void __nvc_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
       count -= n->width;
       RT_ASSERT(count >= 0);
    }
+}
+
+DLLEXPORT
+void __nvc_alias_signal(sig_shared_t *ss, DEBUG_LOCUS(locus))
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   TRACE("alias signal %s to %s", istr(tree_ident(s->where)),
+         istr(tree_ident(where)));
+
+   rt_alias_t *a = xcalloc(sizeof(rt_alias_t));
+   a->where  = where;
+   a->signal = s;
+   a->chain  = active_scope->aliases;
+
+   active_scope->aliases = a;
 }
 
 DLLEXPORT
@@ -3813,6 +3847,11 @@ rt_signal_t *rt_find_signal(rt_scope_t *scope, tree_t decl)
    for (rt_signal_t *s = scope->signals; s; s = s->chain) {
       if (s->where == decl)
          return s;
+   }
+
+   for (rt_alias_t *a = scope->aliases; a; a = a->chain) {
+      if (a->where == decl)
+         return a->signal;
    }
 
    return NULL;

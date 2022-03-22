@@ -7976,6 +7976,64 @@ static void lower_port_map(tree_t block, tree_t map)
    }
 }
 
+static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct)
+{
+   tree_t port = NULL;
+   switch (tree_subkind(map)) {
+   case P_POS:
+      port = tree_port(block, tree_pos(map));
+      break;
+   case P_NAMED:
+      {
+         tree_t name = tree_name(map);
+         if (tree_kind(name) == T_REF)
+            port = tree_ref(name);
+      }
+      break;
+   }
+
+   if (port == NULL || tree_subkind(port) != PORT_IN)
+      return;
+
+   assert(tree_kind(port) == T_PORT_DECL);
+
+   tree_t value = tree_value(map);
+   if (!lower_is_signal_ref(value) || tree_kind(value) == T_TYPE_CONV)
+      return;
+
+   type_t type = tree_type(port);
+
+   vcode_type_t vtype = lower_signal_type(type);
+   vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
+   lower_put_vcode_obj(port, var, top_scope);
+
+   vcode_reg_t src_reg = lower_expr(value, EXPR_LVALUE);
+
+   if (!type_is_homogeneous(type)) {
+      vcode_reg_t ptr = emit_index(var, VCODE_INVALID_REG);
+
+      vcode_reg_t count_reg = VCODE_INVALID_REG;
+      if (type_is_array(type)) {
+         count_reg = lower_array_total_len(type, src_reg);
+         src_reg = lower_array_data(src_reg);
+      }
+
+      emit_copy(ptr, src_reg, count_reg);
+   }
+   else if (type_is_array(type)) {
+      vcode_reg_t nets_reg = lower_array_data(src_reg);
+      emit_alias_signal(nets_reg, lower_debug_locus(port));
+      emit_store(nets_reg, var);
+   }
+   else {
+      emit_alias_signal(src_reg, lower_debug_locus(port));
+      emit_store(src_reg, var);
+   }
+
+   hset_insert(direct, map);
+   hset_insert(direct, port);
+}
+
 static void lower_port_decl(tree_t port)
 {
    type_t type = tree_type(port);
@@ -8019,12 +8077,28 @@ static void lower_port_decl(tree_t port)
 static void lower_ports(tree_t block)
 {
    const int nports = tree_ports(block);
-   for (int i = 0; i < nports; i++)
-      lower_port_decl(tree_port(block, i));
-
    const int nparams = tree_params(block);
+
+   hset_t *direct = hset_new(nports * 2);
+
+   // Filter out "direct mapped" inputs which can be aliased to signals
+   // in the scope above
    for (int i = 0; i < nparams; i++)
-      lower_port_map(block, tree_param(block, i));
+      lower_direct_mapped_port(block, tree_param(block, i), direct);
+
+   for (int i = 0; i < nports; i++) {
+      tree_t port = tree_port(block, i);
+      if (!hset_contains(direct, port))
+         lower_port_decl(port);
+   }
+
+   for (int i = 0; i < nparams; i++) {
+      tree_t p = tree_param(block, i);
+      if (!hset_contains(direct, p))
+         lower_port_map(block, p);
+   }
+
+   hset_free(direct);
 }
 
 static void lower_pack_inst_generics(tree_t inst)

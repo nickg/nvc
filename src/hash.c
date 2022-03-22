@@ -32,7 +32,7 @@ struct _hash {
    const void **keys;
 };
 
-static inline int hash_slot(hash_t *h, const void *key)
+static inline int hash_slot(unsigned size, const void *key)
 {
    assert(key != NULL);
 
@@ -51,7 +51,7 @@ static inline int hash_slot(hash_t *h, const void *key)
    a = a * UINT32_C(0x27d4eb2d);
    a = a ^ (a >> 15);
 
-   return a & (h->size - 1);
+   return a & (size - 1);
 }
 
 hash_t *hash_new(int size, bool replace)
@@ -100,7 +100,7 @@ bool hash_put(hash_t *h, const void *key, void *value)
       free(old_values);
    }
 
-   int slot = hash_slot(h, key);
+   int slot = hash_slot(h->size, key);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
       if ((h->keys[slot] == key) && h->replace) {
@@ -122,7 +122,7 @@ void hash_delete(hash_t *h, const void *key)
 {
    assert(h->replace);
 
-   int slot = hash_slot(h, key);
+   int slot = hash_slot(h->size, key);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (h->keys[slot] == key) {
@@ -136,7 +136,7 @@ void hash_delete(hash_t *h, const void *key)
 
 void *hash_get_nth(hash_t *h, const void *key, int *n)
 {
-   int slot = hash_slot(h, key);
+   int slot = hash_slot(h->size, key);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (h->keys[slot] == key) {
@@ -392,5 +392,75 @@ void *ihash_get(ihash_t *h, uint64_t key)
          return NULL;
       else if (h->keys[slot] == key)
          return h->values[slot];
+   }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Set of pointers implemented as a hash table
+
+struct _hset {
+   unsigned     size;
+   unsigned     members;
+   const void **keys;
+};
+
+hset_t *hset_new(int size)
+{
+   hset_t *h = xmalloc(sizeof(hset_t));
+   h->size    = next_power_of_2(size);
+   h->members = 0;
+   h->keys    = xcalloc_array(h->size, sizeof(void *));
+
+   return h;
+}
+
+void hset_free(hset_t *h)
+{
+   free(h->keys);
+   free(h);
+}
+
+void hset_insert(hset_t *h, const void *key)
+{
+   if (unlikely(h->members >= h->size / 2)) {
+      const int old_size = h->size;
+      h->size *= 2;
+
+      const void **old_keys = h->keys;
+      h->keys = xcalloc_array(h->size, sizeof(void *));
+
+      h->members = 0;
+
+      for (int i = 0; i < old_size; i++) {
+         if (old_keys[i] != NULL)
+            hset_insert(h, old_keys[i]);
+      }
+
+      free(old_keys);
+   }
+
+   int slot = hash_slot(h->size, key);
+
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
+      if (h->keys[slot] == key)
+         return;
+      else if (h->keys[slot] == NULL) {
+         h->keys[slot] = key;
+         h->members++;
+         break;
+      }
+   }
+}
+
+bool hset_contains(hset_t *h, const void *key)
+{
+   int slot = hash_slot(h->size, key);
+
+   for (; ; slot = (slot + 1) & (h->size - 1)) {
+      if (h->keys[slot] == key)
+         return true;
+      else if (h->keys[slot] == NULL)
+         return false;
    }
 }

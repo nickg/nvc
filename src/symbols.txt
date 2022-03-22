@@ -3,6 +3,7 @@
 #
 {
   # Exported from src/rt/rtkern.c
+  __nvc_alias_signal;
   __nvc_assert_fail;
   __nvc_div_zero;
   __nvc_drive_signal;

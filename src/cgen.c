@@ -2479,6 +2479,18 @@ static void cgen_op_driving_value(int op, cgen_ctx_t *ctx)
                                      cgen_reg_name(result));
 }
 
+static void cgen_op_alias_signal(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+
+   LLVMValueRef args[] = {
+      LLVMBuildExtractValue(builder, sigptr, 0, "shared"),
+      cgen_get_arg(op, 1, ctx)
+   };
+   LLVMBuildCall(builder, llvm_fn("__nvc_alias_signal"),
+                 args, ARRAY_LEN(args), "");
+}
+
 static void cgen_op_set_signal_kind(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
@@ -3360,6 +3372,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_SET_SIGNAL_KIND:
       cgen_op_set_signal_kind(i, ctx);
+      break;
+   case VCODE_OP_ALIAS_SIGNAL:
+      cgen_op_alias_signal(i, ctx);
       break;
    case VCODE_OP_ZERO_CHECK:
       cgen_op_zero_check(i, ctx);
@@ -4626,6 +4641,15 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_int32_type()
       };
       fn = LLVMAddFunction(module, "__nvc_set_signal_kind",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "__nvc_alias_signal") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         llvm_debug_locus_type(),
+      };
+      fn = LLVMAddFunction(module, "__nvc_alias_signal",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }

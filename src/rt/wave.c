@@ -486,9 +486,8 @@ static void fst_process_signal(rt_scope_t *scope, tree_t d)
    else {
       rt_signal_t *s = rt_find_signal(scope, d);
       if (s == NULL)
-         fatal_trace("cannot find signal %s", istr(tree_ident(d)));
-
-      if (type_is_array(type))
+         ;    // Signal was optimised out
+      else if (type_is_array(type))
          fst_create_array_var(d, s, type);
       else
          fst_create_scalar_var(d, s, type);

@@ -235,11 +235,13 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_TEMP_STACK_MARK:
       case VCODE_OP_TEMP_STACK_RESTORE:
       case VCODE_OP_INIT_SIGNAL:
+      case VCODE_OP_MAP_SIGNAL:
       case VCODE_OP_DRIVE_SIGNAL:
       case VCODE_OP_MAP_CONST:
       case VCODE_OP_RESOLVED:
       case VCODE_OP_RESOLUTION_WRAPPER:
       case VCODE_OP_RESOLVE_SIGNAL:
+      case VCODE_OP_ALIAS_SIGNAL:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -4537,6 +4539,40 @@ START_TEST(test_vunit4)
 }
 END_TEST
 
+START_TEST(test_directmap)
+{
+   input_from_file(TESTDIR "/lower/directmap.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.DIRECTMAP.UUT");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "X" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_ALIAS_SIGNAL },
+      { VCODE_OP_STORE, .name = "I" },
+      { VCODE_OP_CONST, .value = INT32_MIN },
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_STORE, .name = "O" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "Y" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_MAP_SIGNAL },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4638,6 +4674,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_vunit2);
    tcase_add_test(tc, test_vunit3);
    tcase_add_test(tc, test_vunit4);
+   tcase_add_test(tc, test_directmap);
    suite_add_tcase(s, tc);
 
    return s;

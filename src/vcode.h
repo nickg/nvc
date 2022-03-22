@@ -143,6 +143,7 @@ typedef enum {
    VCODE_OP_PUSH_SCOPE,
    VCODE_OP_POP_SCOPE,
    VCODE_OP_SET_SIGNAL_KIND,
+   VCODE_OP_ALIAS_SIGNAL,
 } vcode_op_t;
 
 typedef enum {
@@ -472,5 +473,6 @@ vcode_reg_t emit_debug_locus(ident_t unit, ptrdiff_t offset);
 void emit_push_scope(vcode_reg_t locus, vcode_type_t type);
 void emit_pop_scope(void);
 void emit_set_signal_kind(vcode_reg_t signal, vcode_reg_t kind);
+void emit_alias_signal(vcode_reg_t signal, vcode_reg_t locus);
 
 #endif  // _VCODE_H

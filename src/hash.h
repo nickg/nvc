@@ -47,4 +47,9 @@ void ihash_free(ihash_t *h);
 void ihash_put(ihash_t *h, uint64_t key, void *value);
 void *ihash_get(ihash_t *h, uint64_t key);
 
+hset_t *hset_new(int size);
+void hset_free(hset_t *h);
+void hset_insert(hset_t *h, const void *key);
+bool hset_contains(hset_t *h, const void *key);
+
 #endif  // _HASH_H

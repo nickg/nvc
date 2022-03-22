@@ -902,7 +902,7 @@ const char *vcode_op_string(vcode_op_t op)
       "implicit signal", "disconnect", "link package", "index check",
       "debug locus", "length check", "range check", "array ref", "range length",
       "exponent check", "zero check", "map const", "resolve signal",
-      "push scope", "pop scope", "set signal kind"
+      "push scope", "pop scope", "set signal kind", "alias signal"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1097,6 +1097,7 @@ static int vcode_dump_var(vcode_var_t var, int hops)
    }
 }
 
+LCOV_EXCL_START
 void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 {
    assert(active_unit != NULL);
@@ -1950,6 +1951,15 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
+         case VCODE_OP_ALIAS_SIGNAL:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" locus ");
+               vcode_dump_reg(op->args.items[1]);
+            }
+            break;
+
          case VCODE_OP_LENGTH_CHECK:
             {
                col += printf("%s left ", vcode_op_string(op->kind));
@@ -2091,6 +2101,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
 
    active_block = old_block;
 }
+LCOV_EXCL_STOP
 
 bool vtype_eq(vcode_type_t a, vcode_type_t b)
 {
@@ -4856,6 +4867,18 @@ void emit_set_signal_kind(vcode_reg_t signal, vcode_reg_t kind)
                 "signal argument must have signal type");
    VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
                 "kind argument must have offset type");
+}
+
+void emit_alias_signal(vcode_reg_t signal, vcode_reg_t locus)
+{
+   op_t *op = vcode_add_op(VCODE_OP_ALIAS_SIGNAL);
+   vcode_add_arg(op, signal);
+   vcode_add_arg(op, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
+                "signal argument must have signal type");
+   VCODE_ASSERT(vcode_reg_kind(locus) == VCODE_TYPE_DEBUG_LOCUS,
+                "locus argument must have debug locus type");
 }
 
 vcode_reg_t emit_driving_flag(vcode_reg_t signal, vcode_reg_t len)
