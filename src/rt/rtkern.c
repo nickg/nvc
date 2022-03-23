@@ -3178,6 +3178,8 @@ static void rt_update_nexus(rt_nexus_t *nexus)
          istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, resolved));
 
+   __builtin_prefetch(nexus->outputs);
+
    rt_net_t *net = rt_get_net(nexus);
 
    if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
@@ -3186,15 +3188,10 @@ static void rt_update_nexus(rt_nexus_t *nexus)
    }
    else
       rt_notify_active(net);
-}
-
-static void rt_push_active_nexus(rt_nexus_t *nexus)
-{
-   rt_update_nexus(nexus);
 
    for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
       RT_ASSERT(o->tag == SOURCE_PORT);
-      rt_push_active_nexus(o->u.port.output);
+      rt_update_nexus(o->u.port.output);
    }
 }
 
@@ -3209,13 +3206,13 @@ static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
          rt_free_value(nexus, w_now->value);
          *w_now = *w_next;
          rt_free(waveform_stack, w_next);
-         rt_push_active_nexus(nexus);
+         rt_update_nexus(nexus);
       }
       else
          RT_ASSERT(w_now != NULL);
    }
    else if (nexus->flags & NET_F_FORCED)
-      rt_push_active_nexus(nexus);
+      rt_update_nexus(nexus);
 }
 
 static void rt_update_implicit_signal(rt_implicit_t *imp)
