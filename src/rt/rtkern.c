@@ -219,15 +219,14 @@ typedef enum {
 } net_flags_t;
 
 typedef struct rt_nexus_s {
-   uint32_t      width;
-   uint32_t      size;
    rt_nexus_t   *chain;
    void         *free_value;
    rt_net_t     *net;
    rt_value_t    forcing;
-   net_flags_t   flags;
-   uint16_t      rank;
-   uint16_t      n_sources;
+   uint32_t      width;
+   net_flags_t   flags : 16;
+   uint8_t       size;
+   uint8_t       n_sources;
    rt_source_t   sources;
    rt_signal_t  *signal;
    rt_source_t  *outputs;
@@ -682,11 +681,11 @@ static void rt_dump_one_signal(rt_scope_t *scope, rt_signal_t *s, tree_t alias)
       for (rt_source_t *s = n->outputs; s != NULL; s = s->chain_output)
          n_outputs++;
 
-      fprintf(stderr, "%-16s %-5d %-4d %-7d %-7d %-4d %-4d %s\n",
+      fprintf(stderr, "%-16s %-5d %-4d %-7d %-7d %-4d %s\n",
               nth == 0 ? tb_get(tb) : "+",
               n->width, n->size, n->n_sources, n_outputs,
               n->net != NULL ? n->net->net_id : 0,
-              n->rank, fmt_nexus(n, n->resolved));
+              fmt_nexus(n, n->resolved));
    }
 }
 
@@ -702,9 +701,9 @@ static void rt_dump_signals(rt_scope_t *scope)
          fputc('=', stderr);
       fputc('\n', stderr);
 
-      fprintf(stderr, "%-16s %5s %4s %7s %7s %-4s %4s %s\n",
+      fprintf(stderr, "%-16s %5s %4s %7s %7s %-4s %s\n",
               "Signal", "Width", "Size", "Sources", "Outputs",
-              "Net", "Rank", "Value");
+              "Net", "Value");
    }
 
    for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain)
@@ -720,7 +719,7 @@ static void rt_dump_signals(rt_scope_t *scope)
 static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
 {
    rt_source_t *src = NULL;
-   if (n->n_sources++ == 0)
+   if (n->n_sources == 0)
       src = &(n->sources);
    else if (n->signal->resolution == NULL
             && (n->sources.tag != SOURCE_PORT
@@ -734,6 +733,10 @@ static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
          ;
       *p = src = xmalloc(sizeof(rt_source_t));
    }
+
+   // The only interesting values of n_sources are 0, 1, and 2
+   if (n->n_sources < UINT8_MAX)
+      n->n_sources++;
 
    src->chain_input  = NULL;
    src->chain_output = NULL;
@@ -857,7 +860,6 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, int offset, rt_net_t *net)
    new->resolved     = (uint8_t *)old->resolved + offset * old->size;
    new->chain        = old->chain;
    new->flags        = old->flags;
-   new->rank         = old->rank;
 
    old->chain = new;
    old->width = offset;
@@ -992,16 +994,6 @@ static rt_nexus_t *rt_split_nexus(rt_signal_t *s, int offset, int count)
    }
 
    return result;
-}
-
-static void rt_set_rank(rt_nexus_t *n, int rank)
-{
-   if (n->rank < rank) {
-      n->rank = rank;
-
-      for (rt_source_t *o = n->outputs; o; o = o->chain_output)
-         rt_set_rank(o->u.port.output, rank + 1);
-   }
 }
 
 static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
@@ -1456,8 +1448,6 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
          port->u.port.conv_func = conv_func;
          conv_func->refcnt++;
       }
-
-      rt_set_rank(dst_n, src_n->rank + 1);
 
       port->chain_output = src_n->outputs;
       src_n->outputs = port;
@@ -2989,6 +2979,20 @@ static void rt_driver_initial(rt_nexus_t *nexus)
    rt_propagate_nexus(nexus, resolved);
 }
 
+static int rt_nexus_rank(rt_nexus_t *nexus)
+{
+   if (nexus->n_sources > 0) {
+      int rank = 0;
+      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
+         if (s->tag == SOURCE_PORT)
+            rank = MAX(rank, rt_nexus_rank(s->u.port.input) + 1);
+      }
+      return rank;
+   }
+   else
+      return 0;
+}
+
 static void rt_initial(tree_t top)
 {
    // Initialisation is described in LRM 93 section 12.6.4
@@ -3005,7 +3009,7 @@ static void rt_initial(tree_t top)
    heap_t *q = heap_new(MAX(profile.n_signals + 1, 128));
 
    for (rt_nexus_t *n = nexuses; n != NULL; n = n->chain)
-      heap_insert(q, n->rank, n);
+      heap_insert(q, rt_nexus_rank(n), n);
 
    init_side_effect = SIDE_EFFECT_ALLOW;
 
@@ -3190,10 +3194,6 @@ static void rt_push_active_nexus(rt_nexus_t *nexus)
 
    for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
       RT_ASSERT(o->tag == SOURCE_PORT);
-      TRACE("active nexus %s sources nexus %s",
-            istr(tree_ident(nexus->signal->where)),
-            istr(tree_ident(o->u.port.output->signal->where)));
-      RT_ASSERT(nexus->rank < o->u.port.output->rank);
       rt_push_active_nexus(o->u.port.output);
    }
 }
