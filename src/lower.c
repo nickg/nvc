@@ -7976,9 +7976,11 @@ static void lower_port_map(tree_t block, tree_t map)
    }
 }
 
-static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct)
+static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct,
+                                     hset_t **poison)
 {
    tree_t port = NULL;
+   int field = -1;
    switch (tree_subkind(map)) {
    case P_POS:
       port = tree_port(block, tree_pos(map));
@@ -7986,7 +7988,15 @@ static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct)
    case P_NAMED:
       {
          tree_t name = tree_name(map);
-         if (tree_kind(name) == T_REF)
+         tree_kind_t kind = tree_kind(name);
+
+         if (kind == T_RECORD_REF) {
+            field = tree_pos(tree_ref(name));
+            name  = tree_value(name);
+            kind  = tree_kind(name);
+         }
+
+         if (kind == T_REF)
             port = tree_ref(name);
       }
       break;
@@ -7998,52 +8008,66 @@ static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct)
    assert(tree_kind(port) == T_PORT_DECL);
 
    tree_t value = tree_value(map);
-   if (!lower_is_signal_ref(value) || tree_kind(value) == T_TYPE_CONV)
+   if (!lower_is_signal_ref(value) || tree_kind(value) == T_TYPE_CONV) {
+      if (field != -1) {
+         // We can't use direct mapping for this record element so make
+         // sure we don't direct map any other elements of this signal
+         if (*poison == NULL)
+            *poison = hset_new(32);
+         hset_insert(*poison, port);
+      }
       return;
-
-   type_t type = tree_type(port);
-
-   vcode_type_t vtype = lower_signal_type(type);
-   vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
-   lower_put_vcode_obj(port, var, top_scope);
+   }
+   else if (*poison != NULL && hset_contains(*poison, port))
+      return;
 
    vcode_reg_t src_reg = lower_expr(value, EXPR_LVALUE);
 
-   if (!type_is_homogeneous(type)) {
-      vcode_reg_t ptr = emit_index(var, VCODE_INVALID_REG);
+   int hops;
+   vcode_var_t var = lower_get_var(port, &hops);
+   assert(hops == 0);
 
+   type_t type = tree_type(value);
+
+   if (!type_is_homogeneous(type)) {
       vcode_reg_t count_reg = VCODE_INVALID_REG;
       if (type_is_array(type)) {
          count_reg = lower_array_total_len(type, src_reg);
          src_reg = lower_array_data(src_reg);
       }
 
+      vcode_reg_t ptr = emit_index(var, VCODE_INVALID_REG);
+      if (field != -1)
+         ptr = emit_record_ref(ptr, field);
+
       emit_copy(ptr, src_reg, count_reg);
    }
-   else if (type_is_array(type)) {
-      vcode_reg_t nets_reg = lower_array_data(src_reg);
-      emit_alias_signal(nets_reg, lower_debug_locus(port));
-      emit_store(nets_reg, var);
-   }
    else {
-      emit_alias_signal(src_reg, lower_debug_locus(port));
-      emit_store(src_reg, var);
+      if (type_is_array(type))
+         src_reg = lower_array_data(src_reg);
+
+      if (field == -1) {
+         emit_alias_signal(src_reg, lower_debug_locus(port));
+         emit_store(src_reg, var);
+      }
+      else {
+         vcode_reg_t port_reg = emit_index(var, VCODE_INVALID_REG);
+         vcode_reg_t field_reg = emit_record_ref(port_reg, field);
+         emit_store_indirect(src_reg, field_reg);
+      }
    }
 
    hset_insert(direct, map);
    hset_insert(direct, port);
 }
 
-static void lower_port_decl(tree_t port)
+static void lower_port_signal(tree_t port)
 {
+   int hops;
+   vcode_var_t var = lower_get_var(port, &hops);
+   assert(hops == 0);
+
    type_t type = tree_type(port);
-   const port_mode_t mode = tree_subkind(port);
-
-   vcode_type_t vtype = lower_signal_type(type);
-   vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
-
-   lower_put_vcode_obj(port, var, top_scope);
-
    type_t value_type = type;
    vcode_reg_t init_reg;
    if (tree_has_value(port)) {
@@ -8061,8 +8085,9 @@ static void lower_port_decl(tree_t port)
    lower_sub_signals(type, port, value_type, var, VCODE_INVALID_REG, init_reg,
                      VCODE_INVALID_REG, VCODE_INVALID_REG, kind);
 
-   if (mode == PORT_INOUT) {
+   if (tree_subkind(port) == PORT_INOUT) {
       // Separate input aspect of inout port
+      vcode_type_t vtype = vcode_var_type(var);
       ident_t pname = ident_prefix(tree_ident(port), ident_new("in"), '$');
       vcode_var_t var = emit_var(vtype, vtype, pname, VAR_SIGNAL);
 
@@ -8079,26 +8104,44 @@ static void lower_ports(tree_t block)
    const int nports = tree_ports(block);
    const int nparams = tree_params(block);
 
-   hset_t *direct = hset_new(nports * 2);
+   hset_t *direct = hset_new(nports * 2), *poison = NULL;
+
+   for (int i = 0; i < nports; i++) {
+      tree_t port = tree_port(block, i);
+      type_t type = tree_type(port);
+
+      vcode_type_t vtype = lower_signal_type(type);
+      vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
+      lower_put_vcode_obj(port, var, top_scope);
+   }
 
    // Filter out "direct mapped" inputs which can be aliased to signals
    // in the scope above
    for (int i = 0; i < nparams; i++)
-      lower_direct_mapped_port(block, tree_param(block, i), direct);
+      lower_direct_mapped_port(block, tree_param(block, i), direct, &poison);
 
    for (int i = 0; i < nports; i++) {
       tree_t port = tree_port(block, i);
       if (!hset_contains(direct, port))
-         lower_port_decl(port);
+         lower_port_signal(port);
+      else if (poison != NULL && hset_contains(poison, port))
+         lower_port_signal(port);
    }
 
    for (int i = 0; i < nparams; i++) {
-      tree_t p = tree_param(block, i);
-      if (!hset_contains(direct, p))
-         lower_port_map(block, p);
+      tree_t map = tree_param(block, i);
+      if (!hset_contains(direct, map))
+         lower_port_map(block, map);
+      else if (poison != NULL && tree_subkind(map) == P_NAMED) {
+         tree_t port = tree_ref(name_to_ref(tree_name(map)));
+         if (hset_contains(poison, port))
+             lower_port_map(block, map);
+      }
    }
 
    hset_free(direct);
+   if (poison != NULL)
+      hset_free(poison);
 }
 
 static void lower_pack_inst_generics(tree_t inst)

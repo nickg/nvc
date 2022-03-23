@@ -520,3 +520,4 @@ record23        normal
 vests42         normal
 wait20          normal
 signal19        normal
+record24        normal
