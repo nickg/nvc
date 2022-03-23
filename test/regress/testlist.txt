@@ -519,3 +519,4 @@ driver9         fail,gold
 record23        normal
 vests42         normal
 wait20          normal
+signal19        normal

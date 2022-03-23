@@ -149,6 +149,16 @@ struct sens_list {
    uint32_t       wakeup_gen;
 };
 
+typedef struct {
+   sens_list_t *pending;
+   uint64_t     last_event;
+   uint64_t     last_active;
+   int32_t      event_delta;
+   int32_t      active_delta;
+   uint32_t     net_id;
+   uint32_t     refcnt;
+} rt_net_t;
+
 typedef enum {
    SOURCE_DRIVER,
    SOURCE_PORT,
@@ -213,11 +223,7 @@ typedef struct rt_nexus_s {
    uint32_t      size;
    rt_nexus_t   *chain;
    void         *free_value;
-   uint64_t      last_event;
-   uint64_t      last_active;
-   int32_t       event_delta;
-   int32_t       active_delta;
-   sens_list_t  *pending;
+   rt_net_t     *net;
    rt_value_t    forcing;
    net_flags_t   flags;
    uint16_t      rank;
@@ -241,7 +247,6 @@ typedef struct rt_signal_s {
    rt_scope_t     *parent;
    ihash_t        *index;
    res_memo_t     *resolution;
-   uint32_t        width;
    net_flags_t     flags;
    uint32_t        n_nexus;
    rt_nexus_t      nexus;
@@ -374,7 +379,7 @@ static void *rt_tmp_alloc(size_t sz);
 static rt_value_t rt_alloc_value(rt_nexus_t *n);
 static void rt_copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p);
 static inline const uint8_t *rt_value_ptr(rt_nexus_t *n, rt_value_t *v);
-static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset);
+static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, int offset, rt_net_t *net);
 static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
                                          rt_resolution_t *resolution);
 static const void *rt_source_data(rt_nexus_t *nexus, rt_source_t *src);
@@ -383,6 +388,10 @@ static void _tracef(const char *fmt, ...);
 #define FMT_VALUES_SZ   128
 #define NEXUS_INDEX_MIN 32
 #define MAX_NEXUS_WIDTH 4096
+#define CACHELINE       64
+
+STATIC_ASSERT(sizeof(rt_nexus_t) <= 2 * CACHELINE);
+STATIC_ASSERT(sizeof(rt_signal_t) + 8 <= 3 * CACHELINE);
 
 #if RT_DEBUG && !defined NDEBUG
 #define RT_ASSERT(x) assert((x))
@@ -669,19 +678,15 @@ static void rt_dump_one_signal(rt_scope_t *scope, rt_signal_t *s, tree_t alias)
       tb_append(tb, '*');
 
    for (int nth = 0; nth < s->n_nexus; nth++, n = n->chain) {
-      int pending = 0;
-      for (sens_list_t *p = n->pending; p != NULL; p = p->next)
-         pending++;
-
       int n_outputs = 0;
       for (rt_source_t *s = n->outputs; s != NULL; s = s->chain_output)
          n_outputs++;
 
-      fprintf(stderr, "%-16s %-5d %-4d %-7d %-7d %-7d %-4d %s\n",
+      fprintf(stderr, "%-16s %-5d %-4d %-7d %-7d %-4d %-4d %s\n",
               nth == 0 ? tb_get(tb) : "+",
-              n->width, n->size, n->n_sources, n_outputs, pending,
-              n->rank,
-              fmt_nexus(n, n->resolved));
+              n->width, n->size, n->n_sources, n_outputs,
+              n->net != NULL ? n->net->net_id : 0,
+              n->rank, fmt_nexus(n, n->resolved));
    }
 }
 
@@ -697,9 +702,9 @@ static void rt_dump_signals(rt_scope_t *scope)
          fputc('=', stderr);
       fputc('\n', stderr);
 
-      fprintf(stderr, "%-16s %5s %4s %7s %7s %7s %4s %s\n",
+      fprintf(stderr, "%-16s %5s %4s %7s %7s %-4s %4s %s\n",
               "Signal", "Width", "Size", "Sources", "Outputs",
-              "Pending", "Rank", "Value");
+              "Net", "Rank", "Value");
    }
 
    for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain)
@@ -757,7 +762,28 @@ static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
    return src;
 }
 
-static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset)
+static rt_net_t *rt_get_net(rt_nexus_t *nexus)
+{
+   if (likely(nexus->net != NULL))
+      return nexus->net;
+   else {
+      rt_net_t *net = xmalloc(sizeof(rt_net_t));
+      net->pending      = NULL;
+      net->last_active  = TIME_HIGH;
+      net->last_event   = TIME_HIGH;
+      net->active_delta = -1;
+      net->event_delta  = -1;
+      net->refcnt       = 1;
+
+      static uint32_t next_net_id = 1;
+      net->net_id = next_net_id++;
+
+      return (nexus->net = net);
+   }
+}
+
+static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset,
+                            rt_net_t *net)
 {
    rt_source_t *new = rt_add_source(nexus, old->tag);
 
@@ -773,8 +799,10 @@ static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset)
          else {
             if (old->u.port.input->width == offset)
                new->u.port.input = old->u.port.input->chain;  // Cycle breaking
-            else
-               new->u.port.input = rt_clone_nexus(old->u.port.input, offset);
+            else {
+               rt_nexus_t *n = rt_clone_nexus(old->u.port.input, offset, net);
+               new->u.port.input = n;
+            }
             RT_ASSERT(new->u.port.input->width == nexus->width);
          }
       }
@@ -813,7 +841,7 @@ static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset)
    }
 }
 
-static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
+static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, int offset, rt_net_t *net)
 {
    RT_ASSERT(offset < old->width);
 
@@ -830,10 +858,6 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
    new->chain        = old->chain;
    new->flags        = old->flags;
    new->rank         = old->rank;
-   new->last_active  = old->last_active;
-   new->last_event   = old->last_event;
-   new->active_delta = old->active_delta;
-   new->event_delta  = old->event_delta;
 
    old->chain = new;
    old->width = offset;
@@ -842,22 +866,40 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
    free(old->free_value);
    old->free_value = NULL;
 
+   if (old->net != NULL) {
+      if (net == NULL) {
+         rt_net_t *new_net = rt_get_net(new);
+         rt_net_t *old_net = rt_get_net(old);
+
+         new_net->last_active  = old_net->last_active;
+         new_net->last_event   = old_net->last_event;
+         new_net->active_delta = old_net->active_delta;
+         new_net->event_delta  = old_net->event_delta;
+
+         for (sens_list_t *l = old_net->pending; l; l = l->next) {
+            sens_list_t *lnew = rt_alloc(sens_list_stack);
+            lnew->wake       = l->wake;
+            lnew->wakeup_gen = l->wakeup_gen;
+            lnew->next       = new_net->pending;
+            lnew->reenq      = l->reenq ? &(new_net->pending) : NULL;
+
+            new_net->pending = lnew;
+         }
+
+         new->net = net = new_net;
+      }
+      else {
+         new->net = net;
+         new->net->refcnt++;
+      }
+   }
+
    if (new->chain == NULL)
       nexus_tail = &(new->chain);
 
-   for (sens_list_t *l = old->pending; l; l = l->next) {
-      sens_list_t *lnew = rt_alloc(sens_list_stack);
-      lnew->wake       = l->wake;
-      lnew->wakeup_gen = l->wakeup_gen;
-      lnew->next       = new->pending;
-      lnew->reenq      = l->reenq ? &(new->pending) : NULL;
-
-      new->pending = lnew;
-   }
-
    if (old->n_sources > 0) {
       for (rt_source_t *it = &(old->sources); it; it = it->chain_input) {
-         rt_clone_source(new, it, offset);
+         rt_clone_source(new, it, offset, net);
 
          // Free up memory from old driver
          if (it->tag == SOURCE_DRIVER && oldsz > sizeof(rt_value_t)) {
@@ -883,7 +925,7 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
          if (old_o->u.port.output->width == offset)
             out_n = old_o->u.port.output->chain;   // Cycle breaking
          else
-            out_n = rt_clone_nexus(old_o->u.port.output, offset);
+            out_n = rt_clone_nexus(old_o->u.port.output, offset, net);
 
          for (rt_source_t *s = &(out_n->sources); s; s = s->chain_input) {
             if (s->tag != SOURCE_PORT)
@@ -899,9 +941,10 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, unsigned offset)
    }
 
    if (signal->index == NULL && signal->n_nexus >= NEXUS_INDEX_MIN) {
-      const unsigned w = MIN(old->width, new->width);
+      const unsigned nexus_w = MIN(old->width, new->width);
+      const unsigned signal_w = signal->shared.size / new->size;
       TRACE("create index for signal %s", istr(tree_ident(signal->where)));
-      signal->index = ihash_new(MIN(MAX((signal->width / w) * 2, 16), 1024));
+      signal->index = ihash_new(MIN(MAX((signal_w / nexus_w) * 2, 16), 1024));
    }
 
    if (signal->index != NULL) {
@@ -933,13 +976,13 @@ static rt_nexus_t *rt_split_nexus(rt_signal_t *s, int offset, int count)
          continue;
       }
       else if (offset > 0) {
-         rt_clone_nexus(it, offset);
+         rt_clone_nexus(it, offset, NULL);
          offset = 0;
          continue;
       }
       else {
          if (it->width > count)
-            rt_clone_nexus(it, count);
+            rt_clone_nexus(it, count, NULL);
 
          count -= it->width;
 
@@ -965,7 +1008,6 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
                             unsigned size, unsigned offset)
 {
    s->where         = where;
-   s->width         = count;
    s->n_nexus       = 1;
    s->shared.size   = count * size;
    s->shared.offset = offset;
@@ -981,6 +1023,7 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
    s->nexus.resolved   = s->shared.data;
    s->nexus.flags      = NET_F_LAST_VALUE;
    s->nexus.signal     = s;
+   s->nexus.net        = NULL;
 
    *nexus_tail = &(s->nexus);
    nexus_tail = &(s->nexus.chain);
@@ -1165,7 +1208,7 @@ void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count, bool recur,
 
    rt_nexus_t *n = rt_split_nexus(s, offset, count);
    for (; count > 0; n = n->chain) {
-      rt_sched_event(&(n->pending), wake, recur);
+      rt_sched_event(&(rt_get_net(n)->pending), wake, recur);
 
       count -= n->width;
       RT_ASSERT(count >= 0);
@@ -1394,12 +1437,17 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
 
    while (src_count > 0 && dst_count > 0) {
       if (src_n->width > dst_n->width && closure == NULL)
-         rt_clone_nexus(src_n, dst_n->width);
+         rt_clone_nexus(src_n, dst_n->width, NULL);
       else if (src_n->width < dst_n->width && closure == NULL)
-         rt_clone_nexus(dst_n, src_n->width);
+         rt_clone_nexus(dst_n, src_n->width, NULL);
 
       assert(src_n->width == dst_n->width || closure != NULL);
       assert(src_n->size == dst_n->size || closure != NULL);
+
+      if (src_n->net == NULL) {
+         src_n->net = rt_get_net(dst_n);
+         src_n->net->refcnt++;
+      }
 
       rt_source_t *port = rt_add_source(dst_n, SOURCE_PORT);
       port->u.port.input = src_n;
@@ -1957,8 +2005,9 @@ int64_t _last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 
    rt_nexus_t *n = rt_split_nexus(s, offset, count);
    for (; count > 0; n = n->chain) {
-      if (n->last_event <= now)
-         last = MIN(last, now - n->last_event);
+      rt_net_t *net = rt_get_net(n);
+      if (net->last_event <= now)
+         last = MIN(last, now - net->last_event);
 
       count -= n->width;
       RT_ASSERT(count >= 0);
@@ -1979,8 +2028,9 @@ int64_t _last_active(sig_shared_t *ss, uint32_t offset, int32_t count)
 
    rt_nexus_t *n = rt_split_nexus(s, offset, count);
    for (; count > 0; n = n->chain) {
-      if (n->last_active <= now)
-         last = MIN(last, now - n->last_active);
+      rt_net_t *net = rt_get_net(n);
+      if (net->last_active <= now)
+         last = MIN(last, now - net->last_active);
 
       count -= n->width;
       RT_ASSERT(count >= 0);
@@ -2071,7 +2121,8 @@ int32_t _test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
 
    rt_nexus_t *n = rt_split_nexus(s, offset, count);
    for (; count > 0; n = n->chain) {
-      if (n->last_active == now && n->active_delta == iteration)
+      rt_net_t *net = rt_get_net(n);
+      if (net->last_active == now && net->active_delta == iteration)
          return 1;
 
       count -= n->width;
@@ -2091,7 +2142,8 @@ int32_t _test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 
    rt_nexus_t *n = rt_split_nexus(s, offset, count);
    for (; count > 0; n = n->chain) {
-      if (n->last_event == now && n->event_delta == iteration)
+      rt_net_t *net = rt_get_net(n);
+      if (net->last_event == now && net->event_delta == iteration)
          return 1;
 
       count -= n->width;
@@ -2931,9 +2983,6 @@ static void rt_driver_initial(rt_nexus_t *nexus)
    else
       resolved = nexus->resolved;
 
-   nexus->event_delta = nexus->active_delta = -1;
-   nexus->last_event = nexus->last_active = TIME_HIGH;
-
    TRACE("%s initial value %s", istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, resolved));
 
@@ -3097,37 +3146,23 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
       deltaq_insert_driver(after, nexus, d);
 }
 
-static void rt_notify_event(rt_nexus_t *nexus)
+static void rt_notify_event(rt_net_t *net)
 {
-   nexus->last_event = nexus->last_active = now;
-   nexus->event_delta = nexus->active_delta = iteration;
+   net->last_event = net->last_active = now;
+   net->event_delta = net->active_delta = iteration;
 
    // Wake up everything on the pending list
-   for (sens_list_t *it = nexus->pending, *next; it != NULL; it = next) {
+   for (sens_list_t *it = net->pending, *next; it; it = next) {
       next = it->next;
       rt_wakeup(it);
-      nexus->pending = next;
    }
-
-   if (nexus->n_sources > 0) {
-      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->tag == SOURCE_PORT)
-            rt_notify_event(s->u.port.input);
-      }
-   }
+   net->pending = NULL;
 }
 
-static void rt_notify_active(rt_nexus_t *nexus)
+static void rt_notify_active(rt_net_t *net)
 {
-   nexus->last_active = now;
-   nexus->active_delta = iteration;
-
-   if (nexus->n_sources > 0) {
-      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->tag == SOURCE_PORT)
-            rt_notify_active(s->u.port.input);
-      }
-   }
+   net->last_active = now;
+   net->active_delta = iteration;
 }
 
 static void rt_update_nexus(rt_nexus_t *nexus)
@@ -3139,12 +3174,14 @@ static void rt_update_nexus(rt_nexus_t *nexus)
          istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, resolved));
 
+   rt_net_t *net = rt_get_net(nexus);
+
    if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
       rt_propagate_nexus(nexus, resolved);
-      rt_notify_event(nexus);
+      rt_notify_event(net);
    }
    else
-      rt_notify_active(nexus);
+      rt_notify_active(net);
 }
 
 static void rt_push_active_nexus(rt_nexus_t *nexus)
@@ -3192,12 +3229,14 @@ static void rt_update_implicit_signal(rt_implicit_t *imp)
    RT_ASSERT(imp->signal.n_nexus == 1);
    rt_nexus_t *n0 = &(imp->signal.nexus);
 
+   rt_net_t *net = rt_get_net(n0);
+
    if (*(int8_t *)n0->resolved != r) {
       rt_propagate_nexus(n0, &r);
-      rt_notify_event(n0);
+      rt_notify_event(net);
    }
    else
-      rt_notify_active(n0);
+      rt_notify_active(net);
 }
 
 static bool rt_stale_event(event_t *e)
@@ -3459,13 +3498,19 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
       if (must_free) free(s);
    }
 
-   free(n->free_value);
+   if (n->net != NULL) {
+      RT_ASSERT(n->net->refcnt > 0);
+      if (--(n->net->refcnt) == 0) {
+         for (sens_list_t *sl = n->net->pending, *next; sl; sl = next) {
+            next = sl->next;
+            rt_free(sens_list_stack, sl);
+         }
 
-   while (n->pending != NULL) {
-      sens_list_t *next = n->pending->next;
-      rt_free(sens_list_stack, n->pending);
-      n->pending = next;
+         free(n->net);
+      }
    }
+
+   free(n->free_value);
 }
 
 static void rt_cleanup_signal(rt_signal_t *s)
@@ -3500,6 +3545,11 @@ static void rt_cleanup_scope(rt_scope_t *scope)
    for (rt_signal_t *it = scope->signals, *tmp; it; it = tmp) {
       tmp = it->chain;
       rt_cleanup_signal(it);
+   }
+
+   for (rt_alias_t *it = scope->aliases, *tmp; it; it = tmp) {
+      tmp = it->chain;
+      free(it);
    }
 
    for (rt_scope_t *it = scope->child, *tmp; it; it = tmp) {
@@ -3772,7 +3822,7 @@ rt_watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
 
       rt_nexus_t *n = &(w->signal->nexus);
       for (int i = 0; i < s->n_nexus; i++, n = n->chain)
-         rt_sched_event(&(n->pending), &(w->wakeable), true);
+         rt_sched_event(&(rt_get_net(n)->pending), &(w->wakeable), true);
 
       return w;
    }
