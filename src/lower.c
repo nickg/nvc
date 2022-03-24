@@ -146,6 +146,7 @@ static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg);
 static vcode_var_t lower_temp_var(const char *prefix, vcode_type_t vtype,
                                   vcode_type_t vbounds);
 static void lower_release_temp(vcode_var_t tmp);
+static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -717,8 +718,6 @@ static void lower_for_each_field(type_t type, vcode_reg_t rec1_ptr,
                                  vcode_reg_t rec2_ptr, lower_field_fn_t fn,
                                  void *context)
 {
-   assert(vcode_reg_kind(rec1_ptr) == VCODE_TYPE_POINTER);
-
    if (type_is_array(type)) {
       assert(!type_is_homogeneous(type));   // Otherwise why call this
 
@@ -760,6 +759,8 @@ static void lower_for_each_field(type_t type, vcode_reg_t rec1_ptr,
       lower_release_temp(i_var);
    }
    else {
+      assert(vcode_reg_kind(rec1_ptr) == VCODE_TYPE_POINTER);
+
       const int nfields = type_fields(type);
       for (int i = 0; i < nfields; i++) {
          type_t ftype = tree_type(type_field(type, i));
@@ -831,34 +832,6 @@ static void lower_resolved_field_cb(type_t ftype, vcode_reg_t field_ptr,
       }
       else
          emit_store_indirect(emit_load_indirect(r_reg), dst_ptr);
-   }
-}
-
-static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
-{
-   if (!lower_have_signal(reg))
-      return reg;
-   else {
-      vcode_reg_t data_reg;
-      if (type_is_homogeneous(type)) {
-         if (vcode_reg_kind(reg) == VCODE_TYPE_POINTER)
-            data_reg = emit_resolved(emit_load_indirect(reg));
-         else
-            data_reg = emit_resolved(lower_array_data(reg));
-      }
-      else {
-         vcode_type_t vtype = lower_type(type);
-         vcode_var_t tmp_var = lower_temp_var("tmp", vtype, vtype);
-
-         data_reg = emit_index(tmp_var, VCODE_INVALID_VAR);
-         lower_for_each_field(type, reg, data_reg,
-                              lower_resolved_field_cb, NULL);
-      }
-
-      if (vcode_reg_kind(reg) == VCODE_TYPE_UARRAY)
-         return lower_wrap_with_new_bounds(type, reg, data_reg);
-      else
-         return data_reg;
    }
 }
 
@@ -2309,6 +2282,92 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
    default:
       vcode_dump();
       fatal_trace("cannot lower reference to %s", tree_kind_str(kind));
+   }
+}
+
+static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
+{
+   if (!lower_have_signal(reg))
+      return reg;
+   else if (type_is_homogeneous(type)) {
+      vcode_reg_t data_reg;
+      if (vcode_reg_kind(reg) == VCODE_TYPE_POINTER)
+         data_reg = emit_resolved(emit_load_indirect(reg));
+      else
+         data_reg = emit_resolved(lower_array_data(reg));
+
+      if (vcode_reg_kind(reg) == VCODE_TYPE_UARRAY)
+         return lower_wrap_with_new_bounds(type, reg, data_reg);
+      else
+         return data_reg;
+   }
+   else {
+      // Use a helper function to convert a record signal into a record
+      // containing the resolved values
+
+      vcode_state_t state;
+      vcode_state_save(&state);
+
+      const loc_t *loc = vcode_last_loc();
+
+      vcode_unit_t helper_ctx = vcode_active_unit();
+      int hops = 0;
+      for (; vcode_unit_context() != NULL; hops++)
+         vcode_select_unit((helper_ctx = vcode_unit_context()));
+
+      ident_t context_id = vcode_unit_name();
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      ident_str(vcode_unit_name(), tb);
+      tb_cat(tb, "$resolved_");
+      ident_str(type_ident(type), tb);
+
+      ident_t helper_func = ident_new(tb_get(tb));
+      vcode_unit_t vu = vcode_find_unit(helper_func);
+      if (vu == NULL) {
+         vu = emit_function(helper_func, loc, helper_ctx);
+         vcode_set_result(lower_func_result_type(type));
+
+         lower_push_scope(NULL);
+
+         vcode_type_t vtype = lower_type(type);
+         vcode_type_t vbounds = lower_bounds(type);
+         vcode_type_t vatype = lower_param_type(type, C_SIGNAL, PORT_IN);
+
+         vcode_type_t vcontext = vtype_context(context_id);
+         emit_param(vcontext, vcontext, ident_new("context"));
+
+         vcode_reg_t p_reg = emit_param(vatype, vbounds, ident_new("p"));
+
+         vcode_var_t var = emit_var(vtype, vbounds, ident_new("result"), 0);
+
+         vcode_reg_t data_reg, result_reg;
+         if (vtype_kind(vtype) == VCODE_TYPE_UARRAY) {
+            type_t elem = lower_elem_recur(type);
+            vcode_reg_t count_reg = lower_array_total_len(type, p_reg);
+            data_reg = emit_alloca(lower_type(elem), lower_bounds(elem),
+                                   count_reg);
+            vcode_heap_allocate(data_reg);
+
+            result_reg = lower_wrap_with_new_bounds(type, reg, data_reg);
+            emit_store(result_reg, var);
+         }
+         else
+            data_reg = result_reg = emit_index(var, VCODE_INVALID_VAR);
+
+         lower_for_each_field(type, p_reg, data_reg,
+                              lower_resolved_field_cb, NULL);
+         emit_return(result_reg);
+
+         lower_pop_scope();
+         lower_finished();
+      }
+
+      vcode_state_restore(&state);
+
+      vcode_type_t vtype = lower_func_result_type(type);
+      vcode_reg_t args[] = { emit_context_upref(hops), reg };
+      return emit_fcall(helper_func, vtype, vtype, VCODE_CC_VHDL, args, 2);
    }
 }
 

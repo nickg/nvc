@@ -431,7 +431,7 @@ vests21         normal
 guard1          normal
 guard2          normal
 vests22         normal
-vests23         normal
+vests23         normal,P=256k
 func18          normal
 file5           normal
 case8           normal
@@ -521,3 +521,4 @@ vests42         normal
 wait20          normal
 signal19        normal
 record24        normal
+record25        normal
