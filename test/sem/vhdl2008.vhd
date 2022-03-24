@@ -12,4 +12,23 @@ begin
         x := 1 when x < 1 else false;   -- Error
     end process;
 
+    -- Changes to locally static rules
+    process is
+        type r is record
+            k : bit;
+        end record;
+        constant c : bit_vector(1 to 3) := "101";
+        constant d : r := ( k => '1' );
+        variable x : bit;
+        variable y : r;
+        variable i : integer;
+    begin
+        case x is
+            when c(1) => null;          -- OK
+            when d.k => null;           -- OK
+            when c(i) => null;          -- Error
+            when others => null;
+        end case;
+    end process;
+
 end architecture;

@@ -2482,6 +2482,7 @@ START_TEST(test_vhdl2008)
    const error_t expect[] = {
       { 11, "type of condition must be BOOLEAN but have INTEGER" },
       { 12, "type of value BOOLEAN does not match type of target INTEGER" },
+      { 29, "case choice must be locally static" },
       { -1, NULL }
    };
    expect_errors(expect);

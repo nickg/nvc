@@ -3858,20 +3858,22 @@ static bool sem_locally_static(tree_t t)
    if (kind == T_FCALL) {
       if (!tree_has_ref(t))
          return true;  // Suppress further errors
+      else if (tree_flags(t) & TREE_F_LOCALLY_STATIC)
+         return true;
 
       tree_t decl = tree_ref(t);
       if (tree_kind(decl) == T_GENERIC_DECL)
          return false;   // Not known at this point
-      else  if (!is_builtin(tree_subkind(decl)))
+      else if (!is_builtin(tree_subkind(decl)))
          return false;
 
-      bool all_static = true;
       const int nparams = tree_params(t);
       for (int i = 0; i < nparams; i++) {
-         tree_t p = tree_param(t, i);
-         all_static = all_static && sem_locally_static(tree_value(p));
+         if (!sem_locally_static(tree_value(tree_param(t, i))))
+            return false;
       }
-      return all_static;
+
+      return true;
    }
 
    if (kind == T_ATTR_REF) {
@@ -3937,15 +3939,32 @@ static bool sem_locally_static(tree_t t)
    if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_FIELD_DECL))
       return true;
 
-   // [2008] A slice name whose prefix and range is locally static
-   if (kind == T_ARRAY_SLICE &&
-       (standard() >= STD_08 || (relax_rules() & RELAX_LOCALLY_STATIC))) {
+   const bool std08_rules =
+      standard() >= STD_08 || (relax_rules() & RELAX_LOCALLY_STATIC);
 
+   // [2008] An indexed name whose prefix and index expressions are
+   // locally static
+   if (std08_rules && kind == T_ARRAY_REF) {
+      const int nparams = tree_params(t);
+      for (int i = 0; i < nparams; i++) {
+         if (!sem_locally_static(tree_value(tree_param(t, i))))
+            return false;
+      }
+
+      return sem_locally_static(tree_value(t));
+   }
+
+   // [2008] A slice name whose prefix and range is locally static
+   if (std08_rules && kind == T_ARRAY_SLICE) {
       if (!sem_locally_static(tree_range(t, 0)))
          return false;
 
       return sem_locally_static(tree_value(t));
    }
+
+   // [2008] A selected name whose prefix is locally static
+   if (std08_rules && kind == T_RECORD_REF)
+      return sem_locally_static(tree_value(t));
 
    return false;
 }
