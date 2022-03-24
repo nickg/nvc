@@ -206,7 +206,7 @@ typedef struct {
 
 typedef enum {
    NET_F_FORCED       = (1 << 0),
-   NET_F_OWNS_MEM     = (1 << 1),
+   NET_F_PROPAGATE    = (1 << 1),
    NET_F_LAST_VALUE   = (1 << 2),
    NET_F_R_IDENT      = (1 << 3),
    NET_F_IMPLICIT     = (1 << 4),
@@ -996,7 +996,7 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
    s->n_nexus       = 1;
    s->shared.size   = count * size;
    s->shared.offset = offset;
-   s->flags         = NET_F_OWNS_MEM | NET_F_LAST_VALUE;
+   s->flags         = NET_F_LAST_VALUE;
    s->parent        = active_scope;
 
    *signals_tail = s;
@@ -1433,6 +1433,8 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
          src_n->net = rt_get_net(dst_n);
          src_n->net->refcnt++;
       }
+      else
+         src_n->flags |= NET_F_PROPAGATE;  // Inout port
 
       rt_source_t *port = rt_add_source(dst_n, SOURCE_PORT);
       port->u.port.input = src_n;
@@ -1440,6 +1442,7 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       if (conv_func != NULL) {
          port->u.port.conv_func = conv_func;
          conv_func->refcnt++;
+         src_n->flags |= NET_F_PROPAGATE;
       }
 
       port->chain_output = src_n->outputs;
@@ -3161,6 +3164,8 @@ static void rt_notify_active(rt_net_t *net)
 
 static void rt_update_nexus(rt_nexus_t *nexus)
 {
+   __builtin_prefetch(nexus->outputs);
+
    const void *resolved = rt_resolve_nexus_fast(nexus);
    const size_t valuesz = nexus->size * nexus->width;
 
@@ -3168,20 +3173,27 @@ static void rt_update_nexus(rt_nexus_t *nexus)
          istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, resolved));
 
-   __builtin_prefetch(nexus->outputs);
-
    rt_net_t *net = rt_get_net(nexus);
+   bool update_outputs = false;
 
    if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
       rt_propagate_nexus(nexus, resolved);
       rt_notify_event(net);
+      update_outputs = true;
    }
-   else
+   else {
       rt_notify_active(net);
 
-   for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
-      RT_ASSERT(o->tag == SOURCE_PORT);
-      rt_update_nexus(o->u.port.output);
+      // NET_F_PROPAGATE is set when one of the outputs is an inout port
+      // or has a conversion function
+      update_outputs = !!(nexus->flags & NET_F_PROPAGATE);
+   }
+
+   if (update_outputs) {
+      for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
+         RT_ASSERT(o->tag == SOURCE_PORT);
+         rt_update_nexus(o->u.port.output);
+      }
    }
 }
 
