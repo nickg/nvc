@@ -2924,11 +2924,8 @@ static void rt_propagate_nexus(rt_nexus_t *nexus, const void *resolved)
    // LAST_VALUE is the same as the initial value when there have
    // been no events on the signal otherwise only update it when
    // there is an event
-   if (nexus->flags & NET_F_LAST_VALUE) {
-      rt_signal_t *s = nexus->signal;
-      const ptrdiff_t off = (nexus->resolved - (void *)s->shared.data);
-      memcpy(s->shared.data + s->shared.size + off, nexus->resolved, valuesz);
-   }
+   void *last_value = nexus->resolved + nexus->signal->shared.size;
+   memcpy(last_value, nexus->resolved, valuesz);
 
    if (nexus->resolved != resolved)   // Can occur during startup
       memcpy(nexus->resolved, resolved, valuesz);

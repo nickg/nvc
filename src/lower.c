@@ -7585,9 +7585,11 @@ static void lower_driver_cb(tree_t t, void *__ctx)
          const int nports = tree_ports(decl);
          for (int i = 0; i < nports; i++) {
             tree_t p = tree_port(decl, i);
+            if (tree_class(p) != C_SIGNAL)
+               continue;
+
             const port_mode_t mode = tree_subkind(p);
-            if ((mode == PORT_OUT || mode == PORT_INOUT)
-                && tree_class(p) == C_SIGNAL) {
+            if (mode == PORT_OUT || mode == PORT_INOUT) {
                tree_t arg = tree_param(t, i);
                assert(tree_subkind(arg) == P_POS);
                lower_driver_target(tree_value(arg));
