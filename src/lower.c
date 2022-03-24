@@ -840,8 +840,12 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
       return reg;
    else {
       vcode_reg_t data_reg;
-      if (type_is_homogeneous(type))
-         data_reg = emit_resolved(lower_array_data(reg));
+      if (type_is_homogeneous(type)) {
+         if (vcode_reg_kind(reg) == VCODE_TYPE_POINTER)
+            data_reg = emit_resolved(emit_load_indirect(reg));
+         else
+            data_reg = emit_resolved(lower_array_data(reg));
+      }
       else {
          vcode_type_t vtype = lower_type(type);
          vcode_var_t tmp_var = lower_temp_var("tmp", vtype, vtype);
@@ -4150,15 +4154,17 @@ static void lower_signal_target_field_cb(type_t type, vcode_reg_t dst_ptr,
       vcode_reg_t nets_raw = emit_load_indirect(dst_ptr);
 
       if (type_is_array(type)) {
-         vcode_reg_t data_reg = lower_array_data(src_ptr);
+         vcode_reg_t data_reg = lower_array_data(lower_resolved(type, src_ptr));
          vcode_reg_t count_reg =
             lower_scalar_sub_elements(type, VCODE_INVALID_REG);
 
          emit_sched_waveform(nets_raw, count_reg, data_reg, reject, after);
       }
-      else
+      else {
+         vcode_reg_t data_reg = lower_resolved(type, src_ptr);
          emit_sched_waveform(nets_raw, emit_const(vtype_offset(), 1),
-                             src_ptr, reject, after);
+                             data_reg, reject, after);
+      }
    }
    else
       lower_for_each_field(type, dst_ptr, src_ptr,
@@ -4202,8 +4208,6 @@ static void lower_signal_assign_target(target_part_t **ptr, tree_t where,
       if (type_is_scalar(type))
          lower_check_scalar_bounds(lower_reify(src_reg) /* XXX */, type, where, p->target);
 
-      src_reg = lower_resolved(type, src_reg);
-
       vcode_reg_t nets_raw = lower_array_data(p->reg);
 
       if (!type_is_homogeneous(type)) {
@@ -4212,14 +4216,15 @@ static void lower_signal_assign_target(target_part_t **ptr, tree_t where,
                               lower_signal_target_field_cb, args);
       }
       else if (type_is_array(type)) {
-         vcode_reg_t data_reg = lower_array_data(src_reg);
+         vcode_reg_t data_reg = lower_array_data(lower_resolved(type, src_reg));
          vcode_reg_t count_reg = lower_scalar_sub_elements(type, p->reg);
 
          emit_sched_waveform(nets_raw, count_reg, data_reg, reject, after);
       }
       else {
+         vcode_reg_t data_reg = lower_resolved(type, src_reg);
          emit_sched_waveform(nets_raw, emit_const(vtype_offset(), 1),
-                             src_reg, reject, after);
+                             data_reg, reject, after);
       }
 
       if (p->kind == PART_ELEM) {
