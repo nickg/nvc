@@ -131,16 +131,12 @@ typedef union {
    void     *ext;
 } rt_value_t;
 
-STATIC_ASSERT(sizeof(rt_value_t) == 8);
-
 struct waveform {
    uint64_t    when : 63;
    unsigned    null : 1;
    waveform_t *next;
    rt_value_t  value;
 };
-
-STATIC_ASSERT(sizeof(waveform_t) == 24);
 
 struct sens_list {
    rt_wakeable_t *wake;
@@ -388,9 +384,6 @@ static void _tracef(const char *fmt, ...);
 #define NEXUS_INDEX_MIN 32
 #define MAX_NEXUS_WIDTH 4096
 #define CACHELINE       64
-
-STATIC_ASSERT(sizeof(rt_nexus_t) <= 2 * CACHELINE);
-STATIC_ASSERT(sizeof(rt_signal_t) + 8 <= 3 * CACHELINE);
 
 #if RT_DEBUG && !defined NDEBUG
 #define RT_ASSERT(x) assert((x))

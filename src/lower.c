@@ -910,7 +910,7 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
 }
 
 static void lower_signal_flag_field_cb(type_t ftype, vcode_reg_t field_ptr,
-                                       vcode_reg_t __unused, void *__ctx)
+                                       vcode_reg_t unused, void *__ctx)
 {
    if (!type_is_homogeneous(ftype))
       lower_for_each_field(ftype, field_ptr, VCODE_INVALID_REG,
@@ -3812,7 +3812,7 @@ static void lower_assert(tree_t stmt)
 }
 
 static void lower_sched_event_field_cb(type_t type, vcode_reg_t ptr,
-                                       vcode_reg_t __unused, void *__ctx)
+                                       vcode_reg_t unused, void *__ctx)
 {
    if (!type_is_homogeneous(type))
       lower_for_each_field(type, ptr, VCODE_INVALID_REG,
@@ -7526,7 +7526,7 @@ static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
 }
 
 static void lower_driver_field_cb(type_t type, vcode_reg_t ptr,
-                                  vcode_reg_t __unused, void *__ctx)
+                                  vcode_reg_t unused, void *__ctx)
 {
    if (type_is_homogeneous(type)) {
       vcode_reg_t nets_reg = emit_load_indirect(ptr);

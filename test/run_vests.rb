@@ -82,7 +82,7 @@ Dir.mktmpdir do |tmpdir|
     Dir.mktmpdir do |workdir|
       f = File.realpath "#{Billowitch}/#{tc}"
       top = guess_top f
-      cmd = "#{Tool} --force-init --work=work:#{workdir} -a #{f} -e #{top} -r"
+      cmd = "#{Tool} -P256k --force-init --work=work:#{workdir} -a #{f} -e #{top} -r"
 
       if run_cmd cmd then
         passes += 1
