@@ -36,8 +36,6 @@ lib_libnvc_a_SOURCES = \
 	src/type.h \
 	src/util.h \
 	src/vcode.h \
-	src/loc.h \
-	src/loc.c \
 	src/names.h \
 	src/names.c \
 	src/debug.h \
@@ -45,7 +43,9 @@ lib_libnvc_a_SOURCES = \
 	src/exec.h \
 	src/exec.c \
 	src/opt.h \
-	src/opt.c
+	src/opt.c \
+	src/diag.h \
+	src/diag.c
 
 lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "common.h"
+#include "diag.h"
 #include "exec.h"
 #include "phase.h"
 #include "test_util.h"

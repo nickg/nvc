@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "diag.h"
 #include "hash.h"
 #include "lib.h"
 #include "opt.h"

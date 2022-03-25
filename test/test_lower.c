@@ -19,6 +19,7 @@
 #include "phase.h"
 #include "vcode.h"
 #include "common.h"
+#include "diag.h"
 #include "rt/cover.h"
 
 #include <inttypes.h>

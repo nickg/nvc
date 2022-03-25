@@ -18,8 +18,8 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "diag.h"
 #include "hash.h"
-#include "loc.h"
 #include "names.h"
 #include "opt.h"
 #include "phase.h"
@@ -448,41 +448,35 @@ static void drop_tokens_until(token_t tok)
 
 static void _vexpect(va_list ap)
 {
-   LOCAL_TEXT_BUF tb = tb_new();
-
-   tb_printf(tb, "unexpected $yellow$%s$$ while parsing %s, "
-             "expecting ", token_str(peek()), hint_str);
-
-   bool first = true;
-
-   for (int i = 0; i < nopt_hist; i++) {
-      if (first)
-         tb_cat(tb, "one of ");
-      else
-         tb_cat(tb, ", ");
-
-      tb_printf(tb, "$yellow$%s$$", token_str(opt_hist[i]));
-
-      first = false;
-   }
-
-   int tok = va_arg(ap, int);
-   while (tok != -1) {
-      const int tmp = tok;
-      tok = va_arg(ap, int);
-
-      if (first && (tok != -1))
-         tb_cat(tb, "one of ");
-      else if (!first)
-         tb_cat(tb, (tok == -1) ? " or " : ", ");
-
-      tb_printf(tb, "$yellow$%s$$", token_str(tmp));
-
-      first = false;
-   }
-
    if (n_correct >= RECOVER_THRESH) {
-      error_at(&(tokenq[tokenq_tail].loc), tb_get(tb), "");
+      diag_t *d = diag_new(DIAG_ERROR, &(tokenq[tokenq_tail].loc));
+      diag_printf(d, "unexpected $yellow$%s$$ while parsing %s, expecting ",
+                  token_str(peek()), hint_str);
+
+      bool first = true;
+      for (int i = 0; i < nopt_hist; i++) {
+         diag_printf(d, "%s$yellow$%s$$", i == 0 ? "one of " : ", ",
+                     token_str(opt_hist[i]));
+         first = false;
+      }
+
+      int tok = va_arg(ap, int);
+      while (tok != -1) {
+         const int tmp = tok;
+         tok = va_arg(ap, int);
+
+         if (first && (tok != -1))
+            diag_printf(d, "one of ");
+         else if (!first)
+            diag_printf(d, (tok == -1) ? " or " : ", ");
+
+         diag_printf(d, "$yellow$%s$$", token_str(tmp));
+
+         first = false;
+      }
+
+      diag_hint(d, &(tokenq[tokenq_tail].loc), "this token was unexpected");
+      diag_emit(d);
    }
 
    n_correct = 0;
@@ -711,10 +705,12 @@ static void require_std(vhdl_standard_t which, const char *feature)
       warned = true;
 
       if (n_correct >= RECOVER_THRESH) {
-         error_at(CURRENT_LOC, "%s are not supported in VHDL-%s",
-                  feature, standard_text(standard()));
-         note_at(NULL, "pass $bold$--std=%s$$ to enable this feature",
-                 standard_text(which));
+         diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
+         diag_printf(d, "%s are not supported in VHDL-%s",
+                     feature, standard_text(standard()));
+         diag_hint(d, NULL, "pass $bold$--std=%s$$ to enable this feature",
+                   standard_text(which));
+         diag_emit(d);
       }
    }
 }

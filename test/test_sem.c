@@ -17,7 +17,7 @@
 
 #include "util.h"
 #include "common.h"
-#include "loc.h"
+#include "diag.h"
 #include "opt.h"
 #include "phase.h"
 #include "test_util.h"
@@ -103,15 +103,12 @@ START_TEST(test_ports)
       { 85,  "formal port I already has an actual" },
       { 89,  "at least 3 positional actuals but WORK.FOO has only 2 ports" },
       { 92,  "WORK.FOO has no port named CAKE" },
-      { 10,  "entity WORK.FOO has ports O, I" },
       { 94,  "cannot find unit WORK.BAD" },
       { 103, "unconnected port I with mode IN must have a default value" },
       { 116, "object X is not a component declaration" },
       { 148, "port O of mode OUT must be a static signal name or OPEN" },
       { 155, "BAR has no port named Q" },
-      { 64,  "BAR has ports I, O" },
       { 163, "BAR has no port named U" },
-      { 64,  "component BAR has ports I, O" },
       { 168, "formal name must be locally static" },
       { 177, "formal name must be locally static" },
       { 185, "no visible subprogram declaration for HELLO" },
@@ -159,9 +156,7 @@ START_TEST(test_scope)
       {  44, "WORK.PACK1.MY_INT1 does not match type of target "
          "WORK.NO_USE_CLAUSE-A.MY_INT1" },
       {  63, "G already declared in this region" },
-      {  54, "previous declaration of G was here" },
       {  71, "P already declared in this region" },
-      {  55, "previous declaration of P was here" },
       { 114, "no visible declaration for MY_INT1" },
       { 137, "no visible declaration for E1" },
       { 160, "no visible subprogram declaration for FUNC2" },
@@ -196,17 +191,9 @@ START_TEST(test_ambiguous)
       {  56, "type of aggregate is ambiguous" },
       {  56, "type of aggregate is ambiguous" },
       {  86, "ambiguous use of enumeration literal FALSE" },
-      {  24, "visible declaration of FALSE as BOOLEAN" },
-      {  84, "visible declaration of FALSE as T" },
       {  93, "ambiguous call to function NOW" },
-      {  91, "candidate NOW [return INTEGER]" },
-      {  94, "candidate NOW [return DELAY_LENGTH]" },
       { 103, "ambiguous use of name FALSE (FALSE [return INTEGER], BOOLEAN)" },
-      {  24, "visible declaration of FALSE as BOOLEAN" },
-      {  98, "visible declaration of FALSE as FALSE [return INTEGER]" },
       { 141, "ambiguous use of operator \"<\"" },
-      { 127, "candidate \"<\" [MY_INT, MY_INT return BOOLEAN]" },
-      { 121, "candidate \"<\" [MY_INT, MY_INT return BOOLEAN]" },
       { 222, "type of aggregate is ambiguous (T_VEC, STRING, BIT_VECTOR)" },
       { 222, "type of aggregate is ambiguous (T_VEC, STRING, BIT_VECTOR)" },
       { -1, NULL }
@@ -280,7 +267,6 @@ START_TEST(test_const)
       { 24, "target of variable assignment must be a variable name" },
       { 28, "deferred constant declarations are only permitted" },
       { 58, "C already declared in this region" },
-      { 57, "previous declaration of C was here" },
       { 59, "expected type INTEGER for deferred constant F" },
       { 49, "deferred constant D was not given a value" },
       { -1, NULL }
@@ -391,7 +377,6 @@ START_TEST(test_func)
       {  48, "expected return type INTEGER but have UENUM" },
       {  51, "function arguments must have mode IN" },
       {  62, "FOO [INTEGER, INTEGER, INTEGER return INTEGER] already " },
-      {  61, "previous declaration of FOO [INTEGER, INTEGER, INTEGER" },
       { 114, "positional parameters must precede named parameters" },
       { 115, "duplicate parameter name X" },
       { 124, "function arguments may not have VARIABLE class" },
@@ -402,9 +387,7 @@ START_TEST(test_func)
       { 181, "missing actual for formal Y without default value" },
       { 182, "type of actual universal_integer does not match formal Y" },
       { 239, "class variable of subprogram body TEST25 parameter" },
-      { 234, "parameter X was originally declared here" },
       { 245, "class constant of subprogram body TEST26 parameter" },
-      { 243, "parameter X was originally declared here" },
       { 271, "invalid reference to X inside pure function NESTED" },
       { 288, "no visible subprogram declaration for FNORK" },
       { 293, "function CONSTPURE cannot be called as a procedure" },
@@ -412,11 +395,8 @@ START_TEST(test_func)
       { 297, "no visible declaration for BAD_TYPE" },
       { 297, "no visible declaration for FOO" },
       { 303, "default value of parameter X in subprogram body FUNC1" },
-      { 301, "parameter X was originally declared here" },
       { 310, "default value of parameter X in subprogram body FUNC2" },
-      { 308, "parameter X was originally declared here" },
       { 317, "default value of parameter X in subprogram body FUNC3" },
-      { 315, "parameter X was originally declared here" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -474,8 +454,6 @@ START_TEST(test_array)
       { 403, "a choice that is not locally static is allowed" },
       { 404, "a choice that is not locally static is allowed" },
       { 424, "ambiguous call to function F" },
-      { 418, "candidate F [INTEGER return STRING]" },
-      { 419, "candidate F [return STRING]" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -547,7 +525,7 @@ START_TEST(test_seq)
       {  62, "return statement not allowed outside subprogram" },
       {  64, "type of loop condition must be BOOLEAN" },
       {  79, "no visible declaration for X" },
-      { 106, "others choice must appear last" },
+      { 107, "others choice must appear last" },
       { 113, "case choice must be locally static" },
       { 126, "case choice must be locally static" },
       { 136, "case choice must be locally static" },
@@ -561,7 +539,6 @@ START_TEST(test_seq)
       { 190, "cannot use next statement outside loop" },
       { 192, "no visible declaration for FOO" },
       { 205, "DUP already declared in this region" },
-      { 204, "previous declaration of DUP was here" },
       { 214, "type REAL does not have a range" },
       { 222, "variable I is not a valid target of signal assignment" },
       { 228, "expected type mark while parsing discrete range" },
@@ -629,8 +606,7 @@ START_TEST(test_procedure)
       { 167, "object ARG with type containing an access type must have class" },
       { 172, "object ARG with type containing an access type must have class" },
       { 180, "invalid procedure call statement" },
-      { 186, "?? is a reserved word in VHDL-2008" },
-      { LINE_INVALID, "pass --std=2008 to enable this feature" },
+      { 186, "`\?\?' is a reserved word in VHDL-2008" },
       { 186, "unexpected error while parsing primary" },
       { -1, NULL }
    };
@@ -1009,13 +985,10 @@ START_TEST(test_spec)
    const error_t expect[] = {
       { 24, "E does not name a component" },
       { 24, "duplicate specification for instance I1" },
-      { 22, "previous specification was here" },
       { 32, "duplicate specification for instance I1" },
-      { 22, "previous specification was here" },
       { 34, "cannot find unit WORK.NOT_HERE" },
       { 36, "unit WORK.P cannot be instantiated" },
       { 36, "duplicate specification for instance I3" },
-      { 34, "previous specification was here" },
       { 22, "component mismatch for instance I1: expected C1" },
       { 30, "specification may only be used with component instances" },
       { 28, "instance BAD not found" },
@@ -1106,7 +1079,6 @@ START_TEST(test_protected)
       {  22, "object BOOLEAN is not a protected type declaration" },
       {  25, "object NOW is not a protected type declaration" },
       {  47, "SHAREDCOUNTER already declared in this region" },
-      {  28, "previous declaration of SHAREDCOUNTER was here" },
       {  50, "subtypes may not have protected base types" },
       {  52, "shared variable X must have protected type" },
       {  56, "variable Z with protected type may not have an initial value" },
@@ -1168,8 +1140,6 @@ START_TEST(test_alias)
       { 25, "no visible declaration for BLAH" },
       { 32, "no visible subprogram BAR matches signature [INTEGER]" },
       { 40, "ambiguous use of enumeration literal '1'" },
-      { 26, "visible declaration of '1' as BIT" },
-      { 36, "visible declaration of '1' as CHARACTER" },
       { 41, "no visible subprogram declaration for FOO_INT" },
       { 42, "type of actual CHARACTER does not match formal X type BIT" },
       { 43, "operand of qualified expression must have type CHARACTER" },
@@ -1314,9 +1284,7 @@ START_TEST(test_issue144)
 
    const error_t expect[] = {
       { 11, "duplicate subprogram body FUN [return INTEGER]" },
-      {  6, "previous definition of FUN [return INTEGER] was here" },
       { 20, "duplicate subprogram body PROC [INTEGER]" },
-      { 16, "previous definition of PROC [INTEGER] was here" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1774,8 +1742,6 @@ START_TEST(test_issue264)
       { 19, "case expression must have locally static subtype" },
       { 23, "no matching operator \"&\" [INTEGER, INTEGER]" },
       { 26, "ambiguous use of operator \"&\"" },
-      { 13, "candidate \"&\" [FOO, FOO return FOO_VEC1]" },
-      { 14, "candidate \"&\" [FOO, FOO return FOO_VEC2]" },
       { 35, "case expression must have a discrete type or one dimensional" },
       { -1, NULL }
    };
@@ -1887,8 +1853,6 @@ START_TEST(test_issue311)
 
    const error_t expect[] = {
       { 32, "multiple conflicting visible declarations of EVENT_TYPE" },
-      { 16, "visible declaration of EVENT_TYPE imported from WORK.P1.all" },
-      { 20, "visible declaration of EVENT_TYPE imported from WORK.P2.all" },
       { 33, "type of initial value WORK.P2.EVENT_TYPE does not match" },
       { -1, NULL }
    };
@@ -1980,7 +1944,6 @@ START_TEST(test_issue359)
 
    const error_t expect[] = {
       {  8, "FOO already declared in this region" },
-      {  6, "previous declaration of FOO was here" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2013,16 +1976,11 @@ START_TEST(test_issue368)
 
    const error_t expect[] = {
       { 17, "with mode IN does not match mode OUT in specification" },
-      {  6, "parameter SIG_IN was originally declared here" },
       { 18, "parameter SIG_OUT of subprogram body IN_THROUGH_THE_OUT_DOOR" },
-      {  7, "parameter SIG_OUT was originally declared here" },
       { 23, "parameter name Y in subprogram FOO body does not match name "
         "X in declaration" },
-      { 10, "parameter X was originally declared here" },
       { 27, "class constant of subprogram body BAR" },
-      { 11, "parameter X was originally declared here" },
       { 31, "parameter name Y in subprogram BAZ body does not match name X" },
-      { 12, "parameter X was originally declared here" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2137,11 +2095,7 @@ START_TEST(test_issue377)
 
    const error_t expect[] = {
       { 20, "ambiguous use of operator \"=\"" },
-      {  2, "candidate \"=\" [INT_VECTOR, INT_VECTOR return BOOLEAN]" },
-      {  8, "candidate \"=\" [INT_VECTOR, INT_VECTOR return BOOLEAN]" },
       { 29, "ambiguous use of operator \"=\"" },
-      {  8, "candidate \"=\" [INT_VECTOR, INT_VECTOR return BOOLEAN]" },
-      {  2, "candidate \"=\" [INT_VECTOR, INT_VECTOR return BOOLEAN]" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -2190,7 +2144,6 @@ START_TEST(test_issue386)
 
    const error_t expect[] = {
       {  7, "type of parameter BYTE does not match type BIT_VECTOR" },
-      {  2, "parameter BYTE was originally declared here" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -18,9 +18,9 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "diag.h"
 #include "exec.h"
 #include "hash.h"
-#include "loc.h"
 #include "opt.h"
 #include "phase.h"
 #include "type.h"
@@ -475,24 +475,38 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
          type_t comp_type   = tree_type(comp_f);
 
          if (!type_eq(entity_type, comp_type)) {
-            error_at(tree_loc(comp_f), "type of %s %s in component "
-                     "declaration %s is %s which does not match type %s in "
-                     "entity %s", what, istr(tree_ident(comp_f)),
-                     istr(tree_ident(comp)), type_pp(comp_type),
-                     type_pp(entity_type), istr(tree_ident(entity)));
-            note_at(tree_loc(inst), "while elaborating instance %s here",
-                    istr(tree_ident(inst)));
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(comp_f));
+            diag_printf(d, "type of %s %s in component declaration %s is "
+                        "%s which does not match type %s in entity %s",
+                        what, istr(tree_ident(comp_f)),
+                        istr(tree_ident(comp)), type_pp(comp_type),
+                        type_pp(entity_type), istr(tree_ident(entity)));
+            diag_hint(d, tree_loc(comp), "in component declaration of %s",
+                      istr(tree_ident(comp)));
+            diag_hint(d, tree_loc(comp_f), "port declared as %s",
+                      type_pp(comp_type));
+            diag_hint(d, tree_loc(entity_f), "entity port declared as %s",
+                      type_pp(entity_type));
+            diag_hint(d, tree_loc(inst), "while elaborating instance %s here",
+                      istr(tree_ident(inst)));
+            diag_emit(d);
             return false;
          }
       }
 
       if (!found) {
-         error_at(tree_loc(comp_f), "%s %s not found in entity %s",
-                  what, istr(tree_ident(comp_f)), istr(tree_ident(entity)));
-         note_at(tree_loc(inst), "while elaborating instance %s here",
-                 istr(tree_ident(inst)));
-         note_at(tree_loc(entity), "entity %s declared here",
-                 istr(tree_ident(entity)));
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(comp_f));
+         diag_printf(d, "%s %s not found in entity %s",
+                     what, istr(tree_ident(comp_f)), istr(tree_ident(entity)));
+         diag_hint(d, tree_loc(comp), "in component declaration of %s",
+                      istr(tree_ident(comp)));
+         diag_hint(d, tree_loc(comp_f), "declaration of port %s",
+                   istr(tree_ident(comp_f)));
+         diag_hint(d, tree_loc(inst), "while elaborating instance %s here",
+                   istr(tree_ident(inst)));
+         diag_hint(d, tree_loc(entity), "entity %s has no port named %s",
+                   istr(tree_ident(entity)), istr(tree_ident(comp_f)));
+         diag_emit(d);
          return false;
       }
    }
@@ -634,12 +648,12 @@ static void elab_write_generic(text_buf_t *tb, tree_t value)
    }
 }
 
-static void elab_hint_fn(void *arg)
+static void elab_hint_fn(diag_t *d, void *arg)
 {
    tree_t t = arg;
 
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_printf(tb, "while elaborating instance %s", istr(tree_ident(t)));
+   diag_hint(d, tree_loc(t), "while elaborating instance %s",
+             istr(tree_ident(t)));
 
    const int ngenerics = tree_genmaps(t);
    for (int i = 0; i < ngenerics; i++) {
@@ -656,11 +670,10 @@ static void elab_hint_fn(void *arg)
          continue;
       }
 
-      tb_printf(tb, "\n\t%s => ", istr(name));
+      LOCAL_TEXT_BUF tb = tb_new();
       elab_write_generic(tb, tree_value(p));
+      diag_hint(d, NULL, "generic %s => %s", istr(name), tb_get(tb));
    }
-
-   note_at(tree_loc(t), "%s", tb_get(tb));
 }
 
 static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
@@ -1057,10 +1070,10 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
 
    if (error_count() == 0) {
       bounds_check(b);
-      set_hint_fn(elab_hint_fn, t);
+      diag_set_hint_fn(elab_hint_fn, t);
       simplify_global(arch_copy, new_ctx.generics, ctx->exec);
       bounds_check(arch_copy);
-      clear_hint();
+      diag_set_hint_fn(NULL, NULL);
    }
 
    if (error_count() == 0)

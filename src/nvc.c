@@ -18,6 +18,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "diag.h"
 #include "lib.h"
 #include "opt.h"
 #include "phase.h"
@@ -131,8 +132,6 @@ static int analyse(int argc, char **argv)
    const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = "";
-
-   opt_set_int(OPT_ERROR_LIMIT, 20);
 
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -738,6 +737,7 @@ static void set_default_opts(void)
    opt_set_str(OPT_EOPT_VERBOSE, getenv("NVC_EOPT_VERBOSE"));
    opt_set_int(OPT_GLOBAL_STACK, 8 * 1024 * 1024);
    opt_set_int(OPT_PROC_STACK, 64 * 1024);
+   opt_set_int(OPT_ERROR_LIMIT, 20);
 }
 
 static void usage(void)

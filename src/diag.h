@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2021  Nick Gasson
+//  Copyright (C) 2011-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,14 +15,15 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _LOC_H
-#define _LOC_H
+#ifndef _DIAG_H
+#define _DIAG_H
 
-#include "util.h"
-#include "ident.h"
 #include "prim.h"
+#include "util.h"
 
-#include <stdint.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <stdbool.h>
 
 typedef uint16_t loc_file_ref_t;
 
@@ -49,14 +50,12 @@ STATIC_ASSERT(sizeof(loc_t) == 8);
 
 void fmt_loc(FILE *f, const loc_t *loc);
 const char *loc_file_str(const loc_t *loc);
-const char *loc_linebuf(const loc_t *loc);
 loc_t get_loc(unsigned first_line, unsigned first_column,
               unsigned last_line, unsigned last_column,
               loc_file_ref_t file_ref);
 bool loc_invalid_p(const loc_t *loc);
 loc_file_ref_t loc_file_ref(const char *name, const char *linebuf);
 bool loc_eq(const loc_t *a, const loc_t *b);
-bool loc_contains(const loc_t *outer, const loc_t *inner);
 
 loc_wr_ctx_t *loc_write_begin(fbuf_t *f);
 void loc_write(const loc_t *loc, loc_wr_ctx_t *ctx);
@@ -66,4 +65,38 @@ loc_rd_ctx_t *loc_read_begin(fbuf_t *f);
 void loc_read(loc_t *loc, loc_rd_ctx_t *ctx);
 void loc_read_end(loc_rd_ctx_t *ctx);
 
-#endif // _LOC_H
+typedef enum {
+   DIAG_NOTE,
+   DIAG_WARN,
+   DIAG_ERROR,
+   DIAG_FATAL,
+} diag_level_t;
+
+// Error callback for use in unit tests
+typedef void (*diag_consumer_t)(diag_t *);
+void diag_set_consumer(diag_consumer_t fn);
+
+typedef void (*diag_hint_fn_t)(diag_t *, void *);
+void diag_set_hint_fn(diag_hint_fn_t fn, void *context);
+
+diag_t *diag_new(diag_level_t level, const loc_t *loc);
+void diag_printf(diag_t *d, const char *fmt, ...)
+   __attribute__((format(printf, 2, 3)));
+void diag_vprintf(diag_t *d, const char *fmt, va_list ap);
+void diag_hint(diag_t *d, const loc_t *loc, const char *fmt, ...)
+   __attribute__((format(printf, 3, 4)));
+void diag_trace(diag_t *d, const loc_t *loc, const char *fmt, ...)
+   __attribute__((format(printf, 3, 4)));
+void diag_show_source(diag_t *d, bool show);
+void diag_emit(diag_t *d);
+void diag_femit(diag_t *d, FILE *f);
+
+unsigned error_count(void);
+void reset_error_count(void);
+
+// Accessors for use in unit tests
+const char *diag_text(diag_t *d);
+const loc_t *diag_loc(diag_t *d);
+int diag_hints(diag_t *d);
+
+#endif  // _DIAG_H

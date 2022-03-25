@@ -693,10 +693,12 @@ static bool run_test(test_t *test)
       outf = freopen("out", "r", outf);
       assert(outf != NULL);
 
+      int lineno = 0;
       char gold_line[256];
       char out_line[256];
       while (fgets(gold_line, sizeof(gold_line), goldf)) {
          chomp(gold_line);
+         lineno++;
 
          bool match = false;
          while (!match && fgets(out_line, sizeof(out_line), outf)) {
@@ -706,7 +708,7 @@ static bool run_test(test_t *test)
 
          if (!match) {
             set_attr(ANSI_FG_RED);
-            printf("failed (no match)\n");
+            printf("failed (no match line %d)\n", lineno);
             set_attr(ANSI_FG_CYAN);
             printf("%s\n", gold_line);
             set_attr(ANSI_RESET);

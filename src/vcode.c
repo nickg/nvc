@@ -16,11 +16,12 @@
 //
 
 #include "util.h"
-#include "vcode.h"
 #include "array.h"
+#include "common.h"
+#include "diag.h"
 #include "hash.h"
 #include "tree.h"
-#include "common.h"
+#include "vcode.h"
 
 #include <assert.h>
 #include <inttypes.h>

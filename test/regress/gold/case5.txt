@@ -1,2 +1,5 @@
 value 9 outside of MODCOUNT range 0 to 7
-Line 13
+case5.vhd
+    |
+ 13 |         case modcount(integer(a) + b) is
+    |

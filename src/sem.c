@@ -17,7 +17,7 @@
 
 #include "util.h"
 #include "common.h"
-#include "loc.h"
+#include "diag.h"
 #include "opt.h"
 #include "phase.h"
 #include "type.h"
@@ -396,9 +396,15 @@ static bool sem_readable(tree_t t)
          case T_PORT_DECL:
             {
                const port_mode_t mode = tree_subkind(decl);
-               if (mode == PORT_OUT && standard() < STD_08)
-                  sem_error(t, "cannot read output port %s",
-                            istr(tree_ident(t)));
+               if (mode == PORT_OUT && standard() < STD_08) {
+                  diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+                  diag_printf(d, "cannot read output port %s",
+                              istr(tree_ident(t)));
+                  diag_hint(d, NULL, "outputs can be read with "
+                            "$bold$--std=2008$$");
+                  diag_emit(d);
+                  return false;
+               }
                else if (mode == PORT_LINKAGE)
                   sem_error(t, "linkage port %s may not be read except as "
                             "an actual corresponding to an interface of mode "
@@ -646,8 +652,15 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
             // Each field name must be distinct
             ident_t f_name = tree_ident(f);
             for (int j = 0; j < i; j++) {
-               if (f_name == tree_ident(type_field(type, j)))
-                  sem_error(f, "duplicate field name %s", istr(f_name));
+               tree_t fj = type_field(type, j);
+               if (f_name == tree_ident(fj)) {
+                  diag_t *d = diag_new(DIAG_ERROR, tree_loc(f));
+                  diag_printf(d, "duplicate field name %s", istr(f_name));
+                  diag_hint(d, tree_loc(fj), "previously declared here");
+                  diag_hint(d, tree_loc(f), "declared again here");
+                  diag_emit(d);
+                  return false;
+               }
             }
 
             type_t f_type = tree_type(f);
@@ -810,10 +823,18 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
                 "in packages");
 
    tree_t fwd = find_forward_decl(tab, t);
-   if (fwd != NULL && !type_strict_eq(tree_type(fwd), type))
-      sem_error(t, "expected type %s for deferred constant %s but "
-                "found %s", type_pp2(tree_type(fwd), type),
-                istr(tree_ident(t)), type_pp2(type, tree_type(fwd)));
+   if (fwd != NULL && !type_strict_eq(tree_type(fwd), type)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "expected type %s for deferred constant %s but "
+                  "found %s", type_pp2(tree_type(fwd), type),
+                  istr(tree_ident(t)), type_pp2(type, tree_type(fwd)));
+      diag_hint(d, tree_loc(fwd), "originally declared with type %s",
+                type_pp2(tree_type(fwd), type));
+      diag_hint(d, tree_loc(t), "type here is %s",
+                type_pp2(type, tree_type(fwd)));
+      diag_emit(d);
+      return false;
+   }
 
    return true;
 }
@@ -1143,11 +1164,15 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
       ident_t bname = tree_ident(bport);
 
       if (dname != bname) {
-         error_at(tree_loc(bport), "parameter name %s in subprogram %s body "
-                  "does not match name %s in declaration",
-                  istr(bname), istr(tree_ident(body)), istr(dname));
-         note_at(tree_loc(dport), "parameter %s was originally declared here",
-                 istr(dname));
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+         diag_printf(d, "parameter name %s in subprogram %s body "
+                     "does not match name %s in declaration",
+                     istr(bname), istr(tree_ident(body)), istr(dname));
+         diag_hint(d, tree_loc(dport), "%s parameter has name %s in "
+                   "specification", ordinal_str(i + 1), istr(dname));
+         diag_hint(d, tree_loc(bport), "%s parameter has name %s in "
+                   "body", ordinal_str(i + 1), istr(bname));
+         diag_emit(d);
          ok = false;
          continue;
       }
@@ -1157,10 +1182,14 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
 
       // Do not use type_eq here as subtype must exactly match
       if (!type_strict_eq(btype, dtype)) {
-         error_at(tree_loc(bport), "subtype of parameter %s does not match "
-                  "type %s in specification", istr(bname), type_pp(dtype));
-         note_at(tree_loc(dport), "parameter %s was originally declared here",
-                 istr(dname));
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+         diag_printf(d, "subtype of parameter %s does not match "
+                     "type %s in specification", istr(bname), type_pp(dtype));
+         diag_hint(d, tree_loc(dport), "parameter %s declared with type %s",
+                   istr(dname), type_pp(dtype));
+         diag_hint(d, tree_loc(bport), "parameter %s declared with type %s ",
+                   istr(bname), type_pp(btype));
+         diag_emit(d);
          ok = false;
          continue;
       }
@@ -1169,12 +1198,16 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
       const port_mode_t bmode = tree_subkind(bport);
 
       if (dmode != bmode) {
-         error_at(tree_loc(bport), "parameter %s of subprogram body "
-                  "%s with mode %s does not match mode %s in specification",
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+         diag_printf(d, "parameter %s of subprogram body %s with mode "
+                     "%s does not match mode %s in specification",
                   istr(dname), istr(tree_ident(body)),
                   port_mode_str(bmode), port_mode_str(dmode));
-         note_at(tree_loc(dport), "parameter %s was originally declared here",
-                 istr(dname));
+         diag_hint(d, tree_loc(dport), "parameter %s declared with mode %s",
+                   istr(dname), port_mode_str(dmode));
+         diag_hint(d, tree_loc(bport), "parameter %s declared with mode %s",
+                   istr(bname), port_mode_str(bmode));
+         diag_emit(d);
          ok = false;
          continue;
       }
@@ -1183,12 +1216,16 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
       const class_t bclass = tree_class(bport);
 
       if (dclass != bclass) {
-         error_at(tree_loc(bport), "class %s of subprogram body %s "
-                  "parameter %s does not match class %s in specification",
-                  class_str(bclass), istr(tree_ident(body)),
-                  istr(dname), class_str(dclass));
-         note_at(tree_loc(dport), "parameter %s was originally declared here",
-                 istr(dname));
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+         diag_printf(d, "class %s of subprogram body %s parameter "
+                     "%s does not match class %s in specification",
+                     class_str(bclass), istr(tree_ident(body)),
+                     istr(dname), class_str(dclass));
+         diag_hint(d, tree_loc(dport), "parameter %s declared with class %s",
+                   istr(dname), class_str(dclass));
+         diag_hint(d, tree_loc(bport), "parameter %s declared with class %s",
+                   istr(bname), class_str(bclass));
+         diag_emit(d);
          ok = false;
          continue;
       }
@@ -1251,11 +1288,14 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
          }
       }
 
-      error_at(tree_loc(bport), "default value of parameter %s in subprogram "
-               "body %s does not match declaration",
-               istr(dname), istr(tree_ident(body)));
-      note_at(tree_loc(dport), "parameter %s was originally declared here",
-              istr(dname));
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+      diag_printf(d, "default value of parameter %s in subprogram "
+                  "body %s does not match declaration",
+                  istr(dname), istr(tree_ident(body)));
+      diag_hint(d, tree_loc(dport), "parameter was originally declared here");
+      diag_hint(d, tree_loc(bport), "body has different default value");
+      diag_emit(d);
+
       ok = false;
    }
 
@@ -1355,8 +1395,15 @@ static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
             break;
          // Fall-through
       default:
-         sem_error(r, "name %s in sensitivity list is not a signal",
-                   istr(tree_ident(decl)));
+         {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(r));
+            diag_printf(d, "name %s in sensitivity list is not a signal",
+                        istr(tree_ident(decl)));
+            diag_hint(d, tree_loc(r), "%s is a %s", istr(tree_ident(decl)),
+                      class_str(class_of(decl)));
+            diag_emit(d);
+            return false;
+         }
       }
 
       if (!sem_static_name(r, sem_globally_static))
@@ -1505,10 +1552,12 @@ static bool sem_check_missing_body(tree_t body, tree_t spec)
             }
          }
 
-         if (!found && !(dkind != T_TYPE_DECL
-                         && ((tree_flags(d) & TREE_F_PREDEFINED)
-                             || (tree_flags(d) & TREE_F_FOREIGN)))
-             && opt_get_int(OPT_MISSING_BODY)) {
+         const bool missing =
+            !found && !(dkind != T_TYPE_DECL
+                        && ((tree_flags(d) & TREE_F_PREDEFINED)
+                            || (tree_flags(d) & TREE_F_FOREIGN)));
+
+         if (missing && opt_get_int(OPT_MISSING_BODY)) {
             warn_at(tree_loc(d), "missing body for %s %s",
                     (dkind == T_TYPE_DECL) ? "protected type"
                     : (dkind == T_PROC_DECL ? "procedure" : "function"),
@@ -1686,9 +1735,19 @@ static bool sem_check_variable_target(tree_t target)
             || (kind == T_PARAM_DECL && tree_class(decl) == C_VARIABLE);
       }
 
-      if (!suitable)
-         sem_error(target, "target of variable assignment must be a variable "
-                   "name or aggregate");
+      if (!suitable) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+         diag_printf(d, "target of variable assignment must be a variable "
+                     "name or aggregate");
+
+         tree_t ref = name_to_ref(target);
+         if (ref != NULL && tree_has_ref(ref))
+            diag_hint(d, tree_loc(target), "%s is a %s", istr(tree_ident(ref)),
+                      class_str(class_of(tree_ref(ref))));
+
+         diag_emit(d);
+         return false;
+      }
 
       if (type_is_protected(tree_type(target)))
          sem_error(target, "may not assign to variable of a protected type");
@@ -1889,9 +1948,15 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
       case T_PARAM_DECL:
          {
             const port_mode_t mode = tree_subkind(decl);
-            if (mode == PORT_IN)
-               sem_error(target, "cannot assign to input port %s",
-                         istr(tree_ident(decl)));
+            if (mode == PORT_IN) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+               diag_printf(d, "cannot assign to input port %s",
+                           istr(tree_ident(decl)));
+               diag_hint(d, tree_loc(target), "target of signal assignment");
+               diag_hint(d, tree_loc(decl), "declared with mode IN");
+               diag_emit(d);
+               return false;
+            }
             else if (mode == PORT_LINKAGE)
                sem_error(target, "linkage port %s may not be updated except as "
                          "an actual corresponding to an interface of mode "
@@ -1903,8 +1968,16 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
 
       case T_VAR_DECL:
       case T_CONST_DECL:
-         sem_error(target, "%s %s is not a valid target of signal assignment",
-                   class_str(class_of(decl)), istr(tree_ident(decl)));
+         {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+            diag_printf(d, "%s %s is not a valid target of signal assignment",
+                        class_str(class_of(decl)), istr(tree_ident(decl)));
+            diag_hint(d, tree_loc(target), "target of signal assignment");
+            diag_hint(d, tree_loc(decl), "declared as %s",
+                      class_str(class_of(decl)));
+            diag_emit(d);
+            return false;
+         }
 
       default:
          sem_error(target, "invalid target of signal assignment");
@@ -1963,7 +2036,15 @@ static bool sem_check_guard(tree_t t)
          break;
       // Fall-through
    default:
-      sem_error(t, "assignment guard must be a signal");
+      {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "assignment guard must be a signal");
+         diag_hint(d, tree_loc(decl), "%s is a %s", istr(tree_ident(decl)),
+                   class_str(class_of(decl)));
+         diag_hint(d, tree_loc(t), "guarded statement");
+         diag_emit(d);
+         return false;
+      }
    }
 
    return true;
@@ -2052,7 +2133,12 @@ static bool sem_check_conversion(tree_t t, nametab_t *tab)
          return true;
    }
 
-   sem_error(t, "conversion only allowed between closely related types");
+   diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+   diag_printf(d, "conversion only allowed between closely related types");
+   diag_hint(d, tree_loc(t), "%s and %s are not closely related",
+             type_pp2(from, to), type_pp2(to, from));
+   diag_emit(d);
+   return false;
 }
 
 static bool sem_copy_default_args(tree_t call, tree_t decl)
@@ -3748,16 +3834,31 @@ static bool sem_check_instance(tree_t t, nametab_t *tab)
    if (tree_has_spec(t)) {
       tree_t spec = tree_spec(t);
 
-      if (tree_class(t) != C_COMPONENT)
-         sem_error(spec, "specification may only be used with component"
-                   " instances");
+      if (tree_class(t) != C_COMPONENT) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(spec));
+         diag_printf(d, "specification may only be used with component"
+                     " instances");
+         diag_hint(d, tree_loc(spec), "specification for %s",
+                   istr(tree_ident(t)));
+         diag_hint(d, tree_loc(t), "%s instance", class_str(tree_class(t)));
+         diag_emit(d);
+         return false;
+      }
 
       assert(tree_kind(unit) == T_COMPONENT);   // Checked by parser
 
-      if (tree_has_ref(spec) && tree_ref(spec) != unit)
-         sem_error(spec, "component mismatch for instance %s: expected %s "
-                   "but specification has %s", istr(tree_ident(t)),
-                   istr(tree_ident(unit)), istr(tree_ident(tree_ref(spec))));
+      if (tree_has_ref(spec) && tree_ref(spec) != unit) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(spec));
+         diag_printf(d, "component mismatch for instance %s: expected %s "
+                     "but specification has %s", istr(tree_ident(t)),
+                     istr(tree_ident(unit)), istr(tree_ident(tree_ref(spec))));
+         diag_hint(d, tree_loc(spec), "specification has component %s",
+                   istr(tree_ident(tree_ref(spec))));
+         diag_hint(d, tree_loc(t), "instance of component %s",
+                   istr(tree_ident(unit)));
+         diag_emit(d);
+         return false;
+      }
    }
 
    if (!sem_check_generic_map(t, unit, tab))
@@ -4272,8 +4373,15 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
       tree_t a = tree_assoc(t, i);
       switch (tree_subkind(a)) {
       case A_OTHERS:
-         if (i != tree_assocs(t) - 1)
-            sem_error(t, "others choice must appear last");
+         if (i != nassocs - 1) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(a));
+            diag_printf(d, "others choice must appear last");
+            diag_hint(d, tree_loc(a), "others choice");
+            diag_hint(d, tree_loc(tree_assoc(t, i + 1)),
+                      "further choices follow this");
+            diag_emit(d);
+            return false;
+         }
          break;
 
       case A_NAMED:

@@ -23,10 +23,11 @@
 %option noinput
 
 %{
-#include "tree.h"
 #include "util.h"
-#include "token.h"
 #include "common.h"
+#include "diag.h"
+#include "token.h"
+#include "tree.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -45,10 +46,8 @@
 #define TOKEN_LRM(t, lrm) do {                                          \
       static bool warned = false;                                       \
       if (!warned && standard() < lrm) {                                \
-         warn_at(&yylloc, "%s is a reserved word in VHDL-%s",           \
-                 yytext, standard_text(lrm));                           \
-         note_at(NULL, "pass $bold$--std=%s$$ to enable this feature",  \
-               standard_text(lrm));                                     \
+         warn_lrm(lrm, "`%s' is a reserved word in VHDL-%s",            \
+                  yytext, standard_text(lrm));                          \
          warned = true;                                                 \
          return isalnum(yytext[0]) ? parse_id(yytext) : tERROR;         \
       }                                                                 \
@@ -59,10 +58,8 @@
 #define MIN_STD(lrm, what) do {                                         \
       static bool warned = false;                                       \
       if (!warned && standard() < lrm) {                                \
-         warn_at(&yylloc, "%s are a VHDL-%s feature",                   \
-                 what, standard_text(lrm));                             \
-         note_at(&yylloc, "pass $bold$--std=%s$$ to enable this "       \
-                 "feature", standard_text(lrm));                        \
+         warn_lrm(lrm, "%s are a VHDL-%s feature", what,                \
+                  standard_text(lrm));                                  \
          warned = true;                                                 \
       }                                                                 \
    } while (0)
@@ -77,6 +74,7 @@ static int parse_string(const char *str);
 static int parse_decimal_literal(const char *str);
 static int parse_based_literal(const char *str);
 static int resolve_ir1045(void);
+static void warn_lrm(vhdl_standard_t std, const char *fmt, ...);
 
 static int last_token = -1;
 
@@ -623,4 +621,18 @@ static int parse_bit_string(const char *str)
    }
 
    TOKEN(tBITSTRING);
+}
+
+static void warn_lrm(vhdl_standard_t std, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   diag_t *d = diag_new(DIAG_WARN, &yylloc);
+   diag_vprintf(d, fmt, ap);
+   diag_hint(d, NULL, "pass $bold$--std=%s$$ to enable this feature",
+             standard_text(std));
+   diag_emit(d);
+
+   va_end(ap);
 }

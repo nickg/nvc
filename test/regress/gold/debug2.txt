@@ -1,27 +1,23 @@
-** Warning: 0ms+0: Report Warning: p1
-	Process :debug2:p1
-** Warning: 0ms+0: Report Warning: proc1
-	Procedure PROC1 []
-	Process :debug2:p1
-** Warning: 0ms+0: Report Warning: proc1
-	Procedure PROC1 []
-	Procedure PROC2 []
-	Process :debug2:p1
-** Warning: 0ms+0: Report Warning: proc2
-	Procedure PROC2 []
-	Process :debug2:p1
-** Warning: 1ns+0: Report Warning: proc3
-	Procedure PROC3 []
-	Process :debug2:b1:p2
-** Warning: 1ns+0: Report Warning: proc4
-	Procedure PROC4 []
-	Process :debug2:b1:p2
-** Warning: 1ns+0: Report Warning: proc1
-	Procedure PROC1 []
-	Process :debug2:b1:p2
-** Warning: 1ns+0: Report Warning: p2
-	Process :debug2:b1:p2
-** Warning: 2ns+0: Report Warning: p3
-	Process :debug2:g1:p3
-** Warning: 3ns+0: Report Warning: p4
-	Process :debug2:g1:g2(1):p4
+Warning: 0ms+0: Report Warning: p1
+Warning: 0ms+0: Report Warning: proc1
+Procedure PROC1 []
+Process :debug2:p1
+Warning: 0ms+0: Report Warning: proc1
+Procedure PROC1 []
+Procedure PROC2 []
+Process :debug2:p1
+Warning: 0ms+0: Report Warning: proc2
+Procedure PROC2 []
+Process :debug2:p1
+Warning: 1ns+0: Report Warning: proc3
+Procedure PROC3 []
+Process :debug2:b1:p2
+Warning: 1ns+0: Report Warning: proc4
+Procedure PROC4 []
+Process :debug2:b1:p2
+Warning: 1ns+0: Report Warning: proc1
+Procedure PROC1 []
+Process :debug2:b1:p2
+Warning: 1ns+0: Report Warning: p2
+Warning: 2ns+0: Report Warning: p3
+Warning: 3ns+0: Report Warning: p4

@@ -1,3 +1,6 @@
 value 4 outside of MYINT range 1 to 3
+   |
+ 8 |         type myint is range 1 to 3;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Attribute MYINT'VALUE
-Line 8
+bounds13.vhd

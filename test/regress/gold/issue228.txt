@@ -1,3 +1,5 @@
 value 10 outside of INTEGER range 0 to 3 for generic G
-Process (init)
-Line 2
+issue228.vhd
+   |
+ 2 |     generic (G : integer range 0 to 3);
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^

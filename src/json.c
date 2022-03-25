@@ -20,7 +20,7 @@
 #include "util.h"
 #include "common.h"
 #include "json.h"
-#include "loc.h"
+#include "diag.h"
 #include "type.h"
 
 #include <assert.h>

@@ -17,8 +17,9 @@
 
 #include "util.h"
 #include "common.h"
+#include "diag.h"
 #include "hash.h"
-#include "loc.h"
+#include "ident.h"
 #include "opt.h"
 #include "phase.h"
 

@@ -87,10 +87,7 @@ START_TEST(test_comp)
 
    const error_t expect[] = {
       { 55, "port Y not found in entity WORK.E2" },
-      { 77, "while elaborating instance E2_1 here"},
-      { 14, "entity WORK.E2 declared here" },
       { 62, "type of port X in component declaration E3 is BIT" },
-      { 83, "while elaborating instance E3_1 here" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -129,7 +126,6 @@ START_TEST(test_bounds10)
 
    const error_t expect[] = {
       { 10, "length of value 1 does not match length of target 101" },
-      { 22, "while elaborating instance UC" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -426,8 +422,6 @@ START_TEST(test_eval1)
 
    const error_t expect[] = {
       { 12, "index -1 outside of INTEGER range 7 downto 0" },
-      { 16, "while evaluating call to FUNC" },
-      { 30, "while elaborating instance SUB_I" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -788,7 +782,6 @@ START_TEST(test_comp3)
       { 36, "missing value for generic X with no default" },
       { 31, "type of generic X in component declaration SUB2 is BOOLEAN which"
         " does not match type INTEGER in entity WORK.SUB2" },
-      { 38, "while elaborating instance SUB2_I here" },
       { -1, NULL }
    };
    expect_errors(expect);

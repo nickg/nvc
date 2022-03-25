@@ -16,12 +16,12 @@
 //
 
 #include "util.h"
+#include "diag.h"
 #include "names.h"
 #include "hash.h"
 #include "phase.h"
 #include "common.h"
 #include "array.h"
-#include "loc.h"
 #include "type.h"
 
 #include <assert.h>
@@ -644,30 +644,38 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
          }
          else if ((!overload || !can_overload(existing))
                   && s->overload == NULL) {
-            error_at(tree_loc(decl), "%s already declared in this region",
-                     istr(name));
-            note_at(tree_loc(existing), "previous declaration of %s was here",
-                    istr(name));
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+            diag_printf(d, "%s already declared in this region", istr(name));
+            diag_hint(d, tree_loc(existing), "previous declaration was here");
+            diag_hint(d, tree_loc(decl), "duplicate declaration");
+            diag_emit(d);
             return;
          }
          else if (tkind == T_ATTR_SPEC && ekind == T_ATTR_SPEC) {
             if (tree_ident(decl) == tree_ident(existing)
                 && tree_ident2(decl) == tree_ident2(existing)
                 && tree_class(decl) == tree_class(existing)) {
-               error_at(tree_loc(decl), "attribute %s for %s %s already "
-                        "declared in this region", istr(tree_ident(decl)),
-                        class_str(tree_class(decl)), istr(tree_ident2(decl)));
-               note_at(tree_loc(existing), "previous declaration was here");
+
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+               diag_printf(d, "attribute %s for %s %s already declared in "
+                           "this region", istr(tree_ident(decl)),
+                           class_str(tree_class(decl)),
+                           istr(tree_ident2(decl)));
+               diag_hint(d, tree_loc(decl), "duplicate definition here");
+               diag_hint(d, tree_loc(existing), "previous definition was here");
+               diag_emit(d);
                return;
             }
          }
          else if (overload && type_eq(tree_type(decl), tree_type(existing))) {
             if ((ekind == T_FUNC_BODY && tkind == T_FUNC_BODY)
                      || (ekind == T_PROC_BODY && tkind == T_PROC_BODY)) {
-               error_at(tree_loc(decl), "duplicate subprogram body %s",
-                        type_pp(tree_type(decl)));
-               note_at(tree_loc(existing), "previous definition of %s was "
-                       "here", type_pp(tree_type(existing)));
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+               diag_printf(d, "duplicate subprogram body %s",
+                           type_pp(tree_type(decl)));
+               diag_hint(d, tree_loc(decl), "duplicate definition here");
+               diag_hint(d, tree_loc(existing), "previous definition was here");
+               diag_emit(d);
             }
             else if ((ekind == T_FUNC_DECL || ekind == T_PROC_DECL)
                      && (tree_flags(existing) & TREE_F_PREDEFINED)) {
@@ -678,10 +686,12 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
                continue;
             }
             else if (!type_is_none(tree_type(decl))) {
-               error_at(tree_loc(decl), "%s already declared in this region",
-                        type_pp(tree_type(decl)));
-               note_at(tree_loc(existing), "previous declaration of %s was "
-                       "here", type_pp(tree_type(existing)));
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+               diag_printf(d, "%s already declared in this region",
+                           type_pp(tree_type(decl)));
+               diag_hint(d, tree_loc(existing), "previous declaration of %s "
+                         "was here", type_pp(tree_type(existing)));
+               diag_emit(d);
             }
 
             return;
@@ -710,9 +720,11 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
    spec_t **p;
    for (p = &(scope->specs); *p != NULL; p = &((*p)->next)) {
       if (kind == SPEC_EXACT && (*p)->ident == ident) {
-         error_at(tree_loc(spec), "duplicate specification for instance %s",
-                  istr(ident));
-         note_at(tree_loc((*p)->tree), "previous specification was here");
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(spec));
+         diag_printf(d, "duplicate specification for instance %s", istr(ident));
+         diag_hint(d, tree_loc((*p)->tree), "previous specification was here");
+         diag_hint(d, tree_loc(spec), "duplicate specification here");
+         diag_emit(d);
          return;
       }
    }
@@ -903,22 +915,24 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             return NULL;  // Was earlier error
 
          tree_t unit = tab->top_scope->formal;
+         diag_t *d = diag_new(DIAG_ERROR, loc);
 
          switch (tab->top_scope->formal_kind) {
          case F_PORT_MAP:
-            error_at(loc, "%s has no port named %s",
-                     istr(tree_ident(unit)), istr(name));
+            diag_printf(d, "%s has no port named %s",
+                        istr(tree_ident(unit)), istr(name));
+            diag_hint(d, loc, "use of name %s in port map", istr(name));
             break;
          case F_GENERIC_MAP:
-            error_at(loc, "%s has no generic named %s",
-                     istr(tree_ident(unit)), istr(name));
+            diag_printf(d, "%s has no generic named %s",
+                        istr(tree_ident(unit)), istr(name));
             break;
          case F_SUBPROGRAM:
             fatal_trace("do not call resolve_name in subprogram formals");
             break;
          case F_RECORD:
-            error_at(loc, "record type %s has no field named %s",
-                     type_pp(tree_type(unit)), istr(name));
+            diag_printf(d, "record type %s has no field named %s",
+                        type_pp(tree_type(unit)), istr(name));
             break;
          case F_NONE:
             break;
@@ -932,18 +946,25 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                          tree_kind(unit) == T_COMPONENT
                          ? "component" : "entity",
                          istr(tree_ident(unit)), nports > 1 ? "s" : "");
-               for (int j = 0; j < nports; j++)
-                  tb_printf(tb, "%s%s", j > 0 ? ", " : "",
-                            istr(tree_ident(tree_port(unit, j))));
-               note_at(tree_loc(unit), "%s", tb_get(tb));
+               for (int j = 0; j < nports; j++) {
+                  if (j > 0 && j == nports - 1)
+                     tb_cat(tb, " and ");
+                  else if (j > 0)
+                     tb_cat(tb, ", ");
+                  tb_cat(tb, istr(tree_ident(tree_port(unit, j))));
+               }
+               diag_hint(d, tree_loc(unit), "%s", tb_get(tb));
             }
          }
 
+         diag_emit(d);
          tab->top_scope->formal = NULL;  // Suppress further errors
       }
       else if (tab->top_scope->overload && !tab->top_scope->overload->error) {
-         error_at(loc,"no possible overload of %s has formal %s",
-                  istr(tab->top_scope->overload->name), istr(name));
+         diag_t *d = diag_new(DIAG_ERROR, loc);
+         diag_printf(d, "no possible overload of %s has formal %s",
+                     istr(tab->top_scope->overload->name), istr(name));
+         diag_hint(d, loc, "formal argument name %s", istr(name));
 
          const unsigned count = tab->top_scope->overload->candidates.count;
          for (unsigned i = 0; i < count; i++) {
@@ -956,10 +977,11 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                for (int j = 0; j < nports; j++)
                   tb_printf(tb, "%s%s", j > 0 ? ", " : "",
                             istr(tree_ident(tree_port(t, j))));
-               note_at(tree_loc(t), "%s", tb_get(tb));
+               diag_hint(d, tree_loc(t), "%s", tb_get(tb));
             }
          }
 
+         diag_emit(d);
          tab->top_scope->overload->error = true;
       }
       else if (tab->top_scope->overload == NULL) {
@@ -1015,10 +1037,11 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                   what = T_REF;
             }
 
-            error_at(loc, "ambiguous use of %s %s (%s)",
-                     what == T_ENUM_LIT ? "enumeration literal"
-                     : (what == T_UNIT_DECL ? "physical literal" : "name"),
-                     istr(name), tb_get(tb));
+            diag_t *d = diag_new(DIAG_ERROR, loc);
+            diag_printf(d, "ambiguous use of %s %s (%s)",
+                      what == T_ENUM_LIT ? "enumeration literal"
+                      : (what == T_UNIT_DECL ? "physical literal" : "name"),
+                      istr(name), tb_get(tb));
             decl = NULL;
 
             if (tab->top_scope->overload)
@@ -1028,10 +1051,20 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             qsort(m.items, m.count, sizeof(tree_t), tree_stable_compar);
 
             for (unsigned i = 0; i < m.count; i++) {
-               note_at(tree_loc(m.items[i]),
-                       "visible declaration of %s as %s", istr(name),
-                       type_pp(tree_type(m.items[i])));
+               const loc_t *mloc = tree_loc(m.items[i]);
+               if (mloc->file_ref == loc->file_ref)
+                  diag_hint(d, mloc, "visible declaration of %s as %s",
+                            istr(name), type_pp(tree_type(m.items[i])));
+               else
+                  diag_hint(d, NULL, "visible declaration of %s as %s from %s",
+                            istr(name), type_pp(tree_type(m.items[i])),
+                            istr(tree_ident(tree_container(m.items[i]))));
             }
+
+            if (m.count > 0)
+               diag_hint(d, loc, "use of name %s here", istr(name));
+
+            diag_emit(d);
          }
          else if (m.count == 1)
             decl = m.items[0];
@@ -1059,8 +1092,10 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                && !first->import)
          ;   // Second declaration was potentially visible homograph
       else if (conflict != NULL && conflict != decl) {
-         error_at(loc, "multiple conflicting visible declarations of %s",
-                  istr(name));
+         diag_t *d = diag_new(DIAG_ERROR, loc);
+         diag_printf(d, "multiple conflicting visible declarations of %s",
+                     istr(name));
+         diag_hint(d, loc, "use of name %s", istr(name));
 
          const struct { tree_t decl; scope_t *scope; } visible[2] = {
             { decl, first }, { conflict, iter.where }
@@ -1073,9 +1108,10 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                tb_printf(tb, " imported from %s",
                          istr(visible[i].scope->import));
 
-            note_at(tree_loc(visible[i].decl), "%s", tb_get(tb));
+            diag_hint(d, tree_loc(visible[i].decl), "%s", tb_get(tb));
          }
 
+         diag_emit(d);
          insert_name_at(tab->top_scope, name, (tree_t)-1);
       }
    }
@@ -1761,17 +1797,33 @@ static tree_t finish_overload_resolution(overload_t *o)
    }
 
    if (count > 1 && !o->error) {
-      error_at(tree_loc(o->tree), "ambiguous %s %s",
-               ident_char(o->name, 0) == '"' ? "use of operator"
-               : (tree_kind(o->tree) == T_FCALL ? "call to function"
-                  : "call to procedure"),
-               istr(o->name));
+      const loc_t *loc = tree_loc(o->tree);
+      diag_t *d = diag_new(DIAG_ERROR, loc);
+      diag_printf(d, "ambiguous %s %s",
+                  ident_char(o->name, 0) == '"' ? "use of operator"
+                  : (tree_kind(o->tree) == T_FCALL ? "call to function"
+                     : "call to procedure"),
+                  istr(o->name));
 
       for (unsigned i = 0; i < o->candidates.count; i++) {
-         if (o->candidates.items[i])
-            note_at(tree_loc(o->candidates.items[i]), "candidate %s",
-                    type_pp(tree_type(o->candidates.items[i])));
+         if (o->candidates.items[i]) {
+            const loc_t *cloc = tree_loc(o->candidates.items[i]);
+            if (cloc->file_ref == loc->file_ref)
+               diag_hint(d, cloc, "candidate %s",
+                         type_pp(tree_type(o->candidates.items[i])));
+            else {
+               tree_t container = tree_container(o->candidates.items[i]);
+               diag_hint(d, NULL, "candidate %s from %s",
+                         type_pp(tree_type(o->candidates.items[i])),
+                         istr(tree_ident(container)));
+            }
+         }
       }
+
+      if (diag_hints(d) > 0)
+         diag_hint(d, tree_loc(o->tree), "use of name %s here", istr(o->name));
+
+      diag_emit(d);
    }
    else if (count == 0 && !o->error) {
       LOCAL_TEXT_BUF tb = tb_new();
@@ -2761,8 +2813,11 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
    type_t type;
    if (type_set_uniq(tab, &type)) {
       if (!type_is_composite(type) && !type_is_none(type)) {
-         error_at(tree_loc(agg), "aggregate has non-composite type %s",
-                  type_pp(type));
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
+         diag_printf(d, "aggregate has non-composite type %s", type_pp(type));
+         diag_hint(d, NULL, "the type of an aggregate is determined from the "
+                   "surrounding context");
+         diag_emit(d);
          type = type_new(T_NONE);
       }
    }

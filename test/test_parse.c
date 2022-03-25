@@ -17,7 +17,7 @@
 
 #include "util.h"
 #include "common.h"
-#include "loc.h"
+#include "diag.h"
 #include "opt.h"
 #include "phase.h"
 #include "test_util.h"
@@ -2818,15 +2818,10 @@ START_TEST(test_error)
       { 35, "signal X is not a formal parameter and subprogram" },
       { 36, "expected trailing subprogram body label to match \"+\"" },
       { 41, "P1 already declared in this region" },
-      { 40, "previous declaration of P1 was here" },
       { 44, "A1 already declared in this region" },
-      { 43, "previous declaration of A1 was here" },
       { 47, "S1 already declared in this region" },
-      { 46, "previous declaration of S1 was here" },
       { 50, "B1 already declared in this region" },
-      { 49, "previous declaration of B1 was here" },
       { 56, "C1 already declared in this region" },
-      { 55, "previous declaration of C1 was here" },
       { 59, "NOT_A_LIBRARY does not name a visible component or design unit" },
       { 64, "missing declaration for entity WORK.NOT_HERE" },
       { -1, NULL }
@@ -3360,42 +3355,23 @@ START_TEST(test_names)
 
    const error_t expect[] = {
       {  14, "FUNC4 [INTEGER return INTEGER] already declared" },
-      {  13, "previous declaration of FUNC4 [INTEGER return INTEGER]" },
       {  42, "ambiguous use of enumeration literal '1'" },
-      {  26, "visible declaration of '1' as BIT" },
-      {  36, "visible declaration of '1' as CHARACTER" },
       {  46, "no possible overload of FUNC5 has formal Z" },
-      {  16, "subprogram FUNC5 [CHARACTER return INTEGER] has argument X" },
-      {  17, "subprogram FUNC5 [BIT return INTEGER] has argument Y" },
       {  46, "ambiguous use of enumeration literal '1'" },
-      {  26, "visible declaration of '1' as BIT" },
-      {  36, "visible declaration of '1' as CHARACTER" },
       {  47, "type of string literal cannot be determined from context" },
       {  50, "type of aggregate is ambiguous (BIT_VECTOR, BOOL_VECTOR)" },
       {  51, "type of aggregate is ambiguous (BIT_VECTOR, BOOL_VECTOR)" },
       {  54, "ambiguous call to function FUNC7" },
-      {  26, "candidate FUNC7 [INTEGER return INTEGER]" },
-      {  27, "candidate FUNC7 [MY_INT return INTEGER]" },
       {  56, "type of string literal is ambiguous (BIT_VECTOR, STRING)" },
       {  69, "PROC4 [INTEGER] already declared in this region" },
-      {  68, "previous declaration of PROC4 [INTEGER] was here" },
       {  84, "PROC8 already declared in this region" },
-      {  80, "previous declaration of PROC8 was here" },
       {  92, "ambiguous use of enumeration literal '1'" },
-      {  26, "visible declaration of '1' as BIT" },
-      {  36, "visible declaration of '1' as CHARACTER" },
       {  96, "no possible overload of PROC5 has formal Z" },
-      {  71, "subprogram PROC5 [CHARACTER] has argument X" },
-      {  72, "subprogram PROC5 [BIT] has argument Y" },
       {  96, "ambiguous use of enumeration literal '1'" },
-      {  26, "visible declaration of '1' as BIT" },
-      {  36, "visible declaration of '1' as CHARACTER" },
       {  97, "type of string literal cannot be determined from context" },
       { 100, "type of aggregate is ambiguous (BIT_VECTOR, BOOL_VECTOR)" },
       { 101, "type of aggregate is ambiguous (BIT_VECTOR, BOOL_VECTOR)" },
       { 104, "ambiguous call to procedure PROC7" },
-      {  77, "candidate PROC7 [INTEGER]" },
-      {  78, "candidate PROC7 [MY_INT]" },
       { 106, "type of string literal is ambiguous (BIT_VECTOR, STRING)" },
       { 107, "invalid procedure call statement" },
       { 108, "no visible subprogram declaration for FOO" },
@@ -3518,7 +3494,7 @@ START_TEST(test_vhdl2008)
       { 116, "sorry, decimal values greater than 6" },
       { 120, "excess significant digits in bit string literal" },
       { 123, "invalid digit 'C' in bit string" },
-      { 141, "sorry, element constraints are not supported yet" },
+      { 141, "sorry, array element constraints are not supported yet" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3609,8 +3585,6 @@ START_TEST(test_explicit_93)
 
    const error_t expect[] = {
       { 25, "ambiguous use of operator \"<=\"" },
-      {  3, "candidate \"<=\" [MY_VEC, MY_VEC return BOOLEAN]" },
-      { 10, "candidate \"<=\" [MY_VEC, MY_VEC return BOOLEAN]" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3772,8 +3746,7 @@ START_TEST(test_error3)
    input_from_file(TESTDIR "/parse/error3.vhd");
 
    const error_t expect[] = {
-      { 15, "protected is a reserved word in VHDL-2000" },
-      { LINE_INVALID, "pass --std=2000 to enable this feature" },
+      { 15, "`protected' is a reserved word in VHDL-2000" },
       { 15, "unexpected identifier while parsing type definition" },
       { 26, "unexpected identifier while parsing library unit" },
       { 26, "unexpected ; while parsing library unit, expecting one" },

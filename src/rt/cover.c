@@ -19,9 +19,9 @@
 #include "array.h"
 #include "common.h"
 #include "cover.h"
+#include "diag.h"
 #include "fbuf.h"
 #include "hash.h"
-#include "loc.h"
 #include "opt.h"
 #include "type.h"
 

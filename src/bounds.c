@@ -18,7 +18,6 @@
 #include "phase.h"
 #include "util.h"
 #include "common.h"
-#include "loc.h"
 #include "type.h"
 
 #include <assert.h>

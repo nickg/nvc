@@ -1,4 +1,5 @@
-value -5 FS outside of DELAY_LENGTH range 0 HR to 9223372036854775807
-FS for variable T
-Process :bounds28:main
-Line 16
+value -5 FS outside of DELAY_LENGTH range 0 HR to 9223372036854775807 FS for variable T
+bounds28.vhd
+    |
+ 16 |         t := n * fs;                    -- Error
+    |              ^^^^^^

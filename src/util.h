@@ -76,6 +76,8 @@
 #define DEBUG_ONLY(x) x
 #endif
 
+#define UNUSED __attribute__((unused))
+
 #define LCOV_EXCL_LINE
 #define LCOV_EXCL_START
 #define LCOV_EXCL_STOP
@@ -106,8 +108,10 @@ int color_printf(const char *fmt, ...)
 int color_fprintf(FILE *file, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 int color_vprintf(const char *fmt, va_list ap);
+char *color_vasprintf(const char *fmt, va_list ap);
 char *color_asprintf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
+char *strip_color(const char *fmt, va_list ap);
 
 void errorf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
@@ -127,19 +131,6 @@ const char *last_os_error(void);
 #define likely(x) __builtin_expect(x, 1)
 #define unlikely(x) __builtin_expect(x, 0)
 
-// Error callback for use in unit tests.
-typedef void (*error_fn_t)(const char *msg, const loc_t *loc);
-void set_error_fn(error_fn_t fn);
-
-typedef void (*fatal_fn_t)(void);
-void set_fatal_fn(fatal_fn_t fn);
-
-typedef void (*hint_fn_t)(void *);
-void clear_hint(void);
-void set_hint_fn(hint_fn_t fn, void *context);
-
-void hint_at(const loc_t *loc, const char *fmt, ...)
-   __attribute__((format(printf, 2, 3)));
 void error_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 void warn_at(const loc_t *loc, const char *fmt, ...)
@@ -149,13 +140,18 @@ void note_at(const loc_t *loc, const char *fmt, ...)
 void fatal_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3), noreturn));
 
+void fatal_exit(int status) __attribute__((noreturn));
 void show_stacktrace(void);
 void register_signal_handlers(void);
 bool is_debugger_running(void);
 
 void term_init(void);
+bool color_terminal(void);
+int terminal_width(void);
 
 char *get_fmt_buf(size_t len);
+
+const char *ordinal_str(int n);
 
 int checked_sprintf(char *buf, int len, const char *fmt, ...)
    __attribute__((format(printf, 3, 4)));
@@ -188,6 +184,7 @@ void tb_free(text_buf_t *tb);
 void _tb_cleanup(text_buf_t **tb);
 void tb_printf(text_buf_t *tb, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
+void tb_vprintf(text_buf_t *tb, const char *fmt, va_list ap);
 void tb_append(text_buf_t *tb, char ch);
 void tb_cat(text_buf_t *tb, const char *str);
 void tb_catn(text_buf_t *tb, const char *str, size_t nchars);
@@ -238,9 +235,6 @@ void *map_file(int fd, size_t size);
 void unmap_file(void *ptr, size_t size);
 void make_dir(const char *path);
 char *search_path(const char *name);
-
-unsigned error_count(void);
-void reset_error_count(void);
 
 #define atomic_add(p, n) __atomic_add_fetch((p), (n), __ATOMIC_ACQ_REL)
 #define atomic_load(p) __atomic_load_n((p), __ATOMIC_ACQUIRE)

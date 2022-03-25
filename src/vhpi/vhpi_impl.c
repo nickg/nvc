@@ -32,6 +32,7 @@
 
 #include "vhpi_user.h"
 #include "util.h"
+#include "diag.h"
 #include "hash.h"
 #include "tree.h"
 #include "common.h"

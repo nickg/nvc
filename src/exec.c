@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "common.h"
+#include "diag.h"
 #include "exec.h"
 #include "hash.h"
 #include "ident.h"
@@ -1490,9 +1491,7 @@ static void eval_op_index_check(int op, eval_state_t *state)
 
       type_t type = tree_type(locus->debug);
 
-      if (state->hint != NULL && tree_kind(state->hint) == T_FCALL)
-         hint_at(tree_loc(state->hint), "while evaluating call to %s",
-                 istr(tree_ident(state->hint)));
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(locus->debug));
 
       LOCAL_TEXT_BUF tb = tb_new();
       tb_cat(tb, "index ");
@@ -1502,7 +1501,19 @@ static void eval_op_index_check(int op, eval_state_t *state)
       tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
       to_string(tb, type, right->integer);
 
-      error_at(tree_loc(locus->debug), "%s", tb_get(tb));
+      diag_printf(d, "%s", tb_get(tb));
+
+      if (state->hint != NULL && tree_kind(state->hint) == T_FCALL)
+         diag_hint(d, tree_loc(state->hint), "while evaluating call to %s",
+                   istr(tree_ident(state->hint)));
+
+      if (diag_hints(d) > 0) {
+         LOCAL_TEXT_BUF vbuf = tb_new();
+         to_string(vbuf, type, value->integer);
+         diag_hint(d, tree_loc(locus->debug), "evaluated to %s", tb_get(vbuf));
+      }
+
+      diag_emit(d);
    }
    else
       EVAL_WARN(state, op, "bounds check failure prevents constant folding");
@@ -1536,10 +1547,6 @@ static void eval_op_range_check(int op, eval_state_t *state)
 
       type_t type = tree_type(locus->debug);
 
-      if (state->hint != NULL && tree_kind(state->hint) == T_FCALL)
-         hint_at(tree_loc(state->hint), "while evaluating call to %s",
-                 istr(tree_ident(state->hint)));
-
       LOCAL_TEXT_BUF tb = tb_new();
       tb_cat(tb, "value ");
       to_string(tb, type, value->integer);
@@ -1548,7 +1555,20 @@ static void eval_op_range_check(int op, eval_state_t *state)
       tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
       to_string(tb, type, right->integer);
 
-      error_at(tree_loc(locus->debug), "%s", tb_get(tb));
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(locus->debug));
+      diag_printf(d, "%s", tb_get(tb));
+
+      if (state->hint != NULL && tree_kind(state->hint) == T_FCALL)
+         diag_hint(d, tree_loc(state->hint), "while evaluating call to %s",
+                   istr(tree_ident(state->hint)));
+
+      if (diag_hints(d) > 0) {
+         LOCAL_TEXT_BUF vbuf = tb_new();
+         to_string(vbuf, type, value->integer);
+         diag_hint(d, tree_loc(locus->debug), "evaluated to %s", tb_get(vbuf));
+      }
+
+      diag_emit(d);
    }
    else
       EVAL_WARN(state, op, "range check failure prevents constant folding");

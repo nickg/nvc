@@ -20,6 +20,7 @@
 #include "common.h"
 #include "cover.h"
 #include "debug.h"
+#include "diag.h"
 #include "ffi.h"
 #include "hash.h"
 #include "heap.h"
@@ -56,7 +57,7 @@
 #define TRACE_DELTAQ  1
 #define TRACE_PENDING 0
 #define TRACE_SIGNALS 1
-#define RT_DEBUG      1
+#define RT_DEBUG      0
 
 typedef struct event         event_t;
 typedef struct waveform      waveform_t;
@@ -468,44 +469,45 @@ static tree_t rt_find_enclosing_decl(ident_t unit_name, const char *symbol)
    return enclosing;
 }
 
-static void rt_fmt_enclosing(text_buf_t *tb, tree_t enclosing,
-                             const char *symbol, const char *prefix)
+static void rt_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
+                          const char *symbol, const char *prefix)
 {
    switch (tree_kind(enclosing)) {
    case T_PROCESS:
-      tb_printf(tb, "\r\t%sProcess %s", prefix, istr(active_proc->name));
+      diag_trace(d, loc, "%sProcess$$ %s", prefix,
+                 istr(active_proc->name));
       break;
    case T_FUNC_BODY:
    case T_FUNC_DECL:
-      tb_printf(tb, "\r\t%sFunction %s", prefix, type_pp(tree_type(enclosing)));
+      diag_trace(d, loc, "%sFunction$$ %s", prefix,
+                 type_pp(tree_type(enclosing)));
       break;
    case T_PROC_BODY:
    case T_PROC_DECL:
-      tb_printf(tb, "\r\t%sProcedure %s", prefix,
-                type_pp(tree_type(enclosing)));
+      diag_trace(d, loc, "%sProcedure$$ %s", prefix,
+                 type_pp(tree_type(enclosing)));
       break;
    case T_TYPE_DECL:
       if (strstr(symbol, "$value"))
-         tb_printf(tb, "\r\t%sAttribute %s'VALUE",
-                   prefix, istr(tree_ident(enclosing)));
+         diag_trace(d, loc, "%sAttribute$$ %s'VALUE",
+                    prefix, istr(tree_ident(enclosing)));
       else
-         tb_printf(tb, "\r\t%sType %s", prefix, istr(tree_ident(enclosing)));
+         diag_trace(d, loc, "%sType$$ %s", prefix,
+                    istr(tree_ident(enclosing)));
       break;
    case T_BLOCK:
-      tb_printf(tb, "\r\t%sProcess (init)", prefix);
+      diag_trace(d, loc, "%sProcess$$ (init)", prefix);
       break;
    default:
-      tb_printf(tb, "\r\t%s%s", prefix, istr(tree_ident(enclosing)));
+      diag_trace(d, loc, "%s$$%s", prefix, istr(tree_ident(enclosing)));
       break;
    }
 }
 
-static text_buf_t *rt_fmt_trace(const loc_t *fixed)
+static void rt_diag_trace(diag_t *d)
 {
    debug_info_t *di = debug_capture();
-   text_buf_t *tb = tb_new();
 
-   bool found_fixed = false;
    const int nframes = debug_count_frames(di);
    for (int i = 0; i < nframes; i++) {
       const debug_frame_t *f = debug_get_frame(di, i);
@@ -517,63 +519,51 @@ static text_buf_t *rt_fmt_trace(const loc_t *fixed)
          if (enclosing == NULL)
             continue;
 
-         found_fixed = true;  // DWARF data should be most accurate
-
          // Processes should never be inlined
          assert(tree_kind(enclosing) != T_PROCESS);
 
-         rt_fmt_enclosing(tb, enclosing, inl->symbol, "Inlined ");
-         tb_printf(tb, "\r\t    File %s, Line %u", inl->srcfile, inl->lineno);
+         loc_file_ref_t file_ref = loc_file_ref(inl->srcfile, NULL);
+         loc_t loc = get_loc(inl->lineno, inl->colno, inl->lineno,
+                             inl->colno, file_ref);
+
+         rt_emit_trace(d, &loc, enclosing, inl->symbol, "");
       }
 
       tree_t enclosing = rt_find_enclosing_decl(f->vhdl_unit, f->symbol);
       if (enclosing == NULL)
          continue;
 
-      unsigned lineno = f->lineno;
-      const char *srcfile = f->srcfile;
-      if (fixed != NULL && !found_fixed) {
-         lineno = fixed->first_line;
-         srcfile = loc_file_str(fixed);
-         found_fixed = true;
-      }
-      else if (f->lineno == 0) {
+      loc_t loc;
+      if (f->lineno == 0) {
          // Exact DWARF debug info not available
-         const loc_t *loc = tree_loc(enclosing);
-         lineno = loc->first_line;
-         srcfile = loc_file_str(loc);
+         loc = *tree_loc(enclosing);
+      }
+      else {
+         loc_file_ref_t file_ref = loc_file_ref(f->srcfile, NULL);
+         loc = get_loc(f->lineno, f->colno, f->lineno, f->colno, file_ref);
       }
 
-      rt_fmt_enclosing(tb, enclosing, f->symbol, "");
-      tb_printf(tb, "\r\t    File %s, Line %u", srcfile, lineno);
-   }
-
-   if (fixed != NULL && (nframes == 0 || !found_fixed)) {
-      const char *pname = active_proc == NULL
-         ? "(init)" : istr(active_proc->name);
-      tb_printf(tb, "\r\tProcess %s", pname);
-      tb_printf(tb, "\r\t    File %s, Line %u", loc_file_str(fixed),
-                fixed->first_line);
+      rt_emit_trace(d, &loc, enclosing, f->symbol, "");
    }
 
    debug_free(di);
-   return tb;
 }
 
-typedef void (*rt_msg_fn_t)(const char *, ...);
-
 __attribute__((format(printf, 3, 4)))
-static void rt_msg(const loc_t *where, rt_msg_fn_t fn, const char *fmt, ...)
+static void rt_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)
 {
+   diag_t *d = diag_new(level, where);
+
    va_list ap;
    va_start(ap, fmt);
-
-   char *LOCAL buf = xvasprintf(fmt, ap);
-   LOCAL_TEXT_BUF trace = rt_fmt_trace(where);
-
+   diag_vprintf(d, fmt, ap);
    va_end(ap);
 
-   (*fn)("%s%s", buf, tb_get(trace));
+   rt_diag_trace(d);
+   diag_emit(d);
+
+   if (level == DIAG_FATAL)
+      fatal_exit(EXIT_FAILURE);
 }
 
 static size_t uarray_len(const ffi_uarray_t *u)
@@ -643,13 +633,18 @@ static void rt_secondary_stack_fault(void *addr, void *__ctx)
 
    const unsigned curr = opt_get_int(which);
    const char flag = which == OPT_GLOBAL_STACK ? 'G' : 'P';
-   hint_at(NULL, "the current limit is %u bytes which you can increase with "
-           "the $bold$-%c$$ option, for example $bold$-%c %uk$$",
-           curr, flag, flag, (curr * 2) / 1024);
 
-   LOCAL_TEXT_BUF trace = rt_fmt_trace(NULL);
-   fatal("%s secondary stack exhausted%s",
-         which == OPT_GLOBAL_STACK ? "global" : "process", tb_get(trace));
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_printf(d, "%s secondary stack exhausted",
+               which == OPT_GLOBAL_STACK ? "global" : "process");
+   rt_diag_trace(d);
+
+   diag_hint(d, NULL, "the current limit is %u bytes which you can increase "
+             "with the $bold$-%c$$ option, for example $bold$-%c %uk$$",
+             curr, flag, flag, (curr * 2) / 1024);
+
+   diag_emit(d);
+   fatal_exit(EXIT_FAILURE);
 }
 
 static void *rt_map_secondary_stack(opt_name_t which)
@@ -717,7 +712,7 @@ static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
    else if (n->signal->resolution == NULL
             && (n->sources.tag != SOURCE_PORT
                 || n->sources.u.port.conv_func == NULL))
-      rt_msg(tree_loc(n->signal->where), fatal,
+      rt_msg(tree_loc(n->signal->where), DIAG_FATAL,
              "unresolved signal %s has multiple sources",
              istr(tree_ident(n->signal->where)));
    else {
@@ -1090,6 +1085,21 @@ static void *rt_composite_signal(rt_signal_t *signal, size_t *psz)
    char *buf = xmalloc(root->size);
    rt_copy_sub_signals(root, buf);
    return buf;
+}
+
+static diag_level_t rt_diag_severity(int8_t severity)
+{
+   if (severity >= exit_severity)
+      return DIAG_FATAL;
+
+   switch (severity) {
+   case SEVERITY_NOTE:    return DIAG_NOTE;
+   case SEVERITY_WARNING: return DIAG_WARN;
+   case SEVERITY_ERROR:
+   case SEVERITY_FAILURE: return DIAG_ERROR;
+   }
+
+   return DIAG_ERROR;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1496,31 +1506,30 @@ void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       "Note", "Warning", "Error", "Failure"
    };
 
-   static const uint8_t def_str[] = "Assertion violation.";
-
-   if (msg == NULL) {
-      msg = def_str;
-      msg_len = sizeof(def_str) - 1;
-   }
-
    if (init_side_effect != SIDE_EFFECT_ALLOW) {
       init_side_effect = SIDE_EFFECT_OCCURRED;
       return;
    }
 
-   void (*fn)(const char *fmt, ...) = fatal;
-
-   switch (severity) {
-   case SEVERITY_NOTE:    fn = notef; break;
-   case SEVERITY_WARNING: fn = warnf; break;
-   case SEVERITY_ERROR:
-   case SEVERITY_FAILURE: fn = errorf; break;
-   }
-
-   if (severity >= exit_severity)
-      fn = fatal;
-
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   char tmbuf[64];
+   rt_fmt_now(tmbuf, sizeof(tmbuf));
+
+   const diag_level_t level = rt_diag_severity(severity);
+
+   diag_t *d = diag_new(level, tree_loc(where));
+   if (msg == NULL)
+      diag_printf(d, "%s: Assertion %s: Assertion violation.",
+                  tmbuf, levels[severity]);
+   else {
+      diag_printf(d, "%s: Assertion %s: %.*s",
+                  tmbuf, levels[severity], msg_len, msg);
+
+      // Assume we don't want to dump the source code if the user
+      // provided their own message
+      diag_show_source(d, false);
+   }
 
    if (hint_valid) {
       assert(tree_kind(where) == T_FCALL);
@@ -1528,7 +1537,6 @@ void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       type_t p1_type = tree_type(tree_value(tree_param(where, 1)));
 
       LOCAL_TEXT_BUF tb = tb_new();
-      tb_cat(tb, "condition ");
       to_string(tb, p0_type, hint_left);
       switch (tree_subkind(tree_ref(where))) {
       case S_SCALAR_EQ:  tb_cat(tb, " = "); break;
@@ -1542,14 +1550,14 @@ void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       to_string(tb, p1_type, hint_right);
       tb_cat(tb, " is false");
 
-      hint_at(tree_loc(where), "%s", tb_get(tb));
+      diag_hint(d, tree_loc(where), "%s", tb_get(tb));
    }
 
-   char tmbuf[64];
-   rt_fmt_now(tmbuf, sizeof(tmbuf));
+   rt_diag_trace(d);
+   diag_emit(d);
 
-   rt_msg(tree_loc(where), fn, "%s: Assertion %s: %.*s",
-          tmbuf, levels[severity], msg_len, msg);
+   if (level == DIAG_FATAL)
+      fatal_exit(EXIT_FAILURE);
 }
 
 DLLEXPORT
@@ -1567,25 +1575,18 @@ void __nvc_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
       return;
    }
 
-   void (*fn)(const char *fmt, ...) = fatal;
-
-   switch (severity) {
-   case SEVERITY_NOTE:    fn = notef; break;
-   case SEVERITY_WARNING: fn = warnf; break;
-   case SEVERITY_ERROR:
-   case SEVERITY_FAILURE: fn = errorf; break;
-   }
-
-   if (severity >= exit_severity)
-      fn = fatal;
-
    char tmbuf[64];
    rt_fmt_now(tmbuf, sizeof(tmbuf));
 
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
-   rt_msg(tree_loc(where), fn, "%s: Report %s: %.*s",
-          tmbuf, levels[severity], msg_len, msg);
+   const diag_level_t level = rt_diag_severity(severity);
+
+   diag_t *d = diag_new(level, tree_loc(where));
+   diag_printf(d, "%s: Report %s: %.*s", tmbuf, levels[severity], msg_len, msg);
+   diag_show_source(d, false);
+   rt_diag_trace(d);
+   diag_emit(d);
 }
 
 DLLEXPORT
@@ -1603,7 +1604,7 @@ void __nvc_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
    tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
    to_string(tb, type, right);
 
-   rt_msg(tree_loc(where), fatal, "%s", tb_get(tb));
+   rt_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
 }
 
 DLLEXPORT
@@ -1647,7 +1648,7 @@ void __nvc_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
       break;
    }
 
-   rt_msg(tree_loc(where), fatal, "%s", tb_get(tb));
+   rt_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
 }
 
 DLLEXPORT
@@ -1697,7 +1698,7 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
 
    tb_printf(tb, " length %d", left);
 
-   rt_msg(tree_loc(where), fatal, "%s", tb_get(tb));
+   rt_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
 }
 
 DLLEXPORT
@@ -1705,7 +1706,7 @@ void __nvc_exponent_fail(int32_t value, DEBUG_LOCUS(locus))
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
-   rt_msg(tree_loc(where), fatal, "negative exponent %d only "
+   rt_msg(tree_loc(where), DIAG_FATAL, "negative exponent %d only "
           "allowed for floating-point types", value);
 }
 
@@ -1728,8 +1729,8 @@ void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
 
    for (; pos < str_len; pos++) {
       if (!isspace((int)raw_str[pos])) {
-         rt_msg(NULL, fatal, "found invalid characters \"%.*s\" after value "
-                "\"%.*s\"", (int)(str_len - pos), raw_str + pos, str_len,
+         rt_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
+                "value \"%.*s\"", (int)(str_len - pos), raw_str + pos, str_len,
                 (const char *)raw_str);
       }
    }
@@ -1781,7 +1782,7 @@ int64_t _string_to_int(const uint8_t *raw_str, int32_t str_len, int32_t *used)
    if (is_negative) value = -value;
 
    if (num_digits == 0)
-      rt_msg(NULL, fatal, "invalid integer value "
+      rt_msg(NULL, DIAG_FATAL, "invalid integer value "
              "\"%.*s\"", str_len, (const char *)raw_str);
 
    if (used != NULL)
@@ -1789,8 +1790,8 @@ int64_t _string_to_int(const uint8_t *raw_str, int32_t str_len, int32_t *used)
    else {
       for (; p < endp && *p != '\0'; p++) {
          if (!isspace((int)*p)) {
-            rt_msg(NULL, fatal, "found invalid characters \"%.*s\" after value "
-                   "\"%.*s\"", (int)(endp - p), p, str_len,
+            rt_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
+                   "value \"%.*s\"", (int)(endp - p), p, str_len,
                    (const char *)raw_str);
          }
       }
@@ -1813,7 +1814,7 @@ double _string_to_real(const uint8_t *raw_str, int32_t str_len, uint8_t **tail)
    double value = strtod(p, &p);
 
    if (*p != '\0' && !isspace((int)*p))
-      rt_msg(NULL, fatal, "invalid real value "
+      rt_msg(NULL, DIAG_FATAL, "invalid real value "
              "\"%.*s\"", str_len, (const char *)raw_str);
 
    if (tail != NULL)
@@ -1821,8 +1822,8 @@ double _string_to_real(const uint8_t *raw_str, int32_t str_len, uint8_t **tail)
    else {
       for (; p < null + str_len && *p != '\0'; p++) {
          if (!isspace((int)*p)) {
-            rt_msg(NULL, fatal, "found invalid characters \"%.*s\" after value "
-                   "\"%.*s\"", (int)(null + str_len - p), p, str_len,
+            rt_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
+                   "value \"%.*s\"", (int)(null + str_len - p), p, str_len,
                    (const char *)raw_str);
          }
       }
@@ -1835,14 +1836,14 @@ DLLEXPORT
 void __nvc_div_zero(DEBUG_LOCUS(locus))
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
-   rt_msg(tree_loc(where), fatal, "division by zero");
+   rt_msg(tree_loc(where), DIAG_FATAL, "division by zero");
 }
 
 DLLEXPORT
 void __nvc_null_deref(DEBUG_LOCUS(locus))
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
-   rt_msg(tree_loc(where), fatal, "null access dereference");
+   rt_msg(tree_loc(where), DIAG_FATAL, "null access dereference");
 }
 
 DLLEXPORT
@@ -1871,7 +1872,8 @@ void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
    case 60000000000000000ll: unit_str = "min"; break;
    case 3600000000000000000ll: unit_str = "hr"; break;
    default:
-      rt_msg(NULL, fatal, "invalid UNIT argument %"PRIi64" in TO_STRING", unit);
+      rt_msg(NULL, DIAG_FATAL, "invalid UNIT argument %"PRIi64" in TO_STRING",
+             unit);
    }
 
    size_t max_len = 16 + strlen(unit_str) + 1;
@@ -1913,7 +1915,7 @@ void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
    fmt_cstr[fmt_length] = '\0';
 
    if (fmt_cstr[0] != '%')
-      rt_msg(NULL, fatal, "conversion specification must start with '%%'");
+      rt_msg(NULL, DIAG_FATAL, "conversion specification must start with '%%'");
 
    for (const char *p = fmt_cstr + 1; *p; p++) {
       switch (*p) {
@@ -1925,7 +1927,7 @@ void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
       case '.': case '-':
          continue;
       default:
-         rt_msg(NULL, fatal, "illegal character '%c' in format \"%s\"",
+         rt_msg(NULL, DIAG_FATAL, "illegal character '%c' in format \"%s\"",
                 *p, fmt_cstr + 1);
       }
    }
@@ -2059,7 +2061,7 @@ bool _driving(sig_shared_t *ss, uint32_t offset, int32_t count)
    }
 
    if (!found)
-      rt_msg(NULL, fatal, "process %s does not contain a driver for %s",
+      rt_msg(NULL, DIAG_FATAL, "process %s does not contain a driver for %s",
              istr(active_proc->name), istr(tree_ident(s->where)));
 
    return ntotal == ndriving;
@@ -2087,7 +2089,7 @@ void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
       }
 
       if (src == NULL)
-         rt_msg(NULL, fatal, "process %s does not contain a driver for %s",
+         rt_msg(NULL, DIAG_FATAL, "process %s does not contain a driver for %s",
                 istr(active_proc->name), istr(tree_ident(s->where)));
 
       memcpy(p, rt_value_ptr(n, &(src->u.driver.waveforms.value)),
@@ -2183,7 +2185,8 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
 
    if (*fp == NULL) {
       if (status == NULL)
-         rt_msg(NULL, fatal, "failed to open %s: %s", fname, last_os_error());
+         rt_msg(NULL, DIAG_FATAL, "failed to open %s: %s", fname,
+                last_os_error());
       else {
          switch (errno) {
          case ENOENT:
@@ -2193,7 +2196,7 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
             *status = 3;   // MODE_ERROR
             break;
          default:
-            rt_msg(NULL, fatal, "%s: %s", fname, last_os_error());
+            rt_msg(NULL, DIAG_FATAL, "%s: %s", fname, last_os_error());
          }
       }
    }
@@ -2205,7 +2208,7 @@ void _file_write(void **_fp, uint8_t *data, int32_t len)
    FILE **fp = (FILE **)_fp;
 
    if (*fp == NULL)
-      rt_msg(NULL, fatal, "write to closed file");
+      rt_msg(NULL, DIAG_FATAL, "write to closed file");
 
    fwrite(data, 1, len, *fp);
 }
@@ -2217,7 +2220,7 @@ void _file_read(void **_fp, uint8_t *data, int32_t size, int32_t count,
    FILE **fp = (FILE **)_fp;
 
    if (*fp == NULL)
-      rt_msg(NULL, fatal, "read from closed file");
+      rt_msg(NULL, DIAG_FATAL, "read from closed file");
 
    size_t n = fread(data, size, count, *fp);
    if (out != NULL)
@@ -2232,7 +2235,7 @@ void _file_close(void **_fp)
    TRACE("_file_close fp=%p", fp);
 
    if (*fp == NULL)
-      rt_msg(NULL, fatal, "attempt to close already closed file");
+      rt_msg(NULL, DIAG_FATAL, "attempt to close already closed file");
 
    fclose(*fp);
    *fp = NULL;
@@ -2244,7 +2247,7 @@ int8_t _endfile(void *_f)
    FILE *f = _f;
 
    if (f == NULL)
-      rt_msg(NULL, fatal, "ENDFILE called on closed file");
+      rt_msg(NULL, DIAG_FATAL, "ENDFILE called on closed file");
 
    int c = fgetc(f);
    if (c == EOF)
@@ -2259,7 +2262,7 @@ DLLEXPORT
 void __nvc_flush(FILE *f)
 {
    if (f == NULL)
-      rt_msg(NULL, fatal, "FLUSH called on closed file");
+      rt_msg(NULL, DIAG_FATAL, "FLUSH called on closed file");
 
    fflush(f);
 }
@@ -3687,7 +3690,7 @@ static void rt_interrupt(void)
    _Exit(1);
 #else
    if (active_proc != NULL)
-      rt_msg(NULL, fatal,
+      rt_msg(NULL, DIAG_FATAL,
              "interrupted in process %s at %s+%d",
              istr(active_proc->name), fmt_time(now), iteration);
    else

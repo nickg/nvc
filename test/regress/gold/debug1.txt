@@ -1,16 +1,13 @@
-** Warning: 0ms+0: Assertion Warning: There is an 'U'|'X'|'W'|'Z'|'-' in
-          an arithmetic operand, the result will be 'X'(es).
-	Function MAKE_BINARY [UNSIGNED return UNSIGNED]
-	Function CONV_UNSIGNED [UNSIGNED, INTEGER return UNSIGNED]
-	Function "+" [UNSIGNED, UNSIGNED return STD_LOGIC_VECTOR]
-	Function "+" [STD_LOGIC_VECTOR, STD_LOGIC_VECTOR return STD_LOGIC_VECTOR]
-	Process :debug1:warn
-** Warning: 0ms+0: Assertion Warning: There is an 'U'|'X'|'W'|'Z'|'-' in
-          an arithmetic operand, the result will be 'X'(es).
-	Function MAKE_BINARY [UNSIGNED return UNSIGNED]
-	Function CONV_UNSIGNED [UNSIGNED, INTEGER return UNSIGNED]
-	Function "+" [UNSIGNED, UNSIGNED return STD_LOGIC_VECTOR]
-	Function "+" [STD_LOGIC_VECTOR, STD_LOGIC_VECTOR return STD_LOGIC_VECTOR]
-	Process :debug1:warn
-** Note: 1ns+0: Report Note: simulation finished
-	Process :debug1:control
+Warning: 0ms+0: Assertion Warning: There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es).
+Function MAKE_BINARY [UNSIGNED return UNSIGNED]
+Function CONV_UNSIGNED [UNSIGNED, INTEGER return UNSIGNED]
+Function "+" [UNSIGNED, UNSIGNED return STD_LOGIC_VECTOR]
+Function "+" [STD_LOGIC_VECTOR, STD_LOGIC_VECTOR return STD_LOGIC_VECTOR]
+Process :debug1:warn
+Warning: 0ms+0: Assertion Warning: There is an 'U'|'X'|'W'|'Z'|'-' in an arithmetic operand, the result will be 'X'(es).
+Function MAKE_BINARY [UNSIGNED return UNSIGNED]
+Function CONV_UNSIGNED [UNSIGNED, INTEGER return UNSIGNED]
+Function "+" [UNSIGNED, UNSIGNED return STD_LOGIC_VECTOR]
+Function "+" [STD_LOGIC_VECTOR, STD_LOGIC_VECTOR return STD_LOGIC_VECTOR]
+Process :debug1:warn
+Note: 1ns+0: Report Note: simulation finished

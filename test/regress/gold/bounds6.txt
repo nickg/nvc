@@ -1,3 +1,5 @@
-value 1517262 outside of CHARACTER range NUL to C255 for attribute
-'VAL
-Line 17
+value 1517262 outside of CHARACTER range NUL to C255 for attribute 'VAL
+bounds6.vhd
+    |
+ 17 |         c := character'val(i);
+    |              ^^^^^^^^^^^^^^^^

@@ -27,7 +27,7 @@
 #include "util.h"
 #include "array.h"
 #include "debug.h"
-#include "loc.h"
+#include "diag.h"
 #include "opt.h"
 
 #include <stdlib.h>
@@ -59,7 +59,9 @@
 #include <sys/wait.h>
 #include <sys/resource.h>
 #include <sys/file.h>
+#include <sys/ioctl.h>
 #include <fcntl.h>
+#include <termios.h>
 #endif
 
 #ifdef HAVE_SYS_PRCTL_H
@@ -101,19 +103,9 @@
 
 typedef void (*print_fn_t)(const char *fmt, ...);
 
-static void show_hint(void);
-static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain);
+static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain);
 
 typedef struct guard guard_t;
-typedef struct hint hint_t;
-
-struct hint {
-   hint_fn_t func;
-   char     *str;
-   void     *context;
-   loc_t     loc;
-   hint_t   *next;
-};
 
 struct color_escape {
    const char *name;
@@ -150,14 +142,11 @@ struct _nvc_mutex {
 #endif
 };
 
-static error_fn_t      error_fn = NULL;
-static fatal_fn_t      fatal_fn = NULL;
 static bool            want_color = false;
 static guard_t        *guards;
 static message_style_t message_style = MESSAGE_FULL;
-static hint_t         *hints = NULL;
-static unsigned        n_errors = 0;
 static sig_atomic_t    crashing = 0;
+static int             term_width = 0;
 
 static const struct color_escape escapes[] = {
    { "",        ANSI_RESET },
@@ -261,94 +250,37 @@ char *xasprintf(const char *fmt, ...)
    return strp;
 }
 
-static void paginate_msg(text_buf_t *tb, const char *fmt, va_list ap,
-                         int start, int left, int right)
-{
-   char *strp LOCAL = color_vasprintf(fmt, ap, false);
-
-   const char *p = strp, *begin = strp;
-   int col = start;
-   bool escape = false;
-   while (*p != '\0') {
-      if ((*p == '\n') || (*p == '\r') || (isspace((int)*p) && col >= right)) {
-         // Can break line here
-         if (begin < p) tb_catn(tb, begin, p - begin);
-         tb_append(tb, '\n');
-         if (*p == '\r')
-            col = 0;
-         else {
-            tb_repeat(tb, ' ', left);
-            col = left;
-         }
-         if ((*p == '\n' || *p == '\r') && isspace((int)*(p + 1)))
-            right = INT_MAX;    // Don't paginate after leading whitespace
-         begin = ++p;
-      }
-      else {
-         if (*p == '\033')
-            escape = true;
-         else if (escape) {
-            if (*p == 'm')
-               escape = false;
-         }
-         else
-            ++col;
-         ++p;
-      }
-   }
-   if (begin < p) tb_catn(tb, begin, p - begin);
-   tb_append(tb, '\n');
-}
-
-static void fmt_color(int color, const char *prefix,
-                      const char *fmt, va_list ap)
-{
-   LOCAL_TEXT_BUF tb = tb_new();
-   if (want_color)
-      tb_printf(tb, "\033[%dm", color);
-   if (message_style == MESSAGE_COMPACT)
-      tb_printf(tb, "%c%s: ", tolower((int)prefix[0]), prefix + 1);
-   else
-      tb_printf(tb, "** %s: ", prefix);
-   if (want_color)
-      tb_printf(tb, "\033[%dm", ANSI_RESET);
-   paginate_msg(tb, fmt, ap, strlen(prefix) + 5, 10,
-                (message_style == MESSAGE_COMPACT) ? INT_MAX : PAGINATE_RIGHT);
-
-   fputs(tb_get(tb), stderr);
-#ifdef __MINGW32__
-   fflush(stderr);
-#endif
-}
-
 void errorf(const char *fmt, ...)
 {
+   diag_t *d = diag_new(DIAG_ERROR, NULL);
    va_list ap;
    va_start(ap, fmt);
-   fmt_color(ANSI_FG_RED, "Error", fmt, ap);
+   diag_vprintf(d, fmt, ap);
    va_end(ap);
-   show_hint();
+   diag_emit(d);
 }
 
 void warnf(const char *fmt, ...)
 {
+   diag_t *d = diag_new(DIAG_WARN, NULL);
    va_list ap;
    va_start(ap, fmt);
-   fmt_color(ANSI_FG_YELLOW, "Warning", fmt, ap);
+   diag_vprintf(d, fmt, ap);
    va_end(ap);
-   show_hint();
+   diag_emit(d);
 }
 
 void notef(const char *fmt, ...)
 {
+   diag_t *d = diag_new(DIAG_NOTE, NULL);
    va_list ap;
    va_start(ap, fmt);
-   fmt_color(ANSI_RESET, "Note", fmt, ap);
+   diag_vprintf(d, fmt, ap);
    va_end(ap);
-   show_hint();
+   diag_emit(d);
 }
 
-static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)
+static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain)
 {
    // Replace color strings like "$red$foo$$bar" with ANSI escaped
    // strings like "\033[31mfoo\033[0mbar"
@@ -428,7 +360,7 @@ static char *color_vasprintf(const char *fmt, va_list ap, bool force_plain)
 
 static int color_vfprintf(FILE *f, const char *fmt, va_list ap)
 {
-   char *strp LOCAL = color_vasprintf(fmt, ap, false);
+   char *strp LOCAL = ansi_vasprintf(fmt, ap, false);
 
    bool escape = false;
    int len = 0;
@@ -443,6 +375,16 @@ static int color_vfprintf(FILE *f, const char *fmt, va_list ap)
 
    fputs(strp, f);
    return len;
+}
+
+char *color_vasprintf(const char *fmt, va_list ap)
+{
+   return ansi_vasprintf(fmt, ap, false);
+}
+
+char *strip_color(const char *fmt, va_list ap)
+{
+   return ansi_vasprintf(fmt, ap, true);
 }
 
 int color_fprintf(FILE *f, const char *fmt, ...)
@@ -472,146 +414,17 @@ char *color_asprintf(const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   char *str = color_vasprintf(fmt, ap, false);
+   char *str = ansi_vasprintf(fmt, ap, false);
    va_end(ap);
    return str;
 }
 
-static bool catch_in_unit_test(const loc_t *loc, const char *fmt, va_list ap)
+bool color_terminal(void)
 {
-   if (error_fn != NULL) {
-      char *strp LOCAL = color_vasprintf(fmt, ap, true);
-      error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
-      return true;
-   }
-   else
-      return false;
+   return want_color;
 }
 
-static void default_hint_fn(void *arg)
-{
-   hint_t *h = arg;
-   note_at(&(h->loc), "%s", h->str);
-}
-
-static void pop_hint(void)
-{
-   hint_t *tmp = hints->next;
-   free(hints->str);
-   free(hints);
-   hints = tmp;
-}
-
-static void show_hint(void)
-{
-   static bool inside = false;
-
-   if (inside)
-      return;
-
-   inside = true;
-
-   while (hints != NULL) {
-      (*hints->func)(hints->context);
-      pop_hint();
-   }
-
-   inside = false;
-}
-
-void set_hint_fn(hint_fn_t fn, void *context)
-{
-   hint_t *h = xmalloc(sizeof(hint_t));
-   h->func = fn;
-   h->str = NULL;
-   h->context = context;
-   h->next = hints;
-   h->loc = LOC_INVALID;
-
-   hints = h;
-}
-
-void clear_hint(void)
-{
-   while (hints != NULL)
-      pop_hint();
-}
-
-void hint_at(const loc_t *loc, const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-
-   hint_t *h = xmalloc(sizeof(hint_t));
-   h->func = default_hint_fn;
-   h->str = color_vasprintf(fmt, ap, false);
-   h->context = h;
-   h->loc = loc ? *loc : LOC_INVALID;
-   h->next = hints;
-
-   va_end(ap);
-
-   hints = h;
-}
-
-void error_at(const loc_t *loc, const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   if (!catch_in_unit_test(loc, fmt, ap)) {
-      if (message_style == MESSAGE_COMPACT)
-         fmt_loc(stderr, loc);
-      fmt_color(ANSI_FG_RED, "Error", fmt, ap);
-      if (message_style == MESSAGE_FULL)
-         fmt_loc(stderr, loc);
-   }
-   show_hint();
-   n_errors++;
-
-   va_end(ap);
-
-   if (n_errors == opt_get_int(OPT_ERROR_LIMIT))
-      fatal("too many errors, giving up");
-}
-
-void warn_at(const loc_t *loc, const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   if (!catch_in_unit_test(loc, fmt, ap)) {
-      if (message_style == MESSAGE_COMPACT)
-         fmt_loc(stderr, loc);
-      fmt_color(ANSI_FG_YELLOW, "Warning", fmt, ap);
-      if (message_style == MESSAGE_FULL)
-         fmt_loc(stderr, loc);
-   }
-   show_hint();
-   va_end(ap);
-
-   if (opt_get_int(OPT_UNIT_TEST))
-      n_errors++;
-}
-
-void note_at(const loc_t *loc, const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   if (!catch_in_unit_test(loc, fmt, ap)) {
-      if (message_style == MESSAGE_COMPACT)
-         fmt_loc(stderr, loc);
-      fmt_color(ANSI_RESET, "Note", fmt, ap);
-      if (message_style == MESSAGE_FULL)
-         fmt_loc(stderr, loc);
-   }
-   show_hint();
-   va_end(ap);
-
-   if (opt_get_int(OPT_UNIT_TEST))
-      n_errors++;
-}
-
-__attribute__((noreturn))
-static void fatal_exit(int status)
+void fatal_exit(int status)
 {
    if (atomic_load(&crashing))
       _exit(status);
@@ -619,72 +432,94 @@ static void fatal_exit(int status)
       exit(status);
 }
 
-void fatal_at(const loc_t *loc, const char *fmt, ...)
+void error_at(const loc_t *loc, const char *fmt, ...)
 {
+   diag_t *d = diag_new(DIAG_ERROR, loc);
+
    va_list ap;
    va_start(ap, fmt);
-   if (!catch_in_unit_test(loc, fmt, ap)) {
-      if (message_style == MESSAGE_COMPACT)
-         fmt_loc(stderr, loc);
-      fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
-      if (message_style == MESSAGE_FULL)
-         fmt_loc(stderr, loc);
-   }
-   show_hint();
+   diag_vprintf(d, fmt, ap);
    va_end(ap);
 
-   if (fatal_fn != NULL)
-      (*fatal_fn)();
+   diag_emit(d);
+}
 
+void warn_at(const loc_t *loc, const char *fmt, ...)
+{
+   diag_t *d = diag_new(DIAG_WARN, loc);
+
+   va_list ap;
+   va_start(ap, fmt);
+   diag_vprintf(d, fmt, ap);
+   va_end(ap);
+
+   diag_emit(d);
+}
+
+void note_at(const loc_t *loc, const char *fmt, ...)
+{
+   diag_t *d = diag_new(DIAG_NOTE, loc);
+
+   va_list ap;
+   va_start(ap, fmt);
+   diag_vprintf(d, fmt, ap);
+   va_end(ap);
+
+   diag_emit(d);
+}
+
+void fatal_at(const loc_t *loc, const char *fmt, ...)
+{
+   diag_t *d = diag_new(DIAG_FATAL, loc);
+
+   va_list ap;
+   va_start(ap, fmt);
+   diag_vprintf(d, fmt, ap);
+   va_end(ap);
+
+   diag_emit(d);
    fatal_exit(EXIT_FAILURE);
-}
-
-void set_error_fn(error_fn_t fn)
-{
-   error_fn = fn;
-}
-
-void set_fatal_fn(fatal_fn_t fn)
-{
-   fatal_fn = fn;
 }
 
 void fatal(const char *fmt, ...)
 {
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+
    va_list ap;
    va_start(ap, fmt);
-   fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
-   show_hint();
+   diag_vprintf(d, fmt, ap);
    va_end(ap);
 
-   if (fatal_fn != NULL)
-      (*fatal_fn)();
-
+   diag_emit(d);
    fatal_exit(EXIT_FAILURE);
 }
 
 void fatal_trace(const char *fmt, ...)
 {
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+
    va_list ap;
    va_start(ap, fmt);
-   fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
+   diag_vprintf(d, fmt, ap);
    va_end(ap);
 
+   diag_emit(d);
    show_stacktrace();
-
    fatal_exit(EXIT_FAILURE);
 }
 
 void fatal_errno(const char *fmt, ...)
 {
-   char *fmt_err LOCAL = xasprintf("%s: %s", fmt, last_os_error());
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
 
    va_list ap;
    va_start(ap, fmt);
-   fmt_color(ANSI_FG_RED, "Fatal", fmt_err, ap);
+   diag_vprintf(d, fmt, ap);
+   diag_printf(d, ": %s", last_os_error());
    va_end(ap);
 
-   exit(EXIT_FAILURE);
+   diag_emit(d);
+   fatal_exit(EXIT_FAILURE);
 }
 
 const char *last_os_error(void)
@@ -1048,7 +883,7 @@ void term_init(void)
       "dumb"
    };
 
-   bool is_tty = isatty(STDERR_FILENO) && isatty(STDOUT_FILENO);
+   bool is_tty = isatty(STDERR_FILENO) && isatty(STDIN_FILENO);
 
 #ifdef __MINGW32__
    if (!is_tty) {
@@ -1092,8 +927,31 @@ void term_init(void)
       mode |= 0x04; // ENABLE_VIRTUAL_TERMINAL_PROCESSING
       if (!SetConsoleMode(hConsole, mode))
          want_color = false;
+
+      CONSOLE_SCREEN_BUFFER_INFO info;
+      if (GetConsoleScreenBufferInfo(hConsole, &info))
+         term_width = info.dwSize.X;
+      else
+         term_width = 80;
+   }
+#elif defined TIOCGWINSZ
+   if (is_tty) {
+      // Try to find the width of the terminal using TIOCGWINSZ
+      struct winsize ws;
+      if (ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) == 0)
+         term_width = ws.ws_col;
+      else
+         term_width = 80;
    }
 #endif
+
+   // Diagnostics are printed to stderr and explicitly flushed
+   setvbuf(stderr, NULL, _IOLBF, 0);
+}
+
+int terminal_width(void)
+{
+   return term_width;
 }
 
 char *get_fmt_buf(size_t len)
@@ -1120,6 +978,28 @@ char *get_fmt_buf(size_t len)
    }
 
    return *bufp;
+}
+
+const char *ordinal_str(int n)
+{
+   switch (n) {
+   case 1: return "first";
+   case 2: return "second";
+   case 3: return "third";
+   default:
+      {
+         static char buf[16];
+         if (n > 20 && n % 10 == 1)
+            checked_sprintf(buf, sizeof(buf), "%dst", n);
+         else if (n > 20 && n % 10 == 2)
+            checked_sprintf(buf, sizeof(buf), "%dnd", n);
+         else if (n > 20 && n % 10 == 2)
+            checked_sprintf(buf, sizeof(buf), "%drd", n);
+         else
+            checked_sprintf(buf, sizeof(buf), "%dth", n);
+         return buf;
+      }
+   }
 }
 
 int next_power_of_2(int n)
@@ -1318,17 +1198,18 @@ void _tb_cleanup(text_buf_t **tb)
       tb_free(*tb);
 }
 
-void tb_printf(text_buf_t *tb, const char *fmt, ...)
+
+void tb_vprintf(text_buf_t *tb, const char *fmt, va_list ap)
 {
    int nchars, avail;
    for (;;) {
-      va_list ap;
-      va_start(ap, fmt);
+      va_list aq;
+      va_copy(aq, ap);
 
       avail  = tb->alloc - tb->len;
-      nchars = vsnprintf(tb->buf + tb->len, avail, fmt, ap);
+      nchars = vsnprintf(tb->buf + tb->len, avail, fmt, aq);
 
-      va_end(ap);
+      va_end(aq);
 
       if (nchars + 1 < avail)
          break;
@@ -1338,6 +1219,14 @@ void tb_printf(text_buf_t *tb, const char *fmt, ...)
    }
 
    tb->len += nchars;
+}
+
+void tb_printf(text_buf_t *tb, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   tb_vprintf(tb, fmt, ap);
+   va_end(ap);
 }
 
 void tb_append(text_buf_t *tb, char ch)
@@ -1757,16 +1646,6 @@ void __array_resize_slow(void **ptr, uint32_t *limit, uint32_t count,
          *limit = next_power_of_2(count);
       *ptr = xrealloc_array(*ptr, *limit, size);
    }
-}
-
-unsigned error_count(void)
-{
-   return n_errors;
-}
-
-void reset_error_count(void)
-{
-   n_errors = 0;
 }
 
 char *search_path(const char *name)

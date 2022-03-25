@@ -19,10 +19,10 @@
 #define _OBJECT_H
 
 #include "util.h"
-#include "prim.h"
 #include "array.h"
+#include "diag.h"
+#include "prim.h"
 #include "tree.h"
-#include "loc.h"
 
 #include <stdint.h>
 

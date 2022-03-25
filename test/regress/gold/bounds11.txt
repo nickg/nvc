@@ -1,3 +1,5 @@
 value 101 outside of MY_INT range 0 to 100 for signal I
-Process :bounds11:p1
-Line 9
+bounds11.vhd
+   |
+ 9 |     p1: i <= i + 1 after 10 ns;
+   |              ^^^^^

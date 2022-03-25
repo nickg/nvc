@@ -19,9 +19,10 @@
 #include "lib.h"
 #include "phase.h"
 #include "common.h"
-#include "loc.h"
+#include "diag.h"
 #include "vcode.h"
 #include "opt.h"
+#include "diag.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -31,18 +32,21 @@ static const error_t *error_lines = NULL;
 static lib_t          test_lib = NULL;
 static unsigned       errors_seen = 0;
 
-static void test_error_fn(const char *msg, const loc_t *loc)
+static void test_error_fn(diag_t *d)
 {
    fail_if(error_lines == NULL);
 
+   const char *msg = diag_text(d);
+   const loc_t *loc = diag_loc(d);
+
    bool unexpected = error_lines->line == -1
       || error_lines->snippet == NULL
-      || error_lines->line != loc->first_line
+      || error_lines->line != (loc ? loc->first_line : LINE_INVALID)
       || strstr(msg, error_lines->snippet) == NULL;
 
    if (unexpected) {
-      set_error_fn(NULL);
-      error_at(loc, "%s", msg);
+      diag_set_consumer(NULL);
+      diag_emit(d);
       printf("expected line %d '%s'\n",
              error_lines->line, error_lines->snippet);
       ck_abort_msg("expected line %d '%s'",
@@ -91,7 +95,8 @@ static void setup_per_test(void)
    set_relax_rules(0);
 
    error_lines = NULL;
-   set_error_fn(NULL);
+   errors_seen = 0;
+   diag_set_consumer(NULL);
 }
 
 static void teardown_per_test(void)
@@ -103,7 +108,7 @@ static void teardown_per_test(void)
 
 void expect_errors(const error_t *lines)
 {
-   set_error_fn(test_error_fn);
+   diag_set_consumer(test_error_fn);
 
    error_lines = lines;
    errors_seen = 0;
@@ -117,7 +122,7 @@ void check_expected_errors(void)
       ck_abort_msg("missing expected error line %d '%s'",
                    error_lines->line, error_lines->snippet);
 
-   ck_assert_int_eq(error_count(), errors_seen);
+   ck_assert_int_eq(errors_seen, error_count());
 }
 
 TCase *nvc_unit_test(void)
@@ -190,4 +195,5 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
 void fail_if_errors(void)
 {
    ck_assert_msg(error_count() == 0, "have errors");
+   ck_assert_msg(errors_seen == 0, "have errors or diagnostics");
 }

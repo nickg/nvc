@@ -1,4 +1,4 @@
 attempt to close already closed file
-	Procedure FILE_PROC []
-	Procedure PROC []
-	Process :debug3:line_40
+Procedure FILE_PROC []
+Procedure PROC []
+Process :debug3:line_40

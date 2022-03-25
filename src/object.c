@@ -17,7 +17,9 @@
 
 #include "util.h"
 #include "common.h"
+#include "diag.h"
 #include "hash.h"
+#include "ident.h"
 #include "object.h"
 #include "opt.h"
 
@@ -316,11 +318,14 @@ object_t *object_new(object_arena_t *arena,
    assert(((uintptr_t)arena->alloc & (OBJECT_ALIGN - 1)) == 0);
 
    if (unlikely(arena->limit - arena->alloc < size)) {
-      hint_at(NULL, "The current limit is %zu bytes which you can increase "
-	      "with the $bold$-M$$ option, for example $bold$-M 32m$$",
-	      object_arena_default_size());
-      fatal("memory exhausted while creating unit %s",
-	    istr(object_arena_name(arena)));
+      diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_printf(d, "memory exhausted while creating unit %s",
+		  istr(object_arena_name(arena)));
+      diag_hint(d, NULL, "The current limit is %zu bytes which you can "
+		"increase with the $bold$-M$$ option, for example "
+		"$bold$-M 32m$$", object_arena_default_size());
+      diag_emit(d);
+      fatal_exit(EXIT_FAILURE);
    }
 
    object_t *object = arena->alloc;
