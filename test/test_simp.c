@@ -1201,6 +1201,21 @@ START_TEST(test_osvvm4)
 }
 END_TEST
 
+START_TEST(test_grlib1)
+{
+   input_from_file(TESTDIR "/simp/grlib1.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACKAGE, T_PACKAGE);
+
+   tree_t width = tree_decl(p, 0);
+   fail_unless(tree_ident(width) == ident_new("WIDTH"));
+   fail_unless(tree_kind(width) == T_CONST_DECL);
+
+   // This expression is globally static so not folded
+   fail_unless(tree_kind(tree_value(width)) == T_FCALL);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1246,6 +1261,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_ports2008);
    tcase_add_test(tc_core, test_gentype);
    tcase_add_test(tc_core, test_osvvm4);
+   tcase_add_test(tc_core, test_grlib1);
    suite_add_tcase(s, tc_core);
 
    return s;
