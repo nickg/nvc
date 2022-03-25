@@ -3244,9 +3244,7 @@ static tree_t p_index_constraint(type_t base)
 
    consume(tRPAREN);
 
-   if (t != NULL)
-      tree_set_loc(t, CURRENT_LOC);
-
+   tree_set_loc(t, CURRENT_LOC);
    return t;
 }
 
@@ -3268,6 +3266,37 @@ static void p_array_constraint(type_t type, type_t base)
    }
 }
 
+static tree_t p_record_element_constraint(type_t base)
+{
+   // simple_name element_constraint
+
+   BEGIN("record element constraint");
+
+   tree_t t = tree_new(T_CONSTRAINT);
+
+   (void)p_identifier();
+   parse_error(CURRENT_LOC, "sorry, record element constraints are not "
+               "yet supported");
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static void p_record_constraint(type_t type, type_t base)
+{
+   // ( record_element_constraint { , record_element_constraint } )
+
+   BEGIN("record constraint");
+
+   consume(tLPAREN);
+
+   do {
+      type_add_constraint(type, p_record_element_constraint(base));
+   } while (optional(tCOMMA));
+
+   consume(tRPAREN);
+}
+
 static void p_constraint(type_t type)
 {
    // range_constraint | index_constraint
@@ -3286,6 +3315,8 @@ static void p_constraint(type_t type)
    case tLPAREN:
       if (standard() < STD_08)
          type_add_constraint(type, p_index_constraint(base));
+      else if (type_is_record(base))
+         p_record_constraint(type, base);
       else
          p_array_constraint(type, base);
       break;

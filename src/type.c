@@ -630,8 +630,18 @@ bool type_is_unconstrained(type_t t)
       else
          return false;
    }
+   else if (t->object.kind == T_ARRAY)
+      return true;
+   else if (t->object.kind == T_RECORD && standard() >= STD_08) {
+      const int nfields = type_fields(t);
+      for (int i = 0; i < nfields; i++) {
+         if (type_is_unconstrained(tree_type(type_field(t, i))))
+            return true;
+      }
+      return false;
+   }
    else
-      return (t->object.kind == T_ARRAY);
+      return false;
 }
 
 bool type_is_enum(type_t t)

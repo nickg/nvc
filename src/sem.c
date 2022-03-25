@@ -637,18 +637,17 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
             if (type_eq(type, f_type))
                sem_error(f, "recursive record types are not allowed");
 
-            // Element types may not be unconstrained
-            if (type_is_unconstrained(f_type))
-               sem_error(f, "field %s with unconstrained array type "
-                         "is not allowed", istr(f_name));
-
-             if (type_is_file(f_type))
-                sem_error(f, "record field %s cannot be of file type",
-                          istr(f_name));
-
-             if (type_is_protected(f_type))
-                sem_error(f, "record field %s cannot be of protected type",
-                          istr(f_name));
+            // Element types may not be unconstrained before VHDL-2008
+            if (standard() < STD_08 && type_is_unconstrained(f_type))
+               sem_error(f, "record field %s cannot have unconstrained "
+                         "array type in VHDL-%s", istr(f_name),
+                         standard_text(standard()));
+            else if (type_is_file(f_type))
+               sem_error(f, "record field %s cannot be of file type",
+                         istr(f_name));
+            else if (type_is_protected(f_type))
+               sem_error(f, "record field %s cannot be of protected type",
+                         istr(f_name));
          }
 
          return true;
@@ -797,7 +796,7 @@ static bool sem_check_const_decl(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_decl(tree_t t, nametab_t *tab)
+static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
 
@@ -806,32 +805,48 @@ static bool sem_check_decl(tree_t t, nametab_t *tab)
    else if (type_is_none(type))
       return false;
 
-   tree_kind_t kind = tree_kind(t);
-
-   if (!tree_has_value(t) && kind == T_CONST_DECL
-       && tree_kind(find_enclosing(tab, S_DESIGN_UNIT)) != T_PACKAGE)
-      sem_error(t, "deferred constant declarations are only permitted "
-                "in packages");
-
-   if (type_is_unconstrained(type) && (kind != T_CONST_DECL))
-      sem_error(t, "type %s is unconstrained", type_pp(type));
+   if (type_is_unconstrained(type))
+      sem_error(t, "declaration of signal %s cannot have unconstrained type %s",
+                istr(tree_ident(t)), type_pp(type));
    else if (type_is_incomplete(type))
-      sem_error(t, "type %s is incomplete", type_pp(type));
+      sem_error(t, "declaration of signal %s cannot have incomplete type %s",
+                istr(tree_ident(t)), type_pp(type));
 
-   switch (kind) {
-   case T_CONST_DECL:
-      if (!sem_no_access_file_or_protected(t, type, "constants"))
+   if (!sem_no_access_file_or_protected(t, type, "signals"))
+      return false;
+
+   if (is_guarded_signal(t) && !type_is_resolved(type))
+      sem_error(t, "guarded signal must have resolved subtype");
+
+   if (tree_has_value(t)) {
+      tree_t value = tree_value(t);
+      if (!sem_check(value, tab))
          return false;
-      break;
-   case T_SIGNAL_DECL:
-      if (!sem_no_access_file_or_protected(t, type, "signals"))
-         return false;
-      else if (is_guarded_signal(t) && !type_is_resolved(type))
-         sem_error(t, "guarded signal must have resolved subtype");
-      break;
-   default:
-      break;
+
+      if (!sem_check_type(value, type))
+         sem_error(value, "type of initial value %s does not match type "
+                   "of declaration %s", type_pp2(tree_type(value), type),
+                   type_pp2(type, tree_type(value)));
    }
+
+   return true;
+}
+
+static bool sem_check_var_decl(tree_t t, nametab_t *tab)
+{
+   type_t type = tree_type(t);
+
+   if (!sem_check_subtype(t, type, tab))
+      return false;
+   else if (type_is_none(type))
+      return false;
+
+   if (type_is_unconstrained(type))
+      sem_error(t, "declaration of variable %s cannot have unconstrained "
+                "type %s", istr(tree_ident(t)), type_pp(type));
+   else if (type_is_incomplete(type))
+      sem_error(t, "declaration of variable %s cannot have incomplete type %s",
+                istr(tree_ident(t)), type_pp(type));
 
    if (tree_has_value(t)) {
       if (type_kind(type) == T_PROTECTED)
@@ -4690,8 +4705,9 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_GENERIC_DECL:
       return sem_check_generic_decl(t, tab);
    case T_SIGNAL_DECL:
+      return sem_check_signal_decl(t, tab);
    case T_VAR_DECL:
-      return sem_check_decl(t, tab);
+      return sem_check_var_decl(t, tab);
    case T_CONST_DECL:
       return sem_check_const_decl(t, tab);
    case T_PROCESS:

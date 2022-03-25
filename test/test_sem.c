@@ -459,7 +459,7 @@ START_TEST(test_array)
       { 252, "expected 1 constraints for type INT_ARRAY but found 2" },
       { 272, "no matching operator \"<\" [INT2D, INT2D" },
       { 277, "no visible declaration for NOT_HERE" },
-      { 279, "type NUM_ARRAY is unconstrained" },
+      { 279, "variable A2 cannot have unconstrained type NUM_ARRAY" },
       { 285, "object K does not have a range" },
       { 295, "type of index universal_integer does not match" },
       { 343, "invalid character 'f' in string literal of type BIT_VECTOR" },
@@ -738,7 +738,7 @@ START_TEST(test_record)
    const error_t expect[] = {
       {   9, "duplicate field name X" },
       {  15, "recursive record types are not allowed" },
-      {  30, "field X with unconstrained array type is not allowed" },
+      {  30, "record field X cannot have unconstrained array type" },
       {  39, "field Z does not have a value" },
       {  40, "does not match type INTEGER of field Y" },
       {  42, "field Y does not have a value" },
@@ -746,7 +746,7 @@ START_TEST(test_record)
       {  44, "type of value R1 does not match type INTEGER of" },
       {  47, "field X was already given a value by earlier named choice" },
       {  48, "field X was already given a value by earlier positional choice" },
-      {  64, "type R1_VEC is unconstrained" },
+      {  64, "variable A1 cannot have unconstrained type R1_VEC" },
       {  72, "record type R1 has no field named F" },
       {  82, "record type R1_SUB has no field named Z" },
       {  86, "index constraint cannot be used with non-array type R1" },
@@ -821,7 +821,7 @@ START_TEST(test_access)
       {  56, "type mark S does not refer to a type" },
       {  76, "unconstrained array type INT_PTR_ARRAY not allowed" },
       {  84, "index constraint cannot be used with non-array type INTEGER" },
-      {  90, "type FOO is incomplete" },
+      {  90, "variable F cannot have incomplete type FOO" },
       {  97, "cannot determine type of allocator expression from context" },
       { 105, "incomplete type A found in allocator expression" },
       { -1, NULL }
@@ -2552,6 +2552,23 @@ START_TEST(test_gentype)
 }
 END_TEST
 
+START_TEST(test_record2008)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/record2008.vhd");
+
+   const error_t expect[] = {
+      { 10, "declaration of signal S1 cannot have unconstrained type REC1" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2676,6 +2693,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_vhdl2008);
    tcase_add_test(tc_core, test_genpack);
    tcase_add_test(tc_core, test_gentype);
+   tcase_add_test(tc_core, test_record2008);
    suite_add_tcase(s, tc_core);
 
    return s;
