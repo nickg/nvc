@@ -239,7 +239,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_REF),
 
    // T_CONSTRAINT
-   (I_SUBKIND | I_RANGES),
+   (I_SUBKIND | I_RANGES | I_REF),
 
    // T_BLOCK_CONFIG
    (I_DECLS | I_IDENT | I_VALUE | I_RANGES | I_REF),

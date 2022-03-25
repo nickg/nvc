@@ -255,15 +255,22 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
    else if (consk == C_INDEX && !type_is_array(base))
       sem_error(constraint, "index constraint cannot be used with "
                 "non-array type %s", type_pp(base));
+   else if (consk == C_FIELD && !type_is_record(base))
+      sem_error(constraint, "record element constraint cannot be used with "
+                "non-record type %s", type_pp(base));
 
    if (type_is_array(base)) {
       if (type_kind(base) == T_SUBTYPE && type_constraints(base) > 0)
          sem_error(constraint, "may not change constraints of constrained "
                    "array type %s", type_pp(base));
    }
-
-   if (type_is_record(base))
-      sem_error(constraint, "record subtype may not have constraints");
+   else if (type_is_record(base)) {
+      if (standard() < STD_08)
+         sem_error(constraint, "record subtype may not have constraints "
+                   "in VHDL-%s", standard_text(standard()));
+      else if (!tree_has_ref(constraint))
+         return false;
+   }
 
    const int ndims_base = type_is_array(base) ? dimension_of(base) : 1;
    const int ndims = tree_ranges(constraint);
@@ -303,8 +310,23 @@ static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
          return false;
    }
 
-   if (ncon > 1)
-      sem_error(decl, "sorry, element constraints are not supported yet");
+   if (ncon > 1 && type_is_array(type))
+      sem_error(decl, "sorry, array element constraints are not supported yet");
+   else if (ncon > 1 && type_is_record(type)) {
+      // Check for duplicate record element constraints
+      for (int i = 0; i < ncon; i++) {
+         tree_t ci = type_constraint(type, i);
+         assert(tree_subkind(ci) == C_FIELD);
+
+         tree_t fi = tree_ref(ci);
+         for (int j = 0; j < i; j++) {
+            tree_t cj = type_constraint(type, j);
+            if (tree_pos(tree_ref(cj)) == tree_pos(fi))
+               sem_error(ci, "duplicate record element constraint for field %s",
+                         istr(tree_ident(fi)));
+         }
+      }
+   }
 
    if (type_has_resolution(type)) {
       if (!sem_check_resolution(type_base(type), type_resolution(type)))

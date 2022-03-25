@@ -77,6 +77,7 @@ typedef enum literal_kind {
 typedef enum constraint_kind {
    C_RANGE,
    C_INDEX,
+   C_FIELD,
 } constraint_kind_t;
 
 typedef enum {

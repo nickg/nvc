@@ -3255,15 +3255,13 @@ static void p_array_constraint(type_t type, type_t base)
 
    BEGIN("array constraint");
 
-   if (peek_nth(2) == tOPEN)
-      parse_error(CURRENT_LOC, "sorry, this form of array constraint is "
-                  "not yet supported");
-   else {
-      type_add_constraint(type, p_index_constraint(base));
-
-      if (peek() == tLPAREN)
-         p_array_constraint(type, base);
-   }
+   do {
+      if (peek_nth(2) == tOPEN)
+         parse_error(CURRENT_LOC, "sorry, this form of array constraint is "
+                     "not yet supported");
+      else
+         type_add_constraint(type, p_index_constraint(base));
+   } while (peek() == tLPAREN);
 }
 
 static tree_t p_record_element_constraint(type_t base)
@@ -3272,12 +3270,21 @@ static tree_t p_record_element_constraint(type_t base)
 
    BEGIN("record element constraint");
 
-   tree_t t = tree_new(T_CONSTRAINT);
+   ident_t id = p_identifier();
+   tree_t decl = resolve_name(nametab, CURRENT_LOC, id);
 
-   (void)p_identifier();
-   parse_error(CURRENT_LOC, "sorry, record element constraints are not "
-               "yet supported");
+   type_t ftype = NULL;
+   if (decl != NULL && tree_kind(decl) == T_FIELD_DECL)
+      ftype = tree_type(decl);
+   else if (decl != NULL) {
+      parse_error(CURRENT_LOC, "%s does not name a field of %s",
+                  istr(id), type_pp(base));
+      decl = NULL;
+   }
 
+   tree_t t = p_index_constraint(ftype);
+   tree_set_subkind(t, C_FIELD);
+   tree_set_ref(t, decl);
    tree_set_loc(t, CURRENT_LOC);
    return t;
 }
@@ -3290,9 +3297,14 @@ static void p_record_constraint(type_t type, type_t base)
 
    consume(tLPAREN);
 
+   push_scope(nametab);
+   insert_field_names(nametab, base);
+
    do {
       type_add_constraint(type, p_record_element_constraint(base));
    } while (optional(tCOMMA));
+
+   pop_scope(nametab);
 
    consume(tRPAREN);
 }

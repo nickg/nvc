@@ -2559,6 +2559,10 @@ START_TEST(test_record2008)
 
    const error_t expect[] = {
       { 10, "declaration of signal S1 cannot have unconstrained type REC1" },
+      { 12, "no visible declaration for Y" },
+      { 13, "R2 does not name a field of REC1" },
+      { 22, "duplicate record element constraint for field X" },
+      { 23, "no visible declaration for P" },
       { -1, NULL }
    };
    expect_errors(expect);
