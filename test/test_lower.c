@@ -3727,7 +3727,8 @@ START_TEST(test_const2)
    fail_unless(vcode_count_vars() == 1);
 
    vcode_type_t v0_type = vcode_var_type(0);
-   fail_unless(vtype_kind(v0_type) == VCODE_TYPE_SIGNAL);
+   fail_unless(vtype_kind(v0_type) == VCODE_TYPE_UARRAY);
+   fail_unless(vtype_kind(vtype_elem(v0_type)) == VCODE_TYPE_SIGNAL);
    fail_unless(vcode_var_flags(0) & VAR_SIGNAL);
 }
 END_TEST

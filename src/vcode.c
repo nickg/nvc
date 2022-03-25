@@ -4500,7 +4500,8 @@ vcode_reg_t emit_array_ref(vcode_reg_t array, vcode_reg_t offset)
    vcode_add_arg(op, offset);
 
    vcode_type_t rtype = vcode_reg_type(array);
-   VCODE_ASSERT(vtype_kind(rtype) == VCODE_TYPE_POINTER
+   VCODE_ASSERT((vtype_kind(rtype) == VCODE_TYPE_POINTER
+                 && vtype_kind(vtype_pointed(rtype)) != VCODE_TYPE_UARRAY)
                 || vtype_kind(rtype) == VCODE_TYPE_SIGNAL,
                 "argument to array ref must a pointer or signal");
    VCODE_ASSERT(vcode_reg_kind(offset) == VCODE_TYPE_OFFSET,

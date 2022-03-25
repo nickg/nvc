@@ -1321,7 +1321,7 @@ void __nvc_push_scope(DEBUG_LOCUS(locus), int32_t size)
 DLLEXPORT
 void __nvc_pop_scope(void)
 {
-   TRACE("pop scope");
+   TRACE("pop scope %s", istr(tree_ident(active_scope->where)));
 
    if (unlikely(active_scope->kind != SCOPE_SIGNAL))
       fatal_trace("cannot pop non-signal scope");
@@ -1340,8 +1340,9 @@ sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
-   TRACE("_init_signal %s count=%d size=%d values=%p offset=%d",
-         istr(tree_ident(where)), count, size, values, offset);
+   TRACE("init signal %s count=%d size=%d values=%s offset=%d",
+         istr(tree_ident(where)), count, size,
+         fmt_values(values, size * count), offset);
 
    const size_t datasz = MAX(2 * count * size, 8);
    rt_signal_t *s = xcalloc_flex(sizeof(rt_signal_t), 1, datasz);
@@ -1685,6 +1686,9 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
    case T_REF:
       tb_printf(tb, "%s %s", class_str(class_of(where)),
                 istr(tree_ident(where)));
+      break;
+   case T_FIELD_DECL:
+      tb_printf(tb, "field %s", istr(tree_ident(where)));
       break;
    default:
       tb_cat(tb, "target");
