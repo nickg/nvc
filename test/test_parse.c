@@ -3485,7 +3485,6 @@ START_TEST(test_error2)
    const error_t expect[] = {
       {  1, "missing declaration for package WORK.DUNNO" },
       {  2, "no visible declaration for BAR" },
-      {  3, "type mismatch in range: left is BIT, right is CHARACTER" },
       {  5, "no visible declaration for SDFF" },
       { 10, "no visible declaration for SGHBBX" },
       { 17, "cannot find unit STD.NOTHERE" },

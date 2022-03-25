@@ -126,6 +126,9 @@ static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
 {
    assert(expect == NULL || !type_is_universal(expect));
 
+   if (expect != NULL && type_is_none(expect))
+      return false;   // Prevent cascading errors
+
    switch (tree_subkind(r)) {
    case RANGE_EXPR:
       {
@@ -205,8 +208,9 @@ static bool sem_check_discrete_range(tree_t r, type_t expect, nametab_t *tab)
    if (!sem_check_range(r, expect ?: tree_type(r), T_LAST_TYPE_KIND, tab))
       return false;
 
+   const range_kind_t kind = tree_subkind(r);
    type_t type = tree_type(r);
-   if (type_is_none(type))
+   if (type_is_none(type) || kind == RANGE_ERROR)
       return false;
 
    if (!type_is_discrete(type))
@@ -214,7 +218,7 @@ static bool sem_check_discrete_range(tree_t r, type_t expect, nametab_t *tab)
 
    // See LRM 93 section 3.2.1.1: universal integer bound must be a
    // numeric literal or attribute. Later LRMs relax the wording here.
-   if (standard() < STD_00 && tree_subkind(r) != RANGE_EXPR) {
+   if (standard() < STD_00 && kind != RANGE_EXPR) {
       tree_t left  = tree_left(r);
       tree_t right = tree_right(r);
 
@@ -466,7 +470,7 @@ static bool sem_check_same_type(tree_t left, tree_t right)
    }
 
    // Supress cascading errors
-   if (type_kind(left_type) == T_NONE || type_kind(right_type) == T_NONE)
+   if (type_is_none(left_type) || type_is_none(right_type))
       return true;
 
    return false;
