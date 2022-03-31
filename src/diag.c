@@ -437,7 +437,7 @@ static void diag_paginate(const char *str, int left, FILE *f)
          if (*p == 'm')
             escape = 0;
       }
-      else if (col >= right) {
+      else if (col + 1 == right) {
          fprintf(f, "\n%*s", left, "");
          col = left;
       }
