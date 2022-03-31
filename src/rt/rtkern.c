@@ -773,6 +773,26 @@ static rt_net_t *rt_get_net(rt_nexus_t *nexus)
    }
 }
 
+static void rt_clone_waveform(rt_nexus_t *nexus, waveform_t *w_new,
+                              waveform_t *w_old, int offset)
+{
+   w_new->when = w_old->when;
+   w_new->null = w_old->null;
+   w_new->next = NULL;
+
+   const int split = offset * nexus->size;
+   const int oldsz = (offset + nexus->width) * nexus->size;
+   const int newsz = nexus->width * nexus->size;
+
+   const void *sp = oldsz <= sizeof(rt_value_t)
+      ? w_old->value.bytes : w_old->value.ext;
+
+   void *dp = newsz <= sizeof(rt_value_t)
+      ? w_new->value.bytes : w_new->value.ext;
+
+   memcpy(dp, sp + split, newsz);
+}
+
 static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset,
                             rt_net_t *net)
 {
@@ -809,24 +829,14 @@ static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset,
          w_new->when = w_old->when;
          w_new->null = w_old->null;
 
-         const int split = offset * nexus->size;
-         const int oldsz = (offset + nexus->width) * nexus->size;
-
-         const void *vp = oldsz <= sizeof(rt_value_t)
-            ? w_old->value.bytes : w_old->value.ext;
-         rt_copy_value_ptr(nexus, &(w_new->value), vp + split);
+         rt_clone_waveform(nexus, w_new, w_old, offset);
 
          // Future transactions
          for (w_old = w_old->next; w_old; w_old = w_old->next) {
             w_new = (w_new->next = rt_alloc(waveform_stack));
             w_new->value = rt_alloc_value(nexus);
-            w_new->next  = NULL;
-            w_new->when  = w_old->when;
-            w_new->null  = w_old->null;
 
-            const void *vp = oldsz <= sizeof(rt_value_t)
-               ? w_old->value.bytes : w_old->value.ext;
-            rt_copy_value_ptr(nexus, &(w_new->value), vp + split);
+            rt_clone_waveform(nexus, w_new, w_old, offset);
 
             RT_ASSERT(w_old->when >= now);
             deltaq_insert_driver(w_new->when - now, nexus, new);
