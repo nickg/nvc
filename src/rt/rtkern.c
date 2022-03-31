@@ -810,8 +810,11 @@ static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset,
          w_new->null = w_old->null;
 
          const int split = offset * nexus->size;
-         rt_copy_value_ptr(nexus, &(w_new->value),
-                           rt_value_ptr(nexus, &(w_old->value)) + split);
+         const int oldsz = (offset + nexus->width) * nexus->size;
+
+         const void *vp = oldsz <= sizeof(rt_value_t)
+            ? w_old->value.bytes : w_old->value.ext;
+         rt_copy_value_ptr(nexus, &(w_new->value), vp + split);
 
          // Future transactions
          for (w_old = w_old->next; w_old; w_old = w_old->next) {
@@ -821,8 +824,9 @@ static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset,
             w_new->when  = w_old->when;
             w_new->null  = w_old->null;
 
-            rt_copy_value_ptr(nexus, &(w_new->value),
-                              rt_value_ptr(nexus, &(w_old->value)) + split);
+            const void *vp = oldsz <= sizeof(rt_value_t)
+               ? w_old->value.bytes : w_old->value.ext;
+            rt_copy_value_ptr(nexus, &(w_new->value), vp + split);
 
             RT_ASSERT(w_old->when >= now);
             deltaq_insert_driver(w_new->when - now, nexus, new);
@@ -891,13 +895,15 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, int offset, rt_net_t *net)
       for (rt_source_t *it = &(old->sources); it; it = it->chain_input) {
          rt_clone_source(new, it, offset, net);
 
-         // Free up memory from old driver
+         // Resize waveforms in old driver
          if (it->tag == SOURCE_DRIVER && oldsz > sizeof(rt_value_t)) {
-            waveform_t *w_old = &(it->u.driver.waveforms);
-            rt_value_t v_old = rt_alloc_value(old);
-            rt_copy_value_ptr(old, &v_old, w_old->value.ext);
-            free(w_old->value.ext);
-            w_old->value = v_old;
+            for (waveform_t *w_old = &(it->u.driver.waveforms);
+                 w_old; w_old = w_old->next) {
+               rt_value_t v_old = rt_alloc_value(old);
+               rt_copy_value_ptr(old, &v_old, w_old->value.ext);
+               free(w_old->value.ext);
+               w_old->value = v_old;
+            }
          }
       }
    }
@@ -3377,10 +3383,6 @@ static void rt_cycle(int stop_delta)
 
    TRACE("begin cycle");
 
-#if TRACE_SIGNALS > 0
-   if (trace_on)
-      rt_dump_signals(root);
-#endif
 #if TRACE_DELTAQ > 0
    if (trace_on)
       deltaq_dump();
@@ -3442,6 +3444,11 @@ static void rt_cycle(int stop_delta)
    }
 
    rt_resume(&implicit);
+
+#if TRACE_SIGNALS > 0
+   if (trace_on)
+      rt_dump_signals(root);
+#endif
 
    while ((event = rt_pop_run_queue(&procq))) {
       rt_run(event->proc.proc);

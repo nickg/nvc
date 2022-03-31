@@ -526,3 +526,4 @@ record26        normal
 bounds31        fail,gold
 record27        normal
 record28        normal
+vests43         normal
