@@ -21,7 +21,7 @@ architecture test of record2008 is
     signal r4 : rec2(x(1 to 3), y(1 to 4));  -- OK
     signal r5 : rec2(x(1 to 3), x(1 to 4));  -- Error
     signal r6 : rec2(x(1 to 3), p(1 to 4));  -- Error
---    signal r7 : rec2(b(1 to 3));        -- Error
+    signal r7 : rec2(b(1 to 3));        -- Error
 
 begin
 

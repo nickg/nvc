@@ -258,6 +258,18 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
    else if (consk == C_FIELD && !type_is_record(base))
       sem_error(constraint, "record element constraint cannot be used with "
                 "non-record type %s", type_pp(base));
+   else if (consk == C_FIELD) {
+      if (!tree_has_ref(constraint))
+         return false;   // Was parse error
+
+      tree_t decl = tree_ref(constraint);
+      assert(tree_kind(decl) == T_FIELD_DECL);  // Checked by parser
+
+      type_t ftype = tree_type(decl);
+      if (!type_is_unconstrained(ftype))
+         sem_error(constraint, "field %s in record element constraint is "
+                   "already constrained", istr(tree_ident(decl)));
+   }
 
    if (type_is_array(base)) {
       if (type_kind(base) == T_SUBTYPE && type_constraints(base) > 0)
@@ -673,10 +685,16 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
                sem_error(f, "recursive record types are not allowed");
 
             // Element types may not be unconstrained before VHDL-2008
-            if (standard() < STD_08 && type_is_unconstrained(f_type))
-               sem_error(f, "record field %s cannot have unconstrained "
-                         "array type in VHDL-%s", istr(f_name),
-                         standard_text(standard()));
+            if (standard() < STD_08 && type_is_unconstrained(f_type)) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(f));
+               diag_printf(d, "record field %s cannot have unconstrained "
+                           "array type in VHDL-%s", istr(f_name),
+                           standard_text(standard()));
+               diag_hint(d, NULL, "pass $bold$--std=2008$$ to enable this "
+                         "feature");
+               diag_emit(d);
+               return false;
+            }
             else if (type_is_file(f_type))
                sem_error(f, "record field %s cannot be of file type",
                          istr(f_name));

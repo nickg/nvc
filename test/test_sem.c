@@ -2516,6 +2516,7 @@ START_TEST(test_record2008)
       { 13, "R2 does not name a field of REC1" },
       { 22, "duplicate record element constraint for field X" },
       { 23, "no visible declaration for P" },
+      { 24, "field B in record element constraint is already constrained" },
       { -1, NULL }
    };
    expect_errors(expect);
