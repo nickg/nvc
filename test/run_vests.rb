@@ -19,7 +19,7 @@ ExpectFails = 54
 
 ENV['NVC_COLORS'] = 'always'
 
-def run_cmd(c)
+def run_cmd(c, expfail)
   Open3.popen2e(c) do |i, oe, t|
     i.close
 
@@ -35,10 +35,15 @@ def run_cmd(c)
 
     status = t.value
 
-    if status != 0 then
+    if status != 0 and not expfail then
       puts
       puts c.magenta
       puts output
+    elsif status == 0 and expfail then
+      puts
+      puts c.magenta
+      puts output
+      puts "expected failure!".magenta
     end
 
     return status == 0
@@ -74,7 +79,7 @@ Dir.mktmpdir do |tmpdir|
   Dir.chdir tmpdir
 
   File.open("#{Billowitch}/compliant.exp").each_line do |line|
-    next unless m = line.match(/^run_compliant_test +(\w+.vhdl?)(.*)$/)
+    next unless m = line.match(/^run_compliant_test +(\w+.vhdl?)(.*)(?:#.*)?$/)
 
     tc = m.captures[0]
     io = m.captures[1]
@@ -83,10 +88,16 @@ Dir.mktmpdir do |tmpdir|
       f = File.realpath "#{Billowitch}/#{tc}"
       top = guess_top f
       cmd = "#{Tool} -P256k --force-init --work=work:#{workdir} -a #{f} -e #{top} -r"
-
-      if run_cmd cmd then
+      expfail = io =~ /EXPFAIL/
+      
+      result = run_cmd cmd, expfail
+      
+      if result then
         passes += 1
         print '+'.green
+      elsif expfail then
+        passes += 1
+        print '!'.green
       else
         fails += 1
       end
