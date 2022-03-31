@@ -1,41 +1,33 @@
 1ns+0: Assertion Warning: Assertion violation.
     |
  17 |         assert x = 5 severity warning;
-    |                ^^^^^
-    |                0 = 5 is false
+    |                ^^^^^ 0 = 5 is false
 1ns+0: Assertion Warning: Assertion violation.
     |
  18 |         assert x < -1 severity warning;
-    |                ^^^^^^
-    |                0 < -1 is false
+    |                ^^^^^^ 0 < -1 is false
 1ns+0: Assertion Warning: Assertion violation.
     |
  19 |         assert character'val(x) /= NUL severity warning;
-    |                ^^^^^^^^^^^^^^^^^^^^^^^
-    |                NUL /= NUL is false
+    |                ^^^^^^^^^^^^^^^^^^^^^^^ NUL /= NUL is false
 2ns+0: Assertion Warning: Assertion violation.
     |
  22 |         assert x > 1000 severity warning;
-    |                ^^^^^^^^
-    |                512 > 1000 is false
+    |                ^^^^^^^^ 512 > 1000 is false
 2ns+0: Assertion Warning: Assertion violation.
     |
  23 |         assert x <= 2 severity warning;
-    |                ^^^^^^
-    |                512 <= 2 is false
+    |                ^^^^^^ 512 <= 2 is false
 2ns+0: Assertion Warning: Assertion violation.
     |
  24 |         assert x >= 2000 severity warning;
-    |                ^^^^^^^^^
-    |                512 >= 2000 is false
+    |                ^^^^^^^^^ 512 >= 2000 is false
 2ns+0: Assertion Warning: Assertion violation.
     |
  25 |         assert y = 4.56 severity warning;
-    |                ^^^^^^^^
-    |                3.1419999999999999 = 4.5599999999999996 is false
+    |                ^^^^^^^^ 3.1419999999999999 = 4.5599999999999996 is false
 2ns+0: Assertion Warning: Assertion violation.
 2ns+0: Assertion Warning: Assertion violation.
     |
  30 |         assert p = null severity warning;
-    |                ^^^^^^^^
  = NULL is false

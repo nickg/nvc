@@ -615,7 +615,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
          while (ncarets--) fputc('^', f);
 
          if (hint->text != NULL) {
-            if (hintcol + strlen(hint->text) >= terminal_width())
+            if (hintcol + strlen(hint->text) >= MAX(terminal_width(), 80))
                color_fprintf(f, "$$\n%*s " GUTTER_STYLE " |$$%*s", fwidth, "",
                              hint->loc.first_column, "");
 
