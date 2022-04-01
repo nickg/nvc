@@ -20,6 +20,7 @@
 
 #include "prim.h"
 #include "util.h"
+#include "common.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -87,6 +88,7 @@ void diag_hint(diag_t *d, const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 3, 4)));
 void diag_trace(diag_t *d, const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 3, 4)));
+void diag_lrm(diag_t *d, vhdl_standard_t std, const char *section);
 void diag_show_source(diag_t *d, bool show);
 void diag_emit(diag_t *d);
 void diag_femit(diag_t *d, FILE *f);

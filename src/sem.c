@@ -1105,6 +1105,11 @@ static bool sem_check_interface_class(tree_t port)
    if (class == C_CONSTANT && mode != PORT_IN)
       sem_error(port, "parameter of class CONSTANT must have mode IN");
 
+   // LRM 08 section 4.2.2.3
+   if (class == C_SIGNAL && tree_flags(port) & TREE_F_BUS)
+      sem_error(port, "formal signal parameter declaration may "
+                "not include the reserved word BUS");
+
    return true;
 }
 
@@ -2283,7 +2288,6 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
       port_mode_t mode = tree_subkind(port);
 
       tree_t value = tree_value(param);
-      tree_kind_t kind = tree_kind(value);
 
       type_t port_type = tree_type(port);
 
@@ -2293,53 +2297,59 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
                    istr(tree_ident(port)),
                    type_pp2(port_type, tree_type(value)));
 
-      while (kind == T_ARRAY_REF || kind == T_ARRAY_SLICE
-             || kind == T_ALL || kind == T_RECORD_REF
-             || (kind == T_REF && tree_kind(tree_ref(value)) == T_ALIAS)) {
-         if (kind == T_REF)
-            value = tree_value(tree_ref(value));
-         else
-            value = tree_value(value);
-         kind = tree_kind(value);
-      }
-
-      if (class == C_SIGNAL) {
-         if (tree_kind(value) == T_OPEN)
-            sem_error(value, "actual for formal %s with class SIGNAL must "
-                      "not be OPEN", istr(tree_ident(port)));
-
-         if (kind != T_REF)
-            sem_error(value, "actual for formal %s with class SIGNAL must be a "
-                      "name denoting a signal", istr(tree_ident(port)));
-      }
-
-      if (class == C_VARIABLE) {
-         if (kind != T_REF)
-            sem_error(value, "actual for formal %s with class VARIABLE must be "
-                      "a name denoting a variable", istr(tree_ident(port)));
-
-         tree_t decl = tree_ref(value);
-         tree_kind_t decl_kind = tree_kind(decl);
-
-         if (decl_kind == T_SIGNAL_DECL)
-            sem_error(value, "cannot associate signal %s with parameter "
-                      "class VARIABLE", istr(tree_ident(decl)));
-         else if (decl_kind == T_FILE_DECL)
-            sem_error(value, "cannot associate file %s with parameter "
-                      "class VARIABLE", istr(tree_ident(decl)));
-         else if (decl_kind == T_PARAM_DECL || decl_kind == T_PORT_DECL) {
-            const class_t class = tree_class(decl);
-            if (mode == PORT_OUT && tree_subkind(decl) == PORT_IN)
-               sem_error(value, "cannot read parameter %s with mode IN",
-                         istr(tree_ident(decl)));
-            else if ((mode == PORT_OUT || mode == PORT_INOUT)
-                     && class == C_CONSTANT)
-               sem_error(value, "object %s has class CONSTANT and "
-                         "cannot be associated with OUT or INOUT parameters",
-                         istr(tree_ident(decl)));
+      // LRM 08 sections 4.2.2.2 and 4.2.2.3
+      if (class == C_VARIABLE || class == C_SIGNAL) {
+         tree_t ref = name_to_ref(value);
+         if (ref == NULL || class_of(ref) != class) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+            diag_printf(d, "actual for formal %s with class %s must be "
+                        "a name denoting a %s", istr(tree_ident(port)),
+                        class == C_VARIABLE ? "VARIABLE" : "SIGNAL",
+                        class_str(class));
+            if (ref == NULL)
+               diag_hint(d, tree_loc(value), "actual designator is not a name");
+            else if (tree_has_ref(ref))
+               diag_hint(d, tree_loc(value), "object %s has class %s",
+                         istr(tree_ident(ref)), class_str(class_of(ref)));
+            diag_lrm(d, STD_08, class == C_SIGNAL ? "4.2.2.3" : "4.2.2.2");
+            diag_emit(d);
+            return false;
          }
-         else if ((decl_kind != T_VAR_DECL) && (decl_kind != T_ALIAS))
-            sem_error(value, "invalid use of name %s", istr(tree_ident(decl)));
+
+         // Check OUT and INOUT parameters can be assigned to
+         if (mode == PORT_OUT || mode == PORT_INOUT) {
+            tree_t decl = tree_ref(ref);
+            const tree_kind_t decl_kind = tree_kind(decl);
+
+            if ((decl_kind == T_PARAM_DECL || decl_kind == T_PORT_DECL)
+                && tree_subkind(decl) == PORT_IN) {
+               const char *what =
+                  decl_kind == T_PARAM_DECL ? "parameter" : "port";
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+               diag_printf(d, "cannot associate %s %s of mode IN with "
+                           "formal %s of mode %s", what,
+                           istr(tree_ident(decl)), istr(tree_ident(port)),
+                           port_mode_str(mode));
+               diag_hint(d, tree_loc(decl), "%s declared with mode %s",
+                         istr(tree_ident(decl)),
+                         port_mode_str(tree_subkind(decl)));
+               diag_hint(d, tree_loc(value), "associated with %s %s %s here",
+                         port_mode_str(mode), what, istr(tree_ident(port)));
+               diag_emit(d);
+               return false;
+            }
+         }
+      }
+
+      if (class == C_SIGNAL && !sem_static_name(value, sem_globally_static)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+         diag_printf(d, "actual associated with signal parameter %s must be "
+                     "denoted by a static signal name", istr(tree_ident(port)));
+         diag_hint(d, tree_loc(value), "not a static signal name");
+         diag_lrm(d, STD_08, "4.2.2.3");
+         diag_lrm(d, STD_08, "8.1");
+         diag_emit(d);
+         return false;
       }
 
       // Check IN and INOUT parameters can be read

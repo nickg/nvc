@@ -55,10 +55,16 @@ struct loc_rd_ctx {
    bool             have_index;
 };
 
+typedef enum {
+   HINT_NOTE,
+   HINT_HELP
+} hint_kind_t;
+
 typedef struct {
-   loc_t  loc;
-   char  *text;
-   int    priority;
+   loc_t        loc;
+   char        *text;
+   int          priority;
+   hint_kind_t  kind;
 } diag_hint_t;
 
 typedef A(diag_hint_t) hint_list_t;
@@ -315,6 +321,16 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 #error "invalid DIAG_THEME"
 #endif
 
+static const struct {
+   const char *title;
+   const char *section[STD_08 + 1];
+} lrm_sections[] = {
+   { "Names", { [STD_08] = "8.1", [STD_93] = "6.1" } },
+   { "Signal parameters", { [STD_08] = "4.2.2.3", [STD_93] = "2.1.1.2" } },
+   { "Constant and variable parameters", { [STD_93] = "2.1.1.1",
+        [STD_08] = "4.2.2.2" } }
+};
+
 diag_t *diag_new(diag_level_t level, const loc_t *loc)
 {
    diag_t *d = xcalloc(sizeof(diag_t));
@@ -390,7 +406,8 @@ void diag_hint(diag_t *d, const loc_t *loc, const char *fmt, ...)
    diag_hint_t h = {
       .loc      = loc ? *loc : LOC_INVALID,
       .text     = text,
-      .priority = -(d->hints.count)
+      .priority = -(d->hints.count),
+      .kind     = HINT_NOTE,
    };
    APUSH(d->hints, h);
 }
@@ -415,9 +432,43 @@ void diag_trace(diag_t *d, const loc_t *loc, const char *fmt, ...)
    diag_hint_t h = {
       .loc      = loc ? *loc : LOC_INVALID,
       .text     = text,
-      .priority = d->hints.count
+      .priority = d->hints.count,
    };
    APUSH(d->trace, h);
+}
+
+void diag_lrm(diag_t *d, vhdl_standard_t std, const char *section)
+{
+   const char *title = NULL;
+   for (int i = 0; i < ARRAY_LEN(lrm_sections); i++) {
+      const char *s = lrm_sections[i].section[std];
+      if (s != NULL && strcmp(s, section) == 0) {
+         // Prefer the section number from the current standard
+         const char *ss = lrm_sections[i].section[standard()];
+         if (ss != NULL) {
+            std = standard();
+            section = ss;
+         }
+
+         title = lrm_sections[i].title;
+         break;
+      }
+   }
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "IEEE Std 1076-%s section %s",
+             standard_text(std), section);
+
+   if (title != NULL)
+      tb_printf(tb, " \"%s\"", title);
+
+   diag_hint_t h = {
+      .loc      = LOC_INVALID,
+      .text     = tb_claim(tb),
+      .priority = d->hints.count,
+      .kind     = HINT_HELP
+   };
+   APUSH(d->hints, h);
 }
 
 static void diag_paginate(const char *str, int left, FILE *f)
@@ -652,7 +703,8 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       if (linebuf != NULL)
          col += color_fprintf(f, " " GUTTER_STYLE " = $$");
 
-      col += color_fprintf(f, HINT_STYLE "Note:$$ ");
+      col += color_fprintf(f, HINT_STYLE "%s:$$ ",
+                           hint->kind == HINT_HELP ? "Help" : "Note");
       diag_paginate(hint->text, col, f);
       fputc('\n', f);
 

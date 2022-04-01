@@ -246,4 +246,13 @@ begin
         (1 to 2 => a) := v;             -- Error
     end process;
 
+    -- Wrong class for procedure arguments
+    process is
+        procedure p1(signal x : bit);
+        variable v : bit;
+    begin
+        p1(v);                          -- Error
+        p1('1');                        -- Error
+    end process;
+
 end architecture;

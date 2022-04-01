@@ -12,8 +12,10 @@ begin
         begin
             PROC_B(I,O);
         end procedure;
+        variable oo : integer;
     begin
-        PROC_A(I,O);
+        PROC_A(I,oo);
+        O <= oo;
     end process;
 end MODEL;
 entity  TOP is

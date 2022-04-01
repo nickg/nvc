@@ -104,7 +104,7 @@ package body p is
     begin
     end procedure;
 
-    procedure test5_b(x : integer) is
+    procedure test5_b(variable x : integer) is
         alias a : integer is x;
     begin
         test5_a(a);
@@ -180,10 +180,17 @@ package body p is
         x(1);                           -- Error
     end procedure;
 
-    procedure test15 is
-        variable x : integer;
+    procedure test15 (signal x : out bit bus) is  -- Error
     begin
-        x := ?? x;                      -- Error, parsed as pcall in 93
-    end process;
+    end procedure;
+
+    procedure test16 (signal x : in bit_vector(1 to 3)) is
+        procedure test16_a (signal y : bit) is
+        begin
+        end procedure;
+        variable i : integer;
+    begin
+        test16_a(x(i));                 -- Error, not static name
+    end procedure;
 
 end package body;

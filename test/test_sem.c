@@ -127,7 +127,7 @@ START_TEST(test_ports)
       { 259, "missing body for function FUNC4 [INTEGER return BIT]" },
       { 318, "cannot assign to input port X" },
       { 319, "cannot read output port Y" },
-      { 339, "cannot read parameter X with mode IN" },
+      { 339, "parameter X of mode IN with formal X of mode OUT" },
       { 363, "associated with port I of mode IN must be a globally static" },
       { 367, "actual associated with port I of mode IN must be a globally " },
       { 375, "invalid output conversion \"not\"" },
@@ -380,7 +380,7 @@ START_TEST(test_func)
       { 114, "positional parameters must precede named parameters" },
       { 115, "duplicate parameter name X" },
       { 124, "function arguments may not have VARIABLE class" },
-      { 146, "object X has class CONSTANT and cannot be associated" },
+      { 146, "B with class VARIABLE must be a name denoting a variable" },
       { 161, "pure function TEST18 cannot call impure function" },
       { 166, "object X with access type must have class VARIABLE" },
       { 180, "universal_real does not match formal X type INTEGER" },
@@ -548,6 +548,8 @@ START_TEST(test_seq)
       { 244, "aggregate element must be locally static name" },
       { 245, "others association not allowed in aggregate variable target" },
       { 246, "range association not allowed in aggregate variable target" },
+      { 254, "X with class SIGNAL must be a name denoting a signal" },
+      { 255, "X with class SIGNAL must be a name denoting a signal" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -606,8 +608,8 @@ START_TEST(test_procedure)
       { 167, "object ARG with type containing an access type must have class" },
       { 172, "object ARG with type containing an access type must have class" },
       { 180, "invalid procedure call statement" },
-      { 186, "`\?\?' is a reserved word in VHDL-2008" },
-      { 186, "unexpected error while parsing primary" },
+      { 183, "declaration may not include the reserved word BUS" },
+      { 193, "signal parameter Y must be denoted by a static signal name" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1612,7 +1614,7 @@ START_TEST(test_issue224)
 
    const error_t expect[] = {
       {  6, "parameter of class SIGNAL cannot have a default value" },
-      { 18, "actual for formal A with class SIGNAL must not be OPEN" },
+      { 18, "formal A with class SIGNAL must be a name denoting a signal" },
       { 24, "parameter of class VARIABLE with mode OUT or INOUT cannot have" },
       { 34, "parameter of class VARIABLE with mode OUT or INOUT cannot have" },
       { 43, "port with mode LINKAGE cannot have a default value" },

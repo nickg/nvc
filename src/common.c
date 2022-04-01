@@ -1210,6 +1210,7 @@ tree_t name_to_ref(tree_t name)
       case T_ARRAY_REF:
       case T_ARRAY_SLICE:
       case T_RECORD_REF:
+      case T_ALL:
          name = tree_value(name);
          break;
       default:

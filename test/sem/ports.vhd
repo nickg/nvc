@@ -334,7 +334,7 @@ architecture other2 of top is
         assert x = 5;
     end procedure;
 
-    procedure bad(x : in integer) is
+    procedure bad(variable x : in integer) is
     begin
         assign(x);
     end procedure;

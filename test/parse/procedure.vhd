@@ -29,4 +29,12 @@ package body p is
     begin
     end procedure;
 
+    -- Parse errors below this point
+
+    procedure testxxx is
+        variable x : integer;
+    begin
+        x := ?? x;                      -- Error, parsed as pcall in 93
+    end procedure;
+
 end package body;

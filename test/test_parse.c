@@ -1955,6 +1955,13 @@ START_TEST(test_procedure)
 
    input_from_file(TESTDIR "/parse/procedure.vhd");
 
+   const error_t expect[] = {
+      { 37, "`\?\?' is a reserved word in VHDL-2008" },
+      { 37, "unexpected error while parsing primary" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
@@ -1968,7 +1975,7 @@ START_TEST(test_procedure)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACK_BODY);
-   fail_unless(tree_decls(p) == 4);
+   fail_unless(tree_decls(p) == 5);
 
    d = search_decls(p, ident_new("FOO"), 0);
    fail_if(d == NULL);
@@ -1998,7 +2005,7 @@ START_TEST(test_procedure)
    p = parse();
    fail_unless(p == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
