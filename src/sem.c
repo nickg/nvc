@@ -1984,8 +1984,16 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
                sem_error(target, "linkage port %s may not be updated except as "
                          "an actual corresponding to an interface of mode "
                          "linkage", istr(tree_ident(decl)));
-            else if (tree_class(decl) != C_SIGNAL)
-               sem_error(target, "target of signal assignment is not a signal");
+            else if (tree_class(decl) != C_SIGNAL) {
+               diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+               diag_printf(d, "%s is not a valid target of signal assignment",
+                           istr(tree_ident(decl)));
+               diag_hint(d, tree_loc(target), "target of signal assignment");
+               diag_hint(d, tree_loc(decl), "declared with class %s",
+                         class_str(tree_class(decl)));
+               diag_emit(d);
+               return false;
+            }
          }
          break;
 

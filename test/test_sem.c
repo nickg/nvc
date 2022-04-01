@@ -602,7 +602,7 @@ START_TEST(test_procedure)
       { 100, "object X with access type must have class VARIABLE" },
       { 137, "sorry, this form of parameter name is not yet supported" },
       { 142, "cannot read OUT parameter X" },
-      { 148, "target of signal assignment is not a signal" },
+      { 148, "X is not a valid target of signal assignment" },
       { 157, "object ARG with type containing an access type must have class" },
       { 162, "object ARG with type containing an access type must have class" },
       { 167, "object ARG with type containing an access type must have class" },
