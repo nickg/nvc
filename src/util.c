@@ -934,14 +934,19 @@ void term_init(void)
       else
          term_width = 80;
    }
-#elif defined TIOCGWINSZ
+#else
    if (is_tty) {
-      // Try to find the width of the terminal using TIOCGWINSZ
+      // Try to find the terminal size with tcgetwinsize or TIOCGWINSZ
+      term_width = 80;
+#if defined HAVE_TCGETWINSIZE
+      struct winsize ws;
+      if (tcgetwinsize(STDIN_FILENO, &ws) == 0)
+         term_width = ws.ws_col;
+#elif defined TIOCGWINSZ
       struct winsize ws;
       if (ioctl(STDIN_FILENO, TIOCGWINSZ, &ws) == 0)
          term_width = ws.ws_col;
-      else
-         term_width = 80;
+#endif
    }
 #endif
 
