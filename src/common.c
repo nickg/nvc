@@ -828,6 +828,8 @@ type_t index_type_of(type_t type, unsigned dim)
       return type_index_constr(base, dim);
    else if (base_kind == T_ENUM || base_kind == T_NONE)
       return type;
+   else if (base_kind == T_RECORD)
+      return NULL;
    else
       return tree_type(range_of(base, dim));
 }

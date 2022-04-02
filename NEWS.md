@@ -2,6 +2,10 @@
 - Added support for VHDL-2008 type generics on packages and entities.
 - New command line options `-P` and `-G` can be used to set the size of
   the process and global secondary stack respectively.
+- Diagnostic messages have been enhanced with more contextual
+  information.
+- Added support for record element constraints and record fields with
+  unconstrained array types.
 
 ## Version 1.6.1 - 2022-02-05
 - Fix compatibility with BSD make (#440).
