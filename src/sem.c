@@ -245,30 +245,76 @@ static bool sem_check_discrete_range(tree_t r, type_t expect, nametab_t *tab)
 
 static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
 {
-   if (type_is_access(base))
+   if (base != NULL && type_is_access(base))
       base = type_access(base);
 
    const constraint_kind_t consk = tree_subkind(constraint);
-   if (consk == C_RANGE && !type_is_scalar(base))
-      sem_error(constraint, "range constraint cannot be used with "
-                "non-scalar type %s", type_pp(base));
-   else if (consk == C_INDEX && !type_is_array(base))
-      sem_error(constraint, "index constraint cannot be used with "
-                "non-array type %s", type_pp(base));
-   else if (consk == C_FIELD && !type_is_record(base))
-      sem_error(constraint, "record element constraint cannot be used with "
-                "non-record type %s", type_pp(base));
-   else if (consk == C_FIELD) {
-      if (!tree_has_ref(constraint))
-         return false;   // Was parse error
+   switch (consk) {
+   case C_RANGE:
+      if (!type_is_scalar(base))
+         sem_error(constraint, "range constraint cannot be used with "
+                   "non-scalar type %s", type_pp(base));
+      break;
 
-      tree_t decl = tree_ref(constraint);
-      assert(tree_kind(decl) == T_FIELD_DECL);  // Checked by parser
+   case C_INDEX:
+      if (!type_is_array(base))
+         sem_error(constraint, "index constraint cannot be used with "
+                   "non-array type %s", type_pp(base));
+      break;
 
-      type_t ftype = tree_type(decl);
-      if (!type_is_unconstrained(ftype))
-         sem_error(constraint, "field %s in record element constraint is "
-                   "already constrained", istr(tree_ident(decl)));
+   case C_RECORD:
+      {
+         if (!type_is_record(base))
+            sem_error(constraint, "record element constraint cannot be used "
+                      "with non-record type %s", type_pp(base));
+
+         // Range list is overloaded to hold record element constraints
+         const int nelem = tree_ranges(constraint);
+         for (int i = 0; i < nelem; i++) {
+            tree_t ei = tree_range(constraint, i);
+            assert(tree_kind(ei) == T_CONSTRAINT);
+
+            if (!tree_has_ref(ei))
+               return false;   // Was parse error
+
+            tree_t decl = tree_ref(ei);
+            assert(tree_kind(decl) == T_FIELD_DECL);  // Checked by parser
+
+            type_t ftype = tree_type(decl);
+            if (!type_is_unconstrained(ftype))
+               sem_error(constraint, "field %s in record element constraint is "
+                         "already constrained", istr(tree_ident(decl)));
+
+            if (!sem_check_constraint(ei, ftype, tab))
+               return false;
+
+            // Check for duplicate element constraints
+            tree_t fi = tree_ref(ei);
+            for (int j = 0; j < i; j++) {
+               tree_t ej = tree_range(constraint, j);
+               if (tree_pos(tree_ref(ej)) == tree_pos(fi))
+                  sem_error(ei, "duplicate record element constraint for "
+                            "field %s", istr(tree_ident(fi)));
+            }
+
+            if (type_kind(base) == T_SUBTYPE) {
+               tree_t dup = type_constraint_for_field(base, fi);
+               if (dup != NULL) {
+                  diag_t *d = diag_new(DIAG_ERROR, tree_loc(ei));
+                  diag_printf(d, "duplicate record element constraint for "
+                              "field %s", istr(tree_ident(fi)));
+                  diag_hint(d, tree_loc(dup), "constraint in subtype %s",
+                            type_pp(base));
+                  diag_hint(d, tree_loc(ei), "duplicate constraint here");
+                  diag_emit(d);
+                  return false;
+               }
+            }
+         }
+
+         // Code belows handles index and range constraints
+         return true;
+      }
    }
 
    if (type_is_array(base)) {
@@ -276,13 +322,9 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
          sem_error(constraint, "may not change constraints of constrained "
                    "array type %s", type_pp(base));
    }
-   else if (type_is_record(base)) {
-      if (standard() < STD_08)
-         sem_error(constraint, "record subtype may not have constraints "
-                   "in VHDL-%s", standard_text(standard()));
-      else if (!tree_has_ref(constraint))
-         return false;
-   }
+   else if (type_is_record(base) && standard() < STD_08)
+      sem_error(constraint, "record subtype may not have constraints "
+                "in VHDL-%s", standard_text(standard()));
 
    const int ndims_base = type_is_array(base) ? dimension_of(base) : 1;
    const int ndims = tree_ranges(constraint);
@@ -324,21 +366,6 @@ static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
 
    if (ncon > 1 && type_is_array(type))
       sem_error(decl, "sorry, array element constraints are not supported yet");
-   else if (ncon > 1 && type_is_record(type)) {
-      // Check for duplicate record element constraints
-      for (int i = 0; i < ncon; i++) {
-         tree_t ci = type_constraint(type, i);
-         assert(tree_subkind(ci) == C_FIELD);
-
-         tree_t fi = tree_ref(ci);
-         for (int j = 0; j < i; j++) {
-            tree_t cj = type_constraint(type, j);
-            if (tree_pos(tree_ref(cj)) == tree_pos(fi))
-               sem_error(ci, "duplicate record element constraint for field %s",
-                         istr(tree_ident(fi)));
-         }
-      }
-   }
 
    if (type_has_resolution(type)) {
       if (!sem_check_resolution(type_base(type), type_resolution(type)))
@@ -412,6 +439,9 @@ static bool sem_readable(tree_t t)
                   diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
                   diag_printf(d, "cannot read output port %s",
                               istr(tree_ident(t)));
+                  diag_hint(d, tree_loc(decl), "%s declared with mode OUT",
+                            istr(tree_ident(decl)));
+                  diag_hint(d, tree_loc(t), "read here");
                   diag_hint(d, NULL, "outputs can be read with "
                             "$bold$--std=2008$$");
                   diag_emit(d);
@@ -811,6 +841,25 @@ static bool sem_no_access_file_or_protected(tree_t t, type_t type, const char *w
    return true;
 }
 
+static void sem_unconstrained_decl_hint(diag_t *d, type_t type)
+{
+   if (!type_is_record(type))
+      return;
+
+   // Tell the user which field is unconstrained
+
+   type_t base = type_base_recur(type);
+   const int nfields = type_fields(base);
+   for (int i = 0; i < nfields; i++) {
+      tree_t f = type_field(base, i);
+      if (!type_is_unconstrained(tree_type(f)))
+         continue;
+      else if (type_constraint_for_field(type, f) == NULL)
+         diag_hint(d, NULL, "missing record element constraint for field %s",
+                   istr(tree_ident(f)));
+   }
+}
+
 static bool sem_check_const_decl(tree_t t, nametab_t *tab)
 {
    type_t type = tree_type(t);
@@ -866,9 +915,14 @@ static bool sem_check_signal_decl(tree_t t, nametab_t *tab)
    else if (type_is_none(type))
       return false;
 
-   if (type_is_unconstrained(type))
-      sem_error(t, "declaration of signal %s cannot have unconstrained type %s",
-                istr(tree_ident(t)), type_pp(type));
+   if (type_is_unconstrained(type)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "declaration of signal %s cannot have unconstrained "
+                  "type %s", istr(tree_ident(t)), type_pp(type));
+      sem_unconstrained_decl_hint(d, type);
+      diag_emit(d);
+      return false;
+   }
    else if (type_is_incomplete(type))
       sem_error(t, "declaration of signal %s cannot have incomplete type %s",
                 istr(tree_ident(t)), type_pp(type));
@@ -902,9 +956,14 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
    else if (type_is_none(type))
       return false;
 
-   if (type_is_unconstrained(type))
-      sem_error(t, "declaration of variable %s cannot have unconstrained "
-                "type %s", istr(tree_ident(t)), type_pp(type));
+   if (type_is_unconstrained(type)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "declaration of variable %s cannot have unconstrained "
+                  "type %s", istr(tree_ident(t)), type_pp(type));
+      sem_unconstrained_decl_hint(d, type);
+      diag_emit(d);
+      return false;
+   }
    else if (type_is_incomplete(type))
       sem_error(t, "declaration of variable %s cannot have incomplete type %s",
                 istr(tree_ident(t)), type_pp(type));
@@ -1976,7 +2035,8 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
                diag_printf(d, "cannot assign to input port %s",
                            istr(tree_ident(decl)));
                diag_hint(d, tree_loc(target), "target of signal assignment");
-               diag_hint(d, tree_loc(decl), "declared with mode IN");
+               diag_hint(d, tree_loc(decl), "%s declared with mode IN",
+                         istr(tree_ident(decl)));
                diag_emit(d);
                return false;
             }

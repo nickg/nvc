@@ -2519,6 +2519,11 @@ START_TEST(test_record2008)
       { 22, "duplicate record element constraint for field X" },
       { 23, "no visible declaration for P" },
       { 24, "field B in record element constraint is already constrained" },
+      { 25, "declaration of signal R8 cannot have unconstrained type REC2" },
+      { 30, "declaration of signal R10 cannot have unconstrained type T2" },
+      { 34, "duplicate record element constraint for field X" },
+      { 41, "declaration of signal R12 cannot have unconstrained type REC3" },
+      { 43, "declaration of signal R14 cannot have unconstrained type REC3" },
       { -1, NULL }
    };
    expect_errors(expect);

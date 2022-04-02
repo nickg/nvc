@@ -161,6 +161,7 @@ static void p_generic_map_aspect(tree_t inst, tree_t unit);
 static ident_t p_designator(void);
 static void p_interface_list(class_t class, tree_t parent, tree_kind_t kind);
 static type_t p_subtype_indication(void);
+static tree_t p_record_constraint(type_t base);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -3278,14 +3279,18 @@ static tree_t p_record_element_constraint(type_t base)
       decl = NULL;
    }
 
-   tree_t t = p_index_constraint(ftype);
-   tree_set_subkind(t, C_FIELD);
-   tree_set_ref(t, decl);
-   tree_set_loc(t, CURRENT_LOC);
-   return t;
+   tree_t elem;
+   if (ftype != NULL && type_is_record(ftype))
+      elem = p_record_constraint(ftype);
+   else
+      elem = p_index_constraint(ftype);
+
+   tree_set_ref(elem, decl);
+   tree_set_loc(elem, CURRENT_LOC);
+   return elem;
 }
 
-static void p_record_constraint(type_t type, type_t base)
+static tree_t p_record_constraint(type_t base)
 {
    // ( record_element_constraint { , record_element_constraint } )
 
@@ -3296,13 +3301,19 @@ static void p_record_constraint(type_t type, type_t base)
    push_scope(nametab);
    insert_field_names(nametab, base);
 
+   tree_t c = tree_new(T_CONSTRAINT);
+   tree_set_subkind(c, C_RECORD);
+
    do {
-      type_add_constraint(type, p_record_element_constraint(base));
+      tree_add_range(c, p_record_element_constraint(base));
    } while (optional(tCOMMA));
 
    pop_scope(nametab);
 
    consume(tRPAREN);
+
+   tree_set_loc(c, CURRENT_LOC);
+   return c;
 }
 
 static void p_constraint(type_t type)
@@ -3324,7 +3335,7 @@ static void p_constraint(type_t type)
       if (standard() < STD_08)
          type_add_constraint(type, p_index_constraint(base));
       else if (type_is_record(base))
-         p_record_constraint(type, base);
+         type_add_constraint(type, p_record_constraint(base));
       else
          p_array_constraint(type, base);
       break;

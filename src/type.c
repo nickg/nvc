@@ -621,12 +621,52 @@ bool type_is_none(type_t t)
    return type_base_kind(t) == T_NONE;
 }
 
+tree_t type_constraint_for_field(type_t t, tree_t f)
+{
+   if (t->object.kind == T_SUBTYPE) {
+      const int ncon = type_constraints(t);
+      if (ncon > 0) {
+         assert(ncon == 1);
+
+         tree_t c = type_constraint(t, 0);
+         assert(tree_subkind(c) == C_RECORD);
+
+         const int nelem = tree_ranges(c);
+         for (int i = 0; i < nelem; i++) {
+            tree_t ei = tree_range(c, i);
+            assert(tree_kind(ei) == T_CONSTRAINT);
+
+            if (tree_has_ref(ei) && tree_ref(ei) == f)
+               return ei;
+         }
+      }
+
+      return type_constraint_for_field(type_base(t), f);
+   }
+   else
+      return NULL;
+}
+
 bool type_is_unconstrained(type_t t)
 {
    assert(t != NULL);
    if (t->object.kind == T_SUBTYPE) {
-      if (type_constraints(t) == 0)
+      const int ncon = type_constraints(t);
+      if (ncon == 0)
          return type_is_unconstrained(type_base(t));
+      if (standard() >= STD_08 && type_is_record(t)) {
+         // Record subtype may be partially constrained
+         type_t base = type_base(t);
+         const int nfields = type_fields(t);
+         for (int i = 0; i < nfields; i++) {
+            tree_t f = type_field(base, i);
+            if (!type_is_unconstrained(tree_type(f)))
+               continue;
+            else if (type_constraint_for_field(t, f) == NULL)
+               return true;
+         }
+         return false;
+      }
       else
          return false;
    }

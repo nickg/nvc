@@ -144,4 +144,7 @@ type_kind_t type_base_kind(type_t t);
 unsigned type_width(type_t type);
 bool type_known_width(type_t type);
 
+// Helpers for element constraints
+tree_t type_constraint_for_field(type_t t, tree_t f);
+
 #endif  // _TYPE_H
