@@ -854,7 +854,7 @@ START_TEST(test_signal)
 
    const error_t expect[] = {
       { 14, "has non-composite type BIT" },
-      { 15, "type of string literal cannot be determined from context" },
+      { 15, "type of string literal cannot be determined from the surrounding" },
       { 16, "target of signal assignment must be a signal name" },
       { 17, "others association not allowed in aggregate signal target" },
       { 18, "cannot assign to input port P" },
@@ -2534,6 +2534,16 @@ START_TEST(test_record2008)
 }
 END_TEST
 
+START_TEST(test_osvvm4)
+{
+   input_from_file(TESTDIR "/sem/osvvm4.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2659,6 +2669,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_genpack);
    tcase_add_test(tc_core, test_gentype);
    tcase_add_test(tc_core, test_record2008);
+   tcase_add_test(tc_core, test_osvvm4);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -50,6 +50,7 @@ typedef struct {
    type_t            signature;
    tree_t            prefix;
    unsigned          initial;
+   unsigned          nactuals;
 } overload_t;
 
 struct _spec {
@@ -1686,6 +1687,26 @@ static void begin_overload_resolution(overload_t *o)
       ATRIM(o->candidates, wptr);
    }
 
+   // Prune candidates with more required arguments than supplied
+   if (o->candidates.count > 1) {
+      unsigned wptr = 0;
+      for (unsigned i = 0; i < o->candidates.count; i++) {
+         tree_t d = o->candidates.items[i];
+         int nrequired = 0;
+         const int nports = tree_ports(d);
+         for (int i = 0; i < nports; i++) {
+            if (!tree_has_value(tree_port(d, i)))
+               nrequired++;
+         }
+
+         if (o->nactuals < nrequired)
+            overload_prune_candidate(o, i);
+         else
+            o->candidates.items[wptr++] = d;
+      }
+      ATRIM(o->candidates, wptr);
+   }
+
    if (o->candidates.count != o->initial)
       overload_trace_candidates(o, "after initial pruning");
 }
@@ -1711,27 +1732,6 @@ static tree_t finish_overload_resolution(overload_t *o)
    assert(o->state == O_IDLE);
 
    overload_trace_candidates(o, "before final pruning");
-
-   // Prune candidates with more required arguments than supplied
-   if (o->candidates.count > 1) {
-      const int nactual = o->params.count;
-      unsigned wptr = 0;
-      for (unsigned i = 0; i < o->candidates.count; i++) {
-         tree_t d = o->candidates.items[i];
-         int nrequired = 0;
-         const int nports = tree_ports(d);
-         for (int i = 0; i < nports; i++) {
-            if (!tree_has_value(tree_port(d, i)))
-               nrequired++;
-         }
-
-         if (nactual < nrequired)
-            overload_prune_candidate(o, i);
-         else
-            o->candidates.items[wptr++] = d;
-      }
-      ATRIM(o->candidates, wptr);
-   }
 
    // Allow explicitly defined operators to hide implicitly defined ones
    // in different scopes. This is required behaviour in VHDL-2008 (see
@@ -2355,7 +2355,8 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
       .state    = O_IDLE,
       .nametab  = tab,
       .trace    = false,
-      .prefix   = kind == T_PROT_FCALL ? tree_name(fcall) : NULL
+      .prefix   = kind == T_PROT_FCALL ? tree_name(fcall) : NULL,
+      .nactuals = tree_params(fcall),
    };
    solve_subprogram_prefix(&o);
    begin_overload_resolution(&o);
@@ -2420,7 +2421,8 @@ static type_t solve_pcall(nametab_t *tab, tree_t pcall)
       .state    = O_IDLE,
       .nametab  = tab,
       .trace    = false,
-      .prefix   = kind == T_PROT_PCALL ? tree_name(pcall) : NULL
+      .prefix   = kind == T_PROT_PCALL ? tree_name(pcall) : NULL,
+      .nactuals = tree_params(pcall)
    };
    solve_subprogram_prefix(&o);
    begin_overload_resolution(&o);
@@ -2479,13 +2481,18 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
          type_t type = NULL;
          if (!type_set_restrict(tab, is_character_array)) {
             error_at(tree_loc(lit), "type of string literal cannot be "
-                     "determined from context");
+                     "determined from the surrounding context");
             type = type_new(T_NONE);
          }
          else if (!type_set_uniq(tab, &type)) {
-            LOCAL_TEXT_BUF ts = type_set_fmt(tab, true);
-            error_at(tree_loc(lit), "type of string literal is ambiguous%s",
-                     tb_get(ts));
+            LOCAL_TEXT_BUF ts = type_set_fmt(tab, false);
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(lit));
+            diag_printf(d, "type of string literal cannot be determined "
+                        "from the surrounding context");
+            diag_hint(d, tree_loc(lit), "could be %s", tb_get(ts));
+            type_set_hint(tab, d);
+            diag_emit(d);
+
             type = type_new(T_NONE);
          }
 
