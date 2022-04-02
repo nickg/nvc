@@ -1,0 +1,7 @@
+value length 16 does not match target length 3
+bounds33.vhd
+    |
+ 11 |         p := (x => "1111111111111111");
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+Procedure ASSIGN [REC]
+Process :bounds33:main
