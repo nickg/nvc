@@ -85,10 +85,17 @@ typedef enum {
    TS_CONDITION_CONVERSION = (1 << 0)
 } type_set_flags_t;
 
+typedef struct {
+   type_t type;
+   tree_t src;
+} tracked_type_t;
+
+typedef A(tracked_type_t) tracked_type_list_t;
+
 struct type_set {
-   A(type_t)         members;
-   type_set_t       *down;
-   type_set_flags_t  flags;
+   tracked_type_list_t  members;
+   type_set_t          *down;
+   type_set_flags_t     flags;
 };
 
 typedef enum {
@@ -134,23 +141,41 @@ static void type_set_pop(nametab_t *tab)
    free(old);
 }
 
-static text_buf_t *type_set_fmt(nametab_t *tab)
+static text_buf_t *type_set_fmt(nametab_t *tab, bool paren)
 {
    text_buf_t *tb = tb_new();
 
    if (tab->top_type_set != NULL && tab->top_type_set->members.count > 0) {
-      tb_printf(tb, " (");
+      if (paren) tb_printf(tb, " (");
       for (unsigned n = 0; n < tab->top_type_set->members.count; n++) {
-         tb_printf(tb, "%s%s", n > 0 ? ", " : "",
-                   type_pp(tab->top_type_set->members.items[n]));
+         if (!paren && n > 0 && n + 1 == tab->top_type_set->members.count)
+            tb_cat(tb, " or ");
+         else if (n > 0)
+            tb_cat(tb, ", ");
+
+         tb_cat(tb, type_pp(tab->top_type_set->members.items[n].type));
       }
-      tb_printf(tb, ")");
+      if (paren) tb_printf(tb, ")");
    }
 
    return tb;
 }
 
-static void type_set_add(nametab_t *tab, type_t t)
+static void type_set_hint(nametab_t *tab, diag_t *d)
+{
+   if (tab->top_type_set != NULL && tab->top_type_set->members.count > 0) {
+      for (unsigned n = 0; n < tab->top_type_set->members.count; n++) {
+         tracked_type_t tt = tab->top_type_set->members.items[n];
+         if (tt.src == NULL)
+            continue;
+         else if (is_subprogram(tt.src))
+            diag_hint(d, tree_loc(tt.src), "context contains overload %s",
+                      type_pp(tree_type(tt.src)));
+      }
+   }
+}
+
+static void type_set_add(nametab_t *tab, type_t t, tree_t src)
 {
    assert(tab->top_type_set != NULL);
 
@@ -160,11 +185,11 @@ static void type_set_add(nametab_t *tab, type_t t)
    assert(t != NULL);
 
    for (unsigned i = 0; i < tab->top_type_set->members.count; i++) {
-      if (type_eq(tab->top_type_set->members.items[i], t))
+      if (type_eq(tab->top_type_set->members.items[i].type, t))
          return;
    }
 
-   APUSH(tab->top_type_set->members, t);
+   APUSH(tab->top_type_set->members, ((tracked_type_t){t, src}));
 }
 
 static bool type_set_restrict(nametab_t *tab, bool (*pred)(type_t))
@@ -174,9 +199,9 @@ static bool type_set_restrict(nametab_t *tab, bool (*pred)(type_t))
 
    int j = 0;
    for (int i = 0; i < tab->top_type_set->members.count; i++) {
-      type_t type = tab->top_type_set->members.items[i];
-      if ((*pred)(type))
-         tab->top_type_set->members.items[j++] = type;
+      tracked_type_t tt = tab->top_type_set->members.items[i];
+      if ((*pred)(tt.type))
+         tab->top_type_set->members.items[j++] = tt;
    }
    ATRIM(tab->top_type_set->members, j);
 
@@ -188,7 +213,7 @@ static bool type_set_uniq(nametab_t *tab, type_t *pt)
    assert(tab->top_type_set != NULL);
 
    if (tab->top_type_set->members.count == 1) {
-      *pt = tab->top_type_set->members.items[0];
+      *pt = tab->top_type_set->members.items[0].type;
       return true;
    }
    else {
@@ -203,7 +228,7 @@ static bool type_set_error(nametab_t *tab)
       return false;
 
    for (int i = 0; i < tab->top_type_set->members.count; i++) {
-      if (type_is_none(tab->top_type_set->members.items[i]))
+      if (type_is_none(tab->top_type_set->members.items[i].type))
          return true;
    }
 
@@ -216,7 +241,7 @@ static bool type_set_contains(nametab_t *tab, type_t type)
       return true;
 
    for (int i = 0; i < tab->top_type_set->members.count; i++) {
-      type_t member = tab->top_type_set->members.items[i];
+      type_t member = tab->top_type_set->members.items[i].type;
       if (type_eq(type, member))
          return true;
       else if (type_is_none(member))
@@ -1181,7 +1206,7 @@ void resolve_resolution(nametab_t *tab, tree_t rname, type_t type)
       assert(tree_kind(rname) == T_REF);
 
       type_set_push(tab);
-      type_set_add(tab, type);
+      type_set_add(tab, type, NULL);
 
       overload_t o = {
          .tree     = rname,
@@ -1616,7 +1641,7 @@ static void begin_overload_resolution(overload_t *o)
    overload_trace_candidates(o, "initial candidates");
 
    if (o->trace && o->nametab->top_type_set->members.count > 0) {
-      LOCAL_TEXT_BUF tb = type_set_fmt(o->nametab);
+      LOCAL_TEXT_BUF tb = type_set_fmt(o->nametab, true);
       printf("%s: context%s\n", istr(o->name), tb_get(tb));
    }
 
@@ -1838,7 +1863,7 @@ static tree_t finish_overload_resolution(overload_t *o)
          tb_printf(tb, "%sreturn ", o->params.count > 0 ? " " : "");
          for (unsigned i = 0; i < ts->members.count; i++)
             tb_printf(tb, "%s%s", i > 0 ? " | " : "",
-                      type_pp(ts->members.items[i]));
+                      type_pp(ts->members.items[i].type));
       }
 
       tb_append(tb, ']');
@@ -1894,7 +1919,7 @@ static void overload_positional_argument(overload_t *o, int pos)
       tree_t d = o->candidates.items[i];
       if (pos < tree_ports(d)) {
          tree_t p = tree_port(d, pos);
-         type_set_add(o->nametab, tree_type(p));
+         type_set_add(o->nametab, tree_type(p), d);
          o->candidates.items[wptr++] = d;
       }
       else if (o->initial > 1)
@@ -1933,7 +1958,7 @@ static void overload_named_argument(overload_t *o, tree_t name)
       for (int j = 0; j < nports; j++) {
          tree_t p = tree_port(o->candidates.items[i], j);
          if (tree_ident(p) == ident) {
-            type_set_add(o->nametab, tree_type(p));
+            type_set_add(o->nametab, tree_type(p), o->candidates.items[i]);
             port = p;
             break;
          }
@@ -2458,7 +2483,7 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
             type = type_new(T_NONE);
          }
          else if (!type_set_uniq(tab, &type)) {
-            LOCAL_TEXT_BUF ts = type_set_fmt(tab);
+            LOCAL_TEXT_BUF ts = type_set_fmt(tab, true);
             error_at(tree_loc(lit), "type of string literal is ambiguous%s",
                      tb_get(ts));
             type = type_new(T_NONE);
@@ -2655,10 +2680,10 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
       case ATTR_LEFTOF:
       case ATTR_RIGHTOF:
       case ATTR_POS:
-         type_set_add(tab, prefix_type);
+         type_set_add(tab, prefix_type, NULL);
          break;
       case ATTR_VALUE:
-         type_set_add(tab, std_type(NULL, STD_STRING));
+         type_set_add(tab, std_type(NULL, STD_STRING), NULL);
          break;
       }
 
@@ -2823,12 +2848,18 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
    }
    else if (!type_set_restrict(tab, type_is_composite)) {
       error_at(tree_loc(agg), "type of aggregate cannot be determined "
-               "from context");
+               "from the surrounding context");
       type = type_new(T_NONE);
    }
    else if (!type_set_uniq(tab, &type)) {
-      LOCAL_TEXT_BUF ts = type_set_fmt(tab);
-      error_at(tree_loc(agg), "type of aggregate is ambiguous%s", tb_get(ts));
+      LOCAL_TEXT_BUF ts = type_set_fmt(tab, false);
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
+      diag_printf(d, "type of aggregate cannot be determined "
+                  "from the surrounding context");
+      diag_hint(d, tree_loc(agg), "could be %s", tb_get(ts));
+      type_set_hint(tab, d);
+
+      diag_emit(d);
       type = type_new(T_NONE);
    }
 
@@ -2850,8 +2881,10 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
          case A_POS:
             {
                int pos = tree_pos(a);
-               if (pos < nfields)
-                  type_set_add(tab, tree_type(type_field(type, pos)));
+               if (pos < nfields) {
+                  tree_t f = type_field(type, pos);
+                  type_set_add(tab, tree_type(f), f);
+               }
                if (pos < 64) fmask |= (1 << pos);
             }
             break;
@@ -2865,7 +2898,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
                pop_scope(tab);
                if (tree_has_ref(name)) {
                   tree_t field = tree_ref(name);
-                  type_set_add(tab, tree_type(field));
+                  type_set_add(tab, tree_type(field), field);
                   if (tree_kind(field) == T_FIELD_DECL) {
                      const int pos = tree_pos(field);
                      if (pos < 64) fmask |= (1 << pos);
@@ -2878,8 +2911,10 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
             // Add the types of all the fields that haven't already be
             // specified to the type set
             for (int i = 0; i < MIN(nfields, 64); i++) {
-               if (!(fmask & (1 << i)))
-                  type_set_add(tab, tree_type(type_field(type, i)));
+               if (!(fmask & (1 << i))) {
+                  tree_t f = type_field(type, i);
+                  type_set_add(tab, tree_type(f), f);
+               }
             }
             break;
 
@@ -2906,9 +2941,9 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
 
       const int ndims = dimension_of(type);
       if (ndims == 1)
-         type_set_add(tab, type_elem(type));
+         type_set_add(tab, type_elem(type), NULL);
       else
-         type_set_add(tab, array_aggregate_type(type, 1));
+         type_set_add(tab, array_aggregate_type(type, 1), NULL);
 
       type_t index_type = index_type_of(type, 0);
 
@@ -2986,7 +3021,7 @@ static type_t solve_new(nametab_t *tab, tree_t new)
       type = type_new(T_NONE);
    }
    else if (!type_set_uniq(tab, &type)) {
-      LOCAL_TEXT_BUF ts = type_set_fmt(tab);
+      LOCAL_TEXT_BUF ts = type_set_fmt(tab, true);
       error_at(tree_loc(new), "type of allocator expression is ambiguous%s",
                tb_get(ts));
       type = type_new(T_NONE);
@@ -3067,7 +3102,7 @@ static type_t solve_range(nametab_t *tab, tree_t r)
          type = _solve_types(tab, left);
 
          if (tab->top_type_set->members.count == 0)
-            type_set_add(tab, type);
+            type_set_add(tab, type, NULL);
 
          _solve_types(tab, right);
          break;
@@ -3131,7 +3166,7 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
 type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
 {
    type_set_push(tab);
-   type_set_add(tab, constraint);
+   type_set_add(tab, constraint, NULL);
    type_t type = _solve_types(tab, expr);
    type_set_pop(tab);
    return type;
@@ -3140,7 +3175,7 @@ type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
 type_t solve_condition(nametab_t *tab, tree_t expr, type_t constraint)
 {
    type_set_push(tab);
-   type_set_add(tab, constraint);
+   type_set_add(tab, constraint, NULL);
 
    if (standard() >= STD_08)
       tab->top_type_set->flags |= TS_CONDITION_CONVERSION;

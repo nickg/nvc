@@ -552,12 +552,8 @@ static int diag_compar(const void *_a, const void *_b)
 {
    const diag_hint_t *a = _a, *b = _b;
 
-   if (a->loc.file_ref != b->loc.file_ref)
-      return a->loc.file_ref - b->loc.file_ref;
-   else if (a->loc.first_line != b->loc.first_line)
-      return a->loc.first_line - b->loc.first_line;
-   else
-      return a->priority - b->priority;
+   assert(a->loc.file_ref == b->loc.file_ref);
+   return a->loc.first_line - b->loc.first_line;
 }
 
 static void diag_emit_hints(diag_t *d, FILE *f)
@@ -570,17 +566,28 @@ static void diag_emit_hints(diag_t *d, FILE *f)
    if (loc0.file_ref == FILE_INVALID)
       goto other_files;
 
-   int same_file = 0, line_max = 0;
+   int same_file = 0, line_max = 0, line_min = INT_MAX, swap = -1;
    for (int i = 0; i < d->hints.count; i++) {
       if (d->hints.items[i].loc.file_ref == loc0.file_ref) {
          same_file++;
          line_max = MAX(d->hints.items[i].loc.first_line, line_max);
+         line_min = MIN(d->hints.items[i].loc.first_line, line_min);
+
+         if (swap != -1) {
+            diag_hint_t tmp = d->hints.items[swap];
+            d->hints.items[swap] = d->hints.items[i];
+            d->hints.items[i] = tmp;
+            swap = i;
+         }
       }
+      else if (swap == -1)
+         swap = i;
    }
 
-   qsort(d->hints.items, d->hints.count, sizeof(diag_hint_t), diag_compar);
-
-   const int line_min = d->hints.items[0].loc.first_line;
+   if (swap == -1)
+      qsort(d->hints.items, d->hints.count, sizeof(diag_hint_t), diag_compar);
+   else
+      qsort(d->hints.items, swap, sizeof(diag_hint_t), diag_compar);
 
    if (d->source)
       linebuf = diag_get_source(&(d->hints.items[0].loc));
