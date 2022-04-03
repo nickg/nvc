@@ -75,5 +75,9 @@ architecture test of e is
 
     alias my_now is std.standard.now [return delay_length];  -- OK
     alias my_eq is std.standard."=" [bit, bit return boolean];  -- OK
+
+    type int_mat2d is array (integer range <>, integer range <>) of integer;
+    constant c3 : int_mat2d(1 to 2, 1 to 2) := ((1, 2), (3, 4));
+    alias c2_alias is c3;               -- Error (in '93)
 begin
 end architecture;

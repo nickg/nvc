@@ -1151,6 +1151,7 @@ START_TEST(test_alias)
       { 43, "operand of qualified expression must have type CHARACTER" },
       { 50, "aliased name is not static" },
       { 68, "unexpected identifier while parsing subtype declaration" },
+      { 81, "object alias may not have multidimensional array type" },
       { -1, NULL }
    };
    expect_errors(expect);
