@@ -3145,7 +3145,8 @@ START_TEST(test_issue351)
       { VCODE_OP_WRAP },
       { VCODE_OP_FCALL, .func = "*WORK.ISSUE351.DUMP_WORDS" },
       { VCODE_OP_TEMP_STACK_RESTORE },
-      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_LOAD, .name = "*right" },
+      { VCODE_OP_LOAD, .name = "*step" },
       { VCODE_OP_LOAD, .name = "I.LOOP1" },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE, .name = "I.LOOP1" },
@@ -3205,6 +3206,7 @@ START_TEST(test_tounsigned)
    CHECK_BB(2);
 
    EXPECT_BB(3) = {
+      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_STORE, .name = "I.MAINLOOP" },
       { VCODE_OP_JUMP, .target = 5 }
    };
@@ -3279,11 +3281,9 @@ START_TEST(test_tounsigned)
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DIV },
       { VCODE_OP_STORE, .name = "I_VAL" },
-      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_LOAD, .name = "I.MAINLOOP" },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE, .name = "I.MAINLOOP" },
-      { VCODE_OP_SUB },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COND, .target = 4, .target_else = 5 }
    };
@@ -3408,13 +3408,8 @@ START_TEST(test_sum)
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_RANGE_CHECK },
       { VCODE_OP_STORE, .name = "RESULT" },
-      { VCODE_OP_CONST, .value = -1 },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_SELECT },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE, .name = "I.SUMLOOP" },
-      { VCODE_OP_UARRAY_RIGHT },
-      { VCODE_OP_CAST },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COND, .target = 2, .target_else = 3 }
    };
@@ -3561,6 +3556,11 @@ START_TEST(test_vital1)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = -1 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_STORE, .name = "*right" },
+      { VCODE_OP_STORE, .name = "*step" },
       { VCODE_OP_STORE, .name = "I.L1" },
       { VCODE_OP_JUMP, .target = 3 }
    };
@@ -3572,16 +3572,11 @@ START_TEST(test_vital1)
         .func = "WORK.VITAL_TIMING.PROC(22WORK.VITAL_TIMING.LINEI)" },
       { VCODE_OP_LOAD, .name = "tmp_mark" },
       { VCODE_OP_TEMP_STACK_RESTORE },
-      { VCODE_OP_LOAD, .name = "TESTSIGNAL" },
-      { VCODE_OP_UARRAY_DIR },
-      { VCODE_OP_CONST, .value = -1 },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_SELECT },
+      { VCODE_OP_LOAD, .name = "*right" },
+      { VCODE_OP_LOAD, .name = "*step" },
       { VCODE_OP_LOAD, .name = "I.L1" },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE, .name = "I.L1" },
-      { VCODE_OP_UARRAY_RIGHT },
-      { VCODE_OP_CAST },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COND, .target = 2, .target_else = 3 }
    };

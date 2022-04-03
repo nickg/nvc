@@ -4760,6 +4760,22 @@ static void lower_pcall(tree_t pcall)
    }
 }
 
+static void lower_wait_free_cb(tree_t t, void *ctx)
+{
+   int *count = ctx;
+
+   const tree_kind_t kind = tree_kind(t);
+   if (kind == T_PCALL || kind == T_PROT_PCALL || kind == T_WAIT)
+      (*count)++;
+}
+
+static bool lower_is_wait_free(tree_t stmt)
+{
+   int count = 0;
+   tree_visit(stmt, lower_wait_free_cb, &count);
+   return count == 0;
+}
+
 static void lower_for(tree_t stmt, loop_stack_t *loops)
 {
    tree_t r = tree_range(stmt, 0);
@@ -4784,6 +4800,21 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
 
    vcode_type_t vtype  = lower_type(tree_type(idecl));
    vcode_type_t bounds = vtype;
+
+   vcode_reg_t step_down = emit_const(vtype, -1);
+   vcode_reg_t step_up   = emit_const(vtype, 1);
+   vcode_reg_t step_reg  = emit_select(dir_reg, step_down, step_up);
+
+   // If the body of the loop may wait we need to store the bounds in a
+   // variable as the range is evaluated only on entry to the loop
+   vcode_var_t right_var = VCODE_INVALID_VAR, step_var = VCODE_INVALID_VAR;
+   if (!lower_is_wait_free(stmt)) {
+      right_var = lower_temp_var("right", vtype, vtype);
+      emit_store(right_reg, right_var);
+
+      step_var = lower_temp_var("step", vtype, vtype);
+      emit_store(step_reg, step_var);
+   }
 
    int64_t lconst, rconst, dconst;
    const bool l_is_const = vcode_reg_const(left_reg, &lconst);
@@ -4830,19 +4861,28 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
       vcode_select_block(this.test_bb);
    }
 
-   vcode_reg_t dirn_reg  = lower_range_dir(r);
-   vcode_reg_t step_down = emit_const(vtype, -1);
-   vcode_reg_t step_up   = emit_const(vtype, 1);
-   vcode_reg_t step_reg  = emit_select(dirn_reg, step_down, step_up);
+   vcode_reg_t rightn_reg = right_reg;
+   if (right_var != VCODE_INVALID_VAR)
+      rightn_reg = emit_load(right_var);
+
+   vcode_reg_t stepn_reg = step_reg;
+   if (step_var != VCODE_INVALID_VAR)
+      stepn_reg = emit_load(step_var);
+
    vcode_reg_t ireg      = emit_load(ivar);
-   vcode_reg_t next_reg  = emit_add(ireg, step_reg);
+   vcode_reg_t next_reg  = emit_add(ireg, stepn_reg);
    emit_store(next_reg, ivar);
 
-   vcode_reg_t final_reg = lower_range_right(r);
-   vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, ireg, final_reg);
+   vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, ireg, rightn_reg);
    emit_cond(done_reg, exit_bb, body_bb);
 
    vcode_select_block(exit_bb);
+
+   if (right_var != VCODE_INVALID_VAR)
+      lower_release_temp(right_var);
+
+   if (step_var != VCODE_INVALID_VAR)
+      lower_release_temp(step_var);
 }
 
 static void lower_while(tree_t stmt, loop_stack_t *loops)
