@@ -1,7 +1,7 @@
 To run the VI VHDL test suite on NVC do the following:
 
-1. Find vi_suite.tar.Z (MD5: cc8eb372e4a97a95f6f3a68ea7696ec5) on the
-   internet Wayback Machine.
+1. Download vi_suite.tar.Z:
+     http://replay.web.archive.org/20110514235929/http://mikro.e-technik.uni-ulm.de/vhdl/upload_data/vi_suite.tar.Z
 2. Extract in nvc/test (i.e. over the top of this directory)
 3. Install csh on your computer
 4. Change "acc" in cfiles/*.mkf to "gcc". With GNU sed you can do
