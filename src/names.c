@@ -142,37 +142,29 @@ static void type_set_pop(nametab_t *tab)
    free(old);
 }
 
-static text_buf_t *type_set_fmt(nametab_t *tab, bool paren)
+static void type_set_hint(nametab_t *tab, diag_t *d, tree_t expr)
 {
-   text_buf_t *tb = tb_new();
-
    if (tab->top_type_set != NULL && tab->top_type_set->members.count > 0) {
-      if (paren) tb_printf(tb, " (");
+      LOCAL_TEXT_BUF tb = tb_new();
+
       for (unsigned n = 0; n < tab->top_type_set->members.count; n++) {
-         if (!paren && n > 0 && n + 1 == tab->top_type_set->members.count)
+         tracked_type_t tt = tab->top_type_set->members.items[n];
+
+         if (n > 0 && n + 1 == tab->top_type_set->members.count)
             tb_cat(tb, " or ");
          else if (n > 0)
             tb_cat(tb, ", ");
 
-         tb_cat(tb, type_pp(tab->top_type_set->members.items[n].type));
-      }
-      if (paren) tb_printf(tb, ")");
-   }
+         tb_cat(tb, type_pp(tt.type));
 
-   return tb;
-}
-
-static void type_set_hint(nametab_t *tab, diag_t *d)
-{
-   if (tab->top_type_set != NULL && tab->top_type_set->members.count > 0) {
-      for (unsigned n = 0; n < tab->top_type_set->members.count; n++) {
-         tracked_type_t tt = tab->top_type_set->members.items[n];
          if (tt.src == NULL)
             continue;
          else if (is_subprogram(tt.src))
             diag_hint(d, tree_loc(tt.src), "context contains overload %s",
                       type_pp(tree_type(tt.src)));
       }
+
+      diag_hint(d, tree_loc(expr), "could be %s", tb_get(tb));
    }
 }
 
@@ -1642,8 +1634,12 @@ static void begin_overload_resolution(overload_t *o)
    overload_trace_candidates(o, "initial candidates");
 
    if (o->trace && o->nametab->top_type_set->members.count > 0) {
-      LOCAL_TEXT_BUF tb = type_set_fmt(o->nametab, true);
-      printf("%s: context%s\n", istr(o->name), tb_get(tb));
+      printf("%s: context ", istr(o->name));
+      for (unsigned n = 0; n < o->nametab->top_type_set->members.count; n++) {
+         if (n > 0) printf(", ");
+         printf("%s", type_pp(o->nametab->top_type_set->members.items[n].type));
+      }
+      printf("\n");
    }
 
    o->initial = o->candidates.count;
@@ -2485,12 +2481,10 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
             type = type_new(T_NONE);
          }
          else if (!type_set_uniq(tab, &type)) {
-            LOCAL_TEXT_BUF ts = type_set_fmt(tab, false);
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(lit));
             diag_printf(d, "type of string literal cannot be determined "
                         "from the surrounding context");
-            diag_hint(d, tree_loc(lit), "could be %s", tb_get(ts));
-            type_set_hint(tab, d);
+            type_set_hint(tab, d, lit);
             diag_emit(d);
 
             type = type_new(T_NONE);
@@ -2859,12 +2853,10 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
       type = type_new(T_NONE);
    }
    else if (!type_set_uniq(tab, &type)) {
-      LOCAL_TEXT_BUF ts = type_set_fmt(tab, false);
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
       diag_printf(d, "type of aggregate cannot be determined "
                   "from the surrounding context");
-      diag_hint(d, tree_loc(agg), "could be %s", tb_get(ts));
-      type_set_hint(tab, d);
+      type_set_hint(tab, d, agg);
 
       diag_emit(d);
       type = type_new(T_NONE);
@@ -3027,11 +3019,10 @@ static type_t solve_new(nametab_t *tab, tree_t new)
                "from context");
       type = type_new(T_NONE);
    }
-   else if (!type_set_uniq(tab, &type)) {
-      LOCAL_TEXT_BUF ts = type_set_fmt(tab, true);
-      error_at(tree_loc(new), "type of allocator expression is ambiguous%s",
-               tb_get(ts));
-      type = type_new(T_NONE);
+   else {
+      // Must be unique because allocator is qualified expression
+      type_set_uniq(tab, &type);
+      assert(type != NULL);
    }
 
    tree_set_type(new, type);
