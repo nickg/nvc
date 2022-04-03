@@ -431,4 +431,10 @@ begin
         assert f(bit) = (0, 1);                 -- OK
         assert f(std.standard.bit) = (0, 1);    -- OK
     end process;
+
+    process is
+        type a1 is array (0.0 to 7) of real;  -- Error
+    begin
+    end process;
+
 end architecture;

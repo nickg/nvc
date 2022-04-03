@@ -8,5 +8,5 @@ if [ $7 != - ]; then
     exit 1
 else
     timeout 5s nvc --work $3 -e $5 &> ${10}$2$1.so
-    timeout 5s nvc --work $3 -r $5 --stop-time=$9$8 &>> ${10}$2$1.so
+    timeout 5s nvc -P 256k --work $3 -r $5 --stop-time=$9$8 &>> ${10}$2$1.so
 fi

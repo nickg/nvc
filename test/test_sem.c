@@ -454,6 +454,7 @@ START_TEST(test_array)
       { 403, "a choice that is not locally static is allowed" },
       { 404, "a choice that is not locally static is allowed" },
       { 424, "ambiguous call to function F" },
+      { 436, "type mismatch in range: left is universal_real, right is" },
       { -1, NULL }
    };
    expect_errors(expect);

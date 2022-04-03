@@ -124,8 +124,6 @@ static bool sem_check_resolution(type_t type, tree_t res)
 static bool sem_check_range(tree_t r, type_t expect, type_kind_t kind,
                             nametab_t *tab)
 {
-   assert(expect == NULL || !type_is_universal(expect));
-
    if (expect != NULL && type_is_none(expect))
       return false;   // Prevent cascading errors
 
@@ -335,8 +333,22 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
 
    for (int i = 0; i < ndims; i++) {
       tree_t r = tree_range(constraint, i);
-      if (!sem_check_range(r, index_type_of(base, i), T_LAST_TYPE_KIND, tab))
-         return false;
+      type_t index = index_type_of(base, i);
+
+      switch (consk) {
+      case C_INDEX:
+         if (!sem_check_discrete_range(r, index, tab))
+            return false;
+         break;
+
+      case C_RANGE:
+         if (!sem_check_range(r, index, T_LAST_TYPE_KIND, tab))
+            return false;
+         break;
+
+      default:
+         break;
+      }
    }
 
    return true;
