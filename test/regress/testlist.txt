@@ -492,3 +492,4 @@ array5          normal
 wait18          normal
 wait19          normal
 assert7         fail,gold
+for4            normal
