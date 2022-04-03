@@ -5902,6 +5902,10 @@ static void lower_alias_decl(tree_t decl)
    vcode_reg_t value_reg = lower_expr(value, ctx);
    vcode_reg_t data_reg  = lower_array_data(value_reg);
 
+   if (type_is_array(type))
+      lower_check_array_sizes(decl, type, tree_type(value), VCODE_INVALID_REG,
+                              value_reg);
+
    emit_store(lower_wrap(type, data_reg), var);
 }
 

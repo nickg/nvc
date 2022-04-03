@@ -237,4 +237,11 @@ begin
         m('1' to '3') := (others => 3);  -- Error
     end process;
 
+    process is
+        variable v : bit_vector(1 to 3);
+        alias a : bit_vector(1 to 4) is v;  -- Error
+    begin
+        a(4) := '1';                    -- OK
+    end process;
+
 end architecture;

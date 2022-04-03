@@ -1707,6 +1707,9 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
    case T_FIELD_DECL:
       tb_printf(tb, "field %s", istr(tree_ident(where)));
       break;
+   case T_ALIAS:
+      tb_printf(tb, "alias %s", istr(tree_ident(where)));
+      break;
    default:
       tb_cat(tb, "target");
       break;

@@ -1,0 +1,7 @@
+value length 2 does not match alias A length 3
+alias12.vhd
+   |
+ 7 |         alias a : bit_vector(1 to 3) is x;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Function GET [BIT_VECTOR, NATURAL return BIT]
+Process :alias12:main

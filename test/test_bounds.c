@@ -78,6 +78,7 @@ START_TEST(test_bounds)
       { 236, "array M index 'A' outside of CHARACTER range 'a' to 'z'" },
       { 237, "array M index '1' outside of CHARACTER range 'a' to 'z'" },
       { 237, "array M index '3' outside of CHARACTER range 'a' to 'z'" },
+      { 242, "value 3 does not match length of target 4 for alias A" },
       { -1, NULL }
    };
    expect_errors(expect);

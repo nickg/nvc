@@ -756,6 +756,9 @@ static void bounds_check_aggregate(tree_t t)
 
 static void bounds_check_decl(tree_t t)
 {
+   if (!tree_has_type(t))
+      return;   // Alias declaration without subtype indication
+
    type_t type = tree_type(t);
 
    if (tree_has_value(t))
@@ -851,6 +854,8 @@ static char *bounds_get_hint_str(tree_t where)
       return xasprintf(" for generic %s", istr(tree_ident(where)));
    case T_SIGNAL_DECL:
       return xasprintf(" for signal %s", istr(tree_ident(where)));
+   case T_ALIAS:
+      return xasprintf(" for alias %s", istr(tree_ident(where)));
    case T_REF:
       return bounds_get_hint_str(tree_ref(where));
    default:
@@ -1204,6 +1209,7 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
    case T_VAR_DECL:
    case T_PORT_DECL:
    case T_PARAM_DECL:
+   case T_ALIAS:
       bounds_check_decl(t);
       break;
    case T_GENERIC_DECL:
