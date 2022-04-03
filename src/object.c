@@ -561,13 +561,16 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    if (!object_in_arena_p(ctx->arena, object))
       return object;
 
-   if (unlikely(ctx->cache == NULL)) {
-      const size_t n = (ctx->arena->alloc - ctx->arena->base) / OBJECT_ALIGN;
-      ctx->cache = xmalloc_array(sizeof(object_t *), n);
-   }
-
    const ptrdiff_t index =
       ((void *)object - ctx->arena->base) >> OBJECT_ALIGN_BITS;
+
+   // New objects can be allocated while rewrite is in progress so we
+   // need to check if the inex is greater than the current cache size
+   if (unlikely(ctx->cache == NULL || index >= ctx->cache_sz)) {
+      ctx->cache_sz = (ctx->arena->alloc - ctx->arena->base) / OBJECT_ALIGN;
+      ctx->cache = xrealloc_array(ctx->cache, sizeof(object_t *),
+				  ctx->cache_sz);
+   }
 
    if (object_marked_p(object, ctx->generation)) {
       if (ctx->cache[index] == (object_t *)-1) {
