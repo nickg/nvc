@@ -1,4 +1,6 @@
 ## Unreleased changes
+
+## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).
 - Subtraction from zero could return the wrong result in some
   circumstances.

@@ -53,6 +53,7 @@ EXTRA_DIST += \
 	test/elab/issue404.vhd \
 	test/elab/issue435.vhd \
 	test/elab/issue442.vhd \
+	test/elab/issue448.vhd \
 	test/elab/issue93.vhd \
 	test/elab/jcore1.vhd \
 	test/elab/libbind2.vhd \
@@ -196,6 +197,8 @@ EXTRA_DIST += \
 	test/lower/tounsigned.vhd \
 	test/lower/vital1.vhd \
 	test/lower/vital2.vhd \
+	test/lower/vunit1.vhd \
+	test/lower/vunit4.vhd \
 	test/lower/wait1.vhd \
 	test/lower/while1.vhd \
 	test/misc/bufr_test.vhd \
@@ -261,6 +264,8 @@ EXTRA_DIST += \
 	test/parse/types.vhd \
 	test/parse/vests1.vhd \
 	test/parse/vhdl2008.vhd \
+	test/parse/vunit5.vhd \
+	test/parse/vunit6.vhd \
 	test/perf/arraycase.vhd \
 	test/perf/bigcase.vhd \
 	test/perf/bigram.vhd \
@@ -297,12 +302,14 @@ EXTRA_DIST += \
 	test/regress/array2.vhd \
 	test/regress/array3.vhd \
 	test/regress/array4.vhd \
+	test/regress/array5.vhd \
 	test/regress/assert1.vhd \
 	test/regress/assert2.vhd \
 	test/regress/assert3.vhd \
 	test/regress/assert4.vhd \
 	test/regress/assert5.vhd \
 	test/regress/assert6.vhd \
+	test/regress/assert7.vhd \
 	test/regress/assign1.vhd \
 	test/regress/assign2.vhd \
 	test/regress/assign3.vhd \
@@ -448,6 +455,7 @@ EXTRA_DIST += \
 	test/regress/for1.vhd \
 	test/regress/for2.vhd \
 	test/regress/for3.vhd \
+	test/regress/for4.vhd \
 	test/regress/func10.vhd \
 	test/regress/func11.vhd \
 	test/regress/func12.vhd \
@@ -477,6 +485,7 @@ EXTRA_DIST += \
 	test/regress/gold/assert2.txt \
 	test/regress/gold/assert3.txt \
 	test/regress/gold/assert6.txt \
+	test/regress/gold/assert7.txt \
 	test/regress/gold/attr12.txt \
 	test/regress/gold/attr3.txt \
 	test/regress/gold/bounds10.txt \
@@ -840,6 +849,8 @@ EXTRA_DIST += \
 	test/regress/wait14.vhd \
 	test/regress/wait15.vhd \
 	test/regress/wait16.vhd \
+	test/regress/wait18.vhd \
+	test/regress/wait19.vhd \
 	test/regress/wait1.vhd \
 	test/regress/wait2.vhd \
 	test/regress/wait3.vhd \
