@@ -877,6 +877,7 @@ START_TEST(test_signal)
       { 80, "type of declared signal RBIT does not match type BIT_VECTOR in" },
       { 81, "disconnection specification must have type TIME but found RBIT" },
       { 83, "time expression in disconnection specificiation must be static" },
+      { 88, "invalid use of entity E" },
       { -1, NULL }
    };
    expect_errors(expect);

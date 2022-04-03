@@ -4051,6 +4051,9 @@ static bool sem_locally_static(tree_t t)
    type_t type = tree_type(t);
    tree_kind_t kind = tree_kind(t);
 
+   if (type_is_none(type))
+      return true;   // Prevents further cascading errors
+
    // Any literal other than of type time
    if (kind == T_LITERAL) {
       if (tree_subkind(t) == L_PHYSICAL)
@@ -4294,11 +4297,15 @@ static bool sem_globally_static(tree_t t)
    type_t type = tree_type(t);
    tree_kind_t kind = tree_kind(t);
 
+   if (type_is_none(type))
+      return true;   // Prevents further cascading errors
+
    // A literal of type TIME
 
-   if ((kind == T_REF && tree_kind(tree_ref(t)) == T_UNIT_DECL)
-       || (kind == T_LITERAL && tree_subkind(t) == L_PHYSICAL)) {
-      if (type_eq(type, std_type(NULL, STD_TIME)))
+   if (type_eq(type, std_type(NULL, STD_TIME))) {
+      if (kind == T_REF && tree_kind(tree_ref(t)) == T_UNIT_DECL)
+         return true;
+      else if (kind == T_LITERAL && tree_subkind(t) == L_PHYSICAL)
          return true;
    }
 

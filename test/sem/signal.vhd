@@ -84,4 +84,9 @@ begin
     begin
     end block;
 
+    b8: block is
+        signal bad : bit := e;          -- Error
+    begin
+    end block;
+
 end architecture;
