@@ -5885,7 +5885,8 @@ static void lower_alias_decl(tree_t decl)
       return;
 
    tree_t value = tree_value(decl);
-   type_t type = tree_has_type(decl) ? tree_type(decl) : tree_type(value);
+   type_t value_type = tree_type(value);
+   type_t type = tree_has_type(decl) ? tree_type(decl) : value_type;
 
    vcode_var_flags_t flags = 0;
    if (!!(top_scope->flags & SCOPE_GLOBAL))
@@ -5902,11 +5903,16 @@ static void lower_alias_decl(tree_t decl)
    vcode_reg_t value_reg = lower_expr(value, ctx);
    vcode_reg_t data_reg  = lower_array_data(value_reg);
 
-   if (type_is_array(type))
-      lower_check_array_sizes(decl, type, tree_type(value), VCODE_INVALID_REG,
+   vcode_reg_t wrap_reg;
+   if (tree_has_type(decl) && !type_is_unconstrained(type)) {
+      lower_check_array_sizes(decl, type, value_type, VCODE_INVALID_REG,
                               value_reg);
+      wrap_reg = lower_wrap(type, data_reg);
+   }
+   else
+      wrap_reg = lower_wrap_with_new_bounds(value_type, value_reg, data_reg);
 
-   emit_store(lower_wrap(type, data_reg), var);
+   emit_store(wrap_reg, var);
 }
 
 static void lower_enum_image_helper(type_t type, vcode_reg_t preg)
