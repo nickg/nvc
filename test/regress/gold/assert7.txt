@@ -1,0 +1,3 @@
+(init): Assertion Error: Assertion violation.
+assert7.vhd
+condition -1 > 0 is false

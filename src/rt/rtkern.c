@@ -1754,6 +1754,8 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
       }
    }
 
+   init_side_effect = SIDE_EFFECT_ALLOW;
+
    // Memoise the function for all single value cases and determine if the
    // function behaves like the identity function
 
@@ -2536,8 +2538,6 @@ static void rt_initial(e_node_t top)
    }
 
    TRACE("calculate initial driver values");
-
-   init_side_effect = SIDE_EFFECT_ALLOW;
 
    for (int rank = 0; rank <= highest_rank; rank++) {
       for (unsigned i = 0; i < n_nexuses; i++) {
