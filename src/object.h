@@ -196,6 +196,7 @@ typedef object_t *(*object_rewrite_post_fn_t)(object_t *, void *);
 
 typedef struct {
    object_t                 **cache;
+   unsigned                   cache_sz;
    generation_t               generation;
    object_rewrite_pre_fn_t    pre_fn;
    object_rewrite_post_fn_t   post_fn;
