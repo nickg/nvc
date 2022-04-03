@@ -1347,7 +1347,7 @@ int64_t _last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
    TRACE("_last_event %s offset=%d count=%d",
          istr(e_path(s->enode)), offset, count);
 
-   int64_t last = INT64_MAX;
+   int64_t last = TIME_HIGH;
 
    unsigned index = rt_signal_nexus_index(s, offset);
    while (count > 0) {
@@ -1372,7 +1372,7 @@ int64_t _last_active(sig_shared_t *ss, uint32_t offset, int32_t count)
    TRACE("_last_active %s offset=%d count=%d",
          istr(e_path(s->enode)), offset, count);
 
-   int64_t last = INT64_MAX;
+   int64_t last = TIME_HIGH;
 
    unsigned index = rt_signal_nexus_index(s, offset);
    while (count > 0) {
@@ -2516,7 +2516,7 @@ static void rt_driver_initial(rt_nexus_t *nexus)
       resolved = nexus->resolved;
 
    nexus->event_delta = nexus->active_delta = -1;
-   nexus->last_event = nexus->last_active = INT64_MAX;    // TIME'HIGH
+   nexus->last_event = nexus->last_active = TIME_HIGH;
 
    TRACE("%s initial value %s", istr(e_ident(nexus->enode)),
          fmt_nexus(nexus, resolved));
@@ -3159,8 +3159,6 @@ static bool rt_stop_now(uint64_t stop_time)
       return true;
    else if (force_stop)
       return true;
-   else if (stop_time == UINT64_MAX)
-      return false;
    else {
       event_t *peek = heap_min(eventq_heap);
       return peek->when > stop_time;

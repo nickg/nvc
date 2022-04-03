@@ -490,3 +490,4 @@ wait16          normal
 bounds29        fail,gold
 array5          normal
 wait18          normal
+wait19          normal
