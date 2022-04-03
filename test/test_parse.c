@@ -2491,9 +2491,10 @@ START_TEST(test_generate)
    fail_unless(icmp(tree_ident(g), "G3"));
 
    i = tree_decl(g, 0);
-   fail_unless(tree_kind(i) == T_GENVAR);
+   fail_unless(tree_kind(i) == T_GENERIC_DECL);
    fail_unless(icmp(tree_ident(i), "I"));
-   fail_unless(tree_flags(i) & TREE_F_LOOP_VAR);
+   fail_unless(tree_class(i) == C_CONSTANT);
+   fail_unless(tree_subkind(i) == PORT_IN);
 
    g = tree_stmt(a, 3);
    fail_unless(tree_kind(g) == T_FOR_GENERATE);
@@ -2502,9 +2503,8 @@ START_TEST(test_generate)
    fail_unless(icmp(tree_ident(g), "G4"));
 
    i = tree_decl(g, 0);
-   fail_unless(tree_kind(i) == T_GENVAR);
+   fail_unless(tree_kind(i) == T_GENERIC_DECL);
    fail_unless(icmp(tree_ident(i), "I"));
-   fail_unless(tree_flags(i) & TREE_F_LOOP_VAR);
 
    g = tree_stmt(a, 4);
    fail_unless(tree_kind(g) == T_FOR_GENERATE);

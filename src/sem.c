@@ -2999,7 +2999,6 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_ENUM_LIT:
    case T_ALIAS:
    case T_UNIT_DECL:
-   case T_GENVAR:
    case T_FUNC_DECL:
    case T_FUNC_BODY:
    case T_PROC_DECL:
@@ -4319,8 +4318,7 @@ static bool sem_globally_static(tree_t t)
    if (kind == T_REF) {
       tree_t decl = tree_ref(t);
       const tree_kind_t decl_kind = tree_kind(decl);
-      return decl_kind == T_GENERIC_DECL || decl_kind == T_GENVAR
-         || decl_kind == T_CONST_DECL;
+      return decl_kind == T_GENERIC_DECL || decl_kind == T_CONST_DECL;
    }
 
    // An alias whose aliased name is globally static
@@ -4675,7 +4673,7 @@ static bool sem_check_for_generate(tree_t t, nametab_t *tab)
       sem_error(r, "range of generate statement must be static");
 
    tree_t idecl = tree_decl(t, 0);
-   assert(tree_kind(idecl) == T_GENVAR);
+   assert(tree_kind(idecl) == T_GENERIC_DECL);
 
    if (!sem_check_subtype(idecl, tree_type(idecl), tab))
       return false;

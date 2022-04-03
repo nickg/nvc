@@ -7994,7 +7994,7 @@ static tree_t p_null_statement(ident_t label)
    return t;
 }
 
-static void p_parameter_specification(tree_t loop)
+static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
 {
    // identifier in discrete_range
 
@@ -8017,15 +8017,16 @@ static void p_parameter_specification(tree_t loop)
    type_set_base(sub, base);
    type_add_constraint(sub, constraint);
 
-   tree_kind_t kind = tree_kind(loop) == T_FOR_GENERATE ? T_GENVAR : T_VAR_DECL;
-   tree_t var = tree_new(kind);
-   tree_set_ident(var, id);
-   tree_set_type(var, sub);
-   tree_set_loc(var, CURRENT_LOC);
-   tree_set_flag(var, TREE_F_LOOP_VAR);
-   tree_add_decl(loop, var);
+   tree_t param = tree_new(pkind);
+   tree_set_ident(param, id);
+   tree_set_type(param, sub);
+   tree_set_loc(param, CURRENT_LOC);
+   tree_set_class(param, C_CONSTANT);
+   tree_set_subkind(param, PORT_IN);
 
-   insert_name(nametab, var, NULL, 0);
+   tree_add_decl(loop, param);
+
+   insert_name(nametab, param, NULL, 0);
 }
 
 static tree_t p_iteration_scheme(void)
@@ -8041,7 +8042,7 @@ static tree_t p_iteration_scheme(void)
    }
    else if (optional(tFOR)) {
       tree_t t = tree_new(T_FOR);
-      p_parameter_specification(t);
+      p_parameter_specification(t, T_PARAM_DECL);
       return t;
    }
    else {
@@ -8834,7 +8835,7 @@ static tree_t p_generation_scheme(void)
    case tFOR:
       {
          tree_t g = tree_new(T_FOR_GENERATE);
-         p_parameter_specification(g);
+         p_parameter_specification(g, T_GENERIC_DECL);
          return g;
       }
 

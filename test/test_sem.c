@@ -551,6 +551,8 @@ START_TEST(test_seq)
       { 246, "range association not allowed in aggregate variable target" },
       { 254, "X with class SIGNAL must be a name denoting a signal" },
       { 255, "X with class SIGNAL must be a name denoting a signal" },
+      { 263, "target of variable assignment must be a variable name or" },
+      { 264, "actual for formal X with class VARIABLE must be a name" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -4807,8 +4807,9 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
 
    // If the body of the loop may wait we need to store the bounds in a
    // variable as the range is evaluated only on entry to the loop
+   const bool is_wait_free = lower_is_wait_free(stmt);
    vcode_var_t right_var = VCODE_INVALID_VAR, step_var = VCODE_INVALID_VAR;
-   if (!lower_is_wait_free(stmt)) {
+   if (!is_wait_free) {
       right_var = lower_temp_var("right", vtype, vtype);
       emit_store(right_reg, right_var);
 
@@ -4832,13 +4833,20 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
 
    ident_t ident = ident_prefix(tree_ident(idecl), tree_ident(stmt), '.');
    vcode_var_t ivar = emit_var(vtype, bounds, ident, 0);
-   lower_put_vcode_obj(idecl, ivar, top_scope);
 
    emit_store(left_reg, ivar);
 
    vcode_block_t body_bb = emit_block();
    emit_jump(body_bb);
    vcode_select_block(body_bb);
+
+   vcode_reg_t ireg = VCODE_INVALID_VAR;
+   if (is_wait_free) {
+      ireg = emit_load(ivar);
+      lower_put_vcode_obj(idecl, ireg, top_scope);
+   }
+   else
+      lower_put_vcode_obj(idecl, ivar | 0x20000000, top_scope);
 
    if (exit_bb == VCODE_INVALID_BLOCK)
       exit_bb = emit_block();
@@ -4869,8 +4877,10 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
    if (step_var != VCODE_INVALID_VAR)
       stepn_reg = emit_load(step_var);
 
-   vcode_reg_t ireg      = emit_load(ivar);
-   vcode_reg_t next_reg  = emit_add(ireg, stepn_reg);
+   if (ireg == VCODE_INVALID_REG)
+      ireg = emit_load(ivar);
+
+   vcode_reg_t next_reg = emit_add(ireg, stepn_reg);
    emit_store(next_reg, ivar);
 
    vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, ireg, rightn_reg);
@@ -4878,11 +4888,10 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
 
    vcode_select_block(exit_bb);
 
-   if (right_var != VCODE_INVALID_VAR)
+   if (!is_wait_free) {
       lower_release_temp(right_var);
-
-   if (step_var != VCODE_INVALID_VAR)
       lower_release_temp(step_var);
+   }
 }
 
 static void lower_while(tree_t stmt, loop_stack_t *loops)

@@ -726,12 +726,6 @@ static void dump_decl(tree_t t, int indent)
       printf(";\n");
       return;
 
-   case T_GENVAR:
-      syntax("#genvar %s : ", istr(tree_ident(t)));
-      dump_type(tree_type(t));
-      printf(";\n");
-      return;
-
    case T_FUNC_DECL:
       if (tree_flags(t) & TREE_F_PREDEFINED)
          syntax("-- predefined %s\n", type_pp(tree_type(t)));

@@ -3221,6 +3221,7 @@ START_TEST(test_tounsigned)
    CHECK_BB(4);
 
    EXPECT_BB(5) = {
+      { VCODE_OP_LOAD, .name = "I.MAINLOOP" },
       { VCODE_OP_LOAD, .name = "I_VAL" },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_REM },    // Optimised from mod
@@ -3235,7 +3236,6 @@ START_TEST(test_tounsigned)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_LOAD, .name = "RESULT" },
-      { VCODE_OP_LOAD, .name = "I.MAINLOOP" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SUB },
       { VCODE_OP_CONST, .value = 0 },
@@ -3257,7 +3257,6 @@ START_TEST(test_tounsigned)
    EXPECT_BB(7) = {
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_LOAD, .name = "RESULT" },
-      { VCODE_OP_LOAD, .name = "I.MAINLOOP" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_SUB },
       { VCODE_OP_CONST, .value = 0 },
@@ -3281,7 +3280,6 @@ START_TEST(test_tounsigned)
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_DIV },
       { VCODE_OP_STORE, .name = "I_VAL" },
-      { VCODE_OP_LOAD, .name = "I.MAINLOOP" },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE, .name = "I.MAINLOOP" },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -3388,8 +3386,8 @@ START_TEST(test_sum)
    CHECK_BB(0);
 
    EXPECT_BB(3) = {
-      { VCODE_OP_LOAD, .name = "RESULT" },
       { VCODE_OP_LOAD, .name = "I.SUMLOOP" },
+      { VCODE_OP_LOAD, .name = "RESULT" },
       { VCODE_OP_UARRAY_LEFT },
       { VCODE_OP_CAST },
       { VCODE_OP_SUB },

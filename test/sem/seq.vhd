@@ -255,4 +255,14 @@ begin
         p1('1');                        -- Error
     end process;
 
+    -- Invalid use of loop parameter
+    process is
+        procedure p1 (x : out integer);
+    begin
+        for i in 1 to 10 loop
+            i := 5;                     -- Error
+            p1(i);                      -- Error
+        end loop;
+    end process;
+
 end architecture;

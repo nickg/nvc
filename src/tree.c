@@ -199,9 +199,6 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_NEXT
    (I_IDENT | I_VALUE | I_IDENT2),
 
-   // T_GENVAR
-   (I_IDENT | I_TYPE | I_FLAGS),
-
    // T_PARAM
    (I_VALUE | I_POS | I_SUBKIND | I_NAME),
 
@@ -316,17 +313,17 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_FOR_GENERATE",    "T_FILE_DECL",       "T_OPEN",
    "T_FIELD_DECL",      "T_RECORD_REF",      "T_ALL",
    "T_NEW",             "T_UNIT_DECL",       "T_NEXT",
-   "T_GENVAR",          "T_PARAM",           "T_ASSOC",
-   "T_USE",             "T_HIER",            "T_SPEC",
-   "T_BINDING",         "T_LIBRARY",         "T_DESIGN_UNIT",
-   "T_CONFIGURATION",   "T_PROT_BODY",       "T_CONTEXT",
-   "T_CONTEXT_REF",     "T_CONSTRAINT",      "T_BLOCK_CONFIG",
-   "T_PROT_FCALL",      "T_PROT_PCALL",      "T_RANGE",
-   "T_IMPLICIT_SIGNAL", "T_DISCONNECT",      "T_GROUP_TEMPLATE",
-   "T_GROUP",           "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN",
-   "T_CONV_FUNC",       "T_CONCURRENT",      "T_SEQUENCE",
-   "T_PACK_INST",       "T_GENERIC_DECL",    "T_TYPE_REF",
-   "T_BOX",             "T_PARAM_DECL",
+   "T_PARAM",           "T_ASSOC",           "T_USE",
+   "T_HIER",            "T_SPEC",            "T_BINDING",
+   "T_LIBRARY",         "T_DESIGN_UNIT",     "T_CONFIGURATION",
+   "T_PROT_BODY",       "T_CONTEXT",         "T_CONTEXT_REF",
+   "T_CONSTRAINT",      "T_BLOCK_CONFIG",    "T_PROT_FCALL",
+   "T_PROT_PCALL",      "T_RANGE",           "T_IMPLICIT_SIGNAL",
+   "T_DISCONNECT",      "T_GROUP_TEMPLATE",  "T_GROUP",
+   "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN", "T_CONV_FUNC",
+   "T_CONCURRENT",      "T_SEQUENCE",        "T_PACK_INST",
+   "T_GENERIC_DECL",    "T_TYPE_REF",        "T_BOX",
+   "T_PARAM_DECL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -387,15 +384,14 @@ static tree_kind_t expr_kinds[] = {
 };
 
 static tree_kind_t decl_kinds[] = {
-   T_PORT_DECL,  T_SIGNAL_DECL,    T_VAR_DECL,     T_TYPE_DECL,
-   T_CONST_DECL, T_FUNC_DECL,      T_FUNC_BODY,    T_ALIAS,
-   T_ATTR_DECL,  T_ATTR_SPEC,      T_PROC_DECL,    T_PROC_BODY,
-   T_COMPONENT,  T_FILE_DECL,      T_FIELD_DECL,   T_UNIT_DECL,
-   T_GENVAR,     T_HIER,           T_SPEC,         T_BINDING,
-   T_USE,        T_PROT_BODY,      T_BLOCK_CONFIG, T_IMPLICIT_SIGNAL,
-   T_DISCONNECT, T_GROUP_TEMPLATE, T_GROUP,        T_SUBTYPE_DECL,
-   T_PACKAGE,    T_PACK_BODY,      T_PACK_INST,    T_GENERIC_DECL,
-   T_PARAM_DECL,
+   T_PORT_DECL,      T_SIGNAL_DECL,    T_VAR_DECL,        T_TYPE_DECL,
+   T_CONST_DECL,     T_FUNC_DECL,      T_FUNC_BODY,       T_ALIAS,
+   T_ATTR_DECL,      T_ATTR_SPEC,      T_PROC_DECL,       T_PROC_BODY,
+   T_COMPONENT,      T_FILE_DECL,      T_FIELD_DECL,      T_UNIT_DECL,
+   T_HIER,           T_SPEC,           T_BINDING,         T_USE,
+   T_PROT_BODY,      T_BLOCK_CONFIG,   T_IMPLICIT_SIGNAL, T_DISCONNECT,
+   T_GROUP_TEMPLATE, T_GROUP,          T_SUBTYPE_DECL,    T_PACKAGE,
+   T_PACK_BODY,      T_PACK_INST,      T_GENERIC_DECL,    T_PARAM_DECL,
 };
 
 object_class_t tree_object = {

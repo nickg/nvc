@@ -178,7 +178,6 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
 {
    switch (tree_kind(t)) {
    case T_INSTANCE:
-   case T_GENVAR:
       return true;
    case T_FUNC_DECL:
    case T_PROC_DECL:
@@ -1134,17 +1133,10 @@ static void elab_pop_scope(elab_ctx_t *ctx)
       hash_free(ctx->generics);
 }
 
-static void elab_rewrite_genvar_cb(tree_t t, void *__ctx)
+static bool elab_copy_genvar_cb(tree_t t, void *ctx)
 {
-   tree_t *pair = __ctx;
-   if (tree_kind(t) == T_REF && tree_ref(t) == pair[0])
-      tree_set_ref(t, pair[1]);
-}
-
-static bool elab_copy_genvar_cb(tree_t t, void *__ctx)
-{
-   tree_t *pair = __ctx;
-   return tree_kind(t) == T_REF && tree_ref(t) == pair[0];
+   tree_t genvar = ctx;
+   return tree_kind(t) == T_REF && tree_ref(t) == genvar;
 }
 
 static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
@@ -1152,15 +1144,8 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    int64_t low, high;
    range_bounds(tree_range(t, 0), &low, &high);
 
-   tree_t genvar = tree_decl(t, 0);
-   assert(tree_kind(genvar) == T_GENVAR);
-
-   tree_t g = tree_new(T_GENERIC_DECL);
-   tree_set_ident(g, tree_ident(genvar));
-   tree_set_type(g, tree_type(genvar));
-   tree_set_class(g, C_CONSTANT);
-   tree_set_subkind(g, PORT_IN);
-   tree_set_loc(g, tree_loc(g));
+   tree_t g = tree_decl(t, 0);
+   assert(tree_kind(g) == T_GENERIC_DECL);
 
    for (int64_t i = low; i <= high; i++) {
       LOCAL_TEXT_BUF tb = tb_new();
@@ -1176,16 +1161,14 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
 
       tree_t map = tree_new(T_PARAM);
       tree_set_subkind(map, P_POS);
-      tree_set_loc(map, tree_loc(genvar));
-      tree_set_value(map, get_int_lit(genvar, NULL, i));
+      tree_set_loc(map, tree_loc(g));
+      tree_set_value(map, get_int_lit(g, NULL, i));
 
       tree_add_generic(b, g);
       tree_add_genmap(b, map);
 
       tree_t roots[] = { t };
-      tree_t pair[] = { genvar, g };
-      tree_copy(roots, 1, elab_copy_genvar_cb, NULL,
-                elab_rewrite_genvar_cb, NULL, pair);
+      tree_copy(roots, 1, elab_copy_genvar_cb, NULL, NULL, NULL, g);
 
       tree_t copy = roots[0];
 

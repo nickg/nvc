@@ -458,7 +458,6 @@ class_t class_of(tree_t t)
    case T_ENUM_LIT:
    case T_LITERAL:
       return C_LITERAL;
-   case T_GENVAR:
    case T_FIELD_DECL:
    case T_ATTR_DECL:
       return C_DEFAULT;
