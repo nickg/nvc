@@ -634,7 +634,10 @@ static void diag_emit_hints(diag_t *d, FILE *f)
 
       color_fprintf(f, " " GUTTER_STYLE "%*.u |$$ $cyan$", fwidth, i);
 
-      for (int col = 0; *p != '\n'; p++) {
+      int first_col = hint->loc.first_column;
+      for (int col = 0, n = 0; *p != '\n'; p++, n++) {
+         if (n == hint->loc.first_column)
+            first_col = col;
          if (*p == '\r')
             continue;
          else if (*p == '\t') {
@@ -662,7 +665,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
             color_fprintf(f, CARET_STYLE "$red$");
          else
             color_fprintf(f, CARET_STYLE "$green$");
-         color_fprintf(f, "%*s", hint->loc.first_column, "");
+         color_fprintf(f, "%*s", first_col, "");
 
          int ncarets = 1;
          if (hint->loc.line_delta == 0)

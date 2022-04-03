@@ -531,3 +531,4 @@ record29        normal,2008
 record30        normal,2008
 bounds32        fail,gold,2008
 bounds33        fail,gold,2008
+assert7         fail,gold

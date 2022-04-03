@@ -2409,6 +2409,8 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
       }
    }
 
+   init_side_effect = SIDE_EFFECT_ALLOW;
+
    // Memoise the function for all single value cases and determine if the
    // function behaves like the identity function
 
@@ -3026,8 +3028,6 @@ static void rt_initial(tree_t top)
 
    for (rt_nexus_t *n = nexuses; n != NULL; n = n->chain)
       heap_insert(q, rt_nexus_rank(n), n);
-
-   init_side_effect = SIDE_EFFECT_ALLOW;
 
    while (heap_size(q) > 0) {
       rt_nexus_t *n = heap_extract_min(q);

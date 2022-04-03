@@ -1,0 +1,5 @@
+(init): Assertion Error: Assertion violation.
+assert7.vhd
+   |
+ 8 |         assert x > 0;
+   |                ^^^^^ -1 > 0 is false
