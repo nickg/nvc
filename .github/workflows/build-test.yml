@@ -206,3 +206,5 @@ jobs:
         run: ./vhdl-projects/openrio/test.sh
       - name: Test SPI-FPGA
         run: ./vhdl-projects/spi-fpga/test.sh
+      - name: Test JSON-for-VHDL
+        run: ./vhdl-projects/json/test.sh
