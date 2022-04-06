@@ -480,9 +480,9 @@ static void fst_process_signal(rt_scope_t *scope, tree_t d)
    if (type_is_record(type)) {
       rt_scope_t *sub = rt_child_scope(scope, d);
       if (sub == NULL)
-         fatal_trace("cannot find scope for record %s", istr(tree_ident(d)));
-
-      fst_create_record_var(d, sub, type);
+         ;    // Signal was optimised out
+      else
+         fst_create_record_var(d, sub, type);
    }
    else {
       rt_signal_t *s = rt_find_signal(scope, d);

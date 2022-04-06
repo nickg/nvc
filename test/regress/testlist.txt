@@ -535,3 +535,4 @@ assert7         fail,gold
 for4            normal
 alias12         fail,gold
 alias13         normal,2008
+issue454        shell
