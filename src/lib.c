@@ -828,11 +828,21 @@ tree_t lib_get_check_stale(lib_t lib, ident_t ident)
       if (!opt_get_int(OPT_IGNORE_TIME)) {
          const loc_t *loc = tree_loc(lu->top);
 
+         bool stale = false;
          struct stat st;
-         if (stat(loc_file_str(loc), &st) == 0 && lu->mtime < lib_stat_mtime(&st))
-            fatal("design unit %s is older than its source file %s and must "
-                  "be reanalysed\n(You can use the --ignore-time option to "
-                  "skip this check)", istr(ident), loc_file_str(loc));
+         if (stat(loc_file_str(loc), &st) == 0)
+            stale = (lu->mtime < lib_stat_mtime(&st));
+
+         if (stale) {
+            diag_t *d = diag_new(DIAG_FATAL, NULL);
+            diag_printf(d, "design unit %s is older than its source file "
+                        "%s and must be reanalysed",
+                        istr(ident), loc_file_str(loc));
+            diag_hint(d, NULL, "you can use the $bold$--ignore-time$$ option "
+                      "to skip this check");
+            diag_emit(d);
+            fatal_exit(EXIT_FAILURE);
+         }
       }
 
       return lu->top;

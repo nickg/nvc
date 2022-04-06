@@ -714,8 +714,12 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       if (linebuf != NULL)
          col += color_fprintf(f, " " GUTTER_STYLE " = $$");
 
-      col += color_fprintf(f, HINT_STYLE "%s:$$ ",
-                           hint->kind == HINT_HELP ? "Help" : "Note");
+      if (col == 0)
+         col += color_fprintf(f, NOTE_PREFIX);
+      else
+         col += color_fprintf(f, HINT_STYLE "%s:$$ ",
+                              hint->kind == HINT_HELP ? "Help" : "Note");
+
       diag_paginate(hint->text, col, f);
       fputc('\n', f);
 
