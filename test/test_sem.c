@@ -2549,6 +2549,30 @@ START_TEST(test_osvvm4)
 }
 END_TEST
 
+START_TEST(test_agg2008)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/agg2008.vhd");
+
+   const error_t expect[] = {
+      { 16, "type of positional association universal_real does not match "
+        "aggregate element type INTEGER or the aggregate type itself "
+        "INTEGER_VECTOR" },
+      { 17, "type of named association BOOLEAN does not match aggregate "
+        "element type INTEGER" },
+      { 18, "aggregate has non-composite type INTEGER" },
+      { 19, "type of named association INTEGER_VECTOR does not match "
+        "aggregate element type INTEGER" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2675,6 +2699,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_gentype);
    tcase_add_test(tc_core, test_record2008);
    tcase_add_test(tc_core, test_osvvm4);
+   tcase_add_test(tc_core, test_agg2008);
    suite_add_tcase(s, tc_core);
 
    return s;

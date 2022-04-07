@@ -534,6 +534,17 @@ const char *class_str(class_t c)
    return strs[c];
 }
 
+const char *assoc_kind_str(assoc_kind_t akind)
+{
+   switch (akind) {
+   case A_NAMED:  return "named";
+   case A_POS:    return "positional";
+   case A_OTHERS: return "others";
+   case A_RANGE:  return "range";
+   default:       return "??";
+   }
+}
+
 bool is_subprogram(tree_t t)
 {
    switch (tree_kind(t)) {

@@ -1817,11 +1817,9 @@ static bool sem_check_variable_target(tree_t target)
          assoc_kind_t kind = tree_subkind(a);
          switch (kind) {
          case A_OTHERS:
-            sem_error(a, "others association not allowed in aggregate "
-                      "variable target");
          case A_RANGE:
-            sem_error(a, "range association not allowed in aggregate "
-                      "variable target");
+            sem_error(a, "%s association not allowed in aggregate "
+                      "variable target", assoc_kind_str(kind));
          case A_NAMED:
             sem_error(a, "sorry, named associations are not yet "
                       "supported here");
@@ -2009,11 +2007,9 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
          assoc_kind_t kind = tree_subkind(a);
          switch (kind) {
          case A_OTHERS:
-            sem_error(a, "others association not allowed in aggregate "
-                      "signal target");
          case A_RANGE:
-            sem_error(a, "range association not allowed in aggregate "
-                      "signal target");
+            sem_error(a, "%s association not allowed in aggregate "
+                      "signal target", assoc_kind_str(kind));
          case A_NAMED:
             sem_error(a, "sorry, named associations are not yet "
                       "supported here");
@@ -2756,7 +2752,8 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
 
-      switch ((assoc_kind_t)tree_subkind(a)) {
+      const assoc_kind_t akind = tree_subkind(a);
+      switch (akind) {
       case A_RANGE:
          {
             tree_t r = tree_range(a, 0);
@@ -2799,11 +2796,22 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_check_type(value, elem_type))
-         sem_error(value, "type of element %s does not match base "
-                   "type of aggregate %s",
-                   type_pp(tree_type(value)),
-                   type_pp(elem_type));
+      if (!sem_check_type(value, elem_type)) {
+         // LRM 08 section 9.3.3.3 allows the association to be of the
+         // base aggregate type as well
+         if (standard() >= STD_08 && (akind == A_POS || akind == A_RANGE)) {
+            if (!sem_check_type(value, composite_type))
+               sem_error(value, "type of %s association %s does not match "
+                         "aggregate element type %s or the aggregate type "
+                         "itself %s", assoc_kind_str(akind),
+                         type_pp(tree_type(value)), type_pp(elem_type),
+                         type_pp(composite_type));
+         }
+         else
+            sem_error(value, "type of %s association %s does not match "
+                      "aggregate element type %s", assoc_kind_str(akind),
+                      type_pp(tree_type(value)), type_pp(elem_type));
+      }
    }
 
    // Named and positional associations cannot be mixed in array
@@ -2902,14 +2910,9 @@ static bool sem_check_record_aggregate(tree_t t, nametab_t *tab)
             if (f == -1)
                continue;
 
-            const char *akind = "";
-            switch (tree_subkind(have[j])) {
-            case A_NAMED: akind = "named"; break;
-            case A_POS:   akind = "positional"; break;
-            }
-
             sem_error(a, "field %s was already given a value by earlier "
-                      "%s choice", istr(tree_ident(field)), akind);
+                      "%s choice", istr(tree_ident(field)),
+                      assoc_kind_str(tree_subkind(have[j])));
          }
 
          tree_t value = tree_value(a);
