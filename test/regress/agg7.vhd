@@ -18,6 +18,8 @@ begin
         assert x = (7, 8, 1, 2);
         x := ( 4 downto 1 => x );
         assert x = (7, 8, 1, 2);
+        x := ( y, 9, 8 );
+        assert x = (5, 6, 9, 8);
         wait;
     end process;
 

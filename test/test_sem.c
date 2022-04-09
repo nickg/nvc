@@ -2563,6 +2563,8 @@ START_TEST(test_agg2008)
       { 18, "aggregate has non-composite type INTEGER" },
       { 19, "type of named association INTEGER_VECTOR does not match "
         "aggregate element type INTEGER" },
+      { 30, "second dimension of 2 dimensional array type INT2D must be "
+        "specified by a sub-aggregate, string, or bit-string literal" },
       { -1, NULL }
    };
    expect_errors(expect);

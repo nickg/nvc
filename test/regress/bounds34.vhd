@@ -12,7 +12,7 @@ begin
         assert x = (1, 2, 3, 4);
         y := (5, 6);
         z := (7, 8);
-        x := ( y, z, integer_vector'(1, 2, 3) );  -- Error
+        x := ( y, 0, integer_vector'(1, 2, 3) );  -- Error
         assert x = (5, 6, 7, 8);
         wait;
     end process;

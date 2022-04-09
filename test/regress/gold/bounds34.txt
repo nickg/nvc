@@ -1,5 +1,5 @@
-index 5 outside of INTEGER range 1 to 4
+index 6 outside of INTEGER range 1 to 4
 bounds34.vhd
     |
- 15 |         x := ( y, z, integer_vector'(1, 2, 3) );  -- Error
-    |                      ^^^^^^^^^^^^^^^^^^^^^^^^
+ 15 |         x := ( y, 0, integer_vector'(1, 2, 3) );  -- Error
+    |

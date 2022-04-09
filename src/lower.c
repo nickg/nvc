@@ -3049,14 +3049,20 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
             off_reg = emit_const(voffset, tree_pos(a));
             next_pos = count_reg;
          }
+         else if (count_reg == VCODE_INVALID_REG) {
+            off_reg = next_pos;
+            next_pos = emit_add(next_pos, emit_const(voffset, 1));
+         }
          else {
             off_reg = next_pos;
             next_pos = emit_add(next_pos, count_reg);
          }
 
          if (count_reg != VCODE_INVALID_REG) {
-            vcode_reg_t up_right_reg = emit_add(left_reg, off_reg);
-            vcode_reg_t down_right_reg = emit_add(right_reg, off_reg);
+            vcode_reg_t right_off_reg =
+               emit_sub(emit_add(off_reg, count_reg), emit_const(voffset, 1));
+            vcode_reg_t up_right_reg = emit_add(left_reg, right_off_reg);
+            vcode_reg_t down_right_reg = emit_add(right_reg, right_off_reg);
             vcode_reg_t right_index_reg =
                emit_select(dir_reg, down_right_reg, up_right_reg);
 

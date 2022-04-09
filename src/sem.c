@@ -2733,6 +2733,15 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
    if (ndims == 1)
       elem_type = type_elem(base_type);
    else {
+      // Higher dimensions must be specified with a sub-aggregate or
+      // string literal
+      tree_t a0 = tree_value(tree_assoc(t, 0));
+      const tree_kind_t a0_kind = tree_kind(a0);
+      if (a0_kind != T_AGGREGATE && a0_kind != T_LITERAL)
+         sem_error(a0, "second dimension of %d dimensional array type %s must "
+                   "be specified by a sub-aggregate, string, or bit-string "
+                   "literal", ndims, type_pp(composite_type));
+
       // The parser will have constructed a type with ndims - 1
       // dimensions.
       elem_type = tree_type(tree_value(tree_assoc(t, 0)));
@@ -2799,15 +2808,17 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
       if (!sem_check_type(value, elem_type)) {
          // LRM 08 section 9.3.3.3 allows the association to be of the
          // base aggregate type as well
-         if (standard() >= STD_08 && (akind == A_POS || akind == A_RANGE)) {
-            if (!sem_check_type(value, composite_type))
-               sem_error(value, "type of %s association %s does not match "
-                         "aggregate element type %s or the aggregate type "
-                         "itself %s", assoc_kind_str(akind),
-                         type_pp(tree_type(value)), type_pp(elem_type),
-                         type_pp(composite_type));
-         }
-         else
+         const bool allow_slice =
+            ndims == 1 && standard() >= STD_08
+            && (akind == A_POS || akind == A_RANGE);
+
+         if (allow_slice && !sem_check_type(value, composite_type))
+            sem_error(value, "type of %s association %s does not match "
+                      "aggregate element type %s or the aggregate type "
+                      "itself %s", assoc_kind_str(akind),
+                      type_pp(tree_type(value)), type_pp(elem_type),
+                      type_pp(composite_type));
+         else if (!allow_slice)
             sem_error(value, "type of %s association %s does not match "
                       "aggregate element type %s", assoc_kind_str(akind),
                       type_pp(tree_type(value)), type_pp(elem_type));

@@ -4,7 +4,7 @@ end entity;
 architecture test of agg2008 is
 begin
 
-    main: process is
+    p1: process is
         variable x : integer_vector(1 to 4);
         variable y, z : integer_vector(1 to 2);
     begin
@@ -20,6 +20,14 @@ begin
         x := ( 1 to 4 => x );           -- OK
         x := ( 1 to 2 => y, 3 to 4 => z );  -- OK
         wait;
+    end process;
+
+    p2: process is
+        type int2d is array (natural range <>, natural range <>) of integer;
+        variable x : int2d(1 to 2, 1 to 2);
+    begin
+        x := ( (1, 2), (3, 4) );        -- OK
+        x := ( x, x );                  -- Error
     end process;
 
 end architecture;
