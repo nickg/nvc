@@ -3022,7 +3022,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
       vcode_reg_t value_reg = VCODE_INVALID_REG;
       if (tree_kind(value) != T_AGGREGATE)
-         value_reg = lower_expr(tree_value(a), EXPR_RVALUE);
+         value_reg = lower_expr(value, EXPR_RVALUE);
 
       vcode_reg_t loop_bb = VCODE_INVALID_BLOCK;
       vcode_reg_t exit_bb = VCODE_INVALID_BLOCK;

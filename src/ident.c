@@ -627,16 +627,6 @@ void _ident_list_cleanup(ident_list_t **list)
    *list = NULL;
 }
 
-bool ident_list_find(const ident_list_t *list, ident_t i)
-{
-   for (; list != NULL; list = list->next) {
-      if (list->ident == i)
-         return true;
-   }
-
-   return false;
-}
-
 ident_t ident_walk_selected(ident_t *i)
 {
    if (*i == NULL)

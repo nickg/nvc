@@ -388,6 +388,7 @@ END_TEST
 
 START_TEST(test_aggregate)
 {
+   set_standard(STD_08);
    input_from_file(TESTDIR "/bounds/aggregate.vhd");
 
    const error_t expect[] = {
@@ -395,6 +396,17 @@ START_TEST(test_aggregate)
       {  8, "for element B of MY_ENUM_MAP with index type MY_ENUM" },
       {  9, "for element C of MY_ENUM_MAP with index type MY_ENUM" },
       { 10, "duplicate choice for B" },
+      { 16, "for element 1 of MY_BIT_VEC with index type NATURAL "
+        "range 3 downto 1" },
+      { 17, "missing choices for elements 6 downto 5, 10 downto 8 of "
+        "MY_INT_MAP with index type MY_INT" },
+      { 21, "expected at most 3 positional associations in INTEGER_VECTOR "
+        "aggregate with index type NATURAL range 1 to 3" },
+      { 22, "missing choice for element 5 of INTEGER_VECTOR with index "
+        "type NATURAL range 1 to 5" },
+      { 24, "missing choice for element 3 of INTEGER_VECTOR with index "
+        "type NATURAL range 1 to 3" },
+      { 25, "discrete range has 4 elements but length of expression is 3" },
       { -1, NULL }
    };
    expect_errors(expect);

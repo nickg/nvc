@@ -547,7 +547,7 @@ static void bounds_check_aggregate(tree_t t)
       if (!folded_bounds(base_r, &low, &high))
          return;
 
-      clow = high; chigh = low;  // Actual bounds computed below
+      clow = high, chigh = low;  // Actual bounds computed below
       dir = tree_subkind(base_r);
    }
    else {
@@ -561,11 +561,21 @@ static void bounds_check_aggregate(tree_t t)
 
    interval_t *covered = NULL;
    bool known_elem_count = true;
+   int next_pos = 0;
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
-      int64_t ilow = 0, ihigh = 0;
+      int64_t ilow = 0, ihigh = 0, count = 1;
       unsigned uval;
+
+      if (standard() >= STD_08) {
+         type_t value_type = tree_type(tree_value(a));
+         if (type_eq(value_type, type)) {
+            tree_t r = range_of(value_type, 0);
+            if (!folded_length(r, &count))
+               known_elem_count = false;
+         }
+      }
 
       switch (tree_subkind(a)) {
       case A_NAMED:
@@ -610,6 +620,11 @@ static void bounds_check_aggregate(tree_t t)
                }
                else
                   known_elem_count = false;
+
+               if (count > 1 && known_elem_count && ihigh - ilow + 1 != count)
+                  bounds_error(t, "discrete range has %"PRIi64" elements but "
+                               "length of expression is %"PRIi64,
+                               ihigh - ilow + 1, count);
             }
             else
                known_elem_count = false;
@@ -621,23 +636,28 @@ static void bounds_check_aggregate(tree_t t)
          break;
 
       case A_POS:
-         if (dir == RANGE_TO)
-            ilow = ihigh = low + tree_pos(a);
-         else
-            ilow = ihigh = high - tree_pos(a);
+         if (dir == RANGE_TO) {
+            ilow = low + next_pos;
+            ihigh = ilow + count - 1;
+         }
+         else {
+            ihigh = high - next_pos;
+            ilow = ihigh - count + 1;
+         }
+
+         next_pos += count;
 
          if ((ilow < low || ihigh > high) && known_elem_count) {
             LOCAL_TEXT_BUF tb = tb_new();
-            tb_printf(tb, "expected at most %"PRIi64" positional associations "
-                      "in %s aggregate with index type %s range ",
-                      MAX(0, high - low + 1), type_pp(type),
+            tb_printf(tb, "expected at most %"PRIi64" positional "
+                      "associations in %s aggregate with index type %s "
+                      "range ", MAX(0, high - low + 1), type_pp(type),
                       type_pp(index_type));
             bounds_fmt_type_range(tb, index_type, dir, low, high);
 
             bounds_error(t, "%s", tb_get(tb));
             known_elem_count = false;
          }
-
          break;
       }
 
