@@ -5058,9 +5058,9 @@ void emit_range_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
 }
 
 void emit_index_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
-                      vcode_reg_t dir, vcode_reg_t locus)
+                      vcode_reg_t dir, vcode_reg_t locus, vcode_reg_t hint)
 {
-   emit_bounds_check(VCODE_OP_INDEX_CHECK, reg, left, right, dir, locus, locus);
+   emit_bounds_check(VCODE_OP_INDEX_CHECK, reg, left, right, dir, locus, hint);
 }
 
 void emit_push_scope(vcode_reg_t locus, vcode_type_t type)

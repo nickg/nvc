@@ -23,6 +23,8 @@ architecture test of aggregate is
     constant c10 : integer_vector(1 to 3) := (1 to 3 => c6);  -- OK
     constant c11 : integer_vector(1 to 3) := (1 to 2 => c6(1 to 2));  -- Error
     constant c12 : integer_vector(1 to 4) := (1 to 4 => c6);  -- Error
+    constant c13 : integer_vector(1 to 4) :=
+        ( integer_vector'(1, 2), integer_vector'(3, 4) );  -- OK
 begin
 
 end architecture;

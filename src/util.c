@@ -503,6 +503,7 @@ void fatal_trace(const char *fmt, ...)
    diag_vprintf(d, fmt, ap);
    va_end(ap);
 
+   diag_set_consumer(NULL);
    diag_emit(d);
    show_stacktrace();
    fatal_exit(EXIT_FAILURE);

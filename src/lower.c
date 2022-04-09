@@ -2515,7 +2515,8 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
          vcode_reg_t dir_reg   = lower_array_dir(value_type, i, array);
 
          vcode_reg_t locus = lower_debug_locus(index);
-         emit_index_check(index_reg, left_reg, right_reg, dir_reg, locus);
+         emit_index_check(index_reg, left_reg, right_reg, dir_reg,
+                          locus, locus);
       }
 
       if (i > 0) {
@@ -2563,8 +2564,10 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    vcode_reg_t adir_reg   = lower_array_dir(type, 0, array_reg);
 
    vcode_reg_t locus = lower_debug_locus(r);
-   emit_index_check(left_reg, aleft_reg, aright_reg, adir_reg, locus);
-   emit_index_check(right_reg, aleft_reg, aright_reg, adir_reg, locus);
+   emit_index_check(left_reg, aleft_reg, aright_reg, adir_reg,
+                    locus, locus);
+   emit_index_check(right_reg, aleft_reg, aright_reg, adir_reg,
+                    locus, locus);
 
    if (!known_not_null) {
       emit_jump(after_bounds_bb);
@@ -3016,6 +3019,8 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
       }
    }
 
+   vcode_reg_t next_pos = VCODE_INVALID_REG;
+
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(expr, i);
       tree_t value = tree_value(a);
@@ -3024,14 +3029,44 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
       if (tree_kind(value) != T_AGGREGATE)
          value_reg = lower_expr(value, EXPR_RVALUE);
 
+      vcode_reg_t count_reg = VCODE_INVALID_REG;
+      type_t value_type = tree_type(value);
+      if (!multidim && type_eq(type, value_type)) {
+         // Element has same type as whole aggregate
+         assert(standard() >= STD_08);
+         count_reg = lower_array_len(value_type, 0, value_reg);
+      }
+
       vcode_reg_t loop_bb = VCODE_INVALID_BLOCK;
       vcode_reg_t exit_bb = VCODE_INVALID_BLOCK;
 
       vcode_var_t tmp_var = VCODE_INVALID_VAR;
       vcode_reg_t off_reg = VCODE_INVALID_REG;
+
       switch (tree_subkind(a)) {
       case A_POS:
-         off_reg = emit_const(voffset, tree_pos(a));
+         if (next_pos == VCODE_INVALID_REG) {
+            off_reg = emit_const(voffset, tree_pos(a));
+            next_pos = count_reg;
+         }
+         else {
+            off_reg = next_pos;
+            next_pos = emit_add(next_pos, count_reg);
+         }
+
+         if (count_reg != VCODE_INVALID_REG) {
+            vcode_reg_t up_right_reg = emit_add(left_reg, off_reg);
+            vcode_reg_t down_right_reg = emit_add(right_reg, off_reg);
+            vcode_reg_t right_index_reg =
+               emit_select(dir_reg, down_right_reg, up_right_reg);
+
+            tree_t index_r = range_of(index_type_of(type, 0), 0);
+
+            vcode_reg_t locus = lower_debug_locus(a);
+            vcode_reg_t hint = lower_debug_locus(index_r);
+            emit_index_check(right_index_reg, left_reg, right_reg,
+                             dir_reg, locus, hint);
+         }
          break;
 
       case A_NAMED:
@@ -3039,13 +3074,31 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
             tree_t name = tree_name(a);
             vcode_reg_t name_reg = lower_reify_expr(name);
             vcode_reg_t locus = lower_debug_locus(name);
-            emit_index_check(name_reg, left_reg, right_reg, dir_reg, locus);
+            emit_index_check(name_reg, left_reg, right_reg, dir_reg,
+                             locus, locus);
             off_reg = lower_array_off(name_reg, mem_reg, type, 0);
          }
          break;
 
       case A_RANGE:
-         {
+         if (count_reg != VCODE_INVALID_REG) {
+            tree_t r = tree_range(a, 0);
+
+            vcode_reg_t r_left_reg  = lower_range_left(r);
+            vcode_reg_t r_right_reg = lower_range_right(r);
+            vcode_reg_t r_dir_reg   = lower_range_dir(r);
+
+            vcode_reg_t locus = lower_debug_locus(r);
+            emit_index_check(r_left_reg, left_reg, right_reg, dir_reg,
+                             locus, locus);
+            emit_index_check(r_right_reg, left_reg, right_reg, dir_reg,
+                             locus, locus);
+
+            vcode_reg_t r_low_reg =
+               emit_select(r_dir_reg, r_right_reg, r_left_reg);
+            off_reg = lower_array_off(r_low_reg, mem_reg, type, 0);
+         }
+         else {
             loop_bb = emit_block();
             exit_bb = emit_block();
 
@@ -3057,8 +3110,10 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
             vcode_reg_t r_dir_reg   = lower_range_dir(r);
 
             vcode_reg_t locus = lower_debug_locus(r);
-            emit_index_check(r_left_reg, left_reg, right_reg, dir_reg, locus);
-            emit_index_check(r_right_reg, left_reg, right_reg, dir_reg, locus);
+            emit_index_check(r_left_reg, left_reg, right_reg, dir_reg,
+                             locus, locus);
+            emit_index_check(r_right_reg, left_reg, right_reg, dir_reg,
+                             locus, locus);
 
             vcode_type_t vtype   = lower_type(rtype);
             vcode_type_t vbounds = lower_bounds(rtype);
@@ -3094,7 +3149,11 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
          value_reg = lower_aggregate(value, ptr_reg);
       }
 
-      if (type_is_array(elem_type) || multidim) {
+      if (count_reg != VCODE_INVALID_REG) {
+         vcode_reg_t src_reg = lower_array_data(value_reg);
+         emit_copy(ptr_reg, src_reg, count_reg);
+      }
+      else if (type_is_array(elem_type) || multidim) {
          assert(stride != VCODE_INVALID_REG);
          vcode_reg_t src_reg = lower_array_data(value_reg);
          emit_copy(ptr_reg, src_reg, stride);
@@ -5354,8 +5413,10 @@ static void lower_check_indexes(type_t type, vcode_reg_t array)
       }
 
       vcode_reg_t locus = lower_debug_locus(range_of(type, i));
-      emit_index_check(aleft_reg, ileft_reg, iright_reg, idir_reg, locus);
-      emit_index_check(aright_reg, ileft_reg, iright_reg, idir_reg, locus);
+      emit_index_check(aleft_reg, ileft_reg, iright_reg, idir_reg,
+                       locus, locus);
+      emit_index_check(aright_reg, ileft_reg, iright_reg, idir_reg,
+                       locus, locus);
 
       if (after_bb != VCODE_INVALID_BLOCK) {
          emit_jump(after_bb);

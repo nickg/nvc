@@ -559,6 +559,8 @@ static void bounds_check_aggregate(tree_t t)
       dir = tree_subkind(type_r);
    }
 
+   const int ndims = dimension_of(type);
+
    interval_t *covered = NULL;
    bool known_elem_count = true;
    int next_pos = 0;
@@ -568,11 +570,13 @@ static void bounds_check_aggregate(tree_t t)
       int64_t ilow = 0, ihigh = 0, count = 1;
       unsigned uval;
 
-      if (standard() >= STD_08) {
+      if (ndims == 1 && standard() >= STD_08) {
+         // Element type may also have the same type as the aggregate
          type_t value_type = tree_type(tree_value(a));
          if (type_eq(value_type, type)) {
-            tree_t r = range_of(value_type, 0);
-            if (!folded_length(r, &count))
+            if (type_is_unconstrained(value_type))
+               known_elem_count = false;
+            else if (!folded_length(range_of(value_type, 0), &count))
                known_elem_count = false;
          }
       }
@@ -678,8 +682,6 @@ static void bounds_check_aggregate(tree_t t)
 
    // Check each sub-aggregate has the same length for an unconstrained
    // array aggregate
-
-   const int ndims = dimension_of(type);
 
    if (ndims > 1 && unconstrained) {
       int64_t length = -1;

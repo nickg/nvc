@@ -1607,10 +1607,12 @@ void __nvc_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
 
 DLLEXPORT
 void __nvc_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
-                      DEBUG_LOCUS(locus))
+                      DEBUG_LOCUS(locus), DEBUG_LOCUS(hint))
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
-   type_t type = tree_type(where);
+   tree_t hint = rt_locus_to_tree(hint_unit, hint_offset);
+
+   type_t type = tree_type(hint);
 
    LOCAL_TEXT_BUF tb = tb_new();
    tb_cat(tb, "index ");

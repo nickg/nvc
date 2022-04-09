@@ -536,3 +536,6 @@ for4            normal
 alias12         fail,gold
 alias13         normal,2008
 issue454        shell
+agg7            normal,2008
+bounds34        fail,gold,2008
+

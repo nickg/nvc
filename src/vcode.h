@@ -376,7 +376,7 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr);
 void emit_range_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
                       vcode_reg_t dir, vcode_reg_t locus, vcode_reg_t hint);
 void emit_index_check(vcode_reg_t reg, vcode_reg_t left, vcode_reg_t right,
-                      vcode_reg_t dir, vcode_reg_t locus);
+                      vcode_reg_t dir, vcode_reg_t locus, vcode_reg_t hint);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t bounds, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);

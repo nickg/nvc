@@ -2727,6 +2727,7 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
    LLVMValueRef right = cgen_sign_extend(op, 2, 32, ctx);
    LLVMValueRef dir   = cgen_get_arg(op, 3, ctx);
    LLVMValueRef locus = cgen_get_arg(op, 4, ctx);
+   LLVMValueRef hint  = cgen_get_arg(op, 5, ctx);
 
    LLVMValueRef low  = LLVMBuildSelect(builder, dir, right, left, "low");
    LLVMValueRef high = LLVMBuildSelect(builder, dir, left, right, "high");
@@ -2746,7 +2747,7 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, fail_bb);
 
    LLVMValueRef args[] = {
-      value, left, right, dir, locus,
+      value, left, right, dir, locus, hint
    };
    LLVMBuildCall(builder, llvm_fn("__nvc_index_fail"), args,
                  ARRAY_LEN(args), "");
@@ -4509,6 +4510,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_int32_type(),
          llvm_int32_type(),
          llvm_int1_type(),
+         llvm_debug_locus_type(),
          llvm_debug_locus_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_index_fail",
