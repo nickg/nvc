@@ -1,6 +1,6 @@
 value -1 outside of NATURAL range 0 to 2147483647 for variable R
    |
  7 |         variable r : natural := x;
-   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |                  ^
 Function ADD_NAT [INTEGER return NATURAL]
 bounds16.vhd

@@ -39,6 +39,13 @@ typedef enum {
    MAKE_FINAL_SO
 } make_product_t;
 
+typedef struct ident_list ident_list_t;
+
+struct ident_list {
+   ident_list_t *next;
+   ident_t       ident;
+};
+
 typedef struct rule rule_t;
 
 typedef enum {
@@ -57,6 +64,25 @@ struct rule {
 static hash_t *rule_map = NULL;
 
 static void make_rule(tree_t t, rule_t **rules);
+
+static void ident_list_add(ident_list_t **list, ident_t i)
+{
+   ident_list_t *c = xmalloc(sizeof(ident_list_t));
+   c->ident = i;
+   c->next  = *list;
+
+   *list = c;
+}
+
+static void ident_list_free(ident_list_t *list)
+{
+   ident_list_t *it = list;
+   while (it != NULL) {
+      ident_list_t *next = it->next;
+      free(it);
+      it = next;
+   }
+}
 
 static lib_t make_get_lib(ident_t name)
 {

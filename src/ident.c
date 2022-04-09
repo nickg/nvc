@@ -586,47 +586,6 @@ ident_t ident_downcase(ident_t i)
    return ident_new(p);
 }
 
-void ident_list_add(ident_list_t **list, ident_t i)
-{
-   ident_list_t *c = xmalloc(sizeof(ident_list_t));
-   c->ident = i;
-   c->next  = *list;
-
-   *list = c;
-}
-
-void ident_list_push(ident_list_t **list, ident_t i)
-{
-   ident_list_t *c = xmalloc(sizeof(ident_list_t));
-   c->ident = i;
-   c->next  = NULL;
-
-   if (*list == NULL)
-      *list = c;
-   else {
-      ident_list_t *it;
-      for (it = *list; it->next != NULL; it = it->next)
-         ;
-      it->next = c;
-   }
-}
-
-void ident_list_free(ident_list_t *list)
-{
-   ident_list_t *it = list;
-   while (it != NULL) {
-      ident_list_t *next = it->next;
-      free(it);
-      it = next;
-   }
-}
-
-void _ident_list_cleanup(ident_list_t **list)
-{
-   ident_list_free(*list);
-   *list = NULL;
-}
-
 ident_t ident_walk_selected(ident_t *i)
 {
    if (*i == NULL)

@@ -71,6 +71,17 @@ typedef struct {
    type_list_t copied_types;
 } package_copy_ctx_t;
 
+typedef struct _ident_list ident_list_t;
+
+struct _ident_list {
+   ident_list_t *next;
+   ident_t       ident;
+   loc_t         loc;
+};
+
+#define LOCAL_IDENT_LIST \
+   __attribute__((cleanup(_ident_list_cleanup))) ident_list_t *
+
 static loc_file_ref_t file_ref = FILE_INVALID;
 static int            n_token_next_start = 0;
 static int            n_row = 0;
@@ -2058,6 +2069,39 @@ static void add_interface(tree_t container, tree_t decl, tree_kind_t kind)
       tree_add_port(container, decl);
 }
 
+static void ident_list_push(ident_list_t **list, ident_t i, loc_t loc)
+{
+   ident_list_t *c = xmalloc(sizeof(ident_list_t));
+   c->ident = i;
+   c->loc   = loc;
+   c->next  = NULL;
+
+   if (*list == NULL)
+      *list = c;
+   else {
+      ident_list_t *it;
+      for (it = *list; it->next != NULL; it = it->next)
+         ;
+      it->next = c;
+   }
+}
+
+static void ident_list_free(ident_list_t *list)
+{
+   ident_list_t *it = list;
+   while (it != NULL) {
+      ident_list_t *next = it->next;
+      free(it);
+      it = next;
+   }
+}
+
+static void _ident_list_cleanup(ident_list_t **list)
+{
+   ident_list_free(*list);
+   *list = NULL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -2195,10 +2239,10 @@ static ident_list_t *p_identifier_list(void)
 
    ident_list_t *result = NULL;
 
-   ident_list_add(&result, p_identifier());
+   ident_list_push(&result, p_identifier(), last_loc);
 
    while (optional(tCOMMA))
-      ident_list_push(&result, p_identifier());
+      ident_list_push(&result, p_identifier(), last_loc);
 
    return result;
 }
@@ -2233,7 +2277,7 @@ static void p_library_clause(tree_t unit)
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t l = tree_new(T_LIBRARY);
       tree_set_ident(l, it->ident);
-      tree_set_loc(l, CURRENT_LOC);
+      tree_set_loc(l, &(it->loc));
 
       tree_add_context(unit, l);
 
@@ -4113,12 +4157,10 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
       solve_types(nametab, init, type);
    }
 
-   const loc_t *loc = CURRENT_LOC;
-
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t d = tree_new(kind);
       tree_set_ident(d, it->ident);
-      tree_set_loc(d, loc);
+      tree_set_loc(d, &(it->loc));
       tree_set_subkind(d, mode);
       tree_set_type(d, type);
       tree_set_class(d, class);
@@ -4158,12 +4200,10 @@ static void p_interface_signal_declaration(tree_t parent, tree_kind_t kind)
       solve_types(nametab, init, type);
    }
 
-   const loc_t *loc = CURRENT_LOC;
-
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t d = tree_new(kind);
       tree_set_ident(d, it->ident);
-      tree_set_loc(d, loc);
+      tree_set_loc(d, &(it->loc));
       tree_set_subkind(d, mode);
       tree_set_type(d, type);
       tree_set_class(d, C_SIGNAL);
@@ -4200,12 +4240,10 @@ static void p_interface_variable_declaration(tree_t parent, tree_kind_t kind)
       solve_types(nametab, init, type);
    }
 
-   const loc_t *loc = CURRENT_LOC;
-
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t d = tree_new(kind);
       tree_set_ident(d, it->ident);
-      tree_set_loc(d, loc);
+      tree_set_loc(d, &(it->loc));
       tree_set_type(d, type);
       tree_set_class(d, C_VARIABLE);
       tree_set_subkind(d, mode);
@@ -4232,11 +4270,10 @@ static void p_interface_file_declaration(tree_t parent, tree_kind_t kind)
 
    type_t type = p_subtype_indication();
 
-   const loc_t *loc = CURRENT_LOC;
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t d = tree_new(kind);
       tree_set_ident(d, it->ident);
-      tree_set_loc(d, loc);
+      tree_set_loc(d, &(it->loc));
       tree_set_subkind(d, PORT_IN);
       tree_set_type(d, type);
       tree_set_class(d, C_FILE);
@@ -5023,7 +5060,7 @@ static void p_element_declaration(type_t rec)
       tree_set_ident(f, it->ident);
       tree_set_type(f, type);
       tree_set_pos(f, pos++);
-      tree_set_loc(f, CURRENT_LOC);
+      tree_set_loc(f, &(it->loc));
 
       type_add_field(rec, f);
    }
@@ -5446,7 +5483,7 @@ static void p_constant_declaration(tree_t parent)
       tree_t t = tree_new(T_CONST_DECL);
       tree_set_ident(t, it->ident);
       tree_set_type(t, type);
-      tree_set_loc(t, CURRENT_LOC);
+      tree_set_loc(t, &(it->loc));
       if (init != NULL)
          tree_set_value(t, init);
 
@@ -5643,11 +5680,9 @@ static void p_variable_declaration(tree_t parent)
 
    consume(tSEMI);
 
-   const loc_t *loc = CURRENT_LOC;
-
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t t = tree_new(T_VAR_DECL);
-      tree_set_loc(t, loc);
+      tree_set_loc(t, &(it->loc));
       tree_set_ident(t, it->ident);
       tree_set_type(t, type);
 
@@ -5706,11 +5741,9 @@ static void p_signal_declaration(tree_t parent)
 
    consume(tSEMI);
 
-   const loc_t *loc = CURRENT_LOC;
-
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t t = tree_new(T_SIGNAL_DECL);
-      tree_set_loc(t, loc);
+      tree_set_loc(t, &(it->loc));
       tree_set_ident(t, it->ident);
       tree_set_type(t, type);
       tree_set_value(t, init);
@@ -5881,7 +5914,7 @@ static void p_file_declaration(tree_t parent)
          tree_set_file_mode(t, mode);
          tree_set_value(t, name);
       }
-      tree_set_loc(t, CURRENT_LOC);
+      tree_set_loc(t, &(it->loc));
 
       tree_add_decl(parent, t);
 
@@ -5914,7 +5947,7 @@ static void p_disconnection_specification(tree_t container)
 
    for (ident_list_t *it = ids; it != NULL; it = it->next) {
       tree_t d = tree_new(T_DISCONNECT);
-      tree_set_loc(d, CURRENT_LOC);
+      tree_set_loc(d, &(it->loc));
       tree_set_ident(d, it->ident);
       tree_set_type(d, type);
       tree_set_delay(d, delay);
@@ -6954,7 +6987,7 @@ static ident_list_t *p_instantiation_list(void)
          consume(tALL);
 
          ident_list_t *result = NULL;
-         ident_list_add(&result, well_known(W_ALL));
+         ident_list_push(&result, well_known(W_ALL), last_loc);
          return result;
       }
 
@@ -7103,12 +7136,10 @@ static void p_configuration_specification(tree_t parent)
    tree_t bind = p_binding_indication(comp);
    consume(tSEMI);
 
-   const loc_t *loc = CURRENT_LOC;
-
    if (ids != NULL) {
       for (ident_list_t *it = ids; it != NULL; it = it->next) {
          tree_t t = tree_new(T_SPEC);
-         tree_set_loc(t, loc);
+         tree_set_loc(t, &(it->loc));
          tree_set_ident(t, it->ident);
          tree_set_ident2(t, comp_name);
          tree_set_value(t, bind);
@@ -7125,7 +7156,7 @@ static void p_configuration_specification(tree_t parent)
    else {
       // Instantiation list was "others"
       tree_t t = tree_new(T_SPEC);
-      tree_set_loc(t, loc);
+      tree_set_loc(t, CURRENT_LOC);
       tree_set_ident2(t, comp_name);
       tree_set_value(t, bind);
       tree_set_ref(t, comp);
@@ -7195,12 +7226,10 @@ static void p_component_configuration(tree_t unit)
       bcfg = p_block_configuration(of);
    }
 
-   const loc_t *loc = CURRENT_LOC;
-
    if (ids != NULL) {
       for (ident_list_t *it = ids; it != NULL; it = it->next) {
          tree_t t = tree_new(T_SPEC);
-         tree_set_loc(t, loc);
+         tree_set_loc(t, &(it->loc));
          tree_set_ident(t, it->ident);
          tree_set_ident2(t, comp_name);
          tree_set_value(t, bind);
@@ -7218,7 +7247,7 @@ static void p_component_configuration(tree_t unit)
    else {
       // Instantiation list was "others"
       tree_t t = tree_new(T_SPEC);
-      tree_set_loc(t, loc);
+      tree_set_loc(t, CURRENT_LOC);
       tree_set_ident2(t, comp_name);
       tree_set_value(t, bind);
       tree_set_ref(t, comp);
