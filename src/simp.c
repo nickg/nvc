@@ -521,9 +521,14 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 
    case ATTR_POS:
       {
-         int64_t arg;
-         if (folded_int(tree_value(tree_param(t, 0)), &arg))
-            return get_int_lit(t, NULL, arg);
+         tree_t value = tree_value(tree_param(t, 0));
+
+         unsigned upos;
+         int64_t ipos;
+         if (folded_int(value, &ipos))
+            return get_int_lit(t, NULL, ipos);
+         else if (folded_enum(value, &upos))
+            return get_int_lit(t, NULL, upos);
          else
             return t;
       }

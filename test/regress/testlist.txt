@@ -543,3 +543,4 @@ signal20        normal,2008
 bounds35        fail,gold,2008
 bounds36        fail,gold,2008
 bounds37        fail,gold,2008
+case10          normal
