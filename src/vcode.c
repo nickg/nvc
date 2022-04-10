@@ -4927,6 +4927,11 @@ void emit_length_check(vcode_reg_t llen, vcode_reg_t rlen, vcode_reg_t locus,
    if (rlen == llen)
       return;
 
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_LENGTH_CHECK) {
+      if (other->args.items[0] == llen && other->args.items[1] == rlen)
+         return;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_LENGTH_CHECK);
    vcode_add_arg(op, llen);
    vcode_add_arg(op, rlen);
@@ -4948,7 +4953,6 @@ void emit_exponent_check(vcode_reg_t exp, vcode_reg_t locus)
       if (other->args.items[0] == exp)
          return;
    }
-
 
    op_t *op = vcode_add_op(VCODE_OP_EXPONENT_CHECK);
    vcode_add_arg(op, exp);

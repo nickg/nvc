@@ -538,3 +538,8 @@ alias13         normal,2008
 issue454        shell
 agg7            normal,2008
 bounds34        fail,gold,2008
+assign7         normal,2008
+signal20        normal,2008
+bounds35        fail,gold,2008
+bounds36        fail,gold,2008
+bounds37        fail,gold,2008
