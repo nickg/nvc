@@ -1317,8 +1317,14 @@ static void elab_top_level_ports(tree_t entity, const elab_ctx_t *ctx)
       if (tree_has_value(p))
          tree_set_value(m, tree_value(p));
       else {
+         type_t type = tree_type(p);
+         if (type_is_unconstrained(type))
+            error_at(tree_loc(p), "unconnected top-level port %s cannot have "
+                     "unconstrained type %s", istr(tree_ident(p)),
+                     type_pp(type));
+
          tree_t open = tree_new(T_OPEN);
-         tree_set_type(open, tree_type(p));
+         tree_set_type(open, type);
          tree_set_loc(open, tree_loc(p));
 
          tree_set_value(m, open);
