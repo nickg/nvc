@@ -338,6 +338,15 @@ static vcode_reg_t lower_range_dir(tree_t r)
    return VCODE_INVALID_REG;
 }
 
+static bool lower_have_uarray_ptr(vcode_reg_t reg)
+{
+   vcode_type_t vtype = vcode_reg_type(reg);
+   if (vtype_kind(vtype) != VCODE_TYPE_POINTER)
+      return false;
+
+   return vtype_kind(vtype_pointed(vtype)) == VCODE_TYPE_UARRAY;
+}
+
 static vcode_reg_t lower_array_data(vcode_reg_t reg)
 {
    vcode_type_t type = vcode_reg_type(reg);
@@ -346,6 +355,11 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
       return emit_unwrap(reg);
 
    case VCODE_TYPE_POINTER:
+      if (vtype_kind(vtype_pointed(type)) == VCODE_TYPE_UARRAY)
+         return emit_unwrap(emit_load_indirect(reg));
+      else
+         return reg;
+
    case VCODE_TYPE_SIGNAL:
       return reg;
 
@@ -398,6 +412,10 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
 
    if (type_is_unconstrained(type)) {
       assert(reg != VCODE_INVALID_REG);
+
+      if (lower_have_uarray_ptr(reg))
+         reg = emit_load_indirect(reg);
+
       return emit_uarray_len(reg, dim);
    }
    else {
@@ -736,15 +754,6 @@ static vcode_reg_t lower_constraint(tree_t cons)
 
    vcode_reg_t null_reg = emit_null(vtype_pointer(vtype_offset()));
    return emit_wrap(null_reg, dims, nranges);
-}
-
-static bool lower_have_uarray_ptr(vcode_reg_t reg)
-{
-   vcode_type_t vtype = vcode_reg_type(reg);
-   if (vtype_kind(vtype) != VCODE_TYPE_POINTER)
-      return false;
-
-   return vtype_kind(vtype_pointed(vtype)) == VCODE_TYPE_UARRAY;
 }
 
 static void lower_for_each_field(type_t type, vcode_reg_t rec1_ptr,
@@ -5717,6 +5726,12 @@ static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
       vcode_reg_t sig = emit_init_signal(vtype, len_reg, size_reg,
                                          init_reg, locus, null_reg);
 
+      if (resolution != VCODE_INVALID_REG)
+         emit_resolve_signal(sig, resolution);
+
+      if (kind != SIGNAL_BUS)   // Bus is default
+         emit_set_signal_kind(sig, emit_const(vtype_offset(), kind));
+
       if (bounds_reg != VCODE_INVALID_REG)
          sig = lower_wrap_with_new_bounds(type, bounds_reg, sig);
       else if (need_wrap)
@@ -5726,12 +5741,6 @@ static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
          emit_store(sig, sig_var);
       else
          emit_store_indirect(sig, sig_ptr);
-
-      if (resolution != VCODE_INVALID_REG)
-         emit_resolve_signal(sig, resolution);
-
-      if (kind != SIGNAL_BUS)   // Bus is default
-         emit_set_signal_kind(sig, emit_const(vtype_offset(), kind));
 
       if (has_scope)
          emit_pop_scope();
@@ -8178,7 +8187,7 @@ static void lower_map_signal_field_cb(type_t ftype, vcode_reg_t src_ptr,
    map_signal_param_t *args = __ctx;
 
    if (type_is_homogeneous(ftype)) {
-      vcode_reg_t fcount = emit_const(vtype_offset(), type_width(ftype));
+      vcode_reg_t fcount = lower_type_width(ftype, src_ptr);
 
       vcode_reg_t dst_reg, dst_count = fcount;
       if (!args->reverse && args->conv_func != VCODE_INVALID_REG) {
@@ -8201,6 +8210,9 @@ static void lower_map_signal_field_cb(type_t ftype, vcode_reg_t src_ptr,
          src_reg = emit_load_indirect(src_ptr);
       else
          src_reg = src_ptr;
+
+      src_reg = lower_array_data(src_reg);
+      dst_reg = lower_array_data(dst_reg);
 
       if (args->is_const)
          emit_map_const(src_reg, dst_reg, src_count);

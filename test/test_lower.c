@@ -3828,12 +3828,12 @@ START_TEST(test_resfn1)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_INIT_SIGNAL },
-      { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_RESOLVE_SIGNAL },
+      { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_INIT_SIGNAL },
-      { VCODE_OP_STORE, .name = "Y" },
       { VCODE_OP_RESOLVE_SIGNAL },
+      { VCODE_OP_STORE, .name = "Y" },
       { VCODE_OP_RETURN }
    };
 
