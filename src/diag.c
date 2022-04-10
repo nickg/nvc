@@ -781,16 +781,18 @@ void diag_femit(diag_t *d, FILE *f)
       }
    }
    else {
-      int col = 0;
-      switch (d->level) {
-      case DIAG_NOTE:  col = color_fprintf(f, NOTE_PREFIX); break;
-      case DIAG_WARN:  col = color_fprintf(f, WARNING_PREFIX); break;
-      case DIAG_ERROR: col = color_fprintf(f, ERROR_PREFIX); break;
-      case DIAG_FATAL: col = color_fprintf(f, FATAL_PREFIX); break;
-      }
+      if (tb_len(d->msg) > 0) {
+         int col = 0;
+         switch (d->level) {
+         case DIAG_NOTE:  col = color_fprintf(f, NOTE_PREFIX); break;
+         case DIAG_WARN:  col = color_fprintf(f, WARNING_PREFIX); break;
+         case DIAG_ERROR: col = color_fprintf(f, ERROR_PREFIX); break;
+         case DIAG_FATAL: col = color_fprintf(f, FATAL_PREFIX); break;
+         }
 
-      diag_paginate(tb_get(d->msg), col, f);
-      fputc('\n', f);
+         diag_paginate(tb_get(d->msg), col, f);
+         fputc('\n', f);
+      }
 
       if (d->hints.count > 0)
          diag_emit_hints(d, f);
@@ -872,58 +874,9 @@ void reset_error_count(void)
    n_errors = 0;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// Legacy interface for debugging only
-
 void fmt_loc(FILE *f, const loc_t *loc)
 {
-   if (loc == NULL || loc->first_line == LINE_INVALID
-       || loc->file_ref == FILE_INVALID)
-      return;
-
-   loc_file_t *file_data = loc_file_data(loc);
-
-   if (file_data->name_str == NULL)
-      return;
-
-   if (get_message_style() == MESSAGE_COMPACT) {
-      fprintf(f, "%s:%d:%d: ", file_data->name_str, loc->first_line,
-              loc->first_column + 1);
-      return;
-   }
-
-   fprintf(f, "\tFile %s, Line %u\n", file_data->name_str, loc->first_line);
-
-   const char *lb = diag_get_source(loc);
-   if (lb == NULL)
-      return;
-
-   char buf[80];
-   size_t i = 0;
-   while (i < sizeof(buf) - 1 && *lb != '\0' && *lb != '\n') {
-      if (*lb == '\t')
-         buf[i++] = ' ';
-      else if (isprint((int)*lb))
-         buf[i++] = *lb;
-      ++lb;
-   }
-   buf[i] = '\0';
-
-   // Print ... if error location spans multiple lines
-   unsigned last_column = loc->first_column + loc->column_delta;
-   bool many_lines = (loc->line_delta > 0)
-      || (i == sizeof(buf) - 1 && i <= last_column);
-   int last_col = many_lines ? strlen(buf) + 3 : last_column;
-
-   color_fprintf(f, "    $cyan$%s%s\n", buf, many_lines ? " ..." : "");
-   if (last_col >= loc->first_column) {
-      for (unsigned j = 0; j < loc->first_column + 4; j++)
-         fprintf(f, " ");
-      color_fprintf(f, "$green$");
-      for (unsigned j = 0; j < last_col - loc->first_column + 1; j++)
-         fprintf(f, "^");
-      color_fprintf(f, "$$\n");
-   }
-
-   fflush(f);
+   // Legacy interface for debugging only
+   diag_t *d = diag_new(DIAG_NOTE, loc);
+   diag_femit(d, f);
 }
