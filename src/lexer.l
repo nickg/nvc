@@ -359,6 +359,8 @@ DISCONNECT    ?i:disconnect
 "!"               { TOKEN(tBAR); }
 "["               { TOKEN(tLSQUARE); }
 "]"               { TOKEN(tRSQUARE); }
+"<<"              { TOKEN(tLTLT); }
+">>"              { TOKEN(tGTGT); }
 {DECIMAL_LITERAL} { return parse_decimal_literal(yytext); }
 {BASED_LITERAL}   { return parse_based_literal(yytext); }
 {BIT_STRING}      { return parse_bit_string(yytext); }

@@ -3068,6 +3068,17 @@ static type_t solve_open(nametab_t *tab, tree_t open)
    return type;
 }
 
+static type_t solve_external_name(nametab_t *tab, tree_t name)
+{
+   if (tree_has_type(name))
+      return tree_type(name);
+
+   assert(error_count() > 0);
+   type_t none = type_new(T_NONE);
+   tree_set_type(name, none);
+   return none;
+}
+
 static type_t solve_range(nametab_t *tab, tree_t r)
 {
    type_t type = NULL;
@@ -3154,6 +3165,8 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_range(tab, expr);
    case T_TYPE_REF:
       return tree_type(expr);
+   case T_EXTERNAL_NAME:
+      return solve_external_name(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }

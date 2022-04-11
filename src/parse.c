@@ -220,7 +220,7 @@ static const char *token_str(token_t tok)
       "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
       "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
-      "?<=", "?>", "?>=", "register", "disconnect", "??"
+      "?<=", "?>", "?>=", "register", "disconnect", "??", "<<", ">>"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -3144,10 +3144,44 @@ static tree_t p_type_conversion(tree_t tdecl)
    return conv;
 }
 
+static tree_t p_external_name(void)
+{
+   // << constant external_pathname : subtype_indication >>
+   //   | << signal external_pathname : subtype_indication >>
+   //   | << variable external_pathname : subtype_indication >>
+
+   BEGIN("external name");
+
+   consume(tLTLT);
+
+   require_std(STD_08, "external names");
+
+   tree_t t = tree_new(T_EXTERNAL_NAME);
+
+   switch (one_of(tCONSTANT, tSIGNAL, tVARIABLE)) {
+   case tSIGNAL:   tree_set_class(t, C_SIGNAL); break;
+   case tCONSTANT: tree_set_class(t, C_CONSTANT); break;
+   case tVARIABLE: tree_set_class(t, C_VARIABLE); break;
+   }
+
+   // TODO: selected_identifier is not correct here but will do for now
+   ident_t path = p_selected_identifier();
+   tree_set_ident(t, path);
+
+   consume(tCOLON);
+
+   tree_set_type(t, p_subtype_indication());
+
+   consume(tGTGT);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
 static tree_t p_name(void)
 {
    // simple_name | operator_symbol | selected_name | indexed_name
-   //   | slice_name | attribute_name
+   //   | slice_name | attribute_name | 2008: external_name
 
    BEGIN("name");
 
@@ -3161,6 +3195,9 @@ static tree_t p_name(void)
    case tID:
       id = p_identifier();
       break;
+
+   case tLTLT:
+      return p_external_name();
 
    default:
       {
@@ -3807,6 +3844,9 @@ static tree_t p_primary(void)
          return p_qualified_expression();
       else
          return p_name();
+
+   case tLTLT:
+      return p_name();
 
    case tNEW:
       return p_allocator();

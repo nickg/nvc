@@ -323,6 +323,12 @@ static void dump_expr(tree_t t)
          dump_params(t, tree_param, tree_params(t), NULL);
       break;
 
+   case T_EXTERNAL_NAME:
+      syntax("<< #%s %s : ", class_str(tree_class(t)), istr(tree_ident(t)));
+      dump_type(tree_type(t));
+      printf(" >>");
+      break;
+
    case T_ARRAY_REF:
       dump_expr(tree_value(t));
       dump_params(t, tree_param, tree_params(t), NULL);

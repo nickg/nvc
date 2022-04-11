@@ -291,6 +291,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_PARAM_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_FLAGS),
+
+   // T_EXTERNAL_NAME
+   (I_IDENT | I_CLASS | I_TYPE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -323,7 +326,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN", "T_CONV_FUNC",
    "T_CONCURRENT",      "T_SEQUENCE",        "T_PACK_INST",
    "T_GENERIC_DECL",    "T_TYPE_REF",        "T_BOX",
-   "T_PARAM_DECL",
+   "T_PARAM_DECL",      "T_EXTERNAL_NAME",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -376,11 +379,11 @@ static const tree_kind_t stmt_kinds[] = {
 };
 
 static tree_kind_t expr_kinds[] = {
-   T_FCALL,     T_LITERAL,    T_REF,        T_QUALIFIED,
-   T_AGGREGATE, T_ATTR_REF,   T_ARRAY_REF,  T_ARRAY_SLICE,
-   T_TYPE_CONV, T_OPEN,       T_RECORD_REF, T_ALL,
-   T_NEW,       T_PROT_FCALL, T_CONV_FUNC,  T_TYPE_REF,
-   T_BOX,
+   T_FCALL,     T_LITERAL,       T_REF,        T_QUALIFIED,
+   T_AGGREGATE, T_ATTR_REF,      T_ARRAY_REF,  T_ARRAY_SLICE,
+   T_TYPE_CONV, T_OPEN,          T_RECORD_REF, T_ALL,
+   T_NEW,       T_PROT_FCALL,    T_CONV_FUNC,  T_TYPE_REF,
+   T_BOX,       T_EXTERNAL_NAME,
 };
 
 static tree_kind_t decl_kinds[] = {

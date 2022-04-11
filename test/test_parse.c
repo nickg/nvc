@@ -3941,6 +3941,30 @@ START_TEST(test_vunit6)
 }
 END_TEST
 
+START_TEST(test_external)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/external.vhd");
+
+   const error_t expect[] = {
+      { 10, "sorry, external names are not supported yet" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -4007,6 +4031,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue443);
    tcase_add_test(tc_core, test_vunit5);
    tcase_add_test(tc_core, test_vunit6);
+   tcase_add_test(tc_core, test_external);
    suite_add_tcase(s, tc_core);
 
    return s;

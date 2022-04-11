@@ -174,6 +174,8 @@ typedef enum {
    tREGISTER,
    tDISCONNECT,
    tCCONV,
+   tLTLT,
+   tGTGT,
 } token_t;
 
 #endif

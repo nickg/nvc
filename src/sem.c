@@ -4954,6 +4954,17 @@ static bool sem_check_concurrent(tree_t t, nametab_t *tab)
    return sem_check(tree_stmt(t, 0), tab);
 }
 
+static bool sem_check_external_name(tree_t t)
+{
+   static bool warned = false;
+
+   if (warned)
+      return false;
+
+   warned = true;
+   sem_error(t, "sorry, external names are not supported yet");
+}
+
 bool sem_check(tree_t t, nametab_t *tab)
 {
    switch (tree_kind(t)) {
@@ -5102,6 +5113,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_concurrent(t, tab);
    case T_PACK_INST:
       return sem_check_pack_inst(t, tab);
+   case T_EXTERNAL_NAME:
+      return sem_check_external_name(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
