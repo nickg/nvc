@@ -3389,6 +3389,7 @@ START_TEST(test_names)
       { 332, "no matching operator \"and\" [BIT, BOOLEAN return BOOLEAN]" },
       { 360, "object X with type INTEGER cannot be selected" },
       { 362, "no visible declaration for FOO" },
+      { 386, "expecting type mark while parsing qualified expression" },
       {  -1, NULL }
    };
    expect_errors(expect);

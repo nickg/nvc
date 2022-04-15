@@ -173,6 +173,7 @@ static ident_t p_designator(void);
 static void p_interface_list(class_t class, tree_t parent, tree_kind_t kind);
 static type_t p_subtype_indication(void);
 static tree_t p_record_constraint(type_t base);
+static tree_t p_qualified_expression(tree_t prefix);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -3259,7 +3260,10 @@ static tree_t p_name(void)
          continue;
 
       case tTICK:
-         prefix = p_attribute_name(prefix);
+         if (peek_nth(2) == tLPAREN)
+            prefix = p_qualified_expression(prefix);
+         else
+            prefix = p_attribute_name(prefix);
          continue;
 
       default:
@@ -3742,13 +3746,28 @@ static tree_t p_aggregate(bool is_target)
    return t;
 }
 
-static tree_t p_qualified_expression(void)
+static tree_t p_qualified_expression(tree_t prefix)
 {
    // type_mark ' ( expression ) | type_mark ' aggregate
 
    EXTEND("qualified expression");
 
-   type_t type = p_type_mark(NULL);
+   type_t type;
+   if (prefix == NULL)
+      type = p_type_mark(NULL);
+   else {
+      tree_t decl = NULL;
+      if (tree_kind(prefix) == T_REF && tree_has_ref(prefix))
+         decl = aliased_type_decl(tree_ref(prefix));
+
+      if (decl != NULL)
+         type = tree_type(decl);
+      else {
+         parse_error(tree_loc(prefix), "expecting type mark while parsing "
+                     "qualified expression");
+         type = type_new(T_NONE);
+      }
+   }
 
    tree_t qual = tree_new(T_QUALIFIED);
    tree_set_type(qual, type);
@@ -3793,7 +3812,7 @@ static tree_t p_allocator(void)
 
    tree_t value;
    if (peek_nth(2) == tTICK)
-      value = p_qualified_expression();
+      value = p_qualified_expression(NULL);
    else {
       type_t type = p_subtype_indication();
 
@@ -3849,7 +3868,7 @@ static tree_t p_primary(void)
 
    case tID:
       if (peek_nth(2) == tTICK && peek_nth(3) == tLPAREN)
-         return p_qualified_expression();
+         return p_qualified_expression(NULL);
       else
          return p_name();
 

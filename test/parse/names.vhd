@@ -380,4 +380,10 @@ begin
         p;
     end process;
 
+    p32: process is
+    begin
+        assert std.standard.bit_vector'("101") = "101";  -- OK
+        assert std.standard.true'(1) = 1;  -- Error
+    end process;
+
 end architecture;
