@@ -3964,6 +3964,7 @@ START_TEST(test_external)
 
    check_expected_errors();
 }
+END_TEST
 
 START_TEST(test_error5)
 {
@@ -3991,6 +3992,7 @@ START_TEST(test_error5)
 
    check_expected_errors();
 }
+END_TEST
 
 START_TEST(test_vunit7)
 {
@@ -4012,6 +4014,7 @@ START_TEST(test_vunit7)
 
    check_expected_errors();
 }
+END_TEST
 
 Suite *get_parse_tests(void)
 {
