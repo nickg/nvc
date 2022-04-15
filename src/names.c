@@ -117,6 +117,7 @@ typedef struct {
 static type_t _solve_types(nametab_t *tab, tree_t expr);
 static void begin_iter(nametab_t *tab, ident_t name, iter_state_t *state);
 static tree_t iter_name(iter_state_t *state);
+static bool can_call_no_args(nametab_t *tab, tree_t decl);
 
 static void begin_overload_resolution(overload_t *o);
 static tree_t finish_overload_resolution(overload_t *o);
@@ -1038,6 +1039,17 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             for (unsigned i = 0; i < m.count; i++) {
                if (class_has_type(class_of(m.items[i]))
                    && type_set_contains(tab, tree_type(m.items[i])))
+                  m.items[wptr++] = m.items[i];
+            }
+            ATRIM(m, wptr);
+         }
+
+         if (m.count > 1 && !only_subprograms) {
+            // Remove subprograms that cannot be called with zero arguments
+            unsigned wptr = 0;
+            for (unsigned i = 0; i < m.count; i++) {
+               if (!is_subprogram(m.items[i])
+                   || can_call_no_args(tab, m.items[i]))
                   m.items[wptr++] = m.items[i];
             }
             ATRIM(m, wptr);

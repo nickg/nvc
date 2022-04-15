@@ -3992,6 +3992,27 @@ START_TEST(test_error5)
    check_expected_errors();
 }
 
+START_TEST(test_vunit7)
+{
+   input_from_file(TESTDIR "/parse/vunit7.vhd");
+
+   const error_t expect[] = {
+      { 23, "ambiguous use of enumeration literal ERROR (LOG_LEVEL_T, SEVE" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   check_expected_errors();
+}
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -4060,6 +4081,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_vunit6);
    tcase_add_test(tc_core, test_external);
    tcase_add_test(tc_core, test_error5);
+   tcase_add_test(tc_core, test_vunit7);
    suite_add_tcase(s, tc_core);
 
    return s;
