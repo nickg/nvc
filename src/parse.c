@@ -2430,12 +2430,18 @@ static void p_context_clause(tree_t unit)
 
    BEGIN("context clause");
 
+   const int start_errors = error_count();
+
    while (scan(tLIBRARY, tUSE, tCONTEXT)) {
       if (peek() == tCONTEXT && peek_nth(3) == tIS)
          break;
       else
          p_context_item(unit);
    }
+
+   // Suppress further errors if there are errors in the context
+   if (error_count() > start_errors)
+      suppress_errors(nametab);
 }
 
 static port_mode_t p_mode(void)

@@ -338,9 +338,10 @@ void nametab_finish(nametab_t *tab)
 void push_scope(nametab_t *tab)
 {
    scope_t *s = xcalloc(sizeof(scope_t));
-   s->members = hash_new(128, false);  // XXX: allocate this on-demand
-   s->parent  = tab->top_scope;
-   s->prefix  = tab->top_scope ? tab->top_scope->prefix : NULL;
+   s->members  = hash_new(128, false);
+   s->parent   = tab->top_scope;
+   s->prefix   = tab->top_scope ? tab->top_scope->prefix : NULL;
+   s->suppress = tab->top_scope ? tab->top_scope->suppress : false;
 
    tab->top_scope = s;
 }
