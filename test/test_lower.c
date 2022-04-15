@@ -20,6 +20,7 @@
 #include "vcode.h"
 #include "common.h"
 #include "diag.h"
+#include "opt.h"
 #include "rt/cover.h"
 
 #include <inttypes.h>
@@ -4637,6 +4638,53 @@ START_TEST(test_recsignal1)
 }
 END_TEST
 
+START_TEST(test_vunit5)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/lower/vunit5.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.VUNIT5.PROC(Q)");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_INDEX, .name = "R" },
+      { VCODE_OP_INDEX, .name = "def" },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SUB },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_NULL },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_MEMSET },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_COPY },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_LENGTH_CHECK },
+      { VCODE_OP_COPY },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4741,6 +4789,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_directmap);
    tcase_add_test(tc, test_directmap2);
    tcase_add_test(tc, test_recsignal1);
+   tcase_add_test(tc, test_vunit5);
    suite_add_tcase(s, tc);
 
    return s;

@@ -501,6 +501,21 @@ void lib_print_search_paths(text_buf_t *tb)
       tb_printf(tb, "\n  %s", it->path);
 }
 
+void lib_search_paths_to_diag(diag_t *d)
+{
+   lib_default_search_paths();
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "library search path contains: ");
+
+   for (search_path_t *it = search_paths; it != NULL; it = it->next)
+      tb_printf(tb, "%s%s", it != search_paths ? ", " : "", it->path);
+
+   diag_hint(d, NULL, "%s", tb_get(tb));
+   diag_hint(d, NULL, "add additional directories to the search path with "
+             "the $bold$-L$$ option");
+}
+
 lib_t lib_find(ident_t name_i)
 {
    lib_t lib = lib_loaded(name_i);
@@ -521,12 +536,8 @@ lib_t lib_find(ident_t name_i)
 lib_t lib_require(ident_t name)
 {
    lib_t lib = lib_find(name);
-
-   if (lib == NULL) {
-      LOCAL_TEXT_BUF tb = tb_new();
-      lib_print_search_paths(tb);
-      fatal("required library %s not found in:%s", istr(name), tb_get(tb));
-   }
+   if (lib == NULL)
+      fatal("required library %s not found", istr(name));
 
    return lib;
 }

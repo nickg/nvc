@@ -2286,8 +2286,10 @@ static void p_library_clause(tree_t unit)
          LOCAL_TEXT_BUF tb = tb_new();
          lib_print_search_paths(tb);
 
-         parse_error(CURRENT_LOC, "library %s not found in:%s",
-                     istr(it->ident), tb_get(tb));
+         diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
+         diag_printf(d, "library %s not found", istr(it->ident));
+         lib_search_paths_to_diag(d);
+         diag_emit(d);
       }
       else
          tree_set_ident2(l, lib_name(lib));
@@ -3354,6 +3356,9 @@ static tree_t p_record_element_constraint(type_t base)
 
    BEGIN("record element constraint");
 
+   push_scope(nametab);
+   insert_field_names(nametab, base);
+
    ident_t id = p_identifier();
    tree_t decl = resolve_name(nametab, CURRENT_LOC, id);
 
@@ -3365,6 +3370,8 @@ static tree_t p_record_element_constraint(type_t base)
                   istr(id), type_pp(base));
       decl = NULL;
    }
+
+   pop_scope(nametab);
 
    tree_t elem;
    if (ftype != NULL && type_is_record(ftype))
@@ -3385,17 +3392,12 @@ static tree_t p_record_constraint(type_t base)
 
    consume(tLPAREN);
 
-   push_scope(nametab);
-   insert_field_names(nametab, base);
-
    tree_t c = tree_new(T_CONSTRAINT);
    tree_set_subkind(c, C_RECORD);
 
    do {
       tree_add_range(c, p_record_element_constraint(base));
    } while (optional(tCOMMA));
-
-   pop_scope(nametab);
 
    consume(tRPAREN);
 

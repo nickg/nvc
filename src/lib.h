@@ -47,6 +47,7 @@ bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt);
 void lib_add_map(const char *name, const char *path);
 void lib_delete(lib_t lib, const char *name);
 void lib_print_search_paths(text_buf_t *tb);
+void lib_search_paths_to_diag(diag_t *d);
 bool lib_contains(lib_t lib, tree_t unit);
 
 typedef bool (*lib_walk_fn_t)(lib_t, void *);
