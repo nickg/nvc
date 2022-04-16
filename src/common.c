@@ -53,12 +53,10 @@ int64_t assume_int(tree_t t)
                tree_t pack = tree_container(decl);
                assert(tree_kind(pack) == T_PACKAGE);
 
-               ident_t body_name =
-                  ident_prefix(tree_ident(pack), ident_new("body"), '-');
+               tree_t body = body_of(pack);
+               ident_t id = tree_ident(decl);
 
-               tree_t body = lib_get_qualified(body_name);
-               if (body != NULL
-                   && (decl = search_decls(body, tree_ident(decl), 0))) {
+               if (body != NULL && (decl = search_decls(body, id, 0))) {
                   assert(tree_kind(decl) == T_CONST_DECL);
                   assert(tree_has_value(decl));
                   return assume_int(tree_value(decl));
@@ -936,6 +934,7 @@ void intern_strings(void)
    id_cache[W_WORK]          = ident_new("WORK");
    id_cache[W_STD]           = ident_new("STD");
    id_cache[W_THUNK]         = ident_new("thunk");
+   id_cache[W_BODY]          = ident_new("body");
 }
 
 bool is_uninstantiated_package(tree_t pack)
@@ -1532,4 +1531,17 @@ tree_t longest_static_prefix(tree_t expr)
    default:
       return expr;
    }
+}
+
+tree_t body_of(tree_t pack)
+{
+   const tree_kind_t kind = tree_kind(pack);
+   if (kind == T_PACK_INST)
+      return NULL;
+
+   assert(tree_kind(pack) == T_PACKAGE);
+
+   ident_t body_i = well_known(W_BODY);
+   ident_t body_name = ident_prefix(tree_ident(pack), body_i, '-');
+   return lib_get_qualified(body_name);
 }

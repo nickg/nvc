@@ -4113,10 +4113,8 @@ static void cgen_load_package(ident_t name)
 {
    // Make sure vcode is loaded for package dependencies
    tree_t unit = lib_get_qualified(name);
-   if (unit != NULL) {
-      ident_t body_i = ident_prefix(name, ident_new("body"), '-');
-      (void)lib_get_qualified(body_i);
-   }
+   if (unit != NULL)
+      (void)body_of(unit);
 }
 
 static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)

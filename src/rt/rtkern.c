@@ -450,8 +450,7 @@ static tree_t rt_find_enclosing_decl(ident_t unit_name, const char *symbol)
       return NULL;
 
    if (tree_kind(unit) == T_PACKAGE) {
-      ident_t body_name = ident_prefix(unit_name, ident_new("body"), '-');
-      tree_t body = lib_get_qualified(body_name);
+      tree_t body = body_of(unit);
       if (body != NULL)
          unit = body;
    }
@@ -2593,8 +2592,7 @@ static void rt_scope_deps_cb(ident_t unit_name, void *__ctx)
    tree_walk_deps(unit, rt_scope_deps_cb, tailp);
 
    if (kind == T_PACKAGE) {
-      ident_t body_i = ident_prefix(unit_name, ident_new("body"), '-');
-      tree_t body = lib_get_qualified(body_i);
+      tree_t body = body_of(unit);
       if (body != NULL)
          tree_walk_deps(body, rt_scope_deps_cb, tailp);
    }

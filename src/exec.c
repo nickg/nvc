@@ -143,10 +143,8 @@ static vcode_unit_t eval_find_unit(ident_t func_name, eval_flags_t flags)
          notef("loading vcode for %s", istr(unit_name));
 
       tree_t unit = lib_get_qualified(unit_name);
-      if (unit != NULL && tree_kind(unit) == T_PACKAGE) {
-         ident_t body_name = ident_prefix(unit_name, ident_new("body"), '-');
-         (void)lib_get_qualified(body_name);
-      }
+      if (unit != NULL && tree_kind(unit) == T_PACKAGE)
+         (void)body_of(unit);  // Make sure body is loaded
 
       vcode = vcode_find_unit(func_name);
       if (vcode == NULL)

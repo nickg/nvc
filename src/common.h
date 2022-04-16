@@ -75,6 +75,7 @@ tree_t primary_unit_of(tree_t unit);
 int64_t encode_case_choice(tree_t value, int length, int bits);
 void to_string(text_buf_t *tb, type_t type, int64_t value);
 tree_t longest_static_prefix(tree_t expr);
+tree_t body_of(tree_t pack);
 
 int fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);
@@ -161,6 +162,7 @@ typedef enum {
    W_WORK,
    W_STD,
    W_THUNK,
+   W_BODY,
 
    NUM_WELL_KNOWN
 } well_known_t;

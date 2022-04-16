@@ -6273,13 +6273,9 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
 
    tree_t body = NULL;
    if (pack != NULL) {
-      ident_t body_i = ident_new("body");
-      if (package_needs_body(pack)) {
-         ident_t body_name = ident_prefix(unit_name, body_i, '-');
-         if ((body = lib_get_qualified(body_name)) == NULL)
-            parse_error(CURRENT_LOC, "package %s cannot be instantiated until "
-                        "its body has been analysed", istr(unit_name));
-      }
+      if (package_needs_body(pack) && (body = body_of(pack)) == NULL)
+         parse_error(CURRENT_LOC, "package %s cannot be instantiated until "
+                     "its body has been analysed", istr(unit_name));
 
       instantiate_package(new, pack, body);
    }
