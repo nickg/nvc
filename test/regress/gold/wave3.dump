@@ -8,6 +8,7 @@
 #0 wave3.a_block.C NUL
 #0 wave3.a_block.C 'a'
 #0 wave3.a_block.I 0000000000000000000000000000000
+#0 wave3.S2 ONE
 #0 wave3.S INIT
 #0 wave3.T 0 HR
 #0 wave3.Q[3:1] 011
@@ -21,6 +22,7 @@
 #0 wave3.Y[7:0] UUUUUUUU
 #0 wave3.X[7:0] 10101010
 #1000 wave3.T 20 US
+#4000000 wave3.S2 TWO
 #5000000 wave3.Y[7:0] 10101010
 #5000000 wave3.sub_i.Y[7:0] 10101010
 #20000000 wave3.a_block.I 0000000000000000000000000000001

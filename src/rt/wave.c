@@ -164,7 +164,8 @@ static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
    uint64_t val;
    rt_signal_expand(data->signal, 0, &val, 1);
 
-   tree_t lit = type_enum_literal(tree_type(data->decl), val);
+   type_t base = type_base_recur(tree_type(data->decl));
+   tree_t lit = type_enum_literal(base, val);
    const char *str = istr(tree_ident(lit));
 
    fstWriterEmitVariableLengthValueChange(

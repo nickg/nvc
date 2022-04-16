@@ -50,6 +50,9 @@ architecture test of wave3 is
 
     type state is (INIT, ONE, TWO);
     signal s : state;
+
+    subtype state_sub is state range ONE to TWO;
+    signal s2 : state_sub;
 begin
 
     x <= not x after 50 ns;
@@ -94,5 +97,7 @@ begin
     q(3) <= '0';
 
     t <= 20 us after 1 ps;
+
+    s2 <= TWO after 4 ns;
 
 end architecture;
