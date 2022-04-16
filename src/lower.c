@@ -5653,27 +5653,20 @@ static void lower_var_decl(tree_t decl)
       emit_store(value_reg, var);
 }
 
-static vcode_reg_t lower_resolution_func(type_t type)
+static vcode_reg_t lower_resolution_func(type_t type, bool *is_array)
 {
    tree_t rname = NULL;
-   if (type_kind(type) == T_SUBTYPE) {
-      if (type_has_resolution(type))
-         rname = type_resolution(type);
-      else if (type_is_array(type)) {
-         // Special handling for subtype created when object is decalared
-         type_t base = type_base(type);
-         if (type_kind(base) == T_SUBTYPE && type_is_unconstrained(base)
-             && type_has_resolution(base))
-            rname = type_resolution(base);
+   for (type_t t = type; type_kind(t) == T_SUBTYPE; t = type_base(t)) {
+      if (type_has_resolution(t)) {
+         rname = type_resolution(t);
+         break;
       }
    }
 
-   if (rname == NULL) {
-      if (type_is_array(type))
-         return lower_resolution_func(type_elem(type));
-      else
-         return VCODE_INVALID_REG;
-   }
+   if (rname == NULL && type_is_array(type))
+      return lower_resolution_func(type_elem(type), is_array);
+   else if (rname == NULL)
+      return VCODE_INVALID_REG;
 
    while (tree_kind(rname) == T_AGGREGATE) {
       assert(type_is_array(type));
@@ -5707,8 +5700,9 @@ static vcode_reg_t lower_resolution_func(type_t type)
    else
       nlits_reg = emit_const(vtype_offset(), 0);
 
-   const bool is_carray = vtype_kind(vtype) == VCODE_TYPE_CARRAY;
-   vcode_type_t elem = is_carray ? vtype_elem(vtype) : vtype;
+   *is_array = vtype_kind(vtype) == VCODE_TYPE_CARRAY;
+
+   vcode_type_t elem = *is_array ? vtype_elem(vtype) : vtype;
    vcode_type_t rtype = lower_func_result_type(type);
    vcode_type_t atype = vtype_uarray(1, elem, vtype_int(0, INT32_MAX));
 
@@ -5723,21 +5717,21 @@ static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
                               vcode_reg_t null_reg, rt_signal_kind_t kind,
                               vcode_reg_t bounds_reg)
 {
+   bool has_scope = false;
    if (resolution == VCODE_INVALID_REG)
-      resolution = lower_resolution_func(type);
+      resolution = lower_resolution_func(type, &has_scope);
 
    if (type_is_homogeneous(type)) {
       vcode_reg_t size_reg = emit_const(vtype_offset(), lower_byte_width(type));
       vcode_reg_t len_reg;
       vcode_type_t vtype;
-      bool has_scope = false, need_wrap = false;
+      bool need_wrap = false;
       if (type_is_array(type)) {
          lower_check_array_sizes(where, type, init_type, bounds_reg, init_reg);
          vtype = lower_type(lower_elem_recur(type));
          len_reg = lower_array_total_len(type, init_reg);
          init_reg = lower_array_data(init_reg);
          need_wrap = !lower_const_bounds(type);
-         has_scope = type_kind(type) == T_SUBTYPE && type_has_resolution(type);
       }
       else {
          vtype = lower_type(type);

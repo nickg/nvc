@@ -76,7 +76,7 @@ static uint64_t  last_time = UINT64_MAX;
 static FILE     *vcdfile;
 static char     *tmpfst;
 
-static void fst_process_signal(rt_scope_t *scope, tree_t d);
+static void fst_process_signal(rt_scope_t *scope, tree_t d, tree_t cons);
 
 static void fst_close(void)
 {
@@ -243,7 +243,8 @@ static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
    }
 }
 
-static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type)
+static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
+                                 tree_t cons)
 {
    fst_data_t *data = NULL;
 
@@ -256,7 +257,7 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type)
       return;
    }
 
-   tree_t r = range_of(type, 0);
+   tree_t r = cons ? tree_range(cons, 0) : range_of(type, 0);
 
    int64_t low, high;
    range_bounds(r, &low, &high);
@@ -469,13 +470,16 @@ static void fst_create_record_var(tree_t d, rt_scope_t *scope, type_t type)
    fstWriterSetScope(fst_ctx, FST_ST_VHDL_RECORD, istr(tree_ident(d)), NULL);
 
    const int nfields = type_fields(type);
-   for (int i = 0; i < nfields; i++)
-      fst_process_signal(scope, type_field(type, i));
+   for (int i = 0; i < nfields; i++) {
+      tree_t f = type_field(type, i);
+      tree_t cons = type_constraint_for_field(type, f);
+      fst_process_signal(scope, f, cons);
+   }
 
    fstWriterSetUpscope(fst_ctx);
 }
 
-static void fst_process_signal(rt_scope_t *scope, tree_t d)
+static void fst_process_signal(rt_scope_t *scope, tree_t d, tree_t cons)
 {
    type_t type = tree_type(d);
    if (type_is_record(type)) {
@@ -490,7 +494,7 @@ static void fst_process_signal(rt_scope_t *scope, tree_t d)
       if (s == NULL)
          ;    // Signal was optimised out
       else if (type_is_array(type))
-         fst_create_array_var(d, s, type);
+         fst_create_array_var(d, s, type, cons);
       else
          fst_create_scalar_var(d, s, type);
    }
@@ -537,7 +541,7 @@ static void fst_walk_design(tree_t block)
       tree_t p = tree_port(block, i);
       ident_t path = ident_prefix(hpath, ident_downcase(tree_ident(p)), ':');
       if (wave_should_dump(path))
-         fst_process_signal(scope, p);
+         fst_process_signal(scope, p, NULL);
    }
 
    const int ndecls = tree_decls(block);
@@ -546,7 +550,7 @@ static void fst_walk_design(tree_t block)
       if (tree_kind(d) == T_SIGNAL_DECL) {
          ident_t path = ident_prefix(hpath, ident_downcase(tree_ident(d)), ':');
          if (wave_should_dump(path))
-            fst_process_signal(scope, d);
+            fst_process_signal(scope, d, NULL);
       }
    }
 
