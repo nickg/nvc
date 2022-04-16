@@ -116,6 +116,7 @@ typedef A(concat_param_t) concat_list_t;
 static lower_mode_t     mode = LOWER_NORMAL;
 static lower_scope_t   *top_scope = NULL;
 static cover_tagging_t *cover_tags = NULL;
+static hash_t          *globals = NULL;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_reify_expr(tree_t expr);
@@ -1192,8 +1193,16 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
    case T_PARAM_DECL:
       {
          int hops, obj = lower_search_vcode_obj(decl, top_scope, &hops);
-         if (obj == -1)
-            return lower_wrap_string(package_signal_path_name(tree_ident2(decl)));
+         if (obj == -1) {
+            ident_t name = hash_get(globals, decl);
+            if (name == NULL) {
+               tree_t pack = tree_container(decl);
+               assert(is_package(pack));
+               name = ident_prefix(tree_ident(pack), tree_ident(decl), '.');
+            }
+
+            return lower_wrap_string(package_signal_path_name(name));
+         }
 
          vcode_state_t state;
          vcode_state_save(&state);
@@ -1204,49 +1213,40 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
             vcode_select_unit(vcode_unit_context());
          }
 
-         obj &= 0x1fffffff;
-         ident_t var_name = vcode_var_name((vcode_var_t)obj);
-
          vcode_state_restore(&state);
 
-         const tree_kind_t dkind = tree_kind(decl);
-         if (dkind != T_PORT_DECL && dkind != T_GENERIC_DECL
-             && dkind != T_PARAM_DECL && var_name == tree_ident2(decl))
-            return lower_wrap_string(package_signal_path_name(var_name));
-         else {
-            ident_t suffix = ident_downcase(tree_ident(decl));
-            while (scope && scope->hier == NULL) {
-               const bool synthetic =
-                  tree_kind(scope->container) == T_PROCESS
-                  && (tree_flags(scope->container) & TREE_F_SYNTHETIC_NAME);
+         ident_t suffix = ident_downcase(tree_ident(decl));
+         while (scope && scope->hier == NULL) {
+            const bool synthetic =
+               tree_kind(scope->container) == T_PROCESS
+               && (tree_flags(scope->container) & TREE_F_SYNTHETIC_NAME);
 
-               if (synthetic)
-                  suffix = ident_prefix(ident_new(":"), suffix, '\0');
-               else if (tree_kind(scope->container) == T_PACK_BODY) {
-                  ident_t base = ident_strip(tree_ident(scope->container),
-                                             ident_new("-body"));
-                  suffix = ident_prefix(base, suffix, ':');
-               }
-               else {
-                  ident_t simple = ident_downcase(tree_ident(scope->container));
-                  suffix = ident_prefix(simple, suffix, ':');
-               }
-               scope = scope->down;
+            if (synthetic)
+               suffix = ident_prefix(ident_new(":"), suffix, '\0');
+            else if (tree_kind(scope->container) == T_PACK_BODY) {
+               ident_t base = ident_strip(tree_ident(scope->container),
+                                          ident_new("-body"));
+               suffix = ident_prefix(base, suffix, ':');
             }
-
-            if (scope == NULL)
-               return lower_wrap_string(package_signal_path_name(suffix));
-
-            ident_t id = NULL;
-            switch (which) {
-            case ATTR_PATH_NAME:     id = tree_ident(scope->hier); break;
-            case ATTR_INSTANCE_NAME: id = tree_ident2(scope->hier); break;
-            default: assert(false);
+            else {
+               ident_t simple = ident_downcase(tree_ident(scope->container));
+               suffix = ident_prefix(simple, suffix, ':');
             }
-
-            id = ident_prefix(id, suffix, ':');
-            return lower_wrap_string(istr(id));
+            scope = scope->down;
          }
+
+         if (scope == NULL)
+            return lower_wrap_string(package_signal_path_name(suffix));
+
+         ident_t id = NULL;
+         switch (which) {
+         case ATTR_PATH_NAME:     id = tree_ident(scope->hier); break;
+         case ATTR_INSTANCE_NAME: id = tree_ident2(scope->hier); break;
+         default: assert(false);
+         }
+
+         id = ident_prefix(id, suffix, ':');
+         return lower_wrap_string(istr(id));
       }
 
    default:
@@ -2010,8 +2010,21 @@ static vcode_var_t lower_get_var(tree_t decl, int *hops)
 
 static vcode_reg_t lower_link_var(tree_t decl)
 {
+   tree_t container = tree_container(decl);
+   const tree_kind_t kind = tree_kind(container);
+
+   ident_t name;
+   if (kind == T_ELAB) {
+      if ((name = hash_get(globals, decl)) == NULL)
+         fatal_trace("missing global variable for %s", istr(tree_ident(decl)));
+   }
+   else if (kind != T_PACKAGE && kind != T_PACK_INST)
+      fatal_trace("invalid container kind %s for %s", tree_kind_str(kind),
+                  istr(tree_ident(decl)));
+   else
+      name = ident_prefix(tree_ident(container), tree_ident(decl), '.');
+
    type_t type = tree_type(decl);
-   ident_t name = tree_ident2(decl);
 
    vcode_type_t vtype;
    if (class_of(decl) == C_SIGNAL)
@@ -5495,14 +5508,31 @@ static void lower_check_indexes(type_t type, vcode_reg_t array)
    }
 }
 
+static vcode_var_t lower_var_for(tree_t decl, vcode_type_t vtype,
+                                 vcode_type_t vbounds,  vcode_var_flags_t flags)
+{
+   if (top_scope->flags & SCOPE_GLOBAL)
+      flags |= VAR_GLOBAL;
+
+   ident_t name = tree_ident(decl);
+
+   if (flags & VAR_GLOBAL) {
+      name = ident_prefix(vcode_unit_name(), name, '.');
+      hash_put(globals, decl, name);
+   }
+
+   vcode_var_t var = emit_var(vtype, vbounds, name, flags);
+   lower_put_vcode_obj(decl, var, top_scope);
+
+   return var;
+}
+
 static void lower_var_decl(tree_t decl)
 {
    type_t type = tree_type(decl);
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
-   const bool is_global = !!(top_scope->flags & SCOPE_GLOBAL);
    const bool is_const = tree_kind(decl) == T_CONST_DECL;
-   ident_t name = is_global ? tree_ident2(decl) : tree_ident(decl);
 
    bool skip_copy = false;
    if (is_const && !tree_has_value(decl)) {
@@ -5517,10 +5547,8 @@ static void lower_var_decl(tree_t decl)
 
    vcode_var_flags_t flags = 0;
    if (is_const) flags |= VAR_CONST;
-   if (is_global) flags |= VAR_GLOBAL;
 
-   vcode_var_t var = emit_var(vtype, vbounds, name, flags);
-   lower_put_vcode_obj(decl, var, top_scope);
+   vcode_var_t var = lower_var_for(decl, vtype, vbounds, flags);
 
    if (type_is_protected(type)) {
       vcode_reg_t context_reg = lower_context_for_call(type_ident(type));
@@ -5855,19 +5883,11 @@ static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
 
 static void lower_signal_decl(tree_t decl)
 {
-   ident_t name = tree_ident(decl);
    type_t type = tree_type(decl);
 
    vcode_type_t signal_type = lower_signal_type(type);
-   vcode_var_t var;
-   if (top_scope->flags & SCOPE_GLOBAL) {
-      // This signal may be accessed with the "link var" opcode
-      var = emit_var(signal_type, lower_bounds(type), tree_ident2(decl),
-                     VAR_SIGNAL | VAR_GLOBAL);
-   }
-   else
-      var = emit_var(signal_type, lower_bounds(type), name, VAR_SIGNAL);
-   lower_put_vcode_obj(decl, var, top_scope);
+   vcode_type_t vbounds = lower_bounds(type);
+   vcode_var_t var = lower_var_for(decl, signal_type, vbounds, VAR_SIGNAL);
 
    type_t value_type = type;
    vcode_reg_t init_reg;
@@ -5964,10 +5984,7 @@ static void lower_file_decl(tree_t decl)
 {
    type_t type = tree_type(decl);
    vcode_type_t vtype = lower_type(type);
-   const bool is_global = !!(top_scope->flags & SCOPE_GLOBAL);
-   ident_t name = is_global ? tree_ident2(decl) : tree_ident(decl);
-   vcode_var_t var = emit_var(vtype, vtype, name, is_global ? VAR_GLOBAL : 0);
-   lower_put_vcode_obj(decl, var, top_scope);
+   vcode_var_t var = lower_var_for(decl, vtype, vtype, 0);
 
    emit_store(emit_null(vtype), var);
 
@@ -6020,15 +6037,10 @@ static void lower_alias_decl(tree_t decl)
    type_t type = tree_has_type(decl) ? tree_type(decl) : value_type;
 
    vcode_var_flags_t flags = 0;
-   if (!!(top_scope->flags & SCOPE_GLOBAL))
-      flags |= VAR_GLOBAL;
    if (class_of(value) == C_SIGNAL)
       flags |= VAR_SIGNAL;
 
-   ident_t name = (flags & VAR_GLOBAL) ? tree_ident2(decl) : tree_ident(decl);
-
-   vcode_var_t var = emit_var(vtype, lower_bounds(type), name, flags);
-   lower_put_vcode_obj(decl, var, top_scope);
+   vcode_var_t var = lower_var_for(decl, vtype, lower_bounds(type), flags);
 
    const expr_ctx_t ctx = flags & VAR_SIGNAL ? EXPR_LVALUE : EXPR_RVALUE;
    vcode_reg_t value_reg = lower_expr(value, ctx);
@@ -8673,16 +8685,9 @@ static void lower_generics(tree_t block, ident_t prefix)
 
       type_t type = tree_type(g);
 
-      ident_t name = tree_ident(g);
-      vcode_var_flags_t flags = VAR_CONST;
-      if (top_scope->flags & SCOPE_GLOBAL) {
-         flags |= VAR_GLOBAL;
-         name = ident_prefix(vcode_unit_name(), name, '.');
-      }
-
       vcode_type_t vtype = lower_type(type);
       vcode_type_t vbounds = lower_bounds(type);
-      vcode_var_t var = emit_var(vtype, vbounds, name, flags);
+      vcode_var_t var = lower_var_for(g, vtype, vbounds, VAR_CONST);
 
       vcode_reg_t mem_reg = VCODE_INVALID_REG, count_reg = VCODE_INVALID_REG;
 
@@ -8816,6 +8821,9 @@ vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover)
    cover_tags = cover;
    mode = LOWER_NORMAL;
 
+   assert(globals == NULL);
+   globals = hash_new(128, true);
+
    vcode_unit_t root = NULL;
    switch (tree_kind(unit)) {
    case T_ELAB:
@@ -8834,6 +8842,9 @@ vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover)
       fatal("cannot lower unit kind %s to vcode",
             tree_kind_str(tree_kind(unit)));
    }
+
+   hash_free(globals);
+   globals = NULL;
 
    vcode_close();
    return root;
@@ -8886,6 +8897,7 @@ static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context)
 vcode_unit_t lower_thunk(tree_t t)
 {
    mode = LOWER_THUNK;
+   assert(globals == NULL);
 
    const tree_kind_t kind = tree_kind(t);
 

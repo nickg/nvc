@@ -545,3 +545,4 @@ bounds36        fail,gold,2008
 bounds37        fail,gold,2008
 case10          normal
 record31        normal,2008
+genpack8        normal,2008

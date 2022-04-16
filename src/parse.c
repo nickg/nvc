@@ -5556,7 +5556,6 @@ static void p_constant_declaration(tree_t parent)
 
       tree_add_decl(parent, t);
 
-      mangle_decl(nametab, t);
       insert_name(nametab, t, it->ident, 0);
       sem_check(t, nametab);
    }
@@ -5760,10 +5759,7 @@ static void p_variable_declaration(tree_t parent)
          tree_set_flag(t, TREE_F_SHARED);
 
       tree_add_decl(parent, t);
-
-      mangle_decl(nametab, t);
       insert_name(nametab, t, it->ident, 0);
-
       sem_check(t, nametab);
    }
 }
@@ -5818,7 +5814,6 @@ static void p_signal_declaration(tree_t parent)
 
       tree_add_decl(parent, t);
 
-      mangle_decl(nametab, t);
       insert_name(nametab, t, it->ident, 0);
       sem_check(t, nametab);
    }
@@ -5985,7 +5980,6 @@ static void p_file_declaration(tree_t parent)
 
       tree_add_decl(parent, t);
 
-      mangle_decl(nametab, t);
       insert_name(nametab, t, it->ident, 0);
       sem_check(t, nametab);
    }

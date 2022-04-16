@@ -17,7 +17,7 @@ package body P is                              -- C'PATH_NAME = ":lib:p:c"
         assert Proc'INSTANCE_NAME = ":lib:p:proc";
         assert C'PATH_NAME = ":lib:p:c";
         assert C'INSTANCE_NAME = ":lib:p:c";
-        assert x'PATH_NAME = ":lib:p:proc:x";
+        assert x'PATH_NAME = ":lib:p:proc:x" report x'path_name;
         assert x'INSTANCE_NAME = ":lib:p:proc:x";
     end;
 end;

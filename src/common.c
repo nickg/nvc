@@ -50,9 +50,11 @@ int64_t assume_int(tree_t t)
                return assume_int(tree_value(decl));
             else {
                // Deferred constant
+               tree_t pack = tree_container(decl);
+               assert(tree_kind(pack) == T_PACKAGE);
+
                ident_t body_name =
-                  ident_prefix(ident_runtil(tree_ident2(decl), '.'),
-                               ident_new("body"), '-');
+                  ident_prefix(tree_ident(pack), ident_new("body"), '-');
 
                tree_t body = lib_get_qualified(body_name);
                if (body != NULL
@@ -581,6 +583,18 @@ bool is_container(tree_t t)
    case T_CONFIGURATION:
    case T_BLOCK:
    case T_PROT_BODY:
+      return true;
+   default:
+      return false;
+   }
+}
+
+bool is_package(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_PACKAGE:
+   case T_PACK_BODY:
+   case T_PACK_INST:
       return true;
    default:
       return false;

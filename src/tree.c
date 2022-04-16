@@ -42,10 +42,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_CHARS | I_FLAGS | I_IDENT | I_REF),
 
    // T_SIGNAL_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_FLAGS | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_FLAGS),
 
    // T_VAR_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_FLAGS | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_FLAGS),
 
    // T_PROCESS
    (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_FLAGS),
@@ -75,7 +75,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_TYPE | I_POS),
 
    // T_CONST_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_FLAGS | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_FLAGS),
 
    // T_FUNC_DECL
    (I_IDENT | I_PORTS | I_TYPE | I_FLAGS | I_IDENT2 | I_SUBKIND),
@@ -176,7 +176,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS | I_STMTS | I_RANGES),
 
    // T_FILE_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE | I_IDENT2),
+   (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE),
 
    // T_OPEN
    (I_TYPE),
