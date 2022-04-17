@@ -587,9 +587,6 @@ static bool run_test(test_t *test)
    printf("%15s : ", test->name);
 
    int skip = 0;
-#ifndef ENABLE_VHPI
-   skip |= (test->flags & F_VHPI);
-#endif
 #if defined __MINGW32__ || defined __CYGWIN__
    skip |= (test->flags & F_NOTWIN);
 #endif

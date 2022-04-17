@@ -1,5 +1,3 @@
-if ENABLE_VHPI
-
 check_PROGRAMS += lib/vhpi1.so lib/vhpi2.so lib/vhpi3.so lib/vhpi4.so
 
 lib_vhpi1_so_SOURCES = test/vhpi/vhpi1.c
@@ -23,6 +21,4 @@ lib_vhpi1_so_LDADD = lib/libnvcimp.a
 lib_vhpi2_so_LDADD = lib/libnvcimp.a
 lib_vhpi3_so_LDADD = lib/libnvcimp.a
 lib_vhpi4_so_LDADD = lib/libnvcimp.a
-endif
-
 endif

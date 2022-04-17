@@ -44,11 +44,7 @@ include lib/vital/Makemodule.am
 include lib/synopsys/Makemodule.am
 include tools/Makemodule.am
 
-gtags:
-	find $(abs_srcdir) -name '*.[chl]' -print \
-	  | (cd $(top_srcdir) && gtags -f -)
+compile-commands:
+	bear -- make -C $(top_builddir) clean $(bin_PROGRAMS) $(check_PROGRAMS)
 
-$(top_builddir)/compile_commands.json:
-	bear -- make -C $(top_builddir) clean check QUICK=1
-
-.PHONY: bootstrap cov-reset cov-report clean-libs clean-test gtags
+.PHONY: bootstrap cov-reset cov-report clean-libs clean-test compile-commands

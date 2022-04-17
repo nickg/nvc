@@ -194,9 +194,8 @@ compilation directives.
 ##### VHPI
 
 The VHDL standard contains a comprehensive API called VHPI for
-interfacing with foreign code written in C or another language.  There
-is very limited support for this which can be enabled with the
-`--enable-vhpi` option when configuring.  Refer to the
+interfacing with foreign code written in C or another language. NVC
+currently has very limited support for VHPI. Refer to the
 [manual](https://www.nickg.me.uk/nvc/manual.html#VHPI) for more
 information.
 

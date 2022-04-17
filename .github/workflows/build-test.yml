@@ -19,7 +19,7 @@ jobs:
         run: ./autogen.sh
       - name: Configure
         run: |
-          ./configure --enable-gcov --enable-vhpi --enable-asan \
+          ./configure --enable-gcov --enable-asan \
                --with-llvm=/usr/bin/llvm-config --enable-debug
       - name: Build
         run: ASAN_OPTIONS=detect_leaks=0 make
@@ -36,7 +36,7 @@ jobs:
         run: make distclean
       - name: Configure for release
         run: >-
-          ./configure --enable-vhpi --with-llvm=/usr/bin/llvm-config \
+          ./configure --with-llvm=/usr/bin/llvm-config \
              --prefix=/opt/nvc-${{ steps.version.outputs.version }} \
              --disable-debug
       - name: Build release
@@ -70,7 +70,7 @@ jobs:
       - name: Configure
         run: |
           ./configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
-               --enable-debug --enable-vhpi
+               --enable-debug
       - name: Build
         run: make
       - name: Test
@@ -80,7 +80,7 @@ jobs:
       - name: Configure for release
         run: |
           ./configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
-               --disable-debug --enable-vhpi
+               --disable-debug
       - name: Build release
         run: make
 
@@ -112,7 +112,7 @@ jobs:
       - name: Generate configure script
         run: bash autogen.sh
       - name: Configure
-        run: bash configure --enable-vhpi --enable-debug
+        run: bash configure --enable-debug
       - name: Build
         run: make
       - name: Test
@@ -121,7 +121,7 @@ jobs:
         run: make distclean
       - name: Configure for release
         run: >-
-          ./configure --enable-vhpi --disable-debug
+          ./configure --disable-debug
       - name: Build release
         run: make
 

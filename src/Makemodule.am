@@ -61,12 +61,9 @@ bin_nvc_LDADD = \
 	lib/libfst.a \
 	lib/libfastlz.a \
 	lib/libjson.a \
+	lib/libvhpi.a \
 	$(LLVM_LIBS) \
 	$(libdw_LIBS)
-
-if ENABLE_VHPI
-bin_nvc_LDADD += lib/libvhpi.a
-endif
 
 bin_nvc_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 

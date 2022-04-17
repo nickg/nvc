@@ -12,7 +12,7 @@ tasks:
       uname -a
       cd nvc
       ./autogen.sh
-      ./configure --enable-vhpi --enable-debug
+      ./configure --enable-debug
   - build: |
       cd nvc
       make
@@ -22,5 +22,5 @@ tasks:
   - release: |
       cd nvc
       make distclean
-      ./configure --enable-vhpi --disable-debug
+      ./configure --disable-debug
       make

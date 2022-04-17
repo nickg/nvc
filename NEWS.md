@@ -8,6 +8,8 @@
   unconstrained array types.
 - Alias of multidimensional array allowed in VHDL-2008 mode.
 - Implemented VHDL-2008 rules for aggregates with slices.
+- VHPI is now always enabled at build time and the `--enable-vhpi`
+  configure option has no effect.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

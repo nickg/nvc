@@ -401,10 +401,8 @@ static int run(int argc, char **argv)
       { "exclude",       required_argument, 0, 'e' },
       { "exit-severity", required_argument, 0, 'x' },
       { "dump-arrays",   no_argument,       0, 'a' },
-#if ENABLE_VHPI
       { "load",          required_argument, 0, 'l' },
       { "vhpi-trace",    no_argument,       0, 'T' },
-#endif
       { 0, 0, 0, 0 }
    };
 
@@ -789,17 +787,13 @@ static void usage(void)
           "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
           "     \t\t\tfrom IEEE packages\n"
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
-#ifdef ENABLE_VHPI
           "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
-#endif
           "     --profile\t\tDisplay detailed statistics at end of run\n"
           "     --stats\t\tPrint time and memory usage at end of run\n"
           "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"
-#ifdef ENABLE_VHPI
           "     --vhpi-trace\tTrace VHPI calls and events\n"
-#endif
           " -w, --wave=FILE\tWrite waveform data; file name is optional\n"
           "\n"
           "Dump options:\n"

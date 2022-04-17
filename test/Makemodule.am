@@ -40,11 +40,7 @@ TESTS_ENVIRONMENT = \
 	LIB_DIR=$(abs_top_builddir)/lib \
 	EXEEXT=$(EXEEXT)
 
-if ENABLE_VHPI
 test/run_regr: $(VHPI_PLUGINS)
-
-TESTS_ENVIRONMENT += HAVE_VHPI=1
-endif
 
 src = $(top_srcdir)/src
 build = $(top_builddir)/src

@@ -206,24 +206,12 @@ AC_SUBST(DLL_EXT)
 AC_SUBST(LIB_EXT)
 AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
 
-AC_ARG_ENABLE([vhpi],
-  [AS_HELP_STRING([--enable-vhpi],
-    [Enable VHPI plugins])],
-  [enable_vhpi=$enableval],
-  [enable_vhpi=no])
-
-AM_CONDITIONAL([ENABLE_VHPI], [test x$enable_vhpi = xyes])
-
-if test x$enable_vhpi = xyes; then
-  AC_DEFINE_UNQUOTED([ENABLE_VHPI], [1], [VHPI is enabled])
-
-  case $host_os in
-    darwin*)
-      VHPI_LDFLAGS="-flat_namespace -undefined dynamic_lookup"
-      ;;
-  esac
-  AC_SUBST(VHPI_LDFLAGS)
-fi
+case $host_os in
+  darwin*)
+    VHPI_LDFLAGS="-flat_namespace -undefined dynamic_lookup"
+    ;;
+esac
+AC_SUBST(VHPI_LDFLAGS)
 
 AC_ARG_ENABLE([vital],
   [AS_HELP_STRING([--enable-vital], [Build VITAL packages])],
