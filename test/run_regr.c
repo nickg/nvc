@@ -93,6 +93,12 @@ struct arglist {
    unsigned   count;
 };
 
+typedef enum {
+   RUN_OK,
+   RUN_FAILED,
+   RUN_SIGNALLED,
+} run_status_t;
+
 static test_t *test_list = NULL;
 static char test_dir[PATH_MAX];
 static char bin_dir[PATH_MAX];
@@ -139,7 +145,7 @@ static DWORD win32_timeout_thread(LPVOID lpParam)
    return 0;
 }
 
-static int win32_run_cmd(FILE *log, arglist_t **args)
+static run_status_t win32_run_cmd(FILE *log, arglist_t **args)
 {
    SECURITY_ATTRIBUTES saAttr;
    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
@@ -216,7 +222,7 @@ static int win32_run_cmd(FILE *log, arglist_t **args)
       *args = tmp;
    }
 
-   return status;
+   return status == 0 ? RUN_OK : RUN_FAILED;
 }
 #endif
 
@@ -412,18 +418,18 @@ static void signal_handler(int sig)
 {
 }
 
-static bool run_cmd(FILE *log, arglist_t **args)
+static run_status_t run_cmd(FILE *log, arglist_t **args)
 {
    fflush(stdout);
    fflush(stderr);
 
 #if defined __MINGW32__
-   return win32_run_cmd(log, args) == 0;
+   return win32_run_cmd(log, args);
 #else
    pid_t pid = fork();
    if (pid < 0) {
       fprintf(stderr, "Fork failed: %s", strerror(errno));
-      return false;
+      return RUN_SIGNALLED;
    }
    else if (pid == 0) {
       dup2(fileno(log), STDOUT_FILENO);
@@ -460,10 +466,14 @@ static bool run_cmd(FILE *log, arglist_t **args)
       signal(SIGALRM, SIG_DFL);
       signal(SIGCHLD, SIG_DFL);
 
-      int status, nready = waitpid(pid, &status, WNOHANG);
+      int status = 0, nready = waitpid(pid, &status, WNOHANG);
       if (nready < 0) {
          fprintf(stderr, "Waiting for child failed: %s\n", strerror(errno));
-         return false;
+         return RUN_SIGNALLED;
+      }
+      else if (nready != 0 && WIFSIGNALED(status)) {
+         fprintf(log, "Caught signal %d\n", WTERMSIG(status));
+         return RUN_SIGNALLED;
       }
       else if (nready == 0 || !WIFEXITED(status)) {
          fprintf(log, "Timeout!\n");
@@ -474,10 +484,10 @@ static bool run_cmd(FILE *log, arglist_t **args)
          else
             wait(&status);
 
-         return false;
+         return RUN_SIGNALLED;
       }
       else
-         return WEXITSTATUS(status) == 0;
+         return WEXITSTATUS(status) == 0 ? RUN_OK : RUN_FAILED;
    }
 #endif  // __CYGWIN__ || __MINGW32__
 }
@@ -652,7 +662,7 @@ static bool run_test(test_t *test)
          push_arg(&args, "-g%s=%s", g->name, g->value);
 
       if (test->flags & F_FAIL) {
-         if (!run_cmd(outf, &args))
+         if (run_cmd(outf, &args) != RUN_OK)
             goto out_print;
 
          push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
@@ -671,10 +681,12 @@ static bool run_test(test_t *test)
       push_arg(&args, "%s", test->name);
    }
 
-   result = run_cmd(outf, &args);
+   run_status_t status = run_cmd(outf, &args);
 
    if (test->flags & F_FAIL)
-      result = !result;
+      result = (status == RUN_FAILED);
+   else
+      result = (status == RUN_OK);
 
    if (result && test->flags & F_GOLD) {
       char goldname[PATH_MAX + 19];

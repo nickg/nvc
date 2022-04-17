@@ -512,14 +512,14 @@ static int run(int argc, char **argv)
    if (vhpi_plugins != NULL)
       vhpi_load_plugins(top, vhpi_plugins);
 
-   rt_restart(top);
-   rt_run_sim(stop_time);
+   const int rc = rt_run_sim(top, stop_time);
+
    rt_end_of_tool(top);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+   return rc == 0 && argc > 1 ? process_command(argc, argv) : rc;
 }
 
 static int make_cmd(int argc, char **argv)

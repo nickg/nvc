@@ -43,6 +43,7 @@
 #include <float.h>
 #include <ctype.h>
 #include <time.h>
+#include <setjmp.h>
 
 #ifdef HAVE_ALLOCA_H
 #include <alloca.h>
@@ -334,7 +335,6 @@ static uint64_t         now = 0;
 static int              iteration = -1;
 static bool             trace_on = false;
 static nvc_rusage_t     ready_rusage;
-static bool             aborted = false;
 static sens_list_t     *resume = NULL;
 static sens_list_t     *postponed = NULL;
 static sens_list_t     *resume_watch = NULL;
@@ -358,6 +358,7 @@ static rt_nexus_t      *nexuses = NULL;
 static rt_nexus_t     **nexus_tail = NULL;
 static cover_tagging_t *cover = NULL;
 static rt_signal_t    **signals_tail = NULL;
+static jmp_buf          abort_env;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -468,6 +469,12 @@ static tree_t rt_find_enclosing_decl(ident_t unit_name, const char *symbol)
    return enclosing;
 }
 
+static void rt_abort_sim(int code)
+{
+   assert(code >= 0);
+   longjmp(abort_env, code + 1);
+}
+
 static void rt_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
                           const char *symbol, const char *prefix)
 {
@@ -562,7 +569,7 @@ static void rt_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)
    diag_emit(d);
 
    if (level == DIAG_FATAL)
-      fatal_exit(EXIT_FAILURE);
+      rt_abort_sim(EXIT_FAILURE);
 }
 
 static size_t uarray_len(const ffi_uarray_t *u)
@@ -1572,7 +1579,7 @@ void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    diag_emit(d);
 
    if (level == DIAG_FATAL)
-      fatal_exit(EXIT_FAILURE);
+      rt_abort_sim(EXIT_FAILURE);
 }
 
 DLLEXPORT
@@ -1602,6 +1609,9 @@ void __nvc_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
    diag_show_source(d, false);
    rt_diag_trace(d);
    diag_emit(d);
+
+   if (level == DIAG_FATAL)
+      rt_abort_sim(EXIT_FAILURE);
 }
 
 DLLEXPORT
@@ -1980,7 +1990,7 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
    else
       notef("%s called", finish ? "FINISH" : "STOP");
 
-   exit(status);
+   rt_abort_sim(status);
 }
 
 DLLEXPORT
@@ -3326,45 +3336,45 @@ static void rt_iteration_limit(void)
 
 static void rt_resume(sens_list_t **list)
 {
-   sens_list_t *it = *list;
-   while (it != NULL) {
-      if (it->wake->pending) {
-         switch (it->wake->kind) {
-         case W_PROC:
-            {
-               rt_proc_t *proc = container_of(it->wake, rt_proc_t, wakeable);
-               rt_run(proc);
-            }
-            break;
-         case W_WATCH:
-            {
-               rt_watch_t *w = container_of(it->wake, rt_watch_t, wakeable);
-               (*w->fn)(now, w->signal, w, w->user_data);
-            }
-            break;
-         case W_IMPLICIT:
-            {
-               rt_implicit_t *imp =
-                  container_of(it->wake, rt_implicit_t, wakeable);
-               rt_update_implicit_signal(imp);
-            }
-         }
-         it->wake->pending = false;
-      }
+   for (sens_list_t *it = *list, *tmp; it; it = tmp) {
+      rt_wakeable_t *wake = it->wake;
+      tmp = *list = it->next;
 
-      sens_list_t *next = it->next;
-
+      // Free the list element now as rt_run may longjmp out of this
+      // function
       if (it->reenq == NULL)
          rt_free(sens_list_stack, it);
       else {
          it->next = *(it->reenq);
          *(it->reenq) = it;
       }
+      it = NULL;
 
-      it = next;
+      if (!wake->pending)
+         continue;   // Stale wakeup
+
+      wake->pending = false;
+
+      switch (wake->kind) {
+      case W_PROC:
+         {
+            rt_proc_t *proc = container_of(wake, rt_proc_t, wakeable);
+            rt_run(proc);
+         }
+         break;
+      case W_WATCH:
+         {
+            rt_watch_t *w = container_of(wake, rt_watch_t, wakeable);
+            (*w->fn)(now, w->signal, w, w->user_data);
+         }
+         break;
+      case W_IMPLICIT:
+         {
+            rt_implicit_t *imp = container_of(wake, rt_implicit_t, wakeable);
+            rt_update_implicit_signal(imp);
+         }
+      }
    }
-
-   *list = NULL;
 }
 
 static inline bool rt_next_cycle_is_delta(void)
@@ -3464,8 +3474,11 @@ static void rt_cycle(int stop_delta)
 #endif
 
    while ((event = rt_pop_run_queue(&procq))) {
-      rt_run(event->proc.proc);
+      // Free the event before running the process to avoid a leak if we
+      // longjmp back to rt_run_sim
+      rt_proc_t *p = event->proc.proc;
       rt_free(event_stack, event);
+      rt_run(p);
    }
 
    if (unlikely((stop_delta > 0) && (iteration == stop_delta)))
@@ -3490,6 +3503,15 @@ static void rt_cycle(int stop_delta)
 
       can_create_delta = true;
    }
+}
+
+static void rt_free_sens_list(sens_list_t **l)
+{
+   for (sens_list_t *it = *l, *tmp; it; it = tmp) {
+      tmp = it->next;
+      rt_free(sens_list_stack, it);
+   }
+   *l = NULL;
 }
 
 static void rt_cleanup_nexus(rt_nexus_t *n)
@@ -3527,11 +3549,7 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
    if (n->net != NULL) {
       RT_ASSERT(n->net->refcnt > 0);
       if (--(n->net->refcnt) == 0) {
-         for (sens_list_t *sl = n->net->pending, *next; sl; sl = next) {
-            next = sl->next;
-            rt_free(sens_list_stack, sl);
-         }
-
+         rt_free_sens_list(&(n->net->pending));
          free(n->net);
       }
    }
@@ -3614,6 +3632,16 @@ static void rt_cleanup(void)
 
    nexuses = NULL;
    nexus_tail = NULL;
+
+   rt_free_sens_list(&resume);
+   rt_free_sens_list(&postponed);
+   rt_free_sens_list(&resume_watch);
+   rt_free_sens_list(&postponed_watch);
+   rt_free_sens_list(&implicit);
+
+   event_t *e;
+   while ((e = rt_pop_run_queue(&procq)))
+      rt_free(event_stack, e);
 
    while (watches != NULL) {
       rt_watch_t *next = watches->chain_all;
@@ -3787,23 +3815,27 @@ void rt_end_of_tool(tree_t top)
       rt_stats_print();
 }
 
-void rt_run_sim(uint64_t stop_time)
-{
-   const int stop_delta = opt_get_int(OPT_STOP_DELTA);
-
-   wave_restart();
-
-   rt_global_event(RT_START_OF_SIMULATION);
-   while (!rt_stop_now(stop_time))
-      rt_cycle(stop_delta);
-   rt_global_event(RT_END_OF_SIMULATION);
-}
-
-void rt_restart(tree_t top)
+int rt_run_sim(tree_t top, uint64_t stop_time)
 {
    rt_setup(top);
-   rt_initial(top);
-   aborted = false;
+
+   int rc = setjmp(abort_env);
+   if (rc != 0)
+      rc -= 1;   // rt_abort_sim adds 1 to exit code
+   else {
+      rt_initial(top);
+      wave_restart();
+
+      rt_global_event(RT_START_OF_SIMULATION);
+
+      const int stop_delta = opt_get_int(OPT_STOP_DELTA);
+      while (!rt_stop_now(stop_time))
+         rt_cycle(stop_delta);
+   }
+
+   rt_global_event(RT_END_OF_SIMULATION);
+
+   return rc;
 }
 
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user)
