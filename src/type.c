@@ -45,7 +45,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_PHYSICAL
    (I_IDENT | I_UNITS | I_DIMS),
 
-   // T_UARRAY
+   // T_ARRAY
    (I_IDENT | I_INDEXCON | I_ELEM),
 
    // T_RECORD
@@ -78,7 +78,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_SUBTYPE",    "T_INTEGER",   "T_REAL",       "T_ENUM",
-   "T_PHYSICAL",   "T_UARRAY",    "T_RECORD",     "T_FILE",
+   "T_PHYSICAL",   "T_ARRAY",     "T_RECORD",     "T_FILE",
    "T_ACCESS",     "T_FUNC",      "T_INCOMPLETE", "T_PROC",
    "T_NONE",       "T_PROTECTED", "T_GENERIC",
 };

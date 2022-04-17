@@ -2,7 +2,8 @@ noinst_LIBRARIES += lib/libvhpi.a
 
 lib_libvhpi_a_SOURCES = \
 	src/vhpi/vhpi_sens.c \
-	src/vhpi/vhpi_impl.c \
-	src/vhpi/vhpi_str.c
+	src/vhpi/vhpi-str.c \
+	src/vhpi/vhpi-model.c \
+	src/vhpi/vhpi-util.c
 
 include_HEADERS += src/vhpi/vhpi_user.h

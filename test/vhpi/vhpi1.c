@@ -209,6 +209,9 @@ static void startup()
    fail_if(root == NULL);
    vhpi_printf("root handle %p", root);
 
+   const vhpiCharT *root_name = vhpi_get_str(vhpiNameP, root);
+   vhpi_printf("root name is %s", root_name);
+
    handle_x = vhpi_handle_by_name("x", root);
    check_error();
    fail_if(handle_x == NULL);
@@ -219,7 +222,7 @@ static void startup()
    fail_if(handle_y == NULL);
    vhpi_printf("y handle %p", handle_y);
 
-   vhpiHandleT handle_y2 = vhpi_handle_by_name("vhpi1.y", NULL);
+   vhpiHandleT handle_y2 = vhpi_handle_by_name(":y", NULL);
    check_error();
    fail_unless(handle_y == handle_y2);
    vhpi_release_handle(handle_y2);

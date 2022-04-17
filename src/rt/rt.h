@@ -103,6 +103,4 @@ void wave_exclude_glob(const char *glob);
 void wave_include_file(const char *base);
 bool wave_should_dump(ident_t name);
 
-void vhpi_load_plugins(tree_t top, const char *plugins);
-
 #endif  // _RT_H
