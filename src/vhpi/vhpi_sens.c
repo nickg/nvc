@@ -1,20 +1,21 @@
 /* --------------------------------------------------------------------
  *
- * Copyright © 2008 by IEEE.
+ * Copyright 2019 IEEE P1076 WG Authors
  *
- * This source file is an essential part of IEEE Std 1076-2008,
- * IEEE Standard VHDL Language Reference Manual. Verbatim copies of this
- * source file may be used and distributed without restriction.
- * Modifications to this source file as permitted in IEEE Std 1076-2008
- * may also be made and distributed. All other uses require permission
- * from the IEEE Standards Department(stds-ipr@ieee.org).
- * All other rights reserved.
+ * See the LICENSE file distributed with this work for copyright and
+ * licensing information and the AUTHORS file.
  *
- * This source file is provided on an AS IS basis. The IEEE disclaims ANY
- * WARRANTY EXPRESS OR IMPLIED INCLUDING ANY WARRANTY OF MERCHANTABILITY
- * AND FITNESS FOR USE FOR A PARTICULAR PURPOSE. The user of the source file
- * shall indemnify and hold IEEE harmless from any damages or liability
- * arising out of the use thereof.
+ * This file to you under the Apache License, Version 2.0 (the "License").
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+ * implied.  See the License for the specific language governing
+ * permissions and limitations under the License.
+ *
  *
  *   Title     :  vhpi_sens.c
  *             :
