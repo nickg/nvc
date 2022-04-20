@@ -207,6 +207,8 @@ CONTEXT       ?i:context
 ERROR         ?i:error
 WARNING       ?i:warning
 DISCONNECT    ?i:disconnect
+FORCE         ?i:force
+RELEASE       ?i:release
 
 %%
 
@@ -320,6 +322,8 @@ DISCONNECT    ?i:disconnect
 {REVRANGE}      { TOKEN(tREVRANGE); }
 {PROTECTED}     { TOKEN_00(tPROTECTED); }
 {CONTEXT}       { TOKEN_08(tCONTEXT); }
+{FORCE}         { TOKEN_08(tFORCE); }
+{RELEASE}       { TOKEN_08(tRELEASE); }
 `{IF}           { TOKEN(tCONDIF); }
 `{ELSE}         { TOKEN(tCONDELSE); }
 `{ELSIF}        { TOKEN(tCONDELSIF); }

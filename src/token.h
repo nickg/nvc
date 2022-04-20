@@ -176,6 +176,8 @@ typedef enum {
    tCCONV,
    tLTLT,
    tGTGT,
+   tFORCE,
+   tRELEASE,
 } token_t;
 
 #endif

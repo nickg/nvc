@@ -2575,6 +2575,34 @@ START_TEST(test_agg2008)
 }
 END_TEST
 
+START_TEST(test_force)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/force.vhd");
+
+   const error_t expect[] = {
+      { 13, "variable V is not a valid target of simple force assignment" },
+      { 14, "type of force expression universal_real does not match type "
+        "of target INTEGER" },
+      { 15, "target of a simple force assignment may not be an aggregate" },
+      { 29, "force mode OUT may not be used with target of mode IN" },
+      { 30, "target of simple force assignment must be a signal name" },
+      { 38, "variable V is not a valid target of simple release assignment" },
+      { 39, "target of a simple release assignment may not be an aggregate" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+
+   tree_t s4 = tree_stmt(tree_stmt(a, 0), 4);
+   fail_unless(tree_kind(s4) == T_FORCE);
+   fail_unless(tree_subkind(s4) == PORT_IN);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2702,6 +2730,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_record2008);
    tcase_add_test(tc_core, test_osvvm4);
    tcase_add_test(tc_core, test_agg2008);
+   tcase_add_test(tc_core, test_force);
    suite_add_tcase(s, tc_core);
 
    return s;

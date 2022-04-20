@@ -144,4 +144,17 @@ begin
         assert a(1)(1) = 1;             -- OK
     end process;
 
+    b3: block is
+        signal s : integer;
+    begin
+        process is
+        begin
+            s <= force 1;               -- OK
+            s <= force out 1;           -- OK
+            s <= force in 2;            -- OK
+            s <= release;               -- OK
+            s <= release out;           -- OK
+        end process;
+    end block;
+
 end architecture;

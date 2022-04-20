@@ -221,7 +221,8 @@ static const char *token_str(token_t tok)
       "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
       "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
-      "?<=", "?>", "?>=", "register", "disconnect", "??", "<<", ">>"
+      "?<=", "?>", "?>=", "register", "disconnect", "??", "<<", ">>", "force",
+      "release"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -7854,23 +7855,107 @@ static tree_t p_delay_mechanism(void)
    }
 }
 
+static port_mode_t p_force_mode(void)
+{
+   // in | out
+
+   BEGIN("force mode");
+
+   switch (peek()) {
+   case tIN: consume(tIN); return PORT_IN;
+   case tOUT: consume(tOUT); return PORT_OUT;
+   default: return PORT_INVALID;
+   }
+}
+
+static tree_t p_simple_force_assignment(ident_t label, tree_t target)
+{
+   // target <= force [ force_mode ] expression ;
+
+   EXTEND("simple force assignment");
+
+   consume(tFORCE);
+
+   require_std(STD_08, "simple force assignments");
+
+   type_t target_type;
+   if (tree_kind(target) == T_AGGREGATE) {
+      parse_error(CURRENT_LOC, "target of a simple force assignment may "
+                  "not be an aggregate");
+      target_type = type_new(T_NONE);
+   }
+   else
+      target_type = solve_types(nametab, target, NULL);
+
+   tree_set_type(target, target_type);
+
+   tree_t t = tree_new(T_FORCE);
+   tree_set_target(t, target);
+   tree_set_subkind(t, p_force_mode());
+   tree_set_value(t, p_expression());
+
+   consume(tSEMI);
+
+   set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
+   return t;
+}
+
+static tree_t p_simple_release_assignment(ident_t label, tree_t target)
+{
+   // target <= release [ force_mode ] ;
+
+   EXTEND("simple force assignment");
+
+   consume(tRELEASE);
+
+   require_std(STD_08, "simple release assignments");
+
+   type_t target_type;
+   if (tree_kind(target) == T_AGGREGATE) {
+      parse_error(CURRENT_LOC, "target of a simple release assignment may "
+                  "not be an aggregate");
+      target_type = type_new(T_NONE);
+   }
+   else
+      target_type = solve_types(nametab, target, NULL);
+
+   tree_set_type(target, target_type);
+
+   tree_t t = tree_new(T_RELEASE);
+   tree_set_target(t, target);
+   tree_set_subkind(t, p_force_mode());
+
+   consume(tSEMI);
+
+   set_label_and_loc(t, label, CURRENT_LOC);
+   sem_check(t, nametab);
+   return t;
+}
+
 static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
 {
    // [ label : ] target <= [ delay_mechanism ] waveform ;
 
    EXTEND("signal assignment statement");
 
-   tree_t t = tree_new(T_SIGNAL_ASSIGN);
-
    tree_t target = p_target(name);
-   tree_set_target(t, target);
 
    consume(tLE);
+
+   switch (peek()) {
+   case tFORCE: return p_simple_force_assignment(label, target);
+   case tRELEASE: return p_simple_release_assignment(label, target);
+   default: break;
+   }
 
    type_t target_type = NULL;
    const bool aggregate = tree_kind(target) == T_AGGREGATE;
    if (!aggregate)
       target_type = solve_types(nametab, target, NULL);
+
+   tree_t t = tree_new(T_SIGNAL_ASSIGN);
+   tree_set_target(t, target);
 
    tree_t reject = p_delay_mechanism();
 

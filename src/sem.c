@@ -1954,12 +1954,10 @@ static bool sem_check_waveforms(tree_t t, tree_t target, nametab_t *tab)
          if (!sem_readable(value))
             return false;
 
-         type_t value_type = tree_type(value);
-
          if (!sem_check_type(value, expect))
             sem_error(t, "type of value %s does not match type of target %s",
-                      type_pp2(value_type, expect),
-                      type_pp2(expect, value_type));
+                      type_pp2(tree_type(value), expect),
+                      type_pp2(expect, tree_type(value)));
       }
       else {
          tree_t decl = sem_check_lvalue(target);
@@ -4965,6 +4963,124 @@ static bool sem_check_external_name(tree_t t)
    sem_error(t, "sorry, external names are not supported yet");
 }
 
+static port_mode_t sem_default_force_mode(tree_t target)
+{
+   // Rules for default force mode in LRM 08 section 10.5.2.1
+
+   tree_t ref = name_to_ref(target);
+   if (ref == NULL || !tree_has_ref(ref))
+      return PORT_IN;
+
+   tree_t decl = tree_ref(ref);
+   const tree_kind_t dkind = tree_kind(decl);
+   if (dkind == T_PORT_DECL || dkind == T_PARAM_DECL) {
+      switch (tree_subkind(decl)) {
+      case PORT_OUT:
+      case PORT_INOUT:
+      case PORT_BUFFER:
+         return PORT_OUT;
+      default:
+         return PORT_IN;
+      }
+   }
+
+   return PORT_IN;
+}
+
+static bool sem_check_force_target(tree_t target, port_mode_t mode,
+                                   const char *what)
+{
+   tree_t decl = sem_check_lvalue(target);
+   if (decl == NULL)
+      sem_error(target, "target of simple %s assignment must be a "
+                "signal name", what);
+
+   switch (tree_kind(decl)) {
+   case T_SIGNAL_DECL:
+      break;
+
+   case T_PORT_DECL:
+   case T_PARAM_DECL:
+      if (tree_class(decl) != C_SIGNAL) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+         diag_printf(d, "%s is not a valid target of simple %s assignment",
+                     what, istr(tree_ident(decl)));
+         diag_hint(d, tree_loc(target), "target of simple %s assignment", what);
+         diag_hint(d, tree_loc(decl), "declared with class %s",
+                   class_str(tree_class(decl)));
+         diag_emit(d);
+         return false;
+      }
+      else if (mode == PORT_OUT && tree_subkind(decl) == PORT_IN)
+         sem_error(target, "force mode OUT may not be used with target "
+                   "of mode IN");
+      break;
+
+   case T_VAR_DECL:
+   case T_CONST_DECL:
+      {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+         diag_printf(d, "%s %s is not a valid target of simple %s assignment",
+                     class_str(class_of(decl)), istr(tree_ident(decl)), what);
+         diag_hint(d, tree_loc(target), "target of simple %s assignment", what);
+         diag_hint(d, tree_loc(decl), "declared as %s",
+                   class_str(class_of(decl)));
+         diag_emit(d);
+         return false;
+      }
+
+   default:
+      sem_error(target, "invalid target of simple %s assignment", what);
+   }
+
+   return true;
+}
+
+static bool sem_check_force(tree_t t, nametab_t *tab)
+{
+   tree_t target = tree_target(t);
+
+   if (!sem_check(target, tab))
+      return false;
+
+   port_mode_t mode = tree_subkind(t);
+   if (mode == PORT_INVALID)
+      tree_set_subkind(t, (mode = sem_default_force_mode(target)));
+
+   if (!sem_check_force_target(target, mode, "force"))
+      return false;
+
+   tree_t value = tree_value(t);
+   if (!sem_check(value, tab))
+      return false;
+
+   type_t expect = tree_type(target);
+
+   if (!sem_check_type(value, expect))
+      sem_error(t, "type of force expression %s does not match type of "
+                "target %s", type_pp2(tree_type(value), expect),
+                type_pp2(expect, tree_type(value)));
+
+   return true;
+}
+
+static bool sem_check_release(tree_t t, nametab_t *tab)
+{
+   tree_t target = tree_target(t);
+
+   if (!sem_check(target, tab))
+      return false;
+
+   port_mode_t mode = tree_subkind(t);
+   if (mode == PORT_INVALID)
+      tree_set_subkind(t, (mode = sem_default_force_mode(target)));
+
+   if (!sem_check_force_target(target, mode, "release"))
+      return false;
+
+   return true;
+}
+
 bool sem_check(tree_t t, nametab_t *tab)
 {
    switch (tree_kind(t)) {
@@ -5115,6 +5231,10 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_pack_inst(t, tab);
    case T_EXTERNAL_NAME:
       return sem_check_external_name(t);
+   case T_FORCE:
+      return sem_check_force(t, tab);
+   case T_RELEASE:
+      return sem_check_release(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

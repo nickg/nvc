@@ -294,6 +294,12 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_EXTERNAL_NAME
    (I_IDENT | I_CLASS | I_TYPE),
+
+   // T_FORCE
+   (I_IDENT | I_TARGET | I_VALUE | I_SUBKIND),
+
+   // T_RELEASE
+   (I_IDENT | I_TARGET | I_SUBKIND),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -326,7 +332,8 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_SUBTYPE_DECL",    "T_COND_VAR_ASSIGN", "T_CONV_FUNC",
    "T_CONCURRENT",      "T_SEQUENCE",        "T_PACK_INST",
    "T_GENERIC_DECL",    "T_TYPE_REF",        "T_BOX",
-   "T_PARAM_DECL",      "T_EXTERNAL_NAME",
+   "T_PARAM_DECL",      "T_EXTERNAL_NAME",   "T_FORCE",
+   "T_RELEASE",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -365,17 +372,14 @@ struct _type {
    object_t object;
 };
 
-struct _e_node {
-   object_t object;
-};
-
 static const tree_kind_t stmt_kinds[] = {
    T_PROCESS,    T_WAIT,            T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
    T_ASSERT,     T_INSTANCE,        T_IF,           T_NULL,
    T_RETURN,     T_COND_ASSIGN,     T_WHILE,        T_FOR,
    T_EXIT,       T_PCALL,           T_CASE,         T_BLOCK,
    T_SELECT,     T_IF_GENERATE,     T_FOR_GENERATE, T_NEXT,
-   T_PROT_PCALL, T_COND_VAR_ASSIGN, T_CONCURRENT,
+   T_PROT_PCALL, T_COND_VAR_ASSIGN, T_CONCURRENT,   T_FORCE,
+   T_RELEASE
 };
 
 static tree_kind_t expr_kinds[] = {
