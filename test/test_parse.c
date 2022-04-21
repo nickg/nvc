@@ -4017,6 +4017,27 @@ START_TEST(test_vunit7)
 }
 END_TEST
 
+START_TEST(test_error6)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/error6.vhd");
+
+   const error_t expect[] = {
+      { 15, "unexpected end of file while parsing package declaration" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -4086,6 +4107,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_external);
    tcase_add_test(tc_core, test_error5);
    tcase_add_test(tc_core, test_vunit7);
+   tcase_add_test(tc_core, test_error6);
    suite_add_tcase(s, tc_core);
 
    return s;

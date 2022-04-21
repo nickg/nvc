@@ -636,7 +636,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       color_fprintf(f, " " GUTTER_STYLE "%*.u |$$ $cyan$", fwidth, i);
 
       int first_col = hint->loc.first_column;
-      for (int col = 0, n = 0; *p != '\n'; p++, n++) {
+      for (int col = 0, n = 0; *p != '\0' && *p != '\n'; p++, n++) {
          if (n == hint->loc.first_column)
             first_col = col;
          if (*p == '\r')
