@@ -467,7 +467,7 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
    switch (vtype_kind(type)) {
    case VCODE_TYPE_INT:
       {
-         const int bits = bits_for_range(vtype_low(type), vtype_high(type));
+         const int bits = vtype_repr_bits(vtype_repr(type));
          return LLVMIntTypeInContext(llvm_context(), bits);
       }
 
@@ -678,7 +678,8 @@ static LLVMValueRef cgen_sign_extend(int op, int arg, int bits, cgen_ctx_t *ctx)
          LLVMTypeRef type = LLVMIntTypeInContext(llvm_context(), bits);
 
          if (value_bits < bits) {
-            if (vtype_low(vcode_reg_type(vcode_get_arg(op, arg))) < 0)
+            vcode_type_t vtype = vcode_reg_type(vcode_get_arg(op, arg));
+            if (vtype_repr_signed(vtype_repr(vtype)))
                return LLVMBuildSExt(builder, value, type, "");
             else
                return LLVMBuildZExt(builder, value, type, "");
@@ -1167,9 +1168,8 @@ static void cgen_op_cmp(int op, cgen_ctx_t *ctx)
          LLVMBuildFCmp(builder, pred, cgen_get_arg(op, 0, ctx),
                        cgen_get_arg(op, 1, ctx), cgen_reg_name(result));
    }
-   else {
-      const bool is_signed =
-         arg_kind != VCODE_TYPE_INT || vtype_low(arg_type) < 0;
+   else if (arg_kind == VCODE_TYPE_INT || arg_kind == VCODE_TYPE_OFFSET) {
+      const bool is_signed = vtype_repr_signed(vtype_repr(arg_type));
 
       LLVMIntPredicate pred = 0;
       switch (vcode_get_cmp(op)) {
@@ -1179,6 +1179,20 @@ static void cgen_op_cmp(int op, cgen_ctx_t *ctx)
       case VCODE_CMP_GT:  pred = is_signed ? LLVMIntSGT : LLVMIntUGT; break;
       case VCODE_CMP_LEQ: pred = is_signed ? LLVMIntSLE : LLVMIntULE; break;
       case VCODE_CMP_GEQ: pred = is_signed ? LLVMIntSGE : LLVMIntUGE; break;
+      }
+
+      ctx->regs[result] =
+         LLVMBuildICmp(builder, pred, cgen_get_arg(op, 0, ctx),
+                       cgen_get_arg(op, 1, ctx), cgen_reg_name(result));
+   }
+   else {
+      LLVMIntPredicate pred = 0;
+      switch (vcode_get_cmp(op)) {
+      case VCODE_CMP_EQ:  pred = LLVMIntEQ; break;
+      case VCODE_CMP_NEQ: pred = LLVMIntNE; break;
+      default:
+         vcode_dump_with_mark(op, NULL, NULL);
+         fatal_trace("invalid predicate for type");
       }
 
       ctx->regs[result] =
@@ -1346,6 +1360,51 @@ static void cgen_op_add(int op, cgen_ctx_t *ctx)
                                        cgen_reg_name(result));
 }
 
+static void cgen_trap_arith(int op, cgen_ctx_t *ctx, const char *intrin)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef lhs   = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef rhs   = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef locus = cgen_get_arg(op, 2, ctx);
+
+   vtype_repr_t repr = vtype_repr(vcode_reg_type(result));
+
+   static __thread char fn[64];
+   checked_sprintf(fn, sizeof(fn), "llvm.%c%s.with.overflow.i%d",
+                   vtype_repr_signed(repr) ? 's' : 'u', intrin,
+                   vtype_repr_bits(repr));
+
+   LLVMValueRef args[] = { lhs, rhs };
+   LLVMValueRef pair = LLVMBuildCall(builder, llvm_fn(fn), args, 2, "");
+
+   LLVMBasicBlockRef overflow_bb = llvm_append_block(ctx->fn, "overflow");
+   LLVMBasicBlockRef cont_bb = llvm_append_block(ctx->fn, "");
+
+   LLVMValueRef overflow = LLVMBuildExtractValue(builder, pair, 1, "");
+   LLVMBuildCondBr(builder, overflow, overflow_bb, cont_bb);
+
+   LLVMPositionBuilderAtEnd(builder, overflow_bb);
+
+   LLVMTypeRef int64_type = llvm_int64_type();
+   LLVMValueRef rtargs[] = {
+      LLVMBuildSExt(builder, lhs, int64_type, ""),
+      LLVMBuildSExt(builder, rhs, int64_type, ""),
+      locus
+   };
+   LLVMBuildCall(builder, llvm_fn("__nvc_overflow"), rtargs, 3, "");
+
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, cont_bb);
+   ctx->regs[result] = LLVMBuildExtractValue(builder, pair, 0, "");
+}
+
+static void cgen_op_trap_add(int op, cgen_ctx_t *ctx)
+{
+   cgen_trap_arith(op, ctx, "add");
+}
+
 static void cgen_op_sub(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -1364,6 +1423,11 @@ static void cgen_op_sub(int op, cgen_ctx_t *ctx)
    else
       ctx->regs[result] = LLVMBuildSub(builder, lhs, rhs,
                                        cgen_reg_name(result));
+}
+
+static void cgen_op_trap_sub(int op, cgen_ctx_t *ctx)
+{
+   cgen_trap_arith(op, ctx, "sub");
 }
 
 static void cgen_op_or(int op, cgen_ctx_t *ctx)
@@ -1449,6 +1513,11 @@ static void cgen_op_mul(int op, cgen_ctx_t *ctx)
    else
       ctx->regs[result] = LLVMBuildMul(builder, lhs, rhs,
                                        cgen_reg_name(result));
+}
+
+static void cgen_op_trap_mul(int op, cgen_ctx_t *ctx)
+{
+   cgen_trap_arith(op, ctx, "mul");
 }
 
 static void cgen_op_zero_check(int op, cgen_ctx_t *ctx)
@@ -1633,17 +1702,15 @@ static void cgen_op_cast(int op, cgen_ctx_t *ctx)
                                           cgen_reg_name(result));
    }
    else if (result_kind == VCODE_TYPE_INT || result_kind == VCODE_TYPE_OFFSET) {
-      const int abits = bits_for_range(vtype_low(arg_type),
-                                       vtype_high(arg_type));
-      const int rbits = bits_for_range(vtype_low(result_type),
-                                       vtype_high(result_type));
+      const int abits = vtype_repr_bits(vtype_repr(arg_type));
+      const int rbits = vtype_repr_bits(vtype_repr(result_type));
 
       LLVMTypeRef result_type_ll = cgen_type(result_type);
 
       if (rbits < abits)
          ctx->regs[result] = LLVMBuildTrunc(builder, arg_ll, result_type_ll,
                                             cgen_reg_name(result));
-      else if (vtype_low(arg_type) < 0)
+      else if (vtype_repr_signed(vtype_repr(arg_type)))
          ctx->regs[result] = LLVMBuildSExt(builder, arg_ll, result_type_ll,
                                            cgen_reg_name(result));
       else
@@ -2000,14 +2067,21 @@ static ffi_type_t cgen_ffi_type(vcode_type_t type)
 
    switch (vtype_kind(type)) {
    case VCODE_TYPE_INT:
-      switch (bits_for_range(vtype_low(type), vtype_high(type))) {
-      case 1: case 8: return FFI_INT8;
-      case 16: return FFI_INT16;
-      case 32: return FFI_INT32;
-      default: return FFI_INT64;
-      }
    case VCODE_TYPE_OFFSET:
-      return FFI_INT32;
+      switch (vtype_repr(type)) {
+      case VCODE_REPR_U1:
+      case VCODE_REPR_U8:
+      case VCODE_REPR_I8:
+         return FFI_INT8;
+      case VCODE_REPR_I16:
+      case VCODE_REPR_U16:
+         return FFI_INT16;
+      case VCODE_REPR_I32:
+      case VCODE_REPR_U32:
+         return FFI_INT32;
+      default:
+         return FFI_INT64;
+      }
    case VCODE_TYPE_REAL:
       return FFI_FLOAT;
    case VCODE_TYPE_CARRAY:
@@ -3195,8 +3269,14 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_ADD:
       cgen_op_add(i, ctx);
       break;
+   case VCODE_OP_TRAP_ADD:
+      cgen_op_trap_add(i, ctx);
+      break;
    case VCODE_OP_SUB:
       cgen_op_sub(i, ctx);
+      break;
+   case VCODE_OP_TRAP_SUB:
+      cgen_op_trap_sub(i, ctx);
       break;
    case VCODE_OP_OR:
       cgen_op_or(i, ctx);
@@ -3209,6 +3289,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_MUL:
       cgen_op_mul(i, ctx);
+      break;
+   case VCODE_OP_TRAP_MUL:
+      cgen_op_trap_mul(i, ctx);
       break;
    case VCODE_OP_CAST:
       cgen_op_cast(i, ctx);
@@ -4436,6 +4519,22 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
+   else if (strstr(name, "with.overflow")) {
+      int width;
+      char op[17];
+      if (sscanf(name, "llvm.%16[^.].with.overflow.i%d", op, &width) != 2)
+         fatal("invalid with.overflow intrinsic %s", name);
+
+      LLVMTypeRef int_type = LLVMIntTypeInContext(llvm_context(), width);
+      LLVMTypeRef fields[] = { int_type, llvm_int1_type() };
+      LLVMTypeRef pair_type =
+         LLVMStructTypeInContext(llvm_context(), fields, 2, false);
+
+      LLVMTypeRef args[] = { int_type, int_type };
+      fn = LLVMAddFunction(module, name,
+                           LLVMFunctionType(pair_type, args,
+                                            ARRAY_LEN(args), false));
+   }
    else if (strcmp(name, "llvm.lifetime.start.p0i8") == 0) {
       LLVMTypeRef args[] = {
          llvm_int64_type(),
@@ -4561,6 +4660,18 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_debug_locus_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_div_zero",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
+      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
+   }
+   else if (strcmp(name, "__nvc_overflow") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_int64_type(),
+         llvm_int64_type(),
+         llvm_debug_locus_type(),
+      };
+      fn = LLVMAddFunction(module, "__nvc_overflow",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);

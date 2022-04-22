@@ -14,6 +14,7 @@
   __nvc_map_const;
   __nvc_map_signal;
   __nvc_null_deref;
+  __nvc_overflow;
   __nvc_pop_scope;
   __nvc_push_scope;
   __nvc_range_fail;

@@ -1877,6 +1877,25 @@ void __nvc_null_deref(DEBUG_LOCUS(locus))
 }
 
 DLLEXPORT
+void __nvc_overflow(int64_t lhs, int64_t rhs, DEBUG_LOCUS(locus))
+{
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   const char *op = "??";
+   if (tree_kind(where) == T_FCALL) {
+      switch (tree_subkind(tree_ref(where))) {
+      case S_ADD: op = "+"; break;
+      case S_MUL: op = "*"; break;
+      case S_SUB: op = "-"; break;
+      }
+   }
+
+   rt_msg(tree_loc(where), DIAG_FATAL, "result of %"PRIi64" %s %"PRIi64
+          " cannot be represented as %s", lhs, op, rhs,
+          type_pp(tree_type(where)));
+}
+
+DLLEXPORT
 bool _nvc_ieee_warnings(void)
 {
    return opt_get_int(OPT_IEEE_WARNINGS);

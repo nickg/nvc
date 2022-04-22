@@ -30,7 +30,7 @@ lfsr            normal,stop=510ns
 link1           normal
 for1            gold,normal
 operator1       normal
-fact            gold,normal
+fact            gold,fail
 func2           normal
 alias1          gold,normal
 alias2          gold,normal
@@ -547,3 +547,4 @@ case10          normal
 record31        normal,2008
 genpack8        normal,2008
 wave6           shell
+issue101        fail,gold

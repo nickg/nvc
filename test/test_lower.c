@@ -244,6 +244,9 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_RESOLUTION_WRAPPER:
       case VCODE_OP_RESOLVE_SIGNAL:
       case VCODE_OP_ALIAS_SIGNAL:
+      case VCODE_OP_TRAP_ADD:
+      case VCODE_OP_TRAP_SUB:
+      case VCODE_OP_TRAP_MUL:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -481,13 +484,8 @@ START_TEST(test_assign1)
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_MUL },
-      { VCODE_OP_CONST, .value = INT32_MIN },
-      { VCODE_OP_CONST, .value = INT32_MAX },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_RANGE_CHECK },
+      { VCODE_OP_TRAP_MUL },
       { VCODE_OP_CONST,  .value = -8 },
       { VCODE_OP_CMP },
       { VCODE_OP_DEBUG_LOCUS },
@@ -506,7 +504,8 @@ START_TEST(test_assign1)
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LOAD, .name = "X" },
       { VCODE_OP_LOAD, .name = "Y" },
-      { VCODE_OP_ADD },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_ADD },
       { VCODE_OP_CONST, .value = 12 },
       { VCODE_OP_CMP },
       { VCODE_OP_DEBUG_LOCUS },
@@ -716,7 +715,8 @@ START_TEST(test_cond1)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD, .name = "Y" },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_ADD },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_ADD },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_COND, .target = 4, .target_else = 5 }
    };
@@ -794,17 +794,20 @@ START_TEST(test_arith1)
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LOAD, .name = "X" },
       { VCODE_OP_LOAD, .name = "Y" },
-      { VCODE_OP_ADD },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_ADD },
       { VCODE_OP_CONST, .value = 15 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_SUB },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_SUB },
       { VCODE_OP_CONST, .value = -9 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_MUL },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_MUL },
       { VCODE_OP_CONST, .value = 36 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },
@@ -912,12 +915,8 @@ START_TEST(test_pack1)
 
    EXPECT_BB(0) = {
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_ADD },
-      { VCODE_OP_CONST, .value = INT32_MIN },
-      { VCODE_OP_CONST, .value = INT32_MAX },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_RANGE_CHECK },
+      { VCODE_OP_TRAP_ADD },
       { VCODE_OP_RETURN }
    };
 
@@ -1137,12 +1136,8 @@ START_TEST(test_nest1)
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_VAR_UPREF, .hops = 1, .name = "Y" },
          { VCODE_OP_LOAD_INDIRECT },
-         { VCODE_OP_ADD },
-         { VCODE_OP_CONST, .value = INT32_MIN },
-         { VCODE_OP_CONST, .value = INT32_MAX },
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_RANGE_CHECK },
+         { VCODE_OP_TRAP_ADD },
          { VCODE_OP_RETURN }
       };
 
@@ -1480,13 +1475,8 @@ START_TEST(test_proc1)
 
       EXPECT_BB(0) = {
          { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_ADD },
-         { VCODE_OP_CONST, .value = INT32_MIN },
-         { VCODE_OP_CONST, .value = INT32_MAX },
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_RANGE_CHECK },
+         { VCODE_OP_TRAP_ADD },
          { VCODE_OP_STORE_INDIRECT },
          { VCODE_OP_RETURN }
       };
@@ -1518,13 +1508,8 @@ START_TEST(test_while1)
    EXPECT_BB(3) = {
       { VCODE_OP_LOAD, .name = "N" },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_SUB },
-      { VCODE_OP_CONST, .value = INT32_MIN },
-      { VCODE_OP_CONST, .value = INT32_MAX },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_RANGE_CHECK },
+      { VCODE_OP_TRAP_SUB },
       { VCODE_OP_STORE, .name = "N" },
       { VCODE_OP_JUMP, .target = 2 }
    };
@@ -1557,13 +1542,8 @@ START_TEST(test_loop1)
    EXPECT_BB(8) = {
       { VCODE_OP_LOAD, .name = "A" },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_ADD },
-      { VCODE_OP_CONST, .value = INT32_MIN },
-      { VCODE_OP_CONST, .value = INT32_MAX },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_RANGE_CHECK },
+      { VCODE_OP_TRAP_ADD },
       { VCODE_OP_STORE, .name = "A" },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_MOD },
@@ -1821,12 +1801,8 @@ START_TEST(test_func5)
          { VCODE_OP_RESOLVED },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_ADD },
-         { VCODE_OP_CONST, .value = INT32_MIN },
-         { VCODE_OP_CONST, .value = INT32_MAX },
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_DEBUG_LOCUS },
-         { VCODE_OP_RANGE_CHECK },
+         { VCODE_OP_TRAP_ADD },
          { VCODE_OP_RETURN }
       };
 
@@ -1905,8 +1881,8 @@ START_TEST(test_bounds1)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_ADD },
       { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_ADD },
       { VCODE_OP_INDEX_CHECK },
       { VCODE_OP_CAST },
       { VCODE_OP_ARRAY_REF },
@@ -2337,7 +2313,8 @@ START_TEST(test_issue149)
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_CAST },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_SUB },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_SUB },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = -1 },
       { VCODE_OP_DEBUG_LOCUS },
@@ -2777,7 +2754,8 @@ START_TEST(test_thunk)
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_RECORD_REF, .field = 0 },
          { VCODE_OP_LOAD_INDIRECT },
-         { VCODE_OP_ADD },
+         { VCODE_OP_DEBUG_LOCUS },
+         { VCODE_OP_TRAP_ADD },
          { VCODE_OP_RETURN },
       };
 
@@ -3399,13 +3377,8 @@ START_TEST(test_sum)
       { VCODE_OP_UNWRAP },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_ADD },
-      { VCODE_OP_CONST, .value = INT32_MIN },
-      { VCODE_OP_CONST, .value = INT32_MAX },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_DEBUG_LOCUS },
-      { VCODE_OP_RANGE_CHECK },
+      { VCODE_OP_TRAP_ADD },
       { VCODE_OP_STORE, .name = "RESULT" },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE, .name = "I.SUMLOOP" },
@@ -4656,7 +4629,8 @@ START_TEST(test_vunit5)
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_CAST },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_SUB },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_TRAP_SUB },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_NULL },

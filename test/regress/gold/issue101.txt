@@ -1,0 +1,7 @@
+0ms+54: Report Note: RESULT = 536870912
+0ms+55: Report Note: RESULT = 805306368
+0ms+56: Report Note: RESULT = 1073741824
+result of 1610612736 + 536870912 cannot be represented as INTEGER
+    |
+ 16 |         RESULT <= signal1 + signal2 + signal3;
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^

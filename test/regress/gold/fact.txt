@@ -10,6 +10,7 @@
 0ms+19: Report Note: 3628800
 0ms+21: Report Note: 39916800
 0ms+23: Report Note: 479001600
-0ms+25: Report Note: 1932053504
-0ms+27: Report Note: 1278945280
-0ms+29: Report Note: 2004310016
+result of 479001600 * 13 cannot be represented as INTEGER
+    |
+ 15 |             tmp := tmp * i;
+    |                    ^^^^^^^

@@ -202,6 +202,38 @@ START_TEST(test_ieee_warnings)
 }
 END_TEST
 
+START_TEST(test_overflow)
+{
+   input_from_file(TESTDIR "/exec/overflow.vhd");
+
+   const error_t expect[] = {
+      { 10, "result of 2147483647 + 1 cannot be represented as INTEGER" },
+      { 10, "result of 2147483647 + 2147483647 cannot be represented as " },
+      { 15, "result of -2147483648 - 53 cannot be represented as INTEGER" },
+      { 20, "result of -1942444142 * 128910 cannot be represented as INTEGER" },
+      { -1, NULL },
+   };
+   expect_errors(expect);
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   exec_t *ex = exec_new(EVAL_FCALL);
+
+   ident_t add = ident_new("WORK.OVERFLOW.ADD(II)I");
+   ident_t sub = ident_new("WORK.OVERFLOW.SUB(II)I");
+   ident_t mul = ident_new("WORK.OVERFLOW.MUL(II)I");
+
+   eval_scalar_t result;
+   fail_if(exec_try_call(ex, add, NULL, &result, "ii", INT32_MAX, 1));
+   fail_if(exec_try_call(ex, add, NULL, &result, "ii", INT32_MAX, INT32_MAX));
+   fail_if(exec_try_call(ex, sub, NULL, &result, "ii", INT32_MIN, 53));
+   fail_if(exec_try_call(ex, mul, NULL, &result, "ii", 2352523154, 128910));
+
+   exec_free(ex);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_exec_tests(void)
 {
    Suite *s = suite_create("exec");
@@ -215,6 +247,7 @@ Suite *get_exec_tests(void)
    tcase_add_test(tc, test_record2);
    tcase_add_test(tc, test_record3);
    tcase_add_test(tc, test_ieee_warnings);
+   tcase_add_test(tc, test_overflow);
    suite_add_tcase(s, tc);
 
    return s;

@@ -15,7 +15,7 @@ entity elab29 is
 end entity;
 
 architecture test of elab29 is
-    signal x, y, z : integer;
+    signal x, y, z : integer := 0;
 begin
 
     u: entity work.sub port map ( x + y, z );

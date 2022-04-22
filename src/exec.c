@@ -125,6 +125,20 @@ typedef struct {
          eval_assert_fail(op, value, #value, NULL, __FILE__, __LINE__); \
    } while (0)
 
+#define FOR_EACH_REPR(repr, macro) do {                 \
+      switch ((repr)) {                                 \
+      case VCODE_REPR_U1:                               \
+      case VCODE_REPR_U8: macro(uint8_t); break;        \
+      case VCODE_REPR_I8: macro(int8_t); break;         \
+      case VCODE_REPR_U16: macro(uint16_t); break;      \
+      case VCODE_REPR_I16: macro(int16_t); break;       \
+      case VCODE_REPR_U32: macro(uint32_t); break;      \
+      case VCODE_REPR_I32: macro(int32_t); break;       \
+      case VCODE_REPR_U64: macro(uint64_t); break;      \
+      case VCODE_REPR_I64: macro(int64_t); break;       \
+      }                                                 \
+   } while (0)
+
 static void eval_vcode(eval_state_t *state);
 static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc);
 
@@ -571,6 +585,40 @@ static void eval_op_add(int op, eval_state_t *state)
    }
 }
 
+static void eval_op_trap_add(int op, eval_state_t *state)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   value_t *dst = eval_get_reg(result, state);
+   value_t *lhs = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *rhs = eval_get_reg(vcode_get_arg(op, 1), state);
+
+   EVAL_ASSERT_VALUE(op, lhs, VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, rhs, VALUE_INTEGER);
+
+   dst->kind = VALUE_INTEGER;
+
+   bool overflow = false;
+   vtype_repr_t repr = vtype_repr(vcode_reg_type(result));
+
+#define ADD_OVERFLOW(type) do {                                 \
+      type i1 = lhs->integer, i2 = rhs->integer, i0;            \
+      overflow = __builtin_add_overflow(i1, i2, &i0);           \
+      dst->integer = i0;                                        \
+   } while (0)
+
+   FOR_EACH_REPR(repr, ADD_OVERFLOW);
+
+   if (overflow) {
+      value_t *locus = eval_get_reg(vcode_get_arg(op, 2), state);
+      EVAL_ASSERT_VALUE(op, locus, VALUE_DEBUG_LOCUS);
+
+      error_at(vcode_get_loc(op), "result of %"PRIi64" + %"PRIi64
+               " cannot be represented as %s", lhs->integer, rhs->integer,
+               type_pp(tree_type(locus->debug)));
+      state->failed = true;
+   }
+}
+
 static void eval_op_sub(int op, eval_state_t *state)
 {
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
@@ -593,6 +641,40 @@ static void eval_op_sub(int op, eval_state_t *state)
    }
 }
 
+static void eval_op_trap_sub(int op, eval_state_t *state)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   value_t *dst = eval_get_reg(result, state);
+   value_t *lhs = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *rhs = eval_get_reg(vcode_get_arg(op, 1), state);
+
+   EVAL_ASSERT_VALUE(op, lhs, VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, rhs, VALUE_INTEGER);
+
+   dst->kind = VALUE_INTEGER;
+
+   bool overflow = false;
+   vtype_repr_t repr = vtype_repr(vcode_reg_type(result));
+
+#define SUB_OVERFLOW(type) do {                                 \
+      type i1 = lhs->integer, i2 = rhs->integer, i0;            \
+      overflow = __builtin_sub_overflow(i1, i2, &i0);           \
+      dst->integer = i0;                                        \
+   } while (0)
+
+   FOR_EACH_REPR(repr, SUB_OVERFLOW);
+
+   if (overflow) {
+      value_t *locus = eval_get_reg(vcode_get_arg(op, 2), state);
+      EVAL_ASSERT_VALUE(op, locus, VALUE_DEBUG_LOCUS);
+
+      error_at(vcode_get_loc(op), "result of %"PRIi64" - %"PRIi64
+               " cannot be represented as %s", lhs->integer, rhs->integer,
+               type_pp(tree_type(locus->debug)));
+      state->failed = true;
+   }
+}
+
 static void eval_op_mul(int op, eval_state_t *state)
 {
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
@@ -612,6 +694,40 @@ static void eval_op_mul(int op, eval_state_t *state)
 
    default:
       fatal_trace("invalid value type in %s", __func__);
+   }
+}
+
+static void eval_op_trap_mul(int op, eval_state_t *state)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   value_t *dst = eval_get_reg(result, state);
+   value_t *lhs = eval_get_reg(vcode_get_arg(op, 0), state);
+   value_t *rhs = eval_get_reg(vcode_get_arg(op, 1), state);
+
+   EVAL_ASSERT_VALUE(op, lhs, VALUE_INTEGER);
+   EVAL_ASSERT_VALUE(op, rhs, VALUE_INTEGER);
+
+   dst->kind = VALUE_INTEGER;
+
+   bool overflow = false;
+   vtype_repr_t repr = vtype_repr(vcode_reg_type(result));
+
+#define MUL_OVERFLOW(type) do {                                 \
+      type i1 = lhs->integer, i2 = rhs->integer, i0;            \
+      overflow = __builtin_mul_overflow(i1, i2, &i0);           \
+      dst->integer = i0;                                        \
+   } while (0)
+
+   FOR_EACH_REPR(repr, MUL_OVERFLOW);
+
+   if (overflow) {
+      value_t *locus = eval_get_reg(vcode_get_arg(op, 2), state);
+      EVAL_ASSERT_VALUE(op, locus, VALUE_DEBUG_LOCUS);
+
+      error_at(vcode_get_loc(op), "result of %"PRIi64" * %"PRIi64
+               " cannot be represented as %s", lhs->integer, rhs->integer,
+               type_pp(tree_type(locus->debug)));
+      state->failed = true;
    }
 }
 
@@ -1947,12 +2063,24 @@ static void eval_vcode(eval_state_t *state)
          eval_op_add(state->op, state);
          break;
 
+      case VCODE_OP_TRAP_ADD:
+         eval_op_trap_add(state->op, state);
+         break;
+
       case VCODE_OP_SUB:
          eval_op_sub(state->op, state);
          break;
 
+      case VCODE_OP_TRAP_SUB:
+         eval_op_trap_sub(state->op, state);
+         break;
+
       case VCODE_OP_MUL:
          eval_op_mul(state->op, state);
+         break;
+
+      case VCODE_OP_TRAP_MUL:
+         eval_op_trap_mul(state->op, state);
          break;
 
       case VCODE_OP_ZERO_CHECK:
@@ -2445,8 +2573,8 @@ void exec_free(exec_t *ex)
    free(ex);
 }
 
-eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
-                        const char *fmt, ...)
+static bool exec_try_vcall(exec_t *ex, ident_t func, eval_frame_t *context,
+                           eval_scalar_t *result, const char *fmt, va_list ap)
 {
    vcode_unit_t unit = eval_find_unit(func, EVAL_VERBOSE);
    assert(unit != NULL);
@@ -2469,9 +2597,6 @@ eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
    value_t *p0 = eval_get_reg(0, &state);
    p0->kind = VALUE_CONTEXT;
    p0->context = context;
-
-   va_list ap;
-   va_start(ap, fmt);
 
    const int nparams = vcode_count_params();
 
@@ -2519,16 +2644,38 @@ eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
          fatal_trace("invalid character '%c' in exec_call format", *fmt);
       }
    }
-   va_end(ap);
 
    eval_vcode(&state);
 
-   if (state.failed)
-      fatal_trace("call to %s failed", istr(func));
+   if (!state.failed)
+      *result = eval_get_scalar(eval_get_reg(state.result, &state));
 
-   eval_scalar_t result = eval_get_scalar(eval_get_reg(state.result, &state));
    eval_cleanup_state(&state);
 
+   return !state.failed;
+}
+
+bool exec_try_call(exec_t *ex, ident_t func, eval_frame_t *context,
+                   eval_scalar_t *result, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   bool ok = exec_try_vcall(ex, func, context, result, fmt, ap);
+   va_end(ap);
+   return ok;
+}
+
+eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
+                        const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   eval_scalar_t result;
+   if (!exec_try_vcall(ex, func, context, &result, fmt, ap))
+      fatal_trace("call to %s failed", istr(func));
+
+   va_end(ap);
    return result;
 }
 

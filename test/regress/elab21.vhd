@@ -32,7 +32,7 @@ end entity;
 use work.pack.all;
 
 architecture test of elab21 is
-    signal r1, r2 : rec;
+    signal r1, r2 : rec := (0, 0);
 begin
 
     sub_i: entity work.sub

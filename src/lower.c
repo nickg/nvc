@@ -1266,8 +1266,8 @@ static vcode_reg_t lower_narrow(type_t result, vcode_reg_t reg)
       return reg;
 }
 
-static vcode_reg_t lower_arith(tree_t fcall, arith_fn_t fn, vcode_reg_t r0,
-                               vcode_reg_t r1)
+static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
+                               vcode_reg_t r0, vcode_reg_t r1)
 {
    vcode_type_t r0_type = vcode_reg_type(r0);
    vcode_type_t r1_type = vcode_reg_type(r1);
@@ -1283,7 +1283,36 @@ static vcode_reg_t lower_arith(tree_t fcall, arith_fn_t fn, vcode_reg_t r0,
          r1 = emit_cast(r0_type, vcode_reg_bounds(r1), r1);
    }
 
-   return lower_narrow(tree_type(fcall), (*fn)(r0, r1));
+   type_t type = tree_type(fcall);
+
+   vcode_reg_t result = VCODE_INVALID_REG;
+   switch (kind) {
+   case S_ADD:
+      if (type_is_integer(type))
+         result = emit_trap_add(r0, r1, lower_debug_locus(fcall));
+      else
+         result = emit_add(r0, r1);
+      break;
+   case S_MUL:
+      if (type_is_integer(type))
+         result = emit_trap_mul(r0, r1, lower_debug_locus(fcall));
+      else
+         result = emit_mul(r0, r1);
+      break;
+   case S_SUB:
+      if (type_is_integer(type))
+         result = emit_trap_sub(r0, r1, lower_debug_locus(fcall));
+      else
+         result = emit_sub(r0, r1);
+      break;
+   case S_MOD: result = emit_mod(r0, r1); break;
+   case S_REM: result = emit_rem(r0, r1); break;
+   case S_EXP: result = emit_exp(r0, r1); break;
+   default:
+      fatal_trace("invalid subprogram kind %d in lower_arith", kind);
+   }
+
+   return lower_narrow(tree_type(fcall), result);
 }
 
 static void lower_cond_coverage(tree_t test, vcode_reg_t value)
@@ -1599,11 +1628,11 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
    case S_SCALAR_GE:
       return lower_logical(fcall, emit_cmp(VCODE_CMP_GEQ, r0, r1));
    case S_MUL:
-      return lower_arith(fcall, emit_mul, r0, r1);
    case S_ADD:
-      return lower_arith(fcall, emit_add, r0, r1);
    case S_SUB:
-      return lower_arith(fcall, emit_sub, r0, r1);
+   case S_MOD:
+   case S_REM:
+      return lower_arith(fcall, builtin, r0, r1);
    case S_DIV:
       {
          if (type_is_integer(r1_type)) {
@@ -1626,12 +1655,8 @@ static vcode_reg_t lower_builtin(tree_t fcall, subprogram_kind_t builtin,
          if (!type_eq(r0_type, r1_type))
             r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
 
-         return lower_arith(fcall, emit_exp, r0, r1);
+         return lower_arith(fcall, S_EXP, r0, r1);
       }
-   case S_MOD:
-      return lower_arith(fcall, emit_mod, r0, r1);
-   case S_REM:
-      return lower_arith(fcall, emit_rem, r0, r1);
    case S_NEGATE:
       return emit_neg(r0);
    case S_ABS:
@@ -7127,7 +7152,7 @@ static void lower_predef_bit_shift(tree_t decl, vcode_unit_t context,
 
    vcode_select_block(non_null_bb);
 
-   vcode_reg_t shift_reg = emit_cast(vtype_offset(), VCODE_INVALID_TYPE, r1);
+   vcode_reg_t shift_reg = emit_cast(voffset, voffset, r1);
    vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len_reg);
 
    vcode_var_t i_var = lower_temp_var("i", voffset, voffset);

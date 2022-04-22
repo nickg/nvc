@@ -144,6 +144,9 @@ typedef enum {
    VCODE_OP_POP_SCOPE,
    VCODE_OP_SET_SIGNAL_KIND,
    VCODE_OP_ALIAS_SIGNAL,
+   VCODE_OP_TRAP_ADD,
+   VCODE_OP_TRAP_SUB,
+   VCODE_OP_TRAP_MUL,
 } vcode_op_t;
 
 typedef enum {
@@ -163,6 +166,18 @@ typedef enum {
    VCODE_TYPE_CONTEXT,
    VCODE_TYPE_DEBUG_LOCUS,
 } vtype_kind_t;
+
+typedef enum {
+   VCODE_REPR_U1,
+   VCODE_REPR_I8,
+   VCODE_REPR_U8,
+   VCODE_REPR_I16,
+   VCODE_REPR_U16,
+   VCODE_REPR_I32,
+   VCODE_REPR_U32,
+   VCODE_REPR_I64,
+   VCODE_REPR_U64,
+} vtype_repr_t;
 
 typedef enum {
    VCODE_UNIT_PROCESS,
@@ -254,6 +269,9 @@ vcode_type_t vtype_field(vcode_type_t type, int field);
 vcode_type_t vtype_base(vcode_type_t type);
 ident_t vtype_name(vcode_type_t type);
 vcode_type_t vtype_real(double low, double high);
+vtype_repr_t vtype_repr(vcode_type_t type);
+int vtype_repr_bits(vtype_repr_t repr);
+bool vtype_repr_signed(vtype_repr_t repr);
 
 vcode_unit_t vcode_find_unit(ident_t name);
 vcode_unit_t vcode_unit_next(vcode_unit_t unit);
@@ -357,6 +375,9 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_trap_add(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus);
+vcode_reg_t emit_trap_sub(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus);
+vcode_reg_t emit_trap_mul(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus);
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                  vcode_reg_t severity, vcode_reg_t locus, vcode_reg_t hint_left,
                  vcode_reg_t hint_right);

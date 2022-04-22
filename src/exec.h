@@ -43,6 +43,8 @@ void exec_free(exec_t *ex);
 eval_frame_t *exec_link(exec_t *ex, ident_t ident);
 eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
                         const char *fmt, ...);
+bool exec_try_call(exec_t *ex, ident_t func, eval_frame_t *context,
+                   eval_scalar_t *result, const char *fmt, ...);
 tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk);
 eval_scalar_t exec_get_var(exec_t *ex, eval_frame_t *frame, unsigned nth);
 eval_flags_t exec_get_flags(exec_t *ex);

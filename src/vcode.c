@@ -115,6 +115,7 @@ typedef struct {
 
 typedef struct {
    vtype_kind_t kind;
+   vtype_repr_t repr;
    union {
       struct {
          int64_t low;
@@ -200,7 +201,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      15
+#define VCODE_VERSION      16
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -456,6 +457,9 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_REM:
    case VCODE_OP_ENDFILE:
    case VCODE_OP_ADD:
+   case VCODE_OP_TRAP_ADD:
+   case VCODE_OP_TRAP_SUB:
+   case VCODE_OP_TRAP_MUL:
       // Result cannot reference pointer
       break;
 
@@ -903,7 +907,8 @@ const char *vcode_op_string(vcode_op_t op)
       "implicit signal", "disconnect", "link package", "index check",
       "debug locus", "length check", "range check", "array ref", "range length",
       "exponent check", "zero check", "map const", "resolve signal",
-      "push scope", "pop scope", "set signal kind", "alias signal"
+      "push scope", "pop scope", "set signal kind", "alias signal", "trap add",
+      "trap sub", "trap mul",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1546,6 +1551,26 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                default: break;
                }
                col += vcode_dump_reg(op->args.items[1]);
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_TRAP_ADD:
+         case VCODE_OP_TRAP_SUB:
+         case VCODE_OP_TRAP_MUL:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               switch (op->kind) {
+               case VCODE_OP_TRAP_ADD: col += printf(" + "); break;
+               case VCODE_OP_TRAP_SUB: col += printf(" - "); break;
+               case VCODE_OP_TRAP_MUL: col += printf(" * "); break;
+               default: break;
+               }
+               col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[2]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -2217,6 +2242,26 @@ vcode_type_t vtype_int(int64_t low, int64_t high)
    n->low  = low;
    n->high = high;
 
+   switch (bits_for_range(low, high)) {
+   case 64:
+      n->repr = low < 0 ? VCODE_REPR_I64 : VCODE_REPR_U64;
+      break;
+   case 32:
+      n->repr = low < 0 ? VCODE_REPR_I32 : VCODE_REPR_U32;
+      break;
+   case 16:
+      n->repr = low < 0 ? VCODE_REPR_I16 : VCODE_REPR_U16;
+      break;
+   case 8:
+      n->repr = low < 0 ? VCODE_REPR_I8 : VCODE_REPR_U8;
+      break;
+   case 1:
+      n->repr = VCODE_REPR_U1;
+      break;
+   default:
+      fatal_trace("cannot represent %"PRIi64"..%"PRIi64, low, high);
+   }
+
    return vtype_new(n);
 }
 
@@ -2394,6 +2439,7 @@ vcode_type_t vtype_offset(void)
    n->kind = VCODE_TYPE_OFFSET;
    n->low  = INT32_MIN;
    n->high = INT32_MAX;
+   n->repr = VCODE_REPR_I32;
 
    return vtype_new(n);
 }
@@ -2445,6 +2491,13 @@ vtype_kind_t vtype_kind(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
    return vt->kind;
+}
+
+vtype_repr_t vtype_repr(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   assert(vt->kind == VCODE_TYPE_INT || vt->kind == VCODE_TYPE_OFFSET);
+   return vt->repr;
 }
 
 vcode_type_t vtype_elem(vcode_type_t type)
@@ -2566,6 +2619,70 @@ bool vtype_is_signal(vcode_type_t type)
    case VCODE_TYPE_CARRAY:
       return vtype_is_signal(vt->elem);
    default:
+      return false;
+   }
+}
+
+int vtype_repr_bits(vtype_repr_t repr)
+{
+   switch (repr) {
+   case VCODE_REPR_U1: return 1;
+   case VCODE_REPR_U8: case VCODE_REPR_I8: return 8;
+   case VCODE_REPR_U16: case VCODE_REPR_I16: return 16;
+   case VCODE_REPR_U32: case VCODE_REPR_I32: return 32;
+   case VCODE_REPR_U64: case VCODE_REPR_I64: return 64;
+   default: return -1;
+   }
+}
+
+bool vtype_repr_signed(vtype_repr_t repr)
+{
+   return repr == VCODE_REPR_I8 || repr == VCODE_REPR_I16
+      || repr == VCODE_REPR_I32 || repr == VCODE_REPR_I64;
+}
+
+static int64_t vtype_repr_low(vtype_repr_t repr)
+{
+   switch (repr) {
+   case VCODE_REPR_U1:
+   case VCODE_REPR_U8:
+   case VCODE_REPR_U16:
+   case VCODE_REPR_U32:
+   case VCODE_REPR_U64: return 0;
+   case VCODE_REPR_I8:  return INT8_MIN;
+   case VCODE_REPR_I16: return INT16_MIN;
+   case VCODE_REPR_I32: return INT32_MIN;
+   case VCODE_REPR_I64: return INT64_MIN;
+   default:             return 0;
+   }
+}
+
+static uint64_t vtype_repr_high(vtype_repr_t repr)
+{
+   switch (repr) {
+   case VCODE_REPR_U1:  return 1;
+   case VCODE_REPR_U8:  return UINT8_MAX;
+   case VCODE_REPR_U16: return UINT16_MAX;
+   case VCODE_REPR_U32: return UINT32_MAX;
+   case VCODE_REPR_U64: return UINT64_MAX;
+   case VCODE_REPR_I8:  return INT8_MAX;
+   case VCODE_REPR_I16: return INT16_MAX;
+   case VCODE_REPR_I32: return INT32_MAX;
+   case VCODE_REPR_I64: return INT64_MAX;
+   default:             return 0;
+   }
+}
+
+static bool vtype_clamp_to_repr(vtype_repr_t repr, int64_t *low, int64_t *high)
+{
+   int64_t clamp_low = vtype_repr_low(repr);
+   uint64_t clamp_high = vtype_repr_high(repr);
+
+   if (*low >= clamp_low && *high <= clamp_high)
+      return true;
+   else {
+      *low = MAX(clamp_low, *low);
+      *high = MIN(clamp_high, *high);
       return false;
    }
 }
@@ -3408,18 +3525,20 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
    VCODE_ASSERT(vtype_is_scalar(r->type), "cannot store non-scalar type");
 }
 
-static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
+static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs,
+                              vcode_reg_t locus)
 {
    // Reuse any previous operation in this block with the same arguments
    VCODE_FOR_EACH_MATCHING_OP(other, kind) {
-      if (other->args.count == 2 && other->args.items[0] == lhs
-          && other->args.items[1] == rhs)
+      if (other->args.items[0] == lhs && other->args.items[1] == rhs)
          return other->result;
    }
 
    op_t *op = vcode_add_op(kind);
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
+   if (locus != VCODE_INVALID_REG)
+      vcode_add_arg(op, locus);
 
    op->result = vcode_add_reg(vcode_reg_type(lhs));
 
@@ -3432,7 +3551,8 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
    return op->result;
 }
 
-vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
+static vcode_reg_t emit_mul_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
+                               vcode_reg_t locus)
 {
    int64_t lconst, rconst;
    const bool l_is_const = vcode_reg_const(lhs, &lconst);
@@ -3446,26 +3566,52 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
    else if ((r_is_const && rconst == 0) || (l_is_const && lconst == 0))
       return emit_const(vcode_reg_type(lhs), 0);
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_MUL, lhs, rhs);
+   vcode_type_t vbounds = VCODE_INVALID_TYPE;
+   if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
+      reg_t *lhs_r = vcode_reg_data(lhs);
+      reg_t *rhs_r = vcode_reg_data(rhs);
 
-   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-   vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
+      vtype_t *bl = vcode_type_data(lhs_r->bounds);
+      vtype_t *br = vcode_type_data(rhs_r->bounds);
 
-   if (bl->kind == VCODE_TYPE_REAL)
-      return reg;
+      const int64_t ll = smul64(bl->low, br->low);
+      const int64_t lh = smul64(bl->low, br->high);
+      const int64_t hl = smul64(bl->high, br->low);
+      const int64_t hh = smul64(bl->high, br->high);
 
-   const int64_t ll = smul64(bl->low, br->low);
-   const int64_t lh = smul64(bl->low, br->high);
-   const int64_t hl = smul64(bl->high, br->low);
-   const int64_t hh = smul64(bl->high, br->high);
+      int64_t min = MIN(MIN(ll, lh), MIN(hl, hh));
+      int64_t max = MAX(MAX(ll, lh), MAX(hl, hh));
 
-   const int64_t min = MIN(MIN(ll, lh), MIN(hl, hh));
-   const int64_t max = MAX(MAX(ll, lh), MAX(hl, hh));
+      vtype_repr_t repr = vtype_repr(lhs_r->type);
+      if (op == VCODE_OP_TRAP_MUL && vtype_clamp_to_repr(repr, &min, &max)) {
+         op = VCODE_OP_MUL;   // Cannot overflow
+         locus = VCODE_INVALID_REG;
+      }
 
-   reg_t *rr = vcode_reg_data(reg);
-   rr->bounds = vtype_int(min, max);
+      vbounds = vtype_int(min, max);
+   }
+
+   vcode_reg_t reg = emit_arith(op, lhs, rhs, locus);
+
+   if (vbounds != VCODE_INVALID_TYPE)
+      vcode_reg_data(reg)->bounds = vbounds;
 
    return reg;
+}
+
+vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_mul_op(VCODE_OP_MUL, lhs, rhs, VCODE_INVALID_REG);
+}
+
+vcode_reg_t emit_trap_mul(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus)
+{
+   vcode_reg_t result = emit_mul_op(VCODE_OP_TRAP_MUL, lhs, rhs, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(result) == VCODE_TYPE_INT,
+                "trapping add may only be used with integer types");
+
+   return result;
 }
 
 vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -3478,7 +3624,7 @@ vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
    else if (r_is_const && rconst == 1)
       return lhs;
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_DIV, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_DIV, lhs, rhs, VCODE_INVALID_REG);
 
    vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
 
@@ -3497,7 +3643,7 @@ vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)
        && rconst >= 0)
       return emit_const(vcode_reg_type(lhs), ipow(lconst, rconst));
 
-   return emit_arith(VCODE_OP_EXP, lhs, rhs);
+   return emit_arith(VCODE_OP_EXP, lhs, rhs, VCODE_INVALID_REG);
 }
 
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -3513,7 +3659,7 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
    if (bl->low >= 0 && br->low >= 0) {
       // If both arguments are non-negative then rem is equivalent and
       // cheaper to compute
-      vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs);
+      vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
 
       reg_t *rr = vcode_reg_data(reg);
       rr->bounds = vtype_int(0, br->high - 1);
@@ -3521,7 +3667,7 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
       return reg;
    }
    else
-      return emit_arith(VCODE_OP_MOD, lhs, rhs);
+      return emit_arith(VCODE_OP_MOD, lhs, rhs, VCODE_INVALID_REG);
 }
 
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -3531,7 +3677,7 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
        && lconst > 0 && rconst > 0)
       return emit_const(vcode_reg_type(lhs), lconst % rconst);
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_REM, lhs, rhs, VCODE_INVALID_REG);
 
    vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
    vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
@@ -3544,7 +3690,8 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
    return reg;
 }
 
-vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
+static vcode_reg_t emit_add_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
+                               vcode_reg_t locus)
 {
    int64_t lconst, rconst;
    const bool l_is_const = vcode_reg_const(lhs, &lconst);
@@ -3556,21 +3703,51 @@ vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
    else if (l_is_const && lconst == 0)
       return rhs;
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs);
-
-   reg_t *rr = vcode_reg_data(reg);
+   vcode_type_t vbounds = VCODE_INVALID_TYPE;
    if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
-      vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-      vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
+      reg_t *lhs_r = vcode_reg_data(lhs);
+      reg_t *rhs_r = vcode_reg_data(rhs);
 
-      rr->bounds = vtype_int(sadd64(bl->low, br->low),
-                             sadd64(bl->high, br->high));
+      vtype_t *bl = vcode_type_data(lhs_r->bounds);
+      vtype_t *br = vcode_type_data(rhs_r->bounds);
+
+      int64_t rbl = sadd64(bl->low, br->low);
+      int64_t rbh = sadd64(bl->high, br->high);
+
+      vtype_repr_t repr = vtype_repr(lhs_r->type);
+      if (op == VCODE_OP_TRAP_ADD && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
+         op = VCODE_OP_ADD;   // Cannot overflow
+         locus = VCODE_INVALID_REG;
+      }
+
+      vbounds = vtype_int(rbl, rbh);
    }
+
+   vcode_reg_t reg = emit_arith(op, lhs, rhs, locus);
+
+   if (vbounds != VCODE_INVALID_TYPE)
+      vcode_reg_data(reg)->bounds = vbounds;
 
    return reg;
 }
 
-vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
+vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_add_op(VCODE_OP_ADD, lhs, rhs, VCODE_INVALID_REG);
+}
+
+vcode_reg_t emit_trap_add(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus)
+{
+   vcode_reg_t result = emit_add_op(VCODE_OP_TRAP_ADD, lhs, rhs, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(result) == VCODE_TYPE_INT,
+                "trapping add may only be used with integer types");
+
+   return result;
+}
+
+static vcode_reg_t emit_sub_op(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs,
+                               vcode_reg_t locus)
 {
    int64_t lconst, rconst;
    const bool l_is_const = vcode_reg_const(lhs, &lconst);
@@ -3582,19 +3759,48 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
    else if (l_is_const && lconst == 0)
       return emit_neg(rhs);
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs);
-
-   reg_t *rr = vcode_reg_data(reg);
+   vcode_type_t vbounds = VCODE_INVALID_TYPE;
    if (vcode_reg_kind(lhs) != VCODE_TYPE_REAL) {
-      vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
-      vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
+      reg_t *lhs_r = vcode_reg_data(lhs);
+      reg_t *rhs_r = vcode_reg_data(rhs);
+
+      vtype_t *bl = vcode_type_data(lhs_r->bounds);
+      vtype_t *br = vcode_type_data(rhs_r->bounds);
 
       // XXX: this is wrong - see TO_UNSIGNED
-      rr->bounds = vtype_int(sadd64(bl->low, -br->high),
-                             sadd64(bl->high, -br->low));
+      int64_t rbl = sadd64(bl->low, -br->high);
+      int64_t rbh = sadd64(bl->high, -br->low);
+
+      vtype_repr_t repr = vtype_repr(lhs_r->type);
+      if (op == VCODE_OP_TRAP_SUB && vtype_clamp_to_repr(repr, &rbl, &rbh)) {
+         op = VCODE_OP_SUB;   // Cannot overflow
+         locus = VCODE_INVALID_REG;
+      }
+
+      vbounds = vtype_int(rbl, rbh);
    }
 
+   vcode_reg_t reg = emit_arith(op, lhs, rhs, locus);
+
+   if (vbounds != VCODE_INVALID_TYPE)
+      vcode_reg_data(reg)->bounds = vbounds;
+
    return reg;
+}
+
+vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_sub_op(VCODE_OP_SUB, lhs, rhs, VCODE_INVALID_REG);
+}
+
+vcode_reg_t emit_trap_sub(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t locus)
+{
+   vcode_reg_t result = emit_sub_op(VCODE_OP_TRAP_SUB, lhs, rhs, locus);
+
+   VCODE_ASSERT(vcode_reg_kind(result) == VCODE_TYPE_INT,
+                "trapping sub may only be used with integer types");
+
+   return result;
 }
 
 static void vcode_calculate_var_index_type(op_t *op, var_t *var)
@@ -3910,7 +4116,7 @@ static vcode_reg_t emit_logical(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs)
       }
    }
 
-   vcode_reg_t result = emit_arith(op, lhs, rhs);
+   vcode_reg_t result = emit_arith(op, lhs, rhs, VCODE_INVALID_REG);
 
    VCODE_ASSERT(vtype_eq(vcode_reg_type(lhs), vtbool)
                 && vtype_eq(vcode_reg_type(rhs), vtbool),
@@ -5273,6 +5479,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
       switch (t->kind) {
       case VCODE_TYPE_INT:
       case VCODE_TYPE_OFFSET:
+         fbuf_put_int(f, t->repr);
          fbuf_put_int(f, t->low);
          fbuf_put_int(f, t->high);
          break;
@@ -5445,6 +5652,7 @@ static vcode_unit_t vcode_read_unit(fbuf_t *f, ident_rd_ctx_t ident_rd_ctx,
       switch ((t->kind = fbuf_get_uint(f))) {
       case VCODE_TYPE_INT:
       case VCODE_TYPE_OFFSET:
+         t->repr = fbuf_get_int(f);
          t->low = fbuf_get_int(f);
          t->high = fbuf_get_int(f);
          break;
