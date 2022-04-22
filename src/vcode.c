@@ -75,29 +75,27 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
     || x == VCODE_OP_PCALL || x == VCODE_OP_CASE)
 
 typedef struct {
-   vcode_op_t          kind;
-   vcode_reg_array_t   args;
-   vcode_reg_t         result;
-   loc_t               loc;
-   vcode_type_t        type;          // OP_HAS_TYPE
-   unsigned            subkind;       // OP_HAS_SUBKIND
+   vcode_op_t              kind;
+   vcode_reg_t             result;
+   vcode_reg_array_t       args;
+   loc_t                   loc;
+   vcode_type_t            type;      // OP_HAS_TYPE
+   unsigned                subkind;   // OP_HAS_SUBKIND
    union {
-      ident_t          func;          // OP_HAS_FUNC
-      ident_t          ident;         // OP_HAS_IDENT
-      vcode_var_t      address;       // OP_HAS_ADDRESS
+      ident_t              func;      // OP_HAS_FUNC
+      ident_t              ident;     // OP_HAS_IDENT
+      vcode_var_t          address;   // OP_HAS_ADDRESS
    };
    union {
-      vcode_block_array_t targets;    // OP_HAS_TARGET
-   };
-   union {
-      vcode_cmp_t      cmp;           // OP_HAS_CMP
-      int64_t          value;         // OP_HAS_VALUE
-      double           real;          // OP_HAS_REAL
-      char            *comment;       // OP_HAS_COMMENT
-      unsigned         dim;           // OP_HAS_DIM
-      unsigned         hops;          // OP_HAS_HOPS
-      unsigned         field;         // OP_HAS_FIELD
-      uint32_t         tag;           // OP_HAS_TAG
+      vcode_cmp_t          cmp;       // OP_HAS_CMP
+      int64_t              value;     // OP_HAS_VALUE
+      double               real;      // OP_HAS_REAL
+      char                *comment;   // OP_HAS_COMMENT
+      unsigned             dim;       // OP_HAS_DIM
+      unsigned             hops;      // OP_HAS_HOPS
+      unsigned             field;     // OP_HAS_FIELD
+      uint32_t             tag;       // OP_HAS_TAG
+      vcode_block_array_t  targets;   // OP_HAS_TARGET
    };
 } op_t;
 
@@ -3116,21 +3114,15 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    return op->result;
 }
 
-static vcode_reg_t emit_fcall_op(vcode_op_t op, ident_t func, vcode_type_t type,
-                                 vcode_type_t bounds, vcode_cc_t cc,
-                                 const vcode_reg_t *args, int nargs,
-                                 vcode_block_t resume_bb, int hops)
+vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
+                       vcode_cc_t cc, const vcode_reg_t *args, int nargs)
 {
-   op_t *o = vcode_add_op(op);
+   op_t *o = vcode_add_op(VCODE_OP_FCALL);
    o->func    = func;
    o->type    = type;
-   o->hops    = hops;
    o->subkind = cc;
    for (int i = 0; i < nargs; i++)
       vcode_add_arg(o, args[i]);
-
-   if (resume_bb != VCODE_INVALID_BLOCK)
-      vcode_block_array_add(&(o->targets), resume_bb);
 
    for (int i = 0; i < nargs; i++)
       VCODE_ASSERT(args[i] != VCODE_INVALID_REG,
@@ -3152,18 +3144,23 @@ static vcode_reg_t emit_fcall_op(vcode_op_t op, ident_t func, vcode_type_t type,
    }
 }
 
-vcode_reg_t emit_fcall(ident_t func, vcode_type_t type, vcode_type_t bounds,
-                       vcode_cc_t cc, const vcode_reg_t *args, int nargs)
-{
-   return emit_fcall_op(VCODE_OP_FCALL, func, type, bounds, cc, args, nargs,
-                        VCODE_INVALID_BLOCK, 0);
-}
-
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb)
 {
-   emit_fcall_op(VCODE_OP_PCALL, func, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
-                 VCODE_CC_VHDL, args, nargs, resume_bb, 0);
+   op_t *o = vcode_add_op(VCODE_OP_PCALL);
+   o->func    = func;
+   o->subkind = VCODE_CC_VHDL;
+   for (int i = 0; i < nargs; i++)
+      vcode_add_arg(o, args[i]);
+
+   vcode_block_array_add(&(o->targets), resume_bb);
+
+   for (int i = 0; i < nargs; i++)
+      VCODE_ASSERT(args[i] != VCODE_INVALID_REG,
+                   "invalid argument to procedure");
+
+   VCODE_ASSERT(nargs > 0 && vcode_reg_kind(args[0]) == VCODE_TYPE_CONTEXT,
+                "first argument to VHDL procedure must be context pointer");
 }
 
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
@@ -5743,14 +5740,11 @@ vcode_unit_t vcode_read(fbuf_t *f, ident_rd_ctx_t ident_ctx,
 
 #if VCODE_CHECK_UNIONS
 #define OP_USE_COUNT_U0(x)                                              \
-   (OP_HAS_CMP(x) + OP_HAS_VALUE(x) + OP_HAS_REAL(x) +                  \
-    OP_HAS_COMMENT(x) + OP_HAS_SIGNAL(x) + OP_HAS_DIM(x) +              \
-    OP_HAS_HOPS(x) + OP_HAS_FIELD(x) + OP_HAS_HINT(x) +                 \
-    OP_HAS_TAG(x))
+   (OP_HAS_IDENT(x) + OP_HAS_FUNC(x) + OP_HAS_ADDRESS(x))
 #define OP_USE_COUNT_U1(x)                                              \
-   (OP_HAS_SUBKIND(x) + OP_HAS_FUNC(x) + OP_HAS_ADDRESS(x))
-#define OP_USE_COUNT_U2(x)                                              \
-   (OP_HAS_BOOKMARK(x) + OP_HAS_TARGET(x))
+   (OP_HAS_CMP(x) + OP_HAS_VALUE(x) + OP_HAS_REAL(x) +                  \
+    OP_HAS_COMMENT(x) + OP_HAS_DIM(x) + OP_HAS_TARGET(x) +              \
+    OP_HAS_HOPS(x) + OP_HAS_FIELD(x) + OP_HAS_TAG(x))
 
 __attribute__((constructor))
 static void vcode_check_unions(void)
@@ -5759,7 +5753,6 @@ static void vcode_check_unions(void)
    for (int i = 0; i < 256; i++) {
       assert(OP_USE_COUNT_U0(i) <= 1);
       assert(OP_USE_COUNT_U1(i) <= 1);
-      assert(OP_USE_COUNT_U2(i) <= 1);
    }
 }
 #endif  // VCODE_CHECK_UNIONS
