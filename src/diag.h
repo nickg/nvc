@@ -67,6 +67,7 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx);
 void loc_read_end(loc_rd_ctx_t *ctx);
 
 typedef enum {
+   DIAG_DEBUG,
    DIAG_NOTE,
    DIAG_WARN,
    DIAG_ERROR,

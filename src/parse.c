@@ -222,7 +222,7 @@ static const char *token_str(token_t tok)
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
       "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
       "?<=", "?>", "?>=", "register", "disconnect", "??", "<<", ">>", "force",
-      "release"
+      "release", "^", "@",
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -3154,6 +3154,76 @@ static tree_t p_type_conversion(tree_t tdecl)
    return conv;
 }
 
+static ident_t p_partial_pathname(void)
+{
+   // { pathname_element . } object_simple_name
+
+   return p_selected_identifier();
+}
+
+static ident_t p_package_pathname(void)
+{
+   // @ library_logical_name . package_simple_name . { package_simple_name . }
+   //       object_simple_name
+
+   BEGIN("package pathname");
+
+   consume(tAT);
+
+   ident_t id = ident_prefix(ident_new("@"), p_identifier(), '\0');
+
+   consume(tDOT);
+
+   return ident_prefix(id, p_selected_identifier(), '.');
+}
+
+static ident_t p_absolute_pathname(void)
+{
+   // . partial_pathname
+
+   BEGIN("absolute pathname");
+
+   consume(tDOT);
+
+   return ident_prefix(ident_new("."), p_partial_pathname(), '\0');
+}
+
+static ident_t p_relative_pathname(void)
+{
+   // { ^ . } partial_pathname
+
+   BEGIN("relative pathname");
+
+   ident_t id = NULL;
+   while (peek() == tCARET) {
+      consume(tCARET);
+      consume(tDOT);
+      id = ident_prefix(id, ident_new("^"), '.');
+   }
+
+   return ident_prefix(id, p_partial_pathname(), '.');
+}
+
+static ident_t p_external_pathname(void)
+{
+   // package_pathname | absolute_pathname | relative_pathname
+
+   BEGIN("external pathname");
+
+   switch (peek()) {
+   case tDOT:
+      return p_absolute_pathname();
+   case tCARET:
+   case tID:
+      return p_relative_pathname();
+   case tAT:
+      return p_package_pathname();
+   default:
+      one_of(tDOT, tCARET, tID, tAT);
+      return ident_new("error");
+   }
+}
+
 static tree_t p_external_name(void)
 {
    // << constant external_pathname : subtype_indication >>
@@ -3174,9 +3244,7 @@ static tree_t p_external_name(void)
    case tVARIABLE: tree_set_class(t, C_VARIABLE); break;
    }
 
-   // TODO: selected_identifier is not correct here but will do for now
-   ident_t path = p_selected_identifier();
-   tree_set_ident(t, path);
+   tree_set_ident(t, p_external_pathname());
 
    consume(tCOLON);
 
@@ -8504,6 +8572,7 @@ static tree_t p_sequential_statement(void)
       return p_next_statement(label);
 
    case tID:
+   case tLTLT:
       break;
 
    case tLPAREN:

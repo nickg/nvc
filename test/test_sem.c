@@ -2603,6 +2603,27 @@ START_TEST(test_force)
 }
 END_TEST
 
+START_TEST(test_ename)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/ename.vhd");
+
+   const error_t expect[] = {
+      {  2, "sorry, external names in packages are not supported" },
+      { 15, "initial value BIT does not match type of declaration INTEGER" },
+      { 21, "target of variable assignment must be a variable name or " },
+      { 24, "external name .X.Y is not a valid target of simple release " },
+      { 14, "cannot reference signal FOO.BAR during static elaboration" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2731,6 +2752,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_osvvm4);
    tcase_add_test(tc_core, test_agg2008);
    tcase_add_test(tc_core, test_force);
+   tcase_add_test(tc_core, test_ename);
    suite_add_tcase(s, tc_core);
 
    return s;

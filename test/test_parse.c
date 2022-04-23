@@ -3947,11 +3947,6 @@ START_TEST(test_external)
    set_standard(STD_08);
    input_from_file(TESTDIR "/parse/external.vhd");
 
-   const error_t expect[] = {
-      { 10, "sorry, external names are not supported yet" },
-      { -1, NULL }
-   };
-   expect_errors(expect);
 
    tree_t e = parse();
    fail_if(e == NULL);
@@ -3961,9 +3956,26 @@ START_TEST(test_external)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
 
+   tree_t p0 = tree_stmt(a, 0);
+
+   const char *names[] = {
+      "FOO.BAR",
+      "X.Y.Z",
+      "AYE.BEE",
+      ".X.Y.Z",
+      "^.^.FOO",
+      "@WORK.PACK.FOO",
+   };
+
+   for (int i = 0; i < ARRAY_LEN(names); i++) {
+      tree_t v = tree_value(tree_stmt(p0, i));
+      fail_unless(tree_kind(v) == T_EXTERNAL_NAME);
+      ck_assert_str_eq(istr(tree_ident(v)), names[i]);
+   }
+
    fail_unless(parse() == NULL);
 
-   check_expected_errors();
+   fail_if_errors();
 }
 END_TEST
 

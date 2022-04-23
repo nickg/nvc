@@ -178,6 +178,8 @@ typedef enum {
    tGTGT,
    tFORCE,
    tRELEASE,
+   tCARET,
+   tAT,
 } token_t;
 
 #endif

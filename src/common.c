@@ -454,6 +454,7 @@ class_t class_of(tree_t t)
    case T_PORT_DECL:
    case T_GENERIC_DECL:
    case T_PARAM_DECL:
+   case T_EXTERNAL_NAME:
       return tree_class(t);
    case T_ENUM_LIT:
    case T_LITERAL:

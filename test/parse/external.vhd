@@ -10,6 +10,9 @@ begin
         i := <<signal foo.bar : integer>>;  -- OK
         i := << constant x.y.z : integer >>;  -- OK
         i := <<variable aye.bee : integer>>;  -- OK
+        i := << constant .x.y.z : integer>>;  -- OK
+        i := << constant ^.^.foo : integer >>;  -- OK
+        i := << constant @work.pack.foo : integer >>;  -- OK
     end process;
 
 end architecture;

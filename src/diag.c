@@ -294,6 +294,7 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 // Fancy diagnostics
 
 #if DIAG_THEME == DIAG_THEME_CLASSIC
+#define DEBUG_PREFIX   "** Debug: "
 #define NOTE_PREFIX    "** Note: "
 #define WARNING_PREFIX "$yellow$** Warning:$$ "
 #define ERROR_PREFIX   "$red$** Error:$$ "
@@ -306,6 +307,7 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 #define TRAILING_BLANK 0
 #define TRACE_LOC      0
 #elif DIAG_THEME == DIAG_THEME_RUST
+#define DEBUG_PREFIX   "$!green$Debug:$$ "
 #define NOTE_PREFIX    "$bold$Note:$$ "
 #define WARNING_PREFIX "$!yellow$Warning:$$ "
 #define ERROR_PREFIX   "$!red$Error:$$ "
@@ -771,6 +773,7 @@ void diag_femit(diag_t *d, FILE *f)
          }
 
          switch (d->level) {
+         case DIAG_DEBUG: fprintf(f, "note: "); break;
          case DIAG_NOTE:  fprintf(f, "note: "); break;
          case DIAG_WARN:  fprintf(f, "warning: "); break;
          case DIAG_ERROR: fprintf(f, "error: "); break;
@@ -784,6 +787,7 @@ void diag_femit(diag_t *d, FILE *f)
       if (tb_len(d->msg) > 0) {
          int col = 0;
          switch (d->level) {
+         case DIAG_DEBUG: col = color_fprintf(f, DEBUG_PREFIX); break;
          case DIAG_NOTE:  col = color_fprintf(f, NOTE_PREFIX); break;
          case DIAG_WARN:  col = color_fprintf(f, WARNING_PREFIX); break;
          case DIAG_ERROR: col = color_fprintf(f, ERROR_PREFIX); break;
@@ -808,10 +812,11 @@ void diag_femit(diag_t *d, FILE *f)
       fflush(f);
    }
 
-   if (d->level >= DIAG_ERROR || opt_get_int(OPT_UNIT_TEST)) {
-      if (++n_errors == opt_get_int(OPT_ERROR_LIMIT))
-         fatal("too many errors, giving up");
-   }
+   const bool is_error = d->level >= DIAG_ERROR
+      || (opt_get_int(OPT_UNIT_TEST) && d->level > DIAG_DEBUG);
+
+   if (is_error && ++n_errors == opt_get_int(OPT_ERROR_LIMIT))
+      fatal("too many errors, giving up");
 
    for (int i = 0; i < d->hints.count; i++)
       free(d->hints.items[i].text);
@@ -877,6 +882,9 @@ void reset_error_count(void)
 void fmt_loc(FILE *f, const loc_t *loc)
 {
    // Legacy interface for debugging only
-   diag_t *d = diag_new(DIAG_NOTE, loc);
+   diag_t *d = diag_new(DIAG_DEBUG, loc);
+   diag_consumer_t old = consumer;
+   consumer = NULL;
    diag_femit(d, f);
+   consumer = old;
 }

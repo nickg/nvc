@@ -1550,6 +1550,12 @@ static void sem_check_static_elab(tree_t t)
       }
       break;
 
+   case T_EXTERNAL_NAME:
+      if (tree_class(t) == C_SIGNAL)
+         error_at(tree_loc(t), "cannot reference signal %s during static "
+                  "elaboration", istr(tree_ident(t)));
+      break;
+
    case T_REF:
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:
@@ -1786,6 +1792,7 @@ static tree_t sem_check_lvalue(tree_t t)
    case T_CONST_DECL:
    case T_IMPLICIT_SIGNAL:
    case T_PARAM_DECL:
+   case T_EXTERNAL_NAME:
       return t;
    default:
       return NULL;
@@ -1835,7 +1842,8 @@ static bool sem_check_variable_target(tree_t target)
       if (decl != NULL) {
          const tree_kind_t kind = tree_kind(decl);
          suitable = kind == T_VAR_DECL
-            || (kind == T_PARAM_DECL && tree_class(decl) == C_VARIABLE);
+            || (kind == T_PARAM_DECL && tree_class(decl) == C_VARIABLE)
+            || (kind == T_EXTERNAL_NAME && tree_class(decl) == C_VARIABLE);
       }
 
       if (!suitable) {
@@ -2071,6 +2079,19 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
                diag_emit(d);
                return false;
             }
+         }
+         break;
+
+      case T_EXTERNAL_NAME:
+         if (tree_class(decl) != C_SIGNAL) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+            diag_printf(d, "external name %s is not a valid target of "
+                        "signal assignment", istr(tree_ident(decl)));
+            diag_hint(d, tree_loc(target), "target of signal assignment");
+            diag_hint(d, tree_loc(decl), "declared with class %s",
+                      class_str(tree_class(decl)));
+            diag_emit(d);
+            return false;
          }
          break;
 
@@ -4281,6 +4302,9 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          }
       }
 
+   case T_EXTERNAL_NAME:
+      return true;
+
    case T_RECORD_REF:
    case T_ALL:
       return sem_static_name(tree_value(t), check_fn);
@@ -4952,15 +4976,13 @@ static bool sem_check_concurrent(tree_t t, nametab_t *tab)
    return sem_check(tree_stmt(t, 0), tab);
 }
 
-static bool sem_check_external_name(tree_t t)
+static bool sem_check_external_name(tree_t t, nametab_t *tab)
 {
-   static bool warned = false;
+   if (tree_kind(find_enclosing(tab, S_DESIGN_UNIT)) == T_PACKAGE)
+      sem_error(t, "sorry, external names in packages are not supported");
 
-   if (warned)
-      return false;
-
-   warned = true;
-   sem_error(t, "sorry, external names are not supported yet");
+   // Cannot do any more checking until elaboration
+   return true;
 }
 
 static port_mode_t sem_default_force_mode(tree_t target)
@@ -5015,6 +5037,19 @@ static bool sem_check_force_target(tree_t target, port_mode_t mode,
          sem_error(target, "force mode OUT may not be used with target "
                    "of mode IN");
       break;
+
+      case T_EXTERNAL_NAME:
+         if (tree_class(decl) != C_SIGNAL) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
+            diag_printf(d, "external name %s is not a valid target of "
+                        "simple %s assignment", istr(tree_ident(decl)), what);
+            diag_hint(d, tree_loc(target), "target of signal assignment");
+            diag_hint(d, tree_loc(decl), "declared with class %s",
+                      class_str(tree_class(decl)));
+            diag_emit(d);
+            return false;
+         }
+         break;
 
    case T_VAR_DECL:
    case T_CONST_DECL:
@@ -5230,7 +5265,7 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_PACK_INST:
       return sem_check_pack_inst(t, tab);
    case T_EXTERNAL_NAME:
-      return sem_check_external_name(t);
+      return sem_check_external_name(t, tab);
    case T_FORCE:
       return sem_check_force(t, tab);
    case T_RELEASE:
