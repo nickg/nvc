@@ -374,6 +374,7 @@ static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
 static void rt_sched_event(sens_list_t **list, rt_wakeable_t *proc, bool recur);
 static void *rt_tmp_alloc(size_t sz);
 static rt_value_t rt_alloc_value(rt_nexus_t *n);
+static void rt_free_value(rt_nexus_t *n, rt_value_t v);
 static void rt_copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p);
 static inline const uint8_t *rt_value_ptr(rt_nexus_t *n, rt_value_t *v);
 static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, int offset, rt_net_t *net);
@@ -1204,6 +1205,63 @@ void _disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
       rt_value_t null = {};
       rt_sched_driver(n, after, reject, null, true);
       n->flags |= NET_F_DISCONNECTED;
+   }
+}
+
+DLLEXPORT
+void __nvc_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("force signal %s+%d value=%s count=%d", istr(tree_ident(s->where)),
+         offset, fmt_values(values, count), count);
+
+   rt_check_postponed(0);
+
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   char *vptr = values;
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      RT_ASSERT(count >= 0);
+
+      const size_t valuesz = n->width * n->size;
+      rt_value_t value = rt_alloc_value(n);
+      rt_copy_value_ptr(n, &value, vptr);
+      vptr += valuesz;
+
+      if (!(n->flags & NET_F_FORCED)) {
+         n->flags |= NET_F_FORCED;
+         n->forcing = rt_alloc_value(n);
+      }
+
+      rt_copy_value_ptr(n, &(n->forcing), values);
+
+      deltaq_insert_driver(0, n, NULL);
+   }
+}
+
+DLLEXPORT
+void __nvc_release(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
+
+   TRACE("release signal %s+%d count=%d", istr(tree_ident(s->where)),
+         offset, count);
+
+   rt_check_postponed(0);
+
+   rt_nexus_t *n = rt_split_nexus(s, offset, count);
+   for (; count > 0; n = n->chain) {
+      count -= n->width;
+      RT_ASSERT(count >= 0);
+
+      if (n->flags & NET_F_FORCED) {
+         n->flags &= ~NET_F_FORCED;
+         rt_free_value(n, n->forcing);
+         n->forcing.qword = 0;
+      }
+
+      deltaq_insert_driver(0, n, NULL);
    }
 }
 
@@ -3268,7 +3326,7 @@ static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
       else
          RT_ASSERT(w_now != NULL);
    }
-   else if (nexus->flags & NET_F_FORCED)
+   else   // Update due to force/release
       rt_update_nexus(nexus);
 }
 

@@ -549,3 +549,4 @@ genpack8        normal,2008
 wave6           shell
 issue101        fail,gold
 vests44         normal
+force1          normal,2008

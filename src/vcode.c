@@ -906,7 +906,7 @@ const char *vcode_op_string(vcode_op_t op)
       "debug locus", "length check", "range check", "array ref", "range length",
       "exponent check", "zero check", "map const", "resolve signal",
       "push scope", "pop scope", "set signal kind", "alias signal", "trap add",
-      "trap sub", "trap mul",
+      "trap sub", "trap mul", "force", "release"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1645,6 +1645,20 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                vcode_dump_reg(op->args.items[3]);
                printf(" after ");
                vcode_dump_reg(op->args.items[4]);
+            }
+            break;
+
+         case VCODE_OP_FORCE:
+         case VCODE_OP_RELEASE:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" count ");
+               vcode_dump_reg(op->args.items[1]);
+               if (op->args.count > 2) {
+                  printf(" values ");
+                  vcode_dump_reg(op->args.items[2]);
+               }
             }
             break;
 
@@ -3957,6 +3971,31 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
                 "sched_waveform net count is not offset type");
    VCODE_ASSERT(vcode_reg_kind(values) != VCODE_TYPE_SIGNAL,
                 "signal cannot be values argument for sched_waveform");
+}
+
+void emit_force(vcode_reg_t nets, vcode_reg_t nnets, vcode_reg_t values)
+{
+   op_t *op = vcode_add_op(VCODE_OP_FORCE);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, nnets);
+   vcode_add_arg(op, values);
+
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "disconnect target is not signal");
+   VCODE_ASSERT(vcode_reg_kind(nnets) == VCODE_TYPE_OFFSET,
+                "disconnect net count is not offset type");
+}
+
+void emit_release(vcode_reg_t nets, vcode_reg_t nnets)
+{
+   op_t *op = vcode_add_op(VCODE_OP_RELEASE);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, nnets);
+
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "disconnect target is not signal");
+   VCODE_ASSERT(vcode_reg_kind(nnets) == VCODE_TYPE_OFFSET,
+                "disconnect net count is not offset type");
 }
 
 void emit_disconnect(vcode_reg_t nets, vcode_reg_t nnets, vcode_reg_t reject,

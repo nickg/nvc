@@ -4738,6 +4738,46 @@ static void lower_signal_assign(tree_t stmt)
    emit_temp_stack_restore(saved_mark);
 }
 
+static void lower_force(tree_t stmt)
+{
+   tree_t target = tree_target(stmt);
+   type_t type = tree_type(target);
+
+   vcode_reg_t nets = lower_expr(target, EXPR_LVALUE);
+
+   tree_t value = tree_value(stmt);
+   vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
+
+   if (type_is_array(type)) {
+      vcode_reg_t count_reg = lower_scalar_sub_elements(type, nets);
+      vcode_reg_t data_reg = lower_array_data(value_reg);
+      emit_force(lower_array_data(nets), count_reg, data_reg);
+   }
+   else if (type_is_record(type)) {
+      assert(false);
+   }
+   else
+      emit_force(nets, emit_const(vtype_offset(), 1), value_reg);
+}
+
+static void lower_release(tree_t stmt)
+{
+   tree_t target = tree_target(stmt);
+   type_t type = tree_type(target);
+
+   vcode_reg_t nets = lower_expr(target, EXPR_LVALUE);
+
+   if (type_is_array(type)) {
+      vcode_reg_t count_reg = lower_scalar_sub_elements(type, nets);
+      emit_release(lower_array_data(nets), count_reg);
+   }
+   else if (type_is_record(type)) {
+      assert(false);
+   }
+   else
+      emit_release(nets, emit_const(vtype_offset(), 1));
+}
+
 static vcode_reg_t lower_test_expr(tree_t value)
 {
    const int saved_mark = emit_temp_stack_mark();
@@ -5456,6 +5496,12 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
       break;
    case T_SIGNAL_ASSIGN:
       lower_signal_assign(stmt);
+      break;
+   case T_FORCE:
+      lower_force(stmt);
+      break;
+   case T_RELEASE:
+      lower_release(stmt);
       break;
    case T_IF:
       lower_if(stmt, loops);

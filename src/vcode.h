@@ -147,6 +147,8 @@ typedef enum {
    VCODE_OP_TRAP_ADD,
    VCODE_OP_TRAP_SUB,
    VCODE_OP_TRAP_MUL,
+   VCODE_OP_FORCE,
+   VCODE_OP_RELEASE,
 } vcode_op_t;
 
 typedef enum {
@@ -404,6 +406,8 @@ void emit_return(vcode_reg_t reg);
 void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
                          vcode_reg_t values, vcode_reg_t reject,
                          vcode_reg_t after);
+void emit_force(vcode_reg_t nets, vcode_reg_t nnets, vcode_reg_t values);
+void emit_release(vcode_reg_t nets, vcode_reg_t nnets);
 void emit_disconnect(vcode_reg_t nets, vcode_reg_t nnets, vcode_reg_t reject,
                      vcode_reg_t after);
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse);

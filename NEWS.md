@@ -12,6 +12,7 @@
   configure option has no effect.
 - Arithmetic operations that overflow the underlying machine type now
   produce an error (#101).
+- Added support for VHDL-2008 force/release assignments.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

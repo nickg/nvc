@@ -2036,6 +2036,41 @@ static void cgen_op_disconnect(int op, cgen_ctx_t *ctx)
    LLVMBuildCall(builder, llvm_fn("_disconnect"), args, ARRAY_LEN(args), "");
 }
 
+static void cgen_op_force(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef sid    = LLVMBuildExtractValue(builder, sigptr, 0, "sid");
+   LLVMValueRef offset = LLVMBuildExtractValue(builder, sigptr, 1, "offset");
+
+   LLVMTypeRef alloca_type;
+   LLVMValueRef value = cgen_pointer_to_arg_data(op, 2, &alloca_type, ctx);
+
+   LLVMValueRef args[] = {
+      sid,
+      offset,
+      cgen_get_arg(op, 1, ctx),
+      llvm_void_cast(value),
+   };
+   LLVMBuildCall(builder, llvm_fn("__nvc_force"), args, ARRAY_LEN(args), "");
+
+   if (alloca_type != NULL)
+      llvm_lifetime_end(value, alloca_type);
+}
+
+static void cgen_op_release(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef sid    = LLVMBuildExtractValue(builder, sigptr, 0, "sid");
+   LLVMValueRef offset = LLVMBuildExtractValue(builder, sigptr, 1, "offset");
+
+   LLVMValueRef args[] = {
+      sid,
+      offset,
+      cgen_get_arg(op, 1, ctx),
+   };
+   LLVMBuildCall(builder, llvm_fn("__nvc_release"), args, ARRAY_LEN(args), "");
+}
+
 static void cgen_op_resolution_wrapper(int op, cgen_ctx_t *ctx)
 {
    // Resolution functions are in LRM 93 section 2.4
@@ -3365,6 +3400,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_DISCONNECT:
       cgen_op_disconnect(i, ctx);
       break;
+   case VCODE_OP_FORCE:
+      cgen_op_force(i, ctx);
+      break;
+   case VCODE_OP_RELEASE:
+      cgen_op_release(i, ctx);
+      break;
    case VCODE_OP_ACTIVE:
       cgen_op_active(i, ctx);
       break;
@@ -4387,6 +4428,27 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_int64_type()
       };
       fn = LLVMAddFunction(module, "_disconnect",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "__nvc_force") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         llvm_int32_type(),
+         llvm_int32_type(),
+         llvm_void_ptr(),
+      };
+      fn = LLVMAddFunction(module, "__nvc_force",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "__nvc_release") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         llvm_int32_type(),
+         llvm_int32_type(),
+      };
+      fn = LLVMAddFunction(module, "__nvc_release",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }

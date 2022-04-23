@@ -9,6 +9,7 @@
   __nvc_drive_signal;
   __nvc_exponent_fail;
   __nvc_flush;
+  __nvc_force;
   __nvc_index_fail;
   __nvc_length_fail;
   __nvc_map_const;
@@ -18,6 +19,7 @@
   __nvc_pop_scope;
   __nvc_push_scope;
   __nvc_range_fail;
+  __nvc_release;
   __nvc_report;
   __nvc_resolve_signal;
   __nvc_set_signal_kind;
