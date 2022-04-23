@@ -516,3 +516,21 @@ const char *vhpi_cb_reason_str(int reason)
       }
    }
 }
+
+const char *vhpi_put_value_mode_str(vhpiPutValueModeT mode)
+{
+   switch (mode) {
+   case vhpiDeposit: return "vhpiDeposit";
+   case vhpiDepositPropagate: return "vhpiDepositPropagate";
+   case vhpiForce: return "vhpiForce";
+   case vhpiForcePropagate: return "vhpiForcePropagate";
+   case vhpiRelease: return "vhpiRelease";
+   case vhpiSizeConstraint: return "vhpiSizeConstraint";
+   default:
+      {
+         static char buf[64];
+         checked_sprintf(buf, sizeof(buf), "%d", mode);
+         return buf;
+      }
+   }
+}

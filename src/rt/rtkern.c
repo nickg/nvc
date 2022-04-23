@@ -4071,11 +4071,10 @@ rt_scope_t *rt_child_scope(rt_scope_t *scope, tree_t decl)
    return NULL;
 }
 
-bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count,
-                     bool propagate)
+bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count)
 {
-   TRACE("force signal %s to %"PRIu64"%s propagate=%d",
-         istr(tree_ident(s->where)), buf[0], count > 1 ? "..." : "", propagate);
+   TRACE("force signal %s to %"PRIu64"%s",
+         istr(tree_ident(s->where)), buf[0], count > 1 ? "..." : "");
 
    RT_ASSERT(!propagate || can_create_delta);
 
@@ -4096,9 +4095,7 @@ bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count,
 
       FOR_ALL_SIZES(n->size, SIGNAL_FORCE_EXPAND_U64);
 
-      if (propagate)   // XXX: this is wrong, sensitive process can run twice
-                       //      see vhpi1
-         deltaq_insert_driver(0, n, NULL);
+      deltaq_insert_driver(0, n, NULL);
 
       offset += n->width;
       count -= n->width;

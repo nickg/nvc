@@ -1053,7 +1053,8 @@ int vhpi_put_value(vhpiHandleT handle,
 
    vhpi_clear_error();
 
-   VHPI_TRACE("handle=%s value_p=%p mode=%d", handle_pp(handle), value_p, mode);
+   VHPI_TRACE("handle=%s value_p=%p mode=%s", handle_pp(handle), value_p,
+              vhpi_put_value_mode_str(mode));
 
    c_vhpiObject *obj = from_handle(handle);
    if (obj == NULL)
@@ -1067,11 +1068,8 @@ int vhpi_put_value(vhpiHandleT handle,
    if (signal == NULL)
       return 1;
 
-   bool propagate = false;
    switch (mode) {
    case vhpiForcePropagate:
-      propagate = true;
-   case vhpiForce:
       {
          if (type_is_scalar(decl->type)) {
             uint64_t expanded;
@@ -1096,8 +1094,8 @@ int vhpi_put_value(vhpiHandleT handle,
                return 1;
             }
 
-            if (!propagate || rt_can_create_delta())
-               rt_force_signal(signal, &expanded, 1, propagate);
+            if (rt_can_create_delta())
+               rt_force_signal(signal, &expanded, 1);
             else {
                vhpi_error(vhpiError, &(obj->loc), "cannot force "
                           "propagate signal during current simulation phase");
@@ -1131,15 +1129,15 @@ int vhpi_put_value(vhpiHandleT handle,
                return 1;
             }
 
-            rt_force_signal(signal, expanded, num_elems, propagate);
+            rt_force_signal(signal, expanded, num_elems);
             free(expanded);
          }
          return 0;
       }
 
    default:
-      vhpi_error(vhpiFailure, NULL, "mode %d not supported in vhpi_put_value",
-                 mode);
+      vhpi_error(vhpiFailure, NULL, "mode %s not supported in vhpi_put_value",
+                 vhpi_put_value_mode_str(mode));
       return 1;
    }
 }

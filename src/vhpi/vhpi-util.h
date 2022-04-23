@@ -51,5 +51,6 @@ const char *vhpi_one_to_many_str(vhpiOneToManyT kind);
 const char *vhpi_one_to_one_str(vhpiOneToOneT kind);
 const char *vhpi_class_str(vhpiClassKindT kind);
 const char *vhpi_property_str(int property);
+const char *vhpi_put_value_mode_str(vhpiPutValueModeT mode);
 
 #endif  // _VHPI_UTIL_H

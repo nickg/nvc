@@ -79,8 +79,7 @@ void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user);
 size_t rt_signal_expand(rt_signal_t *s, int offset, uint64_t *buf, size_t max);
 const void *rt_signal_value(rt_signal_t *s, int offset);
 size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max);
-bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count,
-                     bool propagate);
+bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count);
 rt_signal_t *rt_find_signal(rt_scope_t *scope, tree_t decl);
 rt_scope_t *rt_find_scope(tree_t container);
 rt_scope_t *rt_child_scope(rt_scope_t *scope, tree_t decl);
