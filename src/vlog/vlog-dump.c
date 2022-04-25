@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2022 Nick Gasson
+//  Copyright (C) 2022-2023 Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "common.h"
 #include "ident.h"
 #include "vlog/vlog-node.h"
 #include "vlog/vlog-phase.h"
@@ -30,59 +31,9 @@ static void tab(int indent)
       fputc(' ', stdout);
 }
 
-__attribute__((format(printf,1,2)))
-static void syntax(const char *fmt, ...)
-{
-   LOCAL_TEXT_BUF tb = tb_new();
-   bool highlighting = false;
-   static bool comment = false;
-   for (const char *p = fmt; *p != '\0'; p++) {
-      if (comment) {
-         if (*p == '\n') {
-            comment = false;
-            tb_printf(tb, "$$");
-         }
-         if (*p != '~' && *p != '#')
-            tb_append(tb, *p);
-         if (p > fmt && *p == '/' && *(p - 1) == '*') {
-            tb_printf(tb, "$$");
-            comment = false;
-         }
-      }
-      else if (*p == '#') {
-         tb_printf(tb, "$bold$$cyan$");
-         highlighting = true;
-      }
-      else if (*p == '~') {
-         tb_printf(tb, "$yellow$");
-         highlighting = true;
-      }
-      else if ((*p == '-' && *(p + 1) == '-')
-               || (*p == '/' && *(p + 1) == '*')
-               || (*p == '/' && *(p + 1) == '/')) {
-         tb_printf(tb, "$red$%c", *p);
-         comment = true;
-      }
-      else if (!isalnum((int)*p) && *p != '_' && *p != '%' && highlighting) {
-         tb_printf(tb, "$$%c", *p);
-         highlighting = false;
-      }
-      else
-         tb_append(tb, *p);
-   }
-
-   if (highlighting || comment)
-      tb_printf(tb, "$$");
-
-   va_list ap;
-   va_start(ap, fmt);
-   color_vprintf(tb_get(tb), ap);
-   va_end(ap);
-}
-
 static void vlog_dump_module(vlog_node_t v, int indent)
 {
-   syntax("#module %s", istr(vlog_ident(v)));
+   print_syntax("#module %s", istr(vlog_ident(v)));
 
    const int nports = vlog_ports(v);
    if (nports > 0) {
@@ -104,7 +55,7 @@ static void vlog_dump_module(vlog_node_t v, int indent)
    for (int i = 0; i < nstmts; i++)
       vlog_dump_tab(vlog_stmt(v, i), indent + 2);
 
-   syntax("#endmodule // %s\n\n", istr(vlog_ident(v)));
+   print_syntax("#endmodule // %s\n\n", istr(vlog_ident(v)));
 }
 
 static void vlog_dump_port_decl(vlog_node_t v, int indent)
@@ -112,10 +63,10 @@ static void vlog_dump_port_decl(vlog_node_t v, int indent)
    tab(indent);
 
    switch (vlog_subkind(v)) {
-   case V_PORT_INPUT: syntax("#input"); break;
-   case V_PORT_INOUT: syntax("#inout"); break;
-   case V_PORT_OUTPUT: syntax("#output"); break;
-   case V_PORT_OUTPUT_REG: syntax("#output #reg"); break;
+   case V_PORT_INPUT: print_syntax("#input"); break;
+   case V_PORT_INOUT: print_syntax("#inout"); break;
+   case V_PORT_OUTPUT: print_syntax("#output"); break;
+   case V_PORT_OUTPUT_REG: print_syntax("#output #reg"); break;
    }
 
    printf(" %s;\n", istr(vlog_ident(v)));
@@ -125,7 +76,7 @@ static void vlog_dump_always(vlog_node_t v, int indent)
 {
    tab(indent);
 
-   syntax("#always ");
+   print_syntax("#always ");
    vlog_dump_tab(vlog_stmt(v, 0), indent);
 }
 
@@ -133,20 +84,20 @@ static void vlog_dump_initial(vlog_node_t v, int indent)
 {
    tab(indent);
 
-   syntax("#initial ");
+   print_syntax("#initial ");
    vlog_dump_tab(vlog_stmt(v, 0), indent);
 }
 
 static void vlog_dump_seq_block(vlog_node_t v, int indent)
 {
-   syntax("#begin\n");
+   print_syntax("#begin\n");
 
    const int nstmts = vlog_stmts(v);
    for (int i = 0; i < nstmts; i++)
       vlog_dump_tab(vlog_stmt(v, i), indent + 2);
 
    tab(indent);
-   syntax("#end\n");
+   print_syntax("#end\n");
 }
 
 static void vlog_dump_timing(vlog_node_t v, int indent)
@@ -164,8 +115,8 @@ static void vlog_dump_timing(vlog_node_t v, int indent)
 static void vlog_dump_event(vlog_node_t v)
 {
    switch (vlog_subkind(v)) {
-   case V_EVENT_POSEDGE: syntax("#posedge "); break;
-   case V_EVENT_NEGEDGE: syntax("#negedge "); break;
+   case V_EVENT_POSEDGE: print_syntax("#posedge "); break;
+   case V_EVENT_NEGEDGE: print_syntax("#negedge "); break;
    }
 
    vlog_dump(vlog_value(v));
@@ -175,9 +126,9 @@ static void vlog_dump_nbassign(vlog_node_t v, int indent)
 {
    tab(indent);
    vlog_dump(vlog_target(v));
-   printf(" <= ");
+   print_syntax(" <= ");
    vlog_dump(vlog_value(v));
-   printf(";\n");
+   print_syntax(";\n");
 }
 
 static void vlog_dump_systask_enable(vlog_node_t v, int indent)
@@ -195,7 +146,7 @@ static void vlog_dump_systask_enable(vlog_node_t v, int indent)
       printf(")");
    }
 
-   printf(";\n");
+   print_syntax(";\n");
 }
 
 static void vlog_dump_string(vlog_node_t v)
@@ -248,6 +199,8 @@ static void vlog_dump_tab(vlog_node_t v, int indent)
       vlog_dump_number(v);
       break;
    default:
+      print_syntax("\n");
+      fflush(stdout);
       fatal_trace("cannot dump %s", vlog_kind_str(vlog_kind(v)));
    }
 }

@@ -64,7 +64,7 @@ typedef struct _object_arena {
                           | I_NAME | I_SPEC | I_RESOLUTION              \
                           | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
                           | I_ACCESS | I_RESULT | I_FILE | I_PRIMARY    \
-                          | I_GUARD)
+                          | I_GUARD | I_FOREIGN)
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_CONSTR   \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
@@ -81,8 +81,8 @@ static const char *item_text_map[] = {
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",      "I_CONDS",
    "I_TYPE",     "I_SUBKIND",   "I_DELAY",    "I_REJECT",     "I_POS",
    "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT",    "I_TRIGGERS",
-   "????",       "I_CLASS",     "I_RANGES",   "I_NAME",       "I_PRAGMAS",
-   "I_DVAL",     "I_SPEC",      "????",       "I_INDEXCON",   "I_BASE",
+   "I_PARTS"  ,  "I_CLASS",     "I_RANGES",   "I_NAME",       "I_PRAGMAS",
+   "I_DVAL",     "I_SPEC",      "I_FOREIGN",  "I_INDEXCON",   "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "????",
    "I_GUARD",    "????",        "I_CHARS",    "I_CONSTR",     "I_FLAGS",
@@ -371,6 +371,7 @@ void object_one_time_init(void)
    extern object_class_t tree_object;
    extern object_class_t type_object;
    extern object_class_t vlog_node_object;
+   extern object_class_t psl_object;
 
    static bool done = false;
 
@@ -378,6 +379,7 @@ void object_one_time_init(void)
       object_init(&tree_object);
       object_init(&type_object);
       object_init(&vlog_node_object);
+      object_init(&psl_object);
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the object items table

@@ -335,6 +335,7 @@ typedef enum tree_kind {
    T_PRAGMA,
    T_CASE_GENERATE,
    T_ALTERNATIVE,
+   T_PSL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -520,6 +521,9 @@ void tree_clear_flag(tree_t t, tree_flags_t mask);
 tree_t tree_primary(tree_t t);
 bool tree_has_primary(tree_t t);
 void tree_set_primary(tree_t t, tree_t unit);
+
+psl_node_t tree_psl(tree_t t);
+void tree_set_psl(tree_t t, psl_node_t p);
 
 typedef void (*tree_visit_fn_t)(tree_t t, void *context);
 

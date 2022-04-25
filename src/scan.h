@@ -35,6 +35,9 @@ hdl_kind_t source_kind(void);
 int processed_yylex(void);
 const char *token_str(int tok);
 
+void scan_as_psl(void);
+void scan_as_hdl(void);
+
 // Private interface to Flex scanners
 
 void begin_token(char *tok, int length);
@@ -207,6 +210,23 @@ typedef enum {
    tPARAMETER,
    tCOVERAGEON,
    tCOVERAGEOFF,
+   tSTARTPSL,
+   tALWAYS,
+   tIFIMPL,
+   tIFFIMPL,
+   tDEFAULT,
+   tCLOCK,
+   tNEXT1,
+   tNEVER,
+   tEVENTUALLY,
+   tNEXTA,
+   tNEXTA1,
+   tNEXTE,
+   tNEXTE1,
+   tNEXTEVENT,
+   tNEXTEVENT1,
+   tLBRACE,
+   tRBRACE,
 } token_t;
 
 #endif  // _SCAN_H

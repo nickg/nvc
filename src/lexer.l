@@ -1,7 +1,7 @@
 /* -*- mode: c; c-basic-offset: 3 -*- */
 
 /*
- *  Copyright (C) 2011-2022  Nick Gasson
+ *  Copyright (C) 2011-2023  Nick Gasson
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include "util.h"
 #include "common.h"
 #include "diag.h"
+#include "option.h"
 #include "scan.h"
 #include "tree.h"
 
@@ -44,11 +45,13 @@
 #define TOKEN(t) return (last_token = (t))
 
 #define TOKEN_LRM(t, lrm) do {                                          \
-      static bool warned = false;                                       \
-      if (!warned && standard() < lrm) {                                \
-         warn_lrm(lrm, "`%s' is a reserved word in VHDL-%s",            \
-                  yytext, standard_text(lrm));                          \
-         warned = true;                                                 \
+      if (standard() < lrm) {                                           \
+         static bool warned = false;                                    \
+         if (!warned) {                                                 \
+            warn_lrm(lrm, "`%s' is a reserved word in VHDL-%s",         \
+                     yytext, standard_text(lrm));                       \
+            warned = true;                                              \
+         }                                                              \
          return isalnum(yytext[0]) ? parse_id(yytext) : tERROR;         \
       }                                                                 \
       else                                                              \
@@ -75,8 +78,10 @@ static int parse_decimal_literal(const char *str);
 static int parse_based_literal(const char *str);
 static int resolve_ir1045(void);
 static void warn_lrm(vhdl_standard_t std, const char *fmt, ...);
+static bool begin_psl_comment(void);
 
 static int last_token = -1;
+static int comment_caller = 0;
 
 extern loc_t yylloc;
 
@@ -88,7 +93,7 @@ EXID            \\([^\\]|\\\\)*\\
 STRING          (\"([^\"]|\"\")*\")|(\%([^\"\%]|\%\%)*\%)
 BIT_STRING      [0-9]*[usUS]?(?i:[boxd]\"[^\"]+\")|(?i:[boxd]\%[^\%]+\%)
 CHAR            '.'
-COMMENT         --.*
+COMMENT         --
 INTEGER         [0-9][0-9_]*
 EXPONENT        [Ee][+-]?{INTEGER}
 DECIMAL_LITERAL {INTEGER}(\.{INTEGER})?{EXPONENT}?
@@ -101,8 +106,10 @@ SYNTH_OFF       {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_off).*
 SYNTH_ON        {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_on).*
 COVERAGE_OFF    {PRAGMA}(?i:coverage)[ \t]+(?i:off).*
 COVERAGE_ON     {PRAGMA}(?i:coverage)[ \t]+(?i:on).*
+PSL_COMMENT     {PRAGMA}(?i:psl)[ \t]+
+PSL_CONT        ^{SPACE}*({PSL_COMMENT}|"--")
 
-%x COMMENT C_COMMENT
+%x COMMENT C_COMMENT PSL
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -209,6 +216,14 @@ DISCONNECT    ?i:disconnect
 FORCE         ?i:force
 RELEASE       ?i:release
 PARAMETER     ?i:parameter
+ALWAYS        ?i:always
+DEFAULT       ?i:default
+CLOCK         ?i:clock
+NEVER         ?i:never
+EVENTUALLY    ?i:eventually
+NEXT_A        ?i:next_a
+NEXT_E        ?i:next_e
+NEXT_EVENT    ?i:next_event
 
 %%
 
@@ -217,17 +232,31 @@ PARAMETER     ?i:parameter
 {COVERAGE_OFF}       { TOKEN(tCOVERAGEOFF); }
 {COVERAGE_ON}        { TOKEN(tCOVERAGEON); }
 
-{COMMENT}            { BEGIN(COMMENT); }
+{COMMENT}            { comment_caller = YY_START; BEGIN(COMMENT); }
+{PSL_COMMENT}        { if (begin_psl_comment()) {
+                          BEGIN(PSL);
+                          TOKEN(tSTARTPSL);
+                       }
+                       else {
+                          comment_caller = YY_START;
+                          BEGIN(COMMENT);
+                       }
+                     }
 
-<COMMENT>\n          { BEGIN(INITIAL); }
+<COMMENT>\n          { BEGIN(comment_caller); }
 <COMMENT>.*          { }
 
 "/*"                 { MIN_STD(STD_08, "delimited comments");
+                       comment_caller = YY_START;
                        BEGIN(C_COMMENT);
                      }
-<C_COMMENT>.*"*/"    { BEGIN(INITIAL); }
+<C_COMMENT>.*"*/"    { BEGIN(comment_caller); }
 <C_COMMENT>\n        { /* Must match a single character */ }
 <C_COMMENT>.         { }
+
+<PSL>;               { BEGIN(INITIAL); TOKEN(tSEMI); }
+<PSL>{PSL_CONT}      { /* Multi-line PSL comment */ }
+<PSL>{COMMENT}       { comment_caller = YY_START; BEGIN(COMMENT); }
 
 {ENTITY}             { TOKEN(tENTITY); }
 {IS}                 { TOKEN(tIS); }
@@ -240,15 +269,6 @@ PARAMETER     ?i:parameter
 {ARCHITECTURE}       { TOKEN(tARCHITECTURE); }
 {OF}                 { TOKEN(tOF); }
 {BEGIN}              { TOKEN(tBEGIN); }
-{AND}                { TOKEN(tAND); }
-{OR}                 { TOKEN(tOR); }
-{XOR}                { TOKEN(tXOR); }
-{XNOR}               { TOKEN(tXNOR); }
-{NAND}               { TOKEN(tNAND); }
-{NOR}                { TOKEN(tNOR); }
-{ABS}                { TOKEN(tABS); }
-{NOT}                { TOKEN(tNOT); }
-{ALL}                { TOKEN(tALL); }
 {IN}                 { TOKEN(tIN); }
 {OUT}                { TOKEN(tOUT); }
 {BUFFER}             { TOKEN(tBUFFER); }
@@ -264,15 +284,11 @@ PARAMETER     ?i:parameter
 {VARIABLE}           { TOKEN(tVARIABLE); }
 {FOR}                { TOKEN(tFOR); }
 {TYPE}               { TOKEN(tTYPE); }
-{RANGE}              { TOKEN(tRANGE); }
-{TO}                 { TOKEN(tTO); }
-{DOWNTO}             { TOKEN(tDOWNTO); }
 {SUBTYPE}            { TOKEN(tSUBTYPE); }
 {UNITS}              { TOKEN(tUNITS); }
 {PACKAGE}            { TOKEN(tPACKAGE); }
 {LIBRARY}            { TOKEN(tLIBRARY); }
 {USE}                { TOKEN(tUSE); }
-{NULL}               { TOKEN(tNULL); }
 {FUNCTION}           { TOKEN(tFUNCTION); }
 {IMPURE}             { TOKEN(tIMPURE); }
 {PURE}               { TOKEN(tPURE); }
@@ -292,12 +308,10 @@ PARAMETER     ?i:parameter
 {LOOP}               { TOKEN(tLOOP); }
 {AFTER}              { TOKEN(tAFTER); }
 {ALIAS}              { TOKEN(tALIAS); }
-{MOD}                { TOKEN(tMOD); }
 {ATTRIBUTE}          { TOKEN(tATTRIBUTE); }
 {PROCEDURE}          { TOKEN(tPROCEDURE); }
 {POSTPONED}          { TOKEN(tPOSTPONED); }
 {EXIT}               { TOKEN(tEXIT); }
-{REM}                { TOKEN(tREM); }
 {WHEN}               { TOKEN(tWHEN); }
 {CASE}               { TOKEN(tCASE); }
 {TRANSPORT}          { TOKEN(tTRANSPORT); }
@@ -315,12 +329,6 @@ PARAMETER     ?i:parameter
 {NEW}                { TOKEN(tNEW); }
 {SHARED}             { TOKEN(tSHARED); }
 {NEXT}               { TOKEN(tNEXT); }
-{SLL}                { TOKEN(tSLL); }
-{SRL}                { TOKEN(tSRL); }
-{SLA}                { TOKEN(tSLA); }
-{SRA}                { TOKEN(tSRA); }
-{ROL}                { TOKEN(tROL); }
-{ROR}                { TOKEN(tROR); }
 {LITERAL}            { TOKEN(tLITERAL); }
 {GROUP}              { TOKEN(tGROUP); }
 {LABEL}              { TOKEN(tLABEL); }
@@ -332,6 +340,8 @@ PARAMETER     ?i:parameter
 {FORCE}              { TOKEN_08(tFORCE); }
 {RELEASE}            { TOKEN_08(tRELEASE); }
 {PARAMETER}          { TOKEN_08(tPARAMETER); }
+{DEFAULT}            { TOKEN_08(tDEFAULT); }
+
 `{IF}                { TOKEN(tCONDIF); }
 `{ELSE}              { TOKEN(tCONDELSE); }
 `{ELSIF}             { TOKEN(tCONDELSIF); }
@@ -339,60 +349,119 @@ PARAMETER     ?i:parameter
 `{ERROR}             { TOKEN(tCONDERROR); }
 `{WARNING}           { TOKEN(tCONDWARN); }
 
-"("                  { TOKEN(tLPAREN); }
-")"                  { TOKEN(tRPAREN); }
-";"                  { TOKEN(tSEMI); }
-":="                 { TOKEN(tASSIGN); }
-":"                  { TOKEN(tCOLON); }
-"**"                 { TOKEN(tPOWER); }
-","                  { TOKEN(tCOMMA); }
-"<>"                 { TOKEN(tBOX); }
-"<"                  { TOKEN(tLT); }
-"<="                 { TOKEN(tLE); }
-">"                  { TOKEN(tGT); }
-">="                 { TOKEN(tGE); }
-"?<"                 { TOKEN_08(tMLT); }
-"?<="                { TOKEN_08(tMLE); }
-"?>"                 { TOKEN_08(tMGT); }
-"?>="                { TOKEN_08(tMGE); }
-"??"                 { TOKEN_08(tCCONV); }
-"=>"                 { TOKEN(tASSOC); }
-"+"                  { TOKEN(tPLUS); }
-"-"                  { TOKEN(tMINUS); }
-"*"                  { TOKEN(tTIMES); }
-"/="                 { TOKEN(tNEQ); }
-"="                  { TOKEN(tEQ); }
-"?/="                { TOKEN_08(tMNEQ); }
-"?="                 { TOKEN_08(tMEQ); }
-"/"                  { TOKEN(tOVER); }
-"."                  { TOKEN(tDOT); }
-"&"                  { TOKEN(tAMP); }
-"|"                  { TOKEN(tBAR); }
-"!"                  { TOKEN(tBAR); }
-"["                  { TOKEN(tLSQUARE); }
-"]"                  { TOKEN(tRSQUARE); }
-"<<"                 { TOKEN(tLTLT); }
-">>"                 { TOKEN(tGTGT); }
-"^"                  { TOKEN(tCARET); }
-"@"                  { TOKEN(tAT); }
-"?"                  { TOKEN(tQUESTION); }
-{DECIMAL_LITERAL}    { return parse_decimal_literal(yytext); }
-{BASED_LITERAL}      { return parse_based_literal(yytext); }
-{BIT_STRING}         { return parse_bit_string(yytext); }
-{STRING}             { return parse_string(yytext); }
-{TICK}               { TOKEN(tTICK); }
-{CHAR}               { if (resolve_ir1045()) {
-                          yylval.s = xstrdup(yytext);
-                          TOKEN(tID);
+<*>{AND}             { TOKEN(tAND); }
+<*>{OR}              { TOKEN(tOR); }
+<*>{XOR}             { TOKEN(tXOR); }
+<*>{XNOR}            { TOKEN(tXNOR); }
+<*>{NAND}            { TOKEN(tNAND); }
+<*>{NOR}             { TOKEN(tNOR); }
+<*>{ABS}             { TOKEN(tABS); }
+<*>{NOT}             { TOKEN(tNOT); }
+<*>{ALL}             { TOKEN(tALL); }
+<*>{TICK}            { TOKEN(tTICK); }
+<*>{SLL}             { TOKEN(tSLL); }
+<*>{SRL}             { TOKEN(tSRL); }
+<*>{SLA}             { TOKEN(tSLA); }
+<*>{SRA}             { TOKEN(tSRA); }
+<*>{ROL}             { TOKEN(tROL); }
+<*>{ROR}             { TOKEN(tROR); }
+<*>{REM}             { TOKEN(tREM); }
+<*>{MOD}             { TOKEN(tMOD); }
+<*>{NULL}            { TOKEN(tNULL); }
+<*>{RANGE}           { TOKEN(tRANGE); }
+<*>{TO}              { TOKEN(tTO); }
+<*>{DOWNTO}          { TOKEN(tDOWNTO); }
+
+<*>"("               { TOKEN(tLPAREN); }
+<*>")"               { TOKEN(tRPAREN); }
+<*>";"               { TOKEN(tSEMI); }
+<*>":="              { TOKEN(tASSIGN); }
+<*>":"               { TOKEN(tCOLON); }
+<*>"**"              { TOKEN(tPOWER); }
+<*>","               { TOKEN(tCOMMA); }
+<*>"<>"              { TOKEN(tBOX); }
+<*>"<"               { TOKEN(tLT); }
+<*>"<="              { TOKEN(tLE); }
+<*>">"               { TOKEN(tGT); }
+<*>">="              { TOKEN(tGE); }
+<*>"?<"              { TOKEN_08(tMLT); }
+<*>"?<="             { TOKEN_08(tMLE); }
+<*>"?>"              { TOKEN_08(tMGT); }
+<*>"?>="             { TOKEN_08(tMGE); }
+<*>"??"              { TOKEN_08(tCCONV); }
+<*>"=>"              { TOKEN(tASSOC); }
+<*>"+"               { TOKEN(tPLUS); }
+<*>"-"               { TOKEN(tMINUS); }
+<*>"*"               { TOKEN(tTIMES); }
+<*>"/="              { TOKEN(tNEQ); }
+<*>"="               { TOKEN(tEQ); }
+<*>"?/="             { TOKEN_08(tMNEQ); }
+<*>"?="              { TOKEN_08(tMEQ); }
+<*>"/"               { TOKEN(tOVER); }
+<*>"."               { TOKEN(tDOT); }
+<*>"&"               { TOKEN(tAMP); }
+<*>"|"               { TOKEN(tBAR); }
+<*>"!"               { TOKEN(tBAR); }
+<*>"["               { TOKEN(tLSQUARE); }
+<*>"]"               { TOKEN(tRSQUARE); }
+<*>"<<"              { TOKEN(tLTLT); }
+<*>">>"              { TOKEN(tGTGT); }
+<*>"^"               { TOKEN(tCARET); }
+<*>"@"               { TOKEN(tAT); }
+<*>"?"               { TOKEN(tQUESTION); }
+<*>"{"               { TOKEN(tLBRACE); }
+<*>"}"               { TOKEN(tRBRACE); }
+
+<PSL>{ASSERT}          { TOKEN(tASSERT); }
+<PSL>{ALWAYS}          { TOKEN(tALWAYS); }
+<PSL>{DEFAULT}         { TOKEN(tDEFAULT); }
+<PSL>{CLOCK}           { TOKEN(tCLOCK); }
+<PSL>{IS}              { TOKEN(tIS); }
+<PSL>"->"              { TOKEN(tIFIMPL); }
+<PSL>"<->"             { TOKEN(tIFFIMPL); }
+<PSL>"("               { TOKEN(tLPAREN); }
+<PSL>")"               { TOKEN(tRPAREN); }
+<PSL>"["               { TOKEN(tLSQUARE); }
+<PSL>"]"               { TOKEN(tRSQUARE); }
+<PSL>"{"               { TOKEN(tLBRACE); }
+<PSL>"}"               { TOKEN(tRBRACE); }
+<PSL>{NEXT}            { TOKEN(tNEXT); }
+<PSL>{NEXT}!           { TOKEN(tNEXT1); }
+<PSL>{NEVER}           { TOKEN(tNEVER); }
+<PSL>{EVENTUALLY}!     { TOKEN(tEVENTUALLY); }
+<PSL>{NEXT_A}          { TOKEN(tNEXTA); }
+<PSL>{NEXT_A}!         { TOKEN(tNEXTA1); }
+<PSL>{NEXT_E}          { TOKEN(tNEXTE); }
+<PSL>{NEXT_E}!         { TOKEN(tNEXTE1); }
+<PSL>{NEXT_EVENT}      { TOKEN(tNEXTEVENT); }
+<PSL>{NEXT_EVENT}!     { TOKEN(tNEXTEVENT1); }
+
+<*>{DECIMAL_LITERAL}   { return parse_decimal_literal(yytext); }
+<*>{BASED_LITERAL}     { return parse_based_literal(yytext); }
+<*>{BIT_STRING}        { return parse_bit_string(yytext); }
+<*>{STRING}            { return parse_string(yytext); }
+<*>{CHAR}              { if (resolve_ir1045()) {
+                            yylval.s = xstrdup(yytext);
+                            TOKEN(tID);
+                         }
+                         REJECT;
                        }
-                       REJECT;
-                     }
-{ID}                 { return parse_id(yytext); }
-{EXID}               { return parse_ex_id(yytext); }
-{SPACE}              { }
-"\n"                 { /* Must match a single character */ }
-<*><<EOF>>           { return 0; }
-<*>.                 { TOKEN(tERROR); }
+
+% /* These PSL tokens must be scanned in VHDL mode for look-ahead */
+"->"                   { TOKEN(tIFIMPL); }
+"<->"                  { TOKEN(tIFFIMPL); }
+
+% /* These VHDL tokens must be scanned in PSL mode for look-ahead */
+<PSL>{SEVERITY}        { TOKEN(tSEVERITY); }
+<PSL>{REPORT}          { TOKEN(tREPORT); }
+
+<INITIAL,PSL>{ID}      { return parse_id(yytext); }
+{EXID}                 { return parse_ex_id(yytext); }
+<INITIAL,PSL>{SPACE}   { }
+<*>"\n"                { /* Must match a single character */ }
+<*><<EOF>>             { return 0; }
+<*>.                   { TOKEN(tERROR); }
+
 %%
 
 static int resolve_ir1045(void)
@@ -412,6 +481,22 @@ static int resolve_ir1045(void)
    default:
       return 1;
    }
+}
+
+static bool begin_psl_comment(void)
+{
+   static bool printed = false;
+
+   if (opt_get_int(OPT_PSL_COMMENTS))
+      return true;
+   else if (!printed) {
+      note_at(&yylloc, "pass $bold$--psl$$ to enable parsing of PSL "
+              "directives in comments");
+      printed = true;
+      return false;
+   }
+   else
+      return false;
 }
 
 static int parse_id(const char *str)
@@ -609,5 +694,15 @@ static void warn_lrm(vhdl_standard_t std, const char *fmt, ...)
 void reset_vhdl_scanner(void)
 {
    YY_FLUSH_BUFFER;
+   BEGIN(INITIAL);
+}
+
+void scan_as_psl(void)
+{
+   BEGIN(PSL);
+}
+
+void scan_as_hdl(void)
+{
    BEGIN(INITIAL);
 }

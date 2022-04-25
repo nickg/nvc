@@ -16,7 +16,7 @@ entity test is
     );
 end entity;
 
-architecture default of test is
+architecture default1 of test is
 
   type rec_t is record
     field : std_logic;

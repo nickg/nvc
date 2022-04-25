@@ -5582,6 +5582,7 @@ bool sem_check(tree_t t, nametab_t *tab)
    case T_GROUP:
    case T_GROUP_TEMPLATE:
    case T_BOX:
+   case T_PSL:
       return true;
    case T_COND_VAR_ASSIGN:
       return sem_check_cond_var_assign(t, tab);

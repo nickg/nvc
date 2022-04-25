@@ -1,0 +1,9 @@
+lib_libnvc_a_SOURCES += \
+	src/psl/psl-node.h \
+	src/psl/psl-node.c \
+	src/psl/psl-phase.h \
+	src/psl/psl-sem.c \
+	src/psl/psl-lower.c \
+	src/psl/psl-dump.c \
+	src/psl/psl-fsm.h \
+	src/psl/psl-fsm.c

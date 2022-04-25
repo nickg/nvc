@@ -301,7 +301,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_RELEASE
    (I_IDENT | I_TARGET | I_SUBKIND),
 
-   // T_PROTECTED_REF
+   // T_PROT_REF
    (I_IDENT | I_VALUE | I_TYPE | I_REF),
 
    // T_MATCH_CASE
@@ -332,6 +332,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_ALTERNATIVE
    (I_IDENT | I_ASSOCS | I_STMTS | I_DECLS),
+
+   // T_PSL
+   (I_IDENT | I_FOREIGN),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -368,7 +371,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_RELEASE",         "T_PROT_REF",        "T_MATCH_CASE",
    "T_FUNC_INST",       "T_PROC_INST",       "T_ELEM_CONSTRAINT",
    "T_STRING",          "T_PATH_ELT",        "T_PRAGMA",
-   "T_CASE_GENERATE",   "T_ALTERNATIVE",
+   "T_CASE_GENERATE",   "T_ALTERNATIVE",     "T_PSL",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -398,6 +401,10 @@ struct _type {
    object_t object;
 };
 
+struct _psl_node {
+   object_t object;
+};
+
 static const tree_kind_t stmt_kinds[] = {
    T_PROCESS,     T_WAIT,            T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
    T_ASSERT,      T_INSTANCE,        T_IF,           T_NULL,
@@ -406,7 +413,7 @@ static const tree_kind_t stmt_kinds[] = {
    T_SELECT,      T_IF_GENERATE,     T_FOR_GENERATE, T_NEXT,
    T_PROT_PCALL,  T_COND_VAR_ASSIGN, T_CONCURRENT,   T_FORCE,
    T_RELEASE,     T_MATCH_CASE,      T_SEQUENCE,     T_CASE_GENERATE,
-   T_ALTERNATIVE,
+   T_ALTERNATIVE, T_PSL,
 };
 
 static tree_kind_t expr_kinds[] = {
@@ -426,7 +433,7 @@ static tree_kind_t decl_kinds[] = {
    T_PROT_BODY,      T_BLOCK_CONFIG,   T_IMPLICIT_SIGNAL, T_DISCONNECT,
    T_GROUP_TEMPLATE, T_GROUP,          T_SUBTYPE_DECL,    T_PACKAGE,
    T_PACK_BODY,      T_PACK_INST,      T_GENERIC_DECL,    T_PARAM_DECL,
-   T_PROC_INST,      T_FUNC_INST,
+   T_PROC_INST,      T_FUNC_INST,      T_PSL,
 };
 
 object_class_t tree_object = {
@@ -708,6 +715,20 @@ void tree_set_primary(tree_t t, tree_t unit)
 {
    lookup_item(&tree_object, t, I_PRIMARY)->object = &(unit->object);
    object_write_barrier(&(t->object), &(unit->object));
+}
+
+psl_node_t tree_psl(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_FOREIGN);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _psl_node, object);
+}
+
+void tree_set_psl(tree_t t, psl_node_t p)
+{
+   assert(p != NULL);
+   lookup_item(&tree_object, t, I_FOREIGN)->object = &(p->object);
+   object_write_barrier(&(t->object), &(p->object));
 }
 
 unsigned tree_chars(tree_t t)

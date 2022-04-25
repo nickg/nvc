@@ -289,17 +289,17 @@ package ENV is
   procedure SetVhdlReadSeverity(Level: SEVERITY_LEVEL := FAILURE);
   impure function GetVhdlReadSeverity return SEVERITY_LEVEL;
 
-  -- PSL Assert Failed
+  --@ PSL Assert Failed
   impure function PslAssertFailed return boolean;
 
-  -- PSL Is Covered
+  --@ PSL Is Covered
   impure function PslIsCovered return boolean;
 
-  -- Psl Cover Asserts
+  --@ Psl Cover Asserts
   procedure SetPslCoverAssert( Enable : boolean := TRUE);
   impure function GetPslCoverAssert return boolean;
 
-  -- Psl Is AssertCovered
+  --@ Psl Is AssertCovered
   impure function PslIsAssertCovered return boolean;
 
   -- Clear PSL State (Assert and Cover)

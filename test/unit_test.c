@@ -105,6 +105,7 @@ int main(int argc, char **argv)
 #if defined ARCH_X86_64
    nfail += RUN_TESTS(native);
 #endif
+   nfail += RUN_TESTS(psl);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

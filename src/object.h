@@ -66,7 +66,7 @@ typedef uint64_t imask_t;
 #define I_PRAGMAS    ONE_HOT(29)
 #define I_DVAL       ONE_HOT(30)
 #define I_SPEC       ONE_HOT(31)
-// Unused            ONE_HOT(32)
+#define I_FOREIGN    ONE_HOT(32)
 #define I_INDEXCON   ONE_HOT(33)
 #define I_BASE       ONE_HOT(34)
 #define I_ELEM       ONE_HOT(35)
@@ -99,6 +99,7 @@ enum {
    OBJECT_TAG_TREE = 0,
    OBJECT_TAG_TYPE = 1,
    OBJECT_TAG_VLOG = 2,
+   OBJECT_TAG_PSL  = 3,
 
    OBJECT_TAG_COUNT
 };

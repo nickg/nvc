@@ -29,9 +29,10 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
-static vhdl_standard_t current_std = STD_93;
-static bool            have_set_std = false;
-static ident_t         id_cache[NUM_WELL_KNOWN];
+static vhdl_standard_t  current_std  = STD_93;
+static bool             have_set_std = false;
+static ident_t          id_cache[NUM_WELL_KNOWN];
+static text_buf_t      *syntax_buf = NULL;
 
 int64_t assume_int(tree_t t)
 {
@@ -1736,6 +1737,7 @@ type_t get_type_or_null(tree_t t)
    case T_IF_GENERATE:
    case T_USE:
    case T_CONTEXT:
+   case T_PSL:
       return NULL;
    default:
       if (tree_has_type(t))
@@ -2068,4 +2070,81 @@ void build_wait(tree_t expr, build_wait_fn_t fn, void *ctx)
       fatal_trace("Cannot handle tree kind %s in wait expression",
                   tree_kind_str(tree_kind(expr)));
    }
+}
+
+void print_syntax(const char *fmt, ...)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   bool highlighting = false;
+   static bool comment = false, last_was_newline = false;
+   for (const char *p = fmt; *p != '\0'; p++) {
+      if (comment) {
+         if (*p == '\n' || *p == '\r') {
+            comment = false;
+            last_was_newline = true;
+            tb_printf(tb, "$$\n");
+         }
+         else if (*p != '~' && *p != '#') {
+            tb_append(tb, *p);
+            last_was_newline = false;
+         }
+         if (p > fmt && *p == '/' && *(p - 1) == '*') {
+            tb_printf(tb, "$$");
+            comment = false;
+            last_was_newline = false;
+         }
+      }
+      else if (*p == '\r') {
+         if (!last_was_newline) {
+            tb_append(tb, '\n');
+            last_was_newline = true;
+         }
+      }
+      else if (*p == '#') {
+         tb_printf(tb, "$bold$$cyan$");
+         last_was_newline = false;
+         highlighting = true;
+      }
+      else if (*p == '~') {
+         tb_printf(tb, "$yellow$");
+         last_was_newline = false;
+         highlighting = true;
+      }
+      else if ((*p == '-' && *(p + 1) == '-')
+               || (*p == '/' && *(p + 1) == '*')) {
+         tb_printf(tb, "$red$%c", *p);
+         last_was_newline = false;
+         comment = true;
+      }
+      else if (!isalnum((int)*p) && *p != '_' && *p != '%' && highlighting) {
+         tb_printf(tb, "$$%c", *p);
+         last_was_newline = false;
+         highlighting = false;
+      }
+      else {
+         tb_append(tb, *p);
+         last_was_newline = (*p == '\n');
+      }
+   }
+
+   if (highlighting)
+      tb_cat(tb, "$$");
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   if (syntax_buf != NULL) {
+      char *stripped LOCAL = strip_color(tb_get(tb), ap);
+      tb_cat(syntax_buf, stripped);
+   }
+   else
+      color_vprintf(tb_get(tb), ap);
+
+   va_end(ap);
+}
+
+void capture_syntax(text_buf_t *tb)
+{
+   assert(tb == NULL || syntax_buf == NULL);
+   syntax_buf = tb;
 }

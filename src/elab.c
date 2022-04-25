@@ -26,6 +26,7 @@
 #include "object.h"
 #include "option.h"
 #include "phase.h"
+#include "psl/psl-phase.h"
 #include "type.h"
 
 #if !defined ENABLE_LLVM || defined ENABLE_JIT
@@ -1636,6 +1637,16 @@ static void elab_process(tree_t t, const elab_ctx_t *ctx)
    tree_add_stmt(ctx->out, t);
 }
 
+static void elab_psl(tree_t t, const elab_ctx_t *ctx)
+{
+   elab_external_names(t, ctx);
+
+   if (error_count() == 0)
+      psl_lower(ctx->lowered, tree_psl(t), tree_ident(t));
+
+   tree_add_stmt(ctx->out, t);
+}
+
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
@@ -1660,6 +1671,9 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          break;
       case T_PROCESS:
          elab_process(s, ctx);
+         break;
+      case T_PSL:
+         elab_psl(s, ctx);
          break;
       default:
          fatal_trace("unexpected statement %s", tree_kind_str(tree_kind(s)));

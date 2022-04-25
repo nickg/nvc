@@ -84,6 +84,10 @@ type_t get_type_or_null(tree_t t);
 type_t subtype_for_string(tree_t str, type_t base);
 tree_t change_ref(tree_t name, tree_t new);
 
+void print_syntax(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2)));
+void capture_syntax(text_buf_t *tb);
+
 #define MAX_CONSTRAINTS 8
 int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS]);
 

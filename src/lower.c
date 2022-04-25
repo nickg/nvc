@@ -25,6 +25,7 @@
 #include "object.h"
 #include "option.h"
 #include "phase.h"
+#include "psl/psl-phase.h"
 #include "rt/cover.h"
 #include "rt/rt.h"
 #include "type.h"

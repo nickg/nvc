@@ -193,7 +193,10 @@ package.  Not useful in any other circumstances.
 Stop after reporting
 .Ar num
 errors.  The default is 20.  Zero allows unlimited errors.
-.\"
+.\" --psl
+.It Fl -psl
+Enable parsing of PSL directives in comments.
+.\" --relaxed
 .It Fl -relaxed
 Disable certain pedantic LRM conformance checks or rules that were
 relaxed by later standards.  See the
@@ -413,7 +416,6 @@ value of
 is 5000.
 .It Fl V , Fl -verbose
 Prints detailed hierarchy coverage when generating code coverage report.
-.El
 .El
 .\" ------------------------------------------------------------
 .\" Make options

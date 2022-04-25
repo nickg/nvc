@@ -24,7 +24,7 @@ package func is
 
     subtype enum_bad3 is uenum uenum;   -- Error
 
-    function default(x : in uenum := 6) return uenum;  -- Error
+    function default1(x : in uenum := 6) return uenum;  -- Error
 
     function foo return integer is      -- Error
     begin

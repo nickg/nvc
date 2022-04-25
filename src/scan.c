@@ -179,7 +179,10 @@ const char *token_str(int tok)
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
       "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
       "?<=", "?>", "?>=", "register", "disconnect", "??", "<<", ">>", "force",
-      "release", "^", "@", "?", "parameter"
+      "release", "^", "@", "?", "parameter", "coverage on", "coverage off",
+      "PSL directive", "always", "->", "<->", "default", "clock", "next!",
+      "never", "eventually!", "next_a", "next_a!", "next_e", "next_e!",
+      "next_event", "next_event!", "{", "}",
    };
 
    if (tok < 0 || tok >= ARRAY_LEN(token_strs))

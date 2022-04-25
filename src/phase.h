@@ -51,6 +51,9 @@ void aotgen(const char *outfile, char **argv, int argc);
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);
 
+// Dump VHDL node with indentation no trailing newline
+void vhdl_dump(tree_t t, int indent);
+
 // Generate a makefile for the givein unit
 void make(tree_t *targets, int count, FILE *out);
 

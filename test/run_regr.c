@@ -88,6 +88,7 @@
 #define F_VERILOG (1 << 15)
 #define F_MIXED   (1 << 16)
 #define F_WAVE    (1 << 17)
+#define F_PSL     (1 << 18)
 
 typedef struct test test_t;
 typedef struct param param_t;
@@ -387,6 +388,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_VERILOG;
          else if (strcmp(opt, "wave") == 0)
             test->flags |= F_WAVE;
+         else if (strcmp(opt, "psl") == 0)
+            test->flags |= F_PSL;
          else if (strncmp(opt, "O", 1) == 0) {
             if (sscanf(opt + 1, "%u", &(test->olevel)) != 1) {
                fprintf(stderr, "Error on testlist line %d: invalid "
@@ -765,6 +768,9 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_RELAXED)
          push_arg(&args, "--relaxed");
+
+      if (test->flags & F_PSL)
+         push_arg(&args, "--psl");
 
       push_arg(&args, "-e");
       push_arg(&args, "%s", test->name);

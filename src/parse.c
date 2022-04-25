@@ -25,6 +25,8 @@
 #include "object.h"
 #include "option.h"
 #include "phase.h"
+#include "psl/psl-node.h"
+#include "psl/psl-phase.h"
 #include "scan.h"
 #include "tree.h"
 #include "type.h"
@@ -160,6 +162,7 @@ static tree_t p_qualified_expression(tree_t prefix);
 static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name);
 static tree_t p_subprogram_instantiation_declaration(void);
 static tree_t p_record_element_constraint(type_t base);
+static tree_t p_psl_clock_declaration(void);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -6072,6 +6075,20 @@ static void p_constant_declaration(tree_t parent)
    }
 }
 
+static tree_t p_psl_condition(void)
+{
+   BEGIN("condition");
+
+   scan_as_hdl();
+
+   tree_t value = p_expression();
+   solve_psl_condition(nametab, value);
+
+   scan_as_psl();
+
+   return value;
+}
+
 static tree_t p_condition(void)
 {
    BEGIN("condition");
@@ -8281,6 +8298,7 @@ static void p_block_declarative_item(tree_t parent)
    //   | attribute_specification | configuration_specification
    //   | disconnection_specification | use_clause | group_template_declaration
    //   | group_declaration | 2008: subprogram_instantiation_declaration
+   //   | 2008: psl_clock_declaration
 
    BEGIN("block declarative item");
 
@@ -8360,6 +8378,15 @@ static void p_block_declarative_item(tree_t parent)
 
    case tPACKAGE:
       tree_add_decl(parent, p_package_instantiation_declaration(NULL));
+      break;
+
+   case tSTARTPSL:
+      consume(tSTARTPSL);
+      tree_add_decl(parent, p_psl_clock_declaration());
+      break;
+
+   case tDEFAULT:
+      tree_add_decl(parent, p_psl_clock_declaration());
       break;
 
    default:
@@ -9979,12 +10006,405 @@ static tree_t p_generate_statement(ident_t label)
    }
 }
 
+static psl_node_t p_psl_or_hdl_expression(void)
+{
+   // HDL_Expression | PSL_Expression | Built_In_Function_Call
+   //    | Union_Expression
+
+   BEGIN("PSL or HDL expression");
+
+   tree_t expr = p_psl_condition();
+
+   psl_node_t p = psl_new(P_HDL_EXPR);
+   psl_set_tree(p, expr);
+   psl_set_loc(p, CURRENT_LOC);
+   psl_set_type(p, PSL_TYPE_BOOLEAN);
+
+   return p;
+}
+
+static psl_node_t p_psl_sere(void)
+{
+   // Boolean | Boolean Proc_Block | Sequence | SERE ; SERE | SERE : SERE
+   //  | Compound_SERE
+
+   (void)p_psl_or_hdl_expression();
+
+   psl_node_t p = psl_new(P_SERE);
+
+   switch (peek()) {
+   case tSEMI:
+      consume(tSEMI);
+      (void)p_psl_or_hdl_expression();
+   default:
+      break;
+   }
+
+   psl_set_loc(p, CURRENT_LOC);
+   return p;
+}
+
+static psl_node_t p_psl_braced_sere(void)
+{
+   // { SERE }
+
+   consume(tLBRACE);
+   psl_node_t p = p_psl_sere();
+   consume(tRBRACE);
+   return p;
+}
+
+static psl_node_t p_psl_sequence(void)
+{
+   // Sequence_Instance | Repeated_SERE | Braced_SERE | Clocked_SERE
+
+   return p_psl_braced_sere();
+}
+
+static psl_node_t p_psl_fl_property(void)
+{
+   // Boolean | ( FL_Property ) | always FL_Property
+   //   | never FL_Property
+   //   | eventually! FL_Property
+   //   | next FL_Property | next [ Number ] FL_Property
+   //   | next! FL_Property | next! [ Number ] FL_Property
+   //   | next_event ( Boolean ) ( FL_Property )
+   //   | next_event ( Boolean ) ( FL_Property )
+   //   | next_event! ( Boolean ) [ Number ] ( FL_Property )
+   //   | next_event! ( Boolean ) [ Number ] ( FL_Property )
+   //   | FL_Property -> FL_Property
+   //   | FL_Property <-> FL_Property
+   //   | Sequence [ ! ]
+
+   BEGIN("FL property");
+
+   psl_node_t p = NULL;
+   const token_t tok = peek();
+   switch (tok) {
+   case tALWAYS:
+      {
+         consume(tALWAYS);
+
+         p = psl_new(P_ALWAYS);
+         psl_set_value(p, p_psl_fl_property());
+      }
+      break;
+
+   case tNEVER:
+      {
+         consume(tNEVER);
+
+         p = psl_new(P_NEVER);
+         psl_set_value(p, p_psl_fl_property());
+      }
+      break;
+
+   case tEVENTUALLY:
+      {
+         consume(tEVENTUALLY);
+
+         p = psl_new(P_EVENTUALLY);
+         psl_set_value(p, p_psl_fl_property());
+      }
+      break;
+
+   case tNEXT:
+   case tNEXT1:
+      {
+         consume(tok);
+
+         p = psl_new(P_NEXT);
+         psl_set_subkind(p, tok == tNEXT1 ? PSL_STRONG : PSL_WEAK);
+
+         if (optional(tLSQUARE)) {
+            scan_as_hdl();
+            (void)p_expression();
+            scan_as_psl();
+
+            consume(tRSQUARE);
+         }
+
+         psl_set_value(p, p_psl_fl_property());
+      }
+      break;
+
+   case tNEXTA:
+   case tNEXTA1:
+      {
+         consume(tok);
+
+         p = psl_new(P_NEXT_A);
+         psl_set_subkind(p, tok == tNEXTA1 ? PSL_STRONG : PSL_WEAK);
+
+         consume(tLSQUARE);
+
+         scan_as_hdl();
+         (void)p_discrete_range(NULL);
+         scan_as_psl();
+
+         consume(tRSQUARE);
+
+         (void)p_psl_fl_property();
+      }
+      break;
+
+   case tNEXTE:
+   case tNEXTE1:
+      {
+         consume(tok);
+
+         p = psl_new(P_NEXT_E);
+         psl_set_subkind(p, tok == tNEXTE1 ? PSL_STRONG : PSL_WEAK);
+
+         consume(tLSQUARE);
+
+         scan_as_hdl();
+         (void)p_discrete_range(NULL);
+         scan_as_psl();
+
+         consume(tRSQUARE);
+
+         (void)p_psl_fl_property();
+      }
+      break;
+
+   case tNEXTEVENT:
+   case tNEXTEVENT1:
+      {
+         consume(tok);
+
+         p = psl_new(P_NEXT_EVENT);
+         psl_set_subkind(p, tok == tNEXTEVENT1 ? PSL_STRONG : PSL_WEAK);
+
+         consume(tLPAREN);
+         (void)p_psl_fl_property();
+         consume(tRPAREN);
+
+         if (optional(tLSQUARE)) {
+            scan_as_hdl();
+            (void)p_expression();
+            scan_as_psl();
+
+            consume(tRSQUARE);
+         }
+
+         consume(tLPAREN);
+         (void)p_psl_fl_property();
+         consume(tRPAREN);
+      }
+      break;
+
+   case tLPAREN:
+      {
+         const look_params_t lookp = {
+            .look     = { tIFIMPL },
+            .stop     = { tRPAREN },
+            .abort    = tSEMI,
+            .nest_in  = tLPAREN,
+            .nest_out = tRPAREN,
+            .depth    = 1
+         };
+
+         scan_as_hdl();
+         const bool is_psl = look_for(&lookp);
+         scan_as_psl();
+
+         if (is_psl) {
+            consume(tok);
+            p = p_psl_fl_property();
+            consume(tRPAREN);
+         }
+         else
+            p = p_psl_or_hdl_expression();
+      }
+      break;
+
+   case tLBRACE:
+      p = p_psl_sequence();
+      break;
+
+   default:
+      p = p_psl_or_hdl_expression();
+      break;
+   }
+
+   psl_set_loc(p, CURRENT_LOC);
+
+   switch (peek()) {
+   case tIFIMPL:
+      {
+         consume(tIFIMPL);
+
+         psl_node_t impl = psl_new(P_IMPLICATION);
+         psl_set_subkind(impl, PSL_IMPL_IF);
+         psl_add_operand(impl, p);
+         psl_add_operand(impl, p_psl_fl_property());
+         psl_set_loc(impl, CURRENT_LOC);
+
+         return impl;
+      }
+   default:
+      return p;
+   }
+}
+
+static psl_node_t p_psl_property(void)
+{
+   // Replicator Property | FL_Property | OBE_Property
+
+   BEGIN("property");
+
+   return p_psl_fl_property();
+}
+
+static psl_node_t p_psl_assert_directive(void)
+{
+   // assert Property [ report String ] ;
+
+   BEGIN("assert directive");
+
+   consume(tASSERT);
+
+   psl_node_t p = psl_new(P_ASSERT);
+   psl_set_value(p, p_psl_property());
+
+   consume(tSEMI);
+
+   psl_set_loc(p, CURRENT_LOC);
+   return p;
+}
+
+static psl_node_t p_psl_verification_directive(void)
+{
+   // Assert_Directive | Assume_Directive | Restrict_Directive
+   //   | Restrict!_Directive | Cover_Directive | Fairness_Statement
+
+   BEGIN("verification directive");
+
+   switch (peek()) {
+   case tASSERT:
+      return p_psl_assert_directive();
+   default:
+      one_of(tASSERT);
+      return NULL;
+   }
+}
+
+static tree_t p_psl_directive(void)
+{
+   // [ Label : ] Verification_Directive
+
+   BEGIN("PSL directive");
+
+   tree_t t = tree_new(T_PSL);
+
+   scan_as_psl();
+
+   ident_t label = NULL;
+   if (peek() == tID) {
+      label = p_identifier();
+      consume(tCOLON);
+   }
+
+   psl_node_t p = p_psl_verification_directive();
+   tree_set_psl(t, p);
+
+   scan_as_hdl();
+
+   tree_set_loc(t, CURRENT_LOC);
+   ensure_labelled(t, label);
+
+   psl_check(p);
+   return t;
+}
+
+static tree_t p_psl_clock_declaration(void)
+{
+   // default clock is Clock_Expression ;
+
+   BEGIN("PSL clock declaration");
+
+   scan_as_psl();
+
+   consume(tDEFAULT);
+   consume(tCLOCK);
+
+   tree_t t = tree_new(T_PSL);
+
+   consume(tIS);
+
+   scan_as_hdl();
+
+   psl_node_t p = psl_new(P_CLOCK_DECL);
+   psl_set_tree(p, p_expression());
+
+   consume(tSEMI);
+
+   psl_set_loc(p, CURRENT_LOC);
+   psl_check(p);
+
+   tree_set_ident(t, ident_new("default clock"));
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_psl_or_concurrent_assert(ident_t label)
+{
+   // Handle the ambiguity between a PSL assertion and a normal VHDL
+   // concurrent assertion statement.
+   //
+   //  assert condition [ report expression ] [ severity expression ] ;
+   //   | assert Property [ report String ] ;
+
+   scan_as_psl();
+
+   const look_params_t lookp = {
+      .look     = { tIFIMPL, tALWAYS, tNEVER },
+      .stop     = { tREPORT, tSEVERITY },
+      .abort    = tSEMI,
+      .nest_in  = tLPAREN,
+      .nest_out = tRPAREN,
+   };
+
+   if (look_for(&lookp)) {
+      consume(tASSERT);
+
+      psl_node_t p = p_psl_property();
+      (void)p;
+
+      psl_node_t a = psl_new(P_ASSERT);
+
+      psl_set_loc(a, CURRENT_LOC);
+      psl_check(a);
+
+      tree_t s = tree_new(T_PSL);
+      tree_set_psl(s, a);
+      tree_set_ident(s, label);
+
+      scan_as_hdl();
+
+      consume(tSEMI);
+
+      tree_set_loc(s, CURRENT_LOC);
+      ensure_labelled(s, label);
+
+      insert_name(nametab, s, NULL);
+      sem_check(s, nametab);
+      return s;
+   }
+   else {
+      scan_as_hdl();
+      return p_concurrent_assertion_statement(label);
+   }
+}
+
 static tree_t p_concurrent_statement(void)
 {
    // block_statement | process_statement | concurrent_procedure_call_statement
    //   | concurrent_assertion_statement
    //   | concurrent_signal_assignment_statement
    //   | component_instantiation_statement | generate_statement
+   //   | 2008: psl_directive
 
    BEGIN("concurrent statement");
 
@@ -10044,7 +10464,10 @@ static tree_t p_concurrent_statement(void)
          return p_concurrent_signal_assignment_statement(label, NULL);
 
       case tASSERT:
-         return p_concurrent_assertion_statement(label);
+         if (standard() >= STD_08)
+            return p_psl_or_concurrent_assert(label);
+         else
+            return p_concurrent_assertion_statement(label);
 
       case tPOSTPONED:
          if (peek_nth(2) == tASSERT)
@@ -10062,6 +10485,13 @@ static tree_t p_concurrent_statement(void)
 
       case tLPAREN:
          return p_concurrent_signal_assignment_statement(label, NULL);
+
+      case tSTARTPSL:
+         consume(tSTARTPSL);
+         if (peek() == tDEFAULT)
+            return p_psl_clock_declaration();
+         else
+            return p_psl_directive();
 
       default:
          expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,

@@ -1193,6 +1193,7 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
    switch (tree_kind(t)) {
    case T_CONCURRENT:
    case T_PROCESS:
+   case T_PSL:
       cnt = &(tab->top_scope->lbl_cnts.proc);
       c = 'P';
       break;
@@ -4048,8 +4049,8 @@ type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint)
    type_set_push(tab);
    type_set_add(tab, constraint, NULL);
 
-   const bool allow_cconv = (standard() >= STD_08);
-   if (allow_cconv) {
+   type_t type;
+   if (standard() >= STD_08) {
       const symbol_t *sym = symbol_for(tab->top_scope, well_known(W_CCONV));
       if (sym != NULL) {
          for (int i = 0; i < sym->ndecls; i++) {
@@ -4058,15 +4059,13 @@ type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint)
                type_t p0_type = tree_type(tree_port(dd->tree, 0));
                type_set_add(tab, p0_type, dd->tree);
             }
+
+            tab->top_type_set->cconv = true;
          }
-
-         tab->top_type_set->cconv = true;
       }
-   }
 
-   type_t type = _solve_types(tab, *expr);
+      type = _solve_types(tab, *expr);
 
-   if (allow_cconv) {
       type_t boolean = std_type(NULL, STD_BOOLEAN);
       if (!type_eq(type, boolean) && type_set_contains(tab, type)) {
          tree_t fcall = tree_new(T_FCALL);
@@ -4078,6 +4077,22 @@ type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint)
          *expr = fcall;
       }
    }
+   else
+      type = _solve_types(tab, *expr);
+
+   type_set_pop(tab);
+   return type;
+}
+
+type_t solve_psl_condition(nametab_t *tab, tree_t expr)
+{
+   type_set_push(tab);
+
+   type_set_add(tab, std_type(NULL, STD_BOOLEAN), NULL);
+   type_set_add(tab, std_type(NULL, STD_BIT), NULL);
+   type_set_add(tab, ieee_type(IEEE_STD_ULOGIC), NULL);
+
+   type_t type = _solve_types(tab, expr);
 
    type_set_pop(tab);
    return type;

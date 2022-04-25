@@ -116,6 +116,7 @@ static int analyse(int argc, char **argv)
       { "error-limit",     required_argument, 0, 'l' },
       { "dump-llvm",       no_argument,       0, 'D' },
       { "dump-vcode",      optional_argument, 0, 'v' },
+      { "psl",             no_argument,       0, 'P' },
       { "relax",           required_argument, 0, 'X' },
       { "relaxed",         no_argument,       0, 'R' },
       { 0, 0, 0, 0 }
@@ -150,6 +151,9 @@ static int analyse(int argc, char **argv)
          break;
       case 'l':
          opt_set_int(OPT_ERROR_LIMIT, parse_int(optarg));
+         break;
+      case 'P':
+         opt_set_int(OPT_PSL_COMMENTS, 1);
          break;
       case 'R':
          opt_set_int(OPT_RELAXED, 1);
@@ -1197,6 +1201,7 @@ static void usage(void)
           "Analyse options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
           "     --error-limit=NUM\tStop after NUM errors\n"
+          "     --psl\t\tEnable parsing of PSL directives in comments\n"
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
           "\n"
           "Elaborate options:\n"

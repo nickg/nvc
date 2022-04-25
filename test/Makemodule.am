@@ -23,7 +23,8 @@ bin_unit_test_SOURCES = \
 	test/test_debug.c \
 	test/test_mspace.c \
 	test/test_jit.c \
-	test/test_model.c
+	test/test_model.c \
+	test/test_psl.c
 
 if ARCH_X86_64
 bin_unit_test_SOURCES += test/test_native.c

@@ -58,6 +58,8 @@ typedef enum {
    OPT_JIT_ASYNC,
    OPT_PERF_MAP,
    OPT_LIB_VERBOSE,
+   OPT_PSL_VERBOSE,
+   OPT_PSL_COMMENTS,
 
    OPT_LAST_NAME
 } opt_name_t;
