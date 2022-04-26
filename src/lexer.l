@@ -220,9 +220,9 @@ RELEASE       ?i:release
 "/*"                 { MIN_STD(STD_08, "delimited comments");
                        BEGIN(C_COMMENT);
                      }
-<C_COMMENT>"*/"      { BEGIN(INITIAL); }
+<C_COMMENT>.*"*/"    { BEGIN(INITIAL); }
 <C_COMMENT>\n        { /* Must match a single character */ }
-<C_COMMENT>[^*]+     { }
+<C_COMMENT>.         { }
 
 {ENTITY}             { TOKEN(tENTITY); }
 {IS}                 { TOKEN(tIS); }
@@ -385,7 +385,7 @@ RELEASE       ?i:release
 {SPACE}              { }
 "\n"                 { /* Must match a single character */ }
 <*><<EOF>>           { return 0; }
-.                    { TOKEN(tERROR); }
+<*>.                 { TOKEN(tERROR); }
 %%
 
 static int resolve_ir1045(void)
@@ -604,4 +604,5 @@ static void warn_lrm(vhdl_standard_t std, const char *fmt, ...)
 void reset_vhdl_scanner(void)
 {
    YY_FLUSH_BUFFER;
+   BEGIN(INITIAL);
 }
