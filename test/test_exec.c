@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021  Nick Gasson
+//  Copyright (C) 2021-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -17,8 +17,9 @@
 
 #include "test_util.h"
 #include "exec.h"
-#include "vcode.h"
 #include "phase.h"
+#include "scan.h"
+#include "vcode.h"
 
 #include <stdlib.h>
 #include <inttypes.h>

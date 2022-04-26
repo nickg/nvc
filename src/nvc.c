@@ -24,6 +24,7 @@
 #include "phase.h"
 #include "rt/cover.h"
 #include "rt/rt.h"
+#include "scan.h"
 #include "vhpi/vhpi-util.h"
 
 #include <unistd.h>

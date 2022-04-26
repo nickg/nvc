@@ -54,9 +54,6 @@ void dump_json(tree_t *elements, unsigned int n_elements, const char *filename);
 // Generate a makefile for the givein unit
 void make(tree_t *targets, int count, FILE *out);
 
-// Set parser input file
-void input_from_file(const char *file);
-
 // Read the next unit from the input file
 tree_t parse(void);
 

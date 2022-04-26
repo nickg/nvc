@@ -15,15 +15,14 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "util.h"
+#include "test_util.h"
 #include "common.h"
 #include "diag.h"
 #include "exec.h"
 #include "phase.h"
-#include "test_util.h"
+#include "scan.h"
 #include "type.h"
 
-#include <check.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

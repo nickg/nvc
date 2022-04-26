@@ -2,6 +2,7 @@
 #define _TEST_UTIL_H
 
 #include "util.h"
+#include "prim.h"
 #include "tree.h"
 
 #include <check.h>

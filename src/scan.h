@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2021  Nick Gasson
+//  Copyright (C) 2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,10 +15,12 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _TOKEN_H
-#define _TOKEN_H
+#ifndef _SCAN_H
+#define _SCAN_H
 
-#include <stdint.h>
+#include "prim.h"
+
+// Functions shared between VHDL and Verilog scanners
 
 typedef union {
    double  d;
@@ -26,6 +28,18 @@ typedef union {
    int64_t n;
 } yylval_t;
 
+typedef enum { SOURCE_VHDL, SOURCE_VERILOG } source_kind_t;
+
+void input_from_file(const char *file);
+source_kind_t source_kind(void);
+int get_next_char(char *b, int max_buffer);
+
+// Functions implemented by each scanner
+
+void reset_vhdl_parser(void);
+void reset_verilog_parser(void);
+
+// VHDL tokens
 typedef enum {
    tEOF,
    tID,
@@ -182,4 +196,4 @@ typedef enum {
    tAT,
 } token_t;
 
-#endif
+#endif  // _SCAN_H

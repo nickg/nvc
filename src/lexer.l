@@ -26,7 +26,7 @@
 #include "util.h"
 #include "common.h"
 #include "diag.h"
-#include "token.h"
+#include "scan.h"
 #include "tree.h"
 
 #include <ctype.h>

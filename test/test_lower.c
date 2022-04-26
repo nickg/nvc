@@ -16,12 +16,13 @@
 //
 
 #include "test_util.h"
-#include "phase.h"
-#include "vcode.h"
 #include "common.h"
 #include "diag.h"
 #include "opt.h"
+#include "phase.h"
 #include "rt/cover.h"
+#include "scan.h"
+#include "vcode.h"
 
 #include <inttypes.h>
 
