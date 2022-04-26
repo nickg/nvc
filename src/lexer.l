@@ -39,7 +39,7 @@
          result = YY_NULL;                   \
    }
 
-#define YY_USER_ACTION begin_token(yytext);
+#define YY_USER_ACTION begin_token(yytext, yyleng);
 
 #define TOKEN(t) return (last_token = (t))
 
@@ -81,9 +81,6 @@ static int last_token = -1;
 extern loc_t yylloc;
 
 yylval_t yylval;
-
-void begin_token(char *tok);
-int get_next_char(char *b, int max_buffer);
 %}
 
 ID              ?i:[a-z][a-z_0-9]*
@@ -97,7 +94,7 @@ EXPONENT        [Ee][+-]?{INTEGER}
 DECIMAL_LITERAL {INTEGER}(\.{INTEGER})?{EXPONENT}?
 BASED_INTEGER   [0-9a-fA-F][0-9a-fA-F_]*
 BASED_LITERAL   ({INTEGER}[#]{BASED_INTEGER}(\.{BASED_INTEGER})?[#]{EXPONENT}?)|({INTEGER}[:]{BASED_INTEGER}(\.{BASED_INTEGER})?[:]{EXPONENT}?)
-SPACE           [ \t\r\n]+
+SPACE           [ \t\r]+
 TICK            \'
 PRAGMA          --[ \t]*
 SYNTH_OFF       {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_off).*
@@ -219,7 +216,7 @@ RELEASE       ?i:release
 
 "/*"            { MIN_STD(STD_08, "delimited comments"); BEGIN(C_COMMENT); }
 <C_COMMENT>"*/" { BEGIN(INITIAL); }
-<C_COMMENT>\n   { }
+<C_COMMENT>\n   { /* Must match a single character */ }
 <C_COMMENT>.    { }
 
 {ENTITY}        { TOKEN(tENTITY); }
@@ -381,6 +378,7 @@ RELEASE       ?i:release
 {ID}              { return parse_id(yytext); }
 {EXID}            { return parse_ex_id(yytext); }
 {SPACE}           { }
+"\n"              { /* Must match a single character */ }
 <<EOF>>           { return 0; }
 .                 { TOKEN(tERROR); }
 %%

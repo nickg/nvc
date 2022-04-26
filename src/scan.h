@@ -22,16 +22,20 @@
 
 // Functions shared between VHDL and Verilog scanners
 
+typedef enum { SOURCE_VHDL, SOURCE_VERILOG } source_kind_t;
+
+void input_from_file(const char *file);
+source_kind_t source_kind(void);
+
+// Private interface to Flex scanners
+
 typedef union {
    double  d;
    char   *s;
    int64_t n;
 } yylval_t;
 
-typedef enum { SOURCE_VHDL, SOURCE_VERILOG } source_kind_t;
-
-void input_from_file(const char *file);
-source_kind_t source_kind(void);
+void begin_token(char *tok, int length);
 int get_next_char(char *b, int max_buffer);
 
 // Functions implemented by each scanner

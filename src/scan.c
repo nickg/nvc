@@ -19,6 +19,7 @@
 #include "diag.h"
 #include "scan.h"
 
+#include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -27,12 +28,11 @@
 
 static const char    *file_start;
 static size_t         file_sz;
-static bool           last_was_newline = true;
 static const char    *read_ptr;
 static source_kind_t  src_kind;
 static loc_file_ref_t file_ref = FILE_INVALID;
-static int            n_token_next_start = 0;
-static int            n_row = 0;
+static int            colno;
+static int            lineno;
 
 void input_from_file(const char *file)
 {
@@ -66,11 +66,10 @@ void input_from_file(const char *file)
       reset_vhdl_parser();
    }
 
-   read_ptr           = file_start;
-   last_was_newline   = true;
-   file_ref           = loc_file_ref(file, file_start);
-   n_row              = 0;
-   n_token_next_start = 0;
+   read_ptr = file_start;
+   file_ref = loc_file_ref(file, file_start);
+   lineno   = 1;
+   colno    = 0;
 }
 
 source_kind_t source_kind(void)
@@ -80,44 +79,32 @@ source_kind_t source_kind(void)
 
 int get_next_char(char *b, int max_buffer)
 {
-   if (last_was_newline) {
-      n_row += 1;
-      last_was_newline = false;
-   }
+   const ptrdiff_t navail = file_start + file_sz - read_ptr;
+   assert(navail >= 0);
 
-   const bool eof = read_ptr >= file_start + file_sz;
-   if (eof)
-      return 0;
-   else
-      *b = *read_ptr++;
+   const int nchars = MIN(navail, max_buffer);
 
-   if (*b == '\n')
-      last_was_newline = true;
+   memcpy(b, read_ptr, nchars);
+   read_ptr += nchars;
 
-   return *b == 0 ? 0 : 1;
+   return nchars;
 }
 
-void begin_token(char *tok)
+void begin_token(char *tok, int length)
 {
-   const char *newline = strrchr(tok, '\n');
-   int n_token_start, n_token_length;
-   if (newline != NULL) {
-      n_token_start = 0;
-      n_token_length = strlen(tok) - (newline - tok);
-      n_token_next_start = n_token_length - 1;
-   }
-   else {
-      n_token_start = n_token_next_start;
-      n_token_length = strlen(tok);
-      n_token_next_start += n_token_length;
-   }
+   // Newline must match as a single token for the logic below to work
+   assert(strchr(tok, '\n') == NULL || length == 1);
 
-   const int last_col = n_token_start + n_token_length - 1;
+   const int first_col = colno;
+   if (*tok == '\n') {
+      colno = 0;
+      lineno += 1;
+   }
+   else
+      colno += length;
+
+   const int last_col = first_col + length - 1;
 
    extern loc_t yylloc;
-   yylloc = get_loc(MIN(n_row, LINE_INVALID),
-                    MIN(n_token_start, COLUMN_INVALID),
-                    MIN(n_row, LINE_INVALID),
-                    MIN(last_col, COLUMN_INVALID),
-                    file_ref);
+   yylloc = get_loc(lineno, first_col, lineno, last_col, file_ref);
 }
