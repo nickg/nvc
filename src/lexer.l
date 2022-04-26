@@ -217,7 +217,9 @@ RELEASE       ?i:release
 <COMMENT>\n          { BEGIN(INITIAL); }
 <COMMENT>.*          { }
 
-"/*"                 { MIN_STD(STD_08, "delimited comments"); BEGIN(C_COMMENT); }
+"/*"                 { MIN_STD(STD_08, "delimited comments");
+                       BEGIN(C_COMMENT);
+                     }
 <C_COMMENT>"*/"      { BEGIN(INITIAL); }
 <C_COMMENT>\n        { /* Must match a single character */ }
 <C_COMMENT>[^*]+     { }
@@ -419,17 +421,14 @@ static int parse_id(const char *str)
 
 static int parse_ex_id(const char *str)
 {
-   /* Copy of input */
    char *p = (yylval.s = xmalloc(strlen(str) + 1));
 
-   /* Replacing double '\\' character by single '\\' */
-   /* Begins after first character */
+   // Replacing double '\\' character by single '\\'
    *p++ = *str++;
    while (*str) {
       if ((*str == '\\') && (*(str+1) == '\\')) str++;
       *p++ = *str++;
    }
-   /* Copy last character which is null character */
    *p = '\0';
 
    TOKEN(tID);
@@ -444,51 +443,32 @@ static void strip_underscores(char *s)
    *p = '\0';
 }
 
-/**
- * \fn static int parse_decimal_literal (const char *str)
- * \brief Transform a string into a literal as specified
- * in LRM 13.4.1 (decimal_literal ::= integer [.integer] [exponent]).
- *
- * \param str Formatted string as specified in
- * LRM 13.4.1 (decimal_literal ::= integer [.integer] [exponent]).
- * \return TOKEN(tINT) if no '.' found and no '-' found,
- * TOKEN(tERROR) if no '.' found and '-' found,
- * else TOKEN(tREAL).
- */
-static int parse_decimal_literal (const char *str)
+static int parse_decimal_literal(const char *str)
 {
+   // Transform a string into a literal as specified in LRM 13.4.1
+   //   decimal_literal ::= integer [.integer] [exponent]
+
    int tok = tERROR;
-   /* Copy of input text */
    char *tmp LOCAL = xstrdup(str);
-   /* Stripping '_' character */
    strip_underscores(tmp);
 
-   /* Find first occurences of '.' */
    char *dot = strpbrk(tmp, ".");
 
-   /* Integer literals */
    if (dot == NULL) {
-      /* Find first occurences of 'e' or 'E' */
       char *sign = strpbrk(tmp, "-");
       char *val  = strtok(tmp, "eE");
       char *exp  = strtok(NULL, "eE");
 
-      /* String to long long */
       yylval.n = atoll(val);
 
-      /* String to long long (atoll function manages the sign) */
       long long int e = (exp ? atoll(exp) : 0);
 
-      /* Minus sign forbidden for an integer literal */
-      if (e >= 0) {
-         /* Updating val */
+      if (e >= 0) {  // Minus sign forbidden for an integer literal
          for (; e > 0; e--) yylval.n *= 10;
-
          tok = (sign == NULL) ? tINT : tERROR;
       }
    }
    else {
-      /* String to double */
       yylval.d = strtod(tmp, NULL);
       tok = tREAL;
    }
@@ -498,8 +478,7 @@ static int parse_decimal_literal (const char *str)
 
 /**
  * \fn static int parse_based_literal (const char *str)
- * \brief Transform a string into a literal as specified in LRM 13.4.2
- * (based_literal ::= base [#:] based_integer [.based_integer] [#:] [exponent]).
+ * \brief
  *
  * \param str Formatted string as specified in LRM 13.4.2
  * (based_literal ::= base [#:] based_integer [.based_integer] [#:] [exponent]).
@@ -510,36 +489,30 @@ static int parse_decimal_literal (const char *str)
  */
 static int parse_based_literal (const char *str)
 {
+   // Transform a string into a literal as specified in LRM 13.4.2
+   //   based_literal ::= base [#:] based_integer [.based_integer] [#:]
+   //     [exponent]
+
    int tok = tERROR;
-   /* Copy of input text */
-   char *tmp = xstrdup(str);
-   /* Stripping '_' character */
+   char *tmp LOCAL = xstrdup(str);
    strip_underscores(tmp);
 
-   /* Find first occurences of '.' */
    char *dot  = strpbrk(tmp, ".");
    char *sign = strpbrk(tmp, "-");
-   /* Find first occurences of '#', ':', 'e' or 'E' */
    char *base = strtok(tmp, "#:");
    char *val  = strtok(NULL, "#:");
    char *exp  = strtok(NULL, "eE");
 
-   /* base must be at least 2 and at most 16 */
+   // Base must be at least 2 and at most 16
    if ((2 <= atoi(base)) && (atoi(base) <= 16)) {
-      /* Integer literals */
       if (dot == NULL) {
          char *eptr;
-         /* String to long long */
          yylval.n = strtoll(val, &eptr, atoi(base));
 
-         /* String to long long (atoll function manages the sign) */
          long long int e = (exp ? atoll(exp) : 0);
 
-         /* Minus sign forbidden for an integer literal */
-         if (e >= 0) {
-            /* Updating val */
+         if (e >= 0) {  // Minus sign forbidden for an integer literal
             for (; e > 0; e--) yylval.n *= atoi(base);
-
             tok = ((*eptr == '\0') && (sign == NULL)) ? tINT : tERROR;
          }
       }
@@ -548,78 +521,60 @@ static int parse_based_literal (const char *str)
          char *integer  = strtok(val, ".");
          char *rational = strtok(NULL, ".");
 
-         yylval.d = (double) strtoll(integer, &eptr_integer, atoi(base));
+         yylval.d = (double)strtoll(integer, &eptr_integer, atoi(base));
 
-         double tmp = (double) strtoll(rational, &eptr_rational, atoi(base));
-         tmp *= pow((double) atoi(base), (double) ((long int) (0-strlen(rational))));
+         double tmp = (double)strtoll(rational, &eptr_rational, atoi(base));
+         tmp *= pow((double)atoi(base), (double)((long)(0 - strlen(rational))));
 
          yylval.d += tmp;
 
-         /* String to long long (atoll function manages the sign) */
          long long int e = (exp ? atoll(exp) : 0);
 
          if (e != 0)
             yylval.d *= pow((double) atoi(base), (double) e);
 
-         tok = ((*eptr_integer == '\0') && (*eptr_rational == '\0')) ? tREAL : tERROR;
+         if (*eptr_integer == '\0' && *eptr_rational == '\0')
+            tok = tREAL;
+         else
+            tok = tERROR;
       }
    }
-   /* Deleting local allocation */
-   free(tmp);
 
    TOKEN(tok);
 }
 
-/**
- * \fn static int parse_string (const char *str)
- * \brief Copy input replaces all double '\"' by single '\"'
- *        or all double '%' by single '%'.
- *        In the case when '\%' is used as string brackets,
- *        the enclosed senquence of characters should not
- *        contain quotation marks!
- *
- * \param str Formatted string as specified in LRM 13.6
- * (string_literal ::= " { graphic_character } ").
- * \return TOKEN(tSTRING).
- */
 static int parse_string(const char *str)
 {
-   /* Copy of input */
+   // Replaces all double '\"' by single '\"' or all double '%' by
+   // single '%'.  In the case when '\%' is used as string brackets, the
+   // enclosed senquence of characters should not contain quotation
+   // marks!
+
    char *s = (yylval.s = xstrdup(str));
 
-   /* Replacing double '\"' character by single '\"' */
-   /* or double '%' character by single '%' */
-   /* Begins after first character */
+   // Replacing double '\"' character by single '\"' or double '%'
+   // character by single '%'
+   // Begins after first character
    s++;
    char *p = s;
    while (*p) {
       if ((*p == *(yylval.s)) && (*(p+1) == *(yylval.s))) p++;
       *s++ = *p++;
    }
-   /* Copy last character which is null character */
    *s = *p;
 
    TOKEN(tSTRING);
 }
 
-/**
- * \fn static int parse_bit_string (const char *str)
- * \brief Copy input, remove all '_' characters and
- *        replace all '\%' characters by '\"'.
- *
- * \param str Formatted string as specified in LRM 13.7
- * (bit_string_literal ::= base_specifier " [ bit_value ] ").
- * \return TOKEN(tBITSTRING).
- */
 static int parse_bit_string(const char *str)
 {
-   /* Copy of input */
+   // Copy input, remove all '_' characters and replace all '\%'
+   // characters by '\"'.
+
    char *p = (yylval.s = xstrdup(str));
 
-   /* Stripping '_' character */
    strip_underscores(p);
 
-   /* Replacing '\%' character by '\"' */
    while (*p) {
       switch (*p) {
       case '%':
