@@ -100,7 +100,7 @@ PRAGMA          --[ \t]*
 SYNTH_OFF       {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_off).*
 SYNTH_ON        {PRAGMA}(?i:synthesis)[ \t]+(?i:translate_on).*
 
-%x C_COMMENT
+%x COMMENT C_COMMENT
 
 ENTITY        ?i:entity
 IS            ?i:is
@@ -209,178 +209,181 @@ RELEASE       ?i:release
 
 %%
 
-{SYNTH_OFF}     { TOKEN(tSYNTHOFF); }
-{SYNTH_ON}      { TOKEN(tSYNTHON); }
+{SYNTH_OFF}          { TOKEN(tSYNTHOFF); }
+{SYNTH_ON}           { TOKEN(tSYNTHON); }
 
-{COMMENT}       { }
+{COMMENT}            { BEGIN(COMMENT); }
 
-"/*"            { MIN_STD(STD_08, "delimited comments"); BEGIN(C_COMMENT); }
-<C_COMMENT>"*/" { BEGIN(INITIAL); }
-<C_COMMENT>\n   { /* Must match a single character */ }
-<C_COMMENT>.    { }
+<COMMENT>\n          { BEGIN(INITIAL); }
+<COMMENT>.*          { }
 
-{ENTITY}        { TOKEN(tENTITY); }
-{IS}            { TOKEN(tIS); }
-{END}           { TOKEN(tEND); }
-{GENERIC}       { TOKEN(tGENERIC); }
-{PORT}          { TOKEN(tPORT); }
-{CONSTANT}      { TOKEN(tCONSTANT); }
-{COMPONENT}     { TOKEN(tCOMPONENT); }
-{CONFIGURATION} { TOKEN(tCONFIGURATION); }
-{ARCHITECTURE}  { TOKEN(tARCHITECTURE); }
-{OF}            { TOKEN(tOF); }
-{BEGIN}         { TOKEN(tBEGIN); }
-{AND}           { TOKEN(tAND); }
-{OR}            { TOKEN(tOR); }
-{XOR}           { TOKEN(tXOR); }
-{XNOR}          { TOKEN(tXNOR); }
-{NAND}          { TOKEN(tNAND); }
-{NOR}           { TOKEN(tNOR); }
-{ABS}           { TOKEN(tABS); }
-{NOT}           { TOKEN(tNOT); }
-{ALL}           { TOKEN(tALL); }
-{IN}            { TOKEN(tIN); }
-{OUT}           { TOKEN(tOUT); }
-{BUFFER}        { TOKEN(tBUFFER); }
-{BUS}           { TOKEN(tBUS); }
-{REGISTER}      { TOKEN(tREGISTER); }
-{UNAFFECTED}    { TOKEN(tUNAFFECTED); }
-{SIGNAL}        { TOKEN(tSIGNAL); }
-{PROCESS}       { TOKEN(tPROCESS); }
-{WAIT}          { TOKEN(tWAIT); }
-{REPORT}        { TOKEN(tREPORT); }
-{INOUT}         { TOKEN(tINOUT); }
-{LINKAGE}       { TOKEN(tLINKAGE); }
-{VARIABLE}      { TOKEN(tVARIABLE); }
-{FOR}           { TOKEN(tFOR); }
-{TYPE}          { TOKEN(tTYPE); }
-{RANGE}         { TOKEN(tRANGE); }
-{TO}            { TOKEN(tTO); }
-{DOWNTO}        { TOKEN(tDOWNTO); }
-{SUBTYPE}       { TOKEN(tSUBTYPE); }
-{UNITS}         { TOKEN(tUNITS); }
-{PACKAGE}       { TOKEN(tPACKAGE); }
-{LIBRARY}       { TOKEN(tLIBRARY); }
-{USE}           { TOKEN(tUSE); }
-{NULL}          { TOKEN(tNULL); }
-{FUNCTION}      { TOKEN(tFUNCTION); }
-{IMPURE}        { TOKEN(tIMPURE); }
-{PURE}          { TOKEN(tPURE); }
-{RETURN}        { TOKEN(tRETURN); }
-{ARRAY}         { TOKEN(tARRAY); }
-{OTHERS}        { TOKEN(tOTHERS); }
-{ASSERT}        { TOKEN(tASSERT); }
-{SEVERITY}      { TOKEN(tSEVERITY); }
-{ON}            { TOKEN(tON); }
-{MAP}           { TOKEN(tMAP); }
-{IF}            { TOKEN(tIF); }
-{THEN}          { TOKEN(tTHEN); }
-{ELSE}          { TOKEN(tELSE); }
-{ELSIF}         { TOKEN(tELSIF); }
-{BODY}          { TOKEN(tBODY); }
-{WHILE}         { TOKEN(tWHILE); }
-{LOOP}          { TOKEN(tLOOP); }
-{AFTER}         { TOKEN(tAFTER); }
-{ALIAS}         { TOKEN(tALIAS); }
-{MOD}           { TOKEN(tMOD); }
-{ATTRIBUTE}     { TOKEN(tATTRIBUTE); }
-{PROCEDURE}     { TOKEN(tPROCEDURE); }
-{POSTPONED}     { TOKEN(tPOSTPONED); }
-{EXIT}          { TOKEN(tEXIT); }
-{REM}           { TOKEN(tREM); }
-{WHEN}          { TOKEN(tWHEN); }
-{CASE}          { TOKEN(tCASE); }
-{TRANSPORT}     { TOKEN(tTRANSPORT); }
-{REJECT}        { TOKEN(tREJECT); }
-{INERTIAL}      { TOKEN(tINERTIAL); }
-{BLOCK}         { TOKEN(tBLOCK); }
-{WITH}          { TOKEN(tWITH); }
-{SELECT}        { TOKEN(tSELECT); }
-{GENERATE}      { TOKEN(tGENERATE); }
-{ACCESS}        { TOKEN(tACCESS); }
-{FILE}          { TOKEN(tFILE); }
-{OPEN}          { TOKEN(tOPEN); }
-{UNTIL}         { TOKEN(tUNTIL); }
-{RECORD}        { TOKEN(tRECORD); }
-{NEW}           { TOKEN(tNEW); }
-{SHARED}        { TOKEN(tSHARED); }
-{NEXT}          { TOKEN(tNEXT); }
-{SLL}           { TOKEN(tSLL); }
-{SRL}           { TOKEN(tSRL); }
-{SLA}           { TOKEN(tSLA); }
-{SRA}           { TOKEN(tSRA); }
-{ROL}           { TOKEN(tROL); }
-{ROR}           { TOKEN(tROR); }
-{LITERAL}       { TOKEN(tLITERAL); }
-{GROUP}         { TOKEN(tGROUP); }
-{LABEL}         { TOKEN(tLABEL); }
-{GUARDED}       { TOKEN(tGUARDED); }
-{DISCONNECT}    { TOKEN(tDISCONNECT); }
-{REVRANGE}      { TOKEN(tREVRANGE); }
-{PROTECTED}     { TOKEN_00(tPROTECTED); }
-{CONTEXT}       { TOKEN_08(tCONTEXT); }
-{FORCE}         { TOKEN_08(tFORCE); }
-{RELEASE}       { TOKEN_08(tRELEASE); }
-`{IF}           { TOKEN(tCONDIF); }
-`{ELSE}         { TOKEN(tCONDELSE); }
-`{ELSIF}        { TOKEN(tCONDELSIF); }
-`{END}          { TOKEN(tCONDEND); }
-`{ERROR}        { TOKEN(tCONDERROR); }
-`{WARNING}      { TOKEN(tCONDWARN); }
+"/*"                 { MIN_STD(STD_08, "delimited comments"); BEGIN(C_COMMENT); }
+<C_COMMENT>"*/"      { BEGIN(INITIAL); }
+<C_COMMENT>\n        { /* Must match a single character */ }
+<C_COMMENT>[^*]+     { }
 
-"("               { TOKEN(tLPAREN); }
-")"               { TOKEN(tRPAREN); }
-";"               { TOKEN(tSEMI); }
-":="              { TOKEN(tASSIGN); }
-":"               { TOKEN(tCOLON); }
-"**"              { TOKEN(tPOWER); }
-","               { TOKEN(tCOMMA); }
-"<>"              { TOKEN(tBOX); }
-"<"               { TOKEN(tLT); }
-"<="              { TOKEN(tLE); }
-">"               { TOKEN(tGT); }
-">="              { TOKEN(tGE); }
-"?<"              { TOKEN_08(tMLT); }
-"?<="             { TOKEN_08(tMLE); }
-"?>"              { TOKEN_08(tMGT); }
-"?>="             { TOKEN_08(tMGE); }
-"??"              { TOKEN_08(tCCONV); }
-"=>"              { TOKEN(tASSOC); }
-"+"               { TOKEN(tPLUS); }
-"-"               { TOKEN(tMINUS); }
-"*"               { TOKEN(tTIMES); }
-"/="              { TOKEN(tNEQ); }
-"="               { TOKEN(tEQ); }
-"?/="             { TOKEN_08(tMNEQ); }
-"?="              { TOKEN_08(tMEQ); }
-"/"               { TOKEN(tOVER); }
-"."               { TOKEN(tDOT); }
-"&"               { TOKEN(tAMP); }
-"|"               { TOKEN(tBAR); }
-"!"               { TOKEN(tBAR); }
-"["               { TOKEN(tLSQUARE); }
-"]"               { TOKEN(tRSQUARE); }
-"<<"              { TOKEN(tLTLT); }
-">>"              { TOKEN(tGTGT); }
-"^"               { TOKEN(tCARET); }
-"@"               { TOKEN(tAT); }
-{DECIMAL_LITERAL} { return parse_decimal_literal(yytext); }
-{BASED_LITERAL}   { return parse_based_literal(yytext); }
-{BIT_STRING}      { return parse_bit_string(yytext); }
-{STRING}          { return parse_string(yytext); }
-{TICK}            { TOKEN(tTICK); }
-{CHAR}            { if (resolve_ir1045()) {
-                       yylval.s = xstrdup(yytext);
-                       TOKEN(tID);
-                    }
-                    REJECT;
-                  }
-{ID}              { return parse_id(yytext); }
-{EXID}            { return parse_ex_id(yytext); }
-{SPACE}           { }
-"\n"              { /* Must match a single character */ }
-<<EOF>>           { return 0; }
-.                 { TOKEN(tERROR); }
+{ENTITY}             { TOKEN(tENTITY); }
+{IS}                 { TOKEN(tIS); }
+{END}                { TOKEN(tEND); }
+{GENERIC}            { TOKEN(tGENERIC); }
+{PORT}               { TOKEN(tPORT); }
+{CONSTANT}           { TOKEN(tCONSTANT); }
+{COMPONENT}          { TOKEN(tCOMPONENT); }
+{CONFIGURATION}      { TOKEN(tCONFIGURATION); }
+{ARCHITECTURE}       { TOKEN(tARCHITECTURE); }
+{OF}                 { TOKEN(tOF); }
+{BEGIN}              { TOKEN(tBEGIN); }
+{AND}                { TOKEN(tAND); }
+{OR}                 { TOKEN(tOR); }
+{XOR}                { TOKEN(tXOR); }
+{XNOR}               { TOKEN(tXNOR); }
+{NAND}               { TOKEN(tNAND); }
+{NOR}                { TOKEN(tNOR); }
+{ABS}                { TOKEN(tABS); }
+{NOT}                { TOKEN(tNOT); }
+{ALL}                { TOKEN(tALL); }
+{IN}                 { TOKEN(tIN); }
+{OUT}                { TOKEN(tOUT); }
+{BUFFER}             { TOKEN(tBUFFER); }
+{BUS}                { TOKEN(tBUS); }
+{REGISTER}           { TOKEN(tREGISTER); }
+{UNAFFECTED}         { TOKEN(tUNAFFECTED); }
+{SIGNAL}             { TOKEN(tSIGNAL); }
+{PROCESS}            { TOKEN(tPROCESS); }
+{WAIT}               { TOKEN(tWAIT); }
+{REPORT}             { TOKEN(tREPORT); }
+{INOUT}              { TOKEN(tINOUT); }
+{LINKAGE}            { TOKEN(tLINKAGE); }
+{VARIABLE}           { TOKEN(tVARIABLE); }
+{FOR}                { TOKEN(tFOR); }
+{TYPE}               { TOKEN(tTYPE); }
+{RANGE}              { TOKEN(tRANGE); }
+{TO}                 { TOKEN(tTO); }
+{DOWNTO}             { TOKEN(tDOWNTO); }
+{SUBTYPE}            { TOKEN(tSUBTYPE); }
+{UNITS}              { TOKEN(tUNITS); }
+{PACKAGE}            { TOKEN(tPACKAGE); }
+{LIBRARY}            { TOKEN(tLIBRARY); }
+{USE}                { TOKEN(tUSE); }
+{NULL}               { TOKEN(tNULL); }
+{FUNCTION}           { TOKEN(tFUNCTION); }
+{IMPURE}             { TOKEN(tIMPURE); }
+{PURE}               { TOKEN(tPURE); }
+{RETURN}             { TOKEN(tRETURN); }
+{ARRAY}              { TOKEN(tARRAY); }
+{OTHERS}             { TOKEN(tOTHERS); }
+{ASSERT}             { TOKEN(tASSERT); }
+{SEVERITY}           { TOKEN(tSEVERITY); }
+{ON}                 { TOKEN(tON); }
+{MAP}                { TOKEN(tMAP); }
+{IF}                 { TOKEN(tIF); }
+{THEN}               { TOKEN(tTHEN); }
+{ELSE}               { TOKEN(tELSE); }
+{ELSIF}              { TOKEN(tELSIF); }
+{BODY}               { TOKEN(tBODY); }
+{WHILE}              { TOKEN(tWHILE); }
+{LOOP}               { TOKEN(tLOOP); }
+{AFTER}              { TOKEN(tAFTER); }
+{ALIAS}              { TOKEN(tALIAS); }
+{MOD}                { TOKEN(tMOD); }
+{ATTRIBUTE}          { TOKEN(tATTRIBUTE); }
+{PROCEDURE}          { TOKEN(tPROCEDURE); }
+{POSTPONED}          { TOKEN(tPOSTPONED); }
+{EXIT}               { TOKEN(tEXIT); }
+{REM}                { TOKEN(tREM); }
+{WHEN}               { TOKEN(tWHEN); }
+{CASE}               { TOKEN(tCASE); }
+{TRANSPORT}          { TOKEN(tTRANSPORT); }
+{REJECT}             { TOKEN(tREJECT); }
+{INERTIAL}           { TOKEN(tINERTIAL); }
+{BLOCK}              { TOKEN(tBLOCK); }
+{WITH}               { TOKEN(tWITH); }
+{SELECT}             { TOKEN(tSELECT); }
+{GENERATE}           { TOKEN(tGENERATE); }
+{ACCESS}             { TOKEN(tACCESS); }
+{FILE}               { TOKEN(tFILE); }
+{OPEN}               { TOKEN(tOPEN); }
+{UNTIL}              { TOKEN(tUNTIL); }
+{RECORD}             { TOKEN(tRECORD); }
+{NEW}                { TOKEN(tNEW); }
+{SHARED}             { TOKEN(tSHARED); }
+{NEXT}               { TOKEN(tNEXT); }
+{SLL}                { TOKEN(tSLL); }
+{SRL}                { TOKEN(tSRL); }
+{SLA}                { TOKEN(tSLA); }
+{SRA}                { TOKEN(tSRA); }
+{ROL}                { TOKEN(tROL); }
+{ROR}                { TOKEN(tROR); }
+{LITERAL}            { TOKEN(tLITERAL); }
+{GROUP}              { TOKEN(tGROUP); }
+{LABEL}              { TOKEN(tLABEL); }
+{GUARDED}            { TOKEN(tGUARDED); }
+{DISCONNECT}         { TOKEN(tDISCONNECT); }
+{REVRANGE}           { TOKEN(tREVRANGE); }
+{PROTECTED}          { TOKEN_00(tPROTECTED); }
+{CONTEXT}            { TOKEN_08(tCONTEXT); }
+{FORCE}              { TOKEN_08(tFORCE); }
+{RELEASE}            { TOKEN_08(tRELEASE); }
+`{IF}                { TOKEN(tCONDIF); }
+`{ELSE}              { TOKEN(tCONDELSE); }
+`{ELSIF}             { TOKEN(tCONDELSIF); }
+`{END}               { TOKEN(tCONDEND); }
+`{ERROR}             { TOKEN(tCONDERROR); }
+`{WARNING}           { TOKEN(tCONDWARN); }
+
+"("                  { TOKEN(tLPAREN); }
+")"                  { TOKEN(tRPAREN); }
+";"                  { TOKEN(tSEMI); }
+":="                 { TOKEN(tASSIGN); }
+":"                  { TOKEN(tCOLON); }
+"**"                 { TOKEN(tPOWER); }
+","                  { TOKEN(tCOMMA); }
+"<>"                 { TOKEN(tBOX); }
+"<"                  { TOKEN(tLT); }
+"<="                 { TOKEN(tLE); }
+">"                  { TOKEN(tGT); }
+">="                 { TOKEN(tGE); }
+"?<"                 { TOKEN_08(tMLT); }
+"?<="                { TOKEN_08(tMLE); }
+"?>"                 { TOKEN_08(tMGT); }
+"?>="                { TOKEN_08(tMGE); }
+"??"                 { TOKEN_08(tCCONV); }
+"=>"                 { TOKEN(tASSOC); }
+"+"                  { TOKEN(tPLUS); }
+"-"                  { TOKEN(tMINUS); }
+"*"                  { TOKEN(tTIMES); }
+"/="                 { TOKEN(tNEQ); }
+"="                  { TOKEN(tEQ); }
+"?/="                { TOKEN_08(tMNEQ); }
+"?="                 { TOKEN_08(tMEQ); }
+"/"                  { TOKEN(tOVER); }
+"."                  { TOKEN(tDOT); }
+"&"                  { TOKEN(tAMP); }
+"|"                  { TOKEN(tBAR); }
+"!"                  { TOKEN(tBAR); }
+"["                  { TOKEN(tLSQUARE); }
+"]"                  { TOKEN(tRSQUARE); }
+"<<"                 { TOKEN(tLTLT); }
+">>"                 { TOKEN(tGTGT); }
+"^"                  { TOKEN(tCARET); }
+"@"                  { TOKEN(tAT); }
+{DECIMAL_LITERAL}    { return parse_decimal_literal(yytext); }
+{BASED_LITERAL}      { return parse_based_literal(yytext); }
+{BIT_STRING}         { return parse_bit_string(yytext); }
+{STRING}             { return parse_string(yytext); }
+{TICK}               { TOKEN(tTICK); }
+{CHAR}               { if (resolve_ir1045()) {
+                          yylval.s = xstrdup(yytext);
+                          TOKEN(tID);
+                       }
+                       REJECT;
+                     }
+{ID}                 { return parse_id(yytext); }
+{EXID}               { return parse_ex_id(yytext); }
+{SPACE}              { }
+"\n"                 { /* Must match a single character */ }
+<*><<EOF>>           { return 0; }
+.                    { TOKEN(tERROR); }
 %%
 
 static int resolve_ir1045(void)
