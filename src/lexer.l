@@ -600,3 +600,8 @@ static void warn_lrm(vhdl_standard_t std, const char *fmt, ...)
 
    va_end(ap);
 }
+
+void reset_vhdl_scanner(void)
+{
+   YY_FLUSH_BUFFER;
+}

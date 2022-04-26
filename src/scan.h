@@ -40,6 +40,9 @@ int get_next_char(char *b, int max_buffer);
 
 // Functions implemented by each scanner
 
+void reset_vhdl_scanner(void);
+void reset_verilog_scanner(void);
+
 void reset_vhdl_parser(void);
 void reset_verilog_parser(void);
 

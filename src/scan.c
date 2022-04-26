@@ -63,6 +63,7 @@ void input_from_file(const char *file)
    }
    else {
       src_kind = SOURCE_VHDL;
+      reset_vhdl_scanner();
       reset_vhdl_parser();
    }
 
