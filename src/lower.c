@@ -2402,6 +2402,11 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
    }
 }
 
+static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
+{
+   fatal_at(tree_loc(ref), "sorry, external names are not currently supported");
+}
+
 static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
 {
    if (!lower_have_signal(reg))
@@ -3738,6 +3743,8 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
       return lower_literal(expr, ctx);
    case T_REF:
       return lower_ref(expr, ctx);
+   case T_EXTERNAL_NAME:
+      return lower_external_name(expr, ctx);
    case T_AGGREGATE:
       return lower_aggregate(expr, VCODE_INVALID_VAR);
    case T_ARRAY_REF:

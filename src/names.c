@@ -890,19 +890,6 @@ static tree_t iter_name(iter_state_t *state)
    return d;
 }
 
-static int tree_stable_compar(const void *pa, const void *pb)
-{
-   tree_t a = *(tree_t *)pa;
-   tree_t b = *(tree_t *)pb;
-
-   if (a == NULL)
-      return -1;
-   else if (b == NULL)
-      return 1;
-   else
-      return tree_loc(a)->first_line - tree_loc(b)->first_line;
-}
-
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 {
    iter_state_t iter;

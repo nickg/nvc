@@ -1016,6 +1016,25 @@ START_TEST(test_toplevel3)
 }
 END_TEST
 
+START_TEST(test_ename1)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/elab/ename1.vhd");
+
+   const error_t expect[] = {
+      { 30, "class of object UUT.X is not variable" },
+      { 31, "external name BOT.X not found" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1076,6 +1095,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_fold1);
    tcase_add_test(tc, test_fold2);
    tcase_add_test(tc, test_toplevel3);
+   tcase_add_test(tc, test_ename1);
    suite_add_tcase(s, tc);
 
    return s;

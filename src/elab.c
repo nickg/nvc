@@ -45,11 +45,13 @@ typedef struct {
    hash_t      *generics;
    hash_t      *subprograms;
    exec_t      *exec;
+   tree_list_t  enames;
 } elab_ctx_t;
 
 typedef struct {
    tree_list_t copied_subs;
    type_list_t copied_types;
+   tree_list_t external_names;
 } elab_copy_ctx_t;
 
 typedef struct {
@@ -75,7 +77,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx);
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx);
 static void elab_pop_scope(elab_ctx_t *ctx);
 static void elab_block_config(tree_t config, const elab_ctx_t *ctx);
-static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx);
+static tree_t elab_copy(tree_t t, elab_ctx_t *ctx);
 
 static generic_list_t *generic_override = NULL;
 
@@ -178,6 +180,7 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
 {
    switch (tree_kind(t)) {
    case T_INSTANCE:
+   case T_EXTERNAL_NAME:
       return true;
    case T_FUNC_DECL:
    case T_PROC_DECL:
@@ -225,6 +228,8 @@ static void elab_tree_copy_cb(tree_t t, void *__ctx)
 
    if (is_subprogram(t))
       APUSH(ctx->copied_subs, t);
+   else if (tree_kind(t) == T_EXTERNAL_NAME)
+      APUSH(ctx->external_names, t);
 }
 
 static void elab_type_copy_cb(type_t type, void *__ctx)
@@ -261,7 +266,7 @@ static void elab_find_config_roots(tree_t t, tree_list_t *roots)
    }
 }
 
-static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
+static tree_t elab_copy(tree_t t, elab_ctx_t *ctx)
 {
    elab_copy_ctx_t copy_ctx = {};
 
@@ -360,6 +365,8 @@ static tree_t elab_copy(tree_t t, const elab_ctx_t *ctx)
    }
    ACLEAR(copy_ctx.copied_subs);
 
+   ctx->enames = copy_ctx.external_names;
+
    return copy;
 }
 
@@ -422,7 +429,7 @@ static void elab_block_config(tree_t config, const elab_ctx_t *ctx)
    }
 }
 
-static tree_t elab_root_config(tree_t top, const elab_ctx_t *ctx)
+static tree_t elab_root_config(tree_t top, elab_ctx_t *ctx)
 {
    tree_t copy = elab_copy(top, ctx);
 
@@ -1114,6 +1121,52 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
+static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
+{
+   tree_t where = ctx->out, next = NULL;
+   ident_t name = tree_ident(t), it;
+   for (; (it = ident_walk_selected(&name)); where = next, next = NULL) {
+      if (is_container(where))
+         next = search_decls(where, it, 0);
+
+      if (next == NULL && tree_kind(where) == T_BLOCK) {
+         const int nstmts = tree_stmts(where);
+         for (int i = 0; i < nstmts; i++) {
+            tree_t s = tree_stmt(where, i);
+            if (tree_ident(s) == it) {
+               next = s;
+               break;
+            }
+         }
+      }
+
+      if (next == NULL) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "external name %s not found", istr(tree_ident(t)));
+         diag_hint(d, tree_loc(t), "name %s not found inside %s", istr(it),
+                   istr(tree_ident(where)));
+         diag_emit(d);
+         return;
+      }
+   }
+
+   assert(where != NULL);
+
+   if (class_of(where) != tree_class(t)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "class of object %s is not %s", istr(tree_ident(t)),
+                  class_str(tree_class(t)));
+      diag_hint(d, tree_loc(t), "external name with class %s",
+                class_str(tree_class(t)));
+      diag_hint(d, tree_loc(where), "declaration of %s as %s",
+                istr(tree_ident(where)), class_str(class_of(where)));
+      diag_emit(d);
+      return;
+   }
+
+   tree_set_ref(t, where);
+}
+
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx)
 {
    tree_t h = tree_new(T_HIER);
@@ -1131,6 +1184,17 @@ static void elab_pop_scope(elab_ctx_t *ctx)
 {
    if (ctx->generics != NULL)
       hash_free(ctx->generics);
+
+   if (ctx->enames.count > 0) {
+      // Sort the names so errors appear in a deterministic order
+      qsort(ctx->enames.items, ctx->enames.count, sizeof(tree_t),
+            tree_stable_compar);
+
+      for (int i = 0; i < ctx->enames.count; i++)
+         elab_external_name(ctx->enames.items[i], ctx);
+
+      ACLEAR(ctx->enames);
+   }
 }
 
 static bool elab_copy_genvar_cb(tree_t t, void *ctx)

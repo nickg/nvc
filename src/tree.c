@@ -293,7 +293,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_FLAGS),
 
    // T_EXTERNAL_NAME
-   (I_IDENT | I_CLASS | I_TYPE),
+   (I_IDENT | I_CLASS | I_TYPE | I_REF),
 
    // T_FORCE
    (I_IDENT | I_TARGET | I_VALUE | I_SUBKIND),
@@ -1264,4 +1264,17 @@ tree_t tree_from_locus(ident_t unit, ptrdiff_t offset,
 void tree_walk_deps(tree_t t, tree_deps_fn_t fn, void *ctx)
 {
    object_arena_walk_deps(object_arena(&(t->object)), fn, ctx);
+}
+
+int tree_stable_compar(const void *pa, const void *pb)
+{
+   tree_t a = *(tree_t *)pa;
+   tree_t b = *(tree_t *)pb;
+
+   if (a == NULL)
+      return -1;
+   else if (b == NULL)
+      return 1;
+   else
+      return tree_loc(a)->first_line - tree_loc(b)->first_line;
 }
