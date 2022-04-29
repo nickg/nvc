@@ -2484,7 +2484,8 @@ START_TEST(test_issue203)
 
    EXPECT_BB(0) = {
       { VCODE_OP_TEMP_STACK_MARK },
-      { VCODE_OP_LINK_VAR, .name = "STD.TEXTIO.OUTPUT" },
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.TEXTIO" },
+      { VCODE_OP_LINK_VAR, .name = "OUTPUT" },
       { VCODE_OP_CONST, .value = 104 },
       { VCODE_OP_CONST, .value = 101 },
       { VCODE_OP_CONST, .value = 108 },
@@ -2626,7 +2627,7 @@ START_TEST(test_tag)
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_INIT_SIGNAL },
-         { VCODE_OP_STORE, .name = "WORK.P.S" },
+         { VCODE_OP_STORE, .name = "S" },
          { VCODE_OP_RETURN },
       };
 
@@ -2749,7 +2750,8 @@ START_TEST(test_thunk)
       vcode_select_unit(t1);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_LINK_VAR, .name = "WORK.PACK.D" },
+         { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
+         { VCODE_OP_LINK_VAR, .name = "D" },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_ARRAY_REF },
@@ -3291,8 +3293,7 @@ START_TEST(test_signal11)
 
    vcode_select_unit(vpack);
    fail_unless(vcode_count_vars() == 1);
-   fail_unless(vcode_var_name(0) == ident_new("WORK.PACK.X"));
-   fail_unless(vcode_var_flags(0) & VAR_SIGNAL);
+   fail_unless(vcode_var_name(0) == ident_new("X"));
 }
 END_TEST
 
@@ -3407,7 +3408,7 @@ START_TEST(test_extern1)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "WORK.COMPLEX.MATH_CZERO" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "MATH_CZERO" },
       { VCODE_OP_RETURN },
    };
 
@@ -3615,8 +3616,8 @@ START_TEST(test_incomplete)
 
    EXPECT_BB(0) = {
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_STORE, .name = "WORK.P.C" },
-      { VCODE_OP_STORE, .name = "WORK.P.CP" },
+      { VCODE_OP_STORE, .name = "C" },
+      { VCODE_OP_STORE, .name = "CP" },
       { VCODE_OP_RETURN },
    };
 
@@ -3637,7 +3638,7 @@ START_TEST(test_issue389)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_INDEX, .name = "WORK.COMMON.EXAMPLE_INIT" },
+      { VCODE_OP_INDEX, .name = "EXAMPLE_INIT" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 64 },
       { VCODE_OP_CONST_ARRAY, .length = 32 },
@@ -3674,7 +3675,7 @@ START_TEST(test_const1)
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_WRAP },
-         { VCODE_OP_STORE, .name = "WORK.ISSUEH.C" },
+         { VCODE_OP_STORE, .name = "C" },
          { VCODE_OP_RETURN },
       };
 
@@ -3934,7 +3935,7 @@ START_TEST(test_protupref)
 
    EXPECT_BB(0) = {
       { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_VAR_UPREF, .name = "WORK.ALERTLOGPKG.ALERT_NAME", .hops = 2 },
+      { VCODE_OP_VAR_UPREF, .name = "ALERT_NAME", .hops = 2 },
       { VCODE_OP_CAST },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_MUL },
@@ -4432,7 +4433,7 @@ START_TEST(test_vunit2)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "WORK.VUNIT2.A" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "A" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_CONST, .value = 0 },
@@ -4487,7 +4488,7 @@ START_TEST(test_vunit4)
    vcode_select_unit(vu);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "WORK.VUNIT4.V" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "V" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_CONST, .value = 0 },

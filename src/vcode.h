@@ -217,8 +217,7 @@ typedef enum {
    VAR_TEMP    = (1 << 1),
    VAR_HEAP    = (1 << 2),
    VAR_CONST   = (1 << 3),
-   VAR_SIGNAL  = (1 << 4),
-   VAR_GLOBAL  = (1 << 5)
+   VAR_SIGNAL  = (1 << 4)
 } vcode_var_flags_t;
 
 #define VCODE_INVALID_REG    -1
@@ -481,7 +480,7 @@ vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,
                             vcode_reg_t dir);
 vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
                               vcode_reg_t dir);
-vcode_reg_t emit_link_var(ident_t name, vcode_type_t type);
+vcode_reg_t emit_link_var(vcode_reg_t context, ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_package(ident_t name);
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
                      vcode_reg_t dst_count, vcode_reg_t conv);

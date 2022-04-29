@@ -396,6 +396,7 @@ __attribute__((unused))
 static void llvm_dump(const char *tag, LLVMValueRef value)
 {
    fprintf(stderr, "%s: ", tag);
+   fflush(stderr);
    LLVMDumpValue(value);
    fprintf(stderr, "\n");
 }
@@ -3132,45 +3133,56 @@ static void cgen_op_implicit_signal(int op, cgen_ctx_t *ctx)
 static void cgen_op_link_var(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-
    ident_t var_name = vcode_get_ident(op);
+   ident_t unit_name = vtype_name(vcode_reg_type(vcode_get_arg(op, 0)));
 
-   LOCAL_TEXT_BUF unit_name = tb_new();
-   ident_str(ident_runtil(var_name, '.'), unit_name);
+   vcode_unit_t vu = vcode_find_unit(unit_name);
+   assert(vu);   // Should have been checked by cgen_add_dependency
 
-   LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(unit_name));
-   if (global == NULL) {
-      LOCAL_TEXT_BUF type_name = tb_new();
-      tb_cat(type_name, tb_get(unit_name));
-      tb_cat(type_name, ".state");
+   vcode_state_t state;
+   vcode_state_save(&state);
 
-      LLVMTypeRef opaque = LLVMGetTypeByName(module, tb_get(type_name));
-      if (opaque == NULL)
-         opaque = LLVMStructCreateNamed(llvm_context(), tb_get(type_name));
+   vcode_select_unit(vu);
 
-      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0),
-                             tb_get(unit_name));
+   const int nvars = vcode_count_vars();
+   vcode_var_t var = 0;
+   for (; var < nvars; var++) {
+      if (vcode_var_name(var) == var_name)
+         break;
    }
 
-   LOCAL_TEXT_BUF symbol = safe_symbol(var_name);
-   char *offset_name LOCAL = xasprintf("__offset_%s", tb_get(symbol));
-   LLVMValueRef offset = LLVMGetNamedGlobal(module, offset_name);
-   if (offset == NULL) {
-      offset = LLVMAddGlobal(module, llvm_int32_type(), offset_name);
-      LLVMSetLinkage(offset, LLVMExternalLinkage);
-      LLVMSetGlobalConstant(offset, true);
+   if (var == nvars) {
+      vcode_dump();
+      vcode_state_restore(&state);
+      vcode_dump_with_mark(op, NULL, NULL);
+
+      fatal_trace("variable %s not found in unit %s", istr(var_name),
+                  istr(unit_name));
    }
 
-   LLVMValueRef base_ptr = llvm_void_cast(LLVMBuildLoad(builder, global, ""));
+   const unsigned offset = cgen_var_offset(var);
+   vtype_kind_t var_kind = vtype_kind(vcode_var_type(var));
 
-   LLVMValueRef indexes[] = {
-      llvm_zext_to_intptr(LLVMBuildLoad(builder, offset, ""))
-   };
-   LLVMValueRef raw_ptr = LLVMBuildGEP(builder, base_ptr, indexes, 1, "");
+   vcode_state_restore(&state);
 
-   ctx->regs[result] = LLVMBuildPointerCast(builder, raw_ptr,
-                                            cgen_type(vcode_reg_type(result)),
-                                            cgen_reg_name(result));
+   // Make sure the state type is not an opaque struct
+   cgen_state_type(vu);
+
+   LLVMValueRef context = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef ptr = LLVMBuildStructGEP(builder, context, offset, "");
+
+   if (var_kind == VCODE_TYPE_CARRAY) {
+      LLVMValueRef index[] = {
+         llvm_int32(0),
+         llvm_int32(0)
+      };
+      ctx->regs[result] = LLVMBuildGEP(builder, ptr, index, ARRAY_LEN(index),
+                                       cgen_reg_name(result));
+   }
+   else {
+      LLVMSetValueName(ptr, cgen_reg_name(result));
+      ctx->regs[result] = ptr;
+   }
 }
 
 static void cgen_op_link_package(int op, cgen_ctx_t *ctx)
@@ -3770,36 +3782,6 @@ static LLVMTypeRef cgen_state_type(vcode_unit_t unit)
    return opaque;
 }
 
-static void cgen_global_offsets(LLVMTypeRef state_type)
-{
-   // Generate constants containing the offests of each global field in
-   // the state type
-
-   const int nvars = vcode_count_vars();
-   for (int i = 0; i < nvars; i++) {
-      if (vcode_var_flags(i) & VAR_GLOBAL) {
-         LOCAL_TEXT_BUF symbol = safe_symbol(vcode_var_name(i));
-         char *name LOCAL = xasprintf("__offset_%s", tb_get(symbol));
-
-         LLVMValueRef global = LLVMGetNamedGlobal(module, name);
-         if (global == NULL)
-            global = LLVMAddGlobal(module, llvm_int32_type(), name);
-         else
-            assert(LLVMGetInitializer(global) == NULL);
-
-#ifdef IMPLIB_REQUIRED
-         LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
-#endif
-         LLVMTargetDataRef td = LLVMGetModuleDataLayout(module);
-         const size_t offset =
-            LLVMOffsetOfElement(td, state_type, cgen_var_offset(i));
-         LLVMSetInitializer(global, llvm_int32(offset));
-         LLVMSetGlobalConstant(global, true);
-         LLVMSetUnnamedAddr(global, true);
-      }
-   }
-}
-
 static void cgen_jump_table(cgen_ctx_t *ctx)
 {
    assert(ctx->state != NULL);
@@ -4067,9 +4049,6 @@ static void cgen_reset_function(void)
 {
    LLVMTypeRef state_type = cgen_state_type(vcode_active_unit());
 
-   if (vcode_unit_kind() == VCODE_UNIT_PACKAGE)
-      cgen_global_offsets(state_type);
-
    LOCAL_TEXT_BUF symbol = safe_symbol(vcode_unit_name());
    char *name LOCAL = xasprintf("%s_reset", tb_get(symbol));
 
@@ -4257,13 +4236,6 @@ static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)
                ident_t name = vcode_get_ident(op);
                cgen_load_package(name);
                cgen_add_dependency(name, list);
-            }
-            break;
-         case VCODE_OP_LINK_VAR:
-            {
-               ident_t pack = ident_runtil(vcode_get_ident(op), '.');
-               cgen_load_package(pack);
-               cgen_add_dependency(pack, list);
             }
             break;
          case VCODE_OP_FCALL:

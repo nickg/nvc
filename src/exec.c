@@ -1959,28 +1959,23 @@ static void eval_op_range_length(int op, eval_state_t *state)
 static void eval_op_link_var(int op, eval_state_t *state)
 {
    value_t *result = eval_get_reg(vcode_get_result(op), state);
+   value_t *arg0 = eval_get_reg(vcode_get_arg(op, 0), state);
+
+   EVAL_ASSERT_VALUE(op, arg0, VALUE_CONTEXT);
+
+   eval_frame_t *ctx = arg0->context;
+   assert(ctx->names != NULL);
+
    ident_t var_name = vcode_get_ident(op);
-   ident_t unit_name = ident_runtil(var_name, '.');
 
-   eval_frame_t *ctx = exec_link(state->exec, unit_name);
-   if (ctx == NULL) {
-      EVAL_WARN(state, op, "missing %s prevents constant folding",
-                istr(unit_name));
-      state->failed = true;
-   }
-   else {
-      assert(ctx->names != NULL);
-
-      for (unsigned i = 0; i < ctx->nvars; i++) {
-         if (ctx->names[i] == var_name) {
-            eval_make_pointer_to(result, ctx->vars[i]);
-            return;
-         }
+   for (unsigned i = 0; i < ctx->nvars; i++) {
+      if (ctx->names[i] == var_name) {
+         eval_make_pointer_to(result, ctx->vars[i]);
+         return;
       }
-
-      fatal_trace("variable %s not found in %s", istr(var_name),
-                  istr(unit_name));
    }
+
+   fatal_trace("variable %s not found", istr(var_name));
 }
 
 static void eval_op_link_package(int op, eval_state_t *state)

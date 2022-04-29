@@ -199,7 +199,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      16
+#define VCODE_VERSION      17
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -1161,8 +1161,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
          col += printf(", heap");
       if (v->flags & VAR_CONST)
          col += printf(", constant");
-      if (v->flags & VAR_GLOBAL)
-         col += printf(", global");
       if (v->flags & VAR_TEMP)
          col += printf(", temp");
       color_printf("$$\n");
@@ -2101,12 +2099,21 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_LINK_VAR:
          case VCODE_OP_LINK_PACKAGE:
             {
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s $magenta$%s$$",
                                    vcode_op_string(op->kind), istr(op->ident));
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_LINK_VAR:
+            {
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += color_printf(" $magenta$%s$$", istr(op->ident));
                vcode_dump_result_type(col, op);
             }
             break;
@@ -5397,15 +5404,19 @@ void emit_debug_info(const loc_t *loc)
       vcode_block_data()->last_loc = *loc;
 }
 
-vcode_reg_t emit_link_var(ident_t name, vcode_type_t type)
+vcode_reg_t emit_link_var(vcode_reg_t context, ident_t name, vcode_type_t type)
 {
    VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_LINK_VAR) {
-      if (other->ident == name)
+      if (other->args.items[0] == context && other->ident == name)
          return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_LINK_VAR);
+   vcode_add_arg(op, context);
    op->ident = name;
+
+   VCODE_ASSERT(vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
+                "first argument to link var must be context");
 
    if (vtype_kind(type) == VCODE_TYPE_CARRAY) {
       op->result = vcode_add_reg(vtype_pointer(vtype_elem(type)));
