@@ -324,7 +324,8 @@ static void dump_expr(tree_t t)
       break;
 
    case T_EXTERNAL_NAME:
-      syntax("<< #%s %s : ", class_str(tree_class(t)), istr(tree_ident(t)));
+      syntax("<< #%s %s%s : ", class_str(tree_class(t)),
+             ename_kind_str(tree_subkind(t)), istr(tree_ident(t)));
       dump_type(tree_type(t));
       printf(" >>");
       break;
@@ -1390,6 +1391,7 @@ void dump(tree_t t)
    case T_ATTR_REF:
    case T_CONV_FUNC:
    case T_QUALIFIED:
+   case T_EXTERNAL_NAME:
       dump_expr(t);
       printf("\n");
       break;

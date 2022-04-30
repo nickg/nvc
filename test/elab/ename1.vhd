@@ -29,6 +29,9 @@ begin
         assert <<signal uut.x : integer>> = 0;  -- OK
         assert <<variable uut.x : integer>> = 0;  -- Error
         assert <<signal bot.x : integer>> = 0;  -- Error
+        assert <<signal .ename1.uut.x : integer>> = 0;  -- OK
+        assert <<signal .ename1.uut.x : bit>> = '0';  -- Error
+        assert <<signal ^.x : bit>> = '0';  -- Error
         wait;
     end process;
 

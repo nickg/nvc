@@ -149,6 +149,7 @@ typedef enum {
    VCODE_OP_TRAP_MUL,
    VCODE_OP_FORCE,
    VCODE_OP_RELEASE,
+   VCODE_OP_LINK_INSTANCE,
 } vcode_op_t;
 
 typedef enum {
@@ -482,6 +483,7 @@ vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
                               vcode_reg_t dir);
 vcode_reg_t emit_link_var(vcode_reg_t context, ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_package(ident_t name);
+vcode_reg_t emit_link_instance(ident_t name, vcode_reg_t locus);
 void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
                      vcode_reg_t dst_count, vcode_reg_t conv);
 void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);

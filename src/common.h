@@ -70,6 +70,7 @@ bool is_open_coded_builtin(subprogram_kind_t kind);
 tree_t find_mangled_decl(tree_t container, ident_t name);
 tree_t name_to_ref(tree_t name);
 const char *port_mode_str(port_mode_t mode);
+const char *ename_kind_str(ename_kind_t kind);
 void mangle_one_type(text_buf_t *buf, type_t type);
 tree_t primary_unit_of(tree_t unit);
 int64_t encode_case_choice(tree_t value, int length, int bits);
@@ -163,6 +164,7 @@ typedef enum {
    W_STD,
    W_THUNK,
    W_BODY,
+   W_CARET,
 
    NUM_WELL_KNOWN
 } well_known_t;

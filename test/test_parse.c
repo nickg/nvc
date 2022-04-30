@@ -3958,19 +3958,23 @@ START_TEST(test_external)
 
    tree_t p0 = tree_stmt(a, 0);
 
-   const char *names[] = {
-      "FOO.BAR",
-      "X.Y.Z",
-      "AYE.BEE",
-      ".X.Y.Z",
-      "^.^.FOO",
-      "@WORK.PACK.FOO",
+   const struct {
+      const char   *name;
+      ename_kind_t  kind;
+   } expect[] = {
+      { "FOO.BAR", E_RELATIVE },
+      { "X.Y.Z", E_RELATIVE },
+      { "AYE.BEE", E_RELATIVE },
+      { "X.Y.Z", E_ABSOLUTE },
+      { "^.^.FOO", E_RELATIVE },
+      { "WORK.PACK.FOO", E_PACKAGE },
    };
 
-   for (int i = 0; i < ARRAY_LEN(names); i++) {
+   for (int i = 0; i < ARRAY_LEN(expect); i++) {
       tree_t v = tree_value(tree_stmt(p0, i));
       fail_unless(tree_kind(v) == T_EXTERNAL_NAME);
-      ck_assert_str_eq(istr(tree_ident(v)), names[i]);
+      ck_assert_str_eq(istr(tree_ident(v)), expect[i].name);
+      ck_assert_int_eq(tree_subkind(v), expect[i].kind);
    }
 
    fail_unless(parse() == NULL);

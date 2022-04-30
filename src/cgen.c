@@ -3209,6 +3209,45 @@ static void cgen_op_link_package(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMBuildLoad(builder, global, cgen_reg_name(result));
 }
 
+static void cgen_op_link_instance(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   LOCAL_TEXT_BUF unit_name = tb_new();
+   ident_str(vcode_get_ident(op), unit_name);
+
+   LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(unit_name));
+   if (global == NULL) {
+      LOCAL_TEXT_BUF type_name = tb_new();
+      tb_cat(type_name, tb_get(unit_name));
+      tb_cat(type_name, ".state");
+
+      LLVMTypeRef opaque = LLVMGetTypeByName(module, tb_get(type_name));
+      if (opaque == NULL)
+         opaque = LLVMStructCreateNamed(llvm_context(), tb_get(type_name));
+
+      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0),
+                             tb_get(unit_name));
+   }
+
+   ctx->regs[result] = LLVMBuildLoad(builder, global, cgen_reg_name(result));
+
+   LLVMBasicBlockRef null_bb = llvm_append_block(ctx->fn, "");
+   LLVMBasicBlockRef cont_bb = llvm_append_block(ctx->fn, "");
+
+   LLVMValueRef null = LLVMBuildIsNull(builder, ctx->regs[result], "");
+   LLVMBuildCondBr(builder, null, null_bb, cont_bb);
+
+   LLVMPositionBuilderAtEnd(builder, null_bb);
+
+   LLVMValueRef args[] = { cgen_get_arg(op, 0, ctx) };
+   LLVMBuildCall(builder, llvm_fn("__nvc_elab_order_fail"), args, 1, "");
+
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, cont_bb);
+}
+
 static void cgen_op_map_signal(int op, cgen_ctx_t *ctx)
 {
    LLVMTypeRef alloca_type = NULL;
@@ -3570,6 +3609,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_LINK_PACKAGE:
       cgen_op_link_package(i, ctx);
+      break;
+   case VCODE_OP_LINK_INSTANCE:
+      cgen_op_link_instance(i, ctx);
       break;
    case VCODE_OP_RESOLUTION_WRAPPER:
       cgen_op_resolution_wrapper(i, ctx);
@@ -4087,7 +4129,8 @@ static void cgen_reset_function(void)
    LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
    LLVMBuildStore(builder, ctx.display, context_ptr);
 
-   if (vcode_unit_kind() == VCODE_UNIT_PACKAGE) {
+   const vunit_kind_t vukind = vcode_unit_kind();
+   if (vukind == VCODE_UNIT_PACKAGE || vukind == VCODE_UNIT_INSTANCE) {
       LOCAL_TEXT_BUF name = tb_new();
       ident_str(vcode_unit_name(), name);
 
@@ -4099,7 +4142,7 @@ static void cgen_reset_function(void)
       else
          assert(LLVMGetInitializer(global) == NULL);
 
-      LLVMSetInitializer(global, LLVMGetUndef(LLVMPointerType(state_type, 0)));
+      LLVMSetInitializer(global, LLVMConstNull(LLVMPointerType(state_type, 0)));
 #ifdef IMPLIB_REQUIRED
       LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
 #endif
@@ -4684,6 +4727,16 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_debug_locus_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_exponent_fail",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
+      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
+   }
+   else if (strcmp(name, "__nvc_elab_order_fail") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_debug_locus_type(),
+      };
+      fn = LLVMAddFunction(module, "__nvc_elab_order_fail",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);

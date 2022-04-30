@@ -582,6 +582,7 @@ bool is_container(tree_t t)
    case T_CONFIGURATION:
    case T_BLOCK:
    case T_PROT_BODY:
+   case T_ELAB:
       return true;
    default:
       return false;
@@ -936,6 +937,7 @@ void intern_strings(void)
    id_cache[W_STD]           = ident_new("STD");
    id_cache[W_THUNK]         = ident_new("thunk");
    id_cache[W_BODY]          = ident_new("body");
+   id_cache[W_CARET]         = ident_new("^");
 }
 
 bool is_uninstantiated_package(tree_t pack)
@@ -1254,6 +1256,13 @@ const char *port_mode_str(port_mode_t mode)
    };
    assert(mode < ARRAY_LEN(mode_str));
    return mode_str[mode];
+}
+
+const char *ename_kind_str(ename_kind_t kind)
+{
+   const char *kind_str[] = { ".", "", "@", "!" };
+   assert(kind < ARRAY_LEN(kind_str));
+   return kind_str[kind];
 }
 
 void mangle_one_type(text_buf_t *buf, type_t type)

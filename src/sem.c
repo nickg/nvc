@@ -2085,8 +2085,10 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
       case T_EXTERNAL_NAME:
          if (tree_class(decl) != C_SIGNAL) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-            diag_printf(d, "external name %s is not a valid target of "
-                        "signal assignment", istr(tree_ident(decl)));
+            diag_printf(d, "external name %s%s is not a valid target of "
+                        "signal assignment",
+                        ename_kind_str(tree_subkind(target)),
+                        istr(tree_ident(decl)));
             diag_hint(d, tree_loc(target), "target of signal assignment");
             diag_hint(d, tree_loc(decl), "declared with class %s",
                       class_str(tree_class(decl)));
@@ -5041,8 +5043,10 @@ static bool sem_check_force_target(tree_t target, port_mode_t mode,
       case T_EXTERNAL_NAME:
          if (tree_class(decl) != C_SIGNAL) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-            diag_printf(d, "external name %s is not a valid target of "
-                        "simple %s assignment", istr(tree_ident(decl)), what);
+            diag_printf(d, "external name %s%s is not a valid target of "
+                        "simple %s assignment",
+                        ename_kind_str(tree_subkind(target)),
+                        istr(tree_ident(decl)), what);
             diag_hint(d, tree_loc(target), "target of signal assignment");
             diag_hint(d, tree_loc(decl), "declared with class %s",
                       class_str(tree_class(decl)));

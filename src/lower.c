@@ -2033,6 +2033,20 @@ static vcode_var_t lower_get_var(tree_t decl, int *hops)
    return lower_search_vcode_obj(decl, top_scope, hops);
 }
 
+static vcode_type_t lower_var_type(tree_t decl)
+{
+   type_t type = tree_type(decl);
+
+   if (tree_kind(decl) == T_ALIAS)
+      return lower_alias_type(decl);
+   else if (class_of(decl) == C_SIGNAL)
+      return lower_signal_type(type);
+   else if (type_is_array(type) && lower_const_bounds(type))
+      return lower_type(lower_elem_recur(type));
+   else
+      return lower_type(type);
+}
+
 static vcode_reg_t lower_link_var(tree_t decl)
 {
    tree_t container = tree_container(decl);
@@ -2052,18 +2066,7 @@ static vcode_reg_t lower_link_var(tree_t decl)
       context = emit_link_package(tree_ident(container));
    }
 
-   type_t type = tree_type(decl);
-
-   vcode_type_t vtype;
-   if (tree_kind(decl) == T_ALIAS)
-      vtype = lower_alias_type(decl);
-   else if (class_of(decl) == C_SIGNAL)
-      vtype = lower_signal_type(type);
-   else if (type_is_array(type) && lower_const_bounds(type))
-      vtype = lower_type(lower_elem_recur(type));
-   else
-      vtype = lower_type(type);
-
+   vcode_type_t vtype = lower_var_type(decl);
    vcode_reg_t ptr_reg = emit_link_var(context, tree_ident(decl), vtype);
    if (lower_have_uarray_ptr(ptr_reg))
       return emit_load_indirect(ptr_reg);
@@ -2409,7 +2412,22 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
 
 static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
 {
-   fatal_at(tree_loc(ref), "sorry, external names are not currently supported");
+   assert(tree_subkind(ref) == E_RESOLVED);
+
+   ident_t name = tree_ident(ref);
+   vcode_reg_t locus = lower_debug_locus(ref);
+   vcode_reg_t context = emit_link_instance(ident_runtil(name, '.'), locus);
+
+   tree_t decl = tree_ref(ref);
+   vcode_type_t vtype = lower_var_type(decl);
+
+   vcode_reg_t ptr_reg = emit_link_var(context, tree_ident(decl), vtype);
+   if (lower_have_uarray_ptr(ptr_reg))
+      return emit_load_indirect(ptr_reg);
+   else if (tree_class(ref) == C_SIGNAL)
+      return emit_load_indirect(ptr_reg);
+   else
+      return ptr_reg;
 }
 
 static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)

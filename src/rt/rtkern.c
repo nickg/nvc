@@ -1799,6 +1799,19 @@ void __nvc_exponent_fail(int32_t value, DEBUG_LOCUS(locus))
 }
 
 DLLEXPORT
+void __nvc_elab_order_fail(DEBUG_LOCUS(locus))
+{
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+   assert(tree_kind(where) == T_EXTERNAL_NAME);
+
+   // Strip the leading library prefix from the resolved name
+   ident_t name = ident_from(tree_ident(where), '.');
+
+   rt_msg(tree_loc(where), DIAG_FATAL, "%s .%s has not yet been elaborated",
+          class_str(tree_class(where)), istr(name));
+}
+
+DLLEXPORT
 void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
 {
    char *buf = rt_tmp_alloc(str_len), *p = buf;

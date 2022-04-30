@@ -293,7 +293,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_FLAGS),
 
    // T_EXTERNAL_NAME
-   (I_IDENT | I_CLASS | I_TYPE | I_REF),
+   (I_IDENT | I_CLASS | I_TYPE | I_REF | I_SUBKIND),
 
    // T_FORCE
    (I_IDENT | I_TARGET | I_VALUE | I_SUBKIND),

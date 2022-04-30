@@ -88,6 +88,13 @@ typedef enum {
 } range_kind_t;
 
 typedef enum {
+   E_ABSOLUTE,
+   E_RELATIVE,
+   E_PACKAGE,
+   E_RESOLVED,
+} ename_kind_t;
+
+typedef enum {
    S_USER,
    S_FOREIGN,
    S_ARRAY_EQ,

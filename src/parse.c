@@ -3159,7 +3159,7 @@ static ident_t p_package_pathname(void)
 
    consume(tAT);
 
-   ident_t id = ident_prefix(ident_new("@"), p_identifier(), '\0');
+   ident_t id = p_identifier();
 
    consume(tDOT);
 
@@ -3174,7 +3174,7 @@ static ident_t p_absolute_pathname(void)
 
    consume(tDOT);
 
-   return ident_prefix(ident_new("."), p_partial_pathname(), '\0');
+   return p_partial_pathname();
 }
 
 static ident_t p_relative_pathname(void)
@@ -3193,7 +3193,7 @@ static ident_t p_relative_pathname(void)
    return ident_prefix(id, p_partial_pathname(), '.');
 }
 
-static ident_t p_external_pathname(void)
+static void p_external_pathname(tree_t name)
 {
    // package_pathname | absolute_pathname | relative_pathname
 
@@ -3201,15 +3201,21 @@ static ident_t p_external_pathname(void)
 
    switch (peek()) {
    case tDOT:
-      return p_absolute_pathname();
+      tree_set_subkind(name, E_ABSOLUTE);
+      tree_set_ident(name, p_absolute_pathname());
+      break;
    case tCARET:
    case tID:
-      return p_relative_pathname();
+      tree_set_subkind(name, E_RELATIVE);
+      tree_set_ident(name, p_relative_pathname());
+      break;
    case tAT:
-      return p_package_pathname();
+      tree_set_subkind(name, E_PACKAGE);
+      tree_set_ident(name, p_package_pathname());
+      break;
    default:
       one_of(tDOT, tCARET, tID, tAT);
-      return ident_new("error");
+      tree_set_ident(name, ident_new("error"));
    }
 }
 
@@ -3233,7 +3239,7 @@ static tree_t p_external_name(void)
    case tVARIABLE: tree_set_class(t, C_VARIABLE); break;
    }
 
-   tree_set_ident(t, p_external_pathname());
+   p_external_pathname(t);
 
    consume(tCOLON);
 

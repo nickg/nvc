@@ -37,6 +37,7 @@ typedef A(type_t) type_list_t;
 
 typedef struct {
    tree_t       out;
+   tree_t       root;
    ident_t      path;           // Current 'PATH_NAME
    ident_t      inst;           // Current 'INSTANCE_NAME
    ident_t      dotted;
@@ -1050,6 +1051,7 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
 
    elab_ctx_t new_ctx = {
       .out         = b,
+      .root        = ctx->root,
       .path        = ctx->path,
       .inst        = ninst,
       .dotted      = ctx->dotted,
@@ -1123,19 +1125,33 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
 {
-   tree_t where = ctx->out, next = NULL;
+   const ename_kind_t ekind = tree_subkind(t);
+   if (ekind == E_PACKAGE) {
+      error_at(tree_loc(t), "sorry, external names with package paths are "
+               "not currently supported");
+      return;
+   }
+
+   tree_t where = ekind == E_ABSOLUTE ? ctx->root : ctx->out, next = NULL;
    ident_t name = tree_ident(t), it;
    for (; (it = ident_walk_selected(&name)); where = next, next = NULL) {
-      if (is_container(where))
+      if (it == well_known(W_CARET)) {
+         error_at(tree_loc(t), "sorry, this form of external name is not "
+                  "yet supported");
+         return;
+      }
+
+      if (is_container(where)) {
          next = search_decls(where, it, 0);
 
-      if (next == NULL && tree_kind(where) == T_BLOCK) {
-         const int nstmts = tree_stmts(where);
-         for (int i = 0; i < nstmts; i++) {
-            tree_t s = tree_stmt(where, i);
-            if (tree_ident(s) == it) {
-               next = s;
-               break;
+         if (next == NULL) {
+            const int nstmts = tree_stmts(where);
+            for (int i = 0; i < nstmts; i++) {
+               tree_t s = tree_stmt(where, i);
+               if (tree_ident(s) == it) {
+                  next = s;
+                  break;
+               }
             }
          }
       }
@@ -1163,7 +1179,30 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
       diag_emit(d);
       return;
    }
+   else if (!type_eq(tree_type(where), tree_type(t))) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+      diag_printf(d, "type of %s %s is not %s",
+                  class_str(tree_class(t)), istr(tree_ident(where)),
+                  type_pp(tree_type(t)));
+      diag_hint(d, tree_loc(t), "external name with type %s",
+                type_pp(tree_type(t)));
+      diag_hint(d, tree_loc(where), "declaration of %s with type %s",
+                istr(tree_ident(where)), type_pp(tree_type(where)));
+      diag_emit(d);
+   }
 
+   switch (ekind) {
+   case E_RELATIVE:
+      tree_set_ident(t, ident_prefix(ctx->dotted, tree_ident(t), '.'));
+      break;
+   case E_ABSOLUTE:
+      tree_set_ident(t, ident_prefix(lib_name(lib_work()), tree_ident(t), '.'));
+      break;
+   default:
+      break;
+   }
+
+   tree_set_subkind(t, E_RESOLVED);
    tree_set_ref(t, where);
 }
 
@@ -1242,6 +1281,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
 
       elab_ctx_t new_ctx = {
          .out         = b,
+         .root        = ctx->root,
          .path        = npath,
          .inst        = ninst,
          .dotted      = ndotted,
@@ -1278,6 +1318,7 @@ static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
 
       elab_ctx_t new_ctx = {
          .out         = b,
+         .root        = ctx->root,
          .path        = ctx->path,
          .inst        = ctx->inst,
          .dotted      = ctx->dotted,
@@ -1305,6 +1346,7 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 
       elab_ctx_t new_ctx = {
          .out         = ctx->out,
+         .root        = ctx->root,
          .path        = npath,
          .inst        = ninst,
          .library     = ctx->library,
@@ -1343,6 +1385,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
 
    elab_ctx_t new_ctx = {
       .out         = b,
+      .root        = ctx->root,
       .path        = ctx->path,
       .inst        = ctx->inst,
       .library     = ctx->library,
@@ -1494,6 +1537,7 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
 
    elab_ctx_t new_ctx = {
       .out         = b,
+      .root        = ctx->root,
       .path        = npath,
       .inst        = ninst,
       .dotted      = ndotted,
@@ -1560,6 +1604,7 @@ tree_t elab(tree_t top)
 
    elab_ctx_t ctx = {
       .out      = e,
+      .root     = e,
       .path     = NULL,
       .inst     = NULL,
       .library  = lib_work(),

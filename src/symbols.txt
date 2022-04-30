@@ -7,6 +7,7 @@
   __nvc_assert_fail;
   __nvc_div_zero;
   __nvc_drive_signal;
+  __nvc_elab_order_fail;
   __nvc_exponent_fail;
   __nvc_flush;
   __nvc_force;

@@ -550,3 +550,5 @@ wave6           shell
 issue101        fail,gold
 vests44         normal
 force1          normal,2008
+ename1          normal,2008
+ename2          fail,gold,2008
