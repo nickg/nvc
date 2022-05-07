@@ -2612,8 +2612,10 @@ static void *rt_tmp_alloc(size_t sz)
 {
    // Allocate sz bytes that will be freed by the active process
 
+   assert((_tmp_alloc & RT_ALIGN_MASK) == 0);
+
    uint8_t *ptr = (uint8_t *)_tmp_stack + _tmp_alloc;
-   _tmp_alloc += sz;
+   _tmp_alloc += (sz + RT_ALIGN_MASK) & ~RT_ALIGN_MASK;
    return ptr;
 }
 
@@ -2853,6 +2855,9 @@ static void rt_run(rt_proc_t *proc)
    void *state = proc->privdata ?: (void *)-1;
 
    (*proc->proc_fn)(state, proc->scope->privdata);
+
+   assert(proc->tmp_stack != NULL || _tmp_alloc == 0);
+   _tmp_alloc = 0;
 }
 
 static void *rt_call_module_reset(ident_t name, void *arg)
@@ -2869,18 +2874,6 @@ static void *rt_call_module_reset(ident_t name, void *arg)
 
    global_tmp_alloc = _tmp_alloc;
    return result;
-}
-
-static inline void *rt_resolution_buffer(size_t required)
-{
-   static void *rbuf = NULL;
-   static size_t size = 0;
-
-   if (likely(size >= required))
-      return rbuf;
-
-   size = MAX(required, 16);
-   return (rbuf = xrealloc(rbuf, size));
 }
 
 static const void *rt_source_data(rt_nexus_t *nexus, rt_source_t *src)
@@ -2950,7 +2943,7 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
       TRACE("resolved composite signal needs %d bytes", scope->size);
 
       uint8_t *inputs LOCAL = xmalloc(nonnull * scope->size);
-      void *resolved = rt_resolution_buffer(scope->size);
+      void *resolved = rt_tmp_alloc(scope->size);
 
       rt_copy_sub_signal_sources(scope, inputs);
 
@@ -2962,7 +2955,7 @@ static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
       return resolved + nexus->signal->shared.offset + noff;
    }
    else {
-      void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
+      void *resolved = rt_tmp_alloc(nexus->width * nexus->size);
 
       for (int j = 0; j < nexus->width; j++) {
 #define CALL_RESOLUTION_FN(type) do {                                   \
@@ -3012,7 +3005,7 @@ static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
    else if ((r->flags & R_MEMO) && (nexus->n_sources == 1)) {
       // Resolution function has been memoised so do a table lookup
 
-      void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
+      void *resolved = rt_tmp_alloc(nexus->width * nexus->size);
       const void *data = rt_source_data(nexus, &(nexus->sources));
 
       for (int j = 0; j < nexus->width; j++) {
@@ -3025,7 +3018,7 @@ static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
    else if ((r->flags & R_MEMO) && (nexus->n_sources == 2)) {
       // Resolution function has been memoised so do a table lookup
 
-      void *resolved = rt_resolution_buffer(nexus->width * nexus->size);
+      void *resolved = rt_tmp_alloc(nexus->width * nexus->size);
 
       const char *p0 = rt_source_data(nexus, &(nexus->sources));
       const char *p1 = rt_source_data(nexus, nexus->sources.chain_input);
@@ -3325,6 +3318,8 @@ static void rt_update_nexus(rt_nexus_t *nexus)
 
 static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
 {
+   assert(_tmp_alloc == 0);
+
    if (likely(source != NULL)) {
       RT_ASSERT(source->tag == SOURCE_DRIVER);
       waveform_t *w_now  = &(source->u.driver.waveforms);
@@ -3341,6 +3336,8 @@ static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
    }
    else   // Update due to force/release
       rt_update_nexus(nexus);
+
+   _tmp_alloc = 0;
 }
 
 static void rt_update_implicit_signal(rt_implicit_t *imp)

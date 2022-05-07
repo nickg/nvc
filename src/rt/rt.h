@@ -24,6 +24,7 @@
 #include <stdint.h>
 
 #define RT_ABI_VERSION 5
+#define RT_ALIGN_MASK  0x7
 
 #define TIME_HIGH INT64_MAX  // Value of TIME'HIGH
 

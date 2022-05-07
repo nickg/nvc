@@ -788,12 +788,12 @@ static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
    LLVMValueRef buf = LLVMBuildInBoundsGEP(builder, stack,
                                            indexes, ARRAY_LEN(indexes), "");
 
+   LLVMValueRef align_up =
+      LLVMBuildAdd(builder, bytes, llvm_int32(RT_ALIGN_MASK), "");
    LLVMValueRef alloc_next =
       LLVMBuildAnd(builder,
-                   LLVMBuildAdd(builder, alloc,
-                                LLVMBuildAdd(builder, bytes, llvm_int32(7), ""),
-                                "alloc_align_max"),
-                   llvm_int32(~7),
+                   LLVMBuildAdd(builder, alloc, align_up, "alloc_align_max"),
+                   llvm_int32(~RT_ALIGN_MASK),
                    "alloc_next");
 
    LLVMBuildStore(builder, alloc_next, _tmp_alloc_ptr);

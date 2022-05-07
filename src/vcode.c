@@ -5382,7 +5382,8 @@ void emit_temp_stack_restore(vcode_reg_t reg)
       if (other->kind == VCODE_OP_ALLOCA
           || other->kind == VCODE_OP_PCALL
           || other->kind == VCODE_OP_FCALL
-          || other->kind == VCODE_OP_RESUME)
+          || other->kind == VCODE_OP_RESUME
+          || other->kind == VCODE_OP_DRIVING_VALUE)
          break;
       else if (other->kind == VCODE_OP_TEMP_STACK_MARK)
          return;   // No use of temp stack between mark and restore
