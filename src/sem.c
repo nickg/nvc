@@ -4974,7 +4974,9 @@ static bool sem_check_concurrent(tree_t t, nametab_t *tab)
    if (tree_has_guard(t) && !sem_check_guard(tree_guard(t)))
       return false;
 
-   assert(tree_stmts(t) == 1);
+   if (tree_stmts(t) == 0)
+      return false;   // Was parse error
+
    return sem_check(tree_stmt(t, 0), tab);
 }
 
@@ -5118,6 +5120,15 @@ static bool sem_check_release(tree_t t, nametab_t *tab)
       return false;
 
    return true;
+}
+
+static bool sem_check_prot_ref(tree_t t, nametab_t *tab)
+{
+   // There are no legal ways this can appear here and should always
+   // have been converted to a call
+   assert(error_count() > 0);
+
+   return false;
 }
 
 bool sem_check(tree_t t, nametab_t *tab)
@@ -5274,6 +5285,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_force(t, tab);
    case T_RELEASE:
       return sem_check_release(t, tab);
+   case T_PROT_REF:
+      return sem_check_prot_ref(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

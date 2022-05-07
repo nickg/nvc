@@ -300,6 +300,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_RELEASE
    (I_IDENT | I_TARGET | I_SUBKIND),
+
+   // T_PROTECTED_REF
+   (I_IDENT | I_VALUE | I_TYPE | I_REF),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -333,7 +336,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_CONCURRENT",      "T_SEQUENCE",        "T_PACK_INST",
    "T_GENERIC_DECL",    "T_TYPE_REF",        "T_BOX",
    "T_PARAM_DECL",      "T_EXTERNAL_NAME",   "T_FORCE",
-   "T_RELEASE",
+   "T_RELEASE",         "T_PROT_REF",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -341,12 +344,6 @@ static const change_allowed_t change_allowed[] = {
    { T_REF,         T_PCALL         },
    { T_ARRAY_REF,   T_FCALL         },
    { T_FCALL,       T_ARRAY_REF     },
-   { T_FCALL,       T_PCALL         },
-   { T_FCALL,       T_TYPE_CONV     },
-   { T_REF,         T_TYPE_CONV     },
-   { T_REF,         T_RECORD_REF    },
-   { T_REF,         T_QUALIFIED     },
-   { T_ARRAY_REF,   T_ARRAY_SLICE   },
    { T_DESIGN_UNIT, T_ENTITY        },
    { T_DESIGN_UNIT, T_PACKAGE       },
    { T_DESIGN_UNIT, T_PACK_BODY     },
@@ -356,9 +353,6 @@ static const change_allowed_t change_allowed[] = {
    { T_DESIGN_UNIT, T_PACK_INST     },
    { T_FUNC_DECL,   T_FUNC_BODY     },
    { T_PROC_DECL,   T_PROC_BODY     },
-   { T_REF,         T_ARRAY_SLICE   },
-   { T_ATTR_REF,    T_ARRAY_REF     },
-   { T_PROT_FCALL,  T_PROT_PCALL    },
    { T_FCALL,       T_PROT_FCALL    },
    { T_PCALL,       T_PROT_PCALL    },
    { -1,            -1              }
@@ -387,7 +381,7 @@ static tree_kind_t expr_kinds[] = {
    T_AGGREGATE, T_ATTR_REF,      T_ARRAY_REF,  T_ARRAY_SLICE,
    T_TYPE_CONV, T_OPEN,          T_RECORD_REF, T_ALL,
    T_NEW,       T_PROT_FCALL,    T_CONV_FUNC,  T_TYPE_REF,
-   T_BOX,       T_EXTERNAL_NAME,
+   T_BOX,       T_EXTERNAL_NAME, T_PROT_REF,
 };
 
 static tree_kind_t decl_kinds[] = {

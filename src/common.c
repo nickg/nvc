@@ -492,8 +492,17 @@ class_t class_of(tree_t t)
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:
    case T_RECORD_REF:
-   case T_ALIAS:
       return class_of(tree_value(t));
+   case T_ALIAS:
+      if (tree_has_type(t)) {
+         switch (type_kind(tree_type(t))) {
+         case T_FUNC: return C_FUNCTION;
+         case T_PROC: return C_PROCEDURE;
+         default: return class_of(tree_value(t));
+         }
+      }
+      else
+         return class_of(tree_value(t));
    case T_PACKAGE:
    case T_PACK_BODY:
    case T_PACK_INST:
@@ -529,7 +538,7 @@ const char *class_str(class_t c)
    static const char *strs[] = {
       "default", "signal", "variable", "constant", "file", "entity",
       "component", "configuration", "architecture", "function", "package",
-      "type", "subtype", "label", "procedure", "literal", "units"
+      "type", "subtype", "label", "procedure", "literal", "units", "library"
    };
    assert(c < ARRAY_LEN(strs));
    return strs[c];
@@ -583,6 +592,9 @@ bool is_container(tree_t t)
    case T_BLOCK:
    case T_PROT_BODY:
    case T_ELAB:
+   case T_FOR:
+   case T_PROCESS:
+   case T_PACK_INST:
       return true;
    default:
       return false;

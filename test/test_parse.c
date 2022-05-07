@@ -2811,10 +2811,10 @@ START_TEST(test_error)
 
    const error_t expect[] = {
       {  7, "unexpected identifier while parsing concurrent procedure call "
-         "statement, expecting ;" },
+         "statement, expecting one of ( or ;" },
       {  7, "no visible subprogram declaration for BAD" },
       { 11, "unexpected identifier while parsing concurrent procedure call "
-         "statement, expecting ;" },
+         "statement, expecting one of ( or ;" },
       { 11, "no visible subprogram declaration for SOME" },
       { 11, "no visible subprogram declaration for BAD" },
       { 17, "unexpected ; while parsing process statement, expecting process" },
@@ -3339,8 +3339,8 @@ START_TEST(test_issue388)
 
    const error_t expect[] = {
       { 11, "unexpected => while parsing slice name, expecting one of" },
-      { 12, "unexpected => while parsing concurrent procedure call" },
-      { 12, "no visible subprogram declaration for Q" },
+      { 12, "expected concurrent statement" },
+      { 14, "expected concurrent statement" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -3380,7 +3380,7 @@ START_TEST(test_names)
       { 101, "type of aggregate cannot be determined from the surrounding" },
       { 104, "ambiguous call to procedure PROC7" },
       { 106, "type of string literal cannot be determined from the" },
-      { 107, "invalid procedure call statement" },
+      { 107, "expected procedure name" },
       { 108, "no visible subprogram declaration for FOO" },
       { 233, "name X not found in \"+\"" },
       { 256, "no visible subprogram declaration for NOTHERE" },
@@ -3479,7 +3479,7 @@ START_TEST(test_error2)
       { 42, "unexpected function while parsing subprogram body" },
       { 44, "protected type declaration trailing label to match OTHER" },
       { 47, "unexpected integer while parsing subtype declaration" },
-      { 53, "cannot index non-array type FT" },
+      { 53, "no visible subprogram declaration for F" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -4054,6 +4054,31 @@ START_TEST(test_error6)
 }
 END_TEST
 
+START_TEST(test_names2)
+{
+   set_standard(STD_02);
+   input_from_file(TESTDIR "/parse/names2.vhd");
+
+   const error_t expect[] = {
+      { 34, "sorry, this form of parameter name is not yet supported" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -4124,6 +4149,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_error5);
    tcase_add_test(tc_core, test_vunit7);
    tcase_add_test(tc_core, test_error6);
+   tcase_add_test(tc_core, test_names2);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -147,7 +147,7 @@ static tree_t p_concurrent_statement(void);
 static tree_t p_subprogram_declaration(tree_t spec);
 static tree_t p_subprogram_body(tree_t spec);
 static tree_t p_subprogram_specification(void);
-static tree_t p_name(void);
+static tree_t p_name(name_mask_t stop_mask);
 static tree_t p_block_configuration(tree_t of);
 static tree_t p_protected_type_body(ident_t id);
 static bool p_cond_analysis_expr(void);
@@ -155,7 +155,6 @@ static type_t p_signature(void);
 static type_t p_type_mark(ident_t name);
 static tree_t p_function_call(ident_t id, tree_t prefix);
 static tree_t p_resolution_indication(void);
-static tree_t p_type_conversion(tree_t tdecl);
 static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0);
 static void p_generic_map_aspect(tree_t inst, tree_t unit);
 static ident_t p_designator(void);
@@ -636,11 +635,14 @@ static tree_t find_binding(tree_t inst)
       name = tree_ident(inst);
       if (tree_has_ident2(inst))
          name = ident_prefix(name, tree_ident2(inst), '-');
-      unit = query_name(nametab, name);
+      query_name(nametab, name, &unit);
    }
    else {
       name = tree_ident2(inst);
-      unit = tree_has_ref(inst) ? tree_ref(inst) : query_name(nametab, name);
+      if (tree_has_ref(inst))
+         unit = tree_ref(inst);
+      else
+         query_name(nametab, name, &unit);
    }
 
    if (unit != NULL) {
@@ -1572,10 +1574,8 @@ static bool is_range_expr(tree_t t)
    case T_REF:
       if (tree_has_ref(t))
          return is_type_decl(tree_ref(t));
-      else {
-         tree_t decl = query_name(nametab, tree_ident(t));
-         return decl != NULL && is_type_decl(decl);
-      }
+      else
+         return !!(query_name(nametab, tree_ident(t), NULL) & N_TYPE);
 
    case T_ATTR_REF:
       {
@@ -1676,22 +1676,23 @@ static void apply_foreign_attribute(tree_t decl, tree_t value)
    tree_set_flag(decl, TREE_F_FOREIGN | TREE_F_NEVER_WAITS);
 }
 
-static tree_t select_decl(tree_t prefix, ident_t suffix)
+static tree_t select_decl(tree_t prefix, ident_t suffix, name_mask_t *mask)
 {
    ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
 
-   tree_t d = search_decls(prefix, suffix, 0), type_decl = NULL;
+   tree_t d = search_decls(prefix, suffix, 0), type_decl;
    if (d == NULL) {
       parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
                   istr(tree_ident(prefix)));
    }
-   else if (is_subprogram(d) && peek() == tLPAREN) {
-      tree_t f = p_function_call(suffix, prefix);
-      tree_set_ident(f, qual);
-      return f;
+   else if (is_subprogram(d)) {
+      *mask |= N_SUBPROGRAM;
+      d = NULL;   // Cannot resolve this overload now
    }
-   else if (peek() == tLPAREN && (type_decl = aliased_type_decl(d)))
-      return p_type_conversion(type_decl);
+   else if ((type_decl = aliased_type_decl(d))) {
+      *mask |= N_TYPE;
+      d = type_decl;
+   }
 
    tree_t ref = tree_new(T_REF);
    tree_set_ident(ref, qual);
@@ -2643,13 +2644,9 @@ static tree_t p_formal_part(void)
 
    BEGIN("formal part");
 
-   tree_t name = p_name();
+   tree_t name = p_name(0);
 
-   const bool could_be_conversion =
-      tree_kind(name) == T_FCALL
-      && tree_params(name) == 1;
-
-   if (could_be_conversion)
+   if (tree_kind(name) == T_FCALL && tree_params(name) == 1)
       tree_set_flag(name, TREE_F_CONVERSION);
 
    return name;
@@ -2670,7 +2667,7 @@ static tree_t p_actual_part(class_t class)
    }
 
    if (class == C_FUNCTION || class == C_PROCEDURE || class == C_PACKAGE)
-      return p_name();
+      return p_name(N_SUBPROGRAM);
    else if (class == C_TYPE) {
       type_t type = p_subtype_indication();
 
@@ -2837,14 +2834,16 @@ static tree_t p_function_call(ident_t id, tree_t prefix)
 
    EXTEND("function call");
 
-   bool protected = prefix != NULL
-      && tree_kind(prefix) == T_REF
-      && type_is_protected(tree_type(prefix));
-
-   tree_t call = tree_new(protected ? T_PROT_FCALL : T_FCALL);
-   tree_set_ident(call, id);
-   if (protected)
+   tree_t call;
+   if (prefix != NULL) {
+      call = tree_new(T_PROT_FCALL);
+      tree_set_ident(call, id);
       tree_set_name(call, prefix);
+   }
+   else {
+      call = tree_new(T_FCALL);
+      tree_set_ident(call, id);
+   }
 
    if (optional(tLPAREN)) {
       p_actual_parameter_part(call);
@@ -2974,13 +2973,28 @@ static tree_t p_attribute_name(tree_t prefix)
    return t;
 }
 
-static tree_t p_selected_name(tree_t prefix)
+static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
 {
    // prefix . suffix
 
    EXTEND("selected name");
 
+   // If the prefix is a reference to a function then convert it to a
+   // call unless it matches the name of the enclosing subprogram
+   const tree_kind_t prefix_kind = tree_kind(prefix);
+   if ((*mask & N_FUNC) && prefix_kind == T_REF) {
+      ident_t id = tree_ident(prefix);
+      tree_t sub = find_enclosing(nametab, S_SUBPROGRAM);
+      if (sub != NULL && tree_ident(sub) == id)
+         tree_set_ref(prefix, sub);
+      else
+         prefix = p_function_call(id, NULL);
+   }
+   else if (prefix_kind == T_PROT_REF)
+      prefix = p_function_call(tree_ident(prefix), tree_value(prefix));
+
    consume(tDOT);
+   *mask = 0;
 
    ident_t suffix = NULL;
    switch (peek()) {
@@ -2999,42 +3013,33 @@ static tree_t p_selected_name(tree_t prefix)
          tree_t all = tree_new(T_ALL);
          tree_set_loc(all, CURRENT_LOC);
          tree_set_value(all, prefix);
+         *mask |= N_OBJECT;
          return all;
       }
 
    default:
-      expect(tID, tALL);
+      expect(tID, tSTRING, tALL);
+      *mask |= N_ERROR;
       return prefix;
    }
 
-   switch (tree_kind(prefix)) {
-   case T_LIBRARY:
-      {
-         ident_t unit_name = ident_prefix(tree_ident(prefix), suffix, '.');
+   if (prefix_kind == T_REF && tree_has_ref(prefix)) {
+      tree_t decl = tree_ref(prefix);
+      if (tree_kind(decl) == T_LIBRARY) {
+         ident_t unit_name = ident_prefix(tree_ident(decl), suffix, '.');
          tree_t unit = find_unit(CURRENT_LOC, unit_name, NULL);
          if (unit == NULL) {
             tree_t dummy = tree_new(T_REF);
             tree_set_ident(dummy, unit_name);
             tree_set_type(dummy, type_new(T_NONE));
+            *mask |= N_ERROR;
             return dummy;
          }
-         else if (peek() == tDOT)
-            return unit;
          else
             return external_reference(unit);
       }
-
-   case T_PACKAGE:
-   case T_PACK_INST:
-   case T_PROCESS:
-   case T_FOR:
-   case T_BLOCK:
-   case T_ENTITY:
-   case T_ARCH:
-      return select_decl(prefix, suffix);
-
-   default:
-      break;
+      else if (is_container(decl))
+         return select_decl(decl, suffix, mask);
    }
 
    if (scope_formal_kind(nametab) == F_SUBPROGRAM) {
@@ -3042,6 +3047,7 @@ static tree_t p_selected_name(tree_t prefix)
       tree_set_value(rref, prefix);
       tree_set_ident(rref, suffix);
       tree_set_loc(rref, CURRENT_LOC);
+      *mask |= N_OBJECT;
       return rref;
    }
 
@@ -3062,29 +3068,33 @@ static tree_t p_selected_name(tree_t prefix)
       tree_set_value(rref, prefix);
       tree_set_ident(rref, suffix);
       tree_set_loc(rref, CURRENT_LOC);
+      *mask |= N_OBJECT;
       return rref;
    }
    else if (type_is_protected(type)) {
-      return p_function_call(suffix, prefix);
+      tree_t pref = tree_new(T_PROT_REF);
+      tree_set_value(pref, prefix);
+      tree_set_ident(pref, suffix);
+      tree_set_loc(pref, CURRENT_LOC);
+      *mask |= N_SUBPROGRAM;
+      return pref;
    }
    else if (type_kind(type) == T_INCOMPLETE) {
       parse_error(tree_loc(prefix), "object with incomplete type %s cannot be "
                   "selected", type_pp(type));
+      *mask |= N_ERROR;
       return prefix;
    }
-   else if (tree_kind(prefix) == T_REF) {
-      tree_t sub = find_enclosing(nametab, S_SUBPROGRAM);
-      if (tree_has_ref(prefix) && tree_ref(prefix) == sub)
-         return select_decl(tree_ref(prefix), suffix);
-      else {
-         parse_error(tree_loc(prefix), "object %s with type %s cannot be "
-                     "selected", istr(tree_ident(prefix)), type_pp(type));
-         return prefix;
-      }
+   else if (prefix_kind == T_REF) {
+      parse_error(tree_loc(prefix), "object %s with type %s cannot be selected",
+                  istr(tree_ident(prefix)), type_pp(type));
+      *mask |= N_ERROR;
+      return prefix;
    }
    else {
       parse_error(tree_loc(prefix), "object with type %s cannot be selected",
                   type_pp(type));
+      *mask |= N_ERROR;
       return prefix;
    }
 }
@@ -3123,7 +3133,7 @@ static tree_t p_indexed_name(tree_t prefix, tree_t head)
    return t;
 }
 
-static tree_t p_type_conversion(tree_t tdecl)
+static tree_t p_type_conversion(ident_t id)
 {
    // type_conversion ::= type_mark ( expression )
 
@@ -3131,10 +3141,18 @@ static tree_t p_type_conversion(tree_t tdecl)
 
    consume(tLPAREN);
 
-   assert(is_type_decl(tdecl));
+   type_t type = NULL;
+   tree_t tdecl = resolve_name(nametab, CURRENT_LOC, id);
+   if (tdecl == NULL)
+      type = type_new(T_NONE);
+   else {
+      tdecl = aliased_type_decl(tdecl);
+      assert(tdecl);   // Call to this is guarded by N_TYPE mask
+      type = tree_type(tdecl);
+   }
 
    tree_t conv = tree_new(T_TYPE_CONV);
-   tree_set_type(conv, tree_type(tdecl));
+   tree_set_type(conv, type);
    tree_set_value(conv, p_expression());
 
    consume(tRPAREN);
@@ -3251,7 +3269,7 @@ static tree_t p_external_name(void)
    return t;
 }
 
-static tree_t p_name(void)
+static tree_t p_name(name_mask_t stop_mask)
 {
    // simple_name | operator_symbol | selected_name | indexed_name
    //   | slice_name | attribute_name | 2008: external_name
@@ -3259,7 +3277,6 @@ static tree_t p_name(void)
    BEGIN("name");
 
    ident_t id = NULL;
-
    switch (peek()) {
    case tSTRING:
       id = p_operator_symbol();
@@ -3284,35 +3301,13 @@ static tree_t p_name(void)
       }
    }
 
-   tree_t prefix = NULL;
-   tree_t decl = query_name(nametab, id);
+   tree_t decl = NULL;
+   name_mask_t mask = query_name(nametab, id, &decl);
 
-   if (decl != NULL) {
-      type_t type = NULL;
-      if (class_has_type(class_of(decl)) && tree_has_type(decl))
-         type = tree_type(decl);
-
-      tree_t type_decl;
-      if (peek() == tLPAREN && (type_decl = aliased_type_decl(decl)))
-         prefix = p_type_conversion(type_decl);
-      else if (type == NULL && peek() == tDOT)
-         prefix = decl;
-      else if (type != NULL && type_is_subprogram(type))
-         prefix = p_function_call(id, NULL);
-      else {
-         prefix = tree_new(T_REF);
-         tree_set_ident(prefix, id);
-         tree_set_loc(prefix, CURRENT_LOC);
-         tree_set_ref(prefix, decl);
-      }
-   }
-   else if (peek() == tLPAREN && !name_is_formal(nametab, id))
-      prefix = p_function_call(id, NULL);
-   else {
-      prefix = tree_new(T_REF);
-      tree_set_ident(prefix, id);
-      tree_set_loc(prefix, CURRENT_LOC);
-   }
+   tree_t prefix = tree_new(T_REF);
+   tree_set_ident(prefix, id);
+   tree_set_loc(prefix, CURRENT_LOC);
+   tree_set_ref(prefix, decl);
 
    for (;;) {
       switch (peek()) {
@@ -3320,7 +3315,7 @@ static tree_t p_name(void)
          break;
 
       case tDOT:
-         prefix = p_selected_name(prefix);
+         prefix = p_selected_name(prefix, &mask);
          continue;
 
       case tTICK:
@@ -3328,20 +3323,53 @@ static tree_t p_name(void)
             prefix = p_qualified_expression(prefix);
          else
             prefix = p_attribute_name(prefix);
+         mask = N_OBJECT;
          continue;
 
       default:
          return prefix;
       }
 
-      // Prefix should be an array that is being indexed or sliced. We
-      // have to parse up to the first expression to know which.
+      // Prefix could either be an array to be indexed or sliced, a
+      // subprogram to be called, or a type conversion.
+
+      if (mask & stop_mask)
+         return prefix;
+
+      if (!(mask & N_FUNC) && scope_formal_kind(nametab) == F_SUBPROGRAM) {
+         // Assume that A in F(A(N) => ...) is a parameter name
+         mask |= N_OBJECT;
+      }
+
+      const tree_kind_t prefix_kind = tree_kind(prefix);
+
+      if ((mask & N_TYPE) && prefix_kind == T_REF) {
+         // Type conversion
+         prefix = p_type_conversion(tree_ident(prefix));
+         mask = N_OBJECT;
+         continue;
+      }
+      else if (!(mask & N_OBJECT) && prefix_kind == T_REF) {
+         // Function call
+         prefix = p_function_call(tree_ident(prefix), NULL);
+         mask = N_OBJECT;
+         continue;
+      }
+      else if (!(mask & N_OBJECT) && prefix_kind == T_PROT_REF) {
+         // Protected function call
+         prefix = p_function_call(tree_ident(prefix), tree_value(prefix));
+         mask = N_OBJECT;
+         continue;
+      }
+
+      // Must be a slice or index name: we have to parse up to the first
+      // expression to know which
 
       consume(tLPAREN);
 
       tree_t head = p_expression();
 
-      if (peek() == tDOWNTO || peek() == tTO || is_range_expr(head))
+      if (scan(tDOWNTO, tTO) || is_range_expr(head))
          prefix = p_slice_name(prefix, head);
       else
          prefix = p_indexed_name(prefix, head);
@@ -3530,7 +3558,7 @@ static tree_t p_resolution_indication(void)
    BEGIN("resolution indication");
 
    if (peek() == tID || standard() < STD_08)
-      return p_name();
+      return p_name(N_SUBPROGRAM);
    else {
       one_of(tLPAREN, tID);
       tree_t rname = p_element_resolution();
@@ -3927,17 +3955,20 @@ static tree_t p_primary(void)
       return p_literal();
 
    case tSTRING:
-      return peek_nth(2) == tLPAREN || peek_nth(2) == tDOT
-         ? p_name() : p_literal();
-
+      if (peek_nth(2) != tLPAREN && peek_nth(2) != tDOT)
+         return p_literal();
+      // Fall-through
    case tID:
-      if (peek_nth(2) == tTICK && peek_nth(3) == tLPAREN)
-         return p_qualified_expression(NULL);
-      else
-         return p_name();
+      {
+         tree_t expr = p_name(0);
+         if (tree_kind(expr) == T_PROT_REF)
+            return p_function_call(tree_ident(expr), tree_value(expr));
+         else
+            return expr;
+      }
 
    case tLTLT:
-      return p_name();
+      return p_name(N_SUBPROGRAM);
 
    case tNEW:
       return p_allocator();
@@ -5936,8 +5967,14 @@ static tree_t p_alias_declaration(void)
    }
    consume(tIS);
 
-   tree_t value = p_name();
+   tree_t value = p_name(N_SUBPROGRAM | N_TYPE);
    tree_set_value(t, value);
+
+   if (peek() == tLPAREN) {
+      parse_error(tree_loc(value), "name cannot be indexed or sliced");
+      tree_set_type(t, type_new(T_NONE));
+      drop_tokens_until(tRPAREN);
+   }
 
    if (peek() == tLSQUARE) {
       type_t type = p_signature();
@@ -6125,7 +6162,7 @@ static void p_group_constituent_list(tree_t group)
    BEGIN("group constituent list");
 
    do {
-      (void)p_name();   // Do nothing with groups currently
+      (void)p_name(0);   // Do nothing with groups currently
    } while (optional(tCOMMA));
 }
 
@@ -6619,7 +6656,7 @@ static void p_sensitivity_list(tree_t proc)
    BEGIN("sensitivity list");
 
    do {
-      tree_t name = p_name();
+      tree_t name = p_name(0);
       tree_add_trigger(proc, name);
       solve_types(nametab, name, NULL);
    } while (optional(tCOMMA));
@@ -7744,7 +7781,7 @@ static tree_t p_target(tree_t name)
       if (peek() == tLPAREN)
          return p_aggregate(true);
       else
-         return p_name();
+         return p_name(0);
    }
    else
       return name;
@@ -8426,29 +8463,44 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
 
    EXTEND("procedure call statement");
 
-   consume(tSEMI);
+   tree_t call = NULL;
 
-   tree_kind_t namek = tree_kind(name);
-   switch (namek) {
-   case T_FCALL:
-   case T_PROT_FCALL:
+   switch (tree_kind(name)) {
    case T_REF:
-      tree_change_kind(name, namek == T_PROT_FCALL ? T_PROT_PCALL : T_PCALL);
-      tree_set_ref(name, NULL);
-      // Fall-through
-   case T_PCALL:
-      tree_set_ident2(name, tree_ident(name));
-      solve_types(nametab, name, NULL);
+      call = tree_new(T_PCALL);
+      tree_set_ident2(call, tree_ident(name));
       break;
+
+   case T_PROT_REF:
+      call = tree_new(T_PROT_PCALL);
+      tree_set_ident2(call, tree_ident(name));
+      tree_set_name(call, tree_value(name));
+      break;
+
    default:
+      // Only print an error if name is a valid expression
       if (!type_is_none(solve_types(nametab, name, NULL)))
-         parse_error(CURRENT_LOC, "invalid procedure call statement");
-      name = tree_new(T_PCALL);
+         parse_error(CURRENT_LOC, "expected procedure name");
+
+      call = tree_new(T_PCALL);
+      tree_set_ident2(call, error_marker());
+      set_label_and_loc(call, label, CURRENT_LOC);
+      drop_tokens_until(tSEMI);
+      return call;
    }
 
-   set_label_and_loc(name, label, CURRENT_LOC);
-   sem_check(name, nametab);
-   return name;
+   if (optional(tLPAREN)) {
+      p_actual_parameter_part(call);
+      consume(tRPAREN);
+   }
+
+   consume(tSEMI);
+
+   set_label_and_loc(call, label, CURRENT_LOC);
+
+   solve_types(nametab, call, NULL);
+   sem_check(call, nametab);
+   return call;
 }
 
 static void p_case_statement_alternative(tree_t stmt)
@@ -8593,7 +8645,7 @@ static tree_t p_sequential_statement(void)
       return tree_new(T_NULL);
    }
 
-   tree_t name = p_name();
+   tree_t name = p_name(N_SUBPROGRAM);
 
    switch (peek()) {
    case tASSIGN:
@@ -8603,6 +8655,7 @@ static tree_t p_sequential_statement(void)
       return p_signal_assignment_statement(label, name);
 
    case tSEMI:
+   case tLPAREN:
       return p_procedure_call_statement(label, name);
 
    default:
@@ -8713,14 +8766,15 @@ static void p_options(tree_t *reject, tree_t *guard)
    BEGIN("options");
 
    if (optional(tGUARDED)) {
-      tree_t decl = query_name(nametab, ident_new("GUARD"));
-      if (decl == NULL)
-         parse_error(CURRENT_LOC, "guarded assignment has no visible "
-                     "guard signal");
-      else {
+      tree_t decl = NULL;
+      name_mask_t mask = query_name(nametab, ident_new("GUARD"), &decl);
+      if ((mask & N_OBJECT) && decl != NULL) {
          *guard = make_ref(decl);
          tree_set_loc(*guard, CURRENT_LOC);
       }
+      else
+         parse_error(CURRENT_LOC, "guarded assignment has no visible "
+                     "guard signal");
    }
 
    *reject = p_delay_mechanism();
@@ -8926,31 +8980,31 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
 
    const bool postponed = name == NULL && optional(tPOSTPONED);
 
-   tree_t conc = tree_new(T_CONCURRENT);
+   tree_t call = tree_new(T_PCALL);
+   tree_set_ident2(call, tree_ident(name));
 
-   const tree_kind_t kind = tree_kind(name);
-   if (kind != T_REF && kind != T_FCALL && kind != T_PCALL) {
-      // This can only happen due to some earlier parsing error
-      assert(error_count() > 0);
-      consume(tSEMI);
-      tree_add_stmt(conc, tree_new(T_NULL));
-      return ensure_labelled(conc, label);
+   if (optional(tLPAREN)) {
+      p_actual_parameter_part(call);
+      consume(tRPAREN);
    }
 
-   tree_change_kind(name, T_PCALL);
-   tree_add_stmt(conc, name);
-
    consume(tSEMI);
+
+   tree_set_loc(call, CURRENT_LOC);
+
+   solve_types(nametab, call, NULL);
+
+   tree_t conc = tree_new(T_CONCURRENT);
+   tree_add_stmt(conc, call);
 
    if (postponed)
       tree_set_flag(conc, TREE_F_POSTPONED);
 
-   tree_set_loc(name, CURRENT_LOC);
    tree_set_loc(conc, CURRENT_LOC);
    ensure_labelled(conc, label);
+   tree_set_ident(call, tree_ident(conc));
 
    insert_name(nametab, conc, NULL, 0);
-   solve_types(nametab, name, NULL);
    sem_check(conc, nametab);
    return conc;
 }
@@ -9141,17 +9195,22 @@ static tree_t p_concurrent_statement(void)
          return p_component_instantiation_statement(label, NULL);
       else {
          const bool postponed = optional(tPOSTPONED);
-         tree_t name = p_name(), conc;
+         tree_t name = p_name(N_SUBPROGRAM), conc;
          if (peek() == tLE)
             conc = p_concurrent_signal_assignment_statement(label, name);
-         else if (tree_kind(name) == T_REF
-                  && tree_has_ref(name)
-                  && tree_kind(tree_ref(name)) == T_COMPONENT)
-            return p_component_instantiation_statement(label, name);
+         else if (tree_kind(name) == T_REF) {
+            if (tree_has_ref(name) && tree_kind(tree_ref(name)) == T_COMPONENT)
+               return p_component_instantiation_statement(label, name);
+            else
+               conc = p_concurrent_procedure_call_statement(label, name);
+         }
          else if (scan(tGENERIC, tPORT))
             return p_component_instantiation_statement(label, name);
-         else
-            conc = p_concurrent_procedure_call_statement(label, name);
+         else {
+            parse_error(CURRENT_LOC, "expected concurrent statement");
+            drop_tokens_until(tSEMI);
+            conc = tree_new(T_CONCURRENT);
+         }
 
          if (postponed)
             tree_set_flag(conc, TREE_F_POSTPONED);

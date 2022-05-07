@@ -178,6 +178,9 @@ static void type_set_add(nametab_t *tab, type_t t, tree_t src)
 
    assert(t != NULL);
 
+   if (type_kind(t) == T_INCOMPLETE)
+      t = resolve_type(tab, t);
+
    for (unsigned i = 0; i < tab->top_type_set->members.count; i++) {
       if (type_eq(tab->top_type_set->members.items[i].type, t))
          return;
@@ -319,8 +322,7 @@ static bool can_overload(tree_t t)
          || kind == T_FUNC_BODY
          || kind == T_PROC_DECL
          || kind == T_PROC_BODY
-         || kind == T_ATTR_SPEC
-         || kind == T_LIBRARY;  // Allow multiple redundant library declarations
+         || kind == T_ATTR_SPEC;
 }
 
 nametab_t *nametab_new(void)
@@ -615,8 +617,8 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
       ;
    assert(s != NULL);
 
-   const bool overload = can_overload(decl);
    tree_kind_t tkind = tree_kind(decl);
+   const bool overload = can_overload(decl) || tkind == T_LIBRARY;
 
    ident_t name = alias ?: tree_ident(decl);
 
@@ -791,27 +793,64 @@ bool name_is_formal(nametab_t *tab, ident_t id)
    return false;
 }
 
-tree_t query_name(nametab_t *tab, ident_t name)
+name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl)
 {
-   if (tab->top_scope->formal_kind == F_SUBPROGRAM)
-      return NULL;
-
+   name_mask_t mask = 0;
    scope_t *limit = scope_formal_limit(tab);
-   tree_t decl = scope_find(tab->top_scope, name, limit, NULL, 0);
+   tree_t decl;
+   int n = 0, count = 0;
+   while ((decl = scope_find(tab->top_scope, name, limit, NULL, n++))) {
+      if (decl == (void *)-1) {
+         mask |= N_ERROR;
+         continue;
+      }
 
-   if (decl == NULL || decl == (void *)-1)
-      return NULL;
-   else if (is_subprogram(decl)) {
-      // Suprogram overload resolution is handled separately
-      return NULL;
-   }
-   else if (can_overload(decl) && tree_kind(decl) != T_LIBRARY) {
-      // Might need to disambiguate enum names later in solve_types
-      if (scope_find(tab->top_scope, name, NULL, NULL, 1))
-         return NULL;
+      count++;
+
+      switch (tree_kind(decl)) {
+      case T_VAR_DECL:
+      case T_SIGNAL_DECL:
+      case T_PORT_DECL:
+      case T_PARAM_DECL:
+      case T_CONST_DECL:
+      case T_FIELD_DECL:
+      case T_IMPLICIT_SIGNAL:
+         mask |= N_OBJECT;
+         break;
+      case T_FUNC_BODY:
+      case T_FUNC_DECL:
+         mask |= N_FUNC;
+         break;
+      case T_PROC_BODY:
+      case T_PROC_DECL:
+         mask |= N_PROC;
+         break;
+      case T_TYPE_DECL:
+      case T_SUBTYPE_DECL:
+         mask |= N_TYPE;
+         break;
+      case T_GENERIC_DECL:
+      case T_ALIAS:
+         switch (class_of(decl)) {
+         case C_TYPE: case C_SUBTYPE: mask |= N_TYPE; break;
+         case C_FUNCTION: mask |= N_FUNC; break;
+         case C_PROCEDURE: mask |= N_PROC; break;
+         case C_LABEL: mask |= N_LABEL; break;
+         default: mask |= N_OBJECT; break;
+         }
+         break;
+      default:
+         break;
+      }
+
+      if (count == 1 && !can_overload(decl))
+         break;
    }
 
-   return decl;
+   if (p_decl) *p_decl = (count == 1) ? decl : NULL;
+
+   mask |= count << 16;
+   return mask;
 }
 
 tree_t query_spec(nametab_t *tab, tree_t object)
@@ -998,7 +1037,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       // Suppress further errors for this name
       hash_put(tab->top_scope->members, name, (void *)-1);
    }
-   else if (can_overload(decl) && dkind != T_LIBRARY) {
+   else if (can_overload(decl)) {
       // Might need to disambiguate enum names
       type_t uniq;
       tree_t decl1;
@@ -2412,7 +2451,7 @@ static type_t solve_pcall(nametab_t *tab, tree_t pcall)
    const tree_kind_t kind = tree_kind(pcall);
 
    overload_t o = {
-      .name     = tree_ident(pcall),
+      .name     = tree_ident2(pcall),
       .tree     = pcall,
       .state    = O_IDLE,
       .nametab  = tab,
@@ -2543,41 +2582,49 @@ static type_t solve_ref(nametab_t *tab, tree_t ref)
       return tree_type(ref);
 
    tree_t decl = resolve_ref(tab, ref);
+   type_t type = NULL;
 
-   type_t type;
-   if (decl == NULL)
+   if (decl == NULL) {
       tree_set_type(ref, (type = type_new(T_NONE)));
+      return type;
+   }
    else if (!class_has_type(class_of(decl))) {
       error_at(tree_loc(ref), "invalid use of %s %s",
                class_str(class_of(decl)), istr(tree_ident(ref)));
       tree_set_ref(ref, NULL);
       tree_set_type(ref, (type = type_new(T_NONE)));
+      return type;
    }
-   else if (is_subprogram(decl)) {
+
+   if (tree_kind(decl) == T_ALIAS && !tree_has_type(decl))
+      type = tree_type(tree_value(decl));
+   else
+      type = tree_type(decl);
+
+   if (type_is_subprogram(type)) {
       type_t constraint;
       const bool want_ref =
          type_set_uniq(tab, &constraint) && type_is_subprogram(constraint);
 
-      if (!can_call_no_args(tab, decl) || want_ref) {
-         // We want a reference to the subprogram not a call to it with
-         // no arguments
-         tree_set_ref(ref, decl);
-         tree_set_type(ref, (type = tree_type(decl)));
-      }
-      else {
+      if (can_call_no_args(tab, decl) && !want_ref) {
          tree_change_kind(ref, T_FCALL);
-         type = solve_fcall(tab, ref);
+         return solve_fcall(tab, ref);
       }
    }
-   else {
+   else
       check_pure_ref(tab, ref, decl);
-      tree_set_ref(ref, decl);
-      if (tree_kind(decl) == T_ALIAS && !tree_has_type(decl))
-         tree_set_type(ref, (type = tree_type(tree_value(decl))));
-      else
-         tree_set_type(ref, (type = tree_type(decl)));
-   }
 
+   tree_set_ref(ref, decl);
+   tree_set_type(ref, type);
+   return type;
+}
+
+static type_t solve_prot_ref(nametab_t *tab, tree_t pref)
+{
+   error_at(tree_loc(pref), "invalid use of name %s", istr(tree_ident(pref)));
+
+   type_t type = type_new(T_NONE);
+   tree_set_type(pref, type);
    return type;
 }
 
@@ -2903,6 +2950,10 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
                      if (pos < 64) fmask |= (1 << pos);
                   }
                }
+               else {
+                  // Error in field name
+                  type_set_add(tab, type_new(T_NONE), NULL);
+               }
             }
             break;
 
@@ -3095,6 +3146,9 @@ static type_t solve_range(nametab_t *tab, tree_t r)
          tree_t left = tree_left(r);
          tree_t right = tree_right(r);
 
+         // TODO: do this better by working out the set of possible
+         // types for the right and then use that to solve the left
+
          // Potentially swap the argument order for checking if the
          // right type can be determined unambiguously
          tree_kind_t rkind = tree_kind(right);
@@ -3104,7 +3158,8 @@ static type_t solve_range(nametab_t *tab, tree_t r)
             || rkind == T_ARRAY_REF
             || rkind == T_ARRAY_SLICE
             || rkind == T_TYPE_CONV
-            || (rkind == T_REF && query_name(tab, tree_ident(right)));
+            || (rkind == T_REF
+                && N_OVERLOADS(query_name(tab, tree_ident(right), NULL)) == 1);
 
          if (swap) { tree_t tmp = left; left = right; right = tmp; }
 
@@ -3167,6 +3222,8 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return tree_type(expr);
    case T_EXTERNAL_NAME:
       return solve_external_name(tab, expr);
+   case T_PROT_REF:
+      return solve_prot_ref(tab, expr);
    default:
       fatal_trace("cannot solve types for %s", tree_kind_str(tree_kind(expr)));
    }

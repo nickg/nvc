@@ -610,7 +610,7 @@ START_TEST(test_procedure)
       { 162, "object ARG with type containing an access type must have class" },
       { 167, "object ARG with type containing an access type must have class" },
       { 172, "object ARG with type containing an access type must have class" },
-      { 180, "invalid procedure call statement" },
+      { 180, "expected procedure name" },
       { 183, "declaration may not include the reserved word BUS" },
       { 193, "signal parameter Y must be denoted by a static signal name" },
       { -1, NULL }
@@ -1090,7 +1090,7 @@ START_TEST(test_protected)
       {  56, "variable Z with protected type may not have an initial value" },
       {  58, "function result subtype may not denote a protected type" },
       {  64, "parameter with protected type cannot have a default value" },
-      { 118, "no visible subprogram declaration for COUNTER" },
+      { 118, "invalid use of name COUNTER" },
       { 119, "expected 1 argument for subprogram DECREMENT [INTEGER] but " },
       { 124, "object X with protected type must have class VARIABLE" },
       { 126, "pure function GET_VALUE cannot call impure function VALUE" },
@@ -1142,7 +1142,7 @@ START_TEST(test_alias)
       { 22, "no visible subprogram FOO matches signature [INTEGER "
         "return INTEGER]" },
       { 23, "no visible subprogram FOO matches signature [BIT]" },
-      { 24, "invalid name in subprogram alias" },
+      { 24, "name cannot be indexed or sliced" },
       { 25, "no visible declaration for BLAH" },
       { 32, "no visible subprogram BAR matches signature [INTEGER]" },
       { 40, "ambiguous use of enumeration literal '1'" },
@@ -2343,15 +2343,10 @@ START_TEST(test_error1)
 {
    input_from_file(TESTDIR "/sem/error1.vhd");
 
-   // There are probably too many errors generated here
    const error_t expect[] = {
       { 25, "unexpected ; while parsing port map aspect, expecting" },
       { 23, "missing actual for port Y of mode IN without a default" },
-      { 26, "unexpected , while parsing concurrent procedure call statement" },
-      { 27, "no visible subprogram declaration for Y" },
-      { 27, "unexpected , while parsing concurrent procedure call statement" },
-      { 28, "no visible subprogram declaration for Z" },
-      { 28, "no visible subprogram declaration for B" },
+      { 26, "expected concurrent statement" },
       { -1, NULL }
    };
    expect_errors(expect);

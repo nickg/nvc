@@ -313,6 +313,7 @@ typedef enum tree_kind {
    T_EXTERNAL_NAME,
    T_FORCE,
    T_RELEASE,
+   T_PROT_REF,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

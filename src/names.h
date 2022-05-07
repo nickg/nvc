@@ -43,6 +43,18 @@ typedef enum {
    SPEC_OTHERS,
 } spec_kind_t;
 
+typedef enum {
+   N_OBJECT = (1 << 0),
+   N_TYPE   = (1 << 1),
+   N_ERROR  = (1 << 2),
+   N_FUNC   = (1 << 3),
+   N_PROC   = (1 << 4),
+   N_LABEL  = (1 << 5),
+} name_mask_t;
+
+#define N_OVERLOADS(mask) (((mask) >> 16) & 0xffff)
+#define N_SUBPROGRAM (N_FUNC | N_PROC)
+
 nametab_t *nametab_new(void);
 void nametab_finish(nametab_t *tab);
 
@@ -83,7 +95,7 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name);
 type_t resolve_type(nametab_t *tab, type_t incomplete);
 void resolve_resolution(nametab_t *tab, tree_t rname, type_t type);
-tree_t query_name(nametab_t *tab, ident_t name);
+name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl);
 tree_t query_spec(nametab_t *tab, tree_t object);
 tree_t find_std(nametab_t *tab);
 tree_t find_forward_decl(nametab_t *tab, tree_t decl);
