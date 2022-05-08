@@ -238,7 +238,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_TEMP_STACK_MARK:
       case VCODE_OP_TEMP_STACK_RESTORE:
       case VCODE_OP_INIT_SIGNAL:
-      case VCODE_OP_MAP_SIGNAL:
+      case VCODE_OP_MAP_OUTPUT:
       case VCODE_OP_DRIVE_SIGNAL:
       case VCODE_OP_MAP_CONST:
       case VCODE_OP_RESOLVED:
@@ -4534,7 +4534,7 @@ START_TEST(test_directmap)
       { VCODE_OP_STORE, .name = "O" },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "Y" },
       { VCODE_OP_LOAD_INDIRECT },
-      { VCODE_OP_MAP_SIGNAL },
+      { VCODE_OP_MAP_OUTPUT },
       { VCODE_OP_RETURN },
    };
 

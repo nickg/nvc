@@ -898,7 +898,7 @@ const char *vcode_op_string(vcode_op_t op)
       "const real", "last event", "debug out", "cover stmt", "cover cond",
       "uarray len", "temp stack mark", "temp stack restore",
       "undefined", "range null", "var upref",
-      "resolved", "last value", "init signal", "map signal", "drive signal",
+      "resolved", "last value", "init signal", "map output", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
       "context upref", "const rep", "protected free", "sched static",
@@ -906,7 +906,7 @@ const char *vcode_op_string(vcode_op_t op)
       "debug locus", "length check", "range check", "array ref", "range length",
       "exponent check", "zero check", "map const", "resolve signal",
       "push scope", "pop scope", "set signal kind", "alias signal", "trap add",
-      "trap sub", "trap mul", "force", "release", "link instance"
+      "trap sub", "trap mul", "force", "release", "link instance", "map input",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1282,7 +1282,8 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_MAP_SIGNAL:
+         case VCODE_OP_MAP_OUTPUT:
+         case VCODE_OP_MAP_INPUT:
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
@@ -4532,10 +4533,10 @@ vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
    return (op->result = vcode_add_reg(vtype_signal(type)));
 }
 
-void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
+void emit_map_output(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
                      vcode_reg_t dst_count, vcode_reg_t conv)
 {
-   op_t *op = vcode_add_op(VCODE_OP_MAP_SIGNAL);
+   op_t *op = vcode_add_op(VCODE_OP_MAP_OUTPUT);
    vcode_add_arg(op, src);
    vcode_add_arg(op, dst);
    vcode_add_arg(op, src_count);
@@ -4544,16 +4545,40 @@ void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
       vcode_add_arg(op, conv);
 
    VCODE_ASSERT(vcode_reg_kind(src) == VCODE_TYPE_SIGNAL,
-                "src argument to map signal is not a signal");
+                "src argument to map output is not a signal");
    VCODE_ASSERT(vcode_reg_kind(dst) == VCODE_TYPE_SIGNAL,
-                "dst argument to map signal is not a signal");
+                "dst argument to map output is not a signal");
    VCODE_ASSERT(vcode_reg_kind(src_count) == VCODE_TYPE_OFFSET,
-                "src count argument type to map signal is not offset");
+                "src count argument type to map output is not offset");
    VCODE_ASSERT(vcode_reg_kind(dst_count) == VCODE_TYPE_OFFSET,
-                "dst count argument type to map signal is not offset");
+                "dst count argument type to map output is not offset");
    VCODE_ASSERT(conv == VCODE_INVALID_REG
                 || vcode_reg_kind(conv) == VCODE_TYPE_CLOSURE,
-                "conv argument type to map signal is not closure");
+                "conv argument type to map output is not closure");
+}
+
+void emit_map_input(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
+                     vcode_reg_t dst_count, vcode_reg_t conv)
+{
+   op_t *op = vcode_add_op(VCODE_OP_MAP_INPUT);
+   vcode_add_arg(op, src);
+   vcode_add_arg(op, dst);
+   vcode_add_arg(op, src_count);
+   vcode_add_arg(op, dst_count);
+   if (conv != VCODE_INVALID_REG)
+      vcode_add_arg(op, conv);
+
+   VCODE_ASSERT(vcode_reg_kind(src) == VCODE_TYPE_SIGNAL,
+                "src argument to map input is not a signal");
+   VCODE_ASSERT(vcode_reg_kind(dst) == VCODE_TYPE_SIGNAL,
+                "dst argument to map input is not a signal");
+   VCODE_ASSERT(vcode_reg_kind(src_count) == VCODE_TYPE_OFFSET,
+                "src count argument type to map input is not offset");
+   VCODE_ASSERT(vcode_reg_kind(dst_count) == VCODE_TYPE_OFFSET,
+                "dst count argument type to map input is not offset");
+   VCODE_ASSERT(conv == VCODE_INVALID_REG
+                || vcode_reg_kind(conv) == VCODE_TYPE_CLOSURE,
+                "conv argument type to map input is not closure");
 }
 
 void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count)

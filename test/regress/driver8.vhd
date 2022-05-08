@@ -34,7 +34,8 @@ begin
                 x <= '0';
                 wait for 0 ns;
                 assert x'active;
-                assert x'event;
+                assert x'event report "no event: " & std_logic'image(x'last_value)
+                    & " -> " & std_logic'image(x);
                 assert x = '0' report "expected '0' got " & std_logic'image(x);
                 x <= '1';
                 wait for 0 ns;
@@ -83,27 +84,27 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 architecture test of driver8 is
-    signal x : std_logic;
+    signal y : std_logic;
 begin
 
-    sub1: entity work.sub generic map ( 0 ) port map ( x );
-    sub2: entity work.sub generic map ( 1 ) port map ( x );
+    sub1: entity work.sub generic map ( 0 ) port map ( y );
+    sub2: entity work.sub generic map ( 1 ) port map ( y );
 
     p1: process is
     begin
-        assert x = 'U';
+        assert y = 'U';
         wait for 1 ns;
-        assert x = 'U' report "expected 'U' got " & std_logic'image(x);
+        assert y = 'U' report "expected 'U' got " & std_logic'image(y);
         wait for 0 ns;
-        assert x = '0' report "expected '0' got " & std_logic'image(x);
+        assert y = '0' report "expected '0' got " & std_logic'image(y);
         wait for 0 ns;
-        assert x = '1' report "expected '1' got " & std_logic'image(x);
+        assert y = '1' report "expected '1' got " & std_logic'image(y);
         wait for 0 ns;
-        assert x = 'L' report "expected 'L' got " & std_logic'image(x);
+        assert y = 'L' report "expected 'L' got " & std_logic'image(y);
         wait for 1 ns;
-        assert x = '1' report "expected '1' got " & std_logic'image(x);
+        assert y = '1' report "expected '1' got " & std_logic'image(y);
         wait for 5 ns;
-        assert x = 'X' report "expected 'X' got " & std_logic'image(x);
+        assert y = 'X' report "expected 'X' got " & std_logic'image(y);
         wait;
     end process;
 

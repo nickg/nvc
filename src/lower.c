@@ -37,7 +37,6 @@
 typedef enum {
    EXPR_LVALUE,
    EXPR_RVALUE,
-   EXPR_INPUT_ASPECT,
 } expr_ctx_t;
 
 typedef struct loop_stack  loop_stack_t;
@@ -107,6 +106,7 @@ typedef struct {
    vcode_reg_t conv_count;
    bool        reverse;
    bool        is_const;
+   port_mode_t mode;
 } map_signal_param_t;
 
 typedef void (*lower_field_fn_t)(type_t, vcode_reg_t, vcode_reg_t, void *);
@@ -1015,7 +1015,7 @@ static void lower_signal_flag_field_cb(type_t ftype, vcode_reg_t field_ptr,
 
 static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
 {
-   vcode_reg_t nets = lower_expr(ref, EXPR_INPUT_ASPECT);
+   vcode_reg_t nets = lower_expr(ref, EXPR_LVALUE);
    if (nets == VCODE_INVALID_REG)
       return emit_const(vtype_bool(), 0);
 
@@ -2174,12 +2174,6 @@ static vcode_reg_t lower_port_ref(tree_t decl, expr_ctx_t ctx)
    int obj = lower_search_vcode_obj(decl, top_scope, &hops);
 
    if (obj != VCODE_INVALID_VAR) {
-      if (ctx != EXPR_LVALUE && tree_subkind(decl) == PORT_INOUT) {
-         // Actually we wanted to get the input aspect ($in suffix)
-         void *key = (void *)((uintptr_t)decl | 1);
-         obj = lower_search_vcode_obj(key, top_scope, &hops);
-      }
-
       if (mode == LOWER_THUNK) {
          emit_comment("Cannot resolve reference to signal %s in thunk",
                       istr(tree_ident(decl)));
@@ -8318,8 +8312,11 @@ static void lower_map_signal_field_cb(type_t ftype, vcode_reg_t src_ptr,
 
       if (args->is_const)
          emit_map_const(src_reg, dst_reg, src_count);
+      else if (args->mode == PORT_IN)
+         emit_map_input(src_reg, dst_reg, src_count, dst_count,
+                        args->conv_func);
       else
-         emit_map_signal(src_reg, dst_reg, src_count, dst_count,
+         emit_map_output(src_reg, dst_reg, src_count, dst_count,
                          args->conv_func);
    }
    else
@@ -8329,13 +8326,14 @@ static void lower_map_signal_field_cb(type_t ftype, vcode_reg_t src_ptr,
 
 static void lower_map_signal(vcode_reg_t src_reg, vcode_reg_t dst_reg,
                              type_t src_type, type_t dst_type,
-                             vcode_reg_t conv_func)
+                             vcode_reg_t conv_func, port_mode_t mode)
 {
    if (!type_is_homogeneous(src_type)) {
       map_signal_param_t args = {
          .conv_func = conv_func,
          .conv_reg  = dst_reg,
-         .is_const  = !lower_have_signal(src_reg)
+         .is_const  = !lower_have_signal(src_reg),
+         .mode      = mode,
       };
 
       if (conv_func != VCODE_INVALID_REG) {
@@ -8351,7 +8349,8 @@ static void lower_map_signal(vcode_reg_t src_reg, vcode_reg_t dst_reg,
          .conv_func = conv_func,
          .conv_reg  = src_reg,
          .reverse   = true,
-         .is_const  = !lower_have_signal(src_reg)
+         .is_const  = !lower_have_signal(src_reg),
+         .mode      = mode,
       };
 
       if (conv_func != VCODE_INVALID_REG) {
@@ -8366,17 +8365,18 @@ static void lower_map_signal(vcode_reg_t src_reg, vcode_reg_t dst_reg,
       vcode_reg_t src_count = lower_type_width(src_type, src_reg);
       vcode_reg_t dst_count = lower_type_width(dst_type, dst_reg);
 
-      if (lower_have_signal(src_reg))
-         emit_map_signal(src_reg, dst_reg, src_count, dst_count, conv_func);
-      else
+      if (!lower_have_signal(src_reg))
          emit_map_const(src_reg, dst_reg, src_count);
+      else if (mode == PORT_IN)
+         emit_map_input(src_reg, dst_reg, src_count, dst_count, conv_func);
+      else
+         emit_map_output(src_reg, dst_reg, src_count, dst_count, conv_func);
    }
 }
 
 static void lower_port_map(tree_t block, tree_t map)
 {
    vcode_reg_t port_reg = VCODE_INVALID_REG;
-   vcode_reg_t inout_reg = VCODE_INVALID_REG;
    tree_t port = NULL;
    type_t name_type = NULL;
    vcode_reg_t out_conv = VCODE_INVALID_REG;
@@ -8410,17 +8410,6 @@ static void lower_port_map(tree_t block, tree_t map)
             port_reg = emit_load(var);
          else
             port_reg = emit_index(var, VCODE_INVALID_REG);
-
-         if (tree_subkind(port) == PORT_INOUT) {
-            void *key = (void *)((uintptr_t)port | 1);
-            var = lower_get_var(key, &hops);
-            assert(hops == 0);
-
-            if (type_is_homogeneous(name_type))
-               inout_reg = emit_load(var);
-            else
-               inout_reg = emit_index(var, VCODE_INVALID_REG);
-         }
       }
       break;
    case P_NAMED:
@@ -8459,9 +8448,6 @@ static void lower_port_map(tree_t block, tree_t map)
          port_reg = lower_expr(name, EXPR_LVALUE);
          port = tree_ref(name_to_ref(name));
          name_type = tree_type(name);
-
-         if (tree_subkind(port) == PORT_INOUT)
-            inout_reg = lower_expr(name, EXPR_INPUT_ASPECT);
       }
       break;
    }
@@ -8504,14 +8490,14 @@ static void lower_port_map(tree_t block, tree_t map)
    if (lower_is_signal_ref(value)) {
       type_t value_type = tree_type(value);
       vcode_reg_t value_reg = lower_expr(value, EXPR_LVALUE);
-      const bool input = tree_subkind(port) == PORT_IN;
+      const port_mode_t mode = tree_subkind(port);
 
-      vcode_reg_t src_reg = input ? value_reg : port_reg;
-      vcode_reg_t dst_reg = input ? port_reg : value_reg;
-      vcode_reg_t conv_func = input ? in_conv : out_conv;
+      vcode_reg_t src_reg = mode == PORT_IN ? value_reg : port_reg;
+      vcode_reg_t dst_reg = mode == PORT_IN ? port_reg : value_reg;
+      vcode_reg_t conv_func = mode == PORT_IN ? in_conv : out_conv;
 
-      type_t src_type = input ? value_type : name_type;
-      type_t dst_type = input ? name_type : value_type;
+      type_t src_type = mode == PORT_IN ? value_type : name_type;
+      type_t dst_type = mode == PORT_IN ? name_type : value_type;
 
       if (vcode_reg_kind(src_reg) == VCODE_TYPE_UARRAY)
          src_reg = lower_array_data(src_reg);
@@ -8519,13 +8505,12 @@ static void lower_port_map(tree_t block, tree_t map)
       if (vcode_reg_kind(dst_reg) == VCODE_TYPE_UARRAY)
          dst_reg = lower_array_data(dst_reg);
 
-      lower_map_signal(src_reg, dst_reg, src_type, dst_type, conv_func);
+      lower_map_signal(src_reg, dst_reg, src_type, dst_type, conv_func, mode);
 
       // If this is an inout port create the mapping between input and output
-      if (inout_reg != VCODE_INVALID_REG) {
-         value_reg = lower_expr(value, EXPR_INPUT_ASPECT);
-         lower_map_signal(value_reg, inout_reg, dst_type, src_type, in_conv);
-      }
+      if (mode == PORT_INOUT)
+         lower_map_signal(dst_reg, src_reg, dst_type, src_type,
+                          in_conv, PORT_IN);
    }
    else {
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
@@ -8537,10 +8522,8 @@ static void lower_port_map(tree_t block, tree_t map)
       if (type_is_array(name_type))
          value_reg = lower_array_data(value_reg);
 
-      lower_map_signal(value_reg, port_reg, name_type, name_type, in_conv);
-
-      if (inout_reg != VCODE_INVALID_REG)
-         lower_map_signal(port_reg, inout_reg, name_type, name_type, in_conv);
+      lower_map_signal(value_reg, port_reg, name_type, name_type,
+                       in_conv, tree_subkind(port));
    }
 }
 
@@ -8654,20 +8637,6 @@ static void lower_port_signal(tree_t port)
    lower_sub_signals(type, port, value_type, var, VCODE_INVALID_REG, init_reg,
                      VCODE_INVALID_REG, VCODE_INVALID_REG, kind,
                      VCODE_INVALID_REG);
-
-   if (tree_subkind(port) == PORT_INOUT) {
-      // Separate input aspect of inout port
-      vcode_type_t vtype = vcode_var_type(var);
-      ident_t pname = ident_prefix(tree_ident(port), ident_new("in"), '$');
-      vcode_var_t var = emit_var(vtype, vtype, pname, VAR_SIGNAL);
-
-      void *key = (void *)((uintptr_t)port | 1);
-      lower_put_vcode_obj(key, var, top_scope);
-
-      lower_sub_signals(type, port, value_type, var, VCODE_INVALID_REG,
-                        init_reg, VCODE_INVALID_REG, VCODE_INVALID_REG,
-                        kind, VCODE_INVALID_REG);
-   }
 }
 
 static void lower_ports(tree_t block)
