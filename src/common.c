@@ -950,6 +950,8 @@ void intern_strings(void)
    id_cache[W_THUNK]         = ident_new("thunk");
    id_cache[W_BODY]          = ident_new("body");
    id_cache[W_CARET]         = ident_new("^");
+   id_cache[W_IEEE]          = ident_new("IEEE");
+   id_cache[W_IEEE_1164]     = ident_new("IEEE.STD_LOGIC_1164");
 }
 
 bool is_uninstantiated_package(tree_t pack)
@@ -1082,25 +1084,29 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
    return best;
 }
 
-static tree_t cached_std(tree_t hint)
+static tree_t cached_unit(tree_t hint, tree_t *cache, well_known_t lib_name,
+                          well_known_t unit_name)
 {
-   static tree_t standard_cache[STD_08 + 1] = {};
-
    const vhdl_standard_t curr = standard();
-   assert(curr < ARRAY_LEN(standard_cache));
 
-   if (standard_cache[curr] == NULL) {
+   if (cache[curr] == NULL) {
       if (hint != NULL)
-         standard_cache[curr] = hint;
+         cache[curr] = hint;
       else {
-         lib_t std = lib_require(well_known(W_STD));
-         standard_cache[curr] = lib_get(std, well_known(W_STD_STANDARD));
-         assert(standard_cache[curr] != NULL);
+         lib_t std = lib_require(well_known(lib_name));
+         cache[curr] = lib_get(std, well_known(unit_name));
+         assert(cache[curr] != NULL);
       }
    }
 
-   assert(hint == NULL || hint == standard_cache[curr]);
-   return standard_cache[curr];
+   assert(hint == NULL || hint == cache[curr]);
+   return cache[curr];
+}
+
+static tree_t cached_std(tree_t hint)
+{
+   static tree_t standard_cache[STD_08 + 1] = {};
+   return cached_unit(hint, standard_cache, W_STD, W_STD_STANDARD);
 }
 
 type_t std_type(tree_t std, std_type_t which)
@@ -1138,6 +1144,36 @@ type_t std_type(tree_t std, std_type_t which)
          return (cache[which] = tree_type(d));
       else
          return tree_type(d);
+   }
+   else
+      return cache[which];
+}
+
+static tree_t cached_ieee(tree_t hint)
+{
+   static tree_t ieee_cache[STD_08 + 1] = {};
+   return cached_unit(hint, ieee_cache, W_IEEE, W_IEEE_1164);
+}
+
+type_t ieee_type(ieee_type_t which)
+{
+   static type_t cache[IEEE_STD_LOGIC + 1] = {};
+   assert(which < ARRAY_LEN(cache));
+
+   if (cache[which] == NULL) {
+      const char *names[] = {
+         "STD_ULOGIC",
+         "STD_LOGIC",
+      };
+
+      tree_t d = search_decls(cached_ieee(NULL), ident_new(names[which]), 0);
+      if (d == NULL)
+         fatal_trace("cannot find IEEE type %s", names[which]);
+
+      // STD.STANDARD cannot depend on IEEE
+      assert(!opt_get_int(OPT_BOOTSTRAP));
+
+      return (cache[which] = tree_type(d));
    }
    else
       return cache[which];

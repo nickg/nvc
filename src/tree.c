@@ -303,6 +303,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_PROTECTED_REF
    (I_IDENT | I_VALUE | I_TYPE | I_REF),
+
+   // T_MATCH_CASE
+   (I_IDENT | I_VALUE | I_ASSOCS),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -336,7 +339,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_CONCURRENT",      "T_SEQUENCE",        "T_PACK_INST",
    "T_GENERIC_DECL",    "T_TYPE_REF",        "T_BOX",
    "T_PARAM_DECL",      "T_EXTERNAL_NAME",   "T_FORCE",
-   "T_RELEASE",         "T_PROT_REF",
+   "T_RELEASE",         "T_PROT_REF",        "T_MATCH_CASE",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -373,7 +376,7 @@ static const tree_kind_t stmt_kinds[] = {
    T_EXIT,       T_PCALL,           T_CASE,         T_BLOCK,
    T_SELECT,     T_IF_GENERATE,     T_FOR_GENERATE, T_NEXT,
    T_PROT_PCALL, T_COND_VAR_ASSIGN, T_CONCURRENT,   T_FORCE,
-   T_RELEASE
+   T_RELEASE,    T_MATCH_CASE,
 };
 
 static tree_kind_t expr_kinds[] = {

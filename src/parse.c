@@ -210,7 +210,7 @@ static const char *token_str(token_t tok)
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
       "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
       "?<=", "?>", "?>=", "register", "disconnect", "??", "<<", ">>", "force",
-      "release", "^", "@",
+      "release", "^", "@", "?"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -8543,14 +8543,20 @@ static void p_case_statement_alternative(tree_t stmt)
 
 static tree_t p_case_statement(ident_t label)
 {
-   // [ label : ] case expression is case_statement_alternative
-   //   { case_statement_alternative } end case [ label ] ;
+   // [ label : ] case [?] expression is case_statement_alternative
+   //   { case_statement_alternative } end case [?] [ label ] ;
 
    EXTEND("case statement");
 
    consume(tCASE);
 
-   tree_t t = tree_new(T_CASE);
+   tree_kind_t kind = T_CASE;
+   if (optional(tQUESTION)) {
+      require_std(STD_08, "matching case statements");
+      kind = T_MATCH_CASE;
+   }
+
+   tree_t t = tree_new(kind);
 
    tree_t value = p_expression();
    tree_set_value(t, value);
@@ -8564,6 +8570,10 @@ static tree_t p_case_statement(ident_t label)
 
    consume(tEND);
    consume(tCASE);
+
+   if (kind == T_MATCH_CASE)
+      consume(tQUESTION);
+
    p_trailing_label(label);
    consume(tSEMI);
 

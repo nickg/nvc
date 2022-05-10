@@ -157,4 +157,19 @@ begin
         end process;
     end block;
 
+    process is
+        variable x : bit_vector(1 to 3);
+    begin
+        case? x is                      -- OK
+            when "010" => null;
+            when others => null;
+        end case?;
+        case? x is
+            when others => null;
+        end case;                       -- Error
+        case x is
+            when others => null;
+        end case ?;                     -- Error
+    end process;
+
 end architecture;

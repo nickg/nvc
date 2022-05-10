@@ -331,7 +331,8 @@ static const struct {
    { "Signal parameters", { [STD_08] = "4.2.2.3", [STD_93] = "2.1.1.2" } },
    { "Constant and variable parameters", { [STD_93] = "2.1.1.1",
         [STD_08] = "4.2.2.2" } },
-   { "Object aliases", { [STD_93] = "4.3.3.1", [STD_08] = "6.6.2" } }
+   { "Object aliases", { [STD_93] = "4.3.3.1", [STD_08] = "6.6.2" } },
+   { "Case statement", { [STD_93] = "8.8", [STD_08] = "10.9" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

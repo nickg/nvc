@@ -3503,6 +3503,7 @@ START_TEST(test_vhdl2008)
       { 120, "excess significant digits in bit string literal" },
       { 123, "invalid digit 'C' in bit string" },
       { 141, "sorry, array element constraints are not supported yet" },
+      { 169, "unexpected ; while parsing case statement, expecting ?" },
       { -1, NULL }
    };
    expect_errors(expect);

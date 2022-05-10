@@ -769,6 +769,10 @@ static void dump_decl(tree_t t, int indent)
          printf(";");
          dump_wait_level(t);
          syntax("\n");
+         if (tree_has_ident2(t)) {
+            tab(indent + 2);
+            syntax("-- %s\n", istr(tree_ident2(t)));
+         }
       }
       return;
 
@@ -778,6 +782,10 @@ static void dump_decl(tree_t t, int indent)
       syntax(" #is");
       dump_wait_level(t);
       syntax("\n");
+      if (tree_has_ident2(t)) {
+         tab(indent + 2);
+         syntax("-- %s\n", istr(tree_ident2(t)));
+      }
       dump_block(t, indent);
       tab(indent);
       syntax("#end #procedure;\n");

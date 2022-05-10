@@ -201,6 +201,7 @@ typedef enum {
    tRELEASE,
    tCARET,
    tAT,
+   tQUESTION,
 } token_t;
 
 #endif  // _SCAN_H

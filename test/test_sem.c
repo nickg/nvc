@@ -2619,6 +2619,26 @@ START_TEST(test_ename)
 }
 END_TEST
 
+START_TEST(test_mcase)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/mcase.vhd");
+
+   const error_t expect[] = {
+      { 19, "type of expression in a matching case statement must be BIT, "
+        "STD_ULOGIC, or a one-dimensional array of these types" },
+      { 38, "case expression must have a discrete type or one dimensional "
+        "character array type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2748,6 +2768,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_agg2008);
    tcase_add_test(tc_core, test_force);
    tcase_add_test(tc_core, test_ename);
+   tcase_add_test(tc_core, test_mcase);
    suite_add_tcase(s, tc_core);
 
    return s;

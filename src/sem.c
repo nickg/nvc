@@ -4516,15 +4516,25 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
    // LRM 93 8.8 if the type of the expression is an array then it must be
    // a one dimensional character array type
 
-   const bool is_1d_character_array =
-      type_is_array(type)
-      && sem_is_character_array(type)
-      && dimension_of(type) == 1;
+   const bool is_1d_character_array = sem_is_character_array(type);
    const bool valid = is_1d_character_array || type_is_discrete(type);
 
-   if (!valid)
-      sem_error(test, "case expression must have a discrete type or one "
-                "dimensional character array type");
+   if (!valid) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(test));
+      diag_printf(d, "case expression must have a discrete type or one "
+                  "dimensional character array type");
+      if (type_is_array(type) && dimension_of(type) != 1)
+         diag_hint(d, tree_loc(test), "array has %d dimensions",
+                   dimension_of(type));
+      else if (type_is_array(type))
+         diag_hint(d, tree_loc(test), "type %s is not a character array",
+                   type_pp(type));
+      else
+         diag_hint(d, tree_loc(test), "type is %s", type_pp(type));
+      diag_lrm(d, STD_08, "10.9");
+      diag_emit(d);
+      return false;
+   }
 
    if (is_1d_character_array && !sem_subtype_locally_static(type))
       sem_error(test, "case expression must have locally static subtype");
@@ -4579,6 +4589,36 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
    }
 
    return ok;
+}
+
+static bool sem_check_match_case(tree_t t, nametab_t *tab)
+{
+   // Matching case statement is in LRM 08 section 10.9
+
+   if (!sem_check_case(t, tab))
+      return false;
+
+   tree_t value = tree_value(t);
+   type_t type = tree_type(value);
+
+   type_t std_bit = std_type(NULL, STD_BIT);
+   type_t std_logic = ieee_type(IEEE_STD_ULOGIC);
+
+   type_t elem = type;
+   if (type_is_array(type) && dimension_of(type) == 1)
+      elem = type_elem(type);
+
+   if (!type_eq(elem, std_bit) && !type_eq(elem, std_logic)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+      diag_printf(d, "type of expression in a matching case statement must be "
+                  "BIT, STD_ULOGIC, or a one-dimensional array of these types");
+      diag_hint(d, tree_loc(value), "type is %s", type_pp(type));
+      diag_lrm(d, STD_08, "10.9");
+      diag_emit(d);
+      return false;
+   }
+
+   return true;
 }
 
 static bool sem_check_return(tree_t t, nametab_t *tab)
@@ -5287,6 +5327,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_release(t, tab);
    case T_PROT_REF:
       return sem_check_prot_ref(t, tab);
+   case T_MATCH_CASE:
+      return sem_check_match_case(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

@@ -129,6 +129,13 @@ typedef enum {
 type_t std_type(tree_t std, std_type_t which);
 tree_t std_func(ident_t mangled);
 
+typedef enum {
+   IEEE_STD_ULOGIC,
+   IEEE_STD_LOGIC,
+} ieee_type_t;
+
+type_t ieee_type(ieee_type_t which);
+
 //
 // Disable some pedantic rule checks
 //
@@ -165,6 +172,8 @@ typedef enum {
    W_THUNK,
    W_BODY,
    W_CARET,
+   W_IEEE,
+   W_IEEE_1164,
 
    NUM_WELL_KNOWN
 } well_known_t;

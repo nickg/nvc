@@ -14,6 +14,7 @@
   produce an error (#101).
 - Added support for VHDL-2008 force/release assignments.
 - Basic support for external names in VHDL-2008.
+- Matching case `case?` statements are supported in VHDL-2008 mode.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

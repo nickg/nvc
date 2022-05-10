@@ -1,0 +1,3 @@
+2ns+1: Assertion Error: value of matching case statement expression "11-" contains a '-'
+Procedure CHECK_MATCH_EXPRESSION [STD_ULOGIC_VECTOR]
+Process :case12:p1

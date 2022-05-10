@@ -369,6 +369,7 @@ RELEASE       ?i:release
 ">>"                 { TOKEN(tGTGT); }
 "^"                  { TOKEN(tCARET); }
 "@"                  { TOKEN(tAT); }
+"?"                  { TOKEN(tQUESTION); }
 {DECIMAL_LITERAL}    { return parse_decimal_literal(yytext); }
 {BASED_LITERAL}      { return parse_based_literal(yytext); }
 {BIT_STRING}         { return parse_bit_string(yytext); }

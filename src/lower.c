@@ -5495,6 +5495,148 @@ static void lower_case(tree_t stmt, loop_stack_t *loops)
       lower_case_array(stmt, loops);
 }
 
+static void lower_match_case(tree_t stmt, loop_stack_t *loops)
+{
+   vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
+
+   tree_t value = tree_value(stmt);
+   type_t type = tree_type(value);
+
+   const bool is_array = type_is_array(type);
+   type_t scalar = is_array ? type_elem(type) : type;
+
+   if (type_eq(scalar, std_type(NULL, STD_BIT))) {
+      // The "?=" operator on BIT is the same as "=" so just use a
+      // normal case statement
+      lower_case(stmt, loops);
+      return;
+   }
+
+   vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
+   if (is_array && vcode_reg_kind(value_reg) != VCODE_TYPE_UARRAY)
+      value_reg = lower_wrap(type, value_reg);
+   else if (!is_array)
+      value_reg = lower_reify(value_reg);
+
+   // Call support function to check argument does not contain '-'
+   {
+      ident_t func = ident_new(
+         is_array ? "NVC.IEEE_SUPPORT.CHECK_MATCH_EXPRESSION(Y)"
+         : "NVC.IEEE_SUPPORT.CHECK_MATCH_EXPRESSION(U)");
+      vcode_reg_t context_reg = lower_context_for_call(func);
+
+      vcode_reg_t args[] = { context_reg, value_reg };
+      emit_fcall(func, VCODE_INVALID_REG, VCODE_INVALID_REG,
+                 VCODE_CC_VHDL, args, ARRAY_LEN(args));
+   }
+
+   ident_t func = ident_new(is_array ? "IEEE.STD_LOGIC_1164.\"?=\"(YY)U"
+                            : "IEEE.STD_LOGIC_1164.\"?=\"(UU)U");
+   vcode_reg_t context_reg = lower_context_for_call(func);
+
+   vcode_type_t vscalar = lower_type(scalar);
+   vcode_reg_t true_reg = emit_const(vscalar, 3);  // STD_LOGIC'POS('1')
+
+   const int nassocs = tree_assocs(stmt);
+   for (int i = 0; i < nassocs; i++) {
+      vcode_block_t loop_bb = VCODE_INVALID_BLOCK;
+      vcode_block_t skip_bb = VCODE_INVALID_BLOCK;
+      vcode_reg_t test_reg = VCODE_INVALID_REG;
+      vcode_var_t tmp_var = VCODE_INVALID_VAR;
+
+      tree_t a = tree_assoc(stmt, i);
+      switch (tree_subkind(a)) {
+      case A_NAMED:
+         test_reg = lower_expr(tree_name(a), EXPR_RVALUE);
+         skip_bb = emit_block();
+         break;
+
+      case A_RANGE:
+         {
+            tree_t r = tree_range(a, 0);
+            vcode_reg_t left_reg  = lower_range_left(r);
+            vcode_reg_t right_reg = lower_range_right(r);
+            vcode_reg_t dir_reg   = lower_range_dir(r);
+
+            tmp_var = lower_temp_var("i", vscalar, vscalar);
+            emit_store(left_reg, tmp_var);
+
+            vcode_reg_t null_reg  =
+               emit_range_null(left_reg, right_reg, dir_reg);
+
+            vcode_block_t body_bb = emit_block();
+            loop_bb = emit_block();
+            skip_bb = emit_block();
+
+            emit_cond(null_reg, skip_bb, body_bb);
+
+            vcode_select_block(body_bb);
+
+            test_reg = emit_load(tmp_var);
+
+            vcode_select_block(loop_bb);
+
+            vcode_reg_t step_down = emit_const(vscalar, -1);
+            vcode_reg_t step_up   = emit_const(vscalar, 1);
+            vcode_reg_t step_reg  = emit_select(dir_reg, step_down, step_up);
+            vcode_reg_t next_reg  = emit_add(test_reg, step_reg);
+            emit_store(next_reg, tmp_var);
+
+            vcode_reg_t done_reg = emit_cmp(VCODE_CMP_EQ, test_reg, right_reg);
+            emit_cond(done_reg, skip_bb, body_bb);
+
+            vcode_select_block(body_bb);
+         }
+         break;
+
+      case A_OTHERS:
+         lower_stmt(tree_value(a), loops);
+         continue;
+      }
+
+      vcode_reg_t hit_bb = emit_block();
+
+      if (is_array && vcode_reg_kind(test_reg) != VCODE_TYPE_UARRAY)
+         test_reg = lower_wrap(type, test_reg);
+      else if (!is_array)
+         test_reg = lower_reify(test_reg);
+
+      vcode_reg_t args[] = {
+         context_reg,
+         value_reg,
+         test_reg,
+      };
+      vcode_reg_t result_reg = emit_fcall(func, vscalar, vscalar,
+                                          VCODE_CC_VHDL, args,
+                                          ARRAY_LEN(args));
+      vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_EQ, result_reg, true_reg);
+
+      if (loop_bb != VCODE_INVALID_BLOCK)
+         emit_cond(cmp_reg, hit_bb, loop_bb);
+      else
+         emit_cond(cmp_reg, hit_bb, skip_bb);
+
+      vcode_select_block(hit_bb);
+      lower_stmt(tree_value(a), loops);
+
+      if (!vcode_block_finished()) {
+         if (exit_bb == VCODE_INVALID_BLOCK)
+            exit_bb = emit_block();
+         emit_jump(exit_bb);
+      }
+
+      if (tmp_var != VCODE_INVALID_VAR)
+         lower_release_temp(tmp_var);
+
+      vcode_select_block(skip_bb);
+   }
+
+   if (exit_bb != VCODE_INVALID_BLOCK) {
+      emit_jump(exit_bb);
+      vcode_select_block(exit_bb);
+   }
+}
+
 static void lower_stmt(tree_t stmt, loop_stack_t *loops)
 {
    PUSH_DEBUG_INFO(stmt);
@@ -5552,6 +5694,9 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
       break;
    case T_CASE:
       lower_case(stmt, loops);
+      break;
+   case T_MATCH_CASE:
+      lower_match_case(stmt, loops);
       break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",

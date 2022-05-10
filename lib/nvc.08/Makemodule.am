@@ -3,10 +3,14 @@ nvc_08_DATA = \
 	lib/nvc.08/_NVC_LIB \
 	lib/nvc.08/_index \
 	lib/nvc.08/NVC.SIM_PKG \
-	lib/nvc.08/NVC.POLYFILL
+	lib/nvc.08/NVC.POLYFILL \
+	lib/nvc.08/NVC.IEEE_SUPPORT \
+	lib/nvc.08/NVC.IEEE_SUPPORT-body
 
 EXTRA_DIST += \
-	lib/nvc.08/polyfill.vhd
+	lib/nvc.08/polyfill.vhd \
+	lib/nvc.08/ieee_support.vhd \
+	lib/nvc.08/ieee_support-body.vhd
 
 BOOTSTRAPLIBS += $(nvc_08_DATA)
 
@@ -21,6 +25,12 @@ lib/nvc.08/NVC.SIM_PKG: $(srcdir)/lib/nvc/sim_pkg.vhd @ifGNUmake@ | $(DRIVER)
 
 lib/nvc.08/NVC.POLYFILL: $(srcdir)/lib/nvc.08/polyfill.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/polyfill.vhd
+
+lib/nvc.08/NVC.IEEE_SUPPORT: $(srcdir)/lib/nvc.08/ieee_support.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/ieee_support.vhd
+
+lib/nvc.08/NVC.IEEE_SUPPORT-body: $(srcdir)/lib/nvc.08/ieee_support-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 -a $(srcdir)/lib/nvc.08/ieee_support-body.vhd
 
 gen-deps-nvc-08:
 	$(nvc) --std=2008 -L lib/ --work=lib/nvc.08 --make --posix --deps-only | \

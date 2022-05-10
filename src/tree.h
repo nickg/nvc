@@ -314,6 +314,7 @@ typedef enum tree_kind {
    T_FORCE,
    T_RELEASE,
    T_PROT_REF,
+   T_MATCH_CASE,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
