@@ -1333,6 +1333,12 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
       return;
 
    if (tree_has_ident2(use)) {
+      if (!is_package(unit)) {
+         error_at(tree_loc(use), "design unit %s is not a package",
+                  istr(unit_name));
+         return;
+      }
+
       ident_t what = tree_ident2(use);
       scope_t *s = chain_scope(tab, tag);
       if (what == well_known(W_ALL)) {

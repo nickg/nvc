@@ -4079,6 +4079,37 @@ START_TEST(test_names2)
 }
 END_TEST
 
+START_TEST(test_issue457)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/issue457.vhd");
+
+   lib_t test_context_lib = lib_tmp("test_context");
+   lib_set_work(test_context_lib);
+
+   const error_t expect[] = {
+      {  7, "design unit TEST_CONTEXT.TEST_CONTEXT is not a package" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONTEXT);
+
+   lib_t other_lib = lib_tmp("other");
+   lib_set_work(other_lib);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -4150,6 +4181,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_vunit7);
    tcase_add_test(tc_core, test_error6);
    tcase_add_test(tc_core, test_names2);
+   tcase_add_test(tc_core, test_issue457);
    suite_add_tcase(s, tc_core);
 
    return s;
