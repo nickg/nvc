@@ -831,7 +831,7 @@ static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
    }
 
    if (base == 10) {
-      nbits = ilog2(decimal);
+      nbits = ilog2(decimal + 1);
 
       if (length == -1) {
          length = nbits;
@@ -848,6 +848,9 @@ static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
          else if (pos >= 0)
             bits[pos--] = (decimal & 1) ? one : zero;
       }
+
+      while (pos >= 0)
+         bits[pos--] = zero;
    }
 
    if (length >= 0) {

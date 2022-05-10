@@ -4110,6 +4110,38 @@ START_TEST(test_issue457)
 }
 END_TEST
 
+START_TEST(test_issue458)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/issue458.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   ident_t one = ident_new("'1'");
+   ident_t zero = ident_new("'0'");
+
+   ident_t expect[5][5] = { { zero, zero, zero, zero, zero },
+                            { zero, zero, zero, zero, one },
+                            { zero, zero, zero, one, zero },
+                            { zero, zero, zero, one, one },
+                            { one, zero, one, zero, zero } };
+
+   for (int i = 0; i < 5; i++) {
+      tree_t d0 = tree_value(tree_decl(p, i));
+      fail_unless(tree_kind(d0) == T_LITERAL);
+      fail_unless(tree_subkind(d0) == L_STRING);
+      fail_unless(tree_chars(d0) == 5);
+
+      for (int j = 0; j < 5; j++)
+         fail_unless(tree_ident(tree_char(d0, j)) == expect[i][j]);
+   }
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -4182,6 +4214,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_error6);
    tcase_add_test(tc_core, test_names2);
    tcase_add_test(tc_core, test_issue457);
+   tcase_add_test(tc_core, test_issue458);
    suite_add_tcase(s, tc_core);
 
    return s;
