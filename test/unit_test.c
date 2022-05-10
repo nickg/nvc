@@ -27,6 +27,15 @@ static int run_suite(Suite *s, const char *name, int argc, char **argv)
 
    SRunner *sr = srunner_create(s);
 
+   if (srunner_fork_status(sr) == CK_NOFORK) {
+      static bool warned_fork = false;
+      if (!warned_fork) {
+         printf("WARNING: skipping unit tests due to CK_FORK=no\n");
+         warned_fork = true;
+      }
+      return 0;
+   }
+
    int nfail = 0;
    if (should_run) {
      srunner_run_all(sr, CK_NORMAL);

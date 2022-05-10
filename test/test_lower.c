@@ -4626,7 +4626,7 @@ START_TEST(test_vunit5)
 
    EXPECT_BB(0) = {
       { VCODE_OP_INDEX, .name = "R" },
-      { VCODE_OP_INDEX, .name = "def" },
+      { VCODE_OP_INDEX, .name = "*def" },
       { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_CAST },
