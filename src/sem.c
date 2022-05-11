@@ -4053,7 +4053,7 @@ static bool sem_check_if(tree_t t, nametab_t *tab)
    return ok;
 }
 
-static bool sem_subtype_locally_static(type_t type)
+static bool sem_static_subtype(type_t type, static_fn_t fn)
 {
    // Rules for locally static subtypes are in LRM 93 7.4.1
 
@@ -4066,7 +4066,7 @@ static bool sem_subtype_locally_static(type_t type)
    if (type_is_record(type)) {
       const int nfields = type_fields(type);
       for (int i = 0; i < nfields; i++) {
-         if (!sem_subtype_locally_static(tree_type(type_field(type, i))))
+         if (!sem_static_subtype(tree_type(type_field(type, i)), fn))
             return false;
       }
 
@@ -4078,7 +4078,7 @@ static bool sem_subtype_locally_static(type_t type)
       {
          const int ndims = dimension_of(type);
          for (int i = 0; i < ndims; i++) {
-            if (!sem_locally_static(range_of(type, i)))
+            if (!(*fn)(range_of(type, i)))
                return false;
          }
 
@@ -4122,13 +4122,13 @@ static bool sem_locally_static(tree_t t)
             return false;
 
          tree_t value = tree_value(decl);
-         return sem_subtype_locally_static(tree_type(decl))
+         return sem_static_subtype(tree_type(decl), sem_locally_static)
             && sem_locally_static(value);
       }
       else if ((standard() >= STD_08 || (relax_rules() & RELAX_LOCALLY_STATIC))
                && dkind == T_GENERIC_DECL) {
          // [2008] A generic reference with a locally static subtype
-         return sem_subtype_locally_static(tree_type(decl));
+         return sem_static_subtype(tree_type(decl), sem_locally_static);
       }
    }
 
@@ -4187,7 +4187,7 @@ static bool sem_locally_static(tree_t t)
          return false;
       else if (!tree_has_value(t)) {
          type_t type = tree_type(tree_name(t));
-         return sem_subtype_locally_static(type);
+         return sem_static_subtype(type, sem_locally_static);
       }
 
       // Whose actual parameter (if any) is a locally static expression
@@ -4427,15 +4427,28 @@ static bool sem_globally_static(tree_t t)
    }
 
    if (kind == T_ATTR_REF) {
-      // A predefined attribute other than those listed below whose prefix
-      // is appropriate for a globally static attribute
+      // A predefined attribute other than those listed below whose
+      // prefix is either a globally static subtype or is an object or
+      // function call that is of a globally static subtype, or in 2008,
+      // a prefix which is a appropriate for a globally static attribute
       const attr_kind_t predef = tree_subkind(t);
       if (predef == ATTR_EVENT || predef == ATTR_ACTIVE
           || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
           || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING
           || predef == ATTR_DRIVING_VALUE)
          return false;   // Clause k
-      else if (predef != ATTR_USER) {
+      else if (predef == ATTR_USER) {
+         // A user-defined attribute whose value is a globally static
+         // expression
+         return sem_globally_static(tree_value(t));
+      }
+      else if (standard() >= STD_08) {
+         // LRM 08 section 9.4.3: A prefix is appropriate for a globally
+         // static attribute if it denotes a signal, a constant, a type
+         // or subtype, a globally static function call, a variable that
+         // is not of an access type, or a variable of an access type
+         // whose designated subtype is fully constrained.
+
          tree_t name = tree_name(t);
          switch (tree_kind(name)) {
          case T_REF:
@@ -4444,13 +4457,11 @@ static bool sem_globally_static(tree_t t)
                const tree_kind_t dkind = tree_kind(decl);
                if (dkind == T_VAR_DECL && type_is_access(tree_type(name)))
                   return false;
-               else if (dkind == T_PORT_DECL)
-                  return tree_class(decl) == C_CONSTANT
-                     || !type_is_unconstrained(tree_type(decl));
                else
                   return dkind == T_CONST_DECL || dkind == T_SIGNAL_DECL
                      || dkind == T_TYPE_DECL || dkind == T_VAR_DECL
-                     || dkind == T_SUBTYPE_DECL;
+                     || dkind == T_SUBTYPE_DECL || dkind == T_PORT_DECL
+                     || dkind == T_GENERIC_DECL;
             }
          case T_FCALL:
             return sem_globally_static(name);
@@ -4458,10 +4469,13 @@ static bool sem_globally_static(tree_t t)
             return false;
          }
       }
+      else {
+         tree_t name = tree_name(t);
+         if (tree_has_type(name))
+            return sem_static_subtype(tree_type(name), sem_globally_static);
 
-      // A user-defined attribute whose value is a globally static expression
-      assert(tree_has_value(t));
-      return sem_globally_static(tree_value(t));
+         return false;
+      }
    }
 
    // A qualified expression whose operand is globally static
@@ -4536,7 +4550,7 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
       return false;
    }
 
-   if (is_1d_character_array && !sem_subtype_locally_static(type))
+   if (is_1d_character_array && !sem_static_subtype(type, sem_locally_static))
       sem_error(test, "case expression must have locally static subtype");
 
    bool ok = true;

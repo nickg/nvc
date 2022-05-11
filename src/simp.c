@@ -217,6 +217,23 @@ static bool fold_possible(tree_t t, eval_flags_t flags)
          return true;
       }
 
+   case T_ATTR_REF:
+      {
+         if (tree_subkind(t) == ATTR_USER)
+            return fold_not_possible(t, flags, "user defined attribute");
+
+         if (!fold_possible(tree_name(t), flags))
+            return false;
+
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            if (!fold_possible(tree_value(tree_param(t, i)), flags))
+               return false;
+         }
+
+         return true;
+      }
+
    default:
       return fold_not_possible(t, flags, tree_kind_str(tree_kind(t)));
    }
