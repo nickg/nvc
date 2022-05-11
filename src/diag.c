@@ -333,6 +333,8 @@ static const struct {
         [STD_08] = "4.2.2.2" } },
    { "Object aliases", { [STD_93] = "4.3.3.1", [STD_08] = "6.6.2" } },
    { "Case statement", { [STD_93] = "8.8", [STD_08] = "10.9" } },
+   { "Elaboration of a declarative part", { [STD_93] = "12.3",
+        [STD_08] = "14.4" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

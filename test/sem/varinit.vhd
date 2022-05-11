@@ -52,5 +52,6 @@ architecture bar of computation is
     signal N : integer := 5;
     signal bad : bit_vector(1 to N);    -- Error
     signal x : integer range 1 to N;    -- Error
+    signal y : bit_vector(1 to bad'length);  -- OK
 begin
 end architecture;

@@ -1518,23 +1518,29 @@ static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
    return true;
 }
 
-static void sem_check_static_elab_fn(tree_t t, void *context)
-{
-   tree_t decl = tree_ref(t);
-   if (tree_kind(decl) == T_SIGNAL_DECL)
-      error_at(tree_loc(t), "cannot reference signal %s during static "
-               "elaboration", istr(tree_ident(decl)));
-}
-
 static void sem_check_static_elab(tree_t t)
 {
-   // LRM 93 12.3 forbirds references to signals before the design has been
-   // elaborated
+   // LRM 93 12.3 forbirds references to signals before the design has
+   // been elaborated: "The value of any object denoted by a primary in
+   // such an expression must be defined at the time the primary is read"
 
    switch (tree_kind(t)) {
+   case T_REF:
+   case T_EXTERNAL_NAME:
+      if (class_of(t) == C_SIGNAL) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         diag_printf(d, "cannot reference signal %s during static "
+                     "elaboration", istr(tree_ident(t)));
+         diag_hint(d, NULL, "the value of a signal is not defined "
+                   "until after the design hierarchy is elaborated");
+         diag_lrm(d, STD_93, "12.3");
+         diag_emit(d);
+      }
+      break;
+
+   case T_SIGNAL_DECL:
    case T_VAR_DECL:
    case T_CONST_DECL:
-   case T_SIGNAL_DECL:
       {
          type_t type = tree_type(t);
          if (type_is_scalar(type) && !type_is_none(type))
@@ -1550,20 +1556,32 @@ static void sem_check_static_elab(tree_t t)
       }
       break;
 
-   case T_EXTERNAL_NAME:
-      if (tree_class(t) == C_SIGNAL)
-         error_at(tree_loc(t), "cannot reference signal %s during static "
-                  "elaboration", istr(tree_ident(t)));
+   case T_ARRAY_REF:
+      {
+         sem_check_static_elab(tree_value(t));
+
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++)
+            sem_check_static_elab(tree_value(tree_param(t, i)));
+      }
       break;
 
-   case T_REF:
-   case T_ARRAY_REF:
-   case T_ARRAY_SLICE:
-   case T_RECORD_REF:
-   case T_ATTR_REF:
    case T_FCALL:
-      if (!sem_globally_static(t))
-         tree_visit_only(t, sem_check_static_elab_fn, NULL, T_REF);
+      if (!(tree_flags(t) & TREE_F_GLOBALLY_STATIC)) {
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++)
+            sem_check_static_elab(tree_value(tree_param(t, i)));
+      }
+      break;
+
+   case T_ARRAY_SLICE:
+      sem_check_static_elab(tree_value(t));
+      sem_check_static_elab(tree_range(t, 0));
+      break;
+
+   case T_RECORD_REF:
+   case T_TYPE_CONV:
+      sem_check_static_elab(tree_value(t));
       break;
 
    case T_RANGE:
@@ -1576,6 +1594,20 @@ static void sem_check_static_elab(tree_t t)
       case RANGE_EXPR:
          sem_check_static_elab(tree_value(t));
          break;
+      }
+      break;
+
+   case T_ATTR_REF:
+      {
+         // Same list of predefined attributes as sem_globally_static
+         const attr_kind_t predef = tree_subkind(t);
+         const bool non_static = predef == ATTR_EVENT || predef == ATTR_ACTIVE
+            || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
+            || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING
+            || predef == ATTR_DRIVING_VALUE;
+
+         if (non_static)
+            sem_check_static_elab(tree_name(t));
       }
       break;
 
