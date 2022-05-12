@@ -199,7 +199,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      17
+#define VCODE_VERSION      18
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -905,7 +905,7 @@ const char *vcode_op_string(vcode_op_t op)
       "implicit signal", "disconnect", "link package", "index check",
       "debug locus", "length check", "range check", "array ref", "range length",
       "exponent check", "zero check", "map const", "resolve signal",
-      "push scope", "pop scope", "set signal kind", "alias signal", "trap add",
+      "push scope", "pop scope", "alias signal", "trap add",
       "trap sub", "trap mul", "force", "release", "link instance", "map input",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
@@ -1347,11 +1347,13 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->args.items[1]);
                col += printf(" value ");
                col += vcode_dump_reg(op->args.items[2]);
-               col += printf(" locus ");
+               col += printf(" flags ");
                col += vcode_dump_reg(op->args.items[3]);
+               col += printf(" locus ");
+               col += vcode_dump_reg(op->args.items[4]);
                if (op->args.count > 4) {
                   col += printf(" offset ");
-                  col += vcode_dump_reg(op->args.items[4]);
+                  col += vcode_dump_reg(op->args.items[5]);
                }
                vcode_dump_result_type(col, op);
             }
@@ -1976,15 +1978,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                   col += vcode_dump_reg(op->args.items[1]);
                }
                vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_SET_SIGNAL_KIND:
-            {
-               printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args.items[0]);
-               printf(" kind ");
-               vcode_dump_reg(op->args.items[1]);
             }
             break;
 
@@ -4474,12 +4467,14 @@ vcode_reg_t emit_var_upref(int hops, vcode_var_t var)
 
 vcode_reg_t emit_init_signal(vcode_type_t type, vcode_reg_t count,
                              vcode_reg_t size, vcode_reg_t value,
-                             vcode_reg_t locus, vcode_reg_t offset)
+                             vcode_reg_t flags, vcode_reg_t locus,
+                             vcode_reg_t offset)
 {
    op_t *op = vcode_add_op(VCODE_OP_INIT_SIGNAL);
    vcode_add_arg(op, count);
    vcode_add_arg(op, size);
    vcode_add_arg(op, value);
+   vcode_add_arg(op, flags);
    vcode_add_arg(op, locus);
    if (offset != VCODE_INVALID_REG)
       vcode_add_arg(op, offset);
@@ -5136,18 +5131,6 @@ vcode_reg_t emit_last_active(vcode_reg_t signal, vcode_reg_t len)
                 "length argument to last active must have offset type");
 
    return (op->result = vcode_add_reg(vtype_time()));
-}
-
-void emit_set_signal_kind(vcode_reg_t signal, vcode_reg_t kind)
-{
-   op_t *op = vcode_add_op(VCODE_OP_SET_SIGNAL_KIND);
-   vcode_add_arg(op, signal);
-   vcode_add_arg(op, kind);
-
-   VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
-                "signal argument must have signal type");
-   VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
-                "kind argument must have offset type");
 }
 
 void emit_alias_signal(vcode_reg_t signal, vcode_reg_t locus)

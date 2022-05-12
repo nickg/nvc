@@ -23,7 +23,6 @@
   __nvc_release;
   __nvc_report;
   __nvc_resolve_signal;
-  __nvc_set_signal_kind;
   _assert_fail;
   _canon_value;
   _convert_signal;

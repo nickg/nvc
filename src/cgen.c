@@ -2602,19 +2602,6 @@ static void cgen_op_alias_signal(int op, cgen_ctx_t *ctx)
                  args, ARRAY_LEN(args), "");
 }
 
-static void cgen_op_set_signal_kind(int op, cgen_ctx_t *ctx)
-{
-   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
-
-   LLVMValueRef args[] = {
-      LLVMBuildExtractValue(builder, sigptr, 0, ""),
-      cgen_get_arg(op, 1, ctx),
-   };
-
-   LLVMBuildCall(builder, llvm_fn("__nvc_set_signal_kind"),
-                 args, ARRAY_LEN(args), "");
-}
-
 static void cgen_op_case(int op, cgen_ctx_t *ctx)
 {
    const int num_cases = vcode_count_args(op) - 1;
@@ -3075,8 +3062,8 @@ static void cgen_op_init_signal(int op, cgen_ctx_t *ctx)
    LLVMValueRef initval = cgen_pointer_to_arg_data(op, 2, &alloca_type, ctx);
 
    LLVMValueRef offset;
-   if (vcode_count_args(op) > 4) {
-      LLVMValueRef null = cgen_get_arg(op, 4, ctx);
+   if (vcode_count_args(op) > 5) {
+      LLVMValueRef null = cgen_get_arg(op, 5, ctx);
       offset = LLVMBuildPtrToInt(builder, null, llvm_int32_type(), "");
    }
    else
@@ -3087,6 +3074,7 @@ static void cgen_op_init_signal(int op, cgen_ctx_t *ctx)
       cgen_get_arg(op, 1, ctx),
       llvm_void_cast(initval),
       cgen_get_arg(op, 3, ctx),
+      cgen_get_arg(op, 4, ctx),
       offset
    };
    LLVMValueRef shared = LLVMBuildCall(builder, llvm_fn("_init_signal"), args,
@@ -3550,9 +3538,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_DRIVING_VALUE:
       cgen_op_driving_value(i, ctx);
-      break;
-   case VCODE_OP_SET_SIGNAL_KIND:
-      cgen_op_set_signal_kind(i, ctx);
       break;
    case VCODE_OP_ALIAS_SIGNAL:
       cgen_op_alias_signal(i, ctx);
@@ -4497,6 +4482,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_int32_type(),
          llvm_int32_type(),
          llvm_void_ptr(),
+         llvm_int32_type(),
          llvm_debug_locus_type(),
          llvm_int32_type(),
       };

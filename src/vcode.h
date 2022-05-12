@@ -142,7 +142,6 @@ typedef enum {
    VCODE_OP_RESOLVE_SIGNAL,
    VCODE_OP_PUSH_SCOPE,
    VCODE_OP_POP_SCOPE,
-   VCODE_OP_SET_SIGNAL_KIND,
    VCODE_OP_ALIAS_SIGNAL,
    VCODE_OP_TRAP_ADD,
    VCODE_OP_TRAP_SUB,
@@ -433,7 +432,8 @@ vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_var_upref(int hops, vcode_var_t var);
 vcode_reg_t emit_init_signal(vcode_type_t type, vcode_reg_t count,
                              vcode_reg_t size, vcode_reg_t value,
-                             vcode_reg_t locus, vcode_reg_t offset);
+                             vcode_reg_t flags, vcode_reg_t locus,
+                             vcode_reg_t offset);
 void emit_resolve_signal(vcode_reg_t signal, vcode_reg_t resolution);
 vcode_reg_t emit_implicit_signal(vcode_type_t type, vcode_reg_t count,
                                  vcode_reg_t size, vcode_reg_t locus,
@@ -501,7 +501,6 @@ vcode_reg_t emit_context_upref(int hops);
 vcode_reg_t emit_debug_locus(ident_t unit, ptrdiff_t offset);
 void emit_push_scope(vcode_reg_t locus, vcode_type_t type);
 void emit_pop_scope(void);
-void emit_set_signal_kind(vcode_reg_t signal, vcode_reg_t kind);
 void emit_alias_signal(vcode_reg_t signal, vcode_reg_t locus);
 
 #endif  // _VCODE_H

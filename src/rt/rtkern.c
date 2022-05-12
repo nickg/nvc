@@ -209,16 +209,6 @@ typedef struct {
    int8_t        tab1[16];
 } res_memo_t;
 
-typedef enum {
-   NET_F_FORCED       = (1 << 0),
-   NET_F_PROPAGATE    = (1 << 1),
-   NET_F_LAST_VALUE   = (1 << 2),
-   NET_F_R_IDENT      = (1 << 3),
-   NET_F_IMPLICIT     = (1 << 4),
-   NET_F_REGISTER     = (1 << 5),
-   NET_F_DISCONNECTED = (1 << 6),
-} net_flags_t;
-
 typedef struct rt_nexus_s {
    rt_nexus_t   *chain;
    void         *free_value;
@@ -1041,13 +1031,13 @@ static rt_nexus_t *rt_split_nexus(rt_signal_t *s, int offset, int count)
 }
 
 static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
-                            unsigned size, unsigned offset)
+                            unsigned size, net_flags_t flags, unsigned offset)
 {
    s->where         = where;
    s->n_nexus       = 1;
    s->shared.size   = count * size;
    s->shared.offset = offset;
-   s->flags         = NET_F_LAST_VALUE;
+   s->flags         = flags | NET_F_LAST_VALUE;
    s->parent        = active_scope;
 
    *signals_tail = s;
@@ -1058,7 +1048,7 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
    s->nexus.n_sources  = 0;
    s->nexus.n_drivers  = 0;
    s->nexus.resolved   = s->shared.data;
-   s->nexus.flags      = NET_F_LAST_VALUE;
+   s->nexus.flags      = flags | NET_F_LAST_VALUE;
    s->nexus.signal     = s;
    s->nexus.net        = NULL;
 
@@ -1387,22 +1377,6 @@ void __nvc_alias_signal(sig_shared_t *ss, DEBUG_LOCUS(locus))
 }
 
 DLLEXPORT
-void __nvc_set_signal_kind(sig_shared_t *ss, int32_t kind)
-{
-   rt_signal_t *s = container_of(ss, rt_signal_t, shared);
-
-   TRACE("set signal kind %s kind=%d", istr(tree_ident(s->where)), kind);
-
-   rt_nexus_t *n = &(s->nexus);
-   for (int i = 0; i < s->n_nexus; i++, n = n->chain) {
-      if (kind == SIGNAL_REGISTER)
-         n->flags |= NET_F_REGISTER;
-      else
-         n->flags &= ~NET_F_REGISTER;
-   }
-}
-
-DLLEXPORT
 void __nvc_resolve_signal(sig_shared_t *ss, rt_resolution_t *resolution)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
@@ -1465,7 +1439,7 @@ void __nvc_pop_scope(void)
 
 DLLEXPORT
 sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
-                           DEBUG_LOCUS(locus), int32_t offset)
+                           int32_t flags, DEBUG_LOCUS(locus), int32_t offset)
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
@@ -1475,7 +1449,7 @@ sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
 
    const size_t datasz = MAX(2 * count * size, 8);
    rt_signal_t *s = xcalloc_flex(sizeof(rt_signal_t), 1, datasz);
-   rt_setup_signal(s, where, count, size, offset);
+   rt_setup_signal(s, where, count, size, flags, offset);
 
    memcpy(s->shared.data, values, s->shared.size);
 
@@ -1494,13 +1468,12 @@ sig_shared_t *_implicit_signal(uint32_t count, uint32_t size,
 
    const size_t datasz = MAX(2 * count * size, 8);
    rt_implicit_t *imp = xcalloc_flex(sizeof(rt_implicit_t), 1, datasz);
-   rt_setup_signal(&(imp->signal), where, count, size, 0);
+   rt_setup_signal(&(imp->signal), where, count, size, NET_F_IMPLICIT, 0);
 
    ffi_closure_t *copy = xmalloc(sizeof(ffi_closure_t));
    *copy = *closure;
    copy->refcnt = 1;
 
-   imp->signal.flags |= NET_F_IMPLICIT;
    imp->closure = copy;
    imp->wakeable.kind = W_IMPLICIT;
 

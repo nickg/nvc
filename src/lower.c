@@ -5957,7 +5957,8 @@ static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
       resolution = lower_resolution_func(type, &has_scope);
 
    if (type_is_homogeneous(type)) {
-      vcode_reg_t size_reg = emit_const(vtype_offset(), lower_byte_width(type));
+      vcode_type_t voffset = vtype_offset();
+      vcode_reg_t size_reg = emit_const(voffset, lower_byte_width(type));
       vcode_reg_t len_reg;
       vcode_type_t vtype;
       bool need_wrap = false;
@@ -5970,7 +5971,7 @@ static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
       }
       else {
          vtype = lower_type(type);
-         len_reg = emit_const(vtype_offset(), 1);
+         len_reg = emit_const(voffset, 1);
          init_reg = lower_reify(init_reg);
          lower_check_scalar_bounds(init_reg, type, where, where);
       }
@@ -5980,14 +5981,17 @@ static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
       if (has_scope)
          emit_push_scope(locus, lower_type(type));
 
-      vcode_reg_t sig = emit_init_signal(vtype, len_reg, size_reg,
-                                         init_reg, locus, null_reg);
+      net_flags_t flags = 0;
+      if (kind != SIGNAL_BUS)   // Bus is default
+         flags |= NET_F_REGISTER;
+
+      vcode_reg_t flags_reg = emit_const(voffset, flags);
+
+      vcode_reg_t sig = emit_init_signal(vtype, len_reg, size_reg, init_reg,
+                                         flags_reg, locus, null_reg);
 
       if (resolution != VCODE_INVALID_REG)
          emit_resolve_signal(sig, resolution);
-
-      if (kind != SIGNAL_BUS)   // Bus is default
-         emit_set_signal_kind(sig, emit_const(vtype_offset(), kind));
 
       if (bounds_reg != VCODE_INVALID_REG)
          sig = lower_wrap_with_new_bounds(type, bounds_reg, sig);
