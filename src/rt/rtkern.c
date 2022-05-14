@@ -1531,9 +1531,15 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       // be different so 'EVENT therefore is not necessarily equal for
       // all signals attached to the same net
       if (((dst_n->flags | src_n->flags) & NET_F_DRIVING) == 0) {
-         assert(src_n->net == NULL);
-         src_n->net = rt_get_net(dst_n);
-         src_n->net->refcnt++;
+         if (src_n->net == NULL) {
+            src_n->net = rt_get_net(dst_n);
+            src_n->net->refcnt++;
+         }
+         else {
+            assert(dst_n->net == NULL);
+            dst_n->net = rt_get_net(src_n);
+            dst_n->net->refcnt++;
+         }
       }
       else {
          src_n->flags |= NET_F_DRIVING;

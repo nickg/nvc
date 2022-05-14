@@ -557,3 +557,4 @@ driver10        normal
 case11          normal,2008
 case12          fail,gold,2008
 driver11        normal
+signal21        normal
