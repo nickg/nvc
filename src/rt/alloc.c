@@ -61,9 +61,11 @@ rt_alloc_stack_t rt_alloc_stack_new(size_t size, const char *name)
 
 void rt_alloc_stack_destroy(rt_alloc_stack_t s)
 {
+#ifndef NDEBUG
    if (s->stack_top != s->stack_sz)
       fatal("memory leak of %zu items from %s stack",
             s->stack_sz - s->stack_top, s->name);
+#endif
 
    while (s->chunks != NULL) {
       rt_chunk_t *tmp = s->chunks->next;

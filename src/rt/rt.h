@@ -45,7 +45,7 @@ typedef enum {
 
 typedef enum {
    NET_F_FORCED       = (1 << 0),
-   // Unused          = (1 << 1),
+   NET_F_INOUT        = (1 << 1),
    NET_F_LAST_VALUE   = (1 << 2),
    NET_F_R_IDENT      = (1 << 3),
    NET_F_IMPLICIT     = (1 << 4),

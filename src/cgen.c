@@ -3236,7 +3236,7 @@ static void cgen_op_link_instance(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, cont_bb);
 }
 
-static void cgen_op_map_signal(int op, cgen_ctx_t *ctx, port_mode_t mode)
+static void cgen_op_map_signal(int op, cgen_ctx_t *ctx)
 {
    LLVMTypeRef alloca_type = NULL;
    LLVMValueRef closure;
@@ -3256,7 +3256,6 @@ static void cgen_op_map_signal(int op, cgen_ctx_t *ctx, port_mode_t mode)
       cgen_get_arg(op, 2, ctx),
       cgen_get_arg(op, 3, ctx),
       closure,
-      llvm_int32(mode),
    };
    LLVMBuildCall(builder, llvm_fn("__nvc_map_signal"),
                  args, ARRAY_LEN(args), "");
@@ -3323,11 +3322,8 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_COMMENT:
       break;
-   case VCODE_OP_MAP_OUTPUT:
-      cgen_op_map_signal(i, ctx, PORT_OUT);
-      break;
-   case VCODE_OP_MAP_INPUT:
-      cgen_op_map_signal(i, ctx, PORT_IN);
+   case VCODE_OP_MAP_SIGNAL:
+      cgen_op_map_signal(i, ctx);
       break;
    case VCODE_OP_MAP_CONST:
       cgen_op_map_const(i, ctx);
@@ -4865,7 +4861,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_int32_type(),
          llvm_int32_type(),
          LLVMPointerType(llvm_closure_type(), 0),
-         llvm_int32_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_map_signal",
                            LLVMFunctionType(llvm_void_type(),

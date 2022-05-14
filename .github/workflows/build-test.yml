@@ -200,9 +200,8 @@ jobs:
         run: ./vhdl-projects/hardh264/test.sh
       - name: Test J-Core
         run: ./vhdl-projects/jcore/test.sh
-      # Failure needs to be debugged
-      #- name: Test Dummy_Plug
-      #  run: ./vhdl-projects/dummyplug/test.sh
+      - name: Test Dummy_Plug
+        run: ./vhdl-projects/dummyplug/test.sh
       - name: Test OpenRIO
         run: ./vhdl-projects/openrio/test.sh
       - name: Test SPI-FPGA

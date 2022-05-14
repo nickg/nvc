@@ -1,7 +1,7 @@
 library ieee;
 use     ieee.std_logic_1164.all;
 package SYNC is
-    constant  SYNC_MAX_PLUG_SIZE   :  integer := 32;
+    constant  SYNC_MAX_PLUG_SIZE   :  integer := 4;
     subtype   SYNC_PLUG_NUM_TYPE   is integer range 1 to SYNC_MAX_PLUG_SIZE;
     subtype   SYNC_SIG_TYPE        is std_logic_vector(1 to SYNC_MAX_PLUG_SIZE);
     subtype   SYNC_REQ_TYPE        is integer;
@@ -13,7 +13,7 @@ package SYNC is
             PLUG_NUM : SYNC_PLUG_NUM_TYPE := 1
         );
         port    (
-            SYNC     : inout SYNC_SIG_TYPE;
+            SYNC     : inout SYNC_SIG_TYPE := (others => 'Z');  -- Was 'U'
             REQ      : in    SYNC_REQ_TYPE;
             ACK      : out   SYNC_ACK_TYPE
         );
@@ -82,7 +82,7 @@ entity  SYNC_SIG_DRIVER is
         PLUG_NUM : SYNC_PLUG_NUM_TYPE := 1
     );
     port    (
-        SYNC     : inout SYNC_SIG_TYPE;
+        SYNC     : inout SYNC_SIG_TYPE := (others => 'Z');  -- Was 'U'
         REQ      : in    SYNC_REQ_TYPE;
         ACK      : out   SYNC_ACK_TYPE
      );
@@ -128,9 +128,18 @@ begin
         wait;
     end process;
     process begin
+        assert sync = "UUUU";
+        wait for 0 ns;
+        assert sync = "UUUU";
         wait for 5 ns;
         REQ(2) <= 1;
         wait for 10 ns;
+        report std_logic'image(sync(1));
+        report std_logic'image(sync(2));
+        report std_logic'image(sync(3));
+        report std_logic'image(sync(4));
+        assert sync = "XX11";           -- Aldec has UXUU (with SYNC default of
+                                        -- 'U')
         assert ack(2) = '1';
         wait;
     end process;

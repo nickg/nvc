@@ -71,6 +71,7 @@ typedef struct rt_proc_s     rt_proc_t;
 typedef struct rt_alias_s    rt_alias_t;
 
 typedef void *(*proc_fn_t)(void *, rt_scope_t *);
+typedef const void *(*value_fn_t)(rt_nexus_t *);
 
 typedef enum {
    W_PROC, W_WATCH, W_IMPLICIT
@@ -161,8 +162,7 @@ typedef struct {
 
 typedef enum {
    SOURCE_DRIVER,
-   SOURCE_OUTPUT,
-   SOURCE_INPUT,
+   SOURCE_PORT,
 } source_kind_t;
 
 typedef struct {
@@ -376,8 +376,8 @@ static inline const uint8_t *rt_value_ptr(rt_nexus_t *n, rt_value_t *v);
 static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, int offset, rt_net_t *net);
 static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
                                          rt_resolution_t *resolution);
-static const void *rt_driving_value(rt_nexus_t *nexus, rt_source_t *src);
-static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus);
+static const void *rt_source_value(rt_nexus_t *nexus, rt_source_t *src);
+static const void *rt_driving_value(rt_nexus_t *nexus);
 static void rt_push_run_queue(rt_run_queue_t *q, event_t *e);
 static void _tracef(const char *fmt, ...);
 
@@ -732,8 +732,7 @@ static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
       src = &(n->sources);
    else if (n->signal->resolution == NULL
             && (n->sources.tag == SOURCE_DRIVER
-                || (n->sources.tag == SOURCE_OUTPUT
-                    && n->sources.u.port.conv_func == NULL)))
+                || n->sources.u.port.conv_func == NULL))
       rt_msg(tree_loc(n->signal->where), DIAG_FATAL,
              "unresolved signal %s has multiple sources",
              istr(tree_ident(n->signal->where)));
@@ -748,14 +747,12 @@ static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
    if (n->n_sources < UINT8_MAX)
       n->n_sources++;
 
-   if (kind == SOURCE_DRIVER || kind == SOURCE_OUTPUT) {
-      if (n->n_drivers == UINT8_MAX)
-         fatal_at(tree_loc(n->signal->where), "sorry, only %d drivers or "
-                  "port sources are supported for any scalar sub-element "
-                  "of a signal", UINT8_MAX);
-      else
-         n->n_drivers++;
-   }
+   if (n->n_drivers == UINT8_MAX)
+      fatal_at(tree_loc(n->signal->where), "sorry, only %d drivers or "
+               "port sources are supported for any scalar sub-element "
+               "of a signal", UINT8_MAX);
+   else
+      n->n_drivers++;
 
    src->chain_input  = NULL;
    src->chain_output = NULL;
@@ -774,8 +771,7 @@ static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
       }
       break;
 
-   case SOURCE_OUTPUT:
-   case SOURCE_INPUT:
+   case SOURCE_PORT:
       src->u.port.conv_func = NULL;
       src->u.port.input     = NULL;
       src->u.port.output    = n;
@@ -831,8 +827,7 @@ static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset,
    rt_source_t *new = rt_add_source(nexus, old->tag);
 
    switch (old->tag) {
-   case SOURCE_OUTPUT:
-   case SOURCE_INPUT:
+   case SOURCE_PORT:
       {
          new->u.port.input = old->u.port.input;
 
@@ -1088,15 +1083,20 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
    profile.n_signals++;
 }
 
-static void rt_copy_sub_signals(rt_scope_t *scope, void *buf)
+static void rt_copy_sub_signals(rt_scope_t *scope, void *buf, value_fn_t fn)
 {
    assert(scope->kind == SCOPE_SIGNAL);
 
-   for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain)
-      memcpy(buf + s->shared.offset, s->shared.data, s->shared.size);
+   for (rt_signal_t *s = scope->signals; s != NULL; s = s->chain) {
+      rt_nexus_t *n = &(s->nexus);
+      for (unsigned i = 0; i < s->n_nexus; i++, n = n->chain) {
+         ptrdiff_t o = (uint8_t *)n->resolved - s->shared.data;
+         memcpy(buf + s->shared.offset + o, (*fn)(n), n->size * n->width);
+      }
+   }
 
    for (rt_scope_t *s = scope->child; s != NULL; s = s->chain)
-      rt_copy_sub_signals(s, buf);
+      rt_copy_sub_signals(s, buf, fn);
 }
 
 static void rt_copy_sub_signal_sources(rt_scope_t *scope, void *buf)
@@ -1108,7 +1108,7 @@ static void rt_copy_sub_signal_sources(rt_scope_t *scope, void *buf)
       for (unsigned i = 0; i < s->n_nexus; i++) {
          unsigned o = 0;
          for (rt_source_t *src = &(n->sources); src; src = src->chain_input) {
-            const void *data = rt_driving_value(n, src);
+            const void *data = rt_source_value(n, src);
             if (data == NULL)
                continue;
 
@@ -1122,7 +1122,7 @@ static void rt_copy_sub_signal_sources(rt_scope_t *scope, void *buf)
       rt_copy_sub_signal_sources(s, buf);
 }
 
-static void *rt_composite_signal(rt_signal_t *signal, size_t *psz)
+static void *rt_composite_signal(rt_signal_t *signal, size_t *psz, value_fn_t fn)
 {
    assert(signal->parent->kind == SCOPE_SIGNAL);
 
@@ -1133,7 +1133,7 @@ static void *rt_composite_signal(rt_signal_t *signal, size_t *psz)
    *psz = root->size;
 
    char *buf = xmalloc(root->size);
-   rt_copy_sub_signals(root, buf);
+   rt_copy_sub_signals(root, buf, fn);
    return buf;
 }
 
@@ -1456,6 +1456,10 @@ sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
 
    memcpy(s->shared.data, values, s->shared.size);
 
+   // The driving value area is also used to save the default value
+   void *driving = s->shared.data + 2*s->shared.size;
+   memcpy(driving, values, s->shared.size);
+
    return &(s->shared);
 }
 
@@ -1493,16 +1497,15 @@ DLLEXPORT
 void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
                       sig_shared_t *dst_ss, uint32_t dst_offset,
                       uint32_t src_count, uint32_t dst_count,
-                      ffi_closure_t *closure, port_mode_t mode)
+                      ffi_closure_t *closure)
 {
    rt_signal_t *src_s = container_of(src_ss, rt_signal_t, shared);
    rt_signal_t *dst_s = container_of(dst_ss, rt_signal_t, shared);
 
-   TRACE("map signal %s+%d to %s+%d count %d/%d%s mode=%s",
+   TRACE("map signal %s+%d to %s+%d count %d/%d%s",
          istr(tree_ident(src_s->where)), src_offset,
          istr(tree_ident(dst_s->where)), dst_offset,
-         src_count, dst_count, closure ? " converted" : "",
-         port_mode_str(mode));
+         src_count, dst_count, closure ? " converted" : "");
 
    assert(src_count == dst_count || closure != NULL);
 
@@ -1556,8 +1559,7 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
          dst_n->flags |= NET_F_DRIVING;
       }
 
-      source_kind_t kind = (mode == PORT_IN) ? SOURCE_INPUT : SOURCE_OUTPUT;
-      rt_source_t *port = rt_add_source(dst_n, kind);
+      rt_source_t *port = rt_add_source(dst_n, SOURCE_PORT);
       port->u.port.input = src_n;
 
       if (conv_func != NULL) {
@@ -1591,6 +1593,9 @@ void __nvc_map_const(sig_shared_t *ss, uint32_t offset,
 
    rt_nexus_t *n = rt_split_nexus(s, offset, count);
    for (; count > 0; n = n->chain) {
+      void *driving = n->resolved + 2*n->signal->shared.size;
+      memcpy(driving, values, n->width * n->size);
+
       memcpy(n->resolved, values, n->width * n->size);
       values += n->width * n->size;
 
@@ -2908,7 +2913,7 @@ static void *rt_call_module_reset(ident_t name, void *arg)
    return result;
 }
 
-static void *rt_call_conversion(rt_port_t *port)
+static void *rt_call_conversion(rt_port_t *port, value_fn_t fn)
 {
    rt_signal_t *i0 = port->input->signal;
    rt_conv_func_t *cf = port->conv_func;
@@ -2917,16 +2922,23 @@ static void *rt_call_conversion(rt_port_t *port)
    void *indata;
    size_t insz;
    if (i0->parent->kind == SCOPE_SIGNAL) {
-      indata = rt_composite_signal(i0, &insz);
+      indata = rt_composite_signal(i0, &insz, fn);
       incopy = true;
    }
-   else if (i0->nexus.flags & NET_F_DRIVING) {
-      indata = i0->shared.data + 2 * i0->shared.size;
+   else if (i0->n_nexus == 1) {
       insz   = i0->shared.size;
+      indata = (void *)(*fn)(&(i0->nexus));
    }
    else {
-      indata = i0->shared.data;
       insz   = i0->shared.size;
+      indata = xmalloc(insz);
+      incopy = true;
+
+      rt_nexus_t *n = &(i0->nexus);
+      for (unsigned i = 0; i < i0->n_nexus; i++, n = n->chain) {
+         ptrdiff_t o = (uint8_t *)n->resolved - i0->shared.data;
+         memcpy(indata + i0->shared.offset + o, (*fn)(n), n->size * n->width);
+      }
    }
 
    TRACE("call conversion function %p insz=%zu outsz=%zu",
@@ -2939,7 +2951,7 @@ static void *rt_call_conversion(rt_port_t *port)
    return cf->buffer + port->output->signal->shared.offset;
 }
 
-static const void *rt_driving_value(rt_nexus_t *nexus, rt_source_t *src)
+static const void *rt_source_value(rt_nexus_t *nexus, rt_source_t *src)
 {
    switch (src->tag) {
    case SOURCE_DRIVER:
@@ -2948,76 +2960,47 @@ static const void *rt_driving_value(rt_nexus_t *nexus, rt_source_t *src)
       else
          return rt_value_ptr(nexus, &(src->u.driver.waveforms.value));
 
-   case SOURCE_INPUT:
-      return NULL;
-
-   case SOURCE_OUTPUT:
-      if (likely(src->u.port.conv_func == NULL)) {
-         if (src->u.port.input->n_drivers > 0)
-            return rt_resolve_nexus_fast(src->u.port.input);
-         else {
-            // The driving value of a port that has no source is the
-            // default value of the port which rt_driver_initial will
-            // store in the driving value area
-            // TODO: this probably doesn't work with disconnected bus
-            //       signals!
-            rt_nexus_t *n = src->u.port.input;
-            return n->resolved + 2 * n->signal->shared.size;
-         }
-      }
+   case SOURCE_PORT:
+      if (likely(src->u.port.conv_func == NULL))
+         return rt_driving_value(src->u.port.input);
       else
-         return rt_call_conversion(&(src->u.port));
+         return rt_call_conversion(&(src->u.port), rt_driving_value);
    }
 
    return NULL;
 }
 
-static const void *rt_effective_value(rt_nexus_t *nexus)
+static const void *rt_call_resolution(rt_nexus_t *nexus, res_memo_t *r)
 {
-   // Algorith for effective valus is in LRM 08 section 14.7.7.3
-
-   if (nexus->n_sources > 0) {
-      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->tag == SOURCE_INPUT) {
-            if (s->u.port.conv_func != NULL)
-               return rt_call_conversion(&(s->u.port));
-            else
-               return rt_effective_value(s->u.port.input);
-         }
-      }
+   if ((nexus->flags & NET_F_R_IDENT) && (nexus->n_sources == 1)) {
+      // Resolution function behaves like identity for a single driver
+      return rt_source_value(nexus, &(nexus->sources));
    }
+   else if ((r->flags & R_MEMO) && (nexus->n_sources == 1)) {
+      // Resolution function has been memoised so do a table lookup
 
-   // Effective value is equal to driving value when no input is
-   // connected
-   if (nexus->flags & NET_F_DRIVING)
-      return nexus->resolved + 2 * nexus->signal->shared.size;
-   else
-      return nexus->resolved;
-}
+      void *resolved = rt_tmp_alloc(nexus->width * nexus->size);
+      const void *data = rt_source_value(nexus, &(nexus->sources));
 
-static const void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
-{
-   if (nexus->n_drivers == 0 && (nexus->flags & NET_F_REGISTER))
-      return nexus->resolved;
-
-   res_memo_t *r = nexus->signal->resolution;
-
-   if (r == NULL) {
-      const void *result = nexus->resolved;
-
-      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         const void *p = rt_driving_value(nexus, s);
-         if (p != NULL)
-            return p;
-         else if (s->tag == SOURCE_INPUT) {
-            if (s->u.port.conv_func != NULL)
-               result = rt_call_conversion(&(s->u.port));
-            else
-               result = s->u.port.input->resolved;
-         }
+      for (int j = 0; j < nexus->width; j++) {
+         const int index = ((uint8_t *)data)[j];
+         ((int8_t *)resolved)[j] = r->tab1[index];
       }
 
-      return result;
+      return resolved;
+   }
+   else if ((r->flags & R_MEMO) && (nexus->n_sources == 2)) {
+      // Resolution function has been memoised so do a table lookup
+
+      void *resolved = rt_tmp_alloc(nexus->width * nexus->size);
+
+      const char *p0 = rt_source_value(nexus, &(nexus->sources));
+      const char *p1 = rt_source_value(nexus, nexus->sources.chain_input);
+
+      for (int j = 0; j < nexus->width; j++)
+         ((int8_t *)resolved)[j] = r->tab2[(int)p0[j]][(int)p1[j]];
+
+      return resolved;
    }
    else if (r->flags & R_COMPOSITE) {
       // Call resolution function of composite type
@@ -3049,10 +3032,11 @@ static const void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
             unsigned o = 0;                                             \
             for (rt_source_t *s = &(nexus->sources); s;                 \
                  s = s->chain_input) {                                  \
-               const void *data = rt_driving_value(nexus, s);           \
+               const void *data = rt_source_value(nexus, s);            \
                if (data != NULL)                                        \
                   vals[o++] = ((const type *)data)[j];                  \
             }                                                           \
+            assert(o == nexus->n_drivers);                              \
             type *p = (type *)resolved;                                 \
             ffi_uarray_t u = {                                          \
                vals, { { r->ileft, nexus->n_drivers } }                 \
@@ -3068,59 +3052,83 @@ static const void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
    }
 }
 
-static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus)
+static const void *rt_driving_value(rt_nexus_t *nexus)
 {
-   if (unlikely(nexus->flags & NET_F_FORCED)) {
+   // Algorithm for driving values is in LRM 08 section 14.7.7.2
+
+   // If S is driving-value forced, the driving value of S is unchanged
+   // from its previous value; no further steps are required.
+   if (unlikely(nexus->flags & NET_F_FORCED))
       return rt_value_ptr(nexus, &(nexus->forcing));
-   }
-   else if (unlikely(nexus->n_drivers < nexus->n_sources)) {
-      // Some drivers may have null transactions
-      return rt_resolve_nexus_slow(nexus);
-   }
-   else if ((nexus->flags & NET_F_R_IDENT) && (nexus->n_sources == 1)) {
-      // Resolution function behaves like identity for a single driver
-      return rt_driving_value(nexus, &(nexus->sources));
-   }
+
+   // If S has no source, then the driving value of S is given by the
+   // default value associated with S
+   if (nexus->n_sources == 0)
+      return nexus->resolved + 2*nexus->signal->shared.size;
 
    res_memo_t *r = nexus->signal->resolution;
 
-   if (r == NULL && nexus->n_sources == 0) {
-      // Always maintains initial driver value
-      return nexus->resolved;
-   }
-   else if (r == NULL) {
-      return rt_driving_value(nexus, &(nexus->sources));
-   }
-   else if ((r->flags & R_MEMO) && (nexus->n_sources == 1)) {
-      // Resolution function has been memoised so do a table lookup
+   if (r == NULL) {
+      rt_source_t *s = &(nexus->sources);
 
-      void *resolved = rt_tmp_alloc(nexus->width * nexus->size);
-      const void *data = rt_driving_value(nexus, &(nexus->sources));
-
-      for (int j = 0; j < nexus->width; j++) {
-         const int index = ((uint8_t *)data)[j];
-         ((int8_t *)resolved)[j] = r->tab1[index];
+      if (s->tag == SOURCE_DRIVER) {
+         // If S has one source that is a driver and S is not a resolved
+         // signal, then the driving value of S is the current value of
+         // that driver.
+         assert(!(s->u.driver.waveforms.null));
+         return rt_value_ptr(nexus, &(s->u.driver.waveforms.value));
       }
-
-      return resolved;
-   }
-   else if ((r->flags & R_MEMO) && (nexus->n_sources == 2)) {
-      // Resolution function has been memoised so do a table lookup
-
-      void *resolved = rt_tmp_alloc(nexus->width * nexus->size);
-
-      const char *p0 = rt_driving_value(nexus, &(nexus->sources));
-      const char *p1 = rt_driving_value(nexus, nexus->sources.chain_input);
-
-      for (int j = 0; j < nexus->width; j++)
-         ((int8_t *)resolved)[j] = r->tab2[(int)p0[j]][(int)p1[j]];
-
-      return resolved;
+      else {
+         // If S has one source that is a port and S is not a resolved
+         // signal, then the driving value of S is the driving value of
+         // the formal part of the association element that associates S
+         // with that port
+         if (likely(s->u.port.conv_func == NULL))
+            return rt_driving_value(s->u.port.input);
+         else
+            return rt_call_conversion(&(s->u.port), rt_driving_value);
+      }
    }
    else {
-      // Must actually call resolution function in general case
-      return rt_resolve_nexus_slow(nexus);
+      // If S is a resolved signal and has one or more sources, then the
+      // driving values of the sources of S are examined.
+
+      // If S is of signal kind register and all the sources of S have
+      // values determined by the null transaction, then the driving
+      // value of S is unchanged from its previous value.
+      if (nexus->n_drivers == 0 && (nexus->flags & NET_F_REGISTER))
+         return nexus->resolved;
+
+      // Otherwise, the driving value of S is obtained by executing the
+      // resolution function associated with S
+      return rt_call_resolution(nexus, r);
    }
+}
+
+static const void *rt_effective_value(rt_nexus_t *nexus)
+{
+   // Algorithm for effective values is in LRM 08 section 14.7.7.3
+
+   // If S is a connected port of mode in or inout, then the effective
+   // value of S is the same as the effective value of the actual part
+   // of the association element that associates an actual with S
+   if (nexus->flags & NET_F_INOUT) {
+      for (rt_source_t *s = nexus->outputs; s; s = s->chain_output) {
+         if (s->tag == SOURCE_PORT)
+            return rt_effective_value(s->u.port.output);
+      }
+   }
+
+   // If S is a signal declared by a signal declaration, a port of mode
+   // out or buffer, or an unconnected port of mode inout, then the
+   // effective value of S is the same as the driving value of S.
+   //
+   // If S is an unconnected port of mode in, the effective value of S
+   // is given by the default value associated with S.
+   if (nexus->flags & NET_F_DRIVING)
+      return nexus->resolved + 2 * nexus->signal->shared.size;
+   else
+      return nexus->resolved;
 }
 
 static void rt_propagate_nexus(rt_nexus_t *nexus, const void *resolved)
@@ -3159,34 +3167,33 @@ static void rt_reset_scope(rt_scope_t *s)
       rt_reset(p);
 }
 
-static void rt_driver_initial(rt_nexus_t *nexus)
+static void rt_signal_initial(rt_nexus_t *nexus)
 {
-   // Assign the initial value signals and drivers
-
-   const void *initial = nexus->resolved;
-
+   // The initial value of each driver is the default value of the signal
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
          if (s->tag == SOURCE_DRIVER)
             rt_copy_value_ptr(nexus, &(s->u.driver.waveforms.value),
                               nexus->resolved);
-         else if (s->tag == SOURCE_INPUT) {
-            if (s->u.port.conv_func != NULL)
-               initial = rt_call_conversion(&(s->u.port));
-            else
-               initial = s->u.port.input->resolved;
-         }
       }
    }
 
-   if (nexus->n_sources > 0)
-      initial = rt_resolve_nexus_fast(nexus);
+   const void *initial = nexus->resolved;
+
+   if (nexus->n_sources > 0) {
+      if (nexus->flags & NET_F_DRIVING) {
+         void *driving = nexus->resolved + 2*nexus->signal->shared.size;
+         memcpy(driving, rt_driving_value(nexus), nexus->width * nexus->size);
+         initial = rt_effective_value(nexus);
+      }
+      else {
+         // Effective value is always the same as the driving value
+         initial = rt_driving_value(nexus);
+      }
+   }
 
    TRACE("%s initial value %s", istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, initial));
-
-   void *driving = nexus->resolved + 2*nexus->signal->shared.size;
-   memcpy(driving, initial, nexus->width * nexus->size);
 
    rt_propagate_nexus(nexus, initial);
 }
@@ -3196,7 +3203,7 @@ static int rt_nexus_rank(rt_nexus_t *nexus)
    if (nexus->n_sources > 0) {
       int rank = 0;
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->tag == SOURCE_OUTPUT)
+         if (s->tag == SOURCE_PORT)
             rank = MAX(rank, rt_nexus_rank(s->u.port.input) + 1);
       }
       return rank;
@@ -3216,7 +3223,12 @@ static void rt_initial(tree_t top)
       rt_dump_signals(root);
 #endif
 
-   TRACE("calculate initial driver values");
+   TRACE("calculate initial signal values");
+
+   // The signals in the model are updated as follows in an order such
+   // that if a given signal R depends upon the current value of another
+   // signal S, then the current value of S is updated prior to the
+   // updating of the current value of R.
 
    heap_t *q = heap_new(MAX(profile.n_signals + 1, 128));
 
@@ -3225,7 +3237,7 @@ static void rt_initial(tree_t top)
 
    while (heap_size(q) > 0) {
       rt_nexus_t *n = heap_extract_min(q);
-      rt_driver_initial(n);
+      rt_signal_initial(n);
    }
 
    heap_free(q);
@@ -3405,9 +3417,11 @@ static void rt_enqueue_effective(rt_nexus_t *nexus)
 
    rt_push_run_queue(&effq, e);
 
-   for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
-      if (o->tag == SOURCE_INPUT)
-         rt_enqueue_effective(o->u.port.output);
+   if (nexus->n_sources > 0) {
+      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
+         if (s->tag == SOURCE_PORT && (s->u.port.input->flags & NET_F_INOUT))
+            rt_enqueue_effective(s->u.port.input);
+      }
    }
 }
 
@@ -3415,11 +3429,11 @@ static void rt_update_driving(rt_nexus_t *nexus)
 {
    __builtin_prefetch(nexus->outputs);
 
-   const void *resolved = rt_resolve_nexus_fast(nexus);
+   const void *value = rt_driving_value(nexus);
    const size_t valuesz = nexus->size * nexus->width;
 
    TRACE("update %s driving value %s", istr(tree_ident(nexus->signal->where)),
-         fmt_nexus(nexus, resolved));
+         fmt_nexus(nexus, value));
 
    rt_net_t *net = rt_get_net(nexus);
    bool update_outputs = false;
@@ -3430,12 +3444,12 @@ static void rt_update_driving(rt_nexus_t *nexus)
       update_outputs = true;
 
       void *driving = nexus->resolved + 2*nexus->signal->shared.size;
-      memcpy(driving, resolved, valuesz);
+      memcpy(driving, value, valuesz);
 
       rt_enqueue_effective(nexus);
    }
-   else if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
-      rt_propagate_nexus(nexus, resolved);
+   else if (memcmp(nexus->resolved, value, valuesz) != 0) {
+      rt_propagate_nexus(nexus, value);
       rt_notify_event(net);
       update_outputs = true;
    }
@@ -3444,11 +3458,8 @@ static void rt_update_driving(rt_nexus_t *nexus)
 
    if (update_outputs) {
       for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
-         assert(o->tag == SOURCE_OUTPUT || o->tag == SOURCE_INPUT);
-         if (o->tag == SOURCE_OUTPUT)
-            rt_update_driving(o->u.port.output);
-         else if (o->tag == SOURCE_INPUT)
-            rt_enqueue_effective(o->u.port.output);
+         assert(o->tag == SOURCE_PORT);
+         rt_update_driving(o->u.port.output);
       }
    }
 }
@@ -3763,8 +3774,7 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
          }
          break;
 
-      case SOURCE_OUTPUT:
-      case SOURCE_INPUT:
+      case SOURCE_PORT:
          if (s->u.port.conv_func != NULL) {
             RT_ASSERT(s->u.port.conv_func->refcnt > 0);
             if (--(s->u.port.conv_func->refcnt) == 0)
@@ -3869,6 +3879,10 @@ static void rt_cleanup(void)
 
    event_t *e;
    while ((e = rt_pop_run_queue(&procq)))
+      rt_free(event_stack, e);
+   while ((e = rt_pop_run_queue(&effq)))
+      rt_free(event_stack, e);
+   while ((e = rt_pop_run_queue(&driverq)))
       rt_free(event_stack, e);
 
    while (watches != NULL) {

@@ -113,7 +113,7 @@ typedef enum {
    VCODE_OP_RESOLVED,
    VCODE_OP_LAST_VALUE,
    VCODE_OP_INIT_SIGNAL,
-   VCODE_OP_MAP_OUTPUT,
+   VCODE_OP_MAP_SIGNAL,
    VCODE_OP_DRIVE_SIGNAL,
    VCODE_OP_LINK_VAR,
    VCODE_OP_RESOLUTION_WRAPPER,
@@ -149,7 +149,6 @@ typedef enum {
    VCODE_OP_FORCE,
    VCODE_OP_RELEASE,
    VCODE_OP_LINK_INSTANCE,
-   VCODE_OP_MAP_INPUT,
 } vcode_op_t;
 
 typedef enum {
@@ -485,10 +484,8 @@ vcode_reg_t emit_range_length(vcode_reg_t left, vcode_reg_t right,
 vcode_reg_t emit_link_var(vcode_reg_t context, ident_t name, vcode_type_t type);
 vcode_reg_t emit_link_package(ident_t name);
 vcode_reg_t emit_link_instance(ident_t name, vcode_reg_t locus);
-void emit_map_output(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
+void emit_map_signal(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
                      vcode_reg_t dst_count, vcode_reg_t conv);
-void emit_map_input(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t src_count,
-                    vcode_reg_t dst_count, vcode_reg_t conv);
 void emit_map_const(vcode_reg_t src, vcode_reg_t dst, vcode_reg_t count);
 void emit_drive_signal(vcode_reg_t target, vcode_reg_t count);
 vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,

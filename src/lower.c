@@ -106,7 +106,6 @@ typedef struct {
    vcode_reg_t conv_count;
    bool        reverse;
    bool        is_const;
-   port_mode_t mode;
 } map_signal_param_t;
 
 typedef void (*lower_field_fn_t)(type_t, vcode_reg_t, vcode_reg_t, void *);
@@ -8457,11 +8456,8 @@ static void lower_map_signal_field_cb(type_t ftype, vcode_reg_t src_ptr,
 
       if (args->is_const)
          emit_map_const(src_reg, dst_reg, src_count);
-      else if (args->mode == PORT_IN)
-         emit_map_input(src_reg, dst_reg, src_count, dst_count,
-                        args->conv_func);
       else
-         emit_map_output(src_reg, dst_reg, src_count, dst_count,
+         emit_map_signal(src_reg, dst_reg, src_count, dst_count,
                          args->conv_func);
    }
    else
@@ -8471,14 +8467,13 @@ static void lower_map_signal_field_cb(type_t ftype, vcode_reg_t src_ptr,
 
 static void lower_map_signal(vcode_reg_t src_reg, vcode_reg_t dst_reg,
                              type_t src_type, type_t dst_type,
-                             vcode_reg_t conv_func, port_mode_t mode)
+                             vcode_reg_t conv_func)
 {
    if (!type_is_homogeneous(src_type)) {
       map_signal_param_t args = {
          .conv_func = conv_func,
          .conv_reg  = dst_reg,
          .is_const  = !lower_have_signal(src_reg),
-         .mode      = mode,
       };
 
       if (conv_func != VCODE_INVALID_REG) {
@@ -8495,7 +8490,6 @@ static void lower_map_signal(vcode_reg_t src_reg, vcode_reg_t dst_reg,
          .conv_reg  = src_reg,
          .reverse   = true,
          .is_const  = !lower_have_signal(src_reg),
-         .mode      = mode,
       };
 
       if (conv_func != VCODE_INVALID_REG) {
@@ -8512,10 +8506,8 @@ static void lower_map_signal(vcode_reg_t src_reg, vcode_reg_t dst_reg,
 
       if (!lower_have_signal(src_reg))
          emit_map_const(src_reg, dst_reg, src_count);
-      else if (mode == PORT_IN)
-         emit_map_input(src_reg, dst_reg, src_count, dst_count, conv_func);
       else
-         emit_map_output(src_reg, dst_reg, src_count, dst_count, conv_func);
+         emit_map_signal(src_reg, dst_reg, src_count, dst_count, conv_func);
    }
 }
 
@@ -8650,12 +8642,7 @@ static void lower_port_map(tree_t block, tree_t map)
       if (vcode_reg_kind(dst_reg) == VCODE_TYPE_UARRAY)
          dst_reg = lower_array_data(dst_reg);
 
-      lower_map_signal(src_reg, dst_reg, src_type, dst_type, conv_func, mode);
-
-      // If this is an inout port create the mapping between input and output
-      if (mode == PORT_INOUT)
-         lower_map_signal(dst_reg, src_reg, dst_type, src_type,
-                          in_conv, PORT_IN);
+      lower_map_signal(src_reg, dst_reg, src_type, dst_type, conv_func);
    }
    else {
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
@@ -8667,8 +8654,7 @@ static void lower_port_map(tree_t block, tree_t map)
       if (type_is_array(name_type))
          value_reg = lower_array_data(value_reg);
 
-      lower_map_signal(value_reg, port_reg, name_type, name_type,
-                       in_conv, tree_subkind(port));
+      lower_map_signal(value_reg, port_reg, name_type, name_type, in_conv);
    }
 }
 
@@ -8782,7 +8768,7 @@ static void lower_port_signal(tree_t port)
    // Port signals will need separate driving/effective values if they
    // are inout or have conversion functions.
    if (tree_subkind(port) == PORT_INOUT)
-      flags |= NET_F_DRIVING;
+      flags |= NET_F_DRIVING | NET_F_INOUT;
 
    vcode_reg_t flags_reg = emit_const(vtype_offset(), flags);
 
