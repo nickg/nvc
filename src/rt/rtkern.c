@@ -678,14 +678,23 @@ static void rt_dump_one_signal(rt_scope_t *scope, rt_signal_t *s, tree_t alias)
       if (n->flags & NET_F_DRIVING)
          driving = n->resolved + 2 * n->signal->shared.size;
 
-      fprintf(stderr, "%-20s %-5d %-4d %-7d %-7d %-4d %s%c",
+      fprintf(stderr, "%-20s %-5d %-4d %-7d %-7d %-4d ",
               nth == 0 ? tb_get(tb) : "+",
               n->width, n->size, n->n_sources, n_outputs,
-              n->net != NULL ? n->net->net_id : 0,
-              fmt_nexus(n, n->resolved), driving ? ' ' : '\n');
+              n->net != NULL ? n->net->net_id : 0);
+
+      if (n->net != NULL) {
+         void *last_value = n->resolved + n->signal->shared.size;
+         if (n->net->event_delta == iteration && n->net->last_event == now)
+            fprintf(stderr, "%s -> ", fmt_nexus(n, last_value));
+      }
+
+      fputs(fmt_nexus(n, n->resolved), stderr);
 
       if (driving != NULL)
-         fprintf(stderr, "(%s)\n", fmt_nexus(n, driving));
+         fprintf(stderr, " (%s)", fmt_nexus(n, driving));
+
+      fputs("\n", stderr);
    }
 }
 
@@ -1527,9 +1536,10 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       assert(src_n->width == dst_n->width || closure != NULL);
       assert(src_n->size == dst_n->size || closure != NULL);
 
-      // For inout ports the driving value and the effective value may
-      // be different so 'EVENT therefore is not necessarily equal for
-      // all signals attached to the same net
+      // For inout ports and ports with conversion functions the driving
+      // value and the effective value may be different so 'EVENT and
+      // 'ACTIVE are not necessarily equal for all signals attached to
+      // the same net
       if (((dst_n->flags | src_n->flags) & NET_F_DRIVING) == 0) {
          if (src_n->net == NULL) {
             src_n->net = rt_get_net(dst_n);
@@ -2962,6 +2972,29 @@ static const void *rt_driving_value(rt_nexus_t *nexus, rt_source_t *src)
    return NULL;
 }
 
+static const void *rt_effective_value(rt_nexus_t *nexus)
+{
+   // Algorith for effective valus is in LRM 08 section 14.7.7.3
+
+   if (nexus->n_sources > 0) {
+      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
+         if (s->tag == SOURCE_INPUT) {
+            if (s->u.port.conv_func != NULL)
+               return rt_call_conversion(&(s->u.port));
+            else
+               return rt_effective_value(s->u.port.input);
+         }
+      }
+   }
+
+   // Effective value is equal to driving value when no input is
+   // connected
+   if (nexus->flags & NET_F_DRIVING)
+      return nexus->resolved + 2 * nexus->signal->shared.size;
+   else
+      return nexus->resolved;
+}
+
 static const void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
 {
    if (nexus->n_drivers == 0 && (nexus->flags & NET_F_REGISTER))
@@ -3348,22 +3381,7 @@ static void rt_notify_active(rt_net_t *net)
 
 static void rt_update_effective(rt_nexus_t *nexus)
 {
-   // Effective value is equal to driving value when no input is
-   // connected
-   const void *value = nexus->resolved;
-   if (nexus->flags & NET_F_DRIVING)
-      value = nexus->resolved + 2 * nexus->signal->shared.size;
-
-   if (nexus->n_sources > 0) {
-      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->tag == SOURCE_INPUT) {
-            if (s->u.port.conv_func != NULL)
-               value = rt_call_conversion(&(s->u.port));
-            else
-               value = s->u.port.input->resolved;
-         }
-      }
-   }
+   const void *value = rt_effective_value(nexus);
 
    TRACE("update %s effective value %s", istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, value));
