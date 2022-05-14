@@ -5949,7 +5949,7 @@ static vcode_reg_t lower_resolution_func(type_t type, bool *is_array)
 static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
                               vcode_var_t sig_var, vcode_reg_t sig_ptr,
                               vcode_reg_t init_reg, vcode_reg_t resolution,
-                              vcode_reg_t null_reg, rt_signal_kind_t kind,
+                              vcode_reg_t null_reg, vcode_reg_t flags_reg,
                               vcode_reg_t bounds_reg)
 {
    bool has_scope = false;
@@ -5980,12 +5980,6 @@ static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
 
       if (has_scope)
          emit_push_scope(locus, lower_type(type));
-
-      net_flags_t flags = 0;
-      if (kind != SIGNAL_BUS)   // Bus is default
-         flags |= NET_F_REGISTER;
-
-      vcode_reg_t flags_reg = emit_const(voffset, flags);
 
       vcode_reg_t sig = emit_init_signal(vtype, len_reg, size_reg, init_reg,
                                          flags_reg, locus, null_reg);
@@ -6061,7 +6055,7 @@ static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
       vcode_reg_t data_reg = emit_array_ref(lower_array_data(init_reg), i_reg);
       vcode_reg_t null_off_reg = emit_array_ref(null_reg, i_reg);
       lower_sub_signals(elem, where, elem, VCODE_INVALID_VAR, ptr_reg, data_reg,
-                        resolution, null_off_reg, kind, VCODE_INVALID_REG);
+                        resolution, null_off_reg, flags_reg, VCODE_INVALID_REG);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
 
@@ -6105,7 +6099,7 @@ static void lower_sub_signals(type_t type, tree_t where, type_t init_type,
          }
 
          lower_sub_signals(ft, f, ft, VCODE_INVALID_VAR, ptr_reg, field_reg,
-                           resolution, null_field_reg, kind, bounds_reg);
+                           resolution, null_field_reg, flags_reg, bounds_reg);
       }
 
       emit_pop_scope();
@@ -6133,12 +6127,14 @@ static void lower_signal_decl(tree_t decl)
       init_reg = lower_default_value(type, VCODE_INVALID_REG,
                                      VCODE_INVALID_REG);
 
-   rt_signal_kind_t kind = SIGNAL_BUS;
+   net_flags_t flags = 0;
    if (tree_flags(decl) & TREE_F_REGISTER)
-      kind = SIGNAL_REGISTER;
+      flags |= NET_F_REGISTER;
+
+   vcode_reg_t flags_reg = emit_const(vtype_offset(), flags);
 
    lower_sub_signals(type, decl, value_type, var, VCODE_INVALID_REG, init_reg,
-                     VCODE_INVALID_REG, VCODE_INVALID_REG, kind,
+                     VCODE_INVALID_REG, VCODE_INVALID_REG, flags_reg,
                      VCODE_INVALID_REG);
 }
 
@@ -8779,12 +8775,19 @@ static void lower_port_signal(tree_t port)
       init_reg = lower_default_value(type, VCODE_INVALID_REG,
                                      VCODE_INVALID_REG);
 
-   rt_signal_kind_t kind = SIGNAL_BUS;
+   net_flags_t flags = 0;
    if (tree_flags(port) & TREE_F_REGISTER)
-      kind = SIGNAL_REGISTER;
+      flags |= NET_F_REGISTER;
+
+   // Port signals will need separate driving/effective values if they
+   // are inout or have conversion functions.
+   if (tree_subkind(port) == PORT_INOUT)
+      flags |= NET_F_DRIVING;
+
+   vcode_reg_t flags_reg = emit_const(vtype_offset(), flags);
 
    lower_sub_signals(type, port, value_type, var, VCODE_INVALID_REG, init_reg,
-                     VCODE_INVALID_REG, VCODE_INVALID_REG, kind,
+                     VCODE_INVALID_REG, VCODE_INVALID_REG, flags_reg,
                      VCODE_INVALID_REG);
 }
 

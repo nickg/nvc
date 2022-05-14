@@ -45,12 +45,13 @@ typedef enum {
 
 typedef enum {
    NET_F_FORCED       = (1 << 0),
-   NET_F_PROPAGATE    = (1 << 1),
+   // Unused          = (1 << 1),
    NET_F_LAST_VALUE   = (1 << 2),
    NET_F_R_IDENT      = (1 << 3),
    NET_F_IMPLICIT     = (1 << 4),
    NET_F_REGISTER     = (1 << 5),
    NET_F_DISCONNECTED = (1 << 6),
+   NET_F_DRIVING      = (1 << 7),
 } net_flags_t;
 
 typedef enum {

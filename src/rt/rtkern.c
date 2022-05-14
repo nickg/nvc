@@ -98,7 +98,8 @@ typedef struct rt_proc_s {
 typedef enum {
    EVENT_TIMEOUT,
    EVENT_DRIVER,
-   EVENT_PROCESS
+   EVENT_PROCESS,
+   EVENT_EFFECTIVE,
 } event_kind_t;
 
 typedef struct {
@@ -124,6 +125,7 @@ struct event {
       event_timeout_t  timeout;
       event_driver_t   driver;
       event_proc_t     proc;
+      rt_nexus_t      *effective;
    };
 };
 
@@ -161,7 +163,6 @@ typedef enum {
    SOURCE_DRIVER,
    SOURCE_OUTPUT,
    SOURCE_INPUT,
-   SOURCE_INITIAL,
 } source_kind_t;
 
 typedef struct {
@@ -324,6 +325,7 @@ static hash_t          *scopes = NULL;
 static rt_run_queue_t   timeoutq;
 static rt_run_queue_t   driverq;
 static rt_run_queue_t   procq;
+static rt_run_queue_t   effq;
 static heap_t          *eventq_heap = NULL;
 static uint64_t         now = 0;
 static int              iteration = -1;
@@ -376,6 +378,7 @@ static res_memo_t *rt_memo_resolution_fn(rt_signal_t *signal,
                                          rt_resolution_t *resolution);
 static const void *rt_driving_value(rt_nexus_t *nexus, rt_source_t *src);
 static const void *rt_resolve_nexus_fast(rt_nexus_t *nexus);
+static void rt_push_run_queue(rt_run_queue_t *q, event_t *e);
 static void _tracef(const char *fmt, ...);
 
 #define FMT_VALUES_SZ   128
@@ -671,11 +674,18 @@ static void rt_dump_one_signal(rt_scope_t *scope, rt_signal_t *s, tree_t alias)
       for (rt_source_t *s = n->outputs; s != NULL; s = s->chain_output)
          n_outputs++;
 
-      fprintf(stderr, "%-20s %-5d %-4d %-7d %-7d %-4d %s\n",
+      void *driving = NULL;
+      if (n->flags & NET_F_DRIVING)
+         driving = n->resolved + 2 * n->signal->shared.size;
+
+      fprintf(stderr, "%-20s %-5d %-4d %-7d %-7d %-4d %s%c",
               nth == 0 ? tb_get(tb) : "+",
               n->width, n->size, n->n_sources, n_outputs,
               n->net != NULL ? n->net->net_id : 0,
-              fmt_nexus(n, n->resolved));
+              fmt_nexus(n, n->resolved), driving ? ' ' : '\n');
+
+      if (driving != NULL)
+         fprintf(stderr, "(%s)\n", fmt_nexus(n, driving));
    }
 }
 
@@ -760,10 +770,6 @@ static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
       src->u.port.conv_func = NULL;
       src->u.port.input     = NULL;
       src->u.port.output    = n;
-      break;
-
-   case SOURCE_INITIAL:
-      src->u.initial = xmalloc(n->width * n->size);
       break;
    }
 
@@ -861,18 +867,6 @@ static void rt_clone_source(rt_nexus_t *nexus, rt_source_t *old, int offset,
          }
       }
       break;
-
-   case SOURCE_INITIAL:
-      {
-         const int split = offset * nexus->size;
-         const int oldsz = (offset + nexus->width) * nexus->size;
-         const int newsz = nexus->width * nexus->size;
-
-         new->u.initial = xmalloc(newsz);
-         memcpy(new->u.initial, (char *)old->u.initial + split, newsz);
-
-         old->u.initial = xrealloc(old->u.initial, oldsz);
-      }
    }
 }
 
@@ -1443,11 +1437,11 @@ sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
-   TRACE("init signal %s count=%d size=%d values=%s offset=%d",
+   TRACE("init signal %s count=%d size=%d values=%s flags=%x offset=%d",
          istr(tree_ident(where)), count, size,
-         fmt_values(values, size * count), offset);
+         fmt_values(values, size * count), flags, offset);
 
-   const size_t datasz = MAX(2 * count * size, 8);
+   const size_t datasz = MAX(3 * count * size, 8);
    rt_signal_t *s = xcalloc_flex(sizeof(rt_signal_t), 1, datasz);
    rt_setup_signal(s, where, count, size, flags, offset);
 
@@ -1533,12 +1527,18 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       assert(src_n->width == dst_n->width || closure != NULL);
       assert(src_n->size == dst_n->size || closure != NULL);
 
-      if (src_n->net == NULL) {
+      // For inout ports the driving value and the effective value may
+      // be different so 'EVENT therefore is not necessarily equal for
+      // all signals attached to the same net
+      if (((dst_n->flags | src_n->flags) & NET_F_DRIVING) == 0) {
+         assert(src_n->net == NULL);
          src_n->net = rt_get_net(dst_n);
          src_n->net->refcnt++;
       }
-      else
-         src_n->flags |= NET_F_PROPAGATE;  // Inout port
+      else {
+         src_n->flags |= NET_F_DRIVING;
+         dst_n->flags |= NET_F_DRIVING;
+      }
 
       source_kind_t kind = (mode == PORT_IN) ? SOURCE_INPUT : SOURCE_OUTPUT;
       rt_source_t *port = rt_add_source(dst_n, kind);
@@ -1547,7 +1547,8 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       if (conv_func != NULL) {
          port->u.port.conv_func = conv_func;
          conv_func->refcnt++;
-         src_n->flags |= NET_F_PROPAGATE;
+         src_n->flags |= NET_F_DRIVING;
+         dst_n->flags |= NET_F_DRIVING;
       }
 
       port->chain_output = src_n->outputs;
@@ -2475,6 +2476,8 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
    case EVENT_TIMEOUT:
       fprintf(stderr, "timeout\t %p %p\n", e->timeout.fn, e->timeout.user);
       break;
+   case EVENT_EFFECTIVE:
+      break;
    }
 }
 
@@ -2889,7 +2892,7 @@ static void *rt_call_module_reset(ident_t name, void *arg)
    return result;
 }
 
-static const void *rt_call_conversion(rt_port_t *port)
+static void *rt_call_conversion(rt_port_t *port)
 {
    rt_signal_t *i0 = port->input->signal;
    rt_conv_func_t *cf = port->conv_func;
@@ -2900,6 +2903,10 @@ static const void *rt_call_conversion(rt_port_t *port)
    if (i0->parent->kind == SCOPE_SIGNAL) {
       indata = rt_composite_signal(i0, &insz);
       incopy = true;
+   }
+   else if (i0->nexus.flags & NET_F_DRIVING) {
+      indata = i0->shared.data + 2 * i0->shared.size;
+      insz   = i0->shared.size;
    }
    else {
       indata = i0->shared.data;
@@ -2916,24 +2923,6 @@ static const void *rt_call_conversion(rt_port_t *port)
    return cf->buffer + port->output->signal->shared.offset;
 }
 
-static const void *rt_initial_value(rt_nexus_t *nexus)
-{
-   if (nexus->n_sources > 0) {
-      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->tag == SOURCE_INITIAL)
-            return s->u.initial;
-      }
-
-      fatal_trace("initial value not recorded for signal %s",
-                  istr(tree_ident(nexus->signal->where)));
-   }
-   else {
-      // With no sources the effective value will always be equal to the
-      // initial value
-      return nexus->resolved;
-   }
-}
-
 static const void *rt_driving_value(rt_nexus_t *nexus, rt_source_t *src)
 {
    switch (src->tag) {
@@ -2944,15 +2933,21 @@ static const void *rt_driving_value(rt_nexus_t *nexus, rt_source_t *src)
          return rt_value_ptr(nexus, &(src->u.driver.waveforms.value));
 
    case SOURCE_INPUT:
-   case SOURCE_INITIAL:
       return NULL;
 
    case SOURCE_OUTPUT:
       if (likely(src->u.port.conv_func == NULL)) {
          if (src->u.port.input->n_drivers > 0)
             return rt_resolve_nexus_fast(src->u.port.input);
-         else
-            return rt_initial_value(src->u.port.input);
+         else {
+            // The driving value of a port that has no source is the
+            // default value of the port which rt_driver_initial will
+            // store in the driving value area
+            // TODO: this probably doesn't work with disconnected bus
+            //       signals!
+            rt_nexus_t *n = src->u.port.input;
+            return n->resolved + 2 * n->signal->shared.size;
+         }
       }
       else
          return rt_call_conversion(&(src->u.port));
@@ -2961,24 +2956,31 @@ static const void *rt_driving_value(rt_nexus_t *nexus, rt_source_t *src)
    return NULL;
 }
 
-static void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
+static const void *rt_resolve_nexus_slow(rt_nexus_t *nexus)
 {
    if (nexus->n_drivers == 0 && (nexus->flags & NET_F_REGISTER))
       return nexus->resolved;
 
    res_memo_t *r = nexus->signal->resolution;
 
-   if (nexus->n_drivers == 1 && r == NULL) {
-      // Corner case for unresolved inout signal
+   if (r == NULL) {
+      const void *result = nexus->resolved;
+
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
          const void *p = rt_driving_value(nexus, s);
-         if (p != NULL) return (void *)p;
+         if (p != NULL)
+            return p;
+         else if (s->tag == SOURCE_INPUT) {
+            if (s->u.port.conv_func != NULL)
+               result = rt_call_conversion(&(s->u.port));
+            else
+               result = s->u.port.input->resolved;
+         }
       }
+
+      return result;
    }
-
-   RT_ASSERT(r != NULL);
-
-   if (r->flags & R_COMPOSITE) {
+   else if (r->flags & R_COMPOSITE) {
       // Call resolution function of composite type
 
       rt_scope_t *scope = nexus->signal->parent;
@@ -3122,7 +3124,7 @@ static void rt_driver_initial(rt_nexus_t *nexus)
 {
    // Assign the initial value signals and drivers
 
-   const void *resolved = nexus->resolved;
+   const void *initial = nexus->resolved;
 
    if (nexus->n_sources > 0) {
       for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
@@ -3131,28 +3133,23 @@ static void rt_driver_initial(rt_nexus_t *nexus)
                               nexus->resolved);
          else if (s->tag == SOURCE_INPUT) {
             if (s->u.port.conv_func != NULL)
-               resolved = rt_call_conversion(&(s->u.port));
+               initial = rt_call_conversion(&(s->u.port));
             else
-               resolved = s->u.port.input->resolved;
+               initial = s->u.port.input->resolved;
          }
       }
    }
 
-   if (nexus->n_drivers < nexus->n_sources && nexus->outputs > 0) {
-      // The driving value of an unconnected inout port is the same as
-      // the initial value so save it here
-      // TODO: also needed for disconnected bus signals?
-      rt_source_t *s = rt_add_source(nexus, SOURCE_INITIAL);
-      memcpy(s->u.initial, nexus->resolved, nexus->width * nexus->size);
-   }
-
-   if (nexus->n_drivers > 0)
-      resolved = rt_resolve_nexus_fast(nexus);
+   if (nexus->n_sources > 0)
+      initial = rt_resolve_nexus_fast(nexus);
 
    TRACE("%s initial value %s", istr(tree_ident(nexus->signal->where)),
-         fmt_nexus(nexus, resolved));
+         fmt_nexus(nexus, initial));
 
-   rt_propagate_nexus(nexus, resolved);
+   void *driving = nexus->resolved + 2*nexus->signal->shared.size;
+   memcpy(driving, initial, nexus->width * nexus->size);
+
+   rt_propagate_nexus(nexus, initial);
 }
 
 static int rt_nexus_rank(rt_nexus_t *nexus)
@@ -3343,43 +3340,50 @@ static void rt_notify_active(rt_net_t *net)
    net->active_delta = iteration;
 }
 
-static void rt_update_effective(rt_nexus_t *nexus, const void *value)
+static void rt_update_effective(rt_nexus_t *nexus)
 {
-   __builtin_prefetch(nexus->outputs);
+   // Effective value is equal to driving value when no input is
+   // connected
+   const void *value = nexus->resolved;
+   if (nexus->flags & NET_F_DRIVING)
+      value = nexus->resolved + 2 * nexus->signal->shared.size;
 
-   const size_t valuesz = nexus->size * nexus->width;
+   if (nexus->n_sources > 0) {
+      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
+         if (s->tag == SOURCE_INPUT) {
+            if (s->u.port.conv_func != NULL)
+               value = rt_call_conversion(&(s->u.port));
+            else
+               value = s->u.port.input->resolved;
+         }
+      }
+   }
 
    TRACE("update %s effective value %s", istr(tree_ident(nexus->signal->where)),
          fmt_nexus(nexus, value));
 
    rt_net_t *net = rt_get_net(nexus);
-   bool update_outputs = false;
 
-   if (memcmp(nexus->resolved, value, valuesz) != 0) {
+   if (memcmp(nexus->resolved, value, nexus->size * nexus->width) != 0) {
       rt_propagate_nexus(nexus, value);
       rt_notify_event(net);
-      update_outputs = true;
    }
-   else {
+   else
       rt_notify_active(net);
+}
 
-      // NET_F_PROPAGATE is set when one of the outputs is an inout port
-      // or has a conversion function
-      update_outputs = !!(nexus->flags & NET_F_PROPAGATE);
-   }
+static void rt_enqueue_effective(rt_nexus_t *nexus)
+{
+   event_t *e = rt_alloc(event_stack);
+   e->when      = now;
+   e->kind      = EVENT_EFFECTIVE;
+   e->effective = nexus;
 
-   if (update_outputs) {
-      for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
-         assert(o->tag == SOURCE_OUTPUT || o->tag == SOURCE_INPUT);
-         if (o->tag == SOURCE_INPUT) {
-            if (likely(o->u.port.conv_func == NULL))
-               rt_update_effective(o->u.port.output, value);
-            else {
-               const void *conv = rt_call_conversion(&(o->u.port));
-               rt_update_effective(o->u.port.output, conv);
-            }
-         }
-      }
+   rt_push_run_queue(&effq, e);
+
+   for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
+      if (o->tag == SOURCE_INPUT)
+         rt_enqueue_effective(o->u.port.output);
    }
 }
 
@@ -3396,30 +3400,31 @@ static void rt_update_driving(rt_nexus_t *nexus)
    rt_net_t *net = rt_get_net(nexus);
    bool update_outputs = false;
 
-   if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
+   if (nexus->flags & NET_F_DRIVING) {
+      // The active and event flags will be set when we update the
+      // effective value later
+      update_outputs = true;
+
+      void *driving = nexus->resolved + 2*nexus->signal->shared.size;
+      memcpy(driving, resolved, valuesz);
+
+      rt_enqueue_effective(nexus);
+   }
+   else if (memcmp(nexus->resolved, resolved, valuesz) != 0) {
       rt_propagate_nexus(nexus, resolved);
       rt_notify_event(net);
       update_outputs = true;
    }
-   else {
+   else
       rt_notify_active(net);
-
-      // NET_F_PROPAGATE is set when one of the outputs is an inout port
-      // or has a conversion function
-      update_outputs = !!(nexus->flags & NET_F_PROPAGATE);
-   }
 
    if (update_outputs) {
       for (rt_source_t *o = nexus->outputs; o; o = o->chain_output) {
          assert(o->tag == SOURCE_OUTPUT || o->tag == SOURCE_INPUT);
          if (o->tag == SOURCE_OUTPUT)
             rt_update_driving(o->u.port.output);
-         else if (likely(o->u.port.conv_func == NULL))
-            rt_update_effective(o->u.port.output, resolved);
-         else {
-            const void *conv = rt_call_conversion(&(o->u.port));
-            rt_update_effective(o->u.port.output, conv);
-         }
+         else if (o->tag == SOURCE_INPUT)
+            rt_enqueue_effective(o->u.port.output);
       }
    }
 }
@@ -3628,6 +3633,7 @@ static void rt_cycle(int stop_delta)
          case EVENT_PROCESS: rt_push_run_queue(&procq, e); break;
          case EVENT_DRIVER:  rt_push_run_queue(&driverq, e); break;
          case EVENT_TIMEOUT: rt_push_run_queue(&timeoutq, e); break;
+         case EVENT_EFFECTIVE: break;
          }
 
          if (heap_size(eventq_heap) == 0)
@@ -3657,6 +3663,11 @@ static void rt_cycle(int stop_delta)
 
    while ((event = rt_pop_run_queue(&driverq))) {
       rt_update_driver(event->driver.nexus, event->driver.source);
+      rt_free(event_stack, event);
+   }
+
+   while ((event = rt_pop_run_queue(&effq))) {
+      rt_update_effective(event->effective);
       rt_free(event_stack, event);
    }
 
@@ -3735,10 +3746,6 @@ static void rt_cleanup_nexus(rt_nexus_t *n)
             if (--(s->u.port.conv_func->refcnt) == 0)
                free(s->u.port.conv_func);
          }
-         break;
-
-      case SOURCE_INITIAL:
-         free(s->u.initial);
          break;
       }
 

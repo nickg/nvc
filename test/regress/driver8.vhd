@@ -33,10 +33,10 @@ begin
             when 1 =>
                 x <= '0';
                 wait for 0 ns;
+                assert x = '0' report "expected '0' got " & std_logic'image(x);
                 assert x'active;
                 assert x'event report "no event: " & std_logic'image(x'last_value)
                     & " -> " & std_logic'image(x);
-                assert x = '0' report "expected '0' got " & std_logic'image(x);
                 x <= '1';
                 wait for 0 ns;
                 assert x'active;
