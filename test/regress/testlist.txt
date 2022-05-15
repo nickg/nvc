@@ -560,3 +560,4 @@ driver11        normal
 signal21        normal
 vests45         normal
 elab30          normal,2008
+shared3         normal

@@ -6478,9 +6478,13 @@ static void p_entity_declarative_item(tree_t entity)
          tree_add_decl(entity, p_group_declaration());
       break;
 
+   case tSHARED:
+      p_variable_declaration(entity);
+      break;
+
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tALIAS, tUSE, tDISCONNECT, tGROUP);
+             tIMPURE, tPURE, tALIAS, tUSE, tDISCONNECT, tGROUP, tSHARED);
    }
 }
 
