@@ -57,6 +57,7 @@ end architecture;
 
 package myfloat is
     generic ( package fixed_pkg is new work.myfixed generic map (<>) );  --  OK
+    use fixed_pkg.width;                -- OK
 end package;
 
 package body myfloat is

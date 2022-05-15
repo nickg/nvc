@@ -2458,12 +2458,12 @@ START_TEST(test_genpack)
       { 46, "unit STD.STANDARD is not an uninstantiated package" },
       { 47, "missing declaration for package WORK.NOT_HERE" },
       { 48, "missing actual for generic FRAC without a default expression" },
-      { 76, "name STD.STANDARD does not denote an uninstantiated package" },
-      { 81, "actual for generic FIXED_PKG is not an instantiated package " },
-      { 90, "expected an instance of package WORK.MYFIXED but have instance "
+      { 77, "name STD.STANDARD does not denote an uninstantiated package" },
+      { 82, "actual for generic FIXED_PKG is not an instantiated package " },
+      { 91, "expected an instance of package WORK.MYFIXED but have instance "
         "of WORK.MYFLOAT for generic FIXED_PKG" },
-      { 93, "actual for generic FIXED_PKG is not an instantiated package" },
-      { 96, "expected an instance of package STD.STANDARD but" },
+      { 94, "actual for generic FIXED_PKG is not an instantiated package" },
+      { 97, "expected an instance of package STD.STANDARD but" },
       { -1, NULL }
    };
    expect_errors(expect);

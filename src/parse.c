@@ -4690,6 +4690,8 @@ static void p_interface_package_declaration(tree_t parent, tree_kind_t kind)
 
    add_interface(parent, d, kind);
    sem_check(d, nametab);
+
+   insert_name(nametab, d, NULL, 0);
 }
 
 static void p_interface_declaration(class_t def_class, tree_t parent,
