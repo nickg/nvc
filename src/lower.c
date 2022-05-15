@@ -4411,8 +4411,9 @@ static void lower_var_assign_target(target_part_t **ptr, tree_t where,
       else if (type_is_array(type)) {
          vcode_reg_t data_reg = lower_array_data(src_reg);
          vcode_reg_t count_reg = lower_array_total_len(type, p->reg);
+         vcode_reg_t dest_reg = lower_array_data(p->reg);
 
-         emit_copy(p->reg, data_reg, count_reg);
+         emit_copy(dest_reg, data_reg, count_reg);
       }
       else if (type_is_record(type)) {
          if (lower_const_bounds(type))

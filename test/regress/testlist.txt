@@ -561,3 +561,5 @@ signal21        normal
 vests45         normal
 elab30          normal,2008
 shared3         normal
+assign8         normal,2008
+

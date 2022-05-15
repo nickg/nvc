@@ -702,7 +702,7 @@ static void bounds_check_aggregate(tree_t t)
       }
    }
 
-   if (unconstrained) {
+   if (unconstrained && (known_elem_count || nassocs == 1)) {
       // Construct a new array subtype using the rules in LRM 93 7.3.2.2
 
       type_t tmp = type_new(T_SUBTYPE);
