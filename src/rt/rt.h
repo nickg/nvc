@@ -50,7 +50,7 @@ typedef enum {
    NET_F_R_IDENT      = (1 << 3),
    NET_F_IMPLICIT     = (1 << 4),
    NET_F_REGISTER     = (1 << 5),
-   NET_F_DISCONNECTED = (1 << 6),
+   // Unused          = (1 << 6),
    NET_F_DRIVING      = (1 << 7),
 } net_flags_t;
 

@@ -1130,7 +1130,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
    }
 }
 
-static tree_t simp_guard(tree_t container, tree_t t, tree_t wait)
+static tree_t simp_guard(tree_t container, tree_t t, tree_t wait, tree_t s0)
 {
    // See LRM 93 section 9.3
 
@@ -1146,6 +1146,28 @@ static tree_t simp_guard(tree_t container, tree_t t, tree_t wait)
    tree_add_trigger(wait, guard_ref);
 
    // TODO: handle disconnection specifications here
+   //
+   // For now just use the default "disconnect S : T after 0 ns;"
+
+   if (tree_kind(s0) == T_SIGNAL_ASSIGN) {
+      tree_t target = tree_target(s0);
+      tree_t ref = name_to_ref(target);
+      if (ref != NULL && is_guarded_signal(tree_ref(ref))) {
+         tree_t d = tree_new(T_SIGNAL_ASSIGN);
+         tree_set_loc(d, tree_loc(t));
+         tree_set_target(d, tree_target(s0));
+
+         tree_t w0 = tree_new(T_WAVEFORM);
+         tree_set_loc(w0, tree_loc(t));
+
+         tree_add_waveform(d, w0);
+
+         tree_t c1 = tree_new(T_COND);
+         tree_add_cond(g_if, c1);
+
+         tree_add_stmt(c1, d);
+      }
+   }
 
    tree_add_stmt(container, g_if);
    return c0;
@@ -1168,10 +1190,11 @@ static tree_t simp_concurrent(tree_t t)
 
    tree_t container = p;  // Where to add new statements
 
-   if (tree_has_guard(t))
-      container = simp_guard(container, t, w);
-
    tree_t s0 = tree_stmt(t, 0);
+
+   if (tree_has_guard(t))
+      container = simp_guard(container, t, w, s0);
+
    tree_add_stmt(container, s0);
 
    simp_build_wait(w, s0, false);
