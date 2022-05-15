@@ -4335,6 +4335,11 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
 
       add_interface(parent, d, kind);
       sem_check(d, nametab);
+
+      if (kind == T_GENERIC_DECL && standard() >= STD_08) {
+         // Generics are immediately visible in VHDL-2008
+         insert_name(nametab, d, NULL, 0);
+      }
    }
 }
 
@@ -4831,7 +4836,9 @@ static void p_entity_header(tree_t entity)
 
    if (scan(tGENERIC)) {
       p_generic_clause(entity);
-      insert_generics(nametab, entity);
+
+      if (standard() < STD_08)
+         insert_generics(nametab, entity);
    }
 
    if (scan(tPORT))
@@ -6941,7 +6948,8 @@ static tree_t p_component_declaration(void)
 
    if (peek() == tGENERIC) {
       p_generic_clause(c);
-      insert_generics(nametab, c);
+      if (standard() < STD_08)
+         insert_generics(nametab, c);
    }
 
    if (peek() == tPORT)
@@ -7081,8 +7089,6 @@ static void p_package_header(tree_t unit)
          p_generic_map_aspect(unit, unit);
          consume(tSEMI);
       }
-
-      insert_generics(nametab, unit);
    }
 }
 
@@ -9055,7 +9061,8 @@ static void p_block_header(tree_t block)
          consume(tSEMI);
       }
 
-      insert_generics(nametab, block);
+      if (standard() < STD_08)
+         insert_generics(nametab, block);
    }
 
    if (peek() == tPORT) {

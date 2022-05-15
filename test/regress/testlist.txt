@@ -559,3 +559,4 @@ case12          fail,gold,2008
 driver11        normal
 signal21        normal
 vests45         normal
+elab30          normal,2008

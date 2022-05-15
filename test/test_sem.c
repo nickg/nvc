@@ -2639,6 +2639,24 @@ START_TEST(test_mcase)
 }
 END_TEST
 
+START_TEST(test_generics2008)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/generics2008.vhd");
+
+   const error_t expect[] = {
+      {  5, "no visible declaration for D" },
+      {  7, "no visible declaration for E" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2769,6 +2787,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_force);
    tcase_add_test(tc_core, test_ename);
    tcase_add_test(tc_core, test_mcase);
+   tcase_add_test(tc_core, test_generics2008);
    suite_add_tcase(s, tc_core);
 
    return s;
