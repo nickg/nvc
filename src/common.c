@@ -1603,3 +1603,27 @@ tree_t body_of(tree_t pack)
    ident_t body_name = ident_prefix(tree_ident(pack), body_i, '-');
    return lib_get_qualified(body_name);
 }
+
+tree_t find_generic_map(tree_t unit, int pos, tree_t g)
+{
+   const int ngenmaps = tree_genmaps(unit);
+
+   if (pos < ngenmaps) {
+      tree_t m = tree_genmap(unit, pos);
+      if (tree_subkind(m) == P_POS && tree_pos(m) == pos)
+         return tree_value(m);
+   }
+
+   for (int j = 0; j < ngenmaps; j++) {
+      tree_t m = tree_genmap(unit, j);
+      if (tree_subkind(m) == P_NAMED) {
+         tree_t name = tree_name(m);
+         assert(tree_kind(name) == T_REF);
+
+         if (tree_ref(name) == g)
+            return tree_value(m);
+      }
+   }
+
+   return NULL;
+}

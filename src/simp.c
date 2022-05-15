@@ -1691,37 +1691,10 @@ static type_t simp_type(type_t type, void *__ctx)
 static void simp_generics(tree_t t, simp_ctx_t *ctx)
 {
    const int ngenerics = tree_generics(t);
-   const int ngenmaps = tree_genmaps(t);
-
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(t, i);
-      unsigned pos = i;
-      tree_t map = NULL;
 
-      if (pos < ngenmaps) {
-         tree_t m = tree_genmap(t, pos);
-         if (tree_subkind(m) == P_POS && tree_pos(m) == pos)
-            map = tree_value(m);
-      }
-
-      if (map == NULL) {
-         for (int j = 0; j < ngenmaps; j++) {
-            tree_t m = tree_genmap(t, j);
-            if (tree_subkind(m) == P_NAMED) {
-               tree_t name = tree_name(m);
-               assert(tree_kind(name) == T_REF);
-
-               if (tree_ident(name) == tree_ident(g)) {
-                  map = tree_value(m);
-                  break;
-               }
-            }
-         }
-      }
-
-      if (map == NULL && tree_has_value(g))
-         map = tree_value(g);
-
+      tree_t map = find_generic_map(t, i, g);
       if (map == NULL)
          continue;
 

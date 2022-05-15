@@ -2657,6 +2657,24 @@ START_TEST(test_generics2008)
 }
 END_TEST
 
+START_TEST(test_osvvm5)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/osvvm5.vhd");
+
+   const error_t expect[] = {
+      { 48, "cannot use an uninstantiated package" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_INST,
+                            T_PACK_INST, T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2788,6 +2806,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_ename);
    tcase_add_test(tc_core, test_mcase);
    tcase_add_test(tc_core, test_generics2008);
+   tcase_add_test(tc_core, test_osvvm5);
    suite_add_tcase(s, tc_core);
 
    return s;

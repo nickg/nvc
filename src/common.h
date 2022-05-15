@@ -77,6 +77,7 @@ int64_t encode_case_choice(tree_t value, int length, int bits);
 void to_string(text_buf_t *tb, type_t type, int64_t value);
 tree_t longest_static_prefix(tree_t expr);
 tree_t body_of(tree_t pack);
+tree_t find_generic_map(tree_t unit, int pos, tree_t g);
 
 int fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

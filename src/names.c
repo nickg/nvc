@@ -1321,6 +1321,10 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
                   istr(unit_name), istr(ident_until(unit_name, '.')));
          return;
       }
+      else if (is_uninstantiated_package(unit)) {
+         error_at(tree_loc(use), "cannot use an uninstantiated package");
+         return;
+      }
 
       unit_name = tree_ident(unit);
    }
@@ -1352,7 +1356,20 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
             const int ngenerics = tree_generics(unit);
             for (int i = 0; i < ngenerics; i++) {
                tree_t g = tree_generic(unit, i);
-               insert_name_at(s, tree_ident(g), g);
+
+               const class_t class = tree_class(g);
+               if (class == C_FUNCTION || class == C_PROCEDURE) {
+                  // A single subprogram could be visibile both directly
+                  // and as a actual generic subprogram
+                  tree_t value = find_generic_map(unit, i, g);
+                  if (value != NULL && tree_kind(value) == T_REF) {
+                     tree_t decl = tree_ref(value);
+                     assert(is_subprogram(decl));
+                     insert_name_at(s, tree_ident(g), decl);
+                  }
+               }
+               else
+                  insert_name_at(s, tree_ident(g), g);
             }
          }
       }
@@ -1601,7 +1618,6 @@ static void begin_overload_resolution(overload_t *o)
    }
    else {
       unsigned unit_break = 0, scope_break = 0;
-      bool saw_alias = false;
       scope_t *last = NULL;
       for (int k = 0; ; k++) {
          scope_t *where;
@@ -1616,7 +1632,6 @@ static void begin_overload_resolution(overload_t *o)
                continue;
 
             next = tree_ref(value);
-            saw_alias = true;
          }
 
          if (!is_subprogram(next))
@@ -1662,7 +1677,7 @@ static void begin_overload_resolution(overload_t *o)
       }
 
       // Remove any duplicates from aliases
-      if (o->candidates.count > 1 && saw_alias) {
+      if (o->candidates.count > 1) {
          unsigned wptr = 0;
          for (unsigned i = 0; i < o->candidates.count; i++) {
             bool is_dup = false;
@@ -1875,7 +1890,7 @@ static tree_t finish_overload_resolution(overload_t *o)
          if (o->candidates.items[i]) {
             const loc_t *cloc = tree_loc(o->candidates.items[i]);
             if (cloc->file_ref == loc->file_ref)
-               diag_hint(d, cloc, "candidate %s",
+               diag_hint(d, cloc, "candidate %p %s", o->candidates.items[i],
                          type_pp(tree_type(o->candidates.items[i])));
             else {
                tree_t container = tree_container(o->candidates.items[i]);
