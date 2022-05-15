@@ -675,7 +675,7 @@ static void rt_dump_one_signal(rt_scope_t *scope, rt_signal_t *s, tree_t alias)
          n_outputs++;
 
       void *driving = NULL;
-      if (n->flags & NET_F_DRIVING)
+      if (n->flags & NET_F_EFFECTIVE)
          driving = n->resolved + 2 * n->signal->shared.size;
 
       fprintf(stderr, "%-20s %-5d %-4d %-7d %-7d %-4d ",
@@ -1529,7 +1529,7 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       // value and the effective value may be different so 'EVENT and
       // 'ACTIVE are not necessarily equal for all signals attached to
       // the same net
-      if (((dst_n->flags | src_n->flags) & NET_F_DRIVING) == 0) {
+      if (((dst_n->flags | src_n->flags) & NET_F_EFFECTIVE) == 0) {
          if (src_n->net == NULL) {
             src_n->net = rt_get_net(dst_n);
             src_n->net->refcnt++;
@@ -1541,8 +1541,8 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
          }
       }
       else {
-         src_n->flags |= NET_F_DRIVING;
-         dst_n->flags |= NET_F_DRIVING;
+         src_n->flags |= NET_F_EFFECTIVE;
+         dst_n->flags |= NET_F_EFFECTIVE;
       }
 
       rt_source_t *port = rt_add_source(dst_n, SOURCE_PORT);
@@ -1551,8 +1551,8 @@ void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
       if (conv_func != NULL) {
          port->u.port.conv_func = conv_func;
          conv_func->refcnt++;
-         src_n->flags |= NET_F_DRIVING;
-         dst_n->flags |= NET_F_DRIVING;
+         src_n->flags |= NET_F_EFFECTIVE;
+         dst_n->flags |= NET_F_EFFECTIVE;
       }
 
       port->chain_output = src_n->outputs;
@@ -3122,7 +3122,7 @@ static const void *rt_effective_value(rt_nexus_t *nexus)
    //
    // If S is an unconnected port of mode in, the effective value of S
    // is given by the default value associated with S.
-   if (nexus->flags & NET_F_DRIVING)
+   if (nexus->flags & NET_F_EFFECTIVE)
       return nexus->resolved + 2 * nexus->signal->shared.size;
    else
       return nexus->resolved;
@@ -3178,7 +3178,7 @@ static void rt_signal_initial(rt_nexus_t *nexus)
    const void *initial = nexus->resolved;
 
    if (nexus->n_sources > 0) {
-      if (nexus->flags & NET_F_DRIVING) {
+      if (nexus->flags & NET_F_EFFECTIVE) {
          void *driving = nexus->resolved + 2*nexus->signal->shared.size;
          memcpy(driving, rt_driving_value(nexus), nexus->width * nexus->size);
          initial = rt_effective_value(nexus);
@@ -3435,7 +3435,7 @@ static void rt_update_driving(rt_nexus_t *nexus)
    rt_net_t *net = rt_get_net(nexus);
    bool update_outputs = false;
 
-   if (nexus->flags & NET_F_DRIVING) {
+   if (nexus->flags & NET_F_EFFECTIVE) {
       // The active and event flags will be set when we update the
       // effective value later
       update_outputs = true;

@@ -8768,7 +8768,7 @@ static void lower_port_signal(tree_t port)
    // Port signals will need separate driving/effective values if they
    // are inout or have conversion functions.
    if (tree_subkind(port) == PORT_INOUT)
-      flags |= NET_F_DRIVING | NET_F_INOUT;
+      flags |= NET_F_EFFECTIVE | NET_F_INOUT;
 
    vcode_reg_t flags_reg = emit_const(vtype_offset(), flags);
 

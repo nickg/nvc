@@ -51,7 +51,7 @@ typedef enum {
    NET_F_IMPLICIT     = (1 << 4),
    NET_F_REGISTER     = (1 << 5),
    // Unused          = (1 << 6),
-   NET_F_DRIVING      = (1 << 7),
+   NET_F_EFFECTIVE    = (1 << 7),
 } net_flags_t;
 
 typedef enum {
