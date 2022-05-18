@@ -906,7 +906,7 @@ const char *vcode_op_string(vcode_op_t op)
       "debug locus", "length check", "range check", "array ref", "range length",
       "exponent check", "zero check", "map const", "resolve signal",
       "push scope", "pop scope", "alias signal", "trap add",
-      "trap sub", "trap mul", "force", "release", "link instance",
+      "trap sub", "trap mul", "force", "release", "link instance", "unreachable"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -2113,6 +2113,16 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->args.items[0]);
                col += color_printf(" $magenta$%s$$", istr(op->ident));
                vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_UNREACHABLE:
+            {
+               printf("%s", vcode_op_string(op->kind));
+               if (op->args.count > 0) {
+                  printf(" ");
+                  vcode_dump_reg(op->args.items[0]);
+               }
             }
             break;
 
@@ -5377,6 +5387,13 @@ void emit_temp_stack_restore(vcode_reg_t reg)
 
    VCODE_ASSERT(vcode_reg_kind(reg) == VCODE_TYPE_OFFSET,
                 "saved heap must have offset type");
+}
+
+void emit_unreachable(vcode_reg_t locus)
+{
+   op_t *op = vcode_add_op(VCODE_OP_UNREACHABLE);
+   if (locus != VCODE_INVALID_REG)
+      vcode_add_arg(op, locus);
 }
 
 vcode_reg_t emit_undefined(vcode_type_t type)

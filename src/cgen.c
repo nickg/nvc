@@ -2960,6 +2960,21 @@ static void cgen_op_debug_out(int op, cgen_ctx_t *ctx)
    }
 }
 
+static void cgen_op_unreachable(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef locus;
+   if (vcode_count_args(op) > 0)
+      locus = cgen_get_arg(op, 0, ctx);
+   else
+      locus = LLVMConstNull(llvm_debug_locus_type());
+
+   LLVMValueRef args[] = { locus };
+   LLVMBuildCall(builder, llvm_fn("__nvc_unreachable"), args,
+                 ARRAY_LEN(args), "");
+
+   LLVMBuildUnreachable(builder);
+}
+
 static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
 {
    const uint32_t cover_tag = vcode_get_tag(op);
@@ -3555,6 +3570,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_DEBUG_OUT:
       cgen_op_debug_out(i, ctx);
+      break;
+   case VCODE_OP_UNREACHABLE:
+      cgen_op_unreachable(i, ctx);
       break;
    case VCODE_OP_COVER_STMT:
       cgen_op_cover_stmt(i, ctx);
@@ -4718,21 +4736,13 @@ static LLVMValueRef cgen_support_fn(const char *name)
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
       cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
    }
-   else if (strcmp(name, "__nvc_elab_order_fail") == 0) {
+   else if (strcmp(name, "__nvc_elab_order_fail") == 0
+            || strcmp(name, "__nvc_unreachable") == 0
+            || strcmp(name, "__nvc_div_zero") == 0) {
       LLVMTypeRef args[] = {
          llvm_debug_locus_type(),
       };
-      fn = LLVMAddFunction(module, "__nvc_elab_order_fail",
-                           LLVMFunctionType(llvm_void_type(),
-                                            args, ARRAY_LEN(args), false));
-      cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);
-      cgen_add_func_attr(fn, FUNC_ATTR_COLD, -1);
-   }
-   else if (strcmp(name, "__nvc_div_zero") == 0) {
-      LLVMTypeRef args[] = {
-         llvm_debug_locus_type(),
-      };
-      fn = LLVMAddFunction(module, "__nvc_div_zero",
+      fn = LLVMAddFunction(module, name,
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
       cgen_add_func_attr(fn, FUNC_ATTR_NORETURN, -1);

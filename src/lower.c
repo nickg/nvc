@@ -8157,6 +8157,9 @@ static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
    for (int i = 0; i < nstmts; i++)
       lower_stmt(tree_stmt(body, i), NULL);
 
+   if (!vcode_block_finished())
+      emit_unreachable(lower_debug_locus(body));
+
    lower_finished();
    lower_pop_scope();
 

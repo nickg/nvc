@@ -1,0 +1,6 @@
+function MAYBE_NOT_RETURN did not return a value
+   |
+ 6 |     function maybe_not_return (x : integer) return integer is
+   |     ^
+   Function MAYBE_NOT_RETURN [INTEGER return INTEGER]
+   Process :func19:p1

@@ -629,7 +629,10 @@ static inline void rt_check_postponed(int64_t after)
 
 static inline tree_t rt_locus_to_tree(const char *unit, unsigned offset)
 {
-   return tree_from_locus(ident_new(unit), offset, lib_get_qualified);
+   if (unit == NULL)
+      return NULL;
+   else
+      return tree_from_locus(ident_new(unit), offset, lib_get_qualified);
 }
 
 static void rt_secondary_stack_fault(void *addr, void *__ctx)
@@ -1831,6 +1834,17 @@ void __nvc_elab_order_fail(DEBUG_LOCUS(locus))
 
    rt_msg(tree_loc(where), DIAG_FATAL, "%s .%s has not yet been elaborated",
           class_str(tree_class(where)), istr(name));
+}
+
+DLLEXPORT
+void __nvc_unreachable(DEBUG_LOCUS(locus))
+{
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+   if (where != NULL && tree_kind(where) == T_FUNC_BODY)
+      rt_msg(tree_loc(where), DIAG_FATAL, "function %s did not return a value",
+             istr(tree_ident(where)));
+   else
+      rt_msg(NULL, DIAG_FATAL, "executed unreachable instruction");
 }
 
 DLLEXPORT
