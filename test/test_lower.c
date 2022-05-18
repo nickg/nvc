@@ -3579,6 +3579,7 @@ START_TEST(test_case1)
    fail_unless(vcode_count_vars() == 2);
 
    EXPECT_BB(1) = {
+      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_RESOLVED },

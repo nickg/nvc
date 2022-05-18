@@ -1771,6 +1771,8 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
    LOCAL_TEXT_BUF tb = tb_new();
    if (kind == T_PORT_DECL || kind == T_GENERIC_DECL || kind == T_PARAM_DECL)
       tb_cat(tb, "actual");
+   else if (kind == T_CASE || kind == T_MATCH_CASE)
+      tb_cat(tb, "expression");
    else
       tb_cat(tb, "value");
    tb_printf(tb, " length %d", right);
@@ -1803,6 +1805,10 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
       break;
    case T_ALIAS:
       tb_printf(tb, "alias %s", istr(tree_ident(where)));
+      break;
+   case T_CASE:
+   case T_MATCH_CASE:
+      tb_cat(tb, "case choice");
       break;
    default:
       tb_cat(tb, "target");

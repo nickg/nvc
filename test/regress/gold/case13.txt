@@ -1,0 +1,6 @@
+0ms+0: Report Note: zeros
+0ms+1: Report Note: ones
+expression length 5 does not match case choice length 3
+    |
+ 19 |         case get_bits(n, b) is
+    |         ^

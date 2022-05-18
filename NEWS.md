@@ -18,6 +18,8 @@
 - Fixed several bugs in the implementation of guarded signals.
 - Implemented VHDL-2008 rules for generic visibility.
 - Shared variable declaration permitted in entity declaration.
+- Case expression no longer requires a locally static subtype in
+  VHDL-2008 mode (#460).
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

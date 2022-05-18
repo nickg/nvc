@@ -4582,8 +4582,12 @@ static bool sem_check_case(tree_t t, nametab_t *tab)
       return false;
    }
 
-   if (is_1d_character_array && !sem_static_subtype(type, sem_locally_static))
-      sem_error(test, "case expression must have locally static subtype");
+   if (is_1d_character_array && standard() < STD_08) {
+      // VHDL-93 requires a locally static subtype, relaxed in later
+      // revisions
+      if (!sem_static_subtype(type, sem_locally_static))
+         sem_error(test, "case expression must have locally static subtype");
+   }
 
    bool ok = true;
    const int nassocs = tree_assocs(t);

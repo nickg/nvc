@@ -1041,7 +1041,7 @@ static void bounds_check_case(tree_t t)
 
       bounds_free_intervals(&covered);
    }
-   else if (type_is_array(type)) {
+   else if (type_is_array(type) && !type_is_unconstrained(type)) {
       // Calculate how many values each element has
       type_t elem = type_elem(type);
       assert(type_is_enum(elem));

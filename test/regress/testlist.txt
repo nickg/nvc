@@ -563,3 +563,5 @@ elab30          normal,2008
 shared3         normal
 assign8         normal,2008
 func19          fail,gold
+issue460        normal,2008
+case13          fail,gold,2008

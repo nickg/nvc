@@ -5306,17 +5306,48 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
    vcode_block_t hit_bb   = VCODE_INVALID_BLOCK;
    vcode_block_t start_bb = vcode_active_block();
 
+   vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
+   vcode_type_t voffset = vtype_offset();
+
+   const int saved_mark = emit_temp_stack_mark();
+   vcode_var_t mark_var = VCODE_INVALID_VAR;
+   if (!lower_is_wait_free(stmt)) {
+      mark_var = lower_temp_var("mark", voffset, voffset);
+      emit_store(saved_mark, mark_var);
+   }
+
    tree_t value = tree_value(stmt);
    type_t type = tree_type(value);
    vcode_reg_t val_reg = lower_expr(tree_value(stmt), EXPR_RVALUE);
    vcode_reg_t data_ptr = lower_resolved(type, lower_array_data(val_reg));
 
-   vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-   vcode_type_t voffset = vtype_offset();
+   int64_t length = INT64_MAX;
+   if (type_is_unconstrained(type)
+       || !folded_length(range_of(type, 0), &length)) {
+      vcode_reg_t length_reg = lower_array_len(type, 0, val_reg);
 
-   int64_t length;
-   if (!folded_length(range_of(type, 0), &length))
-      fatal_at(tree_loc(value), "array length is not known at compile time");
+      // Need a runtime check of expression length against choice length
+      vcode_reg_t c0_length_reg;
+      tree_t a0 = tree_assoc(stmt, 0);
+      if (tree_subkind(a0) == A_NAMED) {
+         tree_t c0 = tree_name(a0);
+         vcode_reg_t c0_reg = lower_expr(c0, EXPR_RVALUE);
+         c0_length_reg = lower_array_len(tree_type(c0), 0, c0_reg);
+      }
+      else
+         c0_length_reg = length_reg;   // Only others choice
+
+      if (!vcode_reg_const(length_reg, &length)) {
+         if (!vcode_reg_const(c0_length_reg, &length)) {
+            error_at(tree_loc(stmt), "cannot determine length of "
+                     "case expression");
+            return;
+         }
+      }
+
+      vcode_reg_t locus = lower_debug_locus(stmt);
+      emit_length_check(c0_length_reg, length_reg, locus, VCODE_INVALID_REG);
+   }
 
    type_t base = type_base_recur(type_elem(type));
    assert(type_kind(base) == T_ENUM);
@@ -5485,6 +5516,13 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
    emit_case(enc_reg, def_bb, cases, blocks, cptr);
 
    vcode_select_block(exit_bb);
+
+   if (mark_var != VCODE_INVALID_VAR) {
+      emit_temp_stack_restore(emit_load(mark_var));
+      lower_release_temp(mark_var);
+   }
+   else
+      emit_temp_stack_restore(saved_mark);
 }
 
 static void lower_case(tree_t stmt, loop_stack_t *loops)
