@@ -929,6 +929,27 @@ static tree_t iter_name(iter_state_t *state)
    return d;
 }
 
+static bool denotes_same_object(tree_t a, tree_t b)
+{
+   if (standard() >= STD_08) {
+      // According LRM 08 section 12.3 two declarations are not
+      // homographs if they denote different named entities
+
+      if (tree_kind(a) == T_ALIAS) {
+         tree_t value = tree_value(a);
+         if (tree_kind(value) == T_REF && tree_has_ref(value))
+            return denotes_same_object(tree_ref(value), b);
+      }
+      else if (tree_kind(b) == T_ALIAS) {
+         tree_t value = tree_value(b);
+         if (tree_kind(value) == T_REF && tree_has_ref(value))
+            return denotes_same_object(a, tree_ref(value));
+      }
+   }
+
+   return a == b;
+}
+
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 {
    iter_state_t iter;
@@ -1148,7 +1169,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       else if (conflict != NULL && iter.where != NULL && iter.where->import
                && !first->import)
          ;   // Second declaration was potentially visible homograph
-      else if (conflict != NULL && conflict != decl) {
+      else if (conflict != NULL && !denotes_same_object(conflict, decl)) {
          diag_t *d = diag_new(DIAG_ERROR, loc);
          diag_printf(d, "multiple conflicting visible declarations of %s",
                      istr(name));

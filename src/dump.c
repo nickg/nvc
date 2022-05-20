@@ -1428,6 +1428,7 @@ void dump(tree_t t)
    case T_COMPONENT:
    case T_BLOCK_CONFIG:
    case T_SPEC:
+   case T_ALIAS:
       dump_decl(t, 0);
       break;
    case T_PORT_DECL:
