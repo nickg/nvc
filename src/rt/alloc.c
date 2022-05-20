@@ -27,17 +27,16 @@
 #define INIT_ITEMS 128
 
 struct rt_chunk {
-   void       *ptr;
    rt_chunk_t *next;
+   char        data[0];
 };
 
 static void rt_alloc_add_objects(rt_alloc_stack_t s, size_t n)
 {
-   rt_chunk_t *c = xmalloc(sizeof(rt_chunk_t));
+   rt_chunk_t *c = xmalloc_flex(sizeof(rt_chunk_t), n, s->item_sz);
    c->next = s->chunks;
-   c->ptr  = xmalloc_array(n, s->item_sz);
 
-   char *p = c->ptr;
+   char *p = c->data;
    for (int i = 0; i < n; i++, p += s->item_sz)
       rt_free(s, p);
 
@@ -69,7 +68,6 @@ void rt_alloc_stack_destroy(rt_alloc_stack_t s)
 
    while (s->chunks != NULL) {
       rt_chunk_t *tmp = s->chunks->next;
-      free(s->chunks->ptr);
       free(s->chunks);
       s->chunks = tmp;
    }
