@@ -697,7 +697,7 @@ static LONG win32_exception_handler(EXCEPTION_POINTERS *ExceptionInfo)
   return EXCEPTION_EXECUTE_HANDLER;
 }
 
-#elif !defined __SANITIZE_THREAD__
+#else
 
 static const char *signame(int sig)
 {
@@ -707,19 +707,48 @@ static const char *signame(int sig)
    case SIGILL: return "SIGILL";
    case SIGFPE: return "SIGFPE";
    case SIGUSR1: return "SIGUSR1";
+   case SIGUSR2: return "SIGUSR2";
    case SIGBUS: return "SIGBUS";
    default: return "???";
    }
 }
 
+#if defined HAVE_UCONTEXT_H || defined HAVE_SYS_UCONTEXT_H
+static void fill_regs_from_ucontext(ucontext_t *uc,
+                                    uintptr_t regs[MAX_CPU_REGS])
+{
+   for (int i = 0; i < MAX_CPU_REGS; i++) {
+#if defined __APPLE__ && defined __arm64__
+      regs[i] = i < 29 ? uc->uc_mcontext->__ss.__x[i] : 0;
+#elif defined __APPLE__
+      uint64_t *fields = (uint64_t *)&(uc->uc_mcontext->__ss);
+      regs[i] = i < 16 ? fields[i] : 0;
+#else
+      STATIC_ASSERT(__NGREG <= MAX_CPU_REGS);
+      regs[i] = (i < __NGREG) ? uc->uc_mcontext.gregs[i] : 0;
+#endif
+   }
+}
+
+static __thread uintptr_t *thread_regs = NULL;
+#endif
+
 static void signal_handler(int sig, siginfo_t *info, void *context)
 {
-#if defined HAVE_UCONTEXT_H && defined PC_FROM_UCONTEXT
+#if defined HAVE_UCONTEXT_H || defined HAVE_SYS_UCONTEXT_H
    ucontext_t *uc = (ucontext_t*)context;
-   uintptr_t ip = uc->PC_FROM_UCONTEXT;
+   uint64_t ip = uc->PC_FROM_UCONTEXT;
+
+   uintptr_t *regs;
+   if (sig == SIGUSR2 && (regs = atomic_load(&thread_regs)) != NULL) {
+      // Fill in registers for capture_registers
+      fill_regs_from_ucontext(uc, regs);
+      atomic_store(&thread_regs, NULL);
+      return;
+   }
 #else
    uintptr_t ip = 0;
-#endif
+#endif  // HAVE_UCONTEXT_H || HAVE_SYS_UCONTEXT_H
 
    if (sig != SIGUSR1) {
       while (!atomic_cas(&crashing, 0, 1))
@@ -856,9 +885,9 @@ bool is_debugger_running(void)
 
 void register_signal_handlers(void)
 {
-#if defined __MINGW32__
+#ifdef __MINGW32__
    SetUnhandledExceptionFilter(win32_exception_handler);
-#elif !defined __SANITIZE_THREAD__
+#else
    (void)is_debugger_running();    // Caches the result
 
    struct sigaction sa;
@@ -866,6 +895,7 @@ void register_signal_handlers(void)
    sigemptyset(&sa.sa_mask);
    sa.sa_flags = SA_RESTART | SA_SIGINFO;
 
+#ifndef __SANITIZE_THREAD__
    sigaction(SIGSEGV, &sa, NULL);
    sigaction(SIGUSR1, &sa, NULL);
    sigaction(SIGFPE, &sa, NULL);
@@ -873,6 +903,8 @@ void register_signal_handlers(void)
    sigaction(SIGILL, &sa, NULL);
    sigaction(SIGABRT, &sa, NULL);
 #endif  // !__SANITIZE_THREAD__
+   sigaction(SIGUSR2, &sa, NULL);
+#endif  // !__MINGW32__
 }
 
 void term_init(void)
@@ -1084,7 +1116,7 @@ static void *nvc_mmap(size_t sz)
 void nvc_munmap(void *ptr, size_t length)
 {
 #if __SANITIZE_ADDRESS__
-   // Ignore it
+   free(ptr);
 #elif !defined __MINGW32__
    if (munmap(ptr, length) != 0)
       fatal_errno("munmap");
@@ -1110,12 +1142,14 @@ void *nvc_memalign(size_t align, size_t sz)
    void *aligned = ALIGN_UP(ptr, align);
    void *limit = aligned + sz;
 
-   const size_t low_waste = aligned - ptr;
-   const size_t high_waste = ptr + mapsz - limit;
-   assert(low_waste + high_waste == align);
+   if (align > nvc_page_size()) {
+      const size_t low_waste = aligned - ptr;
+      const size_t high_waste = ptr + mapsz - limit;
+      assert(low_waste + high_waste == align);
 
-   if (low_waste > 0) nvc_munmap(ptr, low_waste);
-   if (high_waste > 0) nvc_munmap(limit, high_waste);
+      if (low_waste > 0) nvc_munmap(ptr, low_waste);
+      if (high_waste > 0) nvc_munmap(limit, high_waste);
+   }
 
    return aligned;
 #endif
@@ -1794,5 +1828,52 @@ unsigned nvc_nprocs(void)
 #else
 #warning Cannot detect number of processors on this platform
    return 1;
+#endif
+}
+
+void capture_registers(uintptr_t regs[MAX_CPU_REGS])
+{
+#if defined HAVE_GETCONTEXT
+   ucontext_t uc;
+   if (getcontext(&uc) != 0)
+      fatal_errno("getcontext");
+
+   fill_regs_from_ucontext(&uc, regs);
+#elif defined __MINGW32__
+   CONTEXT context;
+   RtlCaptureContext(&context);
+
+   regs[0] = context.Rax;
+   regs[1] = context.Rcx;
+   regs[2] = context.Rdx;
+   regs[3] = context.Rbx;
+   regs[4] = context.Rsp;
+   regs[5] = context.Rbp;
+   regs[6] = context.Rsi;
+   regs[7] = context.Rdi;
+   regs[8] = context.R8;
+   regs[9] = context.R9;
+   regs[10] = context.R10;
+   regs[11] = context.R11;
+   regs[12] = context.R12;
+   regs[13] = context.R13;
+   regs[14] = context.R14;
+   regs[15] = context.R15;
+
+   for (int i = 16; i < MAX_CPU_REGS; i++)
+      regs[i] = 0;
+
+#elif defined HAVE_PTHREAD
+   assert(atomic_load(&thread_regs) == NULL);
+   atomic_store(&thread_regs, regs);
+
+   if (pthread_kill(pthread_self(), SIGUSR2) != 0)
+      fatal_errno("pthread_kill");
+
+   // Registers filled in by signal_handler
+   if (atomic_load(&thread_regs) != NULL)
+      fatal_trace("signal handler did not capture thread registers");
+#else
+#error cannot capture registers on this platform
 #endif
 }

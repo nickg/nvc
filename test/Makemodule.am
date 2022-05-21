@@ -20,9 +20,10 @@ bin_unit_test_SOURCES = \
 	test/test_value.c \
 	test/test_json.c \
 	test/test_debug.c \
-	test/test_exec.c
+	test/test_exec.c \
+	test/test_mspace.c
 
-bin_unit_test_LDADD = lib/libnvc.a lib/librt.a lib/libfastlz.a \
+bin_unit_test_LDADD = lib/libnvc.a lib/libfastlz.a \
 	$(check_LIBS) $(POW_LIB) $(libdw_LIBS) lib/libjson.a
 
 bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)

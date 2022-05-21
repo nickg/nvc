@@ -199,7 +199,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      18
+#define VCODE_VERSION      19
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -615,7 +615,6 @@ void vcode_opt(void)
             case VCODE_OP_CMP:
             case VCODE_OP_INDEX:
             case VCODE_OP_WRAP:
-            case VCODE_OP_TEMP_STACK_MARK:
             case VCODE_OP_EXP:
             case VCODE_OP_UNDEFINED:
             case VCODE_OP_UARRAY_LEN:
@@ -896,8 +895,7 @@ const char *vcode_op_string(vcode_op_t op)
       "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
       "const real", "last event", "debug out", "cover stmt", "cover cond",
-      "uarray len", "temp stack mark", "temp stack restore",
-      "undefined", "range null", "var upref",
+      "uarray len", "undefined", "range null", "var upref",
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
@@ -2051,21 +2049,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                printf("%s %u sub %u ", vcode_op_string(op->kind),
                       op->tag, op->subkind);
-               vcode_dump_reg(op->args.items[0]);
-            }
-            break;
-
-         case VCODE_OP_TEMP_STACK_MARK:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s", vcode_op_string(op->kind));
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_TEMP_STACK_RESTORE:
-            {
-               printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
             }
             break;
@@ -5361,32 +5344,6 @@ void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub)
    vcode_add_arg(op, test);
    op->tag     = tag;
    op->subkind = sub;
-}
-
-vcode_reg_t emit_temp_stack_mark(void)
-{
-   op_t *op = vcode_add_op(VCODE_OP_TEMP_STACK_MARK);
-   return (op->result = vcode_add_reg(vtype_offset()));
-}
-
-void emit_temp_stack_restore(vcode_reg_t reg)
-{
-   VCODE_FOR_EACH_OP(other) {
-      if (other->kind == VCODE_OP_ALLOCA
-          || other->kind == VCODE_OP_PCALL
-          || other->kind == VCODE_OP_FCALL
-          || other->kind == VCODE_OP_RESUME
-          || other->kind == VCODE_OP_DRIVING_VALUE)
-         break;
-      else if (other->kind == VCODE_OP_TEMP_STACK_MARK)
-         return;   // No use of temp stack between mark and restore
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_TEMP_STACK_RESTORE);
-   vcode_add_arg(op, reg);
-
-   VCODE_ASSERT(vcode_reg_kind(reg) == VCODE_TYPE_OFFSET,
-                "saved heap must have offset type");
 }
 
 void emit_unreachable(vcode_reg_t locus)

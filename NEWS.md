@@ -1,7 +1,5 @@
 ## Unreleased changes
 - Added support for VHDL-2008 type generics on packages and entities.
-- New command line options `-P` and `-G` can be used to set the size of
-  the process and global secondary stack respectively.
 - Diagnostic messages have been enhanced with more contextual
   information.
 - Added support for record element constraints and record fields with
@@ -20,6 +18,11 @@
 - Shared variable declaration permitted in entity declaration.
 - Case expression no longer requires a locally static subtype in
   VHDL-2008 mode (#460).
+- The VHDL heap is now garbage collected as required by VHDL-2019 and
+  the `deallocate` operator has no effect other than setting the access
+  to `null`.
+- A new global option `-H` specifies the size of the simulation heap and
+  defaults to 16 megabytes.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

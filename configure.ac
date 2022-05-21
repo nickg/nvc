@@ -46,6 +46,14 @@ AC_CHECK_FUNCS([tcgetwinsize])
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
 
+AC_MSG_CHECKING([for getcontext])
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM([#include <ucontext.h>],
+    [ucontext_t uc; getcontext(&uc);])],
+  [AC_MSG_RESULT([yes])
+   AC_DEFINE([HAVE_GETCONTEXT], [1], [Defined if getcontext is available])],
+  [AC_MSG_RESULT([no])])
+
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=
 
@@ -290,7 +298,7 @@ case $host_os in
     ;;
   *)
     AC_PC_FROM_UCONTEXT(
-      AC_MSG_WARN([no way to access program counter]))
+      AC_MSG_ERROR([no way to access program counter on this platform]))
     ;;
 esac
 

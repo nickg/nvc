@@ -431,7 +431,7 @@ vests21         normal
 guard1          normal
 guard2          normal
 vests22         normal
-vests23         normal,P=256k
+vests23         normal
 func18          normal
 file5           normal
 case8           normal
@@ -565,3 +565,6 @@ assign8         normal,2008
 func19          fail,gold
 issue460        normal,2008
 case13          fail,gold,2008
+access8         fail,gold
+access9         normal
+access10        fail,gold,H=1m

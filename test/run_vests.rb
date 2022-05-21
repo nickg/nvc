@@ -87,7 +87,7 @@ Dir.mktmpdir do |tmpdir|
     Dir.mktmpdir do |workdir|
       f = File.realpath "#{Billowitch}/#{tc}"
       top = guess_top f
-      cmd = "#{Tool} -P256k --force-init --work=work:#{workdir} -a #{f} -e #{top} -r"
+      cmd = "#{Tool} --force-init --work=work:#{workdir} -a #{f} -e #{top} -r"
       expfail = io =~ /EXPFAIL/
       
       result = run_cmd cmd, expfail

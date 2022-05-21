@@ -1,6 +1,4 @@
-noinst_LIBRARIES += lib/librt.a
-
-lib_librt_a_SOURCES = \
+lib_libnvc_a_SOURCES += \
 	src/rt/rtkern.c \
 	src/rt/alloc.c \
 	src/rt/heap.c \
@@ -13,4 +11,6 @@ lib_librt_a_SOURCES = \
 	src/rt/heap.h \
 	src/rt/jit.c \
 	src/rt/ffi.h \
-	src/rt/ffi.c
+	src/rt/ffi.c \
+	src/rt/mspace.h \
+	src/rt/mspace.c

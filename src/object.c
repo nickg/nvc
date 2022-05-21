@@ -489,7 +489,7 @@ void object_arena_gc(object_arena_t *arena)
    arena->alloc = (char *)arena->base + woffset;
 
  skip_gc:
-   if (opt_get_verbose(OPT_GC_VERBOSE, NULL) || is_debugger_running()) {
+   if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL) || is_debugger_running()) {
       const int ticks = get_timestamp_us() - start_ticks;
       notef("GC: %s: freed %d objects; %d allocated [%d us]",
             istr(object_arena_name(arena)), dead, live, ticks);
@@ -1039,7 +1039,7 @@ void object_copy(object_copy_ctx_t *ctx)
 	 (*ctx->callback[copy->tag])(copy, ctx->context);
    }
 
-   if (opt_get_verbose(OPT_GC_VERBOSE, NULL))
+   if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL))
       notef("copied %d objects into arena %s", ncopied,
             istr(object_arena_name(ctx->arena)));
 
@@ -1086,7 +1086,7 @@ void object_arena_freeze(object_arena_t *arena)
    if (arena->source == OBJ_FRESH)
       object_arena_gc(arena);
 
-   if (opt_get_verbose(OPT_GC_VERBOSE, NULL))
+   if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL))
       notef("arena %s frozen (%d bytes)", istr(object_arena_name(arena)),
             (int)(arena->alloc - arena->base));
 

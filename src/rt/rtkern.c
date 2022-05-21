@@ -26,7 +26,8 @@
 #include "heap.h"
 #include "lib.h"
 #include "opt.h"
-#include "rt.h"
+#include "rt/rt.h"
+#include "rt/mspace.h"
 #include "tree.h"
 #include "type.h"
 
@@ -89,11 +90,10 @@ typedef struct rt_proc_s {
    tree_t         where;
    ident_t        name;
    proc_fn_t      proc_fn;
-   void          *tmp_stack;
-   uint32_t       tmp_alloc;
+   tlab_t         tlab;
    rt_scope_t    *scope;
    rt_proc_t     *chain;
-   void          *privdata;
+   mptr_t         privdata;
 } rt_proc_t;
 
 typedef enum {
@@ -272,7 +272,7 @@ typedef struct rt_scope_s {
    unsigned         size;   // For signal scopes
    ident_t          name;
    tree_t           where;
-   void            *privdata;
+   mptr_t           privdata;
    rt_scope_t      *parent;
    rt_scope_t      *child;
    rt_scope_t      *chain;
@@ -339,9 +339,6 @@ static sens_list_t     *implicit = NULL;
 static rt_watch_t      *watches = NULL;
 static event_t         *delta_proc = NULL;
 static event_t         *delta_driver = NULL;
-static void            *global_tmp_stack = NULL;
-static void            *proc_tmp_stack = NULL;
-static uint32_t         global_tmp_alloc;
 static hash_t          *res_memo_hash = NULL;
 static side_effect_t    init_side_effect = SIDE_EFFECT_ALLOW;
 static bool             force_stop;
@@ -355,6 +352,7 @@ static rt_nexus_t     **nexus_tail = NULL;
 static cover_tagging_t *cover = NULL;
 static rt_signal_t    **signals_tail = NULL;
 static jmp_buf          abort_env;
+static mspace_t        *mspace = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -368,7 +366,7 @@ static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
 static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
                             uint64_t reject, rt_value_t value, bool null);
 static void rt_sched_event(sens_list_t **list, rt_wakeable_t *proc, bool recur);
-static void *rt_tmp_alloc(size_t sz);
+static void *rt_tlab_alloc(size_t size);
 static rt_value_t rt_alloc_value(rt_nexus_t *n);
 static void rt_free_value(rt_nexus_t *n, rt_value_t v);
 static void rt_copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p);
@@ -571,6 +569,21 @@ static void rt_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)
       rt_abort_sim(EXIT_FAILURE);
 }
 
+static void rt_mspace_oom_cb(mspace_t *m, size_t size)
+{
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_printf(d, "out of memory attempting to allocate %zu byte object", size);
+   rt_diag_trace(d);
+
+   const int heapsize = opt_get_int(OPT_HEAP_SIZE);
+   diag_hint(d, NULL, "the current heap size is %u bytes which you can "
+             "increase with the $bold$-H$$ option, for example $bold$-H %um$$",
+             heapsize, MAX(1, (heapsize * 2) / 1024 / 1024));
+
+   diag_emit(d);
+   rt_abort_sim(EXIT_FAILURE);
+}
+
 static size_t uarray_len(const ffi_uarray_t *u)
 {
    return abs(u->dims[0].length);
@@ -590,7 +603,7 @@ static ffi_uarray_t bit_vec_to_string(const ffi_uarray_t *vec, int log_base)
    const size_t vec_len = uarray_len(vec);
    const size_t result_len = (vec_len + log_base - 1) / log_base;
    const int left_pad = (log_base - (vec_len % log_base)) % log_base;
-   char *buf = rt_tmp_alloc(result_len);
+   char *buf = rt_tlab_alloc(result_len);
 
    for (int i = 0; i < result_len; i++) {
       unsigned nibble = 0;
@@ -633,32 +646,6 @@ static inline tree_t rt_locus_to_tree(const char *unit, unsigned offset)
       return NULL;
    else
       return tree_from_locus(ident_new(unit), offset, lib_get_qualified);
-}
-
-static void rt_secondary_stack_fault(void *addr, void *__ctx)
-{
-   opt_name_t which = (uintptr_t)__ctx;
-
-   const unsigned curr = opt_get_int(which);
-   const char flag = which == OPT_GLOBAL_STACK ? 'G' : 'P';
-
-   diag_t *d = diag_new(DIAG_FATAL, NULL);
-   diag_printf(d, "%s secondary stack exhausted",
-               which == OPT_GLOBAL_STACK ? "global" : "process");
-   rt_diag_trace(d);
-
-   diag_hint(d, NULL, "the current limit is %u bytes which you can increase "
-             "with the $bold$-%c$$ option, for example $bold$-%c %uk$$",
-             curr, flag, flag, (curr * 2) / 1024);
-
-   diag_emit(d);
-   fatal_exit(EXIT_FAILURE);
-}
-
-static void *rt_map_secondary_stack(opt_name_t which)
-{
-   return mmap_guarded(opt_get_int(which), rt_secondary_stack_fault,
-                       (void *)(uintptr_t)which);
 }
 
 static void rt_dump_one_signal(rt_scope_t *scope, rt_signal_t *s, tree_t alias)
@@ -1150,8 +1137,7 @@ static diag_level_t rt_diag_severity(int8_t severity)
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
-DLLEXPORT void     *_tmp_stack;
-DLLEXPORT uint32_t  _tmp_alloc;
+DLLEXPORT tlab_t __nvc_tlab = {};   // TODO: this should be thread-local
 
 DLLEXPORT
 void _sched_process(int64_t delay)
@@ -1312,17 +1298,15 @@ void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count, bool recur,
 }
 
 DLLEXPORT
-void _private_stack(void)
+void __nvc_claim_tlab(void)
 {
-   TRACE("_private_stack %p %d %d", active_proc->tmp_stack,
-         active_proc->tmp_alloc, _tmp_alloc);
+   TRACE("claiming TLAB for private use (used %zu/%d)",
+         __nvc_tlab.alloc - __nvc_tlab.base, TLAB_SIZE);
 
-   if (active_proc->tmp_stack == NULL && _tmp_alloc > 0) {
-      active_proc->tmp_stack = _tmp_stack;
-      proc_tmp_stack = rt_map_secondary_stack(OPT_PROC_STACK);
-   }
+   assert(tlab_valid(__nvc_tlab));
+   assert(__nvc_tlab.alloc > __nvc_tlab.base);
 
-   active_proc->tmp_alloc = _tmp_alloc;
+   tlab_move(__nvc_tlab, active_proc->tlab);
 }
 
 DLLEXPORT
@@ -1400,12 +1384,13 @@ void __nvc_push_scope(DEBUG_LOCUS(locus), int32_t size)
       name = ident_prefix(active_scope->name, name, '.');
 
    rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
-   s->where  = where;
-   s->name   = name;
-   s->kind   = SCOPE_SIGNAL;
-   s->parent = active_scope;
-   s->chain  = active_scope->child;
-   s->size   = size;
+   s->where    = where;
+   s->name     = name;
+   s->kind     = SCOPE_SIGNAL;
+   s->parent   = active_scope;
+   s->chain    = active_scope->child;
+   s->size     = size;
+   s->privdata = mptr_new(mspace);
 
    active_scope->child = s;
    active_scope = s;
@@ -1854,9 +1839,23 @@ void __nvc_unreachable(DEBUG_LOCUS(locus))
 }
 
 DLLEXPORT
+void *__nvc_mspace_alloc(uint32_t size, uint32_t nelems)
+{
+   uint32_t total;
+   if (unlikely(__builtin_mul_overflow(nelems, size, &total))) {
+      rt_msg(NULL, DIAG_FATAL, "attempting to allocate %"PRIu64" byte object "
+             "which is larger than the maximum supported %u bytes",
+             (uint64_t)size * (uint64_t)nelems, UINT32_MAX);
+      __builtin_unreachable();
+   }
+   else
+      return mspace_alloc(mspace, total);
+}
+
+DLLEXPORT
 void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
 {
-   char *buf = rt_tmp_alloc(str_len), *p = buf;
+   char *buf = rt_tlab_alloc(str_len), *p = buf;
    int pos = 0;
 
    for (; pos < str_len && isspace((int)raw_str[pos]); pos++)
@@ -1884,7 +1883,7 @@ void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
 DLLEXPORT
 void _int_to_string(int64_t value, ffi_uarray_t *u)
 {
-   char *buf = rt_tmp_alloc(20);
+   char *buf = rt_tlab_alloc(20);
    size_t len = checked_sprintf(buf, 20, "%"PRIi64, value);
 
    *u = wrap_str(buf, len);
@@ -1893,7 +1892,7 @@ void _int_to_string(int64_t value, ffi_uarray_t *u)
 DLLEXPORT
 void _real_to_string(double value, ffi_uarray_t *u)
 {
-   char *buf = rt_tmp_alloc(32);
+   char *buf = rt_tlab_alloc(32);
    size_t len = checked_sprintf(buf, 32, "%.*g", 17, value);
 
    *u = wrap_str(buf, len);
@@ -2039,7 +2038,7 @@ void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
    }
 
    size_t max_len = 16 + strlen(unit_str) + 1;
-   char *buf = rt_tmp_alloc(max_len);
+   char *buf = rt_tlab_alloc(max_len);
 
    size_t len;
    if (value % unit == 0)
@@ -2056,7 +2055,7 @@ DLLEXPORT
 void _std_to_string_real_digits(double value, int32_t digits, ffi_uarray_t *u)
 {
    size_t max_len = 32;
-   char *buf = rt_tmp_alloc(max_len);
+   char *buf = rt_tlab_alloc(max_len);
 
    size_t len;
    if (digits == 0)
@@ -2094,7 +2093,7 @@ void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
    }
 
    size_t max_len = 64;
-   char *buf = rt_tmp_alloc(max_len);
+   char *buf = rt_tlab_alloc(max_len);
    size_t len = checked_sprintf(buf, max_len, fmt_cstr, value);
    *u = wrap_str(buf, len);
 }
@@ -2236,7 +2235,7 @@ void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
    TRACE("_driving_value %s offset=%d count=%d",
          istr(tree_ident(s->where)), offset, count);
 
-   void *result = rt_tmp_alloc(s->shared.size);
+   void *result = rt_tlab_alloc(s->shared.size);
 
    uint8_t *p = result;
    rt_nexus_t *n = rt_split_nexus(s, offset, count);
@@ -2651,15 +2650,12 @@ static void rt_free_value(rt_nexus_t *n, rt_value_t v)
    }
 }
 
-static void *rt_tmp_alloc(size_t sz)
+static void *rt_tlab_alloc(size_t size)
 {
-   // Allocate sz bytes that will be freed by the active process
-
-   assert((_tmp_alloc & RT_ALIGN_MASK) == 0);
-
-   uint8_t *ptr = (uint8_t *)_tmp_stack + _tmp_alloc;
-   _tmp_alloc += (sz + RT_ALIGN_MASK) & ~RT_ALIGN_MASK;
-   return ptr;
+   if (tlab_valid(__nvc_tlab))
+      return tlab_alloc(&__nvc_tlab, size);
+   else
+      return mspace_alloc(mspace, size);
 }
 
 static void rt_sched_event(sens_list_t **list, rt_wakeable_t *obj, bool recur)
@@ -2728,9 +2724,10 @@ static void rt_scope_deps_cb(ident_t unit_name, void *__ctx)
    }
 
    rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
-   s->where = unit;
-   s->name  = tree_ident(unit);
-   s->kind  = SCOPE_PACKAGE;
+   s->where    = unit;
+   s->name     = tree_ident(unit);
+   s->kind     = SCOPE_PACKAGE;
+   s->privdata = mptr_new(mspace);
 
    hash_put(scopes, unit, s);
 
@@ -2749,9 +2746,10 @@ static void rt_scope_deps_cb(ident_t unit_name, void *__ctx)
 static rt_scope_t *rt_scope_for_block(tree_t block, ident_t prefix)
 {
    rt_scope_t *s = xcalloc(sizeof(rt_scope_t));
-   s->where = block;
-   s->name  = ident_prefix(prefix, tree_ident(block), '.');
-   s->kind  = SCOPE_INSTANCE;
+   s->where    = block;
+   s->name     = ident_prefix(prefix, tree_ident(block), '.');
+   s->kind     = SCOPE_INSTANCE;
+   s->privdata = mptr_new(mspace);
 
    hash_put(scopes, block, s);
 
@@ -2768,9 +2766,10 @@ static rt_scope_t *rt_scope_for_block(tree_t block, ident_t prefix)
       tree_t d = tree_decl(block, i);
       if (tree_kind(d) == T_PACK_INST) {
          rt_scope_t *p = xcalloc(sizeof(rt_scope_t));
-         p->where = d;
-         p->name  = ident_prefix(s->name, tree_ident(d), '.');
-         p->kind  = SCOPE_PACKAGE;
+         p->where    = d;
+         p->name     = ident_prefix(s->name, tree_ident(d), '.');
+         p->kind     = SCOPE_PACKAGE;
+         p->privdata = mptr_new(mspace);
 
          hash_put(scopes, d, p);
 
@@ -2786,7 +2785,7 @@ static rt_scope_t *rt_scope_for_block(tree_t block, ident_t prefix)
       case T_BLOCK:
          {
             rt_scope_t *c = rt_scope_for_block(t, s->name);
-            c->parent = s;
+            c->parent = s;;
 
             *childp = c;
             childp = &(c->chain);
@@ -2802,9 +2801,8 @@ static rt_scope_t *rt_scope_for_block(tree_t block, ident_t prefix)
             p->where     = t;
             p->name      = ident_prefix(path, ident_downcase(name), ':');
             p->proc_fn   = jit_find_symbol(istr(sym), true);
-            p->tmp_stack = NULL;
-            p->tmp_alloc = 0;
             p->scope     = s;
+            p->privdata  = mptr_new(mspace);
 
             p->wakeable.kind       = W_PROC;
             p->wakeable.wakeup_gen = 0;
@@ -2844,8 +2842,9 @@ static void rt_setup(tree_t top)
    scopes = hash_new(256, true);
 
    root = xcalloc(sizeof(rt_scope_t));
-   root->kind  = SCOPE_ROOT;
-   root->where = top;
+   root->kind     = SCOPE_ROOT;
+   root->where    = top;
+   root->privdata = mptr_new(mspace);
 
    rt_scope_t **tailp = &(root->child);
    tree_walk_deps(top, rt_scope_deps_cb, &tailp);
@@ -2859,16 +2858,14 @@ static void rt_reset(rt_proc_t *proc)
 {
    TRACE("reset process %s", istr(proc->name));
 
-   assert(proc->tmp_stack == NULL);
-
-   _tmp_stack = global_tmp_stack;
-   _tmp_alloc = global_tmp_alloc;
+   assert(!tlab_valid(proc->tlab));
+   assert(!tlab_valid(__nvc_tlab));   // Not used during reset
 
    active_proc = proc;
    active_scope = proc->scope;
 
-   proc->privdata = (*proc->proc_fn)(NULL, proc->scope->privdata);
-   global_tmp_alloc = _tmp_alloc;
+   void *p = (*proc->proc_fn)(NULL, mptr_get(mspace, proc->scope->privdata));
+   mptr_put(mspace, proc->privdata, p);
 }
 
 static void rt_run(rt_proc_t *proc)
@@ -2876,46 +2873,58 @@ static void rt_run(rt_proc_t *proc)
    TRACE("run %sprocess %s", proc->privdata ? "" :  "stateless ",
          istr(proc->name));
 
-   if (proc->tmp_stack != NULL) {
-      TRACE("using private stack at %p %d", proc->tmp_stack, proc->tmp_alloc);
-      _tmp_stack = proc->tmp_stack;
-      _tmp_alloc = proc->tmp_alloc;
+   tlab_t saved_tlab = {};
 
-      // Will be updated by _private_stack if suspending in procedure otherwise
-      // clear stack when process suspends
-      proc->tmp_alloc = 0;
+   if (tlab_valid(proc->tlab)) {
+      TRACE("using private TLAB at %p (%zu used)", proc->tlab.base,
+            proc->tlab.alloc - proc->tlab.base);
+      tlab_move(__nvc_tlab, saved_tlab);
+      tlab_move(proc->tlab, __nvc_tlab);
    }
-   else {
-      _tmp_stack = proc_tmp_stack;
-      _tmp_alloc = 0;
-   }
+   else if (!tlab_valid(__nvc_tlab))
+      tlab_acquire(mspace, &__nvc_tlab);
 
    active_proc = proc;
    active_scope = proc->scope;
 
    // Stateless processes have NULL privdata so pass a dummy pointer
    // value in so it can be distinguished from a reset
-   void *state = proc->privdata ?: (void *)-1;
+   void *state = mptr_get(mspace, proc->privdata) ?: (void *)-1;
 
-   (*proc->proc_fn)(state, proc->scope->privdata);
+   void *context = mptr_get(mspace, proc->scope->privdata);
+   (*proc->proc_fn)(state, context);
 
-   assert(proc->tmp_stack != NULL || _tmp_alloc == 0);
-   _tmp_alloc = 0;
+   active_proc = NULL;
+
+   if (tlab_valid(__nvc_tlab)) {
+      // The TLAB is still valid which means the process finished
+      // instead of suspending at a wait statement and none of the data
+      // inside it can be live anymore
+      assert(!tlab_valid(proc->tlab));
+      tlab_reset(__nvc_tlab);
+
+      if (tlab_valid(saved_tlab))   // Surplus TLAB
+         tlab_release(&saved_tlab);
+   }
+   else {
+      // Process must have claimed TLAB or otherwise it would be lost
+      assert(tlab_valid(proc->tlab));
+      if (tlab_valid(saved_tlab))
+         tlab_move(saved_tlab, __nvc_tlab);
+   }
 }
 
 static void *rt_call_module_reset(ident_t name, void *arg)
 {
    char *buf LOCAL = xasprintf("%s_reset", istr(name));
 
-   _tmp_stack = global_tmp_stack;
-   _tmp_alloc = global_tmp_alloc;
+   assert(!tlab_valid(__nvc_tlab));   // Not used during reset
 
    void *result = NULL;
    void *(*reset_fn)(void *) = jit_find_symbol(buf, false);
    if (reset_fn != NULL)
       result = (*reset_fn)(arg);
 
-   global_tmp_alloc = _tmp_alloc;
    return result;
 }
 
@@ -2991,7 +3000,7 @@ static void *rt_call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
    else if ((r->flags & R_MEMO) && nonnull == 1) {
       // Resolution function has been memoised so do a table lookup
 
-      void *resolved = rt_tmp_alloc(nexus->width * nexus->size);
+      void *resolved = rt_tlab_alloc(nexus->width * nexus->size);
 
       for (int j = 0; j < nexus->width; j++) {
          const int index = ((uint8_t *)p0)[j];
@@ -3003,7 +3012,7 @@ static void *rt_call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
    else if ((r->flags & R_MEMO) && nonnull == 2) {
       // Resolution function has been memoised so do a table lookup
 
-      void *resolved = rt_tmp_alloc(nexus->width * nexus->size);
+      void *resolved = rt_tlab_alloc(nexus->width * nexus->size);
 
       char *p1 = NULL;
       for (rt_source_t *s1 = s0->chain_input;
@@ -3020,25 +3029,26 @@ static void *rt_call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
       // Call resolution function of composite type
 
       rt_scope_t *scope = nexus->signal->parent;
+      const size_t outsz = scope->size;
       while (scope->parent->kind == SCOPE_SIGNAL)
          scope = scope->parent;
 
       TRACE("resolved composite signal needs %d bytes", scope->size);
 
       uint8_t *inputs LOCAL = xmalloc_array(nonnull, scope->size);
-      void *resolved = rt_tmp_alloc(scope->size);
+      void *resolved = rt_tlab_alloc(scope->size);
 
       rt_copy_sub_signal_sources(scope, inputs);
 
       ffi_uarray_t u = { inputs, { { r->ileft, nonnull } } };
-      ffi_call(&(r->closure), &u, sizeof(u), resolved, scope->size);
+      ffi_call(&(r->closure), &u, sizeof(u), resolved, outsz);
 
       const ptrdiff_t noff =
          nexus->resolved - (void *)nexus->signal->shared.data;
       return resolved + nexus->signal->shared.offset + noff;
    }
    else {
-      void *resolved = rt_tmp_alloc(nexus->width * nexus->size);
+      void *resolved = rt_tlab_alloc(nexus->width * nexus->size);
 
       for (int j = 0; j < nexus->width; j++) {
 #define CALL_RESOLUTION_FN(type) do {                                   \
@@ -3167,11 +3177,12 @@ static void rt_reset_scope(rt_scope_t *s)
    if (s->kind == SCOPE_INSTANCE || s->kind == SCOPE_PACKAGE) {
       TRACE("reset scope %s", istr(s->name));
 
-      void *privdata = s->parent ? s->parent->privdata : NULL;
+      void *context = s->parent ? mptr_get(mspace, s->parent->privdata) : NULL;
       active_scope = s;
       signals_tail = &(s->signals);
 
-      s->privdata = rt_call_module_reset(s->name, privdata);
+      void *p = rt_call_module_reset(s->name, context);
+      mptr_put(mspace, s->privdata, p);
 
       active_scope = NULL;
       signals_tail = NULL;
@@ -3258,8 +3269,6 @@ static void rt_initial(tree_t top)
    }
 
    heap_free(q);
-
-   TRACE("used %d bytes of global temporary stack", global_tmp_alloc);
 }
 
 static void rt_trace_wakeup(rt_wakeable_t *obj)
@@ -3481,7 +3490,9 @@ static void rt_update_driving(rt_nexus_t *nexus)
 
 static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
 {
-   assert(_tmp_alloc == 0);
+   // Updating drivers may involve calling resolution functions
+   if (!tlab_valid(__nvc_tlab))
+      tlab_acquire(mspace, &__nvc_tlab);
 
    if (likely(source != NULL)) {
       waveform_t *w_now  = &(source->u.driver.waveforms);
@@ -3499,7 +3510,7 @@ static void rt_update_driver(rt_nexus_t *nexus, rt_source_t *source)
    else  // Update due to force/release
       rt_update_driving(nexus);
 
-   _tmp_alloc = 0;
+   tlab_reset(__nvc_tlab);   // No allocations can be live past here
 }
 
 static void rt_update_implicit_signal(rt_implicit_t *imp)
@@ -3837,7 +3848,8 @@ static void rt_cleanup_scope(rt_scope_t *scope)
 {
    for (rt_proc_t *it = scope->procs, *tmp; it; it = tmp) {
       tmp = it->chain;
-      free(it->privdata);
+      mptr_free(mspace, &(it->privdata));
+      tlab_release(&(it->tlab));
       free(it);
    }
 
@@ -3856,7 +3868,7 @@ static void rt_cleanup_scope(rt_scope_t *scope)
       rt_cleanup_scope(it);
    }
 
-   free(scope->privdata);
+   mptr_free(mspace, &(scope->privdata));
    free(scope);
 }
 
@@ -3882,6 +3894,11 @@ static void rt_cleanup(void)
 
    rt_cleanup_scope(root);
    root = NULL;
+
+   tlab_release(&__nvc_tlab);
+
+   mspace_destroy(mspace);
+   mspace = NULL;
 
    nexuses = NULL;
    nexus_tail = NULL;
@@ -4051,10 +4068,12 @@ void rt_start_of_tool(tree_t top)
    watch_stack     = rt_alloc_stack_new(sizeof(rt_watch_t), "watch");
    callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
 
-   global_tmp_stack = rt_map_secondary_stack(OPT_GLOBAL_STACK);
-   proc_tmp_stack   = rt_map_secondary_stack(OPT_PROC_STACK);
+   const int heapsz = opt_get_int(OPT_HEAP_SIZE);
+   if (heapsz < 0x100000)
+      warnf("recommended heap size is at least 1M");
 
-   global_tmp_alloc = 0;
+   mspace = mspace_new(heapsz);
+   mspace_set_oom_handler(mspace, rt_mspace_oom_cb);
 
    rt_reset_coverage(top);
 
@@ -4074,6 +4093,8 @@ void rt_end_of_tool(tree_t top)
 
 int rt_run_sim(tree_t top, uint64_t stop_time)
 {
+   mspace_stack_limit(MSPACE_CURRENT_FRAME);
+
    rt_setup(top);
 
    int rc = setjmp(abort_env);

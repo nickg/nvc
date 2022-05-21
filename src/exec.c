@@ -2022,13 +2022,6 @@ static void eval_op_file_close(int op, eval_state_t *state)
    // No-op
 }
 
-static void eval_op_temp_stack_mark(int op, eval_state_t *state)
-{
-   value_t *result = eval_get_reg(vcode_get_result(op), state);
-   result->kind = VALUE_INTEGER;
-   result->integer = 0;
-}
-
 static void eval_vcode(eval_state_t *state)
 {
    state->op = 0;
@@ -2220,13 +2213,6 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_ABS:
          eval_op_abs(state->op, state);
-         break;
-
-      case VCODE_OP_TEMP_STACK_MARK:
-         eval_op_temp_stack_mark(state->op, state);
-         break;
-
-      case VCODE_OP_TEMP_STACK_RESTORE:
          break;
 
       case VCODE_OP_UARRAY_LEFT:

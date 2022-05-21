@@ -348,6 +348,19 @@ static LLVMTypeRef llvm_resolution_type(void)
                                   ARRAY_LEN(struct_elems), false);
 }
 
+static LLVMTypeRef llvm_tlab_type(void)
+{
+   LLVMTypeRef struct_elems[] = {
+      llvm_void_ptr(),     // Mspace object
+      llvm_void_ptr(),     // Base pointer
+      llvm_void_ptr(),     // Allocation pointer
+      llvm_void_ptr(),     // Limit pointer
+      llvm_int32_type(),   // Mptr object
+   };
+   return LLVMStructTypeInContext(llvm_context(), struct_elems,
+                                  ARRAY_LEN(struct_elems), false);
+}
+
 static LLVMTypeRef llvm_debug_locus_type(void)
 {
   LLVMTypeRef struct_elems[] = {
@@ -776,30 +789,84 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
       return value;
 }
 
-static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
+static LLVMValueRef cgen_mspace_alloc(LLVMValueRef bytes, LLVMValueRef nelems,
+                                      LLVMTypeRef type)
 {
-   LLVMValueRef _tmp_stack_ptr = LLVMGetNamedGlobal(module, "_tmp_stack");
-   LLVMValueRef _tmp_alloc_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
+   LLVMValueRef args[] = { bytes, nelems };
+   LLVMValueRef raw = LLVMBuildCall(builder, llvm_fn("__nvc_mspace_alloc"),
+                                    args, ARRAY_LEN(args), "");
+   return LLVMBuildPointerCast(builder, raw, LLVMPointerType(type, 0), "");
+}
 
-   LLVMValueRef alloc = LLVMBuildLoad(builder, _tmp_alloc_ptr, "alloc");
-   LLVMValueRef stack = LLVMBuildLoad(builder, _tmp_stack_ptr, "stack");
+static LLVMValueRef cgen_tlab_alloc(LLVMValueRef bytes, LLVMTypeRef type)
+{
+   LLVMValueRef fn = LLVMGetNamedFunction(module, "tlab_alloc");
+   if (fn == NULL) {
+      LLVMTypeRef atypes[] = { llvm_int32_type() };
+      LLVMTypeRef ftype = LLVMFunctionType(llvm_void_ptr(), atypes, 1, false);
+      fn = LLVMAddFunction(module, "tlab_alloc", ftype);
+      LLVMSetLinkage(fn, LLVMPrivateLinkage);
 
-   LLVMValueRef indexes[] = { llvm_zext_to_intptr(alloc) };
-   LLVMValueRef buf = LLVMBuildInBoundsGEP(builder, stack,
-                                           indexes, ARRAY_LEN(indexes), "");
+      LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
 
-   LLVMValueRef align_up =
-      LLVMBuildAdd(builder, bytes, llvm_int32(RT_ALIGN_MASK), "");
-   LLVMValueRef alloc_next =
-      LLVMBuildAnd(builder,
-                   LLVMBuildAdd(builder, alloc, align_up, "alloc_align_max"),
-                   llvm_int32(~RT_ALIGN_MASK),
-                   "alloc_next");
+      LLVMBasicBlockRef entry_bb = llvm_append_block(fn, "entry");
+      LLVMPositionBuilderAtEnd(builder, entry_bb);
 
-   LLVMBuildStore(builder, alloc_next, _tmp_alloc_ptr);
+      LLVMValueRef global = LLVMGetNamedGlobal(module, "__nvc_tlab");
+      if (global == NULL) {
+         global = LLVMAddGlobal(module, llvm_tlab_type(), "__nvc_tlab");
+         LLVMSetLinkage(global, LLVMExternalLinkage);
+      }
 
-   return LLVMBuildPointerCast(builder, buf,
-                               LLVMPointerType(type, 0), "tmp_buf");
+      LLVMValueRef alloc_ptr = LLVMBuildStructGEP(builder, global, 2, "");
+      LLVMValueRef limit_ptr = LLVMBuildStructGEP(builder, global, 3, "");
+
+      LLVMValueRef alloc = LLVMBuildLoad(builder, alloc_ptr, "");
+      LLVMValueRef limit = LLVMBuildLoad(builder, limit_ptr, "");
+
+      LLVMValueRef p0 = LLVMGetParam(fn, 0);
+
+      LLVMValueRef align_mask = llvm_int32(RT_ALIGN_MASK);
+      LLVMValueRef align_up =
+         LLVMBuildAnd(builder,
+                      LLVMBuildAdd(builder, p0, align_mask, ""),
+                      LLVMBuildNot(builder, align_mask, ""), "");
+
+      LLVMValueRef indexes[] = {
+         llvm_zext_to_intptr(align_up)
+      };
+      LLVMValueRef next = LLVMBuildInBoundsGEP(builder, alloc, indexes,
+                                               ARRAY_LEN(indexes), "");
+
+      LLVMValueRef over = LLVMBuildICmp(builder, LLVMIntUGT, next, limit, "");
+      LLVMValueRef null = LLVMBuildIsNull(builder, alloc, "");
+      LLVMValueRef slow = LLVMBuildOr(builder, null, over, "");
+
+      LLVMBasicBlockRef slow_bb = llvm_append_block(fn, "slow");
+      LLVMBasicBlockRef fast_bb = llvm_append_block(fn, "fast");
+
+      LLVMBuildCondBr(builder, slow, slow_bb, fast_bb);
+
+      LLVMPositionBuilderAtEnd(builder, slow_bb);
+
+      LLVMValueRef args[] = { p0, llvm_int32(1) };
+      LLVMValueRef result =
+         LLVMBuildCall(builder, llvm_fn("__nvc_mspace_alloc"),
+                       args, ARRAY_LEN(args), "");
+      LLVMBuildRet(builder, result);
+
+      LLVMPositionBuilderAtEnd(builder, fast_bb);
+
+      LLVMBuildStore(builder, next, alloc_ptr);
+      LLVMBuildRet(builder, alloc);
+
+      LLVMPositionBuilderAtEnd(builder, saved_bb);
+   }
+
+   LLVMValueRef args[] = { bytes };
+   LLVMValueRef raw = LLVMBuildCall(builder, fn, args, ARRAY_LEN(args), "");
+
+   return LLVMBuildPointerCast(builder, raw, LLVMPointerType(type, 0), "");
 }
 
 static LLVMValueRef cgen_uarray_dim(LLVMValueRef meta, int dim)
@@ -939,7 +1006,6 @@ static void cgen_op_return(int op, cgen_ctx_t *ctx)
 {
    switch (vcode_unit_kind()) {
    case VCODE_UNIT_PROCEDURE:
-      LLVMBuildFree(builder, ctx->state);
       LLVMBuildRet(builder, LLVMConstNull(llvm_void_ptr()));
       break;
 
@@ -1280,7 +1346,7 @@ static void cgen_op_wait(int op, cgen_ctx_t *ctx)
 
    if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
       assert(ctx->state != NULL);
-      LLVMBuildCall(builder, llvm_fn("_private_stack"), NULL, 0, "");
+      LLVMBuildCall(builder, llvm_fn("__nvc_claim_tlab"), NULL, 0, "");
       LLVMBuildRet(builder, llvm_void_cast(ctx->state));
    }
    else
@@ -1732,7 +1798,7 @@ static void cgen_op_alloca(int op, cgen_ctx_t *ctx)
    if (vcode_get_subkind(op) == VCODE_ALLOCA_HEAP) {
       LLVMValueRef bytes = LLVMBuildMul(builder, llvm_sizeof(type),
                                         cgen_get_arg(op, 0, ctx), "");
-      ctx->regs[result] = cgen_tmp_alloc(bytes, type);
+      ctx->regs[result] = cgen_tlab_alloc(bytes, type);
    }
    else {
       LLVMValueRef count = cgen_get_arg(op, 0, ctx);
@@ -2194,8 +2260,8 @@ static void cgen_op_protected_init(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_protected_free(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef obj = cgen_get_arg(op, 0, ctx);
-   LLVMBuildFree(builder, obj);
+   // No-op
+   // TODO: files allowed in protected types
 }
 
 static void cgen_net_flag(int op, const char *func, cgen_ctx_t *ctx)
@@ -2708,16 +2774,19 @@ static void cgen_op_null(int op, cgen_ctx_t *ctx)
 static void cgen_op_new(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   const char *name = cgen_reg_name(result);
 
    LLVMTypeRef lltype = cgen_type(vtype_pointed(vcode_reg_type(result)));
 
-   if (vcode_count_args(op) == 0)
-      ctx->regs[result] = LLVMBuildMalloc(builder, lltype, name);
-   else {
-      LLVMValueRef length = cgen_get_arg(op, 0, ctx);
-      ctx->regs[result] = LLVMBuildArrayMalloc(builder, lltype, length, name);
-   }
+   LLVMValueRef size = llvm_sizeof(lltype);
+
+   LLVMValueRef nelems;
+   if (vcode_count_args(op) > 0)
+      nelems = cgen_get_arg(op, 0, ctx);
+   else
+      nelems = llvm_int32(1);
+
+   ctx->regs[result] = cgen_mspace_alloc(size, nelems, lltype);
+   LLVMSetValueName(ctx->regs[result], cgen_reg_name(result));
 }
 
 static void cgen_op_all(int op, cgen_ctx_t *ctx)
@@ -2754,29 +2823,6 @@ static void cgen_op_deallocate(int op, cgen_ctx_t *ctx)
    LLVMValueRef ptr = cgen_get_arg(op, 0, ctx);
    LLVMValueRef access = LLVMBuildLoad(builder, ptr, "");
 
-   vcode_type_t vtype = vtype_pointed(vcode_reg_type(vcode_get_arg(op, 0)));
-   assert(vtype_kind(vtype) == VCODE_TYPE_ACCESS);
-
-   vcode_type_t pointee = vtype_pointed(vtype);
-   if (vtype_kind(pointee) == VCODE_TYPE_UARRAY) {
-      LLVMBasicBlockRef not_null_bb = llvm_append_block(ctx->fn, "");
-      LLVMBasicBlockRef null_bb = llvm_append_block(ctx->fn, "");
-
-      LLVMValueRef not_null = LLVMBuildIsNotNull(builder, access, "");
-      LLVMBuildCondBr(builder, not_null, not_null_bb, null_bb);
-
-      LLVMPositionBuilderAtEnd(builder, not_null_bb);
-
-      LLVMValueRef uarray = LLVMBuildLoad(builder, access, "");
-      LLVMValueRef data = LLVMBuildExtractValue(builder, uarray, 0, "");
-      LLVMBuildFree(builder, data);
-
-      LLVMBuildBr(builder, null_bb);
-
-      LLVMPositionBuilderAtEnd(builder, null_bb);
-   }
-
-   LLVMBuildFree(builder, access);
    LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(access)), ptr);
 }
 
@@ -3015,20 +3061,6 @@ static void cgen_op_cover_cond(int op, cgen_ctx_t *ctx)
    LLVMValueRef mask1 = LLVMBuildOr(builder, mask, or, "");
 
    LLVMBuildStore(builder, mask1, mask_ptr);
-}
-
-static void cgen_op_temp_stack_mark(int op, cgen_ctx_t *ctx)
-{
-   LLVMValueRef cur_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
-
-   vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildLoad(builder, cur_ptr, cgen_reg_name(result));
-}
-
-static void cgen_op_temp_stack_restore(int op, cgen_ctx_t *ctx)
-{
-   LLVMValueRef cur_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
-   LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cur_ptr);
 }
 
 static void cgen_op_range_null(int op, cgen_ctx_t *ctx)
@@ -3583,12 +3615,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_UARRAY_LEN:
       cgen_op_uarray_len(i, ctx);
       break;
-   case VCODE_OP_TEMP_STACK_MARK:
-      cgen_op_temp_stack_mark(i, ctx);
-      break;
-   case VCODE_OP_TEMP_STACK_RESTORE:
-      cgen_op_temp_stack_restore(i, ctx);
-      break;
    case VCODE_OP_NAND:
       cgen_op_nand(i, ctx);
       break;
@@ -3715,7 +3741,7 @@ static void cgen_locals(cgen_ctx_t *ctx)
       if (on_stack)
          ctx->state = LLVMBuildAlloca(builder, state_type, "state");
       else
-         ctx->state = cgen_tmp_alloc(llvm_sizeof(state_type), state_type);
+         ctx->state = cgen_tlab_alloc(llvm_sizeof(state_type), state_type);
 
       LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
       LLVMBuildStore(builder, ctx->display, context_ptr);
@@ -3726,7 +3752,7 @@ static void cgen_locals(cgen_ctx_t *ctx)
 
          LLVMValueRef mem;
          if (vcode_var_flags(i) & VAR_HEAP)
-            mem = cgen_tmp_alloc(llvm_sizeof(lltype), lltype);
+            mem = cgen_tlab_alloc(llvm_sizeof(lltype), lltype);
          else {
             LOCAL_TEXT_BUF name = tb_new();
             ident_str(vcode_var_name(i), name);
@@ -3903,7 +3929,8 @@ static void cgen_procedure(void)
 
    LLVMPositionBuilderAtEnd(builder, alloc_bb);
 
-   LLVMValueRef new_state = LLVMBuildMalloc(builder, state_type, "new_state");
+   LLVMValueRef new_state =
+      cgen_tlab_alloc(llvm_sizeof(state_type), state_type);
 
    LLVMValueRef display_ptr = LLVMBuildStructGEP(builder, new_state, 0, "");
    LLVMBuildStore(builder, LLVMGetParam(fn, 1), display_ptr);
@@ -3951,8 +3978,11 @@ static bool cgen_process_is_stateless(void)
       vcode_select_block(i);
 
       const int last_op = vcode_count_ops() - 1;
-      if (vcode_get_op(last_op) != VCODE_OP_WAIT)
-         continue;
+      switch (vcode_get_op(last_op)) {
+      case VCODE_OP_WAIT: break;
+      case VCODE_OP_PCALL: return false;
+      default: continue;
+      }
 
       if (vcode_get_target(last_op, 0) != 1) {
          // This a kludge: remove it when vcode optimises better
@@ -4058,7 +4088,8 @@ static void cgen_process(void)
 
    LLVMPositionBuilderAtEnd(builder, reset_bb);
 
-   LLVMValueRef priv_ptr = LLVMBuildMalloc(builder, state_type, "privdata");
+   LLVMValueRef priv_ptr =
+      cgen_mspace_alloc(llvm_sizeof(state_type), llvm_int32(1), state_type);
 
    LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, priv_ptr, 0, "");
    LLVMBuildStore(builder, display_arg, context_ptr);
@@ -4126,7 +4157,8 @@ static void cgen_reset_function(void)
    cgen_debug_push_func(&ctx);
    cgen_alloc_context(&ctx);
 
-   ctx.state = LLVMBuildMalloc(builder, state_type, "privdata");
+   ctx.state = cgen_mspace_alloc(llvm_sizeof(state_type), llvm_int32(1),
+                                 state_type);
 
    ctx.display = LLVMGetParam(ctx.fn, 0);
    LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
@@ -4507,6 +4539,15 @@ static LLVMValueRef cgen_support_fn(const char *name)
       cgen_add_func_attr(fn, FUNC_ATTR_NOCAPTURE, 3);
       cgen_add_func_attr(fn, FUNC_ATTR_READONLY, 3);
       cgen_add_func_attr(fn, FUNC_ATTR_NONNULL, 0);
+   }
+   else if (strcmp(name, "__nvc_mspace_alloc") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_int32_type(),
+         llvm_int32_type(),
+      };
+      fn = LLVMAddFunction(module, name,
+                           LLVMFunctionType(llvm_void_ptr(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "__nvc_assert_fail") == 0) {
       LLVMTypeRef args[] = {
@@ -4900,8 +4941,8 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(result_type,
                                             args, ARRAY_LEN(args), false));
    }
-   else if (strcmp(name, "_private_stack") == 0) {
-      fn = LLVMAddFunction(module, "_private_stack",
+   else if (strcmp(name, "__nvc_claim_tlab") == 0) {
+      fn = LLVMAddFunction(module, "__nvc_claim_tlab",
                            LLVMFunctionType(llvm_void_type(),
                                             NULL, 0, false));
    }
@@ -4910,17 +4951,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       cgen_add_func_attr(fn, FUNC_ATTR_NOUNWIND, -1);
 
    return fn;
-}
-
-static void cgen_tmp_stack(void)
-{
-   LLVMValueRef _tmp_stack =
-      LLVMAddGlobal(module, llvm_void_ptr(), "_tmp_stack");
-   LLVMSetLinkage(_tmp_stack, LLVMExternalLinkage);
-
-   LLVMValueRef _tmp_alloc =
-      LLVMAddGlobal(module, llvm_int32_type(), "_tmp_alloc");
-   LLVMSetLinkage(_tmp_alloc, LLVMExternalLinkage);
 }
 
 static void cgen_abi_version(void)
@@ -5075,7 +5105,6 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
    assert(units->count > 0);
    vcode_select_unit(units->items[0]);
 
-   cgen_tmp_stack();
    cgen_add_dwarf_flags();
 
    if (primary) {

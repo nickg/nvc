@@ -3952,7 +3952,6 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
 static void lower_report(tree_t stmt)
 {
    assert(!tree_has_value(stmt));
-   const int saved_mark = emit_temp_stack_mark();
 
    vcode_reg_t severity = lower_reify_expr(tree_severity(stmt));
 
@@ -3967,8 +3966,6 @@ static void lower_report(tree_t stmt)
 
    vcode_reg_t locus = lower_debug_locus(stmt);
    emit_report(message, length, severity, locus);
-
-   emit_temp_stack_restore(saved_mark);
 }
 
 static bool lower_can_hint_assert(tree_t expr)
@@ -3995,8 +3992,6 @@ static void lower_assert(tree_t stmt)
       lower_report(stmt);
       return;
    }
-
-   const int saved_mark = emit_temp_stack_mark();
 
    vcode_reg_t severity_reg = lower_reify_expr(tree_severity(stmt));
 
@@ -4044,8 +4039,6 @@ static void lower_assert(tree_t stmt)
       emit_jump(exit_bb);
       vcode_select_block(exit_bb);
    }
-
-   emit_temp_stack_restore(saved_mark);
 }
 
 static void lower_sched_event_field_cb(type_t type, vcode_reg_t ptr,
@@ -4443,8 +4436,6 @@ static void lower_var_assign(tree_t stmt)
    const bool is_scalar = type_is_scalar(type);
    const bool is_access = type_is_access(type);
 
-   const int saved_mark = emit_temp_stack_mark();
-
    if (is_scalar || is_access) {
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
       vcode_reg_t loaded_value = lower_reify(value_reg);
@@ -4523,8 +4514,6 @@ static void lower_var_assign(tree_t stmt)
          lower_for_each_field(type, target_reg, value_reg,
                               lower_copy_record_cb, value);
    }
-
-   emit_temp_stack_restore(saved_mark);
 }
 
 static void lower_signal_target_field_cb(type_t type, vcode_reg_t dst_ptr,
@@ -4676,8 +4665,6 @@ static void lower_disconnect_target(target_part_t **ptr, vcode_reg_t reject,
 
 static void lower_signal_assign(tree_t stmt)
 {
-   const int saved_mark = emit_temp_stack_mark();
-
    vcode_reg_t reject;
    if (tree_has_reject(stmt))
       reject = lower_reify_expr(tree_reject(stmt));
@@ -4758,8 +4745,6 @@ static void lower_signal_assign(tree_t stmt)
       if (tmp_var != VCODE_INVALID_VAR)
          lower_release_temp(tmp_var);
    }
-
-   emit_temp_stack_restore(saved_mark);
 }
 
 static void lower_force(tree_t stmt)
@@ -4804,9 +4789,7 @@ static void lower_release(tree_t stmt)
 
 static vcode_reg_t lower_test_expr(tree_t value)
 {
-   const int saved_mark = emit_temp_stack_mark();
    vcode_reg_t test = lower_reify_expr(value);
-   emit_temp_stack_restore(saved_mark);
    lower_cond_coverage(value, test);
    return test;
 }
@@ -4936,12 +4919,9 @@ static void lower_pcall(tree_t pcall)
 {
    tree_t decl = tree_ref(pcall);
 
-   const int saved_mark = emit_temp_stack_mark();
-
    const subprogram_kind_t kind = tree_subkind(decl);
    if (is_builtin(kind)) {
       lower_builtin(pcall, kind, NULL, NULL);
-      emit_temp_stack_restore(saved_mark);
       return;
    }
 
@@ -4967,27 +4947,15 @@ static void lower_pcall(tree_t pcall)
       APUSH(args, arg);
    }
 
-   if (use_fcall) {
+   if (use_fcall)
       emit_fcall(name, VCODE_INVALID_TYPE, VCODE_INVALID_TYPE,
                  cc, args.items, args.count);
-      emit_temp_stack_restore(saved_mark);
-   }
    else {
       vcode_block_t resume_bb = emit_block();
-
-      // Save the temp stack mark in a variable so it is preserved
-      // across suspend/resume
-      vcode_var_t tmp_mark_var;
-      ident_t tmp_mark_i = ident_new("tmp_mark");
-      if ((tmp_mark_var = vcode_find_var(tmp_mark_i)) == VCODE_INVALID_VAR)
-         tmp_mark_var = emit_var(vtype_offset(), vtype_offset(), tmp_mark_i, 0);
-      emit_store(saved_mark, tmp_mark_var);
 
       emit_pcall(name, args.items, args.count, resume_bb);
       vcode_select_block(resume_bb);
       emit_resume(name);
-
-      emit_temp_stack_restore(emit_load(tmp_mark_var));
    }
 }
 
@@ -5309,13 +5277,6 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    vcode_type_t voffset = vtype_offset();
 
-   const int saved_mark = emit_temp_stack_mark();
-   vcode_var_t mark_var = VCODE_INVALID_VAR;
-   if (!lower_is_wait_free(stmt)) {
-      mark_var = lower_temp_var("mark", voffset, voffset);
-      emit_store(saved_mark, mark_var);
-   }
-
    tree_t value = tree_value(stmt);
    type_t type = tree_type(value);
    vcode_reg_t val_reg = lower_expr(tree_value(stmt), EXPR_RVALUE);
@@ -5516,13 +5477,6 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
    emit_case(enc_reg, def_bb, cases, blocks, cptr);
 
    vcode_select_block(exit_bb);
-
-   if (mark_var != VCODE_INVALID_VAR) {
-      emit_temp_stack_restore(emit_load(mark_var));
-      lower_release_temp(mark_var);
-   }
-   else
-      emit_temp_stack_restore(saved_mark);
 }
 
 static void lower_case(tree_t stmt, loop_stack_t *loops)

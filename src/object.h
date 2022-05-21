@@ -123,11 +123,14 @@ enum {
    OBJECT_TAG_COUNT
 };
 
-#define OBJECT_PAGE_SZ       (1 << 16)
-#define OBJECT_PAGE_MASK     (OBJECT_PAGE_SZ - 1)
-#define OBJECT_ALIGN_BITS    4
-#define OBJECT_ALIGN         (1 << OBJECT_ALIGN_BITS)
-#define OBJECT_UNMAP_UNUSED  1
+#define OBJECT_PAGE_SZ    (1 << 16)
+#define OBJECT_PAGE_MASK  (OBJECT_PAGE_SZ - 1)
+#define OBJECT_ALIGN_BITS 4
+#define OBJECT_ALIGN      (1 << OBJECT_ALIGN_BITS)
+
+#ifndef __SANITIZE_ADDRESS__
+#define OBJECT_UNMAP_UNUSED 1
+#endif
 
 STATIC_ASSERT(OBJECT_ALIGN >= sizeof(double));
 

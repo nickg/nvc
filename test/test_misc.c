@@ -1,6 +1,26 @@
+//
+//  Copyright (C) 2021-2022  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
+#include "test_util.h"
 #include "hash.h"
+#include "mask.h"
 #include "rt/heap.h"
 
+#include <assert.h>
 #include <check.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -293,6 +313,126 @@ START_TEST(test_color_printf)
 }
 END_TEST
 
+static const int mask_size[] = { 15, 64, 101, 160, 256 };
+
+START_TEST(test_mask)
+{
+   bit_mask_t m;
+   mask_init(&m, mask_size[_i]);
+
+   fail_if(mask_test(&m, 0));
+   fail_if(mask_test(&m, 5));
+
+   ck_assert_int_eq(mask_popcount(&m), 0);
+
+   mask_set(&m, 4);
+   fail_unless(mask_test(&m, 4));
+   fail_if(mask_test(&m, 5));
+
+   ck_assert_int_eq(mask_popcount(&m), 1);
+
+   mask_clear(&m, 4);
+   fail_if(mask_test(&m, 4));
+
+   mask_setall(&m);
+   ck_assert_int_eq(mask_popcount(&m), mask_size[_i]);
+
+   mask_clearall(&m);
+   ck_assert_int_eq(mask_popcount(&m), 0);
+
+   mask_free(&m);
+}
+END_TEST
+
+START_TEST(test_set_clear_range)
+{
+   bit_mask_t m;
+   mask_init(&m, mask_size[_i]);
+
+   mask_set_range(&m, 1, 2);
+
+   fail_if(mask_test(&m, 0));
+   fail_unless(mask_test(&m, 1));
+   fail_unless(mask_test(&m, 2));
+   fail_if(mask_test(&m, 3));
+   ck_assert_int_eq(mask_popcount(&m), 2);
+
+   if (mask_size[_i] > 64) {
+      mask_set_range(&m, 70, 3);
+
+      fail_if(mask_test(&m, 69));
+      fail_unless(mask_test(&m, 70));
+      fail_unless(mask_test(&m, 71));
+      fail_unless(mask_test(&m, 72));
+      fail_if(mask_test(&m, 73));
+      ck_assert_int_eq(mask_popcount(&m), 5);
+
+      mask_clear_range(&m, 71, 2);
+
+      fail_if(mask_test(&m, 71));
+      ck_assert_int_eq(mask_popcount(&m), 3);
+   }
+
+   mask_free(&m);
+}
+END_TEST
+
+START_TEST(test_count_clear)
+{
+   bit_mask_t m;
+   mask_init(&m, mask_size[_i]);
+
+   mask_set_range(&m, 3, 2);
+
+   ck_assert_int_eq(mask_count_clear(&m, 0), 3);
+   ck_assert_int_eq(mask_count_clear(&m, 1), 2);
+   ck_assert_int_eq(mask_count_clear(&m, 2), 1);
+   ck_assert_int_eq(mask_count_clear(&m, 3), 0);
+   ck_assert_int_eq(mask_count_clear(&m, 4), 0);
+   ck_assert_int_eq(mask_count_clear(&m, 5), mask_size[_i] - 5);
+
+   if (mask_size[_i] > 64) {
+      mask_clearall(&m);
+      mask_set_range(&m, 70, 3);
+
+      ck_assert_int_eq(mask_count_clear(&m, 0), 70);
+      ck_assert_int_eq(mask_count_clear(&m, 64), 6);
+      ck_assert_int_eq(mask_count_clear(&m, mask_size[_i] - 1), 1);
+   }
+
+   mask_free(&m);
+}
+END_TEST
+
+START_TEST(test_scan_backwards)
+{
+   bit_mask_t m;
+   mask_init(&m, mask_size[_i]);
+
+   mask_set_range(&m, 3, 2);
+
+   ck_assert_int_eq(mask_scan_backwards(&m, 0), -1);
+   ck_assert_int_eq(mask_scan_backwards(&m, 5), 4);
+   ck_assert_int_eq(mask_scan_backwards(&m, 4), 4);
+   ck_assert_int_eq(mask_scan_backwards(&m, 3), 3);
+   ck_assert_int_eq(mask_scan_backwards(&m, 2), -1);
+   ck_assert_int_eq(mask_scan_backwards(&m, mask_size[_i] - 1), 4);
+
+   if (mask_size[_i] > 64) {
+      mask_set_range(&m, 70, 3);
+
+      ck_assert_int_eq(mask_scan_backwards(&m, 0), -1);
+      ck_assert_int_eq(mask_scan_backwards(&m, 75), 72);
+      ck_assert_int_eq(mask_scan_backwards(&m, 72), 72);
+      ck_assert_int_eq(mask_scan_backwards(&m, 71), 71);
+      ck_assert_int_eq(mask_scan_backwards(&m, 69), 4);
+      ck_assert_int_eq(mask_scan_backwards(&m, mask_size[_i] - 1), 72);
+   }
+
+   mask_free(&m);
+}
+END_TEST
+
 static volatile int counter = 0;
 
 static void *thread_fn(void *__arg)
@@ -321,6 +461,8 @@ START_TEST(test_threads)
       thread_join(threads[i]);
 
    ck_assert_int_eq(counter, N * 10000);
+
+   mutex_destroy(mtx);
 }
 END_TEST
 
@@ -350,8 +492,15 @@ Suite *get_misc_tests(void)
    suite_add_tcase(s, tc_heap);
 
    TCase *tc_util = tcase_create("util");
-   tcase_add_test(tc_heap, test_color_printf);
+   tcase_add_test(tc_util, test_color_printf);
    suite_add_tcase(s, tc_util);
+
+   TCase *tc_mask = tcase_create("mask");
+   tcase_add_loop_test(tc_mask, test_mask, 0, ARRAY_LEN(mask_size));
+   tcase_add_loop_test(tc_mask, test_set_clear_range, 0, ARRAY_LEN(mask_size));
+   tcase_add_loop_test(tc_mask, test_count_clear, 0, ARRAY_LEN(mask_size));
+   tcase_add_loop_test(tc_mask, test_scan_backwards, 0, ARRAY_LEN(mask_size));
+   suite_add_tcase(s, tc_mask);
 
    TCase *tc_thread = tcase_create("thread");
    tcase_add_test(tc_heap, test_threads);

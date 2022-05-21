@@ -441,6 +441,13 @@ void diag_trace(diag_t *d, const loc_t *loc, const char *fmt, ...)
       .priority = d->hints.count,
    };
    APUSH(d->trace, h);
+
+   if (loc != NULL && d->hints.count == 0) {
+      diag_hint_t hint = {
+         .loc   = *loc
+      };
+      APUSH(d->hints, hint);
+   }
 }
 
 void diag_lrm(diag_t *d, vhdl_standard_t std, const char *section)

@@ -1,0 +1,4 @@
+out of memory attempting to allocate 64 byte object
+Note: the current heap size is 1048576 bytes which you can increase with the -H option, for example -H 2m
+Procedure DO_TEST [REC_PTR]
+Process :access10:p1

@@ -45,6 +45,7 @@ include lib/synopsys/Makemodule.am
 include tools/Makemodule.am
 
 compile-commands:
-	bear -- make -C $(top_builddir) clean $(bin_PROGRAMS) $(check_PROGRAMS)
+	$(MAKE) -C $(top_builddir) clean
+	bear -- $(MAKE) -j -C $(top_builddir) $(bin_PROGRAMS) $(check_PROGRAMS)
 
 .PHONY: bootstrap cov-reset cov-report clean-libs clean-test compile-commands

@@ -5,6 +5,7 @@
   # Exported from src/rt/rtkern.c
   __nvc_alias_signal;
   __nvc_assert_fail;
+  __nvc_claim_tlab;
   __nvc_div_zero;
   __nvc_drive_signal;
   __nvc_elab_order_fail;
@@ -15,6 +16,7 @@
   __nvc_length_fail;
   __nvc_map_const;
   __nvc_map_signal;
+  __nvc_mspace_alloc;
   __nvc_null_deref;
   __nvc_overflow;
   __nvc_pop_scope;
@@ -23,6 +25,7 @@
   __nvc_release;
   __nvc_report;
   __nvc_resolve_signal;
+  __nvc_tlab;
   __nvc_unreachable;
   _assert_fail;
   _canon_value;
@@ -45,7 +48,6 @@
   _link_signal;
   _null_deref;
   _nvc_ieee_warnings;
-  _private_stack;
   _real_to_string;
   _sched_event;
   _sched_process;
@@ -63,8 +65,6 @@
   _string_to_real;
   _test_net_active;
   _test_net_event;
-  _tmp_alloc;
-  _tmp_stack;
 
   # Exported by VHPI
   vhpiFS;

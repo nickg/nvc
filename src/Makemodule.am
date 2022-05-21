@@ -46,7 +46,9 @@ lib_libnvc_a_SOURCES = \
 	src/diag.h \
 	src/diag.c \
 	src/scan.h \
-	src/scan.c
+	src/scan.c \
+	src/mask.h \
+	src/mask.c
 
 lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
@@ -58,7 +60,6 @@ EXTRA_bin_nvc_DEPENDENCIES = src/symbols.txt
 bin_nvc_LDADD = \
 	lib/libnvc.a \
 	lib/libcgen.a \
-	lib/librt.a \
 	lib/libfst.a \
 	lib/libfastlz.a \
 	lib/libjson.a \

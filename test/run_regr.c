@@ -84,7 +84,7 @@ struct test {
    char      *relax;
    char      *work;
    unsigned   olevel;
-   char      *pmem;
+   char      *heapsz;
 };
 
 struct arglist {
@@ -327,8 +327,8 @@ static bool parse_test_list(int argc, char **argv)
                goto out_close;
             }
          }
-         else if (strncmp(opt, "P=", 2) == 0)
-            test->pmem = strdup(opt + 2);
+         else if (strncmp(opt, "H=", 2) == 0)
+            test->heapsz = strdup(opt + 2);
          else if (strcmp(opt, "cover") == 0)
             test->flags |= F_COVER;
          else if (strncmp(opt, "g", 1) == 0) {
@@ -638,8 +638,8 @@ static bool run_test(test_t *test)
       if (test->flags & F_WORKLIB)
          push_arg(&args, "--work=%s", test->work);
 
-      if (test->pmem != NULL)
-         push_arg(&args, "-P%s", test->pmem);
+      if (test->heapsz != NULL)
+         push_arg(&args, "-H%s", test->heapsz);
 
       push_arg(&args, "-a");
       push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.vhd",
@@ -664,6 +664,9 @@ static bool run_test(test_t *test)
 
          push_arg(&args, "%s/nvc%s", bin_dir, EXEEXT);
          push_std(test, &args);
+
+         if (test->heapsz != NULL)
+            push_arg(&args, "-H%s", test->heapsz);
       }
 
       push_arg(&args, "-r");

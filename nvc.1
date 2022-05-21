@@ -84,19 +84,20 @@ elaborate command.
 .It Fl -force-init
 Initialise a library work directory even if it already exists and is
 non-empty.
-.\" -G
-.It Fl G Ar size
-Set the size in bytes of the global secondary stack.  This area of
-memory is used for allocating large or dynamically sized objects during
-simulation initialisation.  The default is eight megabytes but you may
-need to increase this when initialising very large arrays such as
-memories.  The
-.Ar size
-parameter takes an optional k, m, or g suffix to indicate kilobytes,
-megabytes, and gigabytes respectively.
 .\" --help
 .It Fl h , -help
 Display usage summary.
+.\" -H
+.It Fl H Ar size
+Set the maximum size in bytes of the simulation heap.  This area of
+memory is used for temporary allocations during process execution and
+dynamic allocations by the VHDL
+.Ql new
+operator.  The
+.Ar size
+parameter takes an optional k, m, or g suffix to indicate kilobytes,
+megabytes, and gigabytes respectively.  The default size is 16
+megabytes.
 .\" --ignore-time
 .It Fl -ignore-time
 Do not check the timestamps of source files when the corresponding
@@ -128,16 +129,6 @@ Libraries mapped in this way will not use the normal search path.
 Select the format used for printing error and informational messages.
 The default full message format is designed for readability whereas the
 compact messages can be easily parsed by tools.
-.\" -P
-.It Fl P Ar size
-Set the size in bytes of the process secondary stack.  This area of
-memory is used for temporary allocations during process execution and
-for saving the state of suspended processes.  The default size is 64
-kilobytes but this may be insufficient when working with large
-dynamically sized arrays.  The
-.Ar size
-parameter takes an optional k, m, or g suffix to indicate kilobytes,
-megabytes, and gigabytes respectively.
 .\" --std
 .It Fl -std Ns = Ns Ar rev
 Select the VHDL standard revision to use.  VHDL standard revisions are

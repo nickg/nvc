@@ -105,8 +105,6 @@ typedef enum {
    VCODE_OP_COVER_STMT,
    VCODE_OP_COVER_COND,
    VCODE_OP_UARRAY_LEN,
-   VCODE_OP_TEMP_STACK_MARK,
-   VCODE_OP_TEMP_STACK_RESTORE,
    VCODE_OP_UNDEFINED,
    VCODE_OP_RANGE_NULL,
    VCODE_OP_VAR_UPREF,
@@ -474,8 +472,6 @@ void emit_zero_check(vcode_reg_t denom, vcode_reg_t locus);
 void emit_debug_out(vcode_reg_t reg);
 void emit_cover_stmt(uint32_t tag);
 void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub);
-vcode_reg_t emit_temp_stack_mark(void);
-void emit_temp_stack_restore(vcode_reg_t reg);
 vcode_reg_t emit_undefined(vcode_type_t type);
 void emit_debug_info(const loc_t *loc);
 vcode_reg_t emit_range_null(vcode_reg_t left, vcode_reg_t right,

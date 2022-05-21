@@ -235,8 +235,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ALL:
       case VCODE_OP_DEALLOCATE:
       case VCODE_OP_CASE:
-      case VCODE_OP_TEMP_STACK_MARK:
-      case VCODE_OP_TEMP_STACK_RESTORE:
       case VCODE_OP_INIT_SIGNAL:
       case VCODE_OP_MAP_SIGNAL:
       case VCODE_OP_DRIVE_SIGNAL:
@@ -387,14 +385,12 @@ START_TEST(test_wait1)
    CHECK_BB(0);
 
    const check_bb_t bb1[] = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_WAIT,  .target = 2 }
    };
@@ -402,14 +398,12 @@ START_TEST(test_wait1)
    CHECK_BB(1);
 
    const check_bb_t bb2[] = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_WAIT,  .target = 3 }
    };
@@ -417,14 +411,12 @@ START_TEST(test_wait1)
    CHECK_BB(2);
 
    const check_bb_t bb3[] = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 1000001 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT,  .target = 4 }
    };
 
@@ -952,11 +944,9 @@ START_TEST(test_func1)
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_STORE, .name = "R" },
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_FCALL, .func = "WORK.FUNC1.ADD1(I)I" },
       { VCODE_OP_STORE, .name = "R" },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
@@ -1005,7 +995,6 @@ START_TEST(test_arrayop1)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_INDEX, .name = "X" },
@@ -1021,7 +1010,6 @@ START_TEST(test_arrayop1)
       { VCODE_OP_FCALL, .func = "STD.STANDARD.\"<\"(QQ)B" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
@@ -1045,7 +1033,6 @@ START_TEST(test_array1)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
@@ -1060,7 +1047,6 @@ START_TEST(test_array1)
       { VCODE_OP_FCALL, .func = "STD.STANDARD.\"=\"(QQ)B" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 },
    };
 
@@ -1088,7 +1074,6 @@ START_TEST(test_nest1)
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONTEXT_UPREF, .hops = 0 },
          { VCODE_OP_CONST, .value = 5 },
@@ -1097,7 +1082,6 @@ START_TEST(test_nest1)
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
-         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_WAIT, .target = 2 }
       };
 
@@ -1268,7 +1252,6 @@ START_TEST(test_assign3)
       { VCODE_OP_CONST, .value = 8 },
       { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_COPY },
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 7 },
@@ -1279,7 +1262,6 @@ START_TEST(test_assign3)
       { VCODE_OP_FCALL, .func = "STD.STANDARD.\"/=\"(QQ)B" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 },
    };
 
@@ -1333,12 +1315,10 @@ START_TEST(test_record1)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_FCALL, .func = "*WORK.RECORD1-TEST.\"=\"(" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
@@ -1444,22 +1424,18 @@ START_TEST(test_proc1)
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
          { VCODE_OP_FCALL, .func = "WORK.PROC1.ADD1(II)" },
-         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
-         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_FCALL, .func = "WORK.PROC1.ADD1(II)" },
-         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -1600,10 +1576,8 @@ START_TEST(test_proc3)
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
          { VCODE_OP_INDEX, .name = "X" },
-         { VCODE_OP_STORE, .name = "tmp_mark" },
          { VCODE_OP_PCALL, .func = "WORK.PROC3.P1(I)", .target = 2 }
       };
 
@@ -1611,8 +1585,6 @@ START_TEST(test_proc3)
 
       EXPECT_BB(2) = {
          { VCODE_OP_RESUME, .func = "WORK.PROC3.P1(I)" },
-         { VCODE_OP_LOAD, .name = "tmp_mark" },
-         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_WAIT, .target = 3 }
       };
 
@@ -1681,7 +1653,6 @@ START_TEST(test_slice1)
       { VCODE_OP_CONST_ARRAY, .length = 2 },
       { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_COPY },
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_ARRAY_REF },
@@ -1694,7 +1665,6 @@ START_TEST(test_slice1)
       { VCODE_OP_FCALL, .func="*WORK.SLICE1-TEST.\"=\"" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_WAIT, .target = 2 },
    };
@@ -1829,7 +1799,6 @@ START_TEST(test_func5)
       vcode_select_unit(v0);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
          { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
@@ -1839,13 +1808,10 @@ START_TEST(test_func5)
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
-         { VCODE_OP_TEMP_STACK_RESTORE },
-         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_FCALL, .func = "WORK.FUNC5.EVENT(sI)B" },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
-         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_WAIT, .target = 2 }
       };
 
@@ -2484,7 +2450,6 @@ START_TEST(test_issue203)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_LINK_PACKAGE, .name = "STD.TEXTIO" },
       { VCODE_OP_LINK_VAR, .name = "OUTPUT" },
       { VCODE_OP_CONST, .value = 104 },
@@ -2503,7 +2468,6 @@ START_TEST(test_issue203)
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_FILE_WRITE },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_RETURN }
    };
 
@@ -2792,10 +2756,8 @@ START_TEST(test_dealloc)
    vcode_select_unit(v1);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_FCALL, .func = "WORK.PACK.ANOTHER_PROC(13WORK.PACK.PTR)" },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_RETURN }
    };
 
@@ -2837,11 +2799,9 @@ START_TEST(test_issue333)
       { VCODE_OP_ALL },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_STORE, .name = "L" },
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_INDEX, .name = "L" },
       { VCODE_OP_FCALL, .func = "*WORK.ISSUE333.PROC(" },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_CONST, .value = 50 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
       { VCODE_OP_ADDRESS_OF },
@@ -3068,7 +3028,6 @@ START_TEST(test_hintbug)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
@@ -3081,8 +3040,6 @@ START_TEST(test_hintbug)
       { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_LENGTH_CHECK },
       { VCODE_OP_COPY },
-      { VCODE_OP_TEMP_STACK_RESTORE },
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 1 },
@@ -3100,7 +3057,6 @@ START_TEST(test_hintbug)
       { VCODE_OP_FCALL , .func = "STD.STANDARD.\"=\"(QQ)B" },
       { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_ASSERT },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
@@ -3119,7 +3075,6 @@ START_TEST(test_issue351)
    vcode_select_unit(v0);
 
    EXPECT_BB(4) = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_CONTEXT_UPREF, .hops = 1 },
       { VCODE_OP_LOAD, .name = "I.LOOP1" },
       { VCODE_OP_CONST, .value = 3 },
@@ -3129,7 +3084,6 @@ START_TEST(test_issue351)
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_WRAP },
       { VCODE_OP_FCALL, .func = "*WORK.ISSUE351.DUMP_WORDS" },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_LOAD, .name = "*right" },
       { VCODE_OP_LOAD, .name = "*step" },
       { VCODE_OP_LOAD, .name = "I.LOOP1" },
@@ -3547,8 +3501,6 @@ START_TEST(test_vital1)
    EXPECT_BB(4) = {
       { VCODE_OP_RESUME,
         .func = "WORK.VITAL_TIMING.PROC(22WORK.VITAL_TIMING.LINEI)" },
-      { VCODE_OP_LOAD, .name = "tmp_mark" },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_LOAD, .name = "*right" },
       { VCODE_OP_LOAD, .name = "*step" },
       { VCODE_OP_LOAD, .name = "I.L1" },
@@ -3579,7 +3531,6 @@ START_TEST(test_case1)
    fail_unless(vcode_count_vars() == 2);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_RESOLVED },
@@ -3723,7 +3674,6 @@ START_TEST(test_vital2)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_TEMP_STACK_MARK },
       { VCODE_OP_RECORD_REF, .field = 8 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_DEBUG_LOCUS },
@@ -4129,7 +4079,6 @@ START_TEST(test_array2)
       vcode_select_unit(vu);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_TEMP_STACK_MARK },
          { VCODE_OP_INDEX, .name = "V" },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 4 },
@@ -4167,7 +4116,6 @@ START_TEST(test_array2)
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_ARRAY_REF },
          { VCODE_OP_STORE_INDIRECT },
-         { VCODE_OP_TEMP_STACK_RESTORE },
          { VCODE_OP_WAIT, .target = 4 },
       };
 
@@ -4398,7 +4346,6 @@ START_TEST(test_osvvm2)
       { VCODE_OP_ALL },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_STORE, .name = "FIELDNAME" },
-      { VCODE_OP_TEMP_STACK_RESTORE },
       { VCODE_OP_RETURN },
    };
 

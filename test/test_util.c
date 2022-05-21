@@ -73,6 +73,7 @@ static void setup(void)
    opt_set_int(OPT_ERROR_LIMIT, -1);
    opt_set_int(OPT_ARENA_SIZE, 1 << 20);
    opt_set_str(OPT_GC_VERBOSE, NULL);
+   opt_set_str(OPT_OBJECT_VERBOSE, NULL);
    opt_set_str(OPT_ELAB_VERBOSE, NULL);
    opt_set_str(OPT_EVAL_VERBOSE, NULL);
    opt_set_str(OPT_CPROP_VERBOSE, NULL);
