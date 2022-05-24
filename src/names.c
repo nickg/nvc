@@ -2585,12 +2585,8 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
       {
          type_t type;
          if (!type_set_uniq(tab, &type)) {
-            type_set_restrict(tab, type_is_access);
-
-            if (!type_set_uniq(tab, &type)) {
-               error_at(tree_loc(lit), "invalid use of null expression");
-               type = type_new(T_NONE);
-            }
+            error_at(tree_loc(lit), "invalid use of null expression");
+            type = type_new(T_NONE);
          }
 
          tree_set_type(lit, type);
@@ -2921,22 +2917,6 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
    return type;
 }
 
-static bool can_have_nested_aggregate(type_t type)
-{
-   if (type_is_array(type))
-      return dimension_of(type) > 1 || type_is_composite(type_elem(type));
-   else if (type_is_record(type))
-      return type_fields(type) > 0
-         && type_is_composite(tree_type(type_field(type, 0)));
-   else
-      return false;
-}
-
-static bool cannot_have_nested_aggregate(type_t type)
-{
-   return !can_have_nested_aggregate(type);
-}
-
 static type_t solve_aggregate(nametab_t *tab, tree_t agg)
 {
    if (tree_has_type(agg))
@@ -2962,21 +2942,13 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
       type = type_new(T_NONE);
    }
    else if (!type_set_uniq(tab, &type)) {
-      tree_t a0 = tree_value(tree_assoc(agg, 0));
-      if (tree_kind(a0) == T_AGGREGATE)
-         type_set_restrict(tab, can_have_nested_aggregate);
-      else
-         type_set_restrict(tab, cannot_have_nested_aggregate);
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
+      diag_printf(d, "type of aggregate cannot be determined "
+                  "from the surrounding context");
+      type_set_hint(tab, d, agg);
 
-      if (!type_set_uniq(tab, &type)) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
-         diag_printf(d, "type of aggregate cannot be determined "
-                     "from the surrounding context");
-         type_set_hint(tab, d, agg);
-
-         diag_emit(d);
-         type = type_new(T_NONE);
-      }
+      diag_emit(d);
+      type = type_new(T_NONE);
    }
 
    tree_set_type(agg, type);
@@ -3064,9 +3036,6 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
          type_set_add(tab, type_elem(type), NULL);
       else
          type_set_add(tab, array_aggregate_type(type, 1), NULL);
-
-      if (standard() >= STD_08)
-         type_set_add(tab, type_base_recur(type), NULL);
 
       type_t index_type = index_type_of(type, 0);
 

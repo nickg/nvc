@@ -406,7 +406,6 @@ START_TEST(test_aggregate)
       { 24, "missing choice for element 3 of INTEGER_VECTOR with index "
         "type NATURAL range 1 to 3" },
       { 25, "discrete range has 4 elements but length of expression is 3" },
-      { 29, "discrete range has 4 elements but length of expression is 3" },
       { -1, NULL }
    };
    expect_errors(expect);

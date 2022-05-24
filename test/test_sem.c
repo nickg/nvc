@@ -2555,11 +2555,11 @@ START_TEST(test_agg2008)
         "INTEGER_VECTOR" },
       { 17, "type of named association BOOLEAN does not match aggregate "
         "element type INTEGER" },
+      { 18, "aggregate has non-composite type INTEGER" },
       { 19, "type of named association INTEGER_VECTOR does not match "
         "aggregate element type INTEGER" },
       { 30, "second dimension of 2 dimensional array type INT2D must be "
         "specified by a sub-aggregate, string, or bit-string literal" },
-      { 50, "sorry, array element constraints are not supported yet" },
       { -1, NULL }
    };
    expect_errors(expect);

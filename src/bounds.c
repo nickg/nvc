@@ -626,7 +626,7 @@ static void bounds_check_aggregate(tree_t t)
                   known_elem_count = false;
 
                if (count > 1 && known_elem_count && ihigh - ilow + 1 != count)
-                  bounds_error(a, "discrete range has %"PRIi64" elements but "
+                  bounds_error(t, "discrete range has %"PRIi64" elements but "
                                "length of expression is %"PRIi64,
                                ihigh - ilow + 1, count);
             }
