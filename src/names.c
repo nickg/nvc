@@ -2585,8 +2585,12 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
       {
          type_t type;
          if (!type_set_uniq(tab, &type)) {
-            error_at(tree_loc(lit), "invalid use of null expression");
-            type = type_new(T_NONE);
+            type_set_restrict(tab, type_is_access);
+
+            if (!type_set_uniq(tab, &type)) {
+               error_at(tree_loc(lit), "invalid use of null expression");
+               type = type_new(T_NONE);
+            }
          }
 
          tree_set_type(lit, type);
@@ -3032,8 +3036,13 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
       type_set_push(tab);
 
       const int ndims = dimension_of(type);
-      if (ndims == 1)
-         type_set_add(tab, type_elem(type), NULL);
+      if (ndims == 1) {
+         type_t elem = type_elem(type);
+         type_set_add(tab, elem, NULL);
+
+         if (standard() >= STD_08 && !type_is_composite(elem))
+            type_set_add(tab, type_base_recur(type), NULL);
+      }
       else
          type_set_add(tab, array_aggregate_type(type, 1), NULL);
 
