@@ -15,7 +15,7 @@ begin
         x := ( 1, 2, y, 3 );            -- OK
         z := ( 1, 2, 1.2 );             -- Error
         z := ( 1 => true, 2 => 5 );     -- Error
-        x := ( (1, 2), z );             -- Error (but perhaps shouldn't be?)
+        x := ( (1, 2), z );             -- OK
         x := ( 1 => y, 2 => z );        -- Error
         x := ( 1 to 4 => x );           -- OK
         x := ( 1 to 2 => y, 3 to 4 => z );  -- OK
@@ -28,6 +28,28 @@ begin
     begin
         x := ( (1, 2), (3, 4) );        -- OK
         x := ( x, x );                  -- Error
+    end process;
+
+    b2: block is
+        signal vec : bit_vector(7 downto 0);
+    begin
+        vec <= (3 downto 0 => "111", others => '0'); -- OK (at parse time)
+    end block;
+
+    p3: process is
+        type int_ptr is access integer;
+        type int_ptr_array is array (integer range <>) of int_ptr;
+        type int_ptr_array_ptr is access int_ptr_array;
+        variable x : int_ptr_array_ptr;
+    begin
+        x.all := (null, null, null);     -- OK
+    end process;
+
+    p4: process is
+        type int_vec2 is array (natural range <>) of integer_vector;  -- OK
+        constant a : int_vec2(1 to 2)(1 to 2) := (  -- OK
+            ((1, 2), (3, 4)), ((5, 6), (7, 8)) );
+    begin
     end process;
 
 end architecture;

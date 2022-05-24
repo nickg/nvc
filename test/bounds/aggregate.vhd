@@ -25,6 +25,8 @@ architecture test of aggregate is
     constant c12 : integer_vector(1 to 4) := (1 to 4 => c6);  -- Error
     constant c13 : integer_vector(1 to 4) :=
         ( integer_vector'(1, 2), integer_vector'(3, 4) );  -- OK
+    constant c14 : bit_vector(7 downto 0) :=
+        (3 downto 0 => "111", others => '0');   -- Error
 begin
 
 end architecture;
