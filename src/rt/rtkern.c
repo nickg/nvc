@@ -3444,8 +3444,6 @@ static void rt_enqueue_effective(rt_nexus_t *nexus)
 
 static void rt_update_driving(rt_nexus_t *nexus)
 {
-   __builtin_prefetch(nexus->outputs);
-
    const void *value = rt_driving_value(nexus);
    const size_t valuesz = nexus->size * nexus->width;
 
