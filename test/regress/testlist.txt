@@ -568,3 +568,4 @@ case13          fail,gold,2008
 access8         fail,gold
 access9         normal
 access10        fail,gold,H=1m
+record32        normal,2008

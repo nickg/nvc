@@ -5171,8 +5171,10 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
    if (getenv("NVC_CGEN_VERBOSE") != NULL)
       LLVMDumpModule(module);
 
+#ifndef NDEBUG
    if (LLVMVerifyModule(module, LLVMPrintMessageAction, NULL))
       fatal("LLVM verification failed");
+#endif
 
    cgen_optimise();
    cgen_native(tm_ref, obj_path);
