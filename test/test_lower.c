@@ -2408,8 +2408,8 @@ START_TEST(test_sigvar)
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_LENGTH_CHECK },
          { VCODE_OP_UNWRAP },
-         { VCODE_OP_UNWRAP },
          { VCODE_OP_RESOLVED },
+         { VCODE_OP_UNWRAP },
          { VCODE_OP_SCHED_WAVEFORM },
          { VCODE_OP_RETURN }
       };
