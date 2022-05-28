@@ -354,6 +354,8 @@ static rt_signal_t    **signals_tail = NULL;
 static jmp_buf          abort_env;
 static mspace_t        *mspace = NULL;
 
+static __thread tlab_t spare_tlab = {};
+
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
 static rt_alloc_stack_t sens_list_stack = NULL;
@@ -1390,7 +1392,7 @@ void __nvc_push_scope(DEBUG_LOCUS(locus), int32_t size)
    s->parent   = active_scope;
    s->chain    = active_scope->child;
    s->size     = size;
-   s->privdata = mptr_new(mspace);
+   s->privdata = mptr_new(mspace, "push scope privdata");
 
    active_scope->child = s;
    active_scope = s;
@@ -2727,7 +2729,7 @@ static void rt_scope_deps_cb(ident_t unit_name, void *__ctx)
    s->where    = unit;
    s->name     = tree_ident(unit);
    s->kind     = SCOPE_PACKAGE;
-   s->privdata = mptr_new(mspace);
+   s->privdata = mptr_new(mspace, "package privdata");
 
    hash_put(scopes, unit, s);
 
@@ -2749,7 +2751,7 @@ static rt_scope_t *rt_scope_for_block(tree_t block, ident_t prefix)
    s->where    = block;
    s->name     = ident_prefix(prefix, tree_ident(block), '.');
    s->kind     = SCOPE_INSTANCE;
-   s->privdata = mptr_new(mspace);
+   s->privdata = mptr_new(mspace, "block privdata");
 
    hash_put(scopes, block, s);
 
@@ -2769,7 +2771,7 @@ static rt_scope_t *rt_scope_for_block(tree_t block, ident_t prefix)
          p->where    = d;
          p->name     = ident_prefix(s->name, tree_ident(d), '.');
          p->kind     = SCOPE_PACKAGE;
-         p->privdata = mptr_new(mspace);
+         p->privdata = mptr_new(mspace, "pack inst privdata");
 
          hash_put(scopes, d, p);
 
@@ -2802,7 +2804,7 @@ static rt_scope_t *rt_scope_for_block(tree_t block, ident_t prefix)
             p->name      = ident_prefix(path, ident_downcase(name), ':');
             p->proc_fn   = jit_find_symbol(istr(sym), true);
             p->scope     = s;
-            p->privdata  = mptr_new(mspace);
+            p->privdata  = mptr_new(mspace, "process privdata");
 
             p->wakeable.kind       = W_PROC;
             p->wakeable.wakeup_gen = 0;
@@ -2844,7 +2846,7 @@ static void rt_setup(tree_t top)
    root = xcalloc(sizeof(rt_scope_t));
    root->kind     = SCOPE_ROOT;
    root->where    = top;
-   root->privdata = mptr_new(mspace);
+   root->privdata = mptr_new(mspace, "root privdata");
 
    rt_scope_t **tailp = &(root->child);
    tree_walk_deps(top, rt_scope_deps_cb, &tailp);
@@ -2873,12 +2875,12 @@ static void rt_run(rt_proc_t *proc)
    TRACE("run %sprocess %s", proc->privdata ? "" :  "stateless ",
          istr(proc->name));
 
-   tlab_t saved_tlab = {};
+   assert(!tlab_valid(spare_tlab));
 
    if (tlab_valid(proc->tlab)) {
       TRACE("using private TLAB at %p (%zu used)", proc->tlab.base,
             proc->tlab.alloc - proc->tlab.base);
-      tlab_move(__nvc_tlab, saved_tlab);
+      tlab_move(__nvc_tlab, spare_tlab);
       tlab_move(proc->tlab, __nvc_tlab);
    }
    else if (!tlab_valid(__nvc_tlab))
@@ -2903,14 +2905,14 @@ static void rt_run(rt_proc_t *proc)
       assert(!tlab_valid(proc->tlab));
       tlab_reset(__nvc_tlab);
 
-      if (tlab_valid(saved_tlab))   // Surplus TLAB
-         tlab_release(&saved_tlab);
+      if (tlab_valid(spare_tlab))   // Surplus TLAB
+         tlab_release(&spare_tlab);
    }
    else {
       // Process must have claimed TLAB or otherwise it would be lost
       assert(tlab_valid(proc->tlab));
-      if (tlab_valid(saved_tlab))
-         tlab_move(saved_tlab, __nvc_tlab);
+      if (tlab_valid(spare_tlab))
+         tlab_move(spare_tlab, __nvc_tlab);
    }
 }
 
@@ -3896,6 +3898,7 @@ static void rt_cleanup(void)
    root = NULL;
 
    tlab_release(&__nvc_tlab);
+   tlab_release(&spare_tlab);
 
    mspace_destroy(mspace);
    mspace = NULL;

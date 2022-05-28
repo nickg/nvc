@@ -113,7 +113,7 @@ START_TEST(test_mptr)
    // first line which is often kept alive by stack pointers to m->space
    generate_garbage(m, 5, sizeof(int));
 
-   mptr_t p = mptr_new(m);
+   mptr_t p = mptr_new(m, "test");
    mptr_put(m, p, mspace_alloc(m, sizeof(int)));
    *(int *)mptr_get(m, p) = 42;
 

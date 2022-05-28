@@ -40,9 +40,10 @@
 #define LINE_SIZE  32
 #define LINE_WORDS (LINE_SIZE / sizeof(intptr_t))
 
-typedef A(mptr_t)   mptr_list_t;
-typedef A(void *)   root_list_t;
-typedef A(uint64_t) work_list_t;
+typedef A(mptr_t)       mptr_list_t;
+typedef A(void *)       root_list_t;
+typedef A(uint64_t)     work_list_t;
+typedef A(const char *) str_list_t;
 
 typedef struct {
    bit_mask_t  markmask;
@@ -66,6 +67,9 @@ struct _mspace {
    mptr_list_t      free_mptrs;
    mspace_oom_fn_t  oomfn;
    free_list_t     *free_list;
+#ifdef DEBUG
+   str_list_t       mptr_names;
+#endif
 };
 
 static __thread intptr_t *stack_limit = NULL;
@@ -87,6 +91,7 @@ mspace_t *mspace_new(size_t size)
    mask_setall(&(m->headmask));
 
    APUSH(m->roots, NULL);    // Dummy MPTR_INVALID root
+   DEBUG_ONLY(APUSH(m->mptr_names, NULL));
 
    free_list_t *f = xmalloc(sizeof(free_list_t));
    f->next = NULL;
@@ -101,9 +106,15 @@ mspace_t *mspace_new(size_t size)
 void mspace_destroy(mspace_t *m)
 {
 #ifndef NDEBUG
-   if (m->free_mptrs.count != m->roots.count - 1)
-      fatal_trace("destroying mspace with %d live mptrs",
-                  m->roots.count - m->free_mptrs.count - 1);
+   if (m->free_mptrs.count != m->roots.count - 1) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      for (int i = 0, n = 0; i < m->mptr_names.count; i++) {
+         if (m->mptr_names.items[i] != NULL)
+            tb_printf(tb, "%s%s", n++ > 0 ? ", " : "", m->mptr_names.items[i]);
+      }
+      fatal_trace("destroying mspace with %d live mptrs: %s",
+                  m->roots.count - m->free_mptrs.count - 1, tb_get(tb));
+   }
 #endif
 
    for (free_list_t *it = m->free_list, *tmp; it; it = tmp) {
@@ -112,6 +123,7 @@ void mspace_destroy(mspace_t *m)
    }
 
    ACLEAR(m->roots);
+   DEBUG_ONLY(ACLEAR(m->mptr_names));
    ACLEAR(m->free_mptrs);
    mask_free(&(m->headmask));
    nvc_munmap(m->space, m->maxsize);
@@ -179,16 +191,19 @@ void mspace_set_oom_handler(mspace_t *m, mspace_oom_fn_t fn)
    m->oomfn = fn;
 }
 
-mptr_t mptr_new(mspace_t *m)
+mptr_t mptr_new(mspace_t *m, const char *name)
 {
    if (m->free_mptrs.count > 0) {
       mptr_t ptr = APOP(m->free_mptrs);
       assert(AGET(m->roots, ptr) == NULL);
+      assert(AGET(m->mptr_names, ptr) == NULL);
+      DEBUG_ONLY(m->mptr_names.items[ptr] = name);
       return ptr;
    }
    else {
       mptr_t ptr = m->roots.count;
       APUSH(m->roots, NULL);
+      DEBUG_ONLY(APUSH(m->mptr_names, name));
       return ptr;
    }
 }
@@ -197,9 +212,11 @@ void mptr_free(mspace_t *m, mptr_t *ptr)
 {
    assert(*ptr != MPTR_INVALID);
    assert(*ptr < m->roots.count);
+   assert(*ptr < m->mptr_names.count);
    assert(m->free_mptrs.count < m->roots.count);
 
    m->roots.items[*ptr] = NULL;
+   DEBUG_ONLY(m->mptr_names.items[*ptr] = NULL);
    APUSH(m->free_mptrs, *ptr);
    *ptr = MPTR_INVALID;
 }
@@ -229,7 +246,7 @@ void tlab_acquire(mspace_t *m, tlab_t *t)
    t->base   = mspace_alloc(m, TLAB_SIZE);
    t->limit  = t->base + TLAB_SIZE;
    t->alloc  = t->base;
-   t->mptr   = mptr_new(m);
+   t->mptr   = mptr_new(m, "tlab");
 
    // This ensures the TLAB is kept alive over GCs
    mptr_put(m, t->mptr, t->base);

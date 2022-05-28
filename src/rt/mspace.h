@@ -58,7 +58,7 @@ void tlab_acquire(mspace_t *m, tlab_t *t);
 void tlab_release(tlab_t *t);
 void *tlab_alloc(tlab_t *t, size_t size);
 
-mptr_t mptr_new(mspace_t *m);
+mptr_t mptr_new(mspace_t *m, const char *name);
 void mptr_free(mspace_t *m, mptr_t *ptr);
 void *mptr_get(mspace_t *m, mptr_t ptr);
 void mptr_put(mspace_t *m, mptr_t ptr, void *value);

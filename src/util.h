@@ -71,8 +71,10 @@
    (((union { double __d; int64_t __i; }){.__d = (f)}).__i)
 
 #ifdef NDEBUG
+#define DEBUG
 #define DEBUG_ONLY(x)
 #else
+#define DEBUG 1
 #define DEBUG_ONLY(x) x
 #endif
 
