@@ -883,28 +883,9 @@ START_TEST(test_pack1)
 {
    input_from_file(TESTDIR "/lower/pack1.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
-   tree_t t, body = NULL;
-   while ((t = parse())) {
-      fail_if(error_count() > 0);
-
-      simplify_local(t);
-
-      if (tree_kind(t) == T_PACK_BODY)
-         body = t;
-   }
-
-   fail_if(body == NULL);
-   lower_unit(body, NULL);
-
-   tree_t add1 = tree_decl(body, 0);
-   fail_unless(tree_kind(add1) == T_FUNC_BODY);
-
-   vcode_unit_t v0 = find_unit_for(add1);
+   vcode_unit_t v0 = find_unit("WORK.PACK1.ADD1(I)I");
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
@@ -915,6 +896,8 @@ START_TEST(test_pack1)
    };
 
    CHECK_BB(0);
+
+   fail_if_errors();
 }
 END_TEST
 

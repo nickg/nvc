@@ -47,6 +47,7 @@ typedef struct {
    tree_t        top;
    tree_kind_t   kind;
    bool          dirty;
+   bool          error;
    lib_mtime_t   mtime;
    vcode_unit_t  vcode;
 } lib_unit_t;
@@ -257,7 +258,7 @@ static lib_index_t *lib_find_in_index(lib_t lib, ident_t name)
    return it;
 }
 
-static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty,
+static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty, bool error,
                                lib_mtime_t mtime, vcode_unit_t vu)
 {
    assert(lib != NULL);
@@ -283,6 +284,7 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty,
 
    where->top   = unit;
    where->dirty = dirty;
+   where->error = error;
    where->mtime = mtime;
    where->kind  = tree_kind(unit);
    where->vcode = vu;
@@ -644,14 +646,23 @@ static lib_mtime_t lib_time_to_usecs(time_t t)
    return (lib_mtime_t)t * 1000 * 1000;
 }
 
-void lib_put(lib_t lib, tree_t unit)
+static lib_mtime_t lib_mtime_now(void)
 {
    struct timeval tv;
    if (gettimeofday(&tv, NULL) != 0)
       fatal_errno("gettimeofday");
 
-   lib_mtime_t usecs = ((lib_mtime_t)tv.tv_sec * 1000000) + tv.tv_usec;
-   lib_put_aux(lib, unit, true, usecs, NULL);
+   return ((lib_mtime_t)tv.tv_sec * 1000000) + tv.tv_usec;
+}
+
+void lib_put(lib_t lib, tree_t unit)
+{
+   lib_put_aux(lib, unit, true, false, lib_mtime_now(), NULL);
+}
+
+void lib_put_error(lib_t lib, tree_t unit)
+{
+   lib_put_aux(lib, unit, true, true, lib_mtime_now(), NULL);
 }
 
 static lib_unit_t *lib_find_unit(lib_t lib, tree_t unit)
@@ -746,7 +757,7 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 
    lib_mtime_t mt = lib_stat_mtime(&st);
 
-   return lib_put_aux(lib, top, false, mt, vu);
+   return lib_put_aux(lib, top, false, false, mt, vu);
 }
 
 static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
@@ -832,7 +843,7 @@ tree_t lib_get(lib_t lib, ident_t ident)
       return NULL;
 }
 
-tree_t lib_get_check_stale(lib_t lib, ident_t ident)
+tree_t lib_get_check_stale(lib_t lib, ident_t ident, bool *error)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
@@ -856,10 +867,13 @@ tree_t lib_get_check_stale(lib_t lib, ident_t ident)
          }
       }
 
+      *error = lu->error;
       return lu->top;
    }
-   else
+   else {
+      *error = false;
       return NULL;
+   }
 }
 
 tree_t lib_get_qualified(ident_t qual)
@@ -872,7 +886,10 @@ tree_t lib_get_qualified(ident_t qual)
    if (lib == NULL)
       return NULL;
 
-   return lib_get_check_stale(lib, qual);
+   bool error;
+   tree_t unit = lib_get_check_stale(lib, qual, &error);
+   assert(!error);
+   return unit;
 }
 
 ident_t lib_name(lib_t lib)
@@ -919,8 +936,14 @@ void lib_save(lib_t lib)
    file_write_lock(lib->lock_fd);
 
    for (unsigned n = 0; n < lib->units.count; n++) {
-      if (lib->units.items[n].dirty)
+      lib_unit_t *lu = &(lib->units.items[n]);
+      if (lu->dirty) {
+         if (lu->error)
+            fatal_trace("attempting to save unit %s with errors",
+                        istr(tree_ident(lu->top)));
+
          lib_save_unit(lib, &(lib->units.items[n]));
+      }
    }
 
    LOCAL_TEXT_BUF index_path = lib_file_path(lib, "_index");

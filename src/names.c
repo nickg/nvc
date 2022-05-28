@@ -1333,13 +1333,19 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
    if (lib_import) {
       ident_t lib_name = tree_ident(unit);
       lib_t lib = lib_require(lib_name);
+      bool error;
       if (lib_name == unit_name) {
          lib_walk_index(lib, insert_lib_unit, tab);
          return;
       }
-      else if ((unit = lib_get_check_stale(lib, unit_name)) == NULL) {
+      else if ((unit = lib_get_check_stale(lib, unit_name, &error)) == NULL) {
          error_at(tree_loc(use), "unit %s not found in library %s",
                   istr(unit_name), istr(ident_until(unit_name, '.')));
+         return;
+      }
+      else if (error) {
+         error_at(tree_loc(use), "design unit %s was analysed with errors",
+                  istr(unit_name));
          return;
       }
       else if (is_uninstantiated_package(unit)) {

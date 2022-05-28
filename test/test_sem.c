@@ -53,6 +53,7 @@ START_TEST(test_integer)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -203,6 +204,7 @@ START_TEST(test_ambiguous)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -286,6 +288,7 @@ START_TEST(test_const2)
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    fail_unless(error_count() == 0);
 
@@ -333,6 +336,7 @@ START_TEST(test_wait)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -2304,14 +2308,17 @@ START_TEST(test_murax)
    tree_t p1 = parse();
    fail_if(p1 == NULL);
    fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
 
    tree_t p2 = parse();
    fail_if(p2 == NULL);
    fail_unless(tree_kind(p2) == T_PACKAGE);
+   lib_put(lib_work(), p2);
 
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);

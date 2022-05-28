@@ -177,19 +177,23 @@ static int analyse(int argc, char **argv)
    for (int i = optind; i < next_cmd; i++) {
       input_from_file(argv[i]);
 
+      int base_errors = 0;
       tree_t unit;
-      while ((unit = parse())) {
-         if (error_count() == 0) {
+      while (base_errors = error_count(), (unit = parse())) {
+         if (error_count() == base_errors) {
+            lib_put(work, unit);
             APUSH(units, unit);
 
             simplify_local(unit);
             bounds_check(unit);
 
-            if (error_count() == 0 && unit_needs_cgen(unit)) {
+            if (error_count() == base_errors && unit_needs_cgen(unit)) {
                vcode_unit_t vu = lower_unit(unit, NULL);
                lib_put_vcode(work, unit, vu);
             }
          }
+         else
+            lib_put_error(work, unit);
       }
    }
 
@@ -488,9 +492,11 @@ static int run(int argc, char **argv)
    set_top_level(argv, next_cmd);
 
    ident_t ename = ident_prefix(top_level, ident_new("elab"), '.');
-   tree_t top = lib_get_check_stale(lib_work(), ename);
+   bool error;
+   tree_t top = lib_get_check_stale(lib_work(), ename, &error);
    if (top == NULL)
       fatal("%s not elaborated", istr(top_level));
+   assert(!error);
 
    if (wave_fname != NULL) {
       const char *name_map[] = { "FST", "VCD" };

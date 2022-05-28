@@ -604,13 +604,20 @@ static tree_t find_unit(const loc_t *where, ident_t name, const char *hint)
    ident_t lname = ident_until(name, '.');
    lib_t lib = lib_loaded(lname);
    if (lib != NULL) {
-      tree_t unit = lib_get_check_stale(lib, name);
+      bool error;
+      tree_t unit = lib_get_check_stale(lib, name, &error);
       if (unit == NULL) {
          if (hint != NULL)
             parse_error(where, "missing declaration for %s %s",
                         hint, istr(name));
          else
             parse_error(where, "cannot find unit %s", istr(name));
+      }
+      else if (error) {
+         parse_error(where, "design unit depends on %s which was analysed"
+                     " with errors", istr(name));
+         suppress_errors(nametab);
+         return NULL;
       }
 
       return unit;
@@ -9662,7 +9669,6 @@ tree_t parse(void)
    if (tree_kind(unit) == T_DESIGN_UNIT)
       return NULL;
 
-   lib_put(lib_work(), unit);
    return unit;
 }
 

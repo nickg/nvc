@@ -72,6 +72,7 @@ START_TEST(test_cfold)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -187,6 +188,7 @@ START_TEST(test_proc)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -265,6 +267,7 @@ START_TEST(test_args)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);

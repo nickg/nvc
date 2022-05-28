@@ -57,8 +57,9 @@ lib_t lib_work(void);
 void lib_set_work(lib_t lib);
 
 void lib_put(lib_t lib, tree_t unit);
+void lib_put_error(lib_t lib, tree_t unit);
 tree_t lib_get(lib_t lib, ident_t ident);
-tree_t lib_get_check_stale(lib_t lib, ident_t ident);
+tree_t lib_get_check_stale(lib_t lib, ident_t ident, bool *error);
 tree_t lib_get_qualified(ident_t qual);
 lib_mtime_t lib_mtime(lib_t lib, ident_t ident);
 unsigned lib_index_size(lib_t lib);

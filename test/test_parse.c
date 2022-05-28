@@ -202,6 +202,7 @@ START_TEST(test_arch)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -265,6 +266,7 @@ START_TEST(test_process)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -333,6 +335,7 @@ START_TEST(test_seq)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -694,6 +697,7 @@ START_TEST(test_types)
    b = parse();
    fail_if(b == NULL);
    fail_unless(tree_kind(b) == T_ENTITY);
+   lib_put(lib_work(), b);
 
    a = parse();
    fail_if(a == NULL);
@@ -889,6 +893,7 @@ START_TEST(test_literal)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -1182,11 +1187,13 @@ START_TEST(test_extended)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_decls(a) == 7);
+   lib_put(lib_work(), a);
 
    d = tree_decl(a, 0);
    fail_unless(tree_ident(d) == ident_new("\\foo bar\\"));
@@ -1232,6 +1239,7 @@ START_TEST(test_package)
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_contexts(p) == 3);
    fail_unless(tree_ident(p) == ident_new("WORK.ONE"));
+   lib_put(lib_work(), p);
 
    p = parse();
    fail_if(p == NULL);
@@ -1241,6 +1249,7 @@ START_TEST(test_package)
    fail_unless(tree_ident(tree_context(p, 3)) == ident_new("WORK.ONE"));
    fail_unless(icmp(tree_ident2(tree_context(p, 3)), "all"));
    fail_unless(tree_ident(p) == ident_new("WORK.TWO"));
+   lib_put(lib_work(), p);
 
    p = parse();
    fail_if(p == NULL);
@@ -1255,6 +1264,7 @@ START_TEST(test_package)
    fail_unless(tree_kind(d) == T_FUNC_DECL);
    d = tree_decl(p, 3);
    fail_unless(tree_kind(d) == T_ATTR_SPEC);
+   lib_put(lib_work(), p);
 
    p = parse();
    fail_if(p == NULL);
@@ -1354,6 +1364,7 @@ START_TEST(test_qual)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -1399,6 +1410,7 @@ START_TEST(test_func)
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_decls(p) == 3);
+   lib_put(lib_work(), p);
 
    f = tree_decl(p, 0);
    fail_unless(tree_kind(f) == T_FUNC_DECL);
@@ -1451,6 +1463,7 @@ START_TEST(test_array)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    d = search_decls(p, ident_new("INT_ARRAY"), 0);
    fail_if(d == NULL);
@@ -1509,6 +1522,7 @@ START_TEST(test_array)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -1660,27 +1674,33 @@ START_TEST(test_instance)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
+   lib_put(lib_work(), a);
 
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
+   lib_put(lib_work(), c);
 
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 12);
+   lib_put(lib_work(), a);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_INSTANCE);
@@ -1753,6 +1773,7 @@ START_TEST(test_conc)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -1841,6 +1862,7 @@ START_TEST(test_alias)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -1890,6 +1912,7 @@ START_TEST(test_attr)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -1965,6 +1988,7 @@ START_TEST(test_procedure)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    d = search_decls(p, ident_new("FOO"), 0);
    fail_if(d == NULL);
@@ -2018,6 +2042,7 @@ START_TEST(test_ir1045)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_unless(tree_kind(a) == T_ARCH);
@@ -2059,6 +2084,7 @@ START_TEST(test_concat)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_unless(tree_kind(a) == T_ARCH);
@@ -2399,6 +2425,7 @@ START_TEST(test_block)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -2461,6 +2488,7 @@ START_TEST(test_generate)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -2528,6 +2556,7 @@ START_TEST(test_access)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -2568,24 +2597,29 @@ START_TEST(test_spec)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
+   lib_put(lib_work(), a);
 
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
+   lib_put(lib_work(), c);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 5);
    fail_unless(tree_decls(a) == 9);
+   lib_put(lib_work(), a);
 
    d = tree_decl(a, 2);
    fail_unless(tree_kind(d) == T_SPEC);
@@ -2668,6 +2702,7 @@ START_TEST(test_loc)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
@@ -2730,10 +2765,12 @@ START_TEST(test_expr)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    a = parse();
    fail_if(a == NULL);
@@ -2808,6 +2845,7 @@ START_TEST(test_error)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    const error_t expect[] = {
       {  7, "unexpected identifier while parsing concurrent procedure call "
@@ -2865,22 +2903,27 @@ START_TEST(test_config)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
+   lib_put(lib_work(), a);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
+   lib_put(lib_work(), a);
 
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
+   lib_put(lib_work(), c);
 
    c = parse();
    fail_if(c == NULL);
@@ -2890,6 +2933,7 @@ START_TEST(test_config)
    fail_unless(tree_decls(c) == 3);
    fail_unless(tree_kind(tree_decl(c, 0)) == T_USE);
    fail_unless(tree_kind(tree_decl(c, 1)) == T_ATTR_SPEC);
+   lib_put(lib_work(), c);
 
    b = tree_decl(c, 2);
    fail_unless(tree_kind(b) == T_BLOCK_CONFIG);
@@ -2904,26 +2948,32 @@ START_TEST(test_config)
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
+   lib_put(lib_work(), c);
 
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
+   lib_put(lib_work(), c);
 
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
+   lib_put(lib_work(), c);
 
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
+   lib_put(lib_work(), a);
 
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
+   lib_put(lib_work(), c);
 
    c = parse();
    fail_unless(c == NULL);
@@ -2944,6 +2994,7 @@ START_TEST(test_protected)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    d = search_decls(p, ident_new("SHAREDCOUNTER"), 0);
    fail_if(d == NULL);
@@ -2992,6 +3043,7 @@ START_TEST(test_issue205)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3026,10 +3078,12 @@ START_TEST(test_context)
    tree_t p1 = parse();
    fail_if(p1 == NULL);
    fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
 
    tree_t p2 = parse();
    fail_if(p2 == NULL);
    fail_unless(tree_kind(p2) == T_PACKAGE);
+   lib_put(lib_work(), p2);
 
    tree_t c1 = parse();
    fail_if(c1 == NULL);
@@ -3037,6 +3091,7 @@ START_TEST(test_context)
    fail_unless(tree_ident(c1) == ident_new("WIDGET_LIB.WIDGET_CONTEXT"));
    fail_unless(tree_contexts(c1) == 5);
    fail_unless(tree_kind(tree_context(c1, 3)) == T_USE);
+   lib_put(lib_work(), c1);
 
    lib_t project = lib_tmp("project");
    lib_set_work(project);
@@ -3046,6 +3101,7 @@ START_TEST(test_context)
    fail_unless(tree_kind(c2) == T_CONTEXT);
    fail_unless(tree_ident(c2) == ident_new("PROJECT.DONGLE_CONTEXT"));
    fail_unless(tree_contexts(c2) == 5);
+   lib_put(lib_work(), c2);
 
    tree_t r = tree_context(c2, 4);
    fail_unless(tree_kind(r) == T_CONTEXT_REF);
@@ -3071,8 +3127,11 @@ START_TEST(test_issue222)
    };
    expect_errors(expect);
 
-   for (int i = 0; i < 8; i++)
-      (void)parse();
+   for (int i = 0; i < 8; i++) {
+      tree_t t = parse();
+      fail_if(t == NULL);
+      lib_put(lib_work(), t);
+   }
 
    fail_unless(parse() == NULL);
    check_expected_errors();
@@ -3094,6 +3153,7 @@ START_TEST(test_guarded)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3179,6 +3239,7 @@ START_TEST(test_issue360)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    fail_unless(parse() != NULL);
 
@@ -3193,10 +3254,12 @@ START_TEST(test_issue367)
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    tree_t b = parse();
    fail_if(b == NULL);
    fail_unless(tree_kind(b) == T_PACK_BODY);
+   lib_put(lib_work(), b);
 
    tree_t f = tree_decl(b, 0);
    fail_unless(tree_kind(f) == T_FUNC_BODY);
@@ -3228,6 +3291,7 @@ START_TEST(test_issue369)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3263,29 +3327,35 @@ START_TEST(test_vests1)
    tree_t e0 = parse();
    fail_if(e0 == NULL);
    fail_unless(tree_kind(e0) == T_ENTITY);
+   lib_put(lib_work(), e0);
 
    tree_t a0 = parse();
    fail_if(a0 == NULL);
    fail_unless(tree_kind(a0) == T_ARCH);
+   lib_put(lib_work(), a0);
 
    tree_t c0 = parse();
    fail_if(c0 == NULL);
    fail_unless(tree_kind(c0) == T_CONFIGURATION);
    fail_unless(tree_primary(c0) == e0);
+   lib_put(lib_work(), c0);
 
    tree_t e1 = parse();
    fail_if(e1 == NULL);
    fail_unless(tree_kind(e1) == T_ENTITY);
+   lib_put(lib_work(), e1);
 
    tree_t a1 = parse();
    fail_if(a1 == NULL);
    fail_unless(tree_kind(a1) == T_ARCH);
+   lib_put(lib_work(), a1);
 
    tree_t c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIGURATION);
    fail_unless(tree_decls(c) == 1);
    fail_unless(tree_primary(c) == e1);
+   lib_put(lib_work(), c);
 
    tree_t b = tree_decl(c, 0);
    fail_unless(tree_kind(b) == T_BLOCK_CONFIG);
@@ -3319,6 +3389,7 @@ START_TEST(test_synth)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3348,6 +3419,7 @@ START_TEST(test_issue388)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t p = parse();
    fail_if(p == NULL);
@@ -3397,6 +3469,7 @@ START_TEST(test_names)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3511,22 +3584,26 @@ START_TEST(test_vhdl2008)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_generics(p) == 2);
    fail_unless(tree_genmaps(p) == 2);
+   lib_put(lib_work(), p);
 
    tree_t p2 = parse();
    fail_if(p2 == NULL);
    fail_unless(tree_kind(p2) == T_PACKAGE);
    fail_unless(package_needs_body(p2));
+   lib_put(lib_work(), p2);
 
    tree_t b = parse();
    fail_if(b == NULL);
    fail_unless(tree_kind(b) == T_PACK_BODY);
    fail_unless(tree_primary(b) == p2);
+   lib_put(lib_work(), b);
 
    tree_t p3 = parse();
    fail_if(p3 == NULL);
@@ -3535,6 +3612,7 @@ START_TEST(test_vhdl2008)
    fail_unless(tree_genmaps(p3) == 2);
    fail_unless(tree_decls(p3) == 2);
    fail_unless(tree_kind(tree_decl(p3, 1)) == T_FUNC_BODY);
+   lib_put(lib_work(), p3);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3601,14 +3679,17 @@ START_TEST(test_explicit_93)
    tree_t p1 = parse();
    fail_if(p1 == NULL);
    fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
 
    tree_t p2 = parse();
    fail_if(p2 == NULL);
    fail_unless(tree_kind(p2) == T_PACKAGE);
+   lib_put(lib_work(), p2);
 
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3628,14 +3709,17 @@ START_TEST(test_explicit_08)
    tree_t p1 = parse();
    fail_if(p1 == NULL);
    fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
 
    tree_t p2 = parse();
    fail_if(p2 == NULL);
    fail_unless(tree_kind(p2) == T_PACKAGE);
+   lib_put(lib_work(), p2);
 
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3654,10 +3738,12 @@ START_TEST(test_homograph)
    tree_t p1 = parse();
    fail_if(p1 == NULL);
    fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
 
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3676,6 +3762,7 @@ START_TEST(test_group)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3696,14 +3783,17 @@ START_TEST(test_alias2)
    tree_t p1 = parse();
    fail_if(p1 == NULL);
    fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
 
    tree_t p2 = parse();
    fail_if(p2 == NULL);
    fail_unless(tree_kind(p2) == T_PACKAGE);
+   lib_put(lib_work(), p2);
 
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3728,15 +3818,18 @@ START_TEST(test_badprimary)
    tree_t top = parse();
    fail_if(top == NULL);
    fail_unless(tree_kind(top) == T_ENTITY);
+   lib_put(lib_work(), top);
 
    tree_t a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
+   lib_put(lib_work(), a);
 
    tree_t bad = parse();
    fail_if(bad == NULL);
    fail_unless(tree_kind(bad) == T_ARCH);
    fail_if(tree_has_primary(bad));
+   lib_put(lib_work(), bad);
 
    tree_t cfg = parse();
    fail_if(cfg == NULL);
@@ -3783,6 +3876,7 @@ START_TEST(test_protected2)
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    tree_t b = parse();
    fail_if(b == NULL);
@@ -3824,6 +3918,7 @@ START_TEST(test_error4)
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    tree_t b = parse();
    fail_if(b == NULL);
@@ -3842,6 +3937,7 @@ START_TEST(test_tc1012)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3867,10 +3963,12 @@ START_TEST(test_issue443)
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -3898,10 +3996,12 @@ START_TEST(test_vunit5)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
+   lib_put(lib_work(), a);
 
    tree_t d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
@@ -3928,10 +4028,12 @@ START_TEST(test_vunit6)
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    tree_t c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONTEXT);
+   lib_put(lib_work(), c);
 
    tree_t e = parse();
    fail_if(e == NULL);
@@ -3952,6 +4054,7 @@ START_TEST(test_external)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -4001,6 +4104,7 @@ START_TEST(test_error5)
    tree_t p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
 
    tree_t b = parse();
    fail_if(b == NULL);
@@ -4025,6 +4129,7 @@ START_TEST(test_vunit7)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -4069,6 +4174,7 @@ START_TEST(test_names2)
    tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
 
    tree_t a = parse();
    fail_if(a == NULL);
@@ -4097,6 +4203,7 @@ START_TEST(test_issue457)
    tree_t c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONTEXT);
+   lib_put(test_context_lib, c);
 
    lib_t other_lib = lib_tmp("other");
    lib_set_work(other_lib);
@@ -4156,10 +4263,12 @@ START_TEST(test_issue461a)
    tree_t p1 = parse();
    fail_if(p1 == NULL);
    fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
 
    tree_t p2 = parse();
    fail_if(p2 == NULL);
    fail_unless(tree_kind(p2) == T_PACKAGE);
+   lib_put(lib_work(), p2);
 
    tree_t e = parse();
    fail_if(e == NULL);
@@ -4179,10 +4288,12 @@ START_TEST(test_issue461b)
    tree_t p1 = parse();
    fail_if(p1 == NULL);
    fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
 
    tree_t p2 = parse();
    fail_if(p2 == NULL);
    fail_unless(tree_kind(p2) == T_PACKAGE);
+   lib_put(lib_work(), p2);
 
    tree_t e = parse();
    fail_if(e == NULL);
@@ -4191,6 +4302,38 @@ START_TEST(test_issue461b)
    fail_unless(parse() == NULL);
 
    fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_error7)
+{
+   input_from_file(TESTDIR "/parse/error7.vhd");
+
+   const error_t expect[] = {
+      {  4, "FOO already declared in this region" },
+      {  7, "depends on WORK.ERROR7 which was analysed with errors" },
+      { 11, "design unit WORK.ERROR7 was analysed with errors" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(error_count() > 0);
+   lib_put_error(lib_work(), p);
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+
+   tree_t p2 = parse();
+   fail_if(p2 == NULL);
+   fail_unless(tree_kind(p2) == T_PACKAGE);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
 }
 END_TEST
 
@@ -4269,6 +4412,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue458);
    tcase_add_test(tc_core, test_issue461a);
    tcase_add_test(tc_core, test_issue461b);
+   tcase_add_test(tc_core, test_error7);
    suite_add_tcase(s, tc_core);
 
    return s;

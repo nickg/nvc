@@ -140,6 +140,7 @@ tree_t run_elab(void)
    while ((t = parse())) {
       fail_if(error_count() > 0);
 
+      lib_put(lib_work(), t);
       simplify_local(t);
       bounds_check(t);
       fail_if(error_count() > 0);
@@ -173,6 +174,8 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
       ck_assert_msg(tree_kind(last) == array[i],
                     "expected %s have %s", tree_kind_str(array[i]),
                     tree_kind_str(kind));
+
+      lib_put(lib_work(), last);
 
       if (simp && error_count() == 0)
          simplify_local(last);
