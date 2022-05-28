@@ -256,10 +256,16 @@ static bool lower_const_bounds(type_t type)
    }
 }
 
-static bool lower_is_reverse_range(tree_t r)
+static bool lower_is_reverse_range(tree_t r, int *dim)
 {
    tree_t value = tree_value(r);
    assert(tree_kind(value) == T_ATTR_REF);
+
+   if (tree_params(value) > 0)
+      *dim = assume_int(tree_value(tree_param(value, 0))) - 1;
+   else
+      *dim = 0;
+
    return tree_subkind(value) == ATTR_REVERSE_RANGE;
 }
 
@@ -272,10 +278,12 @@ static vcode_reg_t lower_range_left(tree_t r)
       assert(!lower_const_bounds(tree_type(array)));
 
       vcode_reg_t array_reg = lower_expr(array, EXPR_RVALUE), left_reg;
-      if (lower_is_reverse_range(r))
-         left_reg = emit_uarray_right(array_reg, 0);
+
+      int dim;
+      if (lower_is_reverse_range(r, &dim))
+         left_reg = emit_uarray_right(array_reg, dim);
       else
-         left_reg = emit_uarray_left(array_reg, 0);
+         left_reg = emit_uarray_left(array_reg, dim);
 
       type_t index_type = index_type_of(tree_type(array), 0);
       vcode_type_t vtype = lower_type(index_type);
@@ -295,10 +303,12 @@ static vcode_reg_t lower_range_right(tree_t r)
       assert(!lower_const_bounds(tree_type(array)));
 
       vcode_reg_t array_reg = lower_expr(array, EXPR_RVALUE), right_reg;
-      if (lower_is_reverse_range(r))
-         right_reg = emit_uarray_left(array_reg, 0);
+
+      int dim;
+      if (lower_is_reverse_range(r, &dim))
+         right_reg = emit_uarray_left(array_reg, dim);
       else
-         right_reg = emit_uarray_right(array_reg, 0);
+         right_reg = emit_uarray_right(array_reg, dim);
 
       type_t index_type = index_type_of(tree_type(array), 0);
       vcode_type_t vtype = lower_type(index_type);
@@ -325,10 +335,11 @@ static vcode_reg_t lower_range_dir(tree_t r)
 
          vcode_reg_t array_reg = lower_expr(array, EXPR_RVALUE);
 
-         if (lower_is_reverse_range(r))
-            return emit_not(emit_uarray_dir(array_reg, 0));
+         int dim;
+         if (lower_is_reverse_range(r, &dim))
+            return emit_not(emit_uarray_dir(array_reg, dim));
          else
-            return emit_uarray_dir(array_reg, 0);
+            return emit_uarray_dir(array_reg, dim);
       }
 
    case RANGE_ERROR:

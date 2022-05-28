@@ -572,3 +572,4 @@ record32        normal,2008
 alias14         normal,2008
 link3           shell
 proc12          normal,2008
+bounds38        fail,gold

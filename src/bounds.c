@@ -317,7 +317,7 @@ static void bounds_check_array_ref(tree_t t)
                                           "array", low, high);
       }
 
-      if (value_is_ref && tree_kind(pvalue) == T_REF) {
+      if (value_is_ref && nparams == 1 && tree_kind(pvalue) == T_REF) {
          // Automatically elide bounds check in cases like
          //
          //   for i in x'range loop

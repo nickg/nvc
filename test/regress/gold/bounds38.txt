@@ -1,0 +1,6 @@
+index 5 outside of NATURAL range 1 to 2
+    |
+ 14 |                 result(i, j) := x(i, j) * 2;  -- Error
+    |                                   ^
+Function DOUBLE [INT_VEC_2D return INT_VEC_2D]
+Process :bounds38:p2
