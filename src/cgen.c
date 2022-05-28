@@ -4275,8 +4275,18 @@ static void cgen_add_dependency(ident_t name, unit_list_t *list)
    vcode_state_save(&state);
 
    vcode_unit_t vu = vcode_find_unit(name);
-   if (vu == NULL)
-      fatal("missing vcode unit %s", istr(name));
+   if (vu == NULL) {
+      ident_t it = name;
+      ident_t lname = ident_walk_selected(&it);
+      ident_t uname = ident_walk_selected(&it);
+
+      tree_t unit = lib_get_qualified(ident_prefix(lname, uname, '.'));
+      if (unit != NULL && tree_kind(unit) == T_PACKAGE)
+         (void)body_of(unit);
+
+      if ((vu = vcode_find_unit(name)) == NULL)
+         fatal("missing vcode unit %s", istr(name));
+   }
 
    unsigned pos = 0;
    for (; pos < list->count; pos++) {
