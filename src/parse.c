@@ -162,6 +162,7 @@ static void p_interface_list(class_t class, tree_t parent, tree_kind_t kind);
 static type_t p_subtype_indication(void);
 static tree_t p_record_constraint(type_t base);
 static tree_t p_qualified_expression(tree_t prefix);
+static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -6872,14 +6873,19 @@ static tree_t p_entity_statement(void)
    case tPROCESS:
       return p_process_statement(label);
 
+   case tID:
+      return p_concurrent_procedure_call_statement(label, NULL);
+
    case tPOSTPONED:
       if (peek_nth(2) == tASSERT)
          return p_concurrent_assertion_statement(label);
-      else
+      else if (peek_nth(2) == tPROCESS)
          return p_process_statement(label);
+      else
+         return p_concurrent_procedure_call_statement(label, NULL);
 
    default:
-      expect(tASSERT, tPOSTPONED);
+      expect(tASSERT, tPROCESS, tPOSTPONED);
       return tree_new(T_NULL);
    }
 }
@@ -9006,7 +9012,10 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
    const bool postponed = name == NULL && optional(tPOSTPONED);
 
    tree_t call = tree_new(T_PCALL);
-   tree_set_ident2(call, tree_ident(name));
+   if (name == NULL)
+      tree_set_ident2(call, p_identifier());
+   else
+      tree_set_ident2(call, tree_ident(name));
 
    if (optional(tLPAREN)) {
       p_actual_parameter_part(call);

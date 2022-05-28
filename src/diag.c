@@ -335,6 +335,8 @@ static const struct {
    { "Case statement", { [STD_93] = "8.8", [STD_08] = "10.9" } },
    { "Elaboration of a declarative part", { [STD_93] = "12.3",
         [STD_08] = "14.4" } },
+   { "Process statement", { [STD_93] = "9.2", [STD_08] = "11.3" } },
+   { "Entity statement part", { [STD_93] = "1.1.3", [STD_08] = "3.2.4" } },
 };
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc)

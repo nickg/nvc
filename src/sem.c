@@ -1776,6 +1776,22 @@ static bool sem_check_component(tree_t t)
    return true;
 }
 
+static void sem_passive_cb(tree_t t, void *context)
+{
+   tree_t s = context;
+
+   diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+   diag_printf(d, "signal assignment statement not allowed inside passive "
+               "process");
+   diag_hint(d, tree_loc(s), "process in entity statement part must "
+             "be passive");
+   diag_hint(d, tree_loc(t), "signal assignment statement");
+   diag_lrm(d, STD_93, "1.1.3");
+   diag_lrm(d, STD_93, "9.2");
+
+   diag_emit(d);
+}
+
 static bool sem_check_entity(tree_t t, nametab_t *tab)
 {
    if (!sem_check_context_clause(t, tab))
@@ -1783,6 +1799,13 @@ static bool sem_check_entity(tree_t t, nametab_t *tab)
 
    if (!sem_check_ports(t))
       return false;
+
+   // All processes in entity statement part must be passive
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = tree_stmt(t, i);
+      tree_visit_only(s, sem_passive_cb, s, T_SIGNAL_ASSIGN);
+   }
 
    return true;
 }

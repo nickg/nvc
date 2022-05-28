@@ -42,3 +42,22 @@ architecture test of edecls is
     signal x : my_int;                  -- OK
 begin
 end architecture;
+
+-------------------------------------------------------------------------------
+
+entity statement_part is
+    port ( x : in integer;
+           y : out integer );
+begin
+    assert x < 4;                       -- OK
+
+    process (x) is
+    begin
+        assert x < 10;                  -- OK
+    end process;
+
+    process (x) is
+    begin
+        y <= x + 1;                     -- Error
+    end process;
+end entity;

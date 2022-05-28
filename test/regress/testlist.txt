@@ -571,3 +571,4 @@ access10        fail,gold,H=1m
 record32        normal,2008
 alias14         normal,2008
 link3           shell
+proc12          normal,2008

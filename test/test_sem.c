@@ -841,11 +841,13 @@ START_TEST(test_entity)
       { 23, "cannot find unit WORK.E-INVALID" },
       { 26, "unit WORK.PACK cannot be instantiated" },
       { 30, "unit WORK.PACK is not an entity" },
+      { 61, "signal assignment statement not allowed inside passive process" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_PACKAGE, T_ARCH, T_ARCH, T_ENTITY, T_ARCH);
+   parse_and_check(T_ENTITY, T_PACKAGE, T_ARCH, T_ARCH, T_ENTITY,
+                   T_ARCH, T_ENTITY);
 
    check_expected_errors();
 }
