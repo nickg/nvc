@@ -558,10 +558,31 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
    case ATTR_ASCENDING:
       {
          tree_t name = tree_name(t);
-         const tree_kind_t name_kind = tree_kind(name);
+         tree_kind_t name_kind = tree_kind(name);
 
-         if (name_kind != T_REF
-             && !(name_kind == T_ATTR_REF && tree_subkind(name) == ATTR_BASE))
+         if (name_kind == T_ATTR_REF) {
+            // Try to rewrite expressions like X'RANGE(1)'LEFT to X'LEFT(1)
+            attr_kind_t prefix_predef = tree_subkind(name);
+            if (prefix_predef == ATTR_RANGE || prefix_predef == ATTR_BASE
+                || prefix_predef == ATTR_REVERSE_RANGE) {
+               tree_t new = tree_new(T_ATTR_REF);
+               tree_set_loc(new, tree_loc(t));
+               tree_set_name(new, tree_name(name));
+               tree_set_ident(new, tree_ident(t));
+               tree_set_subkind(new, predef);
+               tree_set_type(new, tree_type(t));
+
+               const int nparams = tree_params(name);
+               for (int i = 0; i < nparams; i++)
+                  tree_add_param(new, tree_param(name, i));
+
+               t = new;
+               name = tree_name(new);
+               name_kind = tree_kind(name);
+            }
+         }
+
+         if (name_kind != T_REF)
             return t;   // Cannot fold this
 
          type_t type = tree_type(name);

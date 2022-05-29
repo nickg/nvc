@@ -1120,17 +1120,17 @@ static void bounds_check_attr_ref(tree_t t)
    case ATTR_HIGH:
    case ATTR_LEFT:
    case ATTR_RIGHT:
+   case ATTR_RANGE:
+   case ATTR_REVERSE_RANGE:
       if (tree_params(t) > 0) {
          type_t type = tree_type(tree_name(t));
          if (type_is_array(type) && !type_is_unconstrained(type)) {
             tree_t dim_tree = tree_value(tree_param(t, 0));
 
             int64_t dim;
-            const bool f = folded_int(dim_tree, &dim);
-            (void)f;
-            assert(f);
-
-            if (dim < 1 || dim > dimension_of(type))
+            if (!folded_int(dim_tree, &dim))
+               bounds_error(dim_tree, "dimension is not constant");
+            else if (dim < 1 || dim > dimension_of(type))
                bounds_error(dim_tree, "invalid dimension %"PRIi64" for type %s",
                             dim, type_pp(type));
          }

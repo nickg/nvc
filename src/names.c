@@ -2813,7 +2813,7 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
                dim = tree_ival(pdim) - 1;
          }
 
-         type = index_type_of(type, dim);
+         type = index_type_of(type, dim) ?: type_new(T_NONE);
       }
    } break;
 

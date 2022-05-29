@@ -437,4 +437,9 @@ begin
     begin
     end process;
 
+    process is
+    begin
+        assert m'range(5)'left = 2;     -- Error
+    end process;
+
 end architecture;

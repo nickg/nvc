@@ -435,6 +435,25 @@ START_TEST(test_osvvm1)
 }
 END_TEST
 
+START_TEST(test_range1)
+{
+   input_from_file(TESTDIR "/bounds/range1.vhd");
+
+   const error_t expect[] = {
+      { 10, "invalid dimension 2 for type BIT_VECTOR" },
+      { 11, "invalid dimension -1 for type BIT_VECTOR" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_unless(error_count() == 0);
+
+   bounds_check(a);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -457,6 +476,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_tc1147);
    tcase_add_test(tc_core, test_aggregate);
    tcase_add_test(tc_core, test_osvvm1);
+   tcase_add_test(tc_core, test_range1);
    suite_add_tcase(s, tc_core);
 
    return s;

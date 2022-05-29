@@ -3332,6 +3332,10 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
    tree_t name = tree_name(t), decl = NULL;
    type_t named_type = NULL;
    bool has_type = true;
+
+   ident_t attr = tree_ident(t);
+   const attr_kind_t predef = tree_subkind(t);
+
    switch (tree_kind(name)) {
    case T_REF:
       if (!tree_has_ref(name))
@@ -3362,21 +3366,25 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          sem_error(base, "prefix of BASE attribute must be a type or "
                    "subtype declaration");
       }
-      // Fall-through
+      else {
+         const bool prefix_can_be_range =
+            predef == ATTR_LOW || predef == ATTR_HIGH || predef == ATTR_LEFT
+            || predef == ATTR_RIGHT || predef == ATTR_ASCENDING;
+
+         if (!sem_check_attr_ref(name, prefix_can_be_range, tab))
+            return false;
+      }
+      break;
 
    default:
       if (!sem_check(name, tab))
          return false;
    }
 
-   ident_t attr = tree_ident(t);
-   const attr_kind_t predef = tree_subkind(t);
-
    switch (predef) {
    case ATTR_RANGE:
    case ATTR_REVERSE_RANGE:
       {
-         // TODO: can this check move to the parser?
          if (!allow_range)
             sem_error(t, "range expression not allowed here");
 
@@ -3406,6 +3414,9 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
          if (is_type && type_is_unconstrained(name_type))
             sem_error(t, "cannot use attribute %s with unconstrained array "
                       "type %s", istr(attr), type_pp(name_type));
+
+         if (!sem_check_dimension_attr(t, tab))
+            return false;
 
          return true;
       }
