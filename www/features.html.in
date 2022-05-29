@@ -1,0 +1,148 @@
+define(__title, `')dnl
+include(`defs.m4')dnl
+include(`header.html.in')dnl
+
+<h1>Language Support</h1>
+
+<p>
+  NVC supports almost all of IEEE 1076-1993 and 1076-2002.  Please report
+  any missing or incorrectly implemented features.
+</p>
+
+<h4>VHDL-2008</h4>
+
+<p>
+IEEE 1076-2008 was a major update to the VHDL standard.  NVC has
+experimental support for some of the new features, please consult the
+table below.
+</p>
+
+<table class="feature-table">
+  <tr><th>Feature</th><th>Status</th></tr>
+  <tr>
+    <td>Package generics</td>
+    <td class="feature-done">1.6</td>
+  </tr>
+  <tr>
+    <td>Subprogram generics</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>Generic types</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>PSL integrated into VHDL</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>New fixed and floating point arithmetic packages</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td><code>/* */</code> block comments</td>
+    <td class="feature-done">1.6</td>
+  </tr>
+  <tr>
+    <td>New standard
+    functions <code>minimum</code>, <code>maximum</code>, <code>to_string</code>,
+    etc.</td>
+    <td class="feature-done">1.6</td>
+  </tr>
+  <tr>
+    <td>Function <code>rising_edge</code> is defined
+      for <code>boolean</code></td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>Arrays and records may contain unconstrained elements</td>
+    <td class="feature-partial">master (records only)</td>
+  </tr>
+  <tr>
+    <td>New <code>boolean_vector</code>, <code>integer_vector</code>,
+      etc. types</td>
+    <td class="feature-done">1.6</td>
+  </tr>
+  <tr>
+    <td>"Matching" case statement <code>case?</code></td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td><code>force</code> and <code>release</code> for signals</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td><code>'INSTANCE_NAME</code> etc. extended for package and
+    subprogram instantiation</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td>New standard environment package</td>
+    <td class="feature-done">1.4</td>
+  </tr>
+  <tr>
+    <td>New <code>'SUBTYPE</code> and <code>'ELEMENT</code>
+      attributes</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>New condition operator <code>??</code></td>
+    <td class="feature-done">1.6</td>
+  </tr>
+  <tr>
+    <td>Enhanced bit string literals</td>
+    <td class="feature-done">1.6</td>
+  </tr>
+  <tr>
+    <td>External names</td>
+    <td class="feature-partial">master</td>
+  </tr>
+  <tr>
+    <td>Array slices in aggregates</td>
+    <td class="feature-done">master</td>
+  </tr>
+  <tr>
+    <td>Conditional and selected sequential statements</td>
+    <td class="feature-partial">1.6</td>
+  </tr>
+  <tr>
+    <td>Extensions to generate statement</td>
+    <td class="feature-missing"></td>
+  </tr>
+  <tr>
+    <td><code>all</code> in sensitivity list</td>
+    <td class="feature-done">1.6</td>
+  </tr>
+  <tr>
+    <td>Context declarations</td>
+    <td class="feature-done">1.4</td>
+  </tr>
+  <tr>
+    <td>New and enhanced IEEE standard packages</td>
+    <td class="feature-done">1.6</td>
+  </tr>
+</table>
+
+<h4>VHDL-2019</h4>
+
+<p>
+IEEE 1076-2019 was another major update to the VHDL standard.  NVC has
+experimental support for some of the new features, please consult the
+table below.
+</p>
+
+<table class="feature-table">
+  <tr><th>LCS</th><th>Feature</th><th>Status</th></tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_061">
+        LCS2016_061</td>
+    <td>Conditional compilation</td>
+    <td class="feature-done">1.4</td>
+  </tr>
+  <tr>
+    <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_030">
+        LCS2016_030</td>
+    <td>Garbage collection</td>
+    <td class="feature-done">master</td>
+  </tr>
+</table>

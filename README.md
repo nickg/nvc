@@ -150,7 +150,7 @@ issues you encounter.
 
 ### Contributing
 
-Thank your for your interest, but please note that at this time I am not
+Thank you for your interest, but please note that at this time I am not
 looking for additional regular contributors, nor do I have the time to
 review large new features contributed by third parties.  That said I am
 happy to accept patches to fix minor bugs, build issues, documentation,
@@ -171,31 +171,15 @@ For example `--std=2008` selects the VHDL-2008 standard.
 
 The 1993, 2000, and 2002 revisions of the standard are fully supported.
 Please raise bugs for any missing or incorrectly implemented features
-you encounter.
-
-##### VHDL-2008
-
-VHDL-2008 was a large change to the standard with many new features.
-Support for these is currently in development.  Notable omissions
-include:
-
-* Enhanced generics on packages and subprograms are not supported.
-* PSL is not supported.
-* Hierarchical references are not supported.
-* Force / release is not supported.
-* `case?` statement with "don't care" is not supported.
-
-##### VHDL-2019
-
-The most recent revision of the standard also added many new features.
-None of these are supported with the exception of conditional
-compilation directives.
+you encounter.  The current status of VHDL-2008 and VHDL-2019 support
+can be found on the [features](https://www.nickg.me.uk/nvc/features.html)
+page.
 
 ##### VHPI
 
 The VHDL standard contains a comprehensive API called VHPI for
-interfacing with foreign code written in C or another language. NVC
-currently has very limited support for VHPI. Refer to the
+interfacing with foreign code written in C or another language.  NVC
+currently has very limited support for VHPI.  Refer to the
 [manual](https://www.nickg.me.uk/nvc/manual.html#VHPI) for more
 information.
 

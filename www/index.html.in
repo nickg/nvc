@@ -10,7 +10,8 @@ include(`header.html.in')dnl
   1076-2002</a>.
 </p>
 <p>
-  Find out more in the <a href="readme.html">README</a> or read
+  Find out more in the <a href="readme.html">README</a>, see a detailed
+  list of <a href="features.html">features</a>, or read
   the <a href="manual.html">manual</a> online.
 </p>
 <p>

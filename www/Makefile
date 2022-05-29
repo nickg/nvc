@@ -1,4 +1,4 @@
-PAGES = index.html download.html manual.html news.html readme.html
+PAGES = index.html download.html manual.html news.html readme.html features.html
 
 TEMPLATES = defs.m4 header.html.in footer.html.in
 
@@ -23,3 +23,9 @@ nvc.1.html: ../nvc.1
 
 clean:
 	rm -f $(PAGES) $(TMPFILES)
+
+install: all
+	cp -a $(PAGES) style.css /sites/nick/nvc/
+
+
+.PHONY: clean install
