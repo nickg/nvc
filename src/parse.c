@@ -2166,6 +2166,29 @@ static type_t apply_subtype_attribute(tree_t aref)
       return type;
 }
 
+static type_t apply_element_attribute(tree_t aref)
+{
+   assert(tree_subkind(aref) == ATTR_ELEMENT);
+
+   tree_t name = tree_name(aref);
+
+   if (!class_has_type(class_of(name))) {
+      parse_error(tree_loc(aref), "prefix of element attribute does not "
+                  "have a type");
+      return type_new(T_NONE);
+   }
+
+   type_t type = tree_type(name);
+   if (!type_is_array(type)) {
+      parse_error(tree_loc(aref), "prefix of element attribute must be an "
+                  "array type");
+      return type_new(T_NONE);
+   }
+
+   // TODO: apply constraints
+   return type_elem(type);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -2990,6 +3013,8 @@ static attr_kind_t parse_predefined_attr(ident_t ident)
       return ATTR_VAL;
    else if (icmp(ident, "BASE"))
       return ATTR_BASE;
+   else if (icmp(ident, "ELEMENT"))
+      return ATTR_ELEMENT;
    else
       return ATTR_USER;
 }
@@ -3480,16 +3505,19 @@ static type_t p_type_mark(ident_t name)
    }
 
    // Handle VHDL-2008 'SUBTYPE
-   if (peek() == tTICK && peek_nth(2) == tSUBTYPE) {
+   if (peek() == tTICK && (peek_nth(2) == tSUBTYPE || peek_nth(2) == tID)) {
       tree_t ref = tree_new(T_REF);
       tree_set_loc(ref, CURRENT_LOC);
       tree_set_ident(ref, name);
       tree_set_ref(ref, decl);
 
       tree_t aref = p_attribute_name(ref);
-      if (tree_subkind(aref) == ATTR_SUBTYPE)
+      switch (tree_subkind(aref)) {
+      case ATTR_SUBTYPE:
          return apply_subtype_attribute(aref);
-      else {
+      case ATTR_ELEMENT:
+         return apply_element_attribute(aref);
+      default:
          parse_error(tree_loc(aref), "attribute name is not a valid type mark");
          return type_new(T_NONE);
       }

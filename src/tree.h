@@ -216,6 +216,7 @@ typedef enum {
    ATTR_BASE,
    ATTR_SIMPLE_NAME,
    ATTR_SUBTYPE,
+   ATTR_ELEMENT,
 } attr_kind_t;
 
 typedef enum {

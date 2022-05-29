@@ -3578,6 +3578,8 @@ START_TEST(test_vhdl2008)
       { 141, "sorry, array element constraints are not supported yet" },
       { 169, "unexpected ; while parsing case statement, expecting ?" },
       { 179, "prefix of subtype attribute does not have a type" },
+      { 181, "prefix of element attribute must be an array type" },
+      { 182, "prefix of element attribute does not have a type" },
       { -1, NULL }
    };
    expect_errors(expect);

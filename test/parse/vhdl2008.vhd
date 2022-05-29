@@ -173,10 +173,13 @@ begin
     end process;
 
     b4: block is
-        procedure foo (x : integer_vector) is
+        procedure foo (x : integer_vector; y : integer) is
             variable a : x'subtype;     -- OK
             variable b : integer'subtype;  -- OK
             variable c : b4'subtype;    -- Error
+            variable d : x'element;     -- OK
+            variable e : y'element;     -- Error
+            variable f : b4'element;    -- Error
         begin
         end procedure;
     begin
