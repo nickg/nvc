@@ -215,6 +215,7 @@ typedef enum {
    ATTR_REVERSE_RANGE,
    ATTR_BASE,
    ATTR_SIMPLE_NAME,
+   ATTR_SUBTYPE,
 } attr_kind_t;
 
 typedef enum {

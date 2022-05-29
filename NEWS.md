@@ -24,6 +24,7 @@
 - A new global option `-H` specifies the size of the simulation heap and
   defaults to 16 megabytes.
 - Concurrent procedure call allowed in entity statement part.
+- Added support for `'SUBTYPE` attribute in VHDL-2008.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

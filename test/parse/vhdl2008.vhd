@@ -172,4 +172,14 @@ begin
         end case ?;                     -- Error
     end process;
 
+    b4: block is
+        procedure foo (x : integer_vector) is
+            variable a : x'subtype;     -- OK
+            variable b : integer'subtype;  -- OK
+            variable c : b4'subtype;    -- Error
+        begin
+        end procedure;
+    begin
+    end block;
+
 end architecture;

@@ -3577,6 +3577,7 @@ START_TEST(test_vhdl2008)
       { 123, "invalid digit 'C' in bit string" },
       { 141, "sorry, array element constraints are not supported yet" },
       { 169, "unexpected ; while parsing case statement, expecting ?" },
+      { 179, "prefix of subtype attribute does not have a type" },
       { -1, NULL }
    };
    expect_errors(expect);

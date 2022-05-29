@@ -719,8 +719,9 @@ static void require_std(vhdl_standard_t which, const char *feature)
 
       if (n_correct >= RECOVER_THRESH) {
          diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
-         diag_printf(d, "%s are not supported in VHDL-%s",
-                     feature, standard_text(standard()));
+         diag_printf(d, "%s %s not supported in VHDL-%s",
+                     feature, feature[strlen(feature)-1] == 's' ? "are" : "is",
+                     standard_text(standard()));
          diag_hint(d, NULL, "pass $bold$--std=%s$$ to enable this feature",
                    standard_text(which));
          diag_emit(d);
@@ -2105,6 +2106,66 @@ static void _ident_list_cleanup(ident_list_t **list)
    *list = NULL;
 }
 
+static type_t apply_subtype_attribute(tree_t aref)
+{
+   assert(tree_subkind(aref) == ATTR_SUBTYPE);
+
+   tree_t name = tree_name(aref);
+
+   if (!class_has_type(class_of(name))) {
+      parse_error(tree_loc(aref), "prefix of subtype attribute does not "
+                  "have a type");
+      return type_new(T_NONE);
+   }
+
+   type_t type = tree_type(name);
+
+   if (type_is_unconstrained(type)) {
+      // Construct a new subtype using the constraints from the prefix
+      type_t sub = type_new(T_SUBTYPE);
+      type_set_base(sub, type);
+
+      const loc_t *loc = tree_loc(aref);
+
+      tree_t c = tree_new(T_CONSTRAINT);
+      tree_set_subkind(c, C_INDEX);
+      tree_set_loc(c, loc);
+
+      type_add_constraint(sub, c);
+
+      const int ndims = dimension_of(type);
+      for (int i = 0; i < ndims; i++) {
+         tree_t rref = tree_new(T_ATTR_REF);
+         tree_set_name(rref, name);
+         tree_set_ident(rref, ident_new("RANGE"));
+         tree_set_loc(rref, loc);
+         tree_set_subkind(rref, ATTR_RANGE);
+
+         if (i > 0) {
+            tree_t p = tree_new(T_LITERAL);
+            tree_set_subkind(p, L_INT);
+            tree_set_ival(p, i + 1);
+            tree_set_loc(p, loc);
+            tree_set_type(p, std_type(NULL, STD_INTEGER));
+
+            add_param(rref, p, P_POS, NULL);
+         }
+
+         tree_t r = tree_new(T_RANGE);
+         tree_set_subkind(r, RANGE_EXPR);
+         tree_set_value(r, rref);
+
+         solve_types(nametab, r, NULL);
+
+         tree_add_range(c, r);
+      }
+
+      return sub;
+   }
+   else
+      return type;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -2953,27 +3014,38 @@ static tree_t p_attribute_name(tree_t prefix)
    tree_t t = tree_new(T_ATTR_REF);
    tree_set_name(t, prefix);
 
+   attr_kind_t kind;
    ident_t id;
    switch (peek()) {
    case tRANGE:
       consume(tRANGE);
       id = ident_new("RANGE");
+      kind = ATTR_RANGE;
       break;
    case tREVRANGE:
       consume(tREVRANGE);
       id = ident_new("REVERSE_RANGE");
+      kind = ATTR_REVERSE_RANGE;
+      break;
+   case tSUBTYPE:
+      consume(tSUBTYPE);
+      require_std(STD_08, "subtype attribute");
+      id = ident_new("SUBTYPE");
+      kind = ATTR_SUBTYPE;
       break;
    case tID:
       id = p_identifier();
+      kind = parse_predefined_attr(id);
       break;
    default:
-      one_of(tRANGE, tREVRANGE, tID);
+      one_of(tRANGE, tREVRANGE, tID, tSUBTYPE);
+      kind = ATTR_USER;
       id = error_marker();
    }
-   tree_set_ident(t, id);
 
-   const attr_kind_t kind = parse_predefined_attr(id);
+   tree_set_ident(t, id);
    tree_set_subkind(t, kind);
+
    if (kind != ATTR_USER && optional(tLPAREN)) {
       add_param(t, p_expression(), P_POS, NULL);
       consume(tRPAREN);
@@ -3407,16 +3479,33 @@ static type_t p_type_mark(ident_t name)
       return type_new(T_NONE);
    }
 
-   decl = aliased_type_decl(decl);
+   // Handle VHDL-2008 'SUBTYPE
+   if (peek() == tTICK && peek_nth(2) == tSUBTYPE) {
+      tree_t ref = tree_new(T_REF);
+      tree_set_loc(ref, CURRENT_LOC);
+      tree_set_ident(ref, name);
+      tree_set_ref(ref, decl);
 
-   if (decl == NULL) {
-      parse_error(CURRENT_LOC, "type mark %s does not refer to a type",
-                  istr(name));
-      skip_selected_name();
-      return type_new(T_NONE);
+      tree_t aref = p_attribute_name(ref);
+      if (tree_subkind(aref) == ATTR_SUBTYPE)
+         return apply_subtype_attribute(aref);
+      else {
+         parse_error(tree_loc(aref), "attribute name is not a valid type mark");
+         return type_new(T_NONE);
+      }
    }
+   else {
+      decl = aliased_type_decl(decl);
 
-   return tree_type(decl);
+      if (decl == NULL) {
+         parse_error(CURRENT_LOC, "type mark %s does not refer to a type",
+                     istr(name));
+         skip_selected_name();
+         return type_new(T_NONE);
+      }
+
+      return tree_type(decl);
+   }
 }
 
 static tree_t p_index_constraint(type_t base)

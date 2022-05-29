@@ -573,3 +573,4 @@ alias14         normal,2008
 link3           shell
 proc12          normal,2008
 bounds38        fail,gold
+attr15          normal,2008
