@@ -713,21 +713,29 @@ static const char *signame(int sig)
    }
 }
 
-#if defined HAVE_UCONTEXT_H || defined HAVE_SYS_UCONTEXT_H
+#ifdef PC_FROM_UCONTEXT
 static void fill_regs_from_ucontext(ucontext_t *uc,
                                     uintptr_t regs[MAX_CPU_REGS])
 {
-   for (int i = 0; i < MAX_CPU_REGS; i++) {
-#if defined __APPLE__ && defined __arm64__
-      regs[i] = i < 29 ? uc->uc_mcontext->__ss.__x[i] : 0;
-#elif defined __APPLE__
-      uint64_t *fields = (uint64_t *)&(uc->uc_mcontext->__ss);
-      regs[i] = i < 16 ? fields[i] : 0;
-#else
-      STATIC_ASSERT(__NGREG <= MAX_CPU_REGS);
+#if defined __linux__
+   STATIC_ASSERT(__NGREG <= MAX_CPU_REGS);
+   for (int i = 0; i < MAX_CPU_REGS; i++)
       regs[i] = (i < __NGREG) ? uc->uc_mcontext.gregs[i] : 0;
+#else
+   // Other platforms don't provide a convenient array so just copy the
+   // mcontext structure directly
+#if defined __APPLE__
+   char *mc = (char *)&(uc->uc_mcontext->__ss);
+   size_t sz = sizeof(uc->uc_mcontext->__ss);
+#elif defined __OpenBSD__
+   char *mc = (char *)uc;
+   size_t sz = sizeof(ucontext_t);
+#else
+   char *mc = (char *)&(uc->uc_mcontext);
+   size_t sz = sizeof(uc->uc_mcontext);
 #endif
-   }
+   memcpy(regs, mc, MIN(sizeof(uintptr_t) * MAX_CPU_REGS, sz));
+#endif  // !__linux__
 }
 
 static __thread uintptr_t *thread_regs = NULL;
@@ -735,7 +743,7 @@ static __thread uintptr_t *thread_regs = NULL;
 
 static void signal_handler(int sig, siginfo_t *info, void *context)
 {
-#if defined HAVE_UCONTEXT_H || defined HAVE_SYS_UCONTEXT_H
+#ifdef PC_FROM_UCONTEXT
    ucontext_t *uc = (ucontext_t*)context;
    uint64_t ip = uc->PC_FROM_UCONTEXT;
 
@@ -748,7 +756,7 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
    }
 #else
    uintptr_t ip = 0;
-#endif  // HAVE_UCONTEXT_H || HAVE_SYS_UCONTEXT_H
+#endif  // PC_FROM_UNCONTEXT
 
    if (sig != SIGUSR1) {
       while (!atomic_cas(&crashing, 0, 1))
@@ -1863,7 +1871,7 @@ void capture_registers(uintptr_t regs[MAX_CPU_REGS])
    for (int i = 16; i < MAX_CPU_REGS; i++)
       regs[i] = 0;
 
-#elif defined HAVE_PTHREAD
+#elif defined HAVE_PTHREAD && defined PC_FROM_UCONTEXT
    assert(atomic_load(&thread_regs) == NULL);
    atomic_store(&thread_regs, regs);
 

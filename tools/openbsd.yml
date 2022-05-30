@@ -16,17 +16,19 @@ tasks:
       ./autogen.sh
       export CPPFLAGS="-I/usr/local/include"
       export LDFLAGS="-L/usr/local/lib"
-      ./configure --enable-debug
+      mkdir build
+      cd build
+      ../configure --enable-debug
   - build: |
-      cd nvc
+      cd nvc/build
       make
   - test: |
-      cd nvc
+      cd nvc/build
       make check
   - release: |
-      cd nvc
+      cd nvc/build
       make distclean
       export CPPFLAGS="-I/usr/local/include"
       export LDFLAGS="-L/usr/local/lib"
-      ./configure --disable-debug
+      ../configure --disable-debug
       make
