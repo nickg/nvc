@@ -19,31 +19,33 @@ jobs:
         run: ./autogen.sh
       - name: Configure
         run: |
-          ./configure --enable-gcov --enable-asan \
+          mkdir build && cd build
+          ../configure --enable-gcov --enable-asan \
                --with-llvm=/usr/bin/llvm-config --enable-debug
       - name: Build
-        run: ASAN_OPTIONS=detect_leaks=0 make
+        run: ASAN_OPTIONS=detect_leaks=0 make -C build
       - name: Test
-        run: ASAN_OPTIONS=detect_leaks=0 make check
+        run: ASAN_OPTIONS=detect_leaks=0 make -C build check
       - name: Coverage report
-        run: make cov-generate
+        run: make -C build cov-generate
       - name: Coveralls
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path-to-lcov: ./coverage/nvc.info
+          path-to-lcov: ./build/coverage/nvc.info
       - name: Dist clean
-        run: make distclean
+        run: make -C build distclean
       - name: Configure for release
-        run: >-
-          ./configure --with-llvm=/usr/bin/llvm-config \
+        run: |
+          cd build
+          ../configure --with-llvm=/usr/bin/llvm-config \
              --prefix=/opt/nvc-${{ steps.version.outputs.version }} \
              --disable-debug
       - name: Build release
-        run: make
+        run: make -C build
       - name: Install release
         if: github.event_name != 'pull_request'
-        run: sudo make install
+        run: sudo make -C build install
       - name: Archive
         if: github.event_name != 'pull_request'
         run: >-
@@ -69,20 +71,22 @@ jobs:
         run: ./autogen.sh
       - name: Configure
         run: |
-          ./configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
+          mkdir build && cd build
+          ../configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
                --enable-debug
       - name: Build
-        run: make
+        run: make -C build
       - name: Test
-        run: make check
+        run: make -C build check
       - name: Dist clean
-        run: make distclean
+        run: make -C build distclean
       - name: Configure for release
         run: |
-          ./configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
+          cd build
+          ../configure --with-llvm=$(brew --prefix llvm)/bin/llvm-config \
                --disable-debug
       - name: Build release
-        run: make
+        run: make -C build
 
   build-windows:
     name: Windows MSYS2
@@ -112,18 +116,22 @@ jobs:
       - name: Generate configure script
         run: bash autogen.sh
       - name: Configure
-        run: bash configure --enable-debug
+        run: |
+          mkdir build
+          cd build
+          bash ../configure --enable-debug
       - name: Build
-        run: make
+        run: make -C build
       - name: Test
-        run: make check
+        run: make -C build check
       - name: Dist clean
-        run: make distclean
+        run: make -C build distclean
       - name: Configure for release
-        run: >-
-          ./configure --disable-debug
+        run: |
+          cd build
+          ../configure --disable-debug
       - name: Build release
-        run: make
+        run: make -C build
 
   vests:
     name: VESTs

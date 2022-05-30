@@ -48,7 +48,7 @@ build = $(top_builddir)/src
 shared = $(src)/util.c
 covdir = $(top_builddir)/coverage
 
-clean-local:
+clean-test:
 	-test ! -d logs || rm -r logs
 
 if ENABLE_GCOV

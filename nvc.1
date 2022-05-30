@@ -48,7 +48,13 @@ Execute a previously elaborated top level design unit.
 .It Fl -dump Ar unit
 Print out a pseudo-VHDL representation of an analysed unit.  This is
 usually only useful for debugging the compiler.
-.\"
+.\" --init
+.It Fl -init
+Initialise the working library directory.  This is not normally
+necessary as the library will be automatically created when using other
+commands such as
+.Fl a .
+.\" --list
 .It Fl -list
 Print all analysed and elaborated units in the work library.
 .\"
@@ -80,10 +86,6 @@ elaborate command.
 .\" ------------------------------------------------------------
 .Ss Global options
 .Bl -tag -width Ds
-.\" --force-init
-.It Fl -force-init
-Initialise a library work directory even if it already exists and is
-non-empty.
 .\" --help
 .It Fl h , -help
 Display usage summary.

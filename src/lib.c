@@ -396,9 +396,9 @@ lib_t lib_new(const char *name, const char *path)
    if (stat(path, &buf) == 0) {
       if (S_ISDIR(buf.st_mode)) {
          struct stat sb;
-         if (stat(lockf, &sb) != 0 && !opt_get_int(OPT_FORCE_INIT))
-            fatal("directory %s already exists and is not an NVC library "
-                  "(use --force-init to override this check)", path);
+         if (stat(lockf, &sb) != 0)
+            fatal("directory %s already exists and is not an NVC library",
+                  path);
       }
       else
          fatal("path %s already exists and is not a directory", path);

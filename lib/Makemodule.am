@@ -1,5 +1,5 @@
 nvc = $(nvc_verbose) NVC_IMP_LIB=$(top_builddir)/lib \
-	$(top_builddir)/bin/nvc --force-init $(native_opt)
+	$(top_builddir)/bin/nvc $(native_opt)
 
 nvc_verbose = $(nvc_verbose_@AM_V@)
 nvc_verbose_ = $(nvc_verbose_@AM_DEFAULT_V@)
@@ -14,12 +14,13 @@ gen-deps: gen-deps-vital gen-deps-ieee-08 gen-deps-nvc gen-deps-nvc-08
 
 clean-libs:
 	rm -f $(BOOTSTRAPLIBS)
+	for d in std std.08 nvc nvc.08 ieee ieee.08 synopsys; do \
+	  if test -d lib/$$d; then rmdir lib/$$d; fi; \
+	done
 
 bootstrap: clean-libs
 	$(MAKE) libs-std libs-std-08 libs-ieee libs-ieee-08 libs-synopsys \
 	  libs-vital libs-nvc libs-nvc-08
-
-CLEANFILES += $(BOOTSTRAPLIBS)
 
 DRIVER = bin/nvc$(EXEEXT)
 

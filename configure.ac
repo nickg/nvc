@@ -30,6 +30,8 @@ AS_IF([test -d ${srcdir}/.git],
       [enable_maintainer_mode="no"])
 AM_MAINTAINER_MODE
 
+FORCE_OUT_OF_TREE
+
 AC_PROG_CC
 AC_PROG_CXX
 AC_PROG_INSTALL

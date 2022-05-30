@@ -86,20 +86,18 @@ for third party packaging.  The latest released version is
 Significant changes since the last release are detailed in
 [NEWS.md](NEWS.md).
 
-To build from a Git clone:
+If you are building from a Git clone rather than a released tarball you
+first need to generate the configure script using:
 
     ./autogen.sh
+
+In-tree builds are not supported so create a separate build directory:
+
     mkdir build && cd build
+
+Finally build and install using the standard autotools steps:
+
     ../configure
-    make
-    sudo make install
-
-Generating the configure script requires autoconf 2.63 and automake 1.11
-or later.
-
-To build from a released tarball:
-
-    ./configure
     make
     sudo make install
 

@@ -97,7 +97,7 @@ static unsigned parse_relax(const char *str)
 static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
-      "-a", "-e", "-r", "--dump", "--make", "--syntax", "--list"
+      "-a", "-e", "-r", "--dump", "--make", "--syntax", "--list", "--init",
    };
 
    for (int i = start; i < argc; i++) {
@@ -624,6 +624,37 @@ static int list_cmd(int argc, char **argv)
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
+static int init_cmd(int argc, char **argv)
+{
+   static struct option long_options[] = {
+      { 0, 0, 0, 0 }
+   };
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+   int c, index = 0;
+   const char *spec = "";
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0:
+         // Set a flag
+         break;
+      case '?':
+         bad_option("init", argv);
+         break;
+      }
+   }
+
+   if (argc != optind)
+      fatal("$bold$--init$$ command takes no positional arguments");
+
+   lib_save(lib_work());
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+}
+
 static int syntax_cmd(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -640,8 +671,7 @@ static int syntax_cmd(int argc, char **argv)
          break;
       case '?':
          bad_option("syntax", argv);
-      default:
-         abort();
+         break;
       }
    }
 
@@ -727,7 +757,6 @@ static void set_default_opts(void)
    opt_set_str(OPT_DUMP_VCODE, getenv("NVC_LOWER_VERBOSE"));
    opt_set_int(OPT_RELAX, 0);
    opt_set_int(OPT_IGNORE_TIME, 0);
-   opt_set_int(OPT_FORCE_INIT, 0);
    opt_set_int(OPT_VERBOSE, 0);
    opt_set_int(OPT_RT_PROFILE, 0);
    opt_set_int(OPT_SYNTHESIS, 0);
@@ -755,12 +784,12 @@ static void usage(void)
           " -e [OPTION]... UNIT\t\tElaborate and generate code for UNIT\n"
           " -r [OPTION]... UNIT\t\tExecute previously elaborated UNIT\n"
           " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
+          " --init\t\t\t\tInitialise work library directory\n"
           " --list\t\t\t\tPrint all units in the library\n"
           " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
           " --syntax FILE...\t\tCheck FILEs for syntax errors only\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
-          "     --force-init\tCreate a library in an existing directory\n"
           " -h, --help\t\tDisplay this message and exit\n"
           " -H SIZE\t\tSet the maximum heap size to SIZE bytes\n"
           "     --ignore-time\tSkip source file timestamp check\n"
@@ -918,6 +947,7 @@ static int process_command(int argc, char **argv)
       { "make",    no_argument, 0, 'm' },
       { "syntax",  no_argument, 0, 's' },
       { "list",    no_argument, 0, 'l' },
+      { "init",    no_argument, 0, 'i' },
       { 0, 0, 0, 0 }
    };
 
@@ -941,6 +971,8 @@ static int process_command(int argc, char **argv)
       return syntax_cmd(argc, argv);
    case 'l':
       return list_cmd(argc, argv);
+   case 'i':
+      return init_cmd(argc, argv);
    default:
       fatal("missing command, try %s --help for usage", PACKAGE);
       return EXIT_FAILURE;
@@ -965,7 +997,7 @@ int main(int argc, char **argv)
       { "native",      no_argument,       0, 'n' },   // DEPRECATED
       { "map",         required_argument, 0, 'p' },
       { "ignore-time", no_argument,       0, 'i' },
-      { "force-init",  no_argument,       0, 'f' },
+      { "force-init",  no_argument,       0, 'f' },   // DEPRECATED 1.7
       { 0, 0, 0, 0 }
    };
 
@@ -1008,7 +1040,7 @@ int main(int argc, char **argv)
          opt_set_int(OPT_IGNORE_TIME, 1);
          break;
       case 'f':
-         opt_set_int(OPT_FORCE_INIT, 1);
+         warnf("the --force-init option is deprecated and has no effect");
          break;
       case 'n':
          warnf("the --native option is deprecated and has no effect");

@@ -48,4 +48,6 @@ compile-commands:
 	$(MAKE) -C $(top_builddir) clean
 	bear -- $(MAKE) -j -C $(top_builddir) $(bin_PROGRAMS) $(check_PROGRAMS)
 
+clean-local: clean-test clean-libs
+
 .PHONY: bootstrap cov-reset cov-report clean-libs clean-test compile-commands

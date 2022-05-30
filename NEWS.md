@@ -1,4 +1,8 @@
 ## Unreleased changes
+- *Breaking change:* In-tree builds are no longer supported: use a
+  separate build directory instead.
+- *Breaking change:* The `--force-init` command is deprecated and has no
+  effect.
 - Added support for VHDL-2008 type generics on packages and entities.
 - Diagnostic messages have been enhanced with more contextual
   information.
@@ -25,6 +29,8 @@
   defaults to 16 megabytes.
 - Concurrent procedure call allowed in entity statement part.
 - Added support for `'SUBTYPE` and `'ELEMENT` attributes in VHDL-2008.
+- The new top-level `--init` command creates a new empty library
+  directory.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).
