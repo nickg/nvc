@@ -36,23 +36,48 @@ static int            lineno;
 
 void input_from_file(const char *file)
 {
-   int fd = open(file, O_RDONLY);
-   if (fd < 0)
-      fatal_errno("opening %s", file);
+   int fd;
+   if (strcmp(file, "-") == 0)
+      fd = STDIN_FILENO;
+   else {
+      fd = open(file, O_RDONLY);
+      if (fd < 0)
+         fatal_errno("opening %s", file);
+   }
 
    struct stat buf;
    if (fstat(fd, &buf) != 0)
       fatal_errno("fstat");
 
-   if (!S_ISREG(buf.st_mode))
-      fatal("opening %s: not a regular file", file);
+   if (S_ISFIFO(buf.st_mode)) {
+      // Read all the data from the pipe into a buffer
+      size_t bufsz = 16384;
+      char *buf = xmalloc(bufsz);
+      int nbytes;
+      do {
+         if (bufsz - 1 - file_sz == 0)
+            buf = xrealloc(buf, bufsz *= 2);
 
-   file_sz = buf.st_size;
+         nbytes = read(fd, buf + file_sz, bufsz - 1 - file_sz);
+         if (nbytes < 0)
+            fatal_errno("read");
 
-   if (file_sz > 0)
-      file_start = map_file(fd, file_sz);
+         file_sz += nbytes;
+         buf[file_sz] = '\0';
+      } while (nbytes > 0);
+
+      file_start = buf;
+   }
+   else if (S_ISREG(buf.st_mode)) {
+      file_sz = buf.st_size;
+
+      if (file_sz > 0)
+         file_start = map_file(fd, file_sz);
+      else
+         file_start = NULL;
+   }
    else
-      file_start = NULL;
+      fatal("opening %s: not a regular file", file);
 
    close(fd);
 

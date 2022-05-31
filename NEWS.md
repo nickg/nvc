@@ -31,6 +31,8 @@
 - Added support for `'SUBTYPE` and `'ELEMENT` attributes in VHDL-2008.
 - The new top-level `--init` command creates a new empty library
   directory.
+- The `-a` analysis command now reads from the standard input if the
+  file name is `-`.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

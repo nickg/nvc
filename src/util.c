@@ -924,7 +924,7 @@ void term_init(void)
       "dumb"
    };
 
-   bool is_tty = isatty(STDERR_FILENO) && isatty(STDIN_FILENO);
+   bool is_tty = isatty(STDERR_FILENO);
 
 #ifdef __MINGW32__
    if (!is_tty) {

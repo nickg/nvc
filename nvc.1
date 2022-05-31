@@ -35,16 +35,20 @@ command and specific options must be placed after the command.
 .\"
 .Ss Commands
 .Bl -tag -width Ds
-.\"
+.\" -a
 .It Fl a Ar
-Analyse one or more files into the work library.
-.\"
+Analyse one or more files into the work library.  Reads from standard
+input if
+.Ar file
+is
+.Ql - .
+.\" -e
 .It Fl e Ar unit
 Elaborate a previously analysed top level design unit.
-.\"
+.\" -r
 .It Fl r Ar unit
 Execute a previously elaborated top level design unit.
-.\"
+.\" --dump
 .It Fl -dump Ar unit
 Print out a pseudo-VHDL representation of an analysed unit.  This is
 usually only useful for debugging the compiler.
