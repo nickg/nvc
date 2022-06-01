@@ -46,6 +46,7 @@ typedef struct _object_arena {
    arena_array_t   deps;
    obj_src_t       source;
    vhdl_standard_t std;
+   uint32_t        checksum;
 } object_arena_t;
 
 static const char *item_text_map[] = {
@@ -124,6 +125,11 @@ static bool object_marked_p(object_t *object, generation_t generation)
    arena->mark_bits[word] |= mask;
 
    return marked;
+}
+
+void arena_set_checksum(object_arena_t *arena, uint32_t checksum)
+{
+   arena->checksum = checksum;
 }
 
 object_t *arena_root(object_arena_t *arena)
@@ -294,7 +300,7 @@ void object_one_time_init(void)
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the object items table
-      const uint32_t format_fudge = 24;
+      const uint32_t format_fudge = 25;
 
       format_digest += format_fudge * UINT32_C(2654435761);
 
@@ -697,6 +703,7 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
    for (unsigned i = 0; i < arena->deps.count; i++) {
       fbuf_put_uint(f, arena->deps.items[i]->key);
       fbuf_put_uint(f, arena->deps.items[i]->std);
+      fbuf_put_uint(f, arena->deps.items[i]->checksum);
       ident_write(object_arena_name(arena->deps.items[i]), ident_ctx);
    }
 
@@ -799,7 +806,6 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
 
    arena_key_t key = fbuf_get_uint(f);
    ident_t name = ident_read(ident_ctx);
-   (void)name;  // Not currently used
 
    arena_key_t max_key = fbuf_get_uint(f);
 
@@ -810,6 +816,7 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
    for (int i = 0; i < ndeps; i++) {
       arena_key_t dkey = fbuf_get_uint(f);
       vhdl_standard_t dstd = fbuf_get_uint(f);
+      uint32_t checksum = fbuf_get_uint(f);
       ident_t dep = ident_read(ident_ctx);
 
       object_arena_t *a = NULL;
@@ -833,6 +840,16 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
 	 fatal("%s: design unit depends on %s version of %s but conflicting "
 	       "%s version has been loaded", fbuf_file_name(f),
 	       standard_text(dstd), istr(dep), standard_text(a->std));
+      else if (a->checksum != checksum) {
+	 diag_t *d = diag_new(DIAG_FATAL, NULL);
+	 diag_printf(d, "%s: design unit depends on %s with checksum %08x "
+		     "but the current version in the library has checksum %08x",
+		     fbuf_file_name(f), istr(dep), checksum, a->checksum);
+	 diag_hint(d, NULL, "this usually means %s is outdated and needs to "
+		   "be reanalysed", istr(name));
+	 diag_emit(d);
+	 fatal_exit(EXIT_FAILURE);
+      }
 
       APUSH(arena->deps, a);
 
@@ -1146,7 +1163,7 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
    // Search backwards to ensure we find the most recent arena with the
    // given name
    object_arena_t *arena = NULL;
-   for (int j = all_arenas.count - 1; j > 0 ; j--) {
+   for (int j = all_arenas.count - 1; j > 0; j--) {
       if (module == object_arena_name(all_arenas.items[j])) {
 	 arena = all_arenas.items[j];
 	 break;

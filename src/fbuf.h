@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2021  Nick Gasson
+//  Copyright (C) 2013-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -26,11 +26,16 @@
 
 typedef enum {
    FBUF_IN,
-   FBUF_OUT,
+   FBUF_OUT
 } fbuf_mode_t;
 
-fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode);
-void fbuf_close(fbuf_t *f);
+typedef enum {
+   FBUF_CS_NONE = '-',
+   FBUF_CS_ADLER32 = 'A',
+} fbuf_cs_t;
+
+fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum);
+void fbuf_close(fbuf_t *f, uint32_t *checksum);
 void fbuf_cleanup(void);
 const char *fbuf_file_name(fbuf_t *f);
 

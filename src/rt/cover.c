@@ -204,7 +204,7 @@ cover_tagging_t *cover_tag(tree_t top)
       return ctx;
 
    char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));
-   fbuf_t *f = lib_fbuf_open(lib_work(), dbname, FBUF_OUT);
+   fbuf_t *f = lib_fbuf_open(lib_work(), dbname, FBUF_OUT, FBUF_CS_NONE);
    if (f == NULL)
       fatal_errno("failed to create coverage db file: %s", dbname);
 
@@ -229,7 +229,7 @@ cover_tagging_t *cover_tag(tree_t top)
    write_u8(TAG_LAST, f);
 
    loc_write_end(loc_wr);
-   fbuf_close(f);
+   fbuf_close(f, NULL);
 
    return ctx;
 }
@@ -237,7 +237,7 @@ cover_tagging_t *cover_tag(tree_t top)
 cover_tagging_t *cover_read_tags(tree_t top)
 {
    char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));
-   fbuf_t *f = lib_fbuf_open(lib_work(), dbname, FBUF_IN);
+   fbuf_t *f = lib_fbuf_open(lib_work(), dbname, FBUF_IN, FBUF_CS_NONE);
    if (f == NULL)
       return NULL;
 
@@ -269,7 +269,7 @@ cover_tagging_t *cover_read_tags(tree_t top)
    }
 
    loc_read_end(loc_rd);
-   fbuf_close(f);
+   fbuf_close(f, NULL);
    return tagging;
 }
 

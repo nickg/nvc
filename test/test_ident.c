@@ -69,7 +69,7 @@ START_TEST(test_read_write)
    i2 = ident_new("foo");
    i3 = ident_new("foo");
 
-   fbuf_t *f = fbuf_open("test.ident", FBUF_OUT);
+   fbuf_t *f = fbuf_open("test.ident", FBUF_OUT, FBUF_CS_NONE);
    fail_if(f == NULL);
 
    ident_wr_ctx_t wctx = ident_write_begin(f);
@@ -80,9 +80,9 @@ START_TEST(test_read_write)
 
    ident_write_end(wctx);
 
-   fbuf_close(f);
+   fbuf_close(f, NULL);
 
-   f = fbuf_open("test.ident", FBUF_IN);
+   f = fbuf_open("test.ident", FBUF_IN, FBUF_CS_NONE);
    fail_if(f == NULL);
 
    ident_rd_ctx_t rctx = ident_read_begin(f);
@@ -100,7 +100,7 @@ START_TEST(test_read_write)
 
    fail_unless(j2 == j3);
 
-   fbuf_close(f);
+   fbuf_close(f, NULL);
 
    remove("test.ident");
 }

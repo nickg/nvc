@@ -19,6 +19,7 @@
 #include "array.h"
 #include "common.h"
 #include "diag.h"
+#include "object.h"
 #include "opt.h"
 #include "tree.h"
 #include "vcode.h"
@@ -148,7 +149,7 @@ static void lib_add_to_index(lib_t lib, ident_t name, tree_kind_t kind)
 
 static void lib_read_index(lib_t lib)
 {
-   fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_IN);
+   fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_IN, FBUF_CS_NONE);
    if (f != NULL) {
       struct stat st;
       if (stat(fbuf_file_name(f), &st) < 0)
@@ -192,7 +193,7 @@ static void lib_read_index(lib_t lib)
       }
 
       ident_read_end(ictx);
-      fbuf_close(f);
+      fbuf_close(f, NULL);
    }
 }
 
@@ -551,14 +552,15 @@ FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
    return fopen(tb_get(path), mode);
 }
 
-fbuf_t *lib_fbuf_open(lib_t lib, const char *name, fbuf_mode_t mode)
+fbuf_t *lib_fbuf_open(lib_t lib, const char *name,
+                      fbuf_mode_t mode, fbuf_cs_t csum)
 {
    assert(lib != NULL);
    if (lib->path == NULL)
       return NULL;   // Temporary library for unit test
    else {
       LOCAL_TEXT_BUF path = lib_file_path(lib, name);
-      return fbuf_open(tb_get(path), mode);
+      return fbuf_open(tb_get(path), mode, csum);
    }
 }
 
@@ -720,7 +722,7 @@ static lib_mtime_t lib_stat_mtime(struct stat *st)
 
 static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 {
-   fbuf_t *f = lib_fbuf_open(lib, fname, FBUF_IN);
+   fbuf_t *f = lib_fbuf_open(lib, fname, FBUF_IN, FBUF_CS_ADLER32);
 
    ident_rd_ctx_t ident_ctx = ident_read_begin(f);
    loc_rd_ctx_t *loc_ctx = loc_read_begin(f);
@@ -744,10 +746,14 @@ static lib_unit_t *lib_read_unit(lib_t lib, const char *fname)
 
    loc_read_end(loc_ctx);
    ident_read_end(ident_ctx);
-   fbuf_close(f);
+
+   uint32_t checksum;
+   fbuf_close(f, &checksum);
 
    if (top == NULL)
       fatal_trace("%s did not contain tree", fname);
+
+   arena_set_checksum(tree_arena(top), checksum);
 
    LOCAL_TEXT_BUF path = lib_file_path(lib, fname);
 
@@ -901,7 +907,7 @@ ident_t lib_name(lib_t lib)
 static void lib_save_unit(lib_t lib, lib_unit_t *unit)
 {
    const char *name = istr(tree_ident(unit->top));
-   fbuf_t *f = lib_fbuf_open(lib, name, FBUF_OUT);
+   fbuf_t *f = lib_fbuf_open(lib, name, FBUF_OUT, FBUF_CS_ADLER32);
    if (f == NULL)
       fatal("failed to create %s in library %s", name, istr(lib->name));
 
@@ -921,7 +927,11 @@ static void lib_save_unit(lib_t lib, lib_unit_t *unit)
 
    loc_write_end(loc_ctx);
    ident_write_end(ident_ctx);
-   fbuf_close(f);
+
+   uint32_t checksum;
+   fbuf_close(f, &checksum);
+
+   arena_set_checksum(tree_arena(unit->top), checksum);
 
    assert(unit->dirty);
    unit->dirty = false;
@@ -958,7 +968,7 @@ void lib_save(lib_t lib)
 
    int index_sz = lib_index_size(lib);
 
-   fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_OUT);
+   fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_OUT, FBUF_CS_NONE);
    if (f == NULL)
       fatal_errno("failed to create library %s index", istr(lib->name));
 
@@ -973,7 +983,7 @@ void lib_save(lib_t lib)
    }
 
    ident_write_end(ictx);
-   fbuf_close(f);
+   fbuf_close(f, NULL);
 
    if (stat(tb_get(index_path), &st) != 0)
       fatal_errno("stat: %s", tb_get(index_path));

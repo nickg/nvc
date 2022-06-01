@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014  Nick Gasson
+//  Copyright (C) 2014-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -30,12 +30,34 @@
 #define SPILL_SIZE 65536
 #define BLOCK_SIZE (SPILL_SIZE - (SPILL_SIZE / 16))
 
+#define UNPACK_BE32(b)                                  \
+   ((uint32_t)((b)[0] << 24) | (uint32_t)((b)[1] << 16) \
+    | (uint32_t)((b)[2] << 8) | (uint32_t)(b)[3])
+
+#define PACK_BE32(u)				\
+   ((u) >> 24) & 0xff, ((u) >> 16) & 0xff,	\
+      ((u) >> 8) & 0xff, (u) & 0xff
+
+typedef struct {
+   unsigned long s1;
+   unsigned long s2;
+} adler32_t;
+
+typedef struct {
+   fbuf_cs_t algo;
+   uint32_t  expect;
+   union {
+      adler32_t adler32;
+   } u;
+} cs_state_t;
+
 struct _fbuf {
    fbuf_mode_t  mode;
    char        *fname;
    FILE        *file;
    uint8_t     *wbuf;
    size_t       wpend;
+   size_t       wtotal;
    uint8_t     *rbuf;
    size_t       rptr;
    size_t       ravail;
@@ -44,9 +66,93 @@ struct _fbuf {
    size_t       maplen;
    fbuf_t      *next;
    fbuf_t      *prev;
+   cs_state_t   checksum;
 };
 
 static fbuf_t *open_list = NULL;
+
+static void adler32_update(adler32_t *state, uint8_t *input, size_t length)
+{
+   // Public domain implementation from
+   //   https://github.com/weidai11/cryptopp/blob/master/adler32.cpp
+
+   const unsigned long BASE = 65521;
+
+   unsigned long s1 = state->s1;
+   unsigned long s2 = state->s2;
+
+   if (length % 8 != 0) {
+      do {
+         s1 += *input++;
+         s2 += s1;
+         length--;
+      } while (length % 8 != 0);
+
+      if (s1 >= BASE)
+         s1 -= BASE;
+      s2 %= BASE;
+   }
+
+   while (length > 0) {
+      s1 += input[0]; s2 += s1;
+      s1 += input[1]; s2 += s1;
+      s1 += input[2]; s2 += s1;
+      s1 += input[3]; s2 += s1;
+      s1 += input[4]; s2 += s1;
+      s1 += input[5]; s2 += s1;
+      s1 += input[6]; s2 += s1;
+      s1 += input[7]; s2 += s1;
+
+      length -= 8;
+      input += 8;
+
+      if (s1 >= BASE)
+	 s1 -= BASE;
+      if (length % 0x8000 == 0)
+	 s2 %= BASE;
+   }
+
+   assert(s1 < BASE);
+   assert(s2 < BASE);
+
+   state->s1 = s1;
+   state->s2 = s2;
+}
+
+static void checksum_init(cs_state_t *state, fbuf_cs_t algo)
+{
+   state->expect = 0;
+
+   switch ((state->algo = algo)) {
+   case FBUF_CS_NONE:
+      break;
+   case FBUF_CS_ADLER32:
+      state->u.adler32.s1 = 1;
+      state->u.adler32.s2 = 0;
+      break;
+   }
+}
+
+static void checksum_update(cs_state_t *state, uint8_t *input, size_t length)
+{
+   switch (state->algo) {
+   case FBUF_CS_NONE:
+      break;
+   case FBUF_CS_ADLER32:
+      adler32_update(&(state->u.adler32), input, length);
+      break;
+   }
+}
+
+static uint32_t checksum_finish(cs_state_t *state)
+{
+   switch (state->algo) {
+   case FBUF_CS_ADLER32:
+      return (state->u.adler32.s1 << 16) | state->u.adler32.s2;
+   default:
+      return 0;
+   }
+}
 
 void fbuf_cleanup(void)
 {
@@ -58,7 +164,62 @@ void fbuf_cleanup(void)
    }
 }
 
-fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
+static void fbuf_write_raw(fbuf_t *f, const uint8_t *bytes, size_t count)
+{
+   if (fwrite(bytes, count, 1, f->file) != 1)
+      fatal_errno("%s: fwrite", f->fname);
+}
+
+static void fbuf_write_header(fbuf_t *f)
+{
+   const uint8_t header[16] = {
+      'F', 'B', 'U', 'F',     // Magic number "FBUF"
+      'F',                    // Compression format (FastLZ)
+      f->checksum.algo,       // Checksum algorithm
+      0, 0,                   // Unused
+      0, 0, 0, 0,             // Decompressed length
+      0, 0, 0, 0,             // Checksum
+   };
+   fbuf_write_raw(f, header, sizeof(header));
+}
+
+static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
+{
+   if (fseek(f->file, 8, SEEK_SET) != 0)
+      fatal_errno("%s: fseek", f->fname);
+
+   const uint8_t bytes[8] = { PACK_BE32(f->wpend), PACK_BE32(checksum) };
+   fbuf_write_raw(f, bytes, 8);
+}
+
+static void fbuf_read_header(fbuf_t *f)
+{
+   uint8_t *header = f->rmap;
+
+   if (memcmp(header, "FBUF", 4)) {
+      // TEMPORARY: assume it's from an old version
+      //warnf("%s: file created with an older version of NVC", f->fname);
+      return;
+   }
+
+   if (header[4] != 'F')
+      fatal("%s has was created with unexpected compression algorithm %c",
+	    f->fname, header[4]);
+
+   if (header[5] != f->checksum.algo)
+      fatal("%s has was created with unexpected checksum algorithm %c",
+	    f->fname, header[5]);
+
+   const uint32_t len = UNPACK_BE32(header + 8);
+   const uint32_t checksum = UNPACK_BE32(header + 12);
+
+   (void)len;   // Not used
+
+   f->checksum.expect = checksum;
+   f->roff = 16;
+}
+
+fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
 {
    fbuf_t *f = NULL;
 
@@ -71,11 +232,12 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
 
          f = xmalloc(sizeof(struct _fbuf));
 
-         f->file  = h;
-         f->rmap  = NULL;
-         f->rbuf  = NULL;
-         f->wbuf  = xmalloc(SPILL_SIZE);
-         f->wpend = 0;
+         f->file   = h;
+         f->rmap   = NULL;
+         f->rbuf   = NULL;
+         f->wbuf   = xmalloc(SPILL_SIZE);
+         f->wpend  = 0;
+	 f->wtotal = 0;
       }
       break;
 
@@ -112,6 +274,13 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
    f->next  = open_list;
    f->prev  = NULL;
 
+   checksum_init(&(f->checksum), csum);
+
+   if (mode == FBUF_OUT)
+      fbuf_write_header(f);
+   else
+      fbuf_read_header(f);
+
    if (open_list != NULL)
       open_list->prev = f;
 
@@ -123,34 +292,29 @@ const char *fbuf_file_name(fbuf_t *f)
    return f->fname;
 }
 
-static void fbuf_maybe_flush(fbuf_t *f, size_t more, bool finish)
+static void fbuf_maybe_flush(fbuf_t *f, size_t more)
 {
    assert(more <= BLOCK_SIZE);
    if (f->wpend + more > BLOCK_SIZE) {
       if (f->wpend < 16) {
          // Write dummy bytes at end to meet fastlz block size requirement
-         assert(finish);
+         memset(f->wbuf + f->wpend, '\0', 16 - f->wpend);
          f->wpend = 16;
       }
+
+      checksum_update(&(f->checksum), f->wbuf, f->wpend);
 
       uint8_t out[SPILL_SIZE];
       const int ret = fastlz_compress_level(2, f->wbuf, f->wpend, out);
 
       assert((ret > 0) && (ret < SPILL_SIZE));
 
-      const uint8_t blksz[4] = {
-         (ret >> 24) & 0xff,
-         (ret >> 16) & 0xff,
-         (ret >> 8) & 0xff,
-         ret & 0xff
-      };
+      const uint8_t blksz[4] = { PACK_BE32(ret) };
+      fbuf_write_raw(f, blksz, 4);
 
-      if (fwrite(blksz, 4, 1, f->file) != 1)
-         fatal("fwrite failed");
+      fbuf_write_raw(f, out, ret);
 
-      if (fwrite(out, ret, 1, f->file) != 1)
-         fatal("fwrite failed");
-
+      f->wtotal += f->wpend;
       f->wpend = 0;
    }
 }
@@ -164,12 +328,7 @@ static void fbuf_maybe_read(fbuf_t *f, size_t more)
 
       const uint8_t *blksz_raw = f->rmap + f->roff;
 
-      const uint32_t blksz =
-         (uint32_t)(blksz_raw[0] << 24)
-         | (uint32_t)(blksz_raw[1] << 16)
-         | (uint32_t)(blksz_raw[2] << 8)
-         | (uint32_t)blksz_raw[3];
-
+      const uint32_t blksz = UNPACK_BE32(blksz_raw);
       if (blksz > SPILL_SIZE)
          fatal("file %s has invalid compression format", f->fname);
 
@@ -186,21 +345,35 @@ static void fbuf_maybe_read(fbuf_t *f, size_t more)
       if (ret == 0)
          fatal("file %s has invalid compression format", f->fname);
 
+      checksum_update(&(f->checksum), f->rbuf + overlap, ret);
+
       f->roff  += blksz;
       f->ravail = overlap + ret;
       f->rptr   = 0;
    }
 }
 
-void fbuf_close(fbuf_t *f)
+void fbuf_close(fbuf_t *f, uint32_t *checksum)
 {
+   if (f->wbuf != NULL)
+      fbuf_maybe_flush(f, BLOCK_SIZE);
+
+   const uint32_t cs = checksum_finish(&(f->checksum));
+
+   if (f->mode == FBUF_IN && cs != f->checksum.expect && f->checksum.expect != 0 /* TODO: REMOVE */)
+      fatal("%s: incorrect checksum %08x, expected %08x",
+	    f->fname, cs, f->checksum.expect);
+
+   if (checksum != NULL)
+      *checksum = cs;
+
    if (f->rmap != NULL) {
       unmap_file((void *)f->rmap, f->maplen);
       free(f->rbuf);
    }
 
    if (f->wbuf != NULL) {
-      fbuf_maybe_flush(f, BLOCK_SIZE, true);
+      fbuf_update_header(f, cs);
       free(f->wbuf);
    }
 
@@ -219,6 +392,9 @@ void fbuf_close(fbuf_t *f)
          f->next->prev = f->prev;
    }
 
+   if (checksum != NULL)
+      *checksum = checksum_finish(&(f->checksum));
+
    free(f->fname);
    free(f);
 }
@@ -235,7 +411,7 @@ void fbuf_put_uint(fbuf_t *f, uint64_t val)
       nbytes++;
    } while (val);
 
-   fbuf_maybe_flush(f, nbytes, false);
+   fbuf_maybe_flush(f, nbytes);
    for (int i = 0; i < nbytes; i++)
       *(f->wbuf + f->wpend++) = enc[i];
 }
@@ -248,7 +424,7 @@ void fbuf_put_int(fbuf_t *f, int64_t val)
 
 void write_u32(uint32_t u, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 4, false);
+   fbuf_maybe_flush(f, 4);
    *(f->wbuf + f->wpend++) = (u >>  0) & UINT32_C(0xff);
    *(f->wbuf + f->wpend++) = (u >>  8) & UINT32_C(0xff);
    *(f->wbuf + f->wpend++) = (u >> 16) & UINT32_C(0xff);
@@ -257,7 +433,7 @@ void write_u32(uint32_t u, fbuf_t *f)
 
 void write_u64(uint64_t u, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 8, false);
+   fbuf_maybe_flush(f, 8);
    *(f->wbuf + f->wpend++) = (u >>  0) & UINT64_C(0xff);
    *(f->wbuf + f->wpend++) = (u >>  8) & UINT64_C(0xff);
    *(f->wbuf + f->wpend++) = (u >> 16) & UINT64_C(0xff);
@@ -270,20 +446,20 @@ void write_u64(uint64_t u, fbuf_t *f)
 
 void write_u16(uint16_t s, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 2, false);
+   fbuf_maybe_flush(f, 2);
    *(f->wbuf + f->wpend++) = (s >> 0) & UINT16_C(0xff);
    *(f->wbuf + f->wpend++) = (s >> 8) & UINT16_C(0xff);
 }
 
 void write_u8(uint8_t u, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 1, false);
+   fbuf_maybe_flush(f, 1);
    *(f->wbuf + f->wpend++) = u;
 }
 
 void write_raw(const void *buf, size_t len, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, len, false);
+   fbuf_maybe_flush(f, len);
    memcpy(f->wbuf + f->wpend, buf, len);
    f->wpend += len;
 }

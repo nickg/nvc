@@ -179,6 +179,8 @@ START_TEST(test_lib_save)
       tree_set_type(p2, e);
       tree_add_port(ent, p2);
 
+      lib_put(work, ent);
+
       make_new_arena();
 
       tree_t ar = tree_new(T_ARCH);
@@ -227,7 +229,6 @@ START_TEST(test_lib_save)
       tree_add_stmt(pr, s4);
 
       lib_put(work, ar);
-      lib_put(work, ent);
    }
 
    lib_save(work);
