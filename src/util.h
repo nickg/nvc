@@ -270,6 +270,8 @@ void mutex_lock(nvc_mutex_t *mtx);
 void mutex_unlock(nvc_mutex_t *mtx);
 void mutex_destroy(nvc_mutex_t *mtx);
 
+void spin_wait(void);
+
 void __scoped_unlock(nvc_mutex_t **pmtx);
 
 #define SCOPED_LOCK(mtx)                                \

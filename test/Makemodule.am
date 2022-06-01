@@ -4,6 +4,8 @@ TESTS = \
 
 check_PROGRAMS += $(TESTS) bin/fstdump
 
+EXTRA_PROGRAMS += bin/lockbench
+
 bin_unit_test_SOURCES = \
 	test/test_util.c \
 	test/test_util.h \
@@ -35,6 +37,10 @@ bin_run_regr_SOURCES = test/run_regr.c
 bin_fstdump_SOURCES = test/fstdump.c
 
 bin_fstdump_LDADD = lib/libfst.a lib/libfastlz.a
+
+bin_lockbench_SOURCES = test/lockbench.c
+
+bin_lockbench_LDADD = lib/libnvc.a $(libdw_LIBS) lib/libfastlz.a
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \

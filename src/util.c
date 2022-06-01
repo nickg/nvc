@@ -1815,6 +1815,13 @@ void mutex_destroy(nvc_mutex_t *mtx)
    free(mtx);
 }
 
+void spin_wait(void)
+{
+#ifdef __x86_64__
+   __asm__ ("pause");
+#endif
+}
+
 void __scoped_unlock(nvc_mutex_t **pmtx)
 {
    mutex_unlock(*pmtx);
