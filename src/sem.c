@@ -382,6 +382,9 @@ static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
          return false;
    }
 
+   if (type_freedom(type) < 0)
+      sem_error(decl, "too many constraints for type %s", type_pp(base));
+
    if (type_has_resolution(type)) {
       if (!sem_check_resolution(type_base(type), type_resolution(type)))
          return false;
@@ -826,6 +829,9 @@ static bool sem_check_subtype_decl(tree_t t, nametab_t *tab)
       if (!sem_check_constraint(type_constraint(type, i), base, tab))
          return false;
    }
+
+   if (type_freedom(type) < 0)
+      sem_error(t, "too many constraints for type %s", type_pp(base));
 
    if (type_has_resolution(type)) {
       if (!sem_check_resolution(type_base(type), type_resolution(type)))

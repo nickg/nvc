@@ -146,5 +146,6 @@ bool type_known_width(type_t type);
 
 // Helpers for element constraints
 tree_t type_constraint_for_field(type_t t, tree_t f);
+int type_freedom(type_t t);
 
 #endif  // _TYPE_H

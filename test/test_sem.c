@@ -2570,6 +2570,8 @@ START_TEST(test_agg2008)
         "specified by a sub-aggregate, string, or bit-string literal" },
       { 71, "variable V1 cannot have unconstrained type T_BYTE_ARRAY" },
       { 73, "array constraint cannot be used with non-array type INTEGER" },
+      { 74, "too many constraints for type T_BYTE_ARRAY" },
+      { 75, "too many constraints for type T_BYTE_ARRAY" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -71,8 +71,8 @@ begin
         variable v1 : t_byte_array;     -- Error
         variable v2 : t_byte_array(1 to 3);  -- OK
         variable b3 : integer(open);    -- Error
---        variable v3 : t_byte_array(1 to 3)(4 to 5);  -- Error
---        subtype t_error1 is t_bv_array(1 to 3);  -- Error
+        variable v3 : t_byte_array(1 to 3)(4 to 5);  -- Error
+        subtype t_error1 is t_byte_array(1 to 3)(4 to 5);  -- Error
     begin
     end process;
 

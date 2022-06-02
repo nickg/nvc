@@ -647,6 +647,29 @@ tree_t type_constraint_for_field(type_t t, tree_t f)
       return NULL;
 }
 
+int type_freedom(type_t t)
+{
+   assert(t != NULL);
+   switch (t->object.kind) {
+   case T_ARRAY:
+      return 1 + type_freedom(type_elem(t));
+   case T_SUBTYPE:
+      {
+         int base = type_freedom(type_base(t));
+         const int ncon = type_constraints(t);
+         for (int i = 0; i < ncon; i++) {
+            if (tree_subkind(type_constraint(t, i)) == C_INDEX)
+               base--;
+         }
+         return base;
+      }
+   case T_ACCESS:
+      return type_freedom(type_access(t));
+   default:
+      return 0;
+   }
+}
+
 bool type_is_unconstrained(type_t t)
 {
    assert(t != NULL);
