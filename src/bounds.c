@@ -15,9 +15,10 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "phase.h"
 #include "util.h"
 #include "common.h"
+#include "diag.h"
+#include "phase.h"
 #include "type.h"
 
 #include <assert.h>
@@ -767,11 +768,22 @@ static void bounds_check_aggregate(tree_t t)
       tree_add_range(constraint, r);
 
       for (int i = 1; i < ndims; i++) {
+         // TODO: check this
          tree_t dim = range_of(tree_type(tree_value(tree_assoc(t, 0))), i - 1);
          tree_add_range(constraint, dim);
       }
 
       type_add_constraint(tmp, constraint);
+
+      if (standard() >= STD_08 && type_is_unconstrained(type_elem(type))) {
+         assert(ndims == 1);  // TODO
+         type_t a0_type = tree_type(tree_value(tree_assoc(t, 0)));
+
+         const int ncon = type_constraints(a0_type);
+         for (int i = 0; i < ncon; i++)
+            type_add_constraint(tmp, type_constraint(a0_type, i));
+      }
+
       tree_set_type(t, tmp);
    }
 }

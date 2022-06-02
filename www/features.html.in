@@ -56,7 +56,7 @@ table below.
   </tr>
   <tr>
     <td>Arrays and records may contain unconstrained elements</td>
-    <td class="feature-partial">master (records only)</td>
+    <td class="feature-partial">master</td>
   </tr>
   <tr>
     <td>New <code>boolean_vector</code>, <code>integer_vector</code>,

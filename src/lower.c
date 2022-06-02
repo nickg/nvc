@@ -220,6 +220,17 @@ static bool lower_is_const(tree_t t)
    }
 }
 
+static bool lower_const_range(tree_t r)
+{
+   switch (tree_subkind(r)) {
+   case RANGE_TO:
+   case RANGE_DOWNTO:
+      return lower_is_const(tree_left(r)) && lower_is_const(tree_right(r));
+   default:
+      return false;
+   }
+}
+
 static bool lower_const_bounds(type_t type)
 {
    if (type_is_record(type)) {
@@ -237,22 +248,25 @@ static bool lower_const_bounds(type_t type)
    else {
       const int ndims = dimension_of(type);
       for (int i = 0; i < ndims; i++) {
-         tree_t r = range_of(type, i);
-         switch (tree_subkind(r)) {
-         case RANGE_TO:
-         case RANGE_DOWNTO:
-            if (!lower_is_const(tree_left(r)))
-               return false;
-            else if (!lower_is_const(tree_right(r)))
-               return false;
-            break;
-         default:
+         if (!lower_const_range(range_of(type, i)))
             return false;
-         }
       }
 
-      type_t elem = type_elem(type);
-      return type_is_composite(elem) ? lower_const_bounds(elem) : true;
+      const int ncon = type_constraints(type);
+      if (ncon > 1) {
+         for (int i = 1; i < ncon; i++) {
+            tree_t c = type_constraint(type, i);
+            assert(tree_subkind(c) == C_INDEX);
+            if (!lower_const_range(tree_range(c, 0)))
+               return false;
+         }
+
+         return true;
+      }
+      else {
+         type_t elem = type_elem(type);
+         return type_is_composite(elem) ? lower_const_bounds(elem) : true;
+      }
    }
 }
 
@@ -447,7 +461,7 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
    }
 }
 
-static vcode_reg_t lower_array_stride(type_t type)
+static vcode_reg_t lower_array_stride(type_t type, vcode_reg_t reg)
 {
    vcode_reg_t stride = emit_const(vtype_offset(), 1);
 
@@ -455,20 +469,34 @@ static vcode_reg_t lower_array_stride(type_t type)
    if (!type_is_array(elem))
       return stride;
 
-   if (standard() >= STD_08 && type_kind(type) == T_SUBTYPE) {
+   if (standard() >= STD_08) {
       // Handle VHDL-2008 element constraints
-      const int ncon = type_constraints(type);
-      for (int i = 1; i < ncon; i++) {
-         tree_t r = tree_range(type_constraint(type, i), 0);
+      if (type_kind(type) == T_SUBTYPE) {
+         const int ncon = type_constraints(type);
+         for (int i = 1; i < ncon; i++) {
+            tree_t r = tree_range(type_constraint(type, i), 0);
 
-         vcode_reg_t left_reg  = lower_range_left(r);
-         vcode_reg_t right_reg = lower_range_right(r);
-         vcode_reg_t dir_reg   = lower_range_dir(r);
+            vcode_reg_t left_reg  = lower_range_left(r);
+            vcode_reg_t right_reg = lower_range_right(r);
+            vcode_reg_t dir_reg   = lower_range_dir(r);
 
-         vcode_reg_t len_reg = emit_range_length(left_reg, right_reg, dir_reg);
-         stride = emit_mul(stride, len_reg);
+            vcode_reg_t len_reg =
+               emit_range_length(left_reg, right_reg, dir_reg);
+            stride = emit_mul(stride, len_reg);
 
-         elem = type_elem(elem);
+            elem = type_elem(elem);
+         }
+      }
+      else {
+         assert(reg != VCODE_INVALID_REG);
+         const int ndims = dimension_of(type);
+         const int ncon = vtype_dims(vcode_reg_type(reg));
+         for (int i = ndims; i < ncon; i++) {
+            vcode_reg_t len_reg = emit_uarray_len(reg, i);
+            stride = emit_mul(stride, len_reg);
+
+            elem = type_elem(elem);
+         }
       }
    }
 
@@ -494,7 +522,7 @@ static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg)
 
    type_t elem = type_elem(type);
    if (type_is_array(elem))
-      return emit_mul(total, lower_array_stride(type));
+      return emit_mul(total, lower_array_stride(type, reg));
    else
       return total;
 }
@@ -532,8 +560,21 @@ static int lower_array_const_size(type_t type)
       size *= MAX(high - low + 1, 0);
    }
 
-   type_t elem = type_elem(type);
-   return type_is_array(elem) ? size * lower_array_const_size(elem) : size;
+   const int ncon = type_constraints(type);
+   if (ncon > 1) {
+      for (int i = 1; i < ncon; i++) {
+         tree_t r = tree_range(type_constraint(type, i), 0);
+         int64_t low, high;
+         range_bounds(r, &low, &high);
+         size *= MAX(high - low + 1, 0);
+      }
+
+      return size;
+   }
+   else {
+      type_t elem = type_elem(type);
+      return type_is_array(elem) ? size * lower_array_const_size(elem) : size;
+   }
 }
 
 static type_t lower_elem_recur(type_t type)
@@ -552,8 +593,16 @@ static vcode_type_t lower_array_type(type_t type)
 
    if (lower_const_bounds(type))
       return vtype_carray(lower_array_const_size(type), elem_type, elem_bounds);
-   else
-      return vtype_uarray(dimension_of(type), elem_type, elem_bounds);
+   else {
+      int ncon = 0;
+      if (standard() >= STD_08) {
+         for (type_t e = type_elem(type);
+              type_is_array(e) && type_is_unconstrained(e);
+              e = type_elem(e), ncon += dimension_of(e));
+      }
+
+      return vtype_uarray(dimension_of(type) + ncon, elem_type, elem_bounds);
+   }
 }
 
 static vcode_type_t lower_type(type_t type)
@@ -731,14 +780,64 @@ static vcode_reg_t lower_wrap_with_new_bounds(type_t type, vcode_reg_t array,
    assert(type_is_array(type));
 
    const int ndims = dimension_of(type);
-   vcode_dim_t dims[ndims];
-   for (int i = 0; i < ndims; i++) {
-      dims[i].left  = lower_array_left(type, i, array);
-      dims[i].right = lower_array_right(type, i, array);
-      dims[i].dir   = lower_array_dir(type, i, array);
-   }
 
-   return emit_wrap(lower_array_data(data), dims, ndims);
+   int ncons = 0;
+   if (standard() >= STD_08 && type_kind(type) == T_SUBTYPE)
+      ncons = type_constraints(type);
+
+   vcode_dim_t dims[ndims + ncons];
+   int dptr = 0;
+   for (int i = 0; i < ndims; i++, dptr++) {
+      dims[dptr].left  = lower_array_left(type, i, array);
+      dims[dptr].right = lower_array_right(type, i, array);
+      dims[dptr].dir   = lower_array_dir(type, i, array);
+   }
+   for (int i = 1; i < ncons; i++, dptr++) {
+      tree_t r = tree_range(type_constraint(type, i), 0);
+      dims[dptr].left  = lower_range_left(r);
+      dims[dptr].right = lower_range_right(r);
+      dims[dptr].dir   = lower_range_dir(r);
+   }
+   assert(dptr <= ndims + ncons);
+
+   return emit_wrap(lower_array_data(data), dims, dptr);
+}
+
+static vcode_reg_t lower_wrap_element(type_t type, vcode_reg_t array,
+                                      vcode_reg_t data)
+{
+   assert(type_is_array(type));
+   assert(standard() >= STD_08);
+
+   type_t elem = type_elem(type);
+   assert(type_is_unconstrained(elem));
+
+   if (array != VCODE_INVALID_REG) {
+      const int ndims = dimension_of(type);
+      const int ncons = vtype_dims(vcode_reg_type(array)) - ndims;
+      assert(ncons > 0);
+
+      vcode_dim_t dims[ncons];
+      for (int i = 0; i < ncons; i++) {
+         dims[i].left  = emit_uarray_left(array, ndims + i);
+         dims[i].right = emit_uarray_right(array, ndims + i);
+         dims[i].dir   = emit_uarray_dir(array, ndims + i);
+      }
+
+      return emit_wrap(lower_array_data(data), dims, ncons);
+   }
+   else {
+      const int ncons = type_constraints(type) - 1;
+      vcode_dim_t dims[ncons];
+      for (int i = 0; i < ncons; i++) {
+         tree_t r = tree_range(type_constraint(type, i + 1), 0);
+         dims[i].left  = lower_range_left(r);
+         dims[i].right = lower_range_right(r);
+         dims[i].dir   = lower_range_dir(r);
+      }
+
+      return emit_wrap(lower_array_data(data), dims, ncons);
+   }
 }
 
 static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
@@ -2613,7 +2712,8 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
       offset_reg = emit_add(offset_reg, zerored);
    }
 
-   offset_reg = emit_mul(offset_reg, lower_array_stride(value_type));
+   vcode_reg_t stride = lower_array_stride(value_type, VCODE_INVALID_REG);
+   offset_reg = emit_mul(offset_reg, stride);
 
    vcode_reg_t data_reg = lower_array_data(array);
    return emit_array_ref(data_reg, offset_reg);
@@ -2662,7 +2762,7 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    if (array_reg == VCODE_INVALID_REG)
       return VCODE_INVALID_REG;
 
-   vcode_reg_t stride_reg = lower_array_stride(type);
+   vcode_reg_t stride_reg = lower_array_stride(type, array_reg);
 
    vcode_reg_t data_reg = lower_array_data(array_reg);
    vcode_reg_t off_reg = lower_array_off(left_reg, array_reg, type, 0);
@@ -3032,7 +3132,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
    vcode_reg_t stride = VCODE_INVALID_REG;
    if (type_is_array(elem_type))
-      stride = lower_array_stride(type);
+      stride = lower_array_stride(type, VCODE_INVALID_REG);
 
    if (multidim) {
       if (stride == VCODE_INVALID_REG)
@@ -7088,7 +7188,7 @@ static void lower_array_cmp_inner(vcode_reg_t lhs_data,
 
    vcode_reg_t stride = VCODE_INVALID_REG;
    if (type_is_array(elem_type))
-      stride = lower_array_total_len(elem_type, VCODE_INVALID_REG);
+      stride = lower_array_stride(left_type, lhs_array);
 
    vcode_reg_t len_eq = emit_cmp(VCODE_CMP_EQ, left_len, right_len);
 
@@ -7136,8 +7236,14 @@ static void lower_array_cmp_inner(vcode_reg_t lhs_data,
    vcode_reg_t r_ptr = emit_array_ref(rhs_data, ptr_inc);
 
    if (type_is_array(elem_type)) {
-      lower_array_cmp_inner(l_ptr, r_ptr,
-                            VCODE_INVALID_REG, VCODE_INVALID_REG,
+      vcode_reg_t lhs_sub_array = VCODE_INVALID_REG;
+      vcode_reg_t rhs_sub_array = VCODE_INVALID_REG;
+      if (type_is_unconstrained(elem_type)) {
+         lhs_sub_array = lower_wrap_element(left_type, lhs_array, l_ptr);
+         rhs_sub_array = lower_wrap_element(right_type, rhs_array, r_ptr);
+      }
+
+      lower_array_cmp_inner(l_ptr, r_ptr, lhs_sub_array, rhs_sub_array,
                             type_elem(left_type), type_elem(right_type),
                             pred, fail_bb);
       emit_jump(test_bb);

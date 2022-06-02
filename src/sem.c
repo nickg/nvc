@@ -376,9 +376,6 @@ static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
          return false;
    }
 
-   if (ncon > 1 && type_is_array(type))
-      sem_error(decl, "sorry, array element constraints are not supported yet");
-
    if (type_has_resolution(type)) {
       if (!sem_check_resolution(type_base(type), type_resolution(type)))
          return false;

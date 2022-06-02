@@ -654,6 +654,7 @@ bool type_is_unconstrained(type_t t)
       const int ncon = type_constraints(t);
       if (ncon == 0)
          return type_is_unconstrained(type_base(t));
+
       if (standard() >= STD_08 && type_is_record(t)) {
          // Record subtype may be partially constrained
          type_t base = type_base(t);

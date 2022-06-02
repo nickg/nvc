@@ -2568,7 +2568,6 @@ START_TEST(test_agg2008)
         "aggregate element type INTEGER" },
       { 30, "second dimension of 2 dimensional array type INT2D must be "
         "specified by a sub-aggregate, string, or bit-string literal" },
-      { 50, "sorry, array element constraints are not supported yet" },
       { -1, NULL }
    };
    expect_errors(expect);

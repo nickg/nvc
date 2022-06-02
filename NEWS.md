@@ -33,6 +33,7 @@
   directory.
 - The `-a` analysis command now reads from the standard input if the
   file name is `-`.
+- Added support for array element constraints in VHDL-2008.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

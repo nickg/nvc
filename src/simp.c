@@ -689,7 +689,7 @@ static tree_t simp_extract_string_literal(tree_t literal, int64_t index,
 static tree_t simp_extract_aggregate(tree_t agg, int64_t index, tree_t def)
 {
    type_t type = tree_type(agg);
-   if (type_is_unconstrained(type))
+   if (type_is_unconstrained(type) || type_constraints(type) > 1)
       return def;
 
    tree_t bounds = range_of(tree_type(agg), 0);

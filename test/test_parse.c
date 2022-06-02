@@ -3575,7 +3575,6 @@ START_TEST(test_vhdl2008)
       { 116, "sorry, decimal values greater than 6" },
       { 120, "excess significant digits in bit string literal" },
       { 123, "invalid digit 'C' in bit string" },
-      { 141, "sorry, array element constraints are not supported yet" },
       { 169, "unexpected ; while parsing case statement, expecting ?" },
       { 179, "prefix of subtype attribute does not have a type" },
       { 181, "prefix of element attribute must be an array type" },

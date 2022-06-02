@@ -578,3 +578,4 @@ attr16          normal,2008
 cmdline1        shell
 cmdline2        shell
 order2          shell
+array6          normal,2008
