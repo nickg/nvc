@@ -260,6 +260,12 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
                    "non-array type %s", type_pp(base));
       break;
 
+   case C_OPEN:
+      if (!type_is_array(base))
+         sem_error(constraint, "array constraint cannot be used with "
+                   "non-array type %s", type_pp(base));
+      return true;
+
    case C_RECORD:
       {
          if (!type_is_record(base))
@@ -316,8 +322,8 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
    }
 
    if (type_is_array(base)) {
-      if (type_kind(base) == T_SUBTYPE && type_constraints(base) > 0)
-         sem_error(constraint, "may not change constraints of constrained "
+      if (type_kind(base) == T_SUBTYPE && !type_is_unconstrained(base))
+         sem_error(constraint, "cannot change constraints of constrained "
                    "array type %s", type_pp(base));
    }
    else if (type_is_record(base) && standard() < STD_08)

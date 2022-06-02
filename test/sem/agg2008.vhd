@@ -65,4 +65,15 @@ begin
     begin
     end process;
 
+    p6: process is
+        type t_bv_array is array (natural range <>) of bit_vector;
+        subtype t_byte_array  is t_bv_array(open)(7 downto 0);  -- OK
+        variable v1 : t_byte_array;     -- Error
+        variable v2 : t_byte_array(1 to 3);  -- OK
+        variable b3 : integer(open);    -- Error
+--        variable v3 : t_byte_array(1 to 3)(4 to 5);  -- Error
+--        subtype t_error1 is t_bv_array(1 to 3);  -- Error
+    begin
+    end process;
+
 end architecture;

@@ -3566,9 +3566,17 @@ static void p_array_constraint(type_t type, type_t base)
    BEGIN("array constraint");
 
    do {
-      if (peek_nth(2) == tOPEN)
-         parse_error(CURRENT_LOC, "sorry, this form of array constraint is "
-                     "not yet supported");
+      if (peek_nth(2) == tOPEN) {
+         consume(tLPAREN);
+         consume(tOPEN);
+         consume(tRPAREN);
+
+         tree_t c = tree_new(T_CONSTRAINT);
+         tree_set_subkind(c, C_OPEN);
+         tree_set_loc(c, CURRENT_LOC);
+
+         type_add_constraint(type, c);
+      }
       else
          type_add_constraint(type, p_index_constraint(base));
    } while (peek() == tLPAREN);

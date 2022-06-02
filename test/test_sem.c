@@ -447,8 +447,8 @@ START_TEST(test_array)
       { 285, "object K does not have a range" },
       { 295, "type of index universal_integer does not match" },
       { 343, "invalid character 'f' in string literal of type BIT_VECTOR" },
-      { 365, "may not change constraints of constrained array type TEN_INTS" },
-      { 366, "may not change constraints of constrained array type TEN_INTS" },
+      { 365, "cannot change constraints of constrained array type TEN_INTS" },
+      { 366, "cannot change constraints of constrained array type TEN_INTS" },
       { 379, "array T_FILE_ARRAY cannot have element of file type" },
       { 391, "index type REAL is not discrete" },
       { 392, "index type BIT_VECTOR is not discrete" },
@@ -2568,6 +2568,8 @@ START_TEST(test_agg2008)
         "aggregate element type INTEGER" },
       { 30, "second dimension of 2 dimensional array type INT2D must be "
         "specified by a sub-aggregate, string, or bit-string literal" },
+      { 71, "variable V1 cannot have unconstrained type T_BYTE_ARRAY" },
+      { 73, "array constraint cannot be used with non-array type INTEGER" },
       { -1, NULL }
    };
    expect_errors(expect);

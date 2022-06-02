@@ -391,6 +391,9 @@ static void dump_constraint(tree_t t)
       }
       printf(")");
       break;
+   case C_OPEN:
+      syntax("(#open)");
+      break;
    }
 }
 

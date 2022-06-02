@@ -773,10 +773,7 @@ unsigned dimension_of(type_t type)
 {
    switch (type_kind(type)) {
    case T_SUBTYPE:
-      if (type_constraints(type) > 0)
-         return tree_ranges(type_constraint(type, 0));
-      else
-         return dimension_of(type_base(type));
+      return dimension_of(type_base(type));
    case T_ARRAY:
       return type_index_constrs(type);
    case T_NONE:
@@ -798,8 +795,18 @@ tree_t range_of(type_t type, unsigned dim)
 {
    switch (type_kind(type)) {
    case T_SUBTYPE:
-      if (type_constraints(type) > 0)
-         return tree_range(type_constraint(type, 0), dim);
+      if (type_constraints(type) > 0) {
+         tree_t c0 = type_constraint(type, 0);
+         switch (tree_subkind(c0)) {
+         case C_OPEN:
+            return range_of(type_base(type), dim);
+         case C_INDEX:
+         case C_RANGE:
+            return tree_range(type_constraint(type, 0), dim);
+         default:
+            fatal_trace("invalid constraint in range_of");
+         }
+      }
       else
          return range_of(type_base(type), dim);
    case T_INTEGER:
