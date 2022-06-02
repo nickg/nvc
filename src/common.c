@@ -1634,3 +1634,25 @@ tree_t find_generic_map(tree_t unit, int pos, tree_t g)
 
    return NULL;
 }
+
+int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS])
+{
+   int ptr = 0;
+   while (type_kind(type) == T_SUBTYPE) {
+      const int ncon = type_constraints(type);
+      for (int i = ptr; i < ncon; i++) {
+         tree_t c = type_constraint(type, i);
+         if (tree_subkind(c) == C_INDEX) {
+            if (ptr == MAX_CONSTRAINTS)
+               fatal_at(tree_loc(c), "sorry, a maximum of %d nested "
+                        "constraints are supported", MAX_CONSTRAINTS);
+
+            out[ptr++] = c;
+         }
+      }
+
+      type = type_base(type);
+   }
+
+   return ptr;
+}

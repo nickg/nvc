@@ -579,3 +579,4 @@ cmdline1        shell
 cmdline2        shell
 order2          shell
 array6          normal,2008
+array7          normal,2008

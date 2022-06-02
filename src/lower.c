@@ -472,9 +472,10 @@ static vcode_reg_t lower_array_stride(type_t type, vcode_reg_t reg)
    if (standard() >= STD_08) {
       // Handle VHDL-2008 element constraints
       if (type_kind(type) == T_SUBTYPE) {
-         const int ncon = type_constraints(type);
+         tree_t cons[MAX_CONSTRAINTS];
+         const int ncon = pack_constraints(type, cons);
          for (int i = 1; i < ncon; i++) {
-            tree_t r = tree_range(type_constraint(type, i), 0);
+            tree_t r = tree_range(cons[i], 0);
 
             vcode_reg_t left_reg  = lower_range_left(r);
             vcode_reg_t right_reg = lower_range_right(r);
@@ -584,6 +585,20 @@ static type_t lower_elem_recur(type_t type)
    return type;
 }
 
+static int lower_dims_for_type(type_t type)
+{
+   // TODO: this should be a more generic helper function
+   if (standard() >= STD_08) {
+      int ndims = dimension_of(type);
+      for (type_t e = type_elem(type);
+           type_is_array(e) && type_is_unconstrained(e);
+           e = type_elem(e), ndims += dimension_of(e));
+      return ndims;
+   }
+   else
+      return dimension_of(type);
+}
+
 static vcode_type_t lower_array_type(type_t type)
 {
    type_t elem = lower_elem_recur(type);
@@ -593,16 +608,8 @@ static vcode_type_t lower_array_type(type_t type)
 
    if (lower_const_bounds(type))
       return vtype_carray(lower_array_const_size(type), elem_type, elem_bounds);
-   else {
-      int ncon = 0;
-      if (standard() >= STD_08) {
-         for (type_t e = type_elem(type);
-              type_is_array(e) && type_is_unconstrained(e);
-              e = type_elem(e), ncon += dimension_of(e));
-      }
-
-      return vtype_uarray(dimension_of(type) + ncon, elem_type, elem_bounds);
-   }
+   else
+      return vtype_uarray(lower_dims_for_type(type), elem_type, elem_bounds);
 }
 
 static vcode_type_t lower_type(type_t type)
@@ -715,14 +722,14 @@ static vcode_type_t lower_signal_type(type_t type)
          if (lower_const_bounds(type))
             return base;
          else
-            return vtype_uarray(dimension_of(type), base, base);
+            return vtype_uarray(lower_dims_for_type(type), base, base);
       }
       else {
          vcode_type_t base = lower_signal_type(type_elem(type));
          if (lower_const_bounds(type))
             return vtype_carray(lower_array_const_size(type), base, base);
          else
-            return vtype_uarray(dimension_of(type), base, base);
+            return vtype_uarray(lower_dims_for_type(type), base, base);
       }
    }
    else if (type_is_record(type)) {
@@ -781,9 +788,10 @@ static vcode_reg_t lower_wrap_with_new_bounds(type_t type, vcode_reg_t array,
 
    const int ndims = dimension_of(type);
 
+   tree_t cons[MAX_CONSTRAINTS];
    int ncons = 0;
    if (standard() >= STD_08 && type_kind(type) == T_SUBTYPE)
-      ncons = type_constraints(type);
+      ncons = pack_constraints(type, cons);
 
    vcode_dim_t dims[ndims + ncons];
    int dptr = 0;
@@ -793,7 +801,7 @@ static vcode_reg_t lower_wrap_with_new_bounds(type_t type, vcode_reg_t array,
       dims[dptr].dir   = lower_array_dir(type, i, array);
    }
    for (int i = 1; i < ncons; i++, dptr++) {
-      tree_t r = tree_range(type_constraint(type, i), 0);
+      tree_t r = tree_range(cons[i], 0);
       dims[dptr].left  = lower_range_left(r);
       dims[dptr].right = lower_range_right(r);
       dims[dptr].dir   = lower_range_dir(r);
@@ -803,14 +811,17 @@ static vcode_reg_t lower_wrap_with_new_bounds(type_t type, vcode_reg_t array,
    return emit_wrap(lower_array_data(data), dims, dptr);
 }
 
+static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
+{
+   return lower_wrap_with_new_bounds(type, data, data);
+}
+
 static vcode_reg_t lower_wrap_element(type_t type, vcode_reg_t array,
                                       vcode_reg_t data)
 {
    assert(type_is_array(type));
    assert(standard() >= STD_08);
-
-   type_t elem = type_elem(type);
-   assert(type_is_unconstrained(elem));
+   assert(type_is_unconstrained(type_elem(type)));
 
    if (array != VCODE_INVALID_REG) {
       const int ndims = dimension_of(type);
@@ -827,6 +838,7 @@ static vcode_reg_t lower_wrap_element(type_t type, vcode_reg_t array,
       return emit_wrap(lower_array_data(data), dims, ncons);
    }
    else {
+      // TODO: should this use pack_constraints()?
       const int ncons = type_constraints(type) - 1;
       vcode_dim_t dims[ncons];
       for (int i = 0; i < ncons; i++) {
@@ -838,11 +850,6 @@ static vcode_reg_t lower_wrap_element(type_t type, vcode_reg_t array,
 
       return emit_wrap(lower_array_data(data), dims, ncons);
    }
-}
-
-static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
-{
-   return lower_wrap_with_new_bounds(type, data, data);
 }
 
 static vcode_reg_t lower_constraint(tree_t cons)

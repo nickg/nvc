@@ -82,6 +82,9 @@ tree_t find_generic_map(tree_t unit, int pos, tree_t g);
 int fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);
 
+#define MAX_CONSTRAINTS 8
+int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS]);
+
 //
 // Utility typedefs
 //

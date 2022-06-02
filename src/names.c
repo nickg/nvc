@@ -2722,14 +2722,15 @@ static type_t solve_array_ref(nametab_t *tab, tree_t ref)
       elem_type = type_new(T_NONE);
 
    if (standard() >= STD_08 && type_kind(base_type) == T_SUBTYPE) {
-      const int ncon = type_constraints(base_type);
+      tree_t cons[MAX_CONSTRAINTS];
+      const int ncon = pack_constraints(base_type, cons);
       if (ncon > 1) {
          assert(type_is_unconstrained(elem_type));
 
          type_t sub = type_new(T_SUBTYPE);
          type_set_base(sub, elem_type);
          for (int i = 1; i < ncon; i++)
-            type_add_constraint(sub, type_constraint(base_type, i));
+            type_add_constraint(sub, cons[i]);
 
          elem_type = sub;
       }
@@ -2757,9 +2758,10 @@ static type_t solve_array_slice(nametab_t *tab, tree_t slice)
    type_add_constraint(slice_type, constraint);
 
    if (standard() >= STD_08 && type_kind(base_type) == T_SUBTYPE) {
-      const int ncon = type_constraints(base_type);
+      tree_t cons[MAX_CONSTRAINTS];
+      const int ncon = pack_constraints(base_type, cons);
       for (int i = 1; i < ncon; i++)
-         type_add_constraint(slice_type, type_constraint(base_type, i));
+         type_add_constraint(slice_type, cons[i]);
    }
 
    tree_set_type(slice, slice_type);
