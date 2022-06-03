@@ -1219,6 +1219,19 @@ START_TEST(test_grlib1)
 }
 END_TEST
 
+START_TEST(test_protfold1)
+{
+   set_standard(STD_02);
+   input_from_file(TESTDIR "/simp/protfold1.vhd");
+
+   tree_t top = run_elab();
+
+   // Protected type should not prevent folding
+   tree_t b0 = tree_stmt(top, 0);
+   fail_unless(tree_stmts(b0) == 1);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1265,6 +1278,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_gentype);
    tcase_add_test(tc_core, test_osvvm4);
    tcase_add_test(tc_core, test_grlib1);
+   tcase_add_test(tc_core, test_protfold1);
    suite_add_tcase(s, tc_core);
 
    return s;

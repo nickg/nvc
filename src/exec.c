@@ -2022,6 +2022,20 @@ static void eval_op_file_close(int op, eval_state_t *state)
    // No-op
 }
 
+static void eval_op_protected_init(int op, eval_state_t *state)
+{
+   value_t *result = eval_get_reg(vcode_get_result(op), state);
+   result->kind = VALUE_CONTEXT;
+   result->context = NULL;   // Never used
+}
+
+static void eval_op_protected_free(int op, eval_state_t *state)
+{
+   value_t *arg0 = eval_get_reg(vcode_get_arg(op, 0), state);
+   EVAL_ASSERT_VALUE(op, arg0, VALUE_CONTEXT);
+   // Memory will be freed when evaluation context cleaned up
+}
+
 static void eval_vcode(eval_state_t *state)
 {
    state->op = 0;
@@ -2308,6 +2322,13 @@ static void eval_vcode(eval_state_t *state)
          break;
 
       case VCODE_OP_PROTECTED_INIT:
+         eval_op_protected_init(state->op, state);
+         break;
+
+      case VCODE_OP_PROTECTED_FREE:
+         eval_op_protected_free(state->op, state);
+         break;
+
       case VCODE_OP_FILE_READ:
       case VCODE_OP_FILE_WRITE:
       case VCODE_OP_ENDFILE:
