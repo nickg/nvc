@@ -488,8 +488,7 @@ static vcode_reg_t lower_array_stride(type_t type, vcode_reg_t reg)
             elem = type_elem(elem);
          }
       }
-      else {
-         assert(reg != VCODE_INVALID_REG);
+      else if (reg != VCODE_INVALID_REG) {
          const int ndims = dimension_of(type);
          const int ncon = vtype_dims(vcode_reg_type(reg));
          for (int i = ndims; i < ncon; i++) {

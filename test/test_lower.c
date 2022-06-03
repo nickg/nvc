@@ -4597,6 +4597,51 @@ START_TEST(test_vunit5)
 }
 END_TEST
 
+START_TEST(test_issue462)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/lower/issue462.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit(
+      "WORK.ISSUE462.GET(24WORK.ISSUE462-TEST.MEM_T7NATURAL7NATURAL)J");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_UARRAY_LEFT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_RIGHT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_INDEX_CHECK },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_MUL },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 7 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_INDEX_CHECK },
+      { VCODE_OP_CAST },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4702,6 +4747,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_directmap2);
    tcase_add_test(tc, test_recsignal1);
    tcase_add_test(tc, test_vunit5);
+   tcase_add_test(tc, test_issue462);
    suite_add_tcase(s, tc);
 
    return s;
