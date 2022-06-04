@@ -80,7 +80,9 @@ START_TEST(test_cfold)
 
    fail_if_errors();
 
-   simplify_local(a);
+   eval_t *eval = eval_new(0);
+   simplify_local(a, eval);
+   eval_free(eval);
 
    fail_unless(folded_i(tree_value(tree_decl(a, 0)), -10));
 
@@ -196,7 +198,9 @@ START_TEST(test_proc)
 
    fail_if_errors();
 
-   simplify_local(a);
+   eval_t *eval = eval_new(0);
+   simplify_local(a, eval);
+   eval_free(eval);
 
    ////////
 
@@ -275,7 +279,9 @@ START_TEST(test_args)
 
    fail_if_errors();
 
-   simplify_local(a);
+   eval_t *eval = eval_new(0);
+   simplify_local(a, eval);
+   eval_free(eval);
 
    ////////
 
@@ -379,7 +385,9 @@ START_TEST(test_issue49)
    tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_if_errors();
 
-   simplify_local(a);
+   eval_t *eval = eval_new(0);
+   simplify_local(a, eval);
+   eval_free(eval);
 }
 END_TEST
 
@@ -430,7 +438,9 @@ START_TEST(test_context)
 
    fail_unless(tree_contexts(e) == 5);
 
-   simplify_local(e);
+   eval_t *eval = eval_new(0);
+   simplify_local(e, eval);
+   eval_free(eval);
 
    fail_unless(tree_contexts(e) == 7);
    fail_unless(tree_kind(tree_context(e, 5)) == T_LIBRARY);

@@ -1626,18 +1626,16 @@ static void simp_pre_cb(tree_t t, void *__ctx)
    }
 }
 
-void simplify_local(tree_t top)
+void simplify_local(tree_t top, eval_t *ex)
 {
    simp_ctx_t ctx = {
       .imp_signals = NULL,
       .top         = top,
-      .eval        = eval_new(0),
+      .eval        = ex,
       .eval_mask   = TREE_F_LOCALLY_STATIC,
    };
 
    tree_rewrite(top, simp_pre_cb, simp_tree, NULL, &ctx);
-
-   eval_free(ctx.eval);
 
    if (ctx.generics)
       hash_free(ctx.generics);

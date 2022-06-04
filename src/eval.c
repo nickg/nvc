@@ -25,6 +25,7 @@
 #include "opt.h"
 #include "phase.h"
 #include "prim.h"
+#include "rt/mspace.h"
 #include "tree.h"
 #include "type.h"
 #include "vcode.h"
@@ -42,12 +43,13 @@ struct _eval {
    hash_t       *link_map;
    lower_fn_t    lower_fn;
    void         *lower_ctx;
+   mspace_t     *mspace;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 // Vcode interpreter
 
-#define ITER_LIMIT 1000
+#define ITER_LIMIT 100000
 
 typedef enum {
    VALUE_INVALID,
@@ -63,7 +65,6 @@ typedef enum {
 } value_kind_t;
 
 typedef struct _value value_t;
-typedef struct _eval_alloc eval_alloc_t;
 
 struct _value {
    value_kind_t kind;
@@ -79,16 +80,9 @@ struct _value {
 
 STATIC_ASSERT(sizeof(value_t) == 16);
 
-struct _eval_alloc {
-   eval_alloc_t *next;
-   value_t       mem[0];
-};
-
 struct _eval_frame {
    eval_frame_t *context;
    unsigned      nvars;
-   ident_t      *names;
-   eval_alloc_t *allocs;
    value_t      *vars[0];
 };
 
@@ -97,7 +91,6 @@ typedef struct {
    tree_t         hint;
    eval_flags_t   flags;
    bool           failed;
-   eval_alloc_t  *allocs;
    int            iterations;
    int            op;
    eval_frame_t  *frame;
@@ -271,12 +264,7 @@ static value_t *eval_alloc(int count, eval_state_t *state)
    if (count == 0)
       return NULL;
 
-   eval_alloc_t *new =
-      xmalloc_flex(sizeof(eval_alloc_t), count, sizeof(value_t));
-   new->next = state->allocs;
-
-   state->allocs = new;
-   return new->mem;
+   return mspace_alloc_array(state->eval->mspace, count, sizeof(value_t));
 }
 
 static void eval_make_pointer_to(value_t *dst, value_t *src)
@@ -389,7 +377,8 @@ static void eval_setup_state(eval_state_t *state, eval_frame_t *context)
    const int nregs = vcode_count_regs();
 
    state->regs = xcalloc_array(nregs, sizeof(value_t *));
-   state->frame = xcalloc_flex(sizeof(eval_frame_t), nvars, sizeof(value_t *));
+   state->frame = mspace_alloc_flex(state->eval->mspace, sizeof(eval_frame_t),
+                                    nvars, sizeof(value_t *));
    state->frame->nvars = nvars;
    state->frame->context = context;
 
@@ -404,17 +393,11 @@ static void eval_setup_state(eval_state_t *state, eval_frame_t *context)
    value_t *vslots = eval_alloc(nvslots, state);
    value_t *rslots = eval_alloc(nrslots, state);
 
-   if (vcode_unit_kind() == VCODE_UNIT_PACKAGE)
-      state->frame->names = xmalloc_array(nvars, sizeof(ident_t));
-
    int vnext = 0;
    for (int i = 0; i < nvars; i++) {
       vcode_type_t vtype = vcode_var_type(i);
       value_t *value = state->frame->vars[i] = &(vslots[vnext]);
       vnext += eval_setup_var(vtype, value);
-
-      if (state->frame->names != NULL)
-         state->frame->names[i] = vcode_var_name(i);
    }
    assert(vnext == nvslots);
 
@@ -426,35 +409,12 @@ static void eval_setup_state(eval_state_t *state, eval_frame_t *context)
    assert(rnext == nrslots);
 }
 
-static void eval_free_frame(eval_frame_t *frame)
-{
-   eval_alloc_t *it, *next;
-   for (it = frame->allocs; it != NULL; it = next) {
-      next = it->next;
-      free(it);
-   }
-
-   free(frame->names);
-   free(frame);
-}
-
 static void eval_cleanup_state(eval_state_t *state)
 {
-   if (state->frame != NULL) {
-      assert(state->frame->allocs == NULL);
-      eval_free_frame(state->frame);
-      state->frame = NULL;
-   }
+   state->frame = NULL;
 
    free(state->regs);
    state->regs = NULL;
-
-   eval_alloc_t *it, *next;
-   for (it = state->allocs; it != NULL; it = next) {
-      next = it->next;
-      free(it);
-   }
-   state->allocs = NULL;
 }
 
 static value_t *eval_get_reg(vcode_reg_t reg, eval_state_t *state)
@@ -1027,16 +987,6 @@ static void eval_real_to_string(value_t *dst, value_t *src, eval_state_t *state)
    dst[2].integer = len;
 }
 
-static void eval_move_allocs(eval_state_t *from, eval_state_t *to)
-{
-   eval_alloc_t **tailp;
-   for (tailp = &(to->allocs); *tailp; tailp = &((*tailp)->next))
-      ;
-
-   *tailp = from->allocs;
-   from->allocs = NULL;
-}
-
 static void eval_op_fcall(int op, eval_state_t *state)
 {
    ident_t func_name = vcode_get_func(op);
@@ -1135,7 +1085,6 @@ static void eval_op_fcall(int op, eval_state_t *state)
    eval_vcode(&new);
    vcode_state_restore(&vcode_state);
 
-   bool escaping_alloc = false;
    if (new.failed)
       state->failed = true;
    else if (vcode_get_result(op) != VCODE_INVALID_REG) {
@@ -1154,17 +1103,7 @@ static void eval_op_fcall(int op, eval_state_t *state)
          eval_dump(tb, new.regs[new.result]);
          notef("%s", tb_get(tb));
       }
-
-      escaping_alloc = result->kind == VALUE_UARRAY
-         || result->kind == VALUE_POINTER
-         || result->kind == VALUE_ACCESS;
    }
-   else
-      escaping_alloc = true;   // Procedure may write to pointer argument
-
-   // Take ownership of the callee frame's allocations
-   if (escaping_alloc)
-      eval_move_allocs(&new, state);
 
    eval_cleanup_state(&new);
 }
@@ -1980,19 +1919,39 @@ static void eval_op_link_var(int op, eval_state_t *state)
 
    EVAL_ASSERT_VALUE(op, arg0, VALUE_CONTEXT);
 
-   eval_frame_t *ctx = arg0->context;
-   assert(ctx->names != NULL);
-
+   ident_t unit_name = vtype_name(vcode_reg_type(vcode_get_arg(op, 0)));
    ident_t var_name = vcode_get_ident(op);
 
-   for (unsigned i = 0; i < ctx->nvars; i++) {
-      if (ctx->names[i] == var_name) {
-         eval_make_pointer_to(result, ctx->vars[i]);
-         return;
-      }
+   vcode_unit_t vu = vcode_find_unit(unit_name);
+   assert(vu);
+
+   vcode_state_t vcode_state;
+   vcode_state_save(&vcode_state);
+
+   vcode_select_unit(vu);
+
+   const int nvars = vcode_count_vars();
+   vcode_var_t var = 0;
+   for (; var < nvars; var++) {
+      if (vcode_var_name(var) == var_name)
+         break;
    }
 
-   fatal_trace("variable %s not found", istr(var_name));
+   if (var == nvars) {
+      vcode_dump();
+      vcode_state_restore(&vcode_state);
+      vcode_dump_with_mark(op, NULL, NULL);
+
+      fatal_trace("variable %s not found in unit %s", istr(var_name),
+                  istr(unit_name));
+   }
+
+   vcode_state_restore(&vcode_state);
+
+   eval_frame_t *ctx = arg0->context;
+   assert(var < ctx->nvars);
+
+   eval_make_pointer_to(result, ctx->vars[var]);
 }
 
 static void eval_op_link_package(int op, eval_state_t *state)
@@ -2083,7 +2042,6 @@ static void eval_op_protected_init(int op, eval_state_t *state)
    if (!new.failed) {
       result->context = new.frame;
       new.frame = NULL;
-      eval_move_allocs(&new, state);
    }
 
    eval_cleanup_state(&new);
@@ -2605,6 +2563,20 @@ static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
    return tree;
 }
 
+static void eval_oom_cb(mspace_t *m, size_t size)
+{
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+   diag_printf(d, "out of memory attempting to allocate %zu byte object", size);
+
+   const int heapsize = opt_get_int(OPT_HEAP_SIZE);
+   diag_hint(d, NULL, "the current heap size is %u bytes which you can "
+             "increase with the $bold$-H$$ option, for example $bold$-H %um$$",
+             heapsize, MAX(1, (heapsize * 2) / 1024 / 1024));
+
+   diag_emit(d);
+   fatal_exit(EXIT_FAILURE);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Public interface
 
@@ -2619,6 +2591,9 @@ eval_t *eval_new(eval_flags_t flags)
    eval_t *ex = xcalloc(sizeof(eval_t));
    ex->link_map = hash_new(128, true);
    ex->flags    = flags;
+   ex->mspace   = mspace_new(opt_get_int(OPT_HEAP_SIZE));
+
+   mspace_set_oom_handler(ex->mspace, eval_oom_cb);
 
    return ex;
 }
@@ -2629,10 +2604,13 @@ void eval_free(eval_t *ex)
    void *value;
    hash_iter_t it = HASH_BEGIN;
    while (hash_iter(ex->link_map, &it, &key, &value)) {
-      if (value != (void *)-1)
-         eval_free_frame((eval_frame_t *)value);
+      if (value != (void *)-1) {
+         mptr_t mptr = (uintptr_t)value;
+         mptr_free(ex->mspace, &mptr);
+      }
    }
 
+   mspace_destroy(ex->mspace);
    hash_free(ex->link_map);
    free(ex);
 }
@@ -2745,11 +2723,11 @@ eval_scalar_t eval_call(eval_t *ex, ident_t func, eval_frame_t *context,
 
 eval_frame_t *eval_link(eval_t *ex, ident_t ident)
 {
-   eval_frame_t *ctx = hash_get(ex->link_map, ident);
-   if (ctx == (eval_frame_t *)-1)
+   void *map = hash_get(ex->link_map, ident);
+   if (map == (void *)-1)
       return NULL;
-   else if (ctx != NULL)
-      return ctx;
+   else if (map != NULL)
+      return mptr_get(ex->mspace, (uintptr_t)map);
 
    // Poison value to detect recursive linking
    hash_put(ex->link_map, ident, (void *)-1);
@@ -2789,18 +2767,21 @@ eval_frame_t *eval_link(eval_t *ex, ident_t ident)
 
    vcode_state_restore(&vcode_state);
 
-   if (state.failed)
+   if (state.failed) {
+      eval_cleanup_state(&state);
       return NULL;
+   }
 
    // Move the frame with the local variables out of the state
    eval_frame_t *frame = state.frame;
-   frame->allocs = state.allocs;
    state.frame = NULL;
-   state.allocs = NULL;
 
    eval_cleanup_state(&state);
 
-   hash_put(ex->link_map, ident, frame);
+   mptr_t mptr = mptr_new(ex->mspace, "linked unit");
+   mptr_put(ex->mspace, mptr, frame);
+
+   hash_put(ex->link_map, ident, (void *)(uintptr_t)mptr);
    return frame;
 }
 

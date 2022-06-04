@@ -19,10 +19,12 @@
 #include "array.h"
 #include "common.h"
 #include "diag.h"
+#include "eval.h"
 #include "lib.h"
 #include "opt.h"
 #include "phase.h"
 #include "rt/cover.h"
+#include "rt/mspace.h"
 #include "rt/rt.h"
 #include "scan.h"
 #include "vhpi/vhpi-util.h"
@@ -173,6 +175,7 @@ static int analyse(int argc, char **argv)
    SCOPED_A(tree_t) units = AINIT;
 
    lib_t work = lib_work();
+   eval_t *eval = eval_new(0);
 
    for (int i = optind; i < next_cmd; i++) {
       input_from_file(argv[i]);
@@ -184,7 +187,7 @@ static int analyse(int argc, char **argv)
             lib_put(work, unit);
             APUSH(units, unit);
 
-            simplify_local(unit);
+            simplify_local(unit, eval);
             bounds_check(unit);
 
             if (error_count() == base_errors && unit_needs_cgen(unit)) {
@@ -985,6 +988,7 @@ int main(int argc, char **argv)
    set_default_opts();
    intern_strings();
    register_signal_handlers();
+   mspace_stack_limit(MSPACE_CURRENT_FRAME);
 
    atexit(fbuf_cleanup);
 

@@ -4096,8 +4096,6 @@ void rt_end_of_tool(tree_t top)
 
 int rt_run_sim(tree_t top, uint64_t stop_time)
 {
-   mspace_stack_limit(MSPACE_CURRENT_FRAME);
-
    rt_setup(top);
 
    int rc = setjmp(abort_env);

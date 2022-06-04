@@ -20,6 +20,7 @@
 #include "phase.h"
 #include "common.h"
 #include "diag.h"
+#include "eval.h"
 #include "vcode.h"
 #include "opt.h"
 #include "diag.h"
@@ -78,6 +79,7 @@ static void setup(void)
    opt_set_str(OPT_EVAL_VERBOSE, NULL);
    opt_set_str(OPT_CPROP_VERBOSE, NULL);
    opt_set_str(OPT_EOPT_VERBOSE, NULL);
+   opt_set_int(OPT_HEAP_SIZE, 128 * 1024);
 
    intern_strings();
 }
@@ -136,12 +138,14 @@ TCase *nvc_unit_test(void)
 
 tree_t run_elab(void)
 {
+   eval_t *eval = eval_new(0);
+
    tree_t t, last_ent = NULL;
    while ((t = parse())) {
       fail_if(error_count() > 0);
 
       lib_put(lib_work(), t);
-      simplify_local(t);
+      simplify_local(t, eval);
       bounds_check(t);
       fail_if(error_count() > 0);
 
@@ -153,16 +157,20 @@ tree_t run_elab(void)
          last_ent = t;
    }
 
+   eval_free(eval);
+
    return elab(last_ent);
 }
 
 tree_t _parse_and_check(const tree_kind_t *array, int num,
                         bool simp, bool lower)
 {
+   eval_t *eval = simp ? eval_new(0) : NULL;
+
    tree_t last = NULL;
    for (int i = 0; i < num; i++) {
       if (array[i] == (tree_kind_t)-1)
-         return last;
+         goto out;
 
       last = parse();
       if (last == NULL) {
@@ -178,7 +186,7 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
       lib_put(lib_work(), last);
 
       if (simp && error_count() == 0)
-         simplify_local(last);
+         simplify_local(last, eval);
 
       if (lower && error_count() == 0) {
          bounds_check(last);
@@ -192,6 +200,10 @@ tree_t _parse_and_check(const tree_kind_t *array, int num,
    }
 
    fail_unless(parse() == NULL);
+
+ out:
+   if (eval != NULL)
+      eval_free(eval);
 
    return last;
 }

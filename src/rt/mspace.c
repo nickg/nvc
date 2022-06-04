@@ -186,6 +186,16 @@ void *mspace_alloc(mspace_t *m, size_t size)
       fatal_trace("out of memory attempting to allocate %zu byte object", size);
 }
 
+void *mspace_alloc_array(mspace_t *m, int nelems, size_t size)
+{
+   return mspace_alloc(m, nelems * size);
+}
+
+void *mspace_alloc_flex(mspace_t *m, size_t fixed, int nelems, size_t size)
+{
+   return mspace_alloc(m, fixed + nelems * size);
+}
+
 void mspace_set_oom_handler(mspace_t *m, mspace_oom_fn_t fn)
 {
    m->oomfn = fn;

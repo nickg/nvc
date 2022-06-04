@@ -18,6 +18,7 @@
 #include "test_util.h"
 #include "common.h"
 #include "diag.h"
+#include "eval.h"
 #include "opt.h"
 #include "phase.h"
 #include "rt/cover.h"
@@ -2283,9 +2284,11 @@ START_TEST(test_issue158)
 {
    input_from_file(TESTDIR "/lower/issue158.vhd");
 
+   eval_t *eval = eval_new(0);
    tree_t p = parse_and_check(T_PACKAGE, T_PACK_BODY);
-   simplify_local(p);
+   simplify_local(p, eval);
    lower_unit(p, NULL);
+   eval_free(eval);
 }
 END_TEST
 

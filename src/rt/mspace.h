@@ -52,6 +52,8 @@ typedef struct _tlab {
 mspace_t *mspace_new(size_t size);
 void mspace_destroy(mspace_t *m);
 void *mspace_alloc(mspace_t *m, size_t size);
+void *mspace_alloc_array(mspace_t *m, int nelems, size_t size);
+void *mspace_alloc_flex(mspace_t *m, size_t fixed, int nelems, size_t size);
 void mspace_set_oom_handler(mspace_t *m, mspace_oom_fn_t fn);
 
 void tlab_acquire(mspace_t *m, tlab_t *t);

@@ -28,7 +28,7 @@
 bool sem_check(tree_t t, nametab_t *tab);
 
 // Rewrite to simpler forms folding locally static expressions
-void simplify_local(tree_t top);
+void simplify_local(tree_t top, eval_t *ex);
 
 // Rewrite to simpler forms folding globally static expressions
 void simplify_global(tree_t top, hash_t *generics, eval_t *ex);

@@ -18,7 +18,7 @@
 #include "test_util.h"
 #include "phase.h"
 #include "common.h"
-#include "rt/heap.h"
+#include "rt/mspace.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -70,6 +70,7 @@ int main(int argc, char **argv)
 
    term_init();
    register_signal_handlers();
+   mspace_stack_limit(MSPACE_CURRENT_FRAME);
 
    setenv("NVC_LIBPATH", "./lib", 1);
 
