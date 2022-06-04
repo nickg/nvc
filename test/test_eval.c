@@ -235,6 +235,28 @@ START_TEST(test_overflow)
 }
 END_TEST
 
+START_TEST(test_record4)
+{
+   input_from_file(TESTDIR "/eval/record4.vhd");
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   eval_t *ex = eval_new(EVAL_FCALL);
+
+   ident_t func1 = ident_new("WORK.PACK5.FUNC1(I)I");
+   ident_t func2 = ident_new("WORK.PACK5.FUNC2(I)I");
+
+   ck_assert_int_eq(eval_call(ex, func1, NULL, "i", 5).integer, 40);
+   ck_assert_int_eq(eval_call(ex, func1, NULL, "i", 2).integer, 7);
+   ck_assert_int_eq(eval_call(ex, func1, NULL, "i", 0).integer, 0);
+   ck_assert_int_eq(eval_call(ex, func2, NULL, "i", 5).integer, 40);
+   ck_assert_int_eq(eval_call(ex, func2, NULL, "i", 2).integer, 7);
+   ck_assert_int_eq(eval_call(ex, func2, NULL, "i", 0).integer, 0);
+
+   eval_free(ex);
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_eval_tests(void)
 {
    Suite *s = suite_create("eval");
@@ -249,6 +271,7 @@ Suite *get_eval_tests(void)
    tcase_add_test(tc, test_record3);
    tcase_add_test(tc, test_ieee_warnings);
    tcase_add_test(tc, test_overflow);
+   tcase_add_test(tc, test_record4);
    suite_add_tcase(s, tc);
 
    return s;

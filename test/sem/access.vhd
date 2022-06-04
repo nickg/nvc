@@ -105,4 +105,11 @@ package body p is
         p := new a;                     -- Error
     end procedure;
 
+    procedure test8 is
+        variable p : int_vec(1 to 3);
+    begin
+        for i in p.all'range loop       -- Error
+        end loop;
+    end procedure;
+
 end package body;

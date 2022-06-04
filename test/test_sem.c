@@ -809,6 +809,7 @@ START_TEST(test_access)
       {  90, "variable F cannot have incomplete type FOO" },
       {  97, "cannot determine type of allocator expression from context" },
       { 105, "incomplete type A found in allocator expression" },
+      { 111, "expression type INT_VEC is not access" },
       { -1, NULL }
    };
    expect_errors(expect);

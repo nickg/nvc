@@ -3166,9 +3166,9 @@ static type_t solve_all(nametab_t *tab, tree_t all)
 
    tree_t prefix = tree_value(all);
 
-   type_t type, access = solve_types(tab, prefix, NULL);
-   if (type_is_access(access)) {
-      type = type_access(access);
+   type_t type = solve_types(tab, prefix, NULL);
+   if (type_is_access(type)) {
+      type = type_access(type);
       if (type_is_incomplete(type)
           && (type = resolve_type(tab, type)) == NULL) {
          error_at(tree_loc(prefix), "object with incomplete type %s "
@@ -3176,8 +3176,6 @@ static type_t solve_all(nametab_t *tab, tree_t all)
          type = type_new(T_NONE);
       }
    }
-   else
-      type = type_new(T_NONE);
 
    tree_set_type(all, type);
    return type;

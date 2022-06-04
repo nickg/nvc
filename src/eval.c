@@ -268,6 +268,9 @@ static void eval_assert_fail(int op, value_t *value, const char *value_str,
 
 static value_t *eval_alloc(int count, eval_state_t *state)
 {
+   if (count == 0)
+      return NULL;
+
    eval_alloc_t *new =
       xmalloc_flex(sizeof(eval_alloc_t), count, sizeof(value_t));
    new->next = state->allocs;
@@ -280,7 +283,9 @@ static void eval_make_pointer_to(value_t *dst, value_t *src)
 {
    dst->kind = VALUE_POINTER;
 
-   if (src->kind == VALUE_CARRAY || src->kind == VALUE_RECORD)
+   if (src == NULL)
+      dst->pointer = NULL;
+   else if (src->kind == VALUE_CARRAY || src->kind == VALUE_RECORD)
       dst->pointer = src + 1;   // Array or record data follows header
    else
       dst->pointer = src;
@@ -1876,15 +1881,20 @@ static void eval_op_new(int op, eval_state_t *state)
 {
    vcode_reg_t result = vcode_get_result(op);
 
-   int length;
+   int length = 1;
    if (vcode_count_args(op) > 0)
       length = eval_get_reg(vcode_get_arg(op, 0), state)->integer;
-   else
-      length = eval_slots_for_type(vtype_pointed(vcode_reg_type(result)));
+
+   vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
+   const int slots = eval_slots_for_type(vtype);
 
    value_t *dst = eval_get_reg(result, state);
    dst->kind    = VALUE_ACCESS;
-   dst->pointer = eval_alloc(length, state);
+   dst->pointer = eval_alloc(length * slots, state);
+
+   unsigned off = 0;
+   for (int i = 0; i < length; i++)
+      off += eval_setup_var(vtype, dst->pointer + off);
 }
 
 static void eval_op_deallocate(int op, eval_state_t *state)
