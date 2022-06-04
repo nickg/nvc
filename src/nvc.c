@@ -770,12 +770,11 @@ static void set_default_opts(void)
    opt_set_int(OPT_DUMP_ARRAYS, 0);
    opt_set_str(OPT_OBJECT_VERBOSE, getenv("NVC_OBJECT_VERBOSE"));
    opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE") DEBUG_ONLY(?: "1"));
-   opt_set_str(OPT_CPROP_VERBOSE, getenv("NVC_CPROP_VERBOSE"));
    opt_set_str(OPT_EVAL_VERBOSE, getenv("NVC_EVAL_VERBOSE"));
    opt_set_str(OPT_ELAB_VERBOSE, getenv("NVC_ELAB_VERBOSE"));
-   opt_set_str(OPT_EOPT_VERBOSE, getenv("NVC_EOPT_VERBOSE"));
    opt_set_int(OPT_HEAP_SIZE, 16 * 1024 * 1024);
    opt_set_int(OPT_ERROR_LIMIT, 20);
+   opt_set_int(OPT_GC_STRESS, 0 DEBUG_ONLY(|| getenv("NVC_GC_STRESS") != 0));
 }
 
 static void usage(void)

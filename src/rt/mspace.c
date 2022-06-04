@@ -69,6 +69,7 @@ struct _mspace {
    free_list_t     *free_list;
 #ifdef DEBUG
    str_list_t       mptr_names;
+   bool             stress;
 #endif
 };
 
@@ -82,6 +83,8 @@ mspace_t *mspace_new(size_t size)
    mspace_t *m = xcalloc(sizeof(mspace_t));
    m->maxsize  = ALIGN_UP(size, LINE_SIZE);
    m->maxlines = m->maxsize / LINE_SIZE;
+
+   DEBUG_ONLY(m->stress = opt_get_int(OPT_GC_STRESS));
 
    m->space = nvc_memalign(LINE_SIZE, m->maxsize);
 
@@ -140,6 +143,11 @@ void *mspace_alloc(mspace_t *m, size_t size)
 {
    if (size == 0)
       return NULL;
+
+#ifdef DEBUG
+   if (m->stress)
+      mspace_gc(m);
+#endif
 
    // Add one to size before rounding up to LINE_SIZE to allow a valid
    // pointer to point at one element past the end of an array

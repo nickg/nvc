@@ -77,9 +77,8 @@ static void setup(void)
    opt_set_str(OPT_OBJECT_VERBOSE, NULL);
    opt_set_str(OPT_ELAB_VERBOSE, NULL);
    opt_set_str(OPT_EVAL_VERBOSE, NULL);
-   opt_set_str(OPT_CPROP_VERBOSE, NULL);
-   opt_set_str(OPT_EOPT_VERBOSE, NULL);
    opt_set_int(OPT_HEAP_SIZE, 128 * 1024);
+   opt_set_int(OPT_GC_STRESS, getenv("NVC_GC_STRESS") != 0);
 
    intern_strings();
 }
