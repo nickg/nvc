@@ -867,29 +867,22 @@ static tree_t elab_fold(tree_t value, elab_ctx_t *ctx)
 {
    tree_kind_t kind = tree_kind(value);
 
-   if (kind == T_REF) {
-      tree_t decl = tree_ref(value);
-      if (tree_kind(decl) == T_CONST_DECL && tree_has_value(decl)) {
-         value = tree_value(decl);
-         kind  = tree_kind(value);
-      }
-   }
-
    if (kind == T_LITERAL || kind == T_AGGREGATE)
       return value;
    else if (kind == T_REF && tree_kind(tree_ref(value)) == T_ENUM_LIT)
       return value;
    else if (kind == T_QUALIFIED)
       return elab_fold(tree_value(value), ctx);
-
-   vcode_unit_t thunk = lower_thunk(value);
-   if (thunk != NULL) {
-      tree_t folded = eval_fold(ctx->eval, value, thunk);
-      vcode_unit_unref(thunk);
-      return folded;
+   else if (eval_possible(ctx->eval, value)) {
+      vcode_unit_t thunk = lower_thunk(value);
+      if (thunk != NULL) {
+         tree_t folded = eval_fold(ctx->eval, value, thunk);
+         vcode_unit_unref(thunk);
+         return folded;
+      }
    }
-   else
-      return value;
+
+   return value;
 }
 
 static void elab_generics(tree_t entity, tree_t comp, tree_t inst,

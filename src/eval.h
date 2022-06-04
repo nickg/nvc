@@ -47,7 +47,7 @@ bool eval_try_call(eval_t *ex, ident_t func, eval_frame_t *context,
                    eval_scalar_t *result, const char *fmt, ...);
 tree_t eval_fold(eval_t *ex, tree_t expr, vcode_unit_t thunk);
 eval_scalar_t eval_get_frame_var(eval_t *ex, eval_frame_t *frame, unsigned nth);
-eval_flags_t eval_get_flags(eval_t *ex);
 void eval_set_lower_fn(eval_t *ex, lower_fn_t fn, void *ctx);
+bool eval_possible(eval_t *e, tree_t t);
 
 #endif  // _EVAL_H

@@ -123,128 +123,12 @@ static tree_t simp_call_args(tree_t t)
    return t;
 }
 
-static bool fold_not_possible(tree_t t, eval_flags_t flags, const char *why)
-{
-   if (flags & EVAL_WARN)
-      warn_at(tree_loc(t), "%s prevents constant folding", why);
-
-   return false;
-}
-
-static bool fold_possible(tree_t t, eval_flags_t flags)
-{
-   switch (tree_kind(t)) {
-   case T_FCALL:
-      {
-         tree_t decl = tree_ref(t);
-         const subprogram_kind_t kind = tree_subkind(decl);
-         if (kind == S_USER && !(flags & EVAL_FCALL))
-            return fold_not_possible(t, flags, "call to user defined function");
-         else if (kind == S_FOREIGN || kind == S_VHPIDIRECT)
-            return fold_not_possible(t, flags, "call to foreign function");
-         else if (tree_flags(decl) & TREE_F_IMPURE)
-            return fold_not_possible(t, flags, "call to impure function");
-         else if (!(tree_flags(t) & TREE_F_GLOBALLY_STATIC))
-            return fold_not_possible(t, flags, "non-static expression");
-         else if (kind != S_USER && !is_open_coded_builtin(kind)
-                  && vcode_find_unit(tree_ident2(decl)) == NULL)
-            return fold_not_possible(t, flags, "not yet lowered predef");
-
-         const int nparams = tree_params(t);
-         for (int i = 0; i < nparams; i++) {
-            tree_t p = tree_value(tree_param(t, i));
-            if (!fold_possible(p, flags))
-               return false;
-            else if (tree_kind(p) == T_FCALL && type_is_scalar(tree_type(p)))
-               return false;  // Would have been folded already if possible
-         }
-
-         return true;
-      }
-
-   case T_LITERAL:
-      return true;
-
-   case T_TYPE_CONV:
-      return fold_possible(tree_value(t), flags);
-
-   case T_QUALIFIED:
-      return fold_possible(tree_value(t), flags);
-
-   case T_REF:
-      {
-         tree_t decl = tree_ref(t);
-         switch (tree_kind(decl)) {
-         case T_UNIT_DECL:
-         case T_ENUM_LIT:
-            return true;
-
-         case T_CONST_DECL:
-            if (tree_has_value(decl))
-               return fold_possible(tree_value(decl), flags);
-            else if (!(flags & EVAL_FCALL))
-               return fold_not_possible(t, flags, "deferred constant");
-            else
-               return true;
-
-         default:
-            return fold_not_possible(t, flags, "reference");
-         }
-      }
-
-   case T_RECORD_REF:
-      return fold_possible(tree_value(t), flags);
-
-   case T_ARRAY_REF:
-      {
-         const int nparams = tree_params(t);
-         for (int i = 0; i < nparams; i++) {
-            if (!fold_possible(tree_value(tree_param(t, i)), flags))
-               return false;
-         }
-
-         return fold_possible(tree_value(t), flags);
-      }
-
-   case T_AGGREGATE:
-      {
-         const int nassocs = tree_assocs(t);
-         for (int i = 0; i < nassocs; i++) {
-            if (!fold_possible(tree_value(tree_assoc(t, i)), flags))
-               return false;
-         }
-
-         return true;
-      }
-
-   case T_ATTR_REF:
-      {
-         if (tree_subkind(t) == ATTR_USER)
-            return fold_not_possible(t, flags, "user defined attribute");
-
-         if (!fold_possible(tree_name(t), flags))
-            return false;
-
-         const int nparams = tree_params(t);
-         for (int i = 0; i < nparams; i++) {
-            if (!fold_possible(tree_value(tree_param(t, i)), flags))
-               return false;
-         }
-
-         return true;
-      }
-
-   default:
-      return fold_not_possible(t, flags, tree_kind_str(tree_kind(t)));
-   }
-}
-
 static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
 {
    type_t type = tree_type(t);
    if (!type_is_scalar(type))
       return t;
-   else if (!fold_possible(t, eval_get_flags(ctx->eval)))
+   else if (!eval_possible(ctx->eval, t))
       return t;
 
    vcode_unit_t thunk = lower_thunk(t);

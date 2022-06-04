@@ -2794,13 +2794,124 @@ tree_t eval_fold(eval_t *ex, tree_t expr, vcode_unit_t thunk)
    return tree;
 }
 
-eval_flags_t eval_get_flags(eval_t *ex)
-{
-   return ex->flags;
-}
-
 void eval_set_lower_fn(eval_t *ex, lower_fn_t fn, void *ctx)
 {
    ex->lower_fn = fn;
    ex->lower_ctx = ctx;
+}
+
+static bool eval_not_possible(eval_t *e, tree_t t, const char *why)
+{
+   if (e->flags & EVAL_WARN)
+      warn_at(tree_loc(t), "%s prevents constant folding", why);
+
+   return false;
+}
+
+bool eval_possible(eval_t *e, tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_FCALL:
+      {
+         tree_t decl = tree_ref(t);
+         const subprogram_kind_t kind = tree_subkind(decl);
+         if (kind == S_USER && !(e->flags & EVAL_FCALL))
+            return eval_not_possible(e, t, "call to user defined function");
+         else if (kind == S_FOREIGN || kind == S_VHPIDIRECT)
+            return eval_not_possible(e, t, "call to foreign function");
+         else if (tree_flags(decl) & TREE_F_IMPURE)
+            return eval_not_possible(e, t, "call to impure function");
+         else if (!(tree_flags(t) & TREE_F_GLOBALLY_STATIC))
+            return eval_not_possible(e, t, "non-static expression");
+         else if (kind != S_USER && !is_open_coded_builtin(kind)
+                  && vcode_find_unit(tree_ident2(decl)) == NULL)
+            return eval_not_possible(e, t, "not yet lowered predef");
+
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            tree_t p = tree_value(tree_param(t, i));
+            if (!eval_possible(e, p))
+               return false;
+            else if (tree_kind(p) == T_FCALL && type_is_scalar(tree_type(p)))
+               return false;  // Would have been folded already if possible
+         }
+
+         return true;
+      }
+
+   case T_LITERAL:
+      return true;
+
+   case T_TYPE_CONV:
+      return eval_possible(e, tree_value(t));
+
+   case T_QUALIFIED:
+      return eval_possible(e, tree_value(t));
+
+   case T_REF:
+      {
+         tree_t decl = tree_ref(t);
+         switch (tree_kind(decl)) {
+         case T_UNIT_DECL:
+         case T_ENUM_LIT:
+            return true;
+
+         case T_CONST_DECL:
+            if (tree_has_value(decl))
+               return eval_possible(e, tree_value(decl));
+            else if (!(e->flags & EVAL_FCALL))
+               return eval_not_possible(e, t, "deferred constant");
+            else
+               return true;
+
+         default:
+            return eval_not_possible(e, t, "reference");
+         }
+      }
+
+   case T_RECORD_REF:
+      return eval_possible(e, tree_value(t));
+
+   case T_ARRAY_REF:
+      {
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            if (!eval_possible(e, tree_value(tree_param(t, i))))
+               return false;
+         }
+
+         return eval_possible(e, tree_value(t));
+      }
+
+   case T_AGGREGATE:
+      {
+         const int nassocs = tree_assocs(t);
+         for (int i = 0; i < nassocs; i++) {
+            if (!eval_possible(e, tree_value(tree_assoc(t, i))))
+               return false;
+         }
+
+         return true;
+      }
+
+   case T_ATTR_REF:
+      {
+         if (tree_subkind(t) == ATTR_USER)
+            return eval_not_possible(e, t, "user defined attribute");
+
+         if (!eval_possible(e, tree_name(t)))
+            return false;
+
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            if (!eval_possible(e, tree_value(tree_param(t, i))))
+               return false;
+         }
+
+         return true;
+      }
+
+   default:
+      return eval_not_possible(e, t, tree_kind_str(tree_kind(t)));
+   }
 }
