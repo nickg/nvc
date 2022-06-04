@@ -18,7 +18,7 @@
 #include "phase.h"
 #include "util.h"
 #include "common.h"
-#include "exec.h"
+#include "eval.h"
 #include "hash.h"
 #include "vcode.h"
 #include "type.h"
@@ -43,7 +43,7 @@ struct imp_signal {
 typedef struct {
    imp_signal_t *imp_signals;
    tree_t        top;
-   exec_t       *exec;
+   eval_t       *eval;
    tree_flags_t  eval_mask;
    hash_t       *generics;
 } simp_ctx_t;
@@ -244,14 +244,14 @@ static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
    type_t type = tree_type(t);
    if (!type_is_scalar(type))
       return t;
-   else if (!fold_possible(t, exec_get_flags(ctx->exec)))
+   else if (!fold_possible(t, eval_get_flags(ctx->eval)))
       return t;
 
    vcode_unit_t thunk = lower_thunk(t);
    if (thunk == NULL)
       return t;
 
-   tree_t folded = exec_fold(ctx->exec, t, thunk);
+   tree_t folded = eval_fold(ctx->eval, t, thunk);
 
    vcode_unit_unref(thunk);
    thunk = NULL;
@@ -1747,13 +1747,13 @@ void simplify_local(tree_t top)
    simp_ctx_t ctx = {
       .imp_signals = NULL,
       .top         = top,
-      .exec        = exec_new(0),
+      .eval        = eval_new(0),
       .eval_mask   = TREE_F_LOCALLY_STATIC,
    };
 
    tree_rewrite(top, simp_pre_cb, simp_tree, NULL, &ctx);
 
-   exec_free(ctx.exec);
+   eval_free(ctx.eval);
 
    if (ctx.generics)
       hash_free(ctx.generics);
@@ -1761,12 +1761,12 @@ void simplify_local(tree_t top)
    assert(ctx.imp_signals == NULL);
 }
 
-void simplify_global(tree_t top, hash_t *generics, exec_t *ex)
+void simplify_global(tree_t top, hash_t *generics, eval_t *ex)
 {
    simp_ctx_t ctx = {
       .imp_signals = NULL,
       .top         = top,
-      .exec        = ex,
+      .eval        = ex,
       .eval_mask   = TREE_F_GLOBALLY_STATIC | TREE_F_LOCALLY_STATIC,
       .generics    = generics,
    };

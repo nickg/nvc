@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021  Nick Gasson
+//  Copyright (C) 2021-2022  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _EXEC_H
-#define _EXEC_H
+#ifndef _EVAL_H
+#define _EVAL_H
 
 #include "prim.h"
 #include "phase.h"
@@ -38,16 +38,16 @@ typedef enum {
 
 typedef vcode_unit_t (*lower_fn_t)(ident_t, void *);
 
-exec_t *exec_new(eval_flags_t flags);
-void exec_free(exec_t *ex);
-eval_frame_t *exec_link(exec_t *ex, ident_t ident);
-eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
+eval_t *eval_new(eval_flags_t flags);
+void eval_free(eval_t *ex);
+eval_frame_t *eval_link(eval_t *ex, ident_t ident);
+eval_scalar_t eval_call(eval_t *ex, ident_t func, eval_frame_t *context,
                         const char *fmt, ...);
-bool exec_try_call(exec_t *ex, ident_t func, eval_frame_t *context,
+bool eval_try_call(eval_t *ex, ident_t func, eval_frame_t *context,
                    eval_scalar_t *result, const char *fmt, ...);
-tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk);
-eval_scalar_t exec_get_var(exec_t *ex, eval_frame_t *frame, unsigned nth);
-eval_flags_t exec_get_flags(exec_t *ex);
-void exec_set_lower_fn(exec_t *ex, lower_fn_t fn, void *ctx);
+tree_t eval_fold(eval_t *ex, tree_t expr, vcode_unit_t thunk);
+eval_scalar_t eval_get_frame_var(eval_t *ex, eval_frame_t *frame, unsigned nth);
+eval_flags_t eval_get_flags(eval_t *ex);
+void eval_set_lower_fn(eval_t *ex, lower_fn_t fn, void *ctx);
 
-#endif  // _EXEC_H
+#endif  // _EVAL_H

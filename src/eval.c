@@ -18,7 +18,7 @@
 #include "util.h"
 #include "common.h"
 #include "diag.h"
-#include "exec.h"
+#include "eval.h"
 #include "hash.h"
 #include "ident.h"
 #include "lib.h"
@@ -37,7 +37,7 @@
 #include <string.h>
 #include <math.h>
 
-struct _exec {
+struct _eval {
    eval_flags_t  flags;
    hash_t       *link_map;
    lower_fn_t    lower_fn;
@@ -102,7 +102,7 @@ typedef struct {
    int            op;
    eval_frame_t  *frame;
    value_t      **regs;
-   exec_t        *exec;
+   eval_t        *eval;
 } eval_state_t;
 
 #define EVAL_WARN(state, op, ...) do {                                  \
@@ -1074,8 +1074,8 @@ static void eval_op_fcall(int op, eval_state_t *state)
    if (vcode == NULL)
       vcode = vcode_find_unit(ident_prefix(func_name, ident_new("thunk"), '$'));
 
-   if (vcode == NULL && state->exec->lower_fn != NULL)
-      vcode = (*state->exec->lower_fn)(func_name, state->exec->lower_ctx);
+   if (vcode == NULL && state->eval->lower_fn != NULL)
+      vcode = (*state->eval->lower_fn)(func_name, state->eval->lower_ctx);
 
    if (vcode == NULL) {
       vcode_state_restore(&vcode_state);
@@ -1093,7 +1093,7 @@ static void eval_op_fcall(int op, eval_state_t *state)
       .hint    = state->hint,
       .failed  = false,
       .flags   = state->flags | EVAL_BOUNDS,
-      .exec    = state->exec,
+      .eval    = state->eval,
    };
 
    eval_setup_state(&new, arg0->context);
@@ -1982,7 +1982,7 @@ static void eval_op_link_package(int op, eval_state_t *state)
 {
    value_t *result = eval_get_reg(vcode_get_result(op), state);
    result->kind = VALUE_CONTEXT;
-   result->context = exec_link(state->exec, vcode_get_ident(op));
+   result->context = eval_link(state->eval, vcode_get_ident(op));
 
    if ((state->failed = (result->context == NULL)))
       EVAL_WARN(state, op, "missing package %s prevents constant folding",
@@ -2546,7 +2546,7 @@ static tree_t eval_value_to_tree(value_t *value, type_t type, const loc_t *loc)
 ////////////////////////////////////////////////////////////////////////////////
 // Public interface
 
-exec_t *exec_new(eval_flags_t flags)
+eval_t *eval_new(eval_flags_t flags)
 {
    if (opt_get_verbose(OPT_EVAL_VERBOSE, NULL))
       flags |= EVAL_VERBOSE;
@@ -2554,14 +2554,14 @@ exec_t *exec_new(eval_flags_t flags)
    if (flags & EVAL_VERBOSE)
       flags |= EVAL_WARN;
 
-   exec_t *ex = xcalloc(sizeof(exec_t));
+   eval_t *ex = xcalloc(sizeof(eval_t));
    ex->link_map = hash_new(128, true);
    ex->flags    = flags;
 
    return ex;
 }
 
-void exec_free(exec_t *ex)
+void eval_free(eval_t *ex)
 {
    const void *key;
    void *value;
@@ -2575,7 +2575,7 @@ void exec_free(exec_t *ex)
    free(ex);
 }
 
-static bool exec_try_vcall(exec_t *ex, ident_t func, eval_frame_t *context,
+static bool eval_try_vcall(eval_t *ex, ident_t func, eval_frame_t *context,
                            eval_scalar_t *result, const char *fmt, va_list ap)
 {
    vcode_unit_t unit = eval_find_unit(func, EVAL_VERBOSE);
@@ -2591,7 +2591,7 @@ static bool exec_try_vcall(exec_t *ex, ident_t func, eval_frame_t *context,
       .hint   = NULL,
       .failed = false,
       .flags  = ex->flags,
-      .exec   = ex,
+      .eval   = ex,
    };
 
    eval_setup_state(&state, context);
@@ -2643,7 +2643,7 @@ static bool exec_try_vcall(exec_t *ex, ident_t func, eval_frame_t *context,
          }
          break;
       default:
-         fatal_trace("invalid character '%c' in exec_call format", *fmt);
+         fatal_trace("invalid character '%c' in eval_call format", *fmt);
       }
    }
 
@@ -2657,31 +2657,31 @@ static bool exec_try_vcall(exec_t *ex, ident_t func, eval_frame_t *context,
    return !state.failed;
 }
 
-bool exec_try_call(exec_t *ex, ident_t func, eval_frame_t *context,
+bool eval_try_call(eval_t *ex, ident_t func, eval_frame_t *context,
                    eval_scalar_t *result, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   bool ok = exec_try_vcall(ex, func, context, result, fmt, ap);
+   bool ok = eval_try_vcall(ex, func, context, result, fmt, ap);
    va_end(ap);
    return ok;
 }
 
-eval_scalar_t exec_call(exec_t *ex, ident_t func, eval_frame_t *context,
+eval_scalar_t eval_call(eval_t *ex, ident_t func, eval_frame_t *context,
                         const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
 
    eval_scalar_t result;
-   if (!exec_try_vcall(ex, func, context, &result, fmt, ap))
+   if (!eval_try_vcall(ex, func, context, &result, fmt, ap))
       fatal_trace("call to %s failed", istr(func));
 
    va_end(ap);
    return result;
 }
 
-eval_frame_t *exec_link(exec_t *ex, ident_t ident)
+eval_frame_t *eval_link(eval_t *ex, ident_t ident)
 {
    eval_frame_t *ctx = hash_get(ex->link_map, ident);
    if (ctx == (eval_frame_t *)-1)
@@ -2711,7 +2711,7 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
       .hint   = NULL,
       .failed = false,
       .flags  = flags,
-      .exec   = ex,
+      .eval   = ex,
    };
 
    eval_setup_state(&state, NULL);
@@ -2742,13 +2742,13 @@ eval_frame_t *exec_link(exec_t *ex, ident_t ident)
    return frame;
 }
 
-eval_scalar_t exec_get_var(exec_t *ex, eval_frame_t *frame, unsigned nth)
+eval_scalar_t eval_get_frame_var(eval_t *ex, eval_frame_t *frame, unsigned nth)
 {
    assert(nth < frame->nvars);
    return eval_get_scalar(frame->vars[nth]);
 }
 
-tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk)
+tree_t eval_fold(eval_t *ex, tree_t expr, vcode_unit_t thunk)
 {
    vcode_select_unit(thunk);
    vcode_select_block(0);
@@ -2764,7 +2764,7 @@ tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk)
       .hint   = expr,
       .failed = false,
       .flags  = ex->flags,
-      .exec   = ex,
+      .eval   = ex,
    };
 
    eval_setup_state(&state, NULL);
@@ -2794,12 +2794,12 @@ tree_t exec_fold(exec_t *ex, tree_t expr, vcode_unit_t thunk)
    return tree;
 }
 
-eval_flags_t exec_get_flags(exec_t *ex)
+eval_flags_t eval_get_flags(eval_t *ex)
 {
    return ex->flags;
 }
 
-void exec_set_lower_fn(exec_t *ex, lower_fn_t fn, void *ctx)
+void eval_set_lower_fn(eval_t *ex, lower_fn_t fn, void *ctx)
 {
    ex->lower_fn = fn;
    ex->lower_ctx = ctx;

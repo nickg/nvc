@@ -39,8 +39,8 @@ lib_libnvc_a_SOURCES = \
 	src/names.c \
 	src/debug.h \
 	src/debug.c \
-	src/exec.h \
-	src/exec.c \
+	src/eval.h \
+	src/eval.c \
 	src/opt.h \
 	src/opt.c \
 	src/diag.h \

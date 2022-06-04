@@ -16,7 +16,7 @@
 //
 
 #include "test_util.h"
-#include "exec.h"
+#include "eval.h"
 #include "phase.h"
 #include "scan.h"
 #include "vcode.h"
@@ -26,161 +26,161 @@
 
 START_TEST(test_add1)
 {
-   input_from_file(TESTDIR "/exec/add1.vhd");
+   input_from_file(TESTDIR "/eval/add1.vhd");
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
-   exec_t *ex = exec_new(EVAL_FCALL);
+   eval_t *ex = eval_new(EVAL_FCALL);
 
    ident_t fn1 = ident_new("WORK.PACK.ADD1(I)I");
-   ck_assert_int_eq(exec_call(ex, fn1, NULL, "i", 5).integer, 6);
-   ck_assert_int_eq(exec_call(ex, fn1, NULL, "i", INT32_C(-5)).integer, -4);
+   ck_assert_int_eq(eval_call(ex, fn1, NULL, "i", 5).integer, 6);
+   ck_assert_int_eq(eval_call(ex, fn1, NULL, "i", INT32_C(-5)).integer, -4);
 
    ident_t fn2 = ident_new("WORK.PACK.ADD1(R)R");
-   ck_assert_double_eq_tol(exec_call(ex, fn2, NULL, "R", 5.0).real, 6.0, 0.001);
+   ck_assert_double_eq_tol(eval_call(ex, fn2, NULL, "R", 5.0).real, 6.0, 0.001);
 
-   exec_free(ex);
+   eval_free(ex);
 }
 END_TEST
 
 START_TEST(test_fact)
 {
-   input_from_file(TESTDIR "/exec/fact.vhd");
+   input_from_file(TESTDIR "/eval/fact.vhd");
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
-   exec_t *ex = exec_new(EVAL_FCALL);
+   eval_t *ex = eval_new(EVAL_FCALL);
 
    ident_t fn1 = ident_new("WORK.PACK.FACT(I)I");
-   ck_assert_int_eq(exec_call(ex, fn1, NULL, "i", 5).integer, 120);
-   ck_assert_int_eq(exec_call(ex, fn1, NULL, "i", 8).integer, 40320);
+   ck_assert_int_eq(eval_call(ex, fn1, NULL, "i", 5).integer, 120);
+   ck_assert_int_eq(eval_call(ex, fn1, NULL, "i", 8).integer, 40320);
 
    ident_t fn2 = ident_new("WORK.PACK.FACT_RECUR(I)I");
-   ck_assert_int_eq(exec_call(ex, fn2, NULL, "i", 5).integer, 120);
-   ck_assert_int_eq(exec_call(ex, fn2, NULL, "i", 8).integer, 40320);
+   ck_assert_int_eq(eval_call(ex, fn2, NULL, "i", 5).integer, 120);
+   ck_assert_int_eq(eval_call(ex, fn2, NULL, "i", 8).integer, 40320);
 
-   exec_free(ex);
+   eval_free(ex);
 }
 END_TEST
 
 START_TEST(test_sum)
 {
-   input_from_file(TESTDIR "/exec/sum.vhd");
+   input_from_file(TESTDIR "/eval/sum.vhd");
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
-   exec_t *ex = exec_new(EVAL_FCALL | EVAL_BOUNDS);
+   eval_t *ex = eval_new(EVAL_FCALL | EVAL_BOUNDS);
 
    int32_t data[] = { 1, 2, 3, 4, 5 };
 
    ident_t fn = ident_new("WORK.SUMPKG.SUM(22WORK.SUMPKG.INT_VECTOR)I");
-   ck_assert_int_eq(exec_call(ex, fn, NULL, "u", data, 1, 5).integer, 15);
-   ck_assert_int_eq(exec_call(ex, fn, NULL, "u", data,
+   ck_assert_int_eq(eval_call(ex, fn, NULL, "u", data, 1, 5).integer, 15);
+   ck_assert_int_eq(eval_call(ex, fn, NULL, "u", data,
                               5, INT32_C(-5)).integer, 15);
-   ck_assert_int_eq(exec_call(ex, fn, NULL, "u", data, 1, 2).integer, 3);
-   ck_assert_int_eq(exec_call(ex, fn, NULL, "u", data, 100, 2).integer, 3);
-   ck_assert_int_eq(exec_call(ex, fn, NULL, "u", data,
+   ck_assert_int_eq(eval_call(ex, fn, NULL, "u", data, 1, 2).integer, 3);
+   ck_assert_int_eq(eval_call(ex, fn, NULL, "u", data, 100, 2).integer, 3);
+   ck_assert_int_eq(eval_call(ex, fn, NULL, "u", data,
                               INT32_C(-10), 2).integer, 3);
-   ck_assert_int_eq(exec_call(ex, fn, NULL, "u", data, 1, 0).integer, 0);
+   ck_assert_int_eq(eval_call(ex, fn, NULL, "u", data, 1, 0).integer, 0);
 
-   exec_free(ex);
+   eval_free(ex);
 }
 END_TEST
 
 START_TEST(test_context1)
 {
-   input_from_file(TESTDIR "/exec/context1.vhd");
+   input_from_file(TESTDIR "/eval/context1.vhd");
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
-   exec_t *ex = exec_new(EVAL_FCALL | EVAL_WARN);
+   eval_t *ex = eval_new(EVAL_FCALL | EVAL_WARN);
 
-   void *ctx = exec_link(ex, ident_new("WORK.PACK"));
+   void *ctx = eval_link(ex, ident_new("WORK.PACK"));
    fail_if(ctx == NULL);
 
-   ck_assert_int_eq(exec_get_var(ex, ctx, 1).integer, 42);
+   ck_assert_int_eq(eval_get_frame_var(ex, ctx, 1).integer, 42);
 
    ident_t fn1 = ident_new("WORK.PACK.GET_ELT(7NATURAL)I");
-   ck_assert_int_eq(exec_call(ex, fn1, ctx, "i", 1).integer, 10);
-   ck_assert_int_eq(exec_call(ex, fn1, ctx, "i", 2).integer, 20);
+   ck_assert_int_eq(eval_call(ex, fn1, ctx, "i", 1).integer, 10);
+   ck_assert_int_eq(eval_call(ex, fn1, ctx, "i", 2).integer, 20);
 
    ident_t fn2 = ident_new("WORK.PACK.NESTED_GET_ELT(7NATURAL)I");
-   ck_assert_int_eq(exec_call(ex, fn2, ctx, "i", 1).integer, 10);
-   ck_assert_int_eq(exec_call(ex, fn2, ctx, "i", 5).integer, 50);
+   ck_assert_int_eq(eval_call(ex, fn2, ctx, "i", 1).integer, 10);
+   ck_assert_int_eq(eval_call(ex, fn2, ctx, "i", 5).integer, 50);
 
-   exec_free(ex);
+   eval_free(ex);
 }
 END_TEST
 
 START_TEST(test_record1)
 {
-   input_from_file(TESTDIR "/exec/record1.vhd");
+   input_from_file(TESTDIR "/eval/record1.vhd");
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
                                   T_PACKAGE, T_PACK_BODY);
 
-   exec_t *ex = exec_new(EVAL_FCALL);
+   eval_t *ex = eval_new(EVAL_FCALL);
 
-   eval_frame_t *pack1 = exec_link(ex, ident_new("WORK.PACK1"));
+   eval_frame_t *pack1 = eval_link(ex, ident_new("WORK.PACK1"));
    fail_if(pack1 == NULL);
 
-   eval_frame_t *pack2 = exec_link(ex, ident_new("WORK.PACK2"));
+   eval_frame_t *pack2 = eval_link(ex, ident_new("WORK.PACK2"));
    fail_if(pack2 == NULL);
 
    ident_t fn = ident_new("WORK.PACK2.SUM_FIELDS()I");
-   ck_assert_int_eq(exec_call(ex, fn, pack2, "").integer, 6);
+   ck_assert_int_eq(eval_call(ex, fn, pack2, "").integer, 6);
 
-   exec_free(ex);
+   eval_free(ex);
 }
 END_TEST
 
 START_TEST(test_record2)
 {
-   input_from_file(TESTDIR "/exec/record2.vhd");
+   input_from_file(TESTDIR "/eval/record2.vhd");
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
                                   T_PACKAGE, T_PACK_BODY);
 
-   exec_t *ex = exec_new(EVAL_FCALL);
+   eval_t *ex = eval_new(EVAL_FCALL);
 
-   eval_frame_t *pack3 = exec_link(ex, ident_new("WORK.PACK3"));
+   eval_frame_t *pack3 = eval_link(ex, ident_new("WORK.PACK3"));
    fail_if(pack3 == NULL);
 
-   eval_frame_t *pack4 = exec_link(ex, ident_new("WORK.PACK4"));
+   eval_frame_t *pack4 = eval_link(ex, ident_new("WORK.PACK4"));
    fail_if(pack4 == NULL);
 
    ident_t fn = ident_new("WORK.PACK4.SUM_FIELDS()I");
-   ck_assert_int_eq(exec_call(ex, fn, pack4, "").integer, 21);
+   ck_assert_int_eq(eval_call(ex, fn, pack4, "").integer, 21);
 
-   exec_free(ex);
+   eval_free(ex);
 }
 END_TEST
 
 START_TEST(test_record3)
 {
-   input_from_file(TESTDIR "/exec/record3.vhd");
+   input_from_file(TESTDIR "/eval/record3.vhd");
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
                                   T_PACKAGE, T_PACK_BODY);
 
-   exec_t *ex = exec_new(EVAL_FCALL);
+   eval_t *ex = eval_new(EVAL_FCALL);
 
-   eval_frame_t *pack5 = exec_link(ex, ident_new("WORK.PACK5"));
+   eval_frame_t *pack5 = eval_link(ex, ident_new("WORK.PACK5"));
    fail_if(pack5 == NULL);
 
-   eval_frame_t *pack6 = exec_link(ex, ident_new("WORK.PACK6"));
+   eval_frame_t *pack6 = eval_link(ex, ident_new("WORK.PACK6"));
    fail_if(pack6 == NULL);
 
    ident_t fn = ident_new("WORK.PACK6.SUM_FIELDS()I");
-   ck_assert_int_eq(exec_call(ex, fn, pack6, "").integer, 55);
+   ck_assert_int_eq(eval_call(ex, fn, pack6, "").integer, 55);
 
-   exec_free(ex);
+   eval_free(ex);
 }
 END_TEST
 
 START_TEST(test_ieee_warnings)
 {
-   input_from_file(TESTDIR "/exec/ieeewarn.vhd");
+   input_from_file(TESTDIR "/eval/ieeewarn.vhd");
 
    // This should not fold the call to IEEE_WARNINGS
    tree_t top = run_elab();
@@ -192,20 +192,20 @@ START_TEST(test_ieee_warnings)
    fail_unless(tree_ident(d1) == ident_new("E"));
    fail_unless(tree_kind(tree_value(d1)) == T_REF);
 
-   exec_t *ex = exec_new(EVAL_FCALL | EVAL_WARN);
+   eval_t *ex = eval_new(EVAL_FCALL | EVAL_WARN);
 
-   eval_frame_t *pkg = exec_link(ex, ident_new("WORK.IEEEWARN"));
+   eval_frame_t *pkg = eval_link(ex, ident_new("WORK.IEEEWARN"));
    fail_if(pkg == NULL);
 
-   ck_assert_int_eq(exec_get_var(ex, pkg, 0).integer, 1);
+   ck_assert_int_eq(eval_get_frame_var(ex, pkg, 0).integer, 1);
 
-   exec_free(ex);
+   eval_free(ex);
 }
 END_TEST
 
 START_TEST(test_overflow)
 {
-   input_from_file(TESTDIR "/exec/overflow.vhd");
+   input_from_file(TESTDIR "/eval/overflow.vhd");
 
    const error_t expect[] = {
       { 10, "result of 2147483647 + 1 cannot be represented as INTEGER" },
@@ -218,26 +218,26 @@ START_TEST(test_overflow)
 
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
 
-   exec_t *ex = exec_new(EVAL_FCALL);
+   eval_t *ex = eval_new(EVAL_FCALL);
 
    ident_t add = ident_new("WORK.OVERFLOW.ADD(II)I");
    ident_t sub = ident_new("WORK.OVERFLOW.SUB(II)I");
    ident_t mul = ident_new("WORK.OVERFLOW.MUL(II)I");
 
    eval_scalar_t result;
-   fail_if(exec_try_call(ex, add, NULL, &result, "ii", INT32_MAX, 1));
-   fail_if(exec_try_call(ex, add, NULL, &result, "ii", INT32_MAX, INT32_MAX));
-   fail_if(exec_try_call(ex, sub, NULL, &result, "ii", INT32_MIN, 53));
-   fail_if(exec_try_call(ex, mul, NULL, &result, "ii", 2352523154, 128910));
+   fail_if(eval_try_call(ex, add, NULL, &result, "ii", INT32_MAX, 1));
+   fail_if(eval_try_call(ex, add, NULL, &result, "ii", INT32_MAX, INT32_MAX));
+   fail_if(eval_try_call(ex, sub, NULL, &result, "ii", INT32_MIN, 53));
+   fail_if(eval_try_call(ex, mul, NULL, &result, "ii", 2352523154, 128910));
 
-   exec_free(ex);
+   eval_free(ex);
    check_expected_errors();
 }
 END_TEST
 
-Suite *get_exec_tests(void)
+Suite *get_eval_tests(void)
 {
-   Suite *s = suite_create("exec");
+   Suite *s = suite_create("eval");
 
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_add1);

@@ -17,7 +17,7 @@
 
 #include "test_util.h"
 #include "common.h"
-#include "exec.h"
+#include "eval.h"
 #include "hash.h"
 #include "phase.h"
 #include "scan.h"
@@ -315,9 +315,9 @@ START_TEST(test_ffold)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   exec_t *ex = exec_new(EVAL_FCALL);
+   eval_t *ex = eval_new(EVAL_FCALL);
    simplify_global(b, NULL, ex);
-   exec_free(ex);
+   eval_free(ex);
    fail_if_errors();
 
    fail_unless(folded_i(tree_value(tree_decl(b, 0)), 6));
@@ -363,9 +363,9 @@ START_TEST(test_ffold2)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   exec_t *ex = exec_new(EVAL_FCALL);
+   eval_t *ex = eval_new(EVAL_FCALL);
    simplify_global(b, NULL, ex);
-   exec_free(ex);
+   eval_free(ex);
    fail_if_errors();
 
    fail_unless(folded_i(tree_value(tree_decl(b, 0)), 3));
@@ -390,9 +390,9 @@ START_TEST(test_issue155)
    tree_t p = parse_and_check(T_PACKAGE);
    fail_if_errors();
 
-   exec_t *ex = exec_new(EVAL_FCALL);
+   eval_t *ex = eval_new(EVAL_FCALL);
    simplify_global(p, NULL, ex);
-   exec_free(ex);
+   eval_free(ex);
 
    tree_t ar = range_of(tree_type(tree_decl(p, 4)), 0);
    fail_unless(folded_i(tree_left(ar), 7));

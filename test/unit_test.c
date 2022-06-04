@@ -86,7 +86,7 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(elab);
    nfail += RUN_TESTS(json);
    nfail += RUN_TESTS(debug);
-   nfail += RUN_TESTS(exec);
+   nfail += RUN_TESTS(eval);
    nfail += RUN_TESTS(mspace);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
