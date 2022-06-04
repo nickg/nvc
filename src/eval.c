@@ -317,6 +317,8 @@ static int eval_setup_var(vcode_type_t vtype, value_t *value)
    case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_CONTEXT:
    case VCODE_TYPE_FILE:
+   case VCODE_TYPE_SIGNAL:
+   case VCODE_TYPE_CLOSURE:
       value->kind = VALUE_POINTER;
       value->pointer = NULL;
       return 1;
@@ -1858,9 +1860,7 @@ static void eval_op_all(int op, eval_state_t *state)
    EVAL_ASSERT_VALUE(op, access, VALUE_ACCESS);
 
    value_t *dst = eval_get_reg(vcode_get_result(op), state);
-   dst->kind    = VALUE_POINTER;
-   dst->pointer = access->pointer;
-   dst->length  = 1;
+   eval_make_pointer_to(dst, access->pointer);
 }
 
 static void eval_op_null_check(int op, eval_state_t *state)
@@ -1988,6 +1988,27 @@ static void eval_op_debug_out(int op, eval_state_t *state)
    assert(value->kind == VALUE_INTEGER);
 
    printf("DEBUG: r%d val=%"PRIi64"\n", reg, value->integer);
+}
+
+static void eval_op_closure(int op, eval_state_t *state)
+{
+   value_t *result = eval_get_reg(vcode_get_result(op), state);
+   result->kind = VALUE_POINTER;
+   result->pointer = NULL;   // Unused
+}
+
+static void eval_op_resolution_wrapper(int op, eval_state_t *state)
+{
+   value_t *result = eval_get_reg(vcode_get_result(op), state);
+   result->kind = VALUE_POINTER;
+   result->pointer = NULL;   // Unused
+}
+
+static void eval_op_init_signal(int op, eval_state_t *state)
+{
+   value_t *result = eval_get_reg(vcode_get_result(op), state);
+   result->kind = VALUE_POINTER;
+   result->pointer = NULL;   // Unused
 }
 
 static void eval_op_file_open(int op, eval_state_t *state)
@@ -2380,6 +2401,7 @@ static void eval_vcode(eval_state_t *state)
          break;
 
       case VCODE_OP_RESUME:
+      case VCODE_OP_RESOLVE_SIGNAL:
          // No-op
          break;
 
@@ -2387,8 +2409,20 @@ static void eval_vcode(eval_state_t *state)
          eval_op_wait(state->op, state);
          continue;
 
+      case VCODE_OP_CLOSURE:
+         eval_op_closure(state->op, state);
+         break;
+
+      case VCODE_OP_RESOLUTION_WRAPPER:
+         eval_op_resolution_wrapper(state->op, state);
+         break;
+
+      case VCODE_OP_INIT_SIGNAL:
+         eval_op_init_signal(state->op, state);
+         break;
+
       default:
-         vcode_dump();
+         vcode_dump_with_mark(state->op, NULL, NULL);
          fatal("cannot evaluate vcode op %s",
                vcode_op_string(vcode_get_op(state->op)));
       }

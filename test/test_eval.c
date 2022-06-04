@@ -244,6 +244,7 @@ START_TEST(test_record4)
 
    ident_t func1 = ident_new("WORK.PACK5.FUNC1(I)I");
    ident_t func2 = ident_new("WORK.PACK5.FUNC2(I)I");
+   ident_t func3 = ident_new("WORK.PACK5.FUNC3(I)I");
 
    ck_assert_int_eq(eval_call(ex, func1, NULL, "i", 5).integer, 40);
    ck_assert_int_eq(eval_call(ex, func1, NULL, "i", 2).integer, 7);
@@ -251,6 +252,7 @@ START_TEST(test_record4)
    ck_assert_int_eq(eval_call(ex, func2, NULL, "i", 5).integer, 40);
    ck_assert_int_eq(eval_call(ex, func2, NULL, "i", 2).integer, 7);
    ck_assert_int_eq(eval_call(ex, func2, NULL, "i", 0).integer, 0);
+   ck_assert_int_eq(eval_call(ex, func3, NULL, "i", 2).integer, 6);
 
    eval_free(ex);
    fail_if_errors();
@@ -278,6 +280,21 @@ START_TEST(test_proc1)
 }
 END_TEST
 
+START_TEST(test_packsignal)
+{
+   input_from_file(TESTDIR "/eval/packsignal.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   eval_t *ex = eval_new(EVAL_FCALL | EVAL_WARN);
+
+   eval_frame_t *pkg = eval_link(ex, ident_new("WORK.PACKSIGNAL"));
+   fail_if(pkg == NULL);
+
+   eval_free(ex);
+}
+END_TEST
+
 Suite *get_eval_tests(void)
 {
    Suite *s = suite_create("eval");
@@ -294,6 +311,7 @@ Suite *get_eval_tests(void)
    tcase_add_test(tc, test_overflow);
    tcase_add_test(tc, test_record4);
    tcase_add_test(tc, test_proc1);
+   tcase_add_test(tc, test_packsignal);
    suite_add_tcase(s, tc);
 
    return s;

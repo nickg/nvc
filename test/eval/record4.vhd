@@ -6,12 +6,15 @@ package pack5 is
         second : integer;
     end record;
 
+    type pair_ptr is access pair;
+
     type pair_vector is array (natural range <>) of pair;
 
     type pair_vector_ptr is access pair_vector;
 
     function func1 (x : integer) return integer;
     function func2 (x : integer) return integer;
+    function func3 (x : integer) return integer;
 
 end package;
 
@@ -44,6 +47,15 @@ package body pack5 is
             result := result + p(i).first + p(i).second;
         end loop;
         return result;
+    end function;
+
+    function func3 (x : integer) return integer is
+        variable p : pair_ptr;
+    begin
+        p := new pair;
+        p.first := x;
+        p.second := x * 2;
+        return p.first + p.second;
     end function;
 
 end package body;
