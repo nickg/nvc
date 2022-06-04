@@ -257,6 +257,27 @@ START_TEST(test_record4)
 }
 END_TEST
 
+START_TEST(test_proc1)
+{
+   input_from_file(TESTDIR "/eval/proc1.vhd");
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
+                                  T_PACKAGE, T_PACK_BODY,
+                                  T_PACKAGE, T_PACK_BODY);
+
+   eval_t *ex = eval_new(EVAL_FCALL);
+
+   ident_t add2 = ident_new("WORK.PROC1_PACK2.ADD2(I)I");
+
+   ck_assert_int_eq(eval_call(ex, add2, NULL, "i", 5).integer, 7);
+
+   eval_scalar_t result;
+   fail_if(eval_try_call(ex, add2, NULL, &result, "i", 10));
+
+   eval_free(ex);
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_eval_tests(void)
 {
    Suite *s = suite_create("eval");
@@ -272,6 +293,7 @@ Suite *get_eval_tests(void)
    tcase_add_test(tc, test_ieee_warnings);
    tcase_add_test(tc, test_overflow);
    tcase_add_test(tc, test_record4);
+   tcase_add_test(tc, test_proc1);
    suite_add_tcase(s, tc);
 
    return s;

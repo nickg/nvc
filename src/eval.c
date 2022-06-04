@@ -1811,8 +1811,14 @@ static void eval_op_null(int op, eval_state_t *state)
 
 static void eval_op_pcall(int op, eval_state_t *state)
 {
-   EVAL_WARN(state, op, "procedure call to %s prevents "
-             "constant folding", istr(vcode_get_func(op)));
+   eval_op_fcall(op, state);
+
+   eval_branch(op, vcode_get_target(op, 0), state);
+}
+
+static void eval_op_wait(int op, eval_state_t *state)
+{
+   EVAL_WARN(state, op, "wait statement prevents constant folding");
    state->failed = true;
 }
 
@@ -2299,7 +2305,7 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_PCALL:
          eval_op_pcall(state->op, state);
-         break;
+         continue;
 
       case VCODE_OP_NEW:
          eval_op_new(state->op, state);
@@ -2372,6 +2378,14 @@ static void eval_vcode(eval_state_t *state)
       case VCODE_OP_DEBUG_LOCUS:
          eval_op_debug_locus(state->op, state);
          break;
+
+      case VCODE_OP_RESUME:
+         // No-op
+         break;
+
+      case VCODE_OP_WAIT:
+         eval_op_wait(state->op, state);
+         continue;
 
       default:
          vcode_dump();
