@@ -1304,10 +1304,28 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    }
 }
 
+static bool elab_generate_test(tree_t value, elab_ctx_t *ctx)
+{
+   bool test;
+   if (folded_bool(value, &test))
+      return test;
+
+   vcode_unit_t thunk = lower_thunk(value);
+   if (thunk != NULL) {
+      tree_t folded = eval_fold(ctx->eval, value, thunk);
+      vcode_unit_unref(thunk);
+
+      if (folded_bool(folded, &test))
+         return test;
+   }
+
+   error_at(tree_loc(value), "generate expression is not static");
+   return false;
+}
+
 static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
 {
-   const int64_t value = assume_int(tree_value(t));
-   if (value != 0) {
+   if (elab_generate_test(tree_value(t), ctx)) {
       tree_t b = tree_new(T_BLOCK);
       tree_set_loc(b, tree_loc(t));
       tree_set_ident(b, tree_ident(t));

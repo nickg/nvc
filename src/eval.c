@@ -1022,6 +1022,16 @@ static void eval_real_to_string(value_t *dst, value_t *src, eval_state_t *state)
    dst[2].integer = len;
 }
 
+static void eval_move_allocs(eval_state_t *from, eval_state_t *to)
+{
+   eval_alloc_t **tailp;
+   for (tailp = &(to->allocs); *tailp; tailp = &((*tailp)->next))
+      ;
+
+   *tailp = from->allocs;
+   from->allocs = NULL;
+}
+
 static void eval_op_fcall(int op, eval_state_t *state)
 {
    ident_t func_name = vcode_get_func(op);
@@ -1147,15 +1157,9 @@ static void eval_op_fcall(int op, eval_state_t *state)
    else
       escaping_alloc = true;   // Procedure may write to pointer argument
 
-   if (escaping_alloc) {
-      // Take ownership of the callee frame's allocations
-      eval_alloc_t **tailp;
-      for (tailp = &(state->allocs); *tailp; tailp = &((*tailp)->next))
-         ;
-
-      *tailp = new.allocs;
-      new.allocs = NULL;
-   }
+   // Take ownership of the callee frame's allocations
+   if (escaping_alloc)
+      eval_move_allocs(&new, state);
 
    eval_cleanup_state(&new);
 }
@@ -1204,6 +1208,7 @@ static void eval_op_const_array(int op, eval_state_t *state)
       switch (elt->kind) {
       case VALUE_INTEGER:
       case VALUE_REAL:
+      case VALUE_ACCESS:
          dst[offset++] = *elt;
          break;
       case VALUE_CARRAY:
@@ -1734,6 +1739,7 @@ static void eval_op_const_record(int op, eval_state_t *state)
       switch (field->kind) {
       case VALUE_INTEGER:
       case VALUE_REAL:
+      case VALUE_ACCESS:
          dst[offset++] = *field;
          break;
       case VALUE_CARRAY:
@@ -1742,6 +1748,7 @@ static void eval_op_const_record(int op, eval_state_t *state)
             dst[offset++] = field[i];
          break;
       default:
+         vcode_dump_with_mark(op, NULL, NULL);
          fatal_trace("cannot handle fields of kind %d", field->kind);
       }
    }
@@ -2026,7 +2033,52 @@ static void eval_op_protected_init(int op, eval_state_t *state)
 {
    value_t *result = eval_get_reg(vcode_get_result(op), state);
    result->kind = VALUE_CONTEXT;
-   result->context = NULL;   // Never used
+   result->context = NULL;
+
+   ident_t unit_name = vcode_get_func(op);
+   vcode_unit_t vcode = vcode_find_unit(unit_name);
+
+   if (vcode == NULL) {
+      EVAL_WARN(state, op, "missing vcode unit for %s prevents "
+                "constant folding", istr(unit_name));
+      state->failed = true;
+      return;
+   }
+
+   vcode_state_t vcode_state;
+   vcode_state_save(&vcode_state);
+
+   vcode_select_unit(vcode);
+   vcode_select_block(0);
+
+   eval_state_t new = {
+      .result  = -1,
+      .hint    = state->hint,
+      .failed  = false,
+      .flags   = state->flags | EVAL_BOUNDS,
+      .eval    = state->eval,
+   };
+
+   eval_setup_state(&new, state->frame);
+
+   eval_vcode(&new);
+
+   if (!new.failed && (state->flags & EVAL_VERBOSE)) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_printf(tb, "init protected type %s", istr(unit_name));
+      eval_dump_frame(tb, new.frame);
+      notef("%s", tb_get(tb));
+   }
+
+   if (!new.failed) {
+      result->context = new.frame;
+      new.frame = NULL;
+      eval_move_allocs(&new, state);
+   }
+
+   eval_cleanup_state(&new);
+
+   vcode_state_restore(&vcode_state);
 }
 
 static void eval_op_protected_free(int op, eval_state_t *state)
