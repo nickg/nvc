@@ -8894,7 +8894,10 @@ static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct,
 
       if (field == -1) {
          emit_alias_signal(src_reg, lower_debug_locus(port));
-         emit_store(src_reg, var);
+         if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_UARRAY)
+            emit_store(lower_wrap(type, src_reg), var);
+         else
+            emit_store(src_reg, var);
       }
       else {
          vcode_reg_t port_reg = emit_index(var, VCODE_INVALID_REG);

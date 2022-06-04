@@ -107,6 +107,19 @@ static void syntax(const char *fmt, ...)
    va_end(ap);
 }
 
+static void dump_param(tree_t p)
+{
+   switch (tree_subkind(p)) {
+   case P_POS:
+      break;
+   case P_NAMED:
+      dump_expr(tree_name(p));
+      printf(" => ");
+      break;
+   }
+   dump_expr(tree_value(p));
+}
+
 static void dump_params(tree_t t, get_fn_t get, int n, const char *prefix)
 {
    if (n > 0) {
@@ -118,16 +131,7 @@ static void dump_params(tree_t t, get_fn_t get, int n, const char *prefix)
       for (int i = 0; i < n; i++) {
          if (i > 0)
             printf(", ");
-         tree_t p = (*get)(t, i);
-         switch (tree_subkind(p)) {
-         case P_POS:
-            break;
-         case P_NAMED:
-            dump_expr(tree_name(p));
-            printf(" => ");
-            break;
-         }
-         dump_expr(tree_value(p));
+         dump_param((*get)(t, i));
       }
       printf(")");
    }
@@ -1445,6 +1449,10 @@ void dump(tree_t t)
       break;
    case T_BINDING:
       dump_binding(t, 0);
+      break;
+   case T_PARAM:
+      dump_param(t);
+      printf("\n");
       break;
    default:
       cannot_dump(t, "tree");

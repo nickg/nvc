@@ -4645,6 +4645,49 @@ START_TEST(test_issue462)
 }
 END_TEST
 
+START_TEST(test_directmap3)
+{
+   input_from_file(TESTDIR "/lower/directmap3.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.DIRECTMAP3.U");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_STORE, .name = "W" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "P" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_ALIAS_SIGNAL },
+      { VCODE_OP_STORE, .name = "P" },
+      { VCODE_OP_CONST_REP, .value = 2 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_INIT_SIGNAL },
+      { VCODE_OP_STORE, .name = "O" },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "O1" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_MAP_SIGNAL },
+      { VCODE_OP_ARRAY_REF },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "O2" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_MAP_SIGNAL },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4751,6 +4794,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_recsignal1);
    tcase_add_test(tc, test_vunit5);
    tcase_add_test(tc, test_issue462);
+   tcase_add_test(tc, test_directmap3);
    suite_add_tcase(s, tc);
 
    return s;
