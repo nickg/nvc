@@ -1005,10 +1005,10 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
    }
 
    // From VHDL-2000 onwards shared variables must be protected types
-   if (standard() >= STD_00 && (tree_flags(t) & TREE_F_SHARED)) {
-      if (type_kind(type) != T_PROTECTED)
-         sem_error(t, "shared variable %s must have protected type",
-                   istr(tree_ident(t)));
+   if (standard() >= STD_00 && (tree_flags(t) & TREE_F_SHARED)
+       && !(relax_rules() & RELAX_SHARED) && type_kind(type) != T_PROTECTED) {
+      sem_error(t, "shared variable %s must have protected type",
+                istr(tree_ident(t)));
    }
 
    return true;

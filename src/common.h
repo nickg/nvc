@@ -149,10 +149,10 @@ type_t ieee_type(ieee_type_t which);
 #define RELAX_UNIVERSAL_BOUND (1 << 2)
 #define RELAX_PURE_FILES      (1 << 3)
 #define RELAX_IMPURE          (1 << 4)
+#define RELAX_SHARED          (1 << 5)
 
 int relax_rules(void);
 void set_relax_rules(int mask);
-
 
 //
 // Shared interned strings

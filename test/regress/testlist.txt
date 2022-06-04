@@ -581,3 +581,4 @@ order2          shell
 array6          normal,2008
 array7          normal,2008
 protected7      normal,2000
+shared4         normal,2008,relax=shared
