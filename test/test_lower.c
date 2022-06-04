@@ -4406,6 +4406,7 @@ START_TEST(test_vunit3)
       { VCODE_OP_CONST_RECORD },
       { VCODE_OP_ADDRESS_OF },
       { VCODE_OP_COPY },
+      { VCODE_OP_CAST },
       { VCODE_OP_RETURN },
    };
 

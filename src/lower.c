@@ -5058,8 +5058,10 @@ static void lower_return(tree_t stmt)
          lower_check_scalar_bounds(result, type, value, NULL);
          emit_return(result);
       }
-      else if (type_is_access(type))
-         emit_return(lower_reify(value_reg));
+      else if (type_is_access(type)) {
+         type_t access = type_access(type);
+         emit_return(lower_incomplete_access(lower_reify(value_reg), access));
+      }
       else if (result_kind == VCODE_TYPE_UARRAY) {
          if (vtype_kind(vcode_reg_type(value_reg)) == VCODE_TYPE_UARRAY)
             emit_return(value_reg);

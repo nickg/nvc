@@ -583,3 +583,4 @@ array7          normal,2008
 protected7      normal,2000
 shared4         normal,2008,relax=shared
 elab31          normal,2000
+access11        normal
