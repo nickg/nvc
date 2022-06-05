@@ -1990,6 +1990,16 @@ static void eval_op_debug_out(int op, eval_state_t *state)
    printf("DEBUG: r%d val=%"PRIi64"\n", reg, value->integer);
 }
 
+static void eval_op_unreachable(int op, eval_state_t *state)
+{
+   value_t *locus = eval_get_reg(vcode_get_arg(op, 0), state);
+   EVAL_ASSERT_VALUE(op, locus, VALUE_DEBUG_LOCUS);
+
+   error_at(tree_loc(locus->debug), "function %s did not return a value",
+            istr(tree_ident(locus->debug)));
+   state->failed = true;
+}
+
 static void eval_op_closure(int op, eval_state_t *state)
 {
    value_t *result = eval_get_reg(vcode_get_result(op), state);
@@ -2419,6 +2429,10 @@ static void eval_vcode(eval_state_t *state)
 
       case VCODE_OP_INIT_SIGNAL:
          eval_op_init_signal(state->op, state);
+         break;
+
+      case VCODE_OP_UNREACHABLE:
+         eval_op_unreachable(state->op, state);
          break;
 
       default:

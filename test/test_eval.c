@@ -295,6 +295,32 @@ START_TEST(test_packsignal)
 }
 END_TEST
 
+START_TEST(test_unreachable)
+{
+   input_from_file(TESTDIR "/eval/unreachable.vhd");
+
+   const error_t expect[] = {
+      {  6, "function FUNC did not return a value" },
+      { -1, NULL },
+   };
+   expect_errors(expect);
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   eval_t *ex = eval_new(EVAL_FCALL);
+
+   ident_t func = ident_new("WORK.UNREACHABLE.FUNC(I)I");
+
+   ck_assert_int_eq(eval_call(ex, func, NULL, "i", 5).integer, 10);
+
+   eval_scalar_t result;
+   fail_if(eval_try_call(ex, func, NULL, &result, "i", -1));
+
+   eval_free(ex);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_eval_tests(void)
 {
    Suite *s = suite_create("eval");
@@ -312,6 +338,7 @@ Suite *get_eval_tests(void)
    tcase_add_test(tc, test_record4);
    tcase_add_test(tc, test_proc1);
    tcase_add_test(tc, test_packsignal);
+   tcase_add_test(tc, test_unreachable);
    suite_add_tcase(s, tc);
 
    return s;
