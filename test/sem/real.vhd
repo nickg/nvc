@@ -35,7 +35,8 @@ begin
     process is
         constant i : integer := 5;
         constant r : real := 252.4;
-        type t is range i to r;         -- Error
+        type t is range r to i;         -- Error
+        type t2 is range i to r;         -- Error
     begin
     end process;
 

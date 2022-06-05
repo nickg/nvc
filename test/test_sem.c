@@ -827,7 +827,8 @@ START_TEST(test_real)
    const error_t expect[] = {
       { 16, "type of value MY_REAL does not match type of target" },
       { 25, "conversion only allowed between closely related types" },
-      { 38, "type of left bound must be of some real type but have INTEGER" },
+      { 38, "type of right bound must be of some real type but have INTEGER" },
+      { 39, "type of right bound must be of some integer type but have REAL" },
       { -1, NULL }
    };
    expect_errors(expect);

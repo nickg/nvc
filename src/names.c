@@ -38,11 +38,14 @@ typedef enum {
    O_NAMED,
 } overload_state_t;
 
+typedef A(tree_t) tree_list_t;
+typedef A(type_t) type_list_t;
+
 typedef struct {
    ident_t           name;
    tree_t            tree;
-   A(tree_t)         candidates;
-   A(tree_t)         params;
+   tree_list_t       candidates;
+   tree_list_t       params;
    overload_state_t  state;
    nametab_t        *nametab;
    bool              error;
@@ -1072,37 +1075,61 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          // Suprogram overload resolution is handled separately so do
          // not generate an error if all the possible overloads are
          // subprograms
-         bool only_subprograms = is_subprogram(decl);
+         int num_subprograms = 0;
+         if (is_subprogram(decl))
+            num_subprograms++;
 
          do {
             if (!can_overload(decl1))
                 break;
-            only_subprograms &= is_subprogram(decl1);
+            else if (is_subprogram(decl1))
+               num_subprograms++;
             APUSH(m, decl1);
          } while ((decl1 = iter_name(&iter)));
+
+         if (m.count > 1 && num_subprograms > 0) {
+            unsigned wptr = 0;
+            for (int i = 0; i < m.count; i++) {
+               if (is_subprogram(m.items[i])) {
+                  // Remove subprograms that cannot be called with zero
+                  // arguments
+                  if (!can_call_no_args(tab, m.items[i]))
+                     continue;
+
+                  // Replace declaration with body
+                  bool dup = false;
+                  for (int j = 0; j < wptr; j++) {
+                     if (is_forward_decl(tab, m.items[i], m.items[j])) {
+                        m.items[j] = m.items[i];
+                        dup = true;
+                        break;
+                     }
+                  }
+
+                  if (dup) continue;
+               }
+
+               m.items[wptr++] = m.items[i];
+            }
+            ATRIM(m, wptr);
+         }
 
          if (tab->top_type_set) {
             unsigned wptr = 0;
             for (unsigned i = 0; i < m.count; i++) {
-               if (class_has_type(class_of(m.items[i]))
-                   && type_set_contains(tab, tree_type(m.items[i])))
-                  m.items[wptr++] = m.items[i];
+               if (class_has_type(class_of(m.items[i]))) {
+                  type_t type = tree_type(m.items[i]);
+                  if (type_kind(type) == T_FUNC)
+                     type = type_result(type);
+
+                  if (type_set_contains(tab, type))
+                     m.items[wptr++] = m.items[i];
+               }
             }
             ATRIM(m, wptr);
          }
 
-         if (m.count > 1 && !only_subprograms) {
-            // Remove subprograms that cannot be called with zero arguments
-            unsigned wptr = 0;
-            for (unsigned i = 0; i < m.count; i++) {
-               if (!is_subprogram(m.items[i])
-                   || can_call_no_args(tab, m.items[i]))
-                  m.items[wptr++] = m.items[i];
-            }
-            ATRIM(m, wptr);
-         }
-
-         if (m.count > 1 && !only_subprograms) {
+         if (m.count > 1 && num_subprograms != m.count) {
             LOCAL_TEXT_BUF tb = tb_new();
             tree_kind_t what = T_LAST_TREE_KIND;
             for (unsigned i = 0; i < m.count; i++) {
@@ -2330,6 +2357,62 @@ static void solve_one_param(nametab_t *tab, tree_t p, overload_t *o)
    overload_next_argument(o, p);
 }
 
+static bool is_unambiguous(tree_t t)
+{
+   if (tree_has_type(t))
+      return true;
+
+   const tree_kind_t kind = tree_kind(t);
+   return kind == T_QUALIFIED
+      || kind == T_ARRAY_REF
+      || kind == T_ARRAY_SLICE
+      || kind == T_TYPE_CONV
+      || kind == T_ATTR_REF
+      || kind == T_RECORD_REF
+      || kind == T_ALL
+      || (kind == T_REF && tree_has_ref(t));
+}
+
+static type_list_t possible_types(nametab_t *tab, tree_t value)
+{
+   tree_kind_t kind = tree_kind(value);
+   type_list_t possible = AINIT;
+
+   if (kind == T_REF || kind == T_FCALL) {
+      ident_t name = tree_ident(value);
+      tree_t decl;
+      int n = 0;
+      while ((decl = scope_find(tab->top_scope, name, NULL, NULL, n++))) {
+         if (decl == (void*)-1 || !class_has_type(class_of(decl)))
+            break;
+
+         type_t type1 = tree_type(decl);
+         if (type_kind(type1) == T_FUNC)
+            type1 = type_result(type1);
+
+         type_t type2 = NULL;
+         if (kind == T_FCALL && type_is_array(type1)) {
+            // Grammar is ambiguous between indexed name and function call
+            type2 = type_elem(type1);
+         }
+
+         bool have1 = false, have2 = false;
+         for (unsigned j = 0; j < possible.count; j++) {
+            have1 |= possible.items[j] == type1;
+            have2 |= possible.items[j] == type2;
+         }
+
+         if (!have1) APUSH(possible, type1);
+         if (type2 && !have2) APUSH(possible, type2);
+
+         if (!can_overload(decl))
+            break;
+      }
+   }
+
+   return possible;
+}
+
 static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
 {
    const int nparams = tree_params(call);
@@ -2343,20 +2426,7 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(call, i);
       tree_t value = tree_value(p);
-      tree_kind_t kind = tree_kind(value);
-
-      const bool solve_now =
-         tree_has_type(value)
-         || kind == T_QUALIFIED
-         || kind == T_ARRAY_REF
-         || kind == T_ARRAY_SLICE
-         || kind == T_TYPE_CONV
-         || kind == T_ATTR_REF
-         || kind == T_RECORD_REF
-         || kind == T_ALL
-         || (kind == T_REF && tree_has_ref(value));
-
-      if (solve_now) {
+      if (is_unambiguous(value)) {
          solve_one_param(tab, p, o);
          pmask |= (1 << i);
       }
@@ -2374,39 +2444,10 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
       tree_kind_t kind = tree_kind(value);
 
       if (kind == T_REF || kind == T_FCALL) {
-         SCOPED_A(type_t) possible = AINIT;
-         ident_t name = tree_ident(value);
-         tree_t decl;
-         int n = 0;
-         while ((decl = scope_find(tab->top_scope, name, NULL, NULL, n++))) {
-            if (decl == (void*)-1 || !class_has_type(class_of(decl)))
-               break;
-
-            type_t type1 = tree_type(decl);
-            if (type_kind(type1) == T_FUNC)
-               type1 = type_result(type1);
-
-            type_t type2 = NULL;
-            if (kind == T_FCALL && type_is_array(type1)) {
-               // Grammar is ambiguous between indexed name and function call
-               type2 = type_elem(type1);
-            }
-
-            bool have1 = false, have2 = false;
-            for (unsigned j = 0; j < possible.count; j++) {
-               have1 |= possible.items[j] == type1;
-               have2 |= possible.items[j] == type2;
-            }
-
-            if (!have1) APUSH(possible, type1);
-            if (type2 && !have2) APUSH(possible, type2);
-
-            if (!can_overload(decl))
-               break;
-         }
-
+         type_list_t possible = possible_types(tab, value);
          if (possible.count > 0)
             overload_restrict_argument(o, p, possible.items, possible.count);
+         ACLEAR(possible);
       }
       else if (kind == T_AGGREGATE
                || (kind == T_LITERAL && tree_subkind(value) == L_STRING)) {
@@ -2448,19 +2489,6 @@ static bool can_call_no_args(nametab_t *tab, tree_t decl)
       return type_params(tree_type(decl)) == 0;
    else if (tree_ports(decl) == 0 || tree_has_value(tree_port(decl, 0)))
       return true;
-
-   // The declaration may be overloaded and one of the overloads permits
-   // calling with no arguments
-
-   iter_state_t iter;
-   begin_iter(tab, tree_ident(decl), &iter);
-
-   while ((decl = iter_name(&iter)) && decl != (tree_t)-1) {
-      if (!is_subprogram(decl))
-         continue;
-      else if (tree_ports(decl) == 0 || tree_has_value(tree_port(decl, 0)))
-         return true;
-   }
 
    return false;
 }
@@ -3262,29 +3290,40 @@ static type_t solve_range(nametab_t *tab, tree_t r)
          tree_t left = tree_left(r);
          tree_t right = tree_right(r);
 
-         // TODO: do this better by working out the set of possible
-         // types for the right and then use that to solve the left
+         if (tab->top_type_set->members.count > 0) {
+            type = _solve_types(tab, left);
+            _solve_types(tab, right);
+         }
+         else if (is_unambiguous(left)) {
+            type = _solve_types(tab, left);
+            type_set_add(tab, type, left);
+            _solve_types(tab, right);
+         }
+         else if (is_unambiguous(right)) {
+            type = _solve_types(tab, right);
+            type_set_add(tab, type, right);
+            _solve_types(tab, left);
+         }
+         else {
+            type_list_t lposs = possible_types(tab, left);
+            type_list_t rposs = possible_types(tab, right);
 
-         // Potentially swap the argument order for checking if the
-         // right type can be determined unambiguously
-         tree_kind_t rkind = tree_kind(right);
-         const bool swap =
-            (tree_has_type(right) && !type_is_universal(tree_type(right)))
-            || rkind == T_QUALIFIED
-            || rkind == T_ARRAY_REF
-            || rkind == T_ARRAY_SLICE
-            || rkind == T_TYPE_CONV
-            || (rkind == T_REF
-                && N_OVERLOADS(query_name(tab, tree_ident(right), NULL)) == 1);
+            for (int i = 0; i < lposs.count; i++) {
+               for (int j = 0; j < rposs.count; j++) {
+                  if (type_eq(lposs.items[i], rposs.items[j])) {
+                     type_set_add(tab, lposs.items[i], left);
+                     break;
+                  }
+               }
+            }
 
-         if (swap) { tree_t tmp = left; left = right; right = tmp; }
+            type = _solve_types(tab, left);
+            solve_types(tab, right, type);
 
-         type = _solve_types(tab, left);
+            ACLEAR(lposs);
+            ACLEAR(rposs);
+         }
 
-         if (tab->top_type_set->members.count == 0)
-            type_set_add(tab, type, NULL);
-
-         _solve_types(tab, right);
          break;
       }
    default:
