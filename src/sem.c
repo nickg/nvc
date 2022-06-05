@@ -2545,9 +2545,11 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
    if (!sem_check_params(t, tab))
       return false;
 
-   if (tree_kind(t) == T_PROT_FCALL && tree_has_name(t)
-       && !sem_check(tree_name(t), tab))
-      return false;
+   if (tree_kind(t) == T_PROT_FCALL && tree_has_name(t)) {
+      tree_t name = tree_name(t);
+      if (!sem_check(name, tab))
+         return false;
+   }
 
    tree_t decl = tree_ref(t);
 

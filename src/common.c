@@ -1055,6 +1055,8 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
             return p;
       }
    }
+   else if (!is_container(container))
+      return NULL;
 
    // TODO: how to improve this?
    const int ndecls = tree_decls(container);
