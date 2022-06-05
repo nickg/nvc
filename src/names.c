@@ -1917,7 +1917,7 @@ static tree_t finish_overload_resolution(overload_t *o)
          if (o->candidates.items[i]) {
             const loc_t *cloc = tree_loc(o->candidates.items[i]);
             if (cloc->file_ref == loc->file_ref)
-               diag_hint(d, cloc, "candidate %p %s", o->candidates.items[i],
+               diag_hint(d, cloc, "candidate %s",
                          type_pp(tree_type(o->candidates.items[i])));
             else {
                tree_t container = tree_container(o->candidates.items[i]);
@@ -2170,7 +2170,7 @@ static void overload_restrict_argument(overload_t *o, tree_t p,
       printf("\n");
    }
 
-   if (o->initial > 1) {
+   if (o->initial > 1 && tree_subkind(p) == P_POS) {
       unsigned wptr = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          tree_t port = overload_find_port(o->candidates.items[i], p);
@@ -2184,7 +2184,41 @@ static void overload_restrict_argument(overload_t *o, tree_t p,
                   matches++;
             }
 
-            if (matches == 0 && tree_subkind(p) == P_POS) {
+            if (matches == 0) {
+               overload_prune_candidate(o, i);
+               continue;
+            }
+         }
+
+         o->candidates.items[wptr++] = o->candidates.items[i];
+      }
+      ATRIM(o->candidates, wptr);
+   }
+}
+
+static void overload_restrict_argument_type(overload_t *o, tree_t p,
+                                            bool (*pred)(type_t),
+                                            const char *trace)
+{
+   assert(tree_kind(p) == T_PARAM);
+   assert(o->state == O_IDLE);
+
+   if (o->trace) {
+      printf("%s: restrict argument ", istr(o->name));
+      if (tree_subkind(p) == P_POS)
+         printf("%d to", tree_pos(p));
+      else if (tree_kind(tree_name(p)) == T_REF)
+         printf("%s to ", istr(tree_ident(tree_name(p))));
+      printf(" %s\n", trace);
+   }
+
+   if (o->initial > 1 && tree_subkind(p) == P_POS) {
+      unsigned wptr = 0;
+      for (unsigned i = 0; i < o->candidates.count; i++) {
+         tree_t port = overload_find_port(o->candidates.items[i], p);
+         if (port != NULL) {
+            type_t ptype = tree_type(port);
+            if (!(*pred)(ptype)) {
                overload_prune_candidate(o, i);
                continue;
             }
@@ -2373,6 +2407,11 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
 
          if (possible.count > 0)
             overload_restrict_argument(o, p, possible.items, possible.count);
+      }
+      else if (kind == T_AGGREGATE
+               || (kind == T_LITERAL && tree_subkind(value) == L_STRING)) {
+         // This argument must have composite type
+         overload_restrict_argument_type(o, p, type_is_composite, "composite");
       }
    }
 

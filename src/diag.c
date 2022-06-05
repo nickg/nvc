@@ -592,17 +592,14 @@ static void diag_emit_hints(diag_t *d, FILE *f)
             diag_hint_t tmp = d->hints.items[swap];
             d->hints.items[swap] = d->hints.items[i];
             d->hints.items[i] = tmp;
-            swap = i;
+            swap = -1;
          }
       }
       else if (swap == -1)
          swap = i;
    }
 
-   if (swap == -1)
-      qsort(d->hints.items, d->hints.count, sizeof(diag_hint_t), diag_compar);
-   else
-      qsort(d->hints.items, swap, sizeof(diag_hint_t), diag_compar);
+   qsort(d->hints.items, same_file, sizeof(diag_hint_t), diag_compar);
 
    if (d->source)
       linebuf = diag_get_source(&(d->hints.items[0].loc));
