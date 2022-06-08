@@ -4440,6 +4440,24 @@ START_TEST(test_osvvm6)
 }
 END_TEST
 
+START_TEST(test_issue468)
+{
+   input_from_file(TESTDIR "/parse/issue468.vhd");
+
+   const error_t expect[] = {
+      {  2, "name TEST3 not found in library WORK" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -4520,6 +4538,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_vunit8);
    tcase_add_test(tc_core, test_issue464);
    tcase_add_test(tc_core, test_osvvm6);
+   tcase_add_test(tc_core, test_issue468);
    suite_add_tcase(s, tc_core);
 
    return s;

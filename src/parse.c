@@ -3493,10 +3493,14 @@ static type_t p_type_mark(ident_t name)
    name = name ?: p_identifier();
    tree_t decl = resolve_name(nametab, CURRENT_LOC, name);
 
-   while (decl != NULL && peek() == tDOT) {
+   // Not using select_decl here to avoid creating redundant T_REFs
+   for (tree_t d; decl != NULL && peek() == tDOT; decl = d) {
       consume(tDOT);
       name = p_identifier();
-      decl = search_decls(decl, name, 0);
+
+      if ((d = search_decls(decl, name, 0)) == NULL)
+         parse_error(CURRENT_LOC, "name %s not found in %s %s", istr(name),
+                     class_str(class_of(decl)), istr(tree_ident(decl)));
    }
 
    if (decl == NULL) {
