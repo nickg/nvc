@@ -79,5 +79,7 @@ architecture test of e is
     type int_mat2d is array (integer range <>, integer range <>) of integer;
     constant c3 : int_mat2d(1 to 2, 1 to 2) := ((1, 2), (3, 4));
     alias c2_alias is c3;               -- Error (in '93)
+
+    constant c4 : integer := int_vector;  -- Error
 begin
 end architecture;

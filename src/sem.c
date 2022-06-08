@@ -3099,9 +3099,8 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
       return false;
 
    tree_t decl = tree_ref(t);
-   class_t class = class_of(decl);
-
    const tree_kind_t kind = tree_kind(decl);
+
    switch (kind) {
    case T_PORT_DECL:
    case T_VAR_DECL:
@@ -3109,7 +3108,6 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_FILE_DECL:
    case T_CONST_DECL:
    case T_ENUM_LIT:
-   case T_ALIAS:
    case T_UNIT_DECL:
    case T_FUNC_DECL:
    case T_FUNC_BODY:
@@ -3120,8 +3118,26 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_PARAM_DECL:
       break;
 
+   case T_ALIAS:
+      {
+         switch (class_of(decl)) {
+         case C_VARIABLE:
+         case C_SIGNAL:
+         case C_CONSTANT:
+         case C_LITERAL:
+            break;
+
+         case C_DEFAULT:
+            return false;   // Must have been an earlier parse error
+
+         default:
+            sem_error(t, "invalid use of alias %s", istr(tree_ident(decl)));
+         }
+      }
+      break;
+
    default:
-      sem_error(t, "invalid use of %s %s", class_str(class),
+      sem_error(t, "invalid use of %s %s", class_str(class_of(decl)),
                 istr(tree_ident(t)));
    }
 
