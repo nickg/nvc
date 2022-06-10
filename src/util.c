@@ -280,6 +280,16 @@ void notef(const char *fmt, ...)
    diag_emit(d);
 }
 
+void debugf(const char *fmt, ...)
+{
+   diag_t *d = diag_new(DIAG_DEBUG, NULL);
+   va_list ap;
+   va_start(ap, fmt);
+   diag_vprintf(d, fmt, ap);
+   va_end(ap);
+   diag_emit(d);
+}
+
 static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain)
 {
    // Replace color strings like "$red$foo$$bar" with ANSI escaped

@@ -59,8 +59,11 @@
 #define setenv(x, y, z) _putenv_s((x), (y))
 #endif
 
+#define is_power_of_2(x) (((x) & ~(x)) == 0)
+
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
 #define ALIGN_UP(p, a) (typeof(p))({                  \
+   assert(is_power_of_2(a));                          \
    const typeof(a) __a = (a);                         \
    (((uintptr_t)(p) + (__a) - 1) & ~((__a) - 1)); })
 
@@ -120,6 +123,8 @@ void errorf(const char *fmt, ...)
 void warnf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 void notef(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2)));
+void debugf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 void fatal(const char *fmt, ...)
    __attribute__((format(printf, 1, 2), noreturn));

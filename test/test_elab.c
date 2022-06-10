@@ -17,6 +17,7 @@
 
 #include "test_util.h"
 #include "common.h"
+#include "diag.h"
 #include "phase.h"
 #include "scan.h"
 #include "type.h"
@@ -439,6 +440,7 @@ START_TEST(test_eval1)
 
    const error_t expect[] = {
       { 12, "index -1 outside of INTEGER range 7 downto 0" },
+      { 16, "generate expression is not static" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -677,8 +679,8 @@ START_TEST(test_issue373)
    tree_t s0 = tree_stmt(p0, 0);
    fail_unless(tree_kind(s0) == T_ASSERT);
    tree_t m = tree_message(s0);
-   fail_unless(tree_kind(m) == T_LITERAL);
-   fail_unless(tree_subkind(m) == L_STRING);
+   fail_unless(tree_kind(m) == T_QUALIFIED);
+   // This used to get folded by the old evaluator
 
    fail_if_errors();
 }
@@ -966,7 +968,8 @@ START_TEST(test_fold1)
 
    tree_t k = tree_decl(u, 1);
    fail_unless(tree_ident(k) == ident_new("K"));
-   fail_unless(tree_kind(tree_value(k)) == T_AGGREGATE);
+   fail_unless(tree_kind(tree_value(k)) == T_FCALL);
+   // This used to get folded by the old evaluator
 
    fail_if_errors();
 }
@@ -992,7 +995,8 @@ START_TEST(test_fold2)
 
    tree_t k = tree_decl(u, 1);
    fail_unless(tree_ident(k) == ident_new("K"));
-   fail_unless(tree_kind(tree_value(k)) == T_AGGREGATE);
+   fail_unless(tree_kind(tree_value(k)) == T_FCALL);
+   // This used to get folded by the old evaluator
 
    fail_if_errors();
 }
@@ -1058,6 +1062,26 @@ START_TEST(test_issue459)
 }
 END_TEST
 
+START_TEST(test_link1)
+{
+   input_from_file(TESTDIR "/elab/link1.vhd");
+
+   const error_t expect[] = {
+      { 2, "division by zero" },
+      { 7, "failed to initialise package WORK.PACK" },
+      // TODO: this fatal error should be removed after lazy linking is added
+      { LINE_INVALID, "failed to link package WORK.PACK" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   fail_unless(e == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1120,6 +1144,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_toplevel3);
    tcase_add_test(tc, test_ename1);
    tcase_add_test(tc, test_issue459);
+   tcase_add_exit_test(tc, test_link1, 1);
    suite_add_tcase(s, tc);
 
    return s;

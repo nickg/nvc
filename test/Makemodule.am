@@ -22,8 +22,8 @@ bin_unit_test_SOURCES = \
 	test/test_value.c \
 	test/test_json.c \
 	test/test_debug.c \
-	test/test_eval.c \
-	test/test_mspace.c
+	test/test_mspace.c \
+	test/test_jit.c
 
 bin_unit_test_LDADD = lib/libnvc.a lib/libfastlz.a \
 	$(check_LIBS) $(POW_LIB) $(libdw_LIBS) lib/libjson.a

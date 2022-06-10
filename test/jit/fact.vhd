@@ -17,7 +17,7 @@ package body pack is
         if x <= 1 then
             return 1;
         else
-            return x * fact(x - 1);
+            return x * fact_recur(x - 1);
         end if;
     end function;
 

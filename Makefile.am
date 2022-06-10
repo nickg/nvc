@@ -31,6 +31,7 @@ lib_LIBRARIES =
 include thirdparty/Makemodule.am
 include src/Makemodule.am
 include src/rt/Makemodule.am
+include src/jit/Makemodule.am
 include src/vhpi/Makemodule.am
 include test/Makemodule.am
 include test/vhpi/Makemodule.am

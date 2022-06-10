@@ -55,6 +55,7 @@ void *mspace_alloc(mspace_t *m, size_t size);
 void *mspace_alloc_array(mspace_t *m, int nelems, size_t size);
 void *mspace_alloc_flex(mspace_t *m, size_t fixed, int nelems, size_t size);
 void mspace_set_oom_handler(mspace_t *m, mspace_oom_fn_t fn);
+void *mspace_find(mspace_t *m, void *ptr, size_t *size);
 
 void tlab_acquire(mspace_t *m, tlab_t *t);
 void tlab_release(tlab_t *t);

@@ -228,7 +228,9 @@ mptr_t mptr_new(mspace_t *m, const char *name)
 
 void mptr_free(mspace_t *m, mptr_t *ptr)
 {
-   assert(*ptr != MPTR_INVALID);
+   if (*ptr == MPTR_INVALID)
+      return;
+
    assert(*ptr < m->roots.count);
    assert(*ptr < m->mptr_names.count);
    assert(m->free_mptrs.count < m->roots.count);
@@ -414,13 +416,34 @@ static void mspace_gc(mspace_t *m)
 
    if (opt_get_verbose(OPT_GC_VERBOSE, NULL)) {
       const int ticks = get_timestamp_us() - start_ticks;
-      notef("GC: allocated %d/%zu; fragmentation %.2g%% [%d us]",
-            mask_popcount(&(state.markmask)) * LINE_SIZE, m->maxsize,
-            ((double)(freefrags - 1) / (double)freelines) * 100.0, ticks);
+      debugf("GC: allocated %d/%zu; fragmentation %.2g%% [%d us]",
+             mask_popcount(&(state.markmask)) * LINE_SIZE, m->maxsize,
+             ((double)(freefrags - 1) / (double)freelines) * 100.0, ticks);
    }
 
    mask_free(&(state.markmask));
 
    assert(state.worklist.count == 0);
    ACLEAR(state.worklist);
+}
+
+void *mspace_find(mspace_t *m, void *ptr, size_t *size)
+{
+   if (!is_mspace_ptr(m, ptr)) {
+      *size = 0;
+      return NULL;
+   }
+
+   int line = ((char *)ptr - m->space) / LINE_SIZE;
+
+   // Scan backwards to the start of the object
+   line = mask_scan_backwards(&(m->headmask), line);
+   assert(line != -1);
+
+   int objlen = 1;
+   if (line + 1 < m->maxlines)
+      objlen += mask_count_clear(&(m->headmask), line + 1);
+
+   *size = objlen * LINE_SIZE;
+   return m->space + line * LINE_SIZE;
 }

@@ -166,6 +166,9 @@ static int analyse(int argc, char **argv)
       }
    }
 
+   eval_free(eval);
+   eval = NULL;
+
    if (error_count() > 0)
       return EXIT_FAILURE;
 
@@ -347,7 +350,7 @@ static bool parse_on_off(const char *str)
    fatal("specifiy 'on' or 'off' instead of '%s'", str);
 }
 
-static rt_severity_t parse_severity(const char *str)
+static vhdl_severity_t parse_severity(const char *str)
 {
    if (strcasecmp(str, "note") == 0)
       return SEVERITY_NOTE;
@@ -445,7 +448,7 @@ static int run(int argc, char **argv)
          vhpi_plugins = optarg;
          break;
       case 'x':
-         rt_set_exit_severity(parse_severity(optarg));
+         set_exit_severity(parse_severity(optarg));
          break;
       case 'I':
          opt_set_int(OPT_IEEE_WARNINGS, parse_on_off(optarg));
@@ -741,6 +744,8 @@ static void set_default_opts(void)
    opt_set_int(OPT_ERROR_LIMIT, 20);
    opt_set_int(OPT_GC_STRESS, 0 DEBUG_ONLY(|| getenv("NVC_GC_STRESS") != 0));
    opt_set_int(OPT_RELAXED, 0);
+   opt_set_str(OPT_JIT_VERBOSE, getenv("NVC_JIT_VERBOSE"));
+   opt_set_int(OPT_JIT_LOG, getenv("NVC_JIT_LOG") != NULL);
 }
 
 static void usage(void)

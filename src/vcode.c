@@ -1348,7 +1348,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += vcode_dump_reg(op->args.items[3]);
                col += printf(" locus ");
                col += vcode_dump_reg(op->args.items[4]);
-               if (op->args.count > 4) {
+               if (op->args.count > 5) {
                   col += printf(" offset ");
                   col += vcode_dump_reg(op->args.items[5]);
                }
@@ -2134,6 +2134,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
    }
 
    printf("\n");
+   fflush(stdout);
 
    active_block = old_block;
 }
@@ -2701,7 +2702,8 @@ int vcode_count_params(void)
 {
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
-          || active_unit->kind == VCODE_UNIT_PROCEDURE);
+          || active_unit->kind == VCODE_UNIT_PROCEDURE
+          || active_unit->kind == VCODE_UNIT_THUNK);
 
    return active_unit->params.count;
 }
@@ -2710,7 +2712,8 @@ vcode_type_t vcode_param_type(int param)
 {
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
-          || active_unit->kind == VCODE_UNIT_PROCEDURE);
+          || active_unit->kind == VCODE_UNIT_PROCEDURE
+          || active_unit->kind == VCODE_UNIT_THUNK);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].type;
@@ -2720,7 +2723,8 @@ vcode_reg_t vcode_param_reg(int param)
 {
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_FUNCTION
-          || active_unit->kind == VCODE_UNIT_PROCEDURE);
+          || active_unit->kind == VCODE_UNIT_PROCEDURE
+          || active_unit->kind == VCODE_UNIT_THUNK);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].reg;
@@ -2878,7 +2882,7 @@ vcode_unit_t emit_function(ident_t name, const loc_t *loc, vcode_unit_t context)
 
    vcode_add_child(context, vu);
 
-   active_unit = vu;
+   vcode_select_unit(vu);
    vcode_select_block(emit_block());
    emit_debug_info(loc);
 
@@ -2900,7 +2904,7 @@ vcode_unit_t emit_procedure(ident_t name, const loc_t *loc,
 
    vcode_add_child(context, vu);
 
-   active_unit = vu;
+   vcode_select_unit(vu);
    vcode_select_block(emit_block());
    emit_debug_info(loc);
 
@@ -2923,7 +2927,7 @@ vcode_unit_t emit_process(ident_t name, const loc_t *loc, vcode_unit_t context)
 
    vcode_add_child(context, vu);
 
-   active_unit = vu;
+   vcode_select_unit(vu);
    vcode_select_block(emit_block());
    emit_debug_info(loc);
 
@@ -2947,7 +2951,7 @@ vcode_unit_t emit_instance(ident_t name, const loc_t *loc, vcode_unit_t context)
    if (context != NULL)
       vcode_add_child(context, vu);
 
-   active_unit = vu;
+   vcode_select_unit(vu);
    vcode_select_block(emit_block());
    emit_debug_info(loc);
 
@@ -2969,7 +2973,7 @@ vcode_unit_t emit_package(ident_t name, const loc_t *loc, vcode_unit_t context)
    if (context != NULL)
       vcode_add_child(context, vu);
 
-   active_unit = vu;
+   vcode_select_unit(vu);
    vcode_select_block(emit_block());
    emit_debug_info(loc);
 
@@ -2992,7 +2996,7 @@ vcode_unit_t emit_protected(ident_t name, const loc_t *loc,
    if (context != NULL)
       vcode_add_child(context, vu);
 
-   active_unit = vu;
+   vcode_select_unit(vu);
    vcode_select_block(emit_block());
    emit_debug_info(loc);
 
@@ -3014,7 +3018,7 @@ vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context)
    if (context != NULL)
       vcode_add_child(context, vu);
 
-   active_unit = vu;
+   vcode_select_unit(vu);
    vcode_select_block(emit_block());
 
    if (name != NULL)

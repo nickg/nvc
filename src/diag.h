@@ -26,6 +26,10 @@
 #include <stdarg.h>
 #include <stdbool.h>
 
+#ifdef __MINGW32__
+#undef SEVERITY_ERROR
+#endif
+
 typedef uint16_t loc_file_ref_t;
 
 struct loc {
@@ -98,8 +102,22 @@ unsigned error_count(void);
 void reset_error_count(void);
 
 // Accessors for use in unit tests
-const char *diag_text(diag_t *d);
-const loc_t *diag_loc(diag_t *d);
+const char *diag_get_text(diag_t *d);
+const char *diag_get_hint(diag_t *d, int nth);
+const char *diag_get_trace(diag_t *d, int nth);
+const loc_t *diag_get_loc(diag_t *d);
 int diag_hints(diag_t *d);
+int diag_traces(diag_t *d);
+
+typedef enum {
+   SEVERITY_NOTE = 0,
+   SEVERITY_WARNING = 1,
+   SEVERITY_ERROR = 2,
+   SEVERITY_FAILURE = 3
+} vhdl_severity_t;
+
+// Conversion from VHDL severity
+void set_exit_severity(vhdl_severity_t severity);
+diag_level_t diag_severity(vhdl_severity_t severity);
 
 #endif  // _DIAG_H

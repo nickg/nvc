@@ -20,6 +20,18 @@
 #define ck_assert_double_eq_tol(x, y, t) ck_assert(fabs((x) - (y)) < (t))
 #endif
 
+#ifndef ck_assert_double_eq
+#define ck_assert_double_eq(x, y) ck_assert((x) == (y))
+#endif
+
+#ifndef ck_assert_mem_eq
+#define ck_assert_mem_eq(x, y, l) ck_assert(memcmp((x), (y), (l)) == 0)
+#endif
+
+#ifndef ck_assert_mem_ne
+#define ck_assert_mem_ne(x, y, l) ck_assert(memcmp((x), (y), (l)) != 0)
+#endif
+
 #undef fail
 #define fail(...) ck_abort_msg(__VA_ARGS__)
 

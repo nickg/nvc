@@ -70,13 +70,6 @@ typedef enum {
 } rt_event_t;
 
 typedef enum {
-   SEVERITY_NOTE,
-   SEVERITY_WARNING,
-   SEVERITY_ERROR,
-   SEVERITY_FAILURE
-} rt_severity_t;
-
-typedef enum {
    WAVE_OUTPUT_FST,
    WAVE_OUTPUT_VCD
 } wave_output_t;
@@ -98,7 +91,6 @@ rt_scope_t *rt_child_scope(rt_scope_t *scope, tree_t decl);
 bool rt_can_create_delta(void);
 uint64_t rt_now(unsigned *deltas);
 void rt_stop(void);
-void rt_set_exit_severity(rt_severity_t severity);
 
 void jit_init(tree_t top);
 void jit_shutdown(void);

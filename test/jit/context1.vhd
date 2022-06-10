@@ -1,5 +1,7 @@
 package pack is
     function get_elt(index : natural) return integer;
+    function nested_get_elt(index : natural) return integer;
+    procedure read_elt(index : natural; result : out integer);
 end package;
 
 package body pack is
@@ -22,5 +24,13 @@ package body pack is
     begin
         return inner;
     end function;
+
+    procedure read_elt(index : natural; result : out integer) is
+    begin
+        if index > 100 then
+            wait for 1 ns;              -- Forces heap allocation
+        end if;
+        result := get_elt(index);
+    end procedure;
 
 end package body;

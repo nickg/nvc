@@ -344,7 +344,6 @@ static side_effect_t    init_side_effect = SIDE_EFFECT_ALLOW;
 static bool             force_stop;
 static bool             can_create_delta;
 static callback_t      *global_cbs[RT_LAST_EVENT];
-static rt_severity_t    exit_severity = SEVERITY_ERROR;
 static bool             profiling = false;
 static rt_profile_t     profile;
 static rt_nexus_t      *nexuses = NULL;
@@ -443,31 +442,6 @@ static const char *fmt_values(const void *values, uint32_t len)
    return fmt_values_r(values, len, buf, sizeof(buf));
 }
 
-static tree_t rt_find_enclosing_decl(ident_t unit_name, const char *symbol)
-{
-   tree_t unit = lib_get_qualified(unit_name);
-   if (unit == NULL)
-      return NULL;
-
-   if (tree_kind(unit) == T_PACKAGE) {
-      tree_t body = body_of(unit);
-      if (body != NULL)
-         unit = body;
-   }
-
-   static shash_t *cache = NULL;
-   if (cache == NULL)
-      cache = shash_new(256);
-
-   tree_t enclosing = shash_get(cache, symbol);
-   if (enclosing == NULL) {
-      if ((enclosing = find_mangled_decl(unit, ident_new(symbol))))
-         shash_put(cache, symbol, enclosing);
-   }
-
-   return enclosing;
-}
-
 static void rt_abort_sim(int code)
 {
    assert(code >= 0);
@@ -475,36 +449,33 @@ static void rt_abort_sim(int code)
 }
 
 static void rt_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
-                          const char *symbol, const char *prefix)
+                          const char *symbol)
 {
    switch (tree_kind(enclosing)) {
    case T_PROCESS:
-      diag_trace(d, loc, "%sProcess$$ %s", prefix,
-                 istr(active_proc->name));
+      diag_trace(d, loc, "Process$$ %s", istr(active_proc->name));
       break;
    case T_FUNC_BODY:
    case T_FUNC_DECL:
-      diag_trace(d, loc, "%sFunction$$ %s", prefix,
-                 type_pp(tree_type(enclosing)));
+      diag_trace(d, loc, "Function$$ %s", type_pp(tree_type(enclosing)));
       break;
    case T_PROC_BODY:
    case T_PROC_DECL:
-      diag_trace(d, loc, "%sProcedure$$ %s", prefix,
+      diag_trace(d, loc, "Procedure$$ %s",
                  type_pp(tree_type(enclosing)));
       break;
    case T_TYPE_DECL:
       if (strstr(symbol, "$value"))
-         diag_trace(d, loc, "%sAttribute$$ %s'VALUE",
-                    prefix, istr(tree_ident(enclosing)));
-      else
-         diag_trace(d, loc, "%sType$$ %s", prefix,
+         diag_trace(d, loc, "Attribute$$ %s'VALUE",
                     istr(tree_ident(enclosing)));
+      else
+         diag_trace(d, loc, "Type$$ %s", istr(tree_ident(enclosing)));
       break;
    case T_BLOCK:
-      diag_trace(d, loc, "%sProcess$$ (init)", prefix);
+      diag_trace(d, loc, "Process$$ (init)");
       break;
    default:
-      diag_trace(d, loc, "%s$$%s", prefix, istr(tree_ident(enclosing)));
+      diag_trace(d, loc, "$$%s", istr(tree_ident(enclosing)));
       break;
    }
 }
@@ -520,7 +491,7 @@ static void rt_diag_trace(diag_t *d)
          continue;
 
       for (debug_inline_t *inl = f->inlined; inl != NULL; inl = inl->next) {
-         tree_t enclosing = rt_find_enclosing_decl(inl->vhdl_unit, inl->symbol);
+         tree_t enclosing = find_enclosing_decl(inl->vhdl_unit, inl->symbol);
          if (enclosing == NULL)
             continue;
 
@@ -531,10 +502,10 @@ static void rt_diag_trace(diag_t *d)
          loc_t loc = get_loc(inl->lineno, inl->colno, inl->lineno,
                              inl->colno, file_ref);
 
-         rt_emit_trace(d, &loc, enclosing, inl->symbol, "");
+         rt_emit_trace(d, &loc, enclosing, inl->symbol);
       }
 
-      tree_t enclosing = rt_find_enclosing_decl(f->vhdl_unit, f->symbol);
+      tree_t enclosing = find_enclosing_decl(f->vhdl_unit, f->symbol);
       if (enclosing == NULL)
          continue;
 
@@ -548,7 +519,7 @@ static void rt_diag_trace(diag_t *d)
          loc = get_loc(f->lineno, f->colno, f->lineno, f->colno, file_ref);
       }
 
-      rt_emit_trace(d, &loc, enclosing, f->symbol, "");
+      rt_emit_trace(d, &loc, enclosing, f->symbol);
    }
 
    debug_free(di);
@@ -1139,21 +1110,6 @@ static void *rt_composite_signal(rt_signal_t *signal, size_t *psz, value_fn_t fn
    return buf;
 }
 
-static diag_level_t rt_diag_severity(int8_t severity)
-{
-   if (severity >= exit_severity)
-      return DIAG_FATAL;
-
-   switch (severity) {
-   case SEVERITY_NOTE:    return DIAG_NOTE;
-   case SEVERITY_WARNING: return DIAG_WARN;
-   case SEVERITY_ERROR:
-   case SEVERITY_FAILURE: return DIAG_ERROR;
-   }
-
-   return DIAG_ERROR;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -1626,7 +1582,7 @@ void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    char tmbuf[64];
    rt_fmt_now(tmbuf, sizeof(tmbuf));
 
-   const diag_level_t level = rt_diag_severity(severity);
+   const diag_level_t level = diag_severity(severity);
 
    diag_t *d = diag_new(level, tree_loc(where));
    if (msg == NULL)
@@ -1690,7 +1646,7 @@ void __nvc_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
 
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
-   const diag_level_t level = rt_diag_severity(severity);
+   const diag_level_t level = diag_severity(severity);
 
    diag_t *d = diag_new(level, tree_loc(where));
    diag_printf(d, "%s: Report %s: %.*s", tmbuf, levels[severity], msg_len, msg);
@@ -4339,9 +4295,4 @@ uint64_t rt_now(unsigned *deltas)
 void rt_stop(void)
 {
    force_stop = true;
-}
-
-void rt_set_exit_severity(rt_severity_t severity)
-{
-   exit_severity = severity;
 }

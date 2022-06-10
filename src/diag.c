@@ -83,6 +83,7 @@ static diag_hint_fn_t   hint_fn = NULL;
 static void            *hint_ctx = NULL;
 static unsigned         n_errors = 0;
 static file_list_t      loc_files;
+static vhdl_severity_t  exit_severity = SEVERITY_ERROR;
 
 #define DIAG_THEME_CLASSIC 1
 #define DIAG_THEME_RUST    2
@@ -503,7 +504,7 @@ static void diag_paginate(const char *str, int left, FILE *f)
          if (*p == 'm')
             escape = 0;
       }
-      else if (col + 1 == right) {
+      else if (col + 1 >= right && p - begin + 1 < right - left) {
          fprintf(f, "\n%*s", left, "");
          col = left;
       }
@@ -770,7 +771,7 @@ static void diag_emit_trace(diag_t *d, FILE *f)
 
 void diag_femit(diag_t *d, FILE *f)
 {
-   if (consumer != NULL)
+   if (consumer != NULL && d->level > DIAG_DEBUG)
       (*consumer)(d);
    else if (get_message_style() == MESSAGE_COMPACT) {
       if (d->hints.count > 0) {
@@ -854,12 +855,24 @@ void diag_set_consumer(diag_consumer_t fn)
    consumer = fn;
 }
 
-const char *diag_text(diag_t *d)
+const char *diag_get_text(diag_t *d)
 {
    return tb_get(d->msg);
 }
 
-const loc_t *diag_loc(diag_t *d)
+const char *diag_get_hint(diag_t *d, int nth)
+{
+   assert(nth + 1 < d->hints.count);
+   return d->hints.items[nth + 1].text;
+}
+
+const char *diag_get_trace(diag_t *d, int nth)
+{
+   assert(nth < d->trace.count);
+   return d->trace.items[nth].text;
+}
+
+const loc_t *diag_get_loc(diag_t *d)
 {
    if (d->hints.count > 0)
       return &(d->hints.items[0].loc);
@@ -870,6 +883,11 @@ const loc_t *diag_loc(diag_t *d)
 int diag_hints(diag_t *d)
 {
    return d->hints.count - 1;
+}
+
+int diag_traces(diag_t *d)
+{
+   return d->trace.count;
 }
 
 void diag_set_hint_fn(diag_hint_fn_t fn, void *context)
@@ -896,4 +914,25 @@ void fmt_loc(FILE *f, const loc_t *loc)
    consumer = NULL;
    diag_femit(d, f);
    consumer = old;
+}
+
+diag_level_t diag_severity(vhdl_severity_t severity)
+{
+   if (severity >= exit_severity)
+      return DIAG_FATAL;
+
+   switch (severity) {
+   case SEVERITY_NOTE:    return DIAG_NOTE;
+   case SEVERITY_WARNING: return DIAG_WARN;
+   case SEVERITY_ERROR:
+   case SEVERITY_FAILURE: return DIAG_ERROR;
+   }
+
+   return DIAG_ERROR;
+}
+
+void set_exit_severity(vhdl_severity_t severity)
+{
+   exit_severity = severity;
+
 }

@@ -24,7 +24,6 @@
 #include "opt.h"
 #include "phase.h"
 #include "type.h"
-#include "vcode.h"
 
 #include <ctype.h>
 #include <assert.h>
@@ -863,28 +862,6 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
    }
 }
 
-static tree_t elab_fold(tree_t value, elab_ctx_t *ctx)
-{
-   tree_kind_t kind = tree_kind(value);
-
-   if (kind == T_LITERAL || kind == T_AGGREGATE)
-      return value;
-   else if (kind == T_REF && tree_kind(tree_ref(value)) == T_ENUM_LIT)
-      return value;
-   else if (kind == T_QUALIFIED)
-      return elab_fold(tree_value(value), ctx);
-   else if (eval_possible(ctx->eval, value)) {
-      vcode_unit_t thunk = lower_thunk(value);
-      if (thunk != NULL) {
-         tree_t folded = eval_fold(ctx->eval, value, thunk);
-         vcode_unit_unref(thunk);
-         return folded;
-      }
-   }
-
-   return value;
-}
-
 static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
                           elab_ctx_t *ctx)
 {
@@ -985,11 +962,6 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       tree_add_genmap(ctx->out, map);
 
       tree_t value = tree_value(map);
-      if (tree_class(eg) == C_CONSTANT) {
-         // Generics are globally static and should be folded
-         value = elab_fold(value, ctx);
-      }
-
       hash_put(ctx->generics, eg, value);
       if (eg != cg) hash_put(ctx->generics, cg, value);
 
@@ -1310,14 +1282,10 @@ static bool elab_generate_test(tree_t value, elab_ctx_t *ctx)
    if (folded_bool(value, &test))
       return test;
 
-   vcode_unit_t thunk = lower_thunk(value);
-   if (thunk != NULL) {
-      tree_t folded = eval_fold(ctx->eval, value, thunk);
-      vcode_unit_unref(thunk);
+   tree_t folded = eval_must_fold(ctx->eval, value);
 
-      if (folded_bool(folded, &test))
-         return test;
-   }
+   if (folded_bool(folded, &test))
+      return test;
 
    error_at(tree_loc(value), "generate expression is not static");
    return false;

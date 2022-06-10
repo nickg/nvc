@@ -9,11 +9,11 @@ package pack5 is
     type pair_vector is array (natural range <>) of pair;
 
     type rec is record
-        x : integer;
-        y : integer;
-        a : int_vector(1 to 3);
-        b : pair_vector(1 to 2);
-        z : integer;
+        x : integer;                    -- 0
+        y : integer;                    -- 4
+        a : int_vector(1 to 3);         -- 8
+        b : pair_vector(1 to 2);        -- 24
+        z : integer;                    -- 40
     end record;
 
     constant r : rec;

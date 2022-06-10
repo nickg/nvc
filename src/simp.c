@@ -20,7 +20,6 @@
 #include "common.h"
 #include "eval.h"
 #include "hash.h"
-#include "vcode.h"
 #include "type.h"
 #include "array.h"
 
@@ -29,8 +28,6 @@
 #include <stdarg.h>
 #include <inttypes.h>
 #include <stdlib.h>
-
-#define MAX_BUILTIN_ARGS 2
 
 typedef struct imp_signal imp_signal_t;
 
@@ -131,14 +128,7 @@ static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)
    else if (!eval_possible(ctx->eval, t))
       return t;
 
-   vcode_unit_t thunk = lower_thunk(t);
-   if (thunk == NULL)
-      return t;
-
-   tree_t folded = eval_fold(ctx->eval, t, thunk);
-
-   vcode_unit_unref(thunk);
-   thunk = NULL;
+   tree_t folded = eval_try_fold(ctx->eval, t);
 
    return folded;
 }

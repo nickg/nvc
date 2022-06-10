@@ -21,32 +21,18 @@
 #include "prim.h"
 #include "phase.h"
 
-typedef struct _eval_frame eval_frame_t;
-
-typedef union {
-   int64_t integer;
-   double  real;
-} eval_scalar_t;
-
 typedef enum {
-   EVAL_BOUNDS  = (1 << 0),
    EVAL_FCALL   = (1 << 1),
    EVAL_WARN    = (1 << 2),
    EVAL_VERBOSE = (1 << 3),
-   EVAL_REPORT  = (1 << 4)
 } eval_flags_t;
 
 typedef vcode_unit_t (*lower_fn_t)(ident_t, void *);
 
 eval_t *eval_new(eval_flags_t flags);
 void eval_free(eval_t *ex);
-eval_frame_t *eval_link(eval_t *ex, ident_t ident);
-eval_scalar_t eval_call(eval_t *ex, ident_t func, eval_frame_t *context,
-                        const char *fmt, ...);
-bool eval_try_call(eval_t *ex, ident_t func, eval_frame_t *context,
-                   eval_scalar_t *result, const char *fmt, ...);
-tree_t eval_fold(eval_t *ex, tree_t expr, vcode_unit_t thunk);
-eval_scalar_t eval_get_frame_var(eval_t *ex, eval_frame_t *frame, unsigned nth);
+tree_t eval_try_fold(eval_t *ex, tree_t expr);
+tree_t eval_must_fold(eval_t *ex, tree_t expr);
 void eval_set_lower_fn(eval_t *ex, lower_fn_t fn, void *ctx);
 bool eval_possible(eval_t *e, tree_t t);
 

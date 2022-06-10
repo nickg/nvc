@@ -1,0 +1,7 @@
+lib_libnvc_a_SOURCES += \
+	src/jit/jit.h \
+	src/jit/jit-priv.h \
+	src/jit/jit-core.c \
+	src/jit/jit-irgen.c \
+	src/jit/jit-dump.c \
+	src/jit/jit-interp.c

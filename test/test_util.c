@@ -37,8 +37,8 @@ static void test_error_fn(diag_t *d)
 {
    fail_if(error_lines == NULL);
 
-   const char *msg = diag_text(d);
-   const loc_t *loc = diag_loc(d);
+   const char *msg = diag_get_text(d);
+   const loc_t *loc = diag_get_loc(d);
 
    bool unexpected = error_lines->line == -1
       || error_lines->snippet == NULL
@@ -67,19 +67,21 @@ static void setup(void)
    opt_set_int(OPT_BOOTSTRAP, 0);
    opt_set_int(OPT_COVER, 0);
    opt_set_int(OPT_UNIT_TEST, 1);
-   opt_set_str(OPT_DUMP_VCODE, NULL);
+   opt_set_str(OPT_DUMP_VCODE, getenv("NVC_LOWER_VERBOSE"));
    opt_set_int(OPT_IGNORE_TIME, 0);
    opt_set_int(OPT_VERBOSE, 0);
    opt_set_int(OPT_SYNTHESIS, 0);
    opt_set_int(OPT_ERROR_LIMIT, -1);
    opt_set_int(OPT_ARENA_SIZE, 1 << 20);
-   opt_set_str(OPT_GC_VERBOSE, NULL);
-   opt_set_str(OPT_OBJECT_VERBOSE, NULL);
-   opt_set_str(OPT_ELAB_VERBOSE, NULL);
-   opt_set_str(OPT_EVAL_VERBOSE, NULL);
+   opt_set_str(OPT_GC_VERBOSE, getenv("NVC_GC_VERBOSE"));
+   opt_set_str(OPT_OBJECT_VERBOSE, getenv("NVC_OBJECT_VERBOSE"));
+   opt_set_str(OPT_ELAB_VERBOSE, getenv("NVC_ELAB_VERBOSE"));
+   opt_set_str(OPT_EVAL_VERBOSE, getenv("NVC_EVAL_VERBOSE"));
+   opt_set_str(OPT_JIT_VERBOSE, getenv("NVC_JIT_VERBOSE"));
    opt_set_int(OPT_HEAP_SIZE, 128 * 1024);
    opt_set_int(OPT_GC_STRESS, getenv("NVC_GC_STRESS") != 0);
    opt_set_int(OPT_RELAXED, 0);
+   opt_set_int(OPT_JIT_LOG, getenv("NVC_JIT_LOG") != NULL);
 
    intern_strings();
 }

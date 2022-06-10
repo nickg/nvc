@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "common.h"
+#include "hash.h"
 #include "ident.h"
 #include "opt.h"
 #include "type.h"
@@ -1281,6 +1282,35 @@ tree_t find_mangled_decl(tree_t container, ident_t name)
    }
 
    return NULL;
+}
+
+tree_t find_enclosing_decl(ident_t unit_name, const char *symbol)
+{
+   tree_t unit = lib_get_qualified(unit_name);
+   if (unit == NULL)
+      return NULL;
+
+   tree_t search = unit;
+   if (tree_kind(unit) == T_PACKAGE) {
+      tree_t body = body_of(unit);
+      if (body != NULL)
+         search = body;
+   }
+
+   static shash_t *cache = NULL;
+   if (cache == NULL)
+      cache = shash_new(256);
+
+   tree_t enclosing = shash_get(cache, symbol);
+   if (enclosing == NULL) {
+      ident_t id = ident_new(symbol);
+      if (id == unit_name)
+         shash_put(cache, symbol, (enclosing = unit));
+      else if ((enclosing = find_mangled_decl(search, id)))
+         shash_put(cache, symbol, enclosing);
+   }
+
+   return enclosing;
 }
 
 tree_t std_func(ident_t mangled)

@@ -70,8 +70,10 @@ hash_t *hash_new(int size, bool replace)
 
 void hash_free(hash_t *h)
 {
-   free(h->values);
-   free(h);
+   if (h != NULL) {
+      free(h->values);
+      free(h);
+   }
 }
 
 bool hash_put(hash_t *h, const void *key, void *value)

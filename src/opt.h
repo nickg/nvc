@@ -52,6 +52,8 @@ typedef enum {
    OPT_OBJECT_VERBOSE,
    OPT_GC_STRESS,
    OPT_RELAXED,
+   OPT_JIT_VERBOSE,
+   OPT_JIT_LOG,
 
    OPT_LAST_NAME
 } opt_name_t;
