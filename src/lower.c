@@ -2718,11 +2718,17 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
       offset_reg = emit_add(offset_reg, zerored);
    }
 
-   vcode_reg_t stride = lower_array_stride(value_type, VCODE_INVALID_REG);
+   vcode_reg_t stride = lower_array_stride(value_type, array);
    offset_reg = emit_mul(offset_reg, stride);
 
    vcode_reg_t data_reg = lower_array_data(array);
-   return emit_array_ref(data_reg, offset_reg);
+   vcode_reg_t ptr_reg = emit_array_ref(data_reg, offset_reg);
+
+   type_t elem_type = tree_type(ref);
+   if (type_is_unconstrained(elem_type))
+      return lower_wrap_element(value_type, array, ptr_reg);
+   else
+      return ptr_reg;
 }
 
 static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
@@ -2777,14 +2783,29 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
 
    if (lower_const_bounds(type))
       return ptr_reg;
-   else {
-      vcode_dim_t dim0 = {
-         .left  = left_reg,
-         .right = right_reg,
-         .dir   = kind_reg
-      };
-      return emit_wrap(ptr_reg, &dim0, 1);
+
+   vcode_dim_t dim0 = {
+      .left  = left_reg,
+      .right = right_reg,
+      .dir   = kind_reg
+   };
+
+   if (type_is_unconstrained(type_elem(type))) {
+      assert(vcode_reg_kind(array_reg) == VCODE_TYPE_UARRAY);
+      const int ndims = vtype_dims(vcode_reg_type(array_reg));
+      vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));
+
+      dims[0] = dim0;
+      for (int i = 1; i < ndims; i++) {
+         dims[i].left  = emit_uarray_left(array_reg, i);
+         dims[i].right = emit_uarray_right(array_reg, i);
+         dims[i].dir   = emit_uarray_dir(array_reg, i);
+      }
+
+      return emit_wrap(ptr_reg, dims, ndims);
    }
+   else
+      return emit_wrap(ptr_reg, &dim0, 1);
 }
 
 static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
