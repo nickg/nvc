@@ -2323,6 +2323,10 @@ static bool sem_check_conversion(tree_t t, nametab_t *tab)
    if (from_num && to_num)
       return true;
 
+   // Suppress cascading errors
+   if (from_k == T_NONE || to_k == T_NONE)
+      return true;
+
    if (from_k == T_ARRAY && to_k == T_ARRAY) {
       // Types must have same dimensionality
       bool same_dim = (dimension_of(from) == dimension_of(to));
@@ -3601,6 +3605,10 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
    case ATTR_BASE:
       sem_error(t, "BASE attribute is allowed only as the prefix of the name "
                 "of another attribute");
+
+   case ATTR_ELEMENT:
+   case ATTR_SUBTYPE:
+      sem_error(t, "%s attribute is only allowed in a type mark", istr(attr));
 
    case ATTR_USER:
       if (!tree_has_value(t))

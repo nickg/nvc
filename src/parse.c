@@ -2189,6 +2189,31 @@ static type_t apply_element_attribute(tree_t aref)
    return type_elem(type);
 }
 
+static bool is_type_attribute(attr_kind_t kind)
+{
+   switch (kind) {
+   case ATTR_SUBTYPE:
+   case ATTR_BASE:
+   case ATTR_ELEMENT:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static type_t apply_type_attribute(tree_t aref)
+{
+   switch (tree_subkind(aref)) {
+   case ATTR_SUBTYPE:
+      return apply_subtype_attribute(aref);
+   case ATTR_ELEMENT:
+      return apply_element_attribute(aref);
+   default:
+      parse_error(tree_loc(aref), "attribute name is not a valid type mark");
+      return type_new(T_NONE);
+   }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Parser rules
 
@@ -3071,7 +3096,7 @@ static tree_t p_attribute_name(tree_t prefix)
    tree_set_ident(t, id);
    tree_set_subkind(t, kind);
 
-   if (kind != ATTR_USER && optional(tLPAREN)) {
+   if (kind != ATTR_USER && !is_type_attribute(kind) && optional(tLPAREN)) {
       add_param(t, p_expression(), P_POS, NULL);
       consume(tRPAREN);
    }
@@ -3241,7 +3266,7 @@ static tree_t p_indexed_name(tree_t prefix, tree_t head)
    return t;
 }
 
-static tree_t p_type_conversion(ident_t id)
+static tree_t p_type_conversion(tree_t prefix)
 {
    // type_conversion ::= type_mark ( expression )
 
@@ -3250,13 +3275,18 @@ static tree_t p_type_conversion(ident_t id)
    consume(tLPAREN);
 
    type_t type = NULL;
-   tree_t tdecl = resolve_name(nametab, CURRENT_LOC, id);
-   if (tdecl == NULL)
-      type = type_new(T_NONE);
+   if (tree_kind(prefix) == T_ATTR_REF)
+      type = apply_type_attribute(prefix);
    else {
-      tdecl = aliased_type_decl(tdecl);
-      assert(tdecl);   // Call to this is guarded by N_TYPE mask
-      type = tree_type(tdecl);
+      assert(tree_kind(prefix) == T_REF);
+      tree_t tdecl = resolve_name(nametab, CURRENT_LOC, tree_ident(prefix));
+      if (tdecl == NULL)
+         type = type_new(T_NONE);
+      else {
+         tdecl = aliased_type_decl(tdecl);
+         assert(tdecl);   // Call to this is guarded by N_TYPE mask
+         type = tree_type(tdecl);
+      }
    }
 
    tree_t conv = tree_new(T_TYPE_CONV);
@@ -3427,11 +3457,14 @@ static tree_t p_name(name_mask_t stop_mask)
          continue;
 
       case tTICK:
-         if (peek_nth(2) == tLPAREN)
+         if (peek_nth(2) == tLPAREN) {
             prefix = p_qualified_expression(prefix);
-         else
+            mask = N_OBJECT;
+         }
+         else {
             prefix = p_attribute_name(prefix);
-         mask = N_OBJECT;
+            mask = is_type_attribute(tree_subkind(prefix)) ? N_TYPE : N_OBJECT;
+         }
          continue;
 
       default:
@@ -3451,9 +3484,9 @@ static tree_t p_name(name_mask_t stop_mask)
 
       const tree_kind_t prefix_kind = tree_kind(prefix);
 
-      if ((mask & N_TYPE) && prefix_kind == T_REF) {
+      if (mask & N_TYPE) {
          // Type conversion
-         prefix = p_type_conversion(tree_ident(prefix));
+         prefix = p_type_conversion(prefix);
          mask = N_OBJECT;
          continue;
       }
@@ -3515,16 +3548,7 @@ static type_t p_type_mark(ident_t name)
       tree_set_ident(ref, name);
       tree_set_ref(ref, decl);
 
-      tree_t aref = p_attribute_name(ref);
-      switch (tree_subkind(aref)) {
-      case ATTR_SUBTYPE:
-         return apply_subtype_attribute(aref);
-      case ATTR_ELEMENT:
-         return apply_element_attribute(aref);
-      default:
-         parse_error(tree_loc(aref), "attribute name is not a valid type mark");
-         return type_new(T_NONE);
-      }
+      return apply_type_attribute(p_attribute_name(ref));
    }
    else {
       decl = aliased_type_decl(decl);

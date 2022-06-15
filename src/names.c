@@ -2956,6 +2956,13 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
       }
       break;
 
+   case ATTR_SUBTYPE:
+   case ATTR_ELEMENT:
+      // These should have been expanded by the parser so can only be
+      // erroneous
+      type = prefix_type;
+      break;
+
    case ATTR_USER:
       {
          if (tree_kind(prefix) == T_REF) {

@@ -31,4 +31,12 @@ begin
         end case;
     end process;
 
+    -- 'SUBTYPE attribute
+    process is
+        variable x : integer;
+    begin
+        x := baz'subtype(4);            -- Error
+        report to_string(x'subtype);    -- Error
+    end process;
+
 end architecture;

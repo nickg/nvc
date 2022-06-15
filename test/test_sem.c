@@ -2450,6 +2450,8 @@ START_TEST(test_vhdl2008)
       { 11, "type of condition must be BOOLEAN but have INTEGER" },
       { 12, "type of value BOOLEAN does not match type of target INTEGER" },
       { 29, "case choice must be locally static" },
+      { 38, "no visible declaration for BAZ" },
+      { 39, "SUBTYPE attribute is only allowed in a type mark" },
       { -1, NULL }
    };
    expect_errors(expect);
