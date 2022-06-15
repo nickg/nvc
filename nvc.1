@@ -388,6 +388,11 @@ The work library is named
 .Ql mylib
 and is mapped to the absolute path
 .Pa /foo/bar .
+.Pp
+Concurrent access to a single library by multiple processes is
+completely safe and protected by a lock in the filesystem using
+.Xr flock 2
+that allows multiple concurrent readers but only a single writer.
 .\" ------------------------------------------------------------
 .\" Relaxing rules
 .\" ------------------------------------------------------------
