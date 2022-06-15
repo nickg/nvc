@@ -6,13 +6,17 @@ lib/ieee.08/IEEE.FIXED_GENERIC_PKG-body: lib/std.08/STD.TEXTIO lib/ieee.08/IEEE.
 
 lib/ieee.08/IEEE.FIXED_GENERIC_PKG: lib/std.08/STD.TEXTIO lib/ieee.08/IEEE.NUMERIC_STD lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD lib/ieee.08/IEEE.FIXED_FLOAT_TYPES $(top_srcdir)/lib/ieee.08/fixed_generic_pkg.vhdl
 
-lib/ieee.08/IEEE.FIXED_PKG: lib/std.08/STD.TEXTIO lib/ieee.08/IEEE.STD_LOGIC_1164 lib/ieee.08/IEEE.FIXED_GENERIC_PKG lib/ieee.08/IEEE.NUMERIC_STD lib/std.08/STD.STANDARD lib/ieee.08/IEEE.FIXED_GENERIC_PKG-body lib/ieee.08/IEEE.FIXED_FLOAT_TYPES $(top_srcdir)/lib/ieee.08/fixed_pkg.vhdl
+lib/ieee.08/IEEE.FIXED_PKG: lib/std.08/STD.TEXTIO lib/ieee.08/IEEE.NUMERIC_STD lib/ieee.08/IEEE.FIXED_FLOAT_TYPES lib/ieee.08/IEEE.STD_LOGIC_1164 lib/ieee.08/IEEE.FIXED_GENERIC_PKG-body lib/std.08/STD.STANDARD lib/ieee.08/IEEE.FIXED_GENERIC_PKG $(top_srcdir)/lib/ieee.08/fixed_pkg.vhdl
 
 lib/ieee.08/IEEE.FLOAT_GENERIC_PKG-body: lib/std.08/STD.TEXTIO lib/ieee.08/IEEE.FIXED_GENERIC_PKG lib/ieee.08/IEEE.FIXED_FLOAT_TYPES lib/ieee.08/IEEE.NUMERIC_STD lib/ieee.08/IEEE.STD_LOGIC_1164 lib/std.08/STD.STANDARD lib/ieee.08/IEEE.FLOAT_GENERIC_PKG $(top_srcdir)/lib/ieee.08/float_generic_pkg-body.vhdl
 
 lib/ieee.08/IEEE.FLOAT_GENERIC_PKG: lib/std.08/STD.TEXTIO lib/ieee.08/IEEE.FIXED_GENERIC_PKG lib/ieee.08/IEEE.NUMERIC_STD lib/ieee.08/IEEE.STD_LOGIC_1164 lib/ieee.08/IEEE.FIXED_FLOAT_TYPES lib/std.08/STD.STANDARD $(top_srcdir)/lib/ieee.08/float_generic_pkg.vhdl
 
-lib/ieee.08/IEEE.FLOAT_PKG: lib/ieee.08/IEEE.FIXED_PKG lib/std.08/STD.TEXTIO lib/ieee.08/IEEE.FIXED_GENERIC_PKG lib/ieee.08/IEEE.NUMERIC_STD lib/std.08/STD.STANDARD lib/ieee.08/IEEE.FLOAT_GENERIC_PKG lib/ieee.08/IEEE.STD_LOGIC_1164 lib/ieee.08/IEEE.FLOAT_GENERIC_PKG-body lib/ieee.08/IEEE.FIXED_FLOAT_TYPES $(top_srcdir)/lib/ieee.08/float_pkg.vhdl
+lib/ieee.08/IEEE.FLOAT_PKG: lib/ieee.08/IEEE.FIXED_PKG lib/std.08/STD.TEXTIO lib/ieee.08/IEEE.FIXED_GENERIC_PKG lib/ieee.08/IEEE.STD_LOGIC_1164 lib/ieee.08/IEEE.NUMERIC_STD lib/ieee.08/IEEE.FIXED_FLOAT_TYPES lib/std.08/STD.STANDARD lib/ieee.08/IEEE.FLOAT_GENERIC_PKG lib/ieee.08/IEEE.FLOAT_GENERIC_PKG-body $(top_srcdir)/lib/ieee.08/float_pkg.vhdl
+
+lib/ieee.08/IEEE.IEEE_BIT_CONTEXT: $(top_srcdir)/lib/ieee.08/ieee_bit_context.vhdl
+
+lib/ieee.08/IEEE.IEEE_STD_CONTEXT: $(top_srcdir)/lib/ieee.08/ieee_std_context.vhdl
 
 lib/ieee.08/IEEE.NUMERIC_BIT-body: lib/std.08/STD.TEXTIO lib/nvc.08/NVC.SIM_PKG lib/std.08/STD.STANDARD lib/ieee.08/IEEE.NUMERIC_BIT $(top_srcdir)/lib/ieee.08/numeric_bit-body.vhdl
 

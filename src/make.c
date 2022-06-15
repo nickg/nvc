@@ -266,6 +266,7 @@ static void make_rule(tree_t t, rule_t **rules)
    case T_ARCH:
    case T_CONFIGURATION:
    case T_PACK_INST:
+   case T_CONTEXT:
       make_rule_add_output(r, make_product(t, MAKE_TREE));
       break;
 
