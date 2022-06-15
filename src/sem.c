@@ -1168,8 +1168,16 @@ static bool sem_check_interface_class(tree_t port)
       if (type_is_none(tree_type(value)))
          return false;
 
-      if (!sem_globally_static(value))
-         sem_error(value, "default value must be a static expression");
+      if (!sem_globally_static(value)) {
+         const diag_level_t level = (relax_rules() & RELAX_DEFAULT_STATIC)
+            ? DIAG_WARN : DIAG_ERROR;
+         diag_t *d = diag_new(level, tree_loc(value));
+         diag_printf(d, "default value must be a static expression");
+         if (level == DIAG_ERROR)
+            diag_hint(d, NULL, "the $bold$--relax=default-static$$ option "
+                      "downgrades this to a warning");
+         diag_emit(d);
+      }
 
       if (kind == T_PROTECTED)
          sem_error(port, "parameter with protected type cannot have "

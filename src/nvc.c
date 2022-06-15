@@ -88,6 +88,8 @@ static unsigned parse_relax(const char *str)
          mask |= RELAX_IMPURE;
       else if (strcmp(token, "shared") == 0)
          mask |= RELAX_SHARED;
+      else if (strcmp(token, "default-static") == 0)
+         mask |= RELAX_DEFAULT_STATIC;
       else
          fatal("invalid relax option '%s'", token);
 

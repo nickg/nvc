@@ -150,6 +150,7 @@ type_t ieee_type(ieee_type_t which);
 #define RELAX_PURE_FILES      (1 << 3)
 #define RELAX_IMPURE          (1 << 4)
 #define RELAX_SHARED          (1 << 5)
+#define RELAX_DEFAULT_STATIC  (1 << 6)
 
 int relax_rules(void);
 void set_relax_rules(int mask);
