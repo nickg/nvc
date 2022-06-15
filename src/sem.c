@@ -1177,6 +1177,7 @@ static bool sem_check_interface_class(tree_t port)
             diag_hint(d, NULL, "the $bold$--relax=default-static$$ option "
                       "downgrades this to a warning");
          diag_emit(d);
+         return false;
       }
 
       if (kind == T_PROTECTED)
