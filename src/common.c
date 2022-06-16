@@ -1034,8 +1034,12 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
    type_t type;
    tree_kind_t kind = tree_kind(container);
    if (kind == T_LIBRARY) {
-      lib_t lib = lib_require(tree_ident(container));
-      return lib_get(lib, name);
+      if (nth == 0) {
+         lib_t lib = lib_require(tree_ident(container));
+         return lib_get(lib, name);
+      }
+      else
+         return NULL;
    }
    else if ((kind == T_VAR_DECL || kind == T_PARAM_DECL)
             && type_is_protected((type = tree_type(container)))) {
@@ -1051,7 +1055,7 @@ tree_t search_decls(tree_t container, ident_t name, int nth)
       const int nports = tree_ports(container);
       for (int i = 0; i < nports; i++) {
          tree_t p = tree_port(container, i);
-         if (tree_ident(p) == name)
+         if (tree_ident(p) == name && nth-- == 0)
             return p;
       }
    }

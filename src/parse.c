@@ -1692,24 +1692,31 @@ static tree_t select_decl(tree_t prefix, ident_t suffix, name_mask_t *mask)
 {
    ident_t qual = ident_prefix(tree_ident(prefix), suffix, '.');
 
-   tree_t d = search_decls(prefix, suffix, 0), type_decl;
-   if (d == NULL) {
+   int n = 0;
+   tree_t decl = NULL;
+   for (tree_t d, td; (d = search_decls(prefix, suffix, n)); n++) {
+      if (is_subprogram(d)) {
+         *mask |= N_SUBPROGRAM;
+         decl = NULL;   // Cannot resolve this overload now
+      }
+      else if ((td = aliased_type_decl(d))) {
+         *mask |= N_TYPE;
+         decl = td;
+      }
+      else {
+         *mask |= N_OBJECT;
+         decl = d;
+      }
+   }
+
+   if (n == 0)
       parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
                   istr(tree_ident(prefix)));
-   }
-   else if (is_subprogram(d)) {
-      *mask |= N_SUBPROGRAM;
-      d = NULL;   // Cannot resolve this overload now
-   }
-   else if ((type_decl = aliased_type_decl(d))) {
-      *mask |= N_TYPE;
-      d = type_decl;
-   }
 
    tree_t ref = tree_new(T_REF);
    tree_set_ident(ref, qual);
    tree_set_loc(ref, CURRENT_LOC);
-   tree_set_ref(ref, d);
+   tree_set_ref(ref, decl);
 
    return ref;
 }
