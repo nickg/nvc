@@ -53,11 +53,11 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab);
 
 #define pedantic_error(t, ...) do {                             \
       static int warned = 0;                                    \
-      _pedantic_error(tree_loc(t), &warned, __VA_ARGS__);       \
-      return false;                                             \
+      if (!_pedantic_error(tree_loc(t), &warned, __VA_ARGS__))  \
+         return false;                                          \
    } while (0)
 
-static void _pedantic_error(const loc_t *loc, int *warned, const char *fmt, ...)
+static bool _pedantic_error(const loc_t *loc, int *warned, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
@@ -76,6 +76,7 @@ static void _pedantic_error(const loc_t *loc, int *warned, const char *fmt, ...)
    }
 
    va_end(ap);
+   return relaxed;
 }
 
 static tree_t sem_int_lit(type_t type, int64_t i)
