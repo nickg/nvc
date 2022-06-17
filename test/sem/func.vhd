@@ -319,4 +319,18 @@ package body func3 is
         return 1;
     end function;
 
+    function func4 (x : integer) return integer;
+
+    impure function func4 (x : integer) return integer is  -- Error
+    begin
+        return 1;
+    end function;
+
+    impure function func5 (x : integer) return integer;
+
+    function func5 (x : integer) return integer is  -- Error
+    begin
+        return 1;
+    end function;
+
 end package body;

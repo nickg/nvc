@@ -401,6 +401,8 @@ START_TEST(test_func)
       { 303, "default value of parameter X in subprogram body FUNC1" },
       { 310, "default value of parameter X in subprogram body FUNC2" },
       { 317, "default value of parameter X in subprogram body FUNC3" },
+      { 324, "function FUNC4 declaration was pure but body is impure" },
+      { 331, "function FUNC5 declaration was impure but body is pure" },
       { -1, NULL }
    };
    expect_errors(expect);

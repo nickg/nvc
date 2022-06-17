@@ -1292,10 +1292,27 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
    // Conformance rules are in LRM 08 section 4.10
    // Note we don't implement strict lexical conformance here
 
+   bool ok = true;
+
+   const bool dimpure = !!(tree_flags(decl) & TREE_F_IMPURE);
+   const bool bimpure = !!(tree_flags(body) & TREE_F_IMPURE);
+
+   if (dimpure != bimpure) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(body));
+      diag_printf(d, "function %s declaration was %s but body is %s",
+                  istr(tree_ident(body)), dimpure ? "impure" : "pure",
+                  bimpure ? "impure" : "pure");
+      diag_hint(d, tree_loc(decl), "declaration was %s",
+                dimpure ? "impure" : "pure");
+      diag_hint(d, tree_loc(body), "expecting keyword %s to match declaration",
+                bimpure ? "IMPURE" : "PURE");
+      diag_emit(d);
+      ok = false;
+   }
+
    // This must be true or they would be considered different overloads
    assert(tree_ports(decl) == tree_ports(body));
 
-   bool ok = true;
    const int nports = tree_ports(decl);
    for (int i = 0; i < nports; i++) {
       tree_t dport = tree_port(decl, i);
