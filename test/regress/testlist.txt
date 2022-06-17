@@ -587,3 +587,4 @@ access11        normal
 issue467        normal,2008
 issue469        normal,relaxed,gold
 ieee9           normal,gold,2008
+issue472        shell

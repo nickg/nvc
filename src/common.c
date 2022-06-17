@@ -28,6 +28,7 @@
 #include <inttypes.h>
 
 static vhdl_standard_t current_std = STD_93;
+static bool            have_set_std = false;
 static ident_t         id_cache[NUM_WELL_KNOWN];
 
 int64_t assume_int(tree_t t)
@@ -399,6 +400,13 @@ vhdl_standard_t standard(void)
 void set_standard(vhdl_standard_t s)
 {
    current_std = s;
+   have_set_std = true;
+}
+
+void set_default_standard(vhdl_standard_t s)
+{
+   if (!have_set_std)
+      set_standard(s);
 }
 
 const char *standard_text(vhdl_standard_t s)

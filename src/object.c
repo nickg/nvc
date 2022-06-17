@@ -792,6 +792,12 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
             fbuf_file_name(f), ver, format_digest);
 
    const vhdl_standard_t std = fbuf_get_uint(f);
+
+   // If this is the first design unit we've loaded then allow it to set
+   // the default standard
+   if (all_arenas.count == 0)
+      set_default_standard(std);
+
    if (std > standard())
       fatal("%s: design unit was analysed using standard revision %s which "
             "is more recent that the currently selected standard %s",
