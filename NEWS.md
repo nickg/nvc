@@ -34,6 +34,13 @@
 - The `-a` analysis command now reads from the standard input if the
   file name is `-`.
 - Added support for array element constraints in VHDL-2008.
+- The `--prefer-explicit` analysis option which was deprecated before
+  the 1.0 release has been removed.
+- A new `--relaxed` analysis option enables "relaxed rules" mode.  This
+  has the same effect as enabling all the existing `--relax=` options.
+  However some constructs will still produce warnings.
+- The `--relax=` analysis option is deprecated and is now equivalent to
+  passing `--relaxed`.  The individual options are ignored.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

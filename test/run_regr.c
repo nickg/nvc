@@ -61,7 +61,7 @@
 #define F_COVER   (1 << 7)
 #define F_GENERIC (1 << 8)
 #define F_RELAX   (1 << 9)
-// F_CLEAN        (1 << 10)
+#define F_RELAXED (1 << 10)
 #define F_WORKLIB (1 << 11)
 #define F_SHELL   (1 << 12)
 
@@ -347,6 +347,8 @@ static bool parse_test_list(int argc, char **argv)
             test->generics = g;
             test->flags |= F_GENERIC;
          }
+         else if (strcmp(opt, "relaxed") == 0)
+            test->flags |= F_RELAXED;
          else if (strncmp(opt, "relax", 5) == 0) {
             char *value = strchr(opt, '=');
             if (value == NULL) {
@@ -647,6 +649,9 @@ static bool run_test(test_t *test)
 
       if (test->flags & F_RELAX)
          push_arg(&args, "--relax=%s", test->relax);
+
+      if (test->flags & F_RELAXED)
+         push_arg(&args, "--relaxed");
 
       push_arg(&args, "-e");
       push_arg(&args, "%s", test->name);

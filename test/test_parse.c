@@ -3656,7 +3656,7 @@ END_TEST
 
 START_TEST(test_issue416)
 {
-   set_relax_rules(RELAX_PREFER_EXPLICT);
+   opt_set_int(OPT_RELAXED, 1);
    input_from_file(TESTDIR "/parse/issue416.vhd");
 
    tree_t e = parse();

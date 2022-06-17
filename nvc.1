@@ -171,13 +171,11 @@ Stop after reporting
 .Ar num
 errors.  The default is 20.  Zero allows unlimited errors.
 .\"
-.It Fl -relax Ns = Ns Ar rules
-Disable certain pedantic rule checks specified in the comma-separated
-list
-.Ar rules .
-See the
-.Sx RELAXING RULES
-section below for the full list.
+.It Fl -relaxed
+Disable certain pedantic LRM conformance checks or rules that were
+relaxed by later standards.  See the
+.Sx RELAXED RULES
+section below for details.
 .El
 .\" ------------------------------------------------------------
 .\" Elaboration options
@@ -394,45 +392,46 @@ completely safe and protected by a lock in the filesystem using
 .Xr flock 2
 that allows multiple concurrent readers but only a single writer.
 .\" ------------------------------------------------------------
-.\" Relaxing rules
+.\" Relaxed rules
 .\" ------------------------------------------------------------
-.Sh RELAXING RULES
-The following can be specified as a comma-separated list to the
-.Fl -relax
-option to disable certain semantic rule checks.
-.Bl -tag -width "universal bound"
-.\"
-.It Cm prefer-explict
+.Sh RELAXED RULES
+The
+.Fl -relaxed
+analysis flag enables
+.Dq relaxed rules
+mode which downgrades the following errors to warnings:
+.Bl -bullet
+.It
+Impure function called from pure function.
+.It
+File object declared in pure function.
+.It
+Default expression in object interface declaration is not globally
+static.
+.It
+Shared variable is not of protected type in VHDL-2000 or later.
+.El
+.Pp
+Additionally the following languages features from VHDL-2008 and later
+are enabled in earlier standards:
+.Bl -bullet
+.It
 Any visible explicitly declared operator always hides an implicit
 operator regardless of the region in which it is declared.  This is
 required to analyse code that uses the non-standard Synopsys
 .Sy std_logic_arith
 package.
-.\"
-.It Cm default-static
-Default expressions in object interface declarations are not required to
-be globally static.
-.\"
-.It Cm locally-static
+.It
 References to generics and array slices are allowed in locally static
 expressions using the VHDL-2008 rules.
-.\"
-.It Cm shared
-Allow shared variables without protected types in VHDL-2000 and later.
-.\"
-.It Cm universal-bound
-Prior to VHDL-2000 when range bounds have universal integer type the
-expressions must be either numeric literals or attributes.  This option
+.It
+Range bounds with
+.Ql universal_integer
+type are not required to be numeric literals or attributes.  This option
 allows ranges such as
 .Ql -1 to 1
 in VHDL-1993 which otherwise must be written
 .Ql integer'(-1) to 1 .
-.\"
-.It Cm pure-files
-Pure functions are allowed to declare file objects.
-.\"
-.It Cm impure
-Pure functions may call impure functions.
 .El
 .\" ------------------------------------------------------------
 .\" Selecting signals

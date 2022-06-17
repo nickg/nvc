@@ -62,44 +62,6 @@ static ident_t to_unit_name(const char *str)
    return i;
 }
 
-static unsigned parse_relax(const char *str)
-{
-   char *copy = xstrdup(str);
-   assert(copy);
-
-   unsigned mask = 0;
-
-   char *token = strtok(copy, ",");
-   while (token != NULL) {
-      if (strcmp(token, "prefer-explicit") == 0)
-         mask |= RELAX_PREFER_EXPLICT;
-      else if (strcmp(token, "locally-static") == 0)
-         mask |= RELAX_LOCALLY_STATIC;
-      else if (strcmp(token, "generic-static") == 0) {
-         warnf("relax option 'generic-static' is deprecated: use "
-               "'locally-static' instead");
-         mask |= RELAX_LOCALLY_STATIC;
-      }
-      else if (strcmp(token, "universal-bound") == 0)
-         mask |= RELAX_UNIVERSAL_BOUND;
-      else if (strcmp(token, "pure-files") == 0)
-         mask |= RELAX_PURE_FILES;
-      else if (strcmp(token, "impure") == 0)
-         mask |= RELAX_IMPURE;
-      else if (strcmp(token, "shared") == 0)
-         mask |= RELAX_SHARED;
-      else if (strcmp(token, "default-static") == 0)
-         mask |= RELAX_DEFAULT_STATIC;
-      else
-         fatal("invalid relax option '%s'", token);
-
-      token = strtok(NULL, ",");
-   }
-
-   free(copy);
-   return mask;
-}
-
 static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
@@ -132,8 +94,8 @@ static int analyse(int argc, char **argv)
       { "dump-json",       required_argument, 0, 'j' },
       { "dump-llvm",       no_argument,       0, 'D' },
       { "dump-vcode",      optional_argument, 0, 'v' },
-      { "prefer-explicit", no_argument,       0, 'p' },   // DEPRECATED
-      { "relax",           required_argument, 0, 'R' },
+      { "relax",           required_argument, 0, 'X' },
+      { "relaxed",         no_argument,       0, 'R' },
       { 0, 0, 0, 0 }
    };
 
@@ -160,16 +122,16 @@ static int analyse(int argc, char **argv)
       case 'j':
          opt_set_str(OPT_DUMP_JSON, optarg ?: "");
          break;
-      case 'p':
-         warnf("the --prefer-explict option is deprecated: use "
-               "--relax=prefer-explict instead");
-         set_relax_rules(RELAX_PREFER_EXPLICT);
-         break;
-      case 'R':
-         set_relax_rules(parse_relax(optarg));
+      case 'X':
+         warnf("The $bold$--relax=$$ option is deprecated: use the combined "
+               "$bold$--relaxed$$ option instead");
+         opt_set_int(OPT_RELAXED, 1);
          break;
       case 'l':
          opt_set_int(OPT_ERROR_LIMIT, parse_int(optarg));
+         break;
+      case 'R':
+         opt_set_int(OPT_RELAXED, 1);
          break;
       default:
          abort();
@@ -762,7 +724,6 @@ static void set_default_opts(void)
    opt_set_int(OPT_MAKE_DEPS_ONLY, 0);
    opt_set_int(OPT_MAKE_POSIX, 0);
    opt_set_str(OPT_DUMP_VCODE, getenv("NVC_LOWER_VERBOSE"));
-   opt_set_int(OPT_RELAX, 0);
    opt_set_int(OPT_IGNORE_TIME, 0);
    opt_set_int(OPT_VERBOSE, 0);
    opt_set_int(OPT_RT_PROFILE, 0);
@@ -779,6 +740,7 @@ static void set_default_opts(void)
    opt_set_int(OPT_HEAP_SIZE, 16 * 1024 * 1024);
    opt_set_int(OPT_ERROR_LIMIT, 20);
    opt_set_int(OPT_GC_STRESS, 0 DEBUG_ONLY(|| getenv("NVC_GC_STRESS") != 0));
+   opt_set_int(OPT_RELAXED, 0);
 }
 
 static void usage(void)
@@ -811,7 +773,7 @@ static void usage(void)
           "Analyse options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
           "     --error-limit=NUM\tStop after NUM errors\n"
-          "     --relax=RULES\tDisable certain pedantic rule checks\n"
+          "     --relaxed\t\tDisable certain pedantic rule checks\n"
           "\n"
           "Elaborate options:\n"
           "     --cover\t\tEnable code coverage reporting\n"

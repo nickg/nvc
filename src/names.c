@@ -1846,8 +1846,7 @@ static tree_t finish_overload_resolution(overload_t *o)
    // Allow explicitly defined operators to hide implicitly defined ones
    // in different scopes. This is required behaviour in VHDL-2008 (see
    // section 12.4) and an optional rule relaxation in earlier revisions.
-   const bool prefer_explicit =
-      standard() >= STD_08 || !!(relax_rules() & RELAX_PREFER_EXPLICT);
+   const bool prefer_explicit = standard() >= STD_08 || relaxed_rules();
 
    if (o->candidates.count > 1 && prefer_explicit) {
       int nexplicit = 0;

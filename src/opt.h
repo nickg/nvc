@@ -36,7 +36,6 @@ typedef enum {
    OPT_MAKE_DEPS_ONLY,
    OPT_MAKE_POSIX,
    OPT_DUMP_VCODE,
-   OPT_RELAX,
    OPT_IGNORE_TIME,
    OPT_VERBOSE,
    OPT_RT_PROFILE,
@@ -52,6 +51,7 @@ typedef enum {
    OPT_HEAP_SIZE,
    OPT_OBJECT_VERBOSE,
    OPT_GC_STRESS,
+   OPT_RELAXED,
 
    OPT_LAST_NAME
 } opt_name_t;

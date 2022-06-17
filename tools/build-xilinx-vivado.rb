@@ -37,7 +37,7 @@ FileUtils.mkdir_p $libdir
 
 def run_nvc(lib, file)
   file = "#{$src}/#{file}" unless file =~ /^\//
-  cmd = "nvc --work=#{$libdir}/#{lib} -a --relax=prefer-explicit,pure-files #{file}"
+  cmd = "nvc --work=#{$libdir}/#{lib} -a --relaxed #{file}"
   puts cmd
   exit 1 unless system cmd
 end

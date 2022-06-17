@@ -79,6 +79,7 @@ static void setup(void)
    opt_set_str(OPT_EVAL_VERBOSE, NULL);
    opt_set_int(OPT_HEAP_SIZE, 128 * 1024);
    opt_set_int(OPT_GC_STRESS, getenv("NVC_GC_STRESS") != 0);
+   opt_set_int(OPT_RELAXED, 0);
 
    intern_strings();
 }
@@ -94,7 +95,6 @@ static void setup_per_test(void)
    reset_error_count();
 
    set_standard(STD_93);
-   set_relax_rules(0);
 
    error_lines = NULL;
    errors_seen = 0;

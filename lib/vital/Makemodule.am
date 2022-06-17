@@ -58,7 +58,7 @@ lib/ieee/IEEE.VITAL_PRIMITIVES: $(srcdir)/lib/vital/prmtvs_p.vhdl @ifGNUmake@ | 
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/prmtvs_p.vhdl
 
 lib/ieee/IEEE.VITAL_PRIMITIVES-body: $(srcdir)/lib/vital/prmtvs_b.vhdl @ifGNUmake@ | $(DRIVER)
-	$(nvc) -L lib/ --work=lib/ieee -a --relax=impure $(srcdir)/lib/vital/prmtvs_b.vhdl
+	$(nvc) -L lib/ --work=lib/ieee -a --relaxed $(srcdir)/lib/vital/prmtvs_b.vhdl
 
 lib/ieee/IEEE.VITAL_MEMORY: $(srcdir)/lib/vital/memory_p.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/vital/memory_p.vhdl
@@ -76,7 +76,7 @@ lib/ieee.08/IEEE.VITAL_PRIMITIVES: $(srcdir)/lib/vital/prmtvs_p.vhdl @ifGNUmake@
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/vital/prmtvs_p.vhdl
 
 lib/ieee.08/IEEE.VITAL_PRIMITIVES-body: $(srcdir)/lib/vital/prmtvs_b.vhdl @ifGNUmake@ | $(DRIVER)
-	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a --relax=impure $(srcdir)/lib/vital/prmtvs_b.vhdl
+	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a --relaxed $(srcdir)/lib/vital/prmtvs_b.vhdl
 
 lib/ieee.08/IEEE.VITAL_MEMORY: $(srcdir)/lib/vital/memory_p.vhdl @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2008 -L lib/ --work=lib/ieee.08 -a $(srcdir)/lib/vital/memory_p.vhdl

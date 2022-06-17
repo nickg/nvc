@@ -28,7 +28,6 @@
 #include <inttypes.h>
 
 static vhdl_standard_t current_std = STD_93;
-static int             relax = 0;
 static ident_t         id_cache[NUM_WELL_KNOWN];
 
 int64_t assume_int(tree_t t)
@@ -1019,16 +1018,6 @@ bool package_needs_body(tree_t pack)
    return false;
 }
 
-int relax_rules(void)
-{
-   return relax;
-}
-
-void set_relax_rules(int mask)
-{
-   relax = mask;
-}
-
 tree_t search_decls(tree_t container, ident_t name, int nth)
 {
    type_t type;
@@ -1661,4 +1650,9 @@ int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS])
    }
 
    return ptr;
+}
+
+bool relaxed_rules(void)
+{
+   return opt_get_int(OPT_RELAXED);
 }

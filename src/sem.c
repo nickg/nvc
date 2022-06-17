@@ -51,6 +51,33 @@ static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab);
       return false;                                   \
    } while (0)
 
+#define pedantic_error(t, ...) do {                             \
+      static int warned = 0;                                    \
+      _pedantic_error(tree_loc(t), &warned, __VA_ARGS__);       \
+      return false;                                             \
+   } while (0)
+
+static void _pedantic_error(const loc_t *loc, int *warned, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   const bool relaxed = opt_get_int(OPT_RELAXED);
+   if (!relaxed || !*warned) {
+      const diag_level_t level = relaxed ? DIAG_WARN : DIAG_ERROR;
+      diag_t *d = diag_new(level, loc);
+      diag_vprintf(d, fmt, ap);
+      if (level == DIAG_ERROR)
+         diag_hint(d, NULL, "the $bold$--relaxed$$ option downgrades this "
+                   "to a warning");
+      diag_emit(d);
+
+      *warned = 1;
+   }
+
+   va_end(ap);
+}
+
 static tree_t sem_int_lit(type_t type, int64_t i)
 {
    tree_t f = tree_new(T_LITERAL);
@@ -216,7 +243,7 @@ static bool sem_check_discrete_range(tree_t r, type_t expect, nametab_t *tab)
 
    // See LRM 93 section 3.2.1.1: universal integer bound must be a
    // numeric literal or attribute. Later LRMs relax the wording here.
-   if (standard() < STD_00 && kind != RANGE_EXPR) {
+   if (standard() < STD_00 && !relaxed_rules() && kind != RANGE_EXPR) {
       tree_t left  = tree_left(r);
       tree_t right = tree_right(r);
 
@@ -228,8 +255,7 @@ static bool sem_check_discrete_range(tree_t r, type_t expect, nametab_t *tab)
          tree_kind_t rkind = tree_kind(right);
 
          const bool invalid =
-            !(relax_rules() & RELAX_UNIVERSAL_BOUND)
-            && lkind != T_LITERAL && lkind != T_ATTR_REF
+            lkind != T_LITERAL && lkind != T_ATTR_REF
             && rkind != T_LITERAL && rkind != T_ATTR_REF;
 
          if (invalid)
@@ -1005,10 +1031,10 @@ static bool sem_check_var_decl(tree_t t, nametab_t *tab)
    }
 
    // From VHDL-2000 onwards shared variables must be protected types
-   if (standard() >= STD_00 && (tree_flags(t) & TREE_F_SHARED)
-       && !(relax_rules() & RELAX_SHARED) && type_kind(type) != T_PROTECTED) {
-      sem_error(t, "shared variable %s must have protected type",
-                istr(tree_ident(t)));
+   if (standard() >= STD_00) {
+      if ((tree_flags(t) & TREE_F_SHARED) && type_kind(type) != T_PROTECTED)
+         pedantic_error(t, "shared variable %s must have protected type",
+                        istr(tree_ident(t)));
    }
 
    return true;
@@ -1168,17 +1194,8 @@ static bool sem_check_interface_class(tree_t port)
       if (type_is_none(tree_type(value)))
          return false;
 
-      if (!sem_globally_static(value)) {
-         const diag_level_t level = (relax_rules() & RELAX_DEFAULT_STATIC)
-            ? DIAG_WARN : DIAG_ERROR;
-         diag_t *d = diag_new(level, tree_loc(value));
-         diag_printf(d, "default value must be a static expression");
-         if (level == DIAG_ERROR)
-            diag_hint(d, NULL, "the $bold$--relax=default-static$$ option "
-                      "downgrades this to a warning");
-         diag_emit(d);
-         return false;
-      }
+      if (!sem_globally_static(value))
+         pedantic_error(value, "default value must be a static expression");
 
       if (kind == T_PROTECTED)
          sem_error(port, "parameter with protected type cannot have "
@@ -2570,10 +2587,9 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
    tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
    if ((sub != NULL) && (tree_kind(sub) == T_FUNC_BODY)) {
       if (!(tree_flags(sub) & TREE_F_IMPURE)
-          && (tree_flags(decl) & TREE_F_IMPURE)
-          && !(relax_rules() & RELAX_IMPURE))
-         sem_error(t, "pure function %s cannot call impure function %s",
-                   istr(tree_ident(sub)), istr(tree_ident(decl)));
+          && (tree_flags(decl) & TREE_F_IMPURE))
+         pedantic_error(t, "pure function %s cannot call impure function %s",
+                        istr(tree_ident(sub)), istr(tree_ident(decl)));
    }
 
    if (!sem_check_call_args(t, decl))
@@ -4235,7 +4251,7 @@ static bool sem_locally_static(tree_t t)
          return sem_static_subtype(tree_type(decl), sem_locally_static)
             && sem_locally_static(value);
       }
-      else if ((standard() >= STD_08 || (relax_rules() & RELAX_LOCALLY_STATIC))
+      else if ((standard() >= STD_08 || relaxed_rules())
                && dkind == T_GENERIC_DECL) {
          // [2008] A generic reference with a locally static subtype
          return sem_static_subtype(tree_type(decl), sem_locally_static);
@@ -4347,8 +4363,7 @@ static bool sem_locally_static(tree_t t)
    if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_FIELD_DECL))
       return true;
 
-   const bool std08_rules =
-      standard() >= STD_08 || (relax_rules() & RELAX_LOCALLY_STATIC);
+   const bool std08_rules = standard() >= STD_08 || relaxed_rules();
 
    // [2008] An indexed name whose prefix and index expressions are
    // locally static
@@ -4930,11 +4945,8 @@ static bool sem_check_file_decl(tree_t t, nametab_t *tab)
 
    tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
    if (sub != NULL) {
-      const bool is_pure_func_body =
-         tree_kind(sub) == T_FUNC_BODY && !(tree_flags(sub) & TREE_F_IMPURE);
-
-      if (is_pure_func_body & !(relax_rules() & RELAX_PURE_FILES))
-         sem_error(t, "cannot declare a file object in a pure function");
+      if (tree_kind(sub) == T_FUNC_BODY && !(tree_flags(sub) & TREE_F_IMPURE))
+         pedantic_error(t, "cannot declare a file object in a pure function");
    }
 
    return true;

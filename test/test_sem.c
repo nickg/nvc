@@ -2118,7 +2118,7 @@ START_TEST(test_issue377)
 
    parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH, T_ARCH);
 
-   set_relax_rules(RELAX_PREFER_EXPLICT);
+   opt_set_int(OPT_RELAXED, 1);
 
    input_from_file(TESTDIR "/sem/issue377.vhd");
 

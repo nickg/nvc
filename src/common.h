@@ -78,6 +78,7 @@ void to_string(text_buf_t *tb, type_t type, int64_t value);
 tree_t longest_static_prefix(tree_t expr);
 tree_t body_of(tree_t pack);
 tree_t find_generic_map(tree_t unit, int pos, tree_t g);
+bool relaxed_rules(void);
 
 int fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);
@@ -139,21 +140,6 @@ typedef enum {
 } ieee_type_t;
 
 type_t ieee_type(ieee_type_t which);
-
-//
-// Disable some pedantic rule checks
-//
-
-#define RELAX_PREFER_EXPLICT  (1 << 0)
-#define RELAX_LOCALLY_STATIC  (1 << 1)
-#define RELAX_UNIVERSAL_BOUND (1 << 2)
-#define RELAX_PURE_FILES      (1 << 3)
-#define RELAX_IMPURE          (1 << 4)
-#define RELAX_SHARED          (1 << 5)
-#define RELAX_DEFAULT_STATIC  (1 << 6)
-
-int relax_rules(void);
-void set_relax_rules(int mask);
 
 //
 // Shared interned strings
