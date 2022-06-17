@@ -382,7 +382,7 @@ PACKAGE BODY VITAL_Primitives IS
     END Maximum;
 
     -----------------------------------------------------------------------
-    FUNCTION GlitchMinTime (
+    IMPURE FUNCTION GlitchMinTime (
             CONSTANT Time1, Time2 : IN TIME
           ) RETURN TIME IS
     BEGIN
@@ -1596,7 +1596,7 @@ PACKAGE BODY VITAL_Primitives IS
         RETURN (z);
     END;
 
-    FUNCTION "and"  (
+    IMPURE FUNCTION "and"  (
             CONSTANT a, b : IN SchedType
           ) RETURN SchedType IS
         VARIABLE z : SchedType;
@@ -1609,7 +1609,7 @@ PACKAGE BODY VITAL_Primitives IS
         RETURN (z);
     END;
 
-    FUNCTION "or"   (
+    IMPURE FUNCTION "or"   (
             CONSTANT a, b : IN SchedType
           ) RETURN SchedType IS
         VARIABLE z : SchedType;
@@ -1781,7 +1781,7 @@ PACKAGE BODY VITAL_Primitives IS
     --   MUX4  .......... 4-input mux; result := data(dselect)
     --   MUX8  .......... 8-input mux; result := data(dselect)
     -- ------------------------------------------------------------------------
-    FUNCTION VitalMUX2  (
+    IMPURE FUNCTION VitalMUX2  (
             CONSTANT d1, d0 : IN SchedType;
             CONSTANT sb, SI : IN SchedType
           ) RETURN SchedType IS
@@ -1789,7 +1789,7 @@ PACKAGE BODY VITAL_Primitives IS
         RETURN (d1 AND sb) OR (d0 AND (NOT SI) );
     END;
 --
-    FUNCTION VitalMUX4  (
+    IMPURE FUNCTION VitalMUX4  (
             CONSTANT Data : IN SchedArray4;
             CONSTANT sb   : IN SchedArray2;
             CONSTANT SI   : IN SchedArray2
@@ -1799,7 +1799,7 @@ PACKAGE BODY VITAL_Primitives IS
                OR ( (NOT SI(1)) AND VitalMUX2(Data(1),Data(0), sb(0), SI(0)) );
     END;
 
-    FUNCTION VitalMUX8  (
+    IMPURE FUNCTION VitalMUX8  (
             CONSTANT Data : IN SchedArray8;
             CONSTANT sb   : IN SchedArray3;
             CONSTANT SI   : IN SchedArray3
@@ -1811,7 +1811,7 @@ PACKAGE BODY VITAL_Primitives IS
                                            sb(1 DOWNTO 0), SI(1 DOWNTO 0) ) );
     END;
 --
-    FUNCTION VInterMux   (
+    IMPURE FUNCTION VInterMux   (
             CONSTANT Data : IN SchedArray;
             CONSTANT sb   : IN SchedArray;
             CONSTANT SI   : IN SchedArray
@@ -1838,7 +1838,7 @@ PACKAGE BODY VITAL_Primitives IS
         END IF;
     END;
 --
-    FUNCTION VitalMUX   (
+    IMPURE FUNCTION VitalMUX   (
             CONSTANT Data : IN SchedArray;
             CONSTANT sb   : IN SchedArray;
             CONSTANT SI   : IN SchedArray
@@ -1873,7 +1873,7 @@ PACKAGE BODY VITAL_Primitives IS
     --
     --          DECODERn  .......... n:2**n decoder
     -- ------------------------------------------------------------------------
-    FUNCTION VitalDECODER2  (
+    IMPURE FUNCTION VitalDECODER2  (
             CONSTANT DataB  : IN SchedType;
             CONSTANT DataI  : IN SchedType;
             CONSTANT Enable : IN SchedType
@@ -1885,7 +1885,7 @@ PACKAGE BODY VITAL_Primitives IS
         RETURN Result;
     END;
 
-    FUNCTION VitalDECODER4  (
+    IMPURE FUNCTION VitalDECODER4  (
             CONSTANT DataB  : IN SchedArray2;
             CONSTANT DataI  : IN SchedArray2;
             CONSTANT Enable : IN SchedType
@@ -1899,7 +1899,7 @@ PACKAGE BODY VITAL_Primitives IS
         RETURN Result;
     END;
 
-    FUNCTION VitalDECODER8  (
+    IMPURE FUNCTION VitalDECODER8  (
             CONSTANT DataB  : IN SchedArray3;
             CONSTANT DataI  : IN SchedArray3;
             CONSTANT Enable : IN SchedType
@@ -1918,7 +1918,7 @@ PACKAGE BODY VITAL_Primitives IS
     END;
 
 
-    FUNCTION VitalDECODER   (
+    IMPURE FUNCTION VitalDECODER   (
             CONSTANT DataB  : IN SchedArray;
             CONSTANT DataI  : IN SchedArray;
             CONSTANT Enable : IN SchedType
