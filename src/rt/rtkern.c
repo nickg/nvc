@@ -786,6 +786,21 @@ static rt_net_t *rt_get_net(rt_nexus_t *nexus)
    }
 }
 
+static void rt_build_index(rt_signal_t *signal)
+{
+   const unsigned nexus_w = signal->nexus.width;
+   const unsigned signal_w = signal->shared.size / signal->nexus.size;
+
+   TRACE("create index for signal %s", istr(tree_ident(signal->where)));
+
+   signal->index = ihash_new(MIN(MAX((signal_w / nexus_w) * 2, 16), 1024));
+
+   rt_nexus_t *n = &(signal->nexus);
+   for (int i = 0, offset = 0; i < signal->n_nexus;
+        i++, offset += n->width, n = n->chain)
+      ihash_put(signal->index, offset, n);
+}
+
 static void rt_clone_waveform(rt_nexus_t *nexus, waveform_t *w_new,
                               waveform_t *w_old, int offset)
 {
@@ -959,14 +974,9 @@ static rt_nexus_t *rt_clone_nexus(rt_nexus_t *old, int offset, rt_net_t *net)
       }
    }
 
-   if (signal->index == NULL && signal->n_nexus >= NEXUS_INDEX_MIN) {
-      const unsigned nexus_w = MIN(old->width, new->width);
-      const unsigned signal_w = signal->shared.size / new->size;
-      TRACE("create index for signal %s", istr(tree_ident(signal->where)));
-      signal->index = ihash_new(MIN(MAX((signal_w / nexus_w) * 2, 16), 1024));
-   }
-
-   if (signal->index != NULL) {
+   if (signal->index == NULL && signal->n_nexus >= NEXUS_INDEX_MIN)
+      rt_build_index(signal);
+   else if (signal->index != NULL) {
       const unsigned key =
          (new->resolved - (void *)signal->shared.data) / new->size;
       ihash_put(signal->index, key, new);
@@ -982,10 +992,20 @@ static rt_nexus_t *rt_split_nexus(rt_signal_t *s, int offset, int count)
       return n0;
 
    rt_nexus_t *map = NULL;
-   if (s->index != NULL && (map = ihash_get(s->index, offset))) {
-      if (likely(map->width == count))
-         return map;
-      offset = 0;
+   if (s->index != NULL) {
+      if ((map = ihash_get(s->index, offset))) {
+         if (likely(map->width == count))
+            return map;
+         offset = 0;
+      }
+      else {
+         // Try to find the nexus preceding this offset in the index
+         uint64_t key = offset;
+         if ((map = ihash_less(s->index, &key))) {
+            assert(key < offset);
+            offset -= key;
+         }
+      }
    }
 
    rt_nexus_t *result = NULL;
@@ -1042,9 +1062,6 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
 
       const int stride = MAX_NEXUS_WIDTH;
 
-      if (count / stride >= NEXUS_INDEX_MIN)
-         s->index = ihash_new(MAX((count / stride) * 2, 16));
-
       s->nexus.width = stride;
 
       for (int p = stride; p < count; p += stride) {
@@ -1059,9 +1076,10 @@ static void rt_setup_signal(rt_signal_t *s, tree_t where, unsigned count,
 
          *nexus_tail = n;
          nexus_tail = &(n->chain);
-
-         if (s->index) ihash_put(s->index, p, n);
       }
+
+      if (s->n_nexus >= NEXUS_INDEX_MIN)
+         rt_build_index(s);
    }
 
    profile.n_signals++;
