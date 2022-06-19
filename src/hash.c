@@ -295,6 +295,8 @@ struct _ihash {
    void     **values;
    uint64_t  *keys;
    uint64_t  *mask;
+   uint64_t   cachekey;
+   void      *cacheval;
 };
 
 static inline int ihash_slot(ihash_t *h, uint64_t key)
@@ -365,6 +367,9 @@ void ihash_put(ihash_t *h, uint64_t key, void *value)
       free(old_values);
    }
 
+   h->cachekey = key;
+   h->cacheval = value;
+
    int slot = ihash_slot(h, key);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
@@ -385,13 +390,18 @@ void ihash_put(ihash_t *h, uint64_t key, void *value)
 
 void *ihash_get(ihash_t *h, uint64_t key)
 {
+   if (h->members > 0 && key == h->cachekey)
+      return h->cacheval;
+
+   h->cachekey = key;
+
    int slot = ihash_slot(h, key);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
       if (!(h->mask[slot / 64] & (UINT64_C(1) << (slot % 64))))
-         return NULL;
+         return (h->cacheval = NULL);
       else if (h->keys[slot] == key)
-         return h->values[slot];
+         return (h->cacheval = h->values[slot]);
    }
 }
 

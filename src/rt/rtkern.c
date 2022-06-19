@@ -992,7 +992,7 @@ static rt_nexus_t *rt_split_nexus(rt_signal_t *s, int offset, int count)
       return n0;
 
    rt_nexus_t *map = NULL;
-   if (s->index != NULL) {
+   if (s->index != NULL && offset > 0) {
       if ((map = ihash_get(s->index, offset))) {
          if (likely(map->width == count))
             return map;
