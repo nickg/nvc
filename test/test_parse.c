@@ -2762,6 +2762,12 @@ START_TEST(test_expr)
 
    input_from_file(TESTDIR "/parse/expr.vhd");
 
+   const error_t expect[] = {
+      { 37, "unexpected + while parsing primary" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -2775,11 +2781,11 @@ START_TEST(test_expr)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 1);
+   fail_unless(tree_stmts(a) == 2);
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 13);
+   fail_unless(tree_stmts(p) == 14);
 
    e = tree_value(tree_stmt(p, 0));
    fail_unless(tree_kind(e) == T_FCALL);
@@ -2829,10 +2835,24 @@ START_TEST(test_expr)
    fail_unless(tree_subkind(tree_assoc(e, 0)) == A_NAMED);
    fail_unless(tree_subkind(tree_assoc(e, 1)) == A_RANGE);
 
+   // See note under LRM 93 section 7.2.5
+   e = tree_value(tree_stmt(p, 13));
+   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_ident(e) == ident_new("\"+\""));
+   fail_unless(tree_params(e) == 2);
+   e = tree_value(tree_param(e, 0));
+   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_ident(e) == ident_new("\"-\""));
+   fail_unless(tree_params(e) == 1);
+   e = tree_value(tree_param(e, 0));
+   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_ident(e) == ident_new("\"*\""));
+   fail_unless(tree_params(e) == 2);
+
    a = parse();
    fail_unless(a == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 

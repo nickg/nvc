@@ -28,6 +28,14 @@ begin
         q(1) := work.foo."and"(1, 2);
         q(q'range) := q;
         q := (1 => '1', v'range => '0');
+        x := -3 * 4 + 2;
+    end process;
+
+    process is
+        variable x, y, z : integer;
+    begin
+        x := y/+z;                      -- Error
+        x := y**-z;                     -- Error
     end process;
 
 end architecture;
