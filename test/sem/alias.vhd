@@ -81,5 +81,14 @@ architecture test of e is
     alias c2_alias is c3;               -- Error (in '93)
 
     constant c4 : integer := int_vector;  -- Error
+
+    type line is access string;
+    procedure access_alias ( variable p : inout line ) is
+        variable l : line;
+        alias a : string(1 to 3) is l.all;  -- Error
+        alias b : string(1 to p'length) is p.all;  -- Error
+    begin
+    end procedure;
+
 begin
 end architecture;

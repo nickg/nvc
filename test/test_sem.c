@@ -1163,6 +1163,8 @@ START_TEST(test_alias)
       { 68, "unexpected identifier while parsing subtype declaration" },
       { 81, "object alias may not have multidimensional array type" },
       { 83, "invalid use of alias INT_VECTOR" },
+      { 88, "aliased name is not static" },
+      { 89, "aliased name is not static" },
       { -1, NULL }
    };
    expect_errors(expect);

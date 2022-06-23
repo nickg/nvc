@@ -519,7 +519,7 @@ class_t class_of(tree_t t)
    case T_ELAB:
       return C_ELAB;
    default:
-      fatal("missing class_of for %s", tree_kind_str(tree_kind(t)));
+      fatal_trace("missing class_of for %s", tree_kind_str(tree_kind(t)));
    }
 }
 

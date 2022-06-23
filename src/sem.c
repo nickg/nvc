@@ -1141,8 +1141,13 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
       if (!sem_check(value, tab))
          return false;
 
-      if (!sem_static_name(value, sem_globally_static))
-         sem_error(value, "aliased name is not static");
+      if (!sem_static_name(value, sem_globally_static)) {
+         diag_t *d = diag_new(DIAG_ERROR, tree_loc(value));
+         diag_printf(d, "aliased name is not static");
+         diag_lrm(d, STD_93, "6.1");
+         diag_emit(d);
+         return false;
+      }
 
       if (type != NULL) {
          // Alias declaration had optional subtype indication
@@ -4451,7 +4456,6 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
       return true;
 
    case T_RECORD_REF:
-   case T_ALL:
       return sem_static_name(tree_value(t), check_fn);
 
    case T_ARRAY_REF:
