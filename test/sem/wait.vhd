@@ -66,4 +66,8 @@ begin
         wait on z(i);                   -- Not static
     end process;
 
+    process (now) is                      -- Error
+    begin
+    end process;
+
 end architecture;

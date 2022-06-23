@@ -1546,7 +1546,7 @@ static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
       // Can only reference signals in sensitivity list
       tree_t decl = sem_check_lvalue(r);
       if (decl == NULL)
-         sem_error(r, "not a sutiable l-value");
+         sem_error(r, "name in sensitivity list is not a static signal name");
 
       switch (tree_kind(decl)) {
       case T_SIGNAL_DECL:
@@ -1570,7 +1570,8 @@ static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
       }
 
       if (!sem_static_name(r, sem_globally_static))
-         sem_error(r, "name in sensitivity list is not static");
+         sem_error(r, "name %s in sensitivity list is not static",
+                   istr(tree_ident(decl)));
    }
 
    return true;
