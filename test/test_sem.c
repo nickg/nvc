@@ -446,7 +446,7 @@ START_TEST(test_array)
       { 272, "no matching operator \"<\" [INT2D, INT2D" },
       { 277, "no visible declaration for NOT_HERE" },
       { 279, "variable A2 cannot have unconstrained type NUM_ARRAY" },
-      { 285, "object K does not have a range" },
+      { 285, "name K in discrete range does not refer to a type" },
       { 295, "type of index universal_integer does not match" },
       { 343, "invalid character 'f' in string literal of type BIT_VECTOR" },
       { 365, "cannot change constraints of constrained array type TEN_INTS" },
@@ -2257,6 +2257,7 @@ START_TEST(test_resolution)
    const error_t expect[] = {
       {  6, "no visible subprogram declaration for BIT_VECTOR" },
       { 10, "type mark VEC does not refer to a type" },
+      { 10, "expecting a discrete range" },
       { 10, "unexpected identifier while parsing subtype declaration" },
       { 17, "non-record type MY_UTYPE_VECTOR may not have record element" },
       { 29, "non-composite type MY_UTYPE may not have element resolution" },

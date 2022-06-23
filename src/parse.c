@@ -2699,17 +2699,34 @@ static tree_t p_discrete_range(tree_t head)
 
    default:
       {
-         if (tree_kind(expr1) != T_ATTR_REF) {
-            tree_t tmp = tree_new(T_ATTR_REF);
-            tree_set_name(tmp, expr1);
-            tree_set_ident(tmp, ident_new("RANGE"));
-            tree_set_loc(tmp, tree_loc(expr1));
-            tree_set_subkind(tmp, ATTR_RANGE);
+         type_t type = solve_types(nametab, expr1, NULL);
 
-            expr1 = tmp;
+         if (tree_kind(expr1) == T_ATTR_REF)
+            return p_range(expr1);   // Special attributes such as 'RANGE
+         else if (tree_kind(expr1) == T_REF && tree_has_ref(expr1)) {
+            // A type name T may stand in for a discrete range
+            // equivalent to T'RANGE
+            if (aliased_type_decl(tree_ref(expr1)) != NULL) {
+               tree_t tmp = tree_new(T_ATTR_REF);
+               tree_set_name(tmp, expr1);
+               tree_set_ident(tmp, ident_new("RANGE"));
+               tree_set_loc(tmp, tree_loc(expr1));
+               tree_set_subkind(tmp, ATTR_RANGE);
+
+               return p_range(tmp);
+            }
+            else
+               parse_error(CURRENT_LOC, "name %s in discrete range does not "
+                           "refer to a type", istr(tree_ident(expr1)));
          }
+         else if (!type_is_none(type))
+            parse_error(CURRENT_LOC, "expecting a discrete range");
 
-         return p_range(expr1);
+         // Not a valid discrete range
+         tree_t r = tree_new(T_RANGE);
+         tree_set_loc(r, CURRENT_LOC);
+         tree_set_subkind(r, RANGE_ERROR);
+         return r;
       }
    }
 }
