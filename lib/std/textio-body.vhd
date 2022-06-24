@@ -19,6 +19,18 @@ use nvc.polyfill.all;
 
 package body textio is
 
+    function get_slice (str : in string; ifrom, ito : positive) return string is
+        alias astr : string(1 to str'length) is str;
+    begin
+        return astr(ifrom to ito);
+    end function;
+
+    function get_char (str : in string; nth : in positive) return character is
+        alias astr : string(1 to str'length) is str;
+    begin
+        return astr(nth);
+    end function;
+
     procedure grow (l        : inout line;
                     extra    : in natural;
                     old_size : out natural ) is
@@ -60,7 +72,7 @@ package body textio is
         else
             assert nchars <= l'length;
             tmp := new string(1 to l'length - nchars);
-            tmp.all := l.all(1 + nchars to l'length);
+            tmp.all := get_slice(l.all, 1 + nchars, l'length);
         end if;
         deallocate(l);
         l := tmp;
@@ -76,7 +88,7 @@ package body textio is
         variable skip : natural := 0;
     begin
         if l /= null then
-            while skip < l'length and is_whitespace(l.all(1 + skip)) loop
+            while skip < l'length and is_whitespace(get_char(l.all, skip + 1)) loop
                 skip := skip + 1;
             end loop;
             consume(l, skip);
@@ -186,11 +198,11 @@ package body textio is
     begin
         good := false;
         skip_whitespace(l);
-        if l.all'length >= 4 and strcasecmp(l.all(1 to 4), "true") then
+        if l.all'length >= 4 and strcasecmp(get_slice(l.all, 1, 4), "true") then
             consume(l, 4);
             good := true;
             value := true;
-        elsif l.all'length >= 5 and strcasecmp(l.all(1 to 5), "false") then
+        elsif l.all'length >= 5 and strcasecmp(get_slice(l.all, 1, 5), "false") then
             consume(l, 5);
             good := true;
             value := false;
@@ -211,7 +223,7 @@ package body textio is
                     good  : out boolean ) is
     begin
         if l /= null and l'length > 0 then
-            value := l.all(1);
+            value := get_char(l.all, 1);
             consume(l, 1);
             good := true;
         else
@@ -231,15 +243,16 @@ package body textio is
     procedure read (l     : inout line;
                     value : out integer;
                     good  : out boolean ) is
-        variable pos : integer := 1;
-        variable digit : integer;
-        variable result : integer := 0;
+        variable pos         : integer := 1;
+        variable digit       : integer;
+        variable result      : integer := 0;
         variable is_negative : boolean := false;
+        variable peek        : character;
     begin
         skip_whitespace(l);
 
-        if pos <= l.all'right then
-            case l.all(pos) is
+        if pos <= l.all'length then
+            case get_char(l.all, pos) is
                 when '-' =>
                     pos := pos + 1;
                     is_negative := true;
@@ -249,9 +262,10 @@ package body textio is
             end case;
         end if;
 
-        while pos <= l.all'right loop
-            exit when l.all(pos) < '0' or l.all(pos) > '9';
-            digit := character'pos(l.all(pos)) - character'pos('0');
+        while pos <= l.all'length loop
+            peek := get_char(l.all, pos);
+            exit when peek < '0' or peek > '9';
+            digit := character'pos(peek) - character'pos('0');
             if is_negative then
               digit := -digit;
             end if;
@@ -285,13 +299,15 @@ package body textio is
         variable exponent : integer;
         variable result   : real;
         variable digit    : integer;
-        variable shift    : real    := 0.1;
+        variable shift    : integer := 1;
         variable pos      : integer := 2;
         variable sign     : character;
         variable rgood    : boolean;
+        variable peek     : character;
     begin
         skip_whitespace(l);
-        if l.all'length > 0 and (l.all(1) = '-' or l.all(1) = '+') then
+        peek := get_char(l.all, 1);
+        if l.all'length > 0 and (peek = '-' or peek = '+') then
             sign := l.all(1);
             consume(l, 1);
         end if;
@@ -302,26 +318,29 @@ package body textio is
         end if;
         result := real(whole);
         good := true;
-        if l.all'length > 0 and l.all(1) = '.' then
-            while pos <= l.all'right loop
-                exit when l.all(pos) < '0' or l.all(pos) > '9';
-                digit := character'pos(l.all(pos)) - character'pos('0');
-                result := result + (real(digit) * shift);
-                shift := shift / 10.0;
+        if l.all'length > 0 and get_char(l.all, 1) = '.' then
+            while pos <= l.all'length loop
+                peek := get_char(l.all, pos);
+                exit when peek < '0' or peek > '9';
+                digit := character'pos(peek) - character'pos('0');
+                result := result + (real(digit) * (10.0 ** (-shift)));
+                shift := shift + 1;
                 pos := pos + 1;
             end loop;
             good := pos > 2;
             consume(l, pos - 1);
         end if;
-        if l.all'length > 0 and (l.all(1) = 'e' or l.all(1) = 'E') then
-            consume(l, 1);
-            read(l, exponent, rgood);
-            report integer'image(exponent);
-            if not rgood then
-                good := false;
-                return;
+        if l.all'length > 0 then
+            peek := get_char(l.all, 1);
+            if (peek = 'e' or peek = 'E') then
+                consume(l, 1);
+                read(l, exponent, rgood);
+                if not rgood then
+                    good := false;
+                    return;
+                end if;
+                result := result * (10.0 ** exponent);
             end if;
-            result := result * (10.0 ** exponent);
         end if;
         if sign = '-' then
             value := -result;
@@ -344,7 +363,7 @@ package body textio is
                     good  : out boolean ) is
     begin
         if l /= null and value'length <= l'length then
-            value := l.all(1 to value'length);
+            value := get_slice(l.all, 1, value'length);
             consume(l, value'length);
             good := true;
         else
@@ -395,7 +414,7 @@ package body textio is
         for i in unit_map'range loop
             len := unit_map(i).length;
             if l'length >= len
-                and strcasecmp(l.all(1 to len), unit_map(i).name(1 to len))
+                and strcasecmp(get_slice(l.all, 1, len), unit_map(i).name(1 to len))
             then
                 value := scale * unit_map(i).unit;
                 consume(l, len);
