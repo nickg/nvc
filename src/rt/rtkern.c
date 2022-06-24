@@ -1913,7 +1913,7 @@ DLLEXPORT
 void _real_to_string(double value, ffi_uarray_t *u)
 {
    char *buf = rt_tlab_alloc(32);
-   size_t len = checked_sprintf(buf, 32, "%.*g", 17, value);
+   size_t len = checked_sprintf(buf, 32, "%.*g", DBL_DIG, value);
 
    *u = wrap_str(buf, len);
 }
