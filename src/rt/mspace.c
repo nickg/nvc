@@ -288,6 +288,9 @@ void tlab_release(tlab_t *t)
 
    MSPACE_POISON(t->base, t->limit - t->base);
 
+   int line = ((char *)t->base - t->mspace->space) / LINE_SIZE;
+   mask_set_range(&(t->mspace->headmask), line, TLAB_SIZE / LINE_SIZE);
+
    mptr_free(t->mspace, &(t->mptr));
    *t = (tlab_t){};
 }
