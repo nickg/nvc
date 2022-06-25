@@ -2489,14 +2489,18 @@ static bool sem_check_params(tree_t t, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_call_args(tree_t t, tree_t decl)
+static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
 {
    const int nparams = tree_params(t);
    const int nports  = tree_ports(decl);
 
-   if (is_uninstantiated_subprogram(decl))
-      sem_error(t, "cannot call uninstantiated %s %s",
-                class_str(class_of(decl)), istr(tree_ident(decl)));
+   if (is_uninstantiated_subprogram(decl)) {
+      // Allow recursive calls to the same subprogram
+      tree_t sub = find_enclosing(tab, S_SUBPROGRAM);
+      if (sub != decl)
+         sem_error(t, "cannot call uninstantiated %s %s",
+                   class_str(class_of(decl)), istr(tree_ident(decl)));
+   }
 
    if (nparams > nports)
       sem_error(t, "expected %d argument%s for subprogram %s but have %d",
@@ -2634,7 +2638,7 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
                         istr(tree_ident(sub)), istr(tree_ident(decl)));
    }
 
-   if (!sem_check_call_args(t, decl))
+   if (!sem_check_call_args(t, decl, tab))
       return false;
 
    if (!sem_copy_default_args(t, decl))
@@ -2671,7 +2675,7 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
       return false;
    }
 
-   if (!sem_check_call_args(t, decl))
+   if (!sem_check_call_args(t, decl, tab))
       return false;
 
    if (!sem_copy_default_args(t, decl))

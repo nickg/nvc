@@ -2044,6 +2044,10 @@ static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)
    const int nports = tree_ports(body_copy);
    for (int i = 0; i < nports; i++)
       tree_add_port(new, tree_port(body_copy, i));
+
+   // Allow recursive calls to the uninstantiated subprogram
+   map_generic_subprogram(nametab, decl_copy, new);
+   map_generic_subprogram(nametab, body_copy, new);
 }
 
 static void instantiate_package(tree_t new, tree_t pack, tree_t body)
@@ -4705,6 +4709,9 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
    add_interface(parent, d, kind);
    sem_check(d, nametab);
 
+   // Type generics are immediately visible
+   insert_name(nametab, d, NULL, 0);
+
    // LRM 08 section 6.5.3: the predefined equality and inequality
    // operators are implicitly declared as formal generic subprograms
    // immediately following the interface type declaration in the
@@ -4748,10 +4755,8 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
       tree_set_value(p, box);
 
       add_interface(parent, p, kind);
+      insert_name(nametab, p, NULL, 0);
    }
-
-   // Type generics are immediately visible
-   insert_name(nametab, d, NULL, 0);
 }
 
 static tree_t p_interface_function_specification(void)
@@ -6104,12 +6109,24 @@ static tree_t p_subprogram_instantiation_declaration(void)
 
    require_std(STD_08, "subprogram instantiation declarations");
 
-   ident_t id = p_designator();
+   tree_t name = p_name(N_SUBPROGRAM | N_TYPE);
 
-   tree_t decl = resolve_name(nametab, CURRENT_LOC, id);
+   type_t constraint = NULL;
+   if (peek() == tLSQUARE)
+      constraint = p_signature();
+
+   type_t type = solve_types(nametab, name, constraint);
+
+   const tree_kind_t namek = tree_kind(name);
+   tree_t decl = NULL;
+   if ((namek == T_REF || namek == T_FCALL) && tree_has_ref(name))
+      decl = tree_ref(name);
+   else if (!type_is_none(type))
+      parse_error(CURRENT_LOC, "expecting uninstantiated subprogram name");
+
    if (decl != NULL && !is_uninstantiated_subprogram(decl)) {
       parse_error(CURRENT_LOC, "%s %s is not an uninstantiated subprogram",
-                  class_str(class_of(decl)), istr(id));
+                  class_str(class_of(decl)), istr(tree_ident(name)));
       decl = NULL;
    }
 
@@ -6123,7 +6140,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
          tree_t pack = tree_container(decl);
          if (tree_kind(pack) == T_PACKAGE) {
             tree_t pack_body = body_of(pack), d;
-            type_t type = tree_type(decl);
+            ident_t id = tree_ident(decl);
             for (int nth = 0; (d = search_decls(pack_body, id, nth)); nth++) {
                if (is_subprogram(d) && type_eq(tree_type(d), type)) {
                   body = d;
@@ -6135,7 +6152,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
 
       if (body == NULL)
          parse_error(CURRENT_LOC, "subprogram %s cannot be instantiated until "
-                     "its body has been analysed", istr(id));
+                     "its body has been analysed", istr(tree_ident(decl)));
       else
          tree_set_ref(inst, body);
    }
@@ -6149,9 +6166,6 @@ static tree_t p_subprogram_instantiation_declaration(void)
          type_set_result(type, type_new(T_NONE));
       tree_set_type(inst, type);
    }
-
-   if (peek() == tLSQUARE)
-      (void)p_signature();  // TODO
 
    if (peek() == tGENERIC)
       p_generic_map_aspect(inst, inst);
@@ -6851,7 +6865,7 @@ static void p_subprogram_declarative_item(tree_t sub)
    //   | subtype_declaration | constant_declaration | variable_declaration
    //   | file_declaration | alias_declaration | attribute_declaration
    //   | attribute_specification | use_clause | group_template_declaration
-   //   | group_declaration
+   //   | group_declaration | 2008: subprogram_instantiation_declaration
 
    BEGIN("subprogram delcarative item");
 
@@ -6876,7 +6890,9 @@ static void p_subprogram_declarative_item(tree_t sub)
    case tPROCEDURE:
    case tIMPURE:
    case tPURE:
-      {
+      if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
+         tree_add_decl(sub, p_subprogram_instantiation_declaration());
+      else {
          push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          tree_set_flag(spec, tree_flags(sub) & TREE_F_PROTECTED);

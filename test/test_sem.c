@@ -2737,6 +2737,8 @@ START_TEST(test_gensub)
       { 42, "no visible subprogram \"+\" matches signature [T, T return T]" },
       { 44, "cannot call uninstantiated function ADDER" },
       { 50, "cannot call uninstantiated procedure DO_STUFF" },
+      { 57, "no matching operator \"+\" [Q, T return Q]" },
+      { 60, "actual associated with generic Y must be a globally static" },
       { -1, NULL }
    };
    expect_errors(expect);

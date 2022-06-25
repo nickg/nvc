@@ -398,17 +398,14 @@ void map_generic_type(nametab_t *tab, type_t generic, type_t actual)
    hash_put(tab->top_scope->gmap, generic, actual);
 }
 
-void map_generic_subprogram(nametab_t *tab, tree_t generic, tree_t actual)
+void map_generic_subprogram(nametab_t *tab, tree_t decl, tree_t actual)
 {
-   assert(tree_kind(generic) == T_GENERIC_DECL);
-   assert(tree_class(generic) == C_FUNCTION
-          || tree_class(generic) == C_PROCEDURE);
    assert(is_subprogram(actual));
 
    if (tab->top_scope->gmap == NULL)
       tab->top_scope->gmap = hash_new(128, true);
 
-   hash_put(tab->top_scope->gmap, generic, actual);
+   hash_put(tab->top_scope->gmap, decl, actual);
 }
 
 void map_generic_package(nametab_t *tab, tree_t inst)

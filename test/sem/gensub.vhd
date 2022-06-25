@@ -50,4 +50,18 @@ begin
         do_stuff;  -- Error
     end block;
 
+    b4: block is
+        function outer generic (type t) (x : t) return t is
+            function inner generic (type q; y : q) return q is
+            begin
+                return y + t;  -- Error
+            end function;
+
+            function inner_inst is new inner generic map (q => t, y => x); -- Error
+        begin
+            return inner_inst;
+        end function;
+     begin
+     end block;
+
 end architecture;

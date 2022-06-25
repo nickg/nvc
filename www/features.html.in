@@ -25,7 +25,7 @@ table below.
   </tr>
   <tr>
     <td>Subprogram generics</td>
-    <td class="feature-missing"></td>
+    <td class="feature-partial">master</td>
   </tr>
   <tr>
     <td>Generic types</td>
