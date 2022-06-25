@@ -126,7 +126,7 @@ package body textio is
         good := false;
         skip_whitespace(l);
         if l /= null and l.all'length > 0 then
-            case l.all(l'left) is
+            case get_char(l.all, 1) is
                 when '0' =>
                     value := '0';
                     good := true;
@@ -164,7 +164,7 @@ package body textio is
                     good := false;
                     exit outer;
                 end if;
-                char := l.all(consumed + 1);
+                char := get_char(l.all, consumed + 1);
                 exit when not is_whitespace(char);
                 consumed := consumed + 1;
             end loop;
@@ -308,7 +308,7 @@ package body textio is
         skip_whitespace(l);
         peek := get_char(l.all, 1);
         if l.all'length > 0 and (peek = '-' or peek = '+') then
-            sign := l.all(1);
+            sign := get_char(l.all, 1);
             consume(l, 1);
         end if;
         read(l, whole, rgood);
@@ -435,13 +435,15 @@ package body textio is
     procedure sread (l      : inout line;
                      value  : out   string;
                      strlen : out   natural) is
-        variable pos : integer := 1;
-        alias avalue : string(1 to value'length) is value;
+        variable pos  : integer := 1;
+        variable peek : character;
+        alias avalue  : string(1 to value'length) is value;
     begin
         skip_whitespace(l);
         while pos <= l'right and pos <= avalue'right loop
-            exit when is_whitespace(l.all(pos));
-            avalue(pos) := l.all(pos);
+            peek := get_char(l.all, pos);
+            exit when is_whitespace(peek);
+            avalue(pos) := peek;
             pos := pos + 1;
         end loop;
         consume(l, pos - 1);
@@ -464,7 +466,7 @@ package body textio is
         avalue := (others => '0');
         skip_whitespace(l);
         while ipos <= l'right and opos <= digits'right loop
-            char := l.all(ipos);
+            char := get_char(l.all, ipos);
             ipos := ipos + 1;
             if char = '_' and underscore then
                 underscore := false;
@@ -536,7 +538,7 @@ package body textio is
         avalue := (others => '0');
         skip_whitespace(l);
         while ipos <= l'right and opos <= digits'right loop
-            char := l.all(ipos);
+            char := get_char(l.all, ipos);
             ipos := ipos + 1;
             if char = '_' and underscore then
                 underscore := false;

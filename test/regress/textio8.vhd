@@ -17,6 +17,7 @@ begin
         variable b : boolean;
         variable r : real;
         variable t : time;
+        variable v : bit_vector(8 downto 1);
     begin
         l := new string(5 to 10);
         l.all := "123 45";
@@ -65,6 +66,16 @@ begin
         assert l.all = "hello";
         assert l'left = 1;
         assert s'left = 5;
+
+        l := new string(80 downto 73);
+        l.all := X"ab";
+        read(l, v);
+        assert v = X"ab";
+
+        l := new string(4 to 9);
+        l.all := "-2.000";
+        read(l, r);
+        assert r = -2.0;
 
         wait;
     end process;
