@@ -251,9 +251,15 @@ jobs:
           echo /opt/nvc-${{ steps.version.outputs.version }}/bin >> $GITHUB_PATH
       - name: Check --version output
         run: nvc --version
-      - name: Run VUnit examples
+      - name: Run uart example
         run: |
           export VUNIT_SIMULATOR=nvc
           export PYTHONPATH=$(pwd)/vunit
           cd vunit/examples/vhdl/uart
+          python3 run.py
+      - name: Run axi_dma example
+        run: |
+          export VUNIT_SIMULATOR=nvc
+          export PYTHONPATH=$(pwd)/vunit
+          cd vunit/examples/vhdl/axi_dma
           python3 run.py
