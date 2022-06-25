@@ -3138,17 +3138,21 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
 
    // If the prefix is a reference to a function then convert it to a
    // call unless it matches the name of the enclosing subprogram
-   const tree_kind_t prefix_kind = tree_kind(prefix);
+   tree_kind_t prefix_kind = tree_kind(prefix);
    if ((*mask & N_FUNC) && prefix_kind == T_REF) {
       ident_t id = tree_ident(prefix);
       tree_t sub = find_enclosing(nametab, S_SUBPROGRAM);
       if (sub != NULL && tree_ident(sub) == id)
          tree_set_ref(prefix, sub);
-      else
+      else {
          prefix = p_function_call(id, NULL);
+         prefix_kind = T_FCALL;
+      }
    }
-   else if (prefix_kind == T_PROT_REF)
+   else if (prefix_kind == T_PROT_REF) {
       prefix = p_function_call(tree_ident(prefix), tree_value(prefix));
+      prefix_kind = T_FCALL;
+   }
 
    consume(tDOT);
    *mask = 0;
@@ -3213,6 +3217,7 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
    if (type_is_access(type)) {
       prefix = implicit_dereference(prefix);
       type   = tree_type(prefix);
+      prefix_kind = T_ALL;
    }
 
    if (type_kind(type) == T_INCOMPLETE) {
@@ -3245,12 +3250,14 @@ static tree_t p_selected_name(tree_t prefix, name_mask_t *mask)
    else if (prefix_kind == T_REF) {
       parse_error(tree_loc(prefix), "object %s with type %s cannot be selected",
                   istr(tree_ident(prefix)), type_pp(type));
+      tree_set_type(prefix, type_new(T_NONE));
       *mask |= N_ERROR;
       return prefix;
    }
    else {
       parse_error(tree_loc(prefix), "object with type %s cannot be selected",
                   type_pp(type));
+      tree_set_type(prefix, type_new(T_NONE));
       *mask |= N_ERROR;
       return prefix;
    }

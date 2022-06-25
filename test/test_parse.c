@@ -4536,6 +4536,31 @@ START_TEST(test_range1)
 }
 END_TEST
 
+START_TEST(test_error9)
+{
+   input_from_file(TESTDIR "/parse/error9.vhd");
+
+   const error_t expect[] = {
+      { 13, "object with type STRING cannot be selected" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -4619,6 +4644,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_issue468);
    tcase_add_test(tc_core, test_names3);
    tcase_add_test(tc_core, test_range1);
+   tcase_add_test(tc_core, test_error9);
    suite_add_tcase(s, tc_core);
 
    return s;
