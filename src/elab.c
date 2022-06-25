@@ -690,6 +690,67 @@ static void elab_hint_fn(diag_t *d, void *arg)
    }
 }
 
+static tree_t elab_unconstrained_port(tree_t port, tree_t map, elab_ctx_t *ctx)
+{
+   type_t type = tree_type(tree_value(map));
+
+   tree_t name = NULL;
+   if (tree_subkind(map) == P_NAMED) {
+      switch (tree_kind((name = tree_name(map)))) {
+      case T_REF:
+         break;
+      case T_ARRAY_REF:
+         {
+            // The name is of the form X(I) so use this to derive
+            // the bounds of a single-element array
+            type = type_new(T_SUBTYPE);
+            type_set_base(type, tree_type(port));
+
+            tree_t left = tree_value(tree_param(name, 0));
+
+            tree_t r = tree_new(T_RANGE);
+            tree_set_subkind(r, RANGE_TO);
+            tree_set_left(r, left);
+            tree_set_right(r, left);
+
+            tree_t cons = tree_new(T_CONSTRAINT);
+            tree_set_subkind(cons, C_INDEX);
+            tree_add_range(cons, r);
+
+            type_add_constraint(type, cons);
+         }
+         break;
+      default:
+         error_at(tree_loc(name), "invalid formal name for unconstrained "
+                  "port %s", istr(tree_ident(port)));
+      }
+   }
+
+   tree_t p2 = tree_new(T_PORT_DECL);
+   tree_set_ident(p2, tree_ident(port));
+   tree_set_loc(p2, tree_loc(port));
+   tree_set_subkind(p2, tree_subkind(port));
+   tree_set_type(p2, type);
+   tree_set_class(p2, tree_class(port));
+
+   if (name != NULL) {
+      tree_t ref = name_to_ref(name);
+      assert(ref != NULL);
+      assert(tree_ref(ref) == port);
+
+      tree_set_ref(ref, p2);
+      tree_set_type(ref, type);
+   }
+
+   // Abusing the generic rewriting mechanism to replace all
+   // references to the unconstrained port
+   if (ctx->generics == NULL)
+      ctx->generics = hash_new(64, true);
+   hash_put(ctx->generics, port, p2);
+
+   return p2;
+}
+
 static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
 {
    const int nports = tree_ports(entity);
@@ -844,22 +905,8 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
          tree_add_param(ctx->out, map);
       }
 
-      if (type_is_unconstrained(tree_type(p))) {
-         tree_t p2 = tree_new(T_PORT_DECL);
-         tree_set_ident(p2, tree_ident(p));
-         tree_set_loc(p2, tree_loc(p));
-         tree_set_subkind(p2, tree_subkind(p));
-         tree_set_type(p2, tree_type(tree_value(map)));
-         tree_set_class(p2, tree_class(p));
-
-         // Abusing the generic rewriting mechanism to replace all
-         // references to the unconstrained port
-         if (ctx->generics == NULL)
-            ctx->generics = hash_new(64, true);
-         hash_put(ctx->generics, p, p2);
-
-         tree_add_port(ctx->out, p2);
-      }
+      if (type_is_unconstrained(tree_type(p)))
+         tree_add_port(ctx->out, elab_unconstrained_port(p, map, ctx));
       else
          tree_add_port(ctx->out, p);
    }
