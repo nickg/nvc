@@ -53,7 +53,7 @@ typedef struct _jit_interp {
       }                                                                 \
    } while (0)
 #else
-#define JIT_ASSERT(state, expr, fmt, ...)
+#define JIT_ASSERT(expr)
 #endif
 
 #define FOR_EACH_SIZE(sz, macro) do {                   \
