@@ -64,4 +64,19 @@ begin
      begin
      end block;
 
+     b5: block is
+         function test1 generic (x : integer) return integer;
+         function test1 generic (x : real) return integer is  -- Error
+         begin
+            return 1;
+         end function;
+
+         function test2 generic (x : integer) return integer;
+         function test2 generic (x, y : real) return integer is  -- Error
+         begin
+            return 1;
+         end function;
+     begin
+     end block;
+
 end architecture;

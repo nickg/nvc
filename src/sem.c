@@ -1292,6 +1292,142 @@ static bool sem_check_func_decl(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_compare_interfaces(tree_t dport, tree_t bport,
+                                   int nth, tree_t body, const char *what)
+{
+   ident_t dname = tree_ident(dport);
+   ident_t bname = tree_ident(bport);
+
+   if (dname != bname) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+      diag_printf(d, "%s name %s in subprogram %s body does not match "
+                  "name %s in declaration", what,
+                  istr(bname), istr(tree_ident(body)), istr(dname));
+      diag_hint(d, tree_loc(dport), "%s %s has name %s in specification",
+                ordinal_str(nth + 1), what, istr(dname));
+      diag_hint(d, tree_loc(bport), "%s %s has name %s in body",
+                ordinal_str(nth + 1), what, istr(bname));
+      diag_emit(d);
+      return false;
+   }
+
+   type_t dtype = tree_type(dport);
+   type_t btype = tree_type(bport);
+
+   // Do not use type_eq here as subtype must exactly match
+   if (!type_strict_eq(btype, dtype)) {
+     diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+     diag_printf(d, "subtype of %s %s does not match type %s in "
+                 "specification", what, istr(bname), type_pp(dtype));
+     diag_hint(d, tree_loc(dport), "%s %s declared with type %s",
+               what, istr(dname), type_pp(dtype));
+     diag_hint(d, tree_loc(bport), "%s %s declared with type %s ",
+               what, istr(bname), type_pp(btype));
+     diag_emit(d);
+     return false;
+   }
+
+   const port_mode_t dmode = tree_subkind(dport);
+   const port_mode_t bmode = tree_subkind(bport);
+
+   if (dmode != bmode) {
+     diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+     diag_printf(d, "%s %s of subprogram body %s with mode %s does not "
+                 "match mode %s in specification", what, istr(dname),
+                 istr(tree_ident(body)), port_mode_str(bmode),
+                 port_mode_str(dmode));
+     diag_hint(d, tree_loc(dport), "%s %s declared with mode %s",
+               what, istr(dname), port_mode_str(dmode));
+     diag_hint(d, tree_loc(bport), "%s %s declared with mode %s",
+               what, istr(bname), port_mode_str(bmode));
+     diag_emit(d);
+     return false;
+   }
+
+   const class_t dclass = tree_class(dport);
+   const class_t bclass = tree_class(bport);
+
+   if (dclass != bclass) {
+     diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+     diag_printf(d, "class %s of subprogram body %s %s %s does not "
+                 "match class %s in specification", class_str(bclass),
+                 istr(tree_ident(body)), what, istr(dname), class_str(dclass));
+     diag_hint(d, tree_loc(dport), "%s %s declared with class %s",
+               what, istr(dname), class_str(dclass));
+     diag_hint(d, tree_loc(bport), "%s %s declared with class %s",
+               what, istr(bname), class_str(bclass));
+     diag_emit(d);
+     return false;
+   }
+
+   tree_t bdef = tree_has_value(bport) ? tree_value(bport) : NULL;
+   tree_t ddef = tree_has_value(dport) ? tree_value(dport) : NULL;
+
+   if (bdef == NULL && ddef == NULL)
+     return true;
+
+   const tree_kind_t bkind = bdef ? tree_kind(bdef) : T_LAST_TREE_KIND;
+   const tree_kind_t dkind = ddef ? tree_kind(ddef) : T_LAST_TREE_KIND;
+
+   // Work around some mismatches caused by folding
+   if (bdef != NULL && ddef != NULL && bkind != dkind)
+     return true;
+
+   if (dkind == bkind) {
+     // This only covers a few simple cases
+     switch (dkind) {
+     case T_LITERAL: {
+       const literal_kind_t dsub = tree_subkind(ddef);
+       const literal_kind_t bsub = tree_subkind(bdef);
+       if (dsub == bsub) {
+         switch (dsub) {
+         case L_INT:
+           if (tree_ival(ddef) == tree_ival(bdef))
+             return true;
+           break;
+         case L_REAL:
+           if (tree_dval(ddef) == tree_dval(bdef))
+             return true;
+           break;
+         default:
+           return true;
+         }
+       }
+     } break;
+
+     case T_REF:
+     case T_FCALL:
+       if (!tree_has_ref(bdef) || !tree_has_ref(ddef))
+         return true; // Was parse error, ignore it
+
+       tree_t bref = tree_ref(bdef);
+       tree_t dref = tree_ref(ddef);
+
+       if (bref == dref)
+         return true;
+
+       // Work around mismatch introduced by folding
+       const tree_kind_t brefkind = tree_kind(bref);
+       if (brefkind == T_CONST_DECL || brefkind == T_GENERIC_DECL)
+         return true;
+
+       break;
+
+     default:
+       return true;
+     }
+   }
+
+   diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
+   diag_printf(d, "default value of %s %s in subprogram body %s does not "
+               "match declaration", what, istr(dname), istr(tree_ident(body)));
+   diag_hint(d, tree_loc(dport), "parameter was originally declared here");
+   diag_hint(d, tree_loc(bport), "body has different default value");
+   diag_emit(d);
+
+   return false;
+}
+
 static bool sem_check_conforming(tree_t decl, tree_t body)
 {
    // Conformance rules are in LRM 08 section 4.10
@@ -1322,144 +1458,26 @@ static bool sem_check_conforming(tree_t decl, tree_t body)
    for (int i = 0; i < nports; i++) {
       tree_t dport = tree_port(decl, i);
       tree_t bport = tree_port(body, i);
+      ok &= sem_compare_interfaces(dport, bport, i, body, "parameter");
+   }
 
-      ident_t dname = tree_ident(dport);
-      ident_t bname = tree_ident(bport);
-
-      if (dname != bname) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
-         diag_printf(d, "parameter name %s in subprogram %s body "
-                     "does not match name %s in declaration",
-                     istr(bname), istr(tree_ident(body)), istr(dname));
-         diag_hint(d, tree_loc(dport), "%s parameter has name %s in "
-                   "specification", ordinal_str(i + 1), istr(dname));
-         diag_hint(d, tree_loc(bport), "%s parameter has name %s in "
-                   "body", ordinal_str(i + 1), istr(bname));
-         diag_emit(d);
-         ok = false;
-         continue;
-      }
-
-      type_t dtype = tree_type(dport);
-      type_t btype = tree_type(bport);
-
-      // Do not use type_eq here as subtype must exactly match
-      if (!type_strict_eq(btype, dtype)) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
-         diag_printf(d, "subtype of parameter %s does not match "
-                     "type %s in specification", istr(bname), type_pp(dtype));
-         diag_hint(d, tree_loc(dport), "parameter %s declared with type %s",
-                   istr(dname), type_pp(dtype));
-         diag_hint(d, tree_loc(bport), "parameter %s declared with type %s ",
-                   istr(bname), type_pp(btype));
-         diag_emit(d);
-         ok = false;
-         continue;
-      }
-
-      const port_mode_t dmode = tree_subkind(dport);
-      const port_mode_t bmode = tree_subkind(bport);
-
-      if (dmode != bmode) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
-         diag_printf(d, "parameter %s of subprogram body %s with mode "
-                     "%s does not match mode %s in specification",
-                  istr(dname), istr(tree_ident(body)),
-                  port_mode_str(bmode), port_mode_str(dmode));
-         diag_hint(d, tree_loc(dport), "parameter %s declared with mode %s",
-                   istr(dname), port_mode_str(dmode));
-         diag_hint(d, tree_loc(bport), "parameter %s declared with mode %s",
-                   istr(bname), port_mode_str(bmode));
-         diag_emit(d);
-         ok = false;
-         continue;
-      }
-
-      const class_t dclass = tree_class(dport);
-      const class_t bclass = tree_class(bport);
-
-      if (dclass != bclass) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
-         diag_printf(d, "class %s of subprogram body %s parameter "
-                     "%s does not match class %s in specification",
-                     class_str(bclass), istr(tree_ident(body)),
-                     istr(dname), class_str(dclass));
-         diag_hint(d, tree_loc(dport), "parameter %s declared with class %s",
-                   istr(dname), class_str(dclass));
-         diag_hint(d, tree_loc(bport), "parameter %s declared with class %s",
-                   istr(bname), class_str(bclass));
-         diag_emit(d);
-         ok = false;
-         continue;
-      }
-
-      tree_t bdef = tree_has_value(bport) ? tree_value(bport) : NULL;
-      tree_t ddef = tree_has_value(dport) ? tree_value(dport) : NULL;
-
-      if (bdef == NULL && ddef == NULL)
-         continue;
-
-      const tree_kind_t bkind = bdef ? tree_kind(bdef) : T_LAST_TREE_KIND;
-      const tree_kind_t dkind = ddef ? tree_kind(ddef) : T_LAST_TREE_KIND;
-
-      // Work around some mismatches caused by folding
-      if (bdef != NULL && ddef != NULL && bkind != dkind)
-         continue;
-
-      if (dkind == bkind) {
-         // This only covers a few simple cases
-         switch (dkind) {
-         case T_LITERAL:
-            {
-               const literal_kind_t dsub = tree_subkind(ddef);
-               const literal_kind_t bsub = tree_subkind(bdef);
-               if (dsub == bsub) {
-                  switch (dsub) {
-                  case L_INT:
-                     if (tree_ival(ddef) == tree_ival(bdef)) continue;
-                     break;
-                  case L_REAL:
-                     if (tree_dval(ddef) == tree_dval(bdef)) continue;
-                     break;
-                  default:
-                     continue;
-                  }
-               }
-            }
-            break;
-
-         case T_REF:
-         case T_FCALL:
-            if (!tree_has_ref(bdef) || !tree_has_ref(ddef))
-               continue;   // Was parse error, ignore it
-
-            tree_t bref = tree_ref(bdef);
-            tree_t dref = tree_ref(ddef);
-
-            if (bref == dref)
-               continue;
-
-            // Work around mismatch introduced by folding
-            const tree_kind_t brefkind = tree_kind(bref);
-            if (brefkind == T_CONST_DECL || brefkind == T_GENERIC_DECL)
-               continue;
-
-            break;
-
-         default:
-            continue;
-         }
-      }
-
-      diag_t *d = diag_new(DIAG_ERROR, tree_loc(bport));
-      diag_printf(d, "default value of parameter %s in subprogram "
-                  "body %s does not match declaration",
-                  istr(dname), istr(tree_ident(body)));
-      diag_hint(d, tree_loc(dport), "parameter was originally declared here");
-      diag_hint(d, tree_loc(bport), "body has different default value");
+   const int ngenerics = tree_generics(decl);
+   if (ngenerics != tree_generics(body)) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(body));
+      diag_printf(d, "subprogram %s declaration has %d generic%s but body "
+                  "has %d", istr(tree_ident(body)), ngenerics,
+                  ngenerics > 1 ? "s" : "", tree_generics(body));
+      diag_hint(d, tree_loc(decl), "declaration with %d generics", ngenerics);
+      diag_hint(d, tree_loc(body), "body has %d generics", tree_generics(body));
       diag_emit(d);
-
       ok = false;
+   }
+   else {
+      for (int i = 0; i < ngenerics; i++) {
+         tree_t dgen = tree_generic(decl, i);
+         tree_t bgen = tree_generic(body, i);
+         ok &= sem_compare_interfaces(dgen, bgen, i, body, "generic");
+      }
    }
 
    return ok;

@@ -2739,6 +2739,8 @@ START_TEST(test_gensub)
       { 50, "cannot call uninstantiated procedure DO_STUFF" },
       { 57, "no matching operator \"+\" [Q, T return Q]" },
       { 60, "actual associated with generic Y must be a globally static" },
+      { 69, "subtype of generic X does not match type INTEGER in spec" },
+      { 75, "subprogram TEST2 declaration has 1 generic but body has 2" },
       { -1, NULL }
    };
    expect_errors(expect);
