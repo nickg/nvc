@@ -41,6 +41,7 @@
   However some constructs will still produce warnings.
 - The `--relax=` analysis option is deprecated and is now equivalent to
   passing `--relaxed`.  The individual options are ignored.
+- Added support for generic subprograms in VHDL-2008.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

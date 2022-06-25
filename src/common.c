@@ -476,9 +476,11 @@ class_t class_of(tree_t t)
       return C_ARCHITECTURE;
    case T_FUNC_DECL:
    case T_FUNC_BODY:
+   case T_FUNC_INST:
       return C_FUNCTION;
    case T_PROC_DECL:
    case T_PROC_BODY:
+   case T_PROC_INST:
       return C_PROCEDURE;
    case T_ENTITY:
       return C_ENTITY;
@@ -568,8 +570,10 @@ bool is_subprogram(tree_t t)
    switch (tree_kind(t)) {
    case T_FUNC_DECL:
    case T_FUNC_BODY:
+   case T_FUNC_INST:
    case T_PROC_DECL:
    case T_PROC_BODY:
+   case T_PROC_INST:
       return true;
    case T_GENERIC_DECL:
       {
@@ -974,6 +978,19 @@ bool is_uninstantiated_package(tree_t pack)
    return tree_kind(pack) == T_PACKAGE
       && tree_generics(pack) > 0
       && tree_genmaps(pack) == 0;
+}
+
+bool is_uninstantiated_subprogram(tree_t decl)
+{
+   switch (tree_kind(decl)) {
+   case T_FUNC_DECL:
+   case T_FUNC_BODY:
+   case T_PROC_DECL:
+   case T_PROC_BODY:
+      return tree_generics(decl) > 0;
+   default:
+      return false;
+   }
 }
 
 bool unit_needs_cgen(tree_t unit)

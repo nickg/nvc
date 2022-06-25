@@ -424,24 +424,21 @@ static void dump_type(type_t type)
       printf("%s", type_pp(type));
 }
 
-static void dump_arguments(tree_t t, int indent)
+static void dump_arguments(tree_t t, int indent, const char *trailer)
 {
    const int nports = tree_ports(t);
    if (nports > 0) {
+      printf(" (");
       if (nports > 1) {
-         printf(" (\n");
-         indent += 4;
+         printf("\n");
+         for (int i = 0; i < nports; i++) {
+            if (i > 0) printf(";\n");
+            dump_port(tree_port(t, i), indent + 4);
+         }
       }
-      else {
-         printf(" (");
-         indent = 0;
-      }
-      for (int i = 0; i < nports; i++) {
-         if (i > 0)
-            printf(";\n");
-         dump_port(tree_port(t, i), indent);
-      }
-      printf(" )");
+      else
+         dump_port(tree_port(t, 0), 1);
+      printf(" )%s", trailer);
    }
 }
 
@@ -464,7 +461,7 @@ static void dump_ports(tree_t t, int indent)
    }
 }
 
-static void dump_generics(tree_t t, int indent)
+static void dump_generics(tree_t t, int indent, const char *trailer)
 {
    const int ngenerics = tree_generics(t);
    if (ngenerics > 0) {
@@ -479,7 +476,7 @@ static void dump_generics(tree_t t, int indent)
       }
       else
          dump_port(tree_generic(t, 0), 1);
-      printf(" );\n");
+      printf(" )%s", trailer);
    }
 }
 
@@ -745,7 +742,8 @@ static void dump_decl(tree_t t, int indent)
          syntax("-- predefined %s\n", type_pp(tree_type(t)));
       else {
          syntax("#function %s", istr(tree_ident(t)));
-         dump_arguments(t, indent);
+         dump_generics(t, indent + 2, "");
+         dump_arguments(t, indent, "");
          syntax(" #return %s;\n", type_pp(type_result(tree_type(t))));
          if (tree_has_ident2(t)) {
             tab(indent + 2);
@@ -754,9 +752,14 @@ static void dump_decl(tree_t t, int indent)
       }
       return;
 
+   case T_FUNC_INST:
    case T_FUNC_BODY:
       syntax("#function %s", istr(tree_ident(t)));
-      dump_arguments(t, indent);
+      dump_type_hint(t);
+      dump_generics(t, indent + 2, tree_ports(t) > 0 ? "\n" : "");
+      if (tree_kind(t) == T_FUNC_INST)
+         dump_generic_map(t, indent + 2, tree_ports(t) > 0 ? "\n" : "");
+      dump_arguments(t, indent, "");
       syntax(" #return %s #is\n", type_pp(type_result(tree_type(t))));
       if (tree_has_ident2(t)) {
          tab(indent + 2);
@@ -772,7 +775,8 @@ static void dump_decl(tree_t t, int indent)
          syntax("-- predefined %s\n", type_pp(tree_type(t)));
       else {
          syntax("#procedure %s", istr(tree_ident(t)));
-         dump_arguments(t, indent);
+         dump_generics(t, indent + 2, tree_ports(t) > 0 ? "\n" : "");
+         dump_arguments(t, indent, "");
          printf(";");
          dump_wait_level(t);
          syntax("\n");
@@ -783,9 +787,14 @@ static void dump_decl(tree_t t, int indent)
       }
       return;
 
+   case T_PROC_INST:
    case T_PROC_BODY:
       syntax("#procedure %s", istr(tree_ident(t)));
-      dump_arguments(t, indent);
+      dump_type_hint(t);
+      dump_generics(t, indent + 2, tree_ports(t) > 0 ? "\n" : "");
+      if (tree_kind(t) == T_PROC_INST)
+         dump_generic_map(t, indent + 2, tree_ports(t) > 0 ? "\n" : "");
+      dump_arguments(t, indent, "");
       syntax(" #is");
       dump_wait_level(t);
       syntax("\n");
@@ -813,7 +822,7 @@ static void dump_decl(tree_t t, int indent)
 
    case T_COMPONENT:
       syntax("#component %s #is\n", istr(tree_ident(t)));
-      dump_generics(t, indent + 2);
+      dump_generics(t, indent + 2, ";\n");
       if (tree_ports(t) > 0) {
          syntax("    #port (\n");
          for (unsigned i = 0; i < tree_ports(t); i++) {
@@ -966,7 +975,7 @@ static void dump_stmt(tree_t t, int indent)
    case T_BLOCK:
       dump_address(t);
       syntax("#block #is\n");
-      dump_generics(t, indent + 2);
+      dump_generics(t, indent + 2, ";\n");
       dump_generic_map(t, indent + 2, ";\n");
       dump_ports(t, indent + 2);
       dump_port_map(t, indent + 2, ";\n");
@@ -1347,7 +1356,7 @@ static void dump_package(tree_t t, int indent)
       tab(indent);
       syntax("  -- Instantiated from %s\n", istr(tree_ident(tree_ref(t))));
    }
-   dump_generics(t, indent + 2);
+   dump_generics(t, indent + 2, ";\n");
    dump_generic_map(t, indent + 2, ";\n");
    dump_decls(t, indent + 2);
    tab(indent);
@@ -1436,6 +1445,8 @@ void dump(tree_t t)
    case T_BLOCK_CONFIG:
    case T_SPEC:
    case T_ALIAS:
+   case T_FUNC_INST:
+   case T_PROC_INST:
       dump_decl(t, 0);
       break;
    case T_PORT_DECL:

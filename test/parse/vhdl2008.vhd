@@ -185,4 +185,17 @@ begin
     begin
     end block;
 
+    b5: block is
+        function gen1 generic (n : integer) (x : integer) return integer is
+        begin                           -- OK
+            return 1;
+        end function;
+        function gen2 generic (n : integer)  -- OK
+            parameter (x : integer) return integer;
+        function gen3 generic (type t; p : t) (x : t) return integer;  -- Ok
+
+        function my_gen1 is new gen1 generic map (5);  -- OK
+    begin
+    end block;
+
 end architecture;

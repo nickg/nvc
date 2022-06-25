@@ -189,6 +189,8 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
       return !(tree_flags(t) & TREE_F_PREDEFINED);
    case T_FUNC_BODY:
    case T_PROC_BODY:
+   case T_FUNC_INST:
+   case T_PROC_INST:
       return true;
    case T_FCALL:
       // Globally static expressions should be copied and folded
@@ -356,6 +358,7 @@ static tree_t elab_copy(tree_t t, elab_ctx_t *ctx)
             // later if we need to lower on-demand during simplification
             const bool may_need_to_lower =
                kind == T_FUNC_BODY || kind == T_PROC_BODY
+               || kind == T_FUNC_INST || kind == T_PROC_INST
                || (kind == T_FUNC_DECL && tree_subkind(decl) != S_USER);
 
             if (may_need_to_lower)
@@ -1075,6 +1078,8 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_CONST_DECL:
       case T_FUNC_BODY:
       case T_PROC_BODY:
+      case T_FUNC_INST:
+      case T_PROC_INST:
       case T_PROT_BODY:
       case T_TYPE_DECL:
       case T_PACK_BODY:

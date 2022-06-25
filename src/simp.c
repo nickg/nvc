@@ -1556,6 +1556,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_COND:
       return simp_cond(t);
    case T_PACK_INST:
+   case T_FUNC_INST:
+   case T_PROC_INST:
       simp_generic_map(t, t);
       return t;
    case T_PACKAGE:
@@ -1608,6 +1610,8 @@ static void simp_pre_cb(tree_t t, void *__ctx)
    case T_BLOCK:
    case T_PACKAGE:
    case T_PACK_INST:
+   case T_FUNC_INST:
+   case T_PROC_INST:
       if (tree_genmaps(t) > 0)
          simp_generics(t, ctx);
       break;

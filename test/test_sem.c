@@ -2723,6 +2723,30 @@ START_TEST(test_issue465)
 }
 END_TEST
 
+START_TEST(test_gensub)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/sem/gensub.vhd");
+
+   const error_t expect[] = {
+      { 21, "function NOT_GENERIC is not an uninstantiated subprogram" },
+      { 24, "subprogram NO_BODY cannot be instantiated until its body has "
+        "been analysed" },
+      { 42, "type of actual universal_integer does not match type T of "
+        "formal generic N" },
+      { 42, "no visible subprogram \"+\" matches signature [T, T return T]" },
+      { 44, "cannot call uninstantiated function ADDER" },
+      { 50, "cannot call uninstantiated procedure DO_STUFF" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2856,6 +2880,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_generics2008);
    tcase_add_test(tc_core, test_osvvm5);
    tcase_add_test(tc_core, test_issue465);
+   tcase_add_test(tc_core, test_gensub);
    suite_add_tcase(s, tc_core);
 
    return s;

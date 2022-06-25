@@ -589,3 +589,6 @@ issue469        normal,relaxed,gold
 ieee9           normal,gold,2008
 issue472        shell
 textio8         normal
+gensub1         normal,2008
+gensub2         normal,2008
+gensub3         normal,2008

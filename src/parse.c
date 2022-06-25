@@ -163,6 +163,7 @@ static type_t p_subtype_indication(void);
 static tree_t p_record_constraint(type_t base);
 static tree_t p_qualified_expression(tree_t prefix);
 static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name);
+static tree_t p_subprogram_instantiation_declaration(void);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -211,7 +212,7 @@ static const char *token_str(token_t tok)
       "reverse_range", "protected", "context", "`if", "`else", "`elsif", "`end",
       "`error", "`warning", "translate_off", "translate_on", "?=", "?/=", "?<",
       "?<=", "?>", "?>=", "register", "disconnect", "??", "<<", ">>", "force",
-      "release", "^", "@", "?"
+      "release", "^", "@", "?", "parameter"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -1902,7 +1903,7 @@ static bool package_should_copy_tree(tree_t t, void *__ctx)
    case T_PROT_FCALL:
    case T_PROT_PCALL:
    case T_PCALL:
-      return !!(tree_flags(tree_ref(t)) & TREE_F_ELAB_COPY);
+      return tree_has_ref(t) && !!(tree_flags(tree_ref(t)) & TREE_F_ELAB_COPY);
    case T_REF:
       return tree_has_ref(t) && tree_kind(tree_ref(t)) == T_GENERIC_DECL;
    case T_VAR_DECL:
@@ -1933,17 +1934,16 @@ static void package_type_copy_cb(type_t type, void *__ctx)
       APUSH(ctx->copied_types, type);
 }
 
-static void instantiate_package(tree_t new, tree_t pack, tree_t body)
+static void instantiate_helper(tree_t new, tree_t *pdecl, tree_t *pbody)
 {
    package_copy_ctx_t copy_ctx = {};
 
-   SCOPED_A(tree_t) roots = AINIT;
-   APUSH(roots, pack);
+   tree_t decl = *pdecl, body = *pbody;
 
-   if (body != NULL) {
-      assert(tree_primary(body) == pack);
+   SCOPED_A(tree_t) roots = AINIT;
+   APUSH(roots, decl);
+   if (body != NULL)
       APUSH(roots, body);
-   }
 
    tree_copy(roots.items, roots.count,
              package_should_copy_tree,
@@ -1951,10 +1951,10 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
              package_tree_copy_cb, package_type_copy_cb,
              &copy_ctx);
 
-   tree_t pack_copy = roots.items[0];
-   tree_t body_copy = body != NULL ? roots.items[1] : NULL;
+   *pdecl = roots.items[0];
+   *pbody = body != NULL ? roots.items[1] : NULL;
 
-   ident_t prefixes[] = { tree_ident(pack) };
+   ident_t prefixes[] = { tree_ident(decl) };
    ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
 
    // Change the name of any copied types to reflect the new hiearchy
@@ -2016,11 +2016,46 @@ static void instantiate_package(tree_t new, tree_t pack, tree_t body)
    }
    ACLEAR(copy_ctx.copied_subs);
 
+
+}
+
+static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)
+{
+   assert(body != NULL);
+   assert(type_eq(tree_type(body), tree_type(decl)));
+
+   tree_t decl_copy = decl, body_copy = body;
+   instantiate_helper(new, &decl_copy, &body_copy);
+
+   tree_set_type(new, tree_type(body_copy));
+
+   const int ngenerics = tree_generics(body_copy);
+   for (int i = 0; i < ngenerics; i++)
+      tree_add_generic(new, tree_generic(body_copy, i));
+
+   const int ndecls = tree_decls(body_copy);
+   for (int i = 0; i < ndecls; i++)
+      tree_add_decl(new, tree_decl(body_copy, i));
+
+   const int nstmts = tree_stmts(body_copy);
+   for (int i = 0; i < nstmts; i++)
+      tree_add_stmt(new, tree_stmt(body_copy, i));
+
+   const int nports = tree_ports(body_copy);
+   for (int i = 0; i < nports; i++)
+      tree_add_port(new, tree_port(body_copy, i));
+}
+
+static void instantiate_package(tree_t new, tree_t pack, tree_t body)
+{
+   assert(body == NULL || tree_primary(body) == pack);
+
+   tree_t pack_copy = pack, body_copy = body;
+   instantiate_helper(new, &pack_copy, &body_copy);
+
    const int ngenerics = tree_generics(pack_copy);
    for (int i = 0; i < ngenerics; i++)
       tree_add_generic(new, tree_generic(pack_copy, i));
-
-   assert(tree_genmaps(pack_copy) == 0);
 
    const int ndecls = tree_decls(pack_copy);
    for (int i = 0; i < ndecls; i++)
@@ -4836,6 +4871,8 @@ static void p_interface_subprogram_declaration(tree_t parent, tree_kind_t kind)
 
    add_interface(parent, d, kind);
    sem_check(d, nametab);
+
+   insert_name(nametab, d, NULL, 0);
 }
 
 static void p_interface_package_generic_map_aspect(type_t type)
@@ -5591,7 +5628,9 @@ static void p_protected_type_declarative_item(type_t type)
    case tPROCEDURE:
    case tIMPURE:
    case tPURE:
-      {
+      if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
+         type_add_decl(type, p_subprogram_instantiation_declaration());
+      else {
          push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          tree_set_flag(spec, TREE_F_PROTECTED);
@@ -5959,17 +5998,32 @@ static ident_t p_designator(void)
    }
 }
 
+static void p_subprogram_header(tree_t spec)
+{
+   // 2008: [ generic ( generic_list ) [ generic_map_aspect ] ]
+
+   if (optional(tGENERIC)) {
+      require_std(STD_08, "generic subprograms");
+
+      consume(tLPAREN);
+      p_generic_list(spec);
+      consume(tRPAREN);
+   }
+}
+
 static tree_t p_subprogram_specification(void)
 {
-   // procedure designator [ ( formal_parameter_list ) ]
-   //   | [ pure | impure ] function designator [ ( formal_parameter_list ) ]
-   //     return type_mark
+   // procedure designator subprogram_header
+   //       [ [parameter] ( formal_parameter_list ) ]
+   //   | [ pure | impure ] function designator subprogram_header
+   //       [ [parameter] ( formal_parameter_list ) ] return type_mark
 
    BEGIN("subprogram specification");
 
    tree_t t = NULL;
    type_t type = NULL;
 
+   // XXX: this allows pure/impure procedures!
    bool impure = false;
    if (optional(tIMPURE))
       impure = true;
@@ -6000,7 +6054,17 @@ static tree_t p_subprogram_specification(void)
    if (impure)
       tree_set_flag(t, TREE_F_IMPURE);
 
-   if (optional(tLPAREN)) {
+   p_subprogram_header(t);
+
+   bool has_param_list = false;
+   if (optional(tLPAREN))
+      has_param_list = true;
+   else if (standard() >= STD_08 && optional(tPARAMETER)) {
+      consume(tLPAREN);
+      has_param_list = true;
+   }
+
+   if (has_param_list) {
       p_interface_list(C_CONSTANT, t, T_PARAM_DECL);
       consume(tRPAREN);
 
@@ -6018,6 +6082,93 @@ static tree_t p_subprogram_specification(void)
 
    tree_set_loc(t, CURRENT_LOC);
    return t;
+}
+
+static tree_t p_subprogram_instantiation_declaration(void)
+{
+   // subprogram_kind designator is new uninstantiated_subprogram_name
+   //   [ signature ] [ generic_map_aspect ] ;
+
+   tree_kind_t kind;
+   switch (one_of(tFUNCTION, tPROCEDURE)) {
+   case tFUNCTION: kind = T_FUNC_INST; break;
+   case tPROCEDURE: kind = T_PROC_INST; break;
+   default: return NULL;
+   }
+
+   tree_t inst = tree_new(kind);
+   tree_set_ident(inst, p_designator());
+
+   consume(tIS);
+   consume(tNEW);
+
+   require_std(STD_08, "subprogram instantiation declarations");
+
+   ident_t id = p_designator();
+
+   tree_t decl = resolve_name(nametab, CURRENT_LOC, id);
+   if (decl != NULL && !is_uninstantiated_subprogram(decl)) {
+      parse_error(CURRENT_LOC, "%s %s is not an uninstantiated subprogram",
+                  class_str(class_of(decl)), istr(id));
+      decl = NULL;
+   }
+
+   tree_t body = NULL;
+   if (decl != NULL) {
+      const tree_kind_t decl_kind = tree_kind(decl);
+      if (decl_kind == T_FUNC_BODY || decl_kind == T_PROC_BODY)
+         body = decl;
+      else {
+         // Attempt to load the package body if available
+         tree_t pack = tree_container(decl);
+         if (tree_kind(pack) == T_PACKAGE) {
+            tree_t pack_body = body_of(pack), d;
+            type_t type = tree_type(decl);
+            for (int nth = 0; (d = search_decls(pack_body, id, nth)); nth++) {
+               if (is_subprogram(d) && type_eq(tree_type(d), type)) {
+                  body = d;
+                  break;
+               }
+            }
+         }
+      }
+
+      if (body == NULL)
+         parse_error(CURRENT_LOC, "subprogram %s cannot be instantiated until "
+                     "its body has been analysed", istr(id));
+      else
+         tree_set_ref(inst, body);
+   }
+
+   if (decl != NULL && body != NULL)
+      instantiate_subprogram(inst, decl, body);
+   else {
+      // Create a dummy subprogram type to avoid later errors
+      type_t type = type_new(kind == T_FUNC_INST ? T_FUNC : T_PROC);
+      if (kind == T_FUNC_INST)
+         type_set_result(type, type_new(T_NONE));
+      tree_set_type(inst, type);
+   }
+
+   if (peek() == tLSQUARE)
+      (void)p_signature();  // TODO
+
+   if (peek() == tGENERIC)
+      p_generic_map_aspect(inst, inst);
+
+   consume(tSEMI);
+
+   tree_set_loc(inst, CURRENT_LOC);
+   sem_check(inst, nametab);
+
+   hash_t *map = get_generic_map(nametab);
+   if (map != NULL)
+      tree_rewrite(inst, NULL, rewrite_generic_refs_cb,
+                   rewrite_generic_types_cb, map);
+
+   mangle_func(nametab, inst);
+   insert_name(nametab, inst, NULL, 0);
+   return inst;
 }
 
 static void p_variable_declaration(tree_t parent)
@@ -6410,7 +6561,7 @@ static void p_protected_type_body_declarative_item(tree_t body)
    //   | subtype_declaration | constant_declaration | variable_declaration
    //   | file_declaration | alias_declaration | attribute_declaration
    //   | attribute_specification | use_clause | group_template_declaration
-   //   | group_declaration
+   //   | group_declaration | 2008: subprogram_instantiation_declaration
 
    BEGIN("protected type body declarative item");
 
@@ -6442,7 +6593,9 @@ static void p_protected_type_body_declarative_item(tree_t body)
    case tPROCEDURE:
    case tIMPURE:
    case tPURE:
-      {
+      if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
+         tree_add_decl(body, p_subprogram_instantiation_declaration());
+      else {
          push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          tree_set_flag(spec, TREE_F_PROTECTED);
@@ -6612,7 +6765,7 @@ static void p_entity_declarative_item(tree_t entity)
    //   | shared_variable_declaration | file_declaration | alias_declaration
    //   | attribute_declaration | attribute_specification
    //   | disconnection_specification | use_clause | group_template_declaration
-   //   | group_declaration
+   //   | group_declaration | 2008: subprogram_instantiation_declaration
 
    BEGIN("entity declarative item");
 
@@ -6644,7 +6797,9 @@ static void p_entity_declarative_item(tree_t entity)
    case tPROCEDURE:
    case tIMPURE:
    case tPURE:
-      {
+      if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
+         tree_add_decl(entity, p_subprogram_instantiation_declaration());
+      else {
          push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
@@ -6876,7 +7031,7 @@ static void p_process_declarative_item(tree_t proc)
    //   | subtype_declaration | constant_declaration | variable_declaration
    //   | file_declaration | alias_declaration | attribute_declaration
    //   | attribute_specification | use_clause | group_template_declaration
-   //   | group_declaration
+   //   | group_declaration | 2008: subprogram_instantiation_declaration
 
    BEGIN("process declarative item");
 
@@ -6901,7 +7056,9 @@ static void p_process_declarative_item(tree_t proc)
    case tPROCEDURE:
    case tIMPURE:
    case tPURE:
-      {
+      if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
+         tree_add_decl(proc, p_subprogram_instantiation_declaration());
+      else {
          push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
@@ -7193,7 +7350,9 @@ static void p_package_declarative_item(tree_t pack)
    case tPROCEDURE:
    case tIMPURE:
    case tPURE:
-      {
+      if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
+         tree_add_decl(pack, p_subprogram_instantiation_declaration());
+      else {
          push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
@@ -7890,7 +8049,7 @@ static void p_block_declarative_item(tree_t parent)
    //   | component_declaration | attribute_declaration
    //   | attribute_specification | configuration_specification
    //   | disconnection_specification | use_clause | group_template_declaration
-   //   | group_declaration
+   //   | group_declaration | 2008: subprogram_instantiation_declaration
 
    BEGIN("block declarative item");
 
@@ -7919,7 +8078,9 @@ static void p_block_declarative_item(tree_t parent)
    case tPROCEDURE:
    case tIMPURE:
    case tPURE:
-      {
+      if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
+         tree_add_decl(parent, p_subprogram_instantiation_declaration());
+      else {
          push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
@@ -9595,7 +9756,9 @@ static void p_package_body_declarative_item(tree_t parent)
    case tPROCEDURE:
    case tIMPURE:
    case tPURE:
-      {
+      if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
+         tree_add_decl(parent, p_subprogram_instantiation_declaration());
+      else {
          push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)

@@ -78,7 +78,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_FLAGS),
 
    // T_FUNC_DECL
-   (I_IDENT | I_PORTS | I_TYPE | I_FLAGS | I_IDENT2 | I_SUBKIND),
+   (I_IDENT | I_PORTS | I_TYPE | I_FLAGS | I_IDENT2 | I_SUBKIND | I_GENERICS),
 
    // T_ELAB
    (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT),
@@ -111,7 +111,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS | I_CONTEXT | I_PRIMARY),
 
    // T_FUNC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS | I_GENERICS
     | I_IDENT2 | I_SUBKIND),
 
    // T_RETURN
@@ -139,10 +139,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_IDENT2 | I_CLASS | I_REF),
 
    // T_PROC_DECL
-   (I_IDENT | I_PORTS | I_TYPE | I_FLAGS | I_IDENT2 | I_SUBKIND),
+   (I_IDENT | I_PORTS | I_TYPE | I_FLAGS | I_IDENT2 | I_SUBKIND | I_GENERICS),
 
    // T_PROC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS | I_GENERICS
     | I_IDENT2 | I_SUBKIND),
 
    // T_EXIT
@@ -306,6 +306,14 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_MATCH_CASE
    (I_IDENT | I_VALUE | I_ASSOCS),
+
+   // T_FUNC_INST
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS | I_GENERICS
+    | I_IDENT2 | I_SUBKIND | I_GENMAPS | I_REF),
+
+   // T_PROC_INST
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS | I_GENERICS
+    | I_IDENT2 | I_SUBKIND | I_GENMAPS | I_REF),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -340,6 +348,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_GENERIC_DECL",    "T_TYPE_REF",        "T_BOX",
    "T_PARAM_DECL",      "T_EXTERNAL_NAME",   "T_FORCE",
    "T_RELEASE",         "T_PROT_REF",        "T_MATCH_CASE",
+   "T_FUNC_INST",       "T_PROC_INST",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -396,6 +405,7 @@ static tree_kind_t decl_kinds[] = {
    T_PROT_BODY,      T_BLOCK_CONFIG,   T_IMPLICIT_SIGNAL, T_DISCONNECT,
    T_GROUP_TEMPLATE, T_GROUP,          T_SUBTYPE_DECL,    T_PACKAGE,
    T_PACK_BODY,      T_PACK_INST,      T_GENERIC_DECL,    T_PARAM_DECL,
+   T_PROC_INST,      T_FUNC_INST,
 };
 
 object_class_t tree_object = {

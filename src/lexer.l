@@ -206,6 +206,7 @@ WARNING       ?i:warning
 DISCONNECT    ?i:disconnect
 FORCE         ?i:force
 RELEASE       ?i:release
+PARAMETER     ?i:parameter
 
 %%
 
@@ -326,6 +327,7 @@ RELEASE       ?i:release
 {CONTEXT}            { TOKEN_08(tCONTEXT); }
 {FORCE}              { TOKEN_08(tFORCE); }
 {RELEASE}            { TOKEN_08(tRELEASE); }
+{PARAMETER}          { TOKEN_08(tPARAMETER); }
 `{IF}                { TOKEN(tCONDIF); }
 `{ELSE}              { TOKEN(tCONDELSE); }
 `{ELSIF}             { TOKEN(tCONDELSIF); }

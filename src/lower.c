@@ -121,7 +121,7 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_reify_expr(tree_t expr);
 static vcode_type_t lower_bounds(type_t type);
 static void lower_stmt(tree_t stmt, loop_stack_t *loops);
-static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context);
+static void lower_func_body(tree_t body, vcode_unit_t context);
 static void lower_proc_body(tree_t body, vcode_unit_t context);
 static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest, bool is_const,
@@ -686,7 +686,7 @@ static vcode_type_t lower_type(type_t type)
       return vtype_opaque();
 
    default:
-      fatal("cannot lower type kind %s", type_kind_str(type_kind(type)));
+      fatal_trace("cannot lower type kind %s", type_kind_str(type_kind(type)));
    }
 }
 
@@ -7088,19 +7088,21 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
       const tree_kind_t kind = tree_kind(d);
-      if (kind != T_FUNC_BODY && kind != T_PROC_BODY && kind != T_PROT_BODY
-          && kind != T_FUNC_DECL)
+      if (!is_subprogram(d) && kind != T_PROT_BODY)
          continue;
 
       vcode_block_t bb = vcode_active_block();
 
       if (mode == LOWER_THUNK) {
-         if (kind == T_FUNC_BODY || kind == T_PROC_BODY)
+         if (kind == T_FUNC_BODY || kind == T_PROC_BODY || kind == T_FUNC_INST
+             || kind == T_PROC_INST)
             lower_subprogram_for_thunk(d, context);
       }
       else {
          switch (kind) {
+         case T_FUNC_INST:
          case T_FUNC_BODY: lower_func_body(d, context); break;
+         case T_PROC_INST:
          case T_PROC_BODY: lower_proc_body(d, context); break;
          case T_PROT_BODY: lower_protected_body(d, context); break;
          case T_FUNC_DECL: lower_predef(d, context); break;
@@ -7120,6 +7122,8 @@ static bool lower_has_subprograms(tree_t scope)
       tree_t d = tree_decl(scope, i);
       const tree_kind_t kind = tree_kind(d);
       if (kind == T_FUNC_BODY || kind == T_PROC_BODY)
+         return true;
+      else if (kind == T_FUNC_INST || kind == T_PROC_INST)
          return true;
       else if (kind == T_TYPE_DECL) {
          // Predefined operators for certain types may reference the
@@ -8289,6 +8293,9 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
    vcode_type_t vcontext = vtype_context(context_id);
    emit_param(vcontext, vcontext, ident_new("context"));
 
+   if (tree_kind(body) == T_PROC_INST)
+      lower_generics(body, NULL);
+
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(body, has_subprograms || !never_waits);
 
@@ -8310,14 +8317,17 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
       vcode_unit_unref(vu);
 }
 
-static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
+static void lower_func_body(tree_t body, vcode_unit_t context)
 {
    vcode_select_unit(context);
 
    ident_t name = tree_ident2(body);
    vcode_unit_t vu = vcode_find_unit(name);
    if (vu != NULL)
-      return vu;
+      return;
+
+   if (is_uninstantiated_subprogram(body))
+      return;
 
    ident_t context_id = vcode_unit_name();
 
@@ -8329,6 +8339,9 @@ static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
    emit_param(vcontext, vcontext, ident_new("context"));
 
    lower_push_scope(body);
+
+   if (tree_kind(body) == T_FUNC_INST)
+      lower_generics(body, NULL);
 
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(body, has_subprograms);
@@ -8345,7 +8358,7 @@ static vcode_unit_t lower_func_body(tree_t body, vcode_unit_t context)
    lower_finished();
    lower_pop_scope();
 
-   return vu;
+   return;
 }
 
 static void lower_driver_field_cb(type_t type, vcode_reg_t ptr,
@@ -9247,7 +9260,8 @@ static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context)
 
    vcode_unit_t thunk = emit_thunk(name, context);
 
-   if (tree_kind(body) == T_FUNC_BODY)
+   const tree_kind_t kind = tree_kind(body);
+   if (kind == T_FUNC_BODY || kind == T_FUNC_INST)
       vcode_set_result(lower_func_result_type(type_result(tree_type(body))));
 
    emit_debug_info(tree_loc(body));
@@ -9256,6 +9270,9 @@ static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context)
    emit_param(vcontext, vcontext, ident_new("context"));
 
    lower_push_scope(body);
+
+   if (kind == T_FUNC_INST || kind == T_PROC_INST)
+      lower_generics(body, NULL);
 
    lower_subprogram_ports(body, lower_has_subprograms(body));
 
@@ -9282,10 +9299,8 @@ vcode_unit_t lower_thunk(tree_t t)
    mode = LOWER_THUNK;
    assert(globals == NULL);
 
-   const tree_kind_t kind = tree_kind(t);
-
    ident_t name = NULL;
-   if (kind == T_FUNC_BODY || kind == T_PROC_BODY) {
+   if (is_subprogram(t)) {
       lower_subprogram_for_thunk(t, NULL);
       ident_t thunk_i = well_known(W_THUNK);
       return vcode_find_unit(ident_prefix(tree_ident2(t), thunk_i, '$'));

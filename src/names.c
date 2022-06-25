@@ -325,7 +325,9 @@ static bool can_overload(tree_t t)
          || kind == T_FUNC_BODY
          || kind == T_PROC_DECL
          || kind == T_PROC_BODY
-         || kind == T_ATTR_SPEC;
+         || kind == T_ATTR_SPEC
+         || kind == T_PROC_INST
+         || kind == T_FUNC_INST;
 }
 
 nametab_t *nametab_new(void)
@@ -389,6 +391,19 @@ void suppress_errors(nametab_t *tab)
 void map_generic_type(nametab_t *tab, type_t generic, type_t actual)
 {
    assert(type_kind(generic) == T_GENERIC);
+
+   if (tab->top_scope->gmap == NULL)
+      tab->top_scope->gmap = hash_new(128, true);
+
+   hash_put(tab->top_scope->gmap, generic, actual);
+}
+
+void map_generic_subprogram(nametab_t *tab, tree_t generic, tree_t actual)
+{
+   assert(tree_kind(generic) == T_GENERIC_DECL);
+   assert(tree_class(generic) == C_FUNCTION
+          || tree_class(generic) == C_PROCEDURE);
+   assert(is_subprogram(actual));
 
    if (tab->top_scope->gmap == NULL)
       tab->top_scope->gmap = hash_new(128, true);
@@ -2275,6 +2290,9 @@ void map_generic_box(nametab_t *tab, tree_t inst, tree_t g, unsigned pos)
    tree_set_value(map, ref);
 
    tree_add_genmap(inst, map);
+
+   if (tree_has_ref(ref))
+      map_generic_subprogram(tab, g, tree_ref(ref));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

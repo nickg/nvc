@@ -318,6 +318,8 @@ typedef enum tree_kind {
    T_RELEASE,
    T_PROT_REF,
    T_MATCH_CASE,
+   T_FUNC_INST,
+   T_PROC_INST,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

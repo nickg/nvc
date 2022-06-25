@@ -1533,6 +1533,20 @@ static bool sem_check_proc_body(tree_t t, nametab_t *tab)
    return true;
 }
 
+static bool sem_check_subprogram_inst(tree_t t, nametab_t *tab)
+{
+   if (tree_generics(t) == 0)
+      return false;   // Was a parse error
+
+   if (!sem_check_generic_map(t, t, tab))
+      return false;
+
+   // Other declarations were checked on the uninstantiated subprogram
+
+   sem_maybe_copy_subprogram(t, tab);
+   return true;
+}
+
 static bool sem_check_sensitivity(tree_t t, nametab_t *tab)
 {
    const int ntriggers = tree_triggers(t);
@@ -2479,6 +2493,10 @@ static bool sem_check_call_args(tree_t t, tree_t decl)
 {
    const int nparams = tree_params(t);
    const int nports  = tree_ports(decl);
+
+   if (is_uninstantiated_subprogram(decl))
+      sem_error(t, "cannot call uninstantiated %s %s",
+                class_str(class_of(decl)), istr(tree_ident(decl)));
 
    if (nparams > nports)
       sem_error(t, "expected %d argument%s for subprogram %s but have %d",
@@ -4043,6 +4061,12 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                    "generic %s", type_pp(tree_type(value)), type_pp(type),
                    istr(tree_ident(decl)));
 
+      assert(tree_kind(value) == T_REF);
+
+      if (!tree_has_ref(value))
+         return false;
+
+      map_generic_subprogram(tab, decl, tree_ref(value));
       break;
 
    case C_CONSTANT:
@@ -5492,6 +5516,9 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_prot_ref(t, tab);
    case T_MATCH_CASE:
       return sem_check_match_case(t, tab);
+   case T_FUNC_INST:
+   case T_PROC_INST:
+      return sem_check_subprogram_inst(t, tab);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
