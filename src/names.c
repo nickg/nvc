@@ -1251,7 +1251,7 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
       bool match = false;
       tree_t decl = NULL;
       while (!match && (decl = iter_name(&iter)) && decl != (tree_t)-1) {
-         if (is_subprogram(decl)) {
+         if (is_subprogram(decl) && !(tree_flags(decl) & TREE_F_HIDDEN)) {
             type_t signature = tree_type(decl);
             match = type_eq_map(constraint, signature, tab->top_scope->gmap);
          }
