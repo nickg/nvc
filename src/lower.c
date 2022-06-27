@@ -8281,6 +8281,9 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
    if (vu != NULL)
       return;
 
+   if (is_uninstantiated_subprogram(body))
+      return;
+
    ident_t context_id = vcode_unit_name();
 
    if (never_waits)

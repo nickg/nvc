@@ -3204,8 +3204,10 @@ static bool sem_check_ref(tree_t t, nametab_t *tab)
    case T_UNIT_DECL:
    case T_FUNC_DECL:
    case T_FUNC_BODY:
+   case T_FUNC_INST:
    case T_PROC_DECL:
    case T_PROC_BODY:
+   case T_PROC_INST:
    case T_IMPLICIT_SIGNAL:
    case T_GENERIC_DECL:
    case T_PARAM_DECL:

@@ -841,10 +841,12 @@ name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl)
          break;
       case T_FUNC_BODY:
       case T_FUNC_DECL:
+      case T_FUNC_INST:
          mask |= N_FUNC;
          break;
       case T_PROC_BODY:
       case T_PROC_DECL:
+      case T_PROC_INST:
          mask |= N_PROC;
          break;
       case T_TYPE_DECL:
