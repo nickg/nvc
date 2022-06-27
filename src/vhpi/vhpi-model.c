@@ -1428,7 +1428,7 @@ void vhpi_build_design_model(tree_t top)
    vhpi_build_decls(b0, &(rootInst->designInstUnit.region));
    vhpi_build_ports(b0, rootInst);
 
-   vhpi_trace("building model for %s took %"PRIu64" ms",
+   VHPI_TRACE("building model for %s took %"PRIu64" ms",
               istr(ident_runtil(tree_ident(b0), '.')),
               (get_timestamp_us() - start_us) / 1000);
 }
