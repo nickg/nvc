@@ -595,3 +595,4 @@ gensub3         normal,2008
 gensub4         normal,2008
 elab32          normal
 gensub5         normal,2008
+vhpi5           normal,vhpi

@@ -135,6 +135,11 @@ typedef struct {
 } c_arrayTypeDecl;
 
 typedef struct {
+   c_compositeTypeDecl composite;
+   vhpiIntT            NumFields;
+} c_recordTypeDecl;
+
+typedef struct {
    c_abstractDecl  decl;
    c_typeDecl     *BaseType;
    c_typeDecl     *Type;
@@ -317,7 +322,7 @@ static const char *cb_data_pp(const vhpiCbDataT *data)
 
 static void *new_object(size_t size, vhpiClassKindT class)
 {
-   void *ptr = xcalloc(sizeof(c_rootInst));
+   void *ptr = xcalloc(size);
    ((c_vhpiObject *)ptr)->kind = class;
    return ptr;
 }
@@ -1270,7 +1275,7 @@ static c_expr *build_expr(tree_t t)
 
 static c_physRange *build_phys_range(tree_t t)
 {
-   c_physRange *pr = new_object(sizeof(c_range), vhpiPhysRangeK);
+   c_physRange *pr = new_object(sizeof(c_physRange), vhpiPhysRangeK);
    init_range(&(pr->range), t);
 
    pr->PhysLeftBound  = vhpi_phys_from_native(assume_int(tree_left(t)));
@@ -1325,6 +1330,15 @@ static c_typeDecl *build_typeDecl(type_t type)
             new_object(sizeof(c_arrayTypeDecl), vhpiArrayTypeDeclK);
          init_compositeTypeDecl(&(td->composite), decl);
          td->NumDimensions = type_index_constrs(type);
+         return &(td->composite.typeDecl);
+      }
+
+   case T_RECORD:
+      {
+         c_recordTypeDecl *td =
+            new_object(sizeof(c_recordTypeDecl), vhpiRecordTypeDeclK);
+         init_compositeTypeDecl(&(td->composite), decl);
+         td->NumFields = type_fields(type);
          return &(td->composite.typeDecl);
       }
 
