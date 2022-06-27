@@ -7,6 +7,11 @@ architecture test of foreign1 is
 
     attribute foreign of f : function is "symbol";
 
+    function f (x : integer) return integer is
+    begin
+        return 99;                      -- Should not call this
+    end function;
+
     function g (x : integer) return integer is
     begin
         return f(x) + 1;

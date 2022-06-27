@@ -672,8 +672,15 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
                   && type_is_protected(tree_type(existing)))
             continue;
          else if (is_forward_decl(tab, decl, existing)) {
-            // Replace forward declaration in same region with full definition
-            continue;
+            if (is_subprogram(decl) && tree_subkind(existing) == S_FOREIGN) {
+               // Hide redundant bodies of foreign subprograms
+               return;
+            }
+            else {
+               // Replace forward declaration in same region with full
+               // definition
+               continue;
+            }
          }
 
          if (tkind == T_ATTR_SPEC && ekind == T_ATTR_DECL) {
