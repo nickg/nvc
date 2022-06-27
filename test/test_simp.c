@@ -1255,6 +1255,19 @@ START_TEST(test_protfold2)
 }
 END_TEST
 
+START_TEST(test_foreign1)
+{
+   input_from_file(TESTDIR "/simp/foreign1.vhd");
+
+   tree_t top = run_elab();
+
+   tree_t b0 = tree_stmt(top, 0);
+   tree_t c1 = search_decls(b0, ident_new("C1"), 0);
+   fail_unless(tree_kind(c1) == T_CONST_DECL);
+   fail_unless(tree_kind(tree_value(c1)) == T_FCALL);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1303,6 +1316,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_grlib1);
    tcase_add_test(tc_core, test_protfold1);
    tcase_add_test(tc_core, test_protfold2);
+   tcase_add_test(tc_core, test_foreign1);
    suite_add_tcase(s, tc_core);
 
    return s;

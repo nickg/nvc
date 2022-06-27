@@ -66,6 +66,7 @@ typedef enum {
    MACRO_FEXP,
    MACRO_EXP,
    MACRO_BZERO,
+   MACRO_FFICALL,
 } jit_op_t;
 
 typedef enum {

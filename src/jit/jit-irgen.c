@@ -580,6 +580,13 @@ static jit_value_t macro_exp(jit_irgen_t *g, jit_value_t lhs, jit_value_t rhs)
    return jit_value_from_reg(r);
 }
 
+static void macro_fficall(jit_irgen_t *g, jit_value_t addr)
+{
+   assert(jit_value_is_addr(addr));
+   irgen_emit_unary(g, MACRO_FFICALL, JIT_SZ_UNSPEC, JIT_CC_NONE,
+                    JIT_VALUE_INVALID, addr);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Vcode to JIT IR lowering
 
@@ -1744,9 +1751,11 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
          j_recv(g, 1);   // Left
          j_recv(g, 2);   // Length
       }
-      else
-         fatal_trace("cannot compile call to foreign subprogram %s",
-                     istr(func));
+      else {
+         jit_value_t addr = jit_addr_from_ptr(NULL);
+         macro_fficall(g, addr);
+         g->map[vcode_get_result(op)] = j_recv(g, 0);
+      }
    }
    else {
       jit_handle_t handle = jit_lazy_compile(g->func->jit, func);

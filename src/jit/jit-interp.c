@@ -1068,6 +1068,12 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
    }
 }
 
+static void interp_fficall(jit_interp_t *state, jit_ir_t *ir)
+{
+   // Not currently implemented
+   state->abort = true;
+}
+
 static void interp_loop(jit_interp_t *state)
 {
    do {
@@ -1195,6 +1201,9 @@ static void interp_loop(jit_interp_t *state)
          break;
       case MACRO_EXP:
          interp_exp(state, ir);
+         break;
+      case MACRO_FFICALL:
+         interp_fficall(state, ir);
          break;
       default:
          interp_dump(state);
