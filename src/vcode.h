@@ -191,11 +191,6 @@ typedef enum {
 } vunit_kind_t;
 
 typedef enum {
-   VCODE_ALLOCA_STACK,
-   VCODE_ALLOCA_HEAP
-} vcode_alloca_t;
-
-typedef enum {
    VCODE_CC_VHDL,
    VCODE_CC_PREDEF,
    VCODE_CC_FOREIGN,

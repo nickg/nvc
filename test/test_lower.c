@@ -295,13 +295,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_ALLOCA:
-         if (vcode_get_subkind(i) != e->subkind) {
-            vcode_dump_with_mark(i, NULL, NULL);
-            fail("expected op %d in block %d to have subkind %x but "
-                 "has %x", i, bb, e->subkind, vcode_get_subkind(i));
-         }
-         break;
-
       case VCODE_OP_SCHED_EVENT:
       case VCODE_OP_SCHED_STATIC:
       case VCODE_OP_FILE_OPEN:
@@ -1698,7 +1691,7 @@ START_TEST(test_memset)
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_RANGE_LENGTH },
-         { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
+         { VCODE_OP_ALLOCA },
          { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "V" },
          { VCODE_OP_MEMSET },
@@ -1719,7 +1712,7 @@ START_TEST(test_memset)
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_RANGE_LENGTH },
-         { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
+         { VCODE_OP_ALLOCA },
          { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "V" },
          { VCODE_OP_CONST, .value = 2880154539 },
@@ -2136,7 +2129,7 @@ START_TEST(test_issue135)
       { VCODE_OP_ADD },
       { VCODE_OP_ADD },
       { VCODE_OP_ADD },
-      { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
+      { VCODE_OP_ALLOCA },
       { VCODE_OP_CAST },
       { VCODE_OP_ADD },
       { VCODE_OP_WRAP },
@@ -3099,7 +3092,7 @@ START_TEST(test_tounsigned)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_RANGE_LENGTH },
-      { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
+      { VCODE_OP_ALLOCA },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "RESULT" },
       { VCODE_OP_CONST, .value = 0 },
@@ -4578,7 +4571,7 @@ START_TEST(test_vunit5)
       { VCODE_OP_NULL },
       { VCODE_OP_WRAP },
       { VCODE_OP_UARRAY_LEN },
-      { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
+      { VCODE_OP_ALLOCA },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_MEMSET },
       { VCODE_OP_WRAP },

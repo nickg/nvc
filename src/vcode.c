@@ -42,8 +42,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
 #define OP_HAS_SUBKIND(x)                                               \
-   (x == VCODE_OP_ALLOCA                                                \
-    || x == VCODE_OP_COVER_COND || x == VCODE_OP_PCALL                  \
+   (x == VCODE_OP_COVER_COND || x == VCODE_OP_PCALL                     \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT)
 #define OP_HAS_FUNC(x)                                                  \
@@ -199,7 +198,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      19
+#define VCODE_VERSION      20
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -357,7 +356,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
       break;
 
    case VCODE_OP_ALLOCA:
-      defn->subkind = VCODE_ALLOCA_HEAP;
+      // Always allocated in mspace
       break;
 
    case VCODE_OP_INDEX:
@@ -1242,8 +1241,6 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               if (op->subkind == VCODE_ALLOCA_HEAP)
-                  col += printf("heap ");
                col += vcode_dump_reg(op->args.items[0]);
                vcode_dump_result_type(col, op);
             }
@@ -3185,7 +3182,6 @@ vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
    op_t *op = vcode_add_op(VCODE_OP_ALLOCA);
    op->type    = type;
    op->result  = vcode_add_reg(vtype_pointer(type));
-   op->subkind = VCODE_ALLOCA_STACK;
    vcode_add_arg(op, count);
 
    const vtype_kind_t tkind = vtype_kind(type);

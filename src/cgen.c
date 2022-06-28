@@ -1795,16 +1795,9 @@ static void cgen_op_alloca(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
    LLVMTypeRef type   = cgen_type(vcode_get_type(op));
 
-   if (vcode_get_subkind(op) == VCODE_ALLOCA_HEAP) {
-      LLVMValueRef bytes = LLVMBuildMul(builder, llvm_sizeof(type),
-                                        cgen_get_arg(op, 0, ctx), "");
-      ctx->regs[result] = cgen_tlab_alloc(bytes, type);
-   }
-   else {
-      LLVMValueRef count = cgen_get_arg(op, 0, ctx);
-      ctx->regs[result] = LLVMBuildArrayAlloca(builder, type, count,
-                                               cgen_reg_name(result));
-   }
+   LLVMValueRef bytes = LLVMBuildMul(builder, llvm_sizeof(type),
+                                     cgen_get_arg(op, 0, ctx), "");
+   ctx->regs[result] = cgen_tlab_alloc(bytes, type);
 }
 
 static void cgen_op_cond(int op, cgen_ctx_t *ctx)
