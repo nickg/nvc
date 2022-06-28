@@ -34,7 +34,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_block);
 DECLARE_AND_DEFINE_ARRAY(vcode_type);
 
 #define OP_HAS_TYPE(x)                                                  \
-   (x == VCODE_OP_ALLOCA  || x == VCODE_OP_COPY                         \
+   (x == VCODE_OP_ALLOC  || x == VCODE_OP_COPY                         \
     || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
     || x == VCODE_OP_CONST_RECORD || x == VCODE_OP_CLOSURE              \
     || x == VCODE_OP_PUSH_SCOPE)
@@ -355,7 +355,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_LINK_PACKAGE:
       break;
 
-   case VCODE_OP_ALLOCA:
+   case VCODE_OP_ALLOC:
       // Always allocated in mspace
       break;
 
@@ -887,7 +887,7 @@ const char *vcode_op_string(vcode_op_t op)
       "mul", "add", "comment", "const array", "index", "sub",
       "cast", "load indirect", "store indirect", "return",
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
-      "rem", "alloca", "select", "or", "wrap", "uarray left",
+      "rem", "alloc", "select", "or", "wrap", "uarray left",
       "uarray right", "uarray dir", "unwrap", "not", "and",
       "event", "active", "const record", "record ref", "copy", "sched event",
       "pcall", "resume", "xor", "xnor", "nand", "nor", "memset",
@@ -1237,7 +1237,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_ALLOCA:
+         case VCODE_OP_ALLOC:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
@@ -3179,7 +3179,7 @@ void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
                         vcode_reg_t count)
 {
-   op_t *op = vcode_add_op(VCODE_OP_ALLOCA);
+   op_t *op = vcode_add_op(VCODE_OP_ALLOC);
    op->type    = type;
    op->result  = vcode_add_reg(vtype_pointer(type));
    vcode_add_arg(op, count);

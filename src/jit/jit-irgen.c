@@ -2309,7 +2309,7 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_NEW:
          irgen_op_new(g, i);
          break;
-      case VCODE_OP_ALLOCA:
+      case VCODE_OP_ALLOC:
          irgen_op_alloca(g, i);
          break;
       case VCODE_OP_ALL:

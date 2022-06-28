@@ -3410,7 +3410,7 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_CAST:
       cgen_op_cast(i, ctx);
       break;
-   case VCODE_OP_ALLOCA:
+   case VCODE_OP_ALLOC:
       cgen_op_alloca(i, ctx);
       break;
    case VCODE_OP_STORE_INDIRECT:
