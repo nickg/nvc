@@ -113,8 +113,10 @@ static void interp_dump(jit_interp_t *state)
    if (state->flags & (1 << JIT_CC_GE)) printf("GE ");
    if (state->flags & (1 << JIT_CC_GT)) printf("GT ");
    if (state->flags & (1 << JIT_CC_LE)) printf("LE ");
-   if (state->flags & (1 << JIT_CC_OF)) printf("OF ");
+   if (state->flags & (1 << JIT_CC_O))  printf("O ");
    if (state->flags & (1 << JIT_CC_NO)) printf("NO ");
+   if (state->flags & (1 << JIT_CC_C))  printf("C ");
+   if (state->flags & (1 << JIT_CC_NC)) printf("NC ");
    printf("\n");
 
    if (state->func->framesz > 0) {
@@ -287,7 +289,7 @@ static void interp_mul(jit_interp_t *state, jit_ir_t *ir)
    jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
    jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
 
-   if (ir->cc == JIT_CC_OF) {
+   if (ir->cc == JIT_CC_O) {
       int overflow = 0;
 
 #define MUL_OVERFLOW(type) do {                                 \
@@ -298,18 +300,9 @@ static void interp_mul(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, MUL_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_OF) | (!overflow << JIT_CC_NO);
+      state->flags = (overflow << JIT_CC_O) | (!overflow << JIT_CC_NO);
    }
-   else
-      state->regs[ir->result].integer = arg1.integer * arg2.integer;
-}
-
-static void interp_umul(jit_interp_t *state, jit_ir_t *ir)
-{
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
-
-   if (ir->cc == JIT_CC_OF) {
+   else if (ir->cc == JIT_CC_C) {
       int overflow = 0;
 
 #define UMUL_OVERFLOW(type) do {                                \
@@ -320,7 +313,7 @@ static void interp_umul(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, UMUL_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_OF) | (!overflow << JIT_CC_NO);
+      state->flags = (overflow << JIT_CC_C) | (!overflow << JIT_CC_NC);
    }
    else
       state->regs[ir->result].integer = arg1.integer * arg2.integer;
@@ -355,7 +348,7 @@ static void interp_sub(jit_interp_t *state, jit_ir_t *ir)
    jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
    jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
 
-   if (ir->cc == JIT_CC_OF) {
+   if (ir->cc == JIT_CC_O) {
       int overflow = 0;
 
 #define SUB_OVERFLOW(type) do {                                 \
@@ -366,18 +359,9 @@ static void interp_sub(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, SUB_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_OF) | (!overflow << JIT_CC_NO);
+      state->flags = (overflow << JIT_CC_O) | (!overflow << JIT_CC_NO);
    }
-   else
-      state->regs[ir->result].integer = arg1.integer - arg2.integer;
-}
-
-static void interp_usub(jit_interp_t *state, jit_ir_t *ir)
-{
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
-
-   if (ir->cc == JIT_CC_OF) {
+   else if (ir->cc == JIT_CC_C) {
       int overflow = 0;
 
 #define USUB_OVERFLOW(type) do {                                \
@@ -388,7 +372,7 @@ static void interp_usub(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, USUB_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_OF) | (!overflow << JIT_CC_NO);
+      state->flags = (overflow << JIT_CC_C) | (!overflow << JIT_CC_NC);
    }
    else
       state->regs[ir->result].integer = arg1.integer - arg2.integer;
@@ -407,7 +391,7 @@ static void interp_add(jit_interp_t *state, jit_ir_t *ir)
    jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
    jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
 
-   if (ir->cc == JIT_CC_OF) {
+   if (ir->cc == JIT_CC_O) {
       int overflow = 0;
 
 #define ADD_OVERFLOW(type) do {                                 \
@@ -418,18 +402,9 @@ static void interp_add(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, ADD_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_OF) | (!overflow << JIT_CC_NO);
+      state->flags = (overflow << JIT_CC_O) | (!overflow << JIT_CC_NO);
    }
-   else
-      state->regs[ir->result].integer = arg1.integer + arg2.integer;
-}
-
-static void interp_uadd(jit_interp_t *state, jit_ir_t *ir)
-{
-   jit_scalar_t arg1 = interp_get_value(state, ir->arg1);
-   jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
-
-   if (ir->cc == JIT_CC_OF) {
+   else if (ir->cc == JIT_CC_C) {
       int overflow = 0;
 
 #define UADD_OVERFLOW(type) do {                                \
@@ -440,7 +415,7 @@ static void interp_uadd(jit_interp_t *state, jit_ir_t *ir)
 
       FOR_EACH_SIZE(ir->size, UADD_OVERFLOW);
 
-      state->flags = (overflow << JIT_CC_OF) | (!overflow << JIT_CC_NO);
+      state->flags = (overflow << JIT_CC_C) | (!overflow << JIT_CC_NC);
    }
    else
       state->regs[ir->result].integer = arg1.integer + arg2.integer;
@@ -1098,26 +1073,17 @@ static void interp_loop(jit_interp_t *state)
       case J_SUB:
          interp_sub(state, ir);
          break;
-      case J_USUB:
-         interp_usub(state, ir);
-         break;
       case J_FSUB:
          interp_fsub(state, ir);
          break;
       case J_ADD:
          interp_add(state, ir);
          break;
-      case J_UADD:
-         interp_uadd(state, ir);
-         break;
       case J_FADD:
          interp_fadd(state, ir);
          break;
       case J_MUL:
          interp_mul(state, ir);
-         break;
-      case J_UMUL:
-         interp_umul(state, ir);
          break;
       case J_FMUL:
          interp_fmul(state, ir);

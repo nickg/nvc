@@ -44,8 +44,8 @@ const char *jit_op_name(jit_op_t op)
       static const char *names[] = {
          "SEND", "RECV", "ADD", "RET", "TRAP", "ULOAD", "STORE", "JUMP", "CMP",
          "CSET", "SUB", "MOV", "FADD", "MUL", "FMUL", "CALL", "NEG", "LOAD",
-         "UADD", "USUB", "UMUL", "CSEL", "LEA", "NOT", "DIV", "FDIV", "SCVTF",
-         "FNEG", "FCVTNS", "FCMP", "AND", "OR", "XOR", "FSUB", "REM",
+         "CSEL", "LEA", "NOT", "DIV", "FDIV", "SCVTF", "FNEG", "FCVTNS",
+         "FCMP", "AND", "OR", "XOR", "FSUB", "REM",
       };
       assert(op < ARRAY_LEN(names));
       return names[op];
@@ -135,8 +135,10 @@ static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
    case JIT_CC_GT: col += printf(".GT"); break;
    case JIT_CC_LE: col += printf(".LE"); break;
    case JIT_CC_GE: col += printf(".GE"); break;
-   case JIT_CC_OF: col += printf(".OF"); break;
+   case JIT_CC_O:  col += printf(".O");  break;
    case JIT_CC_NO: col += printf(".NO"); break;
+   case JIT_CC_C:  col += printf(".C");  break;
+   case JIT_CC_NC: col += printf(".NC"); break;
    }
    if (ir->size != JIT_SZ_UNSPEC)
       col += printf(".%d", 1 << (2 + ir->size));

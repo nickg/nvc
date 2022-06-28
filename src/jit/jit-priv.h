@@ -41,9 +41,6 @@ typedef enum {
    J_CALL,
    J_NEG,
    J_LOAD,
-   J_UADD,
-   J_USUB,
-   J_UMUL,
    J_CSEL,
    J_LEA,
    J_NOT,
@@ -86,8 +83,10 @@ typedef enum {
    JIT_CC_GE,
    JIT_CC_GT,
    JIT_CC_LE,
-   JIT_CC_OF,
+   JIT_CC_O,
    JIT_CC_NO,
+   JIT_CC_C,
+   JIT_CC_NC,
 } jit_cc_t;
 
 typedef enum {

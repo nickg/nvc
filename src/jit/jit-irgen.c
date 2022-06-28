@@ -371,14 +371,6 @@ static jit_value_t j_adds(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
    return jit_value_from_reg(r);
 }
 
-static jit_value_t j_uadd(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
-                          jit_value_t lhs, jit_value_t rhs)
-{
-   jit_reg_t r = irgen_alloc_reg(g);
-   irgen_emit_binary(g, J_UADD, sz, cc, r, lhs, rhs);
-   return jit_value_from_reg(r);
-}
-
 static jit_value_t j_fadd(jit_irgen_t *g, jit_value_t lhs, jit_value_t rhs)
 {
    jit_reg_t r = irgen_alloc_reg(g);
@@ -398,14 +390,6 @@ static jit_value_t j_muls(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
 {
    jit_reg_t r = irgen_alloc_reg(g);
    irgen_emit_binary(g, J_MUL, sz, cc, r, lhs, rhs);
-   return jit_value_from_reg(r);
-}
-
-static jit_value_t j_umul(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
-                          jit_value_t lhs, jit_value_t rhs)
-{
-   jit_reg_t r = irgen_alloc_reg(g);
-   irgen_emit_binary(g, J_UMUL, sz, cc, r, lhs, rhs);
    return jit_value_from_reg(r);
 }
 
@@ -442,14 +426,6 @@ static jit_value_t j_subs(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
 {
    jit_reg_t r = irgen_alloc_reg(g);
    irgen_emit_binary(g, J_SUB, sz, cc, r, lhs, rhs);
-   return jit_value_from_reg(r);
-}
-
-static jit_value_t j_usub(jit_irgen_t *g, jit_size_t sz, jit_cc_t cc,
-                          jit_value_t lhs, jit_value_t rhs)
-{
-   jit_reg_t r = irgen_alloc_reg(g);
-   irgen_emit_binary(g, J_USUB, sz, cc, r, lhs, rhs);
    return jit_value_from_reg(r);
 }
 
@@ -1044,15 +1020,13 @@ static void irgen_op_trap_add(jit_irgen_t *g, int op)
 
    jit_size_t sz = irgen_jit_size(vtype);
 
-   if (vtype_repr_signed(vtype_repr(vtype)))
-      g->map[result] = j_adds(g, sz, JIT_CC_OF, arg0, arg1);
-   else
-      g->map[result] = j_uadd(g, sz, JIT_CC_OF, arg0, arg1);
+   jit_cc_t cc = vtype_repr_signed(vtype_repr(vtype)) ? JIT_CC_O : JIT_CC_C;
+   g->map[result] = j_adds(g, sz, cc, arg0, arg1);
 
    irgen_label_t *l_fail = irgen_alloc_label(g);
    irgen_label_t *l_pass = irgen_alloc_label(g);
 
-   j_jump(g, JIT_CC_NO, l_pass);
+   j_jump(g, cc + 1, l_pass);
 
    irgen_bind_label(g, l_fail);
    j_send(g, 0, arg0);
@@ -1087,15 +1061,13 @@ static void irgen_op_trap_mul(jit_irgen_t *g, int op)
 
    jit_size_t sz = irgen_jit_size(vcode_reg_type(result));
 
-   if (vtype_repr_signed(vtype_repr(vtype)))
-      g->map[result] = j_muls(g, sz, JIT_CC_OF, arg0, arg1);
-   else
-      g->map[result] = j_umul(g, sz, JIT_CC_OF, arg0, arg1);
+   jit_cc_t cc = vtype_repr_signed(vtype_repr(vtype)) ? JIT_CC_O : JIT_CC_C;
+   g->map[result] = j_muls(g, sz, cc, arg0, arg1);
 
    irgen_label_t *l_fail = irgen_alloc_label(g);
    irgen_label_t *l_pass = irgen_alloc_label(g);
 
-   j_jump(g, JIT_CC_NO, l_pass);
+   j_jump(g, cc + 1, l_pass);
 
    irgen_bind_label(g, l_fail);
    j_send(g, 0, arg0);
@@ -1169,15 +1141,13 @@ static void irgen_op_trap_sub(jit_irgen_t *g, int op)
 
    jit_size_t sz = irgen_jit_size(vcode_reg_type(result));
 
-   if (vtype_repr_signed(vtype_repr(vtype)))
-      g->map[result] = j_subs(g, sz, JIT_CC_OF, arg0, arg1);
-   else
-      g->map[result] = j_usub(g, sz, JIT_CC_OF, arg0, arg1);
+   jit_cc_t cc = vtype_repr_signed(vtype_repr(vtype)) ? JIT_CC_O : JIT_CC_C;
+   g->map[result] = j_subs(g, sz, cc, arg0, arg1);
 
    irgen_label_t *l_fail = irgen_alloc_label(g);
    irgen_label_t *l_pass = irgen_alloc_label(g);
 
-   j_jump(g, JIT_CC_NO, l_pass);
+   j_jump(g, cc + 1, l_pass);
 
    irgen_bind_label(g, l_fail);
    j_send(g, 0, arg0);
