@@ -205,6 +205,45 @@ void *mspace_alloc(mspace_t *m, size_t size)
       fatal_trace("out of memory attempting to allocate %zu byte object", size);
 }
 
+static void mspace_return_memory(mspace_t *m, char *ptr, size_t size)
+{
+   assert(is_mspace_ptr(m, ptr));
+   assert((uintptr_t)ptr % LINE_SIZE == 0);
+
+   // Same rounding-up as mspace_alloc
+   const int nlines = (size + LINE_SIZE) / LINE_SIZE;
+   const size_t asize = nlines * LINE_SIZE;
+
+   free_list_t **tail;
+   for (tail = &(m->free_list); *tail; tail = &((*tail)->next)) {
+      if ((*tail)->ptr + (*tail)->size == ptr) {
+         // Coalese after this block
+         (*tail)->size += asize;
+         break;
+      }
+      else if (ptr + asize == (*tail)->ptr) {
+         // Coalese before this block
+         (*tail)->ptr = ptr;
+         (*tail)->size += asize;
+         break;
+      }
+   }
+
+   if (*tail == NULL) {
+      free_list_t *f = xmalloc(sizeof(free_list_t));
+      f->next = NULL;
+      f->size = asize;
+      f->ptr  = ptr;
+
+      *tail = f;
+   }
+
+   MSPACE_POISON(t->base, t->limit - t->base);
+
+   int line = (ptr - m->space) / LINE_SIZE;
+   mask_set_range(&(m->headmask), line, nlines);
+}
+
 void *mspace_alloc_array(mspace_t *m, int nelems, size_t size)
 {
    return mspace_alloc(m, nelems * size);
@@ -290,17 +329,7 @@ void tlab_release(tlab_t *t)
 
    assert(t->alloc <= t->limit);
 
-   free_list_t *f = xmalloc(sizeof(free_list_t));
-   f->next = t->mspace->free_list;
-   f->size = TLAB_SIZE;
-   f->ptr  = t->base;
-
-   t->mspace->free_list = f;
-
-   MSPACE_POISON(t->base, t->limit - t->base);
-
-   int line = ((char *)t->base - t->mspace->space) / LINE_SIZE;
-   mask_set_range(&(t->mspace->headmask), line, TLAB_SIZE / LINE_SIZE);
+   mspace_return_memory(t->mspace, t->base, TLAB_SIZE);
 
    mptr_free(t->mspace, &(t->mptr));
    *t = (tlab_t){};
