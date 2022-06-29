@@ -1144,8 +1144,10 @@ static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
                            lower_signal_flag_field_cb, &args);
       return result;
    }
-   else if (type_is_array(type))
-      return (*fn)(nets, lower_array_total_len(type, nets));
+   else if (type_is_array(type)) {
+      vcode_reg_t data = lower_array_data(nets);
+      return (*fn)(data, lower_array_total_len(type, nets));
+   }
    else
       return (*fn)(nets, emit_const(vtype_offset(), 1));
 }

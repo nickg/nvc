@@ -390,6 +390,10 @@ void vcode_heap_allocate(vcode_reg_t reg)
       vcode_heap_allocate(defn->args.items[0]);
       break;
 
+   case VCODE_OP_LAST_VALUE:
+      // Returns a pointer into the C heap
+      break;
+
    case VCODE_OP_LOAD:
       {
          if (vcode_reg_kind(reg) != VCODE_TYPE_UARRAY)
