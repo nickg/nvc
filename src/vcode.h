@@ -354,8 +354,8 @@ vcode_unit_t emit_thunk(ident_t name, vcode_unit_t context);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
                      vcode_var_flags_t flags);
-vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
-                        vcode_reg_t count);
+vcode_reg_t emit_alloc(vcode_type_t type, vcode_type_t bounds,
+                       vcode_reg_t count);
 vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);

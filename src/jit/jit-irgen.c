@@ -2005,7 +2005,7 @@ static void irgen_op_new(jit_irgen_t *g, int op)
    g->map[vcode_get_result(op)] = macro_galloc(g, bytes);
 }
 
-static void irgen_op_alloca(jit_irgen_t *g, int op)
+static void irgen_op_alloc(jit_irgen_t *g, int op)
 {
    vcode_reg_t result = vcode_get_result(op);
    vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
@@ -2310,7 +2310,7 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          irgen_op_new(g, i);
          break;
       case VCODE_OP_ALLOC:
-         irgen_op_alloca(g, i);
+         irgen_op_alloc(g, i);
          break;
       case VCODE_OP_ALL:
          irgen_op_all(g, i);

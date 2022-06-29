@@ -1790,7 +1790,7 @@ static void cgen_op_cast(int op, cgen_ctx_t *ctx)
                                         cgen_reg_name(result));
 }
 
-static void cgen_op_alloca(int op, cgen_ctx_t *ctx)
+static void cgen_op_alloc(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
    LLVMTypeRef type   = cgen_type(vcode_get_type(op));
@@ -3411,7 +3411,7 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       cgen_op_cast(i, ctx);
       break;
    case VCODE_OP_ALLOC:
-      cgen_op_alloca(i, ctx);
+      cgen_op_alloc(i, ctx);
       break;
    case VCODE_OP_STORE_INDIRECT:
       cgen_op_store_indirect(i, ctx);

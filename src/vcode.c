@@ -3176,8 +3176,8 @@ void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 "first argument to VHDL procedure must be context pointer");
 }
 
-vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
-                        vcode_reg_t count)
+vcode_reg_t emit_alloc(vcode_type_t type, vcode_type_t bounds,
+                       vcode_reg_t count)
 {
    op_t *op = vcode_add_op(VCODE_OP_ALLOC);
    op->type    = type;

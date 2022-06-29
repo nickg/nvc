@@ -994,8 +994,7 @@ static void lower_resolved_field_cb(type_t ftype, vcode_reg_t field_ptr,
          vcode_type_t vtype = lower_type(elem);
          vcode_type_t vbounds = lower_bounds(elem);
 
-         vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, count_reg);
-         vcode_heap_allocate(mem_reg);
+         vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, count_reg);
 
          vcode_reg_t wrap_reg = lower_wrap(ftype, mem_reg);
          emit_store_indirect(wrap_reg, dst_ptr);
@@ -1660,8 +1659,8 @@ static vcode_reg_t lower_concat(tree_t expr, vcode_reg_t hint,
    if (hint != VCODE_INVALID_REG && len == hint_count)
       mem_reg = hint;
    else
-      mem_reg = emit_alloca(lower_type(scalar_elem),
-                            lower_bounds(scalar_elem), len);
+      mem_reg = emit_alloc(lower_type(scalar_elem),
+                           lower_bounds(scalar_elem), len);
 
    vcode_reg_t cast_reg   = emit_cast(itype, ibounds, elems);
    vcode_reg_t right_to   = emit_add(left, cast_reg);
@@ -2601,9 +2600,8 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
          if (vtype_kind(vtype) == VCODE_TYPE_UARRAY) {
             type_t elem = lower_elem_recur(type);
             vcode_reg_t count_reg = lower_array_total_len(type, p_reg);
-            data_reg = emit_alloca(lower_type(elem), lower_bounds(elem),
-                                   count_reg);
-            vcode_heap_allocate(data_reg);
+            data_reg = emit_alloc(lower_type(elem), lower_bounds(elem),
+                                  count_reg);
 
             result_reg = lower_wrap_with_new_bounds(type, p_reg, data_reg);
             emit_store(result_reg, var);
@@ -3152,8 +3150,8 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
    vcode_reg_t mem_reg = hint;
    if (mem_reg == VCODE_INVALID_REG)
-      mem_reg = emit_alloca(lower_type(scalar_elem_type),
-                            lower_bounds(scalar_elem_type), len_reg);
+      mem_reg = emit_alloc(lower_type(scalar_elem_type),
+                           lower_bounds(scalar_elem_type), len_reg);
 
    vcode_reg_t stride = VCODE_INVALID_REG;
    if (type_is_array(elem_type))
@@ -4014,10 +4012,8 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
 
       vcode_reg_t count_reg = lower_array_total_len(type, bounds_reg);
       vcode_reg_t mem_reg = hint_reg;
-      if (mem_reg == VCODE_INVALID_REG) {
-         mem_reg = emit_alloca(vtype, vbounds, count_reg);
-         vcode_heap_allocate(mem_reg);
-      }
+      if (mem_reg == VCODE_INVALID_REG)
+         mem_reg = emit_alloc(vtype, vbounds, count_reg);
 
       vcode_reg_t def_reg =
          lower_default_value(elem_type, VCODE_INVALID_REG, NULL);
@@ -5971,14 +5967,6 @@ static void lower_var_decl(tree_t decl)
    vcode_reg_t dest_reg  = VCODE_INVALID_REG;
    vcode_reg_t count_reg = VCODE_INVALID_REG;
 
-   const vunit_kind_t vunit_kind = vcode_unit_kind();
-   const bool need_heap_alloc =
-      vunit_kind == VCODE_UNIT_PROCEDURE
-      || vunit_kind == VCODE_UNIT_PROCESS
-      || vunit_kind == VCODE_UNIT_PACKAGE
-      || vunit_kind == VCODE_UNIT_INSTANCE
-      || vunit_kind == VCODE_UNIT_PROTECTED;
-
    if (type_is_record(type))
       dest_reg = emit_index(var, VCODE_INVALID_REG);
    else if (type_is_array(type) && !type_is_unconstrained(type)) {
@@ -5986,13 +5974,10 @@ static void lower_var_decl(tree_t decl)
 
       if (!lower_const_bounds(type)) {
          type_t scalar_elem = lower_elem_recur(type);
-         dest_reg = emit_alloca(lower_type(scalar_elem),
-                                lower_bounds(scalar_elem),
-                                count_reg);
+         dest_reg = emit_alloc(lower_type(scalar_elem),
+                               lower_bounds(scalar_elem),
+                               count_reg);
          emit_store(lower_wrap(type, dest_reg), var);
-
-         if (need_heap_alloc)
-            vcode_heap_allocate(dest_reg);
       }
       else
          dest_reg = emit_index(var, VCODE_INVALID_REG);
@@ -6028,16 +6013,13 @@ static void lower_var_decl(tree_t decl)
          count_reg = lower_array_total_len(value_type, value_reg);
 
          type_t scalar_elem = lower_elem_recur(type);
-         dest_reg = emit_alloca(lower_type(scalar_elem),
-                                lower_bounds(scalar_elem),
-                                count_reg);
+         dest_reg = emit_alloc(lower_type(scalar_elem),
+                               lower_bounds(scalar_elem),
+                               count_reg);
          emit_copy(dest_reg, data_reg, count_reg);
          vcode_reg_t wrapped_reg =
             lower_wrap_with_new_bounds(value_type, value_reg, dest_reg);
          emit_store(wrapped_reg, var);
-
-         if (need_heap_alloc)
-            vcode_heap_allocate(dest_reg);
       }
       else {
          lower_check_indexes(type, value_reg);
@@ -6195,8 +6177,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t cons,
          type_t elem = lower_elem_recur(type);
          vcode_type_t vtype = lower_signal_type(elem);
          vcode_type_t vbounds = lower_bounds(elem);
-         vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len_reg);
-         vcode_heap_allocate(mem_reg);
+         vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, len_reg);
 
          vcode_reg_t wrap_reg;
          if (cons != NULL) {
@@ -6511,7 +6492,7 @@ static void lower_physical_image_helper(type_t type, vcode_reg_t preg)
    vcode_reg_t total_len = emit_add(num_len, append_len);
 
    vcode_type_t ctype = vtype_char();
-   vcode_reg_t mem_reg = emit_alloca(ctype, ctype, total_len);
+   vcode_reg_t mem_reg = emit_alloc(ctype, ctype, total_len);
    emit_copy(mem_reg, emit_unwrap(num_reg), num_len);
 
    vcode_reg_t ptr0_reg = emit_array_ref(mem_reg, num_len);
@@ -6716,7 +6697,7 @@ static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
    vcode_reg_t const_str_len = emit_uarray_len(const_str_reg, 0);
    vcode_reg_t extra_len = emit_add(const_str_len, emit_const(voffset, 1));
    vcode_reg_t msg_len = emit_add(arg_len_reg, extra_len);
-   vcode_reg_t mem_reg = emit_alloca(vchar, vchar, msg_len);
+   vcode_reg_t mem_reg = emit_alloc(vchar, vchar, msg_len);
 
    emit_store_indirect(emit_const(vchar, '\"'), mem_reg);
 
@@ -6866,7 +6847,7 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
    vcode_reg_t const_str_len = emit_uarray_len(const_str_reg, 0);
    vcode_reg_t extra_len = emit_add(const_str_len, emit_const(voffset, 1));
    vcode_reg_t msg_len = emit_add(tail_len, extra_len);
-   vcode_reg_t mem_reg = emit_alloca(vchar, vchar, msg_len);
+   vcode_reg_t mem_reg = emit_alloc(vchar, vchar, msg_len);
 
    emit_store_indirect(emit_const(vchar, '\"'), mem_reg);
 
@@ -7463,7 +7444,7 @@ static void lower_predef_array_to_string(type_t arg_type, type_t std_string,
    vcode_reg_t map_reg = emit_const_array(map_vtype, map, nlits);
 
    vcode_reg_t len_reg = lower_array_len(arg_type, 0, array_reg);
-   vcode_reg_t mem_reg = emit_alloca(elem_vtype, elem_vtype, len_reg);
+   vcode_reg_t mem_reg = emit_alloc(elem_vtype, elem_vtype, len_reg);
 
    vcode_type_t index_vtype = lower_type(index_type_of(std_string, 0));
 
@@ -7549,7 +7530,7 @@ static void lower_predef_bit_shift(tree_t decl, vcode_unit_t context,
    vcode_select_block(non_null_bb);
 
    vcode_reg_t shift_reg = emit_cast(voffset, voffset, r1);
-   vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len_reg);
+   vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, len_reg);
 
    vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
    emit_store(emit_const(voffset, 0), i_var);
@@ -7710,7 +7691,7 @@ static void lower_predef_bit_vec_op(tree_t decl, vcode_unit_t context,
       vcode_select_block(cont_bb);
    }
 
-   vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len0_reg);
+   vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, len0_reg);
 
    vcode_var_t i_var = lower_temp_var("i", voffset, voffset);
    emit_store(emit_const(voffset, 0), i_var);
@@ -7792,7 +7773,7 @@ static void lower_predef_mixed_bit_vec_op(tree_t decl, vcode_unit_t context,
    vcode_reg_t dir_reg   = lower_array_dir(array_type, 0, array_reg);
    vcode_reg_t null_reg  = emit_range_null(left_reg, right_reg, dir_reg);
 
-   vcode_reg_t mem_reg = emit_alloca(vtype_bool(), vtype_bool(), len_reg);
+   vcode_reg_t mem_reg = emit_alloc(vtype_bool(), vtype_bool(), len_reg);
 
    vcode_block_t body_bb = emit_block();
    vcode_block_t exit_bb = emit_block();
@@ -7971,7 +7952,7 @@ static void lower_predef_match_op(tree_t decl, vcode_unit_t context,
 
       vcode_type_t vtype = lower_type(type_elem(r0_type));
       vcode_type_t vbounds = lower_bounds(type_elem(r0_type));
-      vcode_reg_t mem_reg = emit_alloca(vtype, vbounds, len0_reg);
+      vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, len0_reg);
 
       vcode_var_t result_var = lower_temp_var("result", vtype, vbounds);
       emit_store(emit_const(vtype, 0), result_var);
