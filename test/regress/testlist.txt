@@ -600,3 +600,4 @@ gensub6         normal,2008
 concat7         normal,2008
 func20          normal
 array8          normal,2008
+array9          normal,2008

@@ -475,6 +475,7 @@ static vcode_reg_t lower_array_stride(type_t type, vcode_reg_t reg)
          tree_t cons[MAX_CONSTRAINTS];
          const int ncon = pack_constraints(type, cons);
          for (int i = 1; i < ncon; i++) {
+            assert(tree_subkind(cons[i]) != C_OPEN);  // TODO
             tree_t r = tree_range(cons[i], 0);
 
             vcode_reg_t left_reg  = lower_range_left(r);

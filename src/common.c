@@ -1692,12 +1692,17 @@ int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS])
       const int ncon = type_constraints(type);
       for (int i = ptr; i < ncon; i++) {
          tree_t c = type_constraint(type, i);
-         if (tree_subkind(c) == C_INDEX) {
+         switch (tree_subkind(c)) {
+         case C_INDEX:
+         case C_OPEN:
             if (ptr == MAX_CONSTRAINTS)
                fatal_at(tree_loc(c), "sorry, a maximum of %d nested "
                         "constraints are supported", MAX_CONSTRAINTS);
-
             out[ptr++] = c;
+            break;
+
+         default:
+            continue;
          }
       }
 
