@@ -364,7 +364,17 @@ void vcode_heap_allocate(vcode_reg_t reg)
       break;
 
    case VCODE_OP_VAR_UPREF:
-      // TODO: check this
+      {
+         vcode_state_t state;
+         vcode_state_save(&state);
+
+         for (int i = 0; i < defn->hops; i++)
+            vcode_select_unit(vcode_unit_context());
+
+         vcode_var_data(defn->address)->flags |= VAR_HEAP;
+
+         vcode_state_restore(&state);
+      }
       break;
 
    case VCODE_OP_ARRAY_REF:

@@ -598,3 +598,4 @@ gensub5         normal,2008
 vhpi5           normal,vhpi
 gensub6         normal,2008
 concat7         normal,2008
+func20          normal
