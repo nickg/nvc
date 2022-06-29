@@ -238,7 +238,7 @@ static void mspace_return_memory(mspace_t *m, char *ptr, size_t size)
       *tail = f;
    }
 
-   MSPACE_POISON(t->base, t->limit - t->base);
+   MSPACE_POISON(ptr, asize);
 
    int line = (ptr - m->space) / LINE_SIZE;
    mask_set_range(&(m->headmask), line, nlines);
