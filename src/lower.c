@@ -586,7 +586,6 @@ static type_t lower_elem_recur(type_t type)
 
 static int lower_dims_for_type(type_t type)
 {
-   // TODO: this should be a more generic helper function
    if (standard() >= STD_08) {
       int ndims = dimension_of(type);
       for (type_t e = type_elem(type);
@@ -6409,7 +6408,7 @@ static vcode_type_t lower_alias_type(tree_t alias)
       velem = lower_type(lower_elem_recur(type));
 
    vcode_type_t vbounds = lower_bounds(type);
-   return vtype_uarray(dimension_of(type), velem, vbounds);
+   return vtype_uarray(lower_dims_for_type(type), velem, vbounds);
 }
 
 static void lower_alias_decl(tree_t decl)
