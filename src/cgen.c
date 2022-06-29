@@ -60,6 +60,7 @@ typedef struct {
    LLVMValueRef       state;
    LLVMValueRef       display;
    LLVMValueRef      *locals;
+   LLVMValueRef       watermark;
 } cgen_ctx_t;
 
 typedef enum {
@@ -754,7 +755,7 @@ static unsigned cgen_fixed_offset(void)
 {
    unsigned base = 1;  // First field is always parent context
    if (cgen_is_procedure() || vcode_unit_kind() == VCODE_UNIT_PROCESS)
-      base += 2;   // State machine and saved pcall state
+      base += 3;   // State machine, saved pcall state, and TLAB watermark
    return base;
 }
 
@@ -867,6 +868,27 @@ static LLVMValueRef cgen_tlab_alloc(LLVMValueRef bytes, LLVMTypeRef type)
    LLVMValueRef raw = LLVMBuildCall(builder, fn, args, ARRAY_LEN(args), "");
 
    return LLVMBuildPointerCast(builder, raw, LLVMPointerType(type, 0), "");
+}
+
+static LLVMValueRef cgen_tlab_watermark(void)
+{
+   LLVMValueRef global = LLVMGetNamedGlobal(module, "__nvc_tlab");
+   if (global == NULL) {
+      global = LLVMAddGlobal(module, llvm_tlab_type(), "__nvc_tlab");
+      LLVMSetLinkage(global, LLVMExternalLinkage);
+   }
+
+   LLVMValueRef alloc_ptr = LLVMBuildStructGEP(builder, global, 2, "");
+   return LLVMBuildLoad(builder, alloc_ptr, "");
+}
+
+static void cgen_tlab_restore(LLVMValueRef watermark)
+{
+   LLVMValueRef global = LLVMGetNamedGlobal(module, "__nvc_tlab");
+   assert(global != NULL);
+
+   LLVMValueRef alloc_ptr = LLVMBuildStructGEP(builder, global, 2, "");
+   LLVMBuildStore(builder, watermark, alloc_ptr);
 }
 
 static LLVMValueRef cgen_uarray_dim(LLVMValueRef meta, int dim)
@@ -1006,7 +1028,13 @@ static void cgen_op_return(int op, cgen_ctx_t *ctx)
 {
    switch (vcode_unit_kind()) {
    case VCODE_UNIT_PROCEDURE:
-      LLVMBuildRet(builder, LLVMConstNull(llvm_void_ptr()));
+      {
+         LLVMValueRef ptr = LLVMBuildStructGEP(builder, ctx->state, 3, "");
+         LLVMValueRef watermark = LLVMBuildLoad(builder, ptr, "");
+         cgen_tlab_restore(watermark);
+
+         LLVMBuildRet(builder, LLVMConstNull(llvm_void_ptr()));
+      }
       break;
 
    case VCODE_UNIT_PROCESS:
@@ -1025,6 +1053,11 @@ static void cgen_op_return(int op, cgen_ctx_t *ctx)
    case VCODE_UNIT_PROTECTED:
       LLVMBuildRet(builder, llvm_void_cast(ctx->state));
       break;
+
+   case VCODE_UNIT_FUNCTION:
+      if (ctx->watermark != NULL)
+         cgen_tlab_restore(ctx->watermark);
+      // Fall-through
 
    default:
       if (vcode_count_args(op) > 0)
@@ -3787,6 +3820,9 @@ static void cgen_function(void)
 
    LLVMPositionBuilderAtEnd(builder, ctx.blocks[0]);
 
+   if (!vcode_unit_has_escaping_tlab(vcode_active_unit()))
+      ctx.watermark = cgen_tlab_watermark();
+
    cgen_params(&ctx);
    cgen_locals(&ctx);
    cgen_code(&ctx);
@@ -3819,7 +3855,7 @@ static LLVMTypeRef cgen_state_type(vcode_unit_t unit)
    const bool has_fsm = (kind == VCODE_UNIT_PROCESS || cgen_is_procedure());
 
    const int nvars   = vcode_count_vars();
-   const int nfields = nvars + (has_fsm ? 3 : 1);
+   const int nfields = nvars + (has_fsm ? 4 : 1);
 
    int next_field = 0;
    LLVMTypeRef fields[nfields];
@@ -3832,8 +3868,9 @@ static LLVMTypeRef cgen_state_type(vcode_unit_t unit)
       fields[next_field++] = llvm_void_ptr();
 
    if (has_fsm) {
-      fields[next_field++] = llvm_int32_type();   // Current FSM state
-      fields[next_field++] = llvm_void_ptr();   // Suspended pcall state
+      fields[next_field++] = llvm_int32_type();  // Current FSM state
+      fields[next_field++] = llvm_void_ptr();    // Suspended pcall state
+      fields[next_field++] = llvm_void_ptr();    // Saved TLAB watermark
    }
 
    for (int i = 0; i < nvars; i++)
@@ -3922,6 +3959,8 @@ static void cgen_procedure(void)
 
    LLVMPositionBuilderAtEnd(builder, alloc_bb);
 
+   LLVMValueRef watermark = cgen_tlab_watermark();
+
    LLVMValueRef new_state =
       cgen_tlab_alloc(llvm_sizeof(state_type), state_type);
 
@@ -3930,6 +3969,9 @@ static void cgen_procedure(void)
 
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, new_state, 1, "");
    LLVMBuildStore(builder, llvm_int32(0), state_ptr);
+
+   LLVMValueRef watermark_ptr = LLVMBuildStructGEP(builder, new_state, 3, "");
+   LLVMBuildStore(builder, watermark, watermark_ptr);
 
    LLVMBuildBr(builder, jump_bb);
 

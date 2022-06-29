@@ -287,6 +287,7 @@ bool vcode_block_empty(void);
 ident_t vcode_unit_name(void);
 int vcode_unit_depth(void);
 bool vcode_unit_has_undefined(void);
+bool vcode_unit_has_escaping_tlab(vcode_unit_t vu);
 vunit_kind_t vcode_unit_kind(void);
 vcode_type_t vcode_unit_result(void);
 vcode_block_t vcode_active_block(void);
