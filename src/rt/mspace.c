@@ -67,6 +67,9 @@ struct _mspace {
    mptr_list_t      free_mptrs;
    mspace_oom_fn_t  oomfn;
    free_list_t     *free_list;
+   uint64_t         create_us;
+   unsigned         total_gc;
+   unsigned         num_cycles;
 #ifdef DEBUG
    str_list_t       mptr_names;
    bool             stress;
@@ -103,6 +106,7 @@ mspace_t *mspace_new(size_t size)
 
    m->free_list = f;
 
+   m->create_us = get_timestamp_us();
    return m;
 }
 
@@ -119,6 +123,13 @@ void mspace_destroy(mspace_t *m)
                   m->roots.count - m->free_mptrs.count - 1, tb_get(tb));
    }
 #endif
+
+   if (opt_get_verbose(OPT_GC_VERBOSE, NULL) && m->num_cycles > 0) {
+      const uint64_t destroy_us = get_timestamp_us();
+      const double gc_frac = m->total_gc / (double)(destroy_us - m->create_us);
+      debugf("GC: %d collection cycles; %d us total; %.1f%% of overall "
+             "run time", m->num_cycles, m->total_gc, gc_frac * 100.0);
+   }
 
    for (free_list_t *it = m->free_list, *tmp; it; it = tmp) {
       tmp = it->next;
@@ -422,6 +433,9 @@ static void mspace_gc(mspace_t *m)
       debugf("GC: allocated %d/%zu; fragmentation %.2g%% [%d us]",
              mask_popcount(&(state.markmask)) * LINE_SIZE, m->maxsize,
              ((double)(freefrags - 1) / (double)freelines) * 100.0, ticks);
+
+      m->total_gc += ticks;
+      m->num_cycles++;
    }
 
    mask_free(&(state.markmask));
