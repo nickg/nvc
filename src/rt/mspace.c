@@ -377,12 +377,6 @@ static void mspace_mark_root(mspace_t *m, intptr_t p, gc_state_t *state)
    }
 }
 
-__attribute__((noinline))
-static intptr_t *current_stack_pointer(void)
-{
-   return MSPACE_CURRENT_FRAME;
-}
-
 __attribute__((no_sanitize_address, noinline))
 static void mspace_gc(mspace_t *m)
 {
@@ -390,9 +384,6 @@ static void mspace_gc(mspace_t *m)
 
    if (stack_limit == NULL)
       fatal_trace("GC requested without setting stack limit");
-
-   intptr_t *stack_top = current_stack_pointer();
-   assert(stack_top <= stack_limit);   // Stack must grow down
 
    gc_state_t state = {};
    mask_init(&(state.markmask), m->maxlines);
@@ -405,6 +396,9 @@ static void mspace_gc(mspace_t *m)
 
    for (int i = 0; i < MAX_CPU_REGS; i++)
       mspace_mark_root(m, cpu.regs[i], &state);
+
+   intptr_t *stack_top = (intptr_t *)cpu.sp;
+   assert(stack_top <= stack_limit);   // Stack must grow down
 
    for (intptr_t *p = stack_top; p < stack_limit; p++)
       mspace_mark_root(m, *p, &state);
