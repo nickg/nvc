@@ -319,7 +319,7 @@ START_TEST(test_seq)
    input_from_file(TESTDIR "/parse/seq.vhd");
 
    const error_t expect[] = {
-      {  15, "type of slice prefix is not an array" },
+      {  15, "type of slice prefix INTEGER is not an array" },
       {  45, "target of variable assignment must be a variable name or" },
       {  84, "return statement not allowed outside subprogram" },
       { 125, "cannot use exit statement outside loop" },
@@ -3474,8 +3474,8 @@ START_TEST(test_names)
       { 106, "type of string literal cannot be determined from the" },
       { 107, "expected procedure name" },
       { 108, "no visible subprogram declaration for FOO" },
-      { 222, "ambiguous use of name FOO (MYTYPE, FOO [return INTEGER])" },
-      { 222, "ambiguous use of name FOO (MYTYPE, FOO [return INTEGER])" },
+      { 222, "ambiguous use of name FOO" },
+      { 222, "ambiguous use of name FOO" },
       { 233, "name X not found in \"+\"" },
       { 256, "no visible subprogram declaration for NOTHERE" },
       { 313, "no visible subprogram declaration for FNORK" },
@@ -4145,7 +4145,7 @@ START_TEST(test_vunit7)
    input_from_file(TESTDIR "/parse/vunit7.vhd");
 
    const error_t expect[] = {
-      { 23, "ambiguous use of enumeration literal ERROR (LOG_LEVEL_T, SEVE" },
+      { 23, "ambiguous use of enumeration literal ERROR" },
       { -1, NULL }
    };
    expect_errors(expect);

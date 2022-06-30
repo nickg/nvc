@@ -1152,10 +1152,12 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                      m.items[wptr++] = m.items[i];
                }
             }
-            ATRIM(m, wptr);
+            if (wptr > 0) ATRIM(m, wptr);
          }
 
-         if (m.count > 1 && num_subprograms != m.count) {
+         if (type_set_error(tab))
+            ; // Suppress cascading errors
+         else if (m.count > 1 && num_subprograms != m.count) {
             LOCAL_TEXT_BUF tb = tb_new();
             tree_kind_t what = T_LAST_TREE_KIND;
             for (unsigned i = 0; i < m.count; i++) {
@@ -1169,10 +1171,10 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             }
 
             diag_t *d = diag_new(DIAG_ERROR, loc);
-            diag_printf(d, "ambiguous use of %s %s (%s)",
+            diag_printf(d, "ambiguous use of %s %s",
                       what == T_ENUM_LIT ? "enumeration literal"
                       : (what == T_UNIT_DECL ? "physical literal" : "name"),
-                      istr(name), tb_get(tb));
+                      istr(name));
             decl = NULL;
 
             if (tab->top_scope->overload)
@@ -1193,7 +1195,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
             }
 
             if (m.count > 0)
-               diag_hint(d, loc, "use of name %s here", istr(name));
+               diag_hint(d, loc, "could be %s", tb_get(tb));
 
             diag_emit(d);
          }
@@ -3338,11 +3340,7 @@ static type_t solve_range(nametab_t *tab, tree_t r)
          tree_t left = tree_left(r);
          tree_t right = tree_right(r);
 
-         if (tab->top_type_set->members.count > 0) {
-            type = _solve_types(tab, left);
-            _solve_types(tab, right);
-         }
-         else if (is_unambiguous(left)) {
+         if (is_unambiguous(left)) {
             type = _solve_types(tab, left);
             type_set_add(tab, type, left);
             _solve_types(tab, right);
@@ -3351,6 +3349,10 @@ static type_t solve_range(nametab_t *tab, tree_t r)
             type = _solve_types(tab, right);
             type_set_add(tab, type, right);
             _solve_types(tab, left);
+         }
+         else if (tab->top_type_set->members.count > 0) {
+            type = _solve_types(tab, left);
+            _solve_types(tab, right);
          }
          else {
             type_list_t lposs = possible_types(tab, left);

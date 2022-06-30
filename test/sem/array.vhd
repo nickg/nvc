@@ -449,4 +449,10 @@ begin
         v(1 to 3) := 0;                 -- Error
     end process;
 
+    process is
+        type t_alert_level is (NO_ALERT, NOTE, TB_NOTE, WARNING);
+        type t_alert_counters is array (NOTE to t_alert_level'right) of natural;
+    begin
+    end process;
+
 end architecture;
