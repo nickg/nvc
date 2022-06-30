@@ -29,5 +29,5 @@ tasks:
       make distclean
       export CPPFLAGS="-I/usr/local/include"
       export LDFLAGS="-L/usr/local/lib"
-      ./configure --disable-debug
+      ../configure --disable-debug
       make

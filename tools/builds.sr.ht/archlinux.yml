@@ -12,15 +12,17 @@ tasks:
       uname -a
       cd nvc
       ./autogen.sh
-      ./configure --enable-debug
+      mkdir build
+      cd build
+      ../configure --enable-debug
   - build: |
-      cd nvc
+      cd nvc/build
       make
   - test: |
-      cd nvc
+      cd nvc/build
       make check
   - release: |
-      cd nvc
+      cd nvc/build
       make distclean
-      ./configure --disable-debug
+      ../configure --disable-debug
       make

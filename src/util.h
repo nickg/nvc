@@ -243,8 +243,8 @@ void unmap_file(void *ptr, size_t size);
 void make_dir(const char *path);
 char *search_path(const char *name);
 
-#define MAX_CPU_REGS 32
-void capture_registers(uintptr_t regs[MAX_CPU_REGS]);
+struct cpu_state;
+void capture_registers(struct cpu_state *cpu);
 
 #define atomic_add(p, n) __atomic_add_fetch((p), (n), __ATOMIC_ACQ_REL)
 #define atomic_load(p) __atomic_load_n((p), __ATOMIC_ACQUIRE)

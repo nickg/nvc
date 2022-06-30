@@ -48,13 +48,17 @@ AC_CHECK_FUNCS([tcgetwinsize])
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
 
-AC_MSG_CHECKING([for getcontext])
-AC_LINK_IFELSE(
-  [AC_LANG_PROGRAM([#include <ucontext.h>],
-    [ucontext_t uc; getcontext(&uc);])],
-  [AC_MSG_RESULT([yes])
-   AC_DEFINE([HAVE_GETCONTEXT], [1], [Defined if getcontext is available])],
-  [AC_MSG_RESULT([no])])
+AC_CHECK_HEADERS([ucontext.h])
+AC_CHECK_HEADERS([sys/ucontext.h])
+
+AS_IF([test "$ac_cv_header_ucontext_h" = yes ],
+      [AC_MSG_CHECKING([for getcontext])
+       AC_LINK_IFELSE(
+         [AC_LANG_PROGRAM([#include <ucontext.h>],
+                          [ucontext_t uc; getcontext(&uc);])],
+         [AC_MSG_RESULT([yes])
+          AC_DEFINE([HAVE_GETCONTEXT], [1], [Defined if getcontext is available])],
+         [AC_MSG_RESULT([no])])])
 
 EXTRA_CFLAGS=
 EXTRA_LDFLAGS=
@@ -82,8 +86,16 @@ case $host_os in
       AC_MSG_ERROR([LLVM on Windows requires curses])
     fi
 
+    LIBS="$LIBS -lDbgHelp"    # For StackTrace64
+
     AC_SEARCH_LIBS([ffi_call], [ffi], [],
       [AC_MSG_ERROR(LLVM on Windows requires libffi)], [])
+    ;;
+
+  *)
+    AC_SEARCH_LIBS([dlopen], [dl dld], [], [
+      AC_MSG_ERROR([unable to find the dlopen() function])
+    ])
     ;;
 esac
 
@@ -98,16 +110,6 @@ esac
 
 AC_DEFINE_UNQUOTED([DIR_SEP], ["$DIR_SEP"], [Directory separator])
 AC_DEFINE_UNQUOTED([EXEEXT], ["$EXEEXT"], [Executable file extension])
-
-case $host_os in
-  msys*|mingw32*)
-    ;;
-  *)
-    AC_SEARCH_LIBS([dlopen], [dl dld], [], [
-      AC_MSG_ERROR([unable to find the dlopen() function])
-    ])
-    ;;
-esac
 
 AC_SEARCH_LIBS([pow], [m], [], [
   AC_MSG_ERROR([unable to find the pow() function])
@@ -293,16 +295,6 @@ else
   AC_PROG_RANLIB
 fi
 AC_SUBST(LTO_FLAG)
-
-case $host_os in
-  msys*|mingw32*)
-    LIBS="$LIBS -lDbgHelp"    # For StackTrace64
-    ;;
-  *)
-    AC_PC_FROM_UCONTEXT(
-      AC_MSG_ERROR([no way to access program counter on this platform]))
-    ;;
-esac
 
 # Turn on silent make when using the GNU version
 AX_CHECK_GNU_MAKE

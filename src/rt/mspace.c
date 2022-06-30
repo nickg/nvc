@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "array.h"
+#include "cpustate.h"
 #include "diag.h"
 #include "mask.h"
 #include "opt.h"
@@ -399,11 +400,11 @@ static void mspace_gc(mspace_t *m)
    for (int i = 0; i < m->roots.count; i++)
       mspace_mark_root(m, (intptr_t)m->roots.items[i], &state);
 
-   uintptr_t regs[MAX_CPU_REGS];
-   capture_registers(regs);
+   struct cpu_state cpu;
+   capture_registers(&cpu);
 
    for (int i = 0; i < MAX_CPU_REGS; i++)
-      mspace_mark_root(m, regs[i], &state);
+      mspace_mark_root(m, cpu.regs[i], &state);
 
    for (intptr_t *p = stack_top; p < stack_limit; p++)
       mspace_mark_root(m, *p, &state);

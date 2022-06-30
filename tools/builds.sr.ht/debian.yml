@@ -1,0 +1,33 @@
+image: debian/stable
+arch: amd64
+packages:
+  - automake
+  - autoconf
+  - llvm-dev
+  - check
+  - flex
+  - build-essential
+  - zlib1g-dev
+  - pkg-config
+  - libdw-dev
+sources:
+  - https://git.sr.ht/~nickg/nvc
+tasks:
+  - setup: |
+      uname -a
+      cd nvc
+      ./autogen.sh
+      mkdir build
+      cd build
+      ../configure --enable-debug --disable-lto
+  - build: |
+      cd nvc/build
+      make
+  - test: |
+      cd nvc/build
+      make check
+  - release: |
+      cd nvc/build
+      make distclean
+      ../configure --disable-debug
+      make

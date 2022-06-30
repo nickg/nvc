@@ -26,6 +26,7 @@
 
 #include "util.h"
 #include "array.h"
+#include "cpustate.h"
 #include "debug.h"
 #include "diag.h"
 #include "opt.h"
@@ -723,50 +724,23 @@ static const char *signame(int sig)
    }
 }
 
-#ifdef PC_FROM_UCONTEXT
-static void fill_regs_from_ucontext(ucontext_t *uc,
-                                    uintptr_t regs[MAX_CPU_REGS])
-{
-#if defined __linux__
-   STATIC_ASSERT(__NGREG <= MAX_CPU_REGS);
-   for (int i = 0; i < MAX_CPU_REGS; i++)
-      regs[i] = (i < __NGREG) ? uc->uc_mcontext.gregs[i] : 0;
-#else
-   // Other platforms don't provide a convenient array so just copy the
-   // mcontext structure directly
-#if defined __APPLE__
-   char *mc = (char *)&(uc->uc_mcontext->__ss);
-   size_t sz = sizeof(uc->uc_mcontext->__ss);
-#elif defined __OpenBSD__
-   char *mc = (char *)uc;
-   size_t sz = sizeof(ucontext_t);
-#else
-   char *mc = (char *)&(uc->uc_mcontext);
-   size_t sz = sizeof(uc->uc_mcontext);
-#endif
-   memcpy(regs, mc, MIN(sizeof(uintptr_t) * MAX_CPU_REGS, sz));
-#endif  // !__linux__
-}
-
-static __thread uintptr_t *thread_regs = NULL;
-#endif
+static __thread struct cpu_state *thread_regs = NULL;
 
 static void signal_handler(int sig, siginfo_t *info, void *context)
 {
-#ifdef PC_FROM_UCONTEXT
    ucontext_t *uc = (ucontext_t*)context;
-   uint64_t ip = uc->PC_FROM_UCONTEXT;
+   struct cpu_state cpu;
+   fill_cpu_state(&cpu, uc);
 
-   uintptr_t *regs;
-   if (sig == SIGUSR2 && (regs = atomic_load(&thread_regs)) != NULL) {
+   uint64_t ip = cpu.pc;
+
+   struct cpu_state *req;
+   if (sig == SIGUSR2 && (req = atomic_load(&thread_regs)) != NULL) {
       // Fill in registers for capture_registers
-      fill_regs_from_ucontext(uc, regs);
+      *req = cpu;
       atomic_store(&thread_regs, NULL);
       return;
    }
-#else
-   uintptr_t ip = 0;
-#endif  // PC_FROM_UNCONTEXT
 
    if (sig != SIGUSR1) {
       while (!atomic_cas(&crashing, 0, 1))
@@ -1856,41 +1830,21 @@ unsigned nvc_nprocs(void)
 #endif
 }
 
-void capture_registers(uintptr_t regs[MAX_CPU_REGS])
+void capture_registers(struct cpu_state *cpu)
 {
 #if defined HAVE_GETCONTEXT
    ucontext_t uc;
    if (getcontext(&uc) != 0)
       fatal_errno("getcontext");
 
-   fill_regs_from_ucontext(&uc, regs);
+   fill_cpu_state(cpu, &uc);
 #elif defined __MINGW32__
    CONTEXT context;
    RtlCaptureContext(&context);
-
-   regs[0] = context.Rax;
-   regs[1] = context.Rcx;
-   regs[2] = context.Rdx;
-   regs[3] = context.Rbx;
-   regs[4] = context.Rsp;
-   regs[5] = context.Rbp;
-   regs[6] = context.Rsi;
-   regs[7] = context.Rdi;
-   regs[8] = context.R8;
-   regs[9] = context.R9;
-   regs[10] = context.R10;
-   regs[11] = context.R11;
-   regs[12] = context.R12;
-   regs[13] = context.R13;
-   regs[14] = context.R14;
-   regs[15] = context.R15;
-
-   for (int i = 16; i < MAX_CPU_REGS; i++)
-      regs[i] = 0;
-
-#elif defined HAVE_PTHREAD && defined PC_FROM_UCONTEXT
+   fill_cpu_state(cpu, &context);
+#elif defined HAVE_PTHREAD
    assert(atomic_load(&thread_regs) == NULL);
-   atomic_store(&thread_regs, regs);
+   atomic_store(&thread_regs, cpu);
 
    if (pthread_kill(pthread_self(), SIGUSR2) != 0)
       fatal_errno("pthread_kill");
