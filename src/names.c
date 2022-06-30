@@ -146,13 +146,17 @@ static void type_set_pop(nametab_t *tab)
    free(old);
 }
 
-static void type_set_hint(nametab_t *tab, diag_t *d, tree_t expr)
+static void type_set_hint(nametab_t *tab, diag_t *d, const loc_t *loc)
 {
    if (tab->top_type_set != NULL && tab->top_type_set->members.count > 0) {
       LOCAL_TEXT_BUF tb = tb_new();
 
+      int poss = 0;
       for (unsigned n = 0; n < tab->top_type_set->members.count; n++) {
          tracked_type_t tt = tab->top_type_set->members.items[n];
+
+         if (type_is_none(tt.type))
+            continue;
 
          if (n > 0 && n + 1 == tab->top_type_set->members.count)
             tb_cat(tb, " or ");
@@ -160,6 +164,7 @@ static void type_set_hint(nametab_t *tab, diag_t *d, tree_t expr)
             tb_cat(tb, ", ");
 
          tb_cat(tb, type_pp(tt.type));
+         poss++;
 
          if (tt.src == NULL)
             continue;
@@ -168,7 +173,9 @@ static void type_set_hint(nametab_t *tab, diag_t *d, tree_t expr)
                       type_pp(tree_type(tt.src)));
       }
 
-      diag_hint(d, tree_loc(expr), "could be %s", tb_get(tb));
+      if (poss > 0)
+         diag_hint(d, loc, "%s %s", poss > 1 ? "could be" : "expecting",
+                   tb_get(tb));
    }
 }
 
@@ -178,8 +185,6 @@ static void type_set_add(nametab_t *tab, type_t t, tree_t src)
 
    if (t == NULL)
       return;
-
-   assert(t != NULL);
 
    if (type_kind(t) == T_INCOMPLETE)
       t = resolve_type(tab, t);
@@ -1194,6 +1199,13 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          }
          else if (m.count == 1)
             decl = m.items[0];
+         else if (m.count == 0 && num_subprograms == 0
+                  && !type_set_error(tab)) {
+            diag_t *d = diag_new(DIAG_ERROR, loc);
+            diag_printf(d, "no suitable overload for name %s", istr(name));
+            type_set_hint(tab, d, loc);
+            diag_emit(d);
+         }
       }
    }
    else if (tab->top_scope->overload == NULL && dkind != T_ATTR_DECL
@@ -2661,7 +2673,7 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(lit));
             diag_printf(d, "type of string literal cannot be determined "
                         "from the surrounding context");
-            type_set_hint(tab, d, lit);
+            type_set_hint(tab, d, tree_loc(lit));
             diag_emit(d);
 
             type = type_new(T_NONE);
@@ -3074,7 +3086,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
       diag_printf(d, "type of aggregate cannot be determined "
                   "from the surrounding context");
-      type_set_hint(tab, d, agg);
+      type_set_hint(tab, d, tree_loc(agg));
 
       diag_emit(d);
       type = type_new(T_NONE);
@@ -3160,16 +3172,17 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
 
       type_set_push(tab);
 
+      type_t t0, t1 = NULL;
       const int ndims = dimension_of(type);
       if (ndims == 1) {
          type_t elem = type_elem(type);
-         type_set_add(tab, elem, NULL);
+         type_set_add(tab, (t0 = elem), NULL);
 
          if (standard() >= STD_08 && !type_is_composite(elem))
-            type_set_add(tab, type_base_recur(type), NULL);
+            type_set_add(tab, (t1 = type_base_recur(type)), NULL);
       }
       else
-         type_set_add(tab, array_aggregate_type(type, 1), NULL);
+         type_set_add(tab, (t0 = array_aggregate_type(type, 1)), NULL);
 
       type_t index_type = index_type_of(type, 0);
 
@@ -3190,6 +3203,11 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
          }
 
          _solve_types(tab, tree_value(a));
+
+         // Hack to avoid pushing/popping type set on each iteration
+         ATRIM(tab->top_type_set->members, 0);
+         type_set_add(tab, t0, NULL);
+         type_set_add(tab, t1, NULL);
       }
 
       type_set_pop(tab);
