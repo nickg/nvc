@@ -602,3 +602,4 @@ func20          normal
 array8          normal,2008
 array9          normal,2008
 signal22        normal
+genpack9        normal,2008

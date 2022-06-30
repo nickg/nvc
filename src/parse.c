@@ -6719,6 +6719,8 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
    consume(tIS);
    consume(tNEW);
 
+   require_std(STD_08, "package instantiation declarations");
+
    ident_t unit_name = p_selected_identifier();
    tree_t pack = find_unit(CURRENT_LOC, unit_name, "package");
 
@@ -7431,10 +7433,6 @@ static void p_package_declarative_item(tree_t pack)
 
    case tPACKAGE:
       tree_add_decl(pack, p_package_instantiation_declaration(NULL));
-      if (standard() < STD_08)
-         parse_error(CURRENT_LOC, "package declarative part may not contain "
-                     "package declarations in VHDL-%s",
-                     standard_text(standard()));
       break;
 
    default:
@@ -8147,10 +8145,6 @@ static void p_block_declarative_item(tree_t parent)
 
    case tPACKAGE:
       tree_add_decl(parent, p_package_instantiation_declaration(NULL));
-      if (standard() < STD_08)
-         parse_error(CURRENT_LOC, "block declarative part may not contain "
-                     "package declarations in VHDL-%s",
-                     standard_text(standard()));
       break;
 
    default:
@@ -9832,9 +9826,13 @@ static void p_package_body_declarative_item(tree_t parent)
          tree_add_decl(parent, p_group_declaration());
       break;
 
+   case tPACKAGE:
+      tree_add_decl(parent, p_package_instantiation_declaration(NULL));
+      break;
+
    default:
       expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE, tATTRIBUTE, tTYPE,
-             tCONSTANT, tSUBTYPE, tFILE, tALIAS, tUSE, tGROUP);
+             tCONSTANT, tSUBTYPE, tFILE, tALIAS, tUSE, tGROUP, tPACKAGE);
    }
 }
 
