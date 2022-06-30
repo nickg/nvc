@@ -433,7 +433,7 @@ START_TEST(test_array)
       { 102, "named and positional associations cannot be mixed in" },
       { 111, "a choice that is not locally static is allowed" },
       { 119, "aggregate has non-composite type INTEGER" },
-      { 119, "type of slice prefix is not an array" },
+      { 119, "type of slice prefix INTEGER is not an array" },
       { 120, "range direction of slice TO does not match prefix DOWNTO" },
       { 121, "index range of array aggregate with others choice cannot" },
       { 130, "no suitable overload for name '0'" },
@@ -463,6 +463,7 @@ START_TEST(test_array)
       { 404, "a choice that is not locally static is allowed" },
       { 424, "ambiguous call to function F" },
       { 436, "type mismatch in range: left is universal_real, right is" },
+      { 446, "no visible declaration for FOO" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -753,6 +754,7 @@ START_TEST(test_record)
       { 169, "range association invalid in record aggregate" },
       { 170, "record type R1 has no field named Z" },
       { 170, "range association invalid in record aggregate" },
+      { 174, "no visible declaration for FOO" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -3255,7 +3255,9 @@ static bool sem_check_record_ref(tree_t t, nametab_t *tab)
 
    type_t value_type = tree_type(value);
 
-   if (!type_is_record(value_type))
+   if (type_is_none(value_type))
+      return false;
+   else if (!type_is_record(value_type))
       sem_error(value, "expected record type but found %s%s",
                 type_is_incomplete(value_type) ? "incomplete type " : "",
                 type_pp(value_type));
@@ -3271,7 +3273,9 @@ static bool sem_check_array_ref(tree_t t, nametab_t *tab)
 
    type_t type = tree_type(tree_value(t));
 
-   if (!type_is_array(type))
+   if (type_is_none(type))
+      return false;
+   else if (!type_is_array(type))
       sem_error(t, "cannot index non-array type %s", type_pp(type));
 
    const int nindex  = dimension_of(type);
@@ -3309,8 +3313,11 @@ static bool sem_check_array_slice(tree_t t, nametab_t *tab)
 
    type_t array_type = tree_type(tree_value(t));
 
-   if (!type_is_array(array_type))
-      sem_error(t, "type of slice prefix is not an array");
+   if (type_is_none(array_type))
+      return false;
+   else if (!type_is_array(array_type))
+      sem_error(t, "type of slice prefix %s is not an array",
+                type_pp(array_type));
 
    tree_t r = tree_range(t, 0);
    if (!sem_check_discrete_range(r, index_type_of(array_type, 0), tab))

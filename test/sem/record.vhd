@@ -170,4 +170,10 @@ package body p is
         r := (x to z => 2);             -- Error
     end procedure;
 
+    procedure test1 is
+        variable r : foo;               -- Error
+    begin
+        r.baz := 1;                   -- Error
+    end procedure;
+
 end package body;

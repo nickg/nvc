@@ -442,4 +442,11 @@ begin
         assert m'range(5)'left = 2;     -- Error
     end process;
 
+    process is
+        variable v : foo;               -- Error
+    begin
+        v(0) := 1;                      -- Error
+        v(1 to 3) := 0;                 -- Error
+    end process;
+
 end architecture;
