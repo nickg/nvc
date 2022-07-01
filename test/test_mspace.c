@@ -22,8 +22,6 @@
 
 START_TEST(test_sanity)
 {
-   mspace_stack_limit(MSPACE_CURRENT_FRAME);
-
    mspace_t *m = mspace_new(1024);
 
    int *ptr1 = mspace_alloc(m, sizeof(int));
@@ -84,8 +82,6 @@ static void generate_garbage(mspace_t *m, int count, size_t size)
 
 START_TEST(test_indirect)
 {
-   mspace_stack_limit(MSPACE_CURRENT_FRAME);
-
    mspace_t *m = mspace_new(1024);
 
    // Do a few dummy allocations to ensure the pointer is not in the
@@ -105,8 +101,6 @@ END_TEST
 
 START_TEST(test_mptr)
 {
-   mspace_stack_limit(MSPACE_CURRENT_FRAME);
-
    mspace_t *m = mspace_new(1024);
 
    // Do a few dummy allocations to ensure the pointer is not in the
@@ -131,8 +125,6 @@ END_TEST
 
 START_TEST(test_large)
 {
-   mspace_stack_limit(MSPACE_CURRENT_FRAME);
-
    mspace_t *m = mspace_new(5 * 1024);
 
    // Do a few dummy allocations to ensure the pointer is not in the
@@ -155,8 +147,6 @@ END_TEST
 
 START_TEST(test_interior)
 {
-   mspace_stack_limit(MSPACE_CURRENT_FRAME);
-
    mspace_t *m = mspace_new(5 * 1024);
 
    // Do a few dummy allocations to ensure the pointer is not in the
@@ -187,8 +177,6 @@ static void test_oom_cb(mspace_t *m, size_t size)
 
 START_TEST(test_oom)
 {
-   mspace_stack_limit(MSPACE_CURRENT_FRAME);
-
    mspace_t *m = mspace_new(1024);
    mspace_set_oom_handler(m, test_oom_cb);
 
@@ -206,8 +194,6 @@ START_TEST(test_linked_list)
       struct list *next;
       int value;
    };
-
-   mspace_stack_limit(MSPACE_CURRENT_FRAME);
 
    mspace_t *m = mspace_new(4096);
 
@@ -240,8 +226,6 @@ END_TEST
 
 START_TEST(test_tlab)
 {
-   mspace_stack_limit(MSPACE_CURRENT_FRAME);
-
    mspace_t *m = mspace_new(2 * TLAB_SIZE);
 
    tlab_t t = {};
@@ -270,8 +254,6 @@ END_TEST
 
 START_TEST(test_end_ptr)
 {
-   mspace_stack_limit(MSPACE_CURRENT_FRAME);
-
    mspace_t *m = mspace_new(5 * 1024);
 
    // Do a few dummy allocations to ensure the pointer is not in the
