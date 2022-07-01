@@ -90,5 +90,14 @@ architecture test of e is
     begin
     end procedure;
 
+    constant LEN : natural := 20 ;
+    function doit return bit_vector is
+        alias length : natural is LEN ;
+        -- Following is OK, from UVVM
+        constant rv : bit_vector(length-1 downto 0) := (length-1 => '1', others =>'0') ;
+    begin
+        return rv ;
+    end function ;
+
 begin
 end architecture;

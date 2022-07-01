@@ -4330,11 +4330,14 @@ static bool sem_locally_static(tree_t t)
          return sem_static_subtype(tree_type(decl), sem_locally_static)
             && sem_locally_static(value);
       }
-      else if ((standard() >= STD_08 || relaxed_rules())
-               && dkind == T_GENERIC_DECL) {
-         // [2008] A generic reference with a locally static subtype
+
+      // An alias of a locally static name
+      if (dkind == T_ALIAS)
+         return sem_locally_static(tree_value(decl));
+
+      // [2008] A generic reference with a locally static subtype
+      if (dkind == T_GENERIC_DECL && (standard() >= STD_08 || relaxed_rules()))
          return sem_static_subtype(tree_type(decl), sem_locally_static);
-      }
    }
 
    // A locally static range
@@ -4352,10 +4355,6 @@ static bool sem_locally_static(tree_t t)
          return false;
       }
    }
-
-   // An alias of a locally static name
-   if (kind == T_ALIAS)
-      return sem_locally_static(tree_value(t));
 
    // A function call of an implicit operator with locally static actuals
    if (kind == T_FCALL) {
