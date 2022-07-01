@@ -12,10 +12,11 @@ package body broken_module is
 
     procedure file_proc is
       file fwrite : text;
+      variable s : string(1 to 3);
     begin
         file_open(fwrite, "tmp", WRITE_MODE);
         file_close(fwrite);
-        file_close(fwrite);             -- Closed twice
+        write(fwrite, s);               -- Write to closed file
     end procedure;
 
     procedure proc is

@@ -2370,11 +2370,10 @@ void _file_close(void **_fp)
 
    TRACE("_file_close fp=%p", fp);
 
-   if (*fp == NULL)
-      rt_msg(NULL, DIAG_FATAL, "attempt to close already closed file");
-
-   fclose(*fp);
-   *fp = NULL;
+   if (*fp != NULL) {
+      fclose(*fp);
+      *fp = NULL;
+   }
 }
 
 DLLEXPORT
