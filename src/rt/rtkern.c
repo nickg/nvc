@@ -3550,23 +3550,23 @@ static event_t *rt_pop_run_queue(rt_run_queue_t *q)
 
 static void rt_iteration_limit(void)
 {
-   text_buf_t *buf = tb_new();
-   tb_printf(buf, "Iteration limit of %d delta cycles reached. "
-             "The following processes are active:\n",
-             opt_get_int(OPT_STOP_DELTA));
+   diag_t *d = diag_new(DIAG_FATAL, NULL);
+
+   diag_printf(d, "iteration limit of %d delta cycles reached",
+               opt_get_int(OPT_STOP_DELTA));
 
    for (sens_list_t *it = resume; it != NULL; it = it->next) {
       if (it->wake->kind == W_PROC) {
          rt_proc_t *proc = container_of(it->wake, rt_proc_t, wakeable);
          const loc_t *l = tree_loc(proc->where);
-         tb_printf(buf, "  %-30s %s line %d\n", istr(proc->name),
-                   loc_file_str(l), l->first_line);
+         diag_hint(d, l, "process %s is active", istr(proc->name));
       }
    }
 
-   tb_printf(buf, "You can increase this limit with --stop-delta");
+   diag_hint(d, NULL, "You can increase this limit with $bold$--stop-delta$$");
 
-   fatal("%s", tb_get(buf));
+   diag_emit(d);
+   fatal_exit(EXIT_FAILURE);
 }
 
 static void rt_resume(sens_list_t **list)
