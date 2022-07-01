@@ -1952,9 +1952,9 @@ static tree_t finish_overload_resolution(overload_t *o)
       tree_t d = o->candidates.items[i];
       if (tree_flags(d) & TREE_F_UNIVERSAL) {
          // LRM 08 section 9.3.6 implicit conversions only occur when
-         // there is a unique numeric type in the context If a univeral
+         // there is a unique numeric type in the context. If a univeral
          // operator is in the candidate list then the other candidates
-         // can only be there because of implicit conversions
+         // can only be there because of implicit conversions.
          result = o->candidates.items[i];
          count  = 1;
          break;

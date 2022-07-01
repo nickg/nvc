@@ -1465,12 +1465,16 @@ static void declare_standard_to_string(tree_t unit)
    type_t  std_bit_vec = std_type(unit, STD_BIT_VECTOR);
 
    const int ndecls = tree_decls(unit);
-   for (int i = 0; i < ndecls; i++) {
+   for (int i = 0, dpos = ndecls; i < ndecls; i++) {
       tree_t d = tree_decl(unit, i);
       if (tree_kind(d) == T_TYPE_DECL) {
          type_t type = tree_type(d);
-         if (type_is_scalar(type))
+         if (type_is_scalar(type)) {
             declare_unary(unit, to_string, type, std_string, S_TO_STRING);
+            if (type_is_universal(type))
+               tree_set_flag(tree_decl(unit, dpos), TREE_F_UNIVERSAL);
+            dpos++;
+         }
       }
    }
 

@@ -198,4 +198,9 @@ begin
     begin
     end block;
 
+    b6: block is
+        constant c1 : string := to_string(100);  -- OK
+    begin
+    end block;
+
 end architecture;
