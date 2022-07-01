@@ -3440,8 +3440,15 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
    vcode_reg_t f_reg = emit_record_ref(record, index);
    if (lower_have_signal(f_reg) && type_is_homogeneous(ftype))
       return emit_load_indirect(f_reg);
-   else if (type_is_array(ftype) && !lower_const_bounds(ftype))
-      return emit_load_indirect(f_reg);
+   else if (type_is_array(ftype) && !lower_const_bounds(ftype)) {
+      // The field type may be unconstrained but this particular
+      // instance has a record element constraint
+      vcode_reg_t array = emit_load_indirect(f_reg);
+      if (lower_const_bounds(tree_type(expr)))
+         return lower_array_data(array);
+      else
+         return array;
+   }
    else
       return f_reg;
 }

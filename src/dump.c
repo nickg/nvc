@@ -1465,6 +1465,10 @@ void dump(tree_t t)
       dump_param(t);
       printf("\n");
       break;
+   case T_CONSTRAINT:
+      dump_constraint(t);
+      printf("\n");
+      break;
    default:
       cannot_dump(t, "tree");
    }

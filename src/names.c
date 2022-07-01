@@ -2804,8 +2804,21 @@ static type_t solve_record_ref(nametab_t *tab, tree_t rref)
                type_pp(value_type), istr(tree_ident(rref)));
       type = type_new(T_NONE);
    }
-   else
+   else {
       type = tree_type(field);
+
+      if (type_is_unconstrained(type)) {
+         // Construct a new subtype using the record element constraint
+         tree_t cons = type_constraint_for_field(value_type, field);
+         if (cons != NULL) {
+            type_t sub = type_new(T_SUBTYPE);
+            type_set_base(sub, type);
+            type_add_constraint(sub, cons);
+
+            type = sub;
+         }
+      }
+   }
 
    tree_set_ref(rref, field);
    tree_set_type(rref, type);

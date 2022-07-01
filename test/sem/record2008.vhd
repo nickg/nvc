@@ -43,4 +43,9 @@ architecture test of record2008 is
     signal r14 : rec3(s(1 to 2));       -- Error
 begin
 
+    p1: process is
+    begin
+        r4.x <= (others => '0');        -- OK
+    end process;
+
 end architecture;

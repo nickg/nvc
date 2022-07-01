@@ -629,7 +629,9 @@ tree_t type_constraint_for_field(type_t t, tree_t f)
          assert(ncon == 1);
 
          tree_t c = type_constraint(t, 0);
-         assert(tree_subkind(c) == C_RECORD);
+
+         if (tree_subkind(c) != C_RECORD)
+            return NULL;
 
          const int nelem = tree_ranges(c);
          for (int i = 0; i < nelem; i++) {
