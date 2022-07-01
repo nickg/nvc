@@ -604,3 +604,4 @@ array9          normal,2008
 signal22        normal
 genpack9        normal,2008
 file9           normal
+array10         normal

@@ -394,10 +394,27 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
    }
 }
 
+static bool have_array_metadata(type_t type, vcode_reg_t reg)
+{
+   if (reg == VCODE_INVALID_REG) {
+      assert(!type_is_unconstrained(type));
+      return false;
+   }
+   else if (lower_const_bounds(type))
+      return false;
+   else if (type_is_unconstrained(type)) {
+      assert(reg != VCODE_INVALID_REG);
+      assert(vcode_reg_kind(reg) == VCODE_TYPE_UARRAY
+             || lower_have_uarray_ptr(reg));
+      return true;
+   }
+   else
+      return vcode_reg_kind(reg) == VCODE_TYPE_UARRAY;
+}
+
 static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
 {
-   if (type_is_unconstrained(type)) {
-      assert(reg != VCODE_INVALID_REG);
+   if (have_array_metadata(type, reg)) {
       type_t index_type = index_type_of(type, dim);
       return emit_cast(lower_type(index_type), lower_bounds(index_type),
                        emit_uarray_left(reg, dim));
@@ -408,8 +425,7 @@ static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
 
 static vcode_reg_t lower_array_right(type_t type, int dim, vcode_reg_t reg)
 {
-   if (type_is_unconstrained(type)) {
-      assert(reg != VCODE_INVALID_REG);
+   if (have_array_metadata(type, reg)) {
       type_t index_type = index_type_of(type, dim);
       return emit_cast(lower_type(index_type), lower_bounds(index_type),
                        emit_uarray_right(reg, dim));
@@ -420,24 +436,18 @@ static vcode_reg_t lower_array_right(type_t type, int dim, vcode_reg_t reg)
 
 static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg)
 {
-   if (type_is_unconstrained(type)) {
-      assert(reg != VCODE_INVALID_REG);
-      assert(vcode_reg_kind(reg) == VCODE_TYPE_UARRAY);
+   if (have_array_metadata(type, reg))
       return emit_uarray_dir(reg, dim);
-   }
-   else {
-      assert(!type_is_unconstrained(type));
+   else
       return lower_range_dir(range_of(type, dim));
-   }
 }
 
 static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
 {
    assert(type_is_array(type));
 
-   if (type_is_unconstrained(type)) {
-      assert(reg != VCODE_INVALID_REG);
-
+   if (have_array_metadata(type, reg)) {
+      // TODO: should the other lower_array_* functions do this?
       if (lower_have_uarray_ptr(reg))
          reg = emit_load_indirect(reg);
 
@@ -445,9 +455,6 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
    }
    else {
       tree_t r = range_of(type, dim);
-
-      if (reg != VCODE_INVALID_REG && vcode_reg_kind(reg) == VCODE_TYPE_UARRAY)
-         return emit_uarray_len(reg, dim);
 
       int64_t low, high;
       if (folded_bounds(r, &low, &high))
