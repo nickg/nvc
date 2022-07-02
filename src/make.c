@@ -276,8 +276,18 @@ static void make_rule(tree_t t, rule_t **rules)
 
    tree_walk_deps(t, make_add_inputs_cb, r);
 
-   if (tree_kind(t) == T_ARCH)
+   if (kind == T_ARCH)
       tree_visit_only(t, make_instance_deps, r, T_INSTANCE);
+   else if (kind == T_CONTEXT) {
+      // TODO: T_USE should store a reference to the library unit
+      const int nctx = tree_contexts(t);
+      for (int i = 0; i < nctx; i++) {
+         tree_t d = tree_context(t, i);
+         if (tree_kind(d) == T_USE)
+            make_add_inputs_cb(tree_ident(d), r);
+      }
+
+   }
 
    tree_walk_deps(t, make_dep_rules_cb, rules);
 }
