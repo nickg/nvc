@@ -605,3 +605,4 @@ signal22        normal
 genpack9        normal,2008
 file9           normal
 array10         normal
+wait22          normal,2008

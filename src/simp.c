@@ -1080,12 +1080,15 @@ static tree_t simp_concurrent(tree_t t)
    tree_set_loc(p, tree_loc(t));
    tree_set_flag(p, tree_flags(t));
 
+   tree_t s0 = tree_stmt(t, 0);
+
    tree_t w = tree_new(T_WAIT);
-   tree_set_flag(w, TREE_F_STATIC_WAIT);
+
+   // Concurrent procedure calls may have internal waits
+   if (tree_kind(s0) != T_PCALL)
+      tree_set_flag(w, TREE_F_STATIC_WAIT);
 
    tree_t container = p;  // Where to add new statements
-
-   tree_t s0 = tree_stmt(t, 0);
 
    if (tree_has_guard(t))
       container = simp_guard(container, t, w, s0);
