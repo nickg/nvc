@@ -63,4 +63,11 @@ begin
     begin
     end process;
 
+    p3: process is
+        type rec1_vec is array (natural range <>) of rec1;
+        constant c1 : rec1_vec(0 to 0)(x(1 to 3)) := (  -- OK
+            0 => (x => "111") );
+    begin
+    end process;
+
 end architecture;

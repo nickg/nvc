@@ -164,6 +164,7 @@ static tree_t p_record_constraint(type_t base);
 static tree_t p_qualified_expression(tree_t prefix);
 static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name);
 static tree_t p_subprogram_instantiation_declaration(void);
+static tree_t p_record_element_constraint(type_t base);
 
 static bool consume(token_t tok);
 static bool optional(token_t tok);
@@ -3679,8 +3680,17 @@ static void p_array_constraint(type_t type, type_t base)
 
          type_add_constraint(type, c);
       }
-      else
+      else if (type_is_record(base)) {
+         type_add_constraint(type, p_record_constraint(base));
+         break;
+      }
+      else {
          type_add_constraint(type, p_index_constraint(base));
+
+         // Base type may not actually be an array due to earlier errors
+         if (base != NULL && type_is_array(base))
+            base = type_elem(base);
+      }
    } while (peek() == tLPAREN);
 }
 

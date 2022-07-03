@@ -403,10 +403,15 @@ static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
    if (type_is_protected(base))
       sem_error(decl, "subtypes may not have protected base types");
 
+   type_t elem = base;
    const int ncon = type_constraints(type);
    for (int i = 0; i < ncon; i++) {
-      if (!sem_check_constraint(type_constraint(type, i), base, tab))
+      tree_t cons = type_constraint(type, i);
+      if (!sem_check_constraint(cons, elem, tab))
          return false;
+
+      if (i + 1 < ncon && tree_subkind(cons) == C_INDEX)
+         elem = type_elem(type);
    }
 
    if (type_freedom(type) < 0)
