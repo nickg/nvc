@@ -554,7 +554,17 @@ static void insert_name_at(scope_t *s, ident_t name, tree_t decl)
 {
    hash_put(s->members, name, decl);
 
-   if (decl != (tree_t)-1 && tree_kind(decl) == T_TYPE_DECL) {
+   if (decl == (tree_t)-1)
+      return;
+
+   if (tree_kind(decl) == T_ALIAS) {
+      // Handle aliases of type declarations
+      tree_t value = tree_value(decl);
+      if (tree_kind(value) == T_REF && tree_has_ref(value))
+         decl = tree_ref(value);
+   }
+
+   if (tree_kind(decl) == T_TYPE_DECL) {
       type_t type = tree_type(decl);
       switch (type_kind(type)) {
       case T_ENUM:
@@ -1107,7 +1117,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 
          do {
             if (!can_overload(decl1))
-                break;
+               break;
             else if (is_subprogram(decl1))
                num_subprograms++;
             APUSH(m, decl1);
@@ -1136,6 +1146,23 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                }
 
                m.items[wptr++] = m.items[i];
+            }
+            ATRIM(m, wptr);
+         }
+
+         if (m.count > 1) {
+            // Remove duplicates visible through different aliases
+            unsigned wptr = 0;
+            for (int i = 0; i < m.count; i++) {
+               bool dup = false;
+               for (int j = 0; j < wptr; j++) {
+                  if (denotes_same_object(m.items[i], m.items[j])) {
+                     dup = true;
+                     break;
+                  }
+               }
+
+               if (!dup) m.items[wptr++] = m.items[i];
             }
             ATRIM(m, wptr);
          }
