@@ -1437,10 +1437,6 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
                   istr(unit_name));
          return;
       }
-      else if (is_uninstantiated_package(unit)) {
-         error_at(tree_loc(use), "cannot use an uninstantiated package");
-         return;
-      }
 
       unit_name = tree_ident(unit);
    }
@@ -1456,6 +1452,10 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
       if (!is_package(unit)) {
          error_at(tree_loc(use), "design unit %s is not a package",
                   istr(unit_name));
+         return;
+      }
+      else if (lib_import && is_uninstantiated_package(unit)) {
+         error_at(tree_loc(use), "cannot use an uninstantiated package");
          return;
       }
 

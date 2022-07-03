@@ -46,6 +46,7 @@ begin
 
     p3: process is
         use work.genpack.all;  -- Error
+        use work.genpack;               -- OK
     begin
     end process;
 
