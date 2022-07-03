@@ -387,14 +387,9 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
    return true;
 }
 
-static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
+static bool sem_check_subtype_helper(tree_t decl, type_t type, nametab_t *tab)
 {
-   // Check an anonymous subtype at the point of use
-
-   if (type_kind(type) != T_SUBTYPE)
-      return true;
-   else if (type_has_ident(type))
-      return true;   // Explicitly declared subtype
+   // Shared code for checking subtype declarations and implicit subtypes
 
    type_t base = type_base(type);
    if (type_is_none(base))
@@ -411,7 +406,7 @@ static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
          return false;
 
       if (i + 1 < ncon && tree_subkind(cons) == C_INDEX)
-         elem = type_elem(type);
+         elem = type_elem(elem);
    }
 
    if (type_freedom(type) < 0)
@@ -423,6 +418,18 @@ static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
    }
 
    return true;
+}
+
+static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab)
+{
+   // Check an anonymous subtype at the point of use
+
+   if (type_kind(type) != T_SUBTYPE)
+      return true;
+   else if (type_has_ident(type))
+      return true;   // Explicitly declared subtype
+
+   return sem_check_subtype_helper(decl, type, tab);
 }
 
 static bool sem_check_use_clause(tree_t c, nametab_t *tab)
@@ -849,28 +856,7 @@ static bool sem_check_subtype_decl(tree_t t, nametab_t *tab)
    assert(type_kind(type) == T_SUBTYPE);
    assert(type_has_ident(type));
 
-   type_t base = type_base(type);
-   if (type_is_none(base))
-      return false;
-
-   if (type_is_protected(base))
-      sem_error(t, "subtypes may not have protected base types");
-
-   const int ncon = type_constraints(type);
-   for (int i = 0; i < ncon; i++) {
-      if (!sem_check_constraint(type_constraint(type, i), base, tab))
-         return false;
-   }
-
-   if (type_freedom(type) < 0)
-      sem_error(t, "too many constraints for type %s", type_pp(base));
-
-   if (type_has_resolution(type)) {
-      if (!sem_check_resolution(type_base(type), type_resolution(type)))
-         return false;
-   }
-
-   return true;
+   return sem_check_subtype_helper(t, type, tab);
 }
 
 static bool sem_no_access_file_or_protected(tree_t t, type_t type, const char *what)

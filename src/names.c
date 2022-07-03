@@ -3197,6 +3197,19 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
       const int ndims = dimension_of(type);
       if (ndims == 1) {
          type_t elem = type_elem(type);
+         if (type_is_unconstrained(elem)) {
+            tree_t cons[MAX_CONSTRAINTS];
+            const int ncon = pack_constraints(type, cons);
+            if (ncon > 1) {
+               // Create a constrained subtype for the element
+               type_t sub = type_new(T_SUBTYPE);
+               type_set_base(sub, elem);
+               for (int i = 1; i < ncon; i++)
+                  type_add_constraint(sub, cons[i]);
+
+               elem = sub;
+            }
+         }
          type_set_add(tab, (t0 = elem), NULL);
 
          if (standard() >= STD_08 && !type_is_composite(elem))

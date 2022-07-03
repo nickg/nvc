@@ -4508,6 +4508,22 @@ START_TEST(test_names3)
 }
 END_TEST
 
+START_TEST(test_uvvm1)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/parse/uvvm1.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   lib_put(lib_work(), p);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 START_TEST(test_range1)
 {
    input_from_file(TESTDIR "/parse/range1.vhd");
@@ -4645,6 +4661,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_names3);
    tcase_add_test(tc_core, test_range1);
    tcase_add_test(tc_core, test_error9);
+   tcase_add_test(tc_core, test_uvvm1);
    suite_add_tcase(s, tc_core);
 
    return s;
