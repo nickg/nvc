@@ -3415,6 +3415,16 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
    if (lower_const_bounds(type))
       return mem_reg;
+   else if (multidim) {
+      const int ndims = dimension_of(type);
+      vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));
+      for (int i = 0; i < ndims; i++) {
+         dims[i].left  = lower_array_left(type, i, VCODE_INVALID_REG);
+         dims[i].right = lower_array_right(type, i, VCODE_INVALID_REG);
+         dims[i].dir   = lower_array_dir(type, i, VCODE_INVALID_REG);
+      }
+      return emit_wrap(mem_reg, dims, ndims);
+   }
    else {
       vcode_dim_t dim0 = {
          .left  = left_reg,
