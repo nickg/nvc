@@ -1,5 +1,5 @@
 value length 4 does not match target length 3
 bounds32.vhd
     |
- 20 |         s <= (x => "1111");             -- Error
-    |              ^^^^^^^^^^^^^
+ 22 |         s <= (x => v(1 to n));             -- Error
+    |              ^^^^^^^^^^^^^^^^

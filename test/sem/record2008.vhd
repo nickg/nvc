@@ -48,4 +48,19 @@ begin
         r4.x <= (others => '0');        -- OK
     end process;
 
+    -- From UVVM
+    p2: process is
+        type unsigned is array(natural range <>) of bit ;
+        type some_config is record
+            a   :   unsigned ;
+            b   :   integer ;
+        end record ;
+        constant FINAL_CONFIG : some_config(a(0 downto 0)) := (
+            a   =>  (others =>'0'),     -- OK
+            b   =>  20 ) ;
+        constant c2 :  some_config(a(0 downto 0)) := (
+            (others =>'0'), 20 ) ;      -- OK
+    begin
+    end process;
+
 end architecture;

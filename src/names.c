@@ -2784,6 +2784,25 @@ static type_t solve_prot_ref(nametab_t *tab, tree_t pref)
    return type;
 }
 
+static type_t solve_field_subtype(type_t rtype, tree_t field)
+{
+   type_t ftype = tree_type(field);
+
+   if (type_is_unconstrained(ftype)) {
+      // Construct a new subtype using the record element constraint
+      tree_t cons = type_constraint_for_field(rtype, field);
+      if (cons != NULL) {
+         type_t sub = type_new(T_SUBTYPE);
+         type_set_base(sub, ftype);
+         type_add_constraint(sub, cons);
+
+         return sub;
+      }
+   }
+
+   return ftype;
+}
+
 static type_t solve_record_ref(nametab_t *tab, tree_t rref)
 {
    if (tree_has_type(rref))
@@ -2804,21 +2823,8 @@ static type_t solve_record_ref(nametab_t *tab, tree_t rref)
                type_pp(value_type), istr(tree_ident(rref)));
       type = type_new(T_NONE);
    }
-   else {
-      type = tree_type(field);
-
-      if (type_is_unconstrained(type)) {
-         // Construct a new subtype using the record element constraint
-         tree_t cons = type_constraint_for_field(value_type, field);
-         if (cons != NULL) {
-            type_t sub = type_new(T_SUBTYPE);
-            type_set_base(sub, type);
-            type_add_constraint(sub, cons);
-
-            type = sub;
-         }
-      }
-   }
+   else
+      type = solve_field_subtype(value_type, field);
 
    tree_set_ref(rref, field);
    tree_set_type(rref, type);
@@ -3127,7 +3133,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
                int pos = tree_pos(a);
                if (pos < nfields) {
                   tree_t f = type_field(type, pos);
-                  type_set_add(tab, tree_type(f), f);
+                  type_set_add(tab, solve_field_subtype(type, f), f);
                }
                if (pos < 64) fmask |= (1 << pos);
             }
@@ -3142,7 +3148,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
                pop_scope(tab);
                if (tree_has_ref(name)) {
                   tree_t field = tree_ref(name);
-                  type_set_add(tab, tree_type(field), field);
+                  type_set_add(tab, solve_field_subtype(type, field), field);
                   if (tree_kind(field) == T_FIELD_DECL) {
                      const int pos = tree_pos(field);
                      if (pos < 64) fmask |= (1 << pos);

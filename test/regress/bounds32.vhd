@@ -7,6 +7,8 @@ architecture test of bounds32 is
     end record;
 
     signal s : rec(x(1 to 3));
+    signal n : integer := 4;
+    signal v : bit_vector(1 to 10) := (others => '1');
 begin
 
     main: process is
@@ -17,7 +19,7 @@ begin
         wait for 1 ns;
         assert s.x = "101";
         assert s = (x => "101");
-        s <= (x => "1111");             -- Error
+        s <= (x => v(1 to n));             -- Error
         wait for 1 ns;
         wait;
     end process;
