@@ -607,3 +607,4 @@ file9           normal
 array10         normal
 wait22          normal,2008
 array11         normal,2008
+array12         normal,2008

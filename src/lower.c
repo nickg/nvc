@@ -252,22 +252,19 @@ static bool lower_const_bounds(type_t type)
             return false;
       }
 
+      type_t elem = type_elem(type);
       const int ncon = type_constraints(type);
       if (ncon > 1) {
-         for (int i = 1; i < ncon; i++) {
+         for (int i = 1; i < ncon; i++, elem = type_elem(elem)) {
             tree_t c = type_constraint(type, i);
             if (tree_subkind(c) != C_INDEX)
-               return false;
+               break;
             else if (!lower_const_range(tree_range(c, 0)))
                return false;
          }
+      }
 
-         return true;
-      }
-      else {
-         type_t elem = type_elem(type);
-         return type_is_composite(elem) ? lower_const_bounds(elem) : true;
-      }
+      return type_is_composite(elem) ? lower_const_bounds(elem) : true;
    }
 }
 
@@ -482,8 +479,7 @@ static vcode_reg_t lower_array_stride(type_t type, vcode_reg_t reg)
       if (type_kind(type) == T_SUBTYPE) {
          tree_t cons[MAX_CONSTRAINTS];
          const int ncon = pack_constraints(type, cons);
-         for (int i = 1; i < ncon; i++) {
-            assert(tree_subkind(cons[i]) != C_OPEN);  // TODO
+         for (int i = 1; i < ncon && tree_subkind(cons[i]) == C_INDEX; i++) {
             tree_t r = tree_range(cons[i], 0);
 
             vcode_reg_t left_reg  = lower_range_left(r);
@@ -569,10 +565,11 @@ static int lower_array_const_size(type_t type)
       size *= MAX(high - low + 1, 0);
    }
 
-   const int ncon = type_constraints(type);
+   tree_t cons[MAX_CONSTRAINTS];
+   const int ncon = pack_constraints(type, cons);
    if (ncon > 1) {
-      for (int i = 1; i < ncon; i++) {
-         tree_t r = tree_range(type_constraint(type, i), 0);
+      for (int i = 1; i < ncon && tree_subkind(cons[i]) == C_INDEX; i++) {
+         tree_t r = tree_range(cons[i], 0);
          int64_t low, high;
          range_bounds(r, &low, &high);
          size *= MAX(high - low + 1, 0);
@@ -599,7 +596,8 @@ static int lower_dims_for_type(type_t type)
       int ndims = dimension_of(type);
       for (type_t e = type_elem(type);
            type_is_array(e) && type_is_unconstrained(e);
-           e = type_elem(e), ndims += dimension_of(e));
+           e = type_elem(e))
+         ndims += dimension_of(e) ;
       return ndims;
    }
    else
@@ -732,7 +730,7 @@ static vcode_type_t lower_signal_type(type_t type)
             return vtype_uarray(lower_dims_for_type(type), base, base);
       }
       else {
-         vcode_type_t base = lower_signal_type(type_elem(type));
+         vcode_type_t base = lower_signal_type(lower_elem_recur(type));
          if (lower_const_bounds(type))
             return vtype_carray(lower_array_const_size(type), base, base);
          else
@@ -4006,16 +4004,19 @@ static vcode_reg_t lower_nested_default_value(type_t type)
                type_pp(type));
 }
 
-static tree_t shift_constraints(tree_t **cons, int *ncons)
+static tree_t shift_constraints(tree_t **cons, int *ncons, int n)
 {
-   if (*cons != NULL && *ncons > 0) {
+   if (*cons != NULL && *ncons >= n) {
       tree_t c0 = (*cons)[0];
-      (*cons)++;
-      (*ncons)--;
+      (*cons) += n;
+      (*ncons) -= n;
       return c0;
    }
-   else
+   else {
+      *cons = NULL;
+      *ncons = 0;
       return NULL;
+   }
 }
 
 static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
@@ -4042,7 +4043,7 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
       vcode_type_t vbounds = lower_bounds(elem_type);
 
       vcode_reg_t bounds_reg = VCODE_INVALID_REG;
-      if (ncons > 0)
+      if (ncons > 0 && type_is_unconstrained(type))
          bounds_reg = lower_constraint(cons[0]);
 
       vcode_reg_t count_reg = lower_array_total_len(type, bounds_reg);
@@ -4050,7 +4051,8 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
       if (mem_reg == VCODE_INVALID_REG)
          mem_reg = emit_alloc(vtype, vbounds, count_reg);
 
-      shift_constraints(&cons, &ncons);
+      shift_constraints(&cons, &ncons, lower_dims_for_type(type));
+
       vcode_reg_t def_reg = lower_default_value(elem_type, VCODE_INVALID_REG,
                                                 cons, ncons);
 
@@ -4103,7 +4105,7 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
       vcode_var_t tmp_var = lower_temp_var("def", vtype, vtype);
       vcode_reg_t mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
 
-      tree_t rcon = shift_constraints(&cons, &ncons);
+      tree_t rcon = shift_constraints(&cons, &ncons, 1);
       assert(ncons == 0);   // Cannot have more constraints following record
 
       for (int i = 0; i < nfields; i++) {
@@ -6207,10 +6209,16 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       if (sig_ptr == VCODE_INVALID_REG)
          sig_ptr = emit_index(sig_var, VCODE_INVALID_REG);
 
+      vcode_reg_t bounds_reg = VCODE_INVALID_REG;
+      if (ncons > 0 && !lower_const_bounds(type)) {
+         tree_t c0 = shift_constraints(&cons, &ncons, 1);
+         bounds_reg = lower_constraint(c0);
+      }
+
       const int ndims = dimension_of(type);
-      vcode_reg_t len_reg = lower_array_len(type, 0, init_reg);
+      vcode_reg_t len_reg = lower_array_len(type, 0, bounds_reg);
       for (int i = 1; i < ndims; i++)
-         len_reg = emit_mul(lower_array_len(type, i, init_reg), len_reg);
+         len_reg = emit_mul(lower_array_len(type, i, bounds_reg), len_reg);
 
       if (lower_have_uarray_ptr(sig_ptr)) {
          // Need to allocate separate memory for the array
@@ -6220,11 +6228,8 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
          vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, len_reg);
 
          vcode_reg_t wrap_reg;
-         if (ncons > 0) {
-            tree_t c0 = shift_constraints(&cons, &ncons);
-            vcode_reg_t bounds_reg = lower_constraint(c0);
+         if (bounds_reg != VCODE_INVALID_REG)
             wrap_reg = lower_wrap_with_new_bounds(type, bounds_reg, mem_reg);
-         }
          else
             wrap_reg = lower_wrap(type, mem_reg);
 
@@ -6279,7 +6284,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       if (sig_ptr == VCODE_INVALID_REG)
          sig_ptr = emit_index(sig_var, VCODE_INVALID_REG);
 
-      tree_t rcons = shift_constraints(&cons, &ncons);
+      tree_t rcons = shift_constraints(&cons, &ncons, 1);
       assert(ncons == 0);   // Cannot have more constraints following record
 
       const int nfields = type_fields(type);
