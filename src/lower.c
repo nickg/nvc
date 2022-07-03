@@ -145,7 +145,7 @@ static ident_t lower_predef_func_name(type_t type, const char *op);
 static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context);
 static void lower_generics(tree_t block, ident_t prefix);
 static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
-                                       tree_t cons);
+                                       tree_t *cons, int ncons);
 static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg);
 static vcode_var_t lower_temp_var(const char *prefix, vcode_type_t vtype,
                                   vcode_type_t vbounds);
@@ -256,8 +256,9 @@ static bool lower_const_bounds(type_t type)
       if (ncon > 1) {
          for (int i = 1; i < ncon; i++) {
             tree_t c = type_constraint(type, i);
-            assert(tree_subkind(c) == C_INDEX);
-            if (!lower_const_range(tree_range(c, 0)))
+            if (tree_subkind(c) != C_INDEX)
+               return false;
+            else if (!lower_const_range(tree_range(c, 0)))
                return false;
          }
 
@@ -806,7 +807,7 @@ static vcode_reg_t lower_wrap_with_new_bounds(type_t type, vcode_reg_t array,
       dims[dptr].right = lower_array_right(type, i, array);
       dims[dptr].dir   = lower_array_dir(type, i, array);
    }
-   for (int i = 1; i < ncons; i++, dptr++) {
+   for (int i = 1; i < ncons && tree_subkind(cons[i]) == C_INDEX; i++, dptr++) {
       tree_t r = tree_range(cons[i], 0);
       dims[dptr].left  = lower_range_left(r);
       dims[dptr].right = lower_range_right(r);
@@ -2551,6 +2552,9 @@ static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
 
 static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
 {
+   if (lower_have_uarray_ptr(reg))
+      reg = emit_load_indirect(reg);
+
    if (!lower_have_signal(reg))
       return reg;
    else if (type_is_homogeneous(type)) {
@@ -2730,7 +2734,7 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
    vcode_reg_t ptr_reg = emit_array_ref(data_reg, offset_reg);
 
    type_t elem_type = tree_type(ref);
-   if (type_is_unconstrained(elem_type))
+   if (type_is_array(elem_type) && type_is_unconstrained(elem_type))
       return lower_wrap_element(value_type, array, ptr_reg);
    else
       return ptr_reg;
@@ -3474,7 +3478,7 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       if (!tree_has_value(qual)) {
          length_reg = lower_array_total_len(type, VCODE_INVALID_REG);
          mem_reg = emit_new(lower_type(elem_type), length_reg);
-         init_reg = lower_default_value(type, emit_all(mem_reg), NULL);
+         init_reg = lower_default_value(type, emit_all(mem_reg), NULL, 0);
          value_type = type;
       }
       else {
@@ -3519,7 +3523,7 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
 
       vcode_reg_t init_reg;
       if (!tree_has_value(qual))
-         init_reg = lower_default_value(type, all_reg, NULL);
+         init_reg = lower_default_value(type, all_reg, NULL, 0);
       else {
          tree_t value = tree_value(qual);
          if (tree_kind(value) == T_AGGREGATE)
@@ -3539,7 +3543,7 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       if (tree_has_value(qual))
          init_reg = lower_expr(qual, EXPR_RVALUE);
       else
-         init_reg = lower_default_value(type, VCODE_INVALID_REG, NULL);
+         init_reg = lower_default_value(type, VCODE_INVALID_REG, NULL, 0);
 
       emit_store_indirect(lower_reify(init_reg), all_reg);
       return result_reg;
@@ -3938,7 +3942,9 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
                tree_kind_str(tree_kind(expr)));
    }
 }
-static tree_t lower_field_constraint(type_t type, tree_t f, tree_t cons)
+
+static int pack_field_constraints(type_t type, tree_t f, tree_t cons,
+                                  tree_t out[MAX_CONSTRAINTS])
 {
    if (standard() >= STD_08 && type_is_unconstrained(tree_type(f))) {
       if (cons != NULL) {
@@ -3949,21 +3955,22 @@ static tree_t lower_field_constraint(type_t type, tree_t f, tree_t cons)
             tree_t ei = tree_range(cons, i);
             assert(tree_kind(ei) == T_CONSTRAINT);
 
-            if (tree_has_ref(ei) && tree_ref(ei) == f)
-               return ei;
+            if (tree_has_ref(ei) && tree_ref(ei) == f) {
+               out[0] = ei;
+               return 1;
+            }
          }
       }
       else {
-         tree_t fcons = type_constraint_for_field(type, f);
-         if (fcons != NULL)
-            return fcons;
+         out[0] = type_constraint_for_field(type, f);
+         return out[0] != NULL ? 1 : 0;
       }
 
       fatal_trace("missing record constraint for field %s",
                   istr(tree_ident(f)));
    }
 
-   return NULL;
+   return 0;
 }
 
 static vcode_reg_t lower_nested_default_value(type_t type)
@@ -3999,13 +4006,25 @@ static vcode_reg_t lower_nested_default_value(type_t type)
                type_pp(type));
 }
 
+static tree_t shift_constraints(tree_t **cons, int *ncons)
+{
+   if (*cons != NULL && *ncons > 0) {
+      tree_t c0 = (*cons)[0];
+      (*cons)++;
+      (*ncons)--;
+      return c0;
+   }
+   else
+      return NULL;
+}
+
 static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
-                                       tree_t cons)
+                                       tree_t *cons, int ncons)
 {
    if (type_is_scalar(type))
       return lower_range_left(range_of(type, 0));
    else if (type_is_array(type)) {
-      assert(!type_is_unconstrained(type) || cons != NULL);
+      assert(!type_is_unconstrained(type) || ncons > 0);
 
       type_t elem_type = lower_elem_recur(type);
 
@@ -4023,16 +4042,17 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
       vcode_type_t vbounds = lower_bounds(elem_type);
 
       vcode_reg_t bounds_reg = VCODE_INVALID_REG;
-      if (cons != NULL)
-         bounds_reg = lower_constraint(cons);
+      if (ncons > 0)
+         bounds_reg = lower_constraint(cons[0]);
 
       vcode_reg_t count_reg = lower_array_total_len(type, bounds_reg);
       vcode_reg_t mem_reg = hint_reg;
       if (mem_reg == VCODE_INVALID_REG)
          mem_reg = emit_alloc(vtype, vbounds, count_reg);
 
-      vcode_reg_t def_reg =
-         lower_default_value(elem_type, VCODE_INVALID_REG, NULL);
+      shift_constraints(&cons, &ncons);
+      vcode_reg_t def_reg = lower_default_value(elem_type, VCODE_INVALID_REG,
+                                                cons, ncons);
 
       if (type_is_scalar(elem_type))
          emit_memset(mem_reg, def_reg, count_reg);
@@ -4083,24 +4103,28 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
       vcode_var_t tmp_var = lower_temp_var("def", vtype, vtype);
       vcode_reg_t mem_reg = emit_index(tmp_var, VCODE_INVALID_REG);
 
+      tree_t rcon = shift_constraints(&cons, &ncons);
+      assert(ncons == 0);   // Cannot have more constraints following record
+
       for (int i = 0; i < nfields; i++) {
          tree_t f = type_field(type, i);
          type_t ftype = tree_type(f);
          vcode_reg_t ptr_reg = emit_record_ref(mem_reg, i);
 
          if (type_is_scalar(ftype)) {
-            vcode_reg_t def_reg = lower_default_value(ftype, ptr_reg, NULL);
+            vcode_reg_t def_reg = lower_default_value(ftype, ptr_reg, NULL, 0);
             emit_store_indirect(lower_reify(def_reg), ptr_reg);
          }
          else if (type_is_array(ftype)) {
             if (!lower_const_bounds(ftype)) {
-               tree_t fcons = lower_field_constraint(type, f, cons);
+               tree_t fcons[MAX_CONSTRAINTS];
+               const int nfcons = pack_field_constraints(type, f, rcon, fcons);
                vcode_reg_t def_reg =
-                  lower_default_value(ftype, VCODE_INVALID_REG, fcons);
+                  lower_default_value(ftype, VCODE_INVALID_REG, fcons, nfcons);
 
                vcode_reg_t wrap_reg;
-               if (fcons != NULL) {
-                  vcode_reg_t bounds = lower_constraint(fcons);
+               if (nfcons > 0) {
+                  vcode_reg_t bounds = lower_constraint(fcons[0]);
                   wrap_reg = lower_wrap_with_new_bounds(ftype, bounds, def_reg);
                }
                else
@@ -4109,25 +4133,23 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
                emit_store_indirect(wrap_reg, ptr_reg);
             }
             else {
-               vcode_reg_t def_reg = lower_default_value(ftype, ptr_reg, NULL);
+               vcode_reg_t def_reg =
+                  lower_default_value(ftype, ptr_reg, NULL, 0);
                vcode_reg_t count_reg =
                   lower_array_total_len(ftype, VCODE_INVALID_REG);
                emit_copy(ptr_reg, def_reg, count_reg);
             }
          }
          else if (type_is_record(ftype)) {
-            vcode_reg_t def_reg;
-            if (!lower_const_bounds(ftype)) {
-               tree_t fcons = lower_field_constraint(type, f, cons);
-               def_reg = lower_default_value(ftype, VCODE_INVALID_REG, fcons);
-            }
-            else
-               def_reg = lower_default_value(ftype, ptr_reg, NULL);
+            tree_t fcons[MAX_CONSTRAINTS];
+            int nfcons = pack_field_constraints(type, f, rcon, fcons);
+            vcode_reg_t def_reg = lower_default_value(ftype, VCODE_INVALID_REG,
+                                                      fcons, nfcons);
 
             emit_copy(ptr_reg, def_reg, VCODE_INVALID_REG);
          }
          else {
-            vcode_reg_t def_reg = lower_default_value(ftype, ptr_reg, NULL);
+            vcode_reg_t def_reg = lower_default_value(ftype, ptr_reg, NULL, 0);
             emit_store_indirect(def_reg, ptr_reg);
          }
       }
@@ -6011,7 +6033,7 @@ static void lower_var_decl(tree_t decl)
    }
    else {
       value_type = type;
-      value_reg = lower_default_value(type, dest_reg, NULL);
+      value_reg = lower_default_value(type, dest_reg, NULL, 0);
    }
 
    if (type_is_array(type)) {
@@ -6117,8 +6139,8 @@ static vcode_reg_t lower_resolution_func(type_t type, bool *is_array)
    return emit_resolution_wrapper(rtype, closure_reg, ileft_reg, nlits_reg);
 }
 
-static void lower_sub_signals(type_t type, tree_t where, tree_t cons,
-                              type_t init_type, vcode_var_t sig_var,
+static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
+                              int ncons, type_t init_type, vcode_var_t sig_var,
                               vcode_reg_t sig_ptr, vcode_reg_t init_reg,
                               vcode_reg_t resolution, vcode_reg_t null_reg,
                               vcode_reg_t flags_reg)
@@ -6128,8 +6150,10 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t cons,
       resolution = lower_resolution_func(type, &has_scope);
 
    if (type_is_homogeneous(type)) {
-      vcode_reg_t bounds_reg =
-         cons ? lower_constraint(cons) : VCODE_INVALID_REG;
+      vcode_reg_t bounds_reg = VCODE_INVALID_REG;
+      if (ncons > 0 && !lower_const_bounds(type) && ncons)
+         bounds_reg = lower_constraint(cons[0]);
+
       vcode_type_t voffset = vtype_offset();
       vcode_reg_t size_reg = emit_const(voffset, lower_byte_width(type));
       vcode_reg_t len_reg;
@@ -6196,8 +6220,9 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t cons,
          vcode_reg_t mem_reg = emit_alloc(vtype, vbounds, len_reg);
 
          vcode_reg_t wrap_reg;
-         if (cons != NULL) {
-            vcode_reg_t bounds_reg = lower_constraint(cons);
+         if (ncons > 0) {
+            tree_t c0 = shift_constraints(&cons, &ncons);
+            vcode_reg_t bounds_reg = lower_constraint(c0);
             wrap_reg = lower_wrap_with_new_bounds(type, bounds_reg, mem_reg);
          }
          else
@@ -6233,8 +6258,9 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t cons,
       vcode_reg_t ptr_reg = emit_array_ref(sig_ptr, i_reg);
       vcode_reg_t data_reg = emit_array_ref(lower_array_data(init_reg), i_reg);
       vcode_reg_t null_off_reg = emit_array_ref(null_reg, i_reg);
-      lower_sub_signals(elem, where, NULL, elem, VCODE_INVALID_VAR, ptr_reg,
-                        data_reg, resolution, null_off_reg, flags_reg);
+
+      lower_sub_signals(elem, where, cons, ncons, elem, VCODE_INVALID_VAR,
+                        ptr_reg, data_reg, resolution, null_off_reg, flags_reg);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
 
@@ -6253,6 +6279,9 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t cons,
       if (sig_ptr == VCODE_INVALID_REG)
          sig_ptr = emit_index(sig_var, VCODE_INVALID_REG);
 
+      tree_t rcons = shift_constraints(&cons, &ncons);
+      assert(ncons == 0);   // Cannot have more constraints following record
+
       const int nfields = type_fields(type);
       for (int i = 0; i < nfields; i++) {
          tree_t f = type_field(type, i);
@@ -6270,8 +6299,9 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t cons,
 
          vcode_reg_t ptr_reg = emit_record_ref(sig_ptr, i);
 
-         tree_t fcons = lower_field_constraint(type, f, cons);
-         lower_sub_signals(ft, f, fcons, ft, VCODE_INVALID_VAR, ptr_reg,
+         tree_t fcons[MAX_CONSTRAINTS];
+         const int nfcons = pack_field_constraints(type, f, rcons, fcons);
+         lower_sub_signals(ft, f, fcons, nfcons, ft, VCODE_INVALID_VAR, ptr_reg,
                            field_reg, resolution, null_field_reg, flags_reg);
       }
 
@@ -6289,6 +6319,9 @@ static void lower_signal_decl(tree_t decl)
    vcode_type_t vbounds = lower_bounds(type);
    vcode_var_t var = lower_var_for(decl, signal_type, vbounds, VAR_SIGNAL);
 
+   tree_t cons[MAX_CONSTRAINTS];
+   const int ncons = pack_constraints(type, cons);
+
    type_t value_type = type;
    vcode_reg_t init_reg;
    if (tree_has_value(decl)) {
@@ -6297,7 +6330,7 @@ static void lower_signal_decl(tree_t decl)
       init_reg = lower_expr(value, EXPR_RVALUE);
    }
    else
-      init_reg = lower_default_value(type, VCODE_INVALID_REG, NULL);
+      init_reg = lower_default_value(type, VCODE_INVALID_REG, cons, ncons);
 
    net_flags_t flags = 0;
    if (tree_flags(decl) & TREE_F_REGISTER)
@@ -6305,8 +6338,9 @@ static void lower_signal_decl(tree_t decl)
 
    vcode_reg_t flags_reg = emit_const(vtype_offset(), flags);
 
-   lower_sub_signals(type, decl, NULL, value_type, var, VCODE_INVALID_REG,
-                     init_reg, VCODE_INVALID_REG, VCODE_INVALID_REG, flags_reg);
+   lower_sub_signals(type, decl, cons, ncons, value_type, var,
+                     VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
+                     VCODE_INVALID_REG, flags_reg);
 }
 
 static ident_t lower_guard_func(ident_t prefix, tree_t expr)
@@ -8847,7 +8881,7 @@ static void lower_port_map(tree_t block, tree_t map)
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
 
       if (value_reg == VCODE_INVALID_REG)
-         value_reg = lower_default_value(name_type, VCODE_INVALID_REG, NULL);
+         value_reg = lower_default_value(name_type, VCODE_INVALID_REG, NULL, 0);
 
       if (type_is_array(name_type))
          value_reg = lower_array_data(value_reg);
@@ -8959,7 +8993,7 @@ static void lower_port_signal(tree_t port)
       init_reg = lower_expr(value, EXPR_RVALUE);
    }
    else
-      init_reg = lower_default_value(type, VCODE_INVALID_REG, NULL);
+      init_reg = lower_default_value(type, VCODE_INVALID_REG, NULL, 0);
 
    net_flags_t flags = 0;
    if (tree_flags(port) & TREE_F_REGISTER)
@@ -8972,7 +9006,7 @@ static void lower_port_signal(tree_t port)
 
    vcode_reg_t flags_reg = emit_const(vtype_offset(), flags);
 
-   lower_sub_signals(type, port, NULL, value_type, var, VCODE_INVALID_REG,
+   lower_sub_signals(type, port, NULL, 0, value_type, var, VCODE_INVALID_REG,
                      init_reg, VCODE_INVALID_REG, VCODE_INVALID_REG, flags_reg);
 }
 

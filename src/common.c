@@ -1695,6 +1695,7 @@ int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS])
          switch (tree_subkind(c)) {
          case C_INDEX:
          case C_OPEN:
+         case C_RECORD:
             if (ptr == MAX_CONSTRAINTS)
                fatal_at(tree_loc(c), "sorry, a maximum of %d nested "
                         "constraints are supported", MAX_CONSTRAINTS);
