@@ -4921,7 +4921,7 @@ static void lower_signal_assign(tree_t stmt)
 
       vcode_reg_t after;
       if (tree_has_delay(w))
-         after = lower_expr(tree_delay(w), EXPR_RVALUE);
+         after = lower_reify_expr(tree_delay(w));
       else
          after = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
 
