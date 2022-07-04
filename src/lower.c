@@ -2839,11 +2839,13 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
    tree_t r = range_of(type, dim);
    const int64_t left = assume_int(tree_left(r));
    const bool is_downto = (tree_subkind(r) == RANGE_DOWNTO);
+   const bool multidim = dim > 0 || dimension_of(type) > 1;
 
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
       tree_t value = tree_value(a);
+      type_t value_type = tree_type(value);
 
       const tree_kind_t value_kind = tree_kind(value);
 
@@ -2851,10 +2853,9 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
       vcode_reg_t *sub = &tmp;
       int nsub = 1;
       if (value_kind == T_AGGREGATE) {
-         type_t sub_type = tree_type(value);
-         if (type_is_array(sub_type))
-            sub = lower_const_array_aggregate(value, sub_type, 0, &nsub);
-         else if (type_is_record(sub_type))
+         if (type_is_array(value_type))
+            sub = lower_const_array_aggregate(value, value_type, 0, &nsub);
+         else if (type_is_record(value_type))
             *sub = lower_record_aggregate(value, true,
                                           lower_is_const(value),
                                           VCODE_INVALID_VAR);
@@ -2892,9 +2893,18 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
             int64_t r_low, r_high;
             range_bounds(tree_range(a, 0), &r_low, &r_high);
 
-            for (int j = r_low; j <= r_high; j++) {
-               const int64_t off = is_downto ? left - j : j - left;
-               lower_copy_vals(vals + (off * nsub), sub, nsub, false);
+            if (!multidim && type_eq(type, value_type)) {
+               // Element has same type as whole aggregate
+               assert(standard() >= STD_08);
+               assert(nsub == r_high - r_low + 1);
+               const int64_t off = is_downto ? left - r_low : r_low - left;
+               lower_copy_vals(vals + off * 1, sub, nsub, false);
+            }
+            else {
+               for (int j = r_low; j <= r_high; j++) {
+                  const int64_t off = is_downto ? left - j : j - left;
+                  lower_copy_vals(vals + (off * nsub), sub, nsub, false);
+               }
             }
          }
          break;

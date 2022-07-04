@@ -609,3 +609,4 @@ wait22          normal,2008
 array11         normal,2008
 array12         normal,2008
 array13         normal,relaxed
+const8          normal,2008
