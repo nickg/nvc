@@ -3309,6 +3309,35 @@ static void cgen_op_link_instance(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, cont_bb);
 }
 
+static void cgen_op_package_init(int op, cgen_ctx_t *ctx)
+{
+   ident_t func = vcode_get_func(op);
+   vcode_reg_t result = vcode_get_result(op);
+
+   char *resetfn LOCAL = xasprintf("%s_reset", istr(func));
+   LOCAL_TEXT_BUF symbol = safe_symbol_str(resetfn);
+
+   LLVMValueRef context;
+   if (vcode_count_args(op) > 0)
+      context = cgen_get_arg(op, 0, ctx);
+   else
+      context = LLVMConstNull(llvm_void_ptr());
+
+   LLVMValueRef fn = LLVMGetNamedFunction(module, tb_get(symbol));
+   if (fn == NULL) {
+      LLVMTypeRef atypes[] = { LLVMTypeOf(context) };
+      LLVMTypeRef fntype = LLVMFunctionType(llvm_void_ptr(), atypes, 1, false);
+      fn = LLVMAddFunction(module, tb_get(symbol), fntype);
+   }
+
+   LLVMValueRef args[] = { context };
+   LLVMValueRef ptr = LLVMBuildCall(builder, fn, args, ARRAY_LEN(args),
+                                    cgen_reg_name(result));
+
+   LLVMTypeRef rtype = cgen_type(vcode_reg_type(result));
+   ctx->regs[result] = LLVMBuildPointerCast(builder, ptr, rtype, "");
+}
+
 static void cgen_op_map_signal(int op, cgen_ctx_t *ctx)
 {
    LLVMTypeRef alloca_type = NULL;
@@ -3673,6 +3702,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_CLOSURE:
       cgen_op_closure(i, ctx);
+      break;
+   case VCODE_OP_PACKAGE_INIT:
+      cgen_op_package_init(i, ctx);
       break;
    case VCODE_OP_PROTECTED_INIT:
       cgen_op_protected_init(i, ctx);
@@ -4192,20 +4224,13 @@ static void cgen_reset_function(void)
    cgen_debug_push_func(&ctx);
    cgen_alloc_context(&ctx);
 
-   ctx.state = cgen_mspace_alloc(llvm_sizeof(state_type), llvm_int32(1),
-                                 state_type);
-
-   ctx.display = LLVMGetParam(ctx.fn, 0);
-   LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
-   LLVMBuildStore(builder, ctx.display, context_ptr);
-
+   LLVMValueRef global = NULL;
    const vunit_kind_t vukind = vcode_unit_kind();
    if (vukind == VCODE_UNIT_PACKAGE || vukind == VCODE_UNIT_INSTANCE) {
       LOCAL_TEXT_BUF name = tb_new();
       ident_str(vcode_unit_name(), name);
 
-      LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(name));
-      if (global == NULL)
+      if ((global = LLVMGetNamedGlobal(module, tb_get(name))) == NULL)
          global = LLVMAddGlobal(module,
                                 LLVMPointerType(state_type, 0),
                                 tb_get(name));
@@ -4216,8 +4241,32 @@ static void cgen_reset_function(void)
 #ifdef IMPLIB_REQUIRED
       LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
 #endif
-      LLVMBuildStore(builder, ctx.state, global);
+
+      LLVMBasicBlockRef ret_bb = LLVMAppendBasicBlock(ctx.fn, "");
+      LLVMBasicBlockRef cont_bb = LLVMAppendBasicBlock(ctx.fn, "");
+
+      LLVMValueRef ptr = LLVMBuildLoad(builder, global, "");
+      LLVMValueRef init_done = LLVMBuildIsNotNull(builder, ptr, "");
+      LLVMBuildCondBr(builder, init_done, ret_bb, cont_bb);
+
+      // It's harmless to initialise a package multiple times, just
+      // return the existing context pointer
+      // TODO: but maybe we should abort for instances?
+      LLVMPositionBuilderAtEnd(builder, ret_bb);
+      LLVMBuildRet(builder, llvm_void_cast(ptr));
+
+      LLVMPositionBuilderAtEnd(builder, cont_bb);
    }
+
+   ctx.state = cgen_mspace_alloc(llvm_sizeof(state_type), llvm_int32(1),
+                                 state_type);
+
+   ctx.display = LLVMGetParam(ctx.fn, 0);
+   LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
+   LLVMBuildStore(builder, ctx.display, context_ptr);
+
+   if (global != NULL)
+      LLVMBuildStore(builder, ctx.state, global);
 
    LLVMBuildBr(builder, ctx.blocks[0]);
 
@@ -4365,6 +4414,7 @@ static void cgen_find_dependencies(vcode_unit_t unit, unit_list_t *list)
          case VCODE_OP_PCALL:
          case VCODE_OP_CLOSURE:
          case VCODE_OP_PROTECTED_INIT:
+         case VCODE_OP_PACKAGE_INIT:
             if (vcode_get_subkind(op) != VCODE_CC_FOREIGN)
                cgen_add_dependency(vcode_get_func(op), list);
             break;

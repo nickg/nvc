@@ -2681,6 +2681,8 @@ static void rt_free_delta_events(event_t *e)
 
 static void rt_scope_deps_cb(ident_t unit_name, void *__ctx)
 {
+   // TODO: this should be redundant now we have the package init op
+
    rt_scope_t ***tailp = __ctx;
 
    tree_t unit = lib_get_qualified(unit_name);

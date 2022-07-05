@@ -1937,6 +1937,19 @@ static void irgen_op_length_check(jit_irgen_t *g, int op)
    irgen_bind_label(g, l_pass);
 }
 
+static void irgen_op_package_init(jit_irgen_t *g, int op)
+{
+   ident_t unit_name = vcode_get_func(op);
+   jit_handle_t handle = jit_lazy_compile(g->func->jit, unit_name);
+
+   // TODO: implement this properly with a macro op
+   void *context = jit_link(g->func->jit, handle);
+   if (context == NULL)
+      fatal("failed to intialise package %s", istr(unit_name));
+
+   g->map[vcode_get_result(op)] = jit_addr_from_ptr(context);
+}
+
 static void irgen_op_link_package(jit_irgen_t *g, int op)
 {
    ident_t unit_name = vcode_get_ident(op);
@@ -2293,6 +2306,9 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_RANGE_CHECK:
          irgen_op_range_check(g, i);
+         break;
+      case VCODE_OP_PACKAGE_INIT:
+         irgen_op_package_init(g, i);
          break;
       case VCODE_OP_LINK_PACKAGE:
          irgen_op_link_package(g, i);

@@ -34,7 +34,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_block);
 DECLARE_AND_DEFINE_ARRAY(vcode_type);
 
 #define OP_HAS_TYPE(x)                                                  \
-   (x == VCODE_OP_ALLOC  || x == VCODE_OP_COPY                         \
+   (x == VCODE_OP_ALLOC || x == VCODE_OP_COPY                           \
     || x == VCODE_OP_CONST || x == VCODE_OP_CAST                        \
     || x == VCODE_OP_CONST_RECORD || x == VCODE_OP_CLOSURE              \
     || x == VCODE_OP_PUSH_SCOPE)
@@ -44,10 +44,12 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_SUBKIND(x)                                               \
    (x == VCODE_OP_COVER_COND || x == VCODE_OP_PCALL                     \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
-    || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT)
+    || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
+    || x == VCODE_OP_PACKAGE_INIT)
 #define OP_HAS_FUNC(x)                                                  \
    (x == VCODE_OP_FCALL || x == VCODE_OP_PCALL || x == VCODE_OP_RESUME  \
-    || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT)
+    || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
+    || x == VCODE_OP_PACKAGE_INIT)
 #define OP_HAS_IDENT(x)                                                 \
    (x == VCODE_OP_LINK_VAR || x == VCODE_OP_LINK_PACKAGE                \
     || x == VCODE_OP_DEBUG_LOCUS || x == VCODE_OP_LINK_INSTANCE)
@@ -199,7 +201,7 @@ struct vcode_unit {
 #define VCODE_FOR_EACH_MATCHING_OP(name, k) \
    VCODE_FOR_EACH_OP(name) if (name->kind == k)
 
-#define VCODE_VERSION      22
+#define VCODE_VERSION      23
 #define VCODE_CHECK_UNIONS 0
 
 static __thread vcode_unit_t  active_unit = NULL;
@@ -921,7 +923,8 @@ const char *vcode_op_string(vcode_op_t op)
       "debug locus", "length check", "range check", "array ref", "range length",
       "exponent check", "zero check", "map const", "resolve signal",
       "push scope", "pop scope", "alias signal", "trap add",
-      "trap sub", "trap mul", "force", "release", "link instance", "unreachable"
+      "trap sub", "trap mul", "force", "release", "link instance",
+      "unreachable", "package init",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1407,6 +1410,19 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
                col += color_printf(" := %s $magenta$%s$$ context ",
                                    vcode_op_string(op->kind), istr(op->func));
                col += vcode_dump_reg(op->args.items[0]);
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_PACKAGE_INIT:
+            {
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s $magenta$%s$$",
+                                   vcode_op_string(op->kind), istr(op->func));
+               if (op->args.count > 0) {
+                  col += printf(" context " );
+                  col += vcode_dump_reg(op->args.items[0]);
+               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -4637,6 +4653,25 @@ vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
    return (op->result = vcode_add_reg(vtype_closure(rtype)));
 }
 
+vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context)
+{
+   op_t *op = vcode_add_op(VCODE_OP_PACKAGE_INIT);
+   op->func    = name;
+   op->subkind = VCODE_CC_VHDL;
+   if (context != VCODE_INVALID_REG)
+      vcode_add_arg(op, context);
+
+   VCODE_ASSERT(context == VCODE_INVALID_REG
+                || vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
+                "invalid protected init context argument");
+   VCODE_ASSERT(active_unit->kind == VCODE_UNIT_INSTANCE
+                || active_unit->kind == VCODE_UNIT_PACKAGE,
+                "cannot use package init here");
+   VCODE_ASSERT(name != active_unit->name, "cyclic package init");
+
+   return (op->result = vcode_add_reg(vtype_context(name)));
+}
+
 vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context)
 {
    op_t *op = vcode_add_op(VCODE_OP_PROTECTED_INIT);
@@ -5420,8 +5455,10 @@ vcode_reg_t emit_link_var(vcode_reg_t context, ident_t name, vcode_type_t type)
 
 vcode_reg_t emit_link_package(ident_t name)
 {
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_LINK_PACKAGE) {
-      if (other->ident == name)
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == VCODE_OP_LINK_PACKAGE && other->ident == name)
+         return other->result;
+      else if (other->kind == VCODE_OP_PACKAGE_INIT && other->func == name)
          return other->result;
    }
 

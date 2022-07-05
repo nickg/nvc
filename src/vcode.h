@@ -148,6 +148,7 @@ typedef enum {
    VCODE_OP_RELEASE,
    VCODE_OP_LINK_INSTANCE,
    VCODE_OP_UNREACHABLE,
+   VCODE_OP_PACKAGE_INIT,
 } vcode_op_t;
 
 typedef enum {
@@ -486,6 +487,7 @@ vcode_reg_t emit_resolution_wrapper(vcode_type_t type, vcode_reg_t closure,
 vcode_reg_t emit_closure(ident_t func, vcode_reg_t context, vcode_type_t atype,
                          vcode_type_t rtype);
 vcode_reg_t emit_protected_init(vcode_type_t type, vcode_reg_t context);
+vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context);
 void emit_protected_free(vcode_reg_t obj);
 vcode_reg_t emit_context_upref(int hops);
 vcode_reg_t emit_debug_locus(ident_t unit, ptrdiff_t offset);

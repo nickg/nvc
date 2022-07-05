@@ -7039,6 +7039,8 @@ static void lower_instantiated_package(tree_t decl, vcode_unit_t context)
    lower_pop_scope();
    lower_finished();
    vcode_state_restore(&state);
+
+   emit_package_init(name, emit_context_upref(0));
 }
 
 static void lower_decl(tree_t decl, vcode_unit_t context)
@@ -9183,6 +9185,40 @@ static void lower_generics(tree_t block, ident_t prefix)
    }
 }
 
+static void lower_deps_cb(ident_t unit_name, void *__ctx)
+{
+   hset_t *seen = __ctx;
+
+   if (unit_name == vcode_unit_name())
+      return;   // Package body depends on package
+   else if (hset_contains(seen, unit_name))
+      return;
+
+   hset_insert(seen, unit_name);
+
+   tree_t unit = lib_get_qualified(unit_name);
+   if (unit == NULL)
+      fatal("missing dependency %s", istr(unit_name));
+   else if (is_uninstantiated_package(unit))
+      return;   // No code generated for uninstantiated packages
+
+   const tree_kind_t kind = tree_kind(unit);
+   if (kind == T_PACKAGE || kind == T_PACK_INST)
+      emit_package_init(unit_name, VCODE_INVALID_REG);
+   else
+      tree_walk_deps(unit, lower_deps_cb, seen);
+}
+
+static void lower_dependencies(tree_t unit)
+{
+   if (vcode_unit_context() != NULL)
+      return;   // Already handled for root unit
+
+   hset_t *seen = hset_new(128);
+   tree_walk_deps(unit, lower_deps_cb, seen);
+   hset_free(seen);
+}
+
 static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
 {
    vcode_select_unit(context);
@@ -9195,6 +9231,7 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
    emit_debug_info(loc);
 
    lower_push_scope(block);
+   lower_dependencies(block);
    lower_generics(block, NULL);
    lower_ports(block);
    lower_decls(block, vu);
@@ -9240,6 +9277,7 @@ static vcode_unit_t lower_pack_body(tree_t unit)
    vcode_unit_t context = emit_package(tree_ident(pack), tree_loc(unit), NULL);
    lower_push_scope(unit);
 
+   lower_dependencies(unit);
    lower_decls(pack, context);
    lower_decls(unit, context);
 
@@ -9257,6 +9295,7 @@ static vcode_unit_t lower_package(tree_t unit)
    vcode_unit_t context = emit_package(tree_ident(unit), tree_loc(unit), NULL);
    lower_push_scope(unit);
 
+   lower_dependencies(unit);
    lower_generics(unit, NULL);
    lower_decls(unit, context);
 

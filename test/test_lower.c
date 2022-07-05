@@ -328,6 +328,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          break;
 
+      case VCODE_OP_PACKAGE_INIT:
+         if (!fuzzy_cmp(vcode_get_func(i), e->name)) {
+            vcode_dump_with_mark(i, NULL, NULL);
+            fail("expected op %d in block %d to initialise package %s "
+                 "instead of %s", i, bb, e->func, istr(vcode_get_func(i)));
+         }
+         break;
+
       default:
          fail("cannot check op %s", vcode_op_string(e->op));
       }
@@ -600,6 +608,7 @@ START_TEST(test_signal1)
 
    {
       EXPECT_BB(0) = {
+         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 4 },
@@ -2231,14 +2240,14 @@ START_TEST(test_rectype)
    vcode_unit_t v0 = find_unit("WORK.E.P1");
    vcode_select_unit(v0);
 
-   fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
-   fail_unless(vtype_kind(1) == VCODE_TYPE_RECORD);
+   fail_unless(vtype_kind(2) == VCODE_TYPE_RECORD);
+   fail_unless(vtype_kind(3) == VCODE_TYPE_RECORD);
 
    // We used to mangle this with @<address>
    ident_t r2_name = vtype_name(0);
    fail_unless(strncmp(istr(r2_name), "WORK.E(A).R2", 3) == 0);
 
-   ident_t r1_name = vtype_name(1);
+   ident_t r1_name = vtype_name(3);
    fail_unless(icmp(r1_name, "WORK.RECTYPE.R1$"));
 }
 END_TEST
@@ -2297,14 +2306,14 @@ START_TEST(test_issue167)
    vcode_unit_t v0 = find_unit("WORK.E");
    vcode_select_unit(v0);
 
-   fail_unless(vtype_kind(0) == VCODE_TYPE_CONTEXT);
-   fail_unless(vtype_kind(1) == VCODE_TYPE_CONTEXT);
+   fail_unless(vtype_kind(2) == VCODE_TYPE_CONTEXT);
+   fail_unless(vtype_kind(3) == VCODE_TYPE_CONTEXT);
 
-   ident_t p1_name = vtype_name(0);
+   ident_t p1_name = vtype_name(2);
    fail_unless(icmp(p1_name, "WORK.PKG.P1"));
 
    // This used to get mangled with @<address>
-   ident_t p2_name = vtype_name(2);
+   ident_t p2_name = vtype_name(3);
    fail_unless(icmp(p2_name, "WORK.E-A.P2"));
 }
 END_TEST
@@ -2545,6 +2554,7 @@ START_TEST(test_tag)
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
+         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
@@ -2568,6 +2578,7 @@ START_TEST(test_tag)
       vcode_select_unit(v1);
 
       EXPECT_BB(0) = {
+         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
@@ -3553,6 +3564,7 @@ START_TEST(test_incomplete)
    fail_unless(vcode_count_vars() == 2);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_STORE, .name = "C" },
       { VCODE_OP_STORE, .name = "CP" },
@@ -3576,6 +3588,7 @@ START_TEST(test_issue389)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_INDEX, .name = "EXAMPLE_INIT" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 64 },
@@ -3606,6 +3619,7 @@ START_TEST(test_const1)
       fail_unless(vcode_count_vars() == 1);
 
       EXPECT_BB(0) = {
+         { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST_ARRAY, .length = 3 },
@@ -3732,6 +3746,7 @@ START_TEST(test_resfn1)
 
    // Should only be one call to resolution wrapper
    EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 2 },
@@ -4290,15 +4305,16 @@ START_TEST(test_nullarray)
    vcode_select_unit(vu);
 
      EXPECT_BB(0) = {
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CONST, .value = 1 },
-         { VCODE_OP_CONST_ARRAY, .length = 3 },
-         { VCODE_OP_ADDRESS_OF },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_CONST, .value = 2 },
-         { VCODE_OP_WRAP },
-         { VCODE_OP_STORE, .name = "A" },
-         { VCODE_OP_RETURN },
+        { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+        { VCODE_OP_CONST, .value = 0 },
+        { VCODE_OP_CONST, .value = 1 },
+        { VCODE_OP_CONST_ARRAY, .length = 3 },
+        { VCODE_OP_ADDRESS_OF },
+        { VCODE_OP_CONST, .value = 0 },
+        { VCODE_OP_CONST, .value = 2 },
+        { VCODE_OP_WRAP },
+        { VCODE_OP_STORE, .name = "A" },
+        { VCODE_OP_RETURN },
      };
 
      CHECK_BB(0);
