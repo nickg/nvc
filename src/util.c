@@ -1613,18 +1613,6 @@ text_buf_t *safe_symbol(ident_t id)
 #endif
 }
 
-text_buf_t *safe_symbol_str(const char *text)
-{
-#if defined _WIN32 || defined __CYGWIN__
-   if (strpbrk(text, "()\"[]*+=") != NULL)
-      return safe_symbol_win32(text);
-#endif
-
-   text_buf_t *tb = tb_new();
-   tb_cat(tb, text);
-   return tb;
-}
-
 text_buf_t *unsafe_symbol(const char *text)
 {
    // Restore original symbol from safe_symbol

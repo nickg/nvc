@@ -181,7 +181,6 @@ void *mmap_guarded(size_t sz, guard_fault_fn_t fn, void *ctx);
 void run_program(const char *const *args, size_t n_args);
 
 text_buf_t *safe_symbol(ident_t id);
-text_buf_t *safe_symbol_str(const char *text);
 text_buf_t *unsafe_symbol(const char *text);
 
 #define LOCAL_TEXT_BUF __attribute__((cleanup(_tb_cleanup))) text_buf_t *

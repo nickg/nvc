@@ -65,7 +65,7 @@ void *jit_find_symbol(const char *name, bool required)
       name++;   // Remove leading underscore on 32-bit Windows
 #endif
 
-   LOCAL_TEXT_BUF tb = safe_symbol_str(name);
+   LOCAL_TEXT_BUF tb = safe_symbol(ident_new(name));
    const char *symbol_name = tb_get(tb);
 
 #ifdef __MINGW32__

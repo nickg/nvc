@@ -2264,8 +2264,8 @@ static void cgen_op_protected_init(int op, cgen_ctx_t *ctx)
    ident_t func = vcode_get_func(op);
    vcode_reg_t result = vcode_get_result(op);
 
-   char *resetfn LOCAL = xasprintf("%s_reset", istr(func));
-   LOCAL_TEXT_BUF symbol = safe_symbol_str(resetfn);
+   LOCAL_TEXT_BUF symbol = safe_symbol(func);
+   tb_cat(symbol, "_reset");
 
    LLVMValueRef fn = LLVMGetNamedFunction(module, tb_get(symbol));
    if (fn == NULL) {
@@ -3314,8 +3314,8 @@ static void cgen_op_package_init(int op, cgen_ctx_t *ctx)
    ident_t func = vcode_get_func(op);
    vcode_reg_t result = vcode_get_result(op);
 
-   char *resetfn LOCAL = xasprintf("%s_reset", istr(func));
-   LOCAL_TEXT_BUF symbol = safe_symbol_str(resetfn);
+   LOCAL_TEXT_BUF symbol = safe_symbol(func);
+   tb_cat(symbol, "_reset");
 
    LLVMValueRef context;
    if (vcode_count_args(op) > 0)

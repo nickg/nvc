@@ -18,6 +18,7 @@
 #include "test_util.h"
 #include "hash.h"
 #include "mask.h"
+#include "ident.h"
 #include "rt/heap.h"
 
 #include <assert.h>
@@ -226,7 +227,7 @@ END_TEST;
 START_TEST(test_safe_symbol)
 {
   const char *orig = "foo[]()+*\"=bar";
-  LOCAL_TEXT_BUF enc = safe_symbol_str(orig);
+  LOCAL_TEXT_BUF enc = safe_symbol(ident_new(orig));
   LOCAL_TEXT_BUF dec = unsafe_symbol(tb_get(enc));
 
   ck_assert_str_eq(orig, tb_get(dec));
