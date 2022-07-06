@@ -857,11 +857,11 @@ range_kind_t direction_of(type_t type, unsigned dim)
                });
 
             tree_t name = tree_name(value);
-            assert(tree_kind(name) == T_REF);
-
-            tree_t decl = tree_ref(name);
-            if (is_type_decl(decl))
-               return direction_of(tree_type(decl), 0);
+            if (tree_kind(name) == T_REF && tree_has_ref(name)) {
+               tree_t decl = tree_ref(name);
+               if (is_type_decl(decl))
+                  return direction_of(tree_type(decl), 0);
+            }
          }
 
          return rkind;

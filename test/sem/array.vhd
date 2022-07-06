@@ -455,4 +455,17 @@ begin
     begin
     end process;
 
+    process is
+        -- Reduced from UVVM case
+        type rec is record
+            x : string(1 to 3);
+        end record;
+        procedure proc (variable r : rec) is
+            alias a : string(r.x'range) is r.x;
+        begin
+            a(1 to 3) := "abc";         -- OK
+        end procedure;
+    begin
+    end process;
+
 end architecture;
