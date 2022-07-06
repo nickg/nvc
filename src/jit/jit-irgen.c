@@ -18,6 +18,7 @@
 #include "util.h"
 #include "diag.h"
 #include "jit/jit-priv.h"
+#include "lib.h"
 #include "opt.h"
 #include "tree.h"
 #include "vcode.h"

@@ -20,6 +20,7 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
+#include "lib.h"
 #include "opt.h"
 #include "phase.h"
 #include "rt/cover.h"
@@ -1207,7 +1208,7 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
 
    if (which == ATTR_SIMPLE_NAME) {
       LOCAL_TEXT_BUF tb = tb_new();
-      ident_str(tree_ident(decl), tb);
+      tb_istr(tb, tree_ident(decl));
       tb_downcase(tb);
       return lower_wrap_string(tb_get(tb));
    }
@@ -1223,7 +1224,7 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
       {
          LOCAL_TEXT_BUF tb = tb_new();
          tb_append(tb, ':');
-         ident_str(tree_ident(decl), tb);
+         tb_istr(tb, tree_ident(decl));
          tb_append(tb, ':');
          tb_replace(tb, '.', ':');
          tb_downcase(tb);
@@ -1257,9 +1258,9 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
          LOCAL_TEXT_BUF tb = tb_new();
 
          if (which == ATTR_PATH_NAME)
-            ident_str(tree_ident(it->hier), tb);
+            tb_istr(tb, tree_ident(it->hier));
          else
-            ident_str(tree_ident2(it->hier), tb);
+            tb_istr(tb, tree_ident2(it->hier));
 
          tb_append(tb, ':');
          return lower_wrap_string(tb_get(tb));
@@ -1273,13 +1274,13 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
 
          LOCAL_TEXT_BUF tb = tb_new();
          if (which == ATTR_PATH_NAME)
-            ident_str(tree_ident(scope->hier), tb);
+            tb_istr(tb, tree_ident(scope->hier));
          else
-            ident_str(tree_ident2(scope->hier), tb);
+            tb_istr(tb, tree_ident2(scope->hier));
          tb_append(tb, ':');
 
          if (!(tree_flags(decl) & TREE_F_SYNTHETIC_NAME))
-            ident_str(tree_ident(decl), tb);
+            tb_istr(tb, tree_ident(decl));
 
          tb_append(tb, ':');
          tb_downcase(tb);
@@ -1304,7 +1305,7 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
 
          if (obj == -1 && is_package((container = tree_container(decl)))) {
             tb_append(tb, ':');
-            ident_str(tree_ident(container), tb);
+            tb_istr(tb, tree_ident(container));
          }
          else {
             lower_scope_t *scope = top_scope;
@@ -1317,10 +1318,10 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
             if (scope != NULL) {
                switch (which) {
                case ATTR_PATH_NAME:
-                  ident_str(tree_ident(scope->hier), tb);
+                  tb_istr(tb, tree_ident(scope->hier));
                   break;
                case ATTR_INSTANCE_NAME:
-                  ident_str(tree_ident2(scope->hier), tb);
+                  tb_istr(tb, tree_ident2(scope->hier));
                   break;
                default:
                   break;
@@ -1341,9 +1342,9 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
                if (synthetic)
                   ;   // Blank
                else if (tree_kind(s->container) == T_PACK_BODY)
-                  ident_str(tree_ident(tree_primary(s->container)), tb);
+                  tb_istr(tb, tree_ident(tree_primary(s->container)));
                else
-                  ident_str(tree_ident(s->container), tb);
+                  tb_istr(tb, tree_ident(s->container));
 
                if (standard() >= STD_02 && is_subprogram(s->container))
                   type_signature(tree_type(s->container), tb);
@@ -1351,7 +1352,7 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
          }
 
          tb_append(tb, ':');
-         ident_str(tree_ident(decl), tb);
+         tb_istr(tb, tree_ident(decl));
          if (standard() >= STD_02 && is_subprogram(decl))
             type_signature(tree_type(decl), tb);
 
@@ -2577,9 +2578,9 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
       ident_t context_id = vcode_unit_name();
 
       LOCAL_TEXT_BUF tb = tb_new();
-      ident_str(vcode_unit_name(), tb);
+      tb_istr(tb, vcode_unit_name());
       tb_cat(tb, "$resolved_");
-      ident_str(type_ident(type), tb);
+      tb_istr(tb, type_ident(type));
 
       ident_t helper_func = ident_new(tb_get(tb));
       vcode_unit_t vu = vcode_find_unit(helper_func);

@@ -19,6 +19,7 @@
 #include "array.h"
 #include "common.h"
 #include "diag.h"
+#include "lib.h"
 #include "object.h"
 #include "opt.h"
 #include "tree.h"

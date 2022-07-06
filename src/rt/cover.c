@@ -22,6 +22,7 @@
 #include "diag.h"
 #include "fbuf.h"
 #include "hash.h"
+#include "lib.h"
 #include "opt.h"
 #include "type.h"
 

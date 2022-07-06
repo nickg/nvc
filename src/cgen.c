@@ -511,7 +511,7 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
    case VCODE_TYPE_RECORD:
       {
          LOCAL_TEXT_BUF tb = tb_new();
-         ident_str(vtype_name(type), tb);
+         tb_istr(tb, vtype_name(type));
          const char *name = tb_get(tb);
 
          LLVMTypeRef lltype = LLVMGetTypeByName(module, name);
@@ -539,7 +539,7 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
    case VCODE_TYPE_CONTEXT:
       {
          LOCAL_TEXT_BUF tb = tb_new();
-         ident_str(vtype_name(type), tb);
+         tb_istr(tb, vtype_name(type));
          tb_cat(tb, ".state");
 
          const char *type_name = tb_get(tb);
@@ -769,7 +769,7 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
    LLVMValueRef value = NULL;
    if (ctx->state != NULL) {
       LOCAL_TEXT_BUF tb = tb_new();
-      ident_str(vcode_var_name(var), tb);
+      tb_istr(tb, vcode_var_name(var));
 
       value = LLVMBuildStructGEP(builder, ctx->state,
                                  cgen_var_offset(var), tb_get(tb));
@@ -1170,7 +1170,7 @@ static void cgen_op_const_rep(int op, cgen_ctx_t *ctx)
    vcode_reg_t arg0 = vcode_get_arg(op, 0);
 
    LOCAL_TEXT_BUF name = tb_new();
-   ident_str(vcode_unit_name(), name);
+   tb_istr(name, vcode_unit_name());
    tb_printf(name, "_rep_r%d", result);
 
    LLVMTypeRef lltype = LLVMArrayType(cgen_type(elem_type), length);
@@ -1199,8 +1199,8 @@ static void cgen_op_const_rep(int op, cgen_ctx_t *ctx)
       LLVMSetInitializer(global, LLVMGetUndef(lltype));
 
       LOCAL_TEXT_BUF fname = tb_new();
-      ident_str(vcode_unit_name(), fname);
-      tb_printf(name, "_init_rep_r%d", result);
+      tb_istr(fname, vcode_unit_name());
+      tb_printf(fname, "_init_rep_r%d", result);
 
       LLVMTypeRef fntype = LLVMFunctionType(llvm_void_type(), NULL, 0, false);
       LLVMValueRef initfn = LLVMAddFunction(module, tb_get(fname), fntype);
@@ -2336,7 +2336,7 @@ static void cgen_op_address_of(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   ident_str(vcode_unit_name(), tb);
+   tb_istr(tb, vcode_unit_name());
    tb_printf(tb, "_const_r%d", result);
 
    LLVMValueRef init = cgen_get_arg(op, 0, ctx);
@@ -2998,7 +2998,7 @@ static void cgen_op_debug_locus(int op, cgen_ctx_t *ctx)
    assert(offset >= 0);   // Should only write frozen offsets
 
    LOCAL_TEXT_BUF tb = tb_new();
-   ident_str(vcode_get_ident(op), tb);
+   tb_istr(tb, vcode_get_ident(op));
 
    LLVMValueRef unit = cgen_const_string(tb_get(tb));
 
@@ -3251,7 +3251,7 @@ static void cgen_op_link_package(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
 
    LOCAL_TEXT_BUF unit_name = tb_new();
-   ident_str(vcode_get_ident(op), unit_name);
+   tb_istr(unit_name, vcode_get_ident(op));
 
    LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(unit_name));
    if (global == NULL) {
@@ -3275,7 +3275,7 @@ static void cgen_op_link_instance(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
 
    LOCAL_TEXT_BUF unit_name = tb_new();
-   ident_str(vcode_get_ident(op), unit_name);
+   tb_istr(unit_name, vcode_get_ident(op));
 
    LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(unit_name));
    if (global == NULL) {
@@ -3813,7 +3813,7 @@ static void cgen_locals(cgen_ctx_t *ctx)
             mem = cgen_tlab_alloc(llvm_sizeof(lltype), lltype);
          else {
             LOCAL_TEXT_BUF name = tb_new();
-            ident_str(vcode_var_name(i), name);
+            tb_istr(name, vcode_var_name(i));
             mem = LLVMBuildAlloca(builder, lltype, tb_get(name));
          }
 
@@ -3870,7 +3870,7 @@ static LLVMTypeRef cgen_state_type(vcode_unit_t unit)
    vcode_select_unit(unit);
 
    LOCAL_TEXT_BUF tb = tb_new();
-   ident_str(vcode_unit_name(), tb);
+   tb_istr(tb, vcode_unit_name());
    tb_cat(tb, ".state");
 
    const char *name = tb_get(tb);
@@ -4228,7 +4228,7 @@ static void cgen_reset_function(void)
    const vunit_kind_t vukind = vcode_unit_kind();
    if (vukind == VCODE_UNIT_PACKAGE || vukind == VCODE_UNIT_INSTANCE) {
       LOCAL_TEXT_BUF name = tb_new();
-      ident_str(vcode_unit_name(), name);
+      tb_istr(name, vcode_unit_name());
 
       if ((global = LLVMGetNamedGlobal(module, tb_get(name))) == NULL)
          global = LLVMAddGlobal(module,
@@ -4323,7 +4323,7 @@ static void cgen_module_debug_info(LLVMMetadataRef cu)
       vcode_select_unit(vcode_unit_context());
 
    LOCAL_TEXT_BUF tb = tb_new();
-   ident_str(vcode_unit_name(), tb);
+   tb_istr(tb, vcode_unit_name());
 
    if (vcode_unit_kind() == VCODE_UNIT_INSTANCE)
       tb_cat(tb, ".elab");

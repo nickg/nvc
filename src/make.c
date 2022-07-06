@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "hash.h"
 #include "ident.h"
+#include "lib.h"
 #include "opt.h"
 #include "phase.h"
 

@@ -18,10 +18,11 @@
 #include "util.h"
 #include "common.h"
 #include "diag.h"
+#include "lib.h"
+#include "names.h"
 #include "opt.h"
 #include "phase.h"
 #include "type.h"
-#include "names.h"
 
 #include <assert.h>
 #include <stdlib.h>

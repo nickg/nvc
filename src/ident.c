@@ -189,18 +189,25 @@ bool ident_interned(const char *str)
    return search_trie(&str, &(root.trie), &result);
 }
 
+void istr_r(ident_t ident, char *buf, size_t sz)
+{
+   char *p = buf + ident->depth - 1;
+   assert(p < buf + sz);
+   *p-- = '\0';
+
+   trie_t *it;
+   for (it = ident; it->value != '\0'; it = it->up)
+      *(p--) = it->value < 128 ? it->value : '?';
+}
+
 const char *istr(ident_t ident)
 {
    if (ident == NULL)
       return NULL;
 
 #if 1
-   char *p = get_fmt_buf(ident->depth) + ident->depth - 1;
-   *p = '\0';
-
-   trie_t *it;
-   for (it = ident; it->value != '\0'; it = it->up)
-      *(--p) = it->value < 128 ? it->value : '?';
+   char *p = get_fmt_buf(ident->depth);
+   istr_r(ident, p, ident->depth);
 #else
    char *p = get_fmt_buf(ident->depth * 5) + ident->depth * 5 - 1;
    *p = '\0';
@@ -220,15 +227,6 @@ const char *istr(ident_t ident)
 #endif
 
    return p;
-}
-
-void ident_str(ident_t ident, text_buf_t *tb)
-{
-   char *p = tb_reserve(tb, ident->depth - 1) + ident->depth - 2;
-
-   trie_t *it;
-   for (it = ident; it->value != '\0'; it = it->up)
-      *(p--) = it->value < 128 ? it->value : '?';
 }
 
 ident_wr_ctx_t ident_write_begin(fbuf_t *f)
@@ -425,7 +423,7 @@ size_t ident_len(ident_t i)
    if (i == NULL || i->value == '\0')
       return 0;
    else
-      return ident_len(i->up) + 1;
+      return i->depth - 1;
 }
 
 static ident_t ident_suffix_until(ident_t i, char c, char escape1, char escape2)

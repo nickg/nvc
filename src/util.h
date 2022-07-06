@@ -192,6 +192,7 @@ void tb_printf(text_buf_t *tb, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 void tb_vprintf(text_buf_t *tb, const char *fmt, va_list ap);
 void tb_append(text_buf_t *tb, char ch);
+void tb_istr(text_buf_t *tb, ident_t ident);
 void tb_cat(text_buf_t *tb, const char *str);
 void tb_catn(text_buf_t *tb, const char *str, size_t nchars);
 void tb_repeat(text_buf_t *tb, char ch, size_t count);

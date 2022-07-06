@@ -1,5 +1,23 @@
-#include "ident.h"
+//
+//  Copyright (C) 2011-2022  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
 #include "test_util.h"
+#include "ident.h"
+#include "lib.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -329,17 +347,21 @@ START_TEST(test_starts_with)
 }
 END_TEST
 
-START_TEST(test_ident_str)
+START_TEST(test_istr_r)
 {
-   LOCAL_TEXT_BUF tb = tb_new();
+   char buf[16];
 
-   ident_str(ident_new("frob"), tb);
-   ck_assert_str_eq(tb_get(tb), "frob");
+   istr_r(ident_new("foo"), buf, 16);
+   ck_assert_str_eq(buf, "foo");
 
-   tb_rewind(tb);
+   istr_r(ident_new("X"), buf, 16);
+   ck_assert_str_eq(buf, "X");
 
-   ident_str(ident_new("FrOB"), tb);
-   ck_assert_str_eq(tb_get(tb), "FrOB");
+   istr_r(ident_new("?"), buf, 2);
+   ck_assert_str_eq(buf, "?");
+
+   istr_r(ident_new("string"), buf, 7);
+   ck_assert_str_eq(buf, "string");
 }
 END_TEST
 
@@ -369,7 +391,7 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_compare);
    tcase_add_test(tc_core, test_walk_selected);
    tcase_add_test(tc_core, test_starts_with);
-   tcase_add_test(tc_core, test_ident_str);
+   tcase_add_test(tc_core, test_istr_r);
    suite_add_tcase(s, tc_core);
 
    return s;

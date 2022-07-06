@@ -311,7 +311,7 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
 
       for (int i = 0; i < length; i++) {
          LOCAL_TEXT_BUF tb = tb_new();
-         ident_str(tree_ident(d), tb);
+         tb_istr(tb, tree_ident(d));
          tb_printf(tb, "[%"PRIi64"][%d:%d]", low + i, msb, lsb);
 
          data->handle[i] = fstWriterCreateVar2(
@@ -352,7 +352,7 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
       const int lsb = assume_int(tree_right(r));
 
       LOCAL_TEXT_BUF tb = tb_new();
-      ident_str(tree_ident(d), tb);
+      tb_istr(tb, tree_ident(d));
       tb_printf(tb, "[%d:%d]", msb, lsb);
 
       data->handle[0] = fstWriterCreateVar2(

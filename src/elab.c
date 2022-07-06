@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "eval.h"
 #include "hash.h"
+#include "lib.h"
 #include "opt.h"
 #include "phase.h"
 #include "type.h"

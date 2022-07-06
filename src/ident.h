@@ -18,7 +18,6 @@
 #ifndef _IDENT_H
 #define _IDENT_H
 
-#include "lib.h"
 #include "prim.h"
 
 // Intern a string as an identifier.
@@ -84,8 +83,8 @@ ident_t ident_walk_selected(ident_t *i);
 // for printing.
 const char *istr(ident_t ident);
 
-// As above but write into a text_buf_t which is thread-safe.
-void ident_str(ident_t ident, text_buf_t *tb);
+// As above but write into a user supplied buffer.
+void istr_r(ident_t ident, char *buf, size_t sz);
 
 ident_wr_ctx_t ident_write_begin(fbuf_t *f);
 void ident_write(ident_t ident, ident_wr_ctx_t ctx);

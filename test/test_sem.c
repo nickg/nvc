@@ -18,6 +18,7 @@
 #include "test_util.h"
 #include "common.h"
 #include "diag.h"
+#include "lib.h"
 #include "opt.h"
 #include "phase.h"
 #include "scan.h"

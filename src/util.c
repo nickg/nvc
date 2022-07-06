@@ -1261,6 +1261,13 @@ void tb_printf(text_buf_t *tb, const char *fmt, ...)
    va_end(ap);
 }
 
+void tb_istr(text_buf_t *tb, ident_t ident)
+{
+   const size_t len = ident_len(ident);
+   char *p = tb_reserve(tb, len);   // Adds one byte for terminating null
+   istr_r(ident, p, len + 1);
+}
+
 void tb_append(text_buf_t *tb, char ch)
 {
    if (tb->len + 2 >= tb->alloc) {
@@ -1612,7 +1619,7 @@ text_buf_t *safe_symbol(ident_t id)
    // Return a string that is safe to use as a symbol name on this platform
 
    text_buf_t *tb = tb_new();
-   ident_str(id, tb);
+   tb_istr(tb, id);
 
 #if defined _WIN32 || defined __CYGWIN__
    if (strpbrk(tb_get(tb), "()\"[]*+=") == NULL)

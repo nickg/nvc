@@ -20,6 +20,7 @@
 #include "diag.h"
 #include "hash.h"
 #include "ident.h"
+#include "lib.h"
 #include "object.h"
 #include "opt.h"
 

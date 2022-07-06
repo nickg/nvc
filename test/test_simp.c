@@ -19,6 +19,7 @@
 #include "common.h"
 #include "eval.h"
 #include "hash.h"
+#include "lib.h"
 #include "phase.h"
 #include "scan.h"
 #include "type.h"

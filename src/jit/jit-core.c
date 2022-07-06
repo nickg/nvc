@@ -20,6 +20,7 @@
 #include "common.h"
 #include "diag.h"
 #include "hash.h"
+#include "lib.h"
 #include "jit/jit-priv.h"
 #include "opt.h"
 #include "rt/mspace.h"

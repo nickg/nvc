@@ -551,7 +551,7 @@ const char *type_pp2(type_t t, type_t other)
             hash_put(cache, t, tb);
 
             if (type_has_ident(t)) {
-               ident_str(type_ident(t), tb);
+               tb_istr(tb, type_ident(t));
                tb_append(tb, ' ');
             }
             type_signature(t, tb);

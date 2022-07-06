@@ -16,12 +16,13 @@
 //
 
 #include "util.h"
-#include "diag.h"
-#include "names.h"
-#include "hash.h"
-#include "phase.h"
-#include "common.h"
 #include "array.h"
+#include "common.h"
+#include "diag.h"
+#include "hash.h"
+#include "lib.h"
+#include "names.h"
+#include "phase.h"
 #include "type.h"
 
 #include <assert.h>
