@@ -518,6 +518,21 @@ void type_set_file(type_t t, type_t f)
    object_write_barrier(&(t->object), &(f->object));
 }
 
+void type_signature(type_t t, text_buf_t *tb)
+{
+   assert(t->object.kind == T_FUNC || t->object.kind == T_PROC);
+
+   tb_printf(tb, "[");
+   const int nparams = type_params(t);
+   for (int i = 0; i < nparams; i++)
+      tb_printf(tb, "%s%s", (i == 0 ? "" : ", "),
+                type_pp(type_param(t, i)));
+   if (t->object.kind == T_FUNC)
+      tb_printf(tb, "%sreturn %s", nparams > 0 ? " " : "",
+                type_pp(type_result(t)));
+   tb_printf(tb, "]");
+}
+
 const char *type_pp2(type_t t, type_t other)
 {
    assert(t != NULL);
@@ -536,18 +551,10 @@ const char *type_pp2(type_t t, type_t other)
             hash_put(cache, t, tb);
 
             if (type_has_ident(t)) {
-               const char *fname = istr(type_ident(t));
-               tb_printf(tb, "%s ", fname);
+               ident_str(type_ident(t), tb);
+               tb_append(tb, ' ');
             }
-            tb_printf(tb, "[");
-            const int nparams = type_params(t);
-            for (int i = 0; i < nparams; i++)
-               tb_printf(tb, "%s%s", (i == 0 ? "" : ", "),
-                         type_pp(type_param(t, i)));
-            if (type_kind(t) == T_FUNC)
-               tb_printf(tb, "%sreturn %s", nparams > 0 ? " " : "",
-                         type_pp(type_result(t)));
-            tb_printf(tb, "]");
+            type_signature(t, tb);
          }
 
          return tb_get(tb);

@@ -64,6 +64,7 @@
 #define F_RELAXED (1 << 10)
 #define F_WORKLIB (1 << 11)
 #define F_SHELL   (1 << 12)
+#define F_2002    (1 << 13)
 
 typedef struct test test_t;
 typedef struct generic generic_t;
@@ -314,6 +315,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_2008;
          else if (strcmp(opt, "2000") == 0)
             test->flags |= F_2000;
+         else if (strcmp(opt, "2002") == 0)
+            test->flags |= F_2002;
          else if (strcmp(opt, "vhpi") == 0)
             test->flags |= F_VHPI;
          else if (strcmp(opt, "shell") == 0)
@@ -498,6 +501,8 @@ static void push_std(test_t *test, arglist_t **args)
 {
    if (test->flags & F_2000)
       push_arg(args, "--std=2000");
+   else if (test->flags & F_2002)
+      push_arg(args, "--std=2002");
    else if (test->flags & F_2008)
       push_arg(args, "--std=2008");
 }

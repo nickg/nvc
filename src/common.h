@@ -36,7 +36,6 @@ bool folded_bounds_real(tree_t r, double *low, double *high);
 tree_t get_int_lit(tree_t t, type_t type, int64_t i);
 tree_t get_enum_lit(tree_t t, type_t type, int pos);
 tree_t get_real_lit(tree_t t, type_t type, double r);
-const char *package_signal_path_name(ident_t i);
 bool parse_value(type_t type, const char *str, int64_t *value);
 tree_t make_ref(tree_t to);
 int record_field_to_net(type_t type, unsigned pos);

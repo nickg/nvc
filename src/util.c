@@ -1344,6 +1344,20 @@ void tb_backup(text_buf_t *tb, unsigned n)
    tb->buf[tb->len] = '\0';
 }
 
+void tb_downcase(text_buf_t *tb)
+{
+   for (size_t i = 0; i < tb->len; i++)
+      tb->buf[i] = tolower((int)tb->buf[i]);
+}
+
+void tb_replace(text_buf_t *tb, char old, char rep)
+{
+   for (size_t i = 0; i < tb->len; i++) {
+      if (tb->buf[i] == old)
+         tb->buf[i] = rep;
+   }
+}
+
 void _local_free(void *ptr)
 {
    free(*(void **)ptr);

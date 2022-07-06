@@ -201,6 +201,8 @@ char *tb_reserve(text_buf_t *tb, size_t size);
 void tb_rewind(text_buf_t *tb);
 void tb_backup(text_buf_t *tb, unsigned n);
 size_t tb_len(text_buf_t *tb);
+void tb_downcase(text_buf_t *tb);
+void tb_replace(text_buf_t *tb, char old, char rep);
 
 #define LOCAL __attribute__((cleanup(_local_free)))
 

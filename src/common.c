@@ -265,42 +265,6 @@ tree_t get_real_lit(tree_t t, type_t type, double r)
    return f;
 }
 
-const char *package_signal_path_name(ident_t i)
-{
-   const char *str = istr(i);
-   if (str[0] == ':')
-      return str;
-
-   char *buf = get_fmt_buf(strlen(str) + 3);
-   char *p = buf;
-
-   // XXX: GHDL gives something like :work:p:f[bit return integer]: for
-   // objects inside package subprograms. The algorithm below is wrong
-   // because overloads may create duplicate paths names.
-
-   bool in_params = false, in_return = false;
-   *p++ = ':';
-   while (*str != '\0') {
-      if (*str == '.') {
-         *p++ = ':';
-         in_return = false;
-      }
-      else if (*str == '(')
-         in_params = true;
-      else if (*str == ')') {
-         in_params = false;
-         in_return = true;
-      }
-      else if (!in_params && !in_return) {
-         *p++ = tolower((int)*str);
-      }
-      str++;
-   }
-   *p = '\0';
-
-   return buf;
-}
-
 bool parse_value(type_t type, const char *str, int64_t *value)
 {
    while (isspace((int)*str))

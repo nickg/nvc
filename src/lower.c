@@ -1205,23 +1205,29 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
 {
    tree_t decl = tree_ref(ref);
 
-   if (which == ATTR_SIMPLE_NAME)
-      return lower_wrap_string(istr(ident_downcase(tree_ident(decl))));
+   if (which == ATTR_SIMPLE_NAME) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      ident_str(tree_ident(decl), tb);
+      tb_downcase(tb);
+      return lower_wrap_string(tb_get(tb));
+   }
    else if (mode == LOWER_THUNK)
       return emit_undefined(vtype_uarray(1, vtype_char(), vtype_char()));
 
    switch (tree_kind(decl)) {
-   case T_PACKAGE:
-      {
-         ident_t prefix = ident_prefix(tree_ident(decl), ident_new(":"), '\0');
-         return lower_wrap_string(package_signal_path_name(prefix));
-      }
-
    case T_PACK_BODY:
+      decl = tree_primary(decl);
+      // Fall-through
+   case T_PACKAGE:
+   case T_PACK_INST:
       {
-         ident_t pack = ident_strip(tree_ident(decl), ident_new("-body"));
-         ident_t prefix = ident_prefix(pack, ident_new(":"), '\0');
-         return lower_wrap_string(package_signal_path_name(prefix));
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_append(tb, ':');
+         ident_str(tree_ident(decl), tb);
+         tb_append(tb, ':');
+         tb_replace(tb, '.', ':');
+         tb_downcase(tb);
+         return lower_wrap_string(tb_get(tb));
       }
 
    case T_BLOCK:
@@ -1248,14 +1254,15 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
             fatal_trace("cannot find %s %s", tree_kind_str(tree_kind(decl)),
                         istr(tree_ident(decl)));
 
-         ident_t prefix;
-         if (which == ATTR_PATH_NAME)
-            prefix = tree_ident(it->hier);
-         else
-            prefix = tree_ident2(it->hier);
+         LOCAL_TEXT_BUF tb = tb_new();
 
-         ident_t full = ident_prefix(prefix, ident_new(":"), '\0');
-         return lower_wrap_string(istr(full));
+         if (which == ATTR_PATH_NAME)
+            ident_str(tree_ident(it->hier), tb);
+         else
+            ident_str(tree_ident2(it->hier), tb);
+
+         tb_append(tb, ':');
+         return lower_wrap_string(tb_get(tb));
       }
 
    case T_PROCESS:
@@ -1264,48 +1271,25 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
          while (scope->hier == NULL)
             scope = scope->down;
 
-         ident_t pname = tree_ident(decl);
-         if (tree_flags(decl) & TREE_F_SYNTHETIC_NAME)
-            pname = ident_new(":");
-         else
-            pname = ident_prefix(ident_downcase(pname), ident_new(":"), '\0');
-
-         ident_t prefix;
+         LOCAL_TEXT_BUF tb = tb_new();
          if (which == ATTR_PATH_NAME)
-            prefix = tree_ident(scope->hier);
+            ident_str(tree_ident(scope->hier), tb);
          else
-            prefix = tree_ident2(scope->hier);
+            ident_str(tree_ident2(scope->hier), tb);
+         tb_append(tb, ':');
 
-         return lower_wrap_string(istr(ident_prefix(prefix, pname, ':')));
+         if (!(tree_flags(decl) & TREE_F_SYNTHETIC_NAME))
+            ident_str(tree_ident(decl), tb);
+
+         tb_append(tb, ':');
+         tb_downcase(tb);
+         return lower_wrap_string(tb_get(tb));
       }
 
    case T_PROC_DECL:
    case T_FUNC_DECL:
    case T_PROC_BODY:
    case T_FUNC_BODY:
-      {
-         lower_scope_t *scope = top_scope;
-         while (scope && scope->hier == NULL)
-            scope = scope->down;
-
-         if (scope == NULL) {
-            const char *path = package_signal_path_name(tree_ident2(decl));
-            return lower_wrap_string(path);
-         }
-         else {
-            ident_t suffix = ident_prefix(ident_downcase(tree_ident(decl)),
-                                          ident_new(":"), '\0');
-
-            ident_t prefix;
-            if (which == ATTR_PATH_NAME)
-               prefix = tree_ident(scope->hier);
-            else
-               prefix = tree_ident2(scope->hier);
-
-            return lower_wrap_string(istr(ident_prefix(prefix, suffix, ':')));
-         }
-      }
-
    case T_VAR_DECL:
    case T_SIGNAL_DECL:
    case T_ALIAS:
@@ -1314,61 +1298,70 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
    case T_GENERIC_DECL:
    case T_PARAM_DECL:
       {
+         LOCAL_TEXT_BUF tb = tb_new();
+         tree_t container;
          int hops, obj = lower_search_vcode_obj(decl, top_scope, &hops);
-         if (obj == -1) {
-            ident_t name = hash_get(globals, decl);
-            if (name == NULL) {
-               tree_t pack = tree_container(decl);
-               assert(is_package(pack));
-               name = ident_prefix(tree_ident(pack), tree_ident(decl), '.');
+
+         if (obj == -1 && is_package((container = tree_container(decl)))) {
+            tb_append(tb, ':');
+            ident_str(tree_ident(container), tb);
+         }
+         else {
+            lower_scope_t *scope = top_scope;
+            for (; hops--; scope = scope->down);
+
+            SCOPED_A(lower_scope_t *) scopes = AINIT;
+            for (; scope && scope->hier == NULL; scope = scope->down)
+               APUSH(scopes, scope);
+
+            if (scope != NULL) {
+               switch (which) {
+               case ATTR_PATH_NAME:
+                  ident_str(tree_ident(scope->hier), tb);
+                  break;
+               case ATTR_INSTANCE_NAME:
+                  ident_str(tree_ident2(scope->hier), tb);
+                  break;
+               default:
+                  break;
+               }
             }
 
-            return lower_wrap_string(package_signal_path_name(name));
-         }
+            for (int i = scopes.count - 1; i >= 0; i--) {
+               lower_scope_t *s = scopes.items[i];
+               if (s->container == decl)
+                  continue;  // Printed below
 
-         vcode_state_t state;
-         vcode_state_save(&state);
+               tb_append(tb, ':');
 
-         lower_scope_t *scope = top_scope;
-         while (hops--) {
-            scope = scope->down;
-            vcode_select_unit(vcode_unit_context());
-         }
+               const bool synthetic =
+                  tree_kind(s->container) == T_PROCESS
+                  && (tree_flags(s->container) & TREE_F_SYNTHETIC_NAME);
 
-         vcode_state_restore(&state);
+               if (synthetic)
+                  ;   // Blank
+               else if (tree_kind(s->container) == T_PACK_BODY)
+                  ident_str(tree_ident(tree_primary(s->container)), tb);
+               else
+                  ident_str(tree_ident(s->container), tb);
 
-         ident_t suffix = ident_downcase(tree_ident(decl));
-         while (scope && scope->hier == NULL) {
-            const bool synthetic =
-               tree_kind(scope->container) == T_PROCESS
-               && (tree_flags(scope->container) & TREE_F_SYNTHETIC_NAME);
-
-            if (synthetic)
-               suffix = ident_prefix(ident_new(":"), suffix, '\0');
-            else if (tree_kind(scope->container) == T_PACK_BODY) {
-               ident_t base = ident_strip(tree_ident(scope->container),
-                                          ident_new("-body"));
-               suffix = ident_prefix(base, suffix, ':');
+               if (standard() >= STD_02 && is_subprogram(s->container))
+                  type_signature(tree_type(s->container), tb);
             }
-            else {
-               ident_t simple = ident_downcase(tree_ident(scope->container));
-               suffix = ident_prefix(simple, suffix, ':');
-            }
-            scope = scope->down;
          }
 
-         if (scope == NULL)
-            return lower_wrap_string(package_signal_path_name(suffix));
+         tb_append(tb, ':');
+         ident_str(tree_ident(decl), tb);
+         if (standard() >= STD_02 && is_subprogram(decl))
+            type_signature(tree_type(decl), tb);
 
-         ident_t id = NULL;
-         switch (which) {
-         case ATTR_PATH_NAME:     id = tree_ident(scope->hier); break;
-         case ATTR_INSTANCE_NAME: id = tree_ident2(scope->hier); break;
-         default: assert(false);
-         }
+         if (is_container(decl) || is_subprogram(decl))
+            tb_append(tb, ':');
 
-         id = ident_prefix(id, suffix, ':');
-         return lower_wrap_string(istr(id));
+         tb_replace(tb, '.', ':');
+         tb_downcase(tb);
+
+         return lower_wrap_string(tb_get(tb));
       }
 
    default:
