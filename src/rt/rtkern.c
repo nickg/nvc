@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "alloc.h"
+#include "array.h"
 #include "common.h"
 #include "cover.h"
 #include "debug.h"
@@ -3118,8 +3119,12 @@ static const void *rt_effective_value(rt_nexus_t *nexus)
    // of the association element that associates an actual with S
    if (nexus->flags & NET_F_INOUT) {
       for (rt_source_t *s = nexus->outputs; s; s = s->chain_output) {
-         if (s->tag == SOURCE_PORT)
-            return rt_effective_value(s->u.port.output);
+         if (s->tag == SOURCE_PORT) {
+            if (likely(s->u.port.conv_func == NULL))
+               return rt_effective_value(s->u.port.output);
+            else
+               return nexus->resolved;
+         }
       }
    }
 
@@ -3172,37 +3177,6 @@ static void rt_reset_scope(rt_scope_t *s)
       rt_reset(p);
 }
 
-static void rt_signal_initial(rt_nexus_t *nexus)
-{
-   // The initial value of each driver is the default value of the signal
-   if (nexus->n_sources > 0) {
-      for (rt_source_t *s = &(nexus->sources); s; s = s->chain_input) {
-         if (s->tag == SOURCE_DRIVER)
-            rt_copy_value_ptr(nexus, &(s->u.driver.waveforms.value),
-                              nexus->resolved);
-      }
-   }
-
-   const void *initial = nexus->resolved;
-
-   if (nexus->n_sources > 0) {
-      if (nexus->flags & NET_F_EFFECTIVE) {
-         void *driving = nexus->resolved + 2*nexus->signal->shared.size;
-         memcpy(driving, rt_driving_value(nexus), nexus->width * nexus->size);
-         initial = rt_effective_value(nexus);
-      }
-      else {
-         // Effective value is always the same as the driving value
-         initial = rt_driving_value(nexus);
-      }
-   }
-
-   TRACE("%s initial value %s", istr(tree_ident(nexus->signal->where)),
-         fmt_nexus(nexus, initial));
-
-   rt_propagate_nexus(nexus, initial);
-}
-
 static int rt_nexus_rank(rt_nexus_t *nexus)
 {
    if (nexus->n_sources > 0) {
@@ -3240,12 +3214,55 @@ static void rt_initial(tree_t top)
    for (rt_nexus_t *n = nexuses; n != NULL; n = n->chain)
       heap_insert(q, rt_nexus_rank(n), n);
 
+   SCOPED_A(rt_nexus_t *) effq = AINIT;
+
    while (heap_size(q) > 0) {
       rt_nexus_t *n = heap_extract_min(q);
-      rt_signal_initial(n);
+
+      // The initial value of each driver is the default value of the signal
+      if (n->n_sources > 0) {
+         for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
+            if (s->tag == SOURCE_DRIVER)
+               rt_copy_value_ptr(n, &(s->u.driver.waveforms.value),
+                                 n->resolved);
+         }
+      }
+
+      if (n->flags & NET_F_EFFECTIVE) {
+         // Driving and effective values must be calculated separately
+         void *driving = n->resolved + 2*n->signal->shared.size;
+         memcpy(driving, rt_driving_value(n), n->width * n->size);
+
+         APUSH(effq, n);
+
+         TRACE("%s initial driving value %s",
+               istr(tree_ident(n->signal->where)), fmt_nexus(n, driving));
+      }
+      else {
+         // Effective value is always the same as the driving value
+         const void *initial = n->resolved;
+         if (n->n_sources > 0)
+            initial = rt_driving_value(n);
+
+         rt_propagate_nexus(n, initial);
+
+         TRACE("%s initial value %s", istr(tree_ident(n->signal->where)),
+               fmt_nexus(n, initial));
+      }
    }
 
    heap_free(q);
+
+   // Update effective values after all initial driving values calculated
+   for (int i = 0; i < effq.count; i++) {
+      rt_nexus_t *n = effq.items[i];
+
+      const void *initial = rt_effective_value(n);
+      rt_propagate_nexus(n, initial);
+
+      TRACE("%s initial effective value %s", istr(tree_ident(n->signal->where)),
+            fmt_nexus(n, initial));
+   }
 }
 
 static void rt_trace_wakeup(rt_wakeable_t *obj)

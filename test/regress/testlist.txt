@@ -614,3 +614,4 @@ wait23          normal
 genpack10       normal,2008
 attr17          normal,2002,gold
 signal23        normal,gold,2008
+driver12        normal
