@@ -734,6 +734,9 @@ static tree_t elab_unconstrained_port(tree_t port, tree_t map, elab_ctx_t *ctx)
    tree_set_type(p2, type);
    tree_set_class(p2, tree_class(port));
 
+   if (tree_has_value(port))
+      tree_set_value(p2, tree_value(port));
+
    if (name != NULL) {
       tree_t ref = name_to_ref(name);
       assert(ref != NULL);

@@ -1,0 +1,6 @@
+0ms+0: Report Note:
+if:
+  cs:    '0'
+  addr:  0000
+  rdata: 00000000
+  wdata: 00000000

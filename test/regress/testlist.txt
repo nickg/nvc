@@ -613,3 +613,4 @@ const8          normal,2008
 wait23          normal
 genpack10       normal,2008
 attr17          normal,2002,gold
+signal23        normal,gold,2008
