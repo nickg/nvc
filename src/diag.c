@@ -509,11 +509,13 @@ static void diag_paginate(const char *str, int left, FILE *f)
          col = left;
       }
       else if (isspace((int)*p)) {
-         col += fwrite(begin, 1, p - begin + 1, f);
+         fwrite(begin, 1, p - begin + 1, f);
          if (*p == '\n') {
             fprintf(f, "%*s", left, "");
             col = left;
          }
+         else
+            col++;
          begin = p + 1;
       }
       else
