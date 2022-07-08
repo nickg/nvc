@@ -288,13 +288,13 @@ void type_add_dim(type_t t, tree_t r)
 type_t type_base(type_t t)
 {
    item_t *item = lookup_item(&type_object, t, I_BASE);
-   assert(item->type != NULL);
-   return item->type;
+   assert(item->object != NULL);
+   return container_of(item->object, struct _type, object);
 }
 
 void type_set_base(type_t t, type_t b)
 {
-   lookup_item(&type_object, t, I_BASE)->type = b;
+   lookup_item(&type_object, t, I_BASE)->object = &(b->object);
    object_write_barrier(&(t->object), &(b->object));
 }
 
@@ -308,14 +308,14 @@ type_t type_elem(type_t t)
       return t;
    else {
       item_t *item = lookup_item(&type_object, t, I_ELEM);
-      assert(item->type != NULL);
-      return item->type;
+      assert(item->object != NULL);
+      return container_of(item->object, struct _type, object);
    }
 }
 
 void type_set_elem(type_t t, type_t e)
 {
-   lookup_item(&type_object, t, I_ELEM)->type = e;
+   lookup_item(&type_object, t, I_ELEM)->object = &(e->object);
    object_write_barrier(&(t->object), &(e->object));
 }
 
@@ -430,13 +430,13 @@ void type_add_decl(type_t t, tree_t p)
 type_t type_result(type_t t)
 {
    item_t *item = lookup_item(&type_object, t, I_RESULT);
-   assert(item->type != NULL);
-   return item->type;
+   assert(item->object != NULL);
+   return container_of(item->object, struct _type, object);
 }
 
 void type_set_result(type_t t, type_t r)
 {
-   lookup_item(&type_object, t, I_RESULT)->type = r;
+   lookup_item(&type_object, t, I_RESULT)->object = &(r->object);
    object_write_barrier(&(t->object), &(r->object));
 }
 
@@ -497,24 +497,29 @@ type_t type_access(type_t t)
 {
    if (t->object.kind == T_SUBTYPE)
       return type_access(type_base(t));
-   else
-      return lookup_item(&type_object, t, I_ACCESS)->type;
+   else {
+      item_t *item = lookup_item(&type_object, t, I_ACCESS);
+      assert(item->object != NULL);
+      return container_of(item->object, struct _type, object);
+   }
 }
 
 void type_set_access(type_t t, type_t a)
 {
-   lookup_item(&type_object, t, I_ACCESS)->type = a;
+   lookup_item(&type_object, t, I_ACCESS)->object = &(a->object);
    object_write_barrier(&(t->object), &(a->object));
 }
 
 type_t type_file(type_t t)
 {
-   return lookup_item(&type_object, t, I_FILE)->type;
+   item_t *item = lookup_item(&type_object, t, I_FILE);
+   assert(item->object != NULL);
+   return container_of(item->object, struct _type, object);
 }
 
 void type_set_file(type_t t, type_t f)
 {
-   lookup_item(&type_object, t, I_FILE)->type = f;
+   lookup_item(&type_object, t, I_FILE)->object = &(f->object);
    object_write_barrier(&(t->object), &(f->object));
 }
 

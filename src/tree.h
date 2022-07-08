@@ -415,7 +415,6 @@ void tree_add_waveform(tree_t t, tree_t w);
 unsigned tree_decls(tree_t t);
 tree_t tree_decl(tree_t t, unsigned n);
 void tree_add_decl(tree_t t, tree_t d);
-void tree_insert_decl(tree_t t, unsigned pos, tree_t d);
 
 unsigned tree_stmts(tree_t t);
 tree_t tree_stmt(tree_t t, unsigned n);

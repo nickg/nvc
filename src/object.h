@@ -90,7 +90,7 @@ typedef uint64_t imask_t;
 #define I_PROCS      ONE_HOT(53)
 #define I_NEXUS      ONE_HOT(54)
 #define I_PATH       ONE_HOT(55)
-#define I_DEPS       ONE_HOT(56)
+// Unused            ONE_HOT(56)
 // Unused            ONE_HOT(57)
 #define I_VCODE      ONE_HOT(58)
 #define I_PRIMARY    ONE_HOT(59)
@@ -111,7 +111,6 @@ typedef uint64_t imask_t;
                           | I_UNITS | I_CHARS | I_DIMS | I_RANGES       \
                           | I_PTYPES | I_INDEXCON | I_SIGNALS | I_PROCS \
                           | I_NEXUS | I_SCOPES | I_SOURCES)
-#define ITEM_IDENT_ARRAY (I_DEPS)
 #define ITEM_INT64       (I_POS | I_IVAL)
 #define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
 #define ITEM_DOUBLE      (I_DVAL)
@@ -160,13 +159,8 @@ typedef union {
    ident_t       ident;
    object_t     *object;
    obj_array_t   obj_array;
-   type_t        type;
-   unsigned      subkind;
    int64_t       ival;
    double        dval;
-   text_buf_t   *text_buf;
-   char         *text;
-   A(ident_t)    ident_array;
 } item_t;
 
 struct _object {

@@ -62,7 +62,7 @@ static const char *item_text_map[] = {
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_PARENT",
    "I_GUARD",    "I_PTYPES",    "I_CHARS",    "I_CONSTR",     "I_FLAGS",
    "I_SIGNALS",  "I_LEFT",      "I_RIGHT",    "I_PROCS",      "I_NEXUS",
-   "I_PATH",     "I_DEPS",      "????",       "I_VCODE",      "I_PRIMARY",
+   "I_PATH",     "????",        "????",       "I_VCODE",      "I_PRIMARY",
    "I_SOURCES",  "I_OUTPUTS",
 };
 
@@ -403,8 +403,6 @@ static void gc_free_external(object_t *object)
       if (has & mask) {
          if (ITEM_OBJ_ARRAY & mask)
             ACLEAR(object->items[i].obj_array);
-         else if (ITEM_IDENT_ARRAY & mask)
-            ACLEAR(object->items[i].ident_array);
          i++;
       }
    }
@@ -543,8 +541,6 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
             ;
          else if (ITEM_DOUBLE & mask)
             ;
-         else if (ITEM_IDENT_ARRAY & mask)
-            ;
          else
             item_without_type(mask);
       }
@@ -634,8 +630,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          else if (ITEM_INT32 & mask)
             ;
          else if (ITEM_DOUBLE & mask)
-            ;
-         else if (ITEM_IDENT_ARRAY & mask)
             ;
          else
             item_without_type(mask);
@@ -741,12 +735,6 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
                fbuf_put_int(f, object->items[n].ival);
             else if (ITEM_DOUBLE & mask)
                write_double(object->items[n].dval, f);
-            else if (ITEM_IDENT_ARRAY & mask) {
-               item_t *item = &(object->items[n]);
-               fbuf_put_uint(f, item->ident_array.count);
-               for (unsigned i = 0; i < item->ident_array.count; i++)
-                  ident_write(item->ident_array.items[i], ident_ctx);
-            }
             else
                item_without_type(mask);
             n++;
@@ -903,14 +891,6 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
                object->items[n].ival = fbuf_get_int(f);
             else if (ITEM_DOUBLE & mask)
                object->items[n].dval = read_double(f);
-            else if (ITEM_IDENT_ARRAY & mask) {
-               const unsigned count = fbuf_get_uint(f);
-               ARESIZE(object->items[n].ident_array, count);;
-               for (unsigned i = 0; i < count; i++) {
-                  ident_t id = ident_read(ident_ctx);
-                  object->items[n].ident_array.items[i] = id;
-               }
-            }
             else
                item_without_type(mask);
             n++;

@@ -461,21 +461,6 @@ static inline void tree_array_add(item_t *item, tree_t t)
    APUSH(item->obj_array, &(t->object));
 }
 
-static inline void tree_array_insert(item_t *item, unsigned opos, tree_t new)
-{
-   assert(opos <= item->obj_array.count);
-
-   if (opos == item->obj_array.count)
-      APUSH(item->obj_array, &(new->object));
-   else {
-      ARESIZE(item->obj_array, item->obj_array.count + 1);
-      memmove(item->obj_array.items + opos + 1,
-              item->obj_array.items + opos,
-              (item->obj_array.count - 1 - opos) * sizeof(object_t*));
-      item->obj_array.items[opos] = &(new->object);
-   }
-}
-
 tree_t tree_new(tree_kind_t kind)
 {
    return (tree_t)object_new(global_arena, &tree_object, kind);
@@ -591,19 +576,19 @@ void tree_add_generic(tree_t t, tree_t d)
 type_t tree_type(tree_t t)
 {
    item_t *item = lookup_item(&tree_object, t, I_TYPE);
-   assert(item->type != NULL);
-   return item->type;
+   assert(item->object != NULL);
+   return container_of(item->object, struct _type, object);
 }
 
 void tree_set_type(tree_t t, type_t ty)
 {
-   lookup_item(&tree_object, t, I_TYPE)->type = ty;
+   lookup_item(&tree_object, t, I_TYPE)->object = &(ty->object);
    object_write_barrier(&(t->object), &(ty->object));
 }
 
 bool tree_has_type(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_TYPE)->type != NULL;
+   return lookup_item(&tree_object, t, I_TYPE)->object != NULL;
 }
 
 unsigned tree_params(tree_t t)
@@ -755,13 +740,6 @@ void tree_add_decl(tree_t t, tree_t d)
 {
    tree_assert_decl(d);
    tree_array_add(lookup_item(&tree_object, t, I_DECLS), d);
-   object_write_barrier(&(t->object), &(d->object));
-}
-
-void tree_insert_decl(tree_t t, unsigned pos, tree_t d)
-{
-   tree_assert_decl(d);
-   tree_array_insert(lookup_item(&tree_object, t, I_DECLS), pos, d);
    object_write_barrier(&(t->object), &(d->object));
 }
 
