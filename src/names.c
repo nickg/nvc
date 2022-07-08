@@ -147,18 +147,21 @@ static void type_set_pop(nametab_t *tab)
    free(old);
 }
 
-static void type_set_hint(nametab_t *tab, diag_t *d, const loc_t *loc)
+static void type_set_describe(nametab_t *tab, diag_t *d, const loc_t *loc,
+                              bool (*pred)(type_t), const char *hint)
 {
-   if (tab->top_type_set != NULL && tab->top_type_set->members.count > 0) {
-      LOCAL_TEXT_BUF tb = tb_new();
+   if (tab->top_type_set == NULL || tab->top_type_set->members.count == 0)
+      return;
 
-      int poss = 0;
-      for (unsigned n = 0; n < tab->top_type_set->members.count; n++) {
-         tracked_type_t tt = tab->top_type_set->members.items[n];
+   LOCAL_TEXT_BUF tb = tb_new();
 
-         if (type_is_none(tt.type))
-            continue;
+   int poss = 0;
+   for (unsigned n = 0; n < tab->top_type_set->members.count; n++) {
+      tracked_type_t tt = tab->top_type_set->members.items[n];
 
+      if (type_is_none(tt.type))
+         continue;
+      else if (pred == NULL || (*pred)(tt.type)) {
          if (n > 0 && n + 1 == tab->top_type_set->members.count)
             tb_cat(tb, " or ");
          else if (n > 0)
@@ -166,18 +169,21 @@ static void type_set_hint(nametab_t *tab, diag_t *d, const loc_t *loc)
 
          tb_cat(tb, type_pp(tt.type));
          poss++;
-
-         if (tt.src == NULL)
-            continue;
-         else if (is_subprogram(tt.src))
-            diag_hint(d, tree_loc(tt.src), "context contains overload %s",
-                      type_pp(tree_type(tt.src)));
       }
+      else if (hint != NULL && *hint != '\0')
+         diag_hint(d, NULL, "context contains type %s which is not %s",
+                   type_pp(tt.type), hint);
+      else
+         diag_hint(d, NULL, "context contains type %s", type_pp(tt.type));
 
-      if (poss > 0)
-         diag_hint(d, loc, "%s %s", poss > 1 ? "could be" : "expecting",
-                   tb_get(tb));
+      if (tt.src != NULL && is_subprogram(tt.src))
+         diag_hint(d, tree_loc(tt.src), "context contains overload %s",
+                   type_pp(tree_type(tt.src)));
    }
+
+   if (poss > 0)
+      diag_hint(d, loc, "%s %s", poss > 1 ? "could be" : "expecting",
+                tb_get(tb));
 }
 
 static void type_set_add(nametab_t *tab, type_t t, tree_t src)
@@ -212,6 +218,23 @@ static bool type_set_restrict(nametab_t *tab, bool (*pred)(type_t))
    ATRIM(tab->top_type_set->members, j);
 
    return j > 0;
+}
+
+static int type_set_satisfies(nametab_t *tab, bool (*pred)(type_t), type_t *out)
+{
+   if (tab->top_type_set == NULL)
+      return 0;
+
+   int count = 0;
+   for (int i = 0; i < tab->top_type_set->members.count; i++) {
+      tracked_type_t tt = tab->top_type_set->members.items[i];
+      if ((*pred)(tt.type)) {
+         *out = tt.type;
+         count++;
+      }
+   }
+
+   return count;
 }
 
 static bool type_set_uniq(nametab_t *tab, type_t *pt)
@@ -1233,7 +1256,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
                   && !type_set_error(tab)) {
             diag_t *d = diag_new(DIAG_ERROR, loc);
             diag_printf(d, "no suitable overload for name %s", istr(name));
-            type_set_hint(tab, d, loc);
+            type_set_describe(tab, d, loc, NULL, "");
             diag_emit(d);
          }
       }
@@ -2694,16 +2717,12 @@ static type_t solve_literal(nametab_t *tab, tree_t lit)
          // type must be a one dimensional array of a character type
 
          type_t type = NULL;
-         if (!type_set_restrict(tab, is_character_array)) {
-            error_at(tree_loc(lit), "type of string literal cannot be "
-                     "determined from the surrounding context");
-            type = type_new(T_NONE);
-         }
-         else if (!type_set_uniq(tab, &type)) {
+         if (type_set_satisfies(tab, is_character_array, &type) != 1) {
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(lit));
             diag_printf(d, "type of string literal cannot be determined "
                         "from the surrounding context");
-            type_set_hint(tab, d, tree_loc(lit));
+            type_set_describe(tab, d, tree_loc(lit), is_character_array,
+                               "a one dimensional array of character type");
             diag_emit(d);
 
             type = type_new(T_NONE);
@@ -3134,26 +3153,14 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
    // context in which the aggregate appears
 
    type_t type;
-   if (type_set_uniq(tab, &type)) {
-      if (!type_is_composite(type) && !type_is_none(type)) {
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
-         diag_printf(d, "aggregate has non-composite type %s", type_pp(type));
-         diag_hint(d, NULL, "the type of an aggregate is determined from the "
-                   "surrounding context");
-         diag_emit(d);
-         type = type_new(T_NONE);
-      }
-   }
-   else if (!type_set_restrict(tab, type_is_composite)) {
-      error_at(tree_loc(agg), "type of aggregate cannot be determined "
-               "from the surrounding context");
+   if (type_set_error(tab))
       type = type_new(T_NONE);
-   }
-   else if (!type_set_uniq(tab, &type)) {
+   else if (type_set_satisfies(tab, type_is_composite, &type) != 1) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(agg));
       diag_printf(d, "type of aggregate cannot be determined "
                   "from the surrounding context");
-      type_set_hint(tab, d, tree_loc(agg));
+      type_set_describe(tab, d, tree_loc(agg), type_is_composite,
+                        "a composite type");
 
       diag_emit(d);
       type = type_new(T_NONE);
@@ -3339,15 +3346,14 @@ static type_t solve_new(nametab_t *tab, tree_t new)
       return tree_type(new);
 
    type_t type = NULL;
-   if (!type_set_restrict(tab, type_is_access)) {
-      error_at(tree_loc(new), "cannot determine type of allocator expression "
-               "from context");
+   if (type_set_satisfies(tab, type_is_access, &type) != 1) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(new));
+      diag_printf(d, "cannot determine type of allocator expression "
+                  "from the surrounding context");
+      type_set_describe(tab, d, NULL, type_is_access, "an access type");
+      diag_emit(d);
+
       type = type_new(T_NONE);
-   }
-   else {
-      // Must be unique because allocator is qualified expression
-      type_set_uniq(tab, &type);
-      assert(type != NULL);
    }
 
    tree_set_type(new, type);

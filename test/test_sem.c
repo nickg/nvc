@@ -433,7 +433,7 @@ START_TEST(test_array)
       { 98,  "type of index universal_integer does not match type" },
       { 102, "named and positional associations cannot be mixed in" },
       { 111, "a choice that is not locally static is allowed" },
-      { 119, "aggregate has non-composite type INTEGER" },
+      { 119, "type of aggregate cannot be determined from the surrounding" },
       { 119, "type of slice prefix INTEGER is not an array" },
       { 120, "range direction of slice TO does not match prefix DOWNTO" },
       { 121, "index range of array aggregate with others choice cannot" },
@@ -818,7 +818,7 @@ START_TEST(test_access)
       {  76, "unconstrained array type INT_PTR_ARRAY not allowed" },
       {  84, "index constraint cannot be used with non-array type INTEGER" },
       {  90, "variable F cannot have incomplete type FOO" },
-      {  97, "cannot determine type of allocator expression from context" },
+      {  97, "cannot determine type of allocator expression from the surro" },
       { 105, "incomplete type A found in allocator expression" },
       { 111, "expression type INT_VEC is not access" },
       { -1, NULL }
@@ -875,12 +875,12 @@ START_TEST(test_signal)
    input_from_file(TESTDIR "/sem/signal.vhd");
 
    const error_t expect[] = {
-      { 14, "has non-composite type BIT" },
-      { 15, "type of string literal cannot be determined from the surrounding" },
+      { 14, "type of aggregate cannot be determined from the surrounding" },
+      { 15, "type of string literal cannot be determined from the surrou" },
       { 16, "target of signal assignment must be a signal name" },
       { 17, "others association not allowed in aggregate signal target" },
       { 18, "cannot assign to input port P" },
-      { 22, "aggregate has non-composite type BIT" },
+      { 22, "cannot be determined from the surrounding context" },
       { 23, "target of signal assignment must be a signal name" },
       { 24, "others association not allowed in aggregate signal target" },
       { 25, "cannot assign to input port P" },
