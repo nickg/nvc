@@ -756,6 +756,8 @@ START_TEST(test_record)
       { 170, "record type R1 has no field named Z" },
       { 170, "range association invalid in record aggregate" },
       { 174, "no visible declaration for FOO" },
+      { 184, "type INTEGER is not a record" },
+      { 184, "sorry, this form of parameter name is not yet supported" },
       { -1, NULL }
    };
    expect_errors(expect);

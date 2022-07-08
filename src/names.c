@@ -2842,13 +2842,31 @@ static type_t solve_record_ref(nametab_t *tab, tree_t rref)
       tree_set_type(rref, value_type);
       return value_type;
    }
+   else if (!type_is_record(value_type)) {
+      error_at(tree_loc(rref), "type %s is not a record", type_pp(value_type));
+      tree_set_type(rref, (value_type = type_new(T_NONE)));
+      return value_type;
+   }
 
    tree_t field = find_record_field(rref);
 
    type_t type;
    if (field == NULL) {
-      error_at(tree_loc(rref), "record type %s has no field named %s",
-               type_pp(value_type), istr(tree_ident(rref)));
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(rref));
+      diag_printf(d, "record type %s has no field named %s",
+                  type_pp(value_type), istr(tree_ident(rref)));
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      int nfields = type_fields(value_type), i;
+      tb_printf(tb, "type %s has fields ", type_pp(value_type));
+      for (i = 0; i < nfields; i++) {
+         if (i > 0 && i == nfields - 1) tb_cat(tb, ", and ");
+         else if (i > 0) tb_cat(tb, ", ");
+         tb_istr(tb, tree_ident(type_field(value_type, i)));
+      }
+      diag_hint(d, NULL, "%s", tb_get(tb));
+
+      diag_emit(d);
       type = type_new(T_NONE);
    }
    else

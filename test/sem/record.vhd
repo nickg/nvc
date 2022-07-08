@@ -173,7 +173,15 @@ package body p is
     procedure test1 is
         variable r : foo;               -- Error
     begin
-        r.baz := 1;                   -- Error
+        r.baz := 1;                     -- Error
+    end procedure;
+
+    procedure test2 is
+        procedure sub (x : integer) is
+        begin
+        end procedure;
+    begin
+        sub(x.z => 2);                  -- Error
     end procedure;
 
 end package body;
