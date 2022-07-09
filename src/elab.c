@@ -252,8 +252,8 @@ static void elab_find_config_roots(tree_t t, tree_list_t *roots)
       {
          tree_t what = tree_ref(t);
          if (tree_kind(what) == T_ARCH) {
-            APUSH(*roots, what);
             APUSH(*roots, tree_primary(what));
+            APUSH(*roots, what);
          }
       }
       // Fall-through
@@ -280,8 +280,6 @@ static tree_t elab_copy(tree_t t, elab_ctx_t *ctx)
       type_pred = elab_should_copy_type;
 
    tree_list_t roots = AINIT;
-   APUSH(roots, t);
-
    switch (tree_kind(t)) {
    case T_ARCH:
       APUSH(roots, tree_primary(t));
@@ -292,12 +290,12 @@ static tree_t elab_copy(tree_t t, elab_ctx_t *ctx)
    default:
       fatal_trace("unexpected %s in elab_copy", tree_kind_str(tree_kind(t)));
    }
-
+   APUSH(roots, t);    // Architecture must be processed last
 
    tree_copy(roots.items, roots.count, elab_should_copy_tree, type_pred,
              elab_tree_copy_cb, elab_type_copy_cb, &copy_ctx);
 
-   tree_t copy = roots.items[0];
+   tree_t copy = roots.items[roots.count - 1];
    ACLEAR(roots);
 
    // Change the name of any copied types to reflect the new hiearchy

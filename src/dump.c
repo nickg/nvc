@@ -1310,6 +1310,7 @@ static void dump_entity(tree_t t)
       printf("  );\n");
    }
    dump_ports(t, 2);
+   dump_decls(t, 2);
    if (tree_stmts(t) > 0) {
       syntax("#begin\n");
       for (unsigned i = 0; i < tree_stmts(t); i++) {
