@@ -615,3 +615,4 @@ genpack10       normal,2008
 attr17          normal,2002,gold
 signal23        normal,gold,2008
 driver12        normal
+record33        normal,2008

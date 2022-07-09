@@ -152,6 +152,8 @@ static vcode_var_t lower_temp_var(const char *prefix, vcode_type_t vtype,
                                   vcode_type_t vbounds);
 static void lower_release_temp(vcode_var_t tmp);
 static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg);
+static void lower_copy_record(type_t type, vcode_reg_t dst_ptr,
+                              vcode_reg_t src_ptr, tree_t where);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -3476,6 +3478,29 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
       return f_reg;
 }
 
+static void lower_new_field_cb(type_t ftype, vcode_reg_t dst_ptr,
+                               vcode_reg_t src_ptr, void *ctx)
+{
+   if (!type_is_composite(ftype) || lower_const_bounds(ftype))
+      return;   // Already allocated
+   else if (type_is_array(ftype)) {
+      assert(lower_have_uarray_ptr(src_ptr));
+      vcode_reg_t src_reg = emit_load_indirect(src_ptr);
+
+      type_t elem = lower_elem_recur(ftype);
+      vcode_reg_t length_reg = lower_array_total_len(ftype, src_reg);
+      vcode_reg_t mem_reg = emit_new(lower_type(elem), length_reg);
+      vcode_reg_t all_reg = emit_all(mem_reg);
+      vcode_reg_t wrap_reg =
+         lower_wrap_with_new_bounds(ftype, src_reg, all_reg);
+      emit_store_indirect(wrap_reg, dst_ptr);
+   }
+   else if (type_is_record(ftype))
+      lower_for_each_field(ftype, dst_ptr, src_ptr, lower_new_field_cb, NULL);
+   else
+      fatal_trace("unhandled type %s in lower new_field_cb", type_pp(ftype));
+}
+
 static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
 {
    tree_t qual = tree_value(expr);
@@ -3534,17 +3559,30 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       vcode_reg_t all_reg = emit_all(result_reg);
 
       vcode_reg_t init_reg;
-      if (!tree_has_value(qual))
-         init_reg = lower_default_value(type, all_reg, NULL, 0);
+      if (lower_const_bounds(type)) {
+         if (!tree_has_value(qual))
+            init_reg = lower_default_value(type, all_reg, NULL, 0);
+         else {
+            tree_t value = tree_value(qual);
+            if (tree_kind(value) == T_AGGREGATE)
+               init_reg = lower_aggregate(value, all_reg);
+            else
+               init_reg = lower_expr(qual, EXPR_RVALUE);
+         }
+      }
       else {
-         tree_t value = tree_value(qual);
-         if (tree_kind(value) == T_AGGREGATE)
-            init_reg = lower_aggregate(value, all_reg);
-         else
+         if (tree_has_value(qual))
             init_reg = lower_expr(qual, EXPR_RVALUE);
+         else
+            init_reg = lower_default_value(type, VCODE_INVALID_REG, NULL, 0);
+
+         // The record has unconstrained fields which need to be
+         // allocated separately and sized according to the initialiser
+         lower_for_each_field(type, all_reg, init_reg,
+                              lower_new_field_cb, NULL);
       }
 
-      emit_copy(all_reg, init_reg, VCODE_INVALID_REG);
+      lower_copy_record(type, all_reg, init_reg, qual);
       return result_reg;
    }
    else {
@@ -4591,6 +4629,15 @@ static void lower_copy_record_cb(type_t ftype, vcode_reg_t dst_ptr,
       fatal_trace("unhandled type %s in lower_copy_record_cb", type_pp(ftype));
 }
 
+static void lower_copy_record(type_t type, vcode_reg_t dst_ptr,
+                              vcode_reg_t src_ptr, tree_t where)
+{
+   if (lower_const_bounds(type))
+      emit_copy(dst_ptr, src_ptr, VCODE_INVALID_REG);
+   else
+      lower_for_each_field(type, dst_ptr, src_ptr, lower_copy_record_cb, where);
+}
+
 static void lower_var_assign_target(target_part_t **ptr, tree_t where,
                                     vcode_reg_t rhs, type_t rhs_type)
 {
@@ -4638,13 +4685,8 @@ static void lower_var_assign_target(target_part_t **ptr, tree_t where,
 
          emit_copy(dest_reg, data_reg, count_reg);
       }
-      else if (type_is_record(type)) {
-         if (lower_const_bounds(type))
-            emit_copy(p->reg, src_reg, VCODE_INVALID_REG);
-         else
-            lower_for_each_field(type, p->reg, src_reg,
-                                 lower_copy_record_cb, where);
-      }
+      else if (type_is_record(type))
+         lower_copy_record(type, p->reg, src_reg, where);
       else
          emit_store_indirect(lower_reify(src_reg), p->reg);
 
@@ -4737,12 +4779,7 @@ static void lower_var_assign(tree_t stmt)
          value_reg = lower_expr(value, EXPR_RVALUE);
 
       value_reg = lower_resolved(type, value_reg);
-
-      if (lower_const_bounds(type))
-         emit_copy(target_reg, value_reg, VCODE_INVALID_REG);
-      else
-         lower_for_each_field(type, target_reg, value_reg,
-                              lower_copy_record_cb, value);
+      lower_copy_record(type, target_reg, value_reg, value);
    }
 }
 
