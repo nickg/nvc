@@ -60,6 +60,7 @@ bool is_container(tree_t t);
 bool is_package(tree_t t);
 bool is_guarded_signal(tree_t decl);
 bool is_type_decl(tree_t t);
+tree_t aliased_type_decl(tree_t decl);
 bool is_loop_stmt(tree_t t);
 bool is_design_unit(tree_t t);
 bool is_uninstantiated_package(tree_t pack);

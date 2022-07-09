@@ -622,6 +622,30 @@ bool is_type_decl(tree_t t)
    }
 }
 
+tree_t aliased_type_decl(tree_t decl)
+{
+   switch (tree_kind(decl)) {
+   case T_ALIAS:
+      {
+         tree_t value = tree_value(decl);
+         if (tree_kind(value) == T_REF && tree_has_ref(value))
+            return aliased_type_decl(tree_ref(value));
+         else
+            return NULL;
+      }
+   case T_TYPE_DECL:
+   case T_SUBTYPE_DECL:
+      return decl;
+   case T_GENERIC_DECL:
+      if (tree_class(decl) == C_TYPE)
+         return decl;
+      else
+         return NULL;
+   default:
+      return NULL;
+   }
+}
+
 tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name)
 {
    tree_t p = tree_new(T_PARAM);

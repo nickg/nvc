@@ -1607,29 +1607,6 @@ static bool is_range_expr(tree_t t)
    }
 }
 
-static tree_t aliased_type_decl(tree_t decl) {
-   switch (tree_kind(decl)) {
-   case T_ALIAS:
-      {
-         tree_t value = tree_value(decl);
-         if (tree_kind(value) == T_REF && tree_has_ref(value))
-            return aliased_type_decl(tree_ref(value));
-         else
-            return NULL;
-      }
-   case T_TYPE_DECL:
-   case T_SUBTYPE_DECL:
-      return decl;
-   case T_GENERIC_DECL:
-      if (tree_class(decl) == C_TYPE)
-         return decl;
-      else
-         return NULL;
-   default:
-      return NULL;
-   }
-}
-
 static tree_t ensure_labelled(tree_t t, ident_t label)
 {
    tree_set_ident(t, label ?: loc_to_ident(CURRENT_LOC));

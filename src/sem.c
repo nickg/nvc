@@ -1125,7 +1125,7 @@ static bool sem_check_alias(tree_t t, nametab_t *tab)
    }
    else if (tree_kind(value) == T_REF
             && tree_has_ref(value)
-            && is_type_decl(tree_ref(value))) {
+            && aliased_type_decl(tree_ref(value)) != NULL) {
       // Alias of type
    }
    else {

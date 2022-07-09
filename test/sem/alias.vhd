@@ -99,5 +99,15 @@ architecture test of e is
         return rv ;
     end function ;
 
+    procedure double_alias is
+        type r is record
+            x, y : integer;
+        end record;
+        alias a1 is r;
+        alias a2 is a1;                 -- OK
+        variable v : a2;                -- OK
+    begin
+    end procedure;
+
 begin
 end architecture;
