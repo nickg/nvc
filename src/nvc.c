@@ -86,9 +86,9 @@ static int scan_cmd(int start, int argc, char **argv)
 static void bad_option(const char *what, char **argv)
 {
    if (optopt == 0)
-      fatal("unrecognised %s option %s", what, argv[optind - 1]);
+      fatal("unrecognised %s option $bold$%s$$", what, argv[optind - 1]);
    else
-      fatal("unrecognised %s option -%c", what, optopt);
+      fatal("unrecognised %s option $bold$-%c$$", what, optopt);
 }
 
 static int analyse(int argc, char **argv)
@@ -663,6 +663,7 @@ static void list_packages(void)
 static int install_cmd(int argc, char **argv)
 {
    static struct option long_options[] = {
+      { "dest", required_argument, 0, 'd' },
       { 0, 0, 0, 0 }
    };
 
@@ -675,7 +676,10 @@ static int install_cmd(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         bad_option("init", argv);
+         bad_option("install", argv);
+         break;
+      case 'd':
+         setenv("NVC_INSTALL_DEST", optarg , 1);
          break;
       }
    }
@@ -686,8 +690,12 @@ static int install_cmd(int argc, char **argv)
       return EXIT_FAILURE;
    }
 
+   LOCAL_TEXT_BUF tb = tb_new();
+   if (get_exe_path(tb))
+      setenv("NVC", tb_get(tb), 1);
+
    for (int i = optind; i < next_cmd; i++) {
-      LOCAL_TEXT_BUF tb = tb_new();
+      tb_rewind(tb);
       get_libexec_dir(tb);
       tb_printf(tb, "/install-%s.sh", argv[i]);
 
@@ -897,6 +905,9 @@ static void usage(void)
           "Make options:\n"
           "     --deps-only\tOutput dependencies without actions\n"
           "     --posix\t\tStrictly POSIX compliant makefile\n"
+          "\n"
+          "Install options:\n"
+          "     --dest=DIR\t\tCompile libraries into directory DEST\n"
           "\n",
           PACKAGE,
           opt_get_int(OPT_STOP_DELTA));

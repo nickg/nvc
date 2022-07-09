@@ -333,6 +333,19 @@ The generated makefile will work with any POSIX compliant make.
 Otherwise the output may use extensions specific to GNU make.
 .El
 .\" ------------------------------------------------------------
+.\" Install options
+.\" ------------------------------------------------------------
+.Ss Install options
+.Bl -tag -width Ds
+.\" --dest
+.It Fl -dest Ar dir
+Compile libraries into directory
+.Ar dir
+instead of the default
+.Ql $HOME/.nvc/lib .
+.\" --posix
+.El
+.\" ------------------------------------------------------------
 .\" Libraries
 .\" ------------------------------------------------------------
 .Sh LIBRARIES

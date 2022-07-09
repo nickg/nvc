@@ -1287,8 +1287,9 @@ void tb_catn(text_buf_t *tb, const char *str, size_t nchars)
       tb->buf = xrealloc(tb->buf, tb->alloc);
    }
 
-   memcpy(tb->buf + tb->len, str, nchars + 1);
+   memcpy(tb->buf + tb->len, str, nchars);
    tb->len += nchars;
+   tb->buf[tb->len] = '\0';
 }
 
 void tb_cat(text_buf_t *tb, const char *str)
@@ -1707,6 +1708,19 @@ char *search_path(const char *name)
    }
 
    return xstrdup(name);
+}
+
+bool get_exe_path(text_buf_t *tb)
+{
+#if defined __linux__
+   char buf[PATH_MAX];
+   ssize_t nchars = readlink("/proc/self/exe", buf, sizeof(buf));
+   if (nchars > 0) {   // Does not append '\0'
+      tb_catn(tb, buf, nchars);
+      return true;
+   }
+#endif
+   return false;
 }
 
 void get_libexec_dir(text_buf_t *tb)

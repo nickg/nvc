@@ -8,7 +8,7 @@ _safe () {
 
 _nvc () {
   local _work=${WORK:-work}
-  local _dest=${DEST:-$HOME/.nvc/lib}
+  local _dest=${NVC_INSTALL_DEST:-$HOME/.nvc/lib}
   local _opts="--std=${STD:-1993} --work=$_dest/$_work -L$_dest $GLOBAL_OPTS"
   [ -d $_dest ] || _safe mkdir -p  $_dest
   _safe ${NVC:-nvc} $_opts  $*
