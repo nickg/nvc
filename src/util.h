@@ -178,7 +178,7 @@ void nvc_munmap(void *ptr, size_t length);
 void nvc_memprotect(void *ptr, size_t length, mem_access_t prot);
 void *mmap_guarded(size_t sz, guard_fault_fn_t fn, void *ctx);
 
-void run_program(const char *const *args, size_t n_args);
+void run_program(const char *const *args);
 
 text_buf_t *safe_symbol(ident_t id);
 text_buf_t *unsafe_symbol(const char *text);
@@ -244,6 +244,7 @@ void *map_file(int fd, size_t size);
 void unmap_file(void *ptr, size_t size);
 void make_dir(const char *path);
 char *search_path(const char *name);
+void get_libexec_dir(text_buf_t *tb);
 
 struct cpu_state;
 void capture_registers(struct cpu_state *cpu);

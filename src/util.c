@@ -45,6 +45,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <time.h>
+#include <libgen.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -1438,7 +1439,7 @@ void nvc_rusage(nvc_rusage_t *ru)
 #endif
 }
 
-void run_program(const char *const *args, size_t n_args)
+void run_program(const char *const *args)
 {
 #if defined __CYGWIN__ || defined __MINGW32__
    int status = spawnv(_P_WAIT, args[0], (char *const *)args);
@@ -1460,11 +1461,10 @@ void run_program(const char *const *args, size_t n_args)
 #endif  // __CYGWIN__
 
    if (status != 0) {
-      for (size_t i = 0; i < n_args && args[i]; i++)
-         fprintf(stderr, "%s%s", i > 0 ? " " : "", args[i]);
-      fprintf(stderr, "\n");
-      fflush(stderr);
-      fatal("%s failed with status %d", args[0], status);
+      LOCAL_TEXT_BUF tb = tb_new();
+      for (size_t i = 0; args[i] != NULL; i++)
+         tb_printf(tb, "%s%s", i > 0 ? " " : "", args[i]);
+      fatal("$bold$%s$$ failed with status %d", tb_get(tb), status);
    }
 }
 
@@ -1707,6 +1707,21 @@ char *search_path(const char *name)
    }
 
    return xstrdup(name);
+}
+
+void get_libexec_dir(text_buf_t *tb)
+{
+#if defined DEBUG && defined __linux__ && 0
+   char buf[PATH_MAX];
+   if (readlink("/proc/self/exe", buf, sizeof(buf)) > 0) {
+      tb_cat(tb, dirname(dirname(buf)));
+      tb_cat(tb, "/bin");
+   }
+   else
+      tb_cat(tb, LIBEXECDIR);
+#else
+   tb_cat(tb, LIBEXECDIR);
+#endif
 }
 
 void progress(const char *fmt, ...)

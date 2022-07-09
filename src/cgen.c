@@ -5150,7 +5150,7 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
 
    APUSH(link_args, NULL);
 
-   run_program((const char * const *)link_args.items, link_args.count);
+   run_program((const char * const *)link_args.items);
 
    for (int i = 0; i < nobjs ; i++) {
       if (unlink(objs[i]) != 0)

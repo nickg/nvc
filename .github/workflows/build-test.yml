@@ -198,6 +198,10 @@ jobs:
           echo /opt/nvc-${{ steps.version.outputs.version }}/bin >> $GITHUB_PATH
       - name: Check --version output
         run: nvc --version
+      - name: Install OSVVM
+        run: nvc --install osvvm
+      - name: Install UVVM
+        run: nvc --install uvvm
       - name: Test FPHDL
         run: ./vhdl-projects/fphdl/test.sh
       - name: Test ZPU

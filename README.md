@@ -19,6 +19,10 @@ could be used to program an FPGA or ASIC.  It implements only the
 simulation behaviour of the language as described by the [IEEE
 1076](https://standards.ieee.org/standard/1076-2019.html) standard.
 
+NVC supports popular verification frameworks including
+[OSVVM](https://osvvm.org/) and [UVVM](https://www.uvvm.org/).  See
+[below](#vendor-libraries) for installation instructions.
+
 ### Usage
 
 Simulating a VHDL hardware design involves three steps: _analysing_ the
@@ -183,8 +187,11 @@ information.
 
 ### Vendor Libraries
 
-NVC provides scripts to compile the simulation libraries of common FPGA vendors.
+NVC provides scripts to compile popular verification frameworks and the
+simulation libraries of common FPGA vendors.
 
+* For [OSVVM](https://osvvm.org/) use `nvc --install osvvm`
+* For [UVVM](https://www.uvvm.org/) use `nvc --install uvvm`
 * For Xilinx ISE use `./tools/build-xilinx-ise.rb`
 * For Xilinx Vivado use `./tools/build-xilinx-vivado.rb`
 * For Altera Quartus use `./tools/build-altera.rb`

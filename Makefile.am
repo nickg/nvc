@@ -21,6 +21,8 @@ check_PROGRAMS =
 check_LIBRARIES =
 noinst_PROGRAMS =
 pkgdata_DATA =
+pkglibexec_PROGRAMS =
+pkglibexec_SCRIPTS =
 EXTRA_PROGRAMS =
 CLEANFILES =
 DISTCLEANFILES =
@@ -45,6 +47,7 @@ include lib/ieee.08/Makemodule.am
 include lib/vital/Makemodule.am
 include lib/synopsys/Makemodule.am
 include tools/Makemodule.am
+include contrib/Makemodule.am
 
 compile-commands:
 	$(MAKE) -C $(top_builddir) clean

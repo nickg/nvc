@@ -35,6 +35,10 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <dirent.h>
 
 const char *copy_string =
    "Copyright (C) 2011-2022  Nick Gasson\n"
@@ -66,6 +70,7 @@ static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
       "-a", "-e", "-r", "--dump", "--make", "--syntax", "--list", "--init",
+      "--install",
    };
 
    for (int i = start; i < argc; i++) {
@@ -627,6 +632,85 @@ static int init_cmd(int argc, char **argv)
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
+static void list_packages(void)
+{
+   LOCAL_TEXT_BUF tb = tb_new();
+   get_libexec_dir(tb);
+
+   DIR *dir = opendir(tb_get(tb));
+   tb_rewind(tb);
+
+   if (dir != NULL) {
+      struct dirent *d;
+      while ((d = readdir(dir))) {
+         if (strncmp(d->d_name, "install-", 8))
+            continue;
+
+         const char *dot = strrchr(d->d_name, '.');
+         if (dot == NULL)
+            continue;
+
+         const int nchar = dot - d->d_name - 8;
+         tb_printf(tb, " %.*s", nchar, d->d_name + 8);
+      }
+
+      closedir(dir);
+   }
+
+   notef("the following packages can be installed:%s", tb_get(tb));
+}
+
+static int install_cmd(int argc, char **argv)
+{
+   static struct option long_options[] = {
+      { 0, 0, 0, 0 }
+   };
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+   int c, index = 0;
+   const char *spec = "";
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0:
+         // Set a flag
+         break;
+      case '?':
+         bad_option("init", argv);
+         break;
+      }
+   }
+
+   if (argc == optind) {
+      errorf("missing argument to $bold$--install$$ command");
+      list_packages();
+      return EXIT_FAILURE;
+   }
+
+   for (int i = optind; i < next_cmd; i++) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      get_libexec_dir(tb);
+      tb_printf(tb, "/install-%s.sh", argv[i]);
+
+      struct stat sb;
+      if (stat(tb_get(tb), &sb) != 0) {
+         errorf("%s is not an executable script", tb_get(tb));
+         list_packages();
+         return EXIT_FAILURE;
+      }
+
+      const char *args[] = {
+         tb_get(tb),
+         NULL
+      };
+      run_program(args);
+   }
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+}
+
 static int syntax_cmd(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -758,6 +842,7 @@ static void usage(void)
           " -r [OPTION]... UNIT\t\tExecute previously elaborated UNIT\n"
           " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
           " --init\t\t\t\tInitialise work library directory\n"
+          " --install PKG\t\t\tInstall third-party packages\n"
           " --list\t\t\t\tPrint all units in the library\n"
           " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
           " --syntax FILE...\t\tCheck FILEs for syntax errors only\n"
@@ -794,7 +879,7 @@ static void usage(void)
           "     --exit-severity=S\tExit after assertion failure of severity S\n"
           "     --format=FMT\tWaveform format is either fst or vcd\n"
           "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
-          "     \t\t\tfrom IEEE packages\n"
+          "     \t\t\t\t\tfrom IEEE packages\n"
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
           "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
           "     --profile\t\tDisplay detailed statistics at end of run\n"
@@ -921,6 +1006,7 @@ static int process_command(int argc, char **argv)
       { "syntax",  no_argument, 0, 's' },
       { "list",    no_argument, 0, 'l' },
       { "init",    no_argument, 0, 'i' },
+      { "install", no_argument, 0, 'I' },
       { 0, 0, 0, 0 }
    };
 
@@ -946,6 +1032,8 @@ static int process_command(int argc, char **argv)
       return list_cmd(argc, argv);
    case 'i':
       return init_cmd(argc, argv);
+   case 'I':
+      return install_cmd(argc, argv);
    default:
       fatal("missing command, try %s --help for usage", PACKAGE);
       return EXIT_FAILURE;
