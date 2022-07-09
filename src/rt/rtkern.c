@@ -3211,14 +3211,7 @@ static void rt_initial(tree_t top)
 
    heap_t *q = heap_new(MAX(profile.n_signals + 1, 128));
 
-   for (rt_nexus_t *n = nexuses; n != NULL; n = n->chain)
-      heap_insert(q, rt_nexus_rank(n), n);
-
-   SCOPED_A(rt_nexus_t *) effq = AINIT;
-
-   while (heap_size(q) > 0) {
-      rt_nexus_t *n = heap_extract_min(q);
-
+   for (rt_nexus_t *n = nexuses; n != NULL; n = n->chain) {
       // The initial value of each driver is the default value of the signal
       if (n->n_sources > 0) {
          for (rt_source_t *s = &(n->sources); s; s = s->chain_input) {
@@ -3227,6 +3220,14 @@ static void rt_initial(tree_t top)
                                  n->resolved);
          }
       }
+
+      heap_insert(q, rt_nexus_rank(n), n);
+   }
+
+   SCOPED_A(rt_nexus_t *) effq = AINIT;
+
+   while (heap_size(q) > 0) {
+      rt_nexus_t *n = heap_extract_min(q);
 
       if (n->flags & NET_F_EFFECTIVE) {
          // Driving and effective values must be calculated separately
