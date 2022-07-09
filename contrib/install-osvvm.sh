@@ -5,7 +5,7 @@
 
 . $(dirname $BASH_SOURCE)/functions.sh
 
-git_wrapper https://github.com/osvvm/OsvvmLibraries 2022.04
+git_wrapper https://github.com/osvvm/OsvvmLibraries 2022.05d
 
 STD=2008
 

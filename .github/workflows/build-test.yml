@@ -222,6 +222,10 @@ jobs:
         run: ./vhdl-projects/json/test.sh
       - name: Test OSVVM
         run: ./vhdl-projects/osvvm/test.sh
+      - name: Test UVVM
+        run: ./vhdl-projects/uvvm/test.sh
+      - name: Test vhdl-format
+        run: ./vhdl-projects/format/test.sh
 
   vunit:
     name: VUnit
