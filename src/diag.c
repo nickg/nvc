@@ -300,7 +300,8 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 #define WARNING_PREFIX "$yellow$** Warning:$$ "
 #define ERROR_PREFIX   "$red$** Error:$$ "
 #define FATAL_PREFIX   "$red$** Fatal:$$ "
-#define LOC_FMT        "\tFile %s, Line %u\n"
+#define COMPACT_LOC    "\t%s:%u\n"
+#define FULL_LOC       "%*s$blue$  : $$%s:%u\n", fwidth, ""
 #define GUTTER_STYLE   "$blue$"
 #define HINT_STYLE     ""
 #define CARET_STYLE    ""
@@ -313,7 +314,8 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 #define WARNING_PREFIX "$!yellow$Warning:$$ "
 #define ERROR_PREFIX   "$!red$Error:$$ "
 #define FATAL_PREFIX   "$!red$Fatal:$$ "
-#define LOC_FMT        "%*s$!blue$ -->$$ %s:%u\n", fwidth, ""
+#define FULL_LOC       "%*s$!blue$ -->$$ %s:%u\n", fwidth, ""
+#define COMPACT_LOC    "%*s%s:%u\n", fwidth, ""
 #define GUTTER_STYLE   "$!blue$"
 #define HINT_STYLE     "$bold$"
 #define CARET_STYLE    "$bold$"
@@ -621,10 +623,12 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       goto other_files;
 #endif
 
-   color_fprintf(f, LOC_FMT, loc_file_str(&loc0), loc0.first_line);
-
-   if (linebuf == NULL)
+   if (linebuf == NULL) {
+      color_fprintf(f, COMPACT_LOC, loc_file_str(&loc0), loc0.first_line);
       goto other_files;
+   }
+
+   color_fprintf(f, FULL_LOC, loc_file_str(&loc0), loc0.first_line);
 
    color_fprintf(f, "%*s " GUTTER_STYLE " |$$\n", fwidth, "");
    need_gap = true;
@@ -740,7 +744,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       fputc('\n', f);
 
       if (!loc_invalid_p(&(hint->loc)))
-         color_fprintf(f, "%*s  " LOC_FMT, fwidth, "",
+         color_fprintf(f, "%*s  " COMPACT_LOC, fwidth, "",
                        loc_file_str(&(hint->loc)), hint->loc.first_line);
    }
 }
@@ -768,7 +772,7 @@ static void diag_emit_trace(diag_t *d, FILE *f)
       fprintf(f, "   " TRACE_STYLE "%s\n", hint->text);
 
       if (!loc_invalid_p(&(hint->loc)))
-         color_fprintf(f, LOC_FMT, loc_file_str(&(hint->loc)),
+         color_fprintf(f, COMPACT_LOC, loc_file_str(&(hint->loc)),
                        hint->loc.first_line);
    }
 }
