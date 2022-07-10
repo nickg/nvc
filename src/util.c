@@ -321,6 +321,19 @@ static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain)
                override += *e == '<' ? -1 : 1;
                escape_start = NULL;
             }
+            else if (strncmp(e, "link:", 5) == 0) {
+               if (want_color && !force_plain) {
+                  tb_cat(tb, "\033]8;;");
+                  tb_catn(tb, e + 5, len - 5);
+                  tb_cat(tb, "\033]8;;\07");
+               }
+               else {
+                  const char *bel = strchr(e, '\07');
+                  if (bel && bel < e + len)
+                     tb_catn(tb, bel, e + len - bel);
+               }
+               escape_start = NULL;
+            }
             else if (want_color && !force_plain && override >= 0) {
                bool found = false;
 

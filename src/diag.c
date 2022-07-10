@@ -300,8 +300,6 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 #define WARNING_PREFIX "$yellow$** Warning:$$ "
 #define ERROR_PREFIX   "$red$** Error:$$ "
 #define FATAL_PREFIX   "$red$** Fatal:$$ "
-#define COMPACT_LOC    "\t%s:%u\n"
-#define FULL_LOC       "%*s$blue$  : $$%s:%u\n", fwidth, ""
 #define GUTTER_STYLE   "$blue$"
 #define HINT_STYLE     ""
 #define CARET_STYLE    ""
@@ -314,8 +312,6 @@ void loc_read(loc_t *loc, loc_rd_ctx_t *ctx)
 #define WARNING_PREFIX "$!yellow$Warning:$$ "
 #define ERROR_PREFIX   "$!red$Error:$$ "
 #define FATAL_PREFIX   "$!red$Fatal:$$ "
-#define FULL_LOC       "%*s$!blue$ -->$$ %s:%u\n", fwidth, ""
-#define COMPACT_LOC    "%*s%s:%u\n", fwidth, ""
 #define GUTTER_STYLE   "$!blue$"
 #define HINT_STYLE     "$bold$"
 #define CARET_STYLE    "$bold$"
@@ -578,6 +574,15 @@ static int diag_compar(const void *_a, const void *_b)
    return a->loc.first_line - b->loc.first_line;
 }
 
+static void diag_emit_loc(const loc_t *loc, FILE *f)
+{
+   const char *file = loc_file_str(loc);
+   char *abspath LOCAL = realpath(file, NULL);
+
+   color_fprintf(f, "$$$link:file://%s#%u\07%s:%u$\n",
+                 abspath, loc->first_line, file, loc->first_line);
+}
+
 static void diag_emit_hints(diag_t *d, FILE *f)
 {
    int fwidth = 0;
@@ -624,11 +629,14 @@ static void diag_emit_hints(diag_t *d, FILE *f)
 #endif
 
    if (linebuf == NULL) {
-      color_fprintf(f, COMPACT_LOC, loc_file_str(&loc0), loc0.first_line);
+      fprintf(f, "\t ");
+      diag_emit_loc(&loc0, f);
       goto other_files;
    }
 
-   color_fprintf(f, FULL_LOC, loc_file_str(&loc0), loc0.first_line);
+
+   color_fprintf(f, "%*s$blue$  > ", fwidth, "");
+   diag_emit_loc(&loc0, f);
 
    color_fprintf(f, "%*s " GUTTER_STYLE " |$$\n", fwidth, "");
    need_gap = true;
@@ -743,9 +751,10 @@ static void diag_emit_hints(diag_t *d, FILE *f)
       diag_paginate(hint->text, col, f);
       fputc('\n', f);
 
-      if (!loc_invalid_p(&(hint->loc)))
-         color_fprintf(f, "%*s  " COMPACT_LOC, fwidth, "",
-                       loc_file_str(&(hint->loc)), hint->loc.first_line);
+      if (!loc_invalid_p(&(hint->loc))) {
+         fprintf(f, "\t ");
+         diag_emit_loc(&(hint->loc), f);
+      }
    }
 }
 
@@ -771,9 +780,10 @@ static void diag_emit_trace(diag_t *d, FILE *f)
       diag_hint_t *hint = &(d->trace.items[i]);
       fprintf(f, "   " TRACE_STYLE "%s\n", hint->text);
 
-      if (!loc_invalid_p(&(hint->loc)))
-         color_fprintf(f, COMPACT_LOC, loc_file_str(&(hint->loc)),
-                       hint->loc.first_line);
+      if (!loc_invalid_p(&(hint->loc))) {
+         fprintf(f, "\t ");
+         diag_emit_loc(&(hint->loc), f);
+      }
    }
 }
 
