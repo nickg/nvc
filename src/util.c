@@ -55,6 +55,7 @@
 #endif
 #ifdef __APPLE__
 #include <sys/sysctl.h>
+#include <libproc.h>
 #endif
 #ifndef __MINGW32__
 #include <sys/mman.h>
@@ -1730,6 +1731,12 @@ bool get_exe_path(text_buf_t *tb)
    ssize_t nchars = readlink("/proc/self/exe", buf, sizeof(buf));
    if (nchars > 0) {   // Does not append '\0'
       tb_catn(tb, buf, nchars);
+      return true;
+   }
+#elif defined __APPLE__
+   char buf[PATH_MAX];
+   if (proc_pidpath(getpid(), buf, sizeof(buf)) > 0) {
+      tb_cat(tb, buf);
       return true;
    }
 #endif
