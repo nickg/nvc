@@ -471,6 +471,25 @@ START_TEST(test_range1)
 }
 END_TEST
 
+START_TEST(test_case2)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/bounds/case2.vhd");
+
+   const error_t expect[] = {
+      { 29, "expected case choice to have length 5 but is 3" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_unless(error_count() == 0);
+
+   bounds_check(a);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -494,6 +513,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_aggregate);
    tcase_add_test(tc_core, test_osvvm1);
    tcase_add_test(tc_core, test_range1);
+   tcase_add_test(tc_core, test_case2);
    suite_add_tcase(s, tc_core);
 
    return s;

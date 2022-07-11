@@ -980,117 +980,149 @@ static void bounds_check_var_assign(tree_t t)
    bounds_check_assignment(tree_target(t), tree_value(t));
 }
 
-static void bounds_check_case(tree_t t)
+static void bounds_check_scalar_case(tree_t t, type_t type)
 {
-   type_t type = tree_type(tree_value(t));
+   // Check that the full range of the type is covered
 
-   if (type_is_scalar(type)) {
-      // Check that the full range of the type is covered
+   tree_t type_r = range_of(type, 0);
 
-      tree_t type_r = range_of(type, 0);
+   int64_t tlow, thigh;
+   if (!folded_bounds(type_r, &tlow, &thigh))
+      return;
 
-      int64_t tlow, thigh;
-      if (!folded_bounds(type_r, &tlow, &thigh))
-         return;
+   const range_kind_t tdir = tree_subkind(type_r);
 
-      const range_kind_t tdir = tree_subkind(type_r);
+   bool have_others = false;
+   interval_t *covered = NULL;
 
-      bool have_others = false;
-      interval_t *covered = NULL;
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
 
-      const int nassocs = tree_assocs(t);
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(t, i);
+      int64_t low = INT64_MIN, high = INT64_MAX;
+      switch (tree_subkind(a)) {
+      case A_OTHERS:
+         have_others = true;
+         continue;
 
-         int64_t low = INT64_MIN, high = INT64_MAX;
-         switch (tree_subkind(a)) {
-         case A_OTHERS:
-            have_others = true;
-            continue;
-
-         case A_NAMED:
-            {
-               tree_t name = tree_name(a);
-               if (!bounds_check_index(name, NULL, type, tdir, "case choice",
-                                       tlow, thigh))
-                  have_others = true;
-               else
-                  low = high = assume_int(tree_name(a));
-            }
-            break;
-
-         case A_RANGE:
-            {
-               tree_t r = tree_range(a, 0);
-               const range_kind_t dir = tree_subkind(r);
-
-               if (dir == RANGE_EXPR)
-                  fatal_at(tree_loc(r), "locally static range not folded");
-
-               tree_t left = tree_left(r);
-               tree_t right = tree_right(r);
-
-               if (!bounds_check_index(left, NULL, type, dir, "case choice",
-                                       tlow, thigh))
-                  have_others = true;
-               if (!bounds_check_index(right, NULL, type, dir, "case choice",
-                                       tlow, thigh))
-                  have_others = true;
-
-               low = assume_int(dir == RANGE_TO ? left : right);
-               high = assume_int(dir == RANGE_TO ? right : left);
-            }
-            break;
+      case A_NAMED:
+         {
+            tree_t name = tree_name(a);
+            if (!bounds_check_index(name, NULL, type, tdir, "case choice",
+                                    tlow, thigh))
+               have_others = true;
+            else
+               low = high = assume_int(tree_name(a));
          }
+         break;
 
-         if (!have_others)
-            bounds_cover_choice(&covered, a, type, low, high);
+      case A_RANGE:
+         {
+            tree_t r = tree_range(a, 0);
+            const range_kind_t dir = tree_subkind(r);
+
+            if (dir == RANGE_EXPR)
+               fatal_at(tree_loc(r), "locally static range not folded");
+
+            tree_t left = tree_left(r);
+            tree_t right = tree_right(r);
+
+            if (!bounds_check_index(left, NULL, type, dir, "case choice",
+                                    tlow, thigh))
+               have_others = true;
+            if (!bounds_check_index(right, NULL, type, dir, "case choice",
+                                    tlow, thigh))
+               have_others = true;
+
+            low = assume_int(dir == RANGE_TO ? left : right);
+            high = assume_int(dir == RANGE_TO ? right : left);
+         }
+         break;
       }
 
       if (!have_others)
-         bounds_check_missing_choices(t, type, NULL, direction_of(type, 0),
-                                      tlow, thigh, covered);
-
-      bounds_free_intervals(&covered);
+         bounds_cover_choice(&covered, a, type, low, high);
    }
-   else if (type_is_array(type) && !type_is_unconstrained(type)) {
+
+   if (!have_others)
+      bounds_check_missing_choices(t, type, NULL, direction_of(type, 0),
+                                   tlow, thigh, covered);
+
+   bounds_free_intervals(&covered);
+}
+
+static void bounds_check_array_case(tree_t t, type_t type)
+{
+   int64_t expect = -1;
+   if (!type_is_unconstrained(type)) {
       // Calculate how many values each element has
       type_t elem = type_elem(type);
       assert(type_is_enum(elem));
 
-      int64_t elemsz;
-      if (!folded_length(range_of(elem, 0), &elemsz))
-         return;
+      int64_t elemsz, length;
+      const bool known =
+         folded_length(range_of(elem, 0), &elemsz)
+         && folded_length(range_of(type, 0), &length);
 
-      int64_t length;
-      if (!folded_length(range_of(type, 0), &length))
-          return;
-
-      const int64_t expect = ipow(elemsz, length);
-
-      int64_t have = 0;
-      const int nassocs = tree_assocs(t);
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(t, i);
-
-         switch (tree_subkind(a)) {
-         case A_OTHERS:
-            have = expect;
-            continue;
-
-         case A_NAMED:
-            have++;
-            break;
-
-         case A_RANGE:
-            assert(false);
-         }
-      }
-
-      if (have != expect)
-         bounds_error(t, "choices cover only %"PRIi64" of %"PRIi64
-                      " possible values", have, expect);
+      if (known) expect = ipow(elemsz, length);
    }
+
+   int64_t have = 0, length = -1;
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
+
+      switch (tree_subkind(a)) {
+      case A_OTHERS:
+         have = expect;
+         continue;
+
+      case A_NAMED:
+         {
+            have++;
+
+            tree_t name = tree_name(a);
+            type_t choice_type = tree_type(name);
+            if (type_is_unconstrained(choice_type))
+               continue;
+
+            int64_t choice_length;
+            if (folded_length(range_of(choice_type, 0), &choice_length)) {
+               if (length == -1)
+                  length = choice_length;
+               else if (choice_length != length) {
+                  diag_t *d = diag_new(DIAG_ERROR, tree_loc(name));
+                  diag_printf(d, "expected case choice to have length %"PRIi64
+                              " but is %"PRIi64, length, choice_length);
+                  diag_hint(d, NULL, "the values of all choices for a case "
+                            "expression with one-dimensional character array "
+                            "type must have the same length");
+                  diag_lrm(d, STD_08, "10.9");
+                  diag_emit(d);
+                  return;
+               }
+            }
+         }
+         break;
+
+      case A_RANGE:
+         fatal_trace("unexpected range choice in array case");
+      }
+   }
+
+   if (have != expect)
+      bounds_error(t, "choices cover only %"PRIi64" of %"PRIi64
+                   " possible values", have, expect);
+}
+
+static void bounds_check_case(tree_t t)
+{
+   type_t type = tree_type(tree_value(t));
+
+   if (type_is_scalar(type))
+      bounds_check_scalar_case(t, type);
+   else if (type_is_array(type))
+      bounds_check_array_case(t, type);
 }
 
 static void bounds_check_type_conv(tree_t t)
