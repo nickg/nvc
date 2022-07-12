@@ -9011,17 +9011,24 @@ static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct,
    type_t type = tree_type(value);
 
    if (!type_is_homogeneous(type)) {
-      vcode_reg_t count_reg = VCODE_INVALID_REG;
-      if (type_is_array(type)) {
-         count_reg = lower_array_total_len(type, src_reg);
-         src_reg = lower_array_data(src_reg);
-      }
-
       vcode_reg_t ptr = emit_index(var, VCODE_INVALID_REG);
       if (field != -1)
          ptr = emit_record_ref(ptr, field);
 
-      emit_copy(ptr, src_reg, count_reg);
+      if (lower_have_uarray_ptr(ptr)) {
+         assert(lower_have_uarray_ptr(src_reg));
+         vcode_reg_t meta_reg = emit_load_indirect(src_reg);
+         emit_store_indirect(meta_reg, ptr);
+      }
+      else {
+         vcode_reg_t count_reg = VCODE_INVALID_REG;
+         if (type_is_array(type)) {
+            count_reg = lower_array_total_len(type, src_reg);
+            src_reg   = lower_array_data(src_reg);
+         }
+
+         emit_copy(ptr, src_reg, count_reg);
+      }
    }
    else {
       if (type_is_array(type))

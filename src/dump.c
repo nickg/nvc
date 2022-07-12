@@ -398,6 +398,16 @@ static void dump_constraint(tree_t t)
    case C_OPEN:
       syntax("(#open)");
       break;
+   case C_RECORD:
+      printf("(");
+      for (int i = 0; i < nranges; i++) {
+         if (i > 0) printf(", ");
+         tree_t fc = tree_range(t, i);
+         printf("%s", istr(tree_ident(tree_ref(fc))));
+         dump_constraint(fc);
+      }
+      printf(")");
+      break;
    }
 }
 
@@ -410,15 +420,6 @@ static void dump_type(type_t type)
          for (int i = 0; i < ncon; i++)
             dump_constraint(type_constraint(type, i));
       }
-   }
-   else if (type_is_array(type) && !type_is_unconstrained(type)) {
-      printf("%s(", type_pp(type));
-      const int ndims = dimension_of(type);
-      for (int i = 0; i < ndims; i++) {
-         if (i > 0) printf(", ");
-         dump_range(range_of(type, i));
-      }
-      printf(")");
    }
    else
       printf("%s", type_pp(type));
