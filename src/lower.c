@@ -3996,30 +3996,32 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
 static int pack_field_constraints(type_t type, tree_t f, tree_t cons,
                                   tree_t out[MAX_CONSTRAINTS])
 {
-   if (standard() >= STD_08 && type_is_unconstrained(tree_type(f))) {
-      if (cons != NULL) {
-         assert(tree_subkind(cons) == C_RECORD);
+   if (standard() < STD_08)
+      return 0;
 
-         const int nelem = tree_ranges(cons);
-         for (int i = 0; i < nelem; i++) {
-            tree_t ei = tree_range(cons, i);
-            assert(tree_kind(ei) == T_CONSTRAINT);
+   type_t ftype = tree_type(f);
+   if (!type_is_composite(ftype))
+      return 0;
 
-            if (tree_has_ref(ei) && tree_ref(ei) == f) {
-               out[0] = ei;
-               return 1;
-            }
+   if (cons != NULL) {
+      assert(tree_subkind(cons) == C_RECORD);
+
+      const int nelem = tree_ranges(cons);
+      for (int i = 0; i < nelem; i++) {
+         tree_t ei = tree_range(cons, i);
+         assert(tree_kind(ei) == T_CONSTRAINT);
+
+         if (tree_has_ref(ei) && tree_ref(ei) == f) {
+            out[0] = ei;
+            return 1;
          }
       }
-      else {
-         out[0] = type_constraint_for_field(type, f);
-         return out[0] != NULL ? 1 : 0;
-      }
-
-      fatal_trace("missing record constraint for field %s",
-                  istr(tree_ident(f)));
    }
 
+   if (type_kind(ftype) == T_SUBTYPE)
+      return pack_constraints(ftype, out);
+
+   assert(!type_is_unconstrained(ftype));
    return 0;
 }
 
@@ -6085,8 +6087,11 @@ static void lower_var_decl(tree_t decl)
          value_reg = lower_expr(value, EXPR_RVALUE);
    }
    else {
+      tree_t cons[MAX_CONSTRAINTS];
+      const int ncons = pack_constraints(type, cons);
+
       value_type = type;
-      value_reg = lower_default_value(type, dest_reg, NULL, 0);
+      value_reg = lower_default_value(type, dest_reg, cons, ncons);
    }
 
    if (type_is_array(type)) {
@@ -6260,11 +6265,10 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       if (sig_ptr == VCODE_INVALID_REG)
          sig_ptr = emit_index(sig_var, VCODE_INVALID_REG);
 
+      tree_t c0 = shift_constraints(&cons, &ncons, 1);
       vcode_reg_t bounds_reg = VCODE_INVALID_REG;
-      if (ncons > 0 && !lower_const_bounds(type)) {
-         tree_t c0 = shift_constraints(&cons, &ncons, 1);
+      if (c0 != NULL && !lower_const_bounds(type))
          bounds_reg = lower_constraint(c0);
-      }
 
       const int ndims = dimension_of(type);
       vcode_reg_t len_reg = lower_array_len(type, 0, bounds_reg);
@@ -8938,8 +8942,13 @@ static void lower_port_map(tree_t block, tree_t map)
    else {
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
 
-      if (value_reg == VCODE_INVALID_REG)
-         value_reg = lower_default_value(name_type, VCODE_INVALID_REG, NULL, 0);
+      if (value_reg == VCODE_INVALID_REG) {
+         tree_t cons[MAX_CONSTRAINTS];
+         const int ncons = pack_constraints(name_type, cons);
+
+         value_reg = lower_default_value(name_type, VCODE_INVALID_REG,
+                                         cons, ncons);
+      }
 
       if (type_is_array(name_type))
          value_reg = lower_array_data(value_reg);
@@ -9044,6 +9053,10 @@ static void lower_port_signal(tree_t port)
 
    type_t type = tree_type(port);
    type_t value_type = type;
+
+   tree_t cons[MAX_CONSTRAINTS];
+   const int ncons = pack_constraints(type, cons);
+
    vcode_reg_t init_reg;
    if (tree_has_value(port)) {
       tree_t value = tree_value(port);
@@ -9051,7 +9064,7 @@ static void lower_port_signal(tree_t port)
       init_reg = lower_expr(value, EXPR_RVALUE);
    }
    else
-      init_reg = lower_default_value(type, VCODE_INVALID_REG, NULL, 0);
+      init_reg = lower_default_value(type, VCODE_INVALID_REG, cons, ncons);
 
    net_flags_t flags = 0;
    if (tree_flags(port) & TREE_F_REGISTER)
@@ -9064,8 +9077,9 @@ static void lower_port_signal(tree_t port)
 
    vcode_reg_t flags_reg = emit_const(vtype_offset(), flags);
 
-   lower_sub_signals(type, port, NULL, 0, value_type, var, VCODE_INVALID_REG,
-                     init_reg, VCODE_INVALID_REG, VCODE_INVALID_REG, flags_reg);
+   lower_sub_signals(type, port, cons, ncons, value_type, var,
+                     VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
+                     VCODE_INVALID_REG, flags_reg);
 }
 
 static void lower_ports(tree_t block)

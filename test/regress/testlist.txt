@@ -618,3 +618,4 @@ driver12        normal
 record33        normal,2008
 const9          normal
 driver13        normal,2008
+record34        normal,2008

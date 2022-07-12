@@ -13,7 +13,7 @@ LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 VestsDir = Pathname.new(ARGV[0] || "#{TestDir}/vests").realpath
 Prefix = "#{VestsDir}/vhdl-93"
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
-Tool = 'nvc'
+Tool = ENV['NVC'] || 'nvc'
 Billowitch = "#{Prefix}/billowitch/compliant"
 ExpectFails = 35
 
