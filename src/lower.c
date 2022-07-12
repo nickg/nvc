@@ -3226,6 +3226,8 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
                def_reg = lower_expr(def_value, EXPR_RVALUE);
          }
 
+         def_reg = lower_resolved(elem_type, def_reg);
+
          if (type_is_array(elem_type) || multidim) {
             assert(stride != VCODE_INVALID_REG);
             vcode_reg_t src_reg = lower_array_data(def_reg);
@@ -4765,7 +4767,9 @@ static void lower_var_assign(tree_t stmt)
       else
          value_reg = lower_expr(value, EXPR_RVALUE);
 
-      vcode_reg_t src_data = lower_resolved(type, lower_array_data(value_reg));
+      vcode_reg_t src_array = lower_resolved(type, value_reg);
+      vcode_reg_t src_data = lower_array_data(src_array);
+
       lower_check_array_sizes(target, type, tree_type(value),
                               target_reg, value_reg);
 
