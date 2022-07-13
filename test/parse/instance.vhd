@@ -20,7 +20,12 @@ package p is
     end component;
 end package;
 
+entity something is
+    port ( a : in bit := '0' ) ;
+end entity ;
+
 use work.p;
+use work.something;
 
 architecture test of instance is
     component foo is
@@ -58,5 +63,11 @@ begin
     j: work.p.c port map ( '1' );
 
     k: v(1) port map ( x );
+
+    l: entity something;
+
+    m: component something;             -- Error
+
+    n: configuration something;         -- Error
 
 end architecture;

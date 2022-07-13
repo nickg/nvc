@@ -657,10 +657,31 @@ static tree_t find_binding(tree_t inst)
    }
 
    if (unit != NULL) {
-      if (tree_kind(unit) != T_COMPONENT) {
-         parse_error(tree_loc(inst), "object %s is not a component declaration",
-                     istr(name));
-         return NULL;
+      const char *what = is_design_unit(unit) ? "design unit" : "object";
+      switch (tree_class(inst)) {
+      case C_COMPONENT:
+         if (tree_kind(unit) != T_COMPONENT) {
+            parse_error(tree_loc(inst), "%s %s is not a component declaration",
+                        what, istr(name));
+            return NULL;
+         }
+         break;
+      case C_ENTITY:
+         if (tree_kind(unit) != T_ENTITY) {
+            parse_error(tree_loc(inst), "%s %s is not an entity",
+                        what, istr(name));
+            return NULL;
+         }
+         break;
+      case C_CONFIGURATION:
+         if (tree_kind(unit) != T_CONFIGURATION) {
+            parse_error(tree_loc(inst), "%s %s is not a configuration",
+                        what, istr(name));
+            return NULL;
+         }
+         break;
+      default:
+         break;
       }
    }
    else {

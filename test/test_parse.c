@@ -1665,9 +1665,11 @@ START_TEST(test_instance)
    input_from_file(TESTDIR "/parse/instance.vhd");
 
    const error_t expect[] = {
-      { 50, "WORK.FOO has no generic named X" },
-      { 56, "found at least 1 positional actuals but FOO has only 0" },
-      { 60, "invalid instantiated unit name" },
+      { 55, "WORK.FOO has no generic named X" },
+      { 61, "found at least 1 positional actuals but FOO has only 0" },
+      { 65, "invalid instantiated unit name" },
+      { 69, "design unit SOMETHING is not a component declaration" },
+      { 71, "design unit SOMETHING is not a configuration" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1697,10 +1699,15 @@ START_TEST(test_instance)
    fail_unless(tree_kind(p) == T_PACKAGE);
    lib_put(lib_work(), p);
 
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 12);
+   fail_unless(tree_stmts(a) == 15);
    lib_put(lib_work(), a);
 
    s = tree_stmt(a, 0);
@@ -1757,6 +1764,12 @@ START_TEST(test_instance)
    fail_unless(tree_class(s) == C_COMPONENT);
    fail_unless(tree_has_ref(s));
    fail_unless(tree_loc(tree_ref(s))->first_line == 18);
+
+   s = tree_stmt(a, 12);
+   fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_class(s) == C_ENTITY);
+   fail_unless(tree_has_ref(s));
+   fail_unless(tree_kind(tree_ref(s)) == T_ENTITY);
 
    a = parse();
    fail_unless(a == NULL);
