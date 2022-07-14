@@ -2163,7 +2163,7 @@ static type_t apply_subtype_attribute(tree_t aref)
    tree_t name = tree_name(aref);
 
    if (!class_has_type(class_of(name))) {
-      parse_error(tree_loc(aref), "prefix of subtype attribute does not "
+      parse_error(tree_loc(aref), "prefix of 'SUBTYPE attribute does not "
                   "have a type");
       return type_new(T_NONE);
    }
@@ -2223,14 +2223,14 @@ static type_t apply_element_attribute(tree_t aref)
    tree_t name = tree_name(aref);
 
    if (!class_has_type(class_of(name))) {
-      parse_error(tree_loc(aref), "prefix of element attribute does not "
+      parse_error(tree_loc(aref), "prefix of 'ELEMENT attribute does not "
                   "have a type");
       return type_new(T_NONE);
    }
 
    type_t type = tree_type(name);
    if (!type_is_array(type)) {
-      parse_error(tree_loc(aref), "prefix of element attribute must be an "
+      parse_error(tree_loc(aref), "prefix of 'ELEMENT attribute must be an "
                   "array type");
       return type_new(T_NONE);
    }
@@ -2239,16 +2239,28 @@ static type_t apply_element_attribute(tree_t aref)
    return type_elem(type);
 }
 
-static bool is_type_attribute(attr_kind_t kind)
+static type_t apply_base_attribute(tree_t aref)
 {
-   switch (kind) {
-   case ATTR_SUBTYPE:
-   case ATTR_BASE:
-   case ATTR_ELEMENT:
-      return true;
-   default:
-      return false;
+   assert(tree_subkind(aref) == ATTR_BASE);
+
+   tree_t name = tree_name(aref);
+   type_t type = NULL;
+
+   if (tree_kind(name) == T_REF && tree_has_ref(name)) {
+      tree_t decl = tree_ref(name);
+      if (is_type_decl(decl))
+         type = tree_type(decl);
    }
+
+   if (type == NULL) {
+      parse_error(tree_loc(aref), "prefix of 'BASE attribute must be a type "
+                  "or subtype declaration");
+      return type_new(T_NONE);
+   }
+   else if (type_kind(type) == T_SUBTYPE)
+      return type_base(type);
+   else
+      return type;
 }
 
 static type_t apply_type_attribute(tree_t aref)
@@ -2258,6 +2270,8 @@ static type_t apply_type_attribute(tree_t aref)
       return apply_subtype_attribute(aref);
    case ATTR_ELEMENT:
       return apply_element_attribute(aref);
+   case ATTR_BASE:
+      return apply_base_attribute(aref);
    default:
       parse_error(tree_loc(aref), "attribute name is not a valid type mark");
       return type_new(T_NONE);
@@ -3162,13 +3176,18 @@ static tree_t p_attribute_name(tree_t prefix)
 
    tree_set_ident(t, id);
    tree_set_subkind(t, kind);
+   tree_set_loc(t, CURRENT_LOC);
 
-   if (kind != ATTR_USER && !is_type_attribute(kind) && optional(tLPAREN)) {
+   if (is_type_attribute(kind))
+      tree_set_type(t, apply_type_attribute(t));
+   else if (kind != ATTR_USER && optional(tLPAREN)) {
       add_param(t, p_expression(), P_POS, NULL);
       consume(tRPAREN);
+      tree_set_loc(t, CURRENT_LOC);
+      solve_types(nametab, t, NULL);
    }
-
-   tree_set_loc(t, CURRENT_LOC);
+   else
+      solve_types(nametab, t, NULL);
 
    return t;
 }
@@ -3350,7 +3369,7 @@ static tree_t p_type_conversion(tree_t prefix)
 
    type_t type = NULL;
    if (tree_kind(prefix) == T_ATTR_REF)
-      type = apply_type_attribute(prefix);
+      type = tree_type(prefix);
    else {
       assert(tree_kind(prefix) == T_REF);
       tree_t tdecl = resolve_name(nametab, CURRENT_LOC, tree_ident(prefix));
@@ -3622,7 +3641,7 @@ static type_t p_type_mark(ident_t name)
       tree_set_ident(ref, name);
       tree_set_ref(ref, decl);
 
-      return apply_type_attribute(p_attribute_name(ref));
+      return tree_type(p_attribute_name(ref));
    }
    else {
       decl = aliased_type_decl(decl);
@@ -3705,13 +3724,17 @@ static tree_t p_record_element_constraint(type_t base)
    ident_t id = p_identifier();
    tree_t decl = resolve_name(nametab, CURRENT_LOC, id);
 
-   type_t ftype = NULL;
+   type_t ftype;
    if (decl != NULL && tree_kind(decl) == T_FIELD_DECL)
       ftype = tree_type(decl);
-   else if (decl != NULL) {
-      parse_error(CURRENT_LOC, "%s does not name a field of %s",
-                  istr(id), type_pp(base));
-      decl = NULL;
+   else {
+      ftype = type_new(T_NONE);
+
+      if (decl != NULL) {
+         parse_error(CURRENT_LOC, "%s does not name a field of %s",
+                     istr(id), type_pp(base));
+         decl = NULL;
+      }
    }
 
    pop_scope(nametab);

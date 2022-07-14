@@ -1710,3 +1710,15 @@ bool relaxed_rules(void)
 {
    return opt_get_int(OPT_RELAXED);
 }
+
+bool is_type_attribute(attr_kind_t kind)
+{
+   switch (kind) {
+   case ATTR_SUBTYPE:
+   case ATTR_BASE:
+   case ATTR_ELEMENT:
+      return true;
+   default:
+      return false;
+   }
+}

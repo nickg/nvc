@@ -3612,9 +3612,9 @@ START_TEST(test_vhdl2008)
       { 120, "excess significant digits in bit string literal" },
       { 123, "invalid digit 'C' in bit string" },
       { 169, "unexpected ; while parsing case statement, expecting ?" },
-      { 179, "prefix of subtype attribute does not have a type" },
-      { 181, "prefix of element attribute must be an array type" },
-      { 182, "prefix of element attribute does not have a type" },
+      { 179, "prefix of 'SUBTYPE attribute does not have a type" },
+      { 181, "prefix of 'ELEMENT attribute must be an array type" },
+      { 182, "prefix of 'ELEMENT attribute does not have a type" },
       { -1, NULL }
    };
    expect_errors(expect);

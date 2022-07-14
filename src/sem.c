@@ -3473,22 +3473,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
       break;
 
    case T_ATTR_REF:
-      if (tree_subkind(name) == ATTR_BASE) {
-         tree_t base = tree_name(name);
-
-         if (tree_kind(base) == T_REF) {
-            if (!tree_has_ref(base))
-               return false;
-
-            if (is_type_decl(tree_ref(base))) {
-               named_type = tree_type(base);
-               break;
-            }
-         }
-
-         sem_error(base, "prefix of BASE attribute must be a type or "
-                   "subtype declaration");
-      }
+      if (is_type_attribute(tree_subkind(name)))
+         named_type = tree_type(name);
       else {
          const bool prefix_can_be_range =
             predef == ATTR_LOW || predef == ATTR_HIGH || predef == ATTR_LEFT
