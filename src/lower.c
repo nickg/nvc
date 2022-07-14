@@ -8482,7 +8482,7 @@ static void lower_driver_target(tree_t target)
          lower_driver_target(tree_value(tree_assoc(target, i)));
    }
    else {
-      tree_t prefix = longest_static_prefix(target);
+      tree_t prefix = longest_globally_static_prefix(target);
 
       tree_t ref = name_to_ref(prefix);
       if (ref != NULL && tree_kind(tree_ref(ref)) == T_PARAM_DECL) {
