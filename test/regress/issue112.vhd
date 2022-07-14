@@ -41,7 +41,14 @@ begin
         UGEN: for I in 0 to 7 generate
             signal C_C :bit;
         begin
-            C_C <= '0' when I=0 else C(I-1);
+            process (C) is
+            begin
+                if I=0 then
+                    C_C <= '0';
+                else
+                    C_C <= C(I-1);
+                end if;
+            end process;
             UX: entity work.t1
                 port map(A(I),B(I),C_C,s_pout(V,I));
         end generate UGEN;

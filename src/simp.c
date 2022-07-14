@@ -884,7 +884,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       {
          tree_t ref = name_to_ref(expr);
          if (ref != NULL && class_of(ref) == C_SIGNAL) {
-            if (longest_locally_static_prefix(expr) == expr)
+            if (longest_static_prefix(expr) == expr)
                tree_add_trigger(wait, expr);
             else {
                simp_build_wait(wait, tree_value(expr), all);

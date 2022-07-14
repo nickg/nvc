@@ -1556,7 +1556,7 @@ void to_string(text_buf_t *tb, type_t type, int64_t value)
    }
 }
 
-static bool is_static(tree_t expr, tree_flags_t flags)
+static bool is_static(tree_t expr)
 {
    switch (tree_kind(expr)) {
    case T_REF:
@@ -1566,11 +1566,10 @@ static bool is_static(tree_t expr, tree_flags_t flags)
          case T_CONST_DECL:
          case T_UNIT_DECL:
          case T_ENUM_LIT:
-            return true;
          case T_GENERIC_DECL:
-            return !!(flags & TREE_F_GLOBALLY_STATIC);
+            return true;
          case T_ALIAS:
-            return is_static(tree_value(decl), flags);
+            return is_static(tree_value(decl));
          default:
             return false;
          }
@@ -1580,27 +1579,28 @@ static bool is_static(tree_t expr, tree_flags_t flags)
       return true;
 
    case T_FCALL:
-      return !!(tree_flags(expr) & flags);
+      return !!(tree_flags(expr) & (TREE_F_LOCALLY_STATIC
+                                    | TREE_F_GLOBALLY_STATIC));
 
    default:
       return false;
    }
 }
 
-static tree_t longest_static_prefix(tree_t expr, tree_flags_t flags)
+tree_t longest_static_prefix(tree_t expr)
 {
    switch (tree_kind(expr)) {
    case T_ARRAY_REF:
       {
          tree_t value = tree_value(expr);
-         tree_t prefix = longest_static_prefix(tree_value(expr), flags);
+         tree_t prefix = longest_static_prefix(tree_value(expr));
 
          if (prefix != value)
             return prefix;
 
          const int nparams = tree_params(expr);
          for (int i = 0; i < nparams; i++) {
-            if (!is_static(tree_value(tree_param(expr, i)), flags))
+            if (!is_static(tree_value(tree_param(expr, i))))
                return prefix;
          }
 
@@ -1610,7 +1610,7 @@ static tree_t longest_static_prefix(tree_t expr, tree_flags_t flags)
    case T_ARRAY_SLICE:
       {
          tree_t value = tree_value(expr);
-         tree_t prefix = longest_static_prefix(tree_value(expr), flags);
+         tree_t prefix = longest_static_prefix(tree_value(expr));
 
          if (prefix != value)
             return prefix;
@@ -1618,9 +1618,7 @@ static tree_t longest_static_prefix(tree_t expr, tree_flags_t flags)
          const int nranges = tree_ranges(expr);
          for (int i = 0; i < nranges; i++) {
             tree_t r = tree_range(expr, i);
-            if (!is_static(tree_left(r), flags))
-               return prefix;
-            else if (!is_static(tree_right(r), flags))
+            if (!is_static(tree_left(r)) || !is_static(tree_right(r)))
                return prefix;
          }
 
@@ -1630,7 +1628,7 @@ static tree_t longest_static_prefix(tree_t expr, tree_flags_t flags)
    case T_RECORD_REF:
       {
          tree_t value = tree_value(expr);
-         tree_t prefix = longest_static_prefix(tree_value(expr), flags);
+         tree_t prefix = longest_static_prefix(tree_value(expr));
 
          if (prefix != value)
             return prefix;
@@ -1641,17 +1639,6 @@ static tree_t longest_static_prefix(tree_t expr, tree_flags_t flags)
    default:
       return expr;
    }
-}
-
-tree_t longest_locally_static_prefix(tree_t expr)
-{
-   return longest_static_prefix(expr, TREE_F_LOCALLY_STATIC);
-}
-
-tree_t longest_globally_static_prefix(tree_t expr)
-{
-   return longest_static_prefix(expr, (TREE_F_LOCALLY_STATIC
-                                       | TREE_F_GLOBALLY_STATIC));
 }
 
 tree_t body_of(tree_t pack)

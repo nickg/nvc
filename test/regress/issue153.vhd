@@ -36,14 +36,14 @@ begin
         --should fail here, but doesn't
         --GHDL failed here with "bound check failure"
         -- ghdl drives correct values on each instances, nvc doesn't
-        C    <= C_ADDROUND when v=0 and G_ROUND_ENABLE else s_value(v-1);--bug 1
+        --C    <= C_ADDROUND when v=0 and G_ROUND_ENABLE else s_value(v-1);--bug 1
         -- below is workaround, but I am lazy enough to not use it :))))
-        --c_gen: if v=0 and G_ROUND_ENABLE generate
-        --    C    <= C_ADDROUND;
-        --end generate c_gen;
-        --nc_gen: if v>0  generate
-        --    C <= s_value(v-1);
-        --end generate nc_gen;
+        c_gen: if v=0 and G_ROUND_ENABLE generate
+           C    <= C_ADDROUND;
+        end generate c_gen;
+        nc_gen: if v>0  generate
+           C <= s_value(v-1);
+        end generate nc_gen;
 
         test_i : entity work.test_inst
             generic map(
