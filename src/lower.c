@@ -863,7 +863,15 @@ static vcode_reg_t lower_wrap_element(type_t type, vcode_reg_t array,
 static vcode_reg_t lower_constraint(tree_t cons)
 {
    // Convert a record or array element constraint into an array bounds object
+
+   if (tree_kind(cons) == T_ELEM_CONSTRAINT) {
+      type_t sub = tree_type(cons);
+      assert(type_constraints(sub) == 1);
+      cons = type_constraint(sub, 0);
+   }
+
    assert(tree_kind(cons) == T_CONSTRAINT);
+   assert(tree_subkind(cons) == C_INDEX);
 
    const int nranges = tree_ranges(cons);
    vcode_dim_t *dims LOCAL = xcalloc_array(nranges, sizeof(vcode_dim_t));
@@ -4011,12 +4019,10 @@ static int pack_field_constraints(type_t type, tree_t f, tree_t cons,
       const int nelem = tree_ranges(cons);
       for (int i = 0; i < nelem; i++) {
          tree_t ei = tree_range(cons, i);
-         assert(tree_kind(ei) == T_CONSTRAINT);
+         assert(tree_kind(ei) == T_ELEM_CONSTRAINT);
 
-         if (tree_has_ref(ei) && tree_ref(ei) == f) {
-            out[0] = ei;
-            return 1;
-         }
+         if (tree_has_ref(ei) && tree_ref(ei) == f)
+            return pack_constraints(tree_type(ei), out);
       }
    }
 

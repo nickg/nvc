@@ -648,7 +648,7 @@ tree_t type_constraint_for_field(type_t t, tree_t f)
          const int nelem = tree_ranges(c);
          for (int i = 0; i < nelem; i++) {
             tree_t ei = tree_range(c, i);
-            assert(tree_kind(ei) == T_CONSTRAINT);
+            assert(tree_kind(ei) == T_ELEM_CONSTRAINT);
 
             if (tree_has_ref(ei) && tree_ref(ei) == f)
                return ei;

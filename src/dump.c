@@ -404,7 +404,11 @@ static void dump_constraint(tree_t t)
          if (i > 0) printf(", ");
          tree_t fc = tree_range(t, i);
          printf("%s", istr(tree_ident(tree_ref(fc))));
-         dump_constraint(fc);
+
+         type_t ftype = tree_type(fc);
+         const int ncon = type_constraints(ftype);
+         for (int i = 0; i < ncon; i++)
+            dump_constraint(type_constraint(ftype, i));
       }
       printf(")");
       break;

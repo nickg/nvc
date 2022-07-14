@@ -2836,13 +2836,11 @@ static type_t solve_field_subtype(type_t rtype, tree_t field)
    type_t ftype = tree_type(field);
 
    if (type_is_unconstrained(ftype)) {
-      // Construct a new subtype using the record element constraint
+      // Get the subtype from the record element constraint
       tree_t cons = type_constraint_for_field(rtype, field);
       if (cons != NULL) {
-         type_t sub = type_new(T_SUBTYPE);
-         type_set_base(sub, ftype);
-         type_add_constraint(sub, cons);
-
+         type_t sub = tree_type(cons);
+         assert(type_kind(sub) == T_SUBTYPE);
          return sub;
       }
    }

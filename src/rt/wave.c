@@ -257,7 +257,13 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
       return;
    }
 
-   tree_t r = cons ? tree_range(cons, 0) : range_of(type, 0);
+   tree_t r;
+   if (cons != NULL && tree_kind(cons) == T_ELEM_CONSTRAINT)
+      r = range_of(tree_type(cons), 0);
+   else if (cons != NULL)
+      r = tree_range(cons, 0);
+   else
+      r = range_of(type, 0);
 
    int64_t low, high;
    range_bounds(r, &low, &high);

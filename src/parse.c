@@ -3716,13 +3716,19 @@ static tree_t p_record_element_constraint(type_t base)
 
    pop_scope(nametab);
 
-   tree_t elem;
-   if (ftype != NULL && type_is_record(ftype))
-      elem = p_record_constraint(ftype);
-   else
-      elem = p_index_constraint(ftype);
-
+   tree_t elem = tree_new(T_ELEM_CONSTRAINT);
+   tree_set_ident(elem, id);
    tree_set_ref(elem, decl);
+
+   type_t sub = type_new(T_SUBTYPE);
+   type_set_base(sub, ftype);
+
+   if (ftype != NULL && type_is_record(ftype))
+      type_add_constraint(sub, p_record_constraint(ftype));
+   else
+      type_add_constraint(sub, p_index_constraint(ftype));
+
+   tree_set_type(elem, sub);
    tree_set_loc(elem, CURRENT_LOC);
    return elem;
 }

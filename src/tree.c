@@ -314,6 +314,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_PROC_INST
    (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_FLAGS | I_GENERICS
     | I_IDENT2 | I_SUBKIND | I_GENMAPS | I_REF),
+
+   // T_ELEM_CONSTRAINT
+   (I_IDENT | I_REF | I_TYPE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -348,7 +351,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_GENERIC_DECL",    "T_TYPE_REF",        "T_BOX",
    "T_PARAM_DECL",      "T_EXTERNAL_NAME",   "T_FORCE",
    "T_RELEASE",         "T_PROT_REF",        "T_MATCH_CASE",
-   "T_FUNC_INST",       "T_PROC_INST",
+   "T_FUNC_INST",       "T_PROC_INST",       "T_ELEM_CONSTRAINT",
 };
 
 static const change_allowed_t change_allowed[] = {

@@ -46,6 +46,7 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn);
 static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab);
 static bool sem_check_generic_map(tree_t t, tree_t unit, nametab_t *tab);
 static bool sem_check_port_map(tree_t t, tree_t unit, nametab_t *tab);
+static bool sem_check_subtype(tree_t decl, type_t type, nametab_t *tab);
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -304,7 +305,7 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
          const int nelem = tree_ranges(constraint);
          for (int i = 0; i < nelem; i++) {
             tree_t ei = tree_range(constraint, i);
-            assert(tree_kind(ei) == T_CONSTRAINT);
+            assert(tree_kind(ei) == T_ELEM_CONSTRAINT);
 
             if (!tree_has_ref(ei))
                return false;   // Was parse error
@@ -317,7 +318,8 @@ static bool sem_check_constraint(tree_t constraint, type_t base, nametab_t *tab)
                sem_error(constraint, "field %s in record element constraint is "
                          "already constrained", istr(tree_ident(decl)));
 
-            if (!sem_check_constraint(ei, ftype, tab))
+            type_t sub = tree_type(ei);
+            if (!sem_check_subtype(decl, sub, tab))
                return false;
 
             // Check for duplicate element constraints
