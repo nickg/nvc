@@ -25,7 +25,7 @@ begin
         constant stride : natural := i(n).y'length;
     begin
         o1(n) <= i(n).x;
-        --o2(1 + (n-1)*stride to n*stride) <= "000";
+        o2(1 + (n-1)*stride to n*stride) <= i(n).y;
     end generate;
 
 end architecture;
@@ -51,9 +51,12 @@ begin
         a(1) <= (y => "101", x => 2);
         wait for 1 ns;
         assert b = (2, integer'left);
+        assert c = "101000";
         a(2).x <= 5;
+        a(2).y <= "110";
         wait for 1 ns;
         assert b = (2, 5);
+        assert c = "101110";
 
         wait;
     end process;

@@ -1578,6 +1578,10 @@ static bool is_static(tree_t expr)
    case T_LITERAL:
       return true;
 
+   case T_FCALL:
+      return !!(tree_flags(expr) & (TREE_F_LOCALLY_STATIC
+                                    | TREE_F_GLOBALLY_STATIC));
+
    default:
       return false;
    }
