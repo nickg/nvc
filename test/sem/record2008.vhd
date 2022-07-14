@@ -70,4 +70,30 @@ begin
     begin
     end process;
 
+    -- From "abc" test case provided by Brian Padalino
+    p4: process is
+        type Parameters_t is record
+            BW    : natural;
+            PAIRS : natural;
+        end record;
+
+        type Indices_t is array (natural range <>) of bit_vector;
+
+        type Bus_t is record
+            Indices : Indices_t;
+        end record;
+
+        function Test(
+            abc_bus : Bus_t;
+            indices : Indices_t
+            ) return Bus_t is
+            variable result : Bus_t(
+                Indices(abc_bus.Indices'range)(abc_bus.Indices'element'range)
+                );                      -- OK
+        begin
+            return result;
+        end function;
+    begin
+    end process;
+
 end architecture;

@@ -3746,10 +3746,10 @@ static tree_t p_record_element_constraint(type_t base)
    type_t sub = type_new(T_SUBTYPE);
    type_set_base(sub, ftype);
 
-   if (ftype != NULL && type_is_record(ftype))
+   if (type_is_record(ftype))
       type_add_constraint(sub, p_record_constraint(ftype));
    else
-      type_add_constraint(sub, p_index_constraint(ftype));
+      p_array_constraint(sub, ftype);
 
    tree_set_type(elem, sub);
    tree_set_loc(elem, CURRENT_LOC);
