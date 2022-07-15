@@ -724,6 +724,7 @@ static jit_value_t irgen_lea(jit_irgen_t *g, jit_value_t addr)
    case JIT_ADDR_ABS:
       return j_lea(g, addr);
    case JIT_VALUE_REG:
+   case JIT_VALUE_INT64:
       return addr;
    default:
       fatal_trace("cannot load address of value kind %d", addr.kind);

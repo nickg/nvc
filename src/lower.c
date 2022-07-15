@@ -794,29 +794,39 @@ static vcode_reg_t lower_wrap_with_new_bounds(type_t type, vcode_reg_t array,
 {
    assert(type_is_array(type));
 
-   const int ndims = dimension_of(type);
-
-   tree_t cons[MAX_CONSTRAINTS];
-   int ncons = 0;
-   if (standard() >= STD_08 && type_kind(type) == T_SUBTYPE)
-      ncons = pack_constraints(type, cons);
-
-   vcode_dim_t dims[ndims + ncons];
+   const int ndims = lower_dims_for_type(type);
+   vcode_dim_t dims[ndims];
    int dptr = 0;
-   for (int i = 0; i < ndims; i++, dptr++) {
-      dims[dptr].left  = lower_array_left(type, i, array);
-      dims[dptr].right = lower_array_right(type, i, array);
-      dims[dptr].dir   = lower_array_dir(type, i, array);
-   }
-   for (int i = 1; i < ncons && tree_subkind(cons[i]) == C_INDEX; i++, dptr++) {
-      tree_t r = tree_range(cons[i], 0);
-      dims[dptr].left  = lower_range_left(r);
-      dims[dptr].right = lower_range_right(r);
-      dims[dptr].dir   = lower_range_dir(r);
-   }
-   assert(dptr <= ndims + ncons);
 
-   return emit_wrap(lower_array_data(data), dims, dptr);
+   if (standard() >= STD_08 && type_kind(type) == T_SUBTYPE) {
+      tree_t cons[MAX_CONSTRAINTS];
+      int ncons = pack_constraints(type, cons);
+
+      for (int i = 0; dptr < ndims && i < ncons; i++) {
+         assert(tree_kind(cons[i]) == T_CONSTRAINT);
+         assert(tree_subkind(cons[i]) == C_INDEX);
+
+         const int nranges = tree_ranges(cons[i]);
+         for (int j = 0; j < nranges; j++, dptr++) {
+            tree_t r = tree_range(cons[i], j);
+            assert(tree_kind(r) == T_RANGE);
+
+            dims[dptr].left  = lower_range_left(r);
+            dims[dptr].right = lower_range_right(r);
+            dims[dptr].dir   = lower_range_dir(r);
+         }
+      }
+   }
+   else {
+      for (int i = 0; i < ndims; i++, dptr++) {
+         dims[dptr].left  = lower_array_left(type, i, array);
+         dims[dptr].right = lower_array_right(type, i, array);
+         dims[dptr].dir   = lower_array_dir(type, i, array);
+      }
+   }
+   assert(dptr == ndims);
+
+   return emit_wrap(lower_array_data(data), dims, ndims);
 }
 
 static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
@@ -860,33 +870,45 @@ static vcode_reg_t lower_wrap_element(type_t type, vcode_reg_t array,
    }
 }
 
-static vcode_reg_t lower_constraint(tree_t cons)
+static vcode_reg_t lower_rewrap(vcode_reg_t data, vcode_reg_t bounds)
 {
-   // Convert a record or array element constraint into an array bounds object
+   const int ndims = vtype_dims(vcode_reg_type(bounds));
+   vcode_dim_t dims[ndims];
 
-   if (tree_kind(cons) == T_ELEM_CONSTRAINT) {
-      type_t sub = tree_type(cons);
-      assert(type_constraints(sub) == 1);
-      cons = type_constraint(sub, 0);
+   for (int i = 0; i < ndims; i++) {
+      dims[i].left  = emit_uarray_left(bounds, i);
+      dims[i].right = emit_uarray_right(bounds, i);
+      dims[i].dir   = emit_uarray_dir(bounds, i);
    }
 
-   assert(tree_kind(cons) == T_CONSTRAINT);
-   assert(tree_subkind(cons) == C_INDEX);
+   return emit_wrap(data, dims, ndims);
+}
 
-   const int nranges = tree_ranges(cons);
-   vcode_dim_t *dims LOCAL = xcalloc_array(nranges, sizeof(vcode_dim_t));
+static vcode_reg_t lower_constraints(tree_t *cons, int count, int max)
+{
+   // Convert a list of index constraints into an array bounds object
 
-   for (int i = 0; i < nranges; i++) {
-      tree_t r = tree_range(cons, i);
-      assert(tree_kind(r) == T_RANGE);
+   vcode_dim_t *dims LOCAL = xcalloc_array(count, sizeof(vcode_dim_t));
 
-      dims[i].left  = lower_range_left(r);
-      dims[i].right = lower_range_right(r);
-      dims[i].dir   = lower_range_dir(r);
+   unsigned dptr = 0;
+   for (int i = 0; dptr < count; i++) {
+      assert(tree_kind(cons[i]) == T_CONSTRAINT);
+      assert(tree_subkind(cons[i]) == C_INDEX);
+
+      const int nranges = tree_ranges(cons[i]);
+      for (int j = 0; j < nranges; j++, dptr++) {
+         tree_t r = tree_range(cons[i], j);
+         assert(tree_kind(r) == T_RANGE);
+
+         dims[dptr].left  = lower_range_left(r);
+         dims[dptr].right = lower_range_right(r);
+         dims[dptr].dir   = lower_range_dir(r);
+      }
    }
+   assert(dptr == count);
 
    vcode_reg_t null_reg = emit_null(vtype_pointer(vtype_offset()));
-   return emit_wrap(null_reg, dims, nranges);
+   return emit_wrap(null_reg, dims, count);
 }
 
 static void lower_for_each_field(type_t type, vcode_reg_t rec1_ptr,
@@ -1032,8 +1054,7 @@ static void lower_resolved_field_cb(type_t ftype, vcode_reg_t field_ptr,
             emit_copy(dst_ptr, r_reg, count_reg);
          }
          else {
-            vcode_reg_t wrap_reg =
-               lower_wrap_with_new_bounds(ftype, sig_reg, r_reg);
+            vcode_reg_t wrap_reg = lower_rewrap(r_reg, sig_reg);
             emit_store_indirect(wrap_reg, dst_ptr);
          }
       }
@@ -2618,7 +2639,7 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
             data_reg = emit_alloc(lower_type(elem), lower_bounds(elem),
                                   count_reg);
 
-            result_reg = lower_wrap_with_new_bounds(type, p_reg, data_reg);
+            result_reg = lower_rewrap(data_reg, p_reg);
             emit_store(result_reg, var);
          }
          else
@@ -4104,16 +4125,17 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
       vcode_type_t vtype = lower_type(elem_type);
       vcode_type_t vbounds = lower_bounds(elem_type);
 
+      const int ndims = lower_dims_for_type(type);
       vcode_reg_t bounds_reg = VCODE_INVALID_REG;
       if (ncons > 0 && type_is_unconstrained(type))
-         bounds_reg = lower_constraint(cons[0]);
+         bounds_reg = lower_constraints(cons, ncons, ndims);
 
       vcode_reg_t count_reg = lower_array_total_len(type, bounds_reg);
       vcode_reg_t mem_reg = hint_reg;
       if (mem_reg == VCODE_INVALID_REG)
          mem_reg = emit_alloc(vtype, vbounds, count_reg);
 
-      shift_constraints(&cons, &ncons, lower_dims_for_type(type));
+      shift_constraints(&cons, &ncons, ndims);
 
       vcode_reg_t def_reg = lower_default_value(elem_type, VCODE_INVALID_REG,
                                                 cons, ncons);
@@ -4188,8 +4210,10 @@ static vcode_reg_t lower_default_value(type_t type, vcode_reg_t hint_reg,
 
                vcode_reg_t wrap_reg;
                if (nfcons > 0) {
-                  vcode_reg_t bounds = lower_constraint(fcons[0]);
-                  wrap_reg = lower_wrap_with_new_bounds(ftype, bounds, def_reg);
+                  const int ndims = lower_dims_for_type(ftype);
+                  vcode_reg_t bounds_reg =
+                     lower_constraints(fcons, ndims, nfcons);
+                  wrap_reg = lower_rewrap(def_reg, bounds_reg);
                }
                else
                   wrap_reg = lower_wrap(ftype, def_reg);
@@ -6219,8 +6243,10 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
 
    if (type_is_homogeneous(type)) {
       vcode_reg_t bounds_reg = VCODE_INVALID_REG;
-      if (ncons > 0 && !lower_const_bounds(type) && ncons)
-         bounds_reg = lower_constraint(cons[0]);
+      if (ncons > 0 && !lower_const_bounds(type) && ncons) {
+         const int ndims = lower_dims_for_type(type);
+         bounds_reg = lower_constraints(cons, ndims, ncons);
+      }
 
       vcode_type_t voffset = vtype_offset();
       vcode_reg_t size_reg = emit_const(voffset, lower_byte_width(type));
@@ -6253,7 +6279,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
          emit_resolve_signal(sig, resolution);
 
       if (bounds_reg != VCODE_INVALID_REG)
-         sig = lower_wrap_with_new_bounds(type, bounds_reg, sig);
+         sig = lower_rewrap(sig, bounds_reg);
       else if (need_wrap)
          sig = lower_wrap(type, sig);
 
@@ -6275,10 +6301,12 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       if (sig_ptr == VCODE_INVALID_REG)
          sig_ptr = emit_index(sig_var, VCODE_INVALID_REG);
 
-      tree_t c0 = shift_constraints(&cons, &ncons, 1);
       vcode_reg_t bounds_reg = VCODE_INVALID_REG;
-      if (c0 != NULL && !lower_const_bounds(type))
-         bounds_reg = lower_constraint(c0);
+      if (ncons > 0 && !lower_const_bounds(type)) {
+         const int count = lower_dims_for_type(type);
+         bounds_reg = lower_constraints(cons, count, ncons);
+         shift_constraints(&cons, &ncons, count);
+      }
 
       const int ndims = dimension_of(type);
       vcode_reg_t len_reg = lower_array_len(type, 0, bounds_reg);
@@ -6294,7 +6322,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
 
          vcode_reg_t wrap_reg;
          if (bounds_reg != VCODE_INVALID_REG)
-            wrap_reg = lower_wrap_with_new_bounds(type, bounds_reg, mem_reg);
+            wrap_reg = lower_rewrap(mem_reg, bounds_reg);
          else
             wrap_reg = lower_wrap(type, mem_reg);
 
@@ -6323,7 +6351,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
 
       vcode_select_block(body_bb);
 
-      type_t elem = type_elem(type);
+      type_t elem = lower_elem_recur(type);
 
       vcode_reg_t ptr_reg = emit_array_ref(sig_ptr, i_reg);
       vcode_reg_t data_reg = emit_array_ref(lower_array_data(init_reg), i_reg);
