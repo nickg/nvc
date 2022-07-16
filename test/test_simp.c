@@ -1269,6 +1269,22 @@ START_TEST(test_foreign1)
 }
 END_TEST
 
+START_TEST(test_simpif1)
+{
+   input_from_file(TESTDIR "/simp/simpif1.vhd");
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+
+   tree_t p1 = tree_stmt(a, 0);
+   fail_unless(tree_kind(p1) == T_PROCESS);
+   fail_unless(tree_stmts(p1) == 2);
+
+   tree_t s0 = tree_stmt(p1, 0);
+   fail_unless(tree_kind(s0) == T_SEQUENCE);
+   fail_unless(tree_stmts(s0) == 2);
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1318,6 +1334,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_protfold1);
    tcase_add_test(tc_core, test_protfold2);
    tcase_add_test(tc_core, test_foreign1);
+   tcase_add_test(tc_core, test_simpif1);
    suite_add_tcase(s, tc_core);
 
    return s;

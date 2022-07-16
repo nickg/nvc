@@ -388,7 +388,7 @@ static const tree_kind_t stmt_kinds[] = {
    T_EXIT,       T_PCALL,           T_CASE,         T_BLOCK,
    T_SELECT,     T_IF_GENERATE,     T_FOR_GENERATE, T_NEXT,
    T_PROT_PCALL, T_COND_VAR_ASSIGN, T_CONCURRENT,   T_FORCE,
-   T_RELEASE,    T_MATCH_CASE,
+   T_RELEASE,    T_MATCH_CASE,      T_SEQUENCE,
 };
 
 static tree_kind_t expr_kinds[] = {
