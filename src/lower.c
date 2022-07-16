@@ -154,6 +154,8 @@ static void lower_release_temp(vcode_var_t tmp);
 static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg);
 static void lower_copy_record(type_t type, vcode_reg_t dst_ptr,
                               vcode_reg_t src_ptr, tree_t where);
+static int lower_dims_for_type(type_t type);
+static vcode_reg_t lower_constraints(tree_t *cons, int count, int max);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -397,10 +399,8 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
 
 static bool have_array_metadata(type_t type, vcode_reg_t reg)
 {
-   if (reg == VCODE_INVALID_REG) {
-      assert(!type_is_unconstrained(type));
+   if (reg == VCODE_INVALID_REG)
       return false;
-   }
    else if (lower_const_bounds(type))
       return false;
    else if (type_is_unconstrained(type)) {
@@ -477,38 +477,29 @@ static vcode_reg_t lower_array_stride(type_t type, vcode_reg_t reg)
    if (!type_is_array(elem))
       return stride;
 
-   if (standard() >= STD_08) {
+   if (standard() >= STD_08 && type_is_unconstrained(elem)) {
       // Handle VHDL-2008 element constraints
-      if (type_kind(type) == T_SUBTYPE) {
+      const int ndims = lower_dims_for_type(type);
+      vcode_reg_t bounds_reg;
+      if (have_array_metadata(type, reg))
+         bounds_reg = reg;
+      else {
+         assert(type_kind(type) == T_SUBTYPE);
          tree_t cons[MAX_CONSTRAINTS];
-         const int ncon = pack_constraints(type, cons);
-         for (int i = 1; i < ncon && tree_subkind(cons[i]) == C_INDEX; i++) {
-            tree_t r = tree_range(cons[i], 0);
-
-            vcode_reg_t left_reg  = lower_range_left(r);
-            vcode_reg_t right_reg = lower_range_right(r);
-            vcode_reg_t dir_reg   = lower_range_dir(r);
-
-            vcode_reg_t len_reg =
-               emit_range_length(left_reg, right_reg, dir_reg);
-            stride = emit_mul(stride, len_reg);
-
-            elem = type_elem(elem);
-         }
+         const int ncons = pack_constraints(type, cons);
+         bounds_reg = lower_constraints(cons, ndims, ncons);
       }
-      else if (reg != VCODE_INVALID_REG) {
-         const int ndims = dimension_of(type);
-         const int ncon = vtype_dims(vcode_reg_type(reg));
-         for (int i = ndims; i < ncon; i++) {
-            vcode_reg_t len_reg = emit_uarray_len(reg, i);
-            stride = emit_mul(stride, len_reg);
 
-            elem = type_elem(elem);
-         }
+      if (lower_have_uarray_ptr(bounds_reg))
+         bounds_reg = emit_load_indirect(bounds_reg);
+
+      const int skip = dimension_of(type);
+      for (int i = skip; i < ndims; i++) {
+         vcode_reg_t len_reg = emit_uarray_len(bounds_reg, i);
+         stride = emit_mul(stride, len_reg);
       }
    }
-
-   if (type_is_array(elem))
+   else
       stride = emit_mul(stride, lower_array_total_len(elem, VCODE_INVALID_REG));
 
    emit_comment("Array of array stride is r%d", stride);
@@ -2312,7 +2303,7 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
       sig_reg = emit_load_indirect(emit_var_upref(hops, var));
 
    if (ctx == EXPR_RVALUE)
-      return emit_resolved(lower_array_data(sig_reg));
+      return lower_resolved(type, sig_reg);
    else
       return sig_reg;
 }
@@ -2588,7 +2579,7 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
          data_reg = emit_resolved(lower_array_data(reg));
 
       if (vcode_reg_kind(reg) == VCODE_TYPE_UARRAY)
-         return lower_wrap_with_new_bounds(type, reg, data_reg);
+         return lower_rewrap(data_reg, reg);
       else
          return data_reg;
    }
@@ -3170,8 +3161,6 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
       }
    }
 
-   assert(!type_is_unconstrained(type));
-
    emit_comment("Begin array aggregrate line %d", tree_loc(expr)->first_line);
 
    vcode_reg_t dir_reg   = lower_array_dir(type, 0, VCODE_INVALID_REG);
@@ -3187,30 +3176,59 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
    if (vcode_reg_const(null_reg, &null_const) && null_const)
       return emit_address_of(emit_const_array(lower_type(type), NULL, 0));
 
-   vcode_reg_t len_reg = lower_array_total_len(type, VCODE_INVALID_REG);
-
-   const bool multidim =
-      type_is_array(type) && dimension_of(type) > 1;
-
    vcode_type_t voffset = vtype_offset();
+
+   vcode_reg_t stride;
+   if (type_is_array(elem_type)) {
+      if (type_is_unconstrained(type)) {
+         // TODO: we should check all the elements have the same length
+         tree_t a0 = tree_value(tree_assoc(expr, 0));
+         vcode_reg_t a0_reg = lower_expr(a0, EXPR_RVALUE);
+         stride = lower_array_total_len(elem_type, a0_reg);
+      }
+      else
+         stride = lower_array_stride(type, VCODE_INVALID_REG);
+   }
+   else
+      stride = emit_const(voffset, 1);
+
+   const int ndims = dimension_of(type);
+   const bool multidim = ndims > 1;
+
+   if (multidim) {
+      for (int i = 1; i < ndims; i++)
+         stride = emit_mul(stride, lower_array_len(type, i, VCODE_INVALID_REG));
+      emit_comment("Multidimensional array stride is r%d", stride);
+   }
+
+   vcode_reg_t dim0_len = lower_array_len(type, 0, VCODE_INVALID_REG);
+   vcode_reg_t len_reg = emit_mul(dim0_len, stride);
 
    vcode_reg_t mem_reg = hint;
    if (mem_reg == VCODE_INVALID_REG)
       mem_reg = emit_alloc(lower_type(scalar_elem_type),
                            lower_bounds(scalar_elem_type), len_reg);
 
-   vcode_reg_t stride = VCODE_INVALID_REG;
-   if (type_is_array(elem_type))
-      stride = lower_array_stride(type, VCODE_INVALID_REG);
-
-   if (multidim) {
-      if (stride == VCODE_INVALID_REG)
-         stride = emit_const(vtype_offset(), 1);
-
-      const int dims = dimension_of(type);
-      for (int i = 1; i < dims; i++)
-         stride = emit_mul(stride, lower_array_len(type, i, VCODE_INVALID_REG));
-      emit_comment("Multidimensional array stride is r%d", stride);
+   vcode_reg_t wrap_reg;
+   if (lower_const_bounds(type))
+      wrap_reg = mem_reg;
+   else if (multidim) {
+      const int ndims = dimension_of(type);
+      vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));
+      for (int i = 0; i < ndims; i++) {
+         dims[i].left  = lower_array_left(type, i, VCODE_INVALID_REG);
+         dims[i].right = lower_array_right(type, i, VCODE_INVALID_REG);
+         dims[i].dir   = lower_array_dir(type, i, VCODE_INVALID_REG);
+      }
+      wrap_reg = emit_wrap(mem_reg, dims, ndims);
+   }
+   else {
+      vcode_dim_t dim0 = {
+         .left  = left_reg,
+         .right = right_reg,
+         .dir   = dir_reg
+      };
+      wrap_reg = emit_wrap(mem_reg, &dim0, 1);
    }
 
    if (def_value != NULL) {
@@ -3338,7 +3356,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
             vcode_reg_t locus = lower_debug_locus(name);
             emit_index_check(name_reg, left_reg, right_reg, dir_reg,
                              locus, locus);
-            off_reg = lower_array_off(name_reg, mem_reg, type, 0);
+            off_reg = lower_array_off(name_reg, wrap_reg, type, 0);
          }
          break;
 
@@ -3391,7 +3409,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
             emit_debug_info(tree_loc(a));
 
             vcode_reg_t i_reg = emit_load(tmp_var);
-            off_reg = lower_array_off(i_reg, mem_reg, type, 0);
+            off_reg = lower_array_off(i_reg, wrap_reg, type, 0);
          }
          break;
 
@@ -3450,26 +3468,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
          lower_release_temp(tmp_var);
    }
 
-   if (lower_const_bounds(type))
-      return mem_reg;
-   else if (multidim) {
-      const int ndims = dimension_of(type);
-      vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));
-      for (int i = 0; i < ndims; i++) {
-         dims[i].left  = lower_array_left(type, i, VCODE_INVALID_REG);
-         dims[i].right = lower_array_right(type, i, VCODE_INVALID_REG);
-         dims[i].dir   = lower_array_dir(type, i, VCODE_INVALID_REG);
-      }
-      return emit_wrap(mem_reg, dims, ndims);
-   }
-   else {
-      vcode_dim_t dim0 = {
-         .left  = left_reg,
-         .right = right_reg,
-         .dir   = dir_reg
-      };
-      return emit_wrap(mem_reg, &dim0, 1);
-   }
+   return wrap_reg;
 }
 
 static vcode_reg_t lower_aggregate(tree_t expr, vcode_reg_t hint)
@@ -6256,7 +6255,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       if (type_is_array(type)) {
          lower_check_array_sizes(where, type, init_type, bounds_reg, init_reg);
          vtype = lower_type(lower_elem_recur(type));
-         len_reg = lower_array_total_len(type, init_reg);
+         len_reg = lower_array_total_len(type, bounds_reg);
          init_reg = lower_array_data(init_reg);
          need_wrap = !lower_const_bounds(type);
       }

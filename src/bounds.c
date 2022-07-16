@@ -777,11 +777,21 @@ static void bounds_check_aggregate(tree_t t)
 
       if (standard() >= STD_08 && type_is_unconstrained(type_elem(type))) {
          assert(ndims == 1);  // TODO
-         type_t a0_type = tree_type(tree_value(tree_assoc(t, 0)));
-         if (type_kind(a0_type) == T_SUBTYPE) {
-            const int ncon = type_constraints(a0_type);
-            for (int i = 0; i < ncon; i++)
+         tree_t a0 = tree_value(tree_assoc(t, 0));
+         type_t a0_type = tree_type(a0);
+         tree_t cons[MAX_CONSTRAINTS];
+         const int ncons = pack_constraints(a0_type, cons);
+         if (ncons > 0) {
+            for (int i = 0; i < ncons; i++)
                type_add_constraint(tmp, type_constraint(a0_type, i));
+         }
+         else {
+            // This must be checked at runtime
+            tree_t c = tree_new(T_CONSTRAINT);
+            tree_set_loc(c, tree_loc(t));
+            tree_set_subkind(c, C_OPEN);
+
+            type_add_constraint(tmp, c);
          }
       }
 
