@@ -6328,9 +6328,10 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
          sig_ptr = emit_index(sig_var, VCODE_INVALID_REG);
 
       vcode_reg_t bounds_reg = VCODE_INVALID_REG;
-      if (ncons > 0 && !lower_const_bounds(type)) {
+      if (ncons > 0) {
          const int count = lower_dims_for_type(type);
-         bounds_reg = lower_constraints(cons, count, ncons);
+         if (!lower_const_bounds(type))
+            bounds_reg = lower_constraints(cons, count, ncons);
          shift_constraints(&cons, &ncons, count);
       }
 
