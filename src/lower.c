@@ -808,14 +808,12 @@ static vcode_reg_t lower_wrap_with_new_bounds(type_t type, vcode_reg_t array,
          }
       }
    }
-   else {
-      for (int i = 0; i < ndims; i++, dptr++) {
-         dims[dptr].left  = lower_array_left(type, i, array);
-         dims[dptr].right = lower_array_right(type, i, array);
-         dims[dptr].dir   = lower_array_dir(type, i, array);
-      }
+
+   for (; dptr < ndims; dptr++) {
+      dims[dptr].left  = lower_array_left(type, dptr, array);
+      dims[dptr].right = lower_array_right(type, dptr, array);
+      dims[dptr].dir   = lower_array_dir(type, dptr, array);
    }
-   assert(dptr == ndims);
 
    return emit_wrap(lower_array_data(data), dims, ndims);
 }

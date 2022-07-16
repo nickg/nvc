@@ -622,3 +622,4 @@ record34        normal,2008
 elab33          normal,2008
 agg8            normal,2008
 record35        normal,2008
+array14         normal,2008
