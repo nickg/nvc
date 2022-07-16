@@ -9526,10 +9526,21 @@ vcode_unit_t lower_thunk(tree_t t)
    vcode_unit_t thunk = emit_thunk(name, NULL);
 
    vcode_type_t vtype = VCODE_INVALID_TYPE;
-   if (tree_kind(t) == T_FCALL) {
-      tree_t decl = tree_ref(t);
-      if (tree_has_type(decl))
-         vtype = lower_func_result_type(type_result(tree_type(decl)));
+   switch (tree_kind(t)) {
+   case T_FCALL:
+      {
+         tree_t decl = tree_ref(t);
+         if (tree_has_type(decl))
+            vtype = lower_func_result_type(type_result(tree_type(decl)));
+      }
+      break;
+
+   case T_ATTR_REF:
+      vtype = lower_type(tree_type(t));
+      break;
+
+   default:
+      break;
    }
 
    if (vtype == VCODE_INVALID_TYPE)

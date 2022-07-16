@@ -1083,6 +1083,27 @@ START_TEST(test_link1)
 }
 END_TEST
 
+START_TEST(test_generate1)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/elab/generate1.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b0 = tree_stmt(e, 0);
+   fail_unless(tree_ident(b0) == ident_new("GENERATE1"));
+   fail_unless(tree_stmts(b0) == 3);
+
+   tree_t g1 = tree_stmt(b0, 0);
+   fail_unless(tree_ident(g1) == ident_new("G(1)"));
+   fail_unless(tree_kind(g1) == T_BLOCK);
+   fail_unless(tree_stmts(g1) == 1);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1146,6 +1167,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_ename1);
    tcase_add_test(tc, test_issue459);
    tcase_add_exit_test(tc, test_link1, 1);
+   tcase_add_test(tc, test_generate1);
    suite_add_tcase(s, tc);
 
    return s;

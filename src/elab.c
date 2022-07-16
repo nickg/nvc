@@ -1266,10 +1266,38 @@ static bool elab_copy_genvar_cb(tree_t t, void *ctx)
    return tree_kind(t) == T_REF && tree_ref(t) == genvar;
 }
 
+static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
+                                elab_ctx_t *ctx)
+{
+   if (tree_subkind(r) == RANGE_EXPR) {
+      tree_t value = tree_value(r);
+      assert(tree_kind(value) == T_ATTR_REF);
+
+      tree_t tmp = tree_new(T_ATTR_REF);
+      tree_set_name(tmp, tree_name(value));
+      tree_set_type(tmp, tree_type(r));
+      tree_set_subkind(tmp, ATTR_LOW);
+
+      tree_t tlow = eval_must_fold(ctx->eval, tmp);
+      if (folded_int(tlow, low)) {
+         tree_set_subkind(tmp, ATTR_HIGH);
+
+         tree_t thigh = eval_must_fold(ctx->eval, tmp);
+         if (folded_int(thigh, high))
+            return;
+      }
+
+      error_at(tree_loc(r), "generate range is not static");
+      *low = *high = 0;
+   }
+   else
+      range_bounds(r, low, high);
+}
+
 static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
 {
    int64_t low, high;
-   range_bounds(tree_range(t, 0), &low, &high);
+   elab_generate_range(tree_range(t, 0), &low, &high, ctx);
 
    tree_t g = tree_decl(t, 0);
    assert(tree_kind(g) == T_GENERIC_DECL);
