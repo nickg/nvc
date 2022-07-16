@@ -1735,6 +1735,8 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
       tb_cat(tb, "actual");
    else if (kind == T_CASE || kind == T_MATCH_CASE)
       tb_cat(tb, "expression");
+   else if (kind == T_ASSOC)
+      tb_cat(tb, "choice");
    else
       tb_cat(tb, "value");
    tb_printf(tb, " length %d", right);
@@ -1771,6 +1773,9 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
    case T_CASE:
    case T_MATCH_CASE:
       tb_cat(tb, "case choice");
+      break;
+   case T_ASSOC:
+      tb_cat(tb, "expected");
       break;
    default:
       tb_cat(tb, "target");

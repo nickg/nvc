@@ -3176,12 +3176,12 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
    vcode_type_t voffset = vtype_offset();
 
-   vcode_reg_t stride;
+   vcode_reg_t stride, a0_reg = VCODE_INVALID_REG;
    if (type_is_array(elem_type)) {
       if (type_is_unconstrained(type)) {
          // TODO: we should check all the elements have the same length
          tree_t a0 = tree_value(tree_assoc(expr, 0));
-         vcode_reg_t a0_reg = lower_expr(a0, EXPR_RVALUE);
+         a0_reg = lower_expr(a0, EXPR_RVALUE);
          stride = lower_array_total_len(elem_type, a0_reg);
       }
       else
@@ -3211,7 +3211,6 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
    if (lower_const_bounds(type))
       wrap_reg = mem_reg;
    else if (multidim) {
-      const int ndims = dimension_of(type);
       vcode_dim_t *dims LOCAL = xmalloc_array(ndims, sizeof(vcode_dim_t));
       for (int i = 0; i < ndims; i++) {
          dims[i].left  = lower_array_left(type, i, VCODE_INVALID_REG);
@@ -3219,6 +3218,25 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
          dims[i].dir   = lower_array_dir(type, i, VCODE_INVALID_REG);
       }
       wrap_reg = emit_wrap(mem_reg, dims, ndims);
+   }
+   else if (a0_reg != VCODE_INVALID_REG) {
+      // Unconstrained element type
+      const int count = lower_dims_for_type(type);
+      assert(count == vtype_dims(vcode_reg_type(a0_reg)) + 1);
+
+      vcode_dim_t *dims LOCAL = xmalloc_array(count, sizeof(vcode_dim_t));
+
+      dims[0].left  = left_reg;
+      dims[0].right = right_reg;
+      dims[0].dir   = dir_reg;
+
+      for (int i = 1; i < count; i++) {
+         dims[i].left  = lower_array_left(elem_type, i - 1, a0_reg);
+         dims[i].right = lower_array_right(elem_type, i - 1, a0_reg);
+         dims[i].dir   = lower_array_dir(elem_type, i - 1, a0_reg);
+      }
+
+      wrap_reg = emit_wrap(mem_reg, dims, count);
    }
    else {
       vcode_dim_t dim0 = {
@@ -3425,6 +3443,12 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
          // Prefer generating aggregates in-place
          assert(tree_kind(value) == T_AGGREGATE);
          value_reg = lower_aggregate(value, ptr_reg);
+      }
+
+      if (a0_reg != VCODE_INVALID_REG && i > 0) {
+         // Element type is unconstrained so we need a length check here
+         lower_check_array_sizes(a, elem_type, elem_type, a0_reg, value_reg);
+         vcode_dump();
       }
 
       if (count_reg != VCODE_INVALID_REG) {
@@ -6144,9 +6168,14 @@ static void lower_var_decl(tree_t decl)
                                lower_bounds(scalar_elem),
                                count_reg);
          emit_copy(dest_reg, data_reg, count_reg);
-         vcode_reg_t wrapped_reg =
-            lower_wrap_with_new_bounds(value_type, value_reg, dest_reg);
-         emit_store(wrapped_reg, var);
+
+         vcode_reg_t wrap_reg;
+         if (vcode_reg_kind(value_reg) == VCODE_TYPE_UARRAY)
+            wrap_reg = lower_rewrap(dest_reg, value_reg);
+         else
+            wrap_reg = lower_wrap(value_type, dest_reg);
+
+         emit_store(wrap_reg, var);
       }
       else {
          lower_check_indexes(type, value_reg);

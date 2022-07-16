@@ -1,0 +1,6 @@
+choice length 5 does not match expected length 3
+    |
+ 15 |                               2 => get_bits(b) );
+    |                               ^^^^^^^^^^^^^^^^
+Procedure DO_TEST [NATURAL, NATURAL]
+Process :array15:p1

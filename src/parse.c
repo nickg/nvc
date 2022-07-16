@@ -4080,8 +4080,11 @@ static void p_element_association(tree_t agg)
 
       tree_t value = p_expression();
       const int nassocs = tree_assocs(agg);
-      for (int i = nstart; i < nassocs; i++)
-         tree_set_value(tree_assoc(agg, i), value);
+      for (int i = nstart; i < nassocs; i++) {
+         tree_t a = tree_assoc(agg, i);
+         tree_set_value(a, value);
+         tree_set_loc(a, CURRENT_LOC);
+      }
    }
    else {
       tree_t t = tree_new(T_ASSOC);
