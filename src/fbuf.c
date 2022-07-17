@@ -188,7 +188,7 @@ static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
    if (fseek(f->file, 8, SEEK_SET) != 0)
       fatal_errno("%s: fseek", f->fname);
 
-   const uint8_t bytes[8] = { PACK_BE32(f->wpend), PACK_BE32(checksum) };
+   const uint8_t bytes[8] = { PACK_BE32(f->wtotal), PACK_BE32(checksum) };
    fbuf_write_raw(f, bytes, 8);
 }
 
