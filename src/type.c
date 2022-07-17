@@ -205,14 +205,17 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
    }
 
    if (has & I_PTYPES) {
-      const int nparams = type_params(a);
+      item_t *ap = lookup_item(&type_object, a, I_PTYPES);
+      item_t *bp = lookup_item(&type_object, b, I_PTYPES);
 
-      if (type_params(b) != nparams)
+      if (ap->obj_array.count != bp->obj_array.count)
          return false;
 
-      for (int i = 0; i < nparams; i++) {
-         if (!_type_eq(type_param(a, i), type_param(b, i), strict, map))
-             return false;
+      for (int i = 0; i < ap->obj_array.count; i++) {
+         type_t ai = type_array_nth(ap, i);
+         type_t bi = type_array_nth(bp, i);
+         if (ai != bi && !_type_eq(ai, bi, strict, map))
+            return false;
       }
    }
 
