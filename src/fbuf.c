@@ -38,6 +38,15 @@
    ((u) >> 24) & 0xff, ((u) >> 16) & 0xff,	\
       ((u) >> 8) & 0xff, (u) & 0xff
 
+#if DEBUG
+#define ASSERT_AVAIL(f, n) do {                                 \
+      if (unlikely((f)->rptr + (n) > (f)->origsz))              \
+         fatal_trace("read past end of decompressed file");     \
+   } while (0);
+#else
+#define ASSERT_AVAIL(f, n)
+#endif
+
 typedef struct {
    unsigned long s1;
    unsigned long s2;
@@ -60,10 +69,7 @@ struct _fbuf {
    size_t       wtotal;
    uint8_t     *rbuf;
    size_t       rptr;
-   size_t       ravail;
-   size_t       roff;
-   uint8_t     *rmap;
-   size_t       maplen;
+   size_t       origsz;
    fbuf_t      *next;
    fbuf_t      *prev;
    cs_state_t   checksum;
@@ -157,10 +163,9 @@ static uint32_t checksum_finish(cs_state_t *state)
 void fbuf_cleanup(void)
 {
    for (fbuf_t *it = open_list; it != NULL; it = it->next) {
-      if (it->mode == FBUF_OUT) {
-         fclose(it->file);
+      fclose(it->file);
+      if (it->mode == FBUF_OUT)
          remove(it->fname);
-      }
    }
 }
 
@@ -192,15 +197,18 @@ static void fbuf_update_header(fbuf_t *f, uint32_t checksum)
    fbuf_write_raw(f, bytes, 8);
 }
 
-static void fbuf_read_header(fbuf_t *f)
+static void fbuf_decompress(fbuf_t *f)
 {
-   uint8_t *header = f->rmap;
+   struct stat buf;
+   if (fstat(fileno(f->file), &buf) != 0)
+      fatal_errno("fstat");
 
-   if (memcmp(header, "FBUF", 4)) {
-      // TEMPORARY: assume it's from an old version
-      //warnf("%s: file created with an older version of NVC", f->fname);
-      return;
-   }
+   void *rmap = map_file(fileno(f->file), buf.st_size);
+
+   const uint8_t *header = rmap;
+
+   if (memcmp(header, "FBUF", 4))
+      fatal("%s: file created with an older version of NVC", f->fname);
 
    if (header[4] != 'F')
       fatal("%s has was created with unexpected compression algorithm %c",
@@ -213,73 +221,53 @@ static void fbuf_read_header(fbuf_t *f)
    const uint32_t len = UNPACK_BE32(header + 8);
    const uint32_t checksum = UNPACK_BE32(header + 12);
 
-   (void)len;   // Not used
-
+   f->origsz = len;
    f->checksum.expect = checksum;
-   f->roff = 16;
+   f->rbuf = xmalloc(f->origsz);
+
+   for (uint8_t *dst = f->rbuf, *src = rmap + 16; dst < f->rbuf + f->origsz;) {
+      const uint32_t blksz = UNPACK_BE32(src);
+      if (blksz > SPILL_SIZE)
+         fatal("file %s has invalid compression format", f->fname);
+
+      src += sizeof(uint32_t);
+
+      if (src + blksz > (uint8_t *)rmap + buf.st_size)
+         fatal_trace("read past end of compressed file %s", f->fname);
+
+      const int ret = fastlz_decompress(src, blksz, dst, SPILL_SIZE);
+      if (ret == 0)
+         fatal("file %s has invalid compression format", f->fname);
+
+      checksum_update(&(f->checksum), dst, ret);
+
+      dst += ret;
+      src += blksz;
+   }
+
+   unmap_file(rmap, buf.st_size);
 }
 
 fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode, fbuf_cs_t csum)
 {
-   fbuf_t *f = NULL;
+   FILE *h = fopen(file, mode == FBUF_OUT ? "wb" : "rb");
+   if (h == NULL)
+      return NULL;
 
-   switch (mode) {
-   case FBUF_OUT:
-      {
-         FILE *h = fopen(file, "wb");
-         if (h == NULL)
-            return NULL;
-
-         f = xmalloc(sizeof(struct _fbuf));
-
-         f->file   = h;
-         f->rmap   = NULL;
-         f->rbuf   = NULL;
-         f->wbuf   = xmalloc(SPILL_SIZE);
-         f->wpend  = 0;
-	 f->wtotal = 0;
-      }
-      break;
-
-   case FBUF_IN:
-      {
-         int fd = open(file, O_RDONLY);
-         if (fd < 0)
-            return NULL;
-
-         struct stat buf;
-         if (fstat(fd, &buf) != 0)
-            fatal_errno("fstat");
-
-         void *rmap = map_file(fd, buf.st_size);
-
-         close(fd);
-
-         f = xmalloc(sizeof(struct _fbuf));
-
-         f->file   = NULL;
-         f->rmap   = rmap;
-         f->rbuf   = xmalloc(SPILL_SIZE);
-         f->rptr   = 0;
-         f->roff   = 0;
-         f->ravail = 0;
-         f->maplen = buf.st_size;
-         f->wbuf   = NULL;
-      }
-      break;
-   }
-
+   fbuf_t *f = xcalloc(sizeof(struct _fbuf));
+   f->file  = h;
    f->fname = xstrdup(file);
    f->mode  = mode;
    f->next  = open_list;
-   f->prev  = NULL;
 
    checksum_init(&(f->checksum), csum);
 
-   if (mode == FBUF_OUT)
+   if (mode == FBUF_OUT) {
+      f->wbuf = xmalloc(SPILL_SIZE);
       fbuf_write_header(f);
+   }
    else
-      fbuf_read_header(f);
+      fbuf_decompress(f);
 
    if (open_list != NULL)
       open_list->prev = f;
@@ -319,40 +307,6 @@ static void fbuf_maybe_flush(fbuf_t *f, size_t more)
    }
 }
 
-static void fbuf_maybe_read(fbuf_t *f, size_t more)
-{
-   assert(more <= BLOCK_SIZE);
-   if (f->rptr + more > f->ravail) {
-      const size_t overlap = f->ravail - f->rptr;
-      memcpy(f->rbuf, f->rbuf + f->rptr, overlap);
-
-      const uint8_t *blksz_raw = f->rmap + f->roff;
-
-      const uint32_t blksz = UNPACK_BE32(blksz_raw);
-      if (blksz > SPILL_SIZE)
-         fatal("file %s has invalid compression format", f->fname);
-
-      f->roff += sizeof(uint32_t);
-
-      if (f->roff + blksz > f->maplen)
-         fatal_trace("read past end of compressed file %s", f->fname);
-
-      const int ret = fastlz_decompress(f->rmap + f->roff,
-                                        blksz,
-                                        f->rbuf + overlap,
-                                        SPILL_SIZE - overlap);
-
-      if (ret == 0)
-         fatal("file %s has invalid compression format", f->fname);
-
-      checksum_update(&(f->checksum), f->rbuf + overlap, ret);
-
-      f->roff  += blksz;
-      f->ravail = overlap + ret;
-      f->rptr   = 0;
-   }
-}
-
 void fbuf_close(fbuf_t *f, uint32_t *checksum)
 {
    if (f->wbuf != NULL)
@@ -360,25 +314,22 @@ void fbuf_close(fbuf_t *f, uint32_t *checksum)
 
    const uint32_t cs = checksum_finish(&(f->checksum));
 
-   if (f->mode == FBUF_IN && cs != f->checksum.expect && f->checksum.expect != 0 /* TODO: REMOVE */)
+   if (f->mode == FBUF_IN && cs != f->checksum.expect)
       fatal("%s: incorrect checksum %08x, expected %08x",
 	    f->fname, cs, f->checksum.expect);
 
    if (checksum != NULL)
       *checksum = cs;
 
-   if (f->rmap != NULL) {
-      unmap_file((void *)f->rmap, f->maplen);
+   if (f->rbuf != NULL)
       free(f->rbuf);
-   }
 
    if (f->wbuf != NULL) {
       fbuf_update_header(f, cs);
       free(f->wbuf);
    }
 
-   if (f->file != NULL)
-      fclose(f->file);
+   fclose(f->file);
 
    if (f->prev == NULL) {
       assert(f == open_list);
@@ -478,7 +429,8 @@ uint64_t fbuf_get_uint(fbuf_t *f)
 
    uint8_t byte;
    do {
-      byte = read_u8(f);
+      ASSERT_AVAIL(f, 1);
+      byte = *(f->rbuf + f->rptr++);
       dec[nbytes++] = byte & 0x7f;
    } while (byte & 0x80);
 
@@ -499,7 +451,7 @@ int64_t fbuf_get_int(fbuf_t *f)
 
 uint32_t read_u32(fbuf_t *f)
 {
-   fbuf_maybe_read(f, 4);
+   ASSERT_AVAIL(f, 4);
 
    uint32_t val = 0;
    val |= (uint32_t)*(f->rbuf + f->rptr++) << 0;
@@ -511,7 +463,7 @@ uint32_t read_u32(fbuf_t *f)
 
 uint16_t read_u16(fbuf_t *f)
 {
-   fbuf_maybe_read(f, 2);
+   ASSERT_AVAIL(f, 2);
 
    uint16_t val = 0;
    val |= (uint16_t)*(f->rbuf + f->rptr++) << 0;
@@ -521,13 +473,13 @@ uint16_t read_u16(fbuf_t *f)
 
 uint8_t read_u8(fbuf_t *f)
 {
-   fbuf_maybe_read(f, 1);
+   ASSERT_AVAIL(f, 1);
    return *(f->rbuf + f->rptr++);
 }
 
 uint64_t read_u64(fbuf_t *f)
 {
-   fbuf_maybe_read(f, 8);
+   ASSERT_AVAIL(f, 8);
 
    uint64_t val = 0;
    val |= (uint64_t)*(f->rbuf + f->rptr++) << 0;
@@ -543,7 +495,7 @@ uint64_t read_u64(fbuf_t *f)
 
 void read_raw(void *buf, size_t len, fbuf_t *f)
 {
-   fbuf_maybe_read(f, len);
+   ASSERT_AVAIL(f, len);
    memcpy(buf, f->rbuf + f->rptr, len);
    f->rptr += len;
 }
