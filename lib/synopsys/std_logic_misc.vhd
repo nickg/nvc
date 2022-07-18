@@ -56,7 +56,7 @@ package std_logic_misc is
     function Drive (V: STD_LOGIC_VECTOR) return STD_ULOGIC_VECTOR;
 --synopsys synthesis_off
 
-    attribute CLOSELY_RELATED_TCF of Drive: function is TRUE;
+    --attribute CLOSELY_RELATED_TCF of Drive: function is TRUE;
 
     ---------------------------------------------------------------------
     --
