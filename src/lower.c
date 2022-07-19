@@ -1325,7 +1325,10 @@ static vcode_reg_t lower_name_attr(tree_t ref, attr_kind_t which)
 
          if (obj == -1 && is_package((container = tree_container(decl)))) {
             tb_append(tb, ':');
-            tb_istr(tb, tree_ident(container));
+            if (tree_kind(container) == T_PACK_BODY)
+               tb_istr(tb, tree_ident(tree_primary(container)));
+            else
+               tb_istr(tb, tree_ident(container));
          }
          else {
             lower_scope_t *scope = top_scope;

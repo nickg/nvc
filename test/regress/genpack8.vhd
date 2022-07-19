@@ -10,6 +10,8 @@ package gen_counter is
         impure function value return t;
     end protected;
 
+    shared variable var : counter;
+
 end package;
 
 package body gen_counter is
@@ -32,8 +34,6 @@ package body gen_counter is
             return val;
         end function;
     end protected body;
-
-    shared variable var : counter;
 
 end package body;
 

@@ -184,7 +184,6 @@ START_TEST(test_issue36)
    input_from_file(TESTDIR "/bounds/issue36.vhd");
 
    tree_t e = parse_and_check(T_ENTITY);
-   fail_unless(error_count() == 0);
 
    eval_t *eval = eval_new(0);
    simplify_local(e, eval);

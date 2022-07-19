@@ -838,6 +838,7 @@ static void set_default_opts(void)
    opt_set_int(OPT_RELAXED, 0);
    opt_set_str(OPT_JIT_VERBOSE, getenv("NVC_JIT_VERBOSE"));
    opt_set_int(OPT_JIT_LOG, getenv("NVC_JIT_LOG") != NULL);
+   opt_set_int(OPT_WARN_HIDDEN, 0);
 }
 
 static void usage(void)

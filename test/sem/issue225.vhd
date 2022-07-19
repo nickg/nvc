@@ -34,7 +34,7 @@ begin
         b1: block
             use work.p4.all;              -- doesn't work
         begin
-            p1: process
+            pp1: process
                 use work.p5.all;          -- doesn't work
                 procedure doit is
                     use work.p6.all;      -- doesn't work
@@ -45,7 +45,7 @@ begin
                 end procedure doit;
             begin
                 doit;
-            end process p1;
+            end process pp1;
         end block b1;
     end generate g1;
 end architecture test;

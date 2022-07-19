@@ -1,7 +1,7 @@
-entity e is
+entity ee is
 end entity;
 
-architecture a of e is
+architecture aa of ee is
     function func1(x : integer) return integer;
 
     function func2(x : integer) return integer;

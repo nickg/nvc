@@ -1,6 +1,6 @@
-entity e is end entity;
+entity ee is end entity;
 
-architecture a of e is
+architecture aa of ee is
     type int_ptr is access integer;
     type bv_ptr is access bit_vector;
 begin

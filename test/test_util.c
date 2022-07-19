@@ -82,6 +82,7 @@ static void setup(void)
    opt_set_int(OPT_GC_STRESS, getenv("NVC_GC_STRESS") != 0);
    opt_set_int(OPT_RELAXED, 0);
    opt_set_int(OPT_JIT_LOG, getenv("NVC_JIT_LOG") != NULL);
+   opt_set_int(OPT_WARN_HIDDEN, 0);
 
    intern_strings();
 }

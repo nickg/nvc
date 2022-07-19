@@ -45,7 +45,7 @@ end entity;
 
 use work.pack2.all;
 
-architecture test of genpack10 is
+architecture aa of genpack10 is
 begin
     test;
 end architecture;

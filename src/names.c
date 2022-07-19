@@ -22,6 +22,7 @@
 #include "hash.h"
 #include "lib.h"
 #include "names.h"
+#include "opt.h"
 #include "phase.h"
 #include "type.h"
 
@@ -32,6 +33,8 @@
 typedef struct scope scope_t;
 typedef struct type_set type_set_t;
 typedef struct _spec spec_t;
+typedef struct _sym_chunk sym_chunk_t;
+typedef struct _lazy_sym lazy_sym_t;
 
 typedef enum {
    O_IDLE,
@@ -65,19 +68,65 @@ struct _spec {
    unsigned     matches;
 };
 
+typedef enum {
+   DIRECT, POTENTIAL, HIDDEN, OVERLOAD, ATTRIBUTE
+} visibility_t;
+
+typedef struct {
+   tree_t        tree;
+   scope_t      *origin;
+   visibility_t  visibility : 16;
+   tree_kind_t   kind : 16;
+   name_mask_t   mask;
+} decl_t;
+
+#define INLINE_DECLS 4
+
+typedef struct {
+   ident_t      name;
+   scope_t     *owner;
+   name_mask_t  mask;
+   unsigned     ndecls;
+   unsigned     overflowsz;
+   decl_t       decls[INLINE_DECLS];
+   decl_t      *overflow;
+} symbol_t;
+
+#define SYMBOLS_PER_CHUNK 32
+
+typedef struct _sym_chunk {
+   sym_chunk_t *chain;
+   unsigned     count;
+   symbol_t     symbols[SYMBOLS_PER_CHUNK];
+} sym_chunk_t;
+
+typedef symbol_t *(*lazy_fn_t)(scope_t *, ident_t, void *);
+typedef void (*formal_fn_t)(diag_t *, ident_t, void *);
+typedef void (*make_visible_t)(scope_t *, ident_t, tree_t);
+
+typedef struct _lazy_sym {
+   lazy_sym_t *next;
+   lazy_fn_t   fn;
+   void       *ctx;
+} lazy_sym_t;
+
 struct scope {
    scope_t       *parent;
-   hash_t        *members;
+   sym_chunk_t    symbols;
+   sym_chunk_t   *sym_tail;
+   hash_t        *lookup;
    hash_t        *gmap;
    spec_t        *specs;
    overload_t    *overload;
-   ident_t        import;
-   scope_t       *chain;
    formal_kind_t  formal_kind;
-   tree_t         formal;
+   formal_fn_t    formal_fn;
+   void          *formal_arg;
    ident_t        prefix;
    tree_t         container;
    bool           suppress;
+   lazy_sym_t    *lazy;
+   tree_list_t    imported;
+   scope_t       *chain;
 };
 
 struct nametab {
@@ -103,25 +152,11 @@ struct type_set {
    type_set_flags_t     flags;
 };
 
-typedef enum {
-   ITER_FREE, ITER_SELECTED
-} iter_mode_t;
-
-typedef struct {
-   nametab_t   *tab;
-   ident_t      name;
-   unsigned     nth;
-   scope_t     *where;
-   scope_t     *limit;
-   iter_mode_t  mode;
-   ident_t      next;
-   tree_t       prefix;
-} iter_state_t;
-
 static type_t _solve_types(nametab_t *tab, tree_t expr);
-static void begin_iter(nametab_t *tab, ident_t name, iter_state_t *state);
-static tree_t iter_name(iter_state_t *state);
 static bool can_call_no_args(nametab_t *tab, tree_t decl);
+static bool is_forward_decl(tree_t decl, tree_t existing);
+static bool denotes_same_object(tree_t a, tree_t b);
+static void make_visible_slow(scope_t *s, ident_t name, tree_t decl);
 
 static void begin_overload_resolution(overload_t *o);
 static tree_t finish_overload_resolution(overload_t *o);
@@ -287,59 +322,6 @@ static bool type_set_contains(nametab_t *tab, type_t type)
 ////////////////////////////////////////////////////////////////////////////////
 // Scopes
 
-#if 0
-static void dump_names(nametab_t *tab)
-{
-   int depth = 0;
-   for (scope_t *s = tab->top_scope; s != NULL; s = s->parent, depth++) {
-      printf("-- depth %d --\n", depth);
-
-      hash_iter_t it = HASH_BEGIN;
-      ident_t name;
-      tree_t decl;
-      while (hash_iter(s->members, &it, (const void **)&name, (void **)&decl)) {
-         const loc_t *loc = tree_loc(decl);
-         printf("%20s -> %-12s %-15s %s:%d\n", istr(name),
-                tree_kind_str(tree_kind(decl)),
-                class_has_type(class_of(decl)) ? type_pp(tree_type(decl)) : "",
-                istr(loc_file(loc)), loc->first_line);
-      }
-   }
-}
-#endif
-
-static tree_t scope_find(scope_t *s, ident_t name, scope_t *limit,
-                         scope_t **where, int k)
-{
-   do {
-      void *value = hash_get_nth(s->members, name, &k);
-      if (value != NULL) {
-         if (where != NULL)
-            *where = s;
-         return (tree_t)value;
-      }
-   } while (s != limit && (s = s->chain ?: s->parent));
-
-   return NULL;
-}
-
-static scope_t *scope_containing(nametab_t *tab, tree_t decl)
-{
-   ident_t name = tree_ident(decl);
-   scope_t *s = tab->top_scope;
-
-   do {
-      tree_t next;
-      int k = 0, tmp;
-      while (tmp = k++, (next = hash_get_nth(s->members, name, &tmp))) {
-         if (next == decl)
-            return s;
-      }
-   } while ((s = s->chain ?: s->parent));
-
-   return NULL;
-}
-
 static bool can_overload(tree_t t)
 {
    const tree_kind_t kind = tree_kind(t);
@@ -354,7 +336,6 @@ static bool can_overload(tree_t t)
          || kind == T_FUNC_BODY
          || kind == T_PROC_DECL
          || kind == T_PROC_BODY
-         || kind == T_ATTR_SPEC
          || kind == T_PROC_INST
          || kind == T_FUNC_INST;
 }
@@ -375,26 +356,52 @@ void nametab_finish(nametab_t *tab)
 void push_scope(nametab_t *tab)
 {
    scope_t *s = xcalloc(sizeof(scope_t));
-   s->members  = hash_new(128, false);
+   s->lookup   = hash_new(128, true);
    s->parent   = tab->top_scope;
    s->prefix   = tab->top_scope ? tab->top_scope->prefix : NULL;
    s->suppress = tab->top_scope ? tab->top_scope->suppress : false;
+   s->sym_tail = &(s->symbols);
 
    tab->top_scope = s;
+}
+
+static void free_overflow(sym_chunk_t *chunk)
+{
+   for (int i = 0; i < chunk->count; i++) {
+      if (chunk->symbols[i].overflow)
+         free(chunk->symbols[i].overflow);
+   }
+}
+
+static void free_scope(scope_t *s)
+{
+   hash_free(s->lookup);
+
+   if (s->chain) free_scope(s->chain);
+
+   free_overflow(&(s->symbols));
+
+   for (sym_chunk_t *c = s->symbols.chain, *tmp; c; c = tmp) {
+      free_overflow(c);
+      tmp = c->chain;
+      free(c);
+   }
+
+   for (lazy_sym_t *it = s->lazy, *tmp; it; it = tmp) {
+      tmp = it->next;
+      free(it);
+   }
+
+   hash_free(s->gmap);
+   ACLEAR(s->imported);
+
+   free(s);
 }
 
 void pop_scope(nametab_t *tab)
 {
    assert(tab->top_scope != NULL);
    scope_t *tmp = tab->top_scope->parent;
-   hash_free(tab->top_scope->members);
-
-   while (tab->top_scope->chain) {
-      scope_t *tmp = tab->top_scope->chain->chain;
-      hash_free(tab->top_scope->chain->members);
-      free(tab->top_scope->chain);
-      tab->top_scope->chain = tmp;
-   }
 
    for (spec_t *it = tab->top_scope->specs, *next; it != NULL; it = next) {
       if (it->kind == SPEC_EXACT && it->matches == 0
@@ -405,10 +412,7 @@ void pop_scope(nametab_t *tab)
       free(it);
    }
 
-   if (tab->top_scope->gmap != NULL)
-      hash_free(tab->top_scope->gmap);
-
-   free(tab->top_scope);
+   free_scope(tab->top_scope);
    tab->top_scope = tmp;
 }
 
@@ -469,34 +473,6 @@ type_t get_mapped_type(nametab_t *tab, type_t type)
       return type;
 }
 
-static scope_t *chain_scope(nametab_t *tab, ident_t tag)
-{
-   scope_t *s = xcalloc(sizeof(scope_t));
-   s->members = hash_new(128, false);
-   s->import  = tag;
-   s->parent  = tab->top_scope->parent;
-
-   scope_t **p;
-   for (p = &(tab->top_scope->chain); *p; p = &((*p)->chain))
-      ;
-   return (*p = s);
-}
-
-static scope_t *scope_end_of_chain(scope_t *s)
-{
-   while (s && s->chain)
-      s = s->chain;
-   return s;
-}
-
-static scope_t *scope_formal_limit(nametab_t *tab)
-{
-   if (tab->top_scope->formal_kind == F_RECORD)
-      return tab->top_scope;
-   else
-      return NULL;
-}
-
 static tree_t scope_find_enclosing(scope_t *s, scope_kind_t what)
 {
    for (; s != NULL; s = s->parent) {
@@ -547,70 +523,551 @@ tree_t find_enclosing(nametab_t *tab, scope_kind_t what)
       return NULL;
 }
 
-void scope_set_formal_kind(nametab_t *tab, tree_t formal, formal_kind_t kind)
-{
-   tab->top_scope->formal_kind = kind;
-   tab->top_scope->formal = formal;
-
-   if (formal != NULL) {
-      switch (kind) {
-      case F_GENERIC_MAP:
-         insert_generics(tab, formal);
-         break;
-      case F_PORT_MAP:
-         insert_ports(tab, formal);
-         break;
-      case F_RECORD:
-         insert_field_names(tab, tree_type(formal));
-         break;
-      default:
-         break;
-      }
-   }
-}
-
 formal_kind_t scope_formal_kind(nametab_t *tab)
 {
    return tab->top_scope->formal_kind;
 }
 
-static void insert_name_at(scope_t *s, ident_t name, tree_t decl)
+static const symbol_t *symbol_for(scope_t *s, ident_t name)
 {
-   hash_put(s->members, name, decl);
+   do {
+      symbol_t *sym = hash_get(s->lookup, name);
+      if (sym != NULL)
+         return sym;
+      else {
+         for (lazy_sym_t *it = s->lazy; it; it = it->next) {
+            if ((sym = (*it->fn)(s, name, it->ctx)))
+               return sym;
+         }
+      }
+   } while (s->formal_kind != F_RECORD && (s = s->parent));
 
-   if (decl == (tree_t)-1)
-      return;
+   return NULL;
+}
 
-   if (tree_kind(decl) == T_ALIAS) {
-      // Handle aliases of type declarations
-      tree_t value = tree_value(decl);
-      if (tree_kind(value) == T_REF && tree_has_ref(value))
-         decl = tree_ref(value);
+static const decl_t *get_decl(const symbol_t *sym, unsigned nth)
+{
+   assert(nth < sym->ndecls);
+   if (nth < INLINE_DECLS)
+      return &(sym->decls[nth]);
+   else
+      return &(sym->overflow[nth - INLINE_DECLS]);
+}
+
+static decl_t *add_decl(symbol_t *sym)
+{
+   if (sym->ndecls < INLINE_DECLS)
+      return &(sym->decls[sym->ndecls++]);
+   else if (sym->ndecls - INLINE_DECLS == sym->overflowsz) {
+      sym->overflowsz = MAX(sym->overflowsz * 2, 32);
+      sym->overflow = xrealloc_array(sym->overflow, sym->overflowsz,
+                                     sizeof(decl_t));
+   }
+   else
+      assert(sym->ndecls - INLINE_DECLS < sym->overflowsz);
+
+   return &(sym->overflow[sym->ndecls++ - INLINE_DECLS]);
+}
+
+static symbol_t *local_symbol_for(scope_t *s, ident_t name)
+{
+   symbol_t *sym = hash_get(s->lookup, name);
+   if (sym == NULL) {
+      sym_chunk_t *chunk = s->sym_tail;
+      if (chunk->count == SYMBOLS_PER_CHUNK) {
+         chunk = s->sym_tail->chain = xcalloc(sizeof(sym_chunk_t));
+         s->sym_tail = chunk;
+      }
+
+      sym = &(chunk->symbols[chunk->count++]);
+      sym->name   = name;
+      sym->owner  = s;
+      sym->ndecls = 0;
+
+      if (s->parent != NULL && s->formal_kind == F_NONE) {
+         const symbol_t *exist = symbol_for(s->parent, name);
+         if (exist != NULL) {
+            for (int i = 0; i < exist->ndecls; i++)
+               *add_decl(sym) = *get_decl(exist, i);
+         }
+      }
+
+      hash_put(s->lookup, name, sym);
    }
 
-   if (tree_kind(decl) == T_TYPE_DECL) {
-      type_t type = tree_type(decl);
-      switch (type_kind(type)) {
-      case T_ENUM:
-         {
-            const int nlits = type_enum_literals(type);
-            for (int i = 0; i < nlits; i++) {
-               tree_t literal = type_enum_literal(type, i);
-               ident_t lit_name = tree_ident(literal);
+   return sym;
+}
 
-               insert_name_at(s, lit_name, literal);
+static name_mask_t name_mask_for(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_VAR_DECL:
+   case T_SIGNAL_DECL:
+   case T_PORT_DECL:
+   case T_PARAM_DECL:
+   case T_CONST_DECL:
+   case T_FIELD_DECL:
+   case T_IMPLICIT_SIGNAL:
+      return N_OBJECT;
+   case T_FUNC_BODY:
+   case T_FUNC_DECL:
+   case T_FUNC_INST:
+      return N_FUNC;
+   case T_PROC_BODY:
+   case T_PROC_DECL:
+   case T_PROC_INST:
+      return N_PROC;
+   case T_TYPE_DECL:
+   case T_SUBTYPE_DECL:
+      return N_TYPE;
+   case T_GENERIC_DECL:
+      switch (class_of(t)) {
+      case C_TYPE: return N_TYPE;
+      case C_FUNCTION: return N_FUNC;
+      case C_PROCEDURE: return N_PROC;
+      default: return N_OBJECT;
+      }
+   case T_ALIAS:
+      {
+         if (tree_has_type(t)) {
+            const type_kind_t kind = type_kind(tree_type(t));
+            if (kind == T_FUNC) return N_FUNC;
+            else if (kind == T_PROC) return N_PROC;
+         }
+
+         tree_t ref = name_to_ref(tree_value(t));
+         if (ref != NULL) {
+            switch (class_of(ref)) {
+            case C_TYPE: case C_SUBTYPE: return N_TYPE;
+            case C_FUNCTION: return N_FUNC;
+            case C_PROCEDURE: return N_PROC;
+            case C_LABEL: return N_LABEL;
+            default: return N_OBJECT;
             }
          }
-         break;
 
-      case T_PHYSICAL:
+         return 0;
+      }
+   default:
+      return 0;
+   }
+}
+
+static bool signature_has_error(tree_t sub)
+{
+   type_t type = tree_type(sub);
+   if (type_is_none(type))
+      return true;
+
+   assert(type_is_subprogram(type));
+
+   const int nparams = type_params(type);
+   bool error = false;
+
+   for (int i = 0; !error && i < nparams; i++) {
+      if (type_is_none(type_param(type, i)))
+         return true;
+   }
+
+   if (type_kind(type) == T_FUNC && type_is_none(type_result(type)))
+      return true;
+
+   return false;
+}
+
+static type_t get_type_or_null(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_LIBRARY:
+   case T_ATTR_SPEC:
+   case T_PACKAGE:
+   case T_PACK_INST:
+   case T_PACK_BODY:
+   case T_ENTITY:
+   case T_ARCH:
+   case T_PROCESS:
+   case T_COMPONENT:
+   case T_INSTANCE:
+   case T_CONCURRENT:
+   case T_BLOCK:
+   case T_WHILE:
+   case T_FOR:
+   case T_GROUP_TEMPLATE:
+   case T_CONFIGURATION:
+   case T_GROUP:
+   case T_FOR_GENERATE:
+   case T_IF_GENERATE:
+   case T_USE:
+   case T_CONTEXT:
+      return NULL;
+   default:
+      if (tree_has_type(t))
+         return tree_type(t);
+      else
+         return NULL;
+   }
+}
+
+static void add_type_literals(scope_t *s, tree_t decl, make_visible_t fn)
+{
+   tree_t type_decl = aliased_type_decl(decl);
+   if (type_decl == NULL)
+      return;
+
+   type_t type = tree_type(type_decl);
+   switch (type_kind(type)) {
+   case T_ENUM:
+      {
+         const int nlits = type_enum_literals(type);
+         for (int i = 0; i < nlits; i++) {
+            tree_t literal = type_enum_literal(type, i);
+            ident_t lit_name = tree_ident(literal);
+
+            (*fn)(s, lit_name, literal);
+         }
+      }
+      break;
+
+   case T_PHYSICAL:
+      {
+         const int nunits = type_units(type);
+         for (int i = 0; i < nunits; i++) {
+            tree_t unit = type_unit(type, i);
+            ident_t unit_name = tree_ident(unit);
+
+            (*fn)(s, unit_name, unit);
+         }
+      }
+      break;
+
+   default:
+      break;
+   }
+}
+
+static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
+                              visibility_t kind, scope_t *origin)
+{
+   symbol_t *sym = local_symbol_for(s, name);
+   const bool overload = can_overload(decl);
+   const tree_kind_t tkind = tree_kind(decl);
+   const name_mask_t mask = name_mask_for(decl);
+   type_t type = get_type_or_null(decl);
+
+   assert(origin == s || kind != DIRECT);
+
+   if (tkind == T_ATTR_SPEC)
+      kind = ATTRIBUTE;
+
+   for (int i = 0; i < sym->ndecls; i++) {
+      decl_t *dd = (i < INLINE_DECLS)
+         ? &(sym->decls[i]) : &(sym->overflow[i - INLINE_DECLS]);
+
+      if (dd->tree == decl)
+         return sym;   // Ignore duplicates
+      else if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
+         continue;
+      else if (tkind == T_LIBRARY && dd->kind == T_LIBRARY
+               && tree_ident(decl) == name)
+         return sym;   // Ignore redundant library declarations
+      else if (dd->kind == T_TYPE_DECL && tkind == T_PROT_BODY
+               && type_is_protected(tree_type(dd->tree)))
+         continue;
+      else if ((!overload || dd->visibility != OVERLOAD) && kind == DIRECT) {
+         if (dd->origin == s && is_forward_decl(decl, dd->tree)) {
+            if ((mask & N_SUBPROGRAM) && tree_subkind(dd->tree) == S_FOREIGN) {
+               // Ignore redundant bodies of foreign subprograms
+               return sym;
+            }
+            else {
+               // Replace forward declaration in same region with full
+               // definition
+               dd->visibility = HIDDEN;
+            }
+         }
+         else if (dd->origin == s && s->formal_kind == F_SUBPROGRAM)
+            ;   // Resolving subprogram formal names
+         else if (dd->visibility == POTENTIAL)
+            ;   // Hide declaration visible from use clause
+         else if (dd->kind == T_LIBRARY)
+            dd->visibility = HIDDEN;    // Library hidden by design unit
+         else if (dd->origin == s) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+            diag_printf(d, "%s already declared in this region", istr(name));
+            diag_hint(d, tree_loc(dd->tree), "previous declaration was here");
+            diag_hint(d, tree_loc(decl), "duplicate declaration");
+            diag_emit(d);
+            return sym;
+         }
+         else if (is_design_unit(decl))
+            ;   // Design unit is top level so cannot hide anything
+         else if (!overload && dd->visibility == DIRECT
+                  && opt_get_int(OPT_WARN_HIDDEN)) {
+            diag_t *d = diag_new(DIAG_WARN, tree_loc(decl));
+            diag_printf(d, "declaration of %s %s hides %s %s",
+                        class_str(class_of(decl)), istr(name),
+                        class_str(class_of(dd->tree)), istr(name));
+            diag_hint(d, tree_loc(dd->tree), "earlier declaration of %s is "
+                      "hidden", istr(name));
+            diag_hint(d, tree_loc(decl), "hidden by this declaration");
+            diag_emit(d);
+         }
+         dd->visibility = HIDDEN;
+      }
+      else if (!overload && kind == POTENTIAL && dd->visibility == DIRECT)
+         kind = HIDDEN;
+      else if (kind == POTENTIAL && denotes_same_object(dd->tree, decl))
+         return sym;   // Same object visible through different aliases
+      else if (dd->origin == origin && (dd->mask & mask & N_SUBPROGRAM)
+               && is_subprogram(decl) && is_subprogram(dd->tree)
+               && type_eq(tree_type(dd->tree), type)
+               && (tree_flags(dd->tree) & TREE_F_PREDEFINED)) {
+         // Allow pre-defined operators be to hidden by
+         // user-defined subprograms in the same region
+         tree_set_flag(dd->tree, TREE_F_HIDDEN);
+         dd->visibility = HIDDEN;
+      }
+      else if (is_forward_decl(decl, dd->tree)) {
+         if ((dd->mask & N_SUBPROGRAM)
+             && (tree_flags(dd->tree) & TREE_F_FOREIGN)) {
+            // Hide bodies of subprograms declared with 'FOREIGN attribute
+            return sym;
+         }
+         else
+            dd->visibility = HIDDEN;
+      }
+      else if (overload && (mask & dd->mask & (N_SUBPROGRAM | N_OBJECT))
+               && kind == DIRECT && type_eq(type, tree_type(dd->tree))) {
+         if (dd->origin != s) {
+            // LRM 93 section 10.3 on visibility specifies that if two
+            // declarations are homographs then the one in the inner scope
+            // hides the one in the outer scope
+            dd->visibility = HIDDEN;
+         }
+         else if (signature_has_error(decl))
+            ;  // Ignore cascading errors
+         else if ((dd->kind == T_FUNC_BODY && tkind == T_FUNC_BODY)
+                  || (dd->kind == T_PROC_BODY && tkind == T_PROC_BODY)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+            diag_printf(d, "duplicate subprogram body %s", type_pp(type));
+            diag_hint(d, tree_loc(decl), "duplicate definition here");
+            diag_hint(d, tree_loc(dd->tree), "previous definition was here");
+            diag_emit(d);
+            return sym;
+         }
+         else if (dd->origin == origin && !type_is_none(type)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
+            diag_printf(d, "%s already declared in this region", type_pp(type));
+            diag_hint(d, tree_loc(dd->tree), "previous declaration was here");
+            diag_hint(d, tree_loc(decl), "duplicate declaration");
+            diag_emit(d);
+            return sym;
+         }
+      }
+   }
+
+   *add_decl(sym) = (decl_t) {
+      .tree       = decl,
+      .visibility = overload ? OVERLOAD : kind,
+      .origin     = origin,
+      .mask       = mask,
+      .kind       = tkind,
+   };
+
+   sym->mask |= mask;
+
+   if (kind == DIRECT)
+      add_type_literals(s, decl, make_visible_slow);
+
+   return sym;
+}
+
+static void merge_symbol(scope_t *s, const symbol_t *src)
+{
+   symbol_t *dst = local_symbol_for(s, src->name);
+
+   const bool was_fresh = (dst->ndecls == 0);
+
+   for (int i = 0; i < src->ndecls; i++) {
+      const decl_t *dd = get_decl(src, i);
+      assert(dd->origin == src->owner);
+
+      if (dd->visibility == HIDDEN || dd->visibility == POTENTIAL)
+         continue;
+
+      if (was_fresh) {
+         *add_decl(dst) = (decl_t) {
+            .tree       = dd->tree,
+            .visibility = dd->visibility == DIRECT ? POTENTIAL : dd->visibility,
+            .origin     = dd->origin,
+            .mask       = dd->mask,
+            .kind       = dd->kind,
+         };
+      }
+      else
+         make_visible(s, tree_ident(dd->tree), dd->tree, POTENTIAL, dd->origin);
+   }
+}
+
+static void merge_scopes(scope_t *to, scope_t *from)
+{
+   for (sym_chunk_t *chunk = &(from->symbols); chunk; chunk = chunk->chain) {
+      for (int i = 0; i < chunk->count; i++) {
+         symbol_t *sym = &(chunk->symbols[i]);
+         assert(sym->owner->container == from->container);
+         merge_symbol(to, sym);
+      }
+   }
+}
+
+static symbol_t *lazy_lib_cb(scope_t *s, ident_t name, void *context)
+{
+   lib_t lib = context;
+
+   tree_t unit = lib_get(lib, name);
+   if (unit == NULL)
+      return NULL;
+
+   return make_visible(s, name, unit, DIRECT, s);
+}
+
+static void make_library_visible(scope_t *s, lib_t lib)
+{
+   lazy_sym_t *l = xmalloc(sizeof(lazy_sym_t));
+   l->next = s->lazy;
+   l->fn   = lazy_lib_cb;
+   l->ctx  = lib;
+
+   s->lazy = l;
+}
+
+static void make_visible_slow(scope_t *s, ident_t name, tree_t decl)
+{
+   // Wrapper for make_visible in the common case of direct visibility
+   // and the origin is the same as the target scope
+
+   make_visible(s, name, decl, DIRECT, s);
+}
+
+static void make_visible_fast(scope_t *s, ident_t id, tree_t d)
+{
+   // This should be functionally equivalent to calling make_visible but
+   // with the knowledge there are no existing symbols in the scope and
+   // it has been checked already
+
+   const tree_kind_t kind = tree_kind(d);
+   const name_mask_t mask = name_mask_for(d);
+
+   visibility_t visibility = DIRECT;
+   if (can_overload(d))
+      visibility = OVERLOAD;
+   else if (kind == T_ATTR_SPEC)
+      visibility = ATTRIBUTE;
+
+   symbol_t *sym = local_symbol_for(s, id);
+   *add_decl(sym) = (decl_t) {
+      .tree       = d,
+      .visibility = visibility,
+      .origin     = s,
+      .mask       = mask,
+      .kind       = kind,
+   };
+
+   sym->mask |= mask;
+
+   add_type_literals(s, d, make_visible_fast);
+}
+
+static ident_t unit_bare_name(tree_t unit)
+{
+   ident_t unit_name = tree_ident(unit);
+   return ident_rfrom(unit_name, '.') ?: unit_name;
+}
+
+static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
+{
+   static hash_t *cache = NULL;
+   if (cache == NULL)
+      cache = hash_new(128, true);
+
+   bool cacheable = true;
+   void *key = unit;
+   if (tree_kind(unit) == T_LIBRARY)
+      key = tree_ident(unit);   // Tree pointer is not stable
+   else {
+      assert(is_container(unit));
+      cacheable = tree_frozen(unit);
+   }
+
+   scope_t *s = NULL;
+   if (cacheable && (s = hash_get(cache, key)))
+      return s;
+   else {
+      for (scope_t *ss = tab->top_scope; ss; ss = ss->parent) {
+         for (s = ss->chain; s; s = s->chain) {
+            if (s->container == unit)
+               return s;
+         }
+      }
+   }
+
+   s = xcalloc(sizeof(scope_t));
+   s->lookup    = hash_new(128, true);
+   s->sym_tail  = &(s->symbols);
+   s->container = unit;
+
+   const tree_kind_t kind = tree_kind(unit);
+   if (kind == T_LIBRARY)
+      make_library_visible(s, lib_require(tree_ident(unit)));
+   else {
+      // For package instances do not export the names declared only in
+      // the body
+      const int ndecls =
+         tree_decls(kind == T_PACK_INST ? tree_ref(unit) : unit);
+
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = tree_decl(unit, i);
+         const tree_kind_t dkind = tree_kind(d);
+         if (dkind == T_ALIAS || dkind == T_TYPE_DECL) {
+            // Handle special cases: an alias may make the same
+            // enumeration literal visible multiple times and a type
+            // declaration may hide an earlier incomplete type
+            make_visible_slow(s, tree_ident(d), d);
+         }
+         else
+            make_visible_fast(s, tree_ident(d), d);
+      }
+
+      switch (kind) {
+      case T_ENTITY:
+      case T_BLOCK:
          {
-            const int nunits = type_units(type);
-            for (int i = 0; i < nunits; i++) {
-               tree_t unit = type_unit(type, i);
-               ident_t unit_name = tree_ident(unit);
+            const int nports = tree_ports(unit);
+            for (int i = 0; i < nports; i++) {
+               tree_t p = tree_port(unit, i);
+               make_visible_fast(s, tree_ident(p), p);
+            }
+         }
+         // Fall-through
+      case T_PACKAGE:
+      case T_PACK_INST:
+         {
+            const int ngenerics = tree_generics(unit);
+            for (int i = 0; i < ngenerics; i++) {
+               tree_t g = tree_generic(unit, i), decl = g;
 
-               insert_name_at(s, unit_name, unit);
+               const class_t class = tree_class(g);
+               if (class == C_FUNCTION || class == C_PROCEDURE) {
+                  // A single subprogram could be visible both directly
+                  // and as a actual generic subprogram
+                  tree_t value = find_generic_map(unit, i, g);
+                  if (value != NULL && tree_kind(value) == T_REF) {
+                     decl = tree_ref(value);
+                     assert(is_subprogram(decl));
+                  }
+               }
+
+               make_visible_fast(s, tree_ident(g), decl);
             }
          }
          break;
@@ -619,9 +1076,22 @@ static void insert_name_at(scope_t *s, ident_t name, tree_t decl)
          break;
       }
    }
+
+   ident_t bare_name = unit_bare_name(unit);
+   if (symbol_for(s, bare_name) == NULL)
+      make_visible_fast(s, bare_name, unit);
+
+   if (cacheable)
+      hash_put(cache, key, s);
+   else {
+      s->chain = tab->top_scope->chain;
+      tab->top_scope->chain = s;
+   }
+
+   return s;
 }
 
-static bool is_forward_decl(nametab_t *tab, tree_t decl, tree_t existing)
+static bool is_forward_decl(tree_t decl, tree_t existing)
 {
    tree_kind_t tkind = tree_kind(decl);
    tree_kind_t ekind = tree_kind(existing);
@@ -647,142 +1117,22 @@ tree_t find_forward_decl(nametab_t *tab, tree_t decl)
 
    ident_t name = tree_ident(decl);
 
-   for (int n = 0; ; ) {
-      scope_t *where;
-      tree_t d = scope_find(region, name, region, &where, n++);
-      if (d == (void *)-1)
-         continue;  // Error marker
-      else if (d == NULL)
-         return NULL;
-      else if (is_forward_decl(tab, decl, d))
-         return d;
+   const symbol_t *sym = symbol_for(region, name);
+   if (sym == NULL)
+      return NULL;
+
+   for (int i = 0; i < sym->ndecls; i++) {
+      const decl_t *dd = get_decl(sym, i);
+      if (dd->origin == region && is_forward_decl(decl, dd->tree))
+         return dd->tree;
    }
+
+   return NULL;
 }
 
-void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth)
+void insert_name(nametab_t *tab, tree_t decl, ident_t alias)
 {
-#if 0
-   printf("insert_name %s alias=%s decl=%s\n",
-          istr(tree_ident(decl)), istr(alias), tree_kind_str(tree_kind(decl)));
-#endif
-
-   scope_t *s;
-   for (s = tab->top_scope; depth > 0; depth--, s = s->parent)
-      ;
-   assert(s != NULL);
-
-   tree_kind_t tkind = tree_kind(decl);
-   const bool overload = can_overload(decl) || tkind == T_LIBRARY;
-
-   ident_t name = alias ?: tree_ident(decl);
-
-   // Do not insert subprograms that contain type errors
-   if (is_subprogram(decl)) {
-      type_t type = tree_type(decl);
-      const int nparams = type_params(type);
-      bool error = false;
-
-      for (int i = 0; !error && i < nparams; i++) {
-         if (type_is_none(type_param(type, i)))
-            error = true;
-      }
-
-      if (type_kind(type) == T_FUNC && type_is_none(type_result(type)))
-         error = true;
-
-      if (error) {
-         insert_name_at(s, name, (tree_t)-1);
-         return;
-      }
-   }
-
-   tree_t existing;
-   int n = 0;
-   do {
-      scope_t *where;
-      if ((existing = scope_find(s, name, s, &where, n++))) {
-         if (existing == (void *)-1)
-            continue;  // Error marker
-
-         const tree_kind_t ekind = tree_kind(existing);
-         if (ekind == T_UNIT_DECL || ekind == T_LIBRARY)
-            continue;
-         else if (ekind == T_TYPE_DECL && tkind == T_PROT_BODY
-                  && type_is_protected(tree_type(existing)))
-            continue;
-         else if (is_forward_decl(tab, decl, existing)) {
-            if (is_subprogram(decl) && tree_subkind(existing) == S_FOREIGN) {
-               // Hide redundant bodies of foreign subprograms
-               return;
-            }
-            else {
-               // Replace forward declaration in same region with full
-               // definition
-               continue;
-            }
-         }
-
-         if (tkind == T_ATTR_SPEC && ekind == T_ATTR_DECL) {
-            // Ignore this
-         }
-         else if ((!overload || !can_overload(existing))
-                  && s->overload == NULL) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
-            diag_printf(d, "%s already declared in this region", istr(name));
-            diag_hint(d, tree_loc(existing), "previous declaration was here");
-            diag_hint(d, tree_loc(decl), "duplicate declaration");
-            diag_emit(d);
-            return;
-         }
-         else if (tkind == T_ATTR_SPEC && ekind == T_ATTR_SPEC) {
-            if (tree_ident(decl) == tree_ident(existing)
-                && tree_ident2(decl) == tree_ident2(existing)
-                && tree_class(decl) == tree_class(existing)) {
-
-               diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
-               diag_printf(d, "attribute %s for %s %s already declared in "
-                           "this region", istr(tree_ident(decl)),
-                           class_str(tree_class(decl)),
-                           istr(tree_ident2(decl)));
-               diag_hint(d, tree_loc(decl), "duplicate definition here");
-               diag_hint(d, tree_loc(existing), "previous definition was here");
-               diag_emit(d);
-               return;
-            }
-         }
-         else if (overload && type_eq(tree_type(decl), tree_type(existing))) {
-            if ((ekind == T_FUNC_BODY && tkind == T_FUNC_BODY)
-                     || (ekind == T_PROC_BODY && tkind == T_PROC_BODY)) {
-               diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
-               diag_printf(d, "duplicate subprogram body %s",
-                           type_pp(tree_type(decl)));
-               diag_hint(d, tree_loc(decl), "duplicate definition here");
-               diag_hint(d, tree_loc(existing), "previous definition was here");
-               diag_emit(d);
-            }
-            else if ((ekind == T_FUNC_DECL || ekind == T_PROC_DECL)
-                     && (tree_flags(existing) & TREE_F_PREDEFINED)) {
-               // Allow pre-defined operators be to hidden by
-               // user-defined subprograms in the same region
-               assert(!(tree_flags(decl) & TREE_F_PREDEFINED));
-               tree_set_flag(existing, TREE_F_HIDDEN);
-               continue;
-            }
-            else if (!type_is_none(tree_type(decl))) {
-               diag_t *d = diag_new(DIAG_ERROR, tree_loc(decl));
-               diag_printf(d, "%s already declared in this region",
-                           type_pp(tree_type(decl)));
-               diag_hint(d, tree_loc(existing), "previous declaration of %s "
-                         "was here", type_pp(tree_type(existing)));
-               diag_emit(d);
-            }
-
-            return;
-         }
-      }
-   } while (existing != NULL);
-
-   insert_name_at(s, name, decl);
+   make_visible_slow(tab->top_scope, alias ?: tree_ident(decl), decl);
 }
 
 void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
@@ -819,98 +1169,41 @@ type_t resolve_type(nametab_t *tab, type_t incomplete)
    assert(type_kind(incomplete) == T_INCOMPLETE);
 
    ident_t name = ident_rfrom(type_ident(incomplete), '.');
-   tree_t decl;
-   int n = 0;
-   while ((decl = scope_find(tab->top_scope, name, NULL, NULL, n++))) {
-      if (decl == (void *)-1)
-         continue;  // Error marker
-      else if (tree_kind(decl) == T_TYPE_DECL) {
-         type_t def = tree_type(decl);
-         if (type_kind(def) != T_INCOMPLETE && type_eq(def, incomplete))
-            return def;
+
+   const symbol_t *sym = symbol_for(tab->top_scope, name);
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->kind == T_TYPE_DECL) {
+            type_t def = tree_type(dd->tree);
+            if (type_kind(def) != T_INCOMPLETE && type_eq(def, incomplete))
+               return def;
+         }
       }
    }
 
    return incomplete;
 }
 
-bool name_is_formal(nametab_t *tab, ident_t id)
-{
-   if (tab->top_scope->formal_kind != F_SUBPROGRAM)
-      return false;
-
-   iter_state_t iter;
-   ident_t subprog = tree_ident(tab->top_scope->formal);
-   tree_t decl;
-   begin_iter(tab, subprog, &iter);
-   while ((decl = iter_name(&iter))
-          && decl != (tree_t)-1 && is_subprogram(decl)) {
-      const int nports = tree_ports(decl);
-      for (int i = 0; i < nports; i++)
-         if (tree_ident(tree_port(decl, i)) == id)
-            return true;
-   }
-
-   return false;
-}
-
 name_mask_t query_name(nametab_t *tab, ident_t name, tree_t *p_decl)
 {
+   const symbol_t *sym = symbol_for(tab->top_scope, name);
+   if (sym == NULL)
+      return 0;
+
    name_mask_t mask = 0;
-   scope_t *limit = scope_formal_limit(tab);
-   tree_t decl;
-   int n = 0, count = 0;
-   while ((decl = scope_find(tab->top_scope, name, limit, NULL, n++))) {
-      if (decl == (void *)-1) {
-         mask |= N_ERROR;
-         continue;
+   tree_t uniq = NULL;
+   int count = 0;
+   for (int i = 0; i < sym->ndecls; i++) {
+      const decl_t *dd = get_decl(sym, i);
+      if (dd->visibility != HIDDEN && dd->visibility != ATTRIBUTE) {
+         count++;
+         uniq = dd->tree;
+         mask |= name_mask_for(dd->tree);
       }
-
-      count++;
-
-      switch (tree_kind(decl)) {
-      case T_VAR_DECL:
-      case T_SIGNAL_DECL:
-      case T_PORT_DECL:
-      case T_PARAM_DECL:
-      case T_CONST_DECL:
-      case T_FIELD_DECL:
-      case T_IMPLICIT_SIGNAL:
-         mask |= N_OBJECT;
-         break;
-      case T_FUNC_BODY:
-      case T_FUNC_DECL:
-      case T_FUNC_INST:
-         mask |= N_FUNC;
-         break;
-      case T_PROC_BODY:
-      case T_PROC_DECL:
-      case T_PROC_INST:
-         mask |= N_PROC;
-         break;
-      case T_TYPE_DECL:
-      case T_SUBTYPE_DECL:
-         mask |= N_TYPE;
-         break;
-      case T_GENERIC_DECL:
-      case T_ALIAS:
-         switch (class_of(decl)) {
-         case C_TYPE: case C_SUBTYPE: mask |= N_TYPE; break;
-         case C_FUNCTION: mask |= N_FUNC; break;
-         case C_PROCEDURE: mask |= N_PROC; break;
-         case C_LABEL: mask |= N_LABEL; break;
-         default: mask |= N_OBJECT; break;
-         }
-         break;
-      default:
-         break;
-      }
-
-      if (count == 1 && !can_overload(decl))
-         break;
    }
 
-   if (p_decl) *p_decl = (count == 1) ? decl : NULL;
+   if (p_decl && count == 1) *p_decl = uniq;
 
    mask |= count << 16;
    return mask;
@@ -948,50 +1241,6 @@ tree_t query_spec(nametab_t *tab, tree_t object)
    return NULL;
 }
 
-static void begin_iter(nametab_t *tab, ident_t name, iter_state_t *state)
-{
-   state->tab    = tab;
-   state->nth    = 0;
-   state->where  = NULL;
-   state->limit  = NULL;
-   state->prefix = NULL;
-   state->next   = ident_walk_selected(&name);
-   state->mode   = name == NULL ? ITER_FREE : ITER_SELECTED;
-   state->name   = name;
-}
-
-static tree_t iter_name(iter_state_t *state)
-{
-   if (state->mode == ITER_FREE)
-      return scope_find(state->tab->top_scope, state->next, state->limit,
-                        &(state->where), (state->nth)++);
-
-   if (state->prefix == NULL) {
-      do {
-         if (state->prefix == NULL)
-            state->prefix = scope_find(state->tab->top_scope, state->next,
-                                       NULL, NULL, 0);
-         else
-            state->prefix = search_decls(state->prefix, state->next, 0);
-
-         if (state->prefix == NULL) {
-            assert(error_count() > 0);  // Parser should have reported
-            return (tree_t)-1;
-         }
-
-         state->next = ident_walk_selected(&(state->name));
-      } while (state->name != NULL);
-   }
-
-   tree_t d = search_decls(state->prefix, state->next, (state->nth)++);
-   if (d == NULL && state->nth == 1) {
-      assert(error_count() > 0);  // Parser should have reported
-      return (tree_t)-1;
-   }
-
-   return d;
-}
-
 static bool denotes_same_object(tree_t a, tree_t b)
 {
    if (standard() >= STD_08) {
@@ -1013,82 +1262,46 @@ static bool denotes_same_object(tree_t a, tree_t b)
    return a == b;
 }
 
+static const symbol_t *iterate_symbol_for(nametab_t *tab, ident_t name)
+{
+   for (scope_t *s = tab->top_scope, *ss = NULL; ; s = ss, ss = NULL) {
+      ident_t next = ident_walk_selected(&name);
+      const symbol_t *sym = symbol_for(s, next);
+      if (sym == NULL || name == NULL)
+         return sym;
+
+      for (int i = 0; i < sym->ndecls && ss == NULL; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == HIDDEN)
+            continue;
+         else if (dd->kind == T_LIBRARY || is_container(dd->tree))
+            ss = private_scope_for(tab, dd->tree);
+      }
+
+      if (ss == NULL) return NULL;
+   }
+}
+
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 {
-   iter_state_t iter;
-   begin_iter(tab, name, &iter);
-   iter.limit = scope_formal_limit(tab);
-
-   // Skip over attribute specifications when looking for names as these
-   // should never be resolved by normal references
-   tree_t decl;
-   tree_kind_t dkind = T_LAST_TREE_KIND;
-   while ((decl = iter_name(&iter))
-          && decl != (void *)-1
-          && (dkind = tree_kind(decl)) == T_ATTR_SPEC)
-      ;
-
-   if (decl == (void *)-1) {
-      // Supressed an earlier failure for this name
-      return NULL;
-   }
-   else if (decl == NULL) {
+   const symbol_t *sym = iterate_symbol_for(tab, name);
+   if (sym == NULL) {
       if (tab->top_scope->suppress) {
          // Suppressing cascading errors
          assert(error_count() > 0);
       }
-      else if (name == ident_new("error")) {
+      else if (name == well_known(W_ERROR)) {
          // Was a parse error, suppress further errors
       }
-      else if (tab->top_scope->formal_kind != F_NONE) {
-         if (tab->top_scope->formal == NULL)
-            return NULL;  // Was earlier error
-
-         tree_t unit = tab->top_scope->formal;
+      else if (tab->top_scope->formal_kind != F_NONE
+               && tab->top_scope->formal_fn != NULL) {
          diag_t *d = diag_new(DIAG_ERROR, loc);
 
-         switch (tab->top_scope->formal_kind) {
-         case F_PORT_MAP:
-            diag_printf(d, "%s has no port named %s",
-                        istr(tree_ident(unit)), istr(name));
-            diag_hint(d, loc, "use of name %s in port map", istr(name));
-            break;
-         case F_GENERIC_MAP:
-            diag_printf(d, "%s has no generic named %s",
-                        istr(tree_ident(unit)), istr(name));
-            break;
-         case F_SUBPROGRAM:
-            fatal_trace("do not call resolve_name in subprogram formals");
-            break;
-         case F_RECORD:
-            diag_printf(d, "record type %s has no field named %s",
-                        type_pp(tree_type(unit)), istr(name));
-            break;
-         case F_NONE:
-            break;
-         }
-
-         if (tab->top_scope->formal_kind == F_PORT_MAP) {
-            const int nports = tree_ports(unit);
-            if (nports > 0) {
-               LOCAL_TEXT_BUF tb = tb_new();
-               tb_printf(tb, "%s %s has port%s ",
-                         tree_kind(unit) == T_COMPONENT
-                         ? "component" : "entity",
-                         istr(tree_ident(unit)), nports > 1 ? "s" : "");
-               for (int j = 0; j < nports; j++) {
-                  if (j > 0 && j == nports - 1)
-                     tb_cat(tb, " and ");
-                  else if (j > 0)
-                     tb_cat(tb, ", ");
-                  tb_cat(tb, istr(tree_ident(tree_port(unit, j))));
-               }
-               diag_hint(d, tree_loc(unit), "%s", tb_get(tb));
-            }
-         }
+         if (tab->top_scope->formal_fn != NULL)
+            (*tab->top_scope->formal_fn)(d, name, tab->top_scope->formal_arg);
 
          diag_emit(d);
-         tab->top_scope->formal = NULL;  // Suppress further errors
+         tab->top_scope->formal_fn = NULL;  // Suppress further errors
       }
       else if (tab->top_scope->overload && !tab->top_scope->overload->error) {
          diag_t *d = diag_new(DIAG_ERROR, loc);
@@ -1114,200 +1327,136 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          diag_emit(d);
          tab->top_scope->overload->error = true;
       }
-      else if (tab->top_scope->overload == NULL) {
+      else if (tab->top_scope->formal_kind != F_NONE)
+         ;  // Was earlier error
+      else if (tab->top_scope->overload == NULL)
          error_at(loc, "no visible declaration for %s", istr(name));
-      }
 
       // Suppress further errors for this name
-      hash_put(tab->top_scope->members, name, (void *)-1);
+      local_symbol_for(tab->top_scope, name)->mask |= N_ERROR;
+
+      return NULL;
    }
-   else if (can_overload(decl)) {
-      // Might need to disambiguate enum names
-      type_t uniq;
-      tree_t decl1;
-      if (tab->top_type_set != NULL && type_set_uniq(tab, &uniq)
-          && type_eq(uniq, tree_type(decl)))
-         ;   // Only choice for current type set
-      else if ((decl1 = iter_name(&iter))) {
-         SCOPED_A(tree_t) m = AINIT;
-         APUSH(m, decl);
+   else if (sym->ndecls == 1)
+      return get_decl(sym, 0)->tree;
 
-         // Suprogram overload resolution is handled separately so do
-         // not generate an error if all the possible overloads are
-         // subprograms
-         int num_subprograms = 0;
-         if (is_subprogram(decl))
-            num_subprograms++;
+   // Check if all but one declartion is hidden
+   int hidden = 0, overload = 0, subprograms = 0;
+   tree_t result = NULL;
+   for (int i = 0; i < sym->ndecls; i++) {
+      const decl_t *dd = get_decl(sym, i);
+      if (dd->visibility == HIDDEN || dd->visibility == ATTRIBUTE)
+         hidden++;
+      else if (dd->kind == T_PROT_BODY)
+         hidden++;
+      else
+         result = dd->tree;
 
-         do {
-            if (!can_overload(decl1))
-               break;
-            else if (is_subprogram(decl1))
-               num_subprograms++;
-            APUSH(m, decl1);
-         } while ((decl1 = iter_name(&iter)));
-
-         if (m.count > 1 && num_subprograms > 0) {
-            unsigned wptr = 0;
-            for (int i = 0; i < m.count; i++) {
-               if (is_subprogram(m.items[i])) {
-                  // Remove subprograms that cannot be called with zero
-                  // arguments
-                  if (!can_call_no_args(tab, m.items[i]))
-                     continue;
-
-                  // Replace declaration with body
-                  bool dup = false;
-                  for (int j = 0; j < wptr; j++) {
-                     if (is_forward_decl(tab, m.items[i], m.items[j])) {
-                        m.items[j] = m.items[i];
-                        dup = true;
-                        break;
-                     }
-                  }
-
-                  if (dup) continue;
-               }
-
-               m.items[wptr++] = m.items[i];
-            }
-            ATRIM(m, wptr);
-         }
-
-         if (m.count > 1) {
-            // Remove duplicates visible through different aliases
-            unsigned wptr = 0;
-            for (int i = 0; i < m.count; i++) {
-               bool dup = false;
-               for (int j = 0; j < wptr; j++) {
-                  if (denotes_same_object(m.items[i], m.items[j])) {
-                     dup = true;
-                     break;
-                  }
-               }
-
-               if (!dup) m.items[wptr++] = m.items[i];
-            }
-            ATRIM(m, wptr);
-         }
-
-         if (tab->top_type_set) {
-            unsigned wptr = 0;
-            for (unsigned i = 0; i < m.count; i++) {
-               if (class_has_type(class_of(m.items[i]))) {
-                  type_t type = tree_type(m.items[i]);
-                  if (type_kind(type) == T_FUNC)
-                     type = type_result(type);
-
-                  if (type_set_contains(tab, type))
-                     m.items[wptr++] = m.items[i];
-               }
-            }
-            if (wptr > 0) ATRIM(m, wptr);
-         }
-
-         if (type_set_error(tab))
-            ; // Suppress cascading errors
-         else if (m.count > 1 && num_subprograms != m.count) {
-            LOCAL_TEXT_BUF tb = tb_new();
-            tree_kind_t what = T_LAST_TREE_KIND;
-            for (unsigned i = 0; i < m.count; i++) {
-               tb_printf(tb, "%s%s", i > 0 ? ", " : "",
-                         type_pp(tree_type(m.items[i])));
-               const tree_kind_t kind = tree_kind(m.items[i]);
-               if (what == T_LAST_TREE_KIND)
-                  what = kind;
-               else if (what != kind)
-                  what = T_REF;
-            }
-
-            diag_t *d = diag_new(DIAG_ERROR, loc);
-            diag_printf(d, "ambiguous use of %s %s",
-                      what == T_ENUM_LIT ? "enumeration literal"
-                      : (what == T_UNIT_DECL ? "physical literal" : "name"),
-                      istr(name));
-            decl = NULL;
-
-            if (tab->top_scope->overload)
-               tab->top_scope->overload->error = true;
-
-            // Sort the declarations to ensure order of errors is deterministic
-            qsort(m.items, m.count, sizeof(tree_t), tree_stable_compar);
-
-            for (unsigned i = 0; i < m.count; i++) {
-               const loc_t *mloc = tree_loc(m.items[i]);
-               if (mloc->file_ref == loc->file_ref)
-                  diag_hint(d, mloc, "visible declaration of %s as %s",
-                            istr(name), type_pp(tree_type(m.items[i])));
-               else
-                  diag_hint(d, NULL, "visible declaration of %s as %s from %s",
-                            istr(name), type_pp(tree_type(m.items[i])),
-                            istr(tree_ident(tree_container(m.items[i]))));
-            }
-
-            if (m.count > 0)
-               diag_hint(d, loc, "could be %s", tb_get(tb));
-
-            diag_emit(d);
-         }
-         else if (m.count == 1)
-            decl = m.items[0];
-         else if (m.count == 0 && num_subprograms == 0
-                  && !type_set_error(tab)) {
-            diag_t *d = diag_new(DIAG_ERROR, loc);
-            diag_printf(d, "no suitable overload for name %s", istr(name));
-            type_set_describe(tab, d, loc, NULL, "");
-            diag_emit(d);
-         }
-      }
-   }
-   else if (tab->top_scope->overload == NULL && dkind != T_ATTR_DECL
-            && dkind != T_LIBRARY) {
-      // Check for conflicting names imported from multiple packages
-      scope_t *first = iter.where;
-      iter.limit = scope_end_of_chain(first);
-      tree_t conflict = iter_name(&iter);
-      if (conflict == (tree_t)-1)
-         ;   // Error marker
-      else if (conflict != NULL && is_forward_decl(tab, decl, conflict))
-         ;   // Forward declaration
-      else if (conflict != NULL && is_forward_decl(tab, conflict, decl)) {
-         // Forward declaration, prefer the full declaration
-         decl = conflict;
-      }
-      else if (conflict != NULL && tree_kind(conflict) == T_PROT_BODY)
-         ;
-      else if (conflict != NULL && tree_kind(decl) == T_PROT_BODY)
-         decl = conflict;
-      else if (conflict != NULL && iter.where != NULL && iter.where->import
-               && !first->import)
-         ;   // Second declaration was potentially visible homograph
-      else if (conflict != NULL && !denotes_same_object(conflict, decl)) {
-         diag_t *d = diag_new(DIAG_ERROR, loc);
-         diag_printf(d, "multiple conflicting visible declarations of %s",
-                     istr(name));
-         diag_hint(d, loc, "use of name %s", istr(name));
-
-         const struct { tree_t decl; scope_t *scope; } visible[2] = {
-            { decl, first }, { conflict, iter.where }
-         };
-
-         for (int i = 0; i < 2; i++) {
-            LOCAL_TEXT_BUF tb = tb_new();
-            tb_printf(tb, "visible declaration of %s", istr(name));
-            if (visible[i].scope->import)
-               tb_printf(tb, " imported from %s",
-                         istr(visible[i].scope->import));
-
-            diag_hint(d, tree_loc(visible[i].decl), "%s", tb_get(tb));
-         }
-
-         diag_emit(d);
-         insert_name_at(tab->top_scope, name, (tree_t)-1);
+      if (dd->visibility == OVERLOAD) {
+         overload++;
+         if (dd->mask & N_SUBPROGRAM)
+            subprograms++;
       }
    }
 
-   return decl;
+   if (hidden == sym->ndecls - 1)
+      return result;
+
+   tree_kind_t what = T_LAST_TREE_KIND;
+   for (unsigned i = 0; i < sym->ndecls; i++) {
+      const tree_kind_t kind = tree_kind(get_decl(sym, i)->tree);
+      if (what == T_LAST_TREE_KIND)
+         what = kind;
+      else if (what != kind)
+         what = T_REF;
+   }
+
+   if (overload > 0) {
+      // Use the context to determine the correct overload
+
+      SCOPED_A(tree_t) m = AINIT;
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == OVERLOAD)
+            APUSH(m, dd->tree);
+      }
+
+      if (m.count > 1 && subprograms > 0) {
+         unsigned wptr = 0;
+         for (int i = 0; i < m.count; i++) {
+            if (is_subprogram(m.items[i])) {
+               // Remove subprograms that cannot be called with zero
+               // arguments
+               if (!can_call_no_args(tab, m.items[i]))
+                  continue;
+            }
+
+            m.items[wptr++] = m.items[i];
+         }
+         ATRIM(m, wptr);
+      }
+
+      if (m.count > 1 && tab->top_type_set != NULL) {
+         unsigned wptr = 0;
+         for (unsigned i = 0; i < m.count; i++) {
+            if (class_has_type(class_of(m.items[i]))) {
+               type_t type = tree_type(m.items[i]);
+               if (type_kind(type) == T_FUNC)
+                  type = type_result(type);
+
+               if (type_set_contains(tab, type))
+                  m.items[wptr++] = m.items[i];
+            }
+         }
+         if (wptr > 0) ATRIM(m, wptr);
+      }
+
+      if (m.count == 1)
+         return m.items[0];
+      else if (type_set_error(tab))
+         return NULL;  // Suppress cascading errors
+   }
+
+   if (sym->mask & N_ERROR)
+      return NULL;    // Was an earlier error
+
+   diag_t *d = diag_new(DIAG_ERROR, loc);
+   if (overload == 0)
+      diag_printf(d, "multiple conflicting visible declarations of %s",
+                  istr(name));
+   else
+      diag_printf(d, "ambiguous use of %s %s",
+                  what == T_ENUM_LIT ? "enumeration literal"
+                  : (what == T_UNIT_DECL ? "physical literal" : "name"),
+                  istr(name));
+
+   for (int i = 0; i < sym->ndecls; i++) {
+      const decl_t *dd = get_decl(sym, i);
+      LOCAL_TEXT_BUF tb = tb_new();
+
+      switch (dd->visibility) {
+      case HIDDEN:    tb_cat(tb, "hidden"); break;
+      case OVERLOAD:  tb_cat(tb, "visible"); break;
+      case DIRECT:    tb_cat(tb, "directly visible"); break;
+      case POTENTIAL: tb_cat(tb, "potentially visible"); break;
+      case ATTRIBUTE: continue;
+      }
+      tb_printf(tb, " declaration of %s", istr(name));
+
+      type_t type = get_type_or_null(dd->tree);
+      if (type != NULL)
+         tb_printf(tb, " as %s", type_pp(tree_type(dd->tree)));
+
+      if (dd->origin->container != NULL)
+         tb_printf(tb, " from %s", istr(tree_ident(dd->origin->container)));
+
+      diag_hint(d, tree_loc(dd->tree), "%s", tb_get(tb));
+   }
+
+   diag_hint(d, loc, "use of name %s here", istr(name));
+   diag_emit(d);
+
+   return NULL;
 }
 
 static tree_t resolve_ref(nametab_t *tab, tree_t ref)
@@ -1316,32 +1465,39 @@ static tree_t resolve_ref(nametab_t *tab, tree_t ref)
    if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
       // Reference to subprogram or enumeration literal with signature
 
-      iter_state_t iter;
-      begin_iter(tab, tree_ident(ref), &iter);
-
       const bool allow_enum =
          type_kind(constraint) == T_FUNC && type_params(constraint) == 0;
 
-      bool match = false;
       tree_t decl = NULL;
-      while (!match && (decl = iter_name(&iter)) && decl != (tree_t)-1) {
-         if (is_subprogram(decl) && !(tree_flags(decl) & TREE_F_HIDDEN)) {
-            type_t signature = tree_type(decl);
-            match = type_eq_map(constraint, signature, tab->top_scope->gmap);
+      const symbol_t *sym = iterate_symbol_for(tab, tree_ident(ref));
+      if (sym != NULL) {
+         for (int i = 0; i < sym->ndecls; i++) {
+            const decl_t *dd = get_decl(sym, i);
+            if (dd->visibility == HIDDEN)
+               continue;
+            else if (dd->mask & N_SUBPROGRAM) {
+               type_t signature = tree_type(dd->tree);
+               if (type_eq_map(constraint, signature, tab->top_scope->gmap)) {
+                  decl = dd->tree;
+                  break;
+               }
+            }
+            else if (allow_enum && dd->kind == T_ENUM_LIT
+                     && type_eq(type_result(constraint), tree_type(dd->tree))) {
+               decl = dd->tree;
+               break;
+            }
          }
-         else if (allow_enum && tree_kind(decl) == T_ENUM_LIT)
-            match = type_eq(type_result(constraint), tree_type(decl));
       }
 
-      if (!match) {
+      if (decl == NULL) {
          const char *signature = strchr(type_pp(constraint), '[');
          error_at(tree_loc(ref), "no visible subprogram%s %s matches "
                   "signature %s", allow_enum ? " or enumeration literal" : "",
                   istr(tree_ident(ref)), signature);
-         return NULL;
       }
-      else
-         return decl;
+
+      return decl;
    }
    else {
       // Ordinary reference
@@ -1399,29 +1555,6 @@ tree_t find_std(nametab_t *tab)
    return tab->std;
 }
 
-static bool already_imported(nametab_t *tab, ident_t tag)
-{
-   for (scope_t *s = tab->top_scope; s != NULL; s = s->parent) {
-      for (scope_t *c = s->chain; c != NULL; c = c->chain) {
-         if (c->import == tag)
-            return true;
-      }
-   }
-
-   return false;
-}
-
-static void insert_lib_unit(lib_t lib, ident_t name, int kind, void *context)
-{
-   nametab_t *tab = context;
-   ident_t bare_name = ident_rfrom(name, '.');
-
-   if (!already_imported(tab, name)) {
-      scope_t *s = chain_scope(tab, name);
-      insert_name_at(s, bare_name, lib_get(lib, name));
-   }
-}
-
 void insert_names_from_use(nametab_t *tab, tree_t use)
 {
    assert(tree_kind(use) == T_USE);
@@ -1448,9 +1581,11 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
       lib_t lib = lib_require(lib_name);
       bool error;
       if (lib_name == unit_name) {
-         lib_walk_index(lib, insert_lib_unit, tab);
+         make_library_visible(tab->top_scope, lib);
          return;
       }
+      else if (unit_name == well_known(W_ERROR))
+         return;   // Was earlier parse error
       else if ((unit = lib_get_check_stale(lib, unit_name, &error)) == NULL) {
          error_at(tree_loc(use), "unit %s not found in library %s",
                   istr(unit_name), istr(ident_until(unit_name, '.')));
@@ -1469,9 +1604,6 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
    if (tree_has_ident2(use))
       tag = ident_prefix(tag, tree_ident2(use), '.');
 
-   if (already_imported(tab, tag))
-      return;
-
    if (tree_has_ident2(use)) {
       if (!is_package(unit)) {
          error_at(tree_loc(use), "design unit %s is not a package",
@@ -1483,53 +1615,61 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
          return;
       }
 
+      scope_t *s = private_scope_for(tab, unit);
+      assert(s->container == unit);
+
       ident_t what = tree_ident2(use);
-      scope_t *s = chain_scope(tab, tag);
       if (what == well_known(W_ALL)) {
-         const int ndecls = tree_decls(unit);
-         for (int i = 0; i < ndecls; i++) {
-            tree_t d = tree_decl(unit, i);
-            insert_name_at(s, tree_ident(d), d);
+         for (int i = 0; i < tab->top_scope->imported.count; i++) {
+            if (tab->top_scope->imported.items[i] == unit)
+               return;
          }
 
-         if (standard() >= STD_08) {
-            const int ngenerics = tree_generics(unit);
-            for (int i = 0; i < ngenerics; i++) {
-               tree_t g = tree_generic(unit, i);
-
-               const class_t class = tree_class(g);
-               if (class == C_FUNCTION || class == C_PROCEDURE) {
-                  // A single subprogram could be visibile both directly
-                  // and as a actual generic subprogram
-                  tree_t value = find_generic_map(unit, i, g);
-                  if (value != NULL && tree_kind(value) == T_REF) {
-                     tree_t decl = tree_ref(value);
-                     assert(is_subprogram(decl));
-                     insert_name_at(s, tree_ident(g), decl);
-                  }
-               }
-               else
-                  insert_name_at(s, tree_ident(g), g);
-            }
-         }
+         merge_scopes(tab->top_scope, s);
+         APUSH(tab->top_scope->imported, unit);
       }
       else {
-         int nth = 0;
-         tree_t decl;
-         while ((decl = search_decls(unit, what, nth++)))
-            insert_name_at(s, tree_ident(decl), decl);
-
-         if (nth == 1) {
+         const symbol_t *sym = symbol_for(s, what);
+         if (sym == NULL) {
             error_at(tree_loc(use), "object %s not found in unit %s",
                      istr(what), istr(tree_ident(unit)));
+            return;
          }
+
+         merge_symbol(tab->top_scope, sym);
+
+         // If this is an enumeration or physical type then also make
+         // the literals visible
+         // TODO: for VHDL-2008, also predefined functions
+         for (int i = 0; i < sym->ndecls; i++) {
+            const decl_t *dd = get_decl(sym, i);
+            if (dd->kind == T_TYPE_DECL) {
+               type_t type = tree_type(dd->tree);
+               if (type_is_enum(type)) {
+                  const int nlits = type_enum_literals(type);
+                  for (int i = 0; i < nlits; i++) {
+                     tree_t lit = type_enum_literal(type, i);
+                     make_visible(tab->top_scope, tree_ident(lit), lit,
+                                  POTENTIAL, s);
+                  }
+               }
+               else if (type_is_physical(type)) {
+                  const int nunits = type_units(type);
+                  for (int i = 0; i < nunits; i++) {
+                     tree_t u = type_unit(type, i);
+                     make_visible(tab->top_scope, tree_ident(u), u,
+                                  POTENTIAL, s);
+                  }
+               }
+            }
+         }
+
+         merge_symbol(tab->top_scope, symbol_for(s, unit_bare_name(unit)));
       }
    }
-
-   if (lib_import && (unit_name == tag || !already_imported(tab, unit_name))) {
-      scope_t *s = chain_scope(tab, unit_name);
-      ident_t bare_name = ident_rfrom(unit_name, '.');
-      insert_name_at(s, bare_name, unit);
+   else {
+      ident_t bare_name = unit_bare_name(unit);
+      make_visible(tab->top_scope, bare_name, unit, POTENTIAL, tab->top_scope);
    }
 }
 
@@ -1541,7 +1681,7 @@ void insert_decls(nametab_t *tab, tree_t container)
       if (tree_kind(d) == T_USE)
          insert_names_from_use(tab, d);
       else
-         insert_name(tab, tree_decl(container, i), NULL, 0);
+         insert_name(tab, tree_decl(container, i), NULL);
    }
 }
 
@@ -1549,24 +1689,15 @@ void insert_ports(nametab_t *tab, tree_t container)
 {
    const int nports = tree_ports(container);
    for (int i = 0; i < nports; i++)
-      insert_name(tab, tree_port(container, i), NULL, 0);
+      insert_name(tab, tree_port(container, i), NULL);
 }
 
 void insert_generics(nametab_t *tab, tree_t container)
 {
-   const bool have_type_generics = standard() >= STD_08;
-
    const int ngenerics = tree_generics(container);
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(container, i);
-      if (have_type_generics && tree_class(g) == C_TYPE) {
-         // Type generics are inserted eagerly
-         ident_t id = tree_ident(g);
-         if (scope_find(tab->top_scope, id, tab->top_scope, NULL, 0) == g)
-            continue;
-      }
-
-      insert_name(tab, g, NULL, 0);
+      make_visible_slow(tab->top_scope, tree_ident(g), g);
    }
 }
 
@@ -1578,7 +1709,7 @@ void insert_names_from_context(nametab_t *tab, tree_t unit)
       switch (tree_kind(c)) {
       case T_LIBRARY:
          lib_require(tree_ident(c));
-         insert_name(tab, c, NULL, 0);
+         insert_name(tab, c, NULL);
          break;
       case T_USE:
          insert_names_from_use(tab, c);
@@ -1594,13 +1725,83 @@ void insert_names_from_context(nametab_t *tab, tree_t unit)
    }
 }
 
-void insert_field_names(nametab_t *tab, type_t record)
+static void missing_record_field_cb(diag_t *d, ident_t id, void *arg)
 {
-   assert(type_is_record(record));
+   diag_printf(d, "record type %s has no field named %s",
+               type_pp((type_t)arg), istr(id));
+}
 
-   const int nfields = type_fields(record);
+void push_scope_for_fields(nametab_t *tab, type_t type)
+{
+   assert(type_is_record(type));
+
+   push_scope(tab);
+
+   tab->top_scope->formal_kind = F_RECORD;
+   tab->top_scope->formal_fn   = missing_record_field_cb;
+   tab->top_scope->formal_arg  = type;
+
+   const int nfields = type_fields(type);
    for (int i = 0; i < nfields; i++)
-      insert_name(tab, type_field(record, i), NULL, 0);
+      insert_name(tab, type_field(type, i), NULL);
+}
+
+static void missing_generic_cb(diag_t *d, ident_t id, void *arg)
+{
+   diag_printf(d, "%s has no generic named %s",
+               istr(tree_ident((tree_t)arg)), istr(id));
+}
+
+static void missing_port_cb(diag_t *d, ident_t id, void *arg)
+{
+   tree_t unit = arg;
+
+   diag_printf(d, "%s has no port named %s",
+               istr(tree_ident(arg)), istr(id));
+   diag_hint(d, diag_get_loc(d), "use of name %s in port map", istr(id));
+
+   const int nports = tree_ports(unit);
+   if (nports > 0) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_printf(tb, "%s %s has port%s ",
+                tree_kind(unit) == T_COMPONENT ? "component" : "entity",
+                istr(tree_ident(unit)), nports > 1 ? "s" : "");
+      for (int j = 0; j < nports; j++) {
+         if (j > 0 && j == nports - 1)
+            tb_cat(tb, " and ");
+         else if (j > 0)
+            tb_cat(tb, ", ");
+         tb_cat(tb, istr(tree_ident(tree_port(unit, j))));
+      }
+      diag_hint(d, tree_loc(unit), "%s", tb_get(tb));
+   }
+}
+
+void push_scope_for_formals(nametab_t *tab, formal_kind_t kind, tree_t unit)
+{
+   push_scope(tab);
+
+   tab->top_scope->formal_kind = kind;
+   tab->top_scope->formal_arg  = unit;
+
+   if (unit != NULL) {
+      switch (kind) {
+      case F_GENERIC_MAP:
+         tab->top_scope->formal_fn = missing_generic_cb;
+         insert_generics(tab, unit);
+         break;
+      case F_PORT_MAP:
+         tab->top_scope->formal_fn = missing_port_cb;
+         insert_ports(tab, unit);
+         break;
+      case F_SUBPROGRAM:
+         break;
+      case F_RECORD:
+      case F_NONE:
+         fatal_trace("invalid kind in push_scope_for_formals");
+         break;
+      }
+   }
 }
 
 void insert_protected_decls(nametab_t *tab, type_t type)
@@ -1609,7 +1810,7 @@ void insert_protected_decls(nametab_t *tab, type_t type)
 
    const int ndecls = type_decls(type);
    for (int i = 0; i < ndecls; i++)
-      insert_name(tab, type_decl(type, i), NULL, 0);
+      insert_name(tab, type_decl(type, i), NULL);
 }
 
 void insert_names_for_config(nametab_t *tab, tree_t unit)
@@ -1629,13 +1830,13 @@ void insert_names_for_config(nametab_t *tab, tree_t unit)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(unit, i);
       if (tree_kind(d) == T_COMPONENT)
-         insert_name(tab, d, NULL, 0);
+         insert_name(tab, d, NULL);
    }
 
    const int nstmts = tree_stmts(unit);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(unit, i);
-      insert_name(tab, s, NULL, 0);
+      insert_name(tab, s, NULL);
    }
 }
 
@@ -1746,7 +1947,11 @@ static void overload_add_candidate(overload_t *o, tree_t d)
 
 static void begin_overload_resolution(overload_t *o)
 {
+   const symbol_t *sym = NULL;
+
    if (o->prefix != NULL) {
+      // TODO: this should use private_scope_for and then fall into the
+      //       code below
       int nth = 0;
       tree_t d = NULL, container = o->prefix;
       if (tree_kind(container) == T_REF)
@@ -1757,63 +1962,26 @@ static void begin_overload_resolution(overload_t *o)
       }
    }
    else {
-      unsigned unit_break = 0, scope_break = 0;
-      scope_t *last = NULL;
-      for (int k = 0; ; k++) {
-         scope_t *where;
-         tree_t next = scope_find(o->nametab->top_scope, o->name,
-                                  NULL, &where, k);
-         if (next == NULL || next == (tree_t)-1)
-            break;
-
-         if (tree_kind(next) == T_ALIAS) {
-            tree_t value = tree_value(next);
-            if (tree_kind(value) != T_REF || !tree_has_ref(value))
+      sym = symbol_for(o->nametab->top_scope, o->name);
+      if (sym != NULL) {
+         for (int i = 0; i < sym->ndecls; i++) {
+            const decl_t *dd = get_decl(sym, i);
+            if (dd->visibility == HIDDEN)
+               continue;
+            else if (!(dd->mask & N_SUBPROGRAM))
                continue;
 
-            next = tree_ref(value);
-         }
-
-         if (!is_subprogram(next))
-            continue;
-
-         if (last && last->parent != where->parent)
-            unit_break = o->candidates.count;
-
-         if (last && last != where)
-            scope_break = o->candidates.count;
-
-         // LRM 93 section 10.3 on visibility specifies that if two
-         // declarations are homographs then the one in the inner
-         // scope hides the one in the outer scope. However
-         // scope_find returns all matches based on identifier only,
-         // but it does guarantee to return declarations in order
-         // from innermost to outermost.
-         type_t type = tree_type(next);
-         bool homograph = false;
-         for (unsigned i = 0; !homograph && i < unit_break; i++)
-            homograph = type_eq(type, tree_type(o->candidates.items[i]));
-
-         // Prune predefined operators which are hidden by user defined
-         // operators in the same region.
-         unsigned wptr = scope_break;
-         for (unsigned i = scope_break; i < o->candidates.count; i++) {
-            if (type_eq(type, tree_type(o->candidates.items[i]))) {
-               if (tree_flags(o->candidates.items[i]) & TREE_F_PREDEFINED) {
-                  overload_prune_candidate(o, i);
+            tree_t next = dd->tree;
+            if (tree_kind(next) == T_ALIAS) {
+               tree_t value = tree_value(next);
+               if (tree_kind(value) != T_REF || !tree_has_ref(value))
                   continue;
-               }
-               else if (tree_flags(next) & TREE_F_PREDEFINED)
-                  homograph = true;
+
+               next = tree_ref(value);
             }
-            o->candidates.items[wptr++] = o->candidates.items[i];
-         }
-         ATRIM(o->candidates, wptr);
 
-         if (!homograph)
             overload_add_candidate(o, next);
-
-         last = where;
+         }
       }
 
       // Remove any duplicates from aliases
@@ -1846,8 +2014,22 @@ static void begin_overload_resolution(overload_t *o)
    o->error   = type_set_error(o->nametab);
 
    if (o->initial == 0 && !o->error) {
-      error_at(tree_loc(o->tree), "no visible subprogram declaration for %s",
-               istr(o->name));
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(o->tree));
+      diag_printf(d, "no visible subprogram declaration for %s", istr(o->name));
+
+      if (sym != NULL) {
+         for (int i = 0; i < sym->ndecls; i++) {
+            const decl_t *dd = get_decl(sym, i);
+            if ((dd->mask & N_SUBPROGRAM) && dd->visibility == HIDDEN)
+               diag_hint(d, tree_loc(dd->tree), "subprogram %s is hidden",
+                         type_pp(tree_type(dd->tree)));
+         }
+      }
+
+      if (diag_hints(d) > 0)
+         diag_hint(d, tree_loc(o->tree), "%s called here", istr(o->name));
+
+      diag_emit(d);
       o->error = true;
    }
 
@@ -2082,14 +2264,16 @@ static void overload_push_names(overload_t *o)
    assert(o->state == O_IDLE);
 
    push_scope(o->nametab);
+   o->nametab->top_scope->formal_kind = F_SUBPROGRAM;
    o->nametab->top_scope->overload = o;
 
    for (unsigned i = 0; i < o->candidates.count; i++) {
       if (o->candidates.items[i]) {
          const int nports = tree_ports(o->candidates.items[i]);
-         for (int j = 0; j < nports; j++)
-            insert_name(o->nametab, tree_port(o->candidates.items[i], j),
-                        NULL, 0);
+         for (int j = 0; j < nports; j++) {
+            tree_t p = tree_port(o->candidates.items[i], j);
+            make_visible_slow(o->nametab->top_scope, tree_ident(p), p);
+         }
       }
    }
 
@@ -2386,11 +2570,21 @@ static void check_pure_ref(nametab_t *tab, tree_t ref, tree_t decl)
       class == C_VARIABLE || class == C_SIGNAL || class == C_FILE;
 
    if (is_pure_func && maybe_impure) {
-      scope_t *owner = scope_containing(tab, decl);
-      if (owner != NULL && scope_find_enclosing(owner, S_SUBPROGRAM) != sub) {
+      scope_t *owner = NULL;
+      const symbol_t *sym = symbol_for(tab->top_scope, tree_ident(decl));
+      if (sym != NULL) {
+         for (int i = 0; i < sym->ndecls; i++) {
+            const decl_t *dd = get_decl(sym, i);
+            if (dd->tree == decl) {
+               owner = dd->origin;
+               break;
+            }
+         }
+      }
+
+      if (owner != NULL && scope_find_enclosing(owner, S_SUBPROGRAM) != sub)
          error_at(tree_loc(ref), "invalid reference to %s inside pure "
                   "function %s", istr(tree_ident(decl)), istr(tree_ident(sub)));
-      }
    }
 }
 
@@ -2409,9 +2603,11 @@ static void solve_subprogram_prefix(overload_t *o)
          if (full_name == NULL)
             break;
 
-         if (o->prefix == NULL)
-            o->prefix = scope_find(o->nametab->top_scope, o->name,
-                                   NULL, NULL, 0);
+         if (o->prefix == NULL) {
+            const symbol_t *sym = symbol_for(o->nametab->top_scope, o->name);
+            if (sym != NULL)
+               o->prefix = get_decl(sym, 0)->tree;
+         }
          else
             o->prefix = search_decls(o->prefix, o->name, 0);
 
@@ -2468,33 +2664,32 @@ static type_list_t possible_types(nametab_t *tab, tree_t value)
 
    if (kind == T_REF || kind == T_FCALL) {
       ident_t name = tree_ident(value);
-      tree_t decl;
-      int n = 0;
-      while ((decl = scope_find(tab->top_scope, name, NULL, NULL, n++))) {
-         if (decl == (void*)-1 || !class_has_type(class_of(decl)))
-            break;
+      const symbol_t *sym = symbol_for(tab->top_scope, name);
+      if (sym != NULL) {
+         for (int i = 0; i < sym->ndecls; i++) {
+            const decl_t *dd = get_decl(sym, i);
+            if (dd->visibility == HIDDEN)
+               continue;
 
-         type_t type1 = tree_type(decl);
-         if (type_kind(type1) == T_FUNC)
-            type1 = type_result(type1);
+            type_t type1 = tree_type(dd->tree);
+            if (type_kind(type1) == T_FUNC)
+               type1 = type_result(type1);
 
-         type_t type2 = NULL;
-         if (kind == T_FCALL && type_is_array(type1)) {
-            // Grammar is ambiguous between indexed name and function call
-            type2 = type_elem(type1);
+            type_t type2 = NULL;
+            if (kind == T_FCALL && type_is_array(type1)) {
+               // Grammar is ambiguous between indexed name and function call
+               type2 = type_elem(type1);
+            }
+
+            bool have1 = false, have2 = false;
+            for (unsigned j = 0; j < possible.count; j++) {
+               have1 |= possible.items[j] == type1;
+               have2 |= possible.items[j] == type2;
+            }
+
+            if (!have1) APUSH(possible, type1);
+            if (type2 && !have2) APUSH(possible, type2);
          }
-
-         bool have1 = false, have2 = false;
-         for (unsigned j = 0; j < possible.count; j++) {
-            have1 |= possible.items[j] == type1;
-            have2 |= possible.items[j] == type2;
-         }
-
-         if (!have1) APUSH(possible, type1);
-         if (type2 && !have2) APUSH(possible, type2);
-
-         if (!can_overload(decl))
-            break;
       }
    }
 
@@ -3103,15 +3298,18 @@ static type_t solve_attr_ref(nametab_t *tab, tree_t aref)
                }
             }
             else {
-               // TODO: this isn't right, should only search same region as decl
-               iter_state_t iter;
-               begin_iter(tab, attr, &iter);
-
-               while ((a = iter_name(&iter)) && a != (tree_t)-1) {
-                  if (tree_kind(a) == T_ATTR_SPEC
-                      && tree_class(a) == class
-                      && tree_ident2(a) == id)
-                     break;
+               const symbol_t *sym = symbol_for(tab->top_scope, attr);
+               if (sym != NULL) {
+                  for (int i = 0; i < sym->ndecls; i++) {
+                     const decl_t *dd = get_decl(sym, i);
+                     if (dd->visibility != ATTRIBUTE)
+                        continue;
+                     else if (tree_class(dd->tree) == class
+                              && tree_ident2(dd->tree) == id) {
+                        a = dd->tree;
+                        break;
+                     }
+                  }
                }
             }
 
@@ -3192,8 +3390,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
 
          case A_NAMED:
             {
-               push_scope(tab);
-               scope_set_formal_kind(tab, agg, F_RECORD);
+               push_scope_for_fields(tab, type);
                tree_t name = tree_name(a);
                solve_types(tab, name, NULL);
                pop_scope(tab);
@@ -3226,8 +3423,7 @@ static type_t solve_aggregate(nametab_t *tab, tree_t agg)
          case A_RANGE:
             // This is illegal and will generate an error during
             // semantic checking
-            push_scope(tab);
-            scope_set_formal_kind(tab, agg, F_RECORD);
+            push_scope_for_fields(tab, type);
             solve_types(tab, tree_range(a, 0), NULL);
             pop_scope(tab);
             break;

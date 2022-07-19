@@ -1071,7 +1071,7 @@ START_TEST(test_link1)
       { 2, "division by zero" },
       { 7, "failed to initialise package WORK.PACK" },
       // TODO: this fatal error should be removed after lazy linking is added
-      { LINE_INVALID, "failed to link package WORK.PACK" },
+      { 24, "failed to link package WORK.PACK" },
       { -1, NULL }
    };
    expect_errors(expect);

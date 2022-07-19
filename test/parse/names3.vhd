@@ -25,4 +25,12 @@ begin
         wait;
     end process;
 
+    p2: process is
+        function f1(x : real) return string;
+        function f1 return string;
+        function f1(x : integer) return string;
+    begin
+        report f1;                      -- OK
+    end process;
+
 end architecture;

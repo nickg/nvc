@@ -1,5 +1,5 @@
-entity e is end entity;
-architecture a of e is
+entity ee is end entity;
+architecture aa of ee is
     signal x, a, b, c : bit;
     signal foo, bar   : boolean;
     signal y          : integer;

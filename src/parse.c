@@ -591,8 +591,7 @@ static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
 
 static ident_t error_marker(void)
 {
-   static ident_t id = NULL;
-   return id ?: (id = ident_new("error"));
+   return well_known(W_ERROR);
 }
 
 static tree_t error_expr(void)
@@ -641,7 +640,7 @@ static tree_t find_unit(const loc_t *where, ident_t name, const char *hint)
 static tree_t find_binding(tree_t inst)
 {
    ident_t name;
-   tree_t unit;
+   tree_t unit = NULL;
    if (tree_kind(inst) == T_BINDING) {
       name = tree_ident(inst);
       if (tree_has_ident2(inst))
@@ -1014,7 +1013,7 @@ static void declare_binary(tree_t container, ident_t name, type_t lhs,
 {
    tree_t d = builtin_fn(name, result, kind, "L", lhs, "R", rhs, NULL);
    mangle_func(nametab, d);
-   insert_name(nametab, d, NULL, 0);
+   insert_name(nametab, d, NULL);
    tree_add_decl(container, d);
 }
 
@@ -1023,7 +1022,7 @@ static void declare_unary(tree_t container, ident_t name, type_t operand,
 {
    tree_t d = builtin_fn(name, result, kind, "VALUE", operand, NULL);
    mangle_func(nametab, d);
-   insert_name(nametab, d, NULL, 0);
+   insert_name(nametab, d, NULL);
    tree_add_decl(container, d);
 }
 
@@ -1381,7 +1380,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
          add_port(file_open1, "EXTERNAL_NAME", std_string, PORT_IN, NULL);
          add_port(file_open1, "OPEN_KIND", open_kind, PORT_IN,
                   make_ref(read_mode));
-         insert_name(nametab, file_open1, file_open_i, 0);
+         insert_name(nametab, file_open1, file_open_i);
          tree_add_decl(container, file_open1);
 
          tree_t file_open2 = builtin_proc(file_open_i, S_FILE_OPEN2);
@@ -1390,18 +1389,18 @@ static void declare_predefined_ops(tree_t container, type_t t)
          add_port(file_open2, "EXTERNAL_NAME", std_string, PORT_IN, NULL);
          add_port(file_open2, "OPEN_KIND", open_kind, PORT_IN,
                   make_ref(read_mode));
-         insert_name(nametab, file_open2, file_open_i, 0);
+         insert_name(nametab, file_open2, file_open_i);
          tree_add_decl(container, file_open2);
 
          tree_t file_close = builtin_proc(file_close_i, S_FILE_CLOSE);
          add_port(file_close, "F", t, PORT_INOUT, NULL);
-         insert_name(nametab, file_close, file_close_i, 0);
+         insert_name(nametab, file_close, file_close_i);
          tree_add_decl(container, file_close);
 
          if (standard() >= STD_08) {
             tree_t flush = builtin_proc(flush_i, S_FILE_FLUSH);
             add_port(flush, "F", t, PORT_IN, NULL);
-            insert_name(nametab, flush, flush_i, 0);
+            insert_name(nametab, flush, flush_i);
             tree_add_decl(container, flush);
          }
 
@@ -1410,15 +1409,17 @@ static void declare_predefined_ops(tree_t container, type_t t)
          tree_t read = builtin_proc(read_i, S_FILE_READ);
          add_port(read, "F", t, PORT_INOUT, NULL);
          add_port(read, "VALUE", of, PORT_OUT, NULL);
-         if (type_is_array(of) && type_is_unconstrained(of))
-            add_port(read, "LENGTH", std_type(NULL, STD_NATURAL), PORT_OUT, NULL);
-         insert_name(nametab, read, read_i, 0);
+         if (type_is_array(of) && type_is_unconstrained(of)) {
+            type_t std_nat = std_type(NULL, STD_NATURAL);
+            add_port(read, "LENGTH", std_nat, PORT_OUT, NULL);
+         }
+         insert_name(nametab, read, read_i);
          tree_add_decl(container, read);
 
          tree_t write = builtin_proc(write_i, S_FILE_WRITE);
          add_port(write, "F", t, PORT_INOUT, NULL);
          add_port(write, "VALUE", of, PORT_IN, NULL);
-         insert_name(nametab, write, write_i, 0);
+         insert_name(nametab, write, write_i);
          tree_add_decl(container, write);
 
          declare_unary(container, endfile_i, t, std_bool, S_ENDFILE);
@@ -1433,7 +1434,7 @@ static void declare_predefined_ops(tree_t container, type_t t)
          add_port(deallocate, "P", t, PORT_INOUT, NULL);
 
          mangle_func(nametab, deallocate);
-         insert_name(nametab, deallocate, deallocate_i, 0);
+         insert_name(nametab, deallocate, deallocate_i);
          tree_add_decl(container, deallocate);
       }
       break;
@@ -1714,14 +1715,16 @@ static tree_t select_decl(tree_t prefix, ident_t suffix, name_mask_t *mask)
       }
    }
 
-   if (n == 0)
-      parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
-                  istr(tree_ident(prefix)));
-
    tree_t ref = tree_new(T_REF);
    tree_set_ident(ref, qual);
    tree_set_loc(ref, CURRENT_LOC);
    tree_set_ref(ref, decl);
+
+   if (n == 0) {
+      parse_error(CURRENT_LOC, "name %s not found in %s", istr(suffix),
+                  istr(tree_ident(prefix)));
+      tree_set_type(ref, type_new(T_NONE));
+   }
 
    return ref;
 }
@@ -1851,7 +1854,7 @@ static void make_implicit_guard_signal(tree_t block, tree_t expr)
    tree_set_value(guard, expr);
 
    tree_add_decl(block, guard);
-   insert_name(nametab, guard, NULL, 0);
+   insert_name(nametab, guard, NULL);
    sem_check(guard, nametab);
 }
 
@@ -2470,7 +2473,7 @@ static void p_library_clause(tree_t unit)
       else
          tree_set_ident2(l, lib_name(lib));
 
-      insert_name(nametab, l, NULL, 0);
+      insert_name(nametab, l, NULL);
    }
 }
 
@@ -2522,6 +2525,7 @@ static void p_use_clause(tree_t unit, add_func_t addf)
 
       default:
          expect(tID, tALL);
+         tree_set_ident(u, error_marker());
       }
 
       tree_set_loc(u, CURRENT_LOC);
@@ -2922,19 +2926,17 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
    if (look_for(&lookp)) {
       tree_set_subkind(p, P_NAMED);
 
-      push_scope(nametab);
-      scope_set_formal_kind(nametab, unit, kind);
+      push_scope_for_formals(nametab, kind, unit);
 
       tree_t name = p_formal_part();
 
-      tree_t ref = NULL;
-      if (kind == F_GENERIC_MAP && tree_kind(name) == T_REF) {
-         ref = name;
-         if (tree_has_ref(name)) {
-            tree_t decl = tree_ref((ref = name));
-            if (tree_kind(decl) == T_GENERIC_DECL)
-               class = tree_class(decl);
-         }
+      tree_t ref = name_to_ref(name);
+      if (ref != NULL && tree_has_ref(ref)) {
+         tree_t decl = tree_ref(ref);
+         const tree_kind_t kind = tree_kind(decl);
+         if (kind == T_PORT_DECL || kind == T_PARAM_DECL
+             || kind == T_GENERIC_DECL)
+            class = tree_class(decl);
       }
 
       if (class != C_PACKAGE && (kind == F_GENERIC_MAP || kind == F_PORT_MAP))
@@ -2942,9 +2944,6 @@ static void p_association_element(tree_t map, int pos, tree_t unit,
 
       if (kind == F_PORT_MAP && tree_kind(name) == T_FCALL)
          name = fcall_to_conv_func(name);
-
-      if (class == C_DEFAULT && (ref = name_to_ref(name)))
-          class = class_of(ref);
 
       tree_set_name(p, name);
 
@@ -3718,24 +3717,18 @@ static tree_t p_record_element_constraint(type_t base)
 
    BEGIN("record element constraint");
 
-   push_scope(nametab);
-   insert_field_names(nametab, base);
+   push_scope_for_fields(nametab, base);
 
    ident_t id = p_identifier();
    tree_t decl = resolve_name(nametab, CURRENT_LOC, id);
 
    type_t ftype;
-   if (decl != NULL && tree_kind(decl) == T_FIELD_DECL)
+   if (decl != NULL) {
+      assert(tree_kind(decl) == T_FIELD_DECL);
       ftype = tree_type(decl);
-   else {
-      ftype = type_new(T_NONE);
-
-      if (decl != NULL) {
-         parse_error(CURRENT_LOC, "%s does not name a field of %s",
-                     istr(id), type_pp(base));
-         decl = NULL;
-      }
    }
+   else
+      ftype = type_new(T_NONE);
 
    pop_scope(nametab);
 
@@ -4614,7 +4607,7 @@ static void p_interface_constant_declaration(tree_t parent, tree_kind_t kind)
 
       if (kind == T_GENERIC_DECL && standard() >= STD_08) {
          // Generics are immediately visible in VHDL-2008
-         insert_name(nametab, d, NULL, 0);
+         insert_name(nametab, d, NULL);
       }
    }
 }
@@ -4755,7 +4748,7 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
    sem_check(d, nametab);
 
    // Type generics are immediately visible
-   insert_name(nametab, d, NULL, 0);
+   insert_name(nametab, d, NULL);
 
    // LRM 08 section 6.5.3: the predefined equality and inequality
    // operators are implicitly declared as formal generic subprograms
@@ -4800,7 +4793,7 @@ static void p_interface_type_declaration(tree_t parent, tree_kind_t kind)
       tree_set_value(p, box);
 
       add_interface(parent, p, kind);
-      insert_name(nametab, p, NULL, 0);
+      insert_name(nametab, p, NULL);
    }
 }
 
@@ -4922,7 +4915,7 @@ static void p_interface_subprogram_declaration(tree_t parent, tree_kind_t kind)
    add_interface(parent, d, kind);
    sem_check(d, nametab);
 
-   insert_name(nametab, d, NULL, 0);
+   insert_name(nametab, d, NULL);
 }
 
 static void p_interface_package_generic_map_aspect(type_t type)
@@ -4970,7 +4963,7 @@ static void p_interface_package_declaration(tree_t parent, tree_kind_t kind)
    add_interface(parent, d, kind);
    sem_check(d, nametab);
 
-   insert_name(nametab, d, NULL, 0);
+   insert_name(nametab, d, NULL);
 }
 
 static void p_interface_declaration(class_t def_class, tree_t parent,
@@ -5141,7 +5134,7 @@ static tree_t p_attribute_declaration(void)
    consume(tSEMI);
 
    tree_set_loc(t, CURRENT_LOC);
-   insert_name(nametab, t, NULL, 0);
+   insert_name(nametab, t, NULL);
    sem_check(t, nametab);
    return t;
 }
@@ -5267,7 +5260,7 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
             apply_foreign_attribute(d, value);
       }
 
-      insert_name(nametab, t, NULL, 0);
+      insert_name(nametab, t, NULL);
       (*addf)(parent, t);
       sem_check(t, nametab);
    }
@@ -5364,12 +5357,12 @@ static type_t p_physical_type_definition(tree_t range, ident_t id)
 
    push_scope(nametab);
 
-   insert_name(nametab, base, NULL, 0);
+   insert_name(nametab, base, NULL);
 
    while (scan(tINT, tREAL, tID)) {
       tree_t unit = p_secondary_unit_declaration(t);
       type_add_unit(t, unit);
-      insert_name(nametab, unit, NULL, 0);
+      insert_name(nametab, unit, NULL);
    }
 
    pop_scope(nametab);
@@ -5681,11 +5674,9 @@ static void p_protected_type_declarative_item(type_t type)
       if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
          type_add_decl(type, p_subprogram_instantiation_declaration());
       else {
-         push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          tree_set_flag(spec, TREE_F_PROTECTED);
          type_add_decl(type, p_subprogram_declaration(spec));
-         pop_scope(nametab);
       }
       break;
 
@@ -5720,7 +5711,7 @@ static type_t p_protected_type_declaration(tree_t tdecl)
 
    push_scope(nametab);
    scope_set_prefix(nametab, id);
-   insert_name(nametab, tdecl, NULL, 0);
+   insert_name(nametab, tdecl, NULL);
 
    p_protected_type_declarative_part(type);
 
@@ -5836,7 +5827,7 @@ static void p_type_declaration(tree_t container)
       tree_t body = p_protected_type_body(id);
       consume(tSEMI);
 
-      insert_name(nametab, body, id, 0);
+      insert_name(nametab, body, id);
       tree_add_decl(container, body);
    }
    else {
@@ -5862,7 +5853,7 @@ static void p_type_declaration(tree_t container)
       tree_set_type(t, type);
       tree_set_loc(t, CURRENT_LOC);
 
-      insert_name(nametab, t, id, 0);
+      insert_name(nametab, t, id);
       tree_add_decl(container, t);
 
       const type_kind_t kind = type_kind(type);
@@ -5907,7 +5898,7 @@ static tree_t p_subtype_declaration(void)
    tree_set_type(t, sub);
    tree_set_loc(t, CURRENT_LOC);
 
-   insert_name(nametab, t, id, 0);
+   insert_name(nametab, t, id);
    sem_check(t, nametab);
    return t;
 }
@@ -5944,7 +5935,7 @@ static void p_constant_declaration(tree_t parent)
 
       tree_add_decl(parent, t);
 
-      insert_name(nametab, t, it->ident, 0);
+      insert_name(nametab, t, it->ident);
       sem_check(t, nametab);
    }
 }
@@ -6026,7 +6017,7 @@ static tree_t p_concurrent_assertion_statement(ident_t label)
 
    ensure_labelled(conc, label);
 
-   insert_name(nametab, conc, NULL, 0);
+   insert_name(nametab, conc, NULL);
    sem_check(conc, nametab);
    return conc;
 }
@@ -6104,6 +6095,8 @@ static tree_t p_subprogram_specification(void)
    if (impure)
       tree_set_flag(t, TREE_F_IMPURE);
 
+   push_scope(nametab);
+
    p_subprogram_header(t);
 
    bool has_param_list = false;
@@ -6127,6 +6120,8 @@ static tree_t p_subprogram_specification(void)
       consume(tRETURN);
       type_set_result(type, p_type_mark(NULL));
    }
+
+   pop_scope(nametab);
 
    mangle_func(nametab, t);
 
@@ -6226,7 +6221,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
                    rewrite_generic_types_cb, map);
 
    mangle_func(nametab, inst);
-   insert_name(nametab, inst, NULL, 0);
+   insert_name(nametab, inst, NULL);
    return inst;
 }
 
@@ -6268,7 +6263,7 @@ static void p_variable_declaration(tree_t parent)
          tree_set_flag(t, TREE_F_SHARED);
 
       tree_add_decl(parent, t);
-      insert_name(nametab, t, it->ident, 0);
+      insert_name(nametab, t, it->ident);
       sem_check(t, nametab);
    }
 }
@@ -6323,7 +6318,7 @@ static void p_signal_declaration(tree_t parent)
 
       tree_add_decl(parent, t);
 
-      insert_name(nametab, t, it->ident, 0);
+      insert_name(nametab, t, it->ident);
       sem_check(t, nametab);
    }
 }
@@ -6424,7 +6419,7 @@ static tree_t p_alias_declaration(void)
 
    tree_set_loc(t, CURRENT_LOC);
    mangle_decl(nametab, t);
-   insert_name(nametab, t, NULL, 0);
+   insert_name(nametab, t, NULL);
    sem_check(t, nametab);
    return t;
 }
@@ -6495,7 +6490,7 @@ static void p_file_declaration(tree_t parent)
 
       tree_add_decl(parent, t);
 
-      insert_name(nametab, t, it->ident, 0);
+      insert_name(nametab, t, it->ident);
       sem_check(t, nametab);
    }
 }
@@ -6564,7 +6559,7 @@ static tree_t p_group_template_declaration(void)
    consume(tSEMI);
 
    tree_set_loc(g, CURRENT_LOC);
-   insert_name(nametab, g, NULL, 0);
+   insert_name(nametab, g, NULL);
 
    return g;
 }
@@ -6609,7 +6604,7 @@ static tree_t p_group_declaration(void)
    consume(tSEMI);
 
    tree_set_loc(g, CURRENT_LOC);
-   insert_name(nametab, g, NULL, 0);
+   insert_name(nametab, g, NULL);
 
    return g;
 }
@@ -6655,14 +6650,12 @@ static void p_protected_type_body_declarative_item(tree_t body)
       if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
          tree_add_decl(body, p_subprogram_instantiation_declaration());
       else {
-         push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          tree_set_flag(spec, TREE_F_PROTECTED);
          if (peek() == tSEMI)
             tree_add_decl(body, p_subprogram_declaration(spec));
          else
             tree_add_decl(body, p_subprogram_body(spec));
-         pop_scope(nametab);
       }
       break;
 
@@ -6807,7 +6800,7 @@ static tree_t p_package_instantiation_declaration(tree_t unit)
    consume(tSEMI);
 
    tree_set_loc(new, CURRENT_LOC);
-   insert_name(nametab, new, NULL, 0);
+   insert_name(nametab, new, NULL);
 
    sem_check(new, nametab);
 
@@ -6861,13 +6854,11 @@ static void p_entity_declarative_item(tree_t entity)
       if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
          tree_add_decl(entity, p_subprogram_instantiation_declaration());
       else {
-         push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
             tree_add_decl(entity, p_subprogram_declaration(spec));
          else
             tree_add_decl(entity, p_subprogram_body(spec));
-         pop_scope(nametab);
       }
       break;
 
@@ -6940,14 +6931,12 @@ static void p_subprogram_declarative_item(tree_t sub)
       if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
          tree_add_decl(sub, p_subprogram_instantiation_declaration());
       else {
-         push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          tree_set_flag(spec, tree_flags(sub) & TREE_F_PROTECTED);
          if (peek() == tSEMI)
             tree_add_decl(sub, p_subprogram_declaration(spec));
          else
             tree_add_decl(sub, p_subprogram_body(spec));
-         pop_scope(nametab);
       }
       break;
 
@@ -7025,20 +7014,21 @@ static tree_t p_subprogram_body(tree_t spec)
 
    EXTEND("subprogram body");
 
-   insert_ports(nametab, spec);
-
    consume(tIS);
 
    const tree_kind_t kind =
       (tree_kind(spec) == T_FUNC_DECL) ? T_FUNC_BODY : T_PROC_BODY;
    tree_change_kind(spec, kind);
 
+   insert_name(nametab, spec, NULL);
+
+   push_scope(nametab);
    scope_set_subprogram(nametab, spec);
 
-   sem_check(spec, nametab);
+   insert_generics(nametab, spec);
+   insert_ports(nametab, spec);
 
-   insert_name(nametab, spec, NULL, 1);
-   push_scope(nametab);
+   sem_check(spec, nametab);
 
    p_subprogram_declarative_part(spec);
 
@@ -7066,7 +7056,7 @@ static tree_t p_subprogram_declaration(tree_t spec)
 
    EXTEND("subprogram declaration");
 
-   insert_name(nametab, spec, NULL, 1);
+   insert_name(nametab, spec, NULL);
 
    consume(tSEMI);
 
@@ -7122,13 +7112,11 @@ static void p_process_declarative_item(tree_t proc)
       if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
          tree_add_decl(proc, p_subprogram_instantiation_declaration());
       else {
-         push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
             tree_add_decl(proc, p_subprogram_declaration(spec));
          else
             tree_add_decl(proc, p_subprogram_body(spec));
-         pop_scope(nametab);
       }
       break;
 
@@ -7224,21 +7212,19 @@ static tree_t p_process_statement(ident_t label)
 
    optional(tIS);
 
-   push_scope(nametab);
-   scope_set_container(nametab, t);
-
-   if (label != NULL) {
-      tree_set_ident(t, label);
-      tree_set_loc(t, CURRENT_LOC);
-      insert_name(nametab, t, label, 1);
-      scope_set_prefix(nametab, label);
+   if (label == NULL) {
+      tree_set_ident(t, loc_to_ident(CURRENT_LOC));
+      tree_set_flag(t, TREE_F_SYNTHETIC_NAME);
    }
    else {
-      ident_t tmp = loc_to_ident(CURRENT_LOC);
-      tree_set_ident(t, tmp);
-      tree_set_flag(t, TREE_F_SYNTHETIC_NAME);
-      scope_set_prefix(nametab, tmp);
+      tree_set_loc(t, CURRENT_LOC);
+      tree_set_ident(t, label);
+      insert_name(nametab, t, label);
    }
+
+   push_scope(nametab);
+   scope_set_container(nametab, t);
+   scope_set_prefix(nametab, label);
 
    p_process_declarative_part(t);
 
@@ -7327,8 +7313,10 @@ static void p_entity_declaration(tree_t unit)
 
    consume(tIS);
 
+   push_scope(nametab);
+
    tree_set_loc(unit, CURRENT_LOC);
-   insert_name(nametab, unit, id, 0);
+   insert_name(nametab, unit, id);
 
    push_scope(nametab);
 
@@ -7349,6 +7337,7 @@ static void p_entity_declaration(tree_t unit)
    tree_set_loc(unit, CURRENT_LOC);
    sem_check(unit, nametab);
 
+   pop_scope(nametab);
    pop_scope(nametab);
 
    tree_set_ident(unit, qual);
@@ -7386,7 +7375,7 @@ static tree_t p_component_declaration(void)
    consume(tSEMI);
 
    tree_set_loc(c, CURRENT_LOC);
-   insert_name(nametab, c, NULL, 0);
+   insert_name(nametab, c, NULL);
    sem_check(c, nametab);
    return c;
 }
@@ -7416,13 +7405,11 @@ static void p_package_declarative_item(tree_t pack)
       if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
          tree_add_decl(pack, p_subprogram_instantiation_declaration());
       else {
-         push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
             tree_add_decl(pack, p_subprogram_declaration(spec));
          else
             tree_add_decl(pack, p_subprogram_body(spec));
-         pop_scope(nametab);
       }
       break;
 
@@ -7529,11 +7516,13 @@ static void p_package_declaration(tree_t unit)
 
    tree_change_kind(unit, T_PACKAGE);
    tree_set_ident(unit, name);
+   tree_set_loc(unit, CURRENT_LOC);
 
    ident_t qual = ident_prefix(lib_name(lib_work()), name, '.');
    scope_set_prefix(nametab, qual);
 
-   insert_name(nametab, unit, NULL, 0);
+   push_scope(nametab);
+   insert_name(nametab, unit, NULL);
 
    consume(tIS);
 
@@ -7556,6 +7545,8 @@ static void p_package_declaration(tree_t unit)
    sem_check(unit, nametab);
 
    tree_set_ident(unit, qual);
+
+   pop_scope(nametab);
 }
 
 static ident_list_t *p_instantiation_list(void)
@@ -8011,7 +8002,7 @@ static void p_configuration_declaration(tree_t unit)
    }
    else if (of != NULL) {
       tree_set_primary(unit, of);
-      insert_name(nametab, of, ename, 0);
+      insert_name(nametab, of, ename);
       insert_decls(nametab, of);
    }
 
@@ -8051,6 +8042,8 @@ static void p_context_declaration(tree_t unit)
 
    consume(tIS);
 
+   push_scope(nametab);
+
    // LRM 08 section 13.1 forbids preceeding context clause
    if (tree_contexts(unit) != 3)     // Implicit WORK and STD
       parse_error(tree_loc(tree_context(unit, 3)), "context clause preceeding "
@@ -8065,6 +8058,8 @@ static void p_context_declaration(tree_t unit)
 
    tree_set_loc(unit, CURRENT_LOC);
    sem_check(unit, nametab);
+
+   pop_scope(nametab);
 }
 
 static void p_primary_unit(tree_t unit)
@@ -8140,13 +8135,11 @@ static void p_block_declarative_item(tree_t parent)
       if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
          tree_add_decl(parent, p_subprogram_instantiation_declaration());
       else {
-         push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
             tree_add_decl(parent, p_subprogram_declaration(spec));
          else
             tree_add_decl(parent, p_subprogram_body(spec));
-         pop_scope(nametab);
       }
       break;
 
@@ -8725,7 +8718,7 @@ static void p_parameter_specification(tree_t loop, tree_kind_t pkind)
 
    tree_add_decl(loop, param);
 
-   insert_name(nametab, param, NULL, 0);
+   insert_name(nametab, param, NULL);
 }
 
 static tree_t p_iteration_scheme(void)
@@ -8768,7 +8761,7 @@ static tree_t p_loop_statement(ident_t label)
    set_label_and_loc(t, label, CURRENT_LOC);
    scope_set_container(nametab, t);
    if (label != NULL)
-      insert_name(nametab, t, NULL, 0);
+      insert_name(nametab, t, NULL);
 
    sem_check(t, nametab);
 
@@ -9185,15 +9178,16 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
 
    tree_set_loc(t, CURRENT_LOC);
 
-   if (label == NULL)
+   if (label == NULL) {
       parse_error(CURRENT_LOC, "component instantiation statement must "
                   "have a label");
-   else
-      insert_name(nametab, t, NULL, 1);
+      tree_set_ident(t, loc_to_ident(CURRENT_LOC));
+   }
 
    sem_check(t, nametab);
    pop_scope(nametab);
 
+   insert_name(nametab, t, NULL);
    return t;
 }
 
@@ -9405,7 +9399,7 @@ static tree_t p_concurrent_signal_assignment_statement(ident_t label,
    if (postponed)
       tree_set_flag(t, TREE_F_POSTPONED);
 
-   insert_name(nametab, t, NULL, 0);
+   insert_name(nametab, t, NULL);
    sem_check(t, nametab);
    return t;
 }
@@ -9445,7 +9439,7 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
    ensure_labelled(conc, label);
    tree_set_ident(call, tree_ident(conc));
 
-   insert_name(nametab, conc, NULL, 0);
+   insert_name(nametab, conc, NULL);
    sem_check(conc, nametab);
    return conc;
 }
@@ -9507,17 +9501,18 @@ static tree_t p_block_statement(ident_t label)
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, label);
 
-   push_scope(nametab);
-
    consume(tBLOCK);
 
    if (label == NULL)
       parse_error(CURRENT_LOC, "block statement must have a label");
    else {
       tree_set_loc(b, CURRENT_LOC);
-      insert_name(nametab, b, NULL, 1);
+      insert_name(nametab, b, NULL);
       scope_set_prefix(nametab, label);
    }
+
+   push_scope(nametab);
+   scope_set_container(nametab, b);
 
    if (peek() == tLPAREN) {
       consume(tLPAREN);
@@ -9742,27 +9737,27 @@ static void p_architecture_body(tree_t unit)
 
    consume(tIS);
 
-   push_scope(nametab);
-
    ident_t ename = ident_prefix(lib_name(lib_work()), entity_name, '.');
    tree_t e = find_unit(CURRENT_LOC, ename, "entity");
    if (e != NULL && tree_kind(e) == T_ENTITY) {
       tree_set_primary(unit, e);
-
       insert_names_from_context(nametab, e);
-
-      if (entity_name != arch_name)
-         insert_name(nametab, e, entity_name, 0);
    }
    else if (e != NULL) {
       parse_error(CURRENT_LOC, "unit %s is not an entity", istr(ename));
       e = NULL;
    }
 
+   push_scope(nametab);
+
+   if (entity_name != arch_name && e != NULL)
+      insert_name(nametab, e, entity_name);
+
    ident_t qual = ident_prefix(ename, arch_name, '-');
    scope_set_prefix(nametab, qual);
 
-   insert_name(nametab, unit, NULL, 0);
+   tree_set_loc(unit, CURRENT_LOC);
+   insert_name(nametab, unit, NULL);
 
    push_scope(nametab);
 
@@ -9814,13 +9809,11 @@ static void p_package_body_declarative_item(tree_t parent)
       if (peek_nth(3) == tIS && peek_nth(4) == tNEW)
          tree_add_decl(parent, p_subprogram_instantiation_declaration());
       else {
-         push_scope(nametab);
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
             tree_add_decl(parent, p_subprogram_declaration(spec));
          else
             tree_add_decl(parent, p_subprogram_body(spec));
-         pop_scope(nametab);
       }
       break;
 
@@ -9905,8 +9898,6 @@ static void p_package_body(tree_t unit)
 
    tree_change_kind(unit, T_PACK_BODY);
 
-   push_scope(nametab);
-
    ident_t qual = ident_prefix(lib_name(lib_work()), name, '.');
    tree_t pack = find_unit(CURRENT_LOC, qual, "package");
    if (pack != NULL && tree_kind(pack) != T_PACKAGE) {
@@ -9918,10 +9909,13 @@ static void p_package_body(tree_t unit)
       insert_names_from_context(nametab, pack);
    }
 
+   push_scope(nametab);
+
    tree_set_ident(unit, ident_prefix(qual, ident_new("body"), '-'));
+   tree_set_loc(unit, CURRENT_LOC);
 
    scope_set_prefix(nametab, qual);
-   insert_name(nametab, unit, name, 0);
+   insert_name(nametab, unit, name);
 
    consume(tIS);
 
@@ -9975,8 +9969,6 @@ static void p_library_unit(tree_t unit)
 
    BEGIN("library unit");
 
-   push_scope(nametab);
-
    switch (peek()) {
    case tENTITY:
    case tCONFIGURATION:
@@ -10002,9 +9994,6 @@ static void p_library_unit(tree_t unit)
    if (bootstrapping && unit != find_std(nametab))
       parse_error(tree_loc(unit), "--bootstrap must only be used with "
                   "STANDARD package");
-
-
-   pop_scope(nametab);
 }
 
 static tree_t p_design_unit(void)
@@ -10022,15 +10011,15 @@ static tree_t p_design_unit(void)
    tree_set_ident(std, std_i);
    tree_set_ident2(std, std_i);
    tree_add_context(unit, std);
-   insert_name(nametab, std, std_i, 0);
+   insert_name(nametab, std, std_i);
 
    ident_t work_name = lib_name(lib_work());
    tree_t work = tree_new(T_LIBRARY);
    tree_set_ident(work, work_name);
    tree_set_ident2(work, work_name);
    tree_add_context(unit, work);
-   insert_name(nametab, work, well_known(W_WORK), 0);
-   insert_name(nametab, work, NULL, 0);
+   insert_name(nametab, work, well_known(W_WORK));
+   insert_name(nametab, work, NULL);
 
    // The std.standard package is implicit unless we are bootstrapping
    if (!bootstrapping) {

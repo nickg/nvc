@@ -87,4 +87,7 @@ begin
     u12: component comp1
         generic map ( t => my_func, init => 5 );  -- Error
 
+    u13: component comp1
+        generic map ( t => u12, init => 5 );  -- Error
+
 end architecture;

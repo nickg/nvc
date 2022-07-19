@@ -1,7 +1,7 @@
-entity b is
+entity bb is
 end entity;
 
-architecture a of b is
+architecture aa of bb is
     signal x, y, z : integer;
     signal w : bit_vector(1 to 3);
 begin

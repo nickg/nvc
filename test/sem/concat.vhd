@@ -1,7 +1,7 @@
 entity concat is
 end entity;
 
-architecture t of concat is
+architecture arch of concat is
     type int_array is array (integer range <>) of integer;
 begin
 

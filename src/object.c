@@ -138,6 +138,11 @@ object_t *arena_root(object_arena_t *arena)
    return (object_t *)arena->base;
 }
 
+bool arena_frozen(object_arena_t *arena)
+{
+   return arena->frozen;
+}
+
 object_arena_t *object_arena(object_t *object)
 {
    return __object_arena(object);

@@ -316,12 +316,15 @@ START_TEST(test_seq)
    tree_t a, p, s, e, b, c;
 
    set_standard(STD_08);
+   opt_set_int(OPT_WARN_HIDDEN, 1);
 
    input_from_file(TESTDIR "/parse/seq.vhd");
 
    const error_t expect[] = {
       {  15, "type of slice prefix INTEGER is not an array" },
       {  45, "target of variable assignment must be a variable name or" },
+      {  51, "declaration of variable X hides signal X" },
+      {  51, "declaration of variable Y hides signal Y" },
       {  84, "return statement not allowed outside subprogram" },
       { 125, "cannot use exit statement outside loop" },
       { 126, "cannot use exit statement outside loop" },
@@ -1360,7 +1363,15 @@ START_TEST(test_qual)
 {
    tree_t a, p, s, q, e;
 
+   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/parse/qual.vhd");
+
+   const error_t expect[] = {
+      {  4, "declaration of type FOO hides architecture FOO" },
+      {  5, "declaration of type BAR hides entity BAR" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
 
    e = parse();
    fail_if(e == NULL);
@@ -1396,7 +1407,7 @@ START_TEST(test_qual)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -2497,7 +2508,15 @@ START_TEST(test_generate)
 {
    tree_t e, a, g, i;
 
+   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/parse/generate.vhd");
+
+   const error_t expect[] = {
+      { 13, "declaration of signal X hides signal X" },
+      { 25, "declaration of signal X hides signal X" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
 
    e = parse();
    fail_if(e == NULL);
@@ -2557,7 +2576,7 @@ START_TEST(test_generate)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -2874,6 +2893,7 @@ START_TEST(test_error)
 {
    tree_t e, a;
 
+   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/parse/error.vhd");
 
    e = parse();
@@ -2900,6 +2920,7 @@ START_TEST(test_error)
       { 44, "A1 already declared in this region" },
       { 47, "S1 already declared in this region" },
       { 50, "B1 already declared in this region" },
+      { 53, "declaration of constant X hides signal X" },
       { 56, "C1 already declared in this region" },
       { 59, "NOT_A_LIBRARY does not name a visible component or design unit" },
       { 64, "missing declaration for entity WORK.NOT_HERE" },
@@ -3174,11 +3195,13 @@ END_TEST
 
 START_TEST(test_guarded)
 {
+   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/parse/guarded.vhd");
 
    const error_t expect[] = {
       {  7, "guarded assignment has no visible guard signal" },
       {  9, "guarded assignment has no visible guard signal" },
+      { 24, "declaration of signal Q hides signal Q" },
       { 25, "Q in disconnection specification must denote a guarded" },
       { -1, NULL }
    };
@@ -3283,7 +3306,14 @@ END_TEST
 
 START_TEST(test_issue367)
 {
+   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/parse/issue367.vhd");
+
+   const error_t expect[] = {
+      { 13, "declaration of constant I hides variable I" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
 
    tree_t p = parse();
    fail_if(p == NULL);
@@ -3314,7 +3344,7 @@ START_TEST(test_issue367)
 
    fail_if(parse() != NULL);
 
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -3464,6 +3494,7 @@ END_TEST
 
 START_TEST(test_names)
 {
+   opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/parse/names.vhd");
 
    const error_t expect[] = {
@@ -3492,11 +3523,14 @@ START_TEST(test_names)
       { 222, "ambiguous use of name FOO" },
       { 233, "name X not found in \"+\"" },
       { 256, "no visible subprogram declaration for NOTHERE" },
+      { 282, "declaration of subtype MY_INT hides type MY_INT" },
+      { 288, "declaration of subtype MY_INT hides type MY_INT" },
       { 313, "no visible subprogram declaration for FNORK" },
       { 323, "no matching subprogram P26_1 [universal_integer" },
       { 332, "no matching operator \"and\" [BIT, BOOLEAN return BOOLEAN]" },
       { 360, "object X with type INTEGER cannot be selected" },
       { 362, "no visible declaration for FOO" },
+      { 374, "declaration of type LIST hides type LIST" },
       { 386, "expecting type mark while parsing qualified expression" },
       {  -1, NULL }
    };
@@ -3571,6 +3605,7 @@ END_TEST
 
 START_TEST(test_error2)
 {
+   opt_set_int(OPT_WARN_HIDDEN, 1);
    set_standard(STD_00);
 
    input_from_file(TESTDIR "/parse/error2.vhd");
@@ -3582,6 +3617,7 @@ START_TEST(test_error2)
       { 10, "no visible declaration for SGHBBX" },
       { 17, "cannot find unit STD.NOTHERE" },
       { 22, "unexpected identifier while parsing range" },
+      { 22, "declaration of constant FOO hides type FOO" },
       { 29, "expected physical type definition trailing" },
       { 33, "expected record type definition trailing identifier" },
       { 38, "unexpected procedure while parsing subprogram body" },
@@ -4087,7 +4123,6 @@ START_TEST(test_external)
 {
    set_standard(STD_08);
    input_from_file(TESTDIR "/parse/external.vhd");
-
 
    tree_t e = parse();
    fail_if(e == NULL);
@@ -4615,6 +4650,166 @@ START_TEST(test_uvvm2)
 }
 END_TEST
 
+START_TEST(test_visibility1)
+{
+   input_from_file(TESTDIR "/parse/visibility1.vhd");
+
+   const error_t expect[] = {
+      { 17, "multiple conflicting visible declarations of K" },
+      { 20, "multiple conflicting visible declarations of T" },
+      { 21, "ambiguous use of enumeration literal BAR" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 3; i++) {
+      tree_t p = parse();
+      fail_if(p == NULL);
+      fail_unless(tree_kind(p) == T_PACKAGE);
+      lib_put(lib_work(), p);
+   }
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_visibility2)
+{
+   input_from_file(TESTDIR "/parse/visibility2.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 2; i++) {
+      tree_t p = parse();
+      fail_if(p == NULL);
+      fail_unless(tree_kind(p) == T_PACKAGE);
+      lib_put(lib_work(), p);
+   }
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_visibility3)
+{
+   opt_set_int(OPT_WARN_HIDDEN, 1);
+
+   input_from_file(TESTDIR "/parse/visibility3.vhd");
+
+   for (int i = 0; i < 2; i++) {
+      tree_t p = parse();
+      fail_if(p == NULL);
+      fail_unless(tree_kind(p) == T_PACKAGE);
+      lib_put(lib_work(), p);
+   }
+
+   tree_t b = parse();
+   fail_if(b == NULL);
+   fail_unless(tree_kind(b) == T_PACK_BODY);
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
+START_TEST(test_visibility4)
+{
+   opt_set_int(OPT_WARN_HIDDEN, 1);
+
+   lib_t foo_lib = lib_tmp("FOO");
+   lib_set_work(foo_lib);
+
+   input_from_file(TESTDIR "/parse/visibility4.vhd");
+
+   const error_t expect[] = {
+      { 18, "unexpected * while parsing use clause, expecting one of id" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t p1 = parse();
+   fail_if(p1 == NULL);
+   fail_unless(tree_kind(p1) == T_PACKAGE);
+   lib_put(lib_work(), p1);
+
+   lib_t bar_lib = lib_tmp("BAR");
+   lib_set_work(bar_lib);
+
+   tree_t p2 = parse();
+   fail_if(p2 == NULL);
+   fail_unless(tree_kind(p2) == T_PACKAGE);
+   lib_put(lib_work(), p2);
+
+   lib_t baz_lib = lib_tmp("BAZ");
+   lib_set_work(baz_lib);
+
+   tree_t p3 = parse();
+   fail_if(p3 == NULL);
+   fail_unless(tree_kind(p3) == T_PACKAGE);
+   lib_put(lib_work(), p3);
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_visibility5)
+{
+   opt_set_int(OPT_WARN_HIDDEN, 1);
+
+   input_from_file(TESTDIR "/parse/visibility5.vhd");
+
+   const error_t expect[] = {
+      {  2, "declaration of type STRING_LIST hides package STRING_LIST" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 2; i++) {
+      tree_t p = parse();
+      fail_if(p == NULL);
+      fail_unless(tree_kind(p) == T_PACKAGE);
+      lib_put(lib_work(), p);
+   }
+
+   fail_unless(parse() == NULL);
+
+   check_expected_errors();
+}
+END_TEST
+
+START_TEST(test_visibility6)
+{
+   opt_set_int(OPT_WARN_HIDDEN, 1);
+
+   input_from_file(TESTDIR "/parse/visibility6.vhd");
+
+   for (int i = 0; i < 2; i++) {
+      tree_t p = parse();
+      fail_if(p == NULL);
+      fail_unless(tree_kind(p) == T_PACKAGE);
+      lib_put(lib_work(), p);
+   }
+
+   fail_unless(parse() == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -4701,6 +4896,12 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_error9);
    tcase_add_test(tc_core, test_uvvm1);
    tcase_add_test(tc_core, test_uvvm2);
+   tcase_add_test(tc_core, test_visibility1);
+   tcase_add_test(tc_core, test_visibility2);
+   tcase_add_test(tc_core, test_visibility3);
+   tcase_add_test(tc_core, test_visibility4);
+   tcase_add_test(tc_core, test_visibility5);
+   tcase_add_test(tc_core, test_visibility6);
    suite_add_tcase(s, tc_core);
 
    return s;

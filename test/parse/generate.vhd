@@ -1,6 +1,6 @@
-entity g is end entity;
+entity gg is end entity;
 
-architecture a of g is
+architecture aa of gg is
     constant foo, bar : boolean := false;
     signal x, g, f : integer;
     constant h : integer := 6;

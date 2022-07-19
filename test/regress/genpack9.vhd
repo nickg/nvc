@@ -37,7 +37,7 @@ end entity;
 
 use work.pack2.all;
 
-architecture test of genpack9 is
+architecture aa of genpack9 is
 begin
     test;
 end architecture;

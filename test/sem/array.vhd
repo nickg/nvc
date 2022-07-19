@@ -6,12 +6,12 @@ package p is
 
 end package;
 
-entity e is
+entity ent is
 end entity;
 
 use work.p.all;
 
-architecture a of e is
+architecture arch of ent is
     -- All these declarations are OK
     signal x : int_array(1 to 5);
     signal y : ten_ints;
@@ -417,7 +417,7 @@ begin
     process is
         function f(b:integer:=0) return string is begin return "abc"; end function;
         function f               return string is begin return "def"; end function;
-        alias f0 is f [integer return string];
+        alias f0 is f [integer return string];  -- OK
         subtype r is integer range 1 to 2;
     begin
         report "x: " & f0(r) severity note;  -- OK

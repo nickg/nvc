@@ -459,6 +459,7 @@ class_t class_of(tree_t t)
    case T_BLOCK:
    case T_FOR:
    case T_INSTANCE:
+   case T_CONCURRENT:
       return C_LABEL;
    case T_COMPONENT:
       return C_COMPONENT;
@@ -960,6 +961,7 @@ void intern_strings(void)
    id_cache[W_CARET]         = ident_new("^");
    id_cache[W_IEEE]          = ident_new("IEEE");
    id_cache[W_IEEE_1164]     = ident_new("IEEE.STD_LOGIC_1164");
+   id_cache[W_ERROR]         = ident_new("error");
 }
 
 bool is_uninstantiated_package(tree_t pack)
@@ -1666,12 +1668,24 @@ tree_t find_generic_map(tree_t unit, int pos, tree_t g)
 
    for (int j = 0; j < ngenmaps; j++) {
       tree_t m = tree_genmap(unit, j);
-      if (tree_subkind(m) == P_NAMED) {
-         tree_t name = tree_name(m);
-         assert(tree_kind(name) == T_REF);
+      switch (tree_subkind(m)) {
+      case P_NAMED:
+         {
+            tree_t name = tree_name(m);
+            assert(tree_kind(name) == T_REF);
 
-         if (tree_ref(name) == g)
+            if (tree_ref(name) == g)
+               return tree_value(m);
+         }
+         break;
+
+      case P_POS:
+         if (tree_pos(m) == pos)
             return tree_value(m);
+         break;
+
+      default:
+         break;
       }
    }
 

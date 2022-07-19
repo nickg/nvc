@@ -1947,7 +1947,8 @@ static void irgen_op_package_init(jit_irgen_t *g, int op)
    // TODO: implement this properly with a macro op
    void *context = jit_link(g->func->jit, handle);
    if (context == NULL)
-      fatal("failed to intialise package %s", istr(unit_name));
+      fatal_at(vcode_get_loc(op), "failed to intialise package %s",
+               istr(unit_name));
 
    g->map[vcode_get_result(op)] = jit_addr_from_ptr(context);
 }
@@ -1962,7 +1963,7 @@ static void irgen_op_link_package(jit_irgen_t *g, int op)
    //       pool.
    void *context = jit_link(g->func->jit, handle);
    if (context == NULL)
-      fatal("failed to link package %s", istr(unit_name));
+      fatal_at(vcode_get_loc(op), "failed to link package %s", istr(unit_name));
 
    g->map[vcode_get_result(op)] = jit_addr_from_ptr(context);
 }

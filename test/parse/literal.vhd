@@ -1,8 +1,8 @@
 -- -*- coding: latin-1 -*-
-entity e is
+entity ee is
 end entity;
 
-ARCHITECTURE a OF e IS
+ARCHITECTURE aa OF ee IS
   SIGNAL pos : INTEGER := 64;
   SIGNAL neg : INTEGER := -265;
   CONSTANT c : INTEGER := 523;

@@ -60,14 +60,14 @@ void nametab_finish(nametab_t *tab);
 
 void push_scope(nametab_t *tab);
 void pop_scope(nametab_t *tab);
-void scope_set_formal_kind(nametab_t *tab, tree_t formal, formal_kind_t kind);
+void push_scope_for_fields(nametab_t *tab, type_t type);
+void push_scope_for_formals(nametab_t *tab, formal_kind_t kind, tree_t unit);
 void scope_set_prefix(nametab_t *tab, ident_t prefix);
 ident_t scope_prefix(nametab_t *tab);
 formal_kind_t scope_formal_kind(nametab_t *tab);
 void scope_set_container(nametab_t *tab, tree_t container);
 void scope_set_subprogram(nametab_t *tab, tree_t subprog);
 tree_t find_enclosing(nametab_t *tab, scope_kind_t kind);
-bool name_is_formal(nametab_t *tab, ident_t id);
 void suppress_errors(nametab_t *tab);
 
 void map_generic_type(nametab_t *tab, type_t generic, type_t actual);
@@ -81,10 +81,9 @@ void mangle_func(nametab_t *tab, tree_t decl);
 void mangle_type(nametab_t *tab, type_t type);
 void mangle_decl(nametab_t *tab, tree_t decl);
 
-void insert_name(nametab_t *tab, tree_t decl, ident_t alias, int depth);
+void insert_name(nametab_t *tab, tree_t decl, ident_t alias);
 void insert_names_from_use(nametab_t *tab, tree_t use);
 void insert_names_from_context(nametab_t *tab, tree_t unit);
-void insert_field_names(nametab_t *tab, type_t record);
 void insert_decls(nametab_t *tab, tree_t container);
 void insert_ports(nametab_t *tab, tree_t container);
 void insert_generics(nametab_t *tab, tree_t container);

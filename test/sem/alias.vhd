@@ -68,7 +68,7 @@ architecture test of e is
     subtype bad is blah blah blah;  -- Error
 
     function foo_bad (x : bit) return bad;  -- OK
-    function foo_bad (x : bit) return bad;  -- OK
+    function foo_bad (x : bit) return bad;  -- Error (suppressed)
 
     alias foo_o is foo_bad [bit return bad];  -- OK
     alias foo_o is foo_bad [character return bad];  -- Error (suppressed)

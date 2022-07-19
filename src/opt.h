@@ -54,6 +54,7 @@ typedef enum {
    OPT_RELAXED,
    OPT_JIT_VERBOSE,
    OPT_JIT_LOG,
+   OPT_WARN_HIDDEN,
 
    OPT_LAST_NAME
 } opt_name_t;

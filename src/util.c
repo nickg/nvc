@@ -349,6 +349,12 @@ static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain)
                      found = true;
                   }
                }
+               else if (strncmp(e, "link:", 5) == 0) {
+                  tb_cat(tb, "\033]8;;");
+                  tb_catn(tb, e + 5, len - 5);
+                  tb_cat(tb, "\033]8;;\07");
+                  found = true;
+               }
 
                for (int i = 0; !found && i < ARRAY_LEN(escapes); i++) {
                   if (strncmp(e, escapes[i].name, len) == 0) {

@@ -1226,6 +1226,11 @@ object_arena_t *tree_arena(tree_t t)
    return object_arena(&(t->object));
 }
 
+bool tree_frozen(tree_t t)
+{
+   return arena_frozen(object_arena(&(t->object)));
+}
+
 tree_t tree_container(tree_t t)
 {
    object_t *o = arena_root(object_arena(&(t->object)));
