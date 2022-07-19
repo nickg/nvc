@@ -2928,8 +2928,18 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
          free(sub);
    }
 
-   for (int i = 0; i < *n_elems; i++)
-      assert(vals[i] != VCODE_INVALID_VAR);
+   if (mode == LOWER_THUNK || DEBUG) {
+      // We may attempt to evaluate a locally static expression that
+      // references this array before the bounds checker has run
+      for (int i = 0; i < *n_elems; i++) {
+         if (vals[i] != VCODE_INVALID_REG)
+            continue;
+         else if (mode == LOWER_THUNK)
+            vals[i] = emit_undefined(lower_type(type_elem(type)));
+         else
+            fatal_trace("missing constant array element %d", i);
+      }
+   }
 
    return vals;
 }

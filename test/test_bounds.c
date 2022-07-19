@@ -513,6 +513,24 @@ START_TEST(test_issue477a)
 }
 END_TEST
 
+START_TEST(test_issue477b)
+{
+   input_from_file(TESTDIR "/bounds/issue477b.vhd");
+
+   const error_t expect[] = {
+      { 23, "missing choice for element TYPE_5 of T_DATA_SEGMENT_TEMPLATE " },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_PACKAGE);
+   fail_unless(error_count() == 0);
+
+   bounds_check(a);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -538,6 +556,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_range1);
    tcase_add_test(tc_core, test_case2);
    tcase_add_test(tc_core, test_issue477a);
+   tcase_add_test(tc_core, test_issue477b);
    suite_add_tcase(s, tc_core);
 
    return s;
