@@ -2928,7 +2928,7 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
          free(sub);
    }
 
-   if (mode == LOWER_THUNK || DEBUG) {
+   if (mode == LOWER_THUNK DEBUG_ONLY(|| true)) {
       // We may attempt to evaluate a locally static expression that
       // references this array before the bounds checker has run
       for (int i = 0; i < *n_elems; i++) {
