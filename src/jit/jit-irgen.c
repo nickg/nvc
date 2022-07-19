@@ -640,7 +640,7 @@ static int irgen_size_bytes(vcode_type_t vtype)
    case VCODE_TYPE_RECORD:
       {
          const int nfields = vtype_fields(vtype);
-         int bytes = 0, maxalign = 0;
+         int bytes = 0;
          for (int i = 0; i < nfields; i++) {
             vcode_type_t ftype = vtype_field(vtype, i);
             const int fb = irgen_size_bytes(ftype);
@@ -648,11 +648,9 @@ static int irgen_size_bytes(vcode_type_t vtype)
 
             bytes = ALIGN_UP(bytes, align);
             bytes += fb;
-
-            maxalign = MAX(align, maxalign);
          }
 
-         return ALIGN_UP(bytes, maxalign);
+         return ALIGN_UP(bytes, sizeof(double));
       }
 
    case VCODE_TYPE_UARRAY:
@@ -1490,7 +1488,9 @@ static void irgen_op_array_ref(jit_irgen_t *g, int op)
    // TODO: merge this into an address somehow
    jit_value_t scaled = j_mul(g, arg1, jit_value_from_int64(scale));
 
-   g->map[vcode_get_result(op)] = j_add(g, arg0, scaled);
+   jit_value_t addr = irgen_lea(g, arg0);
+
+   g->map[vcode_get_result(op)] = j_add(g, addr, scaled);
 }
 
 static void irgen_op_record_ref(jit_irgen_t *g, int op)

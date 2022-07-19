@@ -490,6 +490,29 @@ START_TEST(test_case2)
 }
 END_TEST
 
+START_TEST(test_issue477a)
+{
+   set_standard(STD_08);
+   input_from_file(TESTDIR "/bounds/issue477a.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE);
+   bounds_check(p);
+
+   tree_t d = search_decls(p, ident_new("C_DATA_VERSION"), 0);
+   fail_if(d == NULL);
+   fail_unless(tree_kind(d) == T_CONST_DECL);
+
+   type_t type = tree_type(d);
+   fail_unless(type_kind(type) == T_SUBTYPE);
+
+   int64_t left;
+   fail_unless(folded_int(tree_left(range_of(type, 0)), &left));
+   ck_assert_int_eq(left, 7);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -514,6 +537,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_osvvm1);
    tcase_add_test(tc_core, test_range1);
    tcase_add_test(tc_core, test_case2);
+   tcase_add_test(tc_core, test_issue477a);
    suite_add_tcase(s, tc_core);
 
    return s;

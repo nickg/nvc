@@ -162,7 +162,7 @@ static void jit_dump_ir(jit_dump_t *d, jit_ir_t *ir)
    printf("\n");
 }
 
-void jit_dump_with_mark(jit_func_t *f, jit_label_t label)
+void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool)
 {
    printf("------------------------------------------------------------\n");
    printf("%s:\n", istr(f->name));
@@ -189,7 +189,7 @@ void jit_dump_with_mark(jit_func_t *f, jit_label_t label)
 
    ihash_free(d.labels);
 
-   if (f->cpoolsz > 0) {
+   if (cpool && f->cpoolsz > 0) {
       printf("\n");
       jit_hexdump(f->cpool, f->cpoolsz, 16, NULL, "\t");
    }
@@ -199,7 +199,7 @@ void jit_dump_with_mark(jit_func_t *f, jit_label_t label)
 
 void jit_dump(jit_func_t *f)
 {
-   jit_dump_with_mark(f, JIT_LABEL_INVALID);
+   jit_dump_with_mark(f, JIT_LABEL_INVALID, true);
 }
 
 __attribute__((no_sanitize_address))

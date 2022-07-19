@@ -74,6 +74,11 @@ static void interp_dump_reg(jit_interp_t *state, int64_t ival)
    printf("%"PRIx64, ival);
    if ((ival >= -256 && ival < 0) || (ival >= 10 && ival < 256))
       printf(" (%"PRIi64")\n", ival);
+   else if (ival >= (intptr_t)state->func->cpool
+            && ival < (intptr_t)state->func->cpool + state->func->cpoolsz) {
+      printf(" ==> cpool pointer\n");
+      jit_hexdump((void *)(intptr_t)ival, 8, 8, NULL, "\t\t\t");
+   }
    else {
       size_t size;
       void *base;
@@ -92,7 +97,7 @@ static void interp_dump_reg(jit_interp_t *state, int64_t ival)
 
 static void interp_dump(jit_interp_t *state)
 {
-   jit_dump_with_mark(state->func, state->pc - 1);
+   jit_dump_with_mark(state->func, state->pc - 1, false);
 
    printf("Arguments:\n");
    for (int i = 0; i < state->nargs; i++) {

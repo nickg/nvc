@@ -175,7 +175,7 @@ typedef struct _jit_interp jit_interp_t;
 
 void jit_irgen(jit_func_t *f);
 void jit_dump(jit_func_t *f);
-void jit_dump_with_mark(jit_func_t *f, jit_label_t label);
+void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
 const char *jit_op_name(jit_op_t op);
 const char *jit_exit_name(jit_exit_t exit);
 bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge,
