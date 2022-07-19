@@ -4703,6 +4703,18 @@ START_TEST(test_directmap3)
 }
 END_TEST
 
+START_TEST(test_issue476)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/issue476.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE);
+
+   fail_if_errors();
+}
+END_TEST
+
 START_TEST(test_issue478)
 {
    set_standard(STD_08);
@@ -4710,6 +4722,25 @@ START_TEST(test_issue478)
    input_from_file(TESTDIR "/lower/issue478.vhd");
 
    parse_check_simplify_and_lower(T_PACKAGE);
+
+   vcode_unit_t vu = find_unit("WORK.TEST_PKG");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_PACKAGE_INIT, .name = "STD.STANDARD" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = -1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 15 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ALLOC },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "C_NULL_DATA" },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
 
    fail_if_errors();
 }
@@ -4823,6 +4854,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue462);
    tcase_add_test(tc, test_directmap3);
    tcase_add_test(tc, test_directmap3);
+   tcase_add_test(tc, test_issue476);
    tcase_add_test(tc, test_issue478);
    suite_add_tcase(s, tc);
 

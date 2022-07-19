@@ -3182,9 +3182,14 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
    const bool array_of_array = type_is_array(elem_type);
 
+   vcode_type_t velem   = lower_type(scalar_elem_type);
+   vcode_type_t vbounds = lower_bounds(scalar_elem_type);
+
    int64_t null_const;
-   if (vcode_reg_const(null_reg, &null_const) && null_const)
-      return emit_address_of(emit_const_array(lower_type(type), NULL, 0));
+   if (vcode_reg_const(null_reg, &null_const) && null_const) {
+      vcode_type_t vtype = vtype_carray(0, velem, vbounds);
+      return emit_address_of(emit_const_array(vtype, NULL, 0));
+   }
 
    vcode_type_t voffset = vtype_offset();
 
@@ -3215,8 +3220,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
    vcode_reg_t mem_reg = hint;
    if (mem_reg == VCODE_INVALID_REG)
-      mem_reg = emit_alloc(lower_type(scalar_elem_type),
-                           lower_bounds(scalar_elem_type), len_reg);
+      mem_reg = emit_alloc(velem, vbounds, len_reg);
 
    vcode_reg_t wrap_reg;
    if (lower_const_bounds(type))
