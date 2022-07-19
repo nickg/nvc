@@ -3180,6 +3180,8 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
    type_t elem_type = type_elem(type);
    type_t scalar_elem_type = lower_elem_recur(type);
 
+   const bool array_of_array = type_is_array(elem_type);
+
    int64_t null_const;
    if (vcode_reg_const(null_reg, &null_const) && null_const)
       return emit_address_of(emit_const_array(lower_type(type), NULL, 0));
@@ -3187,9 +3189,8 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
    vcode_type_t voffset = vtype_offset();
 
    vcode_reg_t stride, a0_reg = VCODE_INVALID_REG;
-   if (type_is_array(elem_type)) {
+   if (array_of_array) {
       if (type_is_unconstrained(type)) {
-         // TODO: we should check all the elements have the same length
          tree_t a0 = tree_value(tree_assoc(expr, 0));
          a0_reg = lower_expr(a0, EXPR_RVALUE);
          stride = lower_array_total_len(elem_type, a0_reg);
@@ -3248,6 +3249,8 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
       wrap_reg = emit_wrap(mem_reg, dims, count);
    }
+   else if (array_of_array)
+      wrap_reg = lower_wrap(type, mem_reg);
    else {
       vcode_dim_t dim0 = {
          .left  = left_reg,
@@ -3301,7 +3304,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
 
          def_reg = lower_resolved(elem_type, def_reg);
 
-         if (type_is_array(elem_type) || multidim) {
+         if (array_of_array || multidim) {
             assert(stride != VCODE_INVALID_REG);
             vcode_reg_t src_reg = lower_array_data(def_reg);
             emit_copy(ptr_reg, src_reg, stride);
@@ -3465,7 +3468,7 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
          vcode_reg_t src_reg = lower_array_data(value_reg);
          emit_copy(ptr_reg, src_reg, count_reg);
       }
-      else if (type_is_array(elem_type) || multidim) {
+      else if (array_of_array || multidim) {
          assert(stride != VCODE_INVALID_REG);
          vcode_reg_t src_reg = lower_array_data(value_reg);
          emit_copy(ptr_reg, src_reg, stride);
