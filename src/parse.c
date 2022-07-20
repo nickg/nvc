@@ -3390,54 +3390,82 @@ static tree_t p_type_conversion(tree_t prefix)
    return conv;
 }
 
-static ident_t p_partial_pathname(void)
+static void p_partial_pathname(tree_t name)
 {
    // { pathname_element . } object_simple_name
 
-   return p_selected_identifier();
+   BEGIN("partial pathname");
+
+   do {
+      tree_t pe = tree_new(T_PATH_ELT);
+      tree_set_subkind(pe, PE_SIMPLE);
+      tree_set_ident(pe, p_identifier());
+
+      tree_add_part(name, pe);
+   } while (optional(tDOT));
 }
 
-static ident_t p_package_pathname(void)
+static void p_package_pathname(tree_t name)
 {
    // @ library_logical_name . package_simple_name . { package_simple_name . }
    //       object_simple_name
 
    BEGIN("package pathname");
 
+   tree_set_subkind(name, E_PACKAGE);
+
    consume(tAT);
 
-   ident_t id = p_identifier();
+   tree_t pe = tree_new(T_PATH_ELT);
+   tree_set_subkind(pe, PE_LIBRARY);
+   tree_set_ident(pe, p_identifier());
+   tree_set_loc(pe, CURRENT_LOC);
+
+   tree_add_part(name, pe);
 
    consume(tDOT);
 
-   return ident_prefix(id, p_selected_identifier(), '.');
+   p_partial_pathname(name);
 }
 
-static ident_t p_absolute_pathname(void)
+static void p_absolute_pathname(tree_t name)
 {
    // . partial_pathname
 
    BEGIN("absolute pathname");
 
+   tree_set_subkind(name, E_ABSOLUTE);
+
    consume(tDOT);
 
-   return p_partial_pathname();
+   p_partial_pathname(name);
 }
 
-static ident_t p_relative_pathname(void)
+static void p_relative_pathname(tree_t name)
 {
    // { ^ . } partial_pathname
 
    BEGIN("relative pathname");
 
-   ident_t id = NULL;
+   tree_set_subkind(name, E_RELATIVE);
+
+   tree_t pe = tree_new(T_PATH_ELT);
+   tree_set_subkind(pe, PE_RELATIVE);
+
+   tree_add_part(name, pe);
+
    while (peek() == tCARET) {
       consume(tCARET);
       consume(tDOT);
-      id = ident_prefix(id, ident_new("^"), '.');
+
+      tree_t pe = tree_new(T_PATH_ELT);
+      tree_set_loc(pe, CURRENT_LOC);
+      tree_set_subkind(pe, PE_CARET);
+
+      tree_add_part(name, pe);
    }
 
-   return ident_prefix(id, p_partial_pathname(), '.');
+   p_partial_pathname(name);
 }
 
 static void p_external_pathname(tree_t name)
@@ -3448,21 +3476,17 @@ static void p_external_pathname(tree_t name)
 
    switch (peek()) {
    case tDOT:
-      tree_set_subkind(name, E_ABSOLUTE);
-      tree_set_ident(name, p_absolute_pathname());
+      p_absolute_pathname(name);
       break;
    case tCARET:
    case tID:
-      tree_set_subkind(name, E_RELATIVE);
-      tree_set_ident(name, p_relative_pathname());
+      p_relative_pathname(name);
       break;
    case tAT:
-      tree_set_subkind(name, E_PACKAGE);
-      tree_set_ident(name, p_package_pathname());
+      p_package_pathname(name);
       break;
    default:
       one_of(tDOT, tCARET, tID, tAT);
-      tree_set_ident(name, ident_new("error"));
    }
 }
 

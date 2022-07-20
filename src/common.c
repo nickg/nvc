@@ -461,6 +461,7 @@ class_t class_of(tree_t t)
    case T_FOR:
    case T_INSTANCE:
    case T_CONCURRENT:
+   case T_ELAB:
       return C_LABEL;
    case T_COMPONENT:
       return C_COMPONENT;
@@ -486,8 +487,6 @@ class_t class_of(tree_t t)
       return C_PACKAGE;
    case T_LIBRARY:
       return C_LIBRARY;
-   case T_ELAB:
-      return C_ELAB;
    default:
       fatal_trace("missing class_of for %s", tree_kind_str(tree_kind(t)));
    }
@@ -503,7 +502,6 @@ bool class_has_type(class_t c)
    case C_CONFIGURATION:
    case C_PACKAGE:
    case C_LIBRARY:
-   case C_ELAB:
       return false;
    default:
       return true;
@@ -1352,13 +1350,6 @@ const char *port_mode_str(port_mode_t mode)
    };
    assert(mode < ARRAY_LEN(mode_str));
    return mode_str[mode];
-}
-
-const char *ename_kind_str(ename_kind_t kind)
-{
-   const char *kind_str[] = { ".", "", "@", "!" };
-   assert(kind < ARRAY_LEN(kind_str));
-   return kind_str[kind];
 }
 
 void mangle_one_type(text_buf_t *buf, type_t type)

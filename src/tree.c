@@ -293,7 +293,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_FLAGS),
 
    // T_EXTERNAL_NAME
-   (I_IDENT | I_CLASS | I_TYPE | I_REF | I_SUBKIND),
+   (I_PARTS | I_CLASS | I_TYPE | I_REF | I_SUBKIND),
 
    // T_FORCE
    (I_IDENT | I_TARGET | I_VALUE | I_SUBKIND),
@@ -320,6 +320,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_STRING
    (I_CHARS | I_TYPE),
+
+   // T_PATH_ELT
+   (I_SUBKIND | I_IDENT | I_VALUE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -355,7 +358,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_PARAM_DECL",      "T_EXTERNAL_NAME",   "T_FORCE",
    "T_RELEASE",         "T_PROT_REF",        "T_MATCH_CASE",
    "T_FUNC_INST",       "T_PROC_INST",       "T_ELEM_CONSTRAINT",
-   "T_STRING",
+   "T_STRING",          "T_PATH_ELT",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -706,6 +709,23 @@ tree_t tree_char(tree_t t, unsigned n)
 void tree_add_char(tree_t t, tree_t ref)
 {
    tree_array_add(lookup_item(&tree_object, t, I_CHARS), ref);
+   object_write_barrier(&(t->object), &(ref->object));
+}
+
+unsigned tree_parts(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_PARTS)->obj_array.count;
+}
+
+tree_t tree_part(tree_t t, unsigned n)
+{
+   item_t *item = lookup_item(&tree_object, t, I_PARTS);
+   return tree_array_nth(item, n);
+}
+
+void tree_add_part(tree_t t, tree_t ref)
+{
+   tree_array_add(lookup_item(&tree_object, t, I_PARTS), ref);
    object_write_barrier(&(t->object), &(ref->object));
 }
 

@@ -2722,8 +2722,8 @@ START_TEST(test_ename)
       {  2, "sorry, external names in packages are not supported" },
       { 15, "initial value BIT does not match type of declaration INTEGER" },
       { 21, "target of variable assignment must be a variable name or " },
-      { 24, "external name .X.Y is not a valid target of simple release " },
-      { 14, "cannot reference signal FOO.BAR during static elaboration" },
+      { 24, "external name Y is not a valid target of simple release " },
+      { 14, "cannot reference signal BAR during static elaboration" },
       { -1, NULL }
    };
    expect_errors(expect);

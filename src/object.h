@@ -59,7 +59,7 @@ typedef uint64_t imask_t;
 #define I_ASSOCS     ONE_HOT(22)
 #define I_CONTEXT    ONE_HOT(23)
 #define I_TRIGGERS   ONE_HOT(24)
-// Unused            ONE_HOT(25)
+#define I_PARTS      ONE_HOT(25)
 #define I_CLASS      ONE_HOT(26)
 #define I_RANGES     ONE_HOT(27)
 #define I_NAME       ONE_HOT(28)
@@ -106,7 +106,7 @@ typedef uint64_t imask_t;
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_CONSTR   \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
                           | I_LITERALS | I_FIELDS | I_UNITS | I_CHARS   \
-                          | I_DIMS | I_RANGES | I_INDEXCON)
+                          | I_DIMS | I_RANGES | I_INDEXCON | I_PARTS)
 #define ITEM_INT64       (I_POS | I_IVAL)
 #define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
 #define ITEM_DOUBLE      (I_DVAL)

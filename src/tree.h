@@ -51,7 +51,6 @@ typedef enum class {
    C_LITERAL,
    C_UNITS,
    C_LIBRARY,
-   C_ELAB
 } class_t;
 
 typedef enum param_kind {
@@ -93,6 +92,13 @@ typedef enum {
    E_PACKAGE,
    E_RESOLVED,
 } ename_kind_t;
+
+typedef enum {
+   PE_CARET,
+   PE_SIMPLE,
+   PE_LIBRARY,
+   PE_RELATIVE,
+} path_elt_t;
 
 typedef enum {
    S_USER,
@@ -321,6 +327,7 @@ typedef enum tree_kind {
    T_PROC_INST,
    T_ELEM_CONSTRAINT,
    T_STRING,
+   T_PATH_ELT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -493,6 +500,10 @@ void tree_set_spec(tree_t t, tree_t s);
 unsigned tree_chars(tree_t t);
 tree_t tree_char(tree_t t, unsigned n);
 void tree_add_char(tree_t t, tree_t ref);
+
+unsigned tree_parts(tree_t t);
+tree_t tree_part(tree_t t, unsigned n);
+void tree_add_part(tree_t t, tree_t ref);
 
 tree_flags_t tree_flags(tree_t t);
 void tree_set_flag(tree_t t, tree_flags_t mask);

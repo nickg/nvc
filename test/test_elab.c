@@ -1026,8 +1026,8 @@ START_TEST(test_ename1)
    input_from_file(TESTDIR "/elab/ename1.vhd");
 
    const error_t expect[] = {
-      { 30, "class of object UUT.X is not variable" },
-      { 31, "external name BOT.X not found" },
+      { 30, "class of object X is not variable" },
+      { 31, "external name X not found" },
       { 33, "type of signal X is not BIT" },
       { 34, "sorry, this form of external name is not yet supported" },
       { -1, NULL }

@@ -4107,21 +4107,29 @@ START_TEST(test_external)
    tree_t p0 = tree_stmt(a, 0);
 
    const struct {
-      const char   *name;
-      ename_kind_t  kind;
+      const int         nparts;
+      const path_elt_t  part0;
+      const char       *tail;
+      ename_kind_t      kind;
    } expect[] = {
-      { "FOO.BAR", E_RELATIVE },
-      { "X.Y.Z", E_RELATIVE },
-      { "AYE.BEE", E_RELATIVE },
-      { "X.Y.Z", E_ABSOLUTE },
-      { "^.^.FOO", E_RELATIVE },
-      { "WORK.PACK.FOO", E_PACKAGE },
+      { 3, PE_RELATIVE, "BAR", E_RELATIVE },
+      { 4, PE_RELATIVE, "Z",   E_RELATIVE },
+      { 3, PE_RELATIVE, "BEE", E_RELATIVE },
+      { 3, PE_SIMPLE,   "Z",   E_ABSOLUTE },
+      { 4, PE_RELATIVE, "FOO", E_RELATIVE },
+      { 3, PE_LIBRARY,  "FOO", E_PACKAGE },
    };
 
    for (int i = 0; i < ARRAY_LEN(expect); i++) {
       tree_t v = tree_value(tree_stmt(p0, i));
       fail_unless(tree_kind(v) == T_EXTERNAL_NAME);
-      ck_assert_str_eq(istr(tree_ident(v)), expect[i].name);
+      const int nparts = tree_parts(v);
+      ck_assert_int_eq(nparts, expect[i].nparts);
+      tree_t part0 = tree_part(v, 0);
+      ck_assert_int_eq(tree_subkind(part0), expect[i].part0);
+      tree_t tail = tree_part(v, nparts - 1);
+      fail_unless(tree_subkind(tail) == PE_SIMPLE);
+      ck_assert_str_eq(istr(tree_ident(tail)), expect[i].tail);
       ck_assert_int_eq(tree_subkind(v), expect[i].kind);
    }
 

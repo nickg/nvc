@@ -193,6 +193,8 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
    case T_FUNC_INST:
    case T_PROC_INST:
       return true;
+   case T_PATH_ELT:
+      return tree_subkind(t) == PE_RELATIVE;
    case T_FCALL:
       // Globally static expressions should be copied and folded
       return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC);
@@ -1165,23 +1167,36 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
       return;
    }
 
-   tree_t where = ekind == E_ABSOLUTE ? ctx->root : ctx->out, next = NULL;
-   ident_t name = tree_ident(t), it;
-   for (; (it = ident_walk_selected(&name)); where = next, next = NULL) {
-      if (it == well_known(W_CARET)) {
-         error_at(tree_loc(t), "sorry, this form of external name is not "
+   tree_t where = ctx->root, next = NULL;
+   const int nparts = tree_parts(t);
+   for (int i = 0; i < nparts; i++, where = next, next = NULL) {
+      tree_t pe = tree_part(t, i);
+
+      switch (tree_subkind(pe)) {
+      case PE_RELATIVE:
+         assert(i == 0);
+         next = ctx->out;
+         tree_set_subkind(pe, PE_SIMPLE);
+         tree_set_ident(pe, ctx->dotted);
+         continue;
+      case PE_SIMPLE:
+         break;
+      default:
+         error_at(tree_loc(pe), "sorry, this form of external name is not "
                   "yet supported");
          return;
       }
 
+      ident_t id = tree_ident(pe);
+
       if (is_container(where)) {
-         next = search_decls(where, it, 0);
+         next = search_decls(where, id, 0);
 
          if (next == NULL) {
             const int nstmts = tree_stmts(where);
             for (int i = 0; i < nstmts; i++) {
                tree_t s = tree_stmt(where, i);
-               if (tree_ident(s) == it) {
+               if (tree_ident(s) == id) {
                   next = s;
                   break;
                }
@@ -1191,8 +1206,9 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
 
       if (next == NULL) {
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-         diag_printf(d, "external name %s not found", istr(tree_ident(t)));
-         diag_hint(d, tree_loc(t), "name %s not found inside %s", istr(it),
+         diag_printf(d, "external name %s not found",
+                     istr(tree_ident(tree_part(t, nparts - 1))));
+         diag_hint(d, tree_loc(t), "name %s not found inside %s", istr(id),
                    istr(tree_ident(where)));
          diag_emit(d);
          return;
@@ -1203,7 +1219,7 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
 
    if (class_of(where) != tree_class(t)) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
-      diag_printf(d, "class of object %s is not %s", istr(tree_ident(t)),
+      diag_printf(d, "class of object %s is not %s", istr(tree_ident(where)),
                   class_str(tree_class(t)));
       diag_hint(d, tree_loc(t), "external name with class %s",
                 class_str(tree_class(t)));
@@ -1224,18 +1240,6 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
       diag_emit(d);
    }
 
-   switch (ekind) {
-   case E_RELATIVE:
-      tree_set_ident(t, ident_prefix(ctx->dotted, tree_ident(t), '.'));
-      break;
-   case E_ABSOLUTE:
-      tree_set_ident(t, ident_prefix(lib_name(lib_work()), tree_ident(t), '.'));
-      break;
-   default:
-      break;
-   }
-
-   tree_set_subkind(t, E_RESOLVED);
    tree_set_ref(t, where);
 }
 

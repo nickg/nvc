@@ -1802,11 +1802,8 @@ void __nvc_elab_order_fail(DEBUG_LOCUS(locus))
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
    assert(tree_kind(where) == T_EXTERNAL_NAME);
 
-   // Strip the leading library prefix from the resolved name
-   ident_t name = ident_from(tree_ident(where), '.');
-
-   rt_msg(tree_loc(where), DIAG_FATAL, "%s .%s has not yet been elaborated",
-          class_str(tree_class(where)), istr(name));
+   rt_msg(tree_loc(where), DIAG_FATAL, "%s %s has not yet been elaborated",
+          class_str(tree_class(where)), istr(tree_ident(tree_ref(where))));
 }
 
 DLLEXPORT

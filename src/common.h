@@ -72,7 +72,6 @@ tree_t find_mangled_decl(tree_t container, ident_t name);
 tree_t find_enclosing_decl(ident_t unit_name, const char *symbol);
 tree_t name_to_ref(tree_t name);
 const char *port_mode_str(port_mode_t mode);
-const char *ename_kind_str(ename_kind_t kind);
 void mangle_one_type(text_buf_t *buf, type_t type);
 tree_t primary_unit_of(tree_t unit);
 int64_t encode_case_choice(tree_t value, int length, int bits);

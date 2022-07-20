@@ -1613,9 +1613,15 @@ static void sem_check_static_elab(tree_t t)
    case T_REF:
    case T_EXTERNAL_NAME:
       if (class_of(t) == C_SIGNAL) {
+         ident_t id;
+         if (tree_kind(t) == T_EXTERNAL_NAME)
+            id = tree_ident(tree_part(t, tree_parts(t) - 1));
+         else
+            id = tree_ident(t);
+
          diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
          diag_printf(d, "cannot reference signal %s during static "
-                     "elaboration", istr(tree_ident(t)));
+                     "elaboration", istr(id));
          diag_hint(d, NULL, "the value of a signal is not defined "
                    "until after the design hierarchy is elaborated");
          diag_lrm(d, STD_93, "12.3");
@@ -2224,11 +2230,10 @@ static bool sem_check_signal_target(tree_t target, nametab_t *tab)
 
       case T_EXTERNAL_NAME:
          if (tree_class(decl) != C_SIGNAL) {
+            tree_t tail = tree_part(decl, tree_parts(decl) - 1);
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-            diag_printf(d, "external name %s%s is not a valid target of "
-                        "signal assignment",
-                        ename_kind_str(tree_subkind(target)),
-                        istr(tree_ident(decl)));
+            diag_printf(d, "external name %s is not a valid target of "
+                        "signal assignment", istr(tree_ident(tail)));
             diag_hint(d, tree_loc(target), "target of signal assignment");
             diag_hint(d, tree_loc(decl), "declared with class %s",
                       class_str(tree_class(decl)));
@@ -5280,11 +5285,10 @@ static bool sem_check_force_target(tree_t target, port_mode_t mode,
 
       case T_EXTERNAL_NAME:
          if (tree_class(decl) != C_SIGNAL) {
+            tree_t tail = tree_part(decl, tree_parts(decl) - 1);
             diag_t *d = diag_new(DIAG_ERROR, tree_loc(target));
-            diag_printf(d, "external name %s%s is not a valid target of "
-                        "simple %s assignment",
-                        ename_kind_str(tree_subkind(target)),
-                        istr(tree_ident(decl)), what);
+            diag_printf(d, "external name %s is not a valid target of "
+                        "simple %s assignment", istr(tree_ident(tail)), what);
             diag_hint(d, tree_loc(target), "target of signal assignment");
             diag_hint(d, tree_loc(decl), "declared with class %s",
                       class_str(tree_class(decl)));
