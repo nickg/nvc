@@ -66,7 +66,7 @@ typedef uint64_t imask_t;
 // Unused            ONE_HOT(29)
 #define I_DVAL       ONE_HOT(30)
 #define I_SPEC       ONE_HOT(31)
-#define I_SCOPES     ONE_HOT(32)
+// Unused            ONE_HOT(32)
 #define I_INDEXCON   ONE_HOT(33)
 #define I_BASE       ONE_HOT(34)
 #define I_ELEM       ONE_HOT(35)
@@ -78,39 +78,35 @@ typedef uint64_t imask_t;
 #define I_LITERALS   ONE_HOT(41)
 #define I_DIMS       ONE_HOT(42)
 #define I_FIELDS     ONE_HOT(43)
-#define I_PARENT     ONE_HOT(44)
+// Unused            ONE_HOT(44)
 #define I_GUARD      ONE_HOT(45)
-#define I_PTYPES     ONE_HOT(46)
+// Unused            ONE_HOT(46)
 #define I_CHARS      ONE_HOT(47)
 #define I_CONSTR     ONE_HOT(48)
 #define I_FLAGS      ONE_HOT(49)
-#define I_SIGNALS    ONE_HOT(50)
+// Unused            ONE_HOT(50)
 #define I_LEFT       ONE_HOT(51)
 #define I_RIGHT      ONE_HOT(52)
-#define I_PROCS      ONE_HOT(53)
-#define I_NEXUS      ONE_HOT(54)
-#define I_PATH       ONE_HOT(55)
+// Unused            ONE_HOT(53)
+// Unused            ONE_HOT(54)
+// Unused            ONE_HOT(55)
 // Unused            ONE_HOT(56)
 // Unused            ONE_HOT(57)
-#define I_VCODE      ONE_HOT(58)
+// Unused            ONE_HOT(58)
 #define I_PRIMARY    ONE_HOT(59)
-#define I_SOURCES    ONE_HOT(60)
-#define I_OUTPUTS    ONE_HOT(61)
 
-#define ITEM_IDENT       (I_IDENT | I_IDENT2 | I_PATH | I_VCODE)
+#define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_OBJECT      (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET   \
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE    \
                           | I_NAME | I_SPEC | I_RESOLUTION              \
                           | I_LEFT | I_RIGHT | I_TYPE | I_BASE | I_ELEM \
-                          | I_ACCESS | I_RESULT | I_FILE | I_PARENT     \
-                          | I_PRIMARY | I_GUARD)
+                          | I_ACCESS | I_RESULT | I_FILE | I_PRIMARY    \
+                          | I_GUARD)
 #define ITEM_OBJ_ARRAY   (I_DECLS | I_STMTS | I_PORTS | I_GENERICS      \
                           | I_WAVES | I_CONDS | I_TRIGGERS | I_CONSTR   \
                           | I_PARAMS | I_GENMAPS | I_ASSOCS | I_CONTEXT \
-                          | I_LITERALS | I_FIELDS | I_OUTPUTS           \
-                          | I_UNITS | I_CHARS | I_DIMS | I_RANGES       \
-                          | I_PTYPES | I_INDEXCON | I_SIGNALS | I_PROCS \
-                          | I_NEXUS | I_SCOPES | I_SOURCES)
+                          | I_LITERALS | I_FIELDS | I_UNITS | I_CHARS   \
+                          | I_DIMS | I_RANGES | I_INDEXCON)
 #define ITEM_INT64       (I_POS | I_IVAL)
 #define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
 #define ITEM_DOUBLE      (I_DVAL)

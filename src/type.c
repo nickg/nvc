@@ -58,13 +58,13 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT | I_ACCESS),
 
    // T_FUNC
-   (I_IDENT | I_PTYPES | I_RESULT),
+   (I_IDENT | I_PARAMS | I_RESULT),
 
    // T_INCOMPLETE
    (I_IDENT),
 
    // T_PROC
-   (I_IDENT | I_PTYPES),
+   (I_IDENT | I_PARAMS),
 
    // T_NONE
    (I_IDENT),
@@ -176,7 +176,7 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
 
    const imask_t has = has_map[a->object.kind];
 
-   if (!(has & I_PTYPES)) {
+   if (!(has & I_PARAMS)) {
       ident_t ai = lookup_item(&type_object, a, I_IDENT)->ident;
       ident_t bi = lookup_item(&type_object, b, I_IDENT)->ident;
 
@@ -204,9 +204,9 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
          return false;
    }
 
-   if (has & I_PTYPES) {
-      item_t *ap = lookup_item(&type_object, a, I_PTYPES);
-      item_t *bp = lookup_item(&type_object, b, I_PTYPES);
+   if (has & I_PARAMS) {
+      item_t *ap = lookup_item(&type_object, a, I_PARAMS);
+      item_t *bp = lookup_item(&type_object, b, I_PARAMS);
 
       if (ap->obj_array.count != bp->obj_array.count)
          return false;
@@ -373,18 +373,18 @@ void type_enum_add_literal(type_t t, tree_t lit)
 
 unsigned type_params(type_t t)
 {
-   return lookup_item(&type_object, t, I_PTYPES)->obj_array.count;
+   return lookup_item(&type_object, t, I_PARAMS)->obj_array.count;
 }
 
 type_t type_param(type_t t, unsigned n)
 {
-   item_t *item = lookup_item(&type_object, t, I_PTYPES);
+   item_t *item = lookup_item(&type_object, t, I_PARAMS);
    return type_array_nth(item, n);
 }
 
 void type_add_param(type_t t, type_t p)
 {
-   type_array_add(lookup_item(&type_object, t, I_PTYPES), p);
+   type_array_add(lookup_item(&type_object, t, I_PARAMS), p);
    object_write_barrier(&(t->object), &(p->object));
 }
 
