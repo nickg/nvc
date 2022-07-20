@@ -2696,8 +2696,9 @@ START_TEST(test_force)
       { 15, "target of a simple force assignment may not be an aggregate" },
       { 29, "force mode OUT may not be used with target of mode IN" },
       { 30, "target of simple force assignment must be a signal name" },
-      { 38, "variable V is not a valid target of simple release assignment" },
-      { 39, "target of a simple release assignment may not be an aggregate" },
+      { 31, "force expression BOOLEAN does not match type of target BIT" },
+      { 39, "variable V is not a valid target of simple release assignment" },
+      { 40, "target of a simple release assignment may not be an aggregate" },
       { -1, NULL }
    };
    expect_errors(expect);

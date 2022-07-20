@@ -8413,7 +8413,11 @@ static tree_t p_simple_force_assignment(ident_t label, tree_t target)
    tree_t t = tree_new(T_FORCE);
    tree_set_target(t, target);
    tree_set_subkind(t, p_force_mode());
-   tree_set_value(t, p_expression());
+
+   tree_t expr = p_expression();
+   solve_types(nametab, expr, target_type);
+
+   tree_set_value(t, expr);
 
    consume(tSEMI);
 

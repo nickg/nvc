@@ -28,6 +28,7 @@ begin
             i <= force in '0';          -- OK
             i <= force out '1';         -- Error
             g <= force in '0';          -- Error
+            i <= force in true;         -- Error
         end process;
     end block;
 
