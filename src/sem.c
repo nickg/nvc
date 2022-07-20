@@ -3456,22 +3456,22 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
    tree_t name = tree_name(t), decl = NULL;
    type_t named_type = NULL;
-   bool has_type = true;
 
    ident_t attr = tree_ident(t);
    const attr_kind_t predef = tree_subkind(t);
 
    switch (tree_kind(name)) {
    case T_REF:
-      if (!tree_has_ref(name))
-         return false;
+      {
+         if (!tree_has_ref(name))
+            return false;
 
-      decl = tree_ref(name);
-      has_type = class_has_type(class_of(decl));
+         decl = tree_ref(name);
 
-      if (is_type_decl(decl))
-         named_type = tree_type(decl);
-
+         tree_t type_decl = aliased_type_decl(decl);
+         if (type_decl != NULL)
+            named_type = tree_type(type_decl);
+      }
       break;
 
    case T_ATTR_REF:
@@ -3534,7 +3534,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range, nametab_t *tab)
 
    case ATTR_LENGTH:
       {
-         if (!has_type)
+         type_t type = get_type_or_null(name);
+         if (type == NULL)
             sem_error(name, "prefix does not have LENGTH attribute");
          else if (!type_is_array(tree_type(name)))
             sem_error(name, "prefix of attribute LENGTH must be an array but "
@@ -3989,9 +3990,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
          formals[pos].have = true;
          decl = formals[pos].decl;
          class = tree_class(decl);
-
-         if (class_has_type(class))
-            type = tree_type(decl);
+         type = get_type_or_null(decl);
       }
       break;
 
@@ -4024,9 +4023,7 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
          if (!sem_static_name(name, sem_locally_static))
             sem_error(name, "formal name must be locally static");
 
-         if (class_has_type(class))
-            type = tree_type(name);
-
+         type = get_type_or_null(name);
          break;
       }
    }

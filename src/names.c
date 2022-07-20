@@ -675,39 +675,6 @@ static bool signature_has_error(tree_t sub)
    return false;
 }
 
-static type_t get_type_or_null(tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_LIBRARY:
-   case T_ATTR_SPEC:
-   case T_PACKAGE:
-   case T_PACK_INST:
-   case T_PACK_BODY:
-   case T_ENTITY:
-   case T_ARCH:
-   case T_PROCESS:
-   case T_COMPONENT:
-   case T_INSTANCE:
-   case T_CONCURRENT:
-   case T_BLOCK:
-   case T_WHILE:
-   case T_FOR:
-   case T_GROUP_TEMPLATE:
-   case T_CONFIGURATION:
-   case T_GROUP:
-   case T_FOR_GENERATE:
-   case T_IF_GENERATE:
-   case T_USE:
-   case T_CONTEXT:
-      return NULL;
-   default:
-      if (tree_has_type(t))
-         return tree_type(t);
-      else
-         return NULL;
-   }
-}
-
 static void add_type_literals(scope_t *s, tree_t decl, make_visible_t fn)
 {
    tree_t type_decl = aliased_type_decl(decl);

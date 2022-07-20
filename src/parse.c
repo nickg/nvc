@@ -2163,16 +2163,14 @@ static type_t apply_subtype_attribute(tree_t aref)
    assert(tree_subkind(aref) == ATTR_SUBTYPE);
 
    tree_t name = tree_name(aref);
+   type_t type = get_type_or_null(name);
 
-   if (!class_has_type(class_of(name))) {
+   if (type == NULL) {
       parse_error(tree_loc(aref), "prefix of 'SUBTYPE attribute does not "
                   "have a type");
       return type_new(T_NONE);
    }
-
-   type_t type = tree_type(name);
-
-   if (type_is_unconstrained(type)) {
+   else if (type_is_unconstrained(type)) {
       // Construct a new subtype using the constraints from the prefix
       type_t sub = type_new(T_SUBTYPE);
       type_set_base(sub, type);
@@ -2222,16 +2220,14 @@ static type_t apply_element_attribute(tree_t aref)
 {
    assert(tree_subkind(aref) == ATTR_ELEMENT);
 
-   tree_t name = tree_name(aref);
+   type_t type = get_type_or_null(tree_name(aref));
 
-   if (!class_has_type(class_of(name))) {
+   if (type == NULL) {
       parse_error(tree_loc(aref), "prefix of 'ELEMENT attribute does not "
                   "have a type");
       return type_new(T_NONE);
    }
-
-   type_t type = tree_type(name);
-   if (!type_is_array(type)) {
+   else if (!type_is_array(type)) {
       parse_error(tree_loc(aref), "prefix of 'ELEMENT attribute must be an "
                   "array type");
       return type_new(T_NONE);
@@ -2249,8 +2245,8 @@ static type_t apply_base_attribute(tree_t aref)
    type_t type = NULL;
 
    if (tree_kind(name) == T_REF && tree_has_ref(name)) {
-      tree_t decl = tree_ref(name);
-      if (is_type_decl(decl))
+      tree_t decl = aliased_type_decl(tree_ref(name));
+      if (decl != NULL)
          type = tree_type(decl);
    }
 
