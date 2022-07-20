@@ -128,21 +128,6 @@ static JsonNode *dump_expr(tree_t t) //TODO: incomplete
          json_append_member(expr_node, "cls", json_mkstring("null"));
          json_append_member(expr_node, "value", json_mknull());
          break;
-      case L_STRING:
-         if (type_ident(tree_type(t)) == ident_new("STD.STANDARD.STRING"))
-            json_append_member(expr_node, "cls", json_mkstring("string"));
-         else
-            json_append_member(expr_node, "cls", json_mkstring("string_lit"));
-         {
-            const int nchars = tree_chars(t);
-            char *str = malloc(nchars+1);
-               for (int i = 0; i < nchars; i++)
-                  str[i] = ident_char(tree_ident(tree_char(t, i)), 1);
-            str[nchars] = '\0';
-            json_append_member(expr_node, "val", json_mkstring(str));
-            free(str);
-         }
-         break;
       default:
          assert(false);
       }
@@ -988,6 +973,9 @@ JsonNode *trees_to_json(tree_t *elements, unsigned int n_elements)
 
 void dump_json(tree_t *elements, unsigned int n_elements, const char *filename)
 {
+   warnf("the JSON dumper is unmaintained and may be removed in a future "
+         "release");
+
    FILE* dump_file = fopen(filename, "w");
    if (!dump_file) {
       fatal_errno("Failed to open JSON file %s", filename);

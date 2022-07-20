@@ -451,8 +451,7 @@ START_TEST(test_seq)
    fail_unless(tree_kind(tree_severity(s)) == T_REF);
    fail_unless(tree_ident(tree_severity(s)) == ident_new("NOTE"));
    fail_unless(tree_has_message(s));
-   fail_unless(tree_kind(tree_message(s)) == T_LITERAL);
-   fail_unless(tree_subkind(tree_message(s)) == L_STRING);
+   fail_unless(tree_kind(tree_message(s)) == T_STRING);
 
    // Function calls
 
@@ -805,15 +804,14 @@ START_TEST(test_types)
    fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_has_value(d));
-   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
+   fail_unless(tree_kind(tree_value(d)) == T_STRING);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
 
    d = search_decls(a, ident_new("F2"), 0);
    fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_has_value(d));
-   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
-   fail_unless(tree_subkind(tree_value(d)) == L_STRING);
+   fail_unless(tree_kind(tree_value(d)) == T_STRING);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
    fail_unless(tree_ident(tree_file_mode(d)) == ident_new("READ_MODE"));
 
@@ -837,7 +835,7 @@ START_TEST(test_types)
    fail_if(d == NULL);
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_has_value(d));
-   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
+   fail_unless(tree_kind(tree_value(d)) == T_STRING);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
    fail_unless(tree_ident(tree_file_mode(d)) == ident_new("WRITE_MODE"));
 
@@ -935,8 +933,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("A"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 6);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'h'"));
    fail_unless(tree_ident(tree_char(v, 1)) == ident_new("'e'"));
@@ -950,8 +947,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("B"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 7);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'\"'"));
    fail_unless(tree_ident(tree_char(v, 1)) == ident_new("'q'"));
@@ -1028,8 +1024,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("L"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 23);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'S'"));
    fail_unless(tree_ident(tree_char(v, 1)) == ident_new("'e'"));
@@ -1060,8 +1055,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("M"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 0);
 
    d = search_decls(a, ident_new("N"), 0);
@@ -1069,8 +1063,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("N"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("' '"));
 
@@ -1079,8 +1072,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("O"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'A'"));
 
@@ -1089,8 +1081,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("P"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'\"'"));
 
@@ -1099,8 +1090,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("Q"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 23);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'S'"));
    fail_unless(tree_ident(tree_char(v, 1)) == ident_new("'e'"));
@@ -1131,8 +1121,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("R"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 0);
 
    d = search_decls(a, ident_new("S"), 0);
@@ -1140,8 +1129,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("S"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("' '"));
 
@@ -1150,8 +1138,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("T"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'A'"));
 
@@ -1160,8 +1147,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("U"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 1);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'%'"));
 
@@ -1170,8 +1156,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("V"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 1);
    fail_unless(ident_char(tree_ident(tree_char(v, 0)), 1) == (char)0xa9);
 
@@ -2224,8 +2209,7 @@ START_TEST(test_bitstring)
    ident_t zero = ident_new("'0'");
 
    a = tree_value(tree_decl(p, 0));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 16);
    fail_unless(tree_ident(tree_char(a, 0)) == zero);
    fail_unless(tree_ident(tree_char(a, 1)) == zero);
@@ -2245,8 +2229,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 15)) == zero);
 
    a = tree_value(tree_decl(p, 1));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 12);
    fail_unless(tree_ident(tree_char(a, 0)) == zero);
    fail_unless(tree_ident(tree_char(a, 1)) == zero);
@@ -2262,8 +2245,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 11)) == zero);
 
    a = tree_value(tree_decl(p, 2));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 8);
    fail_unless(tree_ident(tree_char(a, 0)) == one);
    fail_unless(tree_ident(tree_char(a, 1)) == zero);
@@ -2275,16 +2257,14 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 7)) == one);
 
    a = tree_value(tree_decl(p, 3));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 3);
    fail_unless(tree_ident(tree_char(a, 0)) == one);
    fail_unless(tree_ident(tree_char(a, 1)) == zero);
    fail_unless(tree_ident(tree_char(a, 2)) == one);
 
    a = tree_value(tree_decl(p, 4));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 4);
    fail_unless(tree_ident(tree_char(a, 0)) == one);
    fail_unless(tree_ident(tree_char(a, 1)) == one);
@@ -2292,8 +2272,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 3)) == one);
 
    a = tree_value(tree_decl(p, 5));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 8);
    fail_unless(tree_ident(tree_char(a, 0)) == one);
    fail_unless(tree_ident(tree_char(a, 1)) == zero);
@@ -2305,8 +2284,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 7)) == one);
 
    a = tree_value(tree_decl(p, 6));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 12);
    fail_unless(tree_ident(tree_char(a, 0)) == one);
    fail_unless(tree_ident(tree_char(a, 1)) == one);
@@ -2322,8 +2300,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 11)) == one);
 
    a = tree_value(tree_decl(p, 7));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 12);
    fail_unless(tree_ident(tree_char(a, 0)) == one);
    fail_unless(tree_ident(tree_char(a, 1)) == one);
@@ -2339,8 +2316,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 11)) == one);
 
    a = tree_value(tree_decl(p, 8));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 9);
    fail_unless(tree_ident(tree_char(a, 0)) == one);
    fail_unless(tree_ident(tree_char(a, 1)) == one);
@@ -2353,8 +2329,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 8)) == one);
 
    a = tree_value(tree_decl(p, 9));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 12);
    fail_unless(tree_ident(tree_char(a, 0)) == zero);
    fail_unless(tree_ident(tree_char(a, 1)) == one);
@@ -2370,8 +2345,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 11)) == one);
 
    a = tree_value(tree_decl(p, 10));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 12);
    fail_unless(tree_ident(tree_char(a, 0)) == one);
    fail_unless(tree_ident(tree_char(a, 1)) == one);
@@ -2387,8 +2361,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 11)) == one);
 
    a = tree_value(tree_decl(p, 11));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 12);
    fail_unless(tree_ident(tree_char(a, 0)) == one);
    fail_unless(tree_ident(tree_char(a, 1)) == one);
@@ -2404,8 +2377,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 11)) == one);
 
    a = tree_value(tree_decl(p, 12));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 9);
    fail_unless(tree_ident(tree_char(a, 0)) == one);
    fail_unless(tree_ident(tree_char(a, 1)) == one);
@@ -2418,8 +2390,7 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_char(a, 8)) == one);
 
    a = tree_value(tree_decl(p, 13));
-   fail_unless(tree_kind(a) == T_LITERAL);
-   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_kind(a) == T_STRING);
    fail_unless(tree_chars(a) == 12);
    fail_unless(tree_ident(tree_char(a, 0)) == zero);
    fail_unless(tree_ident(tree_char(a, 1)) == one);
@@ -3105,7 +3076,7 @@ START_TEST(test_issue205)
    fail_unless(tree_kind(a) == T_ARCH);
 
    tree_t s = tree_message(tree_stmt(tree_stmt(a, 0), 0));
-   fail_unless(tree_kind(s) == T_LITERAL);
+   fail_unless(tree_kind(s) == T_STRING);
    fail_unless(tree_chars(s) == 2);
    fail_unless(tree_ident(tree_char(s, 0)) == ident_new("'\"'"));
    fail_unless(tree_ident(tree_char(s, 1)) == ident_new("'\"'"));
@@ -4311,8 +4282,7 @@ START_TEST(test_issue458)
 
    for (int i = 0; i < 5; i++) {
       tree_t d0 = tree_value(tree_decl(p, i));
-      fail_unless(tree_kind(d0) == T_LITERAL);
-      fail_unless(tree_subkind(d0) == L_STRING);
+      fail_unless(tree_kind(d0) == T_STRING);
       fail_unless(tree_chars(d0) == 5);
 
       for (int j = 0; j < 5; j++)

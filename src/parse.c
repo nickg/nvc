@@ -754,9 +754,8 @@ static void require_std(vhdl_standard_t which, const char *feature)
 
 static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
 {
-   tree_t t = tree_new(T_LITERAL);
+   tree_t t = tree_new(T_STRING);
    tree_set_loc(t, loc);
-   tree_set_subkind(t, L_STRING);
 
    const char *p = str;
    int length = -1;
@@ -1660,7 +1659,7 @@ static void apply_foreign_attribute(tree_t decl, tree_t value)
 {
    // See LRM 08 section 20.2.4.3
 
-   if (tree_kind(value) != T_LITERAL) {
+   if (tree_kind(value) != T_STRING) {
       error_at(tree_loc(value), "foreign attribute must have string "
                "literal value");
       return;

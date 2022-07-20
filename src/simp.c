@@ -222,6 +222,7 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
          tree_t value = tree_value(decl);
          switch (tree_kind(value)) {
          case T_LITERAL:
+         case T_STRING:
             return value;
 
          case T_REF:
@@ -246,6 +247,7 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
          if (map != NULL) {
             switch (tree_kind(map)) {
             case T_LITERAL:
+            case T_STRING:
             case T_AGGREGATE:
             case T_ARRAY_SLICE:
             case T_ARRAY_REF:
@@ -646,7 +648,7 @@ static tree_t simp_array_ref(tree_t t, simp_ctx_t *ctx)
          return simp_extract_aggregate(value, index0, t);
       break;
 
-   case T_LITERAL:
+   case T_STRING:
       return simp_extract_string_literal(value, index0, t);
 
    case T_REF:
@@ -934,6 +936,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       break;
 
    case T_LITERAL:
+   case T_STRING:
       break;
 
    case T_IF:

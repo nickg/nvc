@@ -39,7 +39,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_FLAGS),
 
    // T_LITERAL
-   (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_CHARS | I_FLAGS | I_IDENT | I_REF),
+   (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_IDENT | I_REF),
 
    // T_SIGNAL_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_FLAGS),
@@ -317,6 +317,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_ELEM_CONSTRAINT
    (I_IDENT | I_REF | I_TYPE),
+
+   // T_STRING
+   (I_CHARS | I_TYPE),
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -352,6 +355,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_PARAM_DECL",      "T_EXTERNAL_NAME",   "T_FORCE",
    "T_RELEASE",         "T_PROT_REF",        "T_MATCH_CASE",
    "T_FUNC_INST",       "T_PROC_INST",       "T_ELEM_CONSTRAINT",
+   "T_STRING",
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -396,7 +400,7 @@ static tree_kind_t expr_kinds[] = {
    T_AGGREGATE, T_ATTR_REF,      T_ARRAY_REF,  T_ARRAY_SLICE,
    T_TYPE_CONV, T_OPEN,          T_RECORD_REF, T_ALL,
    T_NEW,       T_PROT_FCALL,    T_CONV_FUNC,  T_TYPE_REF,
-   T_BOX,       T_EXTERNAL_NAME, T_PROT_REF,
+   T_BOX,       T_EXTERNAL_NAME, T_PROT_REF,   T_STRING,
 };
 
 static tree_kind_t decl_kinds[] = {
@@ -690,20 +694,17 @@ void tree_set_primary(tree_t t, tree_t unit)
 
 unsigned tree_chars(tree_t t)
 {
-   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_STRING));
    return lookup_item(&tree_object, t, I_CHARS)->obj_array.count;
 }
 
 tree_t tree_char(tree_t t, unsigned n)
 {
-   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_STRING));
    item_t *item = lookup_item(&tree_object, t, I_CHARS);
    return tree_array_nth(item, n);
 }
 
 void tree_add_char(tree_t t, tree_t ref)
 {
-   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_STRING));
    tree_array_add(lookup_item(&tree_object, t, I_CHARS), ref);
    object_write_barrier(&(t->object), &(ref->object));
 }

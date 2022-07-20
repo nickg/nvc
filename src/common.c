@@ -431,6 +431,7 @@ class_t class_of(tree_t t)
       return tree_class(t);
    case T_ENUM_LIT:
    case T_LITERAL:
+   case T_STRING:
       return C_LITERAL;
    case T_FIELD_DECL:
    case T_ATTR_DECL:
@@ -889,8 +890,7 @@ int64_t rebase_index(type_t array_type, int dim, int64_t value)
 
 tree_t str_to_literal(const char *start, const char *end, type_t type)
 {
-   tree_t t = tree_new(T_LITERAL);
-   tree_set_subkind(t, L_STRING);
+   tree_t t = tree_new(T_STRING);
 
    type_t elem = NULL;
    if (type != NULL) {
@@ -1419,13 +1419,11 @@ tree_t primary_unit_of(tree_t unit)
 static unsigned encode_case_choice_at_depth(tree_t value, int depth)
 {
    switch (tree_kind(value)) {
-   case T_LITERAL:
+   case T_STRING:
       {
-         assert(tree_subkind(value) == L_STRING);
          tree_t ch = tree_char(value, depth);
          return tree_pos(tree_ref(ch));
       }
-      break;
 
    case T_AGGREGATE:
       {
@@ -1578,6 +1576,7 @@ static bool is_static(tree_t expr)
       }
 
    case T_LITERAL:
+   case T_STRING:
       return true;
 
    case T_FCALL:

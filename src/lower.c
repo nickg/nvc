@@ -212,6 +212,7 @@ static bool lower_is_const(tree_t t)
       }
 
    case T_LITERAL:
+   case T_STRING:
       return true;
 
    case T_RANGE:
@@ -1479,6 +1480,7 @@ static bool lower_side_effect_free(tree_t expr)
    switch (tree_kind(expr)) {
    case T_REF:
    case T_LITERAL:
+   case T_STRING:
       return true;
    case T_FCALL:
       {
@@ -2072,7 +2074,7 @@ static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
    return tmp;
 }
 
-static vcode_reg_t lower_string_literal(tree_t lit)
+static vcode_reg_t lower_string_literal(tree_t lit, bool nest)
 {
    int nchars;
    vcode_reg_t *tmp LOCAL = lower_string_literal_chars(lit, &nchars);
@@ -2090,8 +2092,10 @@ static vcode_reg_t lower_string_literal(tree_t lit)
       };
       return emit_wrap(emit_address_of(data), &dim0, 1);
    }
-   else
-      return emit_const_array(lower_type(type), tmp, nchars);
+   else {
+      vcode_reg_t array = emit_const_array(lower_type(type), tmp, nchars);
+      return nest ? array : emit_address_of(array);
+   }
 }
 
 static vcode_reg_t lower_literal(tree_t lit, expr_ctx_t ctx)
@@ -2105,14 +2109,6 @@ static vcode_reg_t lower_literal(tree_t lit, expr_ctx_t ctx)
       // Fall-through
    case L_INT:
       return emit_const(lower_type(tree_type(lit)), tree_ival(lit));
-
-   case L_STRING:
-      {
-         vcode_reg_t array = lower_string_literal(lit);
-         if (vcode_reg_kind(array) == VCODE_TYPE_CARRAY)
-            array = emit_address_of(array);
-         return array;
-      }
 
    case L_NULL:
       return emit_null(lower_type(tree_type(lit)));
@@ -2879,7 +2875,7 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
          else
             assert(false);
       }
-      else if (value_kind == T_LITERAL && tree_subkind(value) == L_STRING)
+      else if (value_kind == T_STRING)
          sub = lower_string_literal_chars(value, &nsub);
       else
          *sub = lower_expr(value, EXPR_RVALUE);
@@ -2987,8 +2983,8 @@ static vcode_reg_t lower_record_sub_aggregate(tree_t value, tree_t field,
    type_t ftype = tree_type(field);
 
    if (is_const && type_is_array(ftype)) {
-      if (tree_kind(value) == T_LITERAL)
-         return lower_string_literal(value);
+      if (tree_kind(value) == T_STRING)
+         return lower_string_literal(value, true);
       else if (mode == LOWER_THUNK && !lower_const_bounds(ftype))
          return emit_undefined(lower_type(ftype));
       else {
@@ -4035,6 +4031,8 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
       return lower_fcall(expr, ctx);
    case T_LITERAL:
       return lower_literal(expr, ctx);
+   case T_STRING:
+      return lower_string_literal(expr, false);
    case T_REF:
       return lower_ref(expr, ctx);
    case T_EXTERNAL_NAME:

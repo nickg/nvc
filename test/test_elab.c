@@ -659,8 +659,7 @@ START_TEST(test_issue232)
    fail_unless(tree_params(e1) == 2);
    fail_unless(tree_kind(tree_value(tree_param(e1, 0))) == T_OPEN);
    tree_t v = tree_value(tree_port(e1, 0));
-   fail_unless(tree_kind(v) == T_LITERAL);
-   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_kind(v) == T_STRING);
    fail_unless(tree_chars(v) == 2);
    fail_unless(tree_ident(tree_char(v, 0)) == ident_new("'A'"));
    fail_unless(tree_ident(tree_char(v, 1)) == ident_new("'B'"));

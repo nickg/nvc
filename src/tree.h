@@ -70,7 +70,6 @@ typedef enum literal_kind {
    L_INT,
    L_REAL,
    L_NULL,
-   L_STRING,
    L_PHYSICAL
 } literal_kind_t;
 
@@ -321,6 +320,7 @@ typedef enum tree_kind {
    T_FUNC_INST,
    T_PROC_INST,
    T_ELEM_CONSTRAINT,
+   T_STRING,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

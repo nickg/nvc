@@ -101,17 +101,6 @@ static void bounds_check_string_literal(tree_t t)
    }
 }
 
-static void bounds_check_literal(tree_t t)
-{
-   switch (tree_subkind(t)) {
-   case L_STRING:
-      bounds_check_string_literal(t);
-      break;
-   default:
-      break;
-   }
-}
-
 static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,
                                   int64_t low, int64_t high)
 {
@@ -1302,8 +1291,8 @@ static tree_t bounds_visit_fn(tree_t t, void *context)
    case T_CASE:
       bounds_check_case(t);
       break;
-   case T_LITERAL:
-      bounds_check_literal(t);
+   case T_STRING:
+      bounds_check_string_literal(t);
       break;
    case T_TYPE_CONV:
       bounds_check_type_conv(t);

@@ -2726,8 +2726,7 @@ static void solve_subprogram_params(nametab_t *tab, tree_t call, overload_t *o)
             overload_restrict_argument(o, p, possible.items, possible.count);
          ACLEAR(possible);
       }
-      else if (kind == T_AGGREGATE
-               || (kind == T_LITERAL && tree_subkind(value) == L_STRING)) {
+      else if (kind == T_AGGREGATE || kind == T_STRING) {
          // This argument must have composite type
          overload_restrict_argument_type(o, p, type_is_composite, "composite");
       }
@@ -2892,40 +2891,43 @@ static bool is_character_array(type_t t)
    return false;
 }
 
+static type_t solve_string(nametab_t *tab, tree_t str)
+{
+   if (tree_has_type(str))
+      return tree_type(str);
+
+   // The type must be determinable soley from the context excluding the
+   // literal itself but using the fact that the type must be a one
+   // dimensional array of a character type
+
+   type_t type = NULL;
+   if (type_set_satisfies(tab, is_character_array, &type) != 1) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(str));
+      diag_printf(d, "type of string literal cannot be determined "
+                  "from the surrounding context");
+      type_set_describe(tab, d, tree_loc(str), is_character_array,
+                        "a one dimensional array of character type");
+      diag_emit(d);
+
+      type = type_new(T_NONE);
+   }
+
+   tree_set_type(str, type);
+
+   type_t elem = type_elem(type);
+   const int nchars = tree_chars(str);
+   for (int i = 0; i < nchars; i++)
+      solve_types(tab, tree_char(str, i), elem);
+
+   return type;
+}
+
 static type_t solve_literal(nametab_t *tab, tree_t lit)
 {
    if (tree_has_type(lit))
       return tree_type(lit);
 
    switch (tree_subkind(lit)) {
-   case L_STRING:
-      {
-         // The type must be determinable soley from the context
-         // excluding the literal itself but using the fact that the
-         // type must be a one dimensional array of a character type
-
-         type_t type = NULL;
-         if (type_set_satisfies(tab, is_character_array, &type) != 1) {
-            diag_t *d = diag_new(DIAG_ERROR, tree_loc(lit));
-            diag_printf(d, "type of string literal cannot be determined "
-                        "from the surrounding context");
-            type_set_describe(tab, d, tree_loc(lit), is_character_array,
-                               "a one dimensional array of character type");
-            diag_emit(d);
-
-            type = type_new(T_NONE);
-         }
-
-         tree_set_type(lit, type);
-
-         type_t elem = type_elem(type);
-         const int nchars = tree_chars(lit);
-         for (int i = 0; i < nchars; i++)
-            solve_types(tab, tree_char(lit, i), elem);
-
-         return type;
-      }
-
    case L_NULL:
       {
          type_t type;
@@ -3666,6 +3668,8 @@ static type_t _solve_types(nametab_t *tab, tree_t expr)
       return solve_pcall(tab, expr);
    case T_LITERAL:
       return solve_literal(tab, expr);
+   case T_STRING:
+      return solve_string(tab, expr);
    case T_REF:
       return solve_ref(tab, expr);
    case T_RECORD_REF:

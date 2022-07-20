@@ -642,6 +642,15 @@ static void elab_write_generic(text_buf_t *tb, tree_t value)
       case L_REAL: tb_printf(tb, "%lf", tree_dval(value)); break;
       }
       break;
+   case T_STRING:
+      {
+         tb_printf(tb, "\"");
+         const int nchars = tree_chars(value);
+         for (int i = 0; i < nchars; i++)
+            tb_append(tb, ident_char(tree_ident(tree_char(value, i)), 1));
+         tb_printf(tb, "\"");
+      }
+      break;
    case T_AGGREGATE:
       {
          tb_append(tb, '(');

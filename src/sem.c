@@ -2885,9 +2885,6 @@ static bool sem_check_literal(tree_t t)
          sem_error(t, "null expression must have access type");
       break;
 
-   case L_STRING:
-      return sem_check_string_literal(t);
-
    default:
       assert(false);
    }
@@ -2911,7 +2908,7 @@ static bool sem_check_array_aggregate(tree_t t, nametab_t *tab)
       // string literal
       tree_t a0 = tree_value(tree_assoc(t, 0));
       const tree_kind_t a0_kind = tree_kind(a0);
-      if (a0_kind != T_AGGREGATE && a0_kind != T_LITERAL)
+      if (a0_kind != T_AGGREGATE && a0_kind != T_STRING)
          sem_error(a0, "second dimension of %d dimensional array type %s must "
                    "be specified by a sub-aggregate, string, or bit-string "
                    "literal", ndims, type_pp(composite_type));
@@ -4291,6 +4288,8 @@ static bool sem_locally_static(tree_t t)
       else
          return true;
    }
+   else if (kind == T_STRING)
+      return true;
    else if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_ENUM_LIT))
       return true;
    else if (kind == T_OPEN)
@@ -5403,6 +5402,8 @@ bool sem_check(tree_t t, nametab_t *tab)
       return sem_check_fcall(t, tab);
    case T_LITERAL:
       return sem_check_literal(t);
+   case T_STRING:
+      return sem_check_string_literal(t);
    case T_REF:
       return sem_check_ref(t, tab);
    case T_WAIT:

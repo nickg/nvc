@@ -215,6 +215,7 @@ bool eval_possible(eval_t *e, tree_t t)
       }
 
    case T_LITERAL:
+   case T_STRING:
       return true;
 
    case T_TYPE_CONV:
