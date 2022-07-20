@@ -29,6 +29,7 @@ jobs:
       - name: Coverage report
         run: make -C build cov-generate
       - name: Coveralls
+        continue-on-error: true
         uses: coverallsapp/github-action@master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

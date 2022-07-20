@@ -875,3 +875,8 @@ bool type_is_resolved(type_t t)
    else
       return false;
 }
+
+bool type_frozen(type_t t)
+{
+   return arena_frozen(object_arena(&(t->object)));
+}

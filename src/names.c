@@ -990,10 +990,18 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    if (cache == NULL)
       cache = hash_new(128, true);
 
+   const tree_kind_t kind = tree_kind(unit);
+
+   type_t type = NULL;
    bool cacheable = true;
    void *key = unit;
-   if (tree_kind(unit) == T_LIBRARY)
+   if (kind == T_LIBRARY)
       key = tree_ident(unit);   // Tree pointer is not stable
+   else if (kind == T_PARAM_DECL || kind == T_VAR_DECL) {
+      key = type = tree_type(unit);
+      assert(type_is_protected(type));
+      cacheable = type_frozen(type);
+   }
    else {
       assert(is_container(unit));
       cacheable = tree_frozen(unit);
@@ -1016,9 +1024,15 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    s->sym_tail  = &(s->symbols);
    s->container = unit;
 
-   const tree_kind_t kind = tree_kind(unit);
    if (kind == T_LIBRARY)
       make_library_visible(s, lib_require(tree_ident(unit)));
+   else if (type != NULL) {
+      const int ndecls = type_decls(type);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = type_decl(type, i);
+         make_visible_fast(s, tree_ident(d), d);
+      }
+   }
    else {
       // For package instances do not export the names declared only in
       // the body
@@ -1075,11 +1089,11 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
       default:
          break;
       }
-   }
 
-   ident_t bare_name = unit_bare_name(unit);
-   if (symbol_for(s, bare_name) == NULL)
-      make_visible_fast(s, bare_name, unit);
+      ident_t bare_name = unit_bare_name(unit);
+      if (symbol_for(s, bare_name) == NULL)
+         make_visible_fast(s, bare_name, unit);
+   }
 
    if (cacheable)
       hash_put(cache, key, s);
@@ -1945,58 +1959,67 @@ static void overload_add_candidate(overload_t *o, tree_t d)
    APUSH(o->candidates, d);
 }
 
+static tree_t get_container(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_ALIAS:
+      return get_container(tree_value(t));
+   case T_REF:
+      return get_container(tree_ref(t));
+   case T_VAR_DECL:
+   case T_PARAM_DECL:
+      return type_is_protected(tree_type(t)) ? t : NULL;
+   default:
+      return is_container(t) ? t : NULL;
+   }
+}
+
 static void begin_overload_resolution(overload_t *o)
 {
    const symbol_t *sym = NULL;
-
    if (o->prefix != NULL) {
-      // TODO: this should use private_scope_for and then fall into the
-      //       code below
-      int nth = 0;
-      tree_t d = NULL, container = o->prefix;
-      if (tree_kind(container) == T_REF)
-         container = tree_ref(container);
-      while ((d = search_decls(container, o->name, nth++))) {
-         if (is_subprogram(d))
-            overload_add_candidate(o, d);
+      tree_t container = get_container(o->prefix);
+      if (container != NULL) {
+         scope_t *scope = private_scope_for(o->nametab, container);
+         sym = symbol_for(scope, o->name);
       }
    }
-   else {
-      sym = symbol_for(o->nametab->top_scope, o->name);
-      if (sym != NULL) {
-         for (int i = 0; i < sym->ndecls; i++) {
-            const decl_t *dd = get_decl(sym, i);
-            if (dd->visibility == HIDDEN)
+   else
+      sym = iterate_symbol_for(o->nametab, o->name);
+
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == HIDDEN)
+            continue;
+         else if (!(dd->mask & N_SUBPROGRAM))
+            continue;
+
+         tree_t next = dd->tree;
+         if (dd->kind == T_ALIAS) {
+            tree_t value = tree_value(next);
+            if (tree_kind(value) != T_REF || !tree_has_ref(value))
                continue;
-            else if (!(dd->mask & N_SUBPROGRAM))
-               continue;
 
-            tree_t next = dd->tree;
-            if (tree_kind(next) == T_ALIAS) {
-               tree_t value = tree_value(next);
-               if (tree_kind(value) != T_REF || !tree_has_ref(value))
-                  continue;
-
-               next = tree_ref(value);
-            }
-
-            overload_add_candidate(o, next);
+            next = tree_ref(value);
          }
-      }
 
-      // Remove any duplicates from aliases
-      if (o->candidates.count > 1) {
-         unsigned wptr = 0;
-         for (unsigned i = 0; i < o->candidates.count; i++) {
-            bool is_dup = false;
-            for (unsigned j = 0; !is_dup && j < i; j++)
-               is_dup = (o->candidates.items[i] == o->candidates.items[j]);
-
-            if (!is_dup)
-               o->candidates.items[wptr++] = o->candidates.items[i];
-         }
-         ATRIM(o->candidates, wptr);
+         overload_add_candidate(o, next);
       }
+   }
+
+   // Remove any duplicates from aliases
+   if (o->candidates.count > 1) {
+      unsigned wptr = 0;
+      for (unsigned i = 0; i < o->candidates.count; i++) {
+         bool is_dup = false;
+         for (unsigned j = 0; !is_dup && j < i; j++)
+            is_dup = (o->candidates.items[i] == o->candidates.items[j]);
+
+         if (!is_dup)
+            o->candidates.items[wptr++] = o->candidates.items[i];
+      }
+      ATRIM(o->candidates, wptr);
    }
 
    overload_trace_candidates(o, "initial candidates");
@@ -2591,35 +2614,6 @@ static void check_pure_ref(nametab_t *tab, tree_t ref, tree_t decl)
 ////////////////////////////////////////////////////////////////////////////////
 // Type solver
 
-static void solve_subprogram_prefix(overload_t *o)
-{
-   if (o->name == NULL)
-      o->name = tree_ident(o->tree);
-
-   if (o->prefix == NULL) {
-      ident_t full_name = o->name;
-      for (;;) {
-         o->name = ident_walk_selected(&full_name);
-         if (full_name == NULL)
-            break;
-
-         if (o->prefix == NULL) {
-            const symbol_t *sym = symbol_for(o->nametab->top_scope, o->name);
-            if (sym != NULL)
-               o->prefix = get_decl(sym, 0)->tree;
-         }
-         else
-            o->prefix = search_decls(o->prefix, o->name, 0);
-
-         if (o->prefix == NULL) {
-            assert(error_count() > 0);  // Parser should have reported
-            o->error = true;
-            break;
-         }
-      }
-   }
-}
-
 static void solve_one_param(nametab_t *tab, tree_t p, overload_t *o)
 {
    param_kind_t subkind = tree_subkind(p);
@@ -2790,8 +2784,8 @@ static type_t solve_fcall(nametab_t *tab, tree_t fcall)
       .trace    = false,
       .prefix   = kind == T_PROT_FCALL ? tree_name(fcall) : NULL,
       .nactuals = tree_params(fcall),
+      .name     = tree_ident(fcall),
    };
-   solve_subprogram_prefix(&o);
    begin_overload_resolution(&o);
 
    solve_subprogram_params(tab, fcall, &o);
@@ -2857,7 +2851,6 @@ static type_t solve_pcall(nametab_t *tab, tree_t pcall)
       .prefix   = kind == T_PROT_PCALL ? tree_name(pcall) : NULL,
       .nactuals = tree_params(pcall)
    };
-   solve_subprogram_prefix(&o);
    begin_overload_resolution(&o);
 
    solve_subprogram_params(tab, pcall, &o);
