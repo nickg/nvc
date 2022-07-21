@@ -1616,7 +1616,7 @@ static text_buf_t *safe_symbol_win32(const char *text)
 {
    text_buf_t *tb = tb_new();
 
-   for (const char *p = text; *p != '\0' && p - text < 240; p++) {
+   for (const char *p = text; *p != '\0'; p++) {
       bool replaced = false;
       for (size_t j = 0; j < ARRAY_LEN(symbol_replacements); j++) {
          if (*p == symbol_replacements[j].illegal) {
