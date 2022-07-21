@@ -1706,7 +1706,7 @@ static vcode_reg_t lower_concat(tree_t expr, vcode_reg_t hint,
 
          vcode_reg_t data_reg;
          if (lower_have_signal(p->reg))
-            data_reg = emit_resolved(lower_array_data(p->reg));
+            data_reg = lower_array_data(lower_resolved(p->type, p->reg));
          else
             data_reg = lower_array_data(p->reg);
 
