@@ -3974,7 +3974,6 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
 {
    tree_t value = tree_value(param), decl = NULL;
    type_t type = NULL;
-   class_t class = C_DEFAULT;
 
    switch (tree_subkind(param)) {
    case P_POS:
@@ -3989,7 +3988,6 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                       istr(tree_ident(formals[pos].decl)));
          formals[pos].have = true;
          decl = formals[pos].decl;
-         class = tree_class(decl);
          type = get_type_or_null(decl);
       }
       break;
@@ -4010,7 +4008,6 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
                formals[i].have    = true;
                formals[i].partial = (tree_kind(name) != T_REF);
                decl = formals[i].decl;
-               class = tree_class(decl);
                tree_set_flag(ref, TREE_F_FORMAL_NAME);
                break;
             }
@@ -4027,8 +4024,6 @@ static bool sem_check_generic_actual(formal_map_t *formals, int nformals,
          break;
       }
    }
-
-   assert(type != NULL || !class_has_type(class));
 
    switch (tree_class(decl)) {
    case C_TYPE:
