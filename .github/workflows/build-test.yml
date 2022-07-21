@@ -133,6 +133,12 @@ jobs:
           ../configure --disable-debug
       - name: Build release
         run: make -C build
+      - name: Install release
+        run: make -C build install
+      - name: Install OSVVM
+        run: nvc --install osvvm
+      - name: Install UVVM
+        run: nvc --install uvvm
 
   vests:
     name: VESTs

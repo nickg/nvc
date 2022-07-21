@@ -1745,6 +1745,14 @@ bool get_exe_path(text_buf_t *tb)
       tb_cat(tb, buf);
       return true;
    }
+#elif defined __MINGW32__
+   HANDLE hProc = GetCurrentProcess();
+   char buf[PATH_MAX];
+   DWORD size = sizeof(buf);
+   if (QueryFullProcessImageNameA(hProc, 0, buf, &size)) {
+      tb_cat(tb, buf);
+      return true;
+   }
 #endif
    return false;
 }

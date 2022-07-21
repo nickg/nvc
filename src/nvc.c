@@ -697,7 +697,7 @@ static int install_cmd(int argc, char **argv)
    for (int i = optind; i < next_cmd; i++) {
       tb_rewind(tb);
       get_libexec_dir(tb);
-      tb_printf(tb, "/install-%s.sh", argv[i]);
+      tb_printf(tb, DIR_SEP "install-%s.sh", argv[i]);
 
       struct stat sb;
       if (stat(tb_get(tb), &sb) != 0) {
@@ -707,6 +707,9 @@ static int install_cmd(int argc, char **argv)
       }
 
       const char *args[] = {
+#ifdef BASH_PATH
+         BASH_PATH,
+#endif
          tb_get(tb),
          NULL
       };
@@ -994,6 +997,13 @@ static void parse_library_map(char *str)
 static void parse_work_name(char *str, const char **name, const char **path)
 {
    char *split = strchr(str, ':');
+
+#ifdef __MINGW32__
+   // Ignore a leading drive letter in the path
+   if (split == str + 1 && (str[2] == '/' || str[2] == '\\'))
+      split = NULL;
+#endif
+
    if (split == NULL) {
       char *slash = strrchr(str, *DIR_SEP) ?: strrchr(str, '/');
       if (slash == NULL)

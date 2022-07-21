@@ -90,6 +90,11 @@ case $host_os in
 
     AC_SEARCH_LIBS([ffi_call], [ffi], [],
       [AC_MSG_ERROR(LLVM on Windows requires libffi)], [])
+
+    AC_PATH_PROG([MINGW_BASH], ["bash"],
+                 [AC_MSG_WARN([bash not found])])
+    AC_DEFINE_UNQUOTED([BASH_PATH], ["$(cygpath -wm $MINGW_BASH)"],
+                       [Path to Bash on Windows])
     ;;
 
   *)
@@ -182,7 +187,7 @@ fi
 cc_bare="$(which ${CC%% *})"
 case $host_os in
   *cygwin*|msys*|mingw32*)
-    cc_bare="$(cygpath -w $cc_bare | sed  's|\\|\\\\|g')"
+    cc_bare="$(cygpath -wm $cc_bare)"
     ;;
 esac
 AC_ARG_WITH([system-cc],
