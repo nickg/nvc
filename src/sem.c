@@ -5218,6 +5218,20 @@ static bool sem_check_external_name(tree_t t, nametab_t *tab)
    if (tree_kind(find_enclosing(tab, S_DESIGN_UNIT)) == T_PACKAGE)
       sem_error(t, "sorry, external names in packages are not supported");
 
+   const int nparts = tree_parts(t);
+   for (int i = 0; i < nparts; i++) {
+      tree_t pe = tree_part(t, i);
+      switch (tree_subkind(pe)) {
+      case PE_GENERATE:
+         {
+            tree_t value = tree_value(pe);
+            if (!sem_globally_static(value))
+               sem_error(value, "generate index must be a static expression");
+         }
+         break;
+      }
+   }
+
    // Cannot do any more checking until elaboration
    return true;
 }

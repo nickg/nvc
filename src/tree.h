@@ -92,6 +92,7 @@ typedef enum {
    PE_LIBRARY,
    PE_RELATIVE,
    PE_ABSOLUTE,
+   PE_GENERATE,
 } path_elt_t;
 
 typedef enum {

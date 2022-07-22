@@ -22,6 +22,7 @@ begin
         <<variable foo.var : integer>> := 5;  -- OK
         <<signal ^.x.y : bit>> <= force '1';  -- OK
         <<constant .x.y : bit>> <= release;  -- Error
+        assert <<constant foo(<< signal a.b : integer >>).bar : integer>> = 1;  -- Error
         wait;
     end process;
 

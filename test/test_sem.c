@@ -2723,6 +2723,7 @@ START_TEST(test_ename)
       { 15, "initial value BIT does not match type of declaration INTEGER" },
       { 21, "target of variable assignment must be a variable name or " },
       { 24, "external name Y is not a valid target of simple release " },
+      { 25, "generate index must be a static expression" },
       { 14, "cannot reference signal BAR during static elaboration" },
       { -1, NULL }
    };

@@ -4110,8 +4110,9 @@ START_TEST(test_external)
       const class_t class;
       const int     nparts;
       struct {
-         const path_elt_t  kind;
-         const char       *name;
+         const path_elt_t   kind;
+         const char        *name;
+         const tree_kind_t  treek;
       } parts[5];
    } expect[] = {
       { C_SIGNAL, 3, { { PE_RELATIVE },
@@ -4124,7 +4125,8 @@ START_TEST(test_external)
       { C_VARIABLE, 3, { { PE_RELATIVE },
                          { PE_SIMPLE, "AYE" },
                          { PE_SIMPLE, "BEE" } } },
-      { C_CONSTANT, 3, { { PE_SIMPLE, "X" },
+      { C_CONSTANT, 4, { { PE_ABSOLUTE },
+                         { PE_SIMPLE, "X" },
                          { PE_SIMPLE, "Y" },
                          { PE_SIMPLE, "Z" } } },
       { C_CONSTANT, 4, { { PE_RELATIVE },
@@ -4134,6 +4136,10 @@ START_TEST(test_external)
       { C_CONSTANT, 3, { { PE_LIBRARY, "WORK" },
                          { PE_SIMPLE, "PACK" },
                          { PE_SIMPLE, "FOO" } } },
+      { C_SIGNAL, 4, { { PE_RELATIVE },
+                       { PE_GENERATE, "G", T_LITERAL },
+                       { PE_GENERATE, "X", T_LITERAL },
+                       { PE_SIMPLE, "BAZ" } } },
    };
 
    for (int i = 0; i < ARRAY_LEN(expect); i++) {
@@ -4149,6 +4155,11 @@ START_TEST(test_external)
          case PE_SIMPLE:
          case PE_LIBRARY:
             ck_assert_str_eq(istr(tree_ident(p)), expect[i].parts[j].name);
+            break;
+         case PE_GENERATE:
+            ck_assert_str_eq(istr(tree_ident(p)), expect[i].parts[j].name);
+            ck_assert_int_eq(tree_kind(tree_value(p)),
+                             expect[i].parts[j].treek);
             break;
          default:
             break;

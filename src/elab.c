@@ -1180,6 +1180,16 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
          continue;
       case PE_SIMPLE:
          break;
+      case PE_GENERATE:
+         {
+            LOCAL_TEXT_BUF tb = tb_new();
+            tb_istr(tb, tree_ident(pe));
+            tb_printf(tb, "(%"PRIi64")", assume_int(tree_value(pe)));
+
+            tree_set_subkind(pe, PE_SIMPLE);
+            tree_set_ident(pe, ident_new(tb_get(tb)));
+         }
+         break;
       default:
          error_at(tree_loc(pe), "sorry, this form of external name is not "
                   "yet supported");

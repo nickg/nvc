@@ -3394,8 +3394,19 @@ static void p_partial_pathname(tree_t name)
 
    do {
       tree_t pe = tree_new(T_PATH_ELT);
-      tree_set_subkind(pe, PE_SIMPLE);
       tree_set_ident(pe, p_identifier());
+
+      if (optional(tLPAREN)) {
+         tree_t expr = p_expression();
+         solve_types(nametab, expr, NULL);
+
+         tree_set_subkind(pe, PE_GENERATE);
+         tree_set_value(pe, expr);
+         consume(tRPAREN);
+      }
+      else
+         tree_set_subkind(pe, PE_SIMPLE);
+
       tree_set_loc(pe, CURRENT_LOC);
 
       tree_add_part(name, pe);

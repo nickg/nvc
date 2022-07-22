@@ -1030,6 +1030,7 @@ START_TEST(test_ename1)
       { 31, "external name X not found" },
       { 33, "type of signal X is not BIT" },
       { 34, "sorry, this form of external name is not yet supported" },
+      { 35, "external name X not found" },
       { -1, NULL }
    };
    expect_errors(expect);

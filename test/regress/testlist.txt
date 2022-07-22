@@ -627,3 +627,4 @@ array15         fail,gold,2008
 signal24        normal,2008
 issue481        normal,2008
 issue484        normal
+ename3          normal,2008
