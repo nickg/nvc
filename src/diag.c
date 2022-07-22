@@ -799,17 +799,17 @@ void diag_femit(diag_t *d, FILE *f)
             fprintf(f, "%s:%d:%d: ", file_data->name_str, loc->first_line,
                     loc->first_column + 1);
          }
-
-         switch (d->level) {
-         case DIAG_DEBUG: fprintf(f, "note: "); break;
-         case DIAG_NOTE:  fprintf(f, "note: "); break;
-         case DIAG_WARN:  fprintf(f, "warning: "); break;
-         case DIAG_ERROR: fprintf(f, "error: "); break;
-         case DIAG_FATAL: fprintf(f, "fatal: "); break;
-         }
-
-         fprintf(f, "%s\n", tb_get(d->msg));
       }
+
+      switch (d->level) {
+      case DIAG_DEBUG: fprintf(f, "note: "); break;
+      case DIAG_NOTE:  fprintf(f, "note: "); break;
+      case DIAG_WARN:  fprintf(f, "warning: "); break;
+      case DIAG_ERROR: fprintf(f, "error: "); break;
+      case DIAG_FATAL: fprintf(f, "fatal: "); break;
+      }
+
+      fprintf(f, "%s\n", tb_get(d->msg));
    }
    else {
       if (tb_len(d->msg) > 0) {
