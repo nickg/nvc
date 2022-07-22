@@ -470,6 +470,7 @@ class_t class_of(tree_t t)
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:
    case T_RECORD_REF:
+   case T_ALL:
       return class_of(tree_value(t));
    case T_ALIAS:
       if (tree_has_type(t)) {

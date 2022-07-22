@@ -608,6 +608,7 @@ static name_mask_t name_mask_for(tree_t t)
    case T_CONST_DECL:
    case T_FIELD_DECL:
    case T_IMPLICIT_SIGNAL:
+   case T_EXTERNAL_NAME:
       return N_OBJECT;
    case T_FUNC_BODY:
    case T_FUNC_DECL:
@@ -635,15 +636,12 @@ static name_mask_t name_mask_for(tree_t t)
             else if (kind == T_PROC) return N_PROC;
          }
 
-         tree_t ref = name_to_ref(tree_value(t));
-         if (ref != NULL) {
-            switch (class_of(ref)) {
-            case C_TYPE: case C_SUBTYPE: return N_TYPE;
-            case C_FUNCTION: return N_FUNC;
-            case C_PROCEDURE: return N_PROC;
-            case C_LABEL: return N_LABEL;
-            default: return N_OBJECT;
-            }
+         switch (class_of(tree_value(t))) {
+         case C_TYPE: case C_SUBTYPE: return N_TYPE;
+         case C_FUNCTION: return N_FUNC;
+         case C_PROCEDURE: return N_PROC;
+         case C_LABEL: return N_LABEL;
+         default: return N_OBJECT;
          }
 
          return 0;

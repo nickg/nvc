@@ -16,4 +16,10 @@ begin
         i := << signal g(0).x(1).baz : integer >>;  -- OK
     end process;
 
+    p2: process is
+        alias sig is <<signal i_test.sig : bit_vector(1 downto 0)>>;
+    begin
+        sig(0) <= '1';                  -- OK
+    end process;
+
 end architecture;
