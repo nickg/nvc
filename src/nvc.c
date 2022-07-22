@@ -27,6 +27,7 @@
 #include "rt/mspace.h"
 #include "rt/rt.h"
 #include "scan.h"
+#include "thread.h"
 #include "vhpi/vhpi-util.h"
 
 #include <unistd.h>
@@ -1065,6 +1066,7 @@ static int process_command(int argc, char **argv)
 int main(int argc, char **argv)
 {
    term_init();
+   thread_init();
    set_default_opts();
    intern_strings();
    register_signal_handlers();

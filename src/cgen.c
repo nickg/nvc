@@ -96,7 +96,6 @@ typedef A(cgen_job_t) job_list_t;
 
 typedef struct {
    job_list_t      *jobs;
-   nvc_mutex_t     *lock;
    cover_tagging_t *cover;
    tree_t           top;
 } cgen_thread_params_t;
@@ -110,6 +109,7 @@ static __thread LLVMContextRef      thread_context = NULL;
 static __thread llvm_value_list_t   ctors;
 
 static A(char *) link_args;
+static nvc_lock_t job_lock = 0;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMTypeRef cgen_state_type(vcode_unit_t unit);
@@ -5320,7 +5320,7 @@ static void *cgen_worker_thread(void *__arg)
    for (;;) {
       cgen_job_t job;
       {
-         SCOPED_LOCK(params->lock);
+         SCOPED_LOCK(job_lock);
 
          if (params->jobs->count == 0)
             break;
@@ -5365,7 +5365,6 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
 
    cgen_thread_params_t params = {
       .jobs   = &jobs,
-      .lock   = mutex_create(),
       .top    = top,
       .cover  = cover,
    };
@@ -5385,8 +5384,6 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
 
    assert(jobs.count == 0);
    ACLEAR(jobs);
-
-   mutex_destroy(params.lock);
 
    progress("code generation for %d units using %d threads",
             units.count, nprocs);

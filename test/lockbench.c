@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "thread.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -24,51 +25,28 @@
 #include <limits.h>
 #include <assert.h>
 
-#define PTHREAD   1
-#define NVC_MUTEX 2
-#define NVC_LOCK  3
+#define USE_NVC_LOCK
 
-#define IMPL NVC_LOCK
-
-#if IMPL == NVC_MUTEX
-#define LOCK_TYPE nvc_mutex_t *
-#define LOCK_INIT(m) m = mutex_create()
-#define LOCK(m) mutex_lock(m);
-#define UNLOCK(m) mutex_unlock(m);
-#elif IMPL == NVC_LOCK
+#ifdef USE_NVC_LOCK
 #define LOCK_TYPE nvc_lock_t
 #define LOCK_INIT(m) m = 0
 #define LOCK(m) nvc_lock(&m);
 #define UNLOCK(m) nvc_unlock(&m);
-
-typedef int nvc_lock_t;
-
-void nvc_lock(nvc_lock_t *lock);
-void nvc_unlock(nvc_lock_t *lock);
-
-void nvc_lock(nvc_lock_t *lock)
-{
-   while (!atomic_cas(lock, 0, 1))
-      spin_wait();
-}
-
-void nvc_unlock(nvc_lock_t *lock)
-{
-   assert(relaxed_load(lock) == 1);
-   atomic_store(lock, 0);
-}
-
-#elif IMPL == PTHREAD
+#else
 #define LOCK_TYPE pthread_mutex_t
 #define LOCK_INIT(m) pthread_mutex_init(&m, NULL)
 #define LOCK(m) pthread_mutex_lock(&m)
 #define UNLOCK(m) pthread_mutex_unlock(&m)
-#else
-#error invalid IMPL value
 #endif
 
-static LOCK_TYPE mtx __attribute__((aligned(64)));
-static int counter __attribute__((aligned(64)));
+typedef struct {
+   int       value;
+   LOCK_TYPE lock;
+} __attribute__((aligned(64))) counter_t;
+
+#define N_COUNTERS 8
+
+static counter_t counter[N_COUNTERS];
 
 typedef struct __attribute__((aligned(64))) {
    nvc_thread_t *thread;
@@ -86,9 +64,11 @@ static void *worker_thread(void *arg)
    while (relaxed_load(&(t->running))) {
       int iters = relaxed_load(&(t->iters));
 
-      LOCK(mtx);
-      counter++;
-      UNLOCK(mtx);
+      int n = random() % N_COUNTERS;
+
+      LOCK(counter[n].lock);
+      counter[n].value++;
+      UNLOCK(counter[n].lock);
 
       relaxed_store(&(t->iters), iters + 1);
    }
@@ -100,9 +80,16 @@ int main(int argc, char **argv)
 {
    const int nproc = nvc_nprocs();
 
+   srandom((unsigned)time(NULL));
+
+   term_init();
+   thread_init();
+   register_signal_handlers();
+
    thread_state_t *threads = xcalloc_array(nproc, sizeof(thread_state_t));
 
-   LOCK_INIT(mtx);
+   for (int i = 0; i < N_COUNTERS; i++)
+      LOCK_INIT(counter[i].lock);
 
    for (int i = 0; i < nproc; i++) {
       threads[i].running = 1;
@@ -113,10 +100,13 @@ int main(int argc, char **argv)
    for (int i = 0; i < 10; i++) {
       sleep(1);
 
-      LOCK(mtx);
-      int old = counter;
-      counter = 0;
-      UNLOCK(mtx);
+      int total = 0;
+      for (int j = 0; j < N_COUNTERS; j++) {
+         LOCK(counter[j].lock);
+         total += counter[j].value;
+         counter[j].value = 0;
+         UNLOCK(counter[j].lock);
+      }
 
       int min = INT_MAX, max = INT_MIN;
       for (int j = 0; j < nproc; j++) {
@@ -128,7 +118,7 @@ int main(int argc, char **argv)
       }
 
       printf("%d threads; avg:%d min:%d max:%d\n",
-             nproc, old / nproc, min, max);
+             nproc, total / nproc, min, max);
    }
 
    for (int i = 0; i < nproc; i++)

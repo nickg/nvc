@@ -46,7 +46,11 @@ bin_fstdump_LDADD = lib/libfst.a lib/libfastlz.a
 
 bin_lockbench_SOURCES = test/lockbench.c
 
-bin_lockbench_LDADD = lib/libnvc.a $(libdw_LIBS) lib/libfastlz.a
+bin_lockbench_LDADD = \
+	lib/libnvc.a \
+	$(libdw_LIBS) \
+	lib/libfastlz.a \
+	lib/libcpustate.a
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \

@@ -459,15 +459,14 @@ START_TEST(test_scan_backwards)
 END_TEST
 
 static volatile int counter = 0;
+static nvc_lock_t   lock = 0;
 
 static void *thread_fn(void *__arg)
 {
-   nvc_mutex_t *mtx = __arg;
-
    for (int i = 0; i < 10000; i++) {
-      mutex_lock(mtx);
+      nvc_lock(&lock);
       counter++;
-      mutex_unlock(mtx);
+      nvc_unlock(&lock);
    }
 
    return NULL;
@@ -475,19 +474,16 @@ static void *thread_fn(void *__arg)
 
 START_TEST(test_threads)
 {
-   nvc_mutex_t *mtx = mutex_create();
-
    static const int N = 5;
    nvc_thread_t *threads[N];
    for (int i = 0; i < N; i++)
-      threads[i] = thread_create(thread_fn, mtx, "t%d", i);
+      threads[i] = thread_create(thread_fn, NULL, "t%d", i);
 
    for (int i = 0; i < N; i++)
       thread_join(threads[i]);
 
    ck_assert_int_eq(counter, N * 10000);
 
-   mutex_destroy(mtx);
 }
 END_TEST
 

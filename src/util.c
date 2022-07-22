@@ -68,6 +68,10 @@
 #include <termios.h>
 #endif
 
+#ifdef HAVE_PTHREAD
+#include <pthread.h>
+#endif
+
 #ifdef HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
 #endif
@@ -734,8 +738,6 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
    struct cpu_state cpu;
    fill_cpu_state(&cpu, uc);
 
-   uint64_t ip = cpu.pc;
-
    struct cpu_state *req;
    if (sig == SIGUSR2 && (req = atomic_load(&thread_regs)) != NULL) {
       // Fill in registers for capture_registers
@@ -744,6 +746,9 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
       return;
    }
 
+#ifdef __SANITIZE_THREAD__
+   abort();
+#else
    if (sig != SIGUSR1) {
       while (!atomic_cas(&crashing, 0, 1))
          sleep(1);
@@ -765,7 +770,7 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
    case SIGILL:
    case SIGFPE:
    case SIGBUS:
-      fprintf(stderr, " [address=%p, ip=%p]", info->si_addr, (void*)ip);
+      fprintf(stderr, " [address=%p, ip=%p]", info->si_addr, (void*)cpu.pc);
       break;
    }
 
@@ -776,113 +781,15 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
 
    if (sig != SIGUSR1)
       _exit(2);
-}
-
-#if defined __linux__
-static bool scan_file_for_token(const char *file, const char *token)
-{
-   bool found = false;
-   FILE *f = fopen(file, "r");
-   if (f != NULL) {
-      char buf[1024];
-      while (!found && fgets(buf, sizeof(buf), f)) {
-         if (strstr(buf, token))
-            found = true;
-      }
-      fclose(f);
-   }
-
-   return found;
-}
-#endif  // __linux__
-#endif  // !__SANITIZE_THREAD__
-
-bool is_debugger_running(void)
-{
-   static int cached = -1;
-   if (cached != -1)
-      return cached;
-
-#if defined  __SANITIZE_THREAD__
-   return false;
-#elif defined __APPLE__
-
-   struct kinfo_proc info;
-   info.kp_proc.p_flag = 0;
-
-   int mib[4];
-   mib[0] = CTL_KERN;
-   mib[1] = KERN_PROC;
-   mib[2] = KERN_PROC_PID;
-   mib[3] = getpid();
-
-   size_t size = sizeof(info);
-   int rc = sysctl(mib, sizeof(mib) / sizeof(*mib), &info, &size, NULL, 0);
-   if (rc != 0)
-      fatal_errno("sysctl");
-
-   return (cached = ((info.kp_proc.p_flag & P_TRACED) != 0));
-
-#elif defined __linux
-
-   // Hack to detect if Valgrind is running
-   if (scan_file_for_token("/proc/self/maps", "vgpreload"))
-      return (cached = true);
-
-   // Ptrace technique below doesn't work on WSL
-   if (scan_file_for_token("/proc/version", "Microsoft"))
-      return (cached = false);
-
-#ifdef PR_SET_PTRACER
-   // For Linux 3.4 and later allow tracing from any proccess
-   // Failure is harmless as this may not be implemented even in a >3.4 kernel
-   (void)prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
-#endif  // PR_SET_PTRACER
-
-   pid_t pid = fork();
-
-   if (pid == -1)
-      fatal_errno("fork");
-   else if (pid == 0) {
-      int ppid = getppid();
-
-      // Try to trace the parent: if we can then GDB is not running
-      if (ptrace(PTRACE_ATTACH, ppid, NULL, NULL) == 0) {
-         // Wait for the parent to stop and continue it
-         waitpid(ppid, NULL, 0);
-         ptrace(PTRACE_CONT, NULL, NULL);
-
-         // Detach
-         ptrace(PTRACE_DETACH, ppid, NULL, NULL);
-
-         // Able to trace so debugger not present
-         exit(0);
-      }
-      else {
-         // Trace failed so debugger is present
-         exit(1);
-      }
-   }
-   else {
-      int status;
-      waitpid(pid, &status, 0);
-      return (cached = WEXITSTATUS(status));
-   }
-
-#else
-
-   // Not able to detect debugger on this platform
-   return (cached = false);
-
 #endif
 }
+#endif  // !__SANITIZE_THREAD__
 
 void register_signal_handlers(void)
 {
 #ifdef __MINGW32__
    SetUnhandledExceptionFilter(win32_exception_handler);
 #else
-   (void)is_debugger_running();    // Caches the result
 
    struct sigaction sa;
    sa.sa_sigaction = signal_handler;

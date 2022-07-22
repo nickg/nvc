@@ -19,6 +19,7 @@
 #include "phase.h"
 #include "common.h"
 #include "rt/mspace.h"
+#include "thread.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -69,6 +70,7 @@ int main(int argc, char **argv)
    srand((unsigned)time(NULL));
 
    term_init();
+   thread_init();
    register_signal_handlers();
    mspace_stack_limit(MSPACE_CURRENT_FRAME);
 

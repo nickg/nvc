@@ -498,7 +498,7 @@ void object_arena_gc(object_arena_t *arena)
    arena->alloc = (char *)arena->base + woffset;
 
  skip_gc:
-   if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL) || is_debugger_running()) {
+   if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL)) {
       const int ticks = get_timestamp_us() - start_ticks;
       notef("GC: %s: freed %d objects; %d allocated [%d us]",
             istr(object_arena_name(arena)), dead, live, ticks);
