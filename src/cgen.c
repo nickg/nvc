@@ -5472,7 +5472,7 @@ static void *cgen_worker_thread(void *__arg)
    thread_context = LLVMContextCreate();
 
 #if LLVM_HAS_OPAQUE_POINTERS
-   LLVMContextSetOpaquePointers(thread_context, false);
+   LLVMContextSetOpaquePointers(llvm_context(), false);
 #endif
 
    char *def_triple = LLVMGetDefaultTargetTriple();

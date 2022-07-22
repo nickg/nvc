@@ -4,7 +4,7 @@ TESTS = \
 
 check_PROGRAMS += $(TESTS) bin/fstdump
 
-EXTRA_PROGRAMS += bin/lockbench bin/jitperf
+EXTRA_PROGRAMS += bin/lockbench bin/jitperf bin/workqbench
 
 bin_unit_test_SOURCES = \
 	test/test_util.c \
@@ -64,6 +64,14 @@ bin_jitperf_LDADD += \
 	lib/libcgen.a \
 	$(LLVM_LIBS)
 endif
+
+bin_workqbench_SOURCES = test/workqbench.c
+
+bin_workqbench_LDADD = \
+	lib/libnvc.a \
+	$(libdw_LIBS) \
+	lib/libfastlz.a \
+	lib/libcpustate.a
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \

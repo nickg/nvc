@@ -21,6 +21,7 @@
 #include <stdint.h>
 
 #define atomic_add(p, n) __atomic_add_fetch((p), (n), __ATOMIC_SEQ_CST)
+#define atomic_fetch_add(p, n) __atomic_fetch_add((p), (n), __ATOMIC_SEQ_CST)
 #define atomic_load(p) __atomic_load_n((p), __ATOMIC_SEQ_CST)
 #define atomic_store(p, v) __atomic_store_n((p), (v), __ATOMIC_SEQ_CST)
 #define atomic_xchg(p, v) __atomic_exchange_n((p), (v), __ATOMIC_SEQ_CST)
@@ -62,5 +63,15 @@ void __scoped_unlock(nvc_lock_t **plock);
   __attribute__((cleanup(__scoped_unlock), unused))     \
   nvc_lock_t *__lock = &(lock);                         \
   nvc_lock(&(lock));
+
+typedef struct _workq workq_t;
+
+typedef void (*task_fn_t)(void *);
+
+workq_t *workq_new(void);
+void workq_free(workq_t *wq);
+void workq_start(workq_t *wq);
+void workq_do(workq_t *wq, task_fn_t fn, void *arg);
+void workq_drain(workq_t *wq);
 
 #endif  // _THREAD_H

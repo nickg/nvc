@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
+#include <unistd.h>
 
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
@@ -34,16 +35,10 @@
 #endif
 
 #define MAX_THREADS  64
-#define MAX_SPINS    15
+#define LOCK_SPINS   15
+#define MAX_ACTIVEQS 16
+#define MIN_TAKE     8
 #define PARKING_BAYS 64
-
-struct _nvc_thread {
-   unsigned     id;
-   char        *name;
-   pthread_t    handle;
-   thread_fn_t  fn;
-   void        *arg;
-};
 
 typedef struct {
    int64_t locks;
@@ -60,8 +55,13 @@ STATIC_ASSERT(sizeof(lock_stats_t) == 64)
 #define LOCK_EVENT(what, n) do {                \
       lock_stats[my_thread->id].what += (n);    \
    } while (0)
+
+#define WORKQ_EVENT(what, n) do {               \
+      workq_stats[my_thread->id].what += (n);   \
+   } while (0)
 #else
 #define LOCK_EVENT(what, n)
+#define WORKQ_EVENT(what, n)
 #endif
 
 #ifdef __SANITIZE_THREAD__
@@ -102,6 +102,79 @@ typedef struct {
 typedef bool (*park_fn_t)(parking_bay_t *, void *);
 typedef void (*unpark_fn_t)(parking_bay_t *, void *);
 
+typedef struct {
+   task_fn_t  fn;
+   void      *arg;
+   workq_t   *workq;
+} task_t;
+
+// Work sealing task queue is based on:
+//   Arora, N. S., Blumofe, R. D., and Plaxton, C. G.
+//   Thread scheduling for multiprogrammed multiprocessors.
+//   Theory of Computing Systems 34, 2 (2001), 115-144.
+
+typedef uint32_t abp_idx_t;
+typedef uint32_t abp_tag_t;
+
+typedef union {
+   struct {
+      abp_idx_t top;
+      abp_tag_t tag;
+   };
+   uint64_t bits;
+} abp_age_t;
+
+STATIC_ASSERT(sizeof(abp_age_t) <= 8);
+
+#define THREADQ_SIZE 256
+
+typedef struct {
+   task_t    deque[THREADQ_SIZE];
+   abp_age_t age;
+   abp_idx_t bot;
+} __attribute__((aligned(64))) threadq_t;
+
+typedef enum {
+   IDLE, START, DRAIN, DEAD,
+} workq_state_t;
+
+struct _workq {
+   workq_t       *next;
+   workq_state_t  state;
+   nvc_lock_t     lock;
+   task_t        *entryq;
+   unsigned       queuesz;
+   unsigned       wptr;
+   unsigned       rptr;
+   unsigned       comp;
+   int            activeidx;
+};
+
+typedef struct {
+   int64_t comp;
+   int64_t steals;
+   int64_t wakes;
+} __attribute__((aligned(64))) workq_stats_t;
+
+STATIC_ASSERT(sizeof(workq_stats_t) == 64)
+
+typedef enum {
+   MAIN_THREAD,
+   USER_THREAD,
+   WORKER_THREAD,
+} thread_kind_t;
+
+struct _nvc_thread {
+   unsigned        id;
+   thread_kind_t   kind;
+   unsigned        spins;
+   threadq_t       queue;
+   char           *name;
+   pthread_t       handle;
+   thread_fn_t     fn;
+   void           *arg;
+};
+
 static parking_bay_t parking_bays[PARKING_BAYS] = {
    [0 ... PARKING_BAYS - 1] = {
       PTHREAD_MUTEX_INITIALIZER,
@@ -109,21 +182,27 @@ static parking_bay_t parking_bays[PARKING_BAYS] = {
    }
 };
 
+static nvc_thread_t *threads[MAX_THREADS];
+static unsigned      max_workers = 0;
+static int           running_threads = 0;
+static bool          should_stop = false;
+static workq_t      *activeqs[MAX_ACTIVEQS];
+
 #ifdef DEBUG
-static lock_stats_t lock_stats[MAX_THREADS];
+static lock_stats_t  lock_stats[MAX_THREADS];
+static workq_stats_t workq_stats[MAX_THREADS];
 #endif
 
-static unsigned max_workers = 0;
-static int      last_thread_id = -1;
-
 static __thread nvc_thread_t *my_thread = NULL;
+
+static parking_bay_t *parking_bay_for(void *cookie);
 
 #ifdef DEBUG
 static void print_lock_stats(void)
 {
    lock_stats_t s = {};
-   //  workq_stats_t t = {};
-   for (int i = 0; i <= last_thread_id; i++) {
+   workq_stats_t t = {};
+   for (int i = 0; i < MAX_THREADS; i++) {
       s.locks     += relaxed_load(&(lock_stats[i].locks));
       s.contended += relaxed_load(&(lock_stats[i].contended));
       s.parks     += relaxed_load(&(lock_stats[i].parks));
@@ -131,8 +210,9 @@ static void print_lock_stats(void)
       s.spurious  += relaxed_load(&(lock_stats[i].spurious));
       s.retries   += relaxed_load(&(lock_stats[i].retries));
 
-      // t.comp   += relaxed_load(&(workq_stats[i].comp));
-      //t.steals += relaxed_load(&(workq_stats[i].steals));
+      t.comp   += relaxed_load(&(workq_stats[i].comp));
+      t.steals += relaxed_load(&(workq_stats[i].steals));
+      t.wakes  += relaxed_load(&(workq_stats[i].wakes));
    }
 
    printf("\nLock statistics:\n");
@@ -145,28 +225,81 @@ static void print_lock_stats(void)
    printf("\tSpurious wakeups : %"PRIi64"\n", s.spurious);
 
    printf("\nWork queue statistics:\n");
-   //   printf("\tCompleted tasks  : %"PRIi64"\n", t.comp);
-   //printf("\tSteals           : %"PRIi64"\n", t.steals);
+   printf("\tCompleted tasks  : %"PRIi64"\n", t.comp);
+   printf("\tSteals           : %"PRIi64"\n", t.steals);
+   printf("\tWakeups          : %"PRIi64"\n", t.wakes);
 }
 #endif
+
+static void join_worker_threads(void)
+{
+   atomic_store(&should_stop, true);
+
+   for (int i = 1; i < MAX_THREADS; i++) {
+      nvc_thread_t *t = atomic_load(&threads[i]);
+      if (t == NULL)
+         continue;
+
+      switch (relaxed_load(&t->kind)) {
+      case WORKER_THREAD:
+         thread_join(t);
+         continue;  // Freed thread struct
+      case USER_THREAD:
+      case MAIN_THREAD:
+         fatal_trace("leaked a user thread: %s", t->name);
+      }
+   }
+
+   assert(atomic_load(&running_threads) == 1);
+}
+
+static nvc_thread_t *thread_new(thread_fn_t fn, void *arg,
+                                thread_kind_t kind, char *name)
+{
+   nvc_thread_t *thread = xcalloc(sizeof(nvc_thread_t));
+   thread->name  = name;
+   thread->fn    = fn;
+   thread->arg   = arg;
+   thread->kind  = kind;
+
+   atomic_store(&thread->queue.age.bits, 0);
+   atomic_store(&thread->queue.bot, 0);
+
+   int id = 0;
+   for (; id < MAX_THREADS; id++) {
+      if (relaxed_load(&(threads[id])) != NULL)
+         continue;
+      else if (atomic_cas(&(threads[id]), NULL, thread))
+         break;
+   }
+
+   if (id == MAX_THREADS)
+      fatal_trace("cannot create more than %d threads", MAX_THREADS);
+
+   thread->id = id;
+
+   atomic_add(&running_threads, 1);
+   return thread;
+}
 
 void thread_init(void)
 {
    assert(my_thread == NULL);
 
-   my_thread = xcalloc(sizeof(nvc_thread_t));
-   my_thread->name   = xstrdup("main thread");
-   my_thread->id     = atomic_add(&last_thread_id, 1);
+   my_thread = thread_new(NULL, NULL, MAIN_THREAD, xstrdup("main thread"));
    my_thread->handle = pthread_self();
 
    assert(my_thread->id == 0);
 
    max_workers = MIN(nvc_nprocs(), MAX_THREADS);
+   assert(max_workers >= 0);
 
 #ifdef DEBUG
    if (getenv("NVC_THREAD_VERBOSE") != NULL)
       atexit(print_lock_stats);
 #endif
+
+   atexit(join_worker_threads);
 }
 
 int thread_id(void)
@@ -180,26 +313,20 @@ static void *thread_wrapper(void *arg)
    assert(my_thread == NULL);
    my_thread = arg;
 
-   return (*my_thread->fn)(my_thread->arg);
+   void *result = (*my_thread->fn)(my_thread->arg);
+
+   atomic_add(&running_threads, -1);
+   return result;
 }
 
 nvc_thread_t *thread_create(thread_fn_t fn, void *arg, const char *fmt, ...)
 {
-   nvc_thread_t *thread = xcalloc(sizeof(nvc_thread_t));
-
    va_list ap;
    va_start(ap, fmt);
-   thread->name = xvasprintf(fmt, ap);
+   char *name = xvasprintf(fmt, ap);
    va_end(ap);
 
-   thread->id = atomic_add(&last_thread_id, 1);
-   assert(thread->id > 0);
-
-   thread->fn  = fn;
-   thread->arg = arg;
-
-   if (thread->id >= MAX_THREADS)
-      fatal_trace("cannot create more than %d threads", MAX_THREADS);
+   nvc_thread_t *thread = thread_new(fn, arg, USER_THREAD, name);
 
    PTHREAD_CHECK(pthread_create, &(thread->handle), NULL,
                  thread_wrapper, thread);
@@ -215,8 +342,12 @@ void *thread_join(nvc_thread_t *thread)
    void *retval = NULL;
    PTHREAD_CHECK(pthread_join, thread->handle, &retval);
 
-   free(thread->name);
-   free(thread);
+   assert(threads[thread->id] == thread);
+   atomic_store(&(threads[thread->id]),  NULL);
+
+   //free(thread->name);
+   //free(thread);
+   // TODO: free at safe point
 
    return retval;
 }
@@ -253,11 +384,13 @@ static void thread_unpark(void *cookie, unpark_fn_t fn)
 {
    parking_bay_t *bay = parking_bay_for(cookie);
 
-   PTHREAD_CHECK(pthread_mutex_lock, &(bay->mutex));
-   {
-      (*fn)(bay, cookie);
+   if (fn != NULL) {
+      PTHREAD_CHECK(pthread_mutex_lock, &(bay->mutex));
+      {
+         (*fn)(bay, cookie);
+      }
+      PTHREAD_CHECK(pthread_mutex_unlock, &(bay->mutex));
    }
-   PTHREAD_CHECK(pthread_mutex_unlock, &(bay->mutex));
 
    // Do not use pthread_cond_signal here as multiple threads parked in
    // this bay here may be waiting on different cookies
@@ -311,11 +444,11 @@ void nvc_lock(nvc_lock_t *lock)
       // Spin a few times waiting for the owner to release the lock
       // before parking
       int spins = 0;
-      for (; (state & IS_LOCKED) && spins < MAX_SPINS;
+      for (; (state & IS_LOCKED) && spins < LOCK_SPINS;
            spins++, state = relaxed_load(lock))
          spin_wait();
 
-      if (spins == MAX_SPINS) {
+      if (spins == LOCK_SPINS) {
          // Ignore failures here as we will check the lock state again
          // in the callback with the park mutex held
          atomic_cas(lock, IS_LOCKED, IS_LOCKED | HAS_PARKED);
@@ -366,4 +499,313 @@ void nvc_unlock(nvc_lock_t *lock)
 void __scoped_unlock(nvc_lock_t **plock)
 {
    nvc_unlock(*plock);
+}
+
+static void push_bot(threadq_t *tq, const task_t *tasks, size_t count)
+{
+   const abp_idx_t bot = atomic_load(&tq->bot);
+   assert(bot + count <= THREADQ_SIZE);
+
+   memcpy(tq->deque + bot, tasks, count * sizeof(task_t));
+   atomic_store(&tq->bot, bot + count);
+}
+
+static bool pop_bot(threadq_t *tq, task_t *task)
+{
+   const abp_idx_t old_bot = atomic_load(&tq->bot);
+   if (old_bot == 0)
+      return false;
+
+   const abp_idx_t new_bot = old_bot - 1;
+   atomic_store(&tq->bot, new_bot);
+
+   *task = tq->deque[new_bot];
+
+   const abp_age_t old_age = { .bits = atomic_load(&tq->age.bits) };
+   if (new_bot > old_age.top)
+      return true;
+
+   atomic_store(&tq->bot, 0);
+
+   const abp_age_t new_age = { .top = 0, .tag = old_age.tag + 1 };
+   if (new_bot == old_age.top) {
+      if (atomic_cas(&tq->age.bits, old_age.bits, new_age.bits))
+         return true;
+   }
+
+   atomic_store(&tq->age.bits, new_age.bits);
+   return false;
+}
+
+static bool pop_top(threadq_t *tq, task_t *task)
+{
+   const abp_age_t old_age = { .bits = atomic_load(&tq->age.bits) };
+   const abp_idx_t bot = atomic_load(&tq->bot);
+
+   if (bot <= old_age.top)
+      return false;
+
+   *task = tq->deque[old_age.top];
+
+   const abp_age_t new_age = {
+      .tag = old_age.tag,
+      .top = old_age.top + 1
+   };
+
+   return atomic_cas(&tq->age.bits, old_age.bits, new_age.bits);
+}
+
+workq_t *workq_new(void)
+{
+   if (my_thread->kind != MAIN_THREAD)
+      fatal_trace("work queues can only be created by the main thread");
+
+   workq_t *wq = xcalloc(sizeof(workq_t));
+   wq->state     = IDLE;
+   wq->activeidx = -1;
+
+   return wq;
+}
+
+static void workq_transition(workq_t *wq, workq_state_t from, workq_state_t to)
+{
+   SCOPED_LOCK(wq->lock);
+   assert(wq->state == from);
+   wq->state = to;
+}
+
+void workq_free(workq_t *wq)
+{
+   if (my_thread->kind != MAIN_THREAD)
+      fatal_trace("work queues can only be freed by the main thread");
+
+   workq_transition(wq, IDLE, DEAD);
+   // TODO: free at safe point
+}
+
+void workq_do(workq_t *wq, task_fn_t fn, void *arg)
+{
+   SCOPED_LOCK(wq->lock);
+
+   assert(wq->state == IDLE);
+
+   if (wq->wptr == wq->queuesz) {
+      wq->queuesz = MAX(wq->queuesz * 2, 64);
+      wq->entryq = xrealloc_array(wq->entryq, wq->queuesz, sizeof(task_t));
+   }
+
+   wq->entryq[wq->wptr++] = (task_t){ fn, arg, wq };
+}
+
+static size_t workq_take(workq_t *wq, threadq_t *tq)
+{
+   int from, take;
+   {
+      SCOPED_LOCK(wq->lock);
+
+      if (wq->state == IDLE || wq->wptr == wq->rptr) {
+         atomic_cas(&(activeqs[wq->activeidx]), wq, NULL);
+         return 0;
+      }
+
+      const int remain = wq->wptr - wq->rptr;
+      const int share = wq->wptr / relaxed_load(&running_threads);
+      take = MIN(remain, MAX(MIN_TAKE, MIN(THREADQ_SIZE, share)));
+      from = wq->rptr;
+
+      wq->rptr += take;
+   }
+
+   push_bot(tq, wq->entryq + from, take);
+   return take;
+}
+
+static int estimate_depth(threadq_t *tq)
+{
+   if (tq == NULL) return 0;
+
+   const abp_age_t age = { .bits = relaxed_load(&tq->age.bits) };
+   const abp_idx_t bot = relaxed_load(&tq->bot);
+
+   return bot <= age.top ? 0 : bot - age.top;
+}
+
+static threadq_t *get_thread_queue(int id)
+{
+   assert(id < MAX_THREADS);
+
+   nvc_thread_t *t = atomic_load(&(threads[id]));
+   if (t == NULL)
+      return NULL;
+
+   return &(t->queue);
+}
+
+static bool workq_poll(workq_t *wq, threadq_t *tq)
+{
+   int ntasks;
+   if ((ntasks = workq_take(wq, tq))) {
+      task_t task;
+      int comp = 0;
+      for (; pop_bot(tq, &task); comp++)
+         (*task.fn)(task.arg);
+
+      WORKQ_EVENT(comp, comp);
+      atomic_add(&(wq->comp), comp);
+      return true;
+   }
+   else
+      return false;
+}
+
+static bool steal_task(void)
+{
+   int nthreads = relaxed_load(&running_threads), victim;
+   if (nthreads > 2) {
+      // Pick two threads at random and steal from the one with the
+      // longest queue
+      int t1, t2;
+      do {
+         t1 = rand() % nthreads;
+      } while (t1 == my_thread->id);
+      do {
+         t2 = rand() % nthreads;
+      } while (t2 == my_thread->id || t1 == t2);
+
+      threadq_t *q1 = get_thread_queue(t1);
+      threadq_t *q2 = get_thread_queue(t2);
+
+      if (estimate_depth(q1) > estimate_depth(q2))
+         victim = t1;
+      else
+         victim = t2;
+   }
+   else if (nthreads == 1)
+      victim = my_thread->id ^ 1;  // Pick the only other thread
+   else
+      return false;   // No one to steal from
+
+   threadq_t *tq = get_thread_queue(victim);
+
+   task_t task;
+   if (tq != NULL && pop_top(tq, &task)) {
+      WORKQ_EVENT(steals, 1);
+      (*task.fn)(task.arg);
+      WORKQ_EVENT(comp, 1);
+      atomic_add(&(task.workq->comp), 1);
+      return true;
+   }
+   else
+      return false;
+}
+
+static void maybe_backoff(void)
+{
+   const int spins = my_thread->spins++;
+
+   if (spins < 10)
+      spin_wait();
+   else if (spins < 20) {
+      for (int i = 0; i < 50; i++)
+         spin_wait();
+   }
+   else if (spins < 30)
+      sched_yield();
+   else if (spins < 40)
+      usleep(1000);
+   else
+      usleep(10000);
+}
+
+static void *worker_thread(void *arg)
+{
+   do {
+      const int bias = rand();
+      bool did_work = false;
+      for (int i = 0; i < MAX_ACTIVEQS; i++) {
+         const int idx = (i + bias) % MAX_ACTIVEQS;
+         workq_t *wq = atomic_load(&(activeqs[idx]));
+         if (wq == NULL)
+            continue;
+
+         did_work |= workq_poll(wq, &(my_thread->queue));
+      }
+
+      if (!did_work)
+         did_work |= steal_task();
+
+      if (did_work)
+         my_thread->spins = 0;
+      else
+         maybe_backoff();
+
+   } while (likely(!relaxed_load(&should_stop)));
+
+   return NULL;
+}
+
+static void create_workers(int needed)
+{
+   static nvc_lock_t lock = 0;
+   SCOPED_LOCK(lock);
+
+   while (relaxed_load(&running_threads) < MIN(max_workers, needed)) {
+      static int counter = 0;
+      char *name = xasprintf("worker thread %d", atomic_add(&counter, 1));
+      nvc_thread_t *thread =
+         thread_new(worker_thread, NULL, WORKER_THREAD, name);
+
+      PTHREAD_CHECK(pthread_create, &(thread->handle), NULL,
+                    thread_wrapper, thread);
+   }
+}
+
+void workq_start(workq_t *wq)
+{
+   create_workers(wq->wptr);
+
+   workq_transition(wq, IDLE, START);
+
+   assert(wq->activeidx == -1);
+
+   int idx = 0;
+   for (; idx < MAX_ACTIVEQS; idx++) {
+      if (relaxed_load(&activeqs[idx]) != NULL)
+         continue;
+      else if (atomic_cas(&activeqs[idx], NULL, wq))
+         break;
+   }
+
+   if (unlikely(idx >= MAX_ACTIVEQS))
+      fatal_trace("too many active work queues");
+
+   wq->activeidx = idx;
+}
+
+void workq_drain(workq_t *wq)
+{
+   workq_transition(wq, START, DRAIN);
+
+   while (workq_poll(wq, &(my_thread->queue)))
+      ;
+
+   for (;;) {
+      {
+         SCOPED_LOCK(wq->lock);
+         assert(wq->state == DRAIN);
+         if (atomic_load(&wq->comp) == wq->wptr) {
+            wq->state = IDLE;
+            wq->wptr = wq->rptr = wq->comp = 0;
+
+            assert(wq->activeidx != -1);
+            assert(relaxed_load(&activeqs[wq->activeidx]) != wq);
+
+            wq->activeidx = -1;
+            break;
+         }
+      }
+
+      if (!steal_task())
+         spin_wait();
+   }
 }
