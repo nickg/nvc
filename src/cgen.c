@@ -85,41 +85,37 @@ typedef enum {
 } func_attr_t;
 
 typedef A(vcode_unit_t) unit_list_t;
+typedef A(char *) obj_list_t;
 
 typedef struct {
-   unit_list_t  units;
-   char        *obj_path;
-   char        *module_name;
-   unsigned     index;
+   unit_list_t      units;
+   char            *obj_path;
+   char            *module_name;
+   unsigned         index;
+   tree_t           top;
+   cover_tagging_t *cover;
 } cgen_job_t;
 
 typedef A(LLVMValueRef) llvm_value_list_t;
-typedef A(cgen_job_t) job_list_t;
-
-typedef struct {
-   job_list_t      *jobs;
-   cover_tagging_t *cover;
-   tree_t           top;
-} cgen_thread_params_t;
 
 static __thread LLVMModuleRef       module = NULL;
 static __thread LLVMBuilderRef      builder = NULL;
 static __thread LLVMDIBuilderRef    debuginfo = NULL;
 static __thread shash_t            *string_pool = NULL;
 static __thread A(LLVMMetadataRef)  debug_scopes;
-static __thread LLVMContextRef      thread_context = NULL;
 static __thread llvm_value_list_t   ctors;
 
-static A(char *) link_args = AINIT;
+static A(char *) link_args;
 static A(char *) cleanup_files = AINIT;
-static nvc_lock_t job_lock = 0;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMTypeRef cgen_state_type(vcode_unit_t unit);
+static void cgen_async_work(void *arg);
 
 static inline LLVMContextRef llvm_context(void)
 {
-   return thread_context;
+   static __thread LLVMContextRef context = NULL;
+   return context ?: (context = LLVMContextCreate());
 }
 
 static LLVMTypeRef llvm_void_type(void)
@@ -4541,8 +4537,10 @@ static void cgen_find_units(vcode_unit_t root, unit_list_t *units)
       cgen_find_dependencies(units->items[i], units);
 }
 
-static void cgen_partition_jobs(unit_list_t *units, job_list_t *jobs,
-                                const char *base_name, int units_per_job)
+static void cgen_partition_jobs(unit_list_t *units, workq_t *wq,
+                                const char *base_name, int units_per_job,
+                                tree_t top, cover_tagging_t *cover,
+                                obj_list_t *objs)
 {
    int counter = 0;
 
@@ -4559,19 +4557,20 @@ static void cgen_partition_jobs(unit_list_t *units, job_list_t *jobs,
       char obj_path[PATH_MAX];
       lib_realpath(lib_work(), obj_name, obj_path, sizeof(obj_path));
 
-      cgen_job_t job = {
-         .module_name = module_name,
-         .obj_path    = xstrdup(obj_path),
-         .index       = counter,
-      };
+      cgen_job_t *job = xcalloc(sizeof(cgen_job_t));
+      job->module_name = module_name;
+      job->obj_path    = xstrdup(obj_path);
+      job->index       = counter;
+      job->top         = top;
+      job->cover       = cover;
 
       for (unsigned j = i; j < units->count && j < i + units_per_job; j++)
-         APUSH(job.units, units->items[j]);
+         APUSH(job->units, units->items[j]);
 
-      APUSH(*jobs, job);
+      APUSH(*objs, job->obj_path);
+
+      workq_do(wq, cgen_async_work, job);
    }
-
-   assert(jobs->count == njobs);
 }
 
 static void cgen_dump_module(const char *tag)
@@ -5465,11 +5464,9 @@ static void cgen_units(unit_list_t *units, tree_t top, cover_tagging_t *cover,
    LLVMDisposeTargetData(data_ref);
 }
 
-static void *cgen_worker_thread(void *__arg)
+static void cgen_async_work(void *arg)
 {
-   cgen_thread_params_t *params = __arg;
-
-   thread_context = LLVMContextCreate();
+   cgen_job_t *job = arg;
 
 #if LLVM_HAS_OPAQUE_POINTERS
    LLVMContextSetOpaquePointers(llvm_context(), false);
@@ -5495,31 +5492,15 @@ static void *cgen_worker_thread(void *__arg)
                               LLVMRelocPIC,
                               LLVMCodeModelDefault);
 
-   for (;;) {
-      cgen_job_t job;
-      {
-         SCOPED_LOCK(job_lock);
-
-         if (params->jobs->count == 0)
-            break;
-
-         job = APOP(*(params->jobs));
-      }
-
-      cgen_units(&(job.units), params->top, params->cover,
-                 job.module_name, tm_ref, job.obj_path, job.index == 0);
-
-      ACLEAR(job.units);
-      free(job.module_name);
-   }
+   cgen_units(&(job->units), job->top, job->cover,
+              job->module_name, tm_ref, job->obj_path, job->index == 0);
 
    LLVMDisposeTargetMachine(tm_ref);
    LLVMDisposeMessage(def_triple);
 
-   LLVMContextDispose(thread_context);
-   thread_context = NULL;
-
-   return NULL;
+   ACLEAR(job->units);
+   free(job->module_name);
+   free(job);
 }
 
 void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
@@ -5531,40 +5512,22 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
    unit_list_t units = AINIT;
    cgen_find_units(vcode, &units);
 
-   job_list_t jobs = AINIT;
-   cgen_partition_jobs(&units, &jobs, istr(name), UNITS_PER_JOB);
+   workq_t *wq = workq_new();
+
+   obj_list_t objs = AINIT;
+   cgen_partition_jobs(&units, wq, istr(name), UNITS_PER_JOB,
+                       top, cover, &objs);
 
    LLVMInitializeNativeTarget();
    LLVMInitializeNativeAsmPrinter();
 
-   SCOPED_A(char *) objs = AINIT;
-   for (unsigned i = 0; i < jobs.count; i++)
-      APUSH(objs, jobs.items[i].obj_path);
+   if (!LLVMIsMultithreaded())
+      fatal("LLVM was built without multithreaded support");
 
-   cgen_thread_params_t params = {
-      .jobs   = &jobs,
-      .top    = top,
-      .cover  = cover,
-   };
+   workq_start(wq);
+   workq_drain(wq);
 
-   const int njobs = jobs.count;
-
-   int nprocs = 1;
-   if (LLVMIsMultithreaded())
-      nprocs = MIN(MAX(nvc_nprocs() - 1, 1), njobs);
-
-   nvc_thread_t *worker[nprocs];
-   for (int i = 0; i < nprocs; i++)
-      worker[i] = thread_create(cgen_worker_thread, &params, "cgen worker");
-
-   for (int i = 0; i < nprocs; i++)
-      thread_join(worker[i]);
-
-   assert(jobs.count == 0);
-   ACLEAR(jobs);
-
-   progress("code generation for %d units using %d threads",
-            units.count, nprocs);
+   progress("code generation for %d units", units.count);
 
    cgen_link(istr(name), objs.items, objs.count);
 
@@ -5573,4 +5536,6 @@ void cgen(tree_t top, vcode_unit_t vcode, cover_tagging_t *cover)
    ACLEAR(objs);
 
    ACLEAR(units);
+
+   workq_free(wq);
 }
