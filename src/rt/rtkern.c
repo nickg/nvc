@@ -446,7 +446,11 @@ static const char *fmt_values(const void *values, uint32_t len)
 static void rt_abort_sim(int code)
 {
    assert(code >= 0);
+#ifdef __MINGW32__
+   exit(code);
+#else
    longjmp(abort_env, code + 1);
+#endif
 }
 
 static void rt_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
