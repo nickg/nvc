@@ -329,9 +329,29 @@ static void dump_expr(tree_t t)
       break;
 
    case T_EXTERNAL_NAME:
-      syntax("<< #%s ... : ", class_str(tree_class(t)));
-      dump_type(tree_type(t));
-      printf(" >>");
+      {
+         syntax("<< #%s ", class_str(tree_class(t)));
+         const int nparts = tree_parts(t);
+         for (int i = 0; i < nparts; i++) {
+            tree_t part = tree_part(t, i);
+            if (i > 0 || tree_subkind(part) == PE_SIMPLE)
+               printf(".");
+            switch (tree_subkind(part)) {
+            case PE_SIMPLE:
+               printf("%s", istr(tree_ident(part)));
+               break;
+            case PE_ABSOLUTE:
+               printf(".");
+               break;
+            case PE_CARET:
+               printf("^");
+               break;
+            }
+         }
+         printf(" : ");
+         dump_type(tree_type(t));
+         printf(" >>");
+      }
       break;
 
    case T_ARRAY_REF:
@@ -949,6 +969,17 @@ static void dump_stmt(tree_t t, int indent)
          printf("0 ps");
       syntax(" #inertial ");
       dump_waveforms(t);
+      break;
+
+   case T_FORCE:
+      dump_expr(tree_target(t));
+      syntax(" <= #force ");
+      dump_expr(tree_value(t));
+      break;
+
+   case T_RELEASE:
+      dump_expr(tree_target(t));
+      syntax(" <= #release");
       break;
 
    case T_VAR_ASSIGN:

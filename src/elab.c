@@ -194,7 +194,7 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
    case T_PROC_INST:
       return true;
    case T_PATH_ELT:
-      return tree_subkind(t) == PE_RELATIVE;
+      return tree_subkind(t) != PE_SIMPLE;
    case T_FCALL:
       // Globally static expressions should be copied and folded
       return !!(tree_flags(t) & TREE_F_GLOBALLY_STATIC);
@@ -1160,13 +1160,6 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
 {
-   const ename_kind_t ekind = tree_subkind(t);
-   if (ekind == E_PACKAGE) {
-      error_at(tree_loc(t), "sorry, external names with package paths are "
-               "not currently supported");
-      return;
-   }
-
    tree_t where = ctx->root, next = NULL;
    const int nparts = tree_parts(t);
    for (int i = 0; i < nparts; i++, where = next, next = NULL) {
@@ -1178,6 +1171,12 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
          next = ctx->out;
          tree_set_subkind(pe, PE_SIMPLE);
          tree_set_ident(pe, ctx->dotted);
+         continue;
+      case PE_ABSOLUTE:
+         assert(i == 0);
+         next = ctx->root;
+         tree_set_subkind(pe, PE_SIMPLE);
+         tree_set_ident(pe, ident_until(tree_ident(ctx->root), '.'));
          continue;
       case PE_SIMPLE:
          break;

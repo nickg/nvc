@@ -3396,6 +3396,7 @@ static void p_partial_pathname(tree_t name)
       tree_t pe = tree_new(T_PATH_ELT);
       tree_set_subkind(pe, PE_SIMPLE);
       tree_set_ident(pe, p_identifier());
+      tree_set_loc(pe, CURRENT_LOC);
 
       tree_add_part(name, pe);
    } while (optional(tDOT));
@@ -3407,8 +3408,6 @@ static void p_package_pathname(tree_t name)
    //       object_simple_name
 
    BEGIN("package pathname");
-
-   tree_set_subkind(name, E_PACKAGE);
 
    consume(tAT);
 
@@ -3430,9 +3429,13 @@ static void p_absolute_pathname(tree_t name)
 
    BEGIN("absolute pathname");
 
-   tree_set_subkind(name, E_ABSOLUTE);
-
    consume(tDOT);
+
+   tree_t pe = tree_new(T_PATH_ELT);
+   tree_set_subkind(pe, PE_ABSOLUTE);
+   tree_set_loc(pe, CURRENT_LOC);
+
+   tree_add_part(name, pe);
 
    p_partial_pathname(name);
 }
@@ -3442,8 +3445,6 @@ static void p_relative_pathname(tree_t name)
    // { ^ . } partial_pathname
 
    BEGIN("relative pathname");
-
-   tree_set_subkind(name, E_RELATIVE);
 
    tree_t pe = tree_new(T_PATH_ELT);
    tree_set_subkind(pe, PE_RELATIVE);

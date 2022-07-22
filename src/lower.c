@@ -2544,9 +2544,6 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
 static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
 {
    ident_t path = NULL;
-   if (tree_subkind(ref) == E_ABSOLUTE)
-      path = lib_name(lib_work());
-
    const int nparts = tree_parts(ref);
    for (int i = 0; i < nparts - 1; i++) {
       tree_t pe = tree_part(ref, i);
@@ -2556,8 +2553,6 @@ static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
 
    vcode_reg_t locus = lower_debug_locus(ref);
    vcode_reg_t context = emit_link_instance(path, locus);
-
-   printf("path=%s\n", istr(path));
 
    tree_t decl = tree_ref(ref);
    vcode_type_t vtype = lower_var_type(decl);

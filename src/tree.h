@@ -87,17 +87,11 @@ typedef enum {
 } range_kind_t;
 
 typedef enum {
-   E_ABSOLUTE,
-   E_RELATIVE,
-   E_PACKAGE,
-   E_RESOLVED,
-} ename_kind_t;
-
-typedef enum {
    PE_CARET,
    PE_SIMPLE,
    PE_LIBRARY,
    PE_RELATIVE,
+   PE_ABSOLUTE,
 } path_elt_t;
 
 typedef enum {
