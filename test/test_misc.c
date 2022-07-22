@@ -20,6 +20,7 @@
 #include "mask.h"
 #include "ident.h"
 #include "rt/heap.h"
+#include "thread.h"
 
 #include <assert.h>
 #include <check.h>

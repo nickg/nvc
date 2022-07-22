@@ -48,7 +48,9 @@ lib_libnvc_a_SOURCES = \
 	src/scan.h \
 	src/scan.c \
 	src/mask.h \
-	src/mask.c
+	src/mask.c \
+	src/thread.h \
+	src/thread.c
 
 lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

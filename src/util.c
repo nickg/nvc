@@ -30,6 +30,7 @@
 #include "debug.h"
 #include "diag.h"
 #include "opt.h"
+#include "thread.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -81,10 +82,6 @@
 #include <sys/ucontext.h>
 #endif
 
-#ifdef HAVE_PTHREAD
-#include <pthread.h>
-#endif
-
 #define N_TRACE_DEPTH   16
 #define ERROR_SZ        1024
 #define PAGINATE_RIGHT  72
@@ -127,22 +124,6 @@ struct text_buf {
    char  *buf;
    size_t alloc;
    size_t len;
-};
-
-struct _nvc_thread {
-   unsigned   id;
-   char      *name;
-#if defined HAVE_PTHREAD
-   pthread_t  handle;
-#elif defined _WIN32
-   HANDLE     handle;
-#endif
-};
-
-struct _nvc_mutex {
-#if defined HAVE_PTHREAD
-   pthread_mutex_t mutex;
-#endif
 };
 
 static bool            want_color = false;
@@ -928,6 +909,8 @@ void term_init(void)
    static const char *term_blacklist[] = {
       "dumb"
    };
+
+   spin_wait();  // Dummy, to force linking thread.c
 
    bool is_tty = isatty(STDERR_FILENO);
 
@@ -1788,99 +1771,6 @@ void progress(const char *fmt, ...)
 
       last_ru = ru;
    }
-}
-
-nvc_thread_t *thread_create(void *(*fn)(void *), void *arg,
-                            const char *fmt, ...)
-{
-   nvc_thread_t *thread = xcalloc(sizeof(nvc_thread_t));
-
-   va_list ap;
-   va_start(ap, fmt);
-   thread->name = xvasprintf(fmt, ap);
-   va_end(ap);
-
-#if defined HAVE_PTHREAD
-   if (pthread_create(&(thread->handle), NULL, fn, arg) != 0)
-      fatal_errno("pthread_create");
-#elif defined _WIN32
-   if ((thread->handle = CreateThread(NULL, 0, fn, arg, 0, NULL)) == NULL)
-      fatal_errno("CreateThread");
-#else
-   fatal_trace("threads are not supported on this platform");
-#endif
-
-   return thread;
-}
-
-void *thread_join(nvc_thread_t *thread)
-{
-   void *retval = NULL;
-
-#if defined HAVE_PTHREAD
-   if (pthread_join(thread->handle, &retval) != 0)
-      fatal_errno("pthread_join");
-#elif defined _WIN32
-   if (WaitForSingleObject(thread->handle, INFINITE) == WAIT_FAILED)
-      fatal_errno("WaitForSingleObject");
-#endif
-
-   free(thread->name);
-   free(thread);
-
-   return retval;
-}
-
-nvc_mutex_t *mutex_create(void)
-{
-   nvc_mutex_t *mtx = xcalloc(sizeof(nvc_mutex_t));
-
-#if defined HAVE_PTHREAD
-   if (pthread_mutex_init(&(mtx->mutex), NULL) != 0)
-      fatal_errno("pthread_mutex_init");
-#else
-   fatal_trace("mutexes are not supported on this platform");
-#endif
-
-   return mtx;
-}
-
-void mutex_lock(nvc_mutex_t *mtx)
-{
-#ifdef HAVE_PTHREAD
-   if (unlikely(pthread_mutex_lock(&(mtx->mutex)) != 0))
-      fatal_errno("pthread_mutex_lock");
-#endif
-}
-
-void mutex_unlock(nvc_mutex_t *mtx)
-{
-#ifdef HAVE_PTHREAD
-   if (unlikely(pthread_mutex_unlock(&(mtx->mutex)) != 0))
-      fatal_errno("pthread_mutex_unlock");
-#endif
-}
-
-void mutex_destroy(nvc_mutex_t *mtx)
-{
-#ifdef HAVE_PTHREAD
-   if (pthread_mutex_destroy(&(mtx->mutex)) != 0)
-      fatal_errno("pthread_mutex_destroy");
-#endif
-
-   free(mtx);
-}
-
-void spin_wait(void)
-{
-#ifdef __x86_64__
-   __asm__ ("pause");
-#endif
-}
-
-void __scoped_unlock(nvc_mutex_t **pmtx)
-{
-   mutex_unlock(*pmtx);
 }
 
 unsigned nvc_nprocs(void)

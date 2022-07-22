@@ -26,6 +26,7 @@
 #include "rt/cover.h"
 #include "rt/ffi.h"
 #include "rt/rt.h"
+#include "thread.h"
 #include "vcode.h"
 
 #include <stdlib.h>
