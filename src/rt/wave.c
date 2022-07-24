@@ -20,6 +20,7 @@
 #include "common.h"
 #include "diag.h"
 #include "fstapi.h"
+#include "hash.h"
 #include "opt.h"
 #include "rt.h"
 #include "tree.h"
@@ -50,14 +51,19 @@ typedef struct {
    char    *name;
 } fst_unit_t;
 
-typedef union {
-   const char *map;
-   fst_unit_t *units;
+typedef struct {
+   fst_fmt_fn_t                 fn;
+   enum fstVarType              vartype;
+   enum fstSupplementalDataType sdt;
+   unsigned                     size;
+   union {
+      const char *map;
+      fst_unit_t *units;
+   } u;
 } fst_type_t;
 
 struct fst_data {
-   fst_fmt_fn_t  fmt;
-   fst_type_t    type;
+   fst_type_t   *type;
    rt_watch_t   *watch;
    tree_t        decl;
    rt_signal_t  *signal;
@@ -119,10 +125,10 @@ static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
    uint64_t val;
    rt_signal_expand(data->signal, 0, &val, 1);
 
-   char buf[data->size + 1];
-   for (size_t i = 0; i < data->size; i++)
-      buf[data->size - 1 - i] = (val & (1 << i)) ? '1' : '0';
-   buf[data->size] = '\0';
+   char buf[data->type->size + 1];
+   for (size_t i = 0; i < data->type->size; i++)
+      buf[data->type->size - 1 - i] = (val & (1 << i)) ? '1' : '0';
+   buf[data->type->size] = '\0';
 
    fstWriterEmitValueChange(fst_ctx, data->handle[0], buf);
 }
@@ -132,7 +138,7 @@ static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
    uint64_t val;
    rt_signal_expand(data->signal, 0, &val, 1);
 
-   fst_unit_t *unit = data->type.units;
+   fst_unit_t *unit = data->type->u.units;
    while ((val % unit->mult) != 0)
       ++unit;
 
@@ -148,10 +154,10 @@ static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
 {
    const uint8_t *p = rt_signal_value(data->signal, 0);
    for (int i = 0; i < data->count; i++, p += data->size) {
-      if (likely(data->type.map != NULL)) {
+      if (likely(data->type->u.map != NULL)) {
          char buf[data->size];
          for (int j = 0; j < data->size; j++)
-            buf[j] = data->type.map[p[j]];
+            buf[j] = data->type->u.map[p[j]];
          fstWriterEmitValueChange(fst_ctx, data->handle[i], buf);
       }
       else
@@ -183,7 +189,7 @@ static void fst_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
 
    fst_data_t *data = user;
    if (likely(data != NULL))
-      (*data->fmt)(w, data);
+      (*data->type->fn)(w, data);
 }
 
 static fst_unit_t *fst_make_unit_map(type_t type)
@@ -202,62 +208,151 @@ static fst_unit_t *fst_make_unit_map(type_t type)
    return map;
 }
 
-static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
-                              enum fstVarType *vt,
-                              enum fstSupplementalDataType *sdt)
+static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
 {
-   type_t base = type_base_recur(type);
+   const type_kind_t kind = type_kind(type);
+   if (kind == T_SUBTYPE && !type_has_ident(type)) {
+      // Do not cache anonymous subtypes
+      return fst_type_for(type_base(type), loc);
+   }
 
-   switch (is_well_known(type_ident(base))) {
-   case W_IEEE_ULOGIC:
-      if (type_ident(type) == well_known(W_IEEE_LOGIC))
-         *sdt = (data->size > 1) ?
-            FST_SDT_VHDL_STD_LOGIC_VECTOR : FST_SDT_VHDL_STD_LOGIC;
-      else
-         *sdt = (data->size > 1) ?
-            FST_SDT_VHDL_STD_ULOGIC_VECTOR : FST_SDT_VHDL_STD_ULOGIC;
-      *vt = FST_VT_SV_LOGIC;
-      data->fmt = fst_fmt_chars;
-      data->type.map = "UX01ZWLH-";
-      return true;
+   static hash_t *cache = NULL;
+   if (cache == NULL)
+      cache = hash_new(128);
 
-   case W_STD_BIT:
-      *sdt = FST_SDT_VHDL_BIT;
-      *vt  = FST_VT_SV_LOGIC;
-      data->fmt = fst_fmt_chars;
-      data->type.map = "01";
-      return true;
+   fst_type_t *ft = hash_get(cache, type);
+   if (ft != NULL)
+      return ft;
+   else if (ft == (void *)-1)
+      return NULL;   // Failed for this type earlier
 
-   case W_STD_CHAR:
-      if (data->size > 0) {
-         *sdt = FST_SDT_VHDL_STRING;
-         *vt  = FST_VT_GEN_STRING;
-         data->fmt = fst_fmt_chars;
-         data->type.map = NULL;
-         return true;
+   ft = xcalloc(sizeof(fst_type_t));
+
+   switch (type_kind(type)) {
+   case T_SUBTYPE:
+      {
+         *ft = *fst_type_for(type_base(type), loc);
+
+         switch (is_well_known(type_ident(type))) {
+         case W_STD_NATURAL:  ft->sdt = FST_SDT_VHDL_NATURAL; break;
+         case W_STD_POSITIVE: ft->sdt = FST_SDT_VHDL_POSITIVE; break;
+         case W_IEEE_LOGIC:   ft->sdt = FST_SDT_VHDL_STD_LOGIC; break;
+         default: break;
+         }
       }
-      else
-         return false;
+      break;
+
+   case T_INTEGER:
+      {
+         int64_t low, high;
+         range_bounds(range_of(type, 0), &low, &high);
+
+         ft->vartype = FST_VT_VCD_INTEGER;
+         ft->fn      = fst_fmt_int;
+         ft->size    = bits_for_range(low, high);
+         ft->sdt     = FST_SDT_VHDL_INTEGER;
+      }
+      break;
+
+   case T_ENUM:
+      {
+         switch (is_well_known(type_ident(type))) {
+         case W_IEEE_ULOGIC:
+            ft->sdt     = FST_SDT_VHDL_STD_ULOGIC;
+            ft->vartype = FST_VT_SV_LOGIC;
+            ft->fn      = fst_fmt_chars;
+            ft->u.map   = "UX01ZWLH-";
+            ft->size    = 1;
+            break;
+
+         case W_STD_BIT:
+            ft->sdt     = FST_SDT_VHDL_BIT;
+            ft->vartype = FST_VT_SV_LOGIC;
+            ft->fn      = fst_fmt_chars;
+            ft->u.map   = "01";
+            ft->size    = 1;
+            break;
+
+         case W_STD_CHAR: ft->sdt = FST_SDT_VHDL_CHARACTER; break;
+         case W_STD_BOOL: ft->sdt = FST_SDT_VHDL_BOOLEAN; break;
+         default:         ft->sdt = FST_SDT_NONE; break;
+         }
+      }
+
+      if (ft->fn == NULL) {
+         ft->vartype = FST_VT_GEN_STRING;
+         ft->size    = 0;
+         ft->fn      = fst_fmt_enum;
+      }
+      break;
+
+   case T_PHYSICAL:
+      ft->sdt     = FST_SDT_NONE;
+      ft->vartype = FST_VT_GEN_STRING;
+      ft->size    = 0;
+      ft->u.units = fst_make_unit_map(type);
+      ft->fn      = fst_fmt_physical;
+      break;
+
+   case T_ARRAY:
+      {
+         if (dimension_of(type) > 1) {
+            warn_at(loc, "cannot represent multidimensional arrays "
+                    "in FST format");
+            goto poison;
+         }
+
+         type_t elem = type_elem(type);
+         fst_type_t *elemft = fst_type_for(elem, loc);
+         if (elemft == NULL) {
+            warn_at(loc, "cannot represent arrays of array of type %s "
+                    "in FST format", type_pp(elem));
+            goto poison;
+         }
+
+         *ft = *elemft;
+
+         switch (is_well_known(type_ident(type))) {
+         case W_IEEE_ULOGIC_VECTOR:
+            ft->sdt = FST_SDT_VHDL_STD_ULOGIC_VECTOR;
+            break;
+         case W_IEEE_LOGIC_VECTOR:
+            ft->sdt = FST_SDT_VHDL_STD_LOGIC_VECTOR;
+            break;
+         case W_IEEE_SIGNED:
+            ft->sdt = FST_SDT_VHDL_SIGNED;
+            break;
+         case W_IEEE_UNSIGNED:
+            ft->sdt = FST_SDT_VHDL_UNSIGNED;
+            break;
+         case W_STD_STRING:
+            ft->sdt  = FST_SDT_VHDL_STRING;
+            ft->fn   = fst_fmt_chars;
+            ft->size = 1;
+            break;
+         default:
+            break;
+         }
+      }
+      break;
 
    default:
-      return false;
+      warn_at(loc, "cannot represent type %s in FST format", type_pp(type));
+      goto poison;
    }
+
+   hash_put(cache, type, ft);
+   return ft;
+
+ poison:
+   hash_put(cache, type, (void *)-1);
+   free(ft);
+   return NULL;
 }
 
 static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
                                  tree_t cons, text_buf_t *tb)
 {
-   fst_data_t *data = NULL;
-
-   enum fstVarType vt;
-   enum fstSupplementalDataType sdt;
-
-   if (dimension_of(type) > 1) {
-      warn_at(tree_loc(d), "cannot represent multidimensional arrays "
-              "in FST format");
-      return;
-   }
-
    tree_t r;
    if (cons != NULL && tree_kind(cons) == T_ELEM_CONSTRAINT)
       r = range_of(tree_type(cons), 0);
@@ -280,38 +375,35 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
       }
    }
 
+   const int msb = assume_int(tree_left(r));
+   const int lsb = assume_int(tree_right(r));
+
+   tb_rewind(tb);
+   tb_istr(tb, tree_ident(d));
+   tb_printf(tb, "[%d:%d]", msb, lsb);
+   tb_downcase(tb);
+
+   fst_data_t *data;
+
    type_t elem = type_elem(type);
    if (type_is_array(elem)) {
       // Dumping memories and nested arrays can be slow
       if (!opt_get_int(OPT_DUMP_ARRAYS))
          return;
 
-      const int length = MAX(high - low + 1, 0);
-      data = xcalloc_flex(sizeof(fst_data_t), length, sizeof(fstHandle));
-      data->count = length;
-      data->dir   = tree_subkind(r);
+      fst_type_t *ft = fst_type_for(elem, tree_loc(d));
+      if (ft == NULL)
+         return;
 
-      type_t elem2 = type_elem(elem);
       tree_t elem_r = range_of(elem, 0);
-
       int64_t e_low, e_high;
       range_bounds(elem_r, &e_low, &e_high);
 
-      data->size = e_high - e_low + 1;
-
-      if (!fst_can_fmt_chars(elem2, data, &vt, &sdt)) {
-         warn_at(tree_loc(d), "cannot represent arrays of array of type %s "
-                 "in FST format", type_pp(elem2));
-         free(data);
-         return;
-      }
-      else {
-         switch (is_well_known(type_ident(type_base_recur(elem)))) {
-         case W_IEEE_UNSIGNED: sdt = FST_SDT_VHDL_UNSIGNED; break;
-         case W_IEEE_SIGNED:   sdt = FST_SDT_VHDL_SIGNED; break;
-         default: break;
-         }
-      }
+      const int length = MAX(high - low + 1, 0);
+      data = xcalloc_flex(sizeof(fst_data_t), length, sizeof(fstHandle));
+      data->count = length;
+      data->size  = (e_high - e_low + 1) * ft->size;
+      data->type  = ft;
 
       const int msb = assume_int(tree_left(elem_r));
       const int lsb = assume_int(tree_right(elem_r));
@@ -324,61 +416,43 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
 
          data->handle[i] = fstWriterCreateVar2(
             fst_ctx,
-            vt,
+            ft->vartype,
             dir,
             data->size,
             tb_get(tb),
             0,
             type_pp(elem),
             FST_SVT_VHDL_SIGNAL,
-            sdt);
+            ft->sdt);
       }
 
       fstWriterSetAttrEnd(fst_ctx);
    }
    else {
-      data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
-      data->count = 1;
-      data->dir   = tree_subkind(r);
-      data->size  = high - low + 1;
-
-      if (!fst_can_fmt_chars(elem, data, &vt, &sdt)) {
-         warn_at(tree_loc(d), "cannot represent arrays of type %s "
-                 "in FST format", type_pp(elem));
-         free(data);
+      fst_type_t *ft = fst_type_for(type, tree_loc(d));
+      if (ft == NULL)
          return;
-      }
-      else {
-         switch (is_well_known(type_ident(type_base_recur(type)))) {
-         case W_IEEE_UNSIGNED: sdt = FST_SDT_VHDL_UNSIGNED; break;
-         case W_IEEE_SIGNED:   sdt = FST_SDT_VHDL_SIGNED; break;
-         default: break;
-         }
-      }
 
-      const int msb = assume_int(tree_left(r));
-      const int lsb = assume_int(tree_right(r));
-
-      tb_rewind(tb);
-      tb_istr(tb, tree_ident(d));
-      tb_printf(tb, "[%d:%d]", msb, lsb);
-      tb_downcase(tb);
+      data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
+      data->type  = ft;
+      data->size  = (high - low + 1) * ft->size;
+      data->count = 1;
 
       data->handle[0] = fstWriterCreateVar2(
          fst_ctx,
-         vt,
+         ft->vartype,
          dir,
          data->size,
          tb_get(tb),
          0,
          type_pp(type),
          FST_SVT_VHDL_SIGNAL,
-         sdt);
-
+         ft->sdt);
    }
 
    data->decl   = d;
    data->signal = s;
+   data->dir    = tree_subkind(r);
    data->watch  = rt_set_event_cb(data->signal, fst_event_cb, data, true);
 
    fst_event_cb(0, data->signal, data->watch, data);
@@ -387,64 +461,14 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
 static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type,
                                   text_buf_t *tb)
 {
-   type_t base = type_base_recur(type);
+   fst_type_t *ft = fst_type_for(type, tree_loc(d));
+   if (ft == NULL)
+      return;
 
    fst_data_t *data = xcalloc(sizeof(fst_data_t) + sizeof(fstHandle));
+   data->type  = ft;
    data->count = 1;
-
-   enum fstVarType vt;
-   enum fstSupplementalDataType sdt;
-
-   switch (type_kind(base)) {
-   case T_INTEGER:
-      {
-         switch (is_well_known(type_ident(type))) {
-         case W_STD_NATURAL:  sdt = FST_SDT_VHDL_NATURAL; break;
-         case W_STD_POSITIVE: sdt = FST_SDT_VHDL_POSITIVE; break;
-         default:             sdt = FST_SDT_VHDL_INTEGER; break;
-         }
-
-         int64_t low, high;
-         range_bounds(range_of(type, 0), &low, &high);
-
-         vt = FST_VT_VCD_INTEGER;
-         data->size = ilog2(high - low + 1);
-         data->fmt  = fst_fmt_int;
-      }
-      break;
-
-   case T_ENUM:
-      if (!fst_can_fmt_chars(type, data, &vt, &sdt)) {
-         switch (is_well_known(type_ident(base))) {
-         case W_STD_BOOL: sdt = FST_SDT_VHDL_BOOLEAN; break;
-         case W_STD_CHAR: sdt = FST_SDT_VHDL_CHARACTER; break;
-         default:         sdt = FST_SDT_NONE; break;
-         }
-
-         vt = FST_VT_GEN_STRING;
-         data->size = 0;
-         data->fmt  = fst_fmt_enum;
-      }
-      else
-         data->size = 1;
-      break;
-
-   case T_PHYSICAL:
-      {
-         sdt = FST_SDT_NONE;
-         vt  = FST_VT_GEN_STRING;
-         data->size = 0;
-         data->type.units = fst_make_unit_map(type);
-         data->fmt = fst_fmt_physical;
-      }
-      break;
-
-   default:
-      warn_at(tree_loc(d), "cannot represent type %s in FST format",
-              type_pp(type));
-      free(data);
-      return;
-   }
+   data->size  = ft->size;
 
    enum fstVarDir dir = FST_VD_IMPLICIT;
 
@@ -461,9 +485,9 @@ static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type,
    tb_istr(tb, tree_ident(d));
    tb_downcase(tb);
 
-   data->handle[0] = fstWriterCreateVar2(fst_ctx, vt, dir, data->size,
+   data->handle[0] = fstWriterCreateVar2(fst_ctx, ft->vartype, dir, ft->size,
                                          tb_get(tb), 0, type_pp(type),
-                                         FST_SVT_VHDL_SIGNAL, sdt);
+                                         FST_SVT_VHDL_SIGNAL, ft->sdt);
 
    data->decl   = d;
    data->signal = s;
