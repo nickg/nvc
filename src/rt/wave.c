@@ -52,13 +52,20 @@ typedef struct {
 } fst_unit_t;
 
 typedef struct {
+   unsigned  count;
+   unsigned  size;
+   char     *strings;
+} fst_enum_t;
+
+typedef struct {
    fst_fmt_fn_t                 fn;
    enum fstVarType              vartype;
    enum fstSupplementalDataType sdt;
    unsigned                     size;
    union {
-      const char *map;
-      fst_unit_t *units;
+      const char  *map;
+      fst_unit_t  *units;
+      fst_enum_t   literals;
    } u;
 } fst_type_t;
 
@@ -171,12 +178,12 @@ static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
    uint64_t val;
    rt_signal_expand(data->signal, 0, &val, 1);
 
-   type_t base = type_base_recur(tree_type(data->decl));
-   tree_t lit = type_enum_literal(base, val);
-   const char *str = istr(tree_ident(lit));
+   fst_enum_t *e = &(data->type->u.literals);
+   assert(val < e->count);
 
+   const char *literal = e->strings + val * e->size;
    fstWriterEmitVariableLengthValueChange(
-      fst_ctx, data->handle[0], str, strlen(str));
+      fst_ctx, data->handle[0], literal, strnlen(literal, e->size));
 }
 
 static void fst_event_cb(uint64_t now, rt_signal_t *s, rt_watch_t *w,
@@ -283,6 +290,24 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
          ft->vartype = FST_VT_GEN_STRING;
          ft->size    = 0;
          ft->fn      = fst_fmt_enum;
+
+         const int nlits = type_enum_literals(type);
+         int maxsize = 0;
+         for (int i = 0; i < nlits; i++) {
+            ident_t id = tree_ident(type_enum_literal(type, i));
+            maxsize = MAX(maxsize, ident_len(id) + 1);
+         }
+
+         ft->u.literals.count = nlits;
+         ft->u.literals.size  = maxsize;
+
+         ft->u.literals.strings = xmalloc(maxsize * nlits);
+         for (int i = 0; i < nlits; i++) {
+            char *p = ft->u.literals.strings + i*maxsize;
+            istr_r(tree_ident(type_enum_literal(type, i)), p, maxsize);
+            for (; *p; p++)
+               *p = tolower((int)*p);
+         }
       }
       break;
 
@@ -326,9 +351,10 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
             ft->sdt = FST_SDT_VHDL_UNSIGNED;
             break;
          case W_STD_STRING:
-            ft->sdt  = FST_SDT_VHDL_STRING;
-            ft->fn   = fst_fmt_chars;
-            ft->size = 1;
+            ft->sdt   = FST_SDT_VHDL_STRING;
+            ft->fn    = fst_fmt_chars;
+            ft->u.map = NULL;
+            ft->size  = 1;
             break;
          default:
             break;

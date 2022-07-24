@@ -5,24 +5,24 @@
 #0 wave3.sub_i.ctr[3:18] 0000000000000000
 #0 wave3.sub_i.y[7:0] UUUUUUUU
 #0 wave3.sub_i.x[7:0] 10101010
-#0 wave3.a_block.c NUL
+#0 wave3.a_block.c nul
 #0 wave3.a_block.c 'a'
 #0 wave3.a_block.i 00000000000000000000000000000000
-#0 wave3.s2 ONE
-#0 wave3.s INIT
+#0 wave3.s2 one
+#0 wave3.s init
 #0 wave3.t 0 HR
 #0 wave3.q[3:1] 011
 #0 wave3.p[1:3] 110
 #0 wave3.m[1:3] 
 #0 wave3.m[1:3] abc
-#0 wave3.b FALSE
-#0 wave3.b TRUE
+#0 wave3.b false
+#0 wave3.b true
 #0 wave3.o 0
 #0 wave3.z u
 #0 wave3.y[7:0] UUUUUUUU
 #0 wave3.x[7:0] 10101010
 #1000 wave3.t 20 US
-#4000000 wave3.s2 TWO
+#4000000 wave3.s2 two
 #5000000 wave3.y[7:0] 10101010
 #5000000 wave3.sub_i.y[7:0] 10101010
 #20000000 wave3.a_block.i 00000000000000000000000000000001
@@ -41,7 +41,7 @@
 #60000000 wave3.a_block.c 'a'
 #60000000 wave3.sub_i.ctr[3:18] 0000000000000011
 #60000000 wave3.sub_i.ctr2[15:0] 0000000000000011
-#60000000 wave3.s ONE
+#60000000 wave3.s one
 #80000000 wave3.sub_i.ctr2[15:0] 0000000000000100
 #80000000 wave3.sub_i.ctr[3:18] 0000000000000100
 #80000000 wave3.a_block.c 'b'
@@ -65,7 +65,7 @@
 #140000000 wave3.sub_i.ctr2[15:0] 0000000000000111
 #150000000 wave3.x[7:0] 01010101
 #150000000 wave3.sub_i.x[7:0] 01010101
-#150000000 wave3.s TWO
+#150000000 wave3.s two
 #155000000 wave3.sub_i.y[7:0] 01010101
 #155000000 wave3.y[7:0] 01010101
 #160000000 wave3.sub_i.ctr2[15:0] 0000000000001000
