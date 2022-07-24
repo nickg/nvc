@@ -1,13 +1,28 @@
+//
+//  Copyright (C) 2011-2022  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
+#include "test_util.h"
+#include "common.h"
 #include "lib.h"
 #include "tree.h"
-#include "util.h"
-#include "common.h"
 #include "type.h"
+#include "util.h"
 
-#include <check.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 
 static lib_t work;
 static const char *tmp;
@@ -313,7 +328,7 @@ Suite *get_lib_tests(void)
 {
    Suite *s = suite_create("lib");
 
-   TCase *tc_core = tcase_create("Core");
+   TCase *tc_core = nvc_unit_test();
    tcase_add_checked_fixture(tc_core, setup, teardown);
    tcase_add_test(tc_core, test_lib_new);
    tcase_add_test(tc_core, test_lib_fopen);

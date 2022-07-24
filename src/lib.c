@@ -16,9 +16,9 @@
 //
 
 #include "util.h"
-#include "array.h"
 #include "common.h"
 #include "diag.h"
+#include "hash.h"
 #include "lib.h"
 #include "object.h"
 #include "opt.h"
@@ -42,19 +42,19 @@
 typedef struct _search_path search_path_t;
 typedef struct _lib_index   lib_index_t;
 typedef struct _lib_list    lib_list_t;
+typedef struct _lib_unit    lib_unit_t;
 
 #define INDEX_FILE_MAGIC 0x55225511
 
-typedef struct {
+struct _lib_unit {
    tree_t        top;
    tree_kind_t   kind;
    bool          dirty;
    bool          error;
    lib_mtime_t   mtime;
    vcode_unit_t  vcode;
-} lib_unit_t;
-
-typedef A(lib_unit_t) unit_array_t;
+   lib_unit_t   *next;
+};
 
 struct _lib_index {
    ident_t      name;
@@ -65,7 +65,8 @@ struct _lib_index {
 struct _lib {
    char         *path;
    ident_t       name;
-   unit_array_t  units;
+   hash_t       *lookup;
+   lib_unit_t   *units;
    lib_index_t  *index;
    lib_mtime_t   index_mtime;
    off_t         index_size;
@@ -205,6 +206,7 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    l->index    = NULL;
    l->lock_fd  = lock_fd;
    l->readonly = false;
+   l->lookup   = hash_new(128);
 
    char abspath[PATH_MAX];
    if (rpath == NULL)
@@ -266,22 +268,22 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty, bool error,
    assert(lib != NULL);
    assert(unit != NULL);
 
-   lib_unit_t *where = NULL;
    ident_t name = tree_ident(unit);
+   assert(ident_until(name, '.') == lib->name);
 
-   for (unsigned i = 0; i < lib->units.count; i++) {
-      if (tree_ident(lib->units.items[i].top) == tree_ident(unit))
-         where = &(lib->units.items[i]);
-   }
-
+   bool fresh = false;
+   lib_unit_t *where = hash_get(lib->lookup, name);
    if (where == NULL) {
-      lib_unit_t new = {};
-      APUSH(lib->units, new);
-      where = &(lib->units.items[lib->units.count - 1]);
+      where = xcalloc(sizeof(lib_unit_t));
+      fresh = true;
    }
-   else if (where->vcode != NULL) {
-      vcode_unit_unref(where->vcode);
-      where->vcode = NULL;
+   else {
+      hash_delete(lib->lookup, where->top);
+
+      if (where->vcode != NULL) {
+         vcode_unit_unref(where->vcode);
+         where->vcode = NULL;
+      }
    }
 
    where->top   = unit;
@@ -291,7 +293,19 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit, bool dirty, bool error,
    where->kind  = tree_kind(unit);
    where->vcode = vu;
 
+   if (fresh) {
+      lib_unit_t **it;
+      for (it = &(lib->units); *it; it = &(*it)->next) {
+         assert((*it)->top != unit);
+         assert(tree_ident((*it)->top) != name);
+      }
+      *it = where;
+   }
+
    lib_add_to_index(lib, name, tree_kind(unit));
+
+   hash_put(lib->lookup, name, where);
+   hash_put(lib->lookup, unit, where);
 
    return where;
 }
@@ -588,7 +602,11 @@ void lib_free(lib_t lib)
       lib->index = tmp;
    }
 
-   ACLEAR(lib->units);
+   for (lib_unit_t *lu = lib->units, *tmp; lu; lu = tmp) {
+      tmp = lu->next;
+      free(lu);
+   }
+   hash_free(lib->lookup);
 
    free(lib->path);
    free(lib);
@@ -670,23 +688,17 @@ void lib_put_error(lib_t lib, tree_t unit)
 
 static lib_unit_t *lib_find_unit(lib_t lib, tree_t unit)
 {
-   for (unsigned n = 0; n < lib->units.count; n++) {
-      if (lib->units.items[n].top == unit)
-         return &(lib->units.items[n]);
-   }
+   lib_unit_t *lu = hash_get(lib->lookup, unit);
+   if (lu == NULL)
+      fatal_trace("unit %s not stored in library %s", istr(tree_ident(unit)),
+                  istr(lib->name));
 
-   fatal_trace("unit %s not stored in library %s", istr(tree_ident(unit)),
-               istr(lib->name));
+   return lu;
 }
 
 bool lib_contains(lib_t lib, tree_t unit)
 {
-   for (unsigned n = 0; n < lib->units.count; n++) {
-      if (lib->units.items[n].top == unit)
-         return true;
-   }
-
-   return false;
+   return hash_get(lib->lookup, unit) != NULL;
 }
 
 void lib_put_vcode(lib_t lib, tree_t unit, vcode_unit_t vu)
@@ -778,11 +790,9 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    else if (lname != lib->name)
       ident = ident_prefix(lib->name, uname, '.');
 
-   // Search in the list of already loaded units
-   for (unsigned n = 0; n < lib->units.count; n++) {
-      if (tree_ident(lib->units.items[n].top) == ident)
-         return &(lib->units.items[n]);
-   }
+   lib_unit_t *lu = hash_get(lib->lookup, ident);
+   if (lu != NULL)
+      return lu;
 
    if (lib->path == NULL)   // Temporary library
       return NULL;
@@ -946,14 +956,13 @@ void lib_save(lib_t lib)
    lib_ensure_writable(lib);
    file_write_lock(lib->lock_fd);
 
-   for (unsigned n = 0; n < lib->units.count; n++) {
-      lib_unit_t *lu = &(lib->units.items[n]);
+   for (lib_unit_t *lu = lib->units; lu; lu = lu->next) {
       if (lu->dirty) {
          if (lu->error)
             fatal_trace("attempting to save unit %s with errors",
                         istr(tree_ident(lu->top)));
-
-         lib_save_unit(lib, &(lib->units.items[n]));
+         else
+            lib_save_unit(lib, lu);
       }
    }
 
