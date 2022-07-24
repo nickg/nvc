@@ -2823,7 +2823,7 @@ static void rt_setup(tree_t top)
 
    eventq_heap = heap_new(512);
 
-   scopes = hash_new(256, true);
+   scopes = hash_new(256);
 
    root = xcalloc(sizeof(rt_scope_t));
    root->kind     = SCOPE_ROOT;
@@ -2835,7 +2835,7 @@ static void rt_setup(tree_t top)
 
    *tailp = rt_scope_for_block(tree_stmt(top, 0), lib_name(lib_work()));
 
-   res_memo_hash = hash_new(128, true);
+   res_memo_hash = hash_new(128);
 }
 
 static void rt_reset(rt_proc_t *proc)

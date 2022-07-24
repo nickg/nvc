@@ -27,7 +27,6 @@
 struct _hash {
    unsigned     size;
    unsigned     members;
-   bool         replace;
    void       **values;
    const void **keys;
 };
@@ -54,12 +53,11 @@ static inline int hash_slot(unsigned size, const void *key)
    return a & (size - 1);
 }
 
-hash_t *hash_new(int size, bool replace)
+hash_t *hash_new(int size)
 {
    hash_t *h = xmalloc(sizeof(hash_t));
    h->size    = next_power_of_2(size);
    h->members = 0;
-   h->replace = replace;
 
    char *mem = xcalloc(h->size * 2 * sizeof(void *));
    h->values = (void **)mem;
@@ -105,7 +103,7 @@ bool hash_put(hash_t *h, const void *key, void *value)
    int slot = hash_slot(h->size, key);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
-      if ((h->keys[slot] == key) && h->replace) {
+      if (h->keys[slot] == key) {
          h->values[slot] = value;
          return true;
       }
@@ -122,8 +120,6 @@ bool hash_put(hash_t *h, const void *key, void *value)
 
 void hash_delete(hash_t *h, const void *key)
 {
-   assert(h->replace);
-
    int slot = hash_slot(h->size, key);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {

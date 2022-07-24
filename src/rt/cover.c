@@ -197,7 +197,7 @@ static void cover_tag_visit_fn(tree_t t, void *context)
 cover_tagging_t *cover_tag(tree_t top)
 {
    cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
-   ctx->tree_hash = hash_new(1024, true);
+   ctx->tree_hash = hash_new(1024);
 
    tree_visit(top, cover_tag_visit_fn, ctx);
 

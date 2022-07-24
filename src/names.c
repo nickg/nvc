@@ -356,7 +356,7 @@ void nametab_finish(nametab_t *tab)
 void push_scope(nametab_t *tab)
 {
    scope_t *s = xcalloc(sizeof(scope_t));
-   s->lookup   = hash_new(128, true);
+   s->lookup   = hash_new(128);
    s->parent   = tab->top_scope;
    s->prefix   = tab->top_scope ? tab->top_scope->prefix : NULL;
    s->suppress = tab->top_scope ? tab->top_scope->suppress : false;
@@ -426,7 +426,7 @@ void map_generic_type(nametab_t *tab, type_t generic, type_t actual)
    assert(type_kind(generic) == T_GENERIC);
 
    if (tab->top_scope->gmap == NULL)
-      tab->top_scope->gmap = hash_new(128, true);
+      tab->top_scope->gmap = hash_new(128);
 
    hash_put(tab->top_scope->gmap, generic, actual);
 }
@@ -436,7 +436,7 @@ void map_generic_subprogram(nametab_t *tab, tree_t decl, tree_t actual)
    assert(is_subprogram(actual));
 
    if (tab->top_scope->gmap == NULL)
-      tab->top_scope->gmap = hash_new(128, true);
+      tab->top_scope->gmap = hash_new(128);
 
    hash_put(tab->top_scope->gmap, decl, actual);
 }
@@ -446,7 +446,7 @@ void map_generic_package(nametab_t *tab, tree_t inst)
    assert(tree_kind(inst) == T_PACK_INST);
 
    if (tab->top_scope->gmap == NULL)
-      tab->top_scope->gmap = hash_new(128, true);
+      tab->top_scope->gmap = hash_new(128);
 
    tree_t pack = tree_ref(inst);
 
@@ -953,7 +953,7 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
 {
    static hash_t *cache = NULL;
    if (cache == NULL)
-      cache = hash_new(128, true);
+      cache = hash_new(128);
 
    const tree_kind_t kind = tree_kind(unit);
 
@@ -985,7 +985,7 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    }
 
    s = xcalloc(sizeof(scope_t));
-   s->lookup    = hash_new(128, true);
+   s->lookup    = hash_new(128);
    s->sym_tail  = &(s->symbols);
    s->container = unit;
 

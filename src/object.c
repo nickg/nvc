@@ -926,7 +926,7 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
       return false;
 
    if (ctx->copy_map == NULL)
-      ctx->copy_map = hash_new(1024, true);
+      ctx->copy_map = hash_new(1024);
 
    if (object_marked_p(object, ctx->generation))
       return hash_get(ctx->copy_map, object) != NULL;

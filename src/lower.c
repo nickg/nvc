@@ -2126,7 +2126,7 @@ static void lower_push_scope(tree_t container)
 {
    lower_scope_t *new = xcalloc(sizeof(lower_scope_t));
    new->down      = top_scope;
-   new->objects   = hash_new(128, true);
+   new->objects   = hash_new(128);
    new->container = container;
 
    top_scope = new;
@@ -9456,7 +9456,7 @@ vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover)
    mode = LOWER_NORMAL;
 
    assert(globals == NULL);
-   globals = hash_new(128, true);
+   globals = hash_new(128);
 
    vcode_unit_t root = NULL;
    switch (tree_kind(unit)) {

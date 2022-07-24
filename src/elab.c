@@ -758,7 +758,7 @@ static tree_t elab_unconstrained_port(tree_t port, tree_t map, elab_ctx_t *ctx)
    // Abusing the generic rewriting mechanism to replace all
    // references to the unconstrained port
    if (ctx->generics == NULL)
-      ctx->generics = hash_new(64, true);
+      ctx->generics = hash_new(64);
    hash_put(ctx->generics, port, p2);
 
    return p2;
@@ -939,7 +939,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
    }
 
    if (ctx->generics == NULL && ngenerics > 0)
-      ctx->generics = hash_new(ngenerics * 2, true);
+      ctx->generics = hash_new(ngenerics * 2);
 
    for (int i = 0; i < ngenerics; i++) {
       tree_t eg = tree_generic(entity, i), cg = eg;
@@ -1360,7 +1360,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .inst        = ninst,
          .dotted      = ndotted,
          .library     = ctx->library,
-         .generics    = hash_new(16, true),
+         .generics    = hash_new(16),
          .subprograms = ctx->subprograms,
          .eval        = ctx->eval,
       };
@@ -1568,7 +1568,7 @@ static void elab_top_level_generics(tree_t arch, elab_ctx_t *ctx)
    const int ngenerics = tree_generics(ent);
 
    if (ctx->generics == NULL && ngenerics > 0)
-      ctx->generics = hash_new(ngenerics * 2, true);
+      ctx->generics = hash_new(ngenerics * 2);
 
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(ent, i);
@@ -1699,7 +1699,7 @@ tree_t elab(tree_t top)
       .eval     = eval_new(EVAL_FCALL),
    };
 
-   ctx.subprograms = hash_new(256, true);
+   ctx.subprograms = hash_new(256);
 
    eval_set_lower_fn(ctx.eval, elab_lower_cb, ctx.subprograms);
 

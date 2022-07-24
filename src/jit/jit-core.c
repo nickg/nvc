@@ -61,7 +61,7 @@ static void jit_oom_cb(mspace_t *m, size_t size)
 jit_t *jit_new(void)
 {
    jit_t *j = xcalloc(sizeof(jit_t));
-   j->index = hash_new(256, true);
+   j->index = hash_new(256);
    j->mspace = mspace_new(opt_get_int(OPT_HEAP_SIZE));
 
    mspace_set_oom_handler(j->mspace, jit_oom_cb);
@@ -318,7 +318,7 @@ void jit_set_lower_fn(jit_t *j, jit_lower_fn_t fn, void *ctx)
 const jit_layout_t *jit_layout(jit_t *j, type_t type)
 {
    if (j->layouts == NULL)
-      j->layouts = hash_new(256, true);
+      j->layouts = hash_new(256);
 
    jit_layout_t *l = hash_get(j->layouts, type);
    if (l != NULL)

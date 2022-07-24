@@ -33,7 +33,7 @@
 
 START_TEST(test_hash_basic)
 {
-   hash_t *h = hash_new(8, true);
+   hash_t *h = hash_new(8);
 
    hash_put(h, VOIDP(1516), VOIDP(6));
    hash_put(h, VOIDP(151670), VOIDP(4));
@@ -49,7 +49,7 @@ END_TEST;
 
 START_TEST(test_hash_rand)
 {
-   hash_t *h = hash_new(32, true);
+   hash_t *h = hash_new(32);
 
    static const int N = 1024;
 
@@ -73,30 +73,9 @@ START_TEST(test_hash_rand)
 }
 END_TEST;
 
-START_TEST(test_hash_replace)
-{
-   hash_t *h = hash_new(8, false);
-
-   hash_put(h, VOIDP(10), VOIDP(6));
-   hash_put(h, VOIDP(10), VOIDP(4));
-   hash_put(h, VOIDP(10), VOIDP(1));
-
-   int n;
-   fail_unless(hash_get(h, VOIDP(10)) == VOIDP(6));
-   n = 1;
-   fail_unless(hash_get_nth(h, VOIDP(10), &n) == VOIDP(4));
-   fail_unless(n == 0);
-   n = 2;
-   fail_unless(hash_get_nth(h, VOIDP(10), &n) == VOIDP(1));
-   fail_unless(n == 0);
-
-   hash_free(h);
-}
-END_TEST;
-
 START_TEST(test_hash_delete)
 {
-   hash_t *h = hash_new(8, true);
+   hash_t *h = hash_new(8);
 
    hash_put(h, VOIDP(10), VOIDP(6));
    hash_put(h, VOIDP(11), VOIDP(4));
@@ -494,7 +473,6 @@ Suite *get_misc_tests(void)
    TCase *tc_hash = tcase_create("hash");
    tcase_add_test(tc_hash, test_hash_basic);
    tcase_add_test(tc_hash, test_hash_rand);
-   tcase_add_test(tc_hash, test_hash_replace);
    tcase_add_test(tc_hash, test_hash_delete);
    tcase_add_test(tc_hash, test_shash_basic);
    tcase_add_test(tc_hash, test_shash_rand);

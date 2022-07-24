@@ -1353,7 +1353,7 @@ static c_typeDecl *cached_typeDecl(type_t type)
 {
    static hash_t *h = NULL;
    if (h == NULL)
-      h = hash_new(128, true);
+      h = hash_new(128);
 
    c_typeDecl *d = hash_get(h, type);
    if (d == NULL) {
