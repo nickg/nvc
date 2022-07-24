@@ -1042,12 +1042,9 @@ static bool is_bit_or_std_ulogic(type_t type)
    if (!type_is_enum(type))
       return false;
 
-   ident_t bit_i = ident_new("STD.STANDARD.BIT");
-   ident_t ulogic_i = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
-
    ident_t name = type_ident(type);
 
-   return name == bit_i || name == ulogic_i;
+   return name == well_known(W_STD_BIT) || name == well_known(W_IEEE_ULOGIC);
 }
 
 static bool is_bootstrap_universal(tree_t std, type_t type)

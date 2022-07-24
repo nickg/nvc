@@ -906,8 +906,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    switch (type_kind(base)) {
    case T_ENUM:
       switch (is_well_known(type_name)) {
-      case W_STD_LOGIC:
-      case W_STD_ULOGIC:
+      case W_IEEE_LOGIC:
+      case W_IEEE_ULOGIC:
       case W_STD_BIT:
          if (value_p->format == vhpiBinStrVal)
             format = value_p->format;
@@ -934,8 +934,8 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          case T_ENUM:
             {
                switch (is_well_known(type_ident(elem))) {
-               case W_STD_LOGIC:
-               case W_STD_ULOGIC:
+               case W_IEEE_LOGIC:
+               case W_IEEE_ULOGIC:
                case W_STD_BIT:
                   if (value_p->format == vhpiBinStrVal)
                      format = value_p->format;

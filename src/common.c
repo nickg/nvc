@@ -941,26 +941,36 @@ well_known_t is_well_known(ident_t ident)
 
 void intern_strings(void)
 {
-   id_cache[W_STD_STANDARD]  = ident_new("STD.STANDARD");
-   id_cache[W_ALL]           = ident_new("all");
-   id_cache[W_STD_LOGIC]     = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
-   id_cache[W_STD_ULOGIC]    = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
-   id_cache[W_STD_BIT]       = ident_new("STD.STANDARD.BIT");
-   id_cache[W_STD_BOOL]      = ident_new("STD.STANDARD.BOOLEAN");
-   id_cache[W_STD_CHAR]      = ident_new("STD.STANDARD.CHARACTER");
-   id_cache[W_STD_NATURAL]   = ident_new("STD.STANDARD.NATURAL");
-   id_cache[W_STD_POSITIVE]  = ident_new("STD.STANDARD.POSITIVE");
-   id_cache[W_IEEE_SIGNED]   = ident_new("IEEE.NUMERIC_STD.SIGNED");
-   id_cache[W_IEEE_UNSIGNED] = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
-   id_cache[W_FOREIGN]       = ident_new("FOREIGN");
-   id_cache[W_WORK]          = ident_new("WORK");
-   id_cache[W_STD]           = ident_new("STD");
-   id_cache[W_THUNK]         = ident_new("thunk");
-   id_cache[W_BODY]          = ident_new("body");
-   id_cache[W_CARET]         = ident_new("^");
-   id_cache[W_IEEE]          = ident_new("IEEE");
-   id_cache[W_IEEE_1164]     = ident_new("IEEE.STD_LOGIC_1164");
-   id_cache[W_ERROR]         = ident_new("error");
+   id_cache[W_STD_STANDARD]   = ident_new("STD.STANDARD");
+   id_cache[W_ALL]            = ident_new("all");
+   id_cache[W_STD_BIT]        = ident_new("STD.STANDARD.BIT");
+   id_cache[W_STD_BOOL]       = ident_new("STD.STANDARD.BOOLEAN");
+   id_cache[W_STD_CHAR]       = ident_new("STD.STANDARD.CHARACTER");
+   id_cache[W_STD_NATURAL]    = ident_new("STD.STANDARD.NATURAL");
+   id_cache[W_STD_POSITIVE]   = ident_new("STD.STANDARD.POSITIVE");
+   id_cache[W_STD_INTEGER]    = ident_new("STD.STANDARD.INTEGER");
+   id_cache[W_STD_STRING]     = ident_new("STD.STANDARD.STRING");
+   id_cache[W_STD_REAL]       = ident_new("STD.STANDARD.REAL");
+   id_cache[W_STD_TIME]       = ident_new("STD.STANDARD.TIME");
+   id_cache[W_STD_BIT_VECTOR] = ident_new("STD.STANDARD.BIT_VECTOR");
+   id_cache[W_IEEE_SIGNED]    = ident_new("IEEE.NUMERIC_STD.SIGNED");
+   id_cache[W_IEEE_UNSIGNED]  = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
+   id_cache[W_IEEE_LOGIC]     = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
+   id_cache[W_IEEE_ULOGIC]    = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
+   id_cache[W_FOREIGN]        = ident_new("FOREIGN");
+   id_cache[W_WORK]           = ident_new("WORK");
+   id_cache[W_STD]            = ident_new("STD");
+   id_cache[W_THUNK]          = ident_new("thunk");
+   id_cache[W_BODY]           = ident_new("body");
+   id_cache[W_CARET]          = ident_new("^");
+   id_cache[W_IEEE]           = ident_new("IEEE");
+   id_cache[W_IEEE_1164]      = ident_new("IEEE.STD_LOGIC_1164");
+   id_cache[W_ERROR]          = ident_new("error");
+
+   id_cache[W_IEEE_LOGIC_VECTOR] =
+      ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");
+   id_cache[W_IEEE_ULOGIC_VECTOR] =
+      ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC_VECTOR");
 }
 
 bool is_uninstantiated_package(tree_t pack)
@@ -1357,37 +1367,30 @@ void mangle_one_type(text_buf_t *buf, type_t type)
 {
    ident_t ident = type_ident(type);
 
-   if (icmp(ident, "STD.STANDARD.INTEGER"))
-      tb_printf(buf, "I");
-   else if (icmp(ident, "STD.STANDARD.STRING"))
-      tb_printf(buf, "S");
-   else if (icmp(ident, "STD.STANDARD.REAL"))
-      tb_printf(buf, "R");
-   else if (icmp(ident, "STD.STANDARD.BOOLEAN"))
-      tb_printf(buf, "B");
-   else if (icmp(ident, "STD.STANDARD.CHARACTER"))
-      tb_printf(buf, "C");
-   else if (icmp(ident, "STD.STANDARD.TIME"))
-      tb_printf(buf, "T");
-   else if (icmp(ident, "STD.STANDARD.NATURAL"))
-      tb_printf(buf, "N");
-   else if (icmp(ident, "STD.STANDARD.POSITIVE"))
-      tb_printf(buf, "P");
-   else if (icmp(ident, "STD.STANDARD.BIT"))
-      tb_printf(buf, "J");
-   else if (icmp(ident, "STD.STANDARD.BIT_VECTOR"))
-      tb_printf(buf, "Q");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC"))
-      tb_printf(buf, "L");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_ULOGIC"))
-      tb_printf(buf, "U");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR"))
-      tb_printf(buf, "V");
-   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_ULOGIC_VECTOR"))
-      tb_printf(buf, "Y");
+   char code = 0;
+   switch (is_well_known(ident)) {
+   case W_STD_INTEGER:        code = 'I'; break;
+   case W_STD_STRING:         code = 'S'; break;
+   case W_STD_REAL:           code = 'R'; break;
+   case W_STD_BOOL:           code = 'B'; break;
+   case W_STD_CHAR:           code = 'C'; break;
+   case W_STD_TIME:           code = 'T'; break;
+   case W_STD_NATURAL:        code = 'N'; break;
+   case W_STD_POSITIVE:       code = 'P'; break;
+   case W_STD_BIT:            code = 'J'; break;
+   case W_STD_BIT_VECTOR:     code = 'Q'; break;
+   case W_IEEE_LOGIC:         code = 'L'; break;
+   case W_IEEE_ULOGIC:        code = 'U'; break;
+   case W_IEEE_LOGIC_VECTOR:  code = 'V'; break;
+   case W_IEEE_ULOGIC_VECTOR: code = 'Y'; break;
+   default: break;
+   }
+
+   if (code)
+      tb_append(buf, code);
    else {
-      const char *ident_str = istr(ident);
-      tb_printf(buf, "%d%s", (int)strlen(ident_str), ident_str);
+      tb_printf(buf, "%zu", ident_len(ident));
+      tb_istr(buf, ident);
    }
 }
 

@@ -222,8 +222,8 @@ const char *vhpi_map_str_for_type(type_t type)
       type_name = type_ident(type);
 
    switch (is_well_known(type_name)) {
-   case W_STD_LOGIC:
-   case W_STD_ULOGIC:
+   case W_IEEE_LOGIC:
+   case W_IEEE_ULOGIC:
       return "UX01ZWLH-";
    case W_STD_BIT:
       return "01";

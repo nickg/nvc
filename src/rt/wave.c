@@ -208,8 +208,8 @@ static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
    type_t base = type_base_recur(type);
 
    switch (is_well_known(type_ident(base))) {
-   case W_STD_ULOGIC:
-      if (type_ident(type) == well_known(W_STD_LOGIC))
+   case W_IEEE_ULOGIC:
+      if (type_ident(type) == well_known(W_IEEE_LOGIC))
          *sdt = (data->size > 1) ?
             FST_SDT_VHDL_STD_LOGIC_VECTOR : FST_SDT_VHDL_STD_LOGIC;
       else

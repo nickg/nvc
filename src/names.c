@@ -1828,24 +1828,26 @@ void mangle_func(nametab_t *tab, tree_t decl)
       return;
 
    LOCAL_TEXT_BUF buf = tb_new();
-   ident_t qual = ident_prefix(tab->top_scope->prefix, tree_ident(decl), '.');
-   tb_printf(buf, "%s", istr(qual));
+   tb_istr(buf, tab->top_scope->prefix);
+   tb_append(buf, '.');
+   tb_istr(buf, tree_ident(decl));
 
    const tree_kind_t kind = tree_kind(decl);
-   const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
+   const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL
+      || kind == T_FUNC_INST;
    const int nports = tree_ports(decl);
    if (nports > 0 || is_func)
-      tb_printf(buf, "(");
+      tb_append(buf, '(');
 
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(decl, i);
       if (tree_class(p) == C_SIGNAL)
-         tb_printf(buf, "s");
+         tb_append(buf, 's');
       mangle_one_type(buf, tree_type(p));
    }
 
    if (nports > 0 || is_func)
-      tb_printf(buf, ")");
+      tb_append(buf, ')');
 
    if (is_func)
       mangle_one_type(buf, type_result(tree_type(decl)));
