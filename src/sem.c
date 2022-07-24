@@ -1619,11 +1619,14 @@ static void sem_check_static_elab(tree_t t)
          else
             id = tree_ident(t);
 
-         diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+         const bool relaxed = opt_get_int(OPT_RELAXED);
+         diag_t *d = diag_new(relaxed ? DIAG_WARN : DIAG_ERROR, tree_loc(t));
          diag_printf(d, "cannot reference signal %s during static "
                      "elaboration", istr(id));
          diag_hint(d, NULL, "the value of a signal is not defined "
                    "until after the design hierarchy is elaborated");
+         diag_hint(d, NULL, "the $bold$--relaxed$$ option downgrades this "
+                   "to a warning");
          diag_lrm(d, STD_93, "12.3");
          diag_emit(d);
       }
