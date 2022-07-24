@@ -45,6 +45,7 @@ typedef struct _object_arena {
    generation_t    generation;
    arena_key_t     key;
    arena_array_t   deps;
+   object_t       *root;
    obj_src_t       source;
    vhdl_standard_t std;
    uint32_t        checksum;
@@ -134,7 +135,16 @@ void arena_set_checksum(object_arena_t *arena, uint32_t checksum)
 
 object_t *arena_root(object_arena_t *arena)
 {
-   return (object_t *)arena->base;
+   return arena->root ?: (object_t *)arena->base;
+}
+
+void arena_set_root(object_arena_t *arena, object_t *root)
+{
+   assert(__object_arena(root) == arena);
+   assert(arena->root == NULL);
+   assert(!arena->frozen);
+
+   arena->root = root;
 }
 
 bool arena_frozen(object_arena_t *arena)
@@ -681,7 +691,7 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
    fbuf_put_uint(f, standard());
    fbuf_put_uint(f, arena->limit - arena->base);
 
-   if (root != arena->base)
+   if (root != arena_root(arena))
       fatal_trace("must write root object first");
    else if (arena->source == OBJ_DISK)
       fatal_trace("writing arena %s originally read from disk",
