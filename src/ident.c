@@ -604,3 +604,36 @@ ident_t ident_walk_selected(ident_t *i)
 
    return result;
 }
+
+int ident_distance(ident_t a, ident_t b)
+{
+   const int n = ident_len(b);
+   const int m = ident_len(a);
+
+   char s[m + 1], t[n + 1];
+   istr_r(a, s, m + 1);
+   istr_r(b, t, n + 1);
+
+   int mem[2 * (n + 1)], *v0 = mem, *v1 = mem + n + 1;
+
+   for (int i = 0; i <= n; i++)
+      v0[i] = i;
+
+   for (int i = 0; i < m; i++) {
+      v1[0] = i + 1;
+
+      for (int j = 0; j < n; j++) {
+         const int dc = v0[j + 1] + 1;
+         const int ic = v1[j] + 1;
+         const int sc = (s[i] == t[j] ? v0[j] : v0[j] + 1);
+
+         v1[j + 1] = MIN(dc, MIN(ic, sc));
+      }
+
+      int *tmp = v0;
+      v0 = v1;
+      v1 = tmp;
+   }
+
+   return v0[n];
+}

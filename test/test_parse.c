@@ -4851,6 +4851,59 @@ START_TEST(test_issue479)
 }
 END_TEST
 
+static void typo_diag_fn(diag_t *d)
+{
+   static int state = 0;
+   switch (state++) {
+   case 0:
+      ck_assert_str_eq(diag_get_text(d), "no visible declaration for BOLEAN");
+      ck_assert_str_eq(diag_get_hint(d, 0), "did you mean BOOLEAN?");
+      break;
+   case 1:
+      ck_assert_str_eq(diag_get_text(d), "no visible declaration for RSET");
+      ck_assert_str_eq(diag_get_hint(d, 0), "did you mean RESET?");
+      break;
+   case 2:
+      ck_assert_str_eq(diag_get_text(d), "no visible declaration for NOEW");
+      ck_assert_int_eq(diag_hints(d), 0);
+      break;
+   case 3:
+      ck_assert_str_eq(diag_get_text(d),
+                       "no visible subprogram declaration for MY_FUNC");
+      ck_assert_str_eq(diag_get_hint(d, 0), "did you mean MYFUNC?");
+      break;
+   case 4:
+      ck_assert_str_eq(diag_get_text(d),
+                       "record type REC has no field named FRODO");
+      ck_assert_str_eq(diag_get_hint(d, 0), "did you mean FOO?");
+      break;
+   default:
+      ck_abort_msg("too many diagnostics");
+      break;
+   }
+}
+
+START_TEST(test_typo)
+{
+   input_from_file(TESTDIR "/parse/typo.vhd");
+
+   diag_set_consumer(typo_diag_fn);
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   lib_put(lib_work(), e);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+
+   fail_unless(error_count() == 5);
+}
+END_TEST
+
 Suite *get_parse_tests(void)
 {
    Suite *s = suite_create("parse");
@@ -4944,6 +4997,7 @@ Suite *get_parse_tests(void)
    tcase_add_test(tc_core, test_visibility5);
    tcase_add_test(tc_core, test_visibility6);
    tcase_add_test(tc_core, test_issue479);
+   tcase_add_test(tc_core, test_typo);
    suite_add_tcase(s, tc_core);
 
    return s;

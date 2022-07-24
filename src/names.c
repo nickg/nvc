@@ -850,6 +850,7 @@ static symbol_t *make_visible(scope_t *s, ident_t name, tree_t decl,
 static void merge_symbol(scope_t *s, const symbol_t *src)
 {
    symbol_t *dst = local_symbol_for(s, src->name);
+   dst->mask |= src->mask;
 
    const bool was_fresh = (dst->ndecls == 0);
 
@@ -1261,6 +1262,33 @@ static const symbol_t *iterate_symbol_for(nametab_t *tab, ident_t name)
    }
 }
 
+static void hint_for_typo(nametab_t *tab, diag_t *d, ident_t name,
+                          name_mask_t filter)
+{
+   if (ident_runtil(name, '.') != name)
+      return;   // Ignore selected names
+
+   const symbol_t *best = NULL;
+   int bestd = INT_MAX;
+
+   for (scope_t *s = tab->top_scope; s != NULL; s = s->parent) {
+      for (sym_chunk_t *chunk = &(s->symbols); chunk; chunk = chunk->chain) {
+         for (int i = 0; i < chunk->count; i++) {
+            if (chunk->symbols[i].mask & filter) {
+               const int d = ident_distance(chunk->symbols[i].name, name);
+               if (d < bestd) {
+                  best = &(chunk->symbols[i]);
+                  bestd = d;
+               }
+            }
+         }
+      }
+   }
+
+   if (bestd <= (ident_len(name) <= 4 ? 2 : 3))
+      diag_hint(d, diag_get_loc(d), "did you mean %s?", istr(best->name));
+}
+
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
 {
    const symbol_t *sym = iterate_symbol_for(tab, name);
@@ -1308,8 +1336,12 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
       }
       else if (tab->top_scope->formal_kind != F_NONE)
          ;  // Was earlier error
-      else if (tab->top_scope->overload == NULL)
-         error_at(loc, "no visible declaration for %s", istr(name));
+      else if (tab->top_scope->overload == NULL) {
+         diag_t *d = diag_new(DIAG_ERROR, loc);
+         diag_printf(d, "no visible declaration for %s", istr(name));
+         hint_for_typo(tab, d, name, N_OBJECT | N_TYPE);
+         diag_emit(d);
+      }
 
       // Suppress further errors for this name
       local_symbol_for(tab->top_scope, name)->mask |= N_ERROR;
@@ -2006,18 +2038,20 @@ static void begin_overload_resolution(overload_t *o)
    if (o->initial == 0 && !o->error) {
       diag_t *d = diag_new(DIAG_ERROR, tree_loc(o->tree));
       diag_printf(d, "no visible subprogram declaration for %s", istr(o->name));
+      hint_for_typo(o->nametab, d, o->name, N_SUBPROGRAM);
 
       if (sym != NULL) {
+         const bool hinted = diag_hints(d) > 0;
          for (int i = 0; i < sym->ndecls; i++) {
             const decl_t *dd = get_decl(sym, i);
             if ((dd->mask & N_SUBPROGRAM) && dd->visibility == HIDDEN)
                diag_hint(d, tree_loc(dd->tree), "subprogram %s is hidden",
                          type_pp(tree_type(dd->tree)));
          }
-      }
 
-      if (diag_hints(d) > 0)
-         diag_hint(d, tree_loc(o->tree), "%s called here", istr(o->name));
+         if (!hinted)
+            diag_hint(d, tree_loc(o->tree), "%s called here", istr(o->name));
+      }
 
       diag_emit(d);
       o->error = true;
@@ -3030,15 +3064,27 @@ static type_t solve_record_ref(nametab_t *tab, tree_t rref)
       diag_printf(d, "record type %s has no field named %s",
                   type_pp(value_type), istr(tree_ident(rref)));
 
+      ident_t best = NULL;
+      int bestd = INT_MAX;
+
       LOCAL_TEXT_BUF tb = tb_new();
       int nfields = type_fields(value_type), i;
       tb_printf(tb, "type %s has fields ", type_pp(value_type));
       for (i = 0; i < nfields; i++) {
+         ident_t id = tree_ident(type_field(value_type, i));
+         const int d = ident_distance(id, tree_ident(rref));
+         if (d < bestd) {
+            best = id;
+            bestd = d;
+         }
          if (i > 0 && i == nfields - 1) tb_cat(tb, ", and ");
          else if (i > 0) tb_cat(tb, ", ");
-         tb_istr(tb, tree_ident(type_field(value_type, i)));
+         tb_istr(tb, id);
       }
       diag_hint(d, NULL, "%s", tb_get(tb));
+
+      if (bestd <= 3)
+         diag_hint(d, tree_loc(rref), "did you mean %s?", istr(best));
 
       diag_emit(d);
       type = type_new(T_NONE);

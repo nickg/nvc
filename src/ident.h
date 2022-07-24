@@ -86,6 +86,9 @@ const char *istr(ident_t ident);
 // As above but write into a user supplied buffer.
 void istr_r(ident_t ident, char *buf, size_t sz);
 
+// Compute Levenshtein distance between two identifiers
+int ident_distance(ident_t a, ident_t b);
+
 ident_wr_ctx_t ident_write_begin(fbuf_t *f);
 void ident_write(ident_t ident, ident_wr_ctx_t ctx);
 void ident_write_end(ident_wr_ctx_t ctx);

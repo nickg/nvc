@@ -880,8 +880,9 @@ const char *diag_get_text(diag_t *d)
 
 const char *diag_get_hint(diag_t *d, int nth)
 {
-   assert(nth + 1 < d->hints.count);
-   return d->hints.items[nth + 1].text;
+   if (d->hints.items[0].text == NULL) nth++;
+   assert(nth < d->hints.count);
+   return d->hints.items[nth].text;
 }
 
 const char *diag_get_trace(diag_t *d, int nth)
@@ -900,7 +901,10 @@ const loc_t *diag_get_loc(diag_t *d)
 
 int diag_hints(diag_t *d)
 {
-   return d->hints.count - 1;
+   if (d->hints.items[0].text == NULL)
+      return d->hints.count - 1;
+   else
+      return d->hints.count;
 }
 
 int diag_traces(diag_t *d)

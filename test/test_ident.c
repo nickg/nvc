@@ -365,6 +365,47 @@ START_TEST(test_istr_r)
 }
 END_TEST
 
+START_TEST(test_distance)
+{
+   const char *words[17] = {
+      "previous", "clam", "loud", "sore", "striped", "healthy",
+      "automatic", "spy", "surround", "trade", "flowers" "nifty",
+      "chickens", "beef", "nutty", "kindly", "kitten", "sitting",
+   };
+
+   ident_t ids[17];
+   for (int i = 0; i < 17; i++)
+      ids[i] = ident_new(words[i]);
+
+   const int expect[17][17] = {
+      {  0,  8,  6,  7,  7,  7,  9,  8,  7,  7, 10,  7,  7,  8,  8,  8,  7, },
+      {  8,  0,  4,  4,  7,  6,  8,  4,  8,  4, 11,  7,  4,  5,  6,  6,  7, },
+      {  6,  4,  0,  3,  6,  6,  8,  4,  5,  4, 10,  8,  4,  5,  5,  6,  7, },
+      {  7,  4,  3,  0,  4,  7,  8,  3,  6,  4, 10,  7,  4,  5,  6,  5,  6, },
+      {  7,  7,  6,  4,  0,  7,  8,  5,  5,  4, 10,  7,  6,  7,  7,  6,  5, },
+      {  7,  6,  6,  7,  7,  0,  8,  6,  8,  6, 10,  7,  6,  5,  6,  6,  7, },
+      {  9,  8,  8,  8,  8,  8,  0,  9,  8,  7, 11,  9,  9,  6,  9,  7,  7, },
+      {  8,  4,  4,  3,  5,  6,  9,  0,  7,  5, 10,  8,  4,  4,  5,  6,  6, },
+      {  7,  8,  5,  6,  5,  8,  8,  7,  0,  7, 11,  7,  8,  7,  8,  7,  6, },
+      {  7,  4,  4,  4,  4,  6,  7,  5,  7,  0, 11,  7,  5,  5,  5,  5,  6, },
+      { 10, 11, 10, 10, 10, 10, 11, 10, 11, 11,  0, 11, 10,  9, 10, 10, 11, },
+      {  7,  7,  8,  7,  7,  7,  9,  8,  7,  7, 11,  0,  7,  8,  7,  5,  6, },
+      {  7,  4,  4,  4,  6,  6,  9,  4,  8,  5, 10,  7,  0,  5,  6,  5,  7, },
+      {  8,  5,  5,  5,  7,  5,  6,  4,  7,  5,  9,  8,  5,  0,  5,  4,  5, },
+      {  8,  6,  5,  6,  7,  6,  9,  5,  8,  5, 10,  7,  6,  5,  0,  4,  6, },
+      {  8,  6,  6,  5,  6,  6,  7,  6,  7,  5, 10,  5,  5,  4,  4,  0,  3, },
+      {  7,  7,  7,  6,  5,  7,  7,  6,  6,  6, 11,  6,  7,  5,  6,  3,  0, },
+   };
+
+   for (int i = 0; i < 17; i++) {
+      for (int j = 0; j < 17; j++) {
+         const int d = ident_distance(ids[i], ids[j]);
+         ck_assert_int_eq(d, expect[i][j]);
+      }
+   }
+}
+END_TEST
+
 Suite *get_ident_tests(void)
 {
    Suite *s = suite_create("ident");
@@ -392,6 +433,7 @@ Suite *get_ident_tests(void)
    tcase_add_test(tc_core, test_walk_selected);
    tcase_add_test(tc_core, test_starts_with);
    tcase_add_test(tc_core, test_istr_r);
+   tcase_add_test(tc_core, test_distance);
    suite_add_tcase(s, tc_core);
 
    return s;
