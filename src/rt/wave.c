@@ -76,7 +76,8 @@ static uint64_t  last_time = UINT64_MAX;
 static FILE     *vcdfile;
 static char     *tmpfst;
 
-static void fst_process_signal(rt_scope_t *scope, tree_t d, tree_t cons);
+static void fst_process_signal(rt_scope_t *scope, tree_t d, tree_t cons,
+                               text_buf_t *tb);
 
 static void fst_close(void)
 {
@@ -244,7 +245,7 @@ static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
 }
 
 static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
-                                 tree_t cons)
+                                 tree_t cons, text_buf_t *tb)
 {
    fst_data_t *data = NULL;
 
@@ -316,9 +317,10 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
       const int lsb = assume_int(tree_right(elem_r));
 
       for (int i = 0; i < length; i++) {
-         LOCAL_TEXT_BUF tb = tb_new();
+         tb_rewind(tb);
          tb_istr(tb, tree_ident(d));
          tb_printf(tb, "[%"PRIi64"][%d:%d]", low + i, msb, lsb);
+         tb_downcase(tb);
 
          data->handle[i] = fstWriterCreateVar2(
             fst_ctx,
@@ -357,9 +359,10 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
       const int msb = assume_int(tree_left(r));
       const int lsb = assume_int(tree_right(r));
 
-      LOCAL_TEXT_BUF tb = tb_new();
+      tb_rewind(tb);
       tb_istr(tb, tree_ident(d));
       tb_printf(tb, "[%d:%d]", msb, lsb);
+      tb_downcase(tb);
 
       data->handle[0] = fstWriterCreateVar2(
          fst_ctx,
@@ -381,7 +384,8 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
    fst_event_cb(0, data->signal, data->watch, data);
 }
 
-static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type)
+static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type,
+                                  text_buf_t *tb)
 {
    type_t base = type_base_recur(type);
 
@@ -453,16 +457,13 @@ static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type)
       }
    }
 
-   data->handle[0] = fstWriterCreateVar2(
-      fst_ctx,
-      vt,
-      dir,
-      data->size,
-      istr(tree_ident(d)),
-      0,
-      type_pp(type),
-      FST_SVT_VHDL_SIGNAL,
-      sdt);
+   tb_rewind(tb);
+   tb_istr(tb, tree_ident(d));
+   tb_downcase(tb);
+
+   data->handle[0] = fstWriterCreateVar2(fst_ctx, vt, dir, data->size,
+                                         tb_get(tb), 0, type_pp(type),
+                                         FST_SVT_VHDL_SIGNAL, sdt);
 
    data->decl   = d;
    data->signal = s;
@@ -471,21 +472,27 @@ static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type)
    fst_event_cb(0, data->signal, data->watch, data);
 }
 
-static void fst_create_record_var(tree_t d, rt_scope_t *scope, type_t type)
+static void fst_create_record_var(tree_t d, rt_scope_t *scope, type_t type,
+                                  text_buf_t *tb)
 {
-   fstWriterSetScope(fst_ctx, FST_ST_VHDL_RECORD, istr(tree_ident(d)), NULL);
+   tb_rewind(tb);
+   tb_istr(tb, tree_ident(d));
+   tb_downcase(tb);
+
+   fstWriterSetScope(fst_ctx, FST_ST_VHDL_RECORD, tb_get(tb), NULL);
 
    const int nfields = type_fields(type);
    for (int i = 0; i < nfields; i++) {
       tree_t f = type_field(type, i);
       tree_t cons = type_constraint_for_field(type, f);
-      fst_process_signal(scope, f, cons);
+      fst_process_signal(scope, f, cons, tb);
    }
 
    fstWriterSetUpscope(fst_ctx);
 }
 
-static void fst_process_signal(rt_scope_t *scope, tree_t d, tree_t cons)
+static void fst_process_signal(rt_scope_t *scope, tree_t d, tree_t cons,
+                               text_buf_t *tb)
 {
    type_t type = tree_type(d);
    if (type_is_record(type)) {
@@ -493,16 +500,16 @@ static void fst_process_signal(rt_scope_t *scope, tree_t d, tree_t cons)
       if (sub == NULL)
          ;    // Signal was optimised out
       else
-         fst_create_record_var(d, sub, type);
+         fst_create_record_var(d, sub, type, tb);
    }
    else {
       rt_signal_t *s = rt_find_signal(scope, d);
       if (s == NULL)
          ;    // Signal was optimised out
       else if (type_is_array(type))
-         fst_create_array_var(d, s, type, cons);
+         fst_create_array_var(d, s, type, cons, tb);
       else
-         fst_create_scalar_var(d, s, type);
+         fst_create_scalar_var(d, s, type, tb);
    }
 }
 
@@ -526,8 +533,12 @@ static void fst_process_hier(tree_t h, tree_t block)
    const loc_t *loc = tree_loc(h);
    fstWriterSetSourceStem(fst_ctx, loc_file_str(loc), loc->first_line, 1);
 
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, tree_ident(block));
+   tb_downcase(tb);
+
    // TODO: store the component name in T_HIER somehow?
-   fstWriterSetScope(fst_ctx, st, istr(ident_downcase(tree_ident(block))), "");
+   fstWriterSetScope(fst_ctx, st, tb_get(tb), "");
 }
 
 static void fst_walk_design(tree_t block)
@@ -542,12 +553,14 @@ static void fst_walk_design(tree_t block)
    if (scope == NULL)
       fatal_trace("missing scope for %s", istr(hpath));
 
+   LOCAL_TEXT_BUF tb = tb_new();
+
    const int nports = tree_ports(block);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(block, i);
       ident_t path = ident_prefix(hpath, ident_downcase(tree_ident(p)), ':');
       if (wave_should_dump(path))
-         fst_process_signal(scope, p, NULL);
+         fst_process_signal(scope, p, NULL, tb);
    }
 
    const int ndecls = tree_decls(block);
@@ -556,7 +569,7 @@ static void fst_walk_design(tree_t block)
       if (tree_kind(d) == T_SIGNAL_DECL) {
          ident_t path = ident_prefix(hpath, ident_downcase(tree_ident(d)), ':');
          if (wave_should_dump(path))
-            fst_process_signal(scope, d, NULL);
+            fst_process_signal(scope, d, NULL, tb);
       }
    }
 

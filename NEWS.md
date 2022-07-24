@@ -44,6 +44,8 @@
 - Added support for generic subprograms in VHDL-2008.
 - New command `--install` allows easy installation of common third-party
   packages such as OSVVM and UVVM.
+- Identifiers in waveform dumps are now in lower case instead of upper
+  case.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).
