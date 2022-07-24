@@ -84,6 +84,7 @@ static void            *hint_ctx = NULL;
 static unsigned         n_errors = 0;
 static file_list_t      loc_files;
 static vhdl_severity_t  exit_severity = SEVERITY_ERROR;
+static diag_level_t     stderr_level = DIAG_DEBUG;
 
 #define DIAG_THEME_CLASSIC 1
 #define DIAG_THEME_RUST    2
@@ -860,7 +861,7 @@ void diag_femit(diag_t *d, FILE *f)
 
 void diag_emit(diag_t *d)
 {
-   diag_femit(d, stderr);
+   diag_femit(d, d->level >= stderr_level ? stderr : stdout);
 }
 
 void diag_show_source(diag_t *d, bool show)
@@ -956,5 +957,14 @@ diag_level_t diag_severity(vhdl_severity_t severity)
 void set_exit_severity(vhdl_severity_t severity)
 {
    exit_severity = severity;
+}
 
+void set_stderr_severity(vhdl_severity_t severity)
+{
+   switch (severity) {
+   case SEVERITY_NOTE:    stderr_level = DIAG_NOTE; break;
+   case SEVERITY_WARNING: stderr_level = DIAG_WARN; break;
+   case SEVERITY_ERROR:   stderr_level = DIAG_ERROR; break;
+   case SEVERITY_FAILURE: stderr_level = DIAG_FATAL; break;
+   }
 }

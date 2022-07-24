@@ -118,6 +118,7 @@ typedef enum {
 
 // Conversion from VHDL severity
 void set_exit_severity(vhdl_severity_t severity);
+void set_stderr_severity(vhdl_severity_t severity);
 diag_level_t diag_severity(vhdl_severity_t severity);
 
 #endif  // _DIAG_H

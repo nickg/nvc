@@ -870,6 +870,7 @@ static void usage(void)
           "     --messages=STYLE\tSelect full or compact message format\n"
           "     --native\t\tGenerate native code shared library\n"
           "     --std=REV\t\tVHDL standard revision to use\n"
+          "     --stderr=SEV\tPrint messages higher than SEV to stderr\n"
           " -v, --version\t\tDisplay version and copyright information\n"
           "     --work=NAME\tUse NAME as the work library\n"
           "\n"
@@ -889,10 +890,11 @@ static void usage(void)
           "Run options:\n"
           "     --dump-arrays\tInclude nested arrays in waveform dump\n"
           "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
-          "     --exit-severity=S\tExit after assertion failure of severity S\n"
+          "     --exit-severity=\tExit after assertion failure of "
+          "this severity\n"
           "     --format=FMT\tWaveform format is either fst or vcd\n"
           "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
-          "     \t\t\t\t\tfrom IEEE packages\n"
+          "     \t\t\tfrom IEEE packages\n"
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
           "     --load=PLUGIN\tLoad VHPI plugin at startup\n"
           "     --profile\t\tDisplay detailed statistics at end of run\n"
@@ -1084,6 +1086,7 @@ int main(int argc, char **argv)
       { "map",         required_argument, 0, 'p' },
       { "ignore-time", no_argument,       0, 'i' },
       { "force-init",  no_argument,       0, 'f' },   // DEPRECATED 1.7
+      { "stderr",      required_argument, 0, 'E' },
       { 0, 0, 0, 0 }
    };
 
@@ -1141,6 +1144,9 @@ int main(int argc, char **argv)
          break;
       case 'H':
          opt_set_int(OPT_HEAP_SIZE, parse_size(optarg));
+         break;
+      case 'E':
+         set_stderr_severity(parse_severity(optarg));
          break;
       case '?':
          bad_option("global", argv);

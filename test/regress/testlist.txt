@@ -629,3 +629,4 @@ issue481        normal,2008
 issue484        normal
 ename3          normal,2008
 issue483        normal,relaxed
+cmdline3        shell

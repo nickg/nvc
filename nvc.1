@@ -147,6 +147,20 @@ commonly referred to by the year they were published.  For example IEEE
 1993 or just the last two digits such as 93.  The accepted revisions are
 1993, 2000, 2002, and 2008.  Note there is very limited supported for
 any features beyond those in VHDL-2002.  VHDL-87 is not supported.
+.\" --stderr
+.It Fl -stderr Ns = Ns Ar level
+Print error messages with the given severity or higher to
+.Ql stderr
+instead of
+.Ql stdout .
+The default is to print all messages to
+.Ql stderr .
+Valid levels are
+.Cm note ,
+.Cm warning ,
+.Cm error ,
+and
+.Cm failure .
 .\" --version
 .It Fl v , -version
 Display version and copyright information.
