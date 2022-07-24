@@ -32,7 +32,6 @@ hash_t *hash_new(int size);
 void hash_free(hash_t *h);
 bool hash_put(hash_t *h, const void *key, void *value);
 void *hash_get(hash_t *h, const void *key);
-void *hash_get_nth(hash_t *h, const void *key, int *n);
 void hash_delete(hash_t *h, const void *key);
 bool hash_iter(hash_t *h, hash_iter_t *now, const void **key, void **value);
 unsigned hash_members(hash_t *h);

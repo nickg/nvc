@@ -132,26 +132,16 @@ void hash_delete(hash_t *h, const void *key)
    }
 }
 
-void *hash_get_nth(hash_t *h, const void *key, int *n)
+void *hash_get(hash_t *h, const void *key)
 {
    int slot = hash_slot(h->size, key);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
-      if (h->keys[slot] == key) {
-         if (*n == 0)
-            return h->values[slot];
-         else
-            --(*n);
-      }
+      if (h->keys[slot] == key)
+         return h->values[slot];
       else if (h->keys[slot] == NULL)
          return NULL;
    }
-}
-
-void *hash_get(hash_t *h, const void *key)
-{
-   int n = 0;
-   return hash_get_nth(h, key, &n);
 }
 
 bool hash_iter(hash_t *h, hash_iter_t *now, const void **key, void **value)
