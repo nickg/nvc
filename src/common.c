@@ -1763,3 +1763,57 @@ type_t get_type_or_null(tree_t t)
          return NULL;
    }
 }
+
+type_t subtype_for_string(tree_t str, type_t base)
+{
+   if (!type_is_unconstrained(base))
+      return base;
+
+   // Construct a new constrained array subtype: the direction and
+   // bounds are the same as those for a positional array aggregate
+   type_t sub = type_new(T_SUBTYPE);
+   type_set_base(sub, base);
+
+   type_t index_type = index_type_of(base, 0);
+   const bool is_enum = type_is_enum(index_type);
+
+   // The direction is determined by the index type
+   range_kind_t dir = direction_of(index_type, 0);
+
+   // The left bound is the left of the index type and the right bound
+   // is determined by the number of elements
+
+   tree_t left = NULL, right = NULL;
+
+   if (is_enum)
+      left = make_ref(type_enum_literal(index_type, 0));
+   else
+      left = tree_left(range_of(index_type, 0));
+
+   const int nchars = tree_chars(str);
+   int64_t iright;
+   if (dir == RANGE_DOWNTO)
+      iright = assume_int(left) - nchars + 1;
+   else
+      iright = assume_int(left) + nchars - 1;
+
+   if (is_enum)
+      right = get_enum_lit(str, index_type, iright);
+   else
+      right = get_int_lit(str, index_type, iright);
+
+   tree_t r = tree_new(T_RANGE);
+   tree_set_subkind(r, dir);
+   tree_set_left(r, left);
+   tree_set_right(r, right);
+   tree_set_loc(r, tree_loc(str));
+
+   tree_t c = tree_new(T_CONSTRAINT);
+   tree_set_subkind(c, C_INDEX);
+   tree_add_range(c, r);
+   tree_set_loc(c, tree_loc(str));
+
+   type_add_constraint(sub, c);
+
+   return sub;
+}

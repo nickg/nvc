@@ -82,6 +82,7 @@ tree_t find_generic_map(tree_t unit, int pos, tree_t g);
 bool relaxed_rules(void);
 bool is_type_attribute(attr_kind_t kind);
 type_t get_type_or_null(tree_t t);
+type_t subtype_for_string(tree_t str, type_t base);
 
 int fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

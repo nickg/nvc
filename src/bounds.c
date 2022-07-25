@@ -43,62 +43,12 @@ struct interval {
 static void bounds_check_string_literal(tree_t t)
 {
    type_t type = tree_type(t);
-   if (type_is_unconstrained(type)) {
-      // Construct a new array type: the direction and bounds are the same
-      // as those for a positional array aggregate
+   assert(!type_is_unconstrained(type));
 
-      type_t tmp = type_new(T_SUBTYPE);
-      type_set_ident(tmp, type_ident(type));
-      type_set_base(tmp, type);
-
-      type_t index_type = index_type_of(type, 0);
-      const bool is_enum = type_is_enum(index_type);
-
-      // The direction is determined by the index type
-      range_kind_t dir = direction_of(index_type, 0);
-
-      // The left bound is the left of the index type and the right bound
-      // is determined by the number of elements
-
-      tree_t left = NULL, right = NULL;
-
-      if (is_enum)
-         left = make_ref(type_enum_literal(index_type, 0));
-      else
-         left = tree_left(range_of(index_type, 0));
-
-      int64_t iright;
-      if (dir == RANGE_DOWNTO)
-         iright = assume_int(left) - tree_chars(t) + 1;
-      else
-         iright = assume_int(left) + tree_chars(t) - 1;
-
-      if (is_enum)
-         right = get_enum_lit(t, index_type, iright);
-      else
-         right = get_int_lit(t, index_type, iright);
-
-      tree_t r = tree_new(T_RANGE);
-      tree_set_subkind(r, dir);
-      tree_set_left(r, left);
-      tree_set_right(r, right);
-      tree_set_loc(r, tree_loc(t));
-
-      tree_t c = tree_new(T_CONSTRAINT);
-      tree_set_subkind(c, C_INDEX);
-      tree_add_range(c, r);
-      tree_set_loc(c, tree_loc(t));
-
-      type_add_constraint(tmp, c);
-
-      tree_set_type(t, tmp);
-   }
-   else {
-      int64_t expect;
-      if (folded_length(range_of(type, 0), &expect) && expect != tree_chars(t))
-         bounds_error(t, "expected %"PRIi64" elements in string literal but "
-                      "have %d", expect, tree_chars(t));
-   }
+   int64_t expect;
+   if (folded_length(range_of(type, 0), &expect) && expect != tree_chars(t))
+      bounds_error(t, "expected %"PRIi64" elements in string literal but "
+                   "have %d", expect, tree_chars(t));
 }
 
 static void bounds_fmt_type_range(text_buf_t *tb, type_t type, range_kind_t dir,

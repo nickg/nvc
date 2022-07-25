@@ -149,6 +149,58 @@ static void simp_generic_subprogram(tree_t t, simp_ctx_t *ctx)
    }
 }
 
+static tree_t simp_concat(tree_t t)
+{
+   assert(tree_params(t) == 2);
+
+   tree_t p0 = tree_value(tree_param(t, 0));
+   tree_t p1 = tree_value(tree_param(t, 1));
+
+   tree_t p0_enum = NULL, p1_enum = NULL;
+
+   const tree_kind_t p0_kind = tree_kind(p0);
+   const tree_kind_t p1_kind = tree_kind(p1);
+
+   // Only handle concatenations of string literals and enumeration
+   // literals
+
+   if (p0_kind == T_REF) {
+      if (tree_kind((p0_enum = tree_ref(p0))) != T_ENUM_LIT)
+         return t;
+   }
+   else if (p0_kind != T_STRING)
+      return t;
+
+   if (p1_kind == T_REF) {
+      if (tree_kind((p1_enum = tree_ref(p1))) != T_ENUM_LIT)
+         return t;
+   }
+   else if (p1_kind != T_STRING)
+      return t;
+
+   tree_t new = tree_new(T_STRING);
+   tree_set_loc(new, tree_loc(t));
+
+   if (p0_enum != NULL)
+      tree_add_char(new, make_ref(p0_enum));
+   else {
+      const int p0_chars = tree_chars(p0);
+      for (int i = 0; i < p0_chars; i++)
+         tree_add_char(new, tree_char(p0, i));
+   }
+
+   if (p1_enum != NULL)
+      tree_add_char(new, make_ref(p1_enum));
+   else {
+      const int p1_chars = tree_chars(p1);
+      for (int i = 0; i < p1_chars; i++)
+         tree_add_char(new, tree_char(p1, i));
+   }
+
+   tree_set_type(new, subtype_for_string(new, tree_type(t)));
+   return new;
+}
+
 static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 {
    if (standard() >= STD_08 && ctx->generics != NULL)
@@ -156,7 +208,9 @@ static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 
    t = simp_call_args(t);
 
-   if (tree_flags(t) & ctx->eval_mask)
+   if (tree_subkind(tree_ref(t)) == S_CONCAT)
+      t = simp_concat(t);
+   else if (tree_flags(t) & ctx->eval_mask)
       return simp_fold(t, ctx);
 
    return t;

@@ -1285,6 +1285,36 @@ START_TEST(test_simpif1)
 }
 END_TEST
 
+START_TEST(test_concat)
+{
+   input_from_file(TESTDIR "/simp/concat.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE);
+
+   const char *expect[] = {
+      "100", "xyz", "10", "foo"
+   };
+
+   for (int i = 0; i < ARRAY_LEN(expect); i++) {
+      tree_t c = tree_decl(p, i);
+      fail_unless(tree_kind(c) == T_CONST_DECL);
+
+      tree_t str = tree_value(c);
+      fail_unless(tree_kind(str) == T_STRING);
+
+      const int len = strlen(expect[i]);
+      ck_assert_int_eq(tree_chars(str), len);
+      for (int j = 0; j < len; j++) {
+         tree_t lit = tree_char(str, j);
+         fail_unless(tree_kind(lit) == T_REF);
+         ck_assert_int_eq(ident_char(tree_ident(lit), 1), expect[i][j]);
+      }
+   }
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1335,6 +1365,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_protfold2);
    tcase_add_test(tc_core, test_foreign1);
    tcase_add_test(tc_core, test_simpif1);
+   tcase_add_test(tc_core, test_concat);
    suite_add_tcase(s, tc_core);
 
    return s;

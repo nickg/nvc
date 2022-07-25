@@ -2913,14 +2913,14 @@ static type_t solve_string(nametab_t *tab, tree_t str)
       type = type_new(T_NONE);
    }
 
-   tree_set_type(str, type);
-
    type_t elem = type_elem(type);
    const int nchars = tree_chars(str);
    for (int i = 0; i < nchars; i++)
       solve_types(tab, tree_char(str, i), elem);
 
-   return type;
+   type_t sub = subtype_for_string(str, type);
+   tree_set_type(str, sub);
+   return sub;
 }
 
 static type_t solve_literal(nametab_t *tab, tree_t lit)
