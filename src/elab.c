@@ -1033,6 +1033,18 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
    }
 }
 
+static void elab_context(tree_t t)
+{
+   const int nctx = tree_contexts(t);
+   for (int i = 0; i < nctx; i++) {
+      // Make sure any referenced libraries are loaded to allow synth
+      // binding to search for entities in them
+      tree_t c = tree_context(t, i);
+      if (tree_kind(c) == T_LIBRARY)
+         lib_require(tree_ident(c));
+   }
+}
+
 static void elab_instance(tree_t t, elab_ctx_t *ctx)
 {
    tree_t arch = NULL, config = NULL;
@@ -1104,6 +1116,8 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
    tree_t comp = primary_unit_of(tree_ref(t));
 
    elab_push_scope(arch, &new_ctx);
+   elab_context(entity);
+   elab_context(arch_copy);
    elab_generics(entity, comp, t, &new_ctx);
    simplify_global(entity, new_ctx.generics, ctx->eval);
    elab_ports(entity, comp, t, &new_ctx);
@@ -1639,6 +1653,8 @@ static void elab_top_level(tree_t arch, const elab_ctx_t *ctx)
    tree_t entity = tree_primary(arch_copy);
 
    elab_push_scope(arch, &new_ctx);
+   elab_context(entity);
+   elab_context(arch_copy);
    elab_top_level_generics(arch_copy, &new_ctx);
    elab_top_level_ports(entity, &new_ctx);
    elab_decls(entity, &new_ctx);
