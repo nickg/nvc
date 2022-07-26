@@ -605,7 +605,7 @@ static void diag_emit_hints(diag_t *d, FILE *f)
             diag_hint_t tmp = d->hints.items[swap];
             d->hints.items[swap] = d->hints.items[i];
             d->hints.items[i] = tmp;
-            swap = -1;
+            swap = i;
          }
       }
       else if (swap == -1)
