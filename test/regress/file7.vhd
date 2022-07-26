@@ -24,10 +24,11 @@ begin
     end process;
 
     reader: process
-        file filein : primary_memory_file open read_mode is "iofile.42";
+        file filein : primary_memory_file;
         variable v  : primary_memory;
     begin
         wait for 1 ns;
+        file_open(filein, "iofile.42");
         for i in 1 to 10 loop
             assert not endfile(filein);
             read(filein,v);

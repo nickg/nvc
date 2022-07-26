@@ -7,20 +7,20 @@ architecture test of file6 is
 begin
 
     process is
-        file f       : ft;
+        file f1, f2  : ft;
         variable v   : natural_vector(1 to 5);
         variable len : natural;
     begin
-        file_open(f, "test.bin", WRITE_MODE);
+        file_open(f1, "test.bin", WRITE_MODE);
         v := (1, 2, 3, 4, 5);
-        write(f, v);
-        flush(f);                       -- Flush without closing
+        write(f1, v);
+        flush(f1);                       -- Flush without closing
 
         v := (others => 0);
 
-        file_open(f, "test.bin", READ_MODE);
-        read(f, v, len);
-        file_close(f);
+        file_open(f2, "test.bin", READ_MODE);
+        read(f2, v, len);
+        file_close(f2);
 
         assert v = (1, 2, 3, 4, 5);
         report integer'image(len);

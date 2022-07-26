@@ -38,6 +38,13 @@ typedef void (*timeout_fn_t)(uint64_t now, void *user);
 typedef void (*rt_event_fn_t)(void *user);
 
 typedef enum {
+   OPEN_OK      = 0,
+   STATUS_ERROR = 1,
+   NAME_ERROR   = 2,
+   MODE_ERROR   = 3,
+} file_open_status_t;
+
+typedef enum {
    R_MEMO      = (1 << 0),
    R_IDENT     = (1 << 1),
    R_COMPOSITE = (1 << 2),

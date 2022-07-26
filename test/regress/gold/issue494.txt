@@ -1,0 +1,1 @@
+empty file name in FILE_OPEN

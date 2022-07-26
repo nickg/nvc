@@ -447,7 +447,7 @@ static void rt_abort_sim(int code)
 {
    assert(code >= 0);
 #ifdef __MINGW32__
-   exit(code);
+   fatal_exit(code);
 #else
    longjmp(abort_env, code + 1);
 #endif
@@ -2293,17 +2293,6 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
                 int32_t name_len, int8_t mode)
 {
    FILE **fp = (FILE **)_fp;
-   if (*fp != NULL) {
-      if (status != NULL) {
-         *status = 1;   // STATUS_ERROR
-         return;
-      }
-      else {
-         // This is to support closing a file implicitly when the
-         // design is reset
-         fclose(*fp);
-      }
-   }
 
    char *fname LOCAL = xmalloc(name_len + 1);
    memcpy(fname, name_bytes, name_len);
@@ -2317,29 +2306,41 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
    RT_ASSERT(mode < ARRAY_LEN(mode_str));
 
    if (status != NULL)
-      *status = 0;   // OPEN_OK
+      *status = OPEN_OK;
 
-   if (strcmp(fname, "STD_INPUT") == 0)
+   if (*fp != NULL) {
+      if (status == NULL)
+         rt_msg(NULL, DIAG_FATAL, "file object already associated with an "
+                "external file");
+      else
+         *status = STATUS_ERROR;
+   }
+   else if (name_len == 0) {
+      if (status == NULL)
+         rt_msg(NULL, DIAG_FATAL, "empty file name in FILE_OPEN");
+      else
+         *status = NAME_ERROR;
+   }
+   else if (strcmp(fname, "STD_INPUT") == 0)
       *fp = stdin;
    else if (strcmp(fname, "STD_OUTPUT") == 0)
       *fp = stdout;
-   else
-      *fp = fopen(fname, mode_str[mode]);
-
-   if (*fp == NULL) {
-      if (status == NULL)
-         rt_msg(NULL, DIAG_FATAL, "failed to open %s: %s", fname,
-                last_os_error());
-      else {
-         switch (errno) {
-         case ENOENT:
-            *status = 2;   // NAME_ERROR
-            break;
-         case EPERM:
-            *status = 3;   // MODE_ERROR
-            break;
-         default:
-            rt_msg(NULL, DIAG_FATAL, "%s: %s", fname, last_os_error());
+   else {
+#ifdef __MINGW32__
+      const bool failed = (fopen_s(fp, fname, mode_str[mode]) != 0);
+#else
+      const bool failed = ((*fp = fopen(fname, mode_str[mode])) == NULL);
+#endif
+      if (failed) {
+         if (status == NULL)
+            rt_msg(NULL, DIAG_FATAL, "failed to open %s: %s", fname,
+                   strerror(errno));
+         else {
+            switch (errno) {
+            case ENOENT: *status = NAME_ERROR; break;
+            case EPERM:  *status = MODE_ERROR; break;
+            default:     *status = NAME_ERROR; break;
+            }
          }
       }
    }
