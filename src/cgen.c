@@ -2715,14 +2715,15 @@ static void cgen_op_file_open(int op, cgen_ctx_t *ctx)
    LLVMValueRef name   = cgen_get_arg(op, 1, ctx);
    LLVMValueRef length = cgen_get_arg(op, 2, ctx);
    LLVMValueRef kind   = cgen_get_arg(op, 3, ctx);
+   LLVMValueRef locus  = cgen_get_arg(op, 4, ctx);
 
    LLVMValueRef status = NULL;
-   if (vcode_count_args(op) == 5)
-      status = cgen_get_arg(op, 4, ctx);
+   if (vcode_count_args(op) == 6)
+      status = cgen_get_arg(op, 5, ctx);
    else
       status = LLVMConstNull(llvm_char_ptr());
 
-   LLVMValueRef args[] = { status, file, name, length, kind };
+   LLVMValueRef args[] = { status, file, name, length, kind, locus };
    LLVMBuildCall(builder, llvm_fn("_file_open"), args, ARRAY_LEN(args), "");
 }
 
@@ -4775,7 +4776,8 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(llvm_void_ptr(), 0),
          LLVMPointerType(llvm_int8_type(), 0),
          llvm_int32_type(),
-         llvm_int8_type()
+         llvm_int8_type(),
+         llvm_debug_locus_type(),
       };
       fn = LLVMAddFunction(module, "_file_open",
                            LLVMFunctionType(llvm_void_type(),

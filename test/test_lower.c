@@ -3921,6 +3921,7 @@ START_TEST(test_closefile)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_INDEX, .name = "F" },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_DEBUG_LOCUS },
       { VCODE_OP_FILE_OPEN },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },

@@ -448,7 +448,7 @@ void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
                const vcode_block_t *blocks, int ncases);
 vcode_reg_t emit_endfile(vcode_reg_t file);
 void emit_file_open(vcode_reg_t file, vcode_reg_t name, vcode_reg_t length,
-                    vcode_reg_t kind, vcode_reg_t status);
+                    vcode_reg_t kind, vcode_reg_t locus, vcode_reg_t status);
 void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length);
 void emit_file_close(vcode_reg_t file);
 void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,

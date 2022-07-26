@@ -2290,8 +2290,9 @@ int32_t _test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 
 DLLEXPORT
 void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
-                int32_t name_len, int8_t mode)
+                int32_t name_len, int8_t mode, DEBUG_LOCUS(locus))
 {
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
    FILE **fp = (FILE **)_fp;
 
    char *fname LOCAL = xmalloc(name_len + 1);
@@ -2310,14 +2311,14 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
 
    if (*fp != NULL) {
       if (status == NULL)
-         rt_msg(NULL, DIAG_FATAL, "file object already associated with an "
-                "external file");
+         rt_msg(tree_loc(where), DIAG_FATAL, "file object already associated "
+                "with an external file");
       else
          *status = STATUS_ERROR;
    }
    else if (name_len == 0) {
       if (status == NULL)
-         rt_msg(NULL, DIAG_FATAL, "empty file name in FILE_OPEN");
+         rt_msg(tree_loc(where), DIAG_FATAL, "empty file name in FILE_OPEN");
       else
          *status = NAME_ERROR;
    }
@@ -2333,7 +2334,7 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
 #endif
       if (failed) {
          if (status == NULL)
-            rt_msg(NULL, DIAG_FATAL, "failed to open %s: %s", fname,
+            rt_msg(tree_loc(where), DIAG_FATAL, "failed to open %s: %s", fname,
                    strerror(errno));
          else {
             switch (errno) {
