@@ -2155,35 +2155,53 @@ static void _ident_list_cleanup(ident_list_t **list)
    *list = NULL;
 }
 
-static type_t apply_subtype_attribute(tree_t aref)
+static type_t get_subtype_for(tree_t expr)
 {
-   assert(tree_subkind(aref) == ATTR_SUBTYPE);
+   type_t type = tree_type(expr);
+   assert(type_is_unconstrained(type));
 
-   tree_t name = tree_name(aref);
-   type_t type = get_type_or_null(name);
+   type_t sub = type_new(T_SUBTYPE);
+   type_set_base(sub, type);
 
-   if (type == NULL) {
-      parse_error(tree_loc(aref), "prefix of 'SUBTYPE attribute does not "
-                  "have a type");
-      return type_new(T_NONE);
+   const loc_t *loc = tree_loc(expr);
+
+   tree_t c = tree_new(T_CONSTRAINT);
+   tree_set_loc(c, loc);
+
+   type_add_constraint(sub, c);
+
+   if (type_is_record(type)) {
+      tree_set_subkind(c, C_RECORD);
+
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         tree_t f = type_field(type, i);
+         type_t ft = tree_type(f);
+         if (type_is_unconstrained(ft)) {
+            tree_t rref = tree_new(T_RECORD_REF);
+            tree_set_ident(rref, tree_ident(f));
+            tree_set_loc(rref, loc);
+            tree_set_ref(rref, f);
+            tree_set_value(rref, expr);
+            tree_set_type(rref, ft);
+
+            tree_t ec = tree_new(T_ELEM_CONSTRAINT);
+            tree_set_loc(ec, loc);
+            tree_set_ident(ec, tree_ident(f));
+            tree_set_ref(ec, f);
+            tree_set_type(ec, get_subtype_for(rref));
+
+            tree_add_range(c, ec);
+         }
+      }
    }
-   else if (type_is_unconstrained(type)) {
-      // Construct a new subtype using the constraints from the prefix
-      type_t sub = type_new(T_SUBTYPE);
-      type_set_base(sub, type);
-
-      const loc_t *loc = tree_loc(aref);
-
-      tree_t c = tree_new(T_CONSTRAINT);
+   else {
       tree_set_subkind(c, C_INDEX);
-      tree_set_loc(c, loc);
-
-      type_add_constraint(sub, c);
 
       const int ndims = dimension_of(type);
       for (int i = 0; i < ndims; i++) {
          tree_t rref = tree_new(T_ATTR_REF);
-         tree_set_name(rref, name);
+         tree_set_name(rref, expr);
          tree_set_ident(rref, ident_new("RANGE"));
          tree_set_loc(rref, loc);
          tree_set_subkind(rref, ATTR_RANGE);
@@ -2206,8 +2224,26 @@ static type_t apply_subtype_attribute(tree_t aref)
 
          tree_add_range(c, r);
       }
+   }
 
-      return sub;
+   return sub;
+}
+
+static type_t apply_subtype_attribute(tree_t aref)
+{
+   assert(tree_subkind(aref) == ATTR_SUBTYPE);
+
+   tree_t name = tree_name(aref);
+   type_t type = get_type_or_null(name);
+
+   if (type == NULL) {
+      parse_error(tree_loc(aref), "prefix of 'SUBTYPE attribute does not "
+                  "have a type");
+      return type_new(T_NONE);
+   }
+   else if (type_is_unconstrained(type)) {
+      // Construct a new subtype using the constraints from the prefix
+      return get_subtype_for(name);
    }
    else
       return type;

@@ -632,3 +632,4 @@ issue483        normal,relaxed
 cmdline3        shell
 issue493        shell
 issue494        fail,gold
+record36        normal,2008

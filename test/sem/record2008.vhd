@@ -96,4 +96,12 @@ begin
     begin
     end process;
 
+    p5: process is
+        procedure test (x : rec1) is
+            variable y : x'subtype;     -- OK
+        begin
+        end procedure;
+    begin
+    end process;
+
 end architecture;
