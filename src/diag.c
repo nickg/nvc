@@ -580,8 +580,11 @@ static void diag_emit_loc(const loc_t *loc, FILE *f)
    const char *file = loc_file_str(loc);
    char *abspath LOCAL = realpath(file, NULL);
 
-   color_fprintf(f, "$$$link:file://%s#%u\07%s:%u$\n",
-                 abspath, loc->first_line, file, loc->first_line);
+   if (abspath != NULL)
+      color_fprintf(f, "$$$link:file://%s#%u\07%s:%u$\n",
+                    abspath, loc->first_line, file, loc->first_line);
+   else
+      fprintf(f, "%s:%u\n", file, loc->first_line);
 }
 
 static void diag_emit_hints(diag_t *d, FILE *f)
