@@ -79,4 +79,20 @@ begin
      begin
      end block;
 
+     b6: block is
+         function test1 generic (type t) (x : t) return integer is
+         begin
+             return 1;
+         end function;
+
+         function test1 generic (type t) (x : t) return real is
+         begin
+             return 1.0;
+         end function;
+
+         function test_error is new test1 generic map (t => boolean);  -- Error
+         function test_error2 is new test444 generic map (t => boolean);  -- Error
+     begin
+     end block;
+
 end architecture;

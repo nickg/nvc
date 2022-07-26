@@ -1478,7 +1478,7 @@ tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint)
       constraint != NULL && type_kind(constraint) == T_FUNC
       && type_params(constraint) == 0;
 
-   tree_t decl = NULL;
+   SCOPED_A(tree_t) matching = AINIT;
    const symbol_t *sym = iterate_symbol_for(tab, tree_ident(ref));
    if (sym != NULL) {
       for (int i = 0; i < sym->ndecls; i++) {
@@ -1486,34 +1486,50 @@ tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint)
          if (dd->visibility == HIDDEN)
             continue;
          else if (dd->mask & N_SUBPROGRAM) {
-            if (constraint == NULL) {
-               decl = dd->tree;   // TODO: ambiguous?
-               break;
-            }
+            if (constraint == NULL)
+               APUSH(matching, dd->tree);
             else {
                type_t signature = tree_type(dd->tree);
-               if (type_eq_map(constraint, signature, tab->top_scope->gmap)) {
-                  decl = dd->tree;
-                  break;
-               }
+               if (type_eq_map(constraint, signature, tab->top_scope->gmap))
+                  APUSH(matching, dd->tree);
             }
          }
          else if (allow_enum && dd->kind == T_ENUM_LIT
-                  && type_eq(type_result(constraint), tree_type(dd->tree))) {
-            decl = dd->tree;
-            break;
-         }
+                  && type_eq(type_result(constraint), tree_type(dd->tree)))
+            APUSH(matching, dd->tree);
       }
    }
 
-   if (decl == NULL) {
+   if (matching.count == 1)
+      return matching.items[0];
+   else if (constraint != NULL) {
       const char *signature = strchr(type_pp(constraint), '[');
       error_at(tree_loc(ref), "no visible subprogram%s %s matches "
                "signature %s", allow_enum ? " or enumeration literal" : "",
                istr(tree_ident(ref)), signature);
+      return NULL;
    }
-
-   return decl;
+   else if (matching.count == 0) {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(ref));
+      diag_printf(d, "no visible subprogram declaration for %s",
+                  istr(tree_ident(ref)));
+      hint_for_typo(tab, d, tree_ident(ref), N_SUBPROGRAM);
+      diag_emit(d);
+      return NULL;
+   }
+   else {
+      diag_t *d = diag_new(DIAG_ERROR, tree_loc(ref));
+      diag_printf(d, "multiple visible subprograms with name %s",
+                  istr(tree_ident(ref)));
+      for (int i = 0; i < matching.count; i++)
+         diag_hint(d, tree_loc(matching.items[i]), "visible declaration of %s",
+                   type_pp(tree_type(matching.items[i])));
+      diag_hint(d, tree_loc(ref), "use of name %s here", istr(tree_ident(ref)));
+      diag_hint(d, NULL, "use an explicit subprogram signature to select "
+                "a particular overload");
+      diag_emit(d);
+      return NULL;
+   }
 }
 
 static tree_t resolve_ref(nametab_t *tab, tree_t ref)

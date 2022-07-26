@@ -2835,6 +2835,10 @@ START_TEST(test_gensub)
       { 60, "actual associated with generic Y must be a globally static" },
       { 69, "subtype of generic X does not match type INTEGER in spec" },
       { 75, "subprogram TEST2 declaration has 1 generic but body has 2" },
+      { 93, "multiple visible subprograms with name TEST1" },
+      { 93, "TEST_ERROR has no generic named T" },
+      { 94, "no visible subprogram declaration for TEST444" },
+      { 94, "TEST_ERROR2 has no generic named T" },
       { -1, NULL }
    };
    expect_errors(expect);
