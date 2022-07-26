@@ -6183,19 +6183,17 @@ static tree_t p_subprogram_instantiation_declaration(void)
    if (peek() == tLSQUARE)
       constraint = p_signature();
 
-   type_t type = solve_types(nametab, name, constraint);
-
-   const tree_kind_t namek = tree_kind(name);
    tree_t decl = NULL;
-   if ((namek == T_REF || namek == T_FCALL) && tree_has_ref(name))
-      decl = tree_ref(name);
-   else if (!type_is_none(type))
+   if (tree_kind(name) != T_REF)
       parse_error(CURRENT_LOC, "expecting uninstantiated subprogram name");
+   else {
+      decl = resolve_subprogram_name(nametab, name, constraint);
 
-   if (decl != NULL && !is_uninstantiated_subprogram(decl)) {
-      parse_error(CURRENT_LOC, "%s %s is not an uninstantiated subprogram",
-                  class_str(class_of(decl)), istr(tree_ident(name)));
-      decl = NULL;
+      if (decl != NULL && !is_uninstantiated_subprogram(decl)) {
+         parse_error(CURRENT_LOC, "%s %s is not an uninstantiated subprogram",
+                     class_str(class_of(decl)), istr(tree_ident(name)));
+         decl = NULL;
+      }
    }
 
    tree_t body = NULL;
@@ -6205,6 +6203,7 @@ static tree_t p_subprogram_instantiation_declaration(void)
          body = decl;
       else {
          // Attempt to load the package body if available
+         type_t type = tree_type(decl);
          tree_t pack = tree_container(decl);
          if (tree_kind(pack) == T_PACKAGE) {
             tree_t pack_body = body_of(pack), d;

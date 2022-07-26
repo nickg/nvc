@@ -1470,45 +1470,58 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
    return NULL;
 }
 
-static tree_t resolve_ref(nametab_t *tab, tree_t ref)
+tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint)
 {
-   type_t constraint;
-   if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
-      // Reference to subprogram or enumeration literal with signature
+   assert(tree_kind(ref) == T_REF);
 
-      const bool allow_enum =
-         type_kind(constraint) == T_FUNC && type_params(constraint) == 0;
+   const bool allow_enum =
+      constraint != NULL && type_kind(constraint) == T_FUNC
+      && type_params(constraint) == 0;
 
-      tree_t decl = NULL;
-      const symbol_t *sym = iterate_symbol_for(tab, tree_ident(ref));
-      if (sym != NULL) {
-         for (int i = 0; i < sym->ndecls; i++) {
-            const decl_t *dd = get_decl(sym, i);
-            if (dd->visibility == HIDDEN)
-               continue;
-            else if (dd->mask & N_SUBPROGRAM) {
+   tree_t decl = NULL;
+   const symbol_t *sym = iterate_symbol_for(tab, tree_ident(ref));
+   if (sym != NULL) {
+      for (int i = 0; i < sym->ndecls; i++) {
+         const decl_t *dd = get_decl(sym, i);
+         if (dd->visibility == HIDDEN)
+            continue;
+         else if (dd->mask & N_SUBPROGRAM) {
+            if (constraint == NULL) {
+               decl = dd->tree;   // TODO: ambiguous?
+               break;
+            }
+            else {
                type_t signature = tree_type(dd->tree);
                if (type_eq_map(constraint, signature, tab->top_scope->gmap)) {
                   decl = dd->tree;
                   break;
                }
             }
-            else if (allow_enum && dd->kind == T_ENUM_LIT
-                     && type_eq(type_result(constraint), tree_type(dd->tree))) {
-               decl = dd->tree;
-               break;
-            }
+         }
+         else if (allow_enum && dd->kind == T_ENUM_LIT
+                  && type_eq(type_result(constraint), tree_type(dd->tree))) {
+            decl = dd->tree;
+            break;
          }
       }
+   }
 
-      if (decl == NULL) {
-         const char *signature = strchr(type_pp(constraint), '[');
-         error_at(tree_loc(ref), "no visible subprogram%s %s matches "
-                  "signature %s", allow_enum ? " or enumeration literal" : "",
-                  istr(tree_ident(ref)), signature);
-      }
+   if (decl == NULL) {
+      const char *signature = strchr(type_pp(constraint), '[');
+      error_at(tree_loc(ref), "no visible subprogram%s %s matches "
+               "signature %s", allow_enum ? " or enumeration literal" : "",
+               istr(tree_ident(ref)), signature);
+   }
 
-      return decl;
+   return decl;
+}
+
+static tree_t resolve_ref(nametab_t *tab, tree_t ref)
+{
+   type_t constraint;
+   if (type_set_uniq(tab, &constraint) && type_is_subprogram(constraint)) {
+      // Reference to subprogram or enumeration literal with signature
+      return resolve_subprogram_name(tab, ref, constraint);
    }
    else {
       // Ordinary reference

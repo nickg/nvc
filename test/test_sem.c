@@ -2855,6 +2855,18 @@ START_TEST(test_issue482)
 }
 END_TEST
 
+START_TEST(test_gensub2)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/gensub2.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -2990,6 +3002,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue465);
    tcase_add_test(tc_core, test_gensub);
    tcase_add_test(tc_core, test_issue482);
+   tcase_add_test(tc_core, test_gensub2);
    suite_add_tcase(s, tc_core);
 
    return s;
