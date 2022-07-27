@@ -1264,6 +1264,7 @@ static void elab_external_name(tree_t t, const elab_ctx_t *ctx)
    }
 
    tree_set_ref(t, where);
+   tree_set_type(t, tree_type(where));
 }
 
 static void elab_push_scope(tree_t t, elab_ctx_t *ctx)

@@ -6600,15 +6600,18 @@ static vcode_type_t lower_alias_type(tree_t alias)
    if (!type_is_array(type))
       return VCODE_INVALID_TYPE;
 
-   tree_t ref = name_to_ref(tree_value(alias));
-   if (ref == NULL || is_type_decl(tree_ref(ref)))
-      return VCODE_INVALID_TYPE;
-
    vcode_type_t velem;
-   if (class_of(tree_ref(ref)) == C_SIGNAL)
+   switch (class_of(tree_value(alias))) {
+   case C_SIGNAL:
       velem = lower_signal_type(lower_elem_recur(type));
-   else
+      break;
+   case C_VARIABLE:
+   case C_CONSTANT:
       velem = lower_type(lower_elem_recur(type));
+      break;
+   default:
+      return VCODE_INVALID_TYPE;
+   }
 
    vcode_type_t vbounds = lower_bounds(type);
    return vtype_uarray(lower_dims_for_type(type), velem, vbounds);

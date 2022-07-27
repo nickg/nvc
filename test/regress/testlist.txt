@@ -633,3 +633,4 @@ cmdline3        shell
 issue493        shell
 issue494        fail,gold
 record36        normal,2008
+issue497        normal,2008
