@@ -1315,6 +1315,23 @@ START_TEST(test_concat)
 }
 END_TEST
 
+START_TEST(test_issue496)
+{
+   input_from_file(TESTDIR "/simp/issue496.vhd");
+
+   tree_t top = run_elab();
+
+   tree_t test = tree_stmt(top, 0);
+   fail_unless(tree_kind(test) == T_BLOCK);
+
+   tree_t one = tree_decl(test, 1);
+   fail_unless(tree_kind(one) == T_CONST_DECL);
+   fail_unless(folded_i(tree_value(one), 1));
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1366,6 +1383,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_foreign1);
    tcase_add_test(tc_core, test_simpif1);
    tcase_add_test(tc_core, test_concat);
+   tcase_add_test(tc_core, test_issue496);
    suite_add_tcase(s, tc_core);
 
    return s;

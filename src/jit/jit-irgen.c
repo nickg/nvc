@@ -594,6 +594,9 @@ static int irgen_align_of(vcode_type_t vtype)
    case VCODE_TYPE_POINTER:
    case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_UARRAY:
+   case VCODE_TYPE_SIGNAL:
+   case VCODE_TYPE_CONTEXT:
+   case VCODE_TYPE_FILE:
       return sizeof(void *);
    case VCODE_TYPE_CARRAY:
       return irgen_align_of(vtype_elem(vtype));
@@ -2130,6 +2133,16 @@ static void irgen_op_file_open(jit_irgen_t *g, int op)
    j_store(g, JIT_SZ_PTR, jit_value_from_int64(0), file);
 }
 
+static void irgen_op_push_scope(jit_irgen_t *g, int op)
+{
+   // No-op
+}
+
+static void irgen_op_pop_scope(jit_irgen_t *g, int op)
+{
+   // No-op
+}
+
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
 {
    vcode_select_block(block);
@@ -2382,6 +2395,12 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_FILE_OPEN:
          irgen_op_file_open(g, i);
          break;
+      case VCODE_OP_PUSH_SCOPE:
+         irgen_op_push_scope(g, i);
+         break;
+      case VCODE_OP_POP_SCOPE:
+         irgen_op_pop_scope(g, i);
+         break;
       default:
          fatal("cannot generate JIT IR for vcode op %s", vcode_op_string(op));
       }
@@ -2415,9 +2434,12 @@ static void irgen_locals(jit_irgen_t *g)
       // Local variables on stack
       size_t sz = 0;
       for (int i = 0; i < nvars; i++) {
+         vcode_type_t vtype = vcode_var_type(i);
+         const int align = irgen_align_of(vtype);
+         sz = ALIGN_UP(sz, align);
          g->vars[i] = jit_value_from_frame_addr(sz);
          g->func->varoff[i] = sz;
-         sz += irgen_size_bytes(vcode_var_type(i));
+         sz += irgen_size_bytes(vtype);
       }
 
       g->func->framesz = sz;
@@ -2426,8 +2448,11 @@ static void irgen_locals(jit_irgen_t *g)
       // Local variables on heap
       size_t sz = sizeof(void *);   // Context parameter
       for (int i = 0; i < nvars; i++) {
+         vcode_type_t vtype = vcode_var_type(i);
+         const int align = irgen_align_of(vtype);
+         sz = ALIGN_UP(sz, align);
          g->func->varoff[i] = sz;
-         sz += irgen_size_bytes(vcode_var_type(i));
+         sz += irgen_size_bytes(vtype);
       }
 
       jit_value_t mem = macro_galloc(g, jit_value_from_int64(sz));
