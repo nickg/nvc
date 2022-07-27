@@ -858,12 +858,12 @@ START_TEST(test_access)
    const error_t expect[] = {
       {   5, "no visible declaration for FOO" },
       {  34, "null expression must have access type" },
-      {  38, "unexpected integer while parsing type mark, expecting" },
-      {  39, "type mark I does not refer to a type" },
+      {  38, "unexpected integer while parsing name, expecting" },
+      {  39, "type mark I does not denote a type or a subtype" },
       {  41, "does not match type of target INT_PTR" },
       {  47, "type of value REC does not match type of" },
       {  55, "type of allocator expresion INTEGER does not match" },
-      {  56, "type mark S does not refer to a type" },
+      {  56, "type mark does not denote a type or a subtype" },
       {  76, "unconstrained array type INT_PTR_ARRAY not allowed" },
       {  84, "index constraint cannot be used with non-array type INTEGER" },
       {  90, "variable F cannot have incomplete type FOO" },
@@ -1216,7 +1216,7 @@ START_TEST(test_alias)
 
    const error_t expect[] = {
       { 10, "non-object alias may not have subtype indication" },
-      { 12, "type mark AX does not refer to a type" },
+      { 12, "type mark AX does not denote a type or a subtype" },
       { 22, "no visible subprogram FOO matches signature [INTEGER "
         "return INTEGER]" },
       { 23, "no visible subprogram FOO matches signature [BIT]" },
@@ -2345,8 +2345,7 @@ START_TEST(test_resolution)
 
    const error_t expect[] = {
       {  6, "no visible subprogram declaration for BIT_VECTOR" },
-      { 10, "type mark VEC does not refer to a type" },
-      { 10, "expecting a discrete range" },
+      { 10, "type mark does not denote a type or a subtype" },
       { 10, "unexpected identifier while parsing subtype declaration" },
       { 17, "non-record type MY_UTYPE_VECTOR may not have record element" },
       { 29, "non-composite type MY_UTYPE may not have element resolution" },
@@ -2590,7 +2589,7 @@ START_TEST(test_gentype)
    const error_t expect[] = {
       { 10, "range constraint cannot be used with non-scalar type T" },
       { 64, "type of actual universal_real does not match type T of" },
-      { 70, "unexpected integer while parsing type mark" },
+      { 70, "unexpected integer while parsing name" },
       { 69, "no visible subprogram \"=\" matches signature [T, T return B" },
       { 69, "no visible subprogram \"/=\" matches signature [T, T return B" },
       { 79, "no visible subprogram MY_FUNC matches signature [T return T]" },
@@ -2603,7 +2602,7 @@ START_TEST(test_gentype)
       { 88, "ambiguous use of name MY_FUNC" },
       { 87, "no visible subprogram \"=\" matches signature [T, T return B" },
       { 87, "no visible subprogram \"/=\" matches signature [T, T return B" },
-      { 91, "type mark U12 does not refer to a type" },
+      { 91, "invalid use of label U12" },
       { 90, "no visible subprogram \"=\" matches signature [T, T return B" },
       { 90, "no visible subprogram \"/=\" matches signature [T, T return B" },
       { -1, NULL }

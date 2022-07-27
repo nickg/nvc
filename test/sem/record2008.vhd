@@ -97,8 +97,9 @@ begin
     end process;
 
     p5: process is
-        procedure test (x : rec1) is
-            variable y : x'subtype;     -- OK
+        procedure test (r : rec1) is
+            variable y : r'subtype;     -- OK
+            alias yx : y.x'subtype is y.x;  -- OK
         begin
         end procedure;
     begin

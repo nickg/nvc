@@ -4526,7 +4526,7 @@ START_TEST(test_issue468)
    input_from_file(TESTDIR "/parse/issue468.vhd");
 
    const error_t expect[] = {
-      {  2, "name TEST3 not found in library WORK" },
+      {  2, "cannot find unit WORK.TEST3" },
       { -1, NULL }
    };
    expect_errors(expect);

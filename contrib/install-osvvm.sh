@@ -69,12 +69,11 @@ AXI4/common/src/Axi4OptionsPkg.vhd
 AXI4/common/src/Axi4VersionCompatibilityPkg.vhd
 EOF
 
-# Not working yet
-#analyse_list osvvm_axi4 <<EOF
-#AXI4/Axi4Lite/src/Axi4LiteComponentPkg.vhd
-#AXI4/Axi4Lite/src/Axi4LiteManager.vhd
-#AXI4/Axi4Lite/src/Axi4LiteMonitor_dummy.vhd
-#AXI4/Axi4Lite/src/Axi4LiteContext.vhd
-#AXI4/Axi4Lite/src/Axi4LiteMemory.vhd
-#AXI4/Axi4Lite/src/Axi4LiteSubordinate.vhd
-#EOF
+analyse_list osvvm_axi4 <<EOF
+AXI4/Axi4Lite/src/Axi4LiteComponentPkg.vhd
+AXI4/Axi4Lite/src/Axi4LiteManager.vhd
+AXI4/Axi4Lite/src/Axi4LiteMonitor_dummy.vhd
+AXI4/Axi4Lite/src/Axi4LiteContext.vhd
+AXI4/Axi4Lite/src/Axi4LiteMemory.vhd
+AXI4/Axi4Lite/src/Axi4LiteSubordinate.vhd
+EOF

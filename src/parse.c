@@ -153,7 +153,7 @@ static tree_t p_block_configuration(tree_t of);
 static tree_t p_protected_type_body(ident_t id);
 static bool p_cond_analysis_expr(void);
 static type_t p_signature(void);
-static type_t p_type_mark(ident_t name);
+static type_t p_type_mark(void);
 static tree_t p_function_call(ident_t id, tree_t prefix);
 static tree_t p_resolution_indication(void);
 static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0);
@@ -1538,16 +1538,6 @@ static void declare_standard_to_string(tree_t unit)
    assert(d6 != NULL);
    declare_alias(unit, d6, ident_new("TO_BSTRING"));
    declare_alias(unit, d6, ident_new("TO_BINARY_STRING"));
-}
-
-static void skip_selected_name(void)
-{
-   // Skip to the end of a selected name to avoid cascading errors
-   while (peek() == tDOT) {
-      consume(tDOT);
-      consume(tID);
-      free(last_lval.s);
-   }
 }
 
 static void unary_op(tree_t expr, tree_t (*arg_fn)(void))
@@ -3614,8 +3604,12 @@ static tree_t p_name(name_mask_t stop_mask)
 
       case tTICK:
          if (peek_nth(2) == tLPAREN) {
-            prefix = p_qualified_expression(prefix);
-            mask = N_OBJECT;
+            if (mask & stop_mask)
+               return prefix;
+            else {
+               prefix = p_qualified_expression(prefix);
+               mask = N_OBJECT;
+            }
          }
          else {
             prefix = p_attribute_name(prefix);
@@ -3673,51 +3667,39 @@ static tree_t p_name(name_mask_t stop_mask)
    }
 }
 
-static type_t p_type_mark(ident_t name)
+static type_t p_type_mark(void)
 {
    // name
 
    BEGIN("type mark");
 
-   name = name ?: p_identifier();
-   tree_t decl = resolve_name(nametab, CURRENT_LOC, name);
+   tree_t name = p_name(N_TYPE);
+   type_t type = solve_types(nametab, name, NULL);
 
-   // Not using select_decl here to avoid creating redundant T_REFs
-   for (tree_t d; decl != NULL && peek() == tDOT; decl = d) {
-      consume(tDOT);
-      name = p_identifier();
+   if (type_is_none(type))
+      return type;
 
-      if ((d = search_decls(decl, name, 0)) == NULL)
-         parse_error(CURRENT_LOC, "name %s not found in %s %s", istr(name),
-                     class_str(class_of(decl)), istr(tree_ident(decl)));
-   }
+   const tree_kind_t namek = tree_kind(name);
+
+   if (namek == T_ATTR_REF)
+      return apply_type_attribute(name);
+
+   tree_t decl = NULL;
+   if (namek == T_REF && tree_has_ref(name))
+      decl = aliased_type_decl(tree_ref(name));
 
    if (decl == NULL) {
-      skip_selected_name();
+      diag_t *d = diag_new(DIAG_ERROR, CURRENT_LOC);
+      const char *id = namek == T_REF ? istr(tree_ident(name)) : NULL;
+      diag_printf(d, "type mark%s%s does not denote a type or a subtype",
+                  id ? " " : "", id ?: "");
+      diag_hint(d, CURRENT_LOC, "%s is a %s name", id ?: "this",
+                class_str(class_of(name)));
+      diag_emit(d);
       return type_new(T_NONE);
    }
 
-   // Handle VHDL-2008 'SUBTYPE
-   if (peek() == tTICK && (peek_nth(2) == tSUBTYPE || peek_nth(2) == tID)) {
-      tree_t ref = tree_new(T_REF);
-      tree_set_loc(ref, CURRENT_LOC);
-      tree_set_ident(ref, name);
-      tree_set_ref(ref, decl);
-
-      return tree_type(p_attribute_name(ref));
-   }
-   else {
-      decl = aliased_type_decl(decl);
-
-      if (decl == NULL) {
-         parse_error(CURRENT_LOC, "type mark %s does not refer to a type",
-                     istr(name));
-         skip_selected_name();
-         return type_new(T_NONE);
-      }
-
-      return tree_type(decl);
-   }
+   return tree_type(decl);
 }
 
 static tree_t p_index_constraint(type_t base)
@@ -3915,13 +3897,13 @@ static type_t p_subtype_indication(void)
       tree_t rname = p_resolution_indication();
       type_set_resolution(type, rname);
 
-      type_t base = p_type_mark(NULL);
+      type_t base = p_type_mark();
       type_set_base(type, base);
 
       resolve_resolution(nametab, rname, type);
    }
    else
-      type = p_type_mark(NULL);
+      type = p_type_mark();
 
    if (scan(tRANGE, tLPAREN)) {
       if (!made_subtype) {
@@ -4182,7 +4164,7 @@ static tree_t p_qualified_expression(tree_t prefix)
 
    type_t type;
    if (prefix == NULL)
-      type = p_type_mark(NULL);
+      type = p_type_mark();
    else {
       tree_t decl = NULL;
       if (tree_kind(prefix) == T_REF && tree_has_ref(prefix))
@@ -4891,7 +4873,7 @@ static tree_t p_interface_function_specification(void)
    }
 
    consume(tRETURN);
-   type_set_result(type, p_type_mark(NULL));
+   type_set_result(type, p_type_mark());
 
    tree_set_loc(d, CURRENT_LOC);
    return d;
@@ -5194,7 +5176,7 @@ static tree_t p_attribute_declaration(void)
    consume(tATTRIBUTE);
    tree_set_ident(t, p_identifier());
    consume(tCOLON);
-   tree_set_type(t, p_type_mark(NULL));
+   tree_set_type(t, p_type_mark());
    consume(tSEMI);
 
    tree_set_loc(t, CURRENT_LOC);
@@ -5545,7 +5527,7 @@ static type_t p_file_type_definition(ident_t id)
 
    type_t t = type_new(T_FILE);
    type_set_ident(t, id);
-   type_set_file(t, p_type_mark(NULL));
+   type_set_file(t, p_type_mark());
 
    return t;
 }
@@ -5611,7 +5593,7 @@ static type_t p_index_subtype_definition(void)
 
    BEGIN("index subtype definition");
 
-   type_t t = p_type_mark(NULL);
+   type_t t = p_type_mark();
 
    consume(tRANGE);
    consume(tBOX);
@@ -6182,7 +6164,7 @@ static tree_t p_subprogram_specification(void)
 
    if (tree_kind(t) == T_FUNC_DECL) {
       consume(tRETURN);
-      type_set_result(type, p_type_mark(NULL));
+      type_set_result(type, p_type_mark());
    }
 
    pop_scope(nametab);
@@ -6405,14 +6387,14 @@ static type_t p_signature(void)
    bool error = false;
    if (not_at_token(tRETURN, tRSQUARE)) {
       do {
-         type_t param = p_type_mark(NULL);
+         type_t param = p_type_mark();
          type_add_param(type, param);
          error = error || type_is_none(param);
       } while (optional(tCOMMA));
    }
 
    if (optional(tRETURN)) {
-      type_t ret = p_type_mark(NULL);
+      type_t ret = p_type_mark();
       type_set_result(type, ret);
       error = error || type_is_none(ret);
    }
@@ -6570,7 +6552,7 @@ static void p_disconnection_specification(tree_t container)
 
    consume(tCOLON);
 
-   type_t type = p_type_mark(NULL);
+   type_t type = p_type_mark();
 
    consume(tAFTER);
 
