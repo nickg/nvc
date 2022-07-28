@@ -4668,7 +4668,8 @@ vcode_reg_t emit_package_init(ident_t name, vcode_reg_t context)
                 || vcode_reg_kind(context) == VCODE_TYPE_CONTEXT,
                 "invalid protected init context argument");
    VCODE_ASSERT(active_unit->kind == VCODE_UNIT_INSTANCE
-                || active_unit->kind == VCODE_UNIT_PACKAGE,
+                || active_unit->kind == VCODE_UNIT_PACKAGE
+                || active_unit->kind == VCODE_UNIT_THUNK,
                 "cannot use package init here");
    VCODE_ASSERT(name != active_unit->name, "cyclic package init");
 

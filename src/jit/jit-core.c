@@ -193,9 +193,6 @@ void *jit_link(jit_t *j, jit_handle_t handle)
 
    const loc_t *loc = vcode_unit_loc();
 
-   const bool old_silent = j->silent;
-   j->silent = false;   // Always report errors from packages
-
    jit_scalar_t args[JIT_MAX_ARGS] = { { .integer = 0 } };
    if (!jit_interp(f, args, 1, 0, NULL)) {
       error_at(loc, "failed to initialise package %s", istr(f->name));
@@ -206,10 +203,24 @@ void *jit_link(jit_t *j, jit_handle_t handle)
 
    vcode_state_restore(&state);
 
-   mptr_put(j->mspace, f->privdata, args[0].pointer);
-   j->silent = old_silent;
+   // Package initialisation should save the context pointer
+   assert(args[0].pointer == mptr_get(j->mspace, f->privdata));
 
    return args[0].pointer;
+}
+
+void *jit_get_privdata(jit_t *j, jit_func_t *f)
+{
+   if (f->privdata == MPTR_INVALID)
+      f->privdata = mptr_new(j->mspace, "privdata");
+
+   return mptr_get(j->mspace, f->privdata);
+}
+
+void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr)
+{
+   assert(f->privdata != MPTR_INVALID);
+   mptr_put(j->mspace, f->privdata, ptr);
 }
 
 void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var)

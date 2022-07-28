@@ -564,6 +564,20 @@ static void macro_fficall(jit_irgen_t *g, jit_value_t addr)
                     JIT_VALUE_INVALID, addr);
 }
 
+static jit_value_t macro_getpriv(jit_irgen_t *g, jit_handle_t handle)
+{
+   jit_reg_t r = irgen_alloc_reg(g);
+   irgen_emit_unary(g, MACRO_GETPRIV, JIT_SZ_UNSPEC, JIT_CC_NONE, r,
+                    jit_value_from_handle(handle));
+   return jit_value_from_reg(r);
+}
+
+static void macro_putpriv(jit_irgen_t *g, jit_handle_t handle, jit_value_t ptr)
+{
+   irgen_emit_binary(g, MACRO_PUTPRIV, JIT_SZ_UNSPEC, JIT_CC_NONE,
+                     JIT_REG_INVALID, jit_value_from_handle(handle), ptr);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Vcode to JIT IR lowering
 
@@ -730,6 +744,14 @@ static jit_value_t irgen_lea(jit_irgen_t *g, jit_value_t addr)
    default:
       fatal_trace("cannot load address of value kind %d", addr.kind);
    }
+}
+
+static jit_value_t irgen_get_context(jit_irgen_t *g)
+{
+   if (g->statereg.kind != JIT_VALUE_INVALID)
+      return j_load(g, JIT_SZ_PTR, jit_addr_from_value(g->statereg, 0));
+   else
+      return g->map[vcode_param_reg(0)];
 }
 
 static size_t irgen_append_cpool(jit_irgen_t *g, size_t sz, int align)
@@ -1531,11 +1553,7 @@ static void irgen_op_context_upref(jit_irgen_t *g, int op)
       g->map[vcode_get_result(op)] = g->statereg;
    }
    else {
-      jit_value_t context;
-      if (g->statereg.kind != JIT_VALUE_INVALID)
-         context = j_load(g, JIT_SZ_PTR, jit_addr_from_value(g->statereg, 0));
-      else
-         context = g->map[vcode_param_reg(0)];
+      jit_value_t context = irgen_get_context(g);
 
       for (int i = 1; i < hops; i++)
          context = j_load(g, JIT_SZ_PTR, jit_addr_from_value(context, 0));
@@ -1546,7 +1564,7 @@ static void irgen_op_context_upref(jit_irgen_t *g, int op)
 
 static void irgen_op_var_upref(jit_irgen_t *g, int op)
 {
-   jit_value_t context = g->map[vcode_param_reg(0)];
+   jit_value_t context = irgen_get_context(g);
 
    const int hops = vcode_get_hops(op);
    vcode_var_t address = vcode_get_address(op);
@@ -1947,13 +1965,14 @@ static void irgen_op_package_init(jit_irgen_t *g, int op)
    ident_t unit_name = vcode_get_func(op);
    jit_handle_t handle = jit_lazy_compile(g->func->jit, unit_name);
 
-   // TODO: implement this properly with a macro op
-   void *context = jit_link(g->func->jit, handle);
-   if (context == NULL)
-      fatal_at(vcode_get_loc(op), "failed to intialise package %s",
-               istr(unit_name));
+   if (vcode_count_args(op) > 0)
+      j_send(g, 0, irgen_get_arg(g, op, 0));
+   else
+      j_send(g, 0, jit_value_from_int64(0));
 
-   g->map[vcode_get_result(op)] = jit_addr_from_ptr(context);
+   j_call(g, handle);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
 
 static void irgen_op_link_package(jit_irgen_t *g, int op)
@@ -1961,14 +1980,7 @@ static void irgen_op_link_package(jit_irgen_t *g, int op)
    ident_t unit_name = vcode_get_ident(op);
    jit_handle_t handle = jit_lazy_compile(g->func->jit, unit_name);
 
-   // TODO: jit_link can execute code and it would be better not to do
-   //       that here.  Can we link lazily?  Maybe patch in constant
-   //       pool.
-   void *context = jit_link(g->func->jit, handle);
-   if (context == NULL)
-      fatal_at(vcode_get_loc(op), "failed to link package %s", istr(unit_name));
-
-   g->map[vcode_get_result(op)] = jit_addr_from_ptr(context);
+   g->map[vcode_get_result(op)] = macro_getpriv(g, handle);
 }
 
 static void irgen_op_link_var(jit_irgen_t *g, int op)
@@ -1976,11 +1988,11 @@ static void irgen_op_link_var(jit_irgen_t *g, int op)
    ident_t var_name = vcode_get_ident(op);
    ident_t unit_name = vtype_name(vcode_reg_type(vcode_get_arg(op, 0)));
 
-   jit_handle_t handle = jit_compile(g->func->jit, unit_name);
-   jit_func_t *f = jit_get_func(g->func->jit, handle);
-
    vcode_state_t state;
    vcode_state_save(&state);
+
+   jit_handle_t handle = jit_compile(g->func->jit, unit_name);
+   jit_func_t *f = jit_get_func(g->func->jit, handle);
 
    vcode_select_unit(f->unit);
 
@@ -2493,12 +2505,36 @@ void jit_irgen(jit_func_t *f)
    g->func = f;
    g->map  = xmalloc_array(vcode_count_regs(), sizeof(jit_value_t));
 
+   const vunit_kind_t kind = vcode_unit_kind();
+   const bool has_privdata =
+      kind == VCODE_UNIT_PACKAGE || kind == VCODE_UNIT_INSTANCE;
+   const bool has_params =
+      kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE
+      || kind == VCODE_UNIT_THUNK;
+
+   if (has_privdata) {
+      // It's harmless to initialise a package multiple times, just
+      // return the existing context pointer
+      irgen_label_t *cont = irgen_alloc_label(g);
+      jit_value_t priv = macro_getpriv(g, g->func->handle);
+      j_cmp(g, priv, jit_value_from_int64(0));
+      j_jump(g, JIT_CC_EQ, cont);
+      j_send(g, 0, priv);
+      j_ret(g);
+      irgen_bind_label(g, cont);
+   }
+
    irgen_locals(g);
 
-   const vunit_kind_t kind = vcode_unit_kind();
-   if (kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE
-       || kind == VCODE_UNIT_THUNK)
+   if (has_params)
       irgen_params(g);
+   else if (g->statereg.kind != JIT_VALUE_INVALID) {
+      jit_value_t context = j_recv(g, 0);
+      j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
+   }
+
+   if (has_privdata)
+      macro_putpriv(g, g->func->handle, g->statereg);
 
    const int nblocks = vcode_count_blocks();
    g->blocks = xmalloc_array(nblocks, sizeof(irgen_label_t *));

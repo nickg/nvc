@@ -906,6 +906,25 @@ START_TEST(test_trace1)
 }
 END_TEST
 
+START_TEST(test_issue496)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/jit/issue496.vhd");
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACKAGE);
+
+   jit_t *j = jit_new();
+
+   jit_handle_t handle = jit_lazy_compile(j, ident_new("WORK.ISSUE496"));
+   void *pkg = jit_link(j, handle);
+   fail_if(pkg == NULL);
+
+   jit_free(j);
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -935,6 +954,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_layout);
    tcase_add_test(tc, test_range1);
    tcase_add_test(tc, test_trace1);
+   tcase_add_test(tc, test_issue496);
    suite_add_tcase(s, tc);
 
    return s;

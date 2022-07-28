@@ -1981,8 +1981,8 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
    if (vcode_unit_kind() == VCODE_UNIT_THUNK) {
       // This is a hack to make thunks work
       tree_t pack = lib_get_qualified(scope_name);
-      if (pack != NULL && tree_kind(pack) == T_PACKAGE)
-         return emit_link_package(scope_name);
+      if (pack != NULL && is_package(pack))
+         return emit_package_init(scope_name, VCODE_INVALID_REG);
    }
 
    vcode_state_t state;
@@ -2198,9 +2198,10 @@ static vcode_reg_t lower_link_var(tree_t decl)
    else if (kind != T_PACKAGE && kind != T_PACK_INST)
       fatal_trace("invalid container kind %s for %s", tree_kind_str(kind),
                   istr(tree_ident(decl)));
-   else {
+   else if (mode == LOWER_THUNK)
+      context = emit_package_init(tree_ident(container), VCODE_INVALID_REG);
+   else
       context = emit_link_package(tree_ident(container));
-   }
 
    vcode_type_t vtype = lower_var_type(decl);
    vcode_reg_t ptr_reg = emit_link_var(context, tree_ident(decl), vtype);
@@ -9385,13 +9386,15 @@ static void lower_deps_cb(ident_t unit_name, void *__ctx)
       tree_walk_deps(unit, lower_deps_cb, seen);
 }
 
-static void lower_dependencies(tree_t unit)
+static void lower_dependencies(tree_t primary, tree_t secondary)
 {
    if (vcode_unit_context() != NULL)
       return;   // Already handled for root unit
 
    hset_t *seen = hset_new(128);
-   tree_walk_deps(unit, lower_deps_cb, seen);
+   tree_walk_deps(primary, lower_deps_cb, seen);
+   if (secondary != NULL)
+      tree_walk_deps(secondary, lower_deps_cb, seen);
    hset_free(seen);
 }
 
@@ -9407,7 +9410,7 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
    emit_debug_info(loc);
 
    lower_push_scope(block);
-   lower_dependencies(block);
+   lower_dependencies(block, NULL);
    lower_generics(block, NULL);
    lower_ports(block);
    lower_decls(block, vu);
@@ -9453,7 +9456,7 @@ static vcode_unit_t lower_pack_body(tree_t unit)
    vcode_unit_t context = emit_package(tree_ident(pack), tree_loc(unit), NULL);
    lower_push_scope(unit);
 
-   lower_dependencies(unit);
+   lower_dependencies(pack, unit);
    lower_decls(pack, context);
    lower_decls(unit, context);
 
@@ -9471,7 +9474,7 @@ static vcode_unit_t lower_package(tree_t unit)
    vcode_unit_t context = emit_package(tree_ident(unit), tree_loc(unit), NULL);
    lower_push_scope(unit);
 
-   lower_dependencies(unit);
+   lower_dependencies(unit, NULL);
    lower_generics(unit, NULL);
    lower_decls(unit, context);
 

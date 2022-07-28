@@ -510,6 +510,7 @@ static void interp_load(jit_interp_t *state, jit_ir_t *ir)
 
    JIT_ASSERT(ir->size != JIT_SZ_UNSPEC);
    JIT_ASSERT(arg1.pointer != NULL);
+   JIT_ASSERT((uintptr_t)arg1.pointer >= 4096);
 
    switch (ir->size) {
    case JIT_SZ_8:
@@ -695,6 +696,9 @@ static void interp_copy(jit_interp_t *state, jit_ir_t *ir)
    const size_t count = state->regs[ir->result].integer;
    void *dest = interp_get_value(state, ir->arg1).pointer;
    const void *src = interp_get_value(state, ir->arg2).pointer;
+
+   JIT_ASSERT((uintptr_t)dest >= 4096 || count == 0);
+   JIT_ASSERT((uintptr_t)src >= 4096 || count == 0);
 
    memmove(dest, src, count);
 }
@@ -1059,6 +1063,22 @@ static void interp_fficall(jit_interp_t *state, jit_ir_t *ir)
    state->abort = true;
 }
 
+static void interp_getpriv(jit_interp_t *state, jit_ir_t *ir)
+{
+   JIT_ASSERT(ir->arg1.kind == JIT_VALUE_HANDLE);
+   jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
+   void *ptr = jit_get_privdata(state->func->jit, f);
+   state->regs[ir->result].pointer = ptr;
+}
+
+static void interp_putpriv(jit_interp_t *state, jit_ir_t *ir)
+{
+   JIT_ASSERT(ir->arg1.kind == JIT_VALUE_HANDLE);
+   jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
+   void *ptr = interp_get_value(state, ir->arg2).pointer;
+   jit_put_privdata(state->func->jit, f, ptr);
+}
+
 static void interp_loop(jit_interp_t *state)
 {
    do {
@@ -1180,6 +1200,12 @@ static void interp_loop(jit_interp_t *state)
          break;
       case MACRO_FFICALL:
          interp_fficall(state, ir);
+         break;
+      case MACRO_GETPRIV:
+         interp_getpriv(state, ir);
+         break;
+      case MACRO_PUTPRIV:
+         interp_putpriv(state, ir);
          break;
       default:
          interp_dump(state);

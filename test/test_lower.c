@@ -2707,7 +2707,7 @@ START_TEST(test_thunk)
       vcode_select_unit(t1);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_LINK_PACKAGE, .name = "WORK.PACK" },
+         { VCODE_OP_PACKAGE_INIT, .name = "WORK.PACK" },
          { VCODE_OP_LINK_VAR, .name = "D" },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
