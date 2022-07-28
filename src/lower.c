@@ -4001,6 +4001,35 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          return emit_cast(lower_type(type), lower_bounds(type), arg);
       }
 
+   case ATTR_STABLE:
+   case ATTR_QUIET:
+      {
+         tree_t param = tree_value(tree_param(expr, 0));
+         vcode_reg_t param_reg = lower_param(param, NULL, PORT_IN);
+
+         type_t name_type = tree_type(name);
+         vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE), len_reg;
+         if (type_is_array(name_type)) {
+            len_reg = lower_array_total_len(name_type, name_reg);
+            name_reg = lower_array_data(name_reg);
+         }
+         else
+            len_reg = emit_const(vtype_offset(), 1);
+
+         vcode_reg_t flag_reg, time_reg;
+         if (predef == ATTR_STABLE) {
+            time_reg = emit_last_event(name_reg, len_reg);
+            flag_reg = emit_event_flag(name_reg, len_reg);
+         }
+         else {
+            time_reg = emit_last_active(name_reg, len_reg);
+            flag_reg = emit_active_flag(name_reg, len_reg);
+         }
+
+         vcode_reg_t cmp_reg = emit_cmp(VCODE_CMP_GEQ, time_reg, param_reg);
+         return emit_and(cmp_reg, emit_not(flag_reg));
+      }
+
    default:
       fatal_at(tree_loc(expr), "cannot lower attribute %s (%d)",
                istr(tree_ident(expr)), predef);
