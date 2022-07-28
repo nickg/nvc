@@ -29,10 +29,11 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
-typedef struct imp_signal imp_signal_t;
+typedef struct _imp_signal imp_signal_t;
 
-struct imp_signal {
+struct _imp_signal {
    imp_signal_t *next;
+   ident_t       name;
    tree_t        signal;
    tree_t        process;
 };
@@ -335,8 +336,8 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
    }
 }
 
-static tree_t simp_attr_delayed_transaction(tree_t t, attr_kind_t predef,
-                                            simp_ctx_t *ctx)
+static tree_t simp_signal_attribute(tree_t t, attr_kind_t which,
+                                    simp_ctx_t *ctx)
 {
    tree_t name = tree_name(t);
    assert(tree_kind(name) == T_REF);
@@ -347,26 +348,45 @@ static tree_t simp_attr_delayed_transaction(tree_t t, attr_kind_t predef,
    if (kind != T_SIGNAL_DECL && kind != T_PORT_DECL)
       return t;
 
-   char *sig_name LOCAL =
-      xasprintf("%s_%s", (predef == ATTR_DELAYED) ? "delayed" : "transaction",
-                istr(tree_ident(name)));
+   tree_t param = NULL;
+   if (which != ATTR_TRANSACTION)
+      param = tree_value(tree_param(t, 0));
+
+   int64_t iparam = 0;
+   if (param != NULL && !folded_int(param, &iparam))
+      return t;
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_istr(tb, tree_ident(name));
+   switch (which) {
+   case ATTR_TRANSACTION: tb_cat(tb, "$transaction"); break;
+   case ATTR_DELAYED:     tb_printf(tb, "$delayed_%"PRIi64, iparam); break;
+   default: break;
+   }
+
+   ident_t id = ident_new(tb_get(tb));
+
+   for (imp_signal_t *it = ctx->imp_signals; it; it = it->next) {
+      if (it->name == id)
+         return make_ref(it->signal);
+   }
 
    tree_t s = tree_new(T_SIGNAL_DECL);
    tree_set_loc(s, tree_loc(t));
-   tree_set_ident(s, ident_uniq(sig_name));
+   tree_set_ident(s, id);
    tree_set_type(s, tree_type(t));
+
+   tree_t r = make_ref(s);
 
    tree_t p = tree_new(T_PROCESS);
    tree_set_loc(p, tree_loc(t));
    tree_set_ident(p, ident_prefix(tree_ident(s), ident_new("p"), '_'));
 
-   tree_t r = make_ref(s);
-
    tree_t a = tree_new(T_SIGNAL_ASSIGN);
    tree_set_ident(a, ident_new("assign"));
    tree_set_target(a, r);
 
-   switch (predef) {
+   switch (which) {
    case ATTR_DELAYED:
       {
          if (tree_has_value(decl))
@@ -417,6 +437,7 @@ static tree_t simp_attr_delayed_transaction(tree_t t, attr_kind_t predef,
    imp->next    = ctx->imp_signals;
    imp->signal  = s;
    imp->process = p;
+   imp->name    = id;
 
    ctx->imp_signals = imp;
 
@@ -464,7 +485,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
    switch (predef) {
    case ATTR_DELAYED:
    case ATTR_TRANSACTION:
-      return simp_attr_delayed_transaction(t, predef, ctx);
+      return simp_signal_attribute(t, predef, ctx);
 
    case ATTR_POS:
       {
@@ -1528,14 +1549,15 @@ static void simp_generic_map(tree_t t, tree_t unit)
 
 static void simp_add_implicit_signals(tree_t t, simp_ctx_t *ctx)
 {
-   while (ctx->imp_signals != NULL) {
-      tree_add_decl(t, ctx->imp_signals->signal);
-      tree_add_stmt(t, ctx->imp_signals->process);
+   for (imp_signal_t *s = ctx->imp_signals, *tmp; s; s = tmp) {
+      tree_add_decl(t, s->signal);
+      if (s->process != NULL)
+         tree_add_stmt(t, s->process);
 
-      imp_signal_t *tmp = ctx->imp_signals->next;
-      free(ctx->imp_signals);
-      ctx->imp_signals = tmp;
+      tmp = s->next;
+      free(s);
    }
+   ctx->imp_signals = NULL;
 }
 
 static tree_t simp_tree(tree_t t, void *_ctx)

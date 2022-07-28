@@ -1425,7 +1425,7 @@ sig_shared_t *_implicit_signal(uint32_t count, uint32_t size,
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
-   TRACE("_init_signal %s count=%d size=%d kind=%d",
+   TRACE("_implicit_signal %s count=%d size=%d kind=%d",
          istr(tree_ident(where)), count, size, kind);
 
    const size_t datasz = MAX(2 * count * size, 8);
