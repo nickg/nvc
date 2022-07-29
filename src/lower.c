@@ -63,9 +63,11 @@ typedef enum {
 } short_circuit_op_t;
 
 typedef enum {
-   SCOPE_PACK_INST     = (1 << 0),
    SCOPE_HAS_PROTECTED = (1 << 1),
 } scope_flags_t;
+
+#define INSTANCE_BIT  0x80000000
+#define PARAM_VAR_BIT 0x40000000
 
 typedef A(vcode_var_t) var_list_t;
 
@@ -116,7 +118,6 @@ typedef A(concat_param_t) concat_list_t;
 static lower_mode_t     mode = LOWER_NORMAL;
 static lower_scope_t   *top_scope = NULL;
 static cover_tagging_t *cover_tags = NULL;
-static hash_t          *globals = NULL;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_reify_expr(tree_t expr);
@@ -2189,13 +2190,7 @@ static vcode_reg_t lower_link_var(tree_t decl)
    const tree_kind_t kind = tree_kind(container);
    vcode_reg_t context = VCODE_INVALID_REG;
 
-   if (kind == T_ELAB) {
-      ident_t name;
-      if ((name = hash_get(globals, decl)) == NULL)
-         fatal_trace("missing global variable for %s", istr(tree_ident(decl)));
-      context = emit_link_package(ident_runtil(name, '.'));
-   }
-   else if (kind != T_PACKAGE && kind != T_PACK_INST)
+   if (kind != T_PACKAGE && kind != T_PACK_INST)
       fatal_trace("invalid container kind %s for %s", tree_kind_str(kind),
                   istr(tree_ident(decl)));
    else if (mode == LOWER_THUNK)
@@ -2246,6 +2241,18 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
       }
       else
          ptr_reg = lower_link_var(decl);   // External variable
+   }
+   else if (var & INSTANCE_BIT) {
+      // This variable is declared in an instantiated package
+      vcode_var_t pkg_var = var & ~INSTANCE_BIT;
+      vcode_reg_t pkg_reg;
+      if (hops == 0)
+         pkg_reg = emit_load(pkg_var);
+      else
+         pkg_reg = emit_load_indirect(emit_var_upref(hops, pkg_var));
+
+      vcode_type_t vtype = lower_var_type(decl);
+      ptr_reg = emit_link_var(pkg_reg, tree_ident(decl), vtype);
    }
    else if (hops > 0)
       ptr_reg = emit_var_upref(hops, var);
@@ -2358,18 +2365,15 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
    int hops = 0;
    int obj = lower_search_vcode_obj(decl, top_scope, &hops);
 
-   // TODO: remove this....
-   const bool is_proc_var =
-      obj != VCODE_INVALID_VAR && !!(obj & 0x20000000);
+   const bool is_proc_var = (obj != -1 && !!(obj & PARAM_VAR_BIT));
+   obj &= ~PARAM_VAR_BIT;
 
    if (hops > 0) {
       // Reference to parameter in parent subprogram
-      return emit_load_indirect(emit_var_upref(hops, obj & 0x1fffffff));
+      return emit_load_indirect(emit_var_upref(hops, obj));
    }
-   else if (is_proc_var) {
-      vcode_var_t var = obj & 0x1fffffff;
-      return emit_load(var);
-   }
+   else if (is_proc_var)
+      return emit_load(obj);
    else {
       vcode_reg_t reg = obj;
       const bool undefined_in_thunk =
@@ -5426,7 +5430,7 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
       lower_put_vcode_obj(idecl, ireg, top_scope);
    }
    else
-      lower_put_vcode_obj(idecl, ivar | 0x20000000, top_scope);
+      lower_put_vcode_obj(idecl, ivar | PARAM_VAR_BIT, top_scope);
 
    if (exit_bb == VCODE_INVALID_BLOCK)
       exit_bb = emit_block();
@@ -6125,9 +6129,6 @@ static vcode_var_t lower_var_for(tree_t decl, vcode_type_t vtype,
                                  vcode_type_t vbounds, vcode_var_flags_t flags)
 {
    ident_t name = tree_ident(decl);
-
-   if (top_scope->flags & SCOPE_PACK_INST)
-      hash_put(globals, decl, ident_prefix(vcode_unit_name(), name, '.'));
 
    vcode_var_t var = emit_var(vtype, vbounds, name, flags);
    lower_put_vcode_obj(decl, var, top_scope);
@@ -7189,7 +7190,6 @@ static void lower_instantiated_package(tree_t decl, vcode_unit_t context)
 
    vcode_unit_t vu = emit_package(name, tree_loc(decl), context);
    lower_push_scope(decl);
-   top_scope->flags |= SCOPE_PACK_INST;
 
    lower_generics(decl, NULL);
    lower_decls(decl, vu);
@@ -7200,7 +7200,15 @@ static void lower_instantiated_package(tree_t decl, vcode_unit_t context)
    lower_finished();
    vcode_state_restore(&state);
 
-   emit_package_init(name, emit_context_upref(0));
+   vcode_type_t vcontext = vtype_context(name);
+   vcode_var_t var = emit_var(vcontext, vcontext, name, 0);
+
+   vcode_reg_t pkg_reg = emit_package_init(name, emit_context_upref(0));
+   emit_store(pkg_reg, var);
+
+   const int ndecls = tree_decls(tree_ref(decl));
+   for (int i = 0; i < ndecls; i++)
+      lower_put_vcode_obj(tree_decl(decl, i), var | INSTANCE_BIT, top_scope);
 }
 
 static void lower_decl(tree_t decl, vcode_unit_t context)
@@ -7374,7 +7382,7 @@ static void lower_subprogram_ports(tree_t body, bool params_as_vars)
       if (params_as_vars) {
          vcode_var_t var = emit_var(vtype, vbounds, tree_ident(p), 0);
          emit_store(preg, var);
-         lower_put_vcode_obj(p, var | 0x20000000, top_scope);
+         lower_put_vcode_obj(p, var | PARAM_VAR_BIT, top_scope);
       }
       else
          lower_put_vcode_obj(p, preg, top_scope);
@@ -9494,9 +9502,6 @@ vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover)
    cover_tags = cover;
    mode = LOWER_NORMAL;
 
-   assert(globals == NULL);
-   globals = hash_new(128);
-
    vcode_unit_t root = NULL;
    switch (tree_kind(unit)) {
    case T_ELAB:
@@ -9515,9 +9520,6 @@ vcode_unit_t lower_unit(tree_t unit, cover_tagging_t *cover)
       fatal("cannot lower unit kind %s to vcode",
             tree_kind_str(tree_kind(unit)));
    }
-
-   hash_free(globals);
-   globals = NULL;
 
    vcode_close();
    return root;
@@ -9574,7 +9576,6 @@ static void lower_subprogram_for_thunk(tree_t body, vcode_unit_t context)
 vcode_unit_t lower_thunk(tree_t t)
 {
    mode = LOWER_THUNK;
-   assert(globals == NULL);
 
    ident_t name = NULL;
    if (is_subprogram(t)) {

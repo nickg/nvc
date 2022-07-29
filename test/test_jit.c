@@ -920,6 +920,9 @@ START_TEST(test_issue496)
    void *pkg = jit_link(j, handle);
    fail_if(pkg == NULL);
 
+   char *c = jit_get_frame_var(j, handle, 2);
+   ck_assert_mem_eq(c, "one", 3);
+
    jit_free(j);
    fail_if_errors();
 }

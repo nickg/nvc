@@ -64,9 +64,11 @@ typedef A(tree_t) tree_list_t;
 typedef A(type_t) type_list_t;
 
 typedef struct {
+   tree_t      decl;
+   tree_t      body;
    tree_list_t copied_subs;
    type_list_t copied_types;
-} package_copy_ctx_t;
+} instantiate_copy_ctx_t;
 
 typedef struct _ident_list ident_list_t;
 
@@ -1874,12 +1876,12 @@ static tree_t fcall_to_conv_func(tree_t value)
    return conv;
 }
 
-static bool package_should_copy_type(type_t type, void *__ctx)
+static bool instantiate_should_copy_type(type_t type, void *__ctx)
 {
    return type_kind(type) == T_GENERIC;
 }
 
-static bool package_should_copy_tree(tree_t t, void *__ctx)
+static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
 {
    switch (tree_kind(t)) {
    case T_FUNC_DECL:
@@ -1911,17 +1913,17 @@ static bool package_should_copy_tree(tree_t t, void *__ctx)
    }
 }
 
-static void package_tree_copy_cb(tree_t t, void *__ctx)
+static void instantiate_tree_copy_cb(tree_t t, void *__ctx)
 {
-   package_copy_ctx_t *ctx = __ctx;
+   instantiate_copy_ctx_t *ctx = __ctx;
 
    if (is_subprogram(t))
       APUSH(ctx->copied_subs, t);
 }
 
-static void package_type_copy_cb(type_t type, void *__ctx)
+static void instantiate_type_copy_cb(type_t type, void *__ctx)
 {
-   package_copy_ctx_t *ctx = __ctx;
+   instantiate_copy_ctx_t *ctx = __ctx;
 
    if (type_has_ident(type))
       APUSH(ctx->copied_types, type);
@@ -1929,25 +1931,26 @@ static void package_type_copy_cb(type_t type, void *__ctx)
 
 static void instantiate_helper(tree_t new, tree_t *pdecl, tree_t *pbody)
 {
-   package_copy_ctx_t copy_ctx = {};
-
-   tree_t decl = *pdecl, body = *pbody;
+   instantiate_copy_ctx_t copy_ctx = {
+      .decl = *pdecl,
+      .body = *pbody
+   };
 
    SCOPED_A(tree_t) roots = AINIT;
-   APUSH(roots, decl);
-   if (body != NULL)
-      APUSH(roots, body);
+   APUSH(roots, copy_ctx.decl);
+   if (copy_ctx.body != NULL)
+      APUSH(roots, copy_ctx.body);
 
    tree_copy(roots.items, roots.count,
-             package_should_copy_tree,
-             package_should_copy_type,
-             package_tree_copy_cb, package_type_copy_cb,
+             instantiate_should_copy_tree,
+             instantiate_should_copy_type,
+             instantiate_tree_copy_cb, instantiate_type_copy_cb,
              &copy_ctx);
 
    *pdecl = roots.items[0];
-   *pbody = body != NULL ? roots.items[1] : NULL;
+   *pbody = copy_ctx.body != NULL ? roots.items[1] : NULL;
 
-   ident_t prefixes[] = { tree_ident(decl) };
+   ident_t prefixes[] = { tree_ident(copy_ctx.decl) };
    ident_t dotted = ident_prefix(scope_prefix(nametab), tree_ident(new), '.');
 
    // Change the name of any copied types to reflect the new hiearchy
@@ -2008,8 +2011,6 @@ static void instantiate_helper(tree_t new, tree_t *pdecl, tree_t *pbody)
       }
    }
    ACLEAR(copy_ctx.copied_subs);
-
-
 }
 
 static void instantiate_subprogram(tree_t new, tree_t decl, tree_t body)

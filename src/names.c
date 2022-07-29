@@ -1002,8 +1002,9 @@ static scope_t *private_scope_for(nametab_t *tab, tree_t unit)
    else {
       // For package instances do not export the names declared only in
       // the body
-      const int ndecls =
-         tree_decls(kind == T_PACK_INST ? tree_ref(unit) : unit);
+      const int ndecls = kind == T_PACK_INST && tree_has_ref(unit)
+         ? tree_decls(tree_ref(unit))
+         : tree_decls(unit);
 
       for (int i = 0; i < ndecls; i++) {
          tree_t d = tree_decl(unit, i);
