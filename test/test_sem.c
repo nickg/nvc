@@ -863,7 +863,7 @@ START_TEST(test_access)
       {  41, "does not match type of target INT_PTR" },
       {  47, "type of value REC does not match type of" },
       {  55, "type of allocator expresion INTEGER does not match" },
-      {  56, "type mark does not denote a type or a subtype" },
+      {  56, "type mark S does not denote a type or a subtype" },
       {  76, "unconstrained array type INT_PTR_ARRAY not allowed" },
       {  84, "index constraint cannot be used with non-array type INTEGER" },
       {  90, "variable F cannot have incomplete type FOO" },
@@ -2345,7 +2345,8 @@ START_TEST(test_resolution)
 
    const error_t expect[] = {
       {  6, "no visible subprogram declaration for BIT_VECTOR" },
-      { 10, "type mark does not denote a type or a subtype" },
+      { 10, "type mark VEC does not denote a type or a subtype" },
+      { 10, "expecting a discrete range" },
       { 10, "unexpected identifier while parsing subtype declaration" },
       { 17, "non-record type MY_UTYPE_VECTOR may not have record element" },
       { 29, "non-composite type MY_UTYPE may not have element resolution" },
