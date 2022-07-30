@@ -4747,6 +4747,45 @@ START_TEST(test_issue478)
 }
 END_TEST
 
+START_TEST(test_genpack1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/lower/genpack1.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.GENPACK1.P1");
+   vcode_select_unit(vu);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_LINK_PACKAGE, .name = "STD.STANDARD" },
+      { VCODE_OP_LINK_PACKAGE, .name = "WORK.P5" },
+      { VCODE_OP_VAR_UPREF, .hops = 1, .name = "S" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_RESOLVED },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_FCALL, .func = "WORK.P5.T$image" },
+      { VCODE_OP_CONST, .value = 97 },
+      { VCODE_OP_CONST_ARRAY, .length = 1 },
+      { VCODE_OP_ADDRESS_OF },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_FCALL, .func = "STD.STANDARD.\"=\"(SS)B" },
+      { VCODE_OP_DEBUG_LOCUS },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 },
+   };
+
+   CHECK_BB(1);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4857,6 +4896,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_directmap3);
    tcase_add_test(tc, test_issue476);
    tcase_add_test(tc, test_issue478);
+   tcase_add_test(tc, test_genpack1);
    suite_add_tcase(s, tc);
 
    return s;

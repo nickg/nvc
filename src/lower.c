@@ -2021,8 +2021,10 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
              || ident_until(unit_name, '-') != unit_name
              || vcode_unit_kind() == VCODE_UNIT_THUNK) {
             tree_t pack = lib_get_qualified(scope_name);
-            if (pack != NULL && is_package(pack))
+            if (pack != NULL && is_package(pack)) {
+               assert(!is_uninstantiated_package(pack));
                return emit_link_package(scope_name);
+            }
             else   // Call to function defined in architecture
                return emit_null(vtype_context(scope_name));
          }
@@ -2195,7 +2197,10 @@ static vcode_reg_t lower_link_var(tree_t decl)
    if (kind != T_PACKAGE && kind != T_PACK_INST)
       fatal_trace("invalid container kind %s for %s", tree_kind_str(kind),
                   istr(tree_ident(decl)));
-   else if (mode == LOWER_THUNK)
+
+   assert(!is_uninstantiated_package(container));
+
+   if (mode == LOWER_THUNK)
       context = emit_package_init(tree_ident(container), VCODE_INVALID_REG);
    else
       context = emit_link_package(tree_ident(container));
