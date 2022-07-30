@@ -31,12 +31,11 @@
 #include <string.h>
 #include <limits.h>
 
-#define SUB_COND_BITS 5
-#define MAX_SUB_CONDS (1 << SUB_COND_BITS)
-#define SUB_COND_MASK (MAX_SUB_CONDS - 1)
-
 #define PERCENT_RED    50.0f
 #define PERCENT_ORANGE 90.0f
+
+#define COVER_DEBUG
+
 
 typedef struct _cover_hl cover_hl_t;
 typedef struct _cover_file cover_file_t;
@@ -76,7 +75,9 @@ typedef struct {
    tag_kind_t kind;
    int32_t    tag;
    int32_t    sub_cond;
+   int32_t    hit_cnt;
    loc_t      loc;
+   tree_t     tree;
 } cover_tag_t;
 
 typedef A(cover_tag_t) tag_array_t;
@@ -111,16 +112,18 @@ static void cover_tag_conditions(tree_t t, cover_tagging_t *ctx, int branch)
 {
    const int32_t tag = (branch == -1) ? (ctx->next_cond_tag)++ : branch;
 
-   if (ctx->next_sub_cond == MAX_SUB_CONDS)
-      return;
+   cover_tag_t new = {
+      .kind     = TAG_COND,
+      .loc      = 0,
+      .tag      = tag,
+      .sub_cond = ctx->next_sub_cond++,
+      .hit_cnt  = 0,
+      .tree     = t
+   };
 
-   intptr_t enc = 0;
-   enc |= tag << SUB_COND_BITS;
-   enc |= ((ctx->next_sub_cond)++ & SUB_COND_MASK);
-   enc <<= 2;
-   enc |= 3;
-
-   hash_put(ctx->tree_hash, t, (void *)enc);
+   APUSH(ctx->tags, new);
+   uintptr_t index = ctx->tags.count;
+   hash_put(ctx->tree_hash, t, (void *)index);
 
    if (tree_kind(t) != T_FCALL)
       return;
@@ -163,11 +166,18 @@ static void cover_tag_visit_fn(tree_t t, void *context)
    cover_tagging_t *ctx = context;
 
    if (cover_is_stmt(t)) {
-      intptr_t enc = 0;
-      enc |= (ctx->next_stmt_tag)++ << SUB_COND_BITS;
-      enc <<= 2;
-      enc |= 1;
-      hash_put(ctx->tree_hash, t, (void *)enc);
+
+      cover_tag_t new = {
+         .kind     = TAG_STMT,
+         .loc      = 0,
+         .tag      = (ctx->next_stmt_tag)++,
+         .sub_cond = 0,
+         .hit_cnt  = 0,
+         .tree     = t
+      };
+      APUSH(ctx->tags, new);
+      uintptr_t index = ctx->tags.count;
+      hash_put(ctx->tree_hash, t, (void *)index);
 
       ctx->next_sub_cond = 0;
       switch (tree_kind(t)) {
@@ -194,16 +204,8 @@ static void cover_tag_visit_fn(tree_t t, void *context)
    }
 }
 
-cover_tagging_t *cover_tag(tree_t top)
+void cover_dump_tags(cover_tagging_t *ctx, tree_t top, bool dump_rt_cnts, int32_t *stmts, int32_t *conds)
 {
-   cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
-   ctx->tree_hash = hash_new(1024);
-
-   tree_visit(top, cover_tag_visit_fn, ctx);
-
-   if (opt_get_int(OPT_UNIT_TEST))
-      return ctx;
-
    char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));
    fbuf_t *f = lib_fbuf_open(lib_work(), dbname, FBUF_OUT, FBUF_CS_NONE);
    if (f == NULL)
@@ -214,23 +216,52 @@ cover_tagging_t *cover_tag(tree_t top)
 
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
 
-   hash_iter_t it = HASH_BEGIN;
-   tree_t tree;
-   intptr_t enc;
-   while (hash_iter(ctx->tree_hash, &it, (const void **)&tree, (void **)&enc)) {
-      const tag_kind_t kind = (enc & 3) == 1 ? TAG_STMT : TAG_COND;
-      enc >>= 2;
+#ifdef COVER_DEBUG
+   printf("Dumping cover tags...\n");
+   printf("Tag count: %d\n", ctx->tags.count);
+#endif
 
-      write_u8(kind, f);
-      write_u32(enc >> SUB_COND_BITS, f);
-      if (kind == TAG_COND) write_u8(enc & SUB_COND_MASK, f);
-      loc_write(tree_loc(tree), loc_wr);
+   for (int i = 0; i < ctx->tags.count; i++) {
+      cover_tag_t *tag = &(ctx->tags.items[i]);
+
+#ifdef COVER_DEBUG
+      printf("Index: %4d  Tag: %4d  Kind: %d  Subcond: %4d  Hit Count: %4d  Tree: %p\n", i,
+               tag->tag, tag->kind, tag->sub_cond, tag->hit_cnt, (void *) tag->tree);
+#endif
+
+      write_u8(tag->kind, f);
+      write_u32(tag->tag, f);
+
+      if (tag->kind == TAG_COND)
+         write_u32(tag->sub_cond, f);
+
+      if (dump_rt_cnts) {
+         const int32_t *cnts = (tag->kind == TAG_STMT) ? stmts : conds;
+         write_u32(cnts[i], f);
+      } else {
+         write_u32(0, f);
+      }
+
+      loc_write(tree_loc(tag->tree), loc_wr);
    }
 
    write_u8(TAG_LAST, f);
 
    loc_write_end(loc_wr);
    fbuf_close(f, NULL);
+}
+
+cover_tagging_t *cover_tag(tree_t top)
+{
+   cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
+   ctx->tree_hash = hash_new(1024, true);
+
+   tree_visit(top, cover_tag_visit_fn, ctx);
+
+   if (opt_get_int(OPT_UNIT_TEST))
+      return ctx;
+
+   cover_dump_tags(ctx, top, false, NULL, NULL);
 
    return ctx;
 }
@@ -255,7 +286,8 @@ cover_tagging_t *cover_read_tags(tree_t top)
          break;
 
       const int32_t tag = read_u32(f);
-      const int32_t sub_cond = kind == TAG_COND ? read_u8(f) : 0;
+      const int32_t sub_cond = kind == TAG_COND ? read_u32(f) : 0;
+      const int32_t hit_cnt = read_u32(f);
 
       loc_t loc;
       loc_read(&loc, loc_rd);
@@ -265,6 +297,8 @@ cover_tagging_t *cover_read_tags(tree_t top)
          .loc      = loc,
          .tag      = tag,
          .sub_cond = sub_cond,
+         .hit_cnt  = hit_cnt,
+         .tree     = NULL
       };
       APUSH(tagging->tags, new);
    }
@@ -293,13 +327,34 @@ bool cover_is_tagged(cover_tagging_t *tagging, tree_t t,
    if (tagging == NULL)
       return false;
 
-   intptr_t enc = (intptr_t)hash_get(tagging->tree_hash, t);
-   if (enc == 0)
-      return false;
+   // Push to array is post-insert so has index is offset by 0,
+   // thus:
+   //    0 -> no tag
+   //    1 -> Index 0
+   //    n -> Index n - 
+#ifdef COVER_DEBUG
+   printf("Checking tree %p :", (void *)t);
+#endif
 
-   enc >>= 2;
-   if (sub_cond) *sub_cond = enc & 0x1f;
-   if (tag) *tag = enc >> 5;
+   intptr_t index = (intptr_t)hash_get(tagging->tree_hash, t);
+   if (index == 0) {
+#ifdef COVER_DEBUG
+      printf("No cover tag\n");
+#endif
+      return false;
+   }
+
+#ifdef COVER_DEBUG
+   printf("Index: %3ld  Tag: %3d  Kind: %d  Subcond: %3d,\n", index - 1,
+            tagging->tags.items[index - 1].tag,
+            tagging->tags.items[index - 1].kind,
+            tagging->tags.items[index - 1].sub_cond);
+#endif
+
+   if (sub_cond)
+      *sub_cond = tagging->tags.items[index - 1].sub_cond;
+   if (tag)
+      *tag = tagging->tags.items[index - 1].tag;
 
    return true;
 }
