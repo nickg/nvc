@@ -1982,8 +1982,10 @@ static vcode_reg_t lower_context_for_call(ident_t unit_name)
    if (vcode_unit_kind() == VCODE_UNIT_THUNK) {
       // This is a hack to make thunks work
       tree_t pack = lib_get_qualified(scope_name);
-      if (pack != NULL && is_package(pack))
+      if (pack != NULL && is_package(pack)) {
+         assert(!is_uninstantiated_package(pack));
          return emit_package_init(scope_name, VCODE_INVALID_REG);
+      }
    }
 
    vcode_state_t state;

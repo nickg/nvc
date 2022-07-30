@@ -1261,16 +1261,6 @@ static bool sem_check_func_result(tree_t t)
    return true;
 }
 
-static void sem_maybe_copy_subprogram(tree_t t, nametab_t *tab)
-{
-   if (standard() >= STD_08) {
-      tree_t unit = find_enclosing(tab, S_DESIGN_UNIT);
-
-      if (is_uninstantiated_package(unit))
-         tree_set_flag(t, TREE_F_ELAB_COPY);
-   }
-}
-
 static bool sem_check_func_decl(tree_t t, nametab_t *tab)
 {
    if (tree_flags(t) & TREE_F_PREDEFINED)
@@ -1282,7 +1272,6 @@ static bool sem_check_func_decl(tree_t t, nametab_t *tab)
    if (!sem_check_func_result(t))
       return false;
 
-   sem_maybe_copy_subprogram(t, tab);
    return true;
 }
 
@@ -1489,7 +1478,6 @@ static bool sem_check_func_body(tree_t t, nametab_t *tab)
    if (fwd != NULL && !sem_check_conforming(fwd, t))
       return false;
 
-   sem_maybe_copy_subprogram(t, tab);
    return true;
 }
 
@@ -1525,7 +1513,6 @@ static bool sem_check_proc_decl(tree_t t, nametab_t *tab)
    if (!sem_check_proc_ports(t, tab))
       return false;
 
-   sem_maybe_copy_subprogram(t, tab);
    return true;
 }
 
@@ -1541,7 +1528,6 @@ static bool sem_check_proc_body(tree_t t, nametab_t *tab)
    // Cleared by wait statement or pcall
    tree_set_flag(t, TREE_F_NEVER_WAITS);
 
-   sem_maybe_copy_subprogram(t, tab);
    return true;
 }
 
@@ -1555,7 +1541,6 @@ static bool sem_check_subprogram_inst(tree_t t, nametab_t *tab)
 
    // Other declarations were checked on the uninstantiated subprogram
 
-   sem_maybe_copy_subprogram(t, tab);
    return true;
 }
 
@@ -1853,8 +1838,6 @@ static bool sem_check_ports(tree_t t)
 
       if (tree_class(p) != C_SIGNAL)
          sem_error(p, "invalid object class for port");
-
-      tree_set_flag(p, TREE_F_ELAB_COPY);
 
       ok &= sem_no_access_file_or_protected(p, tree_type(p), "ports");
    }

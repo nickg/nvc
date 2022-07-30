@@ -338,7 +338,7 @@ typedef enum {
    TREE_F_BUS             = (1 << 7),
    TREE_F_REGISTER        = (1 << 8),
    TREE_F_ELIDE_BOUNDS    = (1 << 9),
-   TREE_F_ELAB_COPY       = (1 << 10),
+   // Unused              = (1 << 10),
    TREE_F_FORMAL_NAME     = (1 << 11),
    TREE_F_SYNTHETIC_NAME  = (1 << 12),
    TREE_F_PREDEFINED      = (1 << 13),

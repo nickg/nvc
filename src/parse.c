@@ -1900,7 +1900,13 @@ static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
    case T_PROT_FCALL:
    case T_PROT_PCALL:
    case T_PCALL:
-      return tree_has_ref(t) && !!(tree_flags(tree_ref(t)) & TREE_F_ELAB_COPY);
+      if (tree_has_ref(t)) {
+         // Copy calls to subprograms in uninstantiated packages so we
+         // can fix them up later
+         return is_uninstantiated_package(tree_container(tree_ref(t)));
+      }
+      else
+         return false;
    case T_REF:
       return tree_has_ref(t) && tree_kind(tree_ref(t)) == T_GENERIC_DECL;
    case T_VAR_DECL:
