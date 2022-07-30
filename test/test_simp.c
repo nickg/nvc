@@ -1332,6 +1332,22 @@ START_TEST(test_issue496)
 }
 END_TEST
 
+START_TEST(test_genpack1)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/genpack1.vhd");
+
+   tree_t top = run_elab();
+
+   tree_t b0 = tree_stmt(top, 0);
+   fail_unless(tree_kind(b0) == T_BLOCK);
+   fail_unless(tree_stmts(b0) == 0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1384,6 +1400,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_simpif1);
    tcase_add_test(tc_core, test_concat);
    tcase_add_test(tc_core, test_issue496);
+   tcase_add_test(tc_core, test_genpack1);
    suite_add_tcase(s, tc_core);
 
    return s;

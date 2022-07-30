@@ -116,8 +116,10 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
          debugf("loading vcode for %s", istr(name));
 
       tree_t unit = lib_get_qualified(name);
-      if (unit != NULL && tree_kind(unit) == T_PACKAGE)
+      if (unit != NULL && tree_kind(unit) == T_PACKAGE) {
+         assert(!is_uninstantiated_package(unit));
          (void)body_of(unit);  // Make sure body is loaded
+      }
 
       vu = vcode_find_unit(name);
    }

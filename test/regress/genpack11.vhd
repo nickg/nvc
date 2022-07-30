@@ -1,11 +1,17 @@
 package pack is generic ( x : string := "foo" ) ;
     constant s : string := x ;
+    constant k : integer;
 end package ;
+
+package body pack is
+    constant k : integer := 42;
+end package body;
 
 -------------------------------------------------------------------------------
 
 package pack2 is
     function get_str return string;
+    constant kk : integer;
 end package ;
 
 package body pack2 is
@@ -17,6 +23,8 @@ package body pack2 is
     begin
         return pack3.s;
     end function;
+
+    constant kk : integer := pack3.k + 1;
 
 end package body ;
 
@@ -35,6 +43,7 @@ begin
     begin
         assert get_str = "bar";
         assert get_str = s;
+        assert kk = 43;
         wait;
     end process;
 

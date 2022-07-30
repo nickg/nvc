@@ -1883,6 +1883,8 @@ static bool instantiate_should_copy_type(type_t type, void *__ctx)
 
 static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
 {
+   instantiate_copy_ctx_t *ctx = __ctx;
+
    switch (tree_kind(t)) {
    case T_FUNC_DECL:
    case T_PROC_DECL:
@@ -1908,6 +1910,9 @@ static bool instantiate_should_copy_tree(tree_t t, void *__ctx)
       return true;
    case T_GENERIC_DECL:
       return true;
+   case T_CONST_DECL:
+      // Make a unique copy of all public constants in the package
+      return tree_container(t) == ctx->decl;
    default:
       return false;
    }
