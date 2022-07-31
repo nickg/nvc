@@ -116,7 +116,7 @@ static void cover_tag_conditions(tree_t t, cover_tagging_t *ctx, int branch)
       .kind     = TAG_COND,
       .loc      = 0,
       .tag      = tag,
-      .sub_cond = ctx->next_sub_cond++,
+      .sub_cond = (ctx->next_sub_cond++),
       .hit_cnt  = 0,
       .tree     = t
    };
@@ -204,7 +204,28 @@ static void cover_tag_visit_fn(tree_t t, void *context)
    }
 }
 
-void cover_dump_tags(cover_tagging_t *ctx, tree_t top, bool dump_rt_cnts, int32_t *stmts, int32_t *conds)
+void cover_print_tags(cover_tagging_t *ctx, bool dump_rt_cnts,
+                      int32_t *stmts, int32_t *conds)
+{
+   printf("Printing cover tags...\n");
+   printf("Tag count: %d\n", ctx->tags.count);
+
+   for (int i = 0; i < ctx->tags.count; i++) {
+      cover_tag_t *tag = &(ctx->tags.items[i]);
+      int32_t hit_cnt;
+      if (dump_rt_cnts) {
+         hit_cnt = (tag->kind == TAG_STMT) ? stmts[tag->tag] : conds[tag->tag];
+      } else {
+         hit_cnt = tag->hit_cnt;
+      }
+      
+      printf("Index: %4d  Tag: %4d  Kind: %d  Subcond: %4d  Hit Count: %4d Tree: %p\n", i,
+               tag->tag, tag->kind, tag->sub_cond, hit_cnt, (void *) tag->tree);
+   }
+}
+
+void cover_dump_tags(cover_tagging_t *ctx, tree_t top, bool dump_rt_cnts,
+                     int32_t *stmts, int32_t *conds)
 {
    char *dbname LOCAL = xasprintf("_%s.covdb", istr(tree_ident(top)));
    fbuf_t *f = lib_fbuf_open(lib_work(), dbname, FBUF_OUT, FBUF_CS_NONE);
@@ -216,18 +237,8 @@ void cover_dump_tags(cover_tagging_t *ctx, tree_t top, bool dump_rt_cnts, int32_
 
    loc_wr_ctx_t *loc_wr = loc_write_begin(f);
 
-#ifdef COVER_DEBUG
-   printf("Dumping cover tags...\n");
-   printf("Tag count: %d\n", ctx->tags.count);
-#endif
-
    for (int i = 0; i < ctx->tags.count; i++) {
       cover_tag_t *tag = &(ctx->tags.items[i]);
-
-#ifdef COVER_DEBUG
-      printf("Index: %4d  Tag: %4d  Kind: %d  Subcond: %4d  Hit Count: %4d  Tree: %p\n", i,
-               tag->tag, tag->kind, tag->sub_cond, tag->hit_cnt, (void *) tag->tree);
-#endif
 
       write_u8(tag->kind, f);
       write_u32(tag->tag, f);
@@ -254,7 +265,7 @@ void cover_dump_tags(cover_tagging_t *ctx, tree_t top, bool dump_rt_cnts, int32_
 cover_tagging_t *cover_tag(tree_t top)
 {
    cover_tagging_t *ctx = xcalloc(sizeof(cover_tagging_t));
-   ctx->tree_hash = hash_new(1024, true);
+   ctx->tree_hash = hash_new(1024);
 
    tree_visit(top, cover_tag_visit_fn, ctx);
 
@@ -262,6 +273,10 @@ cover_tagging_t *cover_tag(tree_t top)
       return ctx;
 
    cover_dump_tags(ctx, top, false, NULL, NULL);
+
+#ifdef COVER_DEBUG
+   cover_print_tags(ctx, false, NULL, NULL);
+#endif
 
    return ctx;
 }
@@ -327,15 +342,15 @@ bool cover_is_tagged(cover_tagging_t *tagging, tree_t t,
    if (tagging == NULL)
       return false;
 
+#ifdef COVER_DEBUG
+   printf("Checking tree %p :", (void *)t);
+#endif
+
    // Push to array is post-insert so has index is offset by 0,
    // thus:
    //    0 -> no tag
    //    1 -> Index 0
    //    n -> Index n - 
-#ifdef COVER_DEBUG
-   printf("Checking tree %p :", (void *)t);
-#endif
-
    intptr_t index = (intptr_t)hash_get(tagging->tree_hash, t);
    if (index == 0) {
 #ifdef COVER_DEBUG
