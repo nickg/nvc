@@ -131,6 +131,7 @@ struct text_buf {
 };
 
 static bool            want_color = false;
+static bool            want_links = false;
 static guard_t        *guards;
 static message_style_t message_style = MESSAGE_FULL;
 static sig_atomic_t    crashing = 0;
@@ -308,7 +309,7 @@ static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain)
                escape_start = NULL;
             }
             else if (strncmp(e, "link:", 5) == 0) {
-               if (want_color && !force_plain) {
+               if (want_links && !force_plain) {
                   tb_cat(tb, "\033]8;;");
                   tb_catn(tb, e + 5, len - 5);
                   tb_cat(tb, "\033]8;;\07");
@@ -316,7 +317,7 @@ static char *ansi_vasprintf(const char *fmt, va_list ap, bool force_plain)
                else {
                   const char *bel = strchr(e, '\07');
                   if (bel && bel < e + len)
-                     tb_catn(tb, bel, e + len - bel);
+                     tb_catn(tb, bel + 1, e + len - bel - 1);
                }
                escape_start = NULL;
             }
@@ -885,6 +886,9 @@ void term_init(void)
 #endif
    }
 #endif
+
+   // Only print link escape codes if this is really a terminal
+   want_links = want_color && is_tty;
 
    // Diagnostics are printed to stderr and explicitly flushed
    setvbuf(stderr, NULL, _IOLBF, 0);
