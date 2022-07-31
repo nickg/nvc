@@ -109,9 +109,12 @@ static parking_bay_t parking_bays[PARKING_BAYS] = {
    }
 };
 
+#ifdef DEBUG
 static lock_stats_t lock_stats[MAX_THREADS];
-static unsigned     max_workers = 0;
-static int          last_thread_id = -1;
+#endif
+
+static unsigned max_workers = 0;
+static int      last_thread_id = -1;
 
 static __thread nvc_thread_t *my_thread = NULL;
 
@@ -283,8 +286,7 @@ static void lock_unpark_cb(parking_bay_t *bay, void *cookie)
 {
    nvc_lock_t *lock = cookie;
 
-   const int8_t state = relaxed_load(lock);
-   assert(state == (IS_LOCKED | HAS_PARKED));
+   assert(relaxed_load(lock) == (IS_LOCKED | HAS_PARKED));
 
    // Unlock must have release semantics
    atomic_store(lock, (bay->parked > 0 ? HAS_PARKED : 0));
