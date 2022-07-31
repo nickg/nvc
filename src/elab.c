@@ -203,8 +203,9 @@ static bool elab_should_copy_tree(tree_t t, void *__ctx)
          tree_t decl = tree_ref(t);
          switch (tree_kind(decl)) {
          case T_GENERIC_DECL:
-         case T_PORT_DECL:
             return true;
+         case T_PORT_DECL:
+            return !!(tree_flags(decl) & TREE_F_UNCONSTRAINED);
          case T_ENTITY:
          case T_ARCH:
          case T_BLOCK:
@@ -985,7 +986,7 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
          tree_add_param(ctx->out, map);
       }
 
-      if (type_is_unconstrained(tree_type(p)))
+      if (tree_flags(p) & TREE_F_UNCONSTRAINED)
          tree_add_port(ctx->out, elab_unconstrained_port(p, map, ctx));
       else
          tree_add_port(ctx->out, p);

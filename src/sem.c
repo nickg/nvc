@@ -1042,6 +1042,12 @@ static bool sem_check_port_decl(tree_t t, nametab_t *tab)
    if (!sem_check_subtype(t, type, tab))
       return false;
 
+   if (type_is_unconstrained(type)) {
+      // This port needs to be copied and updated to a constrained type
+      // during elaboration
+      tree_set_flag(t, TREE_F_UNCONSTRAINED);
+   }
+
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);
       if (!sem_check(value, tab))
