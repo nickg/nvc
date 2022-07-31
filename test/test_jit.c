@@ -936,7 +936,8 @@ START_TEST(test_process1)
    input_from_file(TESTDIR "/jit/process1.vhd");
 
    const error_t expect[] = {
-      {  9, "hello, world" },
+      { 10, "hello, world" },
+      { 13, "after 1 ns" },
       { -1, NULL },
    };
    expect_errors(expect);
@@ -957,9 +958,16 @@ START_TEST(test_process1)
    int32_t *fsm_ptr = p1_state + 2*sizeof(void *);
    ck_assert_int_eq(*fsm_ptr, 1);
 
-   fail_unless(jit_pcall(j, p1, p1_state, inst, "").pointer == NULL);
+   int32_t *x_ptr = p1_state + 2*sizeof(void *) + sizeof(int32_t);
+   ck_assert_int_eq(*x_ptr, INT32_MIN);
 
+   fail_unless(jit_pcall(j, p1, p1_state, inst, "").pointer == NULL);
    ck_assert_int_eq(*fsm_ptr, 2);
+   ck_assert_int_eq(*x_ptr, 42);
+
+   jit_pcall(j, p1, p1_state, inst, "");
+   ck_assert_int_eq(*fsm_ptr, 3);
+   ck_assert_int_eq(*x_ptr, 43);
 
    jit_free(j);
    check_expected_errors();
