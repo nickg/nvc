@@ -36,7 +36,6 @@ bool folded_bounds_real(tree_t r, double *low, double *high);
 tree_t get_int_lit(tree_t t, type_t type, int64_t i);
 tree_t get_enum_lit(tree_t t, type_t type, int pos);
 tree_t get_real_lit(tree_t t, type_t type, double r);
-bool parse_value(type_t type, const char *str, int64_t *value);
 tree_t make_ref(tree_t to);
 int record_field_to_net(type_t type, unsigned pos);
 tree_t find_record_field(tree_t rref);
@@ -89,6 +88,13 @@ const char *fmt_time(uint64_t t);
 
 #define MAX_CONSTRAINTS 8
 int pack_constraints(type_t type, tree_t out[MAX_CONSTRAINTS]);
+
+typedef union {
+   int64_t integer;
+   double  real;
+} scalar_value_t;
+
+bool parse_value(type_t type, const char *str, scalar_value_t *value);
 
 //
 // Utility typedefs

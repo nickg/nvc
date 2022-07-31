@@ -266,14 +266,15 @@ tree_t get_real_lit(tree_t t, type_t type, double r)
    return f;
 }
 
-bool parse_value(type_t type, const char *str, int64_t *value)
+bool parse_value(type_t type, const char *str, scalar_value_t *value)
 {
    while (isspace((int)*str))
       ++str;
 
    type_t base = type_base_recur(type);
+   const type_kind_t basek = type_kind(base);
 
-   switch (type_kind(base)) {
+   switch (basek) {
    case T_INTEGER:
       {
          bool is_negative = *str == '-';
@@ -292,16 +293,10 @@ bool parse_value(type_t type, const char *str, int64_t *value)
             ++str;
          }
 
-         if (is_negative) {
-            *value = -sum;
-         }
-         else {
-            *value = sum;
-         }
+         value->integer = is_negative ? -sum : sum;
 
-         if (num_digits == 0) {
+         if (num_digits == 0)
             return false;
-         }
       }
       break;
 
@@ -319,31 +314,66 @@ bool parse_value(type_t type, const char *str, int64_t *value)
 
          ident_t id = ident_new(copy);
 
-         *value = -1;
+         value->integer = -1;
 
          const int nlits = type_enum_literals(base);
-         for (int i = 0; (*value == -1) && (i < nlits); i++) {
-            if (tree_ident(type_enum_literal(base, i)) == id)
-               *value = i;
+         for (int i = 0; i < nlits; i++) {
+            if (tree_ident(type_enum_literal(base, i)) == id) {
+               value->integer = i;
+               break;
+            }
          }
 
-         if (*value == -1)
+         if (value->integer == -1)
             return false;
       }
       break;
+
+   case T_REAL:
+      {
+         char *eptr = NULL;
+         value->real = strtod(str, &eptr);
+         str = eptr;
+      }
+      break;
+
+   case T_PHYSICAL:
+      {
+         char *eptr = NULL;
+         double scale = strtod(str, &eptr);
+         str = eptr;
+
+         while (isspace((int)*str)) ++str;
+
+         char *copy LOCAL = xstrdup(str), *p;
+         for (p = copy; *p && !isspace((int)*p); p++, str++)
+            *p = toupper((int)*p);
+         *p = '\0';
+
+         ident_t id = ident_new(copy);
+
+         value->integer = -1;
+
+         const int nunits = type_units(base);
+         for (int i = 0; i < nunits; i++) {
+            tree_t u = type_unit(base, i);
+            if (tree_ident(u) == id) {
+               value->integer = scale * assume_int(tree_value(u));
+               break;
+            }
+         }
+
+         if (value->integer == -1)
+            return false;
+      }
 
    default:
       break;
    }
 
-   while (*str != '\0') {
-      if (!isspace((int)*str)) {
-         str++;
+   for (; *str; str++) {
+      if (!isspace((int)*str))
          return false;
-      }
-      else {
-         str++;
-      }
    }
 
    return true;
@@ -890,12 +920,7 @@ int64_t rebase_index(type_t array_type, int dim, int64_t value)
 tree_t str_to_literal(const char *start, const char *end, type_t type)
 {
    tree_t t = tree_new(T_STRING);
-
-   type_t elem = NULL;
-   if (type != NULL) {
-      tree_set_type(t, type);
-      elem = type_elem(type);
-   }
+   type_t elem = type ? type_elem(type) : NULL;
 
    for (const char *p = start; *p != '\0' && p != end; p++) {
       if (*(const unsigned char *)p == 0x81)
@@ -918,6 +943,9 @@ tree_t str_to_literal(const char *start, const char *end, type_t type)
          }
       }
    }
+
+   if (type != NULL)
+      tree_set_type(t, subtype_for_string(t, type));
 
    return t;
 }

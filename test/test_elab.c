@@ -1133,6 +1133,29 @@ START_TEST(test_neorv1)
 }
 END_TEST
 
+START_TEST(test_toplevel4)
+{
+   elab_set_generic("CONFIG", "hello");
+   elab_set_generic("R", "2.5");
+   elab_set_generic("T", "5000 us");
+
+   input_from_file(TESTDIR "/elab/toplevel4.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b0 = tree_stmt(e, 0);
+   fail_unless(tree_ident(b0) == ident_new("TOPLEVEL4"));
+   fail_unless(tree_stmts(b0) == 0);
+
+   tree_t m0 = tree_value(tree_genmap(b0, 0));
+   fail_unless(tree_kind(m0) == T_STRING);
+   fail_unless(type_kind(tree_type(m0)) == T_SUBTYPE);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1198,6 +1221,7 @@ Suite *get_elab_tests(void)
    tcase_add_exit_test(tc, test_link1, 1);
    tcase_add_test(tc, test_generate1);
    tcase_add_test(tc, test_neorv1);
+   tcase_add_test(tc, test_toplevel4);
    suite_add_tcase(s, tc);
 
    return s;

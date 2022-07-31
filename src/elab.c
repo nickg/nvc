@@ -1619,7 +1619,7 @@ static tree_t elab_generic_parse(tree_t generic, const char *str)
    if (type_is_array(type) && type_is_enum(type_elem(type)))
       return str_to_literal(str, NULL, type);
 
-   int64_t value;
+   scalar_value_t value;
    if (!parse_value(type, str, &value))
       fatal("failed to parse \"%s\" as type %s for generic %s",
             str, type_pp(type), istr(tree_ident(generic)));
@@ -1628,7 +1628,7 @@ static tree_t elab_generic_parse(tree_t generic, const char *str)
       tree_t result = tree_new(T_REF);
       tree_set_type(result, type);
       tree_set_ident(result, ident_new(str));
-      tree_set_ref(result, type_enum_literal(type, value));
+      tree_set_ref(result, type_enum_literal(type, value.integer));
 
       return result;
    }
@@ -1636,7 +1636,23 @@ static tree_t elab_generic_parse(tree_t generic, const char *str)
       tree_t result = tree_new(T_LITERAL);
       tree_set_subkind(result, L_INT);
       tree_set_type(result, type);
-      tree_set_ival(result, value);
+      tree_set_ival(result, value.integer);
+
+      return result;
+   }
+   else if (type_is_real(type)) {
+      tree_t result = tree_new(T_LITERAL);
+      tree_set_subkind(result, L_REAL);
+      tree_set_type(result, type);
+      tree_set_dval(result, value.real);
+
+      return result;
+   }
+   else if (type_is_physical(type)) {
+      tree_t result = tree_new(T_LITERAL);
+      tree_set_subkind(result, L_PHYSICAL);
+      tree_set_type(result, type);
+      tree_set_ival(result, value.integer);
 
       return result;
    }
