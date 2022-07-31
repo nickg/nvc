@@ -763,6 +763,77 @@ static tree_t elab_unconstrained_port(tree_t port, tree_t map, elab_ctx_t *ctx)
    return p2;
 }
 
+static tree_t elab_change_ref(tree_t name, tree_t new)
+{
+   switch (tree_kind(name)) {
+   case T_REF:
+      return make_ref(new);
+
+   case T_ARRAY_REF:
+      {
+         tree_t t = tree_new(T_ARRAY_REF);
+         tree_set_loc(t, tree_loc(name));
+         tree_set_value(t, elab_change_ref(tree_value(name), new));
+         tree_set_type(t, tree_type(name));
+
+         const int nparams = tree_params(name);
+         for (int i = 0; i < nparams; i++)
+            tree_add_param(t, tree_param(name, i));
+
+         return t;
+      }
+
+   case T_ARRAY_SLICE:
+      {
+         tree_t t = tree_new(T_ARRAY_SLICE);
+         tree_set_loc(t, tree_loc(name));
+         tree_set_value(t, elab_change_ref(tree_value(name), new));
+         tree_set_type(t, tree_type(name));
+         tree_add_range(t, tree_range(name, 0));
+
+         return t;
+      }
+
+   case T_RECORD_REF:
+      {
+         tree_t t = tree_new(T_RECORD_REF);
+         tree_set_loc(t, tree_loc(name));
+         tree_set_value(t, elab_change_ref(tree_value(name), new));
+         tree_set_type(t, tree_type(name));
+         tree_set_ident(t, tree_ident(name));
+         tree_set_ref(t, tree_ref(name));
+
+         return t;
+      }
+
+   case T_CONV_FUNC:
+      {
+         tree_t t = tree_new(T_CONV_FUNC);
+         tree_set_loc(t, tree_loc(name));
+         tree_set_value(t, elab_change_ref(tree_value(name), new));
+         tree_set_ident(t, tree_ident(name));
+         tree_set_type(t, tree_type(name));
+         tree_set_ref(t, tree_ref(name));
+
+         return t;
+      }
+
+   case T_TYPE_CONV:
+      {
+         tree_t t = tree_new(T_TYPE_CONV);
+         tree_set_loc(t, tree_loc(name));
+         tree_set_type(t, tree_type(name));
+         tree_set_value(t, elab_change_ref(tree_value(name), new));
+
+         return t;
+      }
+
+   default:
+      fatal_trace("cannot handle tree kind %s in elab_change_ref",
+                  tree_kind_str(tree_kind(name)));
+   }
+}
+
 static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
 {
    const int nports = tree_ports(entity);
@@ -832,43 +903,40 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
          for (int j = 0; j < nparams; j++) {
             tree_t m = tree_param(inst, j);
             if (tree_subkind(m) == P_NAMED) {
-               tree_t name = tree_name(m);
+               tree_t name = tree_name(m), ref;
                bool is_conv = false;
 
                switch (tree_kind(name)) {
                case T_TYPE_CONV:
                case T_CONV_FUNC:
                   is_conv = true;
-                  name = tree_value(name);
+                  ref = name_to_ref(tree_value(name));
                   break;
                default:
+                  ref = name_to_ref(name);
                   break;
                }
-
-               tree_t ref = name_to_ref(name);
                assert(ref != NULL);
 
                if (tree_ident(ref) != pname)
                   continue;
 
+               map = tree_new(T_PARAM);
+               tree_set_loc(map, tree_loc(m));
+               tree_set_value(map, tree_value(m));
+
+               tree_add_param(ctx->out, map);
+
                if (!have_named && !is_conv && ref == name) {
-                  map = tree_new(T_PARAM);
-                  tree_set_loc(map, tree_loc(m));
                   tree_set_subkind(map, P_POS);
                   tree_set_pos(map, i);
-                  tree_set_value(map, tree_value(m));
-
-                  tree_add_param(ctx->out, map);
                   break;
                }
-
-               // Make sure the map points to the right copy of the port
-               // object. This is safe because elab_should_copy() always
-               // copies entity ports.
-               tree_set_ref(ref, p);
-
-               tree_add_param(ctx->out, (map = m));
-               have_named = true;
+               else {
+                  tree_set_subkind(map, P_NAMED);
+                  tree_set_name(map, elab_change_ref(tree_name(m), p));
+                  have_named = true;
+               }
             }
             else if (tree_ident(tree_port(comp, tree_pos(m))) == pname) {
                map = tree_new(T_PARAM);

@@ -1104,6 +1104,35 @@ START_TEST(test_generate1)
 }
 END_TEST
 
+START_TEST(test_neorv1)
+{
+   input_from_file(TESTDIR "/elab/neorv1.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b0 = tree_stmt(e, 0);
+   fail_unless(tree_ident(b0) == ident_new("NEORV1"));
+   fail_unless(tree_stmts(b0) == 2);
+
+   tree_t g0 = tree_stmt(b0, 0);
+   fail_unless(tree_ident(g0) == ident_new("G(0)"));
+   fail_unless(tree_kind(g0) == T_BLOCK);
+   fail_unless(tree_stmts(g0) == 1);
+
+   tree_t u = tree_stmt(g0, 0);
+   fail_unless(tree_kind(u) == T_BLOCK);
+   tree_t p0 = tree_port(u, 0);
+   tree_t m0 = tree_param(u, 0);
+   fail_unless(tree_subkind(m0) == P_NAMED);
+   tree_t n = tree_name(m0);
+   fail_unless(tree_kind(n) == T_ARRAY_REF);
+   fail_unless(tree_ref(tree_value(n)) == p0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1168,6 +1197,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_issue459);
    tcase_add_exit_test(tc, test_link1, 1);
    tcase_add_test(tc, test_generate1);
+   tcase_add_test(tc, test_neorv1);
    suite_add_tcase(s, tc);
 
    return s;
