@@ -757,6 +757,22 @@ static ident_t get_implicit_label(tree_t t, const loc_t *loc)
       c = 'L';
       break;
 
+   case T_WAIT:
+   case T_ASSERT:
+   case T_IF:
+   case T_NULL:
+   case T_RETURN:
+   case T_CASE:
+   case T_EXIT:
+   case T_NEXT:
+   case T_SIGNAL_ASSIGN:
+   case T_VAR_ASSIGN:
+   case T_PROT_PCALL:
+   case T_PCALL:
+      cnt = &(imp_label_cnts.stmt);
+      c = 'S';
+      break;
+
    default:
       return loc_to_ident(loc);
    }
@@ -7137,6 +7153,7 @@ static tree_t p_subprogram_body(tree_t spec)
    // Reset label counter since 'subprogram_statement_part' is in new
    // declarative scope where loop statements can occur.
    imp_label_cnts.loop = 0;
+   imp_label_cnts.stmt = 0;
    p_sequence_of_statements(spec);
 
    consume(tEND);
@@ -7274,6 +7291,7 @@ static void p_process_statement_part(tree_t proc)
    // Reset label counter since 'process_statement_part' is in new
    // declarative scope where loop statements can occur.
    imp_label_cnts.loop = 0;
+   imp_label_cnts.stmt = 0;
    p_sequence_of_statements(proc);
 }
 
