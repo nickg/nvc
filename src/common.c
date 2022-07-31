@@ -1589,7 +1589,7 @@ tree_t longest_static_prefix(tree_t expr)
    case T_ARRAY_REF:
       {
          tree_t value = tree_value(expr);
-         tree_t prefix = longest_static_prefix(tree_value(expr));
+         tree_t prefix = longest_static_prefix(value);
 
          if (prefix != value)
             return prefix;
@@ -1606,7 +1606,7 @@ tree_t longest_static_prefix(tree_t expr)
    case T_ARRAY_SLICE:
       {
          tree_t value = tree_value(expr);
-         tree_t prefix = longest_static_prefix(tree_value(expr));
+         tree_t prefix = longest_static_prefix(value);
 
          if (prefix != value)
             return prefix;
@@ -1614,6 +1614,7 @@ tree_t longest_static_prefix(tree_t expr)
          const int nranges = tree_ranges(expr);
          for (int i = 0; i < nranges; i++) {
             tree_t r = tree_range(expr, i);
+            assert(tree_subkind(r) != RANGE_EXPR);
             if (!is_static(tree_left(r)) || !is_static(tree_right(r)))
                return prefix;
          }
@@ -1624,7 +1625,7 @@ tree_t longest_static_prefix(tree_t expr)
    case T_RECORD_REF:
       {
          tree_t value = tree_value(expr);
-         tree_t prefix = longest_static_prefix(tree_value(expr));
+         tree_t prefix = longest_static_prefix(value);
 
          if (prefix != value)
             return prefix;

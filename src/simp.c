@@ -15,13 +15,14 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "phase.h"
 #include "util.h"
+#include "array.h"
 #include "common.h"
+#include "diag.h"
 #include "eval.h"
 #include "hash.h"
+#include "phase.h"
 #include "type.h"
-#include "array.h"
 
 #include <assert.h>
 #include <string.h>
@@ -532,9 +533,6 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
                name_kind = tree_kind(name);
             }
          }
-
-         if (name_kind != T_REF)
-            return t;   // Cannot fold this
 
          type_t type = tree_type(name);
          int64_t dim_i = 1;

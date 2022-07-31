@@ -636,3 +636,4 @@ record36        normal,2008
 issue497        normal,2008
 implicit4       normal
 genpack11       normal,2008
+signal25        normal,2008
