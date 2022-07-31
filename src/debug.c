@@ -408,22 +408,48 @@ typedef struct {
    int           fd;
 } libdwarf_handle_t;
 
-static bool libdwarf_die_has_pc(Dwarf_Die die, Dwarf_Addr pc)
+static bool libdwarf_die_has_pc(libdwarf_handle_t *handle, Dwarf_Die die,
+                                Dwarf_Addr pc)
 {
    Dwarf_Addr low_pc = 0, high_pc = 0;
 
-   if (dwarf_lowpc(die, &low_pc, NULL) != DW_DLV_OK)
-      return false;
-
-   Dwarf_Half form;
-   enum Dwarf_Form_Class class;
-   if (dwarf_highpc_b(die, &high_pc, &form, &class, NULL) == DW_DLV_OK) {
-      if (class == DW_FORM_CLASS_CONSTANT)
-         high_pc += low_pc;   // DWARF4
-      return pc >= low_pc && pc < high_pc;
+   if (dwarf_lowpc(die, &low_pc, NULL) == DW_DLV_OK) {
+      Dwarf_Half form;
+      enum Dwarf_Form_Class class;
+      if (dwarf_highpc_b(die, &high_pc, &form, &class, NULL) == DW_DLV_OK) {
+         if (class == DW_FORM_CLASS_CONSTANT)
+            high_pc += low_pc;   // DWARF4
+         return pc >= low_pc && pc < high_pc;
+      }
    }
 
-   return false;
+   Dwarf_Attribute attr;
+   if (dwarf_attr(die, DW_AT_ranges, &attr, NULL) != DW_DLV_OK)
+      return false;
+
+   Dwarf_Off offset;
+   if (dwarf_global_formref(attr, &offset, NULL) != DW_DLV_OK)
+      return false;
+
+   Dwarf_Ranges *ranges;
+   Dwarf_Signed ranges_count = 0;
+   Dwarf_Unsigned byte_count = 0;
+   bool result = false;
+
+   if (dwarf_get_ranges_a(handle->debug, offset, die, &ranges, &ranges_count,
+                          &byte_count, NULL) == DW_DLV_OK) {
+      for (int i = 0; i < ranges_count; i++) {
+         if (ranges[i].dwr_addr1 != 0 &&
+             pc >= ranges[i].dwr_addr1 + low_pc &&
+             pc < ranges[i].dwr_addr2 + low_pc) {
+            result = true;
+            break;
+         }
+      }
+      dwarf_ranges_dealloc(handle->debug, ranges, ranges_count);
+   }
+
+   return result;
 }
 
 static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
@@ -505,7 +531,7 @@ static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
       }
       else if (tag != DW_TAG_subprogram && tag != DW_TAG_inlined_subroutine)
          continue;
-      else if (!libdwarf_die_has_pc(child, rel_addr))
+      else if (!libdwarf_die_has_pc(handle, child, rel_addr))
          continue;
 
       char *name;
@@ -591,7 +617,7 @@ static bool libdwarf_scan_aranges(libdwarf_handle_t *handle,
    else if (tag != DW_TAG_compile_unit)
       goto free_die;
 
-   if (libdwarf_die_has_pc(die, rel_addr)) {
+   if (libdwarf_die_has_pc(handle, die, rel_addr)) {
       libdwarf_get_srcline(handle, die, rel_addr, frame);
       libdwarf_get_symbol(handle, die, rel_addr, frame);
       found = true;
@@ -625,7 +651,7 @@ static bool libdwarf_scan_cus(libdwarf_handle_t *handle,
       else if (tag != DW_TAG_compile_unit)
          goto free_die;
 
-      if (libdwarf_die_has_pc(die, rel_addr)) {
+      if (libdwarf_die_has_pc(handle, die, rel_addr)) {
          libdwarf_get_srcline(handle, die, rel_addr, frame);
          libdwarf_get_symbol(handle, die, rel_addr, frame);
          found = true;
