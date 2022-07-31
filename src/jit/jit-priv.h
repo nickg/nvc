@@ -96,7 +96,6 @@ typedef enum {
    JIT_EXIT_OVERFLOW,
    JIT_EXIT_NULL_DEREF,
    JIT_EXIT_LENGTH_FAIL,
-   JIT_EXIT_WAIT,
    JIT_EXIT_UNREACHABLE,
    JIT_EXIT_DIV_ZERO,
    JIT_EXIT_EXPONENT_FAIL,
@@ -105,6 +104,7 @@ typedef enum {
    JIT_EXIT_INT_TO_STRING,
    JIT_EXIT_REAL_TO_STRING,
    JIT_EXIT_RANGE_FAIL,
+   JIT_EXIT_FUNC_WAIT,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

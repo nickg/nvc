@@ -70,8 +70,12 @@ void jit_limit_backedges(jit_t *j, int limit);
 
 jit_scalar_t jit_call(jit_t *j, ident_t func, void *context,
                       const char *fmt, ...);
+jit_scalar_t jit_pcall(jit_t *j, ident_t func, void *state, void *context,
+                       const char *fmt, ...);
 bool jit_try_call(jit_t *j, ident_t func, void *context, jit_scalar_t *result,
                   const char *fmt, ...);
+bool jit_try_pcall(jit_t *j, ident_t func, void *state, void *context,
+                   const char *fmt, ...);
 bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result);
 
 #endif   // _JIT_H

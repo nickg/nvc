@@ -440,6 +440,8 @@ static void interp_store(jit_interp_t *state, jit_ir_t *ir)
    jit_scalar_t arg2 = interp_get_value(state, ir->arg2);
 
    JIT_ASSERT(ir->size != JIT_SZ_UNSPEC);
+   JIT_ASSERT(arg2.pointer != NULL);
+   JIT_ASSERT((uintptr_t)arg2.pointer >= 4096);
 
    switch (ir->size) {
    case JIT_SZ_8:
@@ -896,12 +898,6 @@ static void interp_exponent_fail(jit_interp_t *state)
                 "allowed for floating-point types", value);
 }
 
-static void interp_wait(jit_interp_t *state)
-{
-   // Silently abort for evaluation
-   state->abort = true;
-}
-
 static void interp_unreachable(jit_interp_t *state)
 {
    tree_t where = state->args[0].pointer;
@@ -911,6 +907,11 @@ static void interp_unreachable(jit_interp_t *state)
                    istr(tree_ident(where)));
    else
       fatal_trace("executed unreachable instruction");
+}
+
+static void interp_func_wait(jit_interp_t *state)
+{
+   interp_error(state, NULL, "cannot wait inside function call");
 }
 
 static void interp_report(jit_interp_t *state)
@@ -1016,10 +1017,6 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
       interp_length_fail(state);
       break;
 
-   case JIT_EXIT_WAIT:
-      interp_wait(state);
-      break;
-
    case JIT_EXIT_UNREACHABLE:
       interp_unreachable(state);
       break;
@@ -1050,6 +1047,10 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_RANGE_FAIL:
       interp_range_fail(state);
+      break;
+
+   case JIT_EXIT_FUNC_WAIT:
+      interp_func_wait(state);
       break;
 
    default:

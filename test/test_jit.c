@@ -147,9 +147,9 @@ START_TEST(test_context1)
 
    int x;
    ident_t fn3 = ident_new("WORK.PACK.READ_ELT(7NATURALI)");
-   fail_unless(jit_try_call(j, fn3, ctx, &result, "ip", 1, &x));
+   fail_unless(jit_try_pcall(j, fn3, NULL, ctx, "ip", 1, &x));
    ck_assert_int_eq(x, 10);
-   fail_unless(jit_try_call(j, fn3, ctx, &result, "ip", 5, &x));
+   fail_unless(jit_try_pcall(j, fn3, NULL, ctx, "ip", 5, &x));
    ck_assert_int_eq(x, 50);
 
    jit_free(j);
@@ -360,22 +360,21 @@ START_TEST(test_access1)
    p[1] = 0xdeadbeef;
 
    ident_t deref = ident_new("WORK.ACCESS1.DEREF(20WORK.ACCESS1.INT_PTRI)");
-   jit_call(j, deref, NULL, "pp", p, p + 1);
+   jit_pcall(j, deref, NULL, NULL, "pp", p, p + 1);
    ck_assert_int_eq(p[1], 42);
 
-   jit_scalar_t result;
-   fail_if(jit_try_call(j, deref, NULL, &result, "pp", NULL, p + 1));
+   fail_if(jit_try_pcall(j, deref, NULL, NULL, "pp", NULL, p + 1));
    ck_assert_int_eq(p[1], 42);
 
    ident_t test1 = ident_new("WORK.ACCESS1.TEST1(20WORK.ACCESS1.INT_PTR)");
-   jit_call(j, test1, NULL, "p", p);
+   jit_pcall(j, test1, NULL, NULL, "p", p);
    ck_assert_int_eq(p[1], 0);
 
    ident_t oom = ident_new("WORK.ACCESS1.OOM");
-   fail_if(jit_try_call(j, oom, NULL, &result, ""));
+   fail_if(jit_try_pcall(j, oom, NULL, NULL, ""));
 
    ident_t gc_a_lot = ident_new("WORK.ACCESS1.GC_A_LOT");
-   fail_unless(jit_try_call(j, gc_a_lot, NULL, &result, ""));
+   fail_unless(jit_try_pcall(j, gc_a_lot, NULL, NULL, ""));
 
    jit_free(j);
    check_expected_errors();
@@ -402,17 +401,17 @@ START_TEST(test_array1)
 
    ident_t assign = ident_new(
       "WORK.ARRAY1.ASSIGN(14WORK.ARRAY1.IV14WORK.ARRAY1.IV)");
-   jit_call(j, assign, NULL, "uu", a0, 1, 3, a1, 1, 3);
+   jit_pcall(j, assign, NULL, NULL, "uu", a0, 1, 3, a1, 1, 3);
    ck_assert_mem_eq(a0, a1, sizeof(a0));
    a1[0] = 44;
-   jit_call(j, assign, NULL, "uu", a0, 1, 3, a1, -4, 3);
+   jit_pcall(j, assign, NULL, NULL, "uu", a0, 1, 3, a1, -4, 3);
    ck_assert_mem_eq(a0, a1, sizeof(a0));
 
-   jit_scalar_t result;
    a1[0] = 99;
-   fail_if(jit_try_call(j, assign, NULL, &result, "uu", a0, 1, 3, a1, 1, 2));
+   fail_if(jit_try_pcall(j, assign, NULL, NULL, "uu", a0, 1, 3, a1, 1, 2));
    ck_assert_mem_ne(a0, a1, sizeof(a0));
 
+   jit_scalar_t result;
    ident_t get_ints = ident_new("WORK.ARRAY1.GET_INTS(II)14WORK.ARRAY1.IV");
    fail_unless(jit_try_call(j, get_ints, NULL, &result, "ii", 5, -1));
    ck_assert_ptr_nonnull(result.pointer);
@@ -437,7 +436,7 @@ START_TEST(test_array1)
    ck_assert_int_eq(bits[3], 1);
 
    ident_t test2 = ident_new("WORK.ARRAY1.TEST2(S)");
-   fail_unless(jit_try_call(j, test2, NULL, &result, "u", NULL, 1, 0));
+   fail_unless(jit_try_pcall(j, test2, NULL, NULL, "u", NULL, 1, 0));
 
    jit_free(j);
    check_expected_errors();
@@ -474,6 +473,12 @@ START_TEST(test_proc1)
 {
    input_from_file(TESTDIR "/jit/proc1.vhd");
 
+   const error_t expect[] = {
+      { 28, "cannot wait inside function call" },
+      { -1, NULL },
+   };
+   expect_errors(expect);
+
    parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY,
                                   T_PACKAGE, T_PACK_BODY,
                                   T_PACKAGE, T_PACK_BODY);
@@ -488,7 +493,7 @@ START_TEST(test_proc1)
    fail_if(jit_try_call(j, add2, NULL, &result, "i", 10));
 
    jit_free(j);
-   fail_if_errors();
+   check_expected_errors();
 }
 END_TEST
 
@@ -633,15 +638,13 @@ START_TEST(test_assert1)
 
    jit_t *j = jit_new();
 
-   jit_scalar_t result;
-
    ident_t fn1 = ident_new("WORK.ASSERT1.DO_REPORT");
-   fail_unless(jit_try_call(j, fn1, NULL, &result, ""));
+   fail_unless(jit_try_pcall(j, fn1, NULL, NULL, ""));
 
    ident_t fn2 = ident_new("WORK.ASSERT1.DO_ASSERT(I)");
-   fail_unless(jit_try_call(j, fn2, NULL, &result, "i", 10));
-   fail_unless(jit_try_call(j, fn2, NULL, &result, "i", -10));
-   fail_if(jit_try_call(j, fn2, NULL, &result, "i", 555));
+   fail_unless(jit_try_pcall(j, fn2, NULL, NULL, "i", 10));
+   fail_unless(jit_try_pcall(j, fn2, NULL, NULL, "i", -10));
+   fail_if(jit_try_pcall(j, fn2, NULL, NULL, "i", 555));
 
    jit_free(j);
    check_expected_errors();
@@ -928,6 +931,41 @@ START_TEST(test_issue496)
 }
 END_TEST
 
+START_TEST(test_process1)
+{
+   input_from_file(TESTDIR "/jit/process1.vhd");
+
+   const error_t expect[] = {
+      {  9, "hello, world" },
+      { -1, NULL },
+   };
+   expect_errors(expect);
+
+   tree_t top = run_elab();
+   lower_unit(top, NULL);
+
+   jit_t *j = jit_new();
+
+   jit_handle_t root = jit_lazy_compile(j, ident_new("WORK.PROCESS1"));
+   void *inst = jit_link(j, root);
+   fail_if(inst == NULL);
+
+   ident_t p1 = ident_new("WORK.PROCESS1.P1");
+   void *p1_state = jit_pcall(j, p1, NULL, inst, "").pointer;
+   fail_if(p1_state == NULL);   // TODO: stateless process
+
+   int32_t *fsm_ptr = p1_state + 2*sizeof(void *);
+   ck_assert_int_eq(*fsm_ptr, 1);
+
+   fail_unless(jit_pcall(j, p1, p1_state, inst, "").pointer == NULL);
+
+   ck_assert_int_eq(*fsm_ptr, 2);
+
+   jit_free(j);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -958,6 +996,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_range1);
    tcase_add_test(tc, test_trace1);
    tcase_add_test(tc, test_issue496);
+   tcase_add_test(tc, test_process1);
    suite_add_tcase(s, tc);
 
    return s;

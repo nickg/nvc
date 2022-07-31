@@ -19,6 +19,7 @@
 #include "diag.h"
 #include "jit/jit-priv.h"
 #include "lib.h"
+#include "mask.h"
 #include "opt.h"
 #include "tree.h"
 #include "vcode.h"
@@ -85,6 +86,12 @@ static inline jit_value_t jit_value_from_frame_addr(int offset)
 static inline jit_value_t jit_value_from_cpool_addr(int offset)
 {
    jit_value_t value = { .kind = JIT_ADDR_CPOOL, .int64 = offset };
+   return value;
+}
+
+static inline jit_value_t jit_null_ptr(void)
+{
+   jit_value_t value = { .kind = JIT_VALUE_INT64, .int64 = 0 };
    return value;
 }
 
@@ -950,11 +957,11 @@ static void irgen_op_memset(jit_irgen_t *g, int op)
    }
 }
 
-static void irgen_send_args(jit_irgen_t *g, int op)
+static void irgen_send_args(jit_irgen_t *g, int op, int first)
 {
    const int nargs = vcode_count_args(op);
 
-   for (int i = 0, pslot = 0; i < nargs; i++) {
+   for (int i = 0, pslot = first; i < nargs; i++) {
       vcode_reg_t vreg = vcode_get_arg(op, i);
       const int slots = irgen_slots_for_type(vcode_reg_type(vreg));
       if (slots > 1) {
@@ -969,10 +976,29 @@ static void irgen_send_args(jit_irgen_t *g, int op)
 
 static void irgen_op_return(jit_irgen_t *g, int op)
 {
-   if (vcode_count_args(op) > 0)
-      irgen_send_args(g, op);
-   else if (g->statereg.kind != JIT_VALUE_INVALID)
-      j_send(g, 0, g->statereg);
+   switch (vcode_unit_kind()) {
+   case VCODE_UNIT_PROCESS:
+      {
+         // Set up for first call to process after reset
+         jit_value_t ptr = jit_addr_from_value(g->statereg, 2 * sizeof(void *));
+         j_store(g, JIT_SZ_32, jit_value_from_int64(1), ptr);
+         j_send(g, 0, g->statereg);
+      }
+      break;
+
+   case VCODE_UNIT_PROCEDURE:
+      j_send(g, 0, jit_null_ptr());
+      break;
+
+   default:
+      {
+         if (vcode_count_args(op) > 0)
+            irgen_send_args(g, op, 0);
+         else if (g->statereg.kind != JIT_VALUE_INVALID)
+            j_send(g, 0, g->statereg);
+      }
+      break;
+   }
 
    j_ret(g);
 }
@@ -1725,11 +1751,11 @@ static void irgen_op_jump(jit_irgen_t *g, int op)
 
 static void irgen_op_fcall(jit_irgen_t *g, int op)
 {
-   irgen_send_args(g, op);
-
    ident_t func = vcode_get_func(op);
 
    if (vcode_get_subkind(op) == VCODE_CC_FOREIGN) {
+      irgen_send_args(g, op, 0);
+
       if (icmp(func, "_nvc_ieee_warnings"))
          g->map[vcode_get_result(op)] = jit_value_from_int64(1);
       else if (icmp(func, "_int_to_string")) {
@@ -1751,10 +1777,18 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
       }
    }
    else {
+      vcode_reg_t result = vcode_get_result(op);
+      if (result == VCODE_INVALID_REG) {
+         // Must call using procedure calling convention
+         j_send(g, 0, jit_value_from_int64(0));
+         irgen_send_args(g, op, 1);
+      }
+      else
+         irgen_send_args(g, op, 0);
+
       jit_handle_t handle = jit_lazy_compile(g->func->jit, func);
       j_call(g, handle);
 
-      vcode_reg_t result = vcode_get_result(op);
       if (result != VCODE_INVALID_REG) {
          const int slots = irgen_slots_for_type(vcode_reg_type(result));
          g->map[result] = j_recv(g, 0);
@@ -1766,14 +1800,22 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
 
 static void irgen_op_pcall(jit_irgen_t *g, int op)
 {
-   irgen_send_args(g, op);
+   // First argument to procedure is suspended state
+   j_send(g, 0, jit_value_from_int64(0));
+
+   irgen_send_args(g, op, 1);
 
    ident_t func = vcode_get_func(op);
 
    jit_handle_t handle = jit_lazy_compile(g->func->jit, func);
    j_call(g, handle);
 
-   // TODO: check for suspend
+   irgen_label_t *cont = irgen_alloc_label(g);
+   jit_value_t state = j_recv(g, 0);
+   j_cmp(g, state, jit_null_ptr());
+   j_jump(g, JIT_CC_EQ, cont);
+   macro_exit(g, JIT_EXIT_FUNC_WAIT);
+   irgen_bind_label(g, cont);
 
    j_jump(g, JIT_CC_NONE, g->blocks[vcode_get_target(op, 0)]);
 }
@@ -1785,8 +1827,18 @@ static void irgen_op_resume(jit_irgen_t *g, int op)
 
 static void irgen_op_wait(jit_irgen_t *g, int op)
 {
-   macro_exit(g, JIT_EXIT_WAIT);
-   j_trap(g);
+   if (g->statereg.kind != JIT_VALUE_INVALID) {
+      vcode_block_t target = vcode_get_target(op, 0);
+      jit_value_t ptr = jit_addr_from_value(g->statereg, 2 * sizeof(void *));
+      j_store(g, JIT_SZ_32, jit_value_from_int64(target), ptr);
+   }
+
+   if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE)
+      j_send(g, 0, g->statereg);
+   else
+      j_send(g, 0, jit_value_from_int64(0));
+
+   j_ret(g);
 }
 
 static void irgen_op_protected_init(jit_irgen_t *g, int op)
@@ -2458,7 +2510,11 @@ static void irgen_locals(jit_irgen_t *g)
    }
    else {
       // Local variables on heap
-      size_t sz = sizeof(void *);   // Context parameter
+      size_t sz = 0;
+      sz += sizeof(void *);   // Context parameter
+      sz += sizeof(void *);   // Suspended procedure state
+      sz += sizeof(int32_t);  // State number
+
       for (int i = 0; i < nvars; i++) {
          vcode_type_t vtype = vcode_var_type(i);
          const int align = irgen_align_of(vtype);
@@ -2468,27 +2524,84 @@ static void irgen_locals(jit_irgen_t *g)
       }
 
       jit_value_t mem = macro_galloc(g, jit_value_from_int64(sz));
-      g->statereg = mem;
+      if (g->statereg.kind != JIT_VALUE_INVALID) {
+         // A null state was passed in by the caller
+         j_mov(g, jit_value_as_reg(g->statereg), mem);
+      }
+      else
+         g->statereg = mem;
 
       for (int i = 0; i < nvars; i++)
-         g->vars[i] = jit_addr_from_value(mem, g->func->varoff[i]);
+         g->vars[i] = jit_addr_from_value(g->statereg, g->func->varoff[i]);
    }
 }
 
-static void irgen_params(jit_irgen_t *g)
+static void irgen_params(jit_irgen_t *g, int first)
 {
    const int nparams = vcode_count_params();
-   for (int i = 0, pslot = 0; i < nparams; i++) {
+   for (int i = 0, pslot = first; i < nparams; i++) {
       const int slots = irgen_slots_for_type(vcode_param_type(i));
-      jit_value_t arg = g->map[vcode_param_reg(i)] = j_recv(g, pslot++);
+      g->map[vcode_param_reg(i)] = j_recv(g, pslot++);
       for (int i = 1; i < slots; i++)
          j_recv(g, pslot++);   // Must be contiguous registers
+   }
+}
 
-      if (i == 0 && g->statereg.kind != JIT_VALUE_INVALID) {
-         // Stash context pointer
-         jit_value_t context_ptr = jit_addr_from_value(g->statereg, 0);
-         j_store(g, JIT_SZ_PTR, arg, context_ptr);
-      }
+static void irgen_jump_table(jit_irgen_t *g)
+{
+   irgen_label_t *cont = irgen_alloc_label(g);
+   jit_value_t locals = g->statereg = j_recv(g, 0);
+   j_cmp(g, locals, jit_value_from_int64(0));
+   j_jump(g, JIT_CC_EQ, cont);
+
+   jit_value_t state_ptr = jit_addr_from_value(locals, 2 * sizeof(void *));
+   jit_value_t state = j_load(g, JIT_SZ_32, state_ptr);
+
+   const bool is_process = (vcode_unit_kind() == VCODE_UNIT_PROCESS);
+   const int nblocks = vcode_count_blocks();
+
+   bit_mask_t have;
+   mask_init(&have, nblocks);
+
+   for (int i = 0; i < nblocks; i++) {
+      vcode_select_block(i);
+
+      const int last = vcode_count_ops() - 1;
+      if (last < 0)
+         continue;
+
+      vcode_block_t target = VCODE_INVALID_BLOCK;
+      vcode_op_t last_op = vcode_get_op(last);
+
+      if (last_op == VCODE_OP_WAIT || last_op == VCODE_OP_PCALL)
+         target = vcode_get_target(last, 0);
+      else if (is_process && last_op == VCODE_OP_RETURN)
+         target = 1;
+
+      if (target == VCODE_INVALID_BLOCK || mask_test(&have, target))
+         continue;
+
+      j_cmp(g, state, jit_value_from_int64(target));
+      j_jump(g, JIT_CC_EQ, g->blocks[target]);
+
+      mask_set(&have, target);
+   }
+
+   irgen_bind_label(g, cont);
+   mask_free(&have);
+}
+
+static bool irgen_is_procedure(void)
+{
+   switch (vcode_unit_kind()) {
+   case VCODE_UNIT_PROCEDURE:
+      return true;
+   case VCODE_UNIT_FUNCTION:
+   case VCODE_UNIT_THUNK:
+      // Procedure compiled as function
+      return vcode_unit_result() == VCODE_INVALID_TYPE;
+   default:
+      return false;
    }
 }
 
@@ -2511,6 +2624,8 @@ void jit_irgen(jit_func_t *f)
    const bool has_params =
       kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE
       || kind == VCODE_UNIT_THUNK;
+   const bool has_jump_table =
+      kind == VCODE_UNIT_PROCESS || kind == VCODE_UNIT_PROCEDURE;
 
    if (has_privdata) {
       // It's harmless to initialise a package multiple times, just
@@ -2524,23 +2639,29 @@ void jit_irgen(jit_func_t *f)
       irgen_bind_label(g, cont);
    }
 
-   irgen_locals(g);
-
+   const int first_param = irgen_is_procedure() || has_jump_table ? 1 : 0;
    if (has_params)
-      irgen_params(g);
-   else if (g->statereg.kind != JIT_VALUE_INVALID) {
-      jit_value_t context = j_recv(g, 0);
-      j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
-   }
-
-   if (has_privdata)
-      macro_putpriv(g, g->func->handle, g->statereg);
+      irgen_params(g, first_param);
 
    const int nblocks = vcode_count_blocks();
    g->blocks = xmalloc_array(nblocks, sizeof(irgen_label_t *));
 
    for (int i = 0; i < nblocks; i++)
       g->blocks[i] = irgen_alloc_label(g);
+
+   if (has_jump_table)
+      irgen_jump_table(g);
+
+   irgen_locals(g);
+
+   if (g->statereg.kind != JIT_VALUE_INVALID) {
+      // Stash context pointer
+      jit_value_t context = has_params ? g->map[0] : j_recv(g, first_param);
+      j_store(g, JIT_SZ_PTR, context, jit_addr_from_value(g->statereg, 0));
+   }
+
+   if (has_privdata)
+      macro_putpriv(g, g->func->handle, g->statereg);
 
    for (int i = 0; i < nblocks; i++)
       irgen_block(g, i);

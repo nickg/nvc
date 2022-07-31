@@ -188,14 +188,15 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    vcode_state_save(&state);
 
    vcode_select_unit(f->unit);
-   if (vcode_unit_kind() != VCODE_UNIT_PACKAGE)
+   const vunit_kind_t kind = vcode_unit_kind();
+   if (kind != VCODE_UNIT_PACKAGE && kind != VCODE_UNIT_INSTANCE)
       fatal_trace("cannot link unit %s", istr(f->name));
 
    const loc_t *loc = vcode_unit_loc();
 
    jit_scalar_t args[JIT_MAX_ARGS] = { { .integer = 0 } };
    if (!jit_interp(f, args, 1, 0, NULL)) {
-      error_at(loc, "failed to initialise package %s", istr(f->name));
+      error_at(loc, "failed to initialise %s", istr(f->name));
       args[0].pointer = NULL;
    }
    else if (args[0].pointer == NULL)
@@ -203,7 +204,7 @@ void *jit_link(jit_t *j, jit_handle_t handle)
 
    vcode_state_restore(&state);
 
-   // Package initialisation should save the context pointer
+   // Initialisation should save the context pointer
    assert(args[0].pointer == mptr_get(j->mspace, f->privdata));
 
    return args[0].pointer;
@@ -233,12 +234,14 @@ void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var)
    return (char *)mptr_get(j->mspace, f->privdata) + f->varoff[var];
 }
 
-static bool jit_try_vcall(jit_t *j, ident_t func, void *context,
-                          jit_scalar_t *result, const char *fmt, va_list ap)
+static bool jit_try_vcall(jit_t *j, ident_t func, bool pcall, void *state,
+                          void *context, jit_scalar_t *result,
+                          const char *fmt, va_list ap)
 {
    jit_scalar_t args[JIT_MAX_ARGS];
 
    int nargs = 0;
+   if (pcall) args[nargs++].pointer = state;
    args[nargs++].pointer = context;
 
    for (; *fmt; fmt++) {
@@ -280,7 +283,18 @@ bool jit_try_call(jit_t *j, ident_t func, void *context, jit_scalar_t *result,
 {
    va_list ap;
    va_start(ap, fmt);
-   bool ok = jit_try_vcall(j, func, context, result, fmt, ap);
+   bool ok = jit_try_vcall(j, func, false, NULL, context, result, fmt, ap);
+   va_end(ap);
+   return ok;
+}
+
+bool jit_try_pcall(jit_t *j, ident_t func, void *state, void *context,
+                   const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   jit_scalar_t result;
+   bool ok = jit_try_vcall(j, func, true, state, context, &result, fmt, ap);
    va_end(ap);
    return ok;
 }
@@ -292,7 +306,21 @@ jit_scalar_t jit_call(jit_t *j, ident_t func, void *context,
    va_start(ap, fmt);
 
    jit_scalar_t result;
-   if (!jit_try_vcall(j, func, context, &result, fmt, ap))
+   if (!jit_try_vcall(j, func, false, NULL, context, &result, fmt, ap))
+      fatal_trace("call to %s failed", istr(func));
+
+   va_end(ap);
+   return result;
+}
+
+jit_scalar_t jit_pcall(jit_t *j, ident_t func, void *state, void *context,
+                       const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   jit_scalar_t result;
+   if (!jit_try_vcall(j, func, true, state, context, &result, fmt, ap))
       fatal_trace("call to %s failed", istr(func));
 
    va_end(ap);
