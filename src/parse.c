@@ -97,6 +97,20 @@ static bool           translate_on = true;
 static nametab_t     *nametab = NULL;
 static bool           bootstrapping = false;
 
+typedef struct _label_cnts label_cnts_t;
+
+struct _label_cnts {
+   int proc;
+   int loop;
+   int stmt;
+};
+
+static label_cnts_t   imp_label_cnts = {
+   .proc = 0,
+   .loop = 0,
+   .stmt = 0
+};
+
 loc_t yylloc;
 int yylex(void);
 
@@ -725,12 +739,41 @@ static ident_t loc_to_ident(const loc_t *loc)
    return ident_new(tb_get(tb));
 }
 
+static ident_t get_implicit_label(tree_t t, const loc_t *loc)
+{
+   int *cnt;
+   char c;
+
+   switch (tree_kind(t)) {
+   case T_PROCESS:
+   case T_CONCURRENT:
+      cnt = &(imp_label_cnts.proc);
+      c = 'P';
+      break;
+
+   case T_FOR:
+   case T_WHILE:
+      cnt = &(imp_label_cnts.loop);
+      c = 'L';
+      break;
+
+   default:
+      return loc_to_ident(loc);
+   }
+
+   char name[22];
+   memset(name, 0, sizeof(char) * 22);
+   sprintf(name, "_%C%d", c, *cnt);
+   (*cnt)++;
+   return ident_new(name);
+}
+
 static void set_label_and_loc(tree_t t, ident_t label, const loc_t *loc)
 {
    tree_set_loc(t, loc);
 
    if (label == NULL)
-      label = loc_to_ident(loc);
+      label = get_implicit_label(t, loc);
 
    tree_set_ident(t, label);
 }
@@ -1619,7 +1662,7 @@ static bool is_range_expr(tree_t t)
 
 static tree_t ensure_labelled(tree_t t, ident_t label)
 {
-   tree_set_ident(t, label ?: loc_to_ident(CURRENT_LOC));
+   tree_set_ident(t, label ?: get_implicit_label(t, CURRENT_LOC));
    return t;
 }
 
@@ -7270,7 +7313,7 @@ static tree_t p_process_statement(ident_t label)
    optional(tIS);
 
    if (label == NULL) {
-      tree_set_ident(t, loc_to_ident(CURRENT_LOC));
+      tree_set_ident(t, get_implicit_label(t, CURRENT_LOC));
       tree_set_flag(t, TREE_F_SYNTHETIC_NAME);
    }
    else {
@@ -7383,8 +7426,13 @@ static void p_entity_declaration(tree_t unit)
    p_entity_header(unit);
    p_entity_declarative_part(unit);
 
+   imp_label_cnts.proc = 0;
+
    if (optional(tBEGIN))
       p_entity_statement_part(unit);
+   
+   // Hold number of implicitly labeled processes in current entity
+   tree_set_ival(unit, imp_label_cnts.proc);
 
    consume(tEND);
    optional(tENTITY);
@@ -9242,7 +9290,7 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
    if (label == NULL) {
       parse_error(CURRENT_LOC, "component instantiation statement must "
                   "have a label");
-      tree_set_ident(t, loc_to_ident(CURRENT_LOC));
+      tree_set_ident(t, get_implicit_label(t, CURRENT_LOC));
    }
 
    sem_check(t, nametab);
@@ -9826,6 +9874,12 @@ static void p_architecture_body(tree_t unit)
       insert_generics(nametab, e);
       insert_ports(nametab, e);
       insert_decls(nametab, e);
+   
+      // Number of implictly numbered processes in entity is where we start
+      // numbering in architecture
+      imp_label_cnts.proc = tree_ival(e);
+   } else {
+      imp_label_cnts.proc = 0;
    }
 
    p_architecture_declarative_part(unit);
