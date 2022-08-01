@@ -1202,6 +1202,7 @@ static tree_t simp_select(tree_t t)
    tree_t c = tree_new(T_CASE);
    tree_set_loc(c, tree_loc(t));
    tree_set_value(c, tree_value(t));
+   tree_set_ident(c, tree_ident(t));
 
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++)

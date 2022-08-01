@@ -769,6 +769,8 @@ static ident_t get_implicit_label(tree_t t, const loc_t *loc)
    case T_VAR_ASSIGN:
    case T_PROT_PCALL:
    case T_PCALL:
+   case T_COND_ASSIGN:
+   case T_SELECT:
       cnt = &(imp_label_cnts.stmt);
       c = 'S';
       break;
@@ -9459,6 +9461,7 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
          tree_set_value(tree_assoc(stmt, i), a);
 
       tree_set_loc(a, CURRENT_LOC);
+      ensure_labelled(a, NULL);
       sem_check(a, nametab);
    } while (optional(tCOMMA));
 }
@@ -9473,6 +9476,8 @@ static tree_t p_selected_signal_assignment(void)
 
    tree_t conc = tree_new(T_CONCURRENT);
    tree_t stmt = tree_new(T_SELECT);
+   imp_label_cnts.stmt = 0;
+   ensure_labelled(stmt, NULL);
    tree_add_stmt(conc, stmt);
 
    tree_t value = p_expression();
