@@ -135,10 +135,6 @@ struct nametab {
    tree_t      std;
 };
 
-typedef enum {
-   TS_CONDITION_CONVERSION = (1 << 0)
-} type_set_flags_t;
-
 typedef struct {
    type_t type;
    tree_t src;
@@ -149,7 +145,6 @@ typedef A(tracked_type_t) tracked_type_list_t;
 struct type_set {
    tracked_type_list_t  members;
    type_set_t          *down;
-   type_set_flags_t     flags;
 };
 
 static type_t _solve_types(nametab_t *tab, tree_t expr);
@@ -2087,10 +2082,7 @@ static void begin_overload_resolution(overload_t *o)
       o->error = true;
    }
 
-   const bool allow_condition_conversion =
-      !!(o->nametab->top_type_set->flags & TS_CONDITION_CONVERSION);
-
-   if (o->candidates.count > 1 && !allow_condition_conversion) {
+   if (o->candidates.count > 1) {
       unsigned wptr = 0;
       for (unsigned i = 0; i < o->candidates.count; i++) {
          type_t type = tree_type(o->candidates.items[i]);
@@ -3763,15 +3755,40 @@ type_t solve_types(nametab_t *tab, tree_t expr, type_t constraint)
    return type;
 }
 
-type_t solve_condition(nametab_t *tab, tree_t expr, type_t constraint)
+type_t solve_condition(nametab_t *tab, tree_t *expr, type_t constraint)
 {
    type_set_push(tab);
    type_set_add(tab, constraint, NULL);
 
-   if (standard() >= STD_08)
-      tab->top_type_set->flags |= TS_CONDITION_CONVERSION;
+   const bool allow_cconv = (standard() >= STD_08);
+   if (allow_cconv) {
+      const symbol_t *sym = symbol_for(tab->top_scope, well_known(W_CCONV));
+      if (sym != NULL) {
+         for (int i = 0; i < sym->ndecls; i++) {
+            const decl_t *dd = get_decl(sym, i);
+            if ((dd->mask & N_FUNC) && tree_ports(dd->tree) == 1) {
+               type_t p0_type = tree_type(tree_port(dd->tree, 0));
+               type_set_add(tab, p0_type, dd->tree);
+            }
+         }
+      }
+   }
 
-   type_t type = _solve_types(tab, expr);
+   type_t type = _solve_types(tab, *expr);
+
+   if (allow_cconv) {
+      type_t boolean = std_type(NULL, STD_BOOLEAN);
+      if (!type_eq(type, boolean) && type_set_contains(tab, type)) {
+         tree_t fcall = tree_new(T_FCALL);
+         tree_set_loc(fcall, tree_loc(*expr));
+         tree_set_ident(fcall, well_known(W_CCONV));
+         add_param(fcall, *expr, P_POS, NULL);
+
+         type = solve_fcall(tab, fcall);
+         *expr = fcall;
+      }
+   }
+
    type_set_pop(tab);
    return type;
 }

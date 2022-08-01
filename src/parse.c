@@ -6016,20 +6016,9 @@ static tree_t p_condition(void)
    type_t boolean = std_type(NULL, STD_BOOLEAN);
 
    tree_t value = p_expression();
-   type_t type = solve_condition(nametab, value, boolean);
+   solve_condition(nametab, &value, boolean);
 
-   if (standard() < STD_08 || type_eq(type, boolean))
-      return value;
-   else {
-      // LRM 08 section 9.2.9 rules for implicit condition conversion
-      tree_t fcall = tree_new(T_FCALL);
-      tree_set_loc(fcall, CURRENT_LOC);
-      tree_set_ident(fcall, ident_new("\"??\""));
-      add_param(fcall, value, P_POS, NULL);
-
-      solve_types(nametab, fcall, boolean);
-      return fcall;
-   }
+   return value;
 }
 
 static tree_t p_assertion(void)
@@ -8304,7 +8293,7 @@ static void p_conditional_expressions(tree_t stmt, tree_t value0)
       tree_add_cond(stmt, c);
 
       if (optional(tWHEN)) {
-         tree_t when = p_expression();
+         tree_t when = p_condition();
          tree_set_value(c, when);
          solve_types(nametab, when, std_type(NULL, STD_BOOLEAN));
 
@@ -9312,7 +9301,7 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
       tree_add_cond(stmt, c);
 
       if (optional(tWHEN)) {
-         tree_t when = p_expression();
+         tree_t when = p_condition();
          tree_set_value(c, when);
          solve_types(nametab, when, std_type(NULL, STD_BOOLEAN));
 

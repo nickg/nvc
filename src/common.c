@@ -994,6 +994,7 @@ void intern_strings(void)
    id_cache[W_IEEE]           = ident_new("IEEE");
    id_cache[W_IEEE_1164]      = ident_new("IEEE.STD_LOGIC_1164");
    id_cache[W_ERROR]          = ident_new("error");
+   id_cache[W_CCONV]          = ident_new("\"??\"");
 
    id_cache[W_IEEE_LOGIC_VECTOR] =
       ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR");

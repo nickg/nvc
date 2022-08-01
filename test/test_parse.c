@@ -3613,7 +3613,7 @@ START_TEST(test_vhdl2008)
    input_from_file(TESTDIR "/parse/vhdl2008.vhd");
 
    const error_t expect[] = {
-      {  84, "no matching operator \"??\" [TIME return BOOLEAN]" },
+      {  84, "no matching operator \"+\" [DELAY_LENGTH, TIME" },
       { 110, "excess non-zero digits in bit string literal" },
       { 111, "excess non-zero digits in bit string literal" },
       { 116, "sorry, decimal values greater than 6" },

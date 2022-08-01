@@ -184,6 +184,7 @@ typedef enum {
    W_IEEE,
    W_IEEE_1164,
    W_ERROR,
+   W_CCONV,
 
    NUM_WELL_KNOWN
 } well_known_t;

@@ -203,4 +203,18 @@ begin
     begin
     end block;
 
+    b7: block is
+        signal s : integer;
+        signal b : bit;
+    begin
+        s <= 1 when b else 2;           -- OK
+        s <= 2 when '1' else 6;         -- OK
+        process is
+            variable v : integer;
+        begin
+            v := 1 when b else 5;       -- OK
+            s <= 5 when b else 7;       -- OK
+        end process;
+    end block;
+
 end architecture;
