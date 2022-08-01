@@ -6127,6 +6127,8 @@ static tree_t p_concurrent_assertion_statement(ident_t label)
       tree_set_flag(conc, TREE_F_POSTPONED);
 
    tree_t s = p_assertion();
+   imp_label_cnts.stmt = 0;
+   tree_set_ident(s, get_implicit_label(s, CURRENT_LOC));
    tree_add_stmt(conc, s);
 
    consume(tSEMI);
