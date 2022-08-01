@@ -9368,6 +9368,8 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
       else
          s0 = NULL;
 
+      tree_set_ident(a, get_implicit_label(a, CURRENT_LOC));
+      
       tree_set_loc(a, CURRENT_LOC);
       tree_set_loc(c, CURRENT_LOC);
 
@@ -9397,6 +9399,8 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    tree_t stmt = tree_new(T_COND_ASSIGN);
    tree_add_stmt(conc, stmt);
 
+   imp_label_cnts.stmt = 0;
+   tree_set_ident(stmt, get_implicit_label(stmt, CURRENT_LOC));
    tree_t target = p_target(name);
    tree_set_target(stmt, target);
 
@@ -9461,7 +9465,7 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
          tree_set_value(tree_assoc(stmt, i), a);
 
       tree_set_loc(a, CURRENT_LOC);
-      ensure_labelled(a, NULL);
+      tree_set_ident(a, get_implicit_label(a, CURRENT_LOC));
       sem_check(a, nametab);
    } while (optional(tCOMMA));
 }
@@ -9477,7 +9481,7 @@ static tree_t p_selected_signal_assignment(void)
    tree_t conc = tree_new(T_CONCURRENT);
    tree_t stmt = tree_new(T_SELECT);
    imp_label_cnts.stmt = 0;
-   ensure_labelled(stmt, NULL);
+   tree_set_ident(stmt, get_implicit_label(stmt, CURRENT_LOC));
    tree_add_stmt(conc, stmt);
 
    tree_t value = p_expression();
