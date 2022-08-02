@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
---  Copyright (C) 2021  Nick Gasson
+--  Copyright (C) 2021-2022  Nick Gasson
 --
 --  Licensed under the Apache License, Version 2.0 (the "License");
 --  you may not use this file except in compliance with the License.
@@ -25,5 +25,10 @@ package sim_pkg is
     function ieee_warnings return boolean;
 
     attribute foreign of ieee_warnings : function is "_nvc_ieee_warnings";
+
+    -- Return the current delta cycle number
+    impure function current_delta_cycle return natural;
+
+    attribute foreign of current_delta_cycle : function is "_nvc_current_delta";
 
 end package;

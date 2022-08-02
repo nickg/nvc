@@ -1997,6 +1997,12 @@ bool _nvc_ieee_warnings(void)
 }
 
 DLLEXPORT
+int _nvc_current_delta(void)
+{
+   return iteration;
+}
+
+DLLEXPORT
 int64_t _std_standard_now(void)
 {
    return now;

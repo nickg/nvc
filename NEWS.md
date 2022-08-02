@@ -46,6 +46,8 @@
   packages such as OSVVM and UVVM.
 - Identifiers in waveform dumps are now in lower case instead of upper
   case.
+- The function `CURRENT_DELTA_CYCLE` in `NVC.SIM_PKG` can be used to
+  query the current delta cycle number.
 
 ## Version 1.6.2 - 2022-04-03
 - Fix `make -j` with GNU make (#440).

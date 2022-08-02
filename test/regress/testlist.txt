@@ -637,3 +637,4 @@ issue497        normal,2008
 implicit4       normal
 genpack11       normal,2008
 signal25        normal,2008
+wait24          normal
