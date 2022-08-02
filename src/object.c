@@ -120,7 +120,7 @@ static bool object_marked_p(object_t *object, generation_t generation)
 
    uintptr_t bit = ((void *)object - arena->base) >> OBJECT_ALIGN_BITS;
    uintptr_t word = bit / 64;
-   uint64_t mask = 1ull << bit;
+   uint64_t mask = UINT64_C(1) << (bit & 63);
 
    const bool marked = !!(arena->mark_bits[word] & mask);
    arena->mark_bits[word] |= mask;
@@ -185,7 +185,7 @@ void object_lookup_failed(const char *name, const char **kind_text_map,
                           int kind, imask_t mask)
 {
    unsigned int item;
-   for (item = 0; (mask & (1ull << item)) == 0; item++)
+   for (item = 0; (mask & (UINT64_C(1) << item)) == 0; item++)
       ;
 
    assert(item < ARRAY_LEN(item_text_map));
@@ -196,7 +196,7 @@ void object_lookup_failed(const char *name, const char **kind_text_map,
 void item_without_type(imask_t mask)
 {
    int item;
-   for (item = 0; (mask & (1ull << item)) == 0; item++)
+   for (item = 0; (mask & (UINT64_C(1) << item)) == 0; item++)
       ;
 
    assert(item < ARRAY_LEN(item_text_map));

@@ -1430,7 +1430,7 @@ static void irgen_op_debug_locus(jit_irgen_t *g, int op)
 
    tree_t tree = tree_from_locus(unit, offset, lib_get_qualified);
 
-   g->map[vcode_get_result(op)] = jit_value_from_int64((int64_t)tree);
+   g->map[vcode_get_result(op)] = jit_value_from_int64((intptr_t)tree);
 }
 
 static void irgen_op_wrap(jit_irgen_t *g, int op)

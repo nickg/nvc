@@ -52,8 +52,6 @@ typedef struct {
    uint32_t    refcnt;
 } ffi_closure_t;
 
-STATIC_ASSERT(sizeof(ffi_closure_t) == 24);
-
 // The code generator knows the layout of this struct
 typedef struct {
    void *ptr;
@@ -62,8 +60,6 @@ typedef struct {
       int32_t length;
    } dims[1];
 } ffi_uarray_t;
-
-STATIC_ASSERT(sizeof(ffi_uarray_t) == 16);
 
 // Macro to generate the correct calling convention for LLVM by-value
 // uarray aggregates

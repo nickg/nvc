@@ -51,6 +51,24 @@ void fill_cpu_state(struct cpu_state *cpu, ucontext_t *uc)
 
    for (int i = 0; i < 31; i++)
       cpu->regs[i] = uc->uc_mcontext.regs[i];
+#elif defined __linux__ && defined __arm__
+   cpu->pc = uc->uc_mcontext.arm_pc;
+   cpu->sp = uc->uc_mcontext.arm_sp;
+
+   cpu->regs[0]  = uc->uc_mcontext.arm_r0;
+   cpu->regs[1]  = uc->uc_mcontext.arm_r1;
+   cpu->regs[2]  = uc->uc_mcontext.arm_r2;
+   cpu->regs[3]  = uc->uc_mcontext.arm_r3;
+   cpu->regs[4]  = uc->uc_mcontext.arm_r4;
+   cpu->regs[5]  = uc->uc_mcontext.arm_r5;
+   cpu->regs[6]  = uc->uc_mcontext.arm_r6;
+   cpu->regs[7]  = uc->uc_mcontext.arm_r7;
+   cpu->regs[8]  = uc->uc_mcontext.arm_r8;
+   cpu->regs[9]  = uc->uc_mcontext.arm_r9;
+   cpu->regs[10] = uc->uc_mcontext.arm_r10;
+   cpu->regs[11] = uc->uc_mcontext.arm_fp;
+   cpu->regs[12] = uc->uc_mcontext.arm_ip;
+   cpu->regs[13] = uc->uc_mcontext.arm_lr;
 #elif defined __FreeBSD__ && defined __x86_64__
    cpu->pc = uc->uc_mcontext.mc_rip;
    cpu->sp = uc->uc_mcontext.mc_rsp;

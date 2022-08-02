@@ -53,8 +53,6 @@ typedef struct {
    } dims[1];
 } jit_uarray_t;
 
-STATIC_ASSERT(sizeof(jit_uarray_t) == 16);
-
 typedef vcode_unit_t (*jit_lower_fn_t)(ident_t, void *);
 
 jit_t *jit_new(void);

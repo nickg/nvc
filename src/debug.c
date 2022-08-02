@@ -56,6 +56,10 @@
 #include <libelf.h>
 #endif
 
+#ifdef __ARM_EABI_UNWINDER__
+#define _URC_NORMAL_STOP _URC_END_OF_STACK
+#endif
+
 #define MAX_TRACE_DEPTH   25
 
 struct debug_info {
