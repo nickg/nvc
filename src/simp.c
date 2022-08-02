@@ -1187,9 +1187,9 @@ static tree_t simp_cond_assign(tree_t t)
    else {
       tree_t s = tree_new(T_IF);
       tree_set_loc(s, tree_loc(t));
-      ident_t label = tree_ident(t);
-      if (label != NULL)
-         tree_set_ident(s, label);
+      
+      if (tree_has_ident(t))
+         tree_set_ident(s, tree_ident(t));
 
       for (int i = 0; i < nconds; i++)
          tree_add_cond(s, tree_cond(t, i));
