@@ -7366,7 +7366,7 @@ static void p_entity_declaration(tree_t unit)
 
    if (optional(tBEGIN))
       p_entity_statement_part(unit);
-   
+
    consume(tEND);
    optional(tENTITY);
    p_trailing_label(id);
@@ -8984,8 +8984,6 @@ static void p_case_statement_alternative(tree_t stmt)
    consume(tASSOC);
 
    tree_t b = tree_new(T_SEQUENCE);
-   // TODO: Do we really need identifier here??
-   //tree_set_ident(b, loc_to_ident(CURRENT_LOC));
    p_sequence_of_statements(b);
 
    const int nassocs = tree_assocs(stmt);
@@ -9820,7 +9818,7 @@ static void p_architecture_body(tree_t unit)
       insert_decls(nametab, e);
    }
 
-   set_impl_label_proc_cnt(e, nametab);
+   continue_proc_labelling_from(e, nametab);
 
    p_architecture_declarative_part(unit);
 

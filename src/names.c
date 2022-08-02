@@ -110,13 +110,11 @@ typedef struct _lazy_sym {
    void       *ctx;
 } lazy_sym_t;
 
-typedef struct _label_cnts label_cnts_t;
-
-struct _label_cnts {
+typedef struct {
    int proc;
    int loop;
    int stmt;
-};
+} label_cnts_t;
 
 struct scope {
    scope_t       *parent;
@@ -1149,7 +1147,7 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
    *p = s;
 }
 
-void set_impl_label_proc_cnt(tree_t t, nametab_t *tab)
+void continue_proc_labelling_from(tree_t t, nametab_t *tab)
 {
    if (t == NULL) {
       tab->top_scope->lbl_cnts.proc = 0;
@@ -1172,7 +1170,7 @@ void set_impl_label_proc_cnt(tree_t t, nametab_t *tab)
    tab->top_scope->lbl_cnts.proc = cnt;
 }
 
-int* find_impl_label_loop_cnt(nametab_t *tab)
+static inline int* find_impl_label_loop_cnt(nametab_t *tab)
 {
    scope_t *s = tab->top_scope;
 
@@ -1212,13 +1210,9 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
       break;
    }
 
-   checked_sprintf(buf, 22, "_%C%x", c, *cnt);
+   checked_sprintf(buf, sizeof(buf), "_%C%d", c, *cnt);
    (*cnt)++;
    ident_t ident = ident_new(buf);
-
-#if 0
-   printf("Assigning implicit name: %s.%s\n", istr(scope_prefix(tab)), istr(ident));
-#endif
 
    return ident;
 }
