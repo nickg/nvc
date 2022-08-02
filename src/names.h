@@ -92,6 +92,8 @@ void insert_names_for_config(nametab_t *tab, tree_t unit);
 void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
                  ident_t ident, int depth);
 
+ident_t get_implicit_label(tree_t t, nametab_t *tab);
+
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name);
 type_t resolve_type(nametab_t *tab, type_t incomplete);
 tree_t resolve_subprogram_name(nametab_t *tab, tree_t ref, type_t constraint);

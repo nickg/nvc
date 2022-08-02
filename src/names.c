@@ -110,6 +110,14 @@ typedef struct _lazy_sym {
    void       *ctx;
 } lazy_sym_t;
 
+typedef struct _label_cnts label_cnts_t;
+
+struct _label_cnts {
+   int proc;
+   int loop;
+   int stmt;
+};
+
 struct scope {
    scope_t       *parent;
    sym_chunk_t    symbols;
@@ -127,6 +135,7 @@ struct scope {
    lazy_sym_t    *lazy;
    tree_list_t    imported;
    scope_t       *chain;
+   label_cnts_t   lbl_cnts;
 };
 
 struct nametab {
@@ -1138,6 +1147,37 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
       }
    }
    *p = s;
+}
+
+ident_t get_implicit_label(tree_t t, nametab_t *tab)
+{
+   int *cnt;
+   char c;
+   char label[22];
+
+   switch (tree_kind(t)) {
+   case T_PROCESS:
+   case T_CONCURRENT:
+      cnt = &(tab->top_scope->lbl_cnts.proc);
+      c = 'P';
+      break;
+
+   case T_FOR:
+   case T_WHILE:
+      // TODO: Use scop of wrapping process or subprogram
+      cnt = &(tab->top_scope->lbl_cnts.loop);
+      c = 'L';
+      break;
+      
+   default:
+      cnt = &(tab->top_scope->lbl_cnts.stmt);
+      c = 'S';
+      break;
+   }
+
+   checked_sprintf(label, 22, "_%C%x", c, *cnt);
+   (*cnt)++;
+   return ident_new(label);
 }
 
 type_t resolve_type(nametab_t *tab, type_t incomplete)
