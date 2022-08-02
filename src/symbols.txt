@@ -47,7 +47,7 @@
   _last_event;
   _link_signal;
   _null_deref;
-  _nvc_current_iteration;
+  _nvc_current_delta;
   _nvc_ieee_warnings;
   _real_to_string;
   _sched_event;
