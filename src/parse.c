@@ -8670,6 +8670,7 @@ static tree_t p_if_statement(ident_t label)
    EXTEND("if statement");
 
    tree_t t = tree_new(T_IF);
+   ensure_labelled(t, label);
 
    consume(tIF);
 
@@ -8709,7 +8710,7 @@ static tree_t p_if_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
-   set_label_and_loc(t, label, CURRENT_LOC);
+   tree_set_loc(t, CURRENT_LOC);
    sem_check(t, nametab);
    return t;
 }
@@ -9022,6 +9023,8 @@ static tree_t p_case_statement(ident_t label)
 
    tree_t value = p_expression();
    tree_set_value(t, value);
+   ensure_labelled(t, label);
+
    solve_types(nametab, value, NULL);
 
    consume(tIS);
@@ -9039,7 +9042,7 @@ static tree_t p_case_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
-   set_label_and_loc(t, label, CURRENT_LOC);
+   tree_set_loc(t, CURRENT_LOC);
    sem_check(t, nametab);
    return t;
 }
