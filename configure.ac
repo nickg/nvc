@@ -78,6 +78,9 @@ AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
 
 AX_PROG_FLEX([], [AC_MSG_ERROR(Flex not found)])
 
+AC_PATH_PROG([sh_path], ["sh"], ["/bin/sh"])
+AC_DEFINE_UNQUOTED([SH_PATH], ["$sh_path"], [Path to POSIX shell])
+
 case $host_os in
   *cygwin*|msys*|mingw32*)
     # LLVM on Windows needs libffi and curses

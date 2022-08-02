@@ -634,7 +634,7 @@ static bool run_test(test_t *test)
    arglist_t *args = NULL;
 
    if (test->flags & F_SHELL) {
-      push_arg(&args, "/bin/sh");
+      push_arg(&args, SH_PATH);
       push_arg(&args, "%s" DIR_SEP "regress" DIR_SEP "%s.sh",
                test_dir, test->name);
    }
