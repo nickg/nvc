@@ -9817,6 +9817,8 @@ static void p_architecture_body(tree_t unit)
       insert_decls(nametab, e);
    }
 
+   set_impl_label_proc_cnt(e, nametab);
+
    p_architecture_declarative_part(unit);
 
    consume(tBEGIN);

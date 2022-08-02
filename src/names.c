@@ -1149,6 +1149,28 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
    *p = s;
 }
 
+void set_impl_label_proc_cnt(tree_t t, nametab_t *tab)
+{
+   if (t == NULL) {
+      tab->top_scope->lbl_cnts.proc = 0;
+      return;
+   }
+
+   assert (tree_kind(t) == T_ENTITY);
+
+   const int nstmts = tree_stmts(t);
+   int cnt = 0;
+   ident_t prefix = ident_new("_P");
+   for (int i = 0; i < nstmts; i++) {
+      tree_t stmt = tree_stmt(t, i);
+
+      // Entity statements for sure have labels since they have been implicitly
+      // labelled
+      if (ident_starts_with(tree_ident(stmt), prefix))
+         cnt++;
+   }
+   tab->top_scope->lbl_cnts.proc = cnt;
+}
 
 int* find_impl_label_loop_cnt(nametab_t *tab)
 {
@@ -1169,7 +1191,7 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
 {
    int *cnt;
    char c;
-   char label[22];
+   char buf[22];
 
    switch (tree_kind(t)) {
    case T_PROCESS:
@@ -1190,9 +1212,15 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
       break;
    }
 
-   checked_sprintf(label, 22, "_%C%x", c, *cnt);
+   checked_sprintf(buf, 22, "_%C%x", c, *cnt);
    (*cnt)++;
-   return ident_new(label);
+   ident_t ident = ident_new(buf);
+
+#if 0
+   printf("Assigning implicit name: %s.%s\n", istr(scope_prefix(tab)), istr(ident));
+#endif
+
+   return ident;
 }
 
 type_t resolve_type(nametab_t *tab, type_t incomplete)
