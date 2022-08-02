@@ -1149,6 +1149,22 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
    *p = s;
 }
 
+
+int* find_impl_label_loop_cnt(nametab_t *tab)
+{
+   scope_t *s = tab->top_scope;
+
+   for (; s != NULL; s = s->parent) {
+      if (s->container == NULL)
+         continue;
+
+      if (is_subprogram(s->container) || tree_kind(s->container) == T_PROCESS)
+         return &(s->lbl_cnts.loop);
+   }
+
+   return NULL;
+}
+
 ident_t get_implicit_label(tree_t t, nametab_t *tab)
 {
    int *cnt;
@@ -1164,8 +1180,7 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
 
    case T_FOR:
    case T_WHILE:
-      // TODO: Use scop of wrapping process or subprogram
-      cnt = &(tab->top_scope->lbl_cnts.loop);
+      cnt = find_impl_label_loop_cnt(tab);
       c = 'L';
       break;
       
