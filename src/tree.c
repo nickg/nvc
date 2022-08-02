@@ -463,12 +463,13 @@ static inline void tree_assert_decl(tree_t t)
 
 static inline tree_t tree_array_nth(item_t *item, unsigned n)
 {
-   return container_of(AGET(item->obj_array, n), struct _tree, object);
+   object_t *o = obj_array_nth(item->obj_array, n);
+   return container_of(o, struct _tree, object);
 }
 
 static inline void tree_array_add(item_t *item, tree_t t)
 {
-   APUSH(item->obj_array, &(t->object));
+   obj_array_add(&(item->obj_array), &(t->object));
 }
 
 tree_t tree_new(tree_kind_t kind)
@@ -479,7 +480,6 @@ tree_t tree_new(tree_kind_t kind)
 const loc_t *tree_loc(tree_t t)
 {
    assert(t != NULL);
-
    return &t->object.loc;
 }
 
@@ -538,7 +538,8 @@ void tree_change_kind(tree_t t, tree_kind_t kind)
 
 unsigned tree_ports(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_PORTS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_PORTS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_port(tree_t t, unsigned n)
@@ -567,7 +568,8 @@ void tree_set_subkind(tree_t t, unsigned sub)
 
 unsigned tree_generics(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_GENERICS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_GENERICS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_generic(tree_t t, unsigned n)
@@ -603,7 +605,8 @@ bool tree_has_type(tree_t t)
 
 unsigned tree_params(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_PARAMS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_PARAMS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_param(tree_t t, unsigned n)
@@ -621,7 +624,8 @@ void tree_add_param(tree_t t, tree_t e)
 
 unsigned tree_genmaps(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_GENMAPS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_GENMAPS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_genmap(tree_t t, unsigned n)
@@ -638,8 +642,9 @@ void tree_add_genmap(tree_t t, tree_t e)
 void tree_trim_genmaps(tree_t t, unsigned n)
 {
    item_t *item = lookup_item(&tree_object, t, I_GENMAPS);
-   assert(n < item->obj_array.count);
-   ATRIM(item->obj_array, n);
+   assert(n < obj_array_count(item->obj_array));
+   assert(n > 0);
+   item->obj_array->count = n;
 }
 
 int64_t tree_ival(tree_t t)
@@ -697,7 +702,8 @@ void tree_set_primary(tree_t t, tree_t unit)
 
 unsigned tree_chars(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_CHARS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_CHARS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_char(tree_t t, unsigned n)
@@ -714,7 +720,8 @@ void tree_add_char(tree_t t, tree_t ref)
 
 unsigned tree_parts(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_PARTS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_PARTS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_part(tree_t t, unsigned n)
@@ -751,7 +758,8 @@ void tree_set_value(tree_t t, tree_t v)
 
 unsigned tree_decls(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_DECLS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_DECLS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_decl(tree_t t, unsigned n)
@@ -769,7 +777,8 @@ void tree_add_decl(tree_t t, tree_t d)
 
 unsigned tree_stmts(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_STMTS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_STMTS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_stmt(tree_t t, unsigned n)
@@ -787,7 +796,8 @@ void tree_add_stmt(tree_t t, tree_t s)
 
 unsigned tree_waveforms(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_WAVES)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_WAVES);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_waveform(tree_t t, unsigned n)
@@ -805,7 +815,8 @@ void tree_add_waveform(tree_t t, tree_t w)
 
 unsigned tree_conds(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_CONDS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_CONDS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_cond(tree_t t, unsigned n)
@@ -842,7 +853,8 @@ void tree_set_delay(tree_t t, tree_t d)
 
 unsigned tree_triggers(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_TRIGGERS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_TRIGGERS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_trigger(tree_t t, unsigned n)
@@ -909,7 +921,8 @@ void tree_set_spec(tree_t t, tree_t s)
 
 unsigned tree_contexts(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_CONTEXT)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_CONTEXT);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_context(tree_t t, unsigned n)
@@ -928,7 +941,8 @@ void tree_add_context(tree_t t, tree_t ctx)
 
 unsigned tree_assocs(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_ASSOCS)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_ASSOCS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t tree_assoc(tree_t t, unsigned n)
@@ -991,7 +1005,8 @@ tree_t tree_range(tree_t t, unsigned n)
 
 unsigned tree_ranges(tree_t t)
 {
-   return lookup_item(&tree_object, t, I_RANGES)->obj_array.count;
+   item_t *item = lookup_item(&tree_object, t, I_RANGES);
+   return obj_array_count(item->obj_array);
 }
 
 unsigned tree_pos(tree_t t)

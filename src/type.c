@@ -108,22 +108,24 @@ extern object_arena_t *global_arena;
 
 static inline tree_t tree_array_nth(item_t *item, unsigned n)
 {
-   return container_of(AGET(item->obj_array, n), struct _tree, object);
+   object_t *o = obj_array_nth(item->obj_array, n);
+   return container_of(o, struct _tree, object);
 }
 
 static inline void tree_array_add(item_t *item, tree_t t)
 {
-   APUSH(item->obj_array, &(t->object));
+   obj_array_add(&(item->obj_array), &(t->object));
 }
 
 static inline type_t type_array_nth(item_t *item, unsigned n)
 {
-   return container_of(AGET(item->obj_array, n), struct _type, object);
+   object_t *o = obj_array_nth(item->obj_array, n);
+   return container_of(o, struct _type, object);
 }
 
 static inline void type_array_add(item_t *item, type_t t)
 {
-   APUSH(item->obj_array, &(t->object));
+   obj_array_add(&(item->obj_array), &(t->object));
 }
 
 type_t type_new(type_kind_t kind)
@@ -208,10 +210,13 @@ static bool _type_eq(type_t a, type_t b, bool strict, hash_t *map)
       item_t *ap = lookup_item(&type_object, a, I_PARAMS);
       item_t *bp = lookup_item(&type_object, b, I_PARAMS);
 
-      if (ap->obj_array.count != bp->obj_array.count)
+      const int acount = obj_array_count(ap->obj_array);
+      const int bcount = obj_array_count(bp->obj_array);
+
+      if (acount != bcount)
          return false;
 
-      for (int i = 0; i < ap->obj_array.count; i++) {
+      for (int i = 0; i < acount; i++) {
          type_t ai = type_array_nth(ap, i);
          type_t bi = type_array_nth(bp, i);
          if (ai != bi && !_type_eq(ai, bi, strict, map))
@@ -273,7 +278,8 @@ void type_set_ident(type_t t, ident_t id)
 
 unsigned type_dims(type_t t)
 {
-   return lookup_item(&type_object, t, I_DIMS)->obj_array.count;
+   item_t *item = lookup_item(&type_object, t, I_DIMS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t type_dim(type_t t, unsigned n)
@@ -338,7 +344,8 @@ bool type_is_universal(type_t t)
 
 unsigned type_units(type_t t)
 {
-   return lookup_item(&type_object, t, I_UNITS)->obj_array.count;
+   item_t *item = lookup_item(&type_object, t, I_UNITS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t type_unit(type_t t, unsigned n)
@@ -355,7 +362,8 @@ void type_add_unit(type_t t, tree_t u)
 
 unsigned type_enum_literals(type_t t)
 {
-   return lookup_item(&type_object, t, I_LITERALS)->obj_array.count;
+   item_t *item = lookup_item(&type_object, t, I_LITERALS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t type_enum_literal(type_t t, unsigned n)
@@ -373,7 +381,8 @@ void type_enum_add_literal(type_t t, tree_t lit)
 
 unsigned type_params(type_t t)
 {
-   return lookup_item(&type_object, t, I_PARAMS)->obj_array.count;
+   item_t *item = lookup_item(&type_object, t, I_PARAMS);
+   return obj_array_count(item->obj_array);
 }
 
 type_t type_param(type_t t, unsigned n)
@@ -392,8 +401,10 @@ unsigned type_fields(type_t t)
 {
    if (t->object.kind == T_SUBTYPE)
       return type_fields(type_base(t));
-   else
-      return lookup_item(&type_object, t, I_FIELDS)->obj_array.count;
+   else {
+      item_t *item = lookup_item(&type_object, t, I_FIELDS);
+      return obj_array_count(item->obj_array);
+   }
 }
 
 tree_t type_field(type_t t, unsigned n)
@@ -415,7 +426,8 @@ void type_add_field(type_t t, tree_t p)
 
 unsigned type_decls(type_t t)
 {
-   return lookup_item(&type_object, t, I_DECLS)->obj_array.count;
+   item_t *item = lookup_item(&type_object, t, I_DECLS);
+   return obj_array_count(item->obj_array);
 }
 
 tree_t type_decl(type_t t, unsigned n)
@@ -445,7 +457,8 @@ void type_set_result(type_t t, type_t r)
 
 unsigned type_index_constrs(type_t t)
 {
-   return lookup_item(&type_object, t, I_INDEXCON)->obj_array.count;
+   item_t *item = lookup_item(&type_object, t, I_INDEXCON);
+   return obj_array_count(item->obj_array);
 }
 
 void type_add_index_constr(type_t t, type_t c)
@@ -462,7 +475,8 @@ type_t type_index_constr(type_t t, unsigned n)
 
 unsigned type_constraints(type_t t)
 {
-   return lookup_item(&type_object, t, I_CONSTR)->obj_array.count;
+   item_t *item = lookup_item(&type_object, t, I_CONSTR);
+   return obj_array_count(item->obj_array);
 }
 
 void type_add_constraint(type_t t, tree_t c)

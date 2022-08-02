@@ -149,15 +149,34 @@ STATIC_ASSERT(OBJECT_ALIGN >= sizeof(double));
 typedef uint16_t generation_t;
 typedef uint16_t arena_key_t;
 
-typedef A(object_t *) obj_array_t;
+typedef struct {
+   unsigned  count;
+   unsigned  limit;
+   object_t *items[0];
+} obj_array_t;
+
+#define obj_array_nth(a, n) ({                  \
+         assert((a) != NULL);                   \
+         assert((n) < (a)->count);              \
+         (a)->items[(n)];                       \
+      })
+
+#define obj_array_count(a) ({                   \
+         obj_array_t *_a = (a);                 \
+         (_a == NULL ? 0 : _a->count);          \
+      })
+
+void obj_array_add(obj_array_t **a, object_t *o);
 
 typedef union {
    ident_t       ident;
    object_t     *object;
-   obj_array_t   obj_array;
+   obj_array_t  *obj_array;
    int64_t       ival;
    double        dval;
 } item_t;
+
+STATIC_ASSERT(sizeof(item_t) == 8);
 
 struct _object {
    uint8_t      kind;

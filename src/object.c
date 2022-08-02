@@ -203,6 +203,29 @@ void item_without_type(imask_t mask)
    fatal_trace("item %s does not have a type", item_text_map[item]);
 }
 
+void obj_array_add(obj_array_t **a, object_t *o)
+{
+   if (*a == NULL) {
+      const int defsz = 8;
+      *a = xmalloc_flex(sizeof(obj_array_t), defsz, sizeof(object_t *));
+      (*a)->count = 0;
+      (*a)->limit = defsz;
+   }
+   else if ((*a)->count == (*a)->limit) {
+      (*a)->limit *= 2;
+      *a = xrealloc_flex(*a, sizeof(obj_array_t),
+                         (*a)->limit, sizeof(object_t *));
+   }
+
+   (*a)->items[(*a)->count++] = o;
+}
+
+void obj_array_free(obj_array_t **a)
+{
+   free(*a);
+   *a = NULL;
+}
+
 void object_change_kind(const object_class_t *class, object_t *object, int kind)
 {
    if (kind == object->kind)
@@ -341,10 +364,10 @@ object_t *object_new(object_arena_t *arena,
    if (unlikely(arena->limit - arena->alloc < size)) {
       diag_t *d = diag_new(DIAG_FATAL, NULL);
       diag_printf(d, "memory exhausted while creating unit %s",
-		  istr(object_arena_name(arena)));
+                  istr(object_arena_name(arena)));
       diag_hint(d, NULL, "The current limit is %zu bytes which you can "
-		"increase with the $bold$-M$$ option, for example "
-		"$bold$-M 32m$$", object_arena_default_size());
+                "increase with the $bold$-M$$ option, for example "
+                "$bold$-M 32m$$", object_arena_default_size());
       diag_emit(d);
       fatal_exit(EXIT_FAILURE);
    }
@@ -379,11 +402,12 @@ static void gc_forward_pointers(object_t *object, object_arena_t *arena,
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask) {
+         item_t *item = &(object->items[i]);
          if (ITEM_OBJECT & mask)
-            gc_forward_one_pointer(&(object->items[i].object), arena, forward);
-         else if (ITEM_OBJ_ARRAY & mask) {
-            for (unsigned j = 0; j < object->items[i].obj_array.count; j++)
-               gc_forward_one_pointer(&(object->items[i].obj_array.items[j]),
+            gc_forward_one_pointer(&(item->object), arena, forward);
+         else if ((ITEM_OBJ_ARRAY & mask) && item->obj_array != NULL) {
+            for (unsigned j = 0; j < item->obj_array->count; j++)
+               gc_forward_one_pointer(&(item->obj_array->items[j]),
                                       arena, forward);
          }
 
@@ -416,7 +440,7 @@ static void gc_free_external(object_t *object)
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_OBJ_ARRAY & mask)
-            ACLEAR(object->items[i].obj_array);
+            obj_array_free(&(object->items[i].obj_array));
          i++;
       }
    }
@@ -541,13 +565,16 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
+         item_t *item = &(object->items[i]);
          if (ITEM_IDENT & mask)
             ;
          else if (ITEM_OBJECT & mask)
-            object_visit(object->items[i].object, ctx);
+            object_visit(item->object, ctx);
          else if (ITEM_OBJ_ARRAY & mask) {
-            for (unsigned j = 0; j < object->items[i].obj_array.count; j++)
-               object_visit(object->items[i].obj_array.items[j], ctx);
+            if (item->obj_array != NULL) {
+               for (unsigned j = 0; j < item->obj_array->count; j++)
+                  object_visit(item->obj_array->items[j], ctx);
+            }
          }
          else if (ITEM_INT64 & mask)
             ;
@@ -586,7 +613,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    if (unlikely(ctx->cache == NULL || index >= ctx->cache_sz)) {
       ctx->cache_sz = (ctx->arena->alloc - ctx->arena->base) / OBJECT_ALIGN;
       ctx->cache = xrealloc_array(ctx->cache, sizeof(object_t *),
-				  ctx->cache_sz);
+                                  ctx->cache_sz);
    }
 
    if (object_marked_p(object, ctx->generation)) {
@@ -597,7 +624,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
             if (ctx->pre_fn[object->tag] != NULL)
                (*ctx->pre_fn[object->tag])(object, ctx->context);
             object_t *new =
-	       (object_t *)(*ctx->post_fn[object->tag])(object, ctx->context);
+               (object_t *)(*ctx->post_fn[object->tag])(object, ctx->context);
             object_write_barrier(object, new);
             return (ctx->cache[index] = new);
          }
@@ -631,13 +658,21 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
             object->items[n].object = object_rewrite(o, ctx);
          }
          else if (ITEM_OBJ_ARRAY & mask) {
-            unsigned wptr = 0;
-            for (size_t i = 0; i < object->items[n].obj_array.count; i++) {
-               object_t *o = object->items[n].obj_array.items[i];
-               if ((o = object_rewrite(o, ctx)))
-                  object->items[n].obj_array.items[wptr++] = o;
+            // The callback may add new items to the array
+            obj_array_t **a = &(object->items[n].obj_array);
+            if (*a != NULL) {
+               unsigned wptr = 0;
+               for (size_t i = 0; i < (*a)->count; i++) {
+                  object_t *o = (*a)->items[i];
+                  if ((o = object_rewrite(o, ctx)))
+                     (*a)->items[wptr++] = o;
+               }
+
+               if (wptr == 0)
+                  obj_array_free(a);
+               else
+                  (*a)->count = wptr;
             }
-            ATRIM(object->items[n].obj_array, wptr);
          }
          else if (ITEM_INT64 & mask)
             ;
@@ -658,7 +693,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    }
    else if (ctx->post_fn[object->tag] != NULL) {
       object_t *new =
-	 (object_t *)(*ctx->post_fn[object->tag])(object, ctx->context);
+         (object_t *)(*ctx->post_fn[object->tag])(object, ctx->context);
       object_write_barrier(object, new);
       ctx->cache[index] = new;
    }
@@ -733,22 +768,27 @@ void object_write(object_t *root, fbuf_t *f, ident_wr_ctx_t ident_ctx,
       imask_t mask = 1;
       for (int n = 0; n < nitems; mask <<= 1) {
          if (has & mask) {
+            item_t *item = &(object->items[n]);
             if (ITEM_IDENT & mask)
-               ident_write(object->items[n].ident, ident_ctx);
+               ident_write(item->ident, ident_ctx);
             else if (ITEM_OBJECT & mask)
-               object_write_ref(object->items[n].object, f);
+               object_write_ref(item->object, f);
             else if (ITEM_OBJ_ARRAY & mask) {
-               const unsigned count = object->items[n].obj_array.count;
-               fbuf_put_uint(f, count);
-               for (unsigned i = 0; i < count; i++)
-                  object_write_ref(object->items[n].obj_array.items[i], f);
+               if (item->obj_array != NULL) {
+                  const unsigned count = item->obj_array->count;
+                  fbuf_put_uint(f, count);
+                  for (unsigned i = 0; i < count; i++)
+                     object_write_ref(item->obj_array->items[i], f);
+               }
+               else
+                  fbuf_put_uint(f, 0);
             }
             else if (ITEM_INT64 & mask)
-               fbuf_put_int(f, object->items[n].ival);
+               fbuf_put_int(f, item->ival);
             else if (ITEM_INT32 & mask)
-               fbuf_put_int(f, object->items[n].ival);
+               fbuf_put_int(f, item->ival);
             else if (ITEM_DOUBLE & mask)
-               write_double(object->items[n].dval, f);
+               write_double(item->dval, f);
             else
                item_without_type(mask);
             n++;
@@ -783,7 +823,7 @@ static object_t *object_read_ref(fbuf_t *f, const arena_key_t *key_map)
 }
 
 object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
-		      ident_rd_ctx_t ident_ctx, loc_rd_ctx_t *loc_ctx)
+                      ident_rd_ctx_t ident_ctx, loc_rd_ctx_t *loc_ctx)
 {
    object_one_time_init();
 
@@ -846,18 +886,18 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
       }
 
       if (a->std != dstd)
-	 fatal("%s: design unit depends on %s version of %s but conflicting "
-	       "%s version has been loaded", fbuf_file_name(f),
-	       standard_text(dstd), istr(dep), standard_text(a->std));
+         fatal("%s: design unit depends on %s version of %s but conflicting "
+               "%s version has been loaded", fbuf_file_name(f),
+               standard_text(dstd), istr(dep), standard_text(a->std));
       else if (a->checksum != checksum) {
-	 diag_t *d = diag_new(DIAG_FATAL, NULL);
-	 diag_printf(d, "%s: design unit depends on %s with checksum %08x "
-		     "but the current version in the library has checksum %08x",
-		     fbuf_file_name(f), istr(dep), checksum, a->checksum);
-	 diag_hint(d, NULL, "this usually means %s is outdated and needs to "
-		   "be reanalysed", istr(name));
-	 diag_emit(d);
-	 fatal_exit(EXIT_FAILURE);
+         diag_t *d = diag_new(DIAG_FATAL, NULL);
+         diag_printf(d, "%s: design unit depends on %s with checksum %08x "
+                     "but the current version in the library has checksum %08x",
+                     fbuf_file_name(f), istr(dep), checksum, a->checksum);
+         diag_hint(d, NULL, "this usually means %s is outdated and needs to "
+                   "be reanalysed", istr(name));
+         diag_emit(d);
+         fatal_exit(EXIT_FAILURE);
       }
 
       APUSH(arena->deps, a);
@@ -887,24 +927,30 @@ object_t *object_read(fbuf_t *f, object_load_fn_t loader_fn,
       imask_t mask = 1;
       for (int n = 0; n < nitems; mask <<= 1) {
          if (has & mask) {
+            item_t *item = &(object->items[n]);
             if (ITEM_IDENT & mask)
-               object->items[n].ident = ident_read(ident_ctx);
+               item->ident = ident_read(ident_ctx);
             else if (ITEM_OBJECT & mask)
-               object->items[n].object = object_read_ref(f, key_map);
+               item->object = object_read_ref(f, key_map);
             else if (ITEM_OBJ_ARRAY & mask) {
                const unsigned count = fbuf_get_uint(f);
-               ARESIZE(object->items[n].obj_array, count);
-               for (unsigned i = 0; i < count; i++) {
-                  object_t *o = object_read_ref(f, key_map);
-                  object->items[n].obj_array.items[i] = o;
+               if (count > 0) {
+                  item->obj_array = xmalloc_flex(sizeof(obj_array_t),
+                                                 count, sizeof(object_t *));
+                  item->obj_array->count =
+                     item->obj_array->limit = count;
+                  for (unsigned i = 0; i < count; i++) {
+                     object_t *o = object_read_ref(f, key_map);
+                     item->obj_array->items[i] = o;
+                  }
                }
             }
             else if (ITEM_INT64 & mask)
-               object->items[n].ival = fbuf_get_int(f);
+               item->ival = fbuf_get_int(f);
             else if (ITEM_INT32 & mask)
-               object->items[n].ival = fbuf_get_int(f);
+               item->ival = fbuf_get_int(f);
             else if (ITEM_DOUBLE & mask)
-               object->items[n].dval = read_double(f);
+               item->dval = read_double(f);
             else
                item_without_type(mask);
             n++;
@@ -929,7 +975,7 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
    unsigned pos = 0;
    for (; pos < ctx->nroots; pos++) {
       if (object->arena == ctx->roots[pos]->arena)
-	 break;
+         break;
    }
 
    if (pos == ctx->nroots)
@@ -958,18 +1004,19 @@ static bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
+         item_t *item = &(object->items[n]);
          if (ITEM_IDENT & mask)
             ;
-         else if (ITEM_OBJECT & mask) {
-            object_t *o = object->items[n].object;
-            marked |= object_copy_mark(o, ctx);
-         }
+         else if (ITEM_OBJECT & mask)
+            marked |= object_copy_mark(item->object, ctx);
          else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_OBJ_ARRAY & mask) {
-            for (unsigned i = 0; i < object->items[n].obj_array.count; i++) {
-               object_t *o = object->items[n].obj_array.items[i];
-               marked |= object_copy_mark(o, ctx);
+            if (item->obj_array != NULL) {
+               for (unsigned i = 0; i < item->obj_array->count; i++) {
+                  object_t *o = item->obj_array->items[i];
+                  marked |= object_copy_mark(o, ctx);
+               }
             }
          }
          else if (ITEM_INT64 & mask)
@@ -1022,27 +1069,35 @@ void object_copy(object_copy_ctx_t *ctx)
       imask_t mask = 1;
       for (int n = 0; n < nitems; mask <<= 1) {
          if (has & mask) {
+            const item_t *from = &(object->items[n]);
+            item_t *to = &(copy->items[n]);
+
             if (ITEM_IDENT & mask)
-               copy->items[n].ident = object->items[n].ident;
+               to->ident = from->ident;
             else if (ITEM_OBJECT & mask) {
-               object_t *o = object_copy_map(object->items[n].object, ctx);
-               copy->items[n].object = o;
-               object_write_barrier(copy, o);
+               to->object = object_copy_map(from->object, ctx);
+               object_write_barrier(copy, to->object);
             }
             else if (ITEM_DOUBLE & mask)
-               copy->items[n].dval = object->items[n].dval;
+               to->dval = from->dval;
             else if (ITEM_OBJ_ARRAY & mask) {
-               const item_t *from = &(object->items[n]);
-               item_t *to = &(copy->items[n]);
-               ARESIZE(to->obj_array, from->obj_array.count);
-               for (size_t i = 0; i < from->obj_array.count; i++) {
-                  object_t *o = object_copy_map(from->obj_array.items[i], ctx);
-                  to->obj_array.items[i] = o;
-                  object_write_barrier(copy, o);
+               if (from->obj_array != NULL) {
+                  // TODO: make a resize macro
+                  to->obj_array = xmalloc_flex(sizeof(obj_array_t),
+                                               from->obj_array->count,
+                                               sizeof(object_t *));
+                  to->obj_array->count =
+                     to->obj_array->limit = from->obj_array->count;
+                  for (size_t i = 0; i < from->obj_array->count; i++) {
+                     object_t *o =
+                        object_copy_map(from->obj_array->items[i], ctx);
+                     to->obj_array->items[i] = o;
+                     object_write_barrier(copy, o);
+                  }
                }
             }
             else if ((ITEM_INT64 & mask) || (ITEM_INT32 & mask))
-               copy->items[n].ival = object->items[n].ival;
+               to->ival = from->ival;
             else
                item_without_type(mask);
             n++;
@@ -1051,10 +1106,10 @@ void object_copy(object_copy_ctx_t *ctx)
    }
 
    for (hash_iter_t it = HASH_BEGIN;
-	hash_iter(ctx->copy_map, &it, &key, &value); ) {
+        hash_iter(ctx->copy_map, &it, &key, &value); ) {
       object_t *copy = value;
       if (ctx->callback[copy->tag] != NULL)
-	 (*ctx->callback[copy->tag])(copy, ctx->context);
+         (*ctx->callback[copy->tag])(copy, ctx->context);
    }
 
    if (opt_get_verbose(OPT_OBJECT_VERBOSE, NULL))
@@ -1064,7 +1119,7 @@ void object_copy(object_copy_ctx_t *ctx)
    for (unsigned i = 0; i < ctx->nroots; i++) {
       object_t *copy = hash_get(ctx->copy_map, ctx->roots[i]);
       if (copy != NULL)
-	 ctx->roots[i] = copy;
+         ctx->roots[i] = copy;
    }
 
    hash_free(ctx->copy_map);
@@ -1166,8 +1221,8 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
    object_arena_t *arena = NULL;
    for (int j = all_arenas.count - 1; j > 0; j--) {
       if (module == object_arena_name(all_arenas.items[j])) {
-	 arena = all_arenas.items[j];
-	 break;
+         arena = all_arenas.items[j];
+         break;
       }
    }
 
@@ -1176,14 +1231,14 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
       if (loader) droot = (*loader)(module);
 
       if (droot == NULL)
-	 fatal("cannot find object locus %s%+"PRIiPTR, istr(module), offset);
+         fatal("cannot find object locus %s%+"PRIiPTR, istr(module), offset);
 
       arena = __object_arena(droot);
    }
 
    if (offset < 0 && arena->frozen)
       fatal_trace("locus %s%+"PRIiPTR" was created before arena was frozen",
-		  istr(module), offset);
+                  istr(module), offset);
    else if (offset < 0)
       offset = -offset;
 
@@ -1195,7 +1250,7 @@ object_t *object_from_locus(ident_t module, ptrdiff_t offset,
    object_t *obj = ptr;
    if (obj->tag != tag)
       fatal_trace("incorrect tag %d for object locus %s%+"PRIiPTR, obj->tag,
-		  istr(module), offset);
+                  istr(module), offset);
 
    return obj;
 }

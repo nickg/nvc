@@ -214,6 +214,16 @@ void *xrealloc_array(void *ptr, size_t nelems, size_t size)
    return xrealloc(ptr, bytes);
 }
 
+void *xrealloc_flex(void *ptr, size_t fixed, size_t nelems, size_t size)
+{
+   size_t bytes;
+   if (__builtin_mul_overflow(nelems, size, &bytes))
+      fatal_trace("array size overflow: requested %zd * %zd bytes",
+                  nelems, size);
+
+   return xrealloc(ptr, bytes + fixed);
+}
+
 char *xstrdup(const char *str)
 {
    char *copy = strdup(str);
