@@ -1,6 +1,7 @@
 entity sub is
     port (
-        x : in integer );
+        x : in integer;
+        y : in integer_vector(1 to 3) );
 end entity;
 
 entity top is
@@ -15,7 +16,7 @@ begin
         -- Insert new signal here
     begin
         u: entity work.sub
-            port map ( x => a + b );
+            port map ( x => a + b, y => a & b & (0 => 4) );
 
         -- Insert new process here
     end block;

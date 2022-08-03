@@ -1184,12 +1184,16 @@ START_TEST(test_ports2008)
    tree_t b = tree_stmt(a, 0);
    fail_unless(tree_kind(b) == T_BLOCK);
 
-   fail_unless(tree_decls(b) == 2);
-   fail_unless(tree_stmts(b) == 2);
+   fail_unless(tree_decls(b) == 3);
+   fail_unless(tree_stmts(b) == 3);
 
    tree_t inst = tree_stmt(b, 0);
    fail_unless(tree_kind(inst) == T_INSTANCE);
    fail_unless(tree_kind(tree_value(tree_param(inst, 0))) == T_REF);
+
+   tree_t ydecl = tree_decl(b, 1);
+   fail_unless(tree_kind(ydecl) == T_SIGNAL_DECL);
+   fail_unless(type_kind(tree_type(ydecl)) == T_SUBTYPE);
 }
 END_TEST
 

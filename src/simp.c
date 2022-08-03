@@ -1379,8 +1379,10 @@ static tree_t simp_subprogram_decl(tree_t decl, simp_ctx_t *ctx)
 
 static void simp_port_map(tree_t t, simp_ctx_t *ctx)
 {
-   // Replace any non-globally-static actuals with tempoary signals
+   // Replace any non-globally-static actuals with temporary signals
    assert(standard() >= STD_08);
+
+   tree_t unit = tree_ref(t);
 
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
@@ -1394,10 +1396,17 @@ static void simp_port_map(tree_t t, simp_ctx_t *ctx)
 
       char *signame LOCAL = xasprintf("%s_actual_%d", istr(tree_ident(t)), i);
 
+      tree_t port = NULL;
+      switch (tree_subkind(m)) {
+      case P_POS: port = tree_port(unit, tree_pos(m)); break;
+      case P_NAMED: port = tree_name(m); break;
+      }
+      assert(port != NULL);
+
       tree_t s = tree_new(T_SIGNAL_DECL);
       tree_set_loc(s, tree_loc(value));
       tree_set_ident(s, ident_uniq(signame));
-      tree_set_type(s, tree_type(value));
+      tree_set_type(s, tree_type(port));
 
       tree_t p = tree_new(T_PROCESS);
       tree_set_loc(p, tree_loc(t));
