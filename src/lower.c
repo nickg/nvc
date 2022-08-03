@@ -3426,9 +3426,12 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
             emit_index_check(r_right_reg, left_reg, right_reg, dir_reg,
                              locus, locus);
 
-            vcode_reg_t r_low_reg =
-               emit_select(r_dir_reg, r_right_reg, r_left_reg);
-            off_reg = lower_array_off(r_low_reg, mem_reg, type, 0);
+            vcode_reg_t dir_cmp_reg =
+               emit_cmp(VCODE_CMP_EQ, dir_reg, r_dir_reg);
+            vcode_reg_t base_reg =
+               emit_select(dir_cmp_reg, r_left_reg, r_right_reg);
+
+            off_reg = lower_array_off(base_reg, mem_reg, type, 0);
          }
          else {
             loop_bb = emit_block();
