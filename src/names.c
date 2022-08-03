@@ -1170,21 +1170,6 @@ void continue_proc_labelling_from(tree_t t, nametab_t *tab)
    tab->top_scope->lbl_cnts.proc = cnt;
 }
 
-static inline int* find_impl_label_loop_cnt(nametab_t *tab)
-{
-   scope_t *s = tab->top_scope;
-
-   for (; s != NULL; s = s->parent) {
-      if (s->container == NULL)
-         continue;
-
-      if (is_subprogram(s->container) || tree_kind(s->container) == T_PROCESS)
-         return &(s->lbl_cnts.loop);
-   }
-
-   return NULL;
-}
-
 ident_t get_implicit_label(tree_t t, nametab_t *tab)
 {
    int *cnt;
@@ -1200,7 +1185,15 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
 
    case T_FOR:
    case T_WHILE:
-      cnt = find_impl_label_loop_cnt(tab);
+      cnt = NULL;
+      for (scope_t *s = tab->top_scope; s != NULL; s = s->parent) {
+         if (s->container == NULL)
+            continue;
+         if (is_subprogram(s->container) || tree_kind(s->container) == T_PROCESS) {
+            cnt = &(s->lbl_cnts.loop);
+            break;
+         }
+      }
       c = 'L';
       break;
       
