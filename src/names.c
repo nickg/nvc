@@ -110,6 +110,12 @@ typedef struct _lazy_sym {
    void       *ctx;
 } lazy_sym_t;
 
+typedef struct {
+   int proc;
+   int loop;
+   int stmt;
+} label_cnts_t;
+
 struct scope {
    scope_t       *parent;
    sym_chunk_t    symbols;
@@ -127,6 +133,7 @@ struct scope {
    lazy_sym_t    *lazy;
    tree_list_t    imported;
    scope_t       *chain;
+   label_cnts_t   lbl_cnts;
 };
 
 struct nametab {
@@ -1138,6 +1145,69 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
       }
    }
    *p = s;
+}
+
+void continue_proc_labelling_from(tree_t t, nametab_t *tab)
+{
+   if (t == NULL) {
+      tab->top_scope->lbl_cnts.proc = 0;
+      return;
+   }
+
+   assert (tree_kind(t) == T_ENTITY);
+
+   const int nstmts = tree_stmts(t);
+   int cnt = 0;
+   ident_t prefix = ident_new("_P");
+   for (int i = 0; i < nstmts; i++) {
+      tree_t stmt = tree_stmt(t, i);
+
+      // Entity statements for sure have labels since they have been implicitly
+      // labelled
+      if (ident_starts_with(tree_ident(stmt), prefix))
+         cnt++;
+   }
+   tab->top_scope->lbl_cnts.proc = cnt;
+}
+
+ident_t get_implicit_label(tree_t t, nametab_t *tab)
+{
+   int *cnt;
+   char c;
+   char buf[22];
+
+   switch (tree_kind(t)) {
+   case T_PROCESS:
+   case T_CONCURRENT:
+      cnt = &(tab->top_scope->lbl_cnts.proc);
+      c = 'P';
+      break;
+
+   case T_FOR:
+   case T_WHILE:
+      cnt = NULL;
+      for (scope_t *s = tab->top_scope; s != NULL; s = s->parent) {
+         if (s->container == NULL)
+            continue;
+         if (is_subprogram(s->container) || tree_kind(s->container) == T_PROCESS) {
+            cnt = &(s->lbl_cnts.loop);
+            break;
+         }
+      }
+      c = 'L';
+      break;
+      
+   default:
+      cnt = &(tab->top_scope->lbl_cnts.stmt);
+      c = 'S';
+      break;
+   }
+
+   checked_sprintf(buf, sizeof(buf), "_%C%d", c, *cnt);
+   (*cnt)++;
+   ident_t ident = ident_new(buf);
+
+   return ident;
 }
 
 type_t resolve_type(nametab_t *tab, type_t incomplete)

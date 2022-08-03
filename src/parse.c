@@ -705,32 +705,12 @@ static tree_t find_binding(tree_t inst)
    return unit;
 }
 
-static ident_t loc_to_ident(const loc_t *loc)
-{
-   char sbuf[64];
-   checked_sprintf(sbuf, sizeof(sbuf), "line_%d", loc->first_line);
-
-   if (!ident_interned(sbuf))
-      return ident_new(sbuf);
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_printf(tb, "%sa", sbuf);
-
-   for (int i = 1; ident_interned(tb_get(tb)); i++) {
-      if (i % 26 != 0)
-         tb_backup(tb, 1);
-      tb_append(tb, 'a' + i % 26);
-   }
-
-   return ident_new(tb_get(tb));
-}
-
 static void set_label_and_loc(tree_t t, ident_t label, const loc_t *loc)
 {
    tree_set_loc(t, loc);
 
    if (label == NULL)
-      label = loc_to_ident(loc);
+      label = get_implicit_label(t, nametab);
 
    tree_set_ident(t, label);
 }
@@ -1619,7 +1599,7 @@ static bool is_range_expr(tree_t t)
 
 static tree_t ensure_labelled(tree_t t, ident_t label)
 {
-   tree_set_ident(t, label ?: loc_to_ident(CURRENT_LOC));
+   tree_set_ident(t, label ?: get_implicit_label(t, nametab));
    return t;
 }
 
@@ -6066,6 +6046,7 @@ static tree_t p_concurrent_assertion_statement(ident_t label)
       tree_set_flag(conc, TREE_F_POSTPONED);
 
    tree_t s = p_assertion();
+   tree_set_ident(s, get_implicit_label(s, nametab));
    tree_add_stmt(conc, s);
 
    consume(tSEMI);
@@ -6075,7 +6056,7 @@ static tree_t p_concurrent_assertion_statement(ident_t label)
 
    ensure_labelled(conc, label);
 
-   insert_name(nametab, conc, NULL);
+   if (label) insert_name(nametab, conc, NULL);
    sem_check(conc, nametab);
    return conc;
 }
@@ -7270,7 +7251,7 @@ static tree_t p_process_statement(ident_t label)
    optional(tIS);
 
    if (label == NULL) {
-      tree_set_ident(t, loc_to_ident(CURRENT_LOC));
+      tree_set_ident(t, get_implicit_label(t, nametab));
       tree_set_flag(t, TREE_F_SYNTHETIC_NAME);
    }
    else {
@@ -8689,6 +8670,7 @@ static tree_t p_if_statement(ident_t label)
    EXTEND("if statement");
 
    tree_t t = tree_new(T_IF);
+   ensure_labelled(t, label);
 
    consume(tIF);
 
@@ -8728,7 +8710,7 @@ static tree_t p_if_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
-   set_label_and_loc(t, label, CURRENT_LOC);
+   tree_set_loc(t, CURRENT_LOC);
    sem_check(t, nametab);
    return t;
 }
@@ -8819,8 +8801,9 @@ static tree_t p_loop_statement(ident_t label)
 
    consume(tLOOP);
 
-   set_label_and_loc(t, label, CURRENT_LOC);
    scope_set_container(nametab, t);
+   set_label_and_loc(t, label, CURRENT_LOC);
+
    if (label != NULL)
       insert_name(nametab, t, NULL);
 
@@ -9001,7 +8984,6 @@ static void p_case_statement_alternative(tree_t stmt)
    consume(tASSOC);
 
    tree_t b = tree_new(T_SEQUENCE);
-   tree_set_ident(b, loc_to_ident(CURRENT_LOC));
    p_sequence_of_statements(b);
 
    const int nassocs = tree_assocs(stmt);
@@ -9039,6 +9021,8 @@ static tree_t p_case_statement(ident_t label)
 
    tree_t value = p_expression();
    tree_set_value(t, value);
+   ensure_labelled(t, label);
+
    solve_types(nametab, value, NULL);
 
    consume(tIS);
@@ -9056,7 +9040,7 @@ static tree_t p_case_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
-   set_label_and_loc(t, label, CURRENT_LOC);
+   tree_set_loc(t, CURRENT_LOC);
    sem_check(t, nametab);
    return t;
 }
@@ -9242,7 +9226,7 @@ static tree_t p_component_instantiation_statement(ident_t label, tree_t name)
    if (label == NULL) {
       parse_error(CURRENT_LOC, "component instantiation statement must "
                   "have a label");
-      tree_set_ident(t, loc_to_ident(CURRENT_LOC));
+      tree_set_ident(t, get_implicit_label(t, nametab));
    }
 
    sem_check(t, nametab);
@@ -9294,6 +9278,8 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
       else
          s0 = NULL;
 
+      tree_set_ident(a, get_implicit_label(a, nametab));
+      
       tree_set_loc(a, CURRENT_LOC);
       tree_set_loc(c, CURRENT_LOC);
 
@@ -9323,6 +9309,7 @@ static tree_t p_conditional_signal_assignment(tree_t name)
    tree_t stmt = tree_new(T_COND_ASSIGN);
    tree_add_stmt(conc, stmt);
 
+   tree_set_ident(stmt, get_implicit_label(stmt, nametab));
    tree_t target = p_target(name);
    tree_set_target(stmt, target);
 
@@ -9387,6 +9374,7 @@ static void p_selected_waveforms(tree_t stmt, tree_t target, tree_t reject)
          tree_set_value(tree_assoc(stmt, i), a);
 
       tree_set_loc(a, CURRENT_LOC);
+      tree_set_ident(a, get_implicit_label(a, nametab));
       sem_check(a, nametab);
    } while (optional(tCOMMA));
 }
@@ -9401,6 +9389,8 @@ static tree_t p_selected_signal_assignment(void)
 
    tree_t conc = tree_new(T_CONCURRENT);
    tree_t stmt = tree_new(T_SELECT);
+
+   tree_set_ident(stmt, get_implicit_label(stmt, nametab));
    tree_add_stmt(conc, stmt);
 
    tree_t value = p_expression();
@@ -9460,7 +9450,7 @@ static tree_t p_concurrent_signal_assignment_statement(ident_t label,
    if (postponed)
       tree_set_flag(t, TREE_F_POSTPONED);
 
-   insert_name(nametab, t, NULL);
+   if (label) insert_name(nametab, t, NULL);
    sem_check(t, nametab);
    return t;
 }
@@ -9500,7 +9490,7 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
    ensure_labelled(conc, label);
    tree_set_ident(call, tree_ident(conc));
 
-   insert_name(nametab, conc, NULL);
+   if (label) insert_name(nametab, conc, NULL);
    sem_check(conc, nametab);
    return conc;
 }
@@ -9827,6 +9817,8 @@ static void p_architecture_body(tree_t unit)
       insert_ports(nametab, e);
       insert_decls(nametab, e);
    }
+
+   continue_proc_labelling_from(e, nametab);
 
    p_architecture_declarative_part(unit);
 
