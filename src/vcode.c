@@ -186,11 +186,12 @@ struct vcode_unit {
 #define MASK_INDEX(x)     ((x) & 0xffffff)
 #define MAKE_HANDLE(c, i) (((c) & 0xff) << 24 | ((i) & 0xffffff))
 
-#define VCODE_ASSERT(expr, ...)    \
-   if (unlikely(!(expr))) {        \
-      vcode_dump();                \
-      fatal_trace(__VA_ARGS__);    \
-   }
+#define VCODE_ASSERT(expr, ...) do                                      \
+      if (unlikely(!(expr))) {                                          \
+         vcode_dump_with_mark(vcode_block_data()->ops.count - 1,        \
+                              NULL, NULL);                              \
+         fatal_trace(__VA_ARGS__);                                      \
+      } while (0)
 
 #define VCODE_FOR_EACH_OP(name)                                 \
    block_t *_b = vcode_block_data();                            \

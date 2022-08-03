@@ -2583,12 +2583,12 @@ static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
 
 static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
 {
-   if (lower_have_uarray_ptr(reg))
-      reg = emit_load_indirect(reg);
-
    if (!lower_have_signal(reg))
       return reg;
-   else if (type_is_homogeneous(type)) {
+   else if (lower_have_uarray_ptr(reg))
+      reg = emit_load_indirect(reg);
+
+   if (type_is_homogeneous(type)) {
       vcode_reg_t data_reg;
       if (vcode_reg_kind(reg) == VCODE_TYPE_POINTER)
          data_reg = emit_resolved(emit_load_indirect(reg));
@@ -3486,6 +3486,8 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
          lower_check_array_sizes(a, elem_type, elem_type, a0_reg, value_reg);
          vcode_dump();
       }
+
+      value_reg = lower_resolved(value_type, value_reg);
 
       if (count_reg != VCODE_INVALID_REG) {
          vcode_reg_t src_reg = lower_array_data(value_reg);
