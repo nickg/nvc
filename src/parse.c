@@ -6056,7 +6056,7 @@ static tree_t p_concurrent_assertion_statement(ident_t label)
 
    ensure_labelled(conc, label);
 
-   insert_name(nametab, conc, NULL);
+   if (label) insert_name(nametab, conc, NULL);
    sem_check(conc, nametab);
    return conc;
 }
@@ -9450,7 +9450,7 @@ static tree_t p_concurrent_signal_assignment_statement(ident_t label,
    if (postponed)
       tree_set_flag(t, TREE_F_POSTPONED);
 
-   insert_name(nametab, t, NULL);
+   if (label) insert_name(nametab, t, NULL);
    sem_check(t, nametab);
    return t;
 }
@@ -9490,7 +9490,7 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label, tree_t name)
    ensure_labelled(conc, label);
    tree_set_ident(call, tree_ident(conc));
 
-   insert_name(nametab, conc, NULL);
+   if (label) insert_name(nametab, conc, NULL);
    sem_check(conc, nametab);
    return conc;
 }
