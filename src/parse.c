@@ -5297,8 +5297,7 @@ static void p_attribute_specification(tree_t parent, add_func_t addf)
       tree_set_value(t, value);
       tree_set_ref(t, attr_decl);
 
-      if (class != C_LITERAL) {
-         // TODO: this check shouldn't really be here
+      if (class != C_LITERAL && class != C_LABEL) {
          tree_t d = resolve_name(nametab, loc, it->ident);
          if (d != NULL && class_of(d) != class)
             parse_error(loc, "class of object %s is %s not %s",
@@ -9279,7 +9278,7 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
          s0 = NULL;
 
       tree_set_ident(a, get_implicit_label(a, nametab));
-      
+
       tree_set_loc(a, CURRENT_LOC);
       tree_set_loc(c, CURRENT_LOC);
 

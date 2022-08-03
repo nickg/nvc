@@ -1121,13 +1121,6 @@ void insert_name(nametab_t *tab, tree_t decl, ident_t alias)
 void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
                  ident_t ident, int depth)
 {
-   spec_t *s = xmalloc(sizeof(spec_t));
-   s->next    = NULL;
-   s->kind    = kind;
-   s->ident   = ident;
-   s->tree    = spec;
-   s->matches = 0;
-
    scope_t *scope;
    for (scope = tab->top_scope; depth > 0; depth--, scope = scope->parent)
       ;
@@ -1144,6 +1137,14 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
          return;
       }
    }
+
+   spec_t *s = xmalloc(sizeof(spec_t));
+   s->next    = NULL;
+   s->kind    = kind;
+   s->ident   = ident;
+   s->tree    = spec;
+   s->matches = 0;
+
    *p = s;
 }
 
@@ -1196,7 +1197,7 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
       }
       c = 'L';
       break;
-      
+
    default:
       cnt = &(tab->top_scope->lbl_cnts.stmt);
       c = 'S';

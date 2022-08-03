@@ -4467,6 +4467,7 @@ static bool sem_static_name(tree_t t, static_fn_t check_fn)
          case T_IMPLICIT_SIGNAL:
          case T_GENERIC_DECL:
          case T_PARAM_DECL:
+         case T_CONCURRENT:
             return true;
          case T_ALIAS:
             return sem_static_name(tree_value(decl), check_fn);

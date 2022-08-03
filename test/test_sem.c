@@ -725,7 +725,6 @@ START_TEST(test_attr)
       {  65, "expected attribute type INTEGER" },
       {  66, "expected attribute type STRING" },
       {  67, "no visible declaration for Q" },
-      {  68, "no visible declaration for YAH" },
       {  85, "dimension of attribute LEFT must be locally static" },
       { 101, "prefix of SIMPLE_NAME attribute must be a named entity" },
       { 103, "prefix of PATH_NAME attribute must be a named entity" },
