@@ -4613,14 +4613,16 @@ static bool sem_globally_static(tree_t t)
          // expression
          return sem_globally_static(tree_value(t));
       }
-      else if (standard() >= STD_08) {
+
+      tree_t name = tree_name(t);
+
+      if (standard() >= STD_08) {
          // LRM 08 section 9.4.3: A prefix is appropriate for a globally
          // static attribute if it denotes a signal, a constant, a type
          // or subtype, a globally static function call, a variable that
          // is not of an access type, or a variable of an access type
          // whose designated subtype is fully constrained.
 
-         tree_t name = tree_name(t);
          switch (tree_kind(name)) {
          case T_REF:
             {
@@ -4637,16 +4639,14 @@ static bool sem_globally_static(tree_t t)
          case T_FCALL:
             return sem_globally_static(name);
          default:
-            return false;
+            break;
          }
       }
-      else {
-         tree_t name = tree_name(t);
-         if (tree_has_type(name))
-            return sem_static_subtype(tree_type(name), sem_globally_static);
 
-         return false;
-      }
+      if (tree_has_type(name))
+         return sem_static_subtype(tree_type(name), sem_globally_static);
+
+      return false;
    }
 
    // A qualified expression whose operand is globally static
