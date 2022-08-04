@@ -592,29 +592,31 @@ static void trace_one_frame(uintptr_t pc, const char *module,
       color_fprintf(stderr, " $magenta$[VHDL]$$");
    fprintf(stderr, "\n");
 
+#ifndef __MINGW32__
    if (srcfile != NULL) {
       FILE *f = fopen(srcfile, "r");
       if (f != NULL) {
-         char buf[TRACE_MAX_LINE];
-         for (int i = 0; i < lineno + 1 &&
-                 fgets(buf, sizeof(buf), f); i++) {
+         char *line LOCAL = NULL;
+         size_t linesz = 0;
+         for (int i = 0, len; i < lineno + 1
+                 && (len = getline(&line, &linesz, f)) != -1; i++) {
             if (i < lineno - 2)
                continue;
 
-            const size_t len = strlen(buf);
             if (len <= 1)
                continue;
-            else if (buf[len - 1] == '\n')
-               buf[len - 1] = '\0';
+            else if (line[len - 1] == '\n')
+               line[len - 1] = '\0';
 
             if (i == lineno - 1)
-               color_fprintf(stderr, "$cyan$$bold$-->$$ $cyan$%s$$\n", buf);
+               color_fprintf(stderr, "$cyan$$bold$-->$$ $cyan$%s$$\n", line);
             else
-               color_fprintf(stderr, "    $cyan$%s$$\n", buf);
+               color_fprintf(stderr, "    $cyan$%s$$\n", line);
          }
          fclose(f);
       }
    }
+#endif
 }
 
 __attribute__((noinline))
