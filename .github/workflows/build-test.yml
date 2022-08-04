@@ -233,6 +233,8 @@ jobs:
         run: ./vhdl-projects/uvvm/test.sh
       - name: Test vhdl-format
         run: ./vhdl-projects/format/test.sh
+      - name: Test NEORV32
+        run: ./vhdl-projects/neorv32/test.sh
 
   vunit:
     name: VUnit
