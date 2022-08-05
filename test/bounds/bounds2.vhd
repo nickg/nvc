@@ -21,8 +21,8 @@ begin
             wait;
         end process;
 
-        b6 <= true after -10 ns when true else false;
-        b7 <= true when true else false after -10 ns;
+        b6 <= true after -10 ns when now = 5 ns else false;
+        b7 <= true when now = 1 ns else false after -10 ns;
 
     end block;
 

@@ -597,6 +597,20 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
    }
 }
 
+static object_t *object_rewrite_iter(object_t *object,
+                                     object_rewrite_ctx_t *ctx)
+{
+   // The callback may return a new object or a pointer to an existing
+   // object in the same arena that that needs to be rewritten so
+   // iterate rewriting until we reach a fixed point
+   for (;;) {
+      object_t *new = (*ctx->post_fn[object->tag])(object, ctx->context);
+      if (new == object || new == NULL)
+         return new;
+      object = object_rewrite(new, ctx);
+   }
+}
+
 object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
 {
    if (object == NULL)
@@ -623,8 +637,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          if (ctx->post_fn[object->tag] != NULL) {
             if (ctx->pre_fn[object->tag] != NULL)
                (*ctx->pre_fn[object->tag])(object, ctx->context);
-            object_t *new =
-               (object_t *)(*ctx->post_fn[object->tag])(object, ctx->context);
+            object_t *new = object_rewrite_iter(object, ctx);
             object_write_barrier(object, new);
             return (ctx->cache[index] = new);
          }
@@ -656,16 +669,20 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          else if (ITEM_OBJECT & mask) {
             object_t *o = object->items[n].object;
             object->items[n].object = object_rewrite(o, ctx);
+            object_write_barrier(object, o);
          }
          else if (ITEM_OBJ_ARRAY & mask) {
-            // The callback may add new items to the array
             obj_array_t **a = &(object->items[n].obj_array);
-            if (*a != NULL) {
+            if (object->items[n].obj_array != NULL) {
+               // The callback may add new items to the array so the
+               // array pointer cannot be cached between iterations
                unsigned wptr = 0;
-               for (size_t i = 0; i < (*a)->count; i++) {
-                  object_t *o = (*a)->items[i];
-                  if ((o = object_rewrite(o, ctx)))
-                     (*a)->items[wptr++] = o;
+               for (size_t i = 0; i < object->items[n].obj_array->count; i++) {
+                  object_t *o = object->items[n].obj_array->items[i];
+                  if ((o = object_rewrite(o, ctx))) {
+                     object_write_barrier(object, o);
+                     object->items[n].obj_array->items[wptr++] = o;
+                  }
                }
 
                if (wptr == 0)
@@ -690,17 +707,15 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
 
    if (ctx->cache[index] != (object_t *)-1) {
       // The cache was already updated due to a circular reference
+      return ctx->cache[index];
    }
    else if (ctx->post_fn[object->tag] != NULL) {
-      object_t *new =
-         (object_t *)(*ctx->post_fn[object->tag])(object, ctx->context);
+      object_t *new = object_rewrite_iter(object, ctx);
       object_write_barrier(object, new);
-      ctx->cache[index] = new;
+      return (ctx->cache[index] = new);
    }
    else
-      ctx->cache[index] = object;
-
-   return ctx->cache[index];
+      return (ctx->cache[index] = object);
 }
 
 static void object_write_ref(object_t *object, fbuf_t *f)

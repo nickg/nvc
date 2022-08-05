@@ -1156,6 +1156,27 @@ START_TEST(test_toplevel4)
 }
 END_TEST
 
+START_TEST(test_comp4)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/elab/comp4.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   tree_t b0 = tree_stmt(e, 0);
+   fail_unless(tree_ident(b0) == ident_new("COMP4"));
+   fail_unless(tree_stmts(b0) == 1);
+
+   tree_t u = tree_stmt(b0, 0);
+   fail_unless(tree_ident(u) == ident_new("U"));
+   fail_unless(tree_stmts(u) == 0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1222,6 +1243,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_generate1);
    tcase_add_test(tc, test_neorv1);
    tcase_add_test(tc, test_toplevel4);
+   tcase_add_test(tc, test_comp4);
    suite_add_tcase(s, tc);
 
    return s;

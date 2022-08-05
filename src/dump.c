@@ -932,7 +932,7 @@ static void dump_stmt(tree_t t, int indent)
 
    if (tree_has_ident(t)) {
       const char *label = istr(tree_ident(t));
-      if (label[0] != 'l')   // Skip generated labels
+      if (label[0] != '_')   // Skip generated labels
          printf("%s: ", label);
    }
 

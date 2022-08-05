@@ -1078,7 +1078,7 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
          // generics that need to be folded
          if (map != NULL) {
             hash_put(ctx->generics, cg, tree_value(map));
-            simplify_global(m, ctx->generics, ctx->eval);
+            cg = eg;
          }
 
          map = m;
