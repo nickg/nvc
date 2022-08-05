@@ -3748,6 +3748,9 @@ static void rt_cycle(int stop_delta)
       rt_dump_signals(root);
 #endif
 
+   // Run all non-postponed event callbacks
+   rt_resume(&resume_watch);
+
    while ((event = rt_pop_run_queue(&procq))) {
       // Free the event before running the process to avoid a leak if we
       // longjmp back to rt_run_sim
@@ -3755,12 +3758,6 @@ static void rt_cycle(int stop_delta)
       rt_free(event_stack, event);
       rt_run(p);
    }
-
-   if (unlikely((stop_delta > 0) && (iteration == stop_delta)))
-      rt_iteration_limit();
-
-   // Run all non-postponed event callbacks
-   rt_resume(&resume_watch);
 
    // Run all processes that resumed because of signal events
    rt_resume(&resume);
@@ -3778,6 +3775,8 @@ static void rt_cycle(int stop_delta)
 
       can_create_delta = true;
    }
+   else if (unlikely((stop_delta > 0) && (iteration == stop_delta)))
+      rt_iteration_limit();
 }
 
 static void rt_free_sens_list(sens_list_t **l)
