@@ -211,7 +211,7 @@ package ENV is
 
   procedure       DIR_OPEN(Dir : out DIRECTORY; Path : in STRING; Status : out DIR_OPEN_STATUS);
   impure function DIR_OPEN(Dir : out DIRECTORY; Path : in STRING) return DIR_OPEN_STATUS;
-  procedure       DIR_CLOSE(Dir : in DIRECTORY);
+  procedure       DIR_CLOSE(variable Dir : inout DIRECTORY);
 
   impure function DIR_ITEMEXISTS(Path : in STRING) return BOOLEAN;
   impure function DIR_ITEMISDIR(Path : in STRING) return BOOLEAN;
@@ -241,18 +241,18 @@ package ENV is
   end record;
   -- function "="  (anonymous, anonymous: CALL_PATH_ELEMENT) return BOOLEAN;
   -- function "/=" (anonymous, anonymous: CALL_PATH_ELEMENT) return BOOLEAN;
-  impure function TO_STRING (call_path : CALL_PATH_ELEMENT ) return STRING;
+  impure function TO_STRING (variable call_path : inout CALL_PATH_ELEMENT ) return STRING;
 
   type CALL_PATH_VECTOR is array (natural range <>) of CALL_PATH_ELEMENT;
   -- function "="  (anonymous, anonymous: CALL_PATH_VECTOR) return BOOLEAN;
   -- function "/=" (anonymous, anonymous: CALL_PATH_VECTOR) return BOOLEAN;
-  impure function TO_STRING (call_path : CALL_PATH_VECTOR; Separator : STRING := "" & LF ) return STRING;
+  impure function TO_STRING (variable call_path : inout CALL_PATH_VECTOR; Separator : STRING := "" & LF ) return STRING;
 
   type CALL_PATH_VECTOR_PTR is access CALL_PATH_VECTOR;
   -- function "="  (anonymous, anonymous: CALL_PATH_VECTOR_PTR) return BOOLEAN;
   -- function "/=" (anonymous, anonymous: CALL_PATH_VECTOR_PTR) return BOOLEAN;
   -- procedure DEALLOCATE (P: inout CALL_PATH_VECTOR_PTR);
-  impure function TO_STRING (call_path : CALL_PATH_VECTOR_PTR; Separator : STRING := "" & LF ) return STRING;
+  impure function TO_STRING (variable call_path : inout CALL_PATH_VECTOR_PTR; Separator : STRING := "" & LF ) return STRING;
 
   impure function GET_CALL_PATH return CALL_PATH_VECTOR_PTR;
 
