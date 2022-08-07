@@ -89,6 +89,20 @@ void fill_cpu_state(struct cpu_state *cpu, ucontext_t *uc)
    cpu->regs[13] = uc->uc_mcontext.mc_r13;
    cpu->regs[14] = uc->uc_mcontext.mc_r14;
    cpu->regs[15] = uc->uc_mcontext.mc_r15;
+#elif defined __FreeBSD__ && defined __aarch64__
+   cpu->pc = uc->uc_mcontext.mc_gpregs.gp_elr;
+   cpu->sp = uc->uc_mcontext.mc_gpregs.gp_sp;
+
+   for (int i = 0; i < 30; i++)
+      cpu->regs[i] = uc->uc_mcontext.mc_gpregs.gp_x[i];
+
+   cpu->regs[30] = uc->uc_mcontext.mc_gpregs.gp_lr;
+#elif defined __FreeBSD__ && defined __arm__
+   cpu->pc = uc->uc_mcontext._gregs[_REG_PC];
+   cpu->sp = uc->uc_mcontext._gregs[_REG_SP];
+
+   for (int i = 0; i < 16; i++)
+      cpu->regs[i] = uc->uc_mcontext._gregs[i];
 #elif defined __OpenBSD__ && defined __x86_64__
    cpu->pc = uc->sc_rip;
    cpu->sp = uc->sc_rsp;
