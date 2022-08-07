@@ -87,7 +87,6 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(value);
    nfail += RUN_TESTS(lower);
    nfail += RUN_TESTS(elab);
-   nfail += RUN_TESTS(json);
    nfail += RUN_TESTS(debug);
    nfail += RUN_TESTS(jit);
    nfail += RUN_TESTS(mspace);

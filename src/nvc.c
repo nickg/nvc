@@ -97,7 +97,6 @@ static int analyse(int argc, char **argv)
    static struct option long_options[] = {
       { "bootstrap",       no_argument,       0, 'b' },
       { "error-limit",     required_argument, 0, 'l' },
-      { "dump-json",       required_argument, 0, 'j' },
       { "dump-llvm",       no_argument,       0, 'D' },
       { "dump-vcode",      optional_argument, 0, 'v' },
       { "relax",           required_argument, 0, 'X' },
@@ -125,9 +124,6 @@ static int analyse(int argc, char **argv)
       case 'v':
          opt_set_str(OPT_DUMP_VCODE, optarg ?: "");
          break;
-      case 'j':
-         opt_set_str(OPT_DUMP_JSON, optarg ?: "");
-         break;
       case 'X':
          warnf("The $bold$--relax=$$ option is deprecated: use the combined "
                "$bold$--relaxed$$ option instead");
@@ -144,8 +140,6 @@ static int analyse(int argc, char **argv)
       }
    }
 
-   SCOPED_A(tree_t) units = AINIT;
-
    lib_t work = lib_work();
    eval_t *eval = eval_new(0);
 
@@ -157,7 +151,6 @@ static int analyse(int argc, char **argv)
       while (base_errors = error_count(), (unit = parse())) {
          if (error_count() == base_errors) {
             lib_put(work, unit);
-            APUSH(units, unit);
 
             simplify_local(unit, eval);
             bounds_check(unit);
@@ -177,9 +170,6 @@ static int analyse(int argc, char **argv)
 
    if (error_count() > 0)
       return EXIT_FAILURE;
-
-   if (opt_get_str(OPT_DUMP_JSON))
-      dump_json(units.items, units.count, opt_get_str(OPT_DUMP_JSON));
 
    lib_save(work);
 
@@ -807,7 +797,6 @@ static void set_default_opts(void)
    opt_set_int(OPT_DUMP_LLVM, 0);
    opt_set_int(OPT_OPTIMISE, 2);
    opt_set_int(OPT_BOOTSTRAP, 0);
-   opt_set_str(OPT_DUMP_JSON, NULL);
    opt_set_int(OPT_COVER, 0);
    opt_set_int(OPT_STOP_DELTA, 1000);
    opt_set_int(OPT_UNIT_TEST, 0);

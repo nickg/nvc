@@ -48,9 +48,6 @@ void cgen(tree_t top, vcode_unit_t vu, cover_tagging_t *cover);
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);
 
-// Dump out a JSON VHDL representation of the given unit
-void dump_json(tree_t *elements, unsigned int n_elements, const char *filename);
-
 // Generate a makefile for the givein unit
 void make(tree_t *targets, int count, FILE *out);
 

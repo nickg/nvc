@@ -20,7 +20,6 @@ bin_unit_test_SOURCES = \
 	test/test_elab.c \
 	test/test_bounds.c \
 	test/test_value.c \
-	test/test_json.c \
 	test/test_debug.c \
 	test/test_mspace.c \
 	test/test_jit.c
@@ -28,7 +27,6 @@ bin_unit_test_SOURCES = \
 bin_unit_test_LDADD = \
 	lib/libnvc.a \
 	lib/libfastlz.a \
-	lib/libjson.a \
 	lib/libcpustate.a \
 	$(check_LIBS) \
 	$(POW_LIB) \

@@ -1,11 +1,9 @@
-noinst_LIBRARIES += lib/libfst.a lib/libfastlz.a lib/libjson.a lib/libcpustate.a
+noinst_LIBRARIES += lib/libfst.a lib/libfastlz.a lib/libcpustate.a
 
 lib_libfst_a_SOURCES = thirdparty/fstapi.c thirdparty/lz4.c thirdparty/fstapi.h \
 	thirdparty/lz4.h
 
 lib_libfastlz_a_SOURCES = thirdparty/fastlz.c thirdparty/fastlz.h
-
-lib_libjson_a_SOURCES = thirdparty/json.c thirdparty/json.h
 
 lib_libcpustate_a_SOURCES = thirdparty/cpustate.c thirdparty/cpustate.h
 

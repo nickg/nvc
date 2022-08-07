@@ -137,8 +137,6 @@ EXTRA_DIST += \
 	test/jit/sum.vhd \
 	test/jit/trace1.vhd \
 	test/jit/unreachable.vhd \
-	test/json/basic.vhd \
-	test/json/seq.vhd \
 	test/lower/access1.vhd \
 	test/lower/access2.vhd \
 	test/lower/access_bug.vhd \
