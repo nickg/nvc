@@ -57,7 +57,8 @@ const char *jit_exit_name(jit_exit_t exit)
    static const char *names[] = {
       "INDEX_FAIL", "OVERFLOW", "NULL_DEREF", "LENGTH_FAIL", "UNREACHABLE",
       "DIV_ZERO", "EXPONENT_FAIL", "REPORT", "ASSERT_FAIL", "INT_TO_STRING",
-      "REAL_TO_STRING", "RANGE_FAIL", "FUNC_WAIT",
+      "REAL_TO_STRING", "RANGE_FAIL", "FUNC_WAIT", "INIT_SIGNAL",
+      "DRIVE_SIGNAL", "SCHED_WAVEFORM"
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];

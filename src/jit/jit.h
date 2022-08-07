@@ -65,6 +65,7 @@ void jit_set_lower_fn(jit_t *j, jit_lower_fn_t fn, void *ctx);
 void jit_set_silent(jit_t *j, bool silent);
 const jit_layout_t *jit_layout(jit_t *j, type_t type);
 void jit_limit_backedges(jit_t *j, int limit);
+mspace_t *jit_get_mspace(jit_t *j);
 
 jit_scalar_t jit_call(jit_t *j, ident_t func, void *context,
                       const char *fmt, ...);
@@ -75,5 +76,7 @@ bool jit_try_call(jit_t *j, ident_t func, void *context, jit_scalar_t *result,
 bool jit_try_pcall(jit_t *j, ident_t func, void *state, void *context,
                    const char *fmt, ...);
 bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result);
+bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
+                  jit_scalar_t p1, jit_scalar_t p2);
 
 #endif   // _JIT_H

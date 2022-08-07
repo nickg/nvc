@@ -165,6 +165,8 @@ jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle)
 jit_handle_t jit_compile(jit_t *j, ident_t name)
 {
    jit_handle_t handle = jit_lazy_compile(j, name);
+   if (handle == JIT_HANDLE_INVALID)
+      return handle;
 
    jit_func_t *f = jit_get_func(j, handle);
    if (f->irbuf == NULL)
@@ -194,7 +196,7 @@ void *jit_link(jit_t *j, jit_handle_t handle)
 
    const loc_t *loc = vcode_unit_loc();
 
-   jit_scalar_t args[JIT_MAX_ARGS] = { { .integer = 0 } };
+   jit_scalar_t args[JIT_MAX_ARGS] = { { .pointer = NULL } };
    if (!jit_interp(f, args, 1, 0, NULL)) {
       error_at(loc, "failed to initialise %s", istr(f->name));
       args[0].pointer = NULL;
@@ -272,6 +274,9 @@ static bool jit_try_vcall(jit_t *j, ident_t func, bool pcall, void *state,
    }
 
    jit_handle_t handle = jit_compile(j, func);
+   if (handle == JIT_HANDLE_INVALID)
+      fatal_trace("invalid handle for %s", istr(func));
+
    bool ok = jit_interp(jit_get_func(j, handle), args, nargs, 0, NULL);
 
    *result = args[0];
@@ -343,6 +348,20 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
    bool ok = jit_interp(f, args, 0, j->backedge, NULL);
 
    jit_free_func(f);
+
+   *result = args[0];
+   return ok;
+}
+
+bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
+                  jit_scalar_t p1, jit_scalar_t p2)
+{
+   // TODO: this interface and jit_call should be rethought
+
+   jit_func_t *f = jit_get_func(j, handle);
+
+   jit_scalar_t args[JIT_MAX_ARGS] = { p1, p2 };
+   bool ok = jit_interp(f, args, 2, 0, NULL);
 
    *result = args[0];
    return ok;

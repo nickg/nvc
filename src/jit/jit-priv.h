@@ -105,6 +105,9 @@ typedef enum {
    JIT_EXIT_REAL_TO_STRING,
    JIT_EXIT_RANGE_FAIL,
    JIT_EXIT_FUNC_WAIT,
+   JIT_EXIT_INIT_SIGNAL,
+   JIT_EXIT_DRIVE_SIGNAL,
+   JIT_EXIT_SCHED_WAVEFORM,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
@@ -185,7 +188,6 @@ bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge,
 jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle);
 void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
                  const void *highlight, const char *prefix);
-mspace_t *jit_get_mspace(jit_t *j);
 void *jit_get_privdata(jit_t *j, jit_func_t *f);
 void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr);
 bool jit_show_errors(jit_t *j);

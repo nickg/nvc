@@ -998,6 +998,30 @@ static void interp_real_to_string(jit_interp_t *state)
    state->nargs = MAX(state->nargs, 3);
 }
 
+static void interp_scalar_init_signal(jit_interp_t *state)
+{
+#if 0
+   int32_t count  = state->args[0].integer;
+   int32_t size   = state->args[1].integer;
+   int64_t value  = state->args[2].integer;
+   int32_t flags  = state->args[3].integer;
+   tree_t  where  = state->args[4].pointer;
+   int32_t offset = state->args[5].integer;
+#endif
+
+   state->args[0].pointer = NULL;
+   state->nargs = 1;
+}
+
+static void interp_drive_signal(jit_interp_t *state)
+{
+#if 0
+   sig_shared_t *ss     = state->args[0].pointer;
+   int32_t       offset = state->args[1].integer;
+   int32_t       count  = state->args[2].integer;
+#endif
+}
+
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 {
    switch (ir->arg1.exit) {
@@ -1051,6 +1075,14 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_FUNC_WAIT:
       interp_func_wait(state);
+      break;
+
+   case JIT_EXIT_INIT_SIGNAL:
+      interp_scalar_init_signal(state);
+      break;
+
+   case JIT_EXIT_DRIVE_SIGNAL:
+      interp_drive_signal(state);
       break;
 
    default:

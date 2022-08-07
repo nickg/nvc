@@ -687,7 +687,7 @@ static int irgen_size_bytes(vcode_type_t vtype)
       return sizeof(void *);
 
    case VCODE_TYPE_SIGNAL:
-      return sizeof(void *);  // Not really supported
+      return sizeof(void *) + sizeof(int32_t);
 
    default:
       fatal_trace("cannot handle type %d in irgen_size_bytes",
@@ -1329,6 +1329,14 @@ static jit_value_t irgen_load_addr(jit_irgen_t *g, vcode_type_t vtype,
    case VCODE_TYPE_CONTEXT:
       return j_load(g, JIT_SZ_PTR, addr);
 
+   case VCODE_TYPE_SIGNAL:
+      {
+         jit_value_t shared = j_load(g, JIT_SZ_PTR, addr);
+         addr = jit_addr_from_value(addr, sizeof(void *));
+         j_load(g, JIT_SZ_32, addr);   // Offset
+         return shared;
+      }
+
    case VCODE_TYPE_UARRAY:
       {
          jit_value_t base = j_load(g, JIT_SZ_PTR, addr);
@@ -1395,7 +1403,12 @@ static void irgen_store_addr(jit_irgen_t *g, vcode_type_t vtype,
       break;
 
    case VCODE_TYPE_SIGNAL:
-      // Not implemented
+      {
+         jit_reg_t base = jit_value_as_reg(value);
+         j_store(g, JIT_SZ_PTR, value, addr);
+         addr = jit_addr_from_value(addr, sizeof(void *));
+         j_store(g, JIT_SZ_32, jit_value_from_reg(base + 1), addr);
+      }
       break;
 
    default:
@@ -2119,7 +2132,32 @@ static void irgen_op_resolution_wrapper(jit_irgen_t *g, int op)
 
 static void irgen_op_init_signal(jit_irgen_t *g, int op)
 {
-   g->map[vcode_get_result(op)] = jit_value_from_int64(0);
+   jit_value_t count = irgen_get_arg(g, op, 0);
+   jit_value_t size  = irgen_get_arg(g, op, 1);
+   jit_value_t value = irgen_get_arg(g, op, 2);
+   jit_value_t flags = irgen_get_arg(g, op, 3);
+   jit_value_t locus = irgen_get_arg(g, op, 4);
+
+   jit_value_t offset;
+   if (vcode_count_args(op) > 5)
+      offset = irgen_get_arg(g, op, 5);
+   else
+      offset = jit_value_from_int64(0);
+
+   j_send(g, 0, count);
+   j_send(g, 1, size);
+   j_send(g, 2, value);
+   j_send(g, 3, flags);
+   j_send(g, 4, locus);
+   j_send(g, 5, offset);
+
+   macro_exit(g, JIT_EXIT_INIT_SIGNAL);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+
+   // Offset into signal must be next sequential register
+   jit_reg_t next = irgen_alloc_reg(g);
+   j_mov(g, next, jit_value_from_int64(0));
 }
 
 static void irgen_op_resolve_signal(jit_irgen_t *g, int op)
@@ -2205,6 +2243,48 @@ static void irgen_op_push_scope(jit_irgen_t *g, int op)
 static void irgen_op_pop_scope(jit_irgen_t *g, int op)
 {
    // No-op
+}
+
+static void irgen_op_drive_signal(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   macro_exit(g, JIT_EXIT_DRIVE_SIGNAL);
+}
+
+static void irgen_op_resolved(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+
+   jit_value_t data_ptr = irgen_lea(g, jit_addr_from_value(shared, 8));
+
+   // XXX: scale by type size???
+
+   g->map[vcode_get_result(op)] = j_add(g, data_ptr, offset);
+}
+
+static void irgen_op_sched_waveform(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+   jit_value_t value  = irgen_get_arg(g, op, 2);
+   jit_value_t reject = irgen_get_arg(g, op, 3);
+   jit_value_t after  = irgen_get_arg(g, op, 4);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   j_send(g, 3, value);
+   j_send(g, 4, reject);
+   j_send(g, 5, after);
+   macro_exit(g, JIT_EXIT_SCHED_WAVEFORM);
 }
 
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
@@ -2464,6 +2544,15 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_POP_SCOPE:
          irgen_op_pop_scope(g, i);
+         break;
+      case VCODE_OP_DRIVE_SIGNAL:
+         irgen_op_drive_signal(g, i);
+         break;
+      case VCODE_OP_RESOLVED:
+         irgen_op_resolved(g, i);
+         break;
+      case VCODE_OP_SCHED_WAVEFORM:
+         irgen_op_sched_waveform(g, i);
          break;
       default:
          fatal("cannot generate JIT IR for vcode op %s", vcode_op_string(op));
