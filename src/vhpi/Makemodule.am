@@ -4,6 +4,8 @@ lib_libvhpi_a_SOURCES = \
 	src/vhpi/vhpi_sens.c \
 	src/vhpi/vhpi-str.c \
 	src/vhpi/vhpi-model.c \
+	src/vhpi/vhpi-macros.h \
+	src/vhpi/vhpi-util.h \
 	src/vhpi/vhpi-util.c
 
 include_HEADERS += src/vhpi/vhpi_user.h

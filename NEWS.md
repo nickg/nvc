@@ -1,4 +1,4 @@
-## Unreleased changes
+## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a
   separate build directory instead.
 - *Breaking change:* The `--force-init` command is deprecated and has no

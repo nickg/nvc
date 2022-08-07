@@ -1,6 +1,9 @@
 NVC was written by Nick Gasson <nick@nickg.me.uk> with help from the
 following people:
 
+- Arild Velure (@avelure) made a huge number of useful bug reports.
+- Brian Padalino (@bpadalino) provided lots of useful feedback and bug
+  reports.
 - David Koontz provided invaluable feedback and testing during early
   development.
 - KAWAZOME Ichiro (@ikwzm) provided many test cases and high quality bug
@@ -13,3 +16,5 @@ following people:
   `std.textio` implementation.
 - Sebastien Van Cauwenbergh (@svancau) contributed the JSON output
   module.
+
+Special thank you to @bpadalino and @tmeissner for sponsoring me!
