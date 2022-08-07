@@ -1204,11 +1204,8 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
       break;
    }
 
-   checked_sprintf(buf, sizeof(buf), "_%C%d", c, *cnt);
-   (*cnt)++;
-   ident_t ident = ident_new(buf);
-
-   return ident;
+   checked_sprintf(buf, sizeof(buf), "_%c%d", c, (*cnt)++);
+   return ident_new(buf);
 }
 
 type_t resolve_type(nametab_t *tab, type_t incomplete)
