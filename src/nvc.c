@@ -221,10 +221,8 @@ static void set_top_level(char **argv, int next_cmd)
 static int elaborate(int argc, char **argv)
 {
    static struct option long_options[] = {
-      { "disable-opt", no_argument,       0, 'o' },    // DEPRECATED
       { "dump-llvm",   no_argument,       0, 'd' },
       { "dump-vcode",  optional_argument, 0, 'v' },
-      { "native",      no_argument,       0, 'n' },    // DEPRECATED
       { "cover",       no_argument,       0, 'c' },
       { "verbose",     no_argument,       0, 'V' },
       { 0, 0, 0, 0 }
@@ -235,10 +233,6 @@ static int elaborate(int argc, char **argv)
    const char *spec = "Vg:O:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
-      case 'o':
-         warnf("The '--disable-opt' option is deprecated: use '-O0' instead");
-         opt_set_int(OPT_OPTIMISE, 0);
-         break;
       case 'O':
          {
             char *eptr;
@@ -253,9 +247,6 @@ static int elaborate(int argc, char **argv)
          break;
       case 'v':
          opt_set_str(OPT_DUMP_VCODE, optarg ?: "");
-         break;
-      case 'n':
-         warnf("--native is now a global option: place before the -e command");
          break;
       case 'c':
          opt_set_int(OPT_COVER, 1);
@@ -1082,7 +1073,7 @@ int main(int argc, char **argv)
       { "work",        required_argument, 0, 'w' },
       { "std",         required_argument, 0, 's' },
       { "messages",    required_argument, 0, 'I' },
-      { "native",      no_argument,       0, 'n' },   // DEPRECATED
+      { "native",      no_argument,       0, 'n' },   // DEPRECATED 1.4
       { "map",         required_argument, 0, 'p' },
       { "ignore-time", no_argument,       0, 'i' },
       { "force-init",  no_argument,       0, 'f' },   // DEPRECATED 1.7

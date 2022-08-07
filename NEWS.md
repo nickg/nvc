@@ -1,4 +1,6 @@
 ## Unreleased changes
+- The `--disable-opt` and `--native` elaborate options which were
+  deprecated in version 1.3 have been removed.
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a
