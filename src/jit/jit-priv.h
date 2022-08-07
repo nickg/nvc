@@ -108,6 +108,19 @@ typedef enum {
    JIT_EXIT_INIT_SIGNAL,
    JIT_EXIT_DRIVE_SIGNAL,
    JIT_EXIT_SCHED_WAVEFORM,
+   JIT_EXIT_SCHED_PROCESS,
+   JIT_EXIT_TEST_EVENT,
+   JIT_EXIT_TEST_ACTIVE,
+   JIT_EXIT_INIT_SIGNALS,
+   JIT_EXIT_SCHED_EVENT,
+   JIT_EXIT_NOW,
+   JIT_EXIT_SCHED_WAVEFORMS,
+   JIT_EXIT_FILE_OPEN,
+   JIT_EXIT_FILE_CLOSE,
+   JIT_EXIT_FILE_READ,
+   JIT_EXIT_FILE_WRITE,
+   JIT_EXIT_ENDFILE,
+   JIT_EXIT_FILE_FLUSH,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
@@ -192,5 +205,6 @@ void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
 void *jit_get_privdata(jit_t *j, jit_func_t *f);
 void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr);
 bool jit_show_errors(jit_t *j);
+bool jit_has_runtime(jit_t *j);
 
 #endif  // _JIT_PRIV_H

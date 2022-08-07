@@ -51,8 +51,10 @@ lib_libnvc_a_SOURCES = \
 	src/thread.h \
 	src/thread.c
 
+if ENABLE_LLVM
 lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
+endif
 
 bin_nvc_SOURCES = src/nvc.c
 
@@ -60,13 +62,17 @@ EXTRA_bin_nvc_DEPENDENCIES = src/symbols.txt
 
 bin_nvc_LDADD = \
 	lib/libnvc.a \
-	lib/libcgen.a \
 	lib/libfst.a \
 	lib/libfastlz.a \
 	lib/libvhpi.a \
 	lib/libcpustate.a \
-	$(LLVM_LIBS) \
 	$(libdw_LIBS)
+
+if ENABLE_LLVM
+bin_nvc_LDADD += \
+	lib/libcgen.a \
+	$(LLVM_LIBS)
+endif
 
 bin_nvc_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 

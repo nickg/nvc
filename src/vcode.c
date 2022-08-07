@@ -5654,7 +5654,7 @@ static void vcode_write_unit(vcode_unit_t unit, fbuf_t *f,
 void vcode_write(vcode_unit_t unit, fbuf_t *f, ident_wr_ctx_t ident_ctx,
                  loc_wr_ctx_t *loc_ctx)
 {
-   assert(unit->kind == VCODE_UNIT_PACKAGE);
+   assert(unit->context == NULL);
 
    write_u8(VCODE_VERSION, f);
 

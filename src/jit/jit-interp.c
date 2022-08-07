@@ -19,6 +19,7 @@
 #include "array.h"
 #include "common.h"
 #include "diag.h"
+#include "jit/jit-exits.h"
 #include "jit/jit-priv.h"
 #include "rt/mspace.h"
 #include "tree.h"
@@ -941,10 +942,13 @@ static void interp_report(jit_interp_t *state)
 
 static void interp_assert_fail(jit_interp_t *state)
 {
-   char    *msg      = state->args[0].pointer;
-   int32_t  len      = state->args[1].integer;
-   int32_t  severity = state->args[2].integer;
-   tree_t   where    = state->args[3].pointer;
+   char    *msg        = state->args[0].pointer;
+   int32_t  len        = state->args[1].integer;
+   int32_t  severity   = state->args[2].integer;
+   int64_t  hint_left  = state->args[3].integer;
+   int64_t  hint_right = state->args[4].integer;
+   int8_t   hint_valid = state->args[5].integer;
+   tree_t   where      = state->args[6].pointer;
 
    static const char *levels[] = {
       "Note", "Warning", "Error", "Failure"
@@ -954,6 +958,7 @@ static void interp_assert_fail(jit_interp_t *state)
 
    if (jit_show_errors(state->func->jit)) {
       diag_t *d = diag_new(level, tree_loc(where));
+
       if (msg == NULL)
          diag_printf(d, "Assertion %s: Assertion violation.", levels[severity]);
       else {
@@ -962,6 +967,28 @@ static void interp_assert_fail(jit_interp_t *state)
          // Assume we don't want to dump the source code if the user
          // provided their own message
          diag_show_source(d, false);
+      }
+
+      if (hint_valid) {
+         assert(tree_kind(where) == T_FCALL);
+         type_t p0_type = tree_type(tree_value(tree_param(where, 0)));
+         type_t p1_type = tree_type(tree_value(tree_param(where, 1)));
+
+         LOCAL_TEXT_BUF tb = tb_new();
+         to_string(tb, p0_type, hint_left);
+         switch (tree_subkind(tree_ref(where))) {
+         case S_SCALAR_EQ:  tb_cat(tb, " = "); break;
+         case S_SCALAR_NEQ: tb_cat(tb, " /= "); break;
+         case S_SCALAR_LT:  tb_cat(tb, " < "); break;
+         case S_SCALAR_GT:  tb_cat(tb, " > "); break;
+         case S_SCALAR_LE:  tb_cat(tb, " <= "); break;
+         case S_SCALAR_GE:  tb_cat(tb, " >= "); break;
+         default: tb_cat(tb, " <?> "); break;
+         }
+         to_string(tb, p1_type, hint_right);
+         tb_cat(tb, " is false");
+
+         diag_hint(d, tree_loc(where), "%s", tb_get(tb));
       }
 
       diag_emit(d);
@@ -1001,26 +1028,177 @@ static void interp_real_to_string(jit_interp_t *state)
 
 static void interp_scalar_init_signal(jit_interp_t *state)
 {
-#if 0
    int32_t count  = state->args[0].integer;
    int32_t size   = state->args[1].integer;
    int64_t value  = state->args[2].integer;
    int32_t flags  = state->args[3].integer;
    tree_t  where  = state->args[4].pointer;
    int32_t offset = state->args[5].integer;
-#endif
 
-   state->args[0].pointer = NULL;
+   sig_shared_t *ss;
+   if (!jit_has_runtime(state->func->jit))
+      ss = NULL;   // Called during constant folding
+   else
+      ss = x_init_signal(count, size, (const uint8_t *)&value,
+                         flags, where, offset);
+
+   state->args[0].pointer = ss;
+   state->nargs = 1;
+}
+
+static void interp_scalar_init_signals(jit_interp_t *state)
+{
+   int32_t  count  = state->args[0].integer;
+   int32_t  size   = state->args[1].integer;
+   uint8_t *value  = state->args[2].pointer;
+   int32_t  flags  = state->args[3].integer;
+   tree_t   where  = state->args[4].pointer;
+   int32_t  offset = state->args[5].integer;
+
+   sig_shared_t *ss;
+   if (!jit_has_runtime(state->func->jit))
+      ss = NULL;   // Called during constant folding
+   else
+      ss = x_init_signal(count, size, value, flags, where, offset);
+
+   state->args[0].pointer = ss;
    state->nargs = 1;
 }
 
 static void interp_drive_signal(jit_interp_t *state)
 {
-#if 0
+   if (!jit_has_runtime(state->func->jit))
+      return;   // Called during constant folding
+
    sig_shared_t *ss     = state->args[0].pointer;
    int32_t       offset = state->args[1].integer;
    int32_t       count  = state->args[2].integer;
-#endif
+
+   x_drive_signal(ss, offset, count);
+}
+
+static void interp_sched_process(jit_interp_t *state)
+{
+   if (!jit_has_runtime(state->func->jit))
+      return;   // TODO: this should not be necessary
+
+   int64_t after = state->args[0].integer;
+
+   x_sched_process(after);
+}
+
+static void interp_sched_waveform(jit_interp_t *state)
+{
+   sig_shared_t *shared = state->args[0].pointer;
+   int32_t       offset = state->args[1].integer;
+   int64_t       value  = state->args[3].integer;
+   int64_t       after  = state->args[4].integer;
+   int64_t       reject = state->args[5].integer;
+
+   x_sched_waveform_s(shared, offset, value, after, reject);
+}
+
+static void interp_sched_waveforms(jit_interp_t *state)
+{
+   sig_shared_t *shared = state->args[0].pointer;
+   int32_t       offset = state->args[1].integer;
+   int32_t       count  = state->args[2].integer;
+   void         *value  = state->args[3].pointer;
+   int64_t       after  = state->args[4].integer;
+   int64_t       reject = state->args[5].integer;
+
+   x_sched_waveform(shared, offset, value, count, after, reject);
+}
+
+static void interp_sched_event(jit_interp_t *state)
+{
+   sig_shared_t *shared = state->args[0].pointer;
+   int32_t       offset = state->args[1].integer;
+   int32_t       count  = state->args[2].integer;
+   int8_t        recur  = state->args[3].integer;
+   sig_shared_t *wake   = state->args[4].pointer;
+
+   x_sched_event(shared, offset, count, recur, wake);
+}
+
+static void interp_test_event(jit_interp_t *state)
+{
+   sig_shared_t *shared = state->args[0].pointer;
+   int32_t       offset = state->args[1].integer;
+   int32_t       count  = state->args[2].integer;
+
+   state->args[0].integer = x_test_net_event(shared, offset, count);
+   state->nargs = 1;
+}
+
+static void interp_test_active(jit_interp_t *state)
+{
+   sig_shared_t *shared = state->args[0].pointer;
+   int32_t       offset = state->args[1].integer;
+   int32_t       count  = state->args[2].integer;
+
+   state->args[0].integer = x_test_net_active(shared, offset, count);
+   state->nargs = 1;
+}
+
+static void interp_now(jit_interp_t *state)
+{
+   state->args[0].integer = x_now();
+   state->nargs = 1;
+}
+
+static void interp_file_open(jit_interp_t *state)
+{
+   int8_t   *status     = state->args[0].pointer;
+   void    **_fp        = state->args[1].pointer;
+   uint8_t  *name_bytes = state->args[2].pointer;
+   int32_t   name_len   = state->args[3].integer;
+   int32_t   mode       = state->args[4].integer;
+   tree_t    where      = state->args[5].pointer;
+
+   x_file_open(status, _fp, name_bytes, name_len, mode, where);
+}
+
+static void interp_file_close(jit_interp_t *state)
+{
+   void **_fp = state->args[0].pointer;
+
+   x_file_close(_fp);
+}
+
+static void interp_file_read(jit_interp_t *state)
+{
+   void    **_fp   = state->args[0].pointer;
+   uint8_t  *data  = state->args[1].pointer;
+   int32_t   size  = state->args[2].integer;
+   int32_t   count = state->args[3].integer;
+   int32_t  *out   = state->args[4].pointer;
+
+   x_file_read(_fp, data, size, count, out);
+}
+
+static void interp_file_write(jit_interp_t *state)
+{
+   void    **_fp  = state->args[0].pointer;
+   uint8_t  *data = state->args[1].pointer;
+   int32_t   len  = state->args[2].integer;
+
+   x_file_write(_fp, data, len);
+}
+
+static void interp_endfile(jit_interp_t *state)
+{
+   void *_fp = state->args[0].pointer;
+
+   state->args[0].integer = x_endfile(_fp);
+   state->nargs = 1;
+}
+
+static void interp_file_flush(jit_interp_t *state)
+{
+   void *_fp = state->args[0].pointer;
+
+   x_file_flush(_fp);
 }
 
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
@@ -1082,8 +1260,64 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
       interp_scalar_init_signal(state);
       break;
 
+   case JIT_EXIT_INIT_SIGNALS:
+      interp_scalar_init_signals(state);
+      break;
+
    case JIT_EXIT_DRIVE_SIGNAL:
       interp_drive_signal(state);
+      break;
+
+   case JIT_EXIT_SCHED_PROCESS:
+      interp_sched_process(state);
+      break;
+
+   case JIT_EXIT_SCHED_WAVEFORM:
+      interp_sched_waveform(state);
+      break;
+
+   case JIT_EXIT_SCHED_WAVEFORMS:
+      interp_sched_waveforms(state);
+      break;
+
+   case JIT_EXIT_TEST_EVENT:
+      interp_test_event(state);
+      break;
+
+   case JIT_EXIT_TEST_ACTIVE:
+      interp_test_active(state);
+      break;
+
+   case JIT_EXIT_SCHED_EVENT:
+      interp_sched_event(state);
+      break;
+
+   case JIT_EXIT_NOW:
+      interp_now(state);
+      break;
+
+   case JIT_EXIT_FILE_OPEN:
+      interp_file_open(state);
+      break;
+
+   case JIT_EXIT_FILE_CLOSE:
+      interp_file_close(state);
+      break;
+
+   case JIT_EXIT_FILE_READ:
+      interp_file_read(state);
+      break;
+
+   case JIT_EXIT_FILE_WRITE:
+      interp_file_write(state);
+      break;
+
+   case JIT_EXIT_ENDFILE:
+      interp_endfile(state);
+      break;
+
+   case JIT_EXIT_FILE_FLUSH:
+      interp_file_flush(state);
       break;
 
    default:

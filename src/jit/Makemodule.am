@@ -4,4 +4,6 @@ lib_libnvc_a_SOURCES += \
 	src/jit/jit-core.c \
 	src/jit/jit-irgen.c \
 	src/jit/jit-dump.c \
-	src/jit/jit-interp.c
+	src/jit/jit-interp.c \
+	src/jit/jit-exits.h \
+	src/jit/jit-exits.c

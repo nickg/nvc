@@ -81,6 +81,14 @@
 #define DEBUG_ONLY(x) x
 #endif
 
+#ifdef ENABLE_LLVM
+#define LLVM_ONLY(x) x
+#define NOT_LLVM_ONLY(x)
+#else
+#define LLVM_ONLY(x)
+#define NOT_LLVM_ONLY(x) x
+#endif
+
 #define UNUSED __attribute__((unused))
 
 #define LCOV_EXCL_LINE

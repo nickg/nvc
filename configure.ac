@@ -129,7 +129,21 @@ AC_DEFINE_UNQUOTED([FST_REMOVE_DUPLICATE_VC], [1], [Enable FST glitch removal])
 
 AX_PTHREAD([], [AC_MSG_ERROR([pthread not found])])
 
-AX_LLVM_C([engine passes ipo linker native])
+AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$system_cc"], [System compiler])
+
+AC_ARG_ENABLE([llvm],
+  [AS_HELP_STRING([--enable-llvm], [Build LLVM code generator])],
+  [enable_llvm=$enableval],
+  [enable_llvm=yes])
+
+AM_CONDITIONAL([ENABLE_LLVM], [test x$enable_llvm != xno])
+
+if test "$enable_llvm" != "no"; then
+  AC_DEFINE_UNQUOTED([ENABLE_LLVM], [1], [LLVM code generator enabled])
+  AX_LLVM_C([engine passes ipo linker native])
+else
+  AM_CONDITIONAL([LLVM_STATIC], [false])
+fi
 
 PKG_CHECK_MODULES([check], [check >= 0.9.4], [],
                   [AC_MSG_WARN(libcheck not found - unit tests will not run)])

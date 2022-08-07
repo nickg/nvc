@@ -99,6 +99,7 @@ bool rt_can_create_delta(void);
 uint64_t rt_now(unsigned *deltas);
 void rt_stop(void);
 void *rt_tlab_alloc(size_t size);
+ident_t rt_active_proc_name(void) __attribute__((weak));
 
 text_buf_t *pprint(tree_t t, const uint64_t *values, size_t len);
 

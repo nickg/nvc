@@ -26,6 +26,7 @@
 #include "hash.h"
 #include "heap.h"
 #include "jit/jit.h"
+#include "jit/jit-exits.h"
 #include "lib.h"
 #include "opt.h"
 #include "rt/mspace.h"
@@ -46,7 +47,6 @@
 #include <float.h>
 #include <ctype.h>
 #include <time.h>
-#include <setjmp.h>
 
 #ifdef HAVE_ALLOCA_H
 #include <alloca.h>
@@ -73,7 +73,6 @@ typedef struct rt_implicit_s rt_implicit_t;
 typedef struct rt_proc_s     rt_proc_t;
 typedef struct rt_alias_s    rt_alias_t;
 
-typedef void *(*proc_fn_t)(void *, rt_scope_t *);
 typedef void *(*value_fn_t)(rt_nexus_t *);
 
 typedef enum {
@@ -91,7 +90,7 @@ typedef struct rt_proc_s {
    rt_wakeable_t  wakeable;
    tree_t         where;
    ident_t        name;
-   proc_fn_t      proc_fn;
+   jit_handle_t   handle;
    tlab_t         tlab;
    rt_scope_t    *scope;
    rt_proc_t     *chain;
@@ -229,7 +228,7 @@ typedef struct rt_nexus_s {
 } rt_nexus_t;
 
 // The code generator knows the layout of this struct
-typedef struct {
+typedef struct _sig_shared {
    uint32_t size;
    uint32_t offset;
    uint8_t  data[0];
@@ -352,7 +351,6 @@ static rt_nexus_t      *nexuses = NULL;
 static rt_nexus_t     **nexus_tail = NULL;
 static cover_tagging_t *cover = NULL;
 static rt_signal_t    **signals_tail = NULL;
-static jmp_buf          abort_env;
 static mspace_t        *mspace = NULL;
 static jit_t           *jit = NULL;
 
@@ -442,125 +440,6 @@ static const char *fmt_values(const void *values, uint32_t len)
 {
    static char buf[FMT_VALUES_SZ*2 + 2];
    return fmt_values_r(values, len, buf, sizeof(buf));
-}
-
-static void rt_abort_sim(int code)
-{
-   assert(code >= 0);
-#ifdef __MINGW32__
-   fatal_exit(code);
-#else
-   longjmp(abort_env, code + 1);
-#endif
-}
-
-static void rt_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
-                          const char *symbol)
-{
-   switch (tree_kind(enclosing)) {
-   case T_PROCESS:
-      diag_trace(d, loc, "Process$$ %s", istr(active_proc->name));
-      break;
-   case T_FUNC_BODY:
-   case T_FUNC_DECL:
-      diag_trace(d, loc, "Function$$ %s", type_pp(tree_type(enclosing)));
-      break;
-   case T_PROC_BODY:
-   case T_PROC_DECL:
-      diag_trace(d, loc, "Procedure$$ %s",
-                 type_pp(tree_type(enclosing)));
-      break;
-   case T_TYPE_DECL:
-      if (strstr(symbol, "$value"))
-         diag_trace(d, loc, "Attribute$$ %s'VALUE",
-                    istr(tree_ident(enclosing)));
-      else
-         diag_trace(d, loc, "Type$$ %s", istr(tree_ident(enclosing)));
-      break;
-   case T_BLOCK:
-      diag_trace(d, loc, "Process$$ (init)");
-      break;
-   default:
-      diag_trace(d, loc, "$$%s", istr(tree_ident(enclosing)));
-      break;
-   }
-}
-
-static void rt_diag_trace(diag_t *d)
-{
-   debug_info_t *di = debug_capture();
-
-   const int nframes = debug_count_frames(di);
-   for (int i = 0; i < nframes; i++) {
-      const debug_frame_t *f = debug_get_frame(di, i);
-      if (f->kind != FRAME_VHDL || f->vhdl_unit == NULL || f->symbol == NULL)
-         continue;
-
-      for (debug_inline_t *inl = f->inlined; inl != NULL; inl = inl->next) {
-         tree_t enclosing = find_enclosing_decl(inl->vhdl_unit, inl->symbol);
-         if (enclosing == NULL)
-            continue;
-
-         // Processes should never be inlined
-         assert(tree_kind(enclosing) != T_PROCESS);
-
-         loc_file_ref_t file_ref = loc_file_ref(inl->srcfile, NULL);
-         loc_t loc = get_loc(inl->lineno, inl->colno, inl->lineno,
-                             inl->colno, file_ref);
-
-         rt_emit_trace(d, &loc, enclosing, inl->symbol);
-      }
-
-      tree_t enclosing = find_enclosing_decl(f->vhdl_unit, f->symbol);
-      if (enclosing == NULL)
-         continue;
-
-      loc_t loc;
-      if (f->lineno == 0) {
-         // Exact DWARF debug info not available
-         loc = *tree_loc(enclosing);
-      }
-      else {
-         loc_file_ref_t file_ref = loc_file_ref(f->srcfile, NULL);
-         loc = get_loc(f->lineno, f->colno, f->lineno, f->colno, file_ref);
-      }
-
-      rt_emit_trace(d, &loc, enclosing, f->symbol);
-   }
-
-   debug_free(di);
-}
-
-__attribute__((format(printf, 3, 4)))
-static void rt_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)
-{
-   diag_t *d = diag_new(level, where);
-
-   va_list ap;
-   va_start(ap, fmt);
-   diag_vprintf(d, fmt, ap);
-   va_end(ap);
-
-   rt_diag_trace(d);
-   diag_emit(d);
-
-   if (level == DIAG_FATAL)
-      rt_abort_sim(EXIT_FAILURE);
-}
-
-static void rt_mspace_oom_cb(mspace_t *m, size_t size)
-{
-   diag_t *d = diag_new(DIAG_FATAL, NULL);
-   diag_printf(d, "out of memory attempting to allocate %zu byte object", size);
-   rt_diag_trace(d);
-
-   const int heapsize = opt_get_int(OPT_HEAP_SIZE);
-   diag_hint(d, NULL, "the current heap size is %u bytes which you can "
-             "increase with the $bold$-H$$ option, for example $bold$-H %um$$",
-             heapsize, MAX(1, (heapsize * 2) / 1024 / 1024));
-
-   diag_emit(d);
-   rt_abort_sim(EXIT_FAILURE);
 }
 
 static size_t uarray_len(const ffi_uarray_t *u)
@@ -693,9 +572,9 @@ static rt_source_t *rt_add_source(rt_nexus_t *n, source_kind_t kind)
    else if (n->signal->resolution == NULL
             && (n->sources.tag == SOURCE_DRIVER
                 || n->sources.u.port.conv_func == NULL))
-      rt_msg(tree_loc(n->signal->where), DIAG_FATAL,
-             "unresolved signal %s has multiple sources",
-             istr(tree_ident(n->signal->where)));
+      jit_msg(tree_loc(n->signal->where), DIAG_FATAL,
+              "unresolved signal %s has multiple sources",
+              istr(tree_ident(n->signal->where)));
    else {
       rt_source_t **p;
       for (p = &(n->sources.chain_input); *p; p = &((*p)->chain_input))
@@ -1112,16 +991,20 @@ static void *rt_composite_signal(rt_signal_t *signal, size_t *psz, value_fn_t fn
 
 DLLEXPORT tlab_t __nvc_tlab = {};   // TODO: this should be thread-local
 
-DLLEXPORT
-void _sched_process(int64_t delay)
+void x_sched_process(int64_t delay)
 {
    TRACE("_sched_process delay=%s", fmt_time(delay));
    deltaq_insert_proc(delay, active_proc);
 }
 
 DLLEXPORT
-void _sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
-                       int64_t after, int64_t reject)
+void _sched_process(int64_t delay)
+{
+   x_sched_process(delay);
+}
+
+void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
+                        int64_t after, int64_t reject)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
@@ -1140,8 +1023,14 @@ void _sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
 }
 
 DLLEXPORT
-void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
-                     int32_t count, int64_t after, int64_t reject)
+void _sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
+                       int64_t after, int64_t reject)
+{
+   x_sched_waveform_s(ss, offset, scalar, after, reject);
+}
+
+void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
+                      int32_t count, int64_t after, int64_t reject)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
@@ -1164,6 +1053,13 @@ void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
 
       rt_sched_driver(n, after, reject, value, false);
    }
+}
+
+DLLEXPORT
+void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
+                     int32_t count, int64_t after, int64_t reject)
+{
+   x_sched_waveform(ss, offset, values, count, after, reject);
 }
 
 DLLEXPORT
@@ -1245,9 +1141,8 @@ void __nvc_release(sig_shared_t *ss, uint32_t offset, int32_t count)
    }
 }
 
-DLLEXPORT
-void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count, bool recur,
-                  sig_shared_t *wake_ss)
+void x_sched_event(sig_shared_t *ss, uint32_t offset, int32_t count, bool recur,
+                   sig_shared_t *wake_ss)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
@@ -1271,6 +1166,13 @@ void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count, bool recur,
 }
 
 DLLEXPORT
+void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count, bool recur,
+                  sig_shared_t *wake_ss)
+{
+   x_sched_event(ss, offset, count, recur, wake_ss);
+}
+
+DLLEXPORT
 void __nvc_claim_tlab(void)
 {
    TRACE("claiming TLAB for private use (used %zu/%d)",
@@ -1282,8 +1184,7 @@ void __nvc_claim_tlab(void)
    tlab_move(__nvc_tlab, active_proc->tlab);
 }
 
-DLLEXPORT
-void __nvc_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
+void x_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
@@ -1306,6 +1207,12 @@ void __nvc_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
       count -= n->width;
       RT_ASSERT(count >= 0);
    }
+}
+
+DLLEXPORT
+void __nvc_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   x_drive_signal(ss, offset, count);
 }
 
 DLLEXPORT
@@ -1387,12 +1294,10 @@ void __nvc_pop_scope(void)
       ;
 }
 
-DLLEXPORT
-sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
-                           int32_t flags, DEBUG_LOCUS(locus), int32_t offset)
+sig_shared_t *x_init_signal(uint32_t count, uint32_t size,
+                            const uint8_t *values, int32_t flags,
+                            tree_t where, int32_t offset)
 {
-   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
-
    TRACE("init signal %s count=%d size=%d values=%s flags=%x offset=%d",
          istr(tree_ident(where)), count, size,
          fmt_values(values, size * count), flags, offset);
@@ -1408,6 +1313,15 @@ sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
    memcpy(driving, values, s->shared.size);
 
    return &(s->shared);
+}
+
+DLLEXPORT
+sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
+                           int32_t flags, DEBUG_LOCUS(locus), int32_t offset)
+{
+   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
+
+   return x_init_signal(count, size, values, flags, where, offset);
 }
 
 DLLEXPORT
@@ -1616,11 +1530,11 @@ void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       diag_hint(d, tree_loc(where), "%s", tb_get(tb));
    }
 
-   rt_diag_trace(d);
+   jit_diag_trace(d);
    diag_emit(d);
 
    if (level == DIAG_FATAL)
-      rt_abort_sim(EXIT_FAILURE);
+      jit_abort(EXIT_FAILURE);
 }
 
 DLLEXPORT
@@ -1648,11 +1562,11 @@ void __nvc_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
    diag_t *d = diag_new(level, tree_loc(where));
    diag_printf(d, "%s: Report %s: %.*s", tmbuf, levels[severity], msg_len, msg);
    diag_show_source(d, false);
-   rt_diag_trace(d);
+   jit_diag_trace(d);
    diag_emit(d);
 
    if (level == DIAG_FATAL)
-      rt_abort_sim(EXIT_FAILURE);
+      jit_abort(EXIT_FAILURE);
 }
 
 DLLEXPORT
@@ -1672,7 +1586,7 @@ void __nvc_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
    tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
    to_string(tb, type, right);
 
-   rt_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
+   jit_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
 }
 
 DLLEXPORT
@@ -1716,7 +1630,7 @@ void __nvc_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
       break;
    }
 
-   rt_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
+   jit_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
 }
 
 DLLEXPORT
@@ -1780,7 +1694,7 @@ void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
 
    tb_printf(tb, " length %d", left);
 
-   rt_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
+   jit_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
 }
 
 DLLEXPORT
@@ -1788,8 +1702,8 @@ void __nvc_exponent_fail(int32_t value, DEBUG_LOCUS(locus))
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
 
-   rt_msg(tree_loc(where), DIAG_FATAL, "negative exponent %d only "
-          "allowed for floating-point types", value);
+   jit_msg(tree_loc(where), DIAG_FATAL, "negative exponent %d only "
+           "allowed for floating-point types", value);
 }
 
 DLLEXPORT
@@ -1798,8 +1712,8 @@ void __nvc_elab_order_fail(DEBUG_LOCUS(locus))
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
    assert(tree_kind(where) == T_EXTERNAL_NAME);
 
-   rt_msg(tree_loc(where), DIAG_FATAL, "%s %s has not yet been elaborated",
-          class_str(tree_class(where)), istr(tree_ident(tree_ref(where))));
+   jit_msg(tree_loc(where), DIAG_FATAL, "%s %s has not yet been elaborated",
+           class_str(tree_class(where)), istr(tree_ident(tree_ref(where))));
 }
 
 DLLEXPORT
@@ -1807,10 +1721,10 @@ void __nvc_unreachable(DEBUG_LOCUS(locus))
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
    if (where != NULL && tree_kind(where) == T_FUNC_BODY)
-      rt_msg(tree_loc(where), DIAG_FATAL, "function %s did not return a value",
-             istr(tree_ident(where)));
+      jit_msg(tree_loc(where), DIAG_FATAL, "function %s did not return a value",
+              istr(tree_ident(where)));
    else
-      rt_msg(NULL, DIAG_FATAL, "executed unreachable instruction");
+      jit_msg(NULL, DIAG_FATAL, "executed unreachable instruction");
 }
 
 DLLEXPORT
@@ -1818,9 +1732,9 @@ void *__nvc_mspace_alloc(uint32_t size, uint32_t nelems)
 {
    uint32_t total;
    if (unlikely(__builtin_mul_overflow(nelems, size, &total))) {
-      rt_msg(NULL, DIAG_FATAL, "attempting to allocate %"PRIu64" byte object "
-             "which is larger than the maximum supported %u bytes",
-             (uint64_t)size * (uint64_t)nelems, UINT32_MAX);
+      jit_msg(NULL, DIAG_FATAL, "attempting to allocate %"PRIu64" byte object "
+              "which is larger than the maximum supported %u bytes",
+              (uint64_t)size * (uint64_t)nelems, UINT32_MAX);
       __builtin_unreachable();
    }
    else
@@ -1846,9 +1760,9 @@ void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
 
    for (; pos < str_len; pos++) {
       if (!isspace((int)raw_str[pos])) {
-         rt_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
-                "value \"%.*s\"", (int)(str_len - pos), raw_str + pos, str_len,
-                (const char *)raw_str);
+         jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
+                 "value \"%.*s\"", (int)(str_len - pos), raw_str + pos, str_len,
+                 (const char *)raw_str);
       }
    }
 
@@ -1899,17 +1813,17 @@ int64_t _string_to_int(const uint8_t *raw_str, int32_t str_len, int32_t *used)
    if (is_negative) value = -value;
 
    if (num_digits == 0)
-      rt_msg(NULL, DIAG_FATAL, "invalid integer value "
-             "\"%.*s\"", str_len, (const char *)raw_str);
+      jit_msg(NULL, DIAG_FATAL, "invalid integer value "
+              "\"%.*s\"", str_len, (const char *)raw_str);
 
    if (used != NULL)
       *used = p - (const char *)raw_str;
    else {
       for (; p < endp && *p != '\0'; p++) {
          if (!isspace((int)*p)) {
-            rt_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
-                   "value \"%.*s\"", (int)(endp - p), p, str_len,
-                   (const char *)raw_str);
+            jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
+                    "value \"%.*s\"", (int)(endp - p), p, str_len,
+                    (const char *)raw_str);
          }
       }
    }
@@ -1931,17 +1845,17 @@ double _string_to_real(const uint8_t *raw_str, int32_t str_len, uint8_t **tail)
    double value = strtod(p, &p);
 
    if (*p != '\0' && !isspace((int)*p))
-      rt_msg(NULL, DIAG_FATAL, "invalid real value "
-             "\"%.*s\"", str_len, (const char *)raw_str);
+      jit_msg(NULL, DIAG_FATAL, "invalid real value "
+              "\"%.*s\"", str_len, (const char *)raw_str);
 
    if (tail != NULL)
       *tail = (uint8_t *)p;
    else {
       for (; p < null + str_len && *p != '\0'; p++) {
          if (!isspace((int)*p)) {
-            rt_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
-                   "value \"%.*s\"", (int)(null + str_len - p), p, str_len,
-                   (const char *)raw_str);
+            jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
+                    "value \"%.*s\"", (int)(null + str_len - p), p, str_len,
+                    (const char *)raw_str);
          }
       }
    }
@@ -1953,14 +1867,14 @@ DLLEXPORT
 void __nvc_div_zero(DEBUG_LOCUS(locus))
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
-   rt_msg(tree_loc(where), DIAG_FATAL, "division by zero");
+   jit_msg(tree_loc(where), DIAG_FATAL, "division by zero");
 }
 
 DLLEXPORT
 void __nvc_null_deref(DEBUG_LOCUS(locus))
 {
    tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
-   rt_msg(tree_loc(where), DIAG_FATAL, "null access dereference");
+   jit_msg(tree_loc(where), DIAG_FATAL, "null access dereference");
 }
 
 DLLEXPORT
@@ -1977,9 +1891,9 @@ void __nvc_overflow(int64_t lhs, int64_t rhs, DEBUG_LOCUS(locus))
       }
    }
 
-   rt_msg(tree_loc(where), DIAG_FATAL, "result of %"PRIi64" %s %"PRIi64
-          " cannot be represented as %s", lhs, op, rhs,
-          type_pp(tree_type(where)));
+   jit_msg(tree_loc(where), DIAG_FATAL, "result of %"PRIi64" %s %"PRIi64
+           " cannot be represented as %s", lhs, op, rhs,
+           type_pp(tree_type(where)));
 }
 
 DLLEXPORT
@@ -1994,10 +1908,15 @@ int _nvc_current_delta(void)
    return iteration;
 }
 
+int64_t x_now(void)
+{
+   return now;
+}
+
 DLLEXPORT
 int64_t _std_standard_now(void)
 {
-   return now;
+   return x_now();
 }
 
 DLLEXPORT
@@ -2014,8 +1933,8 @@ void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
    case 60000000000000000ll: unit_str = "min"; break;
    case 3600000000000000000ll: unit_str = "hr"; break;
    default:
-      rt_msg(NULL, DIAG_FATAL, "invalid UNIT argument %"PRIi64" in TO_STRING",
-             unit);
+      jit_msg(NULL, DIAG_FATAL, "invalid UNIT argument %"PRIi64" in TO_STRING",
+              unit);
    }
 
    size_t max_len = 16 + strlen(unit_str) + 1;
@@ -2056,7 +1975,7 @@ void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
    fmt_cstr[fmt_length] = '\0';
 
    if (fmt_cstr[0] != '%')
-      rt_msg(NULL, DIAG_FATAL, "conversion specification must start with '%%'");
+      jit_msg(NULL, DIAG_FATAL, "conversion specification must start with '%%'");
 
    for (const char *p = fmt_cstr + 1; *p; p++) {
       switch (*p) {
@@ -2068,8 +1987,8 @@ void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
       case '.': case '-':
          continue;
       default:
-         rt_msg(NULL, DIAG_FATAL, "illegal character '%c' in format \"%s\"",
-                *p, fmt_cstr + 1);
+         jit_msg(NULL, DIAG_FATAL, "illegal character '%c' in format \"%s\"",
+                 *p, fmt_cstr + 1);
       }
    }
 
@@ -2101,7 +2020,7 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
    else
       notef("%s called", finish ? "FINISH" : "STOP");
 
-   rt_abort_sim(status);
+   jit_abort(status);
 }
 
 DLLEXPORT
@@ -2202,8 +2121,8 @@ bool _driving(sig_shared_t *ss, uint32_t offset, int32_t count)
    }
 
    if (!found)
-      rt_msg(NULL, DIAG_FATAL, "process %s does not contain a driver for %s",
-             istr(active_proc->name), istr(tree_ident(s->where)));
+      jit_msg(NULL, DIAG_FATAL, "process %s does not contain a driver for %s",
+              istr(active_proc->name), istr(tree_ident(s->where)));
 
    return ntotal == ndriving;
 }
@@ -2230,8 +2149,8 @@ void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
       }
 
       if (src == NULL)
-         rt_msg(NULL, DIAG_FATAL, "process %s does not contain a driver for %s",
-                istr(active_proc->name), istr(tree_ident(s->where)));
+         jit_msg(NULL, DIAG_FATAL, "process %s does not contain a driver for %s",
+                 istr(active_proc->name), istr(tree_ident(s->where)));
 
       memcpy(p, rt_value_ptr(n, &(src->u.driver.waveforms.value)),
              n->width * n->size);
@@ -2244,8 +2163,7 @@ void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
    return result;
 }
 
-DLLEXPORT
-int32_t _test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
+int32_t x_test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
@@ -2266,7 +2184,12 @@ int32_t _test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
 }
 
 DLLEXPORT
-int32_t _test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
+int32_t _test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   return x_test_net_active(ss, offset, count);
+}
+
+int32_t x_test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
    rt_signal_t *s = container_of(ss, rt_signal_t, shared);
 
@@ -2287,126 +2210,9 @@ int32_t _test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 }
 
 DLLEXPORT
-void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
-                int32_t name_len, int8_t mode, DEBUG_LOCUS(locus))
+int32_t _test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
 {
-   tree_t where = rt_locus_to_tree(locus_unit, locus_offset);
-   FILE **fp = (FILE **)_fp;
-
-   char *fname LOCAL = xmalloc(name_len + 1);
-   memcpy(fname, name_bytes, name_len);
-   fname[name_len] = '\0';
-
-   TRACE("_file_open %s fp=%p mode=%d", fname, fp, mode);
-
-   const char *mode_str[] = {
-      "rb", "wb", "w+b"
-   };
-   RT_ASSERT(mode < ARRAY_LEN(mode_str));
-
-   if (status != NULL)
-      *status = OPEN_OK;
-
-   if (*fp != NULL) {
-      if (status == NULL)
-         rt_msg(tree_loc(where), DIAG_FATAL, "file object already associated "
-                "with an external file");
-      else
-         *status = STATUS_ERROR;
-   }
-   else if (name_len == 0) {
-      if (status == NULL)
-         rt_msg(tree_loc(where), DIAG_FATAL, "empty file name in FILE_OPEN");
-      else
-         *status = NAME_ERROR;
-   }
-   else if (strcmp(fname, "STD_INPUT") == 0)
-      *fp = stdin;
-   else if (strcmp(fname, "STD_OUTPUT") == 0)
-      *fp = stdout;
-   else {
-#ifdef __MINGW32__
-      const bool failed = (fopen_s(fp, fname, mode_str[mode]) != 0);
-#else
-      const bool failed = ((*fp = fopen(fname, mode_str[mode])) == NULL);
-#endif
-      if (failed) {
-         if (status == NULL)
-            rt_msg(tree_loc(where), DIAG_FATAL, "failed to open %s: %s", fname,
-                   strerror(errno));
-         else {
-            switch (errno) {
-            case ENOENT: *status = NAME_ERROR; break;
-            case EPERM:  *status = MODE_ERROR; break;
-            default:     *status = NAME_ERROR; break;
-            }
-         }
-      }
-   }
-}
-
-DLLEXPORT
-void _file_write(void **_fp, uint8_t *data, int32_t len)
-{
-   FILE **fp = (FILE **)_fp;
-
-   if (*fp == NULL)
-      rt_msg(NULL, DIAG_FATAL, "write to closed file");
-
-   fwrite(data, 1, len, *fp);
-}
-
-DLLEXPORT
-void _file_read(void **_fp, uint8_t *data, int32_t size, int32_t count,
-                int32_t *out)
-{
-   FILE **fp = (FILE **)_fp;
-
-   if (*fp == NULL)
-      rt_msg(NULL, DIAG_FATAL, "read from closed file");
-
-   size_t n = fread(data, size, count, *fp);
-   if (out != NULL)
-      *out = n;
-}
-
-DLLEXPORT
-void _file_close(void **_fp)
-{
-   FILE **fp = (FILE **)_fp;
-
-   TRACE("_file_close fp=%p", fp);
-
-   if (*fp != NULL) {
-      fclose(*fp);
-      *fp = NULL;
-   }
-}
-
-DLLEXPORT
-int8_t _endfile(void *_f)
-{
-   FILE *f = _f;
-
-   if (f == NULL)
-      rt_msg(NULL, DIAG_FATAL, "ENDFILE called on closed file");
-
-   int c = fgetc(f);
-   if (c == EOF)
-      return 1;
-   else {
-      ungetc(c, f);
-      return 0;
-   }
-}
-
-DLLEXPORT
-void __nvc_flush(FILE *f)
-{
-   if (f == NULL)
-      rt_msg(NULL, DIAG_FATAL, "FLUSH called on closed file");
-
-   fflush(f);
+   return x_test_net_event(ss, offset, count);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2694,7 +2500,8 @@ static void rt_scope_deps_cb(ident_t unit_name, void *__ctx)
       return;
 
    const tree_kind_t kind = tree_kind(unit);
-   if (kind != T_PACKAGE && kind != T_PACK_INST) {
+   if ((kind != T_PACKAGE && kind != T_PACK_INST)
+       || is_uninstantiated_package(unit)) {
       tree_walk_deps(unit, rt_scope_deps_cb, tailp);
       return;
    }
@@ -2776,7 +2583,7 @@ static rt_scope_t *rt_scope_for_block(tree_t block, ident_t prefix)
             rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
             p->where     = t;
             p->name      = ident_prefix(path, ident_downcase(name), ':');
-            p->proc_fn   = jit_find_symbol(jit, sym);
+            p->handle    = jit_lazy_compile(jit, sym);
             p->scope     = s;
             p->privdata  = mptr_new(mspace, "process privdata");
 
@@ -2840,8 +2647,16 @@ static void rt_reset(rt_proc_t *proc)
    active_proc = proc;
    active_scope = proc->scope;
 
-   void *p = (*proc->proc_fn)(NULL, mptr_get(mspace, proc->scope->privdata));
-   mptr_put(mspace, proc->privdata, p);
+   jit_scalar_t result;
+   jit_scalar_t state = { .pointer = NULL };
+   jit_scalar_t context = {
+      .pointer = mptr_get(mspace, proc->scope->privdata)
+   };
+
+   if (!jit_fastcall(jit, proc->handle, &result, state, context))
+      jit_abort(EXIT_FAILURE);
+
+   mptr_put(mspace, proc->privdata, result.pointer);
 }
 
 static void rt_run(rt_proc_t *proc)
@@ -2865,10 +2680,17 @@ static void rt_run(rt_proc_t *proc)
 
    // Stateless processes have NULL privdata so pass a dummy pointer
    // value in so it can be distinguished from a reset
-   void *state = mptr_get(mspace, proc->privdata) ?: (void *)-1;
+   jit_scalar_t state = {
+      .pointer = mptr_get(mspace, proc->privdata) ?: (void *)-1
+   };
 
-   void *context = mptr_get(mspace, proc->scope->privdata);
-   (*proc->proc_fn)(state, context);
+   jit_scalar_t result;
+   jit_scalar_t context = {
+      .pointer = mptr_get(mspace, proc->scope->privdata)
+   };
+
+   if (!jit_fastcall(jit, proc->handle, &result, state, context))
+      jit_abort(EXIT_FAILURE);
 
    active_proc = NULL;
 
@@ -2894,12 +2716,16 @@ static void *rt_call_module_reset(ident_t name, void *arg)
 {
    assert(!tlab_valid(__nvc_tlab));   // Not used during reset
 
-   void *result = NULL;
-   void *(*reset_fn)(void *) = jit_find_symbol(jit, name);
-   if (reset_fn != NULL)
-      result = (*reset_fn)(arg);
+   jit_handle_t handle = jit_compile(jit, name);
+   if (handle == JIT_HANDLE_INVALID)
+      fatal_trace("failed to compile %s", istr(name));
 
-   return result;
+   jit_scalar_t result;
+   jit_scalar_t context = { .pointer = arg }, p2 = { .integer = 0 };
+   if (!jit_fastcall(jit, handle, &result, context, p2))
+      jit_abort(EXIT_FAILURE);
+
+   return result.pointer;
 }
 
 static void *rt_call_conversion(rt_port_t *port, value_fn_t fn)
@@ -4005,9 +3831,9 @@ static void rt_interrupt(void)
    _Exit(1);
 #else
    if (active_proc != NULL)
-      rt_msg(NULL, DIAG_FATAL,
-             "interrupted in process %s at %s+%d",
-             istr(active_proc->name), fmt_time(now), iteration);
+      jit_msg(NULL, DIAG_FATAL,
+              "interrupted in process %s at %s+%d",
+              istr(active_proc->name), fmt_time(now), iteration);
    else
       fatal("interrupted");
 #endif
@@ -4060,10 +3886,10 @@ void rt_start_of_tool(tree_t top)
    callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
 
    jit = jit_new();
+   jit_enable_runtime(jit, true);
    jit_load_dll(jit, tree_ident(top));
 
    mspace = jit_get_mspace(jit);
-   mspace_set_oom_handler(mspace, rt_mspace_oom_cb);
 
    rt_reset_coverage(top);
 
@@ -4081,23 +3907,29 @@ void rt_end_of_tool(tree_t top)
       rt_stats_print();
 }
 
+static void rt_run_sim_cb(void *__ctx)
+{
+   struct { tree_t top; uint64_t stop_time; } *args = __ctx;
+
+   rt_initial(args->top);
+   wave_restart();
+
+   rt_global_event(RT_START_OF_SIMULATION);
+
+   const int stop_delta = opt_get_int(OPT_STOP_DELTA);
+   while (!rt_stop_now(args->stop_time))
+      rt_cycle(stop_delta);
+}
+
 int rt_run_sim(tree_t top, uint64_t stop_time)
 {
    rt_setup(top);
 
-   int rc = setjmp(abort_env);
-   if (rc != 0)
-      rc -= 1;   // rt_abort_sim adds 1 to exit code
-   else {
-      rt_initial(top);
-      wave_restart();
+   struct {
+      tree_t top; uint64_t stop_time;
+   } args = { top, stop_time };
 
-      rt_global_event(RT_START_OF_SIMULATION);
-
-      const int stop_delta = opt_get_int(OPT_STOP_DELTA);
-      while (!rt_stop_now(stop_time))
-         rt_cycle(stop_delta);
-   }
+   const int rc = jit_with_abort_handler(rt_run_sim_cb, &args);
 
    rt_global_event(RT_END_OF_SIMULATION);
 
@@ -4316,4 +4148,11 @@ void *rt_tlab_alloc(size_t size)
       return tlab_alloc(&__nvc_tlab, size);
    else
       return mspace_alloc(mspace, size);
+}
+
+ident_t rt_active_proc_name(void)
+{
+   // TODO: remove this after rt_model_t added
+   assert(active_proc != NULL);
+   return active_proc->name;
 }

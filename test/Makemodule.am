@@ -32,6 +32,9 @@ bin_unit_test_LDADD = \
 	$(POW_LIB) \
 	$(libdw_LIBS)
 
+# XXX: temp workaround for macOS
+bin_unit_test_LDADD += lib/libfst.a
+
 bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
 EXTRA_bin_unit_test_DEPENDENCIES = src/symbols.txt

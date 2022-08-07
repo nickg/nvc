@@ -18,18 +18,21 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "debug.h"
 #include "diag.h"
 #include "hash.h"
 #include "lib.h"
 #include "jit/jit-priv.h"
 #include "opt.h"
 #include "rt/mspace.h"
+#include "rt/rt.h"
 #include "type.h"
 #include "vcode.h"
 
 #include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <setjmp.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -60,14 +63,18 @@ typedef struct _jit {
    void           *lower_ctx;
    hash_t         *layouts;
    bool            silent;
+   bool            runtime;
    unsigned        backedge;
    module_array_t  modules;
 } jit_t;
+
+static __thread jmp_buf abort_env;
 
 static void jit_oom_cb(mspace_t *m, size_t size)
 {
    diag_t *d = diag_new(DIAG_FATAL, NULL);
    diag_printf(d, "out of memory attempting to allocate %zu byte object", size);
+   jit_diag_trace(d);
 
    const int heapsize = opt_get_int(OPT_HEAP_SIZE);
    diag_hint(d, NULL, "the current heap size is %u bytes which you can "
@@ -551,6 +558,16 @@ bool jit_show_errors(jit_t *j)
    return !j->silent;
 }
 
+void jit_enable_runtime(jit_t *j, bool enable)
+{
+   j->runtime = enable;
+}
+
+bool jit_has_runtime(jit_t *j)
+{
+   return j->runtime;
+}
+
 void jit_load_dll(jit_t *j, ident_t name)
 {
    lib_t lib = lib_require(ident_until(name, '.'));
@@ -599,4 +616,118 @@ void jit_load_dll(jit_t *j, ident_t name)
             so_path, abi_version, RT_ABI_VERSION);
 
    APUSH(j->modules, handle);
+}
+
+static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
+                           const char *symbol)
+{
+   switch (tree_kind(enclosing)) {
+   case T_PROCESS:
+      diag_trace(d, loc, "Process$$ %s", istr(rt_active_proc_name()));
+      break;
+   case T_FUNC_BODY:
+   case T_FUNC_DECL:
+      diag_trace(d, loc, "Function$$ %s", type_pp(tree_type(enclosing)));
+      break;
+   case T_PROC_BODY:
+   case T_PROC_DECL:
+      diag_trace(d, loc, "Procedure$$ %s", type_pp(tree_type(enclosing)));
+      break;
+   case T_TYPE_DECL:
+      if (strstr(symbol, "$value"))
+         diag_trace(d, loc, "Attribute$$ %s'VALUE",
+                    istr(tree_ident(enclosing)));
+      else
+         diag_trace(d, loc, "Type$$ %s", istr(tree_ident(enclosing)));
+      break;
+   case T_BLOCK:
+      diag_trace(d, loc, "Process$$ (init)");
+      break;
+   default:
+      diag_trace(d, loc, "$$%s", istr(tree_ident(enclosing)));
+      break;
+   }
+}
+
+void jit_diag_trace(diag_t *d)
+{
+   debug_info_t *di = debug_capture();
+
+   const int nframes = debug_count_frames(di);
+   for (int i = 0; i < nframes; i++) {
+      const debug_frame_t *f = debug_get_frame(di, i);
+      if (f->kind != FRAME_VHDL || f->vhdl_unit == NULL || f->symbol == NULL)
+         continue;
+
+      for (debug_inline_t *inl = f->inlined; inl != NULL; inl = inl->next) {
+         tree_t enclosing = find_enclosing_decl(inl->vhdl_unit, inl->symbol);
+         if (enclosing == NULL)
+            continue;
+
+         // Processes should never be inlined
+         assert(tree_kind(enclosing) != T_PROCESS);
+
+         loc_file_ref_t file_ref = loc_file_ref(inl->srcfile, NULL);
+         loc_t loc = get_loc(inl->lineno, inl->colno, inl->lineno,
+                             inl->colno, file_ref);
+
+         jit_emit_trace(d, &loc, enclosing, inl->symbol);
+      }
+
+      tree_t enclosing = find_enclosing_decl(f->vhdl_unit, f->symbol);
+      if (enclosing == NULL)
+         continue;
+
+      loc_t loc;
+      if (f->lineno == 0) {
+         // Exact DWARF debug info not available
+         loc = *tree_loc(enclosing);
+      }
+      else {
+         loc_file_ref_t file_ref = loc_file_ref(f->srcfile, NULL);
+         loc = get_loc(f->lineno, f->colno, f->lineno, f->colno, file_ref);
+      }
+
+      jit_emit_trace(d, &loc, enclosing, f->symbol);
+   }
+
+   debug_free(di);
+}
+
+__attribute__((format(printf, 3, 4)))
+void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)
+{
+   diag_t *d = diag_new(level, where);
+
+   va_list ap;
+   va_start(ap, fmt);
+   diag_vprintf(d, fmt, ap);
+   va_end(ap);
+
+   jit_diag_trace(d);
+   diag_emit(d);
+
+   if (level == DIAG_FATAL)
+      jit_abort(EXIT_FAILURE);
+}
+
+void jit_abort(int code)
+{
+   assert(code >= 0);
+#ifdef __MINGW32__
+   fatal_exit(code);
+#else
+   longjmp(abort_env, code + 1);
+#endif
+}
+
+int jit_with_abort_handler(void (*fn)(void *), void *arg)
+{
+   int rc = setjmp(abort_env);
+   if (rc == 0) {
+      (*fn)(arg);
+      return 0;
+   }
+   else
+      return rc - 1;  // jit_abort adds 1 to exit code
 }

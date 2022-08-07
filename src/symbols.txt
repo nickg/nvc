@@ -10,7 +10,6 @@
   __nvc_drive_signal;
   __nvc_elab_order_fail;
   __nvc_exponent_fail;
-  __nvc_flush;
   __nvc_force;
   __nvc_index_fail;
   __nvc_length_fail;
@@ -35,11 +34,6 @@
   _disconnect;
   _driving;
   _driving_value;
-  _endfile;
-  _file_close;
-  _file_open;
-  _file_read;
-  _file_write;
   _implicit_signal;
   _init_signal;
   _int_to_string;
@@ -74,6 +68,14 @@
   _std_env_localtime;
   _std_env_tool_version;
   _std_env_vhdl_version;
+
+  # Exported from src/jit/jit-exits.c
+  __nvc_flush;
+  _endfile;
+  _file_close;
+  _file_open;
+  _file_read;
+  _file_write;
 
   # Exported by VHPI
   vhpiFS;

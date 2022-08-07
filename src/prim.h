@@ -42,6 +42,7 @@ typedef struct _diag diag_t;
 typedef struct _mspace mspace_t;
 typedef struct _tlab tlab_t;
 typedef struct _jit jit_t;
+typedef struct _sig_shared sig_shared_t;
 
 typedef struct vcode_unit *vcode_unit_t;
 

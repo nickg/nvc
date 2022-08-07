@@ -47,7 +47,8 @@ const char *copy_string =
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
 const char *version_string =
-   PACKAGE_STRING " (Using LLVM " LLVM_VERSION ")" DEBUG_ONLY(" [debug]");
+   PACKAGE_STRING LLVM_ONLY(" (Using LLVM " LLVM_VERSION ")")
+   DEBUG_ONLY(" [debug]");
 
 static ident_t top_level = NULL;
 static char *top_level_orig = NULL;
@@ -290,12 +291,15 @@ static int elaborate(int argc, char **argv)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
+   lib_t work = lib_work();
+   NOT_LLVM_ONLY(lib_put_vcode(work, top, vu));
+
    if (!opt_get_int(OPT_NO_SAVE)) {
-      lib_save(lib_work());
+      lib_save(work);
       progress("saving library");
    }
 
-   cgen(top, vu, cover);
+   LLVM_ONLY(cgen(top, vu, cover));
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

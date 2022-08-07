@@ -733,6 +733,17 @@ static jit_reg_t irgen_as_reg(jit_irgen_t *g, jit_value_t value)
    }
 }
 
+static jit_value_t irgen_stack_space(jit_irgen_t *g, vcode_type_t vtype)
+{
+   const int bytes = irgen_size_bytes(vtype);
+   const int align = irgen_align_of(vtype);
+
+   g->func->framesz = ALIGN_UP(g->func->framesz, align);
+   jit_value_t addr = jit_value_from_frame_addr(g->func->framesz);
+   g->func->framesz += bytes;
+   return addr;
+}
+
 static jit_value_t irgen_lea(jit_irgen_t *g, jit_value_t addr)
 {
    switch (addr.kind) {
@@ -1327,6 +1338,7 @@ static jit_value_t irgen_load_addr(jit_irgen_t *g, vcode_type_t vtype,
    case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_POINTER:
    case VCODE_TYPE_CONTEXT:
+   case VCODE_TYPE_FILE:
       return j_load(g, JIT_SZ_PTR, addr);
 
    case VCODE_TYPE_SIGNAL:
@@ -1542,19 +1554,43 @@ static void irgen_op_unwrap(jit_irgen_t *g, int op)
 static void irgen_op_array_ref(jit_irgen_t *g, int op)
 {
    vcode_reg_t result = vcode_get_result(op);
-   vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
 
-   const int scale = irgen_size_bytes(vtype);
+   switch (vcode_reg_kind(result)) {
+   case VCODE_TYPE_POINTER:
+      {
+         vcode_type_t vtype = vtype_pointed(vcode_reg_type(result));
+         const int scale = irgen_size_bytes(vtype);
 
-   jit_value_t arg0 = irgen_get_arg(g, op, 0);
-   jit_value_t arg1 = irgen_get_arg(g, op, 1);
+         jit_value_t arg0 = irgen_get_arg(g, op, 0);
+         jit_value_t arg1 = irgen_get_arg(g, op, 1);
 
-   // TODO: merge this into an address somehow
-   jit_value_t scaled = j_mul(g, arg1, jit_value_from_int64(scale));
+         // TODO: merge this into an address somehow
+         jit_value_t scaled = j_mul(g, arg1, jit_value_from_int64(scale));
 
-   jit_value_t addr = irgen_lea(g, arg0);
+         jit_value_t addr = irgen_lea(g, arg0);
 
-   g->map[vcode_get_result(op)] = j_add(g, addr, scaled);
+         g->map[vcode_get_result(op)] = j_add(g, addr, scaled);
+      }
+      break;
+
+   case VCODE_TYPE_SIGNAL:
+      {
+         jit_value_t shared = irgen_get_arg(g, op, 0);
+         jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+
+         jit_reg_t new = irgen_alloc_reg(g);
+         j_mov(g, new, shared);
+         g->map[vcode_get_result(op)] = jit_value_from_reg(new);
+
+         // Offset must be next sequential register
+         j_add(g, offset, irgen_get_arg(g, op, 1));
+      }
+      break;
+
+   default:
+      vcode_dump_with_mark(op, NULL, NULL);
+      fatal_trace("unexpected array ref result kind");
+   }
 }
 
 static void irgen_op_record_ref(jit_irgen_t *g, int op)
@@ -1771,6 +1807,10 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
 
       if (icmp(func, "_nvc_ieee_warnings"))
          g->map[vcode_get_result(op)] = jit_value_from_int64(1);
+      else if (icmp(func, "_std_standard_now")) {
+         macro_exit(g, JIT_EXIT_NOW);
+         g->map[vcode_get_result(op)] = j_recv(g, 0);
+      }
       else if (icmp(func, "_int_to_string")) {
          macro_exit(g, JIT_EXIT_INT_TO_STRING);
          g->map[vcode_get_result(op)] = j_recv(g, 0);
@@ -1783,10 +1823,15 @@ static void irgen_op_fcall(jit_irgen_t *g, int op)
          j_recv(g, 1);   // Left
          j_recv(g, 2);   // Length
       }
+      else if (icmp(func, "__nvc_flush"))
+         macro_exit(g, JIT_EXIT_FILE_FLUSH);
       else {
          jit_value_t addr = jit_addr_from_ptr(NULL);
          macro_fficall(g, addr);
-         g->map[vcode_get_result(op)] = j_recv(g, 0);
+
+         vcode_reg_t result = vcode_get_result(op);
+         if (result != VCODE_INVALID_REG)
+            g->map[result] = j_recv(g, 0);
       }
    }
    else {
@@ -1840,6 +1885,13 @@ static void irgen_op_resume(jit_irgen_t *g, int op)
 
 static void irgen_op_wait(jit_irgen_t *g, int op)
 {
+   vcode_reg_t after = vcode_get_arg(op, 0);
+   if (after != VCODE_INVALID_REG) {
+      // TODO: make this an optional arg, not invalid
+      j_send(g, 0, irgen_get_arg(g, op, 0));
+      macro_exit(g, JIT_EXIT_SCHED_PROCESS);
+   }
+
    if (g->statereg.kind != JIT_VALUE_INVALID) {
       vcode_block_t target = vcode_get_target(op, 0);
       jit_value_t ptr = jit_addr_from_value(g->statereg, 2 * sizeof(void *));
@@ -2151,7 +2203,10 @@ static void irgen_op_init_signal(jit_irgen_t *g, int op)
    j_send(g, 4, locus);
    j_send(g, 5, offset);
 
-   macro_exit(g, JIT_EXIT_INIT_SIGNAL);
+   if (vcode_reg_kind(vcode_get_arg(op, 2)) == VCODE_TYPE_POINTER)
+      macro_exit(g, JIT_EXIT_INIT_SIGNALS);
+   else
+      macro_exit(g, JIT_EXIT_INIT_SIGNAL);
 
    g->map[vcode_get_result(op)] = j_recv(g, 0);
 
@@ -2205,6 +2260,17 @@ static void irgen_op_assert(jit_irgen_t *g, int op)
       length = irgen_get_arg(g, op, 3);
    }
 
+   jit_value_t hint_left, hint_right, hint_valid;
+   if (vcode_count_args(op) > 5) {
+      hint_left  = irgen_get_arg(g, op, 5);
+      hint_right = irgen_get_arg(g, op, 6);
+      hint_valid = jit_value_from_int64(true);
+   }
+   else {
+      hint_left = hint_right = jit_value_from_int64(0);
+      hint_valid = jit_value_from_int64(false);
+   }
+
    irgen_label_t *l_pass = irgen_alloc_label(g);
 
    j_cmp(g, value, jit_value_from_int64(0));
@@ -2213,7 +2279,10 @@ static void irgen_op_assert(jit_irgen_t *g, int op)
    j_send(g, 0, msg);
    j_send(g, 1, length);
    j_send(g, 2, severity);
-   j_send(g, 3, locus);
+   j_send(g, 3, hint_left);
+   j_send(g, 4, hint_right);
+   j_send(g, 5, hint_valid);
+   j_send(g, 6, locus);
    macro_exit(g, JIT_EXIT_ASSERT_FAIL);
 
    irgen_bind_label(g, l_pass);
@@ -2229,10 +2298,97 @@ static void irgen_op_deallocate(jit_irgen_t *g, int op)
 
 static void irgen_op_file_open(jit_irgen_t *g, int op)
 {
+   jit_value_t file   = irgen_get_arg(g, op, 0);
+   jit_value_t name   = irgen_get_arg(g, op, 1);
+   jit_value_t length = irgen_get_arg(g, op, 2);
+   jit_value_t kind   = irgen_get_arg(g, op, 3);
+   jit_value_t locus  = irgen_get_arg(g, op, 4);
+
+   jit_value_t status = jit_null_ptr();
+   if (vcode_count_args(op) == 6)
+      status = irgen_get_arg(g, op, 5);
+
+   j_send(g, 0, status);
+   j_send(g, 1, file);
+   j_send(g, 2, name);
+   j_send(g, 3, length);
+   j_send(g, 4, kind);
+   j_send(g, 5, locus);
+
+   macro_exit(g, JIT_EXIT_FILE_OPEN);
+}
+
+static void irgen_op_file_close(jit_irgen_t *g, int op)
+{
    jit_value_t file = irgen_get_arg(g, op, 0);
 
-   // Not implemented
-   j_store(g, JIT_SZ_PTR, jit_value_from_int64(0), file);
+   j_send(g, 0, file);
+   macro_exit(g, JIT_EXIT_FILE_CLOSE);
+}
+
+static void irgen_op_file_read(jit_irgen_t *g, int op)
+{
+   jit_value_t file = irgen_get_arg(g, op, 0);
+   jit_value_t ptr  = irgen_get_arg(g, op, 1);
+
+   jit_value_t count = jit_value_from_int64(1);
+   if (vcode_count_args(op) >= 3)
+      count = irgen_get_arg(g, op, 2);
+
+   vcode_type_t ptr_type = vcode_reg_type(vcode_get_arg(op, 1));
+   vcode_type_t elem_type = vtype_pointed(ptr_type);
+
+   jit_value_t size = jit_value_from_int64(irgen_size_bytes(elem_type));
+
+   jit_value_t outlen = jit_null_ptr();
+   if (vcode_count_args(op) >= 4)
+      outlen = irgen_get_arg(g, op, 3);
+
+   j_send(g, 0, file);
+   j_send(g, 1, ptr);
+   j_send(g, 2, size);
+   j_send(g, 3, count);
+   j_send(g, 4, outlen);
+
+   macro_exit(g, JIT_EXIT_FILE_READ);
+}
+
+static void irgen_op_file_write(jit_irgen_t *g, int op)
+{
+   jit_value_t file = irgen_get_arg(g, op, 0);
+   jit_value_t data = irgen_get_arg(g, op, 1);
+
+   jit_value_t ptr = data;
+   vcode_type_t data_type = vcode_reg_type(vcode_get_arg(op, 1)), elem_type;
+   if (vtype_kind(data_type) != VCODE_TYPE_POINTER) {
+      ptr = irgen_stack_space(g, data_type);
+      j_store(g, irgen_jit_size(data_type), data, ptr);
+      elem_type = data_type;
+   }
+   else
+      elem_type = vtype_pointed(data_type);
+
+   jit_value_t bytes = jit_value_from_int64(irgen_size_bytes(elem_type));
+   if (vcode_count_args(op) >= 3) {
+      jit_value_t count = irgen_get_arg(g, op, 2);
+      bytes = j_mul(g, bytes, count);
+   }
+
+   j_send(g, 0, file);
+   j_send(g, 1, ptr);
+   j_send(g, 2, bytes);
+
+   macro_exit(g, JIT_EXIT_FILE_WRITE);
+}
+
+static void irgen_op_endfile(jit_irgen_t *g, int op)
+{
+   jit_value_t file = irgen_get_arg(g, op, 0);
+
+   j_send(g, 0, file);
+   macro_exit(g, JIT_EXIT_ENDFILE);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
 
 static void irgen_op_push_scope(jit_irgen_t *g, int op)
@@ -2284,7 +2440,69 @@ static void irgen_op_sched_waveform(jit_irgen_t *g, int op)
    j_send(g, 3, value);
    j_send(g, 4, reject);
    j_send(g, 5, after);
-   macro_exit(g, JIT_EXIT_SCHED_WAVEFORM);
+
+   if (vcode_reg_kind(vcode_get_arg(op, 2)) == VCODE_TYPE_POINTER)
+      macro_exit(g, JIT_EXIT_SCHED_WAVEFORMS);
+   else
+      macro_exit(g, JIT_EXIT_SCHED_WAVEFORM);
+}
+
+static void irgen_op_sched_event(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   j_send(g, 3, jit_value_from_int64(false));
+   j_send(g, 4, jit_null_ptr());
+   macro_exit(g, JIT_EXIT_SCHED_EVENT);
+}
+
+static void irgen_op_sched_static(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+
+   assert(vcode_count_args(op) == 2);  // TODO: guarded signals
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   j_send(g, 3, jit_value_from_int64(true));
+   j_send(g, 4, jit_null_ptr());
+   macro_exit(g, JIT_EXIT_SCHED_EVENT);
+}
+
+static void irgen_op_event(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   macro_exit(g, JIT_EXIT_TEST_EVENT);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
+}
+
+static void irgen_op_active(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t offset = jit_value_from_reg(jit_value_as_reg(shared) + 1);
+   jit_value_t count  = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, offset);
+   j_send(g, 2, count);
+   macro_exit(g, JIT_EXIT_TEST_ACTIVE);
+
+   g->map[vcode_get_result(op)] = j_recv(g, 0);
 }
 
 static void irgen_block(jit_irgen_t *g, vcode_block_t block)
@@ -2539,6 +2757,18 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
       case VCODE_OP_FILE_OPEN:
          irgen_op_file_open(g, i);
          break;
+      case VCODE_OP_FILE_CLOSE:
+         irgen_op_file_close(g, i);
+         break;
+      case VCODE_OP_FILE_READ:
+         irgen_op_file_read(g, i);
+         break;
+      case VCODE_OP_FILE_WRITE:
+         irgen_op_file_write(g, i);
+         break;
+      case VCODE_OP_ENDFILE:
+         irgen_op_endfile(g, i);
+         break;
       case VCODE_OP_PUSH_SCOPE:
          irgen_op_push_scope(g, i);
          break;
@@ -2553,6 +2783,18 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_SCHED_WAVEFORM:
          irgen_op_sched_waveform(g, i);
+         break;
+      case VCODE_OP_EVENT:
+         irgen_op_event(g, i);
+         break;
+      case VCODE_OP_ACTIVE:
+         irgen_op_active(g, i);
+         break;
+      case VCODE_OP_SCHED_STATIC:
+         irgen_op_sched_static(g, i);
+         break;
+      case VCODE_OP_SCHED_EVENT:
+         irgen_op_sched_event(g, i);
          break;
       default:
          fatal("cannot generate JIT IR for vcode op %s", vcode_op_string(op));
@@ -2740,6 +2982,12 @@ void jit_irgen(jit_func_t *f)
 
    if (has_jump_table)
       irgen_jump_table(g);
+
+   if (kind == VCODE_UNIT_PROCESS) {
+      // Schedule the process to run immediately
+      j_send(g, 0, jit_value_from_int64(0));
+      macro_exit(g, JIT_EXIT_SCHED_PROCESS);
+   }
 
    irgen_locals(g);
 
