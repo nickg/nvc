@@ -172,6 +172,7 @@ typedef struct {
    unsigned       nvars;
    unsigned       cpoolsz;
    jit_handle_t   handle;
+   void          *symbol;
 } jit_func_t;
 
 #define JIT_MAX_ARGS 64

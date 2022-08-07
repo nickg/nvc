@@ -25,10 +25,11 @@
 #include "ffi.h"
 #include "hash.h"
 #include "heap.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "opt.h"
-#include "rt/rt.h"
 #include "rt/mspace.h"
+#include "rt/rt.h"
 #include "tree.h"
 #include "type.h"
 
@@ -353,6 +354,7 @@ static cover_tagging_t *cover = NULL;
 static rt_signal_t    **signals_tail = NULL;
 static jmp_buf          abort_env;
 static mspace_t        *mspace = NULL;
+static jit_t           *jit = NULL;
 
 static __thread tlab_t spare_tlab = {};
 
@@ -2792,7 +2794,7 @@ static rt_scope_t *rt_scope_for_block(tree_t block, ident_t prefix)
             rt_proc_t *p = xcalloc(sizeof(rt_proc_t));
             p->where     = t;
             p->name      = ident_prefix(path, ident_downcase(name), ':');
-            p->proc_fn   = jit_find_symbol(istr(sym), true);
+            p->proc_fn   = jit_find_symbol(jit, sym);
             p->scope     = s;
             p->privdata  = mptr_new(mspace, "process privdata");
 
@@ -2911,7 +2913,7 @@ static void *rt_call_module_reset(ident_t name, void *arg)
    assert(!tlab_valid(__nvc_tlab));   // Not used during reset
 
    void *result = NULL;
-   void *(*reset_fn)(void *) = jit_find_symbol(istr(name), false);
+   void *(*reset_fn)(void *) = jit_find_symbol(jit, name);
    if (reset_fn != NULL)
       result = (*reset_fn)(arg);
 
@@ -3904,8 +3906,10 @@ static void rt_cleanup(void)
    tlab_release(&__nvc_tlab);
    tlab_release(&spare_tlab);
 
-   mspace_destroy(mspace);
-   mspace = NULL;
+   mspace = NULL;   // Owned by JIT
+
+   jit_free(jit);
+   jit = NULL;
 
    nexuses = NULL;
    nexus_tail = NULL;
@@ -3994,11 +3998,11 @@ static void rt_reset_coverage(tree_t top)
    int32_t n_stmts, n_conds;
    cover_count_tags(cover, &n_stmts, &n_conds);
 
-   int32_t *cover_stmts = jit_find_symbol("cover_stmts", false);
+   int32_t *cover_stmts = jit_find_symbol(jit, ident_new("cover_stmts"));
    if (cover_stmts != NULL)
       memset(cover_stmts, '\0', sizeof(int32_t) * n_stmts);
 
-   int32_t *cover_conds = jit_find_symbol("cover_conds", false);
+   int32_t *cover_conds = jit_find_symbol(jit, ident_new("cover_conds"));
    if (cover_conds != NULL)
       memset(cover_conds, '\0', sizeof(int32_t) * n_conds);
 }
@@ -4006,8 +4010,8 @@ static void rt_reset_coverage(tree_t top)
 static void rt_emit_coverage(tree_t top)
 {
    if (cover != NULL) {
-      const int32_t *cover_stmts = jit_find_symbol("cover_stmts", false);
-      const int32_t *cover_conds = jit_find_symbol("cover_conds", false);
+      int32_t *cover_stmts = jit_find_symbol(jit, ident_new("cover_stmts"));
+      int32_t *cover_conds = jit_find_symbol(jit, ident_new("cover_conds"));
       if (cover_stmts != NULL)
          cover_report(top, cover, cover_stmts, cover_conds);
    }
@@ -4043,8 +4047,6 @@ static BOOL rt_win_ctrl_handler(DWORD fdwCtrlType)
 
 void rt_start_of_tool(tree_t top)
 {
-   jit_init(top);
-
 #if RT_DEBUG && !defined NDEBUG
    warnf("runtime debug checks enabled");
 #endif
@@ -4075,11 +4077,10 @@ void rt_start_of_tool(tree_t top)
    watch_stack     = rt_alloc_stack_new(sizeof(rt_watch_t), "watch");
    callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
 
-   const int heapsz = opt_get_int(OPT_HEAP_SIZE);
-   if (heapsz < 0x100000)
-      warnf("recommended heap size is at least 1M");
+   jit = jit_new();
+   jit_load_dll(jit, tree_ident(top));
 
-   mspace = mspace_new(heapsz);
+   mspace = jit_get_mspace(jit);
    mspace_set_oom_handler(mspace, rt_mspace_oom_cb);
 
    rt_reset_coverage(top);
@@ -4089,10 +4090,8 @@ void rt_start_of_tool(tree_t top)
 
 void rt_end_of_tool(tree_t top)
 {
-   rt_cleanup();
    rt_emit_coverage(top);
-
-   jit_shutdown();
+   rt_cleanup();
 
    if (opt_get_int(OPT_RT_STATS) || profiling)
       rt_stats_print();

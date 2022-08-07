@@ -66,6 +66,8 @@ void jit_set_silent(jit_t *j, bool silent);
 const jit_layout_t *jit_layout(jit_t *j, type_t type);
 void jit_limit_backedges(jit_t *j, int limit);
 mspace_t *jit_get_mspace(jit_t *j);
+void jit_load_dll(jit_t *j, ident_t name);
+void *jit_find_symbol(jit_t *j, ident_t name);
 
 jit_scalar_t jit_call(jit_t *j, ident_t func, void *context,
                       const char *fmt, ...);

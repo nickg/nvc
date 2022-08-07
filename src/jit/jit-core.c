@@ -28,11 +28,29 @@
 #include "vcode.h"
 
 #include <assert.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#ifdef __MINGW32__
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
+
+#ifdef __MINGW32__
+typedef HMODULE module_t;
+#else
+typedef void *module_t;
+#endif
 
 typedef A(jit_func_t *) func_array_t;
+typedef A(module_t) module_array_t;
 
 typedef struct _jit {
    func_array_t    funcs;
@@ -43,6 +61,7 @@ typedef struct _jit {
    hash_t         *layouts;
    bool            silent;
    unsigned        backedge;
+   module_array_t  modules;
 } jit_t;
 
 static void jit_oom_cb(mspace_t *m, size_t size)
@@ -103,15 +122,36 @@ mspace_t *jit_get_mspace(jit_t *j)
    return j->mspace;
 }
 
+void *jit_find_symbol(jit_t *j, ident_t name)
+{
+   LOCAL_TEXT_BUF tb = safe_symbol(name);
+   const char *symbol_name = tb_get(tb);
+
+   for (size_t i = 0; i < j->modules.count; i++) {
+      module_t handle = j->modules.items[i];
+#ifdef __MINGW32__
+      void *ptr = (void *)(uintptr_t)GetProcAddress(handle, symbol_name);
+#else
+      void *ptr = dlsym(handle, symbol_name);
+#endif
+      if (ptr != NULL)
+         return ptr;
+   }
+
+   return NULL;
+}
+
 jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
 {
    jit_func_t *f = hash_get(j->index, name);
    if (f != NULL)
       return f->handle;
 
+   void *symbol = jit_find_symbol(j, name);
+
    vcode_unit_t vu = vcode_find_unit(name);
 
-   if (vu == NULL) {
+   if (vu == NULL && symbol == NULL) {
       if (opt_get_verbose(OPT_JIT_VERBOSE, NULL))
          debugf("loading vcode for %s", istr(name));
 
@@ -135,19 +175,20 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
       vcode_state_restore(&state);
    }
 
-   if (vu == NULL)
+   if (vu == NULL && symbol == NULL)
       return JIT_HANDLE_INVALID;
 
-   assert(hash_get(j->index, vu) == NULL);
+   assert(vu == NULL || hash_get(j->index, vu) == NULL);
 
    f = xcalloc(sizeof(jit_func_t));
 
    f->name   = alias ?: name;
    f->unit   = vu;
+   f->symbol = symbol;
    f->jit    = j;
    f->handle = j->funcs.count;
 
-   hash_put(j->index, vu, f);
+   if (vu) hash_put(j->index, vu, f);
    hash_put(j->index, name, f);
 
    if (alias != NULL && alias != name)
@@ -169,7 +210,7 @@ jit_handle_t jit_compile(jit_t *j, ident_t name)
       return handle;
 
    jit_func_t *f = jit_get_func(j, handle);
-   if (f->irbuf == NULL)
+   if (f->irbuf == NULL && f->symbol == NULL)
       jit_irgen(f);
 
    return handle;
@@ -360,11 +401,17 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
 
    jit_func_t *f = jit_get_func(j, handle);
 
-   jit_scalar_t args[JIT_MAX_ARGS] = { p1, p2 };
-   bool ok = jit_interp(f, args, 2, 0, NULL);
-
-   *result = args[0];
-   return ok;
+   if (f->symbol) {
+      void *(*fn)(void *, void *) = f->symbol;
+      result->pointer = (*fn)(p1.pointer, p2.pointer);
+      return true;
+   }
+   else {
+      jit_scalar_t args[JIT_MAX_ARGS] = { p1, p2 };
+      bool ok = jit_interp(f, args, 2, 0, NULL);
+      *result = args[0];
+      return ok;
+   }
 }
 
 void jit_set_lower_fn(jit_t *j, jit_lower_fn_t fn, void *ctx)
@@ -496,4 +543,50 @@ void jit_set_silent(jit_t *j, bool silent)
 bool jit_show_errors(jit_t *j)
 {
    return !j->silent;
+}
+
+void jit_load_dll(jit_t *j, ident_t name)
+{
+   lib_t lib = lib_require(ident_until(name, '.'));
+
+   char *so_fname LOCAL = xasprintf("_%s." DLL_EXT, istr(name));
+
+   char so_path[PATH_MAX];
+   lib_realpath(lib, so_fname, so_path, sizeof(so_path));
+
+   if (access(so_path, F_OK) != 0)
+      return;
+
+   if (opt_get_verbose(OPT_JIT_VERBOSE, NULL))
+      debugf("loading shared library %s", so_path);
+
+   uint32_t abi_version = 0;
+
+#ifdef __MINGW32__
+   HMODULE handle = LoadLibrary(so_path);
+   if (handle == NULL)
+      fatal("failed to load %s", so_path);
+
+   FARPROC p = GetProcAddress(handle, "__nvc_abi_version");
+   if (p == NULL)
+      warnf("%s: cannot find symbol __nvc_abi_version", so_path);
+   else
+      abi_version = *(uint32_t *)(uintptr_t)p;
+#else
+   void *handle = dlopen(so_path, RTLD_LAZY);
+   if (handle == NULL)
+      fatal("%s", dlerror());
+
+   uint32_t *p = dlsym(handle, "__nvc_abi_version");
+   if (p == NULL)
+      warnf("%s", dlerror());
+   else
+      abi_version = *p;
+#endif
+
+   if (abi_version != RT_ABI_VERSION)
+      fatal("%s: ABI version %d does not match current version %d",
+            so_path, abi_version, RT_ABI_VERSION);
+
+   APUSH(j->modules, handle);
 }

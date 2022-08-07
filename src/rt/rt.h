@@ -99,10 +99,6 @@ bool rt_can_create_delta(void);
 uint64_t rt_now(unsigned *deltas);
 void rt_stop(void);
 
-void jit_init(tree_t top);
-void jit_shutdown(void);
-void *jit_find_symbol(const char *name, bool required);
-
 text_buf_t *pprint(tree_t t, const uint64_t *values, size_t len);
 
 void wave_init(const char *file, tree_t top, wave_output_t output);

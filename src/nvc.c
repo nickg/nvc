@@ -472,6 +472,9 @@ static int run(int argc, char **argv)
       wave_init(wave_fname, top, wave_fmt);
    }
 
+   if (opt_get_int(OPT_HEAP_SIZE) < 0x100000)
+      warnf("recommended heap size is at least 1M");
+
    rt_start_of_tool(top);
 
    if (vhpi_plugins != NULL)
