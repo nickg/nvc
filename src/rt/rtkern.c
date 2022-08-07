@@ -2908,12 +2908,10 @@ static void rt_run(rt_proc_t *proc)
 
 static void *rt_call_module_reset(ident_t name, void *arg)
 {
-   char *buf LOCAL = xasprintf("%s_reset", istr(name));
-
    assert(!tlab_valid(__nvc_tlab));   // Not used during reset
 
    void *result = NULL;
-   void *(*reset_fn)(void *) = jit_find_symbol(buf, false);
+   void *(*reset_fn)(void *) = jit_find_symbol(istr(name), false);
    if (reset_fn != NULL)
       result = (*reset_fn)(arg);
 

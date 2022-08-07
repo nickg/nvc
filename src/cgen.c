@@ -2266,7 +2266,6 @@ static void cgen_op_protected_init(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
 
    LOCAL_TEXT_BUF symbol = safe_symbol(func);
-   tb_cat(symbol, "_reset");
 
    LLVMValueRef fn = LLVMGetNamedFunction(module, tb_get(symbol));
    if (fn == NULL) {
@@ -3252,21 +3251,17 @@ static void cgen_op_link_package(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
-   LOCAL_TEXT_BUF unit_name = tb_new();
-   tb_istr(unit_name, vcode_get_ident(op));
+   LOCAL_TEXT_BUF name = tb_new();
+   tb_istr(name, vcode_get_ident(op));
+   tb_cat(name, ".state");
 
-   LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(unit_name));
+   LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(name));
    if (global == NULL) {
-      LOCAL_TEXT_BUF type_name = tb_new();
-      tb_cat(type_name, tb_get(unit_name));
-      tb_cat(type_name, ".state");
-
-      LLVMTypeRef opaque = LLVMGetTypeByName(module, tb_get(type_name));
+      LLVMTypeRef opaque = LLVMGetTypeByName(module, tb_get(name));
       if (opaque == NULL)
-         opaque = LLVMStructCreateNamed(llvm_context(), tb_get(type_name));
+         opaque = LLVMStructCreateNamed(llvm_context(), tb_get(name));
 
-      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0),
-                             tb_get(unit_name));
+      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0), tb_get(name));
    }
 
    ctx->regs[result] = LLVMBuildLoad(builder, global, cgen_reg_name(result));
@@ -3276,21 +3271,17 @@ static void cgen_op_link_instance(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
-   LOCAL_TEXT_BUF unit_name = tb_new();
-   tb_istr(unit_name, vcode_get_ident(op));
+   LOCAL_TEXT_BUF name = tb_new();
+   tb_istr(name, vcode_get_ident(op));
+   tb_cat(name, ".state");
 
-   LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(unit_name));
+   LLVMValueRef global = LLVMGetNamedGlobal(module, tb_get(name));
    if (global == NULL) {
-      LOCAL_TEXT_BUF type_name = tb_new();
-      tb_cat(type_name, tb_get(unit_name));
-      tb_cat(type_name, ".state");
-
-      LLVMTypeRef opaque = LLVMGetTypeByName(module, tb_get(type_name));
+      LLVMTypeRef opaque = LLVMGetTypeByName(module, tb_get(name));
       if (opaque == NULL)
-         opaque = LLVMStructCreateNamed(llvm_context(), tb_get(type_name));
+         opaque = LLVMStructCreateNamed(llvm_context(), tb_get(name));
 
-      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0),
-                             tb_get(unit_name));
+      global = LLVMAddGlobal(module, LLVMPointerType(opaque, 0), tb_get(name));
    }
 
    ctx->regs[result] = LLVMBuildLoad(builder, global, cgen_reg_name(result));
@@ -3317,7 +3308,6 @@ static void cgen_op_package_init(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
 
    LOCAL_TEXT_BUF symbol = safe_symbol(func);
-   tb_cat(symbol, "_reset");
 
    LLVMValueRef context;
    if (vcode_count_args(op) > 0)
@@ -4195,12 +4185,11 @@ static void cgen_reset_function(void)
    LLVMTypeRef state_type = cgen_state_type(vcode_active_unit());
 
    LOCAL_TEXT_BUF symbol = safe_symbol(vcode_unit_name());
-   char *name LOCAL = xasprintf("%s_reset", tb_get(symbol));
 
    vcode_unit_t context = vcode_unit_context();
 
    cgen_ctx_t ctx = {
-      .fn = LLVMGetNamedFunction(module, name)
+      .fn = LLVMGetNamedFunction(module, tb_get(symbol))
    };
 
    if (ctx.fn == NULL) {
@@ -4211,7 +4200,7 @@ static void cgen_reset_function(void)
          args[0] = llvm_void_ptr();
 
       LLVMTypeRef ftype = LLVMFunctionType(llvm_void_ptr(), args, 1, false);
-      ctx.fn = LLVMAddFunction(module, name, ftype);
+      ctx.fn = LLVMAddFunction(module, tb_get(symbol), ftype);
    }
 
    cgen_add_func_attr(ctx.fn, FUNC_ATTR_DLLEXPORT, -1);
@@ -4231,6 +4220,7 @@ static void cgen_reset_function(void)
    if (vukind == VCODE_UNIT_PACKAGE || vukind == VCODE_UNIT_INSTANCE) {
       LOCAL_TEXT_BUF name = tb_new();
       tb_istr(name, vcode_unit_name());
+      tb_cat(name, ".state");
 
       if ((global = LLVMGetNamedGlobal(module, tb_get(name))) == NULL)
          global = LLVMAddGlobal(module,
