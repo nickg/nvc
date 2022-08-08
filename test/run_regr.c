@@ -59,7 +59,7 @@
 #define F_2000    (1 << 5)
 #define F_NOTWIN  (1 << 6)
 #define F_COVER   (1 << 7)
-#define F_GENERIC (1 << 8)
+#define F_2019    (1 << 8)
 #define F_RELAX   (1 << 9)
 #define F_RELAXED (1 << 10)
 #define F_WORKLIB (1 << 11)
@@ -67,13 +67,19 @@
 #define F_2002    (1 << 13)
 
 typedef struct test test_t;
-typedef struct generic generic_t;
+typedef struct param param_t;
 typedef struct arglist arglist_t;
 
-struct generic {
-   char      *name;
-   char      *value;
-   generic_t *next;
+typedef enum {
+   P_GENERIC,
+   P_ENVVAR
+} param_kind_t;
+
+struct param {
+   param_kind_t  kind;
+   char         *name;
+   char         *value;
+   param_t      *next;
 };
 
 struct test {
@@ -81,7 +87,7 @@ struct test {
    test_t    *next;
    int        flags;
    char      *stop;
-   generic_t *generics;
+   param_t   *params;
    char      *relax;
    char      *work;
    unsigned   olevel;
@@ -317,6 +323,8 @@ static bool parse_test_list(int argc, char **argv)
             test->flags |= F_2000;
          else if (strcmp(opt, "2002") == 0)
             test->flags |= F_2002;
+         else if (strcmp(opt, "2019") == 0)
+            test->flags |= F_2019;
          else if (strcmp(opt, "vhpi") == 0)
             test->flags |= F_VHPI;
          else if (strcmp(opt, "shell") == 0)
@@ -334,21 +342,21 @@ static bool parse_test_list(int argc, char **argv)
             test->heapsz = strdup(opt + 2);
          else if (strcmp(opt, "cover") == 0)
             test->flags |= F_COVER;
-         else if (strncmp(opt, "g", 1) == 0) {
+         else if (opt[0] == 'g' || opt[0] == '$') {
             char *value = strchr(opt, '=');
             if (value == NULL) {
                fprintf(stderr, "Error on testlist line %d: missing argument to "
-                       "stop option in test %s\n", lineno, name);
+                       "parameter option in test %s\n", lineno, name);
                goto out_close;
             }
 
-            generic_t *g = calloc(sizeof(generic_t), 1);
-            g->name = strndup(opt + 1, value - opt - 1);
-            g->value = strdup(value + 1);
-            g->next = test->generics;
+            param_t *p = calloc(sizeof(param_t), 1);
+            p->name = strndup(opt + 1, value - opt - 1);
+            p->value = strdup(value + 1);
+            p->next = test->params;
+            p->kind = opt[0] == 'g' ? P_GENERIC : P_ENVVAR;
 
-            test->generics = g;
-            test->flags |= F_GENERIC;
+            test->params = p;
          }
          else if (strcmp(opt, "relaxed") == 0)
             test->flags |= F_RELAXED;
@@ -505,6 +513,8 @@ static void push_std(test_t *test, arglist_t **args)
       push_arg(args, "--std=2002");
    else if (test->flags & F_2008)
       push_arg(args, "--std=2008");
+   else if (test->flags & F_2019)
+      push_arg(args, "--std=2019");
 }
 
 static void chomp(char *str)
@@ -665,8 +675,16 @@ static bool run_test(test_t *test)
       if (test->flags & F_COVER)
          push_arg(&args, "--cover");
 
-      for (generic_t *g = test->generics; g != NULL; g = g->next)
-         push_arg(&args, "-g%s=%s", g->name, g->value);
+      for (param_t *p = test->params; p != NULL; p = p->next) {
+         switch (p->kind) {
+         case P_GENERIC:
+            push_arg(&args, "-g%s=%s", p->name, p->value);
+            break;
+         case P_ENVVAR:
+            setenv(p->name, p->value, 1);
+            break;
+         }
+      }
 
       if (test->flags & F_FAIL) {
          if (run_cmd(outf, &args) != RUN_OK)

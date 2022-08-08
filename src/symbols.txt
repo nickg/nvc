@@ -67,6 +67,9 @@
   _test_net_active;
   _test_net_event;
 
+  # Exported from src/rt/stdenv.c
+  _std_env_getenv;
+
   # Exported by VHPI
   vhpiFS;
   vhpiHR;

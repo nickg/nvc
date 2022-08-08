@@ -98,6 +98,7 @@ rt_scope_t *rt_child_scope(rt_scope_t *scope, tree_t decl);
 bool rt_can_create_delta(void);
 uint64_t rt_now(unsigned *deltas);
 void rt_stop(void);
+void *rt_tlab_alloc(size_t size);
 
 text_buf_t *pprint(tree_t t, const uint64_t *values, size_t len);
 
@@ -108,5 +109,7 @@ void wave_include_glob(const char *glob);
 void wave_exclude_glob(const char *glob);
 void wave_include_file(const char *base);
 bool wave_should_dump(ident_t name);
+
+void _std_env_init(void);
 
 #endif  // _RT_H

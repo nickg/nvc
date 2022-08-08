@@ -135,9 +135,10 @@ package body env is
     end function;
 
     impure function getenv (name : string) return string is
+        impure function impl (name : string) return string;
+        attribute foreign of impl : function is "_std_env_getenv";
     begin
-        report "not implemented" severity warning;
-        return "";
+        return impl(name);
     end function;
 
     impure function getenv (name : string) return line is

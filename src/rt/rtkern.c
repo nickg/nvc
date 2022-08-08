@@ -370,7 +370,6 @@ static void deltaq_insert_driver(uint64_t delta, rt_nexus_t *nexus,
 static void rt_sched_driver(rt_nexus_t *nexus, uint64_t after,
                             uint64_t reject, rt_value_t value, bool null);
 static void rt_sched_event(sens_list_t **list, rt_wakeable_t *proc, bool recur);
-static void *rt_tlab_alloc(size_t size);
 static rt_value_t rt_alloc_value(rt_nexus_t *n);
 static void rt_free_value(rt_nexus_t *n, rt_value_t v);
 static void rt_copy_value_ptr(rt_nexus_t *n, rt_value_t *v, const void *p);
@@ -569,15 +568,6 @@ static size_t uarray_len(const ffi_uarray_t *u)
    return abs(u->dims[0].length);
 }
 
-static ffi_uarray_t wrap_str(char *buf, size_t len)
-{
-   ffi_uarray_t u = {
-      .ptr = buf,
-      .dims = { [0] = { .left = 1, .length = len } }
-   };
-   return u;
-}
-
 static ffi_uarray_t bit_vec_to_string(const ffi_uarray_t *vec, int log_base)
 {
    const size_t vec_len = uarray_len(vec);
@@ -598,7 +588,7 @@ static ffi_uarray_t bit_vec_to_string(const ffi_uarray_t *vec, int log_base)
       buf[i] = map[nibble];
    }
 
-   return wrap_str(buf, result_len);
+   return ffi_wrap_str(buf, result_len);
 }
 
 static int rt_fmt_now(char *buf, size_t len)
@@ -1862,7 +1852,7 @@ void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
       }
    }
 
-   *u = wrap_str(buf, p - buf);
+   *u = ffi_wrap_str(buf, p - buf);
 }
 
 DLLEXPORT
@@ -1871,7 +1861,7 @@ void _int_to_string(int64_t value, ffi_uarray_t *u)
    char *buf = rt_tlab_alloc(20);
    size_t len = checked_sprintf(buf, 20, "%"PRIi64, value);
 
-   *u = wrap_str(buf, len);
+   *u = ffi_wrap_str(buf, len);
 }
 
 DLLEXPORT
@@ -1880,7 +1870,7 @@ void _real_to_string(double value, ffi_uarray_t *u)
    char *buf = rt_tlab_alloc(32);
    size_t len = checked_sprintf(buf, 32, "%.*g", DBL_DIG, value);
 
-   *u = wrap_str(buf, len);
+   *u = ffi_wrap_str(buf, len);
 }
 
 DLLEXPORT
@@ -2039,7 +2029,7 @@ void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
       len = checked_sprintf(buf, max_len, "%g %s",
                             (double)value / (double)unit, unit_str);
 
-   *u = wrap_str(buf, len);
+   *u = ffi_wrap_str(buf, len);
 }
 
 DLLEXPORT
@@ -2054,7 +2044,7 @@ void _std_to_string_real_digits(double value, int32_t digits, ffi_uarray_t *u)
    else
       len = checked_sprintf(buf, max_len, "%.*f", digits, value);
 
-   *u = wrap_str(buf, len);
+   *u = ffi_wrap_str(buf, len);
 }
 
 DLLEXPORT
@@ -2086,7 +2076,7 @@ void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
    size_t max_len = 64;
    char *buf = rt_tlab_alloc(max_len);
    size_t len = checked_sprintf(buf, max_len, fmt_cstr, value);
-   *u = wrap_str(buf, len);
+   *u = ffi_wrap_str(buf, len);
 }
 
 DLLEXPORT
@@ -2640,14 +2630,6 @@ static void rt_free_value(rt_nexus_t *n, rt_value_t v)
       else
          free(v.ext);
    }
-}
-
-static void *rt_tlab_alloc(size_t size)
-{
-   if (tlab_valid(__nvc_tlab))
-      return tlab_alloc(&__nvc_tlab, size);
-   else
-      return mspace_alloc(mspace, size);
 }
 
 static void rt_sched_event(sens_list_t **list, rt_wakeable_t *obj, bool recur)
@@ -4085,6 +4067,8 @@ void rt_start_of_tool(tree_t top)
 
    rt_reset_coverage(top);
 
+   _std_env_init();
+
    nvc_rusage(&ready_rusage);
 }
 
@@ -4324,4 +4308,12 @@ uint64_t rt_now(unsigned *deltas)
 void rt_stop(void)
 {
    force_stop = true;
+}
+
+void *rt_tlab_alloc(size_t size)
+{
+   if (tlab_valid(__nvc_tlab))
+      return tlab_alloc(&__nvc_tlab, size);
+   else
+      return mspace_alloc(mspace, size);
 }

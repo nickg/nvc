@@ -70,5 +70,6 @@ void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
               void *output, size_t outsz);
 void ffi_unref_closure(ffi_closure_t *c);
 ffi_closure_t *ffi_ref_closure(ffi_closure_t *c);
+ffi_uarray_t ffi_wrap_str(char *buf, size_t len);
 
 #endif  // _RT_FFI_H

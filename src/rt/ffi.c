@@ -139,3 +139,12 @@ void ffi_unref_closure(ffi_closure_t *c)
    if (--(c->refcnt) == 0)
       free(c);
 }
+
+ffi_uarray_t ffi_wrap_str(char *buf, size_t len)
+{
+   ffi_uarray_t u = {
+      .ptr = buf,
+      .dims = { [0] = { .left = 1, .length = len } }
+   };
+   return u;
+}

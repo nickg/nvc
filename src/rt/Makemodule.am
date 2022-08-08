@@ -12,4 +12,5 @@ lib_libnvc_a_SOURCES += \
 	src/rt/ffi.h \
 	src/rt/ffi.c \
 	src/rt/mspace.h \
-	src/rt/mspace.c
+	src/rt/mspace.c \
+	src/rt/stdenv.c
