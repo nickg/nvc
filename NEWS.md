@@ -3,6 +3,8 @@
   deprecated in version 1.3 have been removed.
 - The JSON dumper which was unmaintained for several years has been
   removed.
+- VHDL-2019 mode can be enabled with `--std=2019`.  Please note there is
+  very limited support for this standard at present.
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a

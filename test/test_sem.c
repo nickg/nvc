@@ -2870,6 +2870,22 @@ START_TEST(test_gensub2)
 }
 END_TEST
 
+START_TEST(test_vhdl2019)
+{
+   set_standard(STD_19);
+   input_from_file(TESTDIR "/sem/vhdl2019.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3006,6 +3022,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_gensub);
    tcase_add_test(tc_core, test_issue482);
    tcase_add_test(tc_core, test_gensub2);
+   tcase_add_test(tc_core, test_vhdl2019);
    suite_add_tcase(s, tc_core);
 
    return s;

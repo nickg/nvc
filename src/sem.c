@@ -1241,12 +1241,14 @@ static bool sem_check_func_ports(tree_t t, nametab_t *tab)
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
-      if (tree_subkind(p) != PORT_IN)
-         sem_error(p, "function arguments must have mode IN");
+      if (standard() < STD_19) {
+         if (tree_subkind(p) != PORT_IN)
+            sem_error(p, "function arguments must have mode IN");
 
-      // See LRM 93 section 2.1.1 for default class
-      if (tree_class(p) == C_VARIABLE)
-         sem_error(p, "function arguments may not have VARIABLE class");
+         // See LRM 93 section 2.1.1 for default class
+         if (tree_class(p) == C_VARIABLE)
+            sem_error(p, "function arguments may not have VARIABLE class");
+      }
 
       if (!sem_check_interface_class(p))
          return false;
