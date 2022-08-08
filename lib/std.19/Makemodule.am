@@ -4,11 +4,9 @@ std_19_DATA = \
 	lib/std.19/_index \
 	lib/std.19/STD.STANDARD \
 	lib/std.19/STD.TEXTIO \
-	lib/std.19/STD.TEXTIO-body
-
-# \
-# 	lib/std.19/STD.ENV \
-# 	lib/std.19/STD.ENV-body
+	lib/std.19/STD.TEXTIO-body \
+	lib/std.19/STD.ENV \
+	lib/std.19/STD.ENV-body
 
 EXTRA_DIST += \
 	lib/std.19/env.vhdl \
@@ -33,11 +31,11 @@ lib/std.19/STD.TEXTIO: $(srcdir)/lib/std.19/textio.vhdl @ifGNUmake@ | $(DRIVER)
 lib/std.19/STD.TEXTIO-body: $(srcdir)/lib/std/textio-body.vhd @ifGNUmake@ | $(DRIVER)
 	$(nvc) --std=2019 -L lib/ --work=lib/std.19 -a $(srcdir)/lib/std/textio-body.vhd
 
-# lib/std.19/STD.ENV: $(srcdir)/lib/std.19/env.vhdl @ifGNUmake@ | $(DRIVER)
-# 	$(nvc) --std=2019 -L lib/ --work=lib/std.19 -a $(srcdir)/lib/std.19/env.vhdl
+lib/std.19/STD.ENV: $(srcdir)/lib/std.19/env.vhdl @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/std.19 -a $(srcdir)/lib/std.19/env.vhdl
 
-# lib/std.19/STD.ENV-body: $(srcdir)/lib/std.19/env-body.vhd @ifGNUmake@ | $(DRIVER)
-# 	$(nvc) --std=2019 -L lib/ --work=lib/std.19 -a $(srcdir)/lib/std.19/env-body.vhd
+lib/std.19/STD.ENV-body: $(srcdir)/lib/std.19/env-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/std.19 -a $(srcdir)/lib/std.19/env-body.vhd
 
 gen-deps-std-19:
 	$(nvc) --std=2019 -L lib/ --work=lib/std.19 --make --posix --deps-only | \

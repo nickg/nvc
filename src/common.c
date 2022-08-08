@@ -473,10 +473,12 @@ class_t class_of(tree_t t)
    case T_FUNC_DECL:
    case T_FUNC_BODY:
    case T_FUNC_INST:
+   case T_FCALL:
       return C_FUNCTION;
    case T_PROC_DECL:
    case T_PROC_BODY:
    case T_PROC_INST:
+   case T_PCALL:
       return C_PROCEDURE;
    case T_ENTITY:
       return C_ENTITY;
