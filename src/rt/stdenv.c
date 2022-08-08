@@ -16,6 +16,7 @@
 //
 
 #include "util.h"
+#include "common.h"
 #include "rt/ffi.h"
 #include "rt/rt.h"
 
@@ -39,6 +40,20 @@ void _std_env_getenv(EXPLODED_UARRAY(name), ffi_uarray_t *u)
       memcpy(buf, env, len);
       *u = ffi_wrap_str(buf, len);
    }
+}
+
+DLLEXPORT
+void _std_env_vhdl_version(ffi_uarray_t *u)
+{
+   const char *str = standard_text(standard());
+   *u = ffi_wrap_str((char *)str, strlen(str));
+}
+
+DLLEXPORT
+void _std_env_tool_version(ffi_uarray_t *u)
+{
+   const char *str = PACKAGE_VERSION;
+   *u = ffi_wrap_str((char *)str, strlen(str));
 }
 
 void _std_env_init(void)

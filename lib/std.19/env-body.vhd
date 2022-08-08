@@ -147,33 +147,37 @@ package body env is
     end function;
 
     impure function vhdl_version return STRING is
+        impure function impl return string;
+        attribute foreign of impl : function is "_std_env_vhdl_version";
     begin
-        report "not implemented" severity failure;
+        return impl;
     end function;
 
     function tool_type return STRING is
     begin
-        report "not implemented" severity failure;
+        return "SIMULATION";
     end function;
 
     function tool_vendor return string is
     begin
-        report "not implemented" severity failure;
+        return "https://www.nickg.me.uk/nvc";
     end function;
 
     function tool_name return string is
     begin
-        report "not implemented" severity failure;
+        return "nvc";
     end function;
 
     function tool_edition return string is
     begin
-        report "not implemented" severity failure;
+        return "";
     end function;
 
     function tool_version return string is
+        function impl return string;
+        attribute foreign of impl : function is "_std_env_tool_version";
     begin
-        report "not implemented" severity failure;
+        return impl;
     end function;
 
     procedure dir_open (dir    : out directory;
