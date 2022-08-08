@@ -408,7 +408,7 @@ void set_default_standard(vhdl_standard_t s)
 const char *standard_text(vhdl_standard_t s)
 {
    static const char *text[] = {
-      "1987", "1993", "2000", "2002", "2008"
+      "1987", "1993", "2000", "2002", "2008", "2019"
    };
 
    if ((unsigned)s < ARRAY_LEN(text))
@@ -1162,7 +1162,7 @@ static tree_t cached_unit(tree_t hint, tree_t *cache, well_known_t lib_name,
 
 static tree_t cached_std(tree_t hint)
 {
-   static tree_t standard_cache[STD_08 + 1] = {};
+   static tree_t standard_cache[STD_19 + 1] = {};
    return cached_unit(hint, standard_cache, W_STD, W_STD_STANDARD);
 }
 
@@ -1208,7 +1208,7 @@ type_t std_type(tree_t std, std_type_t which)
 
 static tree_t cached_ieee(tree_t hint)
 {
-   static tree_t ieee_cache[STD_08 + 1] = {};
+   static tree_t ieee_cache[STD_19 + 1] = {};
    return cached_unit(hint, ieee_cache, W_IEEE, W_IEEE_1164);
 }
 

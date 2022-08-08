@@ -930,10 +930,14 @@ static vhdl_standard_t parse_standard(const char *str)
       case 2008:
       case 8:
          return STD_08;
+      case 2019:
+      case 19:
+         return STD_19;
       }
    }
 
-   fatal("invalid standard revision: %s (allowed 1993, 2000, 2002, 2008)", str);
+   fatal("invalid standard revision: %s (allowed 1993, 2000, 2002, "
+         "2008, 2019)", str);
 }
 
 static message_style_t parse_message_style(const char *str)

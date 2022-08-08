@@ -1,0 +1,34 @@
+nvc_19dir = $(pkglibdir)/nvc.19
+nvc_19_DATA = \
+	lib/nvc.19/_NVC_LIB \
+	lib/nvc.19/_index \
+	lib/nvc.19/NVC.SIM_PKG \
+	lib/nvc.19/NVC.POLYFILL \
+	lib/nvc.19/NVC.IEEE_SUPPORT \
+	lib/nvc.19/NVC.IEEE_SUPPORT-body
+
+BOOTSTRAPLIBS += $(nvc_19_DATA)
+
+libs-nvc-19: $(nvc_19_DATA)
+
+lib/nvc.19/_NVC_LIB:
+
+lib/nvc.19/_index:
+
+lib/nvc.19/NVC.SIM_PKG: $(srcdir)/lib/nvc/sim_pkg.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc/sim_pkg.vhd
+
+lib/nvc.19/NVC.POLYFILL: $(srcdir)/lib/nvc.08/polyfill.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc.08/polyfill.vhd
+
+lib/nvc.19/NVC.IEEE_SUPPORT: $(srcdir)/lib/nvc.08/ieee_support.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc.08/ieee_support.vhd
+
+lib/nvc.19/NVC.IEEE_SUPPORT-body: $(srcdir)/lib/nvc.08/ieee_support-body.vhd @ifGNUmake@ | $(DRIVER)
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 -a $(srcdir)/lib/nvc.08/ieee_support-body.vhd
+
+gen-deps-nvc-19:
+	$(nvc) --std=2019 -L lib/ --work=lib/nvc.19 --make --posix --deps-only | \
+		$(deps_pp) > $(srcdir)/lib/nvc.19/deps.mk
+
+include lib/nvc.19/deps.mk

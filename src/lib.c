@@ -95,7 +95,7 @@ static lib_mtime_t lib_stat_mtime(struct stat *st);
 static const char *standard_suffix(vhdl_standard_t std)
 {
    static const char *ext[] = {
-      "87", "93", "00", "02", "08"
+      "87", "93", "00", "02", "08", "19"
    };
 
    assert(std < ARRAY_LEN(ext));

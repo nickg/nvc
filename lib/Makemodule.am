@@ -1,5 +1,4 @@
-nvc = $(nvc_verbose) NVC_IMP_LIB=$(top_builddir)/lib \
-	$(top_builddir)/bin/nvc $(native_opt)
+nvc = $(nvc_verbose)$(top_builddir)/bin/nvc
 
 nvc_verbose = $(nvc_verbose_@AM_V@)
 nvc_verbose_ = $(nvc_verbose_@AM_DEFAULT_V@)
@@ -12,20 +11,25 @@ deps_pp = sed \
 gen-deps: $(DRIVER)
 	$(MAKE) gen-deps-std gen-deps-std-08 gen-deps-ieee \
 	  gen-deps-synopsys gen-deps-vital gen-deps-ieee-08 \
-	  gen-deps-nvc gen-deps-nvc-08
+	  gen-deps-nvc gen-deps-nvc-08 gen-deps-std-19 \
+	  gen-deps-nvc-19 gen-deps-ieee-19
 
 clean-libs:
 	rm -f $(BOOTSTRAPLIBS)
-	for d in std std.08 nvc nvc.08 ieee ieee.08 synopsys; do \
+	for d in std std.08 std.19 nvc nvc.08 nvc.19 ieee ieee.08 \
+	         ieee.19 synopsys; do \
 	  if test -d lib/$$d; then rmdir lib/$$d; fi; \
 	done
 
 bootstrap: $(DRIVER)
 	$(MAKE) clean-libs
 	$(MAKE) libs-std libs-std-08 libs-ieee libs-ieee-08 libs-synopsys \
-	  libs-vital libs-nvc libs-nvc-08
+	  libs-vital libs-nvc libs-nvc-08 libs-std-19 libs-nvc-19 \
+	  libs-ieee-19
 
 DRIVER = bin/nvc$(EXEEXT)
 
 # For compatibility with BSD make
-@ifnGNUmake@.ORDER: $(DRIVER) lib/std/STD.STANDARD lib/std.08/STD.STANDARD
+@ifnGNUmake@.ORDER: $(DRIVER) lib/std/STD.STANDARD
+@ifnGNUmake@.ORDER: $(DRIVER) lib/std.08/STD.STANDARD
+@ifnGNUmake@.ORDER: $(DRIVER) lib/std.19/STD.STANDARD
