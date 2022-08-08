@@ -68,6 +68,13 @@ static void make_rule(tree_t t, rule_t **rules);
 
 static void ident_list_add(ident_list_t **list, ident_t i)
 {
+   for (; *list && ident_compare(i, (*list)->ident) < 0;
+        list = &((*list)->next))
+      ;
+
+   if (*list && (*list)->ident == i)
+      return;
+
    ident_list_t *c = xmalloc(sizeof(ident_list_t));
    c->ident = i;
    c->next  = *list;
@@ -121,26 +128,12 @@ static const char *make_product(tree_t t, make_product_t product)
 
 static void make_rule_add_input(rule_t *r, const char *input)
 {
-   ident_t ident = ident_new(input);
-
-   for (ident_list_t *it = r->inputs; it != NULL; it = it->next) {
-      if (it->ident == ident)
-         return;
-   }
-
-   ident_list_add(&(r->inputs), ident);
+   ident_list_add(&(r->inputs), ident_new(input));
 }
 
 static void make_rule_add_output(rule_t *r, const char *output)
 {
-   ident_t ident = ident_new(output);
-
-   for (ident_list_t *it = r->outputs; it != NULL; it = it->next) {
-      if (it->ident == ident)
-         return;
-   }
-
-   ident_list_add(&(r->outputs), ident);
+   ident_list_add(&(r->outputs), ident_new(output));
 }
 
 static rule_t *make_rule_for_source(rule_t **all, rule_kind_t kind,
