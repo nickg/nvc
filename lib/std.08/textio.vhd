@@ -151,6 +151,10 @@ package textio is
                      digits    : in natural:= 0 );
 
     procedure write (l         : inout line;
+                     value     : in real;
+                     format    : in string );
+
+    procedure write (l         : inout line;
                      value     : in string;
                      justified : in side := right;
                      field     : in width := 0 );

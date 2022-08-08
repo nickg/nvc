@@ -808,6 +808,13 @@ package body textio is
     end procedure;
 
     procedure write (l         : inout line;
+                     value     : in real;
+                     format    : in string ) is
+    begin
+        write(l, to_string(value, format));
+    end procedure;
+
+    procedure write (l         : inout line;
                      value     : in integer;
                      justified : in side := right;
                      field     : in width := 0 ) is
