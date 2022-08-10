@@ -1977,67 +1977,92 @@ static vcode_cc_t lower_cc_for_call(tree_t call)
 
 static vcode_reg_t lower_context_for_call(ident_t unit_name)
 {
-   ident_t scope_name = ident_runtil(ident_runtil(unit_name, '('), '.');
-
-   if (vcode_unit_kind() == VCODE_UNIT_THUNK) {
-      // This is a hack to make thunks work
-      tree_t pack = lib_get_qualified(scope_name);
-      if (pack != NULL && is_package(pack)) {
-         assert(!is_uninstantiated_package(pack));
-         return emit_package_init(scope_name, VCODE_INVALID_REG);
-      }
-   }
+   vcode_unit_t caller = vcode_active_unit();
 
    vcode_state_t state;
    vcode_state_save(&state);
 
    vcode_unit_t vu = vcode_find_unit(unit_name);
-   if (vu != NULL) {
-      vcode_select_unit(vu);
-      vcode_select_unit(vcode_unit_context());
-      scope_name = vcode_unit_name();
+
+   if (vu == NULL && vcode_unit_kind() == VCODE_UNIT_THUNK) {
+      ident_t thunk_name = ident_prefix(unit_name, well_known(W_THUNK), '$');
+      vu = vcode_find_unit(thunk_name);
    }
 
-   if (vcode_unit_kind() == VCODE_UNIT_THUNK) {
-      unit_name = ident_prefix(unit_name, well_known(W_THUNK), '$');
-      vu = vcode_find_unit(unit_name);
-      if (vu != NULL) {
-         vcode_select_unit(vu);
-         if (vcode_unit_context() != NULL) {
-            vcode_select_unit(vcode_unit_context());
-            scope_name = vcode_unit_name();
+   if (vu != NULL) {
+      vcode_select_unit(vu);
+      vcode_unit_t context = vcode_unit_context();
+
+      if (context == caller) {
+         vcode_state_restore(&state);
+         return emit_context_upref(0);
+      }
+      else if (context == NULL) {
+         assert(vcode_unit_kind() == VCODE_UNIT_THUNK);
+         vcode_state_restore(&state);
+         return emit_null(vtype_context(unit_name));
+      }
+
+      vcode_select_unit(context);
+
+      ident_t context_name = vcode_unit_name();
+      vunit_kind_t context_kind = vcode_unit_kind();
+      vcode_state_restore(&state);
+
+      if (context_kind == VCODE_UNIT_PACKAGE) {
+         if (vcode_unit_kind() == VCODE_UNIT_THUNK)
+            return emit_package_init(context_name, VCODE_INVALID_REG);
+         else if (context == vcode_unit_context())
+            return emit_context_upref(1);
+         else
+            return emit_link_package(context_name);
+      }
+      else {
+         int hops = 0;
+         for (; vcode_active_unit() != context; hops++) {
+            vcode_unit_t up = vcode_unit_context();
+            if (up == NULL) {
+               vcode_state_restore(&state);
+               return emit_null(vtype_context(context_name));
+            }
+
+            vcode_select_unit(up);
          }
+
+         vcode_state_restore(&state);
+         return emit_context_upref(hops);
       }
    }
 
    vcode_state_restore(&state);
 
    int hops = 0;
-   for (; vcode_unit_name() != scope_name; hops++) {
-      vcode_unit_t context = vcode_unit_context();
-      if (context == NULL) {
+   for (; ; hops++) {
+      if (ident_starts_with(unit_name, vcode_unit_name())) {
          vcode_state_restore(&state);
-         if (ident_until(scope_name, '-') != scope_name
-             || ident_until(unit_name, '-') != unit_name
-             || vcode_unit_kind() == VCODE_UNIT_THUNK) {
-            tree_t pack = lib_get_qualified(scope_name);
-            if (pack != NULL && is_package(pack)) {
-               assert(!is_uninstantiated_package(pack));
-               return emit_link_package(scope_name);
-            }
-            else   // Call to function defined in architecture
-               return emit_null(vtype_context(scope_name));
-         }
-         else
-            return emit_link_package(scope_name);
+         return emit_context_upref(hops);
       }
-      else
-         vcode_select_unit(context);
+
+      vcode_unit_t context = vcode_unit_context();
+      if (context == NULL)
+         break;
+
+      vcode_select_unit(context);
    }
 
    vcode_state_restore(&state);
 
-   return emit_context_upref(hops);
+   ident_t scope_name = ident_runtil(ident_until(unit_name, '('), '.');
+   tree_t pack = lib_get_qualified(scope_name);
+   if (pack != NULL && is_package(pack)) {
+      assert(!is_uninstantiated_package(pack));
+      if (vcode_unit_kind() == VCODE_UNIT_THUNK)
+         return emit_package_init(scope_name, VCODE_INVALID_REG);
+      else
+         return emit_link_package(scope_name);
+   }
+   else  // Call to function defined in architecture
+      return emit_null(vtype_context(scope_name));
 }
 
 static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
