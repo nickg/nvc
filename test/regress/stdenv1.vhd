@@ -26,4 +26,17 @@ begin
         wait;
     end process;
 
+    p3: process is                      -- EPOCH, time functions
+        variable tr : time_record;
+    begin
+        report "time: " & to_string(epoch);
+        assert epoch > 1660068924.0;    -- 9th August 2022
+        assert epoch < 4294967396.0;    -- 19th January 2038
+
+        tr := localtime;
+        report to_string(tr);
+        assert tr.year >= 2022;
+        wait;
+    end process;
+
 end architecture;

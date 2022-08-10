@@ -50,7 +50,7 @@ package body env is
 
     impure function localtime return time_record is
     begin
-        report "not implemented" severity failure;
+        return localtime(epoch);
     end function;
 
     impure function gmtime return time_record is
@@ -59,13 +59,19 @@ package body env is
     end function;
 
     impure function epoch return real is
+        impure function impl return real;
+        attribute foreign of impl : function is "_std_env_epoch";
     begin
-        report "not implemented" severity failure;
+        return impl;
     end function;
 
     function localtime (timer : real) return time_record is
+        procedure impl (timer : real; tr : out time_record);
+        attribute foreign of impl : procedure is "_std_env_localtime";
+        variable result : time_record;
     begin
-        report "not implemented" severity failure;
+        impl(timer, result);
+        return result;
     end function;
 
     function gmtime (timer : real) return time_record is
@@ -128,10 +134,34 @@ package body env is
 
     function to_string (trec        : time_record;
                         frac_digits : integer range 0 to 6 := 0)
-        return string is
+        return string
+    is
+        function zero_pad (value, width : integer) return string is
+            variable result : string(1 to width);
+            variable temp   : integer := value;
+        begin
+            for i in width downto 1 loop
+                result(i to i) := to_string(temp rem 10);
+                temp := temp / 10;
+            end loop;
+            return result;
+        end function;
+
+        variable buf : string(1 to 19);
     begin
-        report "not implemented" severity warning;
-        return "";
+        buf(1 to 4) := zero_pad(trec.year, 4);
+        buf(5) := '-';
+        buf(6 to 7) := zero_pad(trec.month, 2);
+        buf(8) := '-';
+        buf(9 to 10) := zero_pad(trec.day, 2);
+        buf(11) := 'T';
+        buf(12 to 13) := zero_pad(trec.hour, 2);
+        buf(14) := ':';
+        buf(15 to 16) := zero_pad(trec.minute, 2);
+        buf(17) := ':';
+        buf(18 to 19) := zero_pad(trec.second, 2);
+        -- TODO: microseconds and DIGITS handling
+        return buf;
     end function;
 
     impure function getenv (name : string) return string is
