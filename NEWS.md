@@ -1,6 +1,7 @@
 ## Unreleased changes
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.
 - Added support for FreeBSD/powerpc (#503, #504, from @pkubaj).
+- Fixed "missing vcode unit" error during elaboration (#502).
 
 
 ## Version 1.7.0 - 2022-08-07
