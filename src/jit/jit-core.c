@@ -99,6 +99,12 @@ static void jit_free_func(jit_func_t *f)
 
 void jit_free(jit_t *j)
 {
+#ifdef __MINGW32__
+   for (int i = 0; i < j->modules.count; i++)
+      FreeLibrary(j->modules.items[i]);
+#endif
+   ACLEAR(j->modules);
+
    for (int i = 0; i < j->funcs.count; i++)
       jit_free_func(j->funcs.items[i]);
    ACLEAR(j->funcs);
@@ -549,10 +555,14 @@ void jit_load_dll(jit_t *j, ident_t name)
 {
    lib_t lib = lib_require(ident_until(name, '.'));
 
-   char *so_fname LOCAL = xasprintf("_%s." DLL_EXT, istr(name));
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "_%s", istr(name));
+   if (opt_get_int(OPT_NO_SAVE))
+      tb_printf(tb, ".%d", getpid());
+   tb_cat(tb, "." DLL_EXT);
 
    char so_path[PATH_MAX];
-   lib_realpath(lib, so_fname, so_path, sizeof(so_path));
+   lib_realpath(lib, tb_get(tb), so_path, sizeof(so_path));
 
    if (access(so_path, F_OK) != 0)
       return;

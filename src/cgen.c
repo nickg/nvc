@@ -108,7 +108,8 @@ static __thread A(LLVMMetadataRef)  debug_scopes;
 static __thread LLVMContextRef      thread_context = NULL;
 static __thread llvm_value_list_t   ctors;
 
-static A(char *) link_args;
+static A(char *) link_args = AINIT;
+static A(char *) cleanup_files = AINIT;
 static nvc_lock_t job_lock = 0;
 
 static LLVMValueRef cgen_support_fn(const char *name);
@@ -4437,7 +4438,8 @@ static void cgen_partition_jobs(unit_list_t *units, job_list_t *jobs,
 
    for (unsigned i = 0; i < units->count; i += units_per_job, counter++) {
       char *module_name = xasprintf("%s.%d", base_name, counter);
-      char *obj_name LOCAL = xasprintf("_%s." LLVM_OBJ_EXT, module_name);
+      char *obj_name LOCAL =
+         xasprintf("_%s.%d." LLVM_OBJ_EXT, module_name, getpid());
 
       char obj_path[PATH_MAX];
       lib_realpath(lib_work(), obj_name, obj_path, sizeof(obj_path));
@@ -5091,6 +5093,18 @@ static void cgen_native(LLVMTargetMachineRef tm_ref, char *obj_path)
 #endif
 }
 
+static void cleanup_temp_dll(void)
+{
+   for (int i = 0; i < cleanup_files.count; i++) {
+      if (remove(cleanup_files.items[i]) == -1)
+         warnf("cannot remove %s: %s", cleanup_files.items[i], last_os_error());
+
+      free(cleanup_files.items[i]);
+   }
+
+   ACLEAR(cleanup_files);
+}
+
 static void cgen_link(const char *module_name, char **objs, int nobjs)
 {
 #ifdef LINKER_PATH
@@ -5113,9 +5127,19 @@ static void cgen_link(const char *module_name, char **objs, int nobjs)
    cgen_link_arg("-shared");
 #endif
 
-   char *fname LOCAL = xasprintf("_%s." DLL_EXT, module_name);
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_printf(tb, "_%s", module_name);
+   if (opt_get_int(OPT_NO_SAVE))
+      tb_printf(tb, ".%d", getpid());
+   tb_cat(tb, "." DLL_EXT);
+
    char so_path[PATH_MAX];
-   lib_realpath(lib_work(), fname, so_path, PATH_MAX);
+   lib_realpath(lib_work(), tb_get(tb), so_path, PATH_MAX);
+
+   if (opt_get_int(OPT_NO_SAVE)) {
+      APUSH(cleanup_files, xstrdup(so_path));
+      atexit(cleanup_temp_dll);
+   }
 
    cgen_link_arg("-o");
    cgen_link_arg("%s", so_path);

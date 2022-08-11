@@ -215,6 +215,7 @@ static int elaborate(int argc, char **argv)
       { "dump-vcode",  optional_argument, 0, 'v' },
       { "cover",       no_argument,       0, 'c' },
       { "verbose",     no_argument,       0, 'V' },
+      { "no-save",     no_argument,       0, 'N' },
       { 0, 0, 0, 0 }
    };
 
@@ -243,6 +244,9 @@ static int elaborate(int argc, char **argv)
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
+         break;
+      case 'N':
+         opt_set_int(OPT_NO_SAVE, 1);
          break;
       case 'g':
          parse_generic(optarg);
@@ -286,8 +290,10 @@ static int elaborate(int argc, char **argv)
    if (error_count() > 0)
       return EXIT_FAILURE;
 
-   lib_save(lib_work());
-   progress("saving library");
+   if (!opt_get_int(OPT_NO_SAVE)) {
+      lib_save(lib_work());
+      progress("saving library");
+   }
 
    cgen(top, vu, cover);
 
@@ -826,6 +832,7 @@ static void set_default_opts(void)
    opt_set_str(OPT_JIT_VERBOSE, getenv("NVC_JIT_VERBOSE"));
    opt_set_int(OPT_JIT_LOG, getenv("NVC_JIT_LOG") != NULL);
    opt_set_int(OPT_WARN_HIDDEN, 0);
+   opt_set_int(OPT_NO_SAVE, 0);
 }
 
 static void usage(void)
@@ -867,6 +874,7 @@ static void usage(void)
           "     --dump-llvm\tDump generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
+          "     --no-save\t\tDo not save the elaborated design to disk\n"
           " -O0, -O1, -O2, -O3\tSet optimisation level (default is -O2)\n"
           " -V, --verbose\t\tPrint resource usage at each step\n"
           "\n"

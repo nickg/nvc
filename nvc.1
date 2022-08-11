@@ -224,6 +224,15 @@ example
 .Fl gINIT='1' ,
 and
 .Fl gSTR="hello" .
+.\" --no-save
+.It Fl -no-save
+Do not save the elaborated design and other generated files to the
+working library.  This is only really useful in combination with the
+.Fl r
+option.  For example:
+.Bd -literal -offset indent
+$ nvc -e --no-save tb -r
+.Ed
 .\"
 .It Fl O0 , Fl 01 , Fl 02 , Fl O3
 Set LLVM optimisation level.  Default is

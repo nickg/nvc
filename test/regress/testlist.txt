@@ -645,3 +645,4 @@ file10          normal
 stdenv1         normal,2019,$FOO=123
 issue502        normal
 elab34          normal,2008
+issue507        shell
