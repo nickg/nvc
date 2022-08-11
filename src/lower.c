@@ -9174,9 +9174,15 @@ static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct,
 
    vcode_reg_t src_reg = lower_expr(value, EXPR_LVALUE);
 
-   int hops;
-   vcode_var_t var = lower_get_var(port, &hops);
-   assert(hops == 0);
+   int hops = 0;
+   vcode_var_t var = VCODE_INVALID_VAR;
+   if (field != -1) var = lower_search_vcode_obj(port, top_scope, &hops);
+
+   if (var == VCODE_INVALID_VAR || hops > 0) {
+      vcode_type_t vtype = lower_signal_type(tree_type(port));
+      var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
+      lower_put_vcode_obj(port, var, top_scope);
+   }
 
    type_t type = tree_type(value);
 
@@ -9224,12 +9230,12 @@ static void lower_direct_mapped_port(tree_t block, tree_t map, hset_t *direct,
 
 static void lower_port_signal(tree_t port)
 {
-   int hops;
-   vcode_var_t var = lower_get_var(port, &hops);
-   assert(hops == 0);
-
    type_t type = tree_type(port);
    type_t value_type = type;
+
+   vcode_type_t vtype = lower_signal_type(tree_type(port));
+   vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
+   lower_put_vcode_obj(port, var, top_scope);
 
    tree_t cons[MAX_CONSTRAINTS];
    const int ncons = pack_constraints(type, cons);
@@ -9265,15 +9271,6 @@ static void lower_ports(tree_t block)
    const int nparams = tree_params(block);
 
    hset_t *direct = hset_new(nports * 2), *poison = NULL;
-
-   for (int i = 0; i < nports; i++) {
-      tree_t port = tree_port(block, i);
-      type_t type = tree_type(port);
-
-      vcode_type_t vtype = lower_signal_type(type);
-      vcode_var_t var = emit_var(vtype, vtype, tree_ident(port), VAR_SIGNAL);
-      lower_put_vcode_obj(port, var, top_scope);
-   }
 
    // Filter out "direct mapped" inputs which can be aliased to signals
    // in the scope above

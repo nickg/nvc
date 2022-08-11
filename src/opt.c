@@ -89,8 +89,12 @@ bool opt_get_verbose(opt_name_t name, const char *filter)
    const char *value = opt_get_str(name);
    if (value == NULL || *value == '\0')
       return false;
-   else if (!isdigit((int)*value))
-      return filter != NULL && strstr(filter, value) != NULL;
-   else
+   else if (isdigit((int)*value))
       return true;
+   else if (filter == NULL)
+      return false;
+   else if (value[0] == '^')
+      return strcmp(value + 1, filter) == 0;
+   else
+      return strstr(filter, value) != NULL;
 }
