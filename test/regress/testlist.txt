@@ -642,3 +642,4 @@ agg9            normal
 agg10           normal,2008
 signal26        normal,2008
 issue502        normal
+elab34          normal,2008

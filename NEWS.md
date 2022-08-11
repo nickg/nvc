@@ -2,7 +2,7 @@
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.
 - Added support for FreeBSD/powerpc (#503, #504, from @pkubaj).
 - Fixed "missing vcode unit" error during elaboration (#502).
-
+- Fixed crash with recursive entity instantiation (#502).
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a

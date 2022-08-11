@@ -25,11 +25,11 @@ table below.
   </tr>
   <tr>
     <td>Subprogram generics</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.7</td>
   </tr>
   <tr>
     <td>Generic types</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.7</td>
   </tr>
   <tr>
     <td>PSL integrated into VHDL</td>
@@ -37,7 +37,7 @@ table below.
   </tr>
   <tr>
     <td>New fixed and floating point arithmetic packages</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.7</td>
   </tr>
   <tr>
     <td><code>/* */</code> block comments</td>
@@ -52,11 +52,11 @@ table below.
   <tr>
     <td>Function <code>rising_edge</code> is defined
       for <code>boolean</code></td>
-    <td class="feature-missing"></td>
+    <td class="feature-done">1.7</td>
   </tr>
   <tr>
     <td>Arrays and records may contain unconstrained elements</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.7</td>
   </tr>
   <tr>
     <td>New <code>boolean_vector</code>, <code>integer_vector</code>,
@@ -65,11 +65,11 @@ table below.
   </tr>
   <tr>
     <td>"Matching" case statement <code>case?</code></td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.7</td>
   </tr>
   <tr>
     <td><code>force</code> and <code>release</code> for signals</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.7</td>
   </tr>
   <tr>
     <td><code>'INSTANCE_NAME</code> etc. extended for package and
@@ -83,7 +83,7 @@ table below.
   <tr>
     <td>New <code>'SUBTYPE</code> and <code>'ELEMENT</code>
       attributes</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.7</td>
   </tr>
   <tr>
     <td>New condition operator <code>??</code></td>
@@ -95,11 +95,11 @@ table below.
   </tr>
   <tr>
     <td>External names</td>
-    <td class="feature-partial">master</td>
+    <td class="feature-partial">1.7</td>
   </tr>
   <tr>
     <td>Array slices in aggregates</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.7</td>
   </tr>
   <tr>
     <td>Conditional and selected sequential statements</td>
@@ -143,6 +143,6 @@ table below.
     <td><a href="http://www.eda-twiki.org/cgi-bin/view.cgi/P1076/LCS2016_030">
         LCS2016_030</td>
     <td>Garbage collection</td>
-    <td class="feature-done">master</td>
+    <td class="feature-done">1.7</td>
   </tr>
 </table>
