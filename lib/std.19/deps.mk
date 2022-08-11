@@ -2,6 +2,10 @@
 
 lib/std.19/STD.STANDARD: $(top_srcdir)/lib/std.08/standard.vhd
 
+lib/std.19/STD.ENV-body: lib/std.19/STD.TEXTIO lib/std.19/STD.STANDARD lib/std.19/STD.ENV $(top_srcdir)/lib/std.19/env-body.vhd
+
+lib/std.19/STD.ENV: lib/std.19/STD.TEXTIO lib/std.19/STD.STANDARD $(top_srcdir)/lib/std.19/env.vhdl
+
 lib/std.19/STD.TEXTIO: lib/std.19/STD.STANDARD $(top_srcdir)/lib/std.19/textio.vhdl
 
 lib/std.19/STD.TEXTIO-body: lib/std.19/STD.TEXTIO lib/std.19/STD.STANDARD $(top_srcdir)/lib/std/textio-body.vhd

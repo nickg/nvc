@@ -20,7 +20,7 @@ tasks:
       ../configure --enable-debug
   - build: |
       cd nvc/build
-      make
+      make -j2
   - test: |
       cd nvc/build
       make check
