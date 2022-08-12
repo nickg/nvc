@@ -93,6 +93,7 @@ void insert_spec(nametab_t *tab, tree_t spec, spec_kind_t kind,
                  ident_t ident, int depth);
 
 ident_t get_implicit_label(tree_t t, nametab_t *tab);
+ident_t get_branch_label(tree_t stmt, tree_t branch);
 void continue_proc_labelling_from(tree_t t, nametab_t *tab);
 
 tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name);

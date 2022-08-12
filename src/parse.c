@@ -4082,6 +4082,11 @@ static void p_choice(tree_t parent, type_t constraint)
 
    tree_set_loc(t, CURRENT_LOC);
    tree_add_assoc(parent, t);
+
+   // Parent passed only for T_CASE, T_MATCH_CASE, T_SELECT
+   // In such case assoc is coverable branch
+   if (parent)
+      tree_set_ident(t, get_branch_label(parent, t));
 }
 
 static void p_choices(tree_t parent, type_t constraint)
@@ -8271,6 +8276,7 @@ static void p_conditional_expressions(tree_t stmt, tree_t value0)
 
       tree_add_stmt(c, a);
       tree_add_cond(stmt, c);
+      tree_set_ident(c, get_branch_label(stmt, c));
 
       if (optional(tWHEN)) {
          tree_t when = p_condition();
@@ -8676,6 +8682,7 @@ static tree_t p_if_statement(ident_t label)
    tree_t c0 = tree_new(T_COND);
    tree_set_value(c0, p_condition());
    tree_add_cond(t, c0);
+   tree_set_ident(c0, get_branch_label(t, c0));
 
    consume(tTHEN);
 
@@ -8687,6 +8694,7 @@ static tree_t p_if_statement(ident_t label)
       tree_t c = tree_new(T_COND);
       tree_set_value(c, p_condition());
       tree_add_cond(t, c);
+      tree_set_ident(c, get_branch_label(t, c));
 
       consume(tTHEN);
 
@@ -8698,6 +8706,7 @@ static tree_t p_if_statement(ident_t label)
    if (optional(tELSE)) {
       tree_t c = tree_new(T_COND);
       tree_add_cond(t, c);
+      tree_set_ident(c, get_branch_label(t, c));
 
       p_sequence_of_statements(c);
 
@@ -9284,6 +9293,7 @@ static void p_conditional_waveforms(tree_t stmt, tree_t target, tree_t s0)
 
       tree_add_stmt(c, a);
       tree_add_cond(stmt, c);
+      tree_set_ident(c, get_branch_label(stmt, c));
 
       if (optional(tWHEN)) {
          tree_t when = p_condition();
