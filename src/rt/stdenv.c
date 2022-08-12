@@ -81,6 +81,19 @@ double _std_env_epoch(void)
    return (double)tz.tv_sec + (double)tz.tv_usec / 1e6;
 }
 
+static void to_time_record(const struct tm *tm, int us, time_record_t *tr)
+{
+   tr->microsecond = us;
+   tr->second      = tm->tm_sec;
+   tr->minute      = tm->tm_min;
+   tr->hour        = tm->tm_hour;
+   tr->day         = tm->tm_mday;
+   tr->month       = tm->tm_mon;
+   tr->year        = 1900 + tm->tm_year;
+   tr->weekday     = tm->tm_wday;
+   tr->dayofyear   = tm->tm_yday;
+}
+
 DLLEXPORT
 void _std_env_localtime(double time, time_record_t *tr)
 {
@@ -94,15 +107,23 @@ void _std_env_localtime(double time, time_record_t *tr)
    localtime_r(&secs, &tm);
 #endif
 
-   tr->microsecond = (int)(1e6 * (time - fsecs));
-   tr->second      = tm.tm_sec;
-   tr->minute      = tm.tm_min;
-   tr->hour        = tm.tm_hour;
-   tr->day         = tm.tm_mday;
-   tr->month       = tm.tm_mon;
-   tr->year        = 1900 + tm.tm_year;
-   tr->weekday     = tm.tm_wday;
-   tr->dayofyear   = tm.tm_yday;
+   to_time_record(&tm, (int)(1e6 * (time - fsecs)), tr);
+}
+
+DLLEXPORT
+void _std_env_gmtime(double time, time_record_t *tr)
+{
+   double fsecs = floor(time);
+   time_t secs = (int)fsecs;
+
+   struct tm tm;
+#ifdef __MINGW32__
+   gmtime_s(&tm, &secs);
+#else
+   gmtime_r(&secs, &tm);
+#endif
+
+   to_time_record(&tm, (int)(1e6 * (time - fsecs)), tr);
 }
 
 void _std_env_init(void)

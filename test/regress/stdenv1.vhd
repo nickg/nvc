@@ -36,6 +36,11 @@ begin
         tr := localtime;
         report to_string(tr);
         assert tr.year >= 2022;
+
+        tr := gmtime;
+        report to_string(tr, 3);
+        assert tr.year >= 2022;
+
         wait;
     end process;
 

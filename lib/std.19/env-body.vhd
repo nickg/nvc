@@ -1,5 +1,5 @@
 -------------------------------------------------------------------------------
---  Copyright (C) 2014-2022  Nick Gasson
+--  Copyright (C) 2022  Nick Gasson
 --
 --  Licensed under the Apache License, Version 2.0 (the "License");
 --  you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ package body env is
 
     impure function gmtime return time_record is
     begin
-        report "not implemented" severity failure;
+        return gmtime(epoch);
     end function;
 
     impure function epoch return real is
@@ -75,8 +75,12 @@ package body env is
     end function;
 
     function gmtime (timer : real) return time_record is
+        procedure impl (timer : real; tr : out time_record);
+        attribute foreign of impl : procedure is "_std_env_gmtime";
+        variable result : time_record;
     begin
-        report "not implemented" severity failure;
+        impl(timer, result);
+        return result;
     end function;
 
     function epoch (trec : time_record) return real is
@@ -147,7 +151,7 @@ package body env is
             return result;
         end function;
 
-        variable buf : string(1 to 19);
+        variable buf : string(1 to 26);
     begin
         buf(1 to 4) := zero_pad(trec.year, 4);
         buf(5) := '-';
@@ -160,8 +164,13 @@ package body env is
         buf(15 to 16) := zero_pad(trec.minute, 2);
         buf(17) := ':';
         buf(18 to 19) := zero_pad(trec.second, 2);
-        -- TODO: microseconds and DIGITS handling
-        return buf;
+        if frac_digits > 0 then
+            buf(20) := '.';
+            buf(21 to 26) := zero_pad(trec.microsecond, 6);
+            return buf(1 to 20 + frac_digits);
+        else
+            return buf(1 to 19);
+        end if;
     end function;
 
     impure function getenv (name : string) return string is

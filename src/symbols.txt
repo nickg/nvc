@@ -70,6 +70,7 @@
   # Exported from src/rt/stdenv.c
   _std_env_epoch;
   _std_env_getenv;
+  _std_env_gmtime;
   _std_env_localtime;
   _std_env_tool_version;
   _std_env_vhdl_version;
