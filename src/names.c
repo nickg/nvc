@@ -1178,8 +1178,9 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
    char buf[22];
 
    switch (tree_kind(t)) {
-   case T_PROCESS:
    case T_CONCURRENT:
+      tab->top_scope->lbl_cnts.stmt = 0;
+   case T_PROCESS:   
       cnt = &(tab->top_scope->lbl_cnts.proc);
       c = 'P';
       break;
