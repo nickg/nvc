@@ -70,4 +70,6 @@ gen-deps-synopsys:
 	$(nvc) -L lib/ --work=lib/synopsys --make --posix --deps-only | \
 		$(deps_pp) > $(srcdir)/lib/synopsys/deps.mk
 
+lib/ieee/IEEE.STD_LOGIC_MISC: lib/synopsys/SYNOPSYS.ATTRIBUTES
+
 include lib/synopsys/deps.mk
