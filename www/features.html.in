@@ -107,7 +107,7 @@ table below.
   </tr>
   <tr>
     <td>Extensions to generate statement</td>
-    <td class="feature-missing"></td>
+    <td class="feature-partial">master</td>
   </tr>
   <tr>
     <td><code>all</code> in sensitivity list</td>

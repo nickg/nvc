@@ -1263,8 +1263,8 @@ static tree_t simp_if_generate(tree_t t)
    if (!tree_has_value(c0)) {
       // First condition is always true
       tree_t b = tree_new(T_BLOCK);
-      tree_set_loc(b, tree_loc(t));
-      tree_set_ident(b, tree_ident(t));
+      tree_set_loc(b, tree_loc(c0));
+      tree_set_ident(b, tree_ident(c0));
 
       const int ndecls = tree_decls(c0);
       for (int i = 0; i < ndecls; i++)

@@ -9596,7 +9596,7 @@ static tree_t p_block_statement(ident_t label)
    return b;
 }
 
-static void p_generate_statement_body(tree_t container)
+static void p_generate_statement_body(tree_t container, ident_t alt_label)
 {
    // [ block_declarative_part begin ] { concurrent_statement }
    //   [ end [ alternative_label ] ; ]
@@ -9611,8 +9611,14 @@ static void p_generate_statement_body(tree_t container)
       consume(tBEGIN);
    }
 
-   while (not_at_token(tEND))
+   while (not_at_token(tEND, tELSIF, tELSE))
       tree_add_stmt(container, p_concurrent_statement());
+
+   if (peek() == tEND && (peek_nth(2) == tID || peek_nth(2) == tSEMI)) {
+      consume(tEND);
+      p_trailing_label(alt_label);
+      consume(tSEMI);
+   }
 }
 
 static tree_t p_for_generate_statement(ident_t label)
@@ -9634,7 +9640,7 @@ static tree_t p_for_generate_statement(ident_t label)
 
    consume(tGENERATE);
 
-   p_generate_statement_body(g);
+   p_generate_statement_body(g, NULL);
 
    consume(tEND);
    consume(tGENERATE);
@@ -9663,31 +9669,89 @@ static tree_t p_if_generate_statement(ident_t label)
 
    consume(tIF);
 
-   push_scope(nametab);
-   scope_set_prefix(nametab, label);
-
    tree_t g = tree_new(T_IF_GENERATE);
    tree_set_ident(g, label);
 
-   tree_t c = tree_new(T_COND);
-   tree_set_loc(c, CURRENT_LOC);
+   ident_t alt_label = NULL;
+   if (peek() == tID && peek_nth(2) == tCOLON) {
+      require_std(STD_08, "alternative labels");
 
-   tree_add_cond(g, c);
+      alt_label = p_identifier();
+      consume(tCOLON);
+   }
 
-   tree_t expr = p_expression();
-   tree_set_value(c, expr);
-   solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
+   push_scope(nametab);
+   scope_set_prefix(nametab, alt_label ?: label);
+
+   tree_t c0 = tree_new(T_COND);
+   tree_set_ident(c0, alt_label ?: label);
+   tree_set_value(c0, p_condition());
+
+   tree_add_cond(g, c0);
 
    consume(tGENERATE);
 
-   p_generate_statement_body(c);
+   p_generate_statement_body(c0, alt_label);
+
+   pop_scope(nametab);
+
+   tree_set_loc(c0, CURRENT_LOC);
+
+   while (optional(tELSIF)) {
+      require_std(STD_08, "elsif in generate statements");
+
+      ident_t alt_label = NULL;
+      if (peek() == tID && peek_nth(2) == tCOLON) {
+         alt_label = p_identifier();
+         consume(tCOLON);
+      }
+
+      push_scope(nametab);
+      scope_set_prefix(nametab, alt_label ?: label);
+
+      tree_t c = tree_new(T_COND);
+      tree_set_ident(c, alt_label ?: label);
+      tree_set_value(c, p_condition());
+
+      consume(tGENERATE);
+
+      p_generate_statement_body(c, alt_label);
+
+      pop_scope(nametab);
+
+      tree_set_loc(c, CURRENT_LOC);
+      tree_add_cond(g, c);
+   }
+
+   if (optional(tELSE)) {
+      require_std(STD_08, "else in generate statements");
+
+      ident_t alt_label = label;
+      if (peek() == tID && peek_nth(2) == tCOLON) {
+         alt_label = p_identifier();
+         consume(tCOLON);
+      }
+
+      push_scope(nametab);
+      scope_set_prefix(nametab, alt_label ?: label);
+
+      tree_t c = tree_new(T_COND);
+      tree_set_ident(c, alt_label ?: label);
+
+      consume(tGENERATE);
+
+      p_generate_statement_body(c, alt_label);
+
+      pop_scope(nametab);
+
+      tree_set_loc(c, CURRENT_LOC);
+      tree_add_cond(g, c);
+   }
 
    consume(tEND);
    consume(tGENERATE);
    p_trailing_label(label);
    consume(tSEMI);
-
-   pop_scope(nametab);
 
    if (label == NULL)
       parse_error(CURRENT_LOC, "generate statement must have a label");

@@ -1488,8 +1488,8 @@ static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
       tree_t cond = tree_cond(t, i);
       if (!tree_has_value(cond) || elab_generate_test(tree_value(cond), ctx)) {
          tree_t b = tree_new(T_BLOCK);
-         tree_set_loc(b, tree_loc(t));
-         tree_set_ident(b, tree_ident(t));
+         tree_set_loc(b, tree_loc(cond));
+         tree_set_ident(b, tree_ident(cond));
 
          tree_add_stmt(ctx->out, b);
 

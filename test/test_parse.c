@@ -3630,6 +3630,8 @@ START_TEST(test_vhdl2008)
       { 179, "prefix of 'SUBTYPE attribute does not have a type" },
       { 181, "prefix of 'ELEMENT attribute must be an array type" },
       { 182, "prefix of 'ELEMENT attribute does not have a type" },
+      { 228, "unexpected trailing label for generate statement body without" },
+      { 230, "expected trailing generate statement body label to match FOO" },
       { -1, NULL }
    };
    expect_errors(expect);

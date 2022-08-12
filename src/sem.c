@@ -4935,9 +4935,11 @@ static bool sem_check_if_generate(tree_t t, nametab_t *tab)
       if (!sem_check_cond(cond, tab))
          return false;
 
-      tree_t value = tree_value(cond);
-      if (!sem_globally_static(value))
-         sem_error(value, "condition of generate statement must be static");
+      if (tree_has_value(cond)) {
+         tree_t value = tree_value(cond);
+         if (!sem_globally_static(value))
+            sem_error(value, "condition of generate statement must be static");
+      }
    }
 
    return true;

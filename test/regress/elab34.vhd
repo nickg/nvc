@@ -20,10 +20,8 @@ begin
             end if;
         end process;
 
-    end generate;
-    --else generate
+    else g2: generate
 
-    g2: if width > 1 generate
         u1: entity work.sub
             generic map ( width / 2 )
             port map ( clk, rst, vec(1 to width / 2) );

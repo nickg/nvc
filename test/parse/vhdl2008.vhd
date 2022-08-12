@@ -217,4 +217,16 @@ begin
         end process;
     end block;
 
+    g1: if g1a: true generate           -- OK
+    elsif g2: false generate
+    begin
+    end g2;
+    else generate
+    end generate;
+
+    g1: if true generate
+    end g1;                             -- Error
+    else foo: generate
+    end bar;                            -- Error
+    end generate;
 end architecture;
