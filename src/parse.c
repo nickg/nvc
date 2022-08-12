@@ -7980,6 +7980,10 @@ static tree_t p_block_configuration(tree_t of)
 
    if (sub != NULL) {
       tree_set_ref(b, sub);
+
+      if (tree_kind(sub) == T_IF_GENERATE)
+         sub = tree_cond(sub, 0);
+
       insert_names_for_config(nametab, sub);
    }
    else
@@ -9592,73 +9596,139 @@ static tree_t p_block_statement(ident_t label)
    return b;
 }
 
-static tree_t p_generation_scheme(void)
+static void p_generate_statement_body(tree_t container)
 {
-   // for parameter_specification | if condition
+   // [ block_declarative_part begin ] { concurrent_statement }
+   //   [ end [ alternative_label ] ; ]
 
-   BEGIN("generation scheme");
-
-   switch (one_of(tIF, tFOR)) {
-   case tIF:
-      {
-         tree_t g = tree_new(T_IF_GENERATE);
-         tree_t expr = p_expression();
-         tree_set_value(g, expr);
-         solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
-         return g;
-      }
-
-   case tFOR:
-      {
-         tree_t g = tree_new(T_FOR_GENERATE);
-         p_parameter_specification(g, T_GENERIC_DECL);
-         return g;
-      }
-
-   default:
-      return tree_new(T_IF_GENERATE);
-   }
-}
-
-static tree_t p_generate_statement(ident_t label)
-{
-   // label : generation_scheme generate [ { block_declarative_item }
-   //   begin ] { concurrent_statement } end generate [ label ] ;
-
-   EXTEND("generate statement");
-
-   push_scope(nametab);
-   scope_set_prefix(nametab, label);
-
-   tree_t g = p_generation_scheme();
-   tree_set_ident(g, label);
-
-   consume(tGENERATE);
+   BEGIN("generate statement body");
 
    if (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
             tPURE, tALIAS, tATTRIBUTE, tBEGIN, tPROCEDURE, tFOR, tCOMPONENT,
             tUSE, tSHARED)) {
       while (not_at_token(tBEGIN))
-         p_block_declarative_item(g);
+         p_block_declarative_item(container);
       consume(tBEGIN);
    }
 
    while (not_at_token(tEND))
-      tree_add_stmt(g, p_concurrent_statement());
+      tree_add_stmt(container, p_concurrent_statement());
+}
+
+static tree_t p_for_generate_statement(ident_t label)
+{
+   // for generate_parameter_specification generate generate_statement_body
+   //   end generate [ generate_label ] ;
+
+   EXTEND("for generate statement");
+
+   consume(tFOR);
+
+   push_scope(nametab);
+   scope_set_prefix(nametab, label);
+
+   tree_t g = tree_new(T_FOR_GENERATE);
+   tree_set_ident(g, label);
+
+   p_parameter_specification(g, T_GENERIC_DECL);
+
+   consume(tGENERATE);
+
+   p_generate_statement_body(g);
 
    consume(tEND);
    consume(tGENERATE);
    p_trailing_label(label);
    consume(tSEMI);
 
+   pop_scope(nametab);
+
    if (label == NULL)
       parse_error(CURRENT_LOC, "generate statement must have a label");
-
-   pop_scope(nametab);
 
    tree_set_loc(g, CURRENT_LOC);
    sem_check(g, nametab);
    return g;
+}
+
+static tree_t p_if_generate_statement(ident_t label)
+{
+   // if [ alternative_label : ] condition generate generate_statement_body
+   //   { elsif [ alternative_label : ] condition generate
+   //     generate_statement_body }
+   //   [ else [ alternative_label : ] generate generate_statement_body ]
+   //   end generate [ generate_label ] ;
+
+   EXTEND("if generate statement");
+
+   consume(tIF);
+
+   push_scope(nametab);
+   scope_set_prefix(nametab, label);
+
+   tree_t g = tree_new(T_IF_GENERATE);
+   tree_set_ident(g, label);
+
+   tree_t c = tree_new(T_COND);
+   tree_set_loc(c, CURRENT_LOC);
+
+   tree_add_cond(g, c);
+
+   tree_t expr = p_expression();
+   tree_set_value(c, expr);
+   solve_types(nametab, expr, std_type(NULL, STD_BOOLEAN));
+
+   consume(tGENERATE);
+
+   p_generate_statement_body(c);
+
+   consume(tEND);
+   consume(tGENERATE);
+   p_trailing_label(label);
+   consume(tSEMI);
+
+   pop_scope(nametab);
+
+   if (label == NULL)
+      parse_error(CURRENT_LOC, "generate statement must have a label");
+
+   tree_set_loc(g, CURRENT_LOC);
+   sem_check(g, nametab);
+   return g;
+}
+
+static tree_t p_case_generate_statement(ident_t label)
+{
+   // case expression generate case_generate_alternative
+   //   { case_generate_alternative } end generate [ generate_label ] ;
+
+   EXTEND("case generate statement");
+
+   consume(tCASE);
+
+   parse_error(CURRENT_LOC, "sorry, case generate statements are not "
+               "yet supported");
+   return ensure_labelled(tree_new(T_BLOCK), label);
+}
+
+static tree_t p_generate_statement(ident_t label)
+{
+   // for_generate_statement | if_generate_statement | case_generate_statement
+
+   EXTEND("generate statement");
+
+   switch (peek()) {
+   case tFOR:
+      return p_for_generate_statement(label);
+   case tIF:
+      return p_if_generate_statement(label);
+   case tCASE:
+      return p_case_generate_statement(label);
+   default:
+      expect(tFOR, tIF, tCASE);
+      drop_tokens_until(tSEMI);
+      return ensure_labelled(tree_new(T_BLOCK), label);
+   }
 }
 
 static tree_t p_concurrent_statement(void)

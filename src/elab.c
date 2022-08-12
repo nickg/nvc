@@ -394,6 +394,9 @@ static void elab_config_instance(tree_t block, tree_t spec,
 {
    ident_t match = tree_has_ident(spec) ? tree_ident(spec) : NULL;
 
+   if (tree_kind(block) == T_IF_GENERATE)
+      block = tree_cond(block, 0);
+
    const int nstmts = tree_stmts(block);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(block, i);
@@ -1480,28 +1483,34 @@ static bool elab_generate_test(tree_t value, elab_ctx_t *ctx)
 
 static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
 {
-   if (elab_generate_test(tree_value(t), ctx)) {
-      tree_t b = tree_new(T_BLOCK);
-      tree_set_loc(b, tree_loc(t));
-      tree_set_ident(b, tree_ident(t));
+   const int nconds = tree_conds(t);
+   for (int i = 0; i < nconds; i++) {
+      tree_t cond = tree_cond(t, i);
+      if (!tree_has_value(cond) || elab_generate_test(tree_value(cond), ctx)) {
+         tree_t b = tree_new(T_BLOCK);
+         tree_set_loc(b, tree_loc(t));
+         tree_set_ident(b, tree_ident(t));
 
-      tree_add_stmt(ctx->out, b);
+         tree_add_stmt(ctx->out, b);
 
-      elab_ctx_t new_ctx = {
-         .out         = b,
-         .root        = ctx->root,
-         .path        = ctx->path,
-         .inst        = ctx->inst,
-         .dotted      = ctx->dotted,
-         .library     = ctx->library,
-         .subprograms = ctx->subprograms,
-         .eval        = ctx->eval,
-      };
+         elab_ctx_t new_ctx = {
+            .out         = b,
+            .root        = ctx->root,
+            .path        = ctx->path,
+            .inst        = ctx->inst,
+            .dotted      = ctx->dotted,
+            .library     = ctx->library,
+            .subprograms = ctx->subprograms,
+            .eval        = ctx->eval,
+         };
 
-      elab_push_scope(t, &new_ctx);
-      elab_decls(t, &new_ctx);
-      elab_stmts(t, &new_ctx);
-      elab_pop_scope(&new_ctx);
+         elab_push_scope(t, &new_ctx);
+         elab_decls(cond, &new_ctx);
+         elab_stmts(cond, &new_ctx);
+         elab_pop_scope(&new_ctx);
+
+         return;
+      }
    }
 }
 

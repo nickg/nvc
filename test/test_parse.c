@@ -2477,7 +2477,7 @@ END_TEST
 
 START_TEST(test_generate)
 {
-   tree_t e, a, g, i;
+   tree_t e, a, g, i, c;
 
    opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/parse/generate.vhd");
@@ -2501,20 +2501,28 @@ START_TEST(test_generate)
 
    g = tree_stmt(a, 0);
    fail_unless(tree_kind(g) == T_IF_GENERATE);
-   fail_unless(tree_decls(g) == 1);
-   fail_unless(tree_stmts(g) == 1);
+   fail_unless(tree_conds(g) == 1);
    fail_unless(icmp(tree_ident(g), "G1"));
+
+   c = tree_cond(g, 0);
+   fail_unless(tree_decls(c) == 1);
+   fail_unless(tree_stmts(c) == 1);
 
    g = tree_stmt(a, 1);
    fail_unless(tree_kind(g) == T_IF_GENERATE);
-   fail_unless(tree_decls(g) == 0);
-   fail_unless(tree_stmts(g) == 1);
    fail_unless(icmp(tree_ident(g), "G2"));
-   g = tree_stmt(g, 0);
+
+   c = tree_cond(g, 0);
+   fail_unless(tree_decls(c) == 0);
+   fail_unless(tree_stmts(c) == 1);
+
+   g = tree_stmt(c, 0);
    fail_unless(tree_kind(g) == T_IF_GENERATE);
-   fail_unless(tree_decls(g) == 0);
-   fail_unless(tree_stmts(g) == 1);
    fail_unless(icmp(tree_ident(g), "G2A"));
+
+   c = tree_cond(g, 0);
+   fail_unless(tree_decls(c) == 0);
+   fail_unless(tree_stmts(c) == 1);
 
    g = tree_stmt(a, 2);
    fail_unless(tree_kind(g) == T_FOR_GENERATE);

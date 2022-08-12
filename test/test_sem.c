@@ -755,7 +755,7 @@ START_TEST(test_generate)
    input_from_file(TESTDIR "/sem/generate.vhd");
 
    const error_t expect[] = {
-      { 15, "condition of generate statement must be BOOLEAN" },
+      { 15, "type of condition must be BOOLEAN but is INTEGER" },
       { 26, "no visible declaration for Y" },
       { 33, "declaration of constant X hides signal X" },
       { 39, "declaration of constant X hides signal X" },

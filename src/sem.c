@@ -4928,17 +4928,17 @@ static bool sem_check_attr_spec(tree_t t, nametab_t *tab)
 
 static bool sem_check_if_generate(tree_t t, nametab_t *tab)
 {
-   type_t std_bool = std_type(NULL, STD_BOOLEAN);
-   tree_t value = tree_value(t);
+   const int nconds = tree_conds(t);
+   for (int i = 0; i < nconds; i++) {
+      tree_t cond = tree_cond(t, i);
 
-   if (!sem_check(value, tab))
-      return false;
+      if (!sem_check_cond(cond, tab))
+         return false;
 
-   if (!sem_check_type(value, std_bool))
-      sem_error(value, "condition of generate statement must be BOOLEAN");
-
-   if (!sem_globally_static(value))
-      sem_error(value, "condition of generate statement must be static");
+      tree_t value = tree_value(cond);
+      if (!sem_globally_static(value))
+         sem_error(value, "condition of generate statement must be static");
+   }
 
    return true;
 }

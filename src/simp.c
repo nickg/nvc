@@ -1256,27 +1256,28 @@ static tree_t simp_assert(tree_t t)
 
 static tree_t simp_if_generate(tree_t t)
 {
-   bool value_b;
-   if (!folded_bool(tree_value(t), &value_b))
-      return t;
+   if (tree_conds(t) == 0)
+      return NULL;   // All conditions were false
 
-   if (value_b) {
-      tree_t block = tree_new(T_BLOCK);
-      tree_set_ident(block, tree_ident(t));
-      tree_set_loc(block, tree_loc(t));
+   tree_t c0 = tree_cond(t, 0);
+   if (!tree_has_value(c0)) {
+      // First condition is always true
+      tree_t b = tree_new(T_BLOCK);
+      tree_set_loc(b, tree_loc(t));
+      tree_set_ident(b, tree_ident(t));
 
-      const int ndecls = tree_decls(t);
+      const int ndecls = tree_decls(c0);
       for (int i = 0; i < ndecls; i++)
-         tree_add_decl(block, tree_decl(t, i));
+         tree_add_decl(b, tree_decl(c0, i));
 
-      const int nstmts = tree_stmts(t);
+      const int nstmts = tree_stmts(c0);
       for (int i = 0; i < nstmts; i++)
-         tree_add_stmt(block, tree_stmt(t, i));
+         tree_add_stmt(b, tree_stmt(c0, i));
 
-      return block;
+      return b;
    }
-   else
-      return NULL;
+
+   return t;
 }
 
 static tree_t simp_signal_assign(tree_t t)
