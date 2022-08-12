@@ -3880,6 +3880,15 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
                                           lower_param(name, NULL, PORT_IN)));
       }
 
+   case ATTR_ELEMENT:
+      {
+         vcode_reg_t array_reg = lower_expr(name, EXPR_RVALUE);
+         type_t type = tree_type(name);
+         type_t elem = lower_elem_recur(type);
+         vcode_reg_t null_reg = emit_null(vtype_pointer(lower_type(elem)));
+         return lower_wrap_element(type, array_reg, null_reg);
+      }
+
    case ATTR_ASCENDING:
       {
          type_t type = tree_type(name);
