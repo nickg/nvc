@@ -3,6 +3,7 @@
 - Added support for FreeBSD/powerpc (#503, #504, from @pkubaj).
 - Fixed "missing vcode unit" error during elaboration (#502).
 - Fixed crash with recursive entity instantiation (#502).
+- Fixed error with expressions like `X'ELEMENT'LENGTH` (#508).
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a
