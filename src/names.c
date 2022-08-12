@@ -114,6 +114,7 @@ typedef struct {
    int proc;
    int loop;
    int stmt;
+   int branch;
 } label_cnts_t;
 
 struct scope {
@@ -1207,6 +1208,26 @@ ident_t get_implicit_label(tree_t t, nametab_t *tab)
 
    checked_sprintf(buf, sizeof(buf), "_%c%d", c, (*cnt)++);
    return ident_new(buf);
+}
+
+ident_t get_branch_label(tree_t stmt, tree_t branch)
+{
+   assert (tree_kind(branch) == T_COND || tree_kind(branch) == T_ASSOC);
+   
+   char buf[16];
+   
+   tree_kind_t kind = tree_kind(branch);
+   int cnt;
+   if (kind == T_COND) {
+      cnt = tree_conds(stmt);
+   } else {
+      cnt = tree_assocs(stmt);
+   }
+
+   checked_sprintf(buf, sizeof(buf), "_B%d", cnt - 1);
+   ident_t ident = ident_new(buf);
+
+   return ident;
 }
 
 type_t resolve_type(nametab_t *tab, type_t incomplete)

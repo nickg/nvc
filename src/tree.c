@@ -203,7 +203,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_POS | I_SUBKIND | I_NAME),
 
    // T_ASSOC
-   (I_VALUE | I_POS | I_NAME | I_RANGES | I_SUBKIND),
+   (I_IDENT | I_VALUE | I_POS | I_NAME | I_RANGES | I_SUBKIND),
 
    // T_USE
    (I_IDENT | I_IDENT2 | I_REF),
