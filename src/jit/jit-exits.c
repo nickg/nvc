@@ -1466,3 +1466,9 @@ void __nvc_putpriv(jit_handle_t handle, void *data)
 
    jit_put_privdata(j, f, data);
 }
+
+DLLEXPORT
+void __nvc_setup_toggle_cb(sig_shared_t *ss, int32_t* toggle_mask)
+{
+   x_cover_setup_toggle_cb(ss, toggle_mask);
+}

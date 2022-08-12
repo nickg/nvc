@@ -81,7 +81,7 @@ static ident_t to_unit_name(const char *str)
 static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
-      "-a", "-e", "-r", "--dump", "--make", "--syntax", "--list", "--init",
+      "-a", "-e", "-r", "-c", "--dump", "--make", "--syntax", "--list", "--init",
       "--install",
    };
 
@@ -224,7 +224,7 @@ static int elaborate(int argc, char **argv)
    static struct option long_options[] = {
       { "dump-llvm",   no_argument,       0, 'd' },
       { "dump-vcode",  optional_argument, 0, 'v' },
-      { "cover",       no_argument,       0, 'c' },
+      { "cover",       optional_argument, 0, 'c' },
       { "verbose",     no_argument,       0, 'V' },
       { "no-save",     no_argument,       0, 'N' },
       { 0, 0, 0, 0 }
@@ -252,6 +252,26 @@ static int elaborate(int argc, char **argv)
          break;
       case 'c':
          opt_set_int(OPT_COVER, 1);
+         if (optarg) {
+            for (;*optarg != '\0'; optarg++)
+               if (*optarg =='s')
+                  opt_set_int(OPT_COVER_STMT, 1);
+               else if (*optarg == 't')
+                  opt_set_int(OPT_COVER_TOGGLE, 1);
+               else if (*optarg == 'b')
+                  opt_set_int(OPT_COVER_BRANCH, 1);
+               else if (*optarg != ',')
+                  fatal("Unknown coverage type '%s'. Valid coverage types are: \n"
+                        "  s (statement)\n"
+                        "  t (toggle)\n"
+                        "  b (branch)\n"
+                        "Selected coverage types shall be comma separated. E.g.:\n"
+                        "  nvc -e --cover=s,t,b <top_entity>\n", optarg);
+         } else {
+            opt_set_int(OPT_COVER_BRANCH, 1);
+            opt_set_int(OPT_COVER_STMT, 1);
+            opt_set_int(OPT_COVER_TOGGLE, 1);
+         }
          break;
       case 'V':
          opt_set_int(OPT_VERBOSE, 1);
@@ -286,17 +306,22 @@ static int elaborate(int argc, char **argv)
    tree_t top = elab(unit);
    if (top == NULL)
       return EXIT_FAILURE;
-
    progress("elaborating design");
 
    cover_tagging_t *cover = NULL;
    if (opt_get_int(OPT_COVER)) {
-      cover = cover_tag(top);
-      progress("generating coverage information");
+      cover = cover_tags_init();
    }
 
    vcode_unit_t vu = lower_unit(top, cover);
    progress("generating intermediate code");
+
+   if (opt_get_int(OPT_COVER)) {
+      fbuf_t *covdb =  cover_open_lib_file(top, FBUF_OUT, true);
+      cover_dump_tags(cover, covdb, COV_DUMP_ELAB, NULL, NULL, NULL);
+      fbuf_close(covdb, NULL);
+      progress("dumping coverage data");
+   }
 
    if (error_count() > 0)
       return EXIT_FAILURE;
@@ -866,6 +891,75 @@ static int dump_cmd(int argc, char **argv)
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
+static int coverage(int argc, char **argv)
+{
+   static struct option long_options[] = {
+      { "report",      required_argument,       0, 'r' },
+      { "merge",       required_argument,       0, 'm' },
+      { 0, 0, 0, 0 }
+   };
+
+   char *out_db LOCAL = NULL;
+   char *rpt_file LOCAL = NULL;
+   char *cmd_file LOCAL = NULL;
+
+   int c, index;
+   const char *spec = "Vmr";
+
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 'r':
+         rpt_file = xasprintf("%s", optarg);
+         break;
+      case 'm':
+         out_db = xasprintf("%s", optarg);
+         break;
+      case 'V':
+         opt_set_int(OPT_VERBOSE, 1);
+         break;
+      case '?':
+         bad_option("coverage", argv);
+      default:
+         abort();
+      }
+   }
+
+   progress("initialising");
+
+   if (optind == argc)
+      fatal("No input coverage database FILE specified");
+
+   cover_tagging_t *cover = NULL;
+
+   // Rest of inputs are coverage input files
+   for (int i = optind; i < argc; i++) {
+      progress("Loading input coverage database: %s", argv[i]);
+      fbuf_t *f = fbuf_open(argv[i], FBUF_IN, FBUF_CS_NONE);
+
+      if (i == optind) {
+         cover = cover_read_tags(f);
+      } else {
+         cover_merge_tags(f, cover);
+      }
+
+      fbuf_close(f, NULL);
+   }
+
+   if (out_db) {
+      progress("Saving merged coverage database to: %s", out_db);
+      fbuf_t *f = fbuf_open(out_db, FBUF_OUT, FBUF_CS_NONE);
+      cover_dump_tags(cover, f, COV_DUMP_PROCESSING, NULL, NULL, NULL);
+      fbuf_close(f, NULL);
+   }
+
+   if (rpt_file && cover) {
+      progress("Generating coverage report to folder: %s.", rpt_file);
+      cover_report(rpt_file, cover);
+   }
+
+   return 0;
+}
+
 static void usage(void)
 {
    printf("Usage: %s [OPTION]... COMMAND [OPTION]...\n"
@@ -874,6 +968,8 @@ static void usage(void)
           " -a [OPTION]... FILE...\t\tAnalyse FILEs into work library\n"
           " -e [OPTION]... UNIT\t\tElaborate and generate code for UNIT\n"
           " -r [OPTION]... UNIT\t\tExecute previously elaborated UNIT\n"
+          " -c [OPTION]    FILE...\t\tProcess code coverage from FILEs\n"
+          "                       \t\t'covdb' coverage databases.\n"
           " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
           " --init\t\t\t\tInitialise work library directory\n"
           " --install PKG\t\t\tInstall third-party packages\n"
@@ -901,7 +997,14 @@ static void usage(void)
           "     --relaxed\t\tDisable certain pedantic rule checks\n"
           "\n"
           "Elaborate options:\n"
-          "     --cover\t\tEnable code coverage reporting\n"
+          "     --cover=<types>\tEnable code coverage collection.\n"
+          "                    \t<types> is comma separated list\n"
+          "                    \tof coverage types to collect:\n"
+          "                    \t s - Statement coverage\n"
+          "                    \t t - Toggle coverage\n"
+          "                    \t b - Branch coverage\n"
+          "                    \t Ommiting '=<types>' collects all\n"
+          "                    \t coverage types.\n"
           "     --dump-llvm\tDump generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
@@ -912,8 +1015,8 @@ static void usage(void)
           "Run options:\n"
           "     --dump-arrays\tInclude nested arrays in waveform dump\n"
           "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
-          "     --exit-severity=\tExit after assertion failure of "
-          "this severity\n"
+          "     --exit-severity=\tExit after assertion failure of \n"
+          "                     \tthis severity\n"
           "     --format=FMT\tWaveform format is either fst or vcd\n"
           "     --ieee-warnings=\tEnable ('on') or disable ('off') warnings\n"
           "     \t\t\tfrom IEEE packages\n"
@@ -926,6 +1029,13 @@ static void usage(void)
           "     --trace\t\tTrace simulation events\n"
           "     --vhpi-trace\tTrace VHPI calls and events\n"
           " -w, --wave=FILE\tWrite waveform data; file name is optional\n"
+          "\n"
+          "Coverage processing options:\n"
+          "     --merge=OUTPUT\tMerge all input coverage databases from FILEs\n"
+          "                        to OUTPUT coverage database.\n"
+          "     --report=DIR\tGenerate HTML report with code coverage results\n"
+          "                    \tto DIR folder.\n"
+          "     --cmd-file=CMD\tLoad CMD file (TCL coverage command / waiver file).\n"
           "\n"
           "Dump options:\n"
           " -e, --elab\t\tDump an elaborated unit\n"
@@ -1065,7 +1175,7 @@ static int process_command(int argc, char **argv)
    optind = 1;
 
    int index = 0;
-   const char *spec = "aer";
+   const char *spec = "aerc";
    switch (getopt_long(MIN(argc, 2), argv, spec, long_options, &index)) {
    case 'a':
       return analyse(argc, argv);
@@ -1073,6 +1183,8 @@ static int process_command(int argc, char **argv)
       return elaborate(argc, argv);
    case 'r':
       return run(argc, argv);
+   case 'c':
+      return coverage(argc, argv);
    case 'd':
       return dump_cmd(argc, argv);
    case 'm':
@@ -1124,7 +1236,7 @@ int main(int argc, char **argv)
 
    const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
-   const char *spec = "aehrvL:M:P:G:H:";
+   const char *spec = "aehrcvL:M:P:G:H:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:

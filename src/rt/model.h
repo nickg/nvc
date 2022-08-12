@@ -25,6 +25,7 @@ rt_model_t *model_new(tree_t top, jit_t *jit);
 void model_free(rt_model_t *m);
 void model_reset(rt_model_t *m);
 void model_run(rt_model_t *m, uint64_t stop_time);
+void model_finish(rt_model_t *m);
 bool model_can_create_delta(rt_model_t *m);
 int64_t model_now(rt_model_t *m, unsigned *deltas);
 void model_stop(rt_model_t *m);
@@ -46,6 +47,9 @@ rt_scope_t *child_scope(rt_scope_t *scope, tree_t decl);
 rt_signal_t *find_signal(rt_scope_t *scope, tree_t decl);
 
 const void *signal_value(rt_signal_t *s);
+const void *signal_last_value(rt_signal_t *s);
+uint32_t signal_size(rt_signal_t *s);
+ident_t signal_name(rt_signal_t *s);
 size_t signal_expand(rt_signal_t *s, int offset, uint64_t *buf, size_t max);
 size_t signal_string(rt_signal_t *s, const char *map, char *buf, size_t max);
 bool force_signal(rt_signal_t *s, const uint64_t *buf, size_t count);

@@ -166,6 +166,8 @@ typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
    const loc_t _old_loc = *vcode_last_loc();            \
    emit_debug_info(tree_loc((t)));                      \
 
+#define COV_ENABLED(opt) (mode == LOWER_NORMAL && opt_get_int(opt))
+
 static bool lower_is_const(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -1493,21 +1495,83 @@ static vcode_reg_t lower_arith(tree_t fcall, subprogram_kind_t kind,
    return lower_narrow(tree_type(fcall), result);
 }
 
-static void lower_cond_coverage(tree_t test, vcode_reg_t value)
+static void lower_branch_coverage(tree_t b, ident_t hier, unsigned int flags,
+                                  vcode_reg_t hit_reg)
 {
-   int32_t cover_tag, sub_cond;
-   if (cover_is_tagged(cover_tags, test, &cover_tag, &sub_cond))
-      emit_cover_cond(value, cover_tag, sub_cond);
+   int32_t tag;
+   ident_t bhier = hier;
+   const tree_kind_t kind = tree_kind(b);
+
+   if (kind == T_ASSOC || kind == T_COND)
+       bhier = ident_prefix(hier, tree_ident(b), '.');
+
+   tag = cover_add_tag(b, bhier, cover_tags, TAG_BRANCH, flags)->tag;
+   emit_cover_branch(hit_reg, tag);
+}
+
+static int32_t lower_toggle_coverage_array(type_t type, tree_t where,
+                                            ident_t hier, int dims)
+{
+   tree_t r = range_of(type, dims - 1);
+   int32_t first_tag = 0;
+   int64_t low, high;
+
+   if (folded_bounds(r, &low, &high)) {
+      assert(low <= high);
+      for (int64_t i = low; i <= high; i++) {
+         char arr_index[16] = {0};
+         int32_t tmp;
+         checked_sprintf(arr_index, sizeof(arr_index), "%lu", i);
+         ident_t arr_hier = ident_prefix(hier, ident_new(arr_index), '(');
+         arr_hier = ident_prefix(arr_hier, ident_new(")"), '\0');
+         if (dims == 1) {
+            tmp = cover_add_tag(where, arr_hier, cover_tags, TAG_TOGGLE, 0)->tag;
+            if (i == low)
+               first_tag = tmp;
+         } else {
+            tmp = lower_toggle_coverage_array(type, where, arr_hier, dims - 1);
+            if (i == low)
+               first_tag = tmp;
+         }
+      }
+   }
+
+   return first_tag;
+}
+
+static int32_t lower_toggle_coverage(type_t type, tree_t where, ident_t hier)
+{
+   assert(type_is_homogeneous(type));
+
+   type_t root = type;
+
+   // Gets well known type for scalar and vectorized version of
+   // standard types (std_[u]logic[_vector], signed, unsigned)
+   if (type_base_kind(type) == T_ARRAY)
+      root = type_elem(type);
+   root = type_base_recur(root);
+
+   well_known_t known = is_well_known(type_ident(root));
+   if (known != W_IEEE_ULOGIC &&
+       known != W_IEEE_ULOGIC_VECTOR)
+      return -1;
+
+   if (type_is_array(type))
+      return lower_toggle_coverage_array(type, where, hier, dimension_of(type));
+
+   return cover_add_tag(where, hier, cover_tags, TAG_TOGGLE, 0)->tag;
 }
 
 static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result)
 {
-   int32_t cover_tag, sub_cond;
-   if (!cover_is_tagged(cover_tags, fcall, &cover_tag, &sub_cond))
-      return result;
-
-   if (sub_cond > 0)
-      emit_cover_cond(result, cover_tag, sub_cond);
+   // TODO: Change to expression coverage, not branch!
+   //
+   //int32_t cover_tag, sub_cond;
+   //if (!cover_is_tagged(cover_tags, fcall, &cover_tag, &sub_cond))
+   //   return result;
+   //
+   //if (sub_cond > 0)
+   //   emit_cover_cond(result, cover_tag, sub_cond);
 
    return result;
 }
@@ -5144,7 +5208,6 @@ static void lower_signal_assign_target(target_part_t **ptr, tree_t where,
          vcode_reg_t data_reg = lower_array_data(lower_resolved(type, src_reg));
          vcode_reg_t count_reg = lower_scalar_sub_elements(type, p->reg);
          vcode_reg_t nets_raw = lower_array_data(p->reg);
-
          emit_sched_waveform(nets_raw, count_reg, data_reg, reject, after);
       }
       else {
@@ -5342,14 +5405,7 @@ static void lower_release(tree_t stmt)
       emit_release(nets, emit_const(vtype_offset(), 1));
 }
 
-static vcode_reg_t lower_test_expr(tree_t value)
-{
-   vcode_reg_t test = lower_rvalue(value);
-   lower_cond_coverage(value, test);
-   return test;
-}
-
-static void lower_if(tree_t stmt, loop_stack_t *loops)
+static void lower_if(tree_t stmt, loop_stack_t *loops, ident_t hier)
 {
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
 
@@ -5359,7 +5415,11 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
 
       vcode_block_t next_bb = VCODE_INVALID_BLOCK;
       if (tree_has_value(c)) {
-         vcode_reg_t test = lower_test_expr(tree_value(c));
+
+         vcode_reg_t test = lower_rvalue(tree_value(c));
+         if (COV_ENABLED(OPT_COVER_BRANCH))
+            lower_branch_coverage(c, hier, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE, test);
+
          vcode_block_t btrue = emit_block();
 
          if (i == nconds - 1) {
@@ -5682,9 +5742,10 @@ static void lower_for(tree_t stmt, loop_stack_t *loops)
    }
 }
 
-static void lower_while(tree_t stmt, loop_stack_t *loops)
+static void lower_while(tree_t stmt, loop_stack_t *loops, ident_t hier)
 {
    vcode_block_t test_bb, body_bb, exit_bb;
+
    if (tree_has_value(stmt)) {
       test_bb = emit_block();
       body_bb = emit_block();
@@ -5693,8 +5754,11 @@ static void lower_while(tree_t stmt, loop_stack_t *loops)
       emit_jump(test_bb);
 
       vcode_select_block(test_bb);
+      vcode_reg_t test = lower_rvalue(tree_value(stmt));
 
-      vcode_reg_t test = lower_test_expr(tree_value(stmt));
+      if (COV_ENABLED(OPT_COVER_BRANCH))
+         lower_branch_coverage(stmt, hier, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE, test);
+
       emit_cond(test, body_bb, exit_bb);
    }
    else {
@@ -5731,14 +5795,17 @@ static void lower_sequence(tree_t block, loop_stack_t *loops)
       lower_stmt(tree_stmt(block, i), loops);
 }
 
-static void lower_loop_control(tree_t stmt, loop_stack_t *loops)
+static void lower_loop_control(tree_t stmt, loop_stack_t *loops, ident_t hier)
 {
    vcode_block_t false_bb = emit_block();
 
    if (tree_has_value(stmt)) {
       vcode_block_t true_bb = emit_block();
+      vcode_reg_t result = lower_rvalue(tree_value(stmt));
 
-      vcode_reg_t result = lower_test_expr(tree_value(stmt));
+      if (COV_ENABLED(OPT_COVER_BRANCH))
+         lower_branch_coverage(stmt, hier, COV_FLAG_HAS_FALSE | COV_FLAG_HAS_TRUE, result);
+
       emit_cond(result, true_bb, false_bb);
 
       vcode_select_block(true_bb);
@@ -5761,7 +5828,35 @@ static void lower_loop_control(tree_t stmt, loop_stack_t *loops)
    vcode_select_block(false_bb);
 }
 
-static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
+static void lower_case_others_branch_coverage(tree_t stmt, ident_t hier, vcode_reg_t *hit_regs)
+{
+   assert (tree_kind(stmt) == T_CASE);
+
+   tree_t a_others = NULL;
+   vcode_reg_t merged = emit_const(vtype_bool(), 1);
+   int nassocs = tree_assocs(stmt);
+
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(stmt, i);
+      const assoc_kind_t kind = tree_subkind(a);
+
+      if (kind == A_OTHERS) {
+         a_others = a;
+         continue;
+      }
+
+      // Satisfied by caller to precompute comparisons with case alternatives
+      assert (hit_regs[i]);
+
+      vcode_reg_t inverted = emit_not(hit_regs[i]);
+      merged = emit_and(merged, inverted);
+   }
+
+   lower_branch_coverage(a_others, hier, COV_FLAG_HAS_TRUE, merged);
+}
+
+
+static void lower_case_scalar(tree_t stmt, loop_stack_t *loops, ident_t hier)
 {
    const int nassocs = tree_assocs(stmt);
 
@@ -5770,14 +5865,16 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
    vcode_block_t hit_bb = VCODE_INVALID_BLOCK;
 
    vcode_reg_t value_reg = lower_rvalue(tree_value(stmt));
+   vcode_reg_t hit_regs[nassocs];
 
    tree_t last = NULL;
 
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(stmt, i);
 
+      // Pre-filter range choices in case the number of elements is large
       if (tree_subkind(a) == A_RANGE) {
-         // Pre-filter range choices in case the number of elements is large
+
          tree_t r = tree_range(a, 0);
          vcode_reg_t left_reg = lower_range_left(r);
          vcode_reg_t right_reg = lower_range_right(r);
@@ -5788,14 +5885,17 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
 
          vcode_reg_t lcmp_reg = emit_cmp(VCODE_CMP_GEQ, value_reg, low_reg);
          vcode_reg_t hcmp_reg = emit_cmp(VCODE_CMP_LEQ, value_reg, high_reg);
-         vcode_reg_t hit_reg = emit_and(lcmp_reg, hcmp_reg);
+         hit_regs[i] = emit_and(lcmp_reg, hcmp_reg);
+
+         if (COV_ENABLED(OPT_COVER_BRANCH))
+            lower_branch_coverage(a, hier, COV_FLAG_HAS_TRUE, hit_regs[i]);
 
          vcode_block_t skip_bb = emit_block();
 
          tree_t block = tree_value(a);
          if (block != last) hit_bb = emit_block();
 
-         emit_cond(hit_reg, hit_bb, skip_bb);
+         emit_cond(hit_regs[i], hit_bb, skip_bb);
 
          if (stmt != last) {
             vcode_select_block(hit_bb);
@@ -5818,6 +5918,7 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
    hit_bb = VCODE_INVALID_BLOCK;
 
    int cptr = 0;
+   bool has_others = false;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(stmt, i);
       const assoc_kind_t kind = tree_subkind(a);
@@ -5828,11 +5929,18 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
       tree_t block = tree_value(a);
       if (block != last) hit_bb = emit_block();
 
-      if (kind == A_OTHERS)
+      if (kind == A_OTHERS) {
          def_bb = hit_bb;
-      else {
+         has_others = true;
+      } else {
          vcode_select_block(start_bb);
          cases[cptr]  = lower_rvalue(tree_name(a));
+
+         if (COV_ENABLED(OPT_COVER_BRANCH)) {
+            hit_regs[i] = emit_cmp(VCODE_CMP_EQ, cases[cptr], value_reg);
+            lower_branch_coverage(a, hier, COV_FLAG_HAS_TRUE, hit_regs[i]);
+         }
+
          blocks[cptr] = hit_bb;
          cptr++;
       }
@@ -5851,12 +5959,15 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
       def_bb = exit_bb;
 
    vcode_select_block(start_bb);
-   emit_case(value_reg, def_bb, cases, blocks, cptr);
 
+   if (COV_ENABLED(OPT_COVER_BRANCH) && has_others)
+      lower_case_others_branch_coverage(stmt, hier, hit_regs);
+
+   emit_case(value_reg, def_bb, cases, blocks, cptr);
    vcode_select_block(exit_bb);
 }
 
-static void lower_case_array(tree_t stmt, loop_stack_t *loops)
+static void lower_case_array(tree_t stmt, loop_stack_t *loops, ident_t hier)
 {
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    vcode_type_t voffset = vtype_offset();
@@ -5978,6 +6089,7 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
    vcode_reg_t *cases LOCAL = xcalloc_array(nassocs, sizeof(vcode_reg_t));
    vcode_block_t *blocks LOCAL = xcalloc_array(nassocs, sizeof(vcode_block_t));
    int64_t *encoding LOCAL = xcalloc_array(nassocs, sizeof(int64_t));
+   vcode_reg_t hit_regs[nassocs];
 
    tree_t last = NULL;
    ident_t cmp_func = NULL;
@@ -5991,6 +6103,7 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
 
    int ndups = 0;
    int cptr = 0;
+   bool has_others = false;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(stmt, i);
       const assoc_kind_t kind = tree_subkind(a);
@@ -5999,9 +6112,10 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
       tree_t block = tree_value(a);
       if (block != last) hit_bb = emit_block();
 
-      if (kind == A_OTHERS)
+      if (kind == A_OTHERS) {
          def_bb = hit_bb;
-      else {
+         has_others = true;
+      } else {
          tree_t name = tree_name(a);
          int64_t enc = encode_case_choice(name, length, exact_map ? nbits : 0);
          if (!exact_map) enc %= max_cases;
@@ -6038,6 +6152,13 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
          if (!have_dup) {
             vcode_select_block(start_bb);
             cases[cptr]    = emit_const(enc_type, enc);
+
+            // TODO: How to handle have_dup == true ?
+            if (COV_ENABLED(OPT_COVER_BRANCH)) {
+               hit_regs[i] = emit_cmp(VCODE_CMP_EQ, cases[cptr], enc_reg);
+               lower_branch_coverage(a, hier, COV_FLAG_HAS_TRUE, hit_regs[i]);
+            }
+
             blocks[cptr]   = entry_bb;
             encoding[cptr] = enc;
             cptr++;
@@ -6063,20 +6184,24 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
    }
 
    vcode_select_block(start_bb);
+
+   if (COV_ENABLED(OPT_COVER_BRANCH) && has_others)
+      lower_case_others_branch_coverage(stmt, hier, hit_regs);
+
    emit_case(enc_reg, def_bb, cases, blocks, cptr);
 
    vcode_select_block(exit_bb);
 }
 
-static void lower_case(tree_t stmt, loop_stack_t *loops)
+static void lower_case(tree_t stmt, loop_stack_t *loops, ident_t hier)
 {
    if (type_is_scalar(tree_type(tree_value(stmt))))
-      lower_case_scalar(stmt, loops);
+      lower_case_scalar(stmt, loops, hier);
    else
-      lower_case_array(stmt, loops);
+      lower_case_array(stmt, loops, hier);
 }
 
-static void lower_match_case(tree_t stmt, loop_stack_t *loops)
+static void lower_match_case(tree_t stmt, loop_stack_t *loops, ident_t hier)
 {
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
 
@@ -6089,7 +6214,7 @@ static void lower_match_case(tree_t stmt, loop_stack_t *loops)
    if (type_eq(scalar, std_type(NULL, STD_BIT))) {
       // The "?=" operator on BIT is the same as "=" so just use a
       // normal case statement
-      lower_case(stmt, loops);
+      lower_case(stmt, loops, hier);
       return;
    }
 
@@ -6221,9 +6346,31 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
    if (vcode_block_finished())
       return;   // Unreachable
 
-   int32_t stmt_tag;
-   if (cover_is_tagged(cover_tags, stmt, &stmt_tag, NULL))
-      emit_cover_stmt(stmt_tag);
+   // TODO: Store differential path, compared to current block, not whole path
+   //       to reduce size of coverage file.
+   ident_t hier = vcode_unit_name();
+   if (COV_ENABLED(OPT_COVER)) {
+      if (cover_is_stmt(stmt)) {
+
+         // Loops create scope, and statements are implicitly numbered within
+         // each scope. Correct hierarchical path must take into account loop
+         // name.
+         loop_stack_t *curr_loop = loops;
+         ident_t loop_prefix = NULL;
+         while (curr_loop) {
+            loop_prefix = ident_prefix(curr_loop->name, loop_prefix, '.');
+            curr_loop = curr_loop->up;
+         }
+         if (loop_prefix)
+            hier = ident_prefix(hier, loop_prefix, '.');
+         hier = ident_prefix(hier, tree_ident(stmt), '.');
+
+         if (opt_get_int(OPT_COVER_STMT)) {
+            int32_t tag = cover_add_tag(stmt, hier, cover_tags, TAG_STMT, 0)->tag;
+            emit_cover_stmt(tag);
+         }
+      }
+   }
 
    emit_debug_info(tree_loc(stmt));
 
@@ -6247,7 +6394,7 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
       lower_release(stmt);
       break;
    case T_IF:
-      lower_if(stmt, loops);
+      lower_if(stmt, loops, hier);
       break;
    case T_RETURN:
       lower_return(stmt);
@@ -6257,7 +6404,7 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
       lower_pcall(stmt);
       break;
    case T_WHILE:
-      lower_while(stmt, loops);
+      lower_while(stmt, loops, hier);
       break;
    case T_FOR:
       lower_for(stmt, loops);
@@ -6267,13 +6414,13 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
       break;
    case T_EXIT:
    case T_NEXT:
-      lower_loop_control(stmt, loops);
+      lower_loop_control(stmt, loops, hier);
       break;
    case T_CASE:
-      lower_case(stmt, loops);
+      lower_case(stmt, loops, hier);
       break;
    case T_MATCH_CASE:
-      lower_match_case(stmt, loops);
+      lower_match_case(stmt, loops, hier);
       break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",
@@ -6521,7 +6668,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
                               int ncons, type_t init_type, vcode_var_t sig_var,
                               vcode_reg_t sig_ptr, vcode_reg_t init_reg,
                               vcode_reg_t resolution, vcode_reg_t null_reg,
-                              vcode_reg_t flags_reg)
+                              vcode_reg_t flags_reg, ident_t hier)
 {
    bool has_scope = false;
    if (resolution == VCODE_INVALID_REG)
@@ -6559,6 +6706,12 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
 
       vcode_reg_t sig = emit_init_signal(vtype, len_reg, size_reg, init_reg,
                                          flags_reg, locus, null_reg);
+
+      if (COV_ENABLED(OPT_COVER_TOGGLE)) {
+         int32_t tag = lower_toggle_coverage(type, where, hier);
+         if (tag != -1)
+            emit_cover_toggle(sig, tag);
+      }
 
       if (resolution != VCODE_INVALID_REG)
          emit_resolve_signal(sig, resolution);
@@ -6645,7 +6798,7 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
       vcode_reg_t null_off_reg = emit_array_ref(null_reg, i_reg);
 
       lower_sub_signals(elem, where, cons, ncons, elem, VCODE_INVALID_VAR,
-                        ptr_reg, data_reg, resolution, null_off_reg, flags_reg);
+                        ptr_reg, data_reg, resolution, null_off_reg, flags_reg, hier);
 
       emit_store(emit_add(i_reg, emit_const(voffset, 1)), i_var);
 
@@ -6690,8 +6843,9 @@ static void lower_sub_signals(type_t type, tree_t where, tree_t *cons,
 
          tree_t fcons[MAX_CONSTRAINTS];
          const int nfcons = pack_field_constraints(type, f, rcons, fcons);
+         ident_t f_hier = ident_prefix(hier, tree_ident(f), '.');
          lower_sub_signals(ft, f, fcons, nfcons, ft, VCODE_INVALID_VAR, ptr_reg,
-                           field_reg, resolution, null_field_reg, flags_reg);
+                           field_reg, resolution, null_field_reg, flags_reg, f_hier);
       }
 
       emit_pop_scope();
@@ -6729,7 +6883,7 @@ static void lower_signal_decl(tree_t decl)
 
    lower_sub_signals(type, decl, cons, ncons, value_type, var,
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
-                     VCODE_INVALID_REG, flags_reg);
+                     VCODE_INVALID_REG, flags_reg, tree_ident(decl));
 }
 
 static ident_t lower_guard_func(ident_t prefix, tree_t expr)
@@ -9391,7 +9545,7 @@ static void lower_port_signal(tree_t port)
 
    lower_sub_signals(type, port, cons, ncons, value_type, var,
                      VCODE_INVALID_REG, init_reg, VCODE_INVALID_REG,
-                     VCODE_INVALID_REG, flags_reg);
+                     VCODE_INVALID_REG, flags_reg, tree_ident(port));
 }
 
 static void lower_ports(tree_t block)
@@ -9578,6 +9732,9 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
    vcode_unit_t vu = emit_instance(name, loc, context);
    emit_debug_info(loc);
 
+   if (COV_ENABLED(OPT_COVER))
+      cover_add_tag(block, name, cover_tags, TAG_HIER, COV_FLAG_HIER_DOWN);
+
    lower_push_scope(block);
    lower_dependencies(block, NULL);
    lower_generics(block, NULL);
@@ -9604,6 +9761,10 @@ static vcode_unit_t lower_concurrent_block(tree_t block, vcode_unit_t context)
    }
 
    lower_pop_scope();
+
+   if (COV_ENABLED(OPT_COVER))
+      cover_add_tag(block, name, cover_tags, TAG_HIER, COV_FLAG_HIER_UP);
+
    return vu;
 }
 

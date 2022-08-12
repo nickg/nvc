@@ -43,7 +43,7 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
    (x == VCODE_OP_LOAD || x == VCODE_OP_STORE || x == VCODE_OP_INDEX    \
     || x == VCODE_OP_VAR_UPREF)
 #define OP_HAS_SUBKIND(x)                                               \
-   (x == VCODE_OP_COVER_COND || x == VCODE_OP_PCALL                     \
+   (x == VCODE_OP_PCALL                                                 \
     || x == VCODE_OP_FCALL || x == VCODE_OP_RESOLUTION_WRAPPER          \
     || x == VCODE_OP_CLOSURE || x == VCODE_OP_PROTECTED_INIT            \
     || x == VCODE_OP_PACKAGE_INIT)
@@ -69,7 +69,8 @@ DECLARE_AND_DEFINE_ARRAY(vcode_type);
 #define OP_HAS_CMP(x)                                                   \
    (x == VCODE_OP_CMP)
 #define OP_HAS_TAG(x)                                                   \
-   (x == VCODE_OP_COVER_STMT || x == VCODE_OP_COVER_COND)
+   (x == VCODE_OP_COVER_STMT || x == VCODE_OP_COVER_BRANCH              \
+    || x == VCODE_OP_COVER_TOGGLE)
 #define OP_HAS_COMMENT(x)                                               \
    (x == VCODE_OP_COMMENT)
 #define OP_HAS_TARGET(x)                                                \
@@ -921,8 +922,8 @@ const char *vcode_op_string(vcode_op_t op)
       "pcall", "resume", "xor", "xnor", "nand", "nor", "memset",
       "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
-      "const real", "last event", "debug out", "cover stmt", "cover cond",
-      "uarray len", "undefined", "range null", "var upref",
+      "const real", "last event", "debug out", "cover stmt", "cover branch",
+      "cover toggle", "uarray len", "undefined", "range null", "var upref",
       "resolved", "last value", "init signal", "map signal", "drive signal",
       "link var", "resolution wrapper", "last active", "driving",
       "driving value", "address of", "closure", "protected init",
@@ -2117,10 +2118,16 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             }
             break;
 
-         case VCODE_OP_COVER_COND:
+         case VCODE_OP_COVER_BRANCH:
             {
-               printf("%s %u sub %u ", vcode_op_string(op->kind),
-                      op->tag, op->subkind);
+               printf("%s %u", vcode_op_string(op->kind), op->tag);
+               vcode_dump_reg(op->args.items[0]);
+            }
+            break;
+
+         case VCODE_OP_COVER_TOGGLE:
+            {
+               printf("%s %u", vcode_op_string(op->kind), op->tag);
                vcode_dump_reg(op->args.items[0]);
             }
             break;
@@ -5472,12 +5479,18 @@ void emit_cover_stmt(uint32_t tag)
    op->tag = tag;
 }
 
-void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub)
+void emit_cover_branch(vcode_reg_t test, uint32_t tag)
 {
-   op_t *op = vcode_add_op(VCODE_OP_COVER_COND);
+   op_t *op = vcode_add_op(VCODE_OP_COVER_BRANCH);
    vcode_add_arg(op, test);
-   op->tag     = tag;
-   op->subkind = sub;
+   op->tag = tag;
+}
+
+void emit_cover_toggle(vcode_reg_t signal, uint32_t tag)
+{
+   op_t *op = vcode_add_op(VCODE_OP_COVER_TOGGLE);
+   vcode_add_arg(op, signal);
+   op->tag = tag;
 }
 
 void emit_unreachable(vcode_reg_t locus)

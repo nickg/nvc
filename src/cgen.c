@@ -3058,15 +3058,21 @@ static void cgen_op_unreachable(int op, cgen_ctx_t *ctx)
    LLVMBuildUnreachable(builder);
 }
 
-static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_get_cover_cnt(int op, const char *cnt_name)
 {
    const uint32_t cover_tag = vcode_get_tag(op);
 
-   LLVMValueRef cover_counts = LLVMGetNamedGlobal(module, "cover_stmts");
+   LLVMValueRef cover_counts = LLVMGetNamedGlobal(module, cnt_name);
 
    LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
-   LLVMValueRef count_ptr = LLVMBuildGEP(builder, cover_counts,
-                                         indexes, ARRAY_LEN(indexes), "");
+   LLVMValueRef ptr = LLVMBuildGEP(builder, cover_counts,
+                                   indexes, ARRAY_LEN(indexes), "");
+   return ptr;
+}
+
+static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef count_ptr = cgen_get_cover_cnt(op, "cover_stmts");
 
    LLVMValueRef count = LLVMBuildLoad(builder, count_ptr, "cover_count");
    LLVMValueRef count1 = LLVMBuildAdd(builder, count, llvm_int32(1), "");
@@ -3074,30 +3080,37 @@ static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
    LLVMBuildStore(builder, count1, count_ptr);
 }
 
-static void cgen_op_cover_cond(int op, cgen_ctx_t *ctx)
+static void cgen_op_cover_branch(int op, cgen_ctx_t *ctx)
 {
-   const uint32_t cover_tag = vcode_get_tag(op);
-   const int sub_cond  = vcode_get_subkind(op);
+   LLVMValueRef mask_ptr = cgen_get_cover_cnt(op, "cover_branches");
 
-   LLVMValueRef cover_conds = LLVMGetNamedGlobal(module, "cover_conds");
-
-   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
-   LLVMValueRef mask_ptr = LLVMBuildGEP(builder, cover_conds,
-                                        indexes, ARRAY_LEN(indexes), "");
-
-   LLVMValueRef mask = LLVMBuildLoad(builder, mask_ptr, "cover_conds");
+   LLVMValueRef mask = LLVMBuildLoad(builder, mask_ptr, "cover_branches");
 
    // Bit zero means evaluated false, bit one means evaluated true
-   // Other bits may be used in the future for sub-conditions
-
    LLVMValueRef or = LLVMBuildSelect(builder, cgen_get_arg(op, 0, ctx),
-                                     llvm_int32(1 << ((sub_cond * 2) + 1)),
-                                     llvm_int32(1 << (sub_cond * 2)),
+                                     llvm_int32(1 << 0),
+                                     llvm_int32(1 << 1),
                                      "cond_mask_or");
 
    LLVMValueRef mask1 = LLVMBuildOr(builder, mask, or, "");
 
    LLVMBuildStore(builder, mask1, mask_ptr);
+}
+
+static void cgen_op_cover_toggle(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef mask_ptr = cgen_get_cover_cnt(op, "cover_toggles");
+
+   LLVMValueRef sigptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef shared = LLVMBuildExtractValue(builder, sigptr, 0, "");
+
+   LLVMValueRef args[] = {
+      shared,
+      mask_ptr
+   };
+
+   LLVMBuildCall(builder, llvm_fn("__nvc_setup_toggle_cb"), args,
+                          ARRAY_LEN(args), "");
 }
 
 static void cgen_op_range_null(int op, cgen_ctx_t *ctx)
@@ -3744,8 +3757,11 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_COVER_STMT:
       cgen_op_cover_stmt(i, ctx);
       break;
-   case VCODE_OP_COVER_COND:
-      cgen_op_cover_cond(i, ctx);
+   case VCODE_OP_COVER_BRANCH:
+      cgen_op_cover_branch(i, ctx);
+      break;
+   case VCODE_OP_COVER_TOGGLE:
+      cgen_op_cover_toggle(i, ctx);
       break;
    case VCODE_OP_UARRAY_LEN:
       cgen_op_uarray_len(i, ctx);
@@ -4381,8 +4397,8 @@ static void cgen_reset_function(void)
 static void cgen_coverage_state(tree_t t, cover_tagging_t *tagging,
                                 bool external)
 {
-   int32_t stmt_tags, cond_tags;
-   cover_count_tags(tagging, &stmt_tags, &cond_tags);
+   int32_t stmt_tags, branch_tags, toggle_tags;
+   cover_count_tags(tagging, &stmt_tags, &branch_tags, &toggle_tags);
 
    if (stmt_tags > 0) {
       LLVMTypeRef type = LLVMArrayType(llvm_int32_type(), stmt_tags);
@@ -4395,9 +4411,20 @@ static void cgen_coverage_state(tree_t t, cover_tagging_t *tagging,
       }
    }
 
-   if (cond_tags > 0) {
-      LLVMTypeRef type = LLVMArrayType(llvm_int32_type(), stmt_tags);
-      LLVMValueRef var = LLVMAddGlobal(module, type, "cover_conds");
+   if (branch_tags > 0) {
+      LLVMTypeRef type = LLVMArrayType(llvm_int32_type(), branch_tags);
+      LLVMValueRef var = LLVMAddGlobal(module, type, "cover_branches");
+      if (external)
+         LLVMSetLinkage(var, LLVMExternalLinkage);
+      else {
+         LLVMSetInitializer(var, LLVMGetUndef(type));
+         cgen_add_func_attr(var, FUNC_ATTR_DLLEXPORT, -1);
+      }
+   }
+
+   if (toggle_tags > 0) {
+      LLVMTypeRef type = LLVMArrayType(llvm_int32_type(), toggle_tags);
+      LLVMValueRef var = LLVMAddGlobal(module, type, "cover_toggles");
       if (external)
          LLVMSetLinkage(var, LLVMExternalLinkage);
       else {
@@ -5115,6 +5142,16 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_int32_type(),
       };
       fn = LLVMAddFunction(module, "__nvc_map_const",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "__nvc_setup_toggle_cb") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_signal_shared_struct(), 0),
+         LLVMPointerType(llvm_int32_type(), 0)
+      };
+
+      fn = LLVMAddFunction(module, "__nvc_setup_toggle_cb",
                            LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
