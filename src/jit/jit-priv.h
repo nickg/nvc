@@ -197,8 +197,11 @@ void jit_dump(jit_func_t *f);
 void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
 const char *jit_op_name(jit_op_t op);
 const char *jit_exit_name(jit_exit_t exit);
-bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge,
-                jit_interp_t *caller);
+bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge);
+void jit_interp_abort(void);
+void jit_interp_diag_trace(diag_t *d);
+void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
+                    const char *symbol);
 jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle);
 void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
                  const void *highlight, const char *prefix);

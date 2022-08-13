@@ -70,6 +70,8 @@ typedef struct _jit_interp {
 
 #define BOUNDED_LIMIT 10000   // Max backedges in bounded mode
 
+static __thread jit_interp_t *call_stack = NULL;
+
 static void interp_dump_reg(jit_interp_t *state, int64_t ival)
 {
    printf("%"PRIx64, ival);
@@ -170,57 +172,27 @@ static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
    }
 }
 
-
-static void interp_stack_trace(diag_t *d, jit_interp_t *frame)
+void jit_interp_diag_trace(diag_t *d)
 {
-   ident_t name = frame->func->name;
-   ident_t lib_name = ident_walk_selected(&name);
-   ident_t unit_name = ident_walk_selected(&name);
+   for (jit_interp_t *p = call_stack; p != NULL; p = p->caller) {
+      ident_t name = p->func->name;
+      ident_t lib_name = ident_walk_selected(&name);
+      ident_t unit_name = ident_walk_selected(&name);
 
-   if (unit_name == NULL)
-      return;
+      if (unit_name == NULL)
+         return;
 
-   ident_t qual = ident_prefix(lib_name, unit_name, '.');
+      ident_t qual = ident_prefix(lib_name, unit_name, '.');
 
-   const char *symbol = istr(frame->func->name);
-   tree_t enclosing = find_enclosing_decl(qual, symbol);
-   if (enclosing == NULL)
-      return;
+      const char *symbol = istr(p->func->name);
+      tree_t enclosing = find_enclosing_decl(qual, symbol);
+      if (enclosing == NULL)
+         return;
 
-   // TODO: this is much less accurate than the DWARF info
-   const loc_t *loc = tree_loc(enclosing);
+      // TODO: this is much less accurate than the DWARF info
+      const loc_t *loc = tree_loc(enclosing);
 
-   // TODO: this is copied from rt_emit_trace and should be merged
-   switch (tree_kind(enclosing)) {
-   case T_PROCESS:
-      diag_trace(d, loc, "Process %s", istr(tree_ident(enclosing)));
-      break;
-   case T_FUNC_BODY:
-   case T_FUNC_DECL:
-      diag_trace(d, loc, "Function %s", type_pp(tree_type(enclosing)));
-      break;
-   case T_PROC_BODY:
-   case T_PROC_DECL:
-      diag_trace(d, loc, "Procedure %s", type_pp(tree_type(enclosing)));
-      break;
-   case T_TYPE_DECL:
-      if (strstr(symbol, "$value"))
-         diag_trace(d, loc, "Attribute %s'VALUE",
-                    istr(tree_ident(enclosing)));
-      else
-         diag_trace(d, loc, "Type %s", istr(tree_ident(enclosing)));
-      break;
-   case T_BLOCK:
-      diag_trace(d, loc, "Process (init)");
-      break;
-   case T_PACKAGE:
-   case T_PACK_INST:
-   case T_PACK_BODY:
-      diag_trace(d, loc, "Package %s", istr(tree_ident(enclosing)));
-      break;
-   default:
-      diag_trace(d, loc, "%s", istr(tree_ident(enclosing)));
-      break;
+      jit_emit_trace(d, loc, enclosing, symbol);
    }
 }
 
@@ -234,10 +206,7 @@ static void interp_error(jit_interp_t *state, const loc_t *loc,
    if (jit_show_errors(state->func->jit)) {
       diag_t *d = diag_new(DIAG_ERROR, loc);
       diag_vprintf(d, fmt, ap);
-
-      for (jit_interp_t *p = state; p != NULL; p = p->caller)
-         interp_stack_trace(d, p);
-
+      jit_interp_diag_trace(d);
       diag_emit(d);
    }
 
@@ -630,7 +599,7 @@ static void interp_call(jit_interp_t *state, jit_ir_t *ir)
       state->abort = true;
    else {
       jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
-      if (!jit_interp(f, state->args, state->nargs, state->backedge, state))
+      if (!jit_interp(f, state->args, state->nargs, state->backedge))
          state->abort = true;
    }
 }
@@ -733,41 +702,10 @@ static void interp_range_fail(jit_interp_t *state)
    tree_t       where = state->args[4].pointer;
    tree_t       hint  = state->args[5].pointer;
 
-   type_t type = tree_type(hint);
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_cat(tb, "value ");
-   to_string(tb, type, value);
-   tb_printf(tb, " outside of %s range ", type_pp(type));
-   to_string(tb, type, left);
-   tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
-   to_string(tb, type, right);
-
-   switch (tree_kind(hint)) {
-   case T_SIGNAL_DECL:
-   case T_CONST_DECL:
-   case T_VAR_DECL:
-   case T_REF:
-      tb_printf(tb, " for %s %s", class_str(class_of(hint)),
-                istr(tree_ident(hint)));
-      break;
-   case T_PORT_DECL:
-      tb_printf(tb, " for port %s", istr(tree_ident(hint)));
-      break;
-   case T_PARAM_DECL:
-      tb_printf(tb, " for parameter %s", istr(tree_ident(hint)));
-      break;
-   case T_GENERIC_DECL:
-      tb_printf(tb, " for generic %s", istr(tree_ident(hint)));
-      break;
-   case T_ATTR_REF:
-      tb_printf(tb, " for attribute '%s", istr(tree_ident(hint)));
-      break;
-   default:
-      break;
-   }
-
-   interp_error(state, tree_loc(where), "%s", tb_get(tb));
+   if (jit_show_errors(state->func->jit))
+      x_range_fail(value, left, right, dir, where, hint);
+   else
+      state->abort = true;
 }
 
 static void interp_index_fail(jit_interp_t *state)
@@ -779,17 +717,10 @@ static void interp_index_fail(jit_interp_t *state)
    tree_t       where = state->args[4].pointer;
    tree_t       hint  = state->args[5].pointer;
 
-   type_t type = tree_type(hint);
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   tb_cat(tb, "index ");
-   to_string(tb, type, value);
-   tb_printf(tb, " outside of %s range ", type_pp(type));
-   to_string(tb, type, left);
-   tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
-   to_string(tb, type, right);
-
-   interp_error(state, tree_loc(where), "%s", tb_get(tb));
+   if (jit_show_errors(state->func->jit))
+      x_index_fail(value, left, right, dir, where, hint);
+   else
+      state->abort = true;
 }
 
 static void interp_overflow(jit_interp_t *state)
@@ -798,24 +729,20 @@ static void interp_overflow(jit_interp_t *state)
    int32_t rhs   = state->args[1].integer;
    tree_t  where = state->args[2].pointer;
 
-   const char *op = "??";
-   if (tree_kind(where) == T_FCALL) {
-      switch (tree_subkind(tree_ref(where))) {
-      case S_ADD: op = "+"; break;
-      case S_MUL: op = "*"; break;
-      case S_SUB: op = "-"; break;
-      }
-   }
-
-   interp_error(state, tree_loc(where), "result of %d %s %d cannot be "
-                "represented as %s", lhs, op, rhs, type_pp(tree_type(where)));
+   if (jit_show_errors(state->func->jit))
+      x_overflow(lhs, rhs, where);
+   else
+      state->abort = true;
 }
 
 static void interp_null_deref(jit_interp_t *state)
 {
    tree_t where = state->args[0].pointer;
 
-   interp_error(state, tree_loc(where), "null access dereference");
+   if (jit_show_errors(state->func->jit))
+      x_null_deref(where);
+   else
+      state->abort = true;
 }
 
 static void interp_length_fail(jit_interp_t *state)
@@ -825,63 +752,10 @@ static void interp_length_fail(jit_interp_t *state)
    int32_t dim   = state->args[2].integer;
    tree_t  where = state->args[3].pointer;
 
-   const tree_kind_t kind = tree_kind(where);
-
-   LOCAL_TEXT_BUF tb = tb_new();
-   if (kind == T_PORT_DECL || kind == T_GENERIC_DECL || kind == T_PARAM_DECL)
-      tb_cat(tb, "actual");
-   else if (kind == T_CASE || kind == T_MATCH_CASE)
-      tb_cat(tb, "expression");
-   else if (kind == T_ASSOC)
-      tb_cat(tb, "choice");
+   if (jit_show_errors(state->func->jit))
+      x_length_fail(left, right, dim, where);
    else
-      tb_cat(tb, "value");
-   tb_printf(tb, " length %d", right);
-   if (dim > 0)
-      tb_printf(tb, " for dimension %d", dim);
-   tb_cat(tb, " does not match ");
-
-   switch (kind) {
-   case T_PORT_DECL:
-      tb_printf(tb, "port %s", istr(tree_ident(where)));
-      break;
-   case T_PARAM_DECL:
-      tb_printf(tb, "parameter %s", istr(tree_ident(where)));
-      break;
-   case T_GENERIC_DECL:
-      tb_printf(tb, "generic %s", istr(tree_ident(where)));
-      break;
-   case T_VAR_DECL:
-      tb_printf(tb, "variable %s", istr(tree_ident(where)));
-      break;
-   case T_SIGNAL_DECL:
-      tb_printf(tb, "signal %s", istr(tree_ident(where)));
-      break;
-   case T_REF:
-      tb_printf(tb, "%s %s", class_str(class_of(where)),
-                istr(tree_ident(where)));
-      break;
-   case T_FIELD_DECL:
-      tb_printf(tb, "field %s", istr(tree_ident(where)));
-      break;
-   case T_ALIAS:
-      tb_printf(tb, "alias %s", istr(tree_ident(where)));
-      break;
-   case T_CASE:
-   case T_MATCH_CASE:
-      tb_cat(tb, "case choice");
-      break;
-   case T_ASSOC:
-      tb_cat(tb, "expected");
-      break;
-   default:
-      tb_cat(tb, "target");
-      break;
-   }
-
-   tb_printf(tb, " length %d", left);
-
-   interp_error(state, tree_loc(where), "%s", tb_get(tb));
+      state->abort = true;
 }
 
 static void interp_div_zero(jit_interp_t *state)
@@ -896,8 +770,10 @@ static void interp_exponent_fail(jit_interp_t *state)
    int32_t value = state->args[0].integer;
    tree_t  where = state->args[1].pointer;
 
-   interp_error(state, tree_loc(where), "negative exponent %d only "
-                "allowed for floating-point types", value);
+   if (jit_show_errors(state->func->jit))
+      x_exponent_fail(value, where);
+   else
+      state->abort = true;
 }
 
 static void interp_unreachable(jit_interp_t *state)
@@ -1482,8 +1358,7 @@ static void interp_loop(jit_interp_t *state)
    } while (!state->abort);
 }
 
-bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge,
-                jit_interp_t *caller)
+bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge)
 {
    if (f->irbuf == NULL)
       jit_irgen(f);
@@ -1507,10 +1382,21 @@ bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge,
       .frame    = frame,
       .mspace   = jit_get_mspace(f->jit),
       .backedge = backedge,
-      .caller   = caller,
+      .caller   = call_stack,
    };
+
+   call_stack = &state;
 
    interp_loop(&state);
 
+   assert(call_stack == &state);
+   call_stack = state.caller;
+
    return !state.abort;
+}
+
+void jit_interp_abort(void)
+{
+   assert(call_stack != NULL);
+   call_stack->abort = true;
 }

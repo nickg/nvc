@@ -17,13 +17,15 @@
 
 #include "util.h"
 #include "diag.h"
-#include "jit/jit.h"
 #include "jit/jit-exits.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "rt/rt.h"
+#include "type.h"
 
 #include <assert.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -140,6 +142,155 @@ void x_file_flush(void *_f)
    fflush(_f);
 }
 
+void x_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
+                  tree_t where, tree_t hint)
+{
+   type_t type = tree_type(hint);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_cat(tb, "index ");
+   to_string(tb, type, value);
+   tb_printf(tb, " outside of %s range ", type_pp(type));
+   to_string(tb, type, left);
+   tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
+   to_string(tb, type, right);
+
+   jit_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
+}
+
+void x_length_fail(int32_t left, int32_t right, int32_t dim, tree_t where)
+{
+   const tree_kind_t kind = tree_kind(where);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   if (kind == T_PORT_DECL || kind == T_GENERIC_DECL || kind == T_PARAM_DECL)
+      tb_cat(tb, "actual");
+   else if (kind == T_CASE || kind == T_MATCH_CASE)
+      tb_cat(tb, "expression");
+   else if (kind == T_ASSOC)
+      tb_cat(tb, "choice");
+   else
+      tb_cat(tb, "value");
+   tb_printf(tb, " length %d", right);
+   if (dim > 0)
+      tb_printf(tb, " for dimension %d", dim);
+   tb_cat(tb, " does not match ");
+
+   switch (kind) {
+   case T_PORT_DECL:
+      tb_printf(tb, "port %s", istr(tree_ident(where)));
+      break;
+   case T_PARAM_DECL:
+      tb_printf(tb, "parameter %s", istr(tree_ident(where)));
+      break;
+   case T_GENERIC_DECL:
+      tb_printf(tb, "generic %s", istr(tree_ident(where)));
+      break;
+   case T_VAR_DECL:
+      tb_printf(tb, "variable %s", istr(tree_ident(where)));
+      break;
+   case T_SIGNAL_DECL:
+      tb_printf(tb, "signal %s", istr(tree_ident(where)));
+      break;
+   case T_REF:
+      tb_printf(tb, "%s %s", class_str(class_of(where)),
+                istr(tree_ident(where)));
+      break;
+   case T_FIELD_DECL:
+      tb_printf(tb, "field %s", istr(tree_ident(where)));
+      break;
+   case T_ALIAS:
+      tb_printf(tb, "alias %s", istr(tree_ident(where)));
+      break;
+   case T_CASE:
+   case T_MATCH_CASE:
+      tb_cat(tb, "case choice");
+      break;
+   case T_ASSOC:
+      tb_cat(tb, "expected");
+      break;
+   default:
+      tb_cat(tb, "target");
+      break;
+   }
+
+   tb_printf(tb, " length %d", left);
+
+   jit_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
+}
+
+void x_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
+                  tree_t where, tree_t hint)
+{
+   type_t type = tree_type(hint);
+
+   LOCAL_TEXT_BUF tb = tb_new();
+   tb_cat(tb, "value ");
+   to_string(tb, type, value);
+   tb_printf(tb, " outside of %s range ", type_pp(type));
+   to_string(tb, type, left);
+   tb_cat(tb, dir == RANGE_TO ? " to " : " downto ");
+   to_string(tb, type, right);
+
+   switch (tree_kind(hint)) {
+   case T_SIGNAL_DECL:
+   case T_CONST_DECL:
+   case T_VAR_DECL:
+   case T_REF:
+      tb_printf(tb, " for %s %s", class_str(class_of(hint)),
+                istr(tree_ident(hint)));
+      break;
+   case T_PORT_DECL:
+      tb_printf(tb, " for port %s", istr(tree_ident(hint)));
+      break;
+   case T_PARAM_DECL:
+      tb_printf(tb, " for parameter %s", istr(tree_ident(hint)));
+      break;
+   case T_GENERIC_DECL:
+      tb_printf(tb, " for generic %s", istr(tree_ident(hint)));
+      break;
+   case T_ATTR_REF:
+      tb_printf(tb, " for attribute '%s", istr(tree_ident(hint)));
+      break;
+   default:
+      break;
+   }
+
+   jit_msg(tree_loc(where), DIAG_FATAL, "%s", tb_get(tb));
+}
+
+void x_exponent_fail(int32_t value, tree_t where)
+{
+   jit_msg(tree_loc(where), DIAG_FATAL, "negative exponent %d only "
+           "allowed for floating-point types", value);
+}
+
+void x_overflow(int64_t lhs, int64_t rhs, tree_t where)
+{
+   const char *op = "??";
+   if (tree_kind(where) == T_FCALL) {
+      switch (tree_subkind(tree_ref(where))) {
+      case S_ADD: op = "+"; break;
+      case S_MUL: op = "*"; break;
+      case S_SUB: op = "-"; break;
+      }
+   }
+
+   jit_msg(tree_loc(where), DIAG_FATAL, "result of %"PRIi64" %s %"PRIi64
+           " cannot be represented as %s", lhs, op, rhs,
+           type_pp(tree_type(where)));
+}
+
+void x_null_deref(tree_t where)
+{
+   jit_msg(tree_loc(where), DIAG_FATAL, "null access dereference");
+}
+
+void x_div_zero(tree_t where)
+{
+   jit_msg(tree_loc(where), DIAG_FATAL, "division by zero");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
 
@@ -193,4 +344,65 @@ DLLEXPORT
 void __nvc_flush(FILE *f)
 {
    x_file_flush(f);
+}
+
+DLLEXPORT
+void __nvc_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
+                      DEBUG_LOCUS(locus), DEBUG_LOCUS(hint))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+   tree_t hint = locus_to_tree(hint_unit, hint_offset);
+
+   x_index_fail(value, left, right, dir, where, hint);
+}
+
+DLLEXPORT
+void __nvc_length_fail(int32_t left, int32_t right, int32_t dim,
+                       DEBUG_LOCUS(locus))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+
+   x_length_fail(left, right, dim, where);
+}
+
+DLLEXPORT
+void __nvc_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
+                      DEBUG_LOCUS(locus), DEBUG_LOCUS(hint))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+   tree_t hint = locus_to_tree(hint_unit, hint_offset);
+
+   x_range_fail(value, left, right, dir, where, hint);
+}
+
+DLLEXPORT
+void __nvc_exponent_fail(int32_t value, DEBUG_LOCUS(locus))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+
+   x_exponent_fail(value, where);
+}
+
+DLLEXPORT
+void __nvc_overflow(int64_t lhs, int64_t rhs, DEBUG_LOCUS(locus))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+
+   x_overflow(lhs, rhs, where);
+}
+
+DLLEXPORT
+void __nvc_null_deref(DEBUG_LOCUS(locus))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+
+   x_null_deref(where);
+}
+
+DLLEXPORT
+void __nvc_div_zero(DEBUG_LOCUS(locus))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+
+   x_div_zero(where);
 }

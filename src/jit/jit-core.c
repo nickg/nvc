@@ -68,7 +68,14 @@ typedef struct _jit {
    module_array_t  modules;
 } jit_t;
 
+typedef enum {
+   JIT_IDLE,
+   JIT_NATIVE,
+   JIT_INTERP
+} jit_state_t;
+
 static __thread jmp_buf abort_env;
+static __thread jit_state_t thread_state = JIT_IDLE;
 
 static void jit_oom_cb(mspace_t *m, size_t size)
 {
@@ -251,7 +258,7 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    const loc_t *loc = vcode_unit_loc();
 
    jit_scalar_t args[JIT_MAX_ARGS] = { { .pointer = NULL } };
-   if (!jit_interp(f, args, 1, 0, NULL)) {
+   if (!jit_interp(f, args, 1, 0)) {
       error_at(loc, "failed to initialise %s", istr(f->name));
       args[0].pointer = NULL;
    }
@@ -288,6 +295,16 @@ void *jit_get_frame_var(jit_t *j, jit_handle_t handle, uint32_t var)
 
    assert(var < f->nvars);
    return (char *)mptr_get(j->mspace, f->privdata) + f->varoff[var];
+}
+
+static void jit_transition(jit_state_t from, jit_state_t to)
+{
+#ifdef DEBUG
+   if (thread_state != from)
+      fatal_trace("expected thread state %d but have %d", from, thread_state);
+#endif
+
+   thread_state = to;
 }
 
 static bool jit_try_vcall(jit_t *j, ident_t func, bool pcall, void *state,
@@ -331,7 +348,11 @@ static bool jit_try_vcall(jit_t *j, ident_t func, bool pcall, void *state,
    if (handle == JIT_HANDLE_INVALID)
       fatal_trace("invalid handle for %s", istr(func));
 
-   bool ok = jit_interp(jit_get_func(j, handle), args, nargs, 0, NULL);
+   jit_transition(JIT_IDLE, JIT_INTERP);
+
+   bool ok = jit_interp(jit_get_func(j, handle), args, nargs, 0);
+
+   jit_transition(JIT_INTERP, JIT_IDLE);
 
    *result = args[0];
    return ok;
@@ -398,8 +419,12 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
 
    jit_irgen(f);
 
+   jit_transition(JIT_IDLE, JIT_INTERP);
+
    jit_scalar_t args[JIT_MAX_ARGS];
-   bool ok = jit_interp(f, args, 0, j->backedge, NULL);
+   bool ok = jit_interp(f, args, 0, j->backedge);
+
+   jit_transition(JIT_INTERP, JIT_IDLE);
 
    jit_free_func(f);
 
@@ -415,14 +440,18 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    jit_func_t *f = jit_get_func(j, handle);
 
    if (f->symbol) {
+      jit_transition(JIT_IDLE, JIT_NATIVE);
       void *(*fn)(void *, void *) = f->symbol;
       result->pointer = (*fn)(p1.pointer, p2.pointer);
+      jit_transition(JIT_NATIVE, JIT_IDLE);
       return true;
    }
    else {
+      jit_transition(JIT_IDLE, JIT_INTERP);
       jit_scalar_t args[JIT_MAX_ARGS] = { p1, p2 };
-      bool ok = jit_interp(f, args, 2, 0, NULL);
+      bool ok = jit_interp(f, args, 2, 0);
       *result = args[0];
+      jit_transition(JIT_INTERP, JIT_IDLE);
       return ok;
    }
 }
@@ -618,8 +647,8 @@ void jit_load_dll(jit_t *j, ident_t name)
    APUSH(j->modules, handle);
 }
 
-static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
-                           const char *symbol)
+void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
+                    const char *symbol)
 {
    switch (tree_kind(enclosing)) {
    case T_PROCESS:
@@ -651,6 +680,11 @@ static void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
 
 void jit_diag_trace(diag_t *d)
 {
+   if (thread_state == JIT_INTERP) {
+      jit_interp_diag_trace(d);
+      return;
+   }
+
    debug_info_t *di = debug_capture();
 
    const int nframes = debug_count_frames(di);
@@ -713,12 +747,22 @@ void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...)
 
 void jit_abort(int code)
 {
-   assert(code >= 0);
+   switch (thread_state) {
+   case JIT_IDLE:
+      fatal_trace("jit_abort called when not executing");
+      break;
+   case JIT_NATIVE:
+      assert(code >= 0);
 #ifdef __MINGW32__
-   fatal_exit(code);
+      fatal_exit(code);
 #else
-   longjmp(abort_env, code + 1);
+      longjmp(abort_env, code + 1);
 #endif
+      break;
+   case JIT_INTERP:
+      jit_interp_abort();
+      break;
+   }
 }
 
 int jit_with_abort_handler(void (*fn)(void *), void *arg)

@@ -6,21 +6,15 @@
   __nvc_alias_signal;
   __nvc_assert_fail;
   __nvc_claim_tlab;
-  __nvc_div_zero;
   __nvc_drive_signal;
   __nvc_elab_order_fail;
-  __nvc_exponent_fail;
   __nvc_force;
-  __nvc_index_fail;
-  __nvc_length_fail;
   __nvc_map_const;
   __nvc_map_signal;
   __nvc_mspace_alloc;
-  __nvc_null_deref;
   __nvc_overflow;
   __nvc_pop_scope;
   __nvc_push_scope;
-  __nvc_range_fail;
   __nvc_release;
   __nvc_report;
   __nvc_resolve_signal;
@@ -40,7 +34,6 @@
   _last_active;
   _last_event;
   _link_signal;
-  _null_deref;
   _nvc_current_delta;
   _nvc_ieee_warnings;
   _real_to_string;
@@ -70,7 +63,13 @@
   _std_env_vhdl_version;
 
   # Exported from src/jit/jit-exits.c
+  __nvc_div_zero;
+  __nvc_exponent_fail;
   __nvc_flush;
+  __nvc_index_fail;
+  __nvc_length_fail;
+  __nvc_null_deref;
+  __nvc_range_fail;
   _endfile;
   _file_close;
   _file_open;

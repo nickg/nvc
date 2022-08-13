@@ -346,7 +346,7 @@ START_TEST(test_access1)
 
    const error_t expect[] = {
       { 16, "null access dereference" },
-      { LINE_INVALID, "out of memory attempting to allocate 1032 byte " },
+      { 38, "out of memory attempting to allocate 1032 byte " },
       { -1, NULL },
    };
    expect_errors(expect);

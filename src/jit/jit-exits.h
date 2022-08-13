@@ -45,5 +45,14 @@ void x_file_read(void **_fp, uint8_t *data, int32_t size, int32_t count,
 void x_file_close(void **_fp);
 int8_t x_endfile(void *_f);
 void x_file_flush(void *_f);
+void x_index_fail(int32_t value, int32_t left, int32_t right, int8_t dir,
+                  tree_t where, tree_t hint);
+void x_length_fail(int32_t left, int32_t right, int32_t dim, tree_t where);
+void x_range_fail(int64_t value, int64_t left, int64_t right, int8_t dir,
+                  tree_t where, tree_t hint);
+void x_exponent_fail(int32_t value, tree_t where);
+void x_overflow(int64_t lhs, int64_t rhs, tree_t where);
+void x_null_deref(tree_t where);
+void x_div_zero(tree_t where);
 
 #endif  // _JIT_EXITS_H

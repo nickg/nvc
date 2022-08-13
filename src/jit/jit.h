@@ -85,7 +85,7 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
 
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...);
 void jit_diag_trace(diag_t *d);
-void jit_abort(int code) __attribute__((noreturn));
+void jit_abort(int code);
 int jit_with_abort_handler(void (*fn)(void *), void *arg);
 
 #endif   // _JIT_H
