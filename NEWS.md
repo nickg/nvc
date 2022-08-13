@@ -5,6 +5,7 @@
 - Fixed crash with recursive entity instantiation (#502).
 - Fixed error with expressions like `X'ELEMENT'LENGTH` (#508).
 - Added support for FreeBSD/i386.
+- Fixed crash reading resolved value of record signal (#502).
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a

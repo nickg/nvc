@@ -2641,22 +2641,29 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
 
       ident_t context_id = vcode_unit_name();
 
+      // Do not generate helpers for anonymous subtypes
+      type_t base = type;
+      while (type_kind(base) == T_SUBTYPE && !type_has_ident(base))
+         base = type_base(base);
+
       LOCAL_TEXT_BUF tb = tb_new();
       tb_istr(tb, vcode_unit_name());
       tb_cat(tb, "$resolved_");
-      tb_istr(tb, type_ident(type));
+      tb_istr(tb, type_ident(base));
+
+      vcode_type_t vrtype = lower_func_result_type(base);
 
       ident_t helper_func = ident_new(tb_get(tb));
       vcode_unit_t vu = vcode_find_unit(helper_func);
       if (vu == NULL) {
          vu = emit_function(helper_func, loc, helper_ctx);
-         vcode_set_result(lower_func_result_type(type));
+         vcode_set_result(vrtype);
 
          lower_push_scope(NULL);
 
-         vcode_type_t vtype = lower_type(type);
-         vcode_type_t vbounds = lower_bounds(type);
-         vcode_type_t vatype = lower_param_type(type, C_SIGNAL, PORT_IN);
+         vcode_type_t vtype = lower_type(base);
+         vcode_type_t vbounds = lower_bounds(base);
+         vcode_type_t vatype = lower_param_type(base, C_SIGNAL, PORT_IN);
 
          vcode_type_t vcontext = vtype_context(context_id);
          emit_param(vcontext, vcontext, ident_new("context"));
@@ -2667,8 +2674,8 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
 
          vcode_reg_t data_reg, result_reg;
          if (vtype_kind(vtype) == VCODE_TYPE_UARRAY) {
-            type_t elem = lower_elem_recur(type);
-            vcode_reg_t count_reg = lower_array_total_len(type, p_reg);
+            type_t elem = lower_elem_recur(base);
+            vcode_reg_t count_reg = lower_array_total_len(base, p_reg);
             data_reg = emit_alloc(lower_type(elem), lower_bounds(elem),
                                   count_reg);
 
@@ -2678,7 +2685,7 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
          else
             data_reg = result_reg = emit_index(var, VCODE_INVALID_VAR);
 
-         lower_for_each_field(type, p_reg, data_reg,
+         lower_for_each_field(base, p_reg, data_reg,
                               lower_resolved_field_cb, NULL);
          emit_return(result_reg);
 
@@ -2688,9 +2695,16 @@ static vcode_reg_t lower_resolved(type_t type, vcode_reg_t reg)
 
       vcode_state_restore(&state);
 
-      vcode_type_t vtype = lower_func_result_type(type);
-      vcode_reg_t args[] = { emit_context_upref(hops), reg };
-      return emit_fcall(helper_func, vtype, vtype, VCODE_CC_VHDL, args, 2);
+      bool need_wrap = false;
+      if (type_is_array(type))
+         need_wrap = lower_const_bounds(type) && !lower_const_bounds(base);
+
+      vcode_reg_t arg = need_wrap ? lower_wrap(type, reg) : reg;
+      vcode_reg_t args[] = { emit_context_upref(hops), arg };
+      vcode_reg_t result = emit_fcall(helper_func, vrtype, vrtype,
+                                      VCODE_CC_VHDL, args, 2);
+
+      return need_wrap ? lower_array_data(result) : result;
    }
 }
 
