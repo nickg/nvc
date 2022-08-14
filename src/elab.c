@@ -1395,8 +1395,21 @@ static void elab_generate_range(tree_t r, int64_t *low, int64_t *high,
       error_at(tree_loc(r), "generate range is not static");
       *low = *high = 0;
    }
-   else
-      range_bounds(r, low, high);
+   else if (!folded_bounds(r, low, high)) {
+      tree_t left  = eval_must_fold(ctx->eval, tree_left(r));
+      tree_t right = eval_must_fold(ctx->eval, tree_right(r));
+
+      int64_t ileft, iright;
+      if (folded_int(left, &ileft) && folded_int(right, &iright)) {
+         const bool asc = (tree_subkind(r) == RANGE_TO);
+         *low = asc ? ileft : iright;
+         *high = asc ? iright : ileft;
+      }
+      else {
+         error_at(tree_loc(r), "generate range is not static");
+         *low = *high = 0;
+      }
+   }
 }
 
 static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
