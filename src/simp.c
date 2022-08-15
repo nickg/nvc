@@ -65,7 +65,7 @@ static tree_t simp_call_args(tree_t t)
          last_pos = i;
    }
 
-   if (last_pos < nparams - 1) {
+   if (last_pos < nports - 1) {
       tree_t new = tree_new(tree_kind(t));
       tree_set_loc(new, tree_loc(t));
       tree_set_ident(new, tree_ident(t));
@@ -113,7 +113,11 @@ static tree_t simp_call_args(tree_t t)
                found = true;
             }
          }
-         assert(found);
+
+         if (!found) {
+            assert(tree_has_value(port));  // Checked by sem
+            add_param(new, tree_value(port), P_POS, NULL);
+         }
       }
 
       t = new;

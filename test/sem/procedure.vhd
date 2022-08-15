@@ -193,4 +193,12 @@ package body p is
         test16_a(x(i));                 -- Error, not static name
     end procedure;
 
+    procedure test17 is
+        procedure test17_a (x, y : integer) is
+        begin
+        end procedure;
+    begin
+        test17_a(x => 1, x => 2);       -- Error
+    end procedure;
+
 end package body;

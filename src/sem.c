@@ -2415,91 +2415,6 @@ static bool sem_check_conversion(tree_t t, nametab_t *tab)
    return false;
 }
 
-static bool sem_copy_default_args(tree_t call, tree_t decl)
-{
-   const int nparams = tree_params(call);
-   const int nports  = tree_ports(decl);
-
-   // Copy the default values for any unspecified arguments
-   for (int i = 0; i < nports; i++) {
-      tree_t port  = tree_port(decl, i);
-      ident_t name = tree_ident(port);
-
-      tree_t found = NULL;
-      for (int j = 0; (j < nparams) && (found == NULL); j++) {
-         tree_t p = tree_param(call, j);
-         switch (tree_subkind(p)) {
-         case P_POS:
-            if (tree_pos(p) == i)
-               found = p;
-            break;
-         case P_NAMED:
-            {
-               tree_t ref = tree_name(p);
-               if (tree_ident(ref) == name) {
-                  found = p;
-                  tree_set_ref(ref, port);
-               }
-            }
-            break;
-         default:
-            assert(false);
-         }
-      }
-
-      if (found == NULL) {
-         if (tree_has_value(port))
-            found = add_param(call, tree_value(port), P_NAMED, make_ref(port));
-         else
-            sem_error(call, "missing actual for formal %s without "
-                      "default value", istr(name));
-      }
-   }
-
-   return true;
-}
-
-static bool sem_check_params(tree_t t, nametab_t *tab)
-{
-   bool have_named = false;
-   const int nparams = tree_params(t);
-   for (int i = 0; i < nparams; i++) {
-      tree_t p = tree_param(t, i);
-
-      switch (tree_subkind(p)) {
-      case P_POS:
-         if (have_named)
-            sem_error(p, "positional parameters must precede named "
-                      "parameters");
-         break;
-
-      case P_NAMED:
-         {
-            tree_t ref = tree_name(p);
-            if (tree_kind(ref) != T_REF)
-               sem_error(ref, "sorry, this form of parameter name "
-                        "is not yet supported");
-
-            ident_t name = tree_ident(ref);
-            for (int j = 0; j < i; j++) {
-               tree_t q = tree_param(t, j);
-               if ((tree_subkind(q) == P_NAMED)
-                   && (tree_ident(tree_name(q)) == name))
-                  sem_error(p, "duplicate parameter name %s", istr(name));
-            }
-
-            have_named = true;
-         }
-         break;
-      }
-
-      if (!sem_check(tree_value(p), tab))
-         return false;
-   }
-
-   return true;
-}
-
 static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
 {
    const int nparams = tree_params(t);
@@ -2513,40 +2428,67 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
                    class_str(class_of(decl)), istr(tree_ident(decl)));
    }
 
-   if (nparams > nports)
-      sem_error(t, "expected %d argument%s for subprogram %s but have %d",
-                nports, nports > 1 ? "s" : "",
-                type_pp(tree_type(decl)), nparams);
+   tree_t *map LOCAL = xcalloc_array(nports, sizeof(tree_t));
 
+   bool have_named = false;
    for (int i = 0; i < nparams; i++) {
       tree_t param = tree_param(t, i);
 
       int index = -1;
-      if (tree_subkind(param) == P_POS)
-         index = tree_pos(param);
-      else {
-         assert(tree_subkind(param) == P_NAMED);
-
-         tree_t ref = tree_name(param);
-         assert(tree_kind(ref) == T_REF);
-
-         ident_t name = tree_ident(ref);
-         for (int j = 0; (j < nports) && (index == -1); j++) {
-            if (tree_ident(tree_port(decl, j)) == name)
-               index = j;
+      switch (tree_subkind(param)) {
+      case P_POS:
+         if (have_named)
+            sem_error(param, "positional parameters must precede named "
+                      "parameters");
+         else if ((index = tree_pos(param)) >= nports) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(param));
+            diag_printf(d, "too many positional parameters for subprogram %s",
+                        type_pp(tree_type(decl)));
+            diag_hint(d, tree_loc(param), "%s positional parameter",
+                      ordinal_str(index + 1));
+            diag_hint(d, tree_loc(decl), "%s %s has %d formal parameter%s",
+                      class_str(class_of(decl)), istr(tree_ident(decl)),
+                      nports, nports > 1 ? "s" : "");
+            diag_emit(d);
+            return false;
          }
-         assert(index != -1);
+         break;
 
-         // Set the ref again here because solve_types may have set it
-         // to the wrong overload
-         tree_set_ref(ref, tree_port(decl, index));
+      case P_NAMED:
+         {
+            have_named = true;
+
+            tree_t ref = tree_name(param);
+            if (tree_kind(ref) != T_REF)
+               sem_error(ref, "sorry, this form of parameter name "
+                        "is not yet supported");
+
+            ident_t name = tree_ident(ref);
+            for (int j = 0; (j < nports) && (index == -1); j++) {
+               if (tree_ident(tree_port(decl, j)) == name)
+                  index = j;
+            }
+            assert(index != -1);
+
+            // Set the ref again here because solve_types may have set it
+            // to the wrong overload
+            tree_set_ref(ref, tree_port(decl, index));
+         }
       }
 
       tree_t  port     = tree_port(decl, index);
       class_t class    = tree_class(port);
       port_mode_t mode = tree_subkind(port);
 
+      if (map[index] != NULL)
+         sem_error(param, "formal parameter %s already has an associated "
+                   "actual", istr(tree_ident(port)));
+
+      map[index] = param;
+
       tree_t value = tree_value(param);
+      if (!sem_check(value, tab))
+         return false;
 
       type_t port_type = tree_type(port);
 
@@ -2621,15 +2563,21 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
       }
    }
 
+   for (int i = 0; i < nports; i++) {
+      if (map[i] == NULL) {
+         tree_t port = tree_port(decl, i);
+         if (!tree_has_value(port))
+            sem_error(t, "missing actual for formal parameter %s without "
+                      "default value", istr(tree_ident(port)));
+      }
+   }
+
    return true;
 }
 
 static bool sem_check_fcall(tree_t t, nametab_t *tab)
 {
    if (!tree_has_ref(t))
-      return false;
-
-   if (!sem_check_params(t, tab))
       return false;
 
    if (tree_kind(t) == T_PROT_FCALL && tree_has_name(t)) {
@@ -2652,9 +2600,6 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
    if (!sem_check_call_args(t, decl, tab))
       return false;
 
-   if (!sem_copy_default_args(t, decl))
-      return false;
-
    if (sem_locally_static(t))
       tree_set_flag(t, TREE_F_LOCALLY_STATIC | TREE_F_GLOBALLY_STATIC);
    else if (sem_globally_static(t))
@@ -2666,9 +2611,6 @@ static bool sem_check_fcall(tree_t t, nametab_t *tab)
 static bool sem_check_pcall(tree_t t, nametab_t *tab)
 {
    if (!tree_has_ref(t))
-      return false;
-
-   if (!sem_check_params(t, tab))
       return false;
 
    if (tree_kind(t) == T_PROT_PCALL && tree_has_name(t)
@@ -2687,9 +2629,6 @@ static bool sem_check_pcall(tree_t t, nametab_t *tab)
    }
 
    if (!sem_check_call_args(t, decl, tab))
-      return false;
-
-   if (!sem_copy_default_args(t, decl))
       return false;
 
    const tree_flags_t flags = tree_flags(decl);
