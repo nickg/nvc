@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "common.h"
+#include "jit/jit.h"
 #include "rt/ffi.h"
 #include "rt/rt.h"
 
@@ -37,6 +38,17 @@ typedef struct {
    int8_t  weekday;
    int32_t dayofyear;
 } time_record_t;
+
+DLLEXPORT
+void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
+{
+   if (have_status)
+      notef("%s called with status %d", finish ? "FINISH" : "STOP", status);
+   else
+      notef("%s called", finish ? "FINISH" : "STOP");
+
+   jit_abort(status);
+}
 
 DLLEXPORT
 void _std_env_getenv(EXPLODED_UARRAY(name), ffi_uarray_t *u)

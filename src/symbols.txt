@@ -34,14 +34,17 @@
   _last_active;
   _last_event;
   _link_signal;
-  _nvc_current_delta;
-  _nvc_ieee_warnings;
   _real_to_string;
   _sched_event;
   _sched_process;
   _sched_waveform;
   _sched_waveform_s;
-  _std_env_stop;
+  _string_to_int;
+  _string_to_real;
+  _test_net_active;
+  _test_net_event;
+
+  # Exported from src/rt/standard.c
   _std_hstring_bit_vec;
   _std_standard_now;
   _std_to_hstring_bit_vec;
@@ -49,12 +52,9 @@
   _std_to_string_real_digits;
   _std_to_string_real_format;
   _std_to_string_time;
-  _string_to_int;
-  _string_to_real;
-  _test_net_active;
-  _test_net_event;
-
+  
   # Exported from src/rt/stdenv.c
+  _std_env_stop;
   _std_env_epoch;
   _std_env_getenv;
   _std_env_gmtime;
@@ -62,6 +62,10 @@
   _std_env_tool_version;
   _std_env_vhdl_version;
 
+  # Exported from src/rt/simpkg.c
+  _nvc_current_delta;
+  _nvc_ieee_warnings;
+  
   # Exported from src/jit/jit-exits.c
   __nvc_div_zero;
   __nvc_exponent_fail;

@@ -148,3 +148,8 @@ ffi_uarray_t ffi_wrap_str(char *buf, size_t len)
    };
    return u;
 }
+
+size_t ffi_uarray_len(const ffi_uarray_t *u)
+{
+   return abs(u->dims[0].length);
+}

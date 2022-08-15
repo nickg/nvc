@@ -442,34 +442,6 @@ static const char *fmt_values(const void *values, uint32_t len)
    return fmt_values_r(values, len, buf, sizeof(buf));
 }
 
-static size_t uarray_len(const ffi_uarray_t *u)
-{
-   return abs(u->dims[0].length);
-}
-
-static ffi_uarray_t bit_vec_to_string(const ffi_uarray_t *vec, int log_base)
-{
-   const size_t vec_len = uarray_len(vec);
-   const size_t result_len = (vec_len + log_base - 1) / log_base;
-   const int left_pad = (log_base - (vec_len % log_base)) % log_base;
-   char *buf = rt_tlab_alloc(result_len);
-
-   for (int i = 0; i < result_len; i++) {
-      unsigned nibble = 0;
-      for (int j = 0; j < log_base; j++) {
-         if (i > 0 || j >= left_pad) {
-            nibble <<= 1;
-            nibble |= !!(((uint8_t *)vec->ptr)[i*log_base + j - left_pad]);
-         }
-      }
-
-      static const char map[16] = "0123456789ABCDEF";
-      buf[i] = map[nibble];
-   }
-
-   return ffi_wrap_str(buf, result_len);
-}
-
 static int rt_fmt_now(char *buf, size_t len)
 {
    if (iteration < 0)
@@ -1722,131 +1694,9 @@ double _string_to_real(const uint8_t *raw_str, int32_t str_len, uint8_t **tail)
    return value;
 }
 
-DLLEXPORT
-bool _nvc_ieee_warnings(void)
-{
-   return opt_get_int(OPT_IEEE_WARNINGS);
-}
-
-DLLEXPORT
-int _nvc_current_delta(void)
-{
-   return iteration;
-}
-
 int64_t x_now(void)
 {
    return now;
-}
-
-DLLEXPORT
-int64_t _std_standard_now(void)
-{
-   return x_now();
-}
-
-DLLEXPORT
-void _std_to_string_time(int64_t value, int64_t unit, ffi_uarray_t *u)
-{
-   const char *unit_str = "";
-   switch (unit) {
-   case 1ll: unit_str = "fs"; break;
-   case 1000ll: unit_str = "ps"; break;
-   case 1000000ll: unit_str = "ns"; break;
-   case 1000000000ll: unit_str = "us"; break;
-   case 1000000000000ll: unit_str = "ms"; break;
-   case 1000000000000000ll: unit_str = "sec"; break;
-   case 60000000000000000ll: unit_str = "min"; break;
-   case 3600000000000000000ll: unit_str = "hr"; break;
-   default:
-      jit_msg(NULL, DIAG_FATAL, "invalid UNIT argument %"PRIi64" in TO_STRING",
-              unit);
-   }
-
-   size_t max_len = 16 + strlen(unit_str) + 1;
-   char *buf = rt_tlab_alloc(max_len);
-
-   size_t len;
-   if (value % unit == 0)
-      len = checked_sprintf(buf, max_len, "%"PRIi64" %s",
-                            value / unit, unit_str);
-   else
-      len = checked_sprintf(buf, max_len, "%g %s",
-                            (double)value / (double)unit, unit_str);
-
-   *u = ffi_wrap_str(buf, len);
-}
-
-DLLEXPORT
-void _std_to_string_real_digits(double value, int32_t digits, ffi_uarray_t *u)
-{
-   size_t max_len = 32;
-   char *buf = rt_tlab_alloc(max_len);
-
-   size_t len;
-   if (digits == 0)
-      len = checked_sprintf(buf, max_len, "%.17g", value);
-   else
-      len = checked_sprintf(buf, max_len, "%.*f", digits, value);
-
-   *u = ffi_wrap_str(buf, len);
-}
-
-DLLEXPORT
-void _std_to_string_real_format(double value, EXPLODED_UARRAY(fmt),
-                                ffi_uarray_t *u)
-{
-   char *LOCAL fmt_cstr = xmalloc(fmt_length + 1);
-   memcpy(fmt_cstr, fmt_ptr, fmt_length);
-   fmt_cstr[fmt_length] = '\0';
-
-   if (fmt_cstr[0] != '%')
-      jit_msg(NULL, DIAG_FATAL, "conversion specification must start with '%%'");
-
-   for (const char *p = fmt_cstr + 1; *p; p++) {
-      switch (*p) {
-      case 'e': case 'E': case 'f': case 'F': case 'g': case 'G':
-      case 'a': case 'A':
-         continue;
-      case '0'...'9':
-         continue;
-      case '.': case '-':
-         continue;
-      default:
-         jit_msg(NULL, DIAG_FATAL, "illegal character '%c' in format \"%s\"",
-                 *p, fmt_cstr + 1);
-      }
-   }
-
-   size_t max_len = 64;
-   char *buf = rt_tlab_alloc(max_len);
-   size_t len = checked_sprintf(buf, max_len, fmt_cstr, value);
-   *u = ffi_wrap_str(buf, len);
-}
-
-DLLEXPORT
-void _std_to_hstring_bit_vec(EXPLODED_UARRAY(vec), ffi_uarray_t *u)
-{
-   const ffi_uarray_t vec = { vec_ptr, { { vec_left, vec_length } } };
-   *u = bit_vec_to_string(&vec, 4);
-}
-
-DLLEXPORT
-void _std_to_ostring_bit_vec(EXPLODED_UARRAY(vec), ffi_uarray_t *u)
-{
-   const ffi_uarray_t vec = { vec_ptr, { { vec_left, vec_length } } };
-   *u = bit_vec_to_string(&vec, 3);
-}
-
-DLLEXPORT
-void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
-{
-   if (have_status)
-      notef("%s called with status %d", finish ? "FINISH" : "STOP", status);
-   else
-      notef("%s called", finish ? "FINISH" : "STOP");
-
-   jit_abort(status);
 }
 
 DLLEXPORT
@@ -3719,7 +3569,9 @@ void rt_start_of_tool(tree_t top)
 
    rt_reset_coverage(top);
 
+   _std_standard_init();
    _std_env_init();
+   _nvc_sim_pkg_init();
 
    nvc_rusage(&ready_rusage);
 }
