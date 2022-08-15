@@ -1100,17 +1100,13 @@ void __nvc_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
       count -= n->width;
       RT_ASSERT(count >= 0);
 
-      const size_t valuesz = n->width * n->size;
-      rt_value_t value = rt_alloc_value(n);
-      rt_copy_value_ptr(n, &value, vptr);
-      vptr += valuesz;
-
       if (!(n->flags & NET_F_FORCED)) {
          n->flags |= NET_F_FORCED;
          n->forcing = rt_alloc_value(n);
       }
 
-      rt_copy_value_ptr(n, &(n->forcing), values);
+      rt_copy_value_ptr(n, &(n->forcing), vptr);
+      vptr += n->width * n->size;
 
       deltaq_insert_driver(0, n, NULL);
    }
