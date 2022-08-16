@@ -2432,8 +2432,9 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
 
    bool have_named = false;
    for (int i = 0; i < nparams; i++) {
-      tree_t param = tree_param(t, i);
-
+      tree_t param = tree_param(t, i), port = NULL;
+      type_t port_type = NULL;
+      bool partial = false;
       int index = -1;
       switch (tree_subkind(param)) {
       case P_POS:
@@ -2452,35 +2453,52 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
             diag_emit(d);
             return false;
          }
+         else {
+            port = tree_port(decl, index);
+            port_type = tree_type(port);
+         }
          break;
 
       case P_NAMED:
          {
             have_named = true;
 
-            tree_t ref = tree_name(param);
-            if (tree_kind(ref) != T_REF)
-               sem_error(ref, "sorry, this form of parameter name "
-                        "is not yet supported");
+            tree_t name = tree_name(param);
+            tree_t ref = name_to_ref(name);
+            assert(ref != NULL);
 
-            ident_t name = tree_ident(ref);
-            for (int j = 0; (j < nports) && (index == -1); j++) {
-               if (tree_ident(tree_port(decl, j)) == name)
+            partial = (ref != name);
+
+            ident_t id = tree_ident(ref);
+            for (int j = 0; j < nports; j++) {
+               tree_t p = tree_port(decl, j);
+               if (tree_ident(p) == id) {
                   index = j;
+                  port = p;
+                  break;
+               }
             }
-            assert(index != -1);
+
+            if (index == -1) {
+               // Should have generated an error during overload
+               // resolution
+               assert(error_count() > 0);
+               return false;
+            }
 
             // Set the ref again here because solve_types may have set it
             // to the wrong overload
-            tree_set_ref(ref, tree_port(decl, index));
+            if (tree_ref(ref) != port)
+               tree_set_name(param, (name = change_ref(name, port)));
+
+            port_type = tree_type(name);
          }
       }
 
-      tree_t  port     = tree_port(decl, index);
       class_t class    = tree_class(port);
       port_mode_t mode = tree_subkind(port);
 
-      if (map[index] != NULL)
+      if (map[index] != NULL && (!partial || tree_kind(map[index]) == T_REF))
          sem_error(param, "formal parameter %s already has an associated "
                    "actual", istr(tree_ident(port)));
 
@@ -2489,8 +2507,6 @@ static bool sem_check_call_args(tree_t t, tree_t decl, nametab_t *tab)
       tree_t value = tree_value(param);
       if (!sem_check(value, tab))
          return false;
-
-      type_t port_type = tree_type(port);
 
       if (!sem_check_type(value, port_type))
          sem_error(value, "type of actual %s does not match formal %s type %s",

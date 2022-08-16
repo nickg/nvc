@@ -767,77 +767,6 @@ static tree_t elab_unconstrained_port(tree_t port, tree_t map, elab_ctx_t *ctx)
    return p2;
 }
 
-static tree_t elab_change_ref(tree_t name, tree_t new)
-{
-   switch (tree_kind(name)) {
-   case T_REF:
-      return make_ref(new);
-
-   case T_ARRAY_REF:
-      {
-         tree_t t = tree_new(T_ARRAY_REF);
-         tree_set_loc(t, tree_loc(name));
-         tree_set_value(t, elab_change_ref(tree_value(name), new));
-         tree_set_type(t, tree_type(name));
-
-         const int nparams = tree_params(name);
-         for (int i = 0; i < nparams; i++)
-            tree_add_param(t, tree_param(name, i));
-
-         return t;
-      }
-
-   case T_ARRAY_SLICE:
-      {
-         tree_t t = tree_new(T_ARRAY_SLICE);
-         tree_set_loc(t, tree_loc(name));
-         tree_set_value(t, elab_change_ref(tree_value(name), new));
-         tree_set_type(t, tree_type(name));
-         tree_add_range(t, tree_range(name, 0));
-
-         return t;
-      }
-
-   case T_RECORD_REF:
-      {
-         tree_t t = tree_new(T_RECORD_REF);
-         tree_set_loc(t, tree_loc(name));
-         tree_set_value(t, elab_change_ref(tree_value(name), new));
-         tree_set_type(t, tree_type(name));
-         tree_set_ident(t, tree_ident(name));
-         tree_set_ref(t, tree_ref(name));
-
-         return t;
-      }
-
-   case T_CONV_FUNC:
-      {
-         tree_t t = tree_new(T_CONV_FUNC);
-         tree_set_loc(t, tree_loc(name));
-         tree_set_value(t, elab_change_ref(tree_value(name), new));
-         tree_set_ident(t, tree_ident(name));
-         tree_set_type(t, tree_type(name));
-         tree_set_ref(t, tree_ref(name));
-
-         return t;
-      }
-
-   case T_TYPE_CONV:
-      {
-         tree_t t = tree_new(T_TYPE_CONV);
-         tree_set_loc(t, tree_loc(name));
-         tree_set_type(t, tree_type(name));
-         tree_set_value(t, elab_change_ref(tree_value(name), new));
-
-         return t;
-      }
-
-   default:
-      fatal_trace("cannot handle tree kind %s in elab_change_ref",
-                  tree_kind_str(tree_kind(name)));
-   }
-}
-
 static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
 {
    const int nports = tree_ports(entity);
@@ -938,7 +867,7 @@ static void elab_ports(tree_t entity, tree_t comp, tree_t inst, elab_ctx_t *ctx)
                }
                else {
                   tree_set_subkind(map, P_NAMED);
-                  tree_set_name(map, elab_change_ref(tree_name(m), p));
+                  tree_set_name(map, change_ref(tree_name(m), p));
                   have_named = true;
                }
             }

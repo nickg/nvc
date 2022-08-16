@@ -199,6 +199,7 @@ package body p is
         end procedure;
     begin
         test17_a(x => 1, x => 2);       -- Error
+        test17_a(z => 1, x => 2);       -- Error
     end procedure;
 
 end package body;

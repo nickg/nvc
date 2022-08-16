@@ -660,7 +660,6 @@ START_TEST(test_procedure)
       { 100, "object X with access type must have class VARIABLE" },
       { 137, "ambiguous use of enumeration literal '0'" },
       { 137, "ambiguous use of enumeration literal '1'" },
-      { 137, "sorry, this form of parameter name is not yet supported" },
       { 142, "cannot read OUT parameter X" },
       { 148, "X is not a valid target of signal assignment" },
       { 157, "object ARG with type containing an access type must have class" },
@@ -671,6 +670,7 @@ START_TEST(test_procedure)
       { 183, "declaration may not include the reserved word BUS" },
       { 193, "signal parameter Y must be denoted by a static signal name" },
       { 201, "formal parameter X already has an associated actual" },
+      { 202, "no possible overload of TEST17_A has formal Z" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -805,7 +805,6 @@ START_TEST(test_record)
       { 170, "range association invalid in record aggregate" },
       { 174, "no visible declaration for FOO" },
       { 184, "type INTEGER is not a record" },
-      { 184, "sorry, this form of parameter name is not yet supported" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -31,7 +31,7 @@ begin
 
     p2: process is
     begin
-        do_rec(x.x => (1, 2, 3), x.y => 5);  -- OK (not yet)
+        do_rec(x.x => (1, 2, 3), x.y => 5);  -- OK
     end process;
 
 end architecture;

@@ -4262,7 +4262,6 @@ START_TEST(test_names2)
    input_from_file(TESTDIR "/parse/names2.vhd");
 
    const error_t expect[] = {
-      { 34, "sorry, this form of parameter name is not yet supported" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -65,45 +65,47 @@ static tree_t simp_call_args(tree_t t)
          last_pos = i;
    }
 
-   if (last_pos < nports - 1) {
-      tree_t new = tree_new(tree_kind(t));
-      tree_set_loc(new, tree_loc(t));
-      tree_set_ident(new, tree_ident(t));
-      tree_set_ref(new, tree_ref(t));
+   if (last_pos == nports - 1)
+      return t;
 
-      tree_kind_t kind = tree_kind(t);
-      if (kind == T_FCALL || kind == T_PROT_FCALL) {
-         tree_set_type(new, tree_type(t));
-         tree_set_flag(new, tree_flags(t));
-      }
 
-      if ((kind == T_PROT_PCALL || kind == T_PROT_FCALL) && tree_has_name(t))
-         tree_set_name(new, tree_name(t));
+   tree_t new = tree_new(tree_kind(t));
+   tree_set_loc(new, tree_loc(t));
+   tree_set_ident(new, tree_ident(t));
+   tree_set_ref(new, tree_ref(t));
 
-      for (int i = 0; i <= last_pos; i++) {
-         tree_t port  = tree_port(decl, i);
-         tree_t param = tree_param(t, i);
-         tree_t value = tree_value(param);
+   tree_kind_t kind = tree_kind(t);
+   if (kind == T_FCALL || kind == T_PROT_FCALL) {
+      tree_set_type(new, tree_type(t));
+      tree_set_flag(new, tree_flags(t));
+   }
 
-         if (tree_kind(value) == T_OPEN)
-            value = tree_value(port);
+   if ((kind == T_PROT_PCALL || kind == T_PROT_FCALL) && tree_has_name(t))
+      tree_set_name(new, tree_name(t));
 
-         add_param(new, value, P_POS, NULL);
-      }
+   for (int i = 0; i <= last_pos; i++) {
+      tree_t port  = tree_port(decl, i);
+      tree_t param = tree_param(t, i);
+      tree_t value = tree_value(param);
 
-      for (int i = last_pos + 1; i < nports; i++) {
-         tree_t port  = tree_port(decl, i);
-         ident_t name = tree_ident(port);
+      if (tree_kind(value) == T_OPEN)
+         value = tree_value(port);
 
-         bool found = false;
-         for (int j = last_pos + 1; (j < nparams) && !found; j++) {
-            tree_t p = tree_param(t, j);
-            assert(tree_subkind(p) == P_NAMED);
+      add_param(new, value, P_POS, NULL);
+   }
 
-            tree_t ref = tree_name(p);
-            assert(tree_kind(ref) == T_REF);
+   for (int i = last_pos + 1; i < nports; i++) {
+      tree_t port = tree_port(decl, i);
 
-            if (name == tree_ident(ref)) {
+      tree_t agg = NULL;
+      bool found = false;
+      for (int j = last_pos + 1; j < nparams; j++) {
+         tree_t p = tree_param(t, j);
+         assert(tree_subkind(p) == P_NAMED);
+
+         tree_t name = tree_name(p);
+         if (tree_kind(name) == T_REF) {
+            if (tree_ref(name) == port) {
                tree_t value = tree_value(p);
 
                if (tree_kind(value) == T_OPEN)
@@ -111,19 +113,46 @@ static tree_t simp_call_args(tree_t t)
 
                add_param(new, value, P_POS, NULL);
                found = true;
+               break;
             }
          }
+         else {
+            // Must be a partial association
+            tree_t ref = tree_value(name);
+            if (tree_kind(ref) != T_REF || tree_kind(name) != T_RECORD_REF) {
+               error_at(tree_loc(p), "sorry, this form of parameter is "
+                        "not supported");
+               return t;
+            }
+            else if (tree_ref(ref) == port) {
+               if (agg == NULL) {
+                  agg = tree_new(T_AGGREGATE);
+                  tree_set_loc(agg, tree_loc(p));
+                  tree_set_type(agg, tree_type(port));
 
-         if (!found) {
-            assert(tree_has_value(port));  // Checked by sem
-            add_param(new, tree_value(port), P_POS, NULL);
+                  add_param(new, agg, P_POS, NULL);
+               }
+
+               tree_t a = tree_new(T_ASSOC);
+               tree_set_loc(a, tree_loc(p));
+               tree_set_subkind(a, A_NAMED);
+               tree_set_name(a, make_ref(tree_ref(name)));
+               tree_set_value(a, tree_value(p));
+
+               tree_add_assoc(agg, a);
+
+               found = true;
+            }
          }
       }
 
-      t = new;
+      if (!found) {
+         assert(tree_has_value(port));  // Checked by sem
+         add_param(new, tree_value(port), P_POS, NULL);
+      }
    }
 
-   return t;
+   return new;
 }
 
 static tree_t simp_fold(tree_t t, simp_ctx_t *ctx)

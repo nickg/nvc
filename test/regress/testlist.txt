@@ -648,3 +648,4 @@ elab34          normal,2008
 issue507        shell
 issue508        normal,2008
 record37        normal
+func21          normal

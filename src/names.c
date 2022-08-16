@@ -2435,10 +2435,11 @@ static void overload_named_argument(overload_t *o, tree_t name)
    pop_scope(o->nametab);
    type_set_push(o->nametab);
 
-   if ((name = name_to_ref(name)) == NULL)
+   tree_t ref = name_to_ref(name);
+   if (ref == NULL)
       return;
 
-   ident_t ident = tree_ident(name);
+   ident_t ident = tree_ident(ref);
 
    if (o->trace)
       printf("%s: named argument %s\n", istr(o->name), istr(ident));
@@ -2451,7 +2452,35 @@ static void overload_named_argument(overload_t *o, tree_t name)
       for (int j = 0; j < nports; j++) {
          tree_t p = tree_port(o->candidates.items[i], j);
          if (tree_ident(p) == ident) {
-            type_set_add(o->nametab, tree_type(p), o->candidates.items[i]);
+            switch (tree_kind(name)) {
+            case T_RECORD_REF:
+               {
+                  type_t ptype = tree_type(p);
+                  if (!type_is_record(ptype))
+                     continue;
+
+                  const int nfields = type_fields(ptype);
+                  ident_t fname = tree_ident(name);
+                  tree_t field = NULL;
+                  for (int i = 0; i < nfields; i++) {
+                     tree_t f = type_field(ptype, i);
+                     if (tree_ident(f) == fname) {
+                        field = f;
+                        break;
+                     }
+                  }
+
+                  if (field == NULL)
+                     continue;   // Argument does not have this field name
+
+                  type_set_add(o->nametab, tree_type(field),
+                               o->candidates.items[i]);
+               }
+               break;
+            default:
+               type_set_add(o->nametab, tree_type(p), o->candidates.items[i]);
+               break;
+            }
             port = p;
             break;
          }
