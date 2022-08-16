@@ -758,6 +758,16 @@ static bool run_test(test_t *test)
       }
 
       fclose(goldf);
+
+      while (fgets(out_line, sizeof(out_line), outf)) {
+         if (strstr(out_line, "*** Caught signal") != NULL) {
+            set_attr(ANSI_FG_RED);
+            printf("failed (crashed!)\n");
+            set_attr(ANSI_RESET);
+            result = false;
+            break;
+         }
+      }
    }
 
  out_print:

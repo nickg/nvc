@@ -89,6 +89,7 @@ static void jit_oom_cb(mspace_t *m, size_t size)
              heapsize, MAX(1, (heapsize * 2) / 1024 / 1024));
 
    diag_emit(d);
+   jit_abort(EXIT_FAILURE);
 }
 
 jit_t *jit_new(void)
