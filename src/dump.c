@@ -378,9 +378,13 @@ static void dump_expr(tree_t t)
       break;
 
    case T_QUALIFIED:
-      printf("%s'(", istr(type_ident(tree_type(t))));
-      dump_expr(tree_value(t));
-      printf(")");
+      if (tree_has_value(t)) {
+         printf("%s'(", istr(type_ident(tree_type(t))));
+         dump_expr(tree_value(t));
+         printf(")");
+      }
+      else
+         dump_type(tree_type(t));
       break;
 
    case T_OPEN:
