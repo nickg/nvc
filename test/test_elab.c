@@ -1196,6 +1196,17 @@ START_TEST(test_issue514)
 }
 END_TEST
 
+START_TEST(test_issue518)
+{
+   input_from_file(TESTDIR "/elab/issue518.vhd");
+
+   tree_t e = run_elab();
+   fail_if(e == NULL);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_elab_tests(void)
 {
    Suite *s = suite_create("elab");
@@ -1264,6 +1275,7 @@ Suite *get_elab_tests(void)
    tcase_add_test(tc, test_toplevel4);
    tcase_add_test(tc, test_comp4);
    tcase_add_test(tc, test_issue514);
+   tcase_add_test(tc, test_issue518);
    suite_add_tcase(s, tc);
 
    return s;
