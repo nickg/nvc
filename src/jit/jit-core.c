@@ -76,6 +76,7 @@ typedef enum {
 
 static __thread jmp_buf abort_env;
 static __thread jit_state_t thread_state = JIT_IDLE;
+static volatile __thread sig_atomic_t jmp_buf_valid = 0;
 
 static void jit_oom_cb(mspace_t *m, size_t size)
 {
@@ -750,15 +751,13 @@ void jit_abort(int code)
 {
    switch (thread_state) {
    case JIT_IDLE:
-      fatal_trace("jit_abort called when not executing");
-      break;
+      DEBUG_ONLY(fatal_trace("jit_abort called when not executing"));
    case JIT_NATIVE:
       assert(code >= 0);
-#ifdef __MINGW32__
-      fatal_exit(code);
-#else
-      longjmp(abort_env, code + 1);
-#endif
+      if (jmp_buf_valid)
+         longjmp(abort_env, code + 1);
+      else
+         fatal_exit(code);
       break;
    case JIT_INTERP:
       jit_interp_abort();
@@ -769,10 +768,14 @@ void jit_abort(int code)
 int jit_with_abort_handler(void (*fn)(void *), void *arg)
 {
    int rc = setjmp(abort_env);
+   jmp_buf_valid = 1;
    if (rc == 0) {
       (*fn)(arg);
+      jmp_buf_valid = 0;
       return 0;
    }
-   else
+   else {
+      jmp_buf_valid = 0;
       return rc - 1;  // jit_abort adds 1 to exit code
+   }
 }

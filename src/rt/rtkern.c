@@ -3510,8 +3510,13 @@ static void rt_interrupt(void)
       jit_msg(NULL, DIAG_FATAL,
               "interrupted in process %s at %s+%d",
               istr(active_proc->name), fmt_time(now), iteration);
-   else
-      fatal("interrupted");
+   else {
+      diag_t *d = diag_new(DIAG_FATAL, NULL);
+      diag_printf(d, "interrupted at %s+%d", fmt_time(now), iteration);
+      diag_emit(d);
+
+      force_stop = true;
+   }
 #endif
 }
 
