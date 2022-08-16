@@ -311,7 +311,7 @@ static tree_t simp_ref(tree_t t, simp_ctx_t *ctx)
             case T_RECORD_REF:
             case T_OPEN:
             case T_QUALIFIED:
-               // Fall-through
+            case T_TYPE_CONV:
             case T_ATTR_REF:
             case T_REF:
             case T_TYPE_REF:
