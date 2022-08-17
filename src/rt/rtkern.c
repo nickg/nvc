@@ -3070,18 +3070,21 @@ static void rt_iteration_limit(void)
 {
    diag_t *d = diag_new(DIAG_FATAL, NULL);
 
-   diag_printf(d, "iteration limit of %d delta cycles reached",
+   diag_printf(d, "limit of %d delta cycles reached",
                opt_get_int(OPT_STOP_DELTA));
 
-   for (sens_list_t *it = resume; it != NULL; it = it->next) {
-      if (it->wake->kind == W_PROC) {
-         rt_proc_t *proc = container_of(it->wake, rt_proc_t, wakeable);
-         const loc_t *l = tree_loc(proc->where);
-         diag_hint(d, l, "process %s is active", istr(proc->name));
-      }
+   for (event_t *e = delta_proc; e != NULL; e = e->delta_chain) {
+      const loc_t *l = tree_loc(e->proc.proc->where);
+      diag_hint(d, l, "process %s is active", istr(e->proc.proc->name));
    }
 
-   diag_hint(d, NULL, "You can increase this limit with $bold$--stop-delta$$");
+   for (event_t *e = delta_driver; e != NULL; e = e->delta_chain) {
+      tree_t decl = e->driver.nexus->signal->where;
+      diag_hint(d, tree_loc(decl), "driver for signal %s is active",
+                istr(tree_ident(decl)));
+   }
+
+   diag_hint(d, NULL, "you can increase this limit with $bold$--stop-delta$$");
 
    diag_emit(d);
    fatal_exit(EXIT_FAILURE);
