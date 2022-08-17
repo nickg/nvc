@@ -1002,6 +1002,10 @@ static void dump_stmt(tree_t t, int indent)
             dump_expr(tree_trigger(t, i));
          }
       }
+      if (tree_has_value(t)) {
+         syntax(" #until ");
+         dump_expr(tree_value(t));
+      }
       if (tree_has_delay(t)) {
          syntax(" #for ");
          dump_expr(tree_delay(t));
