@@ -946,7 +946,6 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
       break;
 
    case T_WAVEFORM:
-   case T_RECORD_REF:
    case T_QUALIFIED:
    case T_TYPE_CONV:
    case T_ASSERT:
@@ -956,6 +955,7 @@ static void simp_build_wait(tree_t wait, tree_t expr, bool all)
 
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:
+   case T_RECORD_REF:
       {
          tree_t ref = name_to_ref(expr);
          if (ref != NULL && class_of(ref) == C_SIGNAL) {
