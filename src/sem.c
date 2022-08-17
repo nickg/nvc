@@ -3345,11 +3345,17 @@ static bool sem_check_valid_implicit_signal(tree_t t, nametab_t *tab)
 
 static bool sem_check_signal_attr(tree_t t)
 {
-   if (class_of(tree_name(t)) != C_SIGNAL)
-      sem_error(t, "prefix of attribute %s must denote a signal",
-                istr(tree_ident(t)));
+   tree_t name = tree_name(t);
 
-   return true;
+   if (tree_kind(name) == T_ATTR_REF)
+      return sem_check_signal_attr(name);
+
+   tree_t ref = name_to_ref(name);
+   if (ref != NULL && class_of(ref) == C_SIGNAL)
+      return true;
+
+   sem_error(t, "prefix of attribute %s must denote a signal",
+             istr(tree_ident(t)));
 }
 
 static bool sem_check_driving(tree_t t)
