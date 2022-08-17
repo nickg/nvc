@@ -653,3 +653,4 @@ issue521        fail,gold
 issue552        normal,2008
 stdenv2         normal,2019
 driver14        normal
+issue516        normal

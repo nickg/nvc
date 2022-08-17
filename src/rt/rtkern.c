@@ -265,12 +265,18 @@ typedef enum {
    SCOPE_SIGNAL,
 } rt_scope_kind_t;
 
+typedef enum {
+   SCOPE_F_RESOLVED = (1 << 0)
+} rt_scope_flags_t;
+
 typedef struct rt_scope_s {
    rt_signal_t     *signals;
    rt_proc_t       *procs;
    rt_alias_t      *aliases;
    rt_scope_kind_t  kind;
+   rt_scope_flags_t flags;
    unsigned         size;   // For signal scopes
+   unsigned         offset;
    ident_t          name;
    tree_t           where;
    mptr_t           privdata;
@@ -920,7 +926,7 @@ static void rt_copy_sub_signals(rt_scope_t *scope, void *buf, value_fn_t fn)
       rt_copy_sub_signals(s, buf, fn);
 }
 
-static void rt_copy_sub_signal_sources(rt_scope_t *scope, void *buf)
+static void rt_copy_sub_signal_sources(rt_scope_t *scope, void *buf, int stride)
 {
    assert(scope->kind == SCOPE_SIGNAL);
 
@@ -933,14 +939,14 @@ static void rt_copy_sub_signal_sources(rt_scope_t *scope, void *buf)
             if (data == NULL)
                continue;
 
-            memcpy(buf + s->shared.offset + (o++ * scope->size),
+            memcpy(buf + s->shared.offset + (o++ * stride),
                    data, n->size * n->width);
          }
       }
    }
 
    for (rt_scope_t *s = scope->child; s != NULL; s = s->chain)
-      rt_copy_sub_signal_sources(s, buf);
+      rt_copy_sub_signal_sources(s, buf, stride);
 }
 
 static void *rt_composite_signal(rt_signal_t *signal, size_t *psz, value_fn_t fn)
@@ -1240,6 +1246,10 @@ void __nvc_push_scope(DEBUG_LOCUS(locus), int32_t size)
    s->size     = size;
    s->privdata = mptr_new(mspace, "push scope privdata");
 
+   type_t type = tree_type(where);
+   if (type_kind(type) == T_SUBTYPE && type_has_resolution(type))
+      s->flags |= SCOPE_F_RESOLVED;
+
    active_scope->child = s;
    active_scope = s;
 
@@ -1253,6 +1263,13 @@ void __nvc_pop_scope(void)
 
    if (unlikely(active_scope->kind != SCOPE_SIGNAL))
       fatal_trace("cannot pop non-signal scope");
+
+   int offset = INT_MAX;
+   for (rt_scope_t *s = active_scope->child; s; s = s->chain)
+      offset = MIN(offset, s->offset);
+   for (rt_signal_t *s = active_scope->signals; s; s = s->chain)
+      offset = MIN(offset, s->shared.offset);
+   active_scope->offset = offset;
 
    active_scope = active_scope->parent;
 
@@ -2504,14 +2521,17 @@ static void *rt_call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
    else if (r->flags & R_COMPOSITE) {
       // Call resolution function of composite type
 
-      rt_scope_t *scope = nexus->signal->parent;
-      while (scope->parent->kind == SCOPE_SIGNAL)
+      rt_scope_t *scope = nexus->signal->parent, *rscope = scope;
+      while (scope->parent->kind == SCOPE_SIGNAL) {
          scope = scope->parent;
+         if (scope->flags & SCOPE_F_RESOLVED)
+            rscope = scope;
+      }
 
       TRACE("resolved composite signal needs %d bytes", scope->size);
 
       uint8_t *inputs = rt_tlab_alloc(nonnull * scope->size);
-      rt_copy_sub_signal_sources(scope, inputs);
+      rt_copy_sub_signal_sources(scope, inputs, scope->size);
 
       void *resolved;
       ffi_uarray_t u = { inputs, { { r->ileft, nonnull } } };
@@ -2519,7 +2539,7 @@ static void *rt_call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
 
       const ptrdiff_t noff =
          nexus->resolved - (void *)nexus->signal->shared.data;
-      return resolved + nexus->signal->shared.offset + noff;
+      return resolved + nexus->signal->shared.offset + noff - rscope->offset;
    }
    else {
       void *resolved = rt_tlab_alloc(nexus->width * nexus->size);
