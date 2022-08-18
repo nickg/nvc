@@ -21,11 +21,15 @@
 #include "rt/ffi.h"
 #include "rt/rt.h"
 
+#include <errno.h>
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <time.h>
+#include <unistd.h>
 
 typedef struct {
    int32_t microsecond;
@@ -38,6 +42,50 @@ typedef struct {
    int8_t  weekday;
    int32_t dayofyear;
 } time_record_t;
+
+typedef enum {
+   DIR_OPEN_STATUS_OK = 0,
+   DIR_OPEN_STATUS_NOT_FOUND = 1,
+   DIR_OPEN_STATUS_NO_DIRECTORY = 2,
+   DIR_OPEN_STATUS_ACCESS_DENIED = 3,
+   DIR_OPEN_STATUS_ERROR = 4
+} dir_open_status_t;
+
+typedef enum {
+   DIR_CREATE_STATUS_OK = 0,
+   DIR_CREATE_STATUS_ITEM_EXISTS = 1,
+   DIR_CREATE_STATUS_ACCESS_DENIED = 2,
+   DIR_CREATE_STATUS_ERROR = 3
+} dir_create_status_t;
+
+static void copy_str(const char *str, ffi_uarray_t *u)
+{
+   const size_t len = strlen(str);
+   char *buf = rt_tlab_alloc(len);
+   memcpy(buf, str, len);
+   *u = ffi_wrap_str(buf, len);
+}
+
+static int8_t errno_to_dir_open_status(void)
+{
+   switch (errno) {
+   case 0: return DIR_OPEN_STATUS_OK;
+   case ENOENT: return DIR_OPEN_STATUS_NOT_FOUND;
+   case ENOTDIR: return DIR_OPEN_STATUS_NO_DIRECTORY;
+   case EACCES: return DIR_OPEN_STATUS_ACCESS_DENIED;
+   default: return DIR_OPEN_STATUS_ERROR;
+   }
+}
+
+static int8_t errno_to_dir_create_status(void)
+{
+   switch (errno) {
+   case 0: return DIR_CREATE_STATUS_OK;
+   case EEXIST: return DIR_CREATE_STATUS_ITEM_EXISTS;
+   case EACCES: return DIR_CREATE_STATUS_ACCESS_DENIED;
+   default: return DIR_CREATE_STATUS_ERROR;
+   }
+}
 
 DLLEXPORT
 void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
@@ -61,12 +109,8 @@ void _std_env_getenv(EXPLODED_UARRAY(name), ffi_uarray_t *u)
 
    if (env == NULL)
       *u = ffi_wrap_str(NULL, 0);
-   else {
-      const size_t len = strlen(env);
-      char *buf = rt_tlab_alloc(len);
-      memcpy(buf, env, len);
-      *u = ffi_wrap_str(buf, len);
-   }
+   else
+      copy_str(env, u);
 }
 
 DLLEXPORT
@@ -136,6 +180,48 @@ void _std_env_gmtime(double time, time_record_t *tr)
 #endif
 
    to_time_record(&tm, (int)(1e6 * (time - fsecs)), tr);
+}
+
+DLLEXPORT
+void _std_env_get_workingdir(ffi_uarray_t *u)
+{
+   char buf[PATH_MAX];
+   if (getcwd(buf, sizeof(buf)) == NULL)
+      jit_msg(NULL, DIAG_FATAL, "getcwd failed: %s", strerror(errno));
+
+   copy_str(buf, u);
+}
+
+DLLEXPORT
+void _std_env_set_workingdir(EXPLODED_UARRAY(dir), int8_t *status)
+{
+   const size_t len = abs(dir_length);
+   char *cstr LOCAL = xmalloc(len + 1);
+   memcpy(cstr, dir_ptr, len);
+   cstr[len] = '\0';
+
+   if (chdir(cstr) == -1)
+      *status = errno_to_dir_open_status();
+   else
+      *status = DIR_OPEN_STATUS_OK;
+}
+
+DLLEXPORT
+void _std_env_createdir(EXPLODED_UARRAY(path), int8_t parents, int8_t *status)
+{
+   const size_t len = abs(path_length);
+   char *cstr LOCAL = xmalloc(len + 1);
+   memcpy(cstr, path_ptr, len);
+   cstr[len] = '\0';
+
+#ifdef __MINGW32__
+   if (mkdir(cstr) == -1)
+#else
+   if (mkdir(cstr, 0777) == -1)
+#endif
+      *status = errno_to_dir_create_status();
+   else
+      *status = DIR_CREATE_STATUS_OK;
 }
 
 void _std_env_init(void)

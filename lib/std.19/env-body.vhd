@@ -254,39 +254,56 @@ package body env is
 
     procedure dir_workingdir (path   : in string;
                               status : out dir_open_status) is
+        procedure impl (path   : in string;
+                        status : out dir_open_status);
+        attribute foreign of impl : procedure is "_std_env_set_workingdir";
     begin
-        report "not implemented" severity failure;
+        impl(path, status);
     end procedure;
 
     impure function dir_workingdir (path : in string)
-        return dir_open_status is
+        return dir_open_status
+    is
+        variable status : dir_open_status;
     begin
-        report "not implemented" severity failure;
+        dir_workingdir(path, status);
+        return status;
     end function;
 
     impure function dir_workingdir return string is
+        impure function impl return string;
+        attribute foreign of impl : function is "_std_env_get_workingdir";
     begin
-        report "not implemented" severity failure;
+        return impl;
     end function;
 
     procedure dir_createdir (path   : in string;
                              status : out dir_create_status) is
     begin
-        report "not implemented" severity failure;
+        dir_createdir(path, false, status);
     end procedure;
 
     procedure dir_createdir (path    : in string;
                              parents : in boolean;
                              status  : out dir_create_status) is
+        procedure impl (path    : in string;
+                        parents : in boolean;
+                        status  : out dir_create_status);
+        attribute foreign of impl : procedure is "_std_env_createdir";
     begin
-        report "not implemented" severity failure;
+        assert not parents report "PARENTS flag not supported"
+            severity failure;
+        impl(path, parents, status);
     end procedure;
 
     impure function dir_createdir (path    : in string;
                                    parents : in boolean := false)
-        return dir_create_status is
+        return dir_create_status
+    is
+        variable status : dir_create_status;
     begin
-        report "not implemented" severity failure;
+        dir_createdir(path, parents, status);
+        return status;
     end function;
 
     procedure dir_deletedir (path   : in string;
