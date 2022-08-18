@@ -2595,12 +2595,13 @@ static vcode_reg_t lower_external_name(tree_t ref, expr_ctx_t ctx)
    vcode_reg_t context = emit_link_instance(path, locus);
 
    tree_t decl = tree_ref(ref);
+   type_t type = tree_type(decl);
    vcode_type_t vtype = lower_var_type(decl);
 
    vcode_reg_t ptr_reg = emit_link_var(context, tree_ident(decl), vtype);
    if (lower_have_uarray_ptr(ptr_reg))
       return emit_load_indirect(ptr_reg);
-   else if (tree_class(ref) == C_SIGNAL)
+   else if (tree_class(ref) == C_SIGNAL && type_is_homogeneous(type))
       return emit_load_indirect(ptr_reg);
    else
       return ptr_reg;
@@ -5190,6 +5191,18 @@ static void lower_signal_assign(tree_t stmt)
    }
 }
 
+static void lower_force_field_cb(type_t type, vcode_reg_t ptr,
+                                 vcode_reg_t value, void *__ctx)
+{
+   if (type_is_homogeneous(type)) {
+      vcode_reg_t nets_reg = emit_load_indirect(ptr);
+      vcode_reg_t count_reg = lower_type_width(type, nets_reg);
+      emit_force(lower_array_data(nets_reg), count_reg, value);
+   }
+   else
+      lower_for_each_field(type, ptr, value, lower_force_field_cb, NULL);
+}
+
 static void lower_force(tree_t stmt)
 {
    tree_t target = tree_target(stmt);
@@ -5205,9 +5218,8 @@ static void lower_force(tree_t stmt)
       vcode_reg_t data_reg = lower_array_data(value_reg);
       emit_force(lower_array_data(nets), count_reg, data_reg);
    }
-   else if (type_is_record(type)) {
-      assert(false);
-   }
+   else if (type_is_record(type))
+      lower_for_each_field(type, nets, value_reg, lower_force_field_cb, NULL);
    else
       emit_force(nets, emit_const(vtype_offset(), 1), value_reg);
 }

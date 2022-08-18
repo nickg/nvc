@@ -6,6 +6,11 @@
 - Fixed error with expressions like `X'ELEMENT'LENGTH` (#508).
 - Added support for FreeBSD/i386.
 - Fixed crash reading resolved value of record signal (#502).
+- Improved folding of for-generate expressions (#514).
+- Fixed memory leak when forcing signals.
+- Fixed crash with type conversion in generic map (#518).
+- Fixed crash with expressions like `X'DELAYED'STABLE` (#517).
+- External names now work with record signals (#520).
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a
