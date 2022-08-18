@@ -650,3 +650,4 @@ issue508        normal,2008
 record37        normal
 func21          normal
 issue521        fail,gold
+issue552        normal,2008
