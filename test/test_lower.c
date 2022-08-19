@@ -4786,6 +4786,31 @@ START_TEST(test_genpack1)
 }
 END_TEST
 
+START_TEST(test_predef1)
+{
+   input_from_file(TESTDIR "/lower/predef1.vhd");
+
+   tree_t e = run_elab();
+   lower_unit(e, NULL);
+
+   vcode_unit_t vu = find_unit("WORK.PREDEF1.F(III)I");
+   vcode_select_unit(vu);
+
+   // The type declaration creates nested subprograms
+   EXPECT_BB(0) = {
+      { VCODE_OP_STORE, .name = "A_WIDTH" },
+      { VCODE_OP_STORE, .name = "B_WIDTH" },
+      { VCODE_OP_STORE, .name = "DEPTH" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(0);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_lower_tests(void)
 {
    Suite *s = suite_create("lower");
@@ -4897,6 +4922,7 @@ Suite *get_lower_tests(void)
    tcase_add_test(tc, test_issue476);
    tcase_add_test(tc, test_issue478);
    tcase_add_test(tc, test_genpack1);
+   tcase_add_test(tc, test_predef1);
    suite_add_tcase(s, tc);
 
    return s;
