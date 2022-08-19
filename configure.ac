@@ -237,11 +237,7 @@ AC_SUBST(VHPI_LDFLAGS)
 AC_ARG_ENABLE([vital],
   [AS_HELP_STRING([--enable-vital], [Build VITAL packages])],
   [enable_vital=$enableval],
-  [ # Analysing VITAL_MEMORY-body crashes on Windows for some reason
-    case $host_os in
-      *cygwin*|msys*|mingw32*) enable_vital=no ;;
-      *) enable_vital=yes ;;
-    esac])
+  [enable_vital=yes])
 
 AM_CONDITIONAL([ENABLE_VITAL], [test x$enable_vital = xyes])
 
