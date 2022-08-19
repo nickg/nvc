@@ -7427,9 +7427,7 @@ static bool lower_has_subprograms(tree_t scope)
          // Predefined operators for certain types may reference the
          // parameters: e.g. an array with non-static length
          type_t type = tree_type(d);
-         if (type_kind(type) == T_SUBTYPE)
-            continue;
-         else if (type_is_record(type) || type_is_array(type))
+         if (type_is_record(type) || type_is_array(type))
             return true;
       }
    }
