@@ -8,6 +8,8 @@
 - The new `--no-save` elaboration option skips saving the elaborated
   design and other generated files to the working library.
 - Added support for `else` and `elsif` in generate statements (#510).
+- Xilinx Vivado vendor libraries can now be compiled with `nvc --install
+  vivado`.
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a

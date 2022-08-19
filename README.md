@@ -193,7 +193,7 @@ simulation libraries of common FPGA vendors.
 * For [OSVVM](https://osvvm.org/) use `nvc --install osvvm`
 * For [UVVM](https://www.uvvm.org/) use `nvc --install uvvm`
 * For Xilinx ISE use `./tools/build-xilinx-ise.rb`
-* For Xilinx Vivado use `./tools/build-xilinx-vivado.rb`
+* For Xilinx Vivado use `nvc --install vivado`
 * For Altera Quartus use `./tools/build-altera.rb`
 * For Lattice iCEcube2 use `./tools/build-lattice.rb`
 

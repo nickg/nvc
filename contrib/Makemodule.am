@@ -1,6 +1,7 @@
 pkglibexec_SCRIPTS += \
 	contrib/functions.sh \
 	contrib/install-osvvm.sh \
-	contrib/install-uvvm.sh
+	contrib/install-uvvm.sh \
+	contrib/install-vivado.sh
 
 EXTRA_DIST += $(pkglibexec_SCRIPTS)

@@ -37,3 +37,10 @@ git_wrapper () {
   fi
   _safe cd $_cache
 }
+
+std_suffix () {
+  case "$1" in
+    1993) ;;
+    2008) echo ".08" ;;
+  esac
+}
