@@ -2505,19 +2505,17 @@ static void *rt_call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
       // Call resolution function of composite type
 
       rt_scope_t *scope = nexus->signal->parent;
-      const size_t outsz = scope->size;
       while (scope->parent->kind == SCOPE_SIGNAL)
          scope = scope->parent;
 
       TRACE("resolved composite signal needs %d bytes", scope->size);
 
-      uint8_t *inputs LOCAL = xmalloc_array(nonnull, scope->size);
-      void *resolved = rt_tlab_alloc(scope->size);
-
+      uint8_t *inputs = rt_tlab_alloc(nonnull * scope->size);
       rt_copy_sub_signal_sources(scope, inputs);
 
+      void *resolved;
       ffi_uarray_t u = { inputs, { { r->ileft, nonnull } } };
-      ffi_call(&(r->closure), &u, sizeof(u), resolved, outsz);
+      ffi_call(&(r->closure), &u, sizeof(u), &resolved, sizeof(resolved));
 
       const ptrdiff_t noff =
          nexus->resolved - (void *)nexus->signal->shared.data;

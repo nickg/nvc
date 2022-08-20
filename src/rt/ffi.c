@@ -118,9 +118,10 @@ void ffi_call(ffi_closure_t *c, const void *input, size_t insz,
    else if (c->spec.atype == FFI_UARRAY && c->spec.rtype == FFI_POINTER) {
       void *(*fn)(void *, EXPLODED_UARRAY(arg)) = c->fn;
       assert(insz == sizeof(ffi_uarray_t));
+      assert(outsz == sizeof(void *));
       const ffi_uarray_t *u = input;
-      void *r = (*fn)(c->context, u->ptr, u->dims[0].left, u->dims[0].length);
-      memcpy(output, r, outsz);
+      *(void **)output =
+         (*fn)(c->context, u->ptr, u->dims[0].left, u->dims[0].length);
    }
    else
       fatal_trace("unhandled FFI function argument combination");
