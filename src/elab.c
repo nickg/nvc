@@ -129,10 +129,8 @@ static void elab_find_arch_cb(lib_t lib, ident_t name, int kind, void *context)
    ident_t prefix = ident_until(name, '-');
 
    if ((kind == T_ARCH) && (prefix == params->name)) {
-      bool error;
-      tree_t t = lib_get_check_stale(params->lib, name, &error);
+      tree_t t = lib_get(params->lib, name);
       assert(t != NULL);
-      assert(!error);
 
       if (*(params->tree) == NULL)
          *(params->tree) = t;
@@ -530,11 +528,8 @@ static void elab_find_entity_cb(lib_t lib, ident_t name, int kind, void *__ctx)
 {
    lib_search_params_t *params = __ctx;
 
-   if (kind == T_ENTITY && params->name == name) {
-      bool error;
-      *(params->tree) = lib_get_check_stale(params->lib, name, &error);
-      assert(!error);
-   }
+   if (kind == T_ENTITY && params->name == name)
+      *(params->tree) = lib_get(params->lib, name);
 }
 
 static bool elab_synth_binding_cb(lib_t lib, void *__ctx)

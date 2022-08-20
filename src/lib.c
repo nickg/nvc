@@ -805,12 +805,11 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    if (d == NULL)
       fatal("%s: %s", lib->path, strerror(errno));
 
-   lib_unit_t *unit = NULL;
    const char *search = istr(ident);
    struct dirent *e;
    while ((e = readdir(d))) {
       if (strcmp(e->d_name, search) == 0) {
-         unit = lib_read_unit(lib, e->d_name);
+         lu = lib_read_unit(lib, e->d_name);
          break;
       }
    }
@@ -818,11 +817,30 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    closedir(d);
    file_unlock(lib->lock_fd);
 
-   if (unit == NULL && lib_find_in_index(lib, ident) != NULL)
+   if (lu == NULL && lib_find_in_index(lib, ident) != NULL)
       fatal("library %s corrupt: unit %s present in index but missing "
             "on disk", istr(lib->name), istr(ident));
 
-   return unit;
+   if (lu != NULL && !opt_get_int(OPT_IGNORE_TIME)) {
+      const loc_t *loc = tree_loc(lu->top);
+
+      bool stale = false;
+      struct stat st;
+      if (stat(loc_file_str(loc), &st) == 0)
+         stale = (lu->mtime < lib_stat_mtime(&st));
+
+      if (stale) {
+         diag_t *d = diag_new(DIAG_WARN, NULL);
+         diag_printf(d, "design unit %s is older than its source file "
+                     "%s and should be reanalysed",
+                     istr(ident), loc_file_str(loc));
+         diag_hint(d, NULL, "you can use the $bold$--ignore-time$$ option "
+                   "to skip this check");
+         diag_emit(d);
+      }
+   }
+
+   return lu;
 }
 
 static void lib_ensure_writable(lib_t lib)
@@ -854,36 +872,21 @@ bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt)
 tree_t lib_get(lib_t lib, ident_t ident)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
-   if (lu != NULL)
-      return lu->top;
+   if (lu != NULL) {
+      if (lu->error)
+         fatal_at(tree_loc(lu->top), "design unit %s was analysed with errors",
+                  istr(tree_ident(lu->top)));
+      else
+         return lu->top;
+   }
    else
       return NULL;
 }
 
-tree_t lib_get_check_stale(lib_t lib, ident_t ident, bool *error)
+tree_t lib_get_allow_error(lib_t lib, ident_t ident, bool *error)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
-      if (!opt_get_int(OPT_IGNORE_TIME)) {
-         const loc_t *loc = tree_loc(lu->top);
-
-         bool stale = false;
-         struct stat st;
-         if (stat(loc_file_str(loc), &st) == 0)
-            stale = (lu->mtime < lib_stat_mtime(&st));
-
-         if (stale) {
-            diag_t *d = diag_new(DIAG_FATAL, NULL);
-            diag_printf(d, "design unit %s is older than its source file "
-                        "%s and must be reanalysed",
-                        istr(ident), loc_file_str(loc));
-            diag_hint(d, NULL, "you can use the $bold$--ignore-time$$ option "
-                      "to skip this check");
-            diag_emit(d);
-            fatal_exit(EXIT_FAILURE);
-         }
-      }
-
       *error = lu->error;
       return lu->top;
    }
@@ -903,10 +906,7 @@ tree_t lib_get_qualified(ident_t qual)
    if (lib == NULL)
       return NULL;
 
-   bool error;
-   tree_t unit = lib_get_check_stale(lib, qual, &error);
-   assert(!error);
-   return unit;
+   return lib_get(lib, qual);
 }
 
 ident_t lib_name(lib_t lib)
