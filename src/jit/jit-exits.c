@@ -27,6 +27,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
+#include <float.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -391,6 +392,18 @@ ffi_uarray_t x_canon_value(const uint8_t *raw_str, int32_t str_len, char *buf)
    return ffi_wrap_str(buf, p - buf);
 }
 
+ffi_uarray_t x_int_to_string(int64_t value, char *buf, size_t max)
+{
+   size_t len = checked_sprintf(buf, max, "%"PRIi64, value);
+   return ffi_wrap_str(buf, len);
+}
+
+ffi_uarray_t x_real_to_string(double value, char *buf, size_t max)
+{
+   size_t len = checked_sprintf(buf, max, "%.*g", DBL_DIG, value);
+   return ffi_wrap_str(buf, len);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
 
@@ -524,4 +537,18 @@ void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
 {
    char *buf = rt_tlab_alloc(str_len);
    *u = x_canon_value(raw_str, str_len, buf);
+}
+
+DLLEXPORT
+void _int_to_string(int64_t value, ffi_uarray_t *u)
+{
+   char *buf = rt_tlab_alloc(20);
+   *u = x_int_to_string(value, buf, 20);
+}
+
+DLLEXPORT
+void _real_to_string(double value, ffi_uarray_t *u)
+{
+   char *buf = rt_tlab_alloc(32);
+   *u = x_real_to_string(value, buf, 32);
 }

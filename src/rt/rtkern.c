@@ -1589,24 +1589,6 @@ void *__nvc_mspace_alloc(uint32_t size, uint32_t nelems)
       return mspace_alloc(mspace, total);
 }
 
-DLLEXPORT
-void _int_to_string(int64_t value, ffi_uarray_t *u)
-{
-   char *buf = rt_tlab_alloc(20);
-   size_t len = checked_sprintf(buf, 20, "%"PRIi64, value);
-
-   *u = ffi_wrap_str(buf, len);
-}
-
-DLLEXPORT
-void _real_to_string(double value, ffi_uarray_t *u)
-{
-   char *buf = rt_tlab_alloc(32);
-   size_t len = checked_sprintf(buf, 32, "%.*g", DBL_DIG, value);
-
-   *u = ffi_wrap_str(buf, len);
-}
-
 int64_t x_now(void)
 {
    return now;

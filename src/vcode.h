@@ -151,6 +151,7 @@ typedef enum {
    VCODE_OP_PACKAGE_INIT,
    VCODE_OP_STRCONV,
    VCODE_OP_CANON_VALUE,
+   VCODE_OP_CONVSTR,
 } vcode_op_t;
 
 typedef enum {
@@ -500,5 +501,6 @@ void emit_unreachable(vcode_reg_t locus);
 vcode_reg_t emit_strconv(vcode_reg_t ptr, vcode_reg_t len, vcode_reg_t used_ptr,
                          vcode_type_t type);
 vcode_reg_t emit_canon_value(vcode_reg_t ptr, vcode_reg_t len);
+vcode_reg_t emit_convstr(vcode_reg_t value);
 
 #endif  // _VCODE_H

@@ -29,11 +29,9 @@
   _driving_value;
   _implicit_signal;
   _init_signal;
-  _int_to_string;
   _last_active;
   _last_event;
   _link_signal;
-  _real_to_string;
   _sched_event;
   _sched_process;
   _sched_waveform;
@@ -80,6 +78,8 @@
   _file_open;
   _file_read;
   _file_write;
+  _int_to_string;
+  _real_to_string;
   _string_to_int;
   _string_to_real;
 

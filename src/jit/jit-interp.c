@@ -875,34 +875,6 @@ static void interp_assert_fail(jit_interp_t *state)
       state->abort = true;
 }
 
-static void interp_int_to_string(jit_interp_t *state)
-{
-   int64_t value = state->args[0].integer;
-
-   char *buf = mspace_alloc(state->mspace, 20);
-   size_t len = checked_sprintf(buf, 20, "%"PRIi64, value);
-
-   state->args[0].pointer = buf;
-   state->args[1].integer = 1;
-   state->args[2].integer = len;
-
-   state->nargs = MAX(state->nargs, 3);
-}
-
-static void interp_real_to_string(jit_interp_t *state)
-{
-   double value = state->args[0].real;
-
-   char *buf = mspace_alloc(state->mspace, 32);
-   size_t len = checked_sprintf(buf, 32, "%.*g", 17, value);
-
-   state->args[0].pointer = buf;
-   state->args[1].integer = 1;
-   state->args[2].integer = len;
-
-   state->nargs = MAX(state->nargs, 3);
-}
-
 static void interp_scalar_init_signal(jit_interp_t *state)
 {
    int32_t count  = state->args[0].integer;
@@ -1095,6 +1067,36 @@ static void interp_string_to_real(jit_interp_t *state)
 
    state->args[0].real = x_string_to_real(ptr, len);
    state->nargs = 1;
+}
+
+static void interp_int_to_string(jit_interp_t *state)
+{
+   int64_t value = state->args[0].integer;
+
+   char *buf = mspace_alloc(state->mspace, 20);
+   if (buf == NULL)
+      return;
+
+   ffi_uarray_t u = x_int_to_string(value, buf, 20);
+   state->args[0].pointer = u.ptr;
+   state->args[1].integer = u.dims[0].left;
+   state->args[2].integer = u.dims[0].length;
+   state->nargs = 3;
+}
+
+static void interp_real_to_string(jit_interp_t *state)
+{
+   double value = state->args[0].real;
+
+   char *buf = mspace_alloc(state->mspace, 32);
+   if (buf == NULL)
+      return;
+
+   ffi_uarray_t u = x_real_to_string(value, buf, 32);
+   state->args[0].pointer = u.ptr;
+   state->args[1].integer = u.dims[0].left;
+   state->args[2].integer = u.dims[0].length;
+   state->nargs = 3;
 }
 
 static void interp_canon_value(jit_interp_t *state)

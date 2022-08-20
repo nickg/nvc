@@ -3414,6 +3414,33 @@ static void cgen_op_strconv(int op, cgen_ctx_t *ctx)
    }
 }
 
+static void cgen_op_convstr(int op, cgen_ctx_t *ctx)
+{
+   LLVMTypeRef utype = llvm_uarray_type(llvm_int8_type(), 1);
+   LLVMValueRef uresult = cgen_scoped_alloca(utype, ctx);
+
+   LLVMValueRef fn = NULL, value = NULL;
+   switch (vcode_reg_kind(vcode_get_arg(op, 0))) {
+   case VCODE_TYPE_INT:
+      fn = llvm_fn("_int_to_string");
+      value = cgen_sign_extend(op, 0, 64, ctx);
+      break;
+   case VCODE_TYPE_REAL:
+      fn = llvm_fn("_real_to_string");
+      value = cgen_get_arg(op, 0, ctx);
+      break;
+   default:
+      vcode_dump_with_mark(op, NULL, NULL);
+      fatal_trace("invalid type in convstr");
+   }
+
+   LLVMValueRef args[] = { value, uresult };
+   LLVMBuildCall(builder, fn, args, ARRAY_LEN(args), "");
+
+   ctx->regs[vcode_get_result(op)] = LLVMBuildLoad(builder, uresult, "");
+   llvm_lifetime_end(uresult, utype);
+}
+
 static void cgen_op_canon_value(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef ptr = cgen_get_arg(op, 0, ctx);
@@ -3766,6 +3793,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_STRCONV:
       cgen_op_strconv(i, ctx);
+      break;
+   case VCODE_OP_CONVSTR:
+      cgen_op_convstr(i, ctx);
       break;
    case VCODE_OP_CANON_VALUE:
       cgen_op_canon_value(i, ctx);
@@ -5110,6 +5140,24 @@ static LLVMValueRef cgen_support_fn(const char *name)
       };
       fn = LLVMAddFunction(module, "_string_to_real",
                            LLVMFunctionType(llvm_double_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_int_to_string") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_int64_type(),
+         LLVMPointerType(llvm_uarray_type(llvm_int8_type(), 1), 0),
+      };
+      fn = LLVMAddFunction(module, "_int_to_string",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_real_to_string") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_double_type(),
+         LLVMPointerType(llvm_uarray_type(llvm_int8_type(), 1), 0),
+      };
+      fn = LLVMAddFunction(module, "_real_to_string",
+                           LLVMFunctionType(llvm_void_type(),
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_canon_value") == 0) {

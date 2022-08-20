@@ -6784,14 +6784,8 @@ static void lower_enum_image_helper(type_t type, vcode_reg_t preg)
 
 static void lower_physical_image_helper(type_t type, vcode_reg_t preg)
 {
-   vcode_type_t vchar = vtype_char();
-   vcode_type_t strtype = vtype_uarray(1, vchar, vchar);
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-
-   vcode_reg_t args[] = { emit_cast(vint64, vint64, preg) };
-   vcode_reg_t num_reg = emit_fcall(ident_new("_int_to_string"),
-                                    strtype, strtype, VCODE_CC_FOREIGN,
-                                    args, 1);
+   vcode_reg_t num_reg = emit_convstr(emit_cast(vint64, vint64, preg));
    vcode_reg_t num_len = emit_uarray_len(num_reg, 0);
 
    const char *unit0 = istr(ident_downcase(tree_ident(type_unit(type, 0))));
@@ -6823,23 +6817,8 @@ static void lower_physical_image_helper(type_t type, vcode_reg_t preg)
 
 static void lower_numeric_image_helper(type_t type, vcode_reg_t preg)
 {
-   vcode_type_t vchar = vtype_char();
-   vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-   vcode_type_t strtype = vtype_uarray(1, vchar, vchar);
-
-   vcode_reg_t result;
-   if (type_is_real(type)) {
-      vcode_reg_t args[] = { preg };
-      result = emit_fcall(ident_new("_real_to_string"),
-                          strtype, strtype, VCODE_CC_FOREIGN, args, 1);
-   }
-   else {
-      vcode_reg_t args[] = { emit_cast(vint64, vint64, preg) };
-      result = emit_fcall(ident_new("_int_to_string"),
-                          strtype, strtype, VCODE_CC_FOREIGN, args, 1);
-   }
-
-   emit_return(result);
+   vcode_reg_t str_reg = emit_convstr(preg);
+   emit_return(str_reg);
 }
 
 static void lower_image_helper(tree_t decl)

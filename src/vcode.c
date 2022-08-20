@@ -398,6 +398,10 @@ void vcode_heap_allocate(vcode_reg_t reg)
       // Returns a pointer into the C heap
       break;
 
+   case VCODE_OP_CONVSTR:
+      // Runtime code allocates in mspace
+      break;
+
    case VCODE_OP_LOAD:
       {
          if (vcode_reg_kind(reg) != VCODE_TYPE_UARRAY)
@@ -926,7 +930,7 @@ const char *vcode_op_string(vcode_op_t op)
       "exponent check", "zero check", "map const", "resolve signal",
       "push scope", "pop scope", "alias signal", "trap add",
       "trap sub", "trap mul", "force", "release", "link instance",
-      "unreachable", "package init", "strconv", "canon value"
+      "unreachable", "package init", "strconv", "canon value", "convstr",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1605,6 +1609,7 @@ void vcode_dump_with_mark(int mark_op, vcode_dump_fn_t callback, void *arg)
             break;
 
          case VCODE_OP_NOT:
+         case VCODE_OP_CONVSTR:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
@@ -5481,6 +5486,23 @@ vcode_reg_t emit_strconv(vcode_reg_t ptr, vcode_reg_t len, vcode_reg_t used_ptr,
    VCODE_ASSERT(vtype_is_scalar(type), "strconv result must be scalar");
 
    return (op->result = vcode_add_reg(type));
+}
+
+vcode_reg_t emit_convstr(vcode_reg_t value)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONVSTR) {
+      if (other->args.items[0] == value)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_CONVSTR);
+   vcode_add_arg(op, value);
+
+   VCODE_ASSERT(vtype_is_scalar(vcode_reg_type(value)),
+                "convstr value must be scalar");
+
+   vcode_type_t vchar = vtype_char();
+   return (op->result = vcode_add_reg(vtype_uarray(1, vchar, vchar)));
 }
 
 vcode_reg_t emit_canon_value(vcode_reg_t ptr, vcode_reg_t len)
