@@ -3379,6 +3379,56 @@ static void cgen_op_map_const(int op, cgen_ctx_t *ctx)
       llvm_lifetime_end(initval, alloca_type);
 }
 
+static void cgen_op_strconv(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef ptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef len = cgen_get_arg(op, 1, ctx);
+
+   LLVMValueRef used;
+   if (vcode_count_args(op) > 2)
+      used = cgen_get_arg(op, 2, ctx);
+   else
+      used = LLVMConstNull(LLVMPointerType(llvm_int32_type(), 0));
+
+   LLVMValueRef args[] = { ptr, len, used };
+
+   vcode_reg_t result = vcode_get_result(op);
+
+   switch (vtype_kind(vcode_get_type(op))) {
+   case VCODE_TYPE_INT:
+      {
+         LLVMValueRef i64 = LLVMBuildCall(builder, llvm_fn("_string_to_int"),
+                                          args, ARRAY_LEN(args), "");
+         ctx->regs[result] = LLVMBuildTrunc(builder, i64,
+                                            cgen_type(vcode_reg_type(result)),
+                                            cgen_reg_name(result));
+      }
+      break;
+   case VCODE_TYPE_REAL:
+      ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_string_to_real"),
+                                        args, ARRAY_LEN(args), "");
+      break;
+   default:
+      vcode_dump_with_mark(op, NULL, NULL);
+      fatal_trace("invalid type in strconv");
+   }
+}
+
+static void cgen_op_canon_value(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef ptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef len = cgen_get_arg(op, 1, ctx);
+
+   LLVMTypeRef utype = llvm_uarray_type(llvm_int8_type(), 1);
+   LLVMValueRef uresult = cgen_scoped_alloca(utype, ctx);
+
+   LLVMValueRef args[] = { ptr, len, uresult };
+   LLVMBuildCall(builder, llvm_fn("_canon_value"), args, ARRAY_LEN(args), "");
+
+   ctx->regs[vcode_get_result(op)] = LLVMBuildLoad(builder, uresult, "");
+   llvm_lifetime_end(uresult, utype);
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    cgen_debug_loc(ctx, vcode_get_loc(i), false);
@@ -3713,6 +3763,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_POP_SCOPE:
       cgen_op_pop_scope(i, ctx);
+      break;
+   case VCODE_OP_STRCONV:
+      cgen_op_strconv(i, ctx);
+      break;
+   case VCODE_OP_CANON_VALUE:
+      cgen_op_canon_value(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -5035,6 +5091,36 @@ static LLVMValueRef cgen_support_fn(const char *name)
       fn = LLVMAddFunction(module, "__nvc_claim_tlab",
                            LLVMFunctionType(llvm_void_type(),
                                             NULL, 0, false));
+   }
+   else if (strcmp(name, "_string_to_int") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_int8_type(), 0),
+         llvm_int32_type(),
+         LLVMPointerType(llvm_int32_type(), 0),
+      };
+      fn = LLVMAddFunction(module, "_string_to_int",
+                           LLVMFunctionType(llvm_int64_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_string_to_real") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_int8_type(), 0),
+         llvm_int32_type(),
+         LLVMPointerType(llvm_int32_type(), 0),
+      };
+      fn = LLVMAddFunction(module, "_string_to_real",
+                           LLVMFunctionType(llvm_double_type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_canon_value") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_int8_type(), 0),
+         llvm_int32_type(),
+         LLVMPointerType(llvm_uarray_type(llvm_int8_type(), 1), 0),
+      };
+      fn = LLVMAddFunction(module, "_canon_value",
+                           LLVMFunctionType(llvm_void_type(),
+                                            args, ARRAY_LEN(args), false));
    }
 
    if (fn != NULL)

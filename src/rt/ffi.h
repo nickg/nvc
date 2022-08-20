@@ -53,7 +53,7 @@ typedef struct {
 } ffi_closure_t;
 
 // The code generator knows the layout of this struct
-typedef struct {
+typedef struct _ffi_uarray {
    void *ptr;
    struct {
       int32_t left;

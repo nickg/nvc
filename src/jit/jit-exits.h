@@ -54,5 +54,8 @@ void x_exponent_fail(int32_t value, tree_t where);
 void x_overflow(int64_t lhs, int64_t rhs, tree_t where);
 void x_null_deref(tree_t where);
 void x_div_zero(tree_t where);
+int64_t x_string_to_int(const uint8_t *raw_str, int32_t str_len, int32_t *used);
+double x_string_to_real(const uint8_t *raw_str, int32_t str_len);
+ffi_uarray_t x_canon_value(const uint8_t *raw_str, int32_t str_len, char *buf);
 
 #endif  // _JIT_EXITS_H

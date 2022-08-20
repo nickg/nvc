@@ -20,10 +20,12 @@
 #include "jit/jit-exits.h"
 #include "jit/jit.h"
 #include "lib.h"
+#include "rt/ffi.h"
 #include "rt/rt.h"
 #include "type.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -291,6 +293,104 @@ void x_div_zero(tree_t where)
    jit_msg(tree_loc(where), DIAG_FATAL, "division by zero");
 }
 
+int64_t x_string_to_int(const uint8_t *raw_str, int32_t str_len, int32_t *used)
+{
+   const char *p = (const char *)raw_str;
+   const char *endp = p + str_len;
+
+   for (; p < endp && isspace((int)*p); p++)
+      ;
+
+   const bool is_negative = p < endp && *p == '-';
+   if (is_negative) p++;
+
+   int64_t value = INT64_MIN;
+   int num_digits = 0;
+   while (p < endp && (isdigit((int)*p) || *p == '_')) {
+      if (*p != '_') {
+         value *= 10;
+         value += (*p - '0');
+         num_digits++;
+      }
+      ++p;
+   }
+
+   if (is_negative) value = -value;
+
+   if (num_digits == 0)
+      jit_msg(NULL, DIAG_FATAL, "invalid integer value "
+              "\"%.*s\"", str_len, (const char *)raw_str);
+
+   if (used != NULL)
+      *used = p - (const char *)raw_str;
+   else {
+      for (; p < endp && *p != '\0'; p++) {
+         if (!isspace((int)*p)) {
+            jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
+                    "value \"%.*s\"", (int)(endp - p), p, str_len,
+                    (const char *)raw_str);
+         }
+      }
+   }
+
+   return value;
+}
+
+double x_string_to_real(const uint8_t *raw_str, int32_t str_len)
+{
+   char *null LOCAL = xmalloc(str_len + 1);
+   memcpy(null, raw_str, str_len);
+   null[str_len] = '\0';
+
+   char *p = null;
+   for (; p < p + str_len && isspace((int)*p); p++)
+      ;
+
+   double value = strtod(p, &p);
+
+   if (*p != '\0' && !isspace((int)*p))
+      jit_msg(NULL, DIAG_FATAL, "invalid real value "
+              "\"%.*s\"", str_len, (const char *)raw_str);
+   else {
+      for (; p < null + str_len && *p != '\0'; p++) {
+         if (!isspace((int)*p)) {
+            jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
+                    "value \"%.*s\"", (int)(null + str_len - p), p, str_len,
+                    (const char *)raw_str);
+         }
+      }
+   }
+
+   return value;
+}
+
+ffi_uarray_t x_canon_value(const uint8_t *raw_str, int32_t str_len, char *buf)
+{
+   char *p = buf;
+   int pos = 0;
+
+   for (; pos < str_len && isspace((int)raw_str[pos]); pos++)
+      ;
+
+   bool upcase = true;
+   for (; pos < str_len && !isspace((int)raw_str[pos]); pos++) {
+      if (raw_str[pos] == '\'')
+         upcase = !upcase;
+
+      *p++ = upcase ? toupper((int)raw_str[pos]) : raw_str[pos];
+   }
+
+   for (; pos < str_len; pos++) {
+      if (!isspace((int)raw_str[pos])) {
+         jit_msg(NULL, DIAG_FATAL, "found invalid characters \"%.*s\" after "
+                 "value \"%.*s\"", (int)(str_len - pos), raw_str + pos, str_len,
+                 (const char *)raw_str);
+      }
+   }
+
+   return ffi_wrap_str(buf, p - buf);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
 
@@ -405,4 +505,23 @@ void __nvc_div_zero(DEBUG_LOCUS(locus))
    tree_t where = locus_to_tree(locus_unit, locus_offset);
 
    x_div_zero(where);
+}
+
+DLLEXPORT
+int64_t _string_to_int(const uint8_t *raw_str, int32_t str_len, int32_t *used)
+{
+   return x_string_to_int(raw_str, str_len, used);
+}
+
+DLLEXPORT
+double _string_to_real(const uint8_t *raw_str, int32_t str_len)
+{
+   return x_string_to_real(raw_str, str_len);
+}
+
+DLLEXPORT
+void _canon_value(const uint8_t *raw_str, int32_t str_len, ffi_uarray_t *u)
+{
+   char *buf = rt_tlab_alloc(str_len);
+   *u = x_canon_value(raw_str, str_len, buf);
 }

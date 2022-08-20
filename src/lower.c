@@ -6905,12 +6905,8 @@ static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
 
    vcode_type_t voffset = vtype_offset();
    vcode_type_t vchar = vtype_char();
-   vcode_type_t strtype = vtype_uarray(1, vchar, vchar);
 
-   vcode_reg_t args[] = { arg_data_reg, arg_len_reg };
-   vcode_reg_t canon_reg = emit_fcall(ident_new("_canon_value"),
-                                      strtype, strtype, VCODE_CC_FOREIGN,
-                                      args, 2);
+   vcode_reg_t canon_reg = emit_canon_value(arg_data_reg, arg_len_reg);
    vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
 
    size_t stride = 0;
@@ -6937,7 +6933,7 @@ static vcode_reg_t lower_enum_value_helper(type_t type, vcode_reg_t preg)
          char_regs[(i * stride) + pos] = emit_const(vchar, 0);
    }
 
-   vcode_type_t char_array_type = vtype_carray(nlits, vchar, vchar);
+   vcode_type_t char_array_type = vtype_carray(nchars, vchar, vchar);
    vcode_reg_t char_array_reg =
       emit_const_array(char_array_type, char_regs, nchars);
    vcode_reg_t char_array_ptr = emit_address_of(char_array_reg);
@@ -7032,23 +7028,18 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
    vcode_type_t voffset = vtype_offset();
    vcode_type_t vchar = vtype_char();
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
-   vcode_type_t strtype = vtype_uarray(1, vchar, vchar);
 
    vcode_var_t used_var = lower_temp_var("used", voffset, voffset);
    vcode_reg_t used_ptr = emit_index(used_var, VCODE_INVALID_REG);
 
-   vcode_reg_t args1[] = { arg_data_reg, arg_len_reg, used_ptr };
-   vcode_reg_t int_reg = emit_fcall(ident_new("_string_to_int"),
-                                    vint64, vint64, VCODE_CC_FOREIGN, args1, 3);
+   vcode_reg_t int_reg = emit_strconv(arg_data_reg, arg_len_reg,
+                                      used_ptr, vint64);
 
    vcode_reg_t used_reg = emit_load_indirect(used_ptr);
    vcode_reg_t tail_reg = emit_array_ref(arg_data_reg, used_reg);
    vcode_reg_t tail_len = emit_sub(arg_len_reg, used_reg);
 
-   vcode_reg_t args2[] = { tail_reg, tail_len };
-   vcode_reg_t canon_reg = emit_fcall(ident_new("_canon_value"),
-                                      strtype, strtype, VCODE_CC_FOREIGN,
-                                      args2, 2);
+   vcode_reg_t canon_reg = emit_canon_value(tail_reg, tail_len);
    vcode_reg_t canon_len_reg  = emit_uarray_len(canon_reg, 0);
 
    const int nunits = type_units(type);
@@ -7178,21 +7169,14 @@ static vcode_reg_t lower_physical_value_helper(type_t type, vcode_reg_t preg)
 
 static vcode_reg_t lower_numeric_value_helper(type_t type, vcode_reg_t preg)
 {
+   vcode_reg_t len_reg  = emit_uarray_len(preg, 0);
+   vcode_reg_t data_reg = emit_unwrap(preg);
+
    vcode_type_t vint64 = vtype_int(INT64_MIN, INT64_MAX);
    vcode_type_t vreal  = vtype_real(-DBL_MAX, DBL_MAX);
 
-   vcode_reg_t len_reg  = emit_uarray_len(preg, 0);
-   vcode_reg_t data_reg = emit_unwrap(preg);
-   vcode_reg_t null_reg = emit_null(vtype_pointer(vtype_offset()));
-
-   vcode_reg_t args[] = { data_reg, len_reg, null_reg };
-
-   if (type_is_real(type))
-      return emit_fcall(ident_new("_string_to_real"),
-                        vreal, vreal, VCODE_CC_FOREIGN, args, 3);
-   else
-      return emit_fcall(ident_new("_string_to_int"),
-                        vint64, vint64, VCODE_CC_FOREIGN, args, 3);
+   return emit_strconv(data_reg, len_reg, VCODE_INVALID_REG,
+                       type_is_real(type) ? vreal : vint64);
 }
 
 static void lower_value_helper(tree_t decl)

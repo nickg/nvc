@@ -21,7 +21,6 @@
   __nvc_tlab;
   __nvc_unreachable;
   _assert_fail;
-  _canon_value;
   _convert_signal;
   _debug_dump;
   _debug_out;
@@ -39,8 +38,6 @@
   _sched_process;
   _sched_waveform;
   _sched_waveform_s;
-  _string_to_int;
-  _string_to_real;
   _test_net_active;
   _test_net_event;
 
@@ -77,11 +74,14 @@
   __nvc_length_fail;
   __nvc_null_deref;
   __nvc_range_fail;
+  _canon_value;
   _endfile;
   _file_close;
   _file_open;
   _file_read;
   _file_write;
+  _string_to_int;
+  _string_to_real;
 
   # Exported by VHPI
   vhpiFS;

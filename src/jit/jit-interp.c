@@ -21,6 +21,7 @@
 #include "diag.h"
 #include "jit/jit-exits.h"
 #include "jit/jit-priv.h"
+#include "rt/ffi.h"
 #include "rt/mspace.h"
 #include "tree.h"
 #include "type.h"
@@ -1077,6 +1078,47 @@ static void interp_file_flush(jit_interp_t *state)
    x_file_flush(_fp);
 }
 
+static void interp_string_to_int(jit_interp_t *state)
+{
+   uint8_t *ptr  = state->args[0].pointer;
+   int32_t  len  = state->args[1].integer;
+   int32_t *used = state->args[2].pointer;
+
+   state->args[0].integer = x_string_to_int(ptr, len, used);
+   state->nargs = 1;
+}
+
+static void interp_string_to_real(jit_interp_t *state)
+{
+   uint8_t *ptr = state->args[0].pointer;
+   int32_t  len = state->args[1].integer;
+
+   state->args[0].real = x_string_to_real(ptr, len);
+   state->nargs = 1;
+}
+
+static void interp_canon_value(jit_interp_t *state)
+{
+   uint8_t *ptr = state->args[0].pointer;
+   int32_t  len = state->args[1].integer;
+
+   char *buf = mspace_alloc(state->mspace, len);
+   if (buf == NULL)
+      return;
+
+   ffi_uarray_t u = x_canon_value(ptr, len, buf);
+   state->args[0].pointer = u.ptr;
+   state->args[1].integer = u.dims[0].left;
+   state->args[2].integer = u.dims[0].length;
+   state->nargs = 3;
+}
+
+static void interp_debug_out(jit_interp_t *state)
+{
+   int64_t value = state->args[0].integer;
+   debugf("DEBUG %"PRIi64, value);
+}
+
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 {
    switch (ir->arg1.exit) {
@@ -1194,6 +1236,22 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_FILE_FLUSH:
       interp_file_flush(state);
+      break;
+
+   case JIT_EXIT_STRING_TO_INT:
+      interp_string_to_int(state);
+      break;
+
+   case JIT_EXIT_STRING_TO_REAL:
+      interp_string_to_real(state);
+      break;
+
+   case JIT_EXIT_CANON_VALUE:
+      interp_canon_value(state);
+      break;
+
+   case JIT_EXIT_DEBUG_OUT:
+      interp_debug_out(state);
       break;
 
    default:

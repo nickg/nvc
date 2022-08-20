@@ -149,6 +149,8 @@ typedef enum {
    VCODE_OP_LINK_INSTANCE,
    VCODE_OP_UNREACHABLE,
    VCODE_OP_PACKAGE_INIT,
+   VCODE_OP_STRCONV,
+   VCODE_OP_CANON_VALUE,
 } vcode_op_t;
 
 typedef enum {
@@ -495,5 +497,8 @@ void emit_push_scope(vcode_reg_t locus, vcode_type_t type);
 void emit_pop_scope(void);
 void emit_alias_signal(vcode_reg_t signal, vcode_reg_t locus);
 void emit_unreachable(vcode_reg_t locus);
+vcode_reg_t emit_strconv(vcode_reg_t ptr, vcode_reg_t len, vcode_reg_t used_ptr,
+                         vcode_type_t type);
+vcode_reg_t emit_canon_value(vcode_reg_t ptr, vcode_reg_t len);
 
 #endif  // _VCODE_H

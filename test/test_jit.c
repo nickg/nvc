@@ -974,6 +974,52 @@ START_TEST(test_process1)
 }
 END_TEST
 
+START_TEST(test_value1)
+{
+   input_from_file(TESTDIR "/jit/value1.vhd");
+
+   const error_t expect[] = {
+      { 73, "found invalid characters \"x\" after value \"42x\"" },
+      { 77, "invalid real value \"4..4\"" },
+      { 81, "\" FOO\" is not a valid unit name" },
+      { 23, "\"FOO\" is not a valid enumeration value" },
+      { -1, NULL },
+   };
+   expect_errors(expect);
+
+   parse_check_simplify_and_lower(T_PACKAGE, T_PACK_BODY);
+
+   jit_t *j = jit_new();
+
+   jit_scalar_t result;
+
+   ident_t fn1 = ident_new("WORK.VALUE1.STR_TO_INT(S)I");
+   ck_assert_int_eq(jit_call(j, fn1, NULL, "u", "123", 1, 3).integer, 123);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, "u", "-5", 1, 2).integer, -5);
+   ck_assert_int_eq(jit_call(j, fn1, NULL, "u", " 42 ", 1, 4).integer, 42);
+   fail_if(jit_try_call(j, fn1, NULL, &result, "u", "42x", 1, 3));
+
+   ident_t fn2 = ident_new("WORK.VALUE1.STR_TO_REAL(S)R");
+   ck_assert_double_eq(jit_call(j, fn2, NULL, "u", "123", 1, 3).real, 123.0);
+   ck_assert_double_eq(jit_call(j, fn2, NULL, "u", "-4.5", 1, 4).real, -4.5);
+   fail_if(jit_try_call(j, fn2, NULL, &result, "u", "4..4", 1, 4));
+
+   ident_t fn3 = ident_new("WORK.VALUE1.STR_TO_TIME(S)T");
+   ck_assert_int_eq(jit_call(j, fn3, NULL, "u", "123 FS", 1, 6).integer, 123);
+   ck_assert_int_eq(jit_call(j, fn3, NULL, "u", " 52  PS ", 1, 8).integer,
+                    52000);
+   fail_if(jit_try_call(j, fn3, NULL, &result, "u", "4 FOO", 1, 5));
+
+   ident_t fn4 = ident_new("WORK.VALUE1.STR_TO_BOOL(S)B");
+   ck_assert_int_eq(jit_call(j, fn4, NULL, "u", "true", 1, 4).integer, 1);
+   ck_assert_int_eq(jit_call(j, fn4, NULL, "u", " FALSE ", 1, 7).integer, 0);
+   fail_if(jit_try_call(j, fn4, NULL, &result, "u", "FOO", 1, 3));
+
+   jit_free(j);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_jit_tests(void)
 {
    Suite *s = suite_create("jit");
@@ -1005,6 +1051,7 @@ Suite *get_jit_tests(void)
    tcase_add_test(tc, test_trace1);
    tcase_add_test(tc, test_issue496);
    tcase_add_test(tc, test_process1);
+   tcase_add_test(tc, test_value1);
    suite_add_tcase(s, tc);
 
    return s;

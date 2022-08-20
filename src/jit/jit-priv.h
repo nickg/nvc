@@ -121,6 +121,10 @@ typedef enum {
    JIT_EXIT_FILE_WRITE,
    JIT_EXIT_ENDFILE,
    JIT_EXIT_FILE_FLUSH,
+   JIT_EXIT_STRING_TO_INT,
+   JIT_EXIT_STRING_TO_REAL,
+   JIT_EXIT_CANON_VALUE,
+   JIT_EXIT_DEBUG_OUT,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;

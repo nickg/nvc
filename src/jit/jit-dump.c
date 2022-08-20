@@ -61,7 +61,7 @@ const char *jit_exit_name(jit_exit_t exit)
       "DRIVE_SIGNAL", "SCHED_WAVEFORM", "SCHED_PROCESS", "TEST_EVENT",
       "TEST_ACTIVE", "INIT_SIGNALS", "SCHED_EVENT", "NOW", "SCHED_WAVEFORMS",
       "FILE_OPEN", "FILE_CLOSE", "FILE_READ", "FILE_WRITE", "ENDFILE",
-      "FILE_FLUSH",
+      "FILE_FLUSH", "STRCONVI", "STRCONVR", "CANON_VALUE", "DEBUG_OUT",
    };
    assert(exit < ARRAY_LEN(names));
    return names[exit];
