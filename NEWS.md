@@ -14,6 +14,7 @@
 - Xilinx Vivado vendor libraries can now be compiled with `nvc --install
   vivado`.
 - VITAL libraries are now built by default on Windows.
+- Fixed build with old versions of Glibc.
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a
