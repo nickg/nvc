@@ -461,11 +461,9 @@ static int run(int argc, char **argv)
    set_top_level(argv, next_cmd);
 
    ident_t ename = ident_prefix(top_level, ident_new("elab"), '.');
-   bool error;
-   tree_t top = lib_get_check_stale(lib_work(), ename, &error);
+   tree_t top = lib_get(lib_work(), ename);
    if (top == NULL)
       fatal("%s not elaborated", istr(top_level));
-   assert(!error);
 
    if (wave_fname != NULL) {
       const char *name_map[] = { "FST", "VCD" };

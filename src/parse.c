@@ -609,7 +609,7 @@ static tree_t find_unit(const loc_t *where, ident_t name, const char *hint)
    lib_t lib = lib_loaded(lname);
    if (lib != NULL) {
       bool error;
-      tree_t unit = lib_get_check_stale(lib, name, &error);
+      tree_t unit = lib_get_allow_error(lib, name, &error);
       if (unit == NULL) {
          if (hint != NULL)
             parse_error(where, "missing declaration for %s %s",

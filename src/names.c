@@ -1690,7 +1690,7 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
       }
       else if (unit_name == well_known(W_ERROR))
          return;   // Was earlier parse error
-      else if ((unit = lib_get_check_stale(lib, unit_name, &error)) == NULL) {
+      else if ((unit = lib_get_allow_error(lib, unit_name, &error)) == NULL) {
          error_at(tree_loc(use), "unit %s not found in library %s",
                   istr(unit_name), istr(ident_until(unit_name, '.')));
          return;
