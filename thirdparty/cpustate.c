@@ -42,6 +42,10 @@ void fill_cpu_state(struct cpu_state *cpu, ucontext_t *uc)
    cpu->pc = uc->uc_mcontext.gregs[REG_RIP];
    cpu->sp = uc->uc_mcontext.gregs[REG_RSP];
 
+#if !defined __NGREG && defined NGREG
+#define __NGREG NGREG    // Glibc prior to 2.36
+#endif
+
    STATIC_ASSERT(__NGREG <= MAX_CPU_REGS);
    for (int i = 0; i < __NGREG; i++)
       cpu->regs[i] = uc->uc_mcontext.gregs[i];
