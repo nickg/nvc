@@ -12,6 +12,8 @@
   vivado`.
 - Resolution functions with nested record types now behave correctly
   (#516).
+- LLVM 8.0 or later is now required due to deprecation of non-opaque
+  pointers.
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a

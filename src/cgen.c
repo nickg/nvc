@@ -2567,20 +2567,8 @@ static void cgen_op_memset(int op, cgen_ctx_t *ctx)
       && LLVMGetIntTypeWidth(type) <= 8;
 
    if (can_use_intrinsic) {
-#ifdef LLVM_HAVE_BUILD_MEMSET
       LLVMValueRef zext = LLVMBuildZExt(builder, value, llvm_int8_type(), "");
       LLVMBuildMemSet(builder, base, zext, length, 8);
-#else
-      LLVMValueRef args[] = {
-         llvm_void_cast(base),
-         LLVMBuildZExt(builder, value, llvm_int8_type(), ""),
-         length,
-         llvm_int1(false)
-      };
-
-      LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
-                    args, ARRAY_LEN(args), "");
-#endif
    }
    else {
       LLVMBasicBlockRef entry_bb = LLVMGetInsertBlock(builder);
@@ -4787,19 +4775,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(llvm_double_type(),
                                             args, ARRAY_LEN(args), false));
    }
-#ifndef LLVM_HAVE_BUILD_MEMSET
-   else if (strcmp(name, "llvm.memset.p0i8.i32") == 0) {
-      LLVMTypeRef args[] = {
-         LLVMPointerType(llvm_int8_type(), 0),
-         llvm_int8_type(),
-         llvm_int32_type(),
-         llvm_int1_type()
-      };
-      fn = LLVMAddFunction(module, "llvm.memset.p0i8.i32",
-                           LLVMFunctionType(llvm_void_type(),
-                                            args, ARRAY_LEN(args), false));
-   }
-#endif
    else if (strncmp(name, "llvm.mem", 8) == 0) {
       int width;
       char kind[17];

@@ -83,13 +83,8 @@ AC_DEFUN([AX_LLVM_C], [
     LLVM_CONFIG_BINDIR="$($ac_llvm_config $ac_llvm_config_flags --bindir | sed 's|\\|\\\\|g')"
     LLVM_LIBDIR="$($ac_llvm_config --libdir | sed 's|\\|\\\\|g')"
 
-    if test "$llvm_ver_num" -lt "70"; then
-      AC_MSG_ERROR([LLVM version 7.0 or later required])
-    fi
-
-    if test "$llvm_ver_num" -ge "80"; then
-      AC_DEFINE_UNQUOTED(LLVM_HAVE_BUILD_MEMSET, [1],
-                         [Have LLVMBuildMemSet])
+    if test "$llvm_ver_num" -lt "80"; then
+      AC_MSG_ERROR([LLVM version 8.0 or later required])
     fi
 
     if test "$llvm_ver_num" -ge "100"; then
