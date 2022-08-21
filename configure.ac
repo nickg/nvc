@@ -86,6 +86,11 @@ AX_CHECK_COMPILE_FLAG([-fPIC],
   [-Werror])
 AC_SUBST(PIC_FLAG)
 
+AX_CHECK_COMPILE_FLAG([-mavx2],
+  [AC_DEFINE_UNQUOTED([HAVE_AVX2], [1], [Target supports AVX2 instructions])],
+  [],
+  [-Werror])
+
 AX_GCC_FUNC_ATTRIBUTE([returns_nonnull])
 
 AX_PROG_FLEX([], [AC_MSG_ERROR(Flex not found)])

@@ -27,6 +27,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#if HAVE_AVX2
+#include <x86intrin.h>
+#endif
+
 #define SPILL_SIZE 65536
 #define BLOCK_SIZE (SPILL_SIZE - (SPILL_SIZE / 16))
 
@@ -48,9 +52,14 @@
 #define ASSERT_AVAIL(f, n)
 #endif
 
-typedef struct {
-   unsigned long s1;
-   unsigned long s2;
+typedef struct _adler32 adler32_t;
+
+typedef void (*adler32_update_t)(adler32_t *, uint8_t *, size_t);
+
+typedef struct _adler32 {
+   unsigned long    s1;
+   unsigned long    s2;
+   adler32_update_t update;
 } adler32_t;
 
 typedef struct {
@@ -79,12 +88,97 @@ struct _fbuf {
 
 static fbuf_t *open_list = NULL;
 
+#define ADLER_MOD		65521
+#define ADLER_CHUNK_LEN_32	5552
+#define ADLER_CHUNK_LEN_SIMD_32 (ADLER_CHUNK_LEN_32/32)*32
+
+#if HAVE_AVX2
+
+// AX2 implementation based on
+//   https://wooo.sh/articles/adler32.html
+
+__attribute__((target("avx2")))
+static inline uint32_t avx2_reduce_add_8x32(__m256i v)
+{
+    __m128i sum128 = _mm_add_epi32(_mm256_castsi256_si128(v),
+				   _mm256_extracti128_si256(v, 1));
+    __m128i hi64  = _mm_unpackhi_epi64(sum128, sum128);
+    __m128i sum64 = _mm_add_epi32(hi64, sum128);
+    __m128i hi32  = _mm_shuffle_epi32(sum64, _MM_SHUFFLE(2, 3, 0, 1));
+    __m128i sum32 = _mm_add_epi32(sum64, hi32);
+    return _mm_cvtsi128_si32(sum32);
+}
+
+__attribute__((target("avx2")))
+static void adler32_update_avx2(adler32_t *state, uint8_t *data, size_t length)
+{
+   const __m256i zero_v = _mm256_setzero_si256();
+   const __m256i one_epi16_v = _mm256_set1_epi16(1);
+   const __m256i coeff_v = _mm256_set_epi8(
+      1,   2,  3,  4,  5,  6,  7,  8,
+      9,  10, 11, 12, 13, 14, 15, 16,
+      17, 18, 19, 20, 21, 22, 23, 24,
+      25, 26, 27, 28, 29, 30, 31, 32
+   );
+
+   uint32_t sum  = state->s1;
+   uint32_t sum2 = state->s2;
+
+   while (length >= 32) {
+      size_t chunk_len = length;
+      chunk_len -= chunk_len % 32;
+      if (chunk_len > ADLER_CHUNK_LEN_SIMD_32)
+	 chunk_len = ADLER_CHUNK_LEN_SIMD_32;
+      length -= chunk_len;
+
+      __m256i sum_v = _mm256_setzero_si256();
+      __m256i sum2_v = _mm256_setzero_si256();
+
+      uint8_t *chunk_end = data + chunk_len;
+      while (data < chunk_end) {
+	 __m256i chunk_v = _mm256_loadu_si256((__m256i *)data);
+	 data += 32;
+
+	 __m256i mad = _mm256_maddubs_epi16(chunk_v, coeff_v);
+	 sum2_v = _mm256_add_epi32(sum2_v, _mm256_madd_epi16(mad, one_epi16_v));
+	 sum2_v = _mm256_add_epi32(sum2_v, _mm256_slli_epi32(sum_v, 5));
+	 sum_v = _mm256_add_epi32(sum_v, _mm256_sad_epu8(chunk_v, zero_v));
+      }
+
+      sum2 += sum * chunk_len;
+      sum2 += avx2_reduce_add_8x32(sum2_v);
+      sum += avx2_reduce_add_8x32(sum_v);
+
+      sum %= ADLER_MOD;
+      sum2 %= ADLER_MOD;
+   }
+
+   while (length) {
+      size_t chunk_len = length;
+      if (chunk_len > ADLER_CHUNK_LEN_32)
+	 chunk_len = ADLER_CHUNK_LEN_32;
+      length -= chunk_len;
+
+      const uint8_t *chunk_end = data + chunk_len;
+      for (; data != chunk_end; data++) {
+	 sum  += *data;
+	 sum2 += sum;
+      }
+
+      sum  %= ADLER_MOD;
+      sum2 %= ADLER_MOD;
+   }
+
+   state->s1 = sum;
+   state->s2 = sum2;
+}
+
+#endif  // HAVE_AVX2
+
 static void adler32_update(adler32_t *state, uint8_t *input, size_t length)
 {
    // Public domain implementation from
    //   https://github.com/weidai11/cryptopp/blob/master/adler32.cpp
-
-   const unsigned long BASE = 65521;
 
    unsigned long s1 = state->s1;
    unsigned long s2 = state->s2;
@@ -96,9 +190,9 @@ static void adler32_update(adler32_t *state, uint8_t *input, size_t length)
          length--;
       } while (length % 8 != 0);
 
-      if (s1 >= BASE)
-         s1 -= BASE;
-      s2 %= BASE;
+      if (s1 >= ADLER_MOD)
+         s1 -= ADLER_MOD;
+      s2 %= ADLER_MOD;
    }
 
    while (length > 0) {
@@ -114,14 +208,14 @@ static void adler32_update(adler32_t *state, uint8_t *input, size_t length)
       length -= 8;
       input += 8;
 
-      if (s1 >= BASE)
-         s1 -= BASE;
+      if (s1 >= ADLER_MOD)
+         s1 -= ADLER_MOD;
       if (length % 0x8000 == 0)
-         s2 %= BASE;
+         s2 %= ADLER_MOD;
    }
 
-   assert(s1 < BASE);
-   assert(s2 < BASE);
+   assert(s1 < ADLER_MOD);
+   assert(s2 < ADLER_MOD);
 
    state->s1 = s1;
    state->s2 = s2;
@@ -137,6 +231,14 @@ static void checksum_init(cs_state_t *state, fbuf_cs_t algo)
    case FBUF_CS_ADLER32:
       state->u.adler32.s1 = 1;
       state->u.adler32.s2 = 0;
+#if HAVE_AVX2
+      if (__builtin_cpu_supports("avx2"))
+	 state->u.adler32.update = adler32_update_avx2;
+      else
+	 state->u.adler32.update = adler32_update;
+#else
+      state->u.adler32.update = adler32_update;
+#endif
       break;
    }
 }
@@ -147,7 +249,7 @@ static void checksum_update(cs_state_t *state, uint8_t *input, size_t length)
    case FBUF_CS_NONE:
       break;
    case FBUF_CS_ADLER32:
-      adler32_update(&(state->u.adler32), input, length);
+      (*state->u.adler32.update)(&(state->u.adler32), input, length);
       break;
    }
 }
