@@ -1435,8 +1435,9 @@ static void cgen_op_load(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
    vcode_var_t var = vcode_get_address(op);
 
-   ctx->regs[result] = LLVMBuildLoad(builder, cgen_get_var(var, ctx),
-                                     cgen_reg_name(result));
+   LLVMTypeRef type = cgen_type(vcode_reg_type(result));
+   ctx->regs[result] = LLVMBuildLoad2(builder, type, cgen_get_var(var, ctx),
+                                      cgen_reg_name(result));
 }
 
 static void cgen_op_load_indirect(int op, cgen_ctx_t *ctx)
@@ -1444,7 +1445,9 @@ static void cgen_op_load_indirect(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
    LLVMValueRef ptr = cgen_get_arg(op, 0, ctx);
 
-   ctx->regs[result] = LLVMBuildLoad(builder, ptr, cgen_reg_name(result));
+   LLVMTypeRef type = cgen_type(vcode_reg_type(result));
+   ctx->regs[result] = LLVMBuildLoad2(builder, type, ptr,
+                                      cgen_reg_name(result));
 }
 
 static void cgen_op_add(int op, cgen_ctx_t *ctx)
@@ -2050,7 +2053,8 @@ static void cgen_op_last_value(int op, cgen_ctx_t *ctx)
    LLVMValueRef shared = LLVMBuildExtractValue(builder, sigptr, 0, "");
 
    LLVMValueRef size_ptr = LLVMBuildStructGEP(builder, shared, 0, "");
-   LLVMValueRef size     = LLVMBuildLoad(builder, size_ptr, "size");
+   LLVMValueRef size     = LLVMBuildLoad2(builder, llvm_int32_type(),
+                                          size_ptr, "size");
    LLVMValueRef offset   = LLVMBuildExtractValue(builder, sigptr, 1, "offset");
 
    LLVMTypeRef data_type = cgen_type(vcode_reg_type(result));
@@ -2722,8 +2726,13 @@ static void cgen_op_file_write(int op, cgen_ctx_t *ctx)
    LLVMTypeRef alloca_type;
    LLVMValueRef value = cgen_pointer_to_arg_data(op, 1, &alloca_type, ctx);
 
-   LLVMTypeRef value_type = LLVMGetElementType(LLVMTypeOf(value));
-   LLVMValueRef bytes = llvm_sizeof(value_type);
+   vcode_type_t data_type = vcode_reg_type(vcode_get_arg(op, 1)), elem_type;
+   if (vtype_kind(data_type) != VCODE_TYPE_POINTER)
+      elem_type = data_type;
+   else
+      elem_type = vtype_pointed(data_type);
+
+   LLVMValueRef bytes = llvm_sizeof(cgen_type(elem_type));
 
    LLVMValueRef length = bytes;
    if (vcode_count_args(op) == 3)
@@ -2749,10 +2758,10 @@ static void cgen_op_file_read(int op, cgen_ctx_t *ctx)
    LLVMValueRef file = cgen_get_arg(op, 0, ctx);
    LLVMValueRef ptr  = cgen_get_arg(op, 1, ctx);
 
-   LLVMTypeRef value_type = LLVMGetElementType(LLVMTypeOf(ptr));
-   LLVMValueRef size = LLVMBuildIntCast(builder,
-                                        LLVMSizeOf(value_type),
-                                        llvm_int32_type(), "");
+   vcode_type_t ptr_type = vcode_reg_type(vcode_get_arg(op, 1));
+   vcode_type_t elem_type = vtype_pointed(ptr_type);
+
+   LLVMValueRef size = llvm_sizeof(cgen_type(elem_type));
 
    LLVMValueRef count;
    if (vcode_count_args(op) >= 3)
@@ -4297,14 +4306,14 @@ static void cgen_reset_function(void)
       tb_istr(name, vcode_unit_name());
       tb_cat(name, ".state");
 
+      LLVMTypeRef type = LLVMPointerType(state_type, 0);
+
       if ((global = LLVMGetNamedGlobal(module, tb_get(name))) == NULL)
-         global = LLVMAddGlobal(module,
-                                LLVMPointerType(state_type, 0),
-                                tb_get(name));
+         global = LLVMAddGlobal(module, type, tb_get(name));
       else
          assert(LLVMGetInitializer(global) == NULL);
 
-      LLVMSetInitializer(global, LLVMConstNull(LLVMPointerType(state_type, 0)));
+      LLVMSetInitializer(global, LLVMConstNull(type));
 #ifdef IMPLIB_REQUIRED
       LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
 #endif
@@ -4312,7 +4321,7 @@ static void cgen_reset_function(void)
       LLVMBasicBlockRef ret_bb = LLVMAppendBasicBlock(ctx.fn, "");
       LLVMBasicBlockRef cont_bb = LLVMAppendBasicBlock(ctx.fn, "");
 
-      LLVMValueRef ptr = LLVMBuildLoad(builder, global, "");
+      LLVMValueRef ptr = LLVMBuildLoad2(builder, type, global, "");
       LLVMValueRef init_done = LLVMBuildIsNotNull(builder, ptr, "");
       LLVMBuildCondBr(builder, init_done, ret_bb, cont_bb);
 
