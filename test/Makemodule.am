@@ -63,7 +63,8 @@ bin_unit_test_LDADD = \
 	$(capstone_LIBS) \
 	$(libzstd_LIBS) \
 	$(jansson_LIBS) \
-	$(TCL_LIBS)
+	$(TCL_LIBS) \
+	$(libdwarf_LIBS)
 
 bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 

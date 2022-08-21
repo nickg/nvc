@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2021-2022  Nick Gasson
+//  Copyright (C) 2021-2025  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unwind.h>
 
 #if !defined __MINGW32__ && !defined __CYGWIN__
 #include <unistd.h>
@@ -39,7 +40,6 @@
 #include <assert.h>
 #include <dlfcn.h>
 #include <errno.h>
-#include <unwind.h>
 #endif  // !__MINGW32__ && !__CYGWIN__
 
 #if defined HAVE_LIBDW
@@ -54,7 +54,10 @@
 #include <libdwarf.h>
 #include <dwarf.h>
 #endif  // HAVE_LIBDWARF_LIBDWARF_H
-#include <libelf.h>
+#endif
+
+#ifdef __APPLE__
+#include <mach-o/loader.h>
 #endif
 
 #ifdef __ARM_EABI_UNWINDER__
@@ -346,43 +349,6 @@ static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
       frame->module = xstrdup(module_name);
 }
 
-static _Unwind_Reason_Code libdw_frame_iter(struct _Unwind_Context* ctx,
-                                            void *param)
-{
-   debug_info_t *di = param;
-
-   if (di->skip > 0) {
-      di->skip--;
-      return _URC_NO_REASON;
-   }
-
-   int ip_before_instruction = 0;
-   uintptr_t ip = _Unwind_GetIPInfo(ctx, &ip_before_instruction);
-
-   if (ip == 0)
-      return _URC_NO_REASON;
-   else if (!ip_before_instruction)
-      ip -= 1;
-
-   debug_frame_t *frame;
-   if (!di_lru_get(ip, &frame) && !custom_fill_frame(ip, frame))
-      platform_fill_frame(ip, frame);
-
-   APUSH(di->frames, frame);
-
-   if (frame->symbol != NULL && strcmp(frame->symbol, "main") == 0)
-      return _URC_NORMAL_STOP;
-   else
-      return _URC_NO_REASON;
-}
-
-__attribute__((always_inline))
-static inline void debug_walk_frames(debug_info_t *di)
-{
-   di->skip = 1;
-   _Unwind_Backtrace(libdw_frame_iter, di);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Libdwarf backend
 
@@ -392,7 +358,6 @@ typedef struct {
    Dwarf_Debug   debug;
    Dwarf_Arange *aranges;
    Dwarf_Signed  arange_count;
-   int           fd;
 } libdwarf_handle_t;
 
 static bool libdwarf_die_has_pc(libdwarf_handle_t *handle, Dwarf_Die die,
@@ -423,8 +388,8 @@ static bool libdwarf_die_has_pc(libdwarf_handle_t *handle, Dwarf_Die die,
    Dwarf_Unsigned byte_count = 0;
    bool result = false;
 
-   if (dwarf_get_ranges_a(handle->debug, offset, die, &ranges, &ranges_count,
-                          &byte_count, NULL) == DW_DLV_OK) {
+   if (dwarf_get_ranges_b(handle->debug, offset, die, NULL, &ranges,
+                          &ranges_count, &byte_count, NULL) == DW_DLV_OK) {
       for (int i = 0; i < ranges_count; i++) {
          if (ranges[i].dwr_addr1 != 0 &&
              pc >= ranges[i].dwr_addr1 + low_pc &&
@@ -433,11 +398,55 @@ static bool libdwarf_die_has_pc(libdwarf_handle_t *handle, Dwarf_Die die,
             break;
          }
       }
-      dwarf_ranges_dealloc(handle->debug, ranges, ranges_count);
+      dwarf_dealloc_ranges(handle->debug, ranges, ranges_count);
    }
 
    return result;
 }
+
+#ifdef __APPLE__
+static void get_macho_uuid(const char *fname, uint8_t uuid[16])
+{
+   FILE *f = fopen(fname, "r");
+   if (f == NULL) {
+      warnf("open: %s", fname);
+      return;
+   }
+
+   struct mach_header_64 fhdr;
+   if (fread(&fhdr, sizeof(fhdr), 1, f) != 1)
+      fatal_errno("error reading %s", fname);
+
+   if (fhdr.magic != MH_MAGIC_64) {
+      warnf("bad Mach-O magic %x", fhdr.magic);
+      goto out_close;
+   }
+
+   void *cmdbuf = xmalloc(fhdr.sizeofcmds);
+   if (fread(cmdbuf, fhdr.sizeofcmds, 1, f) != 1)
+      fatal_errno("error reading %s", fname);
+
+   void *rptr = cmdbuf;
+   for (int i = 0; i < fhdr.ncmds; i++) {
+      const struct load_command *load = rptr;
+      if (load->cmd == LC_UUID) {
+         memcpy(uuid, ((struct uuid_command *)rptr)->uuid, 16);
+         goto out_free;
+      }
+
+      rptr += load->cmdsize;
+   }
+   assert(rptr == cmdbuf + fhdr.sizeofcmds);
+
+   warnf("could not read UUID from %s", fname);
+   memset(uuid, '\0', 16);
+
+ out_free:
+   free(cmdbuf);
+ out_close:
+   fclose(f);
+}
+#endif
 
 static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
 {
@@ -451,49 +460,41 @@ static libdwarf_handle_t *libdwarf_handle_for_file(const char *fname)
    if (handle == (void *)-1)
       return NULL;
    else if (handle == NULL) {
-      if (elf_version(EV_CURRENT) == EV_NONE)
-         fatal("ELF library too old");
+      Dwarf_Debug debug = NULL;
+      Dwarf_Error err = NULL;
+      char true_path[PATH_MAX] = "";
+      int ret = dwarf_init_path(fname, true_path, sizeof(true_path),
+                                DW_GROUPNUMBER_ANY, NULL, NULL,
+                                &debug, &err);
 
-      int fd;
-      if (strchr(fname, DIR_SEP[0]))
-         fd = open(fname, O_RDONLY);
-      else {
-         char LOCAL *full = search_path(fname);
-         fd = open(full, O_RDONLY);
-      }
+#ifdef __APPLE__
+      uint8_t exe_uuid[16], dsym_uuid[16];
+      get_macho_uuid(fname, exe_uuid);
+      get_macho_uuid(true_path, dsym_uuid);
 
-      if (fd == -1) {
-         warnf("open: %s: %s", fname, strerror(errno));
+      if (memcmp(exe_uuid, dsym_uuid, 16) != 0)
+         warnf("UUID of %s does not match %s, symbols may be incorrect",
+               fname, true_path);
+#endif
+
+      if (ret == DW_DLV_ERROR) {
+         warnf("dwarf_init: %s: %s", fname, dwarf_errmsg(err));
+         dwarf_dealloc_error(debug, err);
          shash_put(hash, fname, (void *)-1);
          return NULL;
       }
-
-      Dwarf_Debug debug;
-      Dwarf_Error err;
-      if (dwarf_init(fd, DW_DLC_READ, NULL, NULL, &debug, &err) != DW_DLV_OK) {
-         warnf("dwarf_init: %s: %s", fname, dwarf_errmsg(err));
+      else if (ret == DW_DLV_NO_ENTRY) {
          shash_put(hash, fname, (void *)-1);
          return NULL;
       }
 
       handle = xcalloc(sizeof(libdwarf_handle_t));
-      handle->fd    = fd;
       handle->debug = debug;
 
       shash_put(hash, fname, handle);
    }
 
    return handle;
-}
-
-static bool libdwarf_get_sibling(libdwarf_handle_t *handle, Dwarf_Die *die)
-{
-#ifdef __FreeBSD__
-   // FreeBSD has the arguments in the wrong order for some reason
-   return dwarf_siblingof_b(handle->debug, *die, die, true, NULL) == DW_DLV_OK;
-#else
-   return dwarf_siblingof_b(handle->debug, *die, true, die, NULL) == DW_DLV_OK;
-#endif
 }
 
 static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
@@ -538,7 +539,8 @@ static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
       }
 
       break;
-   } while (libdwarf_get_sibling(handle, &child));
+   } while (dwarf_siblingof_b(handle->debug, child, true,
+                              &child, NULL) == DW_DLV_OK);
 
    if (prev != NULL)
       dwarf_dealloc(handle->debug, prev, DW_DLA_DIE);
@@ -547,39 +549,45 @@ static void libdwarf_get_symbol(libdwarf_handle_t *handle, Dwarf_Die die,
 static void libdwarf_get_srcline(libdwarf_handle_t *handle, Dwarf_Die die,
                                  Dwarf_Unsigned rel_addr, debug_frame_t *frame)
 {
-   Dwarf_Line*  linebuf = NULL;
-   Dwarf_Signed linecount = 0;
+   Dwarf_Small tablecount;
+   Dwarf_Line_Context linecontext;
    Dwarf_Signed idx = 0;
-   if (dwarf_srclines(die, &linebuf, &linecount, NULL) == DW_DLV_OK) {
-      Dwarf_Unsigned pladdr = 0;
-      for (Dwarf_Signed i = 0; i < linecount; i++) {
-         Dwarf_Unsigned laddr;
-         if (dwarf_lineaddr(linebuf[i], &laddr, NULL) != DW_DLV_OK)
-            break;
-         else if (rel_addr == laddr) {
-            idx = i;
-            break;
+   if (dwarf_srclines_b(die, NULL, &tablecount,
+                        &linecontext, NULL) == DW_DLV_OK) {
+      Dwarf_Line*  linebuf = NULL;
+      Dwarf_Signed linecount = 0;
+      if (dwarf_srclines_from_linecontext(linecontext, &linebuf,
+                                          &linecount, NULL) == DW_DLV_OK) {
+         Dwarf_Unsigned pladdr = 0;
+         for (Dwarf_Signed i = 0; i < linecount; i++) {
+            Dwarf_Unsigned laddr;
+            if (dwarf_lineaddr(linebuf[i], &laddr, NULL) != DW_DLV_OK)
+               break;
+            else if (rel_addr == laddr) {
+               idx = i;
+               break;
+            }
+            else if (rel_addr < laddr && rel_addr > pladdr) {
+               idx = i - 1;
+               break;
+            }
+            pladdr = laddr;
          }
-         else if (rel_addr < laddr && rel_addr > pladdr) {
-            idx = i - 1;
-            break;
+
+         if (idx >= 0) {
+            Dwarf_Unsigned lineno;
+            if (dwarf_lineno(linebuf[idx], &lineno, NULL) == DW_DLV_OK)
+               frame->lineno = lineno;
+
+            char *srcfile;
+            if (dwarf_linesrc(linebuf[idx], &srcfile, NULL) == DW_DLV_OK) {
+               frame->srcfile = xstrdup(srcfile);
+               dwarf_dealloc(handle->debug, srcfile, DW_DLA_STRING);
+            }
          }
-         pladdr = laddr;
+
+         dwarf_srclines_dealloc_b(linecontext);
       }
-
-      if (idx >= 0) {
-         Dwarf_Unsigned lineno;
-         if (dwarf_lineno(linebuf[idx], &lineno, NULL) == DW_DLV_OK)
-            frame->lineno = lineno;
-
-         char *srcfile;
-         if (dwarf_linesrc(linebuf[idx], &srcfile, NULL) == DW_DLV_OK) {
-            frame->srcfile = xstrdup(srcfile);
-            dwarf_dealloc(handle->debug, srcfile, DW_DLA_STRING);
-         }
-      }
-
-      dwarf_srclines_dealloc(handle->debug, linebuf, linecount);
    }
 }
 
@@ -605,7 +613,8 @@ static bool libdwarf_scan_aranges(libdwarf_handle_t *handle,
       return false;
 
    Dwarf_Die die = NULL;
-   if (dwarf_offdie(handle->debug, cu_header_offset, &die, NULL) != DW_DLV_OK)
+   if (dwarf_offdie_b(handle->debug, cu_header_offset,
+                      true, &die, NULL) != DW_DLV_OK)
       return false;
 
    Dwarf_Half tag = 0;
@@ -631,16 +640,16 @@ static bool libdwarf_scan_cus(libdwarf_handle_t *handle,
                               debug_frame_t *frame)
 {
    Dwarf_Unsigned next_cu_offset;
-   Dwarf_Error error;
    bool found = false;
-   while (dwarf_next_cu_header_c(handle->debug, true, NULL, NULL, NULL,
-                                 NULL, NULL, NULL, NULL, NULL,
-                                 &next_cu_offset, &error) == DW_DLV_OK) {
+   while (dwarf_next_cu_header_d(handle->debug, true, NULL, NULL, NULL, NULL,
+                                 NULL, NULL, NULL, NULL,
+                                 &next_cu_offset, NULL, NULL) == DW_DLV_OK) {
+
       if (found)
          continue;   // Read all the way to the end to reset the iterator
 
       Dwarf_Die die = NULL;
-      if (!libdwarf_get_sibling(handle, &die))
+      if (dwarf_siblingof_b(handle->debug, 0, true, &die, NULL) != DW_DLV_OK)
          continue;
 
       Dwarf_Half tag = 0;
@@ -665,6 +674,43 @@ static bool libdwarf_scan_cus(libdwarf_handle_t *handle,
 
 static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
 {
+#if defined __MINGW32__
+   HANDLE hProcess = GetCurrentProcess();
+
+   frame->kind = FRAME_PROG;
+
+   static DWORD64 home_fbase = 0;
+   INIT_ONCE({
+         IMAGEHLP_MODULE module = { .SizeOfStruct = sizeof(module) };
+         if (SymGetModuleInfo(hProcess, ip, &module))
+            home_fbase = module.BaseOfImage;
+      });
+
+   char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+   PSYMBOL_INFO psym = (PSYMBOL_INFO)buffer;
+   memset(buffer, '\0', sizeof(SYMBOL_INFO));
+   psym->SizeOfStruct = sizeof(SYMBOL_INFO);
+   psym->MaxNameLen = MAX_SYM_NAME;
+
+   const char *fallback_symbol = NULL;
+   DWORD64 disp;
+   if (SymFromAddr(hProcess, ip, &disp, psym)) {
+      frame->disp = disp;
+      fallback_symbol = psym->Name;
+   }
+
+   IMAGEHLP_MODULE module = { .SizeOfStruct = sizeof(module) };
+   if (!SymGetModuleInfo(hProcess, ip, &module))
+      return;
+
+   if (module.BaseOfImage != home_fbase)
+      frame->kind = FRAME_LIB;
+
+   frame->module = xstrdup(module.ImageName);
+
+   Dwarf_Addr rel_addr = ip - module.BaseOfImage;
+
+#else
    Dl_info dli;
    if (!dladdr((void *)ip, &dli))
       return;
@@ -681,67 +727,33 @@ static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
    frame->module = xstrdup(dli.dli_fname);
    frame->disp   = ip - (uintptr_t)dli.dli_saddr;
 
-#ifdef __FreeBSD__
-   // FreeBSD has non-standard libdwarf
+   const char *fallback_symbol = dli.dli_sname;
+
+#if defined __FreeBSD__
    Dwarf_Addr rel_addr;
    if (frame->kind == FRAME_PROG)
       rel_addr = ip;
    else
       rel_addr = ip - (uintptr_t)dli.dli_fbase;
+#elif defined __APPLE__
+   Dwarf_Addr rel_addr = ip - (uintptr_t)dli.dli_fbase + 0x100000000;
 #else
    Dwarf_Addr rel_addr = ip - (uintptr_t)dli.dli_fbase;
 #endif
+#endif
 
-   libdwarf_handle_t *handle = libdwarf_handle_for_file(dli.dli_fname);
-   if (handle == NULL)
-      return;
-
-   if (!libdwarf_scan_aranges(handle, rel_addr, frame)) {
-      // Clang does emit aranges so we have to search each compilation unit
-      libdwarf_scan_cus(handle, rel_addr, frame);
+   libdwarf_handle_t *handle = libdwarf_handle_for_file(frame->module);
+   if (handle != NULL) {
+      if (!libdwarf_scan_aranges(handle, rel_addr, frame)) {
+         // Clang does emit aranges so we have to search each compilation unit
+         libdwarf_scan_cus(handle, rel_addr, frame);
+      }
    }
 
-   if (frame->symbol == NULL && dli.dli_sname != NULL) {
+   if (frame->symbol == NULL && fallback_symbol != NULL) {
       // Fallback: just use the nearest global symbol
-      frame->symbol = xstrdup(dli.dli_sname);
+      frame->symbol = xstrdup(fallback_symbol);
    }
-}
-
-static _Unwind_Reason_Code libdwarf_frame_iter(struct _Unwind_Context* ctx,
-                                               void *param)
-{
-   debug_info_t *di = param;
-
-   if (di->skip > 0) {
-      di->skip--;
-      return _URC_NO_REASON;
-   }
-
-   int ip_before_instruction = 0;
-   uintptr_t ip = _Unwind_GetIPInfo(ctx, &ip_before_instruction);
-
-   if (ip == 0)
-      return _URC_NO_REASON;
-   else if (!ip_before_instruction)
-      ip -= 1;
-
-   debug_frame_t *frame;
-   if (!di_lru_get(ip, &frame) && !custom_fill_frame(ip, frame))
-      platform_fill_frame(ip, frame);
-
-   APUSH(di->frames, frame);
-
-   if (frame->symbol != NULL && strcmp(frame->symbol, "main") == 0)
-      return _URC_NORMAL_STOP;
-   else
-      return _URC_NO_REASON;
-}
-
-__attribute__((always_inline))
-static inline void debug_walk_frames(debug_info_t *di)
-{
-   di->skip = 1;
-   _Unwind_Backtrace(libdwarf_frame_iter, di);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -755,6 +767,13 @@ static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
 
    frame->kind = FRAME_PROG;
 
+   static DWORD64 home_fbase = 0;
+   INIT_ONCE({
+         IMAGEHLP_MODULE module = { .SizeOfStruct = sizeof(module) };
+         if (SymGetModuleInfo(hProcess, ip, &module))
+            home_fbase = module.BaseOfImage;
+      });
+
    char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
    PSYMBOL_INFO psym = (PSYMBOL_INFO)buffer;
    memset(buffer, '\0', sizeof(SYMBOL_INFO));
@@ -763,74 +782,21 @@ static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
 
    DWORD64 disp;
    if (SymFromAddr(hProcess, ip, &disp, psym)) {
-      frame->symbol = xstrdup(psym->Name);
       frame->disp   = disp;
+      frame->symbol = xstrdup(psym->Name);
    }
 
-   IMAGEHLP_MODULE module;
-   memset(&module, '\0', sizeof(module));
-   module.SizeOfStruct = sizeof(module);
-   if (SymGetModuleInfo(hProcess, ip, &module))
+   IMAGEHLP_MODULE module = { .SizeOfStruct = sizeof(module) };
+   if (SymGetModuleInfo(hProcess, ip, &module)) {
       frame->module = xstrdup(module.ModuleName);
-}
 
-__attribute__((noinline))
-static void debug_walk_frames(debug_info_t *di)
-{
-#ifdef __WIN64
-   static bool done_sym_init = false;
-   if (!done_sym_init) {
-      SymInitialize(GetCurrentProcess(), NULL, TRUE);
-      done_sym_init = true;
+      if (module.BaseOfImage != home_fbase)
+         frame->kind = FRAME_LIB;
    }
-
-   CONTEXT Context;
-   RtlCaptureContext(&Context);
-
-   UNWIND_HISTORY_TABLE UnwindHistoryTable;
-   RtlZeroMemory(&UnwindHistoryTable, sizeof(UNWIND_HISTORY_TABLE));
-
-#ifdef ARCH_ARM64
-#define PC_REG Pc
-#else
-#define PC_REG Rip
-#endif
-
-   for (ULONG n = 0; n < MAX_TRACE_DEPTH; n++) {
-      ULONG64 ImageBase;
-      PRUNTIME_FUNCTION RuntimeFunction =
-         RtlLookupFunctionEntry(Context.PC_REG, &ImageBase,
-                                &UnwindHistoryTable);
-
-      if (RuntimeFunction == NULL)
-         break;
-
-      PVOID   HandlerData;
-      ULONG64 EstablisherFrame;
-      RtlVirtualUnwind(UNW_FLAG_NHANDLER,
-                       ImageBase,
-                       Context.PC_REG,
-                       RuntimeFunction,
-                       &Context,
-                       &HandlerData,
-                       &EstablisherFrame,
-                       NULL);
-
-      if (!Context.PC_REG)
-         break;
-
-      debug_frame_t *frame;
-      if (!di_lru_get(Context.PC_REG, &frame)
-           && !custom_fill_frame(Context.PC_REG, frame))
-         platform_fill_frame(Context.PC_REG, frame);
-
-      APUSH(di->frames, frame);
-   }
-#endif  // __WIN64
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Unwind backend
+// Generic Unix fallback
 
 #else
 
@@ -855,6 +821,8 @@ static void platform_fill_frame(uintptr_t ip, debug_frame_t *frame)
    if (dli.dli_sname)
       frame->symbol = xstrdup(dli.dli_sname);
 }
+
+#endif
 
 static _Unwind_Reason_Code unwind_frame_iter(struct _Unwind_Context* ctx,
                                              void *param)
@@ -886,27 +854,32 @@ static _Unwind_Reason_Code unwind_frame_iter(struct _Unwind_Context* ctx,
       return _URC_NO_REASON;
 }
 
-__attribute__((always_inline))
-static inline void debug_walk_frames(debug_info_t *di)
-{
-   di->skip = 1;
-   _Unwind_Backtrace(unwind_frame_iter, di);
-}
-
-#endif
-
 ////////////////////////////////////////////////////////////////////////////////
 // Public interface
 
 __attribute__((noinline))
 debug_info_t *debug_capture(void)
 {
+#ifdef __MINGW32__
+   INIT_ONCE(SymInitialize(GetCurrentProcess(), NULL, TRUE));
+#endif
+
+   debug_info_t *di = xcalloc(sizeof(debug_info_t));
+
+   static __thread bool in_progress = false;
+   if (in_progress)
+      return di;   // Guard against re-entrancy
+
+   in_progress = true;
+
    // The various DWARF libraries do not seem to be thread-safe
    static nvc_lock_t lock;
    SCOPED_LOCK(lock);
 
-   debug_info_t *di = xcalloc(sizeof(debug_info_t));
-   debug_walk_frames(di);
+   di->skip = 1;
+   _Unwind_Backtrace(unwind_frame_iter, di);
+
+   in_progress = false;
    return di;
 }
 

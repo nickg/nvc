@@ -281,21 +281,15 @@ AC_SEARCH_LIBS([_Unwind_Backtrace], [c++abi],
 case $host_os in
   linux*)
     PKG_CHECK_MODULES([libdw], [libdw >= 0.159],
-      [AC_DEFINE_UNQUOTED([HAVE_LIBDW], [1], [Have libdw for stack traces])])
+      [AC_DEFINE_UNQUOTED([HAVE_LIBDW], [1], [Have libdw for stack traces])],
+      [true])
     ;;
 
-  freebsd*|openbsd*)
-    AC_CHECK_HEADERS([libdwarf/libdwarf.h libdwarf.h],
-      [AC_SEARCH_LIBS([elf_version], [elf], [],
-                      [AC_MSG_ERROR(cannot find libelf)])
-       AC_SEARCH_LIBS([dwarf_init], [dwarf],
-                      [AC_DEFINE_UNQUOTED([HAVE_LIBDWARF], [1],
-                                          [Have libdwarf for stack traces])],
-                      [AC_MSG_ERROR(cannot link against libdwarf)], [])
-       break])
-    if test -z "$ac_cv_search_dwarf_init"; then
-      AC_MSG_ERROR([cannot find libdwarf.h])
-    fi
+  freebsd*|openbsd*|netbsd*|darwin*|msys*|mingw32*)
+    PKG_CHECK_MODULES([libdwarf], [libdwarf >= 0.4],
+      [AC_DEFINE_UNQUOTED([HAVE_LIBDWARF],
+                          [1], [Have libdwarf for stack traces])],
+      [true])
     ;;
 esac
 

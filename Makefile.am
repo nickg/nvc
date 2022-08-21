@@ -18,6 +18,7 @@ AM_LDFLAGS  += $(PTHREAD_LIBS)
 AM_CFLAGS += \
 	$(check_CFLAGS) \
 	$(libdw_CFLAGS) \
+	$(libdwarf_CFLAGS) \
 	$(libffi_CFLAGS) \
 	$(zlib_CFLAGS) \
 	$(capstone_CFLAGS) \
