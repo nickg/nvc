@@ -1352,6 +1352,32 @@ START_TEST(test_genpack1)
 }
 END_TEST
 
+START_TEST(test_casefold1)
+{
+   input_from_file(TESTDIR "/simp/casefold1.vhd");
+
+   tree_t top = run_elab();
+
+   tree_t b0 = tree_stmt(top, 0);
+   fail_unless(tree_kind(b0) == T_BLOCK);
+   fail_unless(tree_stmts(b0) == 2);
+
+   tree_t uut = tree_stmt(b0, 1);
+   fail_unless(tree_kind(uut) == T_BLOCK);
+   fail_unless(tree_ident(uut) == ident_new("UUT"));
+   fail_unless(tree_stmts(uut) == 2);
+
+   tree_t casep = tree_stmt(uut, 1);
+   fail_unless(tree_kind(casep) == T_PROCESS);
+   fail_unless(tree_ident(casep) == ident_new("CASEP"));
+
+   tree_t seq = tree_stmt(casep, 0);
+   fail_unless(tree_kind(seq) == T_SEQUENCE);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_simp_tests(void)
 {
    Suite *s = suite_create("simplify");
@@ -1405,6 +1431,7 @@ Suite *get_simp_tests(void)
    tcase_add_test(tc_core, test_concat);
    tcase_add_test(tc_core, test_issue496);
    tcase_add_test(tc_core, test_genpack1);
+   tcase_add_test(tc_core, test_casefold1);
    suite_add_tcase(s, tc_core);
 
    return s;
