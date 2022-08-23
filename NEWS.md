@@ -21,6 +21,8 @@
 - Fixed very slow elaboration in some cases with function calls in
   generic map expressions.
 - Fixed intermittent segfault optimiser during elaboration (#506).
+- Fixed incorrect constant folding of case statements with range
+  choices.
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a

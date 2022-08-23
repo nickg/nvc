@@ -809,38 +809,40 @@ static tree_t simp_case(tree_t t)
       return NULL;    // All choices are unreachable
 
    int64_t ival;
-   if (folded_int(tree_value(t), &ival)) {
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(t, i);
-         switch ((assoc_kind_t)tree_subkind(a)) {
-         case A_NAMED:
-            {
-               int64_t aval;
-               if (folded_int(tree_name(a), &aval) && (ival == aval)) {
-                  if (tree_has_value(a))
-                     return tree_value(a);
-                  else
-                     return NULL;
-               }
-            }
-            break;
+   if (!folded_int(tree_value(t), &ival))
+      return t;
 
-         case A_RANGE:
-            continue;   // TODO
-
-         case A_OTHERS:
-            if (tree_has_value(a))
-               return tree_value(a);
-            else
-               return NULL;
-
-         case A_POS:
-            break;
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
+      switch (tree_subkind(a)) {
+      case A_NAMED:
+         {
+            int64_t aval;
+            if (!folded_int(tree_name(a), &aval))
+               continue;
+            else if (ival != aval)
+               continue;
          }
+         break;
+
+      case A_RANGE:
+         {
+            int64_t low, high;
+            if (!folded_bounds(tree_range(a, 0), &low, &high))
+               continue;
+            else if (ival < low || ival > high)
+               continue;
+         }
+
+      case A_OTHERS:
+         break;
       }
+
+      // This choice is always executed
+      return tree_has_value(a) ? tree_value(a) : NULL;
    }
 
-   return t;
+   return NULL;  // No choices can be executed
 }
 
 static tree_t simp_cond(tree_t t)
