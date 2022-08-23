@@ -964,11 +964,11 @@ START_TEST(test_fold1)
    fail_unless(tree_kind(u) == T_BLOCK);
    fail_unless(tree_stmts(u) == 0);
    fail_unless(tree_genmaps(u) == 1);
-   fail_unless(tree_decls(u) == 2);
+   fail_unless(tree_decls(u) == 3);
 
-   tree_t k = tree_decl(u, 1);
+   tree_t k = tree_decl(u, 2);
    fail_unless(tree_ident(k) == ident_new("K"));
-   fail_unless(tree_kind(tree_value(k)) == T_FCALL);
+   fail_unless(tree_kind(tree_value(k)) == T_REF);
    // This used to get folded by the old evaluator
 
    fail_if_errors();
@@ -991,11 +991,11 @@ START_TEST(test_fold2)
    fail_unless(tree_kind(u) == T_BLOCK);
    fail_unless(tree_stmts(u) == 0);
    fail_unless(tree_genmaps(u) == 1);
-   fail_unless(tree_decls(u) == 2);
+   fail_unless(tree_decls(u) == 3);
 
-   tree_t k = tree_decl(u, 1);
+   tree_t k = tree_decl(u, 2);
    fail_unless(tree_ident(k) == ident_new("K"));
-   fail_unless(tree_kind(tree_value(k)) == T_FCALL);
+   fail_unless(tree_kind(tree_value(k)) == T_REF);
    // This used to get folded by the old evaluator
 
    fail_if_errors();
