@@ -806,7 +806,7 @@ void diag_femit(diag_t *d, FILE *f)
       }
 
       switch (d->level) {
-      case DIAG_DEBUG: fprintf(f, "note: "); break;
+      case DIAG_DEBUG: fprintf(f, "debug: "); break;
       case DIAG_NOTE:  fprintf(f, "note: "); break;
       case DIAG_WARN:  fprintf(f, "warning: "); break;
       case DIAG_ERROR: fprintf(f, "error: "); break;
