@@ -1025,6 +1025,21 @@ static void elab_generics(tree_t entity, tree_t comp, tree_t inst,
       tree_add_genmap(ctx->out, map);
 
       tree_t value = tree_value(map);
+      const tree_kind_t kind = tree_kind(value);
+      if (kind == T_FCALL || kind == T_AGGREGATE) {
+         // Make sure the generic is only evaluated once
+         tree_t c = tree_new(T_CONST_DECL);
+         tree_set_loc(c, tree_loc(value));
+         tree_set_ident(c, tree_ident(eg));
+         tree_set_value(c, value);
+         tree_set_type(c, tree_type(value));
+
+         tree_add_decl(ctx->out, c);
+         value = make_ref(c);
+
+         simplify_global(c, ctx->generics, ctx->eval);
+      }
+
       hash_put(ctx->generics, eg, value);
       if (eg != cg) hash_put(ctx->generics, cg, value);
 
