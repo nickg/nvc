@@ -806,7 +806,7 @@ static void set_default_opts(void)
    opt_set_int(OPT_RT_TRACE, 0);
    opt_set_str(OPT_VHPI_TRACE, getenv("NVC_VHPI_VERBOSE"));
    opt_set_int(OPT_DUMP_LLVM, 0);
-   opt_set_int(OPT_OPTIMISE, 1);
+   opt_set_int(OPT_OPTIMISE, 2);
    opt_set_int(OPT_BOOTSTRAP, 0);
    opt_set_int(OPT_COVER, 0);
    opt_set_int(OPT_STOP_DELTA, 10000);
