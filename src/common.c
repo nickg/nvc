@@ -1818,7 +1818,7 @@ type_t subtype_for_string(tree_t str, type_t base)
    tree_t left = NULL, right = NULL;
 
    if (is_enum)
-      left = make_ref(type_enum_literal(index_type, 0));
+      left = make_ref(type_enum_literal(type_base_recur(index_type), 0));
    else
       left = tree_left(range_of(index_type, 0));
 

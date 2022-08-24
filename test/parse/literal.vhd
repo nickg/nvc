@@ -28,6 +28,10 @@ ARCHITECTURE aa OF ee IS
   CONSTANT t : STRING  := %A%;
   CONSTANT u : STRING  := %%%%;
   constant v : string  := "©";
+
+  subtype lowercase is character range 'a' to 'z';
+  type my_string is array (lowercase range <>) of character;
+  constant w : my_string := "hello";
 BEGIN
 
 END ARCHITECTURE;
