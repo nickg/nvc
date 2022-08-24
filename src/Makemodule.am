@@ -77,7 +77,6 @@ endif
 bin_nvc_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 
 if IMPLIB_REQUIRED
-
 bin_nvc_LDFLAGS += -Wl,--out-implib=lib/libnvcimp.a
 
 lib_LIBRARIES += lib/libnvcimp.a
@@ -85,17 +84,28 @@ lib_LIBRARIES += lib/libnvcimp.a
 lib/libnvcimp.a: bin/nvc$(EXEEXT)
 
 lib_libnvcimp_a_SOURCES =
-
 endif
+
+nodist_EXTRA_bin_nvc_SOURCES =
 
 if LLVM_STATIC
 # Force linking as C++ to allow LLVM static libraries
-nodist_EXTRA_bin_nvc_SOURCES = dummy.cxx   # Make sure CXXLD is defined
+nodist_EXTRA_bin_nvc_SOURCES += dummy.cxx   # Make sure CXXLD is defined
 bin_nvc_LINK = $(CXXLD) $(AM_CFLAGS) $(CFLAGS) $(bin_nvc_LDFLAGS) -o $@
 AM_V_bin_nvc_LINK = $(AM_V_CXXLD)
 else
 bin_nvc_LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(bin_nvc_LDFLAGS) -o $@
 AM_V_bin_nvc_LINK = $(AM_V_CCLD)
+endif
+
+if ENABLE_GIT_SHA
+nodist_EXTRA_bin_nvc_SOURCES += gitsha.h
+
+CLEANFILES += gitsha.h
+BUILT_SOURCES += gitsha.h
+
+gitsha.h: .git/logs/HEAD
+	$(AM_V_GEN)echo "#define GIT_SHA \"$$(git describe --match=X --always --dirty)\"" > gitsha.h
 endif
 
 EXTRA_DIST += src/symbols.txt

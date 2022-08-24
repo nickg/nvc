@@ -16,6 +16,8 @@
   pointers.
 - Altera/Intel Quartus vendor libraries can now be compiled with `nvc
   --install quartus`.
+- The `nvc --version` output now includes the commit hash if built from
+  a Git checkout.
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a

@@ -41,14 +41,21 @@
 #include <unistd.h>
 #include <dirent.h>
 
+#if HAVE_GIT_SHA
+#include "gitsha.h"
+#define GIT_SHA_ONLY(x) x
+#else
+#define GIT_SHA_ONLY(x)
+#endif
+
 const char *copy_string =
    "Copyright (C) 2011-2022  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
 const char *version_string =
-   PACKAGE_STRING LLVM_ONLY(" (Using LLVM " LLVM_VERSION ")")
-   DEBUG_ONLY(" [debug]");
+   PACKAGE_STRING GIT_SHA_ONLY(" " GIT_SHA)
+   LLVM_ONLY(" (Using LLVM " LLVM_VERSION ")") DEBUG_ONLY(" [debug]");
 
 static ident_t top_level = NULL;
 static char *top_level_orig = NULL;

@@ -26,9 +26,12 @@ AM_SILENT_RULES([yes])
 AC_CONFIG_MACRO_DIR([m4])
 
 AS_IF([test -d ${srcdir}/.git],
-      [enable_maintainer_mode="yes"],
+      [enable_maintainer_mode="yes"
+       AC_DEFINE([HAVE_GIT_SHA], [1], [Have Git commit hash])],
       [enable_maintainer_mode="no"])
 AM_MAINTAINER_MODE
+
+AM_CONDITIONAL([ENABLE_GIT_SHA], [test -d ${srcdir}/.git])
 
 FORCE_OUT_OF_TREE
 
