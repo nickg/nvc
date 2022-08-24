@@ -1492,7 +1492,7 @@ tree_t resolve_name(nametab_t *tab, const loc_t *loc, ident_t name)
          return NULL;  // Suppress cascading errors
    }
 
-   if (sym->mask & N_ERROR)
+   if ((sym->mask & N_ERROR) || tab->top_scope->suppress)
       return NULL;    // Was an earlier error
 
    diag_t *d = diag_new(DIAG_ERROR, loc);
@@ -1684,7 +1684,7 @@ void insert_names_from_use(nametab_t *tab, tree_t use)
       ident_t lib_name = tree_ident(unit);
       lib_t lib = lib_require(lib_name);
       bool error;
-      if (lib_name == unit_name) {
+      if (lib_name == unit_name || unit_name == well_known(W_WORK)) {
          make_library_visible(tab->top_scope, lib);
          return;
       }

@@ -2104,6 +2104,9 @@ START_TEST(test_vests1)
    opt_set_int(OPT_WARN_HIDDEN, 1);
    input_from_file(TESTDIR "/sem/vests1.vhd");
 
+   lib_t foo = lib_tmp("foo");
+   lib_set_work(foo);
+
    const error_t expect[] = {
       { 32, "declaration of type C10S03B00X00P07N01I00914PKG hides package "
         "C10S03B00X00P07N01I00914PKG" },
