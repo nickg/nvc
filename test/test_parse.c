@@ -1483,7 +1483,7 @@ START_TEST(test_array)
    fail_unless(tree_ident(d) == ident_new("TEN_INTS"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
-   fail_if(type_has_ident(t));
+   fail_unless(type_has_ident(t));
    fail_unless(tree_ranges(type_constraint(t, 0)) == 1);
    fail_unless(type_kind(type_base(t)) == T_ARRAY);
 

@@ -5643,6 +5643,7 @@ static type_t p_constrained_array_definition(ident_t id)
    type_t sub = type_new(T_SUBTYPE);
    type_set_base(sub, base);
    type_add_constraint(sub, constraint);
+   type_set_ident(sub, id);
 
    consume(tLPAREN);
    do {
@@ -5906,8 +5907,15 @@ static void p_type_declaration(tree_t container)
 
       const type_kind_t kind = type_kind(type);
 
+      type_t base = type;
+      if (kind == T_SUBTYPE) {
+         base = type_base(type);
+         assert(type_kind(base) == T_ARRAY);
+         mangle_type(nametab, base);
+      }
+
       if (kind != T_INCOMPLETE)
-         declare_predefined_ops(container, type_base_recur(type));
+         declare_predefined_ops(container, base);
 
       if (kind == T_PHYSICAL) {
          const int nunits = type_units(type);
