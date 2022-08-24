@@ -2886,6 +2886,16 @@ START_TEST(test_vhdl2019)
 }
 END_TEST
 
+START_TEST(test_altera1)
+{
+   input_from_file(TESTDIR "/sem/altera1.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_if_errors();
+}
+END_TEST
+
 Suite *get_sem_tests(void)
 {
    Suite *s = suite_create("sem");
@@ -3023,6 +3033,7 @@ Suite *get_sem_tests(void)
    tcase_add_test(tc_core, test_issue482);
    tcase_add_test(tc_core, test_gensub2);
    tcase_add_test(tc_core, test_vhdl2019);
+   tcase_add_test(tc_core, test_altera1);
    suite_add_tcase(s, tc_core);
 
    return s;

@@ -441,7 +441,8 @@ static void dump_constraint(tree_t t)
 
 static void dump_type(type_t type)
 {
-   if (type_kind(type) == T_SUBTYPE) {
+   if (type_kind(type) == T_SUBTYPE && !type_has_ident(type)) {
+      // Anonymous subtype
       printf("%s", type_pp(type));
       if (type_ident(type) == type_ident(type_base(type))) {
          const int ncon = type_constraints(type);

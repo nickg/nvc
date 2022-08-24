@@ -639,9 +639,9 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
 
    type_kind_t kind = type_kind(type);
 
-   if (kind == T_SUBTYPE && !type_has_ident(type)) {
+   if (kind == T_SUBTYPE) {
       // Implicitly created subtype for a constrained array defintion
-      if (!sem_check_subtype(t, type, tab)) {
+      if (!sem_check_subtype_helper(t, type, tab)) {
          // Prevent cascading errors
          // TODO: can we do this check in the parser and set T_NONE earlier?
          type_set_base(type, type_new(T_NONE));
@@ -738,9 +738,6 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
          tree_set_type(r, type);
          return true;
       }
-
-   case T_SUBTYPE:
-      return sem_check_subtype(t, type, tab);
 
    case T_RECORD:
       {

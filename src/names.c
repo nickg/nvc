@@ -1982,12 +1982,8 @@ void mangle_func(nametab_t *tab, tree_t decl)
 
 void mangle_type(nametab_t *tab, type_t type)
 {
-   if (type_kind(type) == T_SUBTYPE && !type_has_ident(type))
-      mangle_type(tab, type_base(type));
-   else {
-      ident_t id = ident_prefix(tab->top_scope->prefix, type_ident(type), '.');
-      type_set_ident(type, id);
-   }
+   ident_t id = ident_prefix(tab->top_scope->prefix, type_ident(type), '.');
+   type_set_ident(type, id);
 }
 
 void mangle_decl(nametab_t *tab, tree_t decl)
