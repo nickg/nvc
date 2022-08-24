@@ -17,6 +17,10 @@
 - Fixed build with old versions of Glibc.
 - Resolution functions with nested record types now behave correctly
   (#516).
+- Avoid repeated `stat(2)` calls when accessing library.
+- Fixed very slow elaboration in some cases with function calls in
+  generic map expressions.
+- Fixed intermittent segfault optimiser during elaboration (#506).
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a

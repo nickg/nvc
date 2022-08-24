@@ -4244,8 +4244,8 @@ static void cgen_reset_function(void)
       LLVMSetDLLStorageClass(global, LLVMDLLExportStorageClass);
 #endif
 
-      LLVMBasicBlockRef ret_bb = LLVMAppendBasicBlock(ctx.fn, "");
-      LLVMBasicBlockRef cont_bb = LLVMAppendBasicBlock(ctx.fn, "");
+      LLVMBasicBlockRef ret_bb = llvm_append_block(ctx.fn, "");
+      LLVMBasicBlockRef cont_bb = llvm_append_block(ctx.fn, "");
 
       LLVMValueRef ptr = LLVMBuildLoad(builder, global, "");
       LLVMValueRef init_done = LLVMBuildIsNotNull(builder, ptr, "");
