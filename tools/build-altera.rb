@@ -1,5 +1,10 @@
 #!/usr/bin/env ruby
 
+puts "***** This script is deprecated and no longer maintained *****"
+puts ""
+puts "Use `nvc --install quartus' instead."
+exit 1    # Comment this if you really want to run it
+
 #
 # Script to compile the Altera simulation libraries
 #
