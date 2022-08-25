@@ -140,6 +140,12 @@ static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
    fstWriterEmitValueChange(fst_ctx, data->handle[0], buf);
 }
 
+static void fst_fmt_real(rt_watch_t *w, fst_data_t *data)
+{
+   const void *buf = rt_signal_value(data->signal, 0);
+   fstWriterEmitValueChange(fst_ctx, data->handle[0], buf);
+}
+
 static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
@@ -228,10 +234,10 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
       cache = hash_new(128);
 
    fst_type_t *ft = hash_get(cache, type);
-   if (ft != NULL)
-      return ft;
-   else if (ft == (void *)-1)
+   if (ft == (void *)-1)
       return NULL;   // Failed for this type earlier
+   else if (ft != NULL)
+      return ft;
 
    ft = xcalloc(sizeof(fst_type_t));
 
@@ -259,6 +265,12 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
          ft->size    = bits_for_range(low, high);
          ft->sdt     = FST_SDT_VHDL_INTEGER;
       }
+      break;
+
+   case T_REAL:
+      ft->vartype = FST_VT_VCD_REAL;
+      ft->fn      = fst_fmt_real;
+      ft->sdt     = FST_SDT_VHDL_REAL;
       break;
 
    case T_ENUM:

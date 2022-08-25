@@ -18,6 +18,7 @@
   --install quartus`.
 - The `nvc --version` output now includes the commit hash if built from
   a Git checkout.
+- Real valued signals can now be dumped in FST files (#524).
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a
