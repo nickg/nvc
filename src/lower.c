@@ -5109,12 +5109,6 @@ static void lower_disconnect_target(target_part_t **ptr, vcode_reg_t reject,
 
 static void lower_signal_assign(tree_t stmt)
 {
-   vcode_reg_t reject;
-   if (tree_has_reject(stmt))
-      reject = lower_reify_expr(tree_reject(stmt));
-   else
-      reject = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
-
    tree_t target = tree_target(stmt);
 
    const int nparts = lower_count_target_parts(target, 0);
@@ -5128,11 +5122,30 @@ static void lower_signal_assign(tree_t stmt)
    for (int i = 0; i < nwaveforms; i++) {
       tree_t w = tree_waveform(stmt, i);
 
-      vcode_reg_t after;
-      if (tree_has_delay(w))
-         after = lower_reify_expr(tree_delay(w));
+      tree_t delay = NULL;
+      vcode_reg_t delay_reg;
+      if (tree_has_delay(w)) {
+         delay = tree_delay(w);
+         delay_reg = lower_reify_expr(delay);
+      }
       else
-         after = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
+         delay_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
+
+      vcode_reg_t reject_reg;
+      if (i == 0 && tree_has_reject(stmt)) {
+         tree_t reject = tree_reject(stmt);
+         if (reject == delay) {
+            // If delay is the same as reject ensure the expression is
+            // only evaluated once
+            reject_reg = delay_reg;
+         }
+         else
+            reject_reg = lower_reify_expr(reject);
+      }
+      else {
+         // All but the first waveform have zero reject time
+         reject_reg = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
+      }
 
       vcode_var_t tmp_var = VCODE_INVALID_VAR;
 
@@ -5176,15 +5189,12 @@ static void lower_signal_assign(tree_t stmt)
                               VCODE_INVALID_REG);
          }
 
-         lower_signal_assign_target(&ptr, wvalue, rhs, wtype, reject, after);
+         lower_signal_assign_target(&ptr, wvalue, rhs, wtype,
+                                    reject_reg, delay_reg);
       }
       else
-         lower_disconnect_target(&ptr, reject, after);
+         lower_disconnect_target(&ptr, reject_reg, delay_reg);
       assert(ptr == parts + nparts);
-
-      // All but the first waveform have zero reject time
-      if (nwaveforms > 1 && tree_has_reject(stmt))
-         reject = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
 
       if (tmp_var != VCODE_INVALID_VAR)
          lower_release_temp(tmp_var);

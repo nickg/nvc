@@ -657,3 +657,4 @@ issue516        normal
 libdir3         shell
 elab35          normal
 issue524        shell
+issue527        normal,stop=1us
