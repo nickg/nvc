@@ -649,9 +649,9 @@ START_TEST(test_signal1)
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_ASSERT },
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_SCHED_WAVEFORM },
          { VCODE_OP_WAIT, .target = 2 }
@@ -1338,9 +1338,9 @@ START_TEST(test_signal4)
       { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_ARRAY_REF },
       { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_SCHED_WAVEFORM },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_RESOLVED },
@@ -1380,10 +1380,10 @@ START_TEST(test_staticwait)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_SCHED_WAVEFORM },
       { VCODE_OP_WAIT, .target = 2 }
@@ -2390,8 +2390,8 @@ START_TEST(test_sigvar)
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_UARRAY_LEN },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_DEBUG_LOCUS },
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_LENGTH_CHECK },
@@ -2604,10 +2604,10 @@ START_TEST(test_iffold)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_VAR_UPREF, .name = "X", .hops = 1 },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 5 },
       { VCODE_OP_SCHED_WAVEFORM },
       { VCODE_OP_JUMP, .target = 1 }
@@ -4151,11 +4151,11 @@ START_TEST(test_array2)
       vcode_select_unit(vu);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_VAR_UPREF, .name = "S", .hops = 1 },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_INDEX, .name = "*tmp" },
          { VCODE_OP_LOAD, .name = "X" },
          { VCODE_OP_CONST, .value = 0 },
@@ -4261,11 +4261,11 @@ START_TEST(test_concat)
       vcode_select_unit(vu);
 
       EXPECT_BB(1) = {
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_VAR_UPREF, .name = "S", .hops = 1 },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 3 },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_INDEX, .name = "*tmp" },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_CONST, .value = 2 },
@@ -4543,9 +4543,9 @@ START_TEST(test_recsignal1)
    vcode_select_unit(vu);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "P" },
       { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_VAR_UPREF, .hops = 1, .name = "Q" },
       { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_RECORD_REF, .field = 0 },
