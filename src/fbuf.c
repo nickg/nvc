@@ -34,14 +34,15 @@
    ((uint32_t)((b)[0] << 24) | (uint32_t)((b)[1] << 16) \
     | (uint32_t)((b)[2] << 8) | (uint32_t)(b)[3])
 
-#define PACK_BE32(u)				\
-   ((u) >> 24) & 0xff, ((u) >> 16) & 0xff,	\
+#define PACK_BE32(u)                            \
+   ((u) >> 24) & 0xff, ((u) >> 16) & 0xff,      \
       ((u) >> 8) & 0xff, (u) & 0xff
 
 #if DEBUG
 #define ASSERT_AVAIL(f, n) do {                                 \
       if (unlikely((f)->rptr + (n) > (f)->origsz))              \
-         fatal_trace("read past end of decompressed file");     \
+         fatal_trace("read past end of decompressed file %s",   \
+                     f->fname);                                 \
    } while (0);
 #else
 #define ASSERT_AVAIL(f, n)
@@ -113,9 +114,9 @@ static void adler32_update(adler32_t *state, uint8_t *input, size_t length)
       input += 8;
 
       if (s1 >= BASE)
-	 s1 -= BASE;
+         s1 -= BASE;
       if (length % 0x8000 == 0)
-	 s2 %= BASE;
+         s2 %= BASE;
    }
 
    assert(s1 < BASE);
@@ -212,11 +213,11 @@ static void fbuf_decompress(fbuf_t *f)
 
    if (header[4] != 'F')
       fatal("%s has was created with unexpected compression algorithm %c",
-	    f->fname, header[4]);
+            f->fname, header[4]);
 
    if (header[5] != f->checksum.algo)
       fatal("%s has was created with unexpected checksum algorithm %c",
-	    f->fname, header[5]);
+            f->fname, header[5]);
 
    const uint32_t len = UNPACK_BE32(header + 8);
    const uint32_t checksum = UNPACK_BE32(header + 12);
@@ -316,7 +317,7 @@ void fbuf_close(fbuf_t *f, uint32_t *checksum)
 
    if (f->mode == FBUF_IN && cs != f->checksum.expect)
       fatal("%s: incorrect checksum %08x, expected %08x",
-	    f->fname, cs, f->checksum.expect);
+            f->fname, cs, f->checksum.expect);
 
    if (checksum != NULL)
       *checksum = cs;

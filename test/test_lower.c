@@ -3542,6 +3542,7 @@ START_TEST(test_case1)
       { VCODE_OP_CONST, .value = 0x10 },
       { VCODE_OP_CONST, .value = 0x18 },
       { VCODE_OP_CONST, .value = 0x22 },
+      { VCODE_OP_CONST, .value = 0x13 },
       { VCODE_OP_CASE },
    };
 
