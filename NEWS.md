@@ -27,6 +27,8 @@
 - Real valued signals can now be dumped in FST files (#524).
 - Fixed signal assignment delay with side effects being evaluated twice
   (#527).
+- An error is now reported for duplicate choices in array-type case
+  statements (#528).
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a

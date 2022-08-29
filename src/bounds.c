@@ -1001,6 +1001,23 @@ static void bounds_check_scalar_case(tree_t t, type_t type)
    bounds_free_intervals(&covered);
 }
 
+static void bounds_check_duplicate_choice(tree_t old, tree_t new, int length)
+{
+   for (int i = 0; i < length; i++) {
+      if (get_case_choice_char(old, i) != get_case_choice_char(new, i))
+         return;
+   }
+
+   diag_t *d = diag_new(DIAG_ERROR, tree_loc(new));
+   diag_printf(d, "duplicate choice in case statement");
+   diag_hint(d, tree_loc(new), "repeated here");
+   diag_hint(d, tree_loc(old), "previous choice for this value");
+   diag_hint(d, NULL, "each value of the subtype of the expression must be "
+             "represented once and only once in the set of choices");
+   diag_lrm(d, STD_93, "8.8");
+   diag_emit(d);
+}
+
 static void bounds_check_array_case(tree_t t, type_t type)
 {
    int64_t expect = -1;
@@ -1019,8 +1036,11 @@ static void bounds_check_array_case(tree_t t, type_t type)
 
    int64_t have = 0, length = -1;
    const int nassocs = tree_assocs(t);
+   int64_t *hashes LOCAL = xmalloc_array(nassocs, sizeof(int64_t));
+
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
+      hashes[i] = INT64_MAX;
 
       switch (tree_subkind(a)) {
       case A_OTHERS:
@@ -1050,6 +1070,17 @@ static void bounds_check_array_case(tree_t t, type_t type)
                   diag_lrm(d, STD_08, "10.9");
                   diag_emit(d);
                   return;
+               }
+
+               hashes[i] = encode_case_choice(name, choice_length, 0);
+
+               for (int j = 0; j < i; j++) {
+                  if (hashes[j] == INT64_MAX)
+                     continue;
+                  else if (hashes[i] == hashes[j]) {
+                     tree_t old = tree_name(tree_assoc(t, j));
+                     bounds_check_duplicate_choice(old, name, choice_length);
+                  }
                }
             }
          }

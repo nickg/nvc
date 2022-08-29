@@ -1440,14 +1440,16 @@ tree_t primary_unit_of(tree_t unit)
    }
 }
 
-static unsigned encode_case_choice_at_depth(tree_t value, int depth)
+unsigned get_case_choice_char(tree_t value, int depth)
 {
    switch (tree_kind(value)) {
    case T_STRING:
-      {
+      if (depth < tree_chars(value)) {
          tree_t ch = tree_char(value, depth);
          return tree_pos(tree_ref(ch));
       }
+      else
+         return ~0;   // Out of bounds
 
    case T_AGGREGATE:
       {
@@ -1471,17 +1473,18 @@ static unsigned encode_case_choice_at_depth(tree_t value, int depth)
                return assume_int(tree_value(a));
             }
          }
+
+         // This will produce an error during bounds checking
+         return ~0;
       }
-      break;
 
    case T_REF:
       {
          tree_t decl = tree_ref(value);
          assert(tree_kind(decl) == T_CONST_DECL || tree_kind(decl) == T_ALIAS);
          assert(tree_has_value(decl));
-         return encode_case_choice_at_depth(tree_value(decl), depth);
+         return get_case_choice_char(tree_value(decl), depth);
       }
-      break;
 
    case T_ARRAY_SLICE:
       {
@@ -1489,7 +1492,7 @@ static unsigned encode_case_choice_at_depth(tree_t value, int depth)
          tree_t r = tree_range(value, 0);
          const int64_t rleft = assume_int(tree_left(r));
          const int64_t offset = rebase_index(tree_type(base), 0, rleft);
-         return encode_case_choice_at_depth(base, depth + offset);
+         return get_case_choice_char(base, depth + offset);
       }
 
    case T_FCALL:
@@ -1505,7 +1508,7 @@ static unsigned encode_case_choice_at_depth(tree_t value, int depth)
                         "side of concatenation");
 
             if (depth < left_len || i + 1 == nparams)
-               return encode_case_choice_at_depth(left, depth);
+               return get_case_choice_char(left, depth);
 
             depth -= left_len;
          }
@@ -1516,8 +1519,6 @@ static unsigned encode_case_choice_at_depth(tree_t value, int depth)
       fatal_at(tree_loc(value), "unsupported tree type %s in case choice",
                tree_kind_str(tree_kind(value)));
    }
-
-   fatal_at(tree_loc(value), "cannot find element %d in choice", depth);
 }
 
 int64_t encode_case_choice(tree_t value, int length, int bits)
@@ -1526,11 +1527,11 @@ int64_t encode_case_choice(tree_t value, int length, int bits)
    for (int i = 0; i < length; i++) {
       if (bits > 0) {
          enc <<= bits;
-         enc |= encode_case_choice_at_depth(value, i);
+         enc |= get_case_choice_char(value, i);
       }
       else {
          enc *= 0x27d4eb2d;
-         enc += encode_case_choice_at_depth(value, i);
+         enc += get_case_choice_char(value, i);
       }
    }
 
