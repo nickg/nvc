@@ -530,6 +530,24 @@ START_TEST(test_issue477b)
 }
 END_TEST
 
+START_TEST(test_case3)
+{
+   input_from_file(TESTDIR "/bounds/case3.vhd");
+
+   const error_t expect[] = {
+      { 16, "duplicate choice in case statement" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t a = parse_check_and_simplify(T_ENTITY, T_ARCH);
+   fail_unless(error_count() == 0);
+
+   bounds_check(a);
+   check_expected_errors();
+}
+END_TEST
+
 Suite *get_bounds_tests(void)
 {
    Suite *s = suite_create("bounds");
@@ -556,6 +574,7 @@ Suite *get_bounds_tests(void)
    tcase_add_test(tc_core, test_case2);
    tcase_add_test(tc_core, test_issue477a);
    tcase_add_test(tc_core, test_issue477b);
+   tcase_add_test(tc_core, test_case3);
    suite_add_tcase(s, tc_core);
 
    return s;

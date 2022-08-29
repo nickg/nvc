@@ -73,6 +73,7 @@ tree_t name_to_ref(tree_t name);
 const char *port_mode_str(port_mode_t mode);
 void mangle_one_type(text_buf_t *buf, type_t type);
 tree_t primary_unit_of(tree_t unit);
+unsigned get_case_choice_char(tree_t value, int depth);
 int64_t encode_case_choice(tree_t value, int length, int bits);
 void to_string(text_buf_t *tb, type_t type, int64_t value);
 tree_t longest_static_prefix(tree_t expr);

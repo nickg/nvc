@@ -4954,6 +4954,11 @@ void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
    for (int i = 0; i < ncases; i++) {
       vcode_add_arg(op, cases[i]);
       vcode_add_target(op, blocks[i]);
+
+#ifdef DEBUG
+      for (int j = 0; j < i; j++)
+         VCODE_ASSERT(cases[i] != cases[j], "duplicate case choice");
+#endif
    }
 }
 
