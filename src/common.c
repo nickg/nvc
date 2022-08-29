@@ -1477,7 +1477,7 @@ static unsigned encode_case_choice_at_depth(tree_t value, int depth)
    case T_REF:
       {
          tree_t decl = tree_ref(value);
-         assert(tree_kind(decl) == T_CONST_DECL);
+         assert(tree_kind(decl) == T_CONST_DECL || tree_kind(decl) == T_ALIAS);
          assert(tree_has_value(decl));
          return encode_case_choice_at_depth(tree_value(decl), depth);
       }
