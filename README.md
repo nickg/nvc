@@ -86,7 +86,7 @@ NVC has both a release branch and a development master branch. The
 master branch should be stable enough for day-to-day use and has
 comprehensive regression tests, but the release branch is more suitable
 for third party packaging.  The latest released version is
-[1.7.0](https://github.com/nickg/nvc/releases/download/r1.7.0/nvc-1.7.0.tar.gz).
+[1.7.1](https://github.com/nickg/nvc/releases/download/r1.7.1/nvc-1.7.1.tar.gz).
 Significant changes since the last release are detailed in
 [NEWS.md](NEWS.md).
 

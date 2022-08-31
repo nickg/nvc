@@ -10,15 +10,44 @@
 - Added support for `else` and `elsif` in generate statements (#510).
 - Xilinx Vivado vendor libraries can now be compiled with `nvc --install
   vivado`.
-- Resolution functions with nested record types now behave correctly
-  (#516).
 - LLVM 8.0 or later is now required due to deprecation of non-opaque
   pointers.
 - Altera/Intel Quartus vendor libraries can now be compiled with `nvc
   --install quartus`.
 - The `nvc --version` output now includes the commit hash if built from
   a Git checkout.
+
+## Version 1.7.1 - 2022-08-31
+- Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.
+- Added support for FreeBSD/powerpc (#503, #504, from @pkubaj).
+- Fixed "missing vcode unit" error during elaboration (#502).
+- Fixed crash with recursive entity instantiation (#502).
+- Fixed error with expressions like `X'ELEMENT'LENGTH` (#508).
+- Added support for FreeBSD/i386.
+- Fixed crash reading resolved value of record signal (#502).
+- Improved folding of for-generate expressions (#514).
+- Fixed memory leak when forcing signals.
+- Fixed crash with type conversion in generic map (#518).
+- Fixed crash with expressions like `X'DELAYED'STABLE` (#517).
+- External names now work with record signals (#520).
+- Xilinx Vivado vendor libraries can now be compiled with `nvc --install
+  vivado`.
+- VITAL libraries are now built by default on Windows.
+- Fixed build with old versions of Glibc.
+- Resolution functions with nested record types now behave correctly
+  (#516).
+- Avoid repeated `stat(2)` calls when accessing library.
+- Fixed very slow elaboration in some cases with function calls in
+  generic map expressions.
+- Fixed intermittent segfault during elaboration (#506).
+- Fixed incorrect constant folding of case statements with range
+  choices.
+- Fixed crash with constrained array declared in entity.
 - Real valued signals can now be dumped in FST files (#524).
+- Fixed signal assignment delay with side effects being evaluated twice
+  (#527).
+- An error is now reported for duplicate choices in array-type case
+  statements (#528).
 
 ## Version 1.7.0 - 2022-08-07
 - *Breaking change:* In-tree builds are no longer supported: use a
