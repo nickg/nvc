@@ -1,4 +1,4 @@
-## Unreleased changes
+## Version 1.7.1 - 2022-08-31
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.
 - Added support for FreeBSD/powerpc (#503, #504, from @pkubaj).
 - Fixed "missing vcode unit" error during elaboration (#502).
@@ -20,7 +20,7 @@
 - Avoid repeated `stat(2)` calls when accessing library.
 - Fixed very slow elaboration in some cases with function calls in
   generic map expressions.
-- Fixed intermittent segfault optimiser during elaboration (#506).
+- Fixed intermittent segfault during elaboration (#506).
 - Fixed incorrect constant folding of case statements with range
   choices.
 - Fixed crash with constrained array declared in entity.
