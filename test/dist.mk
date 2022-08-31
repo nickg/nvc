@@ -4,6 +4,7 @@ EXTRA_DIST += \
 	test/bounds/bounds2.vhd \
 	test/bounds/bounds.vhd \
 	test/bounds/case2.vhd \
+	test/bounds/case3.vhd \
 	test/bounds/case.vhd \
 	test/bounds/issue150.vhd \
 	test/bounds/issue200.vhd \
@@ -65,6 +66,8 @@ EXTRA_DIST += \
 	test/elab/issue442.vhd \
 	test/elab/issue448.vhd \
 	test/elab/issue459.vhd \
+	test/elab/issue514.vhd \
+	test/elab/issue518.vhd \
 	test/elab/issue93.vhd \
 	test/elab/jcore1.vhd \
 	test/elab/libbind2.vhd \
@@ -211,6 +214,7 @@ EXTRA_DIST += \
 	test/lower/nullarray.vhd \
 	test/lower/osvvm2.vhd \
 	test/lower/pack1.vhd \
+	test/lower/predef1.vhd \
 	test/lower/proc1.vhd \
 	test/lower/proc3.vhd \
 	test/lower/proc7.vhd \
@@ -530,6 +534,7 @@ EXTRA_DIST += \
 	test/regress/driver11.vhd \
 	test/regress/driver12.vhd \
 	test/regress/driver13.vhd \
+	test/regress/driver14.vhd \
 	test/regress/driver1.vhd \
 	test/regress/driver2.vhd \
 	test/regress/driver3.vhd \
@@ -565,6 +570,8 @@ EXTRA_DIST += \
 	test/regress/elab31.vhd \
 	test/regress/elab32.vhd \
 	test/regress/elab33.vhd \
+	test/regress/elab34.vhd \
+	test/regress/elab35.vhd \
 	test/regress/elab3.vhd \
 	test/regress/elab4.vhd \
 	test/regress/elab5.vhd \
@@ -733,6 +740,7 @@ EXTRA_DIST += \
 	test/regress/gold/issue45.txt \
 	test/regress/gold/issue469.txt \
 	test/regress/gold/issue494.txt \
+	test/regress/gold/issue524.dump \
 	test/regress/gold/issue96.txt \
 	test/regress/gold/proc7.txt \
 	test/regress/gold/proc8.txt \
@@ -871,7 +879,14 @@ EXTRA_DIST += \
 	test/regress/issue493.sh \
 	test/regress/issue494.vhd \
 	test/regress/issue497.vhd \
+	test/regress/issue502.vhd \
+	test/regress/issue508.vhd \
+	test/regress/issue516.vhd \
+	test/regress/issue524.sh \
+	test/regress/issue524.vhd \
+	test/regress/issue527.vhd \
 	test/regress/issue53.vhd \
+	test/regress/issue552.vhd \
 	test/regress/issue56.vhd \
 	test/regress/issue57.vhd \
 	test/regress/issue59.vhd \
@@ -902,6 +917,7 @@ EXTRA_DIST += \
 	test/regress/lfsr.vhd \
 	test/regress/libdir1.sh \
 	test/regress/libdir2.sh \
+	test/regress/libdir3.sh \
 	test/regress/link1.vhd \
 	test/regress/link2.vhd \
 	test/regress/link3.sh \
@@ -974,6 +990,7 @@ EXTRA_DIST += \
 	test/regress/record34.vhd \
 	test/regress/record35.vhd \
 	test/regress/record36.vhd \
+	test/regress/record37.vhd \
 	test/regress/record3.vhd \
 	test/regress/record4.vhd \
 	test/regress/record5.vhd \
@@ -1123,6 +1140,7 @@ EXTRA_DIST += \
 	test/sem/afunc.vhd \
 	test/sem/agg2008.vhd \
 	test/sem/alias.vhd \
+	test/sem/altera1.vhd \
 	test/sem/ambiguous.vhd \
 	test/sem/array.vhd \
 	test/sem/assert.vhd \
@@ -1252,6 +1270,7 @@ EXTRA_DIST += \
 	test/sem/wait.vhd \
 	test/simp/allsens.vhd \
 	test/simp/args.vhd \
+	test/simp/casefold1.vhd \
 	test/simp/cfold.vhd \
 	test/simp/concat.vhd \
 	test/simp/condvar.vhd \
