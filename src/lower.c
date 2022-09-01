@@ -3527,7 +3527,6 @@ static vcode_reg_t lower_array_aggregate(tree_t expr, vcode_reg_t hint)
       if (a0_reg != VCODE_INVALID_REG && i > 0) {
          // Element type is unconstrained so we need a length check here
          lower_check_array_sizes(a, elem_type, elem_type, a0_reg, value_reg);
-         vcode_dump();
       }
 
       value_reg = lower_resolved(value_type, value_reg);
