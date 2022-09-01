@@ -1,8 +1,6 @@
 lib_libnvc_a_SOURCES += \
-	src/rt/rtkern.c \
 	src/rt/alloc.c \
 	src/rt/heap.c \
-	src/rt/pprint.c \
 	src/rt/cover.c \
 	src/rt/wave.c \
 	src/rt/rt.h \
@@ -15,4 +13,8 @@ lib_libnvc_a_SOURCES += \
 	src/rt/mspace.c \
 	src/rt/stdenv.c \
 	src/rt/standard.c \
-	src/rt/simpkg.c
+	src/rt/simpkg.c \
+	src/rt/standard.c \
+	src/rt/structs.h \
+	src/rt/model.h \
+	src/rt/model.c

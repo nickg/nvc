@@ -16,14 +16,15 @@
 //
 
 #include "util.h"
-#include "array.h"
 #include "common.h"
 #include "diag.h"
 #include "eval.h"
+#include "jit/jit.h"
 #include "lib.h"
 #include "opt.h"
 #include "phase.h"
 #include "rt/cover.h"
+#include "rt/model.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
 #include "scan.h"
@@ -59,6 +60,11 @@ const char *version_string =
 
 static ident_t top_level = NULL;
 static char *top_level_orig = NULL;
+
+typedef struct {
+   rt_model_t *model;
+   uint64_t    stop_time;
+} sim_args_t;
 
 static int process_command(int argc, char **argv);
 static int parse_int(const char *str);
@@ -368,6 +374,16 @@ static vhdl_severity_t parse_severity(const char *str)
       fatal("invalid severity level: %s", str);
 }
 
+static void run_sim_cb(void *__ctx)
+{
+   sim_args_t *args = __ctx;
+
+   model_reset(args->model);
+   wave_restart(args->model);
+
+   model_run(args->model, args->stop_time);
+}
+
 static int run(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -490,14 +506,24 @@ static int run(int argc, char **argv)
    if (opt_get_int(OPT_HEAP_SIZE) < 0x100000)
       warnf("recommended heap size is at least 1M");
 
-   rt_start_of_tool(top);
+   jit_t *jit = jit_new();
+   jit_enable_runtime(jit, true);
+   jit_load_dll(jit, tree_ident(top));
+
+   _std_standard_init();
+   _std_env_init();
+   _nvc_sim_pkg_init();
+
+   rt_model_t *model = model_new(top, jit);
 
    if (vhpi_plugins != NULL)
-      vhpi_load_plugins(top, vhpi_plugins);
+      vhpi_load_plugins(top, model, vhpi_plugins);
 
-   const int rc = rt_run_sim(top, stop_time);
+   sim_args_t args = { model, stop_time };
+   const int rc = jit_with_abort_handler(run_sim_cb, &args);
 
-   rt_end_of_tool(top);
+   model_free(model);
+   jit_free(jit);
 
    argc -= next_cmd - 1;
    argv += next_cmd - 1;

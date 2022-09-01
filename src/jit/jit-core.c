@@ -24,8 +24,9 @@
 #include "lib.h"
 #include "jit/jit-priv.h"
 #include "opt.h"
+#include "rt/model.h"
 #include "rt/mspace.h"
-#include "rt/rt.h"
+#include "rt/structs.h"
 #include "type.h"
 #include "vcode.h"
 
@@ -655,7 +656,7 @@ void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
 {
    switch (tree_kind(enclosing)) {
    case T_PROCESS:
-      diag_trace(d, loc, "Process$$ %s", istr(rt_active_proc_name()));
+      diag_trace(d, loc, "Process$$ %s", istr(get_active_proc()->name));
       break;
    case T_FUNC_BODY:
    case T_FUNC_DECL:
@@ -766,17 +767,66 @@ void jit_abort(int code)
    }
 }
 
+#ifndef __MINGW32__
+static void jit_interrupt(int signo)
+{
+#ifdef __SANITIZE_THREAD__
+   _Exit(1);
+#else
+   rt_model_t *m = get_model_or_null();
+   if (m != NULL)
+      model_interrupt(m);
+#endif
+}
+#endif
+
+#ifdef __MINGW32__
+static BOOL jit_win_ctrl_handler(DWORD fdwCtrlType)
+{
+   switch (fdwCtrlType) {
+   case CTRL_C_EVENT:
+      // Windows calls the handler on a separate thread so there is no
+      // associated model
+      fatal_exit(1);
+      return TRUE;
+
+   default:
+      return FALSE;
+   }
+}
+#endif
+
 int jit_with_abort_handler(void (*fn)(void *), void *arg)
 {
    int rc = setjmp(abort_env);
    jmp_buf_valid = 1;
-   if (rc == 0) {
+
+#ifndef __MINGW32__
+   struct sigaction sa = {};
+   sa.sa_handler = jit_interrupt;
+   sigemptyset(&sa.sa_mask);
+   sa.sa_flags = SA_RESTART;
+
+   sigaction(SIGINT, &sa, NULL);
+#else
+   if (!SetConsoleCtrlHandler(jit_win_ctrl_handler, TRUE))
+      fatal_trace("SetConsoleCtrlHandler");
+#endif
+
+   if (rc == 0)
       (*fn)(arg);
-      jmp_buf_valid = 0;
-      return 0;
-   }
-   else {
-      jmp_buf_valid = 0;
-      return rc - 1;  // jit_abort adds 1 to exit code
-   }
+   else
+      rc -= 1;  // jit_abort adds 1 to exit code
+
+   jmp_buf_valid = 0;
+
+#ifndef __MINGW32__
+   sa.sa_handler = SIG_DFL;
+   sigaction(SIGINT, &sa, NULL);
+#else
+   if (!SetConsoleCtrlHandler(jit_win_ctrl_handler, FALSE))
+      fatal_trace("SetConsoleCtrlHandler");
+#endif
+
+   return rc;
 }

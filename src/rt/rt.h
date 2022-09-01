@@ -28,14 +28,10 @@
 
 #define TIME_HIGH INT64_MAX  // Value of TIME'HIGH
 
-typedef struct rt_watch_s  rt_watch_t;
-typedef struct rt_signal_s rt_signal_t;
-typedef struct rt_scope_s  rt_scope_t;
-
 typedef void (*sig_event_fn_t)(uint64_t now, rt_signal_t *signal,
                                rt_watch_t *watch, void *user);
 typedef void (*timeout_fn_t)(uint64_t now, void *user);
-typedef void (*rt_event_fn_t)(void *user);
+typedef void (*rt_event_fn_t)(rt_model_t *m, void *user);
 
 typedef enum {
    OPEN_OK      = 0,
@@ -81,30 +77,11 @@ typedef enum {
    WAVE_OUTPUT_VCD
 } wave_output_t;
 
-void rt_start_of_tool(tree_t top);
-void rt_end_of_tool(tree_t top);
-int rt_run_sim(tree_t top, uint64_t stop_time);
-void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user);
-rt_watch_t *rt_set_event_cb(rt_signal_t *s, sig_event_fn_t fn, void *user,
-                            bool postponed);
-void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user);
-size_t rt_signal_expand(rt_signal_t *s, int offset, uint64_t *buf, size_t max);
-const void *rt_signal_value(rt_signal_t *s, int offset);
-size_t rt_signal_string(rt_signal_t *s, const char *map, char *buf, size_t max);
-bool rt_force_signal(rt_signal_t *s, const uint64_t *buf, size_t count);
-rt_signal_t *rt_find_signal(rt_scope_t *scope, tree_t decl);
-rt_scope_t *rt_find_scope(tree_t container);
-rt_scope_t *rt_child_scope(rt_scope_t *scope, tree_t decl);
-bool rt_can_create_delta(void);
-uint64_t rt_now(unsigned *deltas);
-void rt_stop(void);
+void rt_start_of_tool(tree_t top, rt_model_t *m);
 void *rt_tlab_alloc(size_t size);
-ident_t rt_active_proc_name(void) __attribute__((weak));
-
-text_buf_t *pprint(tree_t t, const uint64_t *values, size_t len);
 
 void wave_init(const char *file, tree_t top, wave_output_t output);
-void wave_restart(void);
+void wave_restart(rt_model_t *m);
 
 void wave_include_glob(const char *glob);
 void wave_exclude_glob(const char *glob);

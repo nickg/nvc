@@ -83,6 +83,9 @@ static void setup(void)
    opt_set_int(OPT_RELAXED, 0);
    opt_set_int(OPT_JIT_LOG, getenv("NVC_JIT_LOG") != NULL);
    opt_set_int(OPT_WARN_HIDDEN, 0);
+   opt_set_int(OPT_RT_TRACE, 0);
+   opt_set_int(OPT_STOP_DELTA, 1000);
+   opt_set_int(OPT_RT_STATS, 0);
 
    intern_strings();
 }

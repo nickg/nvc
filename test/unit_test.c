@@ -90,6 +90,7 @@ int main(int argc, char **argv)
    nfail += RUN_TESTS(debug);
    nfail += RUN_TESTS(jit);
    nfail += RUN_TESTS(mspace);
+   nfail += RUN_TESTS(model);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

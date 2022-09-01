@@ -23,6 +23,7 @@
 #include "lib.h"
 #include "opt.h"
 #include "rt/rt.h"
+#include "rt/model.h"
 #include "tree.h"
 #include "type.h"
 #include "vhpi/vhpi-macros.h"
@@ -218,6 +219,7 @@ DEF_CLASS(callback, vhpiCallbackK, object);
 
 static c_rootInst *rootInst = NULL;
 static shash_t    *strtab = NULL;
+static rt_model_t *model = NULL;
 
 static vhpiHandleT handle_for(c_vhpiObject *obj)
 {
@@ -432,7 +434,7 @@ static void vhpi_signal_event_cb(uint64_t now, rt_signal_t *signal,
       vhpi_do_callback(cb);
 }
 
-static void vhpi_global_cb(void *user)
+static void vhpi_global_cb(rt_model_t *m, void *user)
 {
    c_callback *cb;
    if ((cb = is_callback(user)))
@@ -444,7 +446,7 @@ static rt_scope_t *vhpi_get_scope(c_abstractRegion *region)
    if (region->scope)
       return region->scope;
 
-   rt_scope_t *scope = rt_find_scope(region->tree);
+   rt_scope_t *scope = find_scope(model, region->tree);
    if (scope == NULL) {
       vhpi_error(vhpiError, &(region->object.loc),
                  "cannot find scope object for %s", region->Name);
@@ -464,7 +466,7 @@ static rt_signal_t *vhpi_get_signal(c_abstractDecl *decl)
    if (scope == NULL)
       return NULL;
 
-   rt_signal_t *signal = rt_find_signal(scope, decl->tree);
+   rt_signal_t *signal = find_signal(scope, decl->tree);
    if (signal == NULL) {
       vhpi_error(vhpiError, &(decl->object.loc),
                  "cannot find signal object for %s", decl->Name);
@@ -507,8 +509,8 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbEndOfSimulation:
    case vhpiCbLastKnownDeltaCycle:
    case vhpiCbNextTimeStep:
-      rt_set_global_cb(vhpi_get_rt_event(cb_data_p->reason),
-                       vhpi_global_cb, cb);
+      model_set_global_cb(model, vhpi_get_rt_event(cb_data_p->reason),
+                          vhpi_global_cb, cb);
       break;
 
    case vhpiCbAfterDelay:
@@ -517,8 +519,8 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          goto failed;
       }
 
-      rt_set_timeout_cb(vhpi_time_to_native(cb_data_p->time),
-                        vhpi_timeout_cb, cb);
+      model_set_timeout_cb(model, vhpi_time_to_native(cb_data_p->time),
+                           vhpi_timeout_cb, cb);
       break;
 
    case vhpiCbValueChange:
@@ -535,7 +537,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          if (signal == NULL)
             goto failed;
 
-         rt_set_event_cb(signal, vhpi_signal_event_cb, cb, false);
+         model_set_event_cb(model, signal, vhpi_signal_event_cb, cb, false);
       }
       break;
 
@@ -853,7 +855,7 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
             return invalid;
 
          uint64_t value;
-         rt_signal_expand(signal, 0, &value, 1);
+         signal_expand(signal, 0, &value, 1);
 
          return vhpi_phys_from_native(value);
       }
@@ -981,9 +983,9 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    if (format == vhpiBinStrVal) {
       const char *map_str = vhpi_map_str_for_type(decl->type);
-      const size_t need = rt_signal_string(signal, map_str,
-                                           (char *)value_p->value.str,
-                                           value_p->bufSize);
+      const size_t need = signal_string(signal, map_str,
+                                        (char *)value_p->value.str,
+                                        value_p->bufSize);
       if (need > value_p->bufSize)
          return need;
       else
@@ -991,7 +993,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    }
    else if (type_is_scalar(decl->type)) {
       uint64_t value;
-      rt_signal_expand(signal, 0, &value, 1);
+      signal_expand(signal, 0, &value, 1);
 
       switch (format) {
       case vhpiLogicVal:
@@ -1029,7 +1031,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
       const int max = value_p->bufSize / elemsz;
       uint64_t *values LOCAL = xmalloc_array(max, sizeof(uint64_t));
-      value_p->numElems = rt_signal_expand(signal, 0, values, max);
+      value_p->numElems = signal_expand(signal, 0, values, max);
 
       const int copy = MIN(value_p->numElems, max);
 
@@ -1100,8 +1102,8 @@ int vhpi_put_value(vhpiHandleT handle,
                return 1;
             }
 
-            if (rt_can_create_delta())
-               rt_force_signal(signal, &expanded, 1);
+            if (model_can_create_delta(model))
+               force_signal(signal, &expanded, 1);
             else {
                vhpi_error(vhpiError, &(obj->loc), "cannot force "
                           "propagate signal during current simulation phase");
@@ -1135,7 +1137,7 @@ int vhpi_put_value(vhpiHandleT handle,
                return 1;
             }
 
-            rt_force_signal(signal, expanded, num_elems);
+            force_signal(signal, expanded, num_elems);
             free(expanded);
          }
          return 0;
@@ -1178,7 +1180,7 @@ void vhpi_get_time(vhpiTimeT *time_p, long *cycles)
    VHPI_TRACE("time_p=%p cycles=%p", time_p, cycles);
 
    unsigned deltas;
-   const uint64_t now = rt_now(&deltas);
+   const uint64_t now = model_now(model, &deltas);
 
    if (time_p != NULL) {
       time_p->high = now >> 32;
@@ -1204,7 +1206,7 @@ int vhpi_control(vhpiSimControlT command, ...)
    case vhpiFinish:
    case vhpiStop:
       notef("VHPI plugin requested end of simulation");
-      rt_stop();
+      model_stop(model);
       return 0;
 
    case vhpiReset:
@@ -1411,7 +1413,7 @@ static void vhpi_build_ports(tree_t unit, c_rootInst *where)
    }
 }
 
-void vhpi_build_design_model(tree_t top)
+void vhpi_build_design_model(tree_t top, rt_model_t *m)
 {
    const uint64_t start_us = get_timestamp_us();
 
@@ -1422,6 +1424,8 @@ void vhpi_build_design_model(tree_t top)
 
    assert(strtab == NULL);
    strtab = shash_new(1024);
+
+   model = m;
 
    rootInst = new_object(sizeof(c_rootInst), vhpiRootInstK);
    init_abstractRegion(&(rootInst->designInstUnit.region), b0);

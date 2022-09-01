@@ -22,7 +22,8 @@ bin_unit_test_SOURCES = \
 	test/test_value.c \
 	test/test_debug.c \
 	test/test_mspace.c \
-	test/test_jit.c
+	test/test_jit.c \
+	test/test_model.c
 
 bin_unit_test_LDADD = \
 	lib/libnvc.a \
@@ -31,9 +32,6 @@ bin_unit_test_LDADD = \
 	$(check_LIBS) \
 	$(POW_LIB) \
 	$(libdw_LIBS)
-
-# XXX: temp workaround for macOS
-bin_unit_test_LDADD += lib/libfst.a
 
 bin_unit_test_LDFLAGS = $(LDFLAGS) $(AM_LDFLAGS) $(EXPORT_LDFLAGS)
 

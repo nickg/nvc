@@ -552,3 +552,219 @@ void _real_to_string(double value, ffi_uarray_t *u)
    char *buf = rt_tlab_alloc(32);
    *u = x_real_to_string(value, buf, 32);
 }
+
+DLLEXPORT
+sig_shared_t *_init_signal(uint32_t count, uint32_t size, const uint8_t *values,
+                           int32_t flags, DEBUG_LOCUS(locus), int32_t offset)
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+   return x_init_signal(count, size, values, flags, where, offset);
+}
+
+DLLEXPORT
+void __nvc_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   x_drive_signal(ss, offset, count);
+}
+
+DLLEXPORT
+void _sched_process(int64_t delay)
+{
+   x_sched_process(delay);
+}
+
+DLLEXPORT
+void _sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
+                       int64_t after, int64_t reject)
+{
+   x_sched_waveform_s(ss, offset, scalar, after, reject);
+}
+
+DLLEXPORT
+void _sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
+                     int32_t count, int64_t after, int64_t reject)
+{
+   x_sched_waveform(ss, offset, values, count, after, reject);
+}
+
+DLLEXPORT
+void _sched_event(sig_shared_t *ss, uint32_t offset, int32_t count, bool recur,
+                  sig_shared_t *wake_ss)
+{
+   x_sched_event(ss, offset, count, recur, wake_ss);
+}
+
+DLLEXPORT
+void __nvc_alias_signal(sig_shared_t *ss, DEBUG_LOCUS(locus))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+   x_alias_signal(ss, where);
+}
+
+DLLEXPORT
+void __nvc_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
+                       int64_t hint_left, int64_t hint_right, int8_t hint_valid,
+                       DEBUG_LOCUS(locus))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+
+   x_assert_fail(msg, msg_len, severity, hint_left, hint_right,
+                 hint_valid, where);
+}
+
+DLLEXPORT
+void __nvc_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
+                  DEBUG_LOCUS(locus))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+
+   x_report(msg, msg_len, severity, where);
+}
+
+DLLEXPORT
+void __nvc_claim_tlab(void)
+{
+   x_claim_tlab();
+}
+
+DLLEXPORT
+int64_t _last_event(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   return x_last_event(ss, offset, count);
+}
+
+DLLEXPORT
+int64_t _last_active(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   return x_last_active(ss, offset, count);
+}
+
+DLLEXPORT
+int32_t _test_net_active(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   return x_test_net_active(ss, offset, count);
+}
+
+DLLEXPORT
+int32_t _test_net_event(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   return x_test_net_event(ss, offset, count);
+}
+
+DLLEXPORT
+void _debug_out(intptr_t val, int32_t reg)
+{
+   printf("DEBUG: r%d val=%"PRIxPTR"\n", reg, val);
+   fflush(stdout);
+}
+
+DLLEXPORT
+void _debug_dump(const uint8_t *ptr, int32_t len)
+{
+   printf("---- %p ----\n", ptr);
+
+   if (ptr != NULL) {
+      for (int i = 0; i < len; i++)
+         printf("%02x%c", ptr[i], (i % 8 == 7) ? '\n' : ' ');
+      if (len % 8 != 0)
+         printf("\n");
+   }
+
+   fflush(stdout);
+}
+
+DLLEXPORT
+void __nvc_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
+                      sig_shared_t *dst_ss, uint32_t dst_offset,
+                      uint32_t src_count, uint32_t dst_count,
+                      ffi_closure_t *closure)
+{
+   x_map_signal(src_ss, src_offset, dst_ss, dst_offset, src_count,
+                dst_count, closure);
+}
+
+DLLEXPORT
+void __nvc_map_const(sig_shared_t *ss, uint32_t offset,
+                     const uint8_t *values, uint32_t count)
+{
+   x_map_const(ss, offset, values, count);
+}
+
+DLLEXPORT
+void __nvc_push_scope(DEBUG_LOCUS(locus), int32_t size)
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+   x_push_scope(where, size);
+}
+
+DLLEXPORT
+void __nvc_pop_scope(void)
+{
+   x_pop_scope();
+}
+
+DLLEXPORT
+bool _driving(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   return x_driving(ss, offset, count);
+}
+
+DLLEXPORT
+void *_driving_value(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   return x_driving_value(ss, offset, count);
+}
+
+DLLEXPORT
+sig_shared_t *_implicit_signal(uint32_t count, uint32_t size,
+                               DEBUG_LOCUS(locus), uint32_t kind,
+                               ffi_closure_t *closure)
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+   return x_implicit_signal(count, size, where, kind, closure);
+}
+
+DLLEXPORT
+void _disconnect(sig_shared_t *ss, uint32_t offset, int32_t count,
+                 int64_t after, int64_t reject)
+{
+   x_disconnect(ss, offset, count, after, reject);
+}
+
+DLLEXPORT
+void __nvc_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
+{
+   x_force(ss, offset, count, values);
+}
+
+DLLEXPORT
+void __nvc_release(sig_shared_t *ss, uint32_t offset, int32_t count)
+{
+   x_release(ss, offset, count);
+}
+
+DLLEXPORT
+void __nvc_resolve_signal(sig_shared_t *ss, rt_resolution_t *resolution)
+{
+   x_resolve_signal(ss, resolution);
+}
+
+DLLEXPORT
+void __nvc_elab_order_fail(DEBUG_LOCUS(locus))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+   x_elab_order_fail(where);
+}
+
+DLLEXPORT
+void __nvc_unreachable(DEBUG_LOCUS(locus))
+{
+   tree_t where = locus_to_tree(locus_unit, locus_offset);
+   x_unreachable(where);
+}
+
+DLLEXPORT
+void *__nvc_mspace_alloc(uint32_t size, uint32_t nelems)
+{
+   return x_mspace_alloc(size, nelems);
+}

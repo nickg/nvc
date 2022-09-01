@@ -45,7 +45,7 @@ typedef union {
 STATIC_ASSERT(sizeof(ffi_spec_t) == 4);
 
 // The code generator knows the layout of this struct
-typedef struct {
+typedef struct _ffi_closure {
    void       *fn;
    void       *context;
    ffi_spec_t  spec;

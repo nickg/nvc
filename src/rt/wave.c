@@ -22,7 +22,8 @@
 #include "fstapi.h"
 #include "hash.h"
 #include "opt.h"
-#include "rt.h"
+#include "rt/model.h"
+#include "rt/rt.h"
 #include "tree.h"
 #include "type.h"
 
@@ -83,18 +84,18 @@ struct fst_data {
 static glob_array_t incl;
 static glob_array_t excl;
 
-static tree_t    fst_top;
-static void     *fst_ctx;
-static uint64_t  last_time = UINT64_MAX;
-static FILE     *vcdfile;
-static char     *tmpfst;
+static tree_t      fst_top;
+static void       *fst_ctx;
+static uint64_t    last_time = UINT64_MAX;
+static FILE       *vcdfile;
+static char       *tmpfst;
 
-static void fst_process_signal(rt_scope_t *scope, tree_t d, tree_t cons,
-                               text_buf_t *tb);
+static void fst_process_signal(rt_model_t *m, rt_scope_t *scope, tree_t d,
+                               tree_t cons, text_buf_t *tb);
 
-static void fst_close(void)
+static void fst_close(rt_model_t *m, void *arg)
 {
-   fstWriterEmitTimeChange(fst_ctx, rt_now(NULL));
+   fstWriterEmitTimeChange(fst_ctx, model_now(m, NULL));
    fstWriterClose(fst_ctx);
 
    if (vcdfile) {
@@ -130,7 +131,7 @@ static void fst_close(void)
 static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_expand(data->signal, 0, &val, 1);
+   signal_expand(data->signal, 0, &val, 1);
 
    char buf[data->type->size + 1];
    for (size_t i = 0; i < data->type->size; i++)
@@ -142,14 +143,14 @@ static void fst_fmt_int(rt_watch_t *w, fst_data_t *data)
 
 static void fst_fmt_real(rt_watch_t *w, fst_data_t *data)
 {
-   const void *buf = rt_signal_value(data->signal, 0);
+   const void *buf = signal_value(data->signal);
    fstWriterEmitValueChange(fst_ctx, data->handle[0], buf);
 }
 
 static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_expand(data->signal, 0, &val, 1);
+   signal_expand(data->signal, 0, &val, 1);
 
    fst_unit_t *unit = data->type->u.units;
    while ((val % unit->mult) != 0)
@@ -165,7 +166,7 @@ static void fst_fmt_physical(rt_watch_t *w, fst_data_t *data)
 
 static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
 {
-   const uint8_t *p = rt_signal_value(data->signal, 0);
+   const uint8_t *p = signal_value(data->signal);
    for (int i = 0; i < data->count; i++, p += data->size) {
       if (likely(data->type->u.map != NULL)) {
          char buf[data->size];
@@ -182,7 +183,7 @@ static void fst_fmt_chars(rt_watch_t *w, fst_data_t *data)
 static void fst_fmt_enum(rt_watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_expand(data->signal, 0, &val, 1);
+   signal_expand(data->signal, 0, &val, 1);
 
    fst_enum_t *e = &(data->type->u.literals);
    assert(val < e->count);
@@ -388,8 +389,8 @@ static fst_type_t *fst_type_for(type_t type, const loc_t *loc)
    return NULL;
 }
 
-static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
-                                 tree_t cons, text_buf_t *tb)
+static void fst_create_array_var(rt_model_t *m, tree_t d, rt_signal_t *s,
+                                 type_t type, tree_t cons, text_buf_t *tb)
 {
    tree_t r;
    if (cons != NULL && tree_kind(cons) == T_ELEM_CONSTRAINT)
@@ -491,13 +492,13 @@ static void fst_create_array_var(tree_t d, rt_signal_t *s, type_t type,
    data->decl   = d;
    data->signal = s;
    data->dir    = tree_subkind(r);
-   data->watch  = rt_set_event_cb(data->signal, fst_event_cb, data, true);
+   data->watch  = model_set_event_cb(m, data->signal, fst_event_cb, data, true);
 
    fst_event_cb(0, data->signal, data->watch, data);
 }
 
-static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type,
-                                  text_buf_t *tb)
+static void fst_create_scalar_var(rt_model_t *m, tree_t d, rt_signal_t *s,
+                                  type_t type, text_buf_t *tb)
 {
    fst_type_t *ft = fst_type_for(type, tree_loc(d));
    if (ft == NULL)
@@ -529,13 +530,13 @@ static void fst_create_scalar_var(tree_t d, rt_signal_t *s, type_t type,
 
    data->decl   = d;
    data->signal = s;
-   data->watch  = rt_set_event_cb(data->signal, fst_event_cb, data, true);
+   data->watch  = model_set_event_cb(m, data->signal, fst_event_cb, data, true);
 
    fst_event_cb(0, data->signal, data->watch, data);
 }
 
-static void fst_create_record_var(tree_t d, rt_scope_t *scope, type_t type,
-                                  text_buf_t *tb)
+static void fst_create_record_var(rt_model_t *m, tree_t d, rt_scope_t *scope,
+                                  type_t type, text_buf_t *tb)
 {
    tb_rewind(tb);
    tb_istr(tb, tree_ident(d));
@@ -547,31 +548,31 @@ static void fst_create_record_var(tree_t d, rt_scope_t *scope, type_t type,
    for (int i = 0; i < nfields; i++) {
       tree_t f = type_field(type, i);
       tree_t cons = type_constraint_for_field(type, f);
-      fst_process_signal(scope, f, cons, tb);
+      fst_process_signal(m, scope, f, cons, tb);
    }
 
    fstWriterSetUpscope(fst_ctx);
 }
 
-static void fst_process_signal(rt_scope_t *scope, tree_t d, tree_t cons,
-                               text_buf_t *tb)
+static void fst_process_signal(rt_model_t *m, rt_scope_t *scope, tree_t d,
+                               tree_t cons, text_buf_t *tb)
 {
    type_t type = tree_type(d);
    if (type_is_record(type)) {
-      rt_scope_t *sub = rt_child_scope(scope, d);
+      rt_scope_t *sub = child_scope(scope, d);
       if (sub == NULL)
          ;    // Signal was optimised out
       else
-         fst_create_record_var(d, sub, type, tb);
+         fst_create_record_var(m, d, sub, type, tb);
    }
    else {
-      rt_signal_t *s = rt_find_signal(scope, d);
+      rt_signal_t *s = find_signal(scope, d);
       if (s == NULL)
          ;    // Signal was optimised out
       else if (type_is_array(type))
-         fst_create_array_var(d, s, type, cons, tb);
+         fst_create_array_var(m, d, s, type, cons, tb);
       else
-         fst_create_scalar_var(d, s, type, tb);
+         fst_create_scalar_var(m, d, s, type, tb);
    }
 }
 
@@ -603,7 +604,7 @@ static void fst_process_hier(tree_t h, tree_t block)
    fstWriterSetScope(fst_ctx, st, tb_get(tb), "");
 }
 
-static void fst_walk_design(tree_t block)
+static void fst_walk_design(rt_model_t *m, tree_t block)
 {
    tree_t h = tree_decl(block, 0);
    assert(tree_kind(h) == T_HIER);
@@ -611,7 +612,7 @@ static void fst_walk_design(tree_t block)
 
    ident_t hpath = tree_ident(h);
 
-   rt_scope_t *scope = rt_find_scope(block);
+   rt_scope_t *scope = find_scope(m, block);
    if (scope == NULL)
       fatal_trace("missing scope for %s", istr(hpath));
 
@@ -622,7 +623,7 @@ static void fst_walk_design(tree_t block)
       tree_t p = tree_port(block, i);
       ident_t path = ident_prefix(hpath, ident_downcase(tree_ident(p)), ':');
       if (wave_should_dump(path))
-         fst_process_signal(scope, p, NULL, tb);
+         fst_process_signal(m, scope, p, NULL, tb);
    }
 
    const int ndecls = tree_decls(block);
@@ -631,7 +632,7 @@ static void fst_walk_design(tree_t block)
       if (tree_kind(d) == T_SIGNAL_DECL) {
          ident_t path = ident_prefix(hpath, ident_downcase(tree_ident(d)), ':');
          if (wave_should_dump(path))
-            fst_process_signal(scope, d, NULL, tb);
+            fst_process_signal(m, scope, d, NULL, tb);
       }
    }
 
@@ -640,7 +641,7 @@ static void fst_walk_design(tree_t block)
       tree_t s = tree_stmt(block, i);
       switch (tree_kind(s)) {
       case T_BLOCK:
-         fst_walk_design(s);
+         fst_walk_design(m, s);
          break;
       case T_PROCESS:
          break;
@@ -653,14 +654,16 @@ static void fst_walk_design(tree_t block)
    fstWriterSetUpscope(fst_ctx);
 }
 
-void wave_restart(void)
+void wave_restart(rt_model_t *m)
 {
    if (fst_ctx == NULL)
       return;
 
    last_time = UINT64_MAX;
 
-   fst_walk_design(tree_stmt(fst_top, 0));
+   fst_walk_design(m, tree_stmt(fst_top, 0));
+
+   model_set_global_cb(m, RT_END_OF_SIMULATION, fst_close, NULL);
 }
 
 void wave_init(const char *file, tree_t top, wave_output_t output)
@@ -698,8 +701,6 @@ void wave_init(const char *file, tree_t top, wave_output_t output)
    fstWriterSetPackType(fst_ctx, 0);
    fstWriterSetRepackOnClose(fst_ctx, 1);
    fstWriterSetParallelMode(fst_ctx, 0);
-
-   atexit(fst_close);
 
    fst_top = top;
 }

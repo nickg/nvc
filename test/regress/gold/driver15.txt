@@ -1,0 +1,3 @@
+(init): Report Note: result is '0'
+0ms+1: Report Note: result is '0'
+1ns+1: Report Note: result is '1'

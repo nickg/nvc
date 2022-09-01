@@ -44,6 +44,22 @@ typedef struct _tlab tlab_t;
 typedef struct _jit jit_t;
 typedef struct _sig_shared sig_shared_t;
 typedef struct _ffi_uarray ffi_uarray_t;
+typedef struct _ffi_closure ffi_closure_t;
+
+typedef struct _rt_model      rt_model_t;
+typedef struct _rt_watch      rt_watch_t;
+typedef struct _rt_signal     rt_signal_t;
+typedef struct _rt_scope      rt_scope_t;
+typedef struct _rt_nexus      rt_nexus_t;
+typedef struct _rt_source     rt_source_t;
+typedef struct _rt_proc       rt_proc_t;
+typedef struct _rt_alias      rt_alias_t;
+typedef struct _rt_implicit   rt_implicit_t;
+typedef struct _rt_resolution rt_resolution_t;
+
+typedef struct event     event_t;
+typedef struct waveform  waveform_t;
+typedef struct sens_list sens_list_t;
 
 typedef struct vcode_unit *vcode_unit_t;
 

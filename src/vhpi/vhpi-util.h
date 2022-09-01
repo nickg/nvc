@@ -29,7 +29,7 @@
 #include "vhpi/vhpi_user.h"
 
 // Simulator interface to VHPI
-void vhpi_build_design_model(tree_t top);
+void vhpi_build_design_model(tree_t top, rt_model_t *m);
 
 __attribute__((format(printf, 2, 3)))
 void vhpi_trace(const char *func, const char *fmt, ...);
@@ -37,7 +37,7 @@ void vhpi_trace(const char *func, const char *fmt, ...);
 __attribute__((format(printf, 3, 4)))
 void vhpi_error(vhpiSeverityT sev, const loc_t *loc, const char *fmt, ...);
 
-void vhpi_load_plugins(tree_t top, const char *plugins);
+void vhpi_load_plugins(tree_t top, rt_model_t *model, const char *plugins);
 
 void vhpi_clear_error(void);
 rt_event_t vhpi_get_rt_event(int reason);

@@ -26,13 +26,13 @@
 #include <unistd.h>
 #include <string.h>
 
-static const char    *file_start;
-static size_t         file_sz;
-static const char    *read_ptr;
-static source_kind_t  src_kind;
-static loc_file_ref_t file_ref = FILE_INVALID;
-static int            colno;
-static int            lineno;
+static const char     *file_start;
+static size_t          file_sz;
+static const char     *read_ptr;
+static hdl_kind_t      src_kind;
+static loc_file_ref_t  file_ref = FILE_INVALID;
+static int             colno;
+static int             lineno;
 
 void input_from_file(const char *file)
 {
@@ -98,7 +98,7 @@ void input_from_file(const char *file)
    colno    = 0;
 }
 
-source_kind_t source_kind(void)
+hdl_kind_t source_kind(void)
 {
    return src_kind;
 }

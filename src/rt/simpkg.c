@@ -31,9 +31,7 @@ bool _nvc_ieee_warnings(void)
 DLLEXPORT
 int _nvc_current_delta(void)
 {
-   unsigned delta;
-   rt_now(&delta);
-   return delta;
+   return x_current_delta();
 }
 
 void _nvc_sim_pkg_init(void)
