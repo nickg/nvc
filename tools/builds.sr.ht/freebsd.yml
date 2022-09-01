@@ -7,7 +7,7 @@ packages:
   - libunwind
   - pkgconf
 sources:
-  - https://git.sr.ht/~nickg/nvc
+  - https://git.sr.ht/~nickg/nvc#v1.7-branch
 tasks:
   - setup: |
       uname -a
