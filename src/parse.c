@@ -2086,11 +2086,14 @@ static tree_t rewrite_generic_refs_cb(tree_t t, void *__ctx)
    hash_t *map = __ctx;
 
    switch (tree_kind(t)) {
+   case T_REF:
+      if (tree_flags(t) & TREE_F_FORMAL_NAME)
+         return t;   // Do not rewrite names in generic maps
+      // Fall-through
    case T_FCALL:
    case T_PCALL:
    case T_PROT_FCALL:
    case T_PROT_PCALL:
-   case T_REF:
       if (tree_has_ref(t)) {
          tree_t new = hash_get(map, tree_ref(t));
          if (new != NULL)
