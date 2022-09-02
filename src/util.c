@@ -1054,6 +1054,7 @@ void *nvc_memalign(size_t align, size_t sz)
    if (posix_memalign(&ptr, align, sz) != 0)
       fatal_errno("posix_memalign");
 
+   memset(ptr, '\0', sz);
    return ptr;
 #else
    assert((align & (align - 1)) == 0);

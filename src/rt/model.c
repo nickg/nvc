@@ -36,6 +36,7 @@
 #include <string.h>
 
 typedef struct _callback callback_t;
+typedef struct _memblock memblock_t;
 
 typedef struct {
    event_t **queue;
@@ -54,6 +55,15 @@ typedef enum {
    SIDE_EFFECT_DISALLOW,
    SIDE_EFFECT_OCCURRED
 } side_effect_t;
+
+#define MEMBLOCK_LINE_SZ 64
+#define MEMBLOCK_PAGE_SZ 0x200000
+
+typedef struct _memblock {
+   memblock_t *chain;
+   unsigned    free;
+   char       *ptr;
+} memblock_t;
 
 typedef struct _rt_model {
    tree_t             top;
@@ -92,6 +102,7 @@ typedef struct _rt_model {
    cover_tagging_t   *cover;
    nvc_rusage_t       ready_rusage;
    side_effect_t      side_effect;
+   memblock_t        *memblocks;
 } rt_model_t;
 
 #define FMT_VALUES_SZ   128
@@ -196,6 +207,27 @@ static const char *fmt_values(const void *values, uint32_t len)
 {
    static char buf[FMT_VALUES_SZ*2 + 2];
    return fmt_values_r(values, len, buf, sizeof(buf));
+}
+
+static void *static_alloc(rt_model_t *m, size_t size)
+{
+   const int nlines = ALIGN_UP(size, MEMBLOCK_LINE_SZ) / MEMBLOCK_LINE_SZ;
+
+   memblock_t *mb = m->memblocks;
+   if (mb == NULL || mb->free < nlines) {
+      mb = xmalloc(sizeof(memblock_t));
+      mb->chain = m->memblocks;
+      mb->free  = MEMBLOCK_PAGE_SZ / MEMBLOCK_LINE_SZ;
+      mb->ptr   = nvc_memalign(MEMBLOCK_LINE_SZ, MEMBLOCK_PAGE_SZ);
+
+      m->memblocks = mb;
+   }
+
+   assert(nlines <= mb->free);
+
+   void *ptr = mb->ptr + MEMBLOCK_PAGE_SZ - mb->free * MEMBLOCK_LINE_SZ;
+   mb->free -= nlines;
+   return ptr;
 }
 
 static void global_event(rt_model_t *m, rt_event_t kind)
@@ -398,8 +430,7 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
 {
    free_value(n, n->forcing);
 
-   bool must_free = false;
-   for (rt_source_t *s = &(n->sources), *tmp; s; s = tmp, must_free = true) {
+   for (rt_source_t *s = &(n->sources), *tmp; s; s = tmp) {
       tmp = s->chain_input;
 
       switch (s->tag) {
@@ -422,8 +453,6 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
          }
          break;
       }
-
-      if (must_free) free(s);
    }
 
    if (n->net != NULL) {
@@ -443,7 +472,6 @@ static void cleanup_signal(rt_model_t *m, rt_signal_t *s)
    for (int i = 0; i < s->n_nexus; i++, n = tmp) {
       tmp = n->chain;
       cleanup_nexus(m, n);
-      if (i > 0) free(n);
    }
 
    if (s->index != NULL)
@@ -555,6 +583,12 @@ void model_free(rt_model_t *m)
    rt_alloc_stack_destroy(m->sens_list_stack);
    rt_alloc_stack_destroy(m->watch_stack);
    rt_alloc_stack_destroy(m->callback_stack);
+
+   for (memblock_t *mb = m->memblocks, *tmp; mb; mb = tmp) {
+      tmp = mb->chain;
+      nvc_munmap(mb->ptr, MEMBLOCK_PAGE_SZ);
+      free(mb);
+   }
 
    heap_free(m->eventq_heap);
    hash_free(m->scopes);
@@ -843,7 +877,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    if (memo != NULL)
       return memo;
 
-   memo = xmalloc(sizeof(res_memo_t));
+   memo = static_alloc(m, sizeof(res_memo_t));
    memo->closure = resolution->closure;
    memo->flags   = resolution->flags;
    memo->ileft   = resolution->ileft;
@@ -954,7 +988,7 @@ static inline bool cmp_values(rt_nexus_t *n, rt_value_t a, rt_value_t b)
       return memcmp(a.ext, b.ext, valuesz) == 0;
 }
 
-static rt_source_t *add_source(rt_nexus_t *n, source_kind_t kind)
+static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
 {
    rt_source_t *src = NULL;
    if (n->n_sources == 0)
@@ -969,7 +1003,7 @@ static rt_source_t *add_source(rt_nexus_t *n, source_kind_t kind)
       rt_source_t **p;
       for (p = &(n->sources.chain_input); *p; p = &((*p)->chain_input))
          ;
-      *p = src = xmalloc(sizeof(rt_source_t));
+      *p = src = static_alloc(m, sizeof(rt_source_t));
    }
 
    // The only interesting values of n_sources are 0, 1, and 2
@@ -1061,7 +1095,7 @@ static void clone_waveform(rt_nexus_t *nexus, waveform_t *w_new,
 static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
                          int offset, rt_net_t *net)
 {
-   rt_source_t *new = add_source(nexus, old->tag);
+   rt_source_t *new = add_source(m, nexus, old->tag);
 
    switch (old->tag) {
    case SOURCE_PORT:
@@ -1121,13 +1155,13 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
 
    const size_t oldsz = old->width * old->size;
 
-   rt_nexus_t *new = xcalloc(sizeof(rt_nexus_t));
-   new->width        = old->width - offset;
-   new->size         = old->size;
-   new->signal       = signal;
-   new->resolved     = (uint8_t *)old->resolved + offset * old->size;
-   new->chain        = old->chain;
-   new->flags        = old->flags;
+   rt_nexus_t *new = static_alloc(m, sizeof(rt_nexus_t));
+   new->width    = old->width - offset;
+   new->size     = old->size;
+   new->signal   = signal;
+   new->resolved = (uint8_t *)old->resolved + offset * old->size;
+   new->chain    = old->chain;
+   new->flags    = old->flags;
 
    old->chain = new;
    old->width = offset;
@@ -1439,7 +1473,7 @@ static void *source_value(rt_nexus_t *nexus, rt_source_t *src)
 static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
 {
    // Find the first non-null source
-   char *p0;
+   char *p0 = NULL;
    rt_source_t *s0 = &(nexus->sources);
    for (; s0 && (p0 = source_value(nexus, s0)) == NULL; s0 = s0->chain_input)
       ;
@@ -2541,7 +2575,8 @@ void x_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
    TRACE("drive signal %s+%d count=%d", istr(tree_ident(s->where)),
          offset, count);
 
-   rt_nexus_t *n = split_nexus(get_model(), s, offset, count);
+   rt_model_t *m = get_model();
+   rt_nexus_t *n = split_nexus(m, s, offset, count);
    for (; count > 0; n = n->chain) {
       rt_source_t *s;
       for (s = &(n->sources); s; s = s->chain_input) {
@@ -2550,7 +2585,7 @@ void x_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
       }
 
       if (s == NULL) {
-         s = add_source(n, SOURCE_DRIVER);
+         s = add_source(m, n, SOURCE_DRIVER);
          s->u.driver.proc = active_proc;
       }
 
@@ -2930,7 +2965,7 @@ void x_map_signal(sig_shared_t *src_ss, uint32_t src_offset,
          dst_n->flags |= NET_F_EFFECTIVE;
       }
 
-      rt_source_t *port = add_source(dst_n, SOURCE_PORT);
+      rt_source_t *port = add_source(m, dst_n, SOURCE_PORT);
       port->u.port.input = src_n;
 
       if (conv_func != NULL) {
