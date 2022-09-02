@@ -639,7 +639,7 @@ void show_stacktrace(void)
 
    debug_free(di);
 
-#if defined __linux && !defined HAVE_LIBDW && !defined HAVE_LIBDWARF
+#if defined __linux__ && !defined HAVE_LIBDW && !defined HAVE_LIBDWARF
    color_fprintf(stderr, "\n$cyan$Hint: you can get better stack traces by "
                  "installing the libdw-dev package and reconfiguring$$\n");
 #endif
@@ -1001,10 +1001,12 @@ int64_t ipow(int64_t x, int64_t y)
 
 static long nvc_page_size(void)
 {
-#ifndef __MINGW32__
-   return sysconf(_SC_PAGESIZE);
+#ifdef __MINGW32__
+   SYSTEM_INFO si;
+   GetSystemInfo(&si);
+   return si.dwPageSize;
 #else
-   return 4096;   // TODO: how to get page size on Windows?
+   return sysconf(_SC_PAGESIZE);
 #endif
 }
 
@@ -1020,7 +1022,7 @@ static void *nvc_mmap(size_t sz)
    return ptr;
 #elif !defined __MINGW32__
    void *ptr = mmap(NULL, sz, PROT_READ | PROT_WRITE,
-                    MAP_SHARED | MAP_ANON, -1, 0);
+                    MAP_PRIVATE | MAP_ANON, -1, 0);
    if (ptr == MAP_FAILED)
       fatal_errno("mmap");
 #else

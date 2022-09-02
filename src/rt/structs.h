@@ -142,9 +142,10 @@ typedef struct _rt_source {
    union {
       rt_port_t    port;
       rt_driver_t  driver;
-      void        *initial;
    } u;
 } rt_source_t;
+
+STATIC_ASSERT(sizeof(rt_source_t) <= 64);
 
 // The code generator knows the layout of this struct
 typedef struct _rt_resolution {
