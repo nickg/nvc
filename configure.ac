@@ -132,8 +132,6 @@ AC_DEFINE_UNQUOTED([FST_REMOVE_DUPLICATE_VC], [1], [Enable FST glitch removal])
 
 AX_PTHREAD([], [AC_MSG_ERROR([pthread not found])])
 
-AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$system_cc"], [System compiler])
-
 AC_ARG_ENABLE([llvm],
   [AS_HELP_STRING([--enable-llvm], [Build LLVM code generator])],
   [enable_llvm=$enableval],
