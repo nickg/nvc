@@ -84,7 +84,6 @@ typedef struct _rt_model {
    heap_t            *eventq_heap;
    hash_t            *res_memo;
    rt_alloc_stack_t   event_stack;
-   rt_alloc_stack_t   waveform_stack;
    rt_alloc_stack_t   sens_list_stack;
    rt_alloc_stack_t   watch_stack;
    rt_alloc_stack_t   callback_stack;
@@ -141,6 +140,7 @@ static __thread rt_signal_t **signals_tail = NULL;
 static __thread rt_scope_t  **scopes_tail = NULL;
 static __thread rt_model_t   *__model = NULL;
 static __thread tlab_t        spare_tlab = {};
+static __thread waveform_t   *free_waveforms = NULL;
 
 DLLEXPORT tlab_t __nvc_tlab = {};   // TODO: this should be thread-local
 
@@ -378,7 +378,6 @@ rt_model_t *model_new(tree_t top, jit_t *jit)
    m->can_create_delta = true;
 
    m->event_stack     = rt_alloc_stack_new(sizeof(event_t), "event");
-   m->waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t), "waveform");
    m->sens_list_stack = rt_alloc_stack_new(sizeof(sens_list_t), "sens_list");
    m->watch_stack     = rt_alloc_stack_new(sizeof(rt_watch_t), "watch");
    m->callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
@@ -417,6 +416,12 @@ rt_proc_t *get_active_proc(void)
    return active_proc;
 }
 
+static void free_waveform(waveform_t *w)
+{
+   w->next = free_waveforms;
+   free_waveforms = w;
+}
+
 static void free_sens_list(rt_model_t *m, sens_list_t **l)
 {
    for (sens_list_t *it = *l, *tmp; it; it = tmp) {
@@ -441,7 +446,7 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
               it; it = next) {
             free_value(n, it->value);
             next = it->next;
-            rt_free(m->waveform_stack, it);
+            free_waveform(it);
          }
          break;
 
@@ -579,7 +584,6 @@ void model_free(rt_model_t *m)
    }
 
    rt_alloc_stack_destroy(m->event_stack);
-   rt_alloc_stack_destroy(m->waveform_stack);
    rt_alloc_stack_destroy(m->sens_list_stack);
    rt_alloc_stack_destroy(m->watch_stack);
    rt_alloc_stack_destroy(m->callback_stack);
@@ -1072,6 +1076,27 @@ static void build_index(rt_signal_t *signal)
       ihash_put(signal->index, offset, n);
 }
 
+static waveform_t *alloc_waveform(void)
+{
+   if (free_waveforms == NULL) {
+      // Ensure waveforms are always within one cache line
+      STATIC_ASSERT(sizeof(waveform_t) <= 32);
+      const int chunksz = 1024;
+      char *mem = nvc_memalign(64, chunksz * 32);
+      for (int i = 1; i < chunksz; i++)
+         free_waveform((waveform_t *)(mem + i*32));
+
+      return (waveform_t *)mem;
+   }
+   else {
+      waveform_t *w = free_waveforms;
+      free_waveforms = w->next;
+      __builtin_prefetch(w->next, 1, 1);
+      w->next = NULL;
+      return w;
+   }
+}
+
 static void clone_waveform(rt_nexus_t *nexus, waveform_t *w_new,
                            waveform_t *w_old, int offset)
 {
@@ -1132,7 +1157,7 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
 
          // Future transactions
          for (w_old = w_old->next; w_old; w_old = w_old->next) {
-            w_new = (w_new->next = rt_alloc(m->waveform_stack));
+            w_new = (w_new->next = alloc_waveform());
             w_new->value = alloc_value(nexus);
 
             clone_waveform(nexus, w_new, w_old, offset);
@@ -2001,7 +2026,7 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
    }
    assert(d != NULL);
 
-   waveform_t *w = rt_alloc(m->waveform_stack);
+   waveform_t *w = alloc_waveform();
    w->when  = m->now + after;
    w->next  = NULL;
    w->value = value;
@@ -2019,7 +2044,7 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
          waveform_t *next = it->next;
          last->next = next;
          free_value(nexus, it->value);
-         rt_free(m->waveform_stack, it);
+         free_waveform(it);
          it = next;
       }
       else {
@@ -2042,7 +2067,7 @@ static void sched_driver(rt_model_t *m, rt_nexus_t *nexus, uint64_t after,
          already_scheduled = true;
 
       waveform_t *next = it->next;
-      rt_free(m->waveform_stack, it);
+      free_waveform(it);
       it = next;
    }
 
@@ -2153,7 +2178,7 @@ static void update_driver(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *source)
       if (likely((w_next != NULL) && (w_next->when == m->now))) {
          free_value(nexus, w_now->value);
          *w_now = *w_next;
-         rt_free(m->waveform_stack, w_next);
+         free_waveform(w_next);
          update_driving(m, nexus);
       }
       else
