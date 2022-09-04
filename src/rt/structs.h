@@ -109,8 +109,9 @@ typedef struct {
    int32_t      event_delta;
    int32_t      active_delta;
    uint32_t     net_id;
-   uint32_t     refcnt;
 } rt_net_t;
+
+STATIC_ASSERT(sizeof(rt_net_t) <= 64);
 
 typedef enum {
    SOURCE_DRIVER,
