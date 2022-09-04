@@ -238,18 +238,24 @@ package body env is
     end procedure;
 
     impure function dir_itemexists (path : in string) return boolean is
+        impure function impl (path : in string) return boolean;
+        attribute foreign of impl : function is "_std_env_itemexists";
     begin
-        report "not implemented" severity failure;
+        return impl(path);
     end function;
 
     impure function dir_itemisdir (path  : in string) return boolean is
+        impure function impl (path : in string) return boolean;
+        attribute foreign of impl : function is "_std_env_itemisdir";
     begin
-        report "not implemented" severity failure;
+        return impl(path);
     end function;
 
     impure function dir_itemisfile (path : in string) return boolean is
+        impure function impl (path : in string) return boolean;
+        attribute foreign of impl : function is "_std_env_itemisfile";
     begin
-        report "not implemented" severity failure;
+        return impl(path);
     end function;
 
     procedure dir_workingdir (path   : in string;

@@ -66,6 +66,15 @@ static void copy_str(const char *str, ffi_uarray_t *u)
    *u = ffi_wrap_str(buf, len);
 }
 
+static char *to_cstring(const char *data, int len)
+{
+   len = abs(len);
+   char *cstr = xmalloc(len + 1);
+   memcpy(cstr, data, len);
+   cstr[len] = '\0';
+   return cstr;
+}
+
 static int8_t errno_to_dir_open_status(void)
 {
    switch (errno) {
@@ -101,10 +110,7 @@ void _std_env_stop(int32_t finish, int32_t have_status, int32_t status)
 DLLEXPORT
 void _std_env_getenv(EXPLODED_UARRAY(name), ffi_uarray_t *u)
 {
-   char *LOCAL cstr = xmalloc(name_length + 1);
-   memcpy(cstr, name_ptr, name_length);
-   cstr[name_length] = '\0';
-
+   char *LOCAL cstr = to_cstring(name_ptr, name_length);
    const char *env = getenv(cstr);
 
    if (env == NULL)
@@ -195,10 +201,7 @@ void _std_env_get_workingdir(ffi_uarray_t *u)
 DLLEXPORT
 void _std_env_set_workingdir(EXPLODED_UARRAY(dir), int8_t *status)
 {
-   const size_t len = abs(dir_length);
-   char *cstr LOCAL = xmalloc(len + 1);
-   memcpy(cstr, dir_ptr, len);
-   cstr[len] = '\0';
+   char *cstr LOCAL = to_cstring(dir_ptr, dir_length);
 
    if (chdir(cstr) == -1)
       *status = errno_to_dir_open_status();
@@ -209,10 +212,7 @@ void _std_env_set_workingdir(EXPLODED_UARRAY(dir), int8_t *status)
 DLLEXPORT
 void _std_env_createdir(EXPLODED_UARRAY(path), int8_t parents, int8_t *status)
 {
-   const size_t len = abs(path_length);
-   char *cstr LOCAL = xmalloc(len + 1);
-   memcpy(cstr, path_ptr, len);
-   cstr[len] = '\0';
+   char *cstr LOCAL = to_cstring(path_ptr, path_length);
 
 #ifdef __MINGW32__
    if (mkdir(cstr) == -1)
@@ -222,6 +222,39 @@ void _std_env_createdir(EXPLODED_UARRAY(path), int8_t parents, int8_t *status)
       *status = errno_to_dir_create_status();
    else
       *status = DIR_CREATE_STATUS_OK;
+}
+
+DLLEXPORT
+bool _std_env_itemexists(EXPLODED_UARRAY(path))
+{
+   char *path LOCAL = to_cstring(path_ptr, path_length);
+
+   struct stat sb;
+   return stat(path, &sb) == 0;
+}
+
+DLLEXPORT
+bool _std_env_itemisfile(EXPLODED_UARRAY(path))
+{
+   char *path LOCAL = to_cstring(path_ptr, path_length);
+
+   struct stat sb;
+   if (stat(path, &sb) != 0)
+      return false;
+
+   return (sb.st_mode & S_IFMT) == S_IFREG;
+}
+
+DLLEXPORT
+bool _std_env_itemisdir(EXPLODED_UARRAY(path))
+{
+   char *path LOCAL = to_cstring(path_ptr, path_length);
+
+   struct stat sb;
+   if (stat(path, &sb) != 0)
+      return false;
+
+   return (sb.st_mode & S_IFMT) == S_IFDIR;
 }
 
 void _std_env_init(void)
