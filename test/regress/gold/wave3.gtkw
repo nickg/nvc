@@ -1,0 +1,46 @@
+-wave3
+[color] 2
+wave3.x[7:0]
+[color] 2
+wave3.y[7:0]
+[color] 2
+wave3.z
+[color] 2
+wave3.o
+[color] 2
+wave3.b
+[color] 2
+wave3.m[1:3]
+[color] 2
+wave3.p[1:3]
+[color] 2
+wave3.q[3:1]
+[color] 2
+wave3.t
+[color] 2
+wave3.s
+[color] 2
+wave3.s2
+-wave3.a_block
+[color] 3
+wave3.a_block.i
+[color] 3
+wave3.a_block.c
+-wave3.sub_i
+[color] 4
+wave3.sub_i.x[7:0]
+[color] 4
+wave3.sub_i.y[7:0]
+[color] 4
+wave3.sub_i.ctr[3:18]
+[color] 4
+wave3.sub_i.ctr2[15:0]
+-wave3.gen(1)
+[color] 5
+wave3.gen(1).g
+-wave3.gen(2)
+[color] 6
+wave3.gen(2).g
+-wave3.gen(3)
+[color] 7
+wave3.gen(3).g

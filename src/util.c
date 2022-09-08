@@ -1276,9 +1276,10 @@ void tb_rewind(text_buf_t *tb)
    tb->buf[0] = '\0';
 }
 
-void tb_backup(text_buf_t *tb, unsigned n)
+void tb_trim(text_buf_t *tb, size_t newlen)
 {
-   tb->len = n > tb->len ? 0 : tb->len - n;
+   assert(newlen <= tb->len);
+   tb->len = newlen;
    tb->buf[tb->len] = '\0';
 }
 

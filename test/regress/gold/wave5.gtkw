@@ -1,0 +1,11 @@
+-wave5
+-wave5.r
+[color] 2
+wave5.r.x
+[color] 2
+wave5.r.y[1:3]
+-wave5.r.z
+[color] 2
+wave5.r.z.a
+[color] 2
+wave5.r.z.b

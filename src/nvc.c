@@ -405,12 +405,14 @@ static int run(int argc, char **argv)
       { "dump-arrays",   no_argument,       0, 'a' },
       { "load",          required_argument, 0, 'l' },
       { "vhpi-trace",    no_argument,       0, 'T' },
+      { "gtkw",          optional_argument, 0, 'g' },
       { 0, 0, 0, 0 }
    };
 
    wave_format_t wave_fmt = WAVE_FORMAT_FST;
    uint64_t      stop_time = TIME_HIGH;
    const char   *wave_fname = NULL;
+   const char   *gtkw_fname = NULL;
    const char   *vhpi_plugins = NULL;
 
    static bool have_run = false;
@@ -422,7 +424,7 @@ static int run(int argc, char **argv)
    const int next_cmd = scan_cmd(2, argc, argv);
 
    int c, index = 0;
-   const char *spec = "w::l:";
+   const char *spec = "w::l:g";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -458,6 +460,12 @@ static int run(int argc, char **argv)
             wave_fname = "";
          else
             wave_fname = optarg;
+         break;
+      case 'g':
+         if (optarg == NULL)
+            gtkw_fname = "";
+         else
+            gtkw_fname = optarg;
          break;
       case 'd':
          opt_set_int(OPT_STOP_DELTA, parse_int(optarg));
@@ -496,7 +504,7 @@ static int run(int argc, char **argv)
    if (wave_fname != NULL) {
       const char *name_map[] = { "FST", "VCD" };
       const char *ext_map[]  = { "fst", "vcd" };
-      char *tmp LOCAL = NULL;
+      char *tmp LOCAL = NULL, *tmp2 LOCAL = NULL;
 
       if (*wave_fname == '\0') {
          tmp = xasprintf("%s.%s", top_level_orig, ext_map[wave_fmt]);
@@ -504,9 +512,16 @@ static int run(int argc, char **argv)
          notef("writing %s waveform data to %s", name_map[wave_fmt], tmp);
       }
 
+      if (gtkw_fname != NULL && *gtkw_fname == '\0') {
+         tmp2 = xasprintf("%s.gtkw", top_level_orig);
+         gtkw_fname = tmp2;
+      }
+
       wave_include_file(argv[optind]);
-      dumper = wave_dumper_new(wave_fname, top, wave_fmt);
+      dumper = wave_dumper_new(wave_fname, gtkw_fname, top, wave_fmt);
    }
+   else if (gtkw_fname != NULL)
+      warnf("$bold$--gtkw$$ option has no effect without $bold$--wave$$");
 
    if (opt_get_int(OPT_HEAP_SIZE) < 0x100000)
       warnf("recommended heap size is at least 1M");

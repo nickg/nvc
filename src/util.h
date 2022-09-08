@@ -209,7 +209,7 @@ const char *tb_get(text_buf_t *tb);
 char *tb_claim(text_buf_t *tb);
 char *tb_reserve(text_buf_t *tb, size_t size);
 void tb_rewind(text_buf_t *tb);
-void tb_backup(text_buf_t *tb, unsigned n);
+void tb_trim(text_buf_t *tb, size_t newlen);
 size_t tb_len(text_buf_t *tb);
 void tb_downcase(text_buf_t *tb);
 void tb_replace(text_buf_t *tb, char old, char rep);

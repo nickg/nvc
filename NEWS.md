@@ -16,6 +16,8 @@
   --install quartus`.
 - The `nvc --version` output now includes the commit hash if built from
   a Git checkout.
+- The new `--gtkw` run option writes a `.gtkw` save file for GtkWave
+  containing all the signals in the design (suggested by @amb5l).
 
 ## Version 1.7.1 - 2022-08-31
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.

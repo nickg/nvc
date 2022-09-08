@@ -83,13 +83,20 @@ typedef struct _fst_data {
    fstHandle      handle[];
 } fst_data_t;
 
+typedef struct {
+   FILE       *file;
+   int         colour;
+   text_buf_t *hier;
+} gtkw_writer_t;
+
 typedef struct _wave_dumper {
-   tree_t      top;
-   void       *fst_ctx;
-   rt_model_t *model;
-   FILE       *vcdfile;
-   char       *tmpfst;
-   uint64_t    last_time;
+   tree_t         top;
+   void          *fst_ctx;
+   rt_model_t    *model;
+   gtkw_writer_t *gtkw;
+   FILE          *vcdfile;
+   char          *tmpfst;
+   uint64_t       last_time;
 } wave_dumper_t;
 
 static glob_array_t incl;
@@ -501,6 +508,9 @@ static void fst_create_array_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
          type_pp(type),
          FST_SVT_VHDL_SIGNAL,
          ft->sdt);
+
+      if (wd->gtkw != NULL)
+         fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
    }
 
    data->decl   = d;
@@ -551,6 +561,9 @@ static void fst_create_scalar_var(wave_dumper_t *wd, tree_t d, rt_signal_t *s,
                                      data, true);
 
    fst_event_cb(0, data->signal, data->watch, data);
+
+   if (wd->gtkw != NULL)
+      fprintf(wd->gtkw->file, "%s.%s\n", tb_get(wd->gtkw->hier), tb_get(tb));
 }
 
 static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
@@ -563,6 +576,13 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
 
    fstWriterSetScope(wd->fst_ctx, FST_ST_VHDL_RECORD, tb_get(tb), NULL);
 
+   size_t hlen = 0;
+   if (wd->gtkw != NULL) {
+      hlen = tb_len(wd->gtkw->hier);
+      tb_printf(wd->gtkw->hier, ".%s", tb_get(tb));
+      fprintf(wd->gtkw->file, "-%s\n", tb_get(wd->gtkw->hier));
+   }
+
    const int nfields = type_fields(type);
    for (int i = 0; i < nfields; i++) {
       tree_t f = type_field(type, i);
@@ -571,6 +591,9 @@ static void fst_create_record_var(wave_dumper_t *wd, tree_t d,
    }
 
    fstWriterSetUpscope(wd->fst_ctx);
+
+   if (wd->gtkw != NULL)
+      tb_trim(wd->gtkw->hier, hlen);
 }
 
 static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
@@ -585,6 +608,9 @@ static void fst_process_signal(wave_dumper_t *wd, rt_scope_t *scope, tree_t d,
          fst_create_record_var(wd, d, sub, type, tb);
    }
    else {
+      if (wd->gtkw != NULL)
+         fprintf(wd->gtkw->file, "[color] %d\n", wd->gtkw->colour);
+
       rt_signal_t *s = find_signal(scope, d);
       if (s == NULL)
          ;    // Signal was optimised out
@@ -621,6 +647,15 @@ static void fst_process_hier(wave_dumper_t *wd, tree_t h, tree_t block)
 
    // TODO: store the component name in T_HIER somehow?
    fstWriterSetScope(wd->fst_ctx, st, tb_get(tb), "");
+
+   if (wd->gtkw != NULL) {
+      if (tb_len(wd->gtkw->hier) > 0)
+         tb_append(wd->gtkw->hier, '.');
+      tb_cat(wd->gtkw->hier, tb_get(tb));
+
+      fprintf(wd->gtkw->file, "-%s\n", tb_get(wd->gtkw->hier));
+      wd->gtkw->colour = (wd->gtkw->colour % 7) + 1;
+   }
 }
 
 static void fst_walk_design(wave_dumper_t *wd, tree_t block)
@@ -671,6 +706,13 @@ static void fst_walk_design(wave_dumper_t *wd, tree_t block)
    }
 
    fstWriterSetUpscope(wd->fst_ctx);
+
+   if (wd->gtkw != NULL) {
+      const char *h = tb_get(wd->gtkw->hier);
+      const char *prev = strrchr(h, '.');
+      if (prev != NULL)
+         tb_trim(wd->gtkw->hier, prev - h);
+   }
 }
 
 void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m)
@@ -680,11 +722,18 @@ void wave_dumper_restart(wave_dumper_t *wd, rt_model_t *m)
 
    fst_walk_design(wd, tree_stmt(wd->top, 0));
 
+   if (wd->gtkw != NULL) {
+      fclose(wd->gtkw->file);
+      tb_free(wd->gtkw->hier);
+      free(wd->gtkw);
+      wd->gtkw = NULL;
+   }
+
    model_set_global_cb(m, RT_END_OF_SIMULATION, fst_close, wd);
 }
 
-wave_dumper_t *wave_dumper_new(const char *file, tree_t top,
-                               wave_format_t format)
+wave_dumper_t *wave_dumper_new(const char *file, const char *gtkw_file,
+                               tree_t top, wave_format_t format)
 {
    wave_dumper_t *wd = xcalloc(sizeof(wave_dumper_t));
    wd->top       = top;
@@ -723,6 +772,15 @@ wave_dumper_t *wave_dumper_new(const char *file, tree_t top,
    fstWriterSetPackType(wd->fst_ctx, 0);
    fstWriterSetRepackOnClose(wd->fst_ctx, 1);
    fstWriterSetParallelMode(wd->fst_ctx, 0);
+
+   if (gtkw_file != NULL) {
+      wd->gtkw = xcalloc(sizeof(gtkw_writer_t));
+      if ((wd->gtkw->file = fopen(gtkw_file, "w")) == NULL)
+         fatal_errno("%s", gtkw_file);
+
+      wd->gtkw->hier   = tb_new();
+      wd->gtkw->colour = 1;
+   }
 
    return wd;
 }

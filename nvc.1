@@ -280,6 +280,15 @@ poor: select this only if you must use the output with a tool that does
 not support FST.  The default format is FST if this option is not
 provided.  Note that GtkWave 3.3.79 or later is required to view the FST
 output.
+.\" --gtkw
+.It Fl g , Fl -gtkw Ns Bo = Ns Ar file Bc
+Write a
+.Xr gtkwave 1
+save file containing every signal in the design hierarchy in declaration
+order with separators for each scope.
+This only makes sense in combination with the
+.Fl -wave
+option.
 .\" --ieee-warnings
 .It Fl -ieee-warnings= Ns Bo Cm on Ns | Ns Cm off Bc
 Enable or disable warning messages from the standard IEEE packages.  The
@@ -330,7 +339,7 @@ simulator.
 Trace VHPI calls and events.  This can be useful for debugging VHPI
 plugins.
 .\" --wave
-.It Fl w , Fl -wave Ns = Ns Ar file
+.It Fl w , Fl -wave Ns Bo = Ns Ar file Bc
 Write waveform data to
 .Ar file .
 The file name is optional and if not specified will default to the name
