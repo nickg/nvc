@@ -62,6 +62,7 @@ typedef struct {
    LLVMValueRef       display;
    LLVMValueRef      *locals;
    LLVMValueRef       watermark;
+   LLVMTypeRef        state_type;
 } cgen_ctx_t;
 
 typedef enum {
@@ -773,8 +774,8 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
       LOCAL_TEXT_BUF tb = tb_new();
       tb_istr(tb, vcode_var_name(var));
 
-      value = LLVMBuildStructGEP(builder, ctx->state,
-                                 cgen_var_offset(var), tb_get(tb));
+      value = LLVMBuildStructGEP2(builder, ctx->state_type, ctx->state,
+                                  cgen_var_offset(var), tb_get(tb));
    }
    else {
       assert(ctx->locals != NULL);
@@ -815,14 +816,18 @@ static LLVMValueRef cgen_tlab_alloc(LLVMValueRef bytes, LLVMTypeRef type)
       LLVMBasicBlockRef entry_bb = llvm_append_block(fn, "entry");
       LLVMPositionBuilderAtEnd(builder, entry_bb);
 
+      LLVMTypeRef tlab_type = llvm_tlab_type();
+
       LLVMValueRef global = LLVMGetNamedGlobal(module, "__nvc_tlab");
       if (global == NULL) {
-         global = LLVMAddGlobal(module, llvm_tlab_type(), "__nvc_tlab");
+         global = LLVMAddGlobal(module, tlab_type, "__nvc_tlab");
          LLVMSetLinkage(global, LLVMExternalLinkage);
       }
 
-      LLVMValueRef alloc_ptr = LLVMBuildStructGEP(builder, global, 2, "");
-      LLVMValueRef limit_ptr = LLVMBuildStructGEP(builder, global, 3, "");
+      LLVMValueRef alloc_ptr =
+         LLVMBuildStructGEP2(builder, tlab_type, global, 2, "");
+      LLVMValueRef limit_ptr =
+         LLVMBuildStructGEP2(builder, tlab_type, global, 3, "");
 
       LLVMValueRef alloc = LLVMBuildLoad(builder, alloc_ptr, "");
       LLVMValueRef limit = LLVMBuildLoad(builder, limit_ptr, "");
@@ -874,13 +879,16 @@ static LLVMValueRef cgen_tlab_alloc(LLVMValueRef bytes, LLVMTypeRef type)
 
 static LLVMValueRef cgen_tlab_watermark(void)
 {
+   LLVMTypeRef tlab_type = llvm_tlab_type();
+
    LLVMValueRef global = LLVMGetNamedGlobal(module, "__nvc_tlab");
    if (global == NULL) {
-      global = LLVMAddGlobal(module, llvm_tlab_type(), "__nvc_tlab");
+      global = LLVMAddGlobal(module, tlab_type, "__nvc_tlab");
       LLVMSetLinkage(global, LLVMExternalLinkage);
    }
 
-   LLVMValueRef alloc_ptr = LLVMBuildStructGEP(builder, global, 2, "");
+   LLVMValueRef alloc_ptr =
+      LLVMBuildStructGEP2(builder, tlab_type, global, 2, "");
    return LLVMBuildLoad(builder, alloc_ptr, "");
 }
 
@@ -889,7 +897,10 @@ static void cgen_tlab_restore(LLVMValueRef watermark)
    LLVMValueRef global = LLVMGetNamedGlobal(module, "__nvc_tlab");
    assert(global != NULL);
 
-   LLVMValueRef alloc_ptr = LLVMBuildStructGEP(builder, global, 2, "");
+   LLVMTypeRef tlab_type = llvm_tlab_type();
+
+   LLVMValueRef alloc_ptr =
+      LLVMBuildStructGEP2(builder, tlab_type, global, 2, "");
    LLVMBuildStore(builder, watermark, alloc_ptr);
 }
 
@@ -1031,7 +1042,8 @@ static void cgen_op_return(int op, cgen_ctx_t *ctx)
    switch (vcode_unit_kind()) {
    case VCODE_UNIT_PROCEDURE:
       {
-         LLVMValueRef ptr = LLVMBuildStructGEP(builder, ctx->state, 3, "");
+         LLVMValueRef ptr =
+            LLVMBuildStructGEP2(builder, ctx->state_type, ctx->state, 3, "");
          LLVMValueRef watermark = LLVMBuildLoad(builder, ptr, "");
          cgen_tlab_restore(watermark);
 
@@ -1042,7 +1054,7 @@ static void cgen_op_return(int op, cgen_ctx_t *ctx)
    case VCODE_UNIT_PROCESS:
       if (ctx->state != NULL) {
          LLVMValueRef fsm_state_ptr =
-            LLVMBuildStructGEP(builder, ctx->state, 1, "");
+            LLVMBuildStructGEP2(builder, ctx->state_type, ctx->state, 1, "");
          LLVMBuildStore(builder, llvm_int32(1), fsm_state_ptr);
          LLVMBuildRet(builder, llvm_void_cast(ctx->state));
       }
@@ -1375,7 +1387,8 @@ static void cgen_op_wait(int op, cgen_ctx_t *ctx)
       cgen_sched_process(ctx->regs[after]);
 
    if (ctx->state != NULL) {
-      LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
+      LLVMValueRef state_ptr =
+         LLVMBuildStructGEP2(builder, ctx->state_type, ctx->state, 1, "");
       LLVMBuildStore(builder, llvm_int32(vcode_get_target(op, 0)), state_ptr);
    }
 
@@ -2512,10 +2525,12 @@ static void cgen_op_pcall(int op, cgen_ctx_t *ctx)
    LLVMValueRef suspend = LLVMBuildCall(builder, fn, args, total_args, "");
 
    assert(ctx->state);
-   LLVMValueRef pcall_ptr = LLVMBuildStructGEP(builder, ctx->state, 2, "");
+   LLVMValueRef pcall_ptr =
+      LLVMBuildStructGEP2(builder, ctx->state_type, ctx->state, 2, "");
    LLVMBuildStore(builder, suspend, pcall_ptr);
 
-   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
+   LLVMValueRef state_ptr =
+      LLVMBuildStructGEP2(builder, ctx->state_type, ctx->state, 1, "");
    LLVMBuildStore(builder, llvm_int32(vcode_get_target(op, 0)), state_ptr);
 
    cgen_pcall_suspend(suspend, ctx->blocks[vcode_get_target(op, 0)], ctx);
@@ -2527,7 +2542,8 @@ static void cgen_op_resume(int op, cgen_ctx_t *ctx)
    LLVMBasicBlockRef call_bb  = llvm_append_block(ctx->fn, "resume_call");
 
    assert(ctx->state);
-   LLVMValueRef pcall_ptr = LLVMBuildStructGEP(builder, ctx->state, 2, "");
+   LLVMValueRef pcall_ptr =
+      LLVMBuildStructGEP2(builder, ctx->state_type, ctx->state, 2, "");
    LLVMValueRef pcall_state = LLVMBuildLoad(builder, pcall_ptr, "");
 
    LLVMValueRef is_null = LLVMBuildIsNull(builder, pcall_state, "");
@@ -3871,13 +3887,17 @@ static void cgen_locals(cgen_ctx_t *ctx)
             on_stack = false;
       }
 
-      LLVMTypeRef state_type = cgen_state_type(unit);
-      if (on_stack)
-         ctx->state = LLVMBuildAlloca(builder, state_type, "state");
-      else
-         ctx->state = cgen_tlab_alloc(llvm_sizeof(state_type), state_type);
+      assert(ctx->state == NULL);
 
-      LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
+      ctx->state_type = cgen_state_type(unit);
+      if (on_stack)
+         ctx->state = LLVMBuildAlloca(builder, ctx->state_type, "state");
+      else
+         ctx->state = cgen_tlab_alloc(llvm_sizeof(ctx->state_type),
+                                      ctx->state_type);
+
+      LLVMValueRef context_ptr =
+         LLVMBuildStructGEP2(builder, ctx->state_type, ctx->state, 0, "");
       LLVMBuildStore(builder, ctx->display, context_ptr);
    }
    else {
@@ -3995,7 +4015,8 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
 {
    assert(ctx->state != NULL);
 
-   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
+   LLVMValueRef state_ptr =
+      LLVMBuildStructGEP2(builder, ctx->state_type, ctx->state, 1, "");
    LLVMValueRef jtarget = LLVMBuildLoad(builder, state_ptr, "");
    LLVMValueRef jswitch = LLVMBuildSwitch(builder, jtarget,
                                           ctx->blocks[0], 10);
@@ -4056,8 +4077,9 @@ static void cgen_procedure(void)
 
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
-   LLVMTypeRef state_type = cgen_state_type(vcode_active_unit());
-   LLVMTypeRef pointer_type = LLVMPointerType(state_type, 0);
+   ctx.state_type = cgen_state_type(vcode_active_unit());
+
+   LLVMTypeRef pointer_type = LLVMPointerType(ctx.state_type, 0);
    LLVMValueRef old_state =
       LLVMBuildPointerCast(builder, LLVMGetParam(fn, 0),
                            pointer_type, "old_state");
@@ -4070,15 +4092,18 @@ static void cgen_procedure(void)
    LLVMValueRef watermark = cgen_tlab_watermark();
 
    LLVMValueRef new_state =
-      cgen_tlab_alloc(llvm_sizeof(state_type), state_type);
+      cgen_tlab_alloc(llvm_sizeof(ctx.state_type), ctx.state_type);
 
-   LLVMValueRef display_ptr = LLVMBuildStructGEP(builder, new_state, 0, "");
+   LLVMValueRef display_ptr =
+      LLVMBuildStructGEP2(builder, ctx.state_type, new_state, 0, "");
    LLVMBuildStore(builder, LLVMGetParam(fn, 1), display_ptr);
 
-   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, new_state, 1, "");
+   LLVMValueRef state_ptr =
+      LLVMBuildStructGEP2(builder, ctx.state_type, new_state, 1, "");
    LLVMBuildStore(builder, llvm_int32(0), state_ptr);
 
-   LLVMValueRef watermark_ptr = LLVMBuildStructGEP(builder, new_state, 3, "");
+   LLVMValueRef watermark_ptr =
+      LLVMBuildStructGEP2(builder, ctx.state_type, new_state, 3, "");
    LLVMBuildStore(builder, watermark, watermark_ptr);
 
    LLVMBuildBr(builder, jump_bb);
@@ -4091,7 +4116,8 @@ static void cgen_procedure(void)
    LLVMBasicBlockRef phi_bbs[] = { entry_bb,  alloc_bb  };
    LLVMAddIncoming(ctx.state, phi_values, phi_bbs, 2);
 
-   LLVMValueRef new_display_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
+   LLVMValueRef new_display_ptr =
+      LLVMBuildStructGEP2(builder, ctx.state_type, ctx.state, 0, "");
    ctx.display = LLVMBuildLoad(builder, new_display_ptr, "display");
 
    cgen_jump_table(&ctx);
@@ -4199,10 +4225,10 @@ static void cgen_process(void)
    cgen_ctx_t ctx = {};
 
    LLVMTypeRef display_type = cgen_state_type(vcode_unit_context());
-   LLVMTypeRef state_type   = cgen_state_type(vcode_active_unit());
+   ctx.state_type = cgen_state_type(vcode_active_unit());
 
    LLVMTypeRef pargs[] = {
-      LLVMPointerType(state_type, 0),
+      LLVMPointerType(ctx.state_type, 0),
       LLVMPointerType(display_type, 0)
    };
    LLVMTypeRef ftype = LLVMFunctionType(llvm_void_ptr(), pargs, 2, false);
@@ -4231,16 +4257,20 @@ static void cgen_process(void)
 
    LLVMPositionBuilderAtEnd(builder, reset_bb);
 
-   LLVMValueRef priv_ptr =
-      cgen_mspace_alloc(llvm_sizeof(state_type), llvm_int32(1), state_type);
+   LLVMValueRef priv_ptr = cgen_mspace_alloc(llvm_sizeof(ctx.state_type),
+                                             llvm_int32(1),
+                                             ctx.state_type);
 
-   LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, priv_ptr, 0, "");
+   LLVMValueRef context_ptr =
+      LLVMBuildStructGEP2(builder, ctx.state_type, priv_ptr, 0, "");
    LLVMBuildStore(builder, display_arg, context_ptr);
 
-   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, priv_ptr, 1, "");
+   LLVMValueRef state_ptr =
+      LLVMBuildStructGEP2(builder, ctx.state_type, priv_ptr, 1, "");
    LLVMBuildStore(builder, llvm_int32(0), state_ptr);
 
-   LLVMValueRef pcall_ptr = LLVMBuildStructGEP(builder, priv_ptr, 2, "");
+   LLVMValueRef pcall_ptr =
+      LLVMBuildStructGEP2(builder, ctx.state_type, priv_ptr, 2, "");
    LLVMBuildStore(builder, LLVMConstNull(llvm_void_ptr()), pcall_ptr);
 
    // Schedule the process to run immediately
@@ -4251,7 +4281,7 @@ static void cgen_process(void)
    LLVMPositionBuilderAtEnd(builder, jump_bb);
 
    ctx.display = display_arg;
-   ctx.state   = LLVMBuildPhi(builder, LLVMPointerType(state_type, 0), "");
+   ctx.state   = LLVMBuildPhi(builder, LLVMPointerType(ctx.state_type, 0), "");
 
    LLVMValueRef phi_values[]   = { state_arg, priv_ptr };
    LLVMBasicBlockRef phi_bbs[] = { entry_bb,  reset_bb };
@@ -4266,14 +4296,13 @@ static void cgen_process(void)
 
 static void cgen_reset_function(void)
 {
-   LLVMTypeRef state_type = cgen_state_type(vcode_active_unit());
-
    LOCAL_TEXT_BUF symbol = safe_symbol(vcode_unit_name());
 
    vcode_unit_t context = vcode_unit_context();
 
    cgen_ctx_t ctx = {
-      .fn = LLVMGetNamedFunction(module, tb_get(symbol))
+      .fn = LLVMGetNamedFunction(module, tb_get(symbol)),
+      .state_type = cgen_state_type(vcode_active_unit())
    };
 
    if (ctx.fn == NULL) {
@@ -4306,7 +4335,7 @@ static void cgen_reset_function(void)
       tb_istr(name, vcode_unit_name());
       tb_cat(name, ".state");
 
-      LLVMTypeRef type = LLVMPointerType(state_type, 0);
+      LLVMTypeRef type = LLVMPointerType(ctx.state_type, 0);
 
       if ((global = LLVMGetNamedGlobal(module, tb_get(name))) == NULL)
          global = LLVMAddGlobal(module, type, tb_get(name));
@@ -4334,11 +4363,12 @@ static void cgen_reset_function(void)
       LLVMPositionBuilderAtEnd(builder, cont_bb);
    }
 
-   ctx.state = cgen_mspace_alloc(llvm_sizeof(state_type), llvm_int32(1),
-                                 state_type);
-
+   ctx.state = cgen_mspace_alloc(llvm_sizeof(ctx.state_type), llvm_int32(1),
+                                 ctx.state_type);
    ctx.display = LLVMGetParam(ctx.fn, 0);
-   LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
+
+   LLVMValueRef context_ptr =
+      LLVMBuildStructGEP2(builder, ctx.state_type, ctx.state, 0, "");
    LLVMBuildStore(builder, ctx.display, context_ptr);
 
    if (global != NULL)
