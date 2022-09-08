@@ -27,6 +27,7 @@
 #include "rt/model.h"
 #include "rt/mspace.h"
 #include "rt/rt.h"
+#include "rt/wave.h"
 #include "scan.h"
 #include "thread.h"
 #include "vhpi/vhpi-util.h"
@@ -62,8 +63,9 @@ static ident_t top_level = NULL;
 static char *top_level_orig = NULL;
 
 typedef struct {
-   rt_model_t *model;
-   uint64_t    stop_time;
+   rt_model_t    *model;
+   uint64_t       stop_time;
+   wave_dumper_t *dumper;
 } sim_args_t;
 
 static int process_command(int argc, char **argv);
@@ -379,7 +381,9 @@ static void run_sim_cb(void *__ctx)
    sim_args_t *args = __ctx;
 
    model_reset(args->model);
-   wave_restart(args->model);
+
+   if (args->dumper != NULL)
+      wave_dumper_restart(args->dumper, args->model);
 
    model_run(args->model, args->stop_time);
 }
@@ -404,7 +408,7 @@ static int run(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
-   wave_output_t wave_fmt = WAVE_OUTPUT_FST;
+   wave_format_t wave_fmt = WAVE_FORMAT_FST;
    uint64_t      stop_time = TIME_HIGH;
    const char   *wave_fname = NULL;
    const char   *vhpi_plugins = NULL;
@@ -440,9 +444,9 @@ static int run(int argc, char **argv)
          break;
       case 'f':
          if (strcmp(optarg, "vcd") == 0)
-            wave_fmt = WAVE_OUTPUT_VCD;
+            wave_fmt = WAVE_FORMAT_VCD;
          else if (strcmp(optarg, "fst") == 0)
-            wave_fmt = WAVE_OUTPUT_FST;
+            wave_fmt = WAVE_FORMAT_FST;
          else
             fatal("invalid waveform format: %s", optarg);
          break;
@@ -488,6 +492,7 @@ static int run(int argc, char **argv)
    if (top == NULL)
       fatal("%s not elaborated", istr(top_level));
 
+   wave_dumper_t *dumper = NULL;
    if (wave_fname != NULL) {
       const char *name_map[] = { "FST", "VCD" };
       const char *ext_map[]  = { "fst", "vcd" };
@@ -500,7 +505,7 @@ static int run(int argc, char **argv)
       }
 
       wave_include_file(argv[optind]);
-      wave_init(wave_fname, top, wave_fmt);
+      dumper = wave_dumper_new(wave_fname, top, wave_fmt);
    }
 
    if (opt_get_int(OPT_HEAP_SIZE) < 0x100000)
@@ -519,8 +524,11 @@ static int run(int argc, char **argv)
    if (vhpi_plugins != NULL)
       vhpi_load_plugins(top, model, vhpi_plugins);
 
-   sim_args_t args = { model, stop_time };
+   sim_args_t args = { model, stop_time, dumper };
    const int rc = jit_with_abort_handler(run_sim_cb, &args);
+
+   if (dumper != NULL)
+      wave_dumper_free(dumper);
 
    model_free(model);
    jit_free(jit);

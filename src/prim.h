@@ -45,6 +45,7 @@ typedef struct _jit jit_t;
 typedef struct _sig_shared sig_shared_t;
 typedef struct _ffi_uarray ffi_uarray_t;
 typedef struct _ffi_closure ffi_closure_t;
+typedef struct _wave_dumper wave_dumper_t;
 
 typedef struct _rt_model      rt_model_t;
 typedef struct _rt_watch      rt_watch_t;

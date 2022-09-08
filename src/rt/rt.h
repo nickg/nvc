@@ -72,21 +72,8 @@ typedef enum {
    RT_LAST_EVENT
 } rt_event_t;
 
-typedef enum {
-   WAVE_OUTPUT_FST,
-   WAVE_OUTPUT_VCD
-} wave_output_t;
-
 void rt_start_of_tool(tree_t top, rt_model_t *m);
 void *rt_tlab_alloc(size_t size);
-
-void wave_init(const char *file, tree_t top, wave_output_t output);
-void wave_restart(rt_model_t *m);
-
-void wave_include_glob(const char *glob);
-void wave_exclude_glob(const char *glob);
-void wave_include_file(const char *base);
-bool wave_should_dump(ident_t name);
 
 void _std_standard_init(void);
 void _std_env_init(void);
