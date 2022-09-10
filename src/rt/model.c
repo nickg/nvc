@@ -774,10 +774,10 @@ static void reset_process(rt_model_t *m, rt_proc_t *proc)
    jit_scalar_t state = { .pointer = NULL };
    jit_scalar_t result;
 
-   if (!jit_fastcall(m->jit, proc->handle, &result, state, context))
-      jit_abort(EXIT_FAILURE);
-
-   mptr_put(m->mspace, proc->privdata, result.pointer);
+   if (jit_fastcall(m->jit, proc->handle, &result, state, context))
+      mptr_put(m->mspace, proc->privdata, result.pointer);
+   else
+      m->force_stop = true;
 }
 
 static void run_process(rt_model_t *m, rt_proc_t *proc)
@@ -811,7 +811,7 @@ static void run_process(rt_model_t *m, rt_proc_t *proc)
    };
 
    if (!jit_fastcall(m->jit, proc->handle, &result, state, context))
-      jit_abort(EXIT_FAILURE);
+      m->force_stop = true;
 
    active_proc = NULL;
 
@@ -851,10 +851,12 @@ static void reset_scope(rt_model_t *m, rt_scope_t *s)
       if (s->parent != NULL)
          context.pointer = mptr_get(m->mspace, s->parent->privdata);
 
-      if (!jit_fastcall(m->jit, handle, &result, context, p2))
-         jit_abort(EXIT_FAILURE);
-
-      mptr_put(m->mspace, s->privdata, result.pointer);
+      if (jit_fastcall(m->jit, handle, &result, context, p2))
+         mptr_put(m->mspace, s->privdata, result.pointer);
+      else {
+         m->force_stop = true;
+         return;
+      }
 
       active_scope = NULL;
       signals_tail = NULL;
@@ -1806,6 +1808,9 @@ void model_reset(rt_model_t *m)
    reset_coverage(m);
    reset_scope(m, m->root);
 
+   if (m->force_stop)
+      return;   // Error in intialisation
+
 #if TRACE_SIGNALS > 0
    if (__trace_on)
       dump_signals(m, m->root);
@@ -2232,8 +2237,6 @@ static void wakeup_list(rt_model_t *m, sens_list_t **list)
       rt_wakeable_t *wake = it->wake;
       tmp = *list = it->next;
 
-      // Free the list element now as run_process may longjmp out of
-      // this function
       if (it->reenq == NULL)
          rt_free(m->sens_list_stack, it);
       else {
@@ -2363,11 +2366,8 @@ static void model_cycle(rt_model_t *m)
    wakeup_list(m, &m->resume_watch);
 
    while ((event = pop_run_queue(&m->procq))) {
-      // Free the event before running the process to avoid a leak if we
-      // longjmp out of this function
-      rt_proc_t *p = event->proc.proc;
+      run_process(m, event->proc.proc);
       rt_free(m->event_stack, event);
-      run_process(m, p);
    }
 
    // Run all processes that resumed because of signal events
@@ -2407,6 +2407,9 @@ static bool should_stop_now(rt_model_t *m, uint64_t stop_time)
 void model_run(rt_model_t *m, uint64_t stop_time)
 {
    MODEL_ENTRY(m);
+
+   if (m->force_stop)
+      return;   // Was error during intialisation
 
    global_event(m, RT_START_OF_SIMULATION);
 
@@ -2540,6 +2543,8 @@ rt_watch_t *model_set_event_cb(rt_model_t *m, rt_signal_t *s, sig_event_fn_t fn,
 
 void model_interrupt(rt_model_t *m)
 {
+   model_stop(m);
+
    if (active_proc != NULL)
       jit_msg(NULL, DIAG_FATAL,
               "interrupted in process %s at %s+%d",
@@ -2549,7 +2554,7 @@ void model_interrupt(rt_model_t *m)
       diag_printf(d, "interrupted at %s+%d", fmt_time(m->now), m->iteration);
       diag_emit(d);
 
-      model_stop(m);
+      jit_set_exit_status(m->jit, EXIT_FAILURE);
    }
 }
 

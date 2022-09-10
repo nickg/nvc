@@ -760,7 +760,8 @@ static bool run_test(test_t *test)
       fclose(goldf);
 
       while (fgets(out_line, sizeof(out_line), outf)) {
-         if (strstr(out_line, "*** Caught signal") != NULL) {
+         if (strstr(out_line, "*** Caught signal") != NULL
+             || strstr(out_line, "fatal_trace") != NULL) {
             set_attr(ANSI_FG_RED);
             printf("failed (crashed!)\n");
             set_attr(ANSI_RESET);

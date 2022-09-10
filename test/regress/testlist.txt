@@ -661,3 +661,4 @@ issue527        normal,stop=1us
 ieee10          normal
 driver15        normal,gold
 issue520        normal,2008
+wave7           shell

@@ -62,12 +62,6 @@ const char *version_string =
 static ident_t top_level = NULL;
 static char *top_level_orig = NULL;
 
-typedef struct {
-   rt_model_t    *model;
-   uint64_t       stop_time;
-   wave_dumper_t *dumper;
-} sim_args_t;
-
 static int process_command(int argc, char **argv);
 static int parse_int(const char *str);
 
@@ -376,16 +370,14 @@ static vhdl_severity_t parse_severity(const char *str)
       fatal("invalid severity level: %s", str);
 }
 
-static void run_sim_cb(void *__ctx)
+static void ctrl_c_handler(void *arg)
 {
-   sim_args_t *args = __ctx;
-
-   model_reset(args->model);
-
-   if (args->dumper != NULL)
-      wave_dumper_restart(args->dumper, args->model);
-
-   model_run(args->model, args->stop_time);
+#ifdef __SANITIZE_THREAD__
+   _Exit(1);
+#else
+   rt_model_t *model = arg;
+   model_interrupt(model);
+#endif
 }
 
 static int run(int argc, char **argv)
@@ -539,8 +531,18 @@ static int run(int argc, char **argv)
    if (vhpi_plugins != NULL)
       vhpi_load_plugins(top, model, vhpi_plugins);
 
-   sim_args_t args = { model, stop_time, dumper };
-   const int rc = jit_with_abort_handler(run_sim_cb, &args);
+   set_ctrl_c_handler(ctrl_c_handler, model);
+
+   model_reset(model);
+
+   if (dumper != NULL)
+      wave_dumper_restart(dumper, model);
+
+   model_run(model, stop_time);
+
+   set_ctrl_c_handler(NULL, NULL);
+
+   const int rc = jit_exit_status(jit);
 
    if (dumper != NULL)
       wave_dumper_free(dumper);

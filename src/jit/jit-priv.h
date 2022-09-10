@@ -202,7 +202,7 @@ void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
 const char *jit_op_name(jit_op_t op);
 const char *jit_exit_name(jit_exit_t exit);
 bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge);
-void jit_interp_abort(void);
+void jit_interp_abort(int code);
 void jit_interp_diag_trace(diag_t *d);
 void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
                     const char *symbol);

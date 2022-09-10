@@ -70,6 +70,8 @@ void jit_enable_runtime(jit_t *j, bool enable);
 mspace_t *jit_get_mspace(jit_t *j);
 void jit_load_dll(jit_t *j, ident_t name);
 void *jit_find_symbol(jit_t *j, ident_t name);
+int jit_exit_status(jit_t *j);
+void jit_set_exit_status(jit_t *j, int code);
 
 jit_scalar_t jit_call(jit_t *j, ident_t func, void *context,
                       const char *fmt, ...);
@@ -86,6 +88,5 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
 void jit_msg(const loc_t *where, diag_level_t level, const char *fmt, ...);
 void jit_diag_trace(diag_t *d);
 void jit_abort(int code);
-int jit_with_abort_handler(void (*fn)(void *), void *arg);
 
 #endif   // _JIT_H

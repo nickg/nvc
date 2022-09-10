@@ -1455,8 +1455,9 @@ bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge)
    return !state.abort;
 }
 
-void jit_interp_abort(void)
+void jit_interp_abort(int code)
 {
    assert(call_stack != NULL);
    call_stack->abort = true;
+   jit_set_exit_status(call_stack->func->jit, code);
 }

@@ -136,6 +136,9 @@ static guard_t        *guards;
 static message_style_t message_style = MESSAGE_FULL;
 static sig_atomic_t    crashing = 0;
 static int             term_width = 0;
+static void           *ctrl_c_arg = NULL;
+
+static void (*ctrl_c_fn)(void *) = NULL;
 
 static const struct color_escape escapes[] = {
    { "",        ANSI_RESET },
@@ -739,6 +742,7 @@ static const char *signame(int sig)
    case SIGUSR1: return "SIGUSR1";
    case SIGUSR2: return "SIGUSR2";
    case SIGBUS: return "SIGBUS";
+   case SIGINT: return "SIGINT";
    default: return "???";
    }
 }
@@ -757,6 +761,13 @@ static void signal_handler(int sig, siginfo_t *info, void *context)
       *req = cpu;
       atomic_store(&thread_regs, NULL);
       return;
+   }
+   else if (sig == SIGINT) {
+      void (*fn)(void *) = atomic_load(&ctrl_c_fn);
+      if (fn != NULL) {
+         (*fn)(ctrl_c_arg);
+         return;
+      }
    }
 
 #ifdef __SANITIZE_THREAD__
@@ -819,6 +830,52 @@ void register_signal_handlers(void)
 #endif  // !__SANITIZE_THREAD__
    sigaction(SIGUSR2, &sa, NULL);
 #endif  // !__MINGW32__
+}
+
+#ifdef __MINGW32__
+static BOOL win32_ctrl_c_handler(DWORD fdwCtrlType)
+{
+   switch (fdwCtrlType) {
+   case CTRL_C_EVENT:
+      void (*fn)(void *) = atomic_load(&ctrl_c_fn);
+      if (fn != NULL)
+         (*fn)(ctrl_c_arg);
+      return TRUE;
+
+   default:
+      return FALSE;
+   }
+}
+#endif
+
+void set_ctrl_c_handler(void (*fn)(void *), void *arg)
+{
+   ctrl_c_arg = arg;
+   atomic_store(&ctrl_c_fn, fn);
+
+   if (fn != NULL) {
+#ifndef __MINGW32__
+      struct sigaction sa = {};
+      sa.sa_sigaction = signal_handler;
+      sigemptyset(&sa.sa_mask);
+      sa.sa_flags = SA_RESTART | SA_SIGINFO;
+
+      sigaction(SIGINT, &sa, NULL);
+#else
+      if (!SetConsoleCtrlHandler(win32_ctrl_c_handler, TRUE))
+         fatal_trace("SetConsoleCtrlHandler");
+#endif
+   }
+   else {
+#ifndef __MINGW32__
+      struct sigaction sa = {};
+      sa.sa_handler = SIG_DFL;
+      sigaction(SIGINT, &sa, NULL);
+#else
+      if (!SetConsoleCtrlHandler(win32_ctrl_c_handler, FALSE))
+         fatal_trace("SetConsoleCtrlHandler");
+#endif
+   }
 }
 
 void term_init(void)

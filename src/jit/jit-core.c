@@ -27,6 +27,7 @@
 #include "rt/model.h"
 #include "rt/mspace.h"
 #include "rt/structs.h"
+#include "thread.h"
 #include "type.h"
 #include "vcode.h"
 
@@ -68,6 +69,7 @@ typedef struct _jit {
    bool            runtime;
    unsigned        backedge;
    module_array_t  modules;
+   int             exit_status;
 } jit_t;
 
 typedef enum {
@@ -444,11 +446,22 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    jit_func_t *f = jit_get_func(j, handle);
 
    if (f->symbol) {
-      jit_transition(JIT_IDLE, JIT_NATIVE);
-      void *(*fn)(void *, void *) = f->symbol;
-      result->pointer = (*fn)(p1.pointer, p2.pointer);
-      jit_transition(JIT_NATIVE, JIT_IDLE);
-      return true;
+      const int rc = setjmp(abort_env);
+      if (rc == 0) {
+         jmp_buf_valid = 1;
+         jit_transition(JIT_IDLE, JIT_NATIVE);
+         void *(*fn)(void *, void *) = f->symbol;
+         result->pointer = (*fn)(p1.pointer, p2.pointer);
+         jit_transition(JIT_NATIVE, JIT_IDLE);
+         jmp_buf_valid = 0;
+         return true;
+      }
+      else {
+         jit_transition(JIT_NATIVE, JIT_IDLE);
+         jmp_buf_valid = 0;
+         jit_set_exit_status(j, rc - 1);
+         return false;
+      }
    }
    else {
       jit_transition(JIT_IDLE, JIT_INTERP);
@@ -753,7 +766,8 @@ void jit_abort(int code)
 {
    switch (thread_state) {
    case JIT_IDLE:
-      DEBUG_ONLY(fatal_trace("jit_abort called when not executing"));
+      fatal_exit(code);
+      break;
    case JIT_NATIVE:
       assert(code >= 0);
       if (jmp_buf_valid)
@@ -762,71 +776,18 @@ void jit_abort(int code)
          fatal_exit(code);
       break;
    case JIT_INTERP:
-      jit_interp_abort();
+      jit_interp_abort(code);
       break;
    }
 }
 
-#ifndef __MINGW32__
-static void jit_interrupt(int signo)
+void jit_set_exit_status(jit_t *j, int code)
 {
-#ifdef __SANITIZE_THREAD__
-   _Exit(1);
-#else
-   rt_model_t *m = get_model_or_null();
-   if (m != NULL)
-      model_interrupt(m);
-#endif
+   // Only allow one thread to set exit status
+   atomic_cas(&(j->exit_status), 0, code);
 }
-#endif
 
-#ifdef __MINGW32__
-static BOOL jit_win_ctrl_handler(DWORD fdwCtrlType)
+int jit_exit_status(jit_t *j)
 {
-   switch (fdwCtrlType) {
-   case CTRL_C_EVENT:
-      // Windows calls the handler on a separate thread so there is no
-      // associated model
-      fatal_exit(1);
-      return TRUE;
-
-   default:
-      return FALSE;
-   }
-}
-#endif
-
-int jit_with_abort_handler(void (*fn)(void *), void *arg)
-{
-   int rc = setjmp(abort_env);
-   jmp_buf_valid = 1;
-
-#ifndef __MINGW32__
-   struct sigaction sa = {};
-   sa.sa_handler = jit_interrupt;
-   sigemptyset(&sa.sa_mask);
-   sa.sa_flags = SA_RESTART;
-
-   sigaction(SIGINT, &sa, NULL);
-#else
-   if (!SetConsoleCtrlHandler(jit_win_ctrl_handler, TRUE))
-      fatal_trace("SetConsoleCtrlHandler");
-#endif
-
-   if (rc == 0)
-      (*fn)(arg);
-   else
-      rc -= 1;  // jit_abort adds 1 to exit code
-
-   jmp_buf_valid = 0;
-
-#ifndef __MINGW32__
-   sa.sa_handler = SIG_DFL;
-   sigaction(SIGINT, &sa, NULL);
-#else
-   if (!SetConsoleCtrlHandler(jit_win_ctrl_handler, FALSE))
-      fatal_trace("SetConsoleCtrlHandler");
-#endif
-
-   return rc;
+   return j->exit_status;
 }
