@@ -660,10 +660,14 @@ static bool sem_check_type_decl(tree_t t, nametab_t *tab)
          if (!sem_check_subtype(t, elem_type, tab))
             return false;
 
-         if (standard() < STD_08 && type_is_unconstrained(elem_type))
-            sem_error(t, "array %s cannot have unconstrained element type "
-                      "in VHDL-%s", istr(tree_ident(t)),
-                      standard_text(standard()));
+         if (standard() < STD_08 && type_is_unconstrained(elem_type)) {
+            diag_t *d = diag_new(DIAG_ERROR, tree_loc(t));
+            diag_printf(d, "array %s cannot have unconstrained element type",
+                        istr(tree_ident(t)));
+            diag_hint(d, NULL, "this would be allowed with $bold$--std=2008$$");
+            diag_emit(d);
+            return false;
+         }
 
          if (type_is_file(elem_type))
             sem_error(t, "array %s cannot have element of file type",
