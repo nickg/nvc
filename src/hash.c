@@ -393,33 +393,6 @@ void *ihash_get(ihash_t *h, uint64_t key)
    }
 }
 
-void *ihash_less(ihash_t *h, uint64_t *key)
-{
-   // Find the entry with the largest key <= *key
-
-   int best = -1;
-   uint64_t bestkey = 0;
-   for (int i = 0; i < h->size; i += 64) {
-      const uint64_t mask = h->mask[i / 64];
-
-      uint64_t bit = 1;
-      for (int j = 0; j < 64; j++, bit <<= 1) {
-         if (!(mask & bit))
-            continue;
-         else if (h->keys[i + j] <= *key && h->keys[i + j] > bestkey) {
-            best = i + j;
-            bestkey = h->keys[i + j];
-         }
-      }
-   }
-
-   if (best == -1)
-      return NULL;
-
-   *key = bestkey;
-   return h->values[best];
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // Set of pointers implemented as a hash table
 

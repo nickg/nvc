@@ -187,11 +187,16 @@ typedef struct _sig_shared {
    uint8_t  data[0];
 } sig_shared_t;
 
+typedef struct {
+   unsigned    shift;
+   rt_nexus_t *nexus[0];
+} rt_index_t;
+
 typedef struct _rt_signal {
    tree_t          where;
    rt_signal_t    *chain;
    rt_scope_t     *parent;
-   ihash_t        *index;
+   rt_index_t     *index;
    res_memo_t     *resolution;
    net_flags_t     flags;
    uint32_t        n_nexus;

@@ -106,7 +106,7 @@ typedef struct _rt_model {
 
 #define FMT_VALUES_SZ   128
 #define MAX_NEXUS_WIDTH 4096
-#define NEXUS_INDEX_MIN 32
+#define NEXUS_INDEX_MIN 8
 
 #define TRACE_DELTAQ  0
 #define TRACE_SIGNALS 1
@@ -474,8 +474,7 @@ static void cleanup_signal(rt_model_t *m, rt_signal_t *s)
       cleanup_nexus(m, n);
    }
 
-   if (s->index != NULL)
-      ihash_free(s->index);
+   free(s->index);
 
    if (s->flags & NET_F_IMPLICIT) {
       rt_implicit_t *imp = container_of(s, rt_implicit_t, signal);
@@ -1059,17 +1058,72 @@ static rt_net_t *get_net(rt_model_t *m, rt_nexus_t *nexus)
 
 static void build_index(rt_signal_t *signal)
 {
-   const unsigned nexus_w = signal->nexus.width;
    const unsigned signal_w = signal->shared.size / signal->nexus.size;
 
-   TRACE("create index for signal %s", istr(tree_ident(signal->where)));
-
-   signal->index = ihash_new(MIN(MAX((signal_w / nexus_w) * 2, 16), 1024));
-
+   unsigned shift = UINT_MAX;
    rt_nexus_t *n = &(signal->nexus);
    for (int i = 0, offset = 0; i < signal->n_nexus;
-        i++, offset += n->width, n = n->chain)
-      ihash_put(signal->index, offset, n);
+        i++, offset += n->width, n = n->chain) {
+      const int tzc = __builtin_ctz(offset);
+      shift = MIN(shift, tzc);
+   }
+
+   TRACE("create index for signal %s shift=%d count=%d",
+         istr(tree_ident(signal->where)), shift, signal_w >> shift);
+
+   rt_index_t *index = xcalloc_flex(sizeof(rt_index_t), (signal_w >> shift) + 1,
+                                    sizeof(rt_nexus_t *));
+   index->shift = shift;
+
+   n = &(signal->nexus);
+   for (int i = 0, offset = 0; i < signal->n_nexus;
+        i++, offset += n->width, n = n->chain) {
+      index->nexus[offset >> shift] = n;
+   }
+
+   free(signal->index);
+   signal->index = index;
+}
+
+static void update_index(rt_signal_t *s, rt_nexus_t *n)
+{
+   const unsigned key = (n->resolved - (void *)s->shared.data) / n->size;
+   const unsigned shift = s->index->shift;
+
+   if ((key >> shift) << shift != key) {
+      TRACE("rebuild index for %s (%d >> %d)",
+            istr(tree_ident(s->where)), key, shift);
+      build_index(s);
+      assert(s->index->nexus[key >> s->index->shift] == n);
+   }
+   else {
+      assert(s->index->nexus[key >> shift] == NULL);
+      s->index->nexus[key >> shift] = n;
+   }
+}
+
+static rt_nexus_t *lookup_index(rt_signal_t *s, int *offset)
+{
+   if (likely(offset == 0 || s->index == NULL))
+      return &(s->nexus);
+   else if ((*offset >> s->index->shift) << s->index->shift != *offset) {
+      TRACE("invalid index for %s (%d >> %d)", istr(tree_ident(s->where)),
+            *offset, s->index->shift);
+      free(s->index);
+      s->index = NULL;
+      return &(s->nexus);
+   }
+   else {
+      const int key = *offset >> s->index->shift;
+      for (int k = key; k >= 0; k--) {
+         rt_nexus_t *n = s->index->nexus[k];
+         if (n != NULL) {
+            *offset = (key - k) << s->index->shift;
+            return n;
+         }
+      }
+      return &(s->nexus);
+   }
 }
 
 static waveform_t *alloc_waveform(void)
@@ -1267,11 +1321,8 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
 
    if (signal->index == NULL && signal->n_nexus >= NEXUS_INDEX_MIN)
       build_index(signal);
-   else if (signal->index != NULL) {
-      const unsigned key =
-         (new->resolved - (void *)signal->shared.data) / new->size;
-      ihash_put(signal->index, key, new);
-   }
+   else if (signal->index != NULL)
+      update_index(signal, new);
 
    return new;
 }
@@ -1283,25 +1334,8 @@ static rt_nexus_t *split_nexus(rt_model_t *m, rt_signal_t *s,
    if (likely(offset == 0 && n0->width == count))
       return n0;
 
-   rt_nexus_t *map = NULL;
-   if (s->index != NULL && offset > 0) {
-      if ((map = ihash_get(s->index, offset))) {
-         if (likely(map->width == count))
-            return map;
-         offset = 0;
-      }
-      else {
-         // Try to find the nexus preceding this offset in the index
-         uint64_t key = offset;
-         if ((map = ihash_less(s->index, &key))) {
-            assert(key < offset);
-            offset -= key;
-         }
-      }
-   }
-
    rt_nexus_t *result = NULL;
-   for (rt_nexus_t *it = map ?: &(s->nexus); count > 0; it = it->chain) {
+   for (rt_nexus_t *it = lookup_index(s, &offset); count > 0; it = it->chain) {
       if (offset >= it->width) {
          offset -= it->width;
          continue;

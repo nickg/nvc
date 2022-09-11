@@ -160,29 +160,6 @@ START_TEST(test_ihash_rand)
 }
 END_TEST;
 
-START_TEST(test_ihash_less)
-{
-   ihash_t *h = ihash_new(32);
-
-   ihash_put(h, 55, VOIDP(1));
-   ihash_put(h, 1, VOIDP(2));
-   ihash_put(h, 77, VOIDP(3));
-   ihash_put(h, 22, VOIDP(4));
-   ihash_put(h, 129, VOIDP(5));
-
-   uint64_t key = 0;
-   ck_assert_ptr_eq(ihash_less(h, &key), NULL);
-   key = 1;
-   ck_assert_ptr_eq(ihash_less(h, &key), VOIDP(2));
-   ck_assert_int_eq(key, 1);
-   key = 69;
-   ck_assert_ptr_eq(ihash_less(h, &key), VOIDP(1));
-   ck_assert_int_eq(key, 55);
-
-   ihash_free(h);
-}
-END_TEST;
-
 START_TEST(test_hset_rand)
 {
    hset_t *h = hset_new(32);
@@ -477,7 +454,6 @@ Suite *get_misc_tests(void)
    tcase_add_test(tc_hash, test_shash_basic);
    tcase_add_test(tc_hash, test_shash_rand);
    tcase_add_test(tc_hash, test_ihash_rand);
-   tcase_add_test(tc_hash, test_ihash_less);
    tcase_add_test(tc_hash, test_hset_rand);
    suite_add_tcase(s, tc_hash);
 
