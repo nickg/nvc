@@ -1051,29 +1051,64 @@ static rt_net_t *get_net(rt_model_t *m, rt_nexus_t *nexus)
    }
 }
 
+static inline int map_index(rt_index_t *index, unsigned offset)
+{
+   if (likely(index->how >= 0))
+      return offset >> index->how;
+   else
+      return offset / -(index->how);
+}
+
+static inline int unmap_index(rt_index_t *index, unsigned key)
+{
+   if (likely(index->how >= 0))
+      return key << index->how;
+   else
+      return key * -(index->how);
+}
+
+static inline bool index_valid(rt_index_t *index, unsigned offset)
+{
+   if (likely(index->how >= 0))
+      return (offset >> index->how) << index->how == offset;
+   else
+      return offset % -(index->how) == 0;
+}
+
 static void build_index(rt_signal_t *signal)
 {
    const unsigned signal_w = signal->shared.size / signal->nexus.size;
 
-   unsigned shift = UINT_MAX;
+   int shift = INT_MAX, gcd = 0;
    rt_nexus_t *n = &(signal->nexus);
    for (int i = 0, offset = 0; i < signal->n_nexus;
         i++, offset += n->width, n = n->chain) {
       const int tzc = __builtin_ctz(offset);
       shift = MIN(shift, tzc);
+
+      // Compute greatest common divisor
+      for (int b = offset; b > 0;) {
+         int temp = b;
+         b = gcd % b;
+         gcd = temp;
+      }
    }
 
-   TRACE("create index for signal %s shift=%d count=%d",
-         istr(tree_ident(signal->where)), shift, signal_w >> shift);
+   const int how = shift == 0 && gcd > 1 ? -gcd : shift;
+   const int count =
+      how < 0 ? (signal_w - how - 1) / -how : (signal_w >> shift) + 1;
 
-   rt_index_t *index = xcalloc_flex(sizeof(rt_index_t), (signal_w >> shift) + 1,
+   TRACE("create index for signal %s how=%d count=%d",
+         istr(tree_ident(signal->where)), how, count);
+
+   rt_index_t *index = xcalloc_flex(sizeof(rt_index_t), count,
                                     sizeof(rt_nexus_t *));
-   index->shift = shift;
+   index->how = how;
 
    n = &(signal->nexus);
    for (int i = 0, offset = 0; i < signal->n_nexus;
         i++, offset += n->width, n = n->chain) {
-      index->nexus[offset >> shift] = n;
+      index->nexus[map_index(index, offset)] = n;
    }
 
    free(signal->index);
@@ -1082,18 +1117,18 @@ static void build_index(rt_signal_t *signal)
 
 static void update_index(rt_signal_t *s, rt_nexus_t *n)
 {
-   const unsigned key = (n->resolved - (void *)s->shared.data) / n->size;
-   const unsigned shift = s->index->shift;
+   const unsigned offset = (n->resolved - (void *)s->shared.data) / n->size;
 
-   if ((key >> shift) << shift != key) {
-      TRACE("rebuild index for %s (%d >> %d)",
-            istr(tree_ident(s->where)), key, shift);
+   if (!index_valid(s->index, offset)) {
+      TRACE("rebuild index for %s offset=%d how=%d",
+            istr(tree_ident(s->where)), offset, s->index->how);
       build_index(s);
-      assert(s->index->nexus[key >> s->index->shift] == n);
+      assert(s->index->nexus[map_index(s->index, offset)] == n);
    }
    else {
-      assert(s->index->nexus[key >> shift] == NULL);
-      s->index->nexus[key >> shift] = n;
+      const int elt = map_index(s->index, offset);
+      assert(s->index->nexus[elt] == NULL);
+      s->index->nexus[elt] = n;
    }
 }
 
@@ -1101,19 +1136,19 @@ static rt_nexus_t *lookup_index(rt_signal_t *s, int *offset)
 {
    if (likely(offset == 0 || s->index == NULL))
       return &(s->nexus);
-   else if ((*offset >> s->index->shift) << s->index->shift != *offset) {
-      TRACE("invalid index for %s (%d >> %d)", istr(tree_ident(s->where)),
-            *offset, s->index->shift);
+   else if (!index_valid(s->index, *offset)) {
+      TRACE("invalid index for %s offset=%d how=%d", istr(tree_ident(s->where)),
+            *offset, s->index->how);
       free(s->index);
       s->index = NULL;
       return &(s->nexus);
    }
    else {
-      const int key = *offset >> s->index->shift;
+      const int key = map_index(s->index, *offset);
       for (int k = key; k >= 0; k--) {
          rt_nexus_t *n = s->index->nexus[k];
          if (n != NULL) {
-            *offset = (key - k) << s->index->shift;
+            *offset = unmap_index(s->index, key - k);
             return n;
          }
       }
@@ -1145,9 +1180,9 @@ static waveform_t *alloc_waveform(void)
 static void clone_waveform(rt_nexus_t *nexus, waveform_t *w_new,
                            waveform_t *w_old, int offset)
 {
-   w_new->when  = w_old->when;
-   w_new->null  = w_old->null;
-   w_new->next  = NULL;
+   w_new->when = w_old->when;
+   w_new->null = w_old->null;
+   w_new->next = NULL;
 
    const int split = offset * nexus->size;
    const int oldsz = (offset + nexus->width) * nexus->size;

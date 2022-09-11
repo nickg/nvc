@@ -188,7 +188,7 @@ typedef struct _sig_shared {
 } sig_shared_t;
 
 typedef struct {
-   unsigned    shift;
+   int         how;
    rt_nexus_t *nexus[0];
 } rt_index_t;
 
