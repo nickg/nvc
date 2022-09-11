@@ -1333,6 +1333,8 @@ static rt_nexus_t *split_nexus(rt_model_t *m, rt_signal_t *s,
    rt_nexus_t *n0 = &(s->nexus);
    if (likely(offset == 0 && n0->width == count))
       return n0;
+   else if (offset == 0 && count == s->shared.size / n0->size)
+      return n0;
 
    rt_nexus_t *result = NULL;
    for (rt_nexus_t *it = lookup_index(s, &offset); count > 0; it = it->chain) {
