@@ -62,6 +62,7 @@ typedef enum {
 typedef struct _memblock {
    memblock_t *chain;
    unsigned    free;
+   unsigned    pagesz;
    char       *ptr;
 } memblock_t;
 
@@ -105,7 +106,6 @@ typedef struct _rt_model {
 } rt_model_t;
 
 #define FMT_VALUES_SZ   128
-#define MAX_NEXUS_WIDTH 4096
 #define NEXUS_INDEX_MIN 8
 
 #define TRACE_DELTAQ  0
@@ -216,16 +216,17 @@ static void *static_alloc(rt_model_t *m, size_t size)
    memblock_t *mb = m->memblocks;
    if (mb == NULL || mb->free < nlines) {
       mb = xmalloc(sizeof(memblock_t));
-      mb->chain = m->memblocks;
-      mb->free  = MEMBLOCK_PAGE_SZ / MEMBLOCK_LINE_SZ;
-      mb->ptr   = nvc_memalign(MEMBLOCK_LINE_SZ, MEMBLOCK_PAGE_SZ);
+      mb->pagesz = MAX(MEMBLOCK_PAGE_SZ, nlines * MEMBLOCK_LINE_SZ);
+      mb->chain  = m->memblocks;
+      mb->free   = mb->pagesz / MEMBLOCK_LINE_SZ;
+      mb->ptr    = nvc_memalign(MEMBLOCK_LINE_SZ, mb->pagesz);
 
       m->memblocks = mb;
    }
 
    assert(nlines <= mb->free);
 
-   void *ptr = mb->ptr + MEMBLOCK_PAGE_SZ - mb->free * MEMBLOCK_LINE_SZ;
+   void *ptr = mb->ptr + mb->pagesz - mb->free * MEMBLOCK_LINE_SZ;
    mb->free -= nlines;
    return ptr;
 }
@@ -433,18 +434,13 @@ static void free_sens_list(rt_model_t *m, sens_list_t **l)
 
 static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
 {
-   free_value(n, n->forcing);
-
    for (rt_source_t *s = &(n->sources), *tmp; s; s = tmp) {
       tmp = s->chain_input;
 
       switch (s->tag) {
       case SOURCE_DRIVER:
-         free_value(n, s->u.driver.waveforms.value);
-
          for (waveform_t *it = s->u.driver.waveforms.next, *next;
               it; it = next) {
-            free_value(n, it->value);
             next = it->next;
             free_waveform(it);
          }
@@ -462,8 +458,6 @@ static void cleanup_nexus(rt_model_t *m, rt_nexus_t *n)
 
    if (n->net != NULL)
       free_sens_list(m, &(n->net->pending));
-
-   free(n->free_value);
 }
 
 static void cleanup_signal(rt_model_t *m, rt_signal_t *s)
@@ -533,8 +527,12 @@ void model_free(rt_model_t *m)
       nvc_rusage_t ru;
       nvc_rusage(&ru);
 
-      notef("setup:%ums run:%ums maxrss:%ukB",
-            m->ready_rusage.ms, ru.ms, ru.rss);
+      unsigned mem = 0;
+      for (memblock_t *mb = m->memblocks; mb; mb = mb->chain)
+         mem += mb->pagesz - (MEMBLOCK_LINE_SZ * mb->free);
+
+      notef("setup:%ums run:%ums maxrss:%ukB static:%ukB",
+            m->ready_rusage.ms, ru.ms, ru.rss, mem / 1024);
    }
 
    while (heap_size(m->eventq_heap) > 0)
@@ -925,7 +923,7 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    return memo;
 }
 
-static rt_value_t alloc_value(rt_nexus_t *n)
+static rt_value_t alloc_value(rt_model_t *m, rt_nexus_t *n)
 {
    rt_value_t result = {};
 
@@ -933,10 +931,10 @@ static rt_value_t alloc_value(rt_nexus_t *n)
    if (valuesz > sizeof(rt_value_t)) {
       if (n->free_value != NULL) {
          result.ext = n->free_value;
-         n->free_value = NULL;
+         n->free_value = *(void **)result.ext;
       }
       else
-         result.ext = xmalloc(valuesz);
+         result.ext = static_alloc(m, valuesz);
    }
 
    return result;
@@ -946,10 +944,8 @@ static void free_value(rt_nexus_t *n, rt_value_t v)
 {
    const size_t valuesz = n->width * n->size;
    if (valuesz > sizeof(rt_value_t)) {
-      if (n->free_value == NULL)
-         n->free_value = v.ext;
-      else
-         free(v.ext);
+      *(void **)v.ext = n->free_value;
+      n->free_value = v.ext;
    }
 }
 
@@ -1023,7 +1019,6 @@ static rt_source_t *add_source(rt_model_t *m, rt_nexus_t *n, source_kind_t kind)
          w0->when  = 0;
          w0->null  = 0;
          w0->next  = NULL;
-         w0->value = alloc_value(n);
       }
       break;
 
@@ -1150,21 +1145,40 @@ static waveform_t *alloc_waveform(void)
 static void clone_waveform(rt_nexus_t *nexus, waveform_t *w_new,
                            waveform_t *w_old, int offset)
 {
-   w_new->when = w_old->when;
-   w_new->null = w_old->null;
-   w_new->next = NULL;
+   w_new->when  = w_old->when;
+   w_new->null  = w_old->null;
+   w_new->next  = NULL;
 
    const int split = offset * nexus->size;
    const int oldsz = (offset + nexus->width) * nexus->size;
    const int newsz = nexus->width * nexus->size;
 
-   const void *sp = oldsz <= sizeof(rt_value_t)
-      ? w_old->value.bytes : w_old->value.ext;
-
-   void *dp = newsz <= sizeof(rt_value_t)
-      ? w_new->value.bytes : w_new->value.ext;
-
-   memcpy(dp, sp + split, newsz);
+   if (split > sizeof(rt_value_t) && newsz > sizeof(rt_value_t)) {
+      // Split the external memory with no copying
+      w_new->value.ext = (char *)w_old->value.ext + split;
+   }
+   else if (newsz > sizeof(rt_value_t)) {
+      // Wasting up to eight bytes at the start of the the old waveform
+      char *ext = w_old->value.ext;
+      w_old->value.qword = *(uint64_t *)ext;
+      w_new->value.ext = ext + split;
+   }
+   else if (split > sizeof(rt_value_t)) {
+      // Wasting up to eight bytes at the end of the the old waveform
+      memcpy(w_new->value.bytes, w_old->value.ext + split, newsz);
+   }
+   else if (oldsz > sizeof(rt_value_t)) {
+      // The memory backing this waveform is lost now but this can only
+      // happen a bounded number of times as nexuses only ever shrink
+      char *ext = w_old->value.ext;
+      memcpy(w_new->value.bytes, ext + split, newsz);
+      w_old->value.qword = *(uint64_t *)ext;
+   }
+   else {
+      // This trick with shifting probably only works on little-endian
+      // systems
+      w_new->value.qword = w_old->value.qword >> (split * 8);
+   }
 }
 
 static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
@@ -1208,8 +1222,6 @@ static void clone_source(rt_model_t *m, rt_nexus_t *nexus, rt_source_t *old,
          // Future transactions
          for (w_old = w_old->next; w_old; w_old = w_old->next) {
             w_new = (w_new->next = alloc_waveform());
-            w_new->value = alloc_value(nexus);
-
             clone_waveform(nexus, w_new, w_old, offset);
 
             assert(w_old->when >= m->now);
@@ -1228,8 +1240,6 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
    rt_signal_t *signal = old->signal;
    signal->n_nexus++;
 
-   const size_t oldsz = old->width * old->size;
-
    rt_nexus_t *new = static_alloc(m, sizeof(rt_nexus_t));
    new->width    = old->width - offset;
    new->size     = old->size;
@@ -1240,10 +1250,6 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
 
    old->chain = new;
    old->width = offset;
-
-   // Old nexus may be holding large amounts of memory
-   free(old->free_value);
-   old->free_value = NULL;
 
    if (old->net != NULL) {
       if (net == NULL) {
@@ -1275,20 +1281,8 @@ static rt_nexus_t *clone_nexus(rt_model_t *m, rt_nexus_t *old, int offset,
       m->nexus_tail = &(new->chain);
 
    if (old->n_sources > 0) {
-      for (rt_source_t *it = &(old->sources); it; it = it->chain_input) {
+      for (rt_source_t *it = &(old->sources); it; it = it->chain_input)
          clone_source(m, new, it, offset, net);
-
-         // Resize waveforms in old driver
-         if (it->tag == SOURCE_DRIVER && oldsz > sizeof(rt_value_t)) {
-            for (waveform_t *w_old = &(it->u.driver.waveforms);
-                 w_old; w_old = w_old->next) {
-               rt_value_t v_old = alloc_value(old);
-               copy_value_ptr(old, &v_old, w_old->value.ext);
-               free(w_old->value.ext);
-               w_old->value = v_old;
-            }
-         }
-      }
    }
 
    int nth = 0;
@@ -1385,31 +1379,6 @@ static void setup_signal(rt_model_t *m, rt_signal_t *s, tree_t where,
 
    *m->nexus_tail = &(s->nexus);
    m->nexus_tail = &(s->nexus.chain);
-
-   if (s->nexus.width > MAX_NEXUS_WIDTH) {
-      // Chunk up large signals to avoid excessive memory allocation
-
-      const int stride = MAX_NEXUS_WIDTH;
-
-      s->nexus.width = stride;
-
-      for (int p = stride; p < count; p += stride) {
-         rt_nexus_t *n = xcalloc(sizeof(rt_nexus_t));
-         n->width    = MIN(stride, count - p);
-         n->size     = size;
-         n->resolved = s->shared.data + p * size;
-         n->flags    = s->nexus.flags;
-         n->signal   = s;
-
-         s->n_nexus++;
-
-         *m->nexus_tail = n;
-         m->nexus_tail = &(n->chain);
-      }
-
-      if (s->n_nexus >= NEXUS_INDEX_MIN)
-         build_index(s);
-   }
 
    m->n_signals++;
 }
@@ -2479,7 +2448,7 @@ bool force_signal(rt_signal_t *s, const uint64_t *buf, size_t count)
          free_value(n, n->forcing);
 
       n->flags |= NET_F_FORCED;
-      n->forcing = alloc_value(n);
+      n->forcing = alloc_value(m, n);
 
 #define SIGNAL_FORCE_EXPAND_U64(type) do {                              \
          type *dp = (type *)value_ptr(n, &(n->forcing));                \
@@ -2644,6 +2613,7 @@ void x_drive_signal(sig_shared_t *ss, uint32_t offset, int32_t count)
 
       if (s == NULL) {
          s = add_source(m, n, SOURCE_DRIVER);
+         s->u.driver.waveforms.value = alloc_value(m, n);
          s->u.driver.proc = active_proc;
       }
 
@@ -2682,7 +2652,7 @@ void x_sched_waveform_s(sig_shared_t *ss, uint32_t offset, uint64_t scalar,
    rt_model_t *m = get_model();
    rt_nexus_t *n = split_nexus(m, s, offset, 1);
 
-   rt_value_t value = alloc_value(n);
+   rt_value_t value = alloc_value(m, n);
    value.qword = scalar;
 
    sched_driver(m, n, after, reject, value, false);
@@ -2707,7 +2677,7 @@ void x_sched_waveform(sig_shared_t *ss, uint32_t offset, void *values,
       assert(count >= 0);
 
       const size_t valuesz = n->width * n->size;
-      rt_value_t value = alloc_value(n);
+      rt_value_t value = alloc_value(m, n);
       copy_value_ptr(n, &value, vptr);
       vptr += valuesz;
 
@@ -3254,7 +3224,7 @@ void x_force(sig_shared_t *ss, uint32_t offset, int32_t count, void *values)
 
       if (!(n->flags & NET_F_FORCED)) {
          n->flags |= NET_F_FORCED;
-         n->forcing = alloc_value(n);
+         n->forcing = alloc_value(m, n);
       }
 
       copy_value_ptr(n, &(n->forcing), vptr);
