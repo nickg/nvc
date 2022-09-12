@@ -35,7 +35,7 @@
 
 #define MAX_THREADS  64
 #define MAX_SPINS    15
-#define PARKING_BAYS 16
+#define PARKING_BAYS 64
 
 struct _nvc_thread {
    unsigned     id;
@@ -259,7 +259,9 @@ static void thread_unpark(void *cookie, unpark_fn_t fn)
    }
    PTHREAD_CHECK(pthread_mutex_unlock, &(bay->mutex));
 
-   PTHREAD_CHECK(pthread_cond_signal, &(bay->cond));
+   // Do not use pthread_cond_signal here as multiple threads parked in
+   // this bay here may be waiting on different cookies
+   PTHREAD_CHECK(pthread_cond_broadcast, &(bay->cond));
 }
 
 void spin_wait(void)
