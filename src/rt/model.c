@@ -233,13 +233,14 @@ static void *static_alloc(rt_model_t *m, size_t size)
 
 static void global_event(rt_model_t *m, rt_event_t kind)
 {
-   for (callback_t *it = m->global_cbs[kind], *tmp; it; it = tmp) {
+   callback_t *list = m->global_cbs[kind];
+   m->global_cbs[kind] = NULL;
+
+   for (callback_t *it = list, *tmp; it; it = tmp) {
       tmp = it->next;
       (*it->fn)(m, it->user);
       rt_free(m->callback_stack, it);
    }
-
-   m->global_cbs[kind] = NULL;
 }
 
 static void scope_deps_cb(ident_t unit_name, void *__ctx)
