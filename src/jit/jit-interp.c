@@ -173,7 +173,7 @@ static jit_scalar_t interp_get_value(jit_interp_t *state, jit_value_t value)
    }
 }
 
-void jit_interp_diag_trace(diag_t *d)
+void jit_interp_trace(diag_t *d)
 {
    for (jit_interp_t *p = call_stack; p != NULL; p = p->caller) {
       ident_t name = p->func->name;
@@ -204,12 +204,9 @@ static void interp_error(jit_interp_t *state, const loc_t *loc,
    va_list ap;
    va_start(ap, fmt);
 
-   if (jit_show_errors(state->func->jit)) {
-      diag_t *d = diag_new(DIAG_ERROR, loc);
-      diag_vprintf(d, fmt, ap);
-      jit_interp_diag_trace(d);
-      diag_emit(d);
-   }
+   diag_t *d = diag_new(DIAG_ERROR, loc);
+   diag_vprintf(d, fmt, ap);
+   diag_emit(d);
 
    va_end(ap);
    state->abort = true;
@@ -446,7 +443,7 @@ static void interp_check_poison(jit_interp_t *state, jit_reg_t reg)
    }
 
    interp_dump(state);
-   fatal_trace("loaded poison value in R%d", reg);
+   warnf("loaded poison value in R%d", reg);
 }
 #endif
 
@@ -703,10 +700,7 @@ static void interp_range_fail(jit_interp_t *state)
    tree_t       where = state->args[4].pointer;
    tree_t       hint  = state->args[5].pointer;
 
-   if (jit_show_errors(state->func->jit))
-      x_range_fail(value, left, right, dir, where, hint);
-   else
-      state->abort = true;
+   x_range_fail(value, left, right, dir, where, hint);
 }
 
 static void interp_index_fail(jit_interp_t *state)
@@ -718,10 +712,7 @@ static void interp_index_fail(jit_interp_t *state)
    tree_t       where = state->args[4].pointer;
    tree_t       hint  = state->args[5].pointer;
 
-   if (jit_show_errors(state->func->jit))
-      x_index_fail(value, left, right, dir, where, hint);
-   else
-      state->abort = true;
+   x_index_fail(value, left, right, dir, where, hint);
 }
 
 static void interp_overflow(jit_interp_t *state)
@@ -730,20 +721,14 @@ static void interp_overflow(jit_interp_t *state)
    int32_t rhs   = state->args[1].integer;
    tree_t  where = state->args[2].pointer;
 
-   if (jit_show_errors(state->func->jit))
-      x_overflow(lhs, rhs, where);
-   else
-      state->abort = true;
+   x_overflow(lhs, rhs, where);
 }
 
 static void interp_null_deref(jit_interp_t *state)
 {
    tree_t where = state->args[0].pointer;
 
-   if (jit_show_errors(state->func->jit))
-      x_null_deref(where);
-   else
-      state->abort = true;
+   x_null_deref(where);
 }
 
 static void interp_length_fail(jit_interp_t *state)
@@ -753,10 +738,7 @@ static void interp_length_fail(jit_interp_t *state)
    int32_t dim   = state->args[2].integer;
    tree_t  where = state->args[3].pointer;
 
-   if (jit_show_errors(state->func->jit))
-      x_length_fail(left, right, dim, where);
-   else
-      state->abort = true;
+   x_length_fail(left, right, dim, where);
 }
 
 static void interp_div_zero(jit_interp_t *state)
@@ -771,10 +753,7 @@ static void interp_exponent_fail(jit_interp_t *state)
    int32_t value = state->args[0].integer;
    tree_t  where = state->args[1].pointer;
 
-   if (jit_show_errors(state->func->jit))
-      x_exponent_fail(value, where);
-   else
-      state->abort = true;
+   x_exponent_fail(value, where);
 }
 
 static void interp_unreachable(jit_interp_t *state)
@@ -795,31 +774,17 @@ static void interp_func_wait(jit_interp_t *state)
 
 static void interp_report(jit_interp_t *state)
 {
-   char    *msg      = state->args[0].pointer;
+   uint8_t *msg      = state->args[0].pointer;
    int32_t  len      = state->args[1].integer;
    int32_t  severity = state->args[2].integer;
    tree_t   where    = state->args[3].pointer;
 
-   static const char *levels[] = {
-      "Note", "Warning", "Error", "Failure"
-   };
-
-   const diag_level_t level = diag_severity(severity);
-
-   if (jit_show_errors(state->func->jit)) {
-      diag_t *d = diag_new(level, tree_loc(where));
-      diag_printf(d, "Report %s: %.*s", levels[severity], len, msg);
-      diag_show_source(d, false);
-      diag_emit(d);
-   }
-
-   if (level == DIAG_FATAL)
-      state->abort = true;
+   x_report(msg, len, severity, where);
 }
 
 static void interp_assert_fail(jit_interp_t *state)
 {
-   char    *msg        = state->args[0].pointer;
+   uint8_t *msg        = state->args[0].pointer;
    int32_t  len        = state->args[1].integer;
    int32_t  severity   = state->args[2].integer;
    int64_t  hint_left  = state->args[3].integer;
@@ -827,52 +792,7 @@ static void interp_assert_fail(jit_interp_t *state)
    int8_t   hint_valid = state->args[5].integer;
    tree_t   where      = state->args[6].pointer;
 
-   static const char *levels[] = {
-      "Note", "Warning", "Error", "Failure"
-   };
-
-   const diag_level_t level = diag_severity(severity);
-
-   if (jit_show_errors(state->func->jit)) {
-      diag_t *d = diag_new(level, tree_loc(where));
-
-      if (msg == NULL)
-         diag_printf(d, "Assertion %s: Assertion violation.", levels[severity]);
-      else {
-         diag_printf(d, "Assertion %s: %.*s", levels[severity], len, msg);
-
-         // Assume we don't want to dump the source code if the user
-         // provided their own message
-         diag_show_source(d, false);
-      }
-
-      if (hint_valid) {
-         assert(tree_kind(where) == T_FCALL);
-         type_t p0_type = tree_type(tree_value(tree_param(where, 0)));
-         type_t p1_type = tree_type(tree_value(tree_param(where, 1)));
-
-         LOCAL_TEXT_BUF tb = tb_new();
-         to_string(tb, p0_type, hint_left);
-         switch (tree_subkind(tree_ref(where))) {
-         case S_SCALAR_EQ:  tb_cat(tb, " = "); break;
-         case S_SCALAR_NEQ: tb_cat(tb, " /= "); break;
-         case S_SCALAR_LT:  tb_cat(tb, " < "); break;
-         case S_SCALAR_GT:  tb_cat(tb, " > "); break;
-         case S_SCALAR_LE:  tb_cat(tb, " <= "); break;
-         case S_SCALAR_GE:  tb_cat(tb, " >= "); break;
-         default: tb_cat(tb, " <?> "); break;
-         }
-         to_string(tb, p1_type, hint_right);
-         tb_cat(tb, " is false");
-
-         diag_hint(d, tree_loc(where), "%s", tb_get(tb));
-      }
-
-      diag_emit(d);
-   }
-
-   if (level == DIAG_FATAL)
-      state->abort = true;
+   x_assert_fail(msg, len, severity, hint_left, hint_right, hint_valid, where);
 }
 
 static void interp_scalar_init_signal(jit_interp_t *state)
@@ -1121,6 +1041,28 @@ static void interp_debug_out(jit_interp_t *state)
    debugf("DEBUG %"PRIi64, value);
 }
 
+static void interp_alias_signal(jit_interp_t *state)
+{
+   sig_shared_t *ss    = state->args[0].pointer;
+   tree_t        where = state->args[1].pointer;
+
+   x_alias_signal(ss, where);
+}
+
+static void interp_map_signal(jit_interp_t *state)
+{
+   sig_shared_t  *src_ss     = state->args[0].pointer;
+   uint32_t       src_offset = state->args[1].integer;
+   sig_shared_t  *dst_ss     = state->args[2].pointer;
+   uint32_t       dst_offset = state->args[3].integer;
+   uint32_t       src_count  = state->args[4].integer;
+   uint32_t       dst_count  = state->args[5].integer;
+   ffi_closure_t *closure    = state->args[6].pointer;
+
+   x_map_signal(src_ss, src_offset, dst_ss, dst_offset, src_count,
+                dst_count, closure);
+}
+
 static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 {
    switch (ir->arg1.exit) {
@@ -1254,6 +1196,14 @@ static void interp_exit(jit_interp_t *state, jit_ir_t *ir)
 
    case JIT_EXIT_DEBUG_OUT:
       interp_debug_out(state);
+      break;
+
+   case JIT_EXIT_ALIAS_SIGNAL:
+      interp_alias_signal(state);
+      break;
+
+   case JIT_EXIT_MAP_SIGNAL:
+      interp_map_signal(state);
       break;
 
    default:

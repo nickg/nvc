@@ -83,7 +83,8 @@ typedef void (*diag_consumer_t)(diag_t *);
 void diag_set_consumer(diag_consumer_t fn);
 
 typedef void (*diag_hint_fn_t)(diag_t *, void *);
-void diag_set_hint_fn(diag_hint_fn_t fn, void *context);
+void diag_add_hint_fn(diag_hint_fn_t fn, void *context);
+void diag_remove_hint_fn(diag_hint_fn_t fn);
 
 diag_t *diag_new(diag_level_t level, const loc_t *loc);
 void diag_printf(diag_t *d, const char *fmt, ...)
@@ -97,6 +98,7 @@ void diag_lrm(diag_t *d, vhdl_standard_t std, const char *section);
 void diag_show_source(diag_t *d, bool show);
 void diag_emit(diag_t *d);
 void diag_femit(diag_t *d, FILE *f);
+void diag_suppress(diag_t *d, bool suppress);
 
 unsigned error_count(void);
 void reset_error_count(void);
@@ -120,5 +122,6 @@ typedef enum {
 void set_exit_severity(vhdl_severity_t severity);
 void set_stderr_severity(vhdl_severity_t severity);
 diag_level_t diag_severity(vhdl_severity_t severity);
+vhdl_severity_t get_exit_severity(void);
 
 #endif  // _DIAG_H

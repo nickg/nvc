@@ -33,6 +33,8 @@
 
 #define LOC_MAGIC 0xf00f
 
+typedef struct _hint_rec hint_rec_t;
+
 typedef struct {
    loc_file_ref_t  ref;
    char           *name_str;
@@ -76,15 +78,22 @@ struct _diag {
    hint_list_t   trace;
    bool          color;
    bool          source;
+   bool          suppress;
 };
 
+typedef struct _hint_rec {
+   hint_rec_t     *next;
+   diag_hint_fn_t  fn;
+   void           *context;
+} hint_rec_t;
+
 static diag_consumer_t  consumer = NULL;
-static diag_hint_fn_t   hint_fn = NULL;
-static void            *hint_ctx = NULL;
 static unsigned         n_errors = 0;
 static file_list_t      loc_files;
 static vhdl_severity_t  exit_severity = SEVERITY_ERROR;
 static diag_level_t     stderr_level = DIAG_DEBUG;
+
+static __thread hint_rec_t *hint_recs = NULL;
 
 #define DIAG_THEME_CLASSIC 1
 #define DIAG_THEME_RUST    2
@@ -342,10 +351,11 @@ static const struct {
 diag_t *diag_new(diag_level_t level, const loc_t *loc)
 {
    diag_t *d = xcalloc(sizeof(diag_t));
-   d->msg    = tb_new();
-   d->level  = level;
-   d->color  = color_terminal() && consumer == NULL;
-   d->source = true;
+   d->msg      = tb_new();
+   d->level    = level;
+   d->color    = color_terminal() && consumer == NULL;
+   d->source   = true;
+   d->suppress = false;
 
    if (!loc_invalid_p(loc)) {
       diag_hint_t hint = {
@@ -354,8 +364,8 @@ diag_t *diag_new(diag_level_t level, const loc_t *loc)
       APUSH(d->hints, hint);
    }
 
-   if (hint_fn != NULL)
-      (*hint_fn)(d, hint_ctx);
+   for (hint_rec_t *rec = hint_recs; rec != NULL; rec = rec->next)
+      (*rec->fn)(d, rec->context);
 
    return d;
 }
@@ -793,7 +803,9 @@ static void diag_emit_trace(diag_t *d, FILE *f)
 
 void diag_femit(diag_t *d, FILE *f)
 {
-   if (consumer != NULL && d->level > DIAG_DEBUG)
+   if (d->suppress)
+      return;
+   else if (consumer != NULL && d->level > DIAG_DEBUG)
       (*consumer)(d);
    else if (get_message_style() == MESSAGE_COMPACT) {
       if (d->hints.count > 0) {
@@ -872,6 +884,11 @@ void diag_show_source(diag_t *d, bool show)
    d->source = show;
 }
 
+void diag_suppress(diag_t *d, bool suppress)
+{
+   d->suppress = suppress;
+}
+
 void diag_set_consumer(diag_consumer_t fn)
 {
    consumer = fn;
@@ -916,10 +933,28 @@ int diag_traces(diag_t *d)
    return d->trace.count;
 }
 
-void diag_set_hint_fn(diag_hint_fn_t fn, void *context)
+void diag_add_hint_fn(diag_hint_fn_t fn, void *context)
 {
-   hint_fn = fn;
-   hint_ctx = context;
+   hint_rec_t *rec = xcalloc(sizeof(hint_rec_t));
+   rec->fn      = fn;
+   rec->context = context;
+   rec->next    = hint_recs;
+
+   hint_recs = rec;
+}
+
+void diag_remove_hint_fn(diag_hint_fn_t fn)
+{
+   for (hint_rec_t *it = hint_recs, **prev = &hint_recs; it;
+        prev = &(it->next), it = it->next) {
+      if (it->fn == fn) {
+         *prev = it->next;
+         free(it);
+         return;
+      }
+   }
+
+   fatal_trace("hint function %p not registered", fn);
 }
 
 unsigned error_count(void)
@@ -960,6 +995,11 @@ diag_level_t diag_severity(vhdl_severity_t severity)
 void set_exit_severity(vhdl_severity_t severity)
 {
    exit_severity = severity;
+}
+
+vhdl_severity_t get_exit_severity(void)
+{
+   return exit_severity;
 }
 
 void set_stderr_severity(vhdl_severity_t severity)

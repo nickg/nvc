@@ -50,12 +50,6 @@ typedef struct _callback {
    callback_t    *next;
 } callback_t;
 
-typedef enum {
-   SIDE_EFFECT_ALLOW,
-   SIDE_EFFECT_DISALLOW,
-   SIDE_EFFECT_OCCURRED
-} side_effect_t;
-
 #define MEMBLOCK_LINE_SZ 64
 #define MEMBLOCK_PAGE_SZ 0x200000
 
@@ -101,7 +95,6 @@ typedef struct _rt_model {
    callback_t        *global_cbs[RT_LAST_EVENT];
    cover_tagging_t   *cover;
    nvc_rusage_t       ready_rusage;
-   side_effect_t      side_effect;
    memblock_t        *memblocks;
 } rt_model_t;
 
@@ -130,8 +123,7 @@ typedef struct _rt_model {
    } while (0)
 
 #define MODEL_ENTRY(m)                                                  \
-   assert(__model == NULL);                                             \
-   __model = (m);                                                       \
+   __model_entry(m);                                                    \
    rt_model_t *__m __attribute__((unused, cleanup(__model_exit))) = m;
 
 static __thread rt_proc_t    *active_proc = NULL;
@@ -180,6 +172,30 @@ static void __model_trace(rt_model_t *m, const char *fmt, ...)
    fflush(stderr);
 
    va_end(ap);
+}
+
+static void model_diag_cb(diag_t *d, void *arg)
+{
+   rt_model_t *m = arg;
+
+   char tmbuf[64];
+   fmt_now(m, tmbuf, sizeof(tmbuf));
+
+   diag_printf(d, "%s: ", tmbuf);
+}
+
+static void __model_entry(rt_model_t *m)
+{
+   assert(__model == NULL);
+   __model = (m);
+   diag_add_hint_fn(model_diag_cb, m);
+}
+
+static void __model_exit(rt_model_t **m)
+{
+   assert(__model == *m);
+   __model = *m = NULL;
+   diag_remove_hint_fn(model_diag_cb);
 }
 
 static char *fmt_values_r(const void *values, size_t len, char *buf, size_t max)
@@ -886,7 +902,10 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    if (resolution->nlits == 0 || resolution->nlits > 16)
       return memo;
 
-   m->side_effect = SIDE_EFFECT_DISALLOW;
+   const vhdl_severity_t old_severity = get_exit_severity();
+   set_exit_severity(SEVERITY_NOTE);
+
+   jit_set_silent(m->jit, true);
 
    // Memoise the function for all two value cases
 
@@ -894,7 +913,8 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
       for (int j = 0; j < resolution->nlits; j++) {
          int8_t args[2] = { i, j };
          ffi_uarray_t u = { args, { { memo->ileft, 2 } } };
-         ffi_call(&(memo->closure), &u, sizeof(u), &(memo->tab2[i][j]), 1);
+         jit_ffi_call(m->jit, &(memo->closure), &u,
+                      sizeof(u), &(memo->tab2[i][j]), 1, true);
          assert(memo->tab2[i][j] < resolution->nlits);
       }
    }
@@ -906,11 +926,12 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    for (int i = 0; i < resolution->nlits; i++) {
       int8_t args[1] = { i };
       ffi_uarray_t u = { args, { { memo->ileft, 1 } } };
-      ffi_call(&(memo->closure), &u, sizeof(u), &(memo->tab1[i]), 1);
+      jit_ffi_call(m->jit, &(memo->closure), &u, sizeof(u),
+                   &(memo->tab1[i]), 1, true);
       identity = identity && (memo->tab1[i] == i);
    }
 
-   if (m->side_effect != SIDE_EFFECT_OCCURRED) {
+   if (jit_exit_status(m->jit) == 0) {
       memo->flags |= R_MEMO;
       if (identity)
          memo->flags |= R_IDENT;
@@ -919,7 +940,10 @@ static res_memo_t *memo_resolution_fn(rt_model_t *m, rt_signal_t *signal,
    TRACE("memoised resolution function %p for type %s",
          resolution->closure.fn, type_pp(tree_type(signal->where)));
 
-   m->side_effect = SIDE_EFFECT_ALLOW;
+   jit_set_silent(m->jit, false);
+   jit_reset_exit_status(m->jit);
+
+   set_exit_severity(old_severity);
 
    return memo;
 }
@@ -1504,7 +1528,8 @@ static void *call_conversion(rt_port_t *port, value_fn_t fn)
    TRACE("call conversion function %p insz=%zu outsz=%zu",
          cf->closure.fn, insz, cf->bufsz);
 
-   ffi_call(&(cf->closure), indata, insz, cf->buffer, cf->bufsz);
+   jit_ffi_call(get_model()->jit, &(cf->closure), indata, insz,
+                cf->buffer, cf->bufsz, false);
 
    if (incopy) free(indata);
 
@@ -1587,7 +1612,8 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
 
       void *resolved;
       ffi_uarray_t u = { inputs, { { r->ileft, nonnull } } };
-      ffi_call(&(r->closure), &u, sizeof(u), &resolved, sizeof(resolved));
+      jit_ffi_call(get_model()->jit, &(r->closure), &u, sizeof(u),
+                   &resolved, sizeof(resolved), true);
 
       const ptrdiff_t noff =
          nexus->resolved - (void *)nexus->signal->shared.data;
@@ -1595,6 +1621,7 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
    }
    else {
       void *resolved = local_alloc(nexus->width * nexus->size);
+      rt_model_t *m = get_model();
 
       for (int j = 0; j < nexus->width; j++) {
 #define CALL_RESOLUTION_FN(type) do {                                   \
@@ -1608,8 +1635,8 @@ static void *call_resolution(rt_nexus_t *nexus, res_memo_t *r, int nonnull)
             assert(o == nonnull);                                       \
             type *p = (type *)resolved;                                 \
             ffi_uarray_t u = { vals, { { r->ileft, nonnull } } };       \
-            ffi_call(&(r->closure), &u, sizeof(u),                      \
-                     &(p[j]), sizeof(p[j]));                            \
+            jit_ffi_call(m->jit, &(r->closure), &u, sizeof(u),          \
+                         &(p[j]), sizeof(p[j]), true);                  \
          } while (0)
 
          FOR_ALL_SIZES(nexus->size, CALL_RESOLUTION_FN);
@@ -1734,12 +1761,6 @@ static int nexus_rank(rt_nexus_t *nexus)
    }
    else
       return 0;
-}
-
-static void __model_exit(rt_model_t **m)
-{
-   assert(__model == *m);
-   __model = *m = NULL;
 }
 
 static void reset_coverage(rt_model_t *m)
@@ -2803,108 +2824,6 @@ void x_alias_signal(sig_shared_t *ss, tree_t where)
    active_scope->aliases = a;
 }
 
-void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
-                   int64_t hint_left, int64_t hint_right, int8_t hint_valid,
-                   tree_t where)
-{
-   // LRM 93 section 8.2
-   // The error message consists of at least
-   // a) An indication that this message is from an assertion
-   // b) The value of the severity level
-   // c) The value of the message string
-   // d) The name of the design unit containing the assertion
-
-   assert(severity <= SEVERITY_FAILURE);
-
-   static const char *levels[] = {
-      "Note", "Warning", "Error", "Failure"
-   };
-
-   rt_model_t *m = get_model();
-
-   if (m->side_effect != SIDE_EFFECT_ALLOW) {
-      m->side_effect = SIDE_EFFECT_OCCURRED;
-      return;
-   }
-
-   char tmbuf[64];
-   fmt_now(m, tmbuf, sizeof(tmbuf));
-
-   const diag_level_t level = diag_severity(severity);
-
-   diag_t *d = diag_new(level, tree_loc(where));
-   if (msg == NULL)
-      diag_printf(d, "%s: Assertion %s: Assertion violation.",
-                  tmbuf, levels[severity]);
-   else {
-      diag_printf(d, "%s: Assertion %s: %.*s",
-                  tmbuf, levels[severity], msg_len, msg);
-
-      // Assume we don't want to dump the source code if the user
-      // provided their own message
-      diag_show_source(d, false);
-   }
-
-   if (hint_valid) {
-      assert(tree_kind(where) == T_FCALL);
-      type_t p0_type = tree_type(tree_value(tree_param(where, 0)));
-      type_t p1_type = tree_type(tree_value(tree_param(where, 1)));
-
-      LOCAL_TEXT_BUF tb = tb_new();
-      to_string(tb, p0_type, hint_left);
-      switch (tree_subkind(tree_ref(where))) {
-      case S_SCALAR_EQ:  tb_cat(tb, " = "); break;
-      case S_SCALAR_NEQ: tb_cat(tb, " /= "); break;
-      case S_SCALAR_LT:  tb_cat(tb, " < "); break;
-      case S_SCALAR_GT:  tb_cat(tb, " > "); break;
-      case S_SCALAR_LE:  tb_cat(tb, " <= "); break;
-      case S_SCALAR_GE:  tb_cat(tb, " >= "); break;
-      default: tb_cat(tb, " <?> "); break;
-      }
-      to_string(tb, p1_type, hint_right);
-      tb_cat(tb, " is false");
-
-      diag_hint(d, tree_loc(where), "%s", tb_get(tb));
-   }
-
-   jit_diag_trace(d);
-   diag_emit(d);
-
-   if (level == DIAG_FATAL)
-      jit_abort(EXIT_FAILURE);
-}
-
-void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
-              tree_t where)
-{
-   assert(severity <= SEVERITY_FAILURE);
-
-   static const char *levels[] = {
-      "Note", "Warning", "Error", "Failure"
-   };
-
-   rt_model_t *m = get_model();
-
-   if (m->side_effect != SIDE_EFFECT_ALLOW) {
-      m->side_effect = SIDE_EFFECT_OCCURRED;
-      return;
-   }
-
-   char tmbuf[64];
-   fmt_now(m, tmbuf, sizeof(tmbuf));
-
-   const diag_level_t level = diag_severity(severity);
-
-   diag_t *d = diag_new(level, tree_loc(where));
-   diag_printf(d, "%s: Report %s: %.*s", tmbuf, levels[severity], msg_len, msg);
-   diag_show_source(d, false);
-   jit_diag_trace(d);
-   diag_emit(d);
-
-   if (level == DIAG_FATAL)
-      jit_abort(EXIT_FAILURE);
-}
-
 void x_claim_tlab(void)
 {
    TRACE("claiming TLAB for private use (used %zu/%d)",
@@ -3212,7 +3131,7 @@ sig_shared_t *x_implicit_signal(uint32_t count, uint32_t size, tree_t where,
    imp->wakeable.kind = W_IMPLICIT;
 
    int8_t r;
-   ffi_call(imp->closure, NULL, 0, &r, sizeof(r));
+   jit_ffi_call(m->jit, imp->closure, NULL, 0, &r, sizeof(r), false);
 
    assert(size * count == 1);
    memcpy(imp->signal.shared.data, &r, imp->signal.shared.size);

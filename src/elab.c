@@ -1140,10 +1140,10 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
 
    if (error_count() == 0) {
       bounds_check(b);
-      diag_set_hint_fn(elab_hint_fn, t);
+      diag_add_hint_fn(elab_hint_fn, t);
       simplify_global(arch_copy, new_ctx.generics, ctx->eval);
       bounds_check(arch_copy);
-      diag_set_hint_fn(NULL, NULL);
+      diag_remove_hint_fn(elab_hint_fn);
    }
 
    if (error_count() == 0)

@@ -2203,6 +2203,43 @@ static void irgen_op_init_signal(jit_irgen_t *g, int op)
    j_mov(g, next, jit_value_from_int64(0));
 }
 
+static void irgen_op_alias_signal(jit_irgen_t *g, int op)
+{
+   jit_value_t shared = irgen_get_arg(g, op, 0);
+   jit_value_t locus  = irgen_get_arg(g, op, 1);
+
+   j_send(g, 0, shared);
+   j_send(g, 1, locus);
+
+   macro_exit(g, JIT_EXIT_ALIAS_SIGNAL);
+}
+
+static void irgen_op_map_signal(jit_irgen_t *g, int op)
+{
+   jit_value_t src_ss    = irgen_get_arg(g, op, 0);
+   jit_value_t src_off   = jit_value_from_reg(jit_value_as_reg(src_ss) + 1);
+   jit_value_t dst_ss    = irgen_get_arg(g, op, 1);
+   jit_value_t dst_off   = jit_value_from_reg(jit_value_as_reg(dst_ss) + 1);
+   jit_value_t src_count = irgen_get_arg(g, op, 2);
+   jit_value_t dst_count = irgen_get_arg(g, op, 3);
+
+   jit_value_t closure;
+   if (vcode_count_args(op) == 5)
+      closure = irgen_get_arg(g, op, 4);
+   else
+      closure = jit_null_ptr();
+
+   j_send(g, 0, src_ss);
+   j_send(g, 1, src_off);
+   j_send(g, 2, dst_ss);
+   j_send(g, 3, dst_off);
+   j_send(g, 4, src_count);
+   j_send(g, 5, dst_count);
+   j_send(g, 6, closure);
+
+   macro_exit(g, JIT_EXIT_MAP_SIGNAL);
+}
+
 static void irgen_op_resolve_signal(jit_irgen_t *g, int op)
 {
    // No-op
@@ -2790,6 +2827,12 @@ static void irgen_block(jit_irgen_t *g, vcode_block_t block)
          break;
       case VCODE_OP_INIT_SIGNAL:
          irgen_op_init_signal(g, i);
+         break;
+      case VCODE_OP_ALIAS_SIGNAL:
+         irgen_op_alias_signal(g, i);
+         break;
+      case VCODE_OP_MAP_SIGNAL:
+         irgen_op_map_signal(g, i);
          break;
       case VCODE_OP_RESOLVE_SIGNAL:
          irgen_op_resolve_signal(g, i);

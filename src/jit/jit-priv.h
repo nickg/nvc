@@ -125,6 +125,8 @@ typedef enum {
    JIT_EXIT_STRING_TO_REAL,
    JIT_EXIT_CANON_VALUE,
    JIT_EXIT_DEBUG_OUT,
+   JIT_EXIT_ALIAS_SIGNAL,
+   JIT_EXIT_MAP_SIGNAL,
 } jit_exit_t;
 
 typedef uint16_t jit_reg_t;
@@ -203,7 +205,7 @@ const char *jit_op_name(jit_op_t op);
 const char *jit_exit_name(jit_exit_t exit);
 bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge);
 void jit_interp_abort(int code);
-void jit_interp_diag_trace(diag_t *d);
+void jit_interp_trace(diag_t *d);
 void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
                     const char *symbol);
 jit_func_t *jit_get_func(jit_t *j, jit_handle_t handle);
@@ -211,7 +213,6 @@ void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
                  const void *highlight, const char *prefix);
 void *jit_get_privdata(jit_t *j, jit_func_t *f);
 void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr);
-bool jit_show_errors(jit_t *j);
 bool jit_has_runtime(jit_t *j);
 
 #endif  // _JIT_PRIV_H

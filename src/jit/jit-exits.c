@@ -404,6 +404,85 @@ ffi_uarray_t x_real_to_string(double value, char *buf, size_t max)
    return ffi_wrap_str(buf, len);
 }
 
+void x_report(const uint8_t *msg, int32_t msg_len, int8_t severity,
+              tree_t where)
+{
+   assert(severity <= SEVERITY_FAILURE);
+
+   static const char *levels[] = {
+      "Note", "Warning", "Error", "Failure"
+   };
+
+   const diag_level_t level = diag_severity(severity);
+
+   diag_t *d = diag_new(level, tree_loc(where));
+   diag_printf(d, "Report %s: %.*s", levels[severity], msg_len, msg);
+   diag_show_source(d, false);
+   diag_emit(d);
+
+   if (level == DIAG_FATAL)
+      jit_abort(EXIT_FAILURE);
+}
+
+void x_assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
+                   int64_t hint_left, int64_t hint_right, int8_t hint_valid,
+                   tree_t where)
+{
+   // LRM 93 section 8.2
+   // The error message consists of at least
+   // a) An indication that this message is from an assertion
+   // b) The value of the severity level
+   // c) The value of the message string
+   // d) The name of the design unit containing the assertion
+
+   assert(severity <= SEVERITY_FAILURE);
+
+   static const char *levels[] = {
+      "Note", "Warning", "Error", "Failure"
+   };
+
+   const diag_level_t level = diag_severity(severity);
+
+   diag_t *d = diag_new(level, tree_loc(where));
+   if (msg == NULL)
+      diag_printf(d, "Assertion %s: Assertion violation.", levels[severity]);
+   else {
+      diag_printf(d, "Assertion %s: %.*s", levels[severity], msg_len, msg);
+
+      // Assume we don't want to dump the source code if the user
+      // provided their own message
+      diag_show_source(d, false);
+   }
+
+   if (hint_valid) {
+      assert(tree_kind(where) == T_FCALL);
+      type_t p0_type = tree_type(tree_value(tree_param(where, 0)));
+      type_t p1_type = tree_type(tree_value(tree_param(where, 1)));
+
+      LOCAL_TEXT_BUF tb = tb_new();
+      to_string(tb, p0_type, hint_left);
+      switch (tree_subkind(tree_ref(where))) {
+      case S_SCALAR_EQ:  tb_cat(tb, " = "); break;
+      case S_SCALAR_NEQ: tb_cat(tb, " /= "); break;
+      case S_SCALAR_LT:  tb_cat(tb, " < "); break;
+      case S_SCALAR_GT:  tb_cat(tb, " > "); break;
+      case S_SCALAR_LE:  tb_cat(tb, " <= "); break;
+      case S_SCALAR_GE:  tb_cat(tb, " >= "); break;
+      default: tb_cat(tb, " <?> "); break;
+      }
+      to_string(tb, p1_type, hint_right);
+      tb_cat(tb, " is false");
+
+      diag_hint(d, tree_loc(where), "%s", tb_get(tb));
+   }
+
+   diag_emit(d);
+
+   if (level == DIAG_FATAL)
+      jit_abort(EXIT_FAILURE);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // Entry points from compiled code
 
