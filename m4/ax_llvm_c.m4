@@ -92,6 +92,10 @@ AC_DEFUN([AX_LLVM_C], [
                          [Have LLVMBuildMemSet])
     fi
 
+    if test "$llvm_ver_num" -ge "160"; then
+      AC_MSG_ERROR([LLVM version 16.0 or later not yet supported])
+    fi
+
     if test "$llvm_ver_num" -ge "100"; then
       AC_DEFINE_UNQUOTED(LLVM_HAVE_DI_SCOPE_GET_FILE, [1],
                          [Have LLVMDIScopeGetFile])
@@ -102,6 +106,16 @@ AC_DEFUN([AX_LLVM_C], [
     if test "$llvm_ver_num" -ge "110"; then
       AC_DEFINE_UNQUOTED(LLVM_CREATE_CU_HAS_SYSROOT, [1],
                          [LLVMDIBuilderCreateCompileUnit has SysRoot parameter])
+    fi
+
+    if test "$llvm_ver_num" -ge "150"; then
+      AC_DEFINE_UNQUOTED(LLVM_HAS_OPAQUE_POINTERS, [1],
+                         [LLVM uses opaque pointers by default])
+    fi
+
+    if test "$llvm_ver_num" -ge "150"; then
+      AC_DEFINE_UNQUOTED(LLVM_UWTABLE_HAS_ARGUMENT, [1],
+                         [LLVM uwtable attribute takes an argument])
     fi
 
     LLVM_OBJ_EXT="o"

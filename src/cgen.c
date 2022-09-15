@@ -447,8 +447,8 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
    }
    else {
       const char *names[] = {
-         "nounwind", "noreturn", "readonly", "nocapture", "byval", "uwtable",
-         "noinline", "writeonly", "nonnull", "cold", "optnone",
+         "nounwind", "noreturn", "readonly", "nocapture", "byval",
+         "uwtable", "noinline", "writeonly", "nonnull", "cold", "optnone",
       };
       assert(attr < ARRAY_LEN(names));
 
@@ -457,7 +457,12 @@ static void cgen_add_func_attr(LLVMValueRef fn, func_attr_t attr, int param)
       if (kind == 0)
          fatal_trace("Cannot get LLVM attribute for %s", names[attr]);
 
-      ref = LLVMCreateEnumAttribute(llvm_context(), kind, 0);
+#ifdef LLVM_UWTABLE_HAS_ARGUMENT
+      if (attr == FUNC_ATTR_UWTABLE)
+         ref = LLVMCreateEnumAttribute(llvm_context(), kind, 2);
+      else
+#endif
+         ref = LLVMCreateEnumAttribute(llvm_context(), kind, 0);
    }
 
    LLVMAddAttributeAtIndex(fn, param, ref);
@@ -5298,6 +5303,10 @@ static void *cgen_worker_thread(void *__arg)
    cgen_thread_params_t *params = __arg;
 
    thread_context = LLVMContextCreate();
+
+#if LLVM_HAS_OPAQUE_POINTERS
+   LLVMContextSetOpaquePointers(thread_context, false);
+#endif
 
    char *def_triple = LLVMGetDefaultTargetTriple();
    char *error;

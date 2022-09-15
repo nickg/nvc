@@ -1,6 +1,7 @@
 ## Unreleased changes
 - Fixed build on FreeBSD/arm (#534).
 - Fixed crash with generic package instantiation (#520).
+- Now compatible with LLVM 15.0.
 
 ## Version 1.7.1 - 2022-08-31
 - Added missing textio `WRITE [LINE, REAL, STRING]` in VHDL-2008.
