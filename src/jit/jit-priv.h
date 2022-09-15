@@ -176,6 +176,8 @@ typedef struct {
 
 STATIC_ASSERT(sizeof(jit_ir_t) == 40);
 
+typedef struct _jit_tier jit_tier_t;
+
 typedef struct {
    jit_t         *jit;
    vcode_unit_t   unit;
@@ -192,6 +194,8 @@ typedef struct {
    unsigned       cpoolsz;
    jit_handle_t   handle;
    void          *symbol;
+   unsigned       hotness;
+   jit_tier_t    *next_tier;
 } jit_func_t;
 
 #define JIT_MAX_ARGS 64
@@ -214,5 +218,6 @@ void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
 void *jit_get_privdata(jit_t *j, jit_func_t *f);
 void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr);
 bool jit_has_runtime(jit_t *j);
+void jit_tier_up(jit_func_t *f);
 
 #endif  // _JIT_PRIV_H

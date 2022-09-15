@@ -59,6 +59,12 @@ bin_jitperf_LDADD = \
 	lib/libfastlz.a \
 	lib/libcpustate.a
 
+if ENABLE_LLVM
+bin_jitperf_LDADD += \
+	lib/libcgen.a \
+	$(LLVM_LIBS)
+endif
+
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \
 	LIB_DIR=$(abs_top_builddir)/lib \

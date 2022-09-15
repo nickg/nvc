@@ -91,6 +91,11 @@ AC_DEFUN([AX_LLVM_C], [
       AC_MSG_ERROR([LLVM version 16.0 or later not yet supported])
     fi
 
+    # Minimum version should be 9.0 but I've not tested 9..12
+    if test "$llvm_ver_num" -ge "130"; then
+      AC_DEFINE_UNQUOTED(LLVM_HAS_LLJIT, [1], [LLVM has LLJIT API])
+    fi
+
     if test "$llvm_ver_num" -ge "100"; then
       AC_DEFINE_UNQUOTED(LLVM_HAVE_DI_SCOPE_GET_FILE, [1],
                          [Have LLVMDIScopeGetFile])

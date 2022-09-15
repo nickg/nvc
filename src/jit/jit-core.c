@@ -58,6 +58,13 @@ typedef void *module_t;
 typedef A(jit_func_t *) func_array_t;
 typedef A(module_t) module_array_t;
 
+typedef struct _jit_tier {
+   jit_tier_t    *next;
+   int            threshold;
+   jit_plugin_t   plugin;
+   void          *context;
+} jit_tier_t;
+
 typedef struct _jit {
    func_array_t    funcs;
    hash_t         *index;
@@ -70,6 +77,7 @@ typedef struct _jit {
    unsigned        backedge;
    module_array_t  modules;
    int             exit_status;
+   jit_tier_t     *tiers;
 } jit_t;
 
 typedef enum {
@@ -135,6 +143,12 @@ void jit_free(jit_t *j)
       while (hash_iter(j->layouts, &it, &key, &value))
          free(value);
       hash_free(j->layouts);
+   }
+
+   for (jit_tier_t *it = j->tiers, *tmp; it; it = tmp) {
+      tmp = it->next;
+      (*it->plugin.cleanup)(it->context);
+      free(it);
    }
 
    mspace_destroy(j->mspace);
@@ -207,11 +221,13 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
 
    f = xcalloc(sizeof(jit_func_t));
 
-   f->name   = alias ?: name;
-   f->unit   = vu;
-   f->symbol = symbol;
-   f->jit    = j;
-   f->handle = j->funcs.count;
+   f->name      = alias ?: name;
+   f->unit      = vu;
+   f->symbol    = symbol;
+   f->jit       = j;
+   f->handle    = j->funcs.count;
+   f->next_tier = j->tiers;
+   f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
 
    if (vu) hash_put(j->index, vu, f);
    hash_put(j->index, name, f);
@@ -854,4 +870,26 @@ void jit_reset_exit_status(jit_t *j)
 int jit_exit_status(jit_t *j)
 {
    return j->exit_status;
+}
+
+void jit_tier_up(jit_func_t *f)
+{
+   assert(f->hotness <= 0);
+   assert(f->next_tier != NULL);
+
+   (*f->next_tier->plugin.cgen)(f->jit, f->handle, f->next_tier->context);
+
+   f->hotness   = 0;
+   f->next_tier = NULL;
+}
+
+void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin)
+{
+   jit_tier_t *t = xcalloc(sizeof(jit_tier_t));
+   t->next      = j->tiers;
+   t->threshold = threshold;
+   t->plugin    = *plugin;
+   t->context   = (*plugin->init)();
+
+   j->tiers = t;
 }

@@ -56,6 +56,12 @@ typedef struct {
 
 typedef vcode_unit_t (*jit_lower_fn_t)(ident_t, void *);
 
+typedef struct {
+   void *(*init)(void);
+   void (*cgen)(jit_t *, jit_handle_t, void *);
+   void (*cleanup)(void *);
+} jit_plugin_t;
+
 jit_t *jit_new(void);
 void jit_free(jit_t *j);
 jit_handle_t jit_compile(jit_t *j, ident_t name);
@@ -73,6 +79,7 @@ void *jit_find_symbol(jit_t *j, ident_t name);
 int jit_exit_status(jit_t *j);
 void jit_set_exit_status(jit_t *j, int code);
 void jit_reset_exit_status(jit_t *j);
+void jit_add_tier(jit_t *j, int threshold, const jit_plugin_t *plugin);
 
 jit_scalar_t jit_call(jit_t *j, ident_t func, void *context,
                       const char *fmt, ...);

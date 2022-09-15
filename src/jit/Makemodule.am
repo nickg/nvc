@@ -7,3 +7,7 @@ lib_libnvc_a_SOURCES += \
 	src/jit/jit-interp.c \
 	src/jit/jit-exits.h \
 	src/jit/jit-exits.c
+
+if ENABLE_LLVM
+lib_libcgen_a_SOURCES += src/jit/jit-llvm.c
+endif

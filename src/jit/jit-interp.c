@@ -1373,6 +1373,9 @@ bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge)
    if (f->irbuf == NULL)
       jit_irgen(f);
 
+   if (f->next_tier && --(f->hotness) <= 0)
+      jit_tier_up(f);
+
    // Using VLAs here as we need these allocated on the stack so the
    // mspace GC can scan them
    jit_scalar_t regs[f->nregs];
