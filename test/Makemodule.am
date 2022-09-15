@@ -4,7 +4,7 @@ TESTS = \
 
 check_PROGRAMS += $(TESTS) bin/fstdump
 
-EXTRA_PROGRAMS += bin/lockbench
+EXTRA_PROGRAMS += bin/lockbench bin/jitperf
 
 bin_unit_test_SOURCES = \
 	test/test_util.c \
@@ -46,6 +46,14 @@ bin_fstdump_LDADD = lib/libfst.a lib/libfastlz.a
 bin_lockbench_SOURCES = test/lockbench.c
 
 bin_lockbench_LDADD = \
+	lib/libnvc.a \
+	$(libdw_LIBS) \
+	lib/libfastlz.a \
+	lib/libcpustate.a
+
+bin_jitperf_SOURCES = test/jitperf.c
+
+bin_jitperf_LDADD = \
 	lib/libnvc.a \
 	$(libdw_LIBS) \
 	lib/libfastlz.a \

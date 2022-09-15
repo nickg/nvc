@@ -26,6 +26,10 @@ jobs:
         run: ASAN_OPTIONS=detect_leaks=0 make -C build
       - name: Test
         run: ASAN_OPTIONS=detect_leaks=0 make -C build check
+      - name: JIT benchmarks
+        run: |
+          make -C build bin/jitperf
+          ./build/bin/jitperf -L build/lib/ test/perf/simple.vhd
       - name: Coverage report
         run: make -C build cov-generate
       - name: Coveralls
