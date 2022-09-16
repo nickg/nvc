@@ -597,7 +597,7 @@ static void interp_call(jit_interp_t *state, jit_ir_t *ir)
       state->abort = true;
    else {
       jit_func_t *f = jit_get_func(state->func->jit, ir->arg1.handle);
-      if (!jit_interp(f, state->args, state->nargs, state->backedge))
+      if (!(*f->entry)(f, state->args))
          state->abort = true;
    }
 }
@@ -1368,7 +1368,7 @@ static void interp_loop(jit_interp_t *state)
    } while (!state->abort);
 }
 
-bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge)
+bool jit_interp(jit_func_t *f, jit_scalar_t *args)
 {
    if (f->irbuf == NULL)
       jit_irgen(f);
@@ -1389,12 +1389,12 @@ bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge)
    jit_interp_t state = {
       .args     = args,
       .regs     = regs,
-      .nargs    = nargs,
+      .nargs    = 0,
       .pc       = 0,
       .func     = f,
       .frame    = frame,
       .mspace   = jit_get_mspace(f->jit),
-      .backedge = backedge,
+      .backedge = jit_backedge_limit(f->jit),
       .caller   = call_stack,
    };
 

@@ -177,25 +177,29 @@ typedef struct {
 STATIC_ASSERT(sizeof(jit_ir_t) == 40);
 
 typedef struct _jit_tier jit_tier_t;
+typedef struct _jit_func jit_func_t;
 
-typedef struct {
-   jit_t         *jit;
-   vcode_unit_t   unit;
-   ident_t        name;
-   unsigned      *varoff;
-   mptr_t         privdata;
-   jit_ir_t      *irbuf;
-   unsigned char *cpool;
-   unsigned       framesz;
-   unsigned       nirs;
-   unsigned       bufsz;
-   unsigned       nregs;
-   unsigned       nvars;
-   unsigned       cpoolsz;
-   jit_handle_t   handle;
-   void          *symbol;
-   unsigned       hotness;
-   jit_tier_t    *next_tier;
+typedef bool (*jit_entry_fn_t)(jit_func_t *, jit_scalar_t *);
+
+typedef struct _jit_func {
+   jit_t          *jit;
+   vcode_unit_t    unit;
+   ident_t         name;
+   unsigned       *varoff;
+   mptr_t          privdata;
+   jit_ir_t       *irbuf;
+   unsigned char  *cpool;
+   unsigned        framesz;
+   unsigned        nirs;
+   unsigned        bufsz;
+   unsigned        nregs;
+   unsigned        nvars;
+   unsigned        cpoolsz;
+   jit_handle_t    handle;
+   void           *symbol;
+   unsigned        hotness;
+   jit_tier_t     *next_tier;
+   jit_entry_fn_t  entry;
 } jit_func_t;
 
 #define JIT_MAX_ARGS 64
@@ -207,7 +211,7 @@ void jit_dump(jit_func_t *f);
 void jit_dump_with_mark(jit_func_t *f, jit_label_t label, bool cpool);
 const char *jit_op_name(jit_op_t op);
 const char *jit_exit_name(jit_exit_t exit);
-bool jit_interp(jit_func_t *f, jit_scalar_t *args, int nargs, int backedge);
+bool jit_interp(jit_func_t *f, jit_scalar_t *args);
 void jit_interp_abort(int code);
 void jit_interp_trace(diag_t *d);
 void jit_emit_trace(diag_t *d, const loc_t *loc, tree_t enclosing,
@@ -218,6 +222,7 @@ void jit_hexdump(const unsigned char *data, size_t sz, int blocksz,
 void *jit_get_privdata(jit_t *j, jit_func_t *f);
 void jit_put_privdata(jit_t *j, jit_func_t *f, void *ptr);
 bool jit_has_runtime(jit_t *j);
+int jit_backedge_limit(jit_t *j);
 void jit_tier_up(jit_func_t *f);
 
 #endif  // _JIT_PRIV_H

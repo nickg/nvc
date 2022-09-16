@@ -228,6 +228,7 @@ jit_handle_t jit_lazy_compile(jit_t *j, ident_t name)
    f->handle    = j->funcs.count;
    f->next_tier = j->tiers;
    f->hotness   = f->next_tier ? f->next_tier->threshold : 0;
+   f->entry     = jit_interp;
 
    if (vu) hash_put(j->index, vu, f);
    hash_put(j->index, name, f);
@@ -279,7 +280,7 @@ void *jit_link(jit_t *j, jit_handle_t handle)
    const loc_t *loc = vcode_unit_loc();
 
    jit_scalar_t args[JIT_MAX_ARGS] = { { .pointer = NULL } };
-   if (!jit_interp(f, args, 1, 0)) {
+   if (!jit_interp(f, args)) {
       error_at(loc, "failed to initialise %s", istr(f->name));
       args[0].pointer = NULL;
    }
@@ -449,7 +450,8 @@ static bool jit_try_vcall(jit_t *j, ident_t func, bool pcall, void *state,
 
    jit_transition(j, JIT_IDLE, JIT_INTERP);
 
-   bool ok = jit_interp(jit_get_func(j, handle), args, nargs, 0);
+   jit_func_t *f = jit_get_func(j, handle);
+   bool ok = (*f->entry)(f, args);
 
    jit_transition(j, JIT_INTERP, JIT_IDLE);
 
@@ -521,7 +523,7 @@ bool jit_call_thunk(jit_t *j, vcode_unit_t unit, jit_scalar_t *result)
    jit_transition(j, JIT_IDLE, JIT_INTERP);
 
    jit_scalar_t args[JIT_MAX_ARGS];
-   bool ok = jit_interp(f, args, 0, j->backedge);
+   bool ok = jit_interp(f, args);
 
    jit_transition(j, JIT_INTERP, JIT_IDLE);
 
@@ -560,7 +562,7 @@ bool jit_fastcall(jit_t *j, jit_handle_t handle, jit_scalar_t *result,
    else {
       jit_transition(j, JIT_IDLE, JIT_INTERP);
       jit_scalar_t args[JIT_MAX_ARGS] = { p1, p2 };
-      bool ok = jit_interp(f, args, 2, 0);
+      bool ok = jit_interp(f, args);
       *result = args[0];
       jit_transition(j, JIT_INTERP, JIT_IDLE);
       return ok;
@@ -738,6 +740,11 @@ void jit_enable_runtime(jit_t *j, bool enable)
 bool jit_has_runtime(jit_t *j)
 {
    return j->runtime;
+}
+
+int jit_backedge_limit(jit_t *j)
+{
+   return j->backedge;
 }
 
 void jit_load_dll(jit_t *j, ident_t name)
