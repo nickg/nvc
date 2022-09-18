@@ -62,6 +62,16 @@ typedef enum {
    LLVM_ADD_OVERFLOW_U32,
    LLVM_ADD_OVERFLOW_U64,
 
+   LLVM_MUL_OVERFLOW_S8,
+   LLVM_MUL_OVERFLOW_S16,
+   LLVM_MUL_OVERFLOW_S32,
+   LLVM_MUL_OVERFLOW_S64,
+
+   LLVM_MUL_OVERFLOW_U8,
+   LLVM_MUL_OVERFLOW_U16,
+   LLVM_MUL_OVERFLOW_U32,
+   LLVM_MUL_OVERFLOW_U64,
+
    LLVM_LAST_FN,
 } llvm_fn_t;
 
@@ -187,6 +197,50 @@ static LLVMValueRef cgen_get_fn(cgen_req_t *req, llvm_fn_t which)
             "llvm.uadd.with.overflow.i16",
             "llvm.uadd.with.overflow.i32",
             "llvm.uadd.with.overflow.i64"
+         };
+         fn = LLVMAddFunction(req->module, names[sz], req->fntypes[which]);
+      }
+      break;
+
+   case LLVM_MUL_OVERFLOW_S8:
+   case LLVM_MUL_OVERFLOW_S16:
+   case LLVM_MUL_OVERFLOW_S32:
+   case LLVM_MUL_OVERFLOW_S64:
+      {
+         jit_size_t sz = which - LLVM_MUL_OVERFLOW_S8;
+         LLVMTypeRef int_type = req->types[LLVM_INT8 + sz];
+         LLVMTypeRef pair_type = cgen_get_type(req, LLVM_PAIR_I8_I1 + sz);
+         LLVMTypeRef args[] = { int_type, int_type };
+         req->fntypes[which] = LLVMFunctionType(pair_type, args,
+                                                ARRAY_LEN(args), false);
+
+         static const char *names[] = {
+            "llvm.smul.with.overflow.i8",
+            "llvm.smul.with.overflow.i16",
+            "llvm.smul.with.overflow.i32",
+            "llvm.smul.with.overflow.i64"
+         };
+         fn = LLVMAddFunction(req->module, names[sz], req->fntypes[which]);
+      }
+      break;
+
+   case LLVM_MUL_OVERFLOW_U8:
+   case LLVM_MUL_OVERFLOW_U16:
+   case LLVM_MUL_OVERFLOW_U32:
+   case LLVM_MUL_OVERFLOW_U64:
+      {
+         jit_size_t sz = which - LLVM_MUL_OVERFLOW_U8;
+         LLVMTypeRef int_type = req->types[LLVM_INT8 + sz];
+         LLVMTypeRef pair_type = cgen_get_type(req, LLVM_PAIR_I8_I1 + sz);
+         LLVMTypeRef args[] = { int_type, int_type };
+         req->fntypes[which] = LLVMFunctionType(pair_type, args,
+                                                ARRAY_LEN(args), false);
+
+         static const char *names[] = {
+            "llvm.umul.with.overflow.i8",
+            "llvm.umul.with.overflow.i16",
+            "llvm.umul.with.overflow.i32",
+            "llvm.umul.with.overflow.i64"
          };
          fn = LLVMAddFunction(req->module, names[sz], req->fntypes[which]);
       }
@@ -331,6 +385,30 @@ static void cgen_op_store(cgen_req_t *req, jit_ir_t *ir)
    LLVMBuildStore(req->builder, trunc, ptr);
 }
 
+static void cgen_op_load(cgen_req_t *req, jit_ir_t *ir)
+{
+   LLVMValueRef ptr = cgen_get_value(req, ir->arg1);
+
+   LLVMValueRef result;
+   switch (ir->size) {
+   case JIT_SZ_8:
+      result = LLVMBuildLoad2(req->builder, req->types[LLVM_INT8], ptr, "");
+      break;
+   case JIT_SZ_16:
+      result = LLVMBuildLoad2(req->builder, req->types[LLVM_INT16], ptr, "");
+      break;
+   case JIT_SZ_32:
+      result = LLVMBuildLoad2(req->builder, req->types[LLVM_INT32], ptr, "");
+      break;
+   case JIT_SZ_64:
+   case JIT_SZ_UNSPEC:
+      result = LLVMBuildLoad2(req->builder, req->types[LLVM_INT64], ptr, "");
+      break;
+   }
+
+   cgen_store_reg(req, ir->result, result);
+}
+
 static void cgen_op_add(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    LLVMValueRef arg1 = cgen_get_value(req, ir->arg1);
@@ -358,6 +436,37 @@ static void cgen_op_add(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    }
    else
       result = LLVMBuildAdd(req->builder, arg1, arg2, "");
+
+   cgen_store_reg(req, ir->result, result);
+}
+
+static void cgen_op_mul(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(req, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(req, ir->arg2);
+
+   if (ir->size != JIT_SZ_UNSPEC) {
+      LLVMTypeRef int_type = req->types[LLVM_INT8 + ir->size];
+      arg1 = LLVMBuildTrunc(req->builder, arg1, int_type, "");
+      arg2 = LLVMBuildTrunc(req->builder, arg2, int_type, "");
+   }
+
+   llvm_fn_t fn = LLVM_LAST_FN;
+   if (ir->cc == JIT_CC_O)
+      fn = LLVM_MUL_OVERFLOW_S8 + ir->size;
+   else if (ir->cc == JIT_CC_C)
+      fn = LLVM_MUL_OVERFLOW_U8 + ir->size;
+
+   LLVMValueRef result;
+   if (fn != LLVM_LAST_FN) {
+      LLVMValueRef args[] = { arg1, arg2 };
+      LLVMValueRef pair = cgen_call_fn(req, fn, args, 2);
+
+      result = LLVMBuildExtractValue(req->builder, pair, 0, "");
+      cgb->outflags = LLVMBuildExtractValue(req->builder, pair, 1, "");
+   }
+   else
+      result = LLVMBuildMul(req->builder, arg1, arg2, "");
 
    cgen_store_reg(req, ir->result, result);
 }
@@ -392,6 +501,31 @@ static void cgen_op_jump(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    }
 }
 
+static void cgen_op_cmp(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef arg1 = cgen_get_value(req, ir->arg1);
+   LLVMValueRef arg2 = cgen_get_value(req, ir->arg2);
+
+   switch (ir->cc) {
+   case JIT_CC_EQ:
+      cgb->outflags = LLVMBuildICmp(req->builder, LLVMIntEQ, arg1, arg2, "");
+      break;
+   case JIT_CC_GT:
+      cgb->outflags = LLVMBuildICmp(req->builder, LLVMIntSGT, arg1, arg2, "");
+      break;
+   default:
+      jit_dump(req->func);
+      fatal_trace("unhandled cmp condition code");
+   }
+}
+
+static void cgen_op_cset(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
+{
+   LLVMValueRef result = LLVMBuildZExt(req->builder, cgb->outflags,
+                                       req->types[LLVM_INT64], "");
+   cgen_store_reg(req, ir->result, result);
+}
+
 static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
 {
    switch (ir->op) {
@@ -404,14 +538,26 @@ static void cgen_ir(cgen_req_t *req, cgen_block_t *cgb, jit_ir_t *ir)
    case J_STORE:
       cgen_op_store(req, ir);
       break;
+   case J_LOAD:
+      cgen_op_load(req, ir);
+      break;
    case J_ADD:
       cgen_op_add(req, cgb, ir);
+      break;
+   case J_MUL:
+      cgen_op_mul(req, cgb, ir);
       break;
    case J_RET:
       cgen_op_ret(req, ir);
       break;
    case J_JUMP:
       cgen_op_jump(req, cgb, ir);
+      break;
+   case J_CMP:
+      cgen_op_cmp(req, cgb, ir);
+      break;
+   case J_CSET:
+      cgen_op_cset(req, cgb, ir);
       break;
    default:
       warnf("cannot generate LLVM for %s", jit_op_name(ir->op));

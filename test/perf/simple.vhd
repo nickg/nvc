@@ -1,9 +1,26 @@
 package simple is
+    procedure test_add2;
     procedure test_fact;
     procedure test_sum;
 end package;
 
 package body simple is
+
+    function add2 (n : integer) return integer is
+    begin
+        return n + 2;
+    end function;
+
+    procedure test_add2 is
+        variable sum : integer := 0;
+    begin
+        for i in 1 to 100 loop
+            sum := sum + add2(i);
+        end loop;
+        assert sum = 5250;
+    end procedure;
+
+    ---------------------------------------------------------------------------
 
     function fact (n : integer) return integer is
         variable r : integer := 1;
@@ -15,11 +32,12 @@ package body simple is
     end function;
 
     procedure test_fact is
-        variable sum : integer;
+        variable sum : integer := 0;
     begin
         for i in 1 to 12 loop
             sum := sum + fact(i);
         end loop;
+        assert sum = 522956313;
     end procedure;
 
     ---------------------------------------------------------------------------
